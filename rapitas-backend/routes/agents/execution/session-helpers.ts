@@ -24,7 +24,7 @@ const log = createLogger('routes:agent-execution:helpers');
  */
 export async function updateSessionStatusWithRetry(
   sessionId: number,
-  status: 'completed' | 'failed',
+  status: 'completed' | 'failed' | 'interrupted',
   logPrefix: string = '',
   maxRetries: number = 3,
 ): Promise<void> {

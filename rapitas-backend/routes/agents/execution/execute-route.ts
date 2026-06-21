@@ -32,6 +32,7 @@ import {
   taskNeedsDependencies,
 } from '../../../services/agents/orchestrator/git-operations/dependency-installer';
 import type { AttachmentDescriptor } from './instruction-builder';
+import { isShutdownError, handleShutdownInterruption } from './shutdown-error-handler';
 
 const log = createLogger('routes:agent-execution:execute');
 const agentWorkerManager = AgentWorkerManager.getInstance();
@@ -638,6 +639,13 @@ export const executeRoute = new Elysia().post(
         }),
       )
       .catch(async (error) => {
+        if (isShutdownError(error)) {
+          await handleShutdownInterruption({
+            sessionId: session.id,
+            logPrefix: `[API] task ${taskIdNum}`,
+          });
+          return;
+        }
         log.error({ err: error }, `[API] Execution error for task ${taskIdNum}`);
         await prisma.task
           .update({ where: { id: taskIdNum }, data: { status: 'todo' } })

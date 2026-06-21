@@ -13,6 +13,7 @@ import { orchestrator } from '../../../services/core/orchestrator-instance';
 import { toJsonString, fromJsonString } from '../../../utils/database/db-helpers';
 import type { SubtaskProposal } from '../../../services/claude-agent';
 import { resolveAgentForTask } from '../../../services/workflow/role-resolver';
+import { isShutdownError } from '../execution/shutdown-error-handler';
 
 const log = createLogger('routes:approvals:bulk-approve');
 
@@ -156,7 +157,15 @@ export const bulkApproveRoutes = new Elysia()
                 });
               }
             })
-            .catch((err) => log.error({ err }, 'Async operation failed'));
+            .catch((err) => {
+              if (isShutdownError(err)) {
+                log.warn(
+                  `[bulk-approve] Server is shutting down — skipping error log for task ${task.id}`,
+                );
+                return;
+              }
+              log.error({ err }, 'Async operation failed');
+            });
 
           results.push({ id, success: true, autoExecutionStarted: true });
         } else if (approval.requestType === 'subtask_creation') {

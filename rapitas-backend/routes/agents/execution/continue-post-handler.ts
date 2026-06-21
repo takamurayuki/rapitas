@@ -12,6 +12,7 @@ import { createLogger } from '../../../config/logger';
 import { AgentWorkerManager } from '../../../services/agents/agent-worker-manager';
 import { updateSessionStatusWithRetry } from './session-helpers';
 import { releaseTaskExecutionLock } from './execution-lock';
+import { isShutdownError, handleShutdownInterruption } from './shutdown-error-handler';
 
 const log = createLogger('routes:agent-execution:continue-post');
 const agentWorkerManager = AgentWorkerManager.getInstance();
@@ -142,6 +143,15 @@ export async function handleContinueError(
   taskId: number,
   targetSessionId: number,
 ): Promise<void> {
+  if (isShutdownError(error)) {
+    await handleShutdownInterruption({
+      sessionId: targetSessionId,
+      logPrefix: '[continue-execution]',
+    });
+    releaseTaskExecutionLock(taskId);
+    return;
+  }
+
   log.error({ err: error }, `[continue-execution] Execution error for task ${taskId}`);
   await prisma.task
     .update({ where: { id: taskId }, data: { status: 'todo' } })

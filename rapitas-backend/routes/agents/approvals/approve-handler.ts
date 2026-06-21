@@ -15,6 +15,7 @@ import { toJsonString, fromJsonString } from '../../../utils/database/db-helpers
 import type { SubtaskProposal } from '../../../services/claude-agent';
 import { createSubtasksInTransaction } from './bulk-approve-handler';
 import { resolveAgentForTask } from '../../../services/workflow/role-resolver';
+import { isShutdownError } from '../execution/shutdown-error-handler';
 
 const log = createLogger('routes:approvals:approve');
 
@@ -138,6 +139,12 @@ export const approveRoutes = new Elysia()
           }
         })
         .catch(async (error) => {
+          if (isShutdownError(error)) {
+            log.warn(
+              `[approve] Server is shutting down — skipping error notification for task ${task.id}`,
+            );
+            return;
+          }
           log.error({ err: error }, 'Agent execution failed');
           await prisma.notification.create({
             data: {
