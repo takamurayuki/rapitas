@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { isExternalLink, handleExternalLinkClick } from '../external-links';
+import { isExternalLink, handleExternalLinkClick, setupExternalLinkHandlers } from '../external-links';
 
 // Mock tauri utils
 vi.mock('@/utils/tauri', () => ({
@@ -101,5 +101,55 @@ describe('handleExternalLinkClick', () => {
 
     handleExternalLinkClick(event, '/internal-page');
     expect(event.preventDefault).not.toHaveBeenCalled();
+  });
+});
+
+describe('setupExternalLinkHandlers', () => {
+  beforeEach(() => {
+    Object.defineProperty(window, 'location', {
+      value: { hostname: 'localhost' },
+      writable: true,
+    });
+    document.body.innerHTML = '';
+  });
+
+  it('registers a click handler on external links', () => {
+    const link = document.createElement('a');
+    link.href = 'https://example.com';
+    document.body.appendChild(link);
+
+    setupExternalLinkHandlers();
+
+    const handler = (link as HTMLAnchorElement & { __externalLinkHandler?: EventListener }).__externalLinkHandler;
+    expect(handler).toBeDefined();
+  });
+
+  // NOTE: Verifies the fix for HMR handler staleness — calling setup twice must not
+  // stack duplicate listeners (old handler removed before new one is added).
+  it('replaces old handler on second call (HMR simulation)', () => {
+    const link = document.createElement('a');
+    link.href = 'https://example.com';
+    document.body.appendChild(link);
+
+    setupExternalLinkHandlers();
+    const firstHandler = (link as HTMLAnchorElement & { __externalLinkHandler?: EventListener }).__externalLinkHandler;
+
+    setupExternalLinkHandlers();
+    const secondHandler = (link as HTMLAnchorElement & { __externalLinkHandler?: EventListener }).__externalLinkHandler;
+
+    // Handler reference must be renewed so the new module closure is used
+    expect(secondHandler).toBeDefined();
+    expect(secondHandler).not.toBe(firstHandler);
+  });
+
+  it('does not register a handler on internal links', () => {
+    const link = document.createElement('a');
+    link.href = '/internal-page';
+    document.body.appendChild(link);
+
+    setupExternalLinkHandlers();
+
+    const handler = (link as HTMLAnchorElement & { __externalLinkHandler?: EventListener }).__externalLinkHandler;
+    expect(handler).toBeUndefined();
   });
 });
