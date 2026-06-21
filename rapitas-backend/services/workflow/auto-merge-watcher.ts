@@ -136,6 +136,15 @@ async function readPrChecks(cwd: string, prNumber: number): Promise<PrCheck[] | 
         /* fall through */
       }
     }
+    // A PR whose branch has no CI configured exits non-zero with this exact
+    // stderr and empty stdout. That is NOT an error — treat it as "no checks
+    // reported yet" (→ 'unknown' → the pending/timeout path) instead of logging a
+    // WARN every 60s for every checkless PR (observed: #142/195/197-206 spamming).
+    const stderr = (err as { stderr?: string }).stderr ?? '';
+    if (/no checks reported/i.test(stderr)) {
+      log.debug({ prNumber }, '[auto-merge] PR has no checks reported (no CI on branch)');
+      return [];
+    }
     log.warn({ err, prNumber }, '[auto-merge] Failed to read PR checks');
     return null;
   }

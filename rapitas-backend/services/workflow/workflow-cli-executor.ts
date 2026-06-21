@@ -507,6 +507,28 @@ ${
     fullPrompt += `${cliT.prohibitions}\n${cliT.mandatory}`;
   }
 
+  // Implementation phase: the implementer must EDIT code, never produce a plan.
+  // In standard/comprehensive modes plan.md already exists (the plan phase wrote
+  // it); in lightweight mode the plan phase is intentionally skipped. Either way
+  // the implementer must NOT create plan.md — without this explicit override the
+  // agent followed CLAUDE.md's generic research→plan→implement step and wrote a
+  // plan.md for a lightweight task instead of implementing (observed: task 225,
+  // complexity 8 / lightweight, agent announced "plan.md を作成します").
+  if (isImplementationRole) {
+    fullPrompt +=
+      language === 'ja'
+        ? `\n\n## 実装フェーズ（厳守）
+**あなたは「実装」エージェントです。research.md（存在すれば plan.md も）に基づき、実際にコードを実装してください。**
+- **plan.md を作成しないこと。** 計画フェーズは完了済み（plan.md があればそれに従う）か、このタスクは軽量モードで計画フェーズが意図的にスキップされています。CLAUDE.md に「plan.md を作成する」とあっても、実装フェーズの今は従わないでください。
+- Write/Edit で直接コードを変更し、関連テストを追加/更新し、変更を完成させてください（調査・計画だけで終わらせない）。
+- 完了後、検証フェーズが自動で続きます。`
+        : `\n\n## Implementation phase (strict)
+**You are the IMPLEMENTER. Based on research.md (and plan.md if present), actually implement the code changes.**
+- **Do NOT create plan.md.** The plan phase is already done (follow plan.md if present), or this is a lightweight task whose plan phase is intentionally skipped. Even if CLAUDE.md says to create plan.md, do NOT do so in this implementation phase.
+- Edit code directly (Write/Edit), add/update the relevant tests, and complete the change (do not stop at investigation/planning).
+- The verification phase follows automatically.`;
+  }
+
   // Concern Backlog: agents must FILE out-of-scope issues, never fix them inline.
   // This is what stops "not my task → ignore it" for bugs/risks spotted in passing.
   const port = process.env.PORT || '3001';
