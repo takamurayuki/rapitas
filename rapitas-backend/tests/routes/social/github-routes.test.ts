@@ -69,6 +69,10 @@ const mockCreateIssue = mock(() =>
 const mockHandleWebhook = mock(() => Promise.resolve()) as any;
 const mockChangePullRequestBase = mock(() => Promise.resolve()) as any;
 const mockMergePullRequest = mock(() => Promise.resolve({ autoQueued: false })) as any;
+const mockListWorkflowRuns = mock(() => Promise.resolve([])) as any;
+const mockGetWorkflowRun = mock(() => Promise.resolve({ id: 1, status: 'completed' })) as any;
+const mockGetWorkflowRunLog = mock(() => Promise.resolve('log content')) as any;
+const mockGetWorkflowJobLog = mock(() => Promise.resolve([{ name: 'step', lines: [] }])) as any;
 
 class MockGitHubService {
   isGhAvailable = mockIsGhAvailable;
@@ -110,6 +114,13 @@ mock.module('../../../config/logger', () => {
 mock.module('../../../services/core/github-service', () => ({
   GitHubService: MockGitHubService,
 }));
+// NOTE: Mirror all exports from actions.ts — github.ts imports 4 named functions.
+mock.module('../../../services/github/actions', () => ({
+  listWorkflowRuns: mockListWorkflowRuns,
+  getWorkflowRun: mockGetWorkflowRun,
+  getWorkflowRunLog: mockGetWorkflowRunLog,
+  getWorkflowJobLog: mockGetWorkflowJobLog,
+}));
 // Re-export the real schemas - they use elysia's t() which needs to be real
 // No mock needed for schemas as they are just type definitions
 
@@ -141,6 +152,10 @@ function resetAllMocks() {
   mockHandleWebhook.mockReset();
   mockChangePullRequestBase.mockReset();
   mockMergePullRequest.mockReset();
+  mockListWorkflowRuns.mockReset();
+  mockGetWorkflowRun.mockReset();
+  mockGetWorkflowRunLog.mockReset();
+  mockGetWorkflowJobLog.mockReset();
 
   mockIsGhAvailable.mockResolvedValue(true);
   mockIsAuthenticated.mockResolvedValue(true);
@@ -1376,5 +1391,80 @@ describe('POST /tasks/:id/create-github-issue — Integration not found → 404'
     const body = await res.json();
     expect(res.status).toBe(404);
     expect(body.code).toBe('INTEGRATION_NOT_FOUND');
+  });
+});
+
+describe('GET /github/integrations/:id/runs/:runId — Integration not found → 404', () => {
+  let app: ReturnType<typeof createApp>;
+  beforeEach(() => { resetAllMocks(); app = createApp(); });
+
+  test('Integrationが存在しない場合 404 + INTEGRATION_NOT_FOUND を返すこと', async () => {
+    mockPrisma.gitHubIntegration.findUnique.mockResolvedValue(null);
+    const res = await app.handle(
+      new Request('http://localhost/github/integrations/999/runs/1'),
+    );
+    const body = await res.json();
+    expect(res.status).toBe(404);
+    expect(body.code).toBe('INTEGRATION_NOT_FOUND');
+  });
+
+  test('Integrationが存在する場合 getWorkflowRun を呼び出すこと', async () => {
+    const fakeIntegration = { id: 1, ownerName: 'owner', repositoryName: 'repo' };
+    mockPrisma.gitHubIntegration.findUnique.mockResolvedValue(fakeIntegration);
+    mockGetWorkflowRun.mockResolvedValue({ id: 42, status: 'completed' });
+    const res = await app.handle(
+      new Request('http://localhost/github/integrations/1/runs/42'),
+    );
+    expect(res.status).toBe(200);
+  });
+});
+
+describe('GET /github/integrations/:id/runs/:runId/log — Integration not found → 404', () => {
+  let app: ReturnType<typeof createApp>;
+  beforeEach(() => { resetAllMocks(); app = createApp(); });
+
+  test('Integrationが存在しない場合 404 + INTEGRATION_NOT_FOUND を返すこと', async () => {
+    mockPrisma.gitHubIntegration.findUnique.mockResolvedValue(null);
+    const res = await app.handle(
+      new Request('http://localhost/github/integrations/999/runs/1/log'),
+    );
+    const body = await res.json();
+    expect(res.status).toBe(404);
+    expect(body.code).toBe('INTEGRATION_NOT_FOUND');
+  });
+
+  test('Integrationが存在する場合 getWorkflowRunLog を呼び出すこと', async () => {
+    const fakeIntegration = { id: 1, ownerName: 'owner', repositoryName: 'repo' };
+    mockPrisma.gitHubIntegration.findUnique.mockResolvedValue(fakeIntegration);
+    mockGetWorkflowRunLog.mockResolvedValue('step output');
+    const res = await app.handle(
+      new Request('http://localhost/github/integrations/1/runs/42/log'),
+    );
+    expect(res.status).toBe(200);
+  });
+});
+
+describe('GET /github/integrations/:id/jobs/:jobId/log — Integration not found → 404', () => {
+  let app: ReturnType<typeof createApp>;
+  beforeEach(() => { resetAllMocks(); app = createApp(); });
+
+  test('Integrationが存在しない場合 404 + INTEGRATION_NOT_FOUND を返すこと', async () => {
+    mockPrisma.gitHubIntegration.findUnique.mockResolvedValue(null);
+    const res = await app.handle(
+      new Request('http://localhost/github/integrations/999/jobs/1/log'),
+    );
+    const body = await res.json();
+    expect(res.status).toBe(404);
+    expect(body.code).toBe('INTEGRATION_NOT_FOUND');
+  });
+
+  test('Integrationが存在する場合 getWorkflowJobLog を呼び出すこと', async () => {
+    const fakeIntegration = { id: 1, ownerName: 'owner', repositoryName: 'repo' };
+    mockPrisma.gitHubIntegration.findUnique.mockResolvedValue(fakeIntegration);
+    mockGetWorkflowJobLog.mockResolvedValue([{ name: 'Build', lines: ['ok'] }]);
+    const res = await app.handle(
+      new Request('http://localhost/github/integrations/1/jobs/7/log'),
+    );
+    expect(res.status).toBe(200);
   });
 });
