@@ -20,6 +20,7 @@
 import { prisma } from '../../config/database';
 import { createLogger } from '../../config/logger';
 import { searchKnowledge } from '../memory/rag/search';
+import { recordRetrieval } from '../memory/outcome-reinforcement';
 
 const log = createLogger('workflow:memory-context');
 
@@ -199,6 +200,13 @@ export async function buildMemoryContext(
         forgettingStage: 'active',
       });
     }
+
+    // Record which entries were injected into THIS task so outcome-reinforcement
+    // can reward them on success / decay them on failure (outcome-gated learning).
+    recordRetrieval(
+      taskId,
+      results.map((r) => r.id),
+    );
 
     const entries: MemoryEntry[] = results.map((r) => ({
       title: r.title,
