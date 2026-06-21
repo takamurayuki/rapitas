@@ -7,7 +7,7 @@
 import { Prisma } from '@prisma/client';
 import { prisma } from '../../config/database';
 import { createLogger } from '../../config/logger';
-import { getDbProvider } from '../../config/db-provider';
+import { getInsensitiveMode } from '../../config/db-provider';
 import { appendEvent } from '../memory/timeline';
 import { searchKnowledge } from '../memory/rag/search';
 import type {
@@ -24,10 +24,7 @@ const log = createLogger('self-learning:experiment');
 
 function titleContainsFilter(query: string) {
   const contains = query.split(' ')[0] ?? '';
-  if (getDbProvider() === 'sqlite') {
-    return { contains };
-  }
-  return { contains, mode: 'insensitive' };
+  return { contains, ...getInsensitiveMode() };
 }
 
 /**
