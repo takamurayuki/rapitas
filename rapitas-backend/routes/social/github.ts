@@ -20,6 +20,7 @@ import {
   resolveConcernIntegration,
 } from '../../services/github/concern-bridge';
 import { githubSchemas, githubParamSchemas, githubQuerySchemas } from '../../schemas/github.schema';
+import { checkPrActionable } from '../../services/github/pr-guards';
 
 // Create GitHub service instance
 const githubService = new GitHubService(prisma);
@@ -418,7 +419,16 @@ export const githubRoutes = new Elysia({ prefix: '/github' })
       include: { integration: true },
     });
 
-    if (!pr) return { error: 'PR not found' };
+    if (!pr) {
+      context.set.status = 404;
+      return { success: false, error: 'PR not found' };
+    }
+
+    const commentViolation = checkPrActionable(pr, { operationLabel: 'コメント追加', requireOpen: false });
+    if (commentViolation) {
+      context.set.status = commentViolation.status;
+      return commentViolation.body;
+    }
 
     const repo = `${pr.integration.ownerName}/${pr.integration.repositoryName}`;
     const comment = await githubService.createPullRequestComment(repo, pr.prNumber, {
@@ -453,7 +463,16 @@ export const githubRoutes = new Elysia({ prefix: '/github' })
       include: { integration: true },
     });
 
-    if (!pr) return { error: 'PR not found' };
+    if (!pr) {
+      context.set.status = 404;
+      return { success: false, error: 'PR not found' };
+    }
+
+    const approveViolation = checkPrActionable(pr, { operationLabel: 'PR承認', requireOpen: true });
+    if (approveViolation) {
+      context.set.status = approveViolation.status;
+      return approveViolation.body;
+    }
 
     const repo = `${pr.integration.ownerName}/${pr.integration.repositoryName}`;
     await githubService.approvePullRequest(repo, pr.prNumber, reviewBody);
@@ -481,7 +500,16 @@ export const githubRoutes = new Elysia({ prefix: '/github' })
       include: { integration: true },
     });
 
-    if (!pr) return { error: 'PR not found' };
+    if (!pr) {
+      context.set.status = 404;
+      return { success: false, error: 'PR not found' };
+    }
+
+    const requestChangesViolation = checkPrActionable(pr, { operationLabel: '変更要求', requireOpen: true });
+    if (requestChangesViolation) {
+      context.set.status = requestChangesViolation.status;
+      return requestChangesViolation.body;
+    }
 
     const repo = `${pr.integration.ownerName}/${pr.integration.repositoryName}`;
     await githubService.requestChanges(repo, pr.prNumber, reviewBody ?? '');
@@ -502,7 +530,16 @@ export const githubRoutes = new Elysia({ prefix: '/github' })
       where: { id: parseInt(id) },
       include: { integration: true },
     });
-    if (!pr) return { success: false, error: 'PR not found' };
+    if (!pr) {
+      context.set.status = 404;
+      return { success: false, error: 'PR not found' };
+    }
+
+    const mergeViolation = checkPrActionable(pr, { operationLabel: 'PRマージ', requireOpen: true });
+    if (mergeViolation) {
+      context.set.status = mergeViolation.status;
+      return mergeViolation.body;
+    }
 
     const repo = `${pr.integration.ownerName}/${pr.integration.repositoryName}`;
     let mergeResult: { autoQueued: boolean };
@@ -566,6 +603,12 @@ export const githubRoutes = new Elysia({ prefix: '/github' })
     if (!pr) {
       context.set.status = 404;
       return { success: false, error: 'PR not found' };
+    }
+
+    const baseViolation = checkPrActionable(pr, { operationLabel: 'base変更', requireOpen: true });
+    if (baseViolation) {
+      context.set.status = baseViolation.status;
+      return baseViolation.body;
     }
 
     const repo = `${pr.integration.ownerName}/${pr.integration.repositoryName}`;
