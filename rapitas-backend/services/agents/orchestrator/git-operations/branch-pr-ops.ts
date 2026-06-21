@@ -9,6 +9,7 @@ import { exec } from 'child_process';
 import { promisify } from 'util';
 import { createLogger } from '../../../../config/logger';
 import { isPrimaryWorkTree, ensureNotPrimaryWorkTree } from './worktree-guard';
+import { isHeadBehindError, isAlreadyUpToDate } from '../../../github/gh-retry';
 
 const execAsync = promisify(exec);
 const logger = createLogger('git-operations/branch-pr-ops');
@@ -329,7 +330,7 @@ export async function mergePullRequest(
     // Branch protection requires the head branch to be up to date with base.
     // Update it (merge base into the PR head on GitHub) so CI re-runs; the
     // caller (AutoMergeWatcher) retries the merge once checks are green again.
-    if (/not up.?to.?date with the base branch|not mergeable|base branch was modified/i.test(msg)) {
+    if (isHeadBehindError(msg)) {
       try {
         await execAsync(`${ghPath()} pr update-branch ${prNumber}`, {
           cwd: workingDirectory,
@@ -343,7 +344,7 @@ export async function mergePullRequest(
       } catch (updErr) {
         const um = updErr instanceof Error ? updErr.message : String(updErr);
         // Already up to date (race) — just retry the merge next tick.
-        if (/already up.?to.?date|no new commits|not behind/i.test(um)) {
+        if (isAlreadyUpToDate(um)) {
           return {
             success: false,
             retriable: true,
