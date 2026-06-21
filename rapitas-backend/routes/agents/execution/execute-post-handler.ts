@@ -173,7 +173,7 @@ export async function handleExecuteResult(params: HandleExecuteResultParams): Pr
     // workflow API. Check workflowStatus FIRST so we don't punish a successful
     // planning phase for tests it ran along the way.
     const taskWorkflowState = await prisma.task
-      .findUnique({ where: { id: taskIdNum }, select: { workflowStatus: true } })
+      .findUnique({ where: { id: taskIdNum }, select: { workflowStatus: true, status: true } })
       .catch(() => null);
     const planningStatuses = new Set([
       'research_done',
@@ -183,6 +183,14 @@ export async function handleExecuteResult(params: HandleExecuteResultParams): Pr
     ]);
     const completedPlanningPhase =
       !!taskWorkflowState?.workflowStatus && planningStatuses.has(taskWorkflowState.workflowStatus);
+    // A task whose workflow already reached the terminal `completed` state (or
+    // status `done`) SUCCEEDED — the post-run failure-signal heuristic must never
+    // revert/block it. Conflict-resolution tasks legitimately print merge-conflict
+    // output ("<<<<<<<", "competing", "失敗") that trips detectExecutionFailures,
+    // so a task that completed via conflict_resolution_completed was being clobbered
+    // back to `blocked` right after completing (the observed completed→blocked flip).
+    const alreadyCompleted =
+      taskWorkflowState?.workflowStatus === 'completed' || taskWorkflowState?.status === 'done';
 
     // NOTE: Some CLIs (codex, claude) report exit-0 even when verification
     // commands they ran (vitest, pnpm test, build) crashed mid-task. Treat
@@ -196,7 +204,12 @@ export async function handleExecuteResult(params: HandleExecuteResultParams): Pr
       .findUnique({ where: { id: configId }, select: { agentType: true } })
       .catch(() => null);
     const earlyIsCodexAgent = earlyAgentConfig?.agentType === 'codex';
-    if (failureSignals.length > 0 && !completedPlanningPhase && !earlyIsCodexAgent) {
+    if (
+      failureSignals.length > 0 &&
+      !completedPlanningPhase &&
+      !alreadyCompleted &&
+      !earlyIsCodexAgent
+    ) {
       log.error(
         {
           taskId: taskIdNum,
