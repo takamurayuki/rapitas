@@ -220,13 +220,31 @@ export async function sendAIMessage(options: AIRequestOptions): Promise<AIRespon
     let paidResult: Awaited<ReturnType<typeof callClaude>>;
     switch (provider) {
       case 'claude':
-        paidResult = await callClaude(apiKey, model, options.messages, options.systemPrompt, maxTokens);
+        paidResult = await callClaude(
+          apiKey,
+          model,
+          options.messages,
+          options.systemPrompt,
+          maxTokens,
+        );
         break;
       case 'chatgpt':
-        paidResult = await callChatGPT(apiKey, model, options.messages, options.systemPrompt, maxTokens);
+        paidResult = await callChatGPT(
+          apiKey,
+          model,
+          options.messages,
+          options.systemPrompt,
+          maxTokens,
+        );
         break;
       case 'gemini':
-        paidResult = await callGemini(apiKey, model, options.messages, options.systemPrompt, maxTokens);
+        paidResult = await callGemini(
+          apiKey,
+          model,
+          options.messages,
+          options.systemPrompt,
+          maxTokens,
+        );
         break;
       default:
         throw new Error(`未対応のプロバイダーです: ${provider}`);

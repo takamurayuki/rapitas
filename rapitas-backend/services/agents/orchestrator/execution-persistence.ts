@@ -158,7 +158,8 @@ export async function saveExecutionResult(
   const safeCostUsd = toFiniteNumber(result.costUsd);
   const safeLlmCallCount = toFiniteNumber(result.llmCallCount);
   const usageUpdate =
-    !result.waitingForInput && (safeCostUsd !== null || result.modelName || safeLlmCallCount !== null)
+    !result.waitingForInput &&
+    (safeCostUsd !== null || result.modelName || safeLlmCallCount !== null)
       ? {
           ...(safeCostUsd !== null && {
             inputTokens: toFiniteNumber(result.inputTokens) ?? 0,

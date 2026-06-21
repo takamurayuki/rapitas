@@ -220,7 +220,13 @@ export class AnthropicApiAgent extends AbstractAgent {
 
       // NOTE: llmCallCount flattened from metrics.apiCalls for saveExecutionResult compatibility.
       return Object.assign(
-        { success: true, state: 'completed' as const, output, metrics, sessionId: this._metadata.id },
+        {
+          success: true,
+          state: 'completed' as const,
+          output,
+          metrics,
+          sessionId: this._metadata.id,
+        },
         { llmCallCount: metrics.apiCalls },
       );
     } catch (error) {

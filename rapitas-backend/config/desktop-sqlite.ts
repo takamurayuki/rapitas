@@ -135,19 +135,28 @@ export async function ensureDesktopSqliteDatabase(): Promise<void> {
     // generate-sqlite-init-sql.cjs is re-run after the schema change.
     // This ensures the self-heal adds the columns on both fresh and existing DBs.
     const llmColMigrations: Array<{ table: string; column: string; def: string }> = [
-      { table: 'AgentExecution', column: 'llmCallCount', def: '"llmCallCount" INTEGER NOT NULL DEFAULT 0' },
-      { table: 'AgentSession', column: 'totalLlmCallCount', def: '"totalLlmCallCount" INTEGER NOT NULL DEFAULT 0' },
+      {
+        table: 'AgentExecution',
+        column: 'llmCallCount',
+        def: '"llmCallCount" INTEGER NOT NULL DEFAULT 0',
+      },
+      {
+        table: 'AgentSession',
+        column: 'totalLlmCallCount',
+        def: '"totalLlmCallCount" INTEGER NOT NULL DEFAULT 0',
+      },
     ];
     for (const { table, column, def } of llmColMigrations) {
-      const cols = database
-        .query(`PRAGMA table_info("${table}")`)
-        .all() as Array<{ name: string }>;
+      const cols = database.query(`PRAGMA table_info("${table}")`).all() as Array<{ name: string }>;
       if (!cols.some((c) => c.name === column)) {
         try {
           database.exec(`ALTER TABLE "${table}" ADD COLUMN ${def}`);
           log.info({ databasePath, table, column }, 'Added llmCallCount migration column');
         } catch (err) {
-          log.warn({ err, databasePath, table, column }, 'Failed to add llmCallCount column (continuing)');
+          log.warn(
+            { err, databasePath, table, column },
+            'Failed to add llmCallCount column (continuing)',
+          );
         }
       }
     }
