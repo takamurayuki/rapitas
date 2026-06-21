@@ -91,6 +91,24 @@ Language: English only. Use imperative mood ("Add", not "Added").
 
 ## 4. WORKFLOW
 
+> **IMPORTANT — orchestrator-driven, single-phase execution.**
+> When the workflow system / auto-run dispatches you, your task prompt names a
+> **role** (researcher / planner / implementer / verifier). You execute **exactly
+> that ONE phase, then stop.** The orchestrator advances the workflow between agent
+> runs — **do NOT walk through the steps below yourself** (e.g. don't create
+> `plan.md` when you were dispatched to implement).
+>
+> **The complexity-based MODE decides which phases exist:**
+>
+> - **lightweight** (low complexity): research → **implement** → verify. **NO plan phase.**
+> - **standard / comprehensive**: research → plan → (approval) → implement → verify.
+>
+> So if you are the **implementer** and there is no `plan.md`, this is a lightweight
+> task: **implement directly from `research.md` — do NOT create a `plan.md`.** "Step
+> 2 — Plan" below applies ONLY to standard/comprehensive tasks. The step-by-step
+> below documents the FULL (comprehensive) workflow; skip the steps your phase or
+> mode does not include.
+
 ### File structure
 
 ```
@@ -169,6 +187,10 @@ Resume only after the user answers.
 - When multiple independent questions exist, ask them as separate AskUserQuestion calls with individual option sets.
 
 #### Step 2 — Plan (`plan.md`)
+
+> **Standard/comprehensive mode only — SKIPPED in lightweight mode.** Only run this
+> step when dispatched as the `planner`. If you are the implementer (lightweight
+> task, no `plan.md`), skip straight to Step 4 and implement from `research.md`.
 
 Save a checklist-based plan. Status auto-transitions to `plan_created`.
 
