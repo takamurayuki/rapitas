@@ -337,4 +337,116 @@ describe('runLogHealthCheck 統合テスト', () => {
     await runLogHealthCheck();
     expect(mockUnlinkSync).not.toHaveBeenCalled();
   });
+
+  // ── Test 7: 並列 catch（テーマ失敗の非致命性） ───────────────────────────
+
+  it('並列 catch: 1 テーマが existsSync 例外でも他テーマ+global は継続し合算正確', async () => {
+    // NOTE: readdirSync/statSync/readFile は readThemeEntries 内側 try-catch で握られ
+    // 外側 catch(:314) に届かない。existsSync(:195) は内側 try-catch の外にあるため、
+    // ここで throw することで確実に runLogHealthCheck の outer catch を発火させる。
+    mockReadFile.mockImplementation((p: unknown, _enc: unknown) => {
+      const path = p as string;
+      if (path === BACKEND_LOG_PATH)
+        return Promise.resolve(pinoLine(50, 'Backend startup error', 'system'));
+      if (path.includes('theme-a'))
+        return Promise.resolve(pinoLine(50, 'Project build failed', 'builder'));
+      return Promise.resolve('');
+    });
+
+    mockGetHealthCheckTargets.mockReturnValue(
+      Promise.resolve([
+        { themeId: 10, logDir: THEME_A_DIR, logFormat: 'pino' as const },
+        { themeId: 20, logDir: THEME_B_DIR, logFormat: 'pino' as const },
+      ]),
+    );
+    mockThemeFindMany.mockReturnValue(
+      Promise.resolve([
+        { id: 10, name: 'ProjectA' },
+        { id: 20, name: 'ProjectB' },
+      ]),
+    );
+
+    // THEME_B_DIR のみ throw → readThemeEntries 外側 catch(:314) に到達し return 0
+    // それ以外は beforeEach と同じ true 判定を維持して global/theme-A が正常動作する
+    mockExistsSync.mockImplementation((p: unknown) => {
+      const path = p as string;
+      if (path === THEME_B_DIR) throw new Error('boom: directory access denied');
+      return path === BACKEND_LOG_PATH || path === THEME_A_DIR || path === THEME_C_DIR;
+    });
+
+    const result = await runLogHealthCheck();
+
+    // global 1 + theme A 1 + theme B 0(catch→0) = 2
+    expect(result).toBe(2);
+
+    // catch→0 の証明: themeId:20 が submitConcern に一度も渡されていない
+    const calls = mockSubmitConcern.mock.calls as Array<[{ themeId?: number }]>;
+    const filedThemeIds = calls.map((c) => c[0].themeId);
+    expect(filedThemeIds.includes(20)).toBe(false);
+  });
+
+  // ── Test 8: 複数項目 reduce（global>0 + 複数テーマ） ─────────────────────
+
+  it('reduce 多項目: global 2 + theme A 1 + theme B 1 = 4', async () => {
+    // NOTE: Test2 は global=0 の [0,1,1,1] を検証済み。
+    // 本テストは global>0 の [2,1,1]→4 を補い、reduce が 3 要素以上を正しく畳み込むことを保証する。
+    // global の 2 件は name を別文言にして groupEntries の同一シグネチャグループに落ちないよう保証する。
+    const globalContent = [
+      pinoLine(50, 'Database connection failed', 'db'),
+      pinoLine(50, 'Task execution failed', 'task'),
+    ].join('\n');
+
+    mockReadFile.mockImplementation((p: unknown, _enc: unknown) => {
+      const path = p as string;
+      if (path === BACKEND_LOG_PATH) return Promise.resolve(globalContent);
+      if (path.includes('theme-a'))
+        return Promise.resolve(pinoLine(50, 'theme-a build error', 'builder'));
+      if (path.includes('theme-b'))
+        return Promise.resolve(pinoLine(50, 'theme-b deploy error', 'deployer'));
+      return Promise.resolve('');
+    });
+
+    mockGetHealthCheckTargets.mockReturnValue(
+      Promise.resolve([
+        { themeId: 10, logDir: THEME_A_DIR, logFormat: 'pino' as const },
+        { themeId: 20, logDir: THEME_B_DIR, logFormat: 'pino' as const },
+      ]),
+    );
+    mockThemeFindMany.mockReturnValue(
+      Promise.resolve([
+        { id: 10, name: 'ProjectA' },
+        { id: 20, name: 'ProjectB' },
+      ]),
+    );
+
+    const result = await runLogHealthCheck();
+
+    // reduce 入力 [2, 1, 1] → 合算 4
+    expect(result).toBe(4);
+    expect(mockSubmitConcern).toHaveBeenCalledTimes(4);
+  });
+
+  // ── Test 9: defaultThemeId=null パス ─────────────────────────────────────
+
+  it('defaultThemeId=null: global concern が themeId undefined で起票される', async () => {
+    // defaultThemeId===null → global タスクで `themeId: null ?? undefined = undefined` となる(:301)
+    mockResolveDefaultThemeId.mockReturnValue(Promise.resolve(null));
+    // getHealthCheckTargets はデフォルト [] (beforeEach 設定済み) — global のみに集中
+
+    mockReadFile.mockImplementation((p: unknown, _enc: unknown) => {
+      const path = p as string;
+      if (path === BACKEND_LOG_PATH)
+        return Promise.resolve(pinoLine(50, 'Backend startup error', 'system'));
+      return Promise.resolve('');
+    });
+
+    const result = await runLogHealthCheck();
+
+    // global 1 件のみ起票
+    expect(result).toBe(1);
+
+    // global concern は themeId: undefined で起票される（defaultThemeId===null の保証）
+    const calls = mockSubmitConcern.mock.calls as Array<[{ themeId?: number }]>;
+    expect(calls[0][0].themeId).toBeUndefined();
+  });
 });

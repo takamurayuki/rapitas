@@ -205,7 +205,6 @@ export async function saveExecutionResult(
       data: {
         totalTokensUsed: incTokens ? { increment: incTokens } : undefined,
         totalCostUsd: incCost ? { increment: incCost } : undefined,
-        // @ts-expect-error totalLlmCallCount pending prisma generate after schema change
         totalLlmCallCount: incLlmCalls ? { increment: incLlmCalls } : undefined,
         lastActivityAt: new Date(),
       },

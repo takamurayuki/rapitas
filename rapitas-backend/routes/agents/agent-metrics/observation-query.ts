@@ -126,7 +126,6 @@ export async function getSelfObservationSummary(windowDays = 14): Promise<SelfOb
       cacheCreationInputTokens: true,
       costUsd: true,
       modelName: true,
-      // @ts-expect-error pending prisma generate after schema change
       llmCallCount: true,
     },
   })) as unknown as ExecutionMetricRow[];

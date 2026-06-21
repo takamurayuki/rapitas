@@ -202,6 +202,35 @@ bun test: 10 passed, 0 failed
     expect(validateVerify(quotedPass).ok).toBe(true);
   });
 
+  test('does NOT flag a passing verify that documents "TSC_EXIT=1" (pre-existing)', () => {
+    // Regression (task 272): an honest verify documents that WHOLE-PROJECT tsc
+    // exits 1 due to 2 PRE-EXISTING out-of-scope errors, written as "TSC_EXIT=1",
+    // while its own scope passes. The bare /exit 1/ signal matched the identifier
+    // and, with the pass claim, falsely reported a self-contradiction → blocked.
+    const tscExitPass = `# 検証レポート
+## 検証結果サマリ
+✅ 条件付き合格 — スコープ内 DoD 全達成・全テスト通過。
+## テスト結果
+\`\`\`
+ユニット: 49/49 passed (exit 0)
+TSC_EXIT=1   # プロジェクト全体tscの既存2エラー(無関係ファイル)
+\`\`\`
+## チェックリスト消化状況
+- [x] done`;
+    expect(validateVerify(tscExitPass).ok).toBe(true);
+  });
+
+  test('still flags a real "exit 1" command failure on a pass-claiming verify', () => {
+    const realExit = `# 検証レポート
+## 検証結果サマリ
+✅ 全テスト通過と報告
+## テスト結果
+bun test → exit 1
+## チェックリスト消化状況
+- [x] done`;
+    expect(validateVerify(realExit).ok).toBe(false);
+  });
+
   test('still flags ❌ used as an actual verdict on its own line', () => {
     // A ❌ verdict that is NOT a conditional/legend and does not assert pass on the
     // same line must still be caught (defense alongside the numeric signals).

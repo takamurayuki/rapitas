@@ -79,6 +79,15 @@ export async function recordTaskOutcome(taskId: number, finalStatus: string): Pr
       { taskId, finalStatus, firstTrySuccess, troubleCount },
       '[telemetry] Task outcome recorded',
     );
+
+    // Outcome-gated reinforcement: reward the knowledge entries this task used
+    // when it completed, decay them when it was blocked — so what survives the
+    // forgetting curve is what actually helped. Best-effort, never blocks.
+    await import('../memory/outcome-reinforcement')
+      .then(({ applyOutcomeReinforcement }) =>
+        applyOutcomeReinforcement(taskId, finalStatus === 'completed'),
+      )
+      .catch((err) => log.warn({ err, taskId }, '[telemetry] Outcome reinforcement failed'));
   } catch (err) {
     log.warn({ err, taskId }, '[telemetry] Failed to record task outcome');
   }

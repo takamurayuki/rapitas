@@ -92,9 +92,12 @@ export async function searchKnowledge(options: KnowledgeSearchOptions): Promise<
     .sort((a, b) => b.similarity - a.similarity)
     .slice(0, limit);
 
-  // Boost access count and decay (async, fire-and-forget)
+  // Retrieval is only a WEAK signal — being surfaced is not proof of usefulness.
+  // Apply a small boost here; the STRONG reward is applied at task outcome by
+  // outcome-reinforcement (boost on success / penalty on failure), so what
+  // survives the forgetting curve is what actually helped, not what was popular.
   for (const entry of results) {
-    boostDecayOnAccess(entry.id).catch(() => {});
+    boostDecayOnAccess(entry.id, 0.05).catch(() => {});
   }
 
   return results;

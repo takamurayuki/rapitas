@@ -125,6 +125,25 @@ export async function handleExecuteResult(params: HandleExecuteResultParams): Pr
     researchTempOutputFile,
   } = params;
 
+  // A task that already reached the terminal `completed` state DURING the run
+  // needs no post-processing at all. A conflict-resolution task completes via
+  // conflict_resolution_completed the moment it saves verify.md, yet it is often
+  // dispatched in `research` mode — so the research-mode pipeline below (revert +
+  // advance to the next phase) would clobber the completion back to in-progress
+  // ("[調査完了]…進行中に戻す"), and the dev-mode failure-signal path would block
+  // it. Guard ALL of it here, before the mode split, so a completed task is never
+  // regressed by any downstream handler.
+  const terminalCheck = await prisma.task
+    .findUnique({ where: { id: taskIdNum }, select: { status: true, workflowStatus: true } })
+    .catch(() => null);
+  if (terminalCheck?.workflowStatus === 'completed' || terminalCheck?.status === 'done') {
+    log.info(
+      { taskId: taskIdNum, mode },
+      '[API] Task already completed during the run — skipping all post-execution processing',
+    );
+    return;
+  }
+
   // RESEARCH MODE: completely separate pipeline. We:
   //   1. Read the temp file codex wrote via -o (its final markdown).
   //   2. Save it to the workflow API as research.md.
@@ -173,7 +192,7 @@ export async function handleExecuteResult(params: HandleExecuteResultParams): Pr
     // workflow API. Check workflowStatus FIRST so we don't punish a successful
     // planning phase for tests it ran along the way.
     const taskWorkflowState = await prisma.task
-      .findUnique({ where: { id: taskIdNum }, select: { workflowStatus: true } })
+      .findUnique({ where: { id: taskIdNum }, select: { workflowStatus: true, status: true } })
       .catch(() => null);
     const planningStatuses = new Set([
       'research_done',
@@ -183,6 +202,14 @@ export async function handleExecuteResult(params: HandleExecuteResultParams): Pr
     ]);
     const completedPlanningPhase =
       !!taskWorkflowState?.workflowStatus && planningStatuses.has(taskWorkflowState.workflowStatus);
+    // A task whose workflow already reached the terminal `completed` state (or
+    // status `done`) SUCCEEDED — the post-run failure-signal heuristic must never
+    // revert/block it. Conflict-resolution tasks legitimately print merge-conflict
+    // output ("<<<<<<<", "competing", "失敗") that trips detectExecutionFailures,
+    // so a task that completed via conflict_resolution_completed was being clobbered
+    // back to `blocked` right after completing (the observed completed→blocked flip).
+    const alreadyCompleted =
+      taskWorkflowState?.workflowStatus === 'completed' || taskWorkflowState?.status === 'done';
 
     // NOTE: Some CLIs (codex, claude) report exit-0 even when verification
     // commands they ran (vitest, pnpm test, build) crashed mid-task. Treat
@@ -196,7 +223,12 @@ export async function handleExecuteResult(params: HandleExecuteResultParams): Pr
       .findUnique({ where: { id: configId }, select: { agentType: true } })
       .catch(() => null);
     const earlyIsCodexAgent = earlyAgentConfig?.agentType === 'codex';
-    if (failureSignals.length > 0 && !completedPlanningPhase && !earlyIsCodexAgent) {
+    if (
+      failureSignals.length > 0 &&
+      !completedPlanningPhase &&
+      !alreadyCompleted &&
+      !earlyIsCodexAgent
+    ) {
       log.error(
         {
           taskId: taskIdNum,
