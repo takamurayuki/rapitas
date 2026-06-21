@@ -26,6 +26,7 @@ import {
   handleExecutionError,
 } from './execution-helpers';
 import { buildResumePrompt, resolveAgentConfig } from './resume-helpers';
+import { buildShutdownErrorMessage } from './shutdown-error';
 import { withLlmCallScope, getLlmCallCount } from '../../../utils/llm-call-context';
 
 const logger = createLogger('execution-resume');
@@ -183,9 +184,10 @@ export async function resumeInterruptedExecution(
   if (ctx.isShuttingDown) {
     ctx.activeAgents.delete(execution.id);
     ctx.activeExecutions.delete(execution.id);
-    fileLogger.logError('Server is shutting down, cannot resume execution');
+    const shutdownMsg = buildShutdownErrorMessage('resume execution');
+    fileLogger.logError(shutdownMsg);
     await fileLogger.flush();
-    throw new Error('Server is shutting down, cannot resume execution');
+    throw new Error(shutdownMsg);
   }
 
   setupQuestionDetectedHandler(agent, {
