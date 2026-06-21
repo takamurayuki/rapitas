@@ -6,6 +6,7 @@
  * crash. These pin that decision (task 233 regression).
  */
 import { describe, test, expect } from 'bun:test';
+import { join } from 'path';
 import { canReuseWorktree, decideWorktree } from './worktree-usable';
 
 const exists = () => true;
@@ -31,9 +32,9 @@ describe('canReuseWorktree', () => {
     // empty dir: the path exists but `<path>/.git` does not. Reusing it ran the
     // agent in a dir where git resolves to the PRIMARY checkout — the task-288
     // clobber. Such a path must NOT be reusable.
-    const onlyDirExists = (p: string) => p === '/wt/task-288'; // no '/wt/task-288/.git'
+    const onlyDirExists = (p: string) => p === '/wt/task-288'; // no <path>/.git
     expect(canReuseWorktree('/wt/task-288', onlyDirExists)).toBe(false);
-    const dirAndGit = (p: string) => p === '/wt/task-1' || p === '/wt/task-1/.git';
+    const dirAndGit = (p: string) => p === '/wt/task-1' || p === join('/wt/task-1', '.git');
     expect(canReuseWorktree('/wt/task-1', dirAndGit)).toBe(true);
   });
 });
