@@ -125,6 +125,25 @@ export async function handleExecuteResult(params: HandleExecuteResultParams): Pr
     researchTempOutputFile,
   } = params;
 
+  // A task that already reached the terminal `completed` state DURING the run
+  // needs no post-processing at all. A conflict-resolution task completes via
+  // conflict_resolution_completed the moment it saves verify.md, yet it is often
+  // dispatched in `research` mode — so the research-mode pipeline below (revert +
+  // advance to the next phase) would clobber the completion back to in-progress
+  // ("[調査完了]…進行中に戻す"), and the dev-mode failure-signal path would block
+  // it. Guard ALL of it here, before the mode split, so a completed task is never
+  // regressed by any downstream handler.
+  const terminalCheck = await prisma.task
+    .findUnique({ where: { id: taskIdNum }, select: { status: true, workflowStatus: true } })
+    .catch(() => null);
+  if (terminalCheck?.workflowStatus === 'completed' || terminalCheck?.status === 'done') {
+    log.info(
+      { taskId: taskIdNum, mode },
+      '[API] Task already completed during the run — skipping all post-execution processing',
+    );
+    return;
+  }
+
   // RESEARCH MODE: completely separate pipeline. We:
   //   1. Read the temp file codex wrote via -o (its final markdown).
   //   2. Save it to the workflow API as research.md.
