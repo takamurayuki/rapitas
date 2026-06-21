@@ -199,7 +199,16 @@ export class ClaudeCodeAgent extends BaseAgent {
             where: { id: taskId },
             select: { workflowStatus: true },
           });
-          if (t?.workflowStatus === 'plan_created' || t?.workflowStatus === 'plan_approved') {
+          if (
+            t?.workflowStatus === 'plan_created' ||
+            t?.workflowStatus === 'plan_approved' ||
+            // A research phase saved research.md and produced no code on purpose —
+            // a valid pause, not a "planned but didn't implement" failure. The
+            // workflow auto-advances to the next phase (lightweight: implement;
+            // standard: plan). Without this a lightweight research run failed with
+            // "Agent output a plan but no actual code changes were made".
+            t?.workflowStatus === 'research_done'
+          ) {
             return true;
           }
           // A plan that was split into subtasks delegates all implementation
