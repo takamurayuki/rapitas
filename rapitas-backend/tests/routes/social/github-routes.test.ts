@@ -742,8 +742,6 @@ describe('GET /github/pull-requests/by-task/:taskId', () => {
   });
 });
 
-  });
-});
 
 // Helper: build a minimal PR record shared across guard tests.
 function makeOpenPr(overrides: Partial<{ prNumber: number; state: string }> = {}) {
@@ -1026,7 +1024,8 @@ describe('PATCH /github/pull-requests/:id/base — checkPrActionable guards', ()
 
     expect(res.status).toBe(200);
     expect(body.success).toBe(true);
-    expect(mockChangePullRequestBase).toHaveBeenCalledTimes(1);
+    expect(body.baseBranch).toBe('develop');
+    expect(mockChangePullRequestBase).toHaveBeenCalledWith('test/repo', 42, 'develop');
   });
 
   test('merged PR の base 変更は 409 を返し changePullRequestBase を呼ばない', async () => {
@@ -1078,9 +1077,6 @@ describe('PATCH /github/pull-requests/:id/base — checkPrActionable guards', ()
 
     expect(res.status).toBe(400);
     expect(body.success).toBe(false);
-  });
-});
-
   });
 });
 
