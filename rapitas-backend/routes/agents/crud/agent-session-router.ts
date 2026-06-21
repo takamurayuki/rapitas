@@ -145,6 +145,7 @@ export const agentSessionRouter = new Elysia({ prefix: '/agents' })
                     select: {
                       id: true,
                       title: true,
+                      status: true,
                       theme: {
                         select: {
                           workingDirectory: true,
@@ -174,9 +175,18 @@ export const agentSessionRouter = new Elysia({ prefix: '/agents' })
           .map((e) => e.session.config?.task?.id)
           .filter((id): id is number => id != null),
       );
-      const dedupedExecutions = resumableExecutions.filter(
-        (e) => !(e.status === 'interrupted' && liveTaskIds.has(e.session.config?.task?.id ?? -1)),
-      );
+      // A done/completed/cancelled task's `interrupted` row is NOT resumable work —
+      // it is a stale leftover that lingered in the "中断作業" modal after the task
+      // finished (task 284 completed via a fresh execution but its earlier
+      // interrupted row stayed). Drop those too.
+      const TERMINAL_TASK_STATUS = new Set(['done', 'completed', 'cancelled']);
+      const dedupedExecutions = resumableExecutions.filter((e) => {
+        if (e.status !== 'interrupted') return true;
+        const task = e.session.config?.task;
+        if (liveTaskIds.has(task?.id ?? -1)) return false;
+        if (task?.status && TERMINAL_TASK_STATUS.has(task.status)) return false;
+        return true;
+      });
 
       return dedupedExecutions.map((exec: (typeof resumableExecutions)[number]) => {
         const execWithExtras = exec as typeof exec & AgentExecutionWithExtras;
