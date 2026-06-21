@@ -16,9 +16,11 @@
  * committing or the retry loop.
  */
 import { spawn } from 'child_process';
-import { existsSync } from 'fs';
+import os from 'os';
+import { existsSync, writeFileSync, unlinkSync } from 'fs';
 import { dirname, extname, join, relative, resolve } from 'path';
-import { buildScopedTestCommands, TEST_FILE_RE } from './related-tests';
+import { buildScopedTestCommands, findRelatedTestFiles, TEST_FILE_RE } from './related-tests';
+import { triageTestFailures } from './test-triage';
 import { parsePlanFiles, evaluateScopeCheck } from './scope-check';
 
 /** Code extensions worth linting / typechecking. */
@@ -47,6 +49,12 @@ export interface VerificationCheck {
    * execute — the gate fails closed instead of silently treating it as passed.
    */
   unverifiable?: boolean;
+  /**
+   * Test files that failed before the agent's changes (pre-existing failures).
+   * Only set on 'test' checks when triage detected at least one pre-existing failure.
+   * These are excluded from errorCount/ok so they don't false-block the gate.
+   */
+  preExistingFailures?: string[];
 }
 
 export interface VerificationResult {
@@ -145,7 +153,7 @@ function resolveBin(projectRoot: string, workdir: string, name: string): string 
  * @param workdir - Worktree directory. / ワークツリーのディレクトリ
  * @returns A diffable base ref (merge-base commit or 'HEAD'). / 差分基準のref
  */
-async function diffBaseRef(workdir: string): Promise<string> {
+export async function diffBaseRef(workdir: string): Promise<string> {
   for (const candidate of ['develop', 'main', 'master']) {
     const base = (await git(workdir, `merge-base HEAD ${candidate}`)).trim();
     if (base) return base;
@@ -337,6 +345,79 @@ async function lintProject(
   };
 }
 
+/** Default-ON kill switch for the scoped (changed-files-only) typecheck. */
+function scopedTscEnabled(): boolean {
+  const v = (process.env.RAPITAS_VERIFY_SCOPED_TSC ?? '').trim().toLowerCase();
+  return v !== '0' && v !== 'false' && v !== 'off';
+}
+
+/**
+ * TS error codes that mean the type ENVIRONMENT is missing (module / type-defs /
+ * node-or-bun global resolution failures), not that the agent's code is wrong.
+ * When the scoped (narrow-include) typecheck surfaces ANY of these, the narrowed
+ * program dropped an ambient/global provider — the scope is unreliable, so we
+ * re-run a FULL typecheck. Falling back is always correctness-safe: a genuine
+ * "cannot find module" bug is re-reported by the full run too, so the worst case
+ * is slower, never a wrong verdict.
+ */
+const ENV_FAILURE_TS_CODES = new Set(['TS2307', 'TS2688', 'TS2591', 'TS2580']);
+
+/** True when scoped tsc output carries an env-resolution failure (→ use full). */
+function looksLikeBrokenTypeEnv(output: string): boolean {
+  for (const m of output.matchAll(/error (TS\d+)/g)) {
+    if (ENV_FAILURE_TS_CODES.has(m[1]!)) return true;
+  }
+  return false;
+}
+
+/**
+ * Run tsc over ONLY the changed files (+ their transitive imports) instead of the
+ * whole project, via a temp tsconfig that extends the project's real config (so
+ * strictness/paths/lib are identical). `types: ['bun']` re-supplies the global
+ * type environment that the full `include` provides implicitly — without it a
+ * narrow include loses node/bun globals. Measured ~6× faster (13.8s → 2.3s on
+ * this backend) with an IDENTICAL changed-file error set (verified positive AND
+ * negative). Returns the raw tsc output, or null when scoping isn't applicable.
+ *
+ * @param bin - Resolved tsc binary. / 解決済みtscバイナリ
+ * @param projectRoot - Project whose tsconfig.json to extend. / 対象プロジェクト
+ * @param relFiles - Changed files, relative to projectRoot. / 変更ファイル(相対)
+ * @returns Combined stdout+stderr, or null to fall back to full. / 出力 or null
+ */
+async function runScopedTypecheck(
+  bin: string,
+  projectRoot: string,
+  relFiles: string[],
+): Promise<string | null> {
+  // `types: ['bun']` only fits a bun project; for others the global env differs,
+  // so skip scoping and let the caller run full (conservative until validated).
+  if (!existsSync(join(projectRoot, 'node_modules', 'bun-types'))) return null;
+
+  const cfgPath = join(projectRoot, `.rapitas-verify-scoped-${process.pid}.tsconfig.json`);
+  const cfg = {
+    extends: './tsconfig.json',
+    // incremental:false avoids littering a .tsbuildinfo per run (no speedup for
+    // --noEmit anyway, measured).
+    compilerOptions: { types: ['bun'], incremental: false },
+    include: relFiles.map((f) => f.replace(/\\/g, '/')),
+  };
+  try {
+    writeFileSync(cfgPath, JSON.stringify(cfg));
+    const res = await runCmd(`"${bin}" -p "${cfgPath}" --noEmit --pretty false`, projectRoot);
+    const out = `${res.stdout}\n${res.stderr}`;
+    // Broken scope (dropped globals) → signal a full re-run.
+    return looksLikeBrokenTypeEnv(out) ? null : out;
+  } catch {
+    return null; // any failure → fall back to full
+  } finally {
+    try {
+      unlinkSync(cfgPath);
+    } catch {
+      /* best-effort */
+    }
+  }
+}
+
 /** Typechecks a project; gates on tsc errors located in the changed files. */
 async function typecheckProject(
   projectRoot: string,
@@ -352,8 +433,19 @@ async function typecheckProject(
       'tsconfig.json is present but the tsc binary could not be resolved (worktree node_modules missing?).',
     );
   }
-  const res = await runCmd(`"${bin}" --noEmit --pretty false`, projectRoot);
-  const errorFiles = parseTscErrorFiles(`${res.stdout}\n${res.stderr}`);
+  // Fast path: typecheck only the changed files. Falls through to a FULL run when
+  // scoping doesn't apply or looks unreliable — same verdict, just slower.
+  const scopedOut = scopedTscEnabled()
+    ? await runScopedTypecheck(bin, projectRoot, relFiles)
+    : null;
+  let combined: string;
+  if (scopedOut !== null) {
+    combined = scopedOut;
+  } else {
+    const res = await runCmd(`"${bin}" --noEmit --pretty false`, projectRoot);
+    combined = `${res.stdout}\n${res.stderr}`;
+  }
+  const errorFiles = parseTscErrorFiles(combined);
   // Only count errors located in the files the agent changed (avoids gating on
   // pre-existing type errors elsewhere in the project).
   const changedRel = new Set(
@@ -404,6 +496,38 @@ async function testProject(
     failures.push(`${command} failed:\n${detail}`);
   }
   const ok = failures.length === 0;
+  // When tests fail, triage pre-existing vs. new failures so the gate doesn't
+  // block on tests that were already red before this change (RAPITAS_TEST_TRIAGE
+  // defaults on; set to '0' or 'false' to disable).
+  if (!ok) {
+    const triageFlag = (process.env.RAPITAS_TEST_TRIAGE ?? '').trim().toLowerCase();
+    const triageEnabled = triageFlag !== '0' && triageFlag !== 'false';
+    if (triageEnabled) {
+      const projectRel = relFiles.map((f) =>
+        relative(projectRoot, join(workdir, f)).replace(/\\/g, '/'),
+      );
+      const changedTests = projectRel.filter((f) => TEST_FILE_RE.test(f));
+      const related = findRelatedTestFiles(projectRoot, projectRel);
+      const scopedFiles = [...new Set([...changedTests, ...related])];
+      if (scopedFiles.length > 0) {
+        const triage = await triageTestFailures(projectRoot, workdir, scopedFiles);
+        if (triage !== null) {
+          const { preExisting, newFailures } = triage;
+          const newOk = newFailures.length === 0;
+          return {
+            name: 'test',
+            ran: true,
+            ok: newOk,
+            errorCount: newFailures.length,
+            details: newOk
+              ? `${commands.length} test command(s): passed (${preExisting.length} pre-existing failure(s) excluded)`
+              : failures.join('\n\n').slice(0, MAX_DETAIL_CHARS),
+            preExistingFailures: preExisting.length > 0 ? preExisting : undefined,
+          };
+        }
+      }
+    }
+  }
   return {
     name: 'test',
     ran: true,
@@ -434,6 +558,8 @@ function mergeChecks(
   ]
     .join('\n\n')
     .slice(0, MAX_DETAIL_CHARS);
+  // Aggregate pre-existing failures across all project parts (only set for 'test').
+  const allPreExisting = parts.flatMap((p) => p.preExistingFailures ?? []);
   return {
     name,
     ran: ran.length > 0,
@@ -441,6 +567,7 @@ function mergeChecks(
     errorCount,
     details: details || `${name}: ok`,
     unverifiable: unverifiable.length > 0 || undefined,
+    preExistingFailures: allPreExisting.length > 0 ? allPreExisting : undefined,
   };
 }
 

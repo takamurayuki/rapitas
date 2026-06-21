@@ -155,6 +155,85 @@ describe('buildResolveAfterParse — resume モード errorMessage 汚染除去'
   });
 });
 
+describe('buildResolveAfterParse — llmCallCount via workerResultUsage.numTurns', () => {
+  test('numTurns が存在する場合、llmCallCount として result に載る', async () => {
+    mockGitDiffResult = true;
+    const ctx = createCtx({
+      workerResultUsage: {
+        costUsd: 0.001,
+        inputTokens: 100,
+        outputTokens: 50,
+        numTurns: 3, // 3 LLM API calls in this CLI session
+      },
+    });
+    const { resolve, promise } = createResolveTracker();
+
+    const callback = buildResolveAfterParse(
+      ctx,
+      0,
+      '/tmp/workdir',
+      Date.now(),
+      resolve,
+      () => [],
+      () => [],
+    );
+    callback();
+
+    const result = await promise;
+    expect(result.success).toBe(true);
+    expect(result.llmCallCount).toBe(3);
+  });
+
+  test('numTurns が undefined の場合、llmCallCount も undefined', async () => {
+    mockGitDiffResult = true;
+    const ctx = createCtx({
+      workerResultUsage: {
+        costUsd: 0.001,
+        inputTokens: 100,
+        outputTokens: 50,
+        // numTurns: undefined — CLI did not emit num_turns
+      },
+    });
+    const { resolve, promise } = createResolveTracker();
+
+    const callback = buildResolveAfterParse(
+      ctx,
+      0,
+      '/tmp/workdir',
+      Date.now(),
+      resolve,
+      () => [],
+      () => [],
+    );
+    callback();
+
+    const result = await promise;
+    expect(result.success).toBe(true);
+    expect(result.llmCallCount).toBeUndefined();
+  });
+
+  test('workerResultUsage が null の場合、llmCallCount は undefined', async () => {
+    mockGitDiffResult = true;
+    const ctx = createCtx({ workerResultUsage: null });
+    const { resolve, promise } = createResolveTracker();
+
+    const callback = buildResolveAfterParse(
+      ctx,
+      0,
+      '/tmp/workdir',
+      Date.now(),
+      resolve,
+      () => [],
+      () => [],
+    );
+    callback();
+
+    const result = await promise;
+    expect(result.success).toBe(true);
+    expect(result.llmCallCount).toBeUndefined();
+  });
+});
+
 describe('buildResolveAfterParse — investigation mode', () => {
   test('ケース1: investigationMode=true + exit0 + outputBuffer ≥200文字 → success: true', async () => {
     const ctx = createCtx({ outputBuffer: 'a'.repeat(250) });

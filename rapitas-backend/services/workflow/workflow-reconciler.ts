@@ -85,7 +85,13 @@ async function healZombieSessions(nowMs: number): Promise<number> {
   const cutoff = new Date(nowMs - STALE_SESSION_MS);
   const sessions = await prisma.agentSession
     .findMany({
-      where: { status: 'active', lastActivityAt: { lt: cutoff } },
+      // Heal BOTH 'active' AND 'running' zombies. verification-retry sets a
+      // session to status:'running'; if that run then crashes/is interrupted, the
+      // session stays 'running' forever — the reconciler used to only finalize
+      // 'active', so a 'running' zombie blocked auto-run permanently (it waits on
+      // the dead session and never advances; e.g. task 253 stuck at plan_approved
+      // with a running session but no live agent process).
+      where: { status: { in: ['active', 'running'] }, lastActivityAt: { lt: cutoff } },
       select: {
         id: true,
         lastActivityAt: true,

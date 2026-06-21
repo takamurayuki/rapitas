@@ -1,0 +1,19 @@
+# insensitive-mode.yml
+#
+# Detects raw `isPostgres ? { mode: 'insensitive' as const } : {}` ternary patterns
+# that should use getInsensitiveMode() from config/db-provider instead.
+# Use: bun x ast-grep scan -r scripts/codemods/rules/insensitive-mode.yml
+#
+# Matches:
+#   isPostgres ? { mode: 'insensitive' as const } : {}
+#   anyVar ? { mode: 'insensitive' as const } : {}
+#
+# Does NOT match:
+#   getInsensitiveMode()       — already migrated (Pattern A)
+#   { equals: title, mode: 'insensitive' }  — Pattern B (use codemod manualReview output)
+
+id: insensitive-mode
+language: TypeScript
+rule:
+  pattern: "$IS_POSTGRES ? { mode: 'insensitive' as const } : {}"
+message: "Replace `$IS_POSTGRES ? { mode: 'insensitive' as const } : {}` with `...getInsensitiveMode()` from config/db-provider"

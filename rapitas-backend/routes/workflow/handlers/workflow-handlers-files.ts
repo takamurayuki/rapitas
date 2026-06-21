@@ -648,7 +648,28 @@ export async function handleSaveFile({
     // Otherwise it's the silent-skip pattern (agent claimed work it never did —
     // empty diff, no commit) and we block for inspection instead of completing.
     let verifyGateBlocked = false;
-    if (fileType === 'verify' && newStatus === 'verify_done') {
+
+    // Conflict-resolution tasks (system-generated "PR #N の競合を解消", githubPrId
+    // set at CREATION) deliver their result by PUSHING to the EXISTING PR branch —
+    // not as a worktree diff or a new PR. The empty-diff gate, the adversarial
+    // diff-review, the scope check and the PR-required gate all assume "diff
+    // matches plan → publish a new PR", so they FALSELY bounce these tasks (the
+    // `git merge base` pulls the base branch's files into the worktree → scope NG
+    // (31 files) and a diff-vs-plan mismatch → verify_repair, looping forever even
+    // though the PR is already mergeable). Skip all those gates and complete on a
+    // passing verify; the target PR (task.githubPrId) already exists.
+    const conflictTask =
+      fileType === 'verify' && newStatus === 'verify_done'
+        ? await prisma.task
+            .findUnique({ where: { id: taskId }, select: { title: true, githubPrId: true } })
+            .catch(() => null)
+        : null;
+    const isConflictResolutionTask =
+      !!conflictTask &&
+      conflictTask.githubPrId != null &&
+      /^PR #\d+ の競合を解消/.test(conflictTask.title ?? '');
+
+    if (fileType === 'verify' && newStatus === 'verify_done' && !isConflictResolutionTask) {
       const gateSession = await prisma.agentSession
         .findFirst({
           where: { config: { taskId }, worktreePath: { not: null } },
@@ -722,7 +743,12 @@ export async function handleSaveFile({
     // self-reported verify.md misses. On a FAIL verdict, bounce the workflow back
     // to the implementer (self-repair loop) instead of completing. Fail-open: an
     // unavailable judge ('unknown') does not block.
-    if (fileType === 'verify' && newStatus === 'verify_done' && !verifyGateBlocked) {
+    if (
+      fileType === 'verify' &&
+      newStatus === 'verify_done' &&
+      !verifyGateBlocked &&
+      !isConflictResolutionTask
+    ) {
       const reviewSession = await prisma.agentSession
         .findFirst({
           where: { config: { taskId }, worktreePath: { not: null } },
@@ -779,7 +805,36 @@ export async function handleSaveFile({
 
     let autoCommitPRResult: Awaited<ReturnType<typeof performAutoCommitAndPR>> = {};
     let taskMarkedDone = false;
-    if (fileType === 'verify' && newStatus === 'verify_done' && !verifyGateBlocked) {
+    if (
+      fileType === 'verify' &&
+      newStatus === 'verify_done' &&
+      !verifyGateBlocked &&
+      isConflictResolutionTask
+    ) {
+      // Conflict-resolution task: the fix was already pushed to the existing PR
+      // branch, so there is no new commit/PR to make and the scope check does not
+      // apply. Complete directly — the PR (task.githubPrId) is what carries the work.
+      await prisma.task
+        .update({
+          where: { id: taskId },
+          data: { status: 'done', workflowStatus: 'completed', completedAt: new Date() },
+        })
+        .catch(() => {});
+      taskMarkedDone = true;
+      await recordTransition({
+        taskId,
+        fromStatus: 'verify_done',
+        toStatus: 'completed',
+        actor: 'system',
+        cause: 'conflict_resolution_completed',
+        phase: 'verify',
+        metadata: { prNumber: conflictTask?.githubPrId },
+      });
+      log.info(
+        { taskId, prNumber: conflictTask?.githubPrId },
+        '[Workflow] Conflict-resolution task completed (work pushed to PR branch; commit/PR/scope gates skipped).',
+      );
+    } else if (fileType === 'verify' && newStatus === 'verify_done' && !verifyGateBlocked) {
       // Run commit/PR/merge. Completion is GATED on its outcome: the task only
       // completes when a PR was created (or already exists), or when no PR was
       // requested. See the gate in the success branch below.

@@ -12,6 +12,8 @@ import { join } from 'path';
 import { randomUUID } from 'node:crypto';
 import { promisify } from 'util';
 import { createLogger } from '../../config/logger';
+import { withGhRetry, READ_RETRY_POLICY } from './gh-retry';
+import type { GhRetryPolicy } from './gh-retry';
 
 const log = createLogger('github-service:client');
 const execFileAsync = promisify(execFile);
@@ -55,6 +57,27 @@ export async function runGhCommand(
     }
     throw new Error(stderr || message);
   }
+}
+
+/**
+ * Execute a gh CLI command with exponential-backoff retries.
+ * Defaults to READ_RETRY_POLICY; callers must explicitly pass WRITE_RETRY_POLICY
+ * for non-idempotent operations (create / merge / comment) to avoid accidental
+ * duplicate-resource creation.
+ *
+ * @param args - Array of CLI arguments / CLIコマンド引数
+ * @param cwd - Optional working directory / 作業ディレクトリ
+ * @param opts - Options: policy overrides retry behaviour; skipLog suppresses error log / オプション
+ * @returns Trimmed stdout string / 標準出力文字列
+ * @throws {Error} When gh command fails after all retry attempts / 全リトライ失敗時
+ */
+export async function runGhCommandWithRetry(
+  args: string[],
+  cwd?: string,
+  opts?: { skipLog?: boolean; policy?: GhRetryPolicy },
+): Promise<string> {
+  const { policy = READ_RETRY_POLICY, ...baseOpts } = opts ?? {};
+  return withGhRetry(() => runGhCommand(args, cwd, baseOpts), policy);
 }
 
 /**

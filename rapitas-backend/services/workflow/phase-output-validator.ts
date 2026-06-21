@@ -160,13 +160,27 @@ export function validateVerify(content: string): ValidationResult {
     /test\s+files?[\s\S]{0,80}?([1-9]\d*)\s+failed/i,
     /失敗\s*(?:した)?テスト\s*(?:数|件数)?\s*[:：]?\s*([1-9]\d*)/, // "失敗テスト数: 3", not ": 0"
     /テスト[^。\n]{0,20}?([1-9]\d*)\s*(?:件|個)\s*(?:が)?\s*失敗/, // "テストが3件失敗"
-    /❌/,
     /exit\s*(?:code\s*)?[:=]?\s*1\b/i,
     /×\s*[1-9]\d*/, // "× 5" — not "× 0"
   ];
   const failureHits = failureSignals
     .map((re) => content.match(re))
     .filter((m): m is RegExpMatchArray => !!m);
+  // A bare ❌ is too noisy to treat as a failure signal directly: a PASSING
+  // verify.md routinely contains the PR-gate legend "全体判定が ❌ の場合のみ PR
+  // を作成しないこと。本タスクは ✅ 合格。" (a CONDITIONAL), and the appended
+  // self-repair feedback quotes the validator's own "(❌)" summary. Both made
+  // every such passing report self-contradict and block. Only count a ❌ that
+  // is an actual verdict — skip conditional/legend lines, parenthetical
+  // references, and any line that simultaneously asserts a pass.
+  const crossMarkFailure = content.split(/\r?\n/).some((line) => {
+    if (!line.includes('❌')) return false;
+    if (/❌\s*(?:の)?\s*(?:場合|とき|時|なら|ならば|であれば|if\b)/i.test(line)) return false;
+    if (/[(（]\s*❌\s*[)）]/.test(line)) return false;
+    if (/✅|合格|通過|成功|pass/i.test(line)) return false;
+    return true;
+  });
+  if (crossMarkFailure) failureHits.push(['❌'] as unknown as RegExpMatchArray);
 
   if (claimsAllPass && failureHits.length > 0) {
     const evidence = failureHits

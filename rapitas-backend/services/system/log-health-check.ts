@@ -11,7 +11,8 @@
  *
  * Not responsible for capturing logs (the logger / each project does) or fixing.
  */
-import { readFileSync, readdirSync, statSync, unlinkSync, existsSync } from 'fs';
+import { readFile } from 'fs/promises';
+import { readdirSync, statSync, unlinkSync, existsSync } from 'fs';
 import { join } from 'path';
 import { createLogger, getBackendLogFilePath } from '../../config/logger';
 import { prisma } from '../../config/database';
@@ -157,22 +158,40 @@ async function fileGroupedConcerns(
   return filed;
 }
 
-/** Reads + parses rapitas's own backend log for today (pino NDJSON). */
-function readGlobalEntries(): ParsedLogEntry[] {
-  const path = getBackendLogFilePath();
+/**
+ * Reads + parses rapitas's own backend log, filtered to entries on or after sinceMs.
+ *
+ * @param sinceMs - Epoch ms lower bound; entries with time < sinceMs are dropped
+ * @param filePath - Override log file path (test injection only)
+ * @returns Filtered parsed entries / フィルタ済みエントリ
+ */
+export async function readGlobalEntries(
+  sinceMs: number,
+  filePath?: string,
+): Promise<ParsedLogEntry[]> {
+  const path = filePath ?? getBackendLogFilePath();
   if (!existsSync(path)) return [];
   try {
-    const lines = readFileSync(path, 'utf-8').split('\n');
+    const raw = await readFile(path, 'utf-8');
+    const lines = raw.split('\n');
     const content = (lines.length > MAX_LINES ? lines.slice(-MAX_LINES) : lines).join('\n');
-    return parseLogEntries(content, 'pino');
+    return parseLogEntries(content, 'pino').filter(
+      (e) => e.time === undefined || e.time >= sinceMs,
+    );
   } catch (err) {
     log.warn({ err }, 'Failed to read backend log file');
     return [];
   }
 }
 
-/** Reads today's log files in a project's directory and parses them. */
-function readThemeEntries(dir: string, format: LogFormat): ParsedLogEntry[] {
+/**
+ * Reads today's log files in a project's directory and parses them.
+ *
+ * @param dir - Log directory path / ログディレクトリパス
+ * @param format - Log format / ログフォーマット
+ * @returns Parsed entries for today / 今日のエントリ
+ */
+async function readThemeEntries(dir: string, format: LogFormat): Promise<ParsedLogEntry[]> {
   if (!existsSync(dir)) {
     log.warn({ dir }, 'Project log directory missing — skipping');
     return [];
@@ -201,7 +220,7 @@ function readThemeEntries(dir: string, format: LogFormat): ParsedLogEntry[] {
     scanned++;
     let content: string;
     try {
-      content = readFileSync(full, 'utf-8');
+      content = await readFile(full, 'utf-8');
     } catch {
       continue;
     }
@@ -244,46 +263,63 @@ function pruneOldLogs(): void {
 /**
  * Run the daily log health check across rapitas's backend log and every opted-in
  * project's logs, filing distinct problems as concerns; then prune old logs.
+ * Global and per-project sources run in parallel for faster completion.
  *
+ * @param since - Only process entries on or after this time (defaults to start of today)
  * @returns Number of concerns filed / 起票された懸念の数
  */
-export async function runLogHealthCheck(): Promise<number> {
+export async function runLogHealthCheck(since?: Date): Promise<number> {
   log.info('Starting log health check');
-  let filed = 0;
 
-  // 1. Global: rapitas's own backend. Attribute to the default theme so the
-  // resulting concerns (and any task created from them) are theme-scoped — a
-  // theme-less task is invisible in the category-filtered home task list.
+  // NOTE: Clamp the window to today's start — prevents reading old data when
+  // since is a prior day's lastRunAt (daily job; diff value is future-use only).
+  const sinceMs = Math.max(startOfTodayMs(), since?.getTime() ?? 0);
+
+  // Prefetch DB lookups sequentially before launching parallel I/O.
   const defaultThemeId = await resolveDefaultThemeId();
   if (defaultThemeId === null) {
     log.warn(
       'No default theme set — global backend-log concerns stay theme-less and will be hidden from the category-filtered task list',
     );
   }
-  filed += await fileGroupedConcerns(groupEntries(readGlobalEntries()), {
-    themeId: defaultThemeId ?? undefined,
-  });
 
-  // 2. Per-project: each theme that opted in with a log dir + format.
   const targets = await getHealthCheckTargets();
+  let nameById = new Map<number, string>();
   if (targets.length > 0) {
     const themes = await prisma.theme.findMany({
       where: { id: { in: targets.map((t) => t.themeId) } },
       select: { id: true, name: true },
     });
-    const nameById = new Map(themes.map((t) => [t.id, t.name]));
-    for (const target of targets) {
+    nameById = new Map(themes.map((t) => [t.id, t.name]));
+  }
+
+  // 1. Global: rapitas's own backend. Attribute to the default theme so the
+  // resulting concerns (and any task created from them) are theme-scoped.
+  const globalTask = (async () => {
+    const entries = await readGlobalEntries(sinceMs);
+    return fileGroupedConcerns(groupEntries(entries), {
+      themeId: defaultThemeId ?? undefined,
+    });
+  })();
+
+  // 2. Per-project: each opted-in theme runs concurrently with the global task.
+  const themeTasks = targets.map((target) =>
+    (async () => {
       try {
-        const entries = readThemeEntries(target.logDir, target.logFormat);
-        filed += await fileGroupedConcerns(groupEntries(entries), {
+        const entries = await readThemeEntries(target.logDir, target.logFormat);
+        return fileGroupedConcerns(groupEntries(entries), {
           themeId: target.themeId,
           projectLabel: nameById.get(target.themeId) ?? `theme#${target.themeId}`,
         });
       } catch (err) {
         log.warn({ err, themeId: target.themeId }, 'Project log scan failed (non-fatal)');
+        return 0;
       }
-    }
-  }
+    })(),
+  );
+
+  const results = await Promise.all([globalTask, ...themeTasks]);
+  const filed = results.reduce((sum, n) => sum + n, 0);
 
   pruneOldLogs();
   log.info({ filed, projects: targets.length }, 'Log health check complete');

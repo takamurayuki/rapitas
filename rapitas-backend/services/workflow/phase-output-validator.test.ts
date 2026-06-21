@@ -172,6 +172,50 @@ bun test: 2 passed, 10 failed
     expect(validateVerify(contradictory).ok).toBe(false);
   });
 
+  test('does NOT flag a passing verify that contains the "❌ の場合" PR-gate legend', () => {
+    // Regression (task 267): a PASSING verify.md routinely includes the PR-gate
+    // legend "全体判定が ❌ の場合のみ PR を作成しないこと。本タスクは ✅ 合格。" — a
+    // CONDITIONAL. The bare /❌/ failure signal matched it and, combined with the
+    // many ✅ pass claims, falsely reported a self-contradiction → verify_repair
+    // ×2 → blocked. A conditional/legend ❌ must NOT count as a failure.
+    const legendPass = `# 実装結果検証レポート
+## 検証結果サマリ
+| 全体判定 | ✅ 合格 |
+> ⚠️ 全体判定が ❌ の場合のみ PR を作成しないこと。本タスクは ✅ 合格。
+## テスト結果
+bun test: 53 passed, 0 failed
+## チェックリスト消化状況
+- [x] done`;
+    expect(validateVerify(legendPass).ok).toBe(true);
+  });
+
+  test('does NOT flag a passing verify quoting the validator summary "(❌)"', () => {
+    // The self-repair feedback appends "...failure signals (❌)..." into verify.md;
+    // that parenthetical reference must not re-trigger the contradiction gate.
+    const quotedPass = `# 実装結果検証レポート
+## 検証結果サマリ
+✅ 合格 — 直前の差し戻し理由: claims all tests pass while body contains failure signals (❌).
+## テスト結果
+bun test: 10 passed, 0 failed
+## チェックリスト消化状況
+- [x] done`;
+    expect(validateVerify(quotedPass).ok).toBe(true);
+  });
+
+  test('still flags ❌ used as an actual verdict on its own line', () => {
+    // A ❌ verdict that is NOT a conditional/legend and does not assert pass on the
+    // same line must still be caught (defense alongside the numeric signals).
+    const realCross = `# 検証レポート
+## 検証結果サマリ
+✅ 全テスト通過と報告
+## テスト結果
+| ルートテスト | ❌ |
+追加調査が必要です。
+## チェックリスト消化状況
+- [x] done`;
+    expect(validateVerify(realCross).ok).toBe(false);
+  });
+
   // Regression tests for the auto_verifier WARN: lightweight mode (no plan.md) must still
   // emit the 3 required headings so validateVerify does not produce the WARN.
   test('accepts auto_verifier output with チェックリスト消化状況 heading (no plan)', () => {

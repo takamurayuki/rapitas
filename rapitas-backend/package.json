@@ -17,6 +17,7 @@
     "test:watch": "bun test --watch",
     "test:sqlite": "node scripts/run-sqlite-tests.cjs",
     "test:coverage": "bun test --coverage --isolate",
+    "check:guards": "bun run scripts/check-critical-guards.ts",
     "eval:gates": "bun run scripts/eval-gates.ts",
     "eval:judge": "bun run scripts/eval-judge.ts",
     "db:push": "prisma db push",

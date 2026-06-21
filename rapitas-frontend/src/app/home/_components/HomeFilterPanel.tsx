@@ -98,7 +98,13 @@ export function HomeFilterPanel({
     );
   }
 
-  if (filtersLoading) {
+  // Only show the loading skeleton on the FIRST load (no data yet). Once
+  // categories exist, keep the filter visible during a refresh (stale-while-
+  // revalidate) — otherwise a periodic/stale-cache/force refresh blanks the whole
+  // filter into a skeleton, and on a busy backend (10s × retries) it reads as
+  // "filter stuck loading for a while". Mirrors the kanban board's
+  // `&& tasks.length === 0` guard.
+  if (filtersLoading && categories.length === 0) {
     return (
       <div className="relative overflow-hidden border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-sm transition-all duration-300 mb-4 animate-skeleton-fade-in">
         <div className="flex items-center overflow-x-auto bg-slate-50 dark:bg-slate-800/50">

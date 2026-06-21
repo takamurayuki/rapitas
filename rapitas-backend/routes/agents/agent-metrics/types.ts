@@ -17,6 +17,8 @@ export interface AgentMetrics {
   averageExecutionTimeMs: number | null;
   totalTokensUsed: number;
   averageTokensPerExecution: number | null;
+  /** Aggregated LLM API call count across all executions for this agent. */
+  totalLlmCalls?: number;
   lastExecutionAt: Date | null;
   isActive: boolean;
 }
