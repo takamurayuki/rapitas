@@ -25,6 +25,17 @@ describe('canReuseWorktree', () => {
   test('true when the path exists on disk', () => {
     expect(canReuseWorktree('/live/task-1', exists)).toBe(true);
   });
+
+  test('false for an EMPTY dir that exists but has no .git (phantom worktree)', () => {
+    // A partially created worktree (git worktree add failed after mkdir) leaves an
+    // empty dir: the path exists but `<path>/.git` does not. Reusing it ran the
+    // agent in a dir where git resolves to the PRIMARY checkout — the task-288
+    // clobber. Such a path must NOT be reusable.
+    const onlyDirExists = (p: string) => p === '/wt/task-288'; // no '/wt/task-288/.git'
+    expect(canReuseWorktree('/wt/task-288', onlyDirExists)).toBe(false);
+    const dirAndGit = (p: string) => p === '/wt/task-1' || p === '/wt/task-1/.git';
+    expect(canReuseWorktree('/wt/task-1', dirAndGit)).toBe(true);
+  });
 });
 
 describe('decideWorktree', () => {
