@@ -1,6 +1,14 @@
 import tseslint from "@typescript-eslint/eslint-plugin";
 import tsparser from "@typescript-eslint/parser";
 import { stagedSeverity } from "../eslint-shared.mjs";
+import noRawPrismaInsensitive from "./eslint-rules/no-raw-prisma-insensitive.mjs";
+
+/** @type {import('eslint').Linter.Plugin} */
+const localPlugin = {
+  rules: {
+    "no-raw-prisma-insensitive": noRawPrismaInsensitive,
+  },
+};
 
 export default [
   {
@@ -20,9 +28,19 @@ export default [
     },
     plugins: {
       "@typescript-eslint": tseslint,
+      local: localPlugin,
     },
     rules: {
       ...stagedSeverity("prod"),
+      "local/no-raw-prisma-insensitive": "error",
+    },
+  },
+  // Exclude getInsensitiveMode() definition itself — it is the correct reference implementation.
+  {
+    files: ["config/db-provider.ts"],
+    plugins: { local: localPlugin },
+    rules: {
+      "local/no-raw-prisma-insensitive": "off",
     },
   },
   {
@@ -31,10 +49,14 @@ export default [
       ...stagedSeverity("scripts"),
     },
   },
+  // Disable in test files — tests may assert PostgreSQL/SQLite behaviour differences
+  // using raw mode literals and must not be flagged as violations.
   {
-    files: ["tests/**/*.ts"],
+    files: ["tests/**/*.ts", "**/*.test.ts", "**/*.spec.ts"],
+    plugins: { local: localPlugin },
     rules: {
       ...stagedSeverity("tests"),
+      "local/no-raw-prisma-insensitive": "off",
     },
   },
 ];
