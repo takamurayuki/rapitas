@@ -5,14 +5,12 @@
  * Not responsible for read operations — those live in pr-read.ts.
  */
 
-import { exec } from 'child_process';
-import { promisify } from 'util';
 import { createLogger } from '../../config/logger';
 import { runGhCommand, runGhCommandWithBody } from './gh-client';
+import { runGitCommand } from './git-exec';
 import type { PullRequestComment, CreatePRCommentInput, GhComment } from './types';
 
 const log = createLogger('github-service:pr-write');
-const execAsync = promisify(exec);
 
 // gh CLI error messages that indicate auto-merge is not configured on the repository.
 // These errors are non-recoverable with --auto; falling back to direct merge is safe.
@@ -245,17 +243,14 @@ export async function syncLocalBranchWithRemote(
   branch: string,
 ): Promise<{ synced: boolean; detail: string }> {
   try {
-    await execAsync(`git fetch origin ${branch}`, { cwd: workingDirectory });
+    await runGitCommand(['fetch', 'origin', branch], workingDirectory);
 
-    const { stdout: cur } = await execAsync('git branch --show-current', {
-      cwd: workingDirectory,
-    });
-    const current = cur.trim();
+    const current = await runGitCommand(['branch', '--show-current'], workingDirectory);
 
     if (current === branch) {
       // The base branch is checked out — fast-forward it to the remote.
       try {
-        await execAsync(`git merge --ff-only origin/${branch}`, { cwd: workingDirectory });
+        await runGitCommand(['merge', '--ff-only', `origin/${branch}`], workingDirectory);
         return { synced: true, detail: `ローカルの ${branch} を origin/${branch} に更新しました` };
       } catch {
         // Diverged: local ${branch} has commit(s) not on origin, so a fast-forward
@@ -264,9 +259,9 @@ export async function syncLocalBranchWithRemote(
         // no local commit is lost. A dirty tree, or a conflicting merge, is left
         // untouched and reported — never force-reset (that destroyed developer work
         // in the main-checkout-clobber incident).
-        const { stdout: status } = await execAsync('git status --porcelain', {
-          cwd: workingDirectory,
-        }).catch(() => ({ stdout: 'dirty' }));
+        const status = await runGitCommand(['status', '--porcelain'], workingDirectory).catch(
+          () => 'dirty',
+        );
         if (status.trim()) {
           return {
             synced: false,
@@ -274,15 +269,16 @@ export async function syncLocalBranchWithRemote(
           };
         }
         try {
-          await execAsync(`git merge --no-ff --no-edit origin/${branch}`, {
-            cwd: workingDirectory,
-          });
+          await runGitCommand(
+            ['merge', '--no-ff', '--no-edit', `origin/${branch}`],
+            workingDirectory,
+          );
           return {
             synced: true,
             detail: `ローカルの ${branch} を origin/${branch} とマージしました（分岐をマージコミットで解消）`,
           };
         } catch {
-          await execAsync('git merge --abort', { cwd: workingDirectory }).catch(() => {});
+          await runGitCommand(['merge', '--abort'], workingDirectory).catch(() => {});
           return {
             synced: false,
             detail: `ローカルの ${branch} が origin/${branch} と競合し自動マージできませんでした（手動 reconcile が必要）`,
@@ -293,7 +289,7 @@ export async function syncLocalBranchWithRemote(
 
     // Not checked out — move the local ref to the fetched remote tip. Fails if
     // the branch doesn't exist locally yet, which is fine (nothing to sync).
-    await execAsync(`git fetch origin ${branch}:${branch}`, { cwd: workingDirectory });
+    await runGitCommand(['fetch', 'origin', `${branch}:${branch}`], workingDirectory);
     return { synced: true, detail: `ローカルの ${branch} を origin/${branch} に更新しました` };
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
@@ -321,7 +317,7 @@ export async function createPullRequest(
 ): Promise<{ prNumber?: number; prUrl?: string; success: boolean; error?: string }> {
   try {
     // Push the current branch
-    await execAsync(`git push -u origin ${headBranch}`, { cwd: workingDirectory });
+    await runGitCommand(['push', '-u', 'origin', headBranch], workingDirectory);
 
     const output = await runGhCommandWithBody(
       ['pr', 'create', '--title', title, '--base', baseBranch, '--head', headBranch],
