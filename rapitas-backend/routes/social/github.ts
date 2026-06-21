@@ -415,7 +415,10 @@ export const githubRoutes = new Elysia({ prefix: '/github' })
 
     const pr = await resolvePrOrThrow(id);
 
-    const commentGuard = checkPrActionable(pr, { operationLabel: 'コメント投稿', requireOpen: false });
+    const commentGuard = checkPrActionable(pr, {
+      operationLabel: 'コメント投稿',
+      requireOpen: false,
+    });
     if (commentGuard) {
       context.set.status = commentGuard.status;
       return commentGuard.body;
@@ -480,7 +483,10 @@ export const githubRoutes = new Elysia({ prefix: '/github' })
 
     const pr = await resolvePrOrThrow(id);
 
-    const requestChangesGuard = checkPrActionable(pr, { operationLabel: '変更要求', requireOpen: true });
+    const requestChangesGuard = checkPrActionable(pr, {
+      operationLabel: '変更要求',
+      requireOpen: true,
+    });
     if (requestChangesGuard) {
       context.set.status = requestChangesGuard.status;
       return requestChangesGuard.body;
@@ -661,6 +667,17 @@ export const githubRoutes = new Elysia({ prefix: '/github' })
             // be created" gate — a conflict task updates PR #N, it never opens a
             // new one. Also makes the task's "PRを開く" button resolve.
             githubPrId: pr.prNumber,
+            // Resolving a merge conflict is MECHANICAL (merge base → fix markers →
+            // push): no design decisions, no new feature, bounded to the conflict
+            // files. The keyword scorer otherwise over-rates it because this
+            // instruction embeds the original PR's title (e.g. "[Refactor] …抽象化"),
+            // landing it in `standard` mode whose plan phase is pure overhead (the
+            // agent auto-approves a trivial plan and moves on). Pin it to lightweight
+            // (research→implement→verify, no plan) and override so the orchestrator's
+            // complexity staging does not recompute it back up.
+            workflowMode: 'lightweight',
+            workflowModeOverride: true,
+            complexityScore: 15,
           },
         })
         .catch(() => null);
