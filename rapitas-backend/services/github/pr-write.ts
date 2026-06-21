@@ -192,8 +192,41 @@ export async function syncLocalBranchWithRemote(
 
     if (current === branch) {
       // The base branch is checked out — fast-forward it to the remote.
-      await execAsync(`git merge --ff-only origin/${branch}`, { cwd: workingDirectory });
-      return { synced: true, detail: `ローカルの ${branch} を origin/${branch} に更新しました` };
+      try {
+        await execAsync(`git merge --ff-only origin/${branch}`, { cwd: workingDirectory });
+        return { synced: true, detail: `ローカルの ${branch} を origin/${branch} に更新しました` };
+      } catch {
+        // Diverged: local ${branch} has commit(s) not on origin, so a fast-forward
+        // is impossible (the "Not possible to fast-forward" error the user hit).
+        // Reconcile ONLY when the working tree is clean, and via a NON-ff merge so
+        // no local commit is lost. A dirty tree, or a conflicting merge, is left
+        // untouched and reported — never force-reset (that destroyed developer work
+        // in the main-checkout-clobber incident).
+        const { stdout: status } = await execAsync('git status --porcelain', {
+          cwd: workingDirectory,
+        }).catch(() => ({ stdout: 'dirty' }));
+        if (status.trim()) {
+          return {
+            synced: false,
+            detail: `ローカルの ${branch} が origin/${branch} と分岐し、未コミットの変更があるため同期をスキップしました（手動で reconcile してください）`,
+          };
+        }
+        try {
+          await execAsync(`git merge --no-ff --no-edit origin/${branch}`, {
+            cwd: workingDirectory,
+          });
+          return {
+            synced: true,
+            detail: `ローカルの ${branch} を origin/${branch} とマージしました（分岐をマージコミットで解消）`,
+          };
+        } catch {
+          await execAsync('git merge --abort', { cwd: workingDirectory }).catch(() => {});
+          return {
+            synced: false,
+            detail: `ローカルの ${branch} が origin/${branch} と競合し自動マージできませんでした（手動 reconcile が必要）`,
+          };
+        }
+      }
     }
 
     // Not checked out — move the local ref to the fetched remote tip. Fails if
