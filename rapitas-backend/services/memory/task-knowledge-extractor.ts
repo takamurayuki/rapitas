@@ -12,6 +12,7 @@ import { parseJsonArray } from '../../utils/common/json-extractor';
 import { createContentHash } from './utils';
 import { appendEvent } from './timeline';
 import { memoryTaskQueue } from './index';
+import { getInsensitiveMode } from '../../config/db-provider';
 
 const log = createLogger('memory:task-knowledge');
 
@@ -260,21 +261,14 @@ export async function searchCrossProjectKnowledge(
 
     if (keywords.length === 0) return { results: [], totalAcrossProjects: 0, projectCount: 0 };
 
-    // `mode: 'insensitive'` is Postgres-only; SQLite raises PrismaClientValidationError
-    // at runtime when it is present. Fall back to case-sensitive `contains` on SQLite.
-    // keywords are already lower-cased (line 244-248) so SQLite hits lower-case DB entries.
-    const isPostgres =
-      process.env.RAPITAS_DB_PROVIDER !== 'sqlite' &&
-      !process.env.DATABASE_URL?.startsWith('file:');
-    const insensitive = isPostgres ? { mode: 'insensitive' as const } : {};
-
+    // NOTE: keywords are already lower-cased (line 244-248) so SQLite hits lower-case DB entries.
     const entries = await prisma.knowledgeEntry.findMany({
       where: {
         forgettingStage: { in: ['active', 'dormant'] },
         OR: keywords.map((kw) => ({
           OR: [
-            { title: { contains: kw, ...insensitive } },
-            { content: { contains: kw, ...insensitive } },
+            { title: { contains: kw, ...getInsensitiveMode() } },
+            { content: { contains: kw, ...getInsensitiveMode() } },
           ],
         })),
       },

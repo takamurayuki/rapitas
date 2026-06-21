@@ -1,41 +1,47 @@
 /**
- * PR Guard Utilities
+ * pr-guards
  *
- * PR操作系エンドポイントの入力値を事前チェックするユーティリティ。
- * prNumber整合性(422)とstate事前チェック(409)を担当する。
- * set.status の設定は呼び出し側 (github.ts) が行う。
+ * Shared pre-flight guard helpers for PR mutation endpoints.
+ * Returns a violation descriptor (status + body) when a guard fails, or null
+ * when the PR is actionable.  Callers apply `context.set.status` inline,
+ * keeping the existing github.ts response style intact.
  */
 
-/** checkPrActionable が返す違反オブジェクト。呼び出し側で set.status に設定すること。 */
+/** Returned by checkPrActionable when the request should be rejected. */
 export interface PrGuardViolation {
+  /** HTTP status to set on the response: 422 or 409. */
   status: 422 | 409;
   body: { success: false; error: string };
 }
 
 /**
- * PR が指定操作を実行可能な状態かを検査する純粋関数。
+ * Checks whether a PR record allows the requested mutation to proceed.
  *
- * @param pr - prNumber と state を持つ PR レコード
- * @param opts.operationLabel - エラーメッセージ用の操作名（例: 'base変更'）
- * @param opts.requireOpen - true の場合 state !== 'open' を 409 で弾く / コメント等は false を渡す
- * @returns 違反があれば PrGuardViolation、問題なければ null
+ * Two guards are applied in order:
+ *   1. prNumber validity — rejects with 422 when prNumber is not a positive
+ *      integer (an invalid number would produce a meaningless gh CLI call).
+ *   2. state pre-check — rejects with 409 when requireOpen is true and the PR
+ *      is not in 'open' state (merged/closed PRs cannot be mutated).
+ *
+ * @param pr - PR record with at least prNumber and state fields.
+ * @param opts.operationLabel - Human-readable operation name for the error message (e.g. 'base変更').
+ * @param opts.requireOpen - When true, non-open PRs are rejected with 409.
+ * @returns PrGuardViolation when a guard fires, null when the PR is actionable.
  */
 export function checkPrActionable(
   pr: { prNumber: number; state: string },
   opts: { operationLabel: string; requireOpen: boolean },
 ): PrGuardViolation | null {
-  // NOTE: DB の Int 型通常値は通過する。0 や負値、非整数は不正な prNumber として弾く。
   if (!Number.isInteger(pr.prNumber) || pr.prNumber <= 0) {
     return {
       status: 422,
       body: {
         success: false,
-        error: `不正なPR番号です (prNumber=${pr.prNumber})。${opts.operationLabel} を実行できません`,
+        error: `PRの番号が不正なため ${opts.operationLabel} を実行できません (prNumber=${pr.prNumber})`,
       },
     };
   }
 
-  // NOTE: DB 運用は小文字 ('open'/'merged'/'closed') で統一されている (pr-read.ts:31)。
   if (opts.requireOpen && pr.state !== 'open') {
     return {
       status: 409,

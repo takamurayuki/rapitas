@@ -4,11 +4,11 @@
  * runLogHealthCheck の統合テスト。検証対象の 3 つの設計保証:
  *   1. 件数合算 — global + theme の filed が正確に合算される
  *   2. 全ターゲット処理 — 複数テーマが全て処理される（並列化保証）
- *   3. since クランプ (mtime) — 昨日の mtime ファイルは readFileSync されない
+ *   3. since クランプ (mtime) — 昨日の mtime ファイルは readFile されない
  *   4. since クランプ (entry time) — 今日 mtime でも time が昨日のエントリは除外される
  *   5. ターゲットなし — getHealthCheckTargets が [] のとき global のみ集計
  *
- * Strategy: mock.module で 5 依存（fs / logger / database / concern-backlog-service /
+ * Strategy: mock.module で 5 依存（fs / fs/promises / logger / database / concern-backlog-service /
  * theme-backlog-override-service）をスタブ化し runLogHealthCheck を直接 await する。
  * ソースコード（log-health-check.ts 等）への変更は一切なし。
  *
@@ -60,7 +60,11 @@ function pinoLine(level: number, msg: string, name: string, time?: number): stri
 
 // ─── モック宣言（await import より前に配置すること） ─────────────────────────
 
-const mockReadFileSync = mock((_path: unknown, _enc: unknown): string => '');
+// NOTE: Implementation uses readFile from fs/promises (async I/O after task #242 optimization).
+//       readFileSync is no longer called; mock fs/promises.readFile instead.
+const mockReadFile = mock(
+  (_path: unknown, _enc: unknown): Promise<string> => Promise.resolve(''),
+);
 const mockReaddirSync = mock((_path: unknown): string[] => []);
 const mockStatSync = mock((_path: unknown) => ({
   isFile: (): boolean => false,
@@ -69,8 +73,12 @@ const mockStatSync = mock((_path: unknown) => ({
 const mockExistsSync = mock((_path: unknown): boolean => false);
 const mockUnlinkSync = mock((_path: unknown): void => {});
 
+// NOTE: fs/promises must be mocked before fs so the async readFile is intercepted.
+mock.module('fs/promises', () => ({
+  readFile: mockReadFile,
+}));
+
 mock.module('fs', () => ({
-  readFileSync: mockReadFileSync,
   readdirSync: mockReaddirSync,
   statSync: mockStatSync,
   existsSync: mockExistsSync,
@@ -126,7 +134,7 @@ describe('runLogHealthCheck 統合テスト', () => {
    * - デフォルト戻り値を設定（各テストで上書き可能）
    */
   beforeEach(() => {
-    mockReadFileSync.mockClear();
+    mockReadFile.mockClear();
     mockReaddirSync.mockClear();
     mockStatSync.mockClear();
     mockExistsSync.mockClear();
@@ -141,7 +149,7 @@ describe('runLogHealthCheck 統合テスト', () => {
     mockGetHealthCheckTargets.mockReturnValue(Promise.resolve([]));
     mockThemeFindMany.mockReturnValue(Promise.resolve([]));
     mockSubmitConcern.mockReturnValue(Promise.resolve(undefined));
-    mockReadFileSync.mockReturnValue('');
+    mockReadFile.mockReturnValue(Promise.resolve(''));
 
     // existsSync: 既知パスのみ true（backend log + 3 テーマ log dir）
     mockExistsSync.mockImplementation((p: unknown) => {
@@ -188,11 +196,11 @@ describe('runLogHealthCheck 統合テスト', () => {
     // テーマ A ログ: 1 つのエラー
     const themeAContent = pinoLine(50, 'Project build failed', 'builder');
 
-    mockReadFileSync.mockImplementation((p: unknown, _enc: unknown) => {
+    mockReadFile.mockImplementation((p: unknown, _enc: unknown) => {
       const path = p as string;
-      if (path === BACKEND_LOG_PATH) return globalContent;
-      if (path.endsWith('app.log')) return themeAContent;
-      return '';
+      if (path === BACKEND_LOG_PATH) return Promise.resolve(globalContent);
+      if (path.endsWith('app.log')) return Promise.resolve(themeAContent);
+      return Promise.resolve('');
     });
 
     mockGetHealthCheckTargets.mockReturnValue(
@@ -210,14 +218,14 @@ describe('runLogHealthCheck 統合テスト', () => {
   // ── Test 2: 全ターゲット処理（並列化保証） ────────────────────────────────
 
   it('全ターゲット処理: 3 テーマが全て処理される', async () => {
-    mockReadFileSync.mockImplementation((p: unknown, _enc: unknown) => {
+    mockReadFile.mockImplementation((p: unknown, _enc: unknown) => {
       const path = p as string;
-      if (path === BACKEND_LOG_PATH) return ''; // global は 0 件
+      if (path === BACKEND_LOG_PATH) return Promise.resolve(''); // global は 0 件
       // 各テーマの app.log にそれぞれ 1 件のエラー
-      if (path.includes('theme-a')) return pinoLine(50, 'theme-a error', 'svc');
-      if (path.includes('theme-b')) return pinoLine(50, 'theme-b error', 'svc');
-      if (path.includes('theme-c')) return pinoLine(50, 'theme-c error', 'svc');
-      return '';
+      if (path.includes('theme-a')) return Promise.resolve(pinoLine(50, 'theme-a error', 'svc'));
+      if (path.includes('theme-b')) return Promise.resolve(pinoLine(50, 'theme-b error', 'svc'));
+      if (path.includes('theme-c')) return Promise.resolve(pinoLine(50, 'theme-c error', 'svc'));
+      return Promise.resolve('');
     });
 
     mockGetHealthCheckTargets.mockReturnValue(
@@ -250,7 +258,7 @@ describe('runLogHealthCheck 統合テスト', () => {
 
   // ── Test 3: since クランプ (mtime) ────────────────────────────────────────
 
-  it('since クランプ (mtime): 昨日の mtime ファイルは readFileSync されない', async () => {
+  it('since クランプ (mtime): 昨日の mtime ファイルは readFile されない', async () => {
     // NOTE: 昨日 mtime → readThemeEntries の `st.mtimeMs < since` 条件が発火しスキップ
     mockStatSync.mockImplementation((p: unknown) => {
       const path = p as string;
@@ -269,8 +277,8 @@ describe('runLogHealthCheck 統合テスト', () => {
 
     await runLogHealthCheck();
 
-    // 昨日 mtime の app.log は readFileSync が呼ばれていないこと
-    const readPaths = (mockReadFileSync.mock.calls as Array<[string, string]>).map((c) => c[0]);
+    // 昨日 mtime の app.log は readFile が呼ばれていないこと
+    const readPaths = (mockReadFile.mock.calls as Array<[string, string]>).map((c) => c[0]);
     expect(readPaths.some((p) => p.endsWith('app.log'))).toBe(false);
   });
 
@@ -282,11 +290,11 @@ describe('runLogHealthCheck 統合テスト', () => {
     const YESTERDAY_ENTRY_TIME = since - 3_600_000;
     const staleEntry = pinoLine(50, 'Stale error from yesterday', 'db', YESTERDAY_ENTRY_TIME);
 
-    mockReadFileSync.mockImplementation((p: unknown, _enc: unknown) => {
+    mockReadFile.mockImplementation((p: unknown, _enc: unknown) => {
       const path = p as string;
-      if (path === BACKEND_LOG_PATH) return '';
-      if (path.endsWith('app.log')) return staleEntry;
-      return '';
+      if (path === BACKEND_LOG_PATH) return Promise.resolve('');
+      if (path.endsWith('app.log')) return Promise.resolve(staleEntry);
+      return Promise.resolve('');
     });
 
     mockGetHealthCheckTargets.mockReturnValue(
@@ -304,10 +312,11 @@ describe('runLogHealthCheck 統合テスト', () => {
   // ── Test 5: ターゲットなし ────────────────────────────────────────────────
 
   it('ターゲットなし: getHealthCheckTargets が [] のとき global のみ集計', async () => {
-    mockReadFileSync.mockImplementation((p: unknown, _enc: unknown) => {
+    mockReadFile.mockImplementation((p: unknown, _enc: unknown) => {
       const path = p as string;
-      if (path === BACKEND_LOG_PATH) return pinoLine(50, 'Backend startup error', 'system');
-      return '';
+      if (path === BACKEND_LOG_PATH)
+        return Promise.resolve(pinoLine(50, 'Backend startup error', 'system'));
+      return Promise.resolve('');
     });
 
     // getHealthCheckTargets はデフォルト [] （beforeEach で設定済み）

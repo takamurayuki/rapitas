@@ -137,6 +137,31 @@ describe('createPullRequest — push 分岐耐性', () => {
     expect(calls.some((c) => /pr edit/.test(c))).toBe(false);
   });
 
+  test('既存PRのnumberが0の場合は再利用せずpr createすること（0のfalsy挙動を固定）', async () => {
+    // NOTE: `if (pr.number && pr.url)` は 0 が JavaScript で falsy になるため
+    //       再利用パスに入らず gh pr create へフォールスルーする現挙動を固定する。
+    //       GitHub PR #0 は実在しないため実害ゼロだが、将来同様の truthy チェックが
+    //       増えた際の回帰検知点として意図的にテストする。
+    script = [
+      { match: /git branch --list develop/, result: 'develop\n' },
+      { match: /git branch --show-current/, result: 'feature/pr-zero\n' },
+      { match: /git push -u origin feature\/pr-zero$/, result: '' },
+      // pr.number = 0 → if (0 && url) = false → 再利用をスキップして pr create へ
+      {
+        match: /pr list --head feature\/pr-zero/,
+        result: JSON.stringify({ number: 0, url: 'https://x/pull/0', baseRefName: 'develop' }),
+      },
+      { match: /pr create/, result: 'https://github.com/x/y/pull/99\n' },
+    ];
+
+    const res = await createPullRequest('/repo', 't', 'b');
+
+    expect(res.success).toBe(true);
+    expect(res.prNumber).toBe(99);
+    // 0 は falsy のため再利用をスキップし、新規作成が呼ばれること
+    expect(calls.some((c) => /pr create/.test(c))).toBe(true);
+  });
+
   test('分岐以外の push 失敗 (認証等) は PR 失敗として返すこと', async () => {
     script = [
       { match: /git branch --list develop/, result: 'develop\n' },
