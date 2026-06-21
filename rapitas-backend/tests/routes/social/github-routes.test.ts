@@ -4,6 +4,7 @@
  */
 import { describe, test, expect, mock, beforeEach } from 'bun:test';
 import { Elysia } from 'elysia';
+import { errorHandler } from '../../../middleware/error-handler';
 
 // HACK(agent): Bun mock型推論の制限 — 型パラメーターをサポートしていないため `as any` で型チェックをバイパス
 const mockPrisma = {
@@ -486,14 +487,174 @@ describe('GET /github/pull-requests/:id/diff', () => {
     expect(body.diff).toBe('diff content');
   });
 
-  test('PRが見つからない場合 404 + PR_NOT_FOUND を返すこと', async () => {
+  test('PRが見つからない場合 404 を返し外部APIを呼ばないこと', async () => {
     mockPrisma.gitHubPullRequest.findUnique.mockResolvedValue(null);
 
     const res = await app.handle(new Request('http://localhost/github/pull-requests/999/diff'));
     const body = await res.json();
 
     expect(res.status).toBe(404);
-    expect(body.error).toBeDefined();
+    expect(body.error).toBe('PR not found');
+    expect(body.code).toBe('PR_NOT_FOUND');
+    expect(mockGetPullRequestDiff).not.toHaveBeenCalled();
+  });
+});
+
+describe('POST /github/pull-requests/:id/comments — PR not found guard', () => {
+  let app: ReturnType<typeof createApp>;
+
+  beforeEach(() => {
+    resetAllMocks();
+    app = createApp();
+  });
+
+  test('PRが見つからない場合 404 を返し外部APIを呼ばないこと', async () => {
+    mockPrisma.gitHubPullRequest.findUnique.mockResolvedValue(null);
+
+    const res = await app.handle(
+      new Request('http://localhost/github/pull-requests/999/comments', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ body: 'comment' }),
+      }),
+    );
+    const body = await res.json();
+
+    expect(res.status).toBe(404);
+    expect(body.error).toBe('PR not found');
+    expect(body.code).toBe('PR_NOT_FOUND');
+    expect(mockCreatePullRequestComment).not.toHaveBeenCalled();
+  });
+});
+
+describe('POST /github/pull-requests/:id/approve — PR not found guard', () => {
+  let app: ReturnType<typeof createApp>;
+
+  beforeEach(() => {
+    resetAllMocks();
+    app = createApp();
+  });
+
+  test('PRが見つからない場合 404 を返し外部APIを呼ばないこと', async () => {
+    mockPrisma.gitHubPullRequest.findUnique.mockResolvedValue(null);
+
+    const res = await app.handle(
+      new Request('http://localhost/github/pull-requests/999/approve', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({}),
+      }),
+    );
+    const body = await res.json();
+
+    expect(res.status).toBe(404);
+    expect(body.error).toBe('PR not found');
+    expect(body.code).toBe('PR_NOT_FOUND');
+    expect(mockApprovePullRequest).not.toHaveBeenCalled();
+  });
+});
+
+describe('POST /github/pull-requests/:id/request-changes — PR not found guard', () => {
+  let app: ReturnType<typeof createApp>;
+
+  beforeEach(() => {
+    resetAllMocks();
+    app = createApp();
+  });
+
+  test('PRが見つからない場合 404 を返し外部APIを呼ばないこと', async () => {
+    mockPrisma.gitHubPullRequest.findUnique.mockResolvedValue(null);
+
+    const res = await app.handle(
+      new Request('http://localhost/github/pull-requests/999/request-changes', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ body: 'needs changes' }),
+      }),
+    );
+    const body = await res.json();
+
+    expect(res.status).toBe(404);
+    expect(body.error).toBe('PR not found');
+    expect(body.code).toBe('PR_NOT_FOUND');
+    expect(mockRequestChanges).not.toHaveBeenCalled();
+  });
+});
+
+describe('POST /github/pull-requests/:id/merge — PR not found guard', () => {
+  let app: ReturnType<typeof createApp>;
+
+  beforeEach(() => {
+    resetAllMocks();
+    app = createApp();
+  });
+
+  test('PRが見つからない場合 404 を返し外部APIを呼ばないこと', async () => {
+    mockPrisma.gitHubPullRequest.findUnique.mockResolvedValue(null);
+
+    const res = await app.handle(
+      new Request('http://localhost/github/pull-requests/999/merge', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({}),
+      }),
+    );
+    const body = await res.json();
+
+    expect(res.status).toBe(404);
+    expect(body.error).toBe('PR not found');
+    expect(body.code).toBe('PR_NOT_FOUND');
+  });
+});
+
+describe('PATCH /github/pull-requests/:id/base — PR not found guard', () => {
+  let app: ReturnType<typeof createApp>;
+
+  beforeEach(() => {
+    resetAllMocks();
+    app = createApp();
+  });
+
+  test('PRが見つからない場合 404 を返すこと', async () => {
+    mockPrisma.gitHubPullRequest.findUnique.mockResolvedValue(null);
+
+    const res = await app.handle(
+      new Request('http://localhost/github/pull-requests/999/base', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ baseBranch: 'main' }),
+      }),
+    );
+    const body = await res.json();
+
+    expect(res.status).toBe(404);
+    expect(body.error).toBe('PR not found');
+    expect(body.code).toBe('PR_NOT_FOUND');
+  });
+});
+
+describe('POST /github/pull-requests/:id/resolve-conflicts — PR not found guard', () => {
+  let app: ReturnType<typeof createApp>;
+
+  beforeEach(() => {
+    resetAllMocks();
+    app = createApp();
+  });
+
+  test('PRが見つからない場合 404 を返すこと', async () => {
+    mockPrisma.gitHubPullRequest.findUnique.mockResolvedValue(null);
+
+    const res = await app.handle(
+      new Request('http://localhost/github/pull-requests/999/resolve-conflicts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({}),
+      }),
+    );
+    const body = await res.json();
+
+    expect(res.status).toBe(404);
+    expect(body.error).toBe('PR not found');
     expect(body.code).toBe('PR_NOT_FOUND');
   });
 });

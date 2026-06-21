@@ -397,8 +397,7 @@ export const githubRoutes = new Elysia({ prefix: '/github' })
 
   // Get PR diff
   .get('/pull-requests/:id/diff', async (context) => {
-    const { params } = context;
-    const { id } = params as { id: string };
+    const { id } = context.params as { id: string };
     const pr = await resolvePrOrThrow(id);
 
     const repo = `${pr.integration.ownerName}/${pr.integration.repositoryName}`;
@@ -432,7 +431,7 @@ export const githubRoutes = new Elysia({ prefix: '/github' })
     // Save comment to DB
     await prisma.gitHubPRComment.create({
       data: {
-        pullRequestId: parseInt(id),
+        pullRequestId: pr.id,
         commentId: comment.id || 0,
         body: commentBody,
         path,
@@ -502,14 +501,7 @@ export const githubRoutes = new Elysia({ prefix: '/github' })
       auto?: boolean;
     };
 
-    const pr = await prisma.gitHubPullRequest.findUnique({
-      where: { id: parseInt(id) },
-      include: { integration: true },
-    });
-    if (!pr) {
-      context.set.status = 404;
-      return { success: false, error: 'PR not found' };
-    }
+    const pr = await resolvePrOrThrow(id);
 
     const mergeGuard = checkPrActionable(pr, { operationLabel: 'マージ', requireOpen: true });
     if (mergeGuard) {
@@ -538,7 +530,7 @@ export const githubRoutes = new Elysia({ prefix: '/github' })
     }
 
     await prisma.gitHubPullRequest
-      .update({ where: { id: parseInt(id) }, data: { state: 'merged', updatedAt: new Date() } })
+      .update({ where: { id: pr.id }, data: { state: 'merged', updatedAt: new Date() } })
       .catch(() => {});
 
     // Pull the merged changes into the LOCAL base branch so the working copy
@@ -572,14 +564,7 @@ export const githubRoutes = new Elysia({ prefix: '/github' })
       return { success: false, error: 'baseBranch は必須です' };
     }
 
-    const pr = await prisma.gitHubPullRequest.findUnique({
-      where: { id: parseInt(id) },
-      include: { integration: true },
-    });
-    if (!pr) {
-      context.set.status = 404;
-      return { success: false, error: 'PR not found' };
-    }
+    const pr = await resolvePrOrThrow(id);
 
     const baseGuard = checkPrActionable(pr, { operationLabel: 'base変更', requireOpen: true });
     if (baseGuard) {
@@ -597,7 +582,7 @@ export const githubRoutes = new Elysia({ prefix: '/github' })
     }
 
     await prisma.gitHubPullRequest
-      .update({ where: { id: parseInt(id) }, data: { baseBranch, updatedAt: new Date() } })
+      .update({ where: { id: pr.id }, data: { baseBranch, updatedAt: new Date() } })
       .catch(() => {});
 
     return { success: true, baseBranch };
