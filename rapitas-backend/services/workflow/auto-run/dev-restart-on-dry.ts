@@ -33,6 +33,20 @@ const SHUTDOWN_BUDGET_MS = 30_000;
 let startupCommit: string | null = null;
 let lastRestartAt = 0;
 let restarting = false;
+let lastDiagAt = 0;
+
+/**
+ * Throttled diagnostic: records WHICH gate turned a self-deploy attempt into a
+ * no-op. maybeRestartForUpdate now fires on every task boundary, so this would
+ * spam — emit at most once per minute. Exists to settle "why did self-deploy
+ * never fire during continuous auto-run?"; safe to remove once confirmed.
+ */
+function diag(gate: string, detail?: Record<string, unknown>): void {
+  const now = Date.now();
+  if (now - lastDiagAt < 60_000) return;
+  lastDiagAt = now;
+  log.info({ gate, ...detail }, `[dev-restart] no-op at gate: ${gate}`);
+}
 
 /** Current HEAD of the backend's checkout, or null if git is unavailable. */
 async function headCommit(): Promise<string | null> {
@@ -76,7 +90,10 @@ export async function maybeRestartForUpdate(themeId: number): Promise<boolean> {
   // Only self-restart under the desktop dev orchestrator (dev.js sets TAURI_BUILD
   // and relaunches on exit 75). In web dev / a direct run nothing watches for exit
   // 75, so exiting would ORPHAN the backend and kill the loop — make it a no-op.
-  if (process.env.TAURI_BUILD !== 'true') return false;
+  if (process.env.TAURI_BUILD !== 'true') {
+    diag('TAURI_BUILD!=true', { tauriBuild: process.env.TAURI_BUILD ?? '(unset)' });
+    return false;
+  }
 
   // Cheapest check first (in-memory): require global quiescence so we never kill
   // an in-flight agent. This is safe to call on EVERY tick — a busy loop with a
@@ -84,9 +101,15 @@ export async function maybeRestartForUpdate(themeId: number): Promise<boolean> {
   // BETWEEN tasks; catching that gap is what lets fixes apply without waiting for
   // the whole backlog to drain.
   const active = AgentOrchestrator.getInstance(prisma).getActiveExecutionCount();
-  if (active > 0) return false;
+  if (active > 0) {
+    diag('active>0', { active });
+    return false;
+  }
 
-  if (!(await restartEnabled())) return false;
+  if (!(await restartEnabled())) {
+    diag('restartOnAutoRunDry=off');
+    return false;
+  }
 
   // Respect a user STOP. dev-restart exists only to let the AUTO-RUN loop pick up
   // committed fixes between tasks — it is driven from the scheduler tick, which
@@ -98,14 +121,23 @@ export async function maybeRestartForUpdate(themeId: number): Promise<boolean> {
   const activeAutoRun = await prisma.themeAutoRun
     .count({ where: { enabled: true } })
     .catch(() => 0);
-  if (activeAutoRun === 0) return false;
+  if (activeAutoRun === 0) {
+    diag('no-armed-theme');
+    return false;
+  }
 
   const now = Date.now();
-  if (lastRestartAt && now - lastRestartAt < MIN_RESTART_INTERVAL_MS) return false;
+  if (lastRestartAt && now - lastRestartAt < MIN_RESTART_INTERVAL_MS) {
+    diag('rate-limited', { msSinceLast: now - lastRestartAt });
+    return false;
+  }
 
   // Only restart when there is genuinely something new to apply.
   const current = await headCommit();
-  if (!current || !startupCommit || current === startupCommit) return false;
+  if (!current || !startupCommit || current === startupCommit) {
+    diag('HEAD-unchanged', { startupCommit, current });
+    return false;
+  }
 
   restarting = true;
   lastRestartAt = now;

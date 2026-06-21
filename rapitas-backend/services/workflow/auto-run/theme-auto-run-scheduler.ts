@@ -445,6 +445,16 @@ export class ThemeAutoRunScheduler {
     });
     skipIds.push(...blockedTasks.map((t) => t.id));
 
+    // Self-deploy at the TASK BOUNDARY (event-driven). We reach here only between
+    // tasks — the prior one finished and the next is not yet selected — so it is a
+    // reliable 0-agent moment. The tick poll and the all_done branch both MISSED
+    // continuous auto-run: with auto-create refilling the queue the theme rarely
+    // reaches all_done, and the inter-task gap is shorter than the tick can sample
+    // (observed: 0 restarts over 30 min while HEAD had moved). Firing it HERE
+    // catches every task boundary. No-op unless HEAD moved + no live agents + not
+    // rate-limited; if it restarts, the process exits and dev.js relaunches.
+    if (await maybeRestartForUpdate(themeId)) return;
+
     const result = await selectNextTask(prisma, themeId, order, skipIds, globalActive);
 
     if (!result.found) {
