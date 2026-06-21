@@ -160,7 +160,11 @@ export function validateVerify(content: string): ValidationResult {
     /test\s+files?[\s\S]{0,80}?([1-9]\d*)\s+failed/i,
     /失敗\s*(?:した)?テスト\s*(?:数|件数)?\s*[:：]?\s*([1-9]\d*)/, // "失敗テスト数: 3", not ": 0"
     /テスト[^。\n]{0,20}?([1-9]\d*)\s*(?:件|個)\s*(?:が)?\s*失敗/, // "テストが3件失敗"
-    /exit\s*(?:code\s*)?[:=]?\s*1\b/i,
+    // `\b` before exit so an identifier like "TSC_EXIT=1" (an agent HONESTLY
+    // documenting that whole-project tsc exits 1 due to PRE-EXISTING out-of-scope
+    // errors) is NOT read as the task's own test failure. Real "exit 1" / "exit
+    // code 1" still matches. (task 272 was blocked by exactly this false positive.)
+    /\bexit\s*(?:code\s*)?[:=]?\s*1\b/i,
     /×\s*[1-9]\d*/, // "× 5" — not "× 0"
   ];
   const failureHits = failureSignals
