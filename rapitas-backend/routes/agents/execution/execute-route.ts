@@ -31,8 +31,8 @@ import {
   startWorktreeDependenciesInstall,
   taskNeedsDependencies,
 } from '../../../services/agents/orchestrator/git-operations/dependency-installer';
+import { isShutdownError } from '../../../services/agents/agent-worker/shutdown-error';
 import type { AttachmentDescriptor } from './instruction-builder';
-import { isShutdownError, handleShutdownInterruption } from './shutdown-error-handler';
 
 const log = createLogger('routes:agent-execution:execute');
 const agentWorkerManager = AgentWorkerManager.getInstance();
@@ -640,10 +640,19 @@ export const executeRoute = new Elysia().post(
       )
       .catch(async (error) => {
         if (isShutdownError(error)) {
-          await handleShutdownInterruption({
-            sessionId: session.id,
-            logPrefix: `[API] task ${taskIdNum}`,
-          });
+          // NOTE: Shutdown-originated reject is not a crash — demote to WARN and
+          // mark session as interrupted so recoverStaleExecutions can resume it.
+          log.warn({ err: error }, `[API] Execution interrupted by shutdown for task ${taskIdNum}`);
+          await prisma.agentSession
+            .update({
+              where: { id: session.id },
+              data: {
+                status: 'interrupted',
+                completedAt: new Date(),
+                errorMessage: error.message,
+              },
+            })
+            .catch(() => {});
           return;
         }
         log.error({ err: error }, `[API] Execution error for task ${taskIdNum}`);

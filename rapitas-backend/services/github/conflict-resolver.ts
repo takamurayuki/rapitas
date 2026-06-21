@@ -8,13 +8,11 @@
  * conflicting files (the caller hands those to an agent to resolve).
  */
 
-import { exec } from 'child_process';
-import { promisify } from 'util';
 import { join } from 'path';
 import { tmpdir } from 'os';
 import { createLogger } from '../../config/logger';
+import { runGitCommand } from './git-exec';
 
-const execAsync = promisify(exec);
 const log = createLogger('github:conflict-resolver');
 
 export interface ConflictResolveResult {
@@ -46,10 +44,11 @@ export async function resolvePrConflicts(
   const tmpBranch = `conflict-resolve/${stamp}`;
 
   try {
-    await execAsync(`git fetch origin ${baseBranch} ${headBranch}`, { cwd: workingDirectory });
-    await execAsync(`git worktree add "${wt}" -b ${tmpBranch} origin/${headBranch}`, {
-      cwd: workingDirectory,
-    });
+    await runGitCommand(['fetch', 'origin', baseBranch, headBranch], workingDirectory);
+    await runGitCommand(
+      ['worktree', 'add', wt, '-b', tmpBranch, `origin/${headBranch}`],
+      workingDirectory,
+    );
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     log.warn({ message, headBranch }, 'Failed to set up conflict-resolution worktree');
@@ -58,9 +57,9 @@ export async function resolvePrConflicts(
   }
 
   try {
-    await execAsync(`git merge origin/${baseBranch} --no-edit`, { cwd: wt });
+    await runGitCommand(['merge', `origin/${baseBranch}`, '--no-edit'], wt);
     // Clean merge — push the updated head branch.
-    await execAsync(`git push origin ${tmpBranch}:${headBranch}`, { cwd: wt });
+    await runGitCommand(['push', 'origin', `${tmpBranch}:${headBranch}`], wt);
     return {
       resolved: true,
       conflicts: [],
@@ -70,7 +69,7 @@ export async function resolvePrConflicts(
     // Conflict (or push failure). Collect the conflicting files, then abort.
     let conflicts: string[] = [];
     try {
-      const { stdout } = await execAsync('git diff --name-only --diff-filter=U', { cwd: wt });
+      const stdout = await runGitCommand(['diff', '--name-only', '--diff-filter=U'], wt);
       conflicts = stdout
         .split('\n')
         .map((s) => s.trim())
@@ -78,7 +77,7 @@ export async function resolvePrConflicts(
     } catch {
       /* ignore */
     }
-    await execAsync('git merge --abort', { cwd: wt }).catch(() => {});
+    await runGitCommand(['merge', '--abort'], wt).catch(() => {});
     return {
       resolved: false,
       conflicts,
@@ -91,6 +90,6 @@ export async function resolvePrConflicts(
 
 /** Remove the throwaway worktree and temp branch (best-effort). */
 async function cleanup(workingDirectory: string, wt: string, tmpBranch: string): Promise<void> {
-  await execAsync(`git worktree remove "${wt}" --force`, { cwd: workingDirectory }).catch(() => {});
-  await execAsync(`git branch -D ${tmpBranch}`, { cwd: workingDirectory }).catch(() => {});
+  await runGitCommand(['worktree', 'remove', wt, '--force'], workingDirectory).catch(() => {});
+  await runGitCommand(['branch', '-D', tmpBranch], workingDirectory).catch(() => {});
 }

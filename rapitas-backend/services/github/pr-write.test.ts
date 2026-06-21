@@ -22,26 +22,26 @@ mock.module('./gh-client', () => ({
   runGhCommandWithBody: mockRunGhCommandWithBody,
 }));
 
-// exec is used by createPullRequest (git push) and syncLocalBranchWithRemote
-let execShouldFail = false;
-const mockExec = mock(
-  (
-    _cmd: string,
-    _opts: object,
-    cb: (err: Error | null, result?: { stdout: string; stderr: string }) => void,
-  ) => {
-    if (execShouldFail) {
-      cb(new Error('git push failed'));
-    } else {
-      cb(null, { stdout: '', stderr: '' });
-    }
+// runGitCommand is used by createPullRequest (git push) and syncLocalBranchWithRemote.
+// NOTE: Mirror ALL git-exec exports to prevent "export not found" in the same bun process.
+let gitShouldFail = false;
+const mockRunGitCommand = mock(
+  (_args: string[], _cwd?: string, _opts?: { skipLog?: boolean }) => {
+    if (gitShouldFail) return Promise.reject(new Error('git push failed'));
+    return Promise.resolve('');
   },
 );
 
-// NOTE: Include execFile as well to prevent "export not found" when gh-client.test.ts
+mock.module('./git-exec', () => ({
+  runGitCommand: mockRunGitCommand,
+  parseOwnerRepo: mock(() => null),
+  ownerRepoFromGitRemote: mock(() => Promise.resolve(null)),
+}));
+
+// NOTE: Include exec and execFile to prevent "export not found" when gh-client.test.ts
 // runs in the same process (bun mock.module is process-global).
 mock.module('child_process', () => ({
-  exec: mockExec,
+  exec: mock(() => {}),
   execFile: mock(() => {}),
 }));
 
@@ -351,8 +351,8 @@ describe('requestChanges', () => {
 describe('createPullRequest', () => {
   beforeEach(() => {
     mockRunGhCommandWithBody.mockReset();
-    mockExec.mockClear();
-    execShouldFail = false;
+    mockRunGitCommand.mockClear();
+    gitShouldFail = false;
   });
 
   it('正常系: git push 後に runGhCommandWithBody で PR を作成し success を返す', async () => {
@@ -381,7 +381,7 @@ describe('createPullRequest', () => {
   });
 
   it('git push 失敗 → success: false でエラーメッセージを返す', async () => {
-    execShouldFail = true;
+    gitShouldFail = true;
 
     const result = await createPullRequest(
       '/workspace',

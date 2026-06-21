@@ -6,6 +6,7 @@
  *   - transformSpecArray
  *   - transformPrismaSingleton
  *   - transformResponseHelper
+ *   - transformInsensitiveSpread
  */
 
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'fs';
@@ -16,6 +17,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
 import { ensureImport, relativeImportPath, runCodemod, walkTs } from '../lib/codemod-runner';
 import { transformInsensitiveMode } from '../insensitive-mode';
+import { transformInsensitiveSpread } from '../insensitive-spread';
 import { transformPrismaSingleton } from '../prisma-singleton';
 import { transformResponseHelper } from '../response-helper';
 import { transformSpecArray } from '../spec-array';
@@ -463,6 +465,161 @@ describe('runCodemod dry-run', () => {
     const summary = runCodemod(transformSpecArray, {
       roots: [join(tmpDir, 'services')],
       label: 'test-summary',
+      write: false,
+    });
+
+    expect(summary.changed).toBe(1);
+    expect(summary.unchanged).toBe(1);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// transformInsensitiveSpread
+// ---------------------------------------------------------------------------
+
+describe('transformInsensitiveSpread', () => {
+  const svcPath = () => join(tmpDir, 'services', 'foo.ts');
+  const dbProviderPath = () => join(tmpDir, 'config', 'db-provider.ts');
+
+  it('inlines safe single-spread B1 declaration and removes variable', () => {
+    const content = [
+      `import { getInsensitiveMode } from '../../config/db-provider';`,
+      `const insensitive = getInsensitiveMode();`,
+      `const result = { contains: q, ...insensitive };`,
+    ].join('\n');
+    const result = transformInsensitiveSpread({ filePath: svcPath(), content });
+    expect(result.changed).toBe(true);
+    expect(result.newContent).toContain('...getInsensitiveMode()');
+    expect(result.newContent).not.toContain('const insensitive = getInsensitiveMode();');
+    expect(result.manualReview).toHaveLength(0);
+  });
+
+  it('puts multi-reference declaration in manualReview without changing', () => {
+    const content = [
+      `import { getInsensitiveMode } from '../../config/db-provider';`,
+      `const insensitive = getInsensitiveMode();`,
+      `const r1 = { contains: q, ...insensitive };`,
+      `const r2 = { equals: x, ...insensitive };`,
+    ].join('\n');
+    const result = transformInsensitiveSpread({ filePath: svcPath(), content });
+    expect(result.changed).toBe(false);
+    expect(result.newContent).toBe(content);
+    expect(result.manualReview.length).toBeGreaterThan(0);
+    expect(result.manualReview[0]).toContain('Pattern B1');
+    expect(result.manualReview[0]).toContain('2 spread reference(s)');
+  });
+
+  it('puts `: any` annotation declaration in manualReview without changing', () => {
+    const content = [
+      `import { getInsensitiveMode } from '../../config/db-provider';`,
+      `const insensitive: any = getInsensitiveMode();`,
+      `const result = { contains: q, ...insensitive };`,
+    ].join('\n');
+    const result = transformInsensitiveSpread({ filePath: svcPath(), content });
+    expect(result.changed).toBe(false);
+    expect(result.newContent).toBe(content);
+    expect(result.manualReview.length).toBeGreaterThan(0);
+    expect(result.manualReview[0]).toContain('`: any` type annotation');
+  });
+
+  it('puts eslint-disable-on-declaration in manualReview without changing', () => {
+    const content = [
+      `import { getInsensitiveMode } from '../../config/db-provider';`,
+      `// eslint-disable-next-line @typescript-eslint/no-explicit-any`,
+      `const insensitive = getInsensitiveMode();`,
+      `const result = { contains: q, ...insensitive };`,
+    ].join('\n');
+    const result = transformInsensitiveSpread({ filePath: svcPath(), content });
+    expect(result.changed).toBe(false);
+    expect(result.newContent).toBe(content);
+    expect(result.manualReview.length).toBeGreaterThan(0);
+    expect(result.manualReview[0]).toContain('eslint-disable comment');
+  });
+
+  it('puts eslint-disable-on-spread-site in manualReview without changing', () => {
+    // NOTE: eslint-disable on the spread site (not the declaration) — inlining would break it.
+    const content = [
+      `import { getInsensitiveMode } from '../../config/db-provider';`,
+      `const insensitive = getInsensitiveMode();`,
+      `// eslint-disable-next-line @typescript-eslint/no-explicit-any`,
+      `const result = { contains: q, ...insensitive } as any;`,
+    ].join('\n');
+    const result = transformInsensitiveSpread({ filePath: svcPath(), content });
+    expect(result.changed).toBe(false);
+    expect(result.newContent).toBe(content);
+    expect(result.manualReview.length).toBeGreaterThan(0);
+    expect(result.manualReview[0]).toContain('eslint-disable comment');
+  });
+
+  it('is idempotent — skips files with inlined getInsensitiveMode() but no declaration', () => {
+    const content = [
+      `import { getInsensitiveMode } from '../../config/db-provider';`,
+      `const result = { contains: q, ...getInsensitiveMode() };`,
+    ].join('\n');
+    const result = transformInsensitiveSpread({ filePath: svcPath(), content });
+    expect(result.changed).toBe(false);
+    expect(result.newContent).toBe(content);
+    expect(result.manualReview).toHaveLength(0);
+  });
+
+  it('skips config/db-provider.ts to prevent self-modification', () => {
+    const content = [
+      `export function getInsensitiveMode() {`,
+      `  return getDbProvider() === 'postgresql' ? { mode: 'insensitive' as const } : {};`,
+      `}`,
+    ].join('\n');
+    const result = transformInsensitiveSpread({ filePath: dbProviderPath(), content });
+    expect(result.changed).toBe(false);
+    expect(result.newContent).toBe(content);
+    expect(result.manualReview).toHaveLength(0);
+  });
+
+  it('leaves unrelated files unchanged with empty manualReview', () => {
+    const content = `const x = 1;\n`;
+    const result = transformInsensitiveSpread({ filePath: svcPath(), content });
+    expect(result.changed).toBe(false);
+    expect(result.manualReview).toHaveLength(0);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// runCodemod dry-run integration (transformInsensitiveSpread)
+// ---------------------------------------------------------------------------
+
+describe('runCodemod dry-run (transformInsensitiveSpread)', () => {
+  it('does NOT write files in dry-run mode', () => {
+    const content = [
+      `import { getInsensitiveMode } from '../../config/db-provider';`,
+      `const insensitive = getInsensitiveMode();`,
+      `const result = { contains: q, ...insensitive };`,
+    ].join('\n');
+    const filePath = write('services/test-spread.ts', content);
+    const before = readFileSync(filePath, 'utf-8');
+
+    runCodemod(transformInsensitiveSpread, {
+      roots: [join(tmpDir, 'services')],
+      label: 'test-spread-dry',
+      write: false,
+    });
+
+    const after = readFileSync(filePath, 'utf-8');
+    expect(after).toBe(before);
+  });
+
+  it('returns correct summary counts for safe and unrelated files', () => {
+    write(
+      'services/safe.ts',
+      [
+        `import { getInsensitiveMode } from '../../config/db-provider';`,
+        `const insensitive = getInsensitiveMode();`,
+        `const result = { contains: q, ...insensitive };`,
+      ].join('\n'),
+    );
+    write('services/unrelated.ts', `const x = 1;\n`);
+
+    const summary = runCodemod(transformInsensitiveSpread, {
+      roots: [join(tmpDir, 'services')],
+      label: 'test-spread-summary',
       write: false,
     });
 

@@ -11,6 +11,7 @@ import { cleanupZombieProcesses } from '../agent-process-tracker';
 import { sendIPCRequest, rejectAllPendingRequests } from './ipc';
 import { setupWorker } from './lifecycle';
 import type { WorkerState } from './lifecycle';
+import { SHUTDOWN_ERROR_MESSAGE } from './shutdown-error';
 
 const logger = createLogger('agent-worker-manager:shutdown');
 
@@ -50,7 +51,7 @@ export async function gracefulShutdown(state: WorkerState): Promise<void> {
     }
   }
 
-  rejectAllPendingRequests(state.pendingRequests, new Error('Manager is shutting down'));
+  rejectAllPendingRequests(state.pendingRequests, new Error(SHUTDOWN_ERROR_MESSAGE));
 
   if (state.workerProcess) {
     try {
