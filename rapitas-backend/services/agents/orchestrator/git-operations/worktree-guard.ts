@@ -10,9 +10,13 @@
  * incident). Refusing fails safe — the task errors with a clear cause instead of
  * destroying work.
  */
+import { exec } from 'child_process';
 import { resolve } from 'path';
+import { promisify } from 'util';
 import { createLogger } from '../../../../config/logger';
 import { execGitReadonly } from './git-exec';
+
+const execAsync = promisify(exec);
 
 const logger = createLogger('git-operations/worktree-guard');
 
@@ -117,4 +121,58 @@ export async function isBackendPrimaryCheckout(workingDirectory: string): Promis
     gitCommonDir(process.cwd()),
   ]);
   return dirCommon != null && backendCommon != null && dirCommon === backendCommon;
+}
+
+/** Internal exec type used by findConflictingWorktreeForBranch (injectable for tests). */
+type WorktreeExecFn = (cmd: string, opts: { cwd: string }) => Promise<{ stdout: string }>;
+
+/**
+ * Find a worktree OTHER than `workingDirectory` that is currently using `branchName`.
+ * Returns the conflicting worktree path, or null when there is no conflict.
+ *
+ * Porcelain output is blank-line-separated blocks:
+ *   worktree <path>
+ *   HEAD <sha>
+ *   branch refs/heads/<name>
+ *
+ * Use `resolve()` to normalise Windows paths (C:/ vs C:\, trailing separators)
+ * before comparing — same logic as the inline check it replaces in createBranch.
+ *
+ * @param workingDirectory - Current worktree directory / 現在の作業ディレクトリ
+ * @param branchName - Branch name to check / チェックするブランチ名
+ * @param execFn - Exec function (injectable for tests) / exec関数（テスト用に差し替え可能）
+ * @returns Conflicting worktree path, or null / 競合worktreeのパス。競合なし・失敗時はnull
+ */
+export async function findConflictingWorktreeForBranch(
+  workingDirectory: string,
+  branchName: string,
+  execFn: WorktreeExecFn = execAsync as WorktreeExecFn,
+): Promise<string | null> {
+  // Prune stale entries before checking — same pattern as createBranch.
+  await execFn('git worktree prune', { cwd: workingDirectory }).catch(() => {});
+  try {
+    const { stdout: worktreeList } = await execFn('git worktree list --porcelain', {
+      cwd: workingDirectory,
+    });
+    const blocks = worktreeList.split(/\n\n+/);
+    for (const block of blocks) {
+      if (block.includes(`branch refs/heads/${branchName}`)) {
+        const pathLine = block.split('\n').find((l) => l.startsWith('worktree '));
+        if (pathLine) {
+          const wtPath = pathLine.slice('worktree '.length).trim();
+          // NOTE: Use resolve() to normalise Windows paths before comparing.
+          // Only block when it is a DIFFERENT worktree — the current directory
+          // already on this branch is a checkout no-op, not a conflict.
+          if (resolve(wtPath) !== resolve(workingDirectory)) {
+            return wtPath;
+          }
+        }
+      }
+    }
+    return null;
+  } catch {
+    // NOTE: If worktree list fails, return null (fail-safe). The caller falls
+    // through to the git operation and lets git report any real error.
+    return null;
+  }
 }
