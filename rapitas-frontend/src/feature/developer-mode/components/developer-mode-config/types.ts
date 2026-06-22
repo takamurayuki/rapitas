@@ -23,10 +23,10 @@ export type TabId = 'task-analysis' | 'agent-execution';
 export type ModalProps = {
   config: DeveloperModeConfig | null;
   isOpen: boolean;
-  onClose: () => void;
-  onSave: (updates: Partial<DeveloperModeConfig>) => Promise<DeveloperModeConfig | null>;
+  onCloseAction: () => void;
+  onSaveAction: (updates: Partial<DeveloperModeConfig>) => Promise<DeveloperModeConfig | null>;
   selectedAgentConfigId?: number | null;
-  onAgentConfigChange?: (agentConfigId: number | null) => void;
+  onAgentConfigChangeAction?: (agentConfigId: number | null) => void;
   taskId?: number;
 };
 

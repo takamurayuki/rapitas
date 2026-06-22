@@ -16,29 +16,9 @@ import {
   setupQuestionDetectedHandler,
   setupOutputHandler,
 } from './execution-helpers';
+import { isSessionResumeFailure } from '../session-resume-detector';
 
 const logger = createLogger('fallback-handler');
-
-/**
- * Determines whether a result indicates that the --resume session ID is no longer valid.
- *
- * @param result - Agent execution result / エージェント実行結果
- * @param claudeSessionId - Session ID that was used / 使用されたセッションID
- * @returns true if the failure pattern matches a stale session / セッション失効パターンに一致する場合true
- */
-export function isSessionResumeFailure(
-  result: AgentExecutionResult,
-  claudeSessionId: string | null,
-): boolean {
-  return (
-    !result.success &&
-    !result.waitingForInput &&
-    !!claudeSessionId &&
-    ((result.executionTimeMs !== undefined && result.executionTimeMs < 10000) ||
-      (!!result.errorMessage &&
-        /session|expired|invalid|not found|code 1/i.test(result.errorMessage)))
-  );
-}
 
 /**
  * Wires up question-detected and output handlers on a fallback agent using the standard helpers.

@@ -9,6 +9,7 @@ import { describe, test, expect } from 'bun:test';
 import {
   extractMarkdownFromOutput,
   looksLikeAgentLog,
+  sliceFromReportHeading,
 } from '../../services/workflow/workflow-file-utils';
 
 const RESEARCH = `# 調査レポート
@@ -89,6 +90,43 @@ node:internal/process/task_queues:95`;
   test('構造の無い短い出力は null', () => {
     expect(extractMarkdownFromOutput('調査専用モードとして進めます。', 'research')).toBeNull();
     expect(extractMarkdownFromOutput('', 'research')).toBeNull();
+  });
+
+  test('会話的前置き＋非正規見出しでも前置きを除去する', () => {
+    // 研究者が canonical な「# 調査レポート」ではなく「# 調査結果」で書き、
+    // さらに会話的前置きを付けたケース（ユーザー報告のシナリオ）。
+    const body = `# 調査結果
+
+## タスク概要
+対象を調査した。
+
+## 影響範囲
+限定的。
+
+## テスト戦略
+ユニットテストを追加する。`;
+    const chatty = `これで必要な調査が完了しました。以下がresearch.mdです。\n\n${body}`;
+    const out = extractMarkdownFromOutput(chatty, 'research');
+    expect(out).not.toBeNull();
+    expect(out!.startsWith('# 調査結果')).toBe(true);
+    expect(out).not.toContain('以下がresearch.mdです');
+  });
+});
+
+describe('sliceFromReportHeading', () => {
+  test('canonical 見出しがあればそこから切り出す', () => {
+    expect(sliceFromReportHeading(`前置き\n\n${RESEARCH}`, 'research')).toBe(RESEARCH);
+  });
+
+  test('canonical が無ければ最初の Markdown 見出しから切り出す', () => {
+    const body = '# 調査結果\n\n## 概要\n本文。';
+    expect(sliceFromReportHeading(`雑談。以下がファイルです。\n\n${body}`, 'research')).toBe(body);
+  });
+
+  test('見出しが無ければそのまま返す', () => {
+    expect(sliceFromReportHeading('見出しの無いただの文。', 'research')).toBe(
+      '見出しの無いただの文。',
+    );
   });
 });
 

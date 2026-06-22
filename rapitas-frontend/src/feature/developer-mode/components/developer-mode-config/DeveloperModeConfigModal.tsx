@@ -20,11 +20,11 @@ import { AgentExecutionTab } from './AgentExecutionTab';
 /**
  * Renders the full-screen overlay modal for developer-mode AI assistant config.
  *
- * @param props - Controlled open/close state, current config, and save callback.
- *   / モーダルの開閉状態・現在の設定・保存コールバック
+ * @param props - Controlled open/close state, current config, and save callback (Server Actions).
+ *   / モーダルの開閉状態・現在の設定・保存コールバック (Server Actions)
  */
 export function DeveloperModeConfigModal(props: ModalProps) {
-  const { isOpen, onClose } = props;
+  const { isOpen, onCloseAction } = props;
 
   // NOTE: activeTab lives here, not in the hook, because it controls only
   // which panel is visible and does not affect any persisted state.
@@ -33,7 +33,7 @@ export function DeveloperModeConfigModal(props: ModalProps) {
   const {
     isSaving,
     saveError,
-    handleSave,
+    handleSaveAction,
     agents,
     getAvailableAgents,
     isLoadingAgents,
@@ -180,7 +180,7 @@ export function DeveloperModeConfigModal(props: ModalProps) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
-      <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose} />
+      <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onCloseAction} />
       <div className="relative bg-white dark:bg-indigo-dark-900 rounded-xl shadow-2xl w-full max-w-lg mx-4 overflow-hidden">
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-zinc-200 dark:border-zinc-800">
@@ -193,7 +193,7 @@ export function DeveloperModeConfigModal(props: ModalProps) {
             </h2>
           </div>
           <button
-            onClick={onClose}
+            onClick={onCloseAction}
             className="p-1.5 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-md transition-colors"
           >
             <X className="w-5 h-5" />
@@ -325,13 +325,13 @@ export function DeveloperModeConfigModal(props: ModalProps) {
         {/* Footer */}
         <div className="flex justify-end gap-3 px-6 py-4 border-t border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-indigo-dark-800/50">
           <button
-            onClick={onClose}
+            onClick={onCloseAction}
             className="px-4 py-2 text-sm font-medium text-zinc-600 dark:text-zinc-400 hover:text-zinc-800 dark:hover:text-zinc-200 transition-colors"
           >
             キャンセル
           </button>
           <button
-            onClick={handleSave}
+            onClick={handleSaveAction}
             disabled={isSaving}
             className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-violet-600 hover:bg-violet-700 rounded-lg transition-colors disabled:opacity-50"
           >

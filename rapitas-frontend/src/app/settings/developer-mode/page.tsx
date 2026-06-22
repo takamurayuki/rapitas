@@ -7,9 +7,11 @@ import { useTranslations } from 'next-intl';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { useDeveloperModeSettings } from './hooks/useDeveloperModeSettings';
 import { TaskCreationSettingsCard } from './components/TaskCreationSettingsCard';
+import { AutoRunSettingsCard } from './components/AutoRunSettingsCard';
 import { AutoResumeSettingsCard } from './components/AutoResumeSettingsCard';
 import { WorkflowConfigCard } from './components/WorkflowConfigCard';
 import { AutoMergeSettingsCard } from './components/AutoMergeSettingsCard';
+import { TaskCleanupSection } from '../_components/TaskCleanupSection';
 
 export default function DeveloperModeSettingsPage() {
   const t = useTranslations('settings');
@@ -61,6 +63,12 @@ export default function DeveloperModeSettingsPage() {
           onUpdateSettings={updateSettings}
           onDelayChange={handleDelayChange}
           onDelayBlur={handleDelayBlur}
+        />
+
+        <AutoRunSettingsCard
+          settings={settings}
+          isSaving={isSaving}
+          onUpdateSettings={updateSettings}
         />
 
         <AutoResumeSettingsCard
@@ -118,6 +126,8 @@ export default function DeveloperModeSettingsPage() {
             </Link>
           </div>
         </div>
+
+        <TaskCleanupSection />
       </div>
     </div>
   );

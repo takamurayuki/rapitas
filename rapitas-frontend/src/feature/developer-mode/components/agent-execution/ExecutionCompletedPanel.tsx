@@ -124,15 +124,19 @@ export function ExecutionCompletedPanel({
         prUrl?: string;
         error?: string;
       } | null;
-      // PR exists on GitHub but isn't synced into the local DB — open it on
-      // GitHub so the button still does something useful.
+      // A PR for this task EXISTS on GitHub but isn't synced into the local DB.
+      // This is often a PR from an EARLIER completed run (not necessarily this
+      // execution), so word it as an existing PR — not a failure — to avoid the
+      // "作成されていないように見える" confusion. Open it so the button still acts.
       if (body?.reason === 'not_synced') {
-        if (body.prUrl) window.open(body.prUrl, '_blank', 'noopener,noreferrer');
-        setPrError(
-          body.prUrl
-            ? 'PRはローカル未同期のため、GitHubで開きました。統合ページで同期すると一覧にも表示されます。'
-            : (body.error ?? 'PRはローカルに同期されていません。'),
-        );
+        if (body.prUrl) {
+          window.open(body.prUrl, '_blank', 'noopener,noreferrer');
+          setPrError(
+            'このタスクの既存PRをGitHubで開きました（ローカル未同期）。最新の実行で作成されたものとは限りません。統合ページで同期すると一覧にも表示されます。',
+          );
+        } else {
+          setPrError(body.error ?? 'PRはローカルに同期されていません。');
+        }
         return;
       }
       setPrError(body?.error ?? 'PRがまだ作成されていません。下の「PR作成」から作成してください。');

@@ -23,10 +23,12 @@ import {
   handleExecutionError,
   type LogChunkManager,
 } from './execution-helpers';
+import { buildShutdownErrorMessage } from './shutdown-error';
 
 import { appendEvent } from '../../memory/timeline';
 import { memoryTaskQueue } from '../../memory';
 import { buildTaskRAGContext } from '../../memory/rag/context-builder';
+import { withLlmCallScope, getLlmCallCount } from '../../../utils/llm-call-context';
 
 const logger = createLogger('task-executor');
 
@@ -575,6 +577,11 @@ export async function executeTask(
   task: AgentTask,
   options: ExecutionOptions,
 ): Promise<AgentExecutionResult> {
+  // NOTE: Early guard — prevents AgentExecution DB record from being created during shutdown.
+  if (ctx.isShuttingDown) {
+    throw new Error(buildShutdownErrorMessage('start new execution'));
+  }
+
   // Resolve agent configuration
   let { agentConfig, resolvedAgentConfigId } = await resolveAgentConfig(ctx, options);
   const agent = agentFactory.createAgent(agentConfig);
@@ -594,9 +601,10 @@ export async function executeTask(
   if (ctx.isShuttingDown) {
     ctx.activeAgents.delete(execution.id);
     ctx.activeExecutions.delete(execution.id);
-    fileLogger.logError('Server is shutting down, cannot start new execution');
+    const shutdownMsg = buildShutdownErrorMessage('start new execution');
+    fileLogger.logWarn(shutdownMsg);
     await fileLogger.flush();
-    throw new Error('Server is shutting down, cannot start new execution');
+    throw new Error(shutdownMsg);
   }
 
   // Setup handlers
@@ -635,47 +643,56 @@ export async function executeTask(
     // Build task with context
     const taskWithAnalysis = await buildTaskWithContext(task, options);
 
-    // Execute agent
-    let result = await agent.execute(taskWithAnalysis);
-    logger.info(
-      `[TaskExecutor] Execution result - success: ${result.success}, waitingForInput: ${result.waitingForInput}, questionType: ${result.questionType}, question: ${result.question?.substring(0, 100)}`,
-    );
-
-    // Check for fallback need
-    const { needsFallback, errorBlob } = await checkNeedsFallback(
-      result,
-      agentConfig.type,
-      options.disableFallback,
-      execution.id,
-    );
-
-    // Execute fallback if needed
-    let fallbackSucceeded = false;
-    if (needsFallback && !options.disableFallback) {
-      const fallbackResult = await executeWithFallbackAgent(
-        { ctx, execution, state, agentInfo, fileLogger, logManager, options, taskWithAnalysis },
-        errorBlob,
-        agentConfig,
+    // Execute agent (wrapped in ALS scope to capture sendAIMessage calls from main process)
+    let result = await withLlmCallScope(async () => {
+      let r = await agent.execute(taskWithAnalysis);
+      logger.info(
+        `[TaskExecutor] Execution result - success: ${r.success}, waitingForInput: ${r.waitingForInput}, questionType: ${r.questionType}, question: ${r.question?.substring(0, 100)}`,
       );
 
-      if (fallbackResult.newAgentConfig) {
-        result = fallbackResult.result;
-        fallbackSucceeded = fallbackResult.fallbackSucceeded;
-        agentConfig = fallbackResult.newAgentConfig;
-        resolvedAgentConfigId = fallbackResult.newConfigId;
-      }
-    }
+      // Check for fallback need
+      const { needsFallback, errorBlob } = await checkNeedsFallback(
+        r,
+        agentConfig.type,
+        options.disableFallback,
+        execution.id,
+      );
 
-    // Mark as failed if fallback didn't succeed
-    if (needsFallback && !fallbackSucceeded) {
-      result = {
-        ...result,
-        success: false,
-        errorMessage:
-          result.errorMessage ||
-          'Provider failure detected and no fallback agent completed successfully',
-      };
-    }
+      // Execute fallback if needed
+      let fallbackSucceeded = false;
+      if (needsFallback && !options.disableFallback) {
+        const fallbackResult = await executeWithFallbackAgent(
+          { ctx, execution, state, agentInfo, fileLogger, logManager, options, taskWithAnalysis },
+          errorBlob,
+          agentConfig,
+        );
+
+        if (fallbackResult.newAgentConfig) {
+          r = fallbackResult.result;
+          fallbackSucceeded = fallbackResult.fallbackSucceeded;
+          agentConfig = fallbackResult.newAgentConfig;
+          resolvedAgentConfigId = fallbackResult.newConfigId;
+        }
+      }
+
+      // Mark as failed if fallback didn't succeed
+      if (needsFallback && !fallbackSucceeded) {
+        r = {
+          ...r,
+          success: false,
+          errorMessage:
+            r.errorMessage ||
+            'Provider failure detected and no fallback agent completed successfully',
+        };
+      }
+
+      // Merge Tier 2 (ALS sendAIMessage calls) into Tier 1 (CLI num_turns / API apiCalls)
+      const alsCount = getLlmCallCount();
+      if (alsCount > 0) {
+        r = { ...r, llmCallCount: (r.llmCallCount ?? 0) + alsCount };
+      }
+      return r;
+    });
 
     // Save result
     await saveExecutionResult(

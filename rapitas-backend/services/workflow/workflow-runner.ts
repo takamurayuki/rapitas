@@ -13,6 +13,7 @@ import {
   broadcastRunnerStatus,
   broadcastItemUpdate,
 } from './workflow-runner-events';
+import { isShutdownError } from '../agents/orchestrator/shutdown-error';
 
 const log = createLogger('workflow-runner');
 
@@ -35,7 +36,9 @@ export class WorkflowRunner {
   private static instance: WorkflowRunner;
   private running = false;
   private pollTimer: ReturnType<typeof setInterval> | null = null;
-  private pollIntervalMs = 5000;
+  // NOTE: Extended from 5s to 10s — phases take minutes; 10s adds at most 10s
+  // of inter-phase latency which is imperceptible but halves idle DB query rate.
+  private pollIntervalMs = 10_000;
   private processedTotal = 0;
   private activeExecutions = new Map<number, ActiveExecution>();
   private queue: WorkflowQueueService;
@@ -285,13 +288,13 @@ export class WorkflowRunner {
         this.broadcastItemUpdate(item.id, item.taskId, 'phase_started', currentStatus);
 
         const executionPromise = this.orchestrator.advanceWorkflow(item.taskId);
+        const { getPhaseTimeoutMs } = await import('../agents/execution-timeouts');
+        const phaseTimeoutMs = getPhaseTimeoutMs();
         const timeoutPromise = new Promise<never>((_, reject) => {
-          setTimeout(
-            () => {
-              reject(new Error(`Phase execution timeout for task ${item.taskId} (10 minutes)`));
-            },
-            10 * 60 * 1000,
-          ); // 10-minute timeout
+          setTimeout(() => {
+            const mins = Math.round(phaseTimeoutMs / 60000);
+            reject(new Error(`Phase execution timeout for task ${item.taskId} (${mins} minutes)`));
+          }, phaseTimeoutMs);
         });
 
         const result = await Promise.race([executionPromise, timeoutPromise]);
@@ -369,6 +372,25 @@ export class WorkflowRunner {
       }
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : String(error);
+
+      // NOTE: Shutdown errors are graceful interruptions — requeue without consuming retry budget.
+      // Mirrors stopProcessing() at line 99 which also uses updateStatus(..., 'queued', ...).
+      if (isShutdownError(error)) {
+        log.warn(`[WorkflowRunner] Task ${item.taskId} interrupted by shutdown — requeued`);
+        try {
+          await this.queue.updateStatus(item.id, 'queued', {
+            errorMessage: 'Shutdown - returned to queue',
+          });
+        } catch (requeueError) {
+          log.warn(
+            { err: requeueError },
+            `[WorkflowRunner] Failed to requeue item ${item.id} after shutdown`,
+          );
+        }
+        this.broadcastItemUpdate(item.id, item.taskId, 'execution_error', execution.currentPhase);
+        return;
+      }
+
       log.error(`[WorkflowRunner] Execution error for task ${item.taskId}: ${errorMsg}`);
 
       // Kill any in-flight agent BEFORE retrying/failing. The phase timeout only

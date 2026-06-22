@@ -6,7 +6,8 @@
  */
 
 import { createLogger } from '../../config/logger';
-import { runGhCommand } from './gh-client';
+import { runGhCommand, runGhCommandWithBody } from './gh-client';
+import type { OwnerRepoString } from './owner-repo';
 import type { Issue, CreateIssueInput, GhIssue, GhLabel } from './types';
 
 const log = createLogger('github-service:issues');
@@ -20,7 +21,7 @@ const log = createLogger('github-service:issues');
  * @returns Array of issues / イシューリスト
  */
 export async function getIssues(
-  repo: string,
+  repo: OwnerRepoString,
   state: 'open' | 'closed' | 'all' = 'open',
   limit: number = 30,
 ): Promise<Issue[]> {
@@ -60,7 +61,7 @@ export async function getIssues(
  * @param issueNumber - Issue number / イシュー番号
  * @returns Issue or null if not found / イシューまたはnull
  */
-export async function getIssue(repo: string, issueNumber: number): Promise<Issue | null> {
+export async function getIssue(repo: OwnerRepoString, issueNumber: number): Promise<Issue | null> {
   try {
     const output = await runGhCommand([
       'issue',
@@ -90,14 +91,6 @@ export async function getIssue(repo: string, issueNumber: number): Promise<Issue
 }
 
 /**
- * Create a new issue in a repository.
- *
- * @param repo - Repository in owner/name format / リポジトリ名
- * @param input - Issue creation input / イシュー作成入力
- * @returns Created issue / 作成されたイシュー
- * @throws {Error} When issue URL cannot be parsed or issue cannot be fetched
- */
-/**
  * Ensure each label exists in the repo, creating any that are missing. Failures
  * (including "label already exists") are ignored — best-effort so a label that
  * already exists doesn't block issue creation.
@@ -105,23 +98,41 @@ export async function getIssue(repo: string, issueNumber: number): Promise<Issue
  * @param repo - Repository in owner/name format / リポジトリ名
  * @param labels - Label names to ensure / 作成を保証するラベル名
  */
-async function ensureLabelsExist(repo: string, labels: string[]): Promise<void> {
+async function ensureLabelsExist(repo: OwnerRepoString, labels: string[]): Promise<void> {
   for (const label of labels) {
     try {
-      await runGhCommand(['label', 'create', label, '--repo', repo]);
-    } catch {
-      // Already exists, or can't be created — the issue create will still
-      // attach it if present. Non-fatal.
+      // NOTE: skipLog suppresses the gh-client ERROR log for expected failures
+      // (label already exists). We handle unexpected failures with log.warn below.
+      await runGhCommand(['label', 'create', label, '--repo', repo], undefined, { skipLog: true });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      // "already exists" / "already been taken" are expected when the label is present.
+      if (!message.includes('already') && !message.includes('taken')) {
+        log.warn(
+          { repo, label, message },
+          'Failed to create label; issue may be created without it',
+        );
+      }
     }
   }
 }
 
-export async function createIssue(repo: string, input: CreateIssueInput): Promise<Issue> {
-  const args = ['issue', 'create', '--repo', repo, '--title', input.title];
+/**
+ * Create a new issue in a repository.
+ *
+ * @param repo - Repository in owner/name format / リポジトリ名
+ * @param input - Issue creation input / イシュー作成入力
+ * @returns Created issue / 作成されたイシュー
+ * @throws {Error} When issue URL cannot be parsed or issue cannot be fetched
+ */
+export async function createIssue(repo: OwnerRepoString, input: CreateIssueInput): Promise<Issue> {
+  const baseArgs = ['issue', 'create', '--repo', repo, '--title', input.title];
 
-  if (input.body) {
-    args.push('--body', input.body);
+  if (input.assignees && input.assignees.length > 0) {
+    baseArgs.push('--assignee', input.assignees.join(','));
   }
+
+  const args = [...baseArgs];
   if (input.labels && input.labels.length > 0) {
     // `gh issue create --label` fails if a label doesn't exist in the repo
     // (e.g. our `type:*` / `priority:*` labels on a fresh repo), so ensure they
@@ -129,12 +140,23 @@ export async function createIssue(repo: string, input: CreateIssueInput): Promis
     await ensureLabelsExist(repo, input.labels);
     args.push('--label', input.labels.join(','));
   }
-  if (input.assignees && input.assignees.length > 0) {
-    args.push('--assignee', input.assignees.join(','));
-  }
 
-  // Get the URL
-  const url = await runGhCommand(args);
+  let url: string;
+  try {
+    url = await runGhCommandWithBody(args, input.body);
+  } catch (err) {
+    if (input.labels && input.labels.length > 0) {
+      // NOTE: gh rejects --label when any label doesn't exist in the repo.
+      // Best-effort: create the issue without labels rather than failing entirely.
+      log.warn(
+        { repo, labels: input.labels },
+        'Issue creation with labels failed; retrying without labels',
+      );
+      url = await runGhCommandWithBody(baseArgs, input.body);
+    } else {
+      throw err;
+    }
+  }
 
   // Extract the created issue number
   const match = url.match(/\/issues\/(\d+)/);
@@ -158,7 +180,7 @@ export async function createIssue(repo: string, input: CreateIssueInput): Promis
  * @param issueNumber - Issue number / イシュー番号
  * @throws {Error} When the gh command fails / コマンド失敗時
  */
-export async function closeIssue(repo: string, issueNumber: number): Promise<void> {
+export async function closeIssue(repo: OwnerRepoString, issueNumber: number): Promise<void> {
   await runGhCommand(['issue', 'close', String(issueNumber), '--repo', repo]);
   log.info({ repo, issueNumber }, 'Issue closed');
 }
@@ -172,11 +194,11 @@ export async function closeIssue(repo: string, issueNumber: number): Promise<voi
  * @returns Created comment stub (gh does not return an ID) / 作成されたコメントのスタブ
  */
 export async function addIssueComment(
-  repo: string,
+  repo: OwnerRepoString,
   issueNumber: number,
   body: string,
 ): Promise<{ id: number; body: string }> {
-  await runGhCommand(['issue', 'comment', String(issueNumber), '--repo', repo, '--body', body]);
+  await runGhCommandWithBody(['issue', 'comment', String(issueNumber), '--repo', repo], body);
 
   return {
     id: 0, // gh issue comment does not return an ID

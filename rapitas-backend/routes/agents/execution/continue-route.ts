@@ -13,9 +13,12 @@ import { prisma } from '../../../config/database';
 import { createLogger } from '../../../config/logger';
 import { getProjectRoot } from '../../../config';
 import { AgentWorkerManager } from '../../../services/agents/agent-worker-manager';
+import { decideWorktree } from '../../../services/agents/orchestrator/git-operations/worktree-usable';
+import { isBackendPrimaryCheckout } from '../../../services/agents/orchestrator/git-operations/worktree-guard';
 import { toJsonString } from '../../../utils/database/db-helpers';
 import { acquireTaskExecutionLock, releaseTaskExecutionLock } from './execution-lock';
 import { handleContinueResult, handleContinueError } from './continue-post-handler';
+import { resolveTaskForExecution } from '../../../services/task/task-resolver';
 
 const log = createLogger('routes:agent-execution:continue');
 const agentWorkerManager = AgentWorkerManager.getInstance();
@@ -43,11 +46,7 @@ export const continueRoute = new Elysia().post(
     log.info(`[continue-execution] Execution lock acquired for task ${taskId}`);
 
     try {
-      const task = await prisma.task.findUnique({
-        where: { id: taskId },
-        include: { developerModeConfig: true, theme: true },
-      });
-
+      const task = await resolveTaskForExecution(taskId);
       if (!task) {
         context.set.status = 404;
         return { error: 'Task not found' };
@@ -115,15 +114,30 @@ export const continueRoute = new Elysia().post(
 
       log.info(`[continue-execution] Continuing task ${taskId} in: ${workingDirectory}`);
 
-      // NOTE: Reuse existing worktree if available, otherwise create a new one
-      let executionDir = (session as Record<string, unknown>).worktreePath as string | null;
-      if (executionDir) {
+      // Decide how to obtain the working directory. Reuse the recorded worktree
+      // ONLY when it still exists on disk: a phantom path (removed by cleanup /
+      // stop / a merged-PR teardown) is still truthy, and passing it as cwd made
+      // the re-run crash "Working directory does not exist" and retry until the
+      // task blocked (task 233 regression). When it is missing but the branch is
+      // known, recreate the worktree; otherwise fall back to the project dir.
+      const recordedWorktree = (session as Record<string, unknown>).worktreePath as string | null;
+      const decision = decideWorktree(recordedWorktree, session.branchName);
+      // 'reuse' implies canReuseWorktree(recordedWorktree) === true, so it is
+      // non-null here; the other branches assign a concrete directory below.
+      let executionDir: string = workingDirectory;
+      if (decision === 'reuse') {
+        executionDir = recordedWorktree!;
         log.info(`[continue-execution] Reusing existing worktree: ${executionDir}`);
-      } else if (session.branchName) {
+      } else if (decision === 'recreate') {
+        if (recordedWorktree) {
+          log.warn(
+            `[continue-execution] Recorded worktree no longer exists on disk (${recordedWorktree}) — recreating on branch ${session.branchName}`,
+          );
+        }
         try {
           executionDir = await agentWorkerManager.createWorktree(
             workingDirectory,
-            session.branchName,
+            session.branchName!,
             taskId,
             task.theme?.repositoryUrl || null,
           );
@@ -134,14 +148,40 @@ export const continueRoute = new Elysia().post(
         } catch (error) {
           log.error({ err: error }, `[continue-execution] Worktree creation error, falling back`);
           try {
-            await agentWorkerManager.createBranch(workingDirectory, session.branchName);
+            await agentWorkerManager.createBranch(workingDirectory, session.branchName!);
           } catch {
             // NOTE: Branch checkout fallback failure is non-fatal — use working directory directly.
           }
           executionDir = workingDirectory;
         }
       } else {
+        if (recordedWorktree) {
+          log.warn(
+            `[continue-execution] Recorded worktree missing (${recordedWorktree}) and no branch to recreate — falling back to working directory`,
+          );
+        }
         executionDir = workingDirectory;
+      }
+
+      // SAFETY: when worktree isolation fell back to the working directory, REFUSE
+      // if that directory is the backend's OWN primary checkout. Resuming a
+      // mutating agent there lets its git commands switch the dev backend's branch
+      // and clobber uncommitted work (the recurring main-checkout clobber). Only
+      // fires for the rapitas self-dev primary — never other themes' repos or
+      // linked worktrees. Mirrors the workflow-cli-executor guard.
+      if (await isBackendPrimaryCheckout(executionDir)) {
+        log.error(
+          { taskId, executionDir },
+          '[continue-execution] Refusing to resume a mutating agent in the primary checkout — worktree isolation failed',
+        );
+        await prisma.agentSession
+          .update({ where: { id: targetSessionId }, data: { status: 'cancelled' } })
+          .catch(() => {});
+        context.set.status = 409;
+        return {
+          error:
+            'worktree 隔離に失敗したため primary チェックアウトでの再実行を中止しました（dev ブランチの切替を防止）。worktree を再生成して再実行してください。',
+        };
       }
 
       // NOTE: Session/task update failures are non-fatal — execution proceeds with stale status.

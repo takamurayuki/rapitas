@@ -41,6 +41,10 @@ export async function searchKnowledge(options: KnowledgeSearchOptions): Promise<
     similarity: number;
     tags: string[];
     createdAt: Date;
+    /** Source task this entry was learned from (for outcome-weighted recall). */
+    taskId: number | null;
+    /** KB validation state — lets callers label/trust recalled knowledge. */
+    validationStatus: string;
   }>
 > {
   const { query, limit = 10, minSimilarity = 0.5, forgettingStage, category, themeId } = options;
@@ -58,6 +62,9 @@ export async function searchKnowledge(options: KnowledgeSearchOptions): Promise<
   const entryIds = vectorResults.map((r) => r.knowledgeEntryId);
   const where: Record<string, unknown> = {
     id: { in: entryIds },
+    // Never recall REFUTED knowledge as guidance — it has been disproven (e.g. a
+    // refuted hypothesis). Surfacing it would teach the agent a known-wrong lesson.
+    validationStatus: { not: 'rejected' },
   };
   if (forgettingStage) where.forgettingStage = forgettingStage;
   if (category) where.category = category;
@@ -74,24 +81,41 @@ export async function searchKnowledge(options: KnowledgeSearchOptions): Promise<
       forgettingStage: true,
       tags: true,
       createdAt: true,
+      taskId: true,
+      validationStatus: true,
     },
   });
 
   // Merge vector search results with DB results
   const similarityMap = new Map(vectorResults.map((r) => [r.knowledgeEntryId, r.similarity]));
 
+  // Trust-weight the ranking by the KB's own validation state so RELIABLE
+  // knowledge wins the limited prompt slots: proven (validated) is boosted, while
+  // CONTESTED (conflict — 1 of a contradicting pair, possibly wrong) is demoted so
+  // it rarely displaces a clean entry. With ~31% of the KB in conflict, injecting
+  // them unweighted fed the agent contradictory lessons. `similarity` stays the
+  // true cosine for callers; only the sort order (and thus the top-`limit`) shifts.
+  const TRUST_WEIGHT: Record<string, number> = { validated: 1.25, pending: 1.0, conflict: 0.5 };
   const results = entries
-    .map((e) => ({
-      ...e,
-      similarity: similarityMap.get(e.id) ?? 0,
-      tags: JSON.parse(e.tags) as string[],
-    }))
-    .sort((a, b) => b.similarity - a.similarity)
-    .slice(0, limit);
+    .map((e) => {
+      const similarity = similarityMap.get(e.id) ?? 0;
+      return {
+        ...e,
+        similarity,
+        rankScore: similarity * (TRUST_WEIGHT[e.validationStatus] ?? 1.0),
+        tags: JSON.parse(e.tags) as string[],
+      };
+    })
+    .sort((a, b) => b.rankScore - a.rankScore)
+    .slice(0, limit)
+    .map(({ rankScore: _rankScore, ...rest }) => rest);
 
-  // Boost access count and decay (async, fire-and-forget)
+  // Retrieval is only a WEAK signal — being surfaced is not proof of usefulness.
+  // Apply a small boost here; the STRONG reward is applied at task outcome by
+  // outcome-reinforcement (boost on success / penalty on failure), so what
+  // survives the forgetting curve is what actually helped, not what was popular.
   for (const entry of results) {
-    boostDecayOnAccess(entry.id).catch(() => {});
+    boostDecayOnAccess(entry.id, 0.05).catch(() => {});
   }
 
   return results;

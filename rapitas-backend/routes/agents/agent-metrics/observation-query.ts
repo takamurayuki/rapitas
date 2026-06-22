@@ -35,6 +35,8 @@ export interface SelfObservationSummary {
   totalOutputTokens: number;
   totalCacheReadInputTokens: number;
   totalCacheCreationInputTokens: number;
+  /** Aggregated LLM API call count across all executions in the window. */
+  totalLlmCalls: number;
   /** cache_read / (cache_read + input). 1.0 means everything was cached. */
   cacheHitRate: number;
   /** failed / total. */
@@ -56,6 +58,7 @@ interface ExecutionMetricRow {
   cacheCreationInputTokens: number;
   costUsd: unknown; // Prisma Decimal — stringified
   modelName: string | null;
+  llmCallCount: number;
 }
 
 /**
@@ -108,6 +111,7 @@ export async function getSelfObservationSummary(windowDays = 14): Promise<SelfOb
   cutoff.setUTCHours(0, 0, 0, 0);
   cutoff.setUTCDate(cutoff.getUTCDate() - (windowDays - 1));
 
+  // HACK(agent): llmCallCount added to schema but Prisma client not yet regenerated; types resolve after server restart.
   const rows = (await prisma.agentExecution.findMany({
     where: { createdAt: { gte: cutoff } },
     select: {
@@ -122,14 +126,16 @@ export async function getSelfObservationSummary(windowDays = 14): Promise<SelfOb
       cacheCreationInputTokens: true,
       costUsd: true,
       modelName: true,
+      llmCallCount: true,
     },
-  })) as ExecutionMetricRow[];
+  })) as unknown as ExecutionMetricRow[];
 
   let totalCostUsd = 0;
   let totalInput = 0;
   let totalOutput = 0;
   let totalCacheRead = 0;
   let totalCacheCreation = 0;
+  let totalLlmCalls = 0;
   let totalTime = 0;
   let timeSamples = 0;
   let failed = 0;
@@ -165,6 +171,7 @@ export async function getSelfObservationSummary(windowDays = 14): Promise<SelfOb
     totalOutput += output;
     totalCacheRead += cacheRead;
     totalCacheCreation += cacheCreation;
+    totalLlmCalls += toInt(r.llmCallCount);
     if (execTime > 0) {
       totalTime += execTime;
       timeSamples++;
@@ -217,6 +224,7 @@ export async function getSelfObservationSummary(windowDays = 14): Promise<SelfOb
     totalOutputTokens: totalOutput,
     totalCacheReadInputTokens: totalCacheRead,
     totalCacheCreationInputTokens: totalCacheCreation,
+    totalLlmCalls,
     cacheHitRate: round4(cacheHitRate),
     errorRate: round4(errorRate),
     averageExecutionTimeMs,

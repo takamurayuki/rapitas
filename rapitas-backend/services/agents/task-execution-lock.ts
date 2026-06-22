@@ -12,21 +12,22 @@
  */
 
 import { createLogger } from '../../config/logger';
+import { getWorkflowLockTtlMs } from './execution-timeouts';
 
 const log = createLogger('task-execution-lock');
 
 /** Tracks currently locked tasks with the time the lock was acquired. */
 const taskExecutionLocks = new Map<number, { lockedAt: Date; expiresAt: number }>();
 
-/** Default lock TTL: 10 minutes. Used by the manual execution routes. */
-export const DEFAULT_LOCK_TTL_MS = 10 * 60 * 1000;
-
 /**
- * Workflow-phase lock TTL: 15 minutes. A single phase may run up to the
- * WorkflowRunner's 10-minute per-phase timeout; the lock must outlive that so a
- * concurrent advance cannot steal it mid-phase and spawn a duplicate agent.
+ * Lock TTL must OUTLIVE a phase so a long phase never has its lock stolen
+ * mid-run (which would spawn a duplicate agent). Derived from the phase timeout
+ * (see execution-timeouts) so the three timeouts stay consistent — previously a
+ * 15-min lock paired with a 10-min phase, both of which a >10-min legitimate
+ * phase blew past. Both the manual routes and the workflow path use this.
  */
-export const WORKFLOW_LOCK_TTL_MS = 15 * 60 * 1000;
+export const DEFAULT_LOCK_TTL_MS = getWorkflowLockTtlMs();
+export const WORKFLOW_LOCK_TTL_MS = getWorkflowLockTtlMs();
 
 /**
  * Attempts to acquire an exclusive lock for a task execution.

@@ -44,6 +44,7 @@ Keep this list accurate. If you assign a glyph a new meaning, add it here.
 | Glyph (lucide)            | Meaning                                  |
 | ------------------------- | ---------------------------------------- |
 | `Lightbulb`               | アイデア (idea box / an idea)            |
+| `Beaker`                  | 仮説台帳 / 仮説 (hypothesis ledger)      |
 | `Inbox`                   | 「バックログ」ナビ群                     |
 | `Bug`                     | 懸念バックログ / 懸念の種別「バグ」      |
 | `Wrench`                  | 懸念の種別「リファクタ」                 |

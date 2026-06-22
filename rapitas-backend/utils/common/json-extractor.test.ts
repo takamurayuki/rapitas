@@ -1,12 +1,10 @@
 /**
- * extract-json-array.test
+ * json-extractor.test
  *
- * Unit tests for extractFirstJsonArray. Verifies bracket-aware extraction
- * against the edge cases identified in the subtask-splitter bug investigation
- * (task #150: JSON Parse error: Unterminated string).
+ * Unit tests for extractFirstJsonArray and parseJsonArray.
  */
 import { describe, it, expect } from 'bun:test';
-import { extractFirstJsonArray } from './extract-json-array';
+import { extractFirstJsonArray, parseJsonArray } from './json-extractor';
 
 describe('extractFirstJsonArray', () => {
   it('正常な JSON 配列のみの入力 — 全体を返す', () => {
@@ -72,5 +70,42 @@ describe('extractFirstJsonArray', () => {
     const result = extractFirstJsonArray(input);
     expect(result).toBe('[{"title":"E"}]');
     expect(JSON.parse(result!)).toEqual([{ title: 'E' }]);
+  });
+});
+
+describe('parseJsonArray', () => {
+  it('正常な JSON 配列 — 型付き配列を返す', () => {
+    const input = '[{"id":1},{"id":2}]';
+    const result = parseJsonArray<{ id: number }>(input);
+    expect(result).toEqual([{ id: 1 }, { id: 2 }]);
+  });
+
+  it('コードフェンス付きテキスト — 配列を返す', () => {
+    const input = '以下の通りです:\n```json\n[{"title":"A"}]\n```';
+    const result = parseJsonArray<{ title: string }>(input);
+    expect(result).toEqual([{ title: 'A' }]);
+  });
+
+  it('JSON 配列なし — null を返す', () => {
+    expect(parseJsonArray('テキストのみ')).toBeNull();
+  });
+
+  it('未終端 JSON — null を返す', () => {
+    expect(parseJsonArray('[{"title":"truncated')).toBeNull();
+  });
+
+  it('不正な JSON（配列ではなくオブジェクト） — null を返す', () => {
+    // extractFirstJsonArray returns null for plain objects; parseJsonArray propagates
+    expect(parseJsonArray('{"key":"value"}')).toBeNull();
+  });
+
+  it('壊れた JSON — null を返す', () => {
+    // bracket counter finds a closed bracket but JSON.parse fails
+    expect(parseJsonArray('[{invalid}]')).toBeNull();
+  });
+
+  it('空配列 — 空配列を返す', () => {
+    const result = parseJsonArray<{ id: number }>('[]');
+    expect(result).toEqual([]);
   });
 });

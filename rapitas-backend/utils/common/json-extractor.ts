@@ -1,9 +1,8 @@
 /**
- * extract-json-array
+ * json-extractor
  *
- * Provides a bracket-aware JSON array extractor that is safe against truncated
- * or mixed-text LLM responses. It is NOT responsible for parsing — callers must
- * call JSON.parse on the returned string themselves.
+ * Bracket-aware JSON array extractor for LLM responses. Centralises the
+ * extract → parse → validate pipeline so callers never inline greedy regex.
  */
 
 /**
@@ -59,4 +58,25 @@ export function extractFirstJsonArray(text: string): string | null {
 
   // Reached end of text without closing bracket — truncated input
   return null;
+}
+
+/**
+ * Extracts and parses the first JSON array from an LLM response text.
+ *
+ * Combines `extractFirstJsonArray` with JSON.parse and an Array.isArray guard
+ * so all three failure modes (not found, parse error, non-array) collapse to
+ * a single `null` return.
+ *
+ * @param text - Raw LLM response text / LLMレスポンスのテキスト
+ * @returns Typed array, or `null` on any failure / 型付き配列、失敗時は `null`
+ */
+export function parseJsonArray<T>(text: string): T[] | null {
+  const raw = extractFirstJsonArray(text);
+  if (raw === null) return null;
+  try {
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? (parsed as T[]) : null;
+  } catch {
+    return null;
+  }
 }

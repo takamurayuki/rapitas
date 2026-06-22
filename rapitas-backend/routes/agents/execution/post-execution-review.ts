@@ -60,7 +60,7 @@ interface ReviewParams {
  * @param params - Execution context / 実行コンテキスト
  */
 export async function reviewAndCommitWorktree(params: ReviewParams): Promise<void> {
-  const { taskId, taskTitle, sessionId, workDir, executionDir, branchName } = params;
+  const { taskId, taskTitle, sessionId, workDir, executionDir } = params;
 
   log.info({ taskId, executionDir }, 'Starting post-execution review pipeline');
 
@@ -285,7 +285,13 @@ export async function reviewAndCommitWorktree(params: ReviewParams): Promise<voi
   ].join('\n');
 
   const prTitle = `[Task-${taskId}] ${taskTitle}`;
-  const prResult = await createPullRequest(executionDir, prTitle, prBody, branchName);
+  // Base = the task's theme defaultBranch (mirrors the workflow / approval paths).
+  // `branchName` is the worktree's HEAD branch, NOT the base — passing it here was
+  // the bug that left base unset, so createPullRequest auto-detected and (when
+  // origin/develop was not resolvable in the worktree) fell back to main, opening
+  // every auto-PR against main and making them conflict with develop.
+  const baseBranch = await resolveBaseBranch(taskId);
+  const prResult = await createPullRequest(executionDir, prTitle, prBody, baseBranch);
   if (!prResult.success) {
     log.warn({ taskId, error: prResult.error }, 'PR creation failed, worktree preserved');
     return;
@@ -295,8 +301,8 @@ export async function reviewAndCommitWorktree(params: ReviewParams): Promise<voi
 
   // Persist + link the PR locally so the task's "PRを開く" button can resolve
   // task → local PR id (otherwise the by-task lookup 404s and nothing happens).
-  // The worktree's current branch is the PR head; `branchName` is the base
-  // (it is passed as createPullRequest's baseBranch above).
+  // The worktree's current branch is the PR head; baseBranch (resolved above) is
+  // the theme's default branch the PR targets.
   if (prResult.prNumber != null && prResult.prUrl) {
     let headBranch = 'unknown';
     try {
@@ -313,7 +319,7 @@ export async function reviewAndCommitWorktree(params: ReviewParams): Promise<voi
       prUrl: prResult.prUrl,
       title: prTitle,
       headBranch,
-      baseBranch: branchName ?? 'develop',
+      baseBranch,
       workingDirectory: executionDir,
     });
   }
@@ -325,6 +331,24 @@ export async function reviewAndCommitWorktree(params: ReviewParams): Promise<voi
   await markTaskDone(taskId);
 
   log.info({ taskId }, 'Post-execution review pipeline completed');
+}
+
+/**
+ * Resolve the PR base branch for a task: the task's theme defaultBranch, else
+ * 'develop'. Mirrors the workflow-auto-commit / approval paths so auto-PRs target
+ * the theme's intended branch instead of an auto-detected main.
+ *
+ * @param taskId - Task id / タスクID
+ * @returns Base branch name / ベースブランチ名
+ */
+async function resolveBaseBranch(taskId: number): Promise<string> {
+  const task = await prisma.task
+    .findUnique({
+      where: { id: taskId },
+      select: { theme: { select: { defaultBranch: true } } },
+    })
+    .catch(() => null);
+  return task?.theme?.defaultBranch || 'develop';
 }
 
 /** Get git diff from worktree. */

@@ -314,6 +314,8 @@ export class RealtimeService {
    * Start ping interval.
    */
   private startPingInterval(): void {
+    // NOTE: Extended from 30s to 60s — pings are only for keepalive and stale-client
+    // detection; 30s was halving SSE broadcast overhead for no UX benefit.
     this.pingInterval = setInterval(() => {
       const now = new Date();
       for (const client of this.clients.values()) {
@@ -324,7 +326,7 @@ export class RealtimeService {
         });
         client.lastPingAt = now;
       }
-    }, 30000);
+    }, 60_000);
   }
 
   /**

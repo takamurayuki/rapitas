@@ -7,6 +7,7 @@
 import { Elysia } from 'elysia';
 import { prisma } from '../../../config/database';
 import { createLogger } from '../../../config/logger';
+import { resolveSessionByToken } from '../../../services/core/auth-session-resolver';
 
 const log = createLogger('routes:auth:session');
 
@@ -18,17 +19,14 @@ export const authSessionRoutes = new Elysia()
 
   .get('/sessions', async ({ cookie: { sessionToken }, set }) => {
     try {
-      const token = sessionToken.value;
+      const token = sessionToken.value as string | undefined;
 
       if (!token) {
         set.status = 401;
         return { success: false, message: 'No session token' };
       }
 
-      const currentSession = await prisma.userSession.findFirst({
-        where: { sessionToken: token, expiresAt: { gt: new Date() } },
-        include: { user: true },
-      });
+      const currentSession = await resolveSessionByToken(String(token));
 
       if (!currentSession) {
         set.status = 401;
@@ -58,7 +56,7 @@ export const authSessionRoutes = new Elysia()
 
   .delete('/sessions/:sessionId', async ({ params, cookie: { sessionToken }, set }) => {
     try {
-      const token = sessionToken.value;
+      const token = sessionToken.value as string | undefined;
       const { sessionId } = params;
 
       if (!token) {
@@ -66,10 +64,7 @@ export const authSessionRoutes = new Elysia()
         return { success: false, message: 'No session token' };
       }
 
-      const currentSession = await prisma.userSession.findFirst({
-        where: { sessionToken: token, expiresAt: { gt: new Date() } },
-        include: { user: true },
-      });
+      const currentSession = await resolveSessionByToken(String(token));
 
       if (!currentSession) {
         set.status = 401;
@@ -101,17 +96,14 @@ export const authSessionRoutes = new Elysia()
 
   .post('/cleanup-sessions', async ({ cookie: { sessionToken }, set }) => {
     try {
-      const token = sessionToken.value;
+      const token = sessionToken.value as string | undefined;
 
       if (!token) {
         set.status = 401;
         return { success: false, message: 'Authentication required' };
       }
 
-      const currentSession = await prisma.userSession.findFirst({
-        where: { sessionToken: token, expiresAt: { gt: new Date() } },
-        include: { user: true },
-      });
+      const currentSession = await resolveSessionByToken(String(token));
 
       if (!currentSession || currentSession.user.role !== 'admin') {
         set.status = 403;

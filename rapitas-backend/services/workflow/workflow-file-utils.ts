@@ -4,13 +4,16 @@
  * Low-level filesystem helpers for reading, writing, and cleaning up workflow
  * Markdown files. Does not contain any business logic or DB access.
  */
-import { readFile, writeFile, mkdir, rename, stat } from 'fs/promises';
+import { readFile, writeFile, mkdir, rename, stat, rm } from 'fs/promises';
 import { createHash } from 'crypto';
 import { join } from 'path';
 import { prisma } from '../../config';
 import { sanitizeMarkdownContent } from '../../utils/common/mojibake-detector';
 import { createLogger } from '../../config/logger';
 import { getTaskWorkflowDir, getArchiveDir } from './workflow-paths';
+import { resolveTaskWithThemeAndCategory } from '../task/task-resolver';
+import { fileHypothesesFromResearch } from '../memory/hypothesis-from-research';
+import { fileDecisionsFromPlan } from '../memory/decision-from-plan';
 
 const log = createLogger('workflow-file-utils');
 
@@ -23,10 +26,7 @@ export type WorkflowFileType = 'research' | 'question' | 'plan' | 'verify';
  * @returns Directory info or null if the task does not exist. / タスクが存在しない場合はnull
  */
 export async function resolveWorkflowDir(taskId: number) {
-  const task = await prisma.task.findUnique({
-    where: { id: taskId },
-    include: { theme: { include: { category: true } } },
-  });
+  const task = await resolveTaskWithThemeAndCategory(taskId);
   if (!task) return null;
 
   const categoryId = task.theme?.categoryId ?? null;
@@ -44,6 +44,28 @@ export async function resolveWorkflowDir(taskId: number) {
     categoryId,
     themeId,
   };
+}
+
+/**
+ * Delete a task's workflow directory (research/plan/verify/question + archived
+ * versions) from disk. Best-effort and recursive; a missing task/dir is a no-op.
+ * MUST be called while the task still exists (resolveWorkflowDir reads it to
+ * derive the category/theme path), i.e. before `prisma.task.delete`.
+ *
+ * @param taskId - Task whose workflow md files to remove. / 対象タスクID
+ * @returns true when a directory removal was attempted. / 削除を試みたか
+ */
+export async function deleteWorkflowDir(taskId: number): Promise<boolean> {
+  try {
+    const resolved = await resolveWorkflowDir(taskId);
+    if (!resolved) return false;
+    await rm(resolved.dir, { recursive: true, force: true });
+    log.info({ taskId, dir: resolved.dir }, '[workflow-file-utils] Deleted workflow dir');
+    return true;
+  } catch (err) {
+    log.warn({ err, taskId }, '[workflow-file-utils] Failed to delete workflow dir');
+    return false;
+  }
 }
 
 /**
@@ -110,9 +132,49 @@ export async function writeWorkflowFile(
 
   if (taskId !== undefined) {
     await recordWorkflowFileMetadata(taskId, fileType, sanitizeResult.content, filePath);
+
+    // Seed the agent-memory ledgers from the file's structured sections. This is
+    // the UNIVERSAL save choke point — the auto-run path (workflow-cli-executor)
+    // writes research/plan via this function directly, NOT through the
+    // handleSaveFile API route, so hooks placed only in that route never fired
+    // for auto-run tasks (the ledger stayed empty all day despite research
+    // writing a valid `## 仮説` section). Fire-and-forget; submitHypothesis
+    // (content hash) and createDecision (decision text per theme) dedupe, so the
+    // API path calling this in addition is safe.
+    if (fileType === 'research') {
+      void fileHypothesesFromResearch(taskId, sanitizeResult.content).catch(() => {});
+    } else if (fileType === 'plan') {
+      void fileDecisionsFromPlan(taskId, sanitizeResult.content).catch(() => {});
+    }
   }
 
   return sanitizeResult.content;
+}
+
+/**
+ * Move a workflow file into `_archive/<ts>/` so a later phase cannot reuse it.
+ * Used when an artifact is rejected (e.g. a log-polluted plan.md on replan): the
+ * producing phase then regenerates from scratch instead of re-reading the bad
+ * file and looping. Best-effort; a missing file is a no-op.
+ *
+ * @param dir - Workflow directory. / ワークフローディレクトリ
+ * @param fileType - Artifact to archive. / 退避するファイル種別
+ * @returns true when a file was archived. / 退避した場合 true
+ */
+export async function archiveWorkflowFile(
+  dir: string,
+  fileType: WorkflowFileType,
+): Promise<boolean> {
+  const filePath = join(dir, `${fileType}.md`);
+  try {
+    await stat(filePath);
+    const archiveDir = getArchiveDir(dir, new Date().toISOString());
+    await mkdir(archiveDir, { recursive: true });
+    await rename(filePath, join(archiveDir, `${fileType}.md`));
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 /**
@@ -282,6 +344,33 @@ export function looksLikeAgentLog(text: string): boolean {
 }
 
 /**
+ * Slice off any conversational/log preamble that precedes the report body.
+ *
+ * Slices from the LAST canonical heading for `fileType` when present; otherwise
+ * falls back to the FIRST Markdown heading so a chat preamble the agent prepended
+ * (e.g. "これで必要な調査が完了しました。以下がresearch.mdです。") is dropped even
+ * when the heading is non-standard. Returns the input unchanged when no heading
+ * is found, so genuinely heading-less content is left for the caller to judge.
+ *
+ * @param text - Candidate report text (ANSI already stripped). / 判定対象テキスト
+ * @param fileType - Workflow file type selecting the canonical heading. / ファイル種別
+ * @returns Text from the report heading onward. / 見出し以降のテキスト
+ */
+export function sliceFromReportHeading(text: string, fileType: string): string {
+  const headerRe = REPORT_HEADERS[fileType];
+  if (headerRe) {
+    headerRe.lastIndex = 0;
+    let lastIndex = -1;
+    let m: RegExpExecArray | null;
+    while ((m = headerRe.exec(text)) !== null) lastIndex = m.index;
+    if (lastIndex >= 0) return text.slice(lastIndex);
+  }
+  const firstHeading = text.match(/^#{1,6}\s+\S/m);
+  if (firstHeading?.index) return text.slice(firstHeading.index);
+  return text;
+}
+
+/**
  * Extract a clean Markdown report from raw CLI/API agent output.
  *
  * The agent's stdout/finalMessage can be polluted with execution logs (tool
@@ -305,16 +394,8 @@ export function extractMarkdownFromOutput(output: string, fileType: string): str
   if (!output) return null;
   let text = output.replace(/\r\n/g, '\n').replace(ANSI_RE, '');
 
-  // 1) Slice from the report heading when present — the strongest defense, as it
-  // discards everything logged before the report begins.
-  const headerRe = REPORT_HEADERS[fileType];
-  if (headerRe) {
-    headerRe.lastIndex = 0;
-    let lastIndex = -1;
-    let m: RegExpExecArray | null;
-    while ((m = headerRe.exec(text)) !== null) lastIndex = m.index;
-    if (lastIndex >= 0) text = text.slice(lastIndex);
-  }
+  // 1) Slice off any preamble before the report body (the strongest defense).
+  text = sliceFromReportHeading(text, fileType);
 
   // 2) Drop residual tool/log/spinner/stack-trace lines.
   const contentLines = text

@@ -7,13 +7,11 @@
  * Not responsible for creating the PR on GitHub — that lives in branch-pr-ops.ts.
  */
 
-import { exec } from 'child_process';
-import { promisify } from 'util';
 import { PrismaClient } from '@prisma/client';
 import { createLogger } from '../../config/logger';
+import { parseOwnerRepo, ownerRepoFromGitRemote } from './git-exec';
 
 const log = createLogger('github-service:pr-link');
-const execAsync = promisify(exec);
 type PrismaClientInstance = InstanceType<typeof PrismaClient>;
 
 /** Parameters for {@link linkAutoCreatedPr}. */
@@ -37,20 +35,6 @@ export interface LinkAutoCreatedPrParams {
 }
 
 /**
- * Extract `owner/repo` (lowercased) from a GitHub remote URL.
- *
- * @param url - https/ssh GitHub URL / GitHubのURL
- * @returns `{ owner, repo }` or null when the URL is not parseable / 解析不能ならnull
- */
-function parseOwnerRepo(url: string | null | undefined): { owner: string; repo: string } | null {
-  if (!url) return null;
-  // Matches https://github.com/owner/repo(.git) and git@github.com:owner/repo(.git)
-  const m = url.match(/[:/]([^/:]+)\/([^/]+?)(?:\.git)?\/?$/);
-  if (!m) return null;
-  return { owner: m[1].toLowerCase(), repo: m[2].toLowerCase() };
-}
-
-/**
  * Resolve the GitHubIntegration that owns the repo behind an auto-created PR.
  * Prefers an owner/repo match (from the theme URL, else the git remote); falls
  * back to the sole integration when exactly one exists.
@@ -64,15 +48,7 @@ async function resolveIntegrationId(
 ): Promise<number | null> {
   let ident = parseOwnerRepo(repositoryUrl);
   if (!ident && workingDirectory) {
-    try {
-      const { stdout } = await execAsync('git remote get-url origin', {
-        cwd: workingDirectory,
-        encoding: 'utf8',
-      });
-      ident = parseOwnerRepo(stdout.trim());
-    } catch {
-      /* no remote — fall through to the sole-integration heuristic */
-    }
+    ident = await ownerRepoFromGitRemote(workingDirectory);
   }
 
   const integrations = await prisma.gitHubIntegration.findMany({

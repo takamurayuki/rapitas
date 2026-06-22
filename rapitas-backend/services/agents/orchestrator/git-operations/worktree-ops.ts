@@ -15,6 +15,8 @@ import { randomBytes } from 'node:crypto';
 import { createLogger } from '../../../../config/logger';
 import { WORKTREE_DIR, normalizePath, isPathSafeForWorktreeOperation } from './safety';
 import { ensureGitRepository, validateAndSetupRemote } from './repository-setup';
+import { clearGitCache } from './git-exec';
+import { clearGitRemoteCache } from '../../../github/git-exec';
 import {
   clearWorktreeDependenciesTracking,
   awaitWorktreeDependencies,
@@ -102,6 +104,11 @@ export async function createWorktree(
 
   try {
     let effectiveBranchName = branchName;
+    // Prune stale worktree entries (their dir was deleted on disk but git still
+    // lists them). Otherwise a removed worktree makes its branch look "in use"
+    // below and forces a divergent unique branch — orphaning the PR's commits on
+    // a ci_repair re-run that means to reuse the existing feature branch.
+    await execAsync('git worktree prune', { cwd: baseDir, encoding: 'utf8' }).catch(() => {});
     try {
       const { stdout: worktreeList } = await execAsync('git worktree list --porcelain', {
         cwd: baseDir,
@@ -421,6 +428,12 @@ export async function removeWorktree(
   // NOTE: Drop install tracking so a future worktree at the same path
   // (after directory reuse) does not see a stale resolved-promise.
   clearWorktreeDependenciesTracking(worktreePath);
+  // NOTE: Invalidate cached git-dir values for this path. A new worktree
+  // created at the same path would otherwise get the old git-dir from cache.
+  clearGitCache(worktreePath);
+  // NOTE: Invalidate the GitHub remote URL cache for this path so a future
+  // worktree reusing the same directory cannot receive a stale owner/repo.
+  clearGitRemoteCache(worktreePath);
 }
 
 /**

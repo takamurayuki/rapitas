@@ -20,135 +20,94 @@ export class BehaviorScheduler {
   static start() {
     log.info('[BehaviorScheduler] Starting behavior summary update scheduler');
 
-    // Update daily summary at the top of every hour
-    const dailyInterval = setInterval(async () => {
+    // NOTE: Consolidated from 11 separate setInterval calls into one to reduce
+    // JS event-loop timer overhead (11 callbacks/min → 1). All original guards
+    // (hour/minute/day-of-week/day-of-month) are preserved inside the single tick.
+    const tick = setInterval(async () => {
       const now = new Date();
-      if (now.getMinutes() === 0) {
+      const h = now.getHours();
+      const m = now.getMinutes();
+      const dow = now.getDay(); // 0=Sun … 6=Sat
+      const dom = now.getDate();
+
+      // Top of every hour: daily summary + recurring tasks
+      if (m === 0) {
         log.info('[BehaviorScheduler] Updating daily behavior summary');
-        await UserBehaviorService.updateBehaviorSummary(1, 'daily');
+        await UserBehaviorService.updateBehaviorSummary(1, 'daily').catch((err: Error) => {
+          log.error({ err }, '[BehaviorScheduler] Daily summary failed');
+        });
+        log.info(`[BehaviorScheduler] Processing recurring tasks at hour ${h}`);
+        await processAllPendingRecurrences(prisma, h).catch((err: Error) => {
+          log.error({ err }, '[BehaviorScheduler] Recurring task processing failed');
+        });
       }
-    }, 60 * 1000); // Check every minute
 
-    // Update weekly summary at midnight daily
-    const weeklyInterval = setInterval(async () => {
-      const now = new Date();
-      if (now.getHours() === 0 && now.getMinutes() === 0) {
+      // Midnight: weekly / monthly summary + knowledge consolidation
+      if (h === 0 && m === 0) {
         log.info('[BehaviorScheduler] Updating weekly behavior summary');
-        await UserBehaviorService.updateBehaviorSummary(1, 'weekly');
-      }
-    }, 60 * 1000); // Check every minute
-
-    // Update monthly summary at midnight on the 1st of each month
-    const monthlyInterval = setInterval(async () => {
-      const now = new Date();
-      if (now.getDate() === 1 && now.getHours() === 0 && now.getMinutes() === 0) {
-        log.info('[BehaviorScheduler] Updating monthly behavior summary');
-        await UserBehaviorService.updateBehaviorSummary(1, 'monthly');
-      }
-    }, 60 * 1000); // Check every minute
-
-    // Execute knowledge consolidation at midnight daily
-    const consolidationInterval = setInterval(async () => {
-      const now = new Date();
-      if (now.getHours() === 0 && now.getMinutes() === 0) {
+        await UserBehaviorService.updateBehaviorSummary(1, 'weekly').catch((err: Error) => {
+          log.error({ err }, '[BehaviorScheduler] Weekly summary failed');
+        });
+        if (dom === 1) {
+          log.info('[BehaviorScheduler] Updating monthly behavior summary');
+          await UserBehaviorService.updateBehaviorSummary(1, 'monthly').catch((err: Error) => {
+            log.error({ err }, '[BehaviorScheduler] Monthly summary failed');
+          });
+        }
         log.info('[BehaviorScheduler] Triggering knowledge consolidation');
         await memoryTaskQueue.enqueue('consolidate', {}).catch((err: Error) => {
           log.error({ err }, '[BehaviorScheduler] Failed to enqueue consolidation');
         });
       }
-    }, 60 * 1000);
 
-    // Execute forgetting sweep at 2 AM daily
-    const forgettingSweepInterval = setInterval(async () => {
-      const now = new Date();
-      if (now.getHours() === 2 && now.getMinutes() === 0) {
+      // 2 AM: forgetting sweep
+      if (h === 2 && m === 0) {
         log.info('[BehaviorScheduler] Triggering forgetting sweep');
         await memoryTaskQueue.enqueue('forget_sweep', {}).catch((err: Error) => {
           log.error({ err }, '[BehaviorScheduler] Failed to enqueue forgetting sweep');
         });
       }
-    }, 60 * 1000);
 
-    // Execute knowledge reminder scan at 9 AM daily
-    const knowledgeReminderInterval = setInterval(async () => {
-      const now = new Date();
-      if (now.getHours() === 9 && now.getMinutes() === 0) {
-        log.info('[BehaviorScheduler] Triggering knowledge reminder scan');
-        await scanAndRemind().catch((err: Error) => {
-          log.error({ err }, '[BehaviorScheduler] Failed to scan knowledge reminders');
-        });
-      }
-    }, 60 * 1000);
-
-    // Generate workflow optimization rules at 3 AM daily
-    const workflowLearningInterval = setInterval(async () => {
-      const now = new Date();
-      if (now.getHours() === 3 && now.getMinutes() === 0) {
+      // 3 AM: workflow optimization rules
+      if (h === 3 && m === 0) {
         log.info('[BehaviorScheduler] Triggering workflow optimization rule generation');
         await generateOptimizationRules().catch((err: Error) => {
           log.error({ err }, '[BehaviorScheduler] Failed to generate optimization rules');
         });
       }
-    }, 60 * 1000);
 
-    // Process recurring tasks every hour
-    const recurringTaskInterval = setInterval(async () => {
-      const now = new Date();
-      if (now.getMinutes() === 0) {
-        const currentHour = now.getHours();
-        log.info(`[BehaviorScheduler] Processing recurring tasks at hour ${currentHour}`);
-        await processAllPendingRecurrences(prisma, currentHour).catch((err: Error) => {
-          log.error({ err }, '[BehaviorScheduler] Failed to process recurring tasks');
-        });
-      }
-    }, 60 * 1000);
-
-    // Autonomous tech debt scan at 4 AM daily (uses only local analysis, no API cost)
-    const techDebtInterval = setInterval(async () => {
-      const now = new Date();
-      if (now.getHours() === 4 && now.getMinutes() === 0) {
+      // 4 AM: tech debt scan
+      if (h === 4 && m === 0) {
         log.info('[BehaviorScheduler] Running autonomous tech debt scan');
         await runScheduledTechDebtScan().catch((err: Error) => {
           log.error({ err }, '[BehaviorScheduler] Tech debt scan failed');
         });
       }
-    }, 60 * 1000);
 
-    // Ambient project health monitoring at 6 AM daily
-    const healthMonitorInterval = setInterval(async () => {
-      const now = new Date();
-      if (now.getHours() === 6 && now.getMinutes() === 0) {
+      // 6 AM: project health monitoring
+      if (h === 6 && m === 0) {
         log.info('[BehaviorScheduler] Running project health scan');
         await runProjectHealthScan().catch((err: Error) => {
           log.error({ err }, '[BehaviorScheduler] Project health scan failed');
         });
       }
-    }, 60 * 1000);
 
-    // AI weekly review generation at 9 AM on Mondays
-    const weeklyReviewInterval = setInterval(async () => {
-      const now = new Date();
-      if (now.getDay() === 1 && now.getHours() === 9 && now.getMinutes() === 0) {
-        log.info('[BehaviorScheduler] Triggering AI weekly review generation');
-        await generateWeeklyReview(prisma).catch((err: Error) => {
-          log.error({ err }, '[BehaviorScheduler] Weekly review generation failed');
+      // 9 AM: knowledge reminders + Monday weekly review
+      if (h === 9 && m === 0) {
+        log.info('[BehaviorScheduler] Triggering knowledge reminder scan');
+        await scanAndRemind().catch((err: Error) => {
+          log.error({ err }, '[BehaviorScheduler] Failed to scan knowledge reminders');
         });
+        if (dow === 1) {
+          log.info('[BehaviorScheduler] Triggering AI weekly review generation');
+          await generateWeeklyReview(prisma).catch((err: Error) => {
+            log.error({ err }, '[BehaviorScheduler] Weekly review generation failed');
+          });
+        }
       }
-    }, 60 * 1000);
+    }, 60_000);
 
-    this.intervalIds.push(
-      dailyInterval,
-      weeklyInterval,
-      monthlyInterval,
-      consolidationInterval,
-      forgettingSweepInterval,
-      knowledgeReminderInterval,
-      workflowLearningInterval,
-      recurringTaskInterval,
-      techDebtInterval,
-      healthMonitorInterval,
-      weeklyReviewInterval,
-    );
+    this.intervalIds.push(tick);
 
     // Initial execution (at server startup)
     this.runInitialUpdate();

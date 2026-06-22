@@ -24,7 +24,6 @@ function renderContent(content: string) {
       activeFile={{ exists: true, content }}
       activeTabConfig={TAB}
       showApprovalButton={false}
-      showCompleteButton={false}
     />,
   );
 }

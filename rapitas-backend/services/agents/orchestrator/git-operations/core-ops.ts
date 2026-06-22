@@ -11,6 +11,7 @@ import { promisify } from 'util';
 import { readdir, unlink } from 'fs/promises';
 import { join } from 'path';
 import { createLogger } from '../../../../config/logger';
+import { ensureNotPrimaryWorkTree } from './worktree-guard';
 
 export { getDiff } from './diff-structured';
 
@@ -109,6 +110,9 @@ export async function commitChanges(
   taskTitle?: string,
 ): Promise<{ success: boolean; commitHash?: string; error?: string }> {
   try {
+    // Never `git add -A` + commit on the primary checkout — it would stage and
+    // commit the developer's own uncommitted work. Agent commits run in a worktree.
+    await ensureNotPrimaryWorkTree(workingDirectory, 'commit');
     await removeTransientWorkflowFiles(workingDirectory);
     await execAsync('git add -A', { cwd: workingDirectory });
 
@@ -153,6 +157,10 @@ export async function createCommit(
   additions: number;
   deletions: number;
 }> {
+  // Refuse on the primary checkout: this both `git add -A` commits and may
+  // `git checkout -b`, either of which would clobber the developer's work.
+  await ensureNotPrimaryWorkTree(workingDirectory, 'create a commit');
+
   const { stdout: currentBranch } = await execAsync('git branch --show-current', {
     cwd: workingDirectory,
     encoding: 'utf8',

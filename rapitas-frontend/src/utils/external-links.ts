@@ -76,9 +76,6 @@ export function setupExternalLinkHandlers(): void {
     const href = link.getAttribute('href');
     if (!href) return;
 
-    // Skip if handler already set
-    if (link.hasAttribute('data-external-handler-set')) return;
-
     // NOTE: Skip links inside contentEditable (note editor, etc.)
     if ((link as HTMLElement).isContentEditable) return;
 

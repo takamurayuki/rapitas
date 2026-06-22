@@ -23,6 +23,7 @@ import { createLogger } from '../../../config/logger';
 import { getProjectRoot } from '../../../config';
 import { prisma } from '../../../config/database';
 import { checkClaudeAvailable } from './cli-utils';
+import { getAgentTimeoutMs } from '../execution-timeouts';
 import { handleWorkerMessage } from './worker-message-handler';
 import type { WorkerResultUsageSnapshot } from './worker-message-handler';
 import { buildResolveAfterParse } from './execution-resolver';
@@ -100,7 +101,10 @@ export class ClaudeCodeAgent extends BaseAgent {
   constructor(id: string, name: string, config: ClaudeCodeAgentConfig = {}) {
     super(id, name, 'claude-code');
     this.config = {
-      timeout: 900000, // 15 minutes default
+      // Default derived from the shared timeout config so the agent self-
+      // terminates just BEFORE the WorkflowRunner's phase backstop (see
+      // execution-timeouts). A caller-supplied config.timeout still wins.
+      timeout: getAgentTimeoutMs(),
       ...config,
     };
   }
@@ -195,7 +199,16 @@ export class ClaudeCodeAgent extends BaseAgent {
             where: { id: taskId },
             select: { workflowStatus: true },
           });
-          if (t?.workflowStatus === 'plan_created' || t?.workflowStatus === 'plan_approved') {
+          if (
+            t?.workflowStatus === 'plan_created' ||
+            t?.workflowStatus === 'plan_approved' ||
+            // A research phase saved research.md and produced no code on purpose —
+            // a valid pause, not a "planned but didn't implement" failure. The
+            // workflow auto-advances to the next phase (lightweight: implement;
+            // standard: plan). Without this a lightweight research run failed with
+            // "Agent output a plan but no actual code changes were made".
+            t?.workflowStatus === 'research_done'
+          ) {
             return true;
           }
           // A plan that was split into subtasks delegates all implementation
@@ -229,7 +242,7 @@ export class ClaudeCodeAgent extends BaseAgent {
     this.onParseComplete = null;
     const startTime = Date.now();
 
-    const timeout = this.config.timeout ?? 900000; // 15 minutes
+    const timeout = this.config.timeout ?? getAgentTimeoutMs();
 
     const fs = await import('fs/promises');
     const workDir = task.workingDirectory || this.config.workingDirectory || getProjectRoot();

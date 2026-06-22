@@ -46,9 +46,10 @@ import { callChatGPTStream } from './chatgpt-provider';
 import { callGeminiStream } from './gemini-provider';
 import { callOllamaStream } from './ollama-provider';
 import { getOllamaUrl } from './credentials';
-import { ensureLocalLLM } from '../../services/local-llm';
+import { ensureLocalLLM, isLocalLLMEnabled } from '../../services/local-llm';
 import { createLogger } from '../../config';
 import { buildRAGContext } from '../../services/memory/rag/context-builder';
+import { incrementLlmCall } from '../llm-call-context';
 import {
   generateCacheKey,
   getCachedResponse,
@@ -121,6 +122,14 @@ export async function sendAIMessage(options: AIRequestOptions): Promise<AIRespon
 
   // Local LLM (Ollama preferred -> llama-server -> paid API fallback)
   if (provider === 'ollama') {
+    // Local LLM disabled by config (RAPITAS_ENABLE_LOCAL_LLM unset) is the
+    // EXPECTED state, not a failure — route straight to the paid API without a
+    // warning. Otherwise every memory/contradiction job logged a WARN per call.
+    if (!isLocalLLMEnabled()) {
+      const result = await sendWithPaidProvider(options);
+      incrementLlmCall();
+      return result;
+    }
     try {
       const ollamaUrl = await getOllamaUrl();
       const localLLM = await ensureLocalLLM(ollamaUrl, options.model);
@@ -157,6 +166,7 @@ export async function sendAIMessage(options: AIRequestOptions): Promise<AIRespon
         const cacheKey = generateCacheKey('ollama', localLLM.model, systemPrompt, options.messages);
         const cached = getCachedResponse(cacheKey);
         if (cached) {
+          incrementLlmCall();
           return cached;
         }
 
@@ -174,19 +184,24 @@ export async function sendAIMessage(options: AIRequestOptions): Promise<AIRespon
           'ollama',
           localLLM.model,
         );
+        incrementLlmCall();
         return response;
       }
 
-      return await callOllama(
+      const ollamaResult = await callOllama(
         localLLM.url,
         localLLM.model,
         options.messages,
         systemPrompt,
         maxTokens,
       );
+      incrementLlmCall();
+      return ollamaResult;
     } catch (error) {
       log.warn({ err: error }, 'Local LLM failed, falling back to paid API');
-      return await sendWithPaidProvider(options);
+      const fallbackResult = await sendWithPaidProvider(options);
+      incrementLlmCall();
+      return fallbackResult;
     }
   }
 
@@ -202,16 +217,40 @@ export async function sendAIMessage(options: AIRequestOptions): Promise<AIRespon
   const maxTokens = options.maxTokens || 2048;
 
   try {
+    let paidResult: Awaited<ReturnType<typeof callClaude>>;
     switch (provider) {
       case 'claude':
-        return await callClaude(apiKey, model, options.messages, options.systemPrompt, maxTokens);
+        paidResult = await callClaude(
+          apiKey,
+          model,
+          options.messages,
+          options.systemPrompt,
+          maxTokens,
+        );
+        break;
       case 'chatgpt':
-        return await callChatGPT(apiKey, model, options.messages, options.systemPrompt, maxTokens);
+        paidResult = await callChatGPT(
+          apiKey,
+          model,
+          options.messages,
+          options.systemPrompt,
+          maxTokens,
+        );
+        break;
       case 'gemini':
-        return await callGemini(apiKey, model, options.messages, options.systemPrompt, maxTokens);
+        paidResult = await callGemini(
+          apiKey,
+          model,
+          options.messages,
+          options.systemPrompt,
+          maxTokens,
+        );
+        break;
       default:
         throw new Error(`未対応のプロバイダーです: ${provider}`);
     }
+    incrementLlmCall();
+    return paidResult;
   } catch (error) {
     handleApiError(error, provider);
   }
@@ -225,6 +264,10 @@ export async function sendAIMessageStream(options: AIRequestOptions): Promise<Re
 
   // Local LLM (Ollama preferred -> llama-server -> paid API fallback)
   if (provider === 'ollama') {
+    // Disabled by config is the expected state — fall back silently (see sendAIMessage).
+    if (!isLocalLLMEnabled()) {
+      return await sendStreamWithPaidProvider(options);
+    }
     try {
       const ollamaUrl = await getOllamaUrl();
       const localLLM = await ensureLocalLLM(ollamaUrl);

@@ -56,8 +56,10 @@ async function resolveImplementEntryStatus(
 }
 
 /**
- * Append the CI failure to question.md so the re-run implementer reads it as
- * feedback (the implementer context surfaces question.md). Best-effort.
+ * Append the CI failure to verify.md so the re-run implementer reads it as
+ * verification feedback (the implementer context surfaces verify.md). This is a
+ * verification/CI concern, not a user Q&A — keeping it out of question.md stops
+ * it from polluting the Q&A tab. Best-effort.
  */
 async function writeCiFeedback(
   taskId: number,
@@ -68,7 +70,7 @@ async function writeCiFeedback(
   try {
     const info = await resolveWorkflowDir(taskId);
     if (!info) return;
-    const prior = (await readWorkflowFile(info.dir, 'question')) ?? '';
+    const prior = (await readWorkflowFile(info.dir, 'verify')) ?? '';
     const block = [
       `# CIからの差し戻し（自己修復 ${attempt} 回目）`,
       '',
@@ -84,9 +86,9 @@ async function writeCiFeedback(
       .filter(Boolean)
       .join('\n');
     const next = prior.trim() ? `${prior.trim()}\n\n---\n\n${block}` : block;
-    await writeWorkflowFile(info.dir, 'question', next, taskId);
+    await writeWorkflowFile(info.dir, 'verify', next, taskId);
   } catch (err) {
-    log.warn({ err, taskId }, '[ci-repair] Failed to write CI feedback to question.md');
+    log.warn({ err, taskId }, '[ci-repair] Failed to write CI feedback to verify.md');
   }
 }
 
@@ -106,6 +108,23 @@ export async function attemptCiRepair(
   detail = '',
 ): Promise<CiRepairResult> {
   if (DEFAULT_MAX_CI_REPAIRS === 0) return { bounced: false };
+
+  // Conflict-resolution tasks ("PR #N の競合を解消") must NOT be CI-repaired: their
+  // job is to resolve a merge conflict, not to fix failing tests. Re-running the
+  // agent finds no conflict left and cannot fix a CI bug, so bouncing it merely
+  // UN-COMPLETES a finished task (the completed→plan_approved flip the user saw on
+  // task 280). A CI failure on such a PR is a separate concern — leave the task
+  // completed and let the caller flag the PR for review instead.
+  const ctask = await prisma.task
+    .findUnique({ where: { id: taskId }, select: { title: true, githubPrId: true } })
+    .catch(() => null);
+  if (ctask && ctask.githubPrId != null && /^PR #\d+ の競合を解消/.test(ctask.title ?? '')) {
+    log.info(
+      { taskId },
+      '[ci-repair] Conflict-resolution task — skipping CI repair (re-run cannot fix CI; staying completed)',
+    );
+    return { bounced: false };
+  }
 
   const prior = await countPriorRepairs(taskId);
   if (prior >= DEFAULT_MAX_CI_REPAIRS) {

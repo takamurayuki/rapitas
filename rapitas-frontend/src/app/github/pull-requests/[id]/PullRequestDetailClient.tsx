@@ -14,7 +14,7 @@ import { MessageSquare, FileCode, GitMerge, Loader2 } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import type { GitHubPullRequest, FileDiff } from '@/types';
 import { API_BASE_URL } from '@/utils/api';
-import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
+import { PRDetailSkeleton } from './components/PRDetailSkeleton';
 import { useToast } from '@/components/ui/toast/ToastContainer';
 import { createLogger } from '@/lib/logger';
 
@@ -43,6 +43,7 @@ export default function PullRequestDetailClient() {
   const [mergeMethod, setMergeMethod] = useState<MergeMethod>('squash');
   const [deleteBranch, setDeleteBranch] = useState(true);
   const [branches, setBranches] = useState<string[]>([]);
+  const [themeDefaultBranch, setThemeDefaultBranch] = useState<string | null>(null);
   const [changingBase, setChangingBase] = useState(false);
   const [autoMerge, setAutoMerge] = useState(false);
   const [resolvingConflicts, setResolvingConflicts] = useState(false);
@@ -61,6 +62,30 @@ export default function PullRequestDetailClient() {
       .then((data: { branches?: string[] }) => setBranches(data.branches ?? []))
       .catch(() => setBranches([]));
   }, [repositoryUrl]);
+
+  // Resolve the linked task's theme default branch so the configured merge
+  // target is always offered — when the integration has no repositoryUrl the
+  // remote branch fetch above is skipped, otherwise the dropdown would only show
+  // the generic develop/main/master lines.
+  const linkedTaskId = pr?.linkedTaskId;
+  useEffect(() => {
+    if (!linkedTaskId) return;
+    fetch(`${API_BASE_URL}/tasks/${linkedTaskId}`)
+      .then((res) => (res.ok ? res.json() : null))
+      .then(
+        (
+          data: {
+            task?: { theme?: { defaultBranch?: string | null } };
+            theme?: { defaultBranch?: string | null };
+          } | null,
+        ) => {
+          // The task endpoint may wrap the row in { task } or return it directly.
+          const dflt = data?.task?.theme?.defaultBranch ?? data?.theme?.defaultBranch;
+          if (dflt) setThemeDefaultBranch(dflt);
+        },
+      )
+      .catch(() => setThemeDefaultBranch(null));
+  }, [linkedTaskId]);
 
   const handleChangeBase = async (baseBranch: string) => {
     if (!pr || baseBranch === pr.baseBranch) return;
@@ -219,7 +244,7 @@ export default function PullRequestDetailClient() {
   };
 
   if (loading) {
-    return <LoadingSpinner />;
+    return <PRDetailSkeleton />;
   }
 
   if (!pr) {
@@ -231,6 +256,18 @@ export default function PullRequestDetailClient() {
   }
 
   const conversationCount = (pr.reviews?.length || 0) + (pr.comments?.length || 0);
+
+  // Always offer a usable base-branch list. When the repo's branch fetch is
+  // empty/slow the selector previously showed ONLY the current base (a dead
+  // dropdown). Union the fetched branches with the current base and the common
+  // lines (develop/main/master), excluding the PR's own head branch.
+  const baseOptions = Array.from(
+    new Set<string>(
+      [themeDefaultBranch, ...branches, pr.baseBranch, 'develop', 'main', 'master'].filter(
+        (b): b is string => !!b,
+      ),
+    ),
+  ).filter((b) => b !== pr.headBranch);
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -246,11 +283,7 @@ export default function PullRequestDetailClient() {
             disabled={changingBase}
             className="px-3 py-1.5 border border-zinc-300 dark:border-zinc-600 rounded-lg bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 text-sm disabled:opacity-50"
           >
-            {/* Ensure the current base is selectable even if the branch list hasn't loaded. */}
-            {!branches.includes(pr.baseBranch) && (
-              <option value={pr.baseBranch}>{pr.baseBranch}</option>
-            )}
-            {branches.map((b) => (
+            {baseOptions.map((b) => (
               <option key={b} value={b}>
                 {b}
               </option>

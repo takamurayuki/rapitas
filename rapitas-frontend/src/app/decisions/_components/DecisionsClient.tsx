@@ -9,7 +9,7 @@
  */
 
 import { useState, useCallback, useEffect } from 'react';
-import { Trash2, ListPlus, Loader2, CheckCircle2, XCircle, AlertCircle } from 'lucide-react';
+import { Trash2, Loader2, CheckCircle2, XCircle, AlertCircle } from 'lucide-react';
 import { API_BASE_URL } from '@/utils/api';
 import { useFilterDataStore } from '@/stores/filter-data-store';
 import Pagination from '@/components/ui/pagination/Pagination';
@@ -246,27 +246,9 @@ export default function DecisionsClient() {
     [showToast],
   );
 
-  const handleConvert = useCallback(
-    async (id: number) => {
-      setBusyId(id);
-      try {
-        const res = await fetch(`${API_BASE_URL}/decision-journal/${id}/convert-to-task`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-        });
-        if (res.ok) {
-          await fetchDecisions();
-        } else {
-          showToast('タスクへの変換に失敗しました', 'error');
-        }
-      } catch {
-        showToast('タスクへの変換に失敗しました', 'error');
-      } finally {
-        setBusyId(null);
-      }
-    },
-    [fetchDecisions, showToast],
-  );
+  // NOTE: Removed the "convert to task" action — a decision is settled knowledge
+  // (a recorded choice + rationale, like the hypothesis ledger), not a unit of
+  // work, so task-ifying it conflated two distinct concepts.
 
   const currentReview = reviewDue[reviewIndex];
 
@@ -556,14 +538,6 @@ export default function DecisionsClient() {
                   <span className="rounded-full bg-zinc-100 px-1.5 py-0.5 text-[10px] font-medium text-zinc-500 dark:bg-zinc-800">
                     確信度 {Math.round(d.confidence * 100)}%
                   </span>
-                  {d.taskId && (
-                    <a
-                      href={`/tasks/${d.taskId}`}
-                      className="rounded-full bg-emerald-50 px-1.5 py-0.5 text-[10px] font-medium text-emerald-600 hover:underline dark:bg-emerald-900/30 dark:text-emerald-300"
-                    >
-                      タスク化済 #{d.taskId}
-                    </a>
-                  )}
                   {d.reviewDate && (
                     <span className="text-[10px] text-zinc-400">
                       レビュー日 {new Date(d.reviewDate).toLocaleDateString('ja-JP')}
@@ -594,20 +568,6 @@ export default function DecisionsClient() {
                   >
                     編集
                   </button>
-                  {d.status === 'open' && !d.taskId && (
-                    <button
-                      onClick={() => handleConvert(d.id)}
-                      disabled={busy}
-                      className="flex items-center gap-1 rounded-lg bg-indigo-500 px-2.5 py-1 text-[11px] font-medium text-white hover:bg-indigo-600 disabled:opacity-50"
-                    >
-                      {busy ? (
-                        <Loader2 className="h-3 w-3 animate-spin" />
-                      ) : (
-                        <ListPlus className="h-3 w-3" />
-                      )}
-                      タスク化
-                    </button>
-                  )}
                   <button
                     onClick={() => handleDelete(d.id)}
                     disabled={busy}

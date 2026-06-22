@@ -2,7 +2,7 @@
 // ExecutionRunningPanel
 
 import React from 'react';
-import { Loader2, AlertCircle, Rocket, HelpCircle, Square, Send, Clock, Zap } from 'lucide-react';
+import { Loader2, Rocket, HelpCircle, Square, Zap } from 'lucide-react';
 import { formatTokenCount, formatCountdown } from './useAgentExecution';
 
 type Props = {
@@ -48,15 +48,14 @@ export function ExecutionRunningPanel({
   isConfirmedQuestion,
   questionParsed,
   hasOptions,
-  userResponse,
-  setUserResponse,
-  isSendingResponse,
   timeoutCountdown,
   pollingTokensUsed,
   logsNode,
   onStop,
-  onSendResponse,
 }: Props) {
+  // NOTE: userResponse / setUserResponse / isSendingResponse / onSendResponse are
+  // still accepted in Props (the parent passes them) but no longer used here —
+  // the interactive Q&A was relocated to the workflow Q&A tab (集約).
   const showWaitingUI = isWaitingForInput && hasQuestion;
 
   return (
@@ -134,122 +133,36 @@ export function ExecutionRunningPanel({
         </div>
 
         {hasQuestion && (
-          <div
-            className={`mx-6 mb-4 p-4 rounded-lg ${
-              showWaitingUI
-                ? 'bg-white/60 dark:bg-indigo-dark-900/40 border border-amber-200 dark:border-amber-700'
-                : 'bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800'
-            }`}
-          >
-            {!showWaitingUI && (
-              <div className="flex items-start gap-3 mb-3">
-                <div className="p-1.5 bg-amber-100 dark:bg-amber-900/40 rounded-lg shrink-0">
-                  <HelpCircle className="w-4 h-4 text-amber-600 dark:text-amber-400" />
-                </div>
-                <div className="flex-1 flex items-center gap-2">
-                  <h4 className="font-medium text-amber-800 dark:text-amber-200 text-sm">
-                    Claude Codeからの質問
-                  </h4>
-                  {isConfirmedQuestion && (
-                    <span className="px-1.5 py-0.5 text-xs bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-300 rounded">
-                      確認済み
-                    </span>
-                  )}
-                </div>
+          <div className="mx-6 mb-4 rounded-lg border border-amber-200 bg-amber-50 p-4 dark:border-amber-800 dark:bg-amber-900/20">
+            <div className="mb-2 flex items-center gap-2">
+              <div className="rounded-lg bg-amber-100 p-1.5 dark:bg-amber-900/40">
+                <HelpCircle className="h-4 w-4 text-amber-600 dark:text-amber-400" />
               </div>
-            )}
-
-            <div
-              className={`mb-3 p-3 rounded-lg ${
-                showWaitingUI
-                  ? 'bg-amber-50 dark:bg-amber-900/30'
-                  : 'bg-white/60 dark:bg-zinc-800/60'
-              }`}
-            >
-              <p className="text-sm text-amber-800 dark:text-amber-200 font-mono whitespace-pre-wrap mb-3">
-                {hasOptions ? questionParsed!.text : question}
-              </p>
-
-              {hasOptions && (
-                <div className="grid gap-2 mt-4">
-                  {questionParsed!.options.map((option, index) => {
-                    const optionKey = String.fromCharCode(65 + index); // A, B, C, D
-                    const isSelected = userResponse === option;
-
-                    return (
-                      <button
-                        key={index}
-                        onClick={() => setUserResponse(option)}
-                        className={`text-left px-4 py-3 rounded-lg border-2 transition-all duration-200 ${
-                          isSelected
-                            ? 'border-amber-500 bg-amber-100 dark:bg-amber-900/50 text-amber-900 dark:text-amber-100'
-                            : 'border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 hover:border-amber-400 hover:bg-amber-50 dark:hover:bg-amber-900/20'
-                        }`}
-                      >
-                        <div className="flex items-start gap-3">
-                          <span
-                            className={`shrink-0 w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ${
-                              isSelected
-                                ? 'bg-amber-500 text-white'
-                                : 'bg-zinc-200 dark:bg-zinc-700 text-zinc-600 dark:text-zinc-400'
-                            }`}
-                          >
-                            {optionKey}
-                          </span>
-                          <span className="text-sm flex-1">{option}</span>
-                        </div>
-                      </button>
-                    );
-                  })}
-                </div>
+              <h4 className="text-sm font-medium text-amber-800 dark:text-amber-200">
+                AIエージェントからの質問があります
+              </h4>
+              {isConfirmedQuestion && (
+                <span className="rounded bg-green-100 px-1.5 py-0.5 text-xs text-green-700 dark:bg-green-900/40 dark:text-green-300">
+                  確認済み
+                </span>
               )}
             </div>
-
-            {timeoutCountdown !== null && timeoutCountdown > 0 && (
-              <div className="mb-3 flex items-center gap-2 px-3 py-2 bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-700 rounded-lg">
-                <Clock className="w-4 h-4 text-blue-600 dark:text-blue-400" />
-                <span className="text-sm text-blue-700 dark:text-blue-300">
-                  回答がない場合、
-                  <span className="font-mono font-medium">
-                    {formatCountdown(timeoutCountdown)}
-                  </span>{' '}
-                  後に自動的に続行します。
-                </span>
-              </div>
-            )}
-
-            {timeoutCountdown !== null && timeoutCountdown > 0 && timeoutCountdown <= 30 && (
-              <div className="mb-3 flex items-center gap-2 px-3 py-2 bg-orange-50 dark:bg-orange-900/30 border border-orange-200 dark:border-orange-700 rounded-lg animate-pulse">
-                <AlertCircle className="w-4 h-4 text-orange-600 dark:text-orange-400" />
-                <span className="text-sm text-orange-700 dark:text-orange-300 font-medium">
-                  まもなく自動的に続行します。
-                </span>
-              </div>
-            )}
-
-            <div className="flex items-center gap-2">
-              <input
-                type="text"
-                value={userResponse}
-                onChange={(e) => setUserResponse(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && onSendResponse()}
-                placeholder="回答を入力してEnterで送信..."
-                className="flex-1 px-3 py-2 bg-white dark:bg-zinc-800 border border-amber-300 dark:border-amber-700 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-amber-500/30 focus:border-amber-500"
-                autoFocus={showWaitingUI}
-              />
-              <button
-                onClick={onSendResponse}
-                disabled={!userResponse.trim() || isSendingResponse}
-                className="flex items-center gap-2 px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-lg font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {isSendingResponse ? (
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                ) : (
-                  <Send className="w-4 h-4" />
-                )}
-                送信
-              </button>
-            </div>
+            {/* The interactive prompt was relocated to the workflow Q&A tab
+                (集約). Show the question text + a pointer here. */}
+            <p className="mb-2 whitespace-pre-wrap rounded-lg bg-white/60 p-3 font-mono text-sm text-amber-800 dark:bg-zinc-800/60 dark:text-amber-200">
+              {hasOptions ? questionParsed!.text : question}
+            </p>
+            <p className="text-sm font-medium text-amber-700 dark:text-amber-300">
+              👉 上部の「Q&A」タブで回答してください。
+              {timeoutCountdown !== null && timeoutCountdown > 0 && (
+                <>
+                  {' '}
+                  （未回答の場合{' '}
+                  <span className="font-mono">{formatCountdown(timeoutCountdown)}</span>{' '}
+                  後に自動継続）
+                </>
+              )}
+            </p>
           </div>
         )}
 

@@ -47,10 +47,12 @@ import { upsertEmbedding, deleteEmbedding } from './rag/vector-index';
 import { validateEntry } from './validation';
 import { detectContradictions } from './contradiction';
 import { runConsolidation } from './consolidation';
-import { runForgettingSweep } from './forgetting';
+import { runForgettingSweep, boostDecayOnAccess } from './forgetting';
 import { distillFromExecution } from './distillation';
+import { findSemanticDuplicate } from './dedup';
 import { createContentHash } from './utils';
 import { appendEvent } from './timeline';
+import { getInsensitiveMode } from '../../config/db-provider';
 import type {
   CreateKnowledgeEntryInput,
   UpdateKnowledgeEntryInput,
@@ -144,6 +146,29 @@ export function shutdownMemorySystem(): void {
  */
 export async function createKnowledgeEntry(input: CreateKnowledgeEntryInput) {
   const contentHash = createContentHash(input.content);
+
+  // De-dup at the write: an exact-hash or semantic duplicate REINFORCES the
+  // existing entry instead of storing a paraphrase (the brain strengthens a
+  // memory on corroboration rather than keeping N copies of one fact). This is
+  // the source-level cure for knowledge-base bloat. Best-effort — any failure
+  // falls through to a normal insert.
+  const exact = await prisma.knowledgeEntry
+    .findFirst({
+      where: { contentHash, forgettingStage: { not: 'archived' } },
+      select: { id: true },
+    })
+    .catch(() => null);
+  if (exact) {
+    await boostDecayOnAccess(exact.id, 0.1).catch(() => {});
+    const existing = await prisma.knowledgeEntry.findUnique({ where: { id: exact.id } });
+    if (existing) return existing;
+  }
+  const dupId = await findSemanticDuplicate(input.content);
+  if (dupId != null) {
+    await boostDecayOnAccess(dupId, 0.1).catch(() => {});
+    const existing = await prisma.knowledgeEntry.findUnique({ where: { id: dupId } });
+    if (existing) return existing;
+  }
 
   const entry = await prisma.knowledgeEntry.create({
     data: {
@@ -261,18 +286,10 @@ export async function listKnowledgeEntries(options: KnowledgeListOptions = {}) {
   if (forgettingStage) where.forgettingStage = forgettingStage;
   if (validationStatus) where.validationStatus = validationStatus;
   if (themeId) where.themeId = themeId;
-  // `mode: 'insensitive'` is Postgres-only. The SQLite (desktop) Prisma schema omits
-  // `mode` from StringFilter, so sending it raises PrismaClientValidationError at
-  // runtime. Detect SQLite the same way config/database.ts does — a `file:` DATABASE_URL
-  // — and fall back to case-sensitive `contains` on SQLite.
-  const isPostgres =
-    process.env.RAPITAS_DB_PROVIDER !== 'sqlite' && !process.env.DATABASE_URL?.startsWith('file:');
-  const insensitive = isPostgres ? { mode: 'insensitive' as const } : {};
-
   if (search) {
     where.OR = [
-      { title: { contains: search, ...insensitive } },
-      { content: { contains: search, ...insensitive } },
+      { title: { contains: search, ...getInsensitiveMode() } },
+      { content: { contains: search, ...getInsensitiveMode() } },
     ];
   }
 

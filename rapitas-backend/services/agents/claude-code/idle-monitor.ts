@@ -138,6 +138,42 @@ export function startIdleMonitor(
         proc.kill('SIGTERM');
       }
     }
+
+    // Wall-clock hard cap. BOTH checks here (and the timeoutCheckInterval below)
+    // are IDLE-based — they measure time since the LAST output. An agent that keeps
+    // emitting output but never makes progress (an endless thinking loop) therefore
+    // resets the idle timer forever and is NEVER killed: task 286 ran 34 min past
+    // its 28-min budget exactly this way. Enforce the configured timeout as a TRUE
+    // wall-clock ceiling, regardless of how chatty the agent is. Mirrors the
+    // idle-hang kill above; the process 'close' handler resolves the execution.
+    if (totalElapsed >= timeout && callbacks.getStatus() === 'running' && proc && !proc.killed) {
+      logger.warn(
+        `${logPrefix} WALL-CLOCK TIMEOUT: ${Math.floor(totalElapsed / 1000)}s elapsed (cap ${Math.floor(timeout / 1000)}s) — force-killing.`,
+      );
+      callbacks.onFlushLineBuffer(
+        `\n[Timeout] ${Math.floor(totalElapsed / 1000)} 秒経過（上限 ${Math.floor(timeout / 1000)} 秒）。実行を強制終了します。\n`,
+      );
+      callbacks.setIdleTimeoutForceKilled(true);
+      clearInterval(idleCheckInterval);
+      const pid = proc.pid;
+      if (process.platform === 'win32') {
+        try {
+          if (pid) execSync(`taskkill /PID ${pid} /T /F`, { stdio: 'ignore', windowsHide: true });
+        } catch (e) {
+          logger.warn(
+            { err: e },
+            `${logPrefix} taskkill failed (wall-clock), trying process.kill()`,
+          );
+          try {
+            proc.kill();
+          } catch (killErr) {
+            logger.warn({ err: killErr }, `${logPrefix} process.kill() also failed (wall-clock)`);
+          }
+        }
+      } else {
+        proc.kill('SIGTERM');
+      }
+    }
   }, 5000); // Check every 5 seconds
 
   const timeoutCheckInterval = setInterval(() => {

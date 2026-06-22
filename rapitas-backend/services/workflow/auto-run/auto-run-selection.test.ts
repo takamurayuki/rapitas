@@ -12,6 +12,7 @@ import {
   hasItemAwaitingApproval,
   selectNextTask,
   isTaskBlocked,
+  priorityRank,
 } from './auto-run-selection';
 import type { PrismaClient } from '@prisma/client';
 
@@ -35,6 +36,34 @@ function makePrisma(overrides: Partial<Record<string, unknown>> = {}): PrismaCli
 // ---------------------------------------------------------------------------
 // Tests
 // ---------------------------------------------------------------------------
+
+describe('priorityRank', () => {
+  it('null / undefined / 空文字 は medium (2) として扱われる', () => {
+    expect(priorityRank(null)).toBe(2);
+    expect(priorityRank(undefined)).toBe(2);
+    expect(priorityRank('')).toBe(2);
+  });
+
+  it('PRIORITY_RANK に存在しない文字列（NaN, critical 等）は medium (2) にフォールバックする', () => {
+    expect(priorityRank('NaN')).toBe(2);
+    expect(priorityRank('critical')).toBe(2);
+  });
+
+  it('大文字・混合大文字の優先度文字列は toLowerCase() で正規化される', () => {
+    // toLowerCase() が効いていることを確認
+    expect(priorityRank('URGENT')).toBe(0);
+    expect(priorityRank('High')).toBe(1);
+    expect(priorityRank('MEDIUM')).toBe(2);
+    expect(priorityRank('LOW')).toBe(3);
+  });
+
+  it('全優先度の数値ランクが正しい（urgent < high < medium < low）', () => {
+    expect(priorityRank('urgent')).toBe(0);
+    expect(priorityRank('high')).toBe(1);
+    expect(priorityRank('medium')).toBe(2);
+    expect(priorityRank('low')).toBe(3);
+  });
+});
 
 describe('isTaskBlocked', () => {
   it('returns true for blocked status', () => {
@@ -118,6 +147,27 @@ describe('selectNextTask', () => {
     const prisma = makePrisma({ task: { findMany: mockFindMany } });
     const result = await selectNextTask(prisma, 1, 'priority', [], 0);
     expect(result).toEqual({ found: true, taskId: 10 });
+  });
+
+  it('keeps a todo task eligible even with a terminal workflowStatus (re-run)', async () => {
+    // Regression: a todo task whose workflowStatus is verify_done/completed
+    // (status reset to re-run, or a verify that did not finalize) was excluded,
+    // so the theme idled with this task still pending.
+    const mockFindMany = mock().mockResolvedValue([
+      {
+        id: 232,
+        status: 'todo',
+        workflowStatus: 'verify_done',
+        priority: 'medium',
+        createdAt: new Date(),
+      },
+    ]);
+    const prisma = makePrisma({ task: { findMany: mockFindMany } });
+    const result = await selectNextTask(prisma, 1, 'priority', [], 0);
+    expect(result).toEqual({ found: true, taskId: 232 });
+    // The where clause must allow a 'todo' row through regardless of workflowStatus.
+    const where = mockFindMany.mock.calls[0][0].where as { OR: unknown[] };
+    expect(where.OR).toEqual(expect.arrayContaining([{ status: 'todo' }]));
   });
 
   it('skips blocked tasks', async () => {

@@ -6,8 +6,6 @@
  */
 
 import { readFile, stat } from 'fs/promises';
-import { prisma } from '../../../config';
-import { getTaskWorkflowDir } from '../../../services/workflow/workflow-paths';
 
 export const VALID_FILE_TYPES = ['research', 'question', 'plan', 'verify'] as const;
 export type WorkflowFileType = (typeof VALID_FILE_TYPES)[number];
@@ -22,31 +20,8 @@ export const VALID_WORKFLOW_STATUSES = [
   'completed',
 ] as const;
 
-/**
- * Resolve the workflow directory path from a task ID.
- * Traverses Task -> Theme -> Category relations to get IDs.
- *
- * @param taskId - The task ID to resolve / タスクIDからディレクトリを解決する
- * @returns Resolved task, dir path, and related IDs, or null if not found
- */
-export async function resolveWorkflowDir(taskId: number) {
-  const task = await prisma.task.findUnique({
-    where: { id: taskId },
-    include: { theme: { include: { category: true } } },
-  });
-
-  if (!task) return null;
-
-  const categoryId = task.theme?.categoryId ?? null;
-  const themeId = task.themeId ?? null;
-
-  return {
-    task,
-    dir: getTaskWorkflowDir(categoryId, themeId, taskId),
-    categoryId,
-    themeId,
-  };
-}
+// NOTE: Re-exported from services to avoid the duplicate implementation that previously lived here.
+export { resolveWorkflowDir } from '../../../services/workflow/workflow-file-utils';
 
 /**
  * Get metadata and content for a single workflow file.

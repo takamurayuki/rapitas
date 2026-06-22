@@ -6,7 +6,7 @@ use std::process::Command;
 /// per-user one) and returns the first that exists; None falls back to the OS
 /// default so a missing path never aborts the split.
 #[cfg(target_os = "windows")]
-fn browser_path_for_preset(preset: &str) -> Option<String> {
+pub(crate) fn browser_path_for_preset(preset: &str) -> Option<String> {
     let local = std::env::var("LOCALAPPDATA").unwrap_or_default();
     let candidates: Vec<String> = match preset {
         "chrome" => vec![

@@ -9,6 +9,7 @@
 
 import { PrismaClient } from '@prisma/client';
 import { isGhAvailable, isAuthenticated, listRepositories } from '../github/gh-client';
+import type { OwnerRepoString } from '../github/owner-repo';
 import {
   getPullRequests,
   getPullRequest,
@@ -74,7 +75,7 @@ export class GitHubService {
 
   /** @see pr-operations.getPullRequests */
   async getPullRequests(
-    repo: string,
+    repo: OwnerRepoString,
     state: 'open' | 'closed' | 'all' = 'open',
     limit: number = 30,
   ) {
@@ -82,28 +83,28 @@ export class GitHubService {
   }
 
   /** @see pr-operations.getPullRequest */
-  async getPullRequest(repo: string, prNumber: number) {
+  async getPullRequest(repo: OwnerRepoString, prNumber: number) {
     return getPullRequest(repo, prNumber);
   }
 
   /** @see pr-operations.getPullRequestDiff */
-  async getPullRequestDiff(repo: string, prNumber: number) {
+  async getPullRequestDiff(repo: OwnerRepoString, prNumber: number) {
     return getPullRequestDiff(repo, prNumber);
   }
 
   /** @see pr-operations.getPullRequestReviews */
-  async getPullRequestReviews(repo: string, prNumber: number) {
+  async getPullRequestReviews(repo: OwnerRepoString, prNumber: number) {
     return getPullRequestReviews(repo, prNumber);
   }
 
   /** @see pr-operations.getPullRequestComments */
-  async getPullRequestComments(repo: string, prNumber: number) {
+  async getPullRequestComments(repo: OwnerRepoString, prNumber: number) {
     return getPullRequestComments(repo, prNumber);
   }
 
   /** @see pr-operations.createPullRequestComment */
   async createPullRequestComment(
-    repo: string,
+    repo: OwnerRepoString,
     prNumber: number,
     input: Parameters<typeof createPullRequestComment>[2],
   ) {
@@ -111,18 +112,18 @@ export class GitHubService {
   }
 
   /** @see pr-operations.approvePullRequest */
-  async approvePullRequest(repo: string, prNumber: number, body?: string) {
+  async approvePullRequest(repo: OwnerRepoString, prNumber: number, body?: string) {
     return approvePullRequest(repo, prNumber, body);
   }
 
   /** @see pr-operations.requestChanges */
-  async requestChanges(repo: string, prNumber: number, body: string) {
+  async requestChanges(repo: OwnerRepoString, prNumber: number, body: string) {
     return requestChanges(repo, prNumber, body);
   }
 
   /** @see pr-operations.mergePullRequest */
   async mergePullRequest(
-    repo: string,
+    repo: OwnerRepoString,
     prNumber: number,
     options?: { method?: 'merge' | 'squash' | 'rebase'; deleteBranch?: boolean; auto?: boolean },
   ) {
@@ -130,7 +131,7 @@ export class GitHubService {
   }
 
   /** @see pr-operations.changePullRequestBase */
-  async changePullRequestBase(repo: string, prNumber: number, baseBranch: string) {
+  async changePullRequestBase(repo: OwnerRepoString, prNumber: number, baseBranch: string) {
     return changePullRequestBase(repo, prNumber, baseBranch);
   }
 
@@ -153,22 +154,26 @@ export class GitHubService {
   // ==================== Issue Operations ====================
 
   /** @see issue-operations.getIssues */
-  async getIssues(repo: string, state: 'open' | 'closed' | 'all' = 'open', limit: number = 30) {
+  async getIssues(
+    repo: OwnerRepoString,
+    state: 'open' | 'closed' | 'all' = 'open',
+    limit: number = 30,
+  ) {
     return getIssues(repo, state, limit);
   }
 
   /** @see issue-operations.getIssue */
-  async getIssue(repo: string, issueNumber: number) {
+  async getIssue(repo: OwnerRepoString, issueNumber: number) {
     return getIssue(repo, issueNumber);
   }
 
   /** @see issue-operations.createIssue */
-  async createIssue(repo: string, input: Parameters<typeof createIssue>[1]) {
+  async createIssue(repo: OwnerRepoString, input: Parameters<typeof createIssue>[1]) {
     return createIssue(repo, input);
   }
 
   /** @see issue-operations.addIssueComment */
-  async addIssueComment(repo: string, issueNumber: number, body: string) {
+  async addIssueComment(repo: OwnerRepoString, issueNumber: number, body: string) {
     return addIssueComment(repo, issueNumber, body);
   }
 

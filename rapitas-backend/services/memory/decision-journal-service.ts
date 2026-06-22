@@ -12,7 +12,6 @@
  */
 import { prisma } from '../../config/database';
 import { createLogger } from '../../config/logger';
-import { createTask } from '../task/task-mutations';
 
 const log = createLogger('memory:decision-journal');
 
@@ -280,38 +279,7 @@ export async function resolveDefaultThemeId(): Promise<number | null> {
   return theme?.id ?? null;
 }
 
-/**
- * Converts a decision into a dedicated task (deterministically, no AI), then
- * records the task id on the decision entry.
- *
- * @param id - DecisionLog id / 決定ID
- * @returns Created task id, or null when not found / 作成タスクID
- * @throws When the decision was already converted / 既変換済みの場合
- */
-export async function convertDecisionToTask(id: number): Promise<number | null> {
-  const entry = await prisma.decisionLog.findUnique({ where: { id } });
-  if (!entry) return null;
-  if (entry.taskId) throw new Error('この決定は既にタスク化されています');
-
-  const descriptionParts = [entry.context];
-  if (entry.rationale) descriptionParts.push(`\n根拠: ${entry.rationale}`);
-  descriptionParts.push(`\n予想結果: ${entry.predictedOutcome}`);
-
-  const themeId = entry.themeId ?? (await resolveDefaultThemeId()) ?? undefined;
-  if (entry.themeId == null && themeId != null) {
-    log.info({ id, themeId }, 'Decision had no theme — assigning default theme on conversion');
-  }
-
-  const task = await createTask(prisma, {
-    title: `[Decision] ${entry.decision}`.slice(0, 200),
-    description: descriptionParts.join('\n'),
-    priority: 'medium',
-    status: 'todo',
-    themeId,
-  });
-  if (!task) return null;
-
-  await prisma.decisionLog.update({ where: { id }, data: { taskId: task.id } });
-  log.info({ id, taskId: task.id }, 'Decision converted to task');
-  return task.id;
-}
+// NOTE: convertDecisionToTask removed — a decision is settled knowledge (a
+// recorded choice + rationale), not a unit of work. The journal keeps the
+// (now-legacy) taskId column for already-converted historical rows, but no new
+// conversions are created.

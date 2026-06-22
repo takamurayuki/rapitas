@@ -27,10 +27,10 @@ const logger = createLogger('useDeveloperModeConfigModal');
 type Params = {
   config: DeveloperModeConfig | null;
   isOpen: boolean;
-  onClose: () => void;
-  onSave: (updates: Partial<DeveloperModeConfig>) => Promise<DeveloperModeConfig | null>;
+  onCloseAction: () => void;
+  onSaveAction: (updates: Partial<DeveloperModeConfig>) => Promise<DeveloperModeConfig | null>;
   selectedAgentConfigId?: number | null;
-  onAgentConfigChange?: (agentConfigId: number | null) => void;
+  onAgentConfigChangeAction?: (agentConfigId: number | null) => void;
   taskId?: number;
 };
 
@@ -43,10 +43,10 @@ type Params = {
 export function useDeveloperModeConfigModal({
   config,
   isOpen,
-  onClose,
-  onSave,
+  onCloseAction,
+  onSaveAction,
   selectedAgentConfigId,
-  onAgentConfigChange,
+  onAgentConfigChangeAction,
   taskId,
 }: Params) {
   // ── Composed hooks ────────────────────────────────────────────────────────
@@ -206,13 +206,13 @@ export function useDeveloperModeConfigModal({
    * Persists all settings to the backend: developer mode, task analysis, and
    * agent execution configs. Closes the modal on success.
    */
-  const handleSave = async () => {
+  const handleSaveAction = async () => {
     setSaveError(null);
     setIsSaving(true);
 
     try {
-      onAgentConfigChange?.(analysisAgentConfigId ?? executionAgentConfigId);
-      await onSave({
+      onAgentConfigChangeAction?.(analysisAgentConfigId ?? executionAgentConfigId);
+      await onSaveAction({
         autoApprove,
         notifyInApp,
         maxSubtasks,
@@ -271,7 +271,7 @@ export function useDeveloperModeConfigModal({
         }
       }
 
-      onClose();
+      onCloseAction();
     } catch (err) {
       setSaveError(err instanceof Error ? err.message : '保存に失敗しました');
     } finally {
@@ -285,7 +285,7 @@ export function useDeveloperModeConfigModal({
     // General
     isSaving,
     saveError,
-    handleSave,
+    handleSaveAction,
 
     // Agent manager (flattened for consumer convenience)
     agents: agentManager.agents,

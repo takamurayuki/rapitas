@@ -7,6 +7,7 @@
  */
 
 import { exec } from 'child_process';
+import { existsSync } from 'fs';
 import { promisify } from 'util';
 import { createLogger } from '../../../../config/logger';
 
@@ -55,9 +56,18 @@ async function resolveBaseRef(cwd: string): Promise<string | null> {
  * Combines staged, unstaged, and untracked files into a unified result.
  *
  * @param workingDirectory - Directory to diff / diffを取得するディレクトリ
+ * @param pathExists - Predicate to check directory existence; injected in tests to avoid real fs / テストで実fsを回避するための存在チェック関数
  * @returns Array of file change records / ファイル変更レコードの配列
  */
-export async function getDiff(workingDirectory: string): Promise<FileDiffRecord[]> {
+export async function getDiff(
+  workingDirectory: string,
+  pathExists: (p: string) => boolean = existsSync,
+): Promise<FileDiffRecord[]> {
+  if (!workingDirectory || !pathExists(workingDirectory)) {
+    logger.warn({ workingDirectory }, 'Working directory does not exist — skipping diff');
+    return [];
+  }
+
   const files: FileDiffRecord[] = [];
 
   try {

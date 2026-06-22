@@ -25,12 +25,14 @@ import { acquireTaskExecutionLock, releaseTaskExecutionLock } from './execution-
 import { handleExecuteResult } from './execute-post-handler';
 import { buildFullInstruction, fetchAnalysisInfo } from './instruction-builder';
 import { executeSetup } from './execute-setup';
+import { resolveTaskForExecution } from '../../../services/task/task-resolver';
 import { resolveAgentForTask } from '../../../services/workflow/role-resolver';
 import { resolveEffectiveAutoApprovePlan } from '../../../services/workflow/plan-auto-approve';
 import {
   startWorktreeDependenciesInstall,
   taskNeedsDependencies,
 } from '../../../services/agents/orchestrator/git-operations/dependency-installer';
+import { isShutdownError } from '../../../services/agents/agent-worker/shutdown-error';
 import type { AttachmentDescriptor } from './instruction-builder';
 
 const log = createLogger('routes:agent-execution:execute');
@@ -94,23 +96,7 @@ export const executeRoute = new Elysia().post(
     // the task is in the planning-stage workflow state (no plan.md yet).
     const isResearchMode = mode === 'research';
 
-    let task;
-    try {
-      task = await prisma.task.findUnique({
-        where: { id: taskIdNum },
-        include: { developerModeConfig: true, theme: true },
-      });
-    } catch (dbError) {
-      const prismaCode = (dbError as Record<string, unknown>)?.code;
-      log.error({ err: dbError, prismaCode }, `[API] Database error fetching task ${taskIdNum}`);
-      context.set.status = 500;
-      return {
-        success: false,
-        error: 'Database query error occurred',
-        code: prismaCode || undefined,
-      };
-    }
-
+    const task = await resolveTaskForExecution(taskIdNum);
     if (!task) {
       context.set.status = 404;
       return { error: 'Task not found' };
@@ -429,6 +415,14 @@ export const executeRoute = new Elysia().post(
         select: { id: true },
       })
       .catch(() => null);
+    // A prior research.md — so the prompt can tell the agent to reuse it on a
+    // re-run instead of regenerating (see buildFullInstruction reuse section).
+    const existingResearch = await prisma.workflowFile
+      .findFirst({
+        where: { taskId: taskIdNum, fileType: 'research' },
+        select: { id: true },
+      })
+      .catch(() => null);
     const isContinuation = !!sessionId;
     const resolvedAgentConfig = resolvedAgentConfigId
       ? await prisma.aIAgentConfig
@@ -530,6 +524,13 @@ export const executeRoute = new Elysia().post(
           taskId: taskIdNum,
           enforceWorkflow,
           taskSpec,
+          hasResearch: !!existingResearch,
+          hasPlan: !!existingPlan,
+          // Lightweight tasks skip the plan phase: the workflow injection becomes
+          // research → implement (no plan.md) instead of research → plan → stop.
+          workflowMode:
+            (task.workflowMode as 'lightweight' | 'standard' | 'comprehensive' | null) ??
+            'standard',
         });
 
     const analysisInfo =
@@ -623,6 +624,22 @@ export const executeRoute = new Elysia().post(
         }),
       )
       .catch(async (error) => {
+        if (isShutdownError(error)) {
+          // NOTE: Shutdown-originated reject is not a crash — demote to WARN and
+          // mark session as interrupted so recoverStaleExecutions can resume it.
+          log.warn({ err: error }, `[API] Execution interrupted by shutdown for task ${taskIdNum}`);
+          await prisma.agentSession
+            .update({
+              where: { id: session.id },
+              data: {
+                status: 'interrupted',
+                completedAt: new Date(),
+                errorMessage: error.message,
+              },
+            })
+            .catch(() => {});
+          return;
+        }
         log.error({ err: error }, `[API] Execution error for task ${taskIdNum}`);
         await prisma.task
           .update({ where: { id: taskIdNum }, data: { status: 'todo' } })

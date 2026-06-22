@@ -101,7 +101,7 @@ mock.module('../../../services/communication/realtime-service', () => ({
   },
 }));
 
-mock.module('../../../utils/db-helpers', () => ({
+mock.module('../../../utils/database/db-helpers', () => ({
   toJsonString: mock((v: unknown) => JSON.stringify(v)),
   fromJsonString: mock((v: string) => {
     try {

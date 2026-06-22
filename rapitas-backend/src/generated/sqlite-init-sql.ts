@@ -27,6 +27,7 @@ CREATE TABLE "AgentSession" (
     "lastActivityAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "totalTokensUsed" INTEGER NOT NULL DEFAULT 0,
     "totalCostUsd" DECIMAL NOT NULL DEFAULT 0,
+    "totalLlmCallCount" INTEGER NOT NULL DEFAULT 0,
     "errorMessage" TEXT,
     "metadata" TEXT,
     "branchName" TEXT,
@@ -117,6 +118,7 @@ CREATE TABLE "AgentExecution" (
     "questionType" TEXT,
     "questionDetails" TEXT,
     "claudeSessionId" TEXT,
+    "llmCallCount" INTEGER NOT NULL DEFAULT 0,
     "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT "AgentExecution_sessionId_fkey" FOREIGN KEY ("sessionId") REFERENCES "AgentSession" ("id") ON DELETE CASCADE ON UPDATE CASCADE,
     CONSTRAINT "AgentExecution_agentConfigId_fkey" FOREIGN KEY ("agentConfigId") REFERENCES "AIAgentConfig" ("id") ON DELETE SET NULL ON UPDATE CASCADE
@@ -409,6 +411,7 @@ CREATE TABLE "Task" (
     "inheritWorkflowFiles" BOOLEAN NOT NULL DEFAULT true,
     "sourceTaskId" INTEGER,
     "nextOccurrence" DATETIME,
+    "autoCreatedFromBacklog" BOOLEAN NOT NULL DEFAULT false,
     CONSTRAINT "Task_parentId_fkey" FOREIGN KEY ("parentId") REFERENCES "Task" ("id") ON DELETE CASCADE ON UPDATE CASCADE,
     CONSTRAINT "Task_themeId_fkey" FOREIGN KEY ("themeId") REFERENCES "Theme" ("id") ON DELETE SET NULL ON UPDATE CASCADE,
     CONSTRAINT "Task_projectId_fkey" FOREIGN KEY ("projectId") REFERENCES "Project" ("id") ON DELETE SET NULL ON UPDATE CASCADE,
@@ -723,6 +726,22 @@ CREATE TABLE "FavoriteDirectory" (
     "isGitRepo" BOOLEAN NOT NULL DEFAULT false,
     "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" DATETIME NOT NULL
+);
+
+-- CreateTable
+CREATE TABLE "GitRetryMetric" (
+    "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    "variant" TEXT NOT NULL,
+    "command" TEXT NOT NULL,
+    "attempts" INTEGER NOT NULL,
+    "succeeded" BOOLEAN NOT NULL,
+    "totalDelayMs" INTEGER NOT NULL,
+    "totalElapsedMs" INTEGER NOT NULL,
+    "finalErrorCategory" TEXT,
+    "baseDelay" INTEGER NOT NULL,
+    "maxDelay" INTEGER NOT NULL,
+    "maxRetries" INTEGER NOT NULL,
+    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
 -- CreateTable
@@ -1066,6 +1085,9 @@ CREATE TABLE "UserSettings" (
     "autoApprovePlan" BOOLEAN NOT NULL DEFAULT false,
     "autoApproveSubtaskPlan" BOOLEAN NOT NULL DEFAULT true,
     "autoComplexityAnalysis" BOOLEAN NOT NULL DEFAULT false,
+    "autoCreateFromBacklogLimit" INTEGER NOT NULL DEFAULT 0,
+    "restartOnAutoRunDry" BOOLEAN NOT NULL DEFAULT false,
+    "verifyRepairLimit" INTEGER NOT NULL DEFAULT 2,
     "autoCommitDefault" BOOLEAN NOT NULL DEFAULT false,
     "autoCreatePRDefault" BOOLEAN NOT NULL DEFAULT false,
     "autoMergePRDefault" BOOLEAN NOT NULL DEFAULT false,
@@ -1495,6 +1517,12 @@ CREATE UNIQUE INDEX "GitHubIssue_integrationId_issueNumber_key" ON "GitHubIssue"
 
 -- CreateIndex
 CREATE UNIQUE INDEX "FavoriteDirectory_path_key" ON "FavoriteDirectory"("path");
+
+-- CreateIndex
+CREATE INDEX "GitRetryMetric_variant_idx" ON "GitRetryMetric"("variant");
+
+-- CreateIndex
+CREATE INDEX "GitRetryMetric_createdAt_idx" ON "GitRetryMetric"("createdAt");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "StudyStreak_date_key" ON "StudyStreak"("date");

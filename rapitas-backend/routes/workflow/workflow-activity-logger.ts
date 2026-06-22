@@ -8,6 +8,7 @@
 
 import { prisma } from '../../config';
 import { createLogger } from '../../config/logger';
+import { logCycleEvent } from '../../services/observability';
 
 const log = createLogger('routes:workflow:activity-logger');
 
@@ -36,6 +37,16 @@ export async function logAutoCommit(
       metadata: JSON.stringify({ hash, branch, filesChanged, additions, deletions }),
       createdAt: new Date(),
     },
+  });
+
+  logCycleEvent('commit.created', {
+    task: taskId,
+    hash: hash.slice(0, 12),
+    branch,
+    filesChanged,
+    additions,
+    deletions,
+    msg: 'auto-commit created',
   });
 }
 
@@ -70,6 +81,14 @@ export async function logAutoPR(
       link: prUrl || `/tasks/${taskId}`,
       metadata: JSON.stringify({ taskId, prUrl, prNumber }),
     },
+  });
+
+  logCycleEvent('pr.created', {
+    task: taskId,
+    ok: true,
+    prNumber,
+    prUrl,
+    msg: 'auto-PR created',
   });
 }
 
@@ -107,6 +126,14 @@ export async function logAutoMerge(
       metadata: JSON.stringify({ taskId, prNumber, mergeStrategy }),
     },
   });
+
+  logCycleEvent('pr.merged', {
+    task: taskId,
+    ok: true,
+    prNumber,
+    mergeStrategy,
+    msg: 'auto-merge complete',
+  });
 }
 
 /**
@@ -139,4 +166,13 @@ export async function logAutoMergeFailure(
   } catch (notifError) {
     log.error({ err: notifError }, 'Failed to create merge failure notification');
   }
+
+  logCycleEvent('pr.merge_failed', {
+    task: taskId,
+    ok: false,
+    cause: 'auto_merge_failed',
+    prNumber,
+    detail: error?.slice(0, 200),
+    msg: 'auto-merge failed',
+  });
 }

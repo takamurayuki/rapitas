@@ -42,7 +42,8 @@ export function HeaderSearch({
     if (pathname === '/search') {
       router.push('/search');
     } else if (pathname === '/kanban') {
-      router.push('/kanban');
+      // NOTE: replace (not push) to avoid adding a history entry for the clear action.
+      router.replace('/kanban', { scroll: false });
     } else if (pathname === '/') {
       router.push('/');
     }

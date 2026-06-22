@@ -55,6 +55,56 @@ export interface HandleExecuteResultParams {
   researchTempOutputFile?: string | null;
 }
 
+/** Dev-mode statuses with a NEXT agent phase. `plan_created` is excluded — it
+ *  is awaiting approval, not stalled; `in_progress`/terminal are left to the
+ *  normal commit pipeline. */
+const DEV_ADVANCEABLE_STATUSES = new Set(['research_done', 'plan_approved']);
+
+/**
+ * Auto-advance a dev-mode run that stopped after a planning phase.
+ *
+ * A plain `development`-mode agent run (not a `workflow-*` orchestrator phase)
+ * self-follows CLAUDE.md: it saves research.md / plan.md and then STOPS (the
+ * agent is told to wait for approval before implementing). Nothing then
+ * scheduled the implementer, so the task stalled at `plan_approved` with no
+ * further activity. When the task is in a managed workflow mode and parked at
+ * such a status, kick the orchestrator so the next phase (planner / implementer)
+ * runs. Planning produced no code diff, so the caller skips the commit pipeline.
+ *
+ * @param taskId - Task to inspect/advance. / 対象タスクID
+ * @returns true when an advance was scheduled (caller should skip commit). / 進行を予約したか
+ */
+export async function advanceManagedPlanningPhase(taskId: number): Promise<boolean> {
+  const managed = await prisma.task
+    .findUnique({ where: { id: taskId }, select: { workflowMode: true, workflowStatus: true } })
+    .catch(() => null);
+  const isManagedMode =
+    managed?.workflowMode === 'comprehensive' ||
+    managed?.workflowMode === 'standard' ||
+    managed?.workflowMode === 'lightweight';
+  if (!isManagedMode || !managed?.workflowStatus) return false;
+  if (!DEV_ADVANCEABLE_STATUSES.has(managed.workflowStatus)) return false;
+
+  log.info(
+    { taskId, workflowStatus: managed.workflowStatus, mode: managed.workflowMode },
+    '[API] Dev-mode run stopped after a planning phase — auto-advancing workflow to the next phase',
+  );
+  // 1s delay so the status writes above commit before the next phase reads them.
+  setTimeout(() => {
+    import('../../../services/workflow/workflow-orchestrator')
+      .then(({ WorkflowOrchestrator }) =>
+        WorkflowOrchestrator.getInstance().advanceWorkflow(taskId, 'ja'),
+      )
+      .catch((advanceErr) =>
+        log.error(
+          { err: advanceErr, taskId },
+          '[API] Auto-advance after dev-mode planning phase failed (user can re-run manually)',
+        ),
+      );
+  }, 1000);
+  return true;
+}
+
 /**
  * Handles the async result of a task execution: updates task/session status,
  * creates code review approval, and removes the worktree on success.
@@ -74,6 +124,25 @@ export async function handleExecuteResult(params: HandleExecuteResultParams): Pr
     mode,
     researchTempOutputFile,
   } = params;
+
+  // A task that already reached the terminal `completed` state DURING the run
+  // needs no post-processing at all. A conflict-resolution task completes via
+  // conflict_resolution_completed the moment it saves verify.md, yet it is often
+  // dispatched in `research` mode — so the research-mode pipeline below (revert +
+  // advance to the next phase) would clobber the completion back to in-progress
+  // ("[調査完了]…進行中に戻す"), and the dev-mode failure-signal path would block
+  // it. Guard ALL of it here, before the mode split, so a completed task is never
+  // regressed by any downstream handler.
+  const terminalCheck = await prisma.task
+    .findUnique({ where: { id: taskIdNum }, select: { status: true, workflowStatus: true } })
+    .catch(() => null);
+  if (terminalCheck?.workflowStatus === 'completed' || terminalCheck?.status === 'done') {
+    log.info(
+      { taskId: taskIdNum, mode },
+      '[API] Task already completed during the run — skipping all post-execution processing',
+    );
+    return;
+  }
 
   // RESEARCH MODE: completely separate pipeline. We:
   //   1. Read the temp file codex wrote via -o (its final markdown).
@@ -123,7 +192,7 @@ export async function handleExecuteResult(params: HandleExecuteResultParams): Pr
     // workflow API. Check workflowStatus FIRST so we don't punish a successful
     // planning phase for tests it ran along the way.
     const taskWorkflowState = await prisma.task
-      .findUnique({ where: { id: taskIdNum }, select: { workflowStatus: true } })
+      .findUnique({ where: { id: taskIdNum }, select: { workflowStatus: true, status: true } })
       .catch(() => null);
     const planningStatuses = new Set([
       'research_done',
@@ -133,6 +202,14 @@ export async function handleExecuteResult(params: HandleExecuteResultParams): Pr
     ]);
     const completedPlanningPhase =
       !!taskWorkflowState?.workflowStatus && planningStatuses.has(taskWorkflowState.workflowStatus);
+    // A task whose workflow already reached the terminal `completed` state (or
+    // status `done`) SUCCEEDED — the post-run failure-signal heuristic must never
+    // revert/block it. Conflict-resolution tasks legitimately print merge-conflict
+    // output ("<<<<<<<", "competing", "失敗") that trips detectExecutionFailures,
+    // so a task that completed via conflict_resolution_completed was being clobbered
+    // back to `blocked` right after completing (the observed completed→blocked flip).
+    const alreadyCompleted =
+      taskWorkflowState?.workflowStatus === 'completed' || taskWorkflowState?.status === 'done';
 
     // NOTE: Some CLIs (codex, claude) report exit-0 even when verification
     // commands they ran (vitest, pnpm test, build) crashed mid-task. Treat
@@ -146,7 +223,12 @@ export async function handleExecuteResult(params: HandleExecuteResultParams): Pr
       .findUnique({ where: { id: configId }, select: { agentType: true } })
       .catch(() => null);
     const earlyIsCodexAgent = earlyAgentConfig?.agentType === 'codex';
-    if (failureSignals.length > 0 && !completedPlanningPhase && !earlyIsCodexAgent) {
+    if (
+      failureSignals.length > 0 &&
+      !completedPlanningPhase &&
+      !alreadyCompleted &&
+      !earlyIsCodexAgent
+    ) {
       log.error(
         {
           taskId: taskIdNum,
@@ -246,18 +328,30 @@ export async function handleExecuteResult(params: HandleExecuteResultParams): Pr
       );
     }
 
-    // NOTE: Keep task as in-progress until the full pipeline
-    // (AI review → commit → PR → cleanup) completes. Only then mark as done.
-    // Canonical task.status is hyphenated 'in-progress' (see StatusConfig); the
-    // underscore form is the separate workflowStatus value. Writing the wrong
-    // one left subtasks unrecognized by the UI and by status='in-progress'
-    // queries, so they appeared stuck.
-    await prisma.task
-      .update({ where: { id: taskIdNum }, data: { status: 'in-progress' } })
-      .catch((e: unknown) =>
-        log.error({ err: e }, `[API] Failed to update task ${taskIdNum} to in_progress`),
+    // Do NOT downgrade an already-COMPLETED task. A stray execution running on a
+    // task whose workflowStatus is 'completed' (e.g. task 216: a researcher phase
+    // fired ~16s after completion) would flip status done → in-progress and leave
+    // an inconsistent gap (workflowStatus=completed / status=in-progress) with the
+    // 完了 UI lost. A completed task is terminal; this run does not reopen it.
+    if (taskWorkflowState?.workflowStatus === 'completed') {
+      log.warn(
+        { taskId: taskIdNum, sessionId },
+        '[API] Execution finished on an already-completed task — keeping it completed (not downgrading to in-progress).',
       );
-    log.info(`[API] Task ${taskIdNum} kept as in_progress (pending review pipeline)`);
+    } else {
+      // NOTE: Keep task as in-progress until the full pipeline
+      // (AI review → commit → PR → cleanup) completes. Only then mark as done.
+      // Canonical task.status is hyphenated 'in-progress' (see StatusConfig); the
+      // underscore form is the separate workflowStatus value. Writing the wrong
+      // one left subtasks unrecognized by the UI and by status='in-progress'
+      // queries, so they appeared stuck.
+      await prisma.task
+        .update({ where: { id: taskIdNum }, data: { status: 'in-progress' } })
+        .catch((e: unknown) =>
+          log.error({ err: e }, `[API] Failed to update task ${taskIdNum} to in_progress`),
+        );
+      log.info(`[API] Task ${taskIdNum} kept as in_progress (pending review pipeline)`);
+    }
 
     await updateSessionStatusWithRetry(sessionId, 'completed', '[API]', 3);
 
@@ -270,13 +364,26 @@ export async function handleExecuteResult(params: HandleExecuteResultParams): Pr
     const session = await prisma.agentSession
       .findUnique({ where: { id: sessionId }, select: { mode: true } })
       .catch(() => null);
-    const isWorkflowPhase = session?.mode?.startsWith('workflow-') === true;
+    // Only the CODE-producing workflow phases (implementer/verifier) defer their
+    // PR to the verify.md handler. A workflow-researcher/planner run via the
+    // execute path produces NO code and must still auto-advance to the next phase
+    // — otherwise a lightweight research run stalls at research_done with nothing
+    // dispatching the implementer (the previous `startsWith('workflow-')` guard
+    // wrongly skipped the researcher/planner advance too).
+    const isWorkflowCodePhase =
+      session?.mode === 'workflow-implementer' ||
+      session?.mode === 'workflow-verifier' ||
+      session?.mode === 'workflow-auto_verifier';
 
-    if (isWorkflowPhase) {
+    if (isWorkflowCodePhase) {
       log.info(
         { taskId: taskIdNum, mode: session?.mode },
-        '[API] Workflow phase detected — skipping post-execution PR pipeline (verify.md handler will commit/PR after verification)',
+        '[API] Workflow code phase detected — skipping post-execution PR pipeline (verify.md handler will commit/PR after verification)',
       );
+    } else if (await advanceManagedPlanningPhase(taskIdNum)) {
+      // Handled inside the helper: a dev-mode run that self-followed CLAUDE.md
+      // and stopped after research/plan has been auto-advanced to the next
+      // agent phase. No diff to commit yet, so the review pipeline is skipped.
     } else {
       // Pipeline: AI review → commit → PR → cleanup → mark task done
       reviewAndCommitWorktree({

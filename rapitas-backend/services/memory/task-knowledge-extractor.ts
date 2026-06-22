@@ -8,9 +8,13 @@
 import { prisma } from '../../config/database';
 import { createLogger } from '../../config/logger';
 import { sendAIMessage } from '../../utils/ai-client';
+import { parseJsonArray } from '../../utils/common/json-extractor';
 import { createContentHash } from './utils';
 import { appendEvent } from './timeline';
 import { memoryTaskQueue } from './index';
+import { getInsensitiveMode } from '../../config/db-provider';
+import { findSemanticDuplicate } from './dedup';
+import { boostDecayOnAccess } from './forgetting';
 
 const log = createLogger('memory:task-knowledge');
 
@@ -63,6 +67,20 @@ export async function extractKnowledgeFromTask(taskId: number): Promise<number[]
 
       if (existing) {
         log.debug({ taskId, title: item.title }, 'Duplicate knowledge entry, skipping');
+        continue;
+      }
+
+      // Semantic duplicate (same lesson, different wording) — reinforce the
+      // existing entry instead of storing a paraphrase. This is the main cure for
+      // the ~11-near-duplicates-per-task bloat: corroboration strengthens one
+      // memory rather than spawning many. Best-effort (no embeddings → inserts).
+      const dupId = await findSemanticDuplicate(item.content);
+      if (dupId != null) {
+        await boostDecayOnAccess(dupId, 0.1).catch(() => {});
+        log.debug(
+          { taskId, title: item.title, dupId },
+          'Semantic duplicate knowledge — reinforced existing instead of inserting',
+        );
         continue;
       }
 
@@ -151,8 +169,14 @@ export async function findRelatedKnowledge(
     // above (L140), and Japanese (the dominant content language) has no
     // case distinction, so dropping `mode` is functionally equivalent and
     // works on both database backends.
+    // Knowledge governance: NEVER inject knowledge a validation step rejected or
+    // flagged as contradictory — injecting bad/conflicting knowledge biases the
+    // agent and amplifies errors (the "context failure" / self-improvement-loop
+    // risk). `pending` is still allowed (it's the bulk of auto-extracted
+    // knowledge); `validated` is boosted in scoring below.
     const where: Record<string, unknown> = {
       forgettingStage: { in: ['active', 'dormant'] },
+      validationStatus: { notIn: ['rejected', 'conflict'] },
       OR: keywords.map((kw) => ({
         OR: [{ title: { contains: kw } }, { content: { contains: kw } }],
       })),
@@ -169,6 +193,7 @@ export async function findRelatedKnowledge(
         decayScore: true,
         themeId: true,
         tags: true,
+        validationStatus: true,
       },
       orderBy: [{ decayScore: 'desc' }, { confidence: 'desc' }],
       take: limit * 3, // Fetch extra for post-scoring
@@ -191,6 +216,9 @@ export async function findRelatedKnowledge(
       // Confidence and decay score
       relevanceScore += entry.confidence * 10;
       relevanceScore += entry.decayScore * 10;
+
+      // Prefer human/automatically VALIDATED knowledge over still-pending entries.
+      if (entry.validationStatus === 'validated') relevanceScore += 15;
 
       return {
         id: entry.id,
@@ -249,21 +277,14 @@ export async function searchCrossProjectKnowledge(
 
     if (keywords.length === 0) return { results: [], totalAcrossProjects: 0, projectCount: 0 };
 
-    // `mode: 'insensitive'` is Postgres-only; SQLite raises PrismaClientValidationError
-    // at runtime when it is present. Fall back to case-sensitive `contains` on SQLite.
-    // keywords are already lower-cased (line 244-248) so SQLite hits lower-case DB entries.
-    const isPostgres =
-      process.env.RAPITAS_DB_PROVIDER !== 'sqlite' &&
-      !process.env.DATABASE_URL?.startsWith('file:');
-    const insensitive = isPostgres ? { mode: 'insensitive' as const } : {};
-
+    // NOTE: keywords are already lower-cased (line 244-248) so SQLite hits lower-case DB entries.
     const entries = await prisma.knowledgeEntry.findMany({
       where: {
         forgettingStage: { in: ['active', 'dormant'] },
         OR: keywords.map((kw) => ({
           OR: [
-            { title: { contains: kw, ...insensitive } },
-            { content: { contains: kw, ...insensitive } },
+            { title: { contains: kw, ...getInsensitiveMode() } },
+            { content: { contains: kw, ...getInsensitiveMode() } },
           ],
         })),
       },
@@ -421,11 +442,8 @@ ${context}
     });
 
     const text = response.content.trim();
-    // Extract JSON portion
-    const jsonMatch = text.match(/\[[\s\S]*\]/);
-    if (!jsonMatch) return [];
-
-    const parsed = JSON.parse(jsonMatch[0]) as ExtractedKnowledge[];
+    const parsed = parseJsonArray<ExtractedKnowledge>(text);
+    if (!parsed) return [];
     const validCategories = ['procedure', 'pattern', 'insight', 'fact', 'preference', 'general'];
 
     return parsed

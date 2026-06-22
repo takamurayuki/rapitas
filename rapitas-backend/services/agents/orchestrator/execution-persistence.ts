@@ -135,6 +135,8 @@ export async function saveExecutionResult(
     cacheCreationInputTokens?: number;
     /** Primary model used (largest token share). */
     modelName?: string;
+    /** LLM API call count for this execution (CLI: num_turns; API: apiCalls). */
+    llmCallCount?: number;
   },
   fileLogger: ExecutionFileLogger,
   existingData?: {
@@ -154,8 +156,10 @@ export async function saveExecutionResult(
   // strings (e.g. `"\"0\""`) from being written into SQLite Decimal columns.
   // Prior IPC bugs let stringified values through and corrupted ~1k rows.
   const safeCostUsd = toFiniteNumber(result.costUsd);
+  const safeLlmCallCount = toFiniteNumber(result.llmCallCount);
   const usageUpdate =
-    !result.waitingForInput && (safeCostUsd !== null || result.modelName)
+    !result.waitingForInput &&
+    (safeCostUsd !== null || result.modelName || safeLlmCallCount !== null)
       ? {
           ...(safeCostUsd !== null && {
             inputTokens: toFiniteNumber(result.inputTokens) ?? 0,
@@ -165,6 +169,7 @@ export async function saveExecutionResult(
             costUsd: safeCostUsd,
           }),
           ...(result.modelName && { modelName: result.modelName }),
+          ...(safeLlmCallCount !== null && { llmCallCount: safeLlmCallCount }),
         }
       : {};
 
@@ -193,12 +198,14 @@ export async function saveExecutionResult(
   // Decimal/Int columns don't accumulate JSON-quoted garbage.
   const incTokens = toFiniteNumber(result.tokensUsed);
   const incCost = toFiniteNumber(result.costUsd);
-  if (incTokens || incCost) {
+  const incLlmCalls = !result.waitingForInput ? toFiniteNumber(result.llmCallCount) : null;
+  if (incTokens || incCost || incLlmCalls) {
     await prisma.agentSession.update({
       where: { id: sessionId },
       data: {
         totalTokensUsed: incTokens ? { increment: incTokens } : undefined,
         totalCostUsd: incCost ? { increment: incCost } : undefined,
+        totalLlmCallCount: incLlmCalls ? { increment: incLlmCalls } : undefined,
         lastActivityAt: new Date(),
       },
     });

@@ -2,9 +2,10 @@
 // WorkflowFileContent
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Loader2, List, ChevronDown } from 'lucide-react';
+import { Loader2, List, ChevronDown, Pencil } from 'lucide-react';
 import type { WorkflowTab } from './workflow-viewer-utils';
 import { MarkdownView } from '../markdown/MarkdownView';
+import { WorkflowFileEditor } from './WorkflowFileEditor';
 
 /** A heading extracted from markdown for the in-file table of contents. */
 interface TocHeading {
@@ -95,10 +96,11 @@ interface WorkflowFileContentProps {
   activeTabConfig: WorkflowTab;
   /** Whether to show the inline plan-approval CTA (plan tab + plan_created status) */
   showApprovalButton: boolean;
-  /** Whether to show the inline verification-complete CTA */
-  showCompleteButton: boolean;
   onPlanApprovalRequest?: () => void;
-  onCompleteRequest?: () => void;
+  /** Task id — enables inline editing of the plan. / インライン編集に必要 */
+  taskId?: number;
+  /** Called after a successful inline save so the parent refetches. / 保存後の再取得 */
+  onSaved?: () => void;
 }
 
 /**
@@ -108,22 +110,29 @@ interface WorkflowFileContentProps {
  * @param activeFile - File metadata and content for the selected tab
  * @param activeTabConfig - Tab definition used for the empty-state icon/message
  * @param showApprovalButton - Show the plan-approval CTA inside the content area
- * @param showCompleteButton - Show the task-complete CTA inside the content area
- * @param isRefetching - True while a manual refresh is running
- * @param onRefetch - Manual refresh trigger / 手動再読み込みトリガ
  * @param onPlanApprovalRequest - Opens the plan-approval modal / 計画承認モーダルを開く
- * @param onCompleteRequest - Triggers the task-completion flow / タスク完了フローを起動する
  */
 export function WorkflowFileContent({
   isLoading,
   activeFile,
   activeTabConfig,
   showApprovalButton,
-  showCompleteButton,
   onPlanApprovalRequest,
-  onCompleteRequest,
+  taskId,
+  onSaved,
 }: WorkflowFileContentProps) {
   const headings = useMemo(() => extractHeadings(activeFile?.content ?? ''), [activeFile?.content]);
+
+  // Inline editing is offered for the plan only (refine before approving). It
+  // requires a taskId (the save target); without it the tab stays read-only.
+  const canEdit =
+    activeTabConfig.id === 'plan' && !!activeFile?.exists && typeof taskId === 'number';
+  const [isEditing, setIsEditing] = useState(false);
+  // Leaving the plan tab (or losing the file) must drop edit mode so a stale
+  // editor never lingers over a different tab's content.
+  useEffect(() => {
+    if (!canEdit) setIsEditing(false);
+  }, [canEdit]);
 
   // The TOC is sticky and vertical, so its height varies with the heading count.
   // Measure it and feed the value into each <h2>'s scroll-margin-top so clicked
@@ -178,8 +187,37 @@ export function WorkflowFileContent({
     );
   }
 
+  // Inline plan editor (replaces the read-only view while editing).
+  if (isEditing && canEdit && typeof taskId === 'number') {
+    return (
+      <WorkflowFileEditor
+        taskId={taskId}
+        fileType="plan"
+        initialContent={activeFile?.content || ''}
+        onCancel={() => setIsEditing(false)}
+        onSaved={() => {
+          setIsEditing(false);
+          onSaved?.();
+        }}
+      />
+    );
+  }
+
   return (
     <div className="space-y-3">
+      {/* Edit CTA — lets a human refine the plan before approval. */}
+      {canEdit && (
+        <div className="flex justify-end">
+          <button
+            type="button"
+            onClick={() => setIsEditing(true)}
+            className="inline-flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-medium text-zinc-600 transition-colors hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-zinc-800"
+          >
+            <Pencil className="h-3.5 w-3.5" />
+            計画を編集
+          </button>
+        </div>
+      )}
       {/* In-file table of contents — sticky so it stays clickable after the
           content scrolls. -mx-5/px-5 cancel the parent p-5 so the background
           spans the card. top:88px (inline, not an arbitrary class which may not
@@ -255,27 +293,10 @@ export function WorkflowFileContent({
         </div>
       )}
 
-      {/* Verification complete CTA (inside content area) */}
-      {showCompleteButton && (
-        <div className="mt-4 pt-4 border-t border-zinc-200 dark:border-zinc-700">
-          <div className="flex items-center justify-between bg-green-50 dark:bg-green-900/20 rounded-lg p-4">
-            <div>
-              <p className="text-sm font-medium text-green-900 dark:text-green-200">
-                検証レポートの確認
-              </p>
-              <p className="text-xs text-green-700 dark:text-green-400 mt-0.5">
-                実装と検証が完了していればタスクを完了にします
-              </p>
-            </div>
-            <button
-              onClick={onCompleteRequest}
-              className="bg-green-600 hover:bg-green-700 text-white px-5 py-2 rounded-lg text-sm font-medium transition-colors whitespace-nowrap"
-            >
-              実装完了
-            </button>
-          </div>
-        </div>
-      )}
+      {/* NOTE: The "実装完了" CTA was removed — verification auto-completes the
+          task on success (verify handler), and force-completing a verify_done
+          task here bypassed the completion/verification gate and skipped
+          commit/PR. Stuck tasks should be fixed and re-run, not force-completed. */}
     </div>
   );
 }

@@ -25,6 +25,7 @@ import {
   taskNeedsDependencies,
   clearWorktreeDependenciesTracking,
 } from './dependency-installer';
+import { execGitReadonly, clearGitCache, clearAllGitCache } from './git-exec';
 
 export {
   getGitDiff,
@@ -45,6 +46,9 @@ export {
   startWorktreeDependenciesInstall,
   taskNeedsDependencies,
   clearWorktreeDependenciesTracking,
+  execGitReadonly,
+  clearGitCache,
+  clearAllGitCache,
 };
 
 /**

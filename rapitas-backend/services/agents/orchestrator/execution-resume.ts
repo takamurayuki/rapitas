@@ -26,6 +26,8 @@ import {
   handleExecutionError,
 } from './execution-helpers';
 import { buildResumePrompt, resolveAgentConfig } from './resume-helpers';
+import { buildShutdownErrorMessage } from './shutdown-error';
+import { withLlmCallScope, getLlmCallCount } from '../../../utils/llm-call-context';
 
 const logger = createLogger('execution-resume');
 
@@ -182,9 +184,10 @@ export async function resumeInterruptedExecution(
   if (ctx.isShuttingDown) {
     ctx.activeAgents.delete(execution.id);
     ctx.activeExecutions.delete(execution.id);
-    fileLogger.logError('Server is shutting down, cannot resume execution');
+    const shutdownMsg = buildShutdownErrorMessage('resume execution');
+    fileLogger.logWarn(shutdownMsg);
     await fileLogger.flush();
-    throw new Error('Server is shutting down, cannot resume execution');
+    throw new Error(shutdownMsg);
   }
 
   setupQuestionDetectedHandler(agent, {
@@ -259,7 +262,16 @@ export async function resumeInterruptedExecution(
       workingDirectory,
     };
 
-    const result = await agent.execute(agentTask);
+    const result = await withLlmCallScope(async () => {
+      let r = await agent.execute(agentTask);
+
+      // Merge Tier 2 (ALS sendAIMessage calls) into Tier 1 (CLI num_turns)
+      const alsCount = getLlmCallCount();
+      if (alsCount > 0) {
+        r = { ...r, llmCallCount: (r.llmCallCount ?? 0) + alsCount };
+      }
+      return r;
+    });
 
     await saveExecutionResult(
       ctx.prisma,

@@ -149,46 +149,67 @@ async fn open_split_view(
 /// because it isn't on PATH (the cause of the "not found" error users hit).
 #[tauri::command]
 async fn open_url_in_browser(url: String, browser: String) -> Result<(), String> {
+    // SECURITY: this command is reachable from the webview (withGlobalTauri: true)
+    // and historically piped `url` / `browser` straight into `cmd /C start`, where
+    // cmd.exe re-parses the arguments (the CVE-2024-24576 "BatBadBut" class) — a
+    // real RCE sink. The `other => other` fallthrough also let an arbitrary program
+    // name through. Mitigate at the sink: (1) only allow http(s) URLs, (2) restrict
+    // `browser` to known presets, (3) spawn the resolved browser EXE directly so the
+    // URL is a single argv that is never handed to a shell for re-parsing. Unknown
+    // presets fall back to the OS default handler — never an arbitrary executable.
+    if !(url.starts_with("http://") || url.starts_with("https://")) {
+        return Err("Only http(s) URLs may be opened".to_string());
+    }
+
     #[cfg(target_os = "windows")]
     {
-        let app = match browser.as_str() {
-            "chrome" => "chrome",
-            "msedge" | "edge" => "msedge",
-            "firefox" => "firefox",
-            other => other,
-        };
-        std::process::Command::new("cmd")
-            .args(["/C", "start", "", app, &url])
-            .spawn()
-            .map_err(|e| format!("Failed to launch {app}: {e}"))?;
+        match browser_launcher::browser_path_for_preset(&browser) {
+            Some(path) => {
+                std::process::Command::new(path)
+                    .arg(&url)
+                    .spawn()
+                    .map_err(|e| format!("Failed to launch browser: {e}"))?;
+            }
+            None => open::that(&url).map_err(|e| format!("Failed to open URL: {e}"))?,
+        }
     }
 
     #[cfg(target_os = "macos")]
     {
         let app = match browser.as_str() {
-            "chrome" => "Google Chrome",
-            "msedge" | "edge" => "Microsoft Edge",
-            "firefox" => "Firefox",
-            other => other,
+            "chrome" => Some("Google Chrome"),
+            "msedge" | "edge" => Some("Microsoft Edge"),
+            "firefox" => Some("Firefox"),
+            _ => None,
         };
-        std::process::Command::new("open")
-            .args(["-a", app, &url])
-            .spawn()
-            .map_err(|e| format!("Failed to launch {app}: {e}"))?;
+        match app {
+            Some(app) => {
+                std::process::Command::new("open")
+                    .args(["-a", app, &url])
+                    .spawn()
+                    .map_err(|e| format!("Failed to launch {app}: {e}"))?;
+            }
+            None => open::that(&url).map_err(|e| format!("Failed to open URL: {e}"))?,
+        }
     }
 
     #[cfg(all(not(target_os = "windows"), not(target_os = "macos")))]
     {
         let app = match browser.as_str() {
-            "chrome" => "google-chrome",
-            "msedge" | "edge" => "microsoft-edge",
-            "firefox" => "firefox",
-            other => other,
+            "chrome" => Some("google-chrome"),
+            "msedge" | "edge" => Some("microsoft-edge"),
+            "firefox" => Some("firefox"),
+            _ => None,
         };
-        std::process::Command::new(app)
-            .arg(&url)
-            .spawn()
-            .map_err(|e| format!("Failed to launch {app}: {e}"))?;
+        match app {
+            Some(app) => {
+                std::process::Command::new(app)
+                    .arg(&url)
+                    .spawn()
+                    .map_err(|e| format!("Failed to launch {app}: {e}"))?;
+            }
+            None => open::that(&url).map_err(|e| format!("Failed to open URL: {e}"))?,
+        }
     }
 
     Ok(())
@@ -333,6 +354,25 @@ fn setup_global_shortcut(app: &tauri::App) -> Result<(), Box<dyn std::error::Err
 }
 
 fn main() {
+    // Keep WebView2 painting and responsive when the window is occluded or
+    // backgrounded (e.g. split-screen layout with another app on top).
+    // - CalculateNativeWinOcclusion: prevents Chromium from pausing rendering
+    //   (black frame) when the window is occluded by another window.
+    // - RendererCodeIntegrity: avoids startup crashes on some AV configurations.
+    // - disable-renderer-backgrounding: prevents the renderer process from being
+    //   deprioritised (throttled CPU / suspended) when the window loses focus —
+    //   fixes the "cursor stops working" symptom in split-screen.
+    // - disable-background-timer-throttling: keeps JS timers and rAF running at
+    //   full rate when the window is in background, preventing UI freeze on refocus.
+    // Must be set before any webview is created.
+    #[cfg(target_os = "windows")]
+    std::env::set_var(
+        "WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS",
+        "--disable-features=CalculateNativeWinOcclusion \
+         --disable-renderer-backgrounding \
+         --disable-background-timer-throttling",
+    );
+
     #[cfg(not(debug_assertions))]
     {
         use std::sync::Mutex;

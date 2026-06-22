@@ -11,6 +11,7 @@ import { promisify } from 'util';
 import { join } from 'path';
 import { prisma } from '../../config';
 import { AgentOrchestrator } from '../agents/agent-orchestrator';
+import { resolveTaskWithTheme } from '../task/task-resolver';
 import { createLogger } from '../../config/logger';
 import {
   readWorkflowFile,
@@ -24,7 +25,7 @@ import {
   validateVerify,
   type ValidationResult,
 } from './phase-output-validator';
-import type { RoleTransition, WorkflowAdvanceResult } from './workflow-types';
+import type { RoleTransition, WorkflowAdvanceResult, WorkflowMode } from './workflow-types';
 import { recordTransition, type TransitionActor } from './transition-recorder';
 import { evaluateCompletionGate } from './completion-gate';
 import { checkWorkflowInvariants } from './workflow-invariants';
@@ -32,6 +33,14 @@ import { maybeAutoApprovePlan } from './plan-auto-approve';
 
 const log = createLogger('workflow-cli-executor');
 const execAsync = promisify(exec);
+
+// Disk-existence guard for reusing a recorded worktree. Re-exported here so the
+// existing worktree-reuse.test.ts import path keeps working; the single source
+// of truth now lives in git-operations/worktree-usable so every execution entry
+// point (orchestrator, continue-execution route) shares the same check.
+export { canReuseWorktree } from '../agents/orchestrator/git-operations/worktree-usable';
+import { canReuseWorktree } from '../agents/orchestrator/git-operations/worktree-usable';
+import { isBackendPrimaryCheckout } from '../agents/orchestrator/git-operations/worktree-guard';
 
 /**
  * Resolves the git repository root for a directory.
@@ -49,6 +58,25 @@ async function resolveGitRoot(dir: string): Promise<string | null> {
   } catch {
     return null;
   }
+}
+
+/**
+ * Whether a task already has a created PR — an app-linked GitHubPullRequest row
+ * or a task.githubPrId. Used to gate verify-time completion on a PR existing, so
+ * a passing verify never completes a task that produced no PR.
+ *
+ * @param taskId - Task id / タスクID
+ * @returns true when a PR is already recorded for the task / PR記録済みなら true
+ */
+async function taskHasLinkedPr(taskId: number): Promise<boolean> {
+  const linked = await prisma.gitHubPullRequest
+    .findFirst({ where: { linkedTaskId: taskId }, select: { id: true } })
+    .catch(() => null);
+  if (linked) return true;
+  const row = await prisma.task
+    .findUnique({ where: { id: taskId }, select: { githubPrId: true } })
+    .catch(() => null);
+  return row?.githubPrId != null;
 }
 
 /**
@@ -103,10 +131,7 @@ export async function executeCLIAgent(
   // NOTE: Resolve workingDirectory from theme — implementation runs in the target project,
   // not in the rapitas project itself. Workflow files (plan.md, verify.md) are saved
   // separately via the workflow API regardless of cwd.
-  const taskWithTheme = await prisma.task.findUnique({
-    where: { id: taskId },
-    select: { themeId: true, theme: { select: { workingDirectory: true } } },
-  });
+  const taskWithTheme = await resolveTaskWithTheme(taskId);
   const themeWorkDir = taskWithTheme?.theme?.workingDirectory || null;
   const isImplementationRole = transition.role === 'implementer';
   const isVerifierRole = transition.role === 'verifier' || transition.role === 'auto_verifier';
@@ -135,14 +160,27 @@ export async function executeCLIAgent(
         select: { worktreePath: true, branchName: true },
       })
       .catch(() => null);
-    if (sessionWithWorktree?.worktreePath) {
-      resolvedWorktreePath = sessionWithWorktree.worktreePath;
-      resolvedBranchName = sessionWithWorktree.branchName;
+    // Only REUSE a recorded worktree if it still exists ON DISK. A prior
+    // session may record a worktreePath that was later removed (a stop/cleanup,
+    // or a worktree that never finished creating). Reusing a phantom path makes
+    // every implementer/verifier re-launch fail with "Working directory does not
+    // exist" and retry forever (task 30: .worktrees/task-30-… was gone). When the
+    // recorded path is missing, fall through to recreate a fresh worktree.
+    const recordedPath = sessionWithWorktree?.worktreePath ?? null;
+    if (canReuseWorktree(recordedPath)) {
+      resolvedWorktreePath = recordedPath;
+      resolvedBranchName = sessionWithWorktree?.branchName ?? null;
       log.info(
         { taskId, role: transition.role, worktreePath: resolvedWorktreePath },
         '[WorkflowCLIExecutor] Reusing existing worktree from prior session',
       );
     } else {
+      if (recordedPath) {
+        log.warn(
+          { taskId, role: transition.role, recordedPath },
+          '[WorkflowCLIExecutor] Recorded worktree no longer exists on disk — recreating instead of reusing a phantom path',
+        );
+      }
       // No prior worktree — create one so implementer/verifier always runs in
       // isolation and produces a branch the auto-PR pipeline can push. Host it
       // in the theme's project dir, or — when unset (e.g. rapitas
@@ -166,7 +204,25 @@ export async function executeCLIAgent(
           const taskTitle =
             (await prisma.task.findUnique({ where: { id: taskId }, select: { title: true } }))
               ?.title ?? `task-${taskId}`;
-          const branchName = generateFallbackBranchName(taskTitle) || `feature/task-${taskId}-auto`;
+          // Reuse the EXISTING feature branch (it holds the prior implementation
+          // and the commits already pushed to the PR) when a prior session
+          // recorded one — e.g. a ci_repair re-run after the worktree was cleaned
+          // up. Recreating on a FRESH branch loses the PR's work and re-implements
+          // from scratch, so the CI fix never lands on the PR branch (observed:
+          // task 227 re-implement loop). createWorktree checks out an existing
+          // branch as-is, keeping its commits.
+          const priorBranch = sessionWithWorktree?.branchName?.trim();
+          // A NEW branch MUST be unique per task. generateFallbackBranchName
+          // derives the name from the (often generic) title, so unrelated tasks
+          // collide on names like "chore/update-refactor" (observed: 10 PRs sharing
+          // ONE branch) or "feature/implement-perf". When a later task reuses/resets
+          // a shared branch (force-push), GitHub auto-closes the earlier PR and
+          // orphans its work — that is why PR #253 (task 305) was closed unmerged.
+          // Suffix the task id so each task owns a distinct branch. A reused
+          // priorBranch keeps its EXACT name (it already maps 1:1 to an open PR).
+          const fallbackBase =
+            generateFallbackBranchName(taskTitle) || `feature/task-${taskId}-auto`;
+          const branchName = priorBranch || `${fallbackBase}-t${taskId}`;
           const wt = await orchestrator.createWorktree(worktreeBase, branchName, taskId, null);
           resolvedWorktreePath = wt;
           resolvedBranchName = branchName;
@@ -201,6 +257,30 @@ export async function executeCLIAgent(
   const effectiveWorkDir: string =
     resolvedWorktreePath ??
     (isImplementationRole || isVerifierRole ? (themeWorkDir ?? process.cwd()) : process.cwd());
+
+  // SAFETY (②): a mutating role running in the backend's OWN primary checkout
+  // would create/switch a branch there via its own git commands, and the dev
+  // backend would then run that stale branch on restart (the recurring
+  // main-checkout clobber). When worktree isolation failed and the cwd fell back
+  // to the self primary, REFUSE rather than clobber — the task errors with a
+  // clear cause and can be retried once a worktree can be created. Other themes'
+  // repos and linked worktrees of the self repo are NOT affected.
+  if (
+    (isImplementationRole || isVerifierRole) &&
+    (await isBackendPrimaryCheckout(effectiveWorkDir))
+  ) {
+    log.error(
+      { taskId, role: transition.role, effectiveWorkDir },
+      '[WorkflowCLIExecutor] Refusing to run a mutating role in the primary checkout — worktree isolation failed',
+    );
+    return {
+      success: false,
+      role: transition.role,
+      status: (taskWithTheme?.workflowStatus as WorkflowAdvanceResult['status']) || 'draft',
+      error:
+        'worktree 隔離に失敗したため primary チェックアウトでの実行を中止しました（dev ブランチの切替を防止）。worktree を再生成して再実行してください。',
+    };
+  }
 
   const devConfig = await getOrCreateDevConfig(taskId);
   const session = await prisma.agentSession.create({
@@ -449,6 +529,28 @@ ${
     fullPrompt += `${cliT.prohibitions}\n${cliT.mandatory}`;
   }
 
+  // Implementation phase: the implementer must EDIT code, never produce a plan.
+  // In standard/comprehensive modes plan.md already exists (the plan phase wrote
+  // it); in lightweight mode the plan phase is intentionally skipped. Either way
+  // the implementer must NOT create plan.md — without this explicit override the
+  // agent followed CLAUDE.md's generic research→plan→implement step and wrote a
+  // plan.md for a lightweight task instead of implementing (observed: task 225,
+  // complexity 8 / lightweight, agent announced "plan.md を作成します").
+  if (isImplementationRole) {
+    fullPrompt +=
+      language === 'ja'
+        ? `\n\n## 実装フェーズ（厳守）
+**あなたは「実装」エージェントです。research.md（存在すれば plan.md も）に基づき、実際にコードを実装してください。**
+- **plan.md を作成しないこと。** 計画フェーズは完了済み（plan.md があればそれに従う）か、このタスクは軽量モードで計画フェーズが意図的にスキップされています。CLAUDE.md に「plan.md を作成する」とあっても、実装フェーズの今は従わないでください。
+- Write/Edit で直接コードを変更し、関連テストを追加/更新し、変更を完成させてください（調査・計画だけで終わらせない）。
+- 完了後、検証フェーズが自動で続きます。`
+        : `\n\n## Implementation phase (strict)
+**You are the IMPLEMENTER. Based on research.md (and plan.md if present), actually implement the code changes.**
+- **Do NOT create plan.md.** The plan phase is already done (follow plan.md if present), or this is a lightweight task whose plan phase is intentionally skipped. Even if CLAUDE.md says to create plan.md, do NOT do so in this implementation phase.
+- Edit code directly (Write/Edit), add/update the relevant tests, and complete the change (do not stop at investigation/planning).
+- The verification phase follows automatically.`;
+  }
+
   // Concern Backlog: agents must FILE out-of-scope issues, never fix them inline.
   // This is what stops "not my task → ignore it" for bugs/risks spotted in passing.
   const port = process.env.PORT || '3001';
@@ -623,23 +725,34 @@ curl -X POST http://localhost:${port}/idea-box \\
             // advance, so updating it here takes effect for plan/review/verify.
             // Respect a manual override — never clobber a user-pinned mode.
             const current = await prisma.task
-              .findUnique({ where: { id: taskId }, select: { workflowModeOverride: true } })
+              .findUnique({
+                where: { id: taskId },
+                select: { workflowModeOverride: true, workflowMode: true },
+              })
               .catch(() => null);
             const data: { complexityScore: number; workflowMode?: string } = {
               complexityScore: assessed,
             };
             if (!current?.workflowModeOverride) {
-              const { selectModeByComplexity } = await import('./workflow-mode-config');
-              data.workflowMode = await selectModeByComplexity(assessed);
+              const { selectModeByComplexity, higherMode } = await import('./workflow-mode-config');
+              const assessedMode = await selectModeByComplexity(assessed);
+              const currentMode = (current?.workflowMode as WorkflowMode) || 'comprehensive';
+              // Upgrade only: research-grounded complexity may RAISE ceremony (a
+              // task that looked trivial actually needs a plan) but must not LOWER
+              // it — research.md was already written for the provisional mode set
+              // before research; dropping the plan now would strand a
+              // plan-assuming research artifact.
+              const upgraded = higherMode(currentMode, assessedMode);
+              if (upgraded !== currentMode) data.workflowMode = upgraded;
             }
             await prisma.task.update({ where: { id: taskId }, data });
             log.info(
               {
                 taskId,
                 complexityScore: assessed,
-                workflowMode: data.workflowMode ?? '(override kept)',
+                workflowMode: data.workflowMode ?? '(unchanged)',
               },
-              '[WorkflowCLIExecutor] Applied research-assessed complexity + selected workflow',
+              '[WorkflowCLIExecutor] Applied research-assessed complexity (upgrade-only)',
             );
           }
         } catch (cErr) {
@@ -713,24 +826,79 @@ curl -X POST http://localhost:${port}/idea-box \\
               '[WorkflowCLIExecutor] Verify passed but no code changes and no justification — blocking instead of completing',
             );
           } else {
-            await prisma.task.update({
-              where: { id: taskId },
-              data: { status: 'done', workflowStatus: 'completed', completedAt: new Date() },
-            });
-            await recordTransition({
-              taskId,
-              fromStatus: currentWfStatus,
-              toStatus: 'completed',
-              actor: transition.role as TransitionActor,
-              cause: 'verify_passed',
-              phase: 'verify',
-              sessionId: session.id,
-              metadata: {
-                chars: typeof fileContent === 'string' ? fileContent.length : 0,
-                gate: gate.reason,
-              },
-            });
-            phaseStatus = 'completed';
+            // Completion REQUIRES a PR — mirror the HTTP file-save handler
+            // (workflow-handlers-files.ts). This phased/queue path previously marked
+            // the task done WITHOUT creating or confirming a PR, so auto-run tasks
+            // that completed here produced no PR at all (the HTTP path made PRs; this
+            // one silently did not).
+            let prSatisfied = await taskHasLinkedPr(taskId);
+            let prRequested = true;
+            let prError: string | undefined;
+            if (!prSatisfied) {
+              // No PR yet (e.g. the HTTP save bounced before PR creation). Run the
+              // shared commit/PR flow; a pre-existing PR is re-confirmed via
+              // taskHasLinkedPr. Dynamic import avoids a routes↔services import cycle.
+              const { performAutoCommitAndPR } =
+                await import('../../routes/workflow/workflow-auto-commit');
+              const acpr = await performAutoCommitAndPR(
+                taskId,
+                typeof fileContent === 'string' ? fileContent : '',
+              ).catch(() => ({}) as Awaited<ReturnType<typeof performAutoCommitAndPR>>);
+              prRequested = acpr.requested ? acpr.requested.autoCreatePR : true;
+              prSatisfied =
+                !prRequested ||
+                acpr.autoPRResult?.success === true ||
+                (await taskHasLinkedPr(taskId));
+              prError = acpr.autoPRResult?.error ?? acpr.error;
+            }
+
+            if (prRequested && !prSatisfied) {
+              // Verify passed but no PR was produced — do NOT complete. Keep the
+              // task actionable (blocked) so "完了" always implies a PR.
+              await prisma.task
+                .update({
+                  where: { id: taskId },
+                  data: { status: 'blocked', updatedAt: new Date() },
+                })
+                .catch(() => {});
+              await recordTransition({
+                taskId,
+                fromStatus: currentWfStatus,
+                toStatus: currentWfStatus,
+                actor: transition.role as TransitionActor,
+                cause: 'verify_pr_not_created',
+                phase: 'verify',
+                sessionId: session.id,
+                metadata: { reason: prError ?? 'PRが作成されませんでした' },
+                invariantViolation: true,
+                invariantMessage:
+                  '検証通過後にPRが作成されませんでした。PR作成成功まで完了にしません。',
+              });
+              phaseStatus = currentWfStatus as WorkflowAdvanceResult['status'];
+              log.warn(
+                { taskId, prError },
+                '[WorkflowCLIExecutor] Verify passed but no PR — blocking (completion requires a PR).',
+              );
+            } else {
+              await prisma.task.update({
+                where: { id: taskId },
+                data: { status: 'done', workflowStatus: 'completed', completedAt: new Date() },
+              });
+              await recordTransition({
+                taskId,
+                fromStatus: currentWfStatus,
+                toStatus: 'completed',
+                actor: transition.role as TransitionActor,
+                cause: 'verify_passed',
+                phase: 'verify',
+                sessionId: session.id,
+                metadata: {
+                  chars: typeof fileContent === 'string' ? fileContent.length : 0,
+                  gate: gate.reason,
+                },
+              });
+              phaseStatus = 'completed';
+            }
           }
         }
       } else if (currentWfStatus !== transition.nextStatus && nextRank > curRank) {

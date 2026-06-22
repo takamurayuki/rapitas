@@ -28,6 +28,11 @@ const mockPrisma = {
   systemPrompt: {
     findUnique: mock(() => Promise.resolve(null)),
   },
+  // NOTE: Added — workflow-orchestrator.ts:342 resolves aIAgentConfig when no role config exists.
+  aIAgentConfig: {
+    findUnique: mock(() => Promise.resolve(null)),
+    findFirst: mock(() => Promise.resolve(null)),
+  },
 };
 
 mock.module('../../config', () => ({
@@ -100,6 +105,11 @@ describe('WorkflowOrchestrator', () => {
 
   beforeEach(() => {
     resetAllMocks();
+    // NOTE: resetAllMocks() calls mockReset() on every mock, removing the factory
+    // implementation. Restore the default return for aIAgentConfig so that the
+    // "no role config" path can call findUnique(...).catch(...) without throwing.
+    mockPrisma.aIAgentConfig.findUnique.mockResolvedValue(null);
+    mockPrisma.aIAgentConfig.findFirst.mockResolvedValue(null);
     // Reset singleton for clean tests
     (WorkflowOrchestrator as unknown as { instance: undefined }).instance = undefined;
     orchestrator = WorkflowOrchestrator.getInstance();

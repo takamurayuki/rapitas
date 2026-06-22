@@ -158,10 +158,19 @@ export async function selectNextTask(
     where: {
       themeId,
       status: { in: ['todo', 'in-progress'] },
-      // Exclude only FINISHED workflow states. A fresh task has workflowStatus
-      // null and MUST stay eligible — `notIn` alone drops nulls (SQL NULL NOT IN
-      // → unknown), which silently skipped every brand-new todo task.
-      OR: [{ workflowStatus: null }, { workflowStatus: { notIn: ['completed', 'verify_done'] } }],
+      // A 'todo' task is explicitly pending (incl. one reset to re-run a prior
+      // run) — it MUST stay eligible regardless of a stale terminal
+      // workflowStatus. The finished-state exclusion applies only to
+      // 'in-progress' rows, to avoid re-picking one that is mid-finalization.
+      // (A genuinely-done task has status 'done' and is already excluded above.)
+      // Without the `status:'todo'` clause, a todo+verify_done task (status reset
+      // for re-run, or a verify that didn't complete) was silently skipped and
+      // the theme went idle with pending tasks still present.
+      OR: [
+        { status: 'todo' },
+        { workflowStatus: null },
+        { workflowStatus: { notIn: ['completed', 'verify_done'] } },
+      ],
       id: skipTaskIds.length > 0 ? { notIn: skipTaskIds } : undefined,
       // Exclude subtasks — the theme scheduler drives top-level tasks only;
       // subtasks are handled by AIOrchestra.enqueueSubtasksForExecution().

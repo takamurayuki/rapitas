@@ -15,7 +15,6 @@ import {
   getReviewDue,
   recordReview,
   getCalibrationStats,
-  convertDecisionToTask,
   normalizeCalibration,
   normalizeStatus,
   type DecisionStatus,
@@ -196,29 +195,7 @@ export const decisionJournalRoutes = new Elysia()
         calibration: t.String({ minLength: 1 }),
       }),
     },
-  )
-
-  /** Convert a decision into a dedicated follow-up task. */
-  .post(
-    '/decision-journal/:id/convert-to-task',
-    async ({ params, set }) => {
-      const id = parseInt(params.id);
-      if (isNaN(id)) {
-        set.status = 400;
-        return { error: 'Invalid ID' };
-      }
-      try {
-        const taskId = await convertDecisionToTask(id);
-        if (taskId === null) {
-          set.status = 404;
-          return { error: '決定が見つかりません' };
-        }
-        return { success: true, taskId };
-      } catch (err) {
-        log.error({ err, id }, 'Failed to convert decision to task');
-        set.status = 400;
-        return { error: err instanceof Error ? err.message : 'タスク化に失敗しました' };
-      }
-    },
-    { params: t.Object({ id: t.String() }) },
   );
+// NOTE: Removed POST /decision-journal/:id/convert-to-task — a decision is settled
+// knowledge (a recorded choice, like a hypothesis), not a unit of work. Ideas and
+// concerns keep their convert-to-task; decisions do not.

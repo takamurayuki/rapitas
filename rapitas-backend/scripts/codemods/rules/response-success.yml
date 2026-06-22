@@ -1,0 +1,23 @@
+# response-success.yml
+#
+# Detects inline `{ success: true, ... }` object literals in TypeScript files.
+# Use: ast-grep scan -r scripts/codemods/rules/response-success.yml --json
+#
+# Matches:
+#   { success: true }
+#   { success: true, data: ... }
+#   return { success: true };
+#
+# Does NOT match:
+#   createResponse(...)           — already migrated
+#   { success: false, ... }       — handled by response-error.yml
+#   // { success: true }          — comment (ast-grep uses AST, not text)
+
+id: response-success
+language: TypeScript
+rule:
+  kind: object
+  has:
+    kind: pair
+    pattern: "success: true"
+message: "Replace inline `{ success: true, ... }` with `createResponse(...)` from utils/common/response"

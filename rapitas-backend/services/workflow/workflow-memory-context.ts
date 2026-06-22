@@ -3,9 +3,14 @@
  *
  * Retrieves relevant past knowledge for a task (similar lessons, prior concerns,
  * task patterns) from the RAG knowledge base and renders it as a prompt section
- * injected into the researcher / implementer context. This closes the "the agent
- * never learns from itself" gap: every run starts from a blank slate unless prior
- * findings are fed back in.
+ * injected into the researcher / planner / implementer context. This closes the
+ * "the agent never learns from itself" gap: every run starts from a blank slate
+ * unless prior findings are fed back in.
+ *
+ * Recall is OUTCOME-WEIGHTED: an entry learned from a task that succeeded
+ * first-try is ranked above one whose source task was blocked, and blocked
+ * entries are explicitly labelled as failure lessons (negative examples) rather
+ * than dropped — "we tried X and it broke Y" is exactly what must not repeat.
  *
  * NOT responsible for executing agents, writing files, or generating embeddings —
  * it only reads the knowledge base and formats. Every failure path (embeddings
@@ -15,6 +20,7 @@
 import { prisma } from '../../config/database';
 import { createLogger } from '../../config/logger';
 import { searchKnowledge } from '../memory/rag/search';
+import { recordRetrieval } from '../memory/outcome-reinforcement';
 
 const log = createLogger('workflow:memory-context');
 
@@ -25,31 +31,82 @@ const MIN_SIMILARITY = 0.55;
 /** Per-entry content snippet length fed to the model. */
 const SNIPPET_LEN = 400;
 
+/** The outcome of the task an entry was learned from. */
+export type EntryOutcome = 'first_try' | 'completed' | 'blocked';
+
 /** A knowledge entry shaped for rendering. */
 export interface MemoryEntry {
   title: string;
   content: string;
   category: string;
   similarity: number;
+  /** Source task the entry was learned from (null when unknown). */
+  sourceTaskId?: number | null;
+  /** Outcome of that source task — drives ranking weight and the label. */
+  outcome?: EntryOutcome | null;
+  /** KB validation state — labels contested (conflict) knowledge as uncertain. */
+  validationStatus?: string;
 }
+
+/** Recall ranking weight by source-task outcome. */
+const OUTCOME_MULTIPLIER: Record<EntryOutcome, number> = {
+  first_try: 1.2,
+  completed: 1.05,
+  // Kept (a failure is a lesson) but ranked lower so proven knowledge leads.
+  blocked: 0.7,
+};
 
 const TEXT = {
   ja: {
     header: '# 過去の知見（記憶からの参照 — 同じ轍を踏まないこと）',
     lead: '以下は過去のタスク・懸念・教訓から、本タスクに関連性が高い順に抽出した知見です。調査・実装の前提として活用し、既知の失敗や設計判断を繰り返さないでください。',
     relevance: '関連度',
+    outcome: {
+      first_try: '✅ 初回成功の知見',
+      completed: '☑ 完了タスクの知見',
+      blocked: '⚠️ 前回ブロック（失敗の教訓 — 同じ轍を避ける）',
+    } as Record<EntryOutcome, string>,
   },
   en: {
     header: '# Prior Knowledge (recalled from memory — do not repeat past mistakes)',
     lead: 'The following are the most relevant lessons, concerns, and task patterns from past work. Use them as context for research/implementation and avoid repeating known failures or re-deciding settled design points.',
     relevance: 'relevance',
+    outcome: {
+      first_try: '✅ from a first-try success',
+      completed: '☑ from a completed task',
+      blocked: '⚠️ previously BLOCKED (failure lesson — avoid repeating)',
+    } as Record<EntryOutcome, string>,
   },
 } as const;
 
 /**
+ * Apply outcome weighting: attach each entry's outcome and re-sort by the
+ * outcome-adjusted score. Pure — the testable core of the ranking change.
+ *
+ * @param entries - Entries with raw similarity + sourceTaskId. / 類似度付きエントリ
+ * @param outcomeByTaskId - Map of source taskId → outcome. / タスク別アウトカム
+ * @returns Entries with `outcome` set, sorted by adjusted score. / 重み付け後の並び
+ */
+export function applyOutcomeWeighting(
+  entries: MemoryEntry[],
+  outcomeByTaskId: Map<number, EntryOutcome>,
+): MemoryEntry[] {
+  return entries
+    .map((e) => {
+      const outcome = e.sourceTaskId != null ? (outcomeByTaskId.get(e.sourceTaskId) ?? null) : null;
+      return {
+        entry: { ...e, outcome },
+        score: e.similarity * (outcome ? OUTCOME_MULTIPLIER[outcome] : 1),
+      };
+    })
+    .sort((a, b) => b.score - a.score)
+    .map((x) => x.entry);
+}
+
+/**
  * Render retrieved entries as a markdown prompt section. Pure — the testable core.
  *
- * @param entries - Relevant knowledge entries (already sorted by similarity). / 関連知見（類似度降順）
+ * @param entries - Relevant knowledge entries (already ranked). / 関連知見（順位済み）
  * @param language - Output language. / 出力言語
  * @returns The markdown section, or '' when there is nothing to inject. / 注入する節（無ければ空文字）
  */
@@ -59,12 +116,59 @@ export function renderMemorySection(entries: MemoryEntry[], language: 'ja' | 'en
   const items = entries
     .map((e) => {
       const pct = Math.round(e.similarity * 100);
+      const outcomeMark = e.outcome ? ` — ${t.outcome[e.outcome]}` : '';
+      // Flag contested knowledge so the agent weighs it critically instead of
+      // treating a 1-of-a-contradicting-pair entry as settled fact.
+      const conflictMark =
+        e.validationStatus === 'conflict'
+          ? language === 'ja'
+            ? ' — ⚠️ 矛盾あり・要検証'
+            : ' — ⚠️ contested, verify'
+          : '';
+      const marker = `${outcomeMark}${conflictMark}`;
       const snippet =
         e.content.length > SNIPPET_LEN ? `${e.content.slice(0, SNIPPET_LEN)}…` : e.content;
-      return `## [${e.category}] ${e.title} (${t.relevance} ${pct}%)\n${snippet}`;
+      return `## [${e.category}] ${e.title} (${t.relevance} ${pct}%)${marker}\n${snippet}`;
     })
     .join('\n\n');
   return `${t.header}\n\n${t.lead}\n\n${items}`;
+}
+
+/**
+ * Fetch the outcome of each source task from the timeline (`task_outcome`
+ * events). Best-effort — a failure yields an empty map (no weighting applied).
+ */
+async function fetchOutcomes(taskIds: number[]): Promise<Map<number, EntryOutcome>> {
+  const map = new Map<number, EntryOutcome>();
+  if (taskIds.length === 0) return map;
+  try {
+    const events = await prisma.timelineEvent.findMany({
+      where: {
+        eventType: 'task_outcome',
+        correlationId: { in: taskIds.map((id) => `task_${id}`) },
+      },
+      orderBy: { createdAt: 'desc' },
+      select: { correlationId: true, payload: true },
+    });
+    for (const ev of events) {
+      const id = Number((ev.correlationId ?? '').replace('task_', ''));
+      if (!Number.isFinite(id) || map.has(id)) continue; // desc order → first = latest
+      let payload: { finalStatus?: string; firstTrySuccess?: boolean } = {};
+      try {
+        payload = JSON.parse(ev.payload) as typeof payload;
+      } catch {
+        continue;
+      }
+      if (payload.finalStatus === 'completed') {
+        map.set(id, payload.firstTrySuccess ? 'first_try' : 'completed');
+      } else if (payload.finalStatus === 'blocked') {
+        map.set(id, 'blocked');
+      }
+    }
+  } catch (err) {
+    log.warn({ err }, '[memory-context] outcome fetch failed — skipping weighting');
+  }
+  return map;
 }
 
 /**
@@ -108,17 +212,34 @@ export async function buildMemoryContext(
       });
     }
 
+    // Record which entries were injected into THIS task so outcome-reinforcement
+    // can reward them on success / decay them on failure (outcome-gated learning).
+    recordRetrieval(
+      taskId,
+      results.map((r) => r.id),
+    );
+
     const entries: MemoryEntry[] = results.map((r) => ({
       title: r.title,
       content: r.content,
       category: r.category,
       similarity: r.similarity,
+      sourceTaskId: r.taskId,
+      validationStatus: r.validationStatus,
     }));
-    const section = renderMemorySection(entries, language);
+
+    // Outcome-weight: rank proven knowledge above failures, label failures.
+    const sourceTaskIds = entries
+      .map((e) => e.sourceTaskId)
+      .filter((id): id is number => typeof id === 'number');
+    const outcomes = await fetchOutcomes(sourceTaskIds);
+    const ranked = applyOutcomeWeighting(entries, outcomes);
+
+    const section = renderMemorySection(ranked, language);
     if (section) {
       log.info(
-        { taskId, themeId, count: entries.length },
-        '[memory-context] Injected prior knowledge',
+        { taskId, themeId, count: ranked.length, weighted: outcomes.size },
+        '[memory-context] Injected prior knowledge (outcome-weighted)',
       );
     }
     return section;

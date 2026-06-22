@@ -111,9 +111,18 @@ export async function runForgettingSweep(): Promise<{
 }
 
 /**
- * Boost decay score on access: min(1.0, current + 0.3).
+ * Boost decay score on access: min(1.0, current + delta).
+ *
+ * The `delta` lets callers express signal strength: a bare retrieval is a WEAK
+ * signal (use a small delta), whereas a knowledge entry that demonstrably
+ * contributed to a SUCCESSFUL task outcome is a STRONG reward (the default 0.3).
+ * This is the long-term-potentiation half of outcome-gated reinforcement —
+ * memories that keep helping survive; those merely retrieved barely move.
+ *
+ * @param entryId - Knowledge entry to reinforce. / 強化対象のナレッジID
+ * @param delta - How much to raise decayScore (default 0.3). / 上げ幅
  */
-export async function boostDecayOnAccess(entryId: number): Promise<void> {
+export async function boostDecayOnAccess(entryId: number, delta = 0.3): Promise<void> {
   const entry = await prisma.knowledgeEntry.findUnique({
     where: { id: entryId },
     select: { decayScore: true },
@@ -121,7 +130,7 @@ export async function boostDecayOnAccess(entryId: number): Promise<void> {
 
   if (!entry) return;
 
-  const newDecay = Math.min(1.0, entry.decayScore + 0.3);
+  const newDecay = Math.min(1.0, entry.decayScore + delta);
   const newStage = determineStage(newDecay);
 
   await prisma.knowledgeEntry.update({
@@ -132,5 +141,29 @@ export async function boostDecayOnAccess(entryId: number): Promise<void> {
       accessCount: { increment: 1 },
       lastAccessedAt: new Date(),
     },
+  });
+}
+
+/**
+ * Penalize a knowledge entry whose retrieval preceded a FAILED task outcome:
+ * lower its decayScore (it fades faster) so knowledge that leads to bad results
+ * is selected against. The negative half of outcome-gated reinforcement — the
+ * "this didn't help" signal. accessCount is NOT bumped (a failure is not a
+ * useful access). Never drops below 0.
+ *
+ * @param entryId - Knowledge entry to penalize. / 減衰させるナレッジID
+ * @param delta - How much to lower decayScore (default 0.2). / 下げ幅
+ */
+export async function penalizeOnFailure(entryId: number, delta = 0.2): Promise<void> {
+  const entry = await prisma.knowledgeEntry.findUnique({
+    where: { id: entryId },
+    select: { decayScore: true },
+  });
+  if (!entry) return;
+
+  const newDecay = Math.max(0, entry.decayScore - delta);
+  await prisma.knowledgeEntry.update({
+    where: { id: entryId },
+    data: { decayScore: newDecay, forgettingStage: determineStage(newDecay) },
   });
 }

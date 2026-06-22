@@ -47,6 +47,11 @@ export function useExecutionPolling(taskId: number | null) {
   // creates a new AgentExecution row) resets the output cursor and lets
   // the next phase's logs render without a page reload.
   const lastExecutionIdRef = useRef<number | null>(null);
+  // Guards against overlapping polls: a slow backend can make a poll take longer
+  // than the 1s interval, and without this the fetches stack up and saturate the
+  // browser's 6-connection/origin limit (the "task list stuck on the skeleton
+  // loader until Ctrl+R" jam during auto-run).
+  const pollInFlightRef = useRef(false);
 
   const refs: PollRefs = {
     lastProcessedStatusRef,
@@ -158,7 +163,17 @@ export function useExecutionPolling(taskId: number | null) {
       // visible again; the offset cursor means no log lines are missed.
       const poll = () => {
         if (typeof document !== 'undefined' && document.hidden) return;
-        executePoll(taskId, refs, lastOutputLengthRef, setState, stopPolling);
+        // Skip if the previous poll is still in flight so overlapping fetches can
+        // never pile up and exhaust the 6-connection/origin limit (which starves
+        // the task-list GET → the stuck-skeleton jam). The interval keeps ticking;
+        // the next tick after the in-flight poll resolves picks up where it left off.
+        if (pollInFlightRef.current) return;
+        pollInFlightRef.current = true;
+        void Promise.resolve(
+          executePoll(taskId, refs, lastOutputLengthRef, setState, stopPolling),
+        ).finally(() => {
+          pollInFlightRef.current = false;
+        });
       };
 
       // Initial poll

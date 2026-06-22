@@ -69,3 +69,10 @@ export {
   resumeInterruptedExecution,
   buildResumePrompt,
 } from './recovery-manager';
+
+// Shutdown error utilities
+export {
+  SHUTDOWN_ERROR_MESSAGE,
+  buildShutdownErrorMessage,
+  isShutdownError,
+} from './shutdown-error';

@@ -147,6 +147,104 @@ TypeScript: 1 件のエラー
     expect(validateVerify(failed).ok).toBe(false);
   });
 
+  test('does NOT flag an error-handling verify (✅ success, 失敗テスト数: 0)', () => {
+    // Regression: a bug fix for a FAILURE path (ENOENT/phantom) legitimately
+    // mentions 失敗 and reports the instructed "失敗テスト数: 0". The old regex
+    // matched bare "失敗テスト", wrongly blocking the task (verify_validation_failed).
+    const errorHandlingVerify = `# 検証レポート
+## 検証結果サマリ
+✅ 検証成功 — phantom path で失敗テストを再現し、cmd.exe を spawn しないことを確認。
+## テスト結果
+bun test: 4 passed, 失敗テスト数: 0
+## チェックリスト消化状況
+- [x] existsSync ガード追加`;
+    expect(validateVerify(errorHandlingVerify).ok).toBe(true);
+  });
+
+  test('still flags a real contradiction (✅ success but 10 tests failed)', () => {
+    const contradictory = `# 検証レポート
+## 検証結果サマリ
+✅ 検証成功
+## テスト結果
+bun test: 2 passed, 10 failed
+## チェックリスト消化状況
+- [x] done`;
+    expect(validateVerify(contradictory).ok).toBe(false);
+  });
+
+  test('does NOT flag a passing verify that contains the "❌ の場合" PR-gate legend', () => {
+    // Regression (task 267): a PASSING verify.md routinely includes the PR-gate
+    // legend "全体判定が ❌ の場合のみ PR を作成しないこと。本タスクは ✅ 合格。" — a
+    // CONDITIONAL. The bare /❌/ failure signal matched it and, combined with the
+    // many ✅ pass claims, falsely reported a self-contradiction → verify_repair
+    // ×2 → blocked. A conditional/legend ❌ must NOT count as a failure.
+    const legendPass = `# 実装結果検証レポート
+## 検証結果サマリ
+| 全体判定 | ✅ 合格 |
+> ⚠️ 全体判定が ❌ の場合のみ PR を作成しないこと。本タスクは ✅ 合格。
+## テスト結果
+bun test: 53 passed, 0 failed
+## チェックリスト消化状況
+- [x] done`;
+    expect(validateVerify(legendPass).ok).toBe(true);
+  });
+
+  test('does NOT flag a passing verify quoting the validator summary "(❌)"', () => {
+    // The self-repair feedback appends "...failure signals (❌)..." into verify.md;
+    // that parenthetical reference must not re-trigger the contradiction gate.
+    const quotedPass = `# 実装結果検証レポート
+## 検証結果サマリ
+✅ 合格 — 直前の差し戻し理由: claims all tests pass while body contains failure signals (❌).
+## テスト結果
+bun test: 10 passed, 0 failed
+## チェックリスト消化状況
+- [x] done`;
+    expect(validateVerify(quotedPass).ok).toBe(true);
+  });
+
+  test('does NOT flag a passing verify that documents "TSC_EXIT=1" (pre-existing)', () => {
+    // Regression (task 272): an honest verify documents that WHOLE-PROJECT tsc
+    // exits 1 due to 2 PRE-EXISTING out-of-scope errors, written as "TSC_EXIT=1",
+    // while its own scope passes. The bare /exit 1/ signal matched the identifier
+    // and, with the pass claim, falsely reported a self-contradiction → blocked.
+    const tscExitPass = `# 検証レポート
+## 検証結果サマリ
+✅ 条件付き合格 — スコープ内 DoD 全達成・全テスト通過。
+## テスト結果
+\`\`\`
+ユニット: 49/49 passed (exit 0)
+TSC_EXIT=1   # プロジェクト全体tscの既存2エラー(無関係ファイル)
+\`\`\`
+## チェックリスト消化状況
+- [x] done`;
+    expect(validateVerify(tscExitPass).ok).toBe(true);
+  });
+
+  test('still flags a real "exit 1" command failure on a pass-claiming verify', () => {
+    const realExit = `# 検証レポート
+## 検証結果サマリ
+✅ 全テスト通過と報告
+## テスト結果
+bun test → exit 1
+## チェックリスト消化状況
+- [x] done`;
+    expect(validateVerify(realExit).ok).toBe(false);
+  });
+
+  test('still flags ❌ used as an actual verdict on its own line', () => {
+    // A ❌ verdict that is NOT a conditional/legend and does not assert pass on the
+    // same line must still be caught (defense alongside the numeric signals).
+    const realCross = `# 検証レポート
+## 検証結果サマリ
+✅ 全テスト通過と報告
+## テスト結果
+| ルートテスト | ❌ |
+追加調査が必要です。
+## チェックリスト消化状況
+- [x] done`;
+    expect(validateVerify(realCross).ok).toBe(false);
+  });
+
   // Regression tests for the auto_verifier WARN: lightweight mode (no plan.md) must still
   // emit the 3 required headings so validateVerify does not produce the WARN.
   test('accepts auto_verifier output with チェックリスト消化状況 heading (no plan)', () => {
@@ -164,10 +262,9 @@ bun test: 5 passed, 0 failed
     expect(result.missingSections).toEqual([]);
   });
 
-  test('reproduces the WARN: auto_verifier output missing チェックリスト and 検証結果サマリ', () => {
-    // This is the pattern that was triggering
-    // "[WorkflowCLIExecutor] verify.md missing sections: チェックリスト, 検証結果サマリ"
-    const missingBothSections = `# 実装結果検証レポート
+  test('rejects verify missing チェックリスト and 検証結果サマリ group entirely', () => {
+    // A verify with テスト結果 but no チェックリスト and no 検証結果サマリ synonym
+    const missingBothSections = `# 実装レポート
 ## テスト結果
 bun test: 5 passed, 0 failed
 ## 変更ファイル一覧
@@ -176,5 +273,93 @@ bun test: 5 passed, 0 failed
     expect(result.ok).toBe(false);
     expect(result.missingSections).toContain('チェックリスト');
     expect(result.missingSections).toContain('検証結果サマリ');
+  });
+
+  // OR-group synonym tests: any alternative satisfies the 検証結果サマリ requirement
+  test('accepts 検証結果 (L1 heading, no サマリ) as synonym for 検証結果サマリ', () => {
+    const content = `# 検証結果
+## テスト結果
+bun test: 3 passed
+## チェックリスト
+- [x] done`;
+    const result = validateVerify(content);
+    expect(result.ok).toBe(true);
+    expect(result.missingSections).toEqual([]);
+  });
+
+  test('accepts 総合評価 heading as synonym for 検証結果サマリ', () => {
+    const content = `## 総合評価
+合格
+## テスト結果
+ok
+## チェックリスト
+- [x]`;
+    const result = validateVerify(content);
+    expect(result.ok).toBe(true);
+    expect(result.missingSections).toEqual([]);
+  });
+
+  test('accepts 実装結果検証レポート heading as synonym for 検証結果サマリ', () => {
+    const content = `# 実装結果検証レポート
+## テスト結果
+all pass
+## チェックリスト
+- [x] all done`;
+    const result = validateVerify(content);
+    expect(result.ok).toBe(true);
+    expect(result.missingSections).toEqual([]);
+  });
+
+  test('still rejects verify with テスト結果 missing even when 検索結果サマリ synonym present', () => {
+    const content = `## 検証レポート
+summary here
+## チェックリスト
+- [x] done`;
+    const result = validateVerify(content);
+    expect(result.ok).toBe(false);
+    expect(result.missingSections).toContain('テスト結果');
+  });
+
+  test('returns severity=100 for empty verify content', () => {
+    const result = validateVerify('   ');
+    expect(result.ok).toBe(false);
+    expect(result.severity).toBe(100);
+  });
+
+  test('detects contradiction: all-pass claim with failure signal', () => {
+    const contradictory = `## 検証結果サマリ
+全テスト通過
+## テスト結果
+1 failed
+## チェックリスト
+- [x]`;
+    const result = validateVerify(contradictory);
+    expect(result.ok).toBe(false);
+    expect(result.severity).toBe(80);
+  });
+
+  test('passing verify with a benign "×2" in prose is NOT a contradiction (task #304)', () => {
+    // "×2" here means "two cases / twice", not "2 test failures". The old bare
+    // /×\s*[1-9]\d*/ signal flagged this passing report as a hallucinated pass.
+    const passing = `## 検証結果サマリ
+全テスト通過 (59/59)
+## テスト結果
+後方互換ケース×2 を追加し、リトライ×2 のパスも確認。失敗テスト数: 0
+## チェックリスト
+- [x] 完了`;
+    const result = validateVerify(passing);
+    expect(result.ok).toBe(true);
+  });
+
+  test('a ×N attached to a failure verdict still contradicts an all-pass claim', () => {
+    const contradictory = `## 検証結果サマリ
+全テスト通過
+## テスト結果
+失敗 ×3
+## チェックリスト
+- [x]`;
+    const result = validateVerify(contradictory);
+    expect(result.ok).toBe(false);
+    expect(result.severity).toBe(80);
   });
 });

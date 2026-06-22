@@ -81,6 +81,8 @@ export { techDebtRoutes } from './system/monitoring/tech-debt';
 export { temporalDebugRoutes } from './system/monitoring/temporal-debug';
 export { projectHealthRoutes } from './system/monitoring/project-health';
 export { errorAnalyticsRoutes } from './system/monitoring/error-analytics';
+export { debugLogsRouter } from './system/monitoring/debug-logs';
+export { gitCacheMetricsRoutes } from './system/monitoring/git-cache-metrics';
 
 // Workflow
 export { workflowRoutes } from './workflow/core/workflow';
@@ -111,6 +113,7 @@ export { memorySystemRoutes } from './memory/memory-system';
 export { crossProjectKnowledgeRoutes } from './memory/cross-project-knowledge';
 export { ideaBoxRoutes } from './memory/idea-box';
 export { concernBacklogRoutes } from './memory/concern-backlog';
+export { hypothesisRoutes } from './memory/hypothesis';
 export { decisionJournalRoutes } from './memory/decision-journal';
 export { backlogScheduleRoutes, backlogThemeOverrideRoutes } from './backlog';
 

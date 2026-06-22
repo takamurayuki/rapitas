@@ -10,7 +10,12 @@ import { describe, test, expect, mock, beforeEach } from 'bun:test';
 const mockPrisma = {
   workflowTransition: { count: mock(() => Promise.resolve(0)) },
   workflowFile: { findFirst: mock(() => Promise.resolve(null)) },
-  task: { update: mock(() => Promise.resolve({})) },
+  task: {
+    update: mock(() => Promise.resolve({})),
+    // NOTE: Added after ci-self-repair.ts:119 — findUnique checks if task is a
+    // conflict-resolution task (title matches "PR #N の競合を解消") to skip CI repair.
+    findUnique: mock(() => Promise.resolve(null)),
+  },
 };
 const recordTransition = mock(() => Promise.resolve());
 const writeWorkflowFile = mock(() => Promise.resolve('/p/question.md'));
@@ -87,12 +92,12 @@ describe('attemptCiRepair', () => {
     expect(recordTransition).not.toHaveBeenCalled();
   });
 
-  test('差し戻しフィードバックを question.md に追記し、失敗チェック名を明記すること', async () => {
+  test('差し戻しフィードバックを verify.md に追記し、失敗チェック名を明記すること', async () => {
     mockPrisma.workflowFile.findFirst.mockResolvedValue({ id: 7 });
     await attemptCiRepair(1, ['Check Frontend', 'Lint Code']);
     expect(writeWorkflowFile).toHaveBeenCalled();
     const args = writeWorkflowFile.mock.calls[0] as unknown[];
-    expect(args[1]).toBe('question');
+    expect(args[1]).toBe('verify');
     const content = args[2] as string;
     expect(content).toContain('CIからの差し戻し');
     expect(content).toContain('Check Frontend');

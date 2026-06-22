@@ -1,0 +1,19 @@
+# spec-array.yml
+#
+# Detects `JSON.parse(x || '[]')` patterns that should use parseSpecArray(x).
+# Use: ast-grep scan -r scripts/codemods/rules/spec-array.yml --json
+#
+# Matches:
+#   JSON.parse(value || '[]')
+#   JSON.parse(x ?? '[]')
+#   JSON.parse(item.tags || '[]')
+#
+# Does NOT match:
+#   parseSpecArray(...)            — already migrated
+#   JSON.parse(value || '{}')      — different default (object, not array)
+
+id: spec-array
+language: TypeScript
+rule:
+  pattern: "JSON.parse($VAR || '[]')"
+message: "Replace `JSON.parse($VAR || '[]')` with `parseSpecArray($VAR)` from utils/common/spec-array"

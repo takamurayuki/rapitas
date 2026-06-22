@@ -9,6 +9,10 @@ export type RequestOptions = RequestInit & {
   skipCache?: boolean;
   /** Cache duration in milliseconds. / キャッシュ保持時間（ミリ秒） */
   cacheTime?: number;
+  /** Per-attempt timeout override in ms. / 1試行あたりのタイムアウト上書き（ms） */
+  timeoutMs?: number;
+  /** Disable the transient-error retry for idempotent GETs. / GETの透過リトライを無効化 */
+  skipRetry?: boolean;
 };
 
 export type BatchRequest = {

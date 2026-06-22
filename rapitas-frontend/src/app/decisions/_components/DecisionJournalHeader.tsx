@@ -29,9 +29,7 @@ export function DecisionJournalHeader({
           <Scale className="h-5 w-5 text-indigo-600 dark:text-indigo-400" />
         </div>
         <div>
-          <h1 className="text-lg font-bold text-zinc-900 dark:text-zinc-100">
-            デシジョンジャーナル
-          </h1>
+          <h1 className="text-lg font-bold text-zinc-900 dark:text-zinc-100">意思決定</h1>
           <p className="text-xs text-zinc-500 dark:text-zinc-400">{statusText}</p>
         </div>
       </div>

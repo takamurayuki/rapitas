@@ -63,6 +63,9 @@ export const settingsRoutes = new Elysia({ prefix: '/settings' })
         autoCreateAfterTitleGeneration,
         autoApprovePlan,
         autoComplexityAnalysis,
+        autoCreateFromBacklogLimit,
+        restartOnAutoRunDry,
+        verifyRepairLimit,
         autoCommitDefault,
         autoCreatePRDefault,
         autoMergePRDefault,
@@ -84,6 +87,9 @@ export const settingsRoutes = new Elysia({ prefix: '/settings' })
         autoCreateAfterTitleGeneration?: boolean;
         autoApprovePlan?: boolean;
         autoComplexityAnalysis?: boolean;
+        autoCreateFromBacklogLimit?: number;
+        restartOnAutoRunDry?: boolean;
+        verifyRepairLimit?: number;
         autoCommitDefault?: boolean;
         autoCreatePRDefault?: boolean;
         autoMergePRDefault?: boolean;
@@ -111,6 +117,7 @@ export const settingsRoutes = new Elysia({ prefix: '/settings' })
               autoCreateAfterTitleGeneration: autoCreateAfterTitleGeneration ?? false,
               autoApprovePlan: autoApprovePlan ?? false,
               ...(autoComplexityAnalysis !== undefined && { autoComplexityAnalysis }),
+              ...(autoCreateFromBacklogLimit !== undefined && { autoCreateFromBacklogLimit }),
               ...(autoCommitDefault !== undefined && { autoCommitDefault }),
               ...(autoCreatePRDefault !== undefined && { autoCreatePRDefault }),
               ...(autoMergePRDefault !== undefined && { autoMergePRDefault }),
@@ -137,6 +144,7 @@ export const settingsRoutes = new Elysia({ prefix: '/settings' })
               }),
               ...(autoApprovePlan !== undefined && { autoApprovePlan }),
               ...(autoComplexityAnalysis !== undefined && { autoComplexityAnalysis }),
+              ...(autoCreateFromBacklogLimit !== undefined && { autoCreateFromBacklogLimit }),
               ...(autoCommitDefault !== undefined && { autoCommitDefault }),
               ...(autoCreatePRDefault !== undefined && { autoCreatePRDefault }),
               ...(autoMergePRDefault !== undefined && { autoMergePRDefault }),
@@ -150,6 +158,37 @@ export const settingsRoutes = new Elysia({ prefix: '/settings' })
               ...(skipAgentPermissionPrompts !== undefined && { skipAgentPermissionPrompts }),
             },
           });
+        }
+
+        // Persist restartOnAutoRunDry separately: the Prisma client type does not
+        // include this column until it is regenerated (on the next backend
+        // restart), so write it through a cast to keep this compiling now. The
+        // value still lands in the row the same way once the column exists.
+        if (restartOnAutoRunDry !== undefined) {
+          await prisma.userSettings
+            .update({
+              where: { id: settings.id },
+              data: { restartOnAutoRunDry } as unknown as Parameters<
+                typeof prisma.userSettings.update
+              >[0]['data'],
+            })
+            .catch((err) => log.warn({ err }, 'restartOnAutoRunDry persist failed'));
+          (settings as Record<string, unknown>).restartOnAutoRunDry = restartOnAutoRunDry;
+        }
+
+        // Persist verifyRepairLimit via cast for the same reason (column pending
+        // client regen on the next restart). Clamp to a sane 0..10 range.
+        if (verifyRepairLimit !== undefined) {
+          const clamped = Math.max(0, Math.min(10, Math.floor(verifyRepairLimit)));
+          await prisma.userSettings
+            .update({
+              where: { id: settings.id },
+              data: { verifyRepairLimit: clamped } as unknown as Parameters<
+                typeof prisma.userSettings.update
+              >[0]['data'],
+            })
+            .catch((err) => log.warn({ err }, 'verifyRepairLimit persist failed'));
+          (settings as Record<string, unknown>).verifyRepairLimit = clamped;
         }
 
         return settings;

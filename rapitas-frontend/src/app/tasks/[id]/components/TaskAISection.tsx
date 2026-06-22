@@ -148,6 +148,10 @@ export default function TaskAISection({
   const pollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   useEffect(() => {
     if (isExecuting || isParallelExecutionRunning) {
+      // NOTE: Extended from 5s to 15s — this poll is for subtask discovery and status
+      // badges, not for the live execution log (that's useExecutionPolling at 1s).
+      // 15s is still fast enough to surface newly created subtasks without the
+      // tripled fetch rate causing noticeable backend load during parallel auto-run.
       pollIntervalRef.current = setInterval(async () => {
         try {
           const res = await fetch(`${API_BASE}/tasks/${resolvedTaskId}`);
@@ -161,7 +165,7 @@ export default function TaskAISection({
         } catch {
           /* non-critical */
         }
-      }, 5000);
+      }, 15_000);
     }
     return () => {
       if (pollIntervalRef.current) {

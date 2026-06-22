@@ -7,11 +7,9 @@
  * and restart dialogs. All state logic lives in useHeader().
  */
 
-import { Menu, X } from 'lucide-react';
-import Link from 'next/link';
-import AppIcon from '@/components/common/app-icon';
-import { useTranslations } from 'next-intl';
 import {
+  Menu,
+  X,
   Home,
   Columns3,
   Tags,
@@ -19,6 +17,7 @@ import {
   FolderOpen,
   FolderKanban,
   FolderGit2,
+  ScrollText,
   Target,
   BarChart3,
   GanttChartSquare,
@@ -34,7 +33,7 @@ import {
   Settings,
   GitPullRequest,
   CircleDot,
-  Workflow,
+  GitMerge,
   Code,
   Key,
   MessageSquare,
@@ -47,9 +46,14 @@ import {
   BookMarked,
   Keyboard,
   Scale,
+  Beaker,
 } from 'lucide-react';
+import Link from 'next/link';
+import AppIcon from '@/components/common/app-icon';
+import { useTranslations } from 'next-intl';
 import { useHeader } from './useHeader';
 import { type NavItem } from './types';
+import { GithubMarkIcon } from '@/components/icons/github-mark-icon';
 import { SideNav } from './side-nav';
 import { HeaderSearch } from './header-search';
 import { HeaderToolbar } from './header-toolbar';
@@ -116,9 +120,10 @@ export default function Header() {
       label: 'バックログ',
       icon: Inbox,
       children: [
-        { href: '/ideas', label: 'アイデアボックス', icon: Lightbulb },
-        { href: '/concerns', label: '懸念バックログ', icon: Bug },
-        { href: '/decisions', label: 'デシジョンジャーナル', icon: Scale },
+        { href: '/ideas', label: 'アイデア', icon: Lightbulb },
+        { href: '/concerns', label: '懸念', icon: Bug },
+        { href: '/decisions', label: '意思決定', icon: Scale },
+        { href: '/hypotheses', label: '仮説', icon: Beaker },
         { href: '/backlog/settings', label: '設定', icon: CalendarClock },
       ],
     },
@@ -171,7 +176,7 @@ export default function Header() {
         {
           href: '#',
           label: 'GitHub',
-          icon: Code,
+          icon: GithubMarkIcon,
           children: [
             { href: '/github', label: t('devDashboard'), icon: FolderGit2 },
             {
@@ -180,9 +185,10 @@ export default function Header() {
               icon: GitPullRequest,
             },
             { href: '/github/issues', label: 'Issues', icon: CircleDot },
-            { href: '/github/actions', label: 'CI/CD', icon: Workflow },
+            { href: '/github/actions', label: 'CI/CD', icon: GitMerge },
           ],
         },
+        { href: '/logs', label: 'ログ分析', icon: ScrollText },
         {
           href: '#',
           label: t('agent'),

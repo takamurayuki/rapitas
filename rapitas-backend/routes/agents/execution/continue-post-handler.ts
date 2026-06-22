@@ -12,6 +12,7 @@ import { createLogger } from '../../../config/logger';
 import { AgentWorkerManager } from '../../../services/agents/agent-worker-manager';
 import { updateSessionStatusWithRetry } from './session-helpers';
 import { releaseTaskExecutionLock } from './execution-lock';
+import { isShutdownError } from '../../../services/agents/agent-worker/shutdown-error';
 
 const log = createLogger('routes:agent-execution:continue-post');
 const agentWorkerManager = AgentWorkerManager.getInstance();
@@ -142,6 +143,32 @@ export async function handleContinueError(
   taskId: number,
   targetSessionId: number,
 ): Promise<void> {
+  if (isShutdownError(error)) {
+    // NOTE: Shutdown-originated reject is not a crash — demote to WARN and
+    // mark session as interrupted so recoverStaleExecutions can resume it.
+    log.warn(
+      { err: error },
+      `[continue-execution] Execution interrupted by shutdown for task ${taskId}`,
+    );
+    await prisma.agentSession
+      .update({
+        where: { id: targetSessionId },
+        data: {
+          status: 'interrupted',
+          completedAt: new Date(),
+          errorMessage: error.message,
+        },
+      })
+      .catch((e: unknown) =>
+        log.error(
+          { err: e },
+          `[continue-execution] Failed to update session ${targetSessionId} to interrupted`,
+        ),
+      );
+    releaseTaskExecutionLock(taskId);
+    return;
+  }
+
   log.error({ err: error }, `[continue-execution] Execution error for task ${taskId}`);
   await prisma.task
     .update({ where: { id: taskId }, data: { status: 'todo' } })

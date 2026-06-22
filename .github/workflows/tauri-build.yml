@@ -342,7 +342,11 @@ jobs:
       # Same packaging smoke test as Windows: boot the compiled binary outside
       # the repo (no node_modules) and require a 200 from a DB-backed route.
       - name: Smoke test backend binary (Unix)
-        if: matrix.platform != 'windows-latest'
+        # Skip the x86_64-apple-darwin CROSS build: the macos runner is arm64, so
+        # the smoke copies the runner's native arm64 Prisma query engine, which the
+        # Intel binary can't load — it can never serve /categories. Only smoke the
+        # NATIVE targets (ubuntu x86_64, macos aarch64).
+        if: matrix.platform != 'windows-latest' && matrix.target != 'x86_64-apple-darwin'
         working-directory: rapitas-backend
         shell: bash
         run: |
@@ -547,11 +551,18 @@ jobs:
 
       - name: Build Tauri application
         working-directory: rapitas-desktop
+        shell: bash
         run: |
           # Build Tauri application with the correct target
           echo "Building Tauri app for ${{ matrix.platform }} (${{ matrix.target }})"
-          echo "Bundle targets: deb, rpm (AppImage disabled)"
-          pnpm run build --target ${{ matrix.target }}
+          if [ "${{ matrix.platform }}" == "ubuntu-latest" ]; then
+            # AppImage requires linuxdeploy which is unavailable in CI runners.
+            # Explicitly limit Linux bundles to deb and rpm only.
+            echo "Bundle targets: deb, rpm (AppImage disabled — linuxdeploy not available in CI)"
+            pnpm run build --target "${{ matrix.target }}" --bundles deb,rpm
+          else
+            pnpm run build --target "${{ matrix.target }}"
+          fi
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           CI: true

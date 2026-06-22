@@ -17,6 +17,45 @@ import { createLogger } from '../../config/logger';
 const log = createLogger('workflow:automation-policy');
 
 /**
+ * Last-logged policy signature per task. `resolveAutomationPolicy` is called on a
+ * hot path (the 60s auto-merge poll iterates every open PR), so logging on every
+ * call floods the log with identical lines. We log only when a task's resolved
+ * policy first appears or actually changes. / 解決ポリシーが変化した時だけログする。
+ */
+const lastLoggedPolicy = new Map<number, string>();
+
+/**
+ * The single "landing strategy" a task uses to reach completion, derived from
+ * its automation policy. Completion is marked at a DIFFERENT point per mode:
+ *  - `none`   → completed as soon as verify passes (no git automation).
+ *  - `commit` → completed after commit+push to the theme's default branch.
+ *  - `pr`     → completed after the created PR's CI goes green (NOT merged).
+ *  - `merge`  → completed after the PR is merged into the default branch.
+ *
+ * Direct-to-default `commit` and PR-based `pr`/`merge` are mutually exclusive
+ * landing strategies; a higher mode supersedes the lower ones.
+ */
+export type LandingMode = 'merge' | 'pr' | 'commit' | 'none';
+
+/**
+ * Collapse a resolved policy into its single landing mode.
+ * Precedence (higher supersedes lower): autoMergePR > autoCreatePR > autoCommit.
+ *
+ * @param policy - Resolved autoCommit/autoCreatePR/autoMergePR booleans. / 解決済み自動化フラグ
+ * @returns The landing mode that decides where completion is marked. / 完了点を決める landing mode
+ */
+export function resolveLandingMode(policy: {
+  autoCommit: boolean;
+  autoCreatePR: boolean;
+  autoMergePR: boolean;
+}): LandingMode {
+  if (policy.autoMergePR) return 'merge';
+  if (policy.autoCreatePR) return 'pr';
+  if (policy.autoCommit) return 'commit';
+  return 'none';
+}
+
+/**
  * 解決後の自動化設定。verify_done → completed の自動進行をどこまで進めるかを表す。
  */
 export interface ResolvedAutomationPolicy {
@@ -97,16 +136,22 @@ export async function resolveAutomationPolicy(
   const acpr = resolveOne('autoCreatePR', userSettings?.autoCreatePRDefault, envAutoCreatePR, true);
   const ampr = resolveOne('autoMergePR', userSettings?.autoMergePRDefault, envAutoMergePR, false);
 
-  log.debug(
-    {
-      taskId,
-      autoCommit: ac.value,
-      autoCreatePR: acpr.value,
-      autoMergePR: ampr.value,
-      sources: { autoCommit: ac.source, autoCreatePR: acpr.source, autoMergePR: ampr.source },
-    },
-    '[automation-policy] resolved policy',
-  );
+  // Only log when this task's resolved policy is new or changed — avoids flooding
+  // the log with one identical line per open PR on every 60s auto-merge poll.
+  const signature = `${ac.value}:${acpr.value}:${ampr.value}:${ac.source}:${acpr.source}:${ampr.source}`;
+  if (lastLoggedPolicy.get(taskId) !== signature) {
+    lastLoggedPolicy.set(taskId, signature);
+    log.debug(
+      {
+        taskId,
+        autoCommit: ac.value,
+        autoCreatePR: acpr.value,
+        autoMergePR: ampr.value,
+        sources: { autoCommit: ac.source, autoCreatePR: acpr.source, autoMergePR: ampr.source },
+      },
+      '[automation-policy] resolved policy',
+    );
+  }
 
   return {
     autoCommit: ac.value,

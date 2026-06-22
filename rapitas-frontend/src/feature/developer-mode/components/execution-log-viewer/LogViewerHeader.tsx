@@ -31,6 +31,8 @@ import type { ExecutionLogStatus, ExecutionLogViewMode } from './types';
 
 type LogViewerHeaderProps = {
   status: ExecutionLogStatus;
+  /** Task id — rendered as `Task #<id>` so the run is easy to reference/share. */
+  taskId?: number;
   isRunning: boolean;
   isConnected: boolean;
   viewMode: ExecutionLogViewMode;
@@ -64,6 +66,7 @@ type LogViewerHeaderProps = {
  */
 export const LogViewerHeader: React.FC<LogViewerHeaderProps> = ({
   status,
+  taskId,
   isRunning,
   isConnected,
   viewMode,
@@ -94,6 +97,14 @@ export const LogViewerHeader: React.FC<LogViewerHeaderProps> = ({
       <div className="flex items-center gap-2">
         <Terminal className="w-4 h-4 text-green-400" />
         <span className="text-sm font-medium text-zinc-200">実行ログ</span>
+        {taskId != null && (
+          <span
+            className="px-1.5 py-0.5 bg-zinc-700 text-zinc-300 rounded text-xs font-mono"
+            title="このタスクのID（共有用）"
+          >
+            Task #{taskId}
+          </span>
+        )}
         {statusBadge}
         {isConnected && (
           <span

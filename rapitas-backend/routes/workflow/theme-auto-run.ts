@@ -16,6 +16,7 @@ import {
   stopAutoRun,
 } from '../../services/workflow/auto-run/theme-auto-run-service';
 import { ThemeAutoRunScheduler } from '../../services/workflow/auto-run/theme-auto-run-scheduler';
+import { logCycleEvent } from '../../services/observability';
 
 const log = createLogger('routes:theme-auto-run');
 
@@ -110,6 +111,7 @@ export const themeAutoRunRoutes = new Elysia()
         state = await startAutoRun(themeId, order);
         scheduler.start();
         log.info(`[theme-auto-run] Started auto-run for theme ${themeId}`);
+        logCycleEvent('theme.started', { theme: themeId, order, msg: 'auto-run started by user' });
       } else if (action === 'pause') {
         state = await pauseAutoRun(themeId);
         log.info(`[theme-auto-run] Paused auto-run for theme ${themeId}`);
@@ -117,6 +119,25 @@ export const themeAutoRunRoutes = new Elysia()
         // stop
         state = await stopAutoRun(themeId);
         log.info(`[theme-auto-run] Stop requested for theme ${themeId}`);
+        // Kill EVERY in-flight agent in the theme synchronously — not just
+        // state.currentTaskId. When the scheduler has more than one execution
+        // alive (a re-dispatched task, a split parent's subtask running under a
+        // different taskId, or a stale in-progress task), stopping only the
+        // current task leaks the others; that is the "取りこぼし" users hit.
+        // stopThemeAgents sweeps the theme's tasks + subtasks, aborts their
+        // runner loops, kills executions, and releases all locks. Idempotent, so
+        // the scheduler's later cleanup pass is harmless.
+        const { stopThemeAgents } = await import('../../services/agents/stop-task-agents');
+        const stopResult = await stopThemeAgents(themeId, state.currentTaskId ?? null, {
+          errorMessage: 'Cancelled by user (auto-run stop)',
+        }).catch((err) => {
+          log.error({ err, themeId }, '[theme-auto-run] Failed to stop in-flight agents on stop');
+          return { stoppedCount: 0, executionIds: [] as number[] };
+        });
+        log.info(
+          { themeId, stoppedCount: stopResult.stoppedCount },
+          `[theme-auto-run] Halted ${stopResult.stoppedCount} in-flight agent(s) for theme ${themeId}`,
+        );
       }
 
       return { success: true, autoRun: state };

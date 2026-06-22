@@ -18,10 +18,18 @@ import {
   resolveWorkflowDir,
   getFileInfo,
 } from '../core/workflow-helpers';
-import { writeWorkflowFile } from '../../../services/workflow/workflow-file-utils';
+import {
+  writeWorkflowFile,
+  sliceFromReportHeading,
+} from '../../../services/workflow/workflow-file-utils';
 import { detectReplacementLoss } from '../../../utils/common/mojibake-detector';
+import { looksLogPolluted } from '../../../services/workflow/phase-output-validator';
 import { performAutoCommitAndPR } from '../workflow-auto-commit';
-import { evaluateCompletionGate } from '../../../services/workflow/completion-gate';
+import { resolveLandingMode } from '../../../services/workflow/automation-policy';
+import {
+  evaluateCompletionGate,
+  researchConcludesNoChange,
+} from '../../../services/workflow/completion-gate';
 import { recordTransition } from '../../../services/workflow/transition-recorder';
 import {
   checkWorkflowInvariants,
@@ -182,9 +190,23 @@ export async function handleSaveFile({
     // a phase that can legitimately produce that artifact.
     const ALLOWED_FILE_TYPES_BY_STATUS: Record<string, ReadonlySet<WorkflowFileType>> = {
       draft: new Set(['research', 'question']),
-      research_done: new Set(['plan', 'question', 'research']),
+      // 'verify' is allowed here for the LIGHTWEIGHT single-session flow
+      // (research→implement→verify, NO plan phase — e.g. conflict-resolution
+      // tasks): one agent reaches verify.md while workflowStatus is still
+      // research_done, because no plan phase ever advanced it to plan_approved.
+      // Without this the save is rejected and the agent must manually PUT
+      // /status to in_progress first. Forward-only; the completion gate
+      // (evaluateCompletionGate) still blocks completions with no real diff.
+      research_done: new Set(['plan', 'question', 'research', 'verify']),
       plan_created: new Set(['plan', 'question']),
-      plan_approved: new Set(['question']),
+      // 'verify' is allowed here for the dev-mode single-session flow: ONE agent
+      // does research→plan→implement→verify in a single run, so it reaches
+      // verify.md while workflowStatus is still plan_approved (no separate
+      // implementer PHASE ever advanced it to in_progress). Hard-rejecting it
+      // surfaced a ValidationError in the UI and stranded the run with no
+      // commit/PR. Forward-only; the completion gate (evaluateCompletionGate)
+      // still blocks completions that have no real code diff.
+      plan_approved: new Set(['verify', 'question']),
       in_progress: new Set(['verify', 'question']),
       // 質問待ち中も同じファイルが書ける（質問解消は別 API か question.md 削除で行う）
       awaiting_question: new Set(['research', 'plan', 'verify', 'question']),
@@ -292,6 +314,12 @@ export async function handleSaveFile({
       fileLanguage = parsedBody.language === 'en' ? 'en' : 'ja';
     }
 
+    // Strip any conversational preamble the agent wrote before the report body
+    // (e.g. "これで必要な調査が完了しました。以下がresearch.mdです。"). The .md
+    // should begin with its report heading; slice from there. No-op when a heading
+    // already leads or none is present.
+    content = sliceFromReportHeading(content, fileType);
+
     // Reject irreversible UTF-8 → '?' replacement mojibake. The original bytes are
     // gone, so there is nothing to "sanitise" — saving it would silently persist
     // garbage. Fail the save and tell the agent to re-send as UTF-8 (the
@@ -323,6 +351,36 @@ export async function handleSaveFile({
       };
     }
 
+    // Reject a "broken" md whose body is the agent's streamed execution log /
+    // stream-json rather than a real report. Persisting it would let a corrupted
+    // plan.md get auto-approved and implemented against (and reused on re-run).
+    // Don't write it, don't advance — the phase re-runs and regenerates a clean
+    // file. (verify validation has its own self-repair path; here we stop the
+    // garbage at the door for every file type.)
+    if (looksLogPolluted(content)) {
+      log.warn(
+        { taskId, fileType, currentStatus: currentStatusForGuard, chars: content.length },
+        '[Workflow] Rejected workflow file save: agent log/stream output leaked into the md',
+      );
+      await recordTransition({
+        taskId,
+        fromStatus: currentStatusForGuard,
+        toStatus: currentStatusForGuard,
+        actor: 'system',
+        cause: 'log_polluted_rejected',
+        phase: fileType,
+        metadata: { chars: content.length },
+        invariantViolation: true,
+        invariantMessage: `${fileType}.md rejected: agent execution log leaked into the file (broken artifact)`,
+      });
+      set.status = 422;
+      return {
+        error:
+          `${fileType}.md の内容に実行ログ/ストリーム出力が混入しています（壊れた成果物）。保存を中止しました。` +
+          `最終的なMarkdown本文のみ（ツールログ・[System:...]・stream-json を含めない）を保存してください。`,
+      };
+    }
+
     // Delegate to writeWorkflowFile so the previous version is archived to
     // `_archive/<ts>/` and a `WorkflowFile` metadata row is upserted. Mojibake
     // sanitisation runs inside writeWorkflowFile.
@@ -334,7 +392,24 @@ export async function handleSaveFile({
 
     log.info(`[Workflow] Processing fileType: ${fileType}, currentStatus: ${currentStatus}`);
 
-    if (fileType === 'research' && (!currentStatus || currentStatus === 'draft')) {
+    // Research concluded the requirement is ALREADY satisfied (explicit
+    // "修正不要" verdict). Complete the task directly from research — no plan.md,
+    // no implementation, no verify — so already-done work doesn't get a
+    // duplicate PR. Only valid while still in the research phase.
+    // NOTE: hypothesis/decision ledger seeding moved INTO writeWorkflowFile (the
+    // universal save choke point) so the auto-run path — which writes via
+    // writeWorkflowFile directly, bypassing this API route — also fires it.
+    // writeWorkflowFile was already called above to persist savedContent.
+    let researchCompleted = false;
+    if (
+      fileType === 'research' &&
+      (!currentStatus || currentStatus === 'draft' || currentStatus === 'research_done') &&
+      researchConcludesNoChange(savedContent)
+    ) {
+      log.info(`[Workflow] Research concluded no change needed — completing task ${taskId}`);
+      newStatus = 'completed';
+      researchCompleted = true;
+    } else if (fileType === 'research' && (!currentStatus || currentStatus === 'draft')) {
       log.info(`[Workflow] Research completed: setting newStatus to research_done`);
       newStatus = 'research_done';
     } else if (fileType === 'plan' && (!currentStatus || currentStatus === 'research_done')) {
@@ -428,7 +503,15 @@ export async function handleSaveFile({
     if (newStatus) {
       await prisma.task.update({
         where: { id: taskId },
-        data: { workflowStatus: newStatus, updatedAt: new Date() },
+        // Research-no-change completion also marks the task itself done.
+        data: researchCompleted
+          ? {
+              workflowStatus: newStatus,
+              status: 'done',
+              completedAt: new Date(),
+              updatedAt: new Date(),
+            }
+          : { workflowStatus: newStatus, updatedAt: new Date() },
       });
       // Record the transition + immediately verify invariants. We log
       // violations but DO NOT throw — the file was already saved on disk
@@ -446,7 +529,7 @@ export async function handleSaveFile({
         fromStatus: currentStatus ?? null,
         toStatus: newStatus,
         actor: 'system',
-        cause: `file_saved:${fileType}`,
+        cause: researchCompleted ? 'research_no_change_complete' : `file_saved:${fileType}`,
         phase: fileType,
         metadata: transitionMetadata,
         invariantViolation: violations.length > 0,
@@ -475,6 +558,28 @@ export async function handleSaveFile({
           },
           '[Workflow] Invariant violations detected after status update',
         );
+      }
+    }
+
+    // Research/plan critic gate (judge panel). After the artifact is saved and
+    // its status persisted, run independent critic lenses; on a FAIL verdict the
+    // artifact is archived and the workflow rolled back to regenerate it (bounded
+    // self-repair, mirroring the verify gate). Changing newStatus to the rollback
+    // target naturally skips the auto-split / auto-approve blocks below. env-gated
+    // (RAPITAS_PHASE_CRITIC); fail-open when critics are unavailable.
+    if (
+      (fileType === 'research' && newStatus === 'research_done') ||
+      (fileType === 'plan' && newStatus === 'plan_created')
+    ) {
+      const { applyPhaseCriticGate } = await import('../../../services/workflow/phase-critic');
+      const gate = await applyPhaseCriticGate({
+        taskId,
+        phase: fileType === 'research' ? 'research' : 'plan',
+        content: savedContent,
+        currentStatus: newStatus,
+      }).catch(() => ({ bounced: false }) as { bounced: boolean; newStatus?: string });
+      if (gate.bounced && gate.newStatus) {
+        newStatus = gate.newStatus;
       }
     }
 
@@ -554,7 +659,28 @@ export async function handleSaveFile({
     // Otherwise it's the silent-skip pattern (agent claimed work it never did —
     // empty diff, no commit) and we block for inspection instead of completing.
     let verifyGateBlocked = false;
-    if (fileType === 'verify' && newStatus === 'verify_done') {
+
+    // Conflict-resolution tasks (system-generated "PR #N の競合を解消", githubPrId
+    // set at CREATION) deliver their result by PUSHING to the EXISTING PR branch —
+    // not as a worktree diff or a new PR. The empty-diff gate, the adversarial
+    // diff-review, the scope check and the PR-required gate all assume "diff
+    // matches plan → publish a new PR", so they FALSELY bounce these tasks (the
+    // `git merge base` pulls the base branch's files into the worktree → scope NG
+    // (31 files) and a diff-vs-plan mismatch → verify_repair, looping forever even
+    // though the PR is already mergeable). Skip all those gates and complete on a
+    // passing verify; the target PR (task.githubPrId) already exists.
+    const conflictTask =
+      fileType === 'verify' && newStatus === 'verify_done'
+        ? await prisma.task
+            .findUnique({ where: { id: taskId }, select: { title: true, githubPrId: true } })
+            .catch(() => null)
+        : null;
+    const isConflictResolutionTask =
+      !!conflictTask &&
+      conflictTask.githubPrId != null &&
+      /^PR #\d+ の競合を解消/.test(conflictTask.title ?? '');
+
+    if (fileType === 'verify' && newStatus === 'verify_done' && !isConflictResolutionTask) {
       const gateSession = await prisma.agentSession
         .findFirst({
           where: { config: { taskId }, worktreePath: { not: null } },
@@ -568,37 +694,163 @@ export async function handleSaveFile({
       );
       if (!completionGate.allow) {
         verifyGateBlocked = true;
-        await prisma.task
-          .update({ where: { id: taskId }, data: { status: 'blocked', updatedAt: new Date() } })
-          .catch(() => {});
+        // Empty diff + no explicit "no change needed" justification. The FIRST
+        // time, block so a re-run can implement (or add the justification). But if
+        // the task has ALREADY hit verify_no_changes before, the implementer was
+        // given a chance and STILL produced no diff — the code is genuinely
+        // already correct / no change is needed. Per product requirement, complete
+        // it as 修正不要 and move on instead of leaving it stuck blocked forever.
+        const priorNoChange = await prisma.workflowTransition
+          .count({ where: { taskId, cause: 'verify_no_changes' } })
+          .catch(() => 0);
+
+        if (priorNoChange >= 1) {
+          await prisma.task
+            .update({
+              where: { id: taskId },
+              data: { status: 'done', workflowStatus: 'completed', completedAt: new Date() },
+            })
+            .catch(() => {});
+          await recordTransition({
+            taskId,
+            fromStatus: 'verify_done',
+            toStatus: 'completed',
+            actor: 'system',
+            cause: 'verify_no_change_confirmed',
+            phase: 'verify',
+            metadata: { reason: completionGate.reason, priorNoChange },
+          });
+          log.info(
+            { taskId, priorNoChange },
+            '[Workflow] Empty diff confirmed across attempts — completing as no-change-needed (修正不要), moving on.',
+          );
+        } else {
+          await prisma.task
+            .update({ where: { id: taskId }, data: { status: 'blocked', updatedAt: new Date() } })
+            .catch(() => {});
+          await recordTransition({
+            taskId,
+            fromStatus: 'verify_done',
+            toStatus: 'verify_done',
+            actor: 'verifier',
+            cause: 'verify_no_changes',
+            phase: 'verify',
+            metadata: { reason: completionGate.reason },
+            invariantViolation: true,
+            invariantMessage:
+              '検証は通過しましたが、実装による変更がありません（verify.md に「変更不要の理由」の明記もなし）。暗黙的な完了を防ぐためタスクをブロックしました。',
+          });
+          log.warn(
+            { taskId, reason: completionGate.reason },
+            '[Workflow] verify passed but no code changes and no justification — blocking (1st time; re-run may implement or justify)',
+          );
+        }
+      }
+    }
+
+    // Independent adversarial diff review: a separate judge (ideally a different
+    // provider than the implementer) scores the ACTUAL diff against plan +
+    // acceptance criteria, catching wrong/incomplete implementations that the
+    // self-reported verify.md misses. On a FAIL verdict, bounce the workflow back
+    // to the implementer (self-repair loop) instead of completing. Fail-open: an
+    // unavailable judge ('unknown') does not block.
+    if (
+      fileType === 'verify' &&
+      newStatus === 'verify_done' &&
+      !verifyGateBlocked &&
+      !isConflictResolutionTask
+    ) {
+      const reviewSession = await prisma.agentSession
+        .findFirst({
+          where: { config: { taskId }, worktreePath: { not: null } },
+          orderBy: { createdAt: 'desc' },
+          select: { worktreePath: true },
+        })
+        .catch(() => null);
+      const { reviewDiffAdversarially } =
+        await import('../../../services/agents/verification/adversarial-diff-review');
+      const review = await reviewDiffAdversarially({
+        taskId,
+        worktreePath: reviewSession?.worktreePath,
+      }).catch(() => null);
+
+      if (review && review.verdict === 'fail') {
+        verifyGateBlocked = true;
+        const reason = `差分レビュー不合格: ${
+          review.reasons.slice(0, 5).join(' / ') || '受入基準を満たしていません'
+        }`;
+        const { attemptVerifyRepair } =
+          await import('../../../services/workflow/verify-self-repair');
+        const repair = await attemptVerifyRepair(taskId, 'verify_done', reason, savedContent).catch(
+          () => ({ bounced: false }) as Awaited<ReturnType<typeof attemptVerifyRepair>>,
+        );
+        if (repair.bounced && repair.newStatus) {
+          await prisma.task
+            .update({ where: { id: taskId }, data: { workflowStatus: repair.newStatus } })
+            .catch(() => {});
+          newStatus = repair.newStatus;
+          log.warn(
+            { taskId, attempt: repair.attempt, severity: review.severity },
+            '[Workflow] Adversarial diff review FAILED — bounced to implementer for self-repair',
+          );
+        } else {
+          await markLatestExecutionFailed(taskId, reason);
+          log.warn(
+            { taskId, severity: review.severity },
+            '[Workflow] Adversarial diff review FAILED and repairs exhausted — task stays blocked',
+          );
+        }
         await recordTransition({
           taskId,
           fromStatus: 'verify_done',
-          toStatus: 'verify_done',
-          actor: 'verifier',
-          cause: 'verify_no_changes',
+          toStatus: newStatus,
+          actor: 'system',
+          cause: 'adversarial_review_failed',
           phase: 'verify',
-          metadata: { reason: completionGate.reason },
+          metadata: { severity: review.severity, reasons: review.reasons.slice(0, 5) },
           invariantViolation: true,
-          invariantMessage:
-            '検証は通過しましたが、実装による変更がありません（verify.md に「変更不要の理由」の明記もなし）。暗黙的な完了を防ぐためタスクをブロックしました。',
-        });
-        log.warn(
-          { taskId, reason: completionGate.reason },
-          '[Workflow] verify passed but no code changes and no justification — blocking instead of completing',
-        );
+          invariantMessage: reason,
+        }).catch(() => {});
       }
     }
 
     let autoCommitPRResult: Awaited<ReturnType<typeof performAutoCommitAndPR>> = {};
     let taskMarkedDone = false;
-    if (fileType === 'verify' && newStatus === 'verify_done' && !verifyGateBlocked) {
-      // Best-effort commit/PR/merge — never block completion on its outcome.
+    if (
+      fileType === 'verify' &&
+      newStatus === 'verify_done' &&
+      !verifyGateBlocked &&
+      isConflictResolutionTask
+    ) {
+      // Conflict-resolution task: the fix was already pushed to the existing PR
+      // branch, so there is no new commit/PR to make and the scope check does not
+      // apply. Complete directly — the PR (task.githubPrId) is what carries the work.
+      await prisma.task
+        .update({
+          where: { id: taskId },
+          data: { status: 'done', workflowStatus: 'completed', completedAt: new Date() },
+        })
+        .catch(() => {});
+      taskMarkedDone = true;
+      await recordTransition({
+        taskId,
+        fromStatus: 'verify_done',
+        toStatus: 'completed',
+        actor: 'system',
+        cause: 'conflict_resolution_completed',
+        phase: 'verify',
+        metadata: { prNumber: conflictTask?.githubPrId },
+      });
+      log.info(
+        { taskId, prNumber: conflictTask?.githubPrId },
+        '[Workflow] Conflict-resolution task completed (work pushed to PR branch; commit/PR/scope gates skipped).',
+      );
+    } else if (fileType === 'verify' && newStatus === 'verify_done' && !verifyGateBlocked) {
+      // Run commit/PR/merge. Completion is GATED on its outcome: the task only
+      // completes when a PR was created (or already exists), or when no PR was
+      // requested. See the gate in the success branch below.
       autoCommitPRResult = await performAutoCommitAndPR(taskId, savedContent).catch((err) => {
-        log.warn(
-          { err, taskId },
-          '[Workflow] Auto-commit/PR failed (non-fatal); completing anyway',
-        );
+        log.warn({ err, taskId }, '[Workflow] Auto-commit/PR threw');
         return {} as Awaited<ReturnType<typeof performAutoCommitAndPR>>;
       });
       const commit = autoCommitPRResult.autoCommitResult;
@@ -606,75 +858,213 @@ export async function handleSaveFile({
       const merge = autoCommitPRResult.autoMergeResult;
 
       if (autoCommitPRResult.verificationBlocked) {
-        // The automated verification gate found NEW lint/type errors in the
-        // agent's changes and already marked the task `blocked`. Do NOT overwrite
-        // that with done/completed — the commit/PR were correctly withheld, and
-        // marking it completed here is what produced the confusing "完了 but no
-        // commit, status still stuck" reports. Keep it blocked for the user.
-        verifyGateBlocked = true;
-        await markLatestExecutionFailed(
+        // The automated gate (lint / typecheck / test / scope) found problems in
+        // the agent's changes, so commit/PR were withheld. Rather than dead-end
+        // at `blocked`, bounce back to the implementer with the failure as
+        // feedback so it FIXES the issue and re-verifies (self-improvement loop,
+        // bounded by RAPITAS_MAX_VERIFY_REPAIRS). Block only once exhausted.
+        verifyGateBlocked = true; // either way, do not mark done/PR this pass
+        const gateReason =
+          autoCommitPRResult.error ?? '自動検証に失敗しました（lint/型/テスト/スコープ）。';
+        const { attemptVerifyRepair } =
+          await import('../../../services/workflow/verify-self-repair');
+        const repair = await attemptVerifyRepair(
           taskId,
-          autoCommitPRResult.error ?? '自動検証に失敗したため、コミット/PR を中止しました。',
-        );
-        log.warn(
-          { taskId, reason: autoCommitPRResult.error },
-          '[Workflow] Automated verification blocked — task stays blocked (not completed), no commit/PR.',
-        );
+          'verify_done',
+          gateReason,
+          savedContent,
+        ).catch(() => ({ bounced: false }) as Awaited<ReturnType<typeof attemptVerifyRepair>>);
+
+        if (repair.bounced && repair.newStatus) {
+          // Roll workflowStatus back to the implementer entry so the runner
+          // re-runs implement → verify. attemptVerifyRepair already set
+          // task.status='in-progress' and wrote the failure into question.md.
+          await prisma.task
+            .update({ where: { id: taskId }, data: { workflowStatus: repair.newStatus } })
+            .catch(() => {});
+          newStatus = repair.newStatus;
+          log.warn(
+            { taskId, attempt: repair.attempt, reason: gateReason },
+            '[Workflow] Verification gate failed — bounced to implementer for self-repair',
+          );
+        } else {
+          await markLatestExecutionFailed(taskId, gateReason);
+          log.warn(
+            { taskId, reason: gateReason },
+            '[Workflow] Verification gate failed and self-repairs exhausted — task stays blocked, no commit/PR.',
+          );
+        }
       } else {
-        await prisma.task.update({
-          where: { id: taskId },
-          data: { status: 'done', workflowStatus: 'completed', completedAt: new Date() },
-        });
-        taskMarkedDone = true;
-        await recordTransition({
-          taskId,
-          fromStatus: 'verify_done',
-          toStatus: 'completed',
-          actor: 'system',
-          cause: 'verify_passed',
-          phase: 'verify',
-          metadata: { commit: commit?.success, pr: pr?.success, merge: merge?.success },
-        });
-        log.info(
-          { taskId, commitOk: commit?.success, prOk: pr?.success, mergeOk: merge?.success },
-          '[Workflow] verify.md passed — task marked done/completed (PR best-effort).',
-        );
+        // Completion REQUIRES a successfully created PR (user request): a passing
+        // verify is no longer enough — the change must reach a PR. Exceptions:
+        //   - PR creation was not requested (autoCreatePR off), or
+        //   - a PR already exists for this task (app-linked or task.githubPrId).
+        const prRequested = autoCommitPRResult.requested
+          ? autoCommitPRResult.requested.autoCreatePR
+          : true; // requested unset (e.g. threw) → default flow expects a PR
+        let prSatisfied = pr?.success === true;
+        if (prRequested && !prSatisfied) {
+          const linked = await prisma.gitHubPullRequest
+            .findFirst({ where: { linkedTaskId: taskId }, select: { id: true } })
+            .catch(() => null);
+          if (linked) {
+            prSatisfied = true;
+          } else {
+            const taskRow = await prisma.task
+              .findUnique({ where: { id: taskId }, select: { githubPrId: true } })
+              .catch(() => null);
+            prSatisfied = taskRow?.githubPrId != null;
+          }
+        }
+
+        if (prRequested && !prSatisfied) {
+          // Verify passed but no PR was produced — do NOT complete. Keep the task
+          // actionable (blocked) and surface why, so "完了" always implies a PR.
+          const reason =
+            pr?.error || commit?.error || autoCommitPRResult.error || 'PRが作成されませんでした';
+          await prisma.task
+            .update({ where: { id: taskId }, data: { status: 'blocked', updatedAt: new Date() } })
+            .catch(() => {});
+          await markLatestExecutionFailed(
+            taskId,
+            `検証は通過しましたがPRが作成されませんでした: ${reason}。完了にはPR作成が必要です。`,
+          );
+          await recordTransition({
+            taskId,
+            fromStatus: 'verify_done',
+            toStatus: 'verify_done',
+            actor: 'system',
+            cause: 'verify_pr_not_created',
+            phase: 'verify',
+            metadata: {
+              commit: commit?.success,
+              prError: pr?.error,
+              error: autoCommitPRResult.error,
+            },
+            invariantViolation: true,
+            invariantMessage:
+              '検証通過後にPRが作成されませんでした。PR作成成功まで完了にしません。',
+          });
+          log.warn(
+            {
+              taskId,
+              prError: pr?.error,
+              commitOk: commit?.success,
+              error: autoCommitPRResult.error,
+            },
+            '[Workflow] verify passed but no PR created — NOT completing (completion requires a PR).',
+          );
+        } else {
+          // Staged completion: when changes land via a PR, completion is NOT at
+          // PR creation — `pr` mode completes when the PR's CI goes green, `merge`
+          // mode completes when the PR is merged. The PR-completion watcher
+          // advances those. Only `commit`/`none` complete here. Gated OFF by
+          // default so existing deployments keep the verify-time completion until
+          // they opt in (RAPITAS_STAGED_COMPLETION=true) + restart.
+          const staged =
+            process.env.RAPITAS_STAGED_COMPLETION === 'true' ||
+            process.env.RAPITAS_STAGED_COMPLETION === '1';
+          const landingMode = autoCommitPRResult.requested
+            ? resolveLandingMode(autoCommitPRResult.requested)
+            : 'none';
+          if (staged && (landingMode === 'pr' || landingMode === 'merge')) {
+            // Hold at verify_done (status stays in-progress, NOT done). The watcher
+            // completes on CI-green (pr) / merge (merge). Do not fire completion
+            // side effects yet (taskMarkedDone stays false).
+            await recordTransition({
+              taskId,
+              fromStatus: 'verify_done',
+              toStatus: 'verify_done',
+              actor: 'system',
+              cause: 'verify_passed_awaiting_ci',
+              phase: 'verify',
+              metadata: { landingMode, pr: pr?.success, prNumber: pr?.prNumber },
+            });
+            log.info(
+              { taskId, landingMode, prNumber: pr?.prNumber },
+              '[Workflow] verify passed + PR created — completion deferred to CI/merge (staged completion).',
+            );
+          } else {
+            await prisma.task.update({
+              where: { id: taskId },
+              data: { status: 'done', workflowStatus: 'completed', completedAt: new Date() },
+            });
+            taskMarkedDone = true;
+            await recordTransition({
+              taskId,
+              fromStatus: 'verify_done',
+              toStatus: 'completed',
+              actor: 'system',
+              cause: 'verify_passed',
+              phase: 'verify',
+              metadata: { commit: commit?.success, pr: pr?.success, merge: merge?.success },
+            });
+            log.info(
+              { taskId, commitOk: commit?.success, prOk: pr?.success, mergeOk: merge?.success },
+              '[Workflow] verify.md passed AND PR satisfied — task marked done/completed.',
+            );
+          }
+        }
       }
 
-      // Collect workflow learning data asynchronously (fire-and-forget)
-      recordWorkflowCompletion(taskId).catch((err) => {
-        log.error({ err, taskId }, 'Failed to record workflow learning data');
-      });
+      // Post-completion side effects only when the task ACTUALLY completed (not
+      // when it was bounced for self-repair or held for a missing PR).
+      if (taskMarkedDone) {
+        // Record the outcome for telemetry + adaptive routing (fire-and-forget).
+        import('../../../services/workflow/outcome-telemetry')
+          .then(({ recordTaskOutcome }) => recordTaskOutcome(taskId, 'completed'))
+          .catch(() => {});
 
-      // Auto-extract knowledge on task completion (async)
-      extractKnowledgeFromTask(taskId).catch((err) => {
-        log.error({ err, taskId }, 'Failed to extract knowledge from task');
-      });
+        // Collect workflow learning data asynchronously (fire-and-forget)
+        recordWorkflowCompletion(taskId).catch((err) => {
+          log.error({ err, taskId }, 'Failed to record workflow learning data');
+        });
 
-      // Extract improvement ideas for IdeaBox (async, Ollama-first)
-      import('../../../services/memory/idea-extractor')
-        .then(({ extractIdeasFromExecutionLog }) => {
-          extractIdeasFromExecutionLog(taskId, savedContent).catch((err) => {
-            log.error({ err, taskId }, 'Failed to extract ideas from task');
-          });
-        })
-        .catch(() => {});
+        // Auto-extract knowledge on task completion (async)
+        extractKnowledgeFromTask(taskId).catch((err) => {
+          log.error({ err, taskId }, 'Failed to extract knowledge from task');
+        });
 
-      // Record reasoning trace for temporal debugging (async)
-      import('../../../services/analytics/temporal-debugger')
-        .then(({ recordReasoningTrace }) => {
-          // Find the latest execution for this task to record its trace
-          prisma.agentExecution
-            .findFirst({
-              where: { session: { config: { taskId } }, status: 'completed' },
-              orderBy: { completedAt: 'desc' },
-            })
-            .then((exec) => {
-              if (exec) recordReasoningTrace(exec.id).catch(() => {});
-            })
-            .catch(() => {});
-        })
-        .catch(() => {});
+        // Extract improvement ideas for IdeaBox (async, Ollama-first)
+        import('../../../services/memory/idea-extractor')
+          .then(({ extractIdeasFromExecutionLog }) => {
+            extractIdeasFromExecutionLog(taskId, savedContent).catch((err) => {
+              log.error({ err, taskId }, 'Failed to extract ideas from task');
+            });
+          })
+          .catch(() => {});
+
+        // Record reasoning trace for temporal debugging (async)
+        import('../../../services/analytics/temporal-debugger')
+          .then(({ recordReasoningTrace }) => {
+            // Find the latest execution for this task to record its trace
+            prisma.agentExecution
+              .findFirst({
+                where: { session: { config: { taskId } }, status: 'completed' },
+                orderBy: { completedAt: 'desc' },
+              })
+              .then((exec) => {
+                if (exec) recordReasoningTrace(exec.id).catch(() => {});
+              })
+              .catch(() => {});
+          })
+          .catch(() => {});
+      }
+    }
+
+    // Telemetry: a verify save that left the task BLOCKED by any gate (NOT a
+    // self-repair bounce — those leave it in-progress for a re-run) is recorded
+    // as a blocked outcome, so the per-theme difficulty signal reflects failures
+    // as well as successes.
+    if (fileType === 'verify' && !taskMarkedDone) {
+      const cur = await prisma.task
+        .findUnique({ where: { id: taskId }, select: { status: true } })
+        .catch(() => null);
+      if (cur?.status === 'blocked') {
+        import('../../../services/workflow/outcome-telemetry')
+          .then(({ recordTaskOutcome }) => recordTaskOutcome(taskId, 'blocked'))
+          .catch(() => {});
+      }
     }
 
     // Build response

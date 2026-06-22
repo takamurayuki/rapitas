@@ -104,8 +104,12 @@ vi.mock('@/utils/api', () => ({
   API_BASE_URL: 'http://localhost:3001',
 }));
 
-// Mock lucide-react icons used in Header
-vi.mock('lucide-react', () => {
+// Mock lucide-react. Header's subtree imports many icons (and gains more over
+// time), so an explicit allowlist went stale and crashed all tests ("No
+// GanttChartSquare export defined"). Stub EVERY real lucide export, keeping the
+// explicit test-ids the assertions below rely on.
+vi.mock('lucide-react', async (importOriginal) => {
+  const actual = (await importOriginal()) as Record<string, unknown>;
   const createIcon = (name: string) => {
     const Icon = ({ className }: { className?: string }) => (
       <div data-testid={name} className={className} />
@@ -113,7 +117,7 @@ vi.mock('lucide-react', () => {
     Icon.displayName = name;
     return Icon;
   };
-  return {
+  const icons: Record<string, ReturnType<typeof createIcon>> = {
     Menu: createIcon('menu-icon'),
     Home: createIcon('home-icon'),
     Columns3: createIcon('columns3-icon'),
@@ -139,7 +143,6 @@ vi.mock('lucide-react', () => {
     Bot: createIcon('bot-icon'),
     CheckCircle: createIcon('check-circle-icon'),
     Settings: createIcon('settings-icon'),
-    Github: createIcon('github-icon'),
     GitPullRequest: createIcon('git-pull-request-icon'),
     CircleDot: createIcon('circle-dot-icon'),
     Code: createIcon('code-icon'),
@@ -161,6 +164,13 @@ vi.mock('lucide-react', () => {
     Package: createIcon('package-icon'),
     Lightbulb: createIcon('lightbulb-icon'),
   };
+  // Stub every real lucide export (so a newly-imported icon never breaks this
+  // mock), keeping the explicit test-ids above for the icons assertions target.
+  const mocked: Record<string, unknown> = {};
+  for (const key of Object.keys(actual)) {
+    mocked[key] = icons[key] ?? createIcon(`${key}-icon`);
+  }
+  return { ...mocked, ...icons };
 });
 
 // Mock window.dispatchEvent

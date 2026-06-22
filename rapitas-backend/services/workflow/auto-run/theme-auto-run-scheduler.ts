@@ -21,6 +21,9 @@ import { WorkflowQueueService } from '../workflow-queue';
 import { WorkflowRunner } from '../workflow-runner';
 import { AgentWorkerManager } from '../../agents/agent-worker-manager';
 import { realtimeService } from '../../communication/realtime-service';
+import { promoteBacklogForTheme, hasPromotableBacklog } from './backlog-task-promoter';
+import { recordStartupCommit, maybeRestartForUpdate } from './dev-restart-on-dry';
+import { logCycleEvent } from '../../observability';
 import {
   AUTO_RUN_GLOBAL_MAX_CONCURRENCY,
   POLL_INTERVAL_MS,
@@ -41,6 +44,8 @@ import {
   resumeAutoRun,
   finalizeStop,
   getAutoRunState,
+  startAutoRun,
+  type ThemeAutoRunState,
 } from './theme-auto-run-service';
 import {
   notifyAwaitingPlanApproval,
@@ -75,6 +80,10 @@ export class ThemeAutoRunScheduler {
     // startProcessing() is idempotent, so calling it on every start() is safe.
     WorkflowRunner.getInstance().startProcessing();
 
+    // Capture the commit this backend booted on so the optional dry-restart only
+    // fires once new commits actually land (avoids restarting on every dry tick).
+    void recordStartupCommit();
+
     if (this.running) return;
     this.running = true;
     this.tick();
@@ -95,10 +104,18 @@ export class ThemeAutoRunScheduler {
 
   /**
    * Recover on server restart:
-   *  - Any ThemeAutoRun still in 'running' status when the server crashed
-   *    should be resumed (the WorkflowQueueService already re-queues stale items).
+   *  - Any ThemeAutoRun still in 'running'/'paused' OR idle-but-ARMED
+   *    (enabled:true) should resume — start the scheduler so its tick drives them.
    *  - 'stopping' records are cleaned up (the previous execution was killed by
    *    the restart; treat as idle).
+   *
+   * CRITICAL for the perpetual loop: an `all_done` theme parks at status:'idle'
+   * with enabled:true (armed) waiting for processIdleThemes to auto-resume it when
+   * work reappears. But processIdleThemes only runs while the scheduler is
+   * TICKING. If recovery resumed only 'running'/'paused', ANY restart while a
+   * theme was idle (including the self-deploy restart, which fires precisely at
+   * the 0-agent all_done quiet point) would leave the scheduler stopped and the
+   * loop permanently dead. Resuming on enabled:true closes that self-defeating gap.
    */
   async recoverOnStartup(): Promise<void> {
     // Clean up 'stopping' records left from a crash during stop
@@ -108,8 +125,13 @@ export class ThemeAutoRunScheduler {
     });
 
     const running = await findByStatuses(['running', 'paused']);
-    if (running.length > 0) {
-      log.info(`[ThemeAutoRunScheduler] Resuming ${running.length} theme(s) after restart`);
+    const armed = await prisma.themeAutoRun
+      .count({ where: { enabled: true, status: 'idle' } })
+      .catch(() => 0);
+    if (running.length > 0 || armed > 0) {
+      log.info(
+        `[ThemeAutoRunScheduler] Resuming after restart (running/paused=${running.length}, armed-idle=${armed})`,
+      );
       this.start();
     }
   }
@@ -144,32 +166,97 @@ export class ThemeAutoRunScheduler {
   private async tick(): Promise<void> {
     if (!this.running) return;
     try {
-      await this.processStoppingThemes();
-      await this.processRunningThemes();
-      await this.processPausedThemes();
+      // NOTE: Single query for all statuses; split in JS to avoid 4 DB roundtrips per tick.
+      const allStates = await findByStatuses(['stopping', 'running', 'paused', 'idle']);
+      const byStatus = (s: string) => allStates.filter((r) => r.status === s);
+
+      await this.processStoppingThemes(byStatus('stopping'));
+      await this.processRunningThemes(byStatus('running'));
+      await this.processPausedThemes(byStatus('paused'));
+      await this.processIdleThemes(byStatus('idle'));
+
+      // Apply committed fixes during the brief 0-agent gap BETWEEN tasks. The
+      // all_done branch alone (advanceTheme → maybeRestartForUpdate) missed this:
+      // with auto-create refilling the queue the theme rarely reaches all_done,
+      // and even then the just-finished agent's count still lagged > 0, so the
+      // restart was skipped and fixes NEVER auto-deployed (observed: cycles=0
+      // while monitoring). Poll it here instead — maybeRestartForUpdate restarts
+      // ONLY when (a) no agent is executing (active==0 → a RUNNING agent is never
+      // interrupted), (b) a theme is still enabled (a STOPPED system, enabled:0,
+      // never self-reboots — the original reason this was removed is now covered
+      // by that gate), (c) HEAD moved past the startup commit, and (d) the 10-min
+      // rate limit allows it. That is exactly "apply when idle + something new,
+      // without disturbing work".
+      await maybeRestartForUpdate(0);
     } catch (err) {
       log.error({ err }, '[ThemeAutoRunScheduler] Tick error');
     }
   }
 
   /** Handle themes in 'stopping' status: cancel queue items and stop the agent. */
-  private async processStoppingThemes(): Promise<void> {
-    const stopping = await findByStatuses(['stopping']);
+  private async processStoppingThemes(stopping: ThemeAutoRunState[]): Promise<void> {
     for (const state of stopping) {
       try {
         await this.stopThemeExecution(state.themeId, state.currentTaskId);
         await finalizeStop(state.themeId);
         this.broadcastAutoRunUpdate(state.themeId);
         log.info(`[ThemeAutoRunScheduler] Theme ${state.themeId} stopped`);
+        logCycleEvent('theme.stopped', {
+          theme: state.themeId,
+          task: state.currentTaskId ?? undefined,
+          msg: 'auto-run stopped by user',
+        });
       } catch (err) {
         log.error({ err }, `[ThemeAutoRunScheduler] Error stopping theme ${state.themeId}`);
       }
     }
   }
 
+  /**
+   * Auto-resume themes that completed all work and went idle-but-ARMED
+   * (enabled:true) once new work appears — a fresh todo task, or a backlog item
+   * that can now be promoted (a backlog job added a concern/idea, or a freed cap
+   * slot). This is what makes auto-run self-sustaining instead of dying at the
+   * first dry. A USER stop leaves enabled:false and is never auto-resumed.
+   */
+  private async processIdleThemes(idle: ThemeAutoRunState[]): Promise<void> {
+    for (const state of idle) {
+      if (!state.enabled) continue; // user-stopped → stay stopped
+      try {
+        // Mirror selectNextTask's eligibility (parentId:null — the scheduler only
+        // drives TOP-LEVEL tasks; subtasks are run by AIOrchestra). Counting
+        // subtasks here let a stuck todo SUBTASK resume the theme, which then went
+        // straight back to all_done because selection skips it — a 12s idle⇄running
+        // flap that never made progress.
+        const todo = await prisma.task
+          .count({ where: { themeId: state.themeId, status: 'todo', parentId: null } })
+          .catch(() => 0);
+        const hasWork = todo > 0 || (await hasPromotableBacklog(state.themeId));
+        if (!hasWork) continue;
+
+        await startAutoRun(state.themeId);
+        this.broadcastAutoRunUpdate(state.themeId);
+        log.info(
+          { themeId: state.themeId, todo },
+          '[ThemeAutoRunScheduler] new work appeared — auto-resumed idle theme',
+        );
+        logCycleEvent('theme.resumed', {
+          theme: state.themeId,
+          todo,
+          cause: todo > 0 ? 'new_todo' : 'backlog_promotable',
+          msg: 'idle theme auto-resumed (new work appeared)',
+        });
+      } catch (err) {
+        log.warn(
+          { err, themeId: state.themeId },
+          '[ThemeAutoRunScheduler] idle auto-resume failed',
+        );
+      }
+    }
+  }
+
   /** For paused themes, check whether approval was granted and auto-resume. */
-  private async processPausedThemes(): Promise<void> {
-    const paused = await findByStatuses(['paused']);
+  private async processPausedThemes(paused: ThemeAutoRunState[]): Promise<void> {
     for (const state of paused) {
       if (!state.currentTaskId) continue;
       try {
@@ -202,8 +289,7 @@ export class ThemeAutoRunScheduler {
   }
 
   /** Core logic: advance running themes to their next task. */
-  private async processRunningThemes(): Promise<void> {
-    const running = await findByStatuses(['running']);
+  private async processRunningThemes(running: ThemeAutoRunState[]): Promise<void> {
     if (running.length === 0) return;
 
     const globalActive = await getGlobalAutoRunActiveCount(prisma);
@@ -256,6 +342,14 @@ export class ThemeAutoRunScheduler {
             MAX_TASK_WALL_MS / 60000,
           )}min) — force-stopping (theme ${themeId})`,
         );
+        logCycleEvent('task.hang_backstop', {
+          theme: themeId,
+          task: currentTaskId,
+          ok: false,
+          cause: 'wall_budget_exceeded',
+          wallMinutes: Math.round(MAX_TASK_WALL_MS / 60000),
+          msg: 'task force-stopped by hang backstop',
+        });
         await this.stopThemeExecution(themeId, currentTaskId);
         await prisma.task
           .update({ where: { id: currentTaskId }, data: { status: 'blocked' } })
@@ -279,6 +373,12 @@ export class ThemeAutoRunScheduler {
           await onAwaitingPlanApproval(themeId);
           await notifyAwaitingPlanApproval(themeId, currentTaskId);
           this.broadcastAutoRunUpdate(themeId);
+          logCycleEvent('task.awaiting_approval', {
+            theme: themeId,
+            task: currentTaskId,
+            cause: 'plan_approval_gate',
+            msg: 'theme paused — plan awaiting approval',
+          });
         }
         // queued / running → still working; wait for the next tick.
         return;
@@ -318,6 +418,13 @@ export class ThemeAutoRunScheduler {
       if (isCompleted) {
         await onTaskCompleted(themeId);
         this.broadcastAutoRunUpdate(themeId);
+        logCycleEvent('task.completed', {
+          theme: themeId,
+          task: currentTaskId,
+          ok: true,
+          via: terminalItem?.status === 'completed' ? 'queue_item' : 'task_status',
+          msg: 'task completed — advancing to next',
+        });
         await new Promise((r) => setTimeout(r, COOLDOWN_MS));
         await this.advanceTheme(themeId, null, order, Math.max(0, globalActive - 1), null);
         return;
@@ -334,6 +441,12 @@ export class ThemeAutoRunScheduler {
           );
           await notifyAwaitingUserAnswer(themeId, currentTaskId);
           this.broadcastAutoRunUpdate(themeId);
+          logCycleEvent('task.awaiting_answer', {
+            theme: themeId,
+            task: currentTaskId,
+            cause: 'ask_user_question',
+            msg: 'theme holding — task awaiting user answer',
+          });
           return;
         }
         const errMsg = terminalItem?.errorMessage ?? `Task ${currentTaskId} failed or was blocked`;
@@ -346,6 +459,13 @@ export class ThemeAutoRunScheduler {
         await onTaskFailed(themeId, errMsg);
         await notifyTaskSkipped(themeId, currentTaskId, errMsg);
         this.broadcastAutoRunUpdate(themeId);
+        logCycleEvent('task.blocked', {
+          theme: themeId,
+          task: currentTaskId,
+          ok: false,
+          cause: terminalItem?.status ?? 'blocked',
+          msg: errMsg.slice(0, 200),
+        });
         await new Promise((r) => setTimeout(r, COOLDOWN_MS));
         await this.advanceTheme(themeId, null, order, Math.max(0, globalActive - 1), null);
         return;
@@ -385,16 +505,61 @@ export class ThemeAutoRunScheduler {
     });
     skipIds.push(...blockedTasks.map((t) => t.id));
 
+    // Self-deploy at the TASK BOUNDARY (event-driven). We reach here only between
+    // tasks — the prior one finished and the next is not yet selected — so it is a
+    // reliable 0-agent moment. The tick poll and the all_done branch both MISSED
+    // continuous auto-run: with auto-create refilling the queue the theme rarely
+    // reaches all_done, and the inter-task gap is shorter than the tick can sample
+    // (observed: 0 restarts over 30 min while HEAD had moved). Firing it HERE
+    // catches every task boundary. No-op unless HEAD moved + no live agents + not
+    // rate-limited; if it restarts, the process exits and dev.js relaunches.
+    if (await maybeRestartForUpdate(themeId)) return;
+
     const result = await selectNextTask(prisma, themeId, order, skipIds, globalActive);
 
     if (!result.found) {
       if (result.reason === 'all_done') {
-        // All tasks for this theme are done — set to idle
+        // Optional dev safety: when enabled, this quiet point (no live agents) is
+        // the safe moment to restart and pick up committed fixes BEFORE creating
+        // more tasks. Only fires when HEAD moved since boot + no agents anywhere +
+        // not rate-limited; otherwise it's a no-op. If it restarts, stop here.
+        if (await maybeRestartForUpdate(themeId)) return;
+
+        // Before idling, refill from the backlog (open concerns first, then ideas
+        // once concerns are clear) up to the per-theme cap, so a theme that ran
+        // out of work keeps progressing. When tasks were created, stay active —
+        // the next tick selects them.
+        const created = await promoteBacklogForTheme(themeId).catch((err) => {
+          log.warn({ err, themeId }, '[ThemeAutoRunScheduler] Backlog promotion failed');
+          return 0;
+        });
+        if (created > 0) {
+          log.info(
+            `[ThemeAutoRunScheduler] Theme ${themeId} — promoted ${created} backlog task(s); staying active`,
+          );
+          logCycleEvent('backlog.refill', {
+            theme: themeId,
+            created,
+            msg: 'refilled from backlog — staying active',
+          });
+          this.broadcastAutoRunUpdate(themeId);
+          return;
+        }
+        // All tasks done and backlog empty/capped/disabled — go idle but stay
+        // ARMED (enabled:true) so processIdleThemes auto-resumes when new work
+        // appears (a backlog job adds a concern/idea, or a freed cap slot lets a
+        // promotion happen). A USER stop sets enabled:false (finalizeStop) and is
+        // therefore never auto-resumed. This closes the perpetual loop.
         await prisma.themeAutoRun.updateMany({
           where: { themeId },
-          data: { status: 'idle', enabled: false, currentTaskId: null },
+          data: { status: 'idle', enabled: true, currentTaskId: null },
         });
-        log.info(`[ThemeAutoRunScheduler] Theme ${themeId} — all tasks done, set to idle`);
+        log.info(`[ThemeAutoRunScheduler] Theme ${themeId} — all tasks done, idle (armed)`);
+        logCycleEvent('theme.idle', {
+          theme: themeId,
+          cause: 'all_done_backlog_empty',
+          msg: 'all tasks done, idle but armed (awaiting new work)',
+        });
         await notifyAllDone(themeId);
         this.broadcastAutoRunUpdate(themeId);
       }
@@ -403,12 +568,34 @@ export class ThemeAutoRunScheduler {
 
     const taskId = result.taskId;
 
+    // A re-run (a 'todo' task whose workflowStatus is a stale terminal state from
+    // a prior run) has no forward transition from verify_done/completed — reset
+    // it to 'draft' so the workflow actually re-runs (research/plan are reused
+    // via isReusableArtifact, so this is cheap). Without this the task would be
+    // dequeued and immediately fail "cannot advance from verify_done".
+    const picked = await prisma.task
+      .findUnique({ where: { id: taskId }, select: { workflowStatus: true } })
+      .catch(() => null);
+    if (picked?.workflowStatus === 'verify_done' || picked?.workflowStatus === 'completed') {
+      await prisma.task
+        .update({ where: { id: taskId }, data: { workflowStatus: 'draft' } })
+        .catch(() => {});
+      log.info(
+        `[ThemeAutoRunScheduler] Task ${taskId} re-run — reset stale workflowStatus ${picked.workflowStatus} → draft`,
+      );
+    }
+
     // Enqueue via WorkflowQueueService with themeId set
     try {
       await this.queue.enqueue({ taskId, themeId, priority: 50 });
       await setCurrentTask(themeId, taskId);
       this.broadcastAutoRunUpdate(themeId);
       log.info(`[ThemeAutoRunScheduler] Enqueued task ${taskId} for theme ${themeId}`);
+      logCycleEvent('task.enqueued', {
+        theme: themeId,
+        task: taskId,
+        msg: 'next task selected and enqueued',
+      });
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       if (msg.includes('already in the queue')) {

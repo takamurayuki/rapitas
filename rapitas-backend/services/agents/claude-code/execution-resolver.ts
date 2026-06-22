@@ -99,6 +99,8 @@ export function buildResolveAfterParse(
             (usage.outputTokens ?? 0) +
             (usage.cacheReadInputTokens ?? 0) +
             (usage.cacheCreationInputTokens ?? 0),
+          // NOTE: num_turns from stream-json result = total assistant LLM calls for this CLI session.
+          llmCallCount: usage.numTurns,
           finalMessage,
         }
       : { finalMessage };
@@ -188,10 +190,9 @@ export function buildResolveAfterParse(
       errorParts.push(`Process exited with code ${code}`);
 
       if (ctx.resumeSessionId) {
-        errorParts.push(
-          `\n\n【Session Resume Mode】session expired or not found\nSession ID: ${ctx.resumeSessionId}`,
-        );
-        errorParts.push(`\n* Session may be expired or invalid`);
+        // NOTE: Neutral label only — asserting "session expired" here caused false-positive
+        // SESSION_FAILURE_RE matches on every resume-mode failure regardless of actual cause.
+        errorParts.push(`\n\n【Session Resume Mode】Session ID: ${ctx.resumeSessionId}`);
       } else if (ctx.continueConversation) {
         errorParts.push(`\n\n【Conversation Continue Mode】\nUsing --continue flag`);
       }
@@ -208,11 +209,9 @@ export function buildResolveAfterParse(
         errorParts.push(`\n\n【Unprocessed Buffer】\n${ctx.lineBuffer.trim().slice(-500)}`);
       }
 
-      // NOTE: Very short execution time suggests a failed session resume
+      // NOTE: Neutral short-execution warning — asserting session failure here fed SESSION_FAILURE_RE false positives
       if (executionTimeMs < 10000) {
-        errorParts.push(
-          `\n\n【Warning】Execution time of ${executionTimeMs}ms is very short. session expired or not found - session resume may have failed.`,
-        );
+        errorParts.push(`\n\n【Warning】Execution time of ${executionTimeMs}ms is very short.`);
       }
 
       errorMessage = errorParts.join('');
@@ -236,6 +235,38 @@ export function buildResolveAfterParse(
         waitingForInput: false,
         claudeSessionId: ctx.claudeSessionId || undefined,
         errorMessage,
+        ...usageFields,
+      });
+      return;
+    }
+
+    // A force-kill after an UNRECOVERED API overload (the CLI exhausted its 529
+    // retries and stalled) is a real failure, NOT a benign "finished work then
+    // hung" exit — any partial git diff / output is unreliable. Without this, a
+    // 529-stalled run slips through the idle-hang git-diff path below and is
+    // recorded as a false completion (observed: "[Result: success]" + exit code 1
+    // with "API Error: 529 Overloaded"). Gated on the force-kill path only, so a
+    // 529 that was retried and RECOVERED (clean exit) is unaffected. Resolve as a
+    // failure so the workflow retries the phase once the provider recovers.
+    const apiOverloadHit =
+      ctx.idleTimeoutForceKilled &&
+      /API\s*Error:?\s*529|529\s+Overloaded|overloaded_error/i.test(
+        ctx.outputBuffer + '\n' + ctx.errorBuffer,
+      );
+    if (apiOverloadHit) {
+      logger.error(
+        `${ctx.logPrefix} Force-killed after an unrecovered API overload (529). Failing so the phase retries instead of being marked complete on partial output.`,
+      );
+      ctx.status = 'failed';
+      resolve({
+        success: false,
+        output: ctx.outputBuffer,
+        artifacts,
+        commits,
+        executionTimeMs,
+        waitingForInput: false,
+        claudeSessionId: ctx.claudeSessionId || undefined,
+        errorMessage: `${errorMessage ?? `Process exited with code ${code}`}\n\n【API Overload】Provider returned 529 Overloaded and retries were exhausted; the run did not complete.`,
         ...usageFields,
       });
       return;

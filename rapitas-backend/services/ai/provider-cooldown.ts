@@ -12,10 +12,11 @@
  */
 
 import type { Provider } from './model-discovery/types';
+import { createLogger } from '../../config/logger';
 
-const log = {
-  warn: (data: unknown, message: string) => console.warn(message, data),
-};
+// NOTE: Use the shared pino logger, not a console shim (the no-console lint error
+// failed project-wide `bun run lint` and blocked auto-run tasks gated on it).
+const log = createLogger('ai:provider-cooldown');
 
 export type { Provider };
 

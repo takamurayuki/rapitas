@@ -8,6 +8,7 @@ import TaskSlidePanel from '@/feature/tasks/components/TaskSlidePanel';
 import { API_BASE_URL } from '@/utils/api';
 import { createLogger } from '@/lib/logger';
 import { useLocaleStore } from '@/stores/locale-store';
+import { useFilterDataStore } from '@/stores/filter-data-store';
 import { toDateLocale } from '@/lib/utils';
 import { useKanbanFilters } from './useKanbanFilters';
 import { useKanbanBoard } from './useKanbanBoard';
@@ -53,6 +54,8 @@ export default function KanbanPage() {
   const tc = useTranslations('common');
   const locale = useLocaleStore((s) => s.locale);
   const dateLocale = toDateLocale(locale);
+  const themes = useFilterDataStore((s) => s.themes);
+  const initFilterData = useFilterDataStore((s) => s.initializeData);
 
   const priorityConfig: Record<Priority, { label: string; color: string; bg: string }> = {
     low: { label: tt('priorityLow'), ...PRIORITY_STYLES.low },
@@ -92,10 +95,10 @@ export default function KanbanPage() {
   } = useKanbanBoard(tt('running'), tt('waitingForInput'), t('updateFailed'));
 
   const {
-    searchQuery,
-    setSearchQuery,
     selectedPriorities,
     selectedLabelIds,
+    selectedThemeId,
+    setSelectedThemeId,
     labels,
     setLabels,
     filteredTasks,
@@ -119,7 +122,8 @@ export default function KanbanPage() {
       }
     };
     fetchLabels();
-  }, [setLabels]);
+    initFilterData();
+  }, [setLabels, initFilterData]);
 
   const getWeekDisplayText = () => {
     const fmt = (d: Date) => d.toLocaleDateString(dateLocale, { month: 'numeric', day: 'numeric' });
@@ -144,25 +148,26 @@ export default function KanbanPage() {
           prevLabel={t('prevWeek')}
           nextLabel={t('nextWeek')}
           backLabel={t('backToThisWeek')}
-        />
-
-        <KanbanFilterBar
-          searchQuery={searchQuery}
-          onSearchChange={setSearchQuery}
           showFilters={showFilters}
           onToggleFilters={() => setShowFilters((v) => !v)}
           hasActiveFilters={hasActiveFilters}
           onClearFilters={clearFilters}
+          filteredCount={filteredTasks.filter((task) => !task.parentId).length}
+          t={t}
+        />
+
+        <KanbanFilterBar
+          showFilters={showFilters}
           selectedPriorities={selectedPriorities}
           onTogglePriority={togglePriority}
           priorityConfig={priorityConfig}
           selectedLabelIds={selectedLabelIds}
           onToggleLabel={toggleLabel}
           labels={labels}
-          filteredCount={filteredTasks.filter((t) => !t.parentId).length}
-          tc={tc}
+          themes={themes}
+          selectedThemeId={selectedThemeId}
+          onSelectTheme={setSelectedThemeId}
           tt={tt}
-          t={t}
         />
 
         {(!taskCacheInitialized || loading || taskCacheLoading) && tasks.length === 0 ? (

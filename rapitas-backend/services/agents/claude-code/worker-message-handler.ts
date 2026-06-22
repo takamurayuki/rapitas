@@ -26,6 +26,8 @@ export interface WorkerResultUsageSnapshot {
   cacheCreationInputTokens?: number;
   /** Model id with the largest token share in `modelUsage`. */
   modelName?: string;
+  /** Total assistant turns (= LLM API calls) reported by stream-json `result.num_turns`. */
+  numTurns?: number;
 }
 
 const logger = createLogger('claude-code-agent');
@@ -149,6 +151,7 @@ export function handleWorkerMessage(ctx: WorkerMessageContext, msg: WorkerOutput
         cacheReadInputTokens: msg.usage?.cacheReadInputTokens,
         cacheCreationInputTokens: msg.usage?.cacheCreationInputTokens,
         modelName: pickPrimaryModel(msg.modelUsage),
+        numTurns: msg.numTurns,
       };
       break;
 

@@ -31,6 +31,9 @@ export function useWeeklyReview(): UseWeeklyReviewReturn {
   const { data, error, isLoading, mutate } = useSWR<WeeklyReview | null>(
     '/weekly-reviews/latest',
     fetcher,
+    // NOTE: Weekly review data only changes after explicit regeneration or the
+    // nightly cron. Revalidating on focus is wasteful here.
+    { revalidateOnFocus: false },
   );
   const [isRegenerating, setIsRegenerating] = useState(false);
   const [regenerateError, setRegenerateError] = useState<string | null>(null);

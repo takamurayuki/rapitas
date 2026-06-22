@@ -1,0 +1,25 @@
+# insensitive-spread.yml
+#
+# Detects intermediate spread variables assigned from getInsensitiveMode():
+#   const insensitive = getInsensitiveMode();
+# that should be inlined to { ...getInsensitiveMode() } at each spread site.
+# Use: bun x ast-grep scan -r scripts/codemods/rules/insensitive-spread.yml
+#
+# Does NOT match:
+#   { ...getInsensitiveMode() }  — already inlined (no intermediate variable)
+#
+# CI advisory step (non-blocking, add to .github/workflows/test-lint.yml):
+#   - name: Codemod drift check (ast-grep, advisory)
+#     working-directory: rapitas-backend
+#     continue-on-error: true
+#     run: bun x ast-grep scan -r scripts/codemods/rules/insensitive-spread.yml routes services
+
+id: insensitive-spread
+language: TypeScript
+severity: hint
+rule:
+  pattern: 'const $VAR = getInsensitiveMode();'
+message: >
+  Intermediate variable `$VAR = getInsensitiveMode()` detected.
+  Inline as `{ ...$VAR }` → `{ ...getInsensitiveMode() }` or run
+  `bun run codemod:insensitive-spread` to auto-migrate safe cases.

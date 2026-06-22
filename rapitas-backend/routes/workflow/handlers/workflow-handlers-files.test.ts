@@ -35,6 +35,8 @@ const mockPrisma = {
   agentSession: { findFirst: mockFindFirst },
   agentExecution: { update: mockUpdate },
   activityLog: { create: mockCreate },
+  // Used by the verify→complete PR gate to detect an already-existing PR.
+  gitHubPullRequest: { findFirst: mock(() => Promise.resolve(null)) },
 };
 mock.module('../../../config', () => ({ prisma: mockPrisma }));
 mock.module('../../../config/database', () => ({
@@ -52,7 +54,12 @@ mock.module('../core/workflow-helpers', () => ({
 
 // ---- writeWorkflowFile mock ----
 mock.module('../../../services/workflow/workflow-file-utils', () => ({
-  writeWorkflowFile: mock(() => Promise.resolve('content')),
+  // Echo the saved content so handler logic that inspects it (e.g. the research
+  // "no change" verdict) sees the real body.
+  writeWorkflowFile: mock((_dir: string, _ft: string, content: string) => Promise.resolve(content)),
+  // Identity passthrough — the handler strips conversational preamble via this;
+  // these tests pass already-clean bodies, so returning content as-is is faithful.
+  sliceFromReportHeading: (content: string) => content,
 }));
 
 // ---- recordTransition mock ----
@@ -83,14 +90,44 @@ mock.module('../../../services/memory/task-knowledge-extractor', () => ({
   extractKnowledgeFromTask: mock(() => Promise.resolve()),
 }));
 
-// ---- auto-commit mock ----
+// ---- auto-commit mock (captured so tests can drive verificationBlocked) ----
+const mockPerformAutoCommitAndPR = mock(() => Promise.resolve({})) as any;
 mock.module('../workflow-auto-commit', () => ({
-  performAutoCommitAndPR: mock(() => Promise.resolve({})),
+  performAutoCommitAndPR: mockPerformAutoCommitAndPR,
+}));
+
+// ---- verify-self-repair mock (gate-failure bounce loop) ----
+const mockAttemptVerifyRepair = mock(() => Promise.resolve({ bounced: false })) as any;
+mock.module('../../../services/workflow/verify-self-repair', () => ({
+  attemptVerifyRepair: mockAttemptVerifyRepair,
 }));
 
 // ---- completion-gate mock ----
 mock.module('../../../services/workflow/completion-gate', () => ({
   evaluateCompletionGate: mock(() => Promise.resolve({ allow: true })),
+  // Mimic the real detector closely enough for the handler test.
+  researchConcludesNoChange: (c: string | null | undefined) =>
+    !!c && /結論\s*[:：]\s*(?:[^\n]*)?(?:修正|対応|実装|変更)(?:は)?不要/.test(c),
+}));
+
+// ---- phase-output-validator mock (verify path + pollution guard) ----
+mock.module('../../../services/workflow/phase-output-validator', () => ({
+  validateVerify: () => ({ ok: true, missingSections: [], severity: 0, summary: 'ok' }),
+  // Faithful-enough mirror of the real detector for the handler's reject guard.
+  looksLogPolluted: (c: string | null | undefined) => {
+    if (!c) return false;
+    if (
+      /\[System:\s*(?:init|thinking_tokens)\]|\[Claude Code\]\s*(?:Starting|Working|Process)|^\s*\[Result:\s*\w+|^\s*\{"type":\s*"|^\s*data:\s*\{/im.test(
+        c,
+      )
+    )
+      return true;
+    const ne = c.split(/\r?\n/).filter((l) => l.trim());
+    const noisy = ne.filter((l) =>
+      /^\s*\[(Tool|Tool Done|Tool Error|Command|エージェント|実行開始)/i.test(l),
+    ).length;
+    return noisy >= 6 || (ne.length > 0 && noisy / ne.length >= 0.2);
+  },
 }));
 
 // ---- plan-auto-approve mock ----
@@ -124,9 +161,17 @@ beforeEach(() => {
   mockCheckInvariants.mockReset();
   mockUpdate.mockReset();
   mockFindUnique.mockReset();
+  mockPerformAutoCommitAndPR.mockReset();
+  mockAttemptVerifyRepair.mockReset();
   warnCalls.length = 0;
   mockUpdate.mockResolvedValue({});
   mockCheckInvariants.mockResolvedValue([]);
+  mockPerformAutoCommitAndPR.mockResolvedValue({});
+  mockAttemptVerifyRepair.mockResolvedValue({ bounced: false });
+  // NOTE: mockReset() removes the original factory, so restore the default return.
+  // The verify path calls prisma.task.findUnique() to detect conflict-resolution tasks;
+  // returning null means "not a conflict task" — the normal code path continues.
+  mockFindUnique.mockResolvedValue(null);
 });
 
 // -------------------------------------------------------------------------
@@ -164,6 +209,273 @@ describe('handleSaveFile — empty workflowStatus guard hardening', () => {
       set: makeSet(),
     });
     expect((result as { workflowStatus?: string }).workflowStatus).toBeDefined();
+  });
+});
+
+// -------------------------------------------------------------------------
+describe('handleSaveFile — dev-mode single-session verify from plan_approved', () => {
+  test('accepts verify.md save at plan_approved (no longer hard-rejected)', async () => {
+    mockResolveWorkflowDir.mockResolvedValueOnce({
+      task: { workflowStatus: 'plan_approved', id: 1 },
+      dir: '/fake/dir/1',
+      categoryId: null,
+      themeId: null,
+    });
+    mockFindMany.mockResolvedValueOnce([]); // no subtasks → split-parent guard passes
+    mockCheckInvariants.mockResolvedValueOnce([]);
+    // Completion now requires a PR — supply a successful one.
+    mockPerformAutoCommitAndPR.mockResolvedValueOnce({
+      requested: { autoCommit: true, autoCreatePR: true, autoMergePR: false },
+      autoCommitResult: { success: true },
+      autoPRResult: { success: true, prNumber: 1, prUrl: 'https://x/pull/1' },
+    });
+
+    const result = await handleSaveFile({
+      params: { taskId: '1', fileType: 'verify' },
+      body: 'verify content',
+      set: makeSet(),
+    });
+
+    // Accepted (not hard-rejected at the guard); verify passes and a PR was
+    // created → the task is marked completed.
+    expect((result as { workflowStatus?: string }).workflowStatus).toBe('completed');
+  });
+
+  test('still rejects verify.md save at plan_created (only plan/question allowed there)', async () => {
+    mockResolveWorkflowDir.mockResolvedValueOnce({
+      task: { workflowStatus: 'plan_created', id: 1 },
+      dir: '/fake/dir/1',
+      categoryId: null,
+      themeId: null,
+    });
+    mockFindMany.mockResolvedValueOnce([]);
+
+    await expect(
+      handleSaveFile({
+        params: { taskId: '1', fileType: 'verify' },
+        body: 'verify content',
+        set: makeSet(),
+      }),
+    ).rejects.toMatchObject({ name: 'ValidationError' });
+  });
+});
+
+// -------------------------------------------------------------------------
+describe('handleSaveFile — research が修正不要結論ならタスクを完了すること', () => {
+  test('「結論: 修正不要」付き research.md 保存で completed + done になること', async () => {
+    mockResolveWorkflowDir.mockResolvedValueOnce({
+      task: { workflowStatus: 'draft', id: 1 },
+      dir: '/fake/dir/1',
+      categoryId: null,
+      themeId: null,
+    });
+    mockCheckInvariants.mockResolvedValueOnce([]);
+
+    const result = await handleSaveFile({
+      params: { taskId: '1', fileType: 'research' },
+      body: '# 調査結果\n\n## 結論: 修正不要\n既存実装で充足',
+      set: makeSet(),
+    });
+
+    // newStatus='completed' は research-no-change 完了経路でのみ設定される。
+    expect((result as { workflowStatus?: string }).workflowStatus).toBe('completed');
+  });
+
+  test('修正不要結論が無い通常 research.md は research_done に進むこと', async () => {
+    mockResolveWorkflowDir.mockResolvedValueOnce({
+      task: { workflowStatus: 'draft', id: 1 },
+      dir: '/fake/dir/1',
+      categoryId: null,
+      themeId: null,
+    });
+    mockCheckInvariants.mockResolvedValueOnce([]);
+
+    const result = await handleSaveFile({
+      params: { taskId: '1', fileType: 'research' },
+      body: '# 調査結果\n## 影響範囲\n変更が必要',
+      set: makeSet(),
+    });
+
+    expect((result as { workflowStatus?: string }).workflowStatus).toBe('research_done');
+  });
+});
+
+// -------------------------------------------------------------------------
+describe('handleSaveFile — ログ混入で壊れた md は保存を拒否すること', () => {
+  test('plan.md にログが混入していたら 422 で拒否し、保存・遷移しない', async () => {
+    mockResolveWorkflowDir.mockResolvedValueOnce({
+      task: { workflowStatus: 'research_done', id: 1 },
+      dir: '/fake/dir/1',
+      categoryId: null,
+      themeId: null,
+    });
+    const set = makeSet();
+    const result = await handleSaveFile({
+      params: { taskId: '1', fileType: 'plan' },
+      body: '# 実装計画\n[System: thinking_tokens]\n[System: init]\n[Tool: Read] -> a.ts\nゴミ出力',
+      set,
+    });
+
+    expect(set.status).toBe(422);
+    expect((result as { error?: string }).error).toContain('実行ログ');
+    // 壊れたmdは保存せず、status も進めない
+    expect(mockUpdate).not.toHaveBeenCalled();
+  });
+
+  test('正常な plan.md は通常どおり保存・遷移する', async () => {
+    mockResolveWorkflowDir.mockResolvedValueOnce({
+      task: { workflowStatus: 'research_done', id: 1 },
+      dir: '/fake/dir/1',
+      categoryId: null,
+      themeId: null,
+    });
+    mockCheckInvariants.mockResolvedValueOnce([]);
+    const result = await handleSaveFile({
+      params: { taskId: '1', fileType: 'plan' },
+      body: '# 実装計画\n## 設計判断の根拠\n理由\n## 実装チェックリスト\n- [ ] x',
+      set: makeSet(),
+    });
+    expect((result as { workflowStatus?: string }).workflowStatus).toBe('plan_created');
+  });
+});
+
+// -------------------------------------------------------------------------
+describe('handleSaveFile — 完了は PR 作成成功を要件とすること', () => {
+  const verifyAtInProgress = () => {
+    mockResolveWorkflowDir.mockResolvedValueOnce({
+      task: { workflowStatus: 'in_progress', id: 1 },
+      dir: '/fake/dir/1',
+      categoryId: null,
+      themeId: null,
+    });
+    mockFindMany.mockResolvedValueOnce([]); // no subtasks
+    mockCheckInvariants.mockResolvedValueOnce([]);
+  };
+
+  test('PR要求ありで未作成・既存PRも無ければ completed にしない（verify_done 維持）', async () => {
+    verifyAtInProgress();
+    mockPerformAutoCommitAndPR.mockResolvedValueOnce({
+      requested: { autoCommit: true, autoCreatePR: true, autoMergePR: false },
+      autoCommitResult: { success: true },
+      autoPRResult: { success: false, error: 'gh pr create failed' },
+    });
+    mockFindUnique.mockResolvedValue({ githubPrId: null }); // no linked PR via task
+
+    const result = await handleSaveFile({
+      params: { taskId: '1', fileType: 'verify' },
+      body: 'verify content',
+      set: makeSet(),
+    });
+
+    expect((result as { workflowStatus?: string }).workflowStatus).toBe('verify_done');
+    expect((result as { taskCompleted?: boolean }).taskCompleted).toBe(false);
+  });
+
+  test('PR が作成成功なら completed', async () => {
+    verifyAtInProgress();
+    mockPerformAutoCommitAndPR.mockResolvedValueOnce({
+      requested: { autoCommit: true, autoCreatePR: true, autoMergePR: false },
+      autoCommitResult: { success: true },
+      autoPRResult: { success: true, prNumber: 9 },
+    });
+
+    const result = await handleSaveFile({
+      params: { taskId: '1', fileType: 'verify' },
+      body: 'verify content',
+      set: makeSet(),
+    });
+
+    expect((result as { workflowStatus?: string }).workflowStatus).toBe('completed');
+  });
+
+  test('PR が要求されていなければ（autoCreatePR=false）PR無しでも completed', async () => {
+    verifyAtInProgress();
+    mockPerformAutoCommitAndPR.mockResolvedValueOnce({
+      requested: { autoCommit: false, autoCreatePR: false, autoMergePR: false },
+    });
+
+    const result = await handleSaveFile({
+      params: { taskId: '1', fileType: 'verify' },
+      body: 'verify content',
+      set: makeSet(),
+    });
+
+    expect((result as { workflowStatus?: string }).workflowStatus).toBe('completed');
+  });
+
+  test('未作成でも既存リンクPRがあれば completed', async () => {
+    verifyAtInProgress();
+    mockPerformAutoCommitAndPR.mockResolvedValueOnce({
+      requested: { autoCommit: true, autoCreatePR: true, autoMergePR: false },
+      autoCommitResult: { success: true },
+      autoPRResult: { success: false },
+    });
+    mockPrisma.gitHubPullRequest.findFirst.mockResolvedValueOnce({ id: 50 }); // existing PR
+
+    const result = await handleSaveFile({
+      params: { taskId: '1', fileType: 'verify' },
+      body: 'verify content',
+      set: makeSet(),
+    });
+
+    expect((result as { workflowStatus?: string }).workflowStatus).toBe('completed');
+  });
+});
+
+// -------------------------------------------------------------------------
+describe('handleSaveFile — 検証ゲート失敗時に自己修復ループへ差し戻すこと', () => {
+  test('verificationBlocked かつ repair バウンスで implementer entry に戻すこと', async () => {
+    mockResolveWorkflowDir.mockResolvedValueOnce({
+      task: { workflowStatus: 'in_progress', id: 1 },
+      dir: '/fake/dir/1',
+      categoryId: null,
+      themeId: null,
+    });
+    mockFindMany.mockResolvedValueOnce([]); // no subtasks
+    mockCheckInvariants.mockResolvedValueOnce([]);
+    mockPerformAutoCommitAndPR.mockResolvedValueOnce({
+      verificationBlocked: true,
+      error: '自動検証: test=NG(1)',
+    });
+    mockAttemptVerifyRepair.mockResolvedValueOnce({
+      bounced: true,
+      newStatus: 'plan_approved',
+      attempt: 1,
+    });
+
+    const result = await handleSaveFile({
+      params: { taskId: '1', fileType: 'verify' },
+      body: 'verify content',
+      set: makeSet(),
+    });
+
+    expect(mockAttemptVerifyRepair).toHaveBeenCalledTimes(1);
+    // 差し戻し先 (plan_approved) を workflowStatus に反映し、completed にはしない
+    expect((result as { workflowStatus?: string }).workflowStatus).toBe('plan_approved');
+  });
+
+  test('repair が枯渇 (bounced:false) ならブロック維持で completed にしないこと', async () => {
+    mockResolveWorkflowDir.mockResolvedValueOnce({
+      task: { workflowStatus: 'in_progress', id: 1 },
+      dir: '/fake/dir/1',
+      categoryId: null,
+      themeId: null,
+    });
+    mockFindMany.mockResolvedValueOnce([]);
+    mockCheckInvariants.mockResolvedValueOnce([]);
+    mockPerformAutoCommitAndPR.mockResolvedValueOnce({
+      verificationBlocked: true,
+      error: '自動検証: test=NG(1)',
+    });
+    mockAttemptVerifyRepair.mockResolvedValueOnce({ bounced: false });
+
+    const result = await handleSaveFile({
+      params: { taskId: '1', fileType: 'verify' },
+      body: 'verify content',
+      set: makeSet(),
+    });
+
+    expect((result as { workflowStatus?: string }).workflowStatus).not.toBe('completed');
   });
 });
 

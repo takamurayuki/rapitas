@@ -145,6 +145,7 @@ export const agentSessionRouter = new Elysia({ prefix: '/agents' })
                     select: {
                       id: true,
                       title: true,
+                      status: true,
                       theme: {
                         select: {
                           workingDirectory: true,
@@ -161,7 +162,33 @@ export const agentSessionRouter = new Elysia({ prefix: '/agents' })
         take: 50,
       });
 
-      return resumableExecutions.map((exec: (typeof resumableExecutions)[number]) => {
+      // Dedupe per task: a task with a LIVE (running / waiting) execution must not
+      // also surface its OLD `interrupted` execution. That interrupted row is a
+      // stale leftover (a restart or a phase rollover left it behind while the
+      // workflow re-dispatched a fresh execution), and showing both makes ONE task
+      // appear TWICE in the "in-progress work" modal — one 実行中 and one 中断, which
+      // is exactly what the user reported for task 284. Keep the live one; drop the
+      // task's interrupted rows when a live execution exists.
+      const liveTaskIds = new Set(
+        resumableExecutions
+          .filter((e) => e.status === 'running' || e.status === 'waiting_for_input')
+          .map((e) => e.session.config?.task?.id)
+          .filter((id): id is number => id != null),
+      );
+      // A done/completed/cancelled task's `interrupted` row is NOT resumable work —
+      // it is a stale leftover that lingered in the "中断作業" modal after the task
+      // finished (task 284 completed via a fresh execution but its earlier
+      // interrupted row stayed). Drop those too.
+      const TERMINAL_TASK_STATUS = new Set(['done', 'completed', 'cancelled']);
+      const dedupedExecutions = resumableExecutions.filter((e) => {
+        if (e.status !== 'interrupted') return true;
+        const task = e.session.config?.task;
+        if (liveTaskIds.has(task?.id ?? -1)) return false;
+        if (task?.status && TERMINAL_TASK_STATUS.has(task.status)) return false;
+        return true;
+      });
+
+      return dedupedExecutions.map((exec: (typeof resumableExecutions)[number]) => {
         const execWithExtras = exec as typeof exec & AgentExecutionWithExtras;
         return {
           id: exec.id,
