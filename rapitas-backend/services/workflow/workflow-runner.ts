@@ -36,7 +36,9 @@ export class WorkflowRunner {
   private static instance: WorkflowRunner;
   private running = false;
   private pollTimer: ReturnType<typeof setInterval> | null = null;
-  private pollIntervalMs = 5000;
+  // NOTE: Extended from 5s to 10s — phases take minutes; 10s adds at most 10s
+  // of inter-phase latency which is imperceptible but halves idle DB query rate.
+  private pollIntervalMs = 10_000;
   private processedTotal = 0;
   private activeExecutions = new Map<number, ActiveExecution>();
   private queue: WorkflowQueueService;

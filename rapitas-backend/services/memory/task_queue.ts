@@ -1,7 +1,7 @@
 /**
  * Memory System Background Job Queue
  *
- * Polls every 5 seconds, retries up to 3 times, then moves to dead_letter.
+ * Polls every 30 seconds, retries up to 3 times, then moves to dead_letter.
  */
 import { prisma } from '../../config/database';
 import { createLogger } from '../../config/logger';
@@ -17,7 +17,9 @@ export class MemoryTaskQueueProcessor {
   private isProcessing = false;
   private pollIntervalMs: number;
 
-  constructor(pollIntervalMs = 5000) {
+  // NOTE: Default extended to 30s — memory jobs are only scheduled at midnight/
+  // 2am/9am (cron-style). 30s is imperceptible and cuts DB polls from 12/min to 2/min.
+  constructor(pollIntervalMs = 30_000) {
     this.pollIntervalMs = pollIntervalMs;
   }
 
