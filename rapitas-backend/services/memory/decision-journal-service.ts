@@ -12,7 +12,6 @@
  */
 import { prisma } from '../../config/database';
 import { createLogger } from '../../config/logger';
-import { createTask } from '../task/task-mutations';
 
 const log = createLogger('memory:decision-journal');
 
