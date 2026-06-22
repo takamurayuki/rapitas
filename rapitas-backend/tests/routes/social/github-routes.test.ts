@@ -207,7 +207,11 @@ function resetAllMocks() {
     issue: { number: 1, title: 'Test Issue' },
   });
   mockResolveConcernIntegration.mockResolvedValue({ id: 1 });
-  mockResolvePrConflicts.mockResolvedValue({ resolved: true, conflicts: [], detail: 'no conflicts' });
+  mockResolvePrConflicts.mockResolvedValue({
+    resolved: true,
+    conflicts: [],
+    detail: 'no conflicts',
+  });
 }
 
 function createApp() {
@@ -961,7 +965,6 @@ describe('GET /github/pull-requests/by-task/:taskId', () => {
   });
 });
 
-
 // Helper: build a minimal PR record shared across guard tests.
 function makeOpenPr(overrides: Partial<{ prNumber: number; state: string }> = {}) {
   return {
@@ -1305,7 +1308,10 @@ describe('PATCH /github/pull-requests/:id/base — checkPrActionable guards', ()
 
 describe('POST /github/pull-requests/:id/comments — PR not found → 404', () => {
   let app: ReturnType<typeof createApp>;
-  beforeEach(() => { resetAllMocks(); app = createApp(); });
+  beforeEach(() => {
+    resetAllMocks();
+    app = createApp();
+  });
 
   test('PRが存在しない場合 404 + PR_NOT_FOUND を返すこと', async () => {
     mockPrisma.gitHubPullRequest.findUnique.mockResolvedValue(null);
@@ -1324,7 +1330,10 @@ describe('POST /github/pull-requests/:id/comments — PR not found → 404', () 
 
 describe('POST /github/pull-requests/:id/approve — PR not found → 404', () => {
   let app: ReturnType<typeof createApp>;
-  beforeEach(() => { resetAllMocks(); app = createApp(); });
+  beforeEach(() => {
+    resetAllMocks();
+    app = createApp();
+  });
 
   test('PRが存在しない場合 404 + PR_NOT_FOUND を返すこと', async () => {
     mockPrisma.gitHubPullRequest.findUnique.mockResolvedValue(null);
@@ -1343,7 +1352,10 @@ describe('POST /github/pull-requests/:id/approve — PR not found → 404', () =
 
 describe('POST /github/pull-requests/:id/request-changes — PR not found → 404', () => {
   let app: ReturnType<typeof createApp>;
-  beforeEach(() => { resetAllMocks(); app = createApp(); });
+  beforeEach(() => {
+    resetAllMocks();
+    app = createApp();
+  });
 
   test('PRが存在しない場合 404 + PR_NOT_FOUND を返すこと', async () => {
     mockPrisma.gitHubPullRequest.findUnique.mockResolvedValue(null);
@@ -1362,7 +1374,10 @@ describe('POST /github/pull-requests/:id/request-changes — PR not found → 40
 
 describe('POST /github/pull-requests/:id/resolve-conflicts — PR not found → 404', () => {
   let app: ReturnType<typeof createApp>;
-  beforeEach(() => { resetAllMocks(); app = createApp(); });
+  beforeEach(() => {
+    resetAllMocks();
+    app = createApp();
+  });
 
   test('PRが存在しない場合 404 + PR_NOT_FOUND を返すこと', async () => {
     mockPrisma.gitHubPullRequest.findUnique.mockResolvedValue(null);
@@ -1381,7 +1396,10 @@ describe('POST /github/pull-requests/:id/resolve-conflicts — PR not found → 
 
 describe('POST /github/issues/:id/comments — Issue not found → 404', () => {
   let app: ReturnType<typeof createApp>;
-  beforeEach(() => { resetAllMocks(); app = createApp(); });
+  beforeEach(() => {
+    resetAllMocks();
+    app = createApp();
+  });
 
   test('Issueが存在しない場合 404 + ISSUE_NOT_FOUND を返すこと', async () => {
     mockPrisma.gitHubIssue.findUnique.mockResolvedValue(null);
@@ -1400,7 +1418,10 @@ describe('POST /github/issues/:id/comments — Issue not found → 404', () => {
 
 describe('POST /github/issues/:id/create-task — Issue not found → 404', () => {
   let app: ReturnType<typeof createApp>;
-  beforeEach(() => { resetAllMocks(); app = createApp(); });
+  beforeEach(() => {
+    resetAllMocks();
+    app = createApp();
+  });
 
   test('Issueが存在しない場合 404 + ISSUE_NOT_FOUND を返すこと', async () => {
     mockPrisma.gitHubIssue.findUnique.mockResolvedValue(null);
@@ -1419,7 +1440,10 @@ describe('POST /github/issues/:id/create-task — Issue not found → 404', () =
 
 describe('POST /tasks/:id/create-github-issue — Integration not found → 404', () => {
   let app: ReturnType<typeof createTaskApp>;
-  beforeEach(() => { resetAllMocks(); app = createTaskApp(); });
+  beforeEach(() => {
+    resetAllMocks();
+    app = createTaskApp();
+  });
 
   test('Integrationが存在しない場合 404 + INTEGRATION_NOT_FOUND を返すこと', async () => {
     mockPrisma.task.findUnique.mockResolvedValue({ id: 1, title: 'Task', description: 'desc' });
@@ -1439,13 +1463,14 @@ describe('POST /tasks/:id/create-github-issue — Integration not found → 404'
 
 describe('GET /github/integrations/:id/runs/:runId — Integration not found → 404', () => {
   let app: ReturnType<typeof createApp>;
-  beforeEach(() => { resetAllMocks(); app = createApp(); });
+  beforeEach(() => {
+    resetAllMocks();
+    app = createApp();
+  });
 
   test('Integrationが存在しない場合 404 + INTEGRATION_NOT_FOUND を返すこと', async () => {
     mockPrisma.gitHubIntegration.findUnique.mockResolvedValue(null);
-    const res = await app.handle(
-      new Request('http://localhost/github/integrations/999/runs/1'),
-    );
+    const res = await app.handle(new Request('http://localhost/github/integrations/999/runs/1'));
     const body = await res.json();
     expect(res.status).toBe(404);
     expect(body.code).toBe('INTEGRATION_NOT_FOUND');
@@ -1455,16 +1480,17 @@ describe('GET /github/integrations/:id/runs/:runId — Integration not found →
     const fakeIntegration = { id: 1, ownerName: 'owner', repositoryName: 'repo' };
     mockPrisma.gitHubIntegration.findUnique.mockResolvedValue(fakeIntegration);
     mockGetWorkflowRun.mockResolvedValue({ id: 42, status: 'completed' });
-    const res = await app.handle(
-      new Request('http://localhost/github/integrations/1/runs/42'),
-    );
+    const res = await app.handle(new Request('http://localhost/github/integrations/1/runs/42'));
     expect(res.status).toBe(200);
   });
 });
 
 describe('GET /github/integrations/:id/runs/:runId/log — Integration not found → 404', () => {
   let app: ReturnType<typeof createApp>;
-  beforeEach(() => { resetAllMocks(); app = createApp(); });
+  beforeEach(() => {
+    resetAllMocks();
+    app = createApp();
+  });
 
   test('Integrationが存在しない場合 404 + INTEGRATION_NOT_FOUND を返すこと', async () => {
     mockPrisma.gitHubIntegration.findUnique.mockResolvedValue(null);
@@ -1480,16 +1506,17 @@ describe('GET /github/integrations/:id/runs/:runId/log — Integration not found
     const fakeIntegration = { id: 1, ownerName: 'owner', repositoryName: 'repo' };
     mockPrisma.gitHubIntegration.findUnique.mockResolvedValue(fakeIntegration);
     mockGetWorkflowRunLog.mockResolvedValue('step output');
-    const res = await app.handle(
-      new Request('http://localhost/github/integrations/1/runs/42/log'),
-    );
+    const res = await app.handle(new Request('http://localhost/github/integrations/1/runs/42/log'));
     expect(res.status).toBe(200);
   });
 });
 
 describe('GET /github/integrations/:id/jobs/:jobId/log — Integration not found → 404', () => {
   let app: ReturnType<typeof createApp>;
-  beforeEach(() => { resetAllMocks(); app = createApp(); });
+  beforeEach(() => {
+    resetAllMocks();
+    app = createApp();
+  });
 
   test('Integrationが存在しない場合 404 + INTEGRATION_NOT_FOUND を返すこと', async () => {
     mockPrisma.gitHubIntegration.findUnique.mockResolvedValue(null);
@@ -1505,9 +1532,7 @@ describe('GET /github/integrations/:id/jobs/:jobId/log — Integration not found
     const fakeIntegration = { id: 1, ownerName: 'owner', repositoryName: 'repo' };
     mockPrisma.gitHubIntegration.findUnique.mockResolvedValue(fakeIntegration);
     mockGetWorkflowJobLog.mockResolvedValue([{ name: 'Build', lines: ['ok'] }]);
-    const res = await app.handle(
-      new Request('http://localhost/github/integrations/1/jobs/7/log'),
-    );
+    const res = await app.handle(new Request('http://localhost/github/integrations/1/jobs/7/log'));
     expect(res.status).toBe(200);
   });
 });
@@ -1538,8 +1563,12 @@ describe('GET /github/available-repos', () => {
 
     expect(res.status).toBe(200);
     expect(Array.isArray(body)).toBe(true);
-    const added = body.find((r: { nameWithOwner: string }) => r.nameWithOwner === 'owner/added-repo');
-    const notAdded = body.find((r: { nameWithOwner: string }) => r.nameWithOwner === 'owner/new-repo');
+    const added = body.find(
+      (r: { nameWithOwner: string }) => r.nameWithOwner === 'owner/added-repo',
+    );
+    const notAdded = body.find(
+      (r: { nameWithOwner: string }) => r.nameWithOwner === 'owner/new-repo',
+    );
     expect((added as any).alreadyAdded).toBe(true);
     expect((notAdded as any).alreadyAdded).toBe(false);
     expect(mockListRepositories).toHaveBeenCalled();
@@ -1611,7 +1640,11 @@ describe('POST /github/pull-requests/:id/resolve-conflicts — 正常系', () =>
       themeId: 1,
       theme: { workingDirectory: '/home/user/repo' },
     });
-    mockResolvePrConflicts.mockResolvedValue({ resolved: true, conflicts: [], detail: 'up to date' });
+    mockResolvePrConflicts.mockResolvedValue({
+      resolved: true,
+      conflicts: [],
+      detail: 'up to date',
+    });
 
     const res = await app.handle(
       new Request('http://localhost/github/pull-requests/1/resolve-conflicts', {
@@ -1865,11 +1898,11 @@ describe('GET /github/integrations/:id/runs', () => {
   test('Integration が存在する場合 listWorkflowRuns 結果を返すこと', async () => {
     const fakeIntegration = { id: 1, ownerName: 'owner', repositoryName: 'repo' };
     mockPrisma.gitHubIntegration.findUnique.mockResolvedValue(fakeIntegration);
-    mockListWorkflowRuns.mockResolvedValue([{ id: 101, status: 'completed', conclusion: 'success' }]);
+    mockListWorkflowRuns.mockResolvedValue([
+      { id: 101, status: 'completed', conclusion: 'success' },
+    ]);
 
-    const res = await app.handle(
-      new Request('http://localhost/github/integrations/1/runs'),
-    );
+    const res = await app.handle(new Request('http://localhost/github/integrations/1/runs'));
     const body = await res.json();
 
     expect(res.status).toBe(200);
@@ -1881,9 +1914,7 @@ describe('GET /github/integrations/:id/runs', () => {
   test('Integration が存在しない場合 空配列を返すこと', async () => {
     mockPrisma.gitHubIntegration.findUnique.mockResolvedValue(null);
 
-    const res = await app.handle(
-      new Request('http://localhost/github/integrations/999/runs'),
-    );
+    const res = await app.handle(new Request('http://localhost/github/integrations/999/runs'));
     const body = await res.json();
 
     expect(res.status).toBe(200);

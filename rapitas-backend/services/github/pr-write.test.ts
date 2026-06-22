@@ -25,12 +25,10 @@ mock.module('./gh-client', () => ({
 // runGitCommand is used by createPullRequest (git push) and syncLocalBranchWithRemote.
 // NOTE: Mirror ALL git-exec exports to prevent "export not found" in the same bun process.
 let gitShouldFail = false;
-const mockRunGitCommand = mock(
-  (_args: string[], _cwd?: string, _opts?: { skipLog?: boolean }) => {
-    if (gitShouldFail) return Promise.reject(new Error('git push failed'));
-    return Promise.resolve('');
-  },
-);
+const mockRunGitCommand = mock((_args: string[], _cwd?: string, _opts?: { skipLog?: boolean }) => {
+  if (gitShouldFail) return Promise.reject(new Error('git push failed'));
+  return Promise.resolve('');
+});
 
 mock.module('./git-exec', () => ({
   runGitCommand: mockRunGitCommand,

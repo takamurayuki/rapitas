@@ -460,10 +460,7 @@ export async function getHypothesis(id: number): Promise<HypothesisEntry | null>
  * @param status - New status. / 新しい状態
  * @returns True when updated. / 更新できたか
  */
-export async function setHypothesisStatus(
-  id: number,
-  status: HypothesisStatus,
-): Promise<boolean> {
+export async function setHypothesisStatus(id: number, status: HypothesisStatus): Promise<boolean> {
   const existing = await prisma.knowledgeEntry.findFirst({
     where: { id, sourceType: 'hypothesis' },
     select: { id: true },

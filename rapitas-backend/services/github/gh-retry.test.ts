@@ -251,9 +251,7 @@ describe('withGhRetry', () => {
   });
 
   it('head_behind with READ policy — not in retryOn, throws immediately', async () => {
-    const fn = mock(() =>
-      Promise.reject(new Error('not up to date with the base branch')),
-    );
+    const fn = mock(() => Promise.reject(new Error('not up to date with the base branch')));
 
     await expect(withGhRetry(fn, READ_RETRY_POLICY)).rejects.toThrow();
     expect(fn).toHaveBeenCalledTimes(1);

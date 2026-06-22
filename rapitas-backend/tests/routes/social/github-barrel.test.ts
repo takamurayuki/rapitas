@@ -114,9 +114,7 @@ mock.module('../../../services/github/concern-bridge', () => ({
 }));
 // NOTE: Mirror conflict-resolver — identical form to github-routes.test.ts.
 mock.module('../../../services/github/conflict-resolver', () => ({
-  resolvePrConflicts: mock(() =>
-    Promise.resolve({ resolved: true, conflicts: [], detail: 'ok' }),
-  ),
+  resolvePrConflicts: mock(() => Promise.resolve({ resolved: true, conflicts: [], detail: 'ok' })),
 }));
 
 const { githubRoutes, taskGithubRoutes } = await import('../../../routes/social/github');
