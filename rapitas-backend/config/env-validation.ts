@@ -33,6 +33,14 @@ const ENV_VARS: EnvVar[] = [
   { name: 'RAPITAS_RETRY_RATE_LIMIT_DELAY_MS', required: false },
   { name: 'RAPITAS_RETRY_NETWORK_MAX', required: false },
   { name: 'RAPITAS_RETRY_TIMEOUT_MAX', required: false },
+
+  // Git cache configuration (all optional — defaults preserve pre-existing behaviour).
+  // Set to '0' to bypass all git caching layers (both local exec and remote URL).
+  { name: 'RAPITAS_GIT_EXEC_CACHE', required: false },
+  // TTL in milliseconds for the local git exec cache (git rev-parse, etc.).
+  { name: 'RAPITAS_GIT_EXEC_CACHE_TTL_MS', required: false, defaultValue: '30000' },
+  // TTL in milliseconds for the git remote URL cache (git remote get-url origin).
+  { name: 'RAPITAS_GIT_REMOTE_CACHE_TTL_MS', required: false, defaultValue: '30000' },
 ];
 
 export function validateEnvironment(): void {
