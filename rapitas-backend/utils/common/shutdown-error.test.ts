@@ -53,9 +53,9 @@ describe('isShutdownError', () => {
     });
 
     test('Server: start new execution → true', () => {
-      expect(
-        isShutdownError(new Error(buildShutdownErrorMessage('start new execution'))),
-      ).toBe(true);
+      expect(isShutdownError(new Error(buildShutdownErrorMessage('start new execution')))).toBe(
+        true,
+      );
     });
 
     test('Server: continue execution → true', () => {
