@@ -8,6 +8,17 @@ import { prisma } from '../../config/database';
 import { runGhCommand } from './gh-client';
 
 /**
+ * Resolved task context for PR operations that need both the working directory
+ * and the theme id (e.g. conflict resolution).
+ */
+export interface PrTaskContext {
+  /** Absolute local path of the task's git checkout, or null when unknown. / ローカルリポジトリパス */
+  workingDirectory: string | null;
+  /** Theme the task belongs to, or null when unset. / タスクが属するテーマID */
+  themeId: number | null;
+}
+
+/**
  * Whether a PR title belongs to the given task.
  *
  * Accepts both PR-title conventions in use: the app's auto-PR format
@@ -24,6 +35,33 @@ export function titleMatchesTask(title: string | null | undefined, taskId: numbe
 }
 
 /**
+ * Resolve working directory and theme id for a PR's linked task.
+ * Falls back to the task's theme working directory when the task itself has none.
+ * Returns `{ workingDirectory: null, themeId: null }` when `linkedTaskId` is null
+ * or the DB query fails — callers should treat this as "context unavailable".
+ *
+ * @param linkedTaskId - The PR's linked task id (may be null). / PRに紐づくタスクID
+ * @returns Resolved context object. / 解決されたコンテキストオブジェクト
+ */
+export async function resolvePrTaskContext(linkedTaskId: number | null): Promise<PrTaskContext> {
+  if (linkedTaskId == null) return { workingDirectory: null, themeId: null };
+  const task = await prisma.task
+    .findUnique({
+      where: { id: linkedTaskId },
+      select: {
+        workingDirectory: true,
+        themeId: true,
+        theme: { select: { workingDirectory: true } },
+      },
+    })
+    .catch(() => null);
+  return {
+    workingDirectory: task?.workingDirectory ?? task?.theme?.workingDirectory ?? null,
+    themeId: task?.themeId ?? null,
+  };
+}
+
+/**
  * Resolve the local working directory for a PR's merge so we can sync the base
  * branch afterwards. Uses the linked task's working directory, falling back to
  * its theme's. Returns null when none is known (sync is then skipped).
@@ -34,14 +72,7 @@ export function titleMatchesTask(title: string | null | undefined, taskId: numbe
 export async function resolvePrWorkingDirectory(
   linkedTaskId: number | null,
 ): Promise<string | null> {
-  if (linkedTaskId == null) return null;
-  const task = await prisma.task
-    .findUnique({
-      where: { id: linkedTaskId },
-      select: { workingDirectory: true, theme: { select: { workingDirectory: true } } },
-    })
-    .catch(() => null);
-  return task?.workingDirectory ?? task?.theme?.workingDirectory ?? null;
+  return (await resolvePrTaskContext(linkedTaskId)).workingDirectory;
 }
 
 /**
