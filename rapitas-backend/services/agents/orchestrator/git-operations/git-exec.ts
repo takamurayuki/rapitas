@@ -9,20 +9,10 @@
 import { exec } from 'child_process';
 import { promisify } from 'util';
 import { createLogger } from '../../../../config/logger';
+import { GIT_CACHE_ENABLED, getGitExecCacheTtlMs } from '../../../../config/cache-ttl';
 
 const execAsync = promisify(exec);
 const logger = createLogger('git-operations/git-exec');
-
-/** Default TTL in milliseconds. Override via RAPITAS_GIT_EXEC_CACHE_TTL_MS. */
-const DEFAULT_TTL_MS = 30_000;
-
-/** Set RAPITAS_GIT_EXEC_CACHE='0' to bypass all caching (for debugging stale-value issues). */
-const CACHE_ENABLED = process.env.RAPITAS_GIT_EXEC_CACHE !== '0';
-
-function getTtlMs(): number {
-  const raw = parseInt(process.env.RAPITAS_GIT_EXEC_CACHE_TTL_MS ?? '', 10);
-  return isNaN(raw) || raw <= 0 ? DEFAULT_TTL_MS : raw;
-}
 
 interface CacheEntry {
   value: { stdout: string; stderr: string };
@@ -74,7 +64,7 @@ export async function execGitReadonly(
   command: string,
   options: { cwd: string; encoding?: BufferEncoding },
 ): Promise<{ stdout: string; stderr: string }> {
-  if (!CACHE_ENABLED) {
+  if (!GIT_CACHE_ENABLED) {
     logger.debug({ command, cwd: options.cwd }, '[git-exec] cache bypassed');
     return execAsync(command, options) as Promise<{ stdout: string; stderr: string }>;
   }
@@ -99,7 +89,7 @@ export async function execGitReadonly(
   // NOTE: Cache miss (or expired) — run exec. Failure is NOT cached so transient
   // errors (e.g. process startup race) never become permanent.
   const result = await (execAsync(command, options) as Promise<{ stdout: string; stderr: string }>);
-  cache.set(key, { value: result, expiresAt: now + getTtlMs() });
+  cache.set(key, { value: result, expiresAt: now + getGitExecCacheTtlMs() });
   logger.debug({ command, cwd: options.cwd }, '[git-exec] cache miss, stored');
   return result;
 }

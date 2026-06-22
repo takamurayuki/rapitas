@@ -17,23 +17,11 @@
 
 import { createLogger } from '../../../config/logger';
 import { updateSessionStatusWithRetry } from './session-helpers';
+import { isShutdownError } from '../../../utils/common/shutdown-error';
+
+export { isShutdownError };
 
 const log = createLogger('routes:agent-execution:shutdown-handler');
-
-/**
- * Returns true when the given error was thrown because the server is in the
- * process of shutting down.
- *
- * All shutdown error sources (AgentWorkerManager, task-executor,
- * continuation-executor, execution-resume) include the literal string
- * 'shutting down' in their messages, so a single substring check suffices.
- *
- * @param error - Value caught in a .catch() handler / キャッチされた値
- * @returns true if the error is a shutdown error, false otherwise / シャットダウンエラーなら true
- */
-export function isShutdownError(error: unknown): boolean {
-  return error instanceof Error && error.message.includes('shutting down');
-}
 
 /**
  * Handles the shutdown-interrupted case for execute/continue handlers:

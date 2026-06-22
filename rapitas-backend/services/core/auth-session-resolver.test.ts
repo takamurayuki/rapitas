@@ -2,17 +2,17 @@
  * auth-session-resolver ユニットテスト
  *
  * resolveSessionByToken の正常系・異常系を検証する。
- * prisma は mock.module でスタブ化し、テスト間で reset する。
+ * prisma は mock.module でスタブ化し、テスト間でリセットする。
  */
 import { describe, test, expect, mock, beforeEach } from 'bun:test';
 
 // HACK(agent): bun:test の mock.module はプロセスグローバルなため、
 // 全エクスポートをミラーしないとバレルが "export not found" をスローする。
-const mockFindFirst = mock(() => Promise.resolve(null)) as ReturnType<typeof mock>;
+const mockUserSessionFindFirst = mock(() => Promise.resolve(null)) as ReturnType<typeof mock>;
 
 mock.module('../../config/database', () => ({
   prisma: {
-    userSession: { findFirst: mockFindFirst },
+    userSession: { findFirst: mockUserSessionFindFirst },
   },
   ensureDatabaseConnection: () => Promise.resolve(),
 }));
@@ -35,63 +35,64 @@ mock.module('../../config/logger', () => {
 const { resolveSessionByToken } = await import('./auth-session-resolver');
 
 beforeEach(() => {
-  mockFindFirst.mockReset();
+  mockUserSessionFindFirst.mockReset();
+  mockUserSessionFindFirst.mockResolvedValue(null);
 });
 
+// ---------------------------------------------------------------------------
+// resolveSessionByToken
+// ---------------------------------------------------------------------------
 describe('resolveSessionByToken', () => {
-  test('有効なトークン → session と user を返すこと', async () => {
+  test('有効なセッションが存在する場合 → セッションとユーザーを返すこと', async () => {
     const fakeSession = {
       id: 1,
-      sessionToken: 'token-abc',
+      sessionToken: 'valid-token-abc',
       userId: 42,
       createdAt: new Date(),
-      expiresAt: new Date(Date.now() + 86400_000),
-      user: { id: 42, username: 'alice', email: 'alice@example.com', role: 'user' },
+      expiresAt: new Date(Date.now() + 86400000),
+      user: {
+        id: 42,
+        username: 'testuser',
+        email: 'test@example.com',
+        role: 'user',
+        lastLoginAt: new Date(),
+      },
     };
-    mockFindFirst.mockResolvedValueOnce(fakeSession);
+    mockUserSessionFindFirst.mockResolvedValueOnce(fakeSession);
 
-    const result = await resolveSessionByToken('token-abc');
-
+    const result = await resolveSessionByToken('valid-token-abc');
     expect(result).toEqual(fakeSession);
-    expect(mockFindFirst).toHaveBeenCalledTimes(1);
-    // クエリ条件が sessionToken + expiresAt.gt + include user であることを検証
-    const call = mockFindFirst.mock.calls[0][0] as {
+  });
+
+  test('期限切れ / 一致なしの場合 → findFirst が null → null を返すこと', async () => {
+    mockUserSessionFindFirst.mockResolvedValueOnce(null);
+
+    const result = await resolveSessionByToken('expired-or-missing-token');
+    expect(result).toBeNull();
+  });
+
+  test('DB が reject した場合 → null を返すこと（.catch により）', async () => {
+    mockUserSessionFindFirst.mockRejectedValueOnce(new Error('DB connection lost'));
+
+    const result = await resolveSessionByToken('any-token');
+    expect(result).toBeNull();
+  });
+
+  test('クエリ条件が sessionToken + expiresAt gt now + include user で呼ばれること', async () => {
+    const before = new Date();
+    await resolveSessionByToken('check-token');
+    const after = new Date();
+
+    expect(mockUserSessionFindFirst).toHaveBeenCalledTimes(1);
+    const callArgs = mockUserSessionFindFirst.mock.calls[0][0] as {
       where: { sessionToken: string; expiresAt: { gt: Date } };
       include: { user: boolean };
     };
-    expect(call.where.sessionToken).toBe('token-abc');
-    expect(call.where.expiresAt.gt).toBeInstanceOf(Date);
-    expect(call.include.user).toBe(true);
-  });
-
-  test('期限切れ / 存在しないトークン → findFirst が null → null を返すこと', async () => {
-    mockFindFirst.mockResolvedValueOnce(null);
-
-    const result = await resolveSessionByToken('expired-token');
-
-    expect(result).toBeNull();
-  });
-
-  test('DB reject → null を返すこと（.catch により）', async () => {
-    mockFindFirst.mockRejectedValueOnce(new Error('DB connection lost'));
-
-    const result = await resolveSessionByToken('any-token');
-
-    expect(result).toBeNull();
-  });
-
-  test('クエリ条件が sessionToken + expiresAt.gt + include: { user: true } であること', async () => {
-    mockFindFirst.mockResolvedValueOnce(null);
-
-    await resolveSessionByToken('check-query-token');
-
-    expect(mockFindFirst).toHaveBeenCalledTimes(1);
-    const call = mockFindFirst.mock.calls[0][0] as {
-      where: { sessionToken: string; expiresAt: { gt: unknown } };
-      include: { user: boolean };
-    };
-    expect(call.where.sessionToken).toBe('check-query-token');
-    expect(call.where.expiresAt).toHaveProperty('gt');
-    expect(call.include).toEqual({ user: true });
+    expect(callArgs.where.sessionToken).toBe('check-token');
+    expect(callArgs.include).toEqual({ user: true });
+    // expiresAt.gt は "now" 相当 — テスト実行時刻の前後に収まること
+    const gt = callArgs.where.expiresAt.gt;
+    expect(gt.getTime()).toBeGreaterThanOrEqual(before.getTime() - 5);
+    expect(gt.getTime()).toBeLessThanOrEqual(after.getTime() + 5);
   });
 });

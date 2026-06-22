@@ -208,7 +208,7 @@ export const authCoreRoutes = new Elysia()
         return { success: false, message: 'No session token' };
       }
 
-      const session = await resolveSessionByToken(token);
+      const session = await resolveSessionByToken(String(token));
 
       if (!session) {
         set.status = 401;

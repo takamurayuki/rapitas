@@ -218,8 +218,17 @@ export async function executeCLIAgent(
           // task 227 re-implement loop). createWorktree checks out an existing
           // branch as-is, keeping its commits.
           const priorBranch = sessionWithWorktree?.branchName?.trim();
-          const branchName =
-            priorBranch || generateFallbackBranchName(taskTitle) || `feature/task-${taskId}-auto`;
+          // A NEW branch MUST be unique per task. generateFallbackBranchName
+          // derives the name from the (often generic) title, so unrelated tasks
+          // collide on names like "chore/update-refactor" (observed: 10 PRs sharing
+          // ONE branch) or "feature/implement-perf". When a later task reuses/resets
+          // a shared branch (force-push), GitHub auto-closes the earlier PR and
+          // orphans its work — that is why PR #253 (task 305) was closed unmerged.
+          // Suffix the task id so each task owns a distinct branch. A reused
+          // priorBranch keeps its EXACT name (it already maps 1:1 to an open PR).
+          const fallbackBase =
+            generateFallbackBranchName(taskTitle) || `feature/task-${taskId}-auto`;
+          const branchName = priorBranch || `${fallbackBase}-t${taskId}`;
           const wt = await orchestrator.createWorktree(worktreeBase, branchName, taskId, null);
           resolvedWorktreePath = wt;
           resolvedBranchName = branchName;

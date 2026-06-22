@@ -1,25 +1,24 @@
 /**
  * Auth Session Resolver
  *
- * Provides the single authoritative query for resolving a UserSession by token.
- * Mirrors the structure of pr-task-resolver.ts so both PR and auth domains use
- * the same "domain-specific resolver" pattern.
+ * Single source of truth for resolving a session token to a validated
+ * UserSession row (with its associated user). Not responsible for HTTP
+ * handling, auth-rate-limiting, or session creation/deletion.
  */
 import type { Prisma } from '@prisma/client';
 import { prisma } from '../../config/database';
 
-/** The full session row with its associated user, as used by all auth routes. */
-export type ResolvedSession = Prisma.UserSessionGetPayload<{ include: { user: true } }>;
+/** Full UserSession row joined with its User — the payload callers need. / セッション行とユーザーを結合したペイロード */
+export type SessionWithUser = Prisma.UserSessionGetPayload<{ include: { user: true } }>;
 
 /**
- * Resolve a session by its token, returning the session row with the associated
- * user. Returns `null` when the token does not exist, is expired, or the DB
- * query fails — callers should treat `null` as 401.
+ * Resolve a raw session token to its active UserSession (joined with User).
+ * Returns null when the token is absent, expired, or a DB error occurs.
  *
- * @param token - The `sessionToken` cookie value. / セッショントークン
- * @returns Session with user, or null. / セッションとユーザー行、無ければnull
+ * @param token - Raw session token value from the cookie. / クッキーから取得したセッショントークン
+ * @returns The active session with user, or null. / 有効なセッションとユーザー、無ければnull
  */
-export async function resolveSessionByToken(token: string): Promise<ResolvedSession | null> {
+export async function resolveSessionByToken(token: string): Promise<SessionWithUser | null> {
   return prisma.userSession
     .findFirst({
       where: { sessionToken: token, expiresAt: { gt: new Date() } },

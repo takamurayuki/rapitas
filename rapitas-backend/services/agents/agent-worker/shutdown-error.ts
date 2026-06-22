@@ -1,26 +1,18 @@
 /**
- * Shutdown Error Utility
+ * shutdown-error (agent-worker layer re-export)
  *
- * Provides the single source of truth for the "Manager is shutting down" error
- * message and an `isShutdownError` predicate used across all execution catch handlers.
- * Not responsible for performing the shutdown itself.
- */
-
-/**
- * The fixed error message emitted by `rejectAllPendingRequests` during graceful shutdown.
+ * Re-exports shutdown error utilities from the canonical common module.
+ * The worker layer's SHUTDOWN_ERROR_MESSAGE is aliased from
+ * WORKER_SHUTDOWN_ERROR_MESSAGE ('Manager is shutting down') to preserve the
+ * existing name used by worker-shutdown.ts and all consumers in this layer.
  *
- * NOTE: The string 'Manager is shutting down' is thrown in worker-shutdown.ts via
- * `rejectAllPendingRequests`. Update both sites together if this message ever changes.
+ * NOTE: SHUTDOWN_ERROR_MESSAGE exported here ('Manager is shutting down') differs
+ * from the same-named export in orchestrator/shutdown-error.ts ('Server is shutting
+ * down'). This intentional dual-naming reflects that the two layers throw distinct
+ * error strings. / worker 層とorchestrator 層は別の文字列を throw するため、
+ * 同じ識別子名でも値が異なる点に注意。
  */
-export const SHUTDOWN_ERROR_MESSAGE = 'Manager is shutting down';
-
-/**
- * Returns true only when `error` is the specific Error thrown during a
- * graceful worker manager shutdown.
- *
- * @param error - Any caught value / 任意の catch 値
- * @returns `true` if the error is a shutdown-originated Error / シャットダウン起因の場合 true
- */
-export function isShutdownError(error: unknown): boolean {
-  return error instanceof Error && error.message === SHUTDOWN_ERROR_MESSAGE;
-}
+export {
+  WORKER_SHUTDOWN_ERROR_MESSAGE as SHUTDOWN_ERROR_MESSAGE,
+  isShutdownError,
+} from '../../../utils/common/shutdown-error';

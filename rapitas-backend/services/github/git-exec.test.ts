@@ -690,3 +690,60 @@ describe('runGitCommandWithRetry', () => {
     expect(call.variant).toBe('explicit');
   });
 });
+
+// ─── ownerRepoFromGitRemote — TTL expiry ─────────────────────────────────────
+
+describe('ownerRepoFromGitRemote — TTL 期限切れ', () => {
+  let originalTtlEnv: string | undefined;
+
+  beforeEach(() => {
+    originalTtlEnv = process.env['RAPITAS_GIT_REMOTE_CACHE_TTL_MS'];
+    shouldFail = false;
+    failCount = 0;
+    gitStdout = 'https://github.com/owner/repo.git\n';
+    mockExecFile.mockClear();
+    clearAllGitRemoteCache();
+  });
+
+  afterEach(() => {
+    if (originalTtlEnv === undefined) {
+      delete process.env['RAPITAS_GIT_REMOTE_CACHE_TTL_MS'];
+    } else {
+      process.env['RAPITAS_GIT_REMOTE_CACHE_TTL_MS'] = originalTtlEnv;
+    }
+  });
+
+  it('TTL 内は git コマンドを再実行しない（キャッシュヒット）', async () => {
+    // NOTE: 50ms TTL ensures cache is alive between the two synchronous calls below.
+    process.env['RAPITAS_GIT_REMOTE_CACHE_TTL_MS'] = '50';
+
+    await ownerRepoFromGitRemote('/workspace/ttl-hit');
+    await ownerRepoFromGitRemote('/workspace/ttl-hit');
+
+    // Only one execFile call — second lookup returned from cache.
+    expect(mockExecFile.mock.calls.length).toBe(1);
+    const stats = getGitRemoteCacheStats();
+    expect(stats.misses).toBe(1);
+    expect(stats.hits).toBe(1);
+    expect(stats.expiries).toBe(0);
+  });
+
+  it('TTL 経過後は git コマンドを再実行する（キャッシュ期限切れ）', async () => {
+    // NOTE: 10ms TTL so the cache expires before the 30ms Bun.sleep below.
+    process.env['RAPITAS_GIT_REMOTE_CACHE_TTL_MS'] = '10';
+
+    await ownerRepoFromGitRemote('/workspace/ttl-expire');
+
+    // Wait long enough for the 10ms TTL to expire.
+    await new Promise((resolve) => setTimeout(resolve, 30));
+
+    await ownerRepoFromGitRemote('/workspace/ttl-expire');
+
+    // Two execFile calls — second lookup found the entry expired and re-ran git.
+    expect(mockExecFile.mock.calls.length).toBe(2);
+    const stats = getGitRemoteCacheStats();
+    expect(stats.misses).toBe(1);
+    expect(stats.expiries).toBe(1);
+    expect(stats.hits).toBe(0);
+  });
+});

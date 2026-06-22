@@ -26,7 +26,7 @@ export const authSessionRoutes = new Elysia()
         return { success: false, message: 'No session token' };
       }
 
-      const currentSession = await resolveSessionByToken(token);
+      const currentSession = await resolveSessionByToken(String(token));
 
       if (!currentSession) {
         set.status = 401;
@@ -64,7 +64,7 @@ export const authSessionRoutes = new Elysia()
         return { success: false, message: 'No session token' };
       }
 
-      const currentSession = await resolveSessionByToken(token);
+      const currentSession = await resolveSessionByToken(String(token));
 
       if (!currentSession) {
         set.status = 401;
@@ -103,7 +103,7 @@ export const authSessionRoutes = new Elysia()
         return { success: false, message: 'Authentication required' };
       }
 
-      const currentSession = await resolveSessionByToken(token);
+      const currentSession = await resolveSessionByToken(String(token));
 
       if (!currentSession || currentSession.user.role !== 'admin') {
         set.status = 403;
