@@ -8,6 +8,7 @@
 import { prisma } from '../../config';
 import { createLogger } from '../../config/logger';
 import { resolveWorkflowDir, readWorkflowFile, archiveWorkflowFile } from './workflow-file-utils';
+import { resolveTaskWithThemeAndCategory } from '../task/task-resolver';
 import { buildRoleContext, applyPlanModeDirective } from './workflow-context-builder';
 import {
   executeCLIAgent,
@@ -170,10 +171,7 @@ export class WorkflowOrchestrator {
     taskId: number,
     language: 'ja' | 'en' = 'ja',
   ): Promise<WorkflowAdvanceResult> {
-    const task = await prisma.task.findUnique({
-      where: { id: taskId },
-      include: { theme: { include: { category: true } } },
-    });
+    const task = await resolveTaskWithThemeAndCategory(taskId);
     if (!task) {
       return {
         success: false,
