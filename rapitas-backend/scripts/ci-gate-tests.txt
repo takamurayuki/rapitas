@@ -1,0 +1,25 @@
+# CI ゲートスイート — テストマニフェスト
+#
+# このファイルに記載されたテストのみが `bun run test:ci` で実行される。
+# 1 行 1 ファイル（rapitas-backend/ からの相対パス）。
+# '#' 始まりはコメント、空行は無視される。
+#
+# --- ルール ---
+# - このリストは唯一の情報源 (single source of truth) である。
+#   .github/workflows/test-lint.yml の test-backend ジョブはこのファイルを参照する。
+# - 追加前に `bun run test:ci` でローカルグリーンを確認してから追記すること。
+# - 削除する場合はコメントアウトし、懸念バックログへ起票してから除外すること。
+# - ゲートスイートの拡張は TESTING_POLICY.md の「ゲート昇格パス」に従うこと。
+# --------------
+
+# ===== ゲートスイート（初期値 = test-backend 移行時の 10 ファイル） =====
+tests/debug-log-analyzer.test.ts
+tests/debug-log-parsers.test.ts
+tests/event-emitter.test.ts
+tests/metrics-collector.test.ts
+tests/registry.test.ts
+services/ai/weekly-review-service.test.ts
+services/task/task-dependency-service.test.ts
+services/agents/verification/automated-verifier.test.ts
+tests/integration/claude-code-agent.integration.test.ts
+tests/middleware/error-handler.test.ts
