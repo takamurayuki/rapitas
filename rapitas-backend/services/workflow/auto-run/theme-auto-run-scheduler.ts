@@ -45,6 +45,7 @@ import {
   finalizeStop,
   getAutoRunState,
   startAutoRun,
+  type ThemeAutoRunState,
 } from './theme-auto-run-service';
 import {
   notifyAwaitingPlanApproval,
@@ -165,10 +166,14 @@ export class ThemeAutoRunScheduler {
   private async tick(): Promise<void> {
     if (!this.running) return;
     try {
-      await this.processStoppingThemes();
-      await this.processRunningThemes();
-      await this.processPausedThemes();
-      await this.processIdleThemes();
+      // NOTE: Single query for all statuses; split in JS to avoid 4 DB roundtrips per tick.
+      const allStates = await findByStatuses(['stopping', 'running', 'paused', 'idle']);
+      const byStatus = (s: string) => allStates.filter((r) => r.status === s);
+
+      await this.processStoppingThemes(byStatus('stopping'));
+      await this.processRunningThemes(byStatus('running'));
+      await this.processPausedThemes(byStatus('paused'));
+      await this.processIdleThemes(byStatus('idle'));
 
       // Apply committed fixes during the brief 0-agent gap BETWEEN tasks. The
       // all_done branch alone (advanceTheme → maybeRestartForUpdate) missed this:
@@ -189,8 +194,7 @@ export class ThemeAutoRunScheduler {
   }
 
   /** Handle themes in 'stopping' status: cancel queue items and stop the agent. */
-  private async processStoppingThemes(): Promise<void> {
-    const stopping = await findByStatuses(['stopping']);
+  private async processStoppingThemes(stopping: ThemeAutoRunState[]): Promise<void> {
     for (const state of stopping) {
       try {
         await this.stopThemeExecution(state.themeId, state.currentTaskId);
@@ -215,8 +219,7 @@ export class ThemeAutoRunScheduler {
    * slot). This is what makes auto-run self-sustaining instead of dying at the
    * first dry. A USER stop leaves enabled:false and is never auto-resumed.
    */
-  private async processIdleThemes(): Promise<void> {
-    const idle = await findByStatuses(['idle']);
+  private async processIdleThemes(idle: ThemeAutoRunState[]): Promise<void> {
     for (const state of idle) {
       if (!state.enabled) continue; // user-stopped → stay stopped
       try {
@@ -253,8 +256,7 @@ export class ThemeAutoRunScheduler {
   }
 
   /** For paused themes, check whether approval was granted and auto-resume. */
-  private async processPausedThemes(): Promise<void> {
-    const paused = await findByStatuses(['paused']);
+  private async processPausedThemes(paused: ThemeAutoRunState[]): Promise<void> {
     for (const state of paused) {
       if (!state.currentTaskId) continue;
       try {
@@ -287,8 +289,7 @@ export class ThemeAutoRunScheduler {
   }
 
   /** Core logic: advance running themes to their next task. */
-  private async processRunningThemes(): Promise<void> {
-    const running = await findByStatuses(['running']);
+  private async processRunningThemes(running: ThemeAutoRunState[]): Promise<void> {
     if (running.length === 0) return;
 
     const globalActive = await getGlobalAutoRunActiveCount(prisma);
