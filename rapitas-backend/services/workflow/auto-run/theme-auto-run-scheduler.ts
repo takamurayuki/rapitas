@@ -102,10 +102,18 @@ export class ThemeAutoRunScheduler {
 
   /**
    * Recover on server restart:
-   *  - Any ThemeAutoRun still in 'running' status when the server crashed
-   *    should be resumed (the WorkflowQueueService already re-queues stale items).
+   *  - Any ThemeAutoRun still in 'running'/'paused' OR idle-but-ARMED
+   *    (enabled:true) should resume — start the scheduler so its tick drives them.
    *  - 'stopping' records are cleaned up (the previous execution was killed by
    *    the restart; treat as idle).
+   *
+   * CRITICAL for the perpetual loop: an `all_done` theme parks at status:'idle'
+   * with enabled:true (armed) waiting for processIdleThemes to auto-resume it when
+   * work reappears. But processIdleThemes only runs while the scheduler is
+   * TICKING. If recovery resumed only 'running'/'paused', ANY restart while a
+   * theme was idle (including the self-deploy restart, which fires precisely at
+   * the 0-agent all_done quiet point) would leave the scheduler stopped and the
+   * loop permanently dead. Resuming on enabled:true closes that self-defeating gap.
    */
   async recoverOnStartup(): Promise<void> {
     // Clean up 'stopping' records left from a crash during stop
@@ -115,8 +123,13 @@ export class ThemeAutoRunScheduler {
     });
 
     const running = await findByStatuses(['running', 'paused']);
-    if (running.length > 0) {
-      log.info(`[ThemeAutoRunScheduler] Resuming ${running.length} theme(s) after restart`);
+    const armed = await prisma.themeAutoRun
+      .count({ where: { enabled: true, status: 'idle' } })
+      .catch(() => 0);
+    if (running.length > 0 || armed > 0) {
+      log.info(
+        `[ThemeAutoRunScheduler] Resuming after restart (running/paused=${running.length}, armed-idle=${armed})`,
+      );
       this.start();
     }
   }
