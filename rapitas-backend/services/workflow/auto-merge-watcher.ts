@@ -414,7 +414,11 @@ export class AutoMergeWatcher {
       .count({ where: { taskId: c.taskId, cause: 'auto_merge_conflict_filed' } })
       .catch(() => 0);
     if (conflictAttempts >= MAX_CONFLICT_RETRIES) {
-      await mark(c.taskId, 'auto_merge_blocked', `conflict unresolved after ${conflictAttempts} attempts: ${mergeError ?? ''}`);
+      await mark(
+        c.taskId,
+        'auto_merge_blocked',
+        `conflict unresolved after ${conflictAttempts} attempts: ${mergeError ?? ''}`,
+      );
       await notify({
         taskId: c.taskId,
         type: 'auto_merge_conflict_unresolved',
