@@ -116,9 +116,8 @@ mock.module('../agents/execution-timeouts', () => ({
 
 // Top-level spy for stopTaskAgents — registered before workflow-runner import so that
 // both dynamic import paths (stopProcessing L93 and non-shutdown catch L401) share the same spy.
-const stopTaskAgentsMock = mock(
-  (_taskId: number, _opts?: unknown) =>
-    Promise.resolve({ stoppedCount: 0, executionIds: [] as string[] }),
+const stopTaskAgentsMock = mock((_taskId: number, _opts?: unknown) =>
+  Promise.resolve({ stoppedCount: 0, executionIds: [] as string[] }),
 );
 
 mock.module('../agents/stop-task-agents', () => ({
@@ -305,7 +304,8 @@ describe('WorkflowRunner catch block — shutdown handling', () => {
         args[1] === 'queued' &&
         typeof args[2] === 'object' &&
         args[2] !== null &&
-        (args[2] as Record<string, unknown>)['errorMessage'] === 'Runner shutdown - returned to queue',
+        (args[2] as Record<string, unknown>)['errorMessage'] ===
+          'Runner shutdown - returned to queue',
     );
     expect(requeueCall).toBeDefined();
 
