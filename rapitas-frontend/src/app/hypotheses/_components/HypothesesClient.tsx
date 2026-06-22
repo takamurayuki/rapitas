@@ -117,21 +117,27 @@ export default function HypothesesClient() {
 
   return (
     <div className="mx-auto max-w-5xl p-6">
-      <div className="mb-2 flex items-center gap-2">
-        <Beaker className="h-6 w-6 text-indigo-600" />
-        <h1 className="text-2xl font-bold">仮説台帳</h1>
+      <div className="mb-3 flex items-center gap-3">
+        <div className="flex h-12 w-12 items-center justify-center rounded-xl border-2 border-indigo-300 bg-indigo-50 dark:border-indigo-700 dark:bg-indigo-950/30">
+          <Beaker className="h-5 w-5 text-indigo-600 dark:text-indigo-400" />
+        </div>
+        <div>
+          <h1 className="text-lg font-bold text-zinc-900 dark:text-zinc-100">仮説</h1>
+          <p className="text-xs text-zinc-500 dark:text-zinc-400">
+            エージェントが調査で立てた反証可能な仮説と、証拠・確信度の推移。立証済みは想起時に信頼重み付けされ、反証済みは注入されません。
+          </p>
+        </div>
       </div>
-      <p className="mb-4 text-sm text-gray-500">
-        エージェントが調査・実装・検証で立てた反証可能な仮説と、その証拠・確信度の推移。立証済みは
-        想起時に信頼重み付けされ、反証済みは二度と注入されません。
-      </p>
 
       {stats && (
         <div className="mb-4 grid grid-cols-4 gap-3">
           {(['open', 'supported', 'refuted', 'inconclusive'] as HypothesisStatus[]).map((k) => (
-            <div key={k} className="rounded-lg border bg-white p-3 text-center">
-              <div className="text-2xl font-bold">{stats[k]}</div>
-              <div className="text-xs text-gray-500">{STATUS_META[k].label}</div>
+            <div
+              key={k}
+              className="rounded-lg border border-zinc-200 bg-white p-3 text-center dark:border-zinc-700 dark:bg-zinc-900"
+            >
+              <div className="text-2xl font-bold text-zinc-900 dark:text-zinc-100">{stats[k]}</div>
+              <div className="text-xs text-zinc-500 dark:text-zinc-400">{STATUS_META[k].label}</div>
             </div>
           ))}
         </div>
@@ -146,7 +152,9 @@ export default function HypothesesClient() {
               setCurrentPage(1);
             }}
             className={`rounded-full px-3 py-1 text-sm ${
-              statusFilter === f.key ? 'bg-indigo-600 text-white' : 'bg-gray-100 text-gray-700'
+              statusFilter === f.key
+                ? 'bg-indigo-600 text-white'
+                : 'bg-zinc-100 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300'
             }`}
           >
             {f.label}
@@ -155,9 +163,9 @@ export default function HypothesesClient() {
       </div>
 
       {loading ? (
-        <div className="py-12 text-center text-gray-400">読み込み中…</div>
+        <div className="py-12 text-center text-zinc-400 dark:text-zinc-500">読み込み中…</div>
       ) : hypotheses.length === 0 ? (
-        <div className="rounded-lg border border-dashed py-12 text-center text-gray-400">
+        <div className="rounded-lg border border-dashed border-zinc-300 py-12 text-center text-zinc-400 dark:border-zinc-700 dark:text-zinc-500">
           仮説がありません。エージェントが調査フェーズで反証可能な仮説を立てると、ここに記録されます。
         </div>
       ) : (
@@ -198,7 +206,7 @@ function HypothesisCard({
   const meta = STATUS_META[h.status];
   const pct = Math.round((h.confidence ?? 0) * 100);
   return (
-    <li className="rounded-lg border bg-white p-4 shadow-sm">
+    <li className="rounded-lg border border-zinc-200 bg-white p-4 shadow-sm dark:border-zinc-700 dark:bg-zinc-900">
       <div className="flex items-start justify-between gap-3">
         <div className="flex-1">
           <div className="flex items-center gap-2">
@@ -208,19 +216,23 @@ function HypothesisCard({
               <meta.Icon className="h-3 w-3" />
               {meta.label}
             </span>
-            <span className="rounded bg-gray-100 px-2 py-0.5 text-xs text-gray-600">
+            <span className="rounded bg-zinc-100 px-2 py-0.5 text-xs text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300">
               {h.domain}
             </span>
             {h.originTaskId != null && (
-              <span className="text-xs text-gray-400">#task {h.originTaskId}</span>
+              <span className="text-xs text-zinc-400 dark:text-zinc-500">
+                #task {h.originTaskId}
+              </span>
             )}
           </div>
-          <p className="mt-2 font-medium text-gray-900">{h.statement}</p>
-          {h.rationale && <p className="mt-1 text-sm text-gray-500">{h.rationale}</p>}
+          <p className="mt-2 font-medium text-zinc-900 dark:text-zinc-100">{h.statement}</p>
+          {h.rationale && (
+            <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">{h.rationale}</p>
+          )}
         </div>
         <button
           onClick={() => onRemove(h.id)}
-          className="text-gray-400 hover:text-red-500"
+          className="text-zinc-400 hover:text-red-500"
           title="削除"
         >
           <Trash2 className="h-4 w-4" />
@@ -228,24 +240,26 @@ function HypothesisCard({
       </div>
 
       <div className="mt-3 flex items-center gap-2">
-        <div className="h-2 flex-1 overflow-hidden rounded-full bg-gray-100">
+        <div className="h-2 flex-1 overflow-hidden rounded-full bg-zinc-100 dark:bg-zinc-800">
           <div
             className={`h-full ${pct >= 80 ? 'bg-green-500' : pct <= 20 ? 'bg-red-500' : 'bg-indigo-500'}`}
             style={{ width: `${pct}%` }}
           />
         </div>
-        <span className="w-12 text-right text-xs text-gray-500">確信 {pct}%</span>
+        <span className="w-12 text-right text-xs text-zinc-500 dark:text-zinc-400">
+          確信 {pct}%
+        </span>
       </div>
 
       {h.evidence.length > 0 && (
-        <ul className="mt-3 space-y-1 border-t pt-2">
+        <ul className="mt-3 space-y-1 border-t border-zinc-200 pt-2 dark:border-zinc-700">
           {h.evidence.map((e, i) => (
             <li key={i} className="flex items-start gap-2 text-xs">
               <span className={e.stance === 'for' ? 'text-green-600' : 'text-red-600'}>
                 {e.stance === 'for' ? '＋' : '−'}
               </span>
-              <span className="text-gray-700">{e.detail}</span>
-              <span className="text-gray-400">（{e.artifact}）</span>
+              <span className="text-zinc-700 dark:text-zinc-300">{e.detail}</span>
+              <span className="text-zinc-400 dark:text-zinc-500">（{e.artifact}）</span>
             </li>
           ))}
         </ul>
@@ -258,7 +272,7 @@ function HypothesisCard({
             <button
               key={s}
               onClick={() => onSetStatus(h.id, s)}
-              className="rounded border px-2 py-0.5 text-gray-500 hover:bg-gray-50"
+              className="rounded border border-zinc-200 px-2 py-0.5 text-zinc-500 hover:bg-zinc-50 dark:border-zinc-700 dark:text-zinc-400 dark:hover:bg-zinc-800"
             >
               → {STATUS_META[s].label}
             </button>

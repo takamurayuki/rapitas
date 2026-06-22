@@ -47,7 +47,7 @@ describe('DecisionsClient', () => {
 
   it('renders the page title', async () => {
     renderWithProviders(<DecisionsClient />);
-    expect(screen.getByText('デシジョンジャーナル')).toBeInTheDocument();
+    expect(screen.getByText('意思決定')).toBeInTheDocument();
   });
 
   it('fetches and displays decisions', async () => {

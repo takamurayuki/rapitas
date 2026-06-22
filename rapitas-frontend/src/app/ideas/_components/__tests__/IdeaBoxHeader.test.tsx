@@ -26,6 +26,6 @@ describe('IdeaBoxHeader', () => {
 
   it('renders the title', () => {
     render(<IdeaBoxHeader totalIdeas={5} onAddClick={() => {}} />);
-    expect(screen.getByText('アイデアボックス')).toBeInTheDocument();
+    expect(screen.getByText('アイデア')).toBeInTheDocument();
   });
 });
