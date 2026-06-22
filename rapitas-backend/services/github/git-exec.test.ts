@@ -47,7 +47,8 @@ mock.module('../../config/logger', () => ({
   }),
 }));
 
-const { runGitCommand, parseOwnerRepo, ownerRepoFromGitRemote } = await import('./git-exec');
+const { runGitCommand, parseOwnerRepo, ownerRepoFromGitRemote, clearAllGitRemoteCache } =
+  await import('./git-exec');
 
 // ─── runGitCommand ────────────────────────────────────────────────────────────
 
@@ -165,6 +166,9 @@ describe('ownerRepoFromGitRemote', () => {
     shouldFail = false;
     gitStdout = '';
     mockExecFile.mockClear();
+    // NOTE: Clear remote URL cache between tests to prevent stale entries
+    // from one test affecting the next when both use the same cwd.
+    clearAllGitRemoteCache();
   });
 
   it('リモートあり → owner/repo を小文字で返す', async () => {
