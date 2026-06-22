@@ -142,15 +142,21 @@ export async function maybeRestartForUpdate(themeId: number): Promise<boolean> {
     return false;
   }
 
-  // 0 live agents is NOT "no work in flight": a task sits at 0 agents BETWEEN
-  // phases (the next phase's agent not yet spawned). Restarting in that gap kills
-  // the just-started phase and strands the task — its worktree is lost across the
-  // relaunch, the verifier saves nothing, and it blocks (observed: task 298
-  // entered 実装中, a restart fired 2s later, the phase rolled back, retries
-  // exhausted). Only restart when no task is actively in-progress.
-  const inProgress = await prisma.task.count({ where: { status: 'in-progress' } }).catch(() => 0);
-  if (inProgress > 0) {
-    diag('task-in-progress', { inProgress });
+  // 0 live agents is NOT "no work in flight": a workflow sits at 0 agents BETWEEN
+  // phases (next phase's agent not yet spawned), and a RETRIED task re-runs phases
+  // while its task.status is still 'blocked' (so a task.status check misses it —
+  // observed: task 300 re-ran implement at status='blocked', a restart fired and
+  // stranded it). The accurate "a phase is mid-flight" signal is a RUNNING
+  // workflow queue item: it stays 'running' across the whole multi-phase loop,
+  // including the between-phase gaps, regardless of task.status. Restarting then
+  // kills the phase and strands the work (worktree lost -> empty output -> block).
+  // 'queued' is intentionally EXCLUDED so a full backlog never blocks deploys —
+  // only an actively-running workflow does (a genuine task boundary has none).
+  const runningPhases = await prisma.workflowQueueItem
+    .count({ where: { status: 'running' } })
+    .catch(() => 0);
+  if (runningPhases > 0) {
+    diag('phase-running', { runningPhases });
     return false;
   }
 
