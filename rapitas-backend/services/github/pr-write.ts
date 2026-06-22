@@ -100,7 +100,11 @@ export async function approvePullRequest(
  * @param prNumber - PR number / PR番号
  * @param body - Change request message / 変更リクエストメッセージ
  */
-export async function requestChanges(repo: OwnerRepoString, prNumber: number, body: string): Promise<void> {
+export async function requestChanges(
+  repo: OwnerRepoString,
+  prNumber: number,
+  body: string,
+): Promise<void> {
   await runGhCommandWithBody(
     ['pr', 'review', String(prNumber), '--repo', repo, '--request-changes'],
     body,

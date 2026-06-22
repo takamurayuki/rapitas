@@ -11,7 +11,7 @@
       "lineCount": 1117
     },
     "rapitas-backend/routes/workflow/handlers/workflow-handlers-files.ts": {
-      "lineCount": 1101
+      "lineCount": 1108
     },
     "rapitas-backend/services/workflow/workflow-orchestrator.ts": {
       "lineCount": 1064
@@ -38,7 +38,7 @@
       "lineCount": 644
     },
     "rapitas-backend/services/workflow/auto-merge-watcher.ts": {
-      "lineCount": 625
+      "lineCount": 640
     },
     "rapitas-frontend/src/feature/developer-mode/hooks/execution-poll-handlers.ts": {
       "lineCount": 625
