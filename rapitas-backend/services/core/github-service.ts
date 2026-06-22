@@ -154,7 +154,11 @@ export class GitHubService {
   // ==================== Issue Operations ====================
 
   /** @see issue-operations.getIssues */
-  async getIssues(repo: OwnerRepoString, state: 'open' | 'closed' | 'all' = 'open', limit: number = 30) {
+  async getIssues(
+    repo: OwnerRepoString,
+    state: 'open' | 'closed' | 'all' = 'open',
+    limit: number = 30,
+  ) {
     return getIssues(repo, state, limit);
   }
 

@@ -72,7 +72,10 @@ export async function getPullRequests(
  * @param prNumber - PR number / PR番号
  * @returns Pull request or null if not found / PRまたはnull
  */
-export async function getPullRequest(repo: OwnerRepoString, prNumber: number): Promise<PullRequest | null> {
+export async function getPullRequest(
+  repo: OwnerRepoString,
+  prNumber: number,
+): Promise<PullRequest | null> {
   try {
     const output = await runGhCommand([
       'pr',
@@ -113,7 +116,10 @@ export async function getPullRequest(repo: OwnerRepoString, prNumber: number): P
  * @param prNumber - PR number / PR番号
  * @returns Array of file diffs / ファイル差分リスト
  */
-export async function getPullRequestDiff(repo: OwnerRepoString, prNumber: number): Promise<FileDiff[]> {
+export async function getPullRequestDiff(
+  repo: OwnerRepoString,
+  prNumber: number,
+): Promise<FileDiff[]> {
   // NOTE: First call result is unused; kept for potential future jq filtering use
   await runGhCommand([
     'api',
