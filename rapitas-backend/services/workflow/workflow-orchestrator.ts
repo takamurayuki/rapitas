@@ -762,20 +762,16 @@ export class WorkflowOrchestrator {
       }
       return first;
     } catch (error: unknown) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
-
-      // NOTE: Shutdown errors are controlled interruptions — skip fallback/retry to avoid
-      // secondary ERROR logs and retry loops during graceful restart.
+      // NOTE: Shutdown errors are not agent failures — skip fallback and re-throw so the runner
+      // can requeue the item without consuming retry budget.
       if (isShutdownError(error)) {
-        log.warn(`[WorkflowOrchestrator] Shutdown interrupted ${transition.role}: ${errorMessage}`);
-        return {
-          success: false,
-          role: transition.role,
-          status: currentStatus as WorkflowStatus,
-          error: errorMessage,
-        };
+        log.warn(
+          `[WorkflowOrchestrator] ${transition.role} interrupted by shutdown — skipping fallback`,
+        );
+        throw error;
       }
 
+      const errorMessage = error instanceof Error ? error.message : String(error);
       log.error(`[WorkflowOrchestrator] Error in ${transition.role}: ${errorMessage}`);
 
       // Thrown error path: also try fallback once.
