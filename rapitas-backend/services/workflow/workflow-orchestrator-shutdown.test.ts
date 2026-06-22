@@ -1,7 +1,7 @@
 /**
  * workflow-orchestrator-shutdown.test
  *
- * Verifies that the catch block inside runAgent (workflow-orchestrator.ts) handles
+ * Verifies that the catch block inside runAdvanceWorkflow (workflow-orchestrator.ts) handles
  * shutdown-caused interruptions correctly:
  *   - Shutdown error  → log.warn + re-throw (tryProviderFallback skipped)
  *   - Non-shutdown error → log.error + tryProviderFallback attempted + return {success:false}
@@ -22,9 +22,9 @@ mock.module('../../config/logger', () => ({
   createLogger: () => loggerMock,
 }));
 
-// The key mock: controls whether executeCLIAgent throws a shutdown or generic error.
+// Controls what executeCLIAgent does for each test.
 let executeCLIAgentImpl: () => Promise<unknown> = () =>
-  Promise.resolve({ success: true, role: 'implementer', status: 'verify_done' });
+  Promise.resolve({ success: true, role: 'planner', status: 'plan_created' });
 
 const executeCLIAgentMock = mock(
   (
@@ -44,12 +44,9 @@ const executeCLIAgentMock = mock(
 mock.module('./workflow-agent-executor', () => ({
   executeCLIAgent: executeCLIAgentMock,
   executeAPIAgent: mock(() =>
-    Promise.resolve({ success: true, role: 'implementer', status: 'verify_done' }),
+    Promise.resolve({ success: true, role: 'planner', status: 'plan_created' }),
   ),
 }));
-
-// tryProviderFallback is a module-private function; we observe it indirectly via
-// executeCLIAgentMock call counts (a second fallback call means it was attempted).
 
 const mockPrisma = {
   task: {
@@ -104,6 +101,24 @@ const mockPrisma = {
   workflowTransition: {
     count: mock(() => Promise.resolve(0)),
   },
+  aIAgentConfig: {
+    findUnique: mock(() => Promise.resolve(null)),
+  },
+  developerModeConfig: {
+    findUnique: mock(() =>
+      Promise.resolve({
+        id: 1,
+        taskId: 1,
+        isEnabled: true,
+        enableDetailedLogging: false,
+        enableIntermediateSaves: false,
+        verbosityLevel: 'normal',
+        maxRetries: 3,
+        breakpointPhases: null,
+      }),
+    ),
+    create: mock(() => Promise.resolve({ id: 1, taskId: 1, isEnabled: true })),
+  },
 };
 
 mock.module('../../config', () => ({
@@ -157,9 +172,7 @@ mock.module('./transition-recorder', () => ({
   recordTransition: mock(() => Promise.resolve()),
 }));
 
-// workflow-mode-config: standard mode with research_done → planner transition.
-// Using planner (not implementer) avoids the plan.md validity check that short-circuits
-// before executeCLIAgent is ever called.
+// workflow-mode-config: standard mode, research_done → planner transition.
 mock.module('./workflow-mode-config', () => ({
   getModeSettings: mock(() =>
     Promise.resolve({
@@ -191,6 +204,15 @@ mock.module('../ai/agent-fallback', () => ({
   findAgentConfigForProvider: mock(() => Promise.resolve(null)),
 }));
 
+// NOTE: Prevent tryProviderFallback from calling executeCLIAgent a second time.
+// classifyAgentError returning null causes tryProviderFallback to bail immediately,
+// so executeCLIAgent is called at most once regardless of whether the error path
+// enters tryProviderFallback. This isolates the catch-block assertions from
+// the fallback retry loop.
+mock.module('../ai/agent-error-classifier', () => ({
+  classifyAgentError: mock(() => null),
+}));
+
 // Import WorkflowOrchestrator AFTER all mock.module calls.
 const { WorkflowOrchestrator } = await import('./workflow-orchestrator');
 
@@ -201,7 +223,7 @@ function resetMocks() {
   mockPrisma.task.findUnique.mockClear();
   // Reset to default success impl.
   executeCLIAgentImpl = () =>
-    Promise.resolve({ success: true, role: 'implementer', status: 'verify_done' });
+    Promise.resolve({ success: true, role: 'planner', status: 'plan_created' });
 }
 
 // ── Tests ─────────────────────────────────────────────────────────────────────
@@ -229,6 +251,9 @@ describe('WorkflowOrchestrator catch block — shutdown handling', () => {
       typeof c[0] === 'string' ? c[0] : JSON.stringify(c[0]),
     );
     expect(errorMessages.some((m) => m.includes('Error in planner'))).toBe(false);
+
+    // executeCLIAgent was called once — no fallback attempt.
+    expect(executeCLIAgentMock.mock.calls.length).toBe(1);
   });
 
   test('non-shutdown error → log.error called, advanceWorkflow resolves with {success:false}', async () => {
