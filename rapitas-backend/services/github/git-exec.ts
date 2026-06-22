@@ -320,9 +320,7 @@ export async function runGitCommandWithRetry(
  * @param workingDirectory - Local git repository path / ローカルgitリポジトリパス
  * @returns Lowercased {@link OwnerRepo}, or null when no remote or parse fails / OwnerRepo、失敗時はnull
  */
-export async function ownerRepoFromGitRemote(
-  workingDirectory: string,
-): Promise<OwnerRepo | null> {
+export async function ownerRepoFromGitRemote(workingDirectory: string): Promise<OwnerRepo | null> {
   if (REMOTE_CACHE_ENABLED) {
     const now = Date.now();
     const entry = remoteCache.get(workingDirectory);

@@ -64,19 +64,23 @@ mock.module('../workflow-runner', () => ({
 // 標準 promisify ラッパー経由では stdout を { stdout } で解決しないため
 // headCommit() が null を返す。gate8 は !startupCommit (=null) で false を
 // 返すため、current=null でも期待動作は変わらない。
-mock.module('child_process', () => ({
-  execFile: (
-    _cmd: string,
-    _args: string[],
-    _opts: unknown,
-    callback?: (err: Error | null, stdout: string) => void,
-  ) => {
-    const cb = (typeof _opts === 'function' ? _opts : callback) as
-      | ((err: Error | null, stdout: string) => void)
-      | undefined;
-    if (cb) cb(null, 'abc123fakehash\n');
-  },
-}));
+// NOTE: 'child_process' と 'node:child_process' の両方をモックする。
+// bun では両 specifier がプロセスグローバルで共有されるため、片方のみだと
+// シャッフル実行時に 'node:child_process' の named export が見つからない
+// というエラーで後続テストファイルが失敗する。
+const execFileMock = (
+  _cmd: string,
+  _args: string[],
+  _opts: unknown,
+  callback?: (err: Error | null, stdout: string) => void,
+) => {
+  const cb = (typeof _opts === 'function' ? _opts : callback) as
+    | ((err: Error | null, stdout: string) => void)
+    | undefined;
+  if (cb) cb(null, 'abc123fakehash\n');
+};
+mock.module('child_process', () => ({ execFile: execFileMock }));
+mock.module('node:child_process', () => ({ execFile: execFileMock }));
 
 // ── 動的 import（全 mock.module 宣言後） ──────────────────────────────────────
 

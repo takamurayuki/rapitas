@@ -83,7 +83,8 @@ describe('gantt-utils', () => {
       expect(bar.y).toBe(60); // margin.top + 0 * rowHeight
       expect(bar.height).toBe(36); // rowHeight - 4
       expect(bar.width).toBeGreaterThan(20); // 最小幅
-      expect(bar.color).toBe('#FF0000');
+      // NOTE: taskToBar ignores theme color — status colors are fixed for consistent visual meaning.
+      expect(bar.color).toBe('#94A3B8'); // todo → slate-400
     });
 
     test('期限なしタスクのデフォルト期間', () => {
