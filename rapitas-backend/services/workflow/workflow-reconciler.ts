@@ -46,6 +46,21 @@ export const COMPLETED_DESYNC_MS = 2 * 60 * 1000;
 const MAX_ORPHAN_REQUEUE_AGE_MS = 2 * 24 * 60 * 60 * 1000;
 /** Re-queue an orphan at most this many times before leaving it for notification. */
 const MAX_ORPHAN_REQUEUE = 2;
+/**
+ * Auto-retry a BLOCKED task at most this many times before leaving it blocked for
+ * the user. Blocked auto-created tasks otherwise sit forever, holding the backlog
+ * promotion cap and starving the loop (observed: 5 blocked tasks = cap 5 → idle
+ * with 20 open concerns un-promoted). A bounded retry re-runs them — most were
+ * blocked by a since-fixed bug and now pass; genuine failures exhaust the budget
+ * and stay blocked. / blocked タスクの自動再試行上限。
+ */
+const MAX_BLOCKED_RETRY = 2;
+/**
+ * Wait this long after a task was blocked before auto-retrying — let the dust
+ * settle (don't race the run that just blocked it) and avoid hammering a task
+ * that re-blocks instantly. / blocked 後この時間待ってから再試行。
+ */
+const BLOCKED_RETRY_SETTLE_MS = 3 * 60 * 1000;
 /** Only inspect worktree rows touched within this window (bound the scan). */
 const PHANTOM_LOOKBACK_MS = 24 * 60 * 60 * 1000;
 
@@ -312,6 +327,80 @@ async function requeueOrphanTasks(nowMs: number): Promise<number> {
   return requeued;
 }
 
+/**
+ * Self-healing for the perpetual loop: auto-retry BLOCKED auto-created tasks so a
+ * since-fixed bug (the common cause — e.g. a verify-gate false-positive resolved
+ * by a deploy) no longer strands them, and they stop permanently holding the
+ * backlog-promotion cap. Bounded by MAX_BLOCKED_RETRY; only touches tasks whose
+ * theme auto-run is still ARMED (enabled) so a user STOP is respected, and only
+ * after a settle delay so we don't race the run that just blocked it.
+ *
+ * Reset to 'todo' + workflowStatus 'draft' (research/plan are reused via
+ * isReusableArtifact, so the re-run is cheap) so the scheduler re-selects and
+ * actually re-runs it rather than failing "cannot advance from <terminal>".
+ */
+async function requeueBlockedTasks(nowMs: number): Promise<number> {
+  const settleBefore = new Date(nowMs - BLOCKED_RETRY_SETTLE_MS);
+  const notOlderThan = new Date(nowMs - MAX_ORPHAN_REQUEUE_AGE_MS);
+
+  // Respect user stops: only retry blocked tasks in themes that are still armed.
+  const armed = await prisma.themeAutoRun
+    .findMany({ where: { enabled: true }, select: { themeId: true } })
+    .catch(() => [] as { themeId: number }[]);
+  const armedThemeIds = armed.map((a) => a.themeId);
+  if (armedThemeIds.length === 0) return 0;
+
+  const tasks = await prisma.task
+    .findMany({
+      where: {
+        status: 'blocked',
+        parentId: null,
+        themeId: { in: armedThemeIds },
+        updatedAt: { lt: settleBefore, gt: notOlderThan },
+      },
+      select: { id: true, workflowStatus: true },
+    })
+    .catch(() => [] as { id: number; workflowStatus: string | null }[]);
+
+  let retried = 0;
+  for (const t of tasks) {
+    // A live agent means it's not really stuck — skip.
+    const live = await prisma.agentExecution
+      .findFirst({
+        where: { session: { config: { taskId: t.id } }, status: { in: ACTIVE_EXEC } },
+        select: { id: true },
+      })
+      .catch(() => null);
+    if (live) continue;
+
+    const attempts = await prisma.workflowTransition
+      .count({ where: { taskId: t.id, cause: 'blocked_auto_retry' } })
+      .catch(() => 0);
+    if (attempts >= MAX_BLOCKED_RETRY) continue;
+
+    await prisma.task
+      .update({
+        where: { id: t.id },
+        data: { status: 'todo', workflowStatus: 'draft', updatedAt: new Date() },
+      })
+      .catch(() => {});
+    await recordTransition({
+      taskId: t.id,
+      fromStatus: t.workflowStatus,
+      toStatus: 'draft',
+      actor: 'system',
+      cause: 'blocked_auto_retry',
+      metadata: { reason: 'blocked_task_auto_retry', attempt: attempts + 1 },
+    }).catch(() => {});
+    retried++;
+    log.info(
+      { taskId: t.id, attempt: attempts + 1, wf: t.workflowStatus },
+      '[reconciler] Auto-retried blocked task -> todo (draft)',
+    );
+  }
+  return retried;
+}
+
 /** Run one reconciliation pass. Single-flight; never throws. */
 export async function reconcileOnce(): Promise<{
   zombieSessions: number;
@@ -319,6 +408,7 @@ export async function reconcileOnce(): Promise<{
   orphanTasks: number;
   completedDesyncs: number;
   requeuedOrphans: number;
+  retriedBlocked: number;
 }> {
   const empty = {
     zombieSessions: 0,
@@ -326,6 +416,7 @@ export async function reconcileOnce(): Promise<{
     orphanTasks: 0,
     completedDesyncs: 0,
     requeuedOrphans: 0,
+    retriedBlocked: 0,
   };
   if (inFlight) return empty;
   inFlight = true;
@@ -337,14 +428,38 @@ export async function reconcileOnce(): Promise<{
     // Try to recover orphans (re-queue) BEFORE flagging — a successful re-queue
     // means we don't also notify the user about the same task.
     const requeuedOrphans = await requeueOrphanTasks(nowMs);
+    // Auto-retry blocked tasks so the perpetual loop self-heals instead of idling
+    // with a cap full of permanently-blocked tasks.
+    const retriedBlocked = await requeueBlockedTasks(nowMs);
     const orphanTasks = await flagOrphanTasks(nowMs);
-    if (zombieSessions || phantomWorktrees || orphanTasks || completedDesyncs || requeuedOrphans) {
+    if (
+      zombieSessions ||
+      phantomWorktrees ||
+      orphanTasks ||
+      completedDesyncs ||
+      requeuedOrphans ||
+      retriedBlocked
+    ) {
       log.info(
-        { zombieSessions, phantomWorktrees, orphanTasks, completedDesyncs, requeuedOrphans },
+        {
+          zombieSessions,
+          phantomWorktrees,
+          orphanTasks,
+          completedDesyncs,
+          requeuedOrphans,
+          retriedBlocked,
+        },
         '[reconciler] repaired divergences',
       );
     }
-    return { zombieSessions, phantomWorktrees, orphanTasks, completedDesyncs, requeuedOrphans };
+    return {
+      zombieSessions,
+      phantomWorktrees,
+      orphanTasks,
+      completedDesyncs,
+      requeuedOrphans,
+      retriedBlocked,
+    };
   } catch (err) {
     log.warn({ err }, '[reconciler] pass failed');
     return empty;
