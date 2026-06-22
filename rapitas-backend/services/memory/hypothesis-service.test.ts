@@ -7,17 +7,11 @@
  * just to close it). Pure functions, no DB.
  */
 import { describe, test, expect } from 'bun:test';
-import {
-  checkFalsifiable,
-  isConcreteArtifact,
-  normalizeDomain,
-} from './hypothesis-service';
+import { checkFalsifiable, isConcreteArtifact, normalizeDomain } from './hypothesis-service';
 
 describe('checkFalsifiable', () => {
   test('accepts a concrete testable claim', () => {
-    expect(
-      checkFalsifiable('git-exec のキャッシュ層導入で PR 取得の往復回数が減る'),
-    ).toBeNull();
+    expect(checkFalsifiable('git-exec のキャッシュ層導入で PR 取得の往復回数が減る')).toBeNull();
   });
 
   test('rejects a too-short statement', () => {

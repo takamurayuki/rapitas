@@ -225,9 +225,9 @@ describe('runGhCommandWithRetry', () => {
     failCount = 99;
     failError = 'API rate limit exceeded';
 
-    await expect(
-      runGhCommandWithRetry(['pr', 'view', '1']),
-    ).rejects.toThrow('API rate limit exceeded');
+    await expect(runGhCommandWithRetry(['pr', 'view', '1'])).rejects.toThrow(
+      'API rate limit exceeded',
+    );
     // READ_RETRY_POLICY: maxRetries=3 → 4 total attempts
     expect(mockExecFile).toHaveBeenCalledTimes(4);
     expect(mockSleep).toHaveBeenCalledTimes(3);

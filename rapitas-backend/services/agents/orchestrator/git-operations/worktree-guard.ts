@@ -88,7 +88,9 @@ async function gitCommonDir(workingDirectory: string): Promise<string | null> {
     });
     let common = normalize(commonDir.stdout);
     if (!/^([a-zA-Z]:)?\//.test(common)) {
-      const root = await execGitReadonly('git rev-parse --show-toplevel', { cwd: workingDirectory });
+      const root = await execGitReadonly('git rev-parse --show-toplevel', {
+        cwd: workingDirectory,
+      });
       common = normalize(`${normalize(root.stdout)}/${common}`);
     }
     return common;

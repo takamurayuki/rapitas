@@ -205,22 +205,24 @@ export async function triageTestFailures(
   }
   const mainRepoRoot = await getMainRoot(workdir);
   if (!mainRepoRoot) {
-    log.warn({ workdir }, 'test-triage: cannot resolve main repo root, treating all failures as new');
+    log.warn(
+      { workdir },
+      'test-triage: cannot resolve main repo root, treating all failures as new',
+    );
     return null;
   }
 
-  const baselineDir = join(
-    mainRepoRoot,
-    '.worktrees',
-    `triage-${randomBytes(4).toString('hex')}`,
-  );
+  const baselineDir = join(mainRepoRoot, '.worktrees', `triage-${randomBytes(4).toString('hex')}`);
   let baselineCreated = false;
 
   try {
     // Step 3: create detached worktree at merge-base
     const created = await createWt(mainRepoRoot, baselineDir, baseCommit);
     if (!created) {
-      log.warn({ baselineDir }, 'test-triage: baseline worktree creation failed, treating all failures as new');
+      log.warn(
+        { baselineDir },
+        'test-triage: baseline worktree creation failed, treating all failures as new',
+      );
       return null;
     }
     baselineCreated = true;
@@ -261,7 +263,10 @@ export async function triageTestFailures(
     if (baselineCreated) {
       // NOTE: deleteBranch=false — detached HEAD has no branch to delete.
       await removeWt(mainRepoRoot, baselineDir, false).catch((err: unknown) =>
-        log.warn({ err, baselineDir }, 'test-triage: failed to remove baseline worktree (non-fatal)'),
+        log.warn(
+          { err, baselineDir },
+          'test-triage: failed to remove baseline worktree (non-fatal)',
+        ),
       );
     }
   }
