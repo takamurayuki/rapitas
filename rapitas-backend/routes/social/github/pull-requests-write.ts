@@ -11,7 +11,7 @@ import { resolvePrConflicts } from '../../../services/github/conflict-resolver';
 import { fileConflictResolutionTask } from '../../../services/github/conflict-task';
 import { checkPrActionable } from '../../../services/github/pr-guards';
 import { resolvePrOrThrow } from '../../../services/github/resource-guard';
-import { resolvePrWorkingDirectory } from '../../../services/github/pr-task-resolver';
+import { resolvePrTaskContext, resolvePrWorkingDirectory } from '../../../services/github/pr-task-resolver';
 
 const githubService = new GitHubService(prisma);
 
@@ -215,22 +215,7 @@ export const pullRequestWriteRoutes = new Elysia()
 
     // The conflict resolution needs a local checkout of the repo — use the
     // linked task's (or its theme's) working directory.
-    let workingDirectory: string | null = null;
-    let themeId: number | null = null;
-    if (pr.linkedTaskId != null) {
-      const task = await prisma.task
-        .findUnique({
-          where: { id: pr.linkedTaskId },
-          select: {
-            workingDirectory: true,
-            themeId: true,
-            theme: { select: { workingDirectory: true } },
-          },
-        })
-        .catch(() => null);
-      workingDirectory = task?.workingDirectory ?? task?.theme?.workingDirectory ?? null;
-      themeId = task?.themeId ?? null;
-    }
+    const { workingDirectory, themeId } = await resolvePrTaskContext(pr.linkedTaskId);
     if (!workingDirectory) {
       context.set.status = 400;
       return {
