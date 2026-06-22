@@ -40,7 +40,7 @@ describe('IdeasClient', () => {
 
   it('renders the page title', async () => {
     renderWithProviders(<IdeasClient />);
-    expect(screen.getByText('アイデアボックス')).toBeInTheDocument();
+    expect(screen.getByText('アイデア')).toBeInTheDocument();
   });
 
   it('fetches and displays ideas', async () => {

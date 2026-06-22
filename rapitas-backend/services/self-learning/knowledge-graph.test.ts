@@ -11,6 +11,8 @@ const mockFindMany = mock(() => Promise.resolve([]));
 const mockCount = mock(() => Promise.resolve(0));
 
 mock.module('../../config/database', () => ({
+  // mock.module replaces the whole module — mirror ensureDatabaseConnection so config/index.ts re-export survives shuffled test order (else 'export not found').
+  ensureDatabaseConnection: () => Promise.resolve(),
   prisma: {
     knowledgeGraphNode: { findMany: mockFindMany, count: mockCount },
   },

@@ -4,10 +4,31 @@
 import { ExternalLink } from 'lucide-react';
 import type { DraggableProvided, DraggableStateSnapshot } from '@hello-pangea/dnd';
 import { getLabelsArray, hasLabels } from '@/utils/labels';
+import type { Priority } from '@/types';
+
+const PRIORITY_BADGE: Record<Priority, { label: string; className: string }> = {
+  low: {
+    label: '低',
+    className: 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400',
+  },
+  medium: {
+    label: '中',
+    className: 'bg-blue-100 text-blue-600 dark:bg-blue-900 dark:text-blue-400',
+  },
+  high: {
+    label: '高',
+    className: 'bg-amber-100 text-amber-600 dark:bg-amber-900 dark:text-amber-400',
+  },
+  urgent: {
+    label: '緊急',
+    className: 'bg-rose-100 text-rose-600 dark:bg-rose-900 dark:text-rose-400',
+  },
+};
 
 interface KanbanCardTask {
   id: number;
   title: string;
+  priority?: Priority | null;
   createdAt: string;
   estimatedHours?: number | null;
   labels?: unknown;
@@ -70,6 +91,14 @@ export function KanbanCard({
       <div className="flex items-start justify-between gap-2 mb-2">
         <h3 className="flex-1 text-sm font-medium text-zinc-900 dark:text-zinc-50">{task.title}</h3>
         <div className="flex items-center gap-2">
+          {/* Priority badge */}
+          {task.priority && PRIORITY_BADGE[task.priority] && (
+            <span
+              className={`flex-shrink-0 px-1.5 py-0.5 rounded text-xs font-medium ${PRIORITY_BADGE[task.priority].className}`}
+            >
+              {PRIORITY_BADGE[task.priority].label}
+            </span>
+          )}
           {/* Execution state badge */}
           {executionClasses && (
             <div

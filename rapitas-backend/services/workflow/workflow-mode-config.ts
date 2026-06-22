@@ -199,8 +199,14 @@ export function applyProvisionalBias(
 export async function selectProvisionalMode(score: number): Promise<WorkflowMode> {
   const base = await selectModeByComplexity(score);
   const all = await getAllModeSettings();
-  // Trust 'lightweight' only in the lower half of its configured band.
-  const lightweightConfidentMax = Math.floor(all.lightweight.complexityMax / 2);
+  // Honour the FULL configured lightweight band: a score within the user's
+  // configured lightweight range (≤ complexityMax) stays lightweight, instead of
+  // biasing the upper half up to 'standard'. The old half-band bias made the
+  // actual mode disagree with the configured complexity ranges (observed: score
+  // 35 with lightweight=[0,35] resolved to standard). Research-assessed complexity
+  // can still UPGRADE (never downgrade), so a genuinely complex task the metadata
+  // under-scored still gets a plan phase.
+  const lightweightConfidentMax = all.lightweight.complexityMax;
   return applyProvisionalBias(base, score, all.standard.isEnabled, lightweightConfidentMax);
 }
 

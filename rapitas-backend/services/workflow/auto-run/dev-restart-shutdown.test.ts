@@ -61,6 +61,8 @@ mock.module('../../../config/logger', () => ({
 
 // Prisma: no running queue items, armed theme exists.
 mock.module('../../../config/database', () => ({
+  // mock.module replaces the whole module — mirror ensureDatabaseConnection so config/index.ts re-export survives shuffled test order (else 'export not found').
+  ensureDatabaseConnection: () => Promise.resolve(),
   prisma: {
     workflowQueueItem: { count: () => Promise.resolve(0) },
     themeAutoRun: { count: () => Promise.resolve(1) },

@@ -33,7 +33,10 @@ export const integrationRoutes = new Elysia()
       integrations.map((i) => makeOwnerRepoString(i.ownerName, i.repositoryName)),
     );
     // NOTE: nameWithOwner is already "owner/repo" from GitHub — asOwnerRepoString is safe here
-    return repos.map((r) => ({ ...r, alreadyAdded: added.has(asOwnerRepoString(r.nameWithOwner.toLowerCase())) }));
+    return repos.map((r) => ({
+      ...r,
+      alreadyAdded: added.has(asOwnerRepoString(r.nameWithOwner.toLowerCase())),
+    }));
   })
 
   // Integration list

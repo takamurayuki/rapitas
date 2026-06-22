@@ -19,12 +19,10 @@ import { sleep } from '../agents/abstraction/agent-retry';
 import { computeBackoffDelay } from './gh-retry';
 import { resolveActiveGitRetryPolicy, getActiveVariantName } from './git-retry-policy-registry';
 import { recordGitRetryMetric } from './git-retry-telemetry';
+import { GIT_CACHE_ENABLED, getGitRemoteCacheTtlMs } from '../../config/cache-ttl';
 
 const log = createLogger('github-service:git-exec');
 const execFileAsync = promisify(execFile);
-
-const DEFAULT_REMOTE_CACHE_TTL_MS = 30_000;
-const REMOTE_CACHE_ENABLED = process.env.RAPITAS_GIT_EXEC_CACHE !== '0';
 
 interface RemoteCacheEntry {
   value: OwnerRepo | null;
@@ -52,7 +50,7 @@ export interface GitRemoteCacheStats {
 const remoteCache = new Map<string, RemoteCacheEntry>();
 
 // NOTE: module-scope counters; process-global for the lifetime of the server.
-// Counted only when REMOTE_CACHE_ENABLED=true (bypass path = no count).
+// Counted only when GIT_CACHE_ENABLED=true (bypass path = no count).
 // Reset via resetGitRemoteCacheStats() to open a new measurement window.
 let hits = 0;
 let misses = 0;
@@ -320,10 +318,8 @@ export async function runGitCommandWithRetry(
  * @param workingDirectory - Local git repository path / ローカルgitリポジトリパス
  * @returns Lowercased {@link OwnerRepo}, or null when no remote or parse fails / OwnerRepo、失敗時はnull
  */
-export async function ownerRepoFromGitRemote(
-  workingDirectory: string,
-): Promise<OwnerRepo | null> {
-  if (REMOTE_CACHE_ENABLED) {
+export async function ownerRepoFromGitRemote(workingDirectory: string): Promise<OwnerRepo | null> {
+  if (GIT_CACHE_ENABLED) {
     const now = Date.now();
     const entry = remoteCache.get(workingDirectory);
     if (entry) {
@@ -351,10 +347,10 @@ export async function ownerRepoFromGitRemote(
     return null;
   }
 
-  if (REMOTE_CACHE_ENABLED) {
+  if (GIT_CACHE_ENABLED) {
     remoteCache.set(workingDirectory, {
       value: result,
-      expiresAt: Date.now() + DEFAULT_REMOTE_CACHE_TTL_MS,
+      expiresAt: Date.now() + getGitRemoteCacheTtlMs(),
     });
   }
   return result;

@@ -40,8 +40,15 @@ mock.module('child_process', () => ({
 mock.module('../../../../config/logger', () => ({
   createLogger: () => ({ info: () => {}, warn: () => {}, error: () => {} }),
 }));
+// NOTE: ensureNotPrimaryWorkTree is mocked to prevent it from calling execGitReadonly
+// (git-exec.ts), which would attempt real git commands via the non-mocked transitive
+// child_process import. The guard itself is tested separately in worktree-guard.test.ts.
+mock.module('./worktree-guard', () => ({
+  isPrimaryWorkTree: async () => false,
+  ensureNotPrimaryWorkTree: async () => {},
+}));
 
-const { createPullRequest } = await import('./branch-pr-ops');
+const { createPullRequest, createBranch } = await import('./branch-pr-ops');
 
 const rejected = () =>
   new Error(
@@ -177,5 +184,112 @@ describe('createPullRequest — push 分岐耐性', () => {
     expect(res.success).toBe(false);
     expect(res.error).toContain('Authentication failed');
     expect(calls.some((c) => /git branch -M/.test(c))).toBe(false);
+  });
+});
+
+describe('createBranch — worktree使用中チェック', () => {
+  // NOTE: ensureNotPrimaryWorkTree calls git rev-parse --absolute-git-dir and
+  // --git-common-dir via the mocked child_process. Unmatched commands in
+  // runScripted return empty stdout, making isPrimaryWorkTree return false
+  // (empty strings resolve to different paths) — so the guard always passes
+  // without explicit script entries.
+
+  test('別worktreeで使用中のブランチはcheckoutせずfalseを返すこと', async () => {
+    script = [
+      { match: /git branch --list chore\/update-refactor$/, result: 'chore/update-refactor\n' },
+      {
+        match: /git worktree list --porcelain/,
+        result: [
+          'worktree /other-wt',
+          'HEAD abc1234abc1234abc1234abc1234abc1234abc1234',
+          'branch refs/heads/chore/update-refactor',
+          '',
+          'worktree /working-dir',
+          'HEAD def5678def5678def5678def5678def5678def5678',
+          'branch refs/heads/main',
+          '',
+        ].join('\n'),
+      },
+    ];
+
+    const result = await createBranch('/working-dir', 'chore/update-refactor');
+
+    expect(result).toBe(false);
+    // checkout を試みないこと
+    expect(calls.some((c) => /git checkout chore\/update-refactor$/.test(c))).toBe(false);
+  });
+
+  test('自分自身が同ブランチ上にある場合はcheckoutを続行してtrueを返すこと', async () => {
+    script = [
+      { match: /git branch --list feature\/mine$/, result: 'feature/mine\n' },
+      {
+        match: /git worktree list --porcelain/,
+        result: [
+          'worktree /working-dir',
+          'HEAD abc1234abc1234abc1234abc1234abc1234abc1234',
+          'branch refs/heads/feature/mine',
+          '',
+        ].join('\n'),
+      },
+      { match: /git checkout feature\/mine$/, result: '' },
+    ];
+
+    const result = await createBranch('/working-dir', 'feature/mine');
+
+    expect(result).toBe(true);
+    // 自分自身が使用中でも checkout を実行すること
+    expect(calls.some((c) => /git checkout feature\/mine$/.test(c))).toBe(true);
+  });
+
+  test('どのworktreeも対象ブランチを使用していなければcheckoutを実行してtrueを返すこと', async () => {
+    script = [
+      { match: /git branch --list feature\/other$/, result: 'feature/other\n' },
+      {
+        match: /git worktree list --porcelain/,
+        result: [
+          'worktree /working-dir',
+          'HEAD abc1234abc1234abc1234abc1234abc1234abc1234',
+          'branch refs/heads/main',
+          '',
+        ].join('\n'),
+      },
+      { match: /git checkout feature\/other$/, result: '' },
+    ];
+
+    const result = await createBranch('/working-dir', 'feature/other');
+
+    expect(result).toBe(true);
+    expect(calls.some((c) => /git checkout feature\/other$/.test(c))).toBe(true);
+  });
+
+  test('git worktree list が失敗してもフォールスルーしてcheckoutを試みること', async () => {
+    script = [
+      { match: /git branch --list feature\/list-fail$/, result: 'feature/list-fail\n' },
+      {
+        match: /git worktree list --porcelain/,
+        result: new Error('cannot list worktrees'),
+      },
+      { match: /git checkout feature\/list-fail$/, result: '' },
+    ];
+
+    const result = await createBranch('/working-dir', 'feature/list-fail');
+
+    expect(result).toBe(true);
+    // list 失敗後も checkout を実行していること
+    expect(calls.some((c) => /git checkout feature\/list-fail$/.test(c))).toBe(true);
+  });
+
+  test('新規ブランチ作成（-b）は worktree チェックなしで実行されること（回帰確認）', async () => {
+    script = [
+      { match: /git branch --list feature\/new-branch$/, result: '' }, // 存在しない
+      { match: /git checkout -b feature\/new-branch$/, result: '' },
+    ];
+
+    const result = await createBranch('/working-dir', 'feature/new-branch');
+
+    expect(result).toBe(true);
+    expect(calls.some((c) => /git checkout -b feature\/new-branch$/.test(c))).toBe(true);
+    // 新規ブランチは使用中チェック不要なので worktree list を呼ばないこと
+    expect(calls.some((c) => /worktree list/.test(c))).toBe(false);
   });
 });

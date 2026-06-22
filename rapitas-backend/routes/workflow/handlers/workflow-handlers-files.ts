@@ -12,6 +12,8 @@ import { NotFoundError, ValidationError, parseId } from '../../../middleware/err
 import { createLogger } from '../../../config/logger';
 import { recordWorkflowCompletion } from '../../../services/workflow/learning/workflow-learning-optimizer';
 import { extractKnowledgeFromTask } from '../../../services/memory/task-knowledge-extractor';
+import { fileHypothesesFromResearch } from '../../../services/memory/hypothesis-from-research';
+import { fileDecisionsFromPlan } from '../../../services/memory/decision-from-plan';
 import {
   VALID_FILE_TYPES,
   type WorkflowFileType,
@@ -190,7 +192,14 @@ export async function handleSaveFile({
     // a phase that can legitimately produce that artifact.
     const ALLOWED_FILE_TYPES_BY_STATUS: Record<string, ReadonlySet<WorkflowFileType>> = {
       draft: new Set(['research', 'question']),
-      research_done: new Set(['plan', 'question', 'research']),
+      // 'verify' is allowed here for the LIGHTWEIGHT single-session flow
+      // (research→implement→verify, NO plan phase — e.g. conflict-resolution
+      // tasks): one agent reaches verify.md while workflowStatus is still
+      // research_done, because no plan phase ever advanced it to plan_approved.
+      // Without this the save is rejected and the agent must manually PUT
+      // /status to in_progress first. Forward-only; the completion gate
+      // (evaluateCompletionGate) still blocks completions with no real diff.
+      research_done: new Set(['plan', 'question', 'research', 'verify']),
       plan_created: new Set(['plan', 'question']),
       // 'verify' is allowed here for the dev-mode single-session flow: ONE agent
       // does research→plan→implement→verify in a single run, so it reaches
@@ -389,6 +398,22 @@ export async function handleSaveFile({
     // "修正不要" verdict). Complete the task directly from research — no plan.md,
     // no implementation, no verify — so already-done work doesn't get a
     // duplicate PR. Only valid while still in the research phase.
+    // Seed the hypothesis ledger from EVERY research.md save, regardless of the
+    // workflow status at save time. The status varies (fresh draft, re-run,
+    // resume, or a status pre-advanced by the orchestrator), so gating this on
+    // currentStatus==='draft' (as it was) meant the hook almost never fired and
+    // the ledger stayed empty despite research writing a `## 仮説` section.
+    // submitHypothesis dedupes by content hash, so repeated saves are safe.
+    if (fileType === 'research') {
+      void fileHypothesesFromResearch(taskId, savedContent).catch(() => {});
+    }
+    // Same rationale for the decision journal: record `## 意思決定` from EVERY
+    // plan.md save (createDecision dedupes by decision text per theme), rather
+    // than only on the research_done→plan_created transition.
+    if (fileType === 'plan') {
+      void fileDecisionsFromPlan(taskId, savedContent).catch(() => {});
+    }
+
     let researchCompleted = false;
     if (
       fileType === 'research' &&

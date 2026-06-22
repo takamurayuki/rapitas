@@ -8,7 +8,7 @@
 import { exec } from 'child_process';
 import { mkdtempSync, rmSync, writeFileSync } from 'fs';
 import { tmpdir } from 'os';
-import { join } from 'path';
+import { join, resolve } from 'path';
 import { promisify } from 'util';
 import { createLogger } from '../../../../config/logger';
 import { isPrimaryWorkTree, ensureNotPrimaryWorkTree } from './worktree-guard';
@@ -46,6 +46,42 @@ export async function createBranch(workingDirectory: string, branchName: string)
     });
 
     if (stdout.trim()) {
+      // NOTE: Before attempting checkout, verify that no OTHER worktree is
+      // already using this branch. `git checkout` fails with
+      // `fatal: '<branch>' is already used by worktree at '<path>'` when
+      // another worktree holds the branch — emitting a spurious ERROR log.
+      // Check proactively and return false early instead (same pattern as
+      // createWorktree in worktree-ops.ts).
+      await execAsync('git worktree prune', { cwd: workingDirectory }).catch(() => {});
+      try {
+        const { stdout: worktreeList } = await execAsync('git worktree list --porcelain', {
+          cwd: workingDirectory,
+        });
+        // Porcelain output is blank-line-separated blocks, each starting with
+        // `worktree <path>` followed by `branch refs/heads/<name>`.
+        const blocks = worktreeList.split(/\n\n+/);
+        for (const block of blocks) {
+          if (block.includes(`branch refs/heads/${branchName}`)) {
+            const pathLine = block.split('\n').find((l) => l.startsWith('worktree '));
+            if (pathLine) {
+              const wtPath = pathLine.slice('worktree '.length).trim();
+              // NOTE: Use resolve() to normalize Windows paths (C:/ vs C:\,
+              // trailing separators) before comparing. Only block when it is a
+              // DIFFERENT worktree — if workingDirectory is already on this
+              // branch, checkout is a no-op and we should continue normally.
+              if (resolve(wtPath) !== resolve(workingDirectory)) {
+                logger.warn(
+                  `[createBranch] Branch ${branchName} is already used by worktree at ${wtPath}, skipping checkout`,
+                );
+                return false;
+              }
+            }
+          }
+        }
+      } catch {
+        // NOTE: If worktree list fails, fall through to the checkout attempt
+        // rather than blocking the operation — same fail-safe as createWorktree.
+      }
       logger.info(`[createBranch] Branch ${branchName} already exists, checking out`);
       await execAsync(`git checkout ${branchName}`, { cwd: workingDirectory });
     } else {

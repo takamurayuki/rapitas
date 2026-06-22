@@ -8,6 +8,7 @@
 import { createLogger } from '../../config/logger';
 import { runGhCommand, runGhCommandWithBody } from './gh-client';
 import { runGitCommand } from './git-exec';
+import type { OwnerRepoString } from './owner-repo';
 import type { PullRequestComment, CreatePRCommentInput, GhComment } from './types';
 
 const log = createLogger('github-service:pr-write');
@@ -35,7 +36,7 @@ const UPDATE_BRANCH_NOOP_RE = /already up.?to.?date|no new commits|not behind/i;
  * @returns Created comment object / 作成されたコメント
  */
 export async function createPullRequestComment(
-  repo: string,
+  repo: OwnerRepoString,
   prNumber: number,
   input: CreatePRCommentInput,
 ): Promise<PullRequestComment> {
@@ -84,7 +85,7 @@ export async function createPullRequestComment(
  * @param body - Optional approval message / 承認メッセージ
  */
 export async function approvePullRequest(
-  repo: string,
+  repo: OwnerRepoString,
   prNumber: number,
   body?: string,
 ): Promise<void> {
@@ -99,7 +100,11 @@ export async function approvePullRequest(
  * @param prNumber - PR number / PR番号
  * @param body - Change request message / 変更リクエストメッセージ
  */
-export async function requestChanges(repo: string, prNumber: number, body: string): Promise<void> {
+export async function requestChanges(
+  repo: OwnerRepoString,
+  prNumber: number,
+  body: string,
+): Promise<void> {
   await runGhCommandWithBody(
     ['pr', 'review', String(prNumber), '--repo', repo, '--request-changes'],
     body,
@@ -128,7 +133,7 @@ export async function requestChanges(repo: string, prNumber: number, body: strin
  * @throws {Error} 'ブランチを最新化しました...' when update-branch succeeded but CI re-run is needed / ブランチ更新後CI待ちが必要な場合
  */
 export async function mergePullRequest(
-  repo: string,
+  repo: OwnerRepoString,
   prNumber: number,
   options?: { method?: 'merge' | 'squash' | 'rebase'; deleteBranch?: boolean; auto?: boolean },
 ): Promise<{ autoQueued: boolean }> {
@@ -219,7 +224,7 @@ export async function mergePullRequest(
  * @param baseBranch - New base (merge target) branch / 新しいマージ先ブランチ
  */
 export async function changePullRequestBase(
-  repo: string,
+  repo: OwnerRepoString,
   prNumber: number,
   baseBranch: string,
 ): Promise<void> {

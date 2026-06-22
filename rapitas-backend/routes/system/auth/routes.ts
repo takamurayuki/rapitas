@@ -10,6 +10,7 @@ import bcrypt from 'bcryptjs';
 import { randomBytes } from 'crypto';
 import { createLogger } from '../../../config/logger';
 import { checkAuthRateLimit } from './rate-limiter';
+import { resolveSessionByToken } from '../../../services/core/auth-session-resolver';
 
 const log = createLogger('routes:auth:core');
 
@@ -207,10 +208,7 @@ export const authCoreRoutes = new Elysia()
         return { success: false, message: 'No session token' };
       }
 
-      const session = await prisma.userSession.findFirst({
-        where: { sessionToken: token, expiresAt: { gt: new Date() } },
-        include: { user: true },
-      });
+      const session = await resolveSessionByToken(String(token));
 
       if (!session) {
         set.status = 401;

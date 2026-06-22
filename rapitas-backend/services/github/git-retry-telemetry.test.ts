@@ -11,6 +11,8 @@ import { describe, it, expect, mock, beforeEach, afterEach } from 'bun:test';
 const mockCreate = mock((_data: unknown) => Promise.resolve({ id: 1 }));
 
 mock.module('../../config/database', () => ({
+  // mock.module replaces the whole module — mirror ensureDatabaseConnection so config/index.ts re-export survives shuffled test order (else 'export not found').
+  ensureDatabaseConnection: () => Promise.resolve(),
   prisma: {
     gitRetryMetric: {
       create: mockCreate,

@@ -55,7 +55,7 @@ export async function buildRoleContext(
       planner: {
         researchHeader: '# リサーチャーの調査結果 (research.md)',
         instruction:
-          '上記の調査結果を基に、実装計画をplan.mdとしてMarkdown形式で作成してください。\n\nチェックリスト形式で実装手順を記述し、変更予定ファイル一覧、リスク評価、完了条件を含めてください。',
+          '上記の調査結果を基に、実装計画をplan.mdとしてMarkdown形式で作成してください。\n\nチェックリスト形式で実装手順を記述し、変更予定ファイル一覧、リスク評価、完了条件を含めてください。\n\n設計上の選択（採用案・却下案・トレードオフ）を行った場合は、plan.md に `## 意思決定` 見出しを設け、1行1件 `- 採用: <選択> ｜ 理由: <理由>` の形式で記述してください（**保存時に意思決定ジャーナルへ自動記録される**）。仮説（検証で真偽が決まる信念）ではなく、確定した選択の記録です。',
       },
       reviewer: {
         researchHeader: '# 調査結果 (research.md)',
@@ -124,7 +124,7 @@ export async function buildRoleContext(
       planner: {
         researchHeader: '# Research Results (research.md)',
         instruction:
-          'Based on the research results above, please create an implementation plan as plan.md in Markdown format.\n\nDescribe implementation steps in checklist format, including a list of files to be changed, risk assessment, and completion criteria.',
+          'Based on the research results above, please create an implementation plan as plan.md in Markdown format.\n\nDescribe implementation steps in checklist format, including a list of files to be changed, risk assessment, and completion criteria.\n\nIf you make design choices (adopt option A, reject B, accept a trade-off), add a `## 意思決定` (Decisions) heading to plan.md and list one per line as `- 採用: <choice> ｜ 理由: <reason>` — they are AUTO-RECORDED in the decision journal on save. These are SETTLED choices (not hypotheses, which are testable beliefs).',
       },
       reviewer: {
         researchHeader: '# Research Results (research.md)',

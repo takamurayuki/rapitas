@@ -88,6 +88,15 @@ export async function recordTaskOutcome(taskId: number, finalStatus: string): Pr
         applyOutcomeReinforcement(taskId, finalStatus === 'completed'),
       )
       .catch((err) => log.warn({ err, taskId }, '[telemetry] Outcome reinforcement failed'));
+
+    // Validate the hypotheses this task formed: completion → "for" evidence, a
+    // block → "against". Closes the create→inject→VALIDATE loop so good
+    // conjectures graduate and bad ones get refuted. Best-effort.
+    await import('../memory/hypothesis-outcome-validation')
+      .then(({ validateHypothesesForTaskOutcome }) =>
+        validateHypothesesForTaskOutcome(taskId, task?.themeId ?? null, finalStatus),
+      )
+      .catch((err) => log.warn({ err, taskId }, '[telemetry] Hypothesis validation failed'));
   } catch (err) {
     log.warn({ err, taskId }, '[telemetry] Failed to record task outcome');
   }

@@ -280,11 +280,18 @@ export function useHeader(): UseHeaderReturn {
   useEffect(() => {
     if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
 
-    if (pathname === '/' || pathname === '/kanban' || pathname === '/ideas') {
+    if (pathname === '/kanban') {
+      // NOTE: Kanban uses ?q= for real-time column filtering; replace to avoid history spam.
       debounceTimerRef.current = setTimeout(() => {
         isUpdatingSearchRef.current = true;
-        // Preserve original behavior: '/' and '/kanban' both write into '/?search=...';
-        // '/ideas' keeps its own URL.
+        const params = new URLSearchParams();
+        if (searchQuery.trim()) params.set('q', searchQuery.trim());
+        const newUrl = params.toString() ? `/kanban?${params}` : '/kanban';
+        router.replace(newUrl, { scroll: false });
+      }, 300);
+    } else if (pathname === '/' || pathname === '/ideas') {
+      debounceTimerRef.current = setTimeout(() => {
+        isUpdatingSearchRef.current = true;
         const targetPath = pathname === '/ideas' ? '/ideas' : '/';
         if (searchQuery.trim()) {
           router.push(`${targetPath}?search=${encodeURIComponent(searchQuery.trim())}`);
@@ -311,6 +318,10 @@ export function useHeader(): UseHeaderReturn {
     if (pathname === '/search') {
       const q = searchParams.get('q');
       if (q && searchQuery !== q) setSearchQuery(q);
+    } else if (pathname === '/kanban') {
+      // Sync header search box with kanban's ?q= param (e.g. on direct navigation or clear).
+      const q = searchParams.get('q') ?? '';
+      if (searchQuery !== q) setSearchQuery(q);
     } else {
       const search = searchParams.get('search');
       if (search && searchQuery !== search) setSearchQuery(search);
