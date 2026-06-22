@@ -13,6 +13,7 @@ import { createLogger } from '../../../config/logger';
 import { recordWorkflowCompletion } from '../../../services/workflow/learning/workflow-learning-optimizer';
 import { extractKnowledgeFromTask } from '../../../services/memory/task-knowledge-extractor';
 import { fileHypothesesFromResearch } from '../../../services/memory/hypothesis-from-research';
+import { fileDecisionsFromPlan } from '../../../services/memory/decision-from-plan';
 import {
   VALID_FILE_TYPES,
   type WorkflowFileType,
@@ -416,6 +417,10 @@ export async function handleSaveFile({
       void fileHypothesesFromResearch(taskId, savedContent).catch(() => {});
     } else if (fileType === 'plan' && (!currentStatus || currentStatus === 'research_done')) {
       newStatus = 'plan_created';
+      // Record the design choices from the plan's `## 意思決定` section in the
+      // decision journal (settled choices + rationale — distinct from research
+      // hypotheses, which are testable beliefs). Fire-and-forget; deduped.
+      void fileDecisionsFromPlan(taskId, savedContent).catch(() => {});
     } else if (
       fileType === 'question' &&
       currentStatus &&
