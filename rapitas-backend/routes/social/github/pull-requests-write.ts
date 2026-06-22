@@ -8,6 +8,7 @@ import { Elysia } from 'elysia';
 import { prisma } from '../../../config/database';
 import { GitHubService } from '../../../services/core/github-service';
 import { resolvePrConflicts } from '../../../services/github/conflict-resolver';
+import { fileConflictResolutionTask } from '../../../services/github/conflict-task';
 import { checkPrActionable } from '../../../services/github/pr-guards';
 import { resolvePrOrThrow } from '../../../services/github/resource-guard';
 import { resolvePrWorkingDirectory } from '../../../services/github/pr-task-resolver';
@@ -243,56 +244,21 @@ export const pullRequestWriteRoutes = new Elysia()
       return { resolved: true, conflicts: [], detail: result.detail };
     }
 
-    // Real conflicts — file an agent task to resolve them on the PR branch.
+    // Real conflicts — file an agent task to resolve them on the PR branch
+    // (shared with the AutoMergeWatcher's auto-conflict path; deduped).
     let taskId: number | undefined;
     if (result.conflicts.length > 0) {
-      const instruction = [
-        `PR #${pr.prNumber}「${pr.title}」のマージ競合を解消してください。`,
-        `- マージ先(base): ${pr.baseBranch}`,
-        `- PRブランチ(head): ${pr.headBranch}`,
-        `- 競合ファイル: ${result.conflicts.join(', ')}`,
-        '',
-        '手順:',
-        `1. git fetch origin ${pr.baseBranch} ${pr.headBranch}`,
-        `2. git checkout ${pr.headBranch}（無ければ git checkout -b ${pr.headBranch} origin/${pr.headBranch}）`,
-        `3. git merge origin/${pr.baseBranch} を実行`,
-        '4. 競合を両者の意図を保ちつつ解消し、競合マーカー(<<<<<<< など)を残さない',
-        '5. 変更を commit',
-        `6. git push origin ${pr.headBranch} でPRブランチを更新`,
-        '',
-        '重要: 解消は PR ブランチへの push で完結し、このタスクの worktree には差分が残らないため、',
-        'verify.md に必ず「変更不要: 競合解消は PR ブランチへ push 済み」と明記してください',
-        '（空diffで誤ブロックされるのを防ぐため）。新規 PR は作成不要です。',
-      ].join('\n');
-      const task = await prisma.task
-        .create({
-          data: {
-            title: `PR #${pr.prNumber} の競合を解消`,
-            description: instruction,
-            status: 'todo',
-            priority: 'high',
-            isDeveloperMode: true,
-            ...(themeId != null && { themeId }),
-            workingDirectory,
-            // Link the existing PR so completion is NOT blocked by the "a PR must
-            // be created" gate — a conflict task updates PR #N, it never opens a
-            // new one. Also makes the task's "PRを開く" button resolve.
-            githubPrId: pr.prNumber,
-            // Resolving a merge conflict is MECHANICAL (merge base → fix markers →
-            // push): no design decisions, no new feature, bounded to the conflict
-            // files. The keyword scorer otherwise over-rates it because this
-            // instruction embeds the original PR's title (e.g. "[Refactor] …抽象化"),
-            // landing it in `standard` mode whose plan phase is pure overhead (the
-            // agent auto-approves a trivial plan and moves on). Pin it to lightweight
-            // (research→implement→verify, no plan) and override so the orchestrator's
-            // complexity staging does not recompute it back up.
-            workflowMode: 'lightweight',
-            workflowModeOverride: true,
-            complexityScore: 15,
-          },
-        })
-        .catch(() => null);
-      taskId = task?.id;
+      const filed = await fileConflictResolutionTask(
+        {
+          prNumber: pr.prNumber,
+          title: pr.title,
+          baseBranch: pr.baseBranch,
+          headBranch: pr.headBranch,
+        },
+        workingDirectory,
+        themeId,
+      );
+      taskId = filed.taskId ?? undefined;
     }
 
     return { resolved: false, conflicts: result.conflicts, detail: result.detail, taskId };
