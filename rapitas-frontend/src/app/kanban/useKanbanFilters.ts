@@ -2,6 +2,7 @@
 // useKanbanFilters
 
 import { useState, useMemo } from 'react';
+import { useSearchParams, useRouter } from 'next/navigation';
 import type { Label } from '@/types';
 
 type Priority = 'low' | 'medium' | 'high' | 'urgent';
@@ -27,6 +28,8 @@ interface UseKanbanFiltersOptions {
 
 /**
  * Manages filter state and derives the visible task list for the Kanban board.
+ * The text search query is owned by the URL `?q=` param so the header search bar
+ * can drive it directly; priority and label filters remain in local state.
  *
  * @param tasks - Full unfiltered task list from the cache store
  * @param weekStart - Start of the visible week range
@@ -34,7 +37,13 @@ interface UseKanbanFiltersOptions {
  * @returns Filter state, setters, derived filtered tasks, and label list
  */
 export function useKanbanFilters({ tasks, weekStart, weekEnd }: UseKanbanFiltersOptions) {
-  const [searchQuery, setSearchQuery] = useState('');
+  const searchParams = useSearchParams();
+  const router = useRouter();
+
+  // NOTE: searchQuery is read from the URL ?q= param so the header search bar
+  // can control kanban filtering without a shared context.
+  const searchQuery = searchParams.get('q') ?? '';
+
   const [selectedPriorities, setSelectedPriorities] = useState<Priority[]>([]);
   const [selectedLabelIds, setSelectedLabelIds] = useState<number[]>([]);
   const [labels, setLabels] = useState<Label[]>([]);
@@ -84,9 +93,13 @@ export function useKanbanFilters({ tasks, weekStart, weekEnd }: UseKanbanFilters
     !!searchQuery || selectedPriorities.length > 0 || selectedLabelIds.length > 0;
 
   const clearFilters = () => {
-    setSearchQuery('');
     setSelectedPriorities([]);
     setSelectedLabelIds([]);
+    // Also clear the ?q= param so the header search box empties.
+    const params = new URLSearchParams(searchParams.toString());
+    params.delete('q');
+    const newUrl = params.toString() ? `/kanban?${params}` : '/kanban';
+    router.replace(newUrl, { scroll: false });
   };
 
   const togglePriority = (priority: Priority) => {
@@ -103,7 +116,6 @@ export function useKanbanFilters({ tasks, weekStart, weekEnd }: UseKanbanFilters
 
   return {
     searchQuery,
-    setSearchQuery,
     selectedPriorities,
     selectedLabelIds,
     labels,

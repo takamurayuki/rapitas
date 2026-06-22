@@ -92,8 +92,6 @@ export default function KanbanPage() {
   } = useKanbanBoard(tt('running'), tt('waitingForInput'), t('updateFailed'));
 
   const {
-    searchQuery,
-    setSearchQuery,
     selectedPriorities,
     selectedLabelIds,
     labels,
@@ -144,25 +142,23 @@ export default function KanbanPage() {
           prevLabel={t('prevWeek')}
           nextLabel={t('nextWeek')}
           backLabel={t('backToThisWeek')}
-        />
-
-        <KanbanFilterBar
-          searchQuery={searchQuery}
-          onSearchChange={setSearchQuery}
           showFilters={showFilters}
           onToggleFilters={() => setShowFilters((v) => !v)}
           hasActiveFilters={hasActiveFilters}
           onClearFilters={clearFilters}
+          filteredCount={filteredTasks.filter((task) => !task.parentId).length}
+          t={t}
+        />
+
+        <KanbanFilterBar
+          showFilters={showFilters}
           selectedPriorities={selectedPriorities}
           onTogglePriority={togglePriority}
           priorityConfig={priorityConfig}
           selectedLabelIds={selectedLabelIds}
           onToggleLabel={toggleLabel}
           labels={labels}
-          filteredCount={filteredTasks.filter((t) => !t.parentId).length}
-          tc={tc}
           tt={tt}
-          t={t}
         />
 
         {(!taskCacheInitialized || loading || taskCacheLoading) && tasks.length === 0 ? (
