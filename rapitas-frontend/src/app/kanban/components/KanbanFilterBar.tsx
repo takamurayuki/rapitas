@@ -86,7 +86,7 @@ export function KanbanFilterBar({
                 <button
                   key={theme.id}
                   onClick={() => onSelectTheme(isSelected ? null : theme.id)}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                  className={`flex items-center px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
                     isSelected ? 'ring-1 ring-offset-1 text-white' : 'opacity-80 hover:opacity-100'
                   }`}
                   style={{
