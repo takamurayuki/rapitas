@@ -9,7 +9,7 @@ import { prisma } from '../../config';
 import { createLogger } from '../../config/logger';
 import { writeWorkflowFile } from './workflow-file-utils';
 import { callAnthropicAPI, callOpenAIAPI, decryptApiKey } from './workflow-api-callers';
-import { resolveTaskContext } from '../task/task-resolver';
+import { resolveTaskWithTheme } from '../task/task-resolver';
 import type { RoleTransition, WorkflowAdvanceResult } from './workflow-types';
 import { assessComplexity } from '../local-llm/complexity-assessor';
 import { sendAIMessage } from '../../utils/ai-client';
@@ -71,10 +71,12 @@ export async function executeAPIAgent(
       apiKey = await decryptApiKey(agentConfig.apiKeyEncrypted);
     }
 
-    // NOTE: Include resolved workingDirectory in context so the API agent
+    // NOTE: Include theme workingDirectory in context so the API agent
     // generates code paths relative to the target project, not rapitas.
-    // NOTE: resolveTaskContext resolves task.workingDirectory ?? theme.workingDirectory (P1 pattern).
-    const { workingDirectory: resolvedWorkDir } = await resolveTaskContext(taskId);
+    // NOTE: resolveTaskWithTheme keeps the original theme-only resolution —
+    // resolveTaskContext's task-wd fallback would change behavior here.
+    const taskWithTheme = await resolveTaskWithTheme(taskId);
+    const resolvedWorkDir = taskWithTheme?.theme?.workingDirectory || null;
 
     const languageInstructions = {
       ja: 'すべての出力を日本語で記述してください。',
