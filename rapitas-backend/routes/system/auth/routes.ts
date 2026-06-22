@@ -201,7 +201,7 @@ export const authCoreRoutes = new Elysia()
 
   .get('/me', async ({ cookie: { sessionToken }, set }) => {
     try {
-      const token = sessionToken.value;
+      const token = sessionToken.value as string | undefined;
 
       if (!token) {
         set.status = 401;
