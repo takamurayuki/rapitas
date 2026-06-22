@@ -11,6 +11,8 @@ import { describe, test, expect, mock, beforeEach } from 'bun:test';
 // value is an Error. Records every issued command for assertions.
 let calls: string[] = [];
 let script: Array<{ match: RegExp; result: string | Error }> = [];
+// Controls the return value of the mocked findConflictingWorktreeForBranch.
+let conflictingWorktreePath: string | null = null;
 
 function runScripted(cmd: string): { stdout: string; stderr: string } {
   calls.push(cmd);
@@ -40,15 +42,16 @@ mock.module('child_process', () => ({
 mock.module('../../../../config/logger', () => ({
   createLogger: () => ({ info: () => {}, warn: () => {}, error: () => {} }),
 }));
-// NOTE: ensureNotPrimaryWorkTree is mocked to prevent it from calling execGitReadonly
-// (git-exec.ts), which would attempt real git commands via the non-mocked transitive
-// child_process import. The guard itself is tested separately in worktree-guard.test.ts.
+// NOTE: worktree-guard is mocked entirely to prevent calls to execGitReadonly / child_process
+// (real git). Guard behaviour is tested separately in worktree-guard.test.ts.
+// findConflictingWorktreeForBranch reads conflictingWorktreePath so each test can control it.
 mock.module('./worktree-guard', () => ({
   isPrimaryWorkTree: async () => false,
   ensureNotPrimaryWorkTree: async () => {},
+  findConflictingWorktreeForBranch: async () => conflictingWorktreePath,
 }));
 
-const { createPullRequest, createBranch } = await import('./branch-pr-ops');
+const { createPullRequest, createBranch, mergePullRequest } = await import('./branch-pr-ops');
 
 const rejected = () =>
   new Error(
@@ -58,6 +61,7 @@ const rejected = () =>
 beforeEach(() => {
   calls = [];
   script = [];
+  conflictingWorktreePath = null;
 });
 
 describe('createPullRequest — push 分岐耐性', () => {
@@ -188,28 +192,13 @@ describe('createPullRequest — push 分岐耐性', () => {
 });
 
 describe('createBranch — worktree使用中チェック', () => {
-  // NOTE: ensureNotPrimaryWorkTree calls git rev-parse --absolute-git-dir and
-  // --git-common-dir via the mocked child_process. Unmatched commands in
-  // runScripted return empty stdout, making isPrimaryWorkTree return false
-  // (empty strings resolve to different paths) — so the guard always passes
-  // without explicit script entries.
+  // NOTE: findConflictingWorktreeForBranch is fully mocked via worktree-guard mock.
+  // Each test controls the return value through conflictingWorktreePath.
 
   test('別worktreeで使用中のブランチはcheckoutせずfalseを返すこと', async () => {
+    conflictingWorktreePath = '/other-wt';
     script = [
       { match: /git branch --list chore\/update-refactor$/, result: 'chore/update-refactor\n' },
-      {
-        match: /git worktree list --porcelain/,
-        result: [
-          'worktree /other-wt',
-          'HEAD abc1234abc1234abc1234abc1234abc1234abc1234',
-          'branch refs/heads/chore/update-refactor',
-          '',
-          'worktree /working-dir',
-          'HEAD def5678def5678def5678def5678def5678def5678',
-          'branch refs/heads/main',
-          '',
-        ].join('\n'),
-      },
     ];
 
     const result = await createBranch('/working-dir', 'chore/update-refactor');
@@ -220,17 +209,9 @@ describe('createBranch — worktree使用中チェック', () => {
   });
 
   test('自分自身が同ブランチ上にある場合はcheckoutを続行してtrueを返すこと', async () => {
+    // conflictingWorktreePath = null (デフォルト) → 競合なし → checkout 続行
     script = [
       { match: /git branch --list feature\/mine$/, result: 'feature/mine\n' },
-      {
-        match: /git worktree list --porcelain/,
-        result: [
-          'worktree /working-dir',
-          'HEAD abc1234abc1234abc1234abc1234abc1234abc1234',
-          'branch refs/heads/feature/mine',
-          '',
-        ].join('\n'),
-      },
       { match: /git checkout feature\/mine$/, result: '' },
     ];
 
@@ -242,17 +223,9 @@ describe('createBranch — worktree使用中チェック', () => {
   });
 
   test('どのworktreeも対象ブランチを使用していなければcheckoutを実行してtrueを返すこと', async () => {
+    // conflictingWorktreePath = null (デフォルト) → 競合なし
     script = [
       { match: /git branch --list feature\/other$/, result: 'feature/other\n' },
-      {
-        match: /git worktree list --porcelain/,
-        result: [
-          'worktree /working-dir',
-          'HEAD abc1234abc1234abc1234abc1234abc1234abc1234',
-          'branch refs/heads/main',
-          '',
-        ].join('\n'),
-      },
       { match: /git checkout feature\/other$/, result: '' },
     ];
 
@@ -262,20 +235,17 @@ describe('createBranch — worktree使用中チェック', () => {
     expect(calls.some((c) => /git checkout feature\/other$/.test(c))).toBe(true);
   });
 
-  test('git worktree list が失敗してもフォールスルーしてcheckoutを試みること', async () => {
+  test('findConflictingWorktreeForBranch がnullを返す場合（list失敗fail-safe含む）checkoutを試みること', async () => {
+    // conflictingWorktreePath = null はworktree list失敗時のfail-safe戻り値と同等
     script = [
       { match: /git branch --list feature\/list-fail$/, result: 'feature/list-fail\n' },
-      {
-        match: /git worktree list --porcelain/,
-        result: new Error('cannot list worktrees'),
-      },
       { match: /git checkout feature\/list-fail$/, result: '' },
     ];
 
     const result = await createBranch('/working-dir', 'feature/list-fail');
 
     expect(result).toBe(true);
-    // list 失敗後も checkout を実行していること
+    // null 返却後も checkout を実行していること
     expect(calls.some((c) => /git checkout feature\/list-fail$/.test(c))).toBe(true);
   });
 
@@ -289,7 +259,41 @@ describe('createBranch — worktree使用中チェック', () => {
 
     expect(result).toBe(true);
     expect(calls.some((c) => /git checkout -b feature\/new-branch$/.test(c))).toBe(true);
-    // 新規ブランチは使用中チェック不要なので worktree list を呼ばないこと
-    expect(calls.some((c) => /worktree list/.test(c))).toBe(false);
+    // 新規ブランチは使用中チェック不要なので worktree prune/list を child_process 経由では呼ばないこと
+    expect(calls.some((c) => /worktree/.test(c))).toBe(false);
+  });
+});
+
+describe('mergePullRequest — worktree使用中チェック', () => {
+  test('baseBranchが別worktreeで使用中の場合syncをスキップしてsuccess:trueを返すこと', async () => {
+    conflictingWorktreePath = '/other-wt';
+    script = [
+      { match: /pr view \d+ --json commits/, result: '3\n' },
+      { match: /pr merge \d+ --merge --delete-branch/, result: '' },
+    ];
+
+    const result = await mergePullRequest('/working-dir', 1, 5, 'develop');
+
+    expect(result.success).toBe(true);
+    expect(result.mergeStrategy).toBe('merge');
+    // checkout は実行されないこと
+    expect(calls.some((c) => /git checkout develop$/.test(c))).toBe(false);
+    expect(calls.some((c) => /git pull$/.test(c))).toBe(false);
+  });
+
+  test('baseBranchが未使用の場合はcheckout+pullを実行してsuccess:trueを返すこと', async () => {
+    // conflictingWorktreePath = null (デフォルト) → 競合なし
+    script = [
+      { match: /pr view \d+ --json commits/, result: '3\n' },
+      { match: /pr merge \d+ --merge --delete-branch/, result: '' },
+      { match: /git checkout develop$/, result: '' },
+      { match: /git pull$/, result: '' },
+    ];
+
+    const result = await mergePullRequest('/working-dir', 1, 5, 'develop');
+
+    expect(result.success).toBe(true);
+    expect(calls.some((c) => /git checkout develop$/.test(c))).toBe(true);
+    expect(calls.some((c) => /git pull$/.test(c))).toBe(true);
   });
 });

@@ -11,6 +11,7 @@ import {
   isPrimaryWorkTree,
   ensureNotPrimaryWorkTree,
   isBackendPrimaryCheckout,
+  findConflictingWorktreeForBranch,
 } from './worktree-guard';
 
 const primary = async () => true;
@@ -83,5 +84,87 @@ describe('isBackendPrimaryCheckout', () => {
     const primaryPath = getPrimaryWorktreePath();
     if (!primaryPath) return; // skip when git is unavailable
     await expect(isBackendPrimaryCheckout(primaryPath)).resolves.toBe(true);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// findConflictingWorktreeForBranch
+// ---------------------------------------------------------------------------
+// Uses an injectable exec function (script-based) so these tests run without
+// real git, and without mock.module (which would disrupt the real-git tests above).
+
+type ScriptEntry = { match: RegExp; result: string | Error };
+
+function makeScriptedExec(
+  entries: ScriptEntry[],
+): (cmd: string, opts: { cwd: string }) => Promise<{ stdout: string }> {
+  return async (cmd: string) => {
+    for (const e of entries) {
+      if (e.match.test(cmd)) {
+        if (e.result instanceof Error) throw e.result;
+        return { stdout: e.result };
+      }
+    }
+    return { stdout: '' };
+  };
+}
+
+describe('findConflictingWorktreeForBranch', () => {
+  test('別worktreeが対象ブランチを使用中の場合そのパスを返すこと', async () => {
+    const exec = makeScriptedExec([
+      {
+        match: /git worktree list --porcelain/,
+        result: [
+          'worktree /other-wt\nHEAD abc1234abc1234abc1234abc1234abc1234abc1234\nbranch refs/heads/feature/x',
+          'worktree /my-dir\nHEAD def5678def5678def5678def5678def5678def5678\nbranch refs/heads/main',
+          '',
+        ].join('\n\n'),
+      },
+    ]);
+
+    const result = await findConflictingWorktreeForBranch('/my-dir', 'feature/x', exec);
+    expect(result).toBe('/other-wt');
+  });
+
+  test('自分自身が同ブランチ上にある場合はnullを返すこと（チェックアウト続行）', async () => {
+    const exec = makeScriptedExec([
+      {
+        match: /git worktree list --porcelain/,
+        result: [
+          'worktree /my-dir\nHEAD abc1234abc1234abc1234abc1234abc1234abc1234\nbranch refs/heads/feature/x',
+          '',
+        ].join('\n\n'),
+      },
+    ]);
+
+    const result = await findConflictingWorktreeForBranch('/my-dir', 'feature/x', exec);
+    expect(result).toBeNull();
+  });
+
+  test('どのworktreeも対象ブランチを使用していない場合はnullを返すこと', async () => {
+    const exec = makeScriptedExec([
+      {
+        match: /git worktree list --porcelain/,
+        result: [
+          'worktree /my-dir\nHEAD abc1234abc1234abc1234abc1234abc1234abc1234\nbranch refs/heads/main',
+          '',
+        ].join('\n\n'),
+      },
+    ]);
+
+    const result = await findConflictingWorktreeForBranch('/my-dir', 'feature/x', exec);
+    expect(result).toBeNull();
+  });
+
+  test('git worktree list が失敗した場合はnullを返すこと（fail-safe）', async () => {
+    const exec = makeScriptedExec([
+      {
+        match: /git worktree list --porcelain/,
+        result: new Error('cannot list worktrees'),
+      },
+    ]);
+
+    const result = await findConflictingWorktreeForBranch('/my-dir', 'feature/x', exec);
+    expect(result).toBeNull();
   });
 });
