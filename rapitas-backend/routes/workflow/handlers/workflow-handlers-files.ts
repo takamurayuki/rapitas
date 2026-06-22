@@ -190,7 +190,14 @@ export async function handleSaveFile({
     // a phase that can legitimately produce that artifact.
     const ALLOWED_FILE_TYPES_BY_STATUS: Record<string, ReadonlySet<WorkflowFileType>> = {
       draft: new Set(['research', 'question']),
-      research_done: new Set(['plan', 'question', 'research']),
+      // 'verify' is allowed here for the LIGHTWEIGHT single-session flow
+      // (research→implement→verify, NO plan phase — e.g. conflict-resolution
+      // tasks): one agent reaches verify.md while workflowStatus is still
+      // research_done, because no plan phase ever advanced it to plan_approved.
+      // Without this the save is rejected and the agent must manually PUT
+      // /status to in_progress first. Forward-only; the completion gate
+      // (evaluateCompletionGate) still blocks completions with no real diff.
+      research_done: new Set(['plan', 'question', 'research', 'verify']),
       plan_created: new Set(['plan', 'question']),
       // 'verify' is allowed here for the dev-mode single-session flow: ONE agent
       // does research→plan→implement→verify in a single run, so it reaches
