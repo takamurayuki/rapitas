@@ -6,6 +6,9 @@
  */
 
 import { exec } from 'child_process';
+import { mkdtempSync, rmSync, writeFileSync } from 'fs';
+import { tmpdir } from 'os';
+import { join } from 'path';
 import { promisify } from 'util';
 import { createLogger } from '../../../../config/logger';
 import { isPrimaryWorkTree, ensureNotPrimaryWorkTree } from './worktree-guard';
@@ -208,10 +211,28 @@ export async function createPullRequest(
       // No existing PR (or gh error) — fall through to create.
     }
 
-    const { stdout } = await execAsync(
-      `${ghPath()} pr create --title "${title.replace(/"/g, '\\"')}" --body "${body.replace(/"/g, '\\"')}" --base ${targetBranch}`,
-      { cwd: workingDirectory, encoding: 'utf8' },
-    );
+    // Pass the body via a temp file, not inline. A verify-report body easily
+    // exceeds the Windows command-line length limit (~32 KB), which fails PR
+    // creation with "The command line is too long" → no PR → the task blocks at
+    // the completion gate (status never becomes 'done'). --body-file sidesteps
+    // the limit and also avoids fragile shell-quoting of multiline markdown.
+    const bodyDir = mkdtempSync(join(tmpdir(), 'rapitas-pr-'));
+    const bodyFile = join(bodyDir, 'body.md');
+    let stdout: string;
+    try {
+      writeFileSync(bodyFile, body);
+      ({ stdout } = await execAsync(
+        `${ghPath()} pr create --title "${title.replace(/"/g, '\\"')}" --body-file "${bodyFile}" --base ${targetBranch}`,
+        { cwd: workingDirectory, encoding: 'utf8' },
+      ));
+    } finally {
+      // Best-effort cleanup; a leftover temp file must never fail PR creation.
+      try {
+        rmSync(bodyDir, { recursive: true, force: true });
+      } catch {
+        /* ignore */
+      }
+    }
 
     const prUrl = stdout.trim();
     const prMatch = prUrl.match(/\/pull\/(\d+)/);
