@@ -14,6 +14,7 @@ import { resolvePrOrThrow } from '../../../services/github/resource-guard';
 import {
   resolvePrTaskContext,
   resolvePrWorkingDirectory,
+  resolveThemeForWorkingDirectory,
 } from '../../../services/github/pr-task-resolver';
 
 const githubService = new GitHubService(prisma);
@@ -224,8 +225,10 @@ export const pullRequestWriteRoutes = new Elysia()
     // "[#289] …") can still be resolved instead of failing with
     // "ローカルチェックアウトが特定できません".
     const ctx = await resolvePrTaskContext(pr.linkedTaskId, pr.prNumber);
-    const themeId = ctx.themeId;
     const workingDirectory = ctx.workingDirectory ?? process.cwd();
+    // Attribute the conflict task to a theme even when no task link gave one, so
+    // it is visible in the theme-filtered task list (a themeId=null task is hidden).
+    const themeId = ctx.themeId ?? (await resolveThemeForWorkingDirectory(workingDirectory));
 
     const result = await resolvePrConflicts(workingDirectory, pr.baseBranch, pr.headBranch);
     if (result.resolved) {

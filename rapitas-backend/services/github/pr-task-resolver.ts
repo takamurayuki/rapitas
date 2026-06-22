@@ -91,6 +91,36 @@ export async function resolvePrWorkingDirectory(
 }
 
 /**
+ * Find the theme that owns a given checkout: the theme whose workingDirectory
+ * contains `workingDirectory` (most-specific / longest match wins). Used to
+ * attribute a conflict-resolution task to a theme when no task link gave one —
+ * otherwise the filed task has themeId=null and is HIDDEN from the theme-filtered
+ * task list (the user pressed 競合解消 but saw no task).
+ *
+ * @param workingDirectory - The checkout path to attribute. / 帰属させる作業ディレクトリ
+ * @returns The owning theme id, or null when no theme matches. / テーマID、無ければnull
+ */
+export async function resolveThemeForWorkingDirectory(
+  workingDirectory: string,
+): Promise<number | null> {
+  const themes = await prisma.theme
+    .findMany({
+      where: { workingDirectory: { not: null } },
+      select: { id: true, workingDirectory: true },
+    })
+    .catch(() => [] as { id: number; workingDirectory: string | null }[]);
+  const norm = (p: string): string => p.replace(/[\\/]+$/, '').toLowerCase();
+  const wd = norm(workingDirectory);
+  // Path-boundary prefix match so "…/rapitas" never matches "…/rapitas2".
+  const contains = (parent: string): boolean =>
+    wd === parent || wd.startsWith(`${parent}\\`) || wd.startsWith(`${parent}/`);
+  const match = themes
+    .filter((t) => t.workingDirectory && contains(norm(t.workingDirectory)))
+    .sort((a, b) => (b.workingDirectory?.length ?? 0) - (a.workingDirectory?.length ?? 0))[0];
+  return match?.id ?? null;
+}
+
+/**
  * Last-resort PR resolution: ask GitHub directly for a PR titled `[Task-{id}]`
  * or `[#{id}]` in the task's repo. Covers the case where the PR was created but
  * never persisted locally (e.g. no GitHubIntegration for that repo, or linking
