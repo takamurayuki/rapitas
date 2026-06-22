@@ -23,6 +23,7 @@ import {
 import { DEFAULT_SYSTEM_PROMPTS } from '../../routes/ai/system-prompts/default-prompts';
 import { isReusableArtifact } from './phase-output-validator';
 import { recordTransition } from './transition-recorder';
+import { isShutdownError } from '../agents/orchestrator/shutdown-error';
 
 // Re-export sub-module helpers so existing imports from this path keep working.
 export { resolveWorkflowDir, readWorkflowFile, writeWorkflowFile } from './workflow-file-utils';
@@ -762,6 +763,19 @@ export class WorkflowOrchestrator {
       return first;
     } catch (error: unknown) {
       const errorMessage = error instanceof Error ? error.message : String(error);
+
+      // NOTE: Shutdown errors are controlled interruptions — skip fallback/retry to avoid
+      // secondary ERROR logs and retry loops during graceful restart.
+      if (isShutdownError(error)) {
+        log.warn(`[WorkflowOrchestrator] Shutdown interrupted ${transition.role}: ${errorMessage}`);
+        return {
+          success: false,
+          role: transition.role,
+          status: currentStatus as WorkflowStatus,
+          error: errorMessage,
+        };
+      }
+
       log.error(`[WorkflowOrchestrator] Error in ${transition.role}: ${errorMessage}`);
 
       // Thrown error path: also try fallback once.
