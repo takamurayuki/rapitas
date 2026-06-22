@@ -337,4 +337,29 @@ summary here
     expect(result.ok).toBe(false);
     expect(result.severity).toBe(80);
   });
+
+  test('passing verify with a benign "×2" in prose is NOT a contradiction (task #304)', () => {
+    // "×2" here means "two cases / twice", not "2 test failures". The old bare
+    // /×\s*[1-9]\d*/ signal flagged this passing report as a hallucinated pass.
+    const passing = `## 検証結果サマリ
+全テスト通過 (59/59)
+## テスト結果
+後方互換ケース×2 を追加し、リトライ×2 のパスも確認。失敗テスト数: 0
+## チェックリスト
+- [x] 完了`;
+    const result = validateVerify(passing);
+    expect(result.ok).toBe(true);
+  });
+
+  test('a ×N attached to a failure verdict still contradicts an all-pass claim', () => {
+    const contradictory = `## 検証結果サマリ
+全テスト通過
+## テスト結果
+失敗 ×3
+## チェックリスト
+- [x]`;
+    const result = validateVerify(contradictory);
+    expect(result.ok).toBe(false);
+    expect(result.severity).toBe(80);
+  });
 });

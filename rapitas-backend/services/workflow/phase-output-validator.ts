@@ -165,7 +165,11 @@ export function validateVerify(content: string): ValidationResult {
     // errors) is NOT read as the task's own test failure. Real "exit 1" / "exit
     // code 1" still matches. (task 272 was blocked by exactly this false positive.)
     /\bexit\s*(?:code\s*)?[:=]?\s*1\b/i,
-    /×\s*[1-9]\d*/, // "× 5" — not "× 0"
+    // A ×N count ONLY when ATTACHED to a failure verdict — "❌ ×3", "失敗 ×2",
+    // "failed ×5". A bare "×2" in passing prose ("ケース×2", "✅×2", "リトライ×2",
+    // "前後比較×2") is multiplication/repetition, NOT a test failure, and was
+    // wrongly read as "2 failures" → false self-contradiction → blocked (task #304).
+    /(?:❌|失敗|不合格|不適合|fail(?:ed|ure)?)\s*[:：]?\s*[×x]\s*[1-9]\d*/i,
   ];
   const failureHits = failureSignals
     .map((re) => content.match(re))
