@@ -240,6 +240,38 @@ export function buildResolveAfterParse(
       return;
     }
 
+    // A force-kill after an UNRECOVERED API overload (the CLI exhausted its 529
+    // retries and stalled) is a real failure, NOT a benign "finished work then
+    // hung" exit — any partial git diff / output is unreliable. Without this, a
+    // 529-stalled run slips through the idle-hang git-diff path below and is
+    // recorded as a false completion (observed: "[Result: success]" + exit code 1
+    // with "API Error: 529 Overloaded"). Gated on the force-kill path only, so a
+    // 529 that was retried and RECOVERED (clean exit) is unaffected. Resolve as a
+    // failure so the workflow retries the phase once the provider recovers.
+    const apiOverloadHit =
+      ctx.idleTimeoutForceKilled &&
+      /API\s*Error:?\s*529|529\s+Overloaded|overloaded_error/i.test(
+        ctx.outputBuffer + '\n' + ctx.errorBuffer,
+      );
+    if (apiOverloadHit) {
+      logger.error(
+        `${ctx.logPrefix} Force-killed after an unrecovered API overload (529). Failing so the phase retries instead of being marked complete on partial output.`,
+      );
+      ctx.status = 'failed';
+      resolve({
+        success: false,
+        output: ctx.outputBuffer,
+        artifacts,
+        commits,
+        executionTimeMs,
+        waitingForInput: false,
+        claudeSessionId: ctx.claudeSessionId || undefined,
+        errorMessage: `${errorMessage ?? `Process exited with code ${code}`}\n\n【API Overload】Provider returned 529 Overloaded and retries were exhausted; the run did not complete.`,
+        ...usageFields,
+      });
+      return;
+    }
+
     if (ctx.idleTimeoutForceKilled) {
       logger.info(
         `${ctx.logPrefix} Process was force-killed due to idle hang (exitCode: ${code}). Proceeding to git diff check for completion determination.`,

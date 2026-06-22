@@ -23,6 +23,7 @@ import {
 import { DEFAULT_SYSTEM_PROMPTS } from '../../routes/ai/system-prompts/default-prompts';
 import { isReusableArtifact } from './phase-output-validator';
 import { recordTransition } from './transition-recorder';
+import { isShutdownError } from '../agents/orchestrator/shutdown-error';
 
 // Re-export sub-module helpers so existing imports from this path keep working.
 export { resolveWorkflowDir, readWorkflowFile, writeWorkflowFile } from './workflow-file-utils';
@@ -761,6 +762,15 @@ export class WorkflowOrchestrator {
       }
       return first;
     } catch (error: unknown) {
+      // NOTE: Shutdown errors are not agent failures — skip fallback and re-throw so the runner
+      // can requeue the item without consuming retry budget.
+      if (isShutdownError(error)) {
+        log.warn(
+          `[WorkflowOrchestrator] ${transition.role} interrupted by shutdown — skipping fallback`,
+        );
+        throw error;
+      }
+
       const errorMessage = error instanceof Error ? error.message : String(error);
       log.error(`[WorkflowOrchestrator] Error in ${transition.role}: ${errorMessage}`);
 

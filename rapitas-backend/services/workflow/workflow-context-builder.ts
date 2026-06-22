@@ -8,6 +8,7 @@
 import { prisma } from '../../config/database';
 import { readWorkflowFile } from './workflow-file-utils';
 import { buildMemoryContext } from './workflow-memory-context';
+import { buildHypothesisContext } from './workflow-hypothesis-context';
 import { buildRejectedPlanContext } from './workflow-rejected-plan-context';
 import { buildCriticFeedback } from './phase-critic';
 
@@ -186,6 +187,10 @@ export async function buildRoleContext(
       // (similar tasks, past concerns, lessons) instead of a blank slate.
       const memory = await buildMemoryContext(taskId, task, language);
       const memoryBlock = memory ? `\n\n${memory}` : '';
+      // Hypothesis ledger: surface open conjectures to test + proven findings, and
+      // tell the researcher to record evidence / file new hypotheses as it learns.
+      const hypothesis = await buildHypothesisContext(taskId, language);
+      const hypothesisBlock = hypothesis ? `\n\n${hypothesis}` : '';
       // On a critic-gate bounce, lead with the issues the prior research missed.
       const critic = await buildCriticFeedback(taskId, 'research', language);
       const criticBlock = critic ? `\n\n${critic}` : '';
@@ -194,7 +199,7 @@ export async function buildRoleContext(
       // steps to the planner. Without this, research.md was always written
       // assuming a plan would follow — wrong for lightweight tasks.
       const modeBlock = `\n\n${researchModeDirective(mode, language)}`;
-      return `${taskInfo}${criticBlock}${modeBlock}${memoryBlock}\n\n${t.researcher.instruction}\n\n${t.researcher.items}\n\n${t.researcher.output}`;
+      return `${taskInfo}${criticBlock}${modeBlock}${memoryBlock}${hypothesisBlock}\n\n${t.researcher.instruction}\n\n${t.researcher.items}\n\n${t.researcher.output}`;
     }
 
     case 'planner': {
@@ -245,6 +250,12 @@ export async function buildRoleContext(
       const memory = await buildMemoryContext(taskId, task, language);
       if (memory) {
         ctx += `\n\n${memory}`;
+      }
+      // Hypothesis ledger: the implementer's concrete changes + test results are
+      // prime evidence — surface open/proven hypotheses and how to record it.
+      const hypothesis = await buildHypothesisContext(taskId, language);
+      if (hypothesis) {
+        ctx += `\n\n${hypothesis}`;
       }
       if (research) {
         ctx += `\n\n${t.implementer.researchHeader}\n\n${research}`;

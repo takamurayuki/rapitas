@@ -66,6 +66,7 @@ import {
   temporalDebugRoutes,
   projectHealthRoutes,
   debugLogsRouter,
+  gitCacheMetricsRoutes,
   gitCleanupRoutes,
   backupsRoutes,
   errorsRoutes,
@@ -87,6 +88,7 @@ import {
   systemPromptsRoutes,
   ideaBoxRoutes,
   concernBacklogRoutes,
+  hypothesisRoutes,
   decisionJournalRoutes,
   backlogScheduleRoutes,
   backlogThemeOverrideRoutes,
@@ -157,6 +159,7 @@ export function registerAllRoutes(app: Elysia): void {
   app.use(crossProjectKnowledgeRoutes);
   app.use(ideaBoxRoutes);
   app.use(concernBacklogRoutes);
+  app.use(hypothesisRoutes);
   app.use(decisionJournalRoutes);
   app.use(backlogScheduleRoutes);
   app.use(backlogThemeOverrideRoutes);
@@ -182,6 +185,7 @@ export function registerAllRoutes(app: Elysia): void {
   app.use(temporalDebugRoutes);
   app.use(projectHealthRoutes);
   app.use(debugLogsRouter);
+  app.use(gitCacheMetricsRoutes);
   app.use(gitCleanupRoutes);
   app.use(backupsRoutes);
   app.use(errorsRoutes);

@@ -5,11 +5,22 @@
  *
  * Conversation tab content for the pull request detail page.
  * Renders the PR body, reviews, comments, and the comment/review input form.
+ * Each body card is collapsed by default and toggled via a chevron button.
  */
 
-import { MessageSquare, CheckCircle2, AlertCircle, Send, Loader2 } from 'lucide-react';
+import { useState, type ReactNode } from 'react';
+import {
+  MessageSquare,
+  CheckCircle2,
+  AlertCircle,
+  Send,
+  Loader2,
+  ChevronDown,
+  FileText,
+} from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import type { GitHubPullRequest } from '@/types';
+import { MarkdownView } from '@/components/markdown/MarkdownView';
 import { getReviewIcon } from './PrUtils';
 
 interface PRConversationTabProps {
@@ -20,6 +31,29 @@ interface PRConversationTabProps {
   onCommentChange: (value: string) => void;
   onComment: () => void;
   onReview: (action: 'approve' | 'request_changes') => void;
+}
+
+/** Collapsible card — header always visible, body toggled by chevron. */
+function CollapsibleCard({ header, children }: { header: ReactNode; children: ReactNode }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="bg-white dark:bg-zinc-800 rounded-lg border border-zinc-200 dark:border-zinc-700">
+      <button
+        onClick={() => setOpen((v) => !v)}
+        className="w-full flex items-center justify-between px-4 py-3 text-left hover:bg-zinc-50 dark:hover:bg-zinc-700/50 rounded-lg transition-colors"
+      >
+        <div className="flex items-center gap-2 min-w-0">{header}</div>
+        <ChevronDown
+          className={`w-4 h-4 text-zinc-400 flex-shrink-0 transition-transform duration-200 ${open ? 'rotate-180' : ''}`}
+        />
+      </button>
+      {open && (
+        <div className="px-4 pb-4 border-t border-zinc-100 dark:border-zinc-700/60 pt-3">
+          {children}
+        </div>
+      )}
+    </div>
+  );
 }
 
 /**
@@ -39,67 +73,82 @@ export function PRConversationTab({
   const t = useTranslations('github');
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-2">
       {pr.body && (
-        <div className="p-4 bg-white dark:bg-zinc-800 rounded-lg border border-zinc-200 dark:border-zinc-700">
-          <div className="prose dark:prose-invert max-w-none text-sm">{pr.body}</div>
-        </div>
+        <CollapsibleCard
+          header={
+            <>
+              <FileText className="w-4 h-4 text-zinc-400 flex-shrink-0" />
+              <span className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
+                PR Description
+              </span>
+            </>
+          }
+        >
+          <MarkdownView content={pr.body} />
+        </CollapsibleCard>
       )}
 
       {pr.reviews?.map((review) => (
-        <div
+        <CollapsibleCard
           key={review.id}
-          className="p-4 bg-white dark:bg-zinc-800 rounded-lg border border-zinc-200 dark:border-zinc-700"
-        >
-          <div className="flex items-center gap-2 mb-2">
-            {getReviewIcon(review.state)}
-            <span className="font-medium text-zinc-900 dark:text-zinc-100">
-              {review.authorLogin}
-            </span>
-            <span
-              className={`px-2 py-0.5 text-xs rounded ${
-                review.state === 'APPROVED'
-                  ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
+          header={
+            <>
+              {getReviewIcon(review.state)}
+              <span className="text-sm font-medium text-zinc-900 dark:text-zinc-100 truncate">
+                {review.authorLogin}
+              </span>
+              <span
+                className={`px-2 py-0.5 text-xs rounded flex-shrink-0 ${
+                  review.state === 'APPROVED'
+                    ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
+                    : review.state === 'CHANGES_REQUESTED'
+                      ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
+                      : 'bg-zinc-100 text-zinc-700 dark:bg-zinc-700 dark:text-zinc-300'
+                }`}
+              >
+                {review.state === 'APPROVED'
+                  ? 'Approved'
                   : review.state === 'CHANGES_REQUESTED'
-                    ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
-                    : 'bg-zinc-100 text-zinc-700 dark:bg-zinc-700 dark:text-zinc-300'
-              }`}
-            >
-              {review.state === 'APPROVED'
-                ? 'Approved'
-                : review.state === 'CHANGES_REQUESTED'
-                  ? 'Changes requested'
-                  : 'Commented'}
-            </span>
-            <span className="text-xs text-zinc-400">
-              {new Date(review.submittedAt).toLocaleString('ja-JP')}
-            </span>
-          </div>
-          {review.body && <p className="text-sm text-zinc-600 dark:text-zinc-400">{review.body}</p>}
-        </div>
+                    ? 'Changes requested'
+                    : 'Commented'}
+              </span>
+              <span className="text-xs text-zinc-400 flex-shrink-0">
+                {new Date(review.submittedAt).toLocaleString('ja-JP')}
+              </span>
+            </>
+          }
+        >
+          {review.body ? (
+            <MarkdownView content={review.body} />
+          ) : (
+            <p className="text-sm text-zinc-400 italic">No comment body.</p>
+          )}
+        </CollapsibleCard>
       ))}
 
       {pr.comments?.map((comment) => (
-        <div
+        <CollapsibleCard
           key={comment.id}
-          className="p-4 bg-white dark:bg-zinc-800 rounded-lg border border-zinc-200 dark:border-zinc-700"
-        >
-          <div className="flex items-center gap-2 mb-2">
-            <MessageSquare className="w-4 h-4 text-zinc-400" />
-            <span className="font-medium text-zinc-900 dark:text-zinc-100">
-              {comment.authorLogin}
-            </span>
-            {comment.path && (
-              <span className="text-xs font-mono bg-zinc-100 dark:bg-zinc-700 px-1.5 py-0.5 rounded">
-                {comment.path}:{comment.line}
+          header={
+            <>
+              <MessageSquare className="w-4 h-4 text-zinc-400 flex-shrink-0" />
+              <span className="text-sm font-medium text-zinc-900 dark:text-zinc-100 truncate">
+                {comment.authorLogin}
               </span>
-            )}
-            <span className="text-xs text-zinc-400">
-              {new Date(comment.createdAt).toLocaleString('ja-JP')}
-            </span>
-          </div>
-          <p className="text-sm text-zinc-600 dark:text-zinc-400">{comment.body}</p>
-        </div>
+              {comment.path && (
+                <span className="text-xs font-mono bg-zinc-100 dark:bg-zinc-700 px-1.5 py-0.5 rounded flex-shrink-0">
+                  {comment.path}:{comment.line}
+                </span>
+              )}
+              <span className="text-xs text-zinc-400 flex-shrink-0">
+                {new Date(comment.createdAt).toLocaleString('ja-JP')}
+              </span>
+            </>
+          }
+        >
+          <MarkdownView content={comment.body} />
+        </CollapsibleCard>
       ))}
 
       {/* Comment / review input form */}

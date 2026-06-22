@@ -10,12 +10,10 @@
  * incident). Refusing fails safe — the task errors with a clear cause instead of
  * destroying work.
  */
-import { exec } from 'child_process';
-import { promisify } from 'util';
 import { resolve } from 'path';
 import { createLogger } from '../../../../config/logger';
+import { execGitReadonly } from './git-exec';
 
-const execAsync = promisify(exec);
 const logger = createLogger('git-operations/worktree-guard');
 
 /**
@@ -29,8 +27,8 @@ const logger = createLogger('git-operations/worktree-guard');
 export async function isPrimaryWorkTree(workingDirectory: string): Promise<boolean> {
   try {
     const [gitDir, commonDir] = await Promise.all([
-      execAsync('git rev-parse --absolute-git-dir', { cwd: workingDirectory }),
-      execAsync('git rev-parse --git-common-dir', { cwd: workingDirectory }),
+      execGitReadonly('git rev-parse --absolute-git-dir', { cwd: workingDirectory }),
+      execGitReadonly('git rev-parse --git-common-dir', { cwd: workingDirectory }),
     ]);
     const normalize = (p: string) => p.trim().replace(/\\/g, '/').replace(/\/+$/, '');
     let common = normalize(commonDir.stdout);
@@ -85,12 +83,14 @@ export async function ensureNotPrimaryWorkTree(
 async function gitCommonDir(workingDirectory: string): Promise<string | null> {
   try {
     const normalize = (p: string) => p.trim().replace(/\\/g, '/').replace(/\/+$/, '');
-    const commonDir = await execAsync('git rev-parse --git-common-dir', {
+    const commonDir = await execGitReadonly('git rev-parse --git-common-dir', {
       cwd: workingDirectory,
     });
     let common = normalize(commonDir.stdout);
     if (!/^([a-zA-Z]:)?\//.test(common)) {
-      const root = await execAsync('git rev-parse --show-toplevel', { cwd: workingDirectory });
+      const root = await execGitReadonly('git rev-parse --show-toplevel', {
+        cwd: workingDirectory,
+      });
       common = normalize(`${normalize(root.stdout)}/${common}`);
     }
     return common;

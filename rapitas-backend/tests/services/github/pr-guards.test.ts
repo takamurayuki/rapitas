@@ -9,7 +9,10 @@ describe('checkPrActionable()', () => {
   describe('prNumber 整合性チェック (422)', () => {
     test('正常な prNumber は null を返すこと', () => {
       expect(
-        checkPrActionable({ prNumber: 42, state: 'open' }, { operationLabel: 'テスト', requireOpen: true }),
+        checkPrActionable(
+          { prNumber: 42, state: 'open' },
+          { operationLabel: 'テスト', requireOpen: true },
+        ),
       ).toBeNull();
     });
 
@@ -50,7 +53,10 @@ describe('checkPrActionable()', () => {
   describe('state 事前チェック（requireOpen: true）', () => {
     test('state=open は null を返すこと', () => {
       expect(
-        checkPrActionable({ prNumber: 1, state: 'open' }, { operationLabel: 'テスト', requireOpen: true }),
+        checkPrActionable(
+          { prNumber: 1, state: 'open' },
+          { operationLabel: 'テスト', requireOpen: true },
+        ),
       ).toBeNull();
     });
 

@@ -13,6 +13,7 @@ import {
   broadcastRunnerStatus,
   broadcastItemUpdate,
 } from './workflow-runner-events';
+import { isShutdownError } from '../agents/orchestrator/shutdown-error';
 
 const log = createLogger('workflow-runner');
 
@@ -369,6 +370,25 @@ export class WorkflowRunner {
       }
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : String(error);
+
+      // NOTE: Shutdown errors are graceful interruptions — requeue without consuming retry budget.
+      // Mirrors stopProcessing() at line 99 which also uses updateStatus(..., 'queued', ...).
+      if (isShutdownError(error)) {
+        log.warn(`[WorkflowRunner] Task ${item.taskId} interrupted by shutdown — requeued`);
+        try {
+          await this.queue.updateStatus(item.id, 'queued', {
+            errorMessage: 'Shutdown - returned to queue',
+          });
+        } catch (requeueError) {
+          log.warn(
+            { err: requeueError },
+            `[WorkflowRunner] Failed to requeue item ${item.id} after shutdown`,
+          );
+        }
+        this.broadcastItemUpdate(item.id, item.taskId, 'execution_error', execution.currentPhase);
+        return;
+      }
+
       log.error(`[WorkflowRunner] Execution error for task ${item.taskId}: ${errorMsg}`);
 
       // Kill any in-flight agent BEFORE retrying/failing. The phase timeout only

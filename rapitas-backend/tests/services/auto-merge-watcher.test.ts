@@ -89,7 +89,11 @@ describe('evaluateAutoMergeChecks', () => {
 
   test('fail と pending が同時に存在する場合 fail が pending より優先される', () => {
     // evaluateAutoMergeChecks の評価順: fail/cancel チェック (:115) が pending (:116) より先
-    const c = checks(['Test Backend', 'fail'], ['Lint Code', 'pending'], ['Check Frontend', 'pass']);
+    const c = checks(
+      ['Test Backend', 'fail'],
+      ['Lint Code', 'pending'],
+      ['Check Frontend', 'pass'],
+    );
     expect(evaluateAutoMergeChecks(c, BLOCKING)).toBe('fail');
   });
 });

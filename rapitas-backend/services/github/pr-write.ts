@@ -160,11 +160,9 @@ export async function mergePullRequest(
       // NOTE: skipLog suppresses the ERROR emitted by runGhCommand when
       // update-branch exits non-zero (e.g. "already up to date" race).
       try {
-        await runGhCommand(
-          ['pr', 'update-branch', String(prNumber), '--repo', repo],
-          undefined,
-          { skipLog: true },
-        );
+        await runGhCommand(['pr', 'update-branch', String(prNumber), '--repo', repo], undefined, {
+          skipLog: true,
+        });
       } catch (updateErr) {
         const updateMsg = updateErr instanceof Error ? updateErr.message : String(updateErr);
         if (UPDATE_BRANCH_NOOP_RE.test(updateMsg)) {

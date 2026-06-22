@@ -350,6 +350,19 @@ async function requeueBlockedTasks(nowMs: number): Promise<number> {
   const armedThemeIds = armed.map((a) => a.themeId);
   if (armedThemeIds.length === 0) return 0;
 
+  // The verify->implement repair budget. A task that EXHAUSTED it is genuinely
+  // failing verification — blindly re-queuing it just repeats the same doomed
+  // implement→verify cycle. Such tasks need splitting / human attention, not
+  // auto-retry. Read via cast (column pending client regen), matching
+  // verify-self-repair's resolveMaxRepairs.
+  const settings = (await prisma.userSettings.findFirst().catch(() => null)) as {
+    verifyRepairLimit?: number | null;
+  } | null;
+  const verifyRepairLimit =
+    typeof settings?.verifyRepairLimit === 'number' && settings.verifyRepairLimit > 0
+      ? settings.verifyRepairLimit
+      : 3;
+
   const tasks = await prisma.task
     .findMany({
       where: {
@@ -372,6 +385,34 @@ async function requeueBlockedTasks(nowMs: number): Promise<number> {
       })
       .catch(() => null);
     if (live) continue;
+
+    // Skip tasks that exhausted verify-repair — re-running repeats the same
+    // failing implement→verify cycle (the task is too hard, needs splitting, not
+    // blind retry). Count since the last manual retry so a user re-try grants a
+    // fresh budget (mirrors verify-self-repair's countPriorRepairs).
+    const lastRetry = await prisma.activityLog
+      .findFirst({
+        where: { taskId: t.id, action: 'task_retried' },
+        orderBy: { createdAt: 'desc' },
+        select: { createdAt: true },
+      })
+      .catch(() => null);
+    const repairs = await prisma.workflowTransition
+      .count({
+        where: {
+          taskId: t.id,
+          cause: 'verify_repair',
+          ...(lastRetry ? { createdAt: { gt: lastRetry.createdAt } } : {}),
+        },
+      })
+      .catch(() => 0);
+    if (repairs >= verifyRepairLimit) {
+      log.info(
+        { taskId: t.id, repairs, verifyRepairLimit },
+        '[reconciler] Blocked task exhausted verify-repair — leaving blocked (needs split/manual), not auto-retrying',
+      );
+      continue;
+    }
 
     const attempts = await prisma.workflowTransition
       .count({ where: { taskId: t.id, cause: 'blocked_auto_retry' } })
