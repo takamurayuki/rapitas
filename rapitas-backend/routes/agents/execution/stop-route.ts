@@ -18,6 +18,7 @@ import {
 } from '../../../services/workflow/auto-run/theme-auto-run-service';
 import { releaseTaskExecutionLock } from './execution-lock';
 import { removeWorktree } from '../../../services/agents/orchestrator/git-operations/worktree-ops';
+import { resolveTaskWorkingDirectory } from '../../../services/task/task-resolver';
 
 const log = createLogger('routes:agent-execution:stop');
 const agentWorkerManager = AgentWorkerManager.getInstance();
@@ -29,14 +30,7 @@ export const stopRoute = new Elysia().post(
     const taskId = parseInt(params.id);
 
     try {
-      const task = await prisma.task.findUnique({
-        where: { id: taskId },
-        select: {
-          themeId: true,
-          workingDirectory: true,
-          theme: { select: { workingDirectory: true } },
-        },
-      });
+      const task = await resolveTaskWorkingDirectory(taskId);
       const workingDirectory = task?.workingDirectory || task?.theme?.workingDirectory || null;
 
       // Cancel any pending/queued workflow items so the runner won't re-pick the

@@ -25,6 +25,7 @@ import { acquireTaskExecutionLock, releaseTaskExecutionLock } from './execution-
 import { handleExecuteResult } from './execute-post-handler';
 import { buildFullInstruction, fetchAnalysisInfo } from './instruction-builder';
 import { executeSetup } from './execute-setup';
+import { resolveTaskForExecution } from '../../../services/task/task-resolver';
 import { resolveAgentForTask } from '../../../services/workflow/role-resolver';
 import { resolveEffectiveAutoApprovePlan } from '../../../services/workflow/plan-auto-approve';
 import {
@@ -95,23 +96,7 @@ export const executeRoute = new Elysia().post(
     // the task is in the planning-stage workflow state (no plan.md yet).
     const isResearchMode = mode === 'research';
 
-    let task;
-    try {
-      task = await prisma.task.findUnique({
-        where: { id: taskIdNum },
-        include: { developerModeConfig: true, theme: true },
-      });
-    } catch (dbError) {
-      const prismaCode = (dbError as Record<string, unknown>)?.code;
-      log.error({ err: dbError, prismaCode }, `[API] Database error fetching task ${taskIdNum}`);
-      context.set.status = 500;
-      return {
-        success: false,
-        error: 'Database query error occurred',
-        code: prismaCode || undefined,
-      };
-    }
-
+    const task = await resolveTaskForExecution(taskIdNum);
     if (!task) {
       context.set.status = 404;
       return { error: 'Task not found' };
