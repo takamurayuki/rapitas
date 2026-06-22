@@ -498,6 +498,21 @@ export class AutoMergeWatcher {
           { taskId: c.taskId, prNumber: c.prNumber },
           '[auto-merge] No blocking CI checks; GitHub merge state CLEAN — treating as pass',
         );
+      } else if (ghState === 'DIRTY' && c.mode === 'merge') {
+        // A real merge conflict with no CI to wait on. Without this branch an
+        // auto-run PR (which usually has NO CI configured) sits at 'unknown'
+        // forever: the conflict path below is reached ONLY via state==='pass' →
+        // mergePullRequest, so handleMergeConflict never runs and no resolution
+        // task is ever filed (the user-reported "conflict auto-resolve does
+        // nothing"). A conflict never clears by waiting — file the resolution task
+        // now; a later tick re-merges once it pushes the fix and the PR goes CLEAN.
+        log.info(
+          { taskId: c.taskId, prNumber: c.prNumber },
+          '[auto-merge] No blocking CI checks; GitHub merge state DIRTY — auto-filing conflict resolution',
+        );
+        if (await this.handleMergeConflict(c, 'merge state DIRTY (no CI checks)')) return;
+        await mark(c.taskId, 'auto_merge_blocked', 'conflict unresolved (DIRTY, no CI)');
+        return;
       }
     }
 
