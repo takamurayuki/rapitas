@@ -43,7 +43,9 @@ const executeCLIAgentMock = mock(
 
 mock.module('./workflow-agent-executor', () => ({
   executeCLIAgent: executeCLIAgentMock,
-  executeAPIAgent: mock(() => Promise.resolve({ success: true, role: 'implementer', status: 'verify_done' })),
+  executeAPIAgent: mock(() =>
+    Promise.resolve({ success: true, role: 'implementer', status: 'verify_done' }),
+  ),
 }));
 
 // tryProviderFallback is a module-private function; we observe it indirectly via
@@ -233,8 +235,7 @@ describe('WorkflowOrchestrator catch block — shutdown handling', () => {
     (WorkflowOrchestrator as unknown as { instance: unknown }).instance = undefined;
     const orchestrator = WorkflowOrchestrator.getInstance();
 
-    executeCLIAgentImpl = () =>
-      Promise.reject(new Error('Database connection refused'));
+    executeCLIAgentImpl = () => Promise.reject(new Error('Database connection refused'));
 
     // advanceWorkflow should RESOLVE with success:false (caught and handled).
     const result = await orchestrator.advanceWorkflow(1);

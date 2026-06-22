@@ -134,7 +134,10 @@ function waitForExecutionError(timeoutMs = 3000): Promise<void> {
   return new Promise<void>((resolve, reject) => {
     broadcastDone = resolve;
     setTimeout(
-      () => reject(new Error(`broadcastItemUpdate('execution_error') not called within ${timeoutMs}ms`)),
+      () =>
+        reject(
+          new Error(`broadcastItemUpdate('execution_error') not called within ${timeoutMs}ms`),
+        ),
       timeoutMs,
     );
   });
@@ -192,7 +195,12 @@ describe('WorkflowRunner catch block — shutdown handling', () => {
 
     // updateStatus('queued') must have been called
     const queuedCall = updateStatusMock.mock.calls.find(
-      (args) => args[1] === 'queued' && typeof args[2] === 'object' && args[2] !== null && 'errorMessage' in (args[2] as Record<string, unknown>) && (args[2] as Record<string, unknown>)['errorMessage'] === 'Shutdown - returned to queue',
+      (args) =>
+        args[1] === 'queued' &&
+        typeof args[2] === 'object' &&
+        args[2] !== null &&
+        'errorMessage' in (args[2] as Record<string, unknown>) &&
+        (args[2] as Record<string, unknown>)['errorMessage'] === 'Shutdown - returned to queue',
     );
     expect(queuedCall).toBeDefined();
 
