@@ -78,13 +78,13 @@ export async function buildHypothesisContext(
       ja
         ? [
             '## 仮説思考の指示',
-            '- 「正しいか不明だが検証で明らかになりそうな事象」に気づいたら新規仮説を起票: `POST /hypotheses {statement, rationale, domain}`（domain: codebase|agent-behavior|performance|architecture）。タスクは作らない。',
+            '- 調査で「正しいか不明だが検証で明らかになりそうな事象」に気づいたら、research.md に `## 仮説` 見出しを設け、1行1件 `- [domain] 反証可能な主張` の形式で列挙せよ（domain: codebase|agent-behavior|performance|architecture）。**保存時に自動で台帳へ起票される**。質問形（?）や12文字未満は不可。タスクは作らない。',
             `- 上記の検証待ち仮説に関わる事実を見つけたら証拠を記録: \`POST /hypotheses/:id/evidence {stance:"for"|"against", detail, artifact, taskId:${taskId}, phase}\`。`,
             '- **artifact は必ず具体的に**（file:line / テスト名 / 計測値 / #PR）。曖昧な証拠は拒否される。立証は推測ではなく根拠で。',
           ].join('\n')
         : [
             '## Hypothesis-thinking instructions',
-            '- Spotted something uncertain-but-testable? File a hypothesis: `POST /hypotheses {statement, rationale, domain}`. Do NOT create a task.',
+            '- Spotted something uncertain-but-testable while investigating? Add a `## 仮説` (Hypotheses) heading to research.md and list one per line as `- [domain] falsifiable claim` (domain: codebase|agent-behavior|performance|architecture); they are AUTO-FILED to the ledger on save. No questions (?) or <12 chars. Do NOT create a task.',
             `- Found a fact bearing on an open hypothesis? Record evidence: \`POST /hypotheses/:id/evidence {stance:"for"|"against", detail, artifact, taskId:${taskId}, phase}\`.`,
             '- The artifact MUST be concrete (file:line / test name / measurement / #PR). Hand-wavy evidence is rejected.',
           ].join('\n'),
