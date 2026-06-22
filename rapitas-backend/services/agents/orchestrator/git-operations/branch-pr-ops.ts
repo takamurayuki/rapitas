@@ -8,10 +8,14 @@
 import { exec } from 'child_process';
 import { mkdtempSync, rmSync, writeFileSync } from 'fs';
 import { tmpdir } from 'os';
-import { join, resolve } from 'path';
+import { join } from 'path';
 import { promisify } from 'util';
 import { createLogger } from '../../../../config/logger';
-import { isPrimaryWorkTree, ensureNotPrimaryWorkTree } from './worktree-guard';
+import {
+  isPrimaryWorkTree,
+  ensureNotPrimaryWorkTree,
+  findConflictingWorktreeForBranch,
+} from './worktree-guard';
 import { isHeadBehindError, isAlreadyUpToDate } from '../../../github/gh-retry';
 
 const execAsync = promisify(exec);
@@ -50,37 +54,14 @@ export async function createBranch(workingDirectory: string, branchName: string)
       // already using this branch. `git checkout` fails with
       // `fatal: '<branch>' is already used by worktree at '<path>'` when
       // another worktree holds the branch — emitting a spurious ERROR log.
-      // Check proactively and return false early instead (same pattern as
-      // createWorktree in worktree-ops.ts).
-      await execAsync('git worktree prune', { cwd: workingDirectory }).catch(() => {});
-      try {
-        const { stdout: worktreeList } = await execAsync('git worktree list --porcelain', {
-          cwd: workingDirectory,
-        });
-        // Porcelain output is blank-line-separated blocks, each starting with
-        // `worktree <path>` followed by `branch refs/heads/<name>`.
-        const blocks = worktreeList.split(/\n\n+/);
-        for (const block of blocks) {
-          if (block.includes(`branch refs/heads/${branchName}`)) {
-            const pathLine = block.split('\n').find((l) => l.startsWith('worktree '));
-            if (pathLine) {
-              const wtPath = pathLine.slice('worktree '.length).trim();
-              // NOTE: Use resolve() to normalize Windows paths (C:/ vs C:\,
-              // trailing separators) before comparing. Only block when it is a
-              // DIFFERENT worktree — if workingDirectory is already on this
-              // branch, checkout is a no-op and we should continue normally.
-              if (resolve(wtPath) !== resolve(workingDirectory)) {
-                logger.warn(
-                  `[createBranch] Branch ${branchName} is already used by worktree at ${wtPath}, skipping checkout`,
-                );
-                return false;
-              }
-            }
-          }
-        }
-      } catch {
-        // NOTE: If worktree list fails, fall through to the checkout attempt
-        // rather than blocking the operation — same fail-safe as createWorktree.
+      // findConflictingWorktreeForBranch encapsulates prune + list + resolve
+      // comparison so this logic is shared with mergePullRequest post-merge sync.
+      const conflictPath = await findConflictingWorktreeForBranch(workingDirectory, branchName);
+      if (conflictPath) {
+        logger.warn(
+          `[createBranch] Branch ${branchName} is already used by worktree at ${conflictPath}, skipping checkout`,
+        );
+        return false;
       }
       logger.info(`[createBranch] Branch ${branchName} already exists, checking out`);
       await execAsync(`git checkout ${branchName}`, { cwd: workingDirectory });
@@ -377,8 +358,20 @@ export async function mergePullRequest(
         '[mergeBranch] primary working tree — skipping local checkout+pull sync to protect developer work',
       );
     } else {
-      await execAsync(`git checkout ${baseBranch}`, { cwd: workingDirectory });
-      await execAsync('git pull', { cwd: workingDirectory });
+      // NOTE: `baseBranch` (e.g. develop) may already be checked out by another
+      // worktree. `git checkout` would fail with `fatal: ... already used by
+      // worktree` — skip sync in that case. The merge already landed on GitHub;
+      // the local sync is a best-effort convenience only.
+      const syncConflictPath = await findConflictingWorktreeForBranch(workingDirectory, baseBranch);
+      if (syncConflictPath) {
+        logger.warn(
+          { workingDirectory, baseBranch, conflictPath: syncConflictPath },
+          '[mergePullRequest] baseBranch is already used by another worktree — skipping local checkout+pull sync',
+        );
+      } else {
+        await execAsync(`git checkout ${baseBranch}`, { cwd: workingDirectory });
+        await execAsync('git pull', { cwd: workingDirectory });
+      }
     }
 
     return { success: true, mergeStrategy };

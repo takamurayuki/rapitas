@@ -19,7 +19,7 @@ export const authSessionRoutes = new Elysia()
 
   .get('/sessions', async ({ cookie: { sessionToken }, set }) => {
     try {
-      const token = sessionToken.value;
+      const token = sessionToken.value as string | undefined;
 
       if (!token) {
         set.status = 401;
@@ -56,7 +56,7 @@ export const authSessionRoutes = new Elysia()
 
   .delete('/sessions/:sessionId', async ({ params, cookie: { sessionToken }, set }) => {
     try {
-      const token = sessionToken.value;
+      const token = sessionToken.value as string | undefined;
       const { sessionId } = params;
 
       if (!token) {
@@ -96,7 +96,7 @@ export const authSessionRoutes = new Elysia()
 
   .post('/cleanup-sessions', async ({ cookie: { sessionToken }, set }) => {
     try {
-      const token = sessionToken.value;
+      const token = sessionToken.value as string | undefined;
 
       if (!token) {
         set.status = 401;

@@ -12,8 +12,6 @@ import { NotFoundError, ValidationError, parseId } from '../../../middleware/err
 import { createLogger } from '../../../config/logger';
 import { recordWorkflowCompletion } from '../../../services/workflow/learning/workflow-learning-optimizer';
 import { extractKnowledgeFromTask } from '../../../services/memory/task-knowledge-extractor';
-import { fileHypothesesFromResearch } from '../../../services/memory/hypothesis-from-research';
-import { fileDecisionsFromPlan } from '../../../services/memory/decision-from-plan';
 import {
   VALID_FILE_TYPES,
   type WorkflowFileType,
@@ -398,22 +396,10 @@ export async function handleSaveFile({
     // "修正不要" verdict). Complete the task directly from research — no plan.md,
     // no implementation, no verify — so already-done work doesn't get a
     // duplicate PR. Only valid while still in the research phase.
-    // Seed the hypothesis ledger from EVERY research.md save, regardless of the
-    // workflow status at save time. The status varies (fresh draft, re-run,
-    // resume, or a status pre-advanced by the orchestrator), so gating this on
-    // currentStatus==='draft' (as it was) meant the hook almost never fired and
-    // the ledger stayed empty despite research writing a `## 仮説` section.
-    // submitHypothesis dedupes by content hash, so repeated saves are safe.
-    if (fileType === 'research') {
-      void fileHypothesesFromResearch(taskId, savedContent).catch(() => {});
-    }
-    // Same rationale for the decision journal: record `## 意思決定` from EVERY
-    // plan.md save (createDecision dedupes by decision text per theme), rather
-    // than only on the research_done→plan_created transition.
-    if (fileType === 'plan') {
-      void fileDecisionsFromPlan(taskId, savedContent).catch(() => {});
-    }
-
+    // NOTE: hypothesis/decision ledger seeding moved INTO writeWorkflowFile (the
+    // universal save choke point) so the auto-run path — which writes via
+    // writeWorkflowFile directly, bypassing this API route — also fires it.
+    // writeWorkflowFile was already called above to persist savedContent.
     let researchCompleted = false;
     if (
       fileType === 'research' &&

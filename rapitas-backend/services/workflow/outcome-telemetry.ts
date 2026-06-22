@@ -42,7 +42,7 @@ export async function recordTaskOutcome(taskId: number, finalStatus: string): Pr
     const task = await prisma.task
       .findUnique({
         where: { id: taskId },
-        select: { themeId: true, workflowMode: true, complexityScore: true },
+        select: { title: true, themeId: true, workflowMode: true, complexityScore: true },
       })
       .catch(() => null);
 
@@ -97,6 +97,21 @@ export async function recordTaskOutcome(taskId: number, finalStatus: string): Pr
         validateHypothesesForTaskOutcome(taskId, task?.themeId ?? null, finalStatus),
       )
       .catch((err) => log.warn({ err, taskId }, '[telemetry] Hypothesis validation failed'));
+
+    // Bridge the outcome into the self-learning subsystem (Experiment + Episode +
+    // concept node) so the agent-memory page's knowledge-nodes / episodic-memory
+    // / success-rate stop sitting at 0 — those tables were never wired to the
+    // auto-run flow. Best-effort.
+    await import('../self-learning/task-learning-recorder')
+      .then(({ recordTaskLearningArtifacts }) =>
+        recordTaskLearningArtifacts(taskId, finalStatus, {
+          title: task?.title ?? null,
+          themeId: task?.themeId ?? null,
+          workflowMode: task?.workflowMode ?? null,
+          complexityScore: task?.complexityScore ?? null,
+        }),
+      )
+      .catch((err) => log.warn({ err, taskId }, '[telemetry] Learning-artifact recording failed'));
   } catch (err) {
     log.warn({ err, taskId }, '[telemetry] Failed to record task outcome');
   }
