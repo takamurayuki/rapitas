@@ -84,9 +84,7 @@ export async function evaluateRetry(
   // NOTE(agent): Without an onError hook, apply the fallback policy.
   // Priority: policy argument > context.maxRetries > env var (already in effectivePolicy.maxRetries).
   const maxRetries =
-    policy !== undefined
-      ? policy.maxRetries
-      : (context.maxRetries ?? effectivePolicy.maxRetries);
+    policy !== undefined ? policy.maxRetries : (context.maxRetries ?? effectivePolicy.maxRetries);
 
   if (error.recoverable && retryCount < maxRetries) {
     return { shouldRetry: true, delay: effectivePolicy.delayMs };

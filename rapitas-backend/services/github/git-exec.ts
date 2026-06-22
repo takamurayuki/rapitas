@@ -3,11 +3,16 @@
  *
  * Thin wrapper around the git binary using execFile (no shell, no escaping needed).
  * Counterpart to gh-client.ts for the gh CLI; this file covers git commands only.
+ * Also provides error classification and exponential-backoff retry for transient failures.
  */
 
 import { execFile } from 'child_process';
 import { promisify } from 'util';
 import { createLogger } from '../../config/logger';
+import { computeBackoffDelay } from './gh-retry';
+import { sleep } from '../agents/abstraction/agent-retry';
+import { resolveActiveGitRetryPolicy, getActiveVariantName } from './git-retry-policy-registry';
+import { recordGitRetryMetric } from './git-retry-telemetry';
 
 const log = createLogger('github-service:git-exec');
 const execFileAsync = promisify(execFile);
@@ -100,18 +105,101 @@ export function resetGitRemoteCacheStats(): void {
 const GIT_BIN = process.env.RAPITAS_GIT_BIN ?? 'git';
 
 /**
+ * Broad categories used to decide whether and how to retry a git CLI failure.
+ * `unrecoverable` is the conservative default for unrecognized errors.
+ */
+export type GitErrorCategory = 'transient' | 'auth' | 'not_found' | 'unrecoverable';
+
+interface GitClassificationRule {
+  pattern: RegExp;
+  category: GitErrorCategory;
+}
+
+/**
+ * Ordered rules — first match wins.
+ * Auth is checked before transient to prevent a 403/auth failure from false-matching
+ * a transient rule (e.g. "unable to access ... 403").
+ */
+const GIT_CLASSIFICATION_RULES: GitClassificationRule[] = [
+  {
+    pattern:
+      /Authentication failed|could not read Username|Permission denied \(publickey\)|terminal prompts disabled|invalid credentials|\b403\b/i,
+    category: 'auth',
+  },
+  {
+    pattern:
+      /not a git repository|pathspec .* did not match|unknown revision|couldn't find remote ref|repository not found|\b404\b/i,
+    category: 'not_found',
+  },
+  {
+    pattern:
+      /Could not resolve host|Connection (timed out|refused)|ETIMEDOUT|ECONNRESET|ECONNREFUSED|EAI_AGAIN|early EOF|RPC failed|the remote end hung up|unable to access|\b503\b|\b502\b/i,
+    category: 'transient',
+  },
+];
+
+/**
+ * Classify a git CLI error message into a retry-relevant category.
+ * Unrecognized messages return `unrecoverable` (conservative: no blind retries).
+ *
+ * @param message - Raw error message from git / gitエラーメッセージ
+ * @returns Error category / エラーカテゴリ
+ */
+export function classifyGitError(message: string): GitErrorCategory {
+  for (const rule of GIT_CLASSIFICATION_RULES) {
+    if (rule.pattern.test(message)) return rule.category;
+  }
+  return 'unrecoverable';
+}
+
+/** Configuration for a git retry attempt loop. */
+export interface GitRetryPolicy {
+  /** Error categories that permit a retry attempt. */
+  retryOn: GitErrorCategory[];
+  /** Maximum number of retry attempts after the first failure. */
+  maxRetries: number;
+  /** Base delay in milliseconds; actual delay is exponentially scaled. */
+  baseDelay: number;
+  /** Hard cap on computed delay in milliseconds to prevent excessive waits. */
+  maxDelay: number;
+}
+
+/**
+ * Policy for idempotent read operations (status / diff / log / rev-parse / remote get-url).
+ * Retries transient network failures only — no side-effect risk.
+ */
+export const GIT_READ_RETRY_POLICY: GitRetryPolicy = {
+  retryOn: ['transient'],
+  maxRetries: 2,
+  baseDelay: 500,
+  maxDelay: 8000,
+};
+
+/**
+ * Policy for non-idempotent write operations (push / commit / merge).
+ * No automatic retries by default — callers opt-in via a custom policy to avoid
+ * running a side-effecting command twice on reconnect.
+ */
+export const GIT_WRITE_RETRY_POLICY: GitRetryPolicy = {
+  retryOn: [],
+  maxRetries: 0,
+  baseDelay: 1000,
+  maxDelay: 8000,
+};
+
+/**
  * Execute a git command and return trimmed stdout.
  *
  * @param args - Git subcommand and arguments / gitサブコマンドと引数
  * @param cwd - Optional working directory / 作業ディレクトリ
- * @param opts - Options: skipLog suppresses the error log / オプション
+ * @param opts - Options: skipLog suppresses the error log; timeoutMs sets execution timeout / オプション
  * @returns Trimmed stdout string / 標準出力文字列
  * @throws {Error} When git exits with non-zero status / 非ゼロ終了時
  */
 export async function runGitCommand(
   args: string[],
   cwd?: string,
-  opts?: { skipLog?: boolean },
+  opts?: { skipLog?: boolean; timeoutMs?: number },
 ): Promise<string> {
   try {
     const { stdout } = await execFileAsync(GIT_BIN, args, {
@@ -119,6 +207,7 @@ export async function runGitCommand(
       encoding: 'utf8',
       maxBuffer: 10 * 1024 * 1024,
       windowsHide: true,
+      timeout: opts?.timeoutMs,
     });
     return stdout.trim();
   } catch (error) {
@@ -132,6 +221,82 @@ export async function runGitCommand(
     }
     throw new Error(stderr || message);
   }
+}
+
+/**
+ * Execute a git command with exponential-backoff retries according to the given policy.
+ * Immediately re-throws for non-retryable categories (auth, not_found, unrecoverable).
+ * On maxRetries exhaustion the last error is re-thrown so callers can handle it.
+ *
+ * @param args - Git subcommand and arguments / gitサブコマンドと引数
+ * @param cwd - Optional working directory / 作業ディレクトリ
+ * @param opts - Options passed to runGitCommand plus an optional retry policy / オプション
+ * @returns Trimmed stdout string / 標準出力文字列
+ * @throws {Error} Last error on retry exhaustion or non-retryable category / リトライ上限または非リトライカテゴリ時
+ */
+export async function runGitCommandWithRetry(
+  args: string[],
+  cwd?: string,
+  opts?: { skipLog?: boolean; timeoutMs?: number; policy?: GitRetryPolicy },
+): Promise<string> {
+  const isExplicit = opts?.policy !== undefined;
+  const policy = opts?.policy ?? resolveActiveGitRetryPolicy();
+  const variant = isExplicit ? 'explicit' : getActiveVariantName();
+  const command = args[0] ?? '';
+  const startedAt = Date.now();
+  let lastError: Error = new Error('Unknown git error');
+  let totalDelayMs = 0;
+
+  for (let attempt = 0; attempt <= policy.maxRetries; attempt++) {
+    try {
+      const result = await runGitCommand(args, cwd, opts);
+      if (attempt > 0) {
+        recordGitRetryMetric({
+          variant,
+          command,
+          attempts: attempt + 1,
+          succeeded: true,
+          totalDelayMs,
+          totalElapsedMs: Date.now() - startedAt,
+          finalErrorCategory: undefined,
+          baseDelay: policy.baseDelay,
+          maxDelay: policy.maxDelay,
+          maxRetries: policy.maxRetries,
+        });
+      }
+      return result;
+    } catch (err) {
+      lastError = err instanceof Error ? err : new Error(String(err));
+
+      const category = classifyGitError(lastError.message);
+      const shouldRetry = policy.retryOn.includes(category) && attempt < policy.maxRetries;
+
+      if (!shouldRetry) {
+        if (attempt > 0) {
+          recordGitRetryMetric({
+            variant,
+            command,
+            attempts: attempt + 1,
+            succeeded: false,
+            totalDelayMs,
+            totalElapsedMs: Date.now() - startedAt,
+            finalErrorCategory: category,
+            baseDelay: policy.baseDelay,
+            maxDelay: policy.maxDelay,
+            maxRetries: policy.maxRetries,
+          });
+        }
+        throw lastError;
+      }
+
+      const delay = computeBackoffDelay(attempt, policy.baseDelay, policy.maxDelay);
+      totalDelayMs += delay;
+      await sleep(delay);
+    }
+  }
+
+  // NOTE: Unreachable — the loop always returns or throws via the `if (!shouldRetry)` guard.
+  throw lastError;
 }
 
 /**

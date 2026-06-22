@@ -33,7 +33,6 @@ import type {
 import {
   setupSignalHandlers,
   gracefulShutdown as doGracefulShutdown,
-  saveAgentState,
   saveAllAgentStates,
 } from './orchestrator/lifecycle-manager';
 import { executeTask as doExecuteTask } from './orchestrator/task-executor';
@@ -66,6 +65,8 @@ export class AgentOrchestrator {
   private activeAgents: Map<number, ActiveAgentInfo> = new Map();
   private eventManager: EventManager = new EventManager();
   private _isShuttingDown: boolean = false;
+  /** When the shutdown latch was last set true, for stale-wedge detection. / ラッチを立てた時刻 */
+  private _shuttingDownSince: number | null = null;
   private shutdownPromise: Promise<void> | null = null;
   private serverStartedAt: Date = new Date();
   private serverStopCallback: (() => Promise<void> | void) | null = null;
@@ -97,7 +98,7 @@ export class AgentOrchestrator {
       prisma: this.prisma,
       activeExecutions: this.activeExecutions,
       activeAgents: this.activeAgents,
-      isShuttingDown: this._isShuttingDown,
+      isShuttingDown: this.isEffectivelyShuttingDown(),
       serverStartedAt: this.serverStartedAt,
       emitEvent: (event) => this.eventManager.emitEvent(event),
       startQuestionTimeout: (eid, tid, qk) => this.startQuestionTimeout(eid, tid, qk),
@@ -127,6 +128,7 @@ export class AgentOrchestrator {
         getIsShuttingDown: () => this._isShuttingDown,
         setIsShuttingDown: (v) => {
           this._isShuttingDown = v;
+          this._shuttingDownSince = v ? Date.now() : null;
         },
       },
       options,
@@ -137,6 +139,40 @@ export class AgentOrchestrator {
 
   isInShutdown(): boolean {
     return this._isShuttingDown;
+  }
+
+  /**
+   * Effective shutdown state, with self-healing for a wedged latch.
+   *
+   * `_isShuttingDown` is a one-way latch set by gracefulShutdown and normally
+   * cleared only by the process exiting. If a shutdown is initiated but the
+   * process never exits (an aborted/partial restart, or a shutdown call on a path
+   * that stays alive), the latch sticks true and EVERY new execution is rejected
+   * with "Server is shutting down, cannot start new execution" — an endless spin.
+   * A real shutdown always exits within the 30s grace budget, so a latch still set
+   * far past that is definitively stale: clear it and resume serving. Read on every
+   * getContext(), so a spinning execution attempt self-heals the orchestrator.
+   *
+   * @returns Whether the orchestrator is genuinely shutting down right now. / 本当にシャットダウン中か
+   */
+  private isEffectivelyShuttingDown(): boolean {
+    if (!this._isShuttingDown) return false;
+    // » the 30s shutdown budget + restart backstop; only a true wedge lasts this long.
+    const STALE_SHUTDOWN_MS = 90_000;
+    if (
+      this._shuttingDownSince !== null &&
+      Date.now() - this._shuttingDownSince > STALE_SHUTDOWN_MS
+    ) {
+      logger.warn(
+        { stuckForMs: Date.now() - this._shuttingDownSince },
+        '[Orchestrator] Shutdown latch stuck past the grace budget without a process exit — clearing stale latch to resume executions',
+      );
+      this._isShuttingDown = false;
+      this._shuttingDownSince = null;
+      this.shutdownPromise = null;
+      return false;
+    }
+    return true;
   }
 
   setServerStopCallback(callback: () => Promise<void> | void): void {

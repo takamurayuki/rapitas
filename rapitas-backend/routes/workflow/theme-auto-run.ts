@@ -16,6 +16,7 @@ import {
   stopAutoRun,
 } from '../../services/workflow/auto-run/theme-auto-run-service';
 import { ThemeAutoRunScheduler } from '../../services/workflow/auto-run/theme-auto-run-scheduler';
+import { logCycleEvent } from '../../services/observability';
 
 const log = createLogger('routes:theme-auto-run');
 
@@ -110,6 +111,7 @@ export const themeAutoRunRoutes = new Elysia()
         state = await startAutoRun(themeId, order);
         scheduler.start();
         log.info(`[theme-auto-run] Started auto-run for theme ${themeId}`);
+        logCycleEvent('theme.started', { theme: themeId, order, msg: 'auto-run started by user' });
       } else if (action === 'pause') {
         state = await pauseAutoRun(themeId);
         log.info(`[theme-auto-run] Paused auto-run for theme ${themeId}`);

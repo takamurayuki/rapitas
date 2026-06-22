@@ -149,15 +149,15 @@ describe('AgentEventEmitter — プロパティ横断テスト', () => {
     // null/'null'/'undefined' are silently skipped by emitOutput (see
     // event-emitter.ts:231), so they would produce 0 received events.
     const driveTable: Array<[AgentEventType, (e: AgentEventEmitter) => Promise<void>]> = [
-      ['state_change',   (e) => e.emitStateChange('idle', 'running')],
-      ['output',         (e) => e.emitOutput('hello world')],
-      ['error',          (e) => e.emitError(new Error('test'))],
-      ['tool_start',     (e) => e.emitToolStart('t1', 'read', { path: '/a' })],
-      ['tool_end',       (e) => e.emitToolEnd('t1', 'read', 'ok', true, 100)],
-      ['question',       (e) => e.emitQuestion(makeQuestion())],
-      ['progress',       (e) => e.emitProgress(1, 10, 'step 1')],
-      ['artifact',       (e) => e.emitArtifact(makeArtifact())],
-      ['commit',         (e) => e.emitCommit(makeCommit())],
+      ['state_change', (e) => e.emitStateChange('idle', 'running')],
+      ['output', (e) => e.emitOutput('hello world')],
+      ['error', (e) => e.emitError(new Error('test'))],
+      ['tool_start', (e) => e.emitToolStart('t1', 'read', { path: '/a' })],
+      ['tool_end', (e) => e.emitToolEnd('t1', 'read', 'ok', true, 100)],
+      ['question', (e) => e.emitQuestion(makeQuestion())],
+      ['progress', (e) => e.emitProgress(1, 10, 'step 1')],
+      ['artifact', (e) => e.emitArtifact(makeArtifact())],
+      ['commit', (e) => e.emitCommit(makeCommit())],
       ['metrics_update', (e) => e.emitMetricsUpdate(makeMetrics())],
     ];
 

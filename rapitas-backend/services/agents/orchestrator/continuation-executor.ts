@@ -198,7 +198,7 @@ export async function executeContinuationInternal(
     ctx.activeAgents.delete(execution.id);
     ctx.activeExecutions.delete(execution.id);
     const shutdownMsg = buildShutdownErrorMessage('continue execution');
-    fileLogger.logError(shutdownMsg);
+    fileLogger.logWarn(shutdownMsg);
     await fileLogger.flush();
     throw new Error(shutdownMsg);
   }
