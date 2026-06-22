@@ -31,6 +31,35 @@ type TaskCacheState = {
 /** Max consecutive failures before suppressing repeated error logs */
 const MAX_LOGGED_FAILURES = 3;
 
+/**
+ * Upper bound on in-memory task count. When exceeded after a merge, the oldest
+ * completed tasks are evicted so the store does not grow unbounded during
+ * months-long auto-run sessions.
+ */
+const MAX_CACHE_SIZE = 800;
+
+/**
+ * Evict the oldest completed tasks when the merged list exceeds MAX_CACHE_SIZE.
+ * Non-completed tasks are always retained; completed tasks are sorted by id
+ * (descending) and the tail is dropped.
+ *
+ * @param merged - Full merged task array / マージ済みタスク配列
+ * @returns Possibly pruned array / 必要に応じてトリミングされた配列
+ */
+function applyMaxCacheSize(merged: import('@/types').Task[]): import('@/types').Task[] {
+  if (merged.length <= MAX_CACHE_SIZE) return merged;
+  const active = merged.filter((t) => t.status !== 'done');
+  const done = merged
+    .filter((t) => t.status === 'done')
+    .sort((a, b) => b.id - a.id)
+    .slice(0, Math.max(0, MAX_CACHE_SIZE - active.length));
+  logger.info(
+    `[taskCacheStore] cache cap: kept ${active.length} active + ${done.length} done ` +
+      `(evicted ${merged.length - active.length - done.length})`,
+  );
+  return [...active, ...done];
+}
+
 export const useTaskCacheStore = create<TaskCacheState>()((set, get) => ({
   tasks: [],
   lastFetchedAt: null,
@@ -60,8 +89,11 @@ export const useTaskCacheStore = create<TaskCacheState>()((set, get) => ({
         logger.error('GET /tasks failed:', res.status, res.statusText, text);
         throw new Error('取得に失敗しました');
       }
-      const data: Task[] = await res.json();
-      logger.info(`[taskCacheStore] fetchAll: Received ${data.length} tasks`);
+      const raw: Task[] = await res.json();
+      const data = applyMaxCacheSize(raw);
+      logger.info(
+        `[taskCacheStore] fetchAll: Received ${raw.length} tasks (cached: ${data.length})`,
+      );
       set({
         tasks: data,
         lastFetchedAt: new Date().toISOString(),
@@ -192,7 +224,7 @@ export const useTaskCacheStore = create<TaskCacheState>()((set, get) => ({
           return;
         }
 
-        const merged = Array.from(taskMap.values());
+        const merged = applyMaxCacheSize(Array.from(taskMap.values()));
         logger.debug(
           `[taskCacheStore] fetchUpdates: Merged ${updatedTasks.length} updates, total: ${merged.length}`,
         );

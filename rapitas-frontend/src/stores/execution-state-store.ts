@@ -68,6 +68,25 @@ interface ExecutionStateStore {
 /** How long to suppress question re-publishing after an answer (ms). */
 const ANSWER_GRACE_MS = 8000;
 
+/**
+ * Lazily prune stale answeredAt entries (older than ANSWER_GRACE_MS).
+ * Returns the original Map if nothing was pruned (avoids unnecessary allocation).
+ *
+ * @param map - Current answeredAt Map / 現在のanswerAt Map
+ * @param now - Current epoch ms / 現在時刻
+ * @returns Pruned copy, or the original if unchanged / 変更なければ元のMapを返す
+ */
+function pruneAnsweredAt(map: Map<number, number>, now: number): Map<number, number> {
+  let pruned = map;
+  for (const [id, ts] of map) {
+    if (now - ts >= ANSWER_GRACE_MS) {
+      if (pruned === map) pruned = new Map(map);
+      pruned.delete(id);
+    }
+  }
+  return pruned;
+}
+
 export const useExecutionStateStore = create<ExecutionStateStore>()((set, get) => ({
   executingTasks: new Map(),
   loadingTaskIds: new Set(),
@@ -75,20 +94,32 @@ export const useExecutionStateStore = create<ExecutionStateStore>()((set, get) =
   answeredAt: new Map<number, number>(),
   setLiveQuestion: (taskId, question) =>
     set((state) => {
+      const now = Date.now();
+      // NOTE: Prune stale grace-window entries on every call so the Map cannot
+      // grow unbounded during long auto-run sessions.
+      const answeredAt = pruneAnsweredAt(state.answeredAt, now);
+
       const existing = state.liveQuestions.get(taskId) ?? null;
       // Suppress re-publishing a question within the grace window after an answer
       // (the poller keeps reporting waiting_for_input until the backend clears it).
       if (question !== null) {
-        const answered = state.answeredAt.get(taskId);
-        if (answered !== undefined && Date.now() - answered < ANSWER_GRACE_MS) {
-          if (existing === null) return state;
+        const answered = answeredAt.get(taskId);
+        if (answered !== undefined && now - answered < ANSWER_GRACE_MS) {
+          if (existing === null) {
+            return answeredAt !== state.answeredAt ? { answeredAt } : state;
+          }
           const cleared = new Map(state.liveQuestions);
           cleared.delete(taskId);
-          return { liveQuestions: cleared };
+          return {
+            liveQuestions: cleared,
+            ...(answeredAt !== state.answeredAt ? { answeredAt } : {}),
+          };
         }
       }
       // Skip no-op updates to avoid re-render loops (the publisher fires on every poll).
-      if (question === null && existing === null) return state;
+      if (question === null && existing === null) {
+        return answeredAt !== state.answeredAt ? { answeredAt } : state;
+      }
       if (
         question &&
         existing &&
@@ -98,12 +129,15 @@ export const useExecutionStateStore = create<ExecutionStateStore>()((set, get) =
         existing.sessionId === question.sessionId &&
         existing.timeoutDeadline === question.timeoutDeadline
       ) {
-        return state;
+        return answeredAt !== state.answeredAt ? { answeredAt } : state;
       }
       const newMap = new Map(state.liveQuestions);
       if (question === null) newMap.delete(taskId);
       else newMap.set(taskId, question);
-      return { liveQuestions: newMap };
+      return {
+        liveQuestions: newMap,
+        ...(answeredAt !== state.answeredAt ? { answeredAt } : {}),
+      };
     }),
   getLiveQuestion: (taskId) => get().liveQuestions.get(taskId) ?? null,
   markQuestionAnswered: (taskId) =>

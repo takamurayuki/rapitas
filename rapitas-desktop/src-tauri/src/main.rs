@@ -354,14 +354,23 @@ fn setup_global_shortcut(app: &tauri::App) -> Result<(), Box<dyn std::error::Err
 }
 
 fn main() {
-    // Keep WebView2 painting when the window is occluded/backgrounded (e.g. behind
-    // another window in a split-screen layout). Without this, Chromium's native
-    // window-occlusion detection pauses rendering and the webview shows a black
-    // frame that only repaints on click. Must run before any webview is created.
+    // Keep WebView2 painting and responsive when the window is occluded or
+    // backgrounded (e.g. split-screen layout with another app on top).
+    // - CalculateNativeWinOcclusion: prevents Chromium from pausing rendering
+    //   (black frame) when the window is occluded by another window.
+    // - RendererCodeIntegrity: avoids startup crashes on some AV configurations.
+    // - disable-renderer-backgrounding: prevents the renderer process from being
+    //   deprioritised (throttled CPU / suspended) when the window loses focus —
+    //   fixes the "cursor stops working" symptom in split-screen.
+    // - disable-background-timer-throttling: keeps JS timers and rAF running at
+    //   full rate when the window is in background, preventing UI freeze on refocus.
+    // Must be set before any webview is created.
     #[cfg(target_os = "windows")]
     std::env::set_var(
         "WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS",
-        "--disable-features=CalculateNativeWinOcclusion",
+        "--disable-features=CalculateNativeWinOcclusion \
+         --disable-renderer-backgrounding \
+         --disable-background-timer-throttling",
     );
 
     #[cfg(not(debug_assertions))]
