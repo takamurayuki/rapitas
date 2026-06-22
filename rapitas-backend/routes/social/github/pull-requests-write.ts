@@ -11,7 +11,10 @@ import { resolvePrConflicts } from '../../../services/github/conflict-resolver';
 import { fileConflictResolutionTask } from '../../../services/github/conflict-task';
 import { checkPrActionable } from '../../../services/github/pr-guards';
 import { resolvePrOrThrow } from '../../../services/github/resource-guard';
-import { resolvePrTaskContext, resolvePrWorkingDirectory } from '../../../services/github/pr-task-resolver';
+import {
+  resolvePrTaskContext,
+  resolvePrWorkingDirectory,
+} from '../../../services/github/pr-task-resolver';
 
 const githubService = new GitHubService(prisma);
 
@@ -213,16 +216,16 @@ export const pullRequestWriteRoutes = new Elysia()
     const { id } = context.params as { id: string };
     const pr = await resolvePrOrThrow(id);
 
-    // The conflict resolution needs a local checkout of the repo — use the
-    // linked task's (or its theme's) working directory.
-    const { workingDirectory, themeId } = await resolvePrTaskContext(pr.linkedTaskId);
-    if (!workingDirectory) {
-      context.set.status = 400;
-      return {
-        error:
-          'このPRのローカルチェックアウトが特定できません（タスク/テーマに作業ディレクトリが必要です）',
-      };
-    }
+    // The conflict resolution needs a local checkout of the repo. Resolve from the
+    // PR's linked task → a task carrying this PR number → and, as a last resort, the
+    // backend's own repo checkout. The last fallback is safe because resolvePrConflicts
+    // runs in a THROWAWAY worktree (never touches the checkout's branch), so a PR with
+    // no task link (linkedTaskId & githubPrId both null — title-linked PRs like
+    // "[#289] …") can still be resolved instead of failing with
+    // "ローカルチェックアウトが特定できません".
+    const ctx = await resolvePrTaskContext(pr.linkedTaskId, pr.prNumber);
+    const themeId = ctx.themeId;
+    const workingDirectory = ctx.workingDirectory ?? process.cwd();
 
     const result = await resolvePrConflicts(workingDirectory, pr.baseBranch, pr.headBranch);
     if (result.resolved) {

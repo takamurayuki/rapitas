@@ -43,22 +43,37 @@ export function titleMatchesTask(title: string | null | undefined, taskId: numbe
  * @param linkedTaskId - The PR's linked task id (may be null). / PRに紐づくタスクID
  * @returns Resolved context object. / 解決されたコンテキストオブジェクト
  */
-export async function resolvePrTaskContext(linkedTaskId: number | null): Promise<PrTaskContext> {
-  if (linkedTaskId == null) return { workingDirectory: null, themeId: null };
-  const task = await prisma.task
-    .findUnique({
-      where: { id: linkedTaskId },
-      select: {
-        workingDirectory: true,
-        themeId: true,
-        theme: { select: { workingDirectory: true } },
-      },
-    })
-    .catch(() => null);
-  return {
-    workingDirectory: task?.workingDirectory ?? task?.theme?.workingDirectory ?? null,
-    themeId: task?.themeId ?? null,
-  };
+export async function resolvePrTaskContext(
+  linkedTaskId: number | null,
+  prNumber?: number | null,
+): Promise<PrTaskContext> {
+  const select = {
+    workingDirectory: true,
+    themeId: true,
+    theme: { select: { workingDirectory: true } },
+  } as const;
+
+  // 1) The PR's linked task (or its theme).
+  if (linkedTaskId != null) {
+    const task = await prisma.task
+      .findUnique({ where: { id: linkedTaskId }, select })
+      .catch(() => null);
+    const wd = task?.workingDirectory ?? task?.theme?.workingDirectory ?? null;
+    if (wd) return { workingDirectory: wd, themeId: task?.themeId ?? null };
+  }
+
+  // 2) Fallback: a task carrying this PR number (githubPrId), or its theme. Covers
+  // PRs whose GitHubPullRequest row has linkedTaskId=null — title-linked PRs like
+  // "[#289] …" and webhook-synced rows — which would otherwise resolve to null.
+  if (prNumber != null) {
+    const task = await prisma.task
+      .findFirst({ where: { githubPrId: prNumber }, select })
+      .catch(() => null);
+    const wd = task?.workingDirectory ?? task?.theme?.workingDirectory ?? null;
+    if (wd) return { workingDirectory: wd, themeId: task?.themeId ?? null };
+  }
+
+  return { workingDirectory: null, themeId: null };
 }
 
 /**
