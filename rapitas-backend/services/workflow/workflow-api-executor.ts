@@ -12,6 +12,7 @@ import { callAnthropicAPI, callOpenAIAPI, decryptApiKey } from './workflow-api-c
 import type { RoleTransition, WorkflowAdvanceResult } from './workflow-types';
 import { assessComplexity } from '../local-llm/complexity-assessor';
 import { sendAIMessage } from '../../utils/ai-client';
+import { resolveTaskContext } from '../task/task-resolver';
 
 const log = createLogger('workflow-api-executor');
 
@@ -72,11 +73,7 @@ export async function executeAPIAgent(
 
     // NOTE: Include theme workingDirectory in context so the API agent
     // generates code paths relative to the target project, not rapitas.
-    const taskWithTheme = await prisma.task.findUnique({
-      where: { id: taskId },
-      select: { themeId: true, theme: { select: { workingDirectory: true, name: true } } },
-    });
-    const themeWorkDir = taskWithTheme?.theme?.workingDirectory || null;
+    const { workingDirectory: themeWorkDir } = await resolveTaskContext(taskId);
 
     const languageInstructions = {
       ja: 'すべての出力を日本語で記述してください。',

@@ -18,6 +18,7 @@ import {
 } from '../../../services/workflow/auto-run/theme-auto-run-service';
 import { releaseTaskExecutionLock } from './execution-lock';
 import { removeWorktree } from '../../../services/agents/orchestrator/git-operations/worktree-ops';
+import { resolveTaskContext } from '../../../services/task/task-resolver';
 
 const log = createLogger('routes:agent-execution:stop');
 const agentWorkerManager = AgentWorkerManager.getInstance();
@@ -29,15 +30,7 @@ export const stopRoute = new Elysia().post(
     const taskId = parseInt(params.id);
 
     try {
-      const task = await prisma.task.findUnique({
-        where: { id: taskId },
-        select: {
-          themeId: true,
-          workingDirectory: true,
-          theme: { select: { workingDirectory: true } },
-        },
-      });
-      const workingDirectory = task?.workingDirectory || task?.theme?.workingDirectory || null;
+      const { workingDirectory, themeId } = await resolveTaskContext(taskId);
 
       // Cancel any pending/queued workflow items so the runner won't re-pick the
       // task right after we stop it.
@@ -89,17 +82,17 @@ export const stopRoute = new Elysia().post(
       // finalizeStop is immediate (idle + disabled + currentTaskId=null), so it
       // doesn't depend on the next scheduler tick. Only fires when auto-run is
       // actually running this task — a manual single-task stop is unaffected.
-      if (task?.themeId != null) {
-        const autoRunState = await getAutoRunState(task.themeId).catch(() => null);
+      if (themeId != null) {
+        const autoRunState = await getAutoRunState(themeId).catch(() => null);
         if (isAutoRunHandlingTask(autoRunState, taskId)) {
-          await finalizeStop(task.themeId).catch((err) =>
+          await finalizeStop(themeId).catch((err) =>
             log.warn(
-              { err, taskId, themeId: task.themeId },
+              { err, taskId, themeId },
               '[stop-execution] Failed to halt theme auto-run',
             ),
           );
           log.info(
-            `[stop-execution] Halted theme ${task.themeId} auto-run (was running task ${taskId})`,
+            `[stop-execution] Halted theme ${themeId} auto-run (was running task ${taskId})`,
           );
         }
       }

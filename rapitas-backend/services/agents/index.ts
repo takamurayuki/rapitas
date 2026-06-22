@@ -1,3 +1,5 @@
+export * from './agent-session-resolver';
+
 /**
  * AI Agent Module - Main Entry Point
  *

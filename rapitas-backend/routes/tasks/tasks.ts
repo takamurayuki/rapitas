@@ -13,6 +13,7 @@ import {
   cleanupDuplicateSubtasks,
   cleanupAllDuplicateSubtasks,
 } from '../../services/task/task-service';
+import { resolveLatestWorktreeSession } from '../../services/agents/agent-session-resolver';
 import { removeWorktree } from '../../services/agents/orchestrator/git-operations/worktree-ops';
 import { getProjectRoot } from '../../config';
 import { cleanupCompletedTasks } from '../../services/task/completed-task-cleanup';
@@ -50,11 +51,7 @@ export const tasksRoutes = new Elysia({ prefix: '/tasks' })
         set.status = 404;
         return { error: 'Task not found' };
       }
-      const session = await prisma.agentSession.findFirst({
-        where: { worktreePath: { not: null }, config: { taskId: id } },
-        orderBy: { id: 'desc' },
-        select: { worktreePath: true },
-      });
+      const session = await resolveLatestWorktreeSession(id);
       // Resolution order: active worktree → task dir → theme dir → repo root.
       const cwd =
         session?.worktreePath ||

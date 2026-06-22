@@ -29,6 +29,7 @@ import { recordTransition, type TransitionActor } from './transition-recorder';
 import { evaluateCompletionGate } from './completion-gate';
 import { checkWorkflowInvariants } from './workflow-invariants';
 import { maybeAutoApprovePlan } from './plan-auto-approve';
+import { resolveLatestWorktreeSession } from '../agents/agent-session-resolver';
 
 const log = createLogger('workflow-cli-executor');
 const execAsync = promisify(exec);
@@ -156,16 +157,7 @@ export async function executeCLIAgent(
   let resolvedWorktreePath: string | null = null;
   let resolvedBranchName: string | null = null;
   if (isImplementationRole || isVerifierRole) {
-    const sessionWithWorktree = await prisma.agentSession
-      .findFirst({
-        where: {
-          config: { taskId },
-          worktreePath: { not: null },
-        },
-        orderBy: { createdAt: 'desc' },
-        select: { worktreePath: true, branchName: true },
-      })
-      .catch(() => null);
+    const sessionWithWorktree = await resolveLatestWorktreeSession(taskId);
     // Only REUSE a recorded worktree if it still exists ON DISK. A prior
     // session may record a worktreePath that was later removed (a stop/cleanup,
     // or a worktree that never finished creating). Reusing a phantom path makes
