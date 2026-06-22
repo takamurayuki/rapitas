@@ -89,7 +89,6 @@ import {
   ideaBoxRoutes,
   concernBacklogRoutes,
   hypothesisRoutes,
-  decisionJournalRoutes,
   backlogScheduleRoutes,
   backlogThemeOverrideRoutes,
   exportRoutes,
@@ -160,7 +159,6 @@ export function registerAllRoutes(app: Elysia): void {
   app.use(ideaBoxRoutes);
   app.use(concernBacklogRoutes);
   app.use(hypothesisRoutes);
-  app.use(decisionJournalRoutes);
   app.use(backlogScheduleRoutes);
   app.use(backlogThemeOverrideRoutes);
 

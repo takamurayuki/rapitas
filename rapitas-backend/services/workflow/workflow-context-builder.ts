@@ -9,7 +9,6 @@ import { prisma } from '../../config/database';
 import { readWorkflowFile } from './workflow-file-utils';
 import { buildMemoryContext } from './workflow-memory-context';
 import { buildHypothesisContext } from './workflow-hypothesis-context';
-import { buildDecisionContext } from './workflow-decision-context';
 import { buildRejectedPlanContext } from './workflow-rejected-plan-context';
 import { buildCriticFeedback } from './phase-critic';
 
@@ -56,7 +55,7 @@ export async function buildRoleContext(
       planner: {
         researchHeader: '# リサーチャーの調査結果 (research.md)',
         instruction:
-          '上記の調査結果を基に、実装計画をplan.mdとしてMarkdown形式で作成してください。\n\nチェックリスト形式で実装手順を記述し、変更予定ファイル一覧、リスク評価、完了条件を含めてください。\n\n設計上の選択（採用案・却下案・トレードオフ）を行った場合は、plan.md に `## 意思決定` 見出しを設け、1行1件 `- 採用: <選択> ｜ 理由: <理由> ｜ 予測: <この選択で期待される具体的な結果> ｜ 確信度: <0〜100>%` の形式で記述してください（**保存時に意思決定ジャーナルへ自動記録される**）。**予測は理由の言い換えではなく「何が起きると見込むか」を書き、確信度はその予測の確からしさ（例 70%）を必ず数値で記すこと。** 仮説（検証で真偽が決まる信念）ではなく、確定した選択の記録です。',
+          '上記の調査結果を基に、実装計画をplan.mdとしてMarkdown形式で作成してください。\n\nチェックリスト形式で実装手順を記述し、変更予定ファイル一覧、リスク評価、完了条件を含めてください。',
       },
       reviewer: {
         researchHeader: '# 調査結果 (research.md)',
@@ -125,7 +124,7 @@ export async function buildRoleContext(
       planner: {
         researchHeader: '# Research Results (research.md)',
         instruction:
-          'Based on the research results above, please create an implementation plan as plan.md in Markdown format.\n\nDescribe implementation steps in checklist format, including a list of files to be changed, risk assessment, and completion criteria.\n\nIf you make design choices (adopt option A, reject B, accept a trade-off), add a `## 意思決定` (Decisions) heading to plan.md and list one per line as `- 採用: <choice> ｜ 理由: <reason> ｜ 予測: <the concrete outcome you expect from this choice> ｜ 確信度: <0-100>%` — AUTO-RECORDED in the decision journal on save. **The 予測 (prediction) must state WHAT you expect to happen (not a restatement of the reason), and 確信度 (confidence) must be a number (e.g. 70%).** These are SETTLED choices (not hypotheses, which are testable beliefs).',
+          'Based on the research results above, please create an implementation plan as plan.md in Markdown format.\n\nDescribe implementation steps in checklist format, including a list of files to be changed, risk assessment, and completion criteria.',
       },
       reviewer: {
         researchHeader: '# Research Results (research.md)',
@@ -216,13 +215,6 @@ export async function buildRoleContext(
       const rejected = await buildRejectedPlanContext(taskId, language);
       if (rejected) {
         ctx += `\n\n${rejected}`;
-      }
-      // Surface this theme's prior settled decisions so the new plan REUSES them
-      // (and learns from any that calibrated "wrong") instead of re-litigating —
-      // this is what makes the decision journal leveraged, not write-only.
-      const priorDecisions = await buildDecisionContext(taskId, language);
-      if (priorDecisions) {
-        ctx += `\n\n${priorDecisions}`;
       }
       if (research) {
         ctx += `\n\n${t.planner.researchHeader}\n\n${research}`;

@@ -45,7 +45,6 @@ import {
   Package,
   BookMarked,
   Keyboard,
-  Scale,
   Beaker,
 } from 'lucide-react';
 import Link from 'next/link';
@@ -122,7 +121,6 @@ export default function Header() {
       children: [
         { href: '/ideas', label: 'アイデア', icon: Lightbulb },
         { href: '/concerns', label: '懸念', icon: Bug },
-        { href: '/decisions', label: '意思決定', icon: Scale },
         { href: '/hypotheses', label: '仮説', icon: Beaker },
         { href: '/backlog/settings', label: '設定', icon: CalendarClock },
       ],

@@ -13,7 +13,6 @@ import { createLogger } from '../../config/logger';
 import { getTaskWorkflowDir, getArchiveDir } from './workflow-paths';
 import { resolveTaskWithThemeAndCategory } from '../task/task-resolver';
 import { fileHypothesesFromResearch } from '../memory/hypothesis-from-research';
-import { fileDecisionsFromPlan } from '../memory/decision-from-plan';
 
 const log = createLogger('workflow-file-utils');
 
@@ -139,12 +138,9 @@ export async function writeWorkflowFile(
     // handleSaveFile API route, so hooks placed only in that route never fired
     // for auto-run tasks (the ledger stayed empty all day despite research
     // writing a valid `## 仮説` section). Fire-and-forget; submitHypothesis
-    // (content hash) and createDecision (decision text per theme) dedupe, so the
-    // API path calling this in addition is safe.
+    // dedupes (content hash), so the API path calling this in addition is safe.
     if (fileType === 'research') {
       void fileHypothesesFromResearch(taskId, sanitizeResult.content).catch(() => {});
-    } else if (fileType === 'plan') {
-      void fileDecisionsFromPlan(taskId, sanitizeResult.content).catch(() => {});
     }
   }
 
