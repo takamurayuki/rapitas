@@ -86,10 +86,7 @@ export const stopRoute = new Elysia().post(
         const autoRunState = await getAutoRunState(themeId).catch(() => null);
         if (isAutoRunHandlingTask(autoRunState, taskId)) {
           await finalizeStop(themeId).catch((err) =>
-            log.warn(
-              { err, taskId, themeId },
-              '[stop-execution] Failed to halt theme auto-run',
-            ),
+            log.warn({ err, taskId, themeId }, '[stop-execution] Failed to halt theme auto-run'),
           );
           log.info(
             `[stop-execution] Halted theme ${themeId} auto-run (was running task ${taskId})`,
