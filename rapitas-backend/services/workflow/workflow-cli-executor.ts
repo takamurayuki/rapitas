@@ -11,6 +11,7 @@ import { promisify } from 'util';
 import { join } from 'path';
 import { prisma } from '../../config';
 import { AgentOrchestrator } from '../agents/agent-orchestrator';
+import { resolveTaskWithTheme } from '../task/task-resolver';
 import { createLogger } from '../../config/logger';
 import {
   readWorkflowFile,
@@ -131,14 +132,7 @@ export async function executeCLIAgent(
   // NOTE: Resolve workingDirectory from theme — implementation runs in the target project,
   // not in the rapitas project itself. Workflow files (plan.md, verify.md) are saved
   // separately via the workflow API regardless of cwd.
-  const taskWithTheme = await prisma.task.findUnique({
-    where: { id: taskId },
-    select: {
-      themeId: true,
-      workflowStatus: true,
-      theme: { select: { workingDirectory: true } },
-    },
-  });
+  const taskWithTheme = await resolveTaskWithTheme(taskId);
   const themeWorkDir = taskWithTheme?.theme?.workingDirectory || null;
   const isImplementationRole = transition.role === 'implementer';
   const isVerifierRole = transition.role === 'verifier' || transition.role === 'auto_verifier';

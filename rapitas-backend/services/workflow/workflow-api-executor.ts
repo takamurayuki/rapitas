@@ -9,10 +9,10 @@ import { prisma } from '../../config';
 import { createLogger } from '../../config/logger';
 import { writeWorkflowFile } from './workflow-file-utils';
 import { callAnthropicAPI, callOpenAIAPI, decryptApiKey } from './workflow-api-callers';
+import { resolveTaskContext } from '../task/task-resolver';
 import type { RoleTransition, WorkflowAdvanceResult } from './workflow-types';
 import { assessComplexity } from '../local-llm/complexity-assessor';
 import { sendAIMessage } from '../../utils/ai-client';
-import { resolveTaskContext } from '../task/task-resolver';
 
 const log = createLogger('workflow-api-executor');
 

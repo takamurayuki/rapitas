@@ -11,6 +11,7 @@ import { randomBytes } from 'crypto';
 import { createLogger } from '../../../config/logger';
 import { checkAuthRateLimit } from './rate-limiter';
 import { resolveSessionByToken } from '../../../services/core/auth-session-resolver';
+import { resolveUserByUsernameOrEmail } from '../../../services/core/user-resolver';
 
 const log = createLogger('routes:auth:core');
 
@@ -39,9 +40,7 @@ export const authCoreRoutes = new Elysia()
           password: string;
         };
 
-        const existingUser = await prisma.user.findFirst({
-          where: { OR: [{ username }, { email }] },
-        });
+        const existingUser = await resolveUserByUsernameOrEmail(username, email);
 
         if (existingUser) {
           set.status = 409;
@@ -115,14 +114,8 @@ export const authCoreRoutes = new Elysia()
 
         const { username, password } = body as { username: string; password: string };
 
-        const user = await prisma.user.findFirst({
-          where: {
-            OR: [
-              { username },
-              { email: username }, // Allow email login
-            ],
-          },
-        });
+        // NOTE: username field may contain either a username or an email address — allow both.
+        const user = await resolveUserByUsernameOrEmail(username, username);
 
         if (!user || !user.passwordHash) {
           set.status = 401;

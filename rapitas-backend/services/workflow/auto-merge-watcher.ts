@@ -36,11 +36,18 @@ const PENDING_TIMEOUT_MS = 90 * 60 * 1000; // 90 min
  */
 const TERMINAL_CAUSES = ['auto_merged', 'pr_ci_completed'];
 /**
- * Retry a previously `auto_merge_blocked` PR until it merges or this many blocks
- * accumulate, then give up for good (avoids re-notifying every tick on a PR that
- * genuinely cannot merge). Each failed merge records one more block.
+ * Retry a previously `auto_merge_blocked` PR until this many blocks accumulate
+ * WITHIN {@link BLOCK_RETRY_WINDOW_MS}, then back off (avoids re-notifying every
+ * tick on a PR that genuinely cannot merge). Each failed merge records one more
+ * block. The window matters: an ALL-TIME count permanently stranded a PR that
+ * was transiently un-mergeable hours ago but is mergeable now (observed: PR #256
+ * / task 316, MERGEABLE but blocked=3 from an earlier troubled period, never
+ * auto-merged). Counting only recent blocks lets a now-mergeable PR recover
+ * while a still-stuck PR keeps re-accumulating blocks and stays backed off.
  */
 const MAX_BLOCK_RETRIES = 3;
+/** Only `auto_merge_blocked` marks newer than this count toward the budget. */
+const BLOCK_RETRY_WINDOW_MS = 30 * 60_000;
 /**
  * File a conflict-resolution task at most this many times for one PR before
  * giving up and blocking for manual review. Each re-file happens only AFTER the
@@ -308,9 +315,17 @@ async function findCandidates(): Promise<Candidate[]> {
     if (terminal > 0) continue;
 
     // Previously blocked: retry (the block may have been transient — e.g. a
-    // wrong-base conflict since retargeted) until the block budget is spent.
+    // wrong-base conflict since retargeted) until the budget is spent. Count only
+    // RECENT blocks so a PR that was stuck hours ago but is mergeable now is not
+    // stranded forever (see BLOCK_RETRY_WINDOW_MS).
     const blocked = await prisma.workflowTransition
-      .count({ where: { taskId, cause: 'auto_merge_blocked' } })
+      .count({
+        where: {
+          taskId,
+          cause: 'auto_merge_blocked',
+          createdAt: { gte: new Date(Date.now() - BLOCK_RETRY_WINDOW_MS) },
+        },
+      })
       .catch(() => 0);
     if (blocked >= MAX_BLOCK_RETRIES) continue;
 

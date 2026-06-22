@@ -18,6 +18,7 @@ import { isBackendPrimaryCheckout } from '../../../services/agents/orchestrator/
 import { toJsonString } from '../../../utils/database/db-helpers';
 import { acquireTaskExecutionLock, releaseTaskExecutionLock } from './execution-lock';
 import { handleContinueResult, handleContinueError } from './continue-post-handler';
+import { resolveTaskForExecution } from '../../../services/task/task-resolver';
 
 const log = createLogger('routes:agent-execution:continue');
 const agentWorkerManager = AgentWorkerManager.getInstance();
@@ -45,11 +46,7 @@ export const continueRoute = new Elysia().post(
     log.info(`[continue-execution] Execution lock acquired for task ${taskId}`);
 
     try {
-      const task = await prisma.task.findUnique({
-        where: { id: taskId },
-        include: { developerModeConfig: true, theme: true },
-      });
-
+      const task = await resolveTaskForExecution(taskId);
       if (!task) {
         context.set.status = 404;
         return { error: 'Task not found' };

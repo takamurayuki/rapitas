@@ -12,7 +12,7 @@ import { createLogger } from '../../../config/logger';
 import { AgentWorkerManager } from '../../../services/agents/agent-worker-manager';
 import { releaseTaskExecutionLock } from './execution-lock';
 import { removeWorktree } from '../../../services/agents/orchestrator/git-operations/worktree-ops';
-import { resolveTaskWorkingDirectory } from '../../../services/task/task-resolver';
+import { resolveTaskContext } from '../../../services/task/task-resolver';
 
 const log = createLogger('routes:agent-execution:reset');
 const agentWorkerManager = AgentWorkerManager.getInstance();
@@ -118,7 +118,7 @@ export const resetRoute = new Elysia().post(
 
         let revertedChanges = false;
         let revertSkippedReason: string | undefined;
-        const workingDirectory = await resolveTaskWorkingDirectory(taskId);
+        const { workingDirectory } = await resolveTaskContext(taskId);
 
         if (latestSession.worktreePath && workingDirectory) {
           try {

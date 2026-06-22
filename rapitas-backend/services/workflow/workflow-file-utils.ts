@@ -11,6 +11,7 @@ import { prisma } from '../../config';
 import { sanitizeMarkdownContent } from '../../utils/common/mojibake-detector';
 import { createLogger } from '../../config/logger';
 import { getTaskWorkflowDir, getArchiveDir } from './workflow-paths';
+import { resolveTaskWithThemeAndCategory } from '../task/task-resolver';
 import { fileHypothesesFromResearch } from '../memory/hypothesis-from-research';
 import { fileDecisionsFromPlan } from '../memory/decision-from-plan';
 
@@ -25,10 +26,7 @@ export type WorkflowFileType = 'research' | 'question' | 'plan' | 'verify';
  * @returns Directory info or null if the task does not exist. / タスクが存在しない場合はnull
  */
 export async function resolveWorkflowDir(taskId: number) {
-  const task = await prisma.task.findUnique({
-    where: { id: taskId },
-    include: { theme: { include: { category: true } } },
-  });
+  const task = await resolveTaskWithThemeAndCategory(taskId);
   if (!task) return null;
 
   const categoryId = task.theme?.categoryId ?? null;

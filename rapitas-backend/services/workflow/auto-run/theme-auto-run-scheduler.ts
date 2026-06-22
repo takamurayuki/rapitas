@@ -24,7 +24,7 @@ import { realtimeService } from '../../communication/realtime-service';
 import { promoteBacklogForTheme, hasPromotableBacklog } from './backlog-task-promoter';
 import { recordStartupCommit, maybeRestartForUpdate } from './dev-restart-on-dry';
 import { logCycleEvent } from '../../observability';
-import { resolveTaskWorkingDirectory } from '../../task/task-resolver';
+import { resolveTaskContext } from '../../task/task-resolver';
 import {
   AUTO_RUN_GLOBAL_MAX_CONCURRENCY,
   POLL_INTERVAL_MS,
@@ -630,7 +630,7 @@ export class ThemeAutoRunScheduler {
 
     // Stop the agent execution(s) if any are running
     try {
-      const workDir = await resolveTaskWorkingDirectory(currentTaskId);
+      const { workingDirectory: workDir } = await resolveTaskContext(currentTaskId);
 
       // Kill ALL in-flight agents across the theme — the current task, its
       // subtasks, and any other theme task with a live execution (not just the
