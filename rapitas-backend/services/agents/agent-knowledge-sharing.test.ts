@@ -26,6 +26,8 @@ const mockPromptEvolutionFindMany = mock(() => Promise.resolve([]));
 const mockTaskFindFirst = mock(() => Promise.resolve(null));
 
 mock.module('../../config/database', () => ({
+  // mock.module replaces the whole module — mirror ensureDatabaseConnection so config/index.ts re-export survives shuffled test order (else 'export not found').
+  ensureDatabaseConnection: () => Promise.resolve(),
   prisma: {
     task: { findUnique: mockTaskFindUnique, findFirst: mockTaskFindFirst },
     knowledgeEntry: { findMany: mockKnowledgeEntryFindMany },
