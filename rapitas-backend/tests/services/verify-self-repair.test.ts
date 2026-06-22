@@ -14,6 +14,10 @@ const mockPrisma = {
     update: mock(() => Promise.resolve({})),
     findUnique: mock(() => Promise.resolve({ themeId: null })),
   },
+  // NOTE: Added — verify-self-repair.ts:52 reads verifyRepairLimit from userSettings.
+  userSettings: { findFirst: mock(() => Promise.resolve(null)) },
+  // NOTE: Added — verify-self-repair.ts:65 reads the last task_retried entry from activityLog.
+  activityLog: { findFirst: mock(() => Promise.resolve(null)) },
 };
 const recordTransition = mock(() => Promise.resolve());
 const writeWorkflowFile = mock(() => Promise.resolve('/p/question.md'));

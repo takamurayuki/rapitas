@@ -168,6 +168,10 @@ beforeEach(() => {
   mockCheckInvariants.mockResolvedValue([]);
   mockPerformAutoCommitAndPR.mockResolvedValue({});
   mockAttemptVerifyRepair.mockResolvedValue({ bounced: false });
+  // NOTE: mockReset() removes the original factory, so restore the default return.
+  // The verify path calls prisma.task.findUnique() to detect conflict-resolution tasks;
+  // returning null means "not a conflict task" — the normal code path continues.
+  mockFindUnique.mockResolvedValue(null);
 });
 
 // -------------------------------------------------------------------------

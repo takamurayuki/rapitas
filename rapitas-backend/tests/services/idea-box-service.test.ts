@@ -13,7 +13,15 @@ const mockKnowledgeEntry = {
   groupBy: mock(() => Promise.resolve([])),
 };
 
-const mockPrisma = { knowledgeEntry: mockKnowledgeEntry };
+const mockPrisma = {
+  knowledgeEntry: mockKnowledgeEntry,
+  // NOTE: Added — submitIdea calls resolveDefaultThemeId() which reads prisma.theme.
+  theme: {
+    findMany: mock(() => Promise.resolve([])),
+    findFirst: mock(() => Promise.resolve(null)),
+  },
+  task: { findUnique: mock(() => Promise.resolve(null)) },
+};
 
 mock.module('../../config/database', () => ({
   ensureDatabaseConnection: () => Promise.resolve(),

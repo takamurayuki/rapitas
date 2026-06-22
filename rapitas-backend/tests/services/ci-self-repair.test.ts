@@ -10,7 +10,12 @@ import { describe, test, expect, mock, beforeEach } from 'bun:test';
 const mockPrisma = {
   workflowTransition: { count: mock(() => Promise.resolve(0)) },
   workflowFile: { findFirst: mock(() => Promise.resolve(null)) },
-  task: { update: mock(() => Promise.resolve({})) },
+  task: {
+    update: mock(() => Promise.resolve({})),
+    // NOTE: Added after ci-self-repair.ts:119 — findUnique checks if task is a
+    // conflict-resolution task (title matches "PR #N の競合を解消") to skip CI repair.
+    findUnique: mock(() => Promise.resolve(null)),
+  },
 };
 const recordTransition = mock(() => Promise.resolve());
 const writeWorkflowFile = mock(() => Promise.resolve('/p/question.md'));

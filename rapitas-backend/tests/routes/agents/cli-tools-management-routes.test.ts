@@ -2,7 +2,7 @@
  * CLI Tools Management Routes テスト
  * CLIツール管理APIのユニットテスト
  */
-import { describe, test, expect, mock, beforeEach } from 'bun:test';
+import { describe, test, expect, mock, beforeEach, afterAll } from 'bun:test';
 import { Elysia } from 'elysia';
 
 // Mock logger
@@ -22,13 +22,22 @@ mock.module('util', () => ({
   promisify: () => mockExecAsync,
 }));
 
+// NOTE: Both 'fs/promises' and 'node:fs/promises' must be mocked — bun shares them
+// process-globally in shuffle mode and named imports (import { mkdir } from 'node:fs/promises')
+// fall through to the same registry entry. The 'default' wrapper must NOT be used;
+// named imports resolve from the top level, not from 'default'.
 mock.module('fs/promises', () => ({
-  default: {
-    readFile: mock(() => Promise.resolve('')),
-    writeFile: mock(() => Promise.resolve()),
-    access: mock(() => Promise.resolve()),
-    mkdir: mock(() => Promise.resolve()),
-  },
+  readFile: mock(() => Promise.resolve('')),
+  writeFile: mock(() => Promise.resolve()),
+  access: mock(() => Promise.resolve()),
+  mkdir: mock(() => Promise.resolve()),
+}));
+
+mock.module('node:fs/promises', () => ({
+  readFile: mock(() => Promise.resolve('')),
+  writeFile: mock(() => Promise.resolve()),
+  access: mock(() => Promise.resolve()),
+  mkdir: mock(() => Promise.resolve()),
 }));
 
 const { cliToolsManagementRoutes } = await import('../../../routes/agents/cli-tools/routes');
@@ -161,3 +170,7 @@ describe('GET /cli-tools/:toolId/install-guide', () => {
     expect(body.error).toBe('Tool not found');
   });
 });
+
+// NOTE: node:fs/promises is process-global in bun's shuffle mode — restore after this file
+// so that downstream files (e.g. dependency-installer.test.ts) get the real fs back.
+afterAll(() => mock.restore());

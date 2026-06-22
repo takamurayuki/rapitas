@@ -3,9 +3,74 @@
  * セッション管理（セッション詳細、停止、再開可能実行）のテスト
  */
 
-import { describe, it, expect, beforeEach } from 'bun:test';
+import { describe, it, expect, beforeEach, mock } from 'bun:test';
 import { Elysia } from 'elysia';
-import { agentSessionRouter } from '../../../routes/agents/crud/agent-session-router';
+
+mock.module('../../../config/logger', () => ({
+  createLogger: () => ({
+    info: () => {},
+    error: () => {},
+    warn: () => {},
+    debug: () => {},
+  }),
+}));
+
+const mockPrisma = {
+  agentSession: {
+    findUnique: mock(() => Promise.resolve(null)),
+    update: mock(() => Promise.resolve({})),
+  },
+  agentExecution: {
+    findMany: mock(() => Promise.resolve([])),
+    updateMany: mock(() => Promise.resolve({ count: 0 })),
+  },
+  developerModeConfig: {
+    findUnique: mock(() => Promise.resolve(null)),
+  },
+  task: {
+    update: mock(() => Promise.resolve({})),
+  },
+};
+
+mock.module('../../../config/database', () => ({
+  prisma: mockPrisma,
+  ensureDatabaseConnection: () => Promise.resolve(),
+}));
+
+// NOTE: orchestrator-instance spawns AgentWorkerManager at module load time.
+// Mock before import to prevent actual worker process creation in test environment.
+mock.module('../../../services/core/orchestrator-instance', () => ({
+  orchestrator: {
+    getActiveExecutions: () => [],
+    getActiveExecutionIdsAsync: mock(() => Promise.resolve([])),
+    stopExecution: mock(() => Promise.resolve()),
+    getActiveAgentInfos: () => [],
+  },
+  workerManager: {
+    getActiveExecutions: () => [],
+    getActiveExecutionIdsAsync: mock(() => Promise.resolve([])),
+    stopExecution: mock(() => Promise.resolve()),
+  },
+}));
+
+mock.module('../../../services/agents/agent-orchestrator', () => ({
+  AgentOrchestrator: {
+    getInstance: () => ({
+      getActiveAgentInfos: () => [],
+    }),
+  },
+}));
+
+mock.module('../../../services/agents/agent-worker-manager', () => ({
+  AgentWorkerManager: {
+    getInstance: () => ({
+      getSessionExecutionsAsync: mock(() => Promise.resolve([])),
+      getActiveExecutionIdsAsync: mock(() => Promise.resolve([])),
+    }),
+  },
+}));
+
+const { agentSessionRouter } = await import('../../../routes/agents/crud/agent-session-router');
 
 describe('Agent Session Router', () => {
   let app: Elysia;
