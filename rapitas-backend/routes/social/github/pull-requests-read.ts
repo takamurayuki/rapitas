@@ -9,6 +9,7 @@ import { prisma } from '../../../config/database';
 import { GitHubService } from '../../../services/core/github-service';
 import { resolvePrOrThrow } from '../../../services/github/resource-guard';
 import { findPrViaGh } from '../../../services/github/pr-task-resolver';
+import { makeOwnerRepoString } from '../../../services/github/owner-repo';
 
 const githubService = new GitHubService(prisma);
 
@@ -24,7 +25,7 @@ export const pullRequestReadRoutes = new Elysia()
         where: { id: parseInt(id) },
       });
       if (!integration) return [];
-      const repo = `${integration.ownerName}/${integration.repositoryName}`;
+      const repo = makeOwnerRepoString(integration.ownerName, integration.repositoryName);
       return await githubService.getPullRequests(
         repo,
         (state as 'open' | 'closed' | 'all') || 'open',
@@ -182,6 +183,6 @@ export const pullRequestReadRoutes = new Elysia()
     const { id } = context.params as { id: string };
     const pr = await resolvePrOrThrow(id);
 
-    const repo = `${pr.integration.ownerName}/${pr.integration.repositoryName}`;
+    const repo = makeOwnerRepoString(pr.integration.ownerName, pr.integration.repositoryName);
     return await githubService.getPullRequestDiff(repo, pr.prNumber);
   });

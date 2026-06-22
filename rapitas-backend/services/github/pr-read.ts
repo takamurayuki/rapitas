@@ -7,6 +7,7 @@
  */
 
 import { runGhCommand } from './gh-client';
+import type { OwnerRepoString } from './owner-repo';
 import type {
   PullRequest,
   PullRequestReview,
@@ -27,7 +28,7 @@ import type {
  * @returns Array of pull requests / PRリスト
  */
 export async function getPullRequests(
-  repo: string,
+  repo: OwnerRepoString,
   state: 'open' | 'closed' | 'all' = 'open',
   limit: number = 30,
 ): Promise<PullRequest[]> {
@@ -71,7 +72,7 @@ export async function getPullRequests(
  * @param prNumber - PR number / PR番号
  * @returns Pull request or null if not found / PRまたはnull
  */
-export async function getPullRequest(repo: string, prNumber: number): Promise<PullRequest | null> {
+export async function getPullRequest(repo: OwnerRepoString, prNumber: number): Promise<PullRequest | null> {
   try {
     const output = await runGhCommand([
       'pr',
@@ -112,7 +113,7 @@ export async function getPullRequest(repo: string, prNumber: number): Promise<Pu
  * @param prNumber - PR number / PR番号
  * @returns Array of file diffs / ファイル差分リスト
  */
-export async function getPullRequestDiff(repo: string, prNumber: number): Promise<FileDiff[]> {
+export async function getPullRequestDiff(repo: OwnerRepoString, prNumber: number): Promise<FileDiff[]> {
   // NOTE: First call result is unused; kept for potential future jq filtering use
   await runGhCommand([
     'api',
@@ -140,7 +141,7 @@ export async function getPullRequestDiff(repo: string, prNumber: number): Promis
  * @returns Array of reviews / レビューリスト
  */
 export async function getPullRequestReviews(
-  repo: string,
+  repo: OwnerRepoString,
   prNumber: number,
 ): Promise<PullRequestReview[]> {
   const output = await runGhCommand(['api', `repos/${repo}/pulls/${prNumber}/reviews`]);
@@ -162,7 +163,7 @@ export async function getPullRequestReviews(
  * @returns Array of comments / コメントリスト
  */
 export async function getPullRequestComments(
-  repo: string,
+  repo: OwnerRepoString,
   prNumber: number,
 ): Promise<PullRequestComment[]> {
   const output = await runGhCommand(['api', `repos/${repo}/pulls/${prNumber}/comments`]);

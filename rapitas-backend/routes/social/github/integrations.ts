@@ -8,6 +8,7 @@ import { Elysia } from 'elysia';
 import { prisma } from '../../../config/database';
 import { GitHubService, type GitHubWebhookPayload } from '../../../services/core/github-service';
 import { githubSchemas, githubParamSchemas } from '../../../schemas/github.schema';
+import { makeOwnerRepoString, asOwnerRepoString } from '../../../services/github/owner-repo';
 
 const githubService = new GitHubService(prisma);
 
@@ -29,9 +30,10 @@ export const integrationRoutes = new Elysia()
       prisma.gitHubIntegration.findMany({ select: { ownerName: true, repositoryName: true } }),
     ]);
     const added = new Set(
-      integrations.map((i) => `${i.ownerName}/${i.repositoryName}`.toLowerCase()),
+      integrations.map((i) => makeOwnerRepoString(i.ownerName, i.repositoryName)),
     );
-    return repos.map((r) => ({ ...r, alreadyAdded: added.has(r.nameWithOwner.toLowerCase()) }));
+    // NOTE: nameWithOwner is already "owner/repo" from GitHub — asOwnerRepoString is safe here
+    return repos.map((r) => ({ ...r, alreadyAdded: added.has(asOwnerRepoString(r.nameWithOwner.toLowerCase())) }));
   })
 
   // Integration list

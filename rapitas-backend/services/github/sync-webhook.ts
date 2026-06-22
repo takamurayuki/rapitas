@@ -12,6 +12,7 @@ import { createLogger } from '../../config/logger';
 import { realtimeService } from '../communication/realtime-service';
 import { getPullRequests } from './pr-operations';
 import { getIssues } from './issue-operations';
+import { makeOwnerRepoString } from './owner-repo';
 import { markConcernResolved } from '../memory/concern-backlog-service';
 import {
   handlePullRequestEvent,
@@ -44,7 +45,7 @@ export async function syncPullRequests(
     throw new Error('Integration not found');
   }
 
-  const repo = `${integration.ownerName}/${integration.repositoryName}`;
+  const repo = makeOwnerRepoString(integration.ownerName, integration.repositoryName);
   const prs = await getPullRequests(repo, 'all', 100);
 
   let syncedCount = 0;
@@ -110,7 +111,7 @@ export async function syncIssues(
     throw new Error('Integration not found');
   }
 
-  const repo = `${integration.ownerName}/${integration.repositoryName}`;
+  const repo = makeOwnerRepoString(integration.ownerName, integration.repositoryName);
   const issues = await getIssues(repo, 'all', 100);
 
   let syncedCount = 0;

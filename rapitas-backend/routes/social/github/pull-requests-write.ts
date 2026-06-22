@@ -16,6 +16,7 @@ import {
   resolvePrWorkingDirectory,
   resolveThemeForWorkingDirectory,
 } from '../../../services/github/pr-task-resolver';
+import { makeOwnerRepoString } from '../../../services/github/owner-repo';
 
 const githubService = new GitHubService(prisma);
 
@@ -40,7 +41,7 @@ export const pullRequestWriteRoutes = new Elysia()
       return commentGuard.body;
     }
 
-    const repo = `${pr.integration.ownerName}/${pr.integration.repositoryName}`;
+    const repo = makeOwnerRepoString(pr.integration.ownerName, pr.integration.repositoryName);
     const comment = await githubService.createPullRequestComment(repo, pr.prNumber, {
       body: commentBody,
       path,
@@ -76,7 +77,7 @@ export const pullRequestWriteRoutes = new Elysia()
       return approveGuard.body;
     }
 
-    const repo = `${pr.integration.ownerName}/${pr.integration.repositoryName}`;
+    const repo = makeOwnerRepoString(pr.integration.ownerName, pr.integration.repositoryName);
     await githubService.approvePullRequest(repo, pr.prNumber, reviewBody);
 
     // Create notification
@@ -108,7 +109,7 @@ export const pullRequestWriteRoutes = new Elysia()
       return requestChangesGuard.body;
     }
 
-    const repo = `${pr.integration.ownerName}/${pr.integration.repositoryName}`;
+    const repo = makeOwnerRepoString(pr.integration.ownerName, pr.integration.repositoryName);
     await githubService.requestChanges(repo, pr.prNumber, reviewBody ?? '');
 
     return { success: true };
@@ -131,7 +132,7 @@ export const pullRequestWriteRoutes = new Elysia()
       return mergeGuard.body;
     }
 
-    const repo = `${pr.integration.ownerName}/${pr.integration.repositoryName}`;
+    const repo = makeOwnerRepoString(pr.integration.ownerName, pr.integration.repositoryName);
     let mergeResult: { autoQueued: boolean };
     try {
       mergeResult = await githubService.mergePullRequest(repo, pr.prNumber, {
@@ -194,7 +195,7 @@ export const pullRequestWriteRoutes = new Elysia()
       return baseGuard.body;
     }
 
-    const repo = `${pr.integration.ownerName}/${pr.integration.repositoryName}`;
+    const repo = makeOwnerRepoString(pr.integration.ownerName, pr.integration.repositoryName);
     try {
       await githubService.changePullRequestBase(repo, pr.prNumber, baseBranch);
     } catch (err) {
