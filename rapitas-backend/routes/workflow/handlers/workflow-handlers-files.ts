@@ -398,6 +398,22 @@ export async function handleSaveFile({
     // "修正不要" verdict). Complete the task directly from research — no plan.md,
     // no implementation, no verify — so already-done work doesn't get a
     // duplicate PR. Only valid while still in the research phase.
+    // Seed the hypothesis ledger from EVERY research.md save, regardless of the
+    // workflow status at save time. The status varies (fresh draft, re-run,
+    // resume, or a status pre-advanced by the orchestrator), so gating this on
+    // currentStatus==='draft' (as it was) meant the hook almost never fired and
+    // the ledger stayed empty despite research writing a `## 仮説` section.
+    // submitHypothesis dedupes by content hash, so repeated saves are safe.
+    if (fileType === 'research') {
+      void fileHypothesesFromResearch(taskId, savedContent).catch(() => {});
+    }
+    // Same rationale for the decision journal: record `## 意思決定` from EVERY
+    // plan.md save (createDecision dedupes by decision text per theme), rather
+    // than only on the research_done→plan_created transition.
+    if (fileType === 'plan') {
+      void fileDecisionsFromPlan(taskId, savedContent).catch(() => {});
+    }
+
     let researchCompleted = false;
     if (
       fileType === 'research' &&
@@ -410,17 +426,8 @@ export async function handleSaveFile({
     } else if (fileType === 'research' && (!currentStatus || currentStatus === 'draft')) {
       log.info(`[Workflow] Research completed: setting newStatus to research_done`);
       newStatus = 'research_done';
-      // Seed the hypothesis ledger from the research's `## 仮説` section so the
-      // create→inject→validate loop actually has data (the prompt-only POST
-      // directive was unreliable — the ledger stayed empty). Fire-and-forget;
-      // submitHypothesis dedupes + gates, and this must never block the save.
-      void fileHypothesesFromResearch(taskId, savedContent).catch(() => {});
     } else if (fileType === 'plan' && (!currentStatus || currentStatus === 'research_done')) {
       newStatus = 'plan_created';
-      // Record the design choices from the plan's `## 意思決定` section in the
-      // decision journal (settled choices + rationale — distinct from research
-      // hypotheses, which are testable beliefs). Fire-and-forget; deduped.
-      void fileDecisionsFromPlan(taskId, savedContent).catch(() => {});
     } else if (
       fileType === 'question' &&
       currentStatus &&
