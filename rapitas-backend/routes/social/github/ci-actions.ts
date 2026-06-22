@@ -13,6 +13,7 @@ import {
   getWorkflowJobLog,
 } from '../../../services/github/actions';
 import { resolveIntegrationOrThrow } from '../../../services/github/resource-guard';
+import { makeOwnerRepoString } from '../../../services/github/owner-repo';
 
 export const ciActionRoutes = new Elysia()
   // CI/CD: list a repo's recent GitHub Actions workflow runs.
@@ -21,7 +22,7 @@ export const ciActionRoutes = new Elysia()
     const { limit } = context.query as { limit?: string };
     const integration = await prisma.gitHubIntegration.findUnique({ where: { id: parseInt(id) } });
     if (!integration) return [];
-    const repo = `${integration.ownerName}/${integration.repositoryName}`;
+    const repo = makeOwnerRepoString(integration.ownerName, integration.repositoryName);
     try {
       return await listWorkflowRuns(repo, limit ? parseInt(limit) : 20);
     } catch (err) {
@@ -34,7 +35,7 @@ export const ciActionRoutes = new Elysia()
   .get('/integrations/:id/runs/:runId', async (context) => {
     const { id, runId } = context.params as { id: string; runId: string };
     const integration = await resolveIntegrationOrThrow(id);
-    const repo = `${integration.ownerName}/${integration.repositoryName}`;
+    const repo = makeOwnerRepoString(integration.ownerName, integration.repositoryName);
     try {
       return await getWorkflowRun(repo, parseInt(runId));
     } catch (err) {
@@ -48,7 +49,7 @@ export const ciActionRoutes = new Elysia()
     const { id, runId } = context.params as { id: string; runId: string };
     const { failed } = context.query as { failed?: string };
     const integration = await resolveIntegrationOrThrow(id);
-    const repo = `${integration.ownerName}/${integration.repositoryName}`;
+    const repo = makeOwnerRepoString(integration.ownerName, integration.repositoryName);
     const log = await getWorkflowRunLog(repo, parseInt(runId), failed === 'true');
     return { log };
   })
@@ -58,7 +59,7 @@ export const ciActionRoutes = new Elysia()
   .get('/integrations/:id/jobs/:jobId/log', async (context) => {
     const { id, jobId } = context.params as { id: string; jobId: string };
     const integration = await resolveIntegrationOrThrow(id);
-    const repo = `${integration.ownerName}/${integration.repositoryName}`;
+    const repo = makeOwnerRepoString(integration.ownerName, integration.repositoryName);
     try {
       const sections = await getWorkflowJobLog(repo, parseInt(jobId));
       return { sections };

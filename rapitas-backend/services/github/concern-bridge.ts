@@ -18,6 +18,7 @@ import {
   type LinkedIssueRef,
 } from '../memory/concern-backlog-service';
 import { parseOwnerRepo, ownerRepoFromGitRemote } from './git-exec';
+import { makeOwnerRepoString } from './owner-repo';
 
 const log = createLogger('github:concern-bridge');
 
@@ -94,7 +95,7 @@ export async function publishConcernToIssue(
   const integration = await prisma.gitHubIntegration.findUnique({ where: { id: integrationId } });
   if (!integration) return { success: false, status: 404, error: 'リポジトリ連携が見つかりません' };
 
-  const repo = `${integration.ownerName}/${integration.repositoryName}`;
+  const repo = makeOwnerRepoString(integration.ownerName, integration.repositoryName);
   const { body, labels } = buildIssueContent(concern, extraLabels ?? []);
 
   let issue;
@@ -189,10 +190,13 @@ export async function resolveConcernIntegration(concernId: number): Promise<{ id
   }
 
   if (ownerRepo) {
+    // NOTE: const退避でclosure内のnarrowing有効化（letはclosure内でnarrowされない）
+    const resolved = ownerRepo;
     const match = integrations.find(
+      // OwnerRepo guarantees lowercase; only the DB fields need .toLowerCase()
       (i) =>
-        i.ownerName.toLowerCase() === ownerRepo!.owner.toLowerCase() &&
-        i.repositoryName.toLowerCase() === ownerRepo!.repo.toLowerCase(),
+        i.ownerName.toLowerCase() === resolved.owner &&
+        i.repositoryName.toLowerCase() === resolved.repo,
     );
     if (match) return { id: match.id };
   }
@@ -248,7 +252,7 @@ export async function closeIssueForConcern(concernId: number): Promise<void> {
     include: { integration: true },
   });
   if (!link) return;
-  const repo = `${link.integration.ownerName}/${link.integration.repositoryName}`;
+  const repo = makeOwnerRepoString(link.integration.ownerName, link.integration.repositoryName);
   try {
     await closeIssue(repo, link.issueNumber);
     await prisma.gitHubIssue.update({ where: { id: link.id }, data: { state: 'closed' } });

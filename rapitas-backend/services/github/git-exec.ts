@@ -3,6 +3,8 @@
  *
  * Thin wrapper around the git binary using execFile (no shell, no escaping needed).
  * Counterpart to gh-client.ts for the gh CLI; this file covers git commands only.
+ * parseOwnerRepo and OwnerRepo types live in owner-repo.ts; re-exported here for
+ * backward-compatible imports.
  * Also provides git-specific error classification and retry infrastructure,
  * symmetric to gh-retry.ts for the GitHub CLI.
  */
@@ -10,6 +12,9 @@
 import { execFile } from 'child_process';
 import { promisify } from 'util';
 import { createLogger } from '../../config/logger';
+import { parseOwnerRepo, type OwnerRepo } from './owner-repo';
+export { parseOwnerRepo } from './owner-repo';
+export type { OwnerRepo, OwnerRepoString } from './owner-repo';
 import { sleep } from '../agents/abstraction/agent-retry';
 import { computeBackoffDelay } from './gh-retry';
 import { resolveActiveGitRetryPolicy, getActiveVariantName } from './git-retry-policy-registry';
@@ -22,7 +27,7 @@ const DEFAULT_REMOTE_CACHE_TTL_MS = 30_000;
 const REMOTE_CACHE_ENABLED = process.env.RAPITAS_GIT_EXEC_CACHE !== '0';
 
 interface RemoteCacheEntry {
-  value: { owner: string; repo: string } | null;
+  value: OwnerRepo | null;
   expiresAt: number;
 }
 
@@ -310,32 +315,14 @@ export async function runGitCommandWithRetry(
 }
 
 /**
- * Extract `{ owner, repo }` (lowercased) from a GitHub remote URL.
- * Accepts https and ssh forms. Returns null for non-github or unparseable URLs.
- *
- * @param url - GitHub https or ssh URL / GitHubのhttpsまたはssh形式URL
- * @returns Lowercased `{ owner, repo }`, or null when not parseable / 小文字のowner/repo、解析不能ならnull
- */
-export function parseOwnerRepo(
-  url: string | null | undefined,
-): { owner: string; repo: string } | null {
-  if (!url) return null;
-  // Matches https://github.com/owner/repo(.git) and git@github.com:owner/repo(.git).
-  // Limits to github.com and excludes query/fragment chars for stricter matching.
-  const m = url.match(/github\.com[/:]([^/]+)\/([^/#?]+?)(?:\.git)?\/?$/i);
-  if (!m) return null;
-  return { owner: m[1].toLowerCase(), repo: m[2].toLowerCase() };
-}
-
-/**
  * Read a working directory's `origin` remote URL and parse its GitHub owner/repo.
  *
  * @param workingDirectory - Local git repository path / ローカルgitリポジトリパス
- * @returns Lowercased `{ owner, repo }`, or null when no remote or parse fails / owner/repo、失敗時はnull
+ * @returns Lowercased {@link OwnerRepo}, or null when no remote or parse fails / OwnerRepo、失敗時はnull
  */
 export async function ownerRepoFromGitRemote(
   workingDirectory: string,
-): Promise<{ owner: string; repo: string } | null> {
+): Promise<OwnerRepo | null> {
   if (REMOTE_CACHE_ENABLED) {
     const now = Date.now();
     const entry = remoteCache.get(workingDirectory);
@@ -352,7 +339,7 @@ export async function ownerRepoFromGitRemote(
     }
   }
 
-  let result: { owner: string; repo: string } | null;
+  let result: OwnerRepo | null;
   try {
     const url = await runGitCommand(['remote', 'get-url', 'origin'], workingDirectory, {
       skipLog: true,

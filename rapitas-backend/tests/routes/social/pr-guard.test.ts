@@ -53,7 +53,7 @@ describe('resolvePrOrThrow', () => {
     expect(result.repo).toBe('octocat/hello-world');
   });
 
-  test('repo 文字列が ownerName/repositoryName の形式であること', async () => {
+  test('repo 文字列が ownerName/repositoryName の形式かつ小文字正規化されること', async () => {
     const customPr = {
       ...mockPr,
       integration: { id: 11, ownerName: 'myOrg', repositoryName: 'my-repo' },
@@ -62,7 +62,8 @@ describe('resolvePrOrThrow', () => {
 
     const result = await resolvePrOrThrow(1);
 
-    expect(result.repo).toBe('myOrg/my-repo');
+    // NOTE: makeOwnerRepoString lowercases both components for gh CLI safety
+    expect(result.repo).toBe('myorg/my-repo');
   });
 
   test('数値IDでも動作すること', async () => {
