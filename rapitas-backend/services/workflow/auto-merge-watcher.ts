@@ -11,6 +11,7 @@
  * + an open linked PR, minus a transition marker), so no schema change is needed.
  */
 import { exec } from 'node:child_process';
+import { existsSync } from 'node:fs';
 import { promisify } from 'node:util';
 import { prisma } from '../../config/database';
 import { createLogger } from '../../config/logger';
@@ -313,7 +314,18 @@ async function findCandidates(): Promise<Candidate[]> {
       .catch(() => 0);
     if (blocked >= MAX_BLOCK_RETRIES) continue;
 
-    const cwd = task.workingDirectory || task.theme?.workingDirectory;
+    // gh pr checks/merge/update-branch are GitHub-API calls — they only need a
+    // valid local clone (for the remote), NOT the task's own worktree. A DONE
+    // task's worktree is usually already cleaned up, so its workingDirectory no
+    // longer exists on disk; running gh there fails with a spawn error that
+    // surfaces as "Failed to read PR checks" every tick and the PR NEVER
+    // auto-merges (observed: #257/#258/#259 mergeable yet stuck; #259 merged
+    // instantly by hand from the primary checkout). Pick the first directory that
+    // still EXISTS: the worktree if present, else the theme's stable primary
+    // checkout, else the backend's own cwd.
+    const cwd = [task.workingDirectory, task.theme?.workingDirectory, process.cwd()].find(
+      (d): d is string => !!d && existsSync(d),
+    );
     if (!cwd) continue;
 
     const cfg = await prisma.agentExecutionConfig
