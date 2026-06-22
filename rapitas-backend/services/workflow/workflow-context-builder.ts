@@ -9,6 +9,7 @@ import { prisma } from '../../config/database';
 import { readWorkflowFile } from './workflow-file-utils';
 import { buildMemoryContext } from './workflow-memory-context';
 import { buildHypothesisContext } from './workflow-hypothesis-context';
+import { buildDecisionContext } from './workflow-decision-context';
 import { buildRejectedPlanContext } from './workflow-rejected-plan-context';
 import { buildCriticFeedback } from './phase-critic';
 
@@ -215,6 +216,13 @@ export async function buildRoleContext(
       const rejected = await buildRejectedPlanContext(taskId, language);
       if (rejected) {
         ctx += `\n\n${rejected}`;
+      }
+      // Surface this theme's prior settled decisions so the new plan REUSES them
+      // (and learns from any that calibrated "wrong") instead of re-litigating —
+      // this is what makes the decision journal leveraged, not write-only.
+      const priorDecisions = await buildDecisionContext(taskId, language);
+      if (priorDecisions) {
+        ctx += `\n\n${priorDecisions}`;
       }
       if (research) {
         ctx += `\n\n${t.planner.researchHeader}\n\n${research}`;

@@ -20,6 +20,13 @@ const log = createLogger('memory:decision-from-plan');
 const MAX_PER_PLAN = 6;
 /** Skip stub lines shorter than this. */
 const MIN_DECISION_LEN = 8;
+/**
+ * Days until an auto-filed decision surfaces for calibration review. Without a
+ * reviewDate, getReviewDue (`reviewDate <= now`) never returns it, so the entry
+ * stays "open / pending" forever and the predict→review→calibrate loop never
+ * runs. A short horizon means the predicted outcome is usually knowable by then.
+ */
+const REVIEW_HORIZON_DAYS = 14;
 
 /** One parsed decision. predictedOutcome/confidence are present only when stated. */
 export interface ParsedPlanDecision {
@@ -135,6 +142,9 @@ export async function fileDecisionsFromPlan(
         // Planner-stated confidence; createDecision keeps its 0.5 default only when
         // the planner omitted 確信度 (the prompt now asks for it explicitly).
         ...(it.confidence !== undefined && { confidence: it.confidence }),
+        // Schedule a calibration review so the decision doesn't sit "pending"
+        // forever (it becomes review-due after the horizon → surfaces in the UI).
+        reviewDate: new Date(Date.now() + REVIEW_HORIZON_DAYS * 24 * 60 * 60 * 1000),
         ...(themeId != null && { themeId }),
       });
       seen.add(it.decision);
