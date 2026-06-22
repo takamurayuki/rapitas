@@ -35,7 +35,7 @@ mock.module('../../config/logger', () => {
   };
 });
 
-const { titleMatchesTask, resolvePrWorkingDirectory, findPrViaGh } =
+const { titleMatchesTask, resolvePrWorkingDirectory, resolvePrTaskContext, findPrViaGh } =
   await import('./pr-task-resolver');
 
 beforeEach(() => {
@@ -114,6 +114,43 @@ describe('resolvePrWorkingDirectory', () => {
     mockTaskFindUnique.mockRejectedValueOnce(new Error('DB error'));
     const result = await resolvePrWorkingDirectory(1);
     expect(result).toBeNull();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// resolvePrTaskContext
+// ---------------------------------------------------------------------------
+describe('resolvePrTaskContext', () => {
+  test('linkedTaskId が null → { workingDirectory: null, themeId: null } を返しDBクエリを発行しないこと', async () => {
+    const result = await resolvePrTaskContext(null);
+    expect(result).toEqual({ workingDirectory: null, themeId: null });
+    expect(mockTaskFindUnique).not.toHaveBeenCalled();
+  });
+
+  test('task.workingDirectory あり → そのパスと themeId を返すこと', async () => {
+    mockTaskFindUnique.mockResolvedValueOnce({
+      workingDirectory: '/repo/path',
+      themeId: 7,
+      theme: { workingDirectory: '/theme/path' },
+    });
+    const result = await resolvePrTaskContext(1);
+    expect(result).toEqual({ workingDirectory: '/repo/path', themeId: 7 });
+  });
+
+  test('task.workingDirectory が null → theme.workingDirectory にフォールバックし themeId を返すこと', async () => {
+    mockTaskFindUnique.mockResolvedValueOnce({
+      workingDirectory: null,
+      themeId: 3,
+      theme: { workingDirectory: '/theme/path' },
+    });
+    const result = await resolvePrTaskContext(1);
+    expect(result).toEqual({ workingDirectory: '/theme/path', themeId: 3 });
+  });
+
+  test('findUnique が reject → { workingDirectory: null, themeId: null } を返すこと', async () => {
+    mockTaskFindUnique.mockRejectedValueOnce(new Error('DB error'));
+    const result = await resolvePrTaskContext(1);
+    expect(result).toEqual({ workingDirectory: null, themeId: null });
   });
 });
 
