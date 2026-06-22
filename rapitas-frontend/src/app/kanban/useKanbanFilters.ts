@@ -16,6 +16,7 @@ interface FilterableTask {
   parentId?: number | null;
   createdAt: string;
   dueDate?: string | null;
+  themeId?: number | null;
   taskLabels?: Array<{ label?: { id: number } | null }> | null;
   labels?: unknown;
 }
@@ -46,23 +47,24 @@ export function useKanbanFilters({ tasks, weekStart, weekEnd }: UseKanbanFilters
 
   const [selectedPriorities, setSelectedPriorities] = useState<Priority[]>([]);
   const [selectedLabelIds, setSelectedLabelIds] = useState<number[]>([]);
+  const [selectedThemeId, setSelectedThemeId] = useState<number | null>(null);
   const [labels, setLabels] = useState<Label[]>([]);
 
   const filteredTasks = useMemo(() => {
     return tasks.filter((task) => {
-      // Week filter:
-      // 1. In-progress tasks are always shown
-      // 2. Tasks with due date within current week
-      // 3. Tasks created within current week
+      // Week filter: show tasks created or due within the selected week.
+      // In-progress tasks are subject to the same range — no special bypass.
       const taskCreatedAt = new Date(task.createdAt);
       const taskDueDate = task.dueDate ? new Date(task.dueDate) : null;
 
-      const isInProgress = task.status === 'in-progress';
       const isCreatedInWeek = taskCreatedAt >= weekStart && taskCreatedAt <= weekEnd;
-      const isDueInWeek = taskDueDate && taskDueDate >= weekStart && taskDueDate <= weekEnd;
+      const isDueInWeek =
+        taskDueDate !== null && taskDueDate >= weekStart && taskDueDate <= weekEnd;
 
-      const isInWeek = isInProgress || isCreatedInWeek || isDueInWeek;
-      if (!isInWeek) return false;
+      if (!isCreatedInWeek && !isDueInWeek) return false;
+
+      // Theme filter
+      if (selectedThemeId !== null && task.themeId !== selectedThemeId) return false;
 
       // Search filter
       if (searchQuery) {
@@ -87,14 +89,26 @@ export function useKanbanFilters({ tasks, weekStart, weekEnd }: UseKanbanFilters
 
       return true;
     });
-  }, [tasks, searchQuery, selectedPriorities, selectedLabelIds, weekStart, weekEnd]);
+  }, [
+    tasks,
+    searchQuery,
+    selectedPriorities,
+    selectedLabelIds,
+    selectedThemeId,
+    weekStart,
+    weekEnd,
+  ]);
 
   const hasActiveFilters =
-    !!searchQuery || selectedPriorities.length > 0 || selectedLabelIds.length > 0;
+    !!searchQuery ||
+    selectedPriorities.length > 0 ||
+    selectedLabelIds.length > 0 ||
+    selectedThemeId !== null;
 
   const clearFilters = () => {
     setSelectedPriorities([]);
     setSelectedLabelIds([]);
+    setSelectedThemeId(null);
     // Also clear the ?q= param so the header search box empties.
     const params = new URLSearchParams(searchParams.toString());
     params.delete('q');
@@ -118,6 +132,8 @@ export function useKanbanFilters({ tasks, weekStart, weekEnd }: UseKanbanFilters
     searchQuery,
     selectedPriorities,
     selectedLabelIds,
+    selectedThemeId,
+    setSelectedThemeId,
     labels,
     setLabels,
     filteredTasks,
