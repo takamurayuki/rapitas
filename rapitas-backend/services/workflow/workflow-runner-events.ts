@@ -62,12 +62,20 @@ export async function logPhaseTransition(
       timestamp: new Date().toISOString(),
     });
 
-    logCycleEvent('phase.transition', {
-      task: taskId,
-      from: previousPhase,
-      to: newPhase,
-      msg: `${PHASE_LABELS[previousPhase] || previousPhase} → ${PHASE_LABELS[newPhase] || newPhase}`,
-    });
+    // Skip the AI cycle log for the synthetic 'advancing' pseudo-phase (the
+    // runner emits previousPhase→'advancing' on EVERY poll tick before a phase
+    // runs) and for no-op transitions (previousPhase===newPhase). Both are
+    // poll-rate noise that otherwise drowns every real lifecycle event in the
+    // cycle stream. The human UI trail (ActivityLog + broadcast above) still
+    // records them, so the UI is unaffected.
+    if (newPhase !== 'advancing' && previousPhase !== newPhase) {
+      logCycleEvent('phase.transition', {
+        task: taskId,
+        from: previousPhase,
+        to: newPhase,
+        msg: `${PHASE_LABELS[previousPhase] || previousPhase} → ${PHASE_LABELS[newPhase] || newPhase}`,
+      });
+    }
   } catch (error) {
     log.warn({ err: error }, `[WorkflowRunner] Failed to log phase transition for task ${taskId}`);
   }
