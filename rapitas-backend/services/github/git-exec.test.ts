@@ -5,6 +5,9 @@
  * - runGitCommand: delegates to execFile, returns trimmed stdout, throws on failure
  * - parseOwnerRepo: regex coverage for https/ssh/edge cases, output is lowercased
  * - ownerRepoFromGitRemote: success and failure paths via runGitCommand mock
+ * - Counter behaviour: hits/misses/expiries/hitRate/expiryRate are computed correctly
+ * - resetGitRemoteCacheStats: zeroes counters without clearing the Map
+ * - clearAllGitRemoteCache: clears Map AND resets counters
  */
 import { describe, it, expect, mock, beforeEach } from 'bun:test';
 
@@ -47,8 +50,14 @@ mock.module('../../config/logger', () => ({
   }),
 }));
 
-const { runGitCommand, parseOwnerRepo, ownerRepoFromGitRemote, clearAllGitRemoteCache } =
-  await import('./git-exec');
+const {
+  runGitCommand,
+  parseOwnerRepo,
+  ownerRepoFromGitRemote,
+  clearAllGitRemoteCache,
+  getGitRemoteCacheStats,
+  resetGitRemoteCacheStats,
+} = await import('./git-exec');
 
 // ─── runGitCommand ────────────────────────────────────────────────────────────
 
@@ -194,5 +203,106 @@ describe('ownerRepoFromGitRemote', () => {
     gitStdout = 'git@github.com:org/proj.git\n';
     const result = await ownerRepoFromGitRemote('/workspace');
     expect(result).toEqual({ owner: 'org', repo: 'proj' });
+  });
+});
+
+// ─── Counter: miss → hit ──────────────────────────────────────────────────────
+
+describe('getGitRemoteCacheStats — counter behaviour', () => {
+  beforeEach(() => {
+    shouldFail = false;
+    gitStdout = '';
+    mockExecFile.mockClear();
+    clearAllGitRemoteCache();
+  });
+
+  it('初期状態はカウンタが全てゼロ', () => {
+    const stats = getGitRemoteCacheStats();
+    expect(stats.hits).toBe(0);
+    expect(stats.misses).toBe(0);
+    expect(stats.expiries).toBe(0);
+    expect(stats.total).toBe(0);
+    expect(stats.hitRate).toBe(0);
+    expect(stats.expiryRate).toBe(0);
+    expect(stats.size).toBe(0);
+  });
+
+  it('1回目はmiss、2回目はhitとして計上される', async () => {
+    gitStdout = 'https://github.com/owner/repo.git\n';
+    await ownerRepoFromGitRemote('/workspace/cnt');
+    await ownerRepoFromGitRemote('/workspace/cnt');
+
+    const stats = getGitRemoteCacheStats();
+    expect(stats.misses).toBe(1);
+    expect(stats.hits).toBe(1);
+    expect(stats.expiries).toBe(0);
+    expect(stats.total).toBe(2);
+    expect(stats.hitRate).toBe(0.5);
+    expect(stats.expiryRate).toBe(0);
+    expect(stats.size).toBe(1);
+  });
+
+  it('total===0 のとき hitRate / expiryRate は 0 (ゼロ除算回避)', () => {
+    const stats = getGitRemoteCacheStats();
+    expect(stats.total).toBe(0);
+    expect(stats.hitRate).toBe(0);
+    expect(stats.expiryRate).toBe(0);
+  });
+});
+
+// ─── resetGitRemoteCacheStats ─────────────────────────────────────────────────
+
+describe('resetGitRemoteCacheStats', () => {
+  beforeEach(() => {
+    shouldFail = false;
+    gitStdout = 'https://github.com/owner/repo.git\n';
+    mockExecFile.mockClear();
+    clearAllGitRemoteCache();
+  });
+
+  it('カウンタを0にリセットするがキャッシュMapは残す', async () => {
+    await ownerRepoFromGitRemote('/workspace/reset');
+    await ownerRepoFromGitRemote('/workspace/reset');
+    expect(getGitRemoteCacheStats().total).toBe(2);
+    expect(getGitRemoteCacheStats().size).toBe(1);
+
+    resetGitRemoteCacheStats();
+
+    const stats = getGitRemoteCacheStats();
+    expect(stats.hits).toBe(0);
+    expect(stats.misses).toBe(0);
+    expect(stats.expiries).toBe(0);
+    expect(stats.total).toBe(0);
+    // NOTE: Cache Map is preserved — next call should hit (not miss).
+    expect(stats.size).toBe(1);
+
+    await ownerRepoFromGitRemote('/workspace/reset');
+    expect(getGitRemoteCacheStats().hits).toBe(1);
+    expect(mockExecFile).toHaveBeenCalledTimes(1); // only the first miss called execFile
+  });
+});
+
+// ─── clearAllGitRemoteCache resets counters ───────────────────────────────────
+
+describe('clearAllGitRemoteCache — counter reset', () => {
+  beforeEach(() => {
+    shouldFail = false;
+    gitStdout = 'https://github.com/owner/repo.git\n';
+    mockExecFile.mockClear();
+    clearAllGitRemoteCache();
+  });
+
+  it('clearAllGitRemoteCache はカウンタも0にする', async () => {
+    await ownerRepoFromGitRemote('/workspace/clr');
+    await ownerRepoFromGitRemote('/workspace/clr');
+
+    clearAllGitRemoteCache();
+
+    const stats = getGitRemoteCacheStats();
+    expect(stats.hits).toBe(0);
+    expect(stats.misses).toBe(0);
+    expect(stats.expiries).toBe(0);
+    expect(stats.total).toBe(0);
+    expect(stats.size).toBe(0);
   });
 });

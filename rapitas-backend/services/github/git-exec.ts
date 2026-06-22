@@ -20,7 +20,32 @@ interface RemoteCacheEntry {
   expiresAt: number;
 }
 
+/** Cache hit/miss/expiry statistics for the git remote URL cache. */
+export interface GitRemoteCacheStats {
+  /** Number of cache hits (valid, non-expired entry returned). */
+  hits: number;
+  /** Number of cold misses (no entry found). */
+  misses: number;
+  /** Number of TTL-expired lookups (entry existed but stale). */
+  expiries: number;
+  /** Total lookup count: hits + misses + expiries. */
+  total: number;
+  /** Fraction of lookups that were hits. 0 when total === 0. */
+  hitRate: number;
+  /** Fraction of lookups that were expiries. 0 when total === 0. */
+  expiryRate: number;
+  /** Current number of entries in the cache Map (live or stale). */
+  size: number;
+}
+
 const remoteCache = new Map<string, RemoteCacheEntry>();
+
+// NOTE: module-scope counters; process-global for the lifetime of the server.
+// Counted only when REMOTE_CACHE_ENABLED=true (bypass path = no count).
+// Reset via resetGitRemoteCacheStats() to open a new measurement window.
+let hits = 0;
+let misses = 0;
+let expiries = 0;
 
 /**
  * Invalidate the remote URL cache for a specific working directory.
@@ -32,11 +57,42 @@ export function clearGitRemoteCache(cwd: string): void {
 }
 
 /**
- * Invalidate all remote URL cache entries.
+ * Invalidate all remote URL cache entries and reset counters.
  * Primarily for use in tests.
  */
 export function clearAllGitRemoteCache(): void {
   remoteCache.clear();
+  hits = 0;
+  misses = 0;
+  expiries = 0;
+}
+
+/**
+ * Return a snapshot of remote cache hit/miss/expiry counters.
+ *
+ * @returns Current stats including hitRate and expiryRate (both 0 when total === 0) / 統計スナップショット
+ */
+export function getGitRemoteCacheStats(): GitRemoteCacheStats {
+  const total = hits + misses + expiries;
+  return {
+    hits,
+    misses,
+    expiries,
+    total,
+    hitRate: total === 0 ? 0 : hits / total,
+    expiryRate: total === 0 ? 0 : expiries / total,
+    size: remoteCache.size,
+  };
+}
+
+/**
+ * Reset hit/miss/expiry counters to zero without clearing the cache Map.
+ * Use to open a new measurement window while keeping the cache warm.
+ */
+export function resetGitRemoteCacheStats(): void {
+  hits = 0;
+  misses = 0;
+  expiries = 0;
 }
 
 // NOTE: execFile resolves via PATH, so an absolute path is not required (unlike
@@ -108,8 +164,16 @@ export async function ownerRepoFromGitRemote(
   if (REMOTE_CACHE_ENABLED) {
     const now = Date.now();
     const entry = remoteCache.get(workingDirectory);
-    if (entry && entry.expiresAt > now) {
-      return entry.value;
+    if (entry) {
+      if (entry.expiresAt > now) {
+        hits++;
+        return entry.value;
+      }
+      // NOTE: Entry exists but TTL has elapsed — counted separately from cold misses
+      // so callers can distinguish "cache never warmed" from "TTL too short".
+      expiries++;
+    } else {
+      misses++;
     }
   }
 

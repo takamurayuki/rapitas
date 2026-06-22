@@ -4,10 +4,13 @@
  * Unit tests for execGitReadonly / clearGitCache / clearAllGitCache:
  * - Cache miss: exec is called and result is stored
  * - Cache hit: exec is NOT called on repeated invocation within TTL
- * - TTL expiry: exec is called again after cache expires
+ * - TTL expiry: exec is called again after cache expires; expiry counter is incremented
  * - Per-cwd clear: clearGitCache removes only the target cwd entries
  * - Error is not cached: exec is retried on next call after failure
  * - RAPITAS_GIT_EXEC_CACHE='0': bypasses cache and always calls exec
+ * - Counter behaviour: hits/misses/expiries/hitRate/expiryRate are computed correctly
+ * - resetGitExecCacheStats: zeroes counters without clearing the Map
+ * - clearAllGitCache: clears Map AND resets counters
  */
 import { describe, it, expect, mock, beforeEach } from 'bun:test';
 
@@ -52,14 +55,20 @@ mock.module('../../../../config/logger', () => ({
   }),
 }));
 
-const { execGitReadonly, clearGitCache, clearAllGitCache } = await import('./git-exec');
+const {
+  execGitReadonly,
+  clearGitCache,
+  clearAllGitCache,
+  getGitExecCacheStats,
+  resetGitExecCacheStats,
+} = await import('./git-exec');
 
 beforeEach(() => {
   execCallCount = 0;
   shouldFail = false;
   mockStdout = '/path/to/.git\n';
   mockExec.mockClear();
-  // NOTE: Reset cache between tests to prevent cross-test contamination.
+  // NOTE: Reset cache AND counters between tests to prevent cross-test contamination.
   clearAllGitCache();
 });
 
@@ -161,5 +170,103 @@ describe('execGitReadonly — RAPITAS_GIT_EXEC_CACHE=0 bypass', () => {
     await execGitReadonly('git rev-parse --show-toplevel', { cwd: '/repo/bypass' });
     // With cache enabled: only 1 exec call expected.
     expect(execCallCount).toBe(1);
+  });
+});
+
+// ─── Counter: miss → hit ──────────────────────────────────────────────────────
+
+describe('getGitExecCacheStats — counter behaviour', () => {
+  it('初期状態はカウンタが全てゼロ', () => {
+    const stats = getGitExecCacheStats();
+    expect(stats.hits).toBe(0);
+    expect(stats.misses).toBe(0);
+    expect(stats.expiries).toBe(0);
+    expect(stats.total).toBe(0);
+    expect(stats.hitRate).toBe(0);
+    expect(stats.expiryRate).toBe(0);
+    expect(stats.size).toBe(0);
+  });
+
+  it('1回目はmiss、2回目はhitとして計上される', async () => {
+    await execGitReadonly('git rev-parse --absolute-git-dir', { cwd: '/repo/cnt' });
+    await execGitReadonly('git rev-parse --absolute-git-dir', { cwd: '/repo/cnt' });
+
+    const stats = getGitExecCacheStats();
+    expect(stats.misses).toBe(1);
+    expect(stats.hits).toBe(1);
+    expect(stats.expiries).toBe(0);
+    expect(stats.total).toBe(2);
+    expect(stats.hitRate).toBe(0.5);
+    expect(stats.expiryRate).toBe(0);
+    expect(stats.size).toBe(1);
+  });
+
+  it('TTL失効はexpiriesとして計上される', async () => {
+    const origEnv = process.env.RAPITAS_GIT_EXEC_CACHE_TTL_MS;
+    process.env.RAPITAS_GIT_EXEC_CACHE_TTL_MS = '1';
+    clearAllGitCache();
+
+    await execGitReadonly('git rev-parse --absolute-git-dir', { cwd: '/repo/exp' });
+    await new Promise((r) => setTimeout(r, 5));
+    await execGitReadonly('git rev-parse --absolute-git-dir', { cwd: '/repo/exp' });
+
+    const stats = getGitExecCacheStats();
+    expect(stats.misses).toBe(1);
+    expect(stats.expiries).toBe(1);
+    expect(stats.hits).toBe(0);
+    expect(stats.total).toBe(2);
+    expect(stats.expiryRate).toBe(0.5);
+
+    process.env.RAPITAS_GIT_EXEC_CACHE_TTL_MS = origEnv;
+  });
+
+  it('total===0 のとき hitRate / expiryRate は 0 (ゼロ除算回避)', () => {
+    const stats = getGitExecCacheStats();
+    expect(stats.total).toBe(0);
+    expect(stats.hitRate).toBe(0);
+    expect(stats.expiryRate).toBe(0);
+  });
+});
+
+// ─── resetGitExecCacheStats ───────────────────────────────────────────────────
+
+describe('resetGitExecCacheStats', () => {
+  it('カウンタを0にリセットするがキャッシュMapは残す', async () => {
+    await execGitReadonly('git rev-parse --absolute-git-dir', { cwd: '/repo/reset' });
+    await execGitReadonly('git rev-parse --absolute-git-dir', { cwd: '/repo/reset' });
+    expect(getGitExecCacheStats().total).toBe(2);
+    expect(getGitExecCacheStats().size).toBe(1);
+
+    resetGitExecCacheStats();
+
+    const stats = getGitExecCacheStats();
+    expect(stats.hits).toBe(0);
+    expect(stats.misses).toBe(0);
+    expect(stats.expiries).toBe(0);
+    expect(stats.total).toBe(0);
+    // NOTE: Cache Map is preserved — next call should hit (not miss).
+    expect(stats.size).toBe(1);
+
+    await execGitReadonly('git rev-parse --absolute-git-dir', { cwd: '/repo/reset' });
+    expect(getGitExecCacheStats().hits).toBe(1);
+    expect(execCallCount).toBe(1); // only the first miss called exec
+  });
+});
+
+// ─── clearAllGitCache resets counters ─────────────────────────────────────────
+
+describe('clearAllGitCache — counter reset', () => {
+  it('clearAllGitCache はカウンタも0にする', async () => {
+    await execGitReadonly('git rev-parse --absolute-git-dir', { cwd: '/repo/clr' });
+    await execGitReadonly('git rev-parse --absolute-git-dir', { cwd: '/repo/clr' });
+
+    clearAllGitCache();
+
+    const stats = getGitExecCacheStats();
+    expect(stats.hits).toBe(0);
+    expect(stats.misses).toBe(0);
+    expect(stats.expiries).toBe(0);
+    expect(stats.total).toBe(0);
+    expect(stats.size).toBe(0);
   });
 });
