@@ -88,7 +88,7 @@ export function parseSeed(raw: string | undefined): number {
  * @param root - Absolute path to the backend root directory / バックエンドルートの絶対パス
  * @returns Sorted list of absolute file paths ready for shuffling
  */
-async function collectTestFiles(root: string): Promise<string[]> {
+export async function collectTestFiles(root: string): Promise<string[]> {
   const glob = new Glob('**/*.test.ts');
   const files: string[] = [];
   for await (const file of glob.scan({ cwd: root, absolute: true })) {
