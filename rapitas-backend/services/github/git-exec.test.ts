@@ -8,7 +8,7 @@
  * - classifyGitError: error message categorization
  * - runGitCommandWithRetry: transient retry, auth immediate throw, exhaustion
  */
-import { describe, it, expect, mock, beforeEach } from 'bun:test';
+import { describe, it, expect, mock, beforeEach, afterEach } from 'bun:test';
 
 // NOTE: Mirror ALL exports from agent-retry to avoid "export not found" in the same
 // bun process. mock.module is process-global; other test files may also import agent-retry.
@@ -20,6 +20,31 @@ mock.module('../agents/abstraction/agent-retry', () => ({
   executeWithRetry: mock(async () => ({})),
   continueWithRetry: mock(async () => ({})),
 }));
+
+// Mock telemetry to avoid real prisma calls in unit tests.
+const mockRecordGitRetryMetric = mock((_input: unknown) => {});
+mock.module('./git-retry-telemetry', () => ({
+  recordGitRetryMetric: mockRecordGitRetryMetric,
+}));
+
+// Mock registry — expose real variant resolution but allow env-var control in tests.
+mock.module('./git-retry-policy-registry', () => {
+  const registry = {
+    GIT_RETRY_VARIANTS: {
+      default: { retryOn: ['transient'], maxRetries: 2, baseDelay: 500, maxDelay: 8000 },
+      aggressive: { retryOn: ['transient'], maxRetries: 5, baseDelay: 200, maxDelay: 8000 },
+      conservative: { retryOn: ['transient'], maxRetries: 1, baseDelay: 500, maxDelay: 16000 },
+    },
+    getActiveVariantName: () => {
+      const v = process.env['RAPITAS_GIT_RETRY_VARIANT'];
+      if (!v) return 'default';
+      if (v in registry.GIT_RETRY_VARIANTS) return v;
+      return 'default';
+    },
+    resolveActiveGitRetryPolicy: () => registry.GIT_RETRY_VARIANTS[registry.getActiveVariantName()],
+  };
+  return registry;
+});
 
 // Mutable state shared with the execFile mock closure.
 let capturedArgs: string[] = [];
@@ -76,6 +101,8 @@ const {
   GIT_READ_RETRY_POLICY,
   GIT_WRITE_RETRY_POLICY,
 } = await import('./git-exec');
+
+const GIT_RETRY_VARIANT_ENV = 'RAPITAS_GIT_RETRY_VARIANT';
 
 // ─── runGitCommand ────────────────────────────────────────────────────────────
 
@@ -377,6 +404,12 @@ describe('runGitCommandWithRetry', () => {
     gitStderr = 'mock git error';
     mockExecFile.mockClear();
     mockSleep.mockClear();
+    mockRecordGitRetryMetric.mockClear();
+    delete process.env[GIT_RETRY_VARIANT_ENV];
+  });
+
+  afterEach(() => {
+    delete process.env[GIT_RETRY_VARIANT_ENV];
   });
 
   it('初回成功時は sleep を呼ばずに結果を返す', async () => {
@@ -450,5 +483,104 @@ describe('runGitCommandWithRetry', () => {
     ).rejects.toThrow('ETIMEDOUT');
     expect(mockExecFile).toHaveBeenCalledTimes(1);
     expect(mockSleep).not.toHaveBeenCalled();
+  });
+
+  // ─── バリアント切り替えテスト ─────────────────────────────────────────────────
+
+  it('env=aggressive → maxRetries=5 のポリシーが適用される', async () => {
+    process.env[GIT_RETRY_VARIANT_ENV] = 'aggressive';
+    shouldFail = true;
+    gitStderr = 'Could not resolve host: github.com';
+    await expect(runGitCommandWithRetry(['fetch'], '/workspace')).rejects.toThrow();
+    // aggressive: maxRetries=5 → 初回 + 5 リトライ = 6 回
+    expect(mockExecFile).toHaveBeenCalledTimes(6);
+    expect(mockSleep).toHaveBeenCalledTimes(5);
+  });
+
+  it('env=conservative → maxRetries=1 のポリシーが適用される', async () => {
+    process.env[GIT_RETRY_VARIANT_ENV] = 'conservative';
+    shouldFail = true;
+    gitStderr = 'Connection timed out';
+    await expect(runGitCommandWithRetry(['fetch'], '/workspace')).rejects.toThrow();
+    // conservative: maxRetries=1 → 初回 + 1 リトライ = 2 回
+    expect(mockExecFile).toHaveBeenCalledTimes(2);
+    expect(mockSleep).toHaveBeenCalledTimes(1);
+  });
+
+  it('env 未設定 → default ポリシー (maxRetries=2) が適用される', async () => {
+    shouldFail = true;
+    gitStderr = 'ETIMEDOUT connect failed';
+    await expect(runGitCommandWithRetry(['fetch'], '/workspace')).rejects.toThrow();
+    // default: maxRetries=2 → 3 回
+    expect(mockExecFile).toHaveBeenCalledTimes(3);
+  });
+
+  // ─── 計測注入テスト ───────────────────────────────────────────────────────────
+
+  it('初回成功時は計測を呼ばない', async () => {
+    gitStdout = 'ok';
+    await runGitCommandWithRetry(['fetch'], '/workspace');
+    expect(mockRecordGitRetryMetric).not.toHaveBeenCalled();
+  });
+
+  it('リトライ→成功時は計測を1回呼ぶ (succeeded=true)', async () => {
+    gitStderr = 'Could not resolve host: github.com';
+    failCount = 1;
+    gitStdout = 'success';
+    await runGitCommandWithRetry(['fetch'], '/workspace', {
+      policy: { retryOn: ['transient'], maxRetries: 2, baseDelay: 100, maxDelay: 1000 },
+    });
+    expect(mockRecordGitRetryMetric).toHaveBeenCalledTimes(1);
+    const call = mockRecordGitRetryMetric.mock.calls[0][0] as Record<string, unknown>;
+    expect(call.succeeded).toBe(true);
+    expect(call.attempts).toBe(2);
+    expect(call.command).toBe('fetch');
+    expect(call.variant).toBe('explicit');
+  });
+
+  it('maxRetries 枯渇時は計測を1回呼ぶ (succeeded=false)', async () => {
+    shouldFail = true;
+    gitStderr = 'ETIMEDOUT connect failed';
+    await expect(
+      runGitCommandWithRetry(['fetch'], '/workspace', {
+        policy: { retryOn: ['transient'], maxRetries: 2, baseDelay: 100, maxDelay: 1000 },
+      }),
+    ).rejects.toThrow('ETIMEDOUT');
+    expect(mockRecordGitRetryMetric).toHaveBeenCalledTimes(1);
+    const call = mockRecordGitRetryMetric.mock.calls[0][0] as Record<string, unknown>;
+    expect(call.succeeded).toBe(false);
+    expect(call.attempts).toBe(3); // 初回 + 2 リトライ
+    expect(call.variant).toBe('explicit');
+    expect(call.finalErrorCategory).toBe('transient');
+  });
+
+  it('初回 auth 失敗時は計測なし (リトライ未発生)', async () => {
+    shouldFail = true;
+    gitStderr = 'Authentication failed';
+    await expect(runGitCommandWithRetry(['fetch'], '/workspace')).rejects.toThrow();
+    expect(mockRecordGitRetryMetric).not.toHaveBeenCalled();
+  });
+
+  it('env バリアント使用時は variant 列が variant 名になる', async () => {
+    process.env[GIT_RETRY_VARIANT_ENV] = 'aggressive';
+    gitStderr = 'Could not resolve host: github.com';
+    failCount = 1;
+    gitStdout = 'ok';
+    await runGitCommandWithRetry(['status'], '/workspace');
+    expect(mockRecordGitRetryMetric).toHaveBeenCalledTimes(1);
+    const call = mockRecordGitRetryMetric.mock.calls[0][0] as Record<string, unknown>;
+    expect(call.variant).toBe('aggressive');
+  });
+
+  it('opts.policy 明示時は variant 列が "explicit"', async () => {
+    gitStderr = 'Connection timed out';
+    failCount = 1;
+    gitStdout = 'ok';
+    await runGitCommandWithRetry(['push'], '/workspace', {
+      policy: { retryOn: ['transient'], maxRetries: 2, baseDelay: 100, maxDelay: 1000 },
+    });
+    expect(mockRecordGitRetryMetric).toHaveBeenCalledTimes(1);
+    const call = mockRecordGitRetryMetric.mock.calls[0][0] as Record<string, unknown>;
+    expect(call.variant).toBe('explicit');
   });
 });

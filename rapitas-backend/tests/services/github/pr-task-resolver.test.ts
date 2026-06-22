@@ -1,9 +1,12 @@
 /**
- * pr-task-resolver ユニットテスト
+ * pr-task-resolver ユニットテスト（tests/ 版）
  *
  * pull-requests.ts から抽出した3関数（titleMatchesTask / resolvePrWorkingDirectory /
  * findPrViaGh）の正常系・異常系を検証する。
  * prisma・gh-client は mock.module でスタブ化し、テスト間で復元する。
+ *
+ * NOTE: services/github/pr-task-resolver.test.ts（コロケーション版）と共存する。
+ * pr-guards が両ディレクトリで共存するのと同様のパターン。
  */
 import { describe, test, expect, mock, beforeEach } from 'bun:test';
 
@@ -11,7 +14,7 @@ import { describe, test, expect, mock, beforeEach } from 'bun:test';
 // 全エクスポートをミラーしないとバレルが "export not found" をスローする。
 const mockTaskFindUnique = mock(() => Promise.resolve(null)) as ReturnType<typeof mock>;
 
-mock.module('../../config/database', () => ({
+mock.module('../../../config/database', () => ({
   prisma: {
     task: { findUnique: mockTaskFindUnique },
   },
@@ -20,13 +23,13 @@ mock.module('../../config/database', () => ({
 
 const mockRunGhCommand = mock(() => Promise.resolve('[]')) as ReturnType<typeof mock>;
 
-mock.module('./gh-client', () => ({
+mock.module('../../../services/github/gh-client', () => ({
   runGhCommand: mockRunGhCommand,
   // NOTE: mirror all exports so barrel imports don't throw "export not found"
   GH_BIN: '',
 }));
 
-mock.module('../../config/logger', () => {
+mock.module('../../../config/logger', () => {
   const noopLogger = {
     info: () => {},
     error: () => {},
@@ -41,8 +44,8 @@ mock.module('../../config/logger', () => {
   };
 });
 
-const { titleMatchesTask, resolvePrWorkingDirectory, resolvePrTaskContext, findPrViaGh } =
-  await import('./pr-task-resolver');
+const { titleMatchesTask, resolvePrWorkingDirectory, findPrViaGh } =
+  await import('../../../services/github/pr-task-resolver');
 
 beforeEach(() => {
   mockTaskFindUnique.mockReset();
@@ -76,6 +79,10 @@ describe('titleMatchesTask', () => {
 
   test('undefined タイトル → false を返すこと', () => {
     expect(titleMatchesTask(undefined, 5)).toBe(false);
+  });
+
+  test('[Task-N] と [#N] 両方含む複合タイトル → true を返すこと（OR短絡確認）', () => {
+    expect(titleMatchesTask('[Task-5] [#5] dual format title', 5)).toBe(true);
   });
 });
 
@@ -120,43 +127,6 @@ describe('resolvePrWorkingDirectory', () => {
     mockTaskFindUnique.mockRejectedValueOnce(new Error('DB error'));
     const result = await resolvePrWorkingDirectory(1);
     expect(result).toBeNull();
-  });
-});
-
-// ---------------------------------------------------------------------------
-// resolvePrTaskContext
-// ---------------------------------------------------------------------------
-describe('resolvePrTaskContext', () => {
-  test('linkedTaskId が null → { workingDirectory: null, themeId: null } を返しDBクエリを発行しないこと', async () => {
-    const result = await resolvePrTaskContext(null);
-    expect(result).toEqual({ workingDirectory: null, themeId: null });
-    expect(mockTaskFindUnique).not.toHaveBeenCalled();
-  });
-
-  test('task.workingDirectory あり → そのパスと themeId を返すこと', async () => {
-    mockTaskFindUnique.mockResolvedValueOnce({
-      workingDirectory: '/repo/path',
-      themeId: 7,
-      theme: { workingDirectory: '/theme/path' },
-    });
-    const result = await resolvePrTaskContext(1);
-    expect(result).toEqual({ workingDirectory: '/repo/path', themeId: 7 });
-  });
-
-  test('task.workingDirectory が null → theme.workingDirectory にフォールバックし themeId を返すこと', async () => {
-    mockTaskFindUnique.mockResolvedValueOnce({
-      workingDirectory: null,
-      themeId: 3,
-      theme: { workingDirectory: '/theme/path' },
-    });
-    const result = await resolvePrTaskContext(1);
-    expect(result).toEqual({ workingDirectory: '/theme/path', themeId: 3 });
-  });
-
-  test('findUnique が reject → { workingDirectory: null, themeId: null } を返すこと', async () => {
-    mockTaskFindUnique.mockRejectedValueOnce(new Error('DB error'));
-    const result = await resolvePrTaskContext(1);
-    expect(result).toEqual({ workingDirectory: null, themeId: null });
   });
 });
 

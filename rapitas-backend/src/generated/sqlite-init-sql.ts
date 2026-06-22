@@ -729,6 +729,22 @@ CREATE TABLE "FavoriteDirectory" (
 );
 
 -- CreateTable
+CREATE TABLE "GitRetryMetric" (
+    "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    "variant" TEXT NOT NULL,
+    "command" TEXT NOT NULL,
+    "attempts" INTEGER NOT NULL,
+    "succeeded" BOOLEAN NOT NULL,
+    "totalDelayMs" INTEGER NOT NULL,
+    "totalElapsedMs" INTEGER NOT NULL,
+    "finalErrorCategory" TEXT,
+    "baseDelay" INTEGER NOT NULL,
+    "maxDelay" INTEGER NOT NULL,
+    "maxRetries" INTEGER NOT NULL,
+    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+-- CreateTable
 CREATE TABLE "ExamGoal" (
     "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
     "name" TEXT NOT NULL,
@@ -1501,6 +1517,12 @@ CREATE UNIQUE INDEX "GitHubIssue_integrationId_issueNumber_key" ON "GitHubIssue"
 
 -- CreateIndex
 CREATE UNIQUE INDEX "FavoriteDirectory_path_key" ON "FavoriteDirectory"("path");
+
+-- CreateIndex
+CREATE INDEX "GitRetryMetric_variant_idx" ON "GitRetryMetric"("variant");
+
+-- CreateIndex
+CREATE INDEX "GitRetryMetric_createdAt_idx" ON "GitRetryMetric"("createdAt");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "StudyStreak_date_key" ON "StudyStreak"("date");

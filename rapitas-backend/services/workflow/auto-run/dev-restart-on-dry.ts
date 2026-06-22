@@ -11,10 +11,14 @@
  * exit code 75). Not responsible for selecting/creating tasks.
  */
 import { execFile } from 'child_process';
+import { mkdirSync, readFileSync, writeFileSync } from 'fs';
+import { homedir } from 'os';
+import { dirname, join } from 'path';
 import { promisify } from 'util';
 import { prisma } from '../../../config/database';
 import { createLogger } from '../../../config/logger';
 import { AgentOrchestrator } from '../../agents/agent-orchestrator';
+import { WorkflowRunner } from '../workflow-runner';
 import { logCycleEvent } from '../../observability';
 
 const execFileAsync = promisify(execFile);
@@ -56,6 +60,38 @@ async function headCommit(): Promise<string | null> {
     return stdout.trim() || null;
   } catch {
     return null;
+  }
+}
+
+/**
+ * Rate-limit persistence. `lastRestartAt` lives in memory, so it resets to 0 on
+ * the very relaunch it is meant to throttle — without this the 10-min floor never
+ * spans two restarts (observed: 2 self-deploys 5 min apart). Persist the last
+ * restart time to a file in the data dir so the floor survives a relaunch.
+ */
+function rateLimitStampFile(): string {
+  const base = process.env.RAPITAS_DATA_DIR?.trim() || join(homedir(), '.rapitas');
+  return join(base, '.dev-restart-last-at');
+}
+
+/** Last restart epoch-ms read from disk, or 0 if absent/unreadable. */
+function readLastRestartAt(): number {
+  try {
+    const ts = Number.parseInt(readFileSync(rateLimitStampFile(), 'utf8').trim(), 10);
+    return Number.isFinite(ts) ? ts : 0;
+  } catch {
+    return 0;
+  }
+}
+
+/** Persist the last restart time. Best-effort; a missing stamp only weakens the rate limit. */
+function persistLastRestartAt(ts: number): void {
+  try {
+    const file = rateLimitStampFile();
+    mkdirSync(dirname(file), { recursive: true });
+    writeFileSync(file, String(ts));
+  } catch {
+    // Never let a stamp write failure crash the restart path.
   }
 }
 
@@ -107,6 +143,24 @@ export async function maybeRestartForUpdate(themeId: number): Promise<boolean> {
     return false;
   }
 
+  // 0 live agents is NOT "no work in flight": a workflow sits at 0 agents BETWEEN
+  // phases (next phase's agent not yet spawned), and a RETRIED task re-runs phases
+  // while its task.status is still 'blocked' (so a task.status check misses it —
+  // observed: task 300 re-ran implement at status='blocked', a restart fired and
+  // stranded it). The accurate "a phase is mid-flight" signal is a RUNNING
+  // workflow queue item: it stays 'running' across the whole multi-phase loop,
+  // including the between-phase gaps, regardless of task.status. Restarting then
+  // kills the phase and strands the work (worktree lost -> empty output -> block).
+  // 'queued' is intentionally EXCLUDED so a full backlog never blocks deploys —
+  // only an actively-running workflow does (a genuine task boundary has none).
+  const runningPhases = await prisma.workflowQueueItem
+    .count({ where: { status: 'running' } })
+    .catch(() => 0);
+  if (runningPhases > 0) {
+    diag('phase-running', { runningPhases });
+    return false;
+  }
+
   if (!(await restartEnabled())) {
     diag('restartOnAutoRunDry=off');
     return false;
@@ -128,8 +182,11 @@ export async function maybeRestartForUpdate(themeId: number): Promise<boolean> {
   }
 
   const now = Date.now();
-  if (lastRestartAt && now - lastRestartAt < MIN_RESTART_INTERVAL_MS) {
-    diag('rate-limited', { msSinceLast: now - lastRestartAt });
+  // Use the persisted stamp (not just the in-memory one) so the floor survives
+  // the relaunch it throttles.
+  const lastAt = Math.max(lastRestartAt, readLastRestartAt());
+  if (lastAt && now - lastAt < MIN_RESTART_INTERVAL_MS) {
+    diag('rate-limited', { msSinceLast: now - lastAt });
     return false;
   }
 
@@ -142,6 +199,7 @@ export async function maybeRestartForUpdate(themeId: number): Promise<boolean> {
 
   restarting = true;
   lastRestartAt = now;
+  persistLastRestartAt(now);
   log.warn(
     { themeId, startupCommit, current },
     '[dev-restart] auto-run dry + new commits + no agents — restarting to apply updates',
@@ -167,6 +225,13 @@ async function gracefulRestart(): Promise<void> {
     log.warn('[dev-restart] shutdown exceeded budget — forcing exit to relaunch');
     process.exit(RESTART_EXIT_CODE);
   }, SHUTDOWN_BUDGET_MS);
+  // NOTE: Stop the workflow poller first so it can't pick up 'queued' items
+  // after _isShuttingDown=true is set by gracefulShutdown below.
+  try {
+    await WorkflowRunner.getInstance().stopProcessing();
+  } catch (err) {
+    log.warn({ err }, '[dev-restart] workflow runner stop error; continuing shutdown');
+  }
   try {
     await AgentOrchestrator.getInstance(prisma).gracefulShutdown();
   } catch (err) {
