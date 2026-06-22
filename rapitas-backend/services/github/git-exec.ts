@@ -16,6 +16,33 @@ import { computeBackoffDelay } from './gh-retry';
 const log = createLogger('github-service:git-exec');
 const execFileAsync = promisify(execFile);
 
+const DEFAULT_REMOTE_CACHE_TTL_MS = 30_000;
+const REMOTE_CACHE_ENABLED = process.env.RAPITAS_GIT_EXEC_CACHE !== '0';
+
+interface RemoteCacheEntry {
+  value: { owner: string; repo: string } | null;
+  expiresAt: number;
+}
+
+const remoteCache = new Map<string, RemoteCacheEntry>();
+
+/**
+ * Invalidate the remote URL cache for a specific working directory.
+ *
+ * @param cwd - The working directory to clear / クリア対象のディレクトリ
+ */
+export function clearGitRemoteCache(cwd: string): void {
+  remoteCache.delete(cwd);
+}
+
+/**
+ * Invalidate all remote URL cache entries.
+ * Primarily for use in tests.
+ */
+export function clearAllGitRemoteCache(): void {
+  remoteCache.clear();
+}
+
 // NOTE: execFile resolves via PATH, so an absolute path is not required (unlike
 // gh.exe on Windows). Override via RAPITAS_GIT_BIN for CI or custom git installations.
 const GIT_BIN = process.env.RAPITAS_GIT_BIN ?? 'git';
@@ -216,12 +243,31 @@ export function parseOwnerRepo(
 export async function ownerRepoFromGitRemote(
   workingDirectory: string,
 ): Promise<{ owner: string; repo: string } | null> {
+  if (REMOTE_CACHE_ENABLED) {
+    const now = Date.now();
+    const entry = remoteCache.get(workingDirectory);
+    if (entry && entry.expiresAt > now) {
+      return entry.value;
+    }
+  }
+
+  let result: { owner: string; repo: string } | null;
   try {
     const url = await runGitCommand(['remote', 'get-url', 'origin'], workingDirectory, {
       skipLog: true,
     });
-    return parseOwnerRepo(url);
+    result = parseOwnerRepo(url);
   } catch {
+    // NOTE: Errors are not cached — a transient git failure should not permanently
+    // block subsequent lookups (e.g. remote not yet configured on first clone).
     return null;
   }
+
+  if (REMOTE_CACHE_ENABLED) {
+    remoteCache.set(workingDirectory, {
+      value: result,
+      expiresAt: Date.now() + DEFAULT_REMOTE_CACHE_TTL_MS,
+    });
+  }
+  return result;
 }

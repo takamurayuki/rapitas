@@ -15,6 +15,7 @@ import { randomBytes } from 'node:crypto';
 import { createLogger } from '../../../../config/logger';
 import { WORKTREE_DIR, normalizePath, isPathSafeForWorktreeOperation } from './safety';
 import { ensureGitRepository, validateAndSetupRemote } from './repository-setup';
+import { clearGitCache } from './git-exec';
 import {
   clearWorktreeDependenciesTracking,
   awaitWorktreeDependencies,
@@ -426,6 +427,9 @@ export async function removeWorktree(
   // NOTE: Drop install tracking so a future worktree at the same path
   // (after directory reuse) does not see a stale resolved-promise.
   clearWorktreeDependenciesTracking(worktreePath);
+  // NOTE: Invalidate cached git-dir values for this path. A new worktree
+  // created at the same path would otherwise get the old git-dir from cache.
+  clearGitCache(worktreePath);
 }
 
 /**

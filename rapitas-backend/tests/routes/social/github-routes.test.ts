@@ -74,6 +74,19 @@ const mockGetWorkflowRun = mock(() => Promise.resolve({ id: 1, status: 'complete
 const mockGetWorkflowRunLog = mock(() => Promise.resolve('log content')) as any;
 const mockGetWorkflowJobLog = mock(() => Promise.resolve([{ name: 'step', lines: [] }])) as any;
 
+// HACK(agent): Bun mock型推論の制限
+const mockListRepositories = mock(() => Promise.resolve([])) as any;
+const mockImportIssueAsConcern = mock(() =>
+  Promise.resolve({ success: true as const, concernId: 42 }),
+) as any;
+const mockPublishConcernToIssue = mock(() =>
+  Promise.resolve({ success: true as const, issue: { number: 1, title: 'Test Issue' } }),
+) as any;
+const mockResolveConcernIntegration = mock(() => Promise.resolve({ id: 1 })) as any;
+const mockResolvePrConflicts = mock(() =>
+  Promise.resolve({ resolved: true, conflicts: [], detail: 'no conflicts' }),
+) as any;
+
 class MockGitHubService {
   isGhAvailable = mockIsGhAvailable;
   isAuthenticated = mockIsAuthenticated;
@@ -91,6 +104,7 @@ class MockGitHubService {
   changePullRequestBase = mockChangePullRequestBase;
   mergePullRequest = mockMergePullRequest;
   syncLocalBranchWithRemote = mock(() => Promise.resolve({ synced: true, detail: 'ok' })) as any;
+  listRepositories = mockListRepositories;
 }
 
 // NOTE: Must mirror every export of config/database — the config barrel
@@ -120,6 +134,20 @@ mock.module('../../../services/github/actions', () => ({
   getWorkflowRun: mockGetWorkflowRun,
   getWorkflowRunLog: mockGetWorkflowRunLog,
   getWorkflowJobLog: mockGetWorkflowJobLog,
+}));
+// NOTE: Mirror all 6 exports of concern-bridge — issues.ts named-imports 3 of them.
+// All exports must be present to prevent "export not found" on barrel import.
+mock.module('../../../services/github/concern-bridge', () => ({
+  publishConcernToIssue: mockPublishConcernToIssue,
+  importIssueAsConcern: mockImportIssueAsConcern,
+  resolveConcernIntegration: mockResolveConcernIntegration,
+  labelValue: () => undefined,
+  buildIssueContent: () => ({ title: '', body: '' }),
+  closeIssueForConcern: () => Promise.resolve(),
+}));
+// NOTE: pull-requests.ts imports resolvePrConflicts — mock to prevent real git calls.
+mock.module('../../../services/github/conflict-resolver', () => ({
+  resolvePrConflicts: mockResolvePrConflicts,
 }));
 // Re-export the real schemas - they use elysia's t() which needs to be real
 // No mock needed for schemas as they are just type definitions
@@ -165,6 +193,21 @@ function resetAllMocks() {
   mockGetIssues.mockResolvedValue([]);
   mockChangePullRequestBase.mockResolvedValue(undefined);
   mockMergePullRequest.mockResolvedValue({ autoQueued: false });
+
+  mockListRepositories.mockReset();
+  mockImportIssueAsConcern.mockReset();
+  mockPublishConcernToIssue.mockReset();
+  mockResolveConcernIntegration.mockReset();
+  mockResolvePrConflicts.mockReset();
+
+  mockListRepositories.mockResolvedValue([]);
+  mockImportIssueAsConcern.mockResolvedValue({ success: true, concernId: 42 });
+  mockPublishConcernToIssue.mockResolvedValue({
+    success: true,
+    issue: { number: 1, title: 'Test Issue' },
+  });
+  mockResolveConcernIntegration.mockResolvedValue({ id: 1 });
+  mockResolvePrConflicts.mockResolvedValue({ resolved: true, conflicts: [], detail: 'no conflicts' });
 }
 
 function createApp() {
@@ -1466,5 +1509,421 @@ describe('GET /github/integrations/:id/jobs/:jobId/log — Integration not found
       new Request('http://localhost/github/integrations/1/jobs/7/log'),
     );
     expect(res.status).toBe(200);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 未テストルートの統合テスト（カバレッジ拡充）
+// ---------------------------------------------------------------------------
+
+describe('GET /github/available-repos', () => {
+  let app: ReturnType<typeof createApp>;
+
+  beforeEach(() => {
+    resetAllMocks();
+    app = createApp();
+  });
+
+  test('利用可能なリポジトリ一覧に alreadyAdded フラグを付与して返すこと', async () => {
+    mockListRepositories.mockResolvedValue([
+      { nameWithOwner: 'owner/added-repo', defaultBranch: 'main' },
+      { nameWithOwner: 'owner/new-repo', defaultBranch: 'main' },
+    ]);
+    mockPrisma.gitHubIntegration.findMany.mockResolvedValue([
+      { ownerName: 'owner', repositoryName: 'added-repo' },
+    ]);
+
+    const res = await app.handle(new Request('http://localhost/github/available-repos'));
+    const body = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(Array.isArray(body)).toBe(true);
+    const added = body.find((r: { nameWithOwner: string }) => r.nameWithOwner === 'owner/added-repo');
+    const notAdded = body.find((r: { nameWithOwner: string }) => r.nameWithOwner === 'owner/new-repo');
+    expect((added as any).alreadyAdded).toBe(true);
+    expect((notAdded as any).alreadyAdded).toBe(false);
+    expect(mockListRepositories).toHaveBeenCalled();
+  });
+});
+
+describe('GET /github/pull-requests/:id — PR not found', () => {
+  let app: ReturnType<typeof createApp>;
+
+  beforeEach(() => {
+    resetAllMocks();
+    app = createApp();
+  });
+
+  test('PRが存在しない場合 ルーティングエラーなしで応答すること', async () => {
+    mockPrisma.gitHubPullRequest.findUnique.mockResolvedValue(null);
+
+    const res = await app.handle(new Request('http://localhost/github/pull-requests/999'));
+
+    // NOTE: Elysia returns empty body (not JSON null) when handler returns null.
+    // Assert the route is reached (not a routing-level 404 with {message:'Not Found'}).
+    expect(res.status).toBe(200);
+    const text = await res.text();
+    // Elysia serializes null as empty string or 'null' depending on version
+    expect(text === '' || text === 'null').toBe(true);
+  });
+});
+
+describe('POST /github/pull-requests/:id/merge — autoQueued:true', () => {
+  let app: ReturnType<typeof createApp>;
+
+  beforeEach(() => {
+    resetAllMocks();
+    app = createApp();
+  });
+
+  test('auto-merge キュー登録時は autoQueued:true を返すこと', async () => {
+    mockPrisma.gitHubPullRequest.findUnique.mockResolvedValue(makeOpenPr());
+    mockMergePullRequest.mockResolvedValue({ autoQueued: true });
+
+    const res = await app.handle(
+      new Request('http://localhost/github/pull-requests/1/merge', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ auto: true }),
+      }),
+    );
+    const body = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(body.success).toBe(true);
+    expect(body.autoQueued).toBe(true);
+  });
+});
+
+describe('POST /github/pull-requests/:id/resolve-conflicts — 正常系', () => {
+  let app: ReturnType<typeof createApp>;
+
+  beforeEach(() => {
+    resetAllMocks();
+    app = createApp();
+  });
+
+  test('競合なしの場合 resolved:true を返すこと', async () => {
+    const prWithTask = { ...makeOpenPr(), linkedTaskId: 1 };
+    mockPrisma.gitHubPullRequest.findUnique.mockResolvedValue(prWithTask);
+    mockPrisma.task.findUnique.mockResolvedValue({
+      workingDirectory: '/home/user/repo',
+      themeId: 1,
+      theme: { workingDirectory: '/home/user/repo' },
+    });
+    mockResolvePrConflicts.mockResolvedValue({ resolved: true, conflicts: [], detail: 'up to date' });
+
+    const res = await app.handle(
+      new Request('http://localhost/github/pull-requests/1/resolve-conflicts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({}),
+      }),
+    );
+    const body = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(body.resolved).toBe(true);
+    expect(body.conflicts).toEqual([]);
+  });
+
+  test('競合ありの場合 task.create を呼びタスクIDを返すこと', async () => {
+    const prWithTask = { ...makeOpenPr(), linkedTaskId: 1 };
+    mockPrisma.gitHubPullRequest.findUnique.mockResolvedValue(prWithTask);
+    mockPrisma.task.findUnique.mockResolvedValue({
+      workingDirectory: '/home/user/repo',
+      themeId: 1,
+      theme: { workingDirectory: '/home/user/repo' },
+    });
+    mockResolvePrConflicts.mockResolvedValue({
+      resolved: false,
+      conflicts: ['src/a.ts'],
+      detail: 'conflict in src/a.ts',
+    });
+    mockPrisma.task.create.mockResolvedValue({ id: 99, title: 'PR #42 の競合を解消' });
+
+    const res = await app.handle(
+      new Request('http://localhost/github/pull-requests/1/resolve-conflicts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({}),
+      }),
+    );
+    const body = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(body.resolved).toBe(false);
+    expect(body.conflicts).toContain('src/a.ts');
+    expect(mockPrisma.task.create).toHaveBeenCalled();
+    expect(body.taskId).toBe(99);
+  });
+});
+
+describe('GET /github/integrations/:id/issues — fromGitHub=true', () => {
+  let app: ReturnType<typeof createApp>;
+
+  beforeEach(() => {
+    resetAllMocks();
+    app = createApp();
+  });
+
+  test('fromGitHub=true の場合 GitHub から Issue 一覧を取得すること', async () => {
+    const fakeIntegration = { id: 1, ownerName: 'test', repositoryName: 'repo' };
+    mockPrisma.gitHubIntegration.findUnique.mockResolvedValue(fakeIntegration);
+    mockGetIssues.mockResolvedValue([{ number: 1, title: 'Bug fix', state: 'open' }]);
+
+    const res = await app.handle(
+      new Request('http://localhost/github/integrations/1/issues?fromGitHub=true&state=open'),
+    );
+    const body = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(Array.isArray(body)).toBe(true);
+    expect(body[0].number).toBe(1);
+    expect(mockGetIssues).toHaveBeenCalledWith('test/repo', 'open');
+  });
+});
+
+describe('POST /github/issues/:id/comments — 成功系', () => {
+  let app: ReturnType<typeof createApp>;
+
+  beforeEach(() => {
+    resetAllMocks();
+    app = createApp();
+  });
+
+  test('Issueにコメントを追加できること', async () => {
+    const fakeIssue = {
+      id: 1,
+      issueNumber: 10,
+      title: 'Test Issue',
+      body: '',
+      integration: { ownerName: 'test', repositoryName: 'repo' },
+    };
+    mockPrisma.gitHubIssue.findUnique.mockResolvedValue(fakeIssue);
+    mockAddIssueComment.mockResolvedValue({ id: 5, body: 'Great fix!' });
+
+    const res = await app.handle(
+      new Request('http://localhost/github/issues/1/comments', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ body: 'Great fix!' }),
+      }),
+    );
+    const body = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(body.id).toBe(5);
+    expect(mockAddIssueComment).toHaveBeenCalledWith('test/repo', 10, 'Great fix!');
+  });
+});
+
+describe('POST /github/issues/:id/create-task — 成功系', () => {
+  let app: ReturnType<typeof createApp>;
+
+  beforeEach(() => {
+    resetAllMocks();
+    app = createApp();
+  });
+
+  test('Issueからタスクを作成し Issue に linkedTaskId を設定すること', async () => {
+    const fakeIssue = {
+      id: 1,
+      issueNumber: 10,
+      title: 'Fix the bug',
+      body: 'Description here',
+      integration: { ownerName: 'test', repositoryName: 'repo' },
+    };
+    mockPrisma.gitHubIssue.findUnique.mockResolvedValue(fakeIssue);
+    mockPrisma.task.create.mockResolvedValue({
+      id: 50,
+      title: '[GitHub] Fix the bug',
+      description: 'Description here',
+      priority: 'medium',
+    });
+    mockPrisma.gitHubIssue.update.mockResolvedValue({});
+
+    const res = await app.handle(
+      new Request('http://localhost/github/issues/1/create-task', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({}),
+      }),
+    );
+    const body = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(body.id).toBe(50);
+    expect(mockPrisma.task.create).toHaveBeenCalled();
+    expect(mockPrisma.gitHubIssue.update).toHaveBeenCalledWith({
+      where: { id: 1 },
+      data: { linkedTaskId: 50 },
+    });
+  });
+});
+
+describe('POST /github/issues/:id/create-concern', () => {
+  let app: ReturnType<typeof createApp>;
+
+  beforeEach(() => {
+    resetAllMocks();
+    app = createApp();
+  });
+
+  test('成功時は concernId を返すこと', async () => {
+    mockImportIssueAsConcern.mockResolvedValue({ success: true, concernId: 42 });
+
+    const res = await app.handle(
+      new Request('http://localhost/github/issues/1/create-concern', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({}),
+      }),
+    );
+    const body = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(body.success).toBe(true);
+    expect(body.concernId).toBe(42);
+  });
+
+  test('失敗時はエラーステータスとメッセージを返すこと', async () => {
+    mockImportIssueAsConcern.mockResolvedValue({
+      success: false,
+      status: 422,
+      error: 'Issue already linked',
+    });
+
+    const res = await app.handle(
+      new Request('http://localhost/github/issues/1/create-concern', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({}),
+      }),
+    );
+    const body = await res.json();
+
+    expect(res.status).toBe(422);
+    expect(body.error).toBe('Issue already linked');
+  });
+});
+
+describe('POST /github/concerns/:id/publish', () => {
+  let app: ReturnType<typeof createApp>;
+
+  beforeEach(() => {
+    resetAllMocks();
+    app = createApp();
+  });
+
+  test('成功時は issue を返すこと', async () => {
+    mockResolveConcernIntegration.mockResolvedValue({ id: 1 });
+    mockPublishConcernToIssue.mockResolvedValue({
+      success: true,
+      issue: { number: 5, title: 'Published concern' },
+    });
+
+    const res = await app.handle(
+      new Request('http://localhost/github/concerns/1/publish', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({}),
+      }),
+    );
+    const body = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(body.success).toBe(true);
+    expect(body.issue.number).toBe(5);
+  });
+
+  test('integration が特定できない場合 409 NEEDS_INTEGRATION を返すこと', async () => {
+    mockResolveConcernIntegration.mockResolvedValue(null);
+
+    const res = await app.handle(
+      new Request('http://localhost/github/concerns/1/publish', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({}),
+      }),
+    );
+    const body = await res.json();
+
+    expect(res.status).toBe(409);
+    expect(body.code).toBe('NEEDS_INTEGRATION');
+  });
+});
+
+describe('GET /github/integrations/:id/runs', () => {
+  let app: ReturnType<typeof createApp>;
+
+  beforeEach(() => {
+    resetAllMocks();
+    app = createApp();
+  });
+
+  test('Integration が存在する場合 listWorkflowRuns 結果を返すこと', async () => {
+    const fakeIntegration = { id: 1, ownerName: 'owner', repositoryName: 'repo' };
+    mockPrisma.gitHubIntegration.findUnique.mockResolvedValue(fakeIntegration);
+    mockListWorkflowRuns.mockResolvedValue([{ id: 101, status: 'completed', conclusion: 'success' }]);
+
+    const res = await app.handle(
+      new Request('http://localhost/github/integrations/1/runs'),
+    );
+    const body = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(Array.isArray(body)).toBe(true);
+    expect(body[0].id).toBe(101);
+    expect(mockListWorkflowRuns).toHaveBeenCalledWith('owner/repo', 20);
+  });
+
+  test('Integration が存在しない場合 空配列を返すこと', async () => {
+    mockPrisma.gitHubIntegration.findUnique.mockResolvedValue(null);
+
+    const res = await app.handle(
+      new Request('http://localhost/github/integrations/999/runs'),
+    );
+    const body = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(body).toEqual([]);
+  });
+});
+
+describe('POST /tasks/:id/link-github-pr/:prId', () => {
+  let app: ReturnType<typeof createTaskApp>;
+
+  beforeEach(() => {
+    resetAllMocks();
+    app = createTaskApp();
+  });
+
+  test('PR と Task を相互リンクし success:true を返すこと', async () => {
+    // NOTE: select:{prNumber:true} で pr.prNumber を読むため Once で上書き必須。
+    // デフォルト {} のままでは task.update に githubPrId:undefined が渡る。
+    mockPrisma.gitHubPullRequest.update.mockResolvedValueOnce({ prNumber: 42 });
+    mockPrisma.task.update.mockResolvedValue({});
+
+    const res = await app.handle(
+      new Request('http://localhost/tasks/10/link-github-pr/5', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({}),
+      }),
+    );
+    const body = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(body.success).toBe(true);
+    expect(mockPrisma.gitHubPullRequest.update).toHaveBeenCalledWith({
+      where: { id: 5 },
+      data: { linkedTaskId: 10 },
+      select: { prNumber: true },
+    });
+    expect(mockPrisma.task.update).toHaveBeenCalledWith({
+      where: { id: 10 },
+      data: { githubPrId: 42 },
+    });
   });
 });
