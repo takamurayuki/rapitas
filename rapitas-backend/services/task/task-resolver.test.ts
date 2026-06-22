@@ -4,7 +4,7 @@
  * 各 resolveXxx 関数の正常系・異常系を検証する。
  * prisma は mock.module でスタブ化し、テスト間でリセットする。
  */
-import { describe, test, expect, mock, beforeEach } from 'bun:test';
+import { describe, test, expect, mock, beforeEach, afterAll } from 'bun:test';
 
 // HACK(agent): bun:test の mock.module はプロセスグローバルなため、
 // 全エクスポートをミラーしないとバレルが "export not found" をスローする。
@@ -37,6 +37,8 @@ const {
   resolveTaskWithThemeAndCategory,
   resolveTaskForExecution,
   resolveTaskWorkingDirectory,
+  resolveTaskContext,
+  resolveTaskWorkflowContext,
 } = await import('./task-resolver');
 
 beforeEach(() => {
@@ -179,16 +181,31 @@ describe('resolveTaskForExecution', () => {
 // resolveTaskWorkingDirectory
 // ---------------------------------------------------------------------------
 describe('resolveTaskWorkingDirectory', () => {
-  test('タスクが存在する場合 → 作業ディレクトリ関連フィールドを返すこと', async () => {
-    const fakeTask = {
-      themeId: 10,
-      workingDirectory: null,
-      theme: { workingDirectory: '/projects/app' },
-    };
-    mockTaskFindUnique.mockResolvedValueOnce(fakeTask);
-
+  test('task.workingDirectory あり → そのパスを返すこと', async () => {
+    mockTaskFindUnique.mockResolvedValueOnce({
+      workingDirectory: '/projects/foo',
+      theme: { workingDirectory: '/projects/theme' },
+    });
     const result = await resolveTaskWorkingDirectory(4);
-    expect(result).toEqual(fakeTask);
+    expect(result).toBe('/projects/foo');
+  });
+
+  test('task.workingDirectory が null → theme fallback になること', async () => {
+    mockTaskFindUnique.mockResolvedValueOnce({
+      workingDirectory: null,
+      theme: { workingDirectory: '/projects/theme' },
+    });
+    const result = await resolveTaskWorkingDirectory(4);
+    expect(result).toBe('/projects/theme');
+  });
+
+  test('両方 null の場合 → null を返すこと', async () => {
+    mockTaskFindUnique.mockResolvedValueOnce({
+      workingDirectory: null,
+      theme: { workingDirectory: null },
+    });
+    const result = await resolveTaskWorkingDirectory(4);
+    expect(result).toBeNull();
   });
 
   test('タスクが存在しない場合 → null を返すこと', async () => {
@@ -210,11 +227,109 @@ describe('resolveTaskWorkingDirectory', () => {
 
     const callArgs = mockTaskFindUnique.mock.calls[0][0] as {
       where: { id: number };
-      select: { themeId: boolean; workingDirectory: boolean; theme: unknown };
+      select: { workingDirectory: boolean; theme: unknown };
     };
     expect(callArgs.where.id).toBe(8);
-    expect(callArgs.select.themeId).toBe(true);
     expect(callArgs.select.workingDirectory).toBe(true);
     expect(callArgs.select.theme).toBeDefined();
   });
 });
+
+// ---------------------------------------------------------------------------
+// resolveTaskContext
+// ---------------------------------------------------------------------------
+describe('resolveTaskContext', () => {
+  test('task.workingDirectory あり → workingDirectory と themeId を返すこと', async () => {
+    mockTaskFindUnique.mockResolvedValueOnce({
+      workingDirectory: '/projects/foo',
+      themeId: 5,
+      theme: { workingDirectory: '/projects/theme' },
+    });
+    const result = await resolveTaskContext(1);
+    expect(result).toEqual({ workingDirectory: '/projects/foo', themeId: 5 });
+  });
+
+  test('task.workingDirectory が null → theme fallback になること', async () => {
+    mockTaskFindUnique.mockResolvedValueOnce({
+      workingDirectory: null,
+      themeId: 3,
+      theme: { workingDirectory: '/projects/theme' },
+    });
+    const result = await resolveTaskContext(1);
+    expect(result).toEqual({ workingDirectory: '/projects/theme', themeId: 3 });
+  });
+
+  test('両方 null の場合 → { workingDirectory: null, themeId: ... } を返すこと', async () => {
+    mockTaskFindUnique.mockResolvedValueOnce({
+      workingDirectory: null,
+      themeId: 2,
+      theme: { workingDirectory: null },
+    });
+    const result = await resolveTaskContext(1);
+    expect(result).toEqual({ workingDirectory: null, themeId: 2 });
+  });
+
+  test('task が存在しない場合 → { workingDirectory: null, themeId: null } を返すこと', async () => {
+    mockTaskFindUnique.mockResolvedValueOnce(null);
+    const result = await resolveTaskContext(1);
+    expect(result).toEqual({ workingDirectory: null, themeId: null });
+  });
+
+  test('DB が reject した場合 → { workingDirectory: null, themeId: null } を返すこと', async () => {
+    mockTaskFindUnique.mockRejectedValueOnce(new Error('DB error'));
+    const result = await resolveTaskContext(1);
+    expect(result).toEqual({ workingDirectory: null, themeId: null });
+  });
+
+  test('select に themeId が含まれること', async () => {
+    await resolveTaskContext(7);
+    const callArgs = mockTaskFindUnique.mock.calls[0][0] as {
+      select: { themeId: boolean };
+    };
+    expect(callArgs.select.themeId).toBe(true);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// resolveTaskWorkflowContext
+// ---------------------------------------------------------------------------
+describe('resolveTaskWorkflowContext', () => {
+  test('task がある場合 → workflowStatus と workflowMode を返すこと', async () => {
+    mockTaskFindUnique.mockResolvedValueOnce({
+      workflowStatus: 'in_progress',
+      workflowMode: 'standard',
+    });
+    const result = await resolveTaskWorkflowContext(1);
+    expect(result).toEqual({ workflowStatus: 'in_progress', workflowMode: 'standard' });
+  });
+
+  test('workflowStatus が null の場合 → null を含むオブジェクトを返すこと', async () => {
+    mockTaskFindUnique.mockResolvedValueOnce({ workflowStatus: null, workflowMode: null });
+    const result = await resolveTaskWorkflowContext(1);
+    expect(result).toEqual({ workflowStatus: null, workflowMode: null });
+  });
+
+  test('task が存在しない場合 → null を返すこと', async () => {
+    mockTaskFindUnique.mockResolvedValueOnce(null);
+    const result = await resolveTaskWorkflowContext(1);
+    expect(result).toBeNull();
+  });
+
+  test('DB が reject した場合 → null を返すこと', async () => {
+    mockTaskFindUnique.mockRejectedValueOnce(new Error('DB error'));
+    const result = await resolveTaskWorkflowContext(1);
+    expect(result).toBeNull();
+  });
+
+  test('クエリの select が workflowStatus と workflowMode を含むこと', async () => {
+    await resolveTaskWorkflowContext(9);
+    const callArgs = mockTaskFindUnique.mock.calls[0][0] as {
+      select: { workflowStatus: boolean; workflowMode: boolean };
+    };
+    expect(callArgs.select.workflowStatus).toBe(true);
+    expect(callArgs.select.workflowMode).toBe(true);
+  });
+});
+
+// NOTE: afterAll で mock をリストアしてプロセスグローバル mock の他テストへの漏出を防ぐ。
+afterAll(() => mock.restore());

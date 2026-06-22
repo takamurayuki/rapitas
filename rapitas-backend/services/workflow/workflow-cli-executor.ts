@@ -11,7 +11,8 @@ import { promisify } from 'util';
 import { join } from 'path';
 import { prisma } from '../../config';
 import { AgentOrchestrator } from '../agents/agent-orchestrator';
-import { resolveTaskWithTheme } from '../task/task-resolver';
+import { resolveTaskContext } from '../task/task-resolver';
+import { resolveLatestWorktreeSession } from '../agents/agent-session-resolver';
 import { createLogger } from '../../config/logger';
 import {
   readWorkflowFile,
@@ -128,11 +129,10 @@ export async function executeCLIAgent(
 ): Promise<WorkflowAdvanceResult> {
   const orchestrator = AgentOrchestrator.getInstance(prisma);
 
-  // NOTE: Resolve workingDirectory from theme — implementation runs in the target project,
-  // not in the rapitas project itself. Workflow files (plan.md, verify.md) are saved
-  // separately via the workflow API regardless of cwd.
-  const taskWithTheme = await resolveTaskWithTheme(taskId);
-  const themeWorkDir = taskWithTheme?.theme?.workingDirectory || null;
+  // NOTE: Resolve workingDirectory (task.workingDirectory ?? theme.workingDirectory) —
+  // implementation runs in the target project, not in the rapitas project itself.
+  // Workflow files (plan.md, verify.md) are saved separately via the workflow API.
+  const { workingDirectory: themeWorkDir, themeId: resolvedThemeId } = await resolveTaskContext(taskId);
   const isImplementationRole = transition.role === 'implementer';
   const isVerifierRole = transition.role === 'verifier' || transition.role === 'auto_verifier';
   // CRITICAL: implementer / verifier must run inside the per-task git worktree
@@ -150,16 +150,7 @@ export async function executeCLIAgent(
   let resolvedWorktreePath: string | null = null;
   let resolvedBranchName: string | null = null;
   if (isImplementationRole || isVerifierRole) {
-    const sessionWithWorktree = await prisma.agentSession
-      .findFirst({
-        where: {
-          config: { taskId },
-          worktreePath: { not: null },
-        },
-        orderBy: { createdAt: 'desc' },
-        select: { worktreePath: true, branchName: true },
-      })
-      .catch(() => null);
+    const sessionWithWorktree = await resolveLatestWorktreeSession(taskId);
     // Only REUSE a recorded worktree if it still exists ON DISK. A prior
     // session may record a worktreePath that was later removed (a stop/cleanup,
     // or a worktree that never finished creating). Reusing a phantom path makes
@@ -240,7 +231,7 @@ export async function executeCLIAgent(
         log.warn(
           {
             taskId,
-            themeId: taskWithTheme?.themeId ?? null,
+            themeId: resolvedThemeId,
             role: transition.role,
             themeWorkDir: null,
             cwd: process.cwd(),
@@ -276,7 +267,8 @@ export async function executeCLIAgent(
     return {
       success: false,
       role: transition.role,
-      status: (taskWithTheme?.workflowStatus as WorkflowAdvanceResult['status']) || 'draft',
+      // NOTE: workflowStatus unavailable in this error path; default to 'draft' as safe fallback.
+      status: 'draft' as WorkflowAdvanceResult['status'],
       error:
         'worktree 隔離に失敗したため primary チェックアウトでの実行を中止しました（dev ブランチの切替を防止）。worktree を再生成して再実行してください。',
     };

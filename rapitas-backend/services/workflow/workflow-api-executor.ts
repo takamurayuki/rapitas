@@ -9,7 +9,7 @@ import { prisma } from '../../config';
 import { createLogger } from '../../config/logger';
 import { writeWorkflowFile } from './workflow-file-utils';
 import { callAnthropicAPI, callOpenAIAPI, decryptApiKey } from './workflow-api-callers';
-import { resolveTaskWithTheme } from '../task/task-resolver';
+import { resolveTaskContext } from '../task/task-resolver';
 import type { RoleTransition, WorkflowAdvanceResult } from './workflow-types';
 import { assessComplexity } from '../local-llm/complexity-assessor';
 import { sendAIMessage } from '../../utils/ai-client';
@@ -71,10 +71,10 @@ export async function executeAPIAgent(
       apiKey = await decryptApiKey(agentConfig.apiKeyEncrypted);
     }
 
-    // NOTE: Include theme workingDirectory in context so the API agent
+    // NOTE: Include resolved workingDirectory in context so the API agent
     // generates code paths relative to the target project, not rapitas.
-    const taskWithTheme = await resolveTaskWithTheme(taskId);
-    const themeWorkDir = taskWithTheme?.theme?.workingDirectory || null;
+    // NOTE: resolveTaskContext resolves task.workingDirectory ?? theme.workingDirectory (P1 pattern).
+    const { workingDirectory: resolvedWorkDir } = await resolveTaskContext(taskId);
 
     const languageInstructions = {
       ja: 'すべての出力を日本語で記述してください。',
@@ -82,8 +82,8 @@ export async function executeAPIAgent(
     };
     let enhancedSystemPrompt = systemPrompt + '\n\n' + languageInstructions[language];
 
-    if (themeWorkDir && transition.role === 'implementer') {
-      enhancedSystemPrompt += `\n\n## 作業ディレクトリ\nこのタスクの実装は以下のディレクトリで行ってください: ${themeWorkDir}\nrapitasプロジェクト内にファイルを作成しないでください。`;
+    if (resolvedWorkDir && transition.role === 'implementer') {
+      enhancedSystemPrompt += `\n\n## 作業ディレクトリ\nこのタスクの実装は以下のディレクトリで行ってください: ${resolvedWorkDir}\nrapitasプロジェクト内にファイルを作成しないでください。`;
     }
 
     let output = '';

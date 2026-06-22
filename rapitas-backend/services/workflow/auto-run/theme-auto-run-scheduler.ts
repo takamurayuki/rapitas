@@ -47,6 +47,7 @@ import {
   startAutoRun,
   type ThemeAutoRunState,
 } from './theme-auto-run-service';
+import { resolveTaskWorkingDirectory } from '../../task/task-resolver';
 import {
   notifyAwaitingPlanApproval,
   notifyAwaitingUserAnswer,
@@ -629,14 +630,7 @@ export class ThemeAutoRunScheduler {
 
     // Stop the agent execution(s) if any are running
     try {
-      const task = await prisma.task.findUnique({
-        where: { id: currentTaskId },
-        select: {
-          workingDirectory: true,
-          theme: { select: { workingDirectory: true } },
-        },
-      });
-      const workDir = task?.workingDirectory ?? task?.theme?.workingDirectory;
+      const workDir = await resolveTaskWorkingDirectory(currentTaskId);
 
       // Kill ALL in-flight agents across the theme — the current task, its
       // subtasks, and any other theme task with a live execution (not just the
