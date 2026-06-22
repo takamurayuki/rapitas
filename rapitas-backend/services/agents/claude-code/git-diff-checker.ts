@@ -3,6 +3,7 @@
  *
  * Detects whether the agent produced actual code changes by inspecting the git working tree.
  * Not responsible for process management or output parsing.
+ * Uses the shared git-exec layer for consistent error handling and logging.
  */
 
 import { createLogger } from '../../../config/logger';

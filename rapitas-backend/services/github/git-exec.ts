@@ -3,14 +3,15 @@
  *
  * Thin wrapper around the git binary using execFile (no shell, no escaping needed).
  * Counterpart to gh-client.ts for the gh CLI; this file covers git commands only.
- * Also provides error classification and exponential-backoff retry for transient failures.
+ * Also provides git-specific error classification and retry infrastructure,
+ * symmetric to gh-retry.ts for the GitHub CLI.
  */
 
 import { execFile } from 'child_process';
 import { promisify } from 'util';
 import { createLogger } from '../../config/logger';
-import { computeBackoffDelay } from './gh-retry';
 import { sleep } from '../agents/abstraction/agent-retry';
+import { computeBackoffDelay } from './gh-retry';
 import { resolveActiveGitRetryPolicy, getActiveVariantName } from './git-retry-policy-registry';
 import { recordGitRetryMetric } from './git-retry-telemetry';
 
@@ -104,9 +105,13 @@ export function resetGitRemoteCacheStats(): void {
 // gh.exe on Windows). Override via RAPITAS_GIT_BIN for CI or custom git installations.
 const GIT_BIN = process.env.RAPITAS_GIT_BIN ?? 'git';
 
+// ─── Error Classification ────────────────────────────────────────────────────
+
 /**
  * Broad categories used to decide whether and how to retry a git CLI failure.
  * `unrecoverable` is the conservative default for unrecognized errors.
+ * Note: git has no practical rate limit, so `rate_limit` and `head_behind`
+ * (gh-specific) are intentionally absent.
  */
 export type GitErrorCategory = 'transient' | 'auth' | 'not_found' | 'unrecoverable';
 
@@ -117,11 +122,12 @@ interface GitClassificationRule {
 
 /**
  * Ordered rules — first match wins.
- * Auth is checked before transient to prevent a 403/auth failure from false-matching
- * a transient rule (e.g. "unable to access ... 403").
+ * Auth is checked before transient to prevent "unable to access: 403" from
+ * being misclassified as transient (network error).
  */
 const GIT_CLASSIFICATION_RULES: GitClassificationRule[] = [
   {
+    // NOTE: auth before transient — `unable to access` overlaps; 403/auth must win.
     pattern:
       /Authentication failed|could not read Username|Permission denied \(publickey\)|terminal prompts disabled|invalid credentials|\b403\b/i,
     category: 'auth',
@@ -133,7 +139,7 @@ const GIT_CLASSIFICATION_RULES: GitClassificationRule[] = [
   },
   {
     pattern:
-      /Could not resolve host|Connection (timed out|refused)|ETIMEDOUT|ECONNRESET|ECONNREFUSED|EAI_AGAIN|early EOF|RPC failed|the remote end hung up|unable to access|\b503\b|\b502\b/i,
+      /Could not resolve host|Connection (timed out|refused)|ETIMEDOUT|ECONNRESET|ECONNREFUSED|EAI_AGAIN|early EOF|RPC failed|the remote end hung up|unable to access|\b50[23]\b/i,
     category: 'transient',
   },
 ];
@@ -152,7 +158,9 @@ export function classifyGitError(message: string): GitErrorCategory {
   return 'unrecoverable';
 }
 
-/** Configuration for a git retry attempt loop. */
+// ─── Retry Policy ────────────────────────────────────────────────────────────
+
+/** Configuration for a git retry attempt loop. Mirrors GhRetryOptions structure. */
 export interface GitRetryPolicy {
   /** Error categories that permit a retry attempt. */
   retryOn: GitErrorCategory[];
@@ -166,7 +174,7 @@ export interface GitRetryPolicy {
 
 /**
  * Policy for idempotent read operations (status / diff / log / rev-parse / remote get-url).
- * Retries transient network failures only — no side-effect risk.
+ * Retries transient network failures — no side-effect risk.
  */
 export const GIT_READ_RETRY_POLICY: GitRetryPolicy = {
   retryOn: ['transient'],
@@ -176,9 +184,9 @@ export const GIT_READ_RETRY_POLICY: GitRetryPolicy = {
 };
 
 /**
- * Policy for non-idempotent write operations (push / commit / merge).
- * No automatic retries by default — callers opt-in via a custom policy to avoid
- * running a side-effecting command twice on reconnect.
+ * Policy for non-idempotent write operations (push / commit / tag-push).
+ * No automatic retry by default to prevent duplicate side effects.
+ * Idempotency-confirmed callers may opt in by passing a custom policy.
  */
 export const GIT_WRITE_RETRY_POLICY: GitRetryPolicy = {
   retryOn: [],
@@ -187,14 +195,16 @@ export const GIT_WRITE_RETRY_POLICY: GitRetryPolicy = {
   maxDelay: 8000,
 };
 
+// ─── Core Execution ──────────────────────────────────────────────────────────
+
 /**
  * Execute a git command and return trimmed stdout.
  *
  * @param args - Git subcommand and arguments / gitサブコマンドと引数
  * @param cwd - Optional working directory / 作業ディレクトリ
- * @param opts - Options: skipLog suppresses the error log; timeoutMs sets execution timeout / オプション
+ * @param opts - Options: skipLog suppresses the error log; timeoutMs enforces a hard timeout / オプション
  * @returns Trimmed stdout string / 標準出力文字列
- * @throws {Error} When git exits with non-zero status / 非ゼロ終了時
+ * @throws {Error} When git exits with non-zero status or times out / 非ゼロ終了またはタイムアウト時
  */
 export async function runGitCommand(
   args: string[],
@@ -226,11 +236,11 @@ export async function runGitCommand(
 /**
  * Execute a git command with exponential-backoff retries according to the given policy.
  * Immediately re-throws for non-retryable categories (auth, not_found, unrecoverable).
- * On maxRetries exhaustion the last error is re-thrown so callers can handle it.
+ * On maxRetries exhaustion the last error is re-thrown unchanged.
  *
  * @param args - Git subcommand and arguments / gitサブコマンドと引数
  * @param cwd - Optional working directory / 作業ディレクトリ
- * @param opts - Options passed to runGitCommand plus an optional retry policy / オプション
+ * @param opts - Options: skipLog, timeoutMs, and retry policy override / オプション
  * @returns Trimmed stdout string / 標準出力文字列
  * @throws {Error} Last error on retry exhaustion or non-retryable category / リトライ上限または非リトライカテゴリ時
  */
@@ -295,7 +305,7 @@ export async function runGitCommandWithRetry(
     }
   }
 
-  // NOTE: Unreachable — the loop always returns or throws via the `if (!shouldRetry)` guard.
+  // NOTE: Unreachable — the loop always returns or throws via the `if (!shouldRetry)` guard above.
   throw lastError;
 }
 
