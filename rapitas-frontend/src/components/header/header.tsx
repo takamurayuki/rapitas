@@ -46,6 +46,7 @@ import {
   BookMarked,
   Keyboard,
   Scale,
+  Beaker,
 } from 'lucide-react';
 import Link from 'next/link';
 import AppIcon from '@/components/common/app-icon';
@@ -122,6 +123,7 @@ export default function Header() {
         { href: '/ideas', label: 'アイデアボックス', icon: Lightbulb },
         { href: '/concerns', label: '懸念バックログ', icon: Bug },
         { href: '/decisions', label: 'デシジョンジャーナル', icon: Scale },
+        { href: '/hypotheses', label: '仮説台帳', icon: Beaker },
         { href: '/backlog/settings', label: '設定', icon: CalendarClock },
       ],
     },
