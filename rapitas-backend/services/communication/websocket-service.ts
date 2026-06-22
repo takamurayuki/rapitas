@@ -39,9 +39,11 @@ class WebSocketManager {
 
   constructor() {
     // Periodic health check
+    // NOTE: Extended from 30s to 60s — heartbeats are keepalive only; halving
+    // frequency has no UX impact and reduces WS overhead during auto-run.
     this.heartbeatInterval = setInterval(() => {
       this.checkClientHealth();
-    }, 30000); // Every 30 seconds
+    }, 60_000);
   }
 
   // Add a client.
