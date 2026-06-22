@@ -11,6 +11,8 @@ import { prisma } from '../../config';
 import { sanitizeMarkdownContent } from '../../utils/common/mojibake-detector';
 import { createLogger } from '../../config/logger';
 import { getTaskWorkflowDir, getArchiveDir } from './workflow-paths';
+import { fileHypothesesFromResearch } from '../memory/hypothesis-from-research';
+import { fileDecisionsFromPlan } from '../memory/decision-from-plan';
 
 const log = createLogger('workflow-file-utils');
 
@@ -132,6 +134,20 @@ export async function writeWorkflowFile(
 
   if (taskId !== undefined) {
     await recordWorkflowFileMetadata(taskId, fileType, sanitizeResult.content, filePath);
+
+    // Seed the agent-memory ledgers from the file's structured sections. This is
+    // the UNIVERSAL save choke point — the auto-run path (workflow-cli-executor)
+    // writes research/plan via this function directly, NOT through the
+    // handleSaveFile API route, so hooks placed only in that route never fired
+    // for auto-run tasks (the ledger stayed empty all day despite research
+    // writing a valid `## 仮説` section). Fire-and-forget; submitHypothesis
+    // (content hash) and createDecision (decision text per theme) dedupe, so the
+    // API path calling this in addition is safe.
+    if (fileType === 'research') {
+      void fileHypothesesFromResearch(taskId, sanitizeResult.content).catch(() => {});
+    } else if (fileType === 'plan') {
+      void fileDecisionsFromPlan(taskId, sanitizeResult.content).catch(() => {});
+    }
   }
 
   return sanitizeResult.content;
