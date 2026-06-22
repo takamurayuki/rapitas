@@ -8,6 +8,7 @@ import { Elysia } from 'elysia';
 import { prisma } from '../../../config/database';
 import { GitHubService } from '../../../services/core/github-service';
 import { resolveIntegrationOrThrow } from '../../../services/github/resource-guard';
+import { makeOwnerRepoString } from '../../../services/github/owner-repo';
 
 const githubService = new GitHubService(prisma);
 
@@ -24,7 +25,7 @@ export const taskGithubRoutes = new Elysia()
 
     const integration = await resolveIntegrationOrThrow(integrationId);
 
-    const repo = `${integration.ownerName}/${integration.repositoryName}`;
+    const repo = makeOwnerRepoString(integration.ownerName, integration.repositoryName);
     const issue = await githubService.createIssue(repo, {
       title: task.title,
       body: task.description || '',

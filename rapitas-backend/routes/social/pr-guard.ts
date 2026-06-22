@@ -8,13 +8,14 @@
 import { Prisma } from '@prisma/client';
 import { prisma } from '../../config/database';
 import { NotFoundError, parseId } from '../../middleware/error-handler';
+import { makeOwnerRepoString, type OwnerRepoString } from '../../services/github/owner-repo';
 
 /**
  * Resolved PR with its integration and a pre-built `owner/repo` string.
  */
 export interface ResolvedPr {
   pr: Prisma.GitHubPullRequestGetPayload<{ include: { integration: true } }>;
-  repo: string;
+  repo: OwnerRepoString;
 }
 
 /**
@@ -41,6 +42,6 @@ export async function resolvePrOrThrow(id: string | number): Promise<ResolvedPr>
     throw new NotFoundError('PR integration not found', 'PR_INTEGRATION_NOT_FOUND');
   }
 
-  const repo = `${pr.integration.ownerName}/${pr.integration.repositoryName}`;
+  const repo = makeOwnerRepoString(pr.integration.ownerName, pr.integration.repositoryName);
   return { pr, repo };
 }

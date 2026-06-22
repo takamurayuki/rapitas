@@ -13,6 +13,7 @@ import { resolvePrConflicts } from '../../../services/github/conflict-resolver';
 import { checkPrActionable } from '../../../services/github/pr-guards';
 import { resolvePrOrThrow } from '../../../services/github/resource-guard';
 import { runGhCommand } from '../../../services/github/gh-client';
+import { makeOwnerRepoString } from '../../../services/github/owner-repo';
 
 const githubService = new GitHubService(prisma);
 
@@ -95,7 +96,7 @@ export const pullRequestRoutes = new Elysia()
         where: { id: parseInt(id) },
       });
       if (!integration) return [];
-      const repo = `${integration.ownerName}/${integration.repositoryName}`;
+      const repo = makeOwnerRepoString(integration.ownerName, integration.repositoryName);
       return await githubService.getPullRequests(
         repo,
         (state as 'open' | 'closed' | 'all') || 'open',
@@ -253,7 +254,7 @@ export const pullRequestRoutes = new Elysia()
     const { id } = context.params as { id: string };
     const pr = await resolvePrOrThrow(id);
 
-    const repo = `${pr.integration.ownerName}/${pr.integration.repositoryName}`;
+    const repo = makeOwnerRepoString(pr.integration.ownerName, pr.integration.repositoryName);
     return await githubService.getPullRequestDiff(repo, pr.prNumber);
   })
 
@@ -277,7 +278,7 @@ export const pullRequestRoutes = new Elysia()
       return commentGuard.body;
     }
 
-    const repo = `${pr.integration.ownerName}/${pr.integration.repositoryName}`;
+    const repo = makeOwnerRepoString(pr.integration.ownerName, pr.integration.repositoryName);
     const comment = await githubService.createPullRequestComment(repo, pr.prNumber, {
       body: commentBody,
       path,
@@ -313,7 +314,7 @@ export const pullRequestRoutes = new Elysia()
       return approveGuard.body;
     }
 
-    const repo = `${pr.integration.ownerName}/${pr.integration.repositoryName}`;
+    const repo = makeOwnerRepoString(pr.integration.ownerName, pr.integration.repositoryName);
     await githubService.approvePullRequest(repo, pr.prNumber, reviewBody);
 
     // Create notification
@@ -345,7 +346,7 @@ export const pullRequestRoutes = new Elysia()
       return requestChangesGuard.body;
     }
 
-    const repo = `${pr.integration.ownerName}/${pr.integration.repositoryName}`;
+    const repo = makeOwnerRepoString(pr.integration.ownerName, pr.integration.repositoryName);
     await githubService.requestChanges(repo, pr.prNumber, reviewBody ?? '');
 
     return { success: true };
@@ -368,7 +369,7 @@ export const pullRequestRoutes = new Elysia()
       return mergeGuard.body;
     }
 
-    const repo = `${pr.integration.ownerName}/${pr.integration.repositoryName}`;
+    const repo = makeOwnerRepoString(pr.integration.ownerName, pr.integration.repositoryName);
     let mergeResult: { autoQueued: boolean };
     try {
       mergeResult = await githubService.mergePullRequest(repo, pr.prNumber, {
@@ -431,7 +432,7 @@ export const pullRequestRoutes = new Elysia()
       return baseGuard.body;
     }
 
-    const repo = `${pr.integration.ownerName}/${pr.integration.repositoryName}`;
+    const repo = makeOwnerRepoString(pr.integration.ownerName, pr.integration.repositoryName);
     try {
       await githubService.changePullRequestBase(repo, pr.prNumber, baseBranch);
     } catch (err) {

@@ -13,6 +13,7 @@ import {
   resolveConcernIntegration,
 } from '../../../services/github/concern-bridge';
 import { resolveIssueOrThrow } from '../../../services/github/resource-guard';
+import { makeOwnerRepoString } from '../../../services/github/owner-repo';
 
 const githubService = new GitHubService(prisma);
 
@@ -27,7 +28,7 @@ export const issueRoutes = new Elysia()
         where: { id: parseInt(id) },
       });
       if (!integration) return [];
-      const repo = `${integration.ownerName}/${integration.repositoryName}`;
+      const repo = makeOwnerRepoString(integration.ownerName, integration.repositoryName);
       return await githubService.getIssues(repo, (state as 'open' | 'closed' | 'all') || 'open');
     }
 
@@ -63,7 +64,7 @@ export const issueRoutes = new Elysia()
 
     const issue = await resolveIssueOrThrow(id);
 
-    const repo = `${issue.integration.ownerName}/${issue.integration.repositoryName}`;
+    const repo = makeOwnerRepoString(issue.integration.ownerName, issue.integration.repositoryName);
     return await githubService.addIssueComment(repo, issue.issueNumber, commentBody);
   })
 
