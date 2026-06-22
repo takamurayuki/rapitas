@@ -231,7 +231,7 @@ export default function ConcernsClient() {
       <div className="mb-4 flex items-center justify-between">
         <div className="flex items-center gap-2">
           <Bug className="h-5 w-5 text-rose-500" />
-          <h1 className="text-lg font-bold text-zinc-900 dark:text-zinc-100">懸念バックログ</h1>
+          <h1 className="text-lg font-bold text-zinc-900 dark:text-zinc-100">懸念</h1>
           <span className="text-xs text-zinc-400">スコープ外の懸念を起票・タスク化</span>
         </div>
         <button

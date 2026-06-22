@@ -673,7 +673,15 @@ export async function runAutomatedVerification(
     ...(coverage ? [coverage] : []),
   ];
   const unverifiable = checks.some((c) => c.unverifiable);
-  const ok = checks.every((c) => c.ok);
+  // Scope is ADVISORY, not a hard gate. A plan-scope deviation while lint +
+  // typecheck + test are all green means the agent made valid, working changes
+  // that merely touch a file the plan didn't list precisely (e.g. a refactor's
+  // related caller). Hard-blocking on it stranded legitimately-complete tasks and
+  // churned them forever (observed #298: lint=ok/typecheck=ok/test=ok/scope=NG(1)
+  // → blocked, re-run, blocked…). Gate on the CORRECTNESS checks only; scope stays
+  // in the summary for visibility, and adversarial-review + PR review still catch
+  // genuine scope sprawl.
+  const ok = checks.filter((c) => c.name !== 'scope').every((c) => c.ok);
   const summary = checks
     .map((c) =>
       c.unverifiable

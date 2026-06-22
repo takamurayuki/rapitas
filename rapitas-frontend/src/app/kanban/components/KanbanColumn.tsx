@@ -10,10 +10,12 @@ import {
   type DraggableStateSnapshot,
 } from '@hello-pangea/dnd';
 import { KanbanCard } from './KanbanCard';
+import type { Priority } from '@/types';
 
 interface ColumnTask {
   id: number;
   title: string;
+  priority?: Priority | null;
   createdAt: string;
   estimatedHours?: number | null;
   labels?: unknown;
