@@ -44,4 +44,28 @@ describe('extractPlanDecisions', () => {
     for (let i = 0; i < 10; i++) lines.push(`- 採用: 設計判断の選択 番号${i} を採用する`);
     expect(extractPlanDecisions(lines.join('\n')).length).toBe(6);
   });
+
+  test('予測・確信度の節を順不同で解析する', () => {
+    const md = [
+      '## 意思決定',
+      '- 採用: キャッシュTTLを15秒に延長 ｜ 理由: API負荷の低減 ｜ 予測: P95レイテンシが20%改善 ｜ 確信度: 70%',
+      '- 採用: 確信度を先に書くケース ｜ 確信度: 40% ｜ 理由: 不確実性が高い',
+    ].join('\n');
+    const out = extractPlanDecisions(md);
+    expect(out[0]!.predictedOutcome).toBe('P95レイテンシが20%改善');
+    expect(out[0]!.confidence).toBeCloseTo(0.7, 5);
+    expect(out[0]!.rationale).toBe('API負荷の低減');
+    // 順不同でも確信度を拾い、予測が無ければ undefined のまま（理由はコピーしない）。
+    expect(out[1]!.confidence).toBeCloseTo(0.4, 5);
+    expect(out[1]!.predictedOutcome).toBeUndefined();
+  });
+
+  test('予測・確信度が無ければ undefined（理由を流用しない）', () => {
+    const out = extractPlanDecisions(
+      '## 意思決定\n- 採用: worktree共有方式を維持する ｜ 理由: 依存ツリーの共有',
+    );
+    expect(out[0]!.predictedOutcome).toBeUndefined();
+    expect(out[0]!.confidence).toBeUndefined();
+    expect(out[0]!.rationale).toBe('依存ツリーの共有');
+  });
 });

@@ -21,18 +21,27 @@ const MAX_PER_PLAN = 6;
 /** Skip stub lines shorter than this. */
 const MIN_DECISION_LEN = 8;
 
+/** One parsed decision. predictedOutcome/confidence are present only when stated. */
+export interface ParsedPlanDecision {
+  decision: string;
+  rationale: string;
+  /** Planner-stated expected outcome (NOT a copy of the rationale). / 予測結果 */
+  predictedOutcome?: string;
+  /** Planner-stated confidence 0.0–1.0, parsed from "確信度: N%". / 確信度 */
+  confidence?: number;
+}
+
 /**
- * Extract `- 採用: 選択 ｜ 理由: 理由` bullets under a `## 意思決定` / `## Decisions`
- * heading. The `採用:` prefix and the `｜ 理由:` clause are optional.
+ * Extract decision bullets under a `## 意思決定` / `## Decisions` heading. The full
+ * form is `- 採用: 選択 ｜ 理由: 理由 ｜ 予測: 期待結果 ｜ 確信度: 70%`; every clause
+ * after the choice is optional and order-independent (split on ｜ / |).
  *
  * @param content - plan.md body / plan.md 本文
- * @returns Parsed decisions (decision + rationale) / 抽出した意思決定
+ * @returns Parsed decisions / 抽出した意思決定
  */
-export function extractPlanDecisions(
-  content: string | null | undefined,
-): { decision: string; rationale: string }[] {
+export function extractPlanDecisions(content: string | null | undefined): ParsedPlanDecision[] {
   if (!content) return [];
-  const out: { decision: string; rationale: string }[] = [];
+  const out: ParsedPlanDecision[] = [];
   let inSection = false;
   for (const raw of content.split('\n')) {
     const line = raw.trim();
@@ -44,16 +53,37 @@ export function extractPlanDecisions(
     if (!inSection) continue;
     const m = line.match(/^[-*]\s*(?:採用[:：]\s*)?(.+)$/);
     if (!m) continue;
-    let decision = (m[1] ?? '').trim();
+    // Split into ｜/|-separated clauses: first is the choice, the rest are
+    // keyword: value clauses (理由 / 予測 / 確信度), order-independent.
+    const parts = (m[1] ?? '').split(/\s*[｜|]\s*/);
+    const decision = (parts[0] ?? '').trim();
     let rationale = '';
-    // Optional "｜ 理由: …" / "| Reason: …" clause splits decision from rationale.
-    const sep = decision.match(/^(.+?)\s*[｜|]\s*(?:理由|reason)[:：]\s*(.+)$/i);
-    if (sep) {
-      decision = sep[1]!.trim();
-      rationale = sep[2]!.trim();
+    let predictedOutcome: string | undefined;
+    let confidence: number | undefined;
+    for (const seg of parts.slice(1)) {
+      const r = seg.match(/^(?:理由|reason)[:：]\s*(.+)$/i);
+      if (r) {
+        rationale = r[1]!.trim();
+        continue;
+      }
+      const p = seg.match(/^(?:予測|予想|prediction|expected)[:：]\s*(.+)$/i);
+      if (p) {
+        predictedOutcome = p[1]!.trim();
+        continue;
+      }
+      const c = seg.match(/^(?:確信度|信頼度|confidence)[:：]\s*(\d{1,3})\s*%?/i);
+      if (c) {
+        const n = Number.parseInt(c[1]!, 10);
+        if (Number.isFinite(n)) confidence = Math.max(0, Math.min(1, n / 100));
+      }
     }
     if (decision.length < MIN_DECISION_LEN) continue;
-    out.push({ decision, rationale });
+    out.push({
+      decision,
+      rationale,
+      ...(predictedOutcome && { predictedOutcome }),
+      ...(confidence !== undefined && { confidence }),
+    });
     if (out.length >= MAX_PER_PLAN) break;
   }
   return out;
@@ -97,9 +127,14 @@ export async function fileDecisionsFromPlan(
         decision: it.decision,
         context: `タスク#${taskId} の plan.md で決定`,
         rationale: it.rationale || undefined,
-        // A design decision's expected effect IS its rationale; fall back to the
-        // decision text so the required field is always meaningful.
-        predictedOutcome: it.rationale || it.decision,
+        // Use the planner's STATED prediction; when absent, derive a neutral
+        // expectation from the decision itself. Never copy the rationale — that
+        // made the journal's 理由 and 予測される結果 fields show identical text.
+        predictedOutcome:
+          it.predictedOutcome || `「${it.decision}」が意図通り機能し、想定した効果が得られる`,
+        // Planner-stated confidence; createDecision keeps its 0.5 default only when
+        // the planner omitted 確信度 (the prompt now asks for it explicitly).
+        ...(it.confidence !== undefined && { confidence: it.confidence }),
         ...(themeId != null && { themeId }),
       });
       seen.add(it.decision);
