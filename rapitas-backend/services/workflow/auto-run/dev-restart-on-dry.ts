@@ -15,6 +15,7 @@ import { promisify } from 'util';
 import { prisma } from '../../../config/database';
 import { createLogger } from '../../../config/logger';
 import { AgentOrchestrator } from '../../agents/agent-orchestrator';
+import { logCycleEvent } from '../../observability';
 
 const execFileAsync = promisify(execFile);
 const log = createLogger('auto-run:dev-restart');
@@ -145,6 +146,15 @@ export async function maybeRestartForUpdate(themeId: number): Promise<boolean> {
     { themeId, startupCommit, current },
     '[dev-restart] auto-run dry + new commits + no agents — restarting to apply updates',
   );
+  // Emitted BEFORE the process exits: a `restart.triggered` line followed by a
+  // gap then fresh events is the expected signature of a self-deploy, not a crash.
+  logCycleEvent('restart.triggered', {
+    theme: themeId,
+    from: startupCommit?.slice(0, 12),
+    to: current.slice(0, 12),
+    cause: 'auto_run_dry_new_commits',
+    msg: 'self-restart to apply committed fixes',
+  });
   void gracefulRestart();
   return true;
 }

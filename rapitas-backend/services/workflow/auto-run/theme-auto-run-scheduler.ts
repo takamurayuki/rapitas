@@ -23,6 +23,7 @@ import { AgentWorkerManager } from '../../agents/agent-worker-manager';
 import { realtimeService } from '../../communication/realtime-service';
 import { promoteBacklogForTheme, hasPromotableBacklog } from './backlog-task-promoter';
 import { recordStartupCommit, maybeRestartForUpdate } from './dev-restart-on-dry';
+import { logCycleEvent } from '../../observability';
 import {
   AUTO_RUN_GLOBAL_MAX_CONCURRENCY,
   POLL_INTERVAL_MS,
@@ -196,6 +197,11 @@ export class ThemeAutoRunScheduler {
         await finalizeStop(state.themeId);
         this.broadcastAutoRunUpdate(state.themeId);
         log.info(`[ThemeAutoRunScheduler] Theme ${state.themeId} stopped`);
+        logCycleEvent('theme.stopped', {
+          theme: state.themeId,
+          task: state.currentTaskId ?? undefined,
+          msg: 'auto-run stopped by user',
+        });
       } catch (err) {
         log.error({ err }, `[ThemeAutoRunScheduler] Error stopping theme ${state.themeId}`);
       }
@@ -231,6 +237,12 @@ export class ThemeAutoRunScheduler {
           { themeId: state.themeId, todo },
           '[ThemeAutoRunScheduler] new work appeared — auto-resumed idle theme',
         );
+        logCycleEvent('theme.resumed', {
+          theme: state.themeId,
+          todo,
+          cause: todo > 0 ? 'new_todo' : 'backlog_promotable',
+          msg: 'idle theme auto-resumed (new work appeared)',
+        });
       } catch (err) {
         log.warn(
           { err, themeId: state.themeId },
@@ -329,6 +341,14 @@ export class ThemeAutoRunScheduler {
             MAX_TASK_WALL_MS / 60000,
           )}min) — force-stopping (theme ${themeId})`,
         );
+        logCycleEvent('task.hang_backstop', {
+          theme: themeId,
+          task: currentTaskId,
+          ok: false,
+          cause: 'wall_budget_exceeded',
+          wallMinutes: Math.round(MAX_TASK_WALL_MS / 60000),
+          msg: 'task force-stopped by hang backstop',
+        });
         await this.stopThemeExecution(themeId, currentTaskId);
         await prisma.task
           .update({ where: { id: currentTaskId }, data: { status: 'blocked' } })
@@ -352,6 +372,12 @@ export class ThemeAutoRunScheduler {
           await onAwaitingPlanApproval(themeId);
           await notifyAwaitingPlanApproval(themeId, currentTaskId);
           this.broadcastAutoRunUpdate(themeId);
+          logCycleEvent('task.awaiting_approval', {
+            theme: themeId,
+            task: currentTaskId,
+            cause: 'plan_approval_gate',
+            msg: 'theme paused — plan awaiting approval',
+          });
         }
         // queued / running → still working; wait for the next tick.
         return;
@@ -391,6 +417,13 @@ export class ThemeAutoRunScheduler {
       if (isCompleted) {
         await onTaskCompleted(themeId);
         this.broadcastAutoRunUpdate(themeId);
+        logCycleEvent('task.completed', {
+          theme: themeId,
+          task: currentTaskId,
+          ok: true,
+          via: terminalItem?.status === 'completed' ? 'queue_item' : 'task_status',
+          msg: 'task completed — advancing to next',
+        });
         await new Promise((r) => setTimeout(r, COOLDOWN_MS));
         await this.advanceTheme(themeId, null, order, Math.max(0, globalActive - 1), null);
         return;
@@ -407,6 +440,12 @@ export class ThemeAutoRunScheduler {
           );
           await notifyAwaitingUserAnswer(themeId, currentTaskId);
           this.broadcastAutoRunUpdate(themeId);
+          logCycleEvent('task.awaiting_answer', {
+            theme: themeId,
+            task: currentTaskId,
+            cause: 'ask_user_question',
+            msg: 'theme holding — task awaiting user answer',
+          });
           return;
         }
         const errMsg = terminalItem?.errorMessage ?? `Task ${currentTaskId} failed or was blocked`;
@@ -419,6 +458,13 @@ export class ThemeAutoRunScheduler {
         await onTaskFailed(themeId, errMsg);
         await notifyTaskSkipped(themeId, currentTaskId, errMsg);
         this.broadcastAutoRunUpdate(themeId);
+        logCycleEvent('task.blocked', {
+          theme: themeId,
+          task: currentTaskId,
+          ok: false,
+          cause: terminalItem?.status ?? 'blocked',
+          msg: errMsg.slice(0, 200),
+        });
         await new Promise((r) => setTimeout(r, COOLDOWN_MS));
         await this.advanceTheme(themeId, null, order, Math.max(0, globalActive - 1), null);
         return;
@@ -490,6 +536,11 @@ export class ThemeAutoRunScheduler {
           log.info(
             `[ThemeAutoRunScheduler] Theme ${themeId} — promoted ${created} backlog task(s); staying active`,
           );
+          logCycleEvent('backlog.refill', {
+            theme: themeId,
+            created,
+            msg: 'refilled from backlog — staying active',
+          });
           this.broadcastAutoRunUpdate(themeId);
           return;
         }
@@ -503,6 +554,11 @@ export class ThemeAutoRunScheduler {
           data: { status: 'idle', enabled: true, currentTaskId: null },
         });
         log.info(`[ThemeAutoRunScheduler] Theme ${themeId} — all tasks done, idle (armed)`);
+        logCycleEvent('theme.idle', {
+          theme: themeId,
+          cause: 'all_done_backlog_empty',
+          msg: 'all tasks done, idle but armed (awaiting new work)',
+        });
         await notifyAllDone(themeId);
         this.broadcastAutoRunUpdate(themeId);
       }
@@ -534,6 +590,11 @@ export class ThemeAutoRunScheduler {
       await setCurrentTask(themeId, taskId);
       this.broadcastAutoRunUpdate(themeId);
       log.info(`[ThemeAutoRunScheduler] Enqueued task ${taskId} for theme ${themeId}`);
+      logCycleEvent('task.enqueued', {
+        theme: themeId,
+        task: taskId,
+        msg: 'next task selected and enqueued',
+      });
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       if (msg.includes('already in the queue')) {

@@ -14,6 +14,7 @@ import { createLogger } from '../../../config/logger';
 import { listConcerns, convertConcernToTask } from '../../memory/concern-backlog-service';
 import { listIdeas, markIdeaAsUsed } from '../../memory/idea-box-service';
 import { createTask } from '../../task/task-mutations';
+import { logCycleEvent } from '../../observability';
 
 const log = createLogger('auto-run:backlog-promoter');
 
@@ -124,6 +125,14 @@ export async function promoteBacklogForTheme(themeId: number): Promise<number> {
           { themeId, concernId: concern.id, taskId, severity: concern.severity },
           '[backlog-promoter] Promoted concern to task',
         );
+        logCycleEvent('backlog.promoted', {
+          theme: themeId,
+          task: taskId,
+          kind: 'concern',
+          concernId: concern.id,
+          severity: concern.severity,
+          msg: 'concern promoted to task (起票)',
+        });
       }
     } catch (err) {
       log.warn(
@@ -164,6 +173,14 @@ export async function promoteBacklogForTheme(themeId: number): Promise<number> {
             { themeId, ideaId: idea.id, taskId: task.id, priority: idea.priority },
             '[backlog-promoter] Promoted idea to task',
           );
+          logCycleEvent('backlog.promoted', {
+            theme: themeId,
+            task: task.id,
+            kind: 'idea',
+            ideaId: idea.id,
+            priority: idea.priority,
+            msg: 'idea promoted to task (起票)',
+          });
         }
       } catch (err) {
         log.warn({ err, themeId, ideaId: idea.id }, '[backlog-promoter] Idea promote failed');

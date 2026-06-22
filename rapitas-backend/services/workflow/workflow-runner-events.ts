@@ -8,6 +8,7 @@
 import { prisma } from '../../config';
 import { createLogger } from '../../config/logger';
 import { realtimeService } from '../communication/realtime-service';
+import { logCycleEvent } from '../observability';
 import type { RunnerStatus } from './workflow-runner';
 
 const log = createLogger('workflow-runner');
@@ -59,6 +60,13 @@ export async function logPhaseTransition(
       previousLabel: PHASE_LABELS[previousPhase] || previousPhase,
       newLabel: PHASE_LABELS[newPhase] || newPhase,
       timestamp: new Date().toISOString(),
+    });
+
+    logCycleEvent('phase.transition', {
+      task: taskId,
+      from: previousPhase,
+      to: newPhase,
+      msg: `${PHASE_LABELS[previousPhase] || previousPhase} → ${PHASE_LABELS[newPhase] || newPhase}`,
     });
   } catch (error) {
     log.warn({ err: error }, `[WorkflowRunner] Failed to log phase transition for task ${taskId}`);
