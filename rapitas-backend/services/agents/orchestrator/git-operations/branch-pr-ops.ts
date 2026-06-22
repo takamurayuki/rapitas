@@ -222,7 +222,7 @@ export async function createPullRequest(
     try {
       writeFileSync(bodyFile, body);
       ({ stdout } = await execAsync(
-        `${ghPath()} pr create --title "${title.replace(/"/g, '\\"')}" --body-file "${bodyFile}" --base ${targetBranch}`,
+        `${ghPath()} pr create --title "${title.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}" --body-file "${bodyFile}" --base ${targetBranch}`,
         { cwd: workingDirectory, encoding: 'utf8' },
       ));
     } finally {

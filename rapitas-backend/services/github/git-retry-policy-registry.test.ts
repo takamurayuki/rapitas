@@ -21,9 +21,8 @@ mock.module('../../config/logger', () => ({
 const mockWarn = mock((..._args: unknown[]) => {});
 
 // Import after mocks are set up.
-const { GIT_RETRY_VARIANTS, resolveActiveGitRetryPolicy, getActiveVariantName } = await import(
-  './git-retry-policy-registry'
-);
+const { GIT_RETRY_VARIANTS, resolveActiveGitRetryPolicy, getActiveVariantName } =
+  await import('./git-retry-policy-registry');
 const { GIT_READ_RETRY_POLICY } = await import('./git-exec');
 
 // ─── GIT_RETRY_VARIANTS ───────────────────────────────────────────────────────

@@ -41,8 +41,7 @@ mock.module('./git-retry-policy-registry', () => {
       if (v in registry.GIT_RETRY_VARIANTS) return v;
       return 'default';
     },
-    resolveActiveGitRetryPolicy: () =>
-      registry.GIT_RETRY_VARIANTS[registry.getActiveVariantName()],
+    resolveActiveGitRetryPolicy: () => registry.GIT_RETRY_VARIANTS[registry.getActiveVariantName()],
   };
   return registry;
 });

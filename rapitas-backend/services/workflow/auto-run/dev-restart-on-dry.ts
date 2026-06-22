@@ -18,6 +18,7 @@ import { promisify } from 'util';
 import { prisma } from '../../../config/database';
 import { createLogger } from '../../../config/logger';
 import { AgentOrchestrator } from '../../agents/agent-orchestrator';
+import { WorkflowRunner } from '../workflow-runner';
 import { logCycleEvent } from '../../observability';
 
 const execFileAsync = promisify(execFile);
@@ -224,6 +225,13 @@ async function gracefulRestart(): Promise<void> {
     log.warn('[dev-restart] shutdown exceeded budget — forcing exit to relaunch');
     process.exit(RESTART_EXIT_CODE);
   }, SHUTDOWN_BUDGET_MS);
+  // NOTE: Stop the workflow poller first so it can't pick up 'queued' items
+  // after _isShuttingDown=true is set by gracefulShutdown below.
+  try {
+    await WorkflowRunner.getInstance().stopProcessing();
+  } catch (err) {
+    log.warn({ err }, '[dev-restart] workflow runner stop error; continuing shutdown');
+  }
   try {
     await AgentOrchestrator.getInstance(prisma).gracefulShutdown();
   } catch (err) {
