@@ -133,13 +133,8 @@ describe('DecisionsClient', () => {
     });
   });
 
-  it('shows task badge when decision is converted', async () => {
-    setupFetch([makeDecision({ taskId: 42 })]);
-    renderWithProviders(<DecisionsClient />);
-    await waitFor(() => {
-      expect(screen.getByText('タスク化済 #42')).toBeInTheDocument();
-    });
-  });
+  // NOTE: removed the "task badge" test — decisions are no longer task-ified
+  // (a decision is settled knowledge, not a unit of work).
 
   it('calls delete API when trash button clicked', async () => {
     const mockFetch = vi.fn((url: string) => {
