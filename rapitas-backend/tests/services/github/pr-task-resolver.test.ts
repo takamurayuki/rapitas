@@ -30,7 +30,13 @@ mock.module('../../../services/github/gh-client', () => ({
 }));
 
 mock.module('../../../config/logger', () => {
-  const noopLogger = { info: () => {}, error: () => {}, warn: () => {}, debug: () => {}, fatal: () => {} };
+  const noopLogger = {
+    info: () => {},
+    error: () => {},
+    warn: () => {},
+    debug: () => {},
+    fatal: () => {},
+  };
   return {
     createLogger: () => noopLogger,
     logger: noopLogger,
@@ -135,7 +141,11 @@ describe('findPrViaGh', () => {
     });
     mockRunGhCommand.mockResolvedValueOnce(
       JSON.stringify([
-        { number: 42, url: 'https://github.com/owner/repo/pull/42', title: '[Task-10] add feature' },
+        {
+          number: 42,
+          url: 'https://github.com/owner/repo/pull/42',
+          title: '[Task-10] add feature',
+        },
       ]),
     );
     const result = await findPrViaGh(10);

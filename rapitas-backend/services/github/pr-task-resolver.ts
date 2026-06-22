@@ -31,7 +31,9 @@ export function titleMatchesTask(title: string | null | undefined, taskId: numbe
  * @param linkedTaskId - The PR's linked task id (may be null). / PRに紐づくタスクID
  * @returns Local repo path, or null. / ローカルリポジトリパス、無ければnull
  */
-export async function resolvePrWorkingDirectory(linkedTaskId: number | null): Promise<string | null> {
+export async function resolvePrWorkingDirectory(
+  linkedTaskId: number | null,
+): Promise<string | null> {
   if (linkedTaskId == null) return null;
   const task = await prisma.task
     .findUnique({
@@ -51,7 +53,9 @@ export async function resolvePrWorkingDirectory(linkedTaskId: number | null): Pr
  * @param taskId - Task whose PR to find. / 対象タスクID
  * @returns The PR number + url, or null when none is found. / PR番号とURL、無ければnull
  */
-export async function findPrViaGh(taskId: number): Promise<{ prNumber: number; prUrl: string } | null> {
+export async function findPrViaGh(
+  taskId: number,
+): Promise<{ prNumber: number; prUrl: string } | null> {
   const cwd = await resolvePrWorkingDirectory(taskId);
   if (!cwd) return null;
   try {
