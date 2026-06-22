@@ -12,4 +12,5 @@ export * from './json-extractor';
 export * from './mojibake-detector';
 export * from './response';
 export * from './semaphore';
+export * from './shutdown-error';
 export * from './spec-array';
