@@ -4,9 +4,13 @@
  * Verifies that shutdown-caused interruptions in executeWorkflowItem are handled
  * gracefully: the queue item is returned to 'queued' without consuming retry budget,
  * and non-shutdown errors still go through the normal retry/fail path.
+ *
+ * Also verifies stopProcessing() behaviour: active executions are killed via
+ * stopTaskAgents and requeued with the correct error message.
  */
 import { describe, test, expect, mock, beforeEach } from 'bun:test';
 import { buildShutdownErrorMessage } from '../agents/orchestrator/shutdown-error';
+import { WORKER_SHUTDOWN_ERROR_MESSAGE } from '../../utils/common/shutdown-error';
 
 // --- Mocks (must be declared before module imports) ---
 
@@ -110,6 +114,17 @@ mock.module('../agents/execution-timeouts', () => ({
   getAgentTimeoutMs: () => 4000,
 }));
 
+// Top-level spy for stopTaskAgents — registered before workflow-runner import so that
+// both dynamic import paths (stopProcessing L93 and non-shutdown catch L401) share the same spy.
+const stopTaskAgentsMock = mock(
+  (_taskId: number, _opts?: unknown) =>
+    Promise.resolve({ stoppedCount: 0, executionIds: [] as string[] }),
+);
+
+mock.module('../agents/stop-task-agents', () => ({
+  stopTaskAgents: stopTaskAgentsMock,
+}));
+
 // Dynamically import AFTER all mock.module() calls so the class picks up mocks.
 const { WorkflowRunner } = await import('./workflow-runner');
 
@@ -123,6 +138,7 @@ function resetMocks() {
   errorMock.mockClear();
   updateStatusMock.mockClear();
   retryIfPossibleMock.mockClear();
+  stopTaskAgentsMock.mockClear();
   broadcastItemUpdateCalls = [];
   broadcastDone = undefined;
   orchestratorMock.advanceWorkflow.mockClear();
@@ -141,6 +157,22 @@ function waitForExecutionError(timeoutMs = 3000): Promise<void> {
       timeoutMs,
     );
   });
+}
+
+/**
+ * Polls predicate until it returns true or timeoutMs elapses.
+ *
+ * @param predicate - Condition to wait for / 待機条件
+ * @param timeoutMs - Max wait time in ms / 最大待機時間(ms)
+ */
+async function waitUntil(predicate: () => boolean, timeoutMs = 3000): Promise<void> {
+  const deadline = Date.now() + timeoutMs;
+  while (!predicate()) {
+    if (Date.now() > deadline) {
+      throw new Error(`waitUntil: condition not met within ${timeoutMs}ms`);
+    }
+    await new Promise<void>((resolve) => setTimeout(resolve, 10));
+  }
 }
 
 const QUEUE_ITEM = {
@@ -211,12 +243,6 @@ describe('WorkflowRunner catch block — shutdown handling', () => {
   test('non-shutdown error → ERROR logged, retryIfPossible called, updateStatus("queued") NOT called for shutdown', async () => {
     advanceWorkflowImpl = () => Promise.reject(new Error('Some database connection error'));
 
-    // Also need to mock stopTaskAgents (dynamic import in non-shutdown path)
-    // Since it's dynamically imported, we can provide a module mock
-    mock.module('../agents/stop-task-agents', () => ({
-      stopTaskAgents: () => Promise.resolve({ stoppedCount: 0, executionIds: [] }),
-    }));
-
     dequeueSequence = [QUEUE_ITEM, null];
 
     const runner = WorkflowRunner.getInstance();
@@ -245,5 +271,108 @@ describe('WorkflowRunner catch block — shutdown handling', () => {
         (args[2] as Record<string, unknown>)['errorMessage'] === 'Shutdown - returned to queue',
     );
     expect(shutdownQueuedCall).toBeUndefined();
+  });
+
+  test('stopProcessing() with active execution — stopTaskAgents kill called, updateStatus queued with runner message, activeItems=0', async () => {
+    // NOTE: never-resolving keeps the item in activeExecutions while we call stopProcessing.
+    advanceWorkflowImpl = () => new Promise(() => {});
+
+    dequeueSequence = [QUEUE_ITEM, null];
+
+    const runner = WorkflowRunner.getInstance();
+    runner.startProcessing(60_000);
+
+    // Wait until activeExecutions.set() has completed so the item is observable.
+    await waitUntil(() => runner.getStatus().activeItems > 0);
+
+    await runner.stopProcessing();
+
+    // stopTaskAgents must be called with the kill error message (L96 in workflow-runner.ts)
+    const killCall = stopTaskAgentsMock.mock.calls.find(
+      (args) =>
+        args[0] === QUEUE_ITEM.taskId &&
+        typeof args[1] === 'object' &&
+        args[1] !== null &&
+        (args[1] as Record<string, unknown>)['errorMessage'] === 'Runner shutdown',
+    );
+    expect(killCall).toBeDefined();
+
+    // updateStatus('queued') must be called with the runner-specific requeue message (L100-102)
+    // NOTE: distinct from the catch-path message 'Shutdown - returned to queue'
+    const requeueCall = updateStatusMock.mock.calls.find(
+      (args) =>
+        args[0] === QUEUE_ITEM.id &&
+        args[1] === 'queued' &&
+        typeof args[2] === 'object' &&
+        args[2] !== null &&
+        (args[2] as Record<string, unknown>)['errorMessage'] === 'Runner shutdown - returned to queue',
+    );
+    expect(requeueCall).toBeDefined();
+
+    // activeExecutions must be cleared after stopProcessing completes
+    expect(runner.getStatus().activeItems).toBe(0);
+  });
+
+  test('non-shutdown error catch path — stopTaskAgents called with Phase failed message', async () => {
+    advanceWorkflowImpl = () => Promise.reject(new Error('Some database connection error'));
+
+    dequeueSequence = [QUEUE_ITEM, null];
+
+    const runner = WorkflowRunner.getInstance();
+    const done = waitForExecutionError();
+    runner.startProcessing(60_000);
+
+    await done;
+    await runner.stopProcessing();
+
+    // stopTaskAgents must be called with 'Phase failed: ...' (L401-402 in workflow-runner.ts)
+    const killCall = stopTaskAgentsMock.mock.calls.find(
+      (args) =>
+        args[0] === QUEUE_ITEM.taskId &&
+        typeof args[1] === 'object' &&
+        args[1] !== null &&
+        typeof (args[1] as Record<string, unknown>)['errorMessage'] === 'string' &&
+        ((args[1] as Record<string, unknown>)['errorMessage'] as string).startsWith('Phase failed'),
+    );
+    expect(killCall).toBeDefined();
+  });
+
+  test('Worker-layer shutdown error (WORKER_SHUTDOWN_ERROR_MESSAGE) → WARN logged, updateStatus("queued"), retryIfPossible NOT called', async () => {
+    // NOTE: WORKER_SHUTDOWN_ERROR_MESSAGE ('Manager is shutting down') uses exact-match detection
+    // in isShutdownError — different from the prefix-based SHUTDOWN_ERROR_MESSAGE path tested in Test 1.
+    advanceWorkflowImpl = () => Promise.reject(new Error(WORKER_SHUTDOWN_ERROR_MESSAGE));
+
+    dequeueSequence = [QUEUE_ITEM, null];
+
+    const runner = WorkflowRunner.getInstance();
+    const done = waitForExecutionError();
+    runner.startProcessing(60_000);
+
+    await done;
+    await runner.stopProcessing();
+
+    // WARN must have been called (not ERROR)
+    const warnCalls = warnMock.mock.calls.map((c) => String(c[0]));
+    expect(warnCalls.some((m) => m.includes('interrupted by shutdown'))).toBe(true);
+
+    const errorCalls = errorMock.mock.calls.map((c) =>
+      typeof c[0] === 'string' ? c[0] : JSON.stringify(c[0]),
+    );
+    // ERROR must NOT contain a runner execution-error line for the shutdown
+    expect(errorCalls.some((m) => m.includes('Execution error for task'))).toBe(false);
+
+    // updateStatus('queued') must have been called with the catch-path requeue message
+    const queuedCall = updateStatusMock.mock.calls.find(
+      (args) =>
+        args[1] === 'queued' &&
+        typeof args[2] === 'object' &&
+        args[2] !== null &&
+        'errorMessage' in (args[2] as Record<string, unknown>) &&
+        (args[2] as Record<string, unknown>)['errorMessage'] === 'Shutdown - returned to queue',
+    );
+    expect(queuedCall).toBeDefined();
+
+    // retryIfPossible must NOT have been called (retry budget not consumed on shutdown)
+    expect(retryIfPossibleMock.mock.calls.length).toBe(0);
   });
 });
