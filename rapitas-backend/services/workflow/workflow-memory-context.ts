@@ -44,6 +44,8 @@ export interface MemoryEntry {
   sourceTaskId?: number | null;
   /** Outcome of that source task — drives ranking weight and the label. */
   outcome?: EntryOutcome | null;
+  /** KB validation state — labels contested (conflict) knowledge as uncertain. */
+  validationStatus?: string;
 }
 
 /** Recall ranking weight by source-task outcome. */
@@ -114,7 +116,16 @@ export function renderMemorySection(entries: MemoryEntry[], language: 'ja' | 'en
   const items = entries
     .map((e) => {
       const pct = Math.round(e.similarity * 100);
-      const marker = e.outcome ? ` — ${t.outcome[e.outcome]}` : '';
+      const outcomeMark = e.outcome ? ` — ${t.outcome[e.outcome]}` : '';
+      // Flag contested knowledge so the agent weighs it critically instead of
+      // treating a 1-of-a-contradicting-pair entry as settled fact.
+      const conflictMark =
+        e.validationStatus === 'conflict'
+          ? language === 'ja'
+            ? ' — ⚠️ 矛盾あり・要検証'
+            : ' — ⚠️ contested, verify'
+          : '';
+      const marker = `${outcomeMark}${conflictMark}`;
       const snippet =
         e.content.length > SNIPPET_LEN ? `${e.content.slice(0, SNIPPET_LEN)}…` : e.content;
       return `## [${e.category}] ${e.title} (${t.relevance} ${pct}%)${marker}\n${snippet}`;
@@ -214,6 +225,7 @@ export async function buildMemoryContext(
       category: r.category,
       similarity: r.similarity,
       sourceTaskId: r.taskId,
+      validationStatus: r.validationStatus,
     }));
 
     // Outcome-weight: rank proven knowledge above failures, label failures.

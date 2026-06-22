@@ -89,4 +89,16 @@ describe('renderMemorySection', () => {
     expect(md).not.toContain('⚠️');
     expect(md).not.toContain('✅');
   });
+
+  it('labels contested (conflict) knowledge so the agent verifies it', () => {
+    const md = renderMemorySection([entry({ validationStatus: 'conflict' })], 'ja');
+    expect(md).toContain('矛盾あり');
+    const en = renderMemorySection([entry({ validationStatus: 'conflict' })], 'en');
+    expect(en).toContain('contested');
+  });
+
+  it('does not label validated / pending knowledge as contested', () => {
+    const md = renderMemorySection([entry({ validationStatus: 'validated' })], 'ja');
+    expect(md).not.toContain('矛盾あり');
+  });
 });
