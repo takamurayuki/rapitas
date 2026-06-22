@@ -43,6 +43,7 @@ const mockStat = mock(() =>
 );
 const mockAwaitWorktreeDependencies = mock(() => Promise.resolve());
 const mockClearWorktreeDependenciesTracking = mock(() => {});
+const mockClearGitRemoteCache = mock((_cwd: string) => {});
 
 mock.module('../../../../config/database', () => ({
   ensureDatabaseConnection: () => Promise.resolve(),
@@ -76,6 +77,9 @@ mock.module('./safety', () => ({
 mock.module('./dependency-installer', () => ({
   awaitWorktreeDependencies: mockAwaitWorktreeDependencies,
   clearWorktreeDependenciesTracking: mockClearWorktreeDependenciesTracking,
+}));
+mock.module('../../../github/git-exec', () => ({
+  clearGitRemoteCache: mockClearGitRemoteCache,
 }));
 
 const { cleanupOrphanedWorktrees, removeWorktree, rmDirWithRetry } = await import('./worktree-ops');
@@ -151,6 +155,7 @@ describe('removeWorktree', () => {
     mockAwaitWorktreeDependencies.mockReset();
     mockAwaitWorktreeDependencies.mockResolvedValue(undefined);
     mockClearWorktreeDependenciesTracking.mockReset();
+    mockClearGitRemoteCache.mockReset();
 
     mockExec.mockReset();
     mockExec.mockImplementation((command: string, options: unknown, callback?: unknown) => {
@@ -229,6 +234,34 @@ describe('removeWorktree', () => {
     }
 
     expect(thrownError).toBeUndefined();
+  });
+
+  test('calls clearGitRemoteCache with worktreePath after successful removal', async () => {
+    await removeWorktree(mockBaseDir, mockWorktreePath, false);
+    expect(mockClearGitRemoteCache).toHaveBeenCalledTimes(1);
+    expect(mockClearGitRemoteCache).toHaveBeenCalledWith(mockWorktreePath);
+  });
+
+  test('calls clearGitRemoteCache even when git worktree remove fails and fs fallback runs', async () => {
+    mockExec.mockImplementation((command: string, options: unknown, callback?: unknown) => {
+      const cb = (typeof options === 'function' ? options : callback) as
+        | ((error: Error | null, result: unknown) => void)
+        | undefined;
+      if (command.includes('git worktree remove')) {
+        cb?.(new Error('git error'), undefined);
+      } else {
+        cb?.(null, makeExecResult(command));
+      }
+      return { kill: mock(() => undefined) };
+    });
+
+    // Only the worktree root exists (no .git sub-directory)
+    mockExistsSync.mockImplementation((p: string) => p === mockWorktreePath);
+
+    await removeWorktree(mockBaseDir, mockWorktreePath, false);
+
+    expect(mockClearGitRemoteCache).toHaveBeenCalledTimes(1);
+    expect(mockClearGitRemoteCache).toHaveBeenCalledWith(mockWorktreePath);
   });
 });
 

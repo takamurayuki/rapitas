@@ -18,10 +18,7 @@ import {
 
 describe('classifyFailures', () => {
   it('classifies pre-existing failures correctly (subset of current in baseline)', () => {
-    const result = classifyFailures(
-      ['a.test.ts', 'b.test.ts'],
-      new Set(['a.test.ts']),
-    );
+    const result = classifyFailures(['a.test.ts', 'b.test.ts'], new Set(['a.test.ts']));
     expect(result.preExisting).toEqual(['a.test.ts']);
     expect(result.newFailures).toEqual(['b.test.ts']);
   });
@@ -91,73 +88,53 @@ describe('triageTestFailures', () => {
   });
 
   it('returns null when merge-base cannot be resolved (fail-safe)', async () => {
-    const result = await triageTestFailures(
-      '/fake/project',
-      '/fake/work',
-      ['a.test.ts'],
-      {
-        isTestFileFailingFn: async () => true,
-        resolveBaseCommitFn: async () => null, // infrastructure failure
-        getMainRepoRootFn: async () => '/fake/main',
-        createWorktreeFn: async () => true,
-        setupWorktreeFn: async () => true,
-        removeWorktreeFn: noopRemove,
-      },
-    );
+    const result = await triageTestFailures('/fake/project', '/fake/work', ['a.test.ts'], {
+      isTestFileFailingFn: async () => true,
+      resolveBaseCommitFn: async () => null, // infrastructure failure
+      getMainRepoRootFn: async () => '/fake/main',
+      createWorktreeFn: async () => true,
+      setupWorktreeFn: async () => true,
+      removeWorktreeFn: noopRemove,
+    });
     expect(result).toBeNull();
   });
 
   it('returns null when main repo root cannot be resolved (fail-safe)', async () => {
-    const result = await triageTestFailures(
-      '/fake/project',
-      '/fake/work',
-      ['a.test.ts'],
-      {
-        isTestFileFailingFn: async () => true,
-        resolveBaseCommitFn: async () => 'abc1234',
-        getMainRepoRootFn: async () => null, // infrastructure failure
-        createWorktreeFn: async () => true,
-        setupWorktreeFn: async () => true,
-        removeWorktreeFn: noopRemove,
-      },
-    );
+    const result = await triageTestFailures('/fake/project', '/fake/work', ['a.test.ts'], {
+      isTestFileFailingFn: async () => true,
+      resolveBaseCommitFn: async () => 'abc1234',
+      getMainRepoRootFn: async () => null, // infrastructure failure
+      createWorktreeFn: async () => true,
+      setupWorktreeFn: async () => true,
+      removeWorktreeFn: noopRemove,
+    });
     expect(result).toBeNull();
   });
 
   it('returns null when baseline worktree creation fails (fail-safe)', async () => {
-    const result = await triageTestFailures(
-      '/fake/project',
-      '/fake/work',
-      ['a.test.ts'],
-      {
-        isTestFileFailingFn: async () => true,
-        resolveBaseCommitFn: async () => 'abc1234',
-        getMainRepoRootFn: async () => '/fake/main',
-        createWorktreeFn: async () => false, // git worktree add failed
-        setupWorktreeFn: async () => true,
-        removeWorktreeFn: noopRemove,
-      },
-    );
+    const result = await triageTestFailures('/fake/project', '/fake/work', ['a.test.ts'], {
+      isTestFileFailingFn: async () => true,
+      resolveBaseCommitFn: async () => 'abc1234',
+      getMainRepoRootFn: async () => '/fake/main',
+      createWorktreeFn: async () => false, // git worktree add failed
+      setupWorktreeFn: async () => true,
+      removeWorktreeFn: noopRemove,
+    });
     expect(result).toBeNull();
   });
 
   it('returns null when setup-worktree.cjs fails in baseline (fail-safe)', async () => {
     let removeCalled = false;
-    const result = await triageTestFailures(
-      '/fake/project',
-      '/fake/work',
-      ['a.test.ts'],
-      {
-        isTestFileFailingFn: async () => true,
-        resolveBaseCommitFn: async () => 'abc1234',
-        getMainRepoRootFn: async () => '/fake/main',
-        createWorktreeFn: async () => true,
-        setupWorktreeFn: async () => false, // setup failed
-        removeWorktreeFn: async (_b, _p, _d) => {
-          removeCalled = true;
-        },
+    const result = await triageTestFailures('/fake/project', '/fake/work', ['a.test.ts'], {
+      isTestFileFailingFn: async () => true,
+      resolveBaseCommitFn: async () => 'abc1234',
+      getMainRepoRootFn: async () => '/fake/main',
+      createWorktreeFn: async () => true,
+      setupWorktreeFn: async () => false, // setup failed
+      removeWorktreeFn: async (_b, _p, _d) => {
+        removeCalled = true;
       },
-    );
+    });
     expect(result).toBeNull();
     // Ensure cleanup still ran even though setup failed
     expect(removeCalled).toBe(true);

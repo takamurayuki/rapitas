@@ -16,6 +16,7 @@ import { createLogger } from '../../../../config/logger';
 import { WORKTREE_DIR, normalizePath, isPathSafeForWorktreeOperation } from './safety';
 import { ensureGitRepository, validateAndSetupRemote } from './repository-setup';
 import { clearGitCache } from './git-exec';
+import { clearGitRemoteCache } from '../../../github/git-exec';
 import {
   clearWorktreeDependenciesTracking,
   awaitWorktreeDependencies,
@@ -430,6 +431,9 @@ export async function removeWorktree(
   // NOTE: Invalidate cached git-dir values for this path. A new worktree
   // created at the same path would otherwise get the old git-dir from cache.
   clearGitCache(worktreePath);
+  // NOTE: Invalidate the GitHub remote URL cache for this path so a future
+  // worktree reusing the same directory cannot receive a stale owner/repo.
+  clearGitRemoteCache(worktreePath);
 }
 
 /**

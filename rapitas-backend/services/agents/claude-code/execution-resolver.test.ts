@@ -323,6 +323,31 @@ describe('buildResolveAfterParse — investigation mode', () => {
     expect(result.success).toBe(false);
   });
 
+  test('API過負荷: idleTimeoutForceKilled + exit1 + 529出力 → success:false（部分出力で誤完了させない）', async () => {
+    const ctx = createCtx({
+      idleTimeoutForceKilled: true,
+      outputBuffer: 'partial work...\nAPI Error: 529 Overloaded. This is a server-side issue',
+    });
+    const { resolve, promise } = createResolveTracker();
+
+    const callback = buildResolveAfterParse(
+      ctx,
+      1, // force-kill non-zero exit
+      '/tmp/workdir',
+      Date.now(),
+      resolve,
+      () => [],
+      () => [],
+      undefined,
+      false, // not investigation mode — the overload guard applies regardless
+    );
+    callback();
+
+    const result = await promise;
+    expect(result.success).toBe(false);
+    expect(result.errorMessage).toContain('API Overload');
+  });
+
   test('ケース4: investigationMode=false + exit0 → git diff 経路（短絡しない）', async () => {
     mockGitDiffResult = false; // git diff: 変更なし
     const ctx = createCtx({ outputBuffer: 'a'.repeat(300) });

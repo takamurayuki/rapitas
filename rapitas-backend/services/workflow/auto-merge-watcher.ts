@@ -18,6 +18,7 @@ import { resolveAutomationPolicy } from './automation-policy';
 import { mergePullRequest } from '../agents/orchestrator/git-operations/branch-pr-ops';
 import { recordTransition } from './transition-recorder';
 import { attemptCiRepair } from './ci-self-repair';
+import { fileConflictResolutionTask } from '../github/conflict-task';
 
 const execAsync = promisify(exec);
 const log = createLogger('workflow:auto-merge-watcher');
@@ -39,6 +40,13 @@ const TERMINAL_CAUSES = ['auto_merged', 'pr_ci_completed'];
  * genuinely cannot merge). Each failed merge records one more block.
  */
 const MAX_BLOCK_RETRIES = 3;
+/**
+ * File a conflict-resolution task at most this many times for one PR before
+ * giving up and blocking for manual review. Each re-file happens only AFTER the
+ * prior conflict task finished without making the PR mergeable, so this bounds a
+ * genuinely-unresolvable conflict instead of re-filing forever.
+ */
+const MAX_CONFLICT_RETRIES = 2;
 
 /**
  * Staged completion (RAPITAS_STAGED_COMPLETION): when ON, a task that landed via
@@ -384,6 +392,92 @@ export class AutoMergeWatcher {
     }
   }
 
+  /**
+   * When a CI-green PR fails to merge because of a real CONFLICT (GitHub
+   * mergeStateStatus DIRTY), automatically file the "PR #N の競合を解消" agent task
+   * so auto-run resolves it on the PR branch — then a later tick re-merges the now
+   * CLEAN PR with no human step. Deduped (one active task per PR) and bounded
+   * (MAX_CONFLICT_RETRIES re-files before giving up to manual review).
+   *
+   * @param c - The auto-merge candidate. / 自動マージ候補
+   * @param mergeError - The merge failure message (for the blocked note). / マージ失敗理由
+   * @returns true when the conflict path handled this (caller returns). / 競合処理したか
+   */
+  private async handleMergeConflict(c: Candidate, mergeError?: string): Promise<boolean> {
+    const ghState = await readMergeState(c.cwd, c.prNumber);
+    // DIRTY is GitHub's "the PR has merge conflicts" state. Any other failure
+    // (e.g. branch protection, permissions) is NOT a conflict — let the caller
+    // block it for manual review.
+    if (ghState !== 'DIRTY') return false;
+
+    const conflictAttempts = await prisma.workflowTransition
+      .count({ where: { taskId: c.taskId, cause: 'auto_merge_conflict_filed' } })
+      .catch(() => 0);
+    if (conflictAttempts >= MAX_CONFLICT_RETRIES) {
+      await mark(
+        c.taskId,
+        'auto_merge_blocked',
+        `conflict unresolved after ${conflictAttempts} attempts: ${mergeError ?? ''}`,
+      );
+      await notify({
+        taskId: c.taskId,
+        type: 'auto_merge_conflict_unresolved',
+        title: '自動マージ保留（競合未解消）',
+        message: `PR #${c.prNumber} の競合が自動解消の上限まで解消できませんでした。手動で確認してください。`,
+      });
+      return true;
+    }
+
+    // Need the PR's head branch + title to author the resolution instructions.
+    const prRow = await prisma.gitHubPullRequest
+      .findFirst({
+        where: { prNumber: c.prNumber },
+        select: { title: true, headBranch: true, baseBranch: true },
+      })
+      .catch(() => null);
+    if (!prRow?.headBranch) {
+      // Can't author instructions without the head branch — fall back to block.
+      return false;
+    }
+
+    const themeRow = await prisma.task
+      .findUnique({ where: { id: c.taskId }, select: { themeId: true } })
+      .catch(() => null);
+
+    const filed = await fileConflictResolutionTask(
+      {
+        prNumber: c.prNumber,
+        title: prRow.title || c.taskTitle,
+        baseBranch: prRow.baseBranch || c.baseBranch,
+        headBranch: prRow.headBranch,
+      },
+      c.cwd,
+      themeRow?.themeId ?? null,
+    );
+
+    if (filed.created) {
+      // Non-terminal mark: bounds re-files AND lets the next tick re-merge.
+      await mark(c.taskId, 'auto_merge_conflict_filed', `filed conflict task #${filed.taskId}`);
+      await notify({
+        taskId: c.taskId,
+        type: 'auto_merge_conflict_filed',
+        title: '競合を自動解消中',
+        message: `PR #${c.prNumber} にマージ競合を検出。解消タスク#${filed.taskId}を自動起票しました。解消後に自動マージします。`,
+      });
+      log.info(
+        { taskId: c.taskId, prNumber: c.prNumber, conflictTaskId: filed.taskId },
+        '[auto-merge] Conflict detected — filed resolution task, will re-merge when CLEAN',
+      );
+      return true;
+    }
+    if (filed.taskId) {
+      // An active conflict task is still resolving — wait, re-merge next tick.
+      return true;
+    }
+    // Creation failed — let the caller block it.
+    return false;
+  }
+
   private async process(c: Candidate, blocking: Set<string>): Promise<void> {
     const checks = await readPrChecks(c.cwd, c.prNumber);
     if (checks === null) return; // transient gh error — retry next tick
@@ -404,6 +498,21 @@ export class AutoMergeWatcher {
           { taskId: c.taskId, prNumber: c.prNumber },
           '[auto-merge] No blocking CI checks; GitHub merge state CLEAN — treating as pass',
         );
+      } else if (ghState === 'DIRTY' && c.mode === 'merge') {
+        // A real merge conflict with no CI to wait on. Without this branch an
+        // auto-run PR (which usually has NO CI configured) sits at 'unknown'
+        // forever: the conflict path below is reached ONLY via state==='pass' →
+        // mergePullRequest, so handleMergeConflict never runs and no resolution
+        // task is ever filed (the user-reported "conflict auto-resolve does
+        // nothing"). A conflict never clears by waiting — file the resolution task
+        // now; a later tick re-merges once it pushes the fix and the PR goes CLEAN.
+        log.info(
+          { taskId: c.taskId, prNumber: c.prNumber },
+          '[auto-merge] No blocking CI checks; GitHub merge state DIRTY — auto-filing conflict resolution',
+        );
+        if (await this.handleMergeConflict(c, 'merge state DIRTY (no CI checks)')) return;
+        await mark(c.taskId, 'auto_merge_blocked', 'conflict unresolved (DIRTY, no CI)');
+        return;
       }
     }
 
@@ -462,6 +571,12 @@ export class AutoMergeWatcher {
           { taskId: c.taskId, prNumber: c.prNumber, reason: res.error },
           '[auto-merge] Head behind base — updated branch, will retry next tick',
         );
+      } else if (await this.handleMergeConflict(c, res.error)) {
+        // A real merge conflict — handled by auto-filing a resolution task (or
+        // waiting on an in-flight one / giving up after the bound). Either way the
+        // candidate is NOT marked terminal here so a later tick re-merges once the
+        // conflict task pushes its fix and the PR goes CLEAN.
+        return;
       } else {
         await mark(c.taskId, 'auto_merge_blocked', `merge failed: ${res.error}`);
         await notify({

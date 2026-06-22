@@ -56,9 +56,7 @@ export async function handleShutdownInterruption(params: {
 }): Promise<void> {
   const { sessionId, logPrefix } = params;
 
-  log.warn(
-    `${logPrefix} Server is shutting down — marking session ${sessionId} as interrupted`,
-  );
+  log.warn(`${logPrefix} Server is shutting down — marking session ${sessionId} as interrupted`);
 
   await updateSessionStatusWithRetry(sessionId, 'interrupted', logPrefix);
 }

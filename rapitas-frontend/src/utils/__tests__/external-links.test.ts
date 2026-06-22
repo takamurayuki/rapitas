@@ -1,5 +1,9 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { isExternalLink, handleExternalLinkClick, setupExternalLinkHandlers } from '../external-links';
+import {
+  isExternalLink,
+  handleExternalLinkClick,
+  setupExternalLinkHandlers,
+} from '../external-links';
 
 // Mock tauri utils
 vi.mock('@/utils/tauri', () => ({
@@ -120,7 +124,8 @@ describe('setupExternalLinkHandlers', () => {
 
     setupExternalLinkHandlers();
 
-    const handler = (link as HTMLAnchorElement & { __externalLinkHandler?: EventListener }).__externalLinkHandler;
+    const handler = (link as HTMLAnchorElement & { __externalLinkHandler?: EventListener })
+      .__externalLinkHandler;
     expect(handler).toBeDefined();
   });
 
@@ -132,10 +137,12 @@ describe('setupExternalLinkHandlers', () => {
     document.body.appendChild(link);
 
     setupExternalLinkHandlers();
-    const firstHandler = (link as HTMLAnchorElement & { __externalLinkHandler?: EventListener }).__externalLinkHandler;
+    const firstHandler = (link as HTMLAnchorElement & { __externalLinkHandler?: EventListener })
+      .__externalLinkHandler;
 
     setupExternalLinkHandlers();
-    const secondHandler = (link as HTMLAnchorElement & { __externalLinkHandler?: EventListener }).__externalLinkHandler;
+    const secondHandler = (link as HTMLAnchorElement & { __externalLinkHandler?: EventListener })
+      .__externalLinkHandler;
 
     // Handler reference must be renewed so the new module closure is used
     expect(secondHandler).toBeDefined();
@@ -149,7 +156,8 @@ describe('setupExternalLinkHandlers', () => {
 
     setupExternalLinkHandlers();
 
-    const handler = (link as HTMLAnchorElement & { __externalLinkHandler?: EventListener }).__externalLinkHandler;
+    const handler = (link as HTMLAnchorElement & { __externalLinkHandler?: EventListener })
+      .__externalLinkHandler;
     expect(handler).toBeUndefined();
   });
 });

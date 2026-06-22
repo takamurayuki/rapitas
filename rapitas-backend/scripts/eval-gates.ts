@@ -156,10 +156,7 @@ const GROUPS: { gate: string; cases: Case[] }[] = [
       {
         name: 'baseline-absent-file-is-new',
         ok: () => {
-          const r = classifyFailures(
-            ['agent-added.test.ts'],
-            new Set(['unrelated.test.ts']),
-          );
+          const r = classifyFailures(['agent-added.test.ts'], new Set(['unrelated.test.ts']));
           return r.preExisting.length === 0 && r.newFailures.length === 1;
         },
       },

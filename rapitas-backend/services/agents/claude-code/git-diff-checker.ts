@@ -21,30 +21,32 @@ const logger = createLogger('claude-code-agent');
  * @throws {Error} If workDir is not a git repository / workDirがgitリポジトリでない場合
  */
 export async function checkGitDiff(workDir: string, logPrefix: string): Promise<boolean> {
-  const opts = { timeoutMs: 5000 };
-
   // 0. Verify this is a git repository
-  const revParse = await runGitCommand(['rev-parse', '--is-inside-work-tree'], workDir, opts);
+  const revParse = await runGitCommand(['rev-parse', '--is-inside-work-tree'], workDir, {
+    timeoutMs: 5000,
+  });
   if (revParse !== 'true') {
     throw new Error(`workDir is not a git repository: ${workDir}`);
   }
 
   // 1. Unstaged changes
-  const unstaged = await runGitCommand(['diff', '--stat', 'HEAD'], workDir, opts);
+  const unstaged = await runGitCommand(['diff', '--stat', 'HEAD'], workDir, { timeoutMs: 5000 });
   if (unstaged.length > 0) {
     logger.info(`${logPrefix} Git diff check: unstaged changes found`);
     return true;
   }
 
   // 2. Staged changes
-  const staged = await runGitCommand(['diff', '--cached', '--stat'], workDir, opts);
+  const staged = await runGitCommand(['diff', '--cached', '--stat'], workDir, {
+    timeoutMs: 5000,
+  });
   if (staged.length > 0) {
     logger.info(`${logPrefix} Git diff check: staged changes found`);
     return true;
   }
 
   // 3. Working tree changes (agent may have committed already)
-  const status = await runGitCommand(['status', '--porcelain'], workDir, opts);
+  const status = await runGitCommand(['status', '--porcelain'], workDir, { timeoutMs: 5000 });
   if (status.length > 0) {
     logger.info(`${logPrefix} Git diff check: working tree changes found`);
     return true;
@@ -54,7 +56,7 @@ export async function checkGitDiff(workDir: string, logPrefix: string): Promise<
   const recentCommit = await runGitCommand(
     ['log', '--oneline', '--since=5.minutes.ago', '-1'],
     workDir,
-    opts,
+    { timeoutMs: 5000 },
   );
   if (recentCommit.length > 0) {
     logger.info(`${logPrefix} Git diff check: recent commit found: ${recentCommit}`);

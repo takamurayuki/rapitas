@@ -33,9 +33,8 @@ mock.module('../../../../routes/agents/execution/session-helpers', () => ({
   updateSessionStatusWithRetry: mockUpdateSessionStatus,
 }));
 
-const { isShutdownError, handleShutdownInterruption } = await import(
-  '../../../../routes/agents/execution/shutdown-error-handler'
-);
+const { isShutdownError, handleShutdownInterruption } =
+  await import('../../../../routes/agents/execution/shutdown-error-handler');
 
 // ─── isShutdownError ────────────────────────────────────────────────────────
 
@@ -45,21 +44,21 @@ describe('isShutdownError', () => {
   });
 
   test('task-executor のメッセージを検出する', () => {
-    expect(
-      isShutdownError(new Error('Server is shutting down, cannot start new execution')),
-    ).toBe(true);
+    expect(isShutdownError(new Error('Server is shutting down, cannot start new execution'))).toBe(
+      true,
+    );
   });
 
   test('continuation-executor のメッセージを検出する', () => {
-    expect(
-      isShutdownError(new Error('Server is shutting down, cannot continue execution')),
-    ).toBe(true);
+    expect(isShutdownError(new Error('Server is shutting down, cannot continue execution'))).toBe(
+      true,
+    );
   });
 
   test('execution-resume のメッセージを検出する', () => {
-    expect(
-      isShutdownError(new Error('Server is shutting down, cannot resume execution')),
-    ).toBe(true);
+    expect(isShutdownError(new Error('Server is shutting down, cannot resume execution'))).toBe(
+      true,
+    );
   });
 
   test('通常のエラーは false を返す', () => {

@@ -12,6 +12,8 @@ import { promisify } from 'util';
 import { createLogger } from '../../config/logger';
 import { sleep } from '../agents/abstraction/agent-retry';
 import { computeBackoffDelay } from './gh-retry';
+import { resolveActiveGitRetryPolicy, getActiveVariantName } from './git-retry-policy-registry';
+import { recordGitRetryMetric } from './git-retry-telemetry';
 
 const log = createLogger('github-service:git-exec');
 const execFileAsync = promisify(execFile);
@@ -191,23 +193,58 @@ export async function runGitCommandWithRetry(
   cwd?: string,
   opts?: { skipLog?: boolean; timeoutMs?: number; policy?: GitRetryPolicy },
 ): Promise<string> {
-  const policy = opts?.policy ?? GIT_READ_RETRY_POLICY;
-  const cmdOpts = { skipLog: opts?.skipLog, timeoutMs: opts?.timeoutMs };
-
+  const isExplicit = opts?.policy !== undefined;
+  const policy = opts?.policy ?? resolveActiveGitRetryPolicy();
+  const variant = isExplicit ? 'explicit' : getActiveVariantName();
+  const command = args[0] ?? '';
+  const startedAt = Date.now();
   let lastError: Error = new Error('Unknown git error');
+  let totalDelayMs = 0;
 
   for (let attempt = 0; attempt <= policy.maxRetries; attempt++) {
     try {
-      return await runGitCommand(args, cwd, cmdOpts);
+      const result = await runGitCommand(args, cwd, opts);
+      if (attempt > 0) {
+        recordGitRetryMetric({
+          variant,
+          command,
+          attempts: attempt + 1,
+          succeeded: true,
+          totalDelayMs,
+          totalElapsedMs: Date.now() - startedAt,
+          finalErrorCategory: undefined,
+          baseDelay: policy.baseDelay,
+          maxDelay: policy.maxDelay,
+          maxRetries: policy.maxRetries,
+        });
+      }
+      return result;
     } catch (err) {
       lastError = err instanceof Error ? err : new Error(String(err));
 
       const category = classifyGitError(lastError.message);
       const shouldRetry = policy.retryOn.includes(category) && attempt < policy.maxRetries;
 
-      if (!shouldRetry) throw lastError;
+      if (!shouldRetry) {
+        if (attempt > 0) {
+          recordGitRetryMetric({
+            variant,
+            command,
+            attempts: attempt + 1,
+            succeeded: false,
+            totalDelayMs,
+            totalElapsedMs: Date.now() - startedAt,
+            finalErrorCategory: category,
+            baseDelay: policy.baseDelay,
+            maxDelay: policy.maxDelay,
+            maxRetries: policy.maxRetries,
+          });
+        }
+        throw lastError;
+      }
 
       const delay = computeBackoffDelay(attempt, policy.baseDelay, policy.maxDelay);
+      totalDelayMs += delay;
       await sleep(delay);
     }
   }

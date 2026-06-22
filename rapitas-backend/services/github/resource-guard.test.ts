@@ -23,7 +23,13 @@ mock.module('../../config/database', () => ({
 }));
 
 mock.module('../../config/logger', () => {
-  const noopLogger = { info: () => {}, error: () => {}, warn: () => {}, debug: () => {}, fatal: () => {} };
+  const noopLogger = {
+    info: () => {},
+    error: () => {},
+    warn: () => {},
+    debug: () => {},
+    fatal: () => {},
+  };
   return {
     createLogger: () => noopLogger,
     logger: noopLogger,
@@ -31,12 +37,8 @@ mock.module('../../config/logger', () => {
   };
 });
 
-const {
-  resolveOrThrow,
-  resolvePrOrThrow,
-  resolveIssueOrThrow,
-  resolveIntegrationOrThrow,
-} = await import('./resource-guard');
+const { resolveOrThrow, resolvePrOrThrow, resolveIssueOrThrow, resolveIntegrationOrThrow } =
+  await import('./resource-guard');
 
 beforeEach(() => {
   mockFindUniquePr.mockReset();
@@ -101,7 +103,9 @@ describe('resolvePrOrThrow', () => {
     mockFindUniquePr.mockResolvedValueOnce(fakePr);
     await resolvePrOrThrow('1');
     // HACK(agent): bun の mock 型は calls を unknown で持つため any キャスト
-    const calls = (mockFindUniquePr.mock.calls as unknown as Array<[{ where: { id: number }; include: { integration: boolean } }]>);
+    const calls = mockFindUniquePr.mock.calls as unknown as Array<
+      [{ where: { id: number }; include: { integration: boolean } }]
+    >;
     expect(calls[0][0].where.id).toBe(1);
     expect(calls[0][0].include.integration).toBe(true);
   });
@@ -148,7 +152,9 @@ describe('resolveIssueOrThrow', () => {
   test('include: { integration: true } を渡して findUnique を呼ぶこと', async () => {
     mockFindUniqueIssue.mockResolvedValueOnce(fakeIssue);
     await resolveIssueOrThrow('5');
-    const calls = (mockFindUniqueIssue.mock.calls as unknown as Array<[{ where: { id: number }; include: { integration: boolean } }]>);
+    const calls = mockFindUniqueIssue.mock.calls as unknown as Array<
+      [{ where: { id: number }; include: { integration: boolean } }]
+    >;
     expect(calls[0][0].include.integration).toBe(true);
   });
 

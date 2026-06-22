@@ -62,9 +62,7 @@ function pinoLine(level: number, msg: string, name: string, time?: number): stri
 
 // NOTE: Implementation uses readFile from fs/promises (async I/O after task #242 optimization).
 //       readFileSync is no longer called; mock fs/promises.readFile instead.
-const mockReadFile = mock(
-  (_path: unknown, _enc: unknown): Promise<string> => Promise.resolve(''),
-);
+const mockReadFile = mock((_path: unknown, _enc: unknown): Promise<string> => Promise.resolve(''));
 const mockReaddirSync = mock((_path: unknown): string[] => []);
 const mockStatSync = mock((_path: unknown) => ({
   isFile: (): boolean => false,

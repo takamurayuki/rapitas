@@ -577,6 +577,11 @@ export async function executeTask(
   task: AgentTask,
   options: ExecutionOptions,
 ): Promise<AgentExecutionResult> {
+  // NOTE: Early guard — prevents AgentExecution DB record from being created during shutdown.
+  if (ctx.isShuttingDown) {
+    throw new Error(buildShutdownErrorMessage('start new execution'));
+  }
+
   // Resolve agent configuration
   let { agentConfig, resolvedAgentConfigId } = await resolveAgentConfig(ctx, options);
   const agent = agentFactory.createAgent(agentConfig);
@@ -597,7 +602,7 @@ export async function executeTask(
     ctx.activeAgents.delete(execution.id);
     ctx.activeExecutions.delete(execution.id);
     const shutdownMsg = buildShutdownErrorMessage('start new execution');
-    fileLogger.logError(shutdownMsg);
+    fileLogger.logWarn(shutdownMsg);
     await fileLogger.flush();
     throw new Error(shutdownMsg);
   }
