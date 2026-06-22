@@ -35,6 +35,7 @@ const mockPrisma = {
   },
   task: {
     findUnique: mock(() => Promise.resolve(null)) as any,
+    findFirst: mock(() => Promise.resolve(null)) as any,
     create: mock(() => Promise.resolve({ id: 1, title: 'Task' })) as any,
     update: mock(() => Promise.resolve({})) as any,
   },
@@ -193,6 +194,11 @@ function resetAllMocks() {
   mockGetIssues.mockResolvedValue([]);
   mockChangePullRequestBase.mockResolvedValue(undefined);
   mockMergePullRequest.mockResolvedValue({ autoQueued: false });
+
+  // NOTE: task.findFirst is used by fileConflictResolutionTask for dedup; default
+  // to null (no active conflict task) so conflict-resolution tests work without
+  // an explicit mock setup.
+  mockPrisma.task.findFirst.mockResolvedValue(null);
 
   mockListRepositories.mockReset();
   mockImportIssueAsConcern.mockReset();
