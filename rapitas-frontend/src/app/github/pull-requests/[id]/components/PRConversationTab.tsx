@@ -10,6 +10,7 @@
 import { MessageSquare, CheckCircle2, AlertCircle, Send, Loader2 } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import type { GitHubPullRequest } from '@/types';
+import { MarkdownView } from '@/components/markdown/MarkdownView';
 import { getReviewIcon } from './PrUtils';
 
 interface PRConversationTabProps {
@@ -42,7 +43,7 @@ export function PRConversationTab({
     <div className="space-y-4">
       {pr.body && (
         <div className="p-4 bg-white dark:bg-zinc-800 rounded-lg border border-zinc-200 dark:border-zinc-700">
-          <div className="prose dark:prose-invert max-w-none text-sm">{pr.body}</div>
+          <MarkdownView content={pr.body} />
         </div>
       )}
 
@@ -75,7 +76,7 @@ export function PRConversationTab({
               {new Date(review.submittedAt).toLocaleString('ja-JP')}
             </span>
           </div>
-          {review.body && <p className="text-sm text-zinc-600 dark:text-zinc-400">{review.body}</p>}
+          {review.body && <MarkdownView content={review.body} />}
         </div>
       ))}
 
@@ -98,7 +99,7 @@ export function PRConversationTab({
               {new Date(comment.createdAt).toLocaleString('ja-JP')}
             </span>
           </div>
-          <p className="text-sm text-zinc-600 dark:text-zinc-400">{comment.body}</p>
+          <MarkdownView content={comment.body} />
         </div>
       ))}
 
