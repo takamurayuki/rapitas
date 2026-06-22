@@ -98,17 +98,15 @@ export function taskToBar(
   const y = margin.top + index * rowHeight;
   const height = rowHeight - 4; // 4px のマージン
 
-  // ステータスに基づく色
-  let color = task.theme?.color || '#6366F1';
-  // Canonical task.status values are 'done' / 'in-progress' (see StatusConfig);
-  // the old 'completed' / 'in_progress' forms never matched a real task.
-  if (task.status === 'done') {
-    color = '#10B981'; // green-500
-  } else if (task.status === 'in-progress') {
-    color = '#3B82F6'; // blue-500
-  } else if (task.status === 'blocked') {
-    color = '#F59E0B'; // amber-500
-  }
+  // NOTE: Status colors are fixed regardless of theme color to ensure consistent
+  // visual meaning across the chart. All statuses must map to a specific color.
+  const STATUS_COLORS: Record<string, string> = {
+    todo: '#94A3B8', // slate-400 — neutral for not-started
+    'in-progress': '#3B82F6', // blue-500
+    done: '#10B981', // emerald-500
+    blocked: '#F59E0B', // amber-500
+  };
+  const color = STATUS_COLORS[task.status] ?? '#94A3B8';
 
   return {
     x: Math.max(x, margin.left),
@@ -233,4 +231,95 @@ export function getDayGridLines(viewport: GanttViewport): number[] {
   }
 
   return lines;
+}
+
+export interface TimelineLabel {
+  x: number;
+  label: string;
+  /** primary = upper row (month/year), secondary = lower row (week/day) */
+  level: 'primary' | 'secondary';
+}
+
+/**
+ * タイムライン軸のラベルを生成する。
+ * ズームレベルに応じて上段（月/年）・下段（週/日）の2段構成でラベルを返す。
+ *
+ * @param viewport - ガントビューポート設定
+ * @param zoomLevel - 現在のズームレベル
+ * @returns タイムラインラベルの配列
+ */
+export function getTimelineLabels(
+  viewport: GanttViewport,
+  zoomLevel: 'day' | 'week' | 'month',
+): TimelineLabel[] {
+  const { startDate, endDate } = viewport;
+  const labels: TimelineLabel[] = [];
+
+  if (zoomLevel === 'day') {
+    // Primary: month boundaries; secondary: every day
+    const monthCur = new Date(startDate);
+    monthCur.setDate(1);
+    monthCur.setHours(0, 0, 0, 0);
+    while (monthCur <= endDate) {
+      labels.push({
+        x: dateToX(monthCur, viewport),
+        label: `${monthCur.getFullYear()}年${monthCur.getMonth() + 1}月`,
+        level: 'primary',
+      });
+      monthCur.setMonth(monthCur.getMonth() + 1);
+    }
+
+    const dayCur = new Date(startDate);
+    dayCur.setHours(0, 0, 0, 0);
+    while (dayCur <= endDate) {
+      labels.push({
+        x: dateToX(dayCur, viewport),
+        label: `${dayCur.getDate()}`,
+        level: 'secondary',
+      });
+      dayCur.setDate(dayCur.getDate() + 1);
+    }
+  } else if (zoomLevel === 'week') {
+    // Primary: month boundaries; secondary: Monday dates
+    const monthCur = new Date(startDate);
+    monthCur.setDate(1);
+    monthCur.setHours(0, 0, 0, 0);
+    while (monthCur <= endDate) {
+      labels.push({
+        x: dateToX(monthCur, viewport),
+        label: `${monthCur.getFullYear()}年${monthCur.getMonth() + 1}月`,
+        level: 'primary',
+      });
+      monthCur.setMonth(monthCur.getMonth() + 1);
+    }
+
+    // Align to Monday
+    const weekCur = new Date(startDate);
+    weekCur.setHours(0, 0, 0, 0);
+    while (weekCur.getDay() !== 1) weekCur.setDate(weekCur.getDate() + 1);
+    while (weekCur <= endDate) {
+      labels.push({
+        x: dateToX(weekCur, viewport),
+        label: `${weekCur.getMonth() + 1}/${weekCur.getDate()}`,
+        level: 'secondary',
+      });
+      weekCur.setDate(weekCur.getDate() + 7);
+    }
+  } else {
+    // month zoom: primary only — month labels, no secondary
+    const cur = new Date(startDate);
+    cur.setDate(1);
+    cur.setHours(0, 0, 0, 0);
+    while (cur <= endDate) {
+      labels.push({
+        x: dateToX(cur, viewport),
+        label: `${cur.getFullYear()}年${cur.getMonth() + 1}月`,
+        level: 'primary',
+      });
+      cur.setMonth(cur.getMonth() + 1);
+    }
+  }
+
+  // Filter out labels that are entirely left of the chart area
+  return labels.filter((l) => l.x >= viewport.margin.left - 20);
 }

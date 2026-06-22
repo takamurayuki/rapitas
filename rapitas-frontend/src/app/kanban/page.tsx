@@ -8,6 +8,7 @@ import TaskSlidePanel from '@/feature/tasks/components/TaskSlidePanel';
 import { API_BASE_URL } from '@/utils/api';
 import { createLogger } from '@/lib/logger';
 import { useLocaleStore } from '@/stores/locale-store';
+import { useFilterDataStore } from '@/stores/filter-data-store';
 import { toDateLocale } from '@/lib/utils';
 import { useKanbanFilters } from './useKanbanFilters';
 import { useKanbanBoard } from './useKanbanBoard';
@@ -53,6 +54,8 @@ export default function KanbanPage() {
   const tc = useTranslations('common');
   const locale = useLocaleStore((s) => s.locale);
   const dateLocale = toDateLocale(locale);
+  const themes = useFilterDataStore((s) => s.themes);
+  const initFilterData = useFilterDataStore((s) => s.initializeData);
 
   const priorityConfig: Record<Priority, { label: string; color: string; bg: string }> = {
     low: { label: tt('priorityLow'), ...PRIORITY_STYLES.low },
@@ -94,6 +97,8 @@ export default function KanbanPage() {
   const {
     selectedPriorities,
     selectedLabelIds,
+    selectedThemeId,
+    setSelectedThemeId,
     labels,
     setLabels,
     filteredTasks,
@@ -117,7 +122,8 @@ export default function KanbanPage() {
       }
     };
     fetchLabels();
-  }, [setLabels]);
+    initFilterData();
+  }, [setLabels, initFilterData]);
 
   const getWeekDisplayText = () => {
     const fmt = (d: Date) => d.toLocaleDateString(dateLocale, { month: 'numeric', day: 'numeric' });
@@ -158,6 +164,9 @@ export default function KanbanPage() {
           selectedLabelIds={selectedLabelIds}
           onToggleLabel={toggleLabel}
           labels={labels}
+          themes={themes}
+          selectedThemeId={selectedThemeId}
+          onSelectTheme={setSelectedThemeId}
           tt={tt}
         />
 
