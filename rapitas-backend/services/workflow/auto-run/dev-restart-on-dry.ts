@@ -11,6 +11,9 @@
  * exit code 75). Not responsible for selecting/creating tasks.
  */
 import { execFile } from 'child_process';
+import { mkdirSync, readFileSync, writeFileSync } from 'fs';
+import { homedir } from 'os';
+import { dirname, join } from 'path';
 import { promisify } from 'util';
 import { prisma } from '../../../config/database';
 import { createLogger } from '../../../config/logger';
@@ -56,6 +59,38 @@ async function headCommit(): Promise<string | null> {
     return stdout.trim() || null;
   } catch {
     return null;
+  }
+}
+
+/**
+ * Rate-limit persistence. `lastRestartAt` lives in memory, so it resets to 0 on
+ * the very relaunch it is meant to throttle — without this the 10-min floor never
+ * spans two restarts (observed: 2 self-deploys 5 min apart). Persist the last
+ * restart time to a file in the data dir so the floor survives a relaunch.
+ */
+function rateLimitStampFile(): string {
+  const base = process.env.RAPITAS_DATA_DIR?.trim() || join(homedir(), '.rapitas');
+  return join(base, '.dev-restart-last-at');
+}
+
+/** Last restart epoch-ms read from disk, or 0 if absent/unreadable. */
+function readLastRestartAt(): number {
+  try {
+    const ts = Number.parseInt(readFileSync(rateLimitStampFile(), 'utf8').trim(), 10);
+    return Number.isFinite(ts) ? ts : 0;
+  } catch {
+    return 0;
+  }
+}
+
+/** Persist the last restart time. Best-effort; a missing stamp only weakens the rate limit. */
+function persistLastRestartAt(ts: number): void {
+  try {
+    const file = rateLimitStampFile();
+    mkdirSync(dirname(file), { recursive: true });
+    writeFileSync(file, String(ts));
+  } catch {
+    // Never let a stamp write failure crash the restart path.
   }
 }
 
@@ -107,6 +142,18 @@ export async function maybeRestartForUpdate(themeId: number): Promise<boolean> {
     return false;
   }
 
+  // 0 live agents is NOT "no work in flight": a task sits at 0 agents BETWEEN
+  // phases (the next phase's agent not yet spawned). Restarting in that gap kills
+  // the just-started phase and strands the task — its worktree is lost across the
+  // relaunch, the verifier saves nothing, and it blocks (observed: task 298
+  // entered 実装中, a restart fired 2s later, the phase rolled back, retries
+  // exhausted). Only restart when no task is actively in-progress.
+  const inProgress = await prisma.task.count({ where: { status: 'in-progress' } }).catch(() => 0);
+  if (inProgress > 0) {
+    diag('task-in-progress', { inProgress });
+    return false;
+  }
+
   if (!(await restartEnabled())) {
     diag('restartOnAutoRunDry=off');
     return false;
@@ -128,8 +175,11 @@ export async function maybeRestartForUpdate(themeId: number): Promise<boolean> {
   }
 
   const now = Date.now();
-  if (lastRestartAt && now - lastRestartAt < MIN_RESTART_INTERVAL_MS) {
-    diag('rate-limited', { msSinceLast: now - lastRestartAt });
+  // Use the persisted stamp (not just the in-memory one) so the floor survives
+  // the relaunch it throttles.
+  const lastAt = Math.max(lastRestartAt, readLastRestartAt());
+  if (lastAt && now - lastAt < MIN_RESTART_INTERVAL_MS) {
+    diag('rate-limited', { msSinceLast: now - lastAt });
     return false;
   }
 
@@ -142,6 +192,7 @@ export async function maybeRestartForUpdate(themeId: number): Promise<boolean> {
 
   restarting = true;
   lastRestartAt = now;
+  persistLastRestartAt(now);
   log.warn(
     { themeId, startupCommit, current },
     '[dev-restart] auto-run dry + new commits + no agents — restarting to apply updates',
