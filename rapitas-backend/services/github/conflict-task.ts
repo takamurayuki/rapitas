@@ -122,7 +122,10 @@ export async function fileConflictResolutionTask(
         select: { id: true },
       })
       .catch((err) => {
-        log.warn({ err, prNumber: pr.prNumber, taskId: prior.id }, 'Failed to re-queue conflict task');
+        log.warn(
+          { err, prNumber: pr.prNumber, taskId: prior.id },
+          'Failed to re-queue conflict task',
+        );
         return null;
       });
     if (requeued) {

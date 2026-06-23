@@ -19,9 +19,8 @@ mock.module('./hypothesis-service', () => ({
   },
 }));
 
-const { extractHypothesisVerdicts, applyHypothesisVerdictsFromVerify } = await import(
-  './hypothesis-from-verify'
-);
+const { extractHypothesisVerdicts, applyHypothesisVerdictsFromVerify } =
+  await import('./hypothesis-from-verify');
 
 describe('extractHypothesisVerdicts', () => {
   test('## 仮説評価 配下の成立/不成立を #id 付きで抽出する', () => {
