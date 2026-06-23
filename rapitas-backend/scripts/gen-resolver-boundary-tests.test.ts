@@ -86,10 +86,7 @@ describe('detectNonStandardImports', () => {
   });
 
   test('returns multiple non-standard paths', () => {
-    const content = [
-      `import { a } from './mod-a';`,
-      `import { b } from './mod-b';`,
-    ].join('\n');
+    const content = [`import { a } from './mod-a';`, `import { b } from './mod-b';`].join('\n');
     const result = detectNonStandardImports(content);
     expect(result).toContain('./mod-a');
     expect(result).toContain('./mod-b');
@@ -105,14 +102,22 @@ describe('extractResolverFunctions', () => {
     const content = `export async function resolveTask(taskId: number) { return null; }`;
     const { functions, manualReview } = extractResolverFunctions('/fake/path.ts', content);
     expect(functions).toHaveLength(1);
-    expect(functions[0]).toMatchObject({ name: 'resolveTask', paramName: 'taskId', paramType: 'number' });
+    expect(functions[0]).toMatchObject({
+      name: 'resolveTask',
+      paramName: 'taskId',
+      paramType: 'number',
+    });
     expect(manualReview).toHaveLength(0);
   });
 
   test('extracts a single string param function', () => {
     const content = `export async function resolveUser(email: string) { return null; }`;
     const { functions } = extractResolverFunctions('/fake/path.ts', content);
-    expect(functions[0]).toMatchObject({ name: 'resolveUser', paramName: 'email', paramType: 'string' });
+    expect(functions[0]).toMatchObject({
+      name: 'resolveUser',
+      paramName: 'email',
+      paramType: 'string',
+    });
   });
 
   test('extracts a number | null param function', () => {
@@ -153,7 +158,11 @@ describe('extractResolverFunctions', () => {
     ].join('\n');
     const { functions } = extractResolverFunctions('/fake/path.ts', content);
     expect(functions).toHaveLength(1);
-    expect(functions[0]).toMatchObject({ name: 'resolveTaskForExecution', paramName: 'taskId', paramType: 'number' });
+    expect(functions[0]).toMatchObject({
+      name: 'resolveTaskForExecution',
+      paramName: 'taskId',
+      paramType: 'number',
+    });
   });
 
   test('extracts multiple functions from the same file', () => {
@@ -234,9 +243,21 @@ describe('generateBoundaryTestSource', () => {
   const OUTPUT = '/app/services/task/task-resolver.boundary.test.ts';
   const DB_IMPORT = '../../config/database';
 
-  const NUMBER_FN: ExtractedFunction = { name: 'resolveTask', paramName: 'id', paramType: 'number' };
-  const STRING_FN: ExtractedFunction = { name: 'resolveUser', paramName: 'email', paramType: 'string' };
-  const NULLABLE_FN: ExtractedFunction = { name: 'resolveItem', paramName: 'linkedId', paramType: 'number | null' };
+  const NUMBER_FN: ExtractedFunction = {
+    name: 'resolveTask',
+    paramName: 'id',
+    paramType: 'number',
+  };
+  const STRING_FN: ExtractedFunction = {
+    name: 'resolveUser',
+    paramName: 'email',
+    paramType: 'string',
+  };
+  const NULLABLE_FN: ExtractedFunction = {
+    name: 'resolveItem',
+    paramName: 'linkedId',
+    paramType: 'number | null',
+  };
   const TASK_MODEL: ModelUsage = { modelName: 'task', methods: ['findUnique'] };
 
   test('generates a valid TypeScript file header', () => {
@@ -264,7 +285,13 @@ describe('generateBoundaryTestSource', () => {
   });
 
   test('imports multiple edge constants when functions have different param types', () => {
-    const src = generateBoundaryTestSource(SOURCE, OUTPUT, [NUMBER_FN, STRING_FN], [TASK_MODEL], DB_IMPORT);
+    const src = generateBoundaryTestSource(
+      SOURCE,
+      OUTPUT,
+      [NUMBER_FN, STRING_FN],
+      [TASK_MODEL],
+      DB_IMPORT,
+    );
     expect(src).toContain('ID_EDGES');
     expect(src).toContain('STRING_EDGES');
   });
@@ -297,7 +324,13 @@ describe('generateBoundaryTestSource', () => {
   });
 
   test('includes the HACK comment exactly once', () => {
-    const src = generateBoundaryTestSource(SOURCE, OUTPUT, [NUMBER_FN, NULLABLE_FN], [TASK_MODEL], DB_IMPORT);
+    const src = generateBoundaryTestSource(
+      SOURCE,
+      OUTPUT,
+      [NUMBER_FN, NULLABLE_FN],
+      [TASK_MODEL],
+      DB_IMPORT,
+    );
     const occurrences = (src.match(/HACK\(agent\)/g) ?? []).length;
     expect(occurrences).toBe(1);
   });
@@ -312,11 +345,17 @@ describe('generateBoundaryTestSource', () => {
     const src = generateBoundaryTestSource(SOURCE, OUTPUT, [NULLABLE_FN], [TASK_MODEL], DB_IMPORT);
     expect(src).toContain('edge as number | null');
     expect(src).toContain('as (number | null)[]');
-    expect(src).toContain('NULLABLE_ID_EDGES.map(bc => bc.value)');
+    expect(src).toContain('NULLABLE_ID_EDGES.map((bc) => bc.value)');
   });
 
   test('generates one describe block per function', () => {
-    const src = generateBoundaryTestSource(SOURCE, OUTPUT, [NUMBER_FN, STRING_FN], [TASK_MODEL], DB_IMPORT);
+    const src = generateBoundaryTestSource(
+      SOURCE,
+      OUTPUT,
+      [NUMBER_FN, STRING_FN],
+      [TASK_MODEL],
+      DB_IMPORT,
+    );
     const describeCount = (src.match(/^describe\(/gm) ?? []).length;
     expect(describeCount).toBe(2);
   });
