@@ -14,7 +14,7 @@ import {
   Columns3,
   Tags,
   SwatchBook,
-  Shapes,
+  LayoutList,
   FolderKanban,
   FolderGit2,
   ScrollText,
@@ -99,7 +99,7 @@ export default function Header() {
         {
           href: '#',
           label: t('category'),
-          icon: Shapes,
+          icon: LayoutList,
           children: [
             {
               href: '/categories',
