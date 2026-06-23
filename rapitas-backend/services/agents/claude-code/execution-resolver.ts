@@ -15,6 +15,7 @@ import type { QuestionWaitingState } from '../question-detection';
 import type { AgentArtifact, AgentExecutionResult, GitCommitInfo } from '../base-agent';
 import { checkGitDiff } from './git-diff-checker';
 import { createLogger } from '../../../config/logger';
+import { notifyAuthenticationFailure } from '../../communication/notification-service';
 import type { WorkerResultUsageSnapshot } from './worker-message-handler';
 
 const logger = createLogger('claude-code-agent');
@@ -150,6 +151,41 @@ export function buildResolveAfterParse(
         claudeSessionId: ctx.claudeSessionId || undefined,
         errorMessage:
           'Claude Code rejected the selected model. The orchestrator picked a model from a different provider (likely codex-/gpt- family) and routed it to a claude-code agent. Re-run after the role-resolver agent-switch lands; if the issue persists check WorkflowRoleConfig.preferredProviderOverride for this role.',
+        ...usageFields,
+      });
+      return;
+    }
+
+    // Detect a Claude CLI authentication failure (expired / invalid credentials)
+    // BEFORE the generic exit-code path. The CLI prints "Failed to authenticate.
+    // API Error: 401 Invalid authentication credentials" and exits almost
+    // immediately, which would otherwise be recorded as a generic phase failure
+    // and silently burn retries across every queued task (observed: task 322
+    // failed ~12× with one $6.17 in-flight expiry). Fail fast with a clear cause
+    // AND fire a deduplicated notification so the user knows to re-authenticate in
+    // the integrated terminal (`claude login`). Notification is fire-and-forget so
+    // a notify error never blocks resolve().
+    const authFailureHit =
+      /Invalid authentication credentials|Failed to authenticate|API\s*Error:?\s*401|OAuth token (?:has )?expired|Please run\s+\/login/i.test(
+        ctx.outputBuffer + '\n' + ctx.errorBuffer,
+      );
+    if (authFailureHit) {
+      logger.error(
+        { logPrefix: ctx.logPrefix, executionTimeMs },
+        '[claude-code] Authentication failed (expired/invalid credentials). Failing fast and notifying the user to re-authenticate.',
+      );
+      void notifyAuthenticationFailure().catch(() => {});
+      ctx.status = 'failed';
+      resolve({
+        success: false,
+        output: ctx.outputBuffer,
+        artifacts,
+        commits,
+        executionTimeMs,
+        waitingForInput: false,
+        claudeSessionId: ctx.claudeSessionId || undefined,
+        errorMessage:
+          'Claude CLI の認証に失敗しました（認証情報の期限切れ/無効）。統合ターミナルで `claude login`（またはこのセッションで /login）を実行して再認証してください。再認証後、ブロックされたタスクは自動で再試行されます。',
         ...usageFields,
       });
       return;
