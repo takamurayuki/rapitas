@@ -100,8 +100,10 @@ export async function buildRoleContext(
           '## テスト結果 (実コマンド + 終了コード + 集計)\n' +
           '## 品質メトリクス (lint / type-check / build の結果)\n' +
           '## 残課題 / フォローアップ\n' +
+          '## 仮説評価 (上記「仮説台帳」に検証待ち仮説がある場合のみ必須)\n' +
           '```\n' +
-          '冒頭は必ず `# 検証レポート` で開始し、テストが1件でも落ちていれば `❌ 検証失敗` または `⚠️ 一部失敗` を選択してください。',
+          '冒頭は必ず `# 検証レポート` で開始し、テストが1件でも落ちていれば `❌ 検証失敗` または `⚠️ 一部失敗` を選択してください。\n' +
+          '上記「仮説台帳」に検証待ち仮説が列挙されている場合、`## 仮説評価` セクションで各仮説を1行 `- [#id] 成立|不成立: 根拠(file:line/テスト/計測)` で判定してください（成立は予測が実際に的中した場合のみ。確証が無ければ記載せず検証待ちのまま残す）。',
       },
     },
     en: {
@@ -165,8 +167,10 @@ export async function buildRoleContext(
           '## Test results (actual command + exit code + summary)\n' +
           '## Quality metrics (lint / type-check / build)\n' +
           '## Outstanding work / follow-ups\n' +
+          '## 仮説評価 (required ONLY when the 仮説台帳 above lists open hypotheses)\n' +
           '```\n' +
-          'Start with `# Verification Report`. If even one test fails, choose `❌ Fail` or `⚠️ Partial`.',
+          'Start with `# Verification Report`. If even one test fails, choose `❌ Fail` or `⚠️ Partial`.\n' +
+          'When the 仮説台帳 above lists open hypotheses, add a `## 仮説評価` section judging each as `- [#id] 成立|不成立: evidence(file:line/test/metric)` (成立 only when the prediction actually held; omit any you cannot confirm, leaving it open).',
       },
     },
   };
@@ -276,6 +280,16 @@ export async function buildRoleContext(
     case 'verifier': {
       const plan = await readWorkflowFile(dir, 'plan');
       let ctx = taskInfo;
+      // Hypothesis ledger: the verifier is the ONLY phase that explicitly JUDGES
+      // whether each open hypothesis's prediction held — its `## 仮説評価` verdicts
+      // graduate (成立→validated) / refute (不成立→rejected) them. Without this the
+      // directive never reached the verifier and the ledger never graduated
+      // anything (every entry stuck at 検証待ち). Surfaces the open hypotheses (with
+      // ids) the verifier must evaluate.
+      const hypothesis = await buildHypothesisContext(taskId, language);
+      if (hypothesis) {
+        ctx += `\n\n${hypothesis}`;
+      }
       if (plan) {
         ctx += `\n\n${t.verifier.planHeader}\n\n${plan}`;
       }
