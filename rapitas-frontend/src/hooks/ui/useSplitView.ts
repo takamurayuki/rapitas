@@ -22,6 +22,8 @@ export function useSplitView(): UseSplitViewReturn {
 
   // Check split view state
   const checkSplitViewStatus = useCallback(() => {
+    // Skip while hidden — window geometry can't change when the window isn't visible.
+    if (typeof document !== 'undefined' && document.hidden) return;
     if (isTauri()) {
       setIsActive(isSplitViewActive());
     } else {
