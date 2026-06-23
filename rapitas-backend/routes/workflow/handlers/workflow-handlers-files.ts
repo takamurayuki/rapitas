@@ -388,6 +388,21 @@ export async function handleSaveFile({
     // sanitisation runs inside writeWorkflowFile.
     const savedContent = await writeWorkflowFile(dir, fileType, content, taskId);
 
+    // Code-grounded complexity: when research.md is saved, apply the score the
+    // research agent embedded and re-select the workflow mode (both directions).
+    // The auto-run CLI executor does this too — calling the SAME shared helper
+    // here keeps the manual (HTTP) path identical, so a low code-grounded score
+    // is not stuck in a metadata-picked 'standard' (the "標準 · 複雑度 18" mismatch).
+    if (fileType === 'research') {
+      try {
+        const { applyResearchAssessedComplexity } =
+          await import('../../../services/workflow/research-complexity');
+        await applyResearchAssessedComplexity(taskId, savedContent);
+      } catch (err) {
+        log.warn({ err, taskId }, '[Workflow] Failed to apply research-assessed complexity');
+      }
+    }
+
     // Auto-update workflowStatus
     let newStatus: string | undefined;
     const currentStatus = resolved.task.workflowStatus;

@@ -30,7 +30,7 @@ import {
   validateVerify,
   type ValidationResult,
 } from './phase-output-validator';
-import type { RoleTransition, WorkflowAdvanceResult, WorkflowMode } from './workflow-types';
+import type { RoleTransition, WorkflowAdvanceResult } from './workflow-types';
 import { recordTransition, type TransitionActor } from './transition-recorder';
 import { evaluateCompletionGate } from './completion-gate';
 import { checkWorkflowInvariants } from './workflow-invariants';
@@ -705,50 +705,13 @@ curl -X POST http://localhost:${port}/idea-box \\
       }
 
       // Code-grounded complexity: the research agent assessed the task AFTER
-      // inspecting the repo and embedded a 0-100 score in research.md. Persist
-      // it so downstream model/workflow auto-selection uses a real signal
-      // instead of the title/description keyword heuristic.
+      // inspecting the repo and embedded a 0-100 score in research.md. Persist it
+      // + re-select the mode (both directions) via the shared helper so the
+      // auto-run and manual (HTTP) paths refine identically.
       if (transition.outputFile === 'research' && typeof fileContent === 'string') {
         try {
-          const { parseResearchComplexity } = await import('./research-complexity');
-          const assessed = parseResearchComplexity(fileContent);
-          if (assessed !== null) {
-            // Dynamically select the workflow (lightweight/standard/comprehensive)
-            // from the code-grounded complexity, so the remaining phases follow
-            // the right depth. The orchestrator reads task.workflowMode each
-            // advance, so updating it here takes effect for plan/review/verify.
-            // Respect a manual override — never clobber a user-pinned mode.
-            const current = await prisma.task
-              .findUnique({
-                where: { id: taskId },
-                select: { workflowModeOverride: true, workflowMode: true },
-              })
-              .catch(() => null);
-            const data: { complexityScore: number; workflowMode?: string } = {
-              complexityScore: assessed,
-            };
-            if (!current?.workflowModeOverride) {
-              const { selectModeByComplexity, higherMode } = await import('./workflow-mode-config');
-              const assessedMode = await selectModeByComplexity(assessed);
-              const currentMode = (current?.workflowMode as WorkflowMode) || 'comprehensive';
-              // Upgrade only: research-grounded complexity may RAISE ceremony (a
-              // task that looked trivial actually needs a plan) but must not LOWER
-              // it — research.md was already written for the provisional mode set
-              // before research; dropping the plan now would strand a
-              // plan-assuming research artifact.
-              const upgraded = higherMode(currentMode, assessedMode);
-              if (upgraded !== currentMode) data.workflowMode = upgraded;
-            }
-            await prisma.task.update({ where: { id: taskId }, data });
-            log.info(
-              {
-                taskId,
-                complexityScore: assessed,
-                workflowMode: data.workflowMode ?? '(unchanged)',
-              },
-              '[WorkflowCLIExecutor] Applied research-assessed complexity (upgrade-only)',
-            );
-          }
+          const { applyResearchAssessedComplexity } = await import('./research-complexity');
+          await applyResearchAssessedComplexity(taskId, fileContent);
         } catch (cErr) {
           log.warn(
             { err: cErr, taskId },
