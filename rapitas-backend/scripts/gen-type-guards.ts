@@ -134,7 +134,12 @@ export function parseFilesArg(argv: string[]): string[] | null {
   const arg = argv[idx];
   if (arg.startsWith('--files=')) {
     const val = arg.slice('--files='.length);
-    return val ? val.split(',').map((f) => f.trim()).filter(Boolean) : [];
+    return val
+      ? val
+          .split(',')
+          .map((f) => f.trim())
+          .filter(Boolean)
+      : [];
   }
 
   // '--files' with space-separated values: consume remaining non-flag args

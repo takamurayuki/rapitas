@@ -5,7 +5,7 @@
  * prisma は mock.module でスタブ化し、テスト間でリセットする。
  */
 import { describe, test, it, expect, mock, beforeEach } from 'bun:test';
-import { ID_EDGES, toNameTuples } from '../../tests/helpers/boundary-values';
+import { ID_EDGES, toNameTuples, NUMERIC_ID_BOUNDARIES } from '../../tests/helpers/boundary-values';
 
 // HACK(agent): bun:test の mock.module はプロセスグローバルなため、
 // 全エクスポートをミラーしないとバレルが "export not found" をスローする。
@@ -53,6 +53,21 @@ beforeEach(() => {
   mockTaskFindUnique.mockResolvedValue(null);
 });
 
+/** null-return パスのパラメータテーブル（全 resolver 共通） */
+type NullReturnCase = { label: string; id: number; setup: (m: ReturnType<typeof mock>) => void };
+
+const nullReturnCases: NullReturnCase[] = [
+  { label: 'not found', id: 999, setup: (m) => m.mockResolvedValueOnce(null) },
+  { label: 'DB error', id: 1, setup: (m) => m.mockRejectedValueOnce(new Error('DB error')) },
+  { label: 'id=0 (boundary)', id: 0, setup: (m) => m.mockResolvedValueOnce(null) },
+  { label: 'id=-1 (negative)', id: -1, setup: (m) => m.mockResolvedValueOnce(null) },
+  {
+    label: 'id=MAX_SAFE_INTEGER (upper bound)',
+    id: Number.MAX_SAFE_INTEGER,
+    setup: (m) => m.mockResolvedValueOnce(null),
+  },
+];
+
 // ---------------------------------------------------------------------------
 // resolveTaskWithTheme
 // ---------------------------------------------------------------------------
@@ -70,17 +85,9 @@ describe('resolveTaskWithTheme', () => {
     expect(result).toEqual(fakeTask);
   });
 
-  test('タスクが存在しない場合 → null を返すこと', async () => {
-    mockTaskFindUnique.mockResolvedValueOnce(null);
-
-    const result = await resolveTaskWithTheme(999);
-    expect(result).toBeNull();
-  });
-
-  test('DB エラー時 → null を返すこと', async () => {
-    mockTaskFindUnique.mockRejectedValueOnce(new Error('DB connection error'));
-
-    const result = await resolveTaskWithTheme(1);
+  test.each(nullReturnCases)('$label → null', async ({ id, setup }) => {
+    setup(mockTaskFindUnique);
+    const result = await resolveTaskWithTheme(id);
     expect(result).toBeNull();
   });
 
@@ -125,17 +132,9 @@ describe('resolveTaskWithThemeAndCategory', () => {
     expect(result).toEqual(fakeTask);
   });
 
-  test('タスクが存在しない場合 → null を返すこと', async () => {
-    mockTaskFindUnique.mockResolvedValueOnce(null);
-
-    const result = await resolveTaskWithThemeAndCategory(999);
-    expect(result).toBeNull();
-  });
-
-  test('DB エラー時 → null を返すこと', async () => {
-    mockTaskFindUnique.mockRejectedValueOnce(new Error('DB timeout'));
-
-    const result = await resolveTaskWithThemeAndCategory(1);
+  test.each(nullReturnCases)('$label → null', async ({ id, setup }) => {
+    setup(mockTaskFindUnique);
+    const result = await resolveTaskWithThemeAndCategory(id);
     expect(result).toBeNull();
   });
 
@@ -168,17 +167,9 @@ describe('resolveTaskForExecution', () => {
     expect(result).toEqual(fakeTask);
   });
 
-  test('タスクが存在しない場合 → null を返すこと', async () => {
-    mockTaskFindUnique.mockResolvedValueOnce(null);
-
-    const result = await resolveTaskForExecution(999);
-    expect(result).toBeNull();
-  });
-
-  test('DB エラー時 → null を返すこと', async () => {
-    mockTaskFindUnique.mockRejectedValueOnce(new Error('Connection refused'));
-
-    const result = await resolveTaskForExecution(1);
+  test.each(nullReturnCases)('$label → null', async ({ id, setup }) => {
+    setup(mockTaskFindUnique);
+    const result = await resolveTaskForExecution(id);
     expect(result).toBeNull();
   });
 
@@ -211,17 +202,9 @@ describe('resolveTaskWorkingDirectory', () => {
     expect(result).toEqual(fakeTask);
   });
 
-  test('タスクが存在しない場合 → null を返すこと', async () => {
-    mockTaskFindUnique.mockResolvedValueOnce(null);
-
-    const result = await resolveTaskWorkingDirectory(999);
-    expect(result).toBeNull();
-  });
-
-  test('DB エラー時 → null を返すこと', async () => {
-    mockTaskFindUnique.mockRejectedValueOnce(new Error('Query failed'));
-
-    const result = await resolveTaskWorkingDirectory(1);
+  test.each(nullReturnCases)('$label → null', async ({ id, setup }) => {
+    setup(mockTaskFindUnique);
+    const result = await resolveTaskWorkingDirectory(id);
     expect(result).toBeNull();
   });
 
@@ -257,17 +240,9 @@ describe('resolveTaskWorkflowState', () => {
     expect(result).toEqual(fakeTask);
   });
 
-  test('タスクが存在しない場合 → null を返すこと', async () => {
-    mockTaskFindUnique.mockResolvedValueOnce(null);
-
-    const result = await resolveTaskWorkflowState(999);
-    expect(result).toBeNull();
-  });
-
-  test('DB エラー時 → null を返すこと', async () => {
-    mockTaskFindUnique.mockRejectedValueOnce(new Error('DB timeout'));
-
-    const result = await resolveTaskWorkflowState(1);
+  test.each(nullReturnCases)('$label → null', async ({ id, setup }) => {
+    setup(mockTaskFindUnique);
+    const result = await resolveTaskWorkflowState(id);
     expect(result).toBeNull();
   });
 
@@ -299,17 +274,9 @@ describe('resolveTaskTitle', () => {
     expect(result).toEqual(fakeTask);
   });
 
-  test('タスクが存在しない場合 → null を返すこと', async () => {
-    mockTaskFindUnique.mockResolvedValueOnce(null);
-
-    const result = await resolveTaskTitle(999);
-    expect(result).toBeNull();
-  });
-
-  test('DB エラー時 → null を返すこと', async () => {
-    mockTaskFindUnique.mockRejectedValueOnce(new Error('Connection lost'));
-
-    const result = await resolveTaskTitle(1);
+  test.each(nullReturnCases)('$label → null', async ({ id, setup }) => {
+    setup(mockTaskFindUnique);
+    const result = await resolveTaskTitle(id);
     expect(result).toBeNull();
   });
 
@@ -338,17 +305,9 @@ describe('resolveTaskThemeId', () => {
     expect(result).toEqual(fakeTask);
   });
 
-  test('タスクが存在しない場合 → null を返すこと', async () => {
-    mockTaskFindUnique.mockResolvedValueOnce(null);
-
-    const result = await resolveTaskThemeId(999);
-    expect(result).toBeNull();
-  });
-
-  test('DB エラー時 → null を返すこと', async () => {
-    mockTaskFindUnique.mockRejectedValueOnce(new Error('DB error'));
-
-    const result = await resolveTaskThemeId(1);
+  test.each(nullReturnCases)('$label → null', async ({ id, setup }) => {
+    setup(mockTaskFindUnique);
+    const result = await resolveTaskThemeId(id);
     expect(result).toBeNull();
   });
 
@@ -382,17 +341,9 @@ describe('resolveTaskForComplexityAnalysis', () => {
     expect(result).toEqual(fakeTask);
   });
 
-  test('タスクが存在しない場合 → null を返すこと', async () => {
-    mockTaskFindUnique.mockResolvedValueOnce(null);
-
-    const result = await resolveTaskForComplexityAnalysis(999);
-    expect(result).toBeNull();
-  });
-
-  test('DB エラー時 → null を返すこと', async () => {
-    mockTaskFindUnique.mockRejectedValueOnce(new Error('Query timeout'));
-
-    const result = await resolveTaskForComplexityAnalysis(1);
+  test.each(nullReturnCases)('$label → null', async ({ id, setup }) => {
+    setup(mockTaskFindUnique);
+    const result = await resolveTaskForComplexityAnalysis(id);
     expect(result).toBeNull();
   });
 
@@ -421,17 +372,9 @@ describe('resolveTaskSubtaskInfo', () => {
     expect(result).toEqual(fakeTask);
   });
 
-  test('タスクが存在しない場合 → null を返すこと', async () => {
-    mockTaskFindUnique.mockResolvedValueOnce(null);
-
-    const result = await resolveTaskSubtaskInfo(999);
-    expect(result).toBeNull();
-  });
-
-  test('DB エラー時 → null を返すこと', async () => {
-    mockTaskFindUnique.mockRejectedValueOnce(new Error('DB error'));
-
-    const result = await resolveTaskSubtaskInfo(1);
+  test.each(nullReturnCases)('$label → null', async ({ id, setup }) => {
+    setup(mockTaskFindUnique);
+    const result = await resolveTaskSubtaskInfo(id);
     expect(result).toBeNull();
   });
 
@@ -461,17 +404,9 @@ describe('resolveTaskForPlanApproval', () => {
     expect(result).toEqual(fakeTask);
   });
 
-  test('タスクが存在しない場合 → null を返すこと', async () => {
-    mockTaskFindUnique.mockResolvedValueOnce(null);
-
-    const result = await resolveTaskForPlanApproval(999);
-    expect(result).toBeNull();
-  });
-
-  test('DB エラー時 → null を返すこと', async () => {
-    mockTaskFindUnique.mockRejectedValueOnce(new Error('Connection lost'));
-
-    const result = await resolveTaskForPlanApproval(1);
+  test.each(nullReturnCases)('$label → null', async ({ id, setup }) => {
+    setup(mockTaskFindUnique);
+    const result = await resolveTaskForPlanApproval(id);
     expect(result).toBeNull();
   });
 
@@ -509,17 +444,9 @@ describe('resolveTaskForAutoMerge', () => {
     expect(result).toEqual(fakeTask);
   });
 
-  test('タスクが存在しない場合 → null を返すこと', async () => {
-    mockTaskFindUnique.mockResolvedValueOnce(null);
-
-    const result = await resolveTaskForAutoMerge(999);
-    expect(result).toBeNull();
-  });
-
-  test('DB エラー時 → null を返すこと', async () => {
-    mockTaskFindUnique.mockRejectedValueOnce(new Error('Query timeout'));
-
-    const result = await resolveTaskForAutoMerge(1);
+  test.each(nullReturnCases)('$label → null', async ({ id, setup }) => {
+    setup(mockTaskFindUnique);
+    const result = await resolveTaskForAutoMerge(id);
     expect(result).toBeNull();
   });
 
@@ -558,17 +485,9 @@ describe('resolveTaskForLearning', () => {
     expect(result).toEqual(fakeTask);
   });
 
-  test('タスクが存在しない場合 → null を返すこと', async () => {
-    mockTaskFindUnique.mockResolvedValueOnce(null);
-
-    const result = await resolveTaskForLearning(999);
-    expect(result).toBeNull();
-  });
-
-  test('DB エラー時 → null を返すこと', async () => {
-    mockTaskFindUnique.mockRejectedValueOnce(new Error('DB error'));
-
-    const result = await resolveTaskForLearning(1);
+  test.each(nullReturnCases)('$label → null', async ({ id, setup }) => {
+    setup(mockTaskFindUnique);
+    const result = await resolveTaskForLearning(id);
     expect(result).toBeNull();
   });
 
@@ -586,4 +505,65 @@ describe('resolveTaskForLearning', () => {
     expect(callArgs.include.theme.include.category).toBe(true);
     expect(callArgs.include.taskLabels.include.label).toBe(true);
   });
+});
+
+// ---------------------------------------------------------------------------
+// 境界値テスト: 数値型 id の境界値で各 resolver が例外を投げず null を返すこと
+// ---------------------------------------------------------------------------
+describe('resolver 境界値: 数値型 id', () => {
+  test.each(NUMERIC_ID_BOUNDARIES)(
+    'resolveTaskWithTheme(id=$label) → null を返し例外を投げないこと',
+    async ({ value }) => {
+      const result = await resolveTaskWithTheme(value);
+      expect(result).toBeNull();
+    },
+  );
+
+  test.each(NUMERIC_ID_BOUNDARIES)(
+    'resolveTaskWithThemeAndCategory(id=$label) → null を返し例外を投げないこと',
+    async ({ value }) => {
+      const result = await resolveTaskWithThemeAndCategory(value);
+      expect(result).toBeNull();
+    },
+  );
+
+  test.each(NUMERIC_ID_BOUNDARIES)(
+    'resolveTaskForExecution(id=$label) → null を返し例外を投げないこと',
+    async ({ value }) => {
+      const result = await resolveTaskForExecution(value);
+      expect(result).toBeNull();
+    },
+  );
+
+  test.each(NUMERIC_ID_BOUNDARIES)(
+    'resolveTaskWorkingDirectory(id=$label) → null を返し例外を投げないこと',
+    async ({ value }) => {
+      const result = await resolveTaskWorkingDirectory(value);
+      expect(result).toBeNull();
+    },
+  );
+
+  test.each(NUMERIC_ID_BOUNDARIES)(
+    'resolveTaskWorkflowState(id=$label) → null を返し例外を投げないこと',
+    async ({ value }) => {
+      const result = await resolveTaskWorkflowState(value);
+      expect(result).toBeNull();
+    },
+  );
+
+  test.each(NUMERIC_ID_BOUNDARIES)(
+    'resolveTaskTitle(id=$label) → null を返し例外を投げないこと',
+    async ({ value }) => {
+      const result = await resolveTaskTitle(value);
+      expect(result).toBeNull();
+    },
+  );
+
+  test.each(NUMERIC_ID_BOUNDARIES)(
+    'resolveTaskThemeId(id=$label) → null を返し例外を投げないこと',
+    async ({ value }) => {
+      const result = await resolveTaskThemeId(value);
+      expect(result).toBeNull();
+    },
+  );
 });

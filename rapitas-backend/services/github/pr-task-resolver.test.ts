@@ -6,6 +6,7 @@
  * prisma・gh-client は mock.module でスタブ化し、テスト間で復元する。
  */
 import { describe, test, it, expect, mock, beforeEach } from 'bun:test';
+import { NUMERIC_ID_BOUNDARIES } from '../../tests/helpers/boundary-values';
 
 // HACK(agent): bun:test の mock.module はプロセスグローバルなため、
 // 全エクスポートをミラーしないとバレルが "export not found" をスローする。
@@ -54,28 +55,33 @@ beforeEach(() => {
 // titleMatchesTask
 // ---------------------------------------------------------------------------
 describe('titleMatchesTask', () => {
-  test('[Task-N] 形式マッチ → true を返すこと', () => {
-    expect(titleMatchesTask('[Task-5] fix something', 5)).toBe(true);
-  });
+  type TitleMatchCase = {
+    label: string;
+    title: string | null | undefined;
+    id: number;
+    expected: boolean;
+  };
 
-  test('[#N] 形式マッチ → true を返すこと', () => {
-    expect(titleMatchesTask('[#5] fix something', 5)).toBe(true);
-  });
+  const titleMatchCases: TitleMatchCase[] = [
+    { label: '[Task-N] 形式マッチ', title: '[Task-5] fix something', id: 5, expected: true },
+    { label: '[#N] 形式マッチ', title: '[#5] fix something', id: 5, expected: true },
+    { label: 'タスクIDが異なる', title: '[Task-5] fix', id: 6, expected: false },
+    { label: '無関係なタイトル', title: 'some unrelated PR title', id: 5, expected: false },
+    { label: 'null タイトル', title: null, id: 5, expected: false },
+    { label: 'undefined タイトル', title: undefined, id: 5, expected: false },
+    {
+      label: '[Task-0] id=0 境界値',
+      title: '[Task-0] boundary case',
+      id: 0,
+      expected: true,
+    },
+    { label: '[#0] id=0 境界値', title: '[#0] boundary case', id: 0, expected: true },
+    { label: '空文字タイトル (boundary)', title: '', id: 5, expected: false },
+    { label: '空白のみタイトル (boundary)', title: ' ', id: 5, expected: false },
+  ];
 
-  test('タスクIDが異なる場合 false を返すこと', () => {
-    expect(titleMatchesTask('[Task-5] fix', 6)).toBe(false);
-  });
-
-  test('無関係なタイトル → false を返すこと', () => {
-    expect(titleMatchesTask('some unrelated PR title', 5)).toBe(false);
-  });
-
-  test('null タイトル → false を返すこと', () => {
-    expect(titleMatchesTask(null, 5)).toBe(false);
-  });
-
-  test('undefined タイトル → false を返すこと', () => {
-    expect(titleMatchesTask(undefined, 5)).toBe(false);
+  test.each(titleMatchCases)('$label → $expected', ({ title, id, expected }) => {
+    expect(titleMatchesTask(title, id)).toBe(expected);
   });
 
   describe('境界値: id=0 は [Task-0] / [#0] 形式でマッチし、不一致 ID では false を返すこと', () => {
@@ -225,5 +231,33 @@ describe('findPrViaGh', () => {
     const result = await findPrViaGh(10);
     expect(result).toBeNull();
     expect(mockRunGhCommand).not.toHaveBeenCalled();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 境界値テスト: titleMatchesTask の id 境界値・特殊ケース
+// ---------------------------------------------------------------------------
+describe('titleMatchesTask 境界値', () => {
+  test('[Task-0] 形式で id=0 → true を返すこと（仮説 #3381 回帰固定）', () => {
+    expect(titleMatchesTask('[Task-0] zero id task', 0)).toBe(true);
+  });
+
+  test('[#0] 形式で id=0 → true を返すこと（仮説 #3381 回帰固定）', () => {
+    expect(titleMatchesTask('[#0] zero id task', 0)).toBe(true);
+  });
+
+  test.each(NUMERIC_ID_BOUNDARIES)(
+    'id=$label のとき、対応しないタイトル → false を返すこと',
+    ({ value }) => {
+      expect(titleMatchesTask('unrelated PR title', value)).toBe(false);
+    },
+  );
+
+  test('空文字タイトル → false を返すこと', () => {
+    expect(titleMatchesTask('', 5)).toBe(false);
+  });
+
+  test('[Task-N] と [#N] 両方含む複合タイトル → true を返すこと', () => {
+    expect(titleMatchesTask('[Task-5] [#5] dual format', 5)).toBe(true);
   });
 });
