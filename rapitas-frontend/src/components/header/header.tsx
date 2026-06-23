@@ -15,6 +15,7 @@ import {
   Tags,
   SwatchBook,
   LayoutList,
+  LayoutDashboard,
   Folders,
   FolderGit2,
   ScrollText,
@@ -131,7 +132,7 @@ export default function Header() {
     {
       href: '/dashboard',
       label: t('dashboard'),
-      icon: BarChart3,
+      icon: LayoutDashboard,
       shortcut: h.getShortcutLabel('dashboard'),
     },
     {
