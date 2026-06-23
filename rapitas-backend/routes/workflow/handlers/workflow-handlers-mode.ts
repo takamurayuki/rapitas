@@ -7,7 +7,7 @@
 
 import { prisma } from '../../../config';
 import { NotFoundError, ValidationError, parseId } from '../../../middleware/error-handler';
-import { WORKFLOW_MODES } from '../../../services/workflow/workflow-types';
+import { WORKFLOW_MODES, isWorkflowMode } from '../../../services/workflow/workflow-types';
 import {
   analyzeTaskComplexityWithLearning,
   getWorkflowModeConfig,
@@ -51,7 +51,7 @@ export async function handleSetMode({
     };
     const validModes = WORKFLOW_MODES;
 
-    if (!parsedBody?.mode || !(validModes as readonly string[]).includes(parsedBody.mode)) {
+    if (!parsedBody?.mode || !isWorkflowMode(parsedBody.mode)) {
       throw new ValidationError(`Invalid mode. Must be one of: ${validModes.join(', ')}`);
     }
 

@@ -9,6 +9,7 @@ import { prisma } from '../../../config';
 import { NotFoundError, ValidationError, parseId } from '../../../middleware/error-handler';
 import { createLogger } from '../../../config/logger';
 import { VALID_WORKFLOW_STATUSES } from '../core/workflow-helpers';
+import { isWorkflowStatus } from '../../../services/workflow/workflow-types';
 import { recordTransition } from '../../../services/workflow/transition-recorder';
 import { previewMissingFilesForStatus } from '../../../services/workflow/workflow-invariants';
 import { resolveTaskWorkflowState } from '../../../services/task/task-resolver';
@@ -172,10 +173,7 @@ export async function handleUpdateStatus({
     const taskId = parseId(params.taskId, 'task ID');
 
     const parsedBody = body as { status: string; reason?: string; force?: boolean };
-    if (
-      !parsedBody?.status ||
-      !(VALID_WORKFLOW_STATUSES as readonly string[]).includes(parsedBody.status)
-    ) {
+    if (!parsedBody?.status || !isWorkflowStatus(parsedBody.status)) {
       throw new ValidationError(
         `Invalid status. Must be one of: ${VALID_WORKFLOW_STATUSES.join(', ')}`,
       );
