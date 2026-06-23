@@ -362,19 +362,23 @@ fn main() {
     // backgrounded (e.g. split-screen layout with another app on top).
     // - CalculateNativeWinOcclusion: prevents Chromium from pausing rendering
     //   (black frame) when the window is occluded by another window.
-    // - RendererCodeIntegrity: avoids startup crashes on some AV configurations.
+    // WebView2 flags (must be set before any webview is created):
+    // - CalculateNativeWinOcclusion: prevents the renderer from pausing when
+    //   the window is covered by another window — fixes black-screen on refocus.
     // - disable-renderer-backgrounding: prevents the renderer process from being
-    //   deprioritised (throttled CPU / suspended) when the window loses focus —
-    //   fixes the "cursor stops working" symptom in split-screen.
+    //   deprioritised (throttled CPU / suspended) when the window loses focus.
     // - disable-background-timer-throttling: keeps JS timers and rAF running at
     //   full rate when the window is in background, preventing UI freeze on refocus.
-    // Must be set before any webview is created.
+    // - disable-backgrounding-occluded-windows: keeps the compositor alive even
+    //   when the window is fully occluded, eliminating the black-frame artifact
+    //   that appears when the window is brought back to the foreground.
     #[cfg(target_os = "windows")]
     std::env::set_var(
         "WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS",
         "--disable-features=CalculateNativeWinOcclusion \
          --disable-renderer-backgrounding \
-         --disable-background-timer-throttling",
+         --disable-background-timer-throttling \
+         --disable-backgrounding-occluded-windows",
     );
 
     #[cfg(not(debug_assertions))]
