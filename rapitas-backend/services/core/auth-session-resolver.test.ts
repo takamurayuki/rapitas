@@ -4,8 +4,8 @@
  * resolveSessionByToken の正常系・異常系を検証する。
  * prisma は mock.module でスタブ化し、テスト間でリセットする。
  */
-import { describe, test, expect, mock, beforeEach } from 'bun:test';
-import { STRING_EDGES } from '../../tests/helpers/boundary-values';
+import { describe, test, it, expect, mock, beforeEach } from 'bun:test';
+import { STRING_EDGES, toNameTuples, BOUNDARY_STRINGS } from '../../tests/helpers/boundary-values';
 
 // HACK(agent): bun:test の mock.module はプロセスグローバルなため、
 // 全エクスポートをミラーしないとバレルが "export not found" をスローする。
@@ -65,33 +65,43 @@ describe('resolveSessionByToken', () => {
     expect(result).toEqual(fakeSession);
   });
 
-  test('期限切れ / 一致なしの場合 → findFirst が null → null を返すこと', async () => {
-    mockUserSessionFindFirst.mockResolvedValueOnce(null);
+  /** null-return パスのパラメータテーブル（トークン文字列入力 + 空文字/空白境界値） */
+  type TokenNullReturnCase = {
+    label: string;
+    token: string;
+    setup: (m: ReturnType<typeof mock>) => void;
+  };
 
-    const result = await resolveSessionByToken('expired-or-missing-token');
-    expect(result).toBeNull();
-  });
-
-  test('DB が reject した場合 → null を返すこと（.catch により）', async () => {
-    mockUserSessionFindFirst.mockRejectedValueOnce(new Error('DB connection lost'));
-
-    const result = await resolveSessionByToken('any-token');
-    expect(result).toBeNull();
-  });
-
-  // 境界値テスト: STRING_EDGES で定義されたトークン異常系
-  const TOKEN_BOUNDARY_CASES: Array<{ label: string; token: string }> = [
-    { label: '空文字列トークン', token: STRING_EDGES.EMPTY },
-    // NOTE: DBレコードが存在しない前提に依存。このトークンを持つ行がなければ null を返す。
-    { label: '空白のみトークン', token: STRING_EDGES.WHITESPACE_ONLY },
+  const tokenNullReturnCases: TokenNullReturnCase[] = [
+    {
+      label: 'not found (token not in DB)',
+      token: 'expired-or-missing-token',
+      setup: (m) => m.mockResolvedValueOnce(null),
+    },
+    {
+      label: 'DB error',
+      token: 'any-token',
+      setup: (m) => m.mockRejectedValueOnce(new Error('DB connection lost')),
+    },
+    {
+      label: 'empty string token (boundary)',
+      token: '',
+      setup: (m) => m.mockResolvedValueOnce(null),
+    },
+    {
+      label: 'whitespace-only token (boundary)',
+      token: ' ',
+      setup: (m) => m.mockResolvedValueOnce(null),
+    },
   ];
-  for (const { label, token } of TOKEN_BOUNDARY_CASES) {
-    test(`境界値トークン [${label}] → null を返すこと`, async () => {
-      const result = await resolveSessionByToken(token);
-      expect(result).toBeNull();
-    });
-  }
 
+  test.each(tokenNullReturnCases)('$label → null', async ({ token, setup }) => {
+    setup(mockUserSessionFindFirst);
+    const result = await resolveSessionByToken(token);
+    expect(result).toBeNull();
+  });
+
+  // NOTE: expiresAt.gt は Date 相対演算を含むためパラメータ化せず個別 test() で維持する。
   test('クエリ条件が sessionToken + expiresAt gt now + include user で呼ばれること', async () => {
     const before = new Date();
     await resolveSessionByToken('check-token');
@@ -109,4 +119,30 @@ describe('resolveSessionByToken', () => {
     expect(gt.getTime()).toBeGreaterThanOrEqual(before.getTime() - 5);
     expect(gt.getTime()).toBeLessThanOrEqual(after.getTime() + 5);
   });
+
+  describe('境界値: 空・空白文字列トークン → null を返し where.sessionToken に値が伝播すること', () => {
+    it.each(toNameTuples(STRING_EDGES))('token "%s" → null', async (_label, input) => {
+      const result = await resolveSessionByToken(input);
+      expect(result).toBeNull();
+
+      expect(mockUserSessionFindFirst).toHaveBeenCalledTimes(1);
+      const callArgs = mockUserSessionFindFirst.mock.calls[0][0] as {
+        where: { sessionToken: string };
+      };
+      expect(callArgs.where.sessionToken).toBe(input);
+    });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 境界値テスト: 文字列型 token の境界値で resolver が例外を投げず null を返すこと
+// ---------------------------------------------------------------------------
+describe('resolver 境界値: 文字列型 token', () => {
+  test.each(BOUNDARY_STRINGS)(
+    'resolveSessionByToken(token=$label) → null を返し例外を投げないこと（現挙動の回帰固定）',
+    async ({ value }) => {
+      const result = await resolveSessionByToken(value);
+      expect(result).toBeNull();
+    },
+  );
 });

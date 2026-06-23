@@ -3,8 +3,11 @@
  *
  * Unit tests for the parseGateManifest pure function exported from run-gate-tests.ts.
  * Covers: normal paths, comment/blank-line removal, all-comment empty result, trim.
+ * Also validates that ci-gate-tests.txt manifest entries actually exist on disk.
  */
 
+import { existsSync, readFileSync } from 'fs';
+import { resolve } from 'path';
 import { describe, expect, it } from 'bun:test';
 import { parseGateManifest } from './run-gate-tests';
 
@@ -62,5 +65,30 @@ describe('parseGateManifest', () => {
     // A line that is purely whitespace + # is still a comment
     const text = '   # section header\ntests/ok.test.ts';
     expect(parseGateManifest(text)).toEqual(['tests/ok.test.ts']);
+  });
+});
+
+describe('ci-gate-tests.txt manifest integrity', () => {
+  // NOTE: These tests catch drift between the manifest and the filesystem.
+  // If a test file is renamed/deleted, the corresponding manifest entry must be updated first.
+  const scriptDir = import.meta.dir;
+  const manifestPath = resolve(scriptDir, 'ci-gate-tests.txt');
+  const backendRoot = resolve(scriptDir, '..');
+
+  const manifestText = readFileSync(manifestPath, 'utf-8');
+  const entries = parseGateManifest(manifestText);
+
+  it('manifest is not empty', () => {
+    expect(entries.length).toBeGreaterThan(0);
+  });
+
+  it('every entry ends with .test.ts or .integration.test.ts', () => {
+    const invalid = entries.filter((f) => !f.endsWith('.test.ts'));
+    expect(invalid).toEqual([]);
+  });
+
+  it('every file path listed in the manifest exists on disk', () => {
+    const missing = entries.filter((f) => !existsSync(resolve(backendRoot, f)));
+    expect(missing).toEqual([]);
   });
 });

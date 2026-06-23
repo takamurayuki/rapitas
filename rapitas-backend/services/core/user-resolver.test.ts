@@ -4,8 +4,8 @@
  * resolveUserByEmail / resolveUserByUsernameOrEmail の正常系・異常系を検証する。
  * prisma は mock.module でスタブ化し、テスト間でリセットする。
  */
-import { describe, test, expect, mock, beforeEach } from 'bun:test';
-import { STRING_EDGES } from '../../tests/helpers/boundary-values';
+import { describe, test, it, expect, mock, beforeEach } from 'bun:test';
+import { STRING_EDGES, toNameTuples, BOUNDARY_STRINGS } from '../../tests/helpers/boundary-values';
 
 // HACK(agent): bun:test の mock.module はプロセスグローバルなため、
 // 全エクスポートをミラーしないとバレルが "export not found" をスローする。
@@ -58,17 +58,39 @@ describe('resolveUserByEmail', () => {
     expect(result).toEqual(fakeUser);
   });
 
-  test('ユーザーが存在しない場合 → null を返すこと', async () => {
-    mockUserFindFirst.mockResolvedValueOnce(null);
+  /** null-return パスのパラメータテーブル（メールアドレス入力 + 空文字/空白境界値） */
+  type EmailNullReturnCase = {
+    label: string;
+    email: string;
+    setup: (m: ReturnType<typeof mock>) => void;
+  };
 
-    const result = await resolveUserByEmail('notfound@example.com');
-    expect(result).toBeNull();
-  });
+  const emailNullReturnCases: EmailNullReturnCase[] = [
+    {
+      label: 'not found',
+      email: 'notfound@example.com',
+      setup: (m) => m.mockResolvedValueOnce(null),
+    },
+    {
+      label: 'DB error',
+      email: 'test@example.com',
+      setup: (m) => m.mockRejectedValueOnce(new Error('DB connection lost')),
+    },
+    {
+      label: 'empty string email (boundary)',
+      email: '',
+      setup: (m) => m.mockResolvedValueOnce(null),
+    },
+    {
+      label: 'whitespace-only email (boundary)',
+      email: ' ',
+      setup: (m) => m.mockResolvedValueOnce(null),
+    },
+  ];
 
-  test('DB エラー時 → null を返すこと', async () => {
-    mockUserFindFirst.mockRejectedValueOnce(new Error('DB connection lost'));
-
-    const result = await resolveUserByEmail('test@example.com');
+  test.each(emailNullReturnCases)('$label → null', async ({ email, setup }) => {
+    setup(mockUserFindFirst);
+    const result = await resolveUserByEmail(email);
     expect(result).toBeNull();
   });
 
@@ -80,18 +102,16 @@ describe('resolveUserByEmail', () => {
     expect(callArgs.where.email).toBe('check@example.com');
   });
 
-  // 境界値テスト: STRING_EDGES で定義された文字列入力の異常系
-  const STRING_BOUNDARY_CASES: Array<{ label: string; email: string }> = [
-    { label: '空文字列', email: STRING_EDGES.EMPTY },
-    // NOTE: DBレコードが存在しない前提に依存。このメールを持つ行がなければ null を返す。
-    { label: '空白のみ文字列', email: STRING_EDGES.WHITESPACE_ONLY },
-  ];
-  for (const { label, email } of STRING_BOUNDARY_CASES) {
-    test(`境界値メール [${label}] → null を返すこと`, async () => {
-      const result = await resolveUserByEmail(email);
+  describe('境界値: 空・空白文字列メール → null を返し where.email に値が伝播すること', () => {
+    it.each(toNameTuples(STRING_EDGES))('email "%s" → null', async (_label, input) => {
+      const result = await resolveUserByEmail(input);
       expect(result).toBeNull();
+
+      expect(mockUserFindFirst).toHaveBeenCalledTimes(1);
+      const callArgs = mockUserFindFirst.mock.calls[0][0] as { where: { email: string } };
+      expect(callArgs.where.email).toBe(input);
     });
-  }
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -112,17 +132,44 @@ describe('resolveUserByUsernameOrEmail', () => {
     expect(result).toEqual(fakeUser);
   });
 
-  test('ユーザーが存在しない場合 → null を返すこと', async () => {
-    mockUserFindFirst.mockResolvedValueOnce(null);
+  /** null-return パスのパラメータテーブル（username/email ペア入力 + 空文字/空白境界値） */
+  type UsernameOrEmailNullReturnCase = {
+    label: string;
+    username: string;
+    email: string;
+    setup: (m: ReturnType<typeof mock>) => void;
+  };
 
-    const result = await resolveUserByUsernameOrEmail('unknown', 'unknown@example.com');
-    expect(result).toBeNull();
-  });
+  const usernameOrEmailNullReturnCases: UsernameOrEmailNullReturnCase[] = [
+    {
+      label: 'not found',
+      username: 'unknown',
+      email: 'unknown@example.com',
+      setup: (m) => m.mockResolvedValueOnce(null),
+    },
+    {
+      label: 'DB error',
+      username: 'user',
+      email: 'user@example.com',
+      setup: (m) => m.mockRejectedValueOnce(new Error('Query timeout')),
+    },
+    {
+      label: 'empty string inputs (boundary)',
+      username: '',
+      email: '',
+      setup: (m) => m.mockResolvedValueOnce(null),
+    },
+    {
+      label: 'whitespace-only inputs (boundary)',
+      username: ' ',
+      email: ' ',
+      setup: (m) => m.mockResolvedValueOnce(null),
+    },
+  ];
 
-  test('DB エラー時 → null を返すこと', async () => {
-    mockUserFindFirst.mockRejectedValueOnce(new Error('Query timeout'));
-
-    const result = await resolveUserByUsernameOrEmail('user', 'user@example.com');
+  test.each(usernameOrEmailNullReturnCases)('$label → null', async ({ username, email, setup }) => {
+    setup(mockUserFindFirst);
+    const result = await resolveUserByUsernameOrEmail(username, email);
     expect(result).toBeNull();
   });
 
@@ -135,4 +182,17 @@ describe('resolveUserByUsernameOrEmail', () => {
     };
     expect(callArgs.where.OR).toEqual([{ username: 'alice' }, { email: 'alice@example.com' }]);
   });
+});
+
+// ---------------------------------------------------------------------------
+// 境界値テスト: 文字列型フィールドの境界値で resolver が例外を投げず null を返すこと
+// ---------------------------------------------------------------------------
+describe('resolver 境界値: 文字列型フィールド', () => {
+  test.each(BOUNDARY_STRINGS)(
+    'resolveUserByEmail(email=$label) → null を返し例外を投げないこと（現挙動の回帰固定）',
+    async ({ value }) => {
+      const result = await resolveUserByEmail(value);
+      expect(result).toBeNull();
+    },
+  );
 });

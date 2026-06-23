@@ -1,50 +1,150 @@
 /**
  * boundary-values.ts
  *
- * 共有境界値定数（SSOT）。
- * リゾルバーテストで繰り返し登場するマジックナンバー／マジック文字列を一箇所で定義し、
- * 変更が全テストに波及する状態を保つ。プロダクションコードへの依存はない。
+ * resolver テスト共用の境界値定数ライブラリ。
+ * BoundaryCase<T> 型と各定数・ユーティリティを提供し、`it.each` / `test.each` パターンで
+ * 標準境界値テストを簡潔に記述できる。
+ * 副作用・import サイドエフェクトを一切含まない純定数ファイル。
+ * mock.module を呼ばないため、どの resolver テストからも安全に import できる。
+ *
+ * 追加していない値の理由:
+ *   - null / undefined: resolver の引数は string/number 型のため型不一致（型ガードで除外済み）
+ *   - 'a'.repeat(1000): 対象 resolver に入力長バリデーションが存在せず検証外。
+ *     バリデーション追加時は STRING_EDGES に長大文字列ケースを追加すること。
  */
 
 /**
- * 数値 ID の境界値センチネル。
+ * 境界値テストケースを表す型。
  *
- * @returns findUnique / findFirst が null を返す各シナリオで共通利用する定数群。
+ * @typeParam T - テスト対象の値型
+ * @param label - テスト名 (`%s` / `$label`) に表示される人間可読な識別子 / test.each のラベル
+ * @param value - 境界値本体（resolver に渡す実値）/ 境界値の具体的な値
+ * @param note  - 暗黙前提や制約などの補足（省略可）
  */
-export const ID_EDGES = {
-  /** DB に存在しない ID。「タスク/セッションが存在しない場合 → null」系テスト共通のセンチネル。 */
-  NONEXISTENT: 999,
-  /** 数値 ID の下限 0。 */
-  ZERO: 0,
-  /** 負の ID。下限バリデーションの確認用。 */
-  NEGATIVE: -1,
-  /** JavaScript の最大安全整数。上限バウンダリ確認用。 */
-  MAX_SAFE: Number.MAX_SAFE_INTEGER,
-} as const;
+export type BoundaryCase<T> = {
+  readonly label: string;
+  readonly value: T;
+  readonly note?: string;
+};
 
 /**
- * 文字列入力の境界値。
+ * 文字列引数 resolver 向けの境界値定数。
  *
- * @returns メール・トークン等の文字列引数を受け取るリゾルバーの異常系テスト用定数群。
+ * 空文字列・空白系を網羅し、「クラッシュせず null を返す」ことを
+ * resolver テストで共通検証するための標準セット（複数空白含む）。
+ *
+ * NOTE: 期待結果は常に「DB mock が null を返す」前提に依存する。
+ * これは「DB にマッチするレコードが存在しない」暗黙前提であり、
+ * 各テストの note フィールドに明示している。
  */
-export const STRING_EDGES = {
-  /** 空文字列。 */
-  EMPTY: '',
-  // NOTE: DBレコードが存在しない前提に依存。このメール/トークンを持つ行がなければ null を返す。
-  /** 空白のみ文字列。 */
-  WHITESPACE_ONLY: ' ',
-  /** 極端に長い文字列（1000文字）。長大入力でのクラッシュを検証する。 */
-  VERY_LONG: 'x'.repeat(1000),
-} as const;
+export const STRING_EDGES: readonly BoundaryCase<string>[] = [
+  { label: '空文字列', value: '', note: 'DBレコードが存在しない前提でmockがnullを返す' },
+  { label: '半角スペース', value: ' ', note: 'DBレコードが存在しない前提でmockがnullを返す' },
+  { label: 'タブ文字', value: '\t', note: 'DBレコードが存在しない前提でmockがnullを返す' },
+  { label: '複数空白', value: '  ', note: 'DBレコードが存在しない前提でmockがnullを返す' },
+];
 
 /**
- * null / undefined を含む nullable 引数の境界値。
+ * 数値 ID 引数 resolver 向けの境界値定数（0/-1/1 の小規模セット）。
  *
- * @returns titleMatchesTask・resolvePrWorkingDirectory 等の nullable 引数テスト用定数群。
+ * 0（ゼロ境界）・-1（負数）・1（最小正常値の対照群）を含む。
+ * 各 resolver は値を `where.id` / `where.configId` に素通しし、
+ * クラッシュせず null を返すことを検証するための標準セット。
+ *
+ * NOTE: PostgreSQL INTEGER は 32bit (上限 2147483647) のため、
+ * Number.MAX_SAFE_INTEGER は除外している。大きい ID 境界が必要な場合は
+ * NUMERIC_ID_BOUNDARIES を使用すること。
  */
-export const NULLABLE_ID_EDGES = {
-  /** null 値。 */
-  NULL_VALUE: null,
-  /** undefined 値。 */
-  UNDEFINED_VALUE: undefined,
-} as const;
+export const ID_EDGES: readonly BoundaryCase<number>[] = [
+  { label: 'id=0（ゼロ境界）', value: 0 },
+  { label: 'id=-1（負数）', value: -1 },
+  { label: 'id=1（最小正常値）', value: 1 },
+];
+
+/**
+ * 数値型 ID の境界値セット（ID_EDGES の拡張版 — MAX_SAFE_INTEGER を含む）。
+ *
+ * 対象: resolver の id 引数（taskId / configId / sessionId 等）
+ * 期待される挙動: いずれの値でも resolver が例外を投げず null を返すこと（堅牢性確認）
+ *
+ * @example
+ * ```ts
+ * test.each(NUMERIC_ID_BOUNDARIES)('境界 id $label → null を返すこと', async ({ value }) => {
+ *   const result = await resolveTaskWithTheme(value);
+ *   expect(result).toBeNull();
+ * });
+ * ```
+ */
+export const NUMERIC_ID_BOUNDARIES: readonly BoundaryCase<number>[] = [
+  { label: 'ゼロ', value: 0 },
+  { label: '負数', value: -1 },
+  { label: 'MAX_SAFE_INTEGER', value: Number.MAX_SAFE_INTEGER },
+] as const;
+
+/**
+ * 文字列型フィールドの境界値セット（改行を含む）。
+ *
+ * 対象: email / token / username 等の文字列引数
+ * 期待される挙動: いずれの値でも resolver が例外を投げず null を返すこと（現挙動の回帰固定）
+ *
+ * NOTE: debug-log-parsers.test.ts の edgeCases=['',' ','\n','\t'] を定数化・共有化したもの。
+ *
+ * @example
+ * ```ts
+ * test.each(BOUNDARY_STRINGS)('空文字列境界 $label → null を返すこと', async ({ value }) => {
+ *   const result = await resolveUserByEmail(value);
+ *   expect(result).toBeNull();
+ * });
+ * ```
+ */
+export const BOUNDARY_STRINGS: readonly BoundaryCase<string>[] = [
+  { label: '空文字', value: '' },
+  { label: '空白のみ', value: ' ' },
+  { label: 'タブ', value: '\t' },
+  { label: '改行', value: '\n' },
+] as const;
+
+/**
+ * 時刻（epoch ミリ秒）の境界値セット。
+ *
+ * 対象: 将来的に時刻引数を取る resolver 関数（現状の resolver には時刻引数なし）
+ * 定義のみ用意し、消費は将来のテスト追加時に行う。
+ * 境界値漏れ防止の品質基準として残す。
+ */
+export const TIME_BOUNDARIES: readonly BoundaryCase<number>[] = [
+  { label: 'epoch', value: 0 },
+  { label: '負のepoch', value: -1 },
+] as const;
+
+/**
+ * nullable 数値 ID 引数 resolver 向けの境界値定数。
+ *
+ * ID_EDGES に null を追加した拡張版。
+ * `number | null` 型の外部キー引数（linkedTaskId 等）のテストに使用する。
+ *
+ * @example
+ * ```ts
+ * test.each(NULLABLE_ID_EDGES.map(bc => bc.value) as (number | null)[])(
+ *   '...%p...', async (edge) => { ... }
+ * );
+ * ```
+ */
+export const NULLABLE_ID_EDGES: readonly BoundaryCase<number | null>[] = [
+  ...ID_EDGES,
+  { label: 'null', value: null },
+];
+
+/**
+ * BoundaryCase<T> 配列を `it.each` 用 `[label, value]` タプル配列に変換する。
+ *
+ * bun:test の `%s` 置換は primitive 前提のため、オブジェクト配列を直接渡すと
+ * `[object Object]` と表示される。本関数でタプル化することで
+ * `it.each(toNameTuples(EDGES))('...(%s)...', (_label, value) => ...)` の形式で
+ * `%s` に `label` 文字列が正しく表示される。
+ *
+ * @param cases - 変換元の BoundaryCase<T> 配列
+ * @returns `[label, value]` のタプル配列
+ */
+export function toNameTuples<T>(cases: readonly BoundaryCase<T>[]): [string, T][] {
+  return cases.map((c) => [c.label, c.value]);
+}

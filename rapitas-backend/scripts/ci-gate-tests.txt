@@ -19,7 +19,8 @@ tests/event-emitter.test.ts
 tests/metrics-collector.test.ts
 tests/registry.test.ts
 services/ai/weekly-review-service.test.ts
-services/task/task-dependency-service.test.ts
+services/task/task-resolver.test.ts
 services/agents/verification/automated-verifier.test.ts
 tests/integration/claude-code-agent.integration.test.ts
 tests/middleware/error-handler.test.ts
+scripts/gen-resolver-boundary-tests.test.ts
