@@ -58,11 +58,15 @@ function lcsLen(a: string, b: string): number {
  */
 async function findSaturatedThemeAnchor(title: string): Promise<number | null> {
   if (title.trim().length < SALIENT_LEN) return null;
+  // Count ALL idea_box entries sharing the theme — validationStatus is null/
+  // inconsistent in practice (the earlier 'pending' filter matched nothing → the
+  // gate was a silent no-op), and a theme already represented by many ideas (open
+  // OR promoted) is saturated regardless. take:600 bounds the scan.
   const open = await prisma.knowledgeEntry
     .findMany({
-      where: { sourceType: 'idea_box', validationStatus: 'pending' },
+      where: { sourceType: 'idea_box' },
       select: { id: true, title: true },
-      take: 400,
+      take: 600,
     })
     .catch(() => [] as { id: number; title: string }[]);
   let matches = 0;
