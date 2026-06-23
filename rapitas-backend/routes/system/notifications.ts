@@ -6,6 +6,7 @@ import { prisma } from '../../config/database';
 import { ValidationError, NotFoundError } from '../../middleware/error-handler';
 import { realtimeService } from '../../services/communication/realtime-service';
 import { createLogger } from '../../config/logger';
+import { INVALID_ID } from '../../utils/common/error-messages';
 
 const logger = createLogger('routes:notifications');
 
@@ -87,7 +88,7 @@ export const notificationsRoutes = new Elysia({ prefix: '/notifications' })
     const { params } = context;
     const id = parseInt(params.id);
     if (isNaN(id)) {
-      throw new ValidationError('無効なIDです');
+      throw new ValidationError(INVALID_ID);
     }
 
     return await prisma.notification.update({
@@ -110,7 +111,7 @@ export const notificationsRoutes = new Elysia({ prefix: '/notifications' })
     const { params } = context;
     const id = parseInt(params.id);
     if (isNaN(id)) {
-      throw new ValidationError('無効なIDです');
+      throw new ValidationError(INVALID_ID);
     }
 
     const existing = await prisma.notification.findUnique({

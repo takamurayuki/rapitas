@@ -17,6 +17,7 @@ import {
 } from '../../services/workflow/auto-run/theme-auto-run-service';
 import { ThemeAutoRunScheduler } from '../../services/workflow/auto-run/theme-auto-run-scheduler';
 import { logCycleEvent } from '../../services/observability';
+import { HTTP_STATUS } from '../../utils/common/http-status';
 
 const log = createLogger('routes:theme-auto-run');
 
@@ -28,7 +29,7 @@ export const themeAutoRunRoutes = new Elysia()
   .get('/themes/:id/auto-run', async (context) => {
     const themeId = parseInt((context.params as { id: string }).id);
     if (!Number.isFinite(themeId)) {
-      context.set.status = 400;
+      context.set.status = HTTP_STATUS.BAD_REQUEST;
       return { success: false, error: 'Invalid theme ID' };
     }
 
@@ -62,7 +63,7 @@ export const themeAutoRunRoutes = new Elysia()
       };
     } catch (err) {
       log.error({ err, themeId }, '[theme-auto-run] Failed to get state');
-      context.set.status = 500;
+      context.set.status = HTTP_STATUS.INTERNAL_SERVER_ERROR;
       return { success: false, error: 'Failed to retrieve auto-run state' };
     }
   })
@@ -73,7 +74,7 @@ export const themeAutoRunRoutes = new Elysia()
   .post('/themes/:id/auto-run', async (context) => {
     const themeId = parseInt((context.params as { id: string }).id);
     if (!Number.isFinite(themeId)) {
-      context.set.status = 400;
+      context.set.status = HTTP_STATUS.BAD_REQUEST;
       return { success: false, error: 'Invalid theme ID' };
     }
 
@@ -82,7 +83,7 @@ export const themeAutoRunRoutes = new Elysia()
     const order = (body?.order === 'created' ? 'created' : 'priority') as 'priority' | 'created';
 
     if (!['start', 'pause', 'stop'].includes(action ?? '')) {
-      context.set.status = 400;
+      context.set.status = HTTP_STATUS.BAD_REQUEST;
       return { success: false, error: 'action must be one of: start, pause, stop' };
     }
 
@@ -92,11 +93,11 @@ export const themeAutoRunRoutes = new Elysia()
       select: { id: true, isDevelopment: true, workingDirectory: true },
     });
     if (!theme) {
-      context.set.status = 404;
+      context.set.status = HTTP_STATUS.NOT_FOUND;
       return { success: false, error: 'Theme not found' };
     }
     if (!theme.isDevelopment || !theme.workingDirectory) {
-      context.set.status = 400;
+      context.set.status = HTTP_STATUS.BAD_REQUEST;
       return {
         success: false,
         error: '自動実行は開発モードで作業ディレクトリが設定されたテーマのみ利用できます。',
@@ -143,7 +144,7 @@ export const themeAutoRunRoutes = new Elysia()
       return { success: true, autoRun: state };
     } catch (err) {
       log.error({ err, themeId, action }, '[theme-auto-run] Action failed');
-      context.set.status = 500;
+      context.set.status = HTTP_STATUS.INTERNAL_SERVER_ERROR;
       return { success: false, error: 'Auto-run action failed' };
     }
   });

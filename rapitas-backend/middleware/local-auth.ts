@@ -7,6 +7,7 @@
  */
 import { timingSafeEqual } from 'crypto';
 import { createLogger } from '../config/logger';
+import { HTTP_STATUS } from '../utils/common/http-status';
 
 const log = createLogger('local-auth');
 
@@ -91,7 +92,7 @@ export function createApiTokenGuard():
     }
 
     return new Response(JSON.stringify({ error: 'Unauthorized: missing or invalid API token' }), {
-      status: 401,
+      status: HTTP_STATUS.UNAUTHORIZED,
       headers: { 'Content-Type': 'application/json; charset=utf-8' },
     });
   };

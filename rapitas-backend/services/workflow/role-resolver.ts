@@ -29,24 +29,7 @@ import { resolveTaskWorkflowState } from '../task/task-resolver';
 
 const log = createLogger('role-resolver');
 
-type WorkflowRole =
-  | 'researcher'
-  | 'planner'
-  | 'reviewer'
-  | 'implementer'
-  | 'verifier'
-  | 'auto_verifier';
-
-type WorkflowStatus =
-  | 'draft'
-  | 'research_done'
-  | 'plan_created'
-  | 'plan_approved'
-  | 'in_progress'
-  | 'verify_done'
-  | 'completed';
-
-type WorkflowMode = 'lightweight' | 'standard' | 'comprehensive';
+import type { WorkflowRole, WorkflowStatus, WorkflowMode } from './workflow-types';
 
 // NOTE: The status→role map is now derived from the DB-backed, UI-editable
 // mode config (workflow-mode-config.ts) — the single source of truth shared

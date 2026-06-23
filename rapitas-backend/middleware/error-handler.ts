@@ -4,6 +4,8 @@
  */
 import { Elysia } from 'elysia';
 import { createLogger } from '../config/logger';
+import { HTTP_STATUS } from '../utils/common/http-status';
+import { RESOURCE_NOT_FOUND, VALIDATION_ERROR } from '../utils/common/error-messages';
 
 const log = createLogger('error-handler');
 
@@ -138,9 +140,9 @@ export const errorHandler = new Elysia({ name: 'error-handler' }).onError(
 
     // Elysia validation error
     if (code === 'VALIDATION') {
-      set.status = 400;
+      set.status = HTTP_STATUS.BAD_REQUEST;
       return {
-        error: 'Validation error',
+        error: VALIDATION_ERROR,
         details:
           'message' in error && typeof error.message === 'string' ? error.message : String(error),
       };
@@ -148,14 +150,14 @@ export const errorHandler = new Elysia({ name: 'error-handler' }).onError(
 
     // Not found
     if (code === 'NOT_FOUND') {
-      set.status = 404;
-      return { error: 'Resource not found' };
+      set.status = HTTP_STATUS.NOT_FOUND;
+      return { error: RESOURCE_NOT_FOUND };
     }
 
     // Prisma related errors (all types)
     if (isPrismaError(error)) {
       log.error({ err: error }, 'Prisma Error');
-      set.status = 400;
+      set.status = HTTP_STATUS.BAD_REQUEST;
       return {
         error: 'Database query error',
       };
@@ -163,7 +165,7 @@ export const errorHandler = new Elysia({ name: 'error-handler' }).onError(
 
     // Generic server error
     log.error({ err: error }, 'Unhandled error');
-    set.status = 500;
+    set.status = HTTP_STATUS.INTERNAL_SERVER_ERROR;
 
     return {
       error: 'Server error occurred',

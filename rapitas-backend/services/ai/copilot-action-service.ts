@@ -12,6 +12,7 @@ import { analyzeTask } from '../claude-agent/task-analyzer';
 import type { TaskAnalysisResult } from '../claude-agent/types';
 import { AgentExecutionService } from '../agent/agent-execution-service';
 import { createTask } from '../task/task-mutations';
+import { TASK_NOT_FOUND } from '../../utils/common/error-messages';
 
 const log = createLogger('copilot-action');
 
@@ -88,7 +89,7 @@ async function handleAnalyze(taskId: number): Promise<CopilotActionResult> {
   });
 
   if (!task) {
-    return { success: false, action: 'analyze', data: null, message: 'タスクが見つかりません' };
+    return { success: false, action: 'analyze', data: null, message: TASK_NOT_FOUND };
   }
 
   try {

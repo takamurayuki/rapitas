@@ -17,6 +17,7 @@ import {
 } from '../../../services/claude-agent';
 import { getDefaultProvider, getApiKeyForProvider } from '../../../utils/ai-client';
 import { getLabelsArray, toJsonString, fromJsonString } from '../../../utils/database/db-helpers';
+import { TASK_NOT_FOUND } from '../../../utils/common/error-messages';
 
 const log = createLogger('routes:developer-mode:prompt');
 
@@ -50,7 +51,7 @@ export const developerModePromptRoutes = new Elysia({ prefix: '/developer-mode' 
 
     if (!task) {
       set.status = 404;
-      return { error: 'タスクが見つかりません' };
+      return { error: TASK_NOT_FOUND };
     }
 
     // Get latest AI analysis result if available
@@ -160,7 +161,7 @@ export const developerModePromptRoutes = new Elysia({ prefix: '/developer-mode' 
       const task = await prisma.task.findUnique({ where: { id: taskId } });
       if (!task) {
         set.status = 404;
-        return { error: 'タスクが見つかりません' };
+        return { error: TASK_NOT_FOUND };
       }
 
       const formattedPrompt = formatPromptForAgent(optimizedResult, task.title);
