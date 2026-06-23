@@ -196,6 +196,37 @@ export const executeRoute = new Elysia().post(
 
     log.info(`[API] Executing task ${taskIdNum} in working directory: ${workDir}`);
 
+    // Intake quality gate (manual-run path). The auto-run orchestrator runs this
+    // BEFORE dispatching research (workflow-orchestrator draft→researcher branch);
+    // the manual "実行" path dispatches the researcher agent DIRECTLY, so without
+    // this a thin-spec draft task would skip the clarifying question entirely.
+    // Only gate a FRESH draft run (not a continuation/`sessionId`, not an ad-hoc
+    // `instruction` run). Fail-open: never block execution on a gate error.
+    if (task.workflowStatus === 'draft' && !instruction && !sessionId) {
+      try {
+        const { ensureIntakeReady } = await import('../../../services/intake');
+        const intake = await ensureIntakeReady(taskIdNum);
+        if (intake.status === 'awaiting_question') {
+          log.info(
+            `[API] Task ${taskIdNum}: intake gate raised a clarifying question — pausing before research (no agent launched).`,
+          );
+          return earlyReturn({
+            success: true,
+            status: 'awaiting_question',
+            workflowStatus: 'awaiting_question',
+            message:
+              intake.message ??
+              '仕様が不十分なため確認の質問を作成しました（回答されるまで先に進みません）',
+          });
+        }
+      } catch (err) {
+        log.warn(
+          { err, taskId: taskIdNum },
+          '[API] intake gate failed — proceeding to research (fail-open)',
+        );
+      }
+    }
+
     // Resolve the base branch: explicit request value → theme default → develop.
     // It is used both as the branch-from base (worktree) AND the PR target, so
     // the two always match. Persisting it to agentExecutionConfig.targetBranch
