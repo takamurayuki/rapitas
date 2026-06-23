@@ -10,6 +10,18 @@ import { createLogger } from '../../config/logger';
 import { createContentHash } from './utils';
 import { sanitizeMarkdownContent } from '../../utils/common/mojibake-detector';
 import { narrowEnum } from '../../utils/common/type-guards';
+import { findSemanticDuplicate } from './dedup';
+
+/**
+ * Cosine similarity at/above which a new idea is treated as a redundant paraphrase
+ * of one already in the KB and rejected. 0.85 (slightly below the KB dedup 0.9) so
+ * it catches near-duplicate VARIATIONS — the monoculture is variations, not verbatim
+ * repeats. Tunable via RAPITAS_IDEA_NOVELTY_THRESHOLD.
+ */
+const IDEA_NOVELTY_THRESHOLD = (() => {
+  const v = parseFloat(process.env.RAPITAS_IDEA_NOVELTY_THRESHOLD ?? '0.85');
+  return Number.isFinite(v) && v > 0 && v <= 1 ? v : 0.85;
+})();
 
 const log = createLogger('memory:idea-box');
 
@@ -167,7 +179,7 @@ export async function submitIdea(input: SubmitIdeaInput): Promise<number> {
   }
   const hash = createContentHash(`${title}:${content}`);
 
-  // Deduplicate
+  // Exact-hash dedup (cheap).
   const existing = await prisma.knowledgeEntry.findFirst({
     where: { contentHash: hash, sourceType: 'idea_box' },
     select: { id: true },
@@ -176,6 +188,25 @@ export async function submitIdea(input: SubmitIdeaInput): Promise<number> {
   if (existing) {
     log.debug({ id: existing.id }, 'Duplicate idea skipped');
     return existing.id;
+  }
+
+  // Semantic NOVELTY gate: reject an idea that merely paraphrases one already in
+  // the KB (an open idea OR existing knowledge). This breaks the self-reinforcing
+  // monoculture loop — the agent works on theme X → idea-extractor + the innovation
+  // session keep re-filing near-identical "theme X" ideas → they become near-
+  // duplicate tasks (observed: idea box was 96 entries almost all about type-guards/
+  // SSOT; PRs #270-275 were six near-synonymous type-guard refactors). Both the
+  // extractor and innovation session funnel through here, so one gate stops both.
+  // Threshold 0.85 (RAPITAS_IDEA_NOVELTY_THRESHOLD), slightly below the KB 0.9 so it
+  // catches variations, not just verbatim repeats. Fail-open (embeddings down → no
+  // gate). Returns the existing entry's id so callers treat it as a no-op dedup.
+  const dupId = await findSemanticDuplicate(`${title}\n${content}`, [], IDEA_NOVELTY_THRESHOLD);
+  if (dupId != null) {
+    log.info(
+      { dupId, title: input.title },
+      '[idea-box] Rejected idea: semantically redundant (anti-monoculture)',
+    );
+    return dupId;
   }
 
   // Always attribute an idea to a real theme so it never falls into the global
