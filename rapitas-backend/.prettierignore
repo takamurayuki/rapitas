@@ -3,3 +3,5 @@ dist
 .next
 data
 prisma/migrations
+# NOTE: Generated type-guard files match generator output, not Prettier style.
+**/*.guards.generated.ts

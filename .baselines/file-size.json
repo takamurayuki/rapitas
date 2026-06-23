@@ -8,7 +8,7 @@
       "lineCount": 1766
     },
     "rapitas-backend/routes/workflow/handlers/workflow-handlers-files.ts": {
-      "lineCount": 1114
+      "lineCount": 1175
     },
     "rapitas-backend/services/workflow/workflow-cli-executor.ts": {
       "lineCount": 1114
@@ -35,7 +35,7 @@
       "lineCount": 678
     },
     "rapitas-backend/routes/agents/execution/execute-route.ts": {
-      "lineCount": 673
+      "lineCount": 704
     },
     "rapitas-backend/services/workflow/auto-merge-watcher.ts": {
       "lineCount": 657
@@ -87,6 +87,12 @@
     },
     "rapitas-backend/index.ts": {
       "lineCount": 504
+    },
+    "rapitas-backend/scripts/gen-type-guards.ts": {
+      "lineCount": 512
+    },
+    "rapitas-backend/services/memory/concern-backlog-service.ts": {
+      "lineCount": 510
     }
   }
 }

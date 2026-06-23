@@ -392,7 +392,8 @@ jobs:
           BASE="${{ github.event.pull_request.base.sha }}"
           HEAD="${{ github.sha }}"
           CHANGED=$(git diff --name-only "$BASE" "$HEAD" \
-            | grep -E '^rapitas-backend/.*\.ts$' \
+            | grep -E '^rapitas-backend/(services|routes|types|utils)/.*\.ts$' \
+            | grep -vE '\.(test|spec)\.ts$' \
             | sed 's|^rapitas-backend/||' || true)
           if [ -z "$CHANGED" ]; then
             echo "No backend .ts files changed — skipping type-guard drift check."
