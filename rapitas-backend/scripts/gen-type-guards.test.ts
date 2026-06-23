@@ -438,9 +438,10 @@ describe('parseFilesArg', () => {
   });
 
   test('parses --files foo.ts bar.ts (space-separated, stops at next flag)', () => {
-    expect(
-      parseFilesArg(['node', 'script.ts', '--files', 'foo.ts', 'bar.ts', '--check']),
-    ).toEqual(['foo.ts', 'bar.ts']);
+    expect(parseFilesArg(['node', 'script.ts', '--files', 'foo.ts', 'bar.ts', '--check'])).toEqual([
+      'foo.ts',
+      'bar.ts',
+    ]);
   });
 
   test('parses --files foo.ts (single space-separated)', () => {
