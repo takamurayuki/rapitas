@@ -13,6 +13,7 @@ import { createLogger } from '../../config/logger';
 import { createTask } from '../task/task-mutations';
 import { sanitizeMarkdownContent } from '../../utils/common/mojibake-detector';
 import { narrowEnum } from '../../utils/common/type-guards';
+import { findSaturatedTheme } from './theme-saturation';
 
 const log = createLogger('memory:concern-backlog');
 
@@ -135,6 +136,28 @@ export async function submitConcern(input: SubmitConcernInput): Promise<number> 
   if (existing) {
     log.debug({ id: existing.id }, 'Duplicate concern skipped');
     return existing.id;
+  }
+
+  // Anti-monoculture: concerns are the bigger flood source — the agent re-files
+  // near-identical "gen:type-guards / SSOT / Prettier-drift" concerns as it works
+  // the same theme, and they promote to tasks FIRST. Reject a title that shares a
+  // ≥8-char substring with ≥3 existing OPEN concerns (a near-dup re-file or an
+  // over-covered theme). Skipped for dedupKey'd concerns (those have their own
+  // stable identity, e.g. test-baseline:<file>). Returns the anchor id as a no-op.
+  if (!input.dedupKey) {
+    const anchorId = await findSaturatedTheme(input.title, {
+      sourceType: 'concern',
+      cap: 3,
+      salient: 8,
+      openConcernOnly: true,
+    });
+    if (anchorId != null) {
+      log.info(
+        { anchorId, title: input.title },
+        '[concern-backlog] Rejected concern: theme over-represented / near-duplicate (anti-monoculture)',
+      );
+      return anchorId;
+    }
   }
 
   const tags = [`severity:${severity}`];

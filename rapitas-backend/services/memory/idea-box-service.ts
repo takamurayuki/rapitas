@@ -10,17 +10,13 @@ import { createLogger } from '../../config/logger';
 import { createContentHash } from './utils';
 import { sanitizeMarkdownContent } from '../../utils/common/mojibake-detector';
 import { narrowEnum } from '../../utils/common/type-guards';
-/**
- * Theme-saturation gate (anti-monoculture). Embedding cosine (all-MiniLM-L6-v2)
- * proved USELESS for Japanese idea similarity — calibration showed genuinely-novel
- * ideas (freee OCR 0.70, UI 通知 0.78) scoring HIGHER than near-duplicate type-guard
- * ideas (0.60), so no cosine threshold separates them. Instead use a LEXICAL signal
- * that is reliable for the observed monoculture (every title literally shares
- * 「型ガード」/「SSOT」/「gen:type-guards」): a new idea is rejected when its title
- * shares a ≥SALIENT_LEN-char substring with ≥SATURATION_CAP existing OPEN ideas —
- * i.e. the theme is already over-represented. The first several ideas of a theme
- * pass; the 9th+ near-clone is dropped. Tunable via RAPITAS_IDEA_SATURATION_CAP.
- */
+import { findSaturatedTheme } from './theme-saturation';
+
+// Theme-saturation gate (anti-monoculture). Embedding cosine (all-MiniLM-L6-v2)
+// proved USELESS for Japanese idea similarity (novel ideas scored HIGHER than
+// near-dups), so theme-saturation.ts uses a LEXICAL signal: a new idea is rejected
+// when its title shares a ≥SALIENT_LEN-char substring with ≥SATURATION_CAP existing
+// idea_box entries (the theme is over-represented). Tunable via the env below.
 const SALIENT_LEN = 4;
 const SATURATION_CAP = (() => {
   const v = parseInt(process.env.RAPITAS_IDEA_SATURATION_CAP ?? '8', 10);
@@ -28,58 +24,6 @@ const SATURATION_CAP = (() => {
 })();
 
 const log = createLogger('memory:idea-box');
-
-/** Longest common substring length between two strings (small inputs). */
-function lcsLen(a: string, b: string): number {
-  if (!a || !b) return 0;
-  const prev = new Array<number>(b.length + 1).fill(0);
-  let best = 0;
-  for (let i = 1; i <= a.length; i++) {
-    let diag = 0;
-    for (let j = 1; j <= b.length; j++) {
-      const tmp = prev[j];
-      if (a[i - 1] === b[j - 1]) {
-        prev[j] = diag + 1;
-        if (prev[j] > best) best = prev[j];
-      } else prev[j] = 0;
-      diag = tmp;
-    }
-  }
-  return best;
-}
-
-/**
- * Count how many OPEN ideas share a ≥SALIENT_LEN-char substring with `title`, and
- * return one of their ids when the count reaches SATURATION_CAP (theme saturated).
- * Returns null when the theme is novel enough to admit.
- *
- * @param title - Candidate idea title. / 候補アイデアのタイトル
- * @returns An existing idea id when saturated, else null. / 飽和時は既存ID、それ以外 null
- */
-async function findSaturatedThemeAnchor(title: string): Promise<number | null> {
-  if (title.trim().length < SALIENT_LEN) return null;
-  // Count ALL idea_box entries sharing the theme — validationStatus is null/
-  // inconsistent in practice (the earlier 'pending' filter matched nothing → the
-  // gate was a silent no-op), and a theme already represented by many ideas (open
-  // OR promoted) is saturated regardless. take:600 bounds the scan.
-  const open = await prisma.knowledgeEntry
-    .findMany({
-      where: { sourceType: 'idea_box' },
-      select: { id: true, title: true },
-      take: 600,
-    })
-    .catch(() => [] as { id: number; title: string }[]);
-  let matches = 0;
-  let anchor: number | null = null;
-  for (const e of open) {
-    if (lcsLen(title, e.title) >= SALIENT_LEN) {
-      matches += 1;
-      anchor = anchor ?? e.id;
-      if (matches >= SATURATION_CAP) return anchor;
-    }
-  }
-  return null;
-}
 
 /**
  * Minimum combined confidence (actionability*0.6 + specificity*0.4) for
@@ -252,7 +196,11 @@ export async function submitIdea(input: SubmitIdeaInput): Promise<number> {
   // duplicate tasks (observed: 96 ideas almost all type-guard/SSOT; PRs #270-275 six
   // near-synonymous type-guard refactors). Both funnel through here, so one gate
   // stops both. Returns the existing anchor id so callers treat it as a no-op dedup.
-  const anchorId = await findSaturatedThemeAnchor(title);
+  const anchorId = await findSaturatedTheme(title, {
+    sourceType: 'idea_box',
+    cap: SATURATION_CAP,
+    salient: SALIENT_LEN,
+  });
   if (anchorId != null) {
     log.info(
       { anchorId, title: input.title },
