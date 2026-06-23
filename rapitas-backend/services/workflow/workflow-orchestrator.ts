@@ -25,7 +25,7 @@ import { DEFAULT_SYSTEM_PROMPTS } from '../../routes/ai/system-prompts/default-p
 import { isReusableArtifact } from './phase-output-validator';
 import { recordTransition } from './transition-recorder';
 import { isShutdownError } from '../agents/orchestrator/shutdown-error';
-import { narrowWorkflowStatus, narrowWorkflowMode } from './workflow-types';
+import { narrowWorkflowStatus, narrowWorkflowMode } from './workflow-types.guards.generated';
 import type { WorkflowRole, WorkflowStatus, WorkflowMode } from './workflow-types';
 import { TASK_NOT_FOUND } from '../../utils/common/error-messages';
 

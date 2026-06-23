@@ -9,8 +9,8 @@
  *   narrow* — narrowing: DB 等からの raw string を対象型へ変換し、不正値を fallback で返す
  */
 
-import type { WorkflowRole, WorkflowFileType } from './workflow-types';
-import { WORKFLOW_ROLES, WORKFLOW_FILE_TYPES } from './workflow-types';
+import type { WorkflowRole, WorkflowFileType, WorkflowStatus, WorkflowMode } from './workflow-types';
+import { WORKFLOW_ROLES, WORKFLOW_FILE_TYPES, WORKFLOW_STATUSES, WORKFLOW_MODES } from './workflow-types';
 
 import { isOneOf } from '../../utils/common/type-guards';
 
@@ -62,4 +62,54 @@ export function narrowWorkflowFileType(
   fallback: WorkflowFileType = 'research',
 ): WorkflowFileType {
   return isWorkflowFileType(s) ? s : fallback;
+}
+
+/**
+ * Type guard: narrows an unknown value to WorkflowStatus.
+ *
+ * @param s - Value to test. / 検査する値
+ * @returns True when `s` is a valid WorkflowStatus. / 有効なWorkflowStatusの場合true
+ */
+export function isWorkflowStatus(s: unknown): s is WorkflowStatus {
+  return isOneOf(s, WORKFLOW_STATUSES);
+}
+
+/**
+ * Narrows a DB string (or null/undefined) to WorkflowStatus, returning a fallback
+ * when the value is absent or unrecognised.
+ *
+ * @param s - Raw value from the database. / DBからの生の値
+ * @param fallback - Value to return when `s` is invalid. Defaults to `'draft'`. / 無効時に返す値
+ * @returns A valid WorkflowStatus. / 有効なWorkflowStatus
+ */
+export function narrowWorkflowStatus(
+  s: string | null | undefined,
+  fallback: WorkflowStatus = 'draft',
+): WorkflowStatus {
+  return isWorkflowStatus(s) ? s : fallback;
+}
+
+/**
+ * Type guard: narrows an unknown value to WorkflowMode.
+ *
+ * @param s - Value to test. / 検査する値
+ * @returns True when `s` is a valid WorkflowMode. / 有効なWorkflowModeの場合true
+ */
+export function isWorkflowMode(s: unknown): s is WorkflowMode {
+  return isOneOf(s, WORKFLOW_MODES);
+}
+
+/**
+ * Narrows a DB string (or null/undefined) to WorkflowMode, returning a fallback
+ * when the value is absent or unrecognised.
+ *
+ * @param s - Raw value from the database. / DBからの生の値
+ * @param fallback - Value to return when `s` is invalid. Defaults to `'comprehensive'`. / 無効時に返す値
+ * @returns A valid WorkflowMode. / 有効なWorkflowMode
+ */
+export function narrowWorkflowMode(
+  s: string | null | undefined,
+  fallback: WorkflowMode = 'comprehensive',
+): WorkflowMode {
+  return isWorkflowMode(s) ? s : fallback;
 }

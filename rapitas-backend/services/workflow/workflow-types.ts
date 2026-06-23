@@ -3,10 +3,9 @@
  *
  * Shared TypeScript type aliases and interfaces used across workflow
  * orchestration modules. SSOT for WorkflowRole/WorkflowStatus/WorkflowMode types,
- * runtime arrays, type guards, and narrowing functions. All consumers must
- * import from here.
+ * runtime arrays. Type guards are auto-generated to workflow-types.guards.generated.ts.
+ * All consumers must import types/constants from here and guards from the generated file.
  */
-import { isOneOf, narrowEnum } from '../../utils/common/type-guards';
 
 /**
  * Runtime array of all valid workflow roles. Derive WorkflowRole from this
@@ -63,61 +62,10 @@ export type ResumableWorkflowStatus = Exclude<
  * Runtime array of all valid workflow modes. Derive WorkflowMode from this
  * so the type and the runtime validation list can never drift apart.
  */
+// @gen-guard-fallback: comprehensive
 export const WORKFLOW_MODES = ['lightweight', 'standard', 'comprehensive'] as const;
 
 export type WorkflowMode = (typeof WORKFLOW_MODES)[number];
-
-/**
- * Type guard: narrows an unknown value to WorkflowStatus.
- *
- * @param s - Value to test. / 検査する値
- * @returns True when `s` is a valid WorkflowStatus. / 有効なWorkflowStatusの場合true
- */
-export function isWorkflowStatus(s: unknown): s is WorkflowStatus {
-  return isOneOf(s, WORKFLOW_STATUSES);
-}
-
-/**
- * Type guard: narrows an unknown value to WorkflowMode.
- *
- * @param s - Value to test. / 検査する値
- * @returns True when `s` is a valid WorkflowMode. / 有効なWorkflowModeの場合true
- */
-export function isWorkflowMode(s: unknown): s is WorkflowMode {
-  return isOneOf(s, WORKFLOW_MODES);
-}
-
-/**
- * Narrows a DB string (or null/undefined) to WorkflowStatus, returning a fallback
- * when the value is absent or unrecognised. Mirrors the existing `?? 'draft'` pattern
- * but with a compile-time-safe return type.
- *
- * @param s - Raw value from the database. / DBからの生の値
- * @param fallback - Value to return when `s` is invalid. Defaults to `'draft'`. / 無効時に返す値（既定は'draft'）
- * @returns A valid WorkflowStatus. / 有効なWorkflowStatus
- */
-export function narrowWorkflowStatus(
-  s: string | null | undefined,
-  fallback: WorkflowStatus = 'draft',
-): WorkflowStatus {
-  return narrowEnum(s, WORKFLOW_STATUSES, fallback);
-}
-
-/**
- * Narrows a DB string (or null/undefined) to WorkflowMode, returning a fallback
- * when the value is absent or unrecognised. Mirrors the existing `?? 'comprehensive'`
- * pattern but with a compile-time-safe return type.
- *
- * @param s - Raw value from the database. / DBからの生の値
- * @param fallback - Value to return when `s` is invalid. Defaults to `'comprehensive'`. / 無効時に返す値（既定は'comprehensive'）
- * @returns A valid WorkflowMode. / 有効なWorkflowMode
- */
-export function narrowWorkflowMode(
-  s: string | null | undefined,
-  fallback: WorkflowMode = 'comprehensive',
-): WorkflowMode {
-  return narrowEnum(s, WORKFLOW_MODES, fallback);
-}
 
 /** Maps a workflow status to the role that should execute next and its expected output. */
 export interface RoleTransition {
