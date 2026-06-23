@@ -127,6 +127,7 @@ vi.mock('lucide-react', async (importOriginal) => {
     Search: createIcon('search-icon'),
     X: createIcon('x-icon'),
     LayoutList: createIcon('layout-list-icon'),
+    Folders: createIcon('folders-icon'),
     FolderKanban: createIcon('folder-kanban-icon'),
     ChevronDown: createIcon('chevron-down-icon'),
     ChevronRight: createIcon('chevron-right-icon'),

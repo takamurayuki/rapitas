@@ -15,7 +15,7 @@ import {
   Tags,
   SwatchBook,
   LayoutList,
-  FolderKanban,
+  Folders,
   FolderGit2,
   ScrollText,
   Target,
@@ -104,7 +104,7 @@ export default function Header() {
             {
               href: '/categories',
               label: t('categoryList'),
-              icon: FolderKanban,
+              icon: Folders,
             },
             { href: '/themes', label: t('themeList'), icon: SwatchBook },
             { href: '/labels', label: t('labelList'), icon: Tags },
