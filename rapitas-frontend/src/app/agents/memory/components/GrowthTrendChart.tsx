@@ -14,7 +14,7 @@ import {
   Cell,
   Legend,
 } from 'recharts';
-import { Activity, Brain, TrendingUp, Zap } from 'lucide-react';
+import { Sprout, Brain, TrendingUp, Zap } from 'lucide-react';
 import { PIE_COLORS, NODE_TYPE_LABELS } from '../constants';
 import type { GrowthTimeline, MemoryOverview } from '../types';
 
@@ -76,7 +76,7 @@ export function GrowthTrendChart({
         <div className="flex items-center justify-between mb-6">
           <div className="flex items-center gap-3">
             <div className="p-2 bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400 rounded-lg">
-              <Activity className="w-5 h-5" />
+              <Sprout className="w-5 h-5" />
             </div>
             <h3 className="font-semibold text-zinc-900 dark:text-zinc-100">知識の成長トレンド</h3>
           </div>
