@@ -167,10 +167,7 @@ export class WorkflowQueueService {
         // concurrently risks conflicts and lower quality — hold a candidate back
         // while any sibling is active, or while an earlier-created sibling is
         // still pending. Non-subtasks (no parentId) are unaffected.
-        const candidateTask = await prisma.task.findUnique({
-          where: { id: candidate.taskId },
-          select: { parentId: true },
-        });
+        const candidateTask = await resolveTaskWorkflowState(candidate.taskId);
         if (candidateTask?.parentId != null) {
           const siblings = await prisma.task.findMany({
             where: { parentId: candidateTask.parentId, id: { not: candidate.taskId } },

@@ -41,6 +41,10 @@ const {
   resolveTaskTitle,
   resolveTaskThemeId,
   resolveTaskForComplexityAnalysis,
+  resolveTaskSubtaskInfo,
+  resolveTaskForPlanApproval,
+  resolveTaskForAutoMerge,
+  resolveTaskForLearning,
 } = await import('./task-resolver');
 
 beforeEach(() => {
@@ -389,6 +393,185 @@ describe('resolveTaskForComplexityAnalysis', () => {
     };
     expect(callArgs.where.id).toBe(16);
     expect(callArgs.include.theme).toBe(true);
+    expect(callArgs.include.taskLabels.include.label).toBe(true);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// resolveTaskSubtaskInfo
+// ---------------------------------------------------------------------------
+describe('resolveTaskSubtaskInfo', () => {
+  test('タスクが存在する場合 → id・parentId・title を返すこと', async () => {
+    const fakeTask = { id: 10, parentId: 5, title: 'サブタスクA' };
+    mockTaskFindUnique.mockResolvedValueOnce(fakeTask);
+
+    const result = await resolveTaskSubtaskInfo(10);
+    expect(result).toEqual(fakeTask);
+  });
+
+  test('タスクが存在しない場合 → null を返すこと', async () => {
+    mockTaskFindUnique.mockResolvedValueOnce(null);
+
+    const result = await resolveTaskSubtaskInfo(999);
+    expect(result).toBeNull();
+  });
+
+  test('DB エラー時 → null を返すこと', async () => {
+    mockTaskFindUnique.mockRejectedValueOnce(new Error('DB error'));
+
+    const result = await resolveTaskSubtaskInfo(1);
+    expect(result).toBeNull();
+  });
+
+  test('select に id・parentId・title が含まれること', async () => {
+    await resolveTaskSubtaskInfo(10);
+
+    const callArgs = mockTaskFindUnique.mock.calls[0][0] as {
+      where: { id: number };
+      select: Record<string, boolean>;
+    };
+    expect(callArgs.where.id).toBe(10);
+    expect(callArgs.select.id).toBe(true);
+    expect(callArgs.select.parentId).toBe(true);
+    expect(callArgs.select.title).toBe(true);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// resolveTaskForPlanApproval
+// ---------------------------------------------------------------------------
+describe('resolveTaskForPlanApproval', () => {
+  test('タスクが存在する場合 → id・autoApprovePlan・parentId を返すこと', async () => {
+    const fakeTask = { id: 20, autoApprovePlan: true, parentId: null };
+    mockTaskFindUnique.mockResolvedValueOnce(fakeTask);
+
+    const result = await resolveTaskForPlanApproval(20);
+    expect(result).toEqual(fakeTask);
+  });
+
+  test('タスクが存在しない場合 → null を返すこと', async () => {
+    mockTaskFindUnique.mockResolvedValueOnce(null);
+
+    const result = await resolveTaskForPlanApproval(999);
+    expect(result).toBeNull();
+  });
+
+  test('DB エラー時 → null を返すこと', async () => {
+    mockTaskFindUnique.mockRejectedValueOnce(new Error('Connection lost'));
+
+    const result = await resolveTaskForPlanApproval(1);
+    expect(result).toBeNull();
+  });
+
+  test('select に id・autoApprovePlan・parentId が含まれること', async () => {
+    await resolveTaskForPlanApproval(20);
+
+    const callArgs = mockTaskFindUnique.mock.calls[0][0] as {
+      where: { id: number };
+      select: Record<string, boolean>;
+    };
+    expect(callArgs.where.id).toBe(20);
+    expect(callArgs.select.id).toBe(true);
+    expect(callArgs.select.autoApprovePlan).toBe(true);
+    expect(callArgs.select.parentId).toBe(true);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// resolveTaskForAutoMerge
+// ---------------------------------------------------------------------------
+describe('resolveTaskForAutoMerge', () => {
+  test('タスクが存在する場合 → 自動マージ候補フィールドを返すこと', async () => {
+    const fakeTask = {
+      id: 30,
+      title: 'マージ対象タスク',
+      status: 'done',
+      workflowStatus: 'completed',
+      completedAt: new Date('2025-01-01'),
+      workingDirectory: '/projects/task-30',
+      theme: { workingDirectory: '/projects/main' },
+    };
+    mockTaskFindUnique.mockResolvedValueOnce(fakeTask);
+
+    const result = await resolveTaskForAutoMerge(30);
+    expect(result).toEqual(fakeTask);
+  });
+
+  test('タスクが存在しない場合 → null を返すこと', async () => {
+    mockTaskFindUnique.mockResolvedValueOnce(null);
+
+    const result = await resolveTaskForAutoMerge(999);
+    expect(result).toBeNull();
+  });
+
+  test('DB エラー時 → null を返すこと', async () => {
+    mockTaskFindUnique.mockRejectedValueOnce(new Error('Query timeout'));
+
+    const result = await resolveTaskForAutoMerge(1);
+    expect(result).toBeNull();
+  });
+
+  test('select に id・title・status・workflowStatus・completedAt・workingDirectory・theme が含まれること', async () => {
+    await resolveTaskForAutoMerge(30);
+
+    const callArgs = mockTaskFindUnique.mock.calls[0][0] as {
+      where: { id: number };
+      select: Record<string, unknown>;
+    };
+    expect(callArgs.where.id).toBe(30);
+    expect(callArgs.select.id).toBe(true);
+    expect(callArgs.select.title).toBe(true);
+    expect(callArgs.select.status).toBe(true);
+    expect(callArgs.select.workflowStatus).toBe(true);
+    expect(callArgs.select.completedAt).toBe(true);
+    expect(callArgs.select.workingDirectory).toBe(true);
+    expect(callArgs.select.theme).toBeDefined();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// resolveTaskForLearning
+// ---------------------------------------------------------------------------
+describe('resolveTaskForLearning', () => {
+  test('タスクが存在する場合 → theme・category・taskLabels 付きタスクを返すこと', async () => {
+    const fakeTask = {
+      id: 40,
+      title: '学習対象タスク',
+      theme: { id: 5, categoryId: 2, category: { id: 2, name: 'Backend' } },
+      taskLabels: [{ label: { name: 'refactor' } }],
+    };
+    mockTaskFindUnique.mockResolvedValueOnce(fakeTask);
+
+    const result = await resolveTaskForLearning(40);
+    expect(result).toEqual(fakeTask);
+  });
+
+  test('タスクが存在しない場合 → null を返すこと', async () => {
+    mockTaskFindUnique.mockResolvedValueOnce(null);
+
+    const result = await resolveTaskForLearning(999);
+    expect(result).toBeNull();
+  });
+
+  test('DB エラー時 → null を返すこと', async () => {
+    mockTaskFindUnique.mockRejectedValueOnce(new Error('DB error'));
+
+    const result = await resolveTaskForLearning(1);
+    expect(result).toBeNull();
+  });
+
+  test('include に theme（category含む）と taskLabels（label含む）が含まれること', async () => {
+    await resolveTaskForLearning(40);
+
+    const callArgs = mockTaskFindUnique.mock.calls[0][0] as {
+      where: { id: number };
+      include: {
+        theme: { include: { category: boolean } };
+        taskLabels: { include: { label: boolean } };
+      };
+    };
+    expect(callArgs.where.id).toBe(40);
+    expect(callArgs.include.theme.include.category).toBe(true);
     expect(callArgs.include.taskLabels.include.label).toBe(true);
   });
 });
