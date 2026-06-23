@@ -320,6 +320,15 @@ export async function addEvidence(
     artifact: string;
     taskId?: number | null;
     phase?: string | null;
+    /**
+     * Explicit verification verdict (the verifier checked the prediction itself,
+     * not a weak completion proxy). A decisive 'for' jumps confidence to the
+     * graduation threshold and 'against' to the refutation threshold, so ONE
+     * genuine verification graduates/refutes the hypothesis instead of nudging it
+     * by a fraction (which never crossed 0.8 from the single completion-evidence a
+     * hypothesis used to get — leaving the whole ledger stuck at 検証待ち).
+     */
+    decisive?: boolean;
   },
 ): Promise<AddEvidenceResult> {
   if (ev.stance !== 'for' && ev.stance !== 'against') {
@@ -382,12 +391,18 @@ export async function addEvidence(
   });
 
   // Bayesian-ish update: 'for' moves confidence toward 1, 'against' toward 0,
-  // each by a fixed fraction of the remaining distance.
+  // each by a fixed fraction of the remaining distance. A DECISIVE verdict (an
+  // explicit verification, not a weak completion proxy) instead jumps straight to
+  // the graduation/refutation threshold so one genuine verification settles it.
   let confidence = row.confidence;
-  confidence =
-    ev.stance === 'for'
-      ? confidence + (1 - confidence) * EVIDENCE_STEP
-      : confidence - confidence * EVIDENCE_STEP;
+  if (ev.decisive) {
+    confidence = ev.stance === 'for' ? Math.max(confidence, GRADUATE_AT) : Math.min(confidence, REFUTE_AT);
+  } else {
+    confidence =
+      ev.stance === 'for'
+        ? confidence + (1 - confidence) * EVIDENCE_STEP
+        : confidence - confidence * EVIDENCE_STEP;
+  }
   confidence = Math.min(1, Math.max(0, confidence));
 
   const hasConcreteFor = evidence.some((e) => e.stance === 'for');
