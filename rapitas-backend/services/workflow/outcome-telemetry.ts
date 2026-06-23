@@ -112,6 +112,16 @@ export async function recordTaskOutcome(taskId: number, finalStatus: string): Pr
         }),
       )
       .catch((err) => log.warn({ err, taskId }, '[telemetry] Learning-artifact recording failed'));
+
+    // Reflexion: when the task failed OR needed repair, distil a transferable
+    // lesson from the failure and store it as knowledge (retrieved+injected into
+    // similar future tasks). Failures are the richest learning signal — this is
+    // how the loop gets smarter from its mistakes. Best-effort.
+    if (finalStatus !== 'completed' || troubleCount > 0) {
+      await import('../memory/task-knowledge-extractor')
+        .then(({ reflectOnFailure }) => reflectOnFailure(taskId, finalStatus))
+        .catch((err) => log.warn({ err, taskId }, '[telemetry] Failure reflection failed'));
+    }
   } catch (err) {
     log.warn({ err, taskId }, '[telemetry] Failed to record task outcome');
   }

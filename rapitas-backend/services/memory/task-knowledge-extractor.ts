@@ -135,6 +135,178 @@ export async function extractKnowledgeFromTask(taskId: number): Promise<number[]
   return entryIds;
 }
 
+/** WorkflowTransition causes worth reflecting on (a task hit trouble / failed). */
+const FAILURE_CAUSES = [
+  'verify_repair',
+  'ci_repair',
+  'adversarial_review_failed',
+  'verify_validation_failed',
+  'verify_no_changes',
+  'verify_pr_not_created',
+  'auto_merge_blocked',
+  'log_polluted_rejected',
+];
+
+/**
+ * Reflexion (Shinn 2023): on a task that FAILED or needed repair, distil a
+ * concrete, transferable lesson ("what went wrong → what to do instead") and
+ * store it as knowledge so similar future tasks retrieve+inject it. Failures are
+ * the richest learning signal, yet the success-only extractor ignored them — this
+ * is what lets the loop get smarter from its mistakes. Best-effort; never throws.
+ *
+ * Stored as sourceType 'failure_lesson', which the recall path
+ * (findRelatedKnowledge / buildMemoryContext) surfaces like any knowledge —
+ * trust-weighted, decayed, deduped, validated by the same background queue.
+ *
+ * @param taskId - The task that reached a terminal failure. / 失敗したタスク
+ * @param finalStatus - Terminal status (reflects when not 'completed' or trouble fired). / 終端状態
+ * @returns Created knowledge entry ids. / 作成した知識ID
+ */
+export async function reflectOnFailure(taskId: number, finalStatus: string): Promise<number[]> {
+  const entryIds: number[] = [];
+  try {
+    const task = await prisma.task.findUnique({
+      where: { id: taskId },
+      include: {
+        theme: { include: { category: true } },
+        comments: { orderBy: { createdAt: 'desc' }, take: 5 },
+        taskLabels: { include: { label: true } },
+      },
+    });
+    if (!task) return entryIds;
+
+    // The WHY: which trouble causes fired and how often (the failure's shape).
+    const troubles = await prisma.workflowTransition
+      .groupBy({
+        by: ['cause'],
+        where: { taskId, cause: { in: FAILURE_CAUSES } },
+        _count: { cause: true },
+      })
+      .catch(() => [] as { cause: string | null; _count: { cause: number } }[]);
+    const causeSummary = troubles.map((t) => `${t.cause} ×${t._count.cause}`).join(', ');
+    // A clean completion with no trouble has no failure to reflect on.
+    if (!causeSummary && finalStatus === 'completed') return entryIds;
+
+    const verifyContent = await loadVerifyContent(
+      taskId,
+      task.theme?.categoryId,
+      task.themeId,
+    ).catch(() => '');
+    const context = [
+      `タスク: ${task.title}`,
+      task.description ? `説明: ${task.description.slice(0, 400)}` : '',
+      `最終状態: ${finalStatus}`,
+      causeSummary ? `発生したトラブル: ${causeSummary}` : '',
+      verifyContent ? `検証レポート(抜粋):\n${verifyContent.slice(0, 1500)}` : '',
+      task.comments.length
+        ? `コメント:\n${task.comments
+            .slice(0, 3)
+            .map((c) => c.content)
+            .join('\n')
+            .slice(0, 400)}`
+        : '',
+    ]
+      .filter(Boolean)
+      .join('\n\n');
+    if (context.length < 60) return entryIds;
+
+    const lessons = await extractFailureLessonWithAI(context);
+    for (const item of lessons) {
+      const hash = createContentHash(item.content);
+      const existing = await prisma.knowledgeEntry.findFirst({
+        where: { contentHash: hash, forgettingStage: { not: 'archived' } },
+      });
+      if (existing) continue;
+      const dupId = await findSemanticDuplicate(item.content);
+      if (dupId != null) {
+        await boostDecayOnAccess(dupId, 0.15).catch(() => {});
+        continue;
+      }
+      const entry = await prisma.knowledgeEntry.create({
+        data: {
+          sourceType: 'failure_lesson',
+          sourceId: `task_${taskId}`,
+          title: item.title,
+          content: item.content,
+          contentHash: hash,
+          category: item.category,
+          tags: JSON.stringify([
+            'reflexion',
+            'failure',
+            ...task.taskLabels.map((tl) => tl.label.name),
+          ]),
+          // A failure is a concrete, high-signal lesson — slightly above the
+          // success extractor's 0.7 so it ranks in retrieval.
+          confidence: 0.75,
+          themeId: task.themeId,
+          taskId: task.id,
+          validationStatus: 'pending',
+        },
+      });
+      entryIds.push(entry.id);
+      await memoryTaskQueue.enqueue('embed', { entryId: entry.id, content: item.content }, 10);
+      await memoryTaskQueue.enqueue('validate', { entryId: entry.id }, 5);
+    }
+    if (entryIds.length > 0) {
+      await appendEvent({
+        eventType: 'task_knowledge_extracted',
+        actorType: 'system',
+        payload: {
+          taskId,
+          finalStatus,
+          entryIds,
+          causes: causeSummary,
+          kind: 'failure_reflection',
+        },
+      }).catch(() => {});
+      log.info(
+        { taskId, count: entryIds.length, causes: causeSummary },
+        '[reflexion] Distilled failure lessons',
+      );
+    }
+  } catch (err) {
+    log.warn({ err, taskId }, '[reflexion] reflectOnFailure failed');
+  }
+  return entryIds;
+}
+
+/** Reflexion-framed extraction: a lesson to AVOID this failure next time. */
+async function extractFailureLessonWithAI(context: string): Promise<ExtractedKnowledge[]> {
+  try {
+    const response = await sendAIMessage({
+      messages: [
+        {
+          role: 'user',
+          content: `次のタスクは失敗または修復を要しました。この失敗から、**今後の類似タスクで同じ失敗を避けるための、具体的で転用可能な教訓**を抽出してください。
+
+${context}
+
+純粋なJSON配列のみ（マークダウンのコードブロックなし）:
+[
+  { "title": "教訓の要点（簡潔）", "content": "何が問題で、次回どうすべきか。可能なら file:line / パターン名 / テスト名で具体化する", "category": "procedure|pattern|insight" }
+]
+
+ルール:
+- 汎用的で転用可能なもののみ（このタスク固有の些末は除外）
+- 最大2件
+- 抽出すべき教訓が無ければ []`,
+        },
+      ],
+      maxTokens: 700,
+    });
+    const parsed = parseJsonArray<ExtractedKnowledge>(response.content.trim());
+    if (!parsed) return [];
+    const valid = ['procedure', 'pattern', 'insight', 'fact', 'preference', 'general'];
+    return parsed
+      .filter((i) => i.title && i.content)
+      .map((i) => ({ ...i, category: valid.includes(i.category) ? i.category : 'insight' }))
+      .slice(0, 2);
+  } catch (err) {
+    log.warn({ err }, '[reflexion] extractFailureLessonWithAI failed');
+    return [];
+  }
+}
+
 /**
  * Search and return related knowledge when creating/editing a task.
  */
