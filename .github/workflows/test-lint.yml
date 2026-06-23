@@ -314,6 +314,8 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -382,6 +384,28 @@ jobs:
         env:
           RAPITAS_DB_PROVIDER: sqlite
           DATABASE_URL: "file:./rapitas-ci.db"
+
+      - name: Check type-guard drift (changed files, PR)
+        if: github.event_name == 'pull_request'
+        working-directory: rapitas-backend
+        run: |
+          BASE="${{ github.event.pull_request.base.sha }}"
+          HEAD="${{ github.sha }}"
+          CHANGED=$(git diff --name-only "$BASE" "$HEAD" \
+            | grep -E '^rapitas-backend/.*\.ts$' \
+            | sed 's|^rapitas-backend/||' || true)
+          if [ -z "$CHANGED" ]; then
+            echo "No backend .ts files changed — skipping type-guard drift check."
+            exit 0
+          fi
+          LIST=$(echo "$CHANGED" | paste -sd, -)
+          echo "Scanning changed files: $LIST"
+          bun run gen:type-guards --check --files="$LIST"
+
+      - name: Check type-guard drift (full scan, push)
+        if: github.event_name == 'push'
+        working-directory: rapitas-backend
+        run: bun run gen:type-guards --check
 
       - name: Check backend formatting
         working-directory: rapitas-backend
