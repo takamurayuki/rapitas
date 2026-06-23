@@ -35,7 +35,9 @@ const lastLoggedPolicy = new Map<number, string>();
  * Direct-to-default `commit` and PR-based `pr`/`merge` are mutually exclusive
  * landing strategies; a higher mode supersedes the lower ones.
  */
-export type LandingMode = 'merge' | 'pr' | 'commit' | 'none';
+// @gen-guard-fallback: none
+export const LANDING_MODES = ['merge', 'pr', 'commit', 'none'] as const;
+export type LandingMode = (typeof LANDING_MODES)[number];
 
 /**
  * Collapse a resolved policy into its single landing mode.

@@ -29,7 +29,8 @@ export type ConcernSeverity = (typeof CONCERN_SEVERITIES)[number];
  * `resolved` is reached when a concern published to GitHub has its issue closed
  * (status is pulled from GitHub on sync — see markConcernResolved).
  */
-export type ConcernStatus = 'open' | 'task_created' | 'dismissed' | 'resolved';
+export const CONCERN_STATUSES = ['open', 'task_created', 'dismissed', 'resolved'] as const;
+export type ConcernStatus = (typeof CONCERN_STATUSES)[number];
 
 /** A GitHub issue a concern was published to / imported from. */
 export interface LinkedIssueRef {
