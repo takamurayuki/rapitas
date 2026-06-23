@@ -17,9 +17,23 @@ import { narrowEnum } from '../../utils/common/type-guards';
 const log = createLogger('memory:concern-backlog');
 
 /** What kind of concern this is. */
-export type ConcernType = 'bug' | 'refactor' | 'security' | 'perf' | 'other';
+export const CONCERN_TYPES = [
+  'bug',
+  'refactor',
+  'security',
+  'perf',
+  'other',
+] as const;
+export type ConcernType = (typeof CONCERN_TYPES)[number];
+
 /** How serious / urgent the concern is. */
-export type ConcernSeverity = 'urgent' | 'high' | 'medium' | 'low';
+export const CONCERN_SEVERITIES = [
+  'urgent',
+  'high',
+  'medium',
+  'low',
+] as const;
+export type ConcernSeverity = (typeof CONCERN_SEVERITIES)[number];
 /**
  * Lifecycle state of a concern.
  * `resolved` is reached when a concern published to GitHub has its issue closed
@@ -37,27 +51,13 @@ export interface LinkedIssueRef {
   state: string;
 }
 
-const VALID_TYPES = [
-  'bug',
-  'refactor',
-  'security',
-  'perf',
-  'other',
-] as const satisfies readonly ConcernType[];
-const VALID_SEVERITIES = [
-  'urgent',
-  'high',
-  'medium',
-  'low',
-] as const satisfies readonly ConcernSeverity[];
-
 /** Coerces an arbitrary value to a valid concern type (default 'bug'). */
 export function normalizeConcernType(value: unknown): ConcernType {
-  return narrowEnum(value, VALID_TYPES, 'bug');
+  return narrowEnum(value, CONCERN_TYPES, 'bug');
 }
 /** Coerces an arbitrary value to a valid severity (default 'medium'). */
 export function normalizeConcernSeverity(value: unknown): ConcernSeverity {
-  return narrowEnum(value, VALID_SEVERITIES, 'medium');
+  return narrowEnum(value, CONCERN_SEVERITIES, 'medium');
 }
 
 /** Severity → numeric weight, used for ordering (higher = surfaces first). */
