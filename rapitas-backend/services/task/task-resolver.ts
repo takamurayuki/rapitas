@@ -156,9 +156,7 @@ export async function resolveTaskWorkingDirectory(
  * @param taskId - Task primary key. / タスクの主キー
  * @returns Workflow state scalars, or null. / ワークフロー状態スカラー、なければnull
  */
-export async function resolveTaskWorkflowState(
-  taskId: number,
-): Promise<TaskWorkflowState | null> {
+export async function resolveTaskWorkflowState(taskId: number): Promise<TaskWorkflowState | null> {
   return prisma.task
     .findUnique({
       where: { id: taskId },

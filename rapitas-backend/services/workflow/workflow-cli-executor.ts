@@ -11,10 +11,12 @@ import { promisify } from 'util';
 import { join } from 'path';
 import { prisma } from '../../config';
 import { AgentOrchestrator } from '../agents/agent-orchestrator';
-import { resolveTaskWithTheme, resolveTaskTitle, resolveTaskWorkflowState } from '../task/task-resolver';
 import {
-  resolveLatestSessionWorktree,
-} from '../agents/agent-session-resolver';
+  resolveTaskWithTheme,
+  resolveTaskTitle,
+  resolveTaskWorkflowState,
+} from '../task/task-resolver';
+import { resolveLatestSessionWorktree } from '../agents/agent-session-resolver';
 import { createLogger } from '../../config/logger';
 import {
   readWorkflowFile,
