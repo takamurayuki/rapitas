@@ -36,8 +36,16 @@ export interface HypothesisVerdict {
 // so an uncertain verifier leaves the hypothesis open rather than forcing a verdict.
 const CONFIRM_RE = /(成立|確認|立証|confirmed|holds?|true|✓|✔)/i;
 const REFUTE_RE = /(不成立|反証|否定|refuted|false|✗|✘|×)/i;
-/** Min consecutive-char overlap to safely match an id-less verdict to a hypothesis. */
-const MIN_MATCH_LEN = 10;
+/**
+ * Min bigram-Jaccard similarity to accept an id-less verdict ↔ hypothesis match,
+ * and the margin the best match must beat the runner-up by (so an ambiguous
+ * verdict is left unresolved rather than mis-graduated). Bigram overlap (not LCS)
+ * is used because the verifier PARAPHRASES the hypothesis — drops backticks,
+ * reorders, inserts particles — which fragments any common substring but leaves
+ * most character bigrams (narrow/this/分割代入/クラッシュ/…) shared.
+ */
+const MIN_MATCH_SIM = 0.18;
+const MATCH_MARGIN = 1.25;
 
 /**
  * Extract per-hypothesis verdicts from a verify.md `## 仮説評価` section.
@@ -82,28 +90,33 @@ export function extractHypothesisVerdicts(content: string | null | undefined): H
   return out;
 }
 
+/** Normalize for fuzzy matching: drop markdown/backticks/whitespace, lowercase. */
+function normalizeForMatch(s: string): string {
+  return s
+    .toLowerCase()
+    .replace(/[`*_#>~\s、。,.:：()「」『』【】\[\]]/g, '')
+    .trim();
+}
+
+/** Character-bigram set of a normalized string. */
+function bigrams(s: string): Set<string> {
+  const out = new Set<string>();
+  for (let i = 0; i < s.length - 1; i++) out.add(s.slice(i, i + 2));
+  return out;
+}
+
 /**
- * Longest common substring length between two strings (small inputs only).
- * Used to safely match an id-less verdict line to the hypothesis it restates.
+ * Bigram-Jaccard similarity between two strings (0..1). Robust to the verifier's
+ * paraphrasing of a hypothesis (reordering, dropped backticks, inserted particles)
+ * which would defeat a longest-common-substring match.
  */
-function longestCommonSubstringLen(a: string, b: string): number {
-  if (!a || !b) return 0;
-  const prev = new Array<number>(b.length + 1).fill(0);
-  let best = 0;
-  for (let i = 1; i <= a.length; i++) {
-    let diagPrev = 0;
-    for (let j = 1; j <= b.length; j++) {
-      const tmp = prev[j];
-      if (a[i - 1] === b[j - 1]) {
-        prev[j] = diagPrev + 1;
-        if (prev[j] > best) best = prev[j];
-      } else {
-        prev[j] = 0;
-      }
-      diagPrev = tmp;
-    }
-  }
-  return best;
+function bigramSimilarity(a: string, b: string): number {
+  const A = bigrams(normalizeForMatch(a));
+  const B = bigrams(normalizeForMatch(b));
+  if (A.size === 0 || B.size === 0) return 0;
+  let inter = 0;
+  for (const g of A) if (B.has(g)) inter += 1;
+  return inter / (A.size + B.size - inter);
 }
 
 /**
@@ -136,20 +149,22 @@ export async function applyHypothesisVerdictsFromVerify(
     for (const v of verdicts) {
       if (v.hypothesisId != null) continue;
       let bestId: number | null = null;
-      let bestLen = MIN_MATCH_LEN - 1;
-      let tie = false;
+      let bestSim = 0;
+      let secondSim = 0;
       for (const h of open) {
         if (used.has(h.id)) continue;
-        const len = longestCommonSubstringLen(v.reason, h.statement);
-        if (len > bestLen) {
-          bestLen = len;
+        const sim = bigramSimilarity(v.reason, h.statement);
+        if (sim > bestSim) {
+          secondSim = bestSim;
+          bestSim = sim;
           bestId = h.id;
-          tie = false;
-        } else if (len === bestLen && bestId != null) {
-          tie = true;
+        } else if (sim > secondSim) {
+          secondSim = sim;
         }
       }
-      if (bestId != null && !tie) {
+      // Accept only a confident, unambiguous winner — clears the floor AND beats
+      // the runner-up by the margin — so a wrong hypothesis is never graduated.
+      if (bestId != null && bestSim >= MIN_MATCH_SIM && bestSim >= secondSim * MATCH_MARGIN) {
         v.hypothesisId = bestId;
         used.add(bestId);
       }
