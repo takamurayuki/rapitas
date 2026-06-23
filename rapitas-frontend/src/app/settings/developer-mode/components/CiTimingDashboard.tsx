@@ -204,8 +204,7 @@ export function CiTimingDashboard() {
               </div>
               {data.generatedAt && (
                 <p className="mt-2 text-xs text-zinc-400 dark:text-zinc-500">
-                  キャッシュ生成:{' '}
-                  {new Date(data.generatedAt).toLocaleString('ja-JP')}{' '}
+                  キャッシュ生成: {new Date(data.generatedAt).toLocaleString('ja-JP')}{' '}
                   {data.wallClockMs !== undefined && `/ 壁時計: ${fmtMs(data.wallClockMs)}`}
                 </p>
               )}
@@ -215,9 +214,8 @@ export function CiTimingDashboard() {
             {chartData.length > 0 && (
               <div>
                 <p className="mb-3 text-xs font-medium uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
-                  最遅テスト (上位 {chartData.length} 件) —{' '}
-                  <span className="text-blue-500">●</span> 通常{' '}
-                  <span className="text-green-500">●</span> ゲート内{' '}
+                  最遅テスト (上位 {chartData.length} 件) — <span className="text-blue-500">●</span>{' '}
+                  通常 <span className="text-green-500">●</span> ゲート内{' '}
                   <span className="text-red-500">●</span> 失敗
                 </p>
                 <div className="h-72">
@@ -248,9 +246,7 @@ export function CiTimingDashboard() {
                         {chartData.map((entry, index) => (
                           <Cell
                             key={index}
-                            fill={
-                              entry.failed ? '#ef4444' : entry.inGate ? '#10b981' : '#3b82f6'
-                            }
+                            fill={entry.failed ? '#ef4444' : entry.inGate ? '#10b981' : '#3b82f6'}
                           />
                         ))}
                       </Bar>
@@ -273,7 +269,9 @@ export function CiTimingDashboard() {
                   <p className="mt-0.5 text-lg font-semibold text-green-700 dark:text-green-300">
                     {fmtMs(serialGateTotalMs)}
                   </p>
-                  <p className="text-xs text-green-500 dark:text-green-500">逐次実行（CI 合否ゲート）</p>
+                  <p className="text-xs text-green-500 dark:text-green-500">
+                    逐次実行（CI 合否ゲート）
+                  </p>
                 </div>
                 <div className="rounded-lg border border-blue-200 bg-blue-50 p-3 dark:border-blue-800 dark:bg-blue-900/20">
                   <p className="text-xs text-blue-600 dark:text-blue-400">
@@ -306,8 +304,12 @@ export function CiTimingDashboard() {
                   <table className="w-full text-xs">
                     <thead>
                       <tr className="border-b border-zinc-200 bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-800/50">
-                        <th className="px-3 py-2 text-left text-zinc-500 dark:text-zinc-400">ファイル</th>
-                        <th className="px-3 py-2 text-right text-zinc-500 dark:text-zinc-400">時間</th>
+                        <th className="px-3 py-2 text-left text-zinc-500 dark:text-zinc-400">
+                          ファイル
+                        </th>
+                        <th className="px-3 py-2 text-right text-zinc-500 dark:text-zinc-400">
+                          時間
+                        </th>
                       </tr>
                     </thead>
                     <tbody>
@@ -343,8 +345,12 @@ export function CiTimingDashboard() {
                   <table className="w-full text-xs">
                     <thead>
                       <tr className="border-b border-amber-200 bg-amber-50 dark:border-amber-800 dark:bg-amber-900/20">
-                        <th className="px-3 py-2 text-left text-amber-600 dark:text-amber-400">ファイル</th>
-                        <th className="px-3 py-2 text-right text-amber-600 dark:text-amber-400">時間</th>
+                        <th className="px-3 py-2 text-left text-amber-600 dark:text-amber-400">
+                          ファイル
+                        </th>
+                        <th className="px-3 py-2 text-right text-amber-600 dark:text-amber-400">
+                          時間
+                        </th>
                       </tr>
                     </thead>
                     <tbody>
