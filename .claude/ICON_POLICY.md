@@ -61,6 +61,10 @@ Keep this list accurate. If you assign a glyph a new meaning, add it here.
 | `SquareTerminal`          | 統合ターミナル                           |
 | `SplitSquareHorizontal`   | ターミナルのペイン左右分割               |
 | `SplitSquareVertical`     | ターミナルのペイン上下分割               |
+| `Sprout`                  | 記憶の成長 (nav: /agents/memory)         |
+| `Library`                 | 知識ベース (nav: /knowledge グループ)    |
+| `Search`                  | 知識ブラウザ (nav: /knowledge)           |
+| `BarChart2`               | 知識の成長トレンドチャートヘッダー       |
 
 ### Known collisions — resolve when you next touch them
 

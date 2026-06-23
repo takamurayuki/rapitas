@@ -46,6 +46,9 @@ import {
   BookMarked,
   Keyboard,
   Beaker,
+  Sprout,
+  Library,
+  Search,
 } from 'lucide-react';
 import Link from 'next/link';
 import AppIcon from '@/components/common/app-icon';
@@ -202,17 +205,17 @@ export default function Header() {
             {
               href: '/agents/memory',
               label: t('memoryVisualization'),
-              icon: Sparkles,
+              icon: Sprout,
             },
             {
               href: '#',
               label: t('knowledgeBase'),
-              icon: Brain,
+              icon: Library,
               children: [
                 {
                   href: '/knowledge',
                   label: t('knowledgeBrowser'),
-                  icon: Brain,
+                  icon: Search,
                 },
                 {
                   href: '/knowledge/contradictions',
