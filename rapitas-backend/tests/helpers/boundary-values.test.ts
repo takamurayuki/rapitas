@@ -19,17 +19,17 @@ describe('STRING_EDGES', () => {
     }
   });
 
-  test('空文字列 (\'\') ケースが含まれること', () => {
+  test("空文字列 ('') ケースが含まれること", () => {
     const found = STRING_EDGES.find((c) => c.input === '');
     expect(found).toBeDefined();
   });
 
-  test('半角スペース (\' \') ケースが含まれること', () => {
+  test("半角スペース (' ') ケースが含まれること", () => {
     const found = STRING_EDGES.find((c) => c.input === ' ');
     expect(found).toBeDefined();
   });
 
-  test('タブ文字 (\'\\t\') ケースが含まれること', () => {
+  test("タブ文字 ('\\t') ケースが含まれること", () => {
     const found = STRING_EDGES.find((c) => c.input === '\t');
     expect(found).toBeDefined();
   });

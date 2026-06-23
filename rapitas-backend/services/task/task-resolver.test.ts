@@ -98,17 +98,14 @@ describe('resolveTaskWithTheme', () => {
   });
 
   describe('境界値: id 0/-1/1 → null を返し where.id に値が伝播すること', () => {
-    it.each(toNameTuples(ID_EDGES))(
-      '%s → null',
-      async (_label, input) => {
-        const result = await resolveTaskWithTheme(input);
-        expect(result).toBeNull();
+    it.each(toNameTuples(ID_EDGES))('%s → null', async (_label, input) => {
+      const result = await resolveTaskWithTheme(input);
+      expect(result).toBeNull();
 
-        expect(mockTaskFindUnique).toHaveBeenCalledTimes(1);
-        const callArgs = mockTaskFindUnique.mock.calls[0][0] as { where: { id: number } };
-        expect(callArgs.where.id).toBe(input);
-      },
-    );
+      expect(mockTaskFindUnique).toHaveBeenCalledTimes(1);
+      const callArgs = mockTaskFindUnique.mock.calls[0][0] as { where: { id: number } };
+      expect(callArgs.where.id).toBe(input);
+    });
   });
 });
 

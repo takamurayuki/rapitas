@@ -98,18 +98,15 @@ describe('resolveSessionByToken', () => {
   });
 
   describe('境界値: 空・空白文字列トークン → null を返し where.sessionToken に値が伝播すること', () => {
-    it.each(toNameTuples(STRING_EDGES))(
-      'token "%s" → null',
-      async (_label, input) => {
-        const result = await resolveSessionByToken(input);
-        expect(result).toBeNull();
+    it.each(toNameTuples(STRING_EDGES))('token "%s" → null', async (_label, input) => {
+      const result = await resolveSessionByToken(input);
+      expect(result).toBeNull();
 
-        expect(mockUserSessionFindFirst).toHaveBeenCalledTimes(1);
-        const callArgs = mockUserSessionFindFirst.mock.calls[0][0] as {
-          where: { sessionToken: string };
-        };
-        expect(callArgs.where.sessionToken).toBe(input);
-      },
-    );
+      expect(mockUserSessionFindFirst).toHaveBeenCalledTimes(1);
+      const callArgs = mockUserSessionFindFirst.mock.calls[0][0] as {
+        where: { sessionToken: string };
+      };
+      expect(callArgs.where.sessionToken).toBe(input);
+    });
   });
 });

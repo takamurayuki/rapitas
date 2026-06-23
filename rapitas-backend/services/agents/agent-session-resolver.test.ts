@@ -90,19 +90,16 @@ describe('resolveLatestFinishedSession', () => {
   });
 
   describe('境界値: configId 0/-1/1 → null を返し where.configId に値が伝播すること', () => {
-    it.each(toNameTuples(ID_EDGES))(
-      'configId %s → null',
-      async (_label, input) => {
-        const result = await resolveLatestFinishedSession(input);
-        expect(result).toBeNull();
+    it.each(toNameTuples(ID_EDGES))('configId %s → null', async (_label, input) => {
+      const result = await resolveLatestFinishedSession(input);
+      expect(result).toBeNull();
 
-        expect(mockFindFirst).toHaveBeenCalledTimes(1);
-        const callArgs = mockFindFirst.mock.calls[0][0] as {
-          where: { configId: number };
-        };
-        expect(callArgs.where.configId).toBe(input);
-      },
-    );
+      expect(mockFindFirst).toHaveBeenCalledTimes(1);
+      const callArgs = mockFindFirst.mock.calls[0][0] as {
+        where: { configId: number };
+      };
+      expect(callArgs.where.configId).toBe(input);
+    });
   });
 });
 

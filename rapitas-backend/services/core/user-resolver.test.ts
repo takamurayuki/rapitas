@@ -81,17 +81,14 @@ describe('resolveUserByEmail', () => {
   });
 
   describe('境界値: 空・空白文字列メール → null を返し where.email に値が伝播すること', () => {
-    it.each(toNameTuples(STRING_EDGES))(
-      'email "%s" → null',
-      async (_label, input) => {
-        const result = await resolveUserByEmail(input);
-        expect(result).toBeNull();
+    it.each(toNameTuples(STRING_EDGES))('email "%s" → null', async (_label, input) => {
+      const result = await resolveUserByEmail(input);
+      expect(result).toBeNull();
 
-        expect(mockUserFindFirst).toHaveBeenCalledTimes(1);
-        const callArgs = mockUserFindFirst.mock.calls[0][0] as { where: { email: string } };
-        expect(callArgs.where.email).toBe(input);
-      },
-    );
+      expect(mockUserFindFirst).toHaveBeenCalledTimes(1);
+      const callArgs = mockUserFindFirst.mock.calls[0][0] as { where: { email: string } };
+      expect(callArgs.where.email).toBe(input);
+    });
   });
 });
 
