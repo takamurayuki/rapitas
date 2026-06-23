@@ -3,6 +3,7 @@
  * copilot-action-service.ts のアクション実行ロジックのユニットテスト
  */
 import { describe, test, expect, mock, beforeEach } from 'bun:test';
+import { NONEXISTENT_ID } from '../helpers/boundary-values';
 
 const mockTask = {
   findUnique: mock(() => Promise.resolve(null)),
@@ -81,7 +82,7 @@ describe('Copilot Action Service', () => {
   test('analyze: 存在しないタスクでエラー', async () => {
     mockTask.findUnique.mockReturnValue(Promise.resolve(null));
 
-    const result = await executeCopilotAction({ action: 'analyze', taskId: 999 });
+    const result = await executeCopilotAction({ action: 'analyze', taskId: NONEXISTENT_ID });
 
     expect(result.success).toBe(false);
     expect(result.message).toContain('見つかりません');

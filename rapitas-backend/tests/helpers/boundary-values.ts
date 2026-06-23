@@ -135,6 +135,41 @@ export const NULLABLE_ID_EDGES: readonly BoundaryCase<number | null>[] = [
 ];
 
 /**
+ * DB に存在しないことを表すセンチネル ID。
+ *
+ * mock が null を返す前提の「存在しないID」として使用する。
+ * テストフィクスチャとして汎用的に使う `999` のような値ではなく、
+ * 「このIDはDBに存在しない」という意図を明示するための共有定数。
+ *
+ * @example
+ * ```ts
+ * mockTask.findUnique.mockResolvedValue(null);
+ * const result = await executeCopilotAction({ action: 'analyze', taskId: NONEXISTENT_ID });
+ * expect(result.success).toBe(false);
+ * ```
+ */
+export const NONEXISTENT_ID = 999;
+
+/**
+ * バリデーションで拒否されるべき非正 ID の境界値セット。
+ *
+ * 0（ゼロ境界）と -1（負数）を含む。`ID_EDGES` は正常値 `1` も含むため、
+ * 「バリデーション拒否系」テストには本定数を使用する。
+ * 拒否対象（≤0）を明示的に宣言する目的で `ID_EDGES.filter(...)` の派生ではなく独立した定数とする。
+ *
+ * @example
+ * ```ts
+ * test.each(INVALID_ID_EDGES)('ID $label は ValidationError(400)', async ({ value }) => {
+ *   await expect(resolvePrOrThrow(String(value))).rejects.toThrow(ValidationError);
+ * });
+ * ```
+ */
+export const INVALID_ID_EDGES: readonly BoundaryCase<number>[] = [
+  { label: 'id=0（ゼロ境界）', value: 0 },
+  { label: 'id=-1（負数）', value: -1 },
+] as const;
+
+/**
  * BoundaryCase<T> 配列を `it.each` 用 `[label, value]` タプル配列に変換する。
  *
  * bun:test の `%s` 置換は primitive 前提のため、オブジェクト配列を直接渡すと
