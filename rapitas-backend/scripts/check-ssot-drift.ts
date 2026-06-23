@@ -186,6 +186,57 @@ function scanDomainC(): { file: string; match: string }[] {
   return violations;
 }
 
+// ── Domain E ─────────────────────────────────────────────────────────────────
+// Detect reverse-dependency anti-pattern:
+//   A `VALID_*` array defined AFTER a union type definition rather than the
+//   array being the SSOT. Example:
+//     export type T = 'a' | 'b';          ← type defined first
+//     const VALID_TS = [...] as const ...  ← array defined after (reverse dep)
+//
+// Runs in warn-only mode regardless of --check flag (Domain E never exits 1)
+// because the detection heuristic may produce false positives on uncommon patterns.
+
+// Matches `VALID_<SOMETHING>` constant definitions (any visibility)
+const DOMAIN_E_VALID_ARRAY_RE = /\bVALID_[A-Z][A-Z0-9_]*\s*[=:]/;
+
+// Files/dirs to skip — tests, docs, and generated files have legitimate uses
+function isExcludedForDomainE(relPath: string): boolean {
+  return (
+    relPath.includes('.test.') ||
+    relPath.includes('.spec.') ||
+    relPath.includes('.generated.') ||
+    relPath.includes('__tests__/') ||
+    relPath.includes('scripts/')
+  );
+}
+
+function scanDomainE(): { file: string; match: string }[] {
+  const violations: { file: string; match: string }[] = [];
+  const files = [
+    ...collectTsFiles(join(ROOT, 'services')),
+    ...collectTsFiles(join(ROOT, 'routes')),
+    ...collectTsFiles(join(ROOT, 'utils')),
+  ];
+
+  for (const file of files) {
+    const relPath = rel(file);
+    if (isExcludedForDomainE(relPath)) continue;
+
+    const content = read(file);
+    const lines = content.split('\n');
+    for (let i = 0; i < lines.length; i++) {
+      if (DOMAIN_E_VALID_ARRAY_RE.test(lines[i])) {
+        const m = DOMAIN_E_VALID_ARRAY_RE.exec(lines[i]);
+        violations.push({
+          file: `${relPath}:${i + 1}`,
+          match: m ? m[0].trim() : lines[i].trim().slice(0, 60),
+        });
+      }
+    }
+  }
+  return violations;
+}
+
 // ── Domain D ─────────────────────────────────────────────────────────────────
 // Detect runtime constants and type aliases that must be sourced from
 // services/workflow/workflow-types.ts:
@@ -243,12 +294,14 @@ function scanDomainD(): { file: string; match: string }[] {
 // ── Runner ────────────────────────────────────────────────────────────────────
 
 const mode = CHECK_MODE ? 'check' : 'warn-only';
-console.log(`check-ssot-drift [${mode}] — scanning 4 constant domains\n`);
+console.log(`check-ssot-drift [${mode}] — scanning 5 constant domains\n`);
 
 const domainAViolations = scanDomainA();
 const domainBViolations = scanDomainB();
 const domainCViolations = scanDomainC();
 const domainDViolations = scanDomainD();
+// NOTE: Domain E always runs warn-only regardless of --check to avoid false-positive CI failures.
+const domainEViolations = scanDomainE();
 
 function report(label: string, violations: { file: string; match: string }[]): void {
   console.log(`${label}: ${violations.length} violation(s)`);
@@ -267,6 +320,20 @@ report('Domain A (WorkflowRole/Status/Mode type drift)', domainAViolations);
 report('Domain B (HTTP status numeric literals)', domainBViolations);
 report('Domain C (error message string literals)', domainCViolations);
 report('Domain D (WorkflowFileType/VALID_STATUSES/inline-modes drift)', domainDViolations);
+// Domain E is always warn-only: violations here do not affect the exit code.
+if (domainEViolations.length > 0) {
+  console.log(
+    `Domain E (VALID_* reverse-dependency pattern) [warn-only]: ${domainEViolations.length} violation(s)`,
+  );
+  for (const v of domainEViolations.slice(0, 20)) {
+    console.log(`  ⚠️  ${v.file}  →  ${v.match}`);
+  }
+  if (domainEViolations.length > 20) {
+    console.log(`  ... and ${domainEViolations.length - 20} more`);
+  }
+} else {
+  console.log('Domain E (VALID_* reverse-dependency pattern) [warn-only]: 0 violation(s)');
+}
 
 const total =
   domainAViolations.length +

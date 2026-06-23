@@ -7,7 +7,13 @@
  * just to close it). Pure functions, no DB.
  */
 import { describe, test, expect } from 'bun:test';
-import { checkFalsifiable, isConcreteArtifact, normalizeDomain } from './hypothesis-service';
+import {
+  HYPOTHESIS_DOMAINS,
+  checkFalsifiable,
+  isConcreteArtifact,
+  normalizeDomain,
+} from './hypothesis-service';
+import { isHypothesisDomain } from './hypothesis-service.guards.generated';
 
 describe('checkFalsifiable', () => {
   test('accepts a concrete testable claim', () => {
@@ -65,5 +71,31 @@ describe('normalizeDomain', () => {
     expect(normalizeDomain('nonsense')).toBe('codebase');
     expect(normalizeDomain(undefined)).toBe('codebase');
     expect(normalizeDomain(42)).toBe('codebase');
+  });
+});
+
+describe('HYPOTHESIS_DOMAINS (SSOT array)', () => {
+  test('contains all expected domain strings', () => {
+    expect(HYPOTHESIS_DOMAINS).toEqual([
+      'codebase',
+      'agent-behavior',
+      'performance',
+      'architecture',
+      'other',
+    ]);
+  });
+});
+
+describe('isHypothesisDomain (generated guard)', () => {
+  test.each(['codebase', 'agent-behavior', 'performance', 'architecture', 'other'] as const)(
+    'returns true for valid domain "%s"',
+    (d) => {
+      expect(isHypothesisDomain(d)).toBe(true);
+    },
+  );
+
+  test('returns false for invalid domain', () => {
+    expect(isHypothesisDomain('unknown')).toBe(false);
+    expect(isHypothesisDomain(null)).toBe(false);
   });
 });

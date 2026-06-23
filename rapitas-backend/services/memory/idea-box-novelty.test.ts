@@ -24,7 +24,9 @@ mock.module('../../config/database', () => ({
         return Promise.resolve({ id: 500 });
       },
     },
-    theme: { findMany: () => Promise.resolve([{ id: 1, isDefault: true, workingDirectory: '/w' }]) },
+    theme: {
+      findMany: () => Promise.resolve([{ id: 1, isDefault: true, workingDirectory: '/w' }]),
+    },
   },
 }));
 
