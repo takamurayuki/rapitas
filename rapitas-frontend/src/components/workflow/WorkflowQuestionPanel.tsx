@@ -91,6 +91,12 @@ export function WorkflowQuestionPanel({
         {question.text}
       </p>
 
+      {options.length > 0 && (
+        <p className="mb-2 text-xs font-medium text-amber-700 dark:text-amber-300">
+          回答を選んでください（下の入力欄で自由記述も可）
+        </p>
+      )}
+
       <div className="grid gap-2">
         {options.map((option, index) => {
           const key = String.fromCharCode(65 + index); // A, B, C, D
@@ -169,28 +175,33 @@ export function WorkflowQuestionPanel({
           </div>
         </div>
       ) : (
-        <div className="mt-3 flex items-center gap-2">
-          <input
-            type="text"
-            value={freeText}
-            onChange={(e) => setFreeText(e.target.value)}
-            onKeyDown={(e) => e.key === 'Enter' && canSubmit && onAnswer(answer)}
-            placeholder="自由記述で回答する場合はこちらに入力..."
-            className="flex-1 rounded-lg border border-amber-300 bg-white px-3 py-2 text-sm focus:border-amber-500 focus:outline-none focus:ring-2 focus:ring-amber-500/30 dark:border-amber-700 dark:bg-zinc-800"
-          />
-          <button
-            type="button"
-            onClick={() => canSubmit && onAnswer(answer)}
-            disabled={!canSubmit}
-            className="flex items-center gap-2 rounded-lg bg-amber-600 px-4 py-2 font-medium text-white transition-colors hover:bg-amber-700 disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            {submitting ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
-            ) : (
-              <Send className="h-4 w-4" />
-            )}
-            送信
-          </button>
+        <div className="mt-3">
+          {options.length > 0 && (
+            <p className="mb-1 text-xs text-amber-700 dark:text-amber-300">その他（自由記述）</p>
+          )}
+          <div className="flex items-center gap-2">
+            <input
+              type="text"
+              value={freeText}
+              onChange={(e) => setFreeText(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && canSubmit && onAnswer(answer)}
+              placeholder="選択肢に当てはまらない場合はこちらに入力..."
+              className="flex-1 rounded-lg border border-amber-300 bg-white px-3 py-2 text-sm focus:border-amber-500 focus:outline-none focus:ring-2 focus:ring-amber-500/30 dark:border-amber-700 dark:bg-zinc-800"
+            />
+            <button
+              type="button"
+              onClick={() => canSubmit && onAnswer(answer)}
+              disabled={!canSubmit}
+              className="flex items-center gap-2 rounded-lg bg-amber-600 px-4 py-2 font-medium text-white transition-colors hover:bg-amber-700 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {submitting ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Send className="h-4 w-4" />
+              )}
+              送信
+            </button>
+          </div>
         </div>
       )}
     </div>

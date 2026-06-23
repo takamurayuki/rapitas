@@ -11,6 +11,9 @@ export type WorkflowStatus =
   | 'plan_created'
   | 'plan_approved'
   | 'in_progress'
+  // Paused awaiting the user's answer to an intake/clarification question.
+  | 'awaiting_question'
+  | 'blocked'
   | 'verify_done'
   | 'completed';
 

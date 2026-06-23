@@ -14,6 +14,11 @@ export interface IntakeQuestionInput {
   missing: SpecField[];
   /** Heuristic reasons the spec was judged thin. / 仕様が薄いと判定した根拠 */
   reasons: string[];
+  /**
+   * Selectable goal options to present (preferably AI-generated and task-specific).
+   * When omitted, a task-type heuristic ({@link intakeGoalOptions}) is used.
+   */
+  options?: string[];
 }
 
 /** Marks the start of the selectable-choices block the UI parses. */
@@ -86,7 +91,9 @@ export function buildIntakeQuestion(input: IntakeQuestionInput): string {
 
   // Selectable goal choices — the UI parses bullets under INTAKE_OPTIONS_HEADING
   // and renders them as buttons (plus an always-available "その他" free-text).
-  const options = intakeGoalOptions(input.title);
+  // Prefer caller-supplied (AI-generated) options; fall back to the task-type heuristic.
+  const options =
+    input.options && input.options.length > 0 ? input.options : intakeGoalOptions(input.title);
   if (options.length > 0) {
     lines.push(INTAKE_OPTIONS_HEADING);
     for (const opt of options) lines.push(`- ${opt}`);

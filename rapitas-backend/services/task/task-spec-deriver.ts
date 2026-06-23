@@ -60,6 +60,48 @@ function parseSpec(content: string): DerivedTaskSpec {
   }
 }
 
+const OPTIONS_SYSTEM_PROMPT = `あなたはソフトウェア開発タスクの「ゴール候補」を提示するアシスタントです。
+与えられたタスクのタイトルと説明から、ユーザーが選びやすい、互いに異なる「達成ゴールの方向性」を2〜4個、日本語の短い選択肢として提案してください。
+- 各選択肢は1行・15〜40文字程度の簡潔な文。
+- 抽象的すぎる選択肢（「品質を上げる」等）は避け、このタスク固有の具体的な方向性にする。
+- 互いに重複しない、明確に異なる方向性にする。
+出力は必ず次のJSONのみ。前後に説明文やコードブロックを付けないこと:
+{"options":["...","..."]}`;
+
+/**
+ * Ask the AI to propose 2-4 distinct, task-specific GOAL options the user can pick
+ * from when a task's spec is too thin (the intake clarifying question). This is the
+ * "executing agent generates the choices" path — richer than a fixed task-type
+ * heuristic. Returns [] when AI is unavailable or fails, so the caller can fall
+ * back to the heuristic options.
+ *
+ * @param title - Task title. / タスクタイトル
+ * @param description - Free-text description (may be empty). / タスク説明
+ * @returns 2-4 option strings, or [] on failure. / 選択肢、失敗時は空配列
+ */
+export async function generateIntakeGoalOptions(
+  title: string,
+  description: string,
+): Promise<string[]> {
+  if (!(await isAnyApiKeyConfigured())) return [];
+  const basis = `# タスクタイトル\n${title}\n\n# 説明\n${(description ?? '').trim() || '(説明なし)'}`;
+  try {
+    const provider = await getDefaultProvider();
+    const response = await sendAIMessage({
+      provider,
+      messages: [{ role: 'user', content: basis }],
+      systemPrompt: OPTIONS_SYSTEM_PROMPT,
+      maxTokens: 512,
+    });
+    const match = response.content.match(/\{[\s\S]*\}/);
+    if (!match) return [];
+    return toStringArray((JSON.parse(match[0]) as { options?: unknown }).options).slice(0, 4);
+  } catch (error) {
+    logger.warn({ err: error }, '[task-spec-deriver] intake option generation failed');
+    return [];
+  }
+}
+
 /**
  * Derive structured goals/constraints/acceptance criteria from a free-text description.
  *

@@ -1,7 +1,16 @@
 'use client';
 
 import type { WorkflowStatus, WorkflowRoleConfig } from '@/types';
-import { FileSearch, FileText, CheckCircle, Clock, PlayCircle, Circle } from 'lucide-react';
+import {
+  FileSearch,
+  FileText,
+  CheckCircle,
+  Clock,
+  PlayCircle,
+  Circle,
+  HelpCircle,
+  AlertTriangle,
+} from 'lucide-react';
 
 const STATUS_CONFIG: Record<
   WorkflowStatus,
@@ -47,6 +56,20 @@ const STATUS_CONFIG: Record<
     bgColor: 'bg-blue-50 dark:bg-blue-900/30',
     borderColor: 'border-blue-300 dark:border-blue-600',
     icon: PlayCircle,
+  },
+  awaiting_question: {
+    label: '回答待ち',
+    color: 'text-amber-600 dark:text-amber-400',
+    bgColor: 'bg-amber-50 dark:bg-amber-900/30',
+    borderColor: 'border-amber-300 dark:border-amber-600',
+    icon: HelpCircle,
+  },
+  blocked: {
+    label: 'ブロック中',
+    color: 'text-red-600 dark:text-red-400',
+    bgColor: 'bg-red-50 dark:bg-red-900/30',
+    borderColor: 'border-red-300 dark:border-red-600',
+    icon: AlertTriangle,
   },
   verify_done: {
     label: '検証完了',

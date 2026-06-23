@@ -20,7 +20,7 @@ import {
   writeWorkflowFile,
 } from '../workflow/workflow-file-utils';
 import { recordTransition } from '../workflow/transition-recorder';
-import { deriveTaskSpec } from '../task/task-spec-deriver';
+import { deriveTaskSpec, generateIntakeGoalOptions } from '../task/task-spec-deriver';
 import { createNotification } from '../communication/notification-service';
 import {
   checkSpecQuality,
@@ -86,22 +86,24 @@ export async function ensureIntakeReady(taskId: number): Promise<IntakeOutcome> 
     }
   }
 
-  // 2) Still thin → decide: ask once, or proceed on best-guess.
-  const alreadyAsked = await hasPriorIntakeQuestion(taskId);
+  // 2) Still thin → decide: keep asking until the user answers, or (once answered
+  // but still thin) proceed on best-guess. The workflow must NOT advance while a
+  // question is unanswered.
+  const wasAnswered = await hasAnsweredIntakeQuestion(taskId);
   const { policy, source } = resolveIntakePolicy();
-  const action = decideIntake(false, alreadyAsked, policy);
+  const action = decideIntake(false, wasAnswered, policy);
 
   if (action === 'ask') {
     await raiseIntakeQuestion(task, quality);
     return {
       status: 'awaiting_question',
-      message: '仕様が不十分なため確認の質問を作成しました（回答後に再開します）',
+      message: '仕様が不十分なため確認の質問を作成しました（回答されるまで先に進みません）',
     };
   }
 
-  await recordLowConfidence(task, quality, policy, alreadyAsked);
+  await recordLowConfidence(task, quality, policy, wasAnswered);
   log.info(
-    { taskId, score: quality.score, missing: quality.missing, policy, source, alreadyAsked },
+    { taskId, score: quality.score, missing: quality.missing, policy, source, wasAnswered },
     '[intake-gate] proceeding with thin spec (best-guess)',
   );
   return {
@@ -159,12 +161,19 @@ async function enrichSpec(taskId: number, task: IntakeTaskRow): Promise<SpecQual
   return { description: task.description, goals, constraints, acceptanceCriteria };
 }
 
-/** Whether an intake clarifying question was already raised for this task. */
-async function hasPriorIntakeQuestion(taskId: number): Promise<boolean> {
-  const prior = await prisma.workflowTransition
-    .findFirst({ where: { taskId, cause: 'intake_question' }, select: { id: true } })
+/**
+ * Whether the USER has ANSWERED a prior intake question (the answer endpoint
+ * records a `intake_question_answered` transition). Distinguishes "asked but
+ * unanswered" (keep waiting) from "answered but still thin" (proceed best-guess).
+ *
+ * @param taskId - Task to check. / 対象タスク
+ * @returns true when an answer was recorded. / 回答済みなら true
+ */
+async function hasAnsweredIntakeQuestion(taskId: number): Promise<boolean> {
+  const answered = await prisma.workflowTransition
+    .findFirst({ where: { taskId, cause: 'intake_question_answered' }, select: { id: true } })
     .catch(() => null);
-  return prior !== null;
+  return answered !== null;
 }
 
 /** Write the clarifying question.md and move the task to awaiting_question. */
@@ -174,10 +183,16 @@ async function raiseIntakeQuestion(task: IntakeTaskRow, quality: SpecQualityResu
     log.warn({ taskId: task.id }, '[intake-gate] cannot resolve workflow dir — skipping question');
     return;
   }
+  // The executing agent (AI) proposes task-specific goal options; fall back to the
+  // task-type heuristic inside buildIntakeQuestion when AI is unavailable/empty.
+  const aiOptions = await generateIntakeGoalOptions(task.title, task.description ?? '').catch(
+    () => [] as string[],
+  );
   const body = buildIntakeQuestion({
     title: task.title,
     missing: quality.missing,
     reasons: quality.reasons,
+    options: aiOptions,
   });
   await writeWorkflowFile(resolved.dir, 'question', body, task.id);
 
@@ -187,7 +202,8 @@ async function raiseIntakeQuestion(task: IntakeTaskRow, quality: SpecQualityResu
     data: { workflowStatus: 'awaiting_question', updatedAt: new Date() },
   });
   // previousStatus lets resume-from-question restore the pre-question status
-  // (draft), which re-triggers this gate — now hasPriorIntakeQuestion()=true.
+  // (draft), which re-triggers this gate. It stays paused (asks again) until the
+  // user answers — see hasAnsweredIntakeQuestion / decideIntake.
   await recordTransition({
     taskId: task.id,
     fromStatus,

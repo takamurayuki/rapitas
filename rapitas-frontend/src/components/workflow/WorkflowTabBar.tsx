@@ -1,7 +1,7 @@
 'use client';
 // WorkflowTabBar
 
-import { Clock, RefreshCw, CheckCircle2 } from 'lucide-react';
+import { Clock, RefreshCw, CheckCircle2, HelpCircle } from 'lucide-react';
 import type { WorkflowFileType, WorkflowStatus } from '@/types';
 import type { WorkflowTab } from './workflow-viewer-utils';
 
@@ -52,9 +52,15 @@ export function WorkflowTabBar({
           const isActive = activeTab === tab.id;
           const hasContent = tabStatus[tab.id];
           const TabIcon = tab.icon;
-          // Show badge for plan tab awaiting approval
-          const needsAttention =
+          // Attention badges: a plan awaiting approval, or a question awaiting the
+          // user's answer. While awaiting an answer the Q&A tab must NOT show the
+          // "done" check (that wrongly reads as answered) — show 要回答 instead; the
+          // check appears only once the question has been answered/resolved.
+          const planNeedsApproval =
             tab.id === 'plan' && effectiveStatus === 'plan_created' && hasContent;
+          const questionNeedsAnswer =
+            tab.id === 'question' && effectiveStatus === 'awaiting_question' && hasContent;
+          const needsAttention = planNeedsApproval || questionNeedsAnswer;
 
           return (
             <button
@@ -71,8 +77,12 @@ export function WorkflowTabBar({
               {
                 needsAttention ? (
                   <span className="flex items-center gap-1 px-1.5 py-0.5 bg-amber-100 dark:bg-amber-800/50 text-amber-700 dark:text-amber-300 text-[10px] font-medium rounded-full">
-                    <Clock className="h-2.5 w-2.5" />
-                    承認待ち
+                    {questionNeedsAnswer ? (
+                      <HelpCircle className="h-2.5 w-2.5" />
+                    ) : (
+                      <Clock className="h-2.5 w-2.5" />
+                    )}
+                    {questionNeedsAnswer ? '要回答' : '承認待ち'}
                   </span>
                 ) : hasContent ? (
                   // A filled check reads as "this phase is done" — the previous
