@@ -15,6 +15,8 @@ import { existsSync } from 'fs';
 import { join } from 'path';
 import { prisma } from '../../config/database';
 import { getTaskWorkflowDir } from './workflow-paths';
+import { WORKFLOW_STATUSES, type WorkflowStatus } from './workflow-types';
+import { narrowEnum } from '../../utils/common/type-guards';
 
 export interface Violation {
   /** Stable code so dashboards can group: missing_file / status_mismatch / regression. */
@@ -23,17 +25,17 @@ export interface Violation {
 }
 
 /**
- * Normalize a raw workflowStatus value to a safe default.
- * Empty strings and whitespace-only values are treated as 'draft' to prevent
- * `ALLOWED_FILE_TYPES_BY_STATUS[""]` from returning `undefined` and skipping
- * the file-type guard entirely.
+ * Normalize a raw workflowStatus value to a valid WorkflowStatus enum member.
+ * Empty strings, whitespace-only values, and unrecognised strings are mapped to
+ * 'draft' to prevent `ALLOWED_FILE_TYPES_BY_STATUS` from returning `undefined`
+ * and skipping the file-type guard entirely.
  *
  * @param s - Raw workflowStatus from DB (may be null, undefined, or empty). / DBから取得した生の値
- * @returns Normalized status string, defaulting to 'draft'. / 正規化済みステータス
+ * @returns Normalized WorkflowStatus, defaulting to 'draft'. / 正規化済みWorkflowStatus
  */
-export function normalizeWorkflowStatus(s?: string | null): string {
-  if (s && s.trim().length > 0) return s.trim();
-  return 'draft';
+export function normalizeWorkflowStatus(s?: string | null): WorkflowStatus {
+  const t = (s ?? '').trim();
+  return narrowEnum(t.length ? t : undefined, WORKFLOW_STATUSES, 'draft');
 }
 
 /**

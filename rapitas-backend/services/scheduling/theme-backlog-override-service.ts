@@ -8,6 +8,7 @@
  */
 import { prisma } from '../../config/database';
 import type { BacklogJobKind } from './backlog-schedule-service';
+import { narrowEnum } from '../../utils/common/type-guards';
 
 /** How a project's log files are formatted (drives the health_check parser). */
 export type LogFormat = 'pino' | 'json' | 'text';
@@ -26,7 +27,7 @@ const VALID_FORMATS: readonly LogFormat[] = ['pino', 'json', 'text'];
 
 /** Coerces a value to a valid log format (default 'text' — the safe fallback). */
 export function normalizeLogFormat(value: unknown): LogFormat {
-  return VALID_FORMATS.includes(value as LogFormat) ? (value as LogFormat) : 'text';
+  return narrowEnum(value, VALID_FORMATS, 'text');
 }
 
 interface OverrideRow {
