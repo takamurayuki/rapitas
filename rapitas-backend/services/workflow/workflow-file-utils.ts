@@ -17,7 +17,8 @@ import { applyHypothesisVerdictsFromVerify } from '../memory/hypothesis-from-ver
 
 const log = createLogger('workflow-file-utils');
 
-export type WorkflowFileType = 'research' | 'question' | 'plan' | 'verify';
+import type { WorkflowFileType } from './workflow-types';
+export type { WorkflowFileType };
 
 /**
  * Resolve the workflow directory path from a task ID.

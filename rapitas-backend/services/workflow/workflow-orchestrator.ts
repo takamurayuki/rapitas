@@ -38,10 +38,6 @@ export type { WorkflowAdvanceResult } from './workflow-agent-executor';
 
 const log = createLogger('workflow-orchestrator');
 
-// NOTE: WorkflowFileType is kept as a local type alias here because it overlaps
-// with the file-utils re-export; consumers should import from workflow-file-utils.
-type WorkflowFileType = 'research' | 'question' | 'plan' | 'verify';
-
 // NOTE: The per-mode transition tables were moved to workflow-mode-config.ts,
 // which builds them from DB-backed, UI-editable settings (single source of
 // truth, shared with role-resolver and the frontend). Research is mandatory in
