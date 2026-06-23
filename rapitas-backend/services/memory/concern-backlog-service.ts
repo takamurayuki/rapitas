@@ -12,6 +12,7 @@ import { prisma } from '../../config/database';
 import { createLogger } from '../../config/logger';
 import { createTask } from '../task/task-mutations';
 import { sanitizeMarkdownContent } from '../../utils/common/mojibake-detector';
+import { narrowEnum } from '../../utils/common/type-guards';
 
 const log = createLogger('memory:concern-backlog');
 
@@ -41,13 +42,11 @@ const VALID_SEVERITIES: readonly ConcernSeverity[] = ['urgent', 'high', 'medium'
 
 /** Coerces an arbitrary value to a valid concern type (default 'bug'). */
 export function normalizeConcernType(value: unknown): ConcernType {
-  return VALID_TYPES.includes(value as ConcernType) ? (value as ConcernType) : 'bug';
+  return narrowEnum(value, VALID_TYPES, 'bug');
 }
 /** Coerces an arbitrary value to a valid severity (default 'medium'). */
 export function normalizeConcernSeverity(value: unknown): ConcernSeverity {
-  return VALID_SEVERITIES.includes(value as ConcernSeverity)
-    ? (value as ConcernSeverity)
-    : 'medium';
+  return narrowEnum(value, VALID_SEVERITIES, 'medium');
 }
 
 /** Severity → numeric weight, used for ordering (higher = surfaces first). */

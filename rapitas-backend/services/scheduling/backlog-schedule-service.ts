@@ -7,6 +7,7 @@
  * backlog-scheduler.ts) — only stores when they should run.
  */
 import { prisma } from '../../config/database';
+import { narrowEnumOrNull } from '../../utils/common/type-guards';
 
 /** Periodic backlog jobs that can be scheduled. */
 export type BacklogJobKind = 'innovation' | 'vuln_scan' | 'health_check';
@@ -47,7 +48,7 @@ const DEFAULTS: Record<
 
 /** Coerces an arbitrary value to a valid job kind, or null if unknown. */
 export function normalizeJobKind(value: unknown): BacklogJobKind | null {
-  return BACKLOG_JOB_KINDS.includes(value as BacklogJobKind) ? (value as BacklogJobKind) : null;
+  return narrowEnumOrNull(value, BACKLOG_JOB_KINDS);
 }
 
 function normalizeFrequency(value: unknown): BacklogFrequency {
