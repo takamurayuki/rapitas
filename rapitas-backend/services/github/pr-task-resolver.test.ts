@@ -54,28 +54,33 @@ beforeEach(() => {
 // titleMatchesTask
 // ---------------------------------------------------------------------------
 describe('titleMatchesTask', () => {
-  test('[Task-N] 形式マッチ → true を返すこと', () => {
-    expect(titleMatchesTask('[Task-5] fix something', 5)).toBe(true);
-  });
+  type TitleMatchCase = {
+    label: string;
+    title: string | null | undefined;
+    id: number;
+    expected: boolean;
+  };
 
-  test('[#N] 形式マッチ → true を返すこと', () => {
-    expect(titleMatchesTask('[#5] fix something', 5)).toBe(true);
-  });
+  const titleMatchCases: TitleMatchCase[] = [
+    { label: '[Task-N] 形式マッチ', title: '[Task-5] fix something', id: 5, expected: true },
+    { label: '[#N] 形式マッチ', title: '[#5] fix something', id: 5, expected: true },
+    { label: 'タスクIDが異なる', title: '[Task-5] fix', id: 6, expected: false },
+    { label: '無関係なタイトル', title: 'some unrelated PR title', id: 5, expected: false },
+    { label: 'null タイトル', title: null, id: 5, expected: false },
+    { label: 'undefined タイトル', title: undefined, id: 5, expected: false },
+    {
+      label: '[Task-0] id=0 境界値',
+      title: '[Task-0] boundary case',
+      id: 0,
+      expected: true,
+    },
+    { label: '[#0] id=0 境界値', title: '[#0] boundary case', id: 0, expected: true },
+    { label: '空文字タイトル (boundary)', title: '', id: 5, expected: false },
+    { label: '空白のみタイトル (boundary)', title: ' ', id: 5, expected: false },
+  ];
 
-  test('タスクIDが異なる場合 false を返すこと', () => {
-    expect(titleMatchesTask('[Task-5] fix', 6)).toBe(false);
-  });
-
-  test('無関係なタイトル → false を返すこと', () => {
-    expect(titleMatchesTask('some unrelated PR title', 5)).toBe(false);
-  });
-
-  test('null タイトル → false を返すこと', () => {
-    expect(titleMatchesTask(null, 5)).toBe(false);
-  });
-
-  test('undefined タイトル → false を返すこと', () => {
-    expect(titleMatchesTask(undefined, 5)).toBe(false);
+  test.each(titleMatchCases)('$label → $expected', ({ title, id, expected }) => {
+    expect(titleMatchesTask(title, id)).toBe(expected);
   });
 });
 

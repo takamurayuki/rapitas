@@ -46,6 +46,21 @@ beforeEach(() => {
   mockFindUnique.mockResolvedValue(null);
 });
 
+/** null-return パスのパラメータテーブル（全 resolver 共通） */
+type NullReturnCase = { label: string; id: number; setup: (m: ReturnType<typeof mock>) => void };
+
+const nullReturnCases: NullReturnCase[] = [
+  { label: 'not found', id: 999, setup: (m) => m.mockResolvedValueOnce(null) },
+  { label: 'DB error', id: 1, setup: (m) => m.mockRejectedValueOnce(new Error('DB error')) },
+  { label: 'id=0 (boundary)', id: 0, setup: (m) => m.mockResolvedValueOnce(null) },
+  { label: 'id=-1 (negative)', id: -1, setup: (m) => m.mockResolvedValueOnce(null) },
+  {
+    label: 'id=MAX_SAFE_INTEGER (upper bound)',
+    id: Number.MAX_SAFE_INTEGER,
+    setup: (m) => m.mockResolvedValueOnce(null),
+  },
+];
+
 // ---------------------------------------------------------------------------
 // resolveLatestFinishedSession
 // ---------------------------------------------------------------------------
@@ -57,17 +72,9 @@ describe('resolveLatestFinishedSession', () => {
     expect(result).toEqual({ id: 42 });
   });
 
-  test('該当セッションがない場合 → null を返すこと', async () => {
-    mockFindFirst.mockResolvedValueOnce(null);
-
-    const result = await resolveLatestFinishedSession(99);
-    expect(result).toBeNull();
-  });
-
-  test('DB エラー時 → null を返すこと', async () => {
-    mockFindFirst.mockRejectedValueOnce(new Error('DB error'));
-
-    const result = await resolveLatestFinishedSession(1);
+  test.each(nullReturnCases)('$label → null', async ({ id, setup }) => {
+    setup(mockFindFirst);
+    const result = await resolveLatestFinishedSession(id);
     expect(result).toBeNull();
   });
 
@@ -107,17 +114,9 @@ describe('resolveSessionWithLatestExecution', () => {
     expect(result).toEqual(fakeSession);
   });
 
-  test('セッションが存在しない場合 → null を返すこと', async () => {
-    mockFindUnique.mockResolvedValueOnce(null);
-
-    const result = await resolveSessionWithLatestExecution(999);
-    expect(result).toBeNull();
-  });
-
-  test('DB エラー時 → null を返すこと', async () => {
-    mockFindUnique.mockRejectedValueOnce(new Error('Connection refused'));
-
-    const result = await resolveSessionWithLatestExecution(1);
+  test.each(nullReturnCases)('$label → null', async ({ id, setup }) => {
+    setup(mockFindUnique);
+    const result = await resolveSessionWithLatestExecution(id);
     expect(result).toBeNull();
   });
 
@@ -150,17 +149,9 @@ describe('resolveLatestSessionWorktree', () => {
     expect(result).toEqual(fakeSession);
   });
 
-  test('worktree セッションが存在しない場合 → null を返すこと', async () => {
-    mockFindFirst.mockResolvedValueOnce(null);
-
-    const result = await resolveLatestSessionWorktree(999);
-    expect(result).toBeNull();
-  });
-
-  test('DB エラー時 → null を返すこと', async () => {
-    mockFindFirst.mockRejectedValueOnce(new Error('Query failed'));
-
-    const result = await resolveLatestSessionWorktree(1);
+  test.each(nullReturnCases)('$label → null', async ({ id, setup }) => {
+    setup(mockFindFirst);
+    const result = await resolveLatestSessionWorktree(id);
     expect(result).toBeNull();
   });
 

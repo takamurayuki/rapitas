@@ -57,17 +57,39 @@ describe('resolveUserByEmail', () => {
     expect(result).toEqual(fakeUser);
   });
 
-  test('ユーザーが存在しない場合 → null を返すこと', async () => {
-    mockUserFindFirst.mockResolvedValueOnce(null);
+  /** null-return パスのパラメータテーブル（メールアドレス入力 + 空文字/空白境界値） */
+  type EmailNullReturnCase = {
+    label: string;
+    email: string;
+    setup: (m: ReturnType<typeof mock>) => void;
+  };
 
-    const result = await resolveUserByEmail('notfound@example.com');
-    expect(result).toBeNull();
-  });
+  const emailNullReturnCases: EmailNullReturnCase[] = [
+    {
+      label: 'not found',
+      email: 'notfound@example.com',
+      setup: (m) => m.mockResolvedValueOnce(null),
+    },
+    {
+      label: 'DB error',
+      email: 'test@example.com',
+      setup: (m) => m.mockRejectedValueOnce(new Error('DB connection lost')),
+    },
+    {
+      label: 'empty string email (boundary)',
+      email: '',
+      setup: (m) => m.mockResolvedValueOnce(null),
+    },
+    {
+      label: 'whitespace-only email (boundary)',
+      email: ' ',
+      setup: (m) => m.mockResolvedValueOnce(null),
+    },
+  ];
 
-  test('DB エラー時 → null を返すこと', async () => {
-    mockUserFindFirst.mockRejectedValueOnce(new Error('DB connection lost'));
-
-    const result = await resolveUserByEmail('test@example.com');
+  test.each(emailNullReturnCases)('$label → null', async ({ email, setup }) => {
+    setup(mockUserFindFirst);
+    const result = await resolveUserByEmail(email);
     expect(result).toBeNull();
   });
 
@@ -98,17 +120,44 @@ describe('resolveUserByUsernameOrEmail', () => {
     expect(result).toEqual(fakeUser);
   });
 
-  test('ユーザーが存在しない場合 → null を返すこと', async () => {
-    mockUserFindFirst.mockResolvedValueOnce(null);
+  /** null-return パスのパラメータテーブル（username/email ペア入力 + 空文字/空白境界値） */
+  type UsernameOrEmailNullReturnCase = {
+    label: string;
+    username: string;
+    email: string;
+    setup: (m: ReturnType<typeof mock>) => void;
+  };
 
-    const result = await resolveUserByUsernameOrEmail('unknown', 'unknown@example.com');
-    expect(result).toBeNull();
-  });
+  const usernameOrEmailNullReturnCases: UsernameOrEmailNullReturnCase[] = [
+    {
+      label: 'not found',
+      username: 'unknown',
+      email: 'unknown@example.com',
+      setup: (m) => m.mockResolvedValueOnce(null),
+    },
+    {
+      label: 'DB error',
+      username: 'user',
+      email: 'user@example.com',
+      setup: (m) => m.mockRejectedValueOnce(new Error('Query timeout')),
+    },
+    {
+      label: 'empty string inputs (boundary)',
+      username: '',
+      email: '',
+      setup: (m) => m.mockResolvedValueOnce(null),
+    },
+    {
+      label: 'whitespace-only inputs (boundary)',
+      username: ' ',
+      email: ' ',
+      setup: (m) => m.mockResolvedValueOnce(null),
+    },
+  ];
 
-  test('DB エラー時 → null を返すこと', async () => {
-    mockUserFindFirst.mockRejectedValueOnce(new Error('Query timeout'));
-
-    const result = await resolveUserByUsernameOrEmail('user', 'user@example.com');
+  test.each(usernameOrEmailNullReturnCases)('$label → null', async ({ username, email, setup }) => {
+    setup(mockUserFindFirst);
+    const result = await resolveUserByUsernameOrEmail(username, email);
     expect(result).toBeNull();
   });
 
