@@ -29,6 +29,15 @@ mock.module('../question-detection', () => ({
   tolegacyQuestionType: (type: string) => type,
 }));
 
+// notification-service: 認証失敗通知の発火回数を追跡する（実DB/SSEを叩かない）
+let authNotifyCallCount = 0;
+mock.module('../../communication/notification-service', () => ({
+  notifyAuthenticationFailure: () => {
+    authNotifyCallCount += 1;
+    return Promise.resolve(null);
+  },
+}));
+
 // モック確定後に動的 import
 const { buildResolveAfterParse } = await import('./execution-resolver');
 
@@ -152,6 +161,56 @@ describe('buildResolveAfterParse — resume モード errorMessage 汚染除去'
     expect(result.success).toBe(false);
     // 生 stderr（本物の失効文言）は errorMessage に保持されること
     expect(result.errorMessage).toContain('no conversation found');
+  });
+});
+
+describe('buildResolveAfterParse — 認証失敗 (401) 検知', () => {
+  test('401 認証失敗出力: 失敗で解決し、再認証通知を発火し、ターミナル誘導を errorMessage に含む', async () => {
+    authNotifyCallCount = 0;
+    const ctx = createCtx({
+      outputBuffer:
+        '[System: api_retry]\nFailed to authenticate. API Error: 401 Invalid authentication credentials',
+    });
+    const { resolve, promise } = createResolveTracker();
+
+    const callback = buildResolveAfterParse(
+      ctx,
+      1, // CLI は 401 で非ゼロ終了する
+      '/tmp/workdir',
+      Date.now(),
+      resolve,
+      () => [],
+      () => [],
+    );
+    callback();
+
+    const result = await promise;
+    expect(result.success).toBe(false);
+    expect(authNotifyCallCount).toBe(1);
+    // 統合ターミナルでの再認証へ誘導していること
+    expect(result.errorMessage).toContain('claude login');
+    expect(result.errorMessage).toContain('認証');
+  });
+
+  test('認証エラーが無い通常の失敗では通知を発火しない', async () => {
+    authNotifyCallCount = 0;
+    const ctx = createCtx({ errorBuffer: 'some unrelated build error' });
+    const { resolve, promise } = createResolveTracker();
+
+    const callback = buildResolveAfterParse(
+      ctx,
+      1,
+      '/tmp/workdir',
+      Date.now(),
+      resolve,
+      () => [],
+      () => [],
+    );
+    callback();
+
+    const result = await promise;
+    expect(result.success).toBe(false);
+    expect(authNotifyCallCount).toBe(0);
   });
 });
 

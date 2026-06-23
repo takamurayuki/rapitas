@@ -115,6 +115,43 @@ export async function notifyApprovalRequested(approvalId: number, title: string)
   });
 }
 
+/** Title used for auth-failure notifications — also the dedup match key. */
+export const AUTH_FAILURE_NOTIFICATION_TITLE = 'Claude 認証切れ';
+
+// One auth alert per episode. Auth breakage fails EVERY queued task's every
+// phase, so without this the feed floods with identical notifications.
+const AUTH_NOTIFY_WINDOW_MS = 10 * 60 * 1000;
+
+/**
+ * Notify the user that the Claude CLI authentication expired/failed, so auto-run
+ * agents cannot execute until re-authentication. Deduplicated to one
+ * notification per AUTH_NOTIFY_WINDOW_MS.
+ *
+ * @returns The created notification, or null when suppressed by dedup. / 作成した通知、重複抑制時は null
+ */
+export async function notifyAuthenticationFailure() {
+  // Suppress when an auth alert already fired within the window.
+  const since = new Date(Date.now() - AUTH_NOTIFY_WINDOW_MS);
+  const recent = await prisma.notification.findFirst({
+    where: {
+      type: 'system',
+      title: AUTH_FAILURE_NOTIFICATION_TITLE,
+      createdAt: { gte: since },
+    },
+    orderBy: { createdAt: 'desc' },
+  });
+  if (recent) return null;
+
+  return createNotification({
+    type: 'system',
+    title: AUTH_FAILURE_NOTIFICATION_TITLE,
+    message:
+      'Claude CLI の認証が切れたため、自動実行エージェントが起動できません。統合ターミナルで `claude login` を実行して再認証してください。再認証後、ブロックされたタスクは自動で再試行されます。',
+    link: '/',
+    metadata: { reason: 'auth_expired', action: 'reauthenticate', command: 'claude login' },
+  });
+}
+
 /**
  * Send a pomodoro completion notification.
  */

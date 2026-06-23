@@ -23,6 +23,12 @@ export interface ConflictPrInfo {
 /** Task statuses that mean a conflict task is still doing its job (don't re-file). */
 const ACTIVE_STATUSES = ['todo', 'in-progress', 'blocked'];
 
+// After a finished attempt, wait before re-queueing so GitHub can recompute the
+// PR's mergeability from the resolution push. Without this, a just-completed task
+// is re-queued on a stale CONFLICTING reading (the push hasn't been re-evaluated
+// yet) — a self-inflicted churn race.
+const RECONFLICT_COOLDOWN_MS = 10 * 60 * 1000;
+
 /** Outcome of a file attempt: the task id and whether it was freshly created. */
 export interface FileConflictTaskResult {
   taskId: number | null;
@@ -44,22 +50,6 @@ export async function fileConflictResolutionTask(
   workingDirectory: string,
   themeId: number | null,
 ): Promise<FileConflictTaskResult> {
-  // Dedup: an active conflict task for this PR is already resolving it.
-  const existing = await prisma.task
-    .findFirst({
-      where: {
-        githubPrId: pr.prNumber,
-        title: { startsWith: `PR #${pr.prNumber} の競合を解消` },
-        status: { in: ACTIVE_STATUSES },
-      },
-      select: { id: true },
-    })
-    .catch(() => null);
-  if (existing) {
-    log.debug({ prNumber: pr.prNumber, taskId: existing.id }, 'Conflict task already active');
-    return { taskId: existing.id, created: false };
-  }
-
   const instruction = [
     `PR #${pr.prNumber}「${pr.title}」のマージ競合を解消してください。`,
     `- マージ先(base): ${pr.baseBranch}`,
@@ -77,6 +67,75 @@ export async function fileConflictResolutionTask(
     'verify.md に必ず「変更不要: 競合解消は PR ブランチへ push 済み」と明記してください',
     '（空diffで誤ブロックされるのを防ぐため）。新規 PR は作成不要です。',
   ].join('\n');
+
+  // At most ONE conflict task per PR. Find the most recent one REGARDLESS of
+  // status — a completed-but-ineffective attempt (the PR re-conflicted because
+  // the base branch advanced after the resolution push) must RE-QUEUE the same
+  // row, not spawn a duplicate. Keying dedup only on ACTIVE statuses previously
+  // let a `done` task slip through and the next watcher tick filed a second task
+  // (observed: PR #265 had both #335 done and #336 blocked).
+  const prior = await prisma.task
+    .findFirst({
+      where: {
+        githubPrId: pr.prNumber,
+        title: { startsWith: `PR #${pr.prNumber} の競合を解消` },
+      },
+      orderBy: { createdAt: 'desc' },
+      select: { id: true, status: true, completedAt: true },
+    })
+    .catch(() => null);
+
+  if (prior && ACTIVE_STATUSES.includes(prior.status)) {
+    // An attempt is already in flight — let it finish.
+    log.debug({ prNumber: pr.prNumber, taskId: prior.id }, 'Conflict task already active');
+    return { taskId: prior.id, created: false };
+  }
+
+  if (prior) {
+    // prior is terminal (done/completed/failed/cancelled) but the PR still
+    // conflicts. Re-queue the SAME row instead of creating a duplicate — after a
+    // cooldown so a resolution push has time to be re-evaluated by GitHub.
+    const finishedAt = prior.completedAt?.getTime();
+    if (finishedAt != null && Date.now() - finishedAt < RECONFLICT_COOLDOWN_MS) {
+      log.debug(
+        { prNumber: pr.prNumber, taskId: prior.id },
+        'Recent conflict task finished within cooldown; skipping re-file',
+      );
+      return { taskId: prior.id, created: false };
+    }
+    const requeued = await prisma.task
+      .update({
+        where: { id: prior.id },
+        // Reset to a fresh-task shape so the orchestrator re-runs the workflow:
+        // todo + cleared workflowStatus/completedAt, refreshed instruction, and
+        // the lightweight pinning a new conflict task gets.
+        data: {
+          status: 'todo',
+          workflowStatus: null,
+          completedAt: null,
+          description: instruction,
+          priority: 'high',
+          workflowMode: 'lightweight',
+          workflowModeOverride: true,
+          complexityScore: 15,
+        },
+        select: { id: true },
+      })
+      .catch((err) => {
+        log.warn({ err, prNumber: pr.prNumber, taskId: prior.id }, 'Failed to re-queue conflict task');
+        return null;
+      });
+    if (requeued) {
+      log.info(
+        { prNumber: pr.prNumber, taskId: requeued.id },
+        'Re-queued existing conflict task (PR re-conflicted after a prior attempt)',
+      );
+      // created:true so the caller records a fresh conflict attempt (bounded by
+      // its own MAX_CONFLICT_RETRIES) and notifies — this IS a new attempt.
+      return { taskId: requeued.id, created: true };
+    }
+    // Update failed — fall through and try to create, so the PR still gets a task.
+  }
 
   const task = await prisma.task
     .create({

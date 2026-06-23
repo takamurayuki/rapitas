@@ -13,6 +13,7 @@ import { createLogger } from '../../config/logger';
 import { getTaskWorkflowDir, getArchiveDir } from './workflow-paths';
 import { resolveTaskWithThemeAndCategory } from '../task/task-resolver';
 import { fileHypothesesFromResearch } from '../memory/hypothesis-from-research';
+import { applyHypothesisVerdictsFromVerify } from '../memory/hypothesis-from-verify';
 
 const log = createLogger('workflow-file-utils');
 
@@ -141,6 +142,11 @@ export async function writeWorkflowFile(
     // dedupes (content hash), so the API path calling this in addition is safe.
     if (fileType === 'research') {
       void fileHypothesesFromResearch(taskId, sanitizeResult.content).catch(() => {});
+    } else if (fileType === 'verify') {
+      // Explicit verification closes the loop: graduate/refute hypotheses from the
+      // verifier's `## 仮説評価` verdicts (real prediction-held judgement), not the
+      // weak completion proxy that never crossed the graduation bar.
+      void applyHypothesisVerdictsFromVerify(taskId, sanitizeResult.content).catch(() => {});
     }
   }
 
