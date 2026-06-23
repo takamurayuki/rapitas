@@ -8,6 +8,7 @@ import { prisma } from '../../config';
 import { createLogger } from '../../config/logger';
 import { WorkflowQueueService, type QueueItem } from './workflow-queue';
 import { WorkflowOrchestrator } from './workflow-orchestrator';
+import { resolveTaskWorkflowState } from '../task/task-resolver';
 import {
   logPhaseTransition,
   broadcastRunnerStatus,
@@ -193,7 +194,7 @@ export class WorkflowRunner {
       while (continueLoop && !abortController.signal.aborted && iterationCount < maxIterations) {
         iterationCount++;
         // Check current workflowStatus
-        const task = await prisma.task.findUnique({ where: { id: item.taskId } });
+        const task = await resolveTaskWorkflowState(item.taskId);
         if (!task) {
           throw new Error(`Task ${item.taskId} not found`);
         }

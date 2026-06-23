@@ -13,6 +13,7 @@ import { AgentWorkerManager } from '../../../services/agents/agent-worker-manage
 import { updateSessionStatusWithRetry } from './session-helpers';
 import { releaseTaskExecutionLock } from './execution-lock';
 import { isShutdownError } from '../../../services/agents/agent-worker/shutdown-error';
+import { resolveTaskWorkflowState } from '../../../services/task/task-resolver';
 
 const log = createLogger('routes:agent-execution:continue-post');
 const agentWorkerManager = AgentWorkerManager.getInstance();
@@ -48,7 +49,7 @@ export async function handleContinueResult(params: HandleContinueResultParams): 
 
   if (result.success) {
     try {
-      const currentTask = await prisma.task.findUnique({ where: { id: taskId } });
+      const currentTask = await resolveTaskWorkflowState(taskId);
       const wfStatus = currentTask?.workflowStatus;
       const inProgressStatuses = ['plan_created', 'research_done', 'verify_done'];
       const doneStatuses = ['in_progress', 'plan_approved', 'completed'];

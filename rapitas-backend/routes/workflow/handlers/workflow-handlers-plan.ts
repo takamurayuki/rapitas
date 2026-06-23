@@ -11,6 +11,7 @@ import { createLogger } from '../../../config/logger';
 import { VALID_WORKFLOW_STATUSES } from '../core/workflow-helpers';
 import { recordTransition } from '../../../services/workflow/transition-recorder';
 import { previewMissingFilesForStatus } from '../../../services/workflow/workflow-invariants';
+import { resolveTaskWorkflowState } from '../../../services/task/task-resolver';
 
 const log = createLogger('routes:workflow:handlers:plan');
 
@@ -43,7 +44,7 @@ export async function handleApprovePlan({
     }
     const language = parsedBody?.language || 'ja';
 
-    const task = await prisma.task.findUnique({ where: { id: taskId } });
+    const task = await resolveTaskWorkflowState(taskId);
     if (!task) {
       throw new NotFoundError('Task not found');
     }
@@ -218,7 +219,7 @@ export async function handleUpdateStatus({
       );
     }
 
-    const task = await prisma.task.findUnique({ where: { id: taskId } });
+    const task = await resolveTaskWorkflowState(taskId);
     if (!task) throw new NotFoundError('Task not found');
 
     // Pre-check: verify required files exist for the target status. Advancing to a

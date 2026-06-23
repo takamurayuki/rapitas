@@ -19,6 +19,10 @@ import { toJsonString } from '../../../utils/database/db-helpers';
 import { acquireTaskExecutionLock, releaseTaskExecutionLock } from './execution-lock';
 import { handleContinueResult, handleContinueError } from './continue-post-handler';
 import { resolveTaskForExecution } from '../../../services/task/task-resolver';
+import {
+  resolveLatestFinishedSession,
+  resolveSessionWithLatestExecution,
+} from '../../../services/agents/agent-session-resolver';
 
 const log = createLogger('routes:agent-execution:continue');
 const agentWorkerManager = AgentWorkerManager.getInstance();
@@ -55,13 +59,7 @@ export const continueRoute = new Elysia().post(
       // NOTE: Falls back to latest finished session when no sessionId is provided — enables "resume last run" UX.
       let targetSessionId = sessionId;
       if (!targetSessionId && task.developerModeConfig) {
-        const latestSession = await prisma.agentSession.findFirst({
-          where: {
-            configId: task.developerModeConfig.id,
-            status: { in: ['completed', 'failed', 'interrupted'] },
-          },
-          orderBy: { createdAt: 'desc' },
-        });
+        const latestSession = await resolveLatestFinishedSession(task.developerModeConfig.id);
         if (latestSession) targetSessionId = latestSession.id;
       }
 
@@ -70,10 +68,7 @@ export const continueRoute = new Elysia().post(
         return { error: 'No completed session found for this task' };
       }
 
-      const session = await prisma.agentSession.findUnique({
-        where: { id: targetSessionId },
-        include: { agentExecutions: { orderBy: { createdAt: 'desc' }, take: 1 } },
-      });
+      const session = await resolveSessionWithLatestExecution(targetSessionId);
 
       if (!session) {
         context.set.status = 404;

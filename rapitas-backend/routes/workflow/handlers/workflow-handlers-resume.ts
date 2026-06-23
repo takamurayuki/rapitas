@@ -11,6 +11,7 @@ import { recordTransition } from '../../../services/workflow/transition-recorder
 import { ValidationError, NotFoundError } from '../../../middleware/error-handler';
 import { createLogger } from '../../../config';
 import type { WorkflowStatus } from '../../../services/workflow/workflow-types';
+import { resolveTaskWorkflowState } from '../../../services/task/task-resolver';
 
 const log = createLogger('routes:workflow:resume');
 
@@ -44,10 +45,7 @@ export async function handleResumeFromQuestion({ params, set }: ResumeContext): 
     throw new ValidationError('Invalid taskId');
   }
 
-  const task = await prisma.task.findUnique({
-    where: { id: taskId },
-    select: { id: true, workflowStatus: true },
-  });
+  const task = await resolveTaskWorkflowState(taskId);
   if (!task) {
     set.status = 404;
     throw new NotFoundError('Task not found');

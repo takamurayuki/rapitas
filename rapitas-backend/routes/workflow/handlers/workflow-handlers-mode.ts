@@ -14,6 +14,10 @@ import {
 } from '../../../services/workflow/complexity-analyzer';
 import { createLogger } from '../../../config/logger';
 import { parseSpecArray } from '../../../utils/common';
+import {
+  resolveTaskWorkflowState,
+  resolveTaskForComplexityAnalysis,
+} from '../../../services/task/task-resolver';
 
 const log = createLogger('routes:workflow:handlers:mode');
 
@@ -50,7 +54,7 @@ export async function handleSetMode({
       throw new ValidationError(`Invalid mode. Must be one of: ${validModes.join(', ')}`);
     }
 
-    const task = await prisma.task.findUnique({ where: { id: taskId } });
+    const task = await resolveTaskWorkflowState(taskId);
     if (!task) throw new NotFoundError('Task not found');
 
     const updatedTask = await prisma.task.update({
@@ -108,14 +112,7 @@ export async function handleAnalyzeComplexity({
   try {
     const taskId = parseId(params.taskId, 'task ID');
 
-    const task = await prisma.task.findUnique({
-      where: { id: taskId },
-      include: {
-        theme: true,
-        taskLabels: { include: { label: true } },
-      },
-    });
-
+    const task = await resolveTaskForComplexityAnalysis(taskId);
     if (!task) throw new NotFoundError('Task not found');
 
     const complexityInput: TaskComplexityInput = {
