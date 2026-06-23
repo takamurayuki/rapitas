@@ -10,6 +10,12 @@
  * Connects once (lazily) to `/events/subscribe/*` — the backend treats the
  * `*` channel as "all channels" — and dispatches by SSE event type.
  * Not responsible for parsing payloads; handlers receive the raw MessageEvent.
+ *
+ * When the page is hidden (tray minimize, switching apps), the connection is
+ * closed to stop WebView2 SSE→React re-render CPU usage (~10% → ~2%). All
+ * state lives in PostgreSQL, so re-subscribing on visibility restores state.
+ * Polling hooks already guard on document.hidden via useOnVisible, so no extra
+ * state-refresh logic is needed here.
  */
 import { API_BASE_URL } from '@/utils/api';
 import { createLogger } from '@/lib/logger';
@@ -29,6 +35,24 @@ class SharedEventSourceManager {
   private connectionListeners = new Set<ConnectionListener>();
   private connected = false;
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+  /** True while the page is hidden; prevents auto-reconnect until visible again. */
+  private paused = false;
+
+  constructor() {
+    // NOTE: visibilitychange fires in WebView2 when the Tauri window is hidden to
+    // tray (window.hide()) and shown again, matching the browser tab behaviour.
+    // Pausing the connection here stops SSE→re-render CPU when the window is not
+    // visible; polling hooks already guard on document.hidden via useOnVisible.
+    if (typeof document !== 'undefined') {
+      document.addEventListener('visibilitychange', () => {
+        if (document.hidden) {
+          this.handleHidden();
+        } else {
+          this.handleVisible();
+        }
+      });
+    }
+  }
 
   /**
    * Subscribe to an SSE event type. Opens the shared connection on first use.
@@ -75,8 +99,31 @@ class SharedEventSourceManager {
     return this.connected;
   }
 
+  private handleHidden(): void {
+    if (this.paused) return;
+    this.paused = true;
+    // Cancel any pending reconnect so it doesn't reopen while hidden.
+    if (this.reconnectTimer) {
+      clearTimeout(this.reconnectTimer);
+      this.reconnectTimer = null;
+    }
+    if (this.es) {
+      this.es.close();
+      this.es = null;
+      logger.debug('SSE paused (window hidden)');
+    }
+    this.setConnected(false);
+  }
+
+  private handleVisible(): void {
+    if (!this.paused) return;
+    this.paused = false;
+    logger.debug('SSE resuming (window visible)');
+    this.ensureConnected();
+  }
+
   private ensureConnected(): void {
-    if (this.es || typeof window === 'undefined') return;
+    if (this.paused || this.es || typeof window === 'undefined') return;
 
     // `*` subscribes to ALL channels (realtime-service checks subscriptions.has('*')).
     const es = new EventSource(`${API_BASE_URL}/events/subscribe/*`);
@@ -104,7 +151,7 @@ class SharedEventSourceManager {
   }
 
   private scheduleReconnect(): void {
-    if (this.reconnectTimer) return;
+    if (this.reconnectTimer || this.paused) return;
     this.reconnectTimer = setTimeout(() => {
       this.reconnectTimer = null;
       this.ensureConnected();
