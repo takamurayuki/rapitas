@@ -6,10 +6,7 @@
  */
 
 import { readFile, stat } from 'fs/promises';
-import {
-  WORKFLOW_STATUSES,
-  WORKFLOW_FILE_TYPES,
-} from '../../../services/workflow/workflow-types';
+import { WORKFLOW_STATUSES, WORKFLOW_FILE_TYPES } from '../../../services/workflow/workflow-types';
 import type { WorkflowFileType } from '../../../services/workflow/workflow-types';
 
 // NOTE: Re-exported as backward-compatible aliases so existing consumers (handlers, tests)
