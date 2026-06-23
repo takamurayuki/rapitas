@@ -12,6 +12,8 @@
 import type { AutoRunStatus } from './theme-auto-run-service';
 import { AUTO_RUN_STATUSES } from './theme-auto-run-service';
 
+import { isOneOf } from '../../../utils/common/type-guards';
+
 /**
  * Type guard: narrows an unknown value to AutoRunStatus.
  *
@@ -19,5 +21,5 @@ import { AUTO_RUN_STATUSES } from './theme-auto-run-service';
  * @returns True when `s` is a valid AutoRunStatus. / 有効なAutoRunStatusの場合true
  */
 export function isAutoRunStatus(s: unknown): s is AutoRunStatus {
-  return typeof s === 'string' && (AUTO_RUN_STATUSES as readonly string[]).includes(s);
+  return isOneOf(s, AUTO_RUN_STATUSES);
 }

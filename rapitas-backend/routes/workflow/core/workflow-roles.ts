@@ -5,8 +5,9 @@
 import { Elysia } from 'elysia';
 import { prisma } from '../../../config';
 import { formatAgentDisplayName } from '../../../utils/agent/agent-display-name';
-import { WORKFLOW_ROLES, WORKFLOW_MODES } from '../../../services/workflow/workflow-types';
+import { WORKFLOW_ROLES, isWorkflowMode } from '../../../services/workflow/workflow-types';
 import type { WorkflowRole } from '../../../services/workflow/workflow-types';
+import { isWorkflowRole } from '../../../services/workflow/workflow-types.guards.generated';
 import { HTTP_STATUS } from '../../../utils/common/http-status';
 
 const VALID_ROLES = WORKFLOW_ROLES;
@@ -87,7 +88,7 @@ export const workflowRolesRoutes = new Elysia()
 
   .get('/workflow-roles/:role', async ({ params, set }) => {
     const role = params.role as string;
-    if (!VALID_ROLES.includes(role as WorkflowRole)) {
+    if (!isWorkflowRole(role)) {
       set.status = HTTP_STATUS.BAD_REQUEST;
       return { error: `無効なロール: ${role}。有効なロール: ${VALID_ROLES.join(', ')}` };
     }
@@ -119,7 +120,7 @@ export const workflowRolesRoutes = new Elysia()
 
   .put('/workflow-roles/:role', async ({ params, body, set }) => {
     const role = params.role as string;
-    if (!VALID_ROLES.includes(role as WorkflowRole)) {
+    if (!isWorkflowRole(role)) {
       set.status = HTTP_STATUS.BAD_REQUEST;
       return { error: `無効なロール: ${role}` };
     }
@@ -255,7 +256,7 @@ export const workflowRolesRoutes = new Elysia()
    */
   .put('/workflow-modes/:mode', async ({ params, body, set }) => {
     const mode = params.mode as 'lightweight' | 'standard' | 'comprehensive';
-    if (!(WORKFLOW_MODES as readonly string[]).includes(mode)) {
+    if (!isWorkflowMode(mode)) {
       set.status = HTTP_STATUS.BAD_REQUEST;
       return { error: 'Invalid mode' };
     }

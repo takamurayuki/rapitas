@@ -12,6 +12,8 @@
 import type { ConcernType, ConcernSeverity, ConcernStatus } from './concern-backlog-service';
 import { CONCERN_TYPES, CONCERN_SEVERITIES, CONCERN_STATUSES } from './concern-backlog-service';
 
+import { isOneOf } from '../../utils/common/type-guards';
+
 /**
  * Type guard: narrows an unknown value to ConcernType.
  *
@@ -19,7 +21,7 @@ import { CONCERN_TYPES, CONCERN_SEVERITIES, CONCERN_STATUSES } from './concern-b
  * @returns True when `s` is a valid ConcernType. / 有効なConcernTypeの場合true
  */
 export function isConcernType(s: unknown): s is ConcernType {
-  return typeof s === 'string' && (CONCERN_TYPES as readonly string[]).includes(s);
+  return isOneOf(s, CONCERN_TYPES);
 }
 
 /**
@@ -29,7 +31,7 @@ export function isConcernType(s: unknown): s is ConcernType {
  * @returns True when `s` is a valid ConcernSeverity. / 有効なConcernSeverityの場合true
  */
 export function isConcernSeverity(s: unknown): s is ConcernSeverity {
-  return typeof s === 'string' && (CONCERN_SEVERITIES as readonly string[]).includes(s);
+  return isOneOf(s, CONCERN_SEVERITIES);
 }
 
 /**
@@ -39,7 +41,7 @@ export function isConcernSeverity(s: unknown): s is ConcernSeverity {
  * @returns True when `s` is a valid ConcernStatus. / 有効なConcernStatusの場合true
  */
 export function isConcernStatus(s: unknown): s is ConcernStatus {
-  return typeof s === 'string' && (CONCERN_STATUSES as readonly string[]).includes(s);
+  return isOneOf(s, CONCERN_STATUSES);
 }
 
 /**

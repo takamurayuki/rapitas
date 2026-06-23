@@ -1,5 +1,5 @@
 {
-  "generated": "2026-06-23T07:59:17.369Z",
+  "generated": "2026-06-23T13:29:23.813Z",
   "hard_limit": 500,
   "soft_limit": 300,
   "_comment": "Files at or above the hard limit at snapshot time. Their listed lineCount becomes a per-file ceiling — they may shrink but not grow. Remove an entry by splitting the file.",
@@ -7,14 +7,14 @@
     "rapitas-backend/src/generated/sqlite-init-sql.ts": {
       "lineCount": 1766
     },
+    "rapitas-backend/routes/workflow/handlers/workflow-handlers-files.ts": {
+      "lineCount": 1114
+    },
     "rapitas-backend/services/workflow/workflow-cli-executor.ts": {
       "lineCount": 1114
     },
-    "rapitas-backend/routes/workflow/handlers/workflow-handlers-files.ts": {
-      "lineCount": 1113
-    },
     "rapitas-backend/services/workflow/workflow-orchestrator.ts": {
-      "lineCount": 1045
+      "lineCount": 1041
     },
     "rapitas-frontend/src/app/ideas/_components/IdeasClient.tsx": {
       "lineCount": 916
@@ -27,6 +27,9 @@
     },
     "rapitas-backend/scripts/analyze-codebase/agent-report-generator.ts": {
       "lineCount": 684
+    },
+    "rapitas-backend/services/memory/idea-box-service.ts": {
+      "lineCount": 682
     },
     "rapitas-backend/services/workflow/auto-run/theme-auto-run-scheduler.ts": {
       "lineCount": 678
@@ -55,9 +58,6 @@
     "rapitas-backend/services/agents/orchestrator/git-operations/worktree-ops.ts": {
       "lineCount": 614
     },
-    "rapitas-backend/services/memory/idea-box-service.ts": {
-      "lineCount": 602
-    },
     "rapitas-backend/services/workflow/subtask-splitter.ts": {
       "lineCount": 583
     },
@@ -68,13 +68,13 @@
       "lineCount": 578
     },
     "rapitas-backend/services/memory/hypothesis-service.ts": {
-      "lineCount": 565
+      "lineCount": 558
     },
     "rapitas-frontend/src/hooks/common/useSpeechRecognition.ts": {
       "lineCount": 541
     },
     "rapitas-backend/services/agents/agent-orchestrator.ts": {
-      "lineCount": 537
+      "lineCount": 538
     },
     "rapitas-frontend/src/feature/developer-mode/utils/log-patterns-table.ts": {
       "lineCount": 535

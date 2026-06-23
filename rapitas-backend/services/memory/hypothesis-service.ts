@@ -24,24 +24,18 @@ import { narrowEnum } from '../../utils/common/type-guards';
 const log = createLogger('memory:hypothesis');
 
 /** Domain a hypothesis is about — bounds the ledger to reasoning-relevant claims. */
-export type HypothesisDomain =
-  | 'codebase'
-  | 'agent-behavior'
-  | 'performance'
-  | 'architecture'
-  | 'other';
-/** Lifecycle: open (untested) → supported / refuted / inconclusive. */
-export type HypothesisStatus = 'open' | 'supported' | 'refuted' | 'inconclusive';
-/** Whether a piece of evidence supports or opposes the hypothesis. */
-export type EvidenceStance = 'for' | 'against';
-
-const VALID_DOMAINS: readonly HypothesisDomain[] = [
+export const HYPOTHESIS_DOMAINS = [
   'codebase',
   'agent-behavior',
   'performance',
   'architecture',
   'other',
-];
+] as const;
+export type HypothesisDomain = (typeof HYPOTHESIS_DOMAINS)[number];
+/** Lifecycle: open (untested) → supported / refuted / inconclusive. */
+export type HypothesisStatus = 'open' | 'supported' | 'refuted' | 'inconclusive';
+/** Whether a piece of evidence supports or opposes the hypothesis. */
+export type EvidenceStance = 'for' | 'against';
 
 /** Confidence a brand-new (untested) hypothesis starts at — deliberately low. */
 const INITIAL_CONFIDENCE = 0.2;
@@ -106,7 +100,7 @@ export interface SubmitHypothesisResult {
 
 /** Coerce an arbitrary value to a valid domain (default 'codebase'). */
 export function normalizeDomain(value: unknown): HypothesisDomain {
-  return narrowEnum(value, VALID_DOMAINS, 'codebase');
+  return narrowEnum(value, HYPOTHESIS_DOMAINS, 'codebase');
 }
 
 function contentHash(input: string): string {

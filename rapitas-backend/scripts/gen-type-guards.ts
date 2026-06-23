@@ -248,6 +248,15 @@ export function generateGuardSource(
       `import { ${valueImports.join(', ')} } from '${importPath}';`,
   );
 
+  // NOTE: isOneOf import is only needed when at least one is* guard is generated.
+  if (pairs.some((p) => p.generateIs)) {
+    const typeGuardsPath = relativeImportPath(
+      outputFilePath,
+      join(ROOT, 'utils', 'common', 'type-guards'),
+    );
+    blocks.push(`import { isOneOf } from '${typeGuardsPath}';`);
+  }
+
   for (const p of pairs) {
     const { typeName, arrayName, fallback, generateIs, generateNarrow } = p;
 
@@ -260,7 +269,7 @@ export function generateGuardSource(
           ` * @returns True when \`s\` is a valid ${typeName}. / 有効な${typeName}の場合true\n` +
           ` */\n` +
           `export function is${typeName}(s: unknown): s is ${typeName} {\n` +
-          `  return typeof s === 'string' && (${arrayName} as readonly string[]).includes(s);\n` +
+          `  return isOneOf(s, ${arrayName});\n` +
           `}`,
       );
     }

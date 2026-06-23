@@ -12,6 +12,8 @@
 import type { WorkflowRole, WorkflowFileType } from './workflow-types';
 import { WORKFLOW_ROLES, WORKFLOW_FILE_TYPES } from './workflow-types';
 
+import { isOneOf } from '../../utils/common/type-guards';
+
 /**
  * Type guard: narrows an unknown value to WorkflowRole.
  *
@@ -19,7 +21,7 @@ import { WORKFLOW_ROLES, WORKFLOW_FILE_TYPES } from './workflow-types';
  * @returns True when `s` is a valid WorkflowRole. / 有効なWorkflowRoleの場合true
  */
 export function isWorkflowRole(s: unknown): s is WorkflowRole {
-  return typeof s === 'string' && (WORKFLOW_ROLES as readonly string[]).includes(s);
+  return isOneOf(s, WORKFLOW_ROLES);
 }
 
 /**
@@ -44,7 +46,7 @@ export function narrowWorkflowRole(
  * @returns True when `s` is a valid WorkflowFileType. / 有効なWorkflowFileTypeの場合true
  */
 export function isWorkflowFileType(s: unknown): s is WorkflowFileType {
-  return typeof s === 'string' && (WORKFLOW_FILE_TYPES as readonly string[]).includes(s);
+  return isOneOf(s, WORKFLOW_FILE_TYPES);
 }
 
 /**

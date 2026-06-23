@@ -41,11 +41,12 @@ const DEDUP_THRESHOLD = (() => {
 export async function findSemanticDuplicate(
   content: string,
   excludeIds: number[] = [],
+  threshold: number = DEDUP_THRESHOLD,
 ): Promise<number | null> {
   if (!content.trim()) return null;
   try {
     const { embedding } = await generateEmbedding(content);
-    const hits = searchSimilar(embedding, 1, DEDUP_THRESHOLD, excludeIds);
+    const hits = searchSimilar(embedding, 1, threshold, excludeIds);
     if (hits.length > 0) {
       log.debug(
         { dupId: hits[0].knowledgeEntryId, similarity: hits[0].similarity },

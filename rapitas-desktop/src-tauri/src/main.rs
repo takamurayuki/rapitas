@@ -4,7 +4,7 @@
 use tauri::{
     menu::{Menu, MenuItem},
     tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
-    Manager,
+    Emitter, Manager,
 };
 
 #[cfg(target_os = "windows")]
@@ -276,6 +276,10 @@ fn show_main_window(app: &tauri::AppHandle) {
         let _ = window.show();
         let _ = window.unminimize();
         let _ = window.set_focus();
+        // NOTE: visibilitychange is unreliable when Tauri hides/shows a window
+        // via ShowWindow(). Emit a custom event so the frontend SSE manager can
+        // pause/resume reliably without depending on the browser visibility API.
+        let _ = window.emit("rapitas:window-show", ());
     }
 }
 
@@ -410,6 +414,7 @@ fn main() {
                 if let tauri::WindowEvent::CloseRequested { api, .. } = event {
                     api.prevent_close();
                     let _ = window.hide();
+                    let _ = window.emit("rapitas:window-hide", ());
                     println!("[Tray] Window hidden to system tray");
                 }
             })
@@ -452,6 +457,7 @@ fn main() {
                 if let tauri::WindowEvent::CloseRequested { api, .. } = event {
                     api.prevent_close();
                     let _ = window.hide();
+                    let _ = window.emit("rapitas:window-hide", ());
                     println!("[Tray] Window hidden to system tray");
                 }
             })

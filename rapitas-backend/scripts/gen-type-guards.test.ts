@@ -203,7 +203,8 @@ describe('generateGuardSource', () => {
   test('generates isWorkflowRole with correct signature', () => {
     const output = generateGuardSource(sourceFile, outputFile, [pair]);
     expect(output).toContain('export function isWorkflowRole(s: unknown): s is WorkflowRole');
-    expect(output).toContain('(WORKFLOW_ROLES as readonly string[]).includes(s)');
+    expect(output).toContain('isOneOf(s, WORKFLOW_ROLES)');
+    expect(output).toContain('isOneOf');
   });
 
   test('generates narrowWorkflowRole with correct signature and fallback', () => {
