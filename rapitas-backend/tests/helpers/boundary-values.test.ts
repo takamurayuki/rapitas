@@ -15,22 +15,22 @@ describe('STRING_EDGES', () => {
     for (const c of STRING_EDGES) {
       expect(typeof c.label).toBe('string');
       expect(c.label.length).toBeGreaterThan(0);
-      expect(typeof c.input).toBe('string');
+      expect(typeof c.value).toBe('string');
     }
   });
 
   test("空文字列 ('') ケースが含まれること", () => {
-    const found = STRING_EDGES.find((c) => c.input === '');
+    const found = STRING_EDGES.find((c) => c.value === '');
     expect(found).toBeDefined();
   });
 
   test("半角スペース (' ') ケースが含まれること", () => {
-    const found = STRING_EDGES.find((c) => c.input === ' ');
+    const found = STRING_EDGES.find((c) => c.value === ' ');
     expect(found).toBeDefined();
   });
 
   test("タブ文字 ('\\t') ケースが含まれること", () => {
-    const found = STRING_EDGES.find((c) => c.input === '\t');
+    const found = STRING_EDGES.find((c) => c.value === '\t');
     expect(found).toBeDefined();
   });
 
@@ -49,22 +49,22 @@ describe('ID_EDGES', () => {
     for (const c of ID_EDGES) {
       expect(typeof c.label).toBe('string');
       expect(c.label.length).toBeGreaterThan(0);
-      expect(typeof c.input).toBe('number');
+      expect(typeof c.value).toBe('number');
     }
   });
 
   test('ゼロ (0) ケースが含まれること', () => {
-    const found = ID_EDGES.find((c) => c.input === 0);
+    const found = ID_EDGES.find((c) => c.value === 0);
     expect(found).toBeDefined();
   });
 
   test('負数 (-1) ケースが含まれること', () => {
-    const found = ID_EDGES.find((c) => c.input === -1);
+    const found = ID_EDGES.find((c) => c.value === -1);
     expect(found).toBeDefined();
   });
 
   test('最小正常値 (1) ケースが含まれること', () => {
-    const found = ID_EDGES.find((c) => c.input === 1);
+    const found = ID_EDGES.find((c) => c.value === 1);
     expect(found).toBeDefined();
   });
 
@@ -104,10 +104,10 @@ describe('toNameTuples', () => {
     }
   });
 
-  test('各タプルの第 2 要素が元ケースの input と一致すること', () => {
+  test('各タプルの第 2 要素が元ケースの value と一致すること', () => {
     const tuples = toNameTuples(ID_EDGES);
     for (let i = 0; i < ID_EDGES.length; i++) {
-      expect(tuples[i][1]).toBe(ID_EDGES[i].input);
+      expect(tuples[i][1]).toBe(ID_EDGES[i].value);
     }
   });
 
@@ -116,7 +116,7 @@ describe('toNameTuples', () => {
   });
 
   test('note フィールドはタプルに含まれないこと', () => {
-    const cases = [{ label: 'テスト', input: 'x', note: '注記' }];
+    const cases = [{ label: 'テスト', value: 'x', note: '注記' }];
     const tuples = toNameTuples(cases);
     expect(tuples[0]).toHaveLength(2);
     expect(tuples[0][0]).toBe('テスト');

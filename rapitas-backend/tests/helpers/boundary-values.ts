@@ -117,6 +117,24 @@ export const TIME_BOUNDARIES: readonly BoundaryCase<number>[] = [
 ] as const;
 
 /**
+ * nullable 数値 ID 引数 resolver 向けの境界値定数。
+ *
+ * ID_EDGES に null を追加した拡張版。
+ * `number | null` 型の外部キー引数（linkedTaskId 等）のテストに使用する。
+ *
+ * @example
+ * ```ts
+ * test.each(NULLABLE_ID_EDGES.map(bc => bc.value) as (number | null)[])(
+ *   '...%p...', async (edge) => { ... }
+ * );
+ * ```
+ */
+export const NULLABLE_ID_EDGES: readonly BoundaryCase<number | null>[] = [
+  ...ID_EDGES,
+  { label: 'null', value: null },
+];
+
+/**
  * BoundaryCase<T> 配列を `it.each` 用 `[label, value]` タプル配列に変換する。
  *
  * bun:test の `%s` 置換は primitive 前提のため、オブジェクト配列を直接渡すと

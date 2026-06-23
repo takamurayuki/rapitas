@@ -44,7 +44,10 @@
     "gen:shutdown-error": "bun run scripts/gen-shutdown-error-artifacts.ts",
     "gen:type-guards": "bun run scripts/gen-type-guards.ts",
     "check:type-guards": "bun run gen:type-guards --check",
-    "check:type-guards:changed": "bun run gen:type-guards --check --files"
+    "check:type-guards:changed": "bun run gen:type-guards --check --files",
+    "gen:boundary-tests": "bun run scripts/gen-resolver-boundary-tests.ts",
+    "check:boundary-tests": "bun run gen:boundary-tests --check",
+    "check:boundary-tests:changed": "bun run gen:boundary-tests --check --files"
   },
   "devDependencies": {
     "@types/bcryptjs": "^3.0.0",
