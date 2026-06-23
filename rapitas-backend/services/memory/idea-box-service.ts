@@ -10,20 +10,72 @@ import { createLogger } from '../../config/logger';
 import { createContentHash } from './utils';
 import { sanitizeMarkdownContent } from '../../utils/common/mojibake-detector';
 import { narrowEnum } from '../../utils/common/type-guards';
-import { findSemanticDuplicate } from './dedup';
-
 /**
- * Cosine similarity at/above which a new idea is treated as a redundant paraphrase
- * of one already in the KB and rejected. 0.85 (slightly below the KB dedup 0.9) so
- * it catches near-duplicate VARIATIONS — the monoculture is variations, not verbatim
- * repeats. Tunable via RAPITAS_IDEA_NOVELTY_THRESHOLD.
+ * Theme-saturation gate (anti-monoculture). Embedding cosine (all-MiniLM-L6-v2)
+ * proved USELESS for Japanese idea similarity — calibration showed genuinely-novel
+ * ideas (freee OCR 0.70, UI 通知 0.78) scoring HIGHER than near-duplicate type-guard
+ * ideas (0.60), so no cosine threshold separates them. Instead use a LEXICAL signal
+ * that is reliable for the observed monoculture (every title literally shares
+ * 「型ガード」/「SSOT」/「gen:type-guards」): a new idea is rejected when its title
+ * shares a ≥SALIENT_LEN-char substring with ≥SATURATION_CAP existing OPEN ideas —
+ * i.e. the theme is already over-represented. The first several ideas of a theme
+ * pass; the 9th+ near-clone is dropped. Tunable via RAPITAS_IDEA_SATURATION_CAP.
  */
-const IDEA_NOVELTY_THRESHOLD = (() => {
-  const v = parseFloat(process.env.RAPITAS_IDEA_NOVELTY_THRESHOLD ?? '0.85');
-  return Number.isFinite(v) && v > 0 && v <= 1 ? v : 0.85;
+const SALIENT_LEN = 4;
+const SATURATION_CAP = (() => {
+  const v = parseInt(process.env.RAPITAS_IDEA_SATURATION_CAP ?? '8', 10);
+  return Number.isFinite(v) && v > 0 ? v : 8;
 })();
 
 const log = createLogger('memory:idea-box');
+
+/** Longest common substring length between two strings (small inputs). */
+function lcsLen(a: string, b: string): number {
+  if (!a || !b) return 0;
+  const prev = new Array<number>(b.length + 1).fill(0);
+  let best = 0;
+  for (let i = 1; i <= a.length; i++) {
+    let diag = 0;
+    for (let j = 1; j <= b.length; j++) {
+      const tmp = prev[j];
+      if (a[i - 1] === b[j - 1]) {
+        prev[j] = diag + 1;
+        if (prev[j] > best) best = prev[j];
+      } else prev[j] = 0;
+      diag = tmp;
+    }
+  }
+  return best;
+}
+
+/**
+ * Count how many OPEN ideas share a ≥SALIENT_LEN-char substring with `title`, and
+ * return one of their ids when the count reaches SATURATION_CAP (theme saturated).
+ * Returns null when the theme is novel enough to admit.
+ *
+ * @param title - Candidate idea title. / 候補アイデアのタイトル
+ * @returns An existing idea id when saturated, else null. / 飽和時は既存ID、それ以外 null
+ */
+async function findSaturatedThemeAnchor(title: string): Promise<number | null> {
+  if (title.trim().length < SALIENT_LEN) return null;
+  const open = await prisma.knowledgeEntry
+    .findMany({
+      where: { sourceType: 'idea_box', validationStatus: 'pending' },
+      select: { id: true, title: true },
+      take: 400,
+    })
+    .catch(() => [] as { id: number; title: string }[]);
+  let matches = 0;
+  let anchor: number | null = null;
+  for (const e of open) {
+    if (lcsLen(title, e.title) >= SALIENT_LEN) {
+      matches += 1;
+      anchor = anchor ?? e.id;
+      if (matches >= SATURATION_CAP) return anchor;
+    }
+  }
+  return null;
+}
 
 /**
  * Minimum combined confidence (actionability*0.6 + specificity*0.4) for
@@ -190,23 +242,20 @@ export async function submitIdea(input: SubmitIdeaInput): Promise<number> {
     return existing.id;
   }
 
-  // Semantic NOVELTY gate: reject an idea that merely paraphrases one already in
-  // the KB (an open idea OR existing knowledge). This breaks the self-reinforcing
-  // monoculture loop — the agent works on theme X → idea-extractor + the innovation
-  // session keep re-filing near-identical "theme X" ideas → they become near-
-  // duplicate tasks (observed: idea box was 96 entries almost all about type-guards/
-  // SSOT; PRs #270-275 were six near-synonymous type-guard refactors). Both the
-  // extractor and innovation session funnel through here, so one gate stops both.
-  // Threshold 0.85 (RAPITAS_IDEA_NOVELTY_THRESHOLD), slightly below the KB 0.9 so it
-  // catches variations, not just verbatim repeats. Fail-open (embeddings down → no
-  // gate). Returns the existing entry's id so callers treat it as a no-op dedup.
-  const dupId = await findSemanticDuplicate(`${title}\n${content}`, [], IDEA_NOVELTY_THRESHOLD);
-  if (dupId != null) {
+  // Theme-saturation gate (anti-monoculture): reject when the idea box already holds
+  // SATURATION_CAP+ open ideas about the same theme (lexical, see findSaturatedTheme-
+  // Anchor). Breaks the self-reinforcing loop — the agent works on theme X →
+  // idea-extractor + innovation session keep re-filing "theme X" ideas → near-
+  // duplicate tasks (observed: 96 ideas almost all type-guard/SSOT; PRs #270-275 six
+  // near-synonymous type-guard refactors). Both funnel through here, so one gate
+  // stops both. Returns the existing anchor id so callers treat it as a no-op dedup.
+  const anchorId = await findSaturatedThemeAnchor(title);
+  if (anchorId != null) {
     log.info(
-      { dupId, title: input.title },
-      '[idea-box] Rejected idea: semantically redundant (anti-monoculture)',
+      { anchorId, title: input.title },
+      '[idea-box] Rejected idea: theme over-represented (anti-monoculture)',
     );
-    return dupId;
+    return anchorId;
   }
 
   // Always attribute an idea to a real theme so it never falls into the global
