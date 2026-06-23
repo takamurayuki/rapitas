@@ -6,6 +6,7 @@
 import { prisma } from '../../config';
 import { createLogger } from '../../config/logger';
 import { resolveTaskWorkflowState } from '../task/task-resolver';
+import { narrowWorkflowStatus } from './workflow-types';
 
 const log = createLogger('workflow-queue');
 
@@ -118,7 +119,7 @@ export class WorkflowQueueService {
         themeId: themeId ?? null,
         priority,
         status: 'queued',
-        currentPhase: (task.workflowStatus as string) || 'draft',
+        currentPhase: narrowWorkflowStatus(task.workflowStatus),
         dependencies: JSON.stringify(dependencies),
       },
     });

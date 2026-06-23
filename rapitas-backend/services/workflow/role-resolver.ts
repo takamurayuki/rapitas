@@ -29,7 +29,8 @@ import { resolveTaskWorkflowState } from '../task/task-resolver';
 
 const log = createLogger('role-resolver');
 
-import type { WorkflowRole, WorkflowStatus, WorkflowMode } from './workflow-types';
+import { narrowWorkflowStatus, narrowWorkflowMode } from './workflow-types';
+import type { WorkflowRole } from './workflow-types';
 
 // NOTE: The status→role map is now derived from the DB-backed, UI-editable
 // mode config (workflow-mode-config.ts) — the single source of truth shared
@@ -60,11 +61,11 @@ export async function resolveAgentForTask(taskId: number): Promise<ResolvedRoleA
   const task = await resolveTaskWorkflowState(taskId);
   if (!task) return null;
 
-  const status = (task.workflowStatus as WorkflowStatus | null) ?? 'draft';
+  const status = narrowWorkflowStatus(task.workflowStatus);
   // Terminal statuses have no next role.
   if (status === 'verify_done' || status === 'completed') return null;
 
-  const mode: WorkflowMode = (task.workflowMode as WorkflowMode | null) ?? 'comprehensive';
+  const mode = narrowWorkflowMode(task.workflowMode);
   const { getModeSettings, buildRoleByStatus } = await import('./workflow-mode-config');
   const role = buildRoleByStatus(await getModeSettings(mode))[status];
   if (!role) {
