@@ -44,6 +44,23 @@ export function buildShutdownErrorMessage(action: string): string {
 }
 
 /**
+ * Exhaustive list of action strings passed to `buildShutdownErrorMessage`.
+ * Add a new entry here when introducing a new executor that can be blocked by shutdown.
+ *
+ * NOTE: The three executor files that consume these values hard-code the same strings
+ * (task-executor.ts, continuation-executor.ts, execution-resume.ts). The generated
+ * truth-table test (`shutdown-error.generated.test.ts`) validates that each action
+ * round-trips through `buildShutdownErrorMessage` + `isShutdownError` correctly,
+ * so divergence is caught by CI without modifying the executor files. / 各 executor
+ * が同じ文字列を独立して持つ設計は意図的（可読性優先）。ドリフト検出は生成テストが担保。
+ */
+export const SHUTDOWN_ACTIONS = [
+  'start new execution',
+  'continue execution',
+  'resume execution',
+] as const;
+
+/**
  * Returns true when the given value is a shutdown error from any layer of the backend.
  *
  * Detection logic:

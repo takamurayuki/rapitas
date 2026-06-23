@@ -2,6 +2,7 @@ import { Elysia, t } from 'elysia';
 import { prisma } from '../../config';
 import { cacheService } from '../core/cache-service';
 import { createLogger } from '../../config/logger';
+import { SHUTDOWN_ERROR_MESSAGE } from '../../utils/common/shutdown-error';
 
 const log = createLogger('websocket-service');
 
@@ -199,7 +200,7 @@ class WebSocketManager {
     // Send shutdown notification to all clients
     this.broadcast({
       type: 'server-shutdown',
-      message: 'Server is shutting down',
+      message: SHUTDOWN_ERROR_MESSAGE,
     });
 
     // Close connections
