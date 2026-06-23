@@ -5,6 +5,7 @@
  * prisma は mock.module でスタブ化し、テスト間でリセットする。
  */
 import { describe, test, expect, mock, beforeEach } from 'bun:test';
+import { BOUNDARY_STRINGS } from '../../tests/helpers/boundary-values';
 
 // HACK(agent): bun:test の mock.module はプロセスグローバルなため、
 // 全エクスポートをミラーしないとバレルが "export not found" をスローする。
@@ -170,4 +171,17 @@ describe('resolveUserByUsernameOrEmail', () => {
     };
     expect(callArgs.where.OR).toEqual([{ username: 'alice' }, { email: 'alice@example.com' }]);
   });
+});
+
+// ---------------------------------------------------------------------------
+// 境界値テスト: 文字列型フィールドの境界値で resolver が例外を投げず null を返すこと
+// ---------------------------------------------------------------------------
+describe('resolver 境界値: 文字列型フィールド', () => {
+  test.each(BOUNDARY_STRINGS)(
+    'resolveUserByEmail(email=$label) → null を返し例外を投げないこと（現挙動の回帰固定）',
+    async ({ value }) => {
+      const result = await resolveUserByEmail(value);
+      expect(result).toBeNull();
+    },
+  );
 });
