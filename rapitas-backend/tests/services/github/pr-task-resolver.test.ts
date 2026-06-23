@@ -9,6 +9,7 @@
  * pr-guards が両ディレクトリで共存するのと同様のパターン。
  */
 import { describe, test, expect, mock, beforeEach } from 'bun:test';
+import { NUMERIC_ID_BOUNDARIES } from '../../helpers/boundary-values';
 
 // HACK(agent): bun:test の mock.module はプロセスグローバルなため、
 // 全エクスポートをミラーしないとバレルが "export not found" をスローする。
@@ -83,6 +84,30 @@ describe('titleMatchesTask', () => {
 
   test('[Task-N] と [#N] 両方含む複合タイトル → true を返すこと（OR短絡確認）', () => {
     expect(titleMatchesTask('[Task-5] [#5] dual format title', 5)).toBe(true);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 境界値テスト: titleMatchesTask の id 境界値・特殊ケース
+// ---------------------------------------------------------------------------
+describe('titleMatchesTask 境界値', () => {
+  test('[Task-0] 形式で id=0 → true を返すこと（仮説 #3381 回帰固定）', () => {
+    expect(titleMatchesTask('[Task-0] zero id task', 0)).toBe(true);
+  });
+
+  test('[#0] 形式で id=0 → true を返すこと（仮説 #3381 回帰固定）', () => {
+    expect(titleMatchesTask('[#0] zero id task', 0)).toBe(true);
+  });
+
+  test.each(NUMERIC_ID_BOUNDARIES)(
+    'id=$label のとき、対応しないタイトル → false を返すこと',
+    ({ value }) => {
+      expect(titleMatchesTask('unrelated PR title', value)).toBe(false);
+    },
+  );
+
+  test('空文字タイトル → false を返すこと', () => {
+    expect(titleMatchesTask('', 5)).toBe(false);
   });
 });
 

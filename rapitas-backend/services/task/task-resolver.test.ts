@@ -5,6 +5,7 @@
  * prisma は mock.module でスタブ化し、テスト間でリセットする。
  */
 import { describe, test, expect, mock, beforeEach } from 'bun:test';
+import { NUMERIC_ID_BOUNDARIES } from '../../tests/helpers/boundary-values';
 
 // HACK(agent): bun:test の mock.module はプロセスグローバルなため、
 // 全エクスポートをミラーしないとバレルが "export not found" をスローする。
@@ -574,4 +575,65 @@ describe('resolveTaskForLearning', () => {
     expect(callArgs.include.theme.include.category).toBe(true);
     expect(callArgs.include.taskLabels.include.label).toBe(true);
   });
+});
+
+// ---------------------------------------------------------------------------
+// 境界値テスト: 数値型 id の境界値で各 resolver が例外を投げず null を返すこと
+// ---------------------------------------------------------------------------
+describe('resolver 境界値: 数値型 id', () => {
+  test.each(NUMERIC_ID_BOUNDARIES)(
+    'resolveTaskWithTheme(id=$label) → null を返し例外を投げないこと',
+    async ({ value }) => {
+      const result = await resolveTaskWithTheme(value);
+      expect(result).toBeNull();
+    },
+  );
+
+  test.each(NUMERIC_ID_BOUNDARIES)(
+    'resolveTaskWithThemeAndCategory(id=$label) → null を返し例外を投げないこと',
+    async ({ value }) => {
+      const result = await resolveTaskWithThemeAndCategory(value);
+      expect(result).toBeNull();
+    },
+  );
+
+  test.each(NUMERIC_ID_BOUNDARIES)(
+    'resolveTaskForExecution(id=$label) → null を返し例外を投げないこと',
+    async ({ value }) => {
+      const result = await resolveTaskForExecution(value);
+      expect(result).toBeNull();
+    },
+  );
+
+  test.each(NUMERIC_ID_BOUNDARIES)(
+    'resolveTaskWorkingDirectory(id=$label) → null を返し例外を投げないこと',
+    async ({ value }) => {
+      const result = await resolveTaskWorkingDirectory(value);
+      expect(result).toBeNull();
+    },
+  );
+
+  test.each(NUMERIC_ID_BOUNDARIES)(
+    'resolveTaskWorkflowState(id=$label) → null を返し例外を投げないこと',
+    async ({ value }) => {
+      const result = await resolveTaskWorkflowState(value);
+      expect(result).toBeNull();
+    },
+  );
+
+  test.each(NUMERIC_ID_BOUNDARIES)(
+    'resolveTaskTitle(id=$label) → null を返し例外を投げないこと',
+    async ({ value }) => {
+      const result = await resolveTaskTitle(value);
+      expect(result).toBeNull();
+    },
+  );
+
+  test.each(NUMERIC_ID_BOUNDARIES)(
+    'resolveTaskThemeId(id=$label) → null を返し例外を投げないこと',
+    async ({ value }) => {
+      const result = await resolveTaskThemeId(value);
+      expect(result).toBeNull();
+    },
+  );
 });

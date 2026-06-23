@@ -5,6 +5,7 @@
  * prisma は mock.module でスタブ化し、テスト間でリセットする。
  */
 import { describe, test, expect, mock, beforeEach } from 'bun:test';
+import { NUMERIC_ID_BOUNDARIES } from '../../tests/helpers/boundary-values';
 
 // HACK(agent): bun:test の mock.module はプロセスグローバルなため、
 // 全エクスポートをミラーしないとバレルが "export not found" をスローする。
@@ -179,4 +180,33 @@ describe('resolveLatestSessionWorktree', () => {
     expect(callArgs.select.worktreePath).toBe(true);
     expect(callArgs.select.branchName).toBe(true);
   });
+});
+
+// ---------------------------------------------------------------------------
+// 境界値テスト: 数値型 id の境界値で各 resolver が例外を投げず null を返すこと
+// ---------------------------------------------------------------------------
+describe('resolver 境界値: 数値型 id', () => {
+  test.each(NUMERIC_ID_BOUNDARIES)(
+    'resolveLatestFinishedSession(configId=$label) → null を返し例外を投げないこと',
+    async ({ value }) => {
+      const result = await resolveLatestFinishedSession(value);
+      expect(result).toBeNull();
+    },
+  );
+
+  test.each(NUMERIC_ID_BOUNDARIES)(
+    'resolveSessionWithLatestExecution(id=$label) → null を返し例外を投げないこと',
+    async ({ value }) => {
+      const result = await resolveSessionWithLatestExecution(value);
+      expect(result).toBeNull();
+    },
+  );
+
+  test.each(NUMERIC_ID_BOUNDARIES)(
+    'resolveLatestSessionWorktree(taskId=$label) → null を返し例外を投げないこと',
+    async ({ value }) => {
+      const result = await resolveLatestSessionWorktree(value);
+      expect(result).toBeNull();
+    },
+  );
 });

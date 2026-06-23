@@ -5,6 +5,7 @@
  * prisma は mock.module でスタブ化し、テスト間でリセットする。
  */
 import { describe, test, expect, mock, beforeEach } from 'bun:test';
+import { BOUNDARY_STRINGS } from '../../tests/helpers/boundary-values';
 
 // HACK(agent): bun:test の mock.module はプロセスグローバルなため、
 // 全エクスポートをミラーしないとバレルが "export not found" をスローする。
@@ -95,4 +96,17 @@ describe('resolveSessionByToken', () => {
     expect(gt.getTime()).toBeGreaterThanOrEqual(before.getTime() - 5);
     expect(gt.getTime()).toBeLessThanOrEqual(after.getTime() + 5);
   });
+});
+
+// ---------------------------------------------------------------------------
+// 境界値テスト: 文字列型 token の境界値で resolver が例外を投げず null を返すこと
+// ---------------------------------------------------------------------------
+describe('resolver 境界値: 文字列型 token', () => {
+  test.each(BOUNDARY_STRINGS)(
+    'resolveSessionByToken(token=$label) → null を返し例外を投げないこと（現挙動の回帰固定）',
+    async ({ value }) => {
+      const result = await resolveSessionByToken(value);
+      expect(result).toBeNull();
+    },
+  );
 });
