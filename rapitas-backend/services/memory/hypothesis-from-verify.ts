@@ -11,16 +11,23 @@
  * hypotheses (see hypothesis-from-research) or injecting them (see
  * workflow-hypothesis-context).
  */
+import { prisma } from '../../config/database';
 import { createLogger } from '../../config/logger';
-import { addEvidence } from './hypothesis-service';
+import { addEvidence, listHypotheses } from './hypothesis-service';
 
 const log = createLogger('memory:hypothesis-from-verify');
 
 /** Parsed verdict for one hypothesis from a verify.md `## 仮説評価` section. */
 export interface HypothesisVerdict {
-  hypothesisId: number;
+  /**
+   * Ledger id from a `[#id]` anchor, or null when the verifier restated the
+   * hypothesis by `[domain] statement` instead (the common drift — it mirrors the
+   * research.md `## 仮説` format). A null id is resolved against the task's open
+   * hypotheses by statement match in applyHypothesisVerdictsFromVerify.
+   */
+  hypothesisId: number | null;
   verdict: 'confirmed' | 'refuted';
-  /** The verifier's reason / evidence text (for the evidence detail). / 根拠テキスト */
+  /** The verifier's full verdict line (reason + statement, for matching/detail). / 判定行 */
   reason: string;
 }
 
@@ -29,12 +36,14 @@ export interface HypothesisVerdict {
 // so an uncertain verifier leaves the hypothesis open rather than forcing a verdict.
 const CONFIRM_RE = /(成立|確認|立証|confirmed|holds?|true|✓|✔)/i;
 const REFUTE_RE = /(不成立|反証|否定|refuted|false|✗|✘|×)/i;
+/** Min consecutive-char overlap to safely match an id-less verdict to a hypothesis. */
+const MIN_MATCH_LEN = 10;
 
 /**
  * Extract per-hypothesis verdicts from a verify.md `## 仮説評価` section.
- * Lines look like `- [#2854] 成立: 正規表現で7resolver生成できた` or
- * `- #2931 不成立 — X が想定と異なった`. The `#id` anchor is required (it maps the
- * verdict back to a ledger entry); a line without one is skipped.
+ * Lines look like `- [#2854] 成立: …` (id-anchored) or, when the verifier restated
+ * the hypothesis, `- [architecture] makeStringTypeGuard を…: **成立** — …` (id-less,
+ * resolved later by statement match). Lines with no 成立/不成立 verdict are skipped.
  *
  * @param content - verify.md body / verify.md 本文
  * @returns Parsed verdicts (confirmed/refuted only) / 抽出した判定
@@ -42,7 +51,7 @@ const REFUTE_RE = /(不成立|反証|否定|refuted|false|✗|✘|×)/i;
 export function extractHypothesisVerdicts(content: string | null | undefined): HypothesisVerdict[] {
   if (!content) return [];
   const out: HypothesisVerdict[] = [];
-  const seen = new Set<number>();
+  const seenIds = new Set<number>();
   let inSection = false;
   for (const raw of content.split('\n')) {
     const line = raw.trim();
@@ -53,10 +62,9 @@ export function extractHypothesisVerdicts(content: string | null | undefined): H
     }
     if (inSection && /^#{1,6}\s/.test(line)) break; // next heading closes it
     if (!inSection) continue;
-    const m = line.match(/^[-*]\s*\[?#(\d+)\]?\s*(.+)$/);
+    // Any bullet line; the `#id` anchor is OPTIONAL (captured when present).
+    const m = line.match(/^[-*]\s*(?:\[?#(\d+)\]?\s*)?(.+)$/);
     if (!m) continue;
-    const hypothesisId = Number(m[1]);
-    if (!Number.isFinite(hypothesisId) || seen.has(hypothesisId)) continue;
     const rest = (m[2] ?? '').trim();
     // Refutation takes precedence so a line mentioning both ("成立しない=不成立")
     // is not mis-read as confirmed.
@@ -64,10 +72,38 @@ export function extractHypothesisVerdicts(content: string | null | undefined): H
     if (REFUTE_RE.test(rest)) verdict = 'refuted';
     else if (CONFIRM_RE.test(rest)) verdict = 'confirmed';
     if (!verdict) continue;
-    seen.add(hypothesisId);
+    const hypothesisId = m[1] ? Number(m[1]) : null;
+    if (hypothesisId != null) {
+      if (!Number.isFinite(hypothesisId) || seenIds.has(hypothesisId)) continue;
+      seenIds.add(hypothesisId);
+    }
     out.push({ hypothesisId, verdict, reason: rest.slice(0, 300) });
   }
   return out;
+}
+
+/**
+ * Longest common substring length between two strings (small inputs only).
+ * Used to safely match an id-less verdict line to the hypothesis it restates.
+ */
+function longestCommonSubstringLen(a: string, b: string): number {
+  if (!a || !b) return 0;
+  const prev = new Array<number>(b.length + 1).fill(0);
+  let best = 0;
+  for (let i = 1; i <= a.length; i++) {
+    let diagPrev = 0;
+    for (let j = 1; j <= b.length; j++) {
+      const tmp = prev[j];
+      if (a[i - 1] === b[j - 1]) {
+        prev[j] = diagPrev + 1;
+        if (prev[j] > best) best = prev[j];
+      } else {
+        prev[j] = 0;
+      }
+      diagPrev = tmp;
+    }
+  }
+  return best;
 }
 
 /**
@@ -87,8 +123,42 @@ export async function applyHypothesisVerdictsFromVerify(
   const verdicts = extractHypothesisVerdicts(content);
   if (verdicts.length === 0) return 0;
 
+  // Resolve id-less verdicts (the verifier restated the hypothesis instead of
+  // citing `[#id]`) against THIS task's still-open hypotheses by statement match.
+  // Matching is conservative — a long common substring, each hypothesis used at
+  // most once, ambiguous matches skipped — so a wrong hypothesis is never graduated.
+  const needMatch = verdicts.some((v) => v.hypothesisId == null);
+  if (needMatch) {
+    const open = await listOpenHypothesesForTask(taskId);
+    const used = new Set<number>(
+      verdicts.map((v) => v.hypothesisId).filter((id): id is number => id != null),
+    );
+    for (const v of verdicts) {
+      if (v.hypothesisId != null) continue;
+      let bestId: number | null = null;
+      let bestLen = MIN_MATCH_LEN - 1;
+      let tie = false;
+      for (const h of open) {
+        if (used.has(h.id)) continue;
+        const len = longestCommonSubstringLen(v.reason, h.statement);
+        if (len > bestLen) {
+          bestLen = len;
+          bestId = h.id;
+          tie = false;
+        } else if (len === bestLen && bestId != null) {
+          tie = true;
+        }
+      }
+      if (bestId != null && !tie) {
+        v.hypothesisId = bestId;
+        used.add(bestId);
+      }
+    }
+  }
+
   let applied = 0;
   for (const v of verdicts) {
+    if (v.hypothesisId == null) continue; // unresolved — skip rather than mis-graduate
     try {
       const res = await addEvidence(v.hypothesisId, {
         stance: v.verdict === 'confirmed' ? 'for' : 'against',
@@ -114,4 +184,28 @@ export async function applyHypothesisVerdictsFromVerify(
     log.info({ taskId, applied }, '[hypothesis-from-verify] applied explicit verdicts');
   }
   return applied;
+}
+
+/**
+ * Fetch the still-open hypotheses this task formed (originTaskId === taskId), for
+ * matching id-less verdicts. Best-effort: returns [] on any error.
+ */
+async function listOpenHypothesesForTask(
+  taskId: number,
+): Promise<{ id: number; statement: string }[]> {
+  try {
+    const task = await prisma.task
+      .findUnique({ where: { id: taskId }, select: { themeId: true } })
+      .catch(() => null);
+    const { hypotheses } = await listHypotheses({
+      status: 'open',
+      ...(task?.themeId != null && { themeId: task.themeId }),
+      limit: 100,
+    });
+    return hypotheses
+      .filter((h) => h.originTaskId === taskId)
+      .map((h) => ({ id: h.id, statement: h.statement }));
+  } catch {
+    return [];
+  }
 }
