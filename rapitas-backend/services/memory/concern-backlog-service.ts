@@ -17,22 +17,11 @@ import { narrowEnum } from '../../utils/common/type-guards';
 const log = createLogger('memory:concern-backlog');
 
 /** What kind of concern this is. */
-export const CONCERN_TYPES = [
-  'bug',
-  'refactor',
-  'security',
-  'perf',
-  'other',
-] as const;
+export const CONCERN_TYPES = ['bug', 'refactor', 'security', 'perf', 'other'] as const;
 export type ConcernType = (typeof CONCERN_TYPES)[number];
 
 /** How serious / urgent the concern is. */
-export const CONCERN_SEVERITIES = [
-  'urgent',
-  'high',
-  'medium',
-  'low',
-] as const;
+export const CONCERN_SEVERITIES = ['urgent', 'high', 'medium', 'low'] as const;
 export type ConcernSeverity = (typeof CONCERN_SEVERITIES)[number];
 /**
  * Lifecycle state of a concern.

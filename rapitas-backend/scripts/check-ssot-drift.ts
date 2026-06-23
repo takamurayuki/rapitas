@@ -322,7 +322,9 @@ report('Domain C (error message string literals)', domainCViolations);
 report('Domain D (WorkflowFileType/VALID_STATUSES/inline-modes drift)', domainDViolations);
 // Domain E is always warn-only: violations here do not affect the exit code.
 if (domainEViolations.length > 0) {
-  console.log(`Domain E (VALID_* reverse-dependency pattern) [warn-only]: ${domainEViolations.length} violation(s)`);
+  console.log(
+    `Domain E (VALID_* reverse-dependency pattern) [warn-only]: ${domainEViolations.length} violation(s)`,
+  );
   for (const v of domainEViolations.slice(0, 20)) {
     console.log(`  ⚠️  ${v.file}  →  ${v.match}`);
   }

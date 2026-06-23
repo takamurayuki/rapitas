@@ -63,9 +63,8 @@ const {
   getConcernStats,
 } = await import('./concern-backlog-service');
 
-const { isConcernType, isConcernSeverity } = await import(
-  './concern-backlog-service.guards.generated'
-);
+const { isConcernType, isConcernSeverity } =
+  await import('./concern-backlog-service.guards.generated');
 
 // ─── Reset helper ──────────────────────────────────────────────────────────────
 

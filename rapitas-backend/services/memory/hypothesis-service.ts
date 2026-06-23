@@ -37,7 +37,6 @@ export type HypothesisStatus = 'open' | 'supported' | 'refuted' | 'inconclusive'
 /** Whether a piece of evidence supports or opposes the hypothesis. */
 export type EvidenceStance = 'for' | 'against';
 
-
 /** Confidence a brand-new (untested) hypothesis starts at — deliberately low. */
 const INITIAL_CONFIDENCE = 0.2;
 /** Each concrete evidence nudges confidence by this fraction (Bayesian-ish). */
