@@ -21,6 +21,13 @@ interface WorkflowQuestionPanelProps {
   submitting: boolean;
   /** Submit the chosen/typed answer. */
   onAnswer: (answer: string) => void;
+  /**
+   * Free-text-only mode: skip the synthesized yes/no quick-choices and render a
+   * multi-line textarea. Used for spec-clarification (intake) questions, whose
+   * answer is an open-ended bullet list of goals/constraints/acceptance — the
+   * default はい/いいえ buttons are meaningless and confusing there.
+   */
+  freeTextOnly?: boolean;
 }
 
 /**
@@ -32,8 +39,11 @@ export function WorkflowQuestionPanel({
   question,
   submitting,
   onAnswer,
+  freeTextOnly = false,
 }: WorkflowQuestionPanelProps) {
-  const { options, isDefault } = resolveQuestionOptions(question.options);
+  const { options, isDefault } = freeTextOnly
+    ? { options: [] as string[], isDefault: false }
+    : resolveQuestionOptions(question.options);
   const [selected, setSelected] = useState<string>('');
   const [freeText, setFreeText] = useState<string>('');
   const [remaining, setRemaining] = useState<number | null>(
@@ -133,25 +143,56 @@ export function WorkflowQuestionPanel({
         </div>
       )}
 
-      <div className="mt-3 flex items-center gap-2">
-        <input
-          type="text"
-          value={freeText}
-          onChange={(e) => setFreeText(e.target.value)}
-          onKeyDown={(e) => e.key === 'Enter' && canSubmit && onAnswer(answer)}
-          placeholder="自由記述で回答する場合はこちらに入力..."
-          className="flex-1 rounded-lg border border-amber-300 bg-white px-3 py-2 text-sm focus:border-amber-500 focus:outline-none focus:ring-2 focus:ring-amber-500/30 dark:border-amber-700 dark:bg-zinc-800"
-        />
-        <button
-          type="button"
-          onClick={() => canSubmit && onAnswer(answer)}
-          disabled={!canSubmit}
-          className="flex items-center gap-2 rounded-lg bg-amber-600 px-4 py-2 font-medium text-white transition-colors hover:bg-amber-700 disabled:cursor-not-allowed disabled:opacity-50"
-        >
-          {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-          送信
-        </button>
-      </div>
+      {freeTextOnly ? (
+        <div className="mt-1">
+          <textarea
+            value={freeText}
+            onChange={(e) => setFreeText(e.target.value)}
+            rows={5}
+            placeholder={'達成したいこと・守るべき制約・「完了」と言える条件を箇条書きで入力...\n例:\n- ゴール: 生成スクリプトの実行時間を半減\n- 制約: 既存の生成物と出力差分なし\n- 受入: ベンチで before/after を計測し50%短縮を確認'}
+            className="w-full resize-y rounded-lg border border-amber-300 bg-white px-3 py-2 text-sm focus:border-amber-500 focus:outline-none focus:ring-2 focus:ring-amber-500/30 dark:border-amber-700 dark:bg-zinc-800"
+          />
+          <div className="mt-2 flex justify-end">
+            <button
+              type="button"
+              onClick={() => canSubmit && onAnswer(answer)}
+              disabled={!canSubmit}
+              className="flex items-center gap-2 rounded-lg bg-amber-600 px-4 py-2 font-medium text-white transition-colors hover:bg-amber-700 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {submitting ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Send className="h-4 w-4" />
+              )}
+              回答してワークフローを再開
+            </button>
+          </div>
+        </div>
+      ) : (
+        <div className="mt-3 flex items-center gap-2">
+          <input
+            type="text"
+            value={freeText}
+            onChange={(e) => setFreeText(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && canSubmit && onAnswer(answer)}
+            placeholder="自由記述で回答する場合はこちらに入力..."
+            className="flex-1 rounded-lg border border-amber-300 bg-white px-3 py-2 text-sm focus:border-amber-500 focus:outline-none focus:ring-2 focus:ring-amber-500/30 dark:border-amber-700 dark:bg-zinc-800"
+          />
+          <button
+            type="button"
+            onClick={() => canSubmit && onAnswer(answer)}
+            disabled={!canSubmit}
+            className="flex items-center gap-2 rounded-lg bg-amber-600 px-4 py-2 font-medium text-white transition-colors hover:bg-amber-700 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {submitting ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <Send className="h-4 w-4" />
+            )}
+            送信
+          </button>
+        </div>
+      )}
     </div>
   );
 }

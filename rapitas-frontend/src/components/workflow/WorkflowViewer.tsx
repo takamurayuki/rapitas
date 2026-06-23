@@ -17,6 +17,7 @@ import {
 import { WorkflowTabBar } from './WorkflowTabBar';
 import { WorkflowFileContent } from './WorkflowFileContent';
 import { WorkflowQuestionPanel } from './WorkflowQuestionPanel';
+import { splitIntakeQuestion } from './workflow-question-utils';
 
 export interface WorkflowViewerProps {
   taskId: number;
@@ -212,44 +213,62 @@ export default function WorkflowViewer({
 
       {/* Content area */}
       <div className="p-5">
-        {/* Live Q&A: when a question is pending and the Q&A tab is active, the
-            interactive prompt renders here (relocated from the execution log). */}
-        {validActiveTab === 'question' && liveQuestion && (
-          <div className="mb-4">
-            <WorkflowQuestionPanel
-              question={liveQuestion}
-              submitting={submittingAnswer}
-              onAnswer={handleAnswerQuestion}
-            />
-          </div>
-        )}
-        {/* Intake / spec-clarification question (question.md): answerable even
-            though there is no live agent session — the panel was previously
-            live-question-only, so an intake question had no answer path. Shown
-            when a question.md exists, no live question is pending, and the task
-            is not already completed. */}
-        {validActiveTab === 'question' &&
-          !liveQuestion &&
-          tabStatus.question &&
-          effectiveStatus !== 'completed' &&
-          !!activeFile?.content && (
-            <div className="mb-4">
-              <WorkflowQuestionPanel
-                question={{ taskId, text: activeFile.content, options: [] }}
-                submitting={submittingAnswer}
-                onAnswer={handleAnswerIntakeQuestion}
-              />
-            </div>
-          )}
-        <WorkflowFileContent
-          isLoading={isLoading}
-          activeFile={activeFile}
-          activeTabConfig={activeTabConfig ?? workflowTabs[0]}
-          showApprovalButton={!!showApprovalButton}
-          onPlanApprovalRequest={onPlanApprovalRequest}
-          taskId={taskId}
-          onSaved={refetch}
-        />
+        {(() => {
+          // An intake / spec-clarification question.md is answerable here even
+          // though there is no live agent session (the panel was previously
+          // live-question-only). When EITHER kind of question panel renders, the
+          // question text is already shown in the panel, so the raw question.md
+          // file body is NOT re-rendered below (it duplicated the panel).
+          const showingIntakeQuestion =
+            validActiveTab === 'question' &&
+            !liveQuestion &&
+            tabStatus.question &&
+            effectiveStatus !== 'completed' &&
+            !!activeFile?.content;
+          const showingQuestionPanel =
+            validActiveTab === 'question' && (!!liveQuestion || showingIntakeQuestion);
+          return (
+            <>
+              {validActiveTab === 'question' && liveQuestion && (
+                <div className="mb-4">
+                  <WorkflowQuestionPanel
+                    question={liveQuestion}
+                    submitting={submittingAnswer}
+                    onAnswer={handleAnswerQuestion}
+                  />
+                </div>
+              )}
+              {showingIntakeQuestion &&
+                (() => {
+                  // Prefer agent-presented choices: parse the `## 選択肢` block and
+                  // render it as selectable buttons; only fall back to free-text-only
+                  // when no options were offered.
+                  const { text, options } = splitIntakeQuestion(activeFile?.content ?? '');
+                  return (
+                    <div className="mb-4">
+                      <WorkflowQuestionPanel
+                        question={{ taskId, text, options }}
+                        submitting={submittingAnswer}
+                        onAnswer={handleAnswerIntakeQuestion}
+                        freeTextOnly={options.length === 0}
+                      />
+                    </div>
+                  );
+                })()}
+              {!showingQuestionPanel && (
+                <WorkflowFileContent
+                  isLoading={isLoading}
+                  activeFile={activeFile}
+                  activeTabConfig={activeTabConfig ?? workflowTabs[0]}
+                  showApprovalButton={!!showApprovalButton}
+                  onPlanApprovalRequest={onPlanApprovalRequest}
+                  taskId={taskId}
+                  onSaved={refetch}
+                />
+              )}
+            </>
+          );
+        })()}
       </div>
     </div>
   );

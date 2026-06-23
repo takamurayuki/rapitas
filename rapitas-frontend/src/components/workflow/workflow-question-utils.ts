@@ -33,6 +33,40 @@ export function resolveQuestionOptions(
 }
 
 /**
+ * Split an intake `question.md` into its prose and selectable options. The backend
+ * embeds choices under a `## 選択肢` bullet block (see intake-question-template);
+ * the UI renders those as buttons, so they are STRIPPED from the displayed prose to
+ * avoid showing the same options twice (once as text, once as buttons).
+ *
+ * @param md - The question.md body. / question.md 本文
+ * @returns The prose (options section removed) and the parsed option strings.
+ */
+export function splitIntakeQuestion(md: string): { text: string; options: string[] } {
+  const lines = (md ?? '').split(/\r?\n/);
+  const options: string[] = [];
+  const kept: string[] = [];
+  let inOptions = false;
+  for (const raw of lines) {
+    const line = raw.trim();
+    if (/^#{1,6}\s*選択肢/.test(line)) {
+      inOptions = true;
+      continue; // drop the heading from the prose
+    }
+    if (inOptions) {
+      if (/^#{1,6}\s/.test(line)) {
+        inOptions = false; // next heading ends the options block
+      } else {
+        const m = line.match(/^[-*]\s+(.+)$/);
+        if (m) options.push(m[1].trim());
+        continue; // drop option bullets (and blanks) from the prose
+      }
+    }
+    kept.push(raw);
+  }
+  return { text: kept.join('\n').trim(), options };
+}
+
+/**
  * Seconds remaining until an ISO deadline, or null when no deadline.
  *
  * @param deadlineIso - ISO timestamp the question auto-continues at / 自動継続の期限
