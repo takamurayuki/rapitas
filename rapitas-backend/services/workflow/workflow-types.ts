@@ -6,7 +6,7 @@
  * runtime arrays, type guards, and narrowing functions. All consumers must
  * import from here.
  */
-import { makeStringTypeGuard } from '../../utils/common/type-guards';
+import { isOneOf, narrowEnum } from '../../utils/common/type-guards';
 
 /**
  * Runtime array of all valid workflow roles. Derive WorkflowRole from this
@@ -23,7 +23,13 @@ export const WORKFLOW_ROLES = [
 
 export type WorkflowRole = (typeof WORKFLOW_ROLES)[number];
 
-export type WorkflowFileType = 'research' | 'question' | 'plan' | 'verify';
+/**
+ * Runtime array of all valid workflow file types. Derive WorkflowFileType from this
+ * so the type and the runtime validation list can never drift apart.
+ */
+export const WORKFLOW_FILE_TYPES = ['research', 'question', 'plan', 'verify'] as const;
+
+export type WorkflowFileType = (typeof WORKFLOW_FILE_TYPES)[number];
 
 /**
  * Runtime array of all valid workflow statuses. Derive WorkflowStatus from this
@@ -61,9 +67,6 @@ export const WORKFLOW_MODES = ['lightweight', 'standard', 'comprehensive'] as co
 
 export type WorkflowMode = (typeof WORKFLOW_MODES)[number];
 
-const workflowStatusGuard = makeStringTypeGuard(WORKFLOW_STATUSES);
-const workflowModeGuard = makeStringTypeGuard(WORKFLOW_MODES);
-
 /**
  * Type guard: narrows an unknown value to WorkflowStatus.
  *
@@ -71,7 +74,7 @@ const workflowModeGuard = makeStringTypeGuard(WORKFLOW_MODES);
  * @returns True when `s` is a valid WorkflowStatus. / 有効なWorkflowStatusの場合true
  */
 export function isWorkflowStatus(s: unknown): s is WorkflowStatus {
-  return workflowStatusGuard.is(s);
+  return isOneOf(s, WORKFLOW_STATUSES);
 }
 
 /**
@@ -81,7 +84,7 @@ export function isWorkflowStatus(s: unknown): s is WorkflowStatus {
  * @returns True when `s` is a valid WorkflowMode. / 有効なWorkflowModeの場合true
  */
 export function isWorkflowMode(s: unknown): s is WorkflowMode {
-  return workflowModeGuard.is(s);
+  return isOneOf(s, WORKFLOW_MODES);
 }
 
 /**
@@ -97,7 +100,7 @@ export function narrowWorkflowStatus(
   s: string | null | undefined,
   fallback: WorkflowStatus = 'draft',
 ): WorkflowStatus {
-  return workflowStatusGuard.narrow(s, fallback);
+  return narrowEnum(s, WORKFLOW_STATUSES, fallback);
 }
 
 /**
@@ -113,7 +116,7 @@ export function narrowWorkflowMode(
   s: string | null | undefined,
   fallback: WorkflowMode = 'comprehensive',
 ): WorkflowMode {
-  return workflowModeGuard.narrow(s, fallback);
+  return narrowEnum(s, WORKFLOW_MODES, fallback);
 }
 
 /** Maps a workflow status to the role that should execute next and its expected output. */

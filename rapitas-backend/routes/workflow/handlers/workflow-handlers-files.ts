@@ -35,6 +35,7 @@ import {
   checkWorkflowInvariants,
   normalizeWorkflowStatus,
 } from '../../../services/workflow/workflow-invariants';
+import type { WorkflowStatus } from '../../../services/workflow/workflow-types';
 import { maybeAutoApprovePlan } from '../../../services/workflow/plan-auto-approve';
 import { HTTP_STATUS } from '../../../utils/common/http-status';
 
@@ -189,7 +190,7 @@ export async function handleSaveFile({
     // saved, regressing the task to research_done and corrupting the
     // status machine. Each file type is only allowed when the task is in
     // a phase that can legitimately produce that artifact.
-    const ALLOWED_FILE_TYPES_BY_STATUS: Record<string, ReadonlySet<WorkflowFileType>> = {
+    const ALLOWED_FILE_TYPES_BY_STATUS: Record<WorkflowStatus, ReadonlySet<WorkflowFileType>> = {
       draft: new Set(['research', 'question']),
       // 'verify' is allowed here for the LIGHTWEIGHT single-session flow
       // (research→implement→verify, NO plan phase — e.g. conflict-resolution

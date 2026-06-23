@@ -14,6 +14,7 @@
  */
 import { prisma } from '../../config/database';
 import { createLogger } from '../../config/logger';
+import { WORKFLOW_MODES } from './workflow-types';
 import type { RoleTransition, WorkflowMode } from './workflow-types';
 
 const log = createLogger('workflow-mode-config');
@@ -131,7 +132,7 @@ function toggleJson(s: Pick<WorkflowModeSettings, 'includePlan' | 'includeReview
  */
 export async function selectModeByComplexity(score: number): Promise<WorkflowMode> {
   const all = await getAllModeSettings();
-  const order: WorkflowMode[] = ['lightweight', 'standard', 'comprehensive'];
+  const order: WorkflowMode[] = [...WORKFLOW_MODES];
   for (const m of order) {
     const s = all[m];
     if (s.isEnabled && score >= s.complexityMin && score <= s.complexityMax) return m;

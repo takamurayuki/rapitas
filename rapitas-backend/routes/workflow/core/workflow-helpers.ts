@@ -6,19 +6,14 @@
  */
 
 import { readFile, stat } from 'fs/promises';
+import { WORKFLOW_STATUSES, WORKFLOW_FILE_TYPES } from '../../../services/workflow/workflow-types';
+import type { WorkflowFileType } from '../../../services/workflow/workflow-types';
 
-export const VALID_FILE_TYPES = ['research', 'question', 'plan', 'verify'] as const;
-export type WorkflowFileType = (typeof VALID_FILE_TYPES)[number];
-
-export const VALID_WORKFLOW_STATUSES = [
-  'draft',
-  'research_done',
-  'plan_created',
-  'plan_approved',
-  'in_progress',
-  'verify_done',
-  'completed',
-] as const;
+// NOTE: Re-exported as backward-compatible aliases so existing consumers (handlers, tests)
+// continue to import from this path without change. The SSOT is workflow-types.ts.
+export type { WorkflowFileType };
+export const VALID_WORKFLOW_STATUSES = WORKFLOW_STATUSES;
+export const VALID_FILE_TYPES = WORKFLOW_FILE_TYPES;
 
 // NOTE: Re-exported from services to avoid the duplicate implementation that previously lived here.
 export { resolveWorkflowDir } from '../../../services/workflow/workflow-file-utils';

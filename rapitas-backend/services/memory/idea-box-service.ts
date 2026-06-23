@@ -9,6 +9,7 @@ import { prisma } from '../../config/database';
 import { createLogger } from '../../config/logger';
 import { createContentHash } from './utils';
 import { sanitizeMarkdownContent } from '../../utils/common/mojibake-detector';
+import { narrowEnum } from '../../utils/common/type-guards';
 
 const log = createLogger('memory:idea-box');
 
@@ -46,7 +47,7 @@ const VALID_PRIORITIES: readonly IdeaPriority[] = ['urgent', 'high', 'medium', '
 
 /** Coerces an arbitrary value to a valid priority, defaulting to medium. */
 export function normalizeIdeaPriority(value: unknown): IdeaPriority {
-  return VALID_PRIORITIES.includes(value as IdeaPriority) ? (value as IdeaPriority) : 'medium';
+  return narrowEnum(value, VALID_PRIORITIES, 'medium');
 }
 
 export interface IdeaBoxEntry {

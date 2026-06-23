@@ -36,6 +36,7 @@ describe('check-ssot-drift', () => {
     expect(stdout).toContain('Domain A');
     expect(stdout).toContain('Domain B');
     expect(stdout).toContain('Domain C');
+    expect(stdout).toContain('Domain D');
   });
 
   test('exits 0 with --warn-only flag', () => {
@@ -53,6 +54,7 @@ describe('check-ssot-drift', () => {
     expect(stdout).toContain('Domain A');
     expect(stdout).toContain('Domain B');
     expect(stdout).toContain('Domain C');
+    expect(stdout).toContain('Domain D');
   });
 
   test('output labels include domain names', () => {
@@ -60,10 +62,18 @@ describe('check-ssot-drift', () => {
     expect(stdout).toContain('Domain A (WorkflowRole/Status/Mode type drift)');
     expect(stdout).toContain('Domain B (HTTP status numeric literals)');
     expect(stdout).toContain('Domain C (error message string literals)');
+    expect(stdout).toContain('Domain D (WorkflowFileType/VALID_STATUSES/inline-modes drift)');
   });
 
   test('Domain A has 0 violations (all types migrated to SSOT)', () => {
     const { stdout } = run(['--warn-only']);
     expect(stdout).toContain('Domain A (WorkflowRole/Status/Mode type drift): 0 violation(s)');
+  });
+
+  test('Domain D has 0 violations (all workflow constants migrated to SSOT)', () => {
+    const { stdout } = run(['--warn-only']);
+    expect(stdout).toContain(
+      'Domain D (WorkflowFileType/VALID_STATUSES/inline-modes drift): 0 violation(s)',
+    );
   });
 });

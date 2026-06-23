@@ -63,6 +63,7 @@ mock.module('../core/workflow-helpers', () => ({
     'plan_created',
     'plan_approved',
     'in_progress',
+    'awaiting_question',
     'verify_done',
     'completed',
   ] as const,

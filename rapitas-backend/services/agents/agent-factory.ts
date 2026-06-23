@@ -9,7 +9,7 @@ import { ClaudeCodeAgent, ClaudeCodeAgentConfig } from './claude-code-agent';
 import { GeminiCliAgent, GeminiCliAgentConfig } from './gemini-cli-agent';
 import { CodexCliAgent, CodexCliAgentConfig } from './codex-cli-agent';
 // NOTE: Direct path import (not barrel) to avoid transitive config/logger pull-in.
-import { makeStringTypeGuard } from '../../utils/common/type-guards';
+import { isOneOf, narrowEnum } from '../../utils/common/type-guards';
 
 /**
  * Runtime array of all valid agent types. Derive AgentType from this
@@ -19,8 +19,6 @@ export const AGENT_TYPES = ['claude-code', 'codex', 'gemini', 'custom'] as const
 
 export type AgentType = (typeof AGENT_TYPES)[number];
 
-const agentTypeGuard = makeStringTypeGuard(AGENT_TYPES);
-
 /**
  * Type guard: narrows an unknown value to AgentType.
  *
@@ -28,7 +26,7 @@ const agentTypeGuard = makeStringTypeGuard(AGENT_TYPES);
  * @returns True when `s` is a valid AgentType. / 有効なAgentTypeの場合true
  */
 export function isAgentType(s: unknown): s is AgentType {
-  return agentTypeGuard.is(s);
+  return isOneOf(s, AGENT_TYPES);
 }
 
 /**
@@ -43,7 +41,7 @@ export function narrowAgentType(
   s: string | null | undefined,
   fallback: AgentType = 'claude-code',
 ): AgentType {
-  return agentTypeGuard.narrow(s, fallback);
+  return narrowEnum(s, AGENT_TYPES, fallback);
 }
 
 export type AgentConfigInput = {

@@ -5,7 +5,7 @@
 import { Elysia } from 'elysia';
 import { prisma } from '../../../config';
 import { formatAgentDisplayName } from '../../../utils/agent/agent-display-name';
-import { WORKFLOW_ROLES } from '../../../services/workflow/workflow-types';
+import { WORKFLOW_ROLES, WORKFLOW_MODES } from '../../../services/workflow/workflow-types';
 import type { WorkflowRole } from '../../../services/workflow/workflow-types';
 import { HTTP_STATUS } from '../../../utils/common/http-status';
 
@@ -255,7 +255,7 @@ export const workflowRolesRoutes = new Elysia()
    */
   .put('/workflow-modes/:mode', async ({ params, body, set }) => {
     const mode = params.mode as 'lightweight' | 'standard' | 'comprehensive';
-    if (!['lightweight', 'standard', 'comprehensive'].includes(mode)) {
+    if (!(WORKFLOW_MODES as readonly string[]).includes(mode)) {
       set.status = HTTP_STATUS.BAD_REQUEST;
       return { error: 'Invalid mode' };
     }

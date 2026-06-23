@@ -1,99 +1,81 @@
 /**
  * type-guards.test
  *
- * Unit tests for makeStringTypeGuard factory.
- * Covers: is/narrow, all edge cases, destructure-safety.
+ * Unit tests for the isOneOf / narrowEnum / narrowEnumOrNull utilities.
  */
-import { describe, it, expect } from 'bun:test';
-import { makeStringTypeGuard } from './type-guards';
+import { describe, expect, it } from 'bun:test';
+import { isOneOf, narrowEnum, narrowEnumOrNull } from './type-guards';
 
 const COLORS = ['red', 'green', 'blue'] as const;
 type Color = (typeof COLORS)[number];
 
-const { is: isColor, narrow: narrowColor } = makeStringTypeGuard(COLORS);
-
-describe('makeStringTypeGuard', () => {
-  describe('is (type predicate)', () => {
-    it('returns true for all valid values', () => {
-      expect(isColor('red')).toBe(true);
-      expect(isColor('green')).toBe(true);
-      expect(isColor('blue')).toBe(true);
-    });
-
-    it('returns false for an invalid string', () => {
-      expect(isColor('yellow')).toBe(false);
-    });
-
-    it('returns false for empty string', () => {
-      expect(isColor('')).toBe(false);
-    });
-
-    it('returns false for null', () => {
-      expect(isColor(null)).toBe(false);
-    });
-
-    it('returns false for undefined', () => {
-      expect(isColor(undefined)).toBe(false);
-    });
-
-    it('returns false for a number', () => {
-      expect(isColor(42)).toBe(false);
-    });
-
-    it('returns false for an object', () => {
-      expect(isColor({ value: 'red' })).toBe(false);
-    });
-
-    it('returns false for an array containing a valid value', () => {
-      expect(isColor(['red'])).toBe(false);
-    });
+describe('isOneOf', () => {
+  it('returns true for a valid member', () => {
+    expect(isOneOf('red', COLORS)).toBe(true);
+    expect(isOneOf('green', COLORS)).toBe(true);
+    expect(isOneOf('blue', COLORS)).toBe(true);
   });
 
-  describe('narrow (safe coercion)', () => {
-    it('returns the value when it is valid', () => {
-      const result: Color = narrowColor('green', 'red');
-      expect(result).toBe('green');
-    });
-
-    it('returns the fallback for an invalid string', () => {
-      expect(narrowColor('purple', 'red')).toBe('red');
-    });
-
-    it('returns the fallback for null', () => {
-      expect(narrowColor(null, 'blue')).toBe('blue');
-    });
-
-    it('returns the fallback for undefined', () => {
-      expect(narrowColor(undefined, 'green')).toBe('green');
-    });
-
-    it('returns the fallback for empty string', () => {
-      expect(narrowColor('', 'red')).toBe('red');
-    });
-
-    it('uses a custom fallback correctly', () => {
-      expect(narrowColor('bad', 'blue')).toBe('blue');
-    });
-
-    it('handles a single-element value set', () => {
-      const { narrow: narrowSingle } = makeStringTypeGuard(['only'] as const);
-      expect(narrowSingle('only', 'only')).toBe('only');
-      expect(narrowSingle('other', 'only')).toBe('only');
-    });
+  it('returns false for an invalid string', () => {
+    expect(isOneOf('yellow', COLORS)).toBe(false);
+    expect(isOneOf('', COLORS)).toBe(false);
   });
 
-  describe('destructure safety', () => {
-    it('narrow works correctly after destructuring (no this-context loss)', () => {
-      // This is the critical test: `this` must NOT be used inside narrow.
-      const { narrow } = makeStringTypeGuard(COLORS);
-      expect(narrow('red', 'blue')).toBe('red');
-      expect(narrow('bad', 'blue')).toBe('blue');
-    });
+  it('returns false for non-string types', () => {
+    expect(isOneOf(0, COLORS)).toBe(false);
+    expect(isOneOf(null, COLORS)).toBe(false);
+    expect(isOneOf(undefined, COLORS)).toBe(false);
+    expect(isOneOf({}, COLORS)).toBe(false);
+    expect(isOneOf(['red'], COLORS)).toBe(false);
+  });
+});
 
-    it('is works correctly after destructuring', () => {
-      const { is } = makeStringTypeGuard(COLORS);
-      expect(is('green')).toBe(true);
-      expect(is('x')).toBe(false);
-    });
+describe('narrowEnum', () => {
+  it('returns the value unchanged when valid', () => {
+    const result: Color = narrowEnum<Color>('red', COLORS, 'green');
+    expect(result).toBe('red');
+  });
+
+  it('returns the fallback for an invalid string', () => {
+    expect(narrowEnum('purple', COLORS, 'blue')).toBe('blue');
+    expect(narrowEnum('', COLORS, 'red')).toBe('red');
+  });
+
+  it('returns the fallback for null', () => {
+    expect(narrowEnum(null, COLORS, 'green')).toBe('green');
+  });
+
+  it('returns the fallback for undefined', () => {
+    expect(narrowEnum(undefined, COLORS, 'green')).toBe('green');
+  });
+
+  it('returns the fallback for non-string types', () => {
+    expect(narrowEnum(42, COLORS, 'blue')).toBe('blue');
+    expect(narrowEnum({}, COLORS, 'blue')).toBe('blue');
+  });
+});
+
+describe('narrowEnumOrNull', () => {
+  it('returns the value unchanged when valid', () => {
+    const result: Color | null = narrowEnumOrNull<Color>('blue', COLORS);
+    expect(result).toBe('blue');
+  });
+
+  it('returns null for an invalid string', () => {
+    expect(narrowEnumOrNull('purple', COLORS)).toBeNull();
+    expect(narrowEnumOrNull('', COLORS)).toBeNull();
+  });
+
+  it('returns null for null', () => {
+    expect(narrowEnumOrNull(null, COLORS)).toBeNull();
+  });
+
+  it('returns null for undefined', () => {
+    expect(narrowEnumOrNull(undefined, COLORS)).toBeNull();
+  });
+
+  it('returns null for non-string types', () => {
+    expect(narrowEnumOrNull(0, COLORS)).toBeNull();
+    expect(narrowEnumOrNull({}, COLORS)).toBeNull();
   });
 });

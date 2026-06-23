@@ -8,7 +8,7 @@
 import { prisma } from '../../../config';
 import { createLogger } from '../../../config/logger';
 // NOTE: Direct path import (not barrel) to avoid transitive config/logger pull-in that breaks bun mock isolation.
-import { makeStringTypeGuard } from '../../../utils/common/type-guards';
+import { narrowEnum } from '../../../utils/common/type-guards';
 
 const log = createLogger('theme-auto-run-service');
 
@@ -21,8 +21,6 @@ export const AUTO_RUN_STATUSES = ['idle', 'running', 'paused', 'stopping'] as co
 /** Valid status values for ThemeAutoRun.status. */
 export type AutoRunStatus = (typeof AUTO_RUN_STATUSES)[number];
 
-const autoRunStatusGuard = makeStringTypeGuard(AUTO_RUN_STATUSES);
-
 /**
  * Narrows a DB string (or null/undefined) to AutoRunStatus, returning 'idle' as
  * the safe fallback when the value is absent or unrecognised.
@@ -31,7 +29,7 @@ const autoRunStatusGuard = makeStringTypeGuard(AUTO_RUN_STATUSES);
  * @returns A valid AutoRunStatus. / 有効なAutoRunStatus
  */
 export function narrowAutoRunStatus(s: string | null | undefined): AutoRunStatus {
-  return autoRunStatusGuard.narrow(s, 'idle');
+  return narrowEnum(s, AUTO_RUN_STATUSES, 'idle');
 }
 
 /** Serialisable view of a ThemeAutoRun record. */

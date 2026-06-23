@@ -19,6 +19,7 @@ import { createHash } from 'crypto';
 import { prisma } from '../../config/database';
 import { createLogger } from '../../config/logger';
 import { sanitizeMarkdownContent } from '../../utils/common/mojibake-detector';
+import { narrowEnum } from '../../utils/common/type-guards';
 
 const log = createLogger('memory:hypothesis');
 
@@ -105,9 +106,7 @@ export interface SubmitHypothesisResult {
 
 /** Coerce an arbitrary value to a valid domain (default 'codebase'). */
 export function normalizeDomain(value: unknown): HypothesisDomain {
-  return VALID_DOMAINS.includes(value as HypothesisDomain)
-    ? (value as HypothesisDomain)
-    : 'codebase';
+  return narrowEnum(value, VALID_DOMAINS, 'codebase');
 }
 
 function contentHash(input: string): string {

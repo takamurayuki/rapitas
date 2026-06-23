@@ -1,31 +1,52 @@
 /**
  * type-guards
  *
- * Generic factory for string-union type guards and narrowing functions.
- * All domain-specific is/narrow functions in services should derive from
- * makeStringTypeGuard to eliminate unsafe `as T` casts on DB-sourced strings.
+ * Generic type-guard and enum-narrowing utilities. Provides a cast-free SSOT
+ * for the `includes(value as T)` double-cast pattern that appears across
+ * multiple services. Consumers should import directly from this file to avoid
+ * expanding the barrel's module graph in test environments.
  */
 
 /**
- * Creates a type-safe is-guard and narrowing function pair for a string union type T.
- * Internally uses a Set for O(1) membership checks.
+ * Returns true when `value` is a string that belongs to the `allowed` tuple.
+ * Acts as a TypeScript type predicate so callers get automatic narrowing.
  *
- * @param values - Readonly array of all valid values for type T. / 型Tの全有効値の配列
- * @returns Object with `is` (type predicate) and `narrow` (safe coercion) closures. / 型述語と安全な強制変換のクロージャを持つオブジェクト
- *
- * @example
- * const { is: isStatus, narrow: narrowStatus } = makeStringTypeGuard(['active', 'inactive'] as const);
- * narrowStatus(dbRow.status, 'inactive'); // safe, never throws
+ * @param value - Value of unknown type to test. / 検査する値（型不明）
+ * @param allowed - Readonly array of valid enum members. / 有効な列挙値の読み取り専用配列
+ * @returns `true` when value is a member of allowed. / allowedの要素の場合true
  */
-export function makeStringTypeGuard<T extends string>(values: readonly T[]) {
-  // NOTE: Set gives O(1) lookup vs Array.includes O(n); consistent across all domain sizes.
-  const set = new Set<string>(values);
+export function isOneOf<T extends string>(value: unknown, allowed: readonly T[]): value is T {
+  return typeof value === 'string' && allowed.some((a) => a === value);
+}
 
-  // NOTE: `is` and `narrow` are plain closures that capture `set` directly and never
-  // reference `this`, so they remain correct after destructuring:
-  //   const { narrow } = makeStringTypeGuard(STATUSES)  ← safe
-  const is = (s: unknown): s is T => typeof s === 'string' && set.has(s);
-  const narrow = (s: string | null | undefined, fallback: T): T => (is(s) ? s : fallback);
+/**
+ * Narrows an unknown value to an enum member, returning `fallback` when
+ * the value is absent, non-string, or not in `allowed`.
+ *
+ * @param value - Raw value to narrow (e.g. from DB or HTTP input). / 正規化対象の生の値
+ * @param allowed - Readonly array of valid enum members. / 有効な列挙値の配列
+ * @param fallback - Default value returned when `value` is invalid. / 無効値のときに返すデフォルト値
+ * @returns A valid enum member. / 有効な列挙値
+ */
+export function narrowEnum<T extends string>(
+  value: unknown,
+  allowed: readonly T[],
+  fallback: T,
+): T {
+  return isOneOf(value, allowed) ? value : fallback;
+}
 
-  return { is, narrow };
+/**
+ * Narrows an unknown value to an enum member, returning `null` when
+ * the value is absent, non-string, or not in `allowed`.
+ *
+ * @param value - Raw value to narrow (e.g. from DB or HTTP input). / 正規化対象の生の値
+ * @param allowed - Readonly array of valid enum members. / 有効な列挙値の配列
+ * @returns A valid enum member, or `null` when value is invalid. / 有効な列挙値、または無効なときnull
+ */
+export function narrowEnumOrNull<T extends string>(
+  value: unknown,
+  allowed: readonly T[],
+): T | null {
+  return isOneOf(value, allowed) ? value : null;
 }

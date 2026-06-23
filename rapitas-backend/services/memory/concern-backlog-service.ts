@@ -12,8 +12,7 @@ import { prisma } from '../../config/database';
 import { createLogger } from '../../config/logger';
 import { createTask } from '../task/task-mutations';
 import { sanitizeMarkdownContent } from '../../utils/common/mojibake-detector';
-// NOTE: Direct path import (not barrel) to avoid transitive config/logger pull-in that breaks bun mock isolation.
-import { makeStringTypeGuard } from '../../utils/common/type-guards';
+import { narrowEnum } from '../../utils/common/type-guards';
 
 const log = createLogger('memory:concern-backlog');
 
@@ -38,19 +37,27 @@ export interface LinkedIssueRef {
   state: string;
 }
 
-const VALID_TYPES = ['bug', 'refactor', 'security', 'perf', 'other'] as const satisfies readonly ConcernType[];
-const VALID_SEVERITIES = ['urgent', 'high', 'medium', 'low'] as const satisfies readonly ConcernSeverity[];
-
-const concernTypeGuard = makeStringTypeGuard(VALID_TYPES);
-const concernSeverityGuard = makeStringTypeGuard(VALID_SEVERITIES);
+const VALID_TYPES = [
+  'bug',
+  'refactor',
+  'security',
+  'perf',
+  'other',
+] as const satisfies readonly ConcernType[];
+const VALID_SEVERITIES = [
+  'urgent',
+  'high',
+  'medium',
+  'low',
+] as const satisfies readonly ConcernSeverity[];
 
 /** Coerces an arbitrary value to a valid concern type (default 'bug'). */
 export function normalizeConcernType(value: unknown): ConcernType {
-  return concernTypeGuard.narrow(typeof value === 'string' ? value : undefined, 'bug');
+  return narrowEnum(value, VALID_TYPES, 'bug');
 }
 /** Coerces an arbitrary value to a valid severity (default 'medium'). */
 export function normalizeConcernSeverity(value: unknown): ConcernSeverity {
-  return concernSeverityGuard.narrow(typeof value === 'string' ? value : undefined, 'medium');
+  return narrowEnum(value, VALID_SEVERITIES, 'medium');
 }
 
 /** Severity → numeric weight, used for ordering (higher = surfaces first). */
