@@ -3,12 +3,13 @@
  *
  * Unit tests for the gen-type-guards script.
  * Tests cover: element parsing, fallback extraction, SSOT pair detection,
- * duplicate-guard suppression, code generation, and drift detection.
+ * duplicate-guard suppression, code generation, drift detection,
+ * quick pre-filter, and incremental --files scanning.
  */
 
 import { describe, expect, test, beforeAll, afterAll } from 'bun:test';
 import { readFileSync, writeFileSync, unlinkSync, existsSync, mkdirSync, rmSync } from 'fs';
-import { join, dirname } from 'path';
+import { join, dirname, resolve } from 'path';
 import { fileURLToPath } from 'url';
 import { tmpdir } from 'os';
 
@@ -20,6 +21,9 @@ import {
   extractSsotPairs,
   generateGuardSource,
   checkDrift,
+  hasSsotCandidate,
+  parseFilesArg,
+  scanForSsotFiles,
 } from './gen-type-guards';
 
 // ---------------------------------------------------------------------------
@@ -377,5 +381,186 @@ describe('checkDrift — tmpdir scenarios', () => {
     writeFileSync(out, expected + '// extra\n', 'utf-8');
     const modified = readFileSync(out, 'utf-8');
     expect(modified).not.toBe(expected);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// hasSsotCandidate (quick pre-filter)
+// ---------------------------------------------------------------------------
+
+describe('hasSsotCandidate', () => {
+  test('returns true when content has "] as const;"', () => {
+    const content = `export const ROLES = ['admin', 'user'] as const;\nexport type Role = (typeof ROLES)[number];`;
+    expect(hasSsotCandidate(content)).toBe(true);
+  });
+
+  test('returns true for multiline SSOT array', () => {
+    const content = `export const STATUSES = [\n  'draft',\n  'done',\n] as const;`;
+    expect(hasSsotCandidate(content)).toBe(true);
+  });
+
+  test('returns false when no "] as const;" present', () => {
+    expect(hasSsotCandidate('export const foo = "bar";')).toBe(false);
+  });
+
+  test('returns false for empty string', () => {
+    expect(hasSsotCandidate('')).toBe(false);
+  });
+
+  test('returns false for file with object "as const" (not array)', () => {
+    // object as const uses "} as const" not "] as const"
+    expect(hasSsotCandidate('export const CFG = { a: 1 } as const;')).toBe(false);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// parseFilesArg
+// ---------------------------------------------------------------------------
+
+describe('parseFilesArg', () => {
+  test('returns null when --files flag is absent', () => {
+    expect(parseFilesArg(['node', 'script.ts', '--check'])).toBeNull();
+  });
+
+  test('parses --files=foo.ts,bar.ts form', () => {
+    expect(parseFilesArg(['node', 'script.ts', '--files=foo.ts,bar.ts'])).toEqual([
+      'foo.ts',
+      'bar.ts',
+    ]);
+  });
+
+  test('parses --files=single.ts form', () => {
+    expect(parseFilesArg(['node', 'script.ts', '--files=single.ts'])).toEqual(['single.ts']);
+  });
+
+  test('returns empty array for --files= with no value', () => {
+    expect(parseFilesArg(['node', 'script.ts', '--files='])).toEqual([]);
+  });
+
+  test('parses --files foo.ts bar.ts (space-separated, stops at next flag)', () => {
+    expect(
+      parseFilesArg(['node', 'script.ts', '--files', 'foo.ts', 'bar.ts', '--check']),
+    ).toEqual(['foo.ts', 'bar.ts']);
+  });
+
+  test('parses --files foo.ts (single space-separated)', () => {
+    expect(parseFilesArg(['node', 'script.ts', '--files', 'foo.ts'])).toEqual(['foo.ts']);
+  });
+
+  test('returns empty array for --files with no following args', () => {
+    expect(parseFilesArg(['node', 'script.ts', '--files'])).toEqual([]);
+  });
+
+  test('trims spaces around comma-separated values', () => {
+    expect(parseFilesArg(['node', 'script.ts', '--files=foo.ts, bar.ts , baz.ts'])).toEqual([
+      'foo.ts',
+      'bar.ts',
+      'baz.ts',
+    ]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// scanForSsotFiles with --files option
+// ---------------------------------------------------------------------------
+
+describe('scanForSsotFiles — incremental files mode', () => {
+  const tmpDir = join(tmpdir(), `gen-type-guards-scan-${process.pid}`);
+  const ssotFile = join(tmpDir, 'my-types.ts');
+  const plainFile = join(tmpDir, 'no-ssot.ts');
+
+  beforeAll(() => {
+    mkdirSync(tmpDir, { recursive: true });
+    writeFileSync(
+      ssotFile,
+      `export const MY_VALS = ['a', 'b'] as const;\nexport type MyVal = (typeof MY_VALS)[number];\n`,
+      'utf-8',
+    );
+    writeFileSync(plainFile, `export const foo = 'bar';\n`, 'utf-8');
+  });
+
+  afterAll(() => {
+    if (existsSync(tmpDir)) rmSync(tmpDir, { recursive: true });
+  });
+
+  test('scans only the specified SSOT file, ignores the plain file', () => {
+    const results = scanForSsotFiles({ files: [ssotFile] });
+    expect(results).toHaveLength(1);
+    expect(results[0].filePath).toBe(ssotFile);
+    expect(results[0].pairs).toHaveLength(1);
+    expect(results[0].pairs[0].typeName).toBe('MyVal');
+  });
+
+  test('returns empty array when specified file has no SSOT pattern', () => {
+    const results = scanForSsotFiles({ files: [plainFile] });
+    expect(results).toHaveLength(0);
+  });
+
+  test('skips .generated.ts files even when explicitly listed', () => {
+    const generatedPath = ssotFile.replace('.ts', '.guards.generated.ts');
+    const results = scanForSsotFiles({ files: [generatedPath] });
+    expect(results).toHaveLength(0);
+  });
+
+  test('falls back to full scan when files array is empty', () => {
+    // Empty array → full scan (same as no opts)
+    const withEmpty = scanForSsotFiles({ files: [] });
+    const withoutOpts = scanForSsotFiles();
+    expect(withEmpty.length).toBe(withoutOpts.length);
+  });
+
+  test('handles non-existent files gracefully', () => {
+    const results = scanForSsotFiles({ files: [join(tmpDir, 'nonexistent.ts')] });
+    expect(results).toHaveLength(0);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// checkDrift with --files option
+// ---------------------------------------------------------------------------
+
+describe('checkDrift — incremental files mode', () => {
+  const tmpDir = join(tmpdir(), `gen-type-guards-drift2-${process.pid}`);
+  const ssotSrc = join(tmpDir, 'drift-types.ts');
+  const generatedOut = join(tmpDir, 'drift-types.guards.generated.ts');
+
+  beforeAll(() => {
+    mkdirSync(tmpDir, { recursive: true });
+    writeFileSync(
+      ssotSrc,
+      `export const DRIFT_VALS = ['x', 'y'] as const;\nexport type DriftVal = (typeof DRIFT_VALS)[number];\n`,
+      'utf-8',
+    );
+  });
+
+  afterAll(() => {
+    if (existsSync(tmpDir)) rmSync(tmpDir, { recursive: true });
+  });
+
+  test('reports missing drift when generated file absent', () => {
+    const drifts = checkDrift({ files: [ssotSrc] });
+    expect(drifts).toHaveLength(1);
+    expect(drifts[0].status).toBe('missing');
+    expect(drifts[0].file).toBe(generatedOut);
+  });
+
+  test('reports no drift when generated file matches', () => {
+    // Generate the correct content and write it
+    const ssotFiles = scanForSsotFiles({ files: [ssotSrc] });
+    expect(ssotFiles).toHaveLength(1);
+    const { filePath, outputPath, pairs } = ssotFiles[0];
+    writeFileSync(outputPath, generateGuardSource(filePath, outputPath, pairs), 'utf-8');
+
+    const drifts = checkDrift({ files: [ssotSrc] });
+    expect(drifts).toHaveLength(0);
+  });
+
+  test('reports mismatch drift when generated file is stale', () => {
+    // Overwrite with stale content
+    writeFileSync(generatedOut, '// stale\n', 'utf-8');
+
+    const drifts = checkDrift({ files: [ssotSrc] });
+    expect(drifts).toHaveLength(1);
+    expect(drifts[0].status).toBe('mismatch');
   });
 });
