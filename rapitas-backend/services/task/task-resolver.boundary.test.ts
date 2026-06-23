@@ -37,7 +37,7 @@ beforeEach(() => {
 // resolveTaskWithTheme 境界値テスト
 // ---------------------------------------------------------------------------
 describe('resolveTaskWithTheme 境界値テスト', () => {
-  test.each([...ID_EDGES] as number[])(
+  test.each(ID_EDGES.map(bc => bc.value))(
     'prisma が null を返すとき %p は null を返すこと',
     async (edge) => {
       const result = await resolveTaskWithTheme(edge);
@@ -45,7 +45,7 @@ describe('resolveTaskWithTheme 境界値テスト', () => {
     },
   );
 
-  test.each([...ID_EDGES] as number[])(
+  test.each(ID_EDGES.map(bc => bc.value))(
     'prisma が reject するとき %p でも null を返すこと',
     async (edge) => {
       mockTaskFindUnique.mockRejectedValueOnce(new Error('DB error'));
@@ -59,7 +59,7 @@ describe('resolveTaskWithTheme 境界値テスト', () => {
 // resolveTaskWithThemeAndCategory 境界値テスト
 // ---------------------------------------------------------------------------
 describe('resolveTaskWithThemeAndCategory 境界値テスト', () => {
-  test.each([...ID_EDGES] as number[])(
+  test.each(ID_EDGES.map(bc => bc.value))(
     'prisma が null を返すとき %p は null を返すこと',
     async (edge) => {
       const result = await resolveTaskWithThemeAndCategory(edge);
@@ -67,7 +67,7 @@ describe('resolveTaskWithThemeAndCategory 境界値テスト', () => {
     },
   );
 
-  test.each([...ID_EDGES] as number[])(
+  test.each(ID_EDGES.map(bc => bc.value))(
     'prisma が reject するとき %p でも null を返すこと',
     async (edge) => {
       mockTaskFindUnique.mockRejectedValueOnce(new Error('DB error'));
@@ -81,7 +81,7 @@ describe('resolveTaskWithThemeAndCategory 境界値テスト', () => {
 // resolveTaskForExecution 境界値テスト
 // ---------------------------------------------------------------------------
 describe('resolveTaskForExecution 境界値テスト', () => {
-  test.each([...ID_EDGES] as number[])(
+  test.each(ID_EDGES.map(bc => bc.value))(
     'prisma が null を返すとき %p は null を返すこと',
     async (edge) => {
       const result = await resolveTaskForExecution(edge);
@@ -89,7 +89,7 @@ describe('resolveTaskForExecution 境界値テスト', () => {
     },
   );
 
-  test.each([...ID_EDGES] as number[])(
+  test.each(ID_EDGES.map(bc => bc.value))(
     'prisma が reject するとき %p でも null を返すこと',
     async (edge) => {
       mockTaskFindUnique.mockRejectedValueOnce(new Error('DB error'));
@@ -103,7 +103,7 @@ describe('resolveTaskForExecution 境界値テスト', () => {
 // resolveTaskWorkingDirectory 境界値テスト
 // ---------------------------------------------------------------------------
 describe('resolveTaskWorkingDirectory 境界値テスト', () => {
-  test.each([...ID_EDGES] as number[])(
+  test.each(ID_EDGES.map(bc => bc.value))(
     'prisma が null を返すとき %p は null を返すこと',
     async (edge) => {
       const result = await resolveTaskWorkingDirectory(edge);
@@ -111,7 +111,7 @@ describe('resolveTaskWorkingDirectory 境界値テスト', () => {
     },
   );
 
-  test.each([...ID_EDGES] as number[])(
+  test.each(ID_EDGES.map(bc => bc.value))(
     'prisma が reject するとき %p でも null を返すこと',
     async (edge) => {
       mockTaskFindUnique.mockRejectedValueOnce(new Error('DB error'));
@@ -125,7 +125,7 @@ describe('resolveTaskWorkingDirectory 境界値テスト', () => {
 // resolveTaskWorkflowState 境界値テスト
 // ---------------------------------------------------------------------------
 describe('resolveTaskWorkflowState 境界値テスト', () => {
-  test.each([...ID_EDGES] as number[])(
+  test.each(ID_EDGES.map(bc => bc.value))(
     'prisma が null を返すとき %p は null を返すこと',
     async (edge) => {
       const result = await resolveTaskWorkflowState(edge);
@@ -133,7 +133,7 @@ describe('resolveTaskWorkflowState 境界値テスト', () => {
     },
   );
 
-  test.each([...ID_EDGES] as number[])(
+  test.each(ID_EDGES.map(bc => bc.value))(
     'prisma が reject するとき %p でも null を返すこと',
     async (edge) => {
       mockTaskFindUnique.mockRejectedValueOnce(new Error('DB error'));
@@ -147,7 +147,7 @@ describe('resolveTaskWorkflowState 境界値テスト', () => {
 // resolveTaskTitle 境界値テスト
 // ---------------------------------------------------------------------------
 describe('resolveTaskTitle 境界値テスト', () => {
-  test.each([...ID_EDGES] as number[])(
+  test.each(ID_EDGES.map(bc => bc.value))(
     'prisma が null を返すとき %p は null を返すこと',
     async (edge) => {
       const result = await resolveTaskTitle(edge);
@@ -155,7 +155,7 @@ describe('resolveTaskTitle 境界値テスト', () => {
     },
   );
 
-  test.each([...ID_EDGES] as number[])(
+  test.each(ID_EDGES.map(bc => bc.value))(
     'prisma が reject するとき %p でも null を返すこと',
     async (edge) => {
       mockTaskFindUnique.mockRejectedValueOnce(new Error('DB error'));
@@ -169,7 +169,7 @@ describe('resolveTaskTitle 境界値テスト', () => {
 // resolveTaskThemeId 境界値テスト
 // ---------------------------------------------------------------------------
 describe('resolveTaskThemeId 境界値テスト', () => {
-  test.each([...ID_EDGES] as number[])(
+  test.each(ID_EDGES.map(bc => bc.value))(
     'prisma が null を返すとき %p は null を返すこと',
     async (edge) => {
       const result = await resolveTaskThemeId(edge);
@@ -177,7 +177,7 @@ describe('resolveTaskThemeId 境界値テスト', () => {
     },
   );
 
-  test.each([...ID_EDGES] as number[])(
+  test.each(ID_EDGES.map(bc => bc.value))(
     'prisma が reject するとき %p でも null を返すこと',
     async (edge) => {
       mockTaskFindUnique.mockRejectedValueOnce(new Error('DB error'));
@@ -191,7 +191,7 @@ describe('resolveTaskThemeId 境界値テスト', () => {
 // resolveTaskForComplexityAnalysis 境界値テスト
 // ---------------------------------------------------------------------------
 describe('resolveTaskForComplexityAnalysis 境界値テスト', () => {
-  test.each([...ID_EDGES] as number[])(
+  test.each(ID_EDGES.map(bc => bc.value))(
     'prisma が null を返すとき %p は null を返すこと',
     async (edge) => {
       const result = await resolveTaskForComplexityAnalysis(edge);
@@ -199,7 +199,7 @@ describe('resolveTaskForComplexityAnalysis 境界値テスト', () => {
     },
   );
 
-  test.each([...ID_EDGES] as number[])(
+  test.each(ID_EDGES.map(bc => bc.value))(
     'prisma が reject するとき %p でも null を返すこと',
     async (edge) => {
       mockTaskFindUnique.mockRejectedValueOnce(new Error('DB error'));
@@ -213,7 +213,7 @@ describe('resolveTaskForComplexityAnalysis 境界値テスト', () => {
 // resolveTaskSubtaskInfo 境界値テスト
 // ---------------------------------------------------------------------------
 describe('resolveTaskSubtaskInfo 境界値テスト', () => {
-  test.each([...ID_EDGES] as number[])(
+  test.each(ID_EDGES.map(bc => bc.value))(
     'prisma が null を返すとき %p は null を返すこと',
     async (edge) => {
       const result = await resolveTaskSubtaskInfo(edge);
@@ -221,7 +221,7 @@ describe('resolveTaskSubtaskInfo 境界値テスト', () => {
     },
   );
 
-  test.each([...ID_EDGES] as number[])(
+  test.each(ID_EDGES.map(bc => bc.value))(
     'prisma が reject するとき %p でも null を返すこと',
     async (edge) => {
       mockTaskFindUnique.mockRejectedValueOnce(new Error('DB error'));
@@ -235,7 +235,7 @@ describe('resolveTaskSubtaskInfo 境界値テスト', () => {
 // resolveTaskForPlanApproval 境界値テスト
 // ---------------------------------------------------------------------------
 describe('resolveTaskForPlanApproval 境界値テスト', () => {
-  test.each([...ID_EDGES] as number[])(
+  test.each(ID_EDGES.map(bc => bc.value))(
     'prisma が null を返すとき %p は null を返すこと',
     async (edge) => {
       const result = await resolveTaskForPlanApproval(edge);
@@ -243,7 +243,7 @@ describe('resolveTaskForPlanApproval 境界値テスト', () => {
     },
   );
 
-  test.each([...ID_EDGES] as number[])(
+  test.each(ID_EDGES.map(bc => bc.value))(
     'prisma が reject するとき %p でも null を返すこと',
     async (edge) => {
       mockTaskFindUnique.mockRejectedValueOnce(new Error('DB error'));
@@ -257,7 +257,7 @@ describe('resolveTaskForPlanApproval 境界値テスト', () => {
 // resolveTaskForAutoMerge 境界値テスト
 // ---------------------------------------------------------------------------
 describe('resolveTaskForAutoMerge 境界値テスト', () => {
-  test.each([...ID_EDGES] as number[])(
+  test.each(ID_EDGES.map(bc => bc.value))(
     'prisma が null を返すとき %p は null を返すこと',
     async (edge) => {
       const result = await resolveTaskForAutoMerge(edge);
@@ -265,7 +265,7 @@ describe('resolveTaskForAutoMerge 境界値テスト', () => {
     },
   );
 
-  test.each([...ID_EDGES] as number[])(
+  test.each(ID_EDGES.map(bc => bc.value))(
     'prisma が reject するとき %p でも null を返すこと',
     async (edge) => {
       mockTaskFindUnique.mockRejectedValueOnce(new Error('DB error'));
@@ -279,7 +279,7 @@ describe('resolveTaskForAutoMerge 境界値テスト', () => {
 // resolveTaskForLearning 境界値テスト
 // ---------------------------------------------------------------------------
 describe('resolveTaskForLearning 境界値テスト', () => {
-  test.each([...ID_EDGES] as number[])(
+  test.each(ID_EDGES.map(bc => bc.value))(
     'prisma が null を返すとき %p は null を返すこと',
     async (edge) => {
       const result = await resolveTaskForLearning(edge);
@@ -287,7 +287,7 @@ describe('resolveTaskForLearning 境界値テスト', () => {
     },
   );
 
-  test.each([...ID_EDGES] as number[])(
+  test.each(ID_EDGES.map(bc => bc.value))(
     'prisma が reject するとき %p でも null を返すこと',
     async (edge) => {
       mockTaskFindUnique.mockRejectedValueOnce(new Error('DB error'));

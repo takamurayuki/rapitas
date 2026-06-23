@@ -287,11 +287,10 @@ function edgesConstName(paramType: ExtractedFunction['paramType']): string {
   return 'ID_EDGES';
 }
 
-/** Returns the TypeScript cast needed for test.each spread of a given edge type. */
+/** Returns the TypeScript cast needed for test.each mapped value array of a given edge type. */
 function edgeTypeCast(paramType: ExtractedFunction['paramType']): string {
-  if (paramType === 'string') return ' as string[]';
   if (paramType === 'number | null') return ' as (number | null)[]';
-  return ' as number[]';
+  return '';
 }
 
 /**
@@ -419,7 +418,7 @@ export function generateBoundaryTestSource(
         `// ${fn.name} 境界値テスト\n` +
         `// ---------------------------------------------------------------------------\n` +
         `describe('${fn.name} 境界値テスト', () => {\n` +
-        `  test.each([...${edges}]${typeCast})(\n` +
+        `  test.each(${edges}.map(bc => bc.value)${typeCast})(\n` +
         `    'prisma が null を返すとき %p は null を返すこと',\n` +
         `    async (edge) => {\n` +
         `      const result = await ${fn.name}(edge${fn.paramType === 'number | null' ? ' as number | null' : ''});\n` +
@@ -427,7 +426,7 @@ export function generateBoundaryTestSource(
         `    },\n` +
         `  );\n` +
         `\n` +
-        `  test.each([...${edges}]${typeCast})(\n` +
+        `  test.each(${edges}.map(bc => bc.value)${typeCast})(\n` +
         `    'prisma が reject するとき %p でも null を返すこと',\n` +
         `    async (edge) => {\n` +
         `${rejectSetup}\n` +

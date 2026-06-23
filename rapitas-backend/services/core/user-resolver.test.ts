@@ -4,8 +4,8 @@
  * resolveUserByEmail / resolveUserByUsernameOrEmail の正常系・異常系を検証する。
  * prisma は mock.module でスタブ化し、テスト間でリセットする。
  */
-import { describe, test, expect, mock, beforeEach } from 'bun:test';
-import { BOUNDARY_STRINGS } from '../../tests/helpers/boundary-values';
+import { describe, test, it, expect, mock, beforeEach } from 'bun:test';
+import { STRING_EDGES, toNameTuples, BOUNDARY_STRINGS } from '../../tests/helpers/boundary-values';
 
 // HACK(agent): bun:test の mock.module はプロセスグローバルなため、
 // 全エクスポートをミラーしないとバレルが "export not found" をスローする。
@@ -100,6 +100,17 @@ describe('resolveUserByEmail', () => {
     expect(mockUserFindFirst).toHaveBeenCalledTimes(1);
     const callArgs = mockUserFindFirst.mock.calls[0][0] as { where: { email: string } };
     expect(callArgs.where.email).toBe('check@example.com');
+  });
+
+  describe('境界値: 空・空白文字列メール → null を返し where.email に値が伝播すること', () => {
+    it.each(toNameTuples(STRING_EDGES))('email "%s" → null', async (_label, input) => {
+      const result = await resolveUserByEmail(input);
+      expect(result).toBeNull();
+
+      expect(mockUserFindFirst).toHaveBeenCalledTimes(1);
+      const callArgs = mockUserFindFirst.mock.calls[0][0] as { where: { email: string } };
+      expect(callArgs.where.email).toBe(input);
+    });
   });
 });
 

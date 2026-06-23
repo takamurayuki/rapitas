@@ -37,7 +37,7 @@ beforeEach(() => {
 // resolveUserByEmail 境界値テスト
 // ---------------------------------------------------------------------------
 describe('resolveUserByEmail 境界値テスト', () => {
-  test.each([...STRING_EDGES] as string[])(
+  test.each(STRING_EDGES.map(bc => bc.value))(
     'prisma が null を返すとき %p は null を返すこと',
     async (edge) => {
       const result = await resolveUserByEmail(edge);
@@ -45,7 +45,7 @@ describe('resolveUserByEmail 境界値テスト', () => {
     },
   );
 
-  test.each([...STRING_EDGES] as string[])(
+  test.each(STRING_EDGES.map(bc => bc.value))(
     'prisma が reject するとき %p でも null を返すこと',
     async (edge) => {
       mockUserFindFirst.mockRejectedValueOnce(new Error('DB error'));

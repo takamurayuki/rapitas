@@ -4,8 +4,8 @@
  * resolveSessionByToken の正常系・異常系を検証する。
  * prisma は mock.module でスタブ化し、テスト間でリセットする。
  */
-import { describe, test, expect, mock, beforeEach } from 'bun:test';
-import { BOUNDARY_STRINGS } from '../../tests/helpers/boundary-values';
+import { describe, test, it, expect, mock, beforeEach } from 'bun:test';
+import { STRING_EDGES, toNameTuples, BOUNDARY_STRINGS } from '../../tests/helpers/boundary-values';
 
 // HACK(agent): bun:test の mock.module はプロセスグローバルなため、
 // 全エクスポートをミラーしないとバレルが "export not found" をスローする。
@@ -118,6 +118,19 @@ describe('resolveSessionByToken', () => {
     const gt = callArgs.where.expiresAt.gt;
     expect(gt.getTime()).toBeGreaterThanOrEqual(before.getTime() - 5);
     expect(gt.getTime()).toBeLessThanOrEqual(after.getTime() + 5);
+  });
+
+  describe('境界値: 空・空白文字列トークン → null を返し where.sessionToken に値が伝播すること', () => {
+    it.each(toNameTuples(STRING_EDGES))('token "%s" → null', async (_label, input) => {
+      const result = await resolveSessionByToken(input);
+      expect(result).toBeNull();
+
+      expect(mockUserSessionFindFirst).toHaveBeenCalledTimes(1);
+      const callArgs = mockUserSessionFindFirst.mock.calls[0][0] as {
+        where: { sessionToken: string };
+      };
+      expect(callArgs.where.sessionToken).toBe(input);
+    });
   });
 });
 

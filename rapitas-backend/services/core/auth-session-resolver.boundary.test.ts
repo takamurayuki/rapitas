@@ -37,7 +37,7 @@ beforeEach(() => {
 // resolveSessionByToken 境界値テスト
 // ---------------------------------------------------------------------------
 describe('resolveSessionByToken 境界値テスト', () => {
-  test.each([...STRING_EDGES] as string[])(
+  test.each(STRING_EDGES.map(bc => bc.value))(
     'prisma が null を返すとき %p は null を返すこと',
     async (edge) => {
       const result = await resolveSessionByToken(edge);
@@ -45,7 +45,7 @@ describe('resolveSessionByToken 境界値テスト', () => {
     },
   );
 
-  test.each([...STRING_EDGES] as string[])(
+  test.each(STRING_EDGES.map(bc => bc.value))(
     'prisma が reject するとき %p でも null を返すこと',
     async (edge) => {
       mockUserSessionFindFirst.mockRejectedValueOnce(new Error('DB error'));

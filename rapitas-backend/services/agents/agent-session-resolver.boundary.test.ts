@@ -40,7 +40,7 @@ beforeEach(() => {
 // resolveLatestFinishedSession 境界値テスト
 // ---------------------------------------------------------------------------
 describe('resolveLatestFinishedSession 境界値テスト', () => {
-  test.each([...ID_EDGES] as number[])(
+  test.each(ID_EDGES.map(bc => bc.value))(
     'prisma が null を返すとき %p は null を返すこと',
     async (edge) => {
       const result = await resolveLatestFinishedSession(edge);
@@ -48,7 +48,7 @@ describe('resolveLatestFinishedSession 境界値テスト', () => {
     },
   );
 
-  test.each([...ID_EDGES] as number[])(
+  test.each(ID_EDGES.map(bc => bc.value))(
     'prisma が reject するとき %p でも null を返すこと',
     async (edge) => {
       mockAgentSessionFindFirst.mockRejectedValueOnce(new Error('DB error'));
@@ -63,7 +63,7 @@ describe('resolveLatestFinishedSession 境界値テスト', () => {
 // resolveSessionWithLatestExecution 境界値テスト
 // ---------------------------------------------------------------------------
 describe('resolveSessionWithLatestExecution 境界値テスト', () => {
-  test.each([...ID_EDGES] as number[])(
+  test.each(ID_EDGES.map(bc => bc.value))(
     'prisma が null を返すとき %p は null を返すこと',
     async (edge) => {
       const result = await resolveSessionWithLatestExecution(edge);
@@ -71,7 +71,7 @@ describe('resolveSessionWithLatestExecution 境界値テスト', () => {
     },
   );
 
-  test.each([...ID_EDGES] as number[])(
+  test.each(ID_EDGES.map(bc => bc.value))(
     'prisma が reject するとき %p でも null を返すこと',
     async (edge) => {
       mockAgentSessionFindFirst.mockRejectedValueOnce(new Error('DB error'));
@@ -86,7 +86,7 @@ describe('resolveSessionWithLatestExecution 境界値テスト', () => {
 // resolveLatestSessionWorktree 境界値テスト
 // ---------------------------------------------------------------------------
 describe('resolveLatestSessionWorktree 境界値テスト', () => {
-  test.each([...ID_EDGES] as number[])(
+  test.each(ID_EDGES.map(bc => bc.value))(
     'prisma が null を返すとき %p は null を返すこと',
     async (edge) => {
       const result = await resolveLatestSessionWorktree(edge);
@@ -94,7 +94,7 @@ describe('resolveLatestSessionWorktree 境界値テスト', () => {
     },
   );
 
-  test.each([...ID_EDGES] as number[])(
+  test.each(ID_EDGES.map(bc => bc.value))(
     'prisma が reject するとき %p でも null を返すこと',
     async (edge) => {
       mockAgentSessionFindFirst.mockRejectedValueOnce(new Error('DB error'));

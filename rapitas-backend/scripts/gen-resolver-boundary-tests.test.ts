@@ -312,6 +312,7 @@ describe('generateBoundaryTestSource', () => {
     const src = generateBoundaryTestSource(SOURCE, OUTPUT, [NULLABLE_FN], [TASK_MODEL], DB_IMPORT);
     expect(src).toContain('edge as number | null');
     expect(src).toContain('as (number | null)[]');
+    expect(src).toContain('NULLABLE_ID_EDGES.map(bc => bc.value)');
   });
 
   test('generates one describe block per function', () => {
