@@ -216,3 +216,7 @@ if (failures.length > 0) {
   console.error('\nFailures:\n' + failures.map((f) => `  - ${f}`).join('\n'));
   process.exit(1);
 }
+// NOTE: Explicit exit prevents Prisma's connection-pool keep-alive from
+// blocking the process after all cases pass (observed 6 h hang in CI when
+// bun test --coverage ran in a subprocess before this step).
+process.exit(0);
