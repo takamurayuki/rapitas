@@ -387,6 +387,18 @@ jobs:
         working-directory: rapitas-backend
         run: bunx prettier --check "**/*.ts" --ignore-path .gitignore
 
+      - name: Verify type-guard generated artifacts match committed files
+        working-directory: rapitas-backend
+        run: |
+          bun run gen:type-guards
+          bunx prettier --write "**/*.guards.generated.ts" --ignore-path .gitignore
+          if ! git diff --exit-code -- '**/*.guards.generated.ts'; then
+            echo ""
+            echo "ERROR: type-guard generated artifacts are out of sync with the SSOT sources."
+            echo "Run 'bun run gen:type-guards' then 'bunx prettier --write' in rapitas-backend/ and commit the regenerated files."
+            exit 1
+          fi
+
       - name: Lint frontend code
         working-directory: rapitas-frontend
         run: pnpm lint
