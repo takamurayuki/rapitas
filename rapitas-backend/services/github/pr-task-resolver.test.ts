@@ -5,7 +5,7 @@
  * findPrViaGh）の正常系・異常系を検証する。
  * prisma・gh-client は mock.module でスタブ化し、テスト間で復元する。
  */
-import { describe, test, expect, mock, beforeEach } from 'bun:test';
+import { describe, test, it, expect, mock, beforeEach } from 'bun:test';
 
 // HACK(agent): bun:test の mock.module はプロセスグローバルなため、
 // 全エクスポートをミラーしないとバレルが "export not found" をスローする。
@@ -76,6 +76,20 @@ describe('titleMatchesTask', () => {
 
   test('undefined タイトル → false を返すこと', () => {
     expect(titleMatchesTask(undefined, 5)).toBe(false);
+  });
+
+  describe('境界値: id=0 は [Task-0] / [#0] 形式でマッチし、不一致 ID では false を返すこと', () => {
+    it('[Task-0] 形式 → id=0 と一致すること（実装: title.includes("[Task-0]")）', () => {
+      expect(titleMatchesTask('[Task-0] fix something', 0)).toBe(true);
+    });
+
+    it('[#0] 形式 → id=0 と一致すること', () => {
+      expect(titleMatchesTask('[#0] fix something', 0)).toBe(true);
+    });
+
+    it('[Task-5] タイトルは id=0 と不一致であること', () => {
+      expect(titleMatchesTask('[Task-5] fix', 0)).toBe(false);
+    });
   });
 });
 

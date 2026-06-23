@@ -4,7 +4,8 @@
  * 各 resolveXxx 関数の正常系・異常系を検証する。
  * prisma は mock.module でスタブ化し、テスト間でリセットする。
  */
-import { describe, test, expect, mock, beforeEach } from 'bun:test';
+import { describe, test, it, expect, mock, beforeEach } from 'bun:test';
+import { ID_EDGES, toNameTuples } from '../../tests/helpers/boundary-values';
 
 // HACK(agent): bun:test の mock.module はプロセスグローバルなため、
 // 全エクスポートをミラーしないとバレルが "export not found" をスローする。
@@ -94,6 +95,20 @@ describe('resolveTaskWithTheme', () => {
     expect(callArgs.where.id).toBe(42);
     expect(callArgs.select).toBeDefined();
     expect(callArgs.select.theme).toBeDefined();
+  });
+
+  describe('境界値: id 0/-1/1 → null を返し where.id に値が伝播すること', () => {
+    it.each(toNameTuples(ID_EDGES))(
+      '%s → null',
+      async (_label, input) => {
+        const result = await resolveTaskWithTheme(input);
+        expect(result).toBeNull();
+
+        expect(mockTaskFindUnique).toHaveBeenCalledTimes(1);
+        const callArgs = mockTaskFindUnique.mock.calls[0][0] as { where: { id: number } };
+        expect(callArgs.where.id).toBe(input);
+      },
+    );
   });
 });
 
