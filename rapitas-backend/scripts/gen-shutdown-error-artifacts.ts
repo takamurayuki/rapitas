@@ -29,7 +29,12 @@ const SCRIPTS_DIR = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(SCRIPTS_DIR, '..');
 
 /** Path to the generated test file (deterministic, included in drift check). */
-export const GENERATED_TEST_PATH = join(ROOT, 'utils', 'common', 'shutdown-error.generated.test.ts');
+export const GENERATED_TEST_PATH = join(
+  ROOT,
+  'utils',
+  'common',
+  'shutdown-error.generated.test.ts',
+);
 /** Path to the spec doc (deterministic, included in drift check). */
 export const SPEC_PATH = join(ROOT, 'docs', 'shutdown-error-spec.md');
 /** Path to the changelog (non-deterministic / timestamps, excluded from drift check). */
@@ -88,9 +93,7 @@ export function generateTestFileContent(): string {
     `  });\n` +
     `\n` +
     `  test('Worker + suffix → false（完全一致のみ）', () => {\n` +
-    `    expect(isShutdownError(new Error('${WORKER_SHUTDOWN_ERROR_MESSAGE} — extra text'))).toBe(\n` +
-    `      false,\n` +
-    `    );\n` +
+    `    expect(isShutdownError(new Error('${WORKER_SHUTDOWN_ERROR_MESSAGE} — extra text'))).toBe(false);\n` +
     `  });\n` +
     `\n` +
     `  test('null → false', () => {\n` +
@@ -115,10 +118,7 @@ export function generateTestFileContent(): string {
  */
 export function generateSpecContent(): string {
   const actionsTable = [...SHUTDOWN_ACTIONS]
-    .map(
-      (action) =>
-        `| \`${action}\` | \`${SHUTDOWN_ERROR_MESSAGE}, cannot ${action}\` |`,
-    )
+    .map((action) => `| \`${action}\` | \`${SHUTDOWN_ERROR_MESSAGE}, cannot ${action}\` |`)
     .join('\n');
 
   const allActionsRows = [...SHUTDOWN_ACTIONS]

@@ -45,9 +45,7 @@ describe('isShutdownError 真理値表（自動生成）', () => {
   });
 
   test('Worker + suffix → false（完全一致のみ）', () => {
-    expect(isShutdownError(new Error('Manager is shutting down — extra text'))).toBe(
-      false,
-    );
+    expect(isShutdownError(new Error('Manager is shutting down — extra text'))).toBe(false);
   });
 
   test('null → false', () => {
