@@ -28,6 +28,8 @@ interface WorkflowQuestionPanelProps {
    * default はい/いいえ buttons are meaningless and confusing there.
    */
   freeTextOnly?: boolean;
+  /** Submit-button label (e.g. "次の質問へ" / "送信"). Defaults to 送信. / 送信ボタン文言 */
+  submitLabel?: string;
 }
 
 /**
@@ -40,6 +42,7 @@ export function WorkflowQuestionPanel({
   submitting,
   onAnswer,
   freeTextOnly = false,
+  submitLabel,
 }: WorkflowQuestionPanelProps) {
   const { options, isDefault } = freeTextOnly
     ? { options: [] as string[], isDefault: false }
@@ -155,7 +158,9 @@ export function WorkflowQuestionPanel({
             value={freeText}
             onChange={(e) => setFreeText(e.target.value)}
             rows={5}
-            placeholder={'達成したいこと・守るべき制約・「完了」と言える条件を箇条書きで入力...\n例:\n- ゴール: 生成スクリプトの実行時間を半減\n- 制約: 既存の生成物と出力差分なし\n- 受入: ベンチで before/after を計測し50%短縮を確認'}
+            placeholder={
+              '達成したいこと・守るべき制約・「完了」と言える条件を箇条書きで入力...\n例:\n- ゴール: 生成スクリプトの実行時間を半減\n- 制約: 既存の生成物と出力差分なし\n- 受入: ベンチで before/after を計測し50%短縮を確認'
+            }
             className="w-full resize-y rounded-lg border border-amber-300 bg-white px-3 py-2 text-sm focus:border-amber-500 focus:outline-none focus:ring-2 focus:ring-amber-500/30 dark:border-amber-700 dark:bg-zinc-800"
           />
           <div className="mt-2 flex justify-end">
@@ -170,7 +175,7 @@ export function WorkflowQuestionPanel({
               ) : (
                 <Send className="h-4 w-4" />
               )}
-              回答してワークフローを再開
+              {submitLabel ?? '回答してワークフローを再開'}
             </button>
           </div>
         </div>
@@ -199,7 +204,7 @@ export function WorkflowQuestionPanel({
               ) : (
                 <Send className="h-4 w-4" />
               )}
-              送信
+              {submitLabel ?? '送信'}
             </button>
           </div>
         </div>

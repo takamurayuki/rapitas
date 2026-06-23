@@ -17,7 +17,8 @@ import {
 import { WorkflowTabBar } from './WorkflowTabBar';
 import { WorkflowFileContent } from './WorkflowFileContent';
 import { WorkflowQuestionPanel } from './WorkflowQuestionPanel';
-import { splitIntakeQuestion } from './workflow-question-utils';
+import { IntakeQuestionFlow } from './IntakeQuestionFlow';
+import { splitIntakeQuestion, parseIntakeQuestions } from './workflow-question-utils';
 
 export interface WorkflowViewerProps {
   taskId: number;
@@ -73,7 +74,37 @@ export default function WorkflowViewer({
   });
 
   const resolvedMode = workflowMode || 'comprehensive';
-  const workflowTabs = getWorkflowTabs(resolvedMode);
+  const allWorkflowTabs = getWorkflowTabs(resolvedMode);
+
+  // Live agent question (published by the execution layer). Rendered in the Q&A
+  // tab; the interactive prompt was relocated here from the execution log.
+  const liveQuestion = useExecutionStateStore((s) => s.liveQuestions.get(taskId) ?? null);
+  const markQuestionAnswered = useExecutionStateStore((s) => s.markQuestionAnswered);
+  const [submittingAnswer, setSubmittingAnswer] = useState(false);
+
+  // The Q&A tab is only worth showing when a question actually exists — agents
+  // ask rarely, so a permanently-empty Q&A tab is noise. Surface it ONLY when
+  // there is a live question, a saved question.md, or the workflow is paused
+  // awaiting an answer. (Per user request: タブは質問があった際に表示する。)
+  const hasPendingQuestion =
+    !!liveQuestion || !!tabStatus.question || effectiveStatus === 'awaiting_question';
+  const workflowTabs = hasPendingQuestion
+    ? allWorkflowTabs
+    : allWorkflowTabs.filter((t) => t.id !== 'question');
+
+  // Number badged on the Q&A tab: parsed 質問N count for an intake question.md,
+  // else 1 for a live/legacy single question. Lets the user see at a glance how
+  // many questions await without opening the tab.
+  const parsedQuestionCount = files?.question?.content
+    ? parseIntakeQuestions(files.question.content).questions.length
+    : 0;
+  const qaBadgeCount = liveQuestion
+    ? 1
+    : parsedQuestionCount > 0
+      ? parsedQuestionCount
+      : tabStatus.question
+        ? 1
+        : 0;
 
   // Fallback to first tab if activeTab doesn't exist in current mode
   const validActiveTab = workflowTabs.some((t) => t.id === activeTab)
@@ -87,24 +118,19 @@ export default function WorkflowViewer({
   }, [validActiveTab, activeTab, setActiveTab]);
 
   const activeTabConfig = workflowTabs.find((t) => t.id === validActiveTab)!;
-
-  // Live agent question (published by the execution layer). Rendered in the Q&A
-  // tab; the interactive prompt was relocated here from the execution log.
-  const liveQuestion = useExecutionStateStore((s) => s.liveQuestions.get(taskId) ?? null);
-  const markQuestionAnswered = useExecutionStateStore((s) => s.markQuestionAnswered);
   const hasQAtab = workflowTabs.some((t) => t.id === 'question');
-  const [submittingAnswer, setSubmittingAnswer] = useState(false);
 
-  // Auto-switch to the Q&A tab ONCE when a question first appears, so the user
-  // notices it without losing manual control afterwards.
+  // Auto-switch to the Q&A tab ONCE when a question first appears (live OR a
+  // paused intake question.md), so the user notices it without losing manual
+  // control afterwards.
   const announcedQuestionRef = useRef(false);
   useEffect(() => {
-    if (liveQuestion && hasQAtab && !announcedQuestionRef.current) {
+    if (hasPendingQuestion && hasQAtab && !announcedQuestionRef.current) {
       announcedQuestionRef.current = true;
       setActiveTab('question');
     }
-    if (!liveQuestion) announcedQuestionRef.current = false;
-  }, [liveQuestion, hasQAtab, setActiveTab]);
+    if (!hasPendingQuestion) announcedQuestionRef.current = false;
+  }, [hasPendingQuestion, hasQAtab, setActiveTab]);
 
   /** POST the answer to the agent, then optimistically clear the live question. */
   const handleAnswerQuestion = async (answer: string) => {
@@ -205,6 +231,7 @@ export default function WorkflowViewer({
         activeTab={validActiveTab}
         tabStatus={tabStatus}
         effectiveStatus={effectiveStatus}
+        questionCount={qaBadgeCount}
         onTabChange={setActiveTab}
         lastModified={activeFile?.exists ? activeFile.lastModified : undefined}
         onRefetch={refetch}
@@ -240,9 +267,22 @@ export default function WorkflowViewer({
               )}
               {showingIntakeQuestion &&
                 (() => {
-                  // Prefer agent-presented choices: parse the `## 選択肢` block and
-                  // render it as selectable buttons; only fall back to free-text-only
-                  // when no options were offered.
+                  // 1問1答: parse the `## 質問N` blocks and present them one at a
+                  // time. Legacy single-question files (no 質問 blocks) fall back to
+                  // the single panel with its `### 選択肢`.
+                  const { intro, questions } = parseIntakeQuestions(activeFile?.content ?? '');
+                  if (questions.length > 0) {
+                    return (
+                      <div className="mb-4">
+                        <IntakeQuestionFlow
+                          intro={intro}
+                          questions={questions}
+                          submitting={submittingAnswer}
+                          onSubmitAll={handleAnswerIntakeQuestion}
+                        />
+                      </div>
+                    );
+                  }
                   const { text, options } = splitIntakeQuestion(activeFile?.content ?? '');
                   return (
                     <div className="mb-4">

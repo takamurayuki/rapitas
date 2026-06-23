@@ -14,6 +14,8 @@ interface WorkflowTabBarProps {
   tabStatus: Record<WorkflowFileType, boolean>;
   /** Resolved effective status used to determine badge visibility */
   effectiveStatus: WorkflowStatus | null;
+  /** Number of pending Q&A questions (badged on the Q&A tab). / Q&A質問数 */
+  questionCount?: number;
   /** Called when user clicks a tab */
   onTabChange: (tab: WorkflowFileType) => void;
   /** Active file's last-modified time; undefined when no file is shown. */
@@ -38,6 +40,7 @@ export function WorkflowTabBar({
   activeTab,
   tabStatus,
   effectiveStatus,
+  questionCount = 0,
   onTabChange,
   lastModified,
   onRefetch,
@@ -61,6 +64,9 @@ export function WorkflowTabBar({
           const questionNeedsAnswer =
             tab.id === 'question' && effectiveStatus === 'awaiting_question' && hasContent;
           const needsAttention = planNeedsApproval || questionNeedsAnswer;
+          // The "done" check and the question count are mutually exclusive: once
+          // answered (check shown) the count is stale noise, so suppress it.
+          const showDoneCheck = hasContent && !needsAttention;
 
           return (
             <button
@@ -74,6 +80,14 @@ export function WorkflowTabBar({
             >
               <TabIcon className="h-4 w-4" />
               <span>{tab.label}</span>
+              {/* Question count: lets the user see at a glance how many questions
+                  await before opening the tab. Hidden once answered (the done
+                  check takes over) per user request. */}
+              {tab.id === 'question' && questionCount > 0 && !showDoneCheck && (
+                <span className="flex h-4 min-w-[1rem] items-center justify-center rounded-full bg-amber-500 px-1 text-[10px] font-bold text-white">
+                  {questionCount}
+                </span>
+              )}
               {
                 needsAttention ? (
                   <span className="flex items-center gap-1 px-1.5 py-0.5 bg-amber-100 dark:bg-amber-800/50 text-amber-700 dark:text-amber-300 text-[10px] font-medium rounded-full">

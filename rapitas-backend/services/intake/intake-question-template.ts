@@ -5,6 +5,7 @@
  * spec is too thin to run autonomously. Pure string construction — no IO.
  */
 import { specFieldLabel, type SpecField } from './spec-quality-checker';
+import type { IntakeQuestion } from '../task/task-spec-deriver';
 
 /** Inputs for {@link buildIntakeQuestion}. */
 export interface IntakeQuestionInput {
@@ -15,14 +16,17 @@ export interface IntakeQuestionInput {
   /** Heuristic reasons the spec was judged thin. / 仕様が薄いと判定した根拠 */
   reasons: string[];
   /**
-   * Selectable goal options to present (preferably AI-generated and task-specific).
-   * When omitted, a task-type heuristic ({@link intakeGoalOptions}) is used.
+   * One focused question per missing field (1問1答), AI-generated. When provided,
+   * each is rendered as a `## 質問N` block the UI shows one at a time. When omitted,
+   * a single fallback goal question with task-type heuristic options is rendered.
    */
-  options?: string[];
+  questions?: IntakeQuestion[];
 }
 
 /** Marks the start of the selectable-choices block the UI parses. */
-export const INTAKE_OPTIONS_HEADING = '## 選択肢';
+export const INTAKE_OPTIONS_HEADING = '### 選択肢';
+/** Prefix of each per-question heading the UI parses (1問1答). */
+export const INTAKE_QUESTION_PREFIX = '## 質問';
 
 /**
  * Plausible GOAL directions for a task, offered as selectable choices so the user
@@ -64,47 +68,76 @@ export function intakeGoalOptions(title: string): string[] {
  * @param input - Title, missing fields, and reasons. / タイトル・不足項目・根拠
  * @returns Markdown body for `question.md`. / question.md 用のMarkdown本文
  */
+/**
+ * One heuristic question per missing spec field, used when AI question generation
+ * is unavailable. Goals use the task-type goal options; constraints/acceptance use
+ * generic-but-useful choices. Always yields at least one (goals) question.
+ *
+ * @param title - Task title (steers the goal options). / タスクタイトル
+ * @param missing - Spec fields detected as missing. / 不足項目
+ * @returns One question per missing field. / 項目ごとの質問
+ */
+function fallbackQuestions(title: string, missing: SpecField[]): IntakeQuestion[] {
+  const fields: SpecField[] = missing.length > 0 ? missing : ['goals'];
+  return fields.map((field) => {
+    if (field === 'constraints') {
+      return {
+        field,
+        question: '守るべき制約・前提はどれですか？',
+        options: [
+          '既存の挙動・出力を変えない',
+          'スコープを限定する（最小変更）',
+          '後方互換性を保つ',
+        ],
+      };
+    }
+    if (field === 'acceptanceCriteria') {
+      return {
+        field,
+        question: '「完了」と判定する基準はどれですか？',
+        options: ['関連テストが全て通る', '計測値で改善を確認できる', 'レビューで動作を確認できる'],
+      };
+    }
+    return {
+      field: 'goals',
+      question: 'このタスクで達成すべきゴール（最も重視すること）はどれですか？',
+      options: intakeGoalOptions(title),
+    };
+  });
+}
+
 export function buildIntakeQuestion(input: IntakeQuestionInput): string {
   const lines: string[] = [];
   lines.push('# 仕様確認');
   lines.push('');
   lines.push(
-    `タスク「${input.title}」を自律実行するには、仕様が不足しています。以下を具体的に追記してください。`,
+    `タスク「${input.title}」を自律実行するには、仕様が不足しています。以下の質問に1問ずつお答えください。`,
   );
   lines.push('');
 
-  if (input.missing.length > 0) {
-    lines.push('## 不足している項目');
-    for (const field of input.missing) {
-      lines.push(`- ${specFieldLabel(field)}`);
+  // 1問1答: prefer AI-generated per-field questions; fall back to ONE heuristic
+  // question per missing field. Each `## 質問N` block carries its own `### 選択肢`
+  // so the UI can show them one at a time with clear question↔answer correspondence.
+  const questions: IntakeQuestion[] =
+    input.questions && input.questions.length > 0
+      ? input.questions
+      : fallbackQuestions(input.title, input.missing);
+
+  questions.forEach((q, i) => {
+    const label = specFieldLabel((q.field as SpecField) ?? 'goals');
+    lines.push(`${INTAKE_QUESTION_PREFIX}${i + 1}: ${label}`);
+    lines.push(q.question);
+    if (q.options.length > 0) {
+      lines.push(INTAKE_OPTIONS_HEADING);
+      for (const opt of q.options) lines.push(`- ${opt}`);
     }
     lines.push('');
-  }
-
-  if (input.reasons.length > 0) {
-    lines.push('## 判定理由');
-    for (const reason of input.reasons) {
-      lines.push(`- ${reason}`);
-    }
-    lines.push('');
-  }
-
-  // Selectable goal choices — the UI parses bullets under INTAKE_OPTIONS_HEADING
-  // and renders them as buttons (plus an always-available "その他" free-text).
-  // Prefer caller-supplied (AI-generated) options; fall back to the task-type heuristic.
-  const options =
-    input.options && input.options.length > 0 ? input.options : intakeGoalOptions(input.title);
-  if (options.length > 0) {
-    lines.push(INTAKE_OPTIONS_HEADING);
-    for (const opt of options) lines.push(`- ${opt}`);
-    lines.push('');
-  }
+  });
 
   lines.push('## 回答方法');
   lines.push(
-    '上の選択肢から最も近いゴールを選ぶか、達成したいこと・守るべき制約・「完了」と言える条件を自由記述で記入してください。',
+    '各質問について、選択肢から選ぶか、当てはまらない場合は自由記述で回答してください。すべて回答するとワークフローを再開し、内容を仕様へ反映して調査フェーズに進みます。',
   );
-  lines.push('回答後にワークフローを再開すると、内容を仕様へ反映して調査フェーズに進みます。');
   lines.push('');
 
   return lines.join('\n');

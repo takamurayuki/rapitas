@@ -32,6 +32,72 @@ export function resolveQuestionOptions(
   return { options: [...DEFAULT_QUESTION_OPTIONS], isDefault: true };
 }
 
+/** One parsed intake question (1問1答). */
+export interface ParsedIntakeQuestion {
+  /** Heading label (e.g. "質問1: 達成すべきゴール"). / 見出し */
+  label: string;
+  /** The question prose. / 質問文 */
+  text: string;
+  /** Selectable options (may be empty → free-text). / 選択肢 */
+  options: string[];
+}
+
+/**
+ * Parse an intake `question.md` into its intro prose + the list of `## 質問N`
+ * questions (each with its `### 選択肢`). The UI shows them ONE AT A TIME (1問1答)
+ * and badges the Q&A tab with `questions.length`. Returns an empty list when the
+ * file has no `## 質問` blocks (e.g. a legacy single-question file), so the caller
+ * can fall back to {@link splitIntakeQuestion}.
+ *
+ * @param md - The question.md body. / question.md 本文
+ * @returns The intro text and the parsed questions. / イントロと質問配列
+ */
+export function parseIntakeQuestions(md: string): {
+  intro: string;
+  questions: ParsedIntakeQuestion[];
+} {
+  const lines = (md ?? '').split(/\r?\n/);
+  const intro: string[] = [];
+  const questions: ParsedIntakeQuestion[] = [];
+  let cur: ParsedIntakeQuestion | null = null;
+  let inOptions = false;
+  let seenFirstQuestion = false;
+  for (const raw of lines) {
+    const line = raw.trim();
+    const qMatch = line.match(/^##\s*(質問\s*\d+.*)$/);
+    if (qMatch) {
+      if (cur) questions.push(cur);
+      cur = { label: qMatch[1].trim(), text: '', options: [] };
+      inOptions = false;
+      seenFirstQuestion = true;
+      continue;
+    }
+    if (!cur) {
+      // Before the first 質問 block: collect intro, but stop at 回答方法 etc.
+      if (!seenFirstQuestion && !/^##\s/.test(line)) intro.push(raw);
+      continue;
+    }
+    if (/^###\s*選択肢/.test(line)) {
+      inOptions = true;
+      continue;
+    }
+    if (/^##\s/.test(line)) {
+      // A non-質問 heading (e.g. 回答方法) ends the current question + the list.
+      questions.push(cur);
+      cur = null;
+      break;
+    }
+    if (inOptions) {
+      const m = line.match(/^[-*]\s+(.+)$/);
+      if (m) cur.options.push(m[1].trim());
+      continue;
+    }
+    if (line) cur.text = cur.text ? `${cur.text}\n${line}` : line;
+  }
+  if (cur) questions.push(cur);
+  return { intro: intro.join('\n').trim(), questions };
+}
+
 /**
  * Split an intake `question.md` into its prose and selectable options. The backend
  * embeds choices under a `## 選択肢` bullet block (see intake-question-template);

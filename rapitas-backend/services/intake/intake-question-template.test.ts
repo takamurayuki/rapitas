@@ -7,7 +7,7 @@ import { describe, it, expect } from 'bun:test';
 import { buildIntakeQuestion, intakeGoalOptions } from './intake-question-template';
 
 describe('buildIntakeQuestion', () => {
-  it('includes the title, missing fields, and reasons', () => {
+  it('renders one 質問 block per missing field (1問1答), each with choices', () => {
     const md = buildIntakeQuestion({
       title: 'Add login',
       missing: ['goals', 'acceptanceCriteria'],
@@ -15,29 +15,35 @@ describe('buildIntakeQuestion', () => {
     });
     expect(md).toContain('# 仕様確認');
     expect(md).toContain('Add login');
+    // One numbered question per missing field, labelled with the field.
+    expect(md).toContain('## 質問1');
+    expect(md).toContain('## 質問2');
     expect(md).toContain('goals');
     expect(md).toContain('acceptanceCriteria');
-    expect(md).toContain('説明が短く');
+    expect(md).toContain('### 選択肢');
     expect(md).toContain('## 回答方法');
   });
 
-  it('omits the missing-fields section when nothing is missing', () => {
-    const md = buildIntakeQuestion({ title: 'T', missing: [], reasons: [] });
-    expect(md).not.toContain('## 不足している項目');
-    expect(md).not.toContain('## 判定理由');
-    // Always keeps the answer guidance.
-    expect(md).toContain('## 回答方法');
-  });
-
-  it('renders a selectable 選択肢 block with goal options', () => {
+  it('renders AI-provided questions verbatim when supplied', () => {
     const md = buildIntakeQuestion({
-      title: '[Perf] SSOT スクリプト最適化',
+      title: 'T',
       missing: ['goals'],
       reasons: [],
+      questions: [
+        { field: 'goals', question: '速度と品質どちらを優先？', options: ['速度', '品質'] },
+      ],
     });
-    expect(md).toContain('## 選択肢');
-    // Perf task → speed/memory/throughput style options.
+    expect(md).toContain('## 質問1');
+    expect(md).toContain('速度と品質どちらを優先？');
+    expect(md).toContain('- 速度');
+    expect(md).toContain('- 品質');
+  });
+
+  it('falls back to a single goal question when nothing is flagged missing', () => {
+    const md = buildIntakeQuestion({ title: '[Perf] x', missing: [], reasons: [] });
+    expect(md).toContain('## 質問1');
     expect(md).toMatch(/実行時間|レスポンス|スループット|メモリ/);
+    expect(md).toContain('## 回答方法');
   });
 });
 

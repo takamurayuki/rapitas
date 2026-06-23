@@ -68,6 +68,72 @@ const OPTIONS_SYSTEM_PROMPT = `あなたはソフトウェア開発タスクの�
 出力は必ず次のJSONのみ。前後に説明文やコードブロックを付けないこと:
 {"options":["...","..."]}`;
 
+/** One clarifying question with its selectable options. */
+export interface IntakeQuestion {
+  /** Which spec field it clarifies (goals/constraints/acceptanceCriteria). */
+  field: string;
+  /** The single, focused question (1問1答). */
+  question: string;
+  /** 2-4 selectable answers. / 選択肢 */
+  options: string[];
+}
+
+const QUESTIONS_SYSTEM_PROMPT = `あなたはソフトウェア開発タスクの仕様を、ユーザーへの「1問1答」で固めるアシスタントです。
+不足している仕様項目それぞれについて、ユーザーが選んで答えられる「1問」を作ってください。
+ルール:
+- 不足項目1つにつき質問1つ。長い複合質問にしない（粒度を細かく、1問1答）。
+- 各質問に2〜4個の具体的で互いに異なる選択肢を付ける。選択肢は1行・15〜40文字。
+- 抽象的すぎる選択肢は避け、このタスク固有にする。
+- field は "goals" | "constraints" | "acceptanceCriteria" のいずれか。
+出力は必ず次のJSONのみ。前後に説明文やコードブロックを付けないこと:
+{"questions":[{"field":"goals","question":"...","options":["...","..."]}]}`;
+
+/**
+ * Generate ONE focused clarifying question per missing spec field (1問1答), each
+ * with selectable options — so the UI can present them one at a time with clear
+ * question↔answer correspondence rather than one long fill-in prompt. Returns []
+ * when AI is unavailable or fails (caller falls back to a single heuristic question).
+ *
+ * @param title - Task title. / タスクタイトル
+ * @param description - Free-text description. / タスク説明
+ * @param missingFields - Spec fields detected as missing. / 不足項目
+ * @returns One question per field, or [] on failure. / 質問配列
+ */
+export async function generateIntakeQuestions(
+  title: string,
+  description: string,
+  missingFields: string[],
+): Promise<IntakeQuestion[]> {
+  if (missingFields.length === 0 || !(await isAnyApiKeyConfigured())) return [];
+  const basis = `# タスクタイトル\n${title}\n\n# 説明\n${(description ?? '').trim() || '(説明なし)'}\n\n# 不足している仕様項目\n${missingFields.join(', ')}`;
+  try {
+    const provider = await getDefaultProvider();
+    const response = await sendAIMessage({
+      provider,
+      messages: [{ role: 'user', content: basis }],
+      systemPrompt: QUESTIONS_SYSTEM_PROMPT,
+      maxTokens: 900,
+    });
+    const match = response.content.match(/\{[\s\S]*\}/);
+    if (!match) return [];
+    const parsed = JSON.parse(match[0]) as { questions?: unknown };
+    if (!Array.isArray(parsed.questions)) return [];
+    return parsed.questions
+      .map((q): IntakeQuestion | null => {
+        const obj = q as { field?: unknown; question?: unknown; options?: unknown };
+        const question = typeof obj.question === 'string' ? obj.question.trim() : '';
+        const options = toStringArray(obj.options).slice(0, 4);
+        if (!question) return null;
+        return { field: typeof obj.field === 'string' ? obj.field : 'goals', question, options };
+      })
+      .filter((q): q is IntakeQuestion => q !== null)
+      .slice(0, 4);
+  } catch (error) {
+    logger.warn({ err: error }, '[task-spec-deriver] intake question generation failed');
+    return [];
+  }
+}
+
 /**
  * Ask the AI to propose 2-4 distinct, task-specific GOAL options the user can pick
  * from when a task's spec is too thin (the intake clarifying question). This is the

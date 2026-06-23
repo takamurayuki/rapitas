@@ -20,7 +20,7 @@ import {
   writeWorkflowFile,
 } from '../workflow/workflow-file-utils';
 import { recordTransition } from '../workflow/transition-recorder';
-import { deriveTaskSpec, generateIntakeGoalOptions } from '../task/task-spec-deriver';
+import { deriveTaskSpec, generateIntakeQuestions } from '../task/task-spec-deriver';
 import { createNotification } from '../communication/notification-service';
 import {
   checkSpecQuality,
@@ -183,16 +183,19 @@ async function raiseIntakeQuestion(task: IntakeTaskRow, quality: SpecQualityResu
     log.warn({ taskId: task.id }, '[intake-gate] cannot resolve workflow dir — skipping question');
     return;
   }
-  // The executing agent (AI) proposes task-specific goal options; fall back to the
-  // task-type heuristic inside buildIntakeQuestion when AI is unavailable/empty.
-  const aiOptions = await generateIntakeGoalOptions(task.title, task.description ?? '').catch(
-    () => [] as string[],
-  );
+  // The executing agent (AI) proposes one focused question per missing field
+  // (1問1答); buildIntakeQuestion falls back to a single heuristic goal question
+  // when AI is unavailable/empty.
+  const aiQuestions = await generateIntakeQuestions(
+    task.title,
+    task.description ?? '',
+    quality.missing,
+  ).catch(() => []);
   const body = buildIntakeQuestion({
     title: task.title,
     missing: quality.missing,
     reasons: quality.reasons,
-    options: aiOptions,
+    questions: aiQuestions,
   });
   await writeWorkflowFile(resolved.dir, 'question', body, task.id);
 
