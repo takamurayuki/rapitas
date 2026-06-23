@@ -846,7 +846,39 @@ curl -X POST http://localhost:${port}/idea-box \\
               prError = acpr.autoPRResult?.error ?? acpr.error;
             }
 
-            if (prRequested && !prSatisfied) {
+            // No-diff / already-implemented: PR creation failed because there is
+            // nothing to land (gh: "No commits between ..."). Requiring a PR would
+            // wrongly block an already-done task — complete as a no-change result
+            // instead (PR required ONLY for actual changes). Mirrors the HTTP
+            // handler (workflow-handlers-files.ts) and the research 修正不要 path.
+            const isNoChangeCompletion =
+              prRequested &&
+              !prSatisfied &&
+              /no commits between|nothing to commit|no changes added|変更がありません|差分がありません/i.test(
+                prError ?? '',
+              );
+
+            if (isNoChangeCompletion) {
+              await prisma.task.update({
+                where: { id: taskId },
+                data: { status: 'done', workflowStatus: 'completed', completedAt: new Date() },
+              });
+              await recordTransition({
+                taskId,
+                fromStatus: currentWfStatus,
+                toStatus: 'completed',
+                actor: transition.role as TransitionActor,
+                cause: 'verify_no_change_confirmed',
+                phase: 'verify',
+                sessionId: session.id,
+                metadata: { reason: 'no diff — already implemented; PR not required', prError },
+              });
+              phaseStatus = 'completed';
+              log.info(
+                { taskId, prError },
+                '[WorkflowCLIExecutor] verify passed with NO diff (already implemented) — completing WITHOUT a PR.',
+              );
+            } else if (prRequested && !prSatisfied) {
               // Verify passed but no PR was produced — do NOT complete. Keep the
               // task actionable (blocked) so "完了" always implies a PR.
               await prisma.task

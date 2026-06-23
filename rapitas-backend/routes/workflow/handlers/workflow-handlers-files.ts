@@ -919,7 +919,53 @@ export async function handleSaveFile({
           }
         }
 
-        if (prRequested && !prSatisfied) {
+        // No-diff / already-implemented: verify passed but there is NOTHING to PR
+        // because the code already satisfies the task (gh: "No commits between
+        // <base> and <branch>", or auto-commit found no changes). Requiring a PR
+        // here wrongly blocks an already-done task — complete it as a no-change
+        // result instead (mirrors the research "## 結論: 修正不要" path). PR is
+        // required ONLY when there were ACTUAL changes to land. (User request.)
+        const noChangeBlob = `${pr?.error ?? ''} ${commit?.error ?? ''} ${autoCommitPRResult.error ?? ''}`;
+        const isNoChangeCompletion =
+          prRequested &&
+          !prSatisfied &&
+          (/no commits between|nothing to commit|no changes added|変更がありません|差分がありません/i.test(
+            noChangeBlob,
+          ) ||
+            commit?.filesChanged === 0);
+
+        if (isNoChangeCompletion) {
+          await prisma.task
+            .update({
+              where: { id: taskId },
+              data: {
+                status: 'done',
+                workflowStatus: 'completed',
+                completedAt: new Date(),
+                updatedAt: new Date(),
+              },
+            })
+            .catch(() => {});
+          taskMarkedDone = true;
+          newStatus = 'completed';
+          await recordTransition({
+            taskId,
+            fromStatus: 'verify_done',
+            toStatus: 'completed',
+            actor: 'system',
+            cause: 'verify_no_change_confirmed',
+            phase: 'verify',
+            metadata: {
+              reason: 'no diff — already implemented; PR not required',
+              prError: pr?.error,
+              commitError: commit?.error,
+            },
+          });
+          log.info(
+            { taskId, prError: pr?.error },
+            '[Workflow] verify passed with NO diff (already implemented) — completing WITHOUT a PR.',
+          );
+        } else if (prRequested && !prSatisfied) {
           // Verify passed but no PR was produced — do NOT complete. Keep the task
           // actionable (blocked) and surface why, so "完了" always implies a PR.
           const reason =
