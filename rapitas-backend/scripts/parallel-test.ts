@@ -94,7 +94,7 @@ export function formatProgressLine(
  * @param root - Backend root used as subprocess cwd / サブプロセスの作業ディレクトリ
  * @returns Resolved TestResult after the subprocess exits
  */
-async function runFile(file: string, root: string): Promise<TestResult> {
+export async function runFile(file: string, root: string): Promise<TestResult> {
   const start = performance.now();
   let proc: ReturnType<typeof Bun.spawn<'ignore', 'pipe', 'pipe'>>;
   try {

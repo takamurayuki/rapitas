@@ -11,6 +11,7 @@
     "start:simple": "bun index.ts",
     "test": "bun test --isolate",
     "test:parallel": "bun scripts/parallel-test.ts",
+    "test:timing": "bun scripts/test-timing.ts",
     "test:shuffle": "bun scripts/shuffle-test.ts",
     "test:full": "bun test --isolate",
     "test:integration": "bun test --path-ignore-patterns=\"\" ./tests/integration/",
