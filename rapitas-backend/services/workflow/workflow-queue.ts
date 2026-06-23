@@ -6,7 +6,7 @@
 import { prisma } from '../../config';
 import { createLogger } from '../../config/logger';
 import { resolveTaskWorkflowState } from '../task/task-resolver';
-import { narrowWorkflowStatus } from './workflow-types';
+import { narrowWorkflowStatus } from './workflow-types.guards.generated';
 
 const log = createLogger('workflow-queue');
 

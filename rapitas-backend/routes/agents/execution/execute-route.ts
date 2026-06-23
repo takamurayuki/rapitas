@@ -26,7 +26,7 @@ import { handleExecuteResult } from './execute-post-handler';
 import { buildFullInstruction, fetchAnalysisInfo } from './instruction-builder';
 import { executeSetup } from './execute-setup';
 import { resolveTaskForExecution } from '../../../services/task/task-resolver';
-import { narrowWorkflowMode } from '../../../services/workflow/workflow-types';
+import { narrowWorkflowMode } from '../../../services/workflow/workflow-types.guards.generated';
 import { resolveAgentForTask } from '../../../services/workflow/role-resolver';
 import { resolveEffectiveAutoApprovePlan } from '../../../services/workflow/plan-auto-approve';
 import {

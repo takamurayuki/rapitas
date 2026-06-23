@@ -29,7 +29,7 @@ import { resolveTaskWorkflowState } from '../task/task-resolver';
 
 const log = createLogger('role-resolver');
 
-import { narrowWorkflowStatus, narrowWorkflowMode } from './workflow-types';
+import { narrowWorkflowStatus, narrowWorkflowMode } from './workflow-types.guards.generated';
 import type { WorkflowRole } from './workflow-types';
 
 // NOTE: The status→role map is now derived from the DB-backed, UI-editable
