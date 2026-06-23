@@ -12,6 +12,7 @@ import { analyzeTaskComplexity, type TaskComplexityInput } from '../complexity-a
 import { matchesCondition, type RuleGenerationResult } from './workflow-learning-helpers';
 import { estimateDurationFromHistory, getDirectInsight } from './workflow-learning-estimator';
 import { runRuleDetection } from './workflow-learning-rules';
+import { resolveTaskForLearning } from '../../task/task-resolver';
 
 // Re-export sub-module symbols so existing imports from this path keep working.
 export { recordWorkflowCompletion, getLearningStats } from './workflow-learning-stats';
@@ -92,13 +93,7 @@ export async function getWorkflowRecommendation(
   taskId: number,
 ): Promise<WorkflowRecommendation | null> {
   try {
-    const task = await prisma.task.findUnique({
-      where: { id: taskId },
-      include: {
-        theme: { include: { category: true } },
-        taskLabels: { include: { label: true } },
-      },
-    });
+    const task = await resolveTaskForLearning(taskId);
 
     if (!task) return null;
 

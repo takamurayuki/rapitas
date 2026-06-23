@@ -8,7 +8,7 @@ import { prisma } from '../../config';
 import { createLogger } from '../../config/logger';
 import { WorkflowQueueService, type QueueItem } from './workflow-queue';
 import { WorkflowOrchestrator } from './workflow-orchestrator';
-import { resolveTaskWorkflowState } from '../task/task-resolver';
+import { resolveTaskWorkflowState, resolveTaskForPlanApproval } from '../task/task-resolver';
 import {
   logPhaseTransition,
   broadcastRunnerStatus,
@@ -248,11 +248,7 @@ export class WorkflowRunner {
 
         // plan_created: check auto-approve setting before waiting
         if (currentStatus === 'plan_created') {
-          const { prisma } = await import('../../config/database');
-          const taskForApproval = await prisma.task.findUnique({
-            where: { id: item.taskId },
-            select: { autoApprovePlan: true, parentId: true },
-          });
+          const taskForApproval = await resolveTaskForPlanApproval(item.taskId);
           const userSettings = await prisma.userSettings.findFirst();
           const isSubtask = taskForApproval?.parentId != null;
           const shouldAutoApprove =
@@ -439,10 +435,7 @@ export class WorkflowRunner {
    */
   private async notifyParentOnSubtaskFailure(taskId: number): Promise<void> {
     try {
-      const task = await prisma.task.findUnique({
-        where: { id: taskId },
-        select: { parentId: true, status: true },
-      });
+      const task = await resolveTaskWorkflowState(taskId);
       if (!task?.parentId) return;
       // 'failed' is terminal for onSubtaskCompleted's all-siblings-done gate.
       if (!['done', 'failed', 'cancelled', 'archived'].includes(task.status)) {

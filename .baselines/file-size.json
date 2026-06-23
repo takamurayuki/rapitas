@@ -1,5 +1,5 @@
 {
-  "generated": "2026-06-23T02:06:25.301Z",
+  "generated": "2026-06-23T04:50:45.020Z",
   "hard_limit": 500,
   "soft_limit": 300,
   "_comment": "Files at or above the hard limit at snapshot time. Their listed lineCount becomes a per-file ceiling — they may shrink but not grow. Remove an entry by splitting the file.",
@@ -8,7 +8,7 @@
       "lineCount": 1766
     },
     "rapitas-backend/services/workflow/workflow-cli-executor.ts": {
-      "lineCount": 1120
+      "lineCount": 1114
     },
     "rapitas-backend/routes/workflow/handlers/workflow-handlers-files.ts": {
       "lineCount": 1112
@@ -25,17 +25,20 @@
     "rapitas-backend/services/agents/verification/automated-verifier.ts": {
       "lineCount": 702
     },
-    "rapitas-backend/services/workflow/auto-run/theme-auto-run-scheduler.ts": {
-      "lineCount": 685
-    },
     "rapitas-backend/scripts/analyze-codebase/agent-report-generator.ts": {
       "lineCount": 684
+    },
+    "rapitas-backend/services/workflow/auto-run/theme-auto-run-scheduler.ts": {
+      "lineCount": 678
     },
     "rapitas-backend/routes/agents/execution/execute-route.ts": {
       "lineCount": 674
     },
     "rapitas-backend/services/workflow/auto-merge-watcher.ts": {
-      "lineCount": 667
+      "lineCount": 657
+    },
+    "rapitas-backend/services/memory/task-knowledge-extractor.ts": {
+      "lineCount": 633
     },
     "rapitas-frontend/src/feature/developer-mode/hooks/execution-poll-handlers.ts": {
       "lineCount": 625
@@ -56,13 +59,16 @@
       "lineCount": 602
     },
     "rapitas-backend/services/workflow/subtask-splitter.ts": {
-      "lineCount": 585
+      "lineCount": 583
     },
     "rapitas-backend/routes/tasks/tasks.ts": {
       "lineCount": 581
     },
     "rapitas-backend/services/memory/idea-extractor.ts": {
       "lineCount": 578
+    },
+    "rapitas-backend/services/memory/hypothesis-service.ts": {
+      "lineCount": 549
     },
     "rapitas-frontend/src/hooks/common/useSpeechRecognition.ts": {
       "lineCount": 541
@@ -75,9 +81,6 @@
     },
     "rapitas-backend/services/workflow/workflow-reconciler.ts": {
       "lineCount": 526
-    },
-    "rapitas-backend/services/memory/hypothesis-service.ts": {
-      "lineCount": 518
     },
     "rapitas-backend/routes/organization/themes.ts": {
       "lineCount": 505

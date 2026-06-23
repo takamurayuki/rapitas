@@ -13,6 +13,7 @@ import {
   extractKeywords,
   detectSkippedPhases,
 } from './workflow-learning-helpers';
+import { resolveTaskForLearning } from '../../task/task-resolver';
 
 const log = createLogger('workflow-learning-stats');
 
@@ -35,34 +36,32 @@ interface LearningStats {
  */
 export async function recordWorkflowCompletion(taskId: number): Promise<void> {
   try {
-    const task = await prisma.task.findUnique({
-      where: { id: taskId },
-      include: {
-        theme: { include: { category: true } },
-        taskLabels: { include: { label: true } },
-        activityLogs: {
-          where: {
-            action: {
-              in: [
-                'workflow_status_updated',
-                'plan_approved',
-                'plan_auto_approved',
-                'plan_rejected',
-                'workflow_mode_changed',
-              ],
-            },
-          },
-          orderBy: { createdAt: 'asc' },
-        },
-      },
-    });
+    const task = await resolveTaskForLearning(taskId);
 
     if (!task) {
       log.warn({ taskId }, 'Task not found for workflow learning record');
       return;
     }
 
-    const phaseTimings = calculatePhaseTimings(task.activityLogs, task.createdAt);
+    // NOTE: activityLogs フィルタ条件は phaseTimings 計算専用で再利用性がないため、
+    // resolver には含めず別クエリで取得する（plan.md 設計判断 ❓1 参照）。
+    const activityLogs = await prisma.activityLog.findMany({
+      where: {
+        taskId,
+        action: {
+          in: [
+            'workflow_status_updated',
+            'plan_approved',
+            'plan_auto_approved',
+            'plan_rejected',
+            'workflow_mode_changed',
+          ],
+        },
+      },
+      orderBy: { createdAt: 'asc' },
+    });
+
+    const phaseTimings = calculatePhaseTimings(activityLogs, task.createdAt);
 
     const actualDuration = task.completedAt
       ? Math.round((task.completedAt.getTime() - task.createdAt.getTime()) / 60000)
@@ -80,7 +79,7 @@ export async function recordWorkflowCompletion(taskId: number): Promise<void> {
     };
     const analysis = analyzeTaskComplexity(complexityInput);
 
-    const modeChangeLog = task.activityLogs.find((l) => l.action === 'workflow_mode_changed');
+    const modeChangeLog = activityLogs.find((l) => l.action === 'workflow_mode_changed');
     let overriddenFrom: string | null = null;
     if (modeChangeLog && modeChangeLog.metadata) {
       try {
@@ -91,10 +90,7 @@ export async function recordWorkflowCompletion(taskId: number): Promise<void> {
       }
     }
 
-    const skippedPhases = detectSkippedPhases(
-      task.workflowMode || 'comprehensive',
-      task.activityLogs,
-    );
+    const skippedPhases = detectSkippedPhases(task.workflowMode || 'comprehensive', activityLogs);
 
     await prisma.workflowLearningRecord.create({
       data: {
