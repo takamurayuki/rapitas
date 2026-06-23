@@ -12,6 +12,10 @@ import { realtimeService } from '../communication/realtime-service';
 import { writeWorkflowFile } from './workflow-file-utils';
 import { getTaskWorkflowDir } from './workflow-paths';
 import { recordTransition } from './transition-recorder';
+import {
+  resolveTaskSubtaskInfo,
+  resolveTaskWithThemeAndCategory,
+} from '../task/task-resolver';
 
 const log = createLogger('subtask-completion');
 
@@ -61,10 +65,7 @@ export function isSubtaskPassed(s: SubtaskState): boolean {
  */
 export async function onSubtaskCompleted(completedSubtaskId: number): Promise<void> {
   try {
-    const subtask = await prisma.task.findUnique({
-      where: { id: completedSubtaskId },
-      select: { parentId: true, title: true },
-    });
+    const subtask = await resolveTaskSubtaskInfo(completedSubtaskId);
 
     if (!subtask?.parentId) return;
 
@@ -89,10 +90,7 @@ export async function onSubtaskCompleted(completedSubtaskId: number): Promise<vo
     if (stillRunning.length > 0) return;
 
     // All subtasks complete — generate parent's integration verify.md
-    const parentTask = await prisma.task.findUnique({
-      where: { id: subtask.parentId },
-      include: { theme: { include: { category: true } } },
-    });
+    const parentTask = await resolveTaskWithThemeAndCategory(subtask.parentId);
 
     if (!parentTask) return;
 

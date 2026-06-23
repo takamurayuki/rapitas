@@ -12,6 +12,7 @@ import { mkdir, writeFile } from 'fs/promises';
 import { join } from 'path';
 import { getTaskWorkflowDir } from './workflow-paths';
 import { parseJsonArray } from '../../utils/common/json-extractor';
+import { resolveTaskWithThemeAndCategory } from '../task/task-resolver';
 
 const log = createLogger('subtask-splitter');
 
@@ -316,10 +317,7 @@ export async function createSubtasksFromPlan(
   }
 
   try {
-    const parentTask = await prisma.task.findUnique({
-      where: { id: parentTaskId },
-      include: { theme: { include: { category: true } } },
-    });
+    const parentTask = await resolveTaskWithThemeAndCategory(parentTaskId);
 
     if (!parentTask) {
       return {

@@ -221,3 +221,116 @@ export async function resolveTaskForComplexityAnalysis(
     })
     .catch(() => null);
 }
+
+/** Minimal subtask info needed for subtask completion propagation. */
+export type TaskSubtaskInfo = Prisma.TaskGetPayload<{
+  select: { id: true; parentId: true; title: true };
+}>;
+
+/** Shape required for plan auto-approve decision in the workflow runner. */
+export type TaskForPlanApproval = Prisma.TaskGetPayload<{
+  select: { id: true; autoApprovePlan: true; parentId: true };
+}>;
+
+/** Shape required for auto-merge candidate resolution. */
+export type TaskForAutoMerge = Prisma.TaskGetPayload<{
+  select: {
+    id: true;
+    title: true;
+    status: true;
+    workflowStatus: true;
+    completedAt: true;
+    workingDirectory: true;
+    theme: { select: { workingDirectory: true } };
+  };
+}>;
+
+/** Shape required for workflow learning record creation and optimization. */
+export type TaskForLearning = Prisma.TaskGetPayload<{
+  include: {
+    theme: { include: { category: true } };
+    taskLabels: { include: { label: true } };
+  };
+}>;
+
+/**
+ * Resolve a Task ID to subtask info — id, parent ID and title.
+ * Used to detect and propagate subtask completion to the parent task.
+ * Returns null when the task is absent or a DB error occurs.
+ *
+ * @param taskId - Task primary key. / タスクの主キー
+ * @returns Subtask info with parentId and title, or null. / parentId・title付きサブタスク情報、なければnull
+ */
+export async function resolveTaskSubtaskInfo(taskId: number): Promise<TaskSubtaskInfo | null> {
+  return prisma.task
+    .findUnique({
+      where: { id: taskId },
+      select: { id: true, parentId: true, title: true },
+    })
+    .catch(() => null);
+}
+
+/**
+ * Resolve a Task ID to the shape required for plan auto-approve decision.
+ * Includes autoApprovePlan flag and parentId for subtask detection.
+ * Returns null when the task is absent or a DB error occurs.
+ *
+ * @param taskId - Task primary key. / タスクの主キー
+ * @returns Plan approval decision fields, or null. / 自動承認判定フィールド、なければnull
+ */
+export async function resolveTaskForPlanApproval(
+  taskId: number,
+): Promise<TaskForPlanApproval | null> {
+  return prisma.task
+    .findUnique({
+      where: { id: taskId },
+      select: { id: true, autoApprovePlan: true, parentId: true },
+    })
+    .catch(() => null);
+}
+
+/**
+ * Resolve a Task ID to the shape required for auto-merge candidate resolution.
+ * Includes status scalars, workingDirectory, and theme workingDirectory.
+ * Returns null when the task is absent or a DB error occurs.
+ *
+ * @param taskId - Task primary key. / タスクの主キー
+ * @returns Auto-merge candidate fields, or null. / 自動マージ候補フィールド、なければnull
+ */
+export async function resolveTaskForAutoMerge(taskId: number): Promise<TaskForAutoMerge | null> {
+  return prisma.task
+    .findUnique({
+      where: { id: taskId },
+      select: {
+        id: true,
+        title: true,
+        status: true,
+        workflowStatus: true,
+        completedAt: true,
+        workingDirectory: true,
+        theme: { select: { workingDirectory: true } },
+      },
+    })
+    .catch(() => null);
+}
+
+/**
+ * Resolve a Task ID to the shape required for workflow learning record creation and optimization.
+ * Includes theme with category and task labels with label details.
+ * Does NOT include activityLogs — callers fetch those via a separate activityLog query.
+ * Returns null when the task is absent or a DB error occurs.
+ *
+ * @param taskId - Task primary key. / タスクの主キー
+ * @returns Task with theme, category and labels, or null. / テーマ・カテゴリ・ラベル付きタスク、なければnull
+ */
+export async function resolveTaskForLearning(taskId: number): Promise<TaskForLearning | null> {
+  return prisma.task
+    .findUnique({
+      where: { id: taskId },
+      include: {
+        theme: { include: { category: true } },
+        taskLabels: { include: { label: true } },
+      },
+    })
+    .catch(() => null);
+}

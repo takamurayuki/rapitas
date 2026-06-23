@@ -20,6 +20,7 @@ import { mergePullRequest } from '../agents/orchestrator/git-operations/branch-p
 import { recordTransition } from './transition-recorder';
 import { attemptCiRepair } from './ci-self-repair';
 import { fileConflictResolutionTask } from '../github/conflict-task';
+import { resolveTaskForAutoMerge } from '../task/task-resolver';
 
 const execAsync = promisify(exec);
 const log = createLogger('workflow:auto-merge-watcher');
@@ -276,18 +277,7 @@ async function findCandidates(): Promise<Candidate[]> {
 
   const out: Candidate[] = [];
   for (const [taskId, link] of links) {
-    const task = await prisma.task.findUnique({
-      where: { id: taskId },
-      select: {
-        id: true,
-        title: true,
-        status: true,
-        workflowStatus: true,
-        completedAt: true,
-        workingDirectory: true,
-        theme: { select: { workingDirectory: true } },
-      },
-    });
+    const task = await resolveTaskForAutoMerge(taskId);
     if (!task) continue;
 
     const staged = stagedCompletionEnabled();
