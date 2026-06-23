@@ -18,6 +18,7 @@
     "test:all": "bun test --isolate && bun test --path-ignore-patterns=\"\" ./tests/integration/",
     "test:watch": "bun test --watch",
     "test:sqlite": "node scripts/run-sqlite-tests.cjs",
+    "test:ci": "bun scripts/run-gate-tests.ts",
     "test:coverage": "bun test --coverage --isolate",
     "check:guards": "bun run scripts/check-critical-guards.ts",
     "eval:gates": "bun run scripts/eval-gates.ts",

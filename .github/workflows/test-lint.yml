@@ -56,22 +56,14 @@ jobs:
           bunx prisma db push --skip-generate
           bunx prisma generate
 
-      - name: Run backend tests with coverage
+      - name: Run backend gate suite with coverage
         working-directory: rapitas-backend
         env:
           DATABASE_URL: postgresql://testuser:testpass@localhost:5432/rapitas_test
-        run: >
-          bun test --coverage --isolate
-          tests/debug-log-analyzer.test.ts
-          tests/debug-log-parsers.test.ts
-          tests/event-emitter.test.ts
-          tests/metrics-collector.test.ts
-          tests/registry.test.ts
-          services/ai/weekly-review-service.test.ts
-          services/task/task-dependency-service.test.ts
-          services/agents/verification/automated-verifier.test.ts
-          tests/integration/claude-code-agent.integration.test.ts
-          tests/middleware/error-handler.test.ts
+        # NOTE: File list is maintained in scripts/ci-gate-tests.txt (single source of truth).
+        # To add/remove files, edit that manifest — do NOT modify this step.
+        # See .github/TESTING_POLICY.md for the gate escalation path.
+        run: bun run test:ci
 
       - name: Print backend coverage summary
         working-directory: rapitas-backend
@@ -83,11 +75,76 @@ jobs:
           DATABASE_URL: postgresql://testuser:testpass@localhost:5432/rapitas_test
         run: bun run eval:gates
 
+  # Advisory: runs the full test suite in parallel across OS processes.
+  # continue-on-error: true — failures are visible in Step Summary but do NOT block merges.
+  # See .github/TESTING_POLICY.md §"失敗ティア表" for the rationale.
+  test-full-advisory:
+    name: Full Suite (Advisory)
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: testuser
+          POSTGRES_PASSWORD: testpass
+          POSTGRES_DB: rapitas_test
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: '1.3.11'
+
+      - name: Install backend dependencies
+        working-directory: rapitas-backend
+        run: bun install
+
+      - name: Setup test database
+        working-directory: rapitas-backend
+        env:
+          DATABASE_URL: postgresql://testuser:testpass@localhost:5432/rapitas_test
+        run: |
+          bunx prisma db push --skip-generate
+          bunx prisma generate
+
+      - name: Run full test suite (parallel, advisory)
+        working-directory: rapitas-backend
+        env:
+          DATABASE_URL: postgresql://testuser:testpass@localhost:5432/rapitas_test
+          # NOTE: GitHub hosted runners provide 2 vCPUs; higher concurrency risks OOM/port conflicts.
+          RAPITAS_TEST_CONCURRENCY: 2
+        run: bun run test:parallel
+
+      - name: Write failed files to Step Summary
+        if: failure()
+        working-directory: rapitas-backend
+        run: |
+          echo "## Full Suite Advisory — Failed Files" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "These failures do **not** block the merge. Fix them to keep the advisory green." >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+          bun run test:parallel 2>&1 | grep 'FAIL ' >> "$GITHUB_STEP_SUMMARY" || true
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+
   test-order-check:
     name: Test Order Dependency Check
     runs-on: ubuntu-latest
-    # NOTE: continue-on-error keeps this job in "visibility phase".
-    # Existing order-dependent tests should be fixed before enabling strict mode.
+    # NOTE: continue-on-error keeps this job advisory (visibility only; does not block merges).
+    # Escalation criterion: when `bun run test:shuffle` passes for 10 consecutive develop runs
+    # with no seed-dependent failures, remove continue-on-error to enforce strict mode.
+    # Track progress in the concerns backlog (label: test-order-flaky).
     continue-on-error: true
 
     steps:
