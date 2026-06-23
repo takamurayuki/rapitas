@@ -122,6 +122,28 @@ export default function WorkflowViewer({
     }
   };
 
+  /**
+   * POST an answer to a workflow QUESTION FILE (the intake gate's question.md),
+   * which has no live session to respond to. The backend folds the answer into
+   * the spec and re-runs from draft; refetch so the resolved question.md (now
+   * archived) disappears.
+   */
+  const handleAnswerIntakeQuestion = async (answer: string) => {
+    setSubmittingAnswer(true);
+    try {
+      const res = await fetch(`${API_BASE_URL}/workflow/tasks/${taskId}/answer-question`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ answer }),
+      });
+      if (res.ok) refetch();
+    } catch {
+      /* leave the question visible so the user can retry */
+    } finally {
+      setSubmittingAnswer(false);
+    }
+  };
+
   // Show the approval banner/button during plan_created — UNLESS auto-approve is
   // effective, in which case the plan is approved automatically and no manual
   // approval prompt should appear.
@@ -201,6 +223,24 @@ export default function WorkflowViewer({
             />
           </div>
         )}
+        {/* Intake / spec-clarification question (question.md): answerable even
+            though there is no live agent session — the panel was previously
+            live-question-only, so an intake question had no answer path. Shown
+            when a question.md exists, no live question is pending, and the task
+            is not already completed. */}
+        {validActiveTab === 'question' &&
+          !liveQuestion &&
+          tabStatus.question &&
+          effectiveStatus !== 'completed' &&
+          !!activeFile?.content && (
+            <div className="mb-4">
+              <WorkflowQuestionPanel
+                question={{ taskId, text: activeFile.content, options: [] }}
+                submitting={submittingAnswer}
+                onAnswer={handleAnswerIntakeQuestion}
+              />
+            </div>
+          )}
         <WorkflowFileContent
           isLoading={isLoading}
           activeFile={activeFile}

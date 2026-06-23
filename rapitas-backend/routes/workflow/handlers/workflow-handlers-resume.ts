@@ -12,6 +12,7 @@ import { ValidationError, NotFoundError } from '../../../middleware/error-handle
 import { createLogger } from '../../../config';
 import type { WorkflowStatus } from '../../../services/workflow/workflow-types';
 import { resolveTaskWorkflowState } from '../../../services/task/task-resolver';
+import { resolveWorkflowDir, archiveWorkflowFile } from '../../../services/workflow/workflow-file-utils';
 
 const log = createLogger('routes:workflow:resume');
 
@@ -19,6 +20,96 @@ interface ResumeContext {
   params: { taskId: string };
   body?: unknown;
   set: { status?: number };
+}
+
+interface AnswerContext {
+  params: { taskId: string };
+  body?: { answer?: string } | unknown;
+  set: { status?: number };
+}
+
+/**
+ * Apply a user's free-text / choice answer to a workflow QUESTION (the intake
+ * quality gate's `question.md` asking for goals/constraints/acceptance, or any
+ * spec-clarification question). The answer is appended to the task description as
+ * a 仕様補足 section AND seeded into the structured `goals` field so the intake
+ * gate sees a non-empty spec instead of re-asking; question.md is archived and the
+ * workflow is reset to `draft` so research re-runs with the enrichment.
+ *
+ * Without this, an intake `question.md` was displayed in the Q&A tab but had no
+ * answer path (the interactive panel only handled live mid-execution questions),
+ * so the user could not actually answer the agent.
+ *
+ * @param ctx - Elysia handler context with { answer } body. / 回答ボディ
+ * @returns The task id and the status it was reset to. / 反映後の状態
+ * @throws {ValidationError} taskId 不正 / answer 未指定
+ * @throws {NotFoundError} タスクが見つからない場合
+ */
+export async function handleAnswerWorkflowQuestion({ params, body, set }: AnswerContext): Promise<{
+  taskId: number;
+  ok: true;
+  toStatus: WorkflowStatus;
+}> {
+  const taskId = parseInt(params.taskId, 10);
+  if (Number.isNaN(taskId)) {
+    set.status = 400;
+    throw new ValidationError('Invalid taskId');
+  }
+  const answer = typeof (body as { answer?: string })?.answer === 'string'
+    ? (body as { answer: string }).answer.trim()
+    : '';
+  if (!answer) {
+    set.status = 400;
+    throw new ValidationError('answer is required');
+  }
+
+  const task = await prisma.task.findUnique({
+    where: { id: taskId },
+    select: { id: true, description: true, goals: true, workflowStatus: true },
+  });
+  if (!task) {
+    set.status = 404;
+    throw new NotFoundError('Task not found');
+  }
+
+  // Seed the structured goals so the intake gate sees a non-empty spec (else it
+  // re-asks the same question on the re-run).
+  let goals: string[] = [];
+  try {
+    const parsed = JSON.parse(task.goals ?? '[]');
+    if (Array.isArray(parsed)) goals = parsed.filter((g): g is string => typeof g === 'string');
+  } catch {
+    /* malformed goals JSON — start fresh */
+  }
+  if (!goals.includes(answer)) goals.push(answer);
+
+  const clarified = `${task.description ?? ''}\n\n## 仕様補足（ユーザー回答）\n${answer}`.trim();
+
+  await prisma.task.update({
+    where: { id: taskId },
+    data: {
+      description: clarified,
+      goals: JSON.stringify(goals),
+      workflowStatus: 'draft',
+      updatedAt: new Date(),
+    },
+  });
+
+  // Archive question.md so it is no longer a pending question.
+  const dir = await resolveWorkflowDir(taskId).catch(() => null);
+  if (dir) await archiveWorkflowFile(dir.dir, 'question').catch(() => {});
+
+  await recordTransition({
+    taskId,
+    fromStatus: (task.workflowStatus as WorkflowStatus) ?? 'draft',
+    toStatus: 'draft',
+    actor: 'user',
+    cause: 'intake_question_answered',
+    metadata: {},
+  });
+
+  log.info({ taskId }, '[Workflow:Answer] Recorded user answer to workflow question; reset to draft');
+  return { taskId, ok: true, toStatus: 'draft' };
 }
 
 /**

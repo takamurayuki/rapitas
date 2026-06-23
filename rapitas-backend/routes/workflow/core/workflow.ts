@@ -18,6 +18,7 @@ import {
   handleAnalyzeComplexity,
   handleGetModes,
   handleResumeFromQuestion,
+  handleAnswerWorkflowQuestion,
 } from '../handlers/workflow-handlers';
 
 // Re-export helpers and types for consumers that import from this path
@@ -53,6 +54,14 @@ export const workflowRoutes = new Elysia({ prefix: '/workflow' })
    */
   .post('/tasks/:taskId/resume-from-question', (ctx) =>
     handleResumeFromQuestion(ctx as Parameters<typeof handleResumeFromQuestion>[0]),
+  )
+
+  /**
+   * ワークフローの質問（intake ゲートの `question.md` 等）にユーザーが回答する。
+   * 回答を仕様(goals/説明)へ反映し、question.md をアーカイブして draft から再実行する。
+   */
+  .post('/tasks/:taskId/answer-question', (ctx) =>
+    handleAnswerWorkflowQuestion(ctx as Parameters<typeof handleAnswerWorkflowQuestion>[0]),
   )
 
   .put('/tasks/:taskId/status', (ctx) =>
