@@ -58,6 +58,7 @@ Keep this list accurate. If you assign a glyph a new meaning, add it here.
 | `Globe`                   | スコープ「グローバル」                   |
 | `FolderOpen`              | 汎用フォルダ（ディレクトリ選択・ログ等） |
 | `LayoutDashboard`         | ダッシュボード (nav: /dashboard)         |
+| `CalendarRange`           | スケジュールグループ (nav: habitsAchievements umbrella) |
 | `LayoutList`              | タスク分類グループ (nav: category/theme/label umbrella) |
 | `Folders`                 | カテゴリ一覧ページヘッダー               |
 | `Scale`                   | 意思決定 / デシジョンジャーナル          |

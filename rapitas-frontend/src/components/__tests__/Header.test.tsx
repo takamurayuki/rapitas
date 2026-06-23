@@ -135,7 +135,7 @@ vi.mock('lucide-react', async (importOriginal) => {
     Target: createIcon('target-icon'),
     BarChart3: createIcon('bar-chart3-icon'),
     Trophy: createIcon('trophy-icon'),
-    Flame: createIcon('flame-icon'),
+    CalendarRange: createIcon('calendar-range-icon'),
     Brain: createIcon('brain-icon'),
     FileText: createIcon('file-text-icon'),
     Calendar: createIcon('calendar-icon'),

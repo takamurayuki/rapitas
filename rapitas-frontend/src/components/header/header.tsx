@@ -22,11 +22,11 @@ import {
   Target,
   BarChart3,
   GanttChartSquare,
-  Flame,
   Brain,
   FileText,
   FileCog,
   Calendar,
+  CalendarRange,
   CalendarClock,
   Clock,
   GraduationCap,
@@ -152,7 +152,7 @@ export default function Header() {
     {
       href: '#',
       label: t('habitsAchievements'),
-      icon: Calendar,
+      icon: CalendarRange,
       children: [
         {
           href: '/calendar',
@@ -160,7 +160,6 @@ export default function Header() {
           icon: Calendar,
           shortcut: h.getShortcutLabel('calendar'),
         },
-        { href: '/habits', label: t('habitTracker'), icon: Flame },
         {
           href: '/habits/daily-schedule',
           label: t('dailySchedule'),
