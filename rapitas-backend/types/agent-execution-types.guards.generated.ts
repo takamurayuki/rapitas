@@ -22,6 +22,8 @@ import {
   REALTIME_EVENT_TYPES,
 } from './agent-execution-types';
 
+import { isOneOf } from '../utils/common/type-guards';
+
 /**
  * Type guard: narrows an unknown value to AgentExecutionStatus.
  *
@@ -29,7 +31,7 @@ import {
  * @returns True when `s` is a valid AgentExecutionStatus. / 有効なAgentExecutionStatusの場合true
  */
 export function isAgentExecutionStatus(s: unknown): s is AgentExecutionStatus {
-  return typeof s === 'string' && (AGENT_EXECUTION_STATUSES as readonly string[]).includes(s);
+  return isOneOf(s, AGENT_EXECUTION_STATUSES);
 }
 
 /**
@@ -54,7 +56,7 @@ export function narrowAgentExecutionStatus(
  * @returns True when `s` is a valid QuestionType. / 有効なQuestionTypeの場合true
  */
 export function isQuestionType(s: unknown): s is QuestionType {
-  return typeof s === 'string' && (QUESTION_TYPES as readonly string[]).includes(s);
+  return isOneOf(s, QUESTION_TYPES);
 }
 
 /**
@@ -79,7 +81,7 @@ export function narrowQuestionType(
  * @returns True when `s` is a valid LogType. / 有効なLogTypeの場合true
  */
 export function isLogType(s: unknown): s is LogType {
-  return typeof s === 'string' && (LOG_TYPES as readonly string[]).includes(s);
+  return isOneOf(s, LOG_TYPES);
 }
 
 /**
@@ -101,7 +103,7 @@ export function narrowLogType(s: string | null | undefined, fallback: LogType = 
  * @returns True when `s` is a valid RealtimeEventType. / 有効なRealtimeEventTypeの場合true
  */
 export function isRealtimeEventType(s: unknown): s is RealtimeEventType {
-  return typeof s === 'string' && (REALTIME_EVENT_TYPES as readonly string[]).includes(s);
+  return isOneOf(s, REALTIME_EVENT_TYPES);
 }
 
 /**

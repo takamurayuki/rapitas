@@ -12,6 +12,8 @@
 import type { LandingMode } from './automation-policy';
 import { LANDING_MODES } from './automation-policy';
 
+import { isOneOf } from '../../utils/common/type-guards';
+
 /**
  * Type guard: narrows an unknown value to LandingMode.
  *
@@ -19,7 +21,7 @@ import { LANDING_MODES } from './automation-policy';
  * @returns True when `s` is a valid LandingMode. / 有効なLandingModeの場合true
  */
 export function isLandingMode(s: unknown): s is LandingMode {
-  return typeof s === 'string' && (LANDING_MODES as readonly string[]).includes(s);
+  return isOneOf(s, LANDING_MODES);
 }
 
 /**
