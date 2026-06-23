@@ -12,10 +12,7 @@ import { realtimeService } from '../communication/realtime-service';
 import { writeWorkflowFile } from './workflow-file-utils';
 import { getTaskWorkflowDir } from './workflow-paths';
 import { recordTransition } from './transition-recorder';
-import {
-  resolveTaskSubtaskInfo,
-  resolveTaskWithThemeAndCategory,
-} from '../task/task-resolver';
+import { resolveTaskSubtaskInfo, resolveTaskWithThemeAndCategory } from '../task/task-resolver';
 
 const log = createLogger('subtask-completion');
 

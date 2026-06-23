@@ -90,10 +90,7 @@ export async function recordWorkflowCompletion(taskId: number): Promise<void> {
       }
     }
 
-    const skippedPhases = detectSkippedPhases(
-      task.workflowMode || 'comprehensive',
-      activityLogs,
-    );
+    const skippedPhases = detectSkippedPhases(task.workflowMode || 'comprehensive', activityLogs);
 
     await prisma.workflowLearningRecord.create({
       data: {

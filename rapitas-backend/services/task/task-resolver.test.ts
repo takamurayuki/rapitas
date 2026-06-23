@@ -565,7 +565,10 @@ describe('resolveTaskForLearning', () => {
 
     const callArgs = mockTaskFindUnique.mock.calls[0][0] as {
       where: { id: number };
-      include: { theme: { include: { category: boolean } }; taskLabels: { include: { label: boolean } } };
+      include: {
+        theme: { include: { category: boolean } };
+        taskLabels: { include: { label: boolean } };
+      };
     };
     expect(callArgs.where.id).toBe(40);
     expect(callArgs.include.theme.include.category).toBe(true);
