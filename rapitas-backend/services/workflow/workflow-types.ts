@@ -22,7 +22,13 @@ export const WORKFLOW_ROLES = [
 
 export type WorkflowRole = (typeof WORKFLOW_ROLES)[number];
 
-export type WorkflowFileType = 'research' | 'question' | 'plan' | 'verify';
+/**
+ * Runtime array of all valid workflow file types. Derive WorkflowFileType from this
+ * so the type and the runtime validation list can never drift apart.
+ */
+export const WORKFLOW_FILE_TYPES = ['research', 'question', 'plan', 'verify'] as const;
+
+export type WorkflowFileType = (typeof WORKFLOW_FILE_TYPES)[number];
 
 /**
  * Runtime array of all valid workflow statuses. Derive WorkflowStatus from this

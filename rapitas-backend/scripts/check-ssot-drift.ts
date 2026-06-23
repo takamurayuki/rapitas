@@ -186,14 +186,69 @@ function scanDomainC(): { file: string; match: string }[] {
   return violations;
 }
 
+// ── Domain D ─────────────────────────────────────────────────────────────────
+// Detect runtime constants and type aliases that must be sourced from
+// services/workflow/workflow-types.ts:
+//   D1. VALID_WORKFLOW_STATUSES defined as a local array literal (not a re-export alias)
+//   D2. WorkflowFileType defined as an inline string-union type alias
+//   D3. Inline workflow-modes array literal ['lightweight', 'standard', 'comprehensive']
+
+// workflow-types.ts is the SSOT — its own definitions are not violations.
+const DOMAIN_D_SSOT_FILE = 'services/workflow/workflow-types.ts';
+
+const DOMAIN_D_PATTERNS: { pattern: RegExp; label: string }[] = [
+  {
+    // Matches `VALID_WORKFLOW_STATUSES = [` (local array definition, not alias assignment)
+    pattern: /\bVALID_WORKFLOW_STATUSES\s*=\s*\[/,
+    label: 'VALID_WORKFLOW_STATUSES local array definition',
+  },
+  {
+    // Matches `type WorkflowFileType = '...'` (inline string-union definition)
+    pattern: /\btype\s+WorkflowFileType\s*=\s*['"]/,
+    label: 'WorkflowFileType local union type definition',
+  },
+  {
+    // Matches the inline three-element modes array literal in source code
+    pattern: /\[['"]lightweight['"]\s*,\s*['"]standard['"]\s*,\s*['"]comprehensive['"]\]/,
+    label: "inline ['lightweight','standard','comprehensive'] modes array",
+  },
+];
+
+function scanDomainD(): { file: string; match: string }[] {
+  const violations: { file: string; match: string }[] = [];
+  const files = [
+    ...collectTsFiles(join(ROOT, 'services')),
+    ...collectTsFiles(join(ROOT, 'routes')),
+  ];
+
+  for (const file of files) {
+    const relPath = rel(file);
+    if (relPath === DOMAIN_D_SSOT_FILE) continue;
+    if (relPath.includes('.test.') || relPath.includes('.spec.')) continue;
+
+    const content = read(file);
+    const lines = content.split('\n');
+    for (let i = 0; i < lines.length; i++) {
+      for (const { pattern, label } of DOMAIN_D_PATTERNS) {
+        if (pattern.test(lines[i])) {
+          violations.push({ file: `${relPath}:${i + 1}`, match: label });
+          break;
+        }
+      }
+    }
+  }
+  return violations;
+}
+
 // ── Runner ────────────────────────────────────────────────────────────────────
 
 const mode = CHECK_MODE ? 'check' : 'warn-only';
-console.log(`check-ssot-drift [${mode}] — scanning 3 constant domains\n`);
+console.log(`check-ssot-drift [${mode}] — scanning 4 constant domains\n`);
 
 const domainAViolations = scanDomainA();
 const domainBViolations = scanDomainB();
 const domainCViolations = scanDomainC();
+const domainDViolations = scanDomainD();
 
 function report(label: string, violations: { file: string; match: string }[]): void {
   console.log(`${label}: ${violations.length} violation(s)`);
@@ -211,8 +266,13 @@ function report(label: string, violations: { file: string; match: string }[]): v
 report('Domain A (WorkflowRole/Status/Mode type drift)', domainAViolations);
 report('Domain B (HTTP status numeric literals)', domainBViolations);
 report('Domain C (error message string literals)', domainCViolations);
+report('Domain D (WorkflowFileType/VALID_STATUSES/inline-modes drift)', domainDViolations);
 
-const total = domainAViolations.length + domainBViolations.length + domainCViolations.length;
+const total =
+  domainAViolations.length +
+  domainBViolations.length +
+  domainCViolations.length +
+  domainDViolations.length;
 const exitCode = total === 0 || WARN_ONLY ? 0 : 1;
 const icon = total === 0 ? '✅' : WARN_ONLY ? '⚠️ ' : '❌';
 
