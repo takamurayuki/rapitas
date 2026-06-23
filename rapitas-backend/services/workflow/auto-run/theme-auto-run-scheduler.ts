@@ -17,6 +17,11 @@
  */
 import { prisma } from '../../../config';
 import { createLogger } from '../../../config/logger';
+import {
+  resolveTaskThemeId,
+  resolveTaskWorkflowState,
+  resolveTaskWorkingDirectory,
+} from '../../task/task-resolver';
 import { WorkflowQueueService } from '../workflow-queue';
 import { WorkflowRunner } from '../workflow-runner';
 import { AgentWorkerManager } from '../../agents/agent-worker-manager';
@@ -143,10 +148,7 @@ export class ThemeAutoRunScheduler {
    * @param taskId - The task whose plan was just approved / 承認されたタスクID
    */
   async onPlanApproved(taskId: number): Promise<void> {
-    const task = await prisma.task.findUnique({
-      where: { id: taskId },
-      select: { themeId: true },
-    });
+    const task = await resolveTaskThemeId(taskId);
     if (!task?.themeId) return;
 
     const state = await getAutoRunState(task.themeId);
@@ -400,10 +402,7 @@ export class ThemeAutoRunScheduler {
         select: { id: true, status: true, errorMessage: true },
       });
 
-      const task = await prisma.task.findUnique({
-        where: { id: currentTaskId },
-        select: { status: true, workflowStatus: true },
-      });
+      const task = await resolveTaskWorkflowState(currentTaskId);
 
       const isCompleted =
         terminalItem?.status === 'completed' ||
@@ -629,13 +628,7 @@ export class ThemeAutoRunScheduler {
 
     // Stop the agent execution(s) if any are running
     try {
-      const task = await prisma.task.findUnique({
-        where: { id: currentTaskId },
-        select: {
-          workingDirectory: true,
-          theme: { select: { workingDirectory: true } },
-        },
-      });
+      const task = await resolveTaskWorkingDirectory(currentTaskId);
       const workDir = task?.workingDirectory ?? task?.theme?.workingDirectory;
 
       // Kill ALL in-flight agents across the theme — the current task, its

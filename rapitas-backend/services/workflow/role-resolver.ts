@@ -25,6 +25,7 @@
 import { prisma } from '../../config/database';
 import { createLogger } from '../../config/logger';
 import { recommendAgentForRole } from './role-recommender';
+import { resolveTaskWorkflowState } from '../task/task-resolver';
 
 const log = createLogger('role-resolver');
 
@@ -73,10 +74,7 @@ export interface ResolvedRoleAgent {
  *          workflow context (caller should use its own fallback). / 解決結果またはnull
  */
 export async function resolveAgentForTask(taskId: number): Promise<ResolvedRoleAgent | null> {
-  const task = await prisma.task.findUnique({
-    where: { id: taskId },
-    select: { workflowStatus: true, workflowMode: true },
-  });
+  const task = await resolveTaskWorkflowState(taskId);
   if (!task) return null;
 
   const status = (task.workflowStatus as WorkflowStatus | null) ?? 'draft';
