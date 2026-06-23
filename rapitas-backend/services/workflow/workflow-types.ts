@@ -6,6 +6,7 @@
  * runtime arrays, type guards, and narrowing functions. All consumers must
  * import from here.
  */
+import { makeStringTypeGuard } from '../../utils/common/type-guards';
 
 /**
  * Runtime array of all valid workflow roles. Derive WorkflowRole from this
@@ -60,6 +61,9 @@ export const WORKFLOW_MODES = ['lightweight', 'standard', 'comprehensive'] as co
 
 export type WorkflowMode = (typeof WORKFLOW_MODES)[number];
 
+const workflowStatusGuard = makeStringTypeGuard(WORKFLOW_STATUSES);
+const workflowModeGuard = makeStringTypeGuard(WORKFLOW_MODES);
+
 /**
  * Type guard: narrows an unknown value to WorkflowStatus.
  *
@@ -67,7 +71,7 @@ export type WorkflowMode = (typeof WORKFLOW_MODES)[number];
  * @returns True when `s` is a valid WorkflowStatus. / 有効なWorkflowStatusの場合true
  */
 export function isWorkflowStatus(s: unknown): s is WorkflowStatus {
-  return typeof s === 'string' && (WORKFLOW_STATUSES as readonly string[]).includes(s);
+  return workflowStatusGuard.is(s);
 }
 
 /**
@@ -77,7 +81,7 @@ export function isWorkflowStatus(s: unknown): s is WorkflowStatus {
  * @returns True when `s` is a valid WorkflowMode. / 有効なWorkflowModeの場合true
  */
 export function isWorkflowMode(s: unknown): s is WorkflowMode {
-  return typeof s === 'string' && (WORKFLOW_MODES as readonly string[]).includes(s);
+  return workflowModeGuard.is(s);
 }
 
 /**
@@ -93,7 +97,7 @@ export function narrowWorkflowStatus(
   s: string | null | undefined,
   fallback: WorkflowStatus = 'draft',
 ): WorkflowStatus {
-  return isWorkflowStatus(s) ? s : fallback;
+  return workflowStatusGuard.narrow(s, fallback);
 }
 
 /**
@@ -109,7 +113,7 @@ export function narrowWorkflowMode(
   s: string | null | undefined,
   fallback: WorkflowMode = 'comprehensive',
 ): WorkflowMode {
-  return isWorkflowMode(s) ? s : fallback;
+  return workflowModeGuard.narrow(s, fallback);
 }
 
 /** Maps a workflow status to the role that should execute next and its expected output. */

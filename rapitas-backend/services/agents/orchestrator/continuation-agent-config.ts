@@ -4,7 +4,8 @@
  * Builds the AgentConfigInput for a continuation execution from DB records.
  * Does NOT start agents, manage state, or interact with the event bus.
  */
-import type { AgentConfigInput, AgentType } from '../agent-factory';
+import type { AgentConfigInput } from '../agent-factory';
+import { narrowAgentType } from '../agent-factory';
 import { resolveStoredSecret } from '../../../utils/common/secret-store';
 import { createLogger } from '../../../config/logger';
 import type { ExecutionOptions } from './types';
@@ -78,7 +79,7 @@ export function buildContinuationAgentConfig(
   }
 
   return {
-    type: (dbConfig.agentType as AgentType) || 'claude-code',
+    type: narrowAgentType(dbConfig.agentType),
     name: dbConfig.name,
     endpoint: dbConfig.endpoint || undefined,
     apiKey: decryptedApiKey,
