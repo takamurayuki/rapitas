@@ -324,6 +324,38 @@ export async function buildRoleContext(
         } catch {
           // Continue even if diff retrieval fails — verify.md can still be written.
         }
+
+        // GROUND TRUTH: run the SAME automated lint/typecheck/test gate the PR
+        // pipeline uses, on the agent's worktree, and inject its REAL result. The
+        // verifier was observed FABRICATING "全テスト通過 224/224" for work whose
+        // tests actually fail (or that wasn't even committed) — self-reported test
+        // results are unreliable. Anchoring verify.md to the measured result kills
+        // the hallucination at the source AND stops the prose honesty-gate from
+        // false-bouncing a genuinely-green change. Fail-soft: if the verifier
+        // crashes/skips, the verifier falls back to self-report (status quo).
+        try {
+          const [{ runAutomatedVerification, renderVerificationMarkdown }, planForGate] =
+            await Promise.all([
+              import('../agents/verification/automated-verifier'),
+              readWorkflowFile(dir, 'plan'),
+            ]);
+          const measured = await runAutomatedVerification(diffSession.worktreePath, {
+            planContent: planForGate ?? undefined,
+          }).catch(() => null);
+          if (measured) {
+            const header =
+              language === 'ja'
+                ? '# 自動検証の実測結果（worktree で実行済み・GROUND TRUTH）'
+                : '# Automated verification — MEASURED on the worktree (GROUND TRUTH)';
+            const rule =
+              language === 'ja'
+                ? `> **これは worktree に対し実際に実行した lint/型/テストの結果です（総合: ${measured.ok ? '✅ 合格' : '❌ 失敗'}）。** verify.md の「テスト結果」「品質メトリクス」「総合判定」はこの実測と矛盾してはならない。実測が ❌ なら verify.md も ❌ 検証失敗 とし、合格を捏造しないこと。実測が ✅ なら自信を持って合格と記載してよい。`
+                : `> **These are lint/type/test results actually RUN on the worktree (overall: ${measured.ok ? '✅ pass' : '❌ fail'}).** verify.md's test-results / quality-metrics / overall verdict MUST NOT contradict this. If measured ❌, mark verify.md ❌ Fail — never fabricate a pass. If measured ✅, you may confidently report pass.`;
+            ctx += `\n\n${header}\n\n${rule}\n\n${renderVerificationMarkdown(measured)}`;
+          }
+        } catch {
+          // Fail-soft — verify.md can still be written from the agent's own checks.
+        }
       }
       // Lightweight workflow has no plan.md — verify against the task/research
       // requirements instead of a plan checklist that doesn't exist.
