@@ -104,7 +104,10 @@ export async function applyHypothesisVerdictsFromVerify(
       });
       if (res.ok) applied += 1;
     } catch (err) {
-      log.warn({ err, taskId, hypothesisId: v.hypothesisId }, '[hypothesis-from-verify] addEvidence failed');
+      log.warn(
+        { err, taskId, hypothesisId: v.hypothesisId },
+        '[hypothesis-from-verify] addEvidence failed',
+      );
     }
   }
   if (applied > 0) {

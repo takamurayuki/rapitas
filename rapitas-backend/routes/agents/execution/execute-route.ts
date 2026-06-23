@@ -26,6 +26,7 @@ import { handleExecuteResult } from './execute-post-handler';
 import { buildFullInstruction, fetchAnalysisInfo } from './instruction-builder';
 import { executeSetup } from './execute-setup';
 import { resolveTaskForExecution } from '../../../services/task/task-resolver';
+import { narrowWorkflowMode } from '../../../services/workflow/workflow-types';
 import { resolveAgentForTask } from '../../../services/workflow/role-resolver';
 import { resolveEffectiveAutoApprovePlan } from '../../../services/workflow/plan-auto-approve';
 import {
@@ -528,9 +529,7 @@ export const executeRoute = new Elysia().post(
           hasPlan: !!existingPlan,
           // Lightweight tasks skip the plan phase: the workflow injection becomes
           // research → implement (no plan.md) instead of research → plan → stop.
-          workflowMode:
-            (task.workflowMode as 'lightweight' | 'standard' | 'comprehensive' | null) ??
-            'standard',
+          workflowMode: narrowWorkflowMode(task.workflowMode, 'standard'),
         });
 
     const analysisInfo =

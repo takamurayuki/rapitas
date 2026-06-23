@@ -2,8 +2,9 @@
  * Workflow Types
  *
  * Shared TypeScript type aliases and interfaces used across workflow
- * orchestration modules. SSOT for WorkflowRole/WorkflowStatus/WorkflowMode types
- * and the WORKFLOW_ROLES runtime array. All consumers must import from here.
+ * orchestration modules. SSOT for WorkflowRole/WorkflowStatus/WorkflowMode types,
+ * runtime arrays, type guards, and narrowing functions. All consumers must
+ * import from here.
  */
 
 /**
@@ -23,17 +24,24 @@ export type WorkflowRole = (typeof WORKFLOW_ROLES)[number];
 
 export type WorkflowFileType = 'research' | 'question' | 'plan' | 'verify';
 
-export type WorkflowStatus =
-  | 'draft'
-  | 'research_done'
-  | 'plan_created'
-  | 'plan_approved'
-  | 'in_progress'
-  // NOTE: question.md が保存されてユーザー回答待ちの過渡状態。
-  // 直前の status を記憶して、回答後に元 status に戻すことで再実行を継続させる。
-  | 'awaiting_question'
-  | 'verify_done'
-  | 'completed';
+/**
+ * Runtime array of all valid workflow statuses. Derive WorkflowStatus from this
+ * so the type and the runtime validation list can never drift apart.
+ * NOTE: `awaiting_question` は question.md 保存後のユーザー回答待ち過渡状態。
+ * 直前の status を記憶して回答後に戻すことで再実行を継続させる。
+ */
+export const WORKFLOW_STATUSES = [
+  'draft',
+  'research_done',
+  'plan_created',
+  'plan_approved',
+  'in_progress',
+  'awaiting_question',
+  'verify_done',
+  'completed',
+] as const;
+
+export type WorkflowStatus = (typeof WORKFLOW_STATUSES)[number];
 
 /**
  * `awaiting_question` の前段にあった status を保持する型。
@@ -44,7 +52,65 @@ export type ResumableWorkflowStatus = Exclude<
   'awaiting_question' | 'completed' | 'verify_done'
 >;
 
-export type WorkflowMode = 'lightweight' | 'standard' | 'comprehensive';
+/**
+ * Runtime array of all valid workflow modes. Derive WorkflowMode from this
+ * so the type and the runtime validation list can never drift apart.
+ */
+export const WORKFLOW_MODES = ['lightweight', 'standard', 'comprehensive'] as const;
+
+export type WorkflowMode = (typeof WORKFLOW_MODES)[number];
+
+/**
+ * Type guard: narrows an unknown value to WorkflowStatus.
+ *
+ * @param s - Value to test. / 検査する値
+ * @returns True when `s` is a valid WorkflowStatus. / 有効なWorkflowStatusの場合true
+ */
+export function isWorkflowStatus(s: unknown): s is WorkflowStatus {
+  return typeof s === 'string' && (WORKFLOW_STATUSES as readonly string[]).includes(s);
+}
+
+/**
+ * Type guard: narrows an unknown value to WorkflowMode.
+ *
+ * @param s - Value to test. / 検査する値
+ * @returns True when `s` is a valid WorkflowMode. / 有効なWorkflowModeの場合true
+ */
+export function isWorkflowMode(s: unknown): s is WorkflowMode {
+  return typeof s === 'string' && (WORKFLOW_MODES as readonly string[]).includes(s);
+}
+
+/**
+ * Narrows a DB string (or null/undefined) to WorkflowStatus, returning a fallback
+ * when the value is absent or unrecognised. Mirrors the existing `?? 'draft'` pattern
+ * but with a compile-time-safe return type.
+ *
+ * @param s - Raw value from the database. / DBからの生の値
+ * @param fallback - Value to return when `s` is invalid. Defaults to `'draft'`. / 無効時に返す値（既定は'draft'）
+ * @returns A valid WorkflowStatus. / 有効なWorkflowStatus
+ */
+export function narrowWorkflowStatus(
+  s: string | null | undefined,
+  fallback: WorkflowStatus = 'draft',
+): WorkflowStatus {
+  return isWorkflowStatus(s) ? s : fallback;
+}
+
+/**
+ * Narrows a DB string (or null/undefined) to WorkflowMode, returning a fallback
+ * when the value is absent or unrecognised. Mirrors the existing `?? 'comprehensive'`
+ * pattern but with a compile-time-safe return type.
+ *
+ * @param s - Raw value from the database. / DBからの生の値
+ * @param fallback - Value to return when `s` is invalid. Defaults to `'comprehensive'`. / 無効時に返す値（既定は'comprehensive'）
+ * @returns A valid WorkflowMode. / 有効なWorkflowMode
+ */
+export function narrowWorkflowMode(
+  s: string | null | undefined,
+  fallback: WorkflowMode = 'comprehensive',
+): WorkflowMode {
+  return isWorkflowMode(s) ? s : fallback;
+}
 
 /** Maps a workflow status to the role that should execute next and its expected output. */
 export interface RoleTransition {

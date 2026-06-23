@@ -25,6 +25,7 @@ import { DEFAULT_SYSTEM_PROMPTS } from '../../routes/ai/system-prompts/default-p
 import { isReusableArtifact } from './phase-output-validator';
 import { recordTransition } from './transition-recorder';
 import { isShutdownError } from '../agents/orchestrator/shutdown-error';
+import { narrowWorkflowStatus, narrowWorkflowMode } from './workflow-types';
 import type { WorkflowRole, WorkflowStatus, WorkflowMode } from './workflow-types';
 import { TASK_NOT_FOUND } from '../../utils/common/error-messages';
 
@@ -177,25 +178,25 @@ export class WorkflowOrchestrator {
       return {
         success: false,
         role: 'researcher',
-        status: (task.workflowStatus as WorkflowStatus) || 'draft',
+        status: narrowWorkflowStatus(task.workflowStatus),
         error: 'タスクはブロック中のため自動実行をスキップしました',
       };
     }
 
     // Build the transition table from the (DB-backed, UI-editable) mode config.
     // Single source of truth — see workflow-mode-config.ts.
-    let workflowMode = (task.workflowMode as WorkflowMode) || 'comprehensive';
+    let workflowMode = narrowWorkflowMode(task.workflowMode);
     const { getModeSettings, buildTransitions } = await import('./workflow-mode-config');
     const modeSettings = await getModeSettings(workflowMode);
     const modeTransitions = buildTransitions(modeSettings);
 
-    const currentStatus = (task.workflowStatus as string) || 'draft';
+    const currentStatus = narrowWorkflowStatus(task.workflowStatus);
     const transition = modeTransitions[currentStatus];
     if (!transition) {
       return {
         success: false,
         role: 'researcher',
-        status: currentStatus as WorkflowStatus,
+        status: currentStatus,
         error: `ステータス "${currentStatus}" では次のフェーズを実行できません`,
       };
     }
@@ -301,7 +302,7 @@ export class WorkflowOrchestrator {
       return {
         success: false,
         role: transition.role,
-        status: currentStatus as WorkflowStatus,
+        status: currentStatus,
         error: `ロール "${transition.role}" は無効化されています`,
       };
     }

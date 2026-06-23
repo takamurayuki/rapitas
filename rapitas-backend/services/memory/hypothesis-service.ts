@@ -396,7 +396,8 @@ export async function addEvidence(
   // the graduation/refutation threshold so one genuine verification settles it.
   let confidence = row.confidence;
   if (ev.decisive) {
-    confidence = ev.stance === 'for' ? Math.max(confidence, GRADUATE_AT) : Math.min(confidence, REFUTE_AT);
+    confidence =
+      ev.stance === 'for' ? Math.max(confidence, GRADUATE_AT) : Math.min(confidence, REFUTE_AT);
   } else {
     confidence =
       ev.stance === 'for'
