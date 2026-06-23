@@ -37,7 +37,8 @@
     "codemod:spec-array": "bun run scripts/codemods/spec-array.ts",
     "codemod:prisma": "bun run scripts/codemods/prisma-singleton.ts",
     "codemod:insensitive-spread": "bun run scripts/codemods/insensitive-spread.ts",
-    "codemod:all": "bun run scripts/codemods/response-helper.ts && bun run scripts/codemods/spec-array.ts && bun run scripts/codemods/prisma-singleton.ts && bun run scripts/codemods/insensitive-spread.ts"
+    "codemod:all": "bun run scripts/codemods/response-helper.ts && bun run scripts/codemods/spec-array.ts && bun run scripts/codemods/prisma-singleton.ts && bun run scripts/codemods/insensitive-spread.ts",
+    "generate:resolver-test": "bun run scripts/generate-resolver-test.ts"
   },
   "devDependencies": {
     "@types/bcryptjs": "^3.0.0",
