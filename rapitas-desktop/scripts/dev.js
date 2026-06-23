@@ -1645,7 +1645,9 @@ async function main() {
     }
   }
 
-  // フロントエンドを起動
+  // フロントエンドを起動。直前に、ブランチ切替/マージで不整合になった .next を
+  // 必要時のみ自動削除し、起動後の再コンパイル CPU 張り付きを未然に防ぐ。
+  maybeClearStaleNextCache();
   startFrontendProcess();
 
   console.log(
@@ -1694,6 +1696,89 @@ let frontendBreachCount = 0;
 // フロントエンドを spawn した時刻(uptime ガード用)。startFrontendProcess で更新。
 let frontendStartedAt = 0;
 let isFrontendRestarting = false;
+
+// .next-build-ref: 最後に .next をビルドした git HEAD を記録するマーカー。
+// .next 自体ではなく gitignore 済みの .data 配下に置くことで、.next を削除しても残り、
+// 次回起動時の「HEAD が変わったか」の比較対象になる(PRISMA_PREPARE_STAMP と同じ方式)。
+const NEXT_BUILD_REF_FILE = path.join(DESKTOP_DATA_DIR, ".next-build-ref");
+
+/**
+ * 起動時に古い .next キャッシュを必要な場合だけ削除する。
+ *
+ * NOTE: .next キャッシュは git のブランチ切替/マージ/pull/rebase で大量ファイルが一括変更
+ * されると新しいツリーと不整合になり、肥大ヒープ上の再コンパイルが GC スラッシングを起こして
+ * CPU を恒常的に張り付かせる(memory: stale .next cache CPU peg)。手動復旧手順「.next 削除→
+ * 再起動」を自動化する: git HEAD が前回ビルドから変化していたら .next と node_modules/.cache
+ * を削除する。HEAD 不変(=通常のファイル編集や HMR では HEAD は動かない)なら消さないので、
+ * 通常の再起動は従来どおり高速。RAPITAS_NEXT_AUTOCLEAN=0 で無効化できる。
+ */
+function maybeClearStaleNextCache() {
+  if (
+    process.env.RAPITAS_NEXT_AUTOCLEAN === "0" ||
+    process.env.RAPITAS_NEXT_AUTOCLEAN === "false"
+  ) {
+    return;
+  }
+
+  let head = "";
+  try {
+    head = execSync("git rev-parse HEAD", {
+      cwd: REPO_ROOT,
+      encoding: "utf8",
+    }).trim();
+  } catch {
+    // git が使えない(非 git/CI 環境など) → fail-open。誤って毎回 .next を消さない。
+    return;
+  }
+  if (!head) return;
+
+  const writeRef = () => {
+    try {
+      fs.mkdirSync(DESKTOP_DATA_DIR, { recursive: true });
+      fs.writeFileSync(NEXT_BUILD_REF_FILE, head);
+    } catch {
+      /* マーカー書き込み失敗は致命的でない(次回また比較し直すだけ) */
+    }
+  };
+
+  const nextDir = path.join(FRONTEND_DIR, ".next");
+  // .next が無ければ消すものは無い。基準 ref だけ記録しておく。
+  if (!fs.existsSync(nextDir)) {
+    writeRef();
+    return;
+  }
+
+  let lastRef = "";
+  try {
+    lastRef = fs.readFileSync(NEXT_BUILD_REF_FILE, "utf8").trim();
+  } catch {
+    /* マーカー無し → 初回扱いで下のクリアに進む(安全側) */
+  }
+
+  // HEAD が前回ビルドと一致 → キャッシュは整合。消さずに高速起動。
+  if (lastRef && lastRef === head) return;
+
+  console.log(
+    `🧹 git HEAD changed since last frontend build (${lastRef.slice(0, 7) || "none"} → ${head.slice(0, 7)}); clearing stale .next cache to prevent CPU spin...`,
+  );
+  try {
+    fs.rmSync(nextDir, { recursive: true, force: true });
+  } catch (err) {
+    console.log(
+      `   ⚠️  Failed to remove .next (${err.message}); continuing — next dev will rebuild.`,
+    );
+  }
+  // node_modules/.cache も合わせて削除(stale .next cache CPU peg の復旧手順と同じ)。
+  try {
+    fs.rmSync(path.join(FRONTEND_DIR, "node_modules", ".cache"), {
+      recursive: true,
+      force: true,
+    });
+  } catch {
+    /* 無ければ無視 */
+  }
+  writeRef();
+}
 
 /**
  * フロントエンド(pnpm run dev → next dev)プロセスを spawn する。
