@@ -8,24 +8,28 @@
  */
 
 import { existsSync, readFileSync } from 'fs';
-import { join } from 'path';
+import { join, resolve } from 'path';
+import { parseGateManifest } from '../../scripts/run-gate-tests';
+
+// NOTE: SERIAL_GATE_FILES is derived from scripts/ci-gate-tests.txt (the single source of truth).
+// The static array was removed in task #361 to eliminate dual-maintenance drift.
+// Failure to read the manifest falls back to [] — the manifest-drift guard in ci-timing.test.ts
+// will catch configuration problems before they silently affect analytics.
+function loadSerialGateFiles(): readonly string[] {
+  const manifestPath = resolve(import.meta.dir, '../../scripts/ci-gate-tests.txt');
+  try {
+    const text = readFileSync(manifestPath, 'utf-8');
+    return parseGateManifest(text);
+  } catch {
+    return [];
+  }
+}
 
 /**
- * Serial gate file list — must match .github/workflows/test-lint.yml `test-backend` job exactly.
- * YAML drift is caught by the drift-guard unit test in ci-timing.test.ts.
+ * Serial gate file list derived from scripts/ci-gate-tests.txt (single source of truth).
+ * SSOT drift is caught by the manifest-drift guard in ci-timing.test.ts.
  */
-export const SERIAL_GATE_FILES: readonly string[] = [
-  'tests/debug-log-analyzer.test.ts',
-  'tests/debug-log-parsers.test.ts',
-  'tests/event-emitter.test.ts',
-  'tests/metrics-collector.test.ts',
-  'tests/registry.test.ts',
-  'services/ai/weekly-review-service.test.ts',
-  'services/task/task-dependency-service.test.ts',
-  'services/agents/verification/automated-verifier.test.ts',
-  'tests/integration/claude-code-agent.integration.test.ts',
-  'tests/middleware/error-handler.test.ts',
-];
+export const SERIAL_GATE_FILES: readonly string[] = loadSerialGateFiles();
 
 /** Single test file timing entry stored in the JSON cache. */
 export interface TimingEntry {

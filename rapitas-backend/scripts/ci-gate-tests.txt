@@ -19,7 +19,15 @@ tests/event-emitter.test.ts
 tests/metrics-collector.test.ts
 tests/registry.test.ts
 services/ai/weekly-review-service.test.ts
-services/task/task-dependency-service.test.ts
+# NOTE: services/task/task-dependency-service.test.ts removed — file deleted; see task #361
 services/agents/verification/automated-verifier.test.ts
 tests/integration/claude-code-agent.integration.test.ts
 tests/middleware/error-handler.test.ts
+
+# ===== resolver テスト（task #361 で追加） =====
+services/task/task-resolver.test.ts
+services/core/user-resolver.test.ts
+services/core/auth-session-resolver.test.ts
+services/agents/agent-session-resolver.test.ts
+services/agents/claude-code/execution-resolver.test.ts
+services/github/pr-task-resolver.test.ts

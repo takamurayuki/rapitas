@@ -2,16 +2,16 @@
  * ci-timing.test.ts
  *
  * Unit tests for the pure functions in services/analytics/ci-timing.ts.
- * Also includes a YAML drift guard that asserts SERIAL_GATE_FILES matches
- * the test-backend job in .github/workflows/test-lint.yml.
+ * Also includes a manifest drift guard that asserts SERIAL_GATE_FILES matches
+ * scripts/ci-gate-tests.txt (the single source of truth).
  */
 
 import { describe, test, expect, beforeEach, afterEach } from 'bun:test';
-import { mkdtempSync, writeFileSync, rmSync } from 'fs';
+import { mkdtempSync, writeFileSync, rmSync, readFileSync } from 'fs';
 import { join, resolve } from 'path';
 import { tmpdir } from 'os';
-import { readFileSync } from 'fs';
 import { SERIAL_GATE_FILES, computeCiTimingAnalytics, readTimingCacheOrEmpty } from './ci-timing';
+import { parseGateManifest } from '../../scripts/run-gate-tests';
 import type { TimingCacheResult, TimingEntry } from './ci-timing';
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
@@ -252,53 +252,34 @@ describe('readTimingCacheOrEmpty', () => {
   });
 });
 
-// ─── YAML drift guard ────────────────────────────────────────────────────────
+// ─── Manifest drift guard ────────────────────────────────────────────────────
+//
+// NOTE: The old YAML drift guard parsed .test.ts file paths from the YAML step
+// "Run backend tests with coverage". That step was replaced with `bun run test:ci`
+// (delegating file selection to scripts/ci-gate-tests.txt), so the YAML no longer
+// lists individual files. The guard now compares SERIAL_GATE_FILES against the
+// manifest directly — scripts/ci-gate-tests.txt is the single source of truth.
 
-/**
- * Extracts .test.ts file paths from the test-backend job's run step in the YAML.
- * Simple text parsing — no full YAML parser needed given the predictable structure.
- */
-function parseSerialGateFromYaml(yamlText: string): string[] {
-  const lines = yamlText.split('\n');
-  let inTargetStep = false;
-  let inRunBlock = false;
-  const files: string[] = [];
+describe('manifest drift guard', () => {
+  test('SERIAL_GATE_FILES is non-empty', () => {
+    expect(SERIAL_GATE_FILES.length).toBeGreaterThan(0);
+  });
 
-  for (const line of lines) {
-    const stripped = line.trim();
-
-    if (stripped.includes('Run backend tests with coverage')) {
-      inTargetStep = true;
-      continue;
+  test('every entry in SERIAL_GATE_FILES ends with .test.ts', () => {
+    for (const f of SERIAL_GATE_FILES) {
+      expect(f).toMatch(/\.test\.ts$/);
     }
+  });
 
-    if (!inTargetStep) continue;
+  test('SERIAL_GATE_FILES does not contain the removed task-dependency-service.test.ts', () => {
+    // NOTE: This file was deleted; its stale entry in ci-gate-tests.txt was removed in task #361.
+    expect(SERIAL_GATE_FILES).not.toContain('services/task/task-dependency-service.test.ts');
+  });
 
-    // A new step ends this section
-    if (stripped.startsWith('- name:') && !stripped.includes('Run backend tests with coverage')) {
-      break;
-    }
-
-    if (stripped.startsWith('run:')) {
-      inRunBlock = true;
-      continue;
-    }
-
-    if (inRunBlock && stripped.endsWith('.test.ts')) {
-      files.push(stripped);
-    }
-  }
-
-  return files;
-}
-
-describe('YAML drift guard', () => {
-  test('SERIAL_GATE_FILES matches test-lint.yml test-backend job', () => {
-    // NOTE: Resolve path from this file's directory (services/analytics/) 3 levels up to repo root.
-    const yamlPath = resolve(import.meta.dir, '../../../.github/workflows/test-lint.yml');
-    const yamlText = readFileSync(yamlPath, 'utf-8');
-    const fromYaml = parseSerialGateFromYaml(yamlText);
-
-    expect(fromYaml.sort()).toEqual([...SERIAL_GATE_FILES].sort());
+  test('SERIAL_GATE_FILES matches scripts/ci-gate-tests.txt exactly', () => {
+    const manifestPath = resolve(import.meta.dir, '../../scripts/ci-gate-tests.txt');
+    const manifestText = readFileSync(manifestPath, 'utf-8');
+    const fromManifest = parseGateManifest(manifestText);
+    expect([...SERIAL_GATE_FILES].sort()).toEqual([...fromManifest].sort());
   });
 });
