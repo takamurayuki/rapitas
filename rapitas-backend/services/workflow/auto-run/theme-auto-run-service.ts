@@ -7,11 +7,30 @@
  */
 import { prisma } from '../../../config';
 import { createLogger } from '../../../config/logger';
+// NOTE: Direct path import (not barrel) to avoid transitive config/logger pull-in that breaks bun mock isolation.
+import { narrowEnum } from '../../../utils/common/type-guards';
 
 const log = createLogger('theme-auto-run-service');
 
+/**
+ * Runtime array of all valid auto-run status values. Derive AutoRunStatus from this
+ * so the type and the runtime validation list can never drift apart.
+ */
+export const AUTO_RUN_STATUSES = ['idle', 'running', 'paused', 'stopping'] as const;
+
 /** Valid status values for ThemeAutoRun.status. */
-export type AutoRunStatus = 'idle' | 'running' | 'paused' | 'stopping';
+export type AutoRunStatus = (typeof AUTO_RUN_STATUSES)[number];
+
+/**
+ * Narrows a DB string (or null/undefined) to AutoRunStatus, returning 'idle' as
+ * the safe fallback when the value is absent or unrecognised.
+ *
+ * @param s - Raw value from the database. / DBからの生の値
+ * @returns A valid AutoRunStatus. / 有効なAutoRunStatus
+ */
+export function narrowAutoRunStatus(s: string | null | undefined): AutoRunStatus {
+  return narrowEnum(s, AUTO_RUN_STATUSES, 'idle');
+}
 
 /** Serialisable view of a ThemeAutoRun record. */
 export interface ThemeAutoRunState {
@@ -286,7 +305,7 @@ function mapToState(r: {
     id: r.id,
     themeId: r.themeId,
     enabled: r.enabled,
-    status: r.status as AutoRunStatus,
+    status: narrowAutoRunStatus(r.status),
     order: r.order as 'priority' | 'created',
     currentTaskId: r.currentTaskId,
     processedCount: r.processedCount,

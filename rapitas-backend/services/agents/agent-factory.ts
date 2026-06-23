@@ -8,8 +8,41 @@ import { BaseAgent, AgentCapability } from './base-agent';
 import { ClaudeCodeAgent, ClaudeCodeAgentConfig } from './claude-code-agent';
 import { GeminiCliAgent, GeminiCliAgentConfig } from './gemini-cli-agent';
 import { CodexCliAgent, CodexCliAgentConfig } from './codex-cli-agent';
+// NOTE: Direct path import (not barrel) to avoid transitive config/logger pull-in.
+import { isOneOf, narrowEnum } from '../../utils/common/type-guards';
 
-export type AgentType = 'claude-code' | 'codex' | 'gemini' | 'custom';
+/**
+ * Runtime array of all valid agent types. Derive AgentType from this
+ * so the type and the runtime validation list can never drift apart.
+ */
+export const AGENT_TYPES = ['claude-code', 'codex', 'gemini', 'custom'] as const;
+
+export type AgentType = (typeof AGENT_TYPES)[number];
+
+/**
+ * Type guard: narrows an unknown value to AgentType.
+ *
+ * @param s - Value to test. / 検査する値
+ * @returns True when `s` is a valid AgentType. / 有効なAgentTypeの場合true
+ */
+export function isAgentType(s: unknown): s is AgentType {
+  return isOneOf(s, AGENT_TYPES);
+}
+
+/**
+ * Narrows a DB string (or null/undefined) to AgentType, returning a fallback
+ * when the value is absent or unrecognised.
+ *
+ * @param s - Raw value from the database. / DBからの生の値
+ * @param fallback - Value to return when `s` is invalid. Defaults to `'claude-code'`. / 無効時に返す値（既定は'claude-code'）
+ * @returns A valid AgentType. / 有効なAgentType
+ */
+export function narrowAgentType(
+  s: string | null | undefined,
+  fallback: AgentType = 'claude-code',
+): AgentType {
+  return narrowEnum(s, AGENT_TYPES, fallback);
+}
 
 export type AgentConfigInput = {
   id?: string;

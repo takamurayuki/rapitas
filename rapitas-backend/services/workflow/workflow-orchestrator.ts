@@ -130,7 +130,7 @@ export class WorkflowOrchestrator {
         success: true,
         skipped: true,
         role: 'researcher',
-        status: ((current?.workflowStatus as WorkflowStatus) || 'draft') as WorkflowStatus,
+        status: narrowWorkflowStatus(current?.workflowStatus),
         output: 'skipped: another phase is already executing for this task',
       };
     }

@@ -85,8 +85,16 @@ describe('applyHypothesisVerdictsFromVerify', () => {
     evidenceCalls.length = 0;
     // 実際に観測されたドリフト: verifier が [#id] でなく [domain] statement で記述
     openHyps = [
-      { id: 3097, statement: 'makeStringTypeGuard を utils/common に配置すると循環依存は生じない', originTaskId: 7 },
-      { id: 3099, statement: 'workflow-orchestrator の 7件の as WorkflowStatus は全て安全除去可能', originTaskId: 7 },
+      {
+        id: 3097,
+        statement: 'makeStringTypeGuard を utils/common に配置すると循環依存は生じない',
+        originTaskId: 7,
+      },
+      {
+        id: 3099,
+        statement: 'workflow-orchestrator の 7件の as WorkflowStatus は全て安全除去可能',
+        originTaskId: 7,
+      },
     ];
     const md = [
       '## 仮説評価',

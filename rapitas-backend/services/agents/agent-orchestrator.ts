@@ -15,7 +15,8 @@ import { PrismaClient } from '@prisma/client';
 type PrismaClientInstance = InstanceType<typeof PrismaClient>;
 
 import type { AgentTask, AgentExecutionResult } from './base-agent';
-import type { AgentConfigInput, AgentType } from './agent-factory';
+import type { AgentConfigInput } from './agent-factory';
+import { narrowAgentType } from './agent-factory';
 import { resolveStoredSecret } from '../../utils/common/secret-store';
 import type { QuestionKey } from './question-detection';
 import { agentFactory } from './agent-factory';
@@ -519,7 +520,7 @@ export class AgentOrchestrator {
         | undefined) ?? true;
 
     return {
-      type: (dbConfig.agentType as AgentType) || 'claude-code',
+      type: narrowAgentType(dbConfig.agentType),
       name: dbConfig.name,
       endpoint: dbConfig.endpoint || undefined,
       apiKey: decryptedApiKey,

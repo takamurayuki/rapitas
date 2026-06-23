@@ -37,8 +37,19 @@ export interface LinkedIssueRef {
   state: string;
 }
 
-const VALID_TYPES: readonly ConcernType[] = ['bug', 'refactor', 'security', 'perf', 'other'];
-const VALID_SEVERITIES: readonly ConcernSeverity[] = ['urgent', 'high', 'medium', 'low'];
+const VALID_TYPES = [
+  'bug',
+  'refactor',
+  'security',
+  'perf',
+  'other',
+] as const satisfies readonly ConcernType[];
+const VALID_SEVERITIES = [
+  'urgent',
+  'high',
+  'medium',
+  'low',
+] as const satisfies readonly ConcernSeverity[];
 
 /** Coerces an arbitrary value to a valid concern type (default 'bug'). */
 export function normalizeConcernType(value: unknown): ConcernType {

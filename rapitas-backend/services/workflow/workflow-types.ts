@@ -6,6 +6,7 @@
  * runtime arrays, type guards, and narrowing functions. All consumers must
  * import from here.
  */
+import { isOneOf, narrowEnum } from '../../utils/common/type-guards';
 
 /**
  * Runtime array of all valid workflow roles. Derive WorkflowRole from this
@@ -73,7 +74,7 @@ export type WorkflowMode = (typeof WORKFLOW_MODES)[number];
  * @returns True when `s` is a valid WorkflowStatus. / 有効なWorkflowStatusの場合true
  */
 export function isWorkflowStatus(s: unknown): s is WorkflowStatus {
-  return typeof s === 'string' && (WORKFLOW_STATUSES as readonly string[]).includes(s);
+  return isOneOf(s, WORKFLOW_STATUSES);
 }
 
 /**
@@ -83,7 +84,7 @@ export function isWorkflowStatus(s: unknown): s is WorkflowStatus {
  * @returns True when `s` is a valid WorkflowMode. / 有効なWorkflowModeの場合true
  */
 export function isWorkflowMode(s: unknown): s is WorkflowMode {
-  return typeof s === 'string' && (WORKFLOW_MODES as readonly string[]).includes(s);
+  return isOneOf(s, WORKFLOW_MODES);
 }
 
 /**
@@ -99,7 +100,7 @@ export function narrowWorkflowStatus(
   s: string | null | undefined,
   fallback: WorkflowStatus = 'draft',
 ): WorkflowStatus {
-  return isWorkflowStatus(s) ? s : fallback;
+  return narrowEnum(s, WORKFLOW_STATUSES, fallback);
 }
 
 /**
@@ -115,7 +116,7 @@ export function narrowWorkflowMode(
   s: string | null | undefined,
   fallback: WorkflowMode = 'comprehensive',
 ): WorkflowMode {
-  return isWorkflowMode(s) ? s : fallback;
+  return narrowEnum(s, WORKFLOW_MODES, fallback);
 }
 
 /** Maps a workflow status to the role that should execute next and its expected output. */

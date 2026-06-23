@@ -5,8 +5,8 @@
  * from the database. Used exclusively by execution-resume.ts.
  */
 
-import { agentFactory } from '../agent-factory';
-import type { AgentConfigInput, AgentType } from '../agent-factory';
+import { agentFactory, narrowAgentType } from '../agent-factory';
+import type { AgentConfigInput } from '../agent-factory';
 import { resolveStoredSecret } from '../../../utils/common/secret-store';
 import { createLogger } from '../../../config';
 import type { OrchestratorContext } from './types';
@@ -92,7 +92,7 @@ export async function resolveAgentConfig(
   }
 
   return {
-    type: (dbConfig.agentType as AgentType) || 'claude-code',
+    type: narrowAgentType(dbConfig.agentType),
     name: dbConfig.name,
     endpoint: dbConfig.endpoint || undefined,
     apiKey: decryptedApiKey,
