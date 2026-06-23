@@ -25,6 +25,8 @@ import { DEFAULT_SYSTEM_PROMPTS } from '../../routes/ai/system-prompts/default-p
 import { isReusableArtifact } from './phase-output-validator';
 import { recordTransition } from './transition-recorder';
 import { isShutdownError } from '../agents/orchestrator/shutdown-error';
+import type { WorkflowRole, WorkflowStatus, WorkflowMode } from './workflow-types';
+import { TASK_NOT_FOUND } from '../../utils/common/error-messages';
 
 // Re-export sub-module helpers so existing imports from this path keep working.
 export { resolveWorkflowDir, readWorkflowFile, writeWorkflowFile } from './workflow-file-utils';
@@ -35,25 +37,9 @@ export type { WorkflowAdvanceResult } from './workflow-agent-executor';
 
 const log = createLogger('workflow-orchestrator');
 
-type WorkflowRole =
-  | 'researcher'
-  | 'planner'
-  | 'reviewer'
-  | 'implementer'
-  | 'verifier'
-  | 'auto_verifier';
+// NOTE: WorkflowFileType is kept as a local type alias here because it overlaps
+// with the file-utils re-export; consumers should import from workflow-file-utils.
 type WorkflowFileType = 'research' | 'question' | 'plan' | 'verify';
-type WorkflowStatus =
-  | 'draft'
-  | 'research_done'
-  | 'plan_created'
-  | 'plan_approved'
-  | 'in_progress'
-  // Set by the intake gate when it pauses for a clarifying question before research.
-  | 'awaiting_question'
-  | 'verify_done'
-  | 'completed';
-type WorkflowMode = 'lightweight' | 'standard' | 'comprehensive';
 
 // NOTE: The per-mode transition tables were moved to workflow-mode-config.ts,
 // which builds them from DB-backed, UI-editable settings (single source of
@@ -177,7 +163,7 @@ export class WorkflowOrchestrator {
         success: false,
         role: 'researcher',
         status: 'draft',
-        error: 'タスクが見つかりません',
+        error: TASK_NOT_FOUND,
       };
     }
 

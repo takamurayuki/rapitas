@@ -5,16 +5,11 @@
 import { Elysia } from 'elysia';
 import { prisma } from '../../../config';
 import { formatAgentDisplayName } from '../../../utils/agent/agent-display-name';
+import { WORKFLOW_ROLES } from '../../../services/workflow/workflow-types';
+import type { WorkflowRole } from '../../../services/workflow/workflow-types';
+import { HTTP_STATUS } from '../../../utils/common/http-status';
 
-const VALID_ROLES = [
-  'researcher',
-  'planner',
-  'reviewer',
-  'implementer',
-  'verifier',
-  'auto_verifier',
-] as const;
-type WorkflowRole = (typeof VALID_ROLES)[number];
+const VALID_ROLES = WORKFLOW_ROLES;
 
 const DEFAULT_PROMPT_KEYS: Record<WorkflowRole, string> = {
   researcher: 'workflow_role_researcher',
@@ -93,7 +88,7 @@ export const workflowRolesRoutes = new Elysia()
   .get('/workflow-roles/:role', async ({ params, set }) => {
     const role = params.role as string;
     if (!VALID_ROLES.includes(role as WorkflowRole)) {
-      set.status = 400;
+      set.status = HTTP_STATUS.BAD_REQUEST;
       return { error: `無効なロール: ${role}。有効なロール: ${VALID_ROLES.join(', ')}` };
     }
 
@@ -115,7 +110,7 @@ export const workflowRolesRoutes = new Elysia()
     });
 
     if (!config) {
-      set.status = 404;
+      set.status = HTTP_STATUS.NOT_FOUND;
       return { error: 'ロール設定が見つかりません' };
     }
 
@@ -125,7 +120,7 @@ export const workflowRolesRoutes = new Elysia()
   .put('/workflow-roles/:role', async ({ params, body, set }) => {
     const role = params.role as string;
     if (!VALID_ROLES.includes(role as WorkflowRole)) {
-      set.status = 400;
+      set.status = HTTP_STATUS.BAD_REQUEST;
       return { error: `無効なロール: ${role}` };
     }
 
@@ -151,7 +146,7 @@ export const workflowRolesRoutes = new Elysia()
     if (preferredProviderOverride !== undefined && preferredProviderOverride !== null) {
       const valid = ['claude', 'openai', 'gemini', 'ollama', 'cross-provider'];
       if (!valid.includes(preferredProviderOverride)) {
-        set.status = 400;
+        set.status = HTTP_STATUS.BAD_REQUEST;
         return {
           error: `preferredProviderOverride must be one of ${valid.join(', ')} or null`,
         };
@@ -164,11 +159,11 @@ export const workflowRolesRoutes = new Elysia()
         where: { id: agentConfigId },
       });
       if (!agent) {
-        set.status = 400;
+        set.status = HTTP_STATUS.BAD_REQUEST;
         return { error: `エージェントID ${agentConfigId} が見つかりません` };
       }
       if (!agent.isActive) {
-        set.status = 400;
+        set.status = HTTP_STATUS.BAD_REQUEST;
         return { error: `エージェント "${agent.name}" は無効化されています` };
       }
     }
@@ -179,7 +174,7 @@ export const workflowRolesRoutes = new Elysia()
         where: { key: systemPromptKey },
       });
       if (!prompt) {
-        set.status = 400;
+        set.status = HTTP_STATUS.BAD_REQUEST;
         return { error: `システムプロンプト "${systemPromptKey}" が見つかりません` };
       }
     }
@@ -261,7 +256,7 @@ export const workflowRolesRoutes = new Elysia()
   .put('/workflow-modes/:mode', async ({ params, body, set }) => {
     const mode = params.mode as 'lightweight' | 'standard' | 'comprehensive';
     if (!['lightweight', 'standard', 'comprehensive'].includes(mode)) {
-      set.status = 400;
+      set.status = HTTP_STATUS.BAD_REQUEST;
       return { error: 'Invalid mode' };
     }
     const b = (body ?? {}) as Record<string, unknown>;

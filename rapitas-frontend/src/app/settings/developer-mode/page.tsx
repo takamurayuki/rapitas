@@ -11,6 +11,7 @@ import { AutoResumeSettingsCard } from './components/AutoResumeSettingsCard';
 import { WorkflowConfigCard } from './components/WorkflowConfigCard';
 import { AutoMergeSettingsCard } from './components/AutoMergeSettingsCard';
 import { TaskCleanupSection } from '../_components/TaskCleanupSection';
+import { CiTimingDashboard } from './components/CiTimingDashboard';
 
 export default function DeveloperModeSettingsPage() {
   const t = useTranslations('settings');
@@ -89,6 +90,8 @@ export default function DeveloperModeSettingsPage() {
         />
 
         <TaskCleanupSection />
+
+        <CiTimingDashboard />
       </div>
     </div>
   );

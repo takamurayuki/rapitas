@@ -11,14 +11,17 @@
     "start:simple": "bun index.ts",
     "test": "bun test --isolate",
     "test:parallel": "bun scripts/parallel-test.ts",
+    "test:timing": "bun scripts/test-timing.ts",
     "test:shuffle": "bun scripts/shuffle-test.ts",
     "test:full": "bun test --isolate",
     "test:integration": "bun test --path-ignore-patterns=\"\" ./tests/integration/",
     "test:all": "bun test --isolate && bun test --path-ignore-patterns=\"\" ./tests/integration/",
     "test:watch": "bun test --watch",
     "test:sqlite": "node scripts/run-sqlite-tests.cjs",
+    "test:ci": "bun scripts/run-gate-tests.ts",
     "test:coverage": "bun test --coverage --isolate",
     "check:guards": "bun run scripts/check-critical-guards.ts",
+    "check:ssot": "bun run scripts/check-ssot-drift.ts --check",
     "eval:gates": "bun run scripts/eval-gates.ts",
     "eval:judge": "bun run scripts/eval-judge.ts",
     "db:push": "prisma db push",
@@ -38,7 +41,8 @@
     "codemod:prisma": "bun run scripts/codemods/prisma-singleton.ts",
     "codemod:insensitive-spread": "bun run scripts/codemods/insensitive-spread.ts",
     "codemod:all": "bun run scripts/codemods/response-helper.ts && bun run scripts/codemods/spec-array.ts && bun run scripts/codemods/prisma-singleton.ts && bun run scripts/codemods/insensitive-spread.ts",
-    "generate:resolver-test": "bun run scripts/generate-resolver-test.ts"
+    "generate:resolver-test": "bun run scripts/generate-resolver-test.ts",
+    "gen:shutdown-error": "bun run scripts/gen-shutdown-error-artifacts.ts"
   },
   "devDependencies": {
     "@types/bcryptjs": "^3.0.0",

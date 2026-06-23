@@ -1,7 +1,7 @@
 'use client';
 // MemoryStrengthCard
 
-import { Brain } from 'lucide-react';
+import { Signal } from 'lucide-react';
 import { LEVEL_CONFIG, LEVEL_LABELS } from '../constants';
 import type { MemoryOverview } from '../types';
 
@@ -22,7 +22,7 @@ export function MemoryStrengthCard({ memoryOverview }: MemoryStrengthCardProps) 
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-4">
           <div className={`p-3 rounded-xl ${levelCfg.bg}`}>
-            <Brain className={`w-8 h-8 ${levelCfg.color}`} />
+            <Signal className={`w-8 h-8 ${levelCfg.color}`} />
           </div>
           <div>
             <h2 className="text-xl font-bold text-zinc-900 dark:text-zinc-100">記憶強度</h2>

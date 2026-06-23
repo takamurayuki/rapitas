@@ -11,7 +11,12 @@ import { promisify } from 'util';
 import { join } from 'path';
 import { prisma } from '../../config';
 import { AgentOrchestrator } from '../agents/agent-orchestrator';
-import { resolveTaskWithTheme } from '../task/task-resolver';
+import {
+  resolveTaskWithTheme,
+  resolveTaskTitle,
+  resolveTaskWorkflowState,
+} from '../task/task-resolver';
+import { resolveLatestSessionWorktree } from '../agents/agent-session-resolver';
 import { createLogger } from '../../config/logger';
 import {
   readWorkflowFile,
@@ -150,16 +155,7 @@ export async function executeCLIAgent(
   let resolvedWorktreePath: string | null = null;
   let resolvedBranchName: string | null = null;
   if (isImplementationRole || isVerifierRole) {
-    const sessionWithWorktree = await prisma.agentSession
-      .findFirst({
-        where: {
-          config: { taskId },
-          worktreePath: { not: null },
-        },
-        orderBy: { createdAt: 'desc' },
-        select: { worktreePath: true, branchName: true },
-      })
-      .catch(() => null);
+    const sessionWithWorktree = await resolveLatestSessionWorktree(taskId);
     // Only REUSE a recorded worktree if it still exists ON DISK. A prior
     // session may record a worktreePath that was later removed (a stop/cleanup,
     // or a worktree that never finished creating). Reusing a phantom path makes
@@ -201,9 +197,7 @@ export async function executeCLIAgent(
         try {
           const { generateFallbackBranchName } =
             await import('../../utils/common/branch-name-generator');
-          const taskTitle =
-            (await prisma.task.findUnique({ where: { id: taskId }, select: { title: true } }))
-              ?.title ?? `task-${taskId}`;
+          const taskTitle = (await resolveTaskTitle(taskId))?.title ?? `task-${taskId}`;
           // Reuse the EXISTING feature branch (it holds the prior implementation
           // and the commits already pushed to the PR) when a prior session
           // recorded one — e.g. a ci_repair re-run after the worktree was cleaned
@@ -668,7 +662,7 @@ curl -X POST http://localhost:${port}/idea-box \\
     }
   }
 
-  const updatedTask = await prisma.task.findUnique({ where: { id: taskId } });
+  const updatedTask = await resolveTaskWorkflowState(taskId);
   const currentWfStatus = updatedTask?.workflowStatus || 'draft';
   let effectiveSuccess = result.success;
   let phaseStatus = transition.nextStatus;

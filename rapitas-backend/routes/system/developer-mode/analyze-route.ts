@@ -10,6 +10,7 @@ import { createLogger } from '../../../config/logger';
 import { analyzeTask } from '../../../services/claude-agent';
 import { getDefaultProvider, getApiKeyForProvider } from '../../../utils/ai-client';
 import { toJsonString } from '../../../utils/database/db-helpers';
+import { TASK_NOT_FOUND } from '../../../utils/common/error-messages';
 
 const log = createLogger('routes:developer-mode:analyze');
 
@@ -34,7 +35,7 @@ export const developerModeAnalyzeRoute = new Elysia({ prefix: '/developer-mode' 
     const task = await prisma.task.findUnique({ where: { id: taskId } });
     if (!task) {
       set.status = 404;
-      return { error: 'タスクが見つかりません' };
+      return { error: TASK_NOT_FOUND };
     }
 
     const config = await prisma.developerModeConfig.findUnique({ where: { taskId } });

@@ -37,9 +37,6 @@
     "rapitas-backend/services/workflow/auto-merge-watcher.ts": {
       "lineCount": 667
     },
-    "rapitas-backend/services/memory/task-knowledge-extractor.ts": {
-      "lineCount": 633
-    },
     "rapitas-frontend/src/feature/developer-mode/hooks/execution-poll-handlers.ts": {
       "lineCount": 625
     },

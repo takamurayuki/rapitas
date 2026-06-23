@@ -45,6 +45,21 @@ The CI/CD pipeline consists of several workflow files:
   - Code linting for TypeScript
   - Rust code formatting and Clippy checks
 
+#### Test Baseline & Failure Policy
+
+The test jobs in `test-lint.yml` follow a two-tier strategy:
+
+| Tier | Jobs | Merge impact |
+| ---- | ---- | ------------ |
+| **hard-gate** | `test-backend`, `test-sqlite`, `lint`, `check-frontend`, `rust-check` | Blocks merge on failure |
+| **advisory** | `test-full-advisory`, `test-order-check` | Visible in Step Summary; does **not** block merge |
+
+The gate suite file list is maintained in `rapitas-backend/scripts/ci-gate-tests.txt`
+(single source of truth). Do not edit the file list inline in the YAML.
+
+For full details on failure tiers, retrigger policy, coverage thresholds, and the gate
+escalation path, see **[TESTING_POLICY.md](TESTING_POLICY.md)**.
+
 ### 3. `security-scan.yml`
 
 - **Purpose**: Security vulnerability scanning

@@ -11,6 +11,8 @@ import { createLogger } from '../../../config/logger';
 import { VALID_WORKFLOW_STATUSES } from '../core/workflow-helpers';
 import { recordTransition } from '../../../services/workflow/transition-recorder';
 import { previewMissingFilesForStatus } from '../../../services/workflow/workflow-invariants';
+import { resolveTaskWorkflowState } from '../../../services/task/task-resolver';
+import { HTTP_STATUS } from '../../../utils/common/http-status';
 
 const log = createLogger('routes:workflow:handlers:plan');
 
@@ -43,7 +45,7 @@ export async function handleApprovePlan({
     }
     const language = parsedBody?.language || 'ja';
 
-    const task = await prisma.task.findUnique({ where: { id: taskId } });
+    const task = await resolveTaskWorkflowState(taskId);
     if (!task) {
       throw new NotFoundError('Task not found');
     }
@@ -218,7 +220,7 @@ export async function handleUpdateStatus({
       );
     }
 
-    const task = await prisma.task.findUnique({ where: { id: taskId } });
+    const task = await resolveTaskWorkflowState(taskId);
     if (!task) throw new NotFoundError('Task not found');
 
     // Pre-check: verify required files exist for the target status. Advancing to a
@@ -229,7 +231,7 @@ export async function handleUpdateStatus({
     const missingFiles = await previewMissingFilesForStatus(taskId, parsedBody.status);
     if (missingFiles.length > 0) {
       if (!parsedBody.force) {
-        set.status = 422;
+        set.status = HTTP_STATUS.UNPROCESSABLE_ENTITY;
         return {
           error: `ステータス "${parsedBody.status}" への変更を拒否しました: 必要なファイルがディスクに存在しません。`,
           missingFiles,
@@ -324,7 +326,7 @@ export async function handleAdvanceWorkflow({
     ]);
 
     if (quickResult !== null) {
-      if (!quickResult.success) set.status = 400;
+      if (!quickResult.success) set.status = HTTP_STATUS.BAD_REQUEST;
       return quickResult;
     }
 

@@ -56,11 +56,18 @@ Keep this list accurate. If you assign a glyph a new meaning, add it here.
 | `CheckCircle2`            | 完了したワークフロータブ                 |
 | `PriorityIcon` (chevrons) | タスク/アイデアの優先度                  |
 | `Globe`                   | スコープ「グローバル」                   |
-| `FolderOpen`              | プロジェクト / カテゴリ                  |
+| `FolderOpen`              | 汎用フォルダ（ディレクトリ選択・ログ等） |
+| `Shapes`                  | 属性グループ (nav: category/theme/label umbrella) |
+| `Folders`                 | カテゴリ一覧ページヘッダー               |
 | `Scale`                   | 意思決定 / デシジョンジャーナル          |
 | `SquareTerminal`          | 統合ターミナル                           |
 | `SplitSquareHorizontal`   | ターミナルのペイン左右分割               |
 | `SplitSquareVertical`     | ターミナルのペイン上下分割               |
+| `Sprout`                  | 記憶の成長 (nav: /agents/memory)         |
+| `Library`                 | 知識ベース (nav: /knowledge グループ)    |
+| `Search`                  | 知識ブラウザ (nav: /knowledge)           |
+| `BarChart2`               | 知識の成長トレンドチャートヘッダー       |
+| `Signal`                  | 記憶強度 (MemoryStrengthCard)            |
 
 ### Known collisions — resolve when you next touch them
 

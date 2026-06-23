@@ -5,6 +5,7 @@
  */
 import { prisma } from '../../config';
 import { createLogger } from '../../config/logger';
+import { resolveTaskWorkflowState } from '../task/task-resolver';
 
 const log = createLogger('workflow-queue');
 
@@ -93,7 +94,7 @@ export class WorkflowQueueService {
     const { taskId, priority = 50, dependencies = [], orchestraSessionId, themeId } = options;
 
     // Verify task exists
-    const task = await prisma.task.findUnique({ where: { id: taskId } });
+    const task = await resolveTaskWorkflowState(taskId);
     if (!task) {
       throw new Error(`Task ${taskId} not found`);
     }

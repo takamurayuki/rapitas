@@ -67,6 +67,7 @@ import {
   projectHealthRoutes,
   debugLogsRouter,
   gitCacheMetricsRoutes,
+  ciTimingRoutes,
   gitCleanupRoutes,
   backupsRoutes,
   errorsRoutes,
@@ -184,6 +185,7 @@ export function registerAllRoutes(app: Elysia): void {
   app.use(projectHealthRoutes);
   app.use(debugLogsRouter);
   app.use(gitCacheMetricsRoutes);
+  app.use(ciTimingRoutes);
   app.use(gitCleanupRoutes);
   app.use(backupsRoutes);
   app.use(errorsRoutes);

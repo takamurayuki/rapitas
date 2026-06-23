@@ -37,6 +37,10 @@ const {
   resolveTaskWithThemeAndCategory,
   resolveTaskForExecution,
   resolveTaskWorkingDirectory,
+  resolveTaskWorkflowState,
+  resolveTaskTitle,
+  resolveTaskThemeId,
+  resolveTaskForComplexityAnalysis,
 } = await import('./task-resolver');
 
 beforeEach(() => {
@@ -216,5 +220,175 @@ describe('resolveTaskWorkingDirectory', () => {
     expect(callArgs.select.themeId).toBe(true);
     expect(callArgs.select.workingDirectory).toBe(true);
     expect(callArgs.select.theme).toBeDefined();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// resolveTaskWorkflowState
+// ---------------------------------------------------------------------------
+describe('resolveTaskWorkflowState', () => {
+  test('タスクが存在する場合 → ワークフロー状態スカラーを返すこと', async () => {
+    const fakeTask = {
+      id: 10,
+      status: 'in-progress',
+      workflowStatus: 'in_progress',
+      workflowMode: 'standard',
+      parentId: null,
+    };
+    mockTaskFindUnique.mockResolvedValueOnce(fakeTask);
+
+    const result = await resolveTaskWorkflowState(10);
+    expect(result).toEqual(fakeTask);
+  });
+
+  test('タスクが存在しない場合 → null を返すこと', async () => {
+    mockTaskFindUnique.mockResolvedValueOnce(null);
+
+    const result = await resolveTaskWorkflowState(999);
+    expect(result).toBeNull();
+  });
+
+  test('DB エラー時 → null を返すこと', async () => {
+    mockTaskFindUnique.mockRejectedValueOnce(new Error('DB timeout'));
+
+    const result = await resolveTaskWorkflowState(1);
+    expect(result).toBeNull();
+  });
+
+  test('select に id/status/workflowStatus/workflowMode/parentId が含まれること', async () => {
+    await resolveTaskWorkflowState(20);
+
+    const callArgs = mockTaskFindUnique.mock.calls[0][0] as {
+      where: { id: number };
+      select: Record<string, boolean>;
+    };
+    expect(callArgs.where.id).toBe(20);
+    expect(callArgs.select.id).toBe(true);
+    expect(callArgs.select.status).toBe(true);
+    expect(callArgs.select.workflowStatus).toBe(true);
+    expect(callArgs.select.workflowMode).toBe(true);
+    expect(callArgs.select.parentId).toBe(true);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// resolveTaskTitle
+// ---------------------------------------------------------------------------
+describe('resolveTaskTitle', () => {
+  test('タスクが存在する場合 → id と title を返すこと', async () => {
+    const fakeTask = { id: 5, title: 'テストタスク' };
+    mockTaskFindUnique.mockResolvedValueOnce(fakeTask);
+
+    const result = await resolveTaskTitle(5);
+    expect(result).toEqual(fakeTask);
+  });
+
+  test('タスクが存在しない場合 → null を返すこと', async () => {
+    mockTaskFindUnique.mockResolvedValueOnce(null);
+
+    const result = await resolveTaskTitle(999);
+    expect(result).toBeNull();
+  });
+
+  test('DB エラー時 → null を返すこと', async () => {
+    mockTaskFindUnique.mockRejectedValueOnce(new Error('Connection lost'));
+
+    const result = await resolveTaskTitle(1);
+    expect(result).toBeNull();
+  });
+
+  test('select に id と title のみが含まれること', async () => {
+    await resolveTaskTitle(7);
+
+    const callArgs = mockTaskFindUnique.mock.calls[0][0] as {
+      where: { id: number };
+      select: Record<string, boolean>;
+    };
+    expect(callArgs.where.id).toBe(7);
+    expect(callArgs.select.id).toBe(true);
+    expect(callArgs.select.title).toBe(true);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// resolveTaskThemeId
+// ---------------------------------------------------------------------------
+describe('resolveTaskThemeId', () => {
+  test('タスクが存在する場合 → id と themeId を返すこと', async () => {
+    const fakeTask = { id: 3, themeId: 42 };
+    mockTaskFindUnique.mockResolvedValueOnce(fakeTask);
+
+    const result = await resolveTaskThemeId(3);
+    expect(result).toEqual(fakeTask);
+  });
+
+  test('タスクが存在しない場合 → null を返すこと', async () => {
+    mockTaskFindUnique.mockResolvedValueOnce(null);
+
+    const result = await resolveTaskThemeId(999);
+    expect(result).toBeNull();
+  });
+
+  test('DB エラー時 → null を返すこと', async () => {
+    mockTaskFindUnique.mockRejectedValueOnce(new Error('DB error'));
+
+    const result = await resolveTaskThemeId(1);
+    expect(result).toBeNull();
+  });
+
+  test('select に id と themeId のみが含まれること', async () => {
+    await resolveTaskThemeId(11);
+
+    const callArgs = mockTaskFindUnique.mock.calls[0][0] as {
+      where: { id: number };
+      select: Record<string, boolean>;
+    };
+    expect(callArgs.where.id).toBe(11);
+    expect(callArgs.select.id).toBe(true);
+    expect(callArgs.select.themeId).toBe(true);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// resolveTaskForComplexityAnalysis
+// ---------------------------------------------------------------------------
+describe('resolveTaskForComplexityAnalysis', () => {
+  test('タスクが存在する場合 → theme・taskLabels 付きタスクを返すこと', async () => {
+    const fakeTask = {
+      id: 15,
+      title: '複雑度分析対象',
+      theme: { id: 10, workingDirectory: '/proj' },
+      taskLabels: [{ label: { name: 'bug' } }],
+    };
+    mockTaskFindUnique.mockResolvedValueOnce(fakeTask);
+
+    const result = await resolveTaskForComplexityAnalysis(15);
+    expect(result).toEqual(fakeTask);
+  });
+
+  test('タスクが存在しない場合 → null を返すこと', async () => {
+    mockTaskFindUnique.mockResolvedValueOnce(null);
+
+    const result = await resolveTaskForComplexityAnalysis(999);
+    expect(result).toBeNull();
+  });
+
+  test('DB エラー時 → null を返すこと', async () => {
+    mockTaskFindUnique.mockRejectedValueOnce(new Error('Query timeout'));
+
+    const result = await resolveTaskForComplexityAnalysis(1);
+    expect(result).toBeNull();
+  });
+
+  test('include に theme: true と taskLabels.label が含まれること', async () => {
+    await resolveTaskForComplexityAnalysis(16);
+
+    const callArgs = mockTaskFindUnique.mock.calls[0][0] as {
+      where: { id: number };
+      include: { theme: boolean; taskLabels: { include: { label: boolean } } };
+    };
+    expect(callArgs.where.id).toBe(16);
+    expect(callArgs.include.theme).toBe(true);
+    expect(callArgs.include.taskLabels.include.label).toBe(true);
   });
 });

@@ -14,7 +14,7 @@ import {
   Columns3,
   Tags,
   SwatchBook,
-  FolderOpen,
+  Shapes,
   FolderKanban,
   FolderGit2,
   ScrollText,
@@ -46,6 +46,9 @@ import {
   BookMarked,
   Keyboard,
   Beaker,
+  Sprout,
+  Library,
+  Search,
 } from 'lucide-react';
 import Link from 'next/link';
 import AppIcon from '@/components/common/app-icon';
@@ -96,7 +99,7 @@ export default function Header() {
         {
           href: '#',
           label: t('category'),
-          icon: FolderOpen,
+          icon: Shapes,
           children: [
             {
               href: '/categories',
@@ -195,24 +198,19 @@ export default function Header() {
             { href: '/agents', label: t('agentManagement'), icon: Settings },
             { href: '/agents/metrics', label: t('metrics'), icon: BarChart3 },
             {
-              href: '/agents/versions',
-              label: t('versionControl'),
-              icon: Package,
-            },
-            {
               href: '/agents/memory',
               label: t('memoryVisualization'),
-              icon: Sparkles,
+              icon: Sprout,
             },
             {
               href: '#',
               label: t('knowledgeBase'),
-              icon: Brain,
+              icon: Library,
               children: [
                 {
                   href: '/knowledge',
                   label: t('knowledgeBrowser'),
-                  icon: Brain,
+                  icon: Search,
                 },
                 {
                   href: '/knowledge/contradictions',

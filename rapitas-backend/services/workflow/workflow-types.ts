@@ -2,16 +2,24 @@
  * Workflow Types
  *
  * Shared TypeScript type aliases and interfaces used across workflow
- * orchestration modules. No runtime logic — types only.
+ * orchestration modules. SSOT for WorkflowRole/WorkflowStatus/WorkflowMode types
+ * and the WORKFLOW_ROLES runtime array. All consumers must import from here.
  */
 
-export type WorkflowRole =
-  | 'researcher'
-  | 'planner'
-  | 'reviewer'
-  | 'implementer'
-  | 'verifier'
-  | 'auto_verifier';
+/**
+ * Runtime array of all valid workflow roles. Derive WorkflowRole from this
+ * so the type and the runtime list can never drift apart.
+ */
+export const WORKFLOW_ROLES = [
+  'researcher',
+  'planner',
+  'reviewer',
+  'implementer',
+  'verifier',
+  'auto_verifier',
+] as const;
+
+export type WorkflowRole = (typeof WORKFLOW_ROLES)[number];
 
 export type WorkflowFileType = 'research' | 'question' | 'plan' | 'verify';
 

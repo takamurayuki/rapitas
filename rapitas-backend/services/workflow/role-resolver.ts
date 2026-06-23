@@ -25,27 +25,11 @@
 import { prisma } from '../../config/database';
 import { createLogger } from '../../config/logger';
 import { recommendAgentForRole } from './role-recommender';
+import { resolveTaskWorkflowState } from '../task/task-resolver';
 
 const log = createLogger('role-resolver');
 
-type WorkflowRole =
-  | 'researcher'
-  | 'planner'
-  | 'reviewer'
-  | 'implementer'
-  | 'verifier'
-  | 'auto_verifier';
-
-type WorkflowStatus =
-  | 'draft'
-  | 'research_done'
-  | 'plan_created'
-  | 'plan_approved'
-  | 'in_progress'
-  | 'verify_done'
-  | 'completed';
-
-type WorkflowMode = 'lightweight' | 'standard' | 'comprehensive';
+import type { WorkflowRole, WorkflowStatus, WorkflowMode } from './workflow-types';
 
 // NOTE: The status→role map is now derived from the DB-backed, UI-editable
 // mode config (workflow-mode-config.ts) — the single source of truth shared
@@ -73,10 +57,7 @@ export interface ResolvedRoleAgent {
  *          workflow context (caller should use its own fallback). / 解決結果またはnull
  */
 export async function resolveAgentForTask(taskId: number): Promise<ResolvedRoleAgent | null> {
-  const task = await prisma.task.findUnique({
-    where: { id: taskId },
-    select: { workflowStatus: true, workflowMode: true },
-  });
+  const task = await resolveTaskWorkflowState(taskId);
   if (!task) return null;
 
   const status = (task.workflowStatus as WorkflowStatus | null) ?? 'draft';
