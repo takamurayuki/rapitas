@@ -1,7 +1,7 @@
 /**
  * check-ssot-drift
  *
- * Scans three constant domains for SSOT drift — definitions or literals that
+ * Scans five constant domains for SSOT drift — definitions or literals that
  * should have been replaced by named imports from the SSOT modules:
  *
  *   Domain A: WorkflowRole / WorkflowStatus / WorkflowMode local type aliases
@@ -13,13 +13,22 @@
  *   Domain C: Known error-message string literals that have a named SSOT
  *             constant in utils/common/error-messages.ts
  *
+ *   Domain D: WorkflowFileType / VALID_WORKFLOW_STATUSES / inline-modes array
+ *             outside services/workflow/workflow-types.ts
+ *
+ *   Domain E: P1 type local re-definitions (AgentExecutionStatus, QuestionType,
+ *             LogType, RealtimeEventType, LandingMode, ConcernType,
+ *             ConcernSeverity, ConcernStatus) outside their SSOT files.
+ *             Always warn-only — migration is in progress.
+ *
  * Usage:
  *   bun scripts/check-ssot-drift.ts              # warn-only (default), exit 0
- *   bun scripts/check-ssot-drift.ts --check      # strict mode, exit 1 on violation
+ *   bun scripts/check-ssot-drift.ts --check      # strict mode, exit 1 on violation (A-D only)
  *   bun scripts/check-ssot-drift.ts --warn-only  # explicit warn-only, exit 0
  *
  * The `--check` flag is intended for CI gates after the full migration is done.
  * Until all files are migrated, run in warn-only mode to avoid noisy CI failures.
+ * Domain E is permanently warn-only until P2/P3 migration is complete.
  */
 import { readdirSync, readFileSync, existsSync } from 'fs';
 import { join, resolve, dirname } from 'path';
@@ -240,21 +249,67 @@ function scanDomainD(): { file: string; match: string }[] {
   return violations;
 }
 
+// ── Domain E ─────────────────────────────────────────────────────────────────
+// Detect local `type AgentExecutionStatus|QuestionType|LogType|RealtimeEventType|
+// LandingMode|ConcernType|ConcernSeverity|ConcernStatus` definitions outside their
+// canonical SSOT files. Always warn-only regardless of the --check flag.
+
+const DOMAIN_E_SSOT_FILES = new Set([
+  'types/agent-execution-types.ts',
+  'services/workflow/automation-policy.ts',
+  'services/memory/concern-backlog-service.ts',
+]);
+
+const DOMAIN_E_PATTERN =
+  /\btype\s+(AgentExecutionStatus|QuestionType|LogType|RealtimeEventType|LandingMode|ConcernType|ConcernSeverity|ConcernStatus)\s*=/;
+
+function scanDomainE(): { file: string; match: string }[] {
+  const violations: { file: string; match: string }[] = [];
+  const files = [
+    ...collectTsFiles(join(ROOT, 'types')),
+    ...collectTsFiles(join(ROOT, 'services')),
+    ...collectTsFiles(join(ROOT, 'routes')),
+    ...collectTsFiles(join(ROOT, 'utils')),
+  ];
+
+  for (const file of files) {
+    const relPath = rel(file);
+    if (DOMAIN_E_SSOT_FILES.has(relPath)) continue;
+    if (relPath.includes('.test.') || relPath.includes('.spec.')) continue;
+
+    const content = read(file);
+    const lines = content.split('\n');
+    for (let i = 0; i < lines.length; i++) {
+      const m = DOMAIN_E_PATTERN.exec(lines[i]);
+      if (m) {
+        violations.push({ file: `${relPath}:${i + 1}`, match: m[0].trim() });
+      }
+    }
+  }
+  return violations;
+}
+
 // ── Runner ────────────────────────────────────────────────────────────────────
 
 const mode = CHECK_MODE ? 'check' : 'warn-only';
-console.log(`check-ssot-drift [${mode}] — scanning 4 constant domains\n`);
+console.log(`check-ssot-drift [${mode}] — scanning 5 constant domains\n`);
 
 const domainAViolations = scanDomainA();
 const domainBViolations = scanDomainB();
 const domainCViolations = scanDomainC();
 const domainDViolations = scanDomainD();
+const domainEViolations = scanDomainE();
 
-function report(label: string, violations: { file: string; match: string }[]): void {
+function report(
+  label: string,
+  violations: { file: string; match: string }[],
+  forceWarnOnly = false,
+): void {
   console.log(`${label}: ${violations.length} violation(s)`);
   if (violations.length > 0) {
+    const warnOnly = forceWarnOnly || WARN_ONLY;
     for (const v of violations.slice(0, 20)) {
-      const prefix = WARN_ONLY ? '  ⚠️ ' : '  ❌';
+      const prefix = warnOnly ? '  ⚠️ ' : '  ❌';
       console.log(`${prefix} ${v.file}  →  ${v.match}`);
     }
     if (violations.length > 20) {
@@ -267,6 +322,12 @@ report('Domain A (WorkflowRole/Status/Mode type drift)', domainAViolations);
 report('Domain B (HTTP status numeric literals)', domainBViolations);
 report('Domain C (error message string literals)', domainCViolations);
 report('Domain D (WorkflowFileType/VALID_STATUSES/inline-modes drift)', domainDViolations);
+// NOTE: Domain E is always warn-only — migration is in progress and existing violations are expected.
+report(
+  'Domain E (P1 type local re-definitions: AgentExecutionStatus/QuestionType/LogType/RealtimeEventType/LandingMode/Concern*)',
+  domainEViolations,
+  true,
+);
 
 const total =
   domainAViolations.length +

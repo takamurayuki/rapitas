@@ -92,8 +92,10 @@ export type AgentTask = {
  *
  * @deprecated Use QuestionDetectionMethod in new implementations.
  * Question detection now relies solely on AskUserQuestion tool calls.
+ * SSOT is now types/agent-execution-types.ts — this re-export exists for backward compatibility.
  */
-export type QuestionType = 'tool_call' | 'none';
+import type { QuestionType } from '../../types/agent-execution-types';
+export type { QuestionType };
 
 // QuestionDetails is re-exported from question-detection.ts for backward compatibility
 

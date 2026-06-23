@@ -9,8 +9,8 @@
  *   narrow* — narrowing: DB 等からの raw string を対象型へ変換し、不正値を fallback で返す
  */
 
-import type { WorkflowRole } from './workflow-types';
-import { WORKFLOW_ROLES } from './workflow-types';
+import type { WorkflowRole, WorkflowFileType } from './workflow-types';
+import { WORKFLOW_ROLES, WORKFLOW_FILE_TYPES } from './workflow-types';
 
 /**
  * Type guard: narrows an unknown value to WorkflowRole.
@@ -35,4 +35,29 @@ export function narrowWorkflowRole(
   fallback: WorkflowRole = 'researcher',
 ): WorkflowRole {
   return isWorkflowRole(s) ? s : fallback;
+}
+
+/**
+ * Type guard: narrows an unknown value to WorkflowFileType.
+ *
+ * @param s - Value to test. / 検査する値
+ * @returns True when `s` is a valid WorkflowFileType. / 有効なWorkflowFileTypeの場合true
+ */
+export function isWorkflowFileType(s: unknown): s is WorkflowFileType {
+  return typeof s === 'string' && (WORKFLOW_FILE_TYPES as readonly string[]).includes(s);
+}
+
+/**
+ * Narrows a DB string (or null/undefined) to WorkflowFileType, returning a fallback
+ * when the value is absent or unrecognised.
+ *
+ * @param s - Raw value from the database. / DBからの生の値
+ * @param fallback - Value to return when `s` is invalid. Defaults to `'research'`. / 無効時に返す値
+ * @returns A valid WorkflowFileType. / 有効なWorkflowFileType
+ */
+export function narrowWorkflowFileType(
+  s: string | null | undefined,
+  fallback: WorkflowFileType = 'research',
+): WorkflowFileType {
+  return isWorkflowFileType(s) ? s : fallback;
 }

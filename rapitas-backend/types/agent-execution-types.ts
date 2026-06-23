@@ -12,18 +12,21 @@ import type {
 /**
  * Agent実行ステータス
  */
-export type AgentExecutionStatus =
-  | 'pending'
-  | 'running'
-  | 'waiting_for_input'
-  | 'completed'
-  | 'error'
-  | 'cancelled';
+export const AGENT_EXECUTION_STATUSES = [
+  'pending',
+  'running',
+  'waiting_for_input',
+  'completed',
+  'error',
+  'cancelled',
+] as const;
+export type AgentExecutionStatus = (typeof AGENT_EXECUTION_STATUSES)[number];
 
 /**
  * 質問タイプ
  */
-export type QuestionType = 'tool_call' | 'none';
+export const QUESTION_TYPES = ['tool_call', 'none'] as const;
+export type QuestionType = (typeof QUESTION_TYPES)[number];
 
 /**
  * アクションタイプ
@@ -43,18 +46,21 @@ export type ExecutionType = 'code_review' | 'task_implementation' | 'analysis' |
 /**
  * ログタイプ
  */
-export type LogType = 'info' | 'error' | 'warning' | 'debug' | 'output' | 'command';
+export const LOG_TYPES = ['info', 'error', 'warning', 'debug', 'output', 'command'] as const;
+export type LogType = (typeof LOG_TYPES)[number];
 
 /**
  * リアルタイム通信で使用されるイベントタイプ
  */
-export type RealtimeEventType =
-  | 'agent_execution_started'
-  | 'agent_execution_complete'
-  | 'agent_execution_resumed'
-  | 'agent_execution_continued'
-  | 'agent_error'
-  | 'pr_review_requested';
+export const REALTIME_EVENT_TYPES = [
+  'agent_execution_started',
+  'agent_execution_complete',
+  'agent_execution_resumed',
+  'agent_execution_continued',
+  'agent_error',
+  'pr_review_requested',
+] as const;
+export type RealtimeEventType = (typeof REALTIME_EVENT_TYPES)[number];
 
 /**
  * 実行リクエスト型
