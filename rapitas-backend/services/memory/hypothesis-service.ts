@@ -202,7 +202,17 @@ function toStatus(validationStatus: string): HypothesisStatus {
 function parseEvidence(tags: string): HypothesisEvidence[] {
   try {
     const parsed = JSON.parse(tags || '{}') as { evidence?: HypothesisEvidence[] };
-    return Array.isArray(parsed.evidence) ? parsed.evidence : [];
+    if (!Array.isArray(parsed.evidence)) return [];
+    // Collapse duplicates already in storage (same task+stance, or identical
+    // artifact+stance) so historical entries — written before the write-side
+    // dedup — no longer show the same evidence two or three times in the UI.
+    const seen = new Set<string>();
+    return parsed.evidence.filter((e) => {
+      const key = `${e.stance}|${e.taskId ?? ''}|${e.artifact ?? ''}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
   } catch {
     return [];
   }
@@ -340,6 +350,27 @@ export async function addEvidence(
   }
 
   const evidence = parseEvidence(row.tags);
+
+  // Idempotent: never record the same task's outcome evidence (or an identical
+  // artifact on the same side) twice. recordTaskOutcome can fire multiple times
+  // per task (re-blocks / re-runs), and each call re-recorded the SAME evidence —
+  // which duplicated it in the UI and falsely inflated confidence (3 copies of one
+  // task's "completed" reading pushed a hypothesis most of the way to graduation
+  // on a single real signal). Skip the push AND the confidence update on a dup.
+  const isDuplicate = evidence.some(
+    (e) =>
+      e.stance === ev.stance &&
+      ((ev.taskId != null && e.taskId === ev.taskId) || e.artifact === ev.artifact.trim()),
+  );
+  if (isDuplicate) {
+    return {
+      ok: true,
+      confidence: row.confidence,
+      status: toStatus(row.validationStatus),
+      graduated: false,
+    };
+  }
+
   const sanDetail = sanitizeMarkdownContent(ev.detail ?? '');
   evidence.push({
     stance: ev.stance,
