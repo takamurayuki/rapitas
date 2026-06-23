@@ -53,6 +53,8 @@ mock.module('../task/task-mutations', () => ({
 }));
 
 const {
+  CONCERN_TYPES,
+  CONCERN_SEVERITIES,
   normalizeConcernType,
   normalizeConcernSeverity,
   markConcernResolved,
@@ -60,6 +62,9 @@ const {
   listConcerns,
   getConcernStats,
 } = await import('./concern-backlog-service');
+
+const { isConcernType, isConcernSeverity } =
+  await import('./concern-backlog-service.guards.generated');
 
 // ─── Reset helper ──────────────────────────────────────────────────────────────
 
@@ -347,5 +352,50 @@ describe('getConcernStats', () => {
     expect(stats.open).toBe(0);
     expect(stats.resolved).toBe(0);
     expect(stats.byType).toHaveLength(0);
+  });
+});
+
+// ─── SSOT 配列テスト ──────────────────────────────────────────────────────────
+
+describe('CONCERN_TYPES (SSOT array)', () => {
+  it('contains all expected concern type strings', () => {
+    expect(CONCERN_TYPES).toEqual(['bug', 'refactor', 'security', 'perf', 'other']);
+  });
+});
+
+describe('CONCERN_SEVERITIES (SSOT array)', () => {
+  it('contains all expected severity strings', () => {
+    expect(CONCERN_SEVERITIES).toEqual(['urgent', 'high', 'medium', 'low']);
+  });
+});
+
+describe('isConcernType (generated guard)', () => {
+  it.each(['bug', 'refactor', 'security', 'perf', 'other'] as const)(
+    'returns true for valid type "%s"',
+    (t) => {
+      expect(isConcernType(t)).toBe(true);
+    },
+  );
+
+  it('returns false for invalid string', () => {
+    expect(isConcernType('critical')).toBe(false);
+  });
+
+  it('returns false for null / undefined', () => {
+    expect(isConcernType(null)).toBe(false);
+    expect(isConcernType(undefined)).toBe(false);
+  });
+});
+
+describe('isConcernSeverity (generated guard)', () => {
+  it.each(['urgent', 'high', 'medium', 'low'] as const)(
+    'returns true for valid severity "%s"',
+    (s) => {
+      expect(isConcernSeverity(s)).toBe(true);
+    },
+  );
+
+  it('returns false for invalid string', () => {
+    expect(isConcernSeverity('critical')).toBe(false);
   });
 });

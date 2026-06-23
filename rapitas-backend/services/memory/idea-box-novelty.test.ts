@@ -24,7 +24,9 @@ mock.module('../../config/database', () => ({
         return Promise.resolve({ id: 500 });
       },
     },
-    theme: { findMany: () => Promise.resolve([{ id: 1, isDefault: true, workingDirectory: '/w' }]) },
+    theme: {
+      findMany: () => Promise.resolve([{ id: 1, isDefault: true, workingDirectory: '/w' }]),
+    },
   },
 }));
 
@@ -33,7 +35,17 @@ const { submitIdea } = await import('./idea-box-service');
 describe('submitIdea — theme-saturation gate (anti-monoculture)', () => {
   test('同テーマが飽和(9件で「型ガード関数」共有)なら拒否し新規作成しない', async () => {
     created = 0;
-    const suffixes = ['標準化', '汎用化', '自動生成', '中央集約', 'SSOT化', 'テンプレート化', '再利用', 'ライブラリ化', '横展開'];
+    const suffixes = [
+      '標準化',
+      '汎用化',
+      '自動生成',
+      '中央集約',
+      'SSOT化',
+      'テンプレート化',
+      '再利用',
+      'ライブラリ化',
+      '横展開',
+    ];
     openIdeas = suffixes.map((s, i) => ({ id: 100 + i, title: `型ガード関数の${s}` }));
     const id = await submitIdea({
       title: '型ガード関数の一括リファクタリング',
@@ -45,7 +57,10 @@ describe('submitIdea — theme-saturation gate (anti-monoculture)', () => {
 
   test('新規テーマ（共通部分文字列なし）は作成される', async () => {
     created = 0;
-    openIdeas = Array.from({ length: 9 }, (_, i) => ({ id: 100 + i, title: `型ガード関数の項目${i}` }));
+    openIdeas = Array.from({ length: 9 }, (_, i) => ({
+      id: 100 + i,
+      title: `型ガード関数の項目${i}`,
+    }));
     const id = await submitIdea({
       title: 'freeeレシートOCRの自動仕訳プレビュー',
       content: '全く別ドメインの新規提案',
@@ -60,7 +75,10 @@ describe('submitIdea — theme-saturation gate (anti-monoculture)', () => {
       { id: 100, title: '型ガード関数の標準化' },
       { id: 101, title: '型ガード関数の汎用化' },
     ];
-    const id = await submitIdea({ title: '型ガード関数の自動生成', content: 'まだ少数の型ガード提案' });
+    const id = await submitIdea({
+      title: '型ガード関数の自動生成',
+      content: 'まだ少数の型ガード提案',
+    });
     expect(id).toBe(500); // only 2 < CAP(8) → admitted
     expect(created).toBe(1);
   });
