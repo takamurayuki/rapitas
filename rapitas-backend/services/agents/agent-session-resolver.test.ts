@@ -5,6 +5,7 @@
  * prisma は mock.module でスタブ化し、テスト間でリセットする。
  */
 import { describe, test, expect, mock, beforeEach } from 'bun:test';
+import { ID_EDGES } from '../../tests/helpers/boundary-values';
 
 // HACK(agent): bun:test の mock.module はプロセスグローバルなため、
 // 全エクスポートをミラーしないとバレルが "export not found" をスローする。
@@ -60,7 +61,7 @@ describe('resolveLatestFinishedSession', () => {
   test('該当セッションがない場合 → null を返すこと', async () => {
     mockFindFirst.mockResolvedValueOnce(null);
 
-    const result = await resolveLatestFinishedSession(99);
+    const result = await resolveLatestFinishedSession(ID_EDGES.NONEXISTENT);
     expect(result).toBeNull();
   });
 
@@ -110,7 +111,7 @@ describe('resolveSessionWithLatestExecution', () => {
   test('セッションが存在しない場合 → null を返すこと', async () => {
     mockFindUnique.mockResolvedValueOnce(null);
 
-    const result = await resolveSessionWithLatestExecution(999);
+    const result = await resolveSessionWithLatestExecution(ID_EDGES.NONEXISTENT);
     expect(result).toBeNull();
   });
 
@@ -153,7 +154,7 @@ describe('resolveLatestSessionWorktree', () => {
   test('worktree セッションが存在しない場合 → null を返すこと', async () => {
     mockFindFirst.mockResolvedValueOnce(null);
 
-    const result = await resolveLatestSessionWorktree(999);
+    const result = await resolveLatestSessionWorktree(ID_EDGES.NONEXISTENT);
     expect(result).toBeNull();
   });
 

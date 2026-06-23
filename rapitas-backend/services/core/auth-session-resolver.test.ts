@@ -5,6 +5,7 @@
  * prisma は mock.module でスタブ化し、テスト間でリセットする。
  */
 import { describe, test, expect, mock, beforeEach } from 'bun:test';
+import { STRING_EDGES } from '../../tests/helpers/boundary-values';
 
 // HACK(agent): bun:test の mock.module はプロセスグローバルなため、
 // 全エクスポートをミラーしないとバレルが "export not found" をスローする。
@@ -77,6 +78,19 @@ describe('resolveSessionByToken', () => {
     const result = await resolveSessionByToken('any-token');
     expect(result).toBeNull();
   });
+
+  // 境界値テスト: STRING_EDGES で定義されたトークン異常系
+  const TOKEN_BOUNDARY_CASES: Array<{ label: string; token: string }> = [
+    { label: '空文字列トークン', token: STRING_EDGES.EMPTY },
+    // NOTE: DBレコードが存在しない前提に依存。このトークンを持つ行がなければ null を返す。
+    { label: '空白のみトークン', token: STRING_EDGES.WHITESPACE_ONLY },
+  ];
+  for (const { label, token } of TOKEN_BOUNDARY_CASES) {
+    test(`境界値トークン [${label}] → null を返すこと`, async () => {
+      const result = await resolveSessionByToken(token);
+      expect(result).toBeNull();
+    });
+  }
 
   test('クエリ条件が sessionToken + expiresAt gt now + include user で呼ばれること', async () => {
     const before = new Date();

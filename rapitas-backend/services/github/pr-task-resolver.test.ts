@@ -6,6 +6,7 @@
  * prisma・gh-client は mock.module でスタブ化し、テスト間で復元する。
  */
 import { describe, test, expect, mock, beforeEach } from 'bun:test';
+import { NULLABLE_ID_EDGES } from '../../tests/helpers/boundary-values';
 
 // HACK(agent): bun:test の mock.module はプロセスグローバルなため、
 // 全エクスポートをミラーしないとバレルが "export not found" をスローする。
@@ -71,11 +72,11 @@ describe('titleMatchesTask', () => {
   });
 
   test('null タイトル → false を返すこと', () => {
-    expect(titleMatchesTask(null, 5)).toBe(false);
+    expect(titleMatchesTask(NULLABLE_ID_EDGES.NULL_VALUE, 5)).toBe(false);
   });
 
   test('undefined タイトル → false を返すこと', () => {
-    expect(titleMatchesTask(undefined, 5)).toBe(false);
+    expect(titleMatchesTask(NULLABLE_ID_EDGES.UNDEFINED_VALUE, 5)).toBe(false);
   });
 });
 
@@ -84,7 +85,7 @@ describe('titleMatchesTask', () => {
 // ---------------------------------------------------------------------------
 describe('resolvePrWorkingDirectory', () => {
   test('linkedTaskId が null → null を返し DB クエリを発行しないこと', async () => {
-    const result = await resolvePrWorkingDirectory(null);
+    const result = await resolvePrWorkingDirectory(NULLABLE_ID_EDGES.NULL_VALUE);
     expect(result).toBeNull();
     expect(mockTaskFindUnique).not.toHaveBeenCalled();
   });
@@ -128,7 +129,7 @@ describe('resolvePrWorkingDirectory', () => {
 // ---------------------------------------------------------------------------
 describe('resolvePrTaskContext', () => {
   test('linkedTaskId が null → { workingDirectory: null, themeId: null } を返しDBクエリを発行しないこと', async () => {
-    const result = await resolvePrTaskContext(null);
+    const result = await resolvePrTaskContext(NULLABLE_ID_EDGES.NULL_VALUE);
     expect(result).toEqual({ workingDirectory: null, themeId: null });
     expect(mockTaskFindUnique).not.toHaveBeenCalled();
   });

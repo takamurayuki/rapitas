@@ -5,6 +5,7 @@
  * prisma は mock.module でスタブ化し、テスト間でリセットする。
  */
 import { describe, test, expect, mock, beforeEach } from 'bun:test';
+import { STRING_EDGES } from '../../tests/helpers/boundary-values';
 
 // HACK(agent): bun:test の mock.module はプロセスグローバルなため、
 // 全エクスポートをミラーしないとバレルが "export not found" をスローする。
@@ -78,6 +79,19 @@ describe('resolveUserByEmail', () => {
     const callArgs = mockUserFindFirst.mock.calls[0][0] as { where: { email: string } };
     expect(callArgs.where.email).toBe('check@example.com');
   });
+
+  // 境界値テスト: STRING_EDGES で定義された文字列入力の異常系
+  const STRING_BOUNDARY_CASES: Array<{ label: string; email: string }> = [
+    { label: '空文字列', email: STRING_EDGES.EMPTY },
+    // NOTE: DBレコードが存在しない前提に依存。このメールを持つ行がなければ null を返す。
+    { label: '空白のみ文字列', email: STRING_EDGES.WHITESPACE_ONLY },
+  ];
+  for (const { label, email } of STRING_BOUNDARY_CASES) {
+    test(`境界値メール [${label}] → null を返すこと`, async () => {
+      const result = await resolveUserByEmail(email);
+      expect(result).toBeNull();
+    });
+  }
 });
 
 // ---------------------------------------------------------------------------

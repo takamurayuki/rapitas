@@ -5,6 +5,7 @@
  * prisma は mock.module でスタブ化し、テスト間でリセットする。
  */
 import { describe, test, expect, mock, beforeEach } from 'bun:test';
+import { ID_EDGES } from '../../tests/helpers/boundary-values';
 
 // HACK(agent): bun:test の mock.module はプロセスグローバルなため、
 // 全エクスポートをミラーしないとバレルが "export not found" をスローする。
@@ -72,7 +73,7 @@ describe('resolveTaskWithTheme', () => {
   test('タスクが存在しない場合 → null を返すこと', async () => {
     mockTaskFindUnique.mockResolvedValueOnce(null);
 
-    const result = await resolveTaskWithTheme(999);
+    const result = await resolveTaskWithTheme(ID_EDGES.NONEXISTENT);
     expect(result).toBeNull();
   });
 
@@ -116,7 +117,7 @@ describe('resolveTaskWithThemeAndCategory', () => {
   test('タスクが存在しない場合 → null を返すこと', async () => {
     mockTaskFindUnique.mockResolvedValueOnce(null);
 
-    const result = await resolveTaskWithThemeAndCategory(999);
+    const result = await resolveTaskWithThemeAndCategory(ID_EDGES.NONEXISTENT);
     expect(result).toBeNull();
   });
 
@@ -159,7 +160,7 @@ describe('resolveTaskForExecution', () => {
   test('タスクが存在しない場合 → null を返すこと', async () => {
     mockTaskFindUnique.mockResolvedValueOnce(null);
 
-    const result = await resolveTaskForExecution(999);
+    const result = await resolveTaskForExecution(ID_EDGES.NONEXISTENT);
     expect(result).toBeNull();
   });
 
@@ -202,7 +203,7 @@ describe('resolveTaskWorkingDirectory', () => {
   test('タスクが存在しない場合 → null を返すこと', async () => {
     mockTaskFindUnique.mockResolvedValueOnce(null);
 
-    const result = await resolveTaskWorkingDirectory(999);
+    const result = await resolveTaskWorkingDirectory(ID_EDGES.NONEXISTENT);
     expect(result).toBeNull();
   });
 
@@ -248,7 +249,7 @@ describe('resolveTaskWorkflowState', () => {
   test('タスクが存在しない場合 → null を返すこと', async () => {
     mockTaskFindUnique.mockResolvedValueOnce(null);
 
-    const result = await resolveTaskWorkflowState(999);
+    const result = await resolveTaskWorkflowState(ID_EDGES.NONEXISTENT);
     expect(result).toBeNull();
   });
 
@@ -290,7 +291,7 @@ describe('resolveTaskTitle', () => {
   test('タスクが存在しない場合 → null を返すこと', async () => {
     mockTaskFindUnique.mockResolvedValueOnce(null);
 
-    const result = await resolveTaskTitle(999);
+    const result = await resolveTaskTitle(ID_EDGES.NONEXISTENT);
     expect(result).toBeNull();
   });
 
@@ -329,7 +330,7 @@ describe('resolveTaskThemeId', () => {
   test('タスクが存在しない場合 → null を返すこと', async () => {
     mockTaskFindUnique.mockResolvedValueOnce(null);
 
-    const result = await resolveTaskThemeId(999);
+    const result = await resolveTaskThemeId(ID_EDGES.NONEXISTENT);
     expect(result).toBeNull();
   });
 
@@ -373,7 +374,7 @@ describe('resolveTaskForComplexityAnalysis', () => {
   test('タスクが存在しない場合 → null を返すこと', async () => {
     mockTaskFindUnique.mockResolvedValueOnce(null);
 
-    const result = await resolveTaskForComplexityAnalysis(999);
+    const result = await resolveTaskForComplexityAnalysis(ID_EDGES.NONEXISTENT);
     expect(result).toBeNull();
   });
 
@@ -412,7 +413,7 @@ describe('resolveTaskSubtaskInfo', () => {
   test('タスクが存在しない場合 → null を返すこと', async () => {
     mockTaskFindUnique.mockResolvedValueOnce(null);
 
-    const result = await resolveTaskSubtaskInfo(999);
+    const result = await resolveTaskSubtaskInfo(ID_EDGES.NONEXISTENT);
     expect(result).toBeNull();
   });
 
@@ -452,7 +453,7 @@ describe('resolveTaskForPlanApproval', () => {
   test('タスクが存在しない場合 → null を返すこと', async () => {
     mockTaskFindUnique.mockResolvedValueOnce(null);
 
-    const result = await resolveTaskForPlanApproval(999);
+    const result = await resolveTaskForPlanApproval(ID_EDGES.NONEXISTENT);
     expect(result).toBeNull();
   });
 
@@ -500,7 +501,7 @@ describe('resolveTaskForAutoMerge', () => {
   test('タスクが存在しない場合 → null を返すこと', async () => {
     mockTaskFindUnique.mockResolvedValueOnce(null);
 
-    const result = await resolveTaskForAutoMerge(999);
+    const result = await resolveTaskForAutoMerge(ID_EDGES.NONEXISTENT);
     expect(result).toBeNull();
   });
 
@@ -549,7 +550,7 @@ describe('resolveTaskForLearning', () => {
   test('タスクが存在しない場合 → null を返すこと', async () => {
     mockTaskFindUnique.mockResolvedValueOnce(null);
 
-    const result = await resolveTaskForLearning(999);
+    const result = await resolveTaskForLearning(ID_EDGES.NONEXISTENT);
     expect(result).toBeNull();
   });
 
