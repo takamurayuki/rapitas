@@ -5,7 +5,8 @@
 import { Elysia } from 'elysia';
 import { prisma } from '../../../config';
 import { formatAgentDisplayName } from '../../../utils/agent/agent-display-name';
-import { WORKFLOW_ROLES, isWorkflowMode } from '../../../services/workflow/workflow-types';
+import { WORKFLOW_ROLES } from '../../../services/workflow/workflow-types';
+import { isWorkflowMode } from '../../../services/workflow/workflow-types.guards.generated';
 import type { WorkflowRole } from '../../../services/workflow/workflow-types';
 import { isWorkflowRole } from '../../../services/workflow/workflow-types.guards.generated';
 import { HTTP_STATUS } from '../../../utils/common/http-status';

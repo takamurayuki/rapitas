@@ -7,7 +7,8 @@
 
 import { prisma } from '../../../config';
 import { NotFoundError, ValidationError, parseId } from '../../../middleware/error-handler';
-import { WORKFLOW_MODES, isWorkflowMode } from '../../../services/workflow/workflow-types';
+import { WORKFLOW_MODES } from '../../../services/workflow/workflow-types';
+import { isWorkflowMode } from '../../../services/workflow/workflow-types.guards.generated';
 import {
   analyzeTaskComplexityWithLearning,
   getWorkflowModeConfig,

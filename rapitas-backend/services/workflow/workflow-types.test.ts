@@ -7,14 +7,13 @@
  */
 
 import { describe, it, expect } from 'bun:test';
+import { WORKFLOW_STATUSES, WORKFLOW_MODES } from './workflow-types';
 import {
-  WORKFLOW_STATUSES,
-  WORKFLOW_MODES,
   isWorkflowStatus,
   isWorkflowMode,
   narrowWorkflowStatus,
   narrowWorkflowMode,
-} from './workflow-types';
+} from './workflow-types.guards.generated';
 
 describe('isWorkflowStatus', () => {
   it.each(WORKFLOW_STATUSES as readonly string[])('returns true for valid status: %s', (status) => {

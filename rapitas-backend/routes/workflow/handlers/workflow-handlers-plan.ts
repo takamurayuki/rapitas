@@ -9,7 +9,7 @@ import { prisma } from '../../../config';
 import { NotFoundError, ValidationError, parseId } from '../../../middleware/error-handler';
 import { createLogger } from '../../../config/logger';
 import { VALID_WORKFLOW_STATUSES } from '../core/workflow-helpers';
-import { isWorkflowStatus } from '../../../services/workflow/workflow-types';
+import { isWorkflowStatus } from '../../../services/workflow/workflow-types.guards.generated';
 import { recordTransition } from '../../../services/workflow/transition-recorder';
 import { previewMissingFilesForStatus } from '../../../services/workflow/workflow-invariants';
 import { resolveTaskWorkflowState } from '../../../services/task/task-resolver';
