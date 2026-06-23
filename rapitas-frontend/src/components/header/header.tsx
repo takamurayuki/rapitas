@@ -198,11 +198,6 @@ export default function Header() {
             { href: '/agents', label: t('agentManagement'), icon: Settings },
             { href: '/agents/metrics', label: t('metrics'), icon: BarChart3 },
             {
-              href: '/agents/versions',
-              label: t('versionControl'),
-              icon: Package,
-            },
-            {
               href: '/agents/memory',
               label: t('memoryVisualization'),
               icon: Sprout,
