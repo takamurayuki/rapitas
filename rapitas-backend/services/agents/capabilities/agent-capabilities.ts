@@ -10,13 +10,8 @@
  * (e.g. a CLI version starts respecting strict instructions, or stops).
  */
 
-export type WorkflowRole =
-  | 'researcher'
-  | 'planner'
-  | 'reviewer'
-  | 'implementer'
-  | 'verifier'
-  | 'auto_verifier';
+import type { WorkflowRole } from '../../workflow/workflow-types';
+export type { WorkflowRole } from '../../workflow/workflow-types';
 
 export type AgentType =
   | 'codex'

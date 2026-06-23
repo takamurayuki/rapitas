@@ -11,14 +11,7 @@ import { buildMemoryContext } from './workflow-memory-context';
 import { buildHypothesisContext } from './workflow-hypothesis-context';
 import { buildRejectedPlanContext } from './workflow-rejected-plan-context';
 import { buildCriticFeedback } from './phase-critic';
-
-type WorkflowRole =
-  | 'researcher'
-  | 'planner'
-  | 'reviewer'
-  | 'implementer'
-  | 'verifier'
-  | 'auto_verifier';
+import type { WorkflowRole } from './workflow-types';
 
 /**
  * Build the prompt context string appropriate for the given workflow role.

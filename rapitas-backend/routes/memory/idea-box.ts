@@ -18,6 +18,7 @@ import {
 import { runInnovationSession } from '../../services/memory/innovation-session';
 import { prisma } from '../../config/database';
 import { createTask } from '../../services/task/task-mutations';
+import { HTTP_STATUS } from '../../utils/common/http-status';
 
 const log = createLogger('routes:idea-box');
 
@@ -82,7 +83,7 @@ export const ideaBoxRoutes = new Elysia()
     '/idea-box',
     async ({ body, set }) => {
       if (!body.title?.trim() || !body.content?.trim()) {
-        set.status = 400;
+        set.status = HTTP_STATUS.BAD_REQUEST;
         return { error: 'タイトルと内容は必須です' };
       }
 
@@ -101,7 +102,7 @@ export const ideaBoxRoutes = new Elysia()
         return { success: true, id };
       } catch (err) {
         log.error({ err }, 'Failed to submit idea');
-        set.status = 500;
+        set.status = HTTP_STATUS.INTERNAL_SERVER_ERROR;
         return { error: 'アイデアの登録に失敗しました' };
       }
     },
@@ -149,7 +150,7 @@ export const ideaBoxRoutes = new Elysia()
     async ({ params, body, set }) => {
       const id = parseInt(params.id);
       if (isNaN(id)) {
-        set.status = 400;
+        set.status = HTTP_STATUS.BAD_REQUEST;
         return { error: 'Invalid ID' };
       }
 
@@ -167,13 +168,13 @@ export const ideaBoxRoutes = new Elysia()
         });
 
         if (!ok) {
-          set.status = 404;
+          set.status = HTTP_STATUS.NOT_FOUND;
           return { error: 'アイデアが見つかりません' };
         }
         return { success: true };
       } catch (err) {
         log.error({ err, id }, 'Failed to update idea');
-        set.status = 400;
+        set.status = HTTP_STATUS.BAD_REQUEST;
         return { error: err instanceof Error ? err.message : 'アイデアの更新に失敗しました' };
       }
     },
@@ -201,7 +202,7 @@ export const ideaBoxRoutes = new Elysia()
     try {
       const success = await deleteIdea(id);
       if (!success) {
-        set.status = 404;
+        set.status = HTTP_STATUS.NOT_FOUND;
         return { error: 'アイデアが見つかりません' };
       }
       return { success: true };
@@ -218,7 +219,7 @@ export const ideaBoxRoutes = new Elysia()
     async ({ params, body, set }) => {
       const ideaId = parseInt(params.id);
       if (isNaN(ideaId)) {
-        set.status = 400;
+        set.status = HTTP_STATUS.BAD_REQUEST;
         return { error: 'Invalid idea ID' };
       }
 
@@ -236,7 +237,7 @@ export const ideaBoxRoutes = new Elysia()
         });
 
         if (!idea) {
-          set.status = 404;
+          set.status = HTTP_STATUS.NOT_FOUND;
           return { error: 'アイデアが見つかりません' };
         }
 
@@ -246,7 +247,7 @@ export const ideaBoxRoutes = new Elysia()
         });
 
         if (existingUsage) {
-          set.status = 400;
+          set.status = HTTP_STATUS.BAD_REQUEST;
           return { error: 'このアイデアは既にタスク化されています' };
         }
 
@@ -317,7 +318,7 @@ export const ideaBoxRoutes = new Elysia()
         });
 
         if (!newTask) {
-          set.status = 500;
+          set.status = HTTP_STATUS.INTERNAL_SERVER_ERROR;
           return { error: 'タスクの作成に失敗しました' };
         }
 
@@ -333,7 +334,7 @@ export const ideaBoxRoutes = new Elysia()
         };
       } catch (err) {
         log.error({ err, ideaId }, 'Failed to convert idea to task');
-        set.status = 500;
+        set.status = HTTP_STATUS.INTERNAL_SERVER_ERROR;
         return { error: 'アイデアのタスク変換に失敗しました' };
       }
     },
@@ -368,7 +369,7 @@ export const ideaBoxRoutes = new Elysia()
     async ({ params, body, set }) => {
       const ideaId = parseInt(params.id);
       if (isNaN(ideaId)) {
-        set.status = 400;
+        set.status = HTTP_STATUS.BAD_REQUEST;
         return { error: 'Invalid idea ID' };
       }
 
@@ -378,7 +379,7 @@ export const ideaBoxRoutes = new Elysia()
           select: { id: true, title: true, content: true, themeId: true },
         });
         if (!idea) {
-          set.status = 404;
+          set.status = HTTP_STATUS.NOT_FOUND;
           return { error: 'アイデアが見つかりません' };
         }
 
@@ -386,7 +387,7 @@ export const ideaBoxRoutes = new Elysia()
           where: { id: ideaId, sourceId: { startsWith: 'used_task_' } },
         });
         if (existingUsage) {
-          set.status = 400;
+          set.status = HTTP_STATUS.BAD_REQUEST;
           return { error: 'このアイデアは既にタスク化されています' };
         }
 
@@ -400,7 +401,7 @@ export const ideaBoxRoutes = new Elysia()
         const themeId = body.themeId ?? idea.themeId ?? undefined;
 
         if (!title) {
-          set.status = 400;
+          set.status = HTTP_STATUS.BAD_REQUEST;
           return { error: 'タイトルは必須です' };
         }
 
@@ -414,7 +415,7 @@ export const ideaBoxRoutes = new Elysia()
           labels: body.labels && body.labels.length > 0 ? JSON.stringify(body.labels) : undefined,
         });
         if (!newTask) {
-          set.status = 500;
+          set.status = HTTP_STATUS.INTERNAL_SERVER_ERROR;
           return { error: 'タスクの作成に失敗しました' };
         }
 
@@ -432,7 +433,7 @@ export const ideaBoxRoutes = new Elysia()
         };
       } catch (err) {
         log.error({ err, ideaId }, 'Failed to convert idea to task (manual)');
-        set.status = 500;
+        set.status = HTTP_STATUS.INTERNAL_SERVER_ERROR;
         return { error: 'アイデアのタスク変換に失敗しました' };
       }
     },

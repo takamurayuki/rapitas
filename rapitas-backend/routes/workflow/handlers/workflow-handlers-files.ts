@@ -36,6 +36,7 @@ import {
   normalizeWorkflowStatus,
 } from '../../../services/workflow/workflow-invariants';
 import { maybeAutoApprovePlan } from '../../../services/workflow/plan-auto-approve';
+import { HTTP_STATUS } from '../../../utils/common/http-status';
 
 const log = createLogger('routes:workflow:handlers:files');
 
@@ -341,7 +342,7 @@ export async function handleSaveFile({
         invariantViolation: true,
         invariantMessage: `${fileType}.md rejected: non-ASCII text was replaced by '?' (encoding loss)`,
       });
-      set.status = 422;
+      set.status = HTTP_STATUS.UNPROCESSABLE_ENTITY;
       return {
         error:
           `保存内容が文字化けしています（日本語が '?' に置換され復元不可）。UTF-8 で再送信してください。` +
@@ -373,7 +374,7 @@ export async function handleSaveFile({
         invariantViolation: true,
         invariantMessage: `${fileType}.md rejected: agent execution log leaked into the file (broken artifact)`,
       });
-      set.status = 422;
+      set.status = HTTP_STATUS.UNPROCESSABLE_ENTITY;
       return {
         error:
           `${fileType}.md の内容に実行ログ/ストリーム出力が混入しています（壊れた成果物）。保存を中止しました。` +

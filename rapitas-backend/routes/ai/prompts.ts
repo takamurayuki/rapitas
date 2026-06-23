@@ -6,6 +6,7 @@ import { prisma } from '../../config/database';
 import { generateOptimizedPrompt } from '../../services/claude-agent';
 import { getDefaultProvider, getApiKeyForProvider } from '../../utils/ai-client';
 import { getLabelsArray, toJsonString } from '../../utils/database/db-helpers';
+import { TASK_NOT_FOUND } from '../../utils/common/error-messages';
 
 export const promptsRoutes = new Elysia()
   .get('/tasks/:id/prompts', async ({ params }) => {
@@ -21,7 +22,7 @@ export const promptsRoutes = new Elysia()
     });
 
     if (!task) {
-      return { error: 'タスクが見つかりません' };
+      return { error: TASK_NOT_FOUND };
     }
 
     type SubtaskInfo = {
@@ -151,7 +152,7 @@ export const promptsRoutes = new Elysia()
 
     if (!task) {
       set.status = 404;
-      return { error: 'タスクが見つかりません' };
+      return { error: TASK_NOT_FOUND };
     }
 
     const results: Array<{

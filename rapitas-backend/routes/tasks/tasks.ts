@@ -16,6 +16,7 @@ import {
 import { removeWorktree } from '../../services/agents/orchestrator/git-operations/worktree-ops';
 import { getProjectRoot } from '../../config';
 import { cleanupCompletedTasks } from '../../services/task/completed-task-cleanup';
+import { TASK_NOT_FOUND, INVALID_ID } from '../../utils/common/error-messages';
 
 import { QueryOptimizers } from '../../utils/database/prisma-optimization';
 
@@ -208,7 +209,7 @@ export const tasksRoutes = new Elysia({ prefix: '/tasks' })
     const { params } = context;
     const id = parseInt(params.id);
     if (isNaN(id)) {
-      throw new ValidationError('無効なIDです');
+      throw new ValidationError(INVALID_ID);
     }
 
     return await prisma.task.findUnique({
@@ -277,7 +278,7 @@ export const tasksRoutes = new Elysia({ prefix: '/tasks' })
     const { params, body } = context;
     const taskId = parseInt(params.id);
     if (isNaN(taskId)) {
-      throw new ValidationError('無効なIDです');
+      throw new ValidationError(INVALID_ID);
     }
     return await updateTask(prisma, taskId, body as Parameters<typeof updateTask>[2]);
   })
@@ -289,12 +290,12 @@ export const tasksRoutes = new Elysia({ prefix: '/tasks' })
     const { params, set } = context;
     const id = parseInt(params.id);
     if (isNaN(id)) {
-      throw new ValidationError('無効なIDです');
+      throw new ValidationError(INVALID_ID);
     }
     const task = await prisma.task.findUnique({ where: { id }, select: { status: true } });
     if (!task) {
       set.status = 404;
-      return { error: 'タスクが見つかりません' };
+      return { error: TASK_NOT_FOUND };
     }
     if (task.status !== 'blocked' && task.status !== 'failed') {
       throw new ValidationError('blocked / failed のタスクのみ再実行できます');
@@ -335,7 +336,7 @@ export const tasksRoutes = new Elysia({ prefix: '/tasks' })
     const { params } = context;
     const id = parseInt(params.id);
     if (isNaN(id)) {
-      throw new ValidationError('無効なIDです');
+      throw new ValidationError(INVALID_ID);
     }
 
     // Clean up any worktrees associated with this task before deletion
@@ -397,12 +398,12 @@ export const tasksRoutes = new Elysia({ prefix: '/tasks' })
     const { params } = context;
     const parentId = parseInt(params.id);
     if (isNaN(parentId)) {
-      throw new ValidationError('無効なIDです');
+      throw new ValidationError(INVALID_ID);
     }
 
     const parentTask = await prisma.task.findUnique({ where: { id: parentId } });
     if (!parentTask) {
-      throw new ValidationError('タスクが見つかりません');
+      throw new ValidationError(TASK_NOT_FOUND);
     }
 
     const deletedIds = await cleanupDuplicateSubtasks(prisma, parentId);
@@ -475,7 +476,7 @@ export const tasksRoutes = new Elysia({ prefix: '/tasks' })
     const { params } = context;
     const parentId = parseInt(params.id);
     if (isNaN(parentId)) {
-      throw new ValidationError('無効なIDです');
+      throw new ValidationError(INVALID_ID);
     }
 
     const parentTask = await prisma.task.findUnique({
@@ -483,7 +484,7 @@ export const tasksRoutes = new Elysia({ prefix: '/tasks' })
     });
 
     if (!parentTask) {
-      throw new ValidationError('タスクが見つかりません');
+      throw new ValidationError(TASK_NOT_FOUND);
     }
 
     const subtasks = await prisma.task.findMany({
@@ -515,7 +516,7 @@ export const tasksRoutes = new Elysia({ prefix: '/tasks' })
     async ({ params, body }) => {
       const parentId = parseInt(params.id);
       if (isNaN(parentId)) {
-        throw new ValidationError('無効なIDです');
+        throw new ValidationError(INVALID_ID);
       }
 
       const { subtaskIds } = body as { subtaskIds: number[] };
@@ -529,7 +530,7 @@ export const tasksRoutes = new Elysia({ prefix: '/tasks' })
       });
 
       if (!parentTask) {
-        throw new ValidationError('タスクが見つかりません');
+        throw new ValidationError(TASK_NOT_FOUND);
       }
 
       // Verify subtasks belong to this parent
