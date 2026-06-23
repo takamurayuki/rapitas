@@ -9,18 +9,8 @@
  *   narrow* — narrowing: DB 等からの raw string を対象型へ変換し、不正値を fallback で返す
  */
 
-import type {
-  AgentExecutionStatus,
-  QuestionType,
-  LogType,
-  RealtimeEventType,
-} from './agent-execution-types';
-import {
-  AGENT_EXECUTION_STATUSES,
-  QUESTION_TYPES,
-  LOG_TYPES,
-  REALTIME_EVENT_TYPES,
-} from './agent-execution-types';
+import type { AgentExecutionStatus, QuestionType, LogType, RealtimeEventType } from './agent-execution-types';
+import { AGENT_EXECUTION_STATUSES, QUESTION_TYPES, LOG_TYPES, REALTIME_EVENT_TYPES } from './agent-execution-types';
 
 import { isOneOf } from '../utils/common/type-guards';
 
@@ -92,7 +82,10 @@ export function isLogType(s: unknown): s is LogType {
  * @param fallback - Value to return when `s` is invalid. Defaults to `'info'`. / 無効時に返す値
  * @returns A valid LogType. / 有効なLogType
  */
-export function narrowLogType(s: string | null | undefined, fallback: LogType = 'info'): LogType {
+export function narrowLogType(
+  s: string | null | undefined,
+  fallback: LogType = 'info',
+): LogType {
   return isLogType(s) ? s : fallback;
 }
 

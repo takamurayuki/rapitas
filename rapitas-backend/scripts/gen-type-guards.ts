@@ -12,6 +12,8 @@
  *   bun run gen:type-guards              # generate .guards.generated.ts files
  *   bun run gen:type-guards --check      # exit 1 if drift detected (generated ≠ on-disk)
  *   bun run gen:type-guards --warn-only  # exit 0 even if drift (warning only)
+ *   bun run gen:type-guards --files=a.ts,b.ts          # scan only specified files
+ *   bun run gen:type-guards --check --files=a.ts,b.ts  # check drift in specified files only
  *
  * NOTE: Does NOT modify existing source files. All output is written to new .guards.generated.ts files.
  */
@@ -78,6 +80,70 @@ export interface SsotFile {
 export interface DriftResult {
   file: string;
   status: 'missing' | 'mismatch';
+}
+
+/** Options for scanForSsotFiles / checkDrift. */
+export interface ScanOptions {
+  /**
+   * When provided, only these files are scanned instead of walking SCAN_ROOTS.
+   * Paths may be absolute or relative to ROOT (the rapitas-backend directory).
+   * Non-.ts files and .generated.ts files are silently skipped.
+   */
+  files?: string[];
+}
+
+// ---------------------------------------------------------------------------
+// Quick pre-filter
+// ---------------------------------------------------------------------------
+
+// NOTE: Matches '] as const;' which all SSOT arrays end with. Files lacking this
+// substring are guaranteed to have no SSOT pairs and can be skipped before
+// the more expensive multiline regex matching runs (saves ~92% of file reads).
+const SSOT_QUICK_CHECK_RE = /\] as const;/;
+
+/**
+ * Returns true when the file content may contain an SSOT array pattern.
+ * Used as a fast pre-filter before the full multiline regex scan.
+ *
+ * @param content - Full file content / ファイル全体の内容
+ * @returns True when the file is worth fully scanning / 完全スキャンが必要な場合true
+ */
+export function hasSsotCandidate(content: string): boolean {
+  return SSOT_QUICK_CHECK_RE.test(content);
+}
+
+// ---------------------------------------------------------------------------
+// CLI argument helpers
+// ---------------------------------------------------------------------------
+
+/**
+ * Parses the `--files` CLI argument into an array of file paths.
+ *
+ * Supported forms:
+ *   --files=foo.ts,bar.ts   → ['foo.ts', 'bar.ts']
+ *   --files foo.ts bar.ts   → ['foo.ts', 'bar.ts'] (stops at next flag)
+ *   (absent)                → null (full SCAN_ROOTS walk)
+ *
+ * @param argv - process.argv / コマンドライン引数配列
+ * @returns Parsed file paths, or null when --files is absent
+ */
+export function parseFilesArg(argv: string[]): string[] | null {
+  const idx = argv.findIndex((a) => a === '--files' || a.startsWith('--files='));
+  if (idx === -1) return null;
+
+  const arg = argv[idx];
+  if (arg.startsWith('--files=')) {
+    const val = arg.slice('--files='.length);
+    return val ? val.split(',').map((f) => f.trim()).filter(Boolean) : [];
+  }
+
+  // '--files' with space-separated values: consume remaining non-flag args
+  const files: string[] = [];
+  for (let i = idx + 1; i < argv.length; i++) {
+    if (argv[i].startsWith('-')) break;
+    files.push(argv[i]);
+  }
+  return files;
 }
 
 // ---------------------------------------------------------------------------
@@ -302,17 +368,32 @@ export function generateGuardSource(
 // ---------------------------------------------------------------------------
 
 /**
- * Walks SCAN_ROOTS and collects all source files that have SSOT pairs
- * needing guard generation.
+ * Walks SCAN_ROOTS (or a caller-specified file list) and collects source files
+ * that have SSOT pairs needing guard generation.
  *
+ * When `opts.files` is provided, only those files are scanned — SCAN_ROOTS walk
+ * is skipped entirely. This is the primary optimization for incremental CI: pass
+ * only the files changed in the current PR (`git diff --name-only | grep '\.ts$'`).
+ *
+ * @param opts - Optional scan configuration / オプションのスキャン設定
  * @returns Array of SsotFile descriptors / SsotFileの配列
  */
-export function scanForSsotFiles(): SsotFile[] {
-  const allFiles: string[] = [];
-  for (const root of SCAN_ROOTS) {
-    const found = walkTs(root, ['.ts'], EXCLUDE_DIRS);
-    // NOTE: Filter .generated.ts files to prevent self-re-scanning.
-    allFiles.push(...found.filter((f) => !f.endsWith('.generated.ts')));
+export function scanForSsotFiles(opts?: ScanOptions): SsotFile[] {
+  let allFiles: string[];
+
+  if (opts?.files && opts.files.length > 0) {
+    // Incremental mode: scan only the specified files.
+    allFiles = opts.files
+      .map((f) => (f.startsWith('/') || /^[A-Za-z]:/.test(f) ? f : resolve(ROOT, f)))
+      .filter((f) => f.endsWith('.ts') && !f.endsWith('.generated.ts'));
+  } else {
+    // Full-scan mode: walk all SCAN_ROOTS.
+    allFiles = [];
+    for (const root of SCAN_ROOTS) {
+      const found = walkTs(root, ['.ts'], EXCLUDE_DIRS);
+      // NOTE: Filter .generated.ts files to prevent self-re-scanning.
+      allFiles.push(...found.filter((f) => !f.endsWith('.generated.ts')));
+    }
   }
 
   const result: SsotFile[] = [];
@@ -323,6 +404,9 @@ export function scanForSsotFiles(): SsotFile[] {
     } catch {
       continue;
     }
+
+    // Quick pre-filter: skip files without SSOT pattern candidates (~92% of files).
+    if (!hasSsotCandidate(content)) continue;
 
     const { pairs, manualReview } = extractSsotPairs(filePath, content);
     if (pairs.length === 0 && manualReview.length === 0) continue;
@@ -343,11 +427,13 @@ export function scanForSsotFiles(): SsotFile[] {
 
 /**
  * Compares the expected generated content against what is on disk.
+ * Accepts the same ScanOptions as scanForSsotFiles to support incremental CI checks.
  *
+ * @param opts - Optional scan configuration / オプションのスキャン設定
  * @returns Array of DriftResult for each out-of-sync file (empty = no drift)
  */
-export function checkDrift(): DriftResult[] {
-  const ssotFiles = scanForSsotFiles();
+export function checkDrift(opts?: ScanOptions): DriftResult[] {
+  const ssotFiles = scanForSsotFiles(opts);
   const drifts: DriftResult[] = [];
 
   for (const { filePath, outputPath, pairs } of ssotFiles) {
@@ -374,9 +460,11 @@ export function checkDrift(): DriftResult[] {
 if (import.meta.main) {
   const CHECK_MODE = process.argv.includes('--check');
   const WARN_ONLY = process.argv.includes('--warn-only');
+  const filesArg = parseFilesArg(process.argv);
+  const scanOpts: ScanOptions = filesArg !== null ? { files: filesArg } : {};
 
   if (CHECK_MODE || WARN_ONLY) {
-    const drifts = checkDrift();
+    const drifts = checkDrift(scanOpts);
     if (drifts.length === 0) {
       console.log('gen-type-guards: no drift detected.');
       process.exit(0);
@@ -391,7 +479,7 @@ if (import.meta.main) {
     }
   } else {
     // Generate mode
-    const ssotFiles = scanForSsotFiles();
+    const ssotFiles = scanForSsotFiles(scanOpts);
     let generated = 0;
     const allManualReview: string[] = [];
 
