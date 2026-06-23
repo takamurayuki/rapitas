@@ -39,11 +39,8 @@ class SharedEventSourceManager {
   private paused = false;
 
   constructor() {
-    // NOTE: visibilitychange fires in WebView2 when the Tauri window is hidden to
-    // tray (window.hide()) and shown again, matching the browser tab behaviour.
-    // Pausing the connection here stops SSE→re-render CPU when the window is not
-    // visible; polling hooks already guard on document.hidden via useOnVisible.
     if (typeof document !== 'undefined') {
+      // Primary: browser visibilitychange (covers browser tabs + most Tauri cases).
       document.addEventListener('visibilitychange', () => {
         if (document.hidden) {
           this.handleHidden();
@@ -51,6 +48,32 @@ class SharedEventSourceManager {
           this.handleVisible();
         }
       });
+      // Fallback: Tauri emits rapitas:window-hide/show from Rust's CloseRequested
+      // handler and show_main_window(). visibilitychange is unreliable when the
+      // host HWND is hidden via ShowWindow(SW_HIDE) without put_IsVisible(false).
+      this.setupTauriVisibilityListener();
+    }
+  }
+
+  /**
+   * Subscribe to Tauri-specific window hide/show events as a belt-and-suspenders
+   * supplement to the document visibilitychange handler above.
+   * No-ops in non-Tauri environments (dynamic import gracefully fails).
+   */
+  private async setupTauriVisibilityListener(): Promise<void> {
+    if (typeof window === 'undefined' || !('__TAURI_INTERNALS__' in window)) return;
+    try {
+      const { listen } = await import('@tauri-apps/api/event');
+      await listen<null>('rapitas:window-hide', () => {
+        logger.debug('SSE pausing via Tauri window-hide event');
+        this.handleHidden();
+      });
+      await listen<null>('rapitas:window-show', () => {
+        logger.debug('SSE resuming via Tauri window-show event');
+        this.handleVisible();
+      });
+    } catch {
+      // Not in Tauri or event API unavailable — visibilitychange is the fallback.
     }
   }
 

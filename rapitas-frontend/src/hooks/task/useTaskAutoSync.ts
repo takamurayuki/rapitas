@@ -62,6 +62,10 @@ export function useTaskAutoSync(options: UseTaskAutoSyncOptions = {}) {
 
     // Set up periodic updates
     intervalRef.current = setInterval(() => {
+      // Skip when hidden — saves a network round-trip and React re-render while
+      // the window is in the tray or behind another app; visibilitychange fires
+      // a sync on return via the handler below.
+      if (typeof document !== 'undefined' && document.hidden) return;
       // Skip updates if AI agent is executing and skip is enabled
       if (skipDuringExecution && executingTasksSizeRef.current > 0) {
         logger.debug('Skipping sync due to executing tasks');
