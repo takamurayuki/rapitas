@@ -1,5 +1,5 @@
 {
-  "generated": "2026-06-23T13:29:23.813Z",
+  "generated": "2026-06-23T19:12:17.382Z",
   "hard_limit": 500,
   "soft_limit": 300,
   "_comment": "Files at or above the hard limit at snapshot time. Their listed lineCount becomes a per-file ceiling — they may shrink but not grow. Remove an entry by splitting the file.",
@@ -8,10 +8,10 @@
       "lineCount": 1766
     },
     "rapitas-backend/routes/workflow/handlers/workflow-handlers-files.ts": {
-      "lineCount": 1114
+      "lineCount": 1175
     },
     "rapitas-backend/services/workflow/workflow-cli-executor.ts": {
-      "lineCount": 1114
+      "lineCount": 1109
     },
     "rapitas-backend/services/workflow/workflow-orchestrator.ts": {
       "lineCount": 1041
@@ -22,23 +22,23 @@
     "rapitas-backend/services/agents/orchestrator/task-executor.ts": {
       "lineCount": 736
     },
+    "rapitas-backend/routes/agents/execution/execute-route.ts": {
+      "lineCount": 704
+    },
     "rapitas-backend/services/agents/verification/automated-verifier.ts": {
       "lineCount": 702
     },
     "rapitas-backend/scripts/analyze-codebase/agent-report-generator.ts": {
       "lineCount": 684
     },
-    "rapitas-backend/services/memory/idea-box-service.ts": {
-      "lineCount": 686
-    },
     "rapitas-backend/services/workflow/auto-run/theme-auto-run-scheduler.ts": {
       "lineCount": 678
     },
-    "rapitas-backend/routes/agents/execution/execute-route.ts": {
-      "lineCount": 673
-    },
     "rapitas-backend/services/workflow/auto-merge-watcher.ts": {
       "lineCount": 657
+    },
+    "rapitas-backend/services/memory/idea-box-service.ts": {
+      "lineCount": 634
     },
     "rapitas-backend/services/memory/task-knowledge-extractor.ts": {
       "lineCount": 633
@@ -81,6 +81,12 @@
     },
     "rapitas-backend/services/workflow/workflow-reconciler.ts": {
       "lineCount": 526
+    },
+    "rapitas-backend/scripts/gen-type-guards.ts": {
+      "lineCount": 512
+    },
+    "rapitas-backend/services/memory/concern-backlog-service.ts": {
+      "lineCount": 510
     },
     "rapitas-backend/routes/organization/themes.ts": {
       "lineCount": 505

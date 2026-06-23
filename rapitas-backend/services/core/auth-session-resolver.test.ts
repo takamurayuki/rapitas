@@ -64,20 +64,43 @@ describe('resolveSessionByToken', () => {
     expect(result).toEqual(fakeSession);
   });
 
-  test('期限切れ / 一致なしの場合 → findFirst が null → null を返すこと', async () => {
-    mockUserSessionFindFirst.mockResolvedValueOnce(null);
+  /** null-return パスのパラメータテーブル（トークン文字列入力 + 空文字/空白境界値） */
+  type TokenNullReturnCase = {
+    label: string;
+    token: string;
+    setup: (m: ReturnType<typeof mock>) => void;
+  };
 
-    const result = await resolveSessionByToken('expired-or-missing-token');
+  const tokenNullReturnCases: TokenNullReturnCase[] = [
+    {
+      label: 'not found (token not in DB)',
+      token: 'expired-or-missing-token',
+      setup: (m) => m.mockResolvedValueOnce(null),
+    },
+    {
+      label: 'DB error',
+      token: 'any-token',
+      setup: (m) => m.mockRejectedValueOnce(new Error('DB connection lost')),
+    },
+    {
+      label: 'empty string token (boundary)',
+      token: '',
+      setup: (m) => m.mockResolvedValueOnce(null),
+    },
+    {
+      label: 'whitespace-only token (boundary)',
+      token: ' ',
+      setup: (m) => m.mockResolvedValueOnce(null),
+    },
+  ];
+
+  test.each(tokenNullReturnCases)('$label → null', async ({ token, setup }) => {
+    setup(mockUserSessionFindFirst);
+    const result = await resolveSessionByToken(token);
     expect(result).toBeNull();
   });
 
-  test('DB が reject した場合 → null を返すこと（.catch により）', async () => {
-    mockUserSessionFindFirst.mockRejectedValueOnce(new Error('DB connection lost'));
-
-    const result = await resolveSessionByToken('any-token');
-    expect(result).toBeNull();
-  });
-
+  // NOTE: expiresAt.gt は Date 相対演算を含むためパラメータ化せず個別 test() で維持する。
   test('クエリ条件が sessionToken + expiresAt gt now + include user で呼ばれること', async () => {
     const before = new Date();
     await resolveSessionByToken('check-token');
