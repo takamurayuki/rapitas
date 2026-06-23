@@ -65,6 +65,7 @@ Keep this list accurate. If you assign a glyph a new meaning, add it here.
 | `Library`                 | 知識ベース (nav: /knowledge グループ)    |
 | `Search`                  | 知識ブラウザ (nav: /knowledge)           |
 | `BarChart2`               | 知識の成長トレンドチャートヘッダー       |
+| `Signal`                  | 記憶強度 (MemoryStrengthCard)            |
 
 ### Known collisions — resolve when you next touch them
 
