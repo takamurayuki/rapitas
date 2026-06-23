@@ -55,6 +55,27 @@ describe('extractHypothesisVerdicts', () => {
     expect(v[1].hypothesisId).toBe(42);
   });
 
+  test('テーブル形式の 仮説評価 (| [#id] | 成立 | 根拠 |) も抽出する', () => {
+    const md = [
+      '## 仮説評価',
+      '| 仮説 ID | 判定 | 根拠 |',
+      '| --- | --- | --- |',
+      '| `[#2826]` | 成立 | resolver が新設され6箇所置換済み |',
+      '| `[#2745]` | 不成立 | 型エラーが否定された想定と異なる |',
+      '| `[#99]` | ✅ 成立 | アイコン付き判定 |',
+    ].join('\n');
+    const v = extractHypothesisVerdicts(md);
+    expect(v).toHaveLength(3);
+    expect(v[0]).toMatchObject({ hypothesisId: 2826, verdict: 'confirmed' });
+    expect(v[1]).toMatchObject({ hypothesisId: 2745, verdict: 'refuted' });
+    expect(v[2]).toMatchObject({ hypothesisId: 99, verdict: 'confirmed' });
+  });
+
+  test('テーブルのヘッダ/区切り行は判定として拾わない', () => {
+    const md = '## 仮説評価\n| 仮説 ID | 判定 | 根拠 |\n| --- | --- | --- |';
+    expect(extractHypothesisVerdicts(md)).toEqual([]);
+  });
+
   test('セクションが無ければ空', () => {
     expect(extractHypothesisVerdicts('# 検証レポート\n- 何もなし')).toEqual([]);
     expect(extractHypothesisVerdicts(null)).toEqual([]);

@@ -70,6 +70,39 @@ export function extractHypothesisVerdicts(content: string | null | undefined): H
     }
     if (inSection && /^#{1,6}\s/.test(line)) break; // next heading closes it
     if (!inSection) continue;
+
+    // Markdown TABLE row: `| [#id] | 成立/不成立 | 根拠 |`. The verifier prompt
+    // mandates "テーブル必須", so verdicts often arrive as a table rather than a
+    // bullet list — without this branch those graduations were silently dropped
+    // (observed: every table-format 仮説評価 left its hypotheses permanently open).
+    if (line.startsWith('|')) {
+      const cells = line
+        .split('|')
+        .map((c) => c.trim())
+        .filter((c) => c.length > 0);
+      // Skip header (`| 仮説 ID | 判定 |`) and separator (`| --- | --- |`) rows.
+      if (cells.length < 2 || cells.every((c) => /^:?-+:?$/.test(c))) continue;
+      const idCell = cells.find((c) => /#\d+/.test(c));
+      const idMatch = idCell?.match(/#(\d+)/);
+      // The verdict lives in the short 判定 cell, not the long 根拠 cell — bound the
+      // length so evidence prose mentioning "否定"/"×" cannot flip the verdict.
+      const verdictCell = cells.find(
+        (c) =>
+          c.replace(/[`*✅⚠️\s]/g, '').length <= 8 && (REFUTE_RE.test(c) || CONFIRM_RE.test(c)),
+      );
+      if (!verdictCell) continue;
+      const tVerdict: 'confirmed' | 'refuted' = REFUTE_RE.test(verdictCell)
+        ? 'refuted'
+        : 'confirmed';
+      const tId = idMatch ? Number(idMatch[1]) : null;
+      if (tId != null) {
+        if (!Number.isFinite(tId) || seenIds.has(tId)) continue;
+        seenIds.add(tId);
+      }
+      out.push({ hypothesisId: tId, verdict: tVerdict, reason: cells.join(' ').slice(0, 300) });
+      continue;
+    }
+
     // Any bullet line; the `#id` anchor is OPTIONAL (captured when present).
     const m = line.match(/^[-*]\s*(?:\[?#(\d+)\]?\s*)?(.+)$/);
     if (!m) continue;
