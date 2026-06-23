@@ -22,7 +22,9 @@ const { lcsLen, findSaturatedTheme } = await import('./theme-saturation');
 
 describe('lcsLen', () => {
   test('共通部分文字列の最長長を返す', () => {
-    expect(lcsLen('gen:type-guards の Prettier 同期', 'gen:type-guards が Prettier 非互換')).toBeGreaterThanOrEqual(8);
+    expect(
+      lcsLen('gen:type-guards の Prettier 同期', 'gen:type-guards が Prettier 非互換'),
+    ).toBeGreaterThanOrEqual(8);
     expect(lcsLen('freee OCR 仕訳', '通知音の設定')).toBeLessThan(4);
   });
 });

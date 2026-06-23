@@ -12,7 +12,10 @@ import { ValidationError, NotFoundError } from '../../../middleware/error-handle
 import { createLogger } from '../../../config';
 import type { WorkflowStatus } from '../../../services/workflow/workflow-types';
 import { resolveTaskWorkflowState } from '../../../services/task/task-resolver';
-import { resolveWorkflowDir, archiveWorkflowFile } from '../../../services/workflow/workflow-file-utils';
+import {
+  resolveWorkflowDir,
+  archiveWorkflowFile,
+} from '../../../services/workflow/workflow-file-utils';
 
 const log = createLogger('routes:workflow:resume');
 
@@ -55,9 +58,10 @@ export async function handleAnswerWorkflowQuestion({ params, body, set }: Answer
     set.status = 400;
     throw new ValidationError('Invalid taskId');
   }
-  const answer = typeof (body as { answer?: string })?.answer === 'string'
-    ? (body as { answer: string }).answer.trim()
-    : '';
+  const answer =
+    typeof (body as { answer?: string })?.answer === 'string'
+      ? (body as { answer: string }).answer.trim()
+      : '';
   if (!answer) {
     set.status = 400;
     throw new ValidationError('answer is required');
@@ -108,7 +112,10 @@ export async function handleAnswerWorkflowQuestion({ params, body, set }: Answer
     metadata: {},
   });
 
-  log.info({ taskId }, '[Workflow:Answer] Recorded user answer to workflow question; reset to draft');
+  log.info(
+    { taskId },
+    '[Workflow:Answer] Recorded user answer to workflow question; reset to draft',
+  );
   return { taskId, ok: true, toStatus: 'draft' };
 }
 
