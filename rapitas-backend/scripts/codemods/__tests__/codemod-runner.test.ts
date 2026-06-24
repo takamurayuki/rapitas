@@ -18,6 +18,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 import { ensureImport, relativeImportPath, runCodemod, walkTs } from '../lib/codemod-runner';
 import { transformInsensitiveMode } from '../insensitive-mode';
 import { transformInsensitiveSpread } from '../insensitive-spread';
+import { transformPreferTestEach } from '../prefer-test-each';
 import { transformPrismaSingleton } from '../prisma-singleton';
 import { transformResponseHelper } from '../response-helper';
 import { transformSpecArray } from '../spec-array';
@@ -620,6 +621,212 @@ describe('runCodemod dry-run (transformInsensitiveSpread)', () => {
     const summary = runCodemod(transformInsensitiveSpread, {
       roots: [join(tmpDir, 'services')],
       label: 'test-spread-summary',
+      write: false,
+    });
+
+    expect(summary.changed).toBe(1);
+    expect(summary.unchanged).toBe(1);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// transformPreferTestEach
+// ---------------------------------------------------------------------------
+
+describe('transformPreferTestEach', () => {
+  const testPath = () => join(tmpDir, 'tests', 'foo.test.ts');
+
+  it('converts 3-expect block to test.each', () => {
+    const content = [
+      `test('invalid prefix', () => {`,
+      `  expect(isValid('a')).toBe(false);`,
+      `  expect(isValid('b')).toBe(false);`,
+      `  expect(isValid('c')).toBe(false);`,
+      `});`,
+    ].join('\n');
+    const result = transformPreferTestEach({ filePath: testPath(), content });
+    expect(result.changed).toBe(true);
+    expect(result.newContent).toContain("test.each(['a', 'b', 'c'])");
+    expect(result.newContent).toContain('(input) =>');
+    expect(result.newContent).toContain('expect(isValid(input)).toBe(false)');
+  });
+
+  it('converts 5-expect block to test.each', () => {
+    const content = [
+      `test('special chars', () => {`,
+      `  expect(isValid('a~')).toBe(false);`,
+      `  expect(isValid('a^')).toBe(false);`,
+      `  expect(isValid('a:')).toBe(false);`,
+      `  expect(isValid('a?')).toBe(false);`,
+      `  expect(isValid('a*')).toBe(false);`,
+      `});`,
+    ].join('\n');
+    const result = transformPreferTestEach({ filePath: testPath(), content });
+    expect(result.changed).toBe(true);
+    expect(result.newContent).toContain('test.each(');
+    expect(result.newContent).toContain("'a~'");
+    expect(result.newContent).toContain("'a*'");
+  });
+
+  it('leaves 2-expect block unchanged — below threshold', () => {
+    const content = [
+      `it('two expects', () => {`,
+      `  expect(fn('a')).toBeNull();`,
+      `  expect(fn('b')).toBeNull();`,
+      `});`,
+    ].join('\n');
+    const result = transformPreferTestEach({ filePath: testPath(), content });
+    expect(result.changed).toBe(false);
+    expect(result.newContent).toBe(content);
+    expect(result.manualReview).toHaveLength(0);
+  });
+
+  it('emits manualReview for blocks with mixed matchers', () => {
+    const content = [
+      `test('mixed matchers', () => {`,
+      `  expect(fn('a')).toBe(true);`,
+      `  expect(fn('b')).toBe(false);`,
+      `  expect(fn('c')).toBeNull();`,
+      `});`,
+    ].join('\n');
+    const result = transformPreferTestEach({ filePath: testPath(), content });
+    expect(result.changed).toBe(false);
+    expect(result.newContent).toBe(content);
+    expect(result.manualReview.length).toBeGreaterThan(0);
+    expect(result.manualReview[0]).toContain('mixed FN/MATCHER/VAL');
+  });
+
+  it('emits manualReview for multi-arg FN calls', () => {
+    const content = [
+      `test('multi-arg', () => {`,
+      `  expect(fn('a', 1)).toBe(false);`,
+      `  expect(fn('b', 2)).toBe(false);`,
+      `  expect(fn('c', 3)).toBe(false);`,
+      `});`,
+    ].join('\n');
+    const result = transformPreferTestEach({ filePath: testPath(), content });
+    expect(result.changed).toBe(false);
+    expect(result.newContent).toBe(content);
+    expect(result.manualReview.length).toBeGreaterThan(0);
+    expect(result.manualReview[0]).toContain('multi-arg');
+  });
+
+  it('is idempotent — already-transformed block is not re-processed', () => {
+    const content = [
+      `test.each(['a', 'b', 'c'])(`,
+      `  'desc: %s',`,
+      `  (input) => {`,
+      `    expect(fn(input)).toBe(false);`,
+      `  },`,
+      `);`,
+    ].join('\n');
+    const result = transformPreferTestEach({ filePath: testPath(), content });
+    expect(result.changed).toBe(false);
+    expect(result.newContent).toBe(content);
+    expect(result.manualReview).toHaveLength(0);
+  });
+
+  it('leaves blocks with mixed non-expect statements unchanged without manualReview', () => {
+    const content = [
+      `it('mixed', () => {`,
+      `  const x = setup();`,
+      `  expect(fn('a')).toBe(false);`,
+      `  expect(fn('b')).toBe(false);`,
+      `  expect(fn('c')).toBe(false);`,
+      `});`,
+    ].join('\n');
+    const result = transformPreferTestEach({ filePath: testPath(), content });
+    expect(result.changed).toBe(false);
+    expect(result.newContent).toBe(content);
+  });
+
+  it('appends title with `: %s` suffix in generated test.each description', () => {
+    const content = [
+      `test('my description', () => {`,
+      `  expect(check(1)).toBe(false);`,
+      `  expect(check(2)).toBe(false);`,
+      `  expect(check(3)).toBe(false);`,
+      `});`,
+    ].join('\n');
+    const result = transformPreferTestEach({ filePath: testPath(), content });
+    expect(result.changed).toBe(true);
+    expect(result.newContent).toContain("'my description: %s'");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// runCodemod dry-run integration (transformPreferTestEach)
+// ---------------------------------------------------------------------------
+
+describe('runCodemod dry-run (transformPreferTestEach)', () => {
+  /** excludeDirs matching the codemod's production runner — includes tests/ directories */
+  const codemodExcludeDirs = ['node_modules', '.git', 'dist', '.next', 'generated', 'prisma', 'scripts'];
+
+  it('does NOT write files in dry-run mode', () => {
+    const content = [
+      `test('should be converted', () => {`,
+      `  expect(isValid('a')).toBe(false);`,
+      `  expect(isValid('b')).toBe(false);`,
+      `  expect(isValid('c')).toBe(false);`,
+      `});`,
+    ].join('\n');
+    const filePath = write('services/foo.test.ts', content);
+    const before = readFileSync(filePath, 'utf-8');
+
+    runCodemod(transformPreferTestEach, {
+      roots: [tmpDir],
+      extensions: ['.test.ts'],
+      excludeDirs: codemodExcludeDirs,
+      label: 'test-each-dry',
+      write: false,
+    });
+
+    const after = readFileSync(filePath, 'utf-8');
+    expect(after).toBe(before);
+  });
+
+  it('scans tests/ directory when excludeDirs overrides DEFAULT_EXCLUDE_DIRS', () => {
+    // NOTE: DEFAULT_EXCLUDE_DIRS includes 'tests', so without the override this file
+    // would be skipped. This test verifies the production excludeDirs argument works.
+    const content = [
+      `test('pattern B', () => {`,
+      `  expect(isValid('a')).toBe(false);`,
+      `  expect(isValid('b')).toBe(false);`,
+      `  expect(isValid('c')).toBe(false);`,
+      `});`,
+    ].join('\n');
+    write('tests/foo.test.ts', content);
+
+    const summary = runCodemod(transformPreferTestEach, {
+      roots: [tmpDir],
+      extensions: ['.test.ts'],
+      excludeDirs: codemodExcludeDirs,
+      label: 'test-each-tests-dir',
+      write: false,
+    });
+
+    // The file in tests/ should be found and detected as changed
+    expect(summary.changed).toBeGreaterThan(0);
+  });
+
+  it('returns correct changed/unchanged counts', () => {
+    write(
+      'services/a.test.ts',
+      [
+        `test('pattern B', () => {`,
+        `  expect(isValid('a')).toBe(false);`,
+        `  expect(isValid('b')).toBe(false);`,
+        `  expect(isValid('c')).toBe(false);`,
+        `});`,
+      ].join('\n'),
+    );
+    write('services/b.test.ts', `const x = 1;\n`);
+
+    const summary = runCodemod(transformPreferTestEach, {
+      roots: [tmpDir],
+      extensions: ['.test.ts'],
+      excludeDirs: codemodExcludeDirs,
+      label: 'test-each-summary',
       write: false,
     });
 
