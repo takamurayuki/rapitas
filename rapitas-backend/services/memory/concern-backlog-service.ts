@@ -149,7 +149,13 @@ export async function submitConcern(input: SubmitConcernInput): Promise<number> 
     const anchorId = await findSaturatedTheme(input.title, {
       sourceType: 'concern',
       cap: 3,
-      salient: 8,
+      // 8 chars was too high for Japanese: theme markers like "境界値テスト"(6),
+      // "差分スキャン"(6), "マニフェスト"(6), "型ガード生成"(6) share only 4-6 chars,
+      // so a "境界値テスト自動生成/drift検知" monoculture slipped straight through
+      // (lcsLen maxed at 6 across the cluster). 5 catches those 5-6 char clusters
+      // while staying above the 3-char generic words (テスト/自動/生成/CI) that must
+      // NOT trip the gate. Env-tunable. (Idea gate uses SALIENT_LEN=4 / cap=8.)
+      salient: Number(process.env.RAPITAS_CONCERN_SATURATION_SALIENT) || 5,
       openConcernOnly: true,
     });
     if (anchorId != null) {
