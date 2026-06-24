@@ -3,7 +3,7 @@ import type { Task } from '@/types';
 import type { WorkflowStatus } from '@/types';
 import WorkflowViewer from '@/components/workflow/WorkflowViewer';
 import WorkflowStatusIndicator from '@/components/workflow/WorkflowStatusIndicator';
-import { Loader2, Feather, Gauge, Layers, type LucideIcon } from 'lucide-react';
+import { Loader2, Square, Layers2, Layers3, type LucideIcon } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { API_BASE_URL } from '@/utils/api';
 
@@ -79,27 +79,28 @@ export default function TaskWorkflowSection({
         ? 'subtask-global'
         : undefined;
 
-  // Colour + icon the complexity chip by workflow mode so the tier is legible
-  // at a glance (low→high = emerald/Feather → amber/Gauge → rose/Layers). A
-  // mode-specific icon also avoids clashing with the auto-approve chip's dot.
+  // Colour + icon the complexity chip by workflow mode. The icons are a COHESIVE
+  // ascending set — stacked layers (1→2→3 層) — so the tier 簡単/標準/高度 reads at a
+  // glance as increasing difficulty. Square/Layers2/Layers3 read as 1→2→3 layers
+  // — more layers = more complex; distinct from Layers (overloaded) is acceptable as the chip context disambiguates.
   const MODE_STYLES: Record<string, { chip: string; icon: LucideIcon }> = {
     lightweight: {
       chip: 'bg-emerald-50 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300',
-      icon: Feather,
+      icon: Square,
     },
     standard: {
       chip: 'bg-amber-50 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300',
-      icon: Gauge,
+      icon: Layers2,
     },
     comprehensive: {
       chip: 'bg-rose-50 text-rose-700 dark:bg-rose-900/30 dark:text-rose-300',
-      icon: Layers,
+      icon: Layers3,
     },
   };
   const MODE_LABELS: Record<string, string> = {
-    lightweight: '軽量',
+    lightweight: '簡単',
     standard: '標準',
-    comprehensive: '包括',
+    comprehensive: '高度',
   };
   const complexity = task?.complexityScore;
   const modeLabel = task?.workflowMode
@@ -109,7 +110,7 @@ export default function TaskWorkflowSection({
   // Brand-coloured fallback keeps the chip visible when the mode is unknown.
   const complexityChipClass =
     modeStyle?.chip ?? 'bg-indigo-50 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300';
-  const ComplexityIcon = modeStyle?.icon ?? Gauge;
+  const ComplexityIcon = modeStyle?.icon ?? Layers2;
 
   return (
     <div className="bg-white dark:bg-indigo-dark-900 rounded-lg border border-zinc-200 dark:border-zinc-800 mb-6">

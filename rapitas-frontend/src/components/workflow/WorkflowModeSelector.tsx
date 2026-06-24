@@ -22,7 +22,7 @@ export interface WorkflowModeConfig {
 const WORKFLOW_MODE_CONFIGS: Record<WorkflowMode, WorkflowModeConfig> = {
   lightweight: {
     mode: 'lightweight',
-    name: '軽量モード',
+    name: '簡単モード',
     description: 'バグ修正、UI調整、軽微な変更に最適',
     estimatedTime: '15-30分',
     steps: ['実装', '自動検証'],
@@ -42,7 +42,7 @@ const WORKFLOW_MODE_CONFIGS: Record<WorkflowMode, WorkflowModeConfig> = {
   },
   comprehensive: {
     mode: 'comprehensive',
-    name: '詳細モード',
+    name: '高度モード',
     description: '大規模機能、アーキテクチャ変更に最適',
     estimatedTime: '3-4時間',
     steps: ['調査', '計画作成', '実装', '検証'],

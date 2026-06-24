@@ -59,9 +59,9 @@ const ruleTypeColors: Record<string, string> = {
 };
 
 const modeLabels: Record<string, string> = {
-  lightweight: '軽量',
+  lightweight: '簡単',
   standard: '標準',
-  comprehensive: '包括的',
+  comprehensive: '高度',
 };
 
 export function WorkflowLearningPanel() {

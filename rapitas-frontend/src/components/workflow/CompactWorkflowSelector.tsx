@@ -2,9 +2,9 @@
 
 import { useState, useEffect } from 'react';
 import {
-  Zap,
-  Target,
-  Microscope,
+  Square,
+  Layers2,
+  Layers3,
   BarChart3,
   Info,
   Loader2,
@@ -24,7 +24,7 @@ export interface WorkflowModeConfig {
   description: string;
   estimatedTime: string;
   steps: string[];
-  icon: typeof Zap | typeof Target | typeof Microscope;
+  icon: typeof Square | typeof Layers2 | typeof Layers3;
   color: string;
   bgColor: string;
 }
@@ -49,11 +49,11 @@ export interface ComplexityScore {
 const WORKFLOW_MODE_CONFIGS: Record<WorkflowMode, WorkflowModeConfig> = {
   lightweight: {
     mode: 'lightweight',
-    name: '軽量',
+    name: '簡単',
     description: 'バグ修正、UI調整、軽微な変更に最適',
     estimatedTime: '20-40分',
     steps: ['調査', '実装', '自動検証'],
-    icon: Zap,
+    icon: Square,
     color: 'text-green-600 dark:text-green-400',
     bgColor: 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800/50',
   },
@@ -63,17 +63,17 @@ const WORKFLOW_MODE_CONFIGS: Record<WorkflowMode, WorkflowModeConfig> = {
     description: '中規模機能追加、リファクタリングに最適',
     estimatedTime: '1-2時間',
     steps: ['調査', '計画作成', '実装', '検証'],
-    icon: Target,
+    icon: Layers2,
     color: 'text-blue-600 dark:text-blue-400',
     bgColor: 'bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800/50',
   },
   comprehensive: {
     mode: 'comprehensive',
-    name: '詳細',
+    name: '高度',
     description: '大規模機能、アーキテクチャ変更に最適',
     estimatedTime: '3-4時間',
     steps: ['調査', '計画作成', 'レビュー', '実装', '検証'],
-    icon: Microscope,
+    icon: Layers3,
     color: 'text-purple-600 dark:text-purple-400',
     bgColor: 'bg-purple-50 dark:bg-purple-900/20 border-purple-200 dark:border-purple-800/50',
   },
