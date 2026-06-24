@@ -10,22 +10,50 @@
 import { existsSync, readFileSync } from 'fs';
 import { join } from 'path';
 
+// NOTE: Inline parse equivalent to scripts/gate-manifest-parser.ts:parseGateManifest.
+// Inlined to avoid a services/ → scripts/ layer-crossing import.
+function parseManifestLines(text: string): string[] {
+  return text
+    .split('\n')
+    .map((line) => line.trim())
+    .filter((line) => line.length > 0 && !line.startsWith('#'));
+}
+
 /**
- * Serial gate file list — must match .github/workflows/test-lint.yml `test-backend` job exactly.
- * YAML drift is caught by the drift-guard unit test in ci-timing.test.ts.
+ * Fallback gate list used when scripts/ci-gate-tests.txt cannot be read.
+ * NOTE: Corrected from the stale hard-coded list; task-dependency-service → task-resolver.
  */
-export const SERIAL_GATE_FILES: readonly string[] = [
+const SERIAL_GATE_FALLBACK: readonly string[] = [
   'tests/debug-log-analyzer.test.ts',
   'tests/debug-log-parsers.test.ts',
   'tests/event-emitter.test.ts',
   'tests/metrics-collector.test.ts',
   'tests/registry.test.ts',
   'services/ai/weekly-review-service.test.ts',
-  'services/task/task-dependency-service.test.ts',
+  'services/task/task-resolver.test.ts',
   'services/agents/verification/automated-verifier.test.ts',
   'tests/integration/claude-code-agent.integration.test.ts',
   'tests/middleware/error-handler.test.ts',
 ];
+
+function loadSerialGateFiles(): readonly string[] {
+  try {
+    // NOTE: import.meta.dir = services/analytics/ — two levels up is backend root.
+    const manifestPath = join(import.meta.dir, '..', '..', 'scripts', 'ci-gate-tests.txt');
+    const text = readFileSync(manifestPath, 'utf-8');
+    const parsed = parseManifestLines(text);
+    return parsed.length > 0 ? parsed : SERIAL_GATE_FALLBACK;
+  } catch {
+    return SERIAL_GATE_FALLBACK;
+  }
+}
+
+/**
+ * Serial gate file list — loaded from scripts/ci-gate-tests.txt (SSOT).
+ * Falls back to a corrected built-in list when the manifest cannot be read.
+ * Drift is caught by the manifest drift guard in ci-timing.test.ts.
+ */
+export const SERIAL_GATE_FILES: readonly string[] = loadSerialGateFiles();
 
 /** Single test file timing entry stored in the JSON cache. */
 export interface TimingEntry {

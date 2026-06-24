@@ -257,75 +257,223 @@ export function detectOrphans(docFiles: string[], root: string = ROOT): string[]
   return orphans;
 }
 
+// ── Phase helpers ─────────────────────────────────────────────────────────────
+
+/**
+ * Parses the --phase CLI argument.
+ *
+ * @param argv - process.argv array to scan.
+ * @returns 1, 2, or 'all' when --phase is absent.
+ * @throws {Error} For unrecognised --phase values (e.g. --phase=3).
+ */
+export function parsePhase(argv: string[]): 1 | 2 | 'all' {
+  const flag = argv.find((a) => a.startsWith('--phase='));
+  if (!flag) return 'all';
+  const value = flag.slice('--phase='.length);
+  if (value === '1') return 1;
+  if (value === '2') return 2;
+  throw new Error(`Unknown --phase value: "${value}". Valid values are 1 or 2.`);
+}
+
+/**
+ * Runs Phase 1: broken-links (Domain 1) + orphans (Domain 3).
+ * Domain 2 (duplicates / O(n²)) is not executed.
+ *
+ * NOTE: Path references are computed once per file and shared between
+ *       broken-link and orphan detection, halving existsSync calls compared
+ *       to calling checkBrokenLinks + detectOrphans independently.
+ *
+ * @param docFiles - Absolute paths of all doc files to scan.
+ * @param root - Absolute path to rapitas-backend/ for path resolution.
+ * @returns Broken-link violations (absolute file path) and orphan candidates.
+ */
+export function runPhase1(
+  docFiles: string[],
+  root: string,
+): {
+  brokenLinks: { file: string; line: number; path: string }[];
+  orphans: string[];
+} {
+  const brokenLinks: { file: string; line: number; path: string }[] = [];
+  const orphans: string[] = [];
+
+  for (const docFile of docFiles) {
+    const content = read(docFile);
+    if (isRedirectStub(content)) continue;
+
+    const refs = extractDocPaths(content);
+    const broken = refs.filter(({ path }) => !existsSync(resolveDocPath(path, root)));
+
+    for (const { line, path } of broken) {
+      brokenLinks.push({ file: docFile, line, path });
+    }
+
+    if (refs.length > 0 && broken.length / refs.length > 0.5) {
+      orphans.push(docFile);
+    }
+  }
+
+  return { brokenLinks, orphans };
+}
+
+/**
+ * Runs Phase 2: duplicate/double-managed docs (Domain 2).
+ * Domain 1 (broken-links) and Domain 3 (orphans) are not executed.
+ *
+ * @param docFiles - Absolute paths of all doc files to compare.
+ * @returns Duplicate pairs with Jaccard similarity scores.
+ */
+export function runPhase2(docFiles: string[]): {
+  duplicates: { a: string; b: string; score: number }[];
+} {
+  return { duplicates: detectDuplicates(docFiles) };
+}
+
 // ── CLI execution (guarded so tests can import without side effects) ──────────
 
 if (import.meta.main) {
+  let phase: 1 | 2 | 'all';
+  try {
+    phase = parsePhase(process.argv);
+  } catch (err) {
+    process.stderr.write(`Error: ${(err as Error).message}\n`);
+    process.exit(1);
+  }
+
   console.log('Checking docs/ health...\n');
 
   const docFiles = collectDocFiles(DOCS_DIR);
   console.log(`Found ${docFiles.length} doc file(s) in ${rel(DOCS_DIR)}/\n`);
 
-  // Domain 1: Broken links
-  const brokenLinkViolations: { file: string; line: number; path: string }[] = [];
-  for (const docFile of docFiles) {
-    const content = read(docFile);
-    const broken = checkBrokenLinks(docFile, content, ROOT);
-    for (const { line, path } of broken) {
-      brokenLinkViolations.push({ file: rel(docFile), line, path });
-    }
-  }
-
-  // Domain 2: Duplicate / double-managed docs
-  const duplicateViolations = detectDuplicates(docFiles);
-
-  // Domain 3: Orphaned docs (always warn-only)
-  const orphanViolations = detectOrphans(docFiles);
-
-  // ── Report ────────────────────────────────────────────────────────────────
-
-  console.log(`Domain 1 (Broken links): ${brokenLinkViolations.length} violation(s)`);
-  for (const v of brokenLinkViolations.slice(0, 30)) {
-    const prefix = WARN_ONLY ? '  ⚠️ ' : '  ❌';
-    console.log(`${prefix} ${v.file}:${v.line}  →  \`${v.path}\``);
-  }
-  if (brokenLinkViolations.length > 30) {
-    console.log(`  ... and ${brokenLinkViolations.length - 30} more`);
-  }
-
-  console.log(
-    `\nDomain 2 (Duplicate/double-managed docs): ${duplicateViolations.length} violation(s)`,
-  );
-  for (const v of duplicateViolations) {
-    const prefix = WARN_ONLY ? '  ⚠️ ' : '  ❌';
-    console.log(`${prefix} ${rel(v.a)}  ↔  ${rel(v.b)}  (Jaccard=${v.score.toFixed(2)})`);
-  }
-
-  // Domain 3 is always warn-only regardless of --check mode
-  console.log(
-    `\nDomain 3 (Orphaned docs — broken-link rate >50%) [warn-only]: ${orphanViolations.length} candidate(s)`,
-  );
-  for (const f of orphanViolations) {
-    console.log(`  ⚠️  ${rel(f)}`);
-  }
-
-  // ── Exit code ─────────────────────────────────────────────────────────────
-
-  const total = brokenLinkViolations.length + duplicateViolations.length;
-  const exitCode = total === 0 || WARN_ONLY ? 0 : 1;
-  const icon = total === 0 ? '✅' : WARN_ONLY ? '⚠️ ' : '❌';
-
-  console.log(
-    `\nResult: ${icon} ${total} total violation(s) in enforced domains (EXIT=${exitCode})`,
-  );
-
-  if (total > 0 && WARN_ONLY) {
-    console.log('[warn-only mode] Violations detected but exiting 0.');
-  } else if (total > 0 && !WARN_ONLY) {
-    console.log(
-      'Fix broken links by updating references to moved/deleted files,\n' +
-        'and resolve duplicate docs by removing the hand-maintained copy.',
+  if (phase === 1) {
+    // ── Phase 1: Domain 1 (Broken links) + Domain 3 (Orphans) ────────────────
+    const { brokenLinks: brokenLinkViolations, orphans: orphanViolations } = runPhase1(
+      docFiles,
+      ROOT,
     );
-  }
 
-  process.exit(exitCode);
+    console.log(`Domain 1 (Broken links): ${brokenLinkViolations.length} violation(s)`);
+    for (const v of brokenLinkViolations.slice(0, 30)) {
+      const prefix = WARN_ONLY ? '  ⚠️ ' : '  ❌';
+      console.log(`${prefix} ${rel(v.file)}:${v.line}  →  \`${v.path}\``);
+    }
+    if (brokenLinkViolations.length > 30) {
+      console.log(`  ... and ${brokenLinkViolations.length - 30} more`);
+    }
+
+    console.log(
+      `\nDomain 3 (Orphaned docs — broken-link rate >50%) [warn-only]: ${orphanViolations.length} candidate(s)`,
+    );
+    for (const f of orphanViolations) {
+      console.log(`  ⚠️  ${rel(f)}`);
+    }
+
+    // NOTE: Orphans (Domain 3) are always warn-only; Phase 1 enforces broken-links only.
+    const total = brokenLinkViolations.length;
+    const exitCode = total === 0 || WARN_ONLY ? 0 : 1;
+    const icon = total === 0 ? '✅' : WARN_ONLY ? '⚠️ ' : '❌';
+
+    console.log(
+      `\nResult: ${icon} ${total} total violation(s) in enforced domains (EXIT=${exitCode})`,
+    );
+    if (total > 0 && WARN_ONLY) {
+      console.log('[warn-only mode] Violations detected but exiting 0.');
+    } else if (total > 0 && !WARN_ONLY) {
+      console.log('Fix broken links by updating references to moved/deleted files.');
+    }
+
+    process.exit(exitCode);
+  } else if (phase === 2) {
+    // ── Phase 2: Domain 2 (Duplicates) only ──────────────────────────────────
+    const { duplicates: duplicateViolations } = runPhase2(docFiles);
+
+    console.log(
+      `Domain 2 (Duplicate/double-managed docs): ${duplicateViolations.length} violation(s)`,
+    );
+    for (const v of duplicateViolations) {
+      const prefix = WARN_ONLY ? '  ⚠️ ' : '  ❌';
+      console.log(`${prefix} ${rel(v.a)}  ↔  ${rel(v.b)}  (Jaccard=${v.score.toFixed(2)})`);
+    }
+
+    const total = duplicateViolations.length;
+    const exitCode = total === 0 || WARN_ONLY ? 0 : 1;
+    const icon = total === 0 ? '✅' : WARN_ONLY ? '⚠️ ' : '❌';
+
+    console.log(
+      `\nResult: ${icon} ${total} total violation(s) in enforced domains (EXIT=${exitCode})`,
+    );
+    if (total > 0 && WARN_ONLY) {
+      console.log('[warn-only mode] Violations detected but exiting 0.');
+    } else if (total > 0 && !WARN_ONLY) {
+      console.log('Resolve duplicate docs by removing the hand-maintained copy.');
+    }
+
+    process.exit(exitCode);
+  } else {
+    // ── all: Domain 1 + 2 + 3 (original behaviour — backward compatible) ────
+
+    // Domain 1: Broken links
+    const brokenLinkViolations: { file: string; line: number; path: string }[] = [];
+    for (const docFile of docFiles) {
+      const content = read(docFile);
+      const broken = checkBrokenLinks(docFile, content, ROOT);
+      for (const { line, path } of broken) {
+        brokenLinkViolations.push({ file: rel(docFile), line, path });
+      }
+    }
+
+    // Domain 2: Duplicate / double-managed docs
+    const duplicateViolations = detectDuplicates(docFiles);
+
+    // Domain 3: Orphaned docs (always warn-only)
+    const orphanViolations = detectOrphans(docFiles);
+
+    // ── Report ──────────────────────────────────────────────────────────────
+
+    console.log(`Domain 1 (Broken links): ${brokenLinkViolations.length} violation(s)`);
+    for (const v of brokenLinkViolations.slice(0, 30)) {
+      const prefix = WARN_ONLY ? '  ⚠️ ' : '  ❌';
+      console.log(`${prefix} ${v.file}:${v.line}  →  \`${v.path}\``);
+    }
+    if (brokenLinkViolations.length > 30) {
+      console.log(`  ... and ${brokenLinkViolations.length - 30} more`);
+    }
+
+    console.log(
+      `\nDomain 2 (Duplicate/double-managed docs): ${duplicateViolations.length} violation(s)`,
+    );
+    for (const v of duplicateViolations) {
+      const prefix = WARN_ONLY ? '  ⚠️ ' : '  ❌';
+      console.log(`${prefix} ${rel(v.a)}  ↔  ${rel(v.b)}  (Jaccard=${v.score.toFixed(2)})`);
+    }
+
+    // Domain 3 is always warn-only regardless of --check mode
+    console.log(
+      `\nDomain 3 (Orphaned docs — broken-link rate >50%) [warn-only]: ${orphanViolations.length} candidate(s)`,
+    );
+    for (const f of orphanViolations) {
+      console.log(`  ⚠️  ${rel(f)}`);
+    }
+
+    // ── Exit code ────────────────────────────────────────────────────────────
+
+    const total = brokenLinkViolations.length + duplicateViolations.length;
+    const exitCode = total === 0 || WARN_ONLY ? 0 : 1;
+    const icon = total === 0 ? '✅' : WARN_ONLY ? '⚠️ ' : '❌';
+
+    console.log(
+      `\nResult: ${icon} ${total} total violation(s) in enforced domains (EXIT=${exitCode})`,
+    );
+
+    if (total > 0 && WARN_ONLY) {
+      console.log('[warn-only mode] Violations detected but exiting 0.');
+    } else if (total > 0 && !WARN_ONLY) {
+      console.log(
+        'Fix broken links by updating references to moved/deleted files,\n' +
+          'and resolve duplicate docs by removing the hand-maintained copy.',
+      );
+    }
+
+    process.exit(exitCode);
+  }
 }

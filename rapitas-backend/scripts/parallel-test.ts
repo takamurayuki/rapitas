@@ -9,17 +9,23 @@
  * Integration tests are excluded via INTEGRATION_EXCLUDE_PATTERN from shuffle-test.ts.
  *
  * Environment variables:
- *   RAPITAS_TEST_CONCURRENCY  Max parallel subprocesses (default: max(1, cpuCount-1))
- *   RAPITAS_TEST_FAILFAST     Set to "1" to stop dispatching new files on first failure
+ *   RAPITAS_TEST_CONCURRENCY    Max parallel subprocesses (default: max(1, cpuCount-1))
+ *   RAPITAS_TEST_FAILFAST       Set to "1" to stop dispatching new files on first failure
+ *   RAPITAS_TEST_RETRY_COUNT    Additional retry attempts on failure (default: 0, disabled)
+ *   RAPITAS_TEST_REPORT         Set to "1" to write .rapitas-test-report.json on completion
+ *   RAPITAS_TEST_REPORT_PATH    Explicit output path for the test report (implies reporting)
  *
  * Usage:
  *   bun scripts/parallel-test.ts
  *   RAPITAS_TEST_CONCURRENCY=8 bun scripts/parallel-test.ts
+ *   RAPITAS_TEST_RETRY_COUNT=2 RAPITAS_TEST_REPORT=1 bun scripts/parallel-test.ts
  */
 
 import { cpus } from 'os';
 import { relative, resolve } from 'path';
 import { collectTestFiles } from './shuffle-test';
+import { writeTestReport } from './test-report';
+import type { TestResultEntry } from './test-report';
 
 /** Completed result for a single test file subprocess. */
 export interface TestResult {
@@ -33,6 +39,20 @@ export interface TestResult {
   stderr: string;
   /** Wall-clock elapsed time in milliseconds. */
   elapsedMs: number;
+}
+
+/**
+ * Parses RAPITAS_TEST_RETRY_COUNT into a non-negative integer retry count.
+ * Returns 0 (disabled) for undefined, empty, non-numeric, negative, or Infinity input.
+ *
+ * @param envValue - Raw RAPITAS_TEST_RETRY_COUNT value / 環境変数の生の値
+ * @returns Non-negative integer number of additional retry attempts (0 = no retry)
+ */
+export function parseRetryCount(envValue: string | undefined): number {
+  if (envValue === undefined || envValue === '') return 0;
+  const parsed = parseInt(envValue, 10);
+  if (!Number.isFinite(parsed) || parsed <= 0) return 0;
+  return parsed;
 }
 
 /**
@@ -128,6 +148,7 @@ async function main(): Promise<void> {
   const root = resolve(import.meta.dir, '..');
   const concurrency = resolveConcurrency(process.env.RAPITAS_TEST_CONCURRENCY, cpus().length);
   const failFast = process.env.RAPITAS_TEST_FAILFAST === '1';
+  const retryCount = parseRetryCount(process.env.RAPITAS_TEST_RETRY_COUNT);
 
   const files = await collectTestFiles(root);
 
@@ -137,11 +158,12 @@ async function main(): Promise<void> {
   }
 
   console.log(
-    `[parallel-test] files=${files.length} concurrency=${concurrency}${failFast ? ' fail-fast=ON' : ''}`,
+    `[parallel-test] files=${files.length} concurrency=${concurrency}${failFast ? ' fail-fast=ON' : ''}${retryCount > 0 ? ` retry=${retryCount}` : ''}`,
   );
   const wallStart = performance.now();
 
   const results: TestResult[] = [];
+  const reportResults: TestResultEntry[] = [];
   let completed = 0;
   let firstFailCode = 0;
   const queue = [...files];
@@ -151,6 +173,8 @@ async function main(): Promise<void> {
    * Multiple workers run concurrently, draining the queue in parallel.
    * NOTE: queue.shift() is race-free because JS is single-threaded — no await
    * between the length check and the shift, so no other worker can interleave.
+   * NOTE: Retry happens within the current file before dispatching the next one,
+   * so fail-fast only stops new dispatches after all retries for the current file finish.
    */
   async function worker(): Promise<void> {
     while (queue.length > 0) {
@@ -159,7 +183,17 @@ async function main(): Promise<void> {
       if (!file) break;
 
       const relPath = relative(root, file);
-      const result = await runFile(file, root);
+      let result = await runFile(file, root);
+      let attempts = 1;
+
+      // Retry on failure up to retryCount additional times.
+      while (result.exitCode !== 0 && attempts <= retryCount) {
+        console.log(`[parallel-test] Retry ${attempts}/${retryCount}: ${relPath}`);
+        result = await runFile(file, root);
+        attempts++;
+      }
+
+      const flaky = result.exitCode === 0 && attempts > 1;
 
       completed++;
       const passed = result.exitCode === 0;
@@ -173,6 +207,13 @@ async function main(): Promise<void> {
       }
 
       results.push(result);
+      reportResults.push({
+        file: relPath,
+        elapsedMs: result.elapsedMs,
+        exitCode: result.exitCode,
+        attempts,
+        flaky,
+      });
 
       if (!passed && firstFailCode === 0) {
         firstFailCode = result.exitCode > 0 ? result.exitCode : 1;
@@ -205,6 +246,12 @@ async function main(): Promise<void> {
       if (r.stdout.trim()) process.stdout.write(r.stdout);
       if (r.stderr.trim()) process.stderr.write(r.stderr);
     }
+  }
+
+  // Write test report if enabled via env (RAPITAS_TEST_REPORT=1 or RAPITAS_TEST_REPORT_PATH).
+  const reportPath = writeTestReport(reportResults, wallMs, new Date().toISOString(), root);
+  if (reportPath) {
+    console.log(`[parallel-test] Test report written to: ${reportPath}`);
   }
 
   process.exit(aggregateExitCode(results));

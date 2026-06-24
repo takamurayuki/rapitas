@@ -24,6 +24,8 @@
     "check:ssot": "bun run scripts/check-ssot-drift.ts --check",
     "check:docs": "bun run scripts/check-docs-health.ts",
     "check:docs:strict": "bun run scripts/check-docs-health.ts --check",
+    "check:docs:phase1": "bun run scripts/check-docs-health.ts --phase=1",
+    "check:docs:phase2": "bun run scripts/check-docs-health.ts --phase=2",
     "eval:gates": "bun run scripts/eval-gates.ts",
     "eval:judge": "bun run scripts/eval-judge.ts",
     "db:push": "prisma db push",
