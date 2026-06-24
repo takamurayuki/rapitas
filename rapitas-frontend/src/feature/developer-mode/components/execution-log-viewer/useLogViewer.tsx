@@ -4,41 +4,45 @@
  * execution-log-viewer/useLogViewer.ts
  *
  * Custom hook that encapsulates layout state, auto-scroll, log transforms,
- * and clipboard logic for ExecutionLogViewer.
+ * clipboard logic, and search FILTERING for ExecutionLogViewer.
  *
- * Search state is delegated to useLogSearch.  Returns stable callbacks and
- * derived values so the component itself stays thin and focused on rendering.
+ * The viewer always renders the formatted "simple" entries; search filters those
+ * entries (by message/detail) and an optional "errors only" quick-filter narrows
+ * them further. Query state is delegated to useLogSearch. Returns stable callbacks
+ * and derived values so the component itself stays thin and focused on rendering.
  */
 
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import {
   transformLogsToSimple,
-  detectCurrentPhase,
   generateExecutionSummary,
 } from '../../utils/log-message-transformer';
-import type { ExecutionLogViewMode } from './types';
+import type { UserFriendlyLogEntry } from '../../utils/log-pattern-rules';
 import { useLogSearch } from './useLogSearch';
 
 type UseLogViewerOptions = {
   logs: string[];
   defaultExpanded: boolean;
   defaultFullscreen: boolean;
-  defaultViewMode: ExecutionLogViewMode;
 };
 
 type UseLogViewerReturn = {
   // Layout state
   isExpanded: boolean;
   isFullscreen: boolean;
-  viewMode: ExecutionLogViewMode;
   copied: boolean;
   autoScroll: boolean;
 
-  // Search state (forwarded from useLogSearch)
+  // Search / filter state
   searchQuery: string;
-  searchMatches: number[];
-  currentMatchIndex: number;
+  /** Debounced query used for highlighting (kept in sync with the filtered set). */
+  highlightQuery: string;
   searchInputRef: React.RefObject<HTMLInputElement | null>;
+  errorOnly: boolean;
+  /** True when any filter (search text or errors-only) is narrowing the entries. */
+  hasActiveFilter: boolean;
+  /** Number of entries currently shown (after filtering). */
+  matchCount: number;
 
   // Scroll ref for the log container
   logContainerRef: React.RefObject<HTMLDivElement | null>;
@@ -47,8 +51,9 @@ type UseLogViewerReturn = {
   displayedLogsCount: number;
 
   // Derived / memoized
-  simpleLogEntries: ReturnType<typeof transformLogsToSimple>;
-  currentPhase: ReturnType<typeof detectCurrentPhase>;
+  simpleLogEntries: UserFriendlyLogEntry[];
+  /** simpleLogEntries after applying the search + errors-only filters. */
+  filteredSimpleEntries: UserFriendlyLogEntry[];
   executionSummary: ReturnType<typeof generateExecutionSummary> | null;
 
   // Callbacks
@@ -58,19 +63,17 @@ type UseLogViewerReturn = {
   scrollToBottom: () => void;
   toggleFullscreen: () => void;
   toggleExpanded: () => void;
-  toggleViewMode: () => void;
+  toggleErrorOnly: () => void;
   handleCopyLogs: () => void;
   clearSearchQuery: () => void;
   handleSearchQueryChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
   handleSearchKeyDown: (e: React.KeyboardEvent) => void;
-  goToNextMatch: () => void;
-  goToPreviousMatch: () => void;
   highlightText: (text: string, query: string) => React.ReactNode;
 };
 
 /**
- * Manages layout state, auto-scroll, clipboard, and derived values for the log viewer.
- * Delegates search behaviour to {@link useLogSearch}.
+ * Manages layout state, auto-scroll, clipboard, and derived/filtered values for
+ * the log viewer. Delegates search-query state to {@link useLogSearch}.
  *
  * @param options - Initial configuration derived from the component props. / コンポーネント props から導出した初期設定。
  * @returns Stable state, callbacks, and refs consumed by the view layer. / ビュー層が使うステート・コールバック・ref。
@@ -79,14 +82,13 @@ export function useLogViewer({
   logs,
   defaultExpanded,
   defaultFullscreen,
-  defaultViewMode,
 }: UseLogViewerOptions): UseLogViewerReturn {
   const [isExpanded, setIsExpanded] = useState(defaultExpanded);
   const [isFullscreen, setIsFullscreen] = useState(defaultFullscreen);
-  const [viewMode, setViewMode] = useState<ExecutionLogViewMode>(defaultViewMode);
   const [copied, setCopied] = useState(false);
+  const [errorOnly, setErrorOnly] = useState(false);
 
-  const search = useLogSearch({ logs });
+  const search = useLogSearch();
 
   const logContainerRef = useRef<HTMLDivElement>(null);
   // NOTE: Flag to control auto-scroll behaviour
@@ -151,65 +153,6 @@ export function useLogViewer({
     };
   }, [logs.length, autoScroll]);
 
-  // Scroll the container to the current search match position
-  const jumpToMatchInContainer = useCallback(
-    (matchIndex: number) => {
-      if (
-        search.searchMatches.length === 0 ||
-        matchIndex < 0 ||
-        matchIndex >= search.searchMatches.length
-      )
-        return;
-
-      const fullText = logs.join('');
-      const targetPosition = search.searchMatches[matchIndex];
-      const textBefore = fullText.substring(0, targetPosition);
-      const lineNumber = textBefore.split('\n').length;
-
-      if (logContainerRef.current) {
-        const estimatedLineHeight = 20;
-        const scrollPosition = Math.max(0, (lineNumber - 3) * estimatedLineHeight);
-        logContainerRef.current.scrollTo({
-          top: scrollPosition,
-          behavior: 'smooth',
-        });
-        setAutoScroll(false);
-      }
-
-      // Delegate index update to the search hook
-      search.jumpToMatch(matchIndex);
-    },
-    [search, logs],
-  );
-
-  const goToNextMatch = useCallback(() => {
-    if (search.searchMatches.length === 0) return;
-    const nextIndex = (search.currentMatchIndex + 1) % search.searchMatches.length;
-    jumpToMatchInContainer(nextIndex);
-  }, [search.currentMatchIndex, search.searchMatches.length, jumpToMatchInContainer]);
-
-  const goToPreviousMatch = useCallback(() => {
-    if (search.searchMatches.length === 0) return;
-    const prevIndex =
-      (search.currentMatchIndex - 1 + search.searchMatches.length) % search.searchMatches.length;
-    jumpToMatchInContainer(prevIndex);
-  }, [search.currentMatchIndex, search.searchMatches.length, jumpToMatchInContainer]);
-
-  const handleSearchKeyDown = useCallback(
-    (e: React.KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        search.clearSearchQuery();
-      } else if (e.key === 'Enter') {
-        if (e.shiftKey) {
-          goToPreviousMatch();
-        } else {
-          goToNextMatch();
-        }
-      }
-    },
-    [goToNextMatch, goToPreviousMatch, search],
-  );
-
   const scrollToBottom = useCallback(() => {
     if (logContainerRef.current) {
       logContainerRef.current.scrollTo({
@@ -224,21 +167,21 @@ export function useLogViewer({
     setIsFullscreen((prev) => !prev);
   }, []);
 
+  const toggleExpanded = useCallback(() => {
+    setIsExpanded((prev) => !prev);
+  }, []);
+
+  const toggleErrorOnly = useCallback(() => {
+    setErrorOnly((prev) => !prev);
+  }, []);
+
   const handleCopyLogs = useCallback(() => {
     navigator.clipboard.writeText(logs.join(''));
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   }, [logs]);
 
-  const toggleExpanded = useCallback(() => {
-    setIsExpanded((prev) => !prev);
-  }, []);
-
-  const toggleViewMode = useCallback(() => {
-    setViewMode((prev) => (prev === 'simple' ? 'detailed' : 'simple'));
-  }, []);
-
-  // Helper to highlight matching text
+  // Helper to highlight matching text inside a rendered message.
   const highlightText = useCallback((text: string, query: string): React.ReactNode => {
     if (!query.trim()) return text;
 
@@ -267,11 +210,28 @@ export function useLogViewer({
     }
   }, [logs.length, displayedLogsCount]);
 
-  // Transform logs for simple mode
+  // Transform logs into the formatted, always-on "simple" entries.
   const simpleLogEntries = useMemo(() => transformLogsToSimple(logs), [logs]);
 
-  // Detect current phase for progress bar
-  const currentPhase = useMemo(() => detectCurrentPhase(logs), [logs]);
+  // Apply the errors-only quick filter then the (debounced) text search. Filtering
+  // the already-formatted entries — rather than the raw log lines — keeps the
+  // structured rendering (icons, phase dividers) intact for the matches.
+  const filteredSimpleEntries = useMemo(() => {
+    const q = search.debouncedQuery.trim().toLowerCase();
+    let entries = simpleLogEntries;
+    if (errorOnly) {
+      entries = entries.filter((e) => e.category === 'error' || e.category === 'warning');
+    }
+    if (q) {
+      entries = entries.filter(
+        (e) =>
+          e.message.toLowerCase().includes(q) || (e.detail?.toLowerCase().includes(q) ?? false),
+      );
+    }
+    return entries;
+  }, [simpleLogEntries, search.debouncedQuery, errorOnly]);
+
+  const hasActiveFilter = search.debouncedQuery.trim().length > 0 || errorOnly;
 
   // Generate execution summary (live during execution, final on completion)
   const executionSummary = useMemo(() => {
@@ -282,17 +242,18 @@ export function useLogViewer({
   return {
     isExpanded,
     isFullscreen,
-    viewMode,
     copied,
     autoScroll,
     searchQuery: search.searchQuery,
-    searchMatches: search.searchMatches,
-    currentMatchIndex: search.currentMatchIndex,
+    highlightQuery: search.debouncedQuery,
     searchInputRef: search.searchInputRef,
+    errorOnly,
+    hasActiveFilter,
+    matchCount: filteredSimpleEntries.length,
     logContainerRef,
     displayedLogsCount,
     simpleLogEntries,
-    currentPhase,
+    filteredSimpleEntries,
     executionSummary,
     handleScroll,
     handleScrollStart,
@@ -300,13 +261,11 @@ export function useLogViewer({
     scrollToBottom,
     toggleFullscreen,
     toggleExpanded,
-    toggleViewMode,
+    toggleErrorOnly,
     handleCopyLogs,
     clearSearchQuery: search.clearSearchQuery,
     handleSearchQueryChange: search.handleSearchQueryChange,
-    handleSearchKeyDown,
-    goToNextMatch,
-    goToPreviousMatch,
+    handleSearchKeyDown: search.handleSearchKeyDown,
     highlightText,
   };
 }

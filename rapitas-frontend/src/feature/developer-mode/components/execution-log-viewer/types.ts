@@ -7,6 +7,10 @@
 
 export type ExecutionLogStatus = 'idle' | 'running' | 'completed' | 'failed' | 'cancelled';
 
+/**
+ * @deprecated The viewer no longer has a mode toggle — it always renders the
+ * formatted (icon-based) log. Kept only for barrel-export backward compatibility.
+ */
 export type ExecutionLogViewMode = 'simple' | 'detailed';
 
 export type ExecutionLogViewerProps = {
@@ -22,8 +26,6 @@ export type ExecutionLogViewerProps = {
   defaultExpanded?: boolean;
   /** Whether to start in fullscreen mode */
   defaultFullscreen?: boolean;
-  /** Default view mode */
-  defaultViewMode?: ExecutionLogViewMode;
   /** Custom class name */
   className?: string;
   /** Whether collapsible */

@@ -115,6 +115,17 @@ function getStyles(category: string) {
   return CATEGORY_STYLES[category] || CATEGORY_STYLES.info;
 }
 
+/** Optional search highlighting threaded from the viewer into each entry. */
+interface HighlightProps {
+  searchQuery?: string;
+  highlightText?: (text: string, query: string) => React.ReactNode;
+}
+
+/** Render `text`, wrapping the active search match when highlighting is enabled. */
+function hl(text: string, hp: HighlightProps): React.ReactNode {
+  return hp.searchQuery && hp.highlightText ? hp.highlightText(text, hp.searchQuery) : text;
+}
+
 // ── Phase transition ───────────────────────────────────
 
 const PHASE_COLORS: Record<string, string> = {
@@ -124,9 +135,10 @@ const PHASE_COLORS: Record<string, string> = {
   verify: 'border-green-500/40 text-green-300 bg-green-500/10',
 };
 
-const PhaseEntry: React.FC<{ entry: UserFriendlyLogEntry; isNew: boolean }> = ({
+const PhaseEntry: React.FC<{ entry: UserFriendlyLogEntry; isNew: boolean } & HighlightProps> = ({
   entry,
   isNew,
+  ...hp
 }) => {
   const color = entry.phase
     ? PHASE_COLORS[entry.phase] || PHASE_COLORS.research
@@ -142,7 +154,7 @@ const PhaseEntry: React.FC<{ entry: UserFriendlyLogEntry; isNew: boolean }> = ({
           {React.createElement(getIcon(entry.iconName), {
             className: 'w-3.5 h-3.5',
           })}
-          <span>{entry.message}</span>
+          <span>{hl(entry.message, hp)}</span>
         </div>
         <div className="h-px flex-1 bg-zinc-700/60" />
       </div>
@@ -152,19 +164,24 @@ const PhaseEntry: React.FC<{ entry: UserFriendlyLogEntry; isNew: boolean }> = ({
 
 // ── Tool result (inline) ───────────────────────────────
 
-const ToolResultRow: React.FC<{ entry: UserFriendlyLogEntry }> = ({ entry }) => (
+const ToolResultRow: React.FC<{ entry: UserFriendlyLogEntry } & HighlightProps> = ({
+  entry,
+  ...hp
+}) => (
   <div className="flex items-center gap-1.5 pl-8 pr-3 py-px text-xs text-zinc-600">
     <Check className="w-3 h-3 flex-shrink-0" />
-    <span className="truncate">{entry.message}</span>
+    <span className="truncate">{hl(entry.message, hp)}</span>
   </div>
 );
 
 // ── Agent text block ───────────────────────────────────
 
-const AgentTextRow: React.FC<{
-  entry: UserFriendlyLogEntry;
-  isNew: boolean;
-}> = ({ entry, isNew }) => {
+const AgentTextRow: React.FC<
+  {
+    entry: UserFriendlyLogEntry;
+    isNew: boolean;
+  } & HighlightProps
+> = ({ entry, isNew, ...hp }) => {
   const [open, setOpen] = useState(false);
   const hasMore = !!entry.detail;
 
@@ -176,7 +193,7 @@ const AgentTextRow: React.FC<{
     >
       <MessageSquare className="w-3.5 h-3.5 text-zinc-600 flex-shrink-0 mt-0.5" />
       <div className="flex-1 min-w-0">
-        <p className="text-sm text-zinc-400 leading-relaxed">{entry.message}</p>
+        <p className="text-sm text-zinc-400 leading-relaxed">{hl(entry.message, hp)}</p>
         {hasMore && (
           <>
             <button className="flex items-center gap-0.5 mt-0.5 text-xs text-zinc-600 hover:text-zinc-400">
@@ -185,7 +202,7 @@ const AgentTextRow: React.FC<{
             </button>
             {open && (
               <pre className="mt-1 p-2 bg-zinc-900/60 rounded text-xs text-zinc-500 whitespace-pre-wrap max-h-48 overflow-y-auto">
-                {entry.detail}
+                {hl(entry.detail ?? '', hp)}
               </pre>
             )}
           </>
@@ -197,7 +214,7 @@ const AgentTextRow: React.FC<{
 
 // ── Standard row ───────────────────────────────────────
 
-interface SimpleLogEntryProps {
+interface SimpleLogEntryProps extends HighlightProps {
   entry: UserFriendlyLogEntry;
   index: number;
   isNewEntry?: boolean;
@@ -207,12 +224,17 @@ export const SimpleLogEntry: React.FC<SimpleLogEntryProps> = ({
   entry,
   index,
   isNewEntry = false,
+  searchQuery,
+  highlightText,
 }) => {
   const [showDetail, setShowDetail] = useState(false);
+  const hp: HighlightProps = { searchQuery, highlightText };
 
-  if (entry.category === 'phase-transition') return <PhaseEntry entry={entry} isNew={isNewEntry} />;
-  if (entry.category === 'tool-result') return <ToolResultRow entry={entry} />;
-  if (entry.category === 'agent-text') return <AgentTextRow entry={entry} isNew={isNewEntry} />;
+  if (entry.category === 'phase-transition')
+    return <PhaseEntry entry={entry} isNew={isNewEntry} {...hp} />;
+  if (entry.category === 'tool-result') return <ToolResultRow entry={entry} {...hp} />;
+  if (entry.category === 'agent-text')
+    return <AgentTextRow entry={entry} isNew={isNewEntry} {...hp} />;
 
   const s = getStyles(entry.category);
 
@@ -229,10 +251,10 @@ export const SimpleLogEntry: React.FC<SimpleLogEntryProps> = ({
         className: `w-3.5 h-3.5 flex-shrink-0 mt-0.5 ${s.icon}`,
       })}
       <div className="flex-1 min-w-0">
-        <span className={`text-sm ${s.text}`}>{entry.message}</span>
+        <span className={`text-sm ${s.text}`}>{hl(entry.message, hp)}</span>
         {entry.detail && showDetail && (
           <pre className="mt-1 p-2 bg-zinc-900/50 rounded text-xs text-zinc-500 whitespace-pre-wrap">
-            {entry.detail}
+            {hl(entry.detail, hp)}
           </pre>
         )}
       </div>
@@ -246,10 +268,12 @@ export const SimpleLogEntry: React.FC<SimpleLogEntryProps> = ({
 /**
  * Renders a list of simple log entries.
  */
-export const SimpleLogEntryList: React.FC<{
-  entries: UserFriendlyLogEntry[];
-  newEntriesCount?: number;
-}> = ({ entries, newEntriesCount = 0 }) => {
+export const SimpleLogEntryList: React.FC<
+  {
+    entries: UserFriendlyLogEntry[];
+    newEntriesCount?: number;
+  } & HighlightProps
+> = ({ entries, newEntriesCount = 0, searchQuery, highlightText }) => {
   if (entries.length === 0) {
     return (
       <div className="flex items-center justify-center py-8 text-zinc-500">
@@ -269,6 +293,8 @@ export const SimpleLogEntryList: React.FC<{
           entry={entry}
           index={i}
           isNewEntry={i >= entries.length - newEntriesCount}
+          searchQuery={searchQuery}
+          highlightText={highlightText}
         />
       ))}
     </div>

@@ -3,9 +3,9 @@
 /**
  * execution-log-viewer/LogViewerHeader.tsx
  *
- * Header bar for ExecutionLogViewer.  Contains the title, status badge,
- * LIVE streaming indicator, search controls (detailed mode only),
- * and action buttons (scroll-to-bottom, copy, view-mode toggle,
+ * Header bar for ExecutionLogViewer. Contains the title, status badge, LIVE
+ * streaming indicator, an always-visible search box (filters the log entries) with
+ * an "errors only" quick-filter, and action buttons (scroll-to-bottom, copy,
  * fullscreen toggle, collapse).
  */
 
@@ -19,15 +19,12 @@ import {
   Check,
   Search,
   X,
-  ArrowUp,
   ArrowDown,
   CheckCircle2,
   AlertCircle,
   Square,
-  Eye,
-  Code,
 } from 'lucide-react';
-import type { ExecutionLogStatus, ExecutionLogViewMode } from './types';
+import type { ExecutionLogStatus } from './types';
 
 type LogViewerHeaderProps = {
   status: ExecutionLogStatus;
@@ -35,24 +32,23 @@ type LogViewerHeaderProps = {
   taskId?: number;
   isRunning: boolean;
   isConnected: boolean;
-  viewMode: ExecutionLogViewMode;
   isFullscreen: boolean;
   collapsible: boolean;
   autoScroll: boolean;
   copied: boolean;
   searchQuery: string;
-  searchMatches: number[];
-  currentMatchIndex: number;
+  /** Number of entries currently shown (after filtering). */
+  matchCount: number;
+  /** Whether the errors-only quick-filter is active. */
+  errorOnly: boolean;
   searchInputRef: React.RefObject<HTMLInputElement | null>;
   onScrollToBottom: () => void;
   onCopyLogs: () => void;
-  onToggleViewMode: () => void;
   onToggleFullscreen: () => void;
   onToggleExpanded: () => void;
+  onToggleErrorOnly: () => void;
   onSearchQueryChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
   onSearchKeyDown: (e: React.KeyboardEvent) => void;
-  onGoToNextMatch: () => void;
-  onGoToPreviousMatch: () => void;
   onClearSearchQuery: () => void;
 };
 
@@ -69,30 +65,27 @@ export const LogViewerHeader: React.FC<LogViewerHeaderProps> = ({
   taskId,
   isRunning,
   isConnected,
-  viewMode,
   isFullscreen,
   collapsible,
   autoScroll,
   copied,
   searchQuery,
-  searchMatches,
-  currentMatchIndex,
+  matchCount,
+  errorOnly,
   searchInputRef,
   onScrollToBottom,
   onCopyLogs,
-  onToggleViewMode,
   onToggleFullscreen,
   onToggleExpanded,
+  onToggleErrorOnly,
   onSearchQueryChange,
   onSearchKeyDown,
-  onGoToNextMatch,
-  onGoToPreviousMatch,
   onClearSearchQuery,
 }) => {
   const statusBadge = buildStatusBadge(status, isRunning);
 
   return (
-    <div className="flex items-center justify-between px-4 py-2 bg-zinc-800 rounded-t-lg border-b border-zinc-700">
+    <div className="flex flex-wrap items-center justify-between gap-2 px-4 py-2 bg-zinc-800 rounded-t-lg border-b border-zinc-700">
       {/* Left: title + badges */}
       <div className="flex items-center gap-2">
         <Terminal className="w-4 h-4 text-green-400" />
@@ -117,60 +110,54 @@ export const LogViewerHeader: React.FC<LogViewerHeaderProps> = ({
         )}
       </div>
 
-      {/* Right: controls */}
+      {/* Right: controls — search box is always visible to aid log review */}
       <div className="flex items-center gap-2">
-        {/* Search — detailed mode only */}
-        {viewMode === 'detailed' && (
-          <>
-            <div className="relative flex items-center gap-1">
-              <div className="relative">
-                <input
-                  ref={searchInputRef}
-                  type="text"
-                  value={searchQuery}
-                  onChange={onSearchQueryChange}
-                  onKeyDown={onSearchKeyDown}
-                  placeholder="検索..."
-                  className="w-40 px-3 py-1 pl-7 bg-zinc-900 border border-zinc-600 rounded text-xs text-zinc-200 placeholder-zinc-500 focus:outline-none focus:border-yellow-500/50 focus:border-blue-400 focus:w-56 transition-all"
-                />
-                <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-3 h-3 text-zinc-500" />
-              </div>
-              {searchQuery && (
-                <>
-                  <span className="text-xs text-zinc-400 whitespace-nowrap">
-                    {searchMatches.length > 0
-                      ? `${currentMatchIndex + 1}/${searchMatches.length}`
-                      : '0件'}
-                  </span>
-                  <button
-                    onClick={onGoToPreviousMatch}
-                    disabled={searchMatches.length === 0}
-                    className="p-1 text-zinc-400 hover:text-zinc-200 hover:bg-zinc-700 rounded disabled:opacity-50 disabled:cursor-not-allowed"
-                    title="前の結果 (Shift+Enter)"
-                  >
-                    <ArrowUp className="w-3 h-3" />
-                  </button>
-                  <button
-                    onClick={onGoToNextMatch}
-                    disabled={searchMatches.length === 0}
-                    className="p-1 text-zinc-400 hover:text-zinc-200 hover:bg-zinc-700 rounded disabled:opacity-50 disabled:cursor-not-allowed"
-                    title="次の結果 (Enter)"
-                  >
-                    <ArrowDown className="w-3 h-3" />
-                  </button>
-                  <button
-                    onClick={onClearSearchQuery}
-                    className="p-1 text-zinc-400 hover:text-zinc-200 hover:bg-zinc-700 rounded"
-                    title="クリア"
-                  >
-                    <X className="w-3 h-3" />
-                  </button>
-                </>
-              )}
-            </div>
-            <div className="w-px h-4 bg-zinc-600" />
-          </>
-        )}
+        <div className="relative flex items-center gap-1">
+          <div className="relative">
+            <input
+              ref={searchInputRef}
+              type="text"
+              value={searchQuery}
+              onChange={onSearchQueryChange}
+              onKeyDown={onSearchKeyDown}
+              placeholder="ログを検索..."
+              className="w-44 px-3 py-1 pl-7 bg-zinc-900 border border-zinc-600 rounded text-xs text-zinc-200 placeholder-zinc-500 focus:outline-none focus:border-blue-400 focus:w-60 transition-all"
+            />
+            <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-3 h-3 text-zinc-500" />
+          </div>
+          {searchQuery && (
+            <>
+              <span
+                className={`text-xs whitespace-nowrap ${matchCount > 0 ? 'text-zinc-400' : 'text-amber-400'}`}
+              >
+                {matchCount > 0 ? `${matchCount}件` : '0件'}
+              </span>
+              <button
+                onClick={onClearSearchQuery}
+                className="p-1 text-zinc-400 hover:text-zinc-200 hover:bg-zinc-700 rounded"
+                title="検索をクリア (Esc)"
+              >
+                <X className="w-3 h-3" />
+              </button>
+            </>
+          )}
+        </div>
+
+        {/* Errors-only quick filter */}
+        <button
+          onClick={onToggleErrorOnly}
+          className={`flex items-center gap-1 px-2 py-1 rounded text-xs transition-colors ${
+            errorOnly
+              ? 'text-red-300 bg-red-500/20'
+              : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-700'
+          }`}
+          title={errorOnly ? '全ログを表示' : 'エラー・警告のみ表示'}
+        >
+          <AlertCircle className="w-3.5 h-3.5" />
+          エラーのみ
+        </button>
+
+        <div className="w-px h-4 bg-zinc-600" />
 
         <button
           onClick={onScrollToBottom}
@@ -190,18 +177,6 @@ export const LogViewerHeader: React.FC<LogViewerHeaderProps> = ({
           title="ログをコピー"
         >
           {copied ? <Check className="w-4 h-4 text-green-400" /> : <Copy className="w-4 h-4" />}
-        </button>
-
-        <button
-          onClick={onToggleViewMode}
-          className={`p-1.5 rounded transition-colors ${
-            viewMode === 'simple'
-              ? 'text-blue-400 bg-zinc-700'
-              : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-700'
-          }`}
-          title={viewMode === 'simple' ? '詳細モードに切り替え' : 'シンプルモードに切り替え'}
-        >
-          {viewMode === 'simple' ? <Code className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
         </button>
 
         <button
