@@ -99,7 +99,13 @@ describe('buildTestSuiteArgs', () => {
     if (gate?.kind !== 'test-suite') return;
     const files = ['tests/foo.test.ts', 'tests/bar.test.ts'];
     const argv = buildTestSuiteArgs(gate, files);
-    expect(argv).toEqual(['test', '--coverage', '--isolate', 'tests/foo.test.ts', 'tests/bar.test.ts']);
+    expect(argv).toEqual([
+      'test',
+      '--coverage',
+      '--isolate',
+      'tests/foo.test.ts',
+      'tests/bar.test.ts',
+    ]);
   });
 
   it('produces correct argv for sqlite-tests', () => {
@@ -120,7 +126,12 @@ describe('buildTestSuiteArgs', () => {
 
   it('handles gate with no args defined', () => {
     // Construct a minimal test-suite gate with no args
-    const minimal = { kind: 'test-suite' as const, id: 'minimal', description: '', manifest: 'x.txt' };
+    const minimal = {
+      kind: 'test-suite' as const,
+      id: 'minimal',
+      description: '',
+      manifest: 'x.txt',
+    };
     const argv = buildTestSuiteArgs(minimal, ['tests/a.test.ts']);
     expect(argv).toEqual(['test', 'tests/a.test.ts']);
   });
@@ -129,7 +140,7 @@ describe('buildTestSuiteArgs', () => {
 // ─── Manifest integrity (registry-driven) ────────────────────────────────────
 
 const testSuiteGates = GATES.filter(
-  (g): g is Extract<typeof GATES[number], { kind: 'test-suite' }> => g.kind === 'test-suite',
+  (g): g is Extract<(typeof GATES)[number], { kind: 'test-suite' }> => g.kind === 'test-suite',
 );
 
 for (const gate of testSuiteGates) {

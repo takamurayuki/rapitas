@@ -79,7 +79,7 @@ describe('parseGateManifest', () => {
 // ─── Manifest integrity (registry-driven, covers all test-suite gates) ───────
 
 const testSuiteGates = GATES.filter(
-  (g): g is Extract<typeof GATES[number], { kind: 'test-suite' }> => g.kind === 'test-suite',
+  (g): g is Extract<(typeof GATES)[number], { kind: 'test-suite' }> => g.kind === 'test-suite',
 );
 
 for (const gate of testSuiteGates) {
