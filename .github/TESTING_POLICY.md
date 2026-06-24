@@ -5,13 +5,49 @@
 
 ---
 
+## 0. CI ゲートフレームワーク（Task #373 追加）
+
+`rapitas-backend/scripts/` に宣言的ゲート管理フレームワークを導入した。
+
+### 構成ファイル
+
+| ファイル | 役割 |
+| -------- | ---- |
+| `scripts/ci-gates.ts` | **ゲートレジストリ**。型付き `GateEntry` 配列で全ゲートを一元宣言 |
+| `scripts/run-gate.ts` | **汎用ランナー**。`bun scripts/run-gate.ts <gateId>` でゲートを実行 |
+| `scripts/gate-manifest-parser.ts` | **共有パーサー**。`.txt` マニフェストの解析と drift 検証を提供 |
+| `scripts/ci-gate-tests.txt` | バックエンドゲート（`backend-tests`）のファイルリスト |
+| `scripts/sqlite-compat-tests.txt` | SQLite ゲート（`sqlite-tests`）のファイルリスト |
+
+### 登録済みゲート
+
+| Gate ID | 種別 | コマンド | 説明 |
+| ------- | ---- | -------- | ---- |
+| `backend-tests` | `test-suite` | `bun run test:ci` | バックエンドCIゲート（coverage + isolate） |
+| `sqlite-tests` | `test-suite` | `bun run test:sqlite` | SQLite 互換ゲート（isolate, no coverage） |
+
+### 新しいゲートの追加手順
+
+```
+1. scripts/ci-gates.ts に GateEntry を 1 件追加する
+2. ゲート種別が 'test-suite' なら scripts/<name>.txt マニフェストも作成する
+3. ローカルで bun scripts/run-gate.ts <newId> を実行してグリーンを確認する
+4. develop へ push → CI グリーン → PR マージ
+```
+
+> **ゲート種別について**:
+> - `'test-suite'`: `bun test` でマニフェストのファイルを実行する（現在実装済み）
+> - `'command'`: `--check` 終了コード規約に従う任意コマンド（follow-up で実装予定）
+
+---
+
 ## 1. Baseline 定義
 
 **唯一の必須通過ゲート**: `test-backend` ジョブ
 
 | 項目 | 内容 |
 | ---- | ---- |
-| 実行コマンド | `bun run test:ci`（= `bun scripts/run-gate-tests.ts`） |
+| 実行コマンド | `bun run test:ci`（= `bun scripts/run-gate.ts backend-tests`） |
 | 実行モード | `bun test --coverage --isolate`（決定論的、プロセス分離） |
 | ファイルリスト | `rapitas-backend/scripts/ci-gate-tests.txt`（単一情報源） |
 | DB 依存 | PostgreSQL 必須（`test-lint.yml` の postgres service を利用） |
@@ -115,8 +151,12 @@
 
 | ファイル | 役割 |
 | -------- | ---- |
-| `rapitas-backend/scripts/ci-gate-tests.txt` | ゲートスイートのファイルリスト（単一情報源） |
-| `rapitas-backend/scripts/run-gate-tests.ts` | マニフェストを読み `bun test --coverage --isolate` を実行 |
+| `rapitas-backend/scripts/ci-gates.ts` | ゲートレジストリ（ゲート定義の単一情報源） |
+| `rapitas-backend/scripts/run-gate.ts` | 汎用ランナー（`bun scripts/run-gate.ts <gateId>`） |
+| `rapitas-backend/scripts/gate-manifest-parser.ts` | 共有パーサー（`.txt` 解析 + drift 検証） |
+| `rapitas-backend/scripts/ci-gate-tests.txt` | backend-tests ゲートのファイルリスト |
+| `rapitas-backend/scripts/sqlite-compat-tests.txt` | sqlite-tests ゲートのファイルリスト |
+| `rapitas-backend/scripts/run-gate-tests.ts` | 後方互換 adapter（`bun run test:ci` の旧実装経由） |
 | `rapitas-backend/scripts/parallel-test.ts` | 全スイートを並列実行（advisory ジョブで使用） |
 | `rapitas-backend/scripts/shuffle-test.ts` | ランダム順序でテストを実行（order-check ジョブで使用） |
 | `rapitas-backend/services/agents/verification/test-triage.ts` | エージェント側: merge-base 比較で新規失敗を検出 |
