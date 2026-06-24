@@ -57,9 +57,8 @@ vi.mock('@/components/LanguageSwitcher', () => ({
 }));
 
 vi.mock('@/stores/task-detail-visibility-store', () => ({
-  useTaskDetailVisibilityStore: (
-    selector: (state: { isTaskDetailVisible: boolean }) => unknown,
-  ) => selector({ isTaskDetailVisible: false }),
+  useTaskDetailVisibilityStore: (selector: (state: { isTaskDetailVisible: boolean }) => unknown) =>
+    selector({ isTaskDetailVisible: false }),
 }));
 
 vi.mock('@/utils/tauri', () => ({
@@ -261,7 +260,12 @@ describe('HeaderToolbar', () => {
 
     it('shows Sun icon and switchToLight text in dark mode', () => {
       render(
-        <HeaderToolbar {...defaultProps} isMoreMenuOpen={true} isDarkMode={true} darkModeMounted={true} />,
+        <HeaderToolbar
+          {...defaultProps}
+          isMoreMenuOpen={true}
+          isDarkMode={true}
+          darkModeMounted={true}
+        />,
       );
       expect(screen.getByTestId('sun-icon')).toBeInTheDocument();
       expect(screen.getByText('switchToLight')).toBeInTheDocument();
@@ -276,7 +280,11 @@ describe('HeaderToolbar', () => {
     it('calls handleRestartClick when restart button is clicked', () => {
       const handleRestartClick = vi.fn();
       render(
-        <HeaderToolbar {...defaultProps} isMoreMenuOpen={true} handleRestartClick={handleRestartClick} />,
+        <HeaderToolbar
+          {...defaultProps}
+          isMoreMenuOpen={true}
+          handleRestartClick={handleRestartClick}
+        />,
       );
       fireEvent.click(screen.getByText('restartServer'));
       expect(handleRestartClick).toHaveBeenCalled();

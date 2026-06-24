@@ -30,9 +30,7 @@ vi.mock('lucide-react', () => ({
   Search: ({ className }: { className?: string }) => (
     <div data-testid="search-icon" className={className} />
   ),
-  X: ({ className }: { className?: string }) => (
-    <div data-testid="x-icon" className={className} />
-  ),
+  X: ({ className }: { className?: string }) => <div data-testid="x-icon" className={className} />,
 }));
 
 const makeDebounceRef = () => ({ current: null as NodeJS.Timeout | null });

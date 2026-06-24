@@ -122,9 +122,7 @@ describe('NavItemRenderer', () => {
     });
 
     it('applies active styles when isActive returns true', () => {
-      render(
-        <NavItemRenderer {...baseProps} item={leafItem} isActive={() => true} />,
-      );
+      render(<NavItemRenderer {...baseProps} item={leafItem} isActive={() => true} />);
       const link = screen.getByRole('link', { name: /ダッシュボード/i });
       // Active item has indigo background class
       expect(link.className).toContain('bg-indigo-100');
@@ -199,9 +197,7 @@ describe('NavItemRenderer', () => {
 
   describe('depth>0 leaf item', () => {
     it('renders a link at nested depth', () => {
-      render(
-        <NavItemRenderer {...baseProps} item={leafItem} depth={1} parentExpanded={true} />,
-      );
+      render(<NavItemRenderer {...baseProps} item={leafItem} depth={1} parentExpanded={true} />);
       expect(screen.getByRole('link', { name: /ダッシュボード/i })).toBeInTheDocument();
     });
 
@@ -223,12 +219,7 @@ describe('NavItemRenderer', () => {
   describe('depth>0 parent item (href="#")', () => {
     it('renders expand button for nested parent with no link', () => {
       render(
-        <NavItemRenderer
-          {...baseProps}
-          item={parentItemNoLink}
-          depth={1}
-          parentExpanded={true}
-        />,
+        <NavItemRenderer {...baseProps} item={parentItemNoLink} depth={1} parentExpanded={true} />,
       );
       expect(screen.getByRole('button')).toBeInTheDocument();
     });
