@@ -11,6 +11,6 @@
     "typeRoots": ["./node_modules/@types", "./@types"],
     "types": ["bun-test", "bun"]
   },
-  "include": ["tests/**/*.ts", "tests/**/*.tsx"],
+  "include": ["tests/**/*.ts", "tests/**/*.tsx", "scripts/codemods/__tests__/**/*.ts"],
   "exclude": ["node_modules/**/*"]
 }
