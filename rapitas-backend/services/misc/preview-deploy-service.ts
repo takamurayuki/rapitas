@@ -6,6 +6,7 @@
  */
 import { createLogger } from '../../config/logger';
 import { prisma } from '../../config/database';
+import { runGhCommandWithBody } from '../github/gh-client';
 
 const log = createLogger('preview-deploy');
 
@@ -182,20 +183,13 @@ async function postDeploymentComment(
   if (!deployment.previewUrl) return;
 
   try {
-    const { execSync } = await import('child_process');
-    const ghPath = process.platform === 'win32' ? '"C:\\Program Files\\GitHub CLI\\gh.exe"' : 'gh';
-
     const body =
       `🚀 **Preview Deploy** (${deployment.provider})\n\n` +
       `Status: ${deployment.status}\n` +
       `Preview: ${deployment.previewUrl}\n\n` +
       `---\n🤖 Posted by Rapitas`;
 
-    execSync(`${ghPath} pr comment ${prNumber} --body "${body.replace(/"/g, '\\"')}"`, {
-      cwd: workingDirectory,
-      encoding: 'utf8',
-      timeout: 15000,
-    });
+    await runGhCommandWithBody(['pr', 'comment', String(prNumber)], body, workingDirectory);
 
     log.info(`[PreviewDeploy] Posted preview URL for PR #${prNumber}: ${deployment.previewUrl}`);
   } catch (error) {
