@@ -235,16 +235,16 @@ describe('generateGuardSource', () => {
     expect(output).not.toContain('export function narrowWorkflowRole');
   });
 
-  test('omits isOneOf import when all pairs have generateIs=false', () => {
+  test('omits isOneOf import when all pairs have generateIs=false', async () => {
     // NOTE: gen-type-guards.ts:323 — isOneOf import is conditional on pairs.some(p => p.generateIs)
     const onlyNarrow: import('./gen-type-guards').SsotPair = { ...pair, generateIs: false };
-    const output = generateGuardSource(sourceFile, outputFile, [onlyNarrow]);
+    const output = await generateGuardSource(sourceFile, outputFile, [onlyNarrow]);
     expect(output).not.toContain('isOneOf');
     // narrow* still generated using the is* imported from source
     expect(output).toContain('export function narrowWorkflowRole');
   });
 
-  test('generates guards for all pairs when multiple pairs are provided', () => {
+  test('generates guards for all pairs when multiple pairs are provided', async () => {
     const secondPair: import('./gen-type-guards').SsotPair = {
       arrayName: 'WORKFLOW_STATUSES',
       typeName: 'WorkflowStatus',
@@ -253,7 +253,7 @@ describe('generateGuardSource', () => {
       generateIs: true,
       generateNarrow: true,
     };
-    const output = generateGuardSource(sourceFile, outputFile, [pair, secondPair]);
+    const output = await generateGuardSource(sourceFile, outputFile, [pair, secondPair]);
     // Both type names appear in the import
     expect(output).toContain('WorkflowRole');
     expect(output).toContain('WorkflowStatus');
@@ -267,20 +267,20 @@ describe('generateGuardSource', () => {
     expect(output).toContain('export function narrowWorkflowStatus');
   });
 
-  test('generates ../ relative import path when source and output are in different directories', () => {
+  test('generates ../ relative import path when source and output are in different directories', async () => {
     // Source: services/workflow/workflow-types.ts
     // Output: utils/common/workflow-types.guards.generated.ts
     // Expected import: ../../services/workflow/workflow-types
     const crossSrc = join(ROOT_DIR, 'services', 'workflow', 'workflow-types.ts');
     const crossOut = join(ROOT_DIR, 'utils', 'common', 'workflow-types.guards.generated.ts');
-    const output = generateGuardSource(crossSrc, crossOut, [pair]);
+    const output = await generateGuardSource(crossSrc, crossOut, [pair]);
     expect(output).toContain('../');
     expect(output).toContain('services/workflow/workflow-types');
   });
 
-  test('generated output ends with a trailing newline', () => {
+  test('generated output ends with a trailing newline', async () => {
     // NOTE: blocks.join('\n\n') + '\n' at gen-type-guards.ts:368 guarantees a final newline
-    const output = generateGuardSource(sourceFile, outputFile, [pair]);
+    const output = await generateGuardSource(sourceFile, outputFile, [pair]);
     expect(output.endsWith('\n')).toBe(true);
   });
 });
