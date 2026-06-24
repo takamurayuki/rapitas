@@ -226,17 +226,13 @@ export async function createPullRequest(
       // No existing PR (or gh error) — fall through to create.
     }
 
-    // Pass body via runGhCommandWithBody: writes to a UTF-8 temp file and
-    // appends --body-file, sidestepping the Windows command-line length limit
-    // (~32 KB) and shell-quoting fragility. Title is passed as a literal
-    // array element — execFile bypasses the shell so no escaping is needed.
-    const stdout = await runGhCommandWithBody(
+    // NOTE: runGhCommandWithBody passes body via --body-file, bypassing the
+    // Windows command-line length limit (~32 KB) and shell-quoting hazards.
+    const prUrl = await runGhCommandWithBody(
       ['pr', 'create', '--title', title, '--base', targetBranch],
       body,
       workingDirectory,
     );
-
-    const prUrl = stdout.trim();
     const prMatch = prUrl.match(/\/pull\/(\d+)/);
 
     if (!prMatch?.[1]) {

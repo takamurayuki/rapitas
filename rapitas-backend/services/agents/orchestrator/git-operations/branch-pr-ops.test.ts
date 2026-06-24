@@ -13,6 +13,11 @@ let calls: string[] = [];
 let script: Array<{ match: RegExp; result: string | Error }> = [];
 // Controls the return value of the mocked findConflictingWorktreeForBranch.
 let conflictingWorktreePath: string | null = null;
+// Captures runGhCommandWithBody calls for pr create assertions.
+let ghClientCalls: Array<{ args: string[]; body: string | undefined; cwd: string | undefined }> =
+  [];
+// Return value for runGhCommandWithBody when called for pr create.
+let ghClientPrCreateResult = '';
 
 // Tracks calls to runGhCommandWithBody and controls its return value.
 let ghWithBodyCalls: Array<{
@@ -60,6 +65,7 @@ mock.module('./worktree-guard', () => ({
 }));
 // NOTE: gh-client is mocked so that runGhCommandWithBody does not invoke the real
 // gh binary. Its result is configurable per-test via ghWithBodyResult.
+// ghClientCalls is also populated (as {args, body, cwd}) for assertions using .args notation.
 mock.module('../../../github/gh-client', () => ({
   runGhCommandWithBody: async (
     baseArgs: string[],
@@ -67,6 +73,7 @@ mock.module('../../../github/gh-client', () => ({
     cwd: string | undefined,
   ): Promise<string> => {
     ghWithBodyCalls.push({ baseArgs, body, cwd });
+    ghClientCalls.push({ args: baseArgs, body, cwd });
     if (ghWithBodyResult instanceof Error) throw ghWithBodyResult;
     return ghWithBodyResult;
   },
@@ -85,6 +92,8 @@ beforeEach(() => {
   conflictingWorktreePath = null;
   ghWithBodyCalls = [];
   ghWithBodyResult = '';
+  ghClientCalls = [];
+  ghClientPrCreateResult = '';
 });
 
 describe('createPullRequest — push 分岐耐性', () => {
@@ -149,8 +158,8 @@ describe('createPullRequest — push 分岐耐性', () => {
     expect(res.prNumber).toBe(172);
     // main -> develop へ retarget したこと
     expect(calls.some((c) => /pr edit 172 --base develop/.test(c))).toBe(true);
-    // 再利用なので pr create はしないこと
-    expect(calls.some((c) => /pr create/.test(c))).toBe(false);
+    // 再利用なので runGhCommandWithBody の pr create は呼ばれないこと
+    expect(ghClientCalls.some((c) => c.args[0] === 'pr' && c.args[1] === 'create')).toBe(false);
   });
 
   test('既存PRのベースが既に target と同じなら retarget しないこと', async () => {
