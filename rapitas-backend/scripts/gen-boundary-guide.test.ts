@@ -182,6 +182,21 @@ describe('generateGuideContent', () => {
     expect(content).toContain('toNameTuples');
   });
 
+  test.each([
+    ['見出し', '## 定数の追加手順'],
+    ['ステップ 1', 'ステップ 1'],
+    ['ステップ 2', 'ステップ 2'],
+    ['ステップ 3', 'ステップ 3'],
+    ['SSOT パス参照', SSOT_RELATIVE],
+    ['gen:boundary-guide コマンド', 'bun run gen:boundary-guide'],
+    ['BoundaryGuideInput 登録点', 'BoundaryGuideInput'],
+    ['DEFAULT_DESCRIPTIONS 登録点', 'DEFAULT_DESCRIPTIONS'],
+    ['checkDrift 登録点', 'checkDrift'],
+  ])('how-to section: %s が含まれる', (_label, expected) => {
+    const content = generateGuideContent(MINIMAL_INPUT);
+    expect(content).toContain(expected);
+  });
+
   test('is deterministic (same input → same output)', () => {
     const a = generateGuideContent(MINIMAL_INPUT);
     const b = generateGuideContent(MINIMAL_INPUT);
