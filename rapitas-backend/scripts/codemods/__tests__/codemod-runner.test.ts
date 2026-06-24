@@ -760,7 +760,15 @@ describe('transformPreferTestEach', () => {
 
 describe('runCodemod dry-run (transformPreferTestEach)', () => {
   /** excludeDirs matching the codemod's production runner — includes tests/ directories */
-  const codemodExcludeDirs = ['node_modules', '.git', 'dist', '.next', 'generated', 'prisma', 'scripts'];
+  const codemodExcludeDirs = [
+    'node_modules',
+    '.git',
+    'dist',
+    '.next',
+    'generated',
+    'prisma',
+    'scripts',
+  ];
 
   it('does NOT write files in dry-run mode', () => {
     const content = [
