@@ -13,6 +13,9 @@ let calls: string[] = [];
 let script: Array<{ match: RegExp; result: string | Error }> = [];
 // Controls the return value of the mocked findConflictingWorktreeForBranch.
 let conflictingWorktreePath: string | null = null;
+// Tracks runGhCommandWithBody calls (used for pr create assertions after tempfile removal).
+let ghClientCalls: string[][] = [];
+let ghClientResult: string | Error = '';
 
 function runScripted(cmd: string): { stdout: string; stderr: string } {
   calls.push(cmd);
@@ -50,6 +53,15 @@ mock.module('./worktree-guard', () => ({
   ensureNotPrimaryWorkTree: async () => {},
   findConflictingWorktreeForBranch: async () => conflictingWorktreePath,
 }));
+// NOTE: gh-client is mocked to intercept runGhCommandWithBody (pr create) which uses
+// execFile internally — outside the child_process.exec mock above.
+mock.module('../../../github/gh-client', () => ({
+  runGhCommandWithBody: async (args: string[], _body?: string, _cwd?: string) => {
+    ghClientCalls.push(args);
+    if (ghClientResult instanceof Error) throw ghClientResult;
+    return ghClientResult;
+  },
+}));
 
 const { createPullRequest, createBranch, mergePullRequest } = await import('./branch-pr-ops');
 
@@ -61,11 +73,14 @@ const rejected = () =>
 beforeEach(() => {
   calls = [];
   script = [];
+  ghClientCalls = [];
+  ghClientResult = '';
   conflictingWorktreePath = null;
 });
 
 describe('createPullRequest — push 分岐耐性', () => {
   test('origin が分岐していたらコミット一意ブランチへ push し直して PR 作成すること', async () => {
+    ghClientResult = 'https://github.com/x/y/pull/42';
     script = [
       { match: /git branch --list develop/, result: 'develop\n' },
       { match: /git branch --show-current/, result: 'feature/implement-task\n' },
@@ -74,7 +89,6 @@ describe('createPullRequest — push 分岐耐性', () => {
       { match: /git branch -M feature\/implement-task-abc1234/, result: '' },
       { match: /git push -u origin feature\/implement-task-abc1234$/, result: '' },
       { match: /pr list --head/, result: '' },
-      { match: /pr create/, result: 'https://github.com/x/y/pull/42\n' },
     ];
 
     const res = await createPullRequest('/repo', 'タイトル', '本文');
@@ -92,12 +106,12 @@ describe('createPullRequest — push 分岐耐性', () => {
   });
 
   test('push が成功すれば元のブランチのまま PR 作成すること', async () => {
+    ghClientResult = 'https://github.com/x/y/pull/7';
     script = [
       { match: /git branch --list develop/, result: 'develop\n' },
       { match: /git branch --show-current/, result: 'feature/add-foo\n' },
       { match: /git push -u origin feature\/add-foo$/, result: '' },
       { match: /pr list --head/, result: '' },
-      { match: /pr create/, result: 'https://github.com/x/y/pull/7\n' },
     ];
 
     const res = await createPullRequest('/repo', 't', 'b');
@@ -126,8 +140,8 @@ describe('createPullRequest — push 分岐耐性', () => {
     expect(res.prNumber).toBe(172);
     // main -> develop へ retarget したこと
     expect(calls.some((c) => /pr edit 172 --base develop/.test(c))).toBe(true);
-    // 再利用なので pr create はしないこと
-    expect(calls.some((c) => /pr create/.test(c))).toBe(false);
+    // 再利用なので runGhCommandWithBody (pr create) は呼ばれないこと
+    expect(ghClientCalls.length).toBe(0);
   });
 
   test('既存PRのベースが既に target と同じなら retarget しないこと', async () => {
@@ -153,6 +167,7 @@ describe('createPullRequest — push 分岐耐性', () => {
     //       再利用パスに入らず gh pr create へフォールスルーする現挙動を固定する。
     //       GitHub PR #0 は実在しないため実害ゼロだが、将来同様の truthy チェックが
     //       増えた際の回帰検知点として意図的にテストする。
+    ghClientResult = 'https://github.com/x/y/pull/99';
     script = [
       { match: /git branch --list develop/, result: 'develop\n' },
       { match: /git branch --show-current/, result: 'feature/pr-zero\n' },
@@ -162,15 +177,14 @@ describe('createPullRequest — push 分岐耐性', () => {
         match: /pr list --head feature\/pr-zero/,
         result: JSON.stringify({ number: 0, url: 'https://x/pull/0', baseRefName: 'develop' }),
       },
-      { match: /pr create/, result: 'https://github.com/x/y/pull/99\n' },
     ];
 
     const res = await createPullRequest('/repo', 't', 'b');
 
     expect(res.success).toBe(true);
     expect(res.prNumber).toBe(99);
-    // 0 は falsy のため再利用をスキップし、新規作成が呼ばれること
-    expect(calls.some((c) => /pr create/.test(c))).toBe(true);
+    // 0 は falsy のため再利用をスキップし、runGhCommandWithBody (pr create) が呼ばれること
+    expect(ghClientCalls.some((args) => args.includes('create'))).toBe(true);
   });
 
   test('分岐以外の push 失敗 (認証等) は PR 失敗として返すこと', async () => {

@@ -6,11 +6,9 @@
  */
 
 import { exec } from 'child_process';
-import { mkdtempSync, rmSync, writeFileSync } from 'fs';
-import { tmpdir } from 'os';
-import { join } from 'path';
 import { promisify } from 'util';
 import { createLogger } from '../../../../config/logger';
+import { runGhCommandWithBody } from '../../../github/gh-client';
 import {
   isPrimaryWorkTree,
   ensureNotPrimaryWorkTree,
@@ -228,28 +226,15 @@ export async function createPullRequest(
       // No existing PR (or gh error) — fall through to create.
     }
 
-    // Pass the body via a temp file, not inline. A verify-report body easily
-    // exceeds the Windows command-line length limit (~32 KB), which fails PR
-    // creation with "The command line is too long" → no PR → the task blocks at
-    // the completion gate (status never becomes 'done'). --body-file sidesteps
-    // the limit and also avoids fragile shell-quoting of multiline markdown.
-    const bodyDir = mkdtempSync(join(tmpdir(), 'rapitas-pr-'));
-    const bodyFile = join(bodyDir, 'body.md');
-    let stdout: string;
-    try {
-      writeFileSync(bodyFile, body);
-      ({ stdout } = await execAsync(
-        `${ghPath()} pr create --title "${title.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}" --body-file "${bodyFile}" --base ${targetBranch}`,
-        { cwd: workingDirectory, encoding: 'utf8' },
-      ));
-    } finally {
-      // Best-effort cleanup; a leftover temp file must never fail PR creation.
-      try {
-        rmSync(bodyDir, { recursive: true, force: true });
-      } catch {
-        /* ignore */
-      }
-    }
+    // NOTE: runGhCommandWithBody handles temp-file creation, Windows argument-
+    // length limits, and multiline markdown quoting internally — no manual OS-
+    // level file management needed here. Title is passed as an array element so
+    // no shell escaping is required.
+    const stdout = await runGhCommandWithBody(
+      ['pr', 'create', '--title', title, '--base', targetBranch],
+      body,
+      workingDirectory,
+    );
 
     const prUrl = stdout.trim();
     const prMatch = prUrl.match(/\/pull\/(\d+)/);
