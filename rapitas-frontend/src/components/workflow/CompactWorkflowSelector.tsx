@@ -2,9 +2,9 @@
 
 import { useState, useEffect } from 'react';
 import {
-  Square,
-  Layers2,
-  Layers3,
+  TriangleDashed,
+  Triangle,
+  Pyramid,
   BarChart3,
   Info,
   Loader2,
@@ -24,7 +24,7 @@ export interface WorkflowModeConfig {
   description: string;
   estimatedTime: string;
   steps: string[];
-  icon: typeof Square | typeof Layers2 | typeof Layers3;
+  icon: typeof TriangleDashed | typeof Triangle | typeof Pyramid;
   color: string;
   bgColor: string;
 }
@@ -53,7 +53,7 @@ const WORKFLOW_MODE_CONFIGS: Record<WorkflowMode, WorkflowModeConfig> = {
     description: 'バグ修正、UI調整、軽微な変更に最適',
     estimatedTime: '20-40分',
     steps: ['調査', '実装', '自動検証'],
-    icon: Square,
+    icon: TriangleDashed,
     color: 'text-green-600 dark:text-green-400',
     bgColor: 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800/50',
   },
@@ -63,7 +63,7 @@ const WORKFLOW_MODE_CONFIGS: Record<WorkflowMode, WorkflowModeConfig> = {
     description: '中規模機能追加、リファクタリングに最適',
     estimatedTime: '1-2時間',
     steps: ['調査', '計画作成', '実装', '検証'],
-    icon: Layers2,
+    icon: Triangle,
     color: 'text-blue-600 dark:text-blue-400',
     bgColor: 'bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800/50',
   },
@@ -73,7 +73,7 @@ const WORKFLOW_MODE_CONFIGS: Record<WorkflowMode, WorkflowModeConfig> = {
     description: '大規模機能、アーキテクチャ変更に最適',
     estimatedTime: '3-4時間',
     steps: ['調査', '計画作成', 'レビュー', '実装', '検証'],
-    icon: Layers3,
+    icon: Pyramid,
     color: 'text-purple-600 dark:text-purple-400',
     bgColor: 'bg-purple-50 dark:bg-purple-900/20 border-purple-200 dark:border-purple-800/50',
   },
