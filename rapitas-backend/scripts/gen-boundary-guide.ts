@@ -355,7 +355,42 @@ export function generateGuideContent(
     `\n` +
     `\`BoundaryCase<T>[]\` を \`it.each\` 用 \`[label, value]\` タプル配列に変換する。\n` +
     `bun:test の \`%s\` 置換は primitive 前提のため、本関数でタプル化することで\n` +
-    `ラベルを正しく表示できる。\n`
+    `ラベルを正しく表示できる。\n` +
+    `\n` +
+    `## 定数の追加手順\n` +
+    `\n` +
+    `新しい境界値定数を \`${SSOT_RELATIVE}\` に追加する際は以下の 3 ステップに従う。\n` +
+    `\n` +
+    `### ステップ 1 — \`boundary-values.ts\` に定数を追加\n` +
+    `\n` +
+    `JSDoc の最初の行がガイドのセクション説明として自動反映される。\n` +
+    `\n` +
+    `\`\`\`ts\n` +
+    `/**\n` +
+    ` * 〈一行説明〉（ガイドに表示される）\n` +
+    ` */\n` +
+    `export const MY_NEW_EDGES: readonly BoundaryCase<MyType>[] = [\n` +
+    `  { label: '〈境界ラベル〉', value: /* 境界値 */ },\n` +
+    `];\n` +
+    `\`\`\`\n` +
+    `\n` +
+    `### ステップ 2 — \`gen-boundary-guide.ts\` に定数を登録\n` +
+    `\n` +
+    `以下の 4 箇所を更新する:\n` +
+    `\n` +
+    `1. **\`import\` 文** に定数名を追加（ファイル先頭）\n` +
+    `2. **\`BoundaryGuideInput\` インターフェース** に型フィールドを追加\n` +
+    `3. **\`DEFAULT_DESCRIPTIONS\`** にフォールバック説明文を追加\n` +
+    `4. **\`generateGuideContent\`** と **\`checkDrift\`** 内の \`input\` オブジェクトに追加\n` +
+    `\n` +
+    `### ステップ 3 — ガイドを再生成してコミット\n` +
+    `\n` +
+    `\`\`\`sh\n` +
+    `bun run gen:boundary-guide\n` +
+    `\`\`\`\n` +
+    `\n` +
+    `生成された \`docs/boundary-guide.generated.md\` を必ず同一コミットに含めること。  \n` +
+    `コミット漏れがあると CI の \`checkDrift\` テストが失敗する。\n`
   );
 }
 

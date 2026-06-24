@@ -153,3 +153,38 @@ PostgreSQL INTEGER (INT4) 型の境界値セット（-2147483648 〜 2147483647�
 `BoundaryCase<T>[]` を `it.each` 用 `[label, value]` タプル配列に変換する。
 bun:test の `%s` 置換は primitive 前提のため、本関数でタプル化することで
 ラベルを正しく表示できる。
+
+## 定数の追加手順
+
+新しい境界値定数を `tests/helpers/boundary-values.ts` に追加する際は以下の 3 ステップに従う。
+
+### ステップ 1 — `boundary-values.ts` に定数を追加
+
+JSDoc の最初の行がガイドのセクション説明として自動反映される。
+
+```ts
+/**
+ * 〈一行説明〉（ガイドに表示される）
+ */
+export const MY_NEW_EDGES: readonly BoundaryCase<MyType>[] = [
+  { label: '〈境界ラベル〉', value: /* 境界値 */ },
+];
+```
+
+### ステップ 2 — `gen-boundary-guide.ts` に定数を登録
+
+以下の 4 箇所を更新する:
+
+1. **`import` 文** に定数名を追加（ファイル先頭）
+2. **`BoundaryGuideInput` インターフェース** に型フィールドを追加
+3. **`DEFAULT_DESCRIPTIONS`** にフォールバック説明文を追加
+4. **`generateGuideContent`** と **`checkDrift`** 内の `input` オブジェクトに追加
+
+### ステップ 3 — ガイドを再生成してコミット
+
+```sh
+bun run gen:boundary-guide
+```
+
+生成された `docs/boundary-guide.generated.md` を必ず同一コミットに含めること。  
+コミット漏れがあると CI の `checkDrift` テストが失敗する。
