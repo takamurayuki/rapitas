@@ -344,7 +344,11 @@ describe('detectDuplicates', () => {
     const a = writeFile('docs/gen.md', `> 自動生成ファイル\n${shared}`);
     const b = writeFile('docs/copy.md', `# Copy\n${shared}`);
     const result = detectDuplicates([a, b]);
-    expect(result[0]).toMatchObject({ a: expect.any(String), b: expect.any(String), score: expect.any(Number) });
+    expect(result[0]).toMatchObject({
+      a: expect.any(String),
+      b: expect.any(String),
+      score: expect.any(Number),
+    });
   });
 });
 
@@ -356,11 +360,10 @@ describe('detectOrphans', () => {
 
   test('returns doc with broken-link rate > 50% as orphan candidate', () => {
     writeFile('services/exists.ts', 'export {};');
-    const docPath = writeFile('docs/spec.md', [
-      '`services/exists.ts`',
-      '`services/gone1.ts`',
-      '`services/gone2.ts`',
-    ].join('\n'));
+    const docPath = writeFile(
+      'docs/spec.md',
+      ['`services/exists.ts`', '`services/gone1.ts`', '`services/gone2.ts`'].join('\n'),
+    );
     // 2/3 broken = 66% > 50% → orphan
     const result = detectOrphans([docPath], tmpRoot);
     expect(result).toContain(docPath);
@@ -369,11 +372,10 @@ describe('detectOrphans', () => {
   test('does not flag doc with broken-link rate ≤ 50%', () => {
     writeFile('services/a.ts', 'export {};');
     writeFile('services/b.ts', 'export {};');
-    const docPath = writeFile('docs/spec.md', [
-      '`services/a.ts`',
-      '`services/b.ts`',
-      '`services/gone.ts`',
-    ].join('\n'));
+    const docPath = writeFile(
+      'docs/spec.md',
+      ['`services/a.ts`', '`services/b.ts`', '`services/gone.ts`'].join('\n'),
+    );
     // 1/3 broken = 33% ≤ 50% → not orphan
     const result = detectOrphans([docPath], tmpRoot);
     expect(result).not.toContain(docPath);

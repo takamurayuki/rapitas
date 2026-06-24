@@ -156,9 +156,7 @@ export function extractDocPaths(content: string): { line: number; path: string }
 export function resolveDocPath(raw: string, root: string): string {
   // NOTE: Docs may qualify paths with `rapitas-backend/` prefix but we resolve
   //       relative to root (= rapitas-backend/), so the prefix is redundant.
-  const stripped = raw.startsWith('rapitas-backend/')
-    ? raw.slice('rapitas-backend/'.length)
-    : raw;
+  const stripped = raw.startsWith('rapitas-backend/') ? raw.slice('rapitas-backend/'.length) : raw;
   return join(root, stripped);
 }
 
@@ -191,7 +189,12 @@ export function checkBrokenLinks(
  */
 export function jaccardSimilarity(a: string, b: string): number {
   const toSet = (s: string): Set<string> =>
-    new Set(s.split('\n').map((l) => l.trim()).filter(Boolean));
+    new Set(
+      s
+        .split('\n')
+        .map((l) => l.trim())
+        .filter(Boolean),
+    );
   const setA = toSet(a);
   const setB = toSet(b);
   if (setA.size === 0 && setB.size === 0) return 1;
@@ -289,7 +292,9 @@ if (import.meta.main) {
     console.log(`  ... and ${brokenLinkViolations.length - 30} more`);
   }
 
-  console.log(`\nDomain 2 (Duplicate/double-managed docs): ${duplicateViolations.length} violation(s)`);
+  console.log(
+    `\nDomain 2 (Duplicate/double-managed docs): ${duplicateViolations.length} violation(s)`,
+  );
   for (const v of duplicateViolations) {
     const prefix = WARN_ONLY ? '  ⚠️ ' : '  ❌';
     console.log(`${prefix} ${rel(v.a)}  ↔  ${rel(v.b)}  (Jaccard=${v.score.toFixed(2)})`);
@@ -309,7 +314,9 @@ if (import.meta.main) {
   const exitCode = total === 0 || WARN_ONLY ? 0 : 1;
   const icon = total === 0 ? '✅' : WARN_ONLY ? '⚠️ ' : '❌';
 
-  console.log(`\nResult: ${icon} ${total} total violation(s) in enforced domains (EXIT=${exitCode})`);
+  console.log(
+    `\nResult: ${icon} ${total} total violation(s) in enforced domains (EXIT=${exitCode})`,
+  );
 
   if (total > 0 && WARN_ONLY) {
     console.log('[warn-only mode] Violations detected but exiting 0.');
