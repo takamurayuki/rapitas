@@ -87,9 +87,9 @@ describe('validateManifestEntryNames', () => {
   });
 
   it('returns empty array for .test.mjs entries', () => {
-    expect(
-      validateManifestEntryNames(['eslint-rules/no-raw-prisma-insensitive.test.mjs']),
-    ).toEqual([]);
+    expect(validateManifestEntryNames(['eslint-rules/no-raw-prisma-insensitive.test.mjs'])).toEqual(
+      [],
+    );
   });
 
   it('returns invalid entry for a plain .ts file', () => {
