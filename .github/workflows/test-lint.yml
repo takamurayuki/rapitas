@@ -393,6 +393,12 @@ jobs:
         # tests/helpers/boundary-values.ts. Run `bun run gen:boundary-guide` to fix.
         run: bun run check:boundary-guide
 
+      - name: Check type-guard drift
+        working-directory: rapitas-backend
+        # NOTE: Verifies *.guards.generated.ts files are in sync with their SSOT sources.
+        # Run `bun run gen:type-guards` to regenerate and commit the updated files.
+        run: bun run check:type-guards
+
       - name: Lint frontend code
         working-directory: rapitas-frontend
         run: pnpm lint

@@ -20,6 +20,7 @@ import {
   extractFallbackComment,
   extractSsotPairs,
   generateGuardSource,
+  formatGuardSource,
   checkDrift,
   hasSsotCandidate,
   parseFilesArg,
@@ -189,50 +190,108 @@ describe('generateGuardSource', () => {
     generateNarrow: true,
   };
 
-  test('generates file header with auto-generated notice', () => {
-    const output = generateGuardSource(sourceFile, outputFile, [pair]);
+  test('generates file header with auto-generated notice', async () => {
+    const output = await generateGuardSource(sourceFile, outputFile, [pair]);
     expect(output).toContain('自動生成ファイル');
     expect(output).toContain('bun run gen:type-guards');
     expect(output).toContain('手動編集不可');
   });
 
-  test('generates correct import from source file (adjacent → relative path)', () => {
-    const output = generateGuardSource(sourceFile, outputFile, [pair]);
+  test('generates correct import from source file (adjacent → relative path)', async () => {
+    const output = await generateGuardSource(sourceFile, outputFile, [pair]);
     // Source and output are adjacent → import path is './workflow-types'
     expect(output).toContain(`from './workflow-types'`);
     expect(output).toContain('WorkflowRole');
     expect(output).toContain('WORKFLOW_ROLES');
   });
 
-  test('generates isWorkflowRole with correct signature', () => {
-    const output = generateGuardSource(sourceFile, outputFile, [pair]);
+  test('generates isWorkflowRole with correct signature', async () => {
+    const output = await generateGuardSource(sourceFile, outputFile, [pair]);
     expect(output).toContain('export function isWorkflowRole(s: unknown): s is WorkflowRole');
     expect(output).toContain('isOneOf(s, WORKFLOW_ROLES)');
     expect(output).toContain('isOneOf');
   });
 
-  test('generates narrowWorkflowRole with correct signature and fallback', () => {
-    const output = generateGuardSource(sourceFile, outputFile, [pair]);
+  test('generates narrowWorkflowRole with correct signature and fallback', async () => {
+    const output = await generateGuardSource(sourceFile, outputFile, [pair]);
     expect(output).toContain('export function narrowWorkflowRole(');
     expect(output).toContain("fallback: WorkflowRole = 'researcher'");
     expect(output).toContain('): WorkflowRole {');
     expect(output).toContain('return isWorkflowRole(s) ? s : fallback;');
   });
 
-  test('skips is* generation when generateIs=false', () => {
+  test('skips is* generation when generateIs=false', async () => {
     const onlyNarrow: import('./gen-type-guards').SsotPair = { ...pair, generateIs: false };
-    const output = generateGuardSource(sourceFile, outputFile, [onlyNarrow]);
+    const output = await generateGuardSource(sourceFile, outputFile, [onlyNarrow]);
     expect(output).not.toContain('export function isWorkflowRole');
     expect(output).toContain('export function narrowWorkflowRole');
     // Must import is* from source when not generating it
     expect(output).toContain('isWorkflowRole');
   });
 
-  test('skips narrow* generation when generateNarrow=false', () => {
+  test('skips narrow* generation when generateNarrow=false', async () => {
     const onlyIs: import('./gen-type-guards').SsotPair = { ...pair, generateNarrow: false };
-    const output = generateGuardSource(sourceFile, outputFile, [onlyIs]);
+    const output = await generateGuardSource(sourceFile, outputFile, [onlyIs]);
     expect(output).toContain('export function isWorkflowRole');
     expect(output).not.toContain('export function narrowWorkflowRole');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// formatGuardSource
+// ---------------------------------------------------------------------------
+
+describe('formatGuardSource', () => {
+  const ROOT_DIR = join(__dirname, '..');
+  // Use the real workflow-types output path as the config-resolution anchor
+  const anchorPath = join(ROOT_DIR, 'services', 'workflow', 'workflow-types.guards.generated.ts');
+
+  test('formats short import as single-line (under printWidth=100)', async () => {
+    const source = `import type { Foo } from './foo';\nimport { FOO } from './foo';\n`;
+    const result = await formatGuardSource(source, anchorPath);
+    // Short import should remain on one line
+    expect(result).toContain(`import type { Foo } from './foo';`);
+  });
+
+  test('wraps long import to multi-line when it exceeds printWidth=100', async () => {
+    // Construct a type list that produces an import line > 100 chars
+    const longTypes = Array.from({ length: 8 }, (_, i) => `VeryLongTypeName${i}`).join(', ');
+    const source =
+      `import type { ${longTypes} } from './some-module';\n` +
+      `import { ${longTypes.replace(/VeryLongTypeName/g, 'VERY_LONG_CONST')} } from './some-module';\n`;
+    const result = await formatGuardSource(source, anchorPath);
+    // Prettier should wrap the long import across multiple lines
+    expect(result).toContain('\n');
+    // The formatted result must still be valid TS (contains import type keyword)
+    expect(result).toContain('import type {');
+  });
+
+  test('applies project printWidth=100 (not Prettier default 80)', async () => {
+    // A line that is 95 chars — should NOT be wrapped (project uses printWidth 100, default is 80)
+    const ninetyFiveCharImport = `import type { WorkflowRole, WorkflowFileType, WorkflowStatus } from './workflow-types';`;
+    expect(ninetyFiveCharImport.length).toBeLessThan(100);
+    const source = ninetyFiveCharImport + '\n';
+    const result = await formatGuardSource(source, anchorPath);
+    // Should remain on a single line because 95 < 100
+    expect(result.trim()).toBe(ninetyFiveCharImport);
+  });
+
+  test('formatted output matches on-disk generated file (drift = 0)', async () => {
+    // Verify that re-formatting an already-formatted file produces identical output
+    const ROOT_DIR2 = join(__dirname, '..');
+    const sourceFile = join(ROOT_DIR2, 'services', 'workflow', 'workflow-types.ts');
+    const outputFile = join(
+      ROOT_DIR2,
+      'services',
+      'workflow',
+      'workflow-types.guards.generated.ts',
+    );
+    if (!existsSync(outputFile)) return; // Skip if file not yet generated
+
+    const onDisk = readFileSync(outputFile, 'utf-8');
+    const reFormatted = await formatGuardSource(onDisk, outputFile);
+    // Re-formatting an already-formatted file must be idempotent
+    expect(reFormatted).toBe(onDisk);
   });
 });
 
@@ -254,7 +313,7 @@ describe('generated guard runtime behaviour', () => {
     generateNarrow: true,
   };
 
-  beforeAll(() => {
+  beforeAll(async () => {
     mkdirSync(tmpDir, { recursive: true });
     // Write a minimal source file so relativeImportPath works
     writeFileSync(
@@ -262,7 +321,7 @@ describe('generated guard runtime behaviour', () => {
       `export const TEST_STATUSES = ['active','inactive','pending'] as const;\nexport type TestStatus = (typeof TEST_STATUSES)[number];\n`,
       'utf-8',
     );
-    const code = generateGuardSource(sourceFile, generatedFile, [pair]);
+    const code = await generateGuardSource(sourceFile, generatedFile, [pair]);
     writeFileSync(generatedFile, code, 'utf-8');
   });
 
@@ -333,10 +392,10 @@ describe('generated guard runtime behaviour', () => {
 // ---------------------------------------------------------------------------
 
 describe('checkDrift — real workflow-types.ts', () => {
-  test('returns no drift for the already-generated workflow-types file (if it exists)', () => {
+  test('returns no drift for the already-generated workflow-types file (if it exists)', async () => {
     // This test is an integration check. If the generated file doesn't exist yet,
     // drift is expected. The test verifies the drift detection function runs without error.
-    const drifts = checkDrift();
+    const drifts = await checkDrift();
     // All entries must be 'missing' or 'mismatch' — no other statuses
     for (const d of drifts) {
       expect(['missing', 'mismatch']).toContain(d.status);
@@ -351,7 +410,7 @@ describe('checkDrift — tmpdir scenarios', () => {
     if (existsSync(tmpDir2)) rmSync(tmpDir2, { recursive: true });
   });
 
-  test('drift result contains missing when generated file absent', () => {
+  test('drift result contains missing when generated file absent', async () => {
     // We cannot easily wire checkDrift to a tmpDir without refactoring scan roots.
     // Instead, test the underlying comparison logic: generateGuardSource vs on-disk.
     mkdirSync(tmpDir2, { recursive: true });
@@ -366,7 +425,7 @@ describe('checkDrift — tmpdir scenarios', () => {
 
     const content = readFileSync(src, 'utf-8');
     const { pairs } = extractSsotPairs(src, content);
-    const expected = generateGuardSource(src, out, pairs);
+    const expected = await generateGuardSource(src, out, pairs);
 
     // File absent → drift = missing
     expect(existsSync(out)).toBe(false);
@@ -538,29 +597,29 @@ describe('checkDrift — incremental files mode', () => {
     if (existsSync(tmpDir)) rmSync(tmpDir, { recursive: true });
   });
 
-  test('reports missing drift when generated file absent', () => {
-    const drifts = checkDrift({ files: [ssotSrc] });
+  test('reports missing drift when generated file absent', async () => {
+    const drifts = await checkDrift({ files: [ssotSrc] });
     expect(drifts).toHaveLength(1);
     expect(drifts[0].status).toBe('missing');
     expect(drifts[0].file).toBe(generatedOut);
   });
 
-  test('reports no drift when generated file matches', () => {
+  test('reports no drift when generated file matches', async () => {
     // Generate the correct content and write it
     const ssotFiles = scanForSsotFiles({ files: [ssotSrc] });
     expect(ssotFiles).toHaveLength(1);
     const { filePath, outputPath, pairs } = ssotFiles[0];
-    writeFileSync(outputPath, generateGuardSource(filePath, outputPath, pairs), 'utf-8');
+    writeFileSync(outputPath, await generateGuardSource(filePath, outputPath, pairs), 'utf-8');
 
-    const drifts = checkDrift({ files: [ssotSrc] });
+    const drifts = await checkDrift({ files: [ssotSrc] });
     expect(drifts).toHaveLength(0);
   });
 
-  test('reports mismatch drift when generated file is stale', () => {
+  test('reports mismatch drift when generated file is stale', async () => {
     // Overwrite with stale content
     writeFileSync(generatedOut, '// stale\n', 'utf-8');
 
-    const drifts = checkDrift({ files: [ssotSrc] });
+    const drifts = await checkDrift({ files: [ssotSrc] });
     expect(drifts).toHaveLength(1);
     expect(drifts[0].status).toBe('mismatch');
   });

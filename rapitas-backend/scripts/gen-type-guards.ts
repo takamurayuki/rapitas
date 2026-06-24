@@ -22,6 +22,7 @@ import { readFileSync, writeFileSync, existsSync } from 'fs';
 import { join, dirname, basename, extname, resolve } from 'path';
 import { fileURLToPath } from 'url';
 import { walkTs, relativeImportPath } from './codemods/lib/codemod-runner';
+import prettier from 'prettier';
 
 const SCRIPTS_DIR = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(SCRIPTS_DIR, '..');
@@ -270,18 +271,52 @@ export function extractSsotPairs(
 // ---------------------------------------------------------------------------
 
 /**
+ * Fallback Prettier config matching `.prettierrc.json`.
+ * Used when `prettier.resolveConfig()` returns null (e.g. CI with unusual CWD).
+ */
+const PRETTIER_FALLBACK_CONFIG: prettier.Options = {
+  printWidth: 100,
+  singleQuote: true,
+  trailingComma: 'all',
+  semi: true,
+  tabWidth: 2,
+  useTabs: false,
+  bracketSpacing: true,
+  arrowParens: 'always',
+  endOfLine: 'lf',
+};
+
+/**
+ * Formats a TypeScript source string with Prettier using the project config.
+ * Resolves `.prettierrc.json` relative to `outputFilePath` so the result is
+ * path-independent of the caller's CWD. Falls back to `PRETTIER_FALLBACK_CONFIG`
+ * when no config file is found (e.g. CI environments with non-standard CWD).
+ *
+ * @param source - Raw TypeScript source to format / フォーマット前のTypeScriptソース
+ * @param outputFilePath - Absolute path used as the config-resolution anchor / 設定検索の起点となる絶対パス
+ * @returns Prettier-formatted source string / Prettier適用後のソース文字列
+ */
+export async function formatGuardSource(source: string, outputFilePath: string): Promise<string> {
+  const config = await prettier.resolveConfig(outputFilePath);
+  return prettier.format(source, {
+    ...(config ?? PRETTIER_FALLBACK_CONFIG),
+    parser: 'typescript',
+  });
+}
+
+/**
  * Generates the TypeScript source for a `.guards.generated.ts` file.
  *
  * @param sourceFilePath - Absolute path to the SSOT source file
  * @param outputFilePath - Absolute path to the generated output file
  * @param pairs - SSOT pairs to generate guards for
- * @returns Complete TypeScript source string / 生成するTypeScriptソース文字列
+ * @returns Complete TypeScript source string (Prettier-formatted) / Prettier適用済みのTypeScriptソース文字列
  */
-export function generateGuardSource(
+export async function generateGuardSource(
   sourceFilePath: string,
   outputFilePath: string,
   pairs: SsotPair[],
-): string {
+): Promise<string> {
   const sourceBasename = basename(sourceFilePath, extname(sourceFilePath));
 
   // NOTE: relativeImportPath requires the target without extension.
@@ -365,7 +400,7 @@ export function generateGuardSource(
     }
   }
 
-  return blocks.join('\n\n') + '\n';
+  return formatGuardSource(blocks.join('\n\n') + '\n', outputFilePath);
 }
 
 // ---------------------------------------------------------------------------
@@ -437,13 +472,13 @@ export function scanForSsotFiles(opts?: ScanOptions): SsotFile[] {
  * @param opts - Optional scan configuration / オプションのスキャン設定
  * @returns Array of DriftResult for each out-of-sync file (empty = no drift)
  */
-export function checkDrift(opts?: ScanOptions): DriftResult[] {
+export async function checkDrift(opts?: ScanOptions): Promise<DriftResult[]> {
   const ssotFiles = scanForSsotFiles(opts);
   const drifts: DriftResult[] = [];
 
   for (const { filePath, outputPath, pairs } of ssotFiles) {
     if (pairs.length === 0) continue; // Only manualReview notices — no generated file
-    const expected = generateGuardSource(filePath, outputPath, pairs);
+    const expected = await generateGuardSource(filePath, outputPath, pairs);
 
     if (!existsSync(outputPath)) {
       drifts.push({ file: outputPath, status: 'missing' });
@@ -469,7 +504,7 @@ if (import.meta.main) {
   const scanOpts: ScanOptions = filesArg !== null ? { files: filesArg } : {};
 
   if (CHECK_MODE || WARN_ONLY) {
-    const drifts = checkDrift(scanOpts);
+    const drifts = await checkDrift(scanOpts);
     if (drifts.length === 0) {
       console.log('gen-type-guards: no drift detected.');
       process.exit(0);
@@ -492,7 +527,7 @@ if (import.meta.main) {
       allManualReview.push(...manualReview);
       if (pairs.length === 0) continue;
 
-      const content = generateGuardSource(filePath, outputPath, pairs);
+      const content = await generateGuardSource(filePath, outputPath, pairs);
       writeFileSync(outputPath, content, 'utf-8');
       console.log(`Generated: ${outputPath}`);
       generated++;
