@@ -10,7 +10,13 @@ import {
   ID_EDGES,
   NONEXISTENT_ID,
   INVALID_ID_EDGES,
+  BOUNDARY_STRINGS,
+  DATE_EDGES,
+  ENUM_INVALID_EDGES,
+  FLOAT_EDGES,
+  PG_INT_BOUNDARIES,
   toNameTuples,
+  makeEnumBoundaries,
 } from './boundary-values';
 
 // ---------------------------------------------------------------------------
@@ -126,6 +132,203 @@ describe('INVALID_ID_EDGES', () => {
     const labels = INVALID_ID_EDGES.map((c) => c.label);
     const unique = new Set(labels);
     expect(unique.size).toBe(labels.length);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// BOUNDARY_STRINGS
+// ---------------------------------------------------------------------------
+describe('BOUNDARY_STRINGS', () => {
+  test('件数が 5 件であること（\r\n 追加後）', () => {
+    expect(BOUNDARY_STRINGS.length).toBe(5);
+  });
+
+  test('空文字ケースが含まれること', () => {
+    expect(BOUNDARY_STRINGS.find((c) => c.value === '')).toBeDefined();
+  });
+
+  test('CRLF改行 (\\r\\n) ケースが含まれること', () => {
+    expect(BOUNDARY_STRINGS.find((c) => c.value === '\r\n')).toBeDefined();
+  });
+
+  test('既存の4件（空文字・空白・タブ・改行）が保持されていること', () => {
+    const values = BOUNDARY_STRINGS.map((c) => c.value);
+    expect(values).toContain('');
+    expect(values).toContain(' ');
+    expect(values).toContain('\t');
+    expect(values).toContain('\n');
+  });
+
+  test('全ケースのラベルが一意であること', () => {
+    const labels = BOUNDARY_STRINGS.map((c) => c.label);
+    expect(new Set(labels).size).toBe(labels.length);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// DATE_EDGES
+// ---------------------------------------------------------------------------
+describe('DATE_EDGES', () => {
+  test('各要素が label: string と value: string を持つこと', () => {
+    for (const c of DATE_EDGES) {
+      expect(typeof c.label).toBe('string');
+      expect(c.label.length).toBeGreaterThan(0);
+      expect(typeof c.value).toBe('string');
+    }
+  });
+
+  test('Unix epoch の ISO 文字列が含まれること', () => {
+    const found = DATE_EDGES.find((c) => c.value === '1970-01-01T00:00:00.000Z');
+    expect(found).toBeDefined();
+  });
+
+  test('空文字（無効パース）ケースが含まれること', () => {
+    const found = DATE_EDGES.find((c) => c.value === '');
+    expect(found).toBeDefined();
+  });
+
+  test('epoch ISO 文字列が new Date() で正しくパースされること', () => {
+    const epochCase = DATE_EDGES.find((c) => c.value === '1970-01-01T00:00:00.000Z');
+    expect(new Date(epochCase!.value).getTime()).toBe(0);
+  });
+
+  test('全ケースのラベルが一意であること', () => {
+    const labels = DATE_EDGES.map((c) => c.label);
+    expect(new Set(labels).size).toBe(labels.length);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// ENUM_INVALID_EDGES
+// ---------------------------------------------------------------------------
+describe('ENUM_INVALID_EDGES', () => {
+  test('各要素が label: string と value: string を持つこと', () => {
+    for (const c of ENUM_INVALID_EDGES) {
+      expect(typeof c.label).toBe('string');
+      expect(c.label.length).toBeGreaterThan(0);
+      expect(typeof c.value).toBe('string');
+    }
+  });
+
+  test('空文字ケースが含まれること', () => {
+    expect(ENUM_INVALID_EDGES.find((c) => c.value === '')).toBeDefined();
+  });
+
+  test("'invalid_status' ケースが含まれること", () => {
+    expect(ENUM_INVALID_EDGES.find((c) => c.value === 'invalid_status')).toBeDefined();
+  });
+
+  test('全ケースのラベルが一意であること', () => {
+    const labels = ENUM_INVALID_EDGES.map((c) => c.label);
+    expect(new Set(labels).size).toBe(labels.length);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// FLOAT_EDGES
+// ---------------------------------------------------------------------------
+describe('FLOAT_EDGES', () => {
+  test('各要素が label: string と value: number を持つこと', () => {
+    for (const c of FLOAT_EDGES) {
+      expect(typeof c.label).toBe('string');
+      expect(c.label.length).toBeGreaterThan(0);
+      expect(typeof c.value).toBe('number');
+    }
+  });
+
+  test('NaN ケースが含まれること', () => {
+    const found = FLOAT_EDGES.find((c) => Number.isNaN(c.value));
+    expect(found).toBeDefined();
+  });
+
+  test('正の無限大ケースが含まれること', () => {
+    const found = FLOAT_EDGES.find((c) => c.value === Number.POSITIVE_INFINITY);
+    expect(found).toBeDefined();
+  });
+
+  test('負の無限大ケースが含まれること', () => {
+    const found = FLOAT_EDGES.find((c) => c.value === Number.NEGATIVE_INFINITY);
+    expect(found).toBeDefined();
+  });
+
+  test('EPSILON ケースが含まれること', () => {
+    const found = FLOAT_EDGES.find((c) => c.value === Number.EPSILON);
+    expect(found).toBeDefined();
+  });
+
+  test('全ケースのラベルが一意であること', () => {
+    const labels = FLOAT_EDGES.map((c) => c.label);
+    expect(new Set(labels).size).toBe(labels.length);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// PG_INT_BOUNDARIES
+// ---------------------------------------------------------------------------
+describe('PG_INT_BOUNDARIES', () => {
+  test('各要素が label: string と value: number を持つこと', () => {
+    for (const c of PG_INT_BOUNDARIES) {
+      expect(typeof c.label).toBe('string');
+      expect(c.label.length).toBeGreaterThan(0);
+      expect(typeof c.value).toBe('number');
+    }
+  });
+
+  test('INT4 最大値 (2147483647) が含まれること', () => {
+    const found = PG_INT_BOUNDARIES.find((c) => c.value === 2147483647);
+    expect(found).toBeDefined();
+  });
+
+  test('INT4 最小値 (-2147483648) が含まれること', () => {
+    const found = PG_INT_BOUNDARIES.find((c) => c.value === -2147483648);
+    expect(found).toBeDefined();
+  });
+
+  test('INT4 オーバーフロー (2147483648) が含まれること', () => {
+    const found = PG_INT_BOUNDARIES.find((c) => c.value === 2147483648);
+    expect(found).toBeDefined();
+  });
+
+  test('全ケースのラベルが一意であること', () => {
+    const labels = PG_INT_BOUNDARIES.map((c) => c.label);
+    expect(new Set(labels).size).toBe(labels.length);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// makeEnumBoundaries
+// ---------------------------------------------------------------------------
+describe('makeEnumBoundaries', () => {
+  const TEST_STATUSES = ['open', 'closed', 'in_progress'] as const;
+  type TestStatus = (typeof TEST_STATUSES)[number];
+
+  test('valid ケースを Enum 値の数だけ生成すること', () => {
+    const boundaries = makeEnumBoundaries<TestStatus>(TEST_STATUSES);
+    expect(boundaries.valid.length).toBe(TEST_STATUSES.length);
+  });
+
+  test('valid の各ケースの value が Enum 値と一致すること', () => {
+    const boundaries = makeEnumBoundaries<TestStatus>(TEST_STATUSES);
+    for (let i = 0; i < TEST_STATUSES.length; i++) {
+      expect(boundaries.valid[i].value).toBe(TEST_STATUSES[i]);
+    }
+  });
+
+  test('invalid 省略時は ENUM_INVALID_EDGES を返すこと', () => {
+    const boundaries = makeEnumBoundaries<TestStatus>(TEST_STATUSES);
+    expect(boundaries.invalid).toBe(ENUM_INVALID_EDGES);
+  });
+
+  test('invalid 指定時は指定したサンプルを返すこと', () => {
+    const custom = [{ label: 'カスタム', value: 'custom_invalid' }] as const;
+    const boundaries = makeEnumBoundaries<TestStatus>(TEST_STATUSES, custom);
+    expect(boundaries.invalid).toBe(custom);
+  });
+
+  test('空の validValues を渡すと valid が空配列になること', () => {
+    const boundaries = makeEnumBoundaries<never>([], []);
+    expect(boundaries.valid).toEqual([]);
+    expect(boundaries.invalid).toEqual([]);
   });
 });
 
