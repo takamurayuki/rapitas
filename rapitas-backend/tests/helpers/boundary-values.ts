@@ -148,3 +148,109 @@ export const NULLABLE_ID_EDGES: readonly BoundaryCase<number | null>[] = [
 export function toNameTuples<T>(cases: readonly BoundaryCase<T>[]): [string, T][] {
   return cases.map((c) => [c.label, c.value]);
 }
+
+// ---------------------------------------------------------------------------
+// メタデータスキーマ（BOUNDARY_CONTEXT_MAP 用）
+// ---------------------------------------------------------------------------
+
+/**
+ * 境界値定数が対象とする TypeScript 入力型のユニオン。
+ * `edgesConstName()` の 3 分岐と一致させており、将来の参照統一に備える。
+ */
+export type BoundaryInputType = 'string' | 'number' | 'number | null';
+
+/**
+ * 境界値定数 1 件分のメタデータ。
+ * BOUNDARY_CONTEXT_MAP のエントリ型として使用する。
+ *
+ * @param constName - 定数名（BOUNDARY_CONTEXT_MAP のキーと同値）/ 例: 'STRING_EDGES'
+ * @param inputType - 対象の TypeScript 入力型 / 例: 'string'
+ * @param includesNewline - 文字列定数の場合に改行（'\\n'）を含むか（string以外では常に false）
+ * @param includesLargeValue - Number.MAX_SAFE_INTEGER 等の大値を含むか（数値定数のみ）
+ * @param useFor - どのコンテキストで使うかの 1 行説明（ガイド表の本文になる）
+ * @param genUsed - gen-resolver-boundary-tests が自動選択する定数か
+ * @param status - 'active': 現在消費箇所あり / 'reserved': 将来用・定義のみ
+ */
+export interface BoundaryConstMeta {
+  readonly constName: string;
+  readonly inputType: BoundaryInputType;
+  readonly includesNewline: boolean;
+  readonly includesLargeValue: boolean;
+  readonly useFor: string;
+  readonly genUsed: boolean;
+  readonly status: 'active' | 'reserved';
+}
+
+/**
+ * テスト共通境界値定数のメタデータ SSoT。
+ *
+ * キー = 定数名。「入力型・改行の有無 → 推奨定数」を機械可読な形で一元管理し、
+ * `scripts/gen-boundary-guide.ts` がこれを読んでガイド Markdown を生成する。
+ * `STRING_EDGES`（改行なし）と `BOUNDARY_STRINGS`（改行あり）の選択は
+ * `includesNewline` フィールドで判断できる。
+ *
+ * 新しい境界値定数を追加した場合は必ずここにエントリを追加すること。
+ * エントリ漏れは `scripts/gen-boundary-guide.test.ts` の網羅性テストで検出される。
+ */
+export const BOUNDARY_CONTEXT_MAP: Readonly<Record<string, BoundaryConstMeta>> = {
+  STRING_EDGES: {
+    constName: 'STRING_EDGES',
+    inputType: 'string',
+    includesNewline: false,
+    includesLargeValue: false,
+    useFor:
+      '文字列引数 resolver 向けの標準セット。空文字・空白系を網羅し改行を含まない入力フィールド（email / token 等）に使用する。',
+    genUsed: true,
+    status: 'active',
+  },
+  ID_EDGES: {
+    constName: 'ID_EDGES',
+    inputType: 'number',
+    includesNewline: false,
+    includesLargeValue: false,
+    useFor:
+      '数値 ID 引数 resolver 向けの標準セット（0/-1/1）。PostgreSQL INTEGER 範囲内の小規模境界値テストに使用する。',
+    genUsed: true,
+    status: 'active',
+  },
+  NUMERIC_ID_BOUNDARIES: {
+    constName: 'NUMERIC_ID_BOUNDARIES',
+    inputType: 'number',
+    includesNewline: false,
+    includesLargeValue: true,
+    useFor:
+      'ID_EDGES の拡張版（Number.MAX_SAFE_INTEGER を追加）。数値上限での resolver 堅牢性を検証する場合に使用する。',
+    genUsed: false,
+    status: 'active',
+  },
+  BOUNDARY_STRINGS: {
+    constName: 'BOUNDARY_STRINGS',
+    inputType: 'string',
+    includesNewline: true,
+    includesLargeValue: false,
+    useFor:
+      '改行（\\n）を有効入力として扱う文字列フィールド向け。email 等の改行禁止フィールドには STRING_EDGES を使用すること。',
+    genUsed: false,
+    status: 'active',
+  },
+  TIME_BOUNDARIES: {
+    constName: 'TIME_BOUNDARIES',
+    inputType: 'number',
+    includesNewline: false,
+    includesLargeValue: false,
+    useFor:
+      '将来的に時刻（epoch ミリ秒）引数を取る resolver 向けに予約された定数。現状の resolver には時刻引数がなく、消費箇所はない。',
+    genUsed: false,
+    status: 'reserved',
+  },
+  NULLABLE_ID_EDGES: {
+    constName: 'NULLABLE_ID_EDGES',
+    inputType: 'number | null',
+    includesNewline: false,
+    includesLargeValue: false,
+    useFor:
+      'number | null 型の外部キー引数（linkedTaskId 等）向け。ID_EDGES に null を追加した拡張版。gen-resolver-boundary-tests が自動選択する。',
+    genUsed: true,
+    status: 'active',
+  },
+} as const;
