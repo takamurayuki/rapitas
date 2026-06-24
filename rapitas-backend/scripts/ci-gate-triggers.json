@@ -1,0 +1,13 @@
+{
+  "scripts/gen-boundary-guide.test.ts": [
+    "tests/helpers/boundary-values.ts",
+    "scripts/gen-boundary-guide.ts"
+  ],
+  "scripts/gen-resolver-boundary-tests.test.ts": [
+    "tests/helpers/boundary-values.ts",
+    "scripts/gen-resolver-boundary-tests.ts"
+  ],
+  "eslint-rules/no-raw-prisma-insensitive.test.mjs": [
+    "eslint-rules/"
+  ]
+}
