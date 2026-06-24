@@ -6,11 +6,7 @@
  * mock.module + await import の実利用フローを実証する。
  */
 import { describe, test, expect, mock } from 'bun:test';
-import {
-  prismaModelMock,
-  createPrismaMock,
-  databaseModuleFactory,
-} from './mock-database';
+import { prismaModelMock, createPrismaMock, databaseModuleFactory } from './mock-database';
 
 // ---------------------------------------------------------------------------
 // prismaModelMock のテスト
@@ -20,9 +16,19 @@ describe('prismaModelMock', () => {
   test('全 CRUD メソッドが存在すること', () => {
     const m = prismaModelMock();
     const methods = [
-      'findMany', 'findUnique', 'findFirst', 'create', 'update',
-      'updateMany', 'delete', 'deleteMany', 'count', 'upsert',
-      'createMany', 'aggregate', 'groupBy',
+      'findMany',
+      'findUnique',
+      'findFirst',
+      'create',
+      'update',
+      'updateMany',
+      'delete',
+      'deleteMany',
+      'count',
+      'upsert',
+      'createMany',
+      'aggregate',
+      'groupBy',
     ];
     for (const method of methods) {
       expect(typeof (m as Record<string, unknown>)[method]).toBe('function');
@@ -129,8 +135,11 @@ describe('databaseModuleFactory', () => {
 
 describe('mock.module + await import フロー', () => {
   test('databaseModuleFactory を mock.module に渡すと prisma が差し替えられること', async () => {
-    const { prismaModelMock: pmm, createPrismaMock: cpm, databaseModuleFactory: dbf } =
-      await import('./mock-database');
+    const {
+      prismaModelMock: pmm,
+      createPrismaMock: cpm,
+      databaseModuleFactory: dbf,
+    } = await import('./mock-database');
 
     const task = pmm();
     const mockPrisma = cpm({ task });

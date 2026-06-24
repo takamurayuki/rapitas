@@ -72,7 +72,9 @@ export interface ChildProcessModule {
  * @param opts - 動作をカスタマイズするオプション / options
  * @returns child_process モジュールと同一構造のオブジェクト / module-like object
  */
-export function childProcessModuleFactory(opts?: ChildProcessMockOptions): () => ChildProcessModule {
+export function childProcessModuleFactory(
+  opts?: ChildProcessMockOptions,
+): () => ChildProcessModule {
   return () => {
     const execAsync = opts?.execAsync ?? (() => Promise.resolve({ stdout: '', stderr: '' }));
     const execSyncImpl = opts?.execSync ?? (() => Buffer.from(''));

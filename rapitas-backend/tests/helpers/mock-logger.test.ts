@@ -6,11 +6,7 @@
  * bun の mock.module + await import フローで正しく機能することを実証する。
  */
 import { describe, test, expect, mock } from 'bun:test';
-import {
-  createNoopLogger,
-  loggerModuleFactory,
-  loggerSpyFactory,
-} from './mock-logger';
+import { createNoopLogger, loggerModuleFactory, loggerSpyFactory } from './mock-logger';
 
 // ---------------------------------------------------------------------------
 // createNoopLogger のユニットテスト

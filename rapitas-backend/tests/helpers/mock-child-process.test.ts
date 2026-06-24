@@ -26,15 +26,19 @@ describe('childProcessModuleFactory', () => {
     const mod = factory();
 
     await new Promise<void>((resolve, reject) => {
-      mod.exec('git status', {}, (err: Error | null, result: { stdout: string; stderr: string }) => {
-        try {
-          expect(err).toBeNull();
-          expect(result.stdout).toBe('hello');
-          resolve();
-        } catch (e) {
-          reject(e);
-        }
-      });
+      mod.exec(
+        'git status',
+        {},
+        (err: Error | null, result: { stdout: string; stderr: string }) => {
+          try {
+            expect(err).toBeNull();
+            expect(result.stdout).toBe('hello');
+            resolve();
+          } catch (e) {
+            reject(e);
+          }
+        },
+      );
     });
 
     expect(mockExecAsync).toHaveBeenCalledTimes(1);
@@ -76,7 +80,7 @@ describe('childProcessModuleFactory', () => {
     });
   });
 
-  test('execSync 既定が Buffer.from(\'\') を返すこと', () => {
+  test("execSync 既定が Buffer.from('') を返すこと", () => {
     const factory = childProcessModuleFactory();
     const mod = factory();
     const result = mod.execSync('echo hello');

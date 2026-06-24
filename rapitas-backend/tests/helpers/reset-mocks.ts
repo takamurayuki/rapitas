@@ -54,12 +54,7 @@ function isMockFunction(value: unknown): value is { mockReset: () => void } {
  * @param depth - 現在の深さ / current depth
  * @param maxDepth - 再帰上限 / recursion limit
  */
-function walkAndReset(
-  node: unknown,
-  visited: Set<object>,
-  depth: number,
-  maxDepth: number,
-): void {
+function walkAndReset(node: unknown, visited: Set<object>, depth: number, maxDepth: number): void {
   if (depth > maxDepth) return;
   if (node === null || node === undefined) return;
 

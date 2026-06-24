@@ -103,8 +103,8 @@ describe('resetDeepMocks with afterReset', () => {
 
     resetDeepMocks(mockPrisma, {
       afterReset: () => {
-        mockPrisma.$transaction.mockImplementation(
-          (fn: (tx: unknown) => unknown) => fn(mockPrisma),
+        mockPrisma.$transaction.mockImplementation((fn: (tx: unknown) => unknown) =>
+          fn(mockPrisma),
         );
       },
     });
