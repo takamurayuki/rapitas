@@ -39,11 +39,13 @@ interface SubtaskLogTabsProps {
 function getPhaseLabel(workflowStatus?: string): string {
   switch (workflowStatus) {
     case 'draft':
-      return '初期化';
+      // draft = researcher running (→ research_done on completion)
+      return '調査中';
     case 'research_done':
-      return '調査完了';
+      // research_done = planner running (→ plan_created); lightweight implements here
+      return '計画中';
     case 'plan_created':
-      return '計画作成';
+      return '計画作成済';
     case 'plan_approved':
       // plan_approved = implementer running (→ in_progress on completion)
       return '実装中';

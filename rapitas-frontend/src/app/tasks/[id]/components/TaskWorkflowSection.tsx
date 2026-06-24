@@ -117,7 +117,11 @@ export default function TaskWorkflowSection({
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-3">
             <h3 className="text-lg font-semibold text-zinc-900 dark:text-zinc-50">{t('title')}</h3>
-            <WorkflowStatusIndicator status={currentWorkflowStatus} size="sm" />
+            <WorkflowStatusIndicator
+              status={currentWorkflowStatus}
+              size="sm"
+              workflowMode={task?.workflowMode}
+            />
             {/* Loading spinner lives on the left so the right chips end flush
                 with the card padding (matching the title's left inset). */}
             {isWorkflowLoading && <Loader2 className="h-4 w-4 animate-spin text-zinc-400" />}

@@ -19,9 +19,9 @@ const log = createLogger('workflow-runner');
 // — keeping these in sync with the frontend status badge so the live transition
 // log doesn't say 実装中 while the task is actually verifying.
 const PHASE_LABELS: Record<string, string> = {
-  draft: '初期化',
-  research_done: '調査完了',
-  plan_created: '計画作成',
+  draft: '調査中',
+  research_done: '計画中',
+  plan_created: '計画作成済',
   plan_approved: '実装中',
   in_progress: '検証中',
   verify_done: '検証完了',
