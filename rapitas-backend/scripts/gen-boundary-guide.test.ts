@@ -99,7 +99,11 @@ describe('renderValue', () => {
     { label: 'null', value: null as null, expected: '`null`' },
     { label: 'zero', value: 0 as number, expected: '`0`' },
     { label: 'negative', value: -1 as number, expected: '`-1`' },
-    { label: 'MAX_SAFE_INTEGER', value: Number.MAX_SAFE_INTEGER, expected: `\`${Number.MAX_SAFE_INTEGER}\`` },
+    {
+      label: 'MAX_SAFE_INTEGER',
+      value: Number.MAX_SAFE_INTEGER,
+      expected: `\`${Number.MAX_SAFE_INTEGER}\``,
+    },
     { label: 'empty string', value: '' as string, expected: '`""` (空文字)' },
     { label: 'tab char', value: '\t' as string, expected: '`"\\t"`' },
     { label: 'newline char', value: '\n' as string, expected: '`"\\n"`' },
