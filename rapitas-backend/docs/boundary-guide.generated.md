@@ -21,7 +21,7 @@
 
 ### `STRING_EDGES`
 
-文字列引数 resolver 向けの境界値（空文字・空白系）。
+文字列引数 resolver 向けの境界値定数。
 
 | ラベル | 値 | 補足 |
 | --- | --- | --- |
@@ -32,7 +32,7 @@
 
 ### `ID_EDGES`
 
-数値 ID 引数 resolver 向けの境界値（0 / -1 / 1 の小規模セット）。
+数値 ID 引数 resolver 向けの境界値定数（0/-1/1 の小規模セット）。
 
 | ラベル | 値 | 補足 |
 | --- | --- | --- |
@@ -42,7 +42,7 @@
 
 ### `NUMERIC_ID_BOUNDARIES`
 
-数値型 ID の境界値セット（`ID_EDGES` の拡張版 — `MAX_SAFE_INTEGER` を含む）。
+数値型 ID の境界値セット（ID_EDGES の拡張版 — MAX_SAFE_INTEGER を含む）。
 
 | ラベル | 値 | 補足 |
 | --- | --- | --- |
@@ -73,7 +73,7 @@
 
 ### `NULLABLE_ID_EDGES`
 
-nullable 数値 ID 引数 resolver 向けの境界値定数（`ID_EDGES` + `null`）。
+nullable 数値 ID 引数 resolver 向けの境界値定数。
 
 | ラベル | 値 | 補足 |
 | --- | --- | --- |
@@ -84,7 +84,7 @@ nullable 数値 ID 引数 resolver 向けの境界値定数（`ID_EDGES` + `null
 
 ### `INVALID_ID_EDGES`
 
-バリデーションで拒否されるべき非正 ID の境界値セット（0 / -1）。
+バリデーションで拒否されるべき非正 ID の境界値セット。
 
 | ラベル | 値 | 補足 |
 | --- | --- | --- |
@@ -93,7 +93,7 @@ nullable 数値 ID 引数 resolver 向けの境界値定数（`ID_EDGES` + `null
 
 ### `NONEXISTENT_ID`
 
-DB に存在しないことを表すセンチネル ID。mock が null を返す前提の「存在しない ID」として使用する。
+DB に存在しないことを表すセンチネル ID。
 
 | 値 |
 | --- |

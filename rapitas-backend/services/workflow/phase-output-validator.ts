@@ -160,14 +160,8 @@ export function validateVerify(content: string): ValidationResult {
     /test\s+files?[\s\S]{0,80}?([1-9]\d*)\s+failed/i,
     /失敗\s*(?:した)?テスト\s*(?:数|件数)?\s*[:：]?\s*([1-9]\d*)/, // "失敗テスト数: 3", not ": 0"
     /テスト[^。\n]{0,20}?([1-9]\d*)\s*(?:件|個)\s*(?:が)?\s*失敗/, // "テストが3件失敗"
-    // Match only the RUNNER's natural-language exit report ("exit 1" / "exit code
-    // 1", whitespace-separated). The `key=value` / `key: value` forms ("exit=1",
-    // "exit: 1", "TSC_EXIT=1") are how agents DOCUMENT a command's return code as
-    // EVIDENCE — e.g. a CLI-guard task proving `run-gate bogus-id` correctly exits
-    // 1 — which is expected behaviour, NOT the task's own failure. Requiring
-    // whitespace before the 1 excludes those documentation forms. (task 272/304 +
-    // the CI-gate guard task were blocked by exactly this false positive.)
-    /\bexit(?:\s+code)?\s+1\b/i,
+    // NOTE: the "exit 1" runner signal is handled separately below (exitFailure)
+    // with line-level context so PROSE documenting expected exit codes is excluded.
     // A ×N count ONLY when ATTACHED to a failure verdict — "❌ ×3", "失敗 ×2",
     // "failed ×5". A bare "×2" in passing prose ("ケース×2", "✅×2", "リトライ×2",
     // "前後比較×2") is multiplication/repetition, NOT a test failure, and was
@@ -192,6 +186,25 @@ export function validateVerify(content: string): ValidationResult {
     return true;
   });
   if (crossMarkFailure) failureHits.push(['❌'] as unknown as RegExpMatchArray);
+
+  // "exit 1" / "exit code 1" counts as a failure ONLY when it reads like a
+  // RUNNER's exit report — not when it is PROSE documenting a command's expected
+  // exit code. CI-gate / error-handling / guard tasks legitimately describe exit
+  // codes as EVIDENCE the guard works ("空マニフェスト(exit 1)", "不正な入力で exit 1
+  // を返す"); reading those as the task's own failure looped them in verify_repair
+  // (task 272/304/373/376). Skip a match that is parenthesised, immediately
+  // followed by a Japanese character, or on a line that also asserts pass.
+  const exitFailure = content.split(/\r?\n/).some((line) => {
+    const m = line.match(/\bexit(?:\s+code)?\s+1\b/i);
+    if (!m) return false;
+    if (/✅|合格|通過|成功|pass/i.test(line)) return false; // pass-asserting line
+    const idx = m.index ?? 0;
+    if (/[(（]$/.test(line.slice(Math.max(0, idx - 2), idx))) return false; // "(exit 1)"
+    const after = line.slice(idx + m[0].length).replace(/^[)）\s]+/, '');
+    if (/^[ぁ-んァ-ヶ一-龥々]/.test(after)) return false; // "exit 1 を返す" prose
+    return true;
+  });
+  if (exitFailure) failureHits.push(['exit 1'] as unknown as RegExpMatchArray);
 
   if (claimsAllPass && failureHits.length > 0) {
     const evidence = failureHits

@@ -4,6 +4,8 @@
  * Reads tests/helpers/boundary-values.ts (SSOT) and generates
  * docs/boundary-guide.generated.md — a human-readable reference guide
  * for all boundary value constants used in resolver tests.
+ * Section descriptions are extracted from the JSDoc comments in the SSOT file,
+ * making boundary-values.ts the single source of truth for both values and documentation.
  *
  * Usage:
  *   bun run gen:boundary-guide                          # (re)generate the guide
@@ -68,6 +70,89 @@ export interface BoundaryGuideInput {
 export interface DriftResult {
   file: string;
   status: 'missing' | 'mismatch';
+}
+
+/** Section descriptions for the generated guide, one entry per exported constant. */
+export interface SectionDescriptions {
+  STRING_EDGES: string;
+  ID_EDGES: string;
+  NUMERIC_ID_BOUNDARIES: string;
+  BOUNDARY_STRINGS: string;
+  TIME_BOUNDARIES: string;
+  NULLABLE_ID_EDGES: string;
+  INVALID_ID_EDGES: string;
+  NONEXISTENT_ID: string;
+}
+
+/**
+ * Hardcoded fallback descriptions — mirror the first JSDoc sentence of each export in
+ * boundary-values.ts. Used when the SSOT file is unavailable or extraction fails.
+ */
+export const DEFAULT_DESCRIPTIONS: SectionDescriptions = {
+  STRING_EDGES: '文字列引数 resolver 向けの境界値定数。',
+  ID_EDGES: '数値 ID 引数 resolver 向けの境界値定数（0/-1/1 の小規模セット）。',
+  NUMERIC_ID_BOUNDARIES:
+    '数値型 ID の境界値セット（ID_EDGES の拡張版 — MAX_SAFE_INTEGER を含む）。',
+  BOUNDARY_STRINGS: '文字列型フィールドの境界値セット（改行を含む）。',
+  TIME_BOUNDARIES: '時刻（epoch ミリ秒）の境界値セット。',
+  NULLABLE_ID_EDGES: 'nullable 数値 ID 引数 resolver 向けの境界値定数。',
+  INVALID_ID_EDGES: 'バリデーションで拒否されるべき非正 ID の境界値セット。',
+  NONEXISTENT_ID: 'DB に存在しないことを表すセンチネル ID。',
+};
+
+/**
+ * Extracts the first description line from the JSDoc comment preceding a named export.
+ * Uses regex to find the JSDoc block; returns the fallback when no match is found.
+ *
+ * @param source - TypeScript source code to search / 検索対象のソースコード
+ * @param exportName - Name of the exported constant / エクスポート定数名
+ * @param fallback - Used when extraction fails / 抽出失敗時のフォールバック
+ * @returns First non-empty, non-tag line of the JSDoc description
+ */
+export function extractJsDocDescription(
+  source: string,
+  exportName: string,
+  fallback: string,
+): string {
+  // NOTE: (?:[^*]|\*(?!\/))*  prevents the pattern from crossing a */ boundary,
+  // so each match is scoped to a single JSDoc block.
+  const pattern = new RegExp(
+    `/\\*\\*((?:[^*]|\\*(?!\\/))*)\\*/\\s*export\\s+(?:const|type|function)\\s+${exportName}\\b`,
+  );
+  const match = source.match(pattern);
+  if (!match) return fallback;
+
+  const firstLine = match[1]
+    .split('\n')
+    .map((line) => line.replace(/^\s*\*\s?/, '').trim())
+    .filter((line) => line.length > 0 && !line.startsWith('@'))[0];
+
+  return firstLine ?? fallback;
+}
+
+/**
+ * Reads section descriptions from the JSDoc comments in boundary-values.ts source.
+ * Falls back to DEFAULT_DESCRIPTIONS for each constant when extraction fails.
+ *
+ * @param source - Source code of boundary-values.ts / boundary-values.ts の内容
+ * @returns Section descriptions keyed by constant name
+ */
+export function loadSsotDescriptions(source: string): SectionDescriptions {
+  const extract = (name: string, fallback: string) =>
+    extractJsDocDescription(source, name, fallback);
+  return {
+    STRING_EDGES: extract('STRING_EDGES', DEFAULT_DESCRIPTIONS.STRING_EDGES),
+    ID_EDGES: extract('ID_EDGES', DEFAULT_DESCRIPTIONS.ID_EDGES),
+    NUMERIC_ID_BOUNDARIES: extract(
+      'NUMERIC_ID_BOUNDARIES',
+      DEFAULT_DESCRIPTIONS.NUMERIC_ID_BOUNDARIES,
+    ),
+    BOUNDARY_STRINGS: extract('BOUNDARY_STRINGS', DEFAULT_DESCRIPTIONS.BOUNDARY_STRINGS),
+    TIME_BOUNDARIES: extract('TIME_BOUNDARIES', DEFAULT_DESCRIPTIONS.TIME_BOUNDARIES),
+    NULLABLE_ID_EDGES: extract('NULLABLE_ID_EDGES', DEFAULT_DESCRIPTIONS.NULLABLE_ID_EDGES),
+    INVALID_ID_EDGES: extract('INVALID_ID_EDGES', DEFAULT_DESCRIPTIONS.INVALID_ID_EDGES),
+    NONEXISTENT_ID: extract('NONEXISTENT_ID', DEFAULT_DESCRIPTIONS.NONEXISTENT_ID),
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -157,11 +242,16 @@ function renderTable(cases: readonly BoundaryCaseEntry[]): string {
 
 /**
  * Generates the Markdown guide content from boundary value constants.
+ * Section descriptions are taken from `descriptions` (JSDoc-extracted or fallback).
  *
  * @param input - Boundary value constants from boundary-values.ts / 境界値定数
+ * @param descriptions - Section descriptions; defaults to DEFAULT_DESCRIPTIONS / セクション説明
  * @returns Markdown string for docs/boundary-guide.generated.md
  */
-export function generateGuideContent(input: BoundaryGuideInput): string {
+export function generateGuideContent(
+  input: BoundaryGuideInput,
+  descriptions: SectionDescriptions = DEFAULT_DESCRIPTIONS,
+): string {
   return (
     `# Resolver 境界値ガイド\n` +
     `\n` +
@@ -186,49 +276,49 @@ export function generateGuideContent(input: BoundaryGuideInput): string {
     `\n` +
     `### \`STRING_EDGES\`\n` +
     `\n` +
-    `文字列引数 resolver 向けの境界値（空文字・空白系）。\n` +
+    `${descriptions.STRING_EDGES}\n` +
     `\n` +
     renderTable(input.STRING_EDGES) +
     `\n\n` +
     `### \`ID_EDGES\`\n` +
     `\n` +
-    `数値 ID 引数 resolver 向けの境界値（0 / -1 / 1 の小規模セット）。\n` +
+    `${descriptions.ID_EDGES}\n` +
     `\n` +
     renderTable(input.ID_EDGES) +
     `\n\n` +
     `### \`NUMERIC_ID_BOUNDARIES\`\n` +
     `\n` +
-    `数値型 ID の境界値セット（\`ID_EDGES\` の拡張版 — \`MAX_SAFE_INTEGER\` を含む）。\n` +
+    `${descriptions.NUMERIC_ID_BOUNDARIES}\n` +
     `\n` +
     renderTable(input.NUMERIC_ID_BOUNDARIES) +
     `\n\n` +
     `### \`BOUNDARY_STRINGS\`\n` +
     `\n` +
-    `文字列型フィールドの境界値セット（改行を含む）。\n` +
+    `${descriptions.BOUNDARY_STRINGS}\n` +
     `\n` +
     renderTable(input.BOUNDARY_STRINGS) +
     `\n\n` +
     `### \`TIME_BOUNDARIES\`\n` +
     `\n` +
-    `時刻（epoch ミリ秒）の境界値セット。\n` +
+    `${descriptions.TIME_BOUNDARIES}\n` +
     `\n` +
     renderTable(input.TIME_BOUNDARIES) +
     `\n\n` +
     `### \`NULLABLE_ID_EDGES\`\n` +
     `\n` +
-    `nullable 数値 ID 引数 resolver 向けの境界値定数（\`ID_EDGES\` + \`null\`）。\n` +
+    `${descriptions.NULLABLE_ID_EDGES}\n` +
     `\n` +
     renderTable(input.NULLABLE_ID_EDGES) +
     `\n\n` +
     `### \`INVALID_ID_EDGES\`\n` +
     `\n` +
-    `バリデーションで拒否されるべき非正 ID の境界値セット（0 / -1）。\n` +
+    `${descriptions.INVALID_ID_EDGES}\n` +
     `\n` +
     renderTable(input.INVALID_ID_EDGES) +
     `\n\n` +
     `### \`NONEXISTENT_ID\`\n` +
     `\n` +
-    `DB に存在しないことを表すセンチネル ID。mock が null を返す前提の「存在しない ID」として使用する。\n` +
+    `${descriptions.NONEXISTENT_ID}\n` +
     `\n` +
     `| 値 |\n` +
     `| --- |\n` +
@@ -275,24 +365,33 @@ export function generateGuideContent(input: BoundaryGuideInput): string {
 
 /**
  * Compares the expected generated guide against what is on disk.
+ * Loads JSDoc descriptions from the SSOT file to match what the generator produces.
  *
  * @returns Array of DriftResult for each out-of-sync file (empty = no drift)
  */
 export function checkDrift(): DriftResult[] {
-  const expected = generateGuideContent({
-    STRING_EDGES,
-    ID_EDGES,
-    NUMERIC_ID_BOUNDARIES,
-    BOUNDARY_STRINGS,
-    TIME_BOUNDARIES,
-    NULLABLE_ID_EDGES,
-    INVALID_ID_EDGES,
-    NONEXISTENT_ID,
-    DATE_EDGES,
-    ENUM_INVALID_EDGES,
-    FLOAT_EDGES,
-    PG_INT_BOUNDARIES,
-  });
+  const ssotPath = join(ROOT, SSOT_RELATIVE);
+  const descriptions = existsSync(ssotPath)
+    ? loadSsotDescriptions(readFileSync(ssotPath, 'utf-8'))
+    : DEFAULT_DESCRIPTIONS;
+
+  const expected = generateGuideContent(
+    {
+      STRING_EDGES,
+      ID_EDGES,
+      NUMERIC_ID_BOUNDARIES,
+      BOUNDARY_STRINGS,
+      TIME_BOUNDARIES,
+      NULLABLE_ID_EDGES,
+      INVALID_ID_EDGES,
+      NONEXISTENT_ID,
+      DATE_EDGES,
+      ENUM_INVALID_EDGES,
+      FLOAT_EDGES,
+      PG_INT_BOUNDARIES,
+    },
+    descriptions,
+  );
 
   if (!existsSync(GUIDE_PATH)) {
     return [{ file: GUIDE_PATH, status: 'missing' }];
@@ -321,6 +420,9 @@ if (import.meta.main) {
     process.exit(0);
   }
 
+  const ssotSource = readFileSync(join(ROOT, SSOT_RELATIVE), 'utf-8');
+  const descriptions = loadSsotDescriptions(ssotSource);
+
   if (CHECK_MODE) {
     const drifts = checkDrift();
     if (drifts.length === 0) {
@@ -335,20 +437,23 @@ if (import.meta.main) {
     }
   } else {
     // Generate mode
-    const content = generateGuideContent({
-      STRING_EDGES,
-      ID_EDGES,
-      NUMERIC_ID_BOUNDARIES,
-      BOUNDARY_STRINGS,
-      TIME_BOUNDARIES,
-      NULLABLE_ID_EDGES,
-      INVALID_ID_EDGES,
-      NONEXISTENT_ID,
-      DATE_EDGES,
-      ENUM_INVALID_EDGES,
-      FLOAT_EDGES,
-      PG_INT_BOUNDARIES,
-    });
+    const content = generateGuideContent(
+      {
+        STRING_EDGES,
+        ID_EDGES,
+        NUMERIC_ID_BOUNDARIES,
+        BOUNDARY_STRINGS,
+        TIME_BOUNDARIES,
+        NULLABLE_ID_EDGES,
+        INVALID_ID_EDGES,
+        NONEXISTENT_ID,
+        DATE_EDGES,
+        ENUM_INVALID_EDGES,
+        FLOAT_EDGES,
+        PG_INT_BOUNDARIES,
+      },
+      descriptions,
+    );
     const dir = dirname(GUIDE_PATH);
     if (!existsSync(dir)) {
       mkdirSync(dir, { recursive: true });

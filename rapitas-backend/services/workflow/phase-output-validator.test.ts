@@ -242,6 +242,22 @@ exit=1
     expect(validateVerify(guardExitPass).ok).toBe(true);
   });
 
+  test('does NOT flag a passing verify that documents prose "(exit 1)" behaviour', () => {
+    // Regression (task 376): a CI-gate verify PROVES the gate works by describing
+    // expected exit codes in PROSE — "空マニフェスト(exit 1)" / "exit 1 を返す" — not
+    // a runner failure. The bare /exit 1/ matched these and, with the pass claim,
+    // looped the task in verify_repair → blocked despite 36/36 passing.
+    const proseExit = `# 検証レポート
+## 検証結果サマリ
+✅ 検証成功（合格） — 36/36 passed
+## テスト結果
+36/36 passed。\`main()\` で --files 解釈・絞り込み。空マニフェスト(exit 1)と絞り込み空で正常終了。
+不正な gate id では exit 1 を返すガードを追加。
+## チェックリスト消化状況
+- [x] done`;
+    expect(validateVerify(proseExit).ok).toBe(true);
+  });
+
   test('still flags a real "exit 1" command failure on a pass-claiming verify', () => {
     const realExit = `# 検証レポート
 ## 検証結果サマリ
