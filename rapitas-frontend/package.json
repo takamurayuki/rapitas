@@ -18,6 +18,8 @@
     "prettier": "prettier",
     "prettier:check": "prettier --check \"src/**/*.{ts,tsx,js,jsx,css,md}\"",
     "prettier:write": "prettier --write \"src/**/*.{ts,tsx,js,jsx,css,md}\"",
+    "sync:lucide-mock": "node scripts/sync-lucide-mock.mjs",
+    "check:lucide-mock": "node scripts/sync-lucide-mock.mjs --check",
     "clean": "rimraf .next node_modules/.cache",
     "clean:all": "rimraf .next node_modules/.cache node_modules",
     "reinstall": "pnpm run clean:all && pnpm install"

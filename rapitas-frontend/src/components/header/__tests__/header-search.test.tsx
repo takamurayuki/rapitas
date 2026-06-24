@@ -26,12 +26,10 @@ vi.mock('next-intl', () => ({
   useTranslations: () => (key: string) => key,
 }));
 
-vi.mock('lucide-react', () => ({
-  Search: ({ className }: { className?: string }) => (
-    <div data-testid="search-icon" className={className} />
-  ),
-  X: ({ className }: { className?: string }) => <div data-testid="x-icon" className={className} />,
-}));
+vi.mock('lucide-react', async (importOriginal) => {
+  const { buildLucideMock } = await import('@/__tests__/helpers/lucide-react-mock');
+  return buildLucideMock(importOriginal, { Search: 'search-icon', X: 'x-icon' });
+});
 
 const makeDebounceRef = () => ({ current: null as NodeJS.Timeout | null });
 

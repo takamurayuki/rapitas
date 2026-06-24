@@ -104,75 +104,59 @@ vi.mock('@/utils/api', () => ({
   API_BASE_URL: 'http://localhost:3001',
 }));
 
-// Mock lucide-react. Header's subtree imports many icons (and gains more over
-// time), so an explicit allowlist went stale and crashed all tests ("No
-// GanttChartSquare export defined"). Stub EVERY real lucide export, keeping the
-// explicit test-ids the assertions below rely on.
+// NOTE: Uses the shared self-repairing factory. Newly-imported icons are
+// auto-stubbed; only icons whose test-ids are asserted below need overrides.
 vi.mock('lucide-react', async (importOriginal) => {
-  const actual = (await importOriginal()) as Record<string, unknown>;
-  const createIcon = (name: string) => {
-    const Icon = ({ className }: { className?: string }) => (
-      <div data-testid={name} className={className} />
-    );
-    Icon.displayName = name;
-    return Icon;
-  };
-  const icons: Record<string, ReturnType<typeof createIcon>> = {
-    Menu: createIcon('menu-icon'),
-    Home: createIcon('home-icon'),
-    Columns3: createIcon('columns3-icon'),
-    List: createIcon('list-icon'),
-    Tags: createIcon('tags-icon'),
-    SwatchBook: createIcon('swatchbook-icon'),
-    Search: createIcon('search-icon'),
-    X: createIcon('x-icon'),
-    LayoutDashboard: createIcon('layout-dashboard-icon'),
-    LayoutList: createIcon('layout-list-icon'),
-    Folders: createIcon('folders-icon'),
-    FolderKanban: createIcon('folder-kanban-icon'),
-    ChevronDown: createIcon('chevron-down-icon'),
-    ChevronRight: createIcon('chevron-right-icon'),
-    Target: createIcon('target-icon'),
-    BarChart3: createIcon('bar-chart3-icon'),
-    Trophy: createIcon('trophy-icon'),
-    CalendarRange: createIcon('calendar-range-icon'),
-    Brain: createIcon('brain-icon'),
-    FileText: createIcon('file-text-icon'),
-    Calendar: createIcon('calendar-icon'),
-    Clock: createIcon('clock-icon'),
-    GraduationCap: createIcon('graduation-cap-icon'),
-    Keyboard: createIcon('keyboard-icon'),
-    Bot: createIcon('bot-icon'),
-    CheckCircle: createIcon('check-circle-icon'),
-    Settings: createIcon('settings-icon'),
-    GitPullRequest: createIcon('git-pull-request-icon'),
-    CircleDot: createIcon('circle-dot-icon'),
-    Code: createIcon('code-icon'),
-    Key: createIcon('key-icon'),
-    Pin: createIcon('pin-icon'),
-    PinOff: createIcon('pin-off-icon'),
-    MessageSquare: createIcon('message-square-icon'),
-    SquareArrowDown: createIcon('square-arrow-down-icon'),
-    EllipsisVertical: createIcon('ellipsis-vertical-icon'),
-    Moon: createIcon('moon-icon'),
-    Sun: createIcon('sun-icon'),
-    BookMarked: createIcon('book-marked-icon'),
-    RotateCw: createIcon('rotate-cw-icon'),
-    Loader2: createIcon('loader2-icon'),
-    Sparkles: createIcon('sparkles-icon'),
-    NotebookTabs: createIcon('notebook-tabs-icon'),
-    User: createIcon('user-icon'),
-    LogOut: createIcon('log-out-icon'),
-    Package: createIcon('package-icon'),
-    Lightbulb: createIcon('lightbulb-icon'),
-  };
-  // Stub every real lucide export (so a newly-imported icon never breaks this
-  // mock), keeping the explicit test-ids above for the icons assertions target.
-  const mocked: Record<string, unknown> = {};
-  for (const key of Object.keys(actual)) {
-    mocked[key] = icons[key] ?? createIcon(`${key}-icon`);
-  }
-  return { ...mocked, ...icons };
+  const { buildLucideMock } = await import('@/__tests__/helpers/lucide-react-mock');
+  return buildLucideMock(importOriginal, {
+    Menu: 'menu-icon',
+    Home: 'home-icon',
+    Columns3: 'columns3-icon',
+    List: 'list-icon',
+    Tags: 'tags-icon',
+    SwatchBook: 'swatchbook-icon',
+    Search: 'search-icon',
+    X: 'x-icon',
+    LayoutDashboard: 'layout-dashboard-icon',
+    LayoutList: 'layout-list-icon',
+    Folders: 'folders-icon',
+    FolderKanban: 'folder-kanban-icon',
+    ChevronDown: 'chevron-down-icon',
+    ChevronRight: 'chevron-right-icon',
+    Target: 'target-icon',
+    BarChart3: 'bar-chart3-icon',
+    Trophy: 'trophy-icon',
+    CalendarRange: 'calendar-range-icon',
+    Brain: 'brain-icon',
+    FileText: 'file-text-icon',
+    Calendar: 'calendar-icon',
+    Clock: 'clock-icon',
+    GraduationCap: 'graduation-cap-icon',
+    Keyboard: 'keyboard-icon',
+    Bot: 'bot-icon',
+    CheckCircle: 'check-circle-icon',
+    Settings: 'settings-icon',
+    GitPullRequest: 'git-pull-request-icon',
+    CircleDot: 'circle-dot-icon',
+    Code: 'code-icon',
+    Key: 'key-icon',
+    Pin: 'pin-icon',
+    PinOff: 'pin-off-icon',
+    MessageSquare: 'message-square-icon',
+    SquareArrowDown: 'square-arrow-down-icon',
+    EllipsisVertical: 'ellipsis-vertical-icon',
+    Moon: 'moon-icon',
+    Sun: 'sun-icon',
+    BookMarked: 'book-marked-icon',
+    RotateCw: 'rotate-cw-icon',
+    Loader2: 'loader2-icon',
+    Sparkles: 'sparkles-icon',
+    NotebookTabs: 'notebook-tabs-icon',
+    User: 'user-icon',
+    LogOut: 'log-out-icon',
+    Package: 'package-icon',
+    Lightbulb: 'lightbulb-icon',
+  });
 });
 
 // Mock window.dispatchEvent

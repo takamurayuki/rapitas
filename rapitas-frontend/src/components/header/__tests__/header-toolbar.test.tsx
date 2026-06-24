@@ -65,35 +65,25 @@ vi.mock('@/utils/tauri', () => ({
   hideToTray: vi.fn(),
 }));
 
+// NOTE: Uses the shared self-repairing factory so newly-added toolbar icons are
+// auto-stubbed without updating this list.
 vi.mock('lucide-react', async (importOriginal) => {
-  const actual = (await importOriginal()) as Record<string, unknown>;
-  const createIcon = (testId: string) => {
-    const Icon = ({ className }: { className?: string }) => (
-      <div data-testid={testId} className={className} />
-    );
-    Icon.displayName = testId;
-    return Icon;
-  };
-  const icons: Record<string, ReturnType<typeof createIcon>> = {
-    Columns3: createIcon('columns3-icon'),
-    List: createIcon('list-icon'),
-    EllipsisVertical: createIcon('ellipsis-vertical-icon'),
-    Moon: createIcon('moon-icon'),
-    Sun: createIcon('sun-icon'),
-    Settings: createIcon('settings-icon'),
-    SquareArrowDown: createIcon('square-arrow-down-icon'),
-    RotateCw: createIcon('rotate-cw-icon'),
-    Loader2: createIcon('loader2-icon'),
-    Sparkles: createIcon('sparkles-icon'),
-    NotebookTabs: createIcon('notebook-tabs-icon'),
-    User: createIcon('user-icon'),
-    LogOut: createIcon('log-out-icon'),
-  };
-  const mocked: Record<string, unknown> = {};
-  for (const key of Object.keys(actual)) {
-    mocked[key] = icons[key] ?? createIcon(`${key}-icon`);
-  }
-  return { ...mocked, ...icons };
+  const { buildLucideMock } = await import('@/__tests__/helpers/lucide-react-mock');
+  return buildLucideMock(importOriginal, {
+    Columns3: 'columns3-icon',
+    List: 'list-icon',
+    EllipsisVertical: 'ellipsis-vertical-icon',
+    Moon: 'moon-icon',
+    Sun: 'sun-icon',
+    Settings: 'settings-icon',
+    SquareArrowDown: 'square-arrow-down-icon',
+    RotateCw: 'rotate-cw-icon',
+    Loader2: 'loader2-icon',
+    Sparkles: 'sparkles-icon',
+    NotebookTabs: 'notebook-tabs-icon',
+    User: 'user-icon',
+    LogOut: 'log-out-icon',
+  });
 });
 
 const defaultProps = {
