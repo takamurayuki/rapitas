@@ -14,10 +14,11 @@
  *   bun run test:sqlite    # → sqlite-tests
  */
 
-import { readFileSync } from 'fs';
+import { existsSync, readFileSync } from 'fs';
 import { resolve } from 'path';
 import { type TestSuiteGate, GATES, getGate } from './ci-gates';
 import { parseGateManifest, validateManifestFiles } from './gate-manifest-parser';
+import { parseFilesArg } from './parse-files-arg';
 
 const SCRIPTS_DIR = import.meta.dir;
 const BACKEND_DIR = resolve(SCRIPTS_DIR, '..');
@@ -35,6 +36,86 @@ export function buildTestSuiteArgs(gate: TestSuiteGate, files: string[]): string
 }
 
 /**
+ * Loads the CI gate trigger map from `ci-gate-triggers.json`.
+ * Returns `null` if the file is absent or cannot be parsed (callers fall back to full-run).
+ *
+ * @returns Map of test file path → trigger pattern list, or `null` on any load failure
+ */
+export function loadTriggers(): Record<string, string[]> | null {
+  const triggersPath = resolve(SCRIPTS_DIR, 'ci-gate-triggers.json');
+  if (!existsSync(triggersPath)) {
+    console.warn('[run-gate] ci-gate-triggers.json not found — running all tests');
+    return null;
+  }
+  try {
+    const raw = readFileSync(triggersPath, 'utf-8');
+    const parsed = JSON.parse(raw) as unknown;
+    if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
+      console.warn('[run-gate] ci-gate-triggers.json is not a plain object — running all tests');
+      return null;
+    }
+    return parsed as Record<string, string[]>;
+  } catch {
+    console.warn('[run-gate] Failed to parse ci-gate-triggers.json — running all tests');
+    return null;
+  }
+}
+
+/**
+ * Returns true when a changed file path satisfies a trigger pattern.
+ * Normalises backslashes to forward slashes before comparing.
+ *
+ * Matching rules (applied in order):
+ *   1. Exact match:     `changedFile === trigger`
+ *   2. Suffix match:    `changedFile.endsWith('/' + trigger)` (handles monorepo root-relative paths)
+ *   3. Prefix match:    trigger ends with `/` and `changedFile.startsWith(trigger)` (directory triggers)
+ *
+ * @param changedFile - One changed file path from git diff / 変更ファイルパス
+ * @param trigger - Trigger pattern: file path, path suffix, or directory prefix ending with `/`
+ * @returns Whether the changed file satisfies the trigger
+ */
+export function matchesTrigger(changedFile: string, trigger: string): boolean {
+  const f = changedFile.replace(/\\/g, '/');
+  const t = trigger.replace(/\\/g, '/');
+  if (f === t || f.endsWith('/' + t)) return true;
+  // NOTE: Directory prefix trigger (e.g. "eslint-rules/") matches any file under that dir.
+  if (t.endsWith('/') && f.startsWith(t)) return true;
+  return false;
+}
+
+/**
+ * Filters the full manifest test list to those triggered by the given changed files.
+ *
+ * Fallback rules (returns `allTests` unchanged):
+ *   - `changedFiles` is `null`    → `--files` flag absent; caller did not provide change info
+ *   - `changedFiles` is `[]`      → flag present but empty (e.g. initial push / shallow clone)
+ *   - `triggers` is `null`        → trigger map unavailable; safe fallback to full run
+ *
+ * Registered test with no matching trigger → excluded (skipped).
+ * Unregistered test (not in the trigger map) → always included (over-execution is safe).
+ *
+ * @param allTests - Full list of test file paths from the gate manifest
+ * @param changedFiles - Changed file paths from git diff, or `null` when flag is absent
+ * @param triggers - Trigger map from `ci-gate-triggers.json`, or `null` when unavailable
+ * @returns Filtered list to run, or `allTests` for any full-run fallback case
+ */
+export function selectTests(
+  allTests: string[],
+  changedFiles: string[] | null,
+  triggers: Record<string, string[]> | null,
+): string[] {
+  if (changedFiles === null || changedFiles.length === 0) return allTests;
+  if (triggers === null) return allTests;
+
+  return allTests.filter((test) => {
+    const testTriggers = triggers[test];
+    // Unregistered tests always run — over-execution is safe (drift won't cause silent skips).
+    if (testTriggers === undefined) return true;
+    return testTriggers.some((trigger) => changedFiles.some((cf) => matchesTrigger(cf, trigger)));
+  });
+}
+
+/**
  * Builds the subprocess environment by merging gate-specific env overrides onto process.env.
  *
  * @param gateEnv - Gate-defined env overrides (applied on top of process.env)
@@ -49,12 +130,22 @@ function buildEnv(gateEnv?: Record<string, string>): Record<string, string> {
 }
 
 /**
- * Executes a test-suite gate: loads manifest, validates file existence, then spawns bun test.
+ * Executes a test-suite gate: loads manifest, validates file existence, applies --files filtering,
+ * then spawns bun test.
+ *
+ * When `changedFiles` is provided (non-null and non-empty), tests are filtered via
+ * `selectTests()` using the trigger map from `ci-gate-triggers.json`. If the filter
+ * produces an empty result the function logs a skip message and returns exit code 0
+ * (legitimate skip, distinct from an empty manifest which returns exit code 1).
  *
  * @param gate - The test-suite gate to run / 実行するテストスイートゲート
- * @returns The bun test subprocess exit code (0 = all tests passed, non-0 = failure)
+ * @param changedFiles - Changed file paths from git diff, or `null` to run all tests
+ * @returns The bun test subprocess exit code (0 = all tests passed / skip, non-0 = failure)
  */
-async function runTestSuiteGate(gate: TestSuiteGate): Promise<number> {
+async function runTestSuiteGate(
+  gate: TestSuiteGate,
+  changedFiles: string[] | null = null,
+): Promise<number> {
   const manifestPath = resolve(SCRIPTS_DIR, gate.manifest);
 
   let manifestText: string;
@@ -90,10 +181,30 @@ async function runTestSuiteGate(gate: TestSuiteGate): Promise<number> {
     return 1;
   }
 
-  const args = buildTestSuiteArgs(gate, files);
+  // Apply --files trigger filtering when changed files are known.
+  const triggers = changedFiles !== null && changedFiles.length > 0 ? loadTriggers() : null;
+  const filteredFiles = selectTests(files, changedFiles, triggers);
+
+  // NOTE: Empty filter with known changed files = legitimate skip (no related tests).
+  // This is distinct from an empty manifest (config error → exit 1).
+  if (filteredFiles.length === 0) {
+    console.log(
+      `[run-gate] --files filter: no gate tests triggered by the changed files. Skipping.`,
+    );
+    return 0;
+  }
+
+  const skipped = files.length - filteredFiles.length;
+  if (skipped > 0) {
+    console.log(
+      `[run-gate] --files filter: running ${filteredFiles.length}/${files.length} gate tests (${skipped} skipped).`,
+    );
+  }
+
+  const args = buildTestSuiteArgs(gate, filteredFiles);
 
   console.log(`[run-gate] ${gate.description}`);
-  console.log(`[run-gate] Running ${files.length} test file(s)...`);
+  console.log(`[run-gate] Running ${filteredFiles.length} test file(s)...`);
 
   const proc = Bun.spawn(['bun', ...args], {
     cwd: BACKEND_DIR,
@@ -109,10 +220,17 @@ async function runTestSuiteGate(gate: TestSuiteGate): Promise<number> {
  * Calls process.exit() only for configuration errors (unknown id, etc.).
  * Exported so that adapter scripts (e.g. run-gate-tests.ts) can delegate without re-spawning bun.
  *
+ * When `changedFiles` is provided (non-null and non-empty), test-suite gates apply
+ * `--files` trigger filtering via `selectTests()`. Pass `null` to run all tests (default).
+ *
  * @param id - The gate id to run / 実行するゲート id
+ * @param changedFiles - Changed file paths for trigger filtering, or `null` to run all tests
  * @returns Exit code from the gate subprocess (0 = success)
  */
-export async function runGate(id: string | undefined): Promise<number> {
+export async function runGate(
+  id: string | undefined,
+  changedFiles: string[] | null = null,
+): Promise<number> {
   if (!id) {
     console.error('[run-gate] Usage: bun scripts/run-gate.ts <gateId>');
     console.error(`[run-gate] Known gate ids: ${GATES.map((g) => g.id).join(', ')}`);
@@ -127,7 +245,7 @@ export async function runGate(id: string | undefined): Promise<number> {
   }
 
   if (gate.kind === 'test-suite') {
-    return runTestSuiteGate(gate);
+    return runTestSuiteGate(gate, changedFiles);
   }
 
   // NOTE: command-kind gates are not yet implemented — follow-up to wire in SSOT drift,
@@ -145,7 +263,10 @@ export async function runGate(id: string | undefined): Promise<number> {
 
 // NOTE: Guard prevents main() from running when this file is imported by unit tests.
 if (import.meta.main) {
-  const [, , gateId] = process.argv;
-  const code = await runGate(gateId);
+  const argv = process.argv;
+  // NOTE: gateId is the first non-flag positional argument (e.g. 'backend-tests').
+  const gateId = argv.slice(2).find((a) => !a.startsWith('-'));
+  const changedFiles = parseFilesArg(argv);
+  const code = await runGate(gateId, changedFiles);
   process.exit(code);
 }

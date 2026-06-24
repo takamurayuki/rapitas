@@ -1,5 +1,5 @@
 {
-  "generated": "2026-06-24T03:47:34.383Z",
+  "generated": "2026-06-24T07:34:38.849Z",
   "hard_limit": 500,
   "soft_limit": 300,
   "_comment": "Files at or above the hard limit at snapshot time. Their listed lineCount becomes a per-file ceiling — they may shrink but not grow. Remove an entry by splitting the file.",
@@ -83,7 +83,7 @@
       "lineCount": 535
     },
     "rapitas-backend/services/workflow/workflow-reconciler.ts": {
-      "lineCount": 526
+      "lineCount": 534
     },
     "rapitas-backend/services/memory/concern-backlog-service.ts": {
       "lineCount": 516

@@ -18,9 +18,11 @@
 export { parseGateManifest } from './gate-manifest-parser';
 
 import { runGate } from './run-gate';
+import { parseFilesArg } from './parse-files-arg';
 
 // NOTE: Guard prevents delegation from running when this file is imported by unit tests.
 if (import.meta.main) {
-  const code = await runGate('backend-tests');
+  const changedFiles = parseFilesArg(process.argv);
+  const code = await runGate('backend-tests', changedFiles);
   process.exit(code);
 }
