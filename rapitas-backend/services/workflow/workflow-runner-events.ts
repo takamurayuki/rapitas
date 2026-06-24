@@ -13,13 +13,20 @@ import type { RunnerStatus } from './workflow-runner';
 
 const log = createLogger('workflow-runner');
 
+// Labels reflect the phase ACTUALLY running at each status (see buildTransitions):
+// the implementer runs at plan_approved (→ in_progress), the verifier runs at
+// in_progress (→ verify_done). So plan_approved = 実装中 and in_progress = 検証中
+// — keeping these in sync with the frontend status badge so the live transition
+// log doesn't say 実装中 while the task is actually verifying.
 const PHASE_LABELS: Record<string, string> = {
   draft: '初期化',
   research_done: '調査完了',
   plan_created: '計画作成',
-  plan_approved: '計画承認',
-  in_progress: '実装中',
+  plan_approved: '実装中',
+  in_progress: '検証中',
   verify_done: '検証完了',
+  awaiting_question: '回答待ち',
+  blocked: 'ブロック中',
   completed: '完了',
   advancing: '次フェーズへ進行中',
 };

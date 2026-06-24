@@ -5,8 +5,8 @@ import {
   FileSearch,
   FileText,
   CheckCircle,
-  Clock,
-  PlayCircle,
+  Code,
+  FlaskConical,
   Circle,
   HelpCircle,
   AlertTriangle,
@@ -43,19 +43,24 @@ const STATUS_CONFIG: Record<
     borderColor: 'border-amber-300 dark:border-amber-600',
     icon: FileText,
   },
+  // NOTE: At plan_approved the IMPLEMENTER runs (→ in_progress on completion), and
+  // at in_progress the VERIFIER runs (→ verify_done). See buildTransitions: the
+  // label must reflect the phase ACTUALLY running at this status, so plan_approved
+  // is "実装中" and in_progress is "検証中" — previously in_progress was mislabeled
+  // "実装中", making the verify phase look like it was still implementing.
   plan_approved: {
-    label: '計画承認済',
-    color: 'text-indigo-600 dark:text-indigo-400',
-    bgColor: 'bg-indigo-50 dark:bg-indigo-900/30',
-    borderColor: 'border-indigo-300 dark:border-indigo-600',
-    icon: CheckCircle,
-  },
-  in_progress: {
     label: '実装中',
     color: 'text-blue-600 dark:text-blue-400',
     bgColor: 'bg-blue-50 dark:bg-blue-900/30',
     borderColor: 'border-blue-300 dark:border-blue-600',
-    icon: PlayCircle,
+    icon: Code,
+  },
+  in_progress: {
+    label: '検証中',
+    color: 'text-purple-600 dark:text-purple-400',
+    bgColor: 'bg-purple-50 dark:bg-purple-900/30',
+    borderColor: 'border-purple-300 dark:border-purple-600',
+    icon: FlaskConical,
   },
   awaiting_question: {
     label: '回答待ち',
