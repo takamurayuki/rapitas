@@ -14,6 +14,17 @@ let execSyncImpl: (cmd: string) => string = () => {
 // --- mocks (import より前に宣言が必須) ---
 mock.module('child_process', () => ({
   execSync: (cmd: string, _opts: unknown) => execSyncImpl(cmd),
+  // NOTE: gh-client.ts imports execFile at the top level; supply a no-op so the
+  // module loads. postDeploymentComment calls runGhCommandWithBody → execFile,
+  // but the test scenarios that reach it expect a successful (empty) response.
+  execFile: (
+    _file: string,
+    _args: string[],
+    _opts: unknown,
+    cb: (err: Error | null, result: { stdout: string; stderr: string }) => void,
+  ) => {
+    cb(null, { stdout: '', stderr: '' });
+  },
 }));
 
 const mockFindFirst = mock(() => Promise.resolve(null));
