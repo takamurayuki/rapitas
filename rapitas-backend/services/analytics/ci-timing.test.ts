@@ -12,10 +12,7 @@ import { join, resolve } from 'path';
 import { tmpdir } from 'os';
 import { SERIAL_GATE_FILES, computeCiTimingAnalytics, readTimingCacheOrEmpty } from './ci-timing';
 import type { TimingCacheResult, TimingEntry } from './ci-timing';
-import {
-  parseGateManifest,
-  validateManifestFiles,
-} from '../../scripts/gate-manifest-parser';
+import { parseGateManifest, validateManifestFiles } from '../../scripts/gate-manifest-parser';
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 

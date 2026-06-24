@@ -14,12 +14,7 @@ import type { TestResultEntry, TestReportRaw } from './test-report';
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
-function makeEntry(
-  file: string,
-  exitCode: number,
-  attempts = 1,
-  flaky = false,
-): TestResultEntry {
+function makeEntry(file: string, exitCode: number, attempts = 1, flaky = false): TestResultEntry {
   return { file, elapsedMs: 100, exitCode, attempts, flaky };
 }
 
@@ -91,7 +86,11 @@ describe('writeTestReport', () => {
     else process.env.RAPITAS_TEST_REPORT_PATH = savedReportPath;
     if (savedDataDir === undefined) delete process.env.RAPITAS_DATA_DIR;
     else process.env.RAPITAS_DATA_DIR = savedDataDir;
-    try { rmSync(tmpDir, { recursive: true, force: true }); } catch { /* ignore */ }
+    try {
+      rmSync(tmpDir, { recursive: true, force: true });
+    } catch {
+      /* ignore */
+    }
   });
 
   test('returns null and writes no file when reporting is disabled', () => {
@@ -122,10 +121,7 @@ describe('writeTestReport', () => {
 
   test('all-pass report has correct summary', () => {
     process.env.RAPITAS_TEST_REPORT = '1';
-    const entries = [
-      makeEntry('a.test.ts', 0),
-      makeEntry('b.test.ts', 0),
-    ];
+    const entries = [makeEntry('a.test.ts', 0), makeEntry('b.test.ts', 0)];
     const path = writeTestReport(entries, 2000, '2025-01-01T00:00:00Z', tmpDir)!;
     const report = JSON.parse(readFileSync(path, 'utf-8')) as TestReportRaw;
     expect(report.summary.total).toBe(2);
@@ -137,10 +133,7 @@ describe('writeTestReport', () => {
 
   test('failure report reflects failed count', () => {
     process.env.RAPITAS_TEST_REPORT = '1';
-    const entries = [
-      makeEntry('a.test.ts', 0),
-      makeEntry('b.test.ts', 1),
-    ];
+    const entries = [makeEntry('a.test.ts', 0), makeEntry('b.test.ts', 1)];
     const path = writeTestReport(entries, 3000, '2025-01-01T00:00:00Z', tmpDir)!;
     const report = JSON.parse(readFileSync(path, 'utf-8')) as TestReportRaw;
     expect(report.summary.passed).toBe(1);
@@ -150,8 +143,8 @@ describe('writeTestReport', () => {
   test('flaky report counts retried-then-passed files', () => {
     process.env.RAPITAS_TEST_REPORT = '1';
     const entries = [
-      makeEntry('a.test.ts', 0, 2, true),   // flaky: failed once, passed on retry
-      makeEntry('b.test.ts', 0, 1, false),  // clean pass
+      makeEntry('a.test.ts', 0, 2, true), // flaky: failed once, passed on retry
+      makeEntry('b.test.ts', 0, 1, false), // clean pass
     ];
     const path = writeTestReport(entries, 4000, '2025-01-01T00:00:00Z', tmpDir)!;
     const report = JSON.parse(readFileSync(path, 'utf-8')) as TestReportRaw;

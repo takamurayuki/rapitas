@@ -78,8 +78,7 @@ export function writeTestReport(
   generatedAt: string,
   backendRoot: string,
 ): string | null {
-  const enabled =
-    process.env.RAPITAS_TEST_REPORT === '1' || !!process.env.RAPITAS_TEST_REPORT_PATH;
+  const enabled = process.env.RAPITAS_TEST_REPORT === '1' || !!process.env.RAPITAS_TEST_REPORT_PATH;
   if (!enabled) return null;
 
   const passed = results.filter((r) => r.exitCode === 0).length;
