@@ -14,11 +14,10 @@ vi.mock('next-intl', () => ({
   useTranslations: () => (key: string) => key,
 }));
 
-vi.mock('lucide-react', () => ({
-  Loader2: ({ className }: { className?: string }) => (
-    <div data-testid="loader2-icon" className={className} />
-  ),
-}));
+vi.mock('lucide-react', async (importOriginal) => {
+  const { buildLucideMock } = await import('@/__tests__/helpers/lucide-react-mock');
+  return buildLucideMock(importOriginal, { Loader2: 'loader2-icon' });
+});
 
 const defaultProps = {
   restartConfirmDialog: { open: false, activeExecutions: 0 },

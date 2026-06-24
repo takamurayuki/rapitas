@@ -29,14 +29,13 @@ vi.mock('next/link', () => ({
   ),
 }));
 
-vi.mock('lucide-react', () => ({
-  ChevronDown: ({ className }: { className?: string }) => (
-    <div data-testid="chevron-down" className={className} />
-  ),
-  ChevronRight: ({ className }: { className?: string }) => (
-    <div data-testid="chevron-right" className={className} />
-  ),
-}));
+vi.mock('lucide-react', async (importOriginal) => {
+  const { buildLucideMock } = await import('@/__tests__/helpers/lucide-react-mock');
+  return buildLucideMock(importOriginal, {
+    ChevronDown: 'chevron-down',
+    ChevronRight: 'chevron-right',
+  });
+});
 
 const TestIcon = ({ className }: { className?: string }) => (
   <div data-testid="nav-icon" className={className} />
