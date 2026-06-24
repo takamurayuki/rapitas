@@ -31,6 +31,61 @@ export function lcsLen(a: string, b: string): number {
   return best;
 }
 
+/**
+ * Character-bigram set of a title, normalised (lowercased, whitespace/punctuation
+ * stripped) so spacing and delimiter noise don't perturb the overlap. Character
+ * bigrams work for Japanese where word-tokenisation and embeddings do not.
+ *
+ * @param s - Source title. / 元タイトル
+ * @returns Set of 2-character shingles. / 2文字シングルの集合
+ */
+export function charBigrams(s: string): Set<string> {
+  const norm = s.toLowerCase().replace(/[\s　-〿＀-￯!-/:-@[-`{-~、-〜「」（）・]/g, '');
+  const grams = new Set<string>();
+  for (let i = 0; i < norm.length - 1; i++) grams.add(norm.slice(i, i + 2));
+  return grams;
+}
+
+/** Jaccard similarity of two titles' character-bigram sets (0..1). */
+export function bigramJaccard(a: string, b: string): number {
+  const A = charBigrams(a);
+  const B = charBigrams(b);
+  if (A.size === 0 || B.size === 0) return 0;
+  let inter = 0;
+  for (const g of A) if (B.has(g)) inter += 1;
+  return inter / (A.size + B.size - inter);
+}
+
+/**
+ * Find an existing OPEN entry that is a NEAR-DUPLICATE of `title` (character-bigram
+ * Jaccard ≥ threshold), or null. Complements findSaturatedTheme: the saturation
+ * gate caps how many same-THEME items may coexist, while this rejects an almost-
+ * IDENTICAL re-file (e.g. the idea-extractor emitting "コマンド型ゲートの実体取り込み
+ * (SSOT/型ガード/…)" three times). A HIGH threshold (~0.6) catches only near-clones
+ * and leaves distinct facets of one theme admittable, so it does not over-reject.
+ *
+ * @param title - Candidate title. / 候補タイトル
+ * @param opts - Pool selector. / 対象プール
+ * @param threshold - Min bigram-Jaccard counting as a near-duplicate. / 近重複とみなす最小Jaccard
+ * @returns Existing near-duplicate id, else null. / 近重複のID、無ければ null
+ */
+export async function findNearDuplicate(
+  title: string,
+  opts: Pick<SaturationOptions, 'sourceType' | 'openConcernOnly'>,
+  threshold: number,
+): Promise<number | null> {
+  if (title.trim().length < 6) return null;
+  const where: { sourceType: string; sourceId?: string } = { sourceType: opts.sourceType };
+  if (opts.openConcernOnly) where.sourceId = 'open';
+  const rows = await prisma.knowledgeEntry
+    .findMany({ where, select: { id: true, title: true }, take: 600 })
+    .catch(() => [] as { id: number; title: string }[]);
+  for (const e of rows) {
+    if (bigramJaccard(title, e.title) >= threshold) return e.id;
+  }
+  return null;
+}
+
 /** Options selecting which KB entries form the saturation pool and the thresholds. */
 export interface SaturationOptions {
   /** KnowledgeEntry.sourceType to scan (e.g. 'idea_box' | 'concern'). */

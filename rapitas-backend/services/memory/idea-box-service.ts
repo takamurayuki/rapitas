@@ -10,7 +10,7 @@ import { createLogger } from '../../config/logger';
 import { createContentHash } from './utils';
 import { sanitizeMarkdownContent } from '../../utils/common/mojibake-detector';
 import { narrowEnum } from '../../utils/common/type-guards';
-import { findSaturatedTheme } from './theme-saturation';
+import { findSaturatedTheme, findNearDuplicate } from './theme-saturation';
 
 // Theme-saturation gate (anti-monoculture). Embedding cosine (all-MiniLM-L6-v2)
 // proved USELESS for Japanese idea similarity (novel ideas scored HIGHER than
@@ -21,6 +21,19 @@ const SALIENT_LEN = 4;
 const SATURATION_CAP = (() => {
   const v = parseInt(process.env.RAPITAS_IDEA_SATURATION_CAP ?? '8', 10);
   return Number.isFinite(v) && v > 0 ? v : 8;
+})();
+
+// Near-duplicate gate: reject a brand-new idea whose title is an almost-identical
+// re-file of an existing one (character-bigram Jaccard ≥ threshold). Complements
+// the saturation cap — saturation caps how MANY same-theme ideas coexist; this
+// stops the idea-extractor emitting the SAME idea 2-3× with trivial katakana /
+// delimiter variation (observed: "コマンド型ゲートの実体取り込み(SSOT/型ガード/…)" ×3,
+// manually pruned every loop tick). Calibrated to 0.45: the observed clones score
+// 0.49-0.64 while every distinct facet of a shared theme stays < 0.32 (validated
+// against the full 90-idea corpus → 0 false hits), so it does NOT over-reject.
+const NEARDUP_JACCARD = (() => {
+  const v = parseFloat(process.env.RAPITAS_IDEA_NEARDUP_JACCARD ?? '0.45');
+  return Number.isFinite(v) && v > 0 && v <= 1 ? v : 0.45;
 })();
 
 const log = createLogger('memory:idea-box');
@@ -196,6 +209,18 @@ export async function submitIdea(input: SubmitIdeaInput): Promise<number> {
   // duplicate tasks (observed: 96 ideas almost all type-guard/SSOT; PRs #270-275 six
   // near-synonymous type-guard refactors). Both funnel through here, so one gate
   // stops both. Returns the existing anchor id so callers treat it as a no-op dedup.
+  // Near-duplicate gate first (cheaper signal, catches exact re-files even when
+  // the theme is not yet saturated). Reinforce the existing idea by returning its
+  // id so the caller treats the submission as a no-op dedup.
+  const dupId = await findNearDuplicate(title, { sourceType: 'idea_box' }, NEARDUP_JACCARD);
+  if (dupId != null) {
+    log.info(
+      { dupId, title: input.title, threshold: NEARDUP_JACCARD },
+      '[idea-box] Rejected idea: near-duplicate of an existing idea (anti-monoculture)',
+    );
+    return dupId;
+  }
+
   const anchorId = await findSaturatedTheme(title, {
     sourceType: 'idea_box',
     cap: SATURATION_CAP,

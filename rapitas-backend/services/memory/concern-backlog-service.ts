@@ -13,7 +13,16 @@ import { createLogger } from '../../config/logger';
 import { createTask } from '../task/task-mutations';
 import { sanitizeMarkdownContent } from '../../utils/common/mojibake-detector';
 import { narrowEnum } from '../../utils/common/type-guards';
-import { findSaturatedTheme } from './theme-saturation';
+import { findSaturatedTheme, findNearDuplicate } from './theme-saturation';
+
+// Near-duplicate gate threshold (character-bigram Jaccard). Mirrors the idea box:
+// rejects an almost-identical OPEN concern re-file (e.g. the gen/Prettier-drift
+// concern filed twice) that the substring saturation gate misses when only 1-2
+// copies exist. 0.45 catches clones (≥0.49) without touching distinct facets.
+const CONCERN_NEARDUP_JACCARD = (() => {
+  const v = parseFloat(process.env.RAPITAS_CONCERN_NEARDUP_JACCARD ?? '0.45');
+  return Number.isFinite(v) && v > 0 && v <= 1 ? v : 0.45;
+})();
 
 const log = createLogger('memory:concern-backlog');
 
@@ -146,6 +155,19 @@ export async function submitConcern(input: SubmitConcernInput): Promise<number> 
   // over-covered theme). Skipped for dedupKey'd concerns (those have their own
   // stable identity, e.g. test-baseline:<file>). Returns the anchor id as a no-op.
   if (!input.dedupKey) {
+    const dupId = await findNearDuplicate(
+      input.title,
+      { sourceType: 'concern', openConcernOnly: true },
+      CONCERN_NEARDUP_JACCARD,
+    );
+    if (dupId != null) {
+      log.info(
+        { dupId, title: input.title, threshold: CONCERN_NEARDUP_JACCARD },
+        '[concern-backlog] Rejected concern: near-duplicate of an existing concern (anti-monoculture)',
+      );
+      return dupId;
+    }
+
     const anchorId = await findSaturatedTheme(input.title, {
       sourceType: 'concern',
       cap: 3,
