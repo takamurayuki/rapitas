@@ -71,6 +71,7 @@ test.each(nullReturnCases)('$label → null', async ({ id, setup }) => {
 ```
 
 **ポイント**:
+
 - `$label` で各ケースに人間可読なテスト名が付く（`[object Object]` にならない）
 - `setup` コールバックで mock の振る舞いをケースごとに切り替える
 - `beforeEach` で mock をリセットし、各ケースが独立して動作することを確認する
@@ -105,6 +106,7 @@ test.each(titleMatchCases)('$label → $expected', ({ title, id, expected }) => 
 ```
 
 **ポイント**:
+
 - 型エイリアスでテーブル行の構造を明示する
 - `$expected` / `$label` などをテスト名に埋め込み、CI 出力を読みやすくする
 - 同種アサーションのみテーブル化する。異種アサーション（`toContain` と `toBe` が混在など）は個別 `it` のままが明快
@@ -146,6 +148,7 @@ it.each(toNameTuples(ID_EDGES))('境界 ID (%s) → null を返すこと', async
 | `NONEXISTENT_ID` | `number` | 存在しない ID のセンチネル値（999） |
 
 **ポイント**:
+
 - `toNameTuples` は `BoundaryCase<T>[]` を `[label, value][]` に変換する。bun:test の `%s` は primitive 前提のため、オブジェクト配列をそのまま渡すと `[object Object]` と表示される
 - `$label` 形式（オブジェクト配列）と `%s` 形式（タプル配列）は混在しないようにする
 
@@ -176,6 +179,7 @@ describe('isValidBranchName', () => {
 ```
 
 **ポイント**:
+
 - 同種アサーション（同じ関数・同じ検証メソッド）のみをテーブル化する
 - 異種アサーション（`length` チェック・`typeof` チェック等が混在）は個別 `it` で残す
 - **カバレッジを下げてはならない**: テーブル化前後でアサーション件数が同等以上であることを確認する
@@ -215,6 +219,7 @@ bun run scripts/codemods/prefer-test-each.ts --file tests/utils/xxx.test.ts
 ```
 
 **限界**:
+
 - `async` コールバックを含むテストブロックは変換できない（手動対応が必要）
 - 複数の `mock.mockReset()` が必要なケースは変換後に崩れる可能性がある
 - 変換結果は必ず手動で検証し、カバレッジが低下していないことを確認する
