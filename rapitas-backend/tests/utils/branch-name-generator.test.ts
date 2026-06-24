@@ -10,25 +10,24 @@ import {
   extractBranchName,
 } from '../../utils/common/branch-name-generator';
 
+// ---------------------------------------------------------------------------
+// sanitizeBranchName
+// ---------------------------------------------------------------------------
+
+type SanitizeCase = { input: string; expected: string };
+
+/** 単純な in→out アサーション（toBe）をテーブル化 */
+const sanitizeBranchNameCases: SanitizeCase[] = [
+  { input: 'feature/add-auth',     expected: 'feature/add-auth'  },  // 正常なブランチ名
+  { input: 'Feature/Add-Auth',     expected: 'feature/add-auth'  },  // 大文字→小文字
+  { input: 'feature/add auth!@#',  expected: 'feature/add-auth'  },  // 特殊文字→ハイフン
+  { input: 'feature/add---auth',   expected: 'feature/add-auth'  },  // 連続ハイフン→1つ
+  { input: '-feature/test-name-',  expected: 'feature/test-name' },  // 先頭・末尾ハイフン除去
+];
+
 describe('sanitizeBranchName', () => {
-  test('正常なブランチ名をそのまま返すこと', () => {
-    expect(sanitizeBranchName('feature/add-auth')).toBe('feature/add-auth');
-  });
-
-  test('大文字を小文字に変換すること', () => {
-    expect(sanitizeBranchName('Feature/Add-Auth')).toBe('feature/add-auth');
-  });
-
-  test('特殊文字をハイフンに変換すること', () => {
-    expect(sanitizeBranchName('feature/add auth!@#')).toBe('feature/add-auth');
-  });
-
-  test('連続するハイフンを1つにまとめること', () => {
-    expect(sanitizeBranchName('feature/add---auth')).toBe('feature/add-auth');
-  });
-
-  test('先頭・末尾のハイフンを除去すること', () => {
-    expect(sanitizeBranchName('-feature/test-name-')).toBe('feature/test-name');
+  test.each(sanitizeBranchNameCases)('$input → $expected', ({ input, expected }) => {
+    expect(sanitizeBranchName(input)).toBe(expected);
   });
 
   test('50文字を超える場合に切り詰めること', () => {
@@ -43,70 +42,54 @@ describe('sanitizeBranchName', () => {
   });
 });
 
+// ---------------------------------------------------------------------------
+// isValidBranchName
+// ---------------------------------------------------------------------------
+
+type ValidCase = { name: string; input: string; expected: boolean };
+
+/** isValidBranchName の全入出力ケースをテーブル化 */
+const isValidBranchNameCases: ValidCase[] = [
+  // 有効なプレフィックス
+  { name: 'feature/add-auth（有効なfeature/プレフィックス）', input: 'feature/add-auth',      expected: true  },
+  { name: 'bugfix/fix-login（有効なbugfix/プレフィックス）', input: 'bugfix/fix-login',       expected: true  },
+  { name: 'chore/update-deps（有効なchore/プレフィックス）', input: 'chore/update-deps',      expected: true  },
+  // 空文字列・長さ
+  { name: '空文字列',                                         input: '',                       expected: false },
+  { name: '50文字超（feature/aaa...×50）',                    input: 'feature/' + 'a'.repeat(50), expected: false },
+  // 無効なプレフィックス
+  { name: '無効なプレフィックス: invalid/branch',             input: 'invalid/branch',         expected: false },
+  { name: '無効なプレフィックス: main',                       input: 'main',                   expected: false },
+  { name: '無効なプレフィックス: release/v1',                 input: 'release/v1',             expected: false },
+  // スペース・特殊文字
+  { name: 'スペースを含む: feature/add auth',                 input: 'feature/add auth',       expected: false },
+  { name: '特殊文字: チルダ（feature/add~auth）',             input: 'feature/add~auth',       expected: false },
+  { name: '特殊文字: キャレット（feature/add^auth）',         input: 'feature/add^auth',       expected: false },
+  { name: '特殊文字: コロン（feature/add:auth）',             input: 'feature/add:auth',       expected: false },
+  { name: '特殊文字: クエスチョン（feature/add?auth）',       input: 'feature/add?auth',       expected: false },
+  { name: '特殊文字: アスタリスク（feature/add*auth）',       input: 'feature/add*auth',       expected: false },
+  // 連続ドット・先頭末尾
+  { name: '連続するドット: feature/add..auth',                input: 'feature/add..auth',      expected: false },
+  { name: '先頭がドット: .feature/test',                      input: '.feature/test',          expected: false },
+  { name: '末尾がハイフン: feature/test-',                    input: 'feature/test-',          expected: false },
+  // 語数バリデーション（プレフィックス後の語数チェック）
+  { name: 'プレフィックス後1語のみ: feature/auth',            input: 'feature/auth',           expected: false },
+  { name: 'プレフィックス後1語のみ: bugfix/login',            input: 'bugfix/login',           expected: false },
+  { name: 'プレフィックス後1語のみ: chore/deps',              input: 'chore/deps',             expected: false },
+  { name: 'プレフィックス後2語以上: feature/add-auth',        input: 'feature/add-auth',       expected: true  },
+  { name: 'プレフィックス後3語以上: bugfix/fix-login-error',  input: 'bugfix/fix-login-error', expected: true  },
+  { name: 'プレフィックス後2語以上: chore/update-deps',       input: 'chore/update-deps',      expected: true  },
+];
+
 describe('isValidBranchName', () => {
-  test('有効なfeature/ブランチ名を受け入れること', () => {
-    expect(isValidBranchName('feature/add-auth')).toBe(true);
-  });
-
-  test('有効なbugfix/ブランチ名を受け入れること', () => {
-    expect(isValidBranchName('bugfix/fix-login')).toBe(true);
-  });
-
-  test('有効なchore/ブランチ名を受け入れること', () => {
-    expect(isValidBranchName('chore/update-deps')).toBe(true);
-  });
-
-  test('空文字列を拒否すること', () => {
-    expect(isValidBranchName('')).toBe(false);
-  });
-
-  test('50文字を超える名前を拒否すること', () => {
-    const longName = 'feature/' + 'a'.repeat(50);
-    expect(isValidBranchName(longName)).toBe(false);
-  });
-
-  test('無効なプレフィックスを拒否すること', () => {
-    expect(isValidBranchName('invalid/branch')).toBe(false);
-    expect(isValidBranchName('main')).toBe(false);
-    expect(isValidBranchName('release/v1')).toBe(false);
-  });
-
-  test('スペースを含む名前を拒否すること', () => {
-    expect(isValidBranchName('feature/add auth')).toBe(false);
-  });
-
-  test('特殊文字を含む名前を拒否すること', () => {
-    expect(isValidBranchName('feature/add~auth')).toBe(false);
-    expect(isValidBranchName('feature/add^auth')).toBe(false);
-    expect(isValidBranchName('feature/add:auth')).toBe(false);
-    expect(isValidBranchName('feature/add?auth')).toBe(false);
-    expect(isValidBranchName('feature/add*auth')).toBe(false);
-  });
-
-  test('連続するドットを拒否すること', () => {
-    expect(isValidBranchName('feature/add..auth')).toBe(false);
-  });
-
-  test('先頭がドットの名前を拒否すること', () => {
-    expect(isValidBranchName('.feature/test')).toBe(false);
-  });
-
-  test('末尾がハイフンの名前を拒否すること', () => {
-    expect(isValidBranchName('feature/test-')).toBe(false);
-  });
-
-  test('プレフィックス後に1語しかないブランチ名を拒否すること', () => {
-    expect(isValidBranchName('feature/auth')).toBe(false);
-    expect(isValidBranchName('bugfix/login')).toBe(false);
-    expect(isValidBranchName('chore/deps')).toBe(false);
-  });
-
-  test('プレフィックス後に2語以上あるブランチ名を受け入れること', () => {
-    expect(isValidBranchName('feature/add-auth')).toBe(true);
-    expect(isValidBranchName('bugfix/fix-login-error')).toBe(true);
-    expect(isValidBranchName('chore/update-deps')).toBe(true);
+  test.each(isValidBranchNameCases)('$name → $expected', ({ input, expected }) => {
+    expect(isValidBranchName(input)).toBe(expected);
   });
 });
+
+// ---------------------------------------------------------------------------
+// extractBranchName
+// ---------------------------------------------------------------------------
 
 describe('extractBranchName', () => {
   test('クリーンなブランチ名をそのまま返すこと', () => {
@@ -146,6 +129,10 @@ describe('extractBranchName', () => {
     );
   });
 });
+
+// ---------------------------------------------------------------------------
+// generateFallbackBranchName
+// ---------------------------------------------------------------------------
 
 describe('generateFallbackBranchName', () => {
   test('英語タイトルからfeature/プレフィックスのブランチ名を生成すること', () => {
