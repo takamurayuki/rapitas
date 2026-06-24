@@ -13,7 +13,10 @@ import { collectUsedIcons, findNonCompliantMocks } from '../../../scripts/sync-l
 
 /** Creates a temporary directory for each test. */
 async function makeTmpDir(): Promise<string> {
-  const dir = join(tmpdir(), `sync-lucide-mock-test-${Date.now()}-${Math.floor(performance.now())}`);
+  const dir = join(
+    tmpdir(),
+    `sync-lucide-mock-test-${Date.now()}-${Math.floor(performance.now())}`,
+  );
   await mkdir(dir, { recursive: true });
   return dir;
 }
@@ -79,10 +82,7 @@ describe('collectUsedIcons', () => {
   it('__generated__ ディレクトリを除外する', async () => {
     const gen = join(tmpDir, '__generated__');
     await mkdir(gen, { recursive: true });
-    await writeFile(
-      join(gen, 'generated.ts'),
-      `import { GeneratedIcon } from 'lucide-react';`,
-    );
+    await writeFile(join(gen, 'generated.ts'), `import { GeneratedIcon } from 'lucide-react';`);
     await writeFile(join(tmpDir, 'Real.tsx'), `import { UsedIcon } from 'lucide-react';`);
     const icons = await collectUsedIcons(tmpDir);
     expect(icons).toEqual(['UsedIcon']);
