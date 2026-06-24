@@ -111,6 +111,11 @@ export function parseFilesArg(argv: string[]): string[] | null {
  * @returns Array of ResolverFile descriptors / ResolverFileの配列
  */
 export function scanForResolverFiles(opts?: ScanOptions): ResolverFile[] {
+  // Empty file list = no resolver files in the changeset → nothing to scan.
+  if (opts?.files !== undefined && opts.files.length === 0) {
+    return [];
+  }
+
   let allFiles: string[];
 
   if (opts?.files && opts.files.length > 0) {
