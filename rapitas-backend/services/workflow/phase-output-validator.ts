@@ -160,11 +160,14 @@ export function validateVerify(content: string): ValidationResult {
     /test\s+files?[\s\S]{0,80}?([1-9]\d*)\s+failed/i,
     /失敗\s*(?:した)?テスト\s*(?:数|件数)?\s*[:：]?\s*([1-9]\d*)/, // "失敗テスト数: 3", not ": 0"
     /テスト[^。\n]{0,20}?([1-9]\d*)\s*(?:件|個)\s*(?:が)?\s*失敗/, // "テストが3件失敗"
-    // `\b` before exit so an identifier like "TSC_EXIT=1" (an agent HONESTLY
-    // documenting that whole-project tsc exits 1 due to PRE-EXISTING out-of-scope
-    // errors) is NOT read as the task's own test failure. Real "exit 1" / "exit
-    // code 1" still matches. (task 272 was blocked by exactly this false positive.)
-    /\bexit\s*(?:code\s*)?[:=]?\s*1\b/i,
+    // Match only the RUNNER's natural-language exit report ("exit 1" / "exit code
+    // 1", whitespace-separated). The `key=value` / `key: value` forms ("exit=1",
+    // "exit: 1", "TSC_EXIT=1") are how agents DOCUMENT a command's return code as
+    // EVIDENCE — e.g. a CLI-guard task proving `run-gate bogus-id` correctly exits
+    // 1 — which is expected behaviour, NOT the task's own failure. Requiring
+    // whitespace before the 1 excludes those documentation forms. (task 272/304 +
+    // the CI-gate guard task were blocked by exactly this false positive.)
+    /\bexit(?:\s+code)?\s+1\b/i,
     // A ×N count ONLY when ATTACHED to a failure verdict — "❌ ×3", "失敗 ×2",
     // "failed ×5". A bare "×2" in passing prose ("ケース×2", "✅×2", "リトライ×2",
     // "前後比較×2") is multiplication/repetition, NOT a test failure, and was

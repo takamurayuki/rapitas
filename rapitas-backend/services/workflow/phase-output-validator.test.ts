@@ -220,6 +220,28 @@ TSC_EXIT=1   # プロジェクト全体tscの既存2エラー(無関係ファイ
     expect(validateVerify(tscExitPass).ok).toBe(true);
   });
 
+  test('does NOT flag a passing verify that documents guard "exit=1" as evidence', () => {
+    // Regression (CI-gate guard task): an honest verify PROVES the CLI guards
+    // return the right code by documenting `run-gate bogus-id … exit=1` — expected
+    // behaviour, written in key=value form. The old /exit[:=]?1/ matched it and,
+    // with the pass claim, falsely reported a self-contradiction → verify_repair.
+    const guardExitPass = `# 検証レポート
+## 検証結果サマリ
+✅ 検証成功（合格） — 48/48 passed
+## テスト結果
+\`\`\`
+$ bun scripts/run-gate.ts bogus-gate
+[run-gate] Unknown gate id: "bogus-gate"
+exit=1
+$ bun scripts/run-gate.ts
+[run-gate] Usage: bun scripts/run-gate.ts <gateId>
+exit=1
+\`\`\`
+## チェックリスト消化状況
+- [x] done`;
+    expect(validateVerify(guardExitPass).ok).toBe(true);
+  });
+
   test('still flags a real "exit 1" command failure on a pass-claiming verify', () => {
     const realExit = `# 検証レポート
 ## 検証結果サマリ
