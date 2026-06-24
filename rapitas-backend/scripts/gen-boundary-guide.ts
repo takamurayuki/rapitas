@@ -25,6 +25,10 @@ import {
   NULLABLE_ID_EDGES,
   INVALID_ID_EDGES,
   NONEXISTENT_ID,
+  DATE_EDGES,
+  ENUM_INVALID_EDGES,
+  FLOAT_EDGES,
+  PG_INT_BOUNDARIES,
 } from '../tests/helpers/boundary-values';
 
 const SCRIPTS_DIR = dirname(fileURLToPath(import.meta.url));
@@ -56,6 +60,10 @@ export interface BoundaryGuideInput {
   NULLABLE_ID_EDGES: readonly BoundaryCaseEntry[];
   INVALID_ID_EDGES: readonly BoundaryCaseEntry[];
   NONEXISTENT_ID: number;
+  DATE_EDGES: readonly BoundaryCaseEntry[];
+  ENUM_INVALID_EDGES: readonly BoundaryCaseEntry[];
+  FLOAT_EDGES: readonly BoundaryCaseEntry[];
+  PG_INT_BOUNDARIES: readonly BoundaryCaseEntry[];
 }
 
 /** Represents a file that is out of sync with the generated output. */
@@ -209,7 +217,12 @@ export function isSsotChanged(files: string[]): boolean {
 export function renderValue(value: string | number | null): string {
   if (value === null) return '`null`';
   if (typeof value === 'number') return `\`${value}\``;
-  const escaped = value.replace(/\\/g, '\\\\').replace(/\t/g, '\\t').replace(/\n/g, '\\n');
+  // NOTE: \r must be escaped before \n to avoid double-escaping \r\n sequences.
+  const escaped = value
+    .replace(/\\/g, '\\\\')
+    .replace(/\r/g, '\\r')
+    .replace(/\t/g, '\\t')
+    .replace(/\n/g, '\\n');
   if (escaped === '') return '`""` (空文字)';
   return `\`"${escaped}"\``;
 }
@@ -311,13 +324,73 @@ export function generateGuideContent(
     `| --- |\n` +
     `| \`${input.NONEXISTENT_ID}\` |\n` +
     `\n` +
+    `### \`DATE_EDGES\`\n` +
+    `\n` +
+    `日付文字列の境界値セット（ISO 8601 形式）。将来的に日付文字列引数を取る resolver 向け。\n` +
+    `ISO 8601 文字列で保持し、テスト側で \`new Date(value)\` に変換して使用する。\n` +
+    `\n` +
+    renderTable(input.DATE_EDGES) +
+    `\n\n` +
+    `### \`ENUM_INVALID_EDGES\`\n` +
+    `\n` +
+    `Enum 型引数に対する無効値の境界値セット。\`makeEnumBoundaries()\` の \`invalid\` 省略時のデフォルト値として使用する。\n` +
+    `\n` +
+    renderTable(input.ENUM_INVALID_EDGES) +
+    `\n\n` +
+    `### \`FLOAT_EDGES\`\n` +
+    `\n` +
+    `浮動小数点数の境界値セット（NaN / Infinity / EPSILON を含む）。将来的に浮動小数点引数を取る関数向けに定義のみ用意。\n` +
+    `\n` +
+    renderTable(input.FLOAT_EDGES) +
+    `\n\n` +
+    `### \`PG_INT_BOUNDARIES\`\n` +
+    `\n` +
+    `PostgreSQL INTEGER (INT4) 型の境界値セット（-2147483648 〜 2147483647）。\`NUMERIC_ID_BOUNDARIES\`（MAX_SAFE_INTEGER）との差別化設計。\n` +
+    `\n` +
+    renderTable(input.PG_INT_BOUNDARIES) +
+    `\n\n` +
     `## ユーティリティ関数\n` +
     `\n` +
     `### \`toNameTuples<T>(cases)\`\n` +
     `\n` +
     `\`BoundaryCase<T>[]\` を \`it.each\` 用 \`[label, value]\` タプル配列に変換する。\n` +
     `bun:test の \`%s\` 置換は primitive 前提のため、本関数でタプル化することで\n` +
-    `ラベルを正しく表示できる。\n`
+    `ラベルを正しく表示できる。\n` +
+    `\n` +
+    `## 定数の追加手順\n` +
+    `\n` +
+    `新しい境界値定数を \`${SSOT_RELATIVE}\` に追加する際は以下の 3 ステップに従う。\n` +
+    `\n` +
+    `### ステップ 1 — \`boundary-values.ts\` に定数を追加\n` +
+    `\n` +
+    `JSDoc の最初の行がガイドのセクション説明として自動反映される。\n` +
+    `\n` +
+    `\`\`\`ts\n` +
+    `/**\n` +
+    ` * 〈一行説明〉（ガイドに表示される）\n` +
+    ` */\n` +
+    `export const MY_NEW_EDGES: readonly BoundaryCase<MyType>[] = [\n` +
+    `  { label: '〈境界ラベル〉', value: /* 境界値 */ },\n` +
+    `];\n` +
+    `\`\`\`\n` +
+    `\n` +
+    `### ステップ 2 — \`gen-boundary-guide.ts\` に定数を登録\n` +
+    `\n` +
+    `以下の 4 箇所を更新する:\n` +
+    `\n` +
+    `1. **\`import\` 文** に定数名を追加（ファイル先頭）\n` +
+    `2. **\`BoundaryGuideInput\` インターフェース** に型フィールドを追加\n` +
+    `3. **\`DEFAULT_DESCRIPTIONS\`** にフォールバック説明文を追加\n` +
+    `4. **\`generateGuideContent\`** と **\`checkDrift\`** 内の \`input\` オブジェクトに追加\n` +
+    `\n` +
+    `### ステップ 3 — ガイドを再生成してコミット\n` +
+    `\n` +
+    `\`\`\`sh\n` +
+    `bun run gen:boundary-guide\n` +
+    `\`\`\`\n` +
+    `\n` +
+    `生成された \`docs/boundary-guide.generated.md\` を必ず同一コミットに含めること。  \n` +
+    `コミット漏れがあると CI の \`checkDrift\` テストが失敗する。\n`
   );
 }
 
@@ -347,6 +420,10 @@ export function checkDrift(): DriftResult[] {
       NULLABLE_ID_EDGES,
       INVALID_ID_EDGES,
       NONEXISTENT_ID,
+      DATE_EDGES,
+      ENUM_INVALID_EDGES,
+      FLOAT_EDGES,
+      PG_INT_BOUNDARIES,
     },
     descriptions,
   );
@@ -405,6 +482,10 @@ if (import.meta.main) {
         NULLABLE_ID_EDGES,
         INVALID_ID_EDGES,
         NONEXISTENT_ID,
+        DATE_EDGES,
+        ENUM_INVALID_EDGES,
+        FLOAT_EDGES,
+        PG_INT_BOUNDARIES,
       },
       descriptions,
     );

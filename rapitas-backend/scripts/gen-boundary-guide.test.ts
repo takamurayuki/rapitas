@@ -35,6 +35,10 @@ const MINIMAL_INPUT: BoundaryGuideInput = {
   ],
   INVALID_ID_EDGES: [{ label: 'id=0', value: 0 }],
   NONEXISTENT_ID: 999,
+  DATE_EDGES: [{ label: 'epoch ISO', value: '1970-01-01T00:00:00.000Z' }],
+  ENUM_INVALID_EDGES: [{ label: '空文字', value: '' }],
+  FLOAT_EDGES: [{ label: 'NaN', value: Number.NaN }],
+  PG_INT_BOUNDARIES: [{ label: 'INT4 最大値', value: 2147483647 }],
 };
 
 // ---------------------------------------------------------------------------
@@ -110,6 +114,8 @@ describe('renderValue', () => {
     { label: 'empty string', value: '' as string, expected: '`""` (空文字)' },
     { label: 'tab char', value: '\t' as string, expected: '`"\\t"`' },
     { label: 'newline char', value: '\n' as string, expected: '`"\\n"`' },
+    { label: 'CRLF', value: '\r\n' as string, expected: '`"\\r\\n"`' },
+    { label: 'CR only', value: '\r' as string, expected: '`"\\r"`' },
     { label: 'regular string', value: 'hello' as string, expected: '`"hello"`' },
   ])('$label', ({ value, expected }) => {
     expect(renderValue(value)).toBe(expected);
@@ -137,6 +143,10 @@ describe('generateGuideContent', () => {
       '### `NULLABLE_ID_EDGES`',
       '### `INVALID_ID_EDGES`',
       '### `NONEXISTENT_ID`',
+      '### `DATE_EDGES`',
+      '### `ENUM_INVALID_EDGES`',
+      '### `FLOAT_EDGES`',
+      '### `PG_INT_BOUNDARIES`',
     ];
     for (const h of headings) {
       expect(content).toContain(h);
@@ -180,6 +190,21 @@ describe('generateGuideContent', () => {
   test('includes toNameTuples documentation', () => {
     const content = generateGuideContent(MINIMAL_INPUT);
     expect(content).toContain('toNameTuples');
+  });
+
+  test.each([
+    ['見出し', '## 定数の追加手順'],
+    ['ステップ 1', 'ステップ 1'],
+    ['ステップ 2', 'ステップ 2'],
+    ['ステップ 3', 'ステップ 3'],
+    ['SSOT パス参照', SSOT_RELATIVE],
+    ['gen:boundary-guide コマンド', 'bun run gen:boundary-guide'],
+    ['BoundaryGuideInput 登録点', 'BoundaryGuideInput'],
+    ['DEFAULT_DESCRIPTIONS 登録点', 'DEFAULT_DESCRIPTIONS'],
+    ['checkDrift 登録点', 'checkDrift'],
+  ])('how-to section: %s が含まれる', (_label, expected) => {
+    const content = generateGuideContent(MINIMAL_INPUT);
+    expect(content).toContain(expected);
   });
 
   test('is deterministic (same input → same output)', () => {
