@@ -146,4 +146,3 @@ bun:test の `%s` 置換は primitive 前提のため、オブジェクト配列
 `[object Object]` と表示される。本関数でタプル化することで
 `it.each(toNameTuples(EDGES))('...(%s)...', (_label, value) => ...)` の形式で
 `%s` に `label` 文字列が正しく表示される。
-

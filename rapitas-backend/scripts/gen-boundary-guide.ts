@@ -50,9 +50,7 @@ export function extractJsDoc(source: string, constName: string): string {
     return '';
   }
 
-  const lines = match[1]
-    .split('\n')
-    .map((line) => line.replace(/^\s*\*\s?/, ''));
+  const lines = match[1].split('\n').map((line) => line.replace(/^\s*\*\s?/, ''));
 
   const descLines: string[] = [];
   for (const line of lines) {
@@ -167,8 +165,7 @@ export async function generateGuideContent(): Promise<string> {
   const utilSection =
     `## ユーティリティ\n\n` +
     `### \`toNameTuples<T>(cases)\`\n\n` +
-    (utilJsDoc ? `${utilJsDoc}\n` : '') +
-    `\n`;
+    (utilJsDoc ? `${utilJsDoc}\n` : '');
 
   return header + typeSection + constantsSection + scalarSection + utilSection;
 }
