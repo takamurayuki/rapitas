@@ -6,9 +6,6 @@
  */
 
 import { exec } from 'child_process';
-import { mkdtempSync, rmSync, writeFileSync } from 'fs';
-import { tmpdir } from 'os';
-import { join } from 'path';
 import { promisify } from 'util';
 import { createLogger } from '../../../../config/logger';
 import {
@@ -17,6 +14,7 @@ import {
   findConflictingWorktreeForBranch,
 } from './worktree-guard';
 import { isHeadBehindError, isAlreadyUpToDate } from '../../../github/gh-retry';
+import { runGhCommandWithBody } from '../../../github/gh-client';
 
 const execAsync = promisify(exec);
 const logger = createLogger('git-operations/branch-pr-ops');
@@ -228,28 +226,15 @@ export async function createPullRequest(
       // No existing PR (or gh error) — fall through to create.
     }
 
-    // Pass the body via a temp file, not inline. A verify-report body easily
-    // exceeds the Windows command-line length limit (~32 KB), which fails PR
-    // creation with "The command line is too long" → no PR → the task blocks at
-    // the completion gate (status never becomes 'done'). --body-file sidesteps
-    // the limit and also avoids fragile shell-quoting of multiline markdown.
-    const bodyDir = mkdtempSync(join(tmpdir(), 'rapitas-pr-'));
-    const bodyFile = join(bodyDir, 'body.md');
-    let stdout: string;
-    try {
-      writeFileSync(bodyFile, body);
-      ({ stdout } = await execAsync(
-        `${ghPath()} pr create --title "${title.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}" --body-file "${bodyFile}" --base ${targetBranch}`,
-        { cwd: workingDirectory, encoding: 'utf8' },
-      ));
-    } finally {
-      // Best-effort cleanup; a leftover temp file must never fail PR creation.
-      try {
-        rmSync(bodyDir, { recursive: true, force: true });
-      } catch {
-        /* ignore */
-      }
-    }
+    // Pass body via runGhCommandWithBody: writes to a UTF-8 temp file and
+    // appends --body-file, sidestepping the Windows command-line length limit
+    // (~32 KB) and shell-quoting fragility. Title is passed as a literal
+    // array element — execFile bypasses the shell so no escaping is needed.
+    const stdout = await runGhCommandWithBody(
+      ['pr', 'create', '--title', title, '--base', targetBranch],
+      body,
+      workingDirectory,
+    );
 
     const prUrl = stdout.trim();
     const prMatch = prUrl.match(/\/pull\/(\d+)/);

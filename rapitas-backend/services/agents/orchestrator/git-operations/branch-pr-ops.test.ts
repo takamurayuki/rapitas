@@ -14,6 +14,10 @@ let script: Array<{ match: RegExp; result: string | Error }> = [];
 // Controls the return value of the mocked findConflictingWorktreeForBranch.
 let conflictingWorktreePath: string | null = null;
 
+// Tracks calls to runGhCommandWithBody and controls its return value.
+let ghWithBodyCalls: Array<{ baseArgs: string[]; body: string | undefined; cwd: string | undefined }> = [];
+let ghWithBodyResult: string | Error = '';
+
 function runScripted(cmd: string): { stdout: string; stderr: string } {
   calls.push(cmd);
   for (const s of script) {
@@ -50,6 +54,19 @@ mock.module('./worktree-guard', () => ({
   ensureNotPrimaryWorkTree: async () => {},
   findConflictingWorktreeForBranch: async () => conflictingWorktreePath,
 }));
+// NOTE: gh-client is mocked so that runGhCommandWithBody does not invoke the real
+// gh binary. Its result is configurable per-test via ghWithBodyResult.
+mock.module('../../../github/gh-client', () => ({
+  runGhCommandWithBody: async (
+    baseArgs: string[],
+    body: string | undefined,
+    cwd: string | undefined,
+  ): Promise<string> => {
+    ghWithBodyCalls.push({ baseArgs, body, cwd });
+    if (ghWithBodyResult instanceof Error) throw ghWithBodyResult;
+    return ghWithBodyResult;
+  },
+}));
 
 const { createPullRequest, createBranch, mergePullRequest } = await import('./branch-pr-ops');
 
@@ -62,10 +79,13 @@ beforeEach(() => {
   calls = [];
   script = [];
   conflictingWorktreePath = null;
+  ghWithBodyCalls = [];
+  ghWithBodyResult = '';
 });
 
 describe('createPullRequest — push 分岐耐性', () => {
   test('origin が分岐していたらコミット一意ブランチへ push し直して PR 作成すること', async () => {
+    ghWithBodyResult = 'https://github.com/x/y/pull/42';
     script = [
       { match: /git branch --list develop/, result: 'develop\n' },
       { match: /git branch --show-current/, result: 'feature/implement-task\n' },
@@ -74,7 +94,6 @@ describe('createPullRequest — push 分岐耐性', () => {
       { match: /git branch -M feature\/implement-task-abc1234/, result: '' },
       { match: /git push -u origin feature\/implement-task-abc1234$/, result: '' },
       { match: /pr list --head/, result: '' },
-      { match: /pr create/, result: 'https://github.com/x/y/pull/42\n' },
     ];
 
     const res = await createPullRequest('/repo', 'タイトル', '本文');
@@ -92,12 +111,12 @@ describe('createPullRequest — push 分岐耐性', () => {
   });
 
   test('push が成功すれば元のブランチのまま PR 作成すること', async () => {
+    ghWithBodyResult = 'https://github.com/x/y/pull/7';
     script = [
       { match: /git branch --list develop/, result: 'develop\n' },
       { match: /git branch --show-current/, result: 'feature/add-foo\n' },
       { match: /git push -u origin feature\/add-foo$/, result: '' },
       { match: /pr list --head/, result: '' },
-      { match: /pr create/, result: 'https://github.com/x/y/pull/7\n' },
     ];
 
     const res = await createPullRequest('/repo', 't', 'b');
@@ -153,6 +172,7 @@ describe('createPullRequest — push 分岐耐性', () => {
     //       再利用パスに入らず gh pr create へフォールスルーする現挙動を固定する。
     //       GitHub PR #0 は実在しないため実害ゼロだが、将来同様の truthy チェックが
     //       増えた際の回帰検知点として意図的にテストする。
+    ghWithBodyResult = 'https://github.com/x/y/pull/99';
     script = [
       { match: /git branch --list develop/, result: 'develop\n' },
       { match: /git branch --show-current/, result: 'feature/pr-zero\n' },
@@ -162,15 +182,14 @@ describe('createPullRequest — push 分岐耐性', () => {
         match: /pr list --head feature\/pr-zero/,
         result: JSON.stringify({ number: 0, url: 'https://x/pull/0', baseRefName: 'develop' }),
       },
-      { match: /pr create/, result: 'https://github.com/x/y/pull/99\n' },
     ];
 
     const res = await createPullRequest('/repo', 't', 'b');
 
     expect(res.success).toBe(true);
     expect(res.prNumber).toBe(99);
-    // 0 は falsy のため再利用をスキップし、新規作成が呼ばれること
-    expect(calls.some((c) => /pr create/.test(c))).toBe(true);
+    // 0 は falsy のため再利用をスキップし、runGhCommandWithBody 経由で新規作成されること
+    expect(ghWithBodyCalls.some((c) => c.baseArgs.includes('create'))).toBe(true);
   });
 
   test('分岐以外の push 失敗 (認証等) は PR 失敗として返すこと', async () => {
@@ -188,6 +207,81 @@ describe('createPullRequest — push 分岐耐性', () => {
     expect(res.success).toBe(false);
     expect(res.error).toContain('Authentication failed');
     expect(calls.some((c) => /git branch -M/.test(c))).toBe(false);
+  });
+});
+
+describe('createPullRequest — runGhCommandWithBody 呼び出し内容の検証', () => {
+  test('title と base が配列要素として正確に渡ること（シェルエスケープ不要）', async () => {
+    const titleWithSpecialChars = 'Fix: handle "quotes" and \\backslash in title';
+    ghWithBodyResult = 'https://github.com/x/y/pull/10';
+    script = [
+      { match: /git branch --list develop/, result: 'develop\n' },
+      { match: /git branch --show-current/, result: 'feature/special\n' },
+      { match: /git push -u origin feature\/special$/, result: '' },
+      { match: /pr list --head/, result: '' },
+    ];
+
+    const res = await createPullRequest('/repo', titleWithSpecialChars, 'body');
+
+    expect(res.success).toBe(true);
+    expect(ghWithBodyCalls).toHaveLength(1);
+    const call = ghWithBodyCalls[0];
+    // タイトルはそのまま配列要素として渡ること（シェルエスケープ不要）
+    expect(call.baseArgs).toContain(titleWithSpecialChars);
+    expect(call.baseArgs).toContain('create');
+    expect(call.baseArgs).toContain('--base');
+    expect(call.baseArgs).toContain('develop');
+    expect(call.cwd).toBe('/repo');
+  });
+
+  test('日本語ボディが文字化けなく runGhCommandWithBody に渡ること', async () => {
+    const japaneseBody = '## 概要\n\nこのPRは日本語のボディを含む。改行も正しく扱われること。';
+    ghWithBodyResult = 'https://github.com/x/y/pull/11';
+    script = [
+      { match: /git branch --list develop/, result: 'develop\n' },
+      { match: /git branch --show-current/, result: 'feature/jp\n' },
+      { match: /git push -u origin feature\/jp$/, result: '' },
+      { match: /pr list --head/, result: '' },
+    ];
+
+    const res = await createPullRequest('/repo', 'JP title', japaneseBody);
+
+    expect(res.success).toBe(true);
+    expect(ghWithBodyCalls[0].body).toBe(japaneseBody);
+  });
+
+  test('空ボディが runGhCommandWithBody に正しく渡ること', async () => {
+    ghWithBodyResult = 'https://github.com/x/y/pull/12';
+    script = [
+      { match: /git branch --list develop/, result: 'develop\n' },
+      { match: /git branch --show-current/, result: 'feature/empty-body\n' },
+      { match: /git push -u origin feature\/empty-body$/, result: '' },
+      { match: /pr list --head/, result: '' },
+    ];
+
+    const res = await createPullRequest('/repo', 'title', '');
+
+    expect(res.success).toBe(true);
+    expect(ghWithBodyCalls[0].body).toBe('');
+  });
+
+  test('PR 再利用パスでは runGhCommandWithBody が呼ばれないこと', async () => {
+    script = [
+      { match: /git branch --list develop/, result: 'develop\n' },
+      { match: /git branch --show-current/, result: 'feature/reuse\n' },
+      { match: /git push -u origin feature\/reuse$/, result: '' },
+      {
+        match: /pr list --head feature\/reuse/,
+        result: JSON.stringify({ number: 55, url: 'https://x/pull/55', baseRefName: 'develop' }),
+      },
+    ];
+
+    const res = await createPullRequest('/repo', 't', 'b');
+
+    expect(res.success).toBe(true);
+    expect(res.prNumber).toBe(55);
+    // 既存PR再利用なので runGhCommandWithBody は呼ばれないこと
+    expect(ghWithBodyCalls).toHaveLength(0);
   });
 });
 
