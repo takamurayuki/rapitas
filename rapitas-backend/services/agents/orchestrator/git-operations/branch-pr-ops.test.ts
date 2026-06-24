@@ -15,7 +15,11 @@ let script: Array<{ match: RegExp; result: string | Error }> = [];
 let conflictingWorktreePath: string | null = null;
 
 // Tracks calls to runGhCommandWithBody and controls its return value.
-let ghWithBodyCalls: Array<{ baseArgs: string[]; body: string | undefined; cwd: string | undefined }> = [];
+let ghWithBodyCalls: Array<{
+  baseArgs: string[];
+  body: string | undefined;
+  cwd: string | undefined;
+}> = [];
 let ghWithBodyResult: string | Error = '';
 
 function runScripted(cmd: string): { stdout: string; stderr: string } {
