@@ -8,13 +8,13 @@
 import { exec } from 'child_process';
 import { promisify } from 'util';
 import { createLogger } from '../../../../config/logger';
-import { runGhCommandWithBody } from '../../../github/gh-client';
 import {
   isPrimaryWorkTree,
   ensureNotPrimaryWorkTree,
   findConflictingWorktreeForBranch,
 } from './worktree-guard';
 import { isHeadBehindError, isAlreadyUpToDate } from '../../../github/gh-retry';
+import { runGhCommandWithBody } from '../../../github/gh-client';
 
 const execAsync = promisify(exec);
 const logger = createLogger('git-operations/branch-pr-ops');
@@ -226,17 +226,13 @@ export async function createPullRequest(
       // No existing PR (or gh error) — fall through to create.
     }
 
-    // NOTE: runGhCommandWithBody handles temp-file creation, Windows argument-
-    // length limits, and multiline markdown quoting internally — no manual OS-
-    // level file management needed here. Title is passed as an array element so
-    // no shell escaping is required.
-    const stdout = await runGhCommandWithBody(
+    // NOTE: runGhCommandWithBody passes body via --body-file, bypassing the
+    // Windows command-line length limit (~32 KB) and shell-quoting hazards.
+    const prUrl = await runGhCommandWithBody(
       ['pr', 'create', '--title', title, '--base', targetBranch],
       body,
       workingDirectory,
     );
-
-    const prUrl = stdout.trim();
     const prMatch = prUrl.match(/\/pull\/(\d+)/);
 
     if (!prMatch?.[1]) {

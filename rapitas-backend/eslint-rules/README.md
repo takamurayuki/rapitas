@@ -10,18 +10,26 @@
 | ファイル | ルール名 | 概要 |
 |---|---|---|
 | `no-raw-prisma-insensitive.mjs` | `no-raw-prisma-insensitive` | Prisma クエリ内の生 `mode: 'insensitive'` を禁止。SQLite は非サポートのため `getInsensitiveMode()` を使う必要がある |
+| `no-icon-collision.mjs` | `no-icon-collision` | `lucide-react` アイコンの ICON_POLICY 違反を検知（`warn`）。既知衝突グリフ（`Gauge`）と所有グリフの許可パス外使用（`Lightbulb` など）を報告する |
 
 ---
 
 ## テスト実行
 
 ```bash
-# このルールのテストのみ実行
+# ルール別テストのみ実行
 bun test eslint-rules/no-raw-prisma-insensitive.test.mjs
+bun test eslint-rules/no-icon-collision.test.mjs
 
 # CI ゲートスイート全体（他テストと合わせて実行）
 bun run test:ci
 ```
+
+### no-icon-collision の severity 方針と拡張手順
+
+- **初期 severity は `warn`**。既存違反（`Lightbulb` 約10件、`Gauge` 1件）が多数あるため `error` 化はしない。
+- `error` への昇格は、違反ファイルの修正（別タスク）完了後に `rapitas-frontend/eslint.config.mjs` の `'local/no-icon-collision': 'warn'` を `'error'` に変更する。
+- **ポリシーマップの拡張**: `eslint-rules/icon-policy-map.mjs` の `OWNED_ICONS` / `KNOWN_COLLISIONS` に追記し、`ICON_POLICY.md §3` と同期して更新する。
 
 ---
 

@@ -23,6 +23,9 @@ import {
   jaccardSimilarity,
   detectDuplicates,
   detectOrphans,
+  parsePhase,
+  runPhase1,
+  runPhase2,
 } from './check-docs-health';
 
 const SCRIPTS_DIR = dirname(fileURLToPath(import.meta.url));
@@ -395,6 +398,112 @@ describe('detectOrphans', () => {
   });
 });
 
+// ── parsePhase ────────────────────────────────────────────────────────────────
+
+describe('parsePhase', () => {
+  test('returns 1 for --phase=1', () => {
+    expect(parsePhase(['bun', 'script.ts', '--phase=1'])).toBe(1);
+  });
+
+  test('returns 2 for --phase=2', () => {
+    expect(parsePhase(['bun', 'script.ts', '--phase=2'])).toBe(2);
+  });
+
+  test('returns "all" when --phase flag is absent', () => {
+    expect(parsePhase([])).toBe('all');
+    expect(parsePhase(['--check'])).toBe('all');
+    expect(parsePhase(['--warn-only'])).toBe('all');
+  });
+
+  test('throws for unrecognised --phase value', () => {
+    expect(() => parsePhase(['--phase=3'])).toThrow();
+    expect(() => parsePhase(['--phase='])).toThrow();
+    expect(() => parsePhase(['--phase=all'])).toThrow();
+  });
+});
+
+// ── runPhase1 ─────────────────────────────────────────────────────────────────
+
+describe('runPhase1', () => {
+  beforeEach(setup);
+  afterEach(teardown);
+
+  test('returns brokenLinks for non-existent referenced file', () => {
+    writeFile('services/exists.ts', 'export {};');
+    const docPath = writeFile('docs/spec.md', '`services/exists.ts`\n`services/gone.ts`');
+    const { brokenLinks } = runPhase1([docPath], tmpRoot);
+    expect(brokenLinks).toHaveLength(1);
+    expect(brokenLinks[0].path).toBe('services/gone.ts');
+  });
+
+  test('does not include duplicates property in result', () => {
+    const docPath = writeFile('docs/empty.md', '# No paths here');
+    const result = runPhase1([docPath], tmpRoot);
+    expect(result).not.toHaveProperty('duplicates');
+    expect(result).toHaveProperty('brokenLinks');
+    expect(result).toHaveProperty('orphans');
+  });
+
+  test('includes orphan when broken-link rate >50%', () => {
+    const docPath = writeFile('docs/orphan.md', '`s/gone1.ts`\n`s/gone2.ts`\n`s/gone3.ts`');
+    const { orphans } = runPhase1([docPath], tmpRoot);
+    expect(orphans).toContain(docPath);
+  });
+
+  test('does not include orphan when broken-link rate ≤50%', () => {
+    writeFile('services/a.ts', 'export {};');
+    writeFile('services/b.ts', 'export {};');
+    const docPath = writeFile(
+      'docs/spec.md',
+      '`services/a.ts`\n`services/b.ts`\n`services/gone.ts`',
+    );
+    const { orphans } = runPhase1([docPath], tmpRoot);
+    expect(orphans).not.toContain(docPath);
+  });
+
+  test('skips redirect stubs', () => {
+    const docPath = writeFile(
+      'docs/stub.md',
+      '<!-- @deprecated redirectTo: docs/new.md -->\n`services/gone.ts`',
+    );
+    const { brokenLinks, orphans } = runPhase1([docPath], tmpRoot);
+    expect(brokenLinks).toHaveLength(0);
+    expect(orphans).toHaveLength(0);
+  });
+});
+
+// ── runPhase2 ─────────────────────────────────────────────────────────────────
+
+describe('runPhase2', () => {
+  beforeEach(setup);
+  afterEach(teardown);
+
+  test('returns duplicates for near-identical files where one has auto-gen marker', () => {
+    const shared = Array.from({ length: 20 }, (_, i) => `line ${i}`).join('\n');
+    const a = writeFile('docs/gen.md', `> 自動生成ファイル\n${shared}`);
+    const b = writeFile('docs/copy.md', `# Copy\n${shared}`);
+    const { duplicates } = runPhase2([a, b]);
+    expect(duplicates).toHaveLength(1);
+    expect(duplicates[0].score).toBeGreaterThanOrEqual(0.7);
+  });
+
+  test('does not include brokenLinks or orphans properties in result', () => {
+    const docPath = writeFile('docs/empty.md', '# Nothing');
+    const result = runPhase2([docPath]);
+    expect(result).not.toHaveProperty('brokenLinks');
+    expect(result).not.toHaveProperty('orphans');
+    expect(result).toHaveProperty('duplicates');
+  });
+
+  test('returns empty duplicates when no auto-gen marker present', () => {
+    const shared = Array.from({ length: 20 }, (_, i) => `line ${i}`).join('\n');
+    const a = writeFile('docs/a.md', `# Manual A\n${shared}`);
+    const b = writeFile('docs/b.md', `# Manual B\n${shared}`);
+    const { duplicates } = runPhase2([a, b]);
+    expect(duplicates).toHaveLength(0);
+  });
+});
+
 // ── Integration test (smoke — runs against real docs/) ────────────────────────
 
 describe('check-docs-health (integration)', () => {
@@ -433,5 +542,38 @@ describe('check-docs-health (integration)', () => {
     //       auto-gen marker but their Jaccard similarity is ~0.29 (below 0.7 threshold)
     //       because the two guides cover different content despite similar metadata.
     expect(stdout).toContain('Domain 2 (Duplicate/double-managed docs)');
+  });
+});
+
+// ── Phase integration tests ───────────────────────────────────────────────────
+
+describe('check-docs-health --phase (integration)', () => {
+  test('--phase=1 output contains Domain 1 and Domain 3 but not Domain 2', () => {
+    const { status, stdout } = runScript(['--phase=1']);
+    expect(status).toBe(0); // warn-only by default
+    expect(stdout).toContain('Domain 1');
+    expect(stdout).toContain('Domain 3');
+    expect(stdout).not.toContain('Domain 2');
+  });
+
+  test('--phase=2 output contains Domain 2 but not Domain 1 or Domain 3', () => {
+    const { status, stdout } = runScript(['--phase=2']);
+    expect(status).toBe(0); // warn-only by default
+    expect(stdout).toContain('Domain 2');
+    expect(stdout).not.toContain('Domain 1');
+    expect(stdout).not.toContain('Domain 3');
+  });
+
+  test('invalid --phase=3 exits with code 1', () => {
+    const { status, stderr } = runScript(['--phase=3']);
+    expect(status).toBe(1);
+    expect(stderr).toContain('Unknown --phase value');
+  });
+
+  test('--phase=1 exits 0 in default warn-only mode even when broken links exist', () => {
+    // Domain 1 violations exist in real docs/ (question-detection.ts is missing)
+    // but default mode is warn-only, so exit code must be 0.
+    const { status } = runScript(['--phase=1']);
+    expect(status).toBe(0);
   });
 });
