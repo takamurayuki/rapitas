@@ -5,7 +5,13 @@
  * 各定数の型整合性・toNameTuples のタプル化・%s 整形を検証する。
  */
 import { describe, test, expect } from 'bun:test';
-import { STRING_EDGES, ID_EDGES, toNameTuples } from './boundary-values';
+import {
+  STRING_EDGES,
+  ID_EDGES,
+  NONEXISTENT_ID,
+  INVALID_ID_EDGES,
+  toNameTuples,
+} from './boundary-values';
 
 // ---------------------------------------------------------------------------
 // STRING_EDGES
@@ -70,6 +76,54 @@ describe('ID_EDGES', () => {
 
   test('全ケースのラベルが一意であること', () => {
     const labels = ID_EDGES.map((c) => c.label);
+    const unique = new Set(labels);
+    expect(unique.size).toBe(labels.length);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// NONEXISTENT_ID
+// ---------------------------------------------------------------------------
+describe('NONEXISTENT_ID', () => {
+  test('number 型であること', () => {
+    expect(typeof NONEXISTENT_ID).toBe('number');
+  });
+
+  test('値が 999 であること', () => {
+    expect(NONEXISTENT_ID).toBe(999);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// INVALID_ID_EDGES
+// ---------------------------------------------------------------------------
+describe('INVALID_ID_EDGES', () => {
+  test('各要素が label: string と value: number を持つこと', () => {
+    for (const c of INVALID_ID_EDGES) {
+      expect(typeof c.label).toBe('string');
+      expect(c.label.length).toBeGreaterThan(0);
+      expect(typeof c.value).toBe('number');
+    }
+  });
+
+  test('全ての value が 0 以下（非正 ID）であること', () => {
+    for (const c of INVALID_ID_EDGES) {
+      expect(c.value).toBeLessThanOrEqual(0);
+    }
+  });
+
+  test('ゼロ (0) ケースが含まれること', () => {
+    const found = INVALID_ID_EDGES.find((c) => c.value === 0);
+    expect(found).toBeDefined();
+  });
+
+  test('負数 (-1) ケースが含まれること', () => {
+    const found = INVALID_ID_EDGES.find((c) => c.value === -1);
+    expect(found).toBeDefined();
+  });
+
+  test('全ケースのラベルが一意であること', () => {
+    const labels = INVALID_ID_EDGES.map((c) => c.label);
     const unique = new Set(labels);
     expect(unique.size).toBe(labels.length);
   });

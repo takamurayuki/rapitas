@@ -4,8 +4,9 @@
  * Validates that provider-specific failure messages are mapped to the
  * right cooldown reason and reset hint.
  */
-import { describe, it, expect } from 'bun:test';
+import { describe, it, expect, test } from 'bun:test';
 import { classifyAgentError } from '../../services/ai/agent-error-classifier';
+import { BOUNDARY_STRINGS } from '../helpers/boundary-values';
 
 describe('classifyAgentError', () => {
   it('Codex/ChatGPT の usage limit を quota として判定する', () => {
@@ -53,8 +54,14 @@ describe('classifyAgentError', () => {
 
   it('該当パターンが無い場合は null を返す', () => {
     expect(classifyAgentError('unrelated noise')).toBeNull();
-    expect(classifyAgentError('')).toBeNull();
   });
+
+  test.each(BOUNDARY_STRINGS)(
+    '境界文字列 $label はパターン不一致で null を返すこと',
+    ({ value }) => {
+      expect(classifyAgentError(value)).toBeNull();
+    },
+  );
 
   it('hint があり 429 ヒントが見つかれば rate_limit として hint プロバイダで分類する', () => {
     const r = classifyAgentError('HTTP 429 Too Many Requests\nERROR: rate limit', 'gemini');
