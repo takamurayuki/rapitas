@@ -4,6 +4,7 @@
  */
 import { describe, test, expect, mock, beforeEach } from 'bun:test';
 import { NotFoundError, ValidationError } from '../../../middleware/error-handler';
+import { INVALID_ID_EDGES } from '../../helpers/boundary-values';
 
 // NOTE: Must mirror every export of config/database — barrel re-exports require all symbols.
 const mockFindUnique = mock(() => Promise.resolve(null)) as any;
@@ -111,25 +112,18 @@ describe('resolvePrOrThrow', () => {
     }
   });
 
-  test('ID が 0 の場合に ValidationError (400) を throw すること', async () => {
-    try {
-      await resolvePrOrThrow('0');
-      throw new Error('例外が発生すべきでした');
-    } catch (err) {
-      expect(err).toBeInstanceOf(ValidationError);
-      expect((err as ValidationError).statusCode).toBe(400);
-    }
-  });
-
-  test('ID が負の数の場合に ValidationError (400) を throw すること', async () => {
-    try {
-      await resolvePrOrThrow('-5');
-      throw new Error('例外が発生すべきでした');
-    } catch (err) {
-      expect(err).toBeInstanceOf(ValidationError);
-      expect((err as ValidationError).statusCode).toBe(400);
-    }
-  });
+  test.each(INVALID_ID_EDGES)(
+    'ID $label は ValidationError (400) を throw すること',
+    async ({ value }) => {
+      try {
+        await resolvePrOrThrow(String(value));
+        throw new Error('例外が発生すべきでした');
+      } catch (err) {
+        expect(err).toBeInstanceOf(ValidationError);
+        expect((err as ValidationError).statusCode).toBe(400);
+      }
+    },
+  );
 
   test('PR不在時に findUnique が呼ばれ外部APIは呼ばれないこと（モック呼び出し回数検証）', async () => {
     mockFindUnique.mockResolvedValue(null);

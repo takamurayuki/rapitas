@@ -16,90 +16,159 @@ const tester = new RuleTester({
 
 tester.run('prefer-test-each-for-similar', rule, {
   valid: [
-    // ① 2件以下 — しきい値未満
+    // ① it.each / test.each already used — already consolidated, not flagged
     {
-      code: `it('two expects', () => {
-  expect(fn('a')).toBe(true);
-  expect(fn('b')).toBe(true);
-});`,
+      code: `
+        describe('isWorkflowStatus', () => {
+          it.each(['draft', 'done', 'failed'])('returns true for %s', (s) => {})
+        })
+      `,
     },
-    // ② 異なる関数 — FN が揃っていないため各カウントは 1
+    // ② Only 2 it calls with same prefix — below default minCount=3
     {
-      code: `it('different fns', () => {
-  expect(fnA('a')).toBe(true);
-  expect(fnB('b')).toBe(true);
-  expect(fnC('c')).toBe(true);
-});`,
+      code: `
+        describe('myFn', () => {
+          it('returns false for null', () => {})
+          it('returns false for undefined', () => {})
+        })
+      `,
     },
-    // ③ 既に test.each — callee が CallExpression (it.each(...)) で Identifier ではない
+    // ③ Common prefix is shorter than default minPrefixLength=8 chars ("val: " = 5 chars)
     {
-      code: `test.each(['a', 'b', 'c'])('desc: %s', (input) => {
-  expect(fn(input)).toBe(true);
-});`,
+      code: `
+        describe('myFn', () => {
+          it('val: 1', () => {})
+          it('val: 2', () => {})
+          it('val: 3', () => {})
+        })
+      `,
     },
-    // ④ expect 以外の文が混在 — VariableDeclaration で早期リターン
+    // ④ Similar prefix split across different describe blocks — analyzed independently
+    //    Group A has 2, Group B has 1 → neither meets minCount=3
     {
-      code: `it('mixed', () => {
-  const x = 1;
-  expect(fn('a')).toBe(true);
-  expect(fn('b')).toBe(true);
-  expect(fn('c')).toBe(true);
-});`,
+      code: `
+        describe('group A', () => {
+          it('returns false for null', () => {})
+          it('returns false for undefined', () => {})
+        })
+        describe('group B', () => {
+          it('returns false for empty', () => {})
+        })
+      `,
     },
-    // ⑤ expect のみ 1 件 — statements.length < 3 で早期リターン
+    // ⑤ it.skip / it.todo — MemberExpression callee, excluded from collection
     {
-      code: `it('one expect', () => {
-  expect(fn('a')).toBe(true);
-});`,
+      code: `
+        describe('myFn', () => {
+          it.skip('returns false for null', () => {})
+          it.skip('returns false for undefined', () => {})
+          it.skip('returns false for empty string', () => {})
+        })
+      `,
     },
-    // ⑥ it.each — callee が MemberExpression で Identifier ではない
+    // ⑥ No meaningful common prefix — all descriptions differ from the start
     {
-      code: `it.each(['a', 'b', 'c'])('desc: %s', (input) => {
-  expect(fn(input)).toBe(true);
-});`,
-    },
-    // ⑦ expect の argument が CallExpression でない (リテラル直接) — innerCall チェックで早期リターン
-    {
-      code: `it('literal args', () => {
-  expect(1).toBe(1);
-  expect(2).toBe(2);
-  expect(3).toBe(3);
-});`,
+      code: `
+        describe('myFn', () => {
+          it('accepts valid input', () => {})
+          it('rejects null input', () => {})
+          it('handles edge case', () => {})
+        })
+      `,
     },
   ],
 
   invalid: [
-    // ① 3件同一関数 (test) — 最小しきい値
+    // ① "returns false for X" × 3 — reports only the first node with count=3
     {
-      code: `test('invalid prefix', () => {
-  expect(isValid('a')).toBe(false);
-  expect(isValid('b')).toBe(false);
-  expect(isValid('c')).toBe(false);
-});`,
-      errors: [{ messageId: 'preferEach' }],
+      code: `
+        describe('isWorkflowStatus', () => {
+          it('returns false for null', () => {})
+          it('returns false for undefined', () => {})
+          it('returns false for empty string', () => {})
+        })
+      `,
+      errors: [
+        {
+          messageId: 'preferTestEach',
+          data: { count: '3', prefix: 'returns false for ' },
+        },
+      ],
     },
-    // ② 6件 (it) — しきい値を大きく超える
+    // ② Two independent groups in the same describe — each reported separately (no merging)
     {
-      code: `it('many expects', () => {
-  expect(check(null)).toBe(false);
-  expect(check(undefined)).toBe(false);
-  expect(check('')).toBe(false);
-  expect(check('invalid')).toBe(false);
-  expect(check(42)).toBe(false);
-  expect(check({})).toBe(false);
-});`,
-      errors: [{ messageId: 'preferEach' }],
+      code: `
+        describe('classifyGitHubError', () => {
+          it('rate_limit: first case', () => {})
+          it('rate_limit: second case', () => {})
+          it('rate_limit: third case', () => {})
+          it('transient: first case', () => {})
+          it('transient: second case', () => {})
+          it('transient: third case', () => {})
+        })
+      `,
+      errors: [
+        {
+          messageId: 'preferTestEach',
+          data: { count: '3', prefix: 'rate_limit: ' },
+        },
+        {
+          messageId: 'preferTestEach',
+          data: { count: '3', prefix: 'transient: ' },
+        },
+      ],
     },
-    // ③ test キーワードでも 5 件検出
+    // ③ Nested describe — inner tests detected; outer frame has only 1 it (no report)
     {
-      code: `test('special chars', () => {
-  expect(isValidBranchName('a~b')).toBe(false);
-  expect(isValidBranchName('a^b')).toBe(false);
-  expect(isValidBranchName('a:b')).toBe(false);
-  expect(isValidBranchName('a?b')).toBe(false);
-  expect(isValidBranchName('a*b')).toBe(false);
-});`,
-      errors: [{ messageId: 'preferEach' }],
+      code: `
+        describe('outer', () => {
+          it('unrelated test one', () => {})
+          describe('inner', () => {
+            it('returns true for valid input', () => {})
+            it('returns true for ok input', () => {})
+            it('returns true for fine input', () => {})
+          })
+        })
+      `,
+      errors: [
+        {
+          messageId: 'preferTestEach',
+          data: { count: '3', prefix: 'returns true for ' },
+        },
+      ],
+    },
+    // boundary ① — minCount:2 triggers on pairs
+    {
+      code: `
+        describe('myFn', () => {
+          it('returns false for null', () => {})
+          it('returns false for undefined', () => {})
+        })
+      `,
+      options: [{ minCount: 2 }],
+      errors: [
+        {
+          messageId: 'preferTestEach',
+          data: { count: '2', prefix: 'returns false for ' },
+        },
+      ],
+    },
+    // boundary ② — minPrefixLength:5 triggers on short prefix ("val: " = 5 chars)
+    {
+      code: `
+        describe('myFn', () => {
+          it('val: 1', () => {})
+          it('val: 2', () => {})
+          it('val: 3', () => {})
+        })
+      `,
+      options: [{ minPrefixLength: 5 }],
+      errors: [
+        {
+          messageId: 'preferTestEach',
+          data: { count: '3', prefix: 'val: ' },
+        },
+      ],
     },
   ],
 });
