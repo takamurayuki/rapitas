@@ -51,7 +51,9 @@
     "check:boundary-tests:changed": "bun run gen:boundary-tests --check --files",
     "gen:boundary-guide": "bun run scripts/gen-boundary-guide.ts",
     "check:boundary-guide": "bun run gen:boundary-guide --check",
-    "check:boundary-guide:changed": "bun run gen:boundary-guide --check --files"
+    "check:boundary-guide:changed": "bun run gen:boundary-guide --check --files",
+    "check:docs": "bun run scripts/check-docs-health.ts",
+    "check:docs:strict": "bun run scripts/check-docs-health.ts --check"
   },
   "devDependencies": {
     "@types/bcryptjs": "^3.0.0",
