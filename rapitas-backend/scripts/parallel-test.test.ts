@@ -7,13 +7,53 @@
  */
 
 import { describe, test, expect } from 'bun:test';
-import { resolveConcurrency, aggregateExitCode, formatProgressLine } from './parallel-test';
+import {
+  resolveConcurrency,
+  aggregateExitCode,
+  formatProgressLine,
+  parseRetryCount,
+} from './parallel-test';
 import type { TestResult } from './parallel-test';
 
 /** Helper to build a minimal TestResult fixture. */
 function makeResult(exitCode: number, file = 'some.test.ts'): TestResult {
   return { file, exitCode, stdout: '', stderr: '', elapsedMs: 100 };
 }
+
+describe('parseRetryCount', () => {
+  test('returns 0 for undefined', () => {
+    expect(parseRetryCount(undefined)).toBe(0);
+  });
+
+  test('returns 0 for empty string', () => {
+    expect(parseRetryCount('')).toBe(0);
+  });
+
+  test('returns 0 for "0"', () => {
+    expect(parseRetryCount('0')).toBe(0);
+  });
+
+  test('returns positive integer for valid value', () => {
+    expect(parseRetryCount('1')).toBe(1);
+    expect(parseRetryCount('3')).toBe(3);
+    expect(parseRetryCount('10')).toBe(10);
+  });
+
+  test('returns 0 for negative value', () => {
+    expect(parseRetryCount('-1')).toBe(0);
+    expect(parseRetryCount('-99')).toBe(0);
+  });
+
+  test('returns 0 for non-numeric string', () => {
+    expect(parseRetryCount('abc')).toBe(0);
+    expect(parseRetryCount('NaN')).toBe(0);
+  });
+
+  test('returns 0 for "Infinity"', () => {
+    // parseInt('Infinity', 10) = NaN → falls back to 0
+    expect(parseRetryCount('Infinity')).toBe(0);
+  });
+});
 
 describe('resolveConcurrency', () => {
   test('uses max(1, cpuCount-1) when env is undefined', () => {

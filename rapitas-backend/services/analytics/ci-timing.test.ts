@@ -7,12 +7,15 @@
  */
 
 import { describe, test, expect, beforeEach, afterEach } from 'bun:test';
-import { mkdtempSync, writeFileSync, rmSync } from 'fs';
+import { mkdtempSync, writeFileSync, rmSync, readFileSync } from 'fs';
 import { join, resolve } from 'path';
 import { tmpdir } from 'os';
-import { readFileSync } from 'fs';
 import { SERIAL_GATE_FILES, computeCiTimingAnalytics, readTimingCacheOrEmpty } from './ci-timing';
 import type { TimingCacheResult, TimingEntry } from './ci-timing';
+import {
+  parseGateManifest,
+  validateManifestFiles,
+} from '../../scripts/gate-manifest-parser';
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
@@ -252,53 +255,20 @@ describe('readTimingCacheOrEmpty', () => {
   });
 });
 
-// ─── YAML drift guard ────────────────────────────────────────────────────────
+// ─── Manifest drift guard ────────────────────────────────────────────────────
 
-/**
- * Extracts .test.ts file paths from the test-backend job's run step in the YAML.
- * Simple text parsing — no full YAML parser needed given the predictable structure.
- */
-function parseSerialGateFromYaml(yamlText: string): string[] {
-  const lines = yamlText.split('\n');
-  let inTargetStep = false;
-  let inRunBlock = false;
-  const files: string[] = [];
+describe('Manifest drift guard', () => {
+  test('SERIAL_GATE_FILES matches scripts/ci-gate-tests.txt', () => {
+    // NOTE: Resolve manifest from services/analytics/ → ../../scripts/ci-gate-tests.txt.
+    const manifestPath = resolve(import.meta.dir, '..', '..', 'scripts', 'ci-gate-tests.txt');
+    const text = readFileSync(manifestPath, 'utf-8');
+    const fromManifest = parseGateManifest(text);
+    expect([...SERIAL_GATE_FILES].sort()).toEqual(fromManifest.sort());
+  });
 
-  for (const line of lines) {
-    const stripped = line.trim();
-
-    if (stripped.includes('Run backend tests with coverage')) {
-      inTargetStep = true;
-      continue;
-    }
-
-    if (!inTargetStep) continue;
-
-    // A new step ends this section
-    if (stripped.startsWith('- name:') && !stripped.includes('Run backend tests with coverage')) {
-      break;
-    }
-
-    if (stripped.startsWith('run:')) {
-      inRunBlock = true;
-      continue;
-    }
-
-    if (inRunBlock && stripped.endsWith('.test.ts')) {
-      files.push(stripped);
-    }
-  }
-
-  return files;
-}
-
-describe('YAML drift guard', () => {
-  test('SERIAL_GATE_FILES matches test-lint.yml test-backend job', () => {
-    // NOTE: Resolve path from this file's directory (services/analytics/) 3 levels up to repo root.
-    const yamlPath = resolve(import.meta.dir, '../../../.github/workflows/test-lint.yml');
-    const yamlText = readFileSync(yamlPath, 'utf-8');
-    const fromYaml = parseSerialGateFromYaml(yamlText);
-
-    expect(fromYaml.sort()).toEqual([...SERIAL_GATE_FILES].sort());
+  test('all SERIAL_GATE_FILES entries exist on disk', () => {
+    const backendRoot = resolve(import.meta.dir, '..', '..');
+    const missing = validateManifestFiles([...SERIAL_GATE_FILES], backendRoot);
+    expect(missing).toHaveLength(0);
   });
 });
