@@ -18,6 +18,13 @@ import { isShutdownError } from '../agents/orchestrator/shutdown-error';
 
 const log = createLogger('workflow-runner');
 
+// Grace window for a `verify_done` task's async commit/PR/merge completion to
+// settle before the runner judges it failed — prevents a transient "blocked"
+// flash in the UI while the task is actually completing (observed: verify_done →
+// completed took ~20-30s). Override with RAPITAS_VERIFY_SETTLE_MS.
+const VERIFY_SETTLE_TIMEOUT_MS = Number(process.env.RAPITAS_VERIFY_SETTLE_MS) || 60_000;
+const VERIFY_SETTLE_POLL_MS = 2_000;
+
 export interface RunnerStatus {
   isRunning: boolean;
   activeItems: number;
@@ -235,6 +242,45 @@ export class WorkflowRunner {
         }
 
         if (currentStatus === 'verify_done') {
+          // verify.md was just saved; the commit/PR/merge completion automation
+          // runs ASYNCHRONOUSLY and then flips task.status→done (or moves the task
+          // to self-repair / leaves it verify_done on a real, persistent failure).
+          // Polling can land in the brief window AFTER verify_done is set but
+          // BEFORE that automation finishes — declaring 'failed' there made the UI
+          // flash a misleading "blocked"/"failed" for ~20-30s before the task
+          // actually completed. Wait (bounded) for it to settle before judging.
+          const settled = await this.waitForVerifyCompletion(item.taskId, abortController.signal);
+          if (settled === 'completed') {
+            await this.queue.updateStatus(item.id, 'completed', {
+              currentPhase: 'completed',
+              result: JSON.stringify({ completedAt: new Date().toISOString() }),
+            });
+            this.broadcastItemUpdate(item.id, item.taskId, 'workflow_completed', 'completed');
+            if (task.parentId) {
+              const { onSubtaskCompleted } = await import('./subtask-completion-handler');
+              onSubtaskCompleted(item.taskId).catch((err) => {
+                log.warn(
+                  { err, taskId: item.taskId, parentId: task.parentId },
+                  '[WorkflowRunner] Failed to propagate subtask completion to parent',
+                );
+              });
+            }
+            continueLoop = false;
+            break;
+          }
+          if (settled === 'moved') {
+            // The task left verify_done (e.g. self-repair bounced it back to
+            // in_progress). Re-loop to handle the new phase instead of failing.
+            continue;
+          }
+          if (abortController.signal.aborted) {
+            // The grace window ended because auto-run was STOPPED, not because the
+            // task failed — don't mark it failed; the stop path owns the outcome.
+            continueLoop = false;
+            break;
+          }
+          // 'stuck': still verify_done after the grace window — a real, persistent
+          // completion-gate failure, so surfacing it as failed is now correct.
           await this.queue.updateStatus(item.id, 'failed', {
             currentPhase: currentStatus,
             errorMessage:
@@ -433,6 +479,44 @@ export class WorkflowRunner {
    *
    * @param taskId - The failed subtask's id / 失敗したサブタスクID
    */
+  /**
+   * Wait (bounded) for the post-verify completion automation (commit/PR/merge) to
+   * settle a `verify_done` task, so a transient `verify_done` is not misreported as
+   * a failure (which flashed a misleading "blocked" in the UI). The automation runs
+   * async after verify.md is saved and usually finishes within ~20-30s.
+   *
+   * @param taskId - The task sitting at verify_done. / verify_done のタスクID
+   * @param signal - Abort signal (auto-run stop). / 中断シグナル
+   * @returns `completed` when it reached completed/done, `moved` when it left
+   *   verify_done for another phase (e.g. self-repair), `stuck` when it stayed
+   *   verify_done past the grace window (a real, persistent block). / 判定結果
+   */
+  private async waitForVerifyCompletion(
+    taskId: number,
+    signal: AbortSignal,
+  ): Promise<'completed' | 'moved' | 'stuck'> {
+    const deadline = Date.now() + VERIFY_SETTLE_TIMEOUT_MS;
+    // First check immediately — the automation often completes before this runs.
+    for (;;) {
+      const t = await resolveTaskWorkflowState(taskId);
+      if (!t) return 'stuck';
+      if (t.workflowStatus === 'completed' || t.status === 'done') return 'completed';
+      if (t.workflowStatus !== 'verify_done') return 'moved';
+      if (signal.aborted || Date.now() >= deadline) return 'stuck';
+      await new Promise<void>((resolve) => {
+        const timer = setTimeout(resolve, VERIFY_SETTLE_POLL_MS);
+        signal.addEventListener(
+          'abort',
+          () => {
+            clearTimeout(timer);
+            resolve();
+          },
+          { once: true },
+        );
+      });
+    }
+  }
+
   private async notifyParentOnSubtaskFailure(taskId: number): Promise<void> {
     try {
       const task = await resolveTaskWorkflowState(taskId);
