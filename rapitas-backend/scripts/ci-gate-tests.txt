@@ -24,5 +24,6 @@ services/agents/verification/automated-verifier.test.ts
 tests/integration/claude-code-agent.integration.test.ts
 tests/middleware/error-handler.test.ts
 scripts/gen-resolver-boundary-tests.test.ts
+scripts/gen-boundary-guide.test.ts
 scripts/codemods/__tests__/codemod-runner.test.ts
 eslint-rules/no-raw-prisma-insensitive.test.mjs

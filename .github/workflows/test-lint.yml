@@ -387,6 +387,12 @@ jobs:
         working-directory: rapitas-backend
         run: bunx prettier --check "**/*.ts" --ignore-path .gitignore
 
+      - name: Check boundary guide drift
+        working-directory: rapitas-backend
+        # NOTE: Verifies docs/boundary-guide.generated.md is in sync with
+        # tests/helpers/boundary-values.ts. Run `bun run gen:boundary-guide` to fix.
+        run: bun run check:boundary-guide
+
       - name: Lint frontend code
         working-directory: rapitas-frontend
         run: pnpm lint

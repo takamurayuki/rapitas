@@ -12,6 +12,9 @@ import {
   renderValue,
   generateGuideContent,
   checkDrift,
+  extractJsDocDescription,
+  loadSsotDescriptions,
+  DEFAULT_DESCRIPTIONS,
   SSOT_RELATIVE,
   type BoundaryGuideInput,
 } from './gen-boundary-guide';
@@ -183,6 +186,99 @@ describe('generateGuideContent', () => {
     const a = generateGuideContent(MINIMAL_INPUT);
     const b = generateGuideContent(MINIMAL_INPUT);
     expect(a).toBe(b);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// extractJsDocDescription
+// ---------------------------------------------------------------------------
+describe('extractJsDocDescription', () => {
+  const SOURCE = `
+/**
+ * First sentence of STRING_EDGES.
+ *
+ * Second paragraph.
+ * @param x - some param
+ */
+export const STRING_EDGES = [];
+
+/**
+ * First sentence of NONEXISTENT_ID.
+ */
+export const NONEXISTENT_ID = 999;
+`;
+
+  test('extracts first non-empty non-tag line', () => {
+    expect(extractJsDocDescription(SOURCE, 'STRING_EDGES', 'fallback')).toBe(
+      'First sentence of STRING_EDGES.',
+    );
+  });
+
+  test('extracts first line for single-line JSDoc', () => {
+    expect(extractJsDocDescription(SOURCE, 'NONEXISTENT_ID', 'fallback')).toBe(
+      'First sentence of NONEXISTENT_ID.',
+    );
+  });
+
+  test('returns fallback when export name not found', () => {
+    expect(extractJsDocDescription(SOURCE, 'MISSING_CONST', 'my fallback')).toBe('my fallback');
+  });
+
+  test('skips @-tag lines', () => {
+    const src = `
+/**
+ * @deprecated
+ * Real description.
+ */
+export const FOO = 1;
+`;
+    expect(extractJsDocDescription(src, 'FOO', 'fallback')).toBe('Real description.');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// loadSsotDescriptions
+// ---------------------------------------------------------------------------
+describe('loadSsotDescriptions', () => {
+  const MOCK_SSOT = `
+/**
+ * STRING_EDGES mock description.
+ */
+export const STRING_EDGES = [];
+/**
+ * NONEXISTENT_ID mock description.
+ */
+export const NONEXISTENT_ID = 999;
+`;
+
+  test('returns DEFAULT_DESCRIPTIONS when source has no matching exports', () => {
+    const descriptions = loadSsotDescriptions('// empty source');
+    expect(descriptions).toEqual(DEFAULT_DESCRIPTIONS);
+  });
+
+  test('extracts available descriptions and falls back for missing ones', () => {
+    const descriptions = loadSsotDescriptions(MOCK_SSOT);
+    expect(descriptions.STRING_EDGES).toBe('STRING_EDGES mock description.');
+    expect(descriptions.NONEXISTENT_ID).toBe('NONEXISTENT_ID mock description.');
+    // ID_EDGES not present in MOCK_SSOT → falls back to DEFAULT
+    expect(descriptions.ID_EDGES).toBe(DEFAULT_DESCRIPTIONS.ID_EDGES);
+  });
+
+  test('all keys are present', () => {
+    const descriptions = loadSsotDescriptions('');
+    const expectedKeys: (keyof typeof DEFAULT_DESCRIPTIONS)[] = [
+      'STRING_EDGES',
+      'ID_EDGES',
+      'NUMERIC_ID_BOUNDARIES',
+      'BOUNDARY_STRINGS',
+      'TIME_BOUNDARIES',
+      'NULLABLE_ID_EDGES',
+      'INVALID_ID_EDGES',
+      'NONEXISTENT_ID',
+    ];
+    for (const key of expectedKeys) {
+      expect(descriptions[key]).toBeDefined();
+    }
   });
 });
 
