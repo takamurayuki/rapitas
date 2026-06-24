@@ -91,6 +91,9 @@
     "rapitas-backend/services/workflow/workflow-reconciler.ts": {
       "lineCount": 534
     },
+    "rapitas-backend/scripts/gen-type-guards.ts": {
+      "lineCount": 547
+    },
     "rapitas-backend/routes/organization/themes.ts": {
       "lineCount": 505
     },
