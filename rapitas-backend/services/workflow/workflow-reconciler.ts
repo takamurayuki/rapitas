@@ -386,6 +386,14 @@ async function requeueBlockedTasks(nowMs: number): Promise<number> {
       .catch(() => null);
     if (live) continue;
 
+    // Skip tasks PAUSED for the USER's answer. A blocked task whose workflowStatus
+    // is 'awaiting_question' is not "stuck-blocked" — it is waiting for human input.
+    // Auto-retrying it resets the workflow to draft, DESTROYS the pending question,
+    // re-raises it, and loops (intake_question → blocked_auto_retry → intake_question
+    // …, observed: task 363). It resumes via the answer-question endpoint, never a
+    // blind retry — so leave it paused.
+    if (t.workflowStatus === 'awaiting_question') continue;
+
     // Skip tasks that exhausted verify-repair — re-running repeats the same
     // failing implement→verify cycle (the task is too hard, needs splitting, not
     // blind retry). Count since the last manual retry so a user re-try grants a
