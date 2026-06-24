@@ -3,7 +3,7 @@ import type { Task } from '@/types';
 import type { WorkflowStatus } from '@/types';
 import WorkflowViewer from '@/components/workflow/WorkflowViewer';
 import WorkflowStatusIndicator from '@/components/workflow/WorkflowStatusIndicator';
-import { Loader2, TriangleDashed, Triangle, Pyramid, type LucideIcon } from 'lucide-react';
+import { Loader2, CircleSmall, Diamond, Pyramid, type LucideIcon } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { API_BASE_URL } from '@/utils/api';
 
@@ -79,17 +79,17 @@ export default function TaskWorkflowSection({
         ? 'subtask-global'
         : undefined;
 
-  // Colour + icon the complexity chip by workflow mode. A COHESIVE triangle
-  // progression conveys the tier 簡単/標準/高度: TriangleDashed (light/sketchy) →
-  // Triangle (a solid structure) → Pyramid (layered/hierarchical = complex).
+  // Colour + icon the complexity chip by workflow mode. A cohesive shape
+  // progression for 簡単/標準/高度: CircleSmall (a small dot) → Diamond → Pyramid
+  // (layered/hierarchical = complex). Colours go emerald → blue → rose (easy→hard).
   const MODE_STYLES: Record<string, { chip: string; icon: LucideIcon }> = {
     lightweight: {
       chip: 'bg-emerald-50 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300',
-      icon: TriangleDashed,
+      icon: CircleSmall,
     },
     standard: {
-      chip: 'bg-amber-50 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300',
-      icon: Triangle,
+      chip: 'bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300',
+      icon: Diamond,
     },
     comprehensive: {
       chip: 'bg-rose-50 text-rose-700 dark:bg-rose-900/30 dark:text-rose-300',
@@ -109,7 +109,7 @@ export default function TaskWorkflowSection({
   // Brand-coloured fallback keeps the chip visible when the mode is unknown.
   const complexityChipClass =
     modeStyle?.chip ?? 'bg-indigo-50 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300';
-  const ComplexityIcon = modeStyle?.icon ?? Triangle;
+  const ComplexityIcon = modeStyle?.icon ?? Diamond;
 
   return (
     <div className="bg-white dark:bg-indigo-dark-900 rounded-lg border border-zinc-200 dark:border-zinc-800 mb-6">

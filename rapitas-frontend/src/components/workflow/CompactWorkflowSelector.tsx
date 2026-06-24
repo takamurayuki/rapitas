@@ -2,8 +2,8 @@
 
 import { useState, useEffect } from 'react';
 import {
-  TriangleDashed,
-  Triangle,
+  CircleSmall,
+  Diamond,
   Pyramid,
   BarChart3,
   Info,
@@ -24,7 +24,7 @@ export interface WorkflowModeConfig {
   description: string;
   estimatedTime: string;
   steps: string[];
-  icon: typeof TriangleDashed | typeof Triangle | typeof Pyramid;
+  icon: typeof CircleSmall | typeof Diamond | typeof Pyramid;
   color: string;
   bgColor: string;
 }
@@ -53,7 +53,7 @@ const WORKFLOW_MODE_CONFIGS: Record<WorkflowMode, WorkflowModeConfig> = {
     description: 'バグ修正、UI調整、軽微な変更に最適',
     estimatedTime: '20-40分',
     steps: ['調査', '実装', '自動検証'],
-    icon: TriangleDashed,
+    icon: CircleSmall,
     color: 'text-green-600 dark:text-green-400',
     bgColor: 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800/50',
   },
@@ -63,7 +63,7 @@ const WORKFLOW_MODE_CONFIGS: Record<WorkflowMode, WorkflowModeConfig> = {
     description: '中規模機能追加、リファクタリングに最適',
     estimatedTime: '1-2時間',
     steps: ['調査', '計画作成', '実装', '検証'],
-    icon: Triangle,
+    icon: Diamond,
     color: 'text-blue-600 dark:text-blue-400',
     bgColor: 'bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800/50',
   },
