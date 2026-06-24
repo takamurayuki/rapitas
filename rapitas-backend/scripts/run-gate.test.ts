@@ -188,10 +188,7 @@ describe('parseFilesArg', () => {
   });
 
   it('trims whitespace around comma-separated paths', () => {
-    expect(parseFilesArg(['bun', 'script.ts', '--files= a.ts , b.ts '])).toEqual([
-      'a.ts',
-      'b.ts',
-    ]);
+    expect(parseFilesArg(['bun', 'script.ts', '--files= a.ts , b.ts '])).toEqual(['a.ts', 'b.ts']);
   });
 
   it('collects space-separated positional args after --files', () => {
@@ -210,15 +207,24 @@ describe('parseFilesArg', () => {
 
 describe('matchesTrigger', () => {
   it('exact match', () => {
-    expect(matchesTrigger('tests/helpers/boundary-values.ts', 'tests/helpers/boundary-values.ts')).toBe(true);
+    expect(
+      matchesTrigger('tests/helpers/boundary-values.ts', 'tests/helpers/boundary-values.ts'),
+    ).toBe(true);
   });
 
   it('suffix match — monorepo root-relative path', () => {
-    expect(matchesTrigger('rapitas-backend/scripts/gen-boundary-guide.ts', 'scripts/gen-boundary-guide.ts')).toBe(true);
+    expect(
+      matchesTrigger(
+        'rapitas-backend/scripts/gen-boundary-guide.ts',
+        'scripts/gen-boundary-guide.ts',
+      ),
+    ).toBe(true);
   });
 
   it('directory prefix trigger — matches file inside dir', () => {
-    expect(matchesTrigger('eslint-rules/no-raw-prisma-insensitive.test.mjs', 'eslint-rules/')).toBe(true);
+    expect(matchesTrigger('eslint-rules/no-raw-prisma-insensitive.test.mjs', 'eslint-rules/')).toBe(
+      true,
+    );
   });
 
   it('directory prefix trigger — does not match file outside dir', () => {
@@ -230,7 +236,9 @@ describe('matchesTrigger', () => {
   });
 
   it('normalises backslashes to forward slashes', () => {
-    expect(matchesTrigger('scripts\\gen-boundary-guide.ts', 'scripts/gen-boundary-guide.ts')).toBe(true);
+    expect(matchesTrigger('scripts\\gen-boundary-guide.ts', 'scripts/gen-boundary-guide.ts')).toBe(
+      true,
+    );
     expect(matchesTrigger('eslint-rules\\rule.ts', 'eslint-rules/')).toBe(true);
   });
 });
