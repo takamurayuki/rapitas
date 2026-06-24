@@ -60,6 +60,7 @@
 | 空白のみ | `" "` |  |
 | タブ | `"\t"` |  |
 | 改行 | `"\n"` |  |
+| CRLF改行 | `"\r\n"` |  |
 
 ### `TIME_BOUNDARIES`
 
@@ -97,6 +98,53 @@ DB に存在しないことを表すセンチネル ID。
 | 値 |
 | --- |
 | `999` |
+
+### `DATE_EDGES`
+
+日付文字列の境界値セット（ISO 8601 形式）。将来的に日付文字列引数を取る resolver 向け。
+ISO 8601 文字列で保持し、テスト側で `new Date(value)` に変換して使用する。
+
+| ラベル | 値 | 補足 |
+| --- | --- | --- |
+| Unix epoch (ISO) | `"1970-01-01T00:00:00.000Z"` | 定義のみ・将来消費 — new Date(value).getTime() === 0 |
+| epoch 直前 (ISO) | `"1969-12-31T23:59:59.999Z"` | 定義のみ・将来消費 — new Date(value).getTime() === -1 |
+| JS Date 最大値 (ISO) | `"+275760-09-13T00:00:00.000Z"` | 定義のみ・将来消費 — new Date(value).getTime() === 8640000000000000 |
+| 空文字（無効パース） | `""` (空文字) | new Date("") → Invalid Date |
+
+### `ENUM_INVALID_EDGES`
+
+Enum 型引数に対する無効値の境界値セット。`makeEnumBoundaries()` の `invalid` 省略時のデフォルト値として使用する。
+
+| ラベル | 値 | 補足 |
+| --- | --- | --- |
+| 空文字 | `""` (空文字) |  |
+| 未知の文字列 | `"invalid_status"` |  |
+| 大文字化 | `"INVALID"` |  |
+| 空白のみ | `" "` |  |
+
+### `FLOAT_EDGES`
+
+浮動小数点数の境界値セット（NaN / Infinity / EPSILON を含む）。将来的に浮動小数点引数を取る関数向けに定義のみ用意。
+
+| ラベル | 値 | 補足 |
+| --- | --- | --- |
+| ゼロ | `0` | 定義のみ・将来消費 |
+| 負のゼロ (-0) | `0` | 定義のみ・将来消費 — Object.is(-0, 0) === false |
+| NaN | `NaN` | 定義のみ・将来消費 — Number.isNaN(v) で確認 |
+| 正の無限大 | `Infinity` | 定義のみ・将来消費 |
+| 負の無限大 | `-Infinity` | 定義のみ・将来消費 |
+| EPSILON | `2.220446049250313e-16` | 定義のみ・将来消費 — 浮動小数点比較の最小有効差 |
+
+### `PG_INT_BOUNDARIES`
+
+PostgreSQL INTEGER (INT4) 型の境界値セット（-2147483648 〜 2147483647）。`NUMERIC_ID_BOUNDARIES`（MAX_SAFE_INTEGER）との差別化設計。
+
+| ラベル | 値 | 補足 |
+| --- | --- | --- |
+| INT4 最小値 | `-2147483648` | PostgreSQL INTEGER の下限（MIN_INT4） |
+| INT4 最大値 | `2147483647` | PostgreSQL INTEGER の上限（MAX_INT4） |
+| INT4 オーバーフロー | `2147483648` | MAX_INT4 + 1。Prisma が例外を投げる可能性がある |
+| ゼロ | `0` |  |
 
 ## ユーティリティ関数
 
