@@ -2,11 +2,13 @@ import tseslint from "@typescript-eslint/eslint-plugin";
 import tsparser from "@typescript-eslint/parser";
 import { stagedSeverity } from "../eslint-shared.mjs";
 import noRawPrismaInsensitive from "./eslint-rules/no-raw-prisma-insensitive.mjs";
+import preferTestEachForSimilar from "./eslint-rules/prefer-test-each-for-similar.mjs";
 
 /** @type {import('eslint').Linter.Plugin} */
 const localPlugin = {
   rules: {
     "no-raw-prisma-insensitive": noRawPrismaInsensitive,
+    "prefer-test-each-for-similar": preferTestEachForSimilar,
   },
 };
 
@@ -57,6 +59,7 @@ export default [
     rules: {
       ...stagedSeverity("tests"),
       "local/no-raw-prisma-insensitive": "off",
+      "local/prefer-test-each-for-similar": "warn",
     },
   },
 ];
