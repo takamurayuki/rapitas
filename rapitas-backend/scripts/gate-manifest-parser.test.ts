@@ -2,14 +2,19 @@
  * gate-manifest-parser.test.ts
  *
  * Unit tests for gate-manifest-parser.ts.
- * Covers parseGateManifest (comment/blank removal, trim, edge cases)
+ * Covers parseGateManifest (comment/blank removal, trim, edge cases),
+ * validateManifestEntryNames (naming convention enforcement),
  * and validateManifestFiles (drift detection pure function).
  */
 
 import { existsSync } from 'fs';
 import { resolve } from 'path';
 import { describe, expect, it } from 'bun:test';
-import { parseGateManifest, validateManifestFiles } from './gate-manifest-parser';
+import {
+  parseGateManifest,
+  validateManifestEntryNames,
+  validateManifestFiles,
+} from './gate-manifest-parser';
 
 describe('parseGateManifest', () => {
   it('returns file paths from a normal multi-line manifest', () => {
@@ -64,6 +69,53 @@ describe('parseGateManifest', () => {
   it('treats a whitespace-prefixed # line as a comment', () => {
     const text = '   # section header\ntests/ok.test.ts';
     expect(parseGateManifest(text)).toEqual(['tests/ok.test.ts']);
+  });
+});
+
+describe('validateManifestEntryNames', () => {
+  it('returns empty array for .test.ts entries', () => {
+    expect(validateManifestEntryNames(['tests/foo.test.ts', 'tests/bar.test.ts'])).toEqual([]);
+  });
+
+  it('returns empty array for .integration.test.ts entries (.test.ts suffix)', () => {
+    expect(
+      validateManifestEntryNames([
+        'tests/foo.integration.test.ts',
+        'tests/bar.integration.test.ts',
+      ]),
+    ).toEqual([]);
+  });
+
+  it('returns empty array for .test.mjs entries', () => {
+    expect(
+      validateManifestEntryNames(['eslint-rules/no-raw-prisma-insensitive.test.mjs']),
+    ).toEqual([]);
+  });
+
+  it('returns invalid entry for a plain .ts file', () => {
+    expect(validateManifestEntryNames(['src/foo.ts', 'tests/bar.test.ts'])).toEqual(['src/foo.ts']);
+  });
+
+  it('returns invalid entry for a .spec.ts file', () => {
+    expect(validateManifestEntryNames(['tests/foo.spec.ts'])).toEqual(['tests/foo.spec.ts']);
+  });
+
+  it('returns invalid entry for a .test.js file', () => {
+    expect(validateManifestEntryNames(['tests/foo.test.js'])).toEqual(['tests/foo.test.js']);
+  });
+
+  it('returns only invalid entries from a mixed list', () => {
+    const entries = [
+      'tests/valid.test.ts',
+      'src/invalid.ts',
+      'eslint/rule.test.mjs',
+      'src/spec.spec.ts',
+    ];
+    expect(validateManifestEntryNames(entries)).toEqual(['src/invalid.ts', 'src/spec.spec.ts']);
+  });
+
+  it('returns empty array for an empty input', () => {
+    expect(validateManifestEntryNames([])).toEqual([]);
   });
 });
 

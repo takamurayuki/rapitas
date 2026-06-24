@@ -6,12 +6,16 @@
  * No subprocess is spawned — spawn correctness is verified via buildTestSuiteArgs.
  */
 
-import { existsSync, readFileSync } from 'fs';
+import { readFileSync } from 'fs';
 import { resolve } from 'path';
 import { describe, expect, it } from 'bun:test';
 import { GATES, getGate } from './ci-gates';
 import { buildTestSuiteArgs } from './run-gate';
-import { parseGateManifest } from './gate-manifest-parser';
+import {
+  parseGateManifest,
+  validateManifestEntryNames,
+  validateManifestFiles,
+} from './gate-manifest-parser';
 
 const SCRIPTS_DIR = import.meta.dir;
 const BACKEND_DIR = resolve(SCRIPTS_DIR, '..');
@@ -154,13 +158,11 @@ for (const gate of testSuiteGates) {
     });
 
     it('every entry ends with .test.ts or .test.mjs', () => {
-      const invalid = entries.filter((f) => !f.endsWith('.test.ts') && !f.endsWith('.test.mjs'));
-      expect(invalid).toEqual([]);
+      expect(validateManifestEntryNames(entries)).toEqual([]);
     });
 
     it('every file path listed in the manifest exists on disk', () => {
-      const missing = entries.filter((f) => !existsSync(resolve(BACKEND_DIR, f)));
-      expect(missing).toEqual([]);
+      expect(validateManifestFiles(entries, BACKEND_DIR)).toEqual([]);
     });
   });
 }

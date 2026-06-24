@@ -2,7 +2,8 @@
  * gate-manifest-parser.ts
  *
  * Shared parser utilities for CI gate suite manifests (.txt files).
- * Centralises parseGateManifest so that all gate runners share a single implementation.
+ * Centralises parseGateManifest, validateManifestEntryNames, and validateManifestFiles
+ * so that all gate runners share a single implementation.
  * Not responsible for process lifecycle (exit / logging) — callers own that.
  */
 
@@ -22,6 +23,18 @@ export function parseGateManifest(text: string): string[] {
     .split('\n')
     .map((line) => line.trim())
     .filter((line) => line.length > 0 && !line.startsWith('#'));
+}
+
+/**
+ * Validates that each entry uses a recognised test-file naming convention.
+ * Accepted suffixes: `.test.ts` and `.test.mjs`.
+ * Note: `.integration.test.ts` passes because it ends with `.test.ts`.
+ *
+ * @param entries - Parsed manifest entries / パース済みマニフェストエントリ
+ * @returns Entries that violate the naming convention (empty = all valid)
+ */
+export function validateManifestEntryNames(entries: string[]): string[] {
+  return entries.filter((f) => !f.endsWith('.test.ts') && !f.endsWith('.test.mjs'));
 }
 
 /**
