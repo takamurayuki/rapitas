@@ -217,8 +217,12 @@ export function MarkdownView({
             );
           },
           pre: ({ children, ...props }) => (
+            // Light mode uses a LIGHT code block (dark text on soft gray) so a
+            // fenced block — e.g. a pasted commit message — doesn't render as a
+            // jarring hard-to-read black box on the light theme. Dark mode keeps
+            // the near-black block (light text), which already reads fine.
             <pre
-              className="!my-3 !p-3 rounded-lg bg-zinc-900 dark:bg-zinc-950 text-zinc-100 text-xs overflow-x-auto border border-zinc-800"
+              className="!my-3 !p-3 rounded-lg border border-zinc-200 bg-zinc-100 text-zinc-800 text-xs overflow-x-auto dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-100"
               {...props}
             >
               {children}
