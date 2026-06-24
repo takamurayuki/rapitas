@@ -59,9 +59,7 @@ describe('postDeploymentComment (via pollDeploymentStatus)', () => {
 
   test('previewUrl がないとき runGhCommandWithBody を呼ばないこと', async () => {
     // link が空文字 → previewUrl = undefined → early return
-    execSyncResult = JSON.stringify([
-      { name: 'vercel deploy', state: 'SUCCESS', link: '' },
-    ]);
+    execSyncResult = JSON.stringify([{ name: 'vercel deploy', state: 'SUCCESS', link: '' }]);
 
     await pollDeploymentStatus('/repo', 10, 1, 0);
 

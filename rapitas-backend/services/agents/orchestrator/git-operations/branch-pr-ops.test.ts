@@ -143,9 +143,7 @@ describe('createPullRequest — push 分岐耐性', () => {
     // main -> develop へ retarget したこと
     expect(calls.some((c) => /pr edit 172 --base develop/.test(c))).toBe(true);
     // 再利用なので runGhCommandWithBody の pr create は呼ばれないこと
-    expect(
-      ghClientCalls.some((c) => c.args[0] === 'pr' && c.args[1] === 'create'),
-    ).toBe(false);
+    expect(ghClientCalls.some((c) => c.args[0] === 'pr' && c.args[1] === 'create')).toBe(false);
   });
 
   test('既存PRのベースが既に target と同じなら retarget しないこと', async () => {
@@ -188,9 +186,7 @@ describe('createPullRequest — push 分岐耐性', () => {
     expect(res.success).toBe(true);
     expect(res.prNumber).toBe(99);
     // 0 は falsy のため再利用をスキップし、runGhCommandWithBody の pr create が呼ばれること
-    expect(
-      ghClientCalls.some((c) => c.args[0] === 'pr' && c.args[1] === 'create'),
-    ).toBe(true);
+    expect(ghClientCalls.some((c) => c.args[0] === 'pr' && c.args[1] === 'create')).toBe(true);
   });
 
   test('分岐以外の push 失敗 (認証等) は PR 失敗として返すこと', async () => {
