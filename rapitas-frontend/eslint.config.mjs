@@ -2,6 +2,9 @@ import { defineConfig, globalIgnores } from 'eslint/config';
 import nextVitals from 'eslint-config-next/core-web-vitals';
 import nextTs from 'eslint-config-next/typescript';
 import { stagedSeverity } from '../eslint-shared.mjs';
+import noIconCollision from '../rapitas-backend/eslint-rules/no-icon-collision.mjs';
+
+const localPlugin = { rules: { 'no-icon-collision': noIconCollision } };
 
 const eslintConfig = defineConfig([
   ...nextVitals,
@@ -21,8 +24,12 @@ const eslintConfig = defineConfig([
   {
     // Match both relative paths (from rapitas-frontend/) and absolute paths (from root)
     files: ['src/**/*.{ts,tsx}', '**/rapitas-frontend/src/**/*.{ts,tsx}'],
+    plugins: { local: localPlugin },
     rules: {
       ...stagedSeverity('prod'),
+      // NOTE: warn (not error) — existing violations (Lightbulb ~10 files) are known;
+      // raise to 'error' after auditing and replacing each violation (separate task).
+      'local/no-icon-collision': 'warn',
       // NOTE: Frontend no-console starts at 'warn'; backend uses 'error'.
       // Raise to 'error' after auditing existing violations.
       'no-console': 'warn',
