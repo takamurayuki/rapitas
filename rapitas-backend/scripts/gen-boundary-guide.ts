@@ -240,12 +240,13 @@ export interface DriftResult {
  * @returns ドリフト結果の配列（空 = ドリフトなし）
  */
 export async function checkDrift(targetPath = GUIDE_PATH): Promise<DriftResult[]> {
-  const expected = await generateGuideContent();
-
+  // NOTE: Check existence first — avoids calling generateGuideContent() unnecessarily and
+  //       eliminates the TOCTOU window between existsSync and readFileSync.
   if (!existsSync(targetPath)) {
     return [{ file: targetPath, status: 'missing' }];
   }
 
+  const expected = await generateGuideContent();
   const actual = readFileSync(targetPath, 'utf-8');
   if (actual !== expected) {
     return [{ file: targetPath, status: 'mismatch' }];

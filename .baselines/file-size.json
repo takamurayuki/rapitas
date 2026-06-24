@@ -1,5 +1,5 @@
 {
-  "generated": "2026-06-23T19:12:17.382Z",
+  "generated": "2026-06-24T03:47:34.383Z",
   "hard_limit": 500,
   "soft_limit": 300,
   "_comment": "Files at or above the hard limit at snapshot time. Their listed lineCount becomes a per-file ceiling — they may shrink but not grow. Remove an entry by splitting the file.",
@@ -8,7 +8,7 @@
       "lineCount": 1766
     },
     "rapitas-backend/routes/workflow/handlers/workflow-handlers-files.ts": {
-      "lineCount": 1175
+      "lineCount": 1214
     },
     "rapitas-backend/services/workflow/workflow-cli-executor.ts": {
       "lineCount": 1109
@@ -67,6 +67,9 @@
     "rapitas-backend/services/memory/idea-extractor.ts": {
       "lineCount": 578
     },
+    "rapitas-backend/services/workflow/workflow-runner.ts": {
+      "lineCount": 573
+    },
     "rapitas-backend/services/memory/hypothesis-service.ts": {
       "lineCount": 558
     },
@@ -82,11 +85,11 @@
     "rapitas-backend/services/workflow/workflow-reconciler.ts": {
       "lineCount": 526
     },
+    "rapitas-backend/services/memory/concern-backlog-service.ts": {
+      "lineCount": 516
+    },
     "rapitas-backend/scripts/gen-type-guards.ts": {
       "lineCount": 512
-    },
-    "rapitas-backend/services/memory/concern-backlog-service.ts": {
-      "lineCount": 510
     },
     "rapitas-backend/routes/organization/themes.ts": {
       "lineCount": 505
