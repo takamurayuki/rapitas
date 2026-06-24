@@ -160,8 +160,10 @@ runCodemod(transformMyCodemod, {
 
 ### 2. テストを追加する
 
-`scripts/codemods/__tests__/codemod-runner.test.ts` に `describe('transformMyCodemod', ...)` ブロックを追加する。  
+`scripts/codemods/__tests__/codemod-runner.test.ts` に `describe('transformMyCodemod', ...)` ブロックを追加する。
+
 ポイント:
+
 - `tmpDir` は `beforeEach` で初期化済み。`write()` ヘルパーで一時ファイルを生成する
 - dry-run（`write: false`）の統合テストを必ず含める
 - `changed: true` / `changed: false` の両方をカバーする
