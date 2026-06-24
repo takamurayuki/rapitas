@@ -265,12 +265,17 @@ export function WorkflowFileContent({
       )}
 
       {/* Markdown body — shared renderer (see MarkdownView); getHeadingId +
-          scroll margin wire this viewer's in-file table of contents. */}
-      <MarkdownView
-        content={activeFile.content || ''}
-        getHeadingId={headingId}
-        headingScrollMarginTop={scrollMarginTop}
-      />
+          scroll margin wire this viewer's in-file table of contents.
+          Light mode wraps the md in a soft off-white panel so it is easy to read
+          against the otherwise stark-white card; dark mode already has a distinct
+          gray card background, so it stays as-is (transparent, no extra inset). */}
+      <div className="rounded-lg border border-zinc-200/70 bg-zinc-100/80 p-4 dark:border-transparent dark:bg-transparent dark:p-0">
+        <MarkdownView
+          content={activeFile.content || ''}
+          getHeadingId={headingId}
+          headingScrollMarginTop={scrollMarginTop}
+        />
+      </div>
       {/* Plan approval CTA (inside content area) */}
       {showApprovalButton && (
         <div className="mt-4 pt-4 border-t border-zinc-200 dark:border-zinc-700">
