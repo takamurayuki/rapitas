@@ -175,7 +175,9 @@ export function generateGuideMarkdown(map: Readonly<Record<string, BoundaryConst
       const large = e.includesLargeValue ? '✅' : '—';
       const gen = e.genUsed ? '✅' : '—';
       const status = e.status === 'reserved' ? '⚠️ reserved' : 'active';
-      lines.push(`| \`${e.constName}\` | ${newline} | ${large} | ${gen} | ${status} | ${e.useFor} |`);
+      // NOTE: Escape `|` in useFor to prevent table column misparse (e.g. "number | null").
+      const useForEscaped = e.useFor.replace(/\|/g, '\\|');
+      lines.push(`| \`${e.constName}\` | ${newline} | ${large} | ${gen} | ${status} | ${useForEscaped} |`);
     }
     lines.push('');
   }
@@ -209,7 +211,9 @@ export function generateGuideMarkdown(map: Readonly<Record<string, BoundaryConst
 
   const genEntries = entries.filter((e) => e.genUsed);
   for (const e of genEntries) {
-    lines.push(`| \`${e.inputType}\` | \`${e.constName}\` |`);
+    // NOTE: Escape `|` in inputType to prevent table column misparse (e.g. "number | null").
+    const inputTypeEscaped = e.inputType.replace(/\|/g, '\\|');
+    lines.push(`| \`${inputTypeEscaped}\` | \`${e.constName}\` |`);
   }
 
   lines.push('');

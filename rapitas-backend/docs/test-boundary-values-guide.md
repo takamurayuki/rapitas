@@ -45,7 +45,7 @@
 
 | 定数名 | 改行含む | 大値含む | 自動生成 | 状態 | 用途 |
 |--------|----------|----------|----------|------|------|
-| `NULLABLE_ID_EDGES` | — | — | ✅ | active | number | null 型の外部キー引数（linkedTaskId 等）向け。ID_EDGES に null を追加した拡張版。gen-resolver-boundary-tests が自動選択する。 |
+| `NULLABLE_ID_EDGES` | — | — | ✅ | active | number \| null 型の外部キー引数（linkedTaskId 等）向け。ID_EDGES に null を追加した拡張版。gen-resolver-boundary-tests が自動選択する。 |
 
 ## `STRING_EDGES` vs `BOUNDARY_STRINGS` の使い分け
 
@@ -65,7 +65,7 @@
 | 引数型 | 自動選択される定数 |
 |--------|-------------------|
 | `number` | `ID_EDGES` |
-| `number | null` | `NULLABLE_ID_EDGES` |
+| `number \| null` | `NULLABLE_ID_EDGES` |
 | `string` | `STRING_EDGES` |
 
 手動テストで別の定数（`NUMERIC_ID_BOUNDARIES` 等）が必要な場合は、`.boundary.test.ts` ではなく通常のテストファイルに追記する。
