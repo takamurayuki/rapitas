@@ -14,6 +14,7 @@ import {
   extractModelUsage,
   generateBoundaryTestSource,
   parseFilesArg,
+  scanForResolverFiles,
   checkDrift,
   type ExtractedFunction,
   type ModelUsage,
@@ -391,6 +392,24 @@ describe('parseFilesArg', () => {
 });
 
 // ---------------------------------------------------------------------------
+// scanForResolverFiles — empty-list early exit
+// ---------------------------------------------------------------------------
+describe('scanForResolverFiles', () => {
+  test('returns empty array when files option is an empty list', () => {
+    // Empty list = no resolver files in the changeset → scan must be skipped entirely.
+    const result = scanForResolverFiles({ files: [] });
+    expect(result).toEqual([]);
+  });
+
+  test('performs full scan when files option is undefined', () => {
+    const withUndefined = scanForResolverFiles(undefined);
+    const withNoOpts = scanForResolverFiles();
+    expect(withUndefined.length).toBe(withNoOpts.length);
+    expect(withUndefined.length).toBeGreaterThan(0);
+  });
+});
+
+// ---------------------------------------------------------------------------
 // checkDrift (integration: runs against real generated files)
 // ---------------------------------------------------------------------------
 describe('checkDrift', () => {
@@ -399,5 +418,11 @@ describe('checkDrift', () => {
     const drifts = checkDrift();
     const driftPaths = drifts.map((d) => d.file);
     expect(driftPaths).toEqual([]);
+  });
+
+  test('returns empty array when passed an empty files list', () => {
+    // Empty changeset → no resolver files affected → no drift possible.
+    const drifts = checkDrift({ files: [] });
+    expect(drifts).toEqual([]);
   });
 });

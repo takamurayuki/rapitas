@@ -38,9 +38,9 @@ interface ModeSettings {
 
 const MODE_ORDER: ModeKey[] = ['lightweight', 'standard', 'comprehensive'];
 const MODE_META: Record<ModeKey, { label: string; tier: string; desc: string }> = {
-  lightweight: { label: '軽量', tier: '低', desc: 'バグ修正・UI調整・軽微な変更' },
+  lightweight: { label: '簡単', tier: '低', desc: 'バグ修正・UI調整・軽微な変更' },
   standard: { label: '標準', tier: '中', desc: '中規模の機能追加・リファクタリング' },
-  comprehensive: { label: '詳細', tier: '高', desc: '大規模機能・アーキテクチャ変更' },
+  comprehensive: { label: '高度', tier: '高', desc: '大規模機能・アーキテクチャ変更' },
 };
 
 /** Roles a mode runs, in execution order, derived from its phase toggles. */
@@ -319,7 +319,7 @@ export default function WorkflowRolesConfig({ agents, availableModels }: Workflo
                     value={activeMode.complexityMax}
                     onChange={(e) => setLightMax(Number(e.target.value))}
                     className="w-16 px-1.5 py-0.5 bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded text-center"
-                    aria-label="軽量の複雑度上限"
+                    aria-label="簡単の複雑度上限"
                   />
                 </>
               )}
@@ -329,7 +329,7 @@ export default function WorkflowRolesConfig({ agents, availableModels }: Workflo
                   <span>〜</span>
                   {readonlyBox(stdMax)}
                   <span className="text-zinc-400 dark:text-zinc-500">
-                    （軽量・詳細の設定から自動算出）
+                    （簡単・高度の設定から自動算出）
                   </span>
                 </>
               )}

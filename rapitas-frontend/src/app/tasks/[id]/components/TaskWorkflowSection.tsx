@@ -3,7 +3,7 @@ import type { Task } from '@/types';
 import type { WorkflowStatus } from '@/types';
 import WorkflowViewer from '@/components/workflow/WorkflowViewer';
 import WorkflowStatusIndicator from '@/components/workflow/WorkflowStatusIndicator';
-import { Loader2, Feather, Gauge, Layers, type LucideIcon } from 'lucide-react';
+import { Loader2, CircleSmall, Diamond, Pyramid, type LucideIcon } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { API_BASE_URL } from '@/utils/api';
 
@@ -79,27 +79,27 @@ export default function TaskWorkflowSection({
         ? 'subtask-global'
         : undefined;
 
-  // Colour + icon the complexity chip by workflow mode so the tier is legible
-  // at a glance (low→high = emerald/Feather → amber/Gauge → rose/Layers). A
-  // mode-specific icon also avoids clashing with the auto-approve chip's dot.
+  // Colour + icon the complexity chip by workflow mode. A cohesive shape
+  // progression for 簡単/標準/高度: CircleSmall (a small dot) → Diamond → Pyramid
+  // (layered/hierarchical = complex). Colours go emerald → blue → rose (easy→hard).
   const MODE_STYLES: Record<string, { chip: string; icon: LucideIcon }> = {
     lightweight: {
       chip: 'bg-emerald-50 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300',
-      icon: Feather,
+      icon: CircleSmall,
     },
     standard: {
-      chip: 'bg-amber-50 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300',
-      icon: Gauge,
+      chip: 'bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300',
+      icon: Diamond,
     },
     comprehensive: {
       chip: 'bg-rose-50 text-rose-700 dark:bg-rose-900/30 dark:text-rose-300',
-      icon: Layers,
+      icon: Pyramid,
     },
   };
   const MODE_LABELS: Record<string, string> = {
-    lightweight: '軽量',
+    lightweight: '簡単',
     standard: '標準',
-    comprehensive: '包括',
+    comprehensive: '高度',
   };
   const complexity = task?.complexityScore;
   const modeLabel = task?.workflowMode
@@ -109,7 +109,7 @@ export default function TaskWorkflowSection({
   // Brand-coloured fallback keeps the chip visible when the mode is unknown.
   const complexityChipClass =
     modeStyle?.chip ?? 'bg-indigo-50 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300';
-  const ComplexityIcon = modeStyle?.icon ?? Gauge;
+  const ComplexityIcon = modeStyle?.icon ?? Diamond;
 
   return (
     <div className="bg-white dark:bg-indigo-dark-900 rounded-lg border border-zinc-200 dark:border-zinc-800 mb-6">
@@ -117,7 +117,11 @@ export default function TaskWorkflowSection({
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-3">
             <h3 className="text-lg font-semibold text-zinc-900 dark:text-zinc-50">{t('title')}</h3>
-            <WorkflowStatusIndicator status={currentWorkflowStatus} size="sm" />
+            <WorkflowStatusIndicator
+              status={currentWorkflowStatus}
+              size="sm"
+              workflowMode={task?.workflowMode}
+            />
             {/* Loading spinner lives on the left so the right chips end flush
                 with the card padding (matching the title's left inset). */}
             {isWorkflowLoading && <Loader2 className="h-4 w-4 animate-spin text-zinc-400" />}

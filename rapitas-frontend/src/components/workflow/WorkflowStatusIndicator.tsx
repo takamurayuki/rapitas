@@ -5,11 +5,11 @@ import {
   FileSearch,
   FileText,
   CheckCircle,
-  Clock,
-  PlayCircle,
-  Circle,
+  Code,
+  FlaskConical,
   HelpCircle,
   AlertTriangle,
+  type LucideIcon,
 } from 'lucide-react';
 
 const STATUS_CONFIG: Record<
@@ -19,22 +19,27 @@ const STATUS_CONFIG: Record<
     color: string;
     bgColor: string;
     borderColor: string;
-    icon: typeof Circle;
+    icon: LucideIcon;
   }
 > = {
+  // NOTE: Labels reflect the phase ACTUALLY running at each status (buildTransitions):
+  // the researcher runs at draft (→ research_done), the planner runs at research_done
+  // (→ plan_created) — except in lightweight mode where the implementer runs there
+  // (research → implement, no plan). So draft = 調査中 and research_done = 計画中
+  // (overridden to 実装中 for lightweight below).
   draft: {
-    label: '下書き',
-    color: 'text-zinc-500 dark:text-zinc-400',
-    bgColor: 'bg-zinc-100 dark:bg-zinc-800',
-    borderColor: 'border-zinc-300 dark:border-zinc-600',
-    icon: Circle,
-  },
-  research_done: {
-    label: '調査完了',
+    label: '調査中',
     color: 'text-blue-600 dark:text-blue-400',
     bgColor: 'bg-blue-50 dark:bg-blue-900/30',
     borderColor: 'border-blue-300 dark:border-blue-600',
     icon: FileSearch,
+  },
+  research_done: {
+    label: '計画中',
+    color: 'text-indigo-600 dark:text-indigo-400',
+    bgColor: 'bg-indigo-50 dark:bg-indigo-900/30',
+    borderColor: 'border-indigo-300 dark:border-indigo-600',
+    icon: FileText,
   },
   plan_created: {
     label: '計画作成済',
@@ -43,19 +48,24 @@ const STATUS_CONFIG: Record<
     borderColor: 'border-amber-300 dark:border-amber-600',
     icon: FileText,
   },
+  // NOTE: At plan_approved the IMPLEMENTER runs (→ in_progress on completion), and
+  // at in_progress the VERIFIER runs (→ verify_done). See buildTransitions: the
+  // label must reflect the phase ACTUALLY running at this status, so plan_approved
+  // is "実装中" and in_progress is "検証中" — previously in_progress was mislabeled
+  // "実装中", making the verify phase look like it was still implementing.
   plan_approved: {
-    label: '計画承認済',
-    color: 'text-indigo-600 dark:text-indigo-400',
-    bgColor: 'bg-indigo-50 dark:bg-indigo-900/30',
-    borderColor: 'border-indigo-300 dark:border-indigo-600',
-    icon: CheckCircle,
-  },
-  in_progress: {
     label: '実装中',
     color: 'text-blue-600 dark:text-blue-400',
     bgColor: 'bg-blue-50 dark:bg-blue-900/30',
     borderColor: 'border-blue-300 dark:border-blue-600',
-    icon: PlayCircle,
+    icon: Code,
+  },
+  in_progress: {
+    label: '検証中',
+    color: 'text-purple-600 dark:text-purple-400',
+    bgColor: 'bg-purple-50 dark:bg-purple-900/30',
+    borderColor: 'border-purple-300 dark:border-purple-600',
+    icon: FlaskConical,
   },
   awaiting_question: {
     label: '回答待ち',
@@ -90,18 +100,25 @@ const STATUS_CONFIG: Record<
 interface WorkflowStatusIndicatorProps {
   status: WorkflowStatus | null;
   size?: 'sm' | 'md';
+  /** Workflow mode — lightweight has no plan phase, so research_done = 実装中. */
+  workflowMode?: string | null;
 }
 
 export default function WorkflowStatusIndicator({
   status,
   size = 'sm',
+  workflowMode,
 }: WorkflowStatusIndicatorProps) {
   if (!status) return null;
 
   const config = STATUS_CONFIG[status];
   if (!config) return null;
 
-  const Icon = config.icon;
+  // Lightweight skips planning (research → implement), so at research_done the
+  // IMPLEMENTER runs, not the planner — show 実装中 instead of 計画中.
+  const isLightweightImplement = status === 'research_done' && workflowMode === 'lightweight';
+  const label = isLightweightImplement ? '実装中' : config.label;
+  const Icon = isLightweightImplement ? Code : config.icon;
   const sizeClasses = size === 'sm' ? 'text-xs px-2 py-0.5 gap-1' : 'text-sm px-3 py-1 gap-1.5';
   const iconSize = size === 'sm' ? 'w-3 h-3' : 'w-4 h-4';
 
@@ -110,7 +127,7 @@ export default function WorkflowStatusIndicator({
       className={`inline-flex items-center font-medium rounded-full border ${config.bgColor} ${config.color} ${config.borderColor} ${sizeClasses}`}
     >
       <Icon className={iconSize} />
-      {config.label}
+      {label}
     </span>
   );
 }

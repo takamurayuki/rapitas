@@ -1,184 +1,76 @@
 /**
  * gen-boundary-guide
  *
- * tests/helpers/boundary-values.ts (SSOT) を読み込み、境界値テスト開発者ガイドを生成する。
- * 生成先: docs/boundary-values-guide.md
+ * Reads tests/helpers/boundary-values.ts (SSOT) and generates
+ * docs/boundary-guide.generated.md — a human-readable reference guide
+ * for all boundary value constants used in resolver tests.
  *
  * Usage:
- *   bun run gen:boundary-guide                         # ガイドを再生成
- *   bun run gen:boundary-guide --check                 # ドリフトを検知 (exit 1)
- *   bun run gen:boundary-guide --check --files <...>  # 変更ファイルによるゲートチェック
- *
- * NOTE: --files は「チェックを実行すべきか」のゲート判定専用。
- *       gen-resolver-boundary-tests の「走査対象指定」とは意味が異なる。
- *       SSOT は tests/helpers/boundary-values.ts の単一固定ファイル。
+ *   bun run gen:boundary-guide                          # (re)generate the guide
+ *   bun run gen:boundary-guide --check                  # exit 1 if drift detected
+ *   bun run gen:boundary-guide --check --files=a,b     # skip if SSOT not in changed files
  */
 
-import { readFileSync, writeFileSync, existsSync } from 'fs';
-import { join, dirname } from 'path';
+import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'fs';
+import { join, dirname, resolve } from 'path';
 import { fileURLToPath } from 'url';
+import {
+  STRING_EDGES,
+  ID_EDGES,
+  NUMERIC_ID_BOUNDARIES,
+  BOUNDARY_STRINGS,
+  TIME_BOUNDARIES,
+  NULLABLE_ID_EDGES,
+  INVALID_ID_EDGES,
+  NONEXISTENT_ID,
+} from '../tests/helpers/boundary-values';
 
 const SCRIPTS_DIR = dirname(fileURLToPath(import.meta.url));
-const ROOT = join(SCRIPTS_DIR, '..');
+const ROOT = resolve(SCRIPTS_DIR, '..');
 
-/** SSOT: 境界値定数の唯一の情報源 */
-export const SSOT_PATH = join(ROOT, 'tests', 'helpers', 'boundary-values.ts');
-/** 生成出力先: 境界値テスト開発者ガイド */
-export const GUIDE_PATH = join(ROOT, 'docs', 'boundary-values-guide.md');
+/** Relative path of the SSOT file — used for --files comparison. */
+export const SSOT_RELATIVE = 'tests/helpers/boundary-values.ts';
+/** Absolute path to the generated guide document. */
+export const GUIDE_PATH = join(ROOT, 'docs', 'boundary-guide.generated.md');
 
 // ---------------------------------------------------------------------------
-// JSDoc 静的パース
+// Types
 // ---------------------------------------------------------------------------
 
-/**
- * ソースファイルの `export const/type/function <constName>` 直前の JSDoc を抽出する。
- * 先頭の説明段落のみ返す — `@example` / `@param` / `@typeParam` 行以降は除外する。
- *
- * @param source - ソースファイルの全文 / Full text of the source file
- * @param constName - 対象の export 名 / Name of the exported symbol
- * @returns 説明文（見つからなければ '' を返し console.warn を出す）
- */
-export function extractJsDoc(source: string, constName: string): string {
-  // NOTE: (?:[^*]|\*(?!\/))*  で「`*/` を含まない単一コメントブロック」だけにマッチさせる。
-  //       [\s\S]*? (非貪欲) を使うと前の /** から次の */ までを跨いで誤抽出する。
-  const pattern = new RegExp(
-    `\\/\\*\\*((?:[^*]|\\*(?!\\/))*)\\*\\/\\s*export\\s+(?:type\\s+|const\\s+|function\\s+)${constName}\\b`,
-  );
-  const match = source.match(pattern);
-  if (!match) {
-    console.warn(`[gen-boundary-guide] JSDoc not found for: ${constName}`);
-    return '';
-  }
-
-  const lines = match[1].split('\n').map((line) => line.replace(/^\s*\*\s?/, ''));
-
-  const descLines: string[] = [];
-  for (const line of lines) {
-    if (line.trimStart().startsWith('@')) break;
-    descLines.push(line);
-  }
-
-  return descLines.join('\n').trim();
+/** Single boundary case entry (structural match for BoundaryCase<T>). */
+export interface BoundaryCaseEntry {
+  readonly label: string;
+  readonly value: string | number | null;
+  readonly note?: string;
 }
 
-// ---------------------------------------------------------------------------
-// テーブル生成
-// ---------------------------------------------------------------------------
-
-/**
- * `BoundaryCase<T>[]` を Markdown テーブルに変換する。
- * 値は `JSON.stringify` で表示し、空文字・制御文字を可読かつ決定論的に出力する。
- *
- * @param cases - 境界値ケース配列 / Array of boundary cases
- * @returns Markdown テーブル文字列
- */
-export function renderCasesTable(
-  cases: ReadonlyArray<{ label: string; value: unknown; note?: string }>,
-): string {
-  const header = '| label | value | note |\n| --- | --- | --- |';
-  const rows = cases
-    .map(({ label, value, note }) => {
-      const valueStr = JSON.stringify(value);
-      const noteStr = note ?? '';
-      return `| ${label} | \`${valueStr}\` | ${noteStr} |`;
-    })
-    .join('\n');
-  return `${header}\n${rows}`;
-}
-
-// ---------------------------------------------------------------------------
-// ガイド生成
-// ---------------------------------------------------------------------------
-
-/** 配列定数のメタ情報（生成順序を固定するため明示宣言） */
-const ARRAY_CONST_NAMES = [
-  'STRING_EDGES',
-  'ID_EDGES',
-  'NUMERIC_ID_BOUNDARIES',
-  'BOUNDARY_STRINGS',
-  'TIME_BOUNDARIES',
-  'NULLABLE_ID_EDGES',
-  'INVALID_ID_EDGES',
-] as const;
-
-type ArrayConstName = (typeof ARRAY_CONST_NAMES)[number];
-
-type BoundaryCase<T> = { label: string; value: T; note?: string };
-
-type BoundaryModule = {
-  [K in ArrayConstName]: ReadonlyArray<BoundaryCase<unknown>>;
-} & {
+/** Input type for guide generation — mirrors exports of boundary-values.ts. */
+export interface BoundaryGuideInput {
+  STRING_EDGES: readonly BoundaryCaseEntry[];
+  ID_EDGES: readonly BoundaryCaseEntry[];
+  NUMERIC_ID_BOUNDARIES: readonly BoundaryCaseEntry[];
+  BOUNDARY_STRINGS: readonly BoundaryCaseEntry[];
+  TIME_BOUNDARIES: readonly BoundaryCaseEntry[];
+  NULLABLE_ID_EDGES: readonly BoundaryCaseEntry[];
+  INVALID_ID_EDGES: readonly BoundaryCaseEntry[];
   NONEXISTENT_ID: number;
-};
+}
 
-/**
- * SSOT から境界値テストガイドの Markdown 文字列を生成する。
- * 値は動的 import で取得し、JSDoc 説明文は readFileSync の正規表現パースで取得する。
- *
- * @returns 生成された Markdown 文字列
- */
-export async function generateGuideContent(): Promise<string> {
-  const bv = (await import('../tests/helpers/boundary-values')) as BoundaryModule;
-  const source = readFileSync(SSOT_PATH, 'utf-8');
-
-  // ヘッダー
-  const header =
-    `# 境界値テストガイド\n\n` +
-    `> 自動生成ファイル — 手動編集不可。再生成: \`bun run gen:boundary-guide\`  \n` +
-    `> ソース: \`tests/helpers/boundary-values.ts\`\n\n`;
-
-  // 型定義節
-  const bcJsDoc = extractJsDoc(source, 'BoundaryCase');
-  const typeSection =
-    `## 型定義\n\n` +
-    `### \`BoundaryCase<T>\`\n\n` +
-    (bcJsDoc ? `${bcJsDoc}\n\n` : '') +
-    `\`\`\`ts\n` +
-    `type BoundaryCase<T> = {\n` +
-    `  readonly label: string;   // テスト名に表示される人間可読な識別子\n` +
-    `  readonly value: T;        // 境界値本体（resolver に渡す実値）\n` +
-    `  readonly note?: string;   // 暗黙前提や制約などの補足（省略可）\n` +
-    `};\n` +
-    `\`\`\`\n\n`;
-
-  // 配列定数節
-  const arraySubSections = ARRAY_CONST_NAMES.map((name) => {
-    const cases = bv[name];
-    const jsdoc = extractJsDoc(source, name);
-    const table = renderCasesTable(cases);
-    return `### \`${name}\`\n\n${jsdoc ? `${jsdoc}\n\n` : ''}${table}\n`;
-  }).join('\n');
-
-  const constantsSection = `## 配列定数\n\n${arraySubSections}\n`;
-
-  // スカラー定数節
-  const scalarJsDoc = extractJsDoc(source, 'NONEXISTENT_ID');
-  const scalarSection =
-    `## スカラー定数\n\n` +
-    (scalarJsDoc ? `${scalarJsDoc}\n\n` : '') +
-    `| 定数名 | 値 |\n` +
-    `| --- | --- |\n` +
-    `| \`NONEXISTENT_ID\` | \`${JSON.stringify(bv.NONEXISTENT_ID)}\` |\n\n`;
-
-  // ユーティリティ節
-  const utilJsDoc = extractJsDoc(source, 'toNameTuples');
-  const utilSection =
-    `## ユーティリティ\n\n` +
-    `### \`toNameTuples<T>(cases)\`\n\n` +
-    (utilJsDoc ? `${utilJsDoc}\n` : '');
-
-  return header + typeSection + constantsSection + scalarSection + utilSection;
+/** Represents a file that is out of sync with the generated output. */
+export interface DriftResult {
+  file: string;
+  status: 'missing' | 'mismatch';
 }
 
 // ---------------------------------------------------------------------------
-// --files ゲート判定
+// CLI arg parsing (same interface as gen-resolver-boundary-tests.ts)
 // ---------------------------------------------------------------------------
 
 /**
- * `--files` CLI 引数をパースする（gen-resolver-boundary-tests と同一シグネチャ）。
+ * Parses the `--files` CLI argument.
  *
- * @param argv - process.argv / コマンドライン引数
- * @returns `--files` が存在すればファイルパス配列、なければ null
+ * @param argv - `process.argv` or equivalent / コマンドライン引数配列
+ * @returns Parsed file paths, `[]` for empty flag, or `null` when flag is absent
  */
 export function parseFilesArg(argv: string[]): string[] | null {
   const idx = argv.findIndex((a) => a === '--files' || a.startsWith('--files='));
@@ -204,72 +96,191 @@ export function parseFilesArg(argv: string[]): string[] | null {
 }
 
 /**
- * 変更ファイル一覧にガイドのドリフト原因となるファイルが含まれるか判定する。
+ * Returns true when the SSOT file appears in the changed-files list.
+ * Matches both full path suffixes and the relative path.
  *
- * NOTE: この関数は「チェックを実行すべきか」のゲート判定専用。
- *       gen-resolver-boundary-tests の --files（走査対象選択）とは意味が異なる。
- *       SSOT は単一固定ファイルのため、判定対象は2ファイルのみ。
- *
- * @param files - 変更ファイルパスの一覧（相対/絶対パス両対応）
- * @returns ドリフトチェックを実行すべきなら true
+ * @param files - List of changed file paths from git diff / 変更ファイルリスト
+ * @returns Whether the SSOT is among the changed files
  */
-export function isRelevantChange(files: string[]): boolean {
-  if (files.length === 0) return false;
+export function isSsotChanged(files: string[]): boolean {
   return files.some(
-    (f) => f.endsWith('boundary-values.ts') || f.endsWith('boundary-values-guide.md'),
+    (f) =>
+      f === SSOT_RELATIVE ||
+      f.endsWith('/' + SSOT_RELATIVE) ||
+      f.replace(/\\/g, '/').endsWith('/' + SSOT_RELATIVE),
   );
 }
 
 // ---------------------------------------------------------------------------
-// ドリフト検知
+// Content generation
 // ---------------------------------------------------------------------------
 
-/** 生成成果物がディスク上のファイルとズレている場合の情報 */
-export interface DriftResult {
-  /** ファイルの絶対パス */
-  file: string;
-  /** 'missing': ファイル不在 / 'mismatch': 内容不一致 */
-  status: 'missing' | 'mismatch';
+/**
+ * Renders a boundary value for Markdown display.
+ *
+ * @param value - The boundary value to render / レンダリング対象の境界値
+ * @returns Inline code string for use in Markdown tables
+ */
+export function renderValue(value: string | number | null): string {
+  if (value === null) return '`null`';
+  if (typeof value === 'number') return `\`${value}\``;
+  const escaped = value.replace(/\\/g, '\\\\').replace(/\t/g, '\\t').replace(/\n/g, '\\n');
+  if (escaped === '') return '`""` (空文字)';
+  return `\`"${escaped}"\``;
 }
 
 /**
- * 生成成果物 (`docs/boundary-values-guide.md`) をディスク上のファイルと比較する。
- * テスト用に targetPath を上書き可能にしている（実ファイルを破壊しないため）。
+ * Generates a Markdown table for a list of boundary cases.
  *
- * @param targetPath - 比較対象ファイルのパス（デフォルト: GUIDE_PATH）
- * @returns ドリフト結果の配列（空 = ドリフトなし）
+ * @param cases - Array of boundary case entries / 境界値ケース配列
+ * @returns Markdown table string
  */
-export async function checkDrift(targetPath = GUIDE_PATH): Promise<DriftResult[]> {
-  // NOTE: Check existence first — avoids calling generateGuideContent() unnecessarily and
-  //       eliminates the TOCTOU window between existsSync and readFileSync.
-  if (!existsSync(targetPath)) {
-    return [{ file: targetPath, status: 'missing' }];
-  }
+function renderTable(cases: readonly BoundaryCaseEntry[]): string {
+  const rows = cases
+    .map((c) => `| ${c.label} | ${renderValue(c.value)} | ${c.note ?? ''} |`)
+    .join('\n');
+  return `| ラベル | 値 | 補足 |\n| --- | --- | --- |\n${rows}`;
+}
 
-  const expected = await generateGuideContent();
-  const actual = readFileSync(targetPath, 'utf-8');
+/**
+ * Generates the Markdown guide content from boundary value constants.
+ *
+ * @param input - Boundary value constants from boundary-values.ts / 境界値定数
+ * @returns Markdown string for docs/boundary-guide.generated.md
+ */
+export function generateGuideContent(input: BoundaryGuideInput): string {
+  return (
+    `# Resolver 境界値ガイド\n` +
+    `\n` +
+    `> 自動生成ファイル — \`bun run gen:boundary-guide\` で再生成。手動編集不可。  \n` +
+    `> ソース: \`scripts/gen-boundary-guide.ts\`  \n` +
+    `> SSOT: \`${SSOT_RELATIVE}\`\n` +
+    `\n` +
+    `## 概要\n` +
+    `\n` +
+    `\`${SSOT_RELATIVE}\` に定義された境界値定数のリファレンス。\n` +
+    `\`it.each\` / \`test.each\` パターンで resolver の境界値テストを記述する際に使用する。\n` +
+    `\n` +
+    `## BoundaryCase\\<T\\> 型\n` +
+    `\n` +
+    `| フィールド | 型 | 説明 |\n` +
+    `| --- | --- | --- |\n` +
+    `| \`label\` | \`string\` | テスト名 (\`%s\` / \`$label\`) に表示される識別子 |\n` +
+    `| \`value\` | \`T\` | 境界値の実値 |\n` +
+    `| \`note\` | \`string \\| undefined\` | 補足・制約（省略可） |\n` +
+    `\n` +
+    `## 定数一覧\n` +
+    `\n` +
+    `### \`STRING_EDGES\`\n` +
+    `\n` +
+    `文字列引数 resolver 向けの境界値（空文字・空白系）。\n` +
+    `\n` +
+    renderTable(input.STRING_EDGES) +
+    `\n\n` +
+    `### \`ID_EDGES\`\n` +
+    `\n` +
+    `数値 ID 引数 resolver 向けの境界値（0 / -1 / 1 の小規模セット）。\n` +
+    `\n` +
+    renderTable(input.ID_EDGES) +
+    `\n\n` +
+    `### \`NUMERIC_ID_BOUNDARIES\`\n` +
+    `\n` +
+    `数値型 ID の境界値セット（\`ID_EDGES\` の拡張版 — \`MAX_SAFE_INTEGER\` を含む）。\n` +
+    `\n` +
+    renderTable(input.NUMERIC_ID_BOUNDARIES) +
+    `\n\n` +
+    `### \`BOUNDARY_STRINGS\`\n` +
+    `\n` +
+    `文字列型フィールドの境界値セット（改行を含む）。\n` +
+    `\n` +
+    renderTable(input.BOUNDARY_STRINGS) +
+    `\n\n` +
+    `### \`TIME_BOUNDARIES\`\n` +
+    `\n` +
+    `時刻（epoch ミリ秒）の境界値セット。\n` +
+    `\n` +
+    renderTable(input.TIME_BOUNDARIES) +
+    `\n\n` +
+    `### \`NULLABLE_ID_EDGES\`\n` +
+    `\n` +
+    `nullable 数値 ID 引数 resolver 向けの境界値定数（\`ID_EDGES\` + \`null\`）。\n` +
+    `\n` +
+    renderTable(input.NULLABLE_ID_EDGES) +
+    `\n\n` +
+    `### \`INVALID_ID_EDGES\`\n` +
+    `\n` +
+    `バリデーションで拒否されるべき非正 ID の境界値セット（0 / -1）。\n` +
+    `\n` +
+    renderTable(input.INVALID_ID_EDGES) +
+    `\n\n` +
+    `### \`NONEXISTENT_ID\`\n` +
+    `\n` +
+    `DB に存在しないことを表すセンチネル ID。mock が null を返す前提の「存在しない ID」として使用する。\n` +
+    `\n` +
+    `| 値 |\n` +
+    `| --- |\n` +
+    `| \`${input.NONEXISTENT_ID}\` |\n` +
+    `\n` +
+    `## ユーティリティ関数\n` +
+    `\n` +
+    `### \`toNameTuples<T>(cases)\`\n` +
+    `\n` +
+    `\`BoundaryCase<T>[]\` を \`it.each\` 用 \`[label, value]\` タプル配列に変換する。\n` +
+    `bun:test の \`%s\` 置換は primitive 前提のため、本関数でタプル化することで\n` +
+    `ラベルを正しく表示できる。\n`
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Drift check
+// ---------------------------------------------------------------------------
+
+/**
+ * Compares the expected generated guide against what is on disk.
+ *
+ * @returns Array of DriftResult for each out-of-sync file (empty = no drift)
+ */
+export function checkDrift(): DriftResult[] {
+  const expected = generateGuideContent({
+    STRING_EDGES,
+    ID_EDGES,
+    NUMERIC_ID_BOUNDARIES,
+    BOUNDARY_STRINGS,
+    TIME_BOUNDARIES,
+    NULLABLE_ID_EDGES,
+    INVALID_ID_EDGES,
+    NONEXISTENT_ID,
+  });
+
+  if (!existsSync(GUIDE_PATH)) {
+    return [{ file: GUIDE_PATH, status: 'missing' }];
+  }
+  const actual = readFileSync(GUIDE_PATH, 'utf-8');
   if (actual !== expected) {
-    return [{ file: targetPath, status: 'mismatch' }];
+    return [{ file: GUIDE_PATH, status: 'mismatch' }];
   }
-
   return [];
 }
 
 // ---------------------------------------------------------------------------
-// メインエントリポイント
+// Main entry point
 // ---------------------------------------------------------------------------
 
 if (import.meta.main) {
   const CHECK_MODE = process.argv.includes('--check');
   const filesArg = parseFilesArg(process.argv);
 
-  if (CHECK_MODE && filesArg !== null && !isRelevantChange(filesArg)) {
-    console.log('gen-boundary-guide: no relevant changes detected, skipping drift check.');
+  // Differential mode: if --files was supplied but SSOT is not among changed files,
+  // the guide cannot have drifted — skip the check entirely.
+  if (filesArg !== null && !isSsotChanged(filesArg)) {
+    console.log(
+      `gen-boundary-guide: SSOT (${SSOT_RELATIVE}) not in changed files — skipping check.`,
+    );
     process.exit(0);
   }
 
   if (CHECK_MODE) {
-    const drifts = await checkDrift();
+    const drifts = checkDrift();
     if (drifts.length === 0) {
       console.log('gen-boundary-guide: no drift detected.');
       process.exit(0);
@@ -277,13 +288,25 @@ if (import.meta.main) {
       for (const d of drifts) {
         console.error(`DRIFT [${d.status}]: ${d.file}`);
       }
-      console.error(
-        `\nRun \`bun run gen:boundary-guide\` to regenerate and commit the updated file.`,
-      );
+      console.error(`\nRun \`bun run gen:boundary-guide\` to regenerate and commit the file.`);
       process.exit(1);
     }
   } else {
-    const content = await generateGuideContent();
+    // Generate mode
+    const content = generateGuideContent({
+      STRING_EDGES,
+      ID_EDGES,
+      NUMERIC_ID_BOUNDARIES,
+      BOUNDARY_STRINGS,
+      TIME_BOUNDARIES,
+      NULLABLE_ID_EDGES,
+      INVALID_ID_EDGES,
+      NONEXISTENT_ID,
+    });
+    const dir = dirname(GUIDE_PATH);
+    if (!existsSync(dir)) {
+      mkdirSync(dir, { recursive: true });
+    }
     writeFileSync(GUIDE_PATH, content, 'utf-8');
     console.log(`Generated: ${GUIDE_PATH}`);
     console.log('\nDone. Commit the generated file to keep the repository in sync.');

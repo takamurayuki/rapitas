@@ -228,9 +228,9 @@ export default function ComplexityIndicator({
                       : 'bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300'
                 }`}
               >
-                {analysis.recommendedMode === 'lightweight' && '軽量モード'}
+                {analysis.recommendedMode === 'lightweight' && '簡単モード'}
                 {analysis.recommendedMode === 'standard' && '標準モード'}
-                {analysis.recommendedMode === 'comprehensive' && '詳細モード'}
+                {analysis.recommendedMode === 'comprehensive' && '高度モード'}
               </span>
             </div>
 

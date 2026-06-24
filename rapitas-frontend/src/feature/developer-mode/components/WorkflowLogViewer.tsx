@@ -124,9 +124,11 @@ function getPhaseStatuses(workflowStatus?: string): Record<WorkflowPhase, PhaseS
       statusMap.implement = 'running';
       break;
     case 'in_progress':
+      // in_progress = implementation DONE, verifier running (→ verify_done).
       statusMap.research = 'completed';
       statusMap.plan = 'approved';
-      statusMap.implement = 'running';
+      statusMap.implement = 'completed';
+      statusMap.verify = 'running';
       break;
     case 'completed':
     case 'verify_done':
