@@ -57,6 +57,7 @@ export function AIAccordionPanelInner({
   parallelSessionId,
   subtaskLogs,
   onRefreshSubtaskLogs,
+  taskStatus,
 }: AIAccordionPanelProps) {
   // Subtask selection state (lives here to avoid circular deps between hooks)
   const [selectedSubtasks, setSelectedSubtasks] = useState<number[]>([]);
@@ -138,6 +139,8 @@ export function AIAccordionPanelInner({
     if (exec.isCompleted) return 'success';
     if (exec.isCancelled) return 'cancelled';
     if (exec.isInterrupted) return 'interrupted';
+    // NOTE: When the task itself is marked done (not via workflow polling), reflect it as success.
+    if (taskStatus === 'done' || taskStatus === 'completed') return 'success';
     return 'idle';
   };
 
@@ -233,6 +236,7 @@ export function AIAccordionPanelInner({
           onStop={exec.handleStopExecution}
           onReset={exec.handleReset}
           onRerun={exec.handleRerunExecution}
+          taskStatus={taskStatus}
         />
       )}
     </div>

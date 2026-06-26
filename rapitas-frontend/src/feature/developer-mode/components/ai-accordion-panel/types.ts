@@ -71,6 +71,8 @@ export type AIAccordionPanelProps = {
   executionCapability?: ExecutionCapability;
   /** Theme ID for deep-linking the capability guide to the theme edit screen. */
   themeId?: number | null;
+  /** Raw task.status — used to disable/hide the run button when the task is already done. */
+  taskStatus?: string;
   isExecuting: boolean;
   executionStatus: ExecutionStatus;
   executionResult: ExecutionResult | null;

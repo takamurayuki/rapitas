@@ -90,6 +90,8 @@ export type ExecutionSectionProps = {
   onStop: () => Promise<void>;
   onReset: () => void;
   onRerun: () => Promise<void>;
+  /** Raw task.status — disables the run button when the task is already done. */
+  taskStatus?: string;
 };
 
 /**
@@ -148,9 +150,15 @@ export function ExecutionSection({
   onStop,
   onReset,
   onRerun,
+  taskStatus,
 }: ExecutionSectionProps) {
   const router = useRouter();
   const [prError, setPrError] = useState<string | null>(null);
+
+  // NOTE: task.status reflects the manual status toggle, which is independent of
+  // workflow polling state. We guard the run button on both to prevent re-running
+  // a task the user has explicitly marked done.
+  const isTaskDone = taskStatus === 'done' || taskStatus === 'completed';
 
   // Open this task's PR detail page (replaces the old approval-page link). The
   // PR is auto-created on completion, so resolve it by task and navigate. When
@@ -221,6 +229,12 @@ export function ExecutionSection({
               {pollingSessionMode?.startsWith('workflow-')
                 ? workflowPhaseLabel(pollingSessionMode)
                 : '実行完了'}
+            </span>
+          )}
+          {!isExpanded && execStatusIcon === 'idle' && isTaskDone && (
+            <span className="flex items-center gap-1 px-1.5 py-0.5 bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300 text-[10px] rounded">
+              <CheckCircle2 className="w-2.5 h-2.5" />
+              実行完了
             </span>
           )}
           {!isExpanded && execStatusIcon === 'error' && (
@@ -345,13 +359,15 @@ export function ExecutionSection({
             <button
               onClick={(e) => {
                 e.stopPropagation();
-                if (capability === 'ready') onExecute();
+                if (capability === 'ready' && !isTaskDone) onExecute();
               }}
-              disabled={isExecuting || capability !== 'ready'}
+              disabled={isExecuting || capability !== 'ready' || isTaskDone}
               title={
-                capability !== 'ready'
-                  ? 'タスクの設定が完了するとエージェントを実行できます'
-                  : '実行開始'
+                isTaskDone
+                  ? 'タスクが完了しているため実行できません'
+                  : capability !== 'ready'
+                    ? 'タスクの設定が完了するとエージェントを実行できます'
+                    : '実行開始'
               }
               className="flex items-center gap-1 px-2 py-1 bg-indigo-600 hover:bg-indigo-700 text-white text-[10px] font-medium rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               aria-label="実行開始"

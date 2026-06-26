@@ -320,6 +320,7 @@ export default function TaskAISection({
       showAgentPanel={true}
       executionCapability={deriveExecutionCapability(task, cliAvailability)}
       themeId={task.themeId}
+      taskStatus={task.status}
       isExecuting={isExecuting}
       executionStatus={executionStatus as Parameters<typeof AIAccordionPanel>[0]['executionStatus']}
       executionResult={executionResult as Parameters<typeof AIAccordionPanel>[0]['executionResult']}
