@@ -60,6 +60,15 @@ export default function InlineEditableText({
     }
   }, [editing]);
 
+  // Auto-resize textarea to match content height on open and on each keystroke.
+  useEffect(() => {
+    if (!multiline || !editing || !inputRef.current) return;
+    const el = inputRef.current;
+    // Reset first so shrinking content reduces height correctly.
+    el.style.height = 'auto';
+    el.style.height = `${el.scrollHeight}px`;
+  }, [draft, multiline, editing]);
+
   const begin = () => {
     setDraft(value);
     setEditing(true);
@@ -104,8 +113,8 @@ export default function InlineEditableText({
           onBlur={commit}
           onKeyDown={handleKeyDown}
           aria-label={ariaLabel}
-          rows={Math.min(Math.max(draft.split('\n').length, 3), 16)}
-          className={`${editorCls} resize-y`}
+          className={`${editorCls} resize-y overflow-hidden`}
+          style={{ minHeight: '5rem' }}
         />
       );
     }
