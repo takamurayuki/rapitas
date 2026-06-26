@@ -117,6 +117,52 @@ export function handleEditorInput(
       moveLastCharToColorSpan(container, refs);
     }
   }
+
+  // NOTE: Re-fetch selection here because moveLastCharToColorSpan above may have moved the cursor.
+  const curSel = window.getSelection();
+  if (curSel && curSel.rangeCount > 0) {
+    const curRange = curSel.getRangeAt(0);
+    const curContainer = curRange.startContainer;
+
+    // Strip leading ​ from font/size anchor spans once real content has been typed.
+    if (
+      curContainer.nodeType === Node.TEXT_NODE &&
+      curContainer.textContent &&
+      curContainer.textContent.length > 1 &&
+      curContainer.textContent.startsWith('​')
+    ) {
+      const parentEl = (curContainer as Text).parentElement;
+      if (
+        parentEl?.tagName === 'SPAN' &&
+        !parentEl.style.color &&
+        (parentEl.style.fontFamily || parentEl.style.fontSize)
+      ) {
+        curContainer.textContent = curContainer.textContent.substring(1);
+        const restoredRange = document.createRange();
+        restoredRange.setStart(curContainer, Math.max(0, curRange.startOffset - 1));
+        restoredRange.collapse(true);
+        curSel.removeAllRanges();
+        curSel.addRange(restoredRange);
+      }
+    }
+
+    // Remove orphaned ​-only text nodes from font/size spans that the cursor has left.
+    // Color spans (​ anchor pattern) are excluded — those are managed by activeColorSpanRef.
+    if (contentRef.current) {
+      contentRef.current.querySelectorAll('span[style]').forEach((span) => {
+        if ((span as HTMLElement).style.color) return;
+        Array.from(span.childNodes).forEach((child) => {
+          if (
+            child.nodeType === Node.TEXT_NODE &&
+            child.textContent === '​' &&
+            child !== curContainer
+          ) {
+            child.remove();
+          }
+        });
+      });
+    }
+  }
 }
 
 /**

@@ -99,6 +99,9 @@ export function applyBorderLine(contentEl: HTMLDivElement | null, color: string)
 
 /**
  * Wrap the current selection in a font-size span.
+ * When there is no text selected (collapsed cursor), inserts a zero-width-space
+ * anchor span so that the next typed character lands inside it and inherits the
+ * size — the same technique used by color-persistence.ts for text colour.
  * @returns true if successfully applied
  */
 export function applyFontSize(contentEl: HTMLDivElement | null, size: string): boolean {
@@ -113,6 +116,19 @@ export function applyFontSize(contentEl: HTMLDivElement | null, size: string): b
   const span = document.createElement('span');
   span.style.fontSize = size;
 
+  if (range.collapsed) {
+    // NOTE: Inserting ​ anchors the cursor inside the span. handleEditorInput
+    // strips it once a real character is typed, matching the color-persistence pattern.
+    span.textContent = '​';
+    range.insertNode(span);
+    const newRange = document.createRange();
+    newRange.setStart(span.firstChild!, 1);
+    newRange.setEnd(span.firstChild!, 1);
+    selection.removeAllRanges();
+    selection.addRange(newRange);
+    return true;
+  }
+
   try {
     range.surroundContents(span);
   } catch {
@@ -125,6 +141,8 @@ export function applyFontSize(contentEl: HTMLDivElement | null, size: string): b
 
 /**
  * Wrap the current selection in a font-family span.
+ * Handles collapsed cursor via the same zero-width-space anchor pattern as
+ * applyFontSize — see that function's comment for the rationale.
  * @returns true if successfully applied
  */
 export function applyFont(contentEl: HTMLDivElement | null, font: string): boolean {
@@ -138,6 +156,17 @@ export function applyFont(contentEl: HTMLDivElement | null, font: string): boole
 
   const span = document.createElement('span');
   span.style.fontFamily = font;
+
+  if (range.collapsed) {
+    span.textContent = '​';
+    range.insertNode(span);
+    const newRange = document.createRange();
+    newRange.setStart(span.firstChild!, 1);
+    newRange.setEnd(span.firstChild!, 1);
+    selection.removeAllRanges();
+    selection.addRange(newRange);
+    return true;
+  }
 
   try {
     range.surroundContents(span);
