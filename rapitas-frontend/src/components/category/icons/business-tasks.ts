@@ -68,7 +68,18 @@ export const BUSINESS_TASKS_ICONS: Record<string, IconInfo> = {
   // Business
   Briefcase: {
     component: Briefcase,
-    keywords: ['ブリーフケース', '仕事', 'ビジネス', '書類', '出張'],
+    keywords: [
+      'ブリーフケース',
+      '仕事',
+      'ビジネス',
+      '書類',
+      '出張',
+      'プロジェクト',
+      '業務',
+      '職場',
+      'お仕事',
+      'キャリア',
+    ],
   },
   Building: {
     component: Building,
@@ -134,11 +145,31 @@ export const BUSINESS_TASKS_ICONS: Record<string, IconInfo> = {
   Files: { component: Files, keywords: ['ファイル', '複数', '書類', '資料'] },
   Folder: {
     component: Folder,
-    keywords: ['フォルダ', 'ディレクトリ', '整理', '分類'],
+    keywords: [
+      'フォルダ',
+      'ディレクトリ',
+      '整理',
+      '分類',
+      'カテゴリ',
+      'グループ',
+      'まとめ',
+      'フォルダー',
+      'category',
+    ],
   },
   FolderOpen: {
     component: FolderOpen,
-    keywords: ['フォルダ', '開く', 'ディレクトリ', 'カテゴリ'],
+    keywords: [
+      'フォルダ',
+      '開く',
+      'ディレクトリ',
+      'カテゴリ',
+      'テーマ',
+      'プロジェクト',
+      'まとめ',
+      'グループ',
+      '分類',
+    ],
   },
   FolderPlus: {
     component: FolderPlus,
@@ -150,7 +181,16 @@ export const BUSINESS_TASKS_ICONS: Record<string, IconInfo> = {
   },
   Archive: {
     component: Archive,
-    keywords: ['アーカイブ', '保管', '保存', '倉庫'],
+    keywords: [
+      'アーカイブ',
+      '保管',
+      '保存',
+      '倉庫',
+      '完了済み',
+      '整理',
+      'バックログ',
+      'アーカイブ済み',
+    ],
   },
   Inbox: {
     component: Inbox,
@@ -198,7 +238,16 @@ export const BUSINESS_TASKS_ICONS: Record<string, IconInfo> = {
   },
   Calendar: {
     component: Calendar,
-    keywords: ['カレンダー', '日付', '予定', 'スケジュール'],
+    keywords: [
+      'カレンダー',
+      '日付',
+      '予定',
+      'スケジュール',
+      '習慣管理',
+      'スケジュール管理',
+      '予定管理',
+      '日程',
+    ],
   },
   CalendarDays: {
     component: CalendarDays,
@@ -206,7 +255,16 @@ export const BUSINESS_TASKS_ICONS: Record<string, IconInfo> = {
   },
   CalendarCheck: {
     component: CalendarCheck,
-    keywords: ['カレンダー', '予定確認', '予約完了'],
+    keywords: [
+      'カレンダー',
+      '予定確認',
+      '予約完了',
+      '習慣',
+      'ルーティン',
+      '継続',
+      '達成',
+      '習慣トラッカー',
+    ],
   },
   CalendarPlus: {
     component: CalendarPlus,
@@ -246,7 +304,17 @@ export const BUSINESS_TASKS_ICONS: Record<string, IconInfo> = {
   Square: { component: Square, keywords: ['四角', 'ボックス', '未選択'] },
   ListTodo: {
     component: ListTodo,
-    keywords: ['ToDoリスト', 'タスク', 'やること', 'リスト'],
+    keywords: [
+      'ToDoリスト',
+      'タスク',
+      'やること',
+      'リスト',
+      'タスク管理',
+      'やること管理',
+      'TODO',
+      'タスクリスト',
+      '習慣',
+    ],
   },
   ListChecks: {
     component: ListChecks,

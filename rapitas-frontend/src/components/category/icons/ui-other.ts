@@ -167,25 +167,72 @@ export const UI_OTHER_ICONS: Record<string, IconInfo> = {
   },
   Workflow: {
     component: Workflow,
-    keywords: ['ワークフロー', 'フロー', '自動化', 'プロセス', '手順'],
+    keywords: [
+      'ワークフロー',
+      'フロー',
+      '自動化',
+      'プロセス',
+      '手順',
+      'プロジェクト管理',
+      '工程',
+      'フローチャート',
+    ],
   },
 
   // Layout & UI
   SwatchBook: {
     component: SwatchBook,
-    keywords: ['スウォッチ', 'カラーパレット', '色見本', 'テーマ'],
+    keywords: [
+      'スウォッチ',
+      'カラーパレット',
+      '色見本',
+      'テーマ',
+      'カラーテーマ',
+      'スタイル設定',
+      'カラースキーム',
+      'デザインテーマ',
+      'theme',
+    ],
   },
   Layers: {
     component: Layers,
-    keywords: ['レイヤー', '層', '階層', '重ね', 'スタック'],
+    keywords: [
+      'レイヤー',
+      '層',
+      '階層',
+      '重ね',
+      'スタック',
+      'テーマ',
+      'カテゴリ階層',
+      'グループ化',
+      '分類',
+      '構造',
+    ],
   },
   LayoutGrid: {
     component: LayoutGrid,
-    keywords: ['グリッド', 'レイアウト', '格子', '一覧'],
+    keywords: [
+      'グリッド',
+      'レイアウト',
+      '格子',
+      '一覧',
+      'カテゴリ',
+      'カテゴリ一覧',
+      '俯瞰',
+      'グリッド表示',
+    ],
   },
   LayoutList: {
     component: LayoutList,
-    keywords: ['リスト', 'レイアウト', '一覧', 'リスト表示'],
+    keywords: [
+      'リスト',
+      'レイアウト',
+      '一覧',
+      'リスト表示',
+      'リスト一覧',
+      'タスクリスト',
+      '一覧表示',
+    ],
   },
   Columns3: {
     component: Columns3,
@@ -198,7 +245,7 @@ export const UI_OTHER_ICONS: Record<string, IconInfo> = {
   },
   Blocks: {
     component: Blocks,
-    keywords: ['ブロック', '積み木', '構成', '組み立て'],
+    keywords: ['ブロック', '積み木', '構成', '組み立て', 'プロジェクト', 'システム', '構造'],
   },
   Box: {
     component: Box,
@@ -217,7 +264,7 @@ export const UI_OTHER_ICONS: Record<string, IconInfo> = {
   // Other
   Infinity: {
     component: Infinity,
-    keywords: ['無限', 'インフィニティ', '永遠', 'ループ'],
+    keywords: ['無限', 'インフィニティ', '永遠', 'ループ', '継続', '習慣', '永続', '継続的'],
   },
   Hash: { component: Hash, keywords: ['ハッシュ', 'シャープ', '番号', 'タグ'] },
   Asterisk: {
@@ -257,16 +304,29 @@ export const UI_OTHER_ICONS: Record<string, IconInfo> = {
   RotateCcw: { component: RotateCcw, keywords: ['回転', '反時計回り', '戻す'] },
   RefreshCw: {
     component: RefreshCw,
-    keywords: ['更新', 'リフレッシュ', 'リロード'],
+    keywords: ['更新', 'リフレッシュ', 'リロード', '継続', '習慣化', '繰り返し'],
   },
   RefreshCcw: {
     component: RefreshCcw,
     keywords: ['更新', 'リフレッシュ', '戻す'],
   },
-  Repeat: { component: Repeat, keywords: ['リピート', '繰り返し', 'ループ'] },
+  Repeat: {
+    component: Repeat,
+    keywords: [
+      'リピート',
+      '繰り返し',
+      'ループ',
+      '習慣',
+      'ルーティン',
+      '定期的',
+      '継続',
+      '毎日',
+      '習慣化',
+    ],
+  },
   Repeat1: {
     component: Repeat1,
-    keywords: ['リピート', '1曲リピート', '繰り返し'],
+    keywords: ['リピート', '1曲リピート', '繰り返し', '習慣', '継続'],
   },
   Shuffle: {
     component: Shuffle,

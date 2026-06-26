@@ -53,7 +53,19 @@ export const DEVELOPMENT_CREATIVE_ICONS: Record<string, IconInfo> = {
   // Development & Code
   Code: {
     component: Code,
-    keywords: ['コード', 'プログラミング', '開発', 'HTML', 'タグ'],
+    keywords: [
+      'コード',
+      'プログラミング',
+      '開発',
+      'HTML',
+      'タグ',
+      'エンジニア',
+      'IT',
+      'テック',
+      'ソフトウェア',
+      '技術',
+      'システム開発',
+    ],
   },
   Code2: {
     component: Code2,
@@ -112,11 +124,33 @@ export const DEVELOPMENT_CREATIVE_ICONS: Record<string, IconInfo> = {
   // Creative & Design
   Palette: {
     component: Palette,
-    keywords: ['パレット', '色', 'デザイン', 'アート', '絵の具'],
+    keywords: [
+      'パレット',
+      '色',
+      'デザイン',
+      'アート',
+      '絵の具',
+      'テーマ',
+      'カラーテーマ',
+      'デザインテーマ',
+      'スタイル',
+      'カラー設定',
+      'クリエイティブ',
+    ],
   },
   Paintbrush: {
     component: Paintbrush,
-    keywords: ['絵筆', 'ブラシ', '描く', 'アート'],
+    keywords: [
+      '絵筆',
+      'ブラシ',
+      '描く',
+      'アート',
+      'テーマ',
+      'クリエイティブ',
+      'デザイン',
+      '創作',
+      'スタイル',
+    ],
   },
   PaintBucket: {
     component: PaintBucket,
@@ -149,11 +183,31 @@ export const DEVELOPMENT_CREATIVE_ICONS: Record<string, IconInfo> = {
   // Sports & Exercise
   Dumbbell: {
     component: Dumbbell,
-    keywords: ['ダンベル', '筋トレ', '運動', 'フィットネス', 'ジム'],
+    keywords: [
+      'ダンベル',
+      '筋トレ',
+      '運動',
+      'フィットネス',
+      'ジム',
+      '健康',
+      '運動習慣',
+      'トレーニング',
+      '体づくり',
+      '筋肉',
+    ],
   },
   Bike: {
     component: Bike,
-    keywords: ['自転車', 'サイクリング', 'バイク', '運動'],
+    keywords: [
+      '自転車',
+      'サイクリング',
+      'バイク',
+      '運動',
+      '健康',
+      'アウトドア',
+      '通勤',
+      'エクササイズ',
+    ],
   },
   PersonStanding: {
     component: PersonStanding,
@@ -161,7 +215,18 @@ export const DEVELOPMENT_CREATIVE_ICONS: Record<string, IconInfo> = {
   },
   Footprints: {
     component: Footprints,
-    keywords: ['足跡', '歩く', 'ウォーキング', '散歩', '歩数'],
+    keywords: [
+      '足跡',
+      '歩く',
+      'ウォーキング',
+      '散歩',
+      '歩数',
+      '健康',
+      '運動',
+      'ダイエット',
+      '習慣',
+      '毎日',
+    ],
   },
 
   // Games & Entertainment
@@ -189,7 +254,10 @@ export const DEVELOPMENT_CREATIVE_ICONS: Record<string, IconInfo> = {
     component: Diamond,
     keywords: ['ダイヤ', 'トランプ', 'カード', '宝石'],
   },
-  Music: { component: Music, keywords: ['音楽', 'ミュージック', '音符', '曲'] },
+  Music: {
+    component: Music,
+    keywords: ['音楽', 'ミュージック', '音符', '曲', '音楽鑑賞', '趣味', 'エンタメ', 'リラックス'],
+  },
   Music2: {
     component: Music2,
     keywords: ['音楽', 'ミュージック', '音符', 'メロディ'],

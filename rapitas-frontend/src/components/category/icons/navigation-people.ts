@@ -47,7 +47,18 @@ export const NAVIGATION_PEOPLE_ICONS: Record<string, IconInfo> = {
   // Navigation & Location
   Home: {
     component: Home,
-    keywords: ['ホーム', '家', 'トップ', 'メイン', '自宅'],
+    keywords: [
+      'ホーム',
+      '家',
+      'トップ',
+      'メイン',
+      '自宅',
+      '日常',
+      '生活',
+      'ライフスタイル',
+      'ホームカテゴリ',
+      '自宅作業',
+    ],
   },
   MapPin: {
     component: MapPin,
@@ -64,7 +75,18 @@ export const NAVIGATION_PEOPLE_ICONS: Record<string, IconInfo> = {
   },
   Globe: {
     component: Globe,
-    keywords: ['地球', 'グローバル', '世界', 'インターナショナル', '国際'],
+    keywords: [
+      '地球',
+      'グローバル',
+      '世界',
+      'インターナショナル',
+      '国際',
+      '語学',
+      '英語',
+      '言語',
+      '海外',
+      'ウェブ',
+    ],
   },
   Globe2: {
     component: Globe2,
@@ -94,7 +116,17 @@ export const NAVIGATION_PEOPLE_ICONS: Record<string, IconInfo> = {
   },
   Users: {
     component: Users,
-    keywords: ['ユーザー', 'グループ', 'チーム', 'メンバー', '複数人'],
+    keywords: [
+      'ユーザー',
+      'グループ',
+      'チーム',
+      'メンバー',
+      '複数人',
+      'コミュニティ',
+      'プロジェクトチーム',
+      '仲間',
+      '家族',
+    ],
   },
   UsersRound: {
     component: UsersRound,

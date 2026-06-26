@@ -76,7 +76,7 @@ export const TRANSPORT_HEALTH_ICONS: Record<string, IconInfo> = {
     keywords: ['車', '自動車', '正面', 'ドライブ'],
   },
   Bus: { component: Bus, keywords: ['バス', '公共交通', '通勤', '移動'] },
-  Train: { component: Train, keywords: ['電車', '鉄道', '通勤', '旅行'] },
+  Train: { component: Train, keywords: ['電車', '鉄道', '通勤', '旅行', '移動', '日常', '交通'] },
   TramFront: {
     component: TramFront,
     keywords: ['電車', '路面電車', 'トラム', '交通'],
@@ -88,7 +88,7 @@ export const TRANSPORT_HEALTH_ICONS: Record<string, IconInfo> = {
   },
   Plane: {
     component: Plane,
-    keywords: ['飛行機', '旅行', '空港', 'フライト', '海外'],
+    keywords: ['飛行機', '旅行', '空港', 'フライト', '海外', '出張', '旅', '海外旅行', 'トラベル'],
   },
   PlaneTakeoff: {
     component: PlaneTakeoff,
@@ -100,7 +100,18 @@ export const TRANSPORT_HEALTH_ICONS: Record<string, IconInfo> = {
   },
   Rocket: {
     component: Rocket,
-    keywords: ['ロケット', '宇宙', 'スタートアップ', '発射', '成長'],
+    keywords: [
+      'ロケット',
+      '宇宙',
+      'スタートアップ',
+      '発射',
+      '成長',
+      'プロジェクト',
+      '新規事業',
+      '挑戦',
+      '目標達成',
+      'スタート',
+    ],
   },
   Fuel: {
     component: Fuel,
@@ -118,11 +129,32 @@ export const TRANSPORT_HEALTH_ICONS: Record<string, IconInfo> = {
   // Health & Medical
   Activity: {
     component: Activity,
-    keywords: ['アクティビティ', '活動', '心拍', '健康'],
+    keywords: [
+      'アクティビティ',
+      '活動',
+      '心拍',
+      '健康',
+      '健康管理',
+      'フィットネス',
+      '体調管理',
+      '運動習慣',
+      'ヘルス',
+      'ヘルスケア',
+    ],
   },
   HeartPulse: {
     component: HeartPulse,
-    keywords: ['心拍', '脈拍', '健康', '心臓'],
+    keywords: [
+      '心拍',
+      '脈拍',
+      '健康',
+      '心臓',
+      'ヘルスケア',
+      '体調',
+      '医療',
+      'バイタルサイン',
+      '健康管理',
+    ],
   },
   Stethoscope: {
     component: Stethoscope,
@@ -140,10 +172,24 @@ export const TRANSPORT_HEALTH_ICONS: Record<string, IconInfo> = {
     component: Ambulance,
     keywords: ['救急車', '緊急', '病院', '医療'],
   },
-  Baby: { component: Baby, keywords: ['赤ちゃん', 'ベビー', '子供', '育児'] },
+  Baby: {
+    component: Baby,
+    keywords: ['赤ちゃん', 'ベビー', '子供', '育児', '子育て', '家族', '乳幼児'],
+  },
   Brain: {
     component: Brain,
-    keywords: ['脳', '頭脳', '思考', '知識', 'アイデア'],
+    keywords: [
+      '脳',
+      '頭脳',
+      '思考',
+      '知識',
+      'アイデア',
+      'メンタル',
+      'マインド',
+      '記憶',
+      '学習',
+      '認知',
+    ],
   },
   Bone: { component: Bone, keywords: ['骨', 'ボーン', '医療', '健康'] },
   Ear: { component: Ear, keywords: ['耳', '聞く', 'リスニング', '聴覚'] },
@@ -199,7 +245,21 @@ export const TRANSPORT_HEALTH_ICONS: Record<string, IconInfo> = {
     component: Barcode,
     keywords: ['バーコード', '商品', 'スキャン', '価格'],
   },
-  Tags: { component: Tags, keywords: ['タグ', 'ラベル', '値札', '複数'] },
+  Tags: {
+    component: Tags,
+    keywords: [
+      'タグ',
+      'ラベル',
+      '値札',
+      '複数',
+      'カテゴリ',
+      '分類',
+      'タグ付け',
+      '複数ラベル',
+      'ラベル管理',
+      'label',
+    ],
+  },
   Percent: {
     component: Percent,
     keywords: ['パーセント', '割引', 'セール', '率'],
