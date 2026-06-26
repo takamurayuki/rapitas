@@ -1,5 +1,5 @@
 import { Suspense } from 'react';
-import TaskDetailClient from './TaskDetailClient';
+import TaskDetailWrapper from './TaskDetailWrapper';
 import TaskDetailSkeleton from '@/components/ui/skeleton/TaskDetailSkeleton';
 
 // NOTE: Required for static export — generates placeholder route params at build time.
@@ -12,7 +12,7 @@ export async function generateStaticParams() {
 export default function TaskDetailPage() {
   return (
     <Suspense fallback={<TaskDetailSkeleton />}>
-      <TaskDetailClient />
+      <TaskDetailWrapper />
     </Suspense>
   );
 }

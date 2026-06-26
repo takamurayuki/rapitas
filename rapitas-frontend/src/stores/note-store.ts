@@ -10,6 +10,8 @@ export interface Note {
   isPinned: boolean;
   tags: string[];
   color?: string;
+  /** Task IDs this note is linked to. */
+  linkedTaskIds?: number[];
 }
 
 export type ModalTab = 'note' | 'ai' | 'split';
@@ -40,6 +42,9 @@ interface NoteState {
   updateNote: (id: string, updates: Partial<Note>) => void;
   deleteNote: (id: string) => void;
   setCurrentNote: (id: string | null) => void;
+  linkNoteToTask: (noteId: string, taskId: number) => void;
+  unlinkNoteFromTask: (noteId: string, taskId: number) => void;
+  getNotesForTask: (taskId: number) => Note[];
 
   // Modal operations
   toggleModal: () => void;
@@ -197,6 +202,30 @@ export const useNoteStore = create<NoteState>()(
             }
           }
         }
+      },
+
+      linkNoteToTask: (noteId, taskId) => {
+        set((state) => ({
+          notes: state.notes.map((n) =>
+            n.id === noteId
+              ? { ...n, linkedTaskIds: [...new Set([...(n.linkedTaskIds ?? []), taskId])] }
+              : n,
+          ),
+        }));
+      },
+
+      unlinkNoteFromTask: (noteId, taskId) => {
+        set((state) => ({
+          notes: state.notes.map((n) =>
+            n.id === noteId
+              ? { ...n, linkedTaskIds: (n.linkedTaskIds ?? []).filter((id) => id !== taskId) }
+              : n,
+          ),
+        }));
+      },
+
+      getNotesForTask: (taskId) => {
+        return get().notes.filter((n) => n.linkedTaskIds?.includes(taskId));
       },
 
       toggleModal: () => {

@@ -1,6 +1,6 @@
 'use client';
 import { useState, useMemo } from 'react';
-import ReactMarkdown from 'react-markdown';
+import ReactMarkdown, { defaultUrlTransform } from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import remarkBreaks from 'remark-breaks';
 import { createMarkdownComponents } from '@/feature/tasks/components/MarkdownComponents';
@@ -83,6 +83,9 @@ export default function TaskDescription({
         <ReactMarkdown
           remarkPlugins={[remarkGfm, remarkBreaks]}
           components={createMarkdownComponents()}
+          urlTransform={(url) =>
+            url.startsWith('rapitas-note://') ? url : defaultUrlTransform(url)
+          }
         >
           {displayDescription}
         </ReactMarkdown>

@@ -1,6 +1,7 @@
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import type { ReactNode, HTMLAttributes, CSSProperties } from 'react';
+import { NoteChipLink } from './NoteChipLink';
 
 // vscDarkPlus style type
 type SyntaxHighlighterStyle = { [key: string]: CSSProperties };
@@ -102,11 +103,29 @@ export const createMarkdownComponents = () => ({
       </div>
     );
   },
-  // NOTE: Customize link handling (open external links in split view)
+  // NOTE: Customize link handling — rapitas-note links render a Confluence-style chip.
+  // New format: /rapitas-note/{taskId}/{noteId} (relative URL, not filtered by react-markdown).
+  // Old format: rapitas-note://{noteId} (backward compat — needs urlTransform to pass through).
   a({ href, children, ...props }: LinkProps) {
-    // NOTE: ExternalLinksProvider sets handlers globally,
-    // Only handle styling here, no additional handlers needed
-    // so omitting target="_blank" prevents default browser behavior
+    const text = Array.isArray(children)
+      ? children.map((c) => (typeof c === 'string' ? c : '')).join('')
+      : typeof children === 'string'
+        ? children
+        : '';
+
+    if (href?.startsWith('/rapitas-note/')) {
+      const parts = href.slice('/rapitas-note/'.length).split('/');
+      const taskId = parts[0];
+      const noteId = parts[1];
+      return <NoteChipLink noteId={noteId} taskId={taskId} fallbackTitle={text} />;
+    }
+    // NOTE: Old format — rapitas-note:// is blocked by defaultUrlTransform unless
+    // TaskDescription passes urlTransform={(v) => v.startsWith('rapitas-note://') ? v : ...}.
+    if (href?.startsWith('rapitas-note://')) {
+      const noteId = href.slice('rapitas-note://'.length);
+      return <NoteChipLink noteId={noteId} fallbackTitle={text} />;
+    }
+    // NOTE: ExternalLinksProvider sets handlers globally; only handle styling here.
     return (
       <a href={href} className="text-blue-600 dark:text-blue-400 hover:underline" {...props}>
         {children}

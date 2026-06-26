@@ -14,8 +14,17 @@ import {
 } from '@/components/ui/accordion/Accordion';
 import { SelectedLabelsDisplay } from '@/feature/tasks/components/LabelSelector';
 import FileUploader from '@/feature/tasks/components/FileUploader';
-import MemoSection from '@/feature/tasks/components/MemoSection';
-import { Calendar, Clock, Timer, Tag, FileText, Paperclip, StickyNote, Repeat } from 'lucide-react';
+import NoteLinksSection from '@/app/tasks/[id]/components/NoteLinksSection';
+import {
+  Calendar,
+  Clock,
+  Timer,
+  Tag,
+  FileText,
+  Paperclip,
+  Repeat,
+  NotebookPen,
+} from 'lucide-react';
 import PriorityInlineSelect from '@/feature/tasks/components/PriorityInlineSelect';
 import RecurrenceSelector from '@/feature/tasks/components/RecurrenceSelector';
 import { useLocaleStore } from '@/stores/locale-store';
@@ -428,32 +437,13 @@ export default function CompactTaskDetailCard({
           </AccordionContent>
         </AccordionItem>
 
-        {/* Memos - Collapsible */}
+        {/* Notes - Collapsible */}
         <AccordionItem id="memos">
-          <AccordionTrigger
-            id="memos"
-            icon={<StickyNote className="w-4 h-4" />}
-            badge={
-              comments.filter((c) => !c.parentId).length > 0 ? (
-                <span className="px-1.5 py-0.5 text-xs font-medium bg-violet-100 dark:bg-violet-900/50 text-violet-600 dark:text-violet-400 rounded-full">
-                  {comments.filter((c) => !c.parentId).length}
-                </span>
-              ) : undefined
-            }
-          >
-            メモ
+          <AccordionTrigger id="memos" icon={<NotebookPen className="w-4 h-4" />}>
+            ノート
           </AccordionTrigger>
           <AccordionContent id="memos">
-            <MemoSection
-              comments={comments}
-              newComment={newComment}
-              isAddingComment={isAddingComment}
-              taskId={task.id}
-              onNewCommentChange={onNewCommentChange || (() => {})}
-              onAddComment={onAddComment || (() => {})}
-              onUpdateComment={onUpdateComment || (async () => {})}
-              onDeleteComment={onDeleteComment || (() => {})}
-            />
+            <NoteLinksSection taskId={task.id} />
           </AccordionContent>
         </AccordionItem>
       </Accordion>
