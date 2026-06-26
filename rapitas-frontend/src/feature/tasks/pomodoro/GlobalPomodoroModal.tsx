@@ -13,7 +13,7 @@ import {
   ChevronUp,
 } from 'lucide-react';
 import Link from 'next/link';
-import PomodoroTimer from '@/feature/tasks/components/PomodoroTimer';
+import PomodoroTimer, { type PomodoroSubtask } from '@/feature/tasks/components/PomodoroTimer';
 import { usePomodoroStore, formatTime } from './pomodoro-store';
 import { type TimeEntry } from '@/types';
 import { getTaskDetailPath } from '@/utils/tauri';
@@ -40,6 +40,7 @@ export default function GlobalPomodoroModal({
   const [taskData, setTaskData] = useState<{
     estimatedHours?: number;
     actualHours?: number;
+    subtasks?: PomodoroSubtask[];
   } | null>(null);
   const [mounted, setMounted] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
@@ -81,6 +82,19 @@ export default function GlobalPomodoroModal({
             setTaskData({
               estimatedHours: data.estimatedHours,
               actualHours: data.actualHours,
+              subtasks: (data.subtasks ?? []).map(
+                (s: {
+                  id: number;
+                  title: string;
+                  estimatedHours?: number | null;
+                  actualHours?: number | null;
+                }) => ({
+                  id: s.id,
+                  title: s.title,
+                  estimatedHours: s.estimatedHours,
+                  actualHours: s.actualHours,
+                }),
+              ),
             });
           }
         })
@@ -125,6 +139,19 @@ export default function GlobalPomodoroModal({
             setTaskData({
               estimatedHours: data.estimatedHours,
               actualHours: data.actualHours,
+              subtasks: (data.subtasks ?? []).map(
+                (s: {
+                  id: number;
+                  title: string;
+                  estimatedHours?: number | null;
+                  actualHours?: number | null;
+                }) => ({
+                  id: s.id,
+                  title: s.title,
+                  estimatedHours: s.estimatedHours,
+                  actualHours: s.actualHours,
+                }),
+              ),
             });
           }
         })
@@ -173,6 +200,7 @@ export default function GlobalPomodoroModal({
             showTaskTitle={false}
             estimatedHours={taskData?.estimatedHours}
             actualHours={taskData?.actualHours}
+            subtasks={taskData?.subtasks}
             timeEntries={timeEntries}
             onUpdate={handleUpdate}
           />

@@ -1,6 +1,7 @@
 'use client';
+import { useState } from 'react';
 import { type TimeEntry } from '@/types';
-import { Icon, Circle, Play, Pause, Square, Coffee, Hourglass } from 'lucide-react';
+import { Circle, Play, Pause, Square, Coffee, Hourglass, Clock } from 'lucide-react';
 import Tomato from '@/components/icons/Tomato';
 import { useTranslations } from 'next-intl';
 import {
@@ -24,12 +25,22 @@ export type PomodoroTimerStatus = {
   remainingSeconds: number;
 };
 
+/** Subtask shape passed in from the parent task. */
+export interface PomodoroSubtask {
+  id: number;
+  title: string;
+  estimatedHours?: number | null;
+  actualHours?: number | null;
+}
+
 interface PomodoroTimerProps {
   taskId: number;
   taskTitle?: string;
-  estimatedHours?: number;
-  actualHours?: number;
+  estimatedHours?: number | null;
+  actualHours?: number | null;
   timeEntries: TimeEntry[];
+  /** Subtasks of the task — enables per-subtask time attribution. */
+  subtasks?: PomodoroSubtask[];
   onUpdate: () => void;
   onStatusChange?: (status: PomodoroTimerStatus) => void;
   showTaskTitle?: boolean;
@@ -41,12 +52,16 @@ export default function PomodoroTimer({
   estimatedHours,
   actualHours,
   timeEntries,
+  subtasks,
   onUpdate,
   onStatusChange,
   showTaskTitle = false,
 }: PomodoroTimerProps) {
   const t = useTranslations('pomodoro');
   const store = usePomodoroStore();
+
+  // NOTE: null = attribute time to the parent task itself
+  const [selectedSubtaskId, setSelectedSubtaskId] = useState<number | null>(null);
 
   // Check if this is the timer for this task
   const isThisTask = store.taskId === taskId;
@@ -92,32 +107,43 @@ export default function PomodoroTimer({
     const workHours = workSeconds / 3600;
     const breakHours = accumulatedBreakSeconds / 3600;
 
-    const newActualHours = (actualHours || 0) + workHours;
+    // NOTE: Time is attributed to the selected subtask when chosen; otherwise the parent task.
+    const targetId = selectedSubtaskId ?? taskId;
+    const targetPriorActual =
+      selectedSubtaskId != null
+        ? (subtasks?.find((s) => s.id === selectedSubtaskId)?.actualHours ?? 0)
+        : (actualHours ?? 0);
+    const newActualHours = targetPriorActual + workHours;
 
     try {
       const endTime = new Date();
       const startTime = new Date(store.timerStartTime);
 
-      await fetch(`${API_BASE_URL}/tasks/${taskId}/time-entries`, {
+      await fetch(`${API_BASE_URL}/tasks/${targetId}/time-entries`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           duration: workHours,
           breakDuration: breakHours,
-          note: undefined,
           startedAt: startTime.toISOString(),
           endedAt: endTime.toISOString(),
         }),
       });
 
-      await fetch(`${API_BASE_URL}/tasks/${taskId}`, {
+      await fetch(`${API_BASE_URL}/tasks/${targetId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          actualHours: newActualHours,
-          startedAt: null,
-        }),
+        body: JSON.stringify({ actualHours: newActualHours, startedAt: null }),
       });
+
+      // Clear startedAt on the parent task when time was saved to a subtask.
+      if (selectedSubtaskId != null) {
+        await fetch(`${API_BASE_URL}/tasks/${taskId}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ startedAt: null }),
+        });
+      }
 
       store.stopTimer();
       onUpdate();
@@ -132,11 +158,17 @@ export default function PomodoroTimer({
     const workHours = workSeconds / 3600;
     const breakHours = accumulatedBreakSeconds / 3600;
 
+    const targetId = selectedSubtaskId ?? taskId;
+    const targetPriorActual =
+      selectedSubtaskId != null
+        ? (subtasks?.find((s) => s.id === selectedSubtaskId)?.actualHours ?? 0)
+        : (actualHours ?? 0);
+
     try {
       const endTime = new Date();
       const startTime = new Date(store.timerStartTime);
 
-      await fetch(`${API_BASE_URL}/tasks/${taskId}/time-entries`, {
+      await fetch(`${API_BASE_URL}/tasks/${targetId}/time-entries`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -148,15 +180,23 @@ export default function PomodoroTimer({
         }),
       });
 
-      await fetch(`${API_BASE_URL}/tasks/${taskId}`, {
+      await fetch(`${API_BASE_URL}/tasks/${targetId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          actualHours: (actualHours || 0) + workHours,
+          actualHours: targetPriorActual + workHours,
           status: 'done',
           startedAt: null,
         }),
       });
+
+      if (selectedSubtaskId != null) {
+        await fetch(`${API_BASE_URL}/tasks/${taskId}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ startedAt: null }),
+        });
+      }
 
       store.stopTimer();
       onUpdate();
@@ -323,6 +363,32 @@ export default function PomodoroTimer({
           </button>
         </div>
       )}
+
+      {/* Subtask selector — pick where to attribute this session's work time */}
+      {!showBreakDialog &&
+        !showBreakEndDialog &&
+        (isTimerRunning || isPaused) &&
+        subtasks &&
+        subtasks.length > 0 && (
+          <div className="w-full mb-4 px-2">
+            <label className="block text-xs font-medium text-zinc-500 dark:text-zinc-400 mb-1.5">
+              作業時間の帰属先
+            </label>
+            <select
+              value={selectedSubtaskId ?? ''}
+              onChange={(e) => setSelectedSubtaskId(e.target.value ? Number(e.target.value) : null)}
+              className="w-full px-3 py-2 text-sm bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+            >
+              <option value="">親タスク（{taskTitle}）</option>
+              {subtasks.map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.title}
+                  {s.estimatedHours ? ` (工数: ${s.estimatedHours}h)` : ''}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
 
       {!showBreakDialog && !showBreakEndDialog && (
         <div className="flex gap-3 justify-center">
