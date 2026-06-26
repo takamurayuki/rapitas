@@ -1,5 +1,6 @@
 'use client';
 
+import { useState, useEffect } from 'react';
 import { type Task, type Label, type Resource, type Comment, type Priority } from '@/types';
 import TaskDescription from '@/feature/tasks/components/TaskDescription';
 import TaskStatusChange from '@/feature/tasks/components/TaskStatusChange';
@@ -14,7 +15,7 @@ import {
 import { SelectedLabelsDisplay } from '@/feature/tasks/components/LabelSelector';
 import FileUploader from '@/feature/tasks/components/FileUploader';
 import MemoSection from '@/feature/tasks/components/MemoSection';
-import { Clock, Tag, FileText, Paperclip, StickyNote, Repeat } from 'lucide-react';
+import { Calendar, Clock, Timer, Tag, FileText, Paperclip, StickyNote, Repeat } from 'lucide-react';
 import PriorityInlineSelect from '@/feature/tasks/components/PriorityInlineSelect';
 import RecurrenceSelector from '@/feature/tasks/components/RecurrenceSelector';
 import { useLocaleStore } from '@/stores/locale-store';
@@ -66,6 +67,13 @@ interface CompactTaskDetailCardProps {
   onDeleteLink?: (id: number) => Promise<void>;
 }
 
+/** Converts a UTC ISO string to a value suitable for a datetime-local input. */
+function toDateTimeLocal(isoUtcString: string): string {
+  const d = new Date(isoUtcString);
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
 export default function CompactTaskDetailCard({
   task,
   onStatusUpdate,
@@ -87,7 +95,39 @@ export default function CompactTaskDetailCard({
   const fileResources = resources.filter(
     (r) => r.filePath || r.type === 'file' || r.type === 'image' || r.type === 'pdf',
   );
-  const hasMetaInfo = (task.taskLabels && task.taskLabels.length > 0) || task.estimatedHours;
+
+  const [estHoursInput, setEstHoursInput] = useState(task.estimatedHours?.toString() ?? '');
+  const [actHoursInput, setActHoursInput] = useState(task.actualHours?.toString() ?? '');
+  const [dueDateInput, setDueDateInput] = useState(
+    task.dueDate ? toDateTimeLocal(task.dueDate) : '',
+  );
+
+  // NOTE: Sync local inputs when the parent refreshes the task object.
+  useEffect(() => {
+    setEstHoursInput(task.estimatedHours?.toString() ?? '');
+    setActHoursInput(task.actualHours?.toString() ?? '');
+    setDueDateInput(task.dueDate ? toDateTimeLocal(task.dueDate) : '');
+  }, [task.estimatedHours, task.actualHours, task.dueDate]);
+
+  /**
+   * Patches a set of task fields and refreshes the parent view.
+   *
+   * @param data - Partial task fields to update / 更新するフィールドの部分オブジェクト
+   */
+  const patchTask = async (data: Record<string, unknown>) => {
+    try {
+      const res = await fetch(`${API_BASE_URL}/tasks/${task.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+      });
+      if (!res.ok) throw new Error('update failed');
+      clearApiCache(`/tasks/${task.id}`);
+      onTaskUpdated?.();
+    } catch {
+      alert('保存に失敗しました');
+    }
+  };
 
   /**
    * Persists a single inline-edited field (title/description) via PATCH, then
@@ -97,18 +137,7 @@ export default function CompactTaskDetailCard({
    * @param value - New value / 新しい値
    */
   const saveField = async (field: 'title' | 'description' | 'priority', value: string) => {
-    try {
-      const res = await fetch(`${API_BASE_URL}/tasks/${task.id}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ [field]: value }),
-      });
-      if (!res.ok) throw new Error('update failed');
-      clearApiCache(`/tasks/${task.id}`);
-      onTaskUpdated?.();
-    } catch {
-      alert('保存に失敗しました');
-    }
+    await patchTask({ [field]: value });
   };
 
   return (
@@ -193,40 +222,161 @@ export default function CompactTaskDetailCard({
           </AccordionContent>
         </AccordionItem>
 
-        {/* Meta Information - Collapsible */}
-        {hasMetaInfo && (
-          <AccordionItem id="meta">
-            <AccordionTrigger
-              id="meta"
-              icon={<Tag className="w-4 h-4" />}
-              badge={
-                <span className="text-xs text-zinc-400 dark:text-zinc-500">
-                  {task.taskLabels?.length || 0} labels
-                  {task.estimatedHours ? ` / ${task.estimatedHours}h` : ''}
-                </span>
-              }
-            >
-              ラベル・見積もり
-            </AccordionTrigger>
-            <AccordionContent id="meta">
-              <div className="flex flex-wrap items-center gap-3">
-                {task.taskLabels && task.taskLabels.length > 0 && (
-                  <SelectedLabelsDisplay
-                    labels={task.taskLabels
-                      .map((tl) => tl.label)
-                      .filter((l): l is Label => l !== undefined)}
-                  />
-                )}
-                {task.estimatedHours && (
-                  <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-amber-50 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 text-sm font-medium">
-                    <Clock className="w-3.5 h-3.5" />
-                    {task.estimatedHours}時間
+        {/* Workload & Deadline - always visible so users can set values */}
+        <AccordionItem id="meta">
+          <AccordionTrigger
+            id="meta"
+            icon={<Clock className="w-4 h-4" />}
+            badge={
+              <span className="text-xs text-zinc-400 dark:text-zinc-500">
+                {[
+                  task.estimatedHours ? `見積: ${task.estimatedHours}h` : null,
+                  task.actualHours != null ? `実績: ${task.actualHours.toFixed(1)}h` : null,
+                  task.dueDate ? new Date(task.dueDate).toLocaleDateString(dateLocale) : null,
+                ]
+                  .filter(Boolean)
+                  .join(' / ')}
+              </span>
+            }
+          >
+            工数・期限
+          </AccordionTrigger>
+          <AccordionContent id="meta">
+            {/* NOTE: Use local input state for the progress bar so it updates on keystroke,
+                not only after the parent re-fetches the task on blur. */}
+            {(() => {
+              const displayedEst = estHoursInput ? parseFloat(estHoursInput) : null;
+              const displayedAct = actHoursInput ? parseFloat(actHoursInput) : 0;
+              const hasEst = displayedEst != null && displayedEst > 0;
+              const pct = hasEst ? Math.min(100, (displayedAct / displayedEst) * 100) : 0;
+              const barColor = !hasEst
+                ? 'bg-emerald-500/30'
+                : displayedAct > displayedEst
+                  ? 'bg-red-500'
+                  : displayedAct >= displayedEst * 0.8
+                    ? 'bg-amber-500'
+                    : 'bg-emerald-500';
+              return (
+                <div className="space-y-4">
+                  {/* 工数 / 作業時間 / 期限 — 3列横並び */}
+                  <div className="grid grid-cols-3 gap-3">
+                    <div>
+                      <label className="block text-xs font-medium text-zinc-500 dark:text-zinc-400 mb-1.5">
+                        <span className="flex items-center gap-1">
+                          <Clock className="w-3.5 h-3.5" />
+                          工数
+                        </span>
+                      </label>
+                      <div className="flex items-center gap-1">
+                        <input
+                          type="number"
+                          step="0.5"
+                          min="0"
+                          value={estHoursInput}
+                          onChange={(e) => setEstHoursInput(e.target.value)}
+                          onBlur={() =>
+                            patchTask({
+                              estimatedHours: estHoursInput ? parseFloat(estHoursInput) : null,
+                            })
+                          }
+                          placeholder="0"
+                          className="w-full bg-zinc-100 dark:bg-zinc-800 rounded-lg px-2 py-1.5 text-sm border-none outline-none focus:ring-2 focus:ring-violet-500/20 transition-all"
+                        />
+                        <span className="text-xs text-zinc-500 dark:text-zinc-400 shrink-0">h</span>
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-medium text-zinc-500 dark:text-zinc-400 mb-1.5">
+                        <span className="flex items-center gap-1">
+                          <Timer className="w-3.5 h-3.5" />
+                          作業時間
+                        </span>
+                      </label>
+                      <div className="flex items-center gap-1">
+                        <input
+                          type="number"
+                          step="0.1"
+                          min="0"
+                          value={actHoursInput}
+                          onChange={(e) => setActHoursInput(e.target.value)}
+                          onBlur={() =>
+                            patchTask({
+                              actualHours: actHoursInput ? parseFloat(actHoursInput) : null,
+                            })
+                          }
+                          placeholder="0"
+                          className="w-full bg-zinc-100 dark:bg-zinc-800 rounded-lg px-2 py-1.5 text-sm border-none outline-none focus:ring-2 focus:ring-emerald-500/20 transition-all"
+                        />
+                        <span className="text-xs text-zinc-500 dark:text-zinc-400 shrink-0">h</span>
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-medium text-zinc-500 dark:text-zinc-400 mb-1.5">
+                        <span className="flex items-center gap-1">
+                          <Calendar className="w-3.5 h-3.5" />
+                          期限
+                        </span>
+                      </label>
+                      <input
+                        type="datetime-local"
+                        value={dueDateInput}
+                        onChange={(e) => setDueDateInput(e.target.value)}
+                        onBlur={() =>
+                          patchTask({
+                            dueDate: dueDateInput ? new Date(dueDateInput).toISOString() : null,
+                          })
+                        }
+                        className="w-full bg-zinc-100 dark:bg-zinc-800 rounded-lg px-2 py-1.5 text-sm border-none outline-none focus:ring-2 focus:ring-violet-500/20 transition-all"
+                      />
+                    </div>
                   </div>
-                )}
-              </div>
-            </AccordionContent>
-          </AccordionItem>
-        )}
+
+                  {/* 進捗バー: 作業時間 / 工数 (入力値をリアルタイム反映) */}
+                  <div>
+                    <div className="flex items-center justify-between mb-1.5">
+                      <span className="text-xs font-medium text-zinc-500 dark:text-zinc-400">
+                        進捗
+                      </span>
+                      <span className="text-xs text-zinc-500 dark:text-zinc-400">
+                        {displayedAct.toFixed(1)}h{hasEst ? ` / ${displayedEst}h` : ''}
+                        {hasEst && (
+                          <span className="ml-1 text-zinc-400 dark:text-zinc-500">
+                            ({pct.toFixed(0)}%)
+                          </span>
+                        )}
+                      </span>
+                    </div>
+                    <div className="h-2 bg-zinc-100 dark:bg-zinc-800 rounded-full overflow-hidden">
+                      <div
+                        className={`h-full rounded-full transition-all duration-150 ${barColor}`}
+                        style={{ width: hasEst ? `${pct}%` : displayedAct > 0 ? '100%' : '0%' }}
+                      />
+                    </div>
+                  </div>
+
+                  {/* Labels (read-only display) */}
+                  {task.taskLabels && task.taskLabels.length > 0 && (
+                    <div>
+                      <label className="block text-xs font-medium text-zinc-500 dark:text-zinc-400 mb-1.5">
+                        <span className="flex items-center gap-1">
+                          <Tag className="w-3.5 h-3.5" />
+                          ラベル
+                        </span>
+                      </label>
+                      <SelectedLabelsDisplay
+                        labels={task.taskLabels
+                          .map((tl) => tl.label)
+                          .filter((l): l is Label => l !== undefined)}
+                      />
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
+          </AccordionContent>
+        </AccordionItem>
 
         {/* Recurrence Settings - Collapsible */}
         <AccordionItem id="recurrence">

@@ -132,8 +132,10 @@ export interface UpdateTaskInput {
   priority?: string;
   labels?: string;
   labelIds?: number[];
-  estimatedHours?: number;
-  dueDate?: string;
+  estimatedHours?: number | null;
+  actualHours?: number | null;
+  dueDate?: string | null;
+  startedAt?: string | null;
   subject?: string;
   projectId?: number;
   milestoneId?: number;
@@ -197,8 +199,12 @@ export async function updateTask(prisma: PrismaInstance, taskId: number, input: 
       ...(fields.priority && { priority: fields.priority }),
       ...(fields.labels && { labels: fields.labels }),
       ...(fields.estimatedHours !== undefined && { estimatedHours: fields.estimatedHours }),
+      ...(fields.actualHours !== undefined && { actualHours: fields.actualHours }),
       ...(fields.dueDate !== undefined && {
         dueDate: fields.dueDate ? new Date(fields.dueDate) : null,
+      }),
+      ...(fields.startedAt !== undefined && {
+        startedAt: fields.startedAt ? new Date(fields.startedAt) : null,
       }),
       ...(fields.subject !== undefined && { subject: fields.subject }),
       ...(fields.projectId !== undefined && { projectId: fields.projectId }),
@@ -273,6 +279,21 @@ export async function updateTask(prisma: PrismaInstance, taskId: number, input: 
         },
       });
     }
+  }
+
+  // NOTE: When a subtask's actualHours is updated, recalculate the parent's
+  // actualHours as the sum of all sibling actualHours so the parent always
+  // reflects total time spent across its subtasks.
+  if (fields.actualHours !== undefined && currentTask.parentId) {
+    const siblings = await prisma.task.findMany({
+      where: { parentId: currentTask.parentId },
+      select: { actualHours: true },
+    });
+    const parentActual = siblings.reduce((sum, s) => sum + (s.actualHours ?? 0), 0);
+    await prisma.task.update({
+      where: { id: currentTask.parentId },
+      data: { actualHours: parentActual > 0 ? parentActual : null },
+    });
   }
 
   // Subtask completion: when a SUBTASK (has parentId) is marked done via the

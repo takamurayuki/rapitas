@@ -31,8 +31,9 @@ export const timeEntriesRoutes = new Elysia()
         throw new ValidationError('無効なタスクIDです');
       }
 
-      const { duration, note, startedAt, endedAt } = body as {
+      const { duration, breakDuration, note, startedAt, endedAt } = body as {
         duration: number;
+        breakDuration?: number;
         note?: string;
         startedAt: string;
         endedAt: string;
@@ -41,6 +42,7 @@ export const timeEntriesRoutes = new Elysia()
         data: {
           taskId,
           duration,
+          ...(breakDuration !== undefined && { breakDuration }),
           note,
           startedAt: new Date(startedAt),
           endedAt: new Date(endedAt),
@@ -52,6 +54,7 @@ export const timeEntriesRoutes = new Elysia()
         duration: t.Number({ minimum: 0 }),
         startedAt: t.String(),
         endedAt: t.String(),
+        breakDuration: t.Optional(t.Number({ minimum: 0 })),
         note: t.Optional(t.String()),
       }),
     },
