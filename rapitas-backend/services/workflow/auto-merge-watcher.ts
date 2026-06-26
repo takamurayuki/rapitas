@@ -198,13 +198,21 @@ interface NotifyParams {
   message: string;
 }
 async function notify(p: NotifyParams): Promise<void> {
+  const link = `/tasks/${p.taskId}`;
+  // NOTE: Skip if an identical unread notification already exists — the watcher
+  // polls every 60s and would otherwise re-fire the same "自動マージ保留" message
+  // on every tick until the candidate is excluded (after MAX_BLOCK_RETRIES blocks).
+  const existing = await prisma.notification
+    .findFirst({ where: { type: p.type, link, isRead: false } })
+    .catch(() => null);
+  if (existing) return;
   await prisma.notification
     .create({
       data: {
         type: p.type,
         title: p.title,
         message: p.message,
-        link: `/tasks/${p.taskId}`,
+        link,
         metadata: JSON.stringify({ taskId: p.taskId }),
       },
     })
