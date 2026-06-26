@@ -168,22 +168,17 @@ vi.mock('@/components/ui/ModernCheckbox', () => ({
   ),
 }));
 
-// Mock lucide-react icons used in TaskCard
-vi.mock('lucide-react', () => {
-  const createIcon = (name: string) => {
-    const Icon = ({ className }: { className?: string }) => (
-      <div data-testid={name} className={className} />
-    );
-    Icon.displayName = name;
-    return Icon;
-  };
-  return {
-    ExternalLink: createIcon('external-link'),
-    Tag: createIcon('tag'),
-    Copy: createIcon('copy'),
-    Trash2: createIcon('trash2'),
-    Edit: createIcon('edit'),
-  };
+// NOTE: Uses the shared self-repairing factory so new icons (Repeat, RefreshCw, etc.)
+// are auto-stubbed without updating this allowlist.
+vi.mock('lucide-react', async (importOriginal) => {
+  const { buildLucideMock } = await import('@/__tests__/helpers/lucide-react-mock');
+  return buildLucideMock(importOriginal, {
+    ExternalLink: 'external-link',
+    Tag: 'tag',
+    Copy: 'copy',
+    Trash2: 'trash2',
+    Edit: 'edit',
+  });
 });
 
 vi.mock('@/components/category/icon-data', () => ({
