@@ -64,7 +64,7 @@ function NewTaskClient() {
       />
 
       <form onSubmit={(e) => form.handleSubmit(e)} className="max-w-2xl mx-auto px-4 pb-8">
-        <div className="bg-white dark:bg-indigo-dark-900 rounded-2xl shadow-xl shadow-zinc-200/50 dark:shadow-none border border-zinc-200/50 dark:border-zinc-800 overflow-hidden">
+        <div className="bg-white dark:bg-zinc-900 rounded-lg border border-zinc-200 dark:border-zinc-800 overflow-hidden">
           {/* Task title */}
           <div className="p-4 border-b border-zinc-100 dark:border-zinc-800">
             <TaskTitleAutocomplete
@@ -101,6 +101,54 @@ function NewTaskClient() {
                   themeId={form.themeId}
                   onSelect={form.handleThemeSelect}
                 />
+              </FieldItem>
+            </InlineFieldGroup>
+          </div>
+
+          {/* Due Date + Estimated Hours — always-visible row */}
+          <div className="px-4 py-3 border-b border-zinc-100 dark:border-zinc-800">
+            <InlineFieldGroup>
+              <FieldItem
+                label={t('deadlineDate')}
+                icon={<Calendar className="w-3.5 h-3.5" />}
+                className="flex-1 min-w-[200px]"
+              >
+                <div className="flex items-center gap-2">
+                  <input
+                    type="datetime-local"
+                    value={form.dueDate}
+                    onChange={(e) => form.setDueDate(e.target.value)}
+                    className="flex-1 bg-zinc-50 dark:bg-zinc-800/50 rounded-lg px-3 py-2 text-sm border-none outline-none focus:ring-2 focus:ring-indigo-500/20 transition-all dark:scheme:dark"
+                  />
+                  {form.dueDate && (
+                    <span className="text-xs font-medium text-zinc-500 dark:text-zinc-400 shrink-0">
+                      (
+                      {new Date(form.dueDate).toLocaleDateString(form.dateLocale, {
+                        weekday: 'short',
+                      })}
+                      )
+                    </span>
+                  )}
+                </div>
+              </FieldItem>
+
+              <FieldItem
+                label={t('estimatedTime')}
+                icon={<Clock className="w-3.5 h-3.5" />}
+                className="flex-1 min-w-[100px]"
+              >
+                <div className="flex items-center gap-2">
+                  <input
+                    type="number"
+                    step="0.5"
+                    min="0"
+                    value={form.estimatedHours}
+                    onChange={(e) => form.setEstimatedHours(e.target.value)}
+                    placeholder="0"
+                    className="w-16 bg-zinc-50 dark:bg-zinc-800/50 rounded-lg px-3 py-2 text-sm border-none outline-none focus:ring-2 focus:ring-indigo-500/20 transition-all"
+                  />
+                  <span className="text-xs text-zinc-500 dark:text-zinc-400">{tc('hours')}</span>
+                </div>
               </FieldItem>
             </InlineFieldGroup>
           </div>
@@ -200,65 +248,18 @@ function NewTaskClient() {
             </div>
           </CompactAccordionGroup>
 
-          {/* Advanced settings accordion */}
+          {/* Advanced settings accordion — labels only */}
           <CompactAccordionGroup
             title={t('advancedSettings')}
             icon={<Settings2 className="w-3.5 h-3.5" />}
             defaultExpanded={false}
           >
-            <div className="space-y-4">
-              <InlineFieldGroup>
-                <FieldItem
-                  label={t('deadlineDate')}
-                  icon={<Calendar className="w-3.5 h-3.5" />}
-                  className="flex-1 min-w-[200px]"
-                >
-                  <div className="flex items-center gap-2">
-                    <input
-                      type="datetime-local"
-                      value={form.dueDate}
-                      onChange={(e) => form.setDueDate(e.target.value)}
-                      className="flex-1 bg-zinc-50 dark:bg-zinc-800/50 rounded-lg px-3 py-2 text-sm border-none outline-none focus:ring-2 focus:ring-indigo-500/20 transition-all dark:scheme:dark"
-                    />
-                    {form.dueDate && (
-                      <span className="text-xs font-medium text-zinc-500 dark:text-zinc-400 shrink-0">
-                        (
-                        {new Date(form.dueDate).toLocaleDateString(form.dateLocale, {
-                          weekday: 'short',
-                        })}
-                        )
-                      </span>
-                    )}
-                  </div>
-                </FieldItem>
-
-                <FieldItem
-                  label={t('estimatedTime')}
-                  icon={<Clock className="w-3.5 h-3.5" />}
-                  className="flex-1 min-w-[100px]"
-                >
-                  <div className="flex items-center gap-2">
-                    <input
-                      type="number"
-                      step="0.5"
-                      min="0"
-                      value={form.estimatedHours}
-                      onChange={(e) => form.setEstimatedHours(e.target.value)}
-                      placeholder="0"
-                      className="w-16 bg-zinc-50 dark:bg-zinc-800/50 rounded-lg px-3 py-2 text-sm border-none outline-none focus:ring-2 focus:ring-indigo-500/20 transition-all"
-                    />
-                    <span className="text-xs text-zinc-500 dark:text-zinc-400">{tc('hours')}</span>
-                  </div>
-                </FieldItem>
-              </InlineFieldGroup>
-
-              <FieldItem label={t('labels')} icon={<Tag className="w-3.5 h-3.5" />} fullWidth>
-                <LabelSelector
-                  selectedLabelIds={form.selectedLabelIds}
-                  onChange={form.setSelectedLabelIds}
-                />
-              </FieldItem>
-            </div>
+            <FieldItem label={t('labels')} icon={<Tag className="w-3.5 h-3.5" />} fullWidth>
+              <LabelSelector
+                selectedLabelIds={form.selectedLabelIds}
+                onChange={form.setSelectedLabelIds}
+              />
+            </FieldItem>
           </CompactAccordionGroup>
 
           {/* Subtasks accordion */}
