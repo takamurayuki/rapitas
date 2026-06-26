@@ -8,13 +8,14 @@ import { labelSchema } from '../../schemas/label.schema';
 import { NotFoundError, ValidationError } from '../../middleware/error-handler';
 
 export const labelsRoutes = new Elysia({ prefix: '/labels' })
-  // Get all labels
-  .get('/', async () => {
+  // Get all labels (optionally filtered by themeId via ?themeId=N)
+  .get('/', async ({ query }) => {
+    const themeId = query.themeId ? parseInt(query.themeId as string) : undefined;
     return await prisma.label.findMany({
+      where: themeId != null ? { themeId } : undefined,
       include: {
-        _count: {
-          select: { tasks: true },
-        },
+        theme: { select: { id: true, name: true, color: true, icon: true } },
+        _count: { select: { tasks: true } },
       },
       orderBy: [{ sortOrder: 'asc' }, { createdAt: 'desc' }],
     });
@@ -51,11 +52,12 @@ export const labelsRoutes = new Elysia({ prefix: '/labels' })
     '/',
     async (context) => {
       const { body } = context;
-      const { name, description, color, icon } = body as {
+      const { name, description, color, icon, themeId } = body as {
         name: string;
         description?: string;
         color?: string;
         icon?: string;
+        themeId?: number | null;
       };
 
       return await prisma.label.create({
@@ -64,6 +66,11 @@ export const labelsRoutes = new Elysia({ prefix: '/labels' })
           ...(description && { description }),
           ...(color && { color }),
           ...(icon && { icon }),
+          ...(themeId != null && { themeId }),
+        },
+        include: {
+          theme: { select: { id: true, name: true, color: true, icon: true } },
+          _count: { select: { tasks: true } },
         },
       });
     },
@@ -82,11 +89,12 @@ export const labelsRoutes = new Elysia({ prefix: '/labels' })
         throw new ValidationError('無効なIDです');
       }
 
-      const { name, description, color, icon } = body as {
+      const { name, description, color, icon, themeId } = body as {
         name?: string;
         description?: string;
         color?: string;
         icon?: string;
+        themeId?: number | null;
       };
 
       return await prisma.label.update({
@@ -96,6 +104,11 @@ export const labelsRoutes = new Elysia({ prefix: '/labels' })
           ...(description !== undefined && { description }),
           ...(color && { color }),
           ...(icon !== undefined && { icon }),
+          ...(themeId !== undefined && { themeId }),
+        },
+        include: {
+          theme: { select: { id: true, name: true, color: true, icon: true } },
+          _count: { select: { tasks: true } },
         },
       });
     },

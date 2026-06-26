@@ -39,6 +39,7 @@ model Theme {
   userBehaviors    UserBehavior[]
   taskPatterns     TaskPattern[]
   behaviorSummaries UserBehaviorSummary[]
+  labels           Label[]
 }
 
 model Project {
@@ -190,6 +191,8 @@ model Label {
   color       String      @default("#6366F1")
   icon        String?
   sortOrder   Int         @default(0)
+  themeId     Int?
+  theme       Theme?      @relation(fields: [themeId], references: [id], onDelete: SetNull)
   createdAt   DateTime    @default(now())
   updatedAt   DateTime    @updatedAt
   tasks       TaskLabel[]

@@ -451,8 +451,10 @@ CREATE TABLE "Label" (
     "color" TEXT NOT NULL DEFAULT '#6366F1',
     "icon" TEXT,
     "sortOrder" INTEGER NOT NULL DEFAULT 0,
+    "themeId" INTEGER,
     "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updatedAt" DATETIME NOT NULL
+    "updatedAt" DATETIME NOT NULL,
+    CONSTRAINT "Label_themeId_fkey" FOREIGN KEY ("themeId") REFERENCES "Theme" ("id") ON DELETE SET NULL ON UPDATE CASCADE
 );
 
 -- CreateTable
