@@ -28,6 +28,7 @@ import {
 import PriorityInlineSelect from '@/feature/tasks/components/PriorityInlineSelect';
 import RecurrenceSelector from '@/feature/tasks/components/RecurrenceSelector';
 import { useLocaleStore } from '@/stores/locale-store';
+import { useFilterDataStore } from '@/stores/filter-data-store';
 import { toDateLocale } from '@/lib/utils';
 import { API_BASE_URL } from '@/utils/api';
 import { clearApiCache } from '@/lib/api-client';
@@ -101,6 +102,16 @@ export default function CompactTaskDetailCard({
 }: CompactTaskDetailCardProps) {
   const locale = useLocaleStore((s) => s.locale);
   const dateLocale = toDateLocale(locale);
+
+  // NOTE: Task list API returns theme without nested category. Look up category
+  // from the filter store (which persists full category/theme data including icons).
+  const filterThemes = useFilterDataStore((s) => s.themes);
+  const filterCategories = useFilterDataStore((s) => s.categories);
+  const resolvedTheme = filterThemes.find((t) => t.id === task.themeId);
+  const resolvedCategory = resolvedTheme?.categoryId
+    ? filterCategories.find((c) => c.id === resolvedTheme.categoryId)
+    : null;
+  const resolvedCategoryName = resolvedCategory?.name ?? task.theme?.category?.name ?? '';
   const fileResources = resources.filter(
     (r) => r.filePath || r.type === 'file' || r.type === 'image' || r.type === 'pdf',
   );
@@ -447,7 +458,7 @@ export default function CompactTaskDetailCard({
               taskId={task.id}
               taskTitle={task.title}
               themeName={task.theme?.name}
-              categoryName={task.theme?.category?.name}
+              categoryName={resolvedCategoryName}
             />
           </AccordionContent>
         </AccordionItem>

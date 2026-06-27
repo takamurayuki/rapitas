@@ -20,6 +20,8 @@ import {
   NotebookPen,
 } from 'lucide-react';
 import { useNoteStore, type Note } from '@/stores/note-store';
+import { useFilterDataStore } from '@/stores/filter-data-store';
+import { getIconComponent } from '@/components/category/icon-data';
 import DeleteNoteModal from './DeleteNoteModal';
 import { buildNoteTree, parseNotePath, parseNotePathThemeOnly } from './note-tree-utils';
 
@@ -72,6 +74,21 @@ export default function NoteSidebar() {
     deleteNote,
     setCurrentNote,
   } = useNoteStore();
+
+  const filterCategories = useFilterDataStore((s) => s.categories);
+  const filterThemes = useFilterDataStore((s) => s.themes);
+
+  // Maps from display name → icon component for categories and themes.
+  const categoryIconMap = useMemo(() => {
+    const m = new Map<string, string | null | undefined>();
+    filterCategories.forEach((c) => m.set(c.name, c.icon));
+    return m;
+  }, [filterCategories]);
+  const themeIconMap = useMemo(() => {
+    const m = new Map<string, string | null | undefined>();
+    filterThemes.forEach((t) => m.set(t.name, t.icon));
+    return m;
+  }, [filterThemes]);
 
   const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set());
   const [expandedThemes, setExpandedThemes] = useState<Set<string>>(new Set());
@@ -227,6 +244,7 @@ export default function NoteSidebar() {
         {/* 3-level: Category → Theme → Task → Notes */}
         {tree.categories.map((cat) => {
           const catExpanded = expandedCategories.has(cat.category);
+          const CatIcon = getIconComponent(categoryIconMap.get(cat.category) ?? '') ?? Folders;
           return (
             <div key={cat.category}>
               <button
@@ -236,7 +254,7 @@ export default function NoteSidebar() {
                 <ChevronRight
                   className={`w-3.5 h-3.5 shrink-0 text-zinc-400 transition-transform ${catExpanded ? 'rotate-90' : ''}`}
                 />
-                <Folders className="w-3.5 h-3.5 shrink-0 text-indigo-400" />
+                <CatIcon className="w-3.5 h-3.5 shrink-0 text-indigo-400" />
                 <span className="truncate">{cat.category}</span>
               </button>
 
@@ -244,6 +262,7 @@ export default function NoteSidebar() {
                 cat.themes.map((th) => {
                   const themeKey = `${cat.category}|||${th.theme}`;
                   const thExpanded = expandedThemes.has(themeKey);
+                  const ThIcon = getIconComponent(themeIconMap.get(th.theme) ?? '') ?? SwatchBook;
                   return (
                     <div key={th.theme} className="ml-3">
                       <button
@@ -253,7 +272,7 @@ export default function NoteSidebar() {
                         <ChevronRight
                           className={`w-3 h-3 shrink-0 text-zinc-400 transition-transform ${thExpanded ? 'rotate-90' : ''}`}
                         />
-                        <SwatchBook className="w-3 h-3 shrink-0 text-purple-400" />
+                        <ThIcon className="w-3 h-3 shrink-0 text-purple-400" />
                         <span className="truncate">{th.theme}</span>
                       </button>
 
@@ -299,6 +318,7 @@ export default function NoteSidebar() {
         {tree.themeGroups.map((tg) => {
           const themeKey = `theme:${tg.theme}`;
           const thExpanded = expandedThemes.has(themeKey);
+          const TgIcon = getIconComponent(themeIconMap.get(tg.theme) ?? '') ?? SwatchBook;
           return (
             <div key={themeKey}>
               <button
@@ -308,7 +328,7 @@ export default function NoteSidebar() {
                 <ChevronRight
                   className={`w-3.5 h-3.5 shrink-0 text-zinc-400 transition-transform ${thExpanded ? 'rotate-90' : ''}`}
                 />
-                <SwatchBook className="w-3.5 h-3.5 shrink-0 text-purple-400" />
+                <TgIcon className="w-3.5 h-3.5 shrink-0 text-purple-400" />
                 <span className="truncate">{tg.theme}</span>
               </button>
 

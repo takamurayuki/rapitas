@@ -22,6 +22,8 @@ import {
 } from 'lucide-react';
 import { useNoteStore, type Note } from '@/stores/note-store';
 import { useUIModeStore } from '@/stores/ui-mode-store';
+import { useFilterDataStore } from '@/stores/filter-data-store';
+import { getIconComponent } from '@/components/category/icon-data';
 import DeleteNoteModal from './DeleteNoteModal';
 import { useLocaleStore } from '@/stores/locale-store';
 import { toDateLocale } from '@/lib/utils';
@@ -44,6 +46,19 @@ export default function NoteHoverSidebar() {
   const locale = useLocaleStore((s) => s.locale);
   const dateLocale = toDateLocale(locale);
   const { currentMode } = useUIModeStore();
+
+  const filterCategories = useFilterDataStore((s) => s.categories);
+  const filterThemes = useFilterDataStore((s) => s.themes);
+  const categoryIconMap = useMemo(() => {
+    const m = new Map<string, string | null | undefined>();
+    filterCategories.forEach((c) => m.set(c.name, c.icon));
+    return m;
+  }, [filterCategories]);
+  const themeIconMap = useMemo(() => {
+    const m = new Map<string, string | null | undefined>();
+    filterThemes.forEach((t) => m.set(t.name, t.icon));
+    return m;
+  }, [filterThemes]);
 
   const [isExpanded, setIsExpanded] = useState(false);
   const [isHovered, setIsHovered] = useState(false);
@@ -337,6 +352,8 @@ export default function NoteHoverSidebar() {
                 {/* Linked notes hierarchy */}
                 {tree.categories.map((cat) => {
                   const catExp = expandedCategories.has(cat.category);
+                  const CatIcon =
+                    getIconComponent(categoryIconMap.get(cat.category) ?? '') ?? Folders;
                   return (
                     <div key={cat.category}>
                       <button
@@ -348,7 +365,7 @@ export default function NoteHoverSidebar() {
                         <ChevronRight
                           className={`w-4 h-4 shrink-0 text-zinc-400 transition-transform ${catExp ? 'rotate-90' : ''}`}
                         />
-                        <Folders className="w-4 h-4 shrink-0 text-indigo-400" />
+                        <CatIcon className="w-4 h-4 shrink-0 text-indigo-400" />
                         <span className="truncate">{cat.category}</span>
                       </button>
 
@@ -356,6 +373,8 @@ export default function NoteHoverSidebar() {
                         cat.themes.map((th) => {
                           const thKey = `${cat.category}|||${th.theme}`;
                           const thExp = expandedThemes.has(thKey);
+                          const ThIcon =
+                            getIconComponent(themeIconMap.get(th.theme) ?? '') ?? SwatchBook;
                           return (
                             <div key={th.theme} className="ml-4">
                               <button
@@ -365,7 +384,7 @@ export default function NoteHoverSidebar() {
                                 <ChevronRight
                                   className={`w-3.5 h-3.5 shrink-0 text-zinc-400 transition-transform ${thExp ? 'rotate-90' : ''}`}
                                 />
-                                <SwatchBook className="w-3.5 h-3.5 shrink-0 text-purple-400" />
+                                <ThIcon className="w-3.5 h-3.5 shrink-0 text-purple-400" />
                                 <span className="truncate">{th.theme}</span>
                               </button>
 
@@ -407,6 +426,7 @@ export default function NoteHoverSidebar() {
                 {tree.themeGroups.map((tg) => {
                   const themeKey = `theme:${tg.theme}`;
                   const thExp = expandedThemes.has(themeKey);
+                  const TgIcon = getIconComponent(themeIconMap.get(tg.theme) ?? '') ?? SwatchBook;
                   return (
                     <div key={themeKey}>
                       <button
@@ -416,7 +436,7 @@ export default function NoteHoverSidebar() {
                         <ChevronRight
                           className={`w-4 h-4 shrink-0 text-zinc-400 transition-transform ${thExp ? 'rotate-90' : ''}`}
                         />
-                        <SwatchBook className="w-4 h-4 shrink-0 text-purple-400" />
+                        <TgIcon className="w-4 h-4 shrink-0 text-purple-400" />
                         <span className="truncate">{tg.theme}</span>
                       </button>
 
