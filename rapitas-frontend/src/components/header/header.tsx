@@ -271,56 +271,54 @@ export default function Header() {
       {/* z-110: above the task slide panel (z-50) and side nav (z-100) so header
           menus are never hidden behind them, but below modal dialogs (z-200). */}
       <header className="sticky top-0 z-110 border-b border-zinc-200 dark:border-zinc-800 bg-white dark:bg-indigo-dark-900">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between h-16">
-            <div className="flex items-center gap-3">
-              <button
-                onClick={() => h.setIsMenuOpen(!h.isMenuOpen)}
-                className="p-2 rounded-lg text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
-                aria-label={t('openMenu')}
-              >
-                {h.isMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
-              </button>
+        <div className="flex items-center justify-between h-16 px-4 sm:px-6">
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => h.setIsMenuOpen(!h.isMenuOpen)}
+              className="p-2 rounded-lg text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
+              aria-label={t('openMenu')}
+            >
+              {h.isMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
+            </button>
 
-              <Link href="/" className="flex items-center gap-2 group">
-                <div className="flex items-center gap-2">
-                  <div className="flex items-center justify-center w-8 h-8 bg-indigo-500 rounded-lg">
-                    <AppIcon size={20} className="text-white" />
-                  </div>
-                  <span className="text-lg font-bold text-indigo-600 dark:text-indigo-400">
-                    Rapi+
-                  </span>
+            <Link href="/" className="flex items-center gap-2 group">
+              <div className="flex items-center gap-2">
+                <div className="flex items-center justify-center w-8 h-8 bg-indigo-500 rounded-lg">
+                  <AppIcon size={20} className="text-white" />
                 </div>
-              </Link>
-            </div>
-
-            <HeaderSearch
-              searchQuery={h.searchQuery}
-              setSearchQuery={h.setSearchQuery}
-              handleSearchKeyDown={h.handleSearchKeyDown}
-              debounceTimerRef={h.debounceTimerRef}
-            />
-
-            <HeaderToolbar
-              hasMounted={h.hasMounted}
-              isAuthLoading={h.isAuthLoading}
-              isAuthenticated={h.isAuthenticated}
-              user={h.user}
-              isUserMenuOpen={h.isUserMenuOpen}
-              setIsUserMenuOpen={h.setIsUserMenuOpen}
-              userMenuRef={h.userMenuRef}
-              handleLogout={h.handleLogout}
-              isMoreMenuOpen={h.isMoreMenuOpen}
-              setIsMoreMenuOpen={h.setIsMoreMenuOpen}
-              moreMenuRef={h.moreMenuRef}
-              isDarkMode={h.isDarkMode}
-              darkModeMounted={h.darkModeMounted}
-              toggleTheme={h.toggleTheme}
-              isTauriEnv={h.isTauriEnv}
-              isRestarting={h.isRestarting}
-              handleRestartClick={h.handleRestartClick}
-            />
+                <span className="text-lg font-bold text-indigo-600 dark:text-indigo-400">
+                  Rapi+
+                </span>
+              </div>
+            </Link>
           </div>
+
+          <HeaderSearch
+            searchQuery={h.searchQuery}
+            setSearchQuery={h.setSearchQuery}
+            handleSearchKeyDown={h.handleSearchKeyDown}
+            debounceTimerRef={h.debounceTimerRef}
+          />
+
+          <HeaderToolbar
+            hasMounted={h.hasMounted}
+            isAuthLoading={h.isAuthLoading}
+            isAuthenticated={h.isAuthenticated}
+            user={h.user}
+            isUserMenuOpen={h.isUserMenuOpen}
+            setIsUserMenuOpen={h.setIsUserMenuOpen}
+            userMenuRef={h.userMenuRef}
+            handleLogout={h.handleLogout}
+            isMoreMenuOpen={h.isMoreMenuOpen}
+            setIsMoreMenuOpen={h.setIsMoreMenuOpen}
+            moreMenuRef={h.moreMenuRef}
+            isDarkMode={h.isDarkMode}
+            darkModeMounted={h.darkModeMounted}
+            toggleTheme={h.toggleTheme}
+            isTauriEnv={h.isTauriEnv}
+            isRestarting={h.isRestarting}
+            handleRestartClick={h.handleRestartClick}
+          />
         </div>
       </header>
 
