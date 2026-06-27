@@ -294,6 +294,25 @@ export default function NoteLinksSection({ taskId, taskTitle, themeName, categor
     [notes, taskId],
   );
 
+  // NOTE: One-time backfill — notes linked before linkedTaskMeta was introduced
+  // lack hierarchy metadata. Populate it from the props available here so the
+  // sidebar tree can place them under the correct Category > Theme > Task path.
+  useEffect(() => {
+    if (!categoryName || !themeName) return;
+    const storeNotes = useNoteStore.getState().notes;
+    storeNotes
+      .filter((n) => n.linkedTaskIds?.includes(taskId))
+      .forEach((note) => {
+        if (!note.linkedTaskMeta?.[taskId]) {
+          linkNoteToTask(note.id, taskId, {
+            taskTitle: taskTitle ?? '',
+            themeName,
+            categoryName,
+          });
+        }
+      });
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
   return (
     <div className="space-y-2">
       {/* Link button */}

@@ -35,7 +35,7 @@ export default function NotesPage() {
   };
 
   return (
-    <div className="flex flex-col h-[calc(100vh-4rem)]">
+    <div className="flex flex-col h-[calc(100vh-4rem)] bg-white dark:bg-zinc-950">
       {/* Page header — white, distinguished from the app header by a stronger border */}
       <div className="flex items-center justify-between px-5 py-3 bg-white dark:bg-zinc-900 border-b-2 border-zinc-200 dark:border-zinc-700 shrink-0">
         {/* Title */}

@@ -167,7 +167,7 @@ export default function NoteSidebar() {
   const hasSolo = tree.standalone.length > 0;
 
   return (
-    <div className="flex flex-col h-full bg-zinc-50 dark:bg-zinc-800/50">
+    <div className="flex flex-col h-full bg-white dark:bg-zinc-900">
       {/* Search */}
       <div className="px-3 pt-3 pb-2">
         <div className="relative">
