@@ -109,17 +109,33 @@ export function attachKeyHandlers(codeElement: HTMLElement, language: string): v
       const indent = getIndentation(currentLine);
       const increaseIndent = shouldAutoIndent(currentLine, language);
 
-      let newLineText = '\n' + indent;
-      if (increaseIndent) {
-        newLineText += getIndentString(language);
-      }
-      document.execCommand('insertText', false, newLineText);
+      const insertStr = '\n' + indent + (increaseIndent ? getIndentString(language) : '');
+
+      // NOTE: execCommand('insertText', '\n') is unreliable in Chromium on
+      // white-space:pre contenteditable — the '\n' is sometimes not rendered as
+      // a visible line break.  Insert a real Text node via the Range API instead.
+      if (!range.collapsed) range.deleteContents();
+      const newlineNode = document.createTextNode(insertStr);
+      range.insertNode(newlineNode);
+      const newRange = document.createRange();
+      newRange.setStartAfter(newlineNode);
+      newRange.collapse(true);
+      selection.removeAllRanges();
+      selection.addRange(newRange);
     }
 
     // Tab key — insert language-appropriate indent
     if (keyboardEvent.key === 'Tab') {
       e.preventDefault();
-      document.execCommand('insertText', false, getIndentString(language));
+      const range = selection.getRangeAt(0);
+      if (!range.collapsed) range.deleteContents();
+      const tabNode = document.createTextNode(getIndentString(language));
+      range.insertNode(tabNode);
+      const newRange = document.createRange();
+      newRange.setStartAfter(tabNode);
+      newRange.collapse(true);
+      selection.removeAllRanges();
+      selection.addRange(newRange);
     }
 
     // Auto-close brackets and quotes
@@ -382,8 +398,15 @@ export function createCodeBlockNode(language: string, code: string = ''): Docume
   codeElement.style.backgroundColor = 'transparent';
   codeElement.contentEditable = 'true';
   codeElement.style.outline = 'none';
+  codeElement.style.boxShadow = 'none';
   codeElement.style.display = 'block';
   codeElement.style.whiteSpace = 'pre';
+  // NOTE: Override the global [contenteditable='true'] rule in globals.css which
+  // sets -webkit-line-break:after-white-space and word-wrap:break-word.
+  // Those properties interfere with white-space:pre newline rendering.
+  codeElement.style.lineBreak = 'normal';
+  codeElement.style.wordWrap = 'normal';
+  codeElement.style.overflowWrap = 'normal';
   codeElement.style.minHeight = '1.65em';
   codeElement.spellcheck = false;
 
@@ -412,6 +435,8 @@ export function createCodeBlockNode(language: string, code: string = ''): Docume
   pre.style.padding = '14px 18px';
   pre.style.overflowX = 'auto';
   pre.style.backgroundColor = '#1e1e1e';
+  // NOTE: Set white-space explicitly in case Tailwind v4 preflight resets <pre>.
+  pre.style.whiteSpace = 'pre';
   pre.appendChild(codeElement);
   container.appendChild(pre);
 

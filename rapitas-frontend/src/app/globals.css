@@ -756,6 +756,29 @@ iframe:not([src='']) + .iframe-loading {
   -moz-tab-size: 2;
 }
 
+/*
+ * NOTE: The global [contenteditable='true'] rule above adds word-wrap, line-break,
+ * and -webkit-line-break properties that interfere with the code block's
+ * white-space:pre newline rendering.  Override them here with higher specificity.
+ * Also suppress all focus outlines — the code element uses outline:none inline but
+ * :focus-visible from Tailwind/browser UA can override inline styles in some builds.
+ */
+.code-block-container code[contenteditable='true'] {
+  white-space: pre;
+  word-wrap: normal;
+  overflow-wrap: normal;
+  line-break: normal;
+  -webkit-line-break: normal;
+  outline: none;
+  box-shadow: none;
+}
+
+.code-block-container code[contenteditable='true']:focus,
+.code-block-container code[contenteditable='true']:focus-visible {
+  outline: none;
+  box-shadow: none;
+}
+
 /* Basic syntax highlight colors */
 .code-block-container .token.comment,
 .code-block-container .token.prolog,
