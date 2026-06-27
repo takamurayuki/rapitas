@@ -46,7 +46,9 @@ export function NoteChipLink({ noteId, taskId: propTaskId, fallbackTitle }: Prop
   const handleClick = (e: React.MouseEvent) => {
     e.preventDefault();
     if (taskId && taskId !== '_placeholder') {
-      router.push(`/tasks/${taskId}?note=${noteId}`);
+      // NOTE: showHeader=true ensures the app header stays visible in the split view
+      // regardless of what context the user came from (page mode or slide panel).
+      router.push(`/tasks/${taskId}?showHeader=true&note=${noteId}`);
     }
   };
 

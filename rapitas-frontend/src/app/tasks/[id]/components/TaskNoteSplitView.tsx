@@ -30,7 +30,10 @@ export function TaskNoteSplitView({ taskId, noteId }: Props) {
   const note = useNoteStore((s) => s.notes.find((n) => n.id === noteId));
 
   const handleClose = () => {
-    router.push(`/tasks/${taskId}`);
+    // NOTE: router.back() restores the previous context:
+    // - page mode (/tasks/:id?showHeader=true) → returns to the page with header
+    // - slide panel (home/kanban) → returns to the originating list page
+    router.back();
   };
 
   return (
