@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState, useCallback } from 'react';
-import { Zap, Brain, TrendingUp, TrendingDown, Minus, Play, EyeOff } from 'lucide-react';
+import { Zap, Brain, TrendingUp, TrendingDown, Minus, Play, EyeOff, Plus } from 'lucide-react';
 import Link from 'next/link';
 import { useSuggestedTasks, type TaskSuggestion } from '../hooks/useIntelligence';
 
@@ -123,9 +123,20 @@ export function SuggestedTasksWidget() {
         </h2>
         <div className="py-6 text-center text-sm text-zinc-400 dark:text-zinc-500">
           <Brain className="w-8 h-8 mx-auto mb-2 opacity-50" />
-          {data && data.suggestions.length > 0
-            ? 'すべてのタスクがスヌーズされています'
-            : '提案するタスクがありません'}
+          {data && data.suggestions.length > 0 ? (
+            'すべてのタスクがスヌーズされています'
+          ) : (
+            <>
+              <p className="mb-3">着手できるタスクがありません。</p>
+              <Link
+                href="/tasks/new"
+                className="inline-flex items-center gap-1.5 rounded-lg bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white transition-colors hover:bg-indigo-700"
+              >
+                <Plus className="h-4 w-4" />
+                タスクを作成
+              </Link>
+            </>
+          )}
         </div>
       </div>
     );

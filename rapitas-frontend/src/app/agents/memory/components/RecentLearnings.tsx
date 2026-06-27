@@ -50,7 +50,12 @@ export function RecentLearnings({ memoryOverview, formatDate }: RecentLearningsP
           </div>
         ) : (
           <div className="text-center py-8 text-zinc-500 dark:text-zinc-400 text-sm">
-            パターンがまだありません
+            <p className="font-medium text-zinc-600 dark:text-zinc-300">
+              学習パターンはまだありません
+            </p>
+            <p className="mt-1 text-xs">
+              エージェントがタスクを重ねると、ここに傾向が蓄積されます。
+            </p>
           </div>
         )}
       </div>
@@ -92,7 +97,10 @@ export function RecentLearnings({ memoryOverview, formatDate }: RecentLearningsP
           </div>
         ) : (
           <div className="text-center py-8 text-zinc-500 dark:text-zinc-400 text-sm">
-            ノードがまだありません
+            <p className="font-medium text-zinc-600 dark:text-zinc-300">
+              ナレッジノードはまだありません
+            </p>
+            <p className="mt-1 text-xs">エージェントが学習すると、知識がここに記録されます。</p>
           </div>
         )}
       </div>

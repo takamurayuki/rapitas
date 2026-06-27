@@ -10,7 +10,8 @@
  */
 
 import { useState, useEffect, useCallback } from 'react';
-import { RefreshCw } from 'lucide-react';
+import Link from 'next/link';
+import { RefreshCw, FolderGit2 } from 'lucide-react';
 import type { GitHubIntegration } from '@/types';
 import { API_BASE_URL } from '@/utils/api';
 import { createLogger } from '@/lib/logger';
@@ -147,9 +148,34 @@ export default function ActionsClient() {
           ))}
         </div>
       ) : runs.length === 0 ? (
-        <p className="py-16 text-center text-sm text-zinc-500 dark:text-zinc-400">
-          {selectedIntegration ? 'ワークフロー実行がありません' : 'リポジトリ連携がありません'}
-        </p>
+        <div className="py-16 text-center text-sm text-zinc-500 dark:text-zinc-400">
+          {selectedIntegration ? (
+            <>
+              <p className="font-medium text-zinc-600 dark:text-zinc-300">
+                このリポジトリにはまだワークフロー実行がありません
+              </p>
+              <p className="mt-1 text-xs">
+                プッシュやプルリクエストでCIが走ると、ここに表示されます。
+              </p>
+            </>
+          ) : (
+            <>
+              <p className="font-medium text-zinc-600 dark:text-zinc-300">
+                連携済みのリポジトリがありません
+              </p>
+              <p className="mt-1 text-xs">
+                リポジトリを連携すると、CIの実行状況をここで確認できます。
+              </p>
+              <Link
+                href="/github"
+                className="mt-4 inline-flex items-center gap-1.5 rounded-lg bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white transition-colors hover:bg-indigo-700"
+              >
+                <FolderGit2 className="h-4 w-4" />
+                リポジトリを連携
+              </Link>
+            </>
+          )}
+        </div>
       ) : (
         <div className="space-y-2">
           {runs.map((run) => (
