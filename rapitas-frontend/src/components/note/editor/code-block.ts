@@ -17,4 +17,4 @@ export {
   getIndentString,
   shouldAutoIndent,
 } from './code-block-indent';
-export { createCodeBlockNode } from './code-block-dom';
+export { createCodeBlockNode, normalizeCodeBlocks } from './code-block-dom';

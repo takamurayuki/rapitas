@@ -3,7 +3,7 @@
 import { useCallback } from 'react';
 import { API_BASE_URL } from '@/utils/api';
 import { isInTitleInput } from './formatting';
-import { createCodeBlockNode } from './code-block';
+import { createCodeBlockNode, normalizeCodeBlocks } from './code-block';
 import { createLinkNode } from './link-card';
 import { createTableNode } from './table';
 
@@ -198,19 +198,11 @@ export function useEditorInsertion(
     }
 
     if (contentRef.current) {
-      const newBlocks = contentRef.current.querySelectorAll('[data-needs-delete-handler="1"]');
-      newBlocks.forEach((block) => {
-        const deleteButton = block.querySelector('[data-delete-handler="1"]');
-        if (deleteButton) {
-          (deleteButton as HTMLElement).onclick = (ev) => {
-            ev.preventDefault();
-            ev.stopPropagation();
-            (block as HTMLElement).remove();
-            handleContentChange();
-          };
-        }
-        (block as HTMLElement).removeAttribute('data-needs-delete-handler');
-      });
+      // Wire up delete buttons and key handlers via the shared normalizer.
+      normalizeCodeBlocks(contentRef.current, handleContentChange);
+      contentRef.current
+        .querySelectorAll('[data-needs-delete-handler]')
+        .forEach((b) => (b as HTMLElement).removeAttribute('data-needs-delete-handler'));
     }
 
     handleContentChange();

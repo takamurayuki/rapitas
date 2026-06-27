@@ -23,6 +23,7 @@ import {
   handleDeleteColorPersistence,
 } from './color-persistence';
 import { applyTextColor as applyTextColorUtil } from './text-color';
+import { normalizeCodeBlocks } from './code-block';
 import { useEditorInsertion } from './useEditorInsertion';
 import { useNotePopups } from './useNotePopups';
 
@@ -155,6 +156,8 @@ export function useNoteEditor(note: Note): NoteEditorState {
     if (contentRef.current) {
       contentRef.current.innerHTML = DOMPurify.sanitize(note.content);
       normalizeLinkCards(contentRef.current, handleContentChange);
+      // Re-attach code block key handlers and delete buttons after HTML is set.
+      normalizeCodeBlocks(contentRef.current, handleContentChange);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [note.id]);

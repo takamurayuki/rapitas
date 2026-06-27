@@ -401,6 +401,70 @@ function handleEnter(
   onContentChange();
 }
 
+// ─── Code-block deletion guards ────────────────────────────────────────────
+
+/**
+ * Returns true when the caret is anywhere inside a code block container.
+ * Used to skip outer-editor key handling so the code element's own onkeydown
+ * (Enter/Tab/Backspace/Delete) runs unimpeded.
+ */
+function isCursorInCodeBlock(contentRef: React.RefObject<HTMLDivElement | null>): boolean {
+  const sel = window.getSelection();
+  if (!sel || sel.rangeCount === 0) return false;
+  let node: Node | null = sel.getRangeAt(0).startContainer;
+  while (node && node !== contentRef.current) {
+    if ((node as HTMLElement).dataset?.rapitasCodeBlock === '1') return true;
+    node = node.parentNode;
+  }
+  return false;
+}
+
+/**
+ * Returns true when the current non-collapsed selection spans a code block.
+ * Keyboard deletion of a code block is never allowed — use the trash button.
+ */
+function selectionCoversCodeBlock(range: Range): boolean {
+  if (range.collapsed) return false;
+  return !!range.cloneContents().querySelector('[data-rapitas-code-block]');
+}
+
+/**
+ * Returns true when the nearest block ancestor of the caret (a direct child of
+ * the editor container) has a code block as its previous sibling.
+ * Pressing Backspace in this position would otherwise merge into the code block.
+ */
+function prevSiblingIsCodeBlock(
+  range: Range,
+  contentRef: React.RefObject<HTMLDivElement | null>,
+): boolean {
+  let node: Node | null = range.startContainer;
+  while (node && node.parentNode !== contentRef.current) {
+    node = node.parentNode;
+  }
+  if (!node) return false;
+  const prev = (node as Element).previousElementSibling;
+  return prev?.getAttribute('data-rapitas-code-block') === '1';
+}
+
+/**
+ * Returns true when the nearest block ancestor of the caret has a code block
+ * as its next sibling.  Pressing Delete here would otherwise eat into it.
+ */
+function nextSiblingIsCodeBlock(
+  range: Range,
+  contentRef: React.RefObject<HTMLDivElement | null>,
+): boolean {
+  let node: Node | null = range.startContainer;
+  while (node && node.parentNode !== contentRef.current) {
+    node = node.parentNode;
+  }
+  if (!node) return false;
+  const next = (node as Element).nextElementSibling;
+  return next?.getAttribute('data-rapitas-code-block') === '1';
+}
+
+// ────────────────────────────────────────────────────────────────────────────
+
 /**
  * Main editor keydown handler.
  * Delegates to specialised handlers for Backspace, Delete, and Enter.
@@ -410,6 +474,40 @@ export function handleEditorKeyDown(
   refs: EditorRefs,
   onContentChange: () => void,
 ): void {
+  const { contentRef } = refs;
+
+  // When the caret is inside a code block, let the code element's own onkeydown
+  // handle Enter / Tab / Backspace / Delete.  The outer editor must not interfere.
+  if (isCursorInCodeBlock(contentRef)) return;
+
+  // Guard: keyboard deletion of a code block container is forbidden.
+  // The user must use the dedicated trash button to remove a code block.
+  if (e.key === 'Backspace' || e.key === 'Delete') {
+    const sel = window.getSelection();
+    if (sel && sel.rangeCount > 0) {
+      const range = sel.getRangeAt(0);
+
+      if (selectionCoversCodeBlock(range)) {
+        // Selection spans the block — cancel the whole delete operation.
+        e.preventDefault();
+        return;
+      }
+
+      if (range.collapsed) {
+        if (e.key === 'Backspace' && prevSiblingIsCodeBlock(range, contentRef)) {
+          // Caret at start of the line just after a code block.
+          e.preventDefault();
+          return;
+        }
+        if (e.key === 'Delete' && nextSiblingIsCodeBlock(range, contentRef)) {
+          // Caret at end of the line just before a code block.
+          e.preventDefault();
+          return;
+        }
+      }
+    }
+  }
+
   if (e.key === 'Backspace') {
     handleBackspace(e, refs, onContentChange);
     return;
