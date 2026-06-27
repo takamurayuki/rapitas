@@ -109,22 +109,18 @@ export function HomeToolbar({
           {/* Normal mode buttons */}
           {!isSelectionMode && (
             <>
-              {/*
-               * Design A — "ボトムリッジ" (Bottom Ridge)
-               * 押すと底の段差が消えて2px沈み込む クラシックな押し心地
-               */}
+              {/* クイック追加 — ソリッドデプス (緑) */}
               <button
                 onClick={onQuickAddToggle}
                 title={`${t('quickAdd')} (Ctrl+Q)`}
                 className={`
                   flex items-center gap-2 px-3.5 py-2 rounded-lg select-none
-                  text-sm font-medium text-green-700 dark:text-green-300
-                  border border-green-200 dark:border-green-800
-                  shadow-[0_2px_0_0_#86efac] dark:shadow-[0_2px_0_0_#166534]
-                  transition-all duration-75
-                  hover:bg-green-50 dark:hover:bg-green-900/20 hover:border-green-300 dark:hover:border-green-700
-                  active:translate-y-[2px] active:shadow-none active:bg-green-100 dark:active:bg-green-900/30
-                  ${isQuickAdding ? 'bg-green-50 dark:bg-green-900/20 border-green-300 dark:border-green-700 translate-y-[2px] shadow-none' : 'bg-white dark:bg-zinc-900'}
+                  text-sm font-semibold text-white transition-all duration-75
+                  ${
+                    isQuickAdding
+                      ? 'bg-green-600 dark:bg-green-700 shadow-none translate-y-[3px]'
+                      : 'bg-green-500 dark:bg-green-600 shadow-[0_3px_0_0_#15803d] dark:shadow-[0_3px_0_0_#14532d] hover:bg-green-400 dark:hover:bg-green-500 active:translate-y-[3px] active:shadow-none active:bg-green-600 dark:active:bg-green-700'
+                  }
                 `}
               >
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -138,10 +134,7 @@ export function HomeToolbar({
                 {t('quickAdd')}
               </button>
 
-              {/*
-               * Design B — "ソリッドデプス" (Solid Depth)
-               * 青べた塗り＋底に3px影。押すと3px落ちて影消滅、カチッと落ちる感触
-               */}
+              {/* 新規タスク — ソリッドデプス (青) */}
               <button
                 onClick={() => {
                   const themeParam = themeFilter || defaultThemeId;
@@ -174,18 +167,18 @@ export function HomeToolbar({
           {/* Selection mode buttons */}
           {isSelectionMode && (
             <>
+              {/* 全選択 — ソリッドデプス (zinc) */}
               <button
                 onClick={onSelectAll}
                 title={allSelected ? t('deselectAndExit') : t('selectAll')}
                 className="
                   flex items-center gap-2 px-3.5 py-2 rounded-lg select-none
-                  text-sm font-medium text-zinc-600 dark:text-zinc-400
-                  bg-white dark:bg-zinc-900
-                  border border-zinc-200 dark:border-zinc-700
-                  shadow-[0_2px_0_0_#d1d5db] dark:shadow-[0_2px_0_0_#374151]
+                  text-sm font-semibold text-white
+                  bg-zinc-500 dark:bg-zinc-600
+                  shadow-[0_3px_0_0_#3f3f46] dark:shadow-[0_3px_0_0_#18181b]
                   transition-all duration-75
-                  hover:bg-zinc-50 dark:hover:bg-zinc-800 hover:border-zinc-300 dark:hover:border-zinc-600
-                  active:translate-y-[2px] active:shadow-none
+                  hover:bg-zinc-400 dark:hover:bg-zinc-500
+                  active:translate-y-[3px] active:shadow-none active:bg-zinc-600 dark:active:bg-zinc-700
                 "
               >
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -208,19 +201,19 @@ export function HomeToolbar({
                 {allSelected ? t('deselectAll') : t('selectAll')}
               </button>
 
+              {/* 削除 — ソリッドデプス (赤) */}
               {selectedTasksSize > 0 && (
                 <button
                   onClick={onBulkDelete}
                   title={t('deleteSelected')}
                   className="
                     flex items-center gap-2 px-3.5 py-2 rounded-lg select-none
-                    text-sm font-medium text-red-600 dark:text-red-400
-                    bg-white dark:bg-zinc-900
-                    border border-red-200 dark:border-red-900
-                    shadow-[0_2px_0_0_#fca5a5] dark:shadow-[0_2px_0_0_#7f1d1d]
+                    text-sm font-semibold text-white
+                    bg-red-500 dark:bg-red-600
+                    shadow-[0_3px_0_0_#b91c1c] dark:shadow-[0_3px_0_0_#7f1d1d]
                     transition-all duration-75
-                    hover:bg-red-50 dark:hover:bg-red-900/20 hover:border-red-300 dark:hover:border-red-800
-                    active:translate-y-[2px] active:shadow-none active:bg-red-100 dark:active:bg-red-900/30
+                    hover:bg-red-400 dark:hover:bg-red-500
+                    active:translate-y-[3px] active:shadow-none active:bg-red-600 dark:active:bg-red-700
                   "
                 >
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -237,22 +230,17 @@ export function HomeToolbar({
             </>
           )}
 
-          {/*
-           * Design C — "マイクロスケール" (Micro Scale)
-           * 押すとわずかに縮む(scale 97%)＋インナーシャドウで指で押し込む感触
-           */}
+          {/* 一括 — ソリッドデプス (紫)。選択モード中は押し込んだまま */}
           <button
             onClick={onToggleSelectionMode}
             title={t('bulkSelectionMode')}
             className={`
               flex items-center gap-2 px-3.5 py-2 rounded-lg select-none
-              text-sm font-medium
-              border transition-all duration-75
-              active:scale-[0.96] active:shadow-[inset_0_2px_4px_rgba(88,28,135,0.2)] dark:active:shadow-[inset_0_2px_4px_rgba(0,0,0,0.4)]
+              text-sm font-semibold text-white transition-all duration-75
               ${
                 isSelectionMode
-                  ? 'text-purple-700 dark:text-purple-200 bg-purple-100 dark:bg-purple-900/40 border-purple-300 dark:border-purple-700 shadow-[inset_0_1px_3px_rgba(88,28,135,0.15)]'
-                  : 'text-purple-600 dark:text-purple-400 bg-purple-50 dark:bg-purple-900/20 border-purple-200 dark:border-purple-800 hover:bg-purple-100 dark:hover:bg-purple-900/30 hover:border-purple-300 dark:hover:border-purple-700'
+                  ? 'bg-purple-600 dark:bg-purple-700 shadow-none translate-y-[3px]'
+                  : 'bg-purple-500 dark:bg-purple-600 shadow-[0_3px_0_0_#7e22ce] dark:shadow-[0_3px_0_0_#3b0764] hover:bg-purple-400 dark:hover:bg-purple-500 active:translate-y-[3px] active:shadow-none active:bg-purple-600 dark:active:bg-purple-700'
               }
             `}
           >
