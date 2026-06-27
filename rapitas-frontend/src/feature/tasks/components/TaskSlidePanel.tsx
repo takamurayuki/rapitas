@@ -3,6 +3,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import TaskDetailClient from '@/app/tasks/[id]/TaskDetailClient';
 import TaskDetailSkeleton from '@/components/ui/skeleton/TaskDetailSkeleton';
 import { useTaskDetailVisibilityStore } from '@/stores/task-detail-visibility-store';
+import { SlidePanelContext } from '@/feature/tasks/contexts/SlidePanelContext';
 
 interface TaskSlidePanelProps {
   taskId: number | null;
@@ -161,7 +162,11 @@ export default function TaskSlidePanel({
         {/* Content — single scroll container (TaskDetailContent flows inside).
             Marked so the quick-nav scroll-spy can resolve it deterministically. */}
         <div ref={contentRef} data-task-scroll-container className="flex-1 min-h-0 overflow-y-auto">
-          <TaskDetailClient taskId={taskId} onTaskUpdated={onTaskUpdated} onClose={handleClose} />
+          {/* NOTE: SlidePanelContext.Provider marks descendants as inside a slide panel so
+              NoteChipLink can open notes in a modal overlay without navigating away. */}
+          <SlidePanelContext.Provider value={true}>
+            <TaskDetailClient taskId={taskId} onTaskUpdated={onTaskUpdated} onClose={handleClose} />
+          </SlidePanelContext.Provider>
         </div>
       </div>
 
