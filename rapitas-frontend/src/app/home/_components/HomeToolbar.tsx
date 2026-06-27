@@ -109,17 +109,18 @@ export function HomeToolbar({
           {/* Normal mode buttons */}
           {!isSelectionMode && (
             <>
-              {/* クイック追加 — ソリッドデプス (緑) */}
+              {/* クイック追加 — ボトムリッジ (緑) */}
               <button
                 onClick={onQuickAddToggle}
                 title={`${t('quickAdd')} (Ctrl+Q)`}
                 className={`
                   flex items-center gap-2 px-3.5 py-2 rounded-lg select-none
-                  text-sm font-semibold text-white transition-all duration-75
+                  text-sm font-medium text-green-700 dark:text-green-300
+                  border transition-all duration-75
                   ${
                     isQuickAdding
-                      ? 'bg-green-600 dark:bg-green-700 shadow-none translate-y-[3px]'
-                      : 'bg-green-500 dark:bg-green-600 shadow-[0_3px_0_0_#15803d] dark:shadow-[0_3px_0_0_#14532d] hover:bg-green-400 dark:hover:bg-green-500 active:translate-y-[3px] active:shadow-none active:bg-green-600 dark:active:bg-green-700'
+                      ? 'bg-green-50 dark:bg-green-900/20 border-green-300 dark:border-green-700 translate-y-[2px] shadow-none'
+                      : 'bg-white dark:bg-zinc-900 border-green-200 dark:border-green-800 shadow-[0_2px_0_0_#86efac] dark:shadow-[0_2px_0_0_#166534] hover:bg-green-50 dark:hover:bg-green-900/20 hover:border-green-300 dark:hover:border-green-700 active:translate-y-[2px] active:shadow-none active:bg-green-50 dark:active:bg-green-900/20'
                   }
                 `}
               >
@@ -134,7 +135,7 @@ export function HomeToolbar({
                 {t('quickAdd')}
               </button>
 
-              {/* 新規タスク — ソリッドデプス (青) */}
+              {/* 新規タスク — ボトムリッジ (青) */}
               <button
                 onClick={() => {
                   const themeParam = themeFilter || defaultThemeId;
@@ -143,12 +144,13 @@ export function HomeToolbar({
                 title={`${t('newTask')} (Ctrl+N)`}
                 className="
                   flex items-center gap-2 px-3.5 py-2 rounded-lg select-none
-                  text-sm font-semibold text-white
-                  bg-blue-500 dark:bg-blue-600
-                  shadow-[0_3px_0_0_#1d4ed8] dark:shadow-[0_3px_0_0_#1e3a5f]
+                  text-sm font-medium text-blue-700 dark:text-blue-300
+                  bg-white dark:bg-zinc-900
+                  border border-blue-200 dark:border-blue-800
+                  shadow-[0_2px_0_0_#93c5fd] dark:shadow-[0_2px_0_0_#1e3a5f]
                   transition-all duration-75
-                  hover:bg-blue-400 dark:hover:bg-blue-500
-                  active:translate-y-[3px] active:shadow-none active:bg-blue-600 dark:active:bg-blue-700
+                  hover:bg-blue-50 dark:hover:bg-blue-900/20 hover:border-blue-300 dark:hover:border-blue-700
+                  active:translate-y-[2px] active:shadow-none active:bg-blue-50 dark:active:bg-blue-900/20
                 "
               >
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -167,18 +169,19 @@ export function HomeToolbar({
           {/* Selection mode buttons */}
           {isSelectionMode && (
             <>
-              {/* 全選択 — ソリッドデプス (zinc) */}
+              {/* 全選択 — ボトムリッジ (zinc) */}
               <button
                 onClick={onSelectAll}
                 title={allSelected ? t('deselectAndExit') : t('selectAll')}
                 className="
                   flex items-center gap-2 px-3.5 py-2 rounded-lg select-none
-                  text-sm font-semibold text-white
-                  bg-zinc-500 dark:bg-zinc-600
-                  shadow-[0_3px_0_0_#3f3f46] dark:shadow-[0_3px_0_0_#18181b]
+                  text-sm font-medium text-zinc-600 dark:text-zinc-400
+                  bg-white dark:bg-zinc-900
+                  border border-zinc-200 dark:border-zinc-700
+                  shadow-[0_2px_0_0_#d1d5db] dark:shadow-[0_2px_0_0_#374151]
                   transition-all duration-75
-                  hover:bg-zinc-400 dark:hover:bg-zinc-500
-                  active:translate-y-[3px] active:shadow-none active:bg-zinc-600 dark:active:bg-zinc-700
+                  hover:bg-zinc-50 dark:hover:bg-zinc-800 hover:border-zinc-300 dark:hover:border-zinc-600
+                  active:translate-y-[2px] active:shadow-none
                 "
               >
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -201,19 +204,20 @@ export function HomeToolbar({
                 {allSelected ? t('deselectAll') : t('selectAll')}
               </button>
 
-              {/* 削除 — ソリッドデプス (赤) */}
+              {/* 削除 — ボトムリッジ (赤) */}
               {selectedTasksSize > 0 && (
                 <button
                   onClick={onBulkDelete}
                   title={t('deleteSelected')}
                   className="
                     flex items-center gap-2 px-3.5 py-2 rounded-lg select-none
-                    text-sm font-semibold text-white
-                    bg-red-500 dark:bg-red-600
-                    shadow-[0_3px_0_0_#b91c1c] dark:shadow-[0_3px_0_0_#7f1d1d]
+                    text-sm font-medium text-red-600 dark:text-red-400
+                    bg-white dark:bg-zinc-900
+                    border border-red-200 dark:border-red-800
+                    shadow-[0_2px_0_0_#fca5a5] dark:shadow-[0_2px_0_0_#7f1d1d]
                     transition-all duration-75
-                    hover:bg-red-400 dark:hover:bg-red-500
-                    active:translate-y-[3px] active:shadow-none active:bg-red-600 dark:active:bg-red-700
+                    hover:bg-red-50 dark:hover:bg-red-900/20 hover:border-red-300 dark:hover:border-red-700
+                    active:translate-y-[2px] active:shadow-none active:bg-red-50 dark:active:bg-red-900/20
                   "
                 >
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -230,17 +234,18 @@ export function HomeToolbar({
             </>
           )}
 
-          {/* 一括 — ソリッドデプス (紫)。選択モード中は押し込んだまま */}
+          {/* 一括 — ボトムリッジ (紫)。選択モード中は押し込んだまま */}
           <button
             onClick={onToggleSelectionMode}
             title={t('bulkSelectionMode')}
             className={`
               flex items-center gap-2 px-3.5 py-2 rounded-lg select-none
-              text-sm font-semibold text-white transition-all duration-75
+              text-sm font-medium text-purple-700 dark:text-purple-300
+              border transition-all duration-75
               ${
                 isSelectionMode
-                  ? 'bg-purple-600 dark:bg-purple-700 shadow-none translate-y-[3px]'
-                  : 'bg-purple-500 dark:bg-purple-600 shadow-[0_3px_0_0_#7e22ce] dark:shadow-[0_3px_0_0_#3b0764] hover:bg-purple-400 dark:hover:bg-purple-500 active:translate-y-[3px] active:shadow-none active:bg-purple-600 dark:active:bg-purple-700'
+                  ? 'bg-purple-50 dark:bg-purple-900/20 border-purple-300 dark:border-purple-700 translate-y-[2px] shadow-none'
+                  : 'bg-white dark:bg-zinc-900 border-purple-200 dark:border-purple-800 shadow-[0_2px_0_0_#d8b4fe] dark:shadow-[0_2px_0_0_#4c1d95] hover:bg-purple-50 dark:hover:bg-purple-900/20 hover:border-purple-300 dark:hover:border-purple-700 active:translate-y-[2px] active:shadow-none active:bg-purple-50 dark:active:bg-purple-900/20'
               }
             `}
           >
