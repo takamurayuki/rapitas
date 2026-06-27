@@ -76,7 +76,7 @@ export default function NoteTabContent({ currentNote, onCreateNote }: NoteTabCon
                 ノートを選択するか、新規作成してください
               </p>
               <button
-                onClick={onCreateNote}
+                onClick={() => onCreateNote()}
                 className="px-4 py-2 bg-indigo-500 text-white rounded-lg hover:bg-indigo-600 transition-colors flex items-center gap-2 mx-auto"
               >
                 <Plus className="w-4 h-4" />

@@ -93,9 +93,13 @@ export const useNoteStore = create<NoteState>()(
       selectedTags: [],
 
       createNote: (title?: string) => {
+        // NOTE: Guard against onClick events being passed as title when used as a
+        // direct event handler (e.g. onClick={createNote}).  The MouseEvent is truthy
+        // so `title ?? fallback` would store it instead of the fallback string.
+        const safeTitle = typeof title === 'string' ? title : undefined;
         const newNote: Note = {
           id: Date.now().toString(),
-          title: title ?? '新しいノート',
+          title: safeTitle ?? '新しいノート',
           content: '',
           createdAt: new Date(),
           updatedAt: new Date(),
