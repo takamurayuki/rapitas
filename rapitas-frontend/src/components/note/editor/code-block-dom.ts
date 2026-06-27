@@ -250,6 +250,9 @@ export function createCodeBlockNode(language: string, code: string = ''): Docume
   codeElement.style.fontSize = '14px';
   codeElement.style.lineHeight = '1.5';
   codeElement.style.color = '#e2e8f0';
+  // NOTE: Explicit background prevents Tailwind/browser light-mode defaults from
+  // overriding the dark code block with a white background inside contentEditable.
+  codeElement.style.backgroundColor = 'transparent';
   codeElement.contentEditable = 'true';
   codeElement.style.outline = 'none';
   codeElement.style.display = 'block';
