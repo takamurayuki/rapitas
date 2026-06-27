@@ -172,6 +172,64 @@ export function attachKeyHandlers(codeElement: HTMLElement, language: string): v
 }
 
 /**
+ * Build the line-number gutter element.
+ *
+ * @returns Configured gutter div / 行番号ガター要素
+ */
+function buildLineNumbersEl(): HTMLElement {
+  const el = document.createElement('div');
+  el.className = 'code-line-numbers';
+  el.setAttribute('aria-hidden', 'true');
+  el.style.userSelect = 'none';
+  el.style.pointerEvents = 'none';
+  el.style.padding = '14px 12px 14px 14px';
+  el.style.color = '#4a4a4a';
+  el.style.fontFamily = "Consolas, Monaco, 'Courier New', monospace";
+  el.style.fontSize = '13.5px';
+  el.style.lineHeight = '1.65';
+  el.style.textAlign = 'right';
+  el.style.borderRight = '1px solid #3c3c3c';
+  el.style.minWidth = '2ch';
+  el.style.flexShrink = '0';
+  el.style.whiteSpace = 'pre';
+  el.style.overflowY = 'hidden';
+  return el;
+}
+
+/**
+ * Recompute and render line numbers into the gutter.
+ *
+ * @param gutterEl - The line-number gutter element / 行番号ガター要素
+ * @param codeElement - The contenteditable code element / コード要素
+ */
+function refreshLineNumbers(gutterEl: HTMLElement, codeElement: HTMLElement): void {
+  const text = codeElement.textContent ?? '';
+  const count = text === '' ? 1 : text.split('\n').length;
+  gutterEl.textContent = Array.from({ length: count }, (_, i) => String(i + 1)).join('\n');
+}
+
+/**
+ * Attach a MutationObserver-driven line number gutter to the pre+code pair.
+ * Removes any stale gutter first so re-running `normalizeCodeBlocks` is idempotent.
+ * MutationObserver captures ALL content changes (typing, paste, Enter, Tab, delete)
+ * without needing per-handler event dispatching.
+ *
+ * @param preEl - The `<pre>` wrapper (must already be display:flex) / preラッパー要素
+ * @param codeElement - The contenteditable code element / コード要素
+ */
+function attachLineNumbers(preEl: HTMLElement, codeElement: HTMLElement): void {
+  // Remove stale gutter (present when re-normalizing or loading from saved HTML)
+  preEl.querySelectorAll('.code-line-numbers').forEach((n) => n.remove());
+
+  const gutterEl = buildLineNumbersEl();
+  preEl.insertBefore(gutterEl, codeElement);
+  refreshLineNumbers(gutterEl, codeElement);
+
+  const observer = new MutationObserver(() => refreshLineNumbers(gutterEl, codeElement));
+  observer.observe(codeElement, { childList: true, subtree: true, characterData: true });
+}
+
+/**
  * Attach the paste handler that strips HTML formatting from pasted content.
  * Without this, pasting from an IDE (e.g. VS Code) inserts rich-text HTML that
  * carries the source editor's background-color/inline styles, causing white
@@ -460,12 +518,21 @@ export function createCodeBlockNode(language: string, code: string = ''): Docume
   // ── Pre / code area ────────────────────────────────────────────────────────
   const pre = document.createElement('pre');
   pre.style.margin = '0';
-  pre.style.padding = '14px 18px';
+  pre.style.padding = '0';
+  pre.style.display = 'flex';
+  pre.style.alignItems = 'flex-start';
   pre.style.overflowX = 'auto';
   pre.style.backgroundColor = '#1e1e1e';
   // NOTE: Set white-space explicitly in case Tailwind v4 preflight resets <pre>.
   pre.style.whiteSpace = 'pre';
+
+  // Padding moved from pre to code element (line numbers gutter sits to the left)
+  codeElement.style.padding = '14px 18px';
+  codeElement.style.flex = '1';
+  codeElement.style.minWidth = '0';
+
   pre.appendChild(codeElement);
+  attachLineNumbers(pre, codeElement);
   container.appendChild(pre);
 
   // Mark so the caller can attach the delete handler after insertion
@@ -518,6 +585,18 @@ export function normalizeCodeBlocks(editorEl: HTMLDivElement, onContentChange: (
       attachKeyHandlers(codeEl, lang);
       attachHighlightHandlers(codeEl, lang);
       attachPasteHandler(codeEl);
+
+      // Ensure line number gutter exists; re-attach observer after page reload
+      const preEl = block.querySelector<HTMLElement>('pre');
+      if (preEl) {
+        preEl.style.display = 'flex';
+        preEl.style.alignItems = 'flex-start';
+        preEl.style.padding = '0';
+        if (!codeEl.style.padding) codeEl.style.padding = '14px 18px';
+        codeEl.style.flex = '1';
+        codeEl.style.minWidth = '0';
+        attachLineNumbers(preEl, codeEl);
+      }
 
       // Re-apply highlighting to any content already present (e.g. loaded from storage)
       const text = codeEl.textContent ?? '';
