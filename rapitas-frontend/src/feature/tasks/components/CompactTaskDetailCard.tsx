@@ -443,7 +443,12 @@ export default function CompactTaskDetailCard({
             ノート
           </AccordionTrigger>
           <AccordionContent id="memos">
-            <NoteLinksSection taskId={task.id} />
+            <NoteLinksSection
+              taskId={task.id}
+              taskTitle={task.title}
+              themeName={task.theme?.name}
+              categoryName={task.theme?.category?.name}
+            />
           </AccordionContent>
         </AccordionItem>
       </Accordion>

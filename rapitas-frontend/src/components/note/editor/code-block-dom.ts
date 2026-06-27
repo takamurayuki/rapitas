@@ -209,6 +209,110 @@ function refreshLineNumbers(gutterEl: HTMLElement, codeElement: HTMLElement): vo
 }
 
 /**
+ * Build the chevron toggle button for collapsing/expanding the code block.
+ *
+ * @returns Configured toggle button / 折りたたみトグルボタン
+ */
+function buildCollapseToggle(): HTMLButtonElement {
+  const btn = document.createElement('button');
+  btn.dataset.collapseToggle = '1';
+  btn.style.backgroundColor = 'transparent';
+  btn.style.border = 'none';
+  btn.style.color = '#6e6e6e';
+  btn.style.cursor = 'pointer';
+  btn.style.padding = '0 2px';
+  btn.style.display = 'flex';
+  btn.style.alignItems = 'center';
+  btn.style.flexShrink = '0';
+  btn.style.transition = 'color 0.15s';
+  btn.title = '折りたたむ / 展開する';
+
+  const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+  svg.setAttribute('width', '12');
+  svg.setAttribute('height', '12');
+  svg.setAttribute('viewBox', '0 0 24 24');
+  svg.setAttribute('fill', 'none');
+  svg.setAttribute('stroke', 'currentColor');
+  svg.setAttribute('stroke-width', '2.5');
+  svg.setAttribute('stroke-linecap', 'round');
+  svg.setAttribute('stroke-linejoin', 'round');
+  svg.style.transition = 'transform 0.2s ease';
+
+  const polyline = document.createElementNS('http://www.w3.org/2000/svg', 'polyline');
+  polyline.setAttribute('points', '6 9 12 15 18 9');
+  svg.appendChild(polyline);
+  btn.appendChild(svg);
+
+  btn.onmouseover = () => {
+    btn.style.color = '#d4d4d4';
+  };
+  btn.onmouseout = () => {
+    btn.style.color = '#6e6e6e';
+  };
+
+  return btn;
+}
+
+/**
+ * Build the description area shown when the block is collapsed.
+ * Uses the CSS placeholder pattern (.code-block-desc:empty::before) defined in globals.css.
+ *
+ * @returns Description div element / 説明エリア要素
+ */
+function buildDescEl(): HTMLElement {
+  const el = document.createElement('div');
+  el.className = 'code-block-desc';
+  el.contentEditable = 'true';
+  el.spellcheck = false;
+  el.setAttribute('placeholder', 'この処理の説明を入力...');
+  el.style.padding = '10px 18px';
+  el.style.fontFamily = "Consolas, Monaco, 'Courier New', monospace";
+  el.style.fontSize = '12px';
+  el.style.lineHeight = '1.6';
+  el.style.color = '#858585';
+  el.style.outline = 'none';
+  el.style.display = 'none'; // hidden by default (block starts expanded)
+  el.style.minHeight = '2.4em';
+  el.style.whiteSpace = 'pre-wrap';
+  el.style.wordBreak = 'break-all';
+  return el;
+}
+
+/**
+ * Wire the collapse toggle button to show/hide the code area and description,
+ * and update the chevron rotation. Re-calling this function is idempotent
+ * (each call replaces the previous onclick handler).
+ *
+ * @param container - The outer code-block container / コードブロックのルート要素
+ * @param toggleBtn - The chevron button / 折りたたみボタン
+ * @param pre - The code/pre area to hide when collapsed / コードエリア
+ * @param descEl - The description area to show when collapsed / 説明エリア
+ */
+function attachCollapseToggle(
+  container: HTMLElement,
+  toggleBtn: HTMLButtonElement,
+  pre: HTMLElement,
+  descEl: HTMLElement,
+): void {
+  const apply = (collapsed: boolean) => {
+    container.dataset.collapsed = String(collapsed);
+    pre.style.display = collapsed ? 'none' : 'flex';
+    descEl.style.display = collapsed ? 'block' : 'none';
+    const svg = toggleBtn.querySelector('svg');
+    if (svg) (svg as SVGElement).style.transform = collapsed ? 'rotate(-90deg)' : 'rotate(0deg)';
+  };
+
+  // Restore persisted state on page load / re-normalize
+  apply(container.dataset.collapsed === 'true');
+
+  toggleBtn.onclick = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    apply(container.dataset.collapsed !== 'true');
+  };
+}
+
+/**
  * Attach a MutationObserver-driven line number gutter to the pre+code pair.
  * Removes any stale gutter first so re-running `normalizeCodeBlocks` is idempotent.
  * MutationObserver captures ALL content changes (typing, paste, Enter, Tab, delete)
@@ -435,6 +539,10 @@ export function createCodeBlockNode(language: string, code: string = ''): Docume
   // Prevent browser from adding a focus ring around the container
   container.style.outline = 'none';
 
+  // ── Collapse toggle + description area ────────────────────────────────────
+  const collapseToggle = buildCollapseToggle();
+  const descEl = buildDescEl();
+
   // ── Header ─────────────────────────────────────────────────────────────────
   const header = document.createElement('div');
   header.style.display = 'flex';
@@ -511,9 +619,18 @@ export function createCodeBlockNode(language: string, code: string = ''): Docume
   buttonContainer.appendChild(buildCopyButton(codeElement));
   buttonContainer.appendChild(buildDeleteButton());
 
-  header.appendChild(langBadge);
+  // Left side: [chevron, langBadge]
+  const headerLeft = document.createElement('div');
+  headerLeft.style.display = 'flex';
+  headerLeft.style.alignItems = 'center';
+  headerLeft.style.gap = '8px';
+  headerLeft.appendChild(collapseToggle);
+  headerLeft.appendChild(langBadge);
+
+  header.appendChild(headerLeft);
   header.appendChild(buttonContainer);
   container.appendChild(header);
+  container.appendChild(descEl);
 
   // ── Pre / code area ────────────────────────────────────────────────────────
   const pre = document.createElement('pre');
@@ -534,6 +651,7 @@ export function createCodeBlockNode(language: string, code: string = ''): Docume
   pre.appendChild(codeElement);
   attachLineNumbers(pre, codeElement);
   container.appendChild(pre);
+  attachCollapseToggle(container, collapseToggle, pre, descEl);
 
   // Mark so the caller can attach the delete handler after insertion
   container.dataset.needsDeleteHandler = '1';
@@ -570,6 +688,21 @@ export function normalizeCodeBlocks(editorEl: HTMLDivElement, onContentChange: (
         block.remove();
         onContentChange();
       };
+    }
+
+    // Re-wire collapse toggle (persists collapsed state via data-collapsed attribute)
+    const toggleBtn = block.querySelector<HTMLButtonElement>('[data-collapse-toggle="1"]');
+    const preEl2 = block.querySelector<HTMLElement>('pre');
+    let descEl2 = block.querySelector<HTMLElement>('.code-block-desc');
+    if (!descEl2) {
+      // Old block without description area — inject one after the header
+      descEl2 = buildDescEl();
+      const headerEl = block.querySelector<HTMLElement>('div:first-child');
+      if (headerEl) headerEl.insertAdjacentElement('afterend', descEl2);
+      else block.prepend(descEl2);
+    }
+    if (toggleBtn && preEl2) {
+      attachCollapseToggle(block, toggleBtn, preEl2, descEl2);
     }
 
     // Re-attach keyboard and highlight handlers using the language class name.

@@ -725,6 +725,16 @@ iframe:not([src='']) + .iframe-loading {
   border-bottom-color: var(--accent);
 }
 
+/* Code block collapse description placeholder */
+.code-block-desc:empty::before {
+  content: attr(placeholder);
+  color: #4a4a4a;
+  pointer-events: none;
+}
+.code-block-desc:focus-visible {
+  outline: none;
+}
+
 /* Animation classes */
 .animate-in {
   animation: animate-in 0.2s ease-out;

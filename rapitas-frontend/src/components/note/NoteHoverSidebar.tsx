@@ -160,7 +160,7 @@ export default function NoteHoverSidebar() {
                 />
               </div>
               <button
-                onClick={createNote}
+                onClick={() => createNote()}
                 className="w-full flex items-center justify-center gap-2 px-3 py-2 bg-indigo-500 hover:bg-indigo-600 text-white rounded-lg text-sm font-medium transition-colors"
               >
                 <Plus className="w-4 h-4" />

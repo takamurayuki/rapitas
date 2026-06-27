@@ -1,6 +1,6 @@
 'use client';
 // NoteEditorHeader
-import { Save, Pin } from 'lucide-react';
+import { Save, Trash2 } from 'lucide-react';
 import { type Note } from '@/stores/note-store';
 
 interface NoteEditorHeaderProps {
@@ -10,22 +10,22 @@ interface NoteEditorHeaderProps {
   onTitleChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
   onTitlePaste: (e: React.ClipboardEvent<HTMLInputElement>) => void;
   onSave: () => void;
-  onTogglePin: () => void;
+  onDelete: () => void;
 }
 
 /**
  * Top action bar for the note editor.
  *
- * @param props - Title state and save/pin handlers.
+ * @param props - Title state, save handler, and delete handler.
  */
 export default function NoteEditorHeader({
-  note,
+  note: _note,
   draftTitle,
   isDirty,
   onTitleChange,
   onTitlePaste,
   onSave,
-  onTogglePin,
+  onDelete,
 }: NoteEditorHeaderProps) {
   return (
     <div className="flex items-center gap-3 px-4 pt-3 pb-2">
@@ -43,15 +43,11 @@ export default function NoteEditorHeader({
         }}
       />
       <button
-        onClick={onTogglePin}
-        className={`p-1.5 rounded-lg transition-colors shrink-0 ${
-          note.isPinned
-            ? 'text-yellow-500 bg-yellow-50 dark:bg-yellow-900/20'
-            : 'text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800'
-        }`}
-        title={note.isPinned ? 'ピンを外す' : 'ピン留め'}
+        onClick={onDelete}
+        className="p-1.5 rounded-lg transition-colors shrink-0 text-zinc-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20"
+        title="このノートを削除"
       >
-        <Pin className="w-4 h-4" />
+        <Trash2 className="w-4 h-4" />
       </button>
       <button
         onClick={onSave}

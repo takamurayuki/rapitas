@@ -38,7 +38,7 @@ interface NoteState {
   selectedTags: string[];
 
   // Note operations
-  createNote: () => void;
+  createNote: (title?: string) => void;
   updateNote: (id: string, updates: Partial<Note>) => void;
   deleteNote: (id: string) => void;
   setCurrentNote: (id: string | null) => void;
@@ -92,10 +92,10 @@ export const useNoteStore = create<NoteState>()(
       searchQuery: '',
       selectedTags: [],
 
-      createNote: () => {
+      createNote: (title?: string) => {
         const newNote: Note = {
           id: Date.now().toString(),
-          title: '新しいノート',
+          title: title ?? '新しいノート',
           content: '',
           createdAt: new Date(),
           updatedAt: new Date(),

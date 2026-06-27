@@ -1,6 +1,6 @@
 'use client';
 // NoteEditor
-import { type Note } from '@/stores/note-store';
+import { type Note, useNoteStore } from '@/stores/note-store';
 import { useNoteEditor } from './editor/useNoteEditor';
 import NoteEditorHeader from './editor/NoteEditorHeader';
 import NoteEditorFooter from './editor/NoteEditorFooter';
@@ -12,6 +12,7 @@ interface NoteEditorProps {
 
 export default function NoteEditor({ note }: NoteEditorProps) {
   const editor = useNoteEditor(note);
+  const { deleteNote, setCurrentNote } = useNoteStore();
 
   return (
     <div className="flex flex-col h-full">
@@ -22,7 +23,10 @@ export default function NoteEditor({ note }: NoteEditorProps) {
         onTitleChange={editor.handleTitleChange}
         onTitlePaste={editor.handleTitlePaste}
         onSave={editor.handleSave}
-        onTogglePin={() => editor.updateNote(note.id, { isPinned: !note.isPinned })}
+        onDelete={() => {
+          deleteNote(note.id);
+          setCurrentNote(null);
+        }}
       />
 
       <EditorToolbar

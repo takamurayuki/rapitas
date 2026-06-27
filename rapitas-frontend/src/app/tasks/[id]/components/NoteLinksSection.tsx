@@ -15,6 +15,9 @@ import { useNoteStore, type Note } from '@/stores/note-store';
 
 interface Props {
   taskId: number;
+  taskTitle?: string;
+  themeName?: string;
+  categoryName?: string;
 }
 
 function formatDate(d: Date | string): string {
@@ -142,12 +145,14 @@ function NotePicker({
   onLink,
   onClose,
   anchorRef,
+  createNoteTitle,
 }: {
   taskId: number;
   linkedNoteIds: Set<string>;
   onLink: (noteId: string) => void;
   onClose: () => void;
   anchorRef: React.RefObject<HTMLElement | null>;
+  createNoteTitle: string;
 }) {
   const [query, setQuery] = useState('');
   const pickerRef = useRef<HTMLDivElement>(null);
@@ -190,7 +195,7 @@ function NotePicker({
 
   const handleCreateAndLink = () => {
     const beforeIds = new Set(notes.map((n) => n.id));
-    createNote();
+    createNote(createNoteTitle);
     setTimeout(() => {
       const newNote = useNoteStore.getState().notes.find((n) => !beforeIds.has(n.id));
       if (newNote) linkNoteToTask(newNote.id, taskId);
@@ -272,7 +277,7 @@ function NotePicker({
  *
  * @param props.taskId - ID of the task whose linked notes to display.
  */
-export default function NoteLinksSection({ taskId }: Props) {
+export default function NoteLinksSection({ taskId, taskTitle, themeName, categoryName }: Props) {
   const [isPickerOpen, setIsPickerOpen] = useState(false);
   const anchorRef = useRef<HTMLButtonElement>(null);
 
@@ -304,6 +309,9 @@ export default function NoteLinksSection({ taskId }: Props) {
           onLink={(noteId) => linkNoteToTask(noteId, taskId)}
           onClose={() => setIsPickerOpen(false)}
           anchorRef={anchorRef}
+          createNoteTitle={[categoryName, themeName, `[#${taskId}]_${taskTitle ?? ''}`]
+            .filter(Boolean)
+            .join(' > ')}
         />
       )}
 
