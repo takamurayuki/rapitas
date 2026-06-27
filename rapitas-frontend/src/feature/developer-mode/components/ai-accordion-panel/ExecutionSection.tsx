@@ -18,7 +18,7 @@ import { useState } from 'react';
 import type { Task } from '@/types';
 import { API_BASE_URL } from '@/utils/api';
 import type { ExecutionLogStatus } from '../ExecutionLogViewer';
-import type { ParallelExecutionStatus } from '@/feature/tasks/components/SubtaskExecutionStatus';
+import type { ParallelExecutionStatus } from '@/feature/tasks/components/status/SubtaskExecutionStatus';
 import { ExecutionBody, workflowPhaseLabel } from './ExecutionBody';
 import { ExecutionCapabilityGuide, type ExecutionCapability } from './ExecutionCapabilityGuide';
 

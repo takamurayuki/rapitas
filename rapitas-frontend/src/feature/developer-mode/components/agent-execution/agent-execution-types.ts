@@ -8,7 +8,7 @@
 import type React from 'react';
 import type { ExecutionStatus, ExecutionResult } from '../../hooks/useDeveloperMode';
 import type { Task } from '@/types';
-import type { ParallelExecutionStatus } from '@/feature/tasks/components/SubtaskExecutionStatus';
+import type { ParallelExecutionStatus } from '@/feature/tasks/components/status/SubtaskExecutionStatus';
 import type { ExecutionLogStatus } from '../ExecutionLogViewer';
 import type { AgentExecutionHandlers } from './useAgentExecutionHandlers';
 

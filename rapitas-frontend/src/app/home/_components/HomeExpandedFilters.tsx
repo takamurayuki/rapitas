@@ -3,7 +3,7 @@
 import React from 'react';
 import type { Priority } from '@/types';
 import { statusConfig } from '@/feature/tasks/config/StatusConfig';
-import { priorityConfig } from '@/feature/tasks/components/PriorityIcon';
+import { priorityConfig } from '@/feature/tasks/components/priority/PriorityIcon';
 import { useTranslations } from 'next-intl';
 
 interface StatusCounts {

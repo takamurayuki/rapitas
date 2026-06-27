@@ -8,9 +8,9 @@
  */
 
 import { Pencil, CheckSquare, Square, Bot, Clock } from 'lucide-react';
-import type { ParallelExecutionStatus } from '@/feature/tasks/components/SubtaskExecutionStatus';
-import PriorityIcon from '@/feature/tasks/components/PriorityIcon';
-import TaskStatusChange from '@/feature/tasks/components/TaskStatusChange';
+import type { ParallelExecutionStatus } from '@/feature/tasks/components/status/SubtaskExecutionStatus';
+import PriorityIcon from '@/feature/tasks/components/priority/PriorityIcon';
+import TaskStatusChange from '@/feature/tasks/components/status/TaskStatusChange';
 import { useExecutionStateStore } from '@/stores/execution-state-store';
 import {
   statusConfig as sharedStatusConfig,

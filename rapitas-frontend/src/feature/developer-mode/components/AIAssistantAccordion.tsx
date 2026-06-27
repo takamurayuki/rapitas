@@ -14,7 +14,7 @@ import {
 } from 'lucide-react';
 import type { DeveloperModeConfig, TaskAnalysisResult, Task } from '@/types';
 import type { ExecutionStatus, ExecutionResult } from '../hooks/useDeveloperMode';
-import type { ParallelExecutionStatus } from '@/feature/tasks/components/SubtaskExecutionStatus';
+import type { ParallelExecutionStatus } from '@/feature/tasks/components/status/SubtaskExecutionStatus';
 import { AIAnalysisPanel } from './AIAnalysisPanel';
 import { AgentExecutionPanel } from './AgentExecutionPanel';
 

@@ -7,7 +7,7 @@ import { API_BASE_URL } from '@/utils/api';
 import { createLogger } from '@/lib/logger';
 
 const logger = createLogger('TabbedExecutionLogViewer');
-import type { ParallelExecutionStatus } from '@/feature/tasks/components/SubtaskExecutionStatus';
+import type { ParallelExecutionStatus } from '@/feature/tasks/components/status/SubtaskExecutionStatus';
 
 /**
  * Subtask info

@@ -14,7 +14,7 @@ import {
   ArrowRight,
 } from 'lucide-react';
 import type { Task } from '@/types';
-import type { ParallelExecutionStatus } from '@/feature/tasks/components/SubtaskExecutionStatus';
+import type { ParallelExecutionStatus } from '@/feature/tasks/components/status/SubtaskExecutionStatus';
 import { ExecutionLogViewer, type ExecutionLogStatus } from './ExecutionLogViewer';
 import { WorkflowLogViewer } from './WorkflowLogViewer';
 

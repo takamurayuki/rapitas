@@ -2,15 +2,15 @@
 // TaskCard
 import React, { useState, memo } from 'react';
 import type { Task, Status } from '@/types';
-import TaskStatusChange from '@/feature/tasks/components/TaskStatusChange';
-import PriorityIcon from '@/feature/tasks/components/PriorityIcon';
+import TaskStatusChange from '@/feature/tasks/components/status/TaskStatusChange';
+import PriorityIcon from '@/feature/tasks/components/priority/PriorityIcon';
 import { statusConfig, renderStatusIcon } from '@/feature/tasks/config/StatusConfig';
 import { ExternalLink, Tag, Repeat, RefreshCw } from 'lucide-react';
 import { API_BASE_URL } from '@/utils/api';
 import { useToast } from '@/components/ui/toast/ToastContainer';
 import { getLabelsArray, hasLabels } from '@/utils/labels';
 import { getIconComponent } from '@/components/category/icon-data';
-import { CardLightSweep } from './TaskCompletionAnimation';
+import { CardLightSweep } from './completion/TaskCompletionAnimation';
 import { ModernCheckbox } from '@/components/ui/ModernCheckbox';
 import { useTranslations } from 'next-intl';
 import { useLocaleStore as _useLocaleStore } from '@/stores/locale-store';

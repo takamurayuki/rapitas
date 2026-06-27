@@ -7,7 +7,7 @@
 'use client';
 import { FolderOpen, Globe, Lightbulb, ListPlus, Loader2, Pencil, Trash2 } from 'lucide-react';
 import { getIconComponent } from '@/components/category/icon-data';
-import PriorityIcon from '@/feature/tasks/components/PriorityIcon';
+import PriorityIcon from '@/feature/tasks/components/priority/PriorityIcon';
 import type { Theme } from '@/types';
 import type { Idea } from './idea-box.types';
 import { PRIORITY_HINT, SOURCE_ICONS } from './idea-box.utils';

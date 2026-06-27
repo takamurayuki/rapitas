@@ -11,7 +11,7 @@ import React, { useState, useMemo, useCallback } from 'react';
 import useSWR from 'swr';
 import { ChevronLeft, ChevronRight, Loader2 } from 'lucide-react';
 import type { GanttData } from '@/types/task.types';
-import TaskSlidePanel from '@/feature/tasks/components/TaskSlidePanel';
+import TaskSlidePanel from '@/feature/tasks/components/detail/TaskSlidePanel';
 import { useTaskDetailVisibilityStore } from '@/stores/task-detail-visibility-store';
 import { GanttChart } from './GanttChart';
 import type { GanttViewport } from './gantt-utils';

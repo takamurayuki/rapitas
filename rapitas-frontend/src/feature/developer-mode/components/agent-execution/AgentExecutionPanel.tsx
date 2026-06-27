@@ -6,7 +6,7 @@ import type { ExecutionStatus, ExecutionResult } from '../../hooks/useDeveloperM
 import { ExecutionLogViewer, type ExecutionLogStatus } from '../ExecutionLogViewer';
 import { SubtaskLogTabs } from '../SubtaskLogTabs';
 import type { Task } from '@/types';
-import type { ParallelExecutionStatus } from '@/feature/tasks/components/SubtaskExecutionStatus';
+import type { ParallelExecutionStatus } from '@/feature/tasks/components/status/SubtaskExecutionStatus';
 import { useAgentExecution } from './useAgentExecution';
 import { ExecutionRunningPanel } from './ExecutionRunningPanel';
 import { ExecutionCompletedPanel } from './ExecutionCompletedPanel';

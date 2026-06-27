@@ -1,12 +1,12 @@
 'use client';
 // TaskDetailViewBody
 import type { Task, Resource, Comment, WorkflowStatus, Priority } from '@/types';
-import CompactTaskDetailCard from '@/feature/tasks/components/CompactTaskDetailCard';
+import CompactTaskDetailCard from '@/feature/tasks/components/detail/CompactTaskDetailCard';
 import { API_BASE_URL } from '@/utils/api';
 import TaskAISection, { type TaskAISectionProps } from './TaskAISection';
 import TaskWorkflowSection from './TaskWorkflowSection';
 import SubtaskSection from './SubtaskSection';
-import type { ParallelExecutionStatus } from '@/feature/tasks/components/SubtaskExecutionStatus';
+import type { ParallelExecutionStatus } from '@/feature/tasks/components/status/SubtaskExecutionStatus';
 import { useExecutionStateStore } from '@/stores/execution-state-store';
 import { CopilotChatPanel } from '@/components/copilot';
 import { ErrorBoundary } from '@/components/common/ErrorBoundary';

@@ -2,8 +2,8 @@
 
 import { useState, useEffect } from 'react';
 import { type Task, type Label, type Resource, type Comment, type Priority } from '@/types';
-import TaskDescription from '@/feature/tasks/components/TaskDescription';
-import TaskStatusChange from '@/feature/tasks/components/TaskStatusChange';
+import TaskDescription from '@/feature/tasks/components/text/TaskDescription';
+import TaskStatusChange from '@/feature/tasks/components/status/TaskStatusChange';
 import { statusConfig, renderStatusIcon } from '@/feature/tasks/config/StatusConfig';
 import {
   Accordion,
@@ -25,14 +25,14 @@ import {
   Repeat,
   NotebookPen,
 } from 'lucide-react';
-import PriorityInlineSelect from '@/feature/tasks/components/PriorityInlineSelect';
-import RecurrenceSelector from '@/feature/tasks/components/RecurrenceSelector';
+import PriorityInlineSelect from '@/feature/tasks/components/priority/PriorityInlineSelect';
+import RecurrenceSelector from '@/feature/tasks/components/recurrence/RecurrenceSelector';
 import { useLocaleStore } from '@/stores/locale-store';
 import { useFilterDataStore } from '@/stores/filter-data-store';
 import { toDateLocale } from '@/lib/utils';
 import { API_BASE_URL } from '@/utils/api';
 import { clearApiCache } from '@/lib/api-client';
-import InlineEditableText from '@/feature/tasks/components/InlineEditableText';
+import InlineEditableText from '@/feature/tasks/components/text/InlineEditableText';
 
 /**
  * Wrapper for RecurrenceSelector that can close the accordion

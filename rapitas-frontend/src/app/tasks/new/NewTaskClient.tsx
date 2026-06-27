@@ -12,7 +12,7 @@ import {
 } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import LabelSelector from '@/feature/tasks/components/LabelSelector';
-import TaskTitleAutocomplete from '@/feature/tasks/components/TaskTitleAutocomplete';
+import TaskTitleAutocomplete from '@/feature/tasks/components/text/TaskTitleAutocomplete';
 import { CompactAccordionGroup, InlineFieldGroup, FieldItem } from '@/components/ui/accordion';
 import ApplyTemplateDialog from '@/feature/tasks/components/dialog/ApplyTemplateDialog';
 import { RelatedKnowledgePanel } from '@/feature/intelligence/components/RelatedKnowledgePanel';

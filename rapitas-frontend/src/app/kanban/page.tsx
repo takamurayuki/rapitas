@@ -4,7 +4,7 @@
 import { useEffect, useState, useMemo } from 'react';
 import { useTranslations } from 'next-intl';
 import { DragDropContext } from '@hello-pangea/dnd';
-import TaskSlidePanel from '@/feature/tasks/components/TaskSlidePanel';
+import TaskSlidePanel from '@/feature/tasks/components/detail/TaskSlidePanel';
 import { API_BASE_URL } from '@/utils/api';
 import { createLogger } from '@/lib/logger';
 import { useLocaleStore } from '@/stores/locale-store';

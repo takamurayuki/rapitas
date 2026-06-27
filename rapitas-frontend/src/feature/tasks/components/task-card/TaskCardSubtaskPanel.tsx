@@ -1,7 +1,7 @@
 'use client';
 // TaskCardSubtaskPanel
 import type { Task } from '@/types';
-import SubtaskStatusButtons from '@/feature/tasks/components/SubtaskStatusButtons';
+import SubtaskStatusButtons from '@/feature/tasks/components/status/SubtaskStatusButtons';
 import {
   statusConfig,
   renderStatusIcon,

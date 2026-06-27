@@ -13,7 +13,7 @@ import type {
   AIAgentConfig,
 } from '@/types';
 import type { ExecutionStatus, ExecutionResult } from '../../hooks/useDeveloperMode';
-import type { ParallelExecutionStatus } from '@/feature/tasks/components/SubtaskExecutionStatus';
+import type { ParallelExecutionStatus } from '@/feature/tasks/components/status/SubtaskExecutionStatus';
 import type { ExecutionCapability } from './ExecutionCapabilityGuide';
 
 export type PromptClarificationQuestion = {

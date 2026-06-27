@@ -3,7 +3,7 @@ import { useState, useMemo } from 'react';
 import ReactMarkdown, { defaultUrlTransform } from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import remarkBreaks from 'remark-breaks';
-import { createMarkdownComponents } from '@/feature/tasks/components/MarkdownComponents';
+import { createMarkdownComponents } from '@/feature/tasks/components/text/MarkdownComponents';
 import { ChevronDown, ChevronUp } from 'lucide-react';
 
 interface TaskDescriptionProps {

@@ -8,7 +8,7 @@
 import type { Dispatch, RefObject, SetStateAction } from 'react';
 import { Lightbulb, ListPlus, Loader2, Pencil } from 'lucide-react';
 import { Modal } from '@/components/ui/modal/Modal';
-import PriorityIcon from '@/feature/tasks/components/PriorityIcon';
+import PriorityIcon from '@/feature/tasks/components/priority/PriorityIcon';
 import type { Category, Theme } from '@/types';
 import type { IdeaPriority } from './idea-box.types';
 import { PRIORITY_HINT, PRIORITY_ORDER } from './idea-box.utils';

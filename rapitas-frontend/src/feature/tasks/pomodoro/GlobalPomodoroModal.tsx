@@ -13,7 +13,9 @@ import {
   ChevronUp,
 } from 'lucide-react';
 import Link from 'next/link';
-import PomodoroTimer, { type PomodoroSubtask } from '@/feature/tasks/components/PomodoroTimer';
+import PomodoroTimer, {
+  type PomodoroSubtask,
+} from '@/feature/tasks/components/timer/PomodoroTimer';
 import { usePomodoroStore, formatTime } from './pomodoro-store';
 import { type TimeEntry } from '@/types';
 import { getTaskDetailPath } from '@/utils/tauri';

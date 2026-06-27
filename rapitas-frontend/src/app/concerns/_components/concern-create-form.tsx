@@ -11,7 +11,7 @@ import type { Dispatch, RefObject, SetStateAction } from 'react';
 import { Bug } from 'lucide-react';
 import type { Category, Theme } from '@/types';
 import { Modal } from '@/components/ui/modal/Modal';
-import PriorityIcon from '@/feature/tasks/components/PriorityIcon';
+import PriorityIcon from '@/feature/tasks/components/priority/PriorityIcon';
 import {
   TYPE_META,
   TYPE_ORDER,

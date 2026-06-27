@@ -11,11 +11,14 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import remarkBreaks from 'remark-breaks';
 import { getLabelsArray, hasLabels } from '@/utils/labels';
-import TaskStatusChange from '@/feature/tasks/components/TaskStatusChange';
-import PriorityIcon from '@/feature/tasks/components/PriorityIcon';
+import TaskStatusChange from '@/feature/tasks/components/status/TaskStatusChange';
+import PriorityIcon from '@/feature/tasks/components/priority/PriorityIcon';
 import { statusConfig, renderStatusIcon } from '@/feature/tasks/config/StatusConfig';
 import { Pencil, Check, X, Bot, CheckSquare, Square } from 'lucide-react';
-import { SubtaskTitleIndicator, type ParallelExecutionStatus } from '../SubtaskExecutionStatus';
+import {
+  SubtaskTitleIndicator,
+  type ParallelExecutionStatus,
+} from '../status/SubtaskExecutionStatus';
 
 interface SubtaskItemProps {
   subtask: Task;

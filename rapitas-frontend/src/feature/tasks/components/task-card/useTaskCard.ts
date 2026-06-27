@@ -9,7 +9,7 @@ import { prefetch } from '@/lib/api-client';
 import { useExecutionStateStore } from '@/stores/execution-state-store';
 import { useTranslations } from 'next-intl';
 import { createLogger } from '@/lib/logger';
-import { useProgressColors } from '../TaskCompletionAnimation';
+import { useProgressColors } from '../completion/TaskCompletionAnimation';
 
 const logger = createLogger('TaskCard');
 

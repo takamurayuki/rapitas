@@ -19,7 +19,7 @@ import {
   FolderOpen,
 } from 'lucide-react';
 import { getIconComponent } from '@/components/category/icon-data';
-import PriorityIcon from '@/feature/tasks/components/PriorityIcon';
+import PriorityIcon from '@/feature/tasks/components/priority/PriorityIcon';
 import { TYPE_META, SEVERITY_HINT, type Concern } from './concern-shared';
 
 interface ConcernCardProps {

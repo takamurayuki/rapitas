@@ -16,7 +16,7 @@ import {
 import { ExecutionLogViewer, type ExecutionLogStatus } from '../ExecutionLogViewer';
 import { SubtaskLogTabs } from '../SubtaskLogTabs';
 import type { Task } from '@/types';
-import type { ParallelExecutionStatus } from '@/feature/tasks/components/SubtaskExecutionStatus';
+import type { ParallelExecutionStatus } from '@/feature/tasks/components/status/SubtaskExecutionStatus';
 import { ContinuationForm } from './ContinuationForm';
 
 export type ExecutionBodyProps = {

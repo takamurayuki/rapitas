@@ -1,7 +1,7 @@
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import type { ReactNode, HTMLAttributes, CSSProperties } from 'react';
-import { NoteChipLink } from './NoteChipLink';
+import { NoteChipLink } from '../NoteChipLink';
 
 // vscDarkPlus style type
 type SyntaxHighlighterStyle = { [key: string]: CSSProperties };

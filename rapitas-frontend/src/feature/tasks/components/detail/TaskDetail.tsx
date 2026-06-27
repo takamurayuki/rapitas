@@ -1,6 +1,6 @@
 import { type Task } from '@/types';
-import TaskDescription from '@/feature/tasks/components/TaskDescription';
-import TaskStatusChange from '@/feature/tasks/components/TaskStatusChange';
+import TaskDescription from '@/feature/tasks/components/text/TaskDescription';
+import TaskStatusChange from '@/feature/tasks/components/status/TaskStatusChange';
 import { statusConfig, renderStatusIcon } from '@/feature/tasks/config/StatusConfig';
 import { getLabelsArray, hasLabels } from '@/utils/labels';
 import { Tag } from 'lucide-react';

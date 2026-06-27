@@ -67,13 +67,13 @@ vi.mock('@/utils/labels', () => ({
 }));
 
 // Mock PriorityIcon component
-vi.mock('@/feature/tasks/components/PriorityIcon', () => ({
+vi.mock('@/feature/tasks/components/priority/PriorityIcon', () => ({
   default: ({ priority }: { priority: string | null | undefined; size?: string }) =>
     priority ? <span data-testid="priority-icon">{priority}</span> : null,
 }));
 
 // Mock TaskStatusChange component
-vi.mock('@/feature/tasks/components/TaskStatusChange', () => ({
+vi.mock('@/feature/tasks/components/status/TaskStatusChange', () => ({
   default: ({
     status,
     currentStatus,
@@ -100,7 +100,7 @@ vi.mock('@/feature/tasks/components/TaskStatusChange', () => ({
 }));
 
 // Mock SubtaskStatusButtons
-vi.mock('@/feature/tasks/components/SubtaskStatusButtons', () => ({
+vi.mock('@/feature/tasks/components/status/SubtaskStatusButtons', () => ({
   default: () => <div data-testid="subtask-status-buttons" />,
 }));
 
@@ -136,7 +136,7 @@ vi.mock('@/feature/tasks/config/StatusConfig', () => {
 });
 
 // Mock TaskCompletionAnimation
-vi.mock('../TaskCompletionAnimation', () => ({
+vi.mock('../completion/TaskCompletionAnimation', () => ({
   CardLightSweep: ({ active }: { active: boolean }) =>
     active ? <div data-testid="card-light-sweep" /> : null,
   useProgressColors: () => ({

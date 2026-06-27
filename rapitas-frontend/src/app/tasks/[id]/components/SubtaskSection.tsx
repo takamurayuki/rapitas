@@ -8,7 +8,7 @@
  */
 
 import type { Task, Priority } from '@/types';
-import type { ParallelExecutionStatus } from '@/feature/tasks/components/SubtaskExecutionStatus';
+import type { ParallelExecutionStatus } from '@/feature/tasks/components/status/SubtaskExecutionStatus';
 import { SubtaskHeader } from './subtask-section/SubtaskHeader';
 import { SubtaskDeleteConfirm } from './subtask-section/SubtaskDeleteConfirm';
 import { AddSubtaskForm } from './subtask-section/AddSubtaskForm';

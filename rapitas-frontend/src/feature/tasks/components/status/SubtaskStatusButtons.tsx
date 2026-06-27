@@ -1,6 +1,6 @@
 'use client';
 import TaskStatusChange from './TaskStatusChange';
-import { statusConfig, renderStatusIcon } from '../config/StatusConfig';
+import { statusConfig, renderStatusIcon } from '../../config/StatusConfig';
 import { API_BASE_URL } from '@/utils/api';
 import type { Status } from '@/types';
 import { createLogger } from '@/lib/logger';

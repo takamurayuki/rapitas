@@ -1,7 +1,7 @@
 'use client';
 import type { Priority } from '@/types';
 import LabelSelector from '@/feature/tasks/components/LabelSelector';
-import TaskStatusChange from '@/feature/tasks/components/TaskStatusChange';
+import TaskStatusChange from '@/feature/tasks/components/status/TaskStatusChange';
 import {
   statusConfig as sharedStatusConfig,
   renderStatusIcon,
