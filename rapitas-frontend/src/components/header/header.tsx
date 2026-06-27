@@ -36,7 +36,6 @@ import {
   CircleDot,
   GitMerge,
   Code,
-  Key,
   MessageSquare,
   Sparkles,
   Lightbulb,
@@ -45,7 +44,6 @@ import {
   NotebookTabs,
   Package,
   BookMarked,
-  Keyboard,
   Beaker,
   Sprout,
   Library,
@@ -110,11 +108,6 @@ export default function Header() {
             { href: '/themes', label: t('themeList'), icon: SwatchBook },
             { href: '/labels', label: t('labelList'), icon: Tags },
           ],
-        },
-        {
-          href: '/settings/developer-mode',
-          label: t('taskSettings'),
-          icon: Settings,
         },
       ],
     },
@@ -245,22 +238,11 @@ export default function Header() {
       ],
     },
     {
-      href: '#',
+      // Single entry into the unified settings hub; sub-sections (general /
+      // API keys / task automation / shortcuts / CLI tools) are the hub's tabs.
+      href: '/settings/general',
       label: t('settings'),
       icon: Settings,
-      children: [
-        {
-          href: '/settings/general',
-          label: t('generalSettings'),
-          icon: Settings,
-        },
-        { href: '/settings', label: t('apiKeySettings'), icon: Key },
-        {
-          href: '/settings/shortcuts',
-          label: t('shortcutSettings'),
-          icon: Keyboard,
-        },
-      ],
     },
   ];
 
