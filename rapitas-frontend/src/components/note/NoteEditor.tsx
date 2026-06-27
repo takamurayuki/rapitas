@@ -12,7 +12,12 @@ interface NoteEditorProps {
 
 export default function NoteEditor({ note }: NoteEditorProps) {
   const editor = useNoteEditor(note);
-  const { deleteNote, setCurrentNote } = useNoteStore();
+  // NOTE: Use selectors to avoid re-rendering NoteEditor on every note store
+  // update (e.g. autosave).  Non-selector useNoteStore() subscribes to all
+  // state changes and caused sluggishness when the modal was open alongside the
+  // task detail view.
+  const deleteNote = useNoteStore((s) => s.deleteNote);
+  const setCurrentNote = useNoteStore((s) => s.setCurrentNote);
 
   return (
     <div className="flex flex-col h-full">

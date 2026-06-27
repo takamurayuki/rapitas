@@ -30,6 +30,13 @@ const AUTO_PAIRS: Record<string, string> = {
   '`': '`',
 };
 
+/**
+ * Tracks the active MutationObserver per code element.
+ * Prevents observer accumulation when normalizeCodeBlocks runs multiple times
+ * on the same element — each new observer disconnects the previous one.
+ */
+const lineNumberObservers = new WeakMap<HTMLElement, MutationObserver>();
+
 /** Language-to-colour map used for the dot indicator in the header. */
 const LANG_COLORS: Record<string, string> = {
   javascript: '#f0db4f',
@@ -322,6 +329,11 @@ function attachCollapseToggle(
  * @param codeElement - The contenteditable code element / コード要素
  */
 function attachLineNumbers(preEl: HTMLElement, codeElement: HTMLElement): void {
+  // Disconnect any stale observer for this element before creating a new one.
+  // Without this, each normalizeCodeBlocks call accumulates an extra observer
+  // that keeps firing on every keystroke, degrading performance over time.
+  lineNumberObservers.get(codeElement)?.disconnect();
+
   // Remove stale gutter (present when re-normalizing or loading from saved HTML)
   preEl.querySelectorAll('.code-line-numbers').forEach((n) => n.remove());
 
@@ -331,6 +343,7 @@ function attachLineNumbers(preEl: HTMLElement, codeElement: HTMLElement): void {
 
   const observer = new MutationObserver(() => refreshLineNumbers(gutterEl, codeElement));
   observer.observe(codeElement, { childList: true, subtree: true, characterData: true });
+  lineNumberObservers.set(codeElement, observer);
 }
 
 /**

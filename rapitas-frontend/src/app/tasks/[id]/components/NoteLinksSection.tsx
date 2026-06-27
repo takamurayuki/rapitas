@@ -281,9 +281,11 @@ export default function NoteLinksSection({ taskId, taskTitle, themeName, categor
   const [isPickerOpen, setIsPickerOpen] = useState(false);
   const anchorRef = useRef<HTMLButtonElement>(null);
 
-  // Subscribe directly to notes for reactive filtering
+  // NOTE: Use individual selectors so NoteLinksSection only re-renders when
+  // notes change, not on every note store update (e.g. modal position changes).
   const notes = useNoteStore((s) => s.notes);
-  const { linkNoteToTask, unlinkNoteFromTask } = useNoteStore();
+  const linkNoteToTask = useNoteStore((s) => s.linkNoteToTask);
+  const unlinkNoteFromTask = useNoteStore((s) => s.unlinkNoteFromTask);
 
   const linkedNotes = useMemo(
     () => notes.filter((n) => n.linkedTaskIds?.includes(taskId)),
