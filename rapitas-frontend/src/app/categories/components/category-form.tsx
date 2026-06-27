@@ -1,34 +1,11 @@
 'use client';
 // category-form
 
-import { Search, X, Save, FolderKanban, Code, BookOpen, Layers } from 'lucide-react';
+import { Search, X, Save, FolderKanban } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { getIconComponent } from '@/components/category/icon-data';
 import { IconGrid } from '@/components/category/IconGrid';
-import type { CategoryMode } from '@/types';
 import type { FormData } from '../hooks/useCategories';
-
-/** Mode option descriptor with display metadata. */
-export const MODE_OPTIONS: {
-  value: CategoryMode;
-  labelKey: string;
-  icon: typeof Code;
-  color: string;
-}[] = [
-  {
-    value: 'development',
-    labelKey: 'modeDevelopment',
-    icon: Code,
-    color: '#3B82F6',
-  },
-  {
-    value: 'learning',
-    labelKey: 'modeLearning',
-    icon: BookOpen,
-    color: '#10B981',
-  },
-  { value: 'both', labelKey: 'modeBoth', icon: Layers, color: '#8B5CF6' },
-];
 
 /**
  * Returns a Lucide icon element for the given icon name, falling back to FolderKanban.
@@ -69,7 +46,7 @@ interface CategoryFormProps {
 
 /**
  * Form for creating or editing a category.
- * Renders name, description, color, icon selector, and mode buttons.
+ * Renders name, description, color, and icon selector.
  */
 export function CategoryForm({
   isEdit,
@@ -183,35 +160,6 @@ export function CategoryForm({
               accentClass="bg-indigo-500"
             />
           </div>
-        </div>
-      </div>
-
-      <div>
-        <label className="block text-xs font-medium text-zinc-700 dark:text-zinc-300 mb-1">
-          {t('modeLabel')}
-        </label>
-        <p className="text-xs text-zinc-500 dark:text-zinc-400 mb-1.5">{t('modeDescription')}</p>
-        <div className="flex gap-1.5">
-          {MODE_OPTIONS.map((opt) => {
-            const ModeIcon = opt.icon;
-            const isSelected = formData.mode === opt.value;
-            return (
-              <button
-                key={opt.value}
-                type="button"
-                onClick={() => setFormData({ ...formData, mode: opt.value })}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
-                  isSelected
-                    ? 'text-white shadow-md'
-                    : 'bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-200 dark:hover:bg-zinc-700 border border-zinc-200 dark:border-zinc-700'
-                }`}
-                style={isSelected ? { backgroundColor: opt.color } : undefined}
-              >
-                <ModeIcon className="w-3.5 h-3.5" />
-                {t(opt.labelKey)}
-              </button>
-            );
-          })}
         </div>
       </div>
 

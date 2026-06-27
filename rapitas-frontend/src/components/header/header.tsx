@@ -59,22 +59,6 @@ import { SideNav } from './side-nav';
 import { HeaderSearch } from './header-search';
 import { HeaderToolbar } from './header-toolbar';
 import { RestartDialogs } from './restart-dialogs';
-import type { AppMode } from '@/stores/app-mode-store';
-
-/**
- * Filters nav items to only include those visible in the given app mode.
- *
- * @param items - Full nav item list / 全ナビアイテムリスト
- * @param currentMode - Current application mode / 現在のアプリモード
- * @returns Filtered nav items / フィルタリングされたナビアイテム
- */
-function filterNavItems(items: NavItem[], currentMode: AppMode): NavItem[] {
-  if (currentMode === 'all') return items;
-  return items.filter((item) => {
-    if (!item.mode) return true;
-    return item.mode === currentMode;
-  });
-}
 
 /**
  * Sticky application header with a hamburger-triggered side navigation panel.
@@ -137,7 +121,6 @@ export default function Header() {
       href: '#',
       label: t('learning'),
       icon: GraduationCap,
-      mode: 'learning',
       children: [
         {
           href: '/learning-goals',
@@ -170,7 +153,6 @@ export default function Header() {
       href: '#',
       label: t('development'),
       icon: Code,
-      mode: 'development',
       children: [
         {
           href: '#',
@@ -246,7 +228,7 @@ export default function Header() {
     },
   ];
 
-  const filteredNavItems = filterNavItems(navItems, h.appMode);
+  const filteredNavItems = navItems;
 
   return (
     <>
