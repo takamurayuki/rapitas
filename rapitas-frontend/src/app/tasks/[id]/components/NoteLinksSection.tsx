@@ -295,10 +295,10 @@ export default function NoteLinksSection({ taskId, taskTitle, themeName, categor
   );
 
   // NOTE: One-time backfill — notes linked before linkedTaskMeta was introduced
-  // lack hierarchy metadata. Populate it from the props available here so the
-  // sidebar tree can place them under the correct Category > Theme > Task path.
+  // lack hierarchy metadata. themeName alone is sufficient (category is optional;
+  // notes without a category appear under a 2-level theme > task group).
   useEffect(() => {
-    if (!categoryName || !themeName) return;
+    if (!themeName) return;
     const storeNotes = useNoteStore.getState().notes;
     storeNotes
       .filter((n) => n.linkedTaskIds?.includes(taskId))
@@ -307,7 +307,7 @@ export default function NoteLinksSection({ taskId, taskTitle, themeName, categor
           linkNoteToTask(note.id, taskId, {
             taskTitle: taskTitle ?? '',
             themeName,
-            categoryName,
+            categoryName: categoryName ?? '',
           });
         }
       });

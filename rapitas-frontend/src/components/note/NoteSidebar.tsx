@@ -3,9 +3,10 @@
  * NoteSidebar
  *
  * Left sidebar rendered inside the /notes page.
- * Displays notes in a collapsible tree: Category → Theme → Task → Notes.
- * Notes whose titles do not match the "A > B > [#N]_..." pattern are shown
- * in a flat "その他" section at the bottom.
+ * Displays notes in a collapsible tree:
+ *   3-level: Category → Theme → Task → Notes
+ *   2-level: Theme → Task → Notes  (tasks without a category)
+ *   Flat:    "その他" section for unlinked notes
  */
 import { useState, useEffect, useMemo } from 'react';
 import {
@@ -20,38 +21,34 @@ import {
 } from 'lucide-react';
 import { useNoteStore, type Note } from '@/stores/note-store';
 import DeleteNoteModal from './DeleteNoteModal';
-import { buildNoteTree, parseNotePath } from './note-tree-utils';
+import { buildNoteTree, parseNotePath, parseNotePathThemeOnly } from './note-tree-utils';
 
 function NoteItem({
   note,
   isActive,
   onSelect,
   onDelete,
-  indent = 0,
 }: {
   note: Note;
   isActive: boolean;
   onSelect: () => void;
   onDelete: () => void;
-  indent?: number;
 }) {
+  const displayTitle = note.title.includes(' > ')
+    ? (note.title.split(' > ').pop() ?? note.title)
+    : note.title || '(無題)';
+
   return (
     <div
       onClick={onSelect}
-      style={{ paddingLeft: `${8 + indent * 12}px` }}
-      className={`group flex items-center gap-2 pr-2 py-1.5 rounded-md cursor-pointer transition-colors ${
+      className={`group flex items-center gap-2 pl-10 pr-2 py-1.5 rounded-md cursor-pointer transition-colors ${
         isActive
           ? 'bg-indigo-50 dark:bg-indigo-900/20 text-indigo-700 dark:text-indigo-300'
           : 'text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-700/50'
       }`}
     >
       <NotebookPen className="w-3.5 h-3.5 shrink-0 text-blue-400 dark:text-blue-500" />
-      <span className="flex-1 text-xs truncate">
-        {/* Strip the hierarchy prefix if present, show just the leaf note name */}
-        {note.title.includes(' > ')
-          ? (note.title.split(' > ').pop() ?? note.title)
-          : note.title || '(無題)'}
-      </span>
+      <span className="flex-1 text-xs truncate">{displayTitle}</span>
       <button
         onClick={(e) => {
           e.stopPropagation();
@@ -100,48 +97,71 @@ export default function NoteSidebar() {
     if (searchQuery) {
       setExpandedCategories(new Set(tree.categories.map((c) => c.category)));
       setExpandedThemes(
-        new Set(tree.categories.flatMap((c) => c.themes.map((t) => `${c.category}|||${t.theme}`))),
+        new Set([
+          ...tree.categories.flatMap((c) => c.themes.map((t) => `${c.category}|||${t.theme}`)),
+          ...tree.themeGroups.map((tg) => `theme:${tg.theme}`),
+        ]),
       );
       setExpandedTasks(
-        new Set(
-          tree.categories.flatMap((c) =>
+        new Set([
+          ...tree.categories.flatMap((c) =>
             c.themes.flatMap((t) =>
               t.tasks.map((tk) => `${c.category}|||${t.theme}|||${tk.taskId}`),
             ),
           ),
-        ),
+          ...tree.themeGroups.flatMap((tg) =>
+            tg.tasks.map((tk) => `theme:${tg.theme}|||${tk.taskId}`),
+          ),
+        ]),
       );
     }
   }, [searchQuery, tree]);
 
-  // Expand the category/theme/task of the currently selected note.
+  // Expand the path of the currently selected note.
   useEffect(() => {
     if (!currentNoteId) return;
     const activeNote = notes.find((n) => n.id === currentNoteId);
     if (!activeNote) return;
 
-    // Primary: use stored metadata
+    // Primary: stored metadata
     if (activeNote.linkedTaskIds?.length && activeNote.linkedTaskMeta) {
       for (const taskId of activeNote.linkedTaskIds) {
         const meta = activeNote.linkedTaskMeta[taskId];
-        if (!meta?.categoryName || !meta?.themeName) continue;
-        const themeKey = `${meta.categoryName}|||${meta.themeName}`;
-        const taskKey = `${meta.categoryName}|||${meta.themeName}|||${taskId}`;
-        setExpandedCategories((s) => new Set([...s, meta.categoryName]));
-        setExpandedThemes((s) => new Set([...s, themeKey]));
-        setExpandedTasks((s) => new Set([...s, taskKey]));
+        if (!meta) continue;
+
+        if (meta.categoryName && meta.themeName) {
+          const themeKey = `${meta.categoryName}|||${meta.themeName}`;
+          const taskKey = `${themeKey}|||${taskId}`;
+          setExpandedCategories((s) => new Set([...s, meta.categoryName]));
+          setExpandedThemes((s) => new Set([...s, themeKey]));
+          setExpandedTasks((s) => new Set([...s, taskKey]));
+        } else if (meta.themeName) {
+          const themeKey = `theme:${meta.themeName}`;
+          const taskKey = `${themeKey}|||${taskId}`;
+          setExpandedThemes((s) => new Set([...s, themeKey]));
+          setExpandedTasks((s) => new Set([...s, taskKey]));
+        }
       }
       return;
     }
 
     // Fallback: title parsing
-    const parsed = parseNotePath(activeNote.title);
-    if (!parsed) return;
-    const themeKey = `${parsed.category}|||${parsed.theme}`;
-    const taskKey = `${parsed.category}|||${parsed.theme}|||${parsed.taskId}`;
-    setExpandedCategories((s) => new Set([...s, parsed.category]));
-    setExpandedThemes((s) => new Set([...s, themeKey]));
-    setExpandedTasks((s) => new Set([...s, taskKey]));
+    const parsed3 = parseNotePath(activeNote.title);
+    if (parsed3) {
+      const themeKey = `${parsed3.category}|||${parsed3.theme}`;
+      const taskKey = `${themeKey}|||${parsed3.taskId}`;
+      setExpandedCategories((s) => new Set([...s, parsed3.category]));
+      setExpandedThemes((s) => new Set([...s, themeKey]));
+      setExpandedTasks((s) => new Set([...s, taskKey]));
+      return;
+    }
+    const parsed2 = parseNotePathThemeOnly(activeNote.title);
+    if (parsed2) {
+      const themeKey = `theme:${parsed2.theme}`;
+      const taskKey = `${themeKey}|||${parsed2.taskId}`;
+      setExpandedThemes((s) => new Set([...s, themeKey]));
+      setExpandedTasks((s) => new Set([...s, taskKey]));
+    }
   }, [currentNoteId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const toggle = (set: Set<string>, setFn: (s: Set<string>) => void, key: string) => {
@@ -163,7 +183,7 @@ export default function NoteSidebar() {
     if (notes.length === 0) createNote();
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const hasLinked = tree.categories.length > 0;
+  const hasLinked = tree.categories.length > 0 || tree.themeGroups.length > 0;
   const hasSolo = tree.standalone.length > 0;
 
   return (
@@ -204,12 +224,11 @@ export default function NoteSidebar() {
           </div>
         )}
 
-        {/* Linked notes — Category > Theme > Task hierarchy */}
+        {/* 3-level: Category → Theme → Task → Notes */}
         {tree.categories.map((cat) => {
           const catExpanded = expandedCategories.has(cat.category);
           return (
             <div key={cat.category}>
-              {/* Category row */}
               <button
                 onClick={() => toggle(expandedCategories, setExpandedCategories, cat.category)}
                 className="w-full flex items-center gap-1.5 px-2 py-1.5 text-xs font-semibold text-zinc-700 dark:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-700/50 rounded-md transition-colors"
@@ -227,7 +246,6 @@ export default function NoteSidebar() {
                   const thExpanded = expandedThemes.has(themeKey);
                   return (
                     <div key={th.theme} className="ml-3">
-                      {/* Theme row */}
                       <button
                         onClick={() => toggle(expandedThemes, setExpandedThemes, themeKey)}
                         className="w-full flex items-center gap-1.5 px-2 py-1 text-xs font-medium text-zinc-600 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-700/50 rounded-md transition-colors"
@@ -241,11 +259,10 @@ export default function NoteSidebar() {
 
                       {thExpanded &&
                         th.tasks.map((tk) => {
-                          const taskKey = `${cat.category}|||${th.theme}|||${tk.taskId}`;
+                          const taskKey = `${themeKey}|||${tk.taskId}`;
                           const tkExpanded = expandedTasks.has(taskKey);
                           return (
                             <div key={tk.taskId} className="ml-3">
-                              {/* Task row */}
                               <button
                                 onClick={() => toggle(expandedTasks, setExpandedTasks, taskKey)}
                                 className="w-full flex items-center gap-1.5 px-2 py-1 text-xs text-zinc-500 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-700/50 rounded-md transition-colors"
@@ -260,18 +277,69 @@ export default function NoteSidebar() {
 
                               {tkExpanded &&
                                 tk.notes.map((note) => (
-                                  <div key={note.id} className="ml-3">
-                                    <NoteItem
-                                      note={note}
-                                      isActive={note.id === currentNoteId}
-                                      onSelect={() => setCurrentNote(note.id)}
-                                      onDelete={() => openDelete(note)}
-                                    />
-                                  </div>
+                                  <NoteItem
+                                    key={note.id}
+                                    note={note}
+                                    isActive={note.id === currentNoteId}
+                                    onSelect={() => setCurrentNote(note.id)}
+                                    onDelete={() => openDelete(note)}
+                                  />
                                 ))}
                             </div>
                           );
                         })}
+                    </div>
+                  );
+                })}
+            </div>
+          );
+        })}
+
+        {/* 2-level: Theme → Task → Notes (no category) */}
+        {tree.themeGroups.map((tg) => {
+          const themeKey = `theme:${tg.theme}`;
+          const thExpanded = expandedThemes.has(themeKey);
+          return (
+            <div key={themeKey}>
+              <button
+                onClick={() => toggle(expandedThemes, setExpandedThemes, themeKey)}
+                className="w-full flex items-center gap-1.5 px-2 py-1.5 text-xs font-semibold text-zinc-700 dark:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-700/50 rounded-md transition-colors"
+              >
+                <ChevronRight
+                  className={`w-3.5 h-3.5 shrink-0 text-zinc-400 transition-transform ${thExpanded ? 'rotate-90' : ''}`}
+                />
+                <SwatchBook className="w-3.5 h-3.5 shrink-0 text-purple-400" />
+                <span className="truncate">{tg.theme}</span>
+              </button>
+
+              {thExpanded &&
+                tg.tasks.map((tk) => {
+                  const taskKey = `${themeKey}|||${tk.taskId}`;
+                  const tkExpanded = expandedTasks.has(taskKey);
+                  return (
+                    <div key={tk.taskId} className="ml-3">
+                      <button
+                        onClick={() => toggle(expandedTasks, setExpandedTasks, taskKey)}
+                        className="w-full flex items-center gap-1.5 px-2 py-1 text-xs text-zinc-500 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-700/50 rounded-md transition-colors"
+                      >
+                        <ChevronRight
+                          className={`w-3 h-3 shrink-0 text-zinc-400 transition-transform ${tkExpanded ? 'rotate-90' : ''}`}
+                        />
+                        <span className="truncate font-medium text-zinc-600 dark:text-zinc-300">
+                          {tk.taskLabel}
+                        </span>
+                      </button>
+
+                      {tkExpanded &&
+                        tk.notes.map((note) => (
+                          <NoteItem
+                            key={note.id}
+                            note={note}
+                            isActive={note.id === currentNoteId}
+                            onSelect={() => setCurrentNote(note.id)}
+                            onDelete={() => openDelete(note)}
+                          />
+                        ))}
                     </div>
                   );
                 })}

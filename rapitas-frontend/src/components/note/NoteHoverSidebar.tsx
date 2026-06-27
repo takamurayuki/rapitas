@@ -25,7 +25,7 @@ import { useUIModeStore } from '@/stores/ui-mode-store';
 import DeleteNoteModal from './DeleteNoteModal';
 import { useLocaleStore } from '@/stores/locale-store';
 import { toDateLocale } from '@/lib/utils';
-import { buildNoteTree, parseNotePath } from './note-tree-utils';
+import { buildNoteTree, parseNotePath, parseNotePathThemeOnly } from './note-tree-utils';
 
 export default function NoteHoverSidebar() {
   const {
@@ -86,16 +86,22 @@ export default function NoteHoverSidebar() {
     if (searchQuery) {
       setExpandedCategories(new Set(tree.categories.map((c) => c.category)));
       setExpandedThemes(
-        new Set(tree.categories.flatMap((c) => c.themes.map((t) => `${c.category}|||${t.theme}`))),
+        new Set([
+          ...tree.categories.flatMap((c) => c.themes.map((t) => `${c.category}|||${t.theme}`)),
+          ...tree.themeGroups.map((tg) => `theme:${tg.theme}`),
+        ]),
       );
       setExpandedTasks(
-        new Set(
-          tree.categories.flatMap((c) =>
+        new Set([
+          ...tree.categories.flatMap((c) =>
             c.themes.flatMap((t) =>
               t.tasks.map((tk) => `${c.category}|||${t.theme}|||${tk.taskId}`),
             ),
           ),
-        ),
+          ...tree.themeGroups.flatMap((tg) =>
+            tg.tasks.map((tk) => `theme:${tg.theme}|||${tk.taskId}`),
+          ),
+        ]),
       );
     }
   }, [searchQuery, tree]);
@@ -110,24 +116,40 @@ export default function NoteHoverSidebar() {
     if (activeNote.linkedTaskIds?.length && activeNote.linkedTaskMeta) {
       for (const taskId of activeNote.linkedTaskIds) {
         const meta = activeNote.linkedTaskMeta[taskId];
-        if (!meta?.categoryName || !meta?.themeName) continue;
-        const themeKey = `${meta.categoryName}|||${meta.themeName}`;
-        const taskKey = `${themeKey}|||${taskId}`;
-        setExpandedCategories((s) => new Set([...s, meta.categoryName]));
-        setExpandedThemes((s) => new Set([...s, themeKey]));
-        setExpandedTasks((s) => new Set([...s, taskKey]));
+        if (!meta) continue;
+        if (meta.categoryName && meta.themeName) {
+          const themeKey = `${meta.categoryName}|||${meta.themeName}`;
+          const taskKey = `${themeKey}|||${taskId}`;
+          setExpandedCategories((s) => new Set([...s, meta.categoryName]));
+          setExpandedThemes((s) => new Set([...s, themeKey]));
+          setExpandedTasks((s) => new Set([...s, taskKey]));
+        } else if (meta.themeName) {
+          const themeKey = `theme:${meta.themeName}`;
+          const taskKey = `${themeKey}|||${taskId}`;
+          setExpandedThemes((s) => new Set([...s, themeKey]));
+          setExpandedTasks((s) => new Set([...s, taskKey]));
+        }
       }
       return;
     }
 
-    // Fallback: title parsing
-    const parsed = parseNotePath(activeNote.title);
-    if (!parsed) return;
-    const themeKey = `${parsed.category}|||${parsed.theme}`;
-    const taskKey = `${themeKey}|||${parsed.taskId}`;
-    setExpandedCategories((s) => new Set([...s, parsed.category]));
-    setExpandedThemes((s) => new Set([...s, themeKey]));
-    setExpandedTasks((s) => new Set([...s, taskKey]));
+    // Fallback: title parsing (3-level then 2-level)
+    const parsed3 = parseNotePath(activeNote.title);
+    if (parsed3) {
+      const themeKey = `${parsed3.category}|||${parsed3.theme}`;
+      const taskKey = `${themeKey}|||${parsed3.taskId}`;
+      setExpandedCategories((s) => new Set([...s, parsed3.category]));
+      setExpandedThemes((s) => new Set([...s, themeKey]));
+      setExpandedTasks((s) => new Set([...s, taskKey]));
+      return;
+    }
+    const parsed2 = parseNotePathThemeOnly(activeNote.title);
+    if (parsed2) {
+      const themeKey = `theme:${parsed2.theme}`;
+      const taskKey = `${themeKey}|||${parsed2.taskId}`;
+      setExpandedThemes((s) => new Set([...s, themeKey]));
+      setExpandedTasks((s) => new Set([...s, taskKey]));
+    }
   }, [currentNoteId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const toggle = (set: Set<string>, setFn: (s: Set<string>) => void, key: string) => {
@@ -166,7 +188,7 @@ export default function NoteHoverSidebar() {
 
   if (currentMode !== 'note') return null;
 
-  const hasLinked = tree.categories.length > 0;
+  const hasLinked = tree.categories.length > 0 || tree.themeGroups.length > 0;
   const hasSolo = tree.standalone.length > 0;
   const isEmpty = !hasLinked && !hasSolo;
 
@@ -374,6 +396,50 @@ export default function NoteHoverSidebar() {
                                     </div>
                                   );
                                 })}
+                            </div>
+                          );
+                        })}
+                    </div>
+                  );
+                })}
+
+                {/* 2-level: Theme → Task → Notes (no category) */}
+                {tree.themeGroups.map((tg) => {
+                  const themeKey = `theme:${tg.theme}`;
+                  const thExp = expandedThemes.has(themeKey);
+                  return (
+                    <div key={themeKey}>
+                      <button
+                        onClick={() => toggle(expandedThemes, setExpandedThemes, themeKey)}
+                        className="w-full flex items-center gap-2 px-2 py-1.5 text-sm font-semibold text-zinc-700 dark:text-zinc-200 hover:bg-zinc-50 dark:hover:bg-zinc-800/50 rounded-lg transition-colors"
+                      >
+                        <ChevronRight
+                          className={`w-4 h-4 shrink-0 text-zinc-400 transition-transform ${thExp ? 'rotate-90' : ''}`}
+                        />
+                        <SwatchBook className="w-4 h-4 shrink-0 text-purple-400" />
+                        <span className="truncate">{tg.theme}</span>
+                      </button>
+
+                      {thExp &&
+                        tg.tasks.map((tk) => {
+                          const tkKey = `${themeKey}|||${tk.taskId}`;
+                          const tkExp = expandedTasks.has(tkKey);
+                          return (
+                            <div key={tk.taskId} className="ml-4">
+                              <button
+                                onClick={() => toggle(expandedTasks, setExpandedTasks, tkKey)}
+                                className="w-full flex items-center gap-2 px-2 py-1 text-xs text-zinc-500 dark:text-zinc-400 hover:bg-zinc-50 dark:hover:bg-zinc-800/50 rounded-lg transition-colors"
+                              >
+                                <ChevronRight
+                                  className={`w-3 h-3 shrink-0 text-zinc-400 transition-transform ${tkExp ? 'rotate-90' : ''}`}
+                                />
+                                <span className="truncate font-medium text-zinc-600 dark:text-zinc-300">
+                                  {tk.taskLabel}
+                                </span>
+                              </button>
+                              {tkExp && (
+                                <div className="ml-4 space-y-0.5">{tk.notes.map(renderNote)}</div>
+                              )}
                             </div>
                           );
                         })}
