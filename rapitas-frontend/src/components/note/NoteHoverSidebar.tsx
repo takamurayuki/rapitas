@@ -1,29 +1,38 @@
 'use client';
-import { useState, useRef, useEffect } from 'react';
+/**
+ * NoteHoverSidebar
+ *
+ * Hover-expandable left sidebar accessible from any page (note mode only).
+ * Displays notes in a collapsible Category → Theme → Task → Notes tree.
+ * Notes not matching the hierarchy pattern appear under "その他".
+ */
+import { useState, useRef, useEffect, useMemo } from 'react';
 import {
   NotebookTabs,
   ChevronRight,
   Plus,
   Search,
   Hash,
-  Pin,
   Trash2,
   Calendar,
   FileText,
+  Folders,
+  SwatchBook,
+  NotebookPen,
 } from 'lucide-react';
-import { useNoteStore } from '@/stores/note-store';
-import { useDarkMode } from '@/hooks/ui/useDarkMode';
+import { useNoteStore, type Note } from '@/stores/note-store';
 import { useUIModeStore } from '@/stores/ui-mode-store';
 import DeleteNoteModal from './DeleteNoteModal';
 import { useLocaleStore } from '@/stores/locale-store';
 import { toDateLocale } from '@/lib/utils';
+import { buildNoteTree, parseNotePath } from './note-tree-utils';
 
 export default function NoteHoverSidebar() {
   const {
     currentNoteId,
+    notes,
     searchQuery,
     selectedTags,
-    getFilteredNotes,
     getAllTags,
     createNote,
     deleteNote,
@@ -35,80 +44,156 @@ export default function NoteHoverSidebar() {
   const locale = useLocaleStore((s) => s.locale);
   const dateLocale = toDateLocale(locale);
   const { currentMode } = useUIModeStore();
+
   const [isExpanded, setIsExpanded] = useState(false);
   const [isHovered, setIsHovered] = useState(false);
   const [deleteModalState, setDeleteModalState] = useState<{
     isOpen: boolean;
     noteId: string | null;
     noteTitle: string;
-  }>({
-    isOpen: false,
-    noteId: null,
-    noteTitle: '',
-  });
+  }>({ isOpen: false, noteId: null, noteTitle: '' });
+
+  const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set());
+  const [expandedThemes, setExpandedThemes] = useState<Set<string>>(new Set());
+  const [expandedTasks, setExpandedTasks] = useState<Set<string>>(new Set());
+
   const sidebarRef = useRef<HTMLDivElement>(null);
   const hoverTimerRef = useRef<NodeJS.Timeout | null>(null);
 
-  const filteredNotes = getFilteredNotes();
   const allTags = getAllTags();
 
-  // Hover handling
+  const filtered = useMemo(() => {
+    let list = [...notes];
+    if (searchQuery) {
+      const q = searchQuery.toLowerCase();
+      list = list.filter(
+        (n) => n.title.toLowerCase().includes(q) || n.content.toLowerCase().includes(q),
+      );
+    }
+    if (selectedTags.length > 0) {
+      list = list.filter((n) => selectedTags.every((t) => n.tags?.includes(t)));
+    }
+    return list.sort((a, b) => {
+      if (a.isPinned !== b.isPinned) return a.isPinned ? -1 : 1;
+      return new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime();
+    });
+  }, [notes, searchQuery, selectedTags]);
+
+  const tree = useMemo(() => buildNoteTree(filtered), [filtered]);
+
+  // Auto-expand all when searching
+  useEffect(() => {
+    if (searchQuery) {
+      setExpandedCategories(new Set(tree.categories.map((c) => c.category)));
+      setExpandedThemes(
+        new Set(tree.categories.flatMap((c) => c.themes.map((t) => `${c.category}|||${t.theme}`))),
+      );
+      setExpandedTasks(
+        new Set(
+          tree.categories.flatMap((c) =>
+            c.themes.flatMap((t) =>
+              t.tasks.map((tk) => `${c.category}|||${t.theme}|||${tk.taskId}`),
+            ),
+          ),
+        ),
+      );
+    }
+  }, [searchQuery, tree]);
+
+  // Expand the path of the active note
+  useEffect(() => {
+    if (!currentNoteId) return;
+    const activeNote = notes.find((n) => n.id === currentNoteId);
+    if (!activeNote) return;
+    const parsed = parseNotePath(activeNote.title);
+    if (!parsed) return;
+    const themeKey = `${parsed.category}|||${parsed.theme}`;
+    const taskKey = `${themeKey}|||${parsed.taskId}`;
+    setExpandedCategories((s) => new Set([...s, parsed.category]));
+    setExpandedThemes((s) => new Set([...s, themeKey]));
+    setExpandedTasks((s) => new Set([...s, taskKey]));
+  }, [currentNoteId]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const toggle = (set: Set<string>, setFn: (s: Set<string>) => void, key: string) => {
+    const next = new Set(set);
+    if (next.has(key)) next.delete(key);
+    else next.add(key);
+    setFn(next);
+  };
+
   const handleMouseEnter = () => {
     setIsHovered(true);
     if (hoverTimerRef.current) clearTimeout(hoverTimerRef.current);
-    hoverTimerRef.current = setTimeout(() => {
-      setIsExpanded(true);
-    }, 300);
+    hoverTimerRef.current = setTimeout(() => setIsExpanded(true), 300);
   };
-
   const handleMouseLeave = () => {
     setIsHovered(false);
     if (hoverTimerRef.current) clearTimeout(hoverTimerRef.current);
-    hoverTimerRef.current = setTimeout(() => {
-      setIsExpanded(false);
-    }, 300);
+    hoverTimerRef.current = setTimeout(() => setIsExpanded(false), 300);
   };
-
-  // Cleanup
-  useEffect(() => {
-    return () => {
+  useEffect(
+    () => () => {
       if (hoverTimerRef.current) clearTimeout(hoverTimerRef.current);
-    };
-  }, []);
-
-  // Only render in note mode
-  if (currentMode !== 'note') return null;
-
-  const handleDeleteNote = (id: string, title: string) => {
-    setDeleteModalState({
-      isOpen: true,
-      noteId: id,
-      noteTitle: title,
-    });
-  };
-
-  const confirmDelete = () => {
-    if (deleteModalState.noteId) {
-      deleteNote(deleteModalState.noteId);
-    }
-    setDeleteModalState({ isOpen: false, noteId: null, noteTitle: '' });
-  };
-
-  const cancelDelete = () => {
-    setDeleteModalState({ isOpen: false, noteId: null, noteTitle: '' });
-  };
+    },
+    [],
+  );
 
   const formatDate = (date: Date) => {
     const d = new Date(date);
     const now = new Date();
-    const diffTime = Math.abs(now.getTime() - d.getTime());
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-
+    const diffDays = Math.ceil(Math.abs(now.getTime() - d.getTime()) / (1000 * 60 * 60 * 24));
     if (diffDays === 0) return '今日';
     if (diffDays === 1) return '昨日';
     if (diffDays < 7) return `${diffDays}日前`;
     return d.toLocaleDateString(dateLocale, { month: 'short', day: 'numeric' });
   };
+
+  if (currentMode !== 'note') return null;
+
+  const hasLinked = tree.categories.length > 0;
+  const hasSolo = tree.standalone.length > 0;
+  const isEmpty = !hasLinked && !hasSolo;
+
+  const renderNote = (note: Note) => (
+    <div
+      key={note.id}
+      onClick={() => setCurrentNote(note.id)}
+      className={`group px-3 py-2 rounded-lg cursor-pointer transition-all ${
+        currentNoteId === note.id
+          ? 'bg-indigo-50 dark:bg-indigo-900/20 border-l-2 border-indigo-500'
+          : 'hover:bg-zinc-50 dark:hover:bg-zinc-800/50'
+      }`}
+    >
+      <div className="flex items-start justify-between gap-2">
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-1 mb-0.5">
+            <NotebookPen className="w-3 h-3 shrink-0 text-blue-400" />
+            <h4 className="font-medium text-xs truncate text-zinc-900 dark:text-zinc-100">
+              {note.title.includes(' > ')
+                ? (note.title.split(' > ').pop() ?? note.title)
+                : note.title || '(無題)'}
+            </h4>
+          </div>
+          <p className="text-xs text-zinc-500 dark:text-zinc-400 line-clamp-1">
+            {note.content.replace(/<[^>]*>/g, '') || '内容なし'}
+          </p>
+          <div className="flex items-center gap-1 mt-0.5 text-[10px] text-zinc-400">
+            <Calendar className="w-2.5 h-2.5" />
+            {formatDate(note.updatedAt)}
+          </div>
+        </div>
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            setDeleteModalState({ isOpen: true, noteId: note.id, noteTitle: note.title });
+          }}
+          className="opacity-0 group-hover:opacity-100 p-1 text-zinc-400 hover:text-red-500 transition-all shrink-0"
+        >
+          <Trash2 className="w-3.5 h-3.5" />
+        </button>
+      </div>
+    </div>
+  );
 
   return (
     <div
@@ -119,7 +204,7 @@ export default function NoteHoverSidebar() {
       onMouseEnter={handleMouseEnter}
       onMouseLeave={handleMouseLeave}
     >
-      {/* Tab section */}
+      {/* Collapsed tab strip */}
       <div
         className={`absolute top-20 left-0 h-32 w-12 bg-linear-to-b from-indigo-500 to-purple-600 dark:from-indigo-600 dark:to-purple-700 rounded-r-xl flex items-center justify-center cursor-pointer transition-all duration-300 ${
           isHovered ? 'scale-105' : ''
@@ -133,7 +218,7 @@ export default function NoteHoverSidebar() {
         </div>
       </div>
 
-      {/* Sidebar body */}
+      {/* Expanded panel */}
       <div
         className={`h-full bg-white dark:bg-zinc-900 shadow-2xl transition-all duration-300 ${
           isExpanded ? 'translate-x-0 opacity-100' : '-translate-x-full opacity-0'
@@ -146,8 +231,7 @@ export default function NoteHoverSidebar() {
               <NotebookTabs className="w-5 h-5 text-indigo-500" />
               <h3 className="font-semibold text-lg">ノート</h3>
             </div>
-
-            {/* Search and create */}
+            {/* Search at top */}
             <div className="space-y-2">
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-400" />
@@ -156,7 +240,7 @@ export default function NoteHoverSidebar() {
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   placeholder="ノートを検索..."
-                  className="w-full pl-9 pr-3 py-2 bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg text-sm focus:outline-none focus:border-blue-400"
+                  className="w-full pl-9 pr-3 py-2 bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg text-sm focus:outline-none focus:border-indigo-400"
                 />
               </div>
               <button
@@ -172,9 +256,6 @@ export default function NoteHoverSidebar() {
           {/* Tag filter */}
           {allTags.length > 0 && (
             <div className="px-4 py-3 border-b border-zinc-200 dark:border-zinc-800">
-              <h4 className="text-xs font-medium text-zinc-500 dark:text-zinc-400 mb-2">
-                タグフィルター
-              </h4>
               <div className="flex flex-wrap gap-1">
                 {allTags.map((tag) => (
                   <button
@@ -202,10 +283,10 @@ export default function NoteHoverSidebar() {
             </div>
           )}
 
-          {/* Note list */}
-          <div className="flex-1 overflow-y-auto custom-scrollbar">
-            {filteredNotes.length === 0 ? (
-              <div className="p-4 text-center">
+          {/* Note tree */}
+          <div className="flex-1 overflow-y-auto custom-scrollbar p-2">
+            {isEmpty ? (
+              <div className="py-6 text-center">
                 <FileText className="w-12 h-12 mx-auto text-zinc-300 dark:text-zinc-600 mb-2" />
                 <p className="text-sm text-zinc-500 dark:text-zinc-400">
                   {searchQuery || selectedTags.length > 0
@@ -214,78 +295,103 @@ export default function NoteHoverSidebar() {
                 </p>
               </div>
             ) : (
-              <div className="p-2 space-y-1">
-                {filteredNotes.map((note) => (
-                  <div
-                    key={note.id}
-                    onClick={() => setCurrentNote(note.id)}
-                    className={`group p-3 rounded-lg cursor-pointer transition-all duration-200 ${
-                      currentNoteId === note.id
-                        ? 'bg-indigo-50 dark:bg-indigo-900/20 border-l-2 border-indigo-500'
-                        : 'hover:bg-zinc-50 dark:hover:bg-zinc-800/50'
-                    }`}
-                  >
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-1 mb-1">
-                          {note.isPinned && <Pin className="w-3 h-3 text-yellow-500 shrink-0" />}
-                          <h4 className="font-medium text-sm truncate text-zinc-900 dark:text-zinc-100">
-                            {note.title}
-                          </h4>
-                        </div>
-                        <p className="text-xs text-zinc-500 dark:text-zinc-400 line-clamp-2 mb-1">
-                          {note.content.replace(/<[^>]*>/g, '') || '内容なし'}
-                        </p>
-                        <div className="flex items-center gap-2">
-                          {note.tags?.length > 0 && (
-                            <div className="flex items-center gap-1">
-                              {note.tags.slice(0, 2).map((tag) => (
-                                <span
-                                  key={tag}
-                                  className="inline-flex items-center gap-0.5 px-1.5 py-0.5 bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300 rounded text-xs"
-                                >
-                                  <Hash className="w-2.5 h-2.5" />
-                                  {tag}
-                                </span>
-                              ))}
-                              {note.tags.length > 2 && (
-                                <span className="text-xs text-zinc-400">
-                                  +{note.tags.length - 2}
-                                </span>
-                              )}
-                            </div>
-                          )}
-                          <div className="flex items-center gap-1 text-xs text-zinc-400">
-                            <Calendar className="w-3 h-3" />
-                            {formatDate(note.updatedAt)}
-                          </div>
-                        </div>
-                      </div>
+              <div className="space-y-0.5">
+                {/* Linked notes hierarchy */}
+                {tree.categories.map((cat) => {
+                  const catExp = expandedCategories.has(cat.category);
+                  return (
+                    <div key={cat.category}>
                       <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleDeleteNote(note.id, note.title);
-                        }}
-                        className="opacity-0 group-hover:opacity-100 p-1 text-zinc-400 hover:text-red-500 transition-all duration-200 shrink-0"
-                        title="削除"
+                        onClick={() =>
+                          toggle(expandedCategories, setExpandedCategories, cat.category)
+                        }
+                        className="w-full flex items-center gap-2 px-2 py-1.5 text-sm font-semibold text-zinc-700 dark:text-zinc-200 hover:bg-zinc-50 dark:hover:bg-zinc-800/50 rounded-lg transition-colors"
                       >
-                        <Trash2 className="w-4 h-4" />
+                        <ChevronRight
+                          className={`w-4 h-4 shrink-0 text-zinc-400 transition-transform ${catExp ? 'rotate-90' : ''}`}
+                        />
+                        <Folders className="w-4 h-4 shrink-0 text-indigo-400" />
+                        <span className="truncate">{cat.category}</span>
                       </button>
+
+                      {catExp &&
+                        cat.themes.map((th) => {
+                          const thKey = `${cat.category}|||${th.theme}`;
+                          const thExp = expandedThemes.has(thKey);
+                          return (
+                            <div key={th.theme} className="ml-4">
+                              <button
+                                onClick={() => toggle(expandedThemes, setExpandedThemes, thKey)}
+                                className="w-full flex items-center gap-2 px-2 py-1 text-sm font-medium text-zinc-600 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800/50 rounded-lg transition-colors"
+                              >
+                                <ChevronRight
+                                  className={`w-3.5 h-3.5 shrink-0 text-zinc-400 transition-transform ${thExp ? 'rotate-90' : ''}`}
+                                />
+                                <SwatchBook className="w-3.5 h-3.5 shrink-0 text-purple-400" />
+                                <span className="truncate">{th.theme}</span>
+                              </button>
+
+                              {thExp &&
+                                th.tasks.map((tk) => {
+                                  const tkKey = `${thKey}|||${tk.taskId}`;
+                                  const tkExp = expandedTasks.has(tkKey);
+                                  return (
+                                    <div key={tk.taskId} className="ml-4">
+                                      <button
+                                        onClick={() =>
+                                          toggle(expandedTasks, setExpandedTasks, tkKey)
+                                        }
+                                        className="w-full flex items-center gap-2 px-2 py-1 text-xs text-zinc-500 dark:text-zinc-400 hover:bg-zinc-50 dark:hover:bg-zinc-800/50 rounded-lg transition-colors"
+                                      >
+                                        <ChevronRight
+                                          className={`w-3 h-3 shrink-0 text-zinc-400 transition-transform ${tkExp ? 'rotate-90' : ''}`}
+                                        />
+                                        <span className="truncate font-medium text-zinc-600 dark:text-zinc-300">
+                                          {tk.taskLabel}
+                                        </span>
+                                      </button>
+                                      {tkExp && (
+                                        <div className="ml-4 space-y-0.5">
+                                          {tk.notes.map(renderNote)}
+                                        </div>
+                                      )}
+                                    </div>
+                                  );
+                                })}
+                            </div>
+                          );
+                        })}
                     </div>
+                  );
+                })}
+
+                {/* Standalone notes */}
+                {hasSolo && (
+                  <div>
+                    {hasLinked && (
+                      <div className="flex items-center gap-2 px-2 pt-2 pb-1">
+                        <div className="flex-1 h-px bg-zinc-200 dark:bg-zinc-700" />
+                        <span className="text-[10px] text-zinc-400 shrink-0">その他</span>
+                        <div className="flex-1 h-px bg-zinc-200 dark:bg-zinc-700" />
+                      </div>
+                    )}
+                    <div className="space-y-0.5">{tree.standalone.map(renderNote)}</div>
                   </div>
-                ))}
+                )}
               </div>
             )}
           </div>
         </div>
       </div>
 
-      {/* Delete confirmation modal */}
       <DeleteNoteModal
         isOpen={deleteModalState.isOpen}
         noteTitle={deleteModalState.noteTitle}
-        onConfirm={confirmDelete}
-        onCancel={cancelDelete}
+        onConfirm={() => {
+          if (deleteModalState.noteId) deleteNote(deleteModalState.noteId);
+          setDeleteModalState({ isOpen: false, noteId: null, noteTitle: '' });
+        }}
+        onCancel={() => setDeleteModalState({ isOpen: false, noteId: null, noteTitle: '' })}
       />
     </div>
   );

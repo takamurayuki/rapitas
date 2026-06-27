@@ -8,10 +8,23 @@
  */
 
 import { useState } from 'react';
-import { NotebookTabs, Sparkles, Columns2, Search, ArrowLeftRight } from 'lucide-react';
+import {
+  NotebookTabs,
+  Sparkles,
+  Columns2,
+  Search,
+  ArrowLeftRight,
+  NotebookPen,
+} from 'lucide-react';
 import { useNoteStore, type ModalTab, type SplitNoteSide } from '@/stores/note-store';
 import NoteTabContent from '@/components/note/note-tab-content';
 import AITabContent from '@/components/note/ai-tab-content';
+
+const TABS: { id: ModalTab; label: string; icon: React.ElementType }[] = [
+  { id: 'note', label: 'ノート', icon: NotebookTabs },
+  { id: 'ai', label: 'AI', icon: Sparkles },
+  { id: 'split', label: '両方', icon: Columns2 },
+];
 
 export default function NotesPage() {
   const { notes, currentNoteId, searchQuery, createNote, setSearchQuery } = useNoteStore();
@@ -32,88 +45,62 @@ export default function NotesPage() {
 
   return (
     <div className="flex flex-col h-[calc(100vh-4rem)]">
-      {/* Page header — tab switcher + search */}
-      <div className="flex items-center gap-3 px-4 py-2 bg-linear-to-r from-indigo-500 to-purple-600 dark:from-indigo-600 dark:to-purple-700 select-none shrink-0">
-        {/* Tab switcher */}
-        <div
-          className="flex items-center bg-white/15 rounded-md p-0.5"
-          role="tablist"
-          aria-label="ノートページ"
-        >
-          <button
-            role="tab"
-            aria-selected={activeTab === 'note'}
-            onClick={() => handleTabChange('note')}
-            className={`flex items-center gap-1 px-3 py-1.5 rounded text-xs font-medium transition-all ${
-              activeTab === 'note'
-                ? 'bg-white/25 text-white shadow-sm'
-                : 'text-white/60 hover:text-white'
-            }`}
-          >
-            <NotebookTabs className="w-3.5 h-3.5" aria-hidden="true" />
-            <span>ノート</span>
-          </button>
-          <button
-            role="tab"
-            aria-selected={activeTab === 'ai'}
-            onClick={() => handleTabChange('ai')}
-            className={`flex items-center gap-1 px-3 py-1.5 rounded text-xs font-medium transition-all ${
-              activeTab === 'ai'
-                ? 'bg-white/25 text-white shadow-sm'
-                : 'text-white/60 hover:text-white'
-            }`}
-          >
-            <Sparkles className="w-3.5 h-3.5" aria-hidden="true" />
-            <span>AI</span>
-          </button>
-          <button
-            role="tab"
-            aria-selected={activeTab === 'split'}
-            onClick={() => handleTabChange('split')}
-            className={`flex items-center gap-1 px-3 py-1.5 rounded text-xs font-medium transition-all ${
-              activeTab === 'split'
-                ? 'bg-white/25 text-white shadow-sm'
-                : 'text-white/60 hover:text-white'
-            }`}
-          >
-            <Columns2 className="w-3.5 h-3.5" aria-hidden="true" />
-            <span>両方</span>
-          </button>
+      {/* Page header — matches the app's zinc chrome, no gradient */}
+      <div className="flex items-center justify-between gap-4 px-5 py-3 bg-white dark:bg-zinc-900 border-b border-zinc-200 dark:border-zinc-800 shrink-0">
+        {/* Title */}
+        <div className="flex items-center gap-2.5">
+          <NotebookPen className="w-5 h-5 text-indigo-500 shrink-0" />
+          <h1 className="text-base font-semibold text-zinc-800 dark:text-zinc-100">ノート</h1>
         </div>
 
-        {/* Search — visible for note and split tabs */}
-        {showSearch && (
-          <div className="relative flex-1 max-w-xs">
-            <Search
-              className="absolute left-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-white/50"
-              aria-hidden="true"
-            />
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="ノートを検索..."
-              aria-label="ノートを検索"
-              className="w-full pl-7 pr-2 py-1 bg-white/15 hover:bg-white/20 focus:bg-white/25 text-white placeholder:text-white/50 text-sm rounded-lg border border-white/10 focus:border-white/30 focus:outline-none transition-all"
-            />
-          </div>
-        )}
+        {/* Segmented tab control — same pill style as list/kanban toggle */}
+        <div className="flex items-center bg-zinc-100 dark:bg-zinc-800 rounded-lg p-1">
+          {TABS.map(({ id, label, icon: Icon }) => (
+            <button
+              key={id}
+              onClick={() => handleTabChange(id)}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-all ${
+                activeTab === id
+                  ? 'bg-white dark:bg-zinc-700 text-zinc-900 dark:text-zinc-50 shadow-sm'
+                  : 'text-zinc-500 dark:text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200'
+              }`}
+            >
+              <Icon className="w-4 h-4" />
+              <span>{label}</span>
+            </button>
+          ))}
+        </div>
 
-        {/* Swap sides button — split tab only */}
-        {activeTab === 'split' && (
-          <button
-            onClick={() => setSplitNoteSide((s) => (s === 'right' ? 'left' : 'right'))}
-            className="ml-auto p-1.5 text-white/80 hover:text-white hover:bg-white/10 rounded-lg transition-colors"
-            title={
-              splitNoteSide === 'right'
-                ? 'ノートを左に移動（AIを右に）'
-                : 'ノートを右に移動（AIを左に）'
-            }
-            aria-label="左右を入れ替える"
-          >
-            <ArrowLeftRight className="w-4 h-4" />
-          </button>
-        )}
+        {/* Search (note / split tabs only) + swap button (split only) */}
+        <div className="flex items-center gap-2">
+          {showSearch && (
+            <div className="relative">
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-zinc-400" />
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="ノートを検索..."
+                aria-label="ノートを検索"
+                className="pl-8 pr-3 py-1.5 w-52 text-sm bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg focus:outline-none focus:border-indigo-400 text-zinc-700 dark:text-zinc-200 placeholder:text-zinc-400"
+              />
+            </div>
+          )}
+          {activeTab === 'split' && (
+            <button
+              onClick={() => setSplitNoteSide((s) => (s === 'right' ? 'left' : 'right'))}
+              className="p-2 text-zinc-500 dark:text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-lg transition-colors"
+              title={
+                splitNoteSide === 'right'
+                  ? 'ノートを左に移動（AIを右に）'
+                  : 'ノートを右に移動（AIを左に）'
+              }
+              aria-label="左右を入れ替える"
+            >
+              <ArrowLeftRight className="w-4 h-4" />
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Tab body */}
