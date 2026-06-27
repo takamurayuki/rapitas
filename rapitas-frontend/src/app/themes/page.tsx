@@ -93,7 +93,7 @@ export default function ThemesPage() {
 
         {/* Add form */}
         {isAdding && (
-          <div className="mb-4 rounded-xl border-2 border-purple-500 bg-white dark:bg-indigo-dark-900 p-4 shadow-xl">
+          <div className="mb-4 rounded-xl border-2 border-purple-500 bg-white dark:bg-indigo-dark-900 p-4">
             <ThemeForm
               isEdit={false}
               formData={formData}

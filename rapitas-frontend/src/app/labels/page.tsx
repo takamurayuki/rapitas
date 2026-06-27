@@ -86,7 +86,7 @@ export default function LabelsPage() {
 
         {/* Add form */}
         {isAdding && (
-          <div className="mb-4 rounded-xl border-2 border-indigo-500 bg-white dark:bg-indigo-dark-900 p-4 shadow-xl">
+          <div className="mb-4 rounded-xl border-2 border-indigo-500 bg-white dark:bg-indigo-dark-900 p-4">
             <LabelForm
               formData={formData}
               setFormData={setFormData}

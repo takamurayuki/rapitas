@@ -69,7 +69,7 @@ export default function CommentsSection({
   return (
     <div
       ref={containerRef}
-      className="bg-white dark:bg-indigo-dark-900 rounded-2xl shadow-xl border border-zinc-200/50 dark:border-zinc-800 overflow-hidden"
+      className="bg-white dark:bg-indigo-dark-900 rounded-2xl border border-zinc-200/50 dark:border-zinc-800 overflow-hidden"
     >
       {/* Header */}
       <button

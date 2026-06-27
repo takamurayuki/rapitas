@@ -90,7 +90,7 @@ export default function TaskEditForm({
   const tc = useTranslations('common');
   const descriptionTextareaRef = useRef<HTMLTextAreaElement>(null);
   return (
-    <div className="bg-white dark:bg-indigo-dark-900 rounded-2xl shadow-xl border border-zinc-200/50 dark:border-zinc-800 overflow-hidden">
+    <div className="bg-white dark:bg-indigo-dark-900 rounded-2xl border border-zinc-200/50 dark:border-zinc-800 overflow-hidden">
       {/* Title Input with Status */}
       <div className="p-6 border-b border-zinc-100 dark:border-zinc-800">
         <div className="flex flex-col sm:flex-row sm:items-center gap-3">

@@ -104,7 +104,7 @@ export const LoadingSpinner = ({ variant = 'default' }: PageSkeletonProps) => {
         </div>
 
         {/* Main Card */}
-        <div className="bg-white dark:bg-indigo-dark-900 rounded-2xl shadow-xl border border-zinc-200/50 dark:border-zinc-800 overflow-hidden mb-6">
+        <div className="bg-white dark:bg-indigo-dark-900 rounded-2xl border border-zinc-200/50 dark:border-zinc-800 overflow-hidden mb-6">
           {/* Title row */}
           <div className="p-5 border-b border-zinc-100 dark:border-zinc-800">
             <SkeletonBlock className="h-7 w-2/3" />
@@ -130,7 +130,7 @@ export const LoadingSpinner = ({ variant = 'default' }: PageSkeletonProps) => {
         </div>
 
         {/* Secondary Card */}
-        <div className="bg-white dark:bg-indigo-dark-900 rounded-2xl shadow-xl border border-zinc-200/50 dark:border-zinc-800 overflow-hidden">
+        <div className="bg-white dark:bg-indigo-dark-900 rounded-2xl border border-zinc-200/50 dark:border-zinc-800 overflow-hidden">
           <div className="p-4 border-b border-zinc-100 dark:border-zinc-800">
             <div className="flex items-center gap-2">
               <SkeletonBlock className="w-5 h-5 rounded" />
@@ -176,7 +176,7 @@ export const NewTaskSkeleton = () => {
 
       <div className="max-w-2xl mx-auto px-4 pb-8">
         {/* Main Card */}
-        <div className="bg-white dark:bg-indigo-dark-900 rounded-2xl shadow-xl shadow-zinc-200/50 dark:shadow-none border border-zinc-200/50 dark:border-zinc-800 overflow-hidden">
+        <div className="bg-white dark:bg-indigo-dark-900 rounded-2xl border border-zinc-200/50 dark:border-zinc-800 overflow-hidden">
           {/* Title Section */}
           <div className="p-4 border-b border-zinc-100 dark:border-zinc-800">
             <SkeletonBlock className="h-6 w-3/4" />

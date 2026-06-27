@@ -20,7 +20,7 @@ export function RecentLearnings({ memoryOverview, formatDate }: RecentLearningsP
   return (
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
       {/* Latest learning patterns */}
-      <div className="p-6 bg-white dark:bg-zinc-800 rounded-xl border border-zinc-200 dark:border-zinc-700 shadow-sm dark:shadow-2xl dark:shadow-black/50">
+      <div className="p-6 bg-white dark:bg-zinc-800 rounded-xl border border-zinc-200 dark:border-zinc-700 shadow-sm">
         <div className="flex items-center gap-3 mb-4">
           <div className="p-2 bg-orange-100 dark:bg-orange-900/30 text-orange-600 dark:text-orange-400 rounded-lg">
             <Sparkles className="w-5 h-5" />
@@ -56,7 +56,7 @@ export function RecentLearnings({ memoryOverview, formatDate }: RecentLearningsP
       </div>
 
       {/* Latest knowledge nodes */}
-      <div className="p-6 bg-white dark:bg-zinc-800 rounded-xl border border-zinc-200 dark:border-zinc-700 shadow-sm dark:shadow-2xl dark:shadow-black/50">
+      <div className="p-6 bg-white dark:bg-zinc-800 rounded-xl border border-zinc-200 dark:border-zinc-700 shadow-sm">
         <div className="flex items-center gap-3 mb-4">
           <div className="p-2 bg-indigo-100 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 rounded-lg">
             <Network className="w-5 h-5" />

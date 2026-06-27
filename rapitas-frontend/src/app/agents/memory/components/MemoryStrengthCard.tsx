@@ -18,7 +18,7 @@ export function MemoryStrengthCard({ memoryOverview }: MemoryStrengthCardProps) 
   const levelCfg = LEVEL_CONFIG[memoryOverview.memoryStrength.level] ?? LEVEL_CONFIG.beginner;
 
   return (
-    <div className="mb-8 p-6 bg-white dark:bg-zinc-800 rounded-xl border border-zinc-200 dark:border-zinc-700 shadow-sm dark:shadow-2xl dark:shadow-black/50">
+    <div className="mb-8 p-6 bg-white dark:bg-zinc-800 rounded-xl border border-zinc-200 dark:border-zinc-700 shadow-sm">
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-4">
           <div className={`p-3 rounded-xl ${levelCfg.bg}`}>

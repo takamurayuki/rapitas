@@ -33,7 +33,7 @@ export function ConfidenceTrendChart({
   if (data.length === 0) return null;
 
   return (
-    <div className="mb-8 p-6 bg-white dark:bg-zinc-800 rounded-xl border border-zinc-200 dark:border-zinc-700 shadow-sm dark:shadow-2xl dark:shadow-black/50">
+    <div className="mb-8 p-6 bg-white dark:bg-zinc-800 rounded-xl border border-zinc-200 dark:border-zinc-700 shadow-sm">
       <div className="flex items-center gap-3 mb-6">
         <div className="p-2 bg-amber-100 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400 rounded-lg">
           <Target className="w-5 h-5" />
