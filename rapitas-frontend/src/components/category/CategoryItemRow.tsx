@@ -198,7 +198,7 @@ export function CategoryItemRow({
                 )}
                 <button
                   onClick={() => onEdit(item)}
-                  className="flex items-center gap-1.5 rounded-lg bg-blue-100 dark:bg-blue-900/30 px-2.5 py-1.5 text-sm text-blue-700 dark:text-blue-300 hover:bg-blue-200 dark:hover:bg-blue-900/50 transition-all font-medium"
+                  className="flex items-center gap-1.5 rounded-lg bg-indigo-100 dark:bg-indigo-900/30 px-2.5 py-1.5 text-sm text-indigo-700 dark:text-indigo-300 hover:bg-indigo-200 dark:hover:bg-indigo-900/50 transition-all font-medium"
                 >
                   <Edit2 className="w-3.5 h-3.5" />
                   <span className="hidden sm:inline">{tc('edit')}</span>

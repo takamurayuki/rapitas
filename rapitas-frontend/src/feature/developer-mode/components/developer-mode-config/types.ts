@@ -39,7 +39,7 @@ export const AGENT_TYPE_INFO: Record<string, { icon: typeof Bot; color: string; 
     label: 'Claude Code',
   },
   codex: { icon: Zap, color: 'text-green-500', label: 'Codex CLI' },
-  gemini: { icon: Activity, color: 'text-blue-500', label: 'Gemini CLI' },
+  gemini: { icon: Activity, color: 'text-indigo-500', label: 'Gemini CLI' },
 };
 
 export const TABS: { id: TabId; label: string; icon: typeof Search }[] = [

@@ -16,7 +16,7 @@ type ToggleButtonProps = {
 const enabledStyles: Record<ToggleButtonColor, string> = {
   violet:
     'bg-violet-100 dark:bg-violet-900/30 text-violet-700 dark:text-violet-300 border-violet-200 dark:border-violet-700',
-  blue: 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 border-blue-200 dark:border-blue-700',
+  blue: 'bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300 border-indigo-200 dark:border-indigo-700',
   emerald:
     'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-700',
   red: 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300 border-red-200 dark:border-red-700',
@@ -27,7 +27,7 @@ const enabledStyles: Record<ToggleButtonColor, string> = {
 
 const enabledIconStyles: Record<ToggleButtonColor, string> = {
   violet: 'text-violet-600 dark:text-violet-400',
-  blue: 'text-blue-600 dark:text-blue-400',
+  blue: 'text-indigo-600 dark:text-indigo-400',
   emerald: 'text-emerald-600 dark:text-emerald-400',
   red: 'text-red-600 dark:text-red-400',
   amber: 'text-amber-600 dark:text-amber-400',
@@ -36,7 +36,7 @@ const enabledIconStyles: Record<ToggleButtonColor, string> = {
 
 const enabledBadgeStyles: Record<ToggleButtonColor, string> = {
   violet: 'bg-violet-200 dark:bg-violet-800 text-violet-700 dark:text-violet-200',
-  blue: 'bg-blue-200 dark:bg-blue-800 text-blue-700 dark:text-blue-200',
+  blue: 'bg-indigo-200 dark:bg-indigo-800 text-indigo-700 dark:text-indigo-200',
   emerald: 'bg-emerald-200 dark:bg-emerald-800 text-emerald-700 dark:text-emerald-200',
   red: 'bg-red-200 dark:bg-red-800 text-red-700 dark:text-red-200',
   amber: 'bg-amber-200 dark:bg-amber-800 text-amber-700 dark:text-amber-200',

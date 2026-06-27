@@ -197,7 +197,7 @@ export default function PullRequestsClient() {
             <select
               value={selectedIntegration}
               onChange={(e) => setSelectedIntegration(e.target.value)}
-              className="px-3 py-2 border border-zinc-300 dark:border-zinc-600 rounded-lg bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 text-sm focus:border-blue-400"
+              className="px-3 py-2 border border-zinc-300 dark:border-zinc-600 rounded-lg bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 text-sm focus:border-indigo-400"
             >
               <option value="">すべてのリポジトリ</option>
               {integrations.map((integration) => (

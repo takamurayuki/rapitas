@@ -123,7 +123,7 @@ export function WebhookSettings() {
             value={slackUrl}
             onChange={(e) => setSlackUrl(e.target.value)}
             placeholder="https://hooks.slack.com/services/..."
-            className="flex-1 px-3 py-2 text-sm rounded-lg border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 focus:border-blue-400"
+            className="flex-1 px-3 py-2 text-sm rounded-lg border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 focus:border-indigo-400"
           />
           <button
             onClick={() => testWebhook('slack')}
@@ -146,7 +146,7 @@ export function WebhookSettings() {
             value={discordUrl}
             onChange={(e) => setDiscordUrl(e.target.value)}
             placeholder="https://discord.com/api/webhooks/..."
-            className="flex-1 px-3 py-2 text-sm rounded-lg border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 focus:border-blue-400"
+            className="flex-1 px-3 py-2 text-sm rounded-lg border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 focus:border-indigo-400"
           />
           <button
             onClick={() => testWebhook('discord')}

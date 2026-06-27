@@ -520,14 +520,14 @@ export default function IdeasClient() {
                 if (e.key === 'Escape') handleCancel();
               }}
               placeholder="アイデアをひとことで..."
-              className="w-full rounded-lg border-0 bg-white px-4 py-3 text-sm shadow-sm placeholder:text-zinc-400 focus:outline-none focus:ring-1 focus:ring-blue-400 dark:bg-zinc-800 dark:placeholder:text-zinc-500"
+              className="w-full rounded-lg border-0 bg-white px-4 py-3 text-sm shadow-sm placeholder:text-zinc-400 focus:outline-none focus:ring-1 focus:ring-indigo-400 dark:bg-zinc-800 dark:placeholder:text-zinc-500"
             />
             <textarea
               ref={contentTextareaRef}
               value={newContent}
               onChange={(e) => setNewContent(e.target.value)}
               placeholder="詳細（任意）"
-              className="w-full rounded-lg border-0 bg-white px-4 py-2.5 text-xs shadow-sm placeholder:text-zinc-400 focus:outline-none focus:ring-1 focus:ring-blue-400 dark:bg-zinc-800 dark:placeholder:text-zinc-500 resize-none overflow-hidden min-h-[3rem] max-h-[60vh]"
+              className="w-full rounded-lg border-0 bg-white px-4 py-2.5 text-xs shadow-sm placeholder:text-zinc-400 focus:outline-none focus:ring-1 focus:ring-indigo-400 dark:bg-zinc-800 dark:placeholder:text-zinc-500 resize-none overflow-hidden min-h-[3rem] max-h-[60vh]"
               style={{ overflowY: 'auto' }}
             />
             <div className="flex flex-wrap items-center gap-2">
@@ -563,7 +563,7 @@ export default function IdeasClient() {
                   setNewCategoryId(id);
                   setNewThemeId(null);
                 }}
-                className="rounded-lg border border-zinc-200 bg-white px-2 py-1 text-[11px] outline-none focus:border-blue-400 dark:border-zinc-700 dark:bg-zinc-800"
+                className="rounded-lg border border-zinc-200 bg-white px-2 py-1 text-[11px] outline-none focus:border-indigo-400 dark:border-zinc-700 dark:bg-zinc-800"
               >
                 <option value="">カテゴリ</option>
                 {categories.map((cat) => (
@@ -575,7 +575,7 @@ export default function IdeasClient() {
               <select
                 value={newThemeId ?? ''}
                 onChange={(e) => setNewThemeId(e.target.value ? parseInt(e.target.value) : null)}
-                className="rounded-lg border border-zinc-200 bg-white px-2 py-1 text-[11px] outline-none focus:border-blue-400 dark:border-zinc-700 dark:bg-zinc-800"
+                className="rounded-lg border border-zinc-200 bg-white px-2 py-1 text-[11px] outline-none focus:border-indigo-400 dark:border-zinc-700 dark:bg-zinc-800"
               >
                 <option value="">テーマ</option>
                 {filteredThemes.map((th) => (
@@ -619,7 +619,7 @@ export default function IdeasClient() {
               <select
                 value={priorityFilter}
                 onChange={(e) => setPriorityFilter(e.target.value as 'all' | IdeaPriority)}
-                className="rounded-lg border border-zinc-200 bg-white px-2 py-1.5 text-xs outline-none focus:border-blue-400 dark:border-zinc-700 dark:bg-zinc-800"
+                className="rounded-lg border border-zinc-200 bg-white px-2 py-1.5 text-xs outline-none focus:border-indigo-400 dark:border-zinc-700 dark:bg-zinc-800"
               >
                 <option value="all">すべての優先度</option>
                 <option value="urgent">緊急</option>
@@ -634,7 +634,7 @@ export default function IdeasClient() {
                   setFilterCategoryId(id);
                   setFilterThemeId(null);
                 }}
-                className="rounded-lg border border-zinc-200 bg-white px-2 py-1.5 text-xs outline-none focus:border-blue-400 dark:border-zinc-700 dark:bg-zinc-800"
+                className="rounded-lg border border-zinc-200 bg-white px-2 py-1.5 text-xs outline-none focus:border-indigo-400 dark:border-zinc-700 dark:bg-zinc-800"
               >
                 <option value="">すべてのカテゴリ</option>
                 {categories.map((cat) => (
@@ -646,7 +646,7 @@ export default function IdeasClient() {
               <select
                 value={filterThemeId ?? ''}
                 onChange={(e) => setFilterThemeId(e.target.value ? parseInt(e.target.value) : null)}
-                className="rounded-lg border border-zinc-200 bg-white px-2 py-1.5 text-xs outline-none focus:border-blue-400 dark:border-zinc-700 dark:bg-zinc-800"
+                className="rounded-lg border border-zinc-200 bg-white px-2 py-1.5 text-xs outline-none focus:border-indigo-400 dark:border-zinc-700 dark:bg-zinc-800"
               >
                 <option value="">すべてのテーマ</option>
                 {filterThemes.map((th) => (
@@ -857,7 +857,7 @@ export default function IdeasClient() {
                     setThemePickerCategoryId(value);
                     setThemePickerThemeId(null);
                   }}
-                  className="w-full rounded border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-800 px-3 py-2 text-sm text-zinc-900 dark:text-zinc-100 focus:outline-none focus:border-blue-400"
+                  className="w-full rounded border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-800 px-3 py-2 text-sm text-zinc-900 dark:text-zinc-100 focus:outline-none focus:border-indigo-400"
                 >
                   <option value="">すべて</option>
                   {categories.map((c) => (
@@ -876,7 +876,7 @@ export default function IdeasClient() {
                   onChange={(e) =>
                     setThemePickerThemeId(e.target.value ? parseInt(e.target.value) : null)
                   }
-                  className="w-full rounded border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-800 px-3 py-2 text-sm text-zinc-900 dark:text-zinc-100 focus:outline-none focus:border-blue-400"
+                  className="w-full rounded border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-800 px-3 py-2 text-sm text-zinc-900 dark:text-zinc-100 focus:outline-none focus:border-indigo-400"
                 >
                   <option value="">テーマを選択してください</option>
                   {themePickerThemes.map((th) => (

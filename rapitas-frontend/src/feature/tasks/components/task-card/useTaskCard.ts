@@ -2,7 +2,7 @@
 // useTaskCard
 import { useState, useRef, useEffect } from 'react';
 import type { Task, Status } from '@/types';
-import { statusConfig, resolveStatusConfig } from '@/feature/tasks/config/StatusConfig';
+import { type statusConfig, resolveStatusConfig } from '@/feature/tasks/config/StatusConfig';
 import { useToast } from '@/components/ui/toast/ToastContainer';
 import { API_BASE_URL } from '@/utils/api';
 import { prefetch } from '@/lib/api-client';
@@ -144,9 +144,9 @@ export function useTaskCard(
 
   const getProgressBarColor = (rate: number) => {
     if (rate === 100) return 'bg-green-500';
-    if (rate >= 80) return 'bg-gradient-to-r from-blue-500 to-green-500';
-    if (rate >= 50) return 'bg-blue-500';
-    return 'bg-gradient-to-r from-blue-500 to-orange-500';
+    if (rate >= 80) return 'bg-gradient-to-r from-indigo-500 to-green-500';
+    if (rate >= 50) return 'bg-indigo-500';
+    return 'bg-gradient-to-r from-indigo-500 to-orange-500';
   };
 
   const getExecutionClasses = (): ExecutionClasses | null => {
@@ -154,8 +154,8 @@ export function useTaskCard(
       case 'running':
         return {
           borderColor: 'blue',
-          badgeClass: 'bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300',
-          dotClass: 'bg-blue-500',
+          badgeClass: 'bg-indigo-100 dark:bg-indigo-900 text-indigo-700 dark:text-indigo-300',
+          dotClass: 'bg-indigo-500',
           label: t('running'),
         };
       case 'waiting_for_input':

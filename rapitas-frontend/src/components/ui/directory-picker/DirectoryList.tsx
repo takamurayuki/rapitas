@@ -80,7 +80,7 @@ function NewFolderForm({
             }
           }}
           placeholder="フォルダ名を入力..."
-          className="flex-1 px-3 py-1.5 text-sm bg-white dark:bg-zinc-900 border border-zinc-300 dark:border-zinc-600 rounded-md focus:outline-none focus:border-blue-400"
+          className="flex-1 px-3 py-1.5 text-sm bg-white dark:bg-zinc-900 border border-zinc-300 dark:border-zinc-600 rounded-md focus:outline-none focus:border-indigo-400"
           disabled={isCreating}
         />
         <button
@@ -216,7 +216,7 @@ export function DirectoryList({
                   className="w-full flex items-center gap-3 px-4 py-3 hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-colors text-left"
                 >
                   {isDrive ? (
-                    <HardDrive className="w-5 h-5 text-blue-500 shrink-0" />
+                    <HardDrive className="w-5 h-5 text-indigo-500 shrink-0" />
                   ) : (
                     <Folder className="w-5 h-5 text-amber-500 shrink-0" />
                   )}

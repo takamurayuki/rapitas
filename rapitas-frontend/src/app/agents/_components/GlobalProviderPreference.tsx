@@ -61,7 +61,7 @@ const PROVIDERS: ProviderEntry[] = [
     label: 'Gemini',
     description: 'Gemini CLI',
     icon: Cloud,
-    iconColor: 'text-blue-500',
+    iconColor: 'text-indigo-500',
   },
 ];
 

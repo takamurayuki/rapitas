@@ -115,8 +115,8 @@ export function OptimizationResultView({
           )}
           {result.promptQuality.suggestions.length > 0 && (
             <div className="flex items-start gap-2">
-              <Lightbulb className="w-4 h-4 text-blue-500 mt-0.5 shrink-0" />
-              <div className="text-sm text-blue-700 dark:text-blue-400">
+              <Lightbulb className="w-4 h-4 text-indigo-500 mt-0.5 shrink-0" />
+              <div className="text-sm text-indigo-700 dark:text-indigo-400">
                 <span className="font-medium">提案: </span>
                 {result.promptQuality.suggestions.join(', ')}
               </div>
@@ -156,9 +156,9 @@ export function OptimizationResultView({
 
           {result.structuredSections.context && (
             <div className="flex items-start gap-3">
-              <FileText className="w-4 h-4 text-blue-500 mt-0.5 shrink-0" />
+              <FileText className="w-4 h-4 text-indigo-500 mt-0.5 shrink-0" />
               <div>
-                <p className="text-xs font-medium text-blue-600 dark:text-blue-400 uppercase tracking-wide mb-1">
+                <p className="text-xs font-medium text-indigo-600 dark:text-indigo-400 uppercase tracking-wide mb-1">
                   背景・コンテキスト
                 </p>
                 <p className="text-sm text-zinc-700 dark:text-zinc-300">

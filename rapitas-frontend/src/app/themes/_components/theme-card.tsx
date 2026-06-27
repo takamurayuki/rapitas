@@ -64,7 +64,7 @@ export function ThemeCard({ item, provided, renderIcon, onEdit, onDelete, onSetD
             />
           )}
           {item.isDevelopment && (
-            <span className="inline-flex items-center gap-1 text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 shrink-0">
+            <span className="inline-flex items-center gap-1 text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300 shrink-0">
               <Code className="w-2.5 h-2.5" />
               Dev
             </span>
@@ -109,7 +109,7 @@ export function ThemeCard({ item, provided, renderIcon, onEdit, onDelete, onSetD
         </button>
         <button
           onClick={() => onEdit(item)}
-          className="p-2 text-zinc-400 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-colors"
+          className="p-2 text-zinc-400 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 rounded-lg transition-colors"
           title={tc('edit')}
         >
           <Pencil className="w-4 h-4" />

@@ -79,7 +79,7 @@ export function KanbanColumn({
             {...provided.droppableProps}
             className={`flex-1 rounded-lg p-3 transition-colors ${
               snapshot.isDraggingOver
-                ? 'bg-blue-50 dark:bg-blue-950'
+                ? 'bg-indigo-50 dark:bg-indigo-950'
                 : 'bg-zinc-50 dark:bg-indigo-dark-900'
             } min-h-[200px]`}
           >

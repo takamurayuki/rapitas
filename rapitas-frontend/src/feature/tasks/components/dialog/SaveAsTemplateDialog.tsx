@@ -159,7 +159,7 @@ export default function SaveAsTemplateDialog({ task, isOpen, onClose, onSuccess 
               value={name}
               onChange={(e) => setName(e.target.value)}
               placeholder="テンプレート名を入力"
-              className="w-full bg-zinc-50 dark:bg-zinc-800 rounded-xl px-4 py-2.5 text-sm border border-zinc-200 dark:border-zinc-700 outline-none focus:border-blue-400 transition-all"
+              className="w-full bg-zinc-50 dark:bg-zinc-800 rounded-xl px-4 py-2.5 text-sm border border-zinc-200 dark:border-zinc-700 outline-none focus:border-indigo-400 transition-all"
             />
           </div>
 
@@ -172,7 +172,7 @@ export default function SaveAsTemplateDialog({ task, isOpen, onClose, onSuccess 
               onChange={(e) => setDescription(e.target.value)}
               placeholder="テンプレートの説明を入力"
               rows={3}
-              className="w-full bg-zinc-50 dark:bg-zinc-800 rounded-xl px-4 py-2.5 text-sm border border-zinc-200 dark:border-zinc-700 outline-none focus:border-blue-400 transition-all resize-none"
+              className="w-full bg-zinc-50 dark:bg-zinc-800 rounded-xl px-4 py-2.5 text-sm border border-zinc-200 dark:border-zinc-700 outline-none focus:border-indigo-400 transition-all resize-none"
             />
           </div>
 
@@ -219,7 +219,7 @@ export default function SaveAsTemplateDialog({ task, isOpen, onClose, onSuccess 
                   value={customCategory}
                   onChange={(e) => setCustomCategory(e.target.value)}
                   placeholder="新しいカテゴリ名を入力"
-                  className="w-full bg-zinc-50 dark:bg-zinc-800 rounded-xl px-4 py-2.5 text-sm border border-zinc-200 dark:border-zinc-700 outline-none focus:border-blue-400 transition-all"
+                  className="w-full bg-zinc-50 dark:bg-zinc-800 rounded-xl px-4 py-2.5 text-sm border border-zinc-200 dark:border-zinc-700 outline-none focus:border-indigo-400 transition-all"
                   autoFocus
                 />
                 <button

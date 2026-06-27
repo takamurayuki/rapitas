@@ -22,7 +22,7 @@ import { ErrorList } from './error-analysis/ErrorList';
 const categoryColors = {
   [ErrorCategory.SYNTAX]: 'bg-purple-500',
   [ErrorCategory.RUNTIME]: 'bg-red-500',
-  [ErrorCategory.NETWORK]: 'bg-blue-500',
+  [ErrorCategory.NETWORK]: 'bg-indigo-500',
   [ErrorCategory.PERMISSION]: 'bg-orange-500',
   [ErrorCategory.CONFIGURATION]: 'bg-green-500',
   [ErrorCategory.DEPENDENCY]: 'bg-indigo-500',

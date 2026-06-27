@@ -53,7 +53,7 @@ export function MemoStatsBar({
           {noteCount}件
         </span>
         {pinnedCount > 0 && (
-          <span className="text-[10px] text-blue-500 flex items-center gap-1">
+          <span className="text-[10px] text-indigo-500 flex items-center gap-1">
             <Pin className="w-2.5 h-2.5" />
             {pinnedCount}
           </span>
@@ -74,7 +74,7 @@ export function MemoStatsBar({
           onClick={onToggleFilters}
           className={`flex items-center gap-1 px-2 py-0.5 text-[10px] rounded-full border transition-colors ${
             showFilters
-              ? 'bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 border-blue-200 dark:border-blue-800'
+              ? 'bg-indigo-50 dark:bg-indigo-900/20 text-indigo-600 dark:text-indigo-400 border-indigo-200 dark:border-indigo-800'
               : 'text-zinc-400 border-zinc-200 dark:border-zinc-700 hover:border-zinc-300 dark:hover:border-zinc-600'
           }`}
         >

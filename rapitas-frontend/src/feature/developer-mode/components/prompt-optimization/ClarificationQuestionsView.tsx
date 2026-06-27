@@ -84,7 +84,7 @@ export function ClarificationQuestionsView({
                     value={answers[q.id] || ''}
                     onChange={(e) => onAnswerChange(q.id, e.target.value)}
                     placeholder="回答を入力..."
-                    className="w-full mt-1 px-3 py-2 bg-white dark:bg-indigo-dark-800 border border-zinc-200 dark:border-zinc-700 rounded-lg text-sm focus:outline-none focus:border-blue-400"
+                    className="w-full mt-1 px-3 py-2 bg-white dark:bg-indigo-dark-800 border border-zinc-200 dark:border-zinc-700 rounded-lg text-sm focus:outline-none focus:border-indigo-400"
                   />
                 )}
               </div>

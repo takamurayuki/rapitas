@@ -90,7 +90,7 @@ export function CategoryItemForm({
           value={formData.name}
           onChange={(e) => setFormData({ ...formData, name: e.target.value })}
           placeholder={t('itemNamePlaceholder', { item: config.itemName })}
-          className={`w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 px-3 py-2 text-sm focus:outline-none focus:border-blue-400 transition-all`}
+          className={`w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 px-3 py-2 text-sm focus:outline-none focus:border-indigo-400 transition-all`}
           autoFocus
         />
       </div>
@@ -104,7 +104,7 @@ export function CategoryItemForm({
           onChange={(e) => setFormData({ ...formData, description: e.target.value })}
           placeholder={t('descriptionPlaceholder')}
           rows={1}
-          className={`w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 px-3 py-2 text-sm focus:outline-none focus:border-blue-400 transition-all resize-none`}
+          className={`w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 px-3 py-2 text-sm focus:outline-none focus:border-indigo-400 transition-all resize-none`}
         />
       </div>
 
@@ -124,7 +124,7 @@ export function CategoryItemForm({
               type="text"
               value={formData.color}
               onChange={(e) => setFormData({ ...formData, color: e.target.value })}
-              className={`flex-1 rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 px-3 py-2 text-sm focus:outline-none focus:border-blue-400 transition-all font-mono`}
+              className={`flex-1 rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 px-3 py-2 text-sm focus:outline-none focus:border-indigo-400 transition-all font-mono`}
             />
           </div>
         </div>
@@ -160,7 +160,7 @@ export function CategoryItemForm({
             value={iconSearchQuery}
             onChange={(e) => setIconSearchQuery(e.target.value)}
             placeholder={t('searchIconPlaceholder')}
-            className={`w-full pl-9 pr-3 py-2 rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-sm focus:outline-none focus:border-blue-400 transition-all`}
+            className={`w-full pl-9 pr-3 py-2 rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-sm focus:outline-none focus:border-indigo-400 transition-all`}
           />
         </div>
 

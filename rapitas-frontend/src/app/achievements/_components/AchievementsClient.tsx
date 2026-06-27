@@ -101,7 +101,7 @@ export const AchievementsClient: React.FC<AchievementsClientProps> = ({ userId }
           </h2>
           <button
             onClick={() => refreshAchievements()}
-            className="inline-flex items-center space-x-2 px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
+            className="inline-flex items-center space-x-2 px-4 py-2 bg-indigo-500 text-white rounded-lg hover:bg-indigo-600 transition-colors"
           >
             <RefreshCw className="w-4 h-4" />
             <span>再試行</span>
@@ -166,7 +166,7 @@ export const AchievementsClient: React.FC<AchievementsClientProps> = ({ userId }
               onClick={() => setNotificationsEnabled(!notificationsEnabled)}
               className={`p-2 rounded-lg transition-colors ${
                 notificationsEnabled
-                  ? 'bg-blue-500 text-white'
+                  ? 'bg-indigo-500 text-white'
                   : 'bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-400'
               }`}
               title={`通知を${notificationsEnabled ? '無効' : '有効'}にする`}
@@ -215,7 +215,7 @@ export const AchievementsClient: React.FC<AchievementsClientProps> = ({ userId }
           </div>
 
           <div className="bg-white dark:bg-gray-800 p-4 rounded-xl border border-gray-200 dark:border-gray-700">
-            <div className="text-2xl font-bold text-blue-600 dark:text-blue-400">
+            <div className="text-2xl font-bold text-indigo-600 dark:text-indigo-400">
               {Math.round(completionPercentage)}%
             </div>
             <div className="text-sm text-gray-600 dark:text-gray-400">完了率</div>
@@ -250,7 +250,7 @@ export const AchievementsClient: React.FC<AchievementsClientProps> = ({ userId }
                 onClick={() => handleTabClick(tab.id as TabType)}
                 className={`flex items-center space-x-2 px-6 py-4 font-medium transition-colors relative ${
                   activeTab === tab.id
-                    ? 'text-blue-600 dark:text-blue-400'
+                    ? 'text-indigo-600 dark:text-indigo-400'
                     : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200'
                 }`}
               >
@@ -260,7 +260,7 @@ export const AchievementsClient: React.FC<AchievementsClientProps> = ({ userId }
                   <span
                     className={`px-2 py-1 text-xs rounded-full ${
                       activeTab === tab.id
-                        ? 'bg-blue-100 dark:bg-blue-900 text-blue-600 dark:text-blue-400'
+                        ? 'bg-indigo-100 dark:bg-indigo-900 text-indigo-600 dark:text-indigo-400'
                         : 'bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400'
                     }`}
                   >
@@ -269,7 +269,7 @@ export const AchievementsClient: React.FC<AchievementsClientProps> = ({ userId }
                 )}
                 {activeTab === tab.id && (
                   <motion.div
-                    className="absolute bottom-0 left-0 right-0 h-0.5 bg-blue-600 dark:bg-blue-400"
+                    className="absolute bottom-0 left-0 right-0 h-0.5 bg-indigo-600 dark:bg-indigo-400"
                     layoutId="activeTab"
                   />
                 )}

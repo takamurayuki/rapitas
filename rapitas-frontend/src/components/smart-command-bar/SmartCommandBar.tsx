@@ -334,7 +334,7 @@ export default function SmartCommandBar() {
                 {s.type === 'task' ? (
                   <ListTodo className="w-4 h-4 text-violet-500 shrink-0" />
                 ) : s.type === 'comment' ? (
-                  <MessageSquare className="w-4 h-4 text-blue-500 shrink-0" />
+                  <MessageSquare className="w-4 h-4 text-indigo-500 shrink-0" />
                 ) : (
                   <FileText className="w-4 h-4 text-emerald-500 shrink-0" />
                 )}
@@ -354,7 +354,7 @@ export default function SmartCommandBar() {
                       s.status === 'done'
                         ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
                         : s.status === 'in-progress'
-                          ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400'
+                          ? 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-400'
                           : 'bg-zinc-100 text-zinc-600 dark:bg-zinc-700 dark:text-zinc-400'
                     }`}
                   >
@@ -388,7 +388,7 @@ export default function SmartCommandBar() {
             />
             <HintItem
               icon={Compass}
-              color="text-blue-500"
+              color="text-indigo-500"
               text={t('hintNavigate')}
               example={t('hintNavigateExample')}
             />

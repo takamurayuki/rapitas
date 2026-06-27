@@ -163,7 +163,7 @@ export function GoalDetailPanel({
               <button
                 onClick={onAdapt}
                 disabled={adapting}
-                className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-900/30 transition-colors disabled:opacity-50"
+                className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-indigo-50 dark:bg-indigo-900/20 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 rounded-lg hover:bg-indigo-100 dark:hover:bg-indigo-900/30 transition-colors disabled:opacity-50"
               >
                 {adapting ? (
                   <Loader2 className="w-4 h-4 animate-spin" />
@@ -238,7 +238,7 @@ export function GoalDetailPanel({
                                       ? 'bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300'
                                       : task.priority === 'low'
                                         ? 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300'
-                                        : 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300'
+                                        : 'bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300'
                                   }`}
                                 >
                                   {task.priority === 'high'
@@ -284,8 +284,8 @@ export function GoalDetailPanel({
 
           {/* Recommended resources */}
           {plan.recommendedResources && plan.recommendedResources.length > 0 && (
-            <div className="bg-blue-50 dark:bg-blue-900/20 rounded-lg p-4 mb-4">
-              <h3 className="font-semibold text-blue-800 dark:text-blue-200 mb-2 flex items-center gap-2">
+            <div className="bg-indigo-50 dark:bg-indigo-900/20 rounded-lg p-4 mb-4">
+              <h3 className="font-semibold text-indigo-800 dark:text-indigo-200 mb-2 flex items-center gap-2">
                 <BookOpen className="w-4 h-4" />
                 {t('recommendedResources')}
               </h3>
@@ -302,7 +302,7 @@ export function GoalDetailPanel({
                               ? 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300'
                               : resource.type === 'practice'
                                 ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300'
-                                : 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300'
+                                : 'bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300'
                       }`}
                     >
                       {resource.type === 'book'
@@ -316,10 +316,10 @@ export function GoalDetailPanel({
                               : t('resourceWeb')}
                     </span>
                     <div>
-                      <span className="font-medium text-blue-800 dark:text-blue-200">
+                      <span className="font-medium text-indigo-800 dark:text-indigo-200">
                         {resource.title}
                       </span>
-                      <span className="text-blue-600 dark:text-blue-300">
+                      <span className="text-indigo-600 dark:text-indigo-300">
                         {' '}
                         - {resource.description}
                       </span>
@@ -328,7 +328,7 @@ export function GoalDetailPanel({
                           href={resource.url}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="inline-flex items-center gap-0.5 ml-1 text-blue-500 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300"
+                          className="inline-flex items-center gap-0.5 ml-1 text-indigo-500 hover:text-indigo-700 dark:text-indigo-400 dark:hover:text-indigo-300"
                         >
                           <ExternalLink className="w-3 h-3" />
                         </a>

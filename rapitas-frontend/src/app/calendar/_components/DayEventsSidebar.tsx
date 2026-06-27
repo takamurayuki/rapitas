@@ -106,7 +106,7 @@ export function DayEventsSidebar({
             </button>
             <button
               onClick={onAddTask}
-              className="flex items-center gap-1 px-2 py-1 text-sm bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 rounded-lg hover:bg-blue-200 dark:hover:bg-blue-900/50 transition-colors"
+              className="flex items-center gap-1 px-2 py-1 text-sm bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300 rounded-lg hover:bg-indigo-200 dark:hover:bg-indigo-900/50 transition-colors"
             >
               <Plus className="w-4 h-4" />
               {t('addTaskShort')}

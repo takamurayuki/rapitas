@@ -46,7 +46,7 @@ export interface TabbedExecutionLogViewerProps {
 function getStatusIcon(status: ParallelExecutionStatus | ExecutionLogStatus) {
   switch (status) {
     case 'running':
-      return <Loader2 className="w-3 h-3 animate-spin text-blue-400" />;
+      return <Loader2 className="w-3 h-3 animate-spin text-indigo-400" />;
     case 'completed':
       return <CheckCircle2 className="w-3 h-3 text-green-400" />;
     case 'failed':

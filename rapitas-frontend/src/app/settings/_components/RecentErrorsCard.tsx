@@ -108,7 +108,7 @@ export default function RecentErrorsCard() {
                 <span
                   className={`shrink-0 rounded px-1.5 py-0.5 text-[10px] font-medium ${
                     e.source === 'frontend'
-                      ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300'
+                      ? 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300'
                       : 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300'
                   }`}
                 >

@@ -18,13 +18,13 @@ export function MetricsOverviewCards({ overview }: MetricsOverviewCardsProps) {
 
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-      <div className="bg-gradient-to-br from-blue-500 to-blue-600 text-white rounded-xl p-6">
+      <div className="bg-gradient-to-br from-indigo-500 to-indigo-600 text-white rounded-xl p-6">
         <div className="flex items-center justify-between">
           <div>
-            <p className="text-blue-100 text-sm">{t('totalExecutions')}</p>
+            <p className="text-indigo-100 text-sm">{t('totalExecutions')}</p>
             <p className="text-2xl font-bold">{overview.totalExecutions.toLocaleString()}</p>
           </div>
-          <Activity className="w-8 h-8 text-blue-200" />
+          <Activity className="w-8 h-8 text-indigo-200" />
         </div>
       </div>
 

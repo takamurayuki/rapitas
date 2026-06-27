@@ -94,7 +94,7 @@ export function ApiKeySection({
             className={`w-full px-3 py-2 pr-10 border rounded-lg bg-white dark:bg-zinc-700 text-zinc-900 dark:text-zinc-100 focus:outline-none ${
               fieldErrors.apiKey
                 ? 'border-red-400 dark:border-red-600 focus:border-red-500'
-                : 'border-zinc-300 dark:border-zinc-600 focus:border-blue-400'
+                : 'border-zinc-300 dark:border-zinc-600 focus:border-indigo-400'
             }`}
             placeholder={
               ['claudeCodeLocalCli', 'codexLocalCli', 'geminiLocalCli', 'apiKeyGeneric'].includes(
@@ -130,10 +130,12 @@ export function ApiKeySection({
       </div>
 
       {/* Security Info */}
-      <div className="mt-4 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
+      <div className="mt-4 p-3 bg-indigo-50 dark:bg-indigo-900/20 border border-indigo-200 dark:border-indigo-800 rounded-lg">
         <div className="flex gap-2">
-          <Info className="w-4 h-4 text-blue-600 dark:text-blue-400 shrink-0 mt-0.5" />
-          <p className="text-xs text-blue-600 dark:text-blue-400">{t('apiKeyEncryptionInfo')}</p>
+          <Info className="w-4 h-4 text-indigo-600 dark:text-indigo-400 shrink-0 mt-0.5" />
+          <p className="text-xs text-indigo-600 dark:text-indigo-400">
+            {t('apiKeyEncryptionInfo')}
+          </p>
         </div>
       </div>
     </div>

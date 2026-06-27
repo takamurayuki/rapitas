@@ -157,7 +157,7 @@ const TodayTaskProgressBar = memo<TodayTaskProgressBarProps>(
                 efficiency === 100
                   ? 'bg-gradient-to-r from-green-500 to-green-400 shadow-[0_0_10px_#10b981]'
                   : efficiency >= 75
-                    ? 'bg-blue-500/80'
+                    ? 'bg-indigo-500/80'
                     : efficiency >= 50
                       ? 'bg-slate-500 dark:bg-slate-400'
                       : 'bg-slate-400 dark:bg-slate-600'

@@ -82,7 +82,7 @@ export default function SubtaskItem({
 
   const selectionBorder =
     isSelectionMode && isSelected
-      ? 'border-blue-500 dark:border-blue-400 ring-1 ring-blue-500 dark:ring-blue-400'
+      ? 'border-indigo-500 dark:border-indigo-400 ring-1 ring-indigo-500 dark:ring-indigo-400'
       : 'border-zinc-200 dark:border-zinc-700';
 
   if (isCompleted) {
@@ -99,7 +99,7 @@ export default function SubtaskItem({
             {isSelectionMode && (
               <button onClick={() => onToggleSelect(subtask.id)} className="shrink-0">
                 {isSelected ? (
-                  <CheckSquare className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+                  <CheckSquare className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />
                 ) : (
                   <Square className="w-5 h-5 text-zinc-400" />
                 )}
@@ -166,7 +166,7 @@ export default function SubtaskItem({
             className="flex items-center gap-2 text-sm text-zinc-600 dark:text-zinc-400 hover:text-zinc-800 dark:hover:text-zinc-200"
           >
             {isSelected ? (
-              <CheckSquare className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+              <CheckSquare className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />
             ) : (
               <Square className="w-5 h-5" />
             )}
@@ -179,14 +179,14 @@ export default function SubtaskItem({
         <div className="space-y-3">
           <input
             type="text"
-            className="w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-indigo-dark-900 px-3 py-2 text-sm font-medium shadow-sm focus:outline-none focus:border-blue-400"
+            className="w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-indigo-dark-900 px-3 py-2 text-sm font-medium shadow-sm focus:outline-none focus:border-indigo-400"
             value={editingTitle}
             onChange={(e) => onEditingTitleChange(e.target.value)}
             placeholder={t('subtaskTitle')}
             autoFocus
           />
           <textarea
-            className="w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-indigo-dark-900 px-3 py-2 text-sm shadow-sm focus:outline-none focus:border-blue-400 font-mono"
+            className="w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-indigo-dark-900 px-3 py-2 text-sm shadow-sm focus:outline-none focus:border-indigo-400 font-mono"
             value={editingDescription}
             onChange={(e) => onEditingDescriptionChange(e.target.value)}
             placeholder={t('descriptionMarkdown')}
@@ -196,7 +196,7 @@ export default function SubtaskItem({
             <button
               onClick={onSaveEdit}
               disabled={!editingTitle.trim()}
-              className="flex items-center gap-1 px-3 py-1.5 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50"
+              className="flex items-center gap-1 px-3 py-1.5 text-sm font-medium text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 transition-colors disabled:opacity-50"
             >
               <Check className="w-4 h-4" />
               {tc('save')}

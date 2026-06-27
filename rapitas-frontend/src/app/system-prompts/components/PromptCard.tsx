@@ -145,7 +145,7 @@ export function PromptCard({
                   type="text"
                   value={editName}
                   onChange={(e) => setEditName(e.target.value)}
-                  className="w-full px-3 py-2 border border-zinc-300 dark:border-zinc-600 rounded-lg bg-white dark:bg-zinc-700 text-zinc-900 dark:text-zinc-100 focus:border-blue-400"
+                  className="w-full px-3 py-2 border border-zinc-300 dark:border-zinc-600 rounded-lg bg-white dark:bg-zinc-700 text-zinc-900 dark:text-zinc-100 focus:border-indigo-400"
                 />
               </div>
               <div>
@@ -156,7 +156,7 @@ export function PromptCard({
                   type="text"
                   value={editDescription}
                   onChange={(e) => setEditDescription(e.target.value)}
-                  className="w-full px-3 py-2 border border-zinc-300 dark:border-zinc-600 rounded-lg bg-white dark:bg-zinc-700 text-zinc-900 dark:text-zinc-100 focus:border-blue-400"
+                  className="w-full px-3 py-2 border border-zinc-300 dark:border-zinc-600 rounded-lg bg-white dark:bg-zinc-700 text-zinc-900 dark:text-zinc-100 focus:border-indigo-400"
                 />
               </div>
               <div>
@@ -167,7 +167,7 @@ export function PromptCard({
                   value={editContent}
                   onChange={(e) => setEditContent(e.target.value)}
                   rows={15}
-                  className="w-full px-3 py-2 border border-zinc-300 dark:border-zinc-600 rounded-lg bg-white dark:bg-zinc-700 text-zinc-900 dark:text-zinc-100 font-mono text-sm focus:border-blue-400 resize-y"
+                  className="w-full px-3 py-2 border border-zinc-300 dark:border-zinc-600 rounded-lg bg-white dark:bg-zinc-700 text-zinc-900 dark:text-zinc-100 font-mono text-sm focus:border-indigo-400 resize-y"
                 />
               </div>
               <div className="flex items-center justify-between">

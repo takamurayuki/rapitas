@@ -32,14 +32,14 @@ export function PrMergeSection({ prState, resetPrState, onCreatePR, onApproveMer
   return (
     <div className="px-6 py-4 border-t border-emerald-200 dark:border-emerald-800 bg-white/30 dark:bg-indigo-dark-900/20">
       <div className="flex items-center gap-2 mb-3">
-        <GitPullRequest className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+        <GitPullRequest className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
         <span className="text-sm font-medium text-zinc-700 dark:text-zinc-300">PR & マージ</span>
       </div>
 
       {prState.status === 'idle' && (
         <button
           onClick={onCreatePR}
-          className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium transition-colors"
+          className="flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-sm font-medium transition-colors"
         >
           <GitPullRequest className="w-4 h-4" />
           PR作成
@@ -63,7 +63,7 @@ export function PrMergeSection({ prState, resetPrState, onCreatePR, onApproveMer
                 href={prState.prUrl}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="text-blue-600 dark:text-blue-400 hover:underline inline-flex items-center gap-1"
+                className="text-indigo-600 dark:text-indigo-400 hover:underline inline-flex items-center gap-1"
               >
                 GitHub で確認
                 <ExternalLink className="w-3 h-3" />

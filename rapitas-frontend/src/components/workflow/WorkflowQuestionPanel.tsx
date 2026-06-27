@@ -143,9 +143,9 @@ export function WorkflowQuestionPanel({
       )}
 
       {remaining !== null && remaining > 0 && (
-        <div className="mt-3 flex items-center gap-2 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 dark:border-blue-700 dark:bg-blue-900/30">
-          <Clock className="h-4 w-4 text-blue-600 dark:text-blue-400" />
-          <span className="text-sm text-blue-700 dark:text-blue-300">
+        <div className="mt-3 flex items-center gap-2 rounded-lg border border-indigo-200 bg-indigo-50 px-3 py-2 dark:border-indigo-700 dark:bg-indigo-900/30">
+          <Clock className="h-4 w-4 text-indigo-600 dark:text-indigo-400" />
+          <span className="text-sm text-indigo-700 dark:text-indigo-300">
             回答がない場合、約 <span className="font-mono font-medium">{remaining}</span>{' '}
             秒後に自動的に続行します。
           </span>

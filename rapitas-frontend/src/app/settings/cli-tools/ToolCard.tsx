@@ -49,9 +49,9 @@ function getStatusDisplay(tool: CLITool) {
     };
   }
   return {
-    icon: <AlertCircle className="w-4 h-4 text-blue-500" />,
+    icon: <AlertCircle className="w-4 h-4 text-indigo-500" />,
     label: 'インストール済み',
-    className: 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300',
+    className: 'bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300',
   };
 }
 
@@ -160,7 +160,7 @@ export function ToolCard({
                   href={tool.officialSite}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1 text-xs text-blue-600 dark:text-blue-400 hover:underline"
+                  className="inline-flex items-center gap-1 text-xs text-indigo-600 dark:text-indigo-400 hover:underline"
                 >
                   公式サイト
                   <ExternalLink className="w-3 h-3" />
@@ -170,7 +170,7 @@ export function ToolCard({
                   href={tool.documentation}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1 text-xs text-blue-600 dark:text-blue-400 hover:underline"
+                  className="inline-flex items-center gap-1 text-xs text-indigo-600 dark:text-indigo-400 hover:underline"
                 >
                   ドキュメント
                   <ExternalLink className="w-3 h-3" />
@@ -194,7 +194,7 @@ export function ToolCard({
               <button
                 onClick={() => onInstall(tool.id)}
                 disabled={actionState.isInstalling}
-                className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                className="flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {actionState.isInstalling ? (
                   <Loader2 className="w-4 h-4 animate-spin" />

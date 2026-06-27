@@ -88,7 +88,7 @@ export default function TaskWorkflowSection({
       icon: CircleSmall,
     },
     standard: {
-      chip: 'bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300',
+      chip: 'bg-indigo-50 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300',
       icon: Diamond,
     },
     comprehensive: {

@@ -78,7 +78,7 @@ export function HomeExpandedFilters({
                         ? statusItem.color === 'amber'
                           ? 'bg-indigo-500 text-white shadow-md font-bold'
                           : statusItem.color === 'blue'
-                            ? 'bg-blue-500 text-white shadow-md font-bold'
+                            ? 'bg-indigo-500 text-white shadow-md font-bold'
                             : statusItem.color === 'green'
                               ? 'bg-green-500 text-white shadow-md font-bold'
                               : 'bg-slate-600 text-white shadow-md font-bold'
@@ -149,7 +149,7 @@ export function HomeExpandedFilters({
                           : priority.bgColor === 'orange'
                             ? 'bg-orange-500 text-white shadow-md font-bold'
                             : priority.bgColor === 'blue'
-                              ? 'bg-blue-500 text-white shadow-md font-bold'
+                              ? 'bg-indigo-500 text-white shadow-md font-bold'
                               : 'bg-slate-600 text-white shadow-md font-bold'
                       : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700'
                   }`}

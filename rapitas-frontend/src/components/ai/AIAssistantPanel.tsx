@@ -29,7 +29,7 @@ const PROVIDER_LABELS: Record<ApiProvider, string> = {
 const PROVIDER_COLORS: Record<ApiProvider, string> = {
   claude: 'bg-orange-500',
   chatgpt: 'bg-green-500',
-  gemini: 'bg-blue-500',
+  gemini: 'bg-indigo-500',
   ollama: 'bg-purple-500',
 };
 
@@ -48,7 +48,7 @@ const ChatMessage = ({ message }: { message: AIChatMessage }) => {
         <p className="text-sm whitespace-pre-wrap leading-relaxed">{message.content}</p>
         <span
           className={`text-xs mt-1 block ${
-            isUser ? 'text-blue-100' : 'text-zinc-400 dark:text-zinc-500'
+            isUser ? 'text-indigo-100' : 'text-zinc-400 dark:text-zinc-500'
           }`}
         >
           {message.timestamp.toLocaleTimeString('ja-JP', {
@@ -244,7 +244,7 @@ export default function AIAssistantPanel() {
                   {configuredProviders.length === 0 && (
                     <Link
                       href="/settings"
-                      className="inline-flex items-center gap-1 mt-2 text-sm text-blue-500 hover:text-blue-600 dark:text-blue-400"
+                      className="inline-flex items-center gap-1 mt-2 text-sm text-indigo-500 hover:text-indigo-600 dark:text-indigo-400"
                     >
                       <Settings className="w-4 h-4" />
                       設定画面でAPIキーを登録
@@ -260,7 +260,7 @@ export default function AIAssistantPanel() {
                     <select
                       value={selectedModel}
                       onChange={(e) => setSelectedModel(e.target.value)}
-                      className="w-full px-3 py-2 bg-white dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-600 rounded-lg text-sm text-zinc-900 dark:text-zinc-100 focus:outline-none focus:border-blue-400"
+                      className="w-full px-3 py-2 bg-white dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-600 rounded-lg text-sm text-zinc-900 dark:text-zinc-100 focus:outline-none focus:border-indigo-400"
                     >
                       <option value="">デフォルト</option>
                       {currentModels.map((m) => (
@@ -306,7 +306,7 @@ export default function AIAssistantPanel() {
                   <div className="flex justify-start mb-4">
                     <div className="bg-white dark:bg-zinc-800 rounded-2xl rounded-bl-md px-4 py-3 shadow-md">
                       <div className="flex items-center gap-2">
-                        <Loader2 className="w-4 h-4 animate-spin text-blue-500" />
+                        <Loader2 className="w-4 h-4 animate-spin text-indigo-500" />
                         <span className="text-sm text-zinc-500 dark:text-zinc-400">考え中...</span>
                       </div>
                     </div>
@@ -329,7 +329,7 @@ export default function AIAssistantPanel() {
                   error.includes('APIキーが無効です')) && (
                   <Link
                     href="/settings"
-                    className="inline-flex items-center gap-1 mt-2 text-sm text-blue-500 hover:text-blue-600 dark:text-blue-400 dark:hover:text-blue-300"
+                    className="inline-flex items-center gap-1 mt-2 text-sm text-indigo-500 hover:text-indigo-600 dark:text-indigo-400 dark:hover:text-indigo-300"
                   >
                     <Settings className="w-4 h-4" />
                     設定画面でAPIキーを設定する
@@ -354,7 +354,7 @@ export default function AIAssistantPanel() {
               onKeyDown={handleKeyDown}
               placeholder="メッセージを入力..."
               disabled={isLoading}
-              className="flex-1 resize-none rounded-xl border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-900 px-4 py-3 text-sm text-zinc-900 dark:text-zinc-100 placeholder:text-zinc-400 focus:outline-none focus:border-blue-400 disabled:opacity-50 disabled:cursor-not-allowed min-h-[48px] max-h-[150px]"
+              className="flex-1 resize-none rounded-xl border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-900 px-4 py-3 text-sm text-zinc-900 dark:text-zinc-100 placeholder:text-zinc-400 focus:outline-none focus:border-indigo-400 disabled:opacity-50 disabled:cursor-not-allowed min-h-[48px] max-h-[150px]"
               rows={1}
             />
             <button

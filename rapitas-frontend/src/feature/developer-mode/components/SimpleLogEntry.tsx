@@ -100,7 +100,7 @@ const CATEGORY_STYLES: Record<
     icon: 'text-amber-400',
     text: 'text-amber-300',
   },
-  progress: { row: '', icon: 'text-blue-400', text: 'text-blue-300' },
+  progress: { row: '', icon: 'text-indigo-400', text: 'text-indigo-300' },
   info: { row: '', icon: 'text-zinc-400', text: 'text-zinc-300' },
   'agent-text': { row: '', icon: 'text-zinc-500', text: 'text-zinc-400' },
   'tool-result': { row: '', icon: 'text-zinc-600', text: 'text-zinc-500' },
@@ -129,7 +129,7 @@ function hl(text: string, hp: HighlightProps): React.ReactNode {
 // ── Phase transition ───────────────────────────────────
 
 const PHASE_COLORS: Record<string, string> = {
-  research: 'border-blue-500/40 text-blue-300 bg-blue-500/10',
+  research: 'border-indigo-500/40 text-indigo-300 bg-indigo-500/10',
   plan: 'border-purple-500/40 text-purple-300 bg-purple-500/10',
   implement: 'border-amber-500/40 text-amber-300 bg-amber-500/10',
   verify: 'border-green-500/40 text-green-300 bg-green-500/10',
@@ -259,7 +259,7 @@ export const SimpleLogEntry: React.FC<SimpleLogEntryProps> = ({
         )}
       </div>
       {entry.category === 'progress' && (
-        <div className="w-1.5 h-1.5 bg-blue-400 rounded-full animate-pulse mt-1.5 flex-shrink-0" />
+        <div className="w-1.5 h-1.5 bg-indigo-400 rounded-full animate-pulse mt-1.5 flex-shrink-0" />
       )}
     </div>
   );

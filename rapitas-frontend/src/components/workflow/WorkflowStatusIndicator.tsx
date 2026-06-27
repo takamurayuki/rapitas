@@ -29,9 +29,9 @@ const STATUS_CONFIG: Record<
   // (overridden to 実装中 for lightweight below).
   draft: {
     label: '調査中',
-    color: 'text-blue-600 dark:text-blue-400',
-    bgColor: 'bg-blue-50 dark:bg-blue-900/30',
-    borderColor: 'border-blue-300 dark:border-blue-600',
+    color: 'text-indigo-600 dark:text-indigo-400',
+    bgColor: 'bg-indigo-50 dark:bg-indigo-900/30',
+    borderColor: 'border-indigo-300 dark:border-indigo-600',
     icon: FileSearch,
   },
   research_done: {
@@ -55,9 +55,9 @@ const STATUS_CONFIG: Record<
   // "実装中", making the verify phase look like it was still implementing.
   plan_approved: {
     label: '実装中',
-    color: 'text-blue-600 dark:text-blue-400',
-    bgColor: 'bg-blue-50 dark:bg-blue-900/30',
-    borderColor: 'border-blue-300 dark:border-blue-600',
+    color: 'text-indigo-600 dark:text-indigo-400',
+    bgColor: 'bg-indigo-50 dark:bg-indigo-900/30',
+    borderColor: 'border-indigo-300 dark:border-indigo-600',
     icon: Code,
   },
   in_progress: {

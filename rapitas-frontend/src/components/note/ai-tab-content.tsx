@@ -18,7 +18,7 @@ const PROVIDER_LABELS: Record<ApiProvider, string> = {
 const PROVIDER_COLORS: Record<ApiProvider, string> = {
   claude: 'bg-orange-500',
   chatgpt: 'bg-green-500',
-  gemini: 'bg-blue-500',
+  gemini: 'bg-indigo-500',
   ollama: 'bg-purple-500',
 };
 
@@ -153,7 +153,7 @@ export default function AITabContent() {
                     disabled={!isConfigured}
                     className={`flex-1 px-2 py-1.5 rounded-lg text-xs font-medium transition-all ${
                       isSelected
-                        ? 'bg-linear-to-r from-blue-500 to-indigo-600 text-white'
+                        ? 'bg-linear-to-r from-indigo-500 to-indigo-600 text-white'
                         : isConfigured
                           ? 'bg-white dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-700 border border-zinc-300 dark:border-zinc-600'
                           : 'bg-zinc-100 dark:bg-zinc-800 text-zinc-400 dark:text-zinc-600 cursor-not-allowed'
@@ -172,7 +172,7 @@ export default function AITabContent() {
             {configuredProviders.length === 0 && (
               <Link
                 href="/settings"
-                className="inline-flex items-center gap-1 mt-1.5 text-xs text-blue-500 hover:text-blue-600 dark:text-blue-400"
+                className="inline-flex items-center gap-1 mt-1.5 text-xs text-indigo-500 hover:text-indigo-600 dark:text-indigo-400"
               >
                 <Settings className="w-3 h-3" />
                 設定画面でAPIキーを登録
@@ -187,7 +187,7 @@ export default function AITabContent() {
               <select
                 value={selectedModel}
                 onChange={(e) => setSelectedModel(e.target.value)}
-                className="w-full px-2 py-1.5 bg-white dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-600 rounded-lg text-xs text-zinc-900 dark:text-zinc-100 focus:outline-none focus:border-blue-400"
+                className="w-full px-2 py-1.5 bg-white dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-600 rounded-lg text-xs text-zinc-900 dark:text-zinc-100 focus:outline-none focus:border-indigo-400"
               >
                 <option value="">デフォルト</option>
                 {currentModels.map((m) => (
@@ -226,7 +226,7 @@ export default function AITabContent() {
               <div className="flex justify-start mb-3">
                 <div className="bg-zinc-100 dark:bg-zinc-800 rounded-2xl rounded-bl-md px-3 py-2">
                   <div className="flex items-center gap-2">
-                    <Loader2 className="w-3.5 h-3.5 animate-spin text-blue-500" />
+                    <Loader2 className="w-3.5 h-3.5 animate-spin text-indigo-500" />
                     <span className="text-xs text-zinc-500 dark:text-zinc-400">考え中...</span>
                   </div>
                 </div>
@@ -257,13 +257,13 @@ export default function AITabContent() {
             onKeyDown={handleKeyDown}
             placeholder="メッセージを入力..."
             disabled={isLoading}
-            className="flex-1 resize-none rounded-xl border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800 px-3 py-2 text-sm text-zinc-900 dark:text-zinc-100 placeholder:text-zinc-400 focus:outline-none focus:border-blue-400 disabled:opacity-50 disabled:cursor-not-allowed min-h-10 max-h-[120px]"
+            className="flex-1 resize-none rounded-xl border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800 px-3 py-2 text-sm text-zinc-900 dark:text-zinc-100 placeholder:text-zinc-400 focus:outline-none focus:border-indigo-400 disabled:opacity-50 disabled:cursor-not-allowed min-h-10 max-h-[120px]"
             rows={1}
           />
           <button
             onClick={handleSendMessage}
             disabled={!inputValue.trim() || isLoading}
-            className="px-3 py-2 bg-linear-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 disabled:from-zinc-300 disabled:to-zinc-300 dark:disabled:from-zinc-700 dark:disabled:to-zinc-700 disabled:cursor-not-allowed text-white rounded-xl transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            className="px-3 py-2 bg-linear-to-r from-indigo-500 to-indigo-600 hover:from-indigo-600 hover:to-indigo-700 disabled:from-zinc-300 disabled:to-zinc-300 dark:disabled:from-zinc-700 dark:disabled:to-zinc-700 disabled:cursor-not-allowed text-white rounded-xl transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-indigo-500"
           >
             {isLoading ? (
               <Loader2 className="w-4 h-4 animate-spin" />

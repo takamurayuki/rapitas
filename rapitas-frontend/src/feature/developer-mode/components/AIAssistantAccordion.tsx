@@ -245,7 +245,7 @@ export function AIAssistantAccordion({
             )}
 
             {isExecuting && (
-              <span className="flex items-center gap-1 px-2 py-1 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 rounded-full text-xs font-medium animate-pulse">
+              <span className="flex items-center gap-1 px-2 py-1 bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300 rounded-full text-xs font-medium animate-pulse">
                 <Loader2 className="w-3 h-3 animate-spin" />
                 実行中
               </span>

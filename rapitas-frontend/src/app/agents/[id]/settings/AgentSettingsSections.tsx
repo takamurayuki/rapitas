@@ -65,7 +65,7 @@ export function BasicSettingsSection({
             <select
               value={modelId}
               onChange={(e) => onModelChange(e.target.value)}
-              className="w-full px-3 py-2 border border-zinc-300 dark:border-zinc-600 rounded-lg bg-white dark:bg-zinc-700 text-zinc-900 dark:text-zinc-100 focus:border-blue-400"
+              className="w-full px-3 py-2 border border-zinc-300 dark:border-zinc-600 rounded-lg bg-white dark:bg-zinc-700 text-zinc-900 dark:text-zinc-100 focus:border-indigo-400"
             >
               <option value="">{t('selectModel')}</option>
               {availableModels.map((model) => (
@@ -89,7 +89,7 @@ export function BasicSettingsSection({
               className={`w-full px-3 py-2 border rounded-lg bg-white dark:bg-zinc-700 text-zinc-900 dark:text-zinc-100 focus:outline-none ${
                 fieldErrors.endpoint
                   ? 'border-red-400 dark:border-red-600 focus:border-red-500'
-                  : 'border-zinc-300 dark:border-zinc-600 focus:border-blue-400'
+                  : 'border-zinc-300 dark:border-zinc-600 focus:border-indigo-400'
               }`}
               placeholder={providerConfig.defaultEndpoint || 'https://api.example.com/v1'}
             />

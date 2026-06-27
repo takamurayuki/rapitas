@@ -173,7 +173,7 @@ export default function ErrorDemoPage() {
 
         <Card className="p-6 dark:bg-gray-800 dark:border-gray-700">
           <div className="flex items-center gap-3 mb-4">
-            <AlertCircle className="h-5 w-5 text-blue-500" />
+            <AlertCircle className="h-5 w-5 text-indigo-500" />
             <h2 className="font-semibold">{t('errorDemoNetworkAsync')}</h2>
           </div>
           <div className="space-y-3">
@@ -238,11 +238,11 @@ export default function ErrorDemoPage() {
         </Card>
       </div>
 
-      <Card className="mt-6 p-6 bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800">
-        <h3 className="font-semibold text-blue-800 dark:text-blue-200 mb-2">
+      <Card className="mt-6 p-6 bg-indigo-50 dark:bg-indigo-900/20 border-indigo-200 dark:border-indigo-800">
+        <h3 className="font-semibold text-indigo-800 dark:text-indigo-200 mb-2">
           {t('errorDemoAboutTitle')}
         </h3>
-        <ul className="space-y-2 text-sm text-blue-700 dark:text-blue-300">
+        <ul className="space-y-2 text-sm text-indigo-700 dark:text-indigo-300">
           <li>{t('errorDemoAbout1')}</li>
           <li>{t('errorDemoAbout2')}</li>
           <li>{t('errorDemoAbout3')}</li>

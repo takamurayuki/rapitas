@@ -61,10 +61,10 @@ export const WorkflowProgressBar: React.FC<WorkflowProgressBarProps> = ({
           const getStepStyles = () => {
             if (isActive) {
               return {
-                bg: 'bg-blue-500/20',
-                border: 'border-blue-500',
-                text: 'text-blue-300',
-                icon: 'text-blue-400',
+                bg: 'bg-indigo-500/20',
+                border: 'border-indigo-500',
+                text: 'text-indigo-300',
+                icon: 'text-indigo-400',
               };
             }
             if (isCompleted) {
@@ -113,7 +113,7 @@ export const WorkflowProgressBar: React.FC<WorkflowProgressBarProps> = ({
                 {/* アクティブステップのプログレスインジケーター */}
                 {isActive && (
                   <div className="absolute -bottom-1 left-1/2 transform -translate-x-1/2">
-                    <div className="w-2 h-1 bg-blue-400 rounded-full animate-pulse" />
+                    <div className="w-2 h-1 bg-indigo-400 rounded-full animate-pulse" />
                   </div>
                 )}
               </div>
@@ -124,7 +124,7 @@ export const WorkflowProgressBar: React.FC<WorkflowProgressBarProps> = ({
                   <div className="absolute inset-0 bg-zinc-700 rounded-full" />
                   {isCompleted && <div className="absolute inset-0 bg-green-500 rounded-full" />}
                   {isActive && (
-                    <div className="absolute inset-0 bg-gradient-to-r from-green-500 to-blue-500 rounded-full opacity-60" />
+                    <div className="absolute inset-0 bg-gradient-to-r from-green-500 to-indigo-500 rounded-full opacity-60" />
                   )}
                 </div>
               )}
@@ -141,7 +141,7 @@ export const WorkflowProgressBar: React.FC<WorkflowProgressBarProps> = ({
           </div>
           <div className="mt-1 w-full bg-zinc-700 rounded-full h-1 max-w-xs mx-auto">
             <div
-              className="bg-gradient-to-r from-green-500 to-blue-500 h-1 rounded-full transition-all duration-500"
+              className="bg-gradient-to-r from-green-500 to-indigo-500 h-1 rounded-full transition-all duration-500"
               style={{
                 width: `${((currentStepIndex + 1) / WORKFLOW_STEPS.length) * 100}%`,
               }}

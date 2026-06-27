@@ -158,7 +158,7 @@ export default function DashboardPage() {
         </div>
 
         <div className="flex items-center gap-3 px-4 py-3">
-          <Clock className="h-5 w-5 shrink-0 text-blue-500" />
+          <Clock className="h-5 w-5 shrink-0 text-indigo-500" />
           <div className="min-w-0">
             <div className="text-xl font-bold leading-tight text-zinc-900 dark:text-zinc-50">
               {overview?.studyTime.weekHours || 0}h

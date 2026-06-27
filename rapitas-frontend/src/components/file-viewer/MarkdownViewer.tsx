@@ -186,7 +186,7 @@ export default function MarkdownViewer({
               return (
                 <a
                   href={href}
-                  className="text-blue-600 dark:text-blue-400 hover:underline inline-flex items-center gap-1"
+                  className="text-indigo-600 dark:text-indigo-400 hover:underline inline-flex items-center gap-1"
                   target={isExternal ? '_blank' : undefined}
                   rel={isExternal ? 'noopener noreferrer' : undefined}
                   {...props}

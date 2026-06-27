@@ -13,7 +13,7 @@ const PRIORITY_BADGE: Record<Priority, { label: string; className: string }> = {
   },
   medium: {
     label: '中',
-    className: 'bg-blue-100 text-blue-600 dark:bg-blue-900 dark:text-blue-400',
+    className: 'bg-indigo-100 text-indigo-600 dark:bg-indigo-900 dark:text-indigo-400',
   },
   high: {
     label: '高',
@@ -84,8 +84,8 @@ export function KanbanCard({
       onClick={() => onOpen(task.id)}
       className={`rounded-lg border bg-white dark:bg-zinc-800 p-3 shadow-sm transition-all cursor-pointer ${
         snapshot.isDragging
-          ? 'shadow-lg border-blue-500'
-          : 'border-zinc-200 dark:border-zinc-700 hover:shadow-md hover:border-blue-400 dark:hover:border-blue-600'
+          ? 'shadow-lg border-indigo-500'
+          : 'border-zinc-200 dark:border-zinc-700 hover:shadow-md hover:border-indigo-400 dark:hover:border-indigo-600'
       } ${executionClasses?.cardClass || ''}`}
     >
       <div className="flex items-start justify-between gap-2 mb-2">
@@ -116,7 +116,7 @@ export function KanbanCard({
               e.stopPropagation();
               onOpenInPage(task.id);
             }}
-            className="text-zinc-500 hover:text-blue-600 dark:text-zinc-400 dark:hover:text-blue-400 transition-colors"
+            className="text-zinc-500 hover:text-indigo-600 dark:text-zinc-400 dark:hover:text-indigo-400 transition-colors"
             title={t('openInPage')}
           >
             <ExternalLink className="w-4 h-4" />
@@ -193,7 +193,7 @@ export function KanbanCard({
             .map((label, idx) => (
               <span
                 key={idx}
-                className="rounded-full bg-blue-100 dark:bg-blue-900 px-2 py-0.5 text-xs text-blue-700 dark:text-blue-300"
+                className="rounded-full bg-indigo-100 dark:bg-indigo-900 px-2 py-0.5 text-xs text-indigo-700 dark:text-indigo-300"
               >
                 {label}
               </span>

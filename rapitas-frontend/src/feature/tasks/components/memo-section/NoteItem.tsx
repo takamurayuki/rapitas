@@ -120,8 +120,8 @@ export const NoteItem = memo(function NoteItem({
       <div
         className={`group rounded-lg px-2.5 py-2 transition-all duration-200
           ${typeConfig.color.bg} border ${typeConfig.color.border}
-          ${isHighlighted ? 'ring-2 ring-blue-400 ring-offset-1 dark:ring-offset-zinc-900 animate-pulse' : ''}
-          ${isPinned ? 'ring-1 ring-blue-300 dark:ring-blue-600' : ''}
+          ${isHighlighted ? 'ring-2 ring-indigo-400 ring-offset-1 dark:ring-offset-zinc-900 animate-pulse' : ''}
+          ${isPinned ? 'ring-1 ring-indigo-300 dark:ring-indigo-600' : ''}
           hover:border-zinc-300 dark:hover:border-zinc-600`}
       >
         <div className="flex items-start gap-2">
@@ -130,7 +130,7 @@ export const NoteItem = memo(function NoteItem({
             {hasReplies ? (
               <button
                 onClick={() => setCollapsed(!collapsed)}
-                className="p-0.5 text-zinc-400 hover:text-blue-500 transition-colors rounded"
+                className="p-0.5 text-zinc-400 hover:text-indigo-500 transition-colors rounded"
               >
                 {collapsed ? (
                   <ChevronUp className="w-3 h-3" />
@@ -162,7 +162,7 @@ export const NoteItem = memo(function NoteItem({
                     {typeConfig.label}
                   </span>
                   {isPinned && (
-                    <span className="inline-flex items-center gap-1 px-1.5 py-0.5 text-[9px] bg-blue-100 dark:bg-blue-900/50 text-blue-600 dark:text-blue-400 rounded-full font-medium">
+                    <span className="inline-flex items-center gap-1 px-1.5 py-0.5 text-[9px] bg-indigo-100 dark:bg-indigo-900/50 text-indigo-600 dark:text-indigo-400 rounded-full font-medium">
                       <Pin className="w-2 h-2" />
                       ピン留め
                     </span>

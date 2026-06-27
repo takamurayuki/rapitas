@@ -33,7 +33,7 @@ export function ContinuationForm({
           if (e.key === 'Enter' && continueInstruction.trim()) onContinueExecution();
         }}
         placeholder="継続指示を入力..."
-        className="flex-1 px-2.5 py-1.5 bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded text-xs focus:outline-none focus:border-blue-400"
+        className="flex-1 px-2.5 py-1.5 bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded text-xs focus:outline-none focus:border-indigo-400"
         aria-label="継続実行の内容"
       />
       <button

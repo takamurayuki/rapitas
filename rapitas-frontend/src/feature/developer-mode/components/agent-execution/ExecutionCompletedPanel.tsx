@@ -213,7 +213,7 @@ export function ExecutionCompletedPanel({
               }}
               placeholder="追加の修正や変更の指示を入力してください..."
               rows={2}
-              className="flex-1 px-3 py-2 bg-white dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-600 rounded-lg text-sm focus:outline-none focus:border-blue-400 transition-all resize-none"
+              className="flex-1 px-3 py-2 bg-white dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-600 rounded-lg text-sm focus:outline-none focus:border-indigo-400 transition-all resize-none"
             />
             <button
               onClick={onFollowUpExecute}

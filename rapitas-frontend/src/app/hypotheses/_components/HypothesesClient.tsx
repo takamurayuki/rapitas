@@ -48,7 +48,7 @@ const STATUS_META: Record<
   HypothesisStatus,
   { label: string; cls: string; Icon: typeof CheckCircle2 }
 > = {
-  open: { label: '検証待ち', cls: 'bg-blue-100 text-blue-700', Icon: FlaskConical },
+  open: { label: '検証待ち', cls: 'bg-indigo-100 text-indigo-700', Icon: FlaskConical },
   supported: { label: '立証済み', cls: 'bg-green-100 text-green-700', Icon: CheckCircle2 },
   refuted: { label: '反証済み', cls: 'bg-red-100 text-red-700', Icon: XCircle },
   inconclusive: { label: '結論保留', cls: 'bg-amber-100 text-amber-700', Icon: HelpCircle },

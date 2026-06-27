@@ -218,7 +218,7 @@ export default function ScheduleEventDialog({ selectedDate, onClose, onSubmit }:
                       setStartDate(e.target.value);
                       if (e.target.value > endDate) setEndDate(e.target.value);
                     }}
-                    className="w-full px-3 py-2 bg-zinc-50 dark:bg-zinc-700/50 border border-zinc-200 dark:border-zinc-600 rounded-lg text-zinc-900 dark:text-zinc-100 focus:outline-none focus:border-blue-400 text-sm transition-all dark:[&::-webkit-calendar-picker-indicator]:invert"
+                    className="w-full px-3 py-2 bg-zinc-50 dark:bg-zinc-700/50 border border-zinc-200 dark:border-zinc-600 rounded-lg text-zinc-900 dark:text-zinc-100 focus:outline-none focus:border-indigo-400 text-sm transition-all dark:[&::-webkit-calendar-picker-indicator]:invert"
                   />
                 </div>
                 <div className="w-5 h-px bg-zinc-300 dark:bg-zinc-600 shrink-0 mt-5" />
@@ -231,7 +231,7 @@ export default function ScheduleEventDialog({ selectedDate, onClose, onSubmit }:
                     value={endDate}
                     min={startDate}
                     onChange={(e) => setEndDate(e.target.value)}
-                    className="w-full px-3 py-2 bg-zinc-50 dark:bg-zinc-700/50 border border-zinc-200 dark:border-zinc-600 rounded-lg text-zinc-900 dark:text-zinc-100 focus:outline-none focus:border-blue-400 text-sm transition-all dark:[&::-webkit-calendar-picker-indicator]:invert"
+                    className="w-full px-3 py-2 bg-zinc-50 dark:bg-zinc-700/50 border border-zinc-200 dark:border-zinc-600 rounded-lg text-zinc-900 dark:text-zinc-100 focus:outline-none focus:border-indigo-400 text-sm transition-all dark:[&::-webkit-calendar-picker-indicator]:invert"
                   />
                 </div>
               </div>
@@ -266,14 +266,14 @@ export default function ScheduleEventDialog({ selectedDate, onClose, onSubmit }:
                       const endH = (h + 1) % 24; // NOTE: wraps midnight (23:xx → 00:xx)
                       setEndTime(`${String(endH).padStart(2, '0')}:${String(m).padStart(2, '0')}`);
                     }}
-                    className="flex-1 px-3 py-2 bg-zinc-50 dark:bg-zinc-700/50 border border-zinc-200 dark:border-zinc-600 rounded-lg text-zinc-900 dark:text-zinc-100 focus:outline-none focus:border-blue-400 text-sm transition-all dark:[&::-webkit-calendar-picker-indicator]:invert"
+                    className="flex-1 px-3 py-2 bg-zinc-50 dark:bg-zinc-700/50 border border-zinc-200 dark:border-zinc-600 rounded-lg text-zinc-900 dark:text-zinc-100 focus:outline-none focus:border-indigo-400 text-sm transition-all dark:[&::-webkit-calendar-picker-indicator]:invert"
                   />
                   <div className="w-5 h-px bg-zinc-300 dark:bg-zinc-600 shrink-0" />
                   <input
                     type="time"
                     value={endTime}
                     onChange={(e) => setEndTime(e.target.value)}
-                    className="flex-1 px-3 py-2 bg-zinc-50 dark:bg-zinc-700/50 border border-zinc-200 dark:border-zinc-600 rounded-lg text-zinc-900 dark:text-zinc-100 focus:outline-none focus:border-blue-400 text-sm transition-all dark:[&::-webkit-calendar-picker-indicator]:invert"
+                    className="flex-1 px-3 py-2 bg-zinc-50 dark:bg-zinc-700/50 border border-zinc-200 dark:border-zinc-600 rounded-lg text-zinc-900 dark:text-zinc-100 focus:outline-none focus:border-indigo-400 text-sm transition-all dark:[&::-webkit-calendar-picker-indicator]:invert"
                   />
                 </div>
               </div>

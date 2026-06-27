@@ -43,7 +43,7 @@ export function TierBadge({ tier, cached }: { tier?: string; cached?: boolean })
     );
   if (tier === 'economy')
     return (
-      <span className="text-[10px] text-blue-400 flex items-center gap-0.5">
+      <span className="text-[10px] text-indigo-400 flex items-center gap-0.5">
         <Cloud className="w-2.5 h-2.5" />
         haiku
       </span>
@@ -162,7 +162,7 @@ export function AnalysisResultCard({
                         st.priority === 'high'
                           ? 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400'
                           : st.priority === 'medium'
-                            ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400'
+                            ? 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-400'
                             : 'bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400'
                       }`}
                     >
@@ -299,7 +299,7 @@ export function ProactiveInsight({
     insights.push({
       icon: ArrowRight,
       text: '進行中です。詰まっている点はありませんか？',
-      color: 'text-blue-500',
+      color: 'text-indigo-500',
     });
   else if (taskStatus === 'done' || taskStatus === 'completed')
     insights.push({

@@ -99,7 +99,7 @@ export function AutoRunSettingsCard({
                 setLocalLimit(num);
               }}
               onBlur={commit}
-              className="w-16 rounded-lg border border-zinc-300 bg-white px-2 py-1 text-center text-sm text-zinc-900 focus:border-blue-400 focus:outline-none dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-50"
+              className="w-16 rounded-lg border border-zinc-300 bg-white px-2 py-1 text-center text-sm text-zinc-900 focus:border-indigo-400 focus:outline-none dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-50"
             />
             <span className="text-sm text-zinc-500 dark:text-zinc-400">
               件{isSaving ? '（保存中…）' : ''}
@@ -135,7 +135,7 @@ export function AutoRunSettingsCard({
                 setLocalRepairLimit(num);
               }}
               onBlur={commitRepairLimit}
-              className="w-16 rounded-lg border border-zinc-300 bg-white px-2 py-1 text-center text-sm text-zinc-900 focus:border-blue-400 focus:outline-none dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-50"
+              className="w-16 rounded-lg border border-zinc-300 bg-white px-2 py-1 text-center text-sm text-zinc-900 focus:border-indigo-400 focus:outline-none dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-50"
             />
             <span className="text-sm text-zinc-500 dark:text-zinc-400">
               回{isSaving ? '（保存中…）' : ''}

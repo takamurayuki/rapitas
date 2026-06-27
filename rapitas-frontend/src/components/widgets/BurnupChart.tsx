@@ -189,7 +189,7 @@ export default function BurnupChart({
                 {t('completed')}
                 <span className="font-semibold">{summary.totalCompleted}</span>
               </span>
-              <span className="flex items-center gap-1 text-blue-600 dark:text-blue-400">
+              <span className="flex items-center gap-1 text-indigo-600 dark:text-indigo-400">
                 <Calendar className="w-3 h-3" />
                 {t('added')}
                 <span className="font-semibold">{summary.totalAdded}</span>
@@ -248,7 +248,7 @@ export default function BurnupChart({
             {t('completed')}
             <span className="font-semibold">{summary.totalCompleted}</span>
           </span>
-          <span className="flex items-center gap-1 text-blue-600 dark:text-blue-400">
+          <span className="flex items-center gap-1 text-indigo-600 dark:text-indigo-400">
             {t('added')}
             <span className="font-semibold">{summary.totalAdded}</span>
           </span>

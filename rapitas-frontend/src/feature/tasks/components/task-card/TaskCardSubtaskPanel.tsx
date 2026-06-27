@@ -85,7 +85,7 @@ export default function TaskCardSubtaskPanel({
                     width="30"
                     height="30"
                     rx="7"
-                    stroke="#3b82f6"
+                    stroke="#6366f1"
                     strokeWidth="2"
                     strokeDasharray="20 87.96"
                     strokeLinecap="round"

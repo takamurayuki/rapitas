@@ -93,7 +93,7 @@ export function PaidLeaveDurationPicker({
               type="date"
               value={startDate}
               onChange={(e) => onStartDateChange(e.target.value)}
-              className="w-full px-3 py-2 bg-zinc-50 dark:bg-zinc-700/50 border border-zinc-200 dark:border-zinc-600 rounded-lg text-zinc-900 dark:text-zinc-100 focus:outline-none focus:border-blue-400 text-sm transition-all dark:[&::-webkit-calendar-picker-indicator]:invert"
+              className="w-full px-3 py-2 bg-zinc-50 dark:bg-zinc-700/50 border border-zinc-200 dark:border-zinc-600 rounded-lg text-zinc-900 dark:text-zinc-100 focus:outline-none focus:border-indigo-400 text-sm transition-all dark:[&::-webkit-calendar-picker-indicator]:invert"
             />
           </div>
           <div className="w-5 h-px bg-zinc-300 dark:bg-zinc-600 shrink-0 mt-5" />
@@ -104,7 +104,7 @@ export function PaidLeaveDurationPicker({
               value={endDate}
               min={startDate}
               onChange={(e) => onEndDateChange(e.target.value)}
-              className="w-full px-3 py-2 bg-zinc-50 dark:bg-zinc-700/50 border border-zinc-200 dark:border-zinc-600 rounded-lg text-zinc-900 dark:text-zinc-100 focus:outline-none focus:border-blue-400 text-sm transition-all dark:[&::-webkit-calendar-picker-indicator]:invert"
+              className="w-full px-3 py-2 bg-zinc-50 dark:bg-zinc-700/50 border border-zinc-200 dark:border-zinc-600 rounded-lg text-zinc-900 dark:text-zinc-100 focus:outline-none focus:border-indigo-400 text-sm transition-all dark:[&::-webkit-calendar-picker-indicator]:invert"
             />
           </div>
         </div>

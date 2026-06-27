@@ -94,7 +94,7 @@ export function SubtaskItem({
     <div
       className={`transition-colors ${
         isSelectionMode && isSelected
-          ? 'bg-blue-50 dark:bg-blue-950/20 ring-1 ring-blue-500 dark:ring-blue-400'
+          ? 'bg-indigo-50 dark:bg-indigo-950/20 ring-1 ring-indigo-500 dark:ring-indigo-400'
           : ''
       }`}
     >
@@ -120,7 +120,7 @@ export function SubtaskItem({
               {isSelectionMode && (
                 <button onClick={onToggleSelection} className="shrink-0">
                   {isSelected ? (
-                    <CheckSquare className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+                    <CheckSquare className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />
                   ) : (
                     <Square className="w-5 h-5 text-zinc-400" />
                   )}
@@ -161,7 +161,7 @@ export function SubtaskItem({
                               width="30"
                               height="30"
                               rx="7"
-                              stroke="#3b82f6"
+                              stroke="#6366f1"
                               strokeWidth="2"
                               strokeDasharray="20 87.96"
                               strokeLinecap="round"
@@ -235,7 +235,7 @@ export function SubtaskItem({
               })}
               <button
                 onClick={() => onStartEditing(subtask)}
-                className="flex items-center justify-center rounded-lg p-1.5 text-zinc-400 dark:text-zinc-500 hover:bg-blue-50 hover:text-blue-600 dark:hover:bg-blue-900/30 dark:hover:text-blue-400 transition-colors"
+                className="flex items-center justify-center rounded-lg p-1.5 text-zinc-400 dark:text-zinc-500 hover:bg-indigo-50 hover:text-indigo-600 dark:hover:bg-indigo-900/30 dark:hover:text-indigo-400 transition-colors"
                 title={t('subtaskDetails')}
               >
                 <Pencil className="w-3.5 h-3.5" />

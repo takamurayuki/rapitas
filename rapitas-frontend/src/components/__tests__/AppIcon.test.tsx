@@ -26,10 +26,10 @@ describe('AppIcon', () => {
   });
 
   it('applies custom className', () => {
-    const { container } = render(<AppIcon className="text-blue-500" />);
+    const { container } = render(<AppIcon className="text-indigo-500" />);
 
     const svg = container.querySelector('svg');
-    expect(svg).toHaveClass('text-blue-500');
+    expect(svg).toHaveClass('text-indigo-500');
   });
 
   it('has correct viewBox', () => {

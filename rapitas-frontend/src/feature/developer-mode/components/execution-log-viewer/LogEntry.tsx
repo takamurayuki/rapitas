@@ -70,7 +70,7 @@ const LogEntry = memo<LogEntryProps>(({ log, index, isNewEntry, searchQuery, hig
             log.includes('[継続]') ||
             log.includes('[完了]') ||
             log.includes('フェーズ完了]')
-          ? 'text-blue-400'
+          ? 'text-indigo-400'
           : /^\[.+?\]/.test(log.trimStart())
             ? 'text-cyan-400'
             : hasJson

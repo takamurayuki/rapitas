@@ -127,7 +127,7 @@ export const createMarkdownComponents = () => ({
     }
     // NOTE: ExternalLinksProvider sets handlers globally; only handle styling here.
     return (
-      <a href={href} className="text-blue-600 dark:text-blue-400 hover:underline" {...props}>
+      <a href={href} className="text-indigo-600 dark:text-indigo-400 hover:underline" {...props}>
         {children}
       </a>
     );

@@ -592,7 +592,7 @@ function AddIntegrationModal({
                 value={repositoryUrl}
                 onChange={(e) => setRepositoryUrl(e.target.value)}
                 placeholder="https://github.com/owner/repository"
-                className="w-full px-3 py-2 border border-zinc-300 dark:border-zinc-600 rounded-lg bg-white dark:bg-zinc-700 text-zinc-900 dark:text-zinc-100 focus:border-blue-400"
+                className="w-full px-3 py-2 border border-zinc-300 dark:border-zinc-600 rounded-lg bg-white dark:bg-zinc-700 text-zinc-900 dark:text-zinc-100 focus:border-indigo-400"
               />
             </div>
             {error && <p className="text-sm text-red-600 dark:text-red-400 mb-4">{error}</p>}

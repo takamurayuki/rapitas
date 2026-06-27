@@ -122,7 +122,7 @@ export function WeeklyReviewCard() {
                 <span>完了 {stats.totalCompletedCount} 件</span>
               </div>
               <div className="flex items-center gap-1.5">
-                <Clock className="h-4 w-4 text-blue-500" />
+                <Clock className="h-4 w-4 text-indigo-500" />
                 <span>集中 {formatMinutes(stats.totalFocusMinutes)}</span>
               </div>
               {stats.pomodoroSessions > 0 && (

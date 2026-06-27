@@ -130,7 +130,7 @@ export const InteractiveDemo: React.FC = () => {
                 px-3 py-1.5 text-sm rounded-md transition-colors
                 ${
                   currentStatus === status
-                    ? 'bg-blue-500 text-white'
+                    ? 'bg-indigo-500 text-white'
                     : 'bg-zinc-200 dark:bg-zinc-700 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-300 dark:hover:bg-zinc-600'
                 }
               `}

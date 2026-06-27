@@ -40,7 +40,7 @@ export function NoteReplyInput({
       <button
         onClick={onReplySubmit}
         disabled={!replyText.trim()}
-        className="px-2 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded-md text-[10px] disabled:opacity-50 transition-colors"
+        className="px-2 py-1 bg-indigo-600 hover:bg-indigo-700 text-white rounded-md text-[10px] disabled:opacity-50 transition-colors"
       >
         送信
       </button>

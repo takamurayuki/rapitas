@@ -195,7 +195,7 @@ export function DiffViewer({ files, showRawDiff = false, onToggleView }: DiffVie
                             : type === 'removed'
                               ? 'bg-red-900/30'
                               : type === 'header'
-                                ? 'bg-blue-900/20'
+                                ? 'bg-indigo-900/20'
                                 : ''
                         }`}
                       >
@@ -205,7 +205,7 @@ export function DiffViewer({ files, showRawDiff = false, onToggleView }: DiffVie
                         <div className="w-6 shrink-0 px-1 py-0.5 text-center select-none">
                           {type === 'added' && <span className="text-green-400">+</span>}
                           {type === 'removed' && <span className="text-red-400">-</span>}
-                          {type === 'header' && <span className="text-blue-400">@</span>}
+                          {type === 'header' && <span className="text-indigo-400">@</span>}
                         </div>
                         <pre
                           className={`flex-1 px-2 py-0.5 ${
@@ -214,7 +214,7 @@ export function DiffViewer({ files, showRawDiff = false, onToggleView }: DiffVie
                               : type === 'removed'
                                 ? 'text-red-300'
                                 : type === 'header'
-                                  ? 'text-blue-300'
+                                  ? 'text-indigo-300'
                                   : 'text-zinc-300'
                           }`}
                         >

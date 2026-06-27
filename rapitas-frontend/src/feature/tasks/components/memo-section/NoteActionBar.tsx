@@ -58,8 +58,8 @@ export function NoteActionBar({
           onClick={onTogglePin}
           className={`p-1 transition-colors rounded ${
             isPinned
-              ? 'text-blue-500 bg-blue-50 dark:bg-blue-900/30'
-              : 'text-zinc-400 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/30'
+              ? 'text-indigo-500 bg-indigo-50 dark:bg-indigo-900/30'
+              : 'text-zinc-400 hover:text-indigo-500 hover:bg-indigo-50 dark:hover:bg-indigo-900/30'
           }`}
           title={isPinned ? 'ピン留め解除' : 'ピン留め'}
         >
@@ -83,7 +83,7 @@ export function NoteActionBar({
         </button>
         <button
           onClick={() => onReply(note)}
-          className="p-1 text-zinc-400 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded transition-colors"
+          className="p-1 text-zinc-400 hover:text-indigo-500 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 rounded transition-colors"
           title="返信"
         >
           <CornerDownRight className="w-3 h-3" />

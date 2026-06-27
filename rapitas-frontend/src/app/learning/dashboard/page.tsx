@@ -168,7 +168,7 @@ export default function LearningDashboardPage() {
           sub={`${examGoals.filter((g) => !g.isCompleted).length} active`}
         />
         <StatCard
-          icon={<BookOpen className="w-5 h-5 text-blue-500" />}
+          icon={<BookOpen className="w-5 h-5 text-indigo-500" />}
           label="Learning Goals"
           value={learningGoals.length}
           sub={`${learningGoals.filter((g) => g.status === 'active').length} active`}

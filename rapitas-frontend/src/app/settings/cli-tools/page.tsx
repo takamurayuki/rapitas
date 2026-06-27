@@ -22,8 +22,8 @@ function PageHeader({
   return (
     <div className="flex items-center justify-between mb-6">
       <div className="flex items-center gap-3">
-        <div className="p-2.5 bg-blue-100 dark:bg-blue-900/30 rounded-xl">
-          <Terminal className="w-6 h-6 text-blue-600 dark:text-blue-400" />
+        <div className="p-2.5 bg-indigo-100 dark:bg-indigo-900/30 rounded-xl">
+          <Terminal className="w-6 h-6 text-indigo-600 dark:text-indigo-400" />
         </div>
         <div>
           <h1 className="text-2xl font-bold text-zinc-900 dark:text-zinc-50">CLIツール管理</h1>
@@ -133,8 +133,8 @@ function CLIToolsPage() {
       <PageHeader onRefresh={refreshTools} isRefreshing={isRefreshing} />
 
       {/* How install/auth works here */}
-      <div className="mb-6 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
-        <div className="flex items-start gap-2 text-sm text-blue-700 dark:text-blue-300">
+      <div className="mb-6 p-3 bg-indigo-50 dark:bg-indigo-900/20 border border-indigo-200 dark:border-indigo-800 rounded-lg">
+        <div className="flex items-start gap-2 text-sm text-indigo-700 dark:text-indigo-300">
           <Info className="w-4 h-4 mt-0.5 shrink-0" />
           <span>
             インストール・認証は rapitas のターミナルで実行されます（コマンドがプリフィルされるので

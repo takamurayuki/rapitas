@@ -246,7 +246,7 @@ function ClarificationQuestionsView({
                 value={questionAnswers[q.id] || ''}
                 onChange={(e) => onSetQuestionAnswer(q.id, e.target.value)}
                 placeholder="回答を入力..."
-                className="w-full px-2 py-1 bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded text-[10px] focus:outline-none focus:border-blue-400"
+                className="w-full px-2 py-1 bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded text-[10px] focus:outline-none focus:border-indigo-400"
               />
             )}
           </div>

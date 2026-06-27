@@ -83,13 +83,13 @@ export function NewTaskHeader({
               border transition-all duration-75
               ${
                 !canCreate
-                  ? 'opacity-50 cursor-not-allowed text-blue-500 dark:text-blue-500 bg-white dark:bg-zinc-900 border-blue-200 dark:border-blue-800 shadow-[0_2px_0_0_#93c5fd] dark:shadow-[0_2px_0_0_#1e3a5f]'
-                  : 'text-blue-700 dark:text-blue-300 bg-white dark:bg-zinc-900 border-blue-200 dark:border-blue-800 shadow-[0_2px_0_0_#93c5fd] dark:shadow-[0_2px_0_0_#1e3a5f] hover:bg-blue-50 dark:hover:bg-blue-900/20 hover:border-blue-300 dark:hover:border-blue-700 active:translate-y-[2px] active:shadow-none active:bg-blue-50 dark:active:bg-blue-900/20'
+                  ? 'opacity-50 cursor-not-allowed text-indigo-500 dark:text-indigo-500 bg-white dark:bg-zinc-900 border-indigo-200 dark:border-indigo-800 shadow-[0_2px_0_0_#93c5fd] dark:shadow-[0_2px_0_0_#1e3a5f]'
+                  : 'text-indigo-700 dark:text-indigo-300 bg-white dark:bg-zinc-900 border-indigo-200 dark:border-indigo-800 shadow-[0_2px_0_0_#93c5fd] dark:shadow-[0_2px_0_0_#1e3a5f] hover:bg-indigo-50 dark:hover:bg-indigo-900/20 hover:border-indigo-300 dark:hover:border-indigo-700 active:translate-y-[2px] active:shadow-none active:bg-indigo-50 dark:active:bg-indigo-900/20'
               }
             `}
           >
             {isSubmitting ? (
-              <div className="w-4 h-4 border-2 border-blue-200 dark:border-blue-800 border-t-blue-600 dark:border-t-blue-400 rounded-full animate-spin" />
+              <div className="w-4 h-4 border-2 border-indigo-200 dark:border-indigo-800 border-t-indigo-600 dark:border-t-indigo-400 rounded-full animate-spin" />
             ) : (
               <Plus className="w-4 h-4" />
             )}

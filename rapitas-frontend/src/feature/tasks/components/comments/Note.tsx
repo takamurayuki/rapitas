@@ -83,7 +83,7 @@ export const Note = memo(function Note({
           {hasReplies ? (
             <button
               onClick={() => setCollapsed(!collapsed)}
-              className="shrink-0 p-0.5 mt-0.5 text-zinc-400 hover:text-blue-500 transition-colors rounded"
+              className="shrink-0 p-0.5 mt-0.5 text-zinc-400 hover:text-indigo-500 transition-colors rounded"
             >
               {collapsed ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
             </button>
@@ -97,7 +97,7 @@ export const Note = memo(function Note({
                 <textarea
                   value={editText}
                   onChange={(e) => onEditText(e.target.value)}
-                  className="w-full p-2 text-xs bg-white dark:bg-indigo-dark-800 border border-zinc-200 dark:border-zinc-700 rounded-lg resize-none outline-none focus:border-blue-400 focus:border-blue-400"
+                  className="w-full p-2 text-xs bg-white dark:bg-indigo-dark-800 border border-zinc-200 dark:border-zinc-700 rounded-lg resize-none outline-none focus:border-indigo-400 focus:border-indigo-400"
                   rows={3}
                   autoFocus
                 />
@@ -111,7 +111,7 @@ export const Note = memo(function Note({
                   <button
                     onClick={onSave}
                     disabled={!editText.trim()}
-                    className="px-2.5 py-1 text-[10px] bg-blue-600 hover:bg-blue-700 text-white rounded-md disabled:opacity-50 transition-colors"
+                    className="px-2.5 py-1 text-[10px] bg-indigo-600 hover:bg-indigo-700 text-white rounded-md disabled:opacity-50 transition-colors"
                   >
                     保存
                   </button>
@@ -175,7 +175,7 @@ export const Note = memo(function Note({
                     </span>
                   )}
                   {note.links && note.links.length > 0 && (
-                    <span className="text-[10px] text-blue-400 flex items-center gap-0.5">
+                    <span className="text-[10px] text-indigo-400 flex items-center gap-0.5">
                       <Link2 className="w-2.5 h-2.5" />
                       {note.links.length}
                     </span>
@@ -184,14 +184,14 @@ export const Note = memo(function Note({
                   <div className="flex gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
                     <button
                       onClick={() => onReply(note)}
-                      className="p-1 text-zinc-400 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded transition-colors"
+                      className="p-1 text-zinc-400 hover:text-indigo-500 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 rounded transition-colors"
                       title="返信"
                     >
                       <CornerDownRight className="w-3 h-3" />
                     </button>
                     <button
                       onClick={() => onLink(note)}
-                      className="p-1 text-zinc-400 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded transition-colors"
+                      className="p-1 text-zinc-400 hover:text-indigo-500 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 rounded transition-colors"
                       title="リンク"
                     >
                       <Link2 className="w-3 h-3" />
@@ -233,7 +233,7 @@ export const Note = memo(function Note({
                     <button
                       onClick={onReplySubmit}
                       disabled={!replyText.trim()}
-                      className="px-2 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded-md text-[10px] disabled:opacity-50 transition-colors"
+                      className="px-2 py-1 bg-indigo-600 hover:bg-indigo-700 text-white rounded-md text-[10px] disabled:opacity-50 transition-colors"
                     >
                       送信
                     </button>

@@ -297,7 +297,7 @@ export function GanttChart({
                   width={viewport.margin.left - 10}
                   height={viewport.rowHeight}
                   fill={isHovered ? '#EFF6FF' : 'transparent'}
-                  className={isHovered ? 'dark:fill-blue-900/20' : ''}
+                  className={isHovered ? 'dark:fill-indigo-900/20' : ''}
                 />
                 <foreignObject
                   x={8}
@@ -311,7 +311,7 @@ export function GanttChart({
                     <span
                       className={`block overflow-hidden whitespace-nowrap text-ellipsis w-full text-xs ${
                         isHovered
-                          ? 'font-semibold text-blue-700 dark:text-blue-400'
+                          ? 'font-semibold text-indigo-700 dark:text-indigo-400'
                           : 'text-gray-700 dark:text-gray-300'
                       }`}
                       title={task.title}

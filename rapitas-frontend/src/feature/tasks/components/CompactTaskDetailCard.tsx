@@ -405,7 +405,7 @@ export default function CompactTaskDetailCard({
             icon={<Repeat className="w-4 h-4" />}
             badge={
               task.isRecurring ? (
-                <span className="px-1.5 py-0.5 text-xs font-medium bg-blue-100 dark:bg-blue-900/50 text-blue-600 dark:text-blue-400 rounded-full">
+                <span className="px-1.5 py-0.5 text-xs font-medium bg-indigo-100 dark:bg-indigo-900/50 text-indigo-600 dark:text-indigo-400 rounded-full">
                   設定済み
                 </span>
               ) : undefined

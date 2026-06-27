@@ -278,7 +278,7 @@ export function TaskAnalysisTab({
         <select
           value={promptStrategy}
           onChange={(e) => setPromptStrategy(e.target.value as PromptStrategy)}
-          className="w-full px-3 py-2 bg-white dark:bg-indigo-dark-800 border border-zinc-200 dark:border-zinc-700 rounded-lg text-sm focus:outline-none focus:border-blue-400"
+          className="w-full px-3 py-2 bg-white dark:bg-indigo-dark-800 border border-zinc-200 dark:border-zinc-700 rounded-lg text-sm focus:outline-none focus:border-indigo-400"
         >
           <option value="auto">自動</option>
           <option value="detailed">詳細</option>

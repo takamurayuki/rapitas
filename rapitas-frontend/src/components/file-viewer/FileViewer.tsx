@@ -215,7 +215,7 @@ export default function FileViewer({
               ) : fileType === 'markdown' ? (
                 <FileText className="w-5 h-5 text-purple-500" />
               ) : fileType === 'text' ? (
-                <Code className="w-5 h-5 text-blue-500" />
+                <Code className="w-5 h-5 text-indigo-500" />
               ) : (
                 <File className="w-5 h-5 text-zinc-500" />
               )}
@@ -340,7 +340,7 @@ export default function FileViewer({
                   href={getFileUrl(resource)}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="flex items-center gap-2 px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
+                  className="flex items-center gap-2 px-4 py-2 bg-indigo-500 text-white rounded-lg hover:bg-indigo-600 transition-colors"
                 >
                   <ExternalLink className="w-4 h-4" />
                   ブラウザで開く
@@ -419,7 +419,7 @@ export default function FileViewer({
               <a
                 href={getDownloadUrl(resource)}
                 download={resource.fileName || resource.title}
-                className="flex items-center gap-2 px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
+                className="flex items-center gap-2 px-4 py-2 bg-indigo-500 text-white rounded-lg hover:bg-indigo-600 transition-colors"
               >
                 <Download className="w-4 h-4" />
                 ダウンロード

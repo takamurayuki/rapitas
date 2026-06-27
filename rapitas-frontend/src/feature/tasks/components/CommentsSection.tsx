@@ -74,18 +74,18 @@ export default function CommentsSection({
       {/* Header */}
       <button
         onClick={onToggleExpand}
-        className="w-full px-4 py-2.5 bg-linear-to-r from-blue-50 via-indigo-50 to-purple-50 dark:from-blue-950/30 dark:via-indigo-950/30 dark:to-purple-950/30 border-b border-zinc-200 dark:border-zinc-700 hover:from-blue-100 hover:via-indigo-100 hover:to-purple-100 dark:hover:from-blue-950/50 dark:hover:via-indigo-950/50 dark:hover:to-purple-950/50 transition-colors"
+        className="w-full px-4 py-2.5 bg-linear-to-r from-indigo-50 via-indigo-50 to-purple-50 dark:from-indigo-950/30 dark:via-indigo-950/30 dark:to-purple-950/30 border-b border-zinc-200 dark:border-zinc-700 hover:from-indigo-100 hover:via-indigo-100 hover:to-purple-100 dark:hover:from-indigo-950/50 dark:hover:via-indigo-950/50 dark:hover:to-purple-950/50 transition-colors"
       >
         <div className="flex items-center gap-2">
-          <div className="p-1.5 bg-blue-100 dark:bg-blue-900/40 rounded-lg">
-            <MessageSquare className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
+          <div className="p-1.5 bg-indigo-100 dark:bg-indigo-900/40 rounded-lg">
+            <MessageSquare className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
           </div>
           <div className="flex-1 min-w-0 text-left">
             <h2 className="font-bold text-xs text-zinc-900 dark:text-zinc-50">メモ</h2>
             <p className="text-[9px] text-zinc-500 dark:text-zinc-400">アイデア・気づき</p>
           </div>
           <div className="flex items-center gap-1.5">
-            <span className="px-1.5 py-0.5 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 rounded-full text-[9px] font-medium">
+            <span className="px-1.5 py-0.5 bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300 rounded-full text-[9px] font-medium">
               {count}
             </span>
             {replyCount > 0 && (
@@ -122,14 +122,14 @@ export default function CommentsSection({
                 }
               }}
               placeholder="メモを追加（Shift+Enterで改行）"
-              className="flex-1 px-2.5 py-2 text-xs bg-zinc-50 dark:bg-indigo-dark-800 border border-zinc-200 dark:border-zinc-700 rounded-lg outline-none focus:border-blue-400 focus:border-blue-400 placeholder:text-zinc-400 resize-none transition-colors"
+              className="flex-1 px-2.5 py-2 text-xs bg-zinc-50 dark:bg-indigo-dark-800 border border-zinc-200 dark:border-zinc-700 rounded-lg outline-none focus:border-indigo-400 focus:border-indigo-400 placeholder:text-zinc-400 resize-none transition-colors"
               disabled={isAddingComment}
               rows={2}
             />
             <button
               onClick={handleSubmit}
               disabled={!newComment.trim() || isAddingComment}
-              className="self-end px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg disabled:opacity-40 transition-colors"
+              className="self-end px-3 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg disabled:opacity-40 transition-colors"
             >
               {isAddingComment ? (
                 <Loader2 className="w-3.5 h-3.5 animate-spin" />

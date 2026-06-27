@@ -22,7 +22,7 @@ type Priority = 'low' | 'medium' | 'high' | 'urgent';
 
 const PRIORITY_STYLES: Record<Priority, { color: string; bg: string }> = {
   low: { color: 'text-slate-600', bg: 'bg-slate-100 dark:bg-slate-800' },
-  medium: { color: 'text-blue-600', bg: 'bg-blue-100 dark:bg-blue-900' },
+  medium: { color: 'text-indigo-600', bg: 'bg-indigo-100 dark:bg-indigo-900' },
   high: { color: 'text-amber-600', bg: 'bg-amber-100 dark:bg-amber-900' },
   urgent: { color: 'text-rose-600', bg: 'bg-rose-100 dark:bg-rose-900' },
 };

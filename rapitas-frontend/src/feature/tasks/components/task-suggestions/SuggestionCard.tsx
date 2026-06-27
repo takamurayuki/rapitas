@@ -32,7 +32,7 @@ const CATEGORY_CONFIG: Record<string, { label: string; icon: React.ReactNode; co
   recurring: {
     label: '定期',
     icon: <Repeat className="w-2.5 h-2.5" />,
-    color: 'bg-blue-100 dark:bg-blue-900/40 text-blue-600 dark:text-blue-400',
+    color: 'bg-indigo-100 dark:bg-indigo-900/40 text-indigo-600 dark:text-indigo-400',
   },
   extension: {
     label: '発展',

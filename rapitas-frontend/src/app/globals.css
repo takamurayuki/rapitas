@@ -247,10 +247,10 @@ html {
 @keyframes statusCardPulse {
   0%,
   100% {
-    box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.4);
+    box-shadow: 0 0 0 0 rgba(99, 102, 241, 0.4);
   }
   50% {
-    box-shadow: 0 0 0 4px rgba(59, 130, 246, 0);
+    box-shadow: 0 0 0 4px rgba(99, 102, 241, 0);
   }
 }
 
@@ -291,6 +291,8 @@ html {
  * conic-gradient hole-punch method with comet tail effect
  * CSS handles stacking context, spin, and breathing glow
  */
+/* NOTE: The `-blue` class name is legacy; the glow renders the indigo accent
+   (rgba 99,102,241) so "running/active" stays on the single brand accent. */
 .execution-pulse-blue,
 .execution-pulse-amber {
   position: relative;
@@ -314,13 +316,13 @@ html {
   0%,
   100% {
     box-shadow:
-      0 0 8px rgba(59, 130, 246, 0.15),
-      0 0 2px rgba(59, 130, 246, 0.1);
+      0 0 8px rgba(99, 102, 241, 0.15),
+      0 0 2px rgba(99, 102, 241, 0.1);
   }
   50% {
     box-shadow:
-      0 0 18px rgba(59, 130, 246, 0.35),
-      0 0 4px rgba(59, 130, 246, 0.2);
+      0 0 18px rgba(99, 102, 241, 0.35),
+      0 0 4px rgba(99, 102, 241, 0.2);
   }
 }
 @keyframes exec-glow-amber {
@@ -354,11 +356,11 @@ html {
 
 /* Floating AI Menu animations */
 .floating-ai-menu-button {
-  box-shadow: 0 4px 20px rgba(59, 130, 246, 0.3);
+  box-shadow: 0 4px 20px rgba(99, 102, 241, 0.3);
 }
 
 .floating-ai-menu-button:hover {
-  box-shadow: 0 8px 30px rgba(59, 130, 246, 0.4);
+  box-shadow: 0 8px 30px rgba(99, 102, 241, 0.4);
 }
 
 .floating-ai-menu-panel {

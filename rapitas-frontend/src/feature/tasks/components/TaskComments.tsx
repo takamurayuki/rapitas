@@ -38,7 +38,7 @@ export default function TaskComments({
         <textarea
           value={newComment}
           onChange={(e) => onNewCommentChange(e.target.value)}
-          className="w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-indigo-dark-900 px-4 py-3 text-sm shadow-sm focus:outline-none focus:border-blue-400 font-mono"
+          className="w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-indigo-dark-900 px-4 py-3 text-sm shadow-sm focus:outline-none focus:border-indigo-400 font-mono"
           rows={3}
           placeholder="コメントを追加... (マークダウン対応)"
         />
@@ -46,7 +46,7 @@ export default function TaskComments({
           <button
             onClick={onAddComment}
             disabled={!newComment.trim() || isAddingComment}
-            className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            className="px-4 py-2 bg-indigo-500 text-white rounded-lg hover:bg-indigo-600 font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {isAddingComment ? '追加中...' : 'コメント追加'}
           </button>

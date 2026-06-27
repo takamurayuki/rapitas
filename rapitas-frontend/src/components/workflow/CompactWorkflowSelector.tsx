@@ -64,8 +64,8 @@ const WORKFLOW_MODE_CONFIGS: Record<WorkflowMode, WorkflowModeConfig> = {
     estimatedTime: '1-2時間',
     steps: ['調査', '計画作成', '実装', '検証'],
     icon: Diamond,
-    color: 'text-blue-600 dark:text-blue-400',
-    bgColor: 'bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800/50',
+    color: 'text-indigo-600 dark:text-indigo-400',
+    bgColor: 'bg-indigo-50 dark:bg-indigo-900/20 border-indigo-200 dark:border-indigo-800/50',
   },
   comprehensive: {
     mode: 'comprehensive',
@@ -312,8 +312,8 @@ export default function CompactWorkflowSelector({
               disabled:opacity-50 disabled:cursor-not-allowed
               ${
                 isAnalyzing
-                  ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 border border-blue-300 dark:border-blue-700'
-                  : 'bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-700 hover:from-blue-100 hover:to-indigo-100 dark:hover:from-blue-800/30 dark:hover:to-indigo-800/30 shadow-sm'
+                  ? 'bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300 border border-indigo-300 dark:border-indigo-700'
+                  : 'bg-gradient-to-r from-indigo-50 to-indigo-50 dark:from-indigo-900/20 dark:to-indigo-900/20 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-700 hover:from-indigo-100 hover:to-indigo-100 dark:hover:from-indigo-800/30 dark:hover:to-indigo-800/30 shadow-sm'
               }
             `}
             title="タスクの複雑度を自動分析してモードを提案"
@@ -329,7 +329,7 @@ export default function CompactWorkflowSelector({
 
         {/* Mode setting badge */}
         {autoComplexityAnalysis ? (
-          <span className="px-2 py-0.5 bg-blue-100 dark:bg-blue-800/50 text-blue-700 dark:text-blue-300 text-xs font-medium rounded-full">
+          <span className="px-2 py-0.5 bg-indigo-100 dark:bg-indigo-800/50 text-indigo-700 dark:text-indigo-300 text-xs font-medium rounded-full">
             自動
           </span>
         ) : isOverridden ? (
@@ -341,16 +341,16 @@ export default function CompactWorkflowSelector({
 
       {/* Recommended mode notification (shown after analysis) */}
       {analysis && analysis.recommendedMode !== selectedMode && (
-        <div className="mt-2 p-2 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
+        <div className="mt-2 p-2 bg-indigo-50 dark:bg-indigo-900/20 border border-indigo-200 dark:border-indigo-800 rounded-lg">
           <div className="flex items-center gap-2 text-xs">
-            <Info className="h-3.5 w-3.5 text-blue-600 dark:text-blue-400" />
-            <span className="text-blue-700 dark:text-blue-300">
+            <Info className="h-3.5 w-3.5 text-indigo-600 dark:text-indigo-400" />
+            <span className="text-indigo-700 dark:text-indigo-300">
               推奨: <strong>{WORKFLOW_MODE_CONFIGS[analysis.recommendedMode].name}モード</strong>
               （信頼度: {Math.round(analysis.confidence * 100)}%）
             </span>
             <button
               onClick={() => handleModeSelect(analysis.recommendedMode)}
-              className="ml-auto px-2 py-1 text-blue-700 dark:text-blue-300 hover:text-blue-800 dark:hover:text-blue-200 font-medium"
+              className="ml-auto px-2 py-1 text-indigo-700 dark:text-indigo-300 hover:text-indigo-800 dark:hover:text-indigo-200 font-medium"
             >
               適用
             </button>

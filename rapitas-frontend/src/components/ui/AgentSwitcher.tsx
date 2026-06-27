@@ -53,12 +53,12 @@ const AGENT_TYPE_INFO: Record<string, { name: string; icon: React.ReactNode; col
   'azure-openai': {
     name: 'Azure OpenAI',
     icon: <Globe className="w-4 h-4" />,
-    color: 'text-blue-500',
+    color: 'text-indigo-500',
   },
   gemini: {
     name: 'Google Gemini',
     icon: <Activity className="w-4 h-4" />,
-    color: 'text-blue-500',
+    color: 'text-indigo-500',
   },
   custom: {
     name: 'カスタム',

@@ -151,7 +151,7 @@ function PhaseStatusIcon({ status }: { status: PhaseStatus }) {
     case 'approved':
       return <CheckCircle2 className="w-4 h-4 text-green-500" />;
     case 'running':
-      return <Loader2 className="w-4 h-4 text-blue-500 animate-spin" />;
+      return <Loader2 className="w-4 h-4 text-indigo-500 animate-spin" />;
     case 'waiting':
       return <Clock className="w-4 h-4 text-zinc-400" />;
     case 'failed':
@@ -269,7 +269,7 @@ export function WorkflowLogViewer({
             key={phase}
             className={`rounded-lg border transition-colors ${
               isActive
-                ? 'border-blue-500/50 bg-blue-950/10'
+                ? 'border-indigo-500/50 bg-indigo-950/10'
                 : status === 'completed' || status === 'approved'
                   ? 'border-green-500/20 bg-green-950/5'
                   : status === 'failed'
@@ -289,7 +289,7 @@ export function WorkflowLogViewer({
               <Icon
                 className={`w-4 h-4 shrink-0 ${
                   isActive
-                    ? 'text-blue-400'
+                    ? 'text-indigo-400'
                     : status === 'completed' || status === 'approved'
                       ? 'text-green-400'
                       : 'text-zinc-500'
@@ -298,7 +298,7 @@ export function WorkflowLogViewer({
               <span
                 className={`text-xs font-medium ${
                   isActive
-                    ? 'text-blue-300'
+                    ? 'text-indigo-300'
                     : status === 'completed' || status === 'approved'
                       ? 'text-green-300'
                       : 'text-zinc-400'
@@ -316,7 +316,7 @@ export function WorkflowLogViewer({
                 <span
                   className={`text-[10px] ${
                     status === 'running'
-                      ? 'text-blue-400'
+                      ? 'text-indigo-400'
                       : status === 'completed' || status === 'approved'
                         ? 'text-green-400'
                         : status === 'failed'

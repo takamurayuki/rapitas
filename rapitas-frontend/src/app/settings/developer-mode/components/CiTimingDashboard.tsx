@@ -214,8 +214,9 @@ export function CiTimingDashboard() {
             {chartData.length > 0 && (
               <div>
                 <p className="mb-3 text-xs font-medium uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
-                  最遅テスト (上位 {chartData.length} 件) — <span className="text-blue-500">●</span>{' '}
-                  通常 <span className="text-green-500">●</span> ゲート内{' '}
+                  最遅テスト (上位 {chartData.length} 件) —{' '}
+                  <span className="text-indigo-500">●</span> 通常{' '}
+                  <span className="text-green-500">●</span> ゲート内{' '}
                   <span className="text-red-500">●</span> 失敗
                 </p>
                 <div className="h-72">
@@ -273,14 +274,14 @@ export function CiTimingDashboard() {
                     逐次実行（CI 合否ゲート）
                   </p>
                 </div>
-                <div className="rounded-lg border border-blue-200 bg-blue-50 p-3 dark:border-blue-800 dark:bg-blue-900/20">
-                  <p className="text-xs text-blue-600 dark:text-blue-400">
+                <div className="rounded-lg border border-indigo-200 bg-indigo-50 p-3 dark:border-indigo-800 dark:bg-indigo-900/20">
+                  <p className="text-xs text-indigo-600 dark:text-indigo-400">
                     全体 壁時計 ({data.totalFiles} ファイル)
                   </p>
-                  <p className="mt-0.5 text-lg font-semibold text-blue-700 dark:text-blue-300">
+                  <p className="mt-0.5 text-lg font-semibold text-indigo-700 dark:text-indigo-300">
                     {data.wallClockMs !== undefined ? fmtMs(data.wallClockMs) : '—'}
                   </p>
-                  <p className="text-xs text-blue-500 dark:text-blue-500">並列実行</p>
+                  <p className="text-xs text-indigo-500 dark:text-indigo-500">並列実行</p>
                 </div>
               </div>
               {data.missingFromResults.length > 0 && (

@@ -119,10 +119,10 @@ export const MEMO_TYPE_CONFIG: Record<
     label: '作業ログ',
     icon: Clock,
     color: {
-      bg: 'bg-blue-50 dark:bg-blue-900/20',
-      text: 'text-blue-600 dark:text-blue-400',
-      border: 'border-blue-200 dark:border-blue-800',
-      badge: 'bg-blue-100 dark:bg-blue-900/50 text-blue-600 dark:text-blue-400',
+      bg: 'bg-indigo-50 dark:bg-indigo-900/20',
+      text: 'text-indigo-600 dark:text-indigo-400',
+      border: 'border-indigo-200 dark:border-indigo-800',
+      badge: 'bg-indigo-100 dark:bg-indigo-900/50 text-indigo-600 dark:text-indigo-400',
     },
   },
   idea: {

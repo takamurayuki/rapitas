@@ -68,7 +68,7 @@ export const LinkModal = memo(function LinkModal({
         <div className="p-3 border-b border-zinc-100 dark:border-zinc-800">
           <div className="flex items-center justify-between mb-2">
             <div className="flex items-center gap-1.5">
-              <Link2 className="w-3.5 h-3.5 text-blue-500" />
+              <Link2 className="w-3.5 h-3.5 text-indigo-500" />
               <span className="text-xs font-medium text-zinc-700 dark:text-zinc-300">
                 メモをリンク
               </span>
@@ -82,8 +82,8 @@ export const LinkModal = memo(function LinkModal({
           </div>
 
           {/* Source preview */}
-          <div className="px-2 py-1.5 mb-2 bg-blue-50 dark:bg-blue-900/20 border border-blue-100 dark:border-blue-800 rounded-md">
-            <p className="text-[10px] text-blue-500 dark:text-blue-400 font-medium mb-0.5">
+          <div className="px-2 py-1.5 mb-2 bg-indigo-50 dark:bg-indigo-900/20 border border-indigo-100 dark:border-indigo-800 rounded-md">
+            <p className="text-[10px] text-indigo-500 dark:text-indigo-400 font-medium mb-0.5">
               リンク元
             </p>
             <p className="text-[10px] text-zinc-600 dark:text-zinc-400 line-clamp-1">
@@ -98,7 +98,7 @@ export const LinkModal = memo(function LinkModal({
               value={q}
               onChange={(e) => setQ(e.target.value)}
               placeholder="メモを検索..."
-              className="w-full pl-7 pr-3 py-1.5 text-xs bg-zinc-50 dark:bg-indigo-dark-800 border border-zinc-200 dark:border-zinc-700 rounded-lg outline-none focus:border-blue-400 focus:border-blue-400 transition-colors"
+              className="w-full pl-7 pr-3 py-1.5 text-xs bg-zinc-50 dark:bg-indigo-dark-800 border border-zinc-200 dark:border-zinc-700 rounded-lg outline-none focus:border-indigo-400 focus:border-indigo-400 transition-colors"
               autoFocus
             />
           </div>
@@ -129,7 +129,7 @@ export const LinkModal = memo(function LinkModal({
         <div className="max-h-48 overflow-y-auto">
           {loading ? (
             <div className="p-4 text-center">
-              <Loader2 className="w-4 h-4 animate-spin mx-auto text-blue-500" />
+              <Loader2 className="w-4 h-4 animate-spin mx-auto text-indigo-500" />
               <p className="text-[10px] text-zinc-400 mt-1">検索中...</p>
             </div>
           ) : results.length > 0 ? (
@@ -140,7 +140,7 @@ export const LinkModal = memo(function LinkModal({
                   onClick={() => onSelect(r.id, label || undefined)}
                   className="w-full flex items-start gap-2 p-2 text-left hover:bg-zinc-50 dark:hover:bg-zinc-800/50 rounded-lg transition-colors group"
                 >
-                  <MessageSquare className="w-3 h-3 text-zinc-400 group-hover:text-blue-500 shrink-0 mt-0.5 transition-colors" />
+                  <MessageSquare className="w-3 h-3 text-zinc-400 group-hover:text-indigo-500 shrink-0 mt-0.5 transition-colors" />
                   <div className="flex-1 min-w-0">
                     <p className="text-xs text-zinc-700 dark:text-zinc-300 line-clamp-2 leading-relaxed">
                       {r.content}
@@ -149,7 +149,7 @@ export const LinkModal = memo(function LinkModal({
                       {timeAgo(new Date(r.createdAt))}
                     </p>
                   </div>
-                  <Link2 className="w-3 h-3 text-zinc-300 group-hover:text-blue-500 shrink-0 mt-0.5 transition-colors" />
+                  <Link2 className="w-3 h-3 text-zinc-300 group-hover:text-indigo-500 shrink-0 mt-0.5 transition-colors" />
                 </button>
               ))}
             </div>

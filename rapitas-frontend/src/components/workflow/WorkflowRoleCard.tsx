@@ -233,7 +233,7 @@ export function WorkflowRoleCard({
                     value={roleData?.preferredProviderOverride ?? ''}
                     onChange={(e) => onPreferredProviderChange(e.target.value || null)}
                     disabled={isSaving}
-                    className="w-full appearance-none bg-white dark:bg-zinc-900 border border-zinc-300 dark:border-zinc-600 rounded-lg px-3 py-2 pr-8 text-sm text-zinc-900 dark:text-white disabled:opacity-50 focus:border-blue-400"
+                    className="w-full appearance-none bg-white dark:bg-zinc-900 border border-zinc-300 dark:border-zinc-600 rounded-lg px-3 py-2 pr-8 text-sm text-zinc-900 dark:text-white disabled:opacity-50 focus:border-indigo-400"
                   >
                     <option value="">デフォルト設定に従う</option>
                     {providerOptions.map((p) => (
@@ -273,7 +273,7 @@ export function WorkflowRoleCard({
                         onAgentChange(val ? parseInt(val) : null);
                       }}
                       disabled={isSaving}
-                      className="w-full appearance-none bg-white dark:bg-zinc-900 border border-zinc-300 dark:border-zinc-600 rounded-lg px-3 py-2 pr-8 text-sm text-zinc-900 dark:text-white disabled:opacity-50 focus:border-blue-400"
+                      className="w-full appearance-none bg-white dark:bg-zinc-900 border border-zinc-300 dark:border-zinc-600 rounded-lg px-3 py-2 pr-8 text-sm text-zinc-900 dark:text-white disabled:opacity-50 focus:border-indigo-400"
                     >
                       <option value="">未設定</option>
                       {activeAgents.map((agent) => (
@@ -299,7 +299,7 @@ export function WorkflowRoleCard({
                         onModelChange(val || null);
                       }}
                       disabled={isSaving || !selectedAgent || models.length === 0}
-                      className="w-full appearance-none bg-white dark:bg-zinc-900 border border-zinc-300 dark:border-zinc-600 rounded-lg px-3 py-2 pr-8 text-sm text-zinc-900 dark:text-white disabled:opacity-50 focus:border-blue-400"
+                      className="w-full appearance-none bg-white dark:bg-zinc-900 border border-zinc-300 dark:border-zinc-600 rounded-lg px-3 py-2 pr-8 text-sm text-zinc-900 dark:text-white disabled:opacity-50 focus:border-indigo-400"
                     >
                       <option value="" disabled>
                         {!selectedAgent
@@ -332,7 +332,7 @@ export function WorkflowRoleCard({
                         onPromptChange(val || null);
                       }}
                       disabled={isSaving}
-                      className="w-full appearance-none bg-white dark:bg-zinc-900 border border-zinc-300 dark:border-zinc-600 rounded-lg px-3 py-2 pr-8 text-sm text-zinc-900 dark:text-white disabled:opacity-50 focus:border-blue-400"
+                      className="w-full appearance-none bg-white dark:bg-zinc-900 border border-zinc-300 dark:border-zinc-600 rounded-lg px-3 py-2 pr-8 text-sm text-zinc-900 dark:text-white disabled:opacity-50 focus:border-indigo-400"
                     >
                       <option value="">デフォルト</option>
                       {systemPrompts.map((sp) => (

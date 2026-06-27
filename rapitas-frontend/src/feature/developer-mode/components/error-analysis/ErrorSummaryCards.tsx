@@ -57,8 +57,8 @@ export function ErrorSummaryCards({ summary }: ErrorSummaryCardsProps) {
               <span className="text-sm text-gray-500">/hr</span>
             </div>
           </div>
-          <div className="p-2 bg-blue-100 dark:bg-blue-900/20 rounded-lg">
-            <TrendingUp className="h-6 w-6 text-blue-500" />
+          <div className="p-2 bg-indigo-100 dark:bg-indigo-900/20 rounded-lg">
+            <TrendingUp className="h-6 w-6 text-indigo-500" />
           </div>
         </div>
       </Card>

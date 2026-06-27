@@ -44,7 +44,7 @@ export function MCPSetupGuide() {
         onClick={() => setExpanded(!expanded)}
         className="flex items-center gap-2 text-sm font-medium text-zinc-700 dark:text-zinc-300 hover:text-violet-600 dark:hover:text-violet-400 transition-colors"
       >
-        <Plug className="w-4 h-4 text-blue-500" />
+        <Plug className="w-4 h-4 text-indigo-500" />
         MCP連携 (IDE統合)
         {expanded ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
       </button>

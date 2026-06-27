@@ -62,7 +62,7 @@ export function LabelForm({
             value={formData.name}
             onChange={(e) => set({ name: e.target.value })}
             placeholder="例: バグ修正"
-            className="w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 px-3 py-2 text-sm focus:outline-none focus:border-blue-400 transition-all"
+            className="w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 px-3 py-2 text-sm focus:outline-none focus:border-indigo-400 transition-all"
             autoFocus
           />
         </div>
@@ -77,7 +77,7 @@ export function LabelForm({
             onChange={(e) => set({ description: e.target.value })}
             placeholder="ラベルの説明を入力"
             rows={1}
-            className="w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 px-3 py-2 text-sm focus:outline-none focus:border-blue-400 transition-all resize-none"
+            className="w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 px-3 py-2 text-sm focus:outline-none focus:border-indigo-400 transition-all resize-none"
           />
         </div>
 
@@ -98,7 +98,7 @@ export function LabelForm({
                 type="text"
                 value={formData.color}
                 onChange={(e) => set({ color: e.target.value })}
-                className="flex-1 rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 px-3 py-2 text-sm focus:outline-none focus:border-blue-400 transition-all font-mono"
+                className="flex-1 rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 px-3 py-2 text-sm focus:outline-none focus:border-indigo-400 transition-all font-mono"
               />
             </div>
           </div>
@@ -131,7 +131,7 @@ export function LabelForm({
               value={iconSearchQuery}
               onChange={(e) => setIconSearchQuery(e.target.value)}
               placeholder="アイコンを検索..."
-              className="w-full pl-9 pr-3 py-2 rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-sm focus:outline-none focus:border-blue-400 transition-all"
+              className="w-full pl-9 pr-3 py-2 rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-sm focus:outline-none focus:border-indigo-400 transition-all"
             />
           </div>
           <div className="max-h-36 overflow-y-auto border border-zinc-200 dark:border-zinc-700 rounded-lg bg-zinc-50 dark:bg-zinc-800/50">

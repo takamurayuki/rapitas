@@ -22,7 +22,7 @@ export function NoteEditForm({ editText, onEditText, onSave, onCancel }: NoteEdi
       <textarea
         value={editText}
         onChange={(e) => onEditText(e.target.value)}
-        className="w-full p-2 text-xs bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg resize-none outline-none focus:border-blue-400 focus:border-blue-400"
+        className="w-full p-2 text-xs bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg resize-none outline-none focus:border-indigo-400 focus:border-indigo-400"
         rows={3}
         autoFocus
       />
@@ -36,7 +36,7 @@ export function NoteEditForm({ editText, onEditText, onSave, onCancel }: NoteEdi
         <button
           onClick={onSave}
           disabled={!editText.trim()}
-          className="px-2.5 py-1 text-[10px] bg-blue-600 hover:bg-blue-700 text-white rounded-md disabled:opacity-50 transition-colors"
+          className="px-2.5 py-1 text-[10px] bg-indigo-600 hover:bg-indigo-700 text-white rounded-md disabled:opacity-50 transition-colors"
         >
           保存
         </button>

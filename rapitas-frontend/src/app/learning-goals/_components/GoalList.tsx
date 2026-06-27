@@ -72,7 +72,7 @@ export function GoalList({ goals, selectedGoalId, showWizard, onSelect }: Props)
                     goal.status === 'active'
                       ? 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300'
                       : goal.status === 'completed'
-                        ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300'
+                        ? 'bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300'
                         : 'bg-zinc-100 dark:bg-zinc-600 text-zinc-600 dark:text-zinc-300'
                   }`}
                 >

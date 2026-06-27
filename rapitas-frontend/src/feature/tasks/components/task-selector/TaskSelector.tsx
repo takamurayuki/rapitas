@@ -90,7 +90,7 @@ export function TaskSelector({
   const getStatusBadge = (status: string) => {
     const colors = {
       todo: 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300',
-      in_progress: 'bg-blue-100 text-blue-700 dark:bg-blue-800 dark:text-blue-300',
+      in_progress: 'bg-indigo-100 text-indigo-700 dark:bg-indigo-800 dark:text-indigo-300',
       completed: 'bg-green-100 text-green-700 dark:bg-green-800 dark:text-green-300',
       blocked: 'bg-orange-100 text-orange-700 dark:bg-orange-800 dark:text-orange-300',
     };
@@ -157,7 +157,7 @@ export function TaskSelector({
               placeholder="タスクを検索..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:border-blue-400 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
+              className="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:border-indigo-400 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
             />
           </div>
 

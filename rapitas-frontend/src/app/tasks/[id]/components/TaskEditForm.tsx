@@ -60,8 +60,8 @@ const PRIORITY_OPTIONS: Array<{
     value: 'medium',
     labelKey: 'priorityMedium',
     icon: <ChevronsUpDown className="w-3.5 h-3.5" />,
-    iconColor: 'text-blue-500',
-    bgColor: 'bg-blue-500',
+    iconColor: 'text-indigo-500',
+    bgColor: 'bg-indigo-500',
   },
   {
     value: 'low',

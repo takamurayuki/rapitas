@@ -84,7 +84,7 @@ export function PaidLeaveHeader({
               ? 'bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400'
               : afterUsage < 5
                 ? 'bg-amber-50 dark:bg-amber-900/20 text-amber-600 dark:text-amber-400'
-                : 'bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400'
+                : 'bg-indigo-50 dark:bg-indigo-900/20 text-indigo-600 dark:text-indigo-400'
           }`}
         >
           <div className="flex justify-between items-center">

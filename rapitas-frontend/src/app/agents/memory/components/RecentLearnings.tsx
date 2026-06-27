@@ -58,7 +58,7 @@ export function RecentLearnings({ memoryOverview, formatDate }: RecentLearningsP
       {/* Latest knowledge nodes */}
       <div className="p-6 bg-white dark:bg-zinc-800 rounded-xl border border-zinc-200 dark:border-zinc-700 shadow-sm dark:shadow-2xl dark:shadow-black/50">
         <div className="flex items-center gap-3 mb-4">
-          <div className="p-2 bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded-lg">
+          <div className="p-2 bg-indigo-100 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 rounded-lg">
             <Network className="w-5 h-5" />
           </div>
           <h3 className="font-semibold text-zinc-900 dark:text-zinc-100">最新のナレッジノード</h3>
@@ -80,7 +80,7 @@ export function RecentLearnings({ memoryOverview, formatDate }: RecentLearningsP
                   </p>
                 </div>
                 <div className="flex items-center gap-2 shrink-0 ml-3">
-                  <span className="text-xs px-2 py-1 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 rounded-full">
+                  <span className="text-xs px-2 py-1 bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300 rounded-full">
                     w: {node.weight.toFixed(1)}
                   </span>
                   <span className="text-xs text-zinc-400 dark:text-zinc-500">

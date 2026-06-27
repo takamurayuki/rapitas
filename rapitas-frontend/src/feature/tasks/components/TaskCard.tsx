@@ -156,7 +156,7 @@ const TaskCard = memo(function TaskCard({
                   width="30"
                   height="30"
                   rx="7"
-                  stroke={tc.executionStatus === 'waiting_for_input' ? '#f59e0b' : '#3b82f6'}
+                  stroke={tc.executionStatus === 'waiting_for_input' ? '#f59e0b' : '#6366f1'}
                   strokeWidth="2"
                   strokeDasharray="20 87.96"
                   strokeLinecap="round"
@@ -227,7 +227,7 @@ const TaskCard = memo(function TaskCard({
                       e.stopPropagation();
                       tc.setExpandedSubtasks(!tc.expandedSubtasks);
                     }}
-                    className="text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 font-medium flex items-center gap-1 transition-all duration-200 ease-out hover:scale-105"
+                    className="text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 dark:hover:text-indigo-300 font-medium flex items-center gap-1 transition-all duration-200 ease-out hover:scale-105"
                     aria-expanded={tc.expandedSubtasks}
                     aria-label={t('subtasks')}
                   >
@@ -377,7 +377,7 @@ const TaskCard = memo(function TaskCard({
                   e.stopPropagation();
                   onOpenInPage(task.id);
                 }}
-                className="w-7 h-7 rounded-md flex items-center justify-center text-zinc-500 dark:text-zinc-400 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/30 transition-all duration-200 ease-out hover:scale-110"
+                className="w-7 h-7 rounded-md flex items-center justify-center text-zinc-500 dark:text-zinc-400 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 transition-all duration-200 ease-out hover:scale-110"
                 aria-label={tHome('openInPage')}
               >
                 <ExternalLink className="w-4 h-4" aria-hidden="true" />

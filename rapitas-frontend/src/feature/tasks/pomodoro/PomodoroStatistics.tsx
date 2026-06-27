@@ -80,7 +80,7 @@ export default function PomodoroStatistics() {
           onClick={() => setPeriod('week')}
           className={`px-3 py-1 rounded-md text-sm font-medium transition-colors ${
             period === 'week'
-              ? 'bg-blue-500 text-white'
+              ? 'bg-indigo-500 text-white'
               : 'bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400'
           }`}
         >
@@ -90,7 +90,7 @@ export default function PomodoroStatistics() {
           onClick={() => setPeriod('month')}
           className={`px-3 py-1 rounded-md text-sm font-medium transition-colors ${
             period === 'month'
-              ? 'bg-blue-500 text-white'
+              ? 'bg-indigo-500 text-white'
               : 'bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400'
           }`}
         >
@@ -140,7 +140,7 @@ export default function PomodoroStatistics() {
             {stats.dailyStats.slice(-14).map((day) => (
               <div key={day.date} className="flex-1 flex flex-col items-center gap-1">
                 <div
-                  className="w-full bg-blue-500 dark:bg-blue-400 rounded-t-sm min-h-[2px] transition-all"
+                  className="w-full bg-indigo-500 dark:bg-indigo-400 rounded-t-sm min-h-[2px] transition-all"
                   style={{
                     height: `${(day.count / maxDailyCount) * 100}%`,
                   }}
@@ -169,7 +169,7 @@ export default function PomodoroStatistics() {
                   </div>
                   <div className="w-full bg-zinc-100 dark:bg-zinc-700 rounded-full h-1.5 mt-1">
                     <div
-                      className="bg-blue-500 rounded-full h-1.5 transition-all"
+                      className="bg-indigo-500 rounded-full h-1.5 transition-all"
                       style={{
                         width: `${(task.count / stats.taskStats[0]!.count) * 100}%`,
                       }}

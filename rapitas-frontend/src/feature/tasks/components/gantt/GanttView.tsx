@@ -176,7 +176,7 @@ export function GanttView({ themeId, categoryId, className = '' }: GanttViewProp
                 onClick={() => setZoomLevel(level)}
                 className={`px-3 py-1 text-sm ${
                   zoomLevel === level
-                    ? 'bg-blue-600 text-white'
+                    ? 'bg-indigo-600 text-white'
                     : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700'
                 } first:rounded-l-md last:rounded-r-md`}
               >

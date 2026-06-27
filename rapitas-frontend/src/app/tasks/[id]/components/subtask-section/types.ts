@@ -21,9 +21,9 @@ export const priorityOptions: PriorityOption[] = [
   {
     value: 'low',
     icon: React.createElement(ArrowDown, { className: 'w-3.5 h-3.5' }),
-    color: 'text-blue-500',
-    activeBg: 'bg-blue-50 dark:bg-blue-900/30',
-    activeBorder: 'border-blue-400 dark:border-blue-500',
+    color: 'text-indigo-500',
+    activeBg: 'bg-indigo-50 dark:bg-indigo-900/30',
+    activeBorder: 'border-indigo-400 dark:border-indigo-500',
   },
   {
     value: 'medium',

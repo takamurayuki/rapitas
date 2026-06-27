@@ -50,7 +50,7 @@ export default function TaskSuggestionDetail({ suggestion, onApply }: TaskSugges
       case 'high':
         return 'text-orange-600 dark:text-orange-400 bg-orange-100 dark:bg-orange-900/30';
       case 'medium':
-        return 'text-blue-600 dark:text-blue-400 bg-blue-100 dark:bg-blue-900/30';
+        return 'text-indigo-600 dark:text-indigo-400 bg-indigo-100 dark:bg-indigo-900/30';
       case 'low':
         return 'text-green-600 dark:text-green-400 bg-green-100 dark:bg-green-900/30';
       default:
@@ -119,14 +119,14 @@ export default function TaskSuggestionDetail({ suggestion, onApply }: TaskSugges
         )}
 
         {/* Time-bound */}
-        <div className="p-3 rounded-lg bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800/50">
+        <div className="p-3 rounded-lg bg-indigo-50 dark:bg-indigo-900/20 border border-indigo-200 dark:border-indigo-800/50">
           <div className="flex items-center gap-2 mb-1">
-            <Clock className="w-4 h-4 text-blue-600 dark:text-blue-400" />
-            <span className="text-xs font-medium text-blue-700 dark:text-blue-300">
+            <Clock className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
+            <span className="text-xs font-medium text-indigo-700 dark:text-indigo-300">
               推定所要時間
             </span>
           </div>
-          <p className="text-xs text-blue-600 dark:text-blue-300">
+          <p className="text-xs text-indigo-600 dark:text-indigo-300">
             {suggestion.estimatedHours ? `${suggestion.estimatedHours}時間` : '未設定'}
           </p>
         </div>

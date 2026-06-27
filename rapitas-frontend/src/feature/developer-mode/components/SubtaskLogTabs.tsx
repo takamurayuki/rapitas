@@ -72,7 +72,7 @@ function getPhaseStyle(workflowStatus?: string): string {
       return 'text-green-400';
     case 'in_progress':
     case 'plan_approved':
-      return 'text-blue-400';
+      return 'text-indigo-400';
     case 'plan_created':
       return 'text-amber-400';
     case 'research_done':
@@ -106,13 +106,13 @@ export function SubtaskLogTabs({
     const iconClass = 'w-3 h-3';
     switch (status) {
       case 'running':
-        return <Loader2 className={`${iconClass} text-blue-500 animate-spin`} />;
+        return <Loader2 className={`${iconClass} text-indigo-500 animate-spin`} />;
       case 'completed':
         return <CheckCircle2 className={`${iconClass} text-green-500`} />;
       case 'failed':
         return <XCircle className={`${iconClass} text-red-500`} />;
       case 'scheduled':
-        return <Clock className={`${iconClass} text-blue-400`} />;
+        return <Clock className={`${iconClass} text-indigo-400`} />;
       case 'blocked':
         return <Pause className={`${iconClass} text-orange-500`} />;
       case 'cancelled':
@@ -373,7 +373,7 @@ export function SubtaskLogTabs({
                       status === 'completed'
                         ? 'text-green-400'
                         : status === 'running'
-                          ? 'text-blue-400'
+                          ? 'text-indigo-400'
                           : status === 'failed'
                             ? 'text-red-400'
                             : status === 'blocked'

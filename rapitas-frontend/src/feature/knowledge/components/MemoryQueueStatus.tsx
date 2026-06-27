@@ -11,7 +11,7 @@ export function MemoryQueueStatus({ status }: MemoryQueueStatusProps) {
   const t = useTranslations('knowledge.admin');
 
   const items = [
-    { label: t('pending'), value: status.pending, color: 'bg-blue-500' },
+    { label: t('pending'), value: status.pending, color: 'bg-indigo-500' },
     {
       label: t('processing'),
       value: status.processing,

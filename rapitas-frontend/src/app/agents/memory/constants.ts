@@ -42,10 +42,10 @@ export const LEVEL_CONFIG: Record<
     gradient: 'from-purple-500 to-indigo-500',
   },
   advanced: {
-    color: 'text-blue-600 dark:text-blue-400',
-    bg: 'bg-blue-100 dark:bg-blue-900/30',
-    barColor: 'bg-blue-500',
-    gradient: 'from-blue-500 to-cyan-500',
+    color: 'text-indigo-600 dark:text-indigo-400',
+    bg: 'bg-indigo-100 dark:bg-indigo-900/30',
+    barColor: 'bg-indigo-500',
+    gradient: 'from-indigo-500 to-cyan-500',
   },
   intermediate: {
     color: 'text-green-600 dark:text-green-400',

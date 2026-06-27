@@ -288,7 +288,7 @@ export default function PomodoroTimer({
             strokeDasharray={circumference}
             strokeDashoffset={strokeDashoffset}
             className={`transition-all duration-1000 ${
-              isBreakTime ? 'text-green-500' : isPaused ? 'text-orange-500' : 'text-blue-500'
+              isBreakTime ? 'text-green-500' : isPaused ? 'text-orange-500' : 'text-indigo-500'
             }`}
             strokeLinecap="round"
           />
@@ -349,15 +349,15 @@ export default function PomodoroTimer({
       )}
 
       {showBreakEndDialog && (
-        <div className="mb-6 p-6 bg-blue-50 dark:bg-blue-950 rounded-xl border-2 border-blue-500">
+        <div className="mb-6 p-6 bg-indigo-50 dark:bg-indigo-950 rounded-xl border-2 border-indigo-500">
           <div className="text-center mb-4">
-            <div className="text-lg font-semibold text-blue-700 dark:text-blue-300">
+            <div className="text-lg font-semibold text-indigo-700 dark:text-indigo-300">
               {t('breakEndMessage')}
             </div>
           </div>
           <button
             onClick={handleBreakEnd}
-            className="w-full px-6 py-3 bg-blue-500 hover:bg-blue-600 text-white rounded-lg font-medium transition-colors"
+            className="w-full px-6 py-3 bg-indigo-500 hover:bg-indigo-600 text-white rounded-lg font-medium transition-colors"
           >
             {t('resumeWork')}
           </button>
@@ -377,7 +377,7 @@ export default function PomodoroTimer({
             <select
               value={selectedSubtaskId ?? ''}
               onChange={(e) => setSelectedSubtaskId(e.target.value ? Number(e.target.value) : null)}
-              className="w-full px-3 py-2 text-sm bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+              className="w-full px-3 py-2 text-sm bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
             >
               <option value="">親タスク（{taskTitle}）</option>
               {subtasks.map((s) => (
@@ -397,7 +397,7 @@ export default function PomodoroTimer({
               {isPaused ? (
                 <button
                   onClick={handleResumeTimer}
-                  className="flex items-center gap-2 px-8 py-4 bg-blue-500 hover:bg-blue-600 text-white rounded-xl font-semibold transition-all"
+                  className="flex items-center gap-2 px-8 py-4 bg-indigo-500 hover:bg-indigo-600 text-white rounded-xl font-semibold transition-all"
                 >
                   <Play className="w-5 h-5" />
                   {t('resumeWork')}
@@ -436,7 +436,7 @@ export default function PomodoroTimer({
             <button
               onClick={handleStartTimer}
               disabled={isOtherTaskRunning}
-              className="flex items-center gap-2 px-12 py-5 bg-blue-500 hover:bg-blue-600 disabled:bg-zinc-400 disabled:cursor-not-allowed text-white rounded-xl font-bold text-lg transition-all"
+              className="flex items-center gap-2 px-12 py-5 bg-indigo-500 hover:bg-indigo-600 disabled:bg-zinc-400 disabled:cursor-not-allowed text-white rounded-xl font-bold text-lg transition-all"
             >
               <Play className="w-6 h-6" />
               {t('start')}

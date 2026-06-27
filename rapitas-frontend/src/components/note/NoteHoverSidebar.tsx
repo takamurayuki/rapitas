@@ -220,7 +220,7 @@ export default function NoteHoverSidebar() {
       <div className="flex items-start justify-between gap-2">
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-1 mb-0.5">
-            <NotebookPen className="w-3 h-3 shrink-0 text-blue-400" />
+            <NotebookPen className="w-3 h-3 shrink-0 text-indigo-400" />
             <h4 className="font-medium text-xs truncate text-zinc-900 dark:text-zinc-100">
               {note.title.includes(' > ')
                 ? (note.title.split(' > ').pop() ?? note.title)

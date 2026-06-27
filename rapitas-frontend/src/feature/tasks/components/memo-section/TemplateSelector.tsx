@@ -41,7 +41,7 @@ export const TemplateSelector = memo(function TemplateSelector({
         <div className="p-4 border-b border-zinc-100 dark:border-zinc-800">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <FileText className="w-4 h-4 text-blue-500" />
+              <FileText className="w-4 h-4 text-indigo-500" />
               <span className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
                 メモテンプレート選択
               </span>
@@ -79,7 +79,7 @@ export const TemplateSelector = memo(function TemplateSelector({
                         <TemplateIcon className={`w-3.5 h-3.5 ${templateTypeConfig.color.text}`} />
                       </div>
                       <div className="flex-1 min-w-0">
-                        <h3 className="text-sm font-medium text-zinc-800 dark:text-zinc-200 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
+                        <h3 className="text-sm font-medium text-zinc-800 dark:text-zinc-200 group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">
                           {template.label}
                         </h3>
                         <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5 line-clamp-2">

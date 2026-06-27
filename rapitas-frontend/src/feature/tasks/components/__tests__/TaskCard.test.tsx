@@ -114,9 +114,9 @@ vi.mock('@/feature/tasks/config/StatusConfig', () => {
       label: '未着手',
     },
     'in-progress': {
-      color: 'text-blue-700',
-      bgColor: 'bg-blue-50',
-      borderColor: 'border-l-blue-500',
+      color: 'text-indigo-700',
+      bgColor: 'bg-indigo-50',
+      borderColor: 'border-l-indigo-500',
       label: '進行中',
     },
     done: {

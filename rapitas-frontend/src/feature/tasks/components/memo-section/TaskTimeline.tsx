@@ -86,7 +86,7 @@ export const TaskTimeline = memo(function TaskTimeline({
                       {MEMO_TYPE_CONFIG[(item.data as NoteData).memoType || 'general'].label}
                     </span>
                     {(item.data as NoteData).isPinned && (
-                      <Pin className="w-2.5 h-2.5 text-blue-500" />
+                      <Pin className="w-2.5 h-2.5 text-indigo-500" />
                     )}
                   </div>
                   <p className="text-xs text-zinc-700 dark:text-zinc-300 mt-0.5 line-clamp-2">

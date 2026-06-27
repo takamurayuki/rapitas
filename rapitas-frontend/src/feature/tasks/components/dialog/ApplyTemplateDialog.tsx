@@ -154,7 +154,7 @@ export default function ApplyTemplateDialog({ isOpen, onClose, selectedTheme, on
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="テンプレートを検索..."
-              className="w-full bg-zinc-50 dark:bg-zinc-800 rounded-xl pl-10 pr-4 py-2.5 text-sm border border-zinc-200 dark:border-zinc-700 outline-none focus:border-blue-400 transition-all"
+              className="w-full bg-zinc-50 dark:bg-zinc-800 rounded-xl pl-10 pr-4 py-2.5 text-sm border border-zinc-200 dark:border-zinc-700 outline-none focus:border-indigo-400 transition-all"
             />
           </div>
 

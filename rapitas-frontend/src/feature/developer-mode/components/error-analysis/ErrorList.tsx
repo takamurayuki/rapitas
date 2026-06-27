@@ -40,7 +40,7 @@ const severityConfig = {
     label: 'Medium',
   },
   [ErrorSeverity.LOW]: {
-    color: 'bg-blue-500 dark:bg-blue-600',
+    color: 'bg-indigo-500 dark:bg-indigo-600',
     icon: Info,
     label: 'Low',
   },
@@ -54,7 +54,7 @@ const severityConfig = {
 const categoryColors: Record<ErrorCategory, string> = {
   [ErrorCategory.SYNTAX]: 'bg-purple-500',
   [ErrorCategory.RUNTIME]: 'bg-red-500',
-  [ErrorCategory.NETWORK]: 'bg-blue-500',
+  [ErrorCategory.NETWORK]: 'bg-indigo-500',
   [ErrorCategory.PERMISSION]: 'bg-orange-500',
   [ErrorCategory.CONFIGURATION]: 'bg-green-500',
   [ErrorCategory.DEPENDENCY]: 'bg-indigo-500',
@@ -175,7 +175,7 @@ export function ErrorList({
                               href={link}
                               target="_blank"
                               rel="noopener noreferrer"
-                              className="flex items-center space-x-2 text-sm text-blue-500 hover:text-blue-600"
+                              className="flex items-center space-x-2 text-sm text-indigo-500 hover:text-indigo-600"
                             >
                               <ExternalLink className="h-3 w-3" />
                               <span>{link}</span>

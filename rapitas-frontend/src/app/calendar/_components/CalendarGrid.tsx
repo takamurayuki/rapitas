@@ -93,7 +93,7 @@ function WeekDayHeaders() {
             index === 0
               ? 'text-red-500'
               : index === 6
-                ? 'text-blue-500'
+                ? 'text-indigo-500'
                 : 'text-zinc-500 dark:text-zinc-400'
           }`}
         >
@@ -208,7 +208,7 @@ function DayCell({
     : dayOfWeek === 0 || isHoliday
       ? 'text-red-500'
       : dayOfWeek === 6
-        ? 'text-blue-500'
+        ? 'text-indigo-500'
         : 'text-zinc-700 dark:text-zinc-300';
 
   return (

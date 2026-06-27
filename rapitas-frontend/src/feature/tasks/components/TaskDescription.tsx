@@ -57,7 +57,7 @@ export default function TaskDescription({
         prose-h2:text-xl prose-h2:mt-3 prose-h2:mb-2
         prose-h3:text-lg prose-h3:mt-2 prose-h3:mb-1
         prose-p:my-2 prose-p:leading-relaxed
-        prose-a:text-blue-600 prose-a:no-underline hover:prose-a:underline
+        prose-a:text-indigo-600 prose-a:no-underline hover:prose-a:underline
         prose-pre:bg-zinc-100 prose-pre:dark:bg-indigo-dark-800
         prose-pre:p-4 prose-pre:rounded-lg prose-pre:overflow-x-auto
         prose-blockquote:border-l-4 prose-blockquote:border-zinc-300
@@ -95,7 +95,7 @@ export default function TaskDescription({
         <div className="mt-3 flex justify-center">
           <button
             onClick={() => setIsExpanded(!isExpanded)}
-            className="inline-flex items-center gap-1 px-3 py-1.5 text-sm font-medium text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 hover:bg-blue-50 dark:hover:bg-blue-950/30 rounded-lg transition-colors"
+            className="inline-flex items-center gap-1 px-3 py-1.5 text-sm font-medium text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 dark:hover:text-indigo-300 hover:bg-indigo-50 dark:hover:bg-indigo-950/30 rounded-lg transition-colors"
           >
             {isExpanded ? (
               <>

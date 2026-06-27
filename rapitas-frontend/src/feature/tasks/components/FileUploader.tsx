@@ -178,7 +178,7 @@ export default function FileUploader({ taskId, resources, onResourcesChange }: F
     if (resource.type === 'pdf' || resource.mimeType === 'application/pdf') {
       return <FileText className="w-4 h-4 text-rose-500" />;
     }
-    return <File className="w-4 h-4 text-blue-500" />;
+    return <File className="w-4 h-4 text-indigo-500" />;
   };
 
   const formatFileSize = (bytes?: number | null) => {
@@ -212,8 +212,8 @@ export default function FileUploader({ taskId, resources, onResourcesChange }: F
       <div
         className={`relative border-2 border-dashed rounded-xl p-4 transition-all cursor-pointer ${
           dragActive
-            ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20'
-            : 'border-zinc-200 dark:border-zinc-700 hover:border-blue-200 dark:hover:border-blue-500'
+            ? 'border-indigo-500 bg-indigo-50 dark:bg-indigo-900/20'
+            : 'border-zinc-200 dark:border-zinc-700 hover:border-indigo-200 dark:hover:border-indigo-500'
         }`}
         onDragEnter={handleDragEnter}
         onDragLeave={handleDragLeave}
@@ -231,7 +231,7 @@ export default function FileUploader({ taskId, resources, onResourcesChange }: F
         />
         <div className="flex flex-col items-center gap-2 text-center pointer-events-none">
           {isUploading ? (
-            <Loader2 className="w-8 h-8 text-blue-500 animate-spin" />
+            <Loader2 className="w-8 h-8 text-indigo-500 animate-spin" />
           ) : (
             <Upload className="w-8 h-8 text-zinc-400 dark:text-zinc-500" />
           )}
@@ -298,7 +298,7 @@ export default function FileUploader({ taskId, resources, onResourcesChange }: F
               <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                 <button
                   onClick={() => setViewingResource(resource)}
-                  className="p-1.5 text-zinc-500 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded-lg transition-colors"
+                  className="p-1.5 text-zinc-500 hover:text-indigo-500 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 rounded-lg transition-colors"
                   title="プレビュー"
                 >
                   <Eye className="w-4 h-4" />
@@ -307,7 +307,7 @@ export default function FileUploader({ taskId, resources, onResourcesChange }: F
                   href={getFileUrl(resource)}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="p-1.5 text-zinc-500 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded-lg transition-colors"
+                  className="p-1.5 text-zinc-500 hover:text-indigo-500 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 rounded-lg transition-colors"
                   title="新しいタブで開く"
                 >
                   <ExternalLink className="w-4 h-4" />
@@ -326,8 +326,8 @@ export default function FileUploader({ taskId, resources, onResourcesChange }: F
                       downloadStates[resource.id] === 'completed'
                         ? 'text-emerald-500 bg-emerald-100 dark:bg-emerald-900/40 scale-110'
                         : downloadStates[resource.id] === 'downloading'
-                          ? 'text-blue-500 bg-blue-50 dark:bg-blue-900/30'
-                          : 'text-zinc-500 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/30'
+                          ? 'text-indigo-500 bg-indigo-50 dark:bg-indigo-900/30'
+                          : 'text-zinc-500 hover:text-indigo-500 hover:bg-indigo-50 dark:hover:bg-indigo-900/30'
                     }`}
                     title={
                       downloadStates[resource.id] === 'completed'

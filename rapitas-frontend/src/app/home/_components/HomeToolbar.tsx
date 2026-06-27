@@ -78,14 +78,14 @@ export function HomeToolbar({
                 status === 'todo'
                   ? 'text-zinc-600 dark:text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-300'
                   : status === 'in-progress'
-                    ? 'text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300'
+                    ? 'text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 dark:hover:text-indigo-300'
                     : 'text-green-600 dark:text-green-400 hover:text-green-700 dark:hover:text-green-300';
 
               const bgHoverClasses =
                 status === 'todo'
                   ? 'hover:bg-zinc-100 dark:hover:bg-zinc-900/30'
                   : status === 'in-progress'
-                    ? 'hover:bg-blue-100 dark:hover:bg-blue-900/30'
+                    ? 'hover:bg-indigo-100 dark:hover:bg-indigo-900/30'
                     : 'hover:bg-green-100 dark:hover:bg-green-900/30';
 
               return (
@@ -144,13 +144,13 @@ export function HomeToolbar({
                 title={`${t('newTask')} (Ctrl+N)`}
                 className="
                   flex items-center gap-2 px-3.5 py-2 rounded-lg select-none
-                  text-sm font-medium text-blue-700 dark:text-blue-300
+                  text-sm font-medium text-indigo-700 dark:text-indigo-300
                   bg-white dark:bg-zinc-900
-                  border border-blue-200 dark:border-blue-800
+                  border border-indigo-200 dark:border-indigo-800
                   shadow-[0_2px_0_0_#93c5fd] dark:shadow-[0_2px_0_0_#1e3a5f]
                   transition-all duration-75
-                  hover:bg-blue-50 dark:hover:bg-blue-900/20 hover:border-blue-300 dark:hover:border-blue-700
-                  active:translate-y-[2px] active:shadow-none active:bg-blue-50 dark:active:bg-blue-900/20
+                  hover:bg-indigo-50 dark:hover:bg-indigo-900/20 hover:border-indigo-300 dark:hover:border-indigo-700
+                  active:translate-y-[2px] active:shadow-none active:bg-indigo-50 dark:active:bg-indigo-900/20
                 "
               >
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">

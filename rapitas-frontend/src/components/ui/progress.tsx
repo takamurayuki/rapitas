@@ -14,7 +14,7 @@ export function Progress({ className = '', value = 0, max = 100, ...props }: Pro
       {...props}
     >
       <div
-        className="h-full rounded-full bg-blue-500 transition-all duration-300"
+        className="h-full rounded-full bg-indigo-500 transition-all duration-300"
         style={{ width: `${percentage}%` }}
       />
     </div>

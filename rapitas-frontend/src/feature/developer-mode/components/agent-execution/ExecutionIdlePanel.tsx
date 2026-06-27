@@ -167,7 +167,7 @@ export function ExecutionIdlePanel({
                   onChange={(e) => setInstruction(e.target.value)}
                   placeholder="例: TypeScriptの型を厳密に定義してください。テストも作成してください。"
                   rows={3}
-                  className="w-full px-3 py-2 bg-white dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-600 rounded-lg text-sm focus:outline-none focus:border-blue-400 transition-all resize-none"
+                  className="w-full px-3 py-2 bg-white dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-600 rounded-lg text-sm focus:outline-none focus:border-indigo-400 transition-all resize-none"
                 />
               </div>
 
@@ -181,7 +181,7 @@ export function ExecutionIdlePanel({
                   value={branchName}
                   onChange={(e) => setBranchName(e.target.value)}
                   placeholder="AIが自動で適切なブランチ名を生成します"
-                  className="w-full px-3 py-2 bg-white dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-600 rounded-lg text-sm font-mono focus:outline-none focus:border-blue-400 transition-all"
+                  className="w-full px-3 py-2 bg-white dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-600 rounded-lg text-sm font-mono focus:outline-none focus:border-indigo-400 transition-all"
                 />
                 <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
                   指定しない場合、AIがタスク内容を基に適切なブランチ名を自動生成します。

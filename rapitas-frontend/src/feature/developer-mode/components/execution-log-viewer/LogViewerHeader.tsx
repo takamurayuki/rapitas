@@ -121,7 +121,7 @@ export const LogViewerHeader: React.FC<LogViewerHeaderProps> = ({
               onChange={onSearchQueryChange}
               onKeyDown={onSearchKeyDown}
               placeholder="ログを検索..."
-              className="w-44 px-3 py-1 pl-7 bg-zinc-900 border border-zinc-600 rounded text-xs text-zinc-200 placeholder-zinc-500 focus:outline-none focus:border-blue-400 focus:w-60 transition-all"
+              className="w-44 px-3 py-1 pl-7 bg-zinc-900 border border-zinc-600 rounded text-xs text-zinc-200 placeholder-zinc-500 focus:outline-none focus:border-indigo-400 focus:w-60 transition-all"
             />
             <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-3 h-3 text-zinc-500" />
           </div>
@@ -213,8 +213,8 @@ export const LogViewerHeader: React.FC<LogViewerHeaderProps> = ({
 function buildStatusBadge(status: ExecutionLogStatus, isRunning: boolean): React.ReactNode {
   if (isRunning || status === 'running') {
     return (
-      <span className="flex items-center gap-1.5 px-2 py-0.5 bg-blue-500/20 text-blue-400 rounded text-xs">
-        <span className="w-1.5 h-1.5 bg-blue-400 rounded-full animate-pulse" />
+      <span className="flex items-center gap-1.5 px-2 py-0.5 bg-indigo-500/20 text-indigo-400 rounded text-xs">
+        <span className="w-1.5 h-1.5 bg-indigo-400 rounded-full animate-pulse" />
         実行中
       </span>
     );

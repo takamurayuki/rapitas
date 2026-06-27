@@ -49,7 +49,7 @@ function NoteItem({
           : 'text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-700/50'
       }`}
     >
-      <NotebookPen className="w-3.5 h-3.5 shrink-0 text-blue-400 dark:text-blue-500" />
+      <NotebookPen className="w-3.5 h-3.5 shrink-0 text-indigo-400 dark:text-indigo-500" />
       <span className="flex-1 text-xs truncate">{displayTitle}</span>
       <button
         onClick={(e) => {

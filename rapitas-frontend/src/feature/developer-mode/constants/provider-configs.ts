@@ -76,7 +76,7 @@ export const PROVIDER_CONFIGS: Record<string, ProviderConfig> = {
   },
   gemini: {
     name: 'Gemini CLI',
-    color: 'text-blue-500',
+    color: 'text-indigo-500',
     defaultModel: 'gemini-2.0-flash',
     models: [
       {

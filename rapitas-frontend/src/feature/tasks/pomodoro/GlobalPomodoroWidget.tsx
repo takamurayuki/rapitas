@@ -133,7 +133,7 @@ export default function GlobalPomodoroWidget() {
     } else if (isPaused) {
       return <Pause className="w-4 h-4 text-orange-500" />;
     } else {
-      return <Hourglass className="w-4 h-4 text-blue-500 animate-pulse" />;
+      return <Hourglass className="w-4 h-4 text-indigo-500 animate-pulse" />;
     }
   };
 
@@ -144,7 +144,7 @@ export default function GlobalPomodoroWidget() {
       return 'bg-orange-50 dark:bg-orange-950 border-orange-300 dark:border-orange-700';
     }
     // Working (active) state
-    return 'bg-blue-50 dark:bg-blue-950 border-blue-300 dark:border-blue-700';
+    return 'bg-indigo-50 dark:bg-indigo-950 border-indigo-300 dark:border-indigo-700';
   };
 
   return (

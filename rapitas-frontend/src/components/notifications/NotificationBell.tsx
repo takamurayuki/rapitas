@@ -14,7 +14,7 @@ const typeIcons: Record<string, string> = {
   task_created: 'bg-indigo-100 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400',
   task_completed: 'bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400',
   agent_error: 'bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400',
-  daily_summary: 'bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400',
+  daily_summary: 'bg-indigo-100 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400',
   pr_review_requested: 'bg-amber-100 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400',
   pr_approved: 'bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400',
   pr_changes_requested: 'bg-orange-100 dark:bg-orange-900/30 text-orange-600 dark:text-orange-400',

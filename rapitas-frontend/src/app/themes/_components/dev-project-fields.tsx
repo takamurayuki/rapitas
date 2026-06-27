@@ -138,7 +138,7 @@ export function DevProjectFields({
                 }
               }}
               placeholder="https://github.com/username/repository"
-              className="w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 px-3 py-2 text-sm focus:outline-none focus:border-blue-400 transition-all"
+              className="w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 px-3 py-2 text-sm focus:outline-none focus:border-indigo-400 transition-all"
             />
             {dirStatus.isGitRepo && formData.repositoryUrl && !editingId && (
               <p className="mt-1 text-xs text-green-600 dark:text-green-400 flex items-center gap-1">
@@ -211,7 +211,7 @@ export function DevProjectFields({
               <select
                 value={formData.defaultBranch}
                 onChange={(e) => setFormData({ ...formData, defaultBranch: e.target.value })}
-                className="w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 px-3 py-2 text-sm focus:outline-none focus:border-blue-400 transition-all"
+                className="w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 px-3 py-2 text-sm focus:outline-none focus:border-indigo-400 transition-all"
               >
                 {branches.map((branch) => (
                   <option key={branch} value={branch}>
@@ -228,7 +228,7 @@ export function DevProjectFields({
                 onChange={(e) => setFormData({ ...formData, defaultBranch: e.target.value })}
                 placeholder="develop"
                 disabled={loadingBranches}
-                className="w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 px-3 py-2 text-sm focus:outline-none focus:border-blue-400 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                className="w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 px-3 py-2 text-sm focus:outline-none focus:border-indigo-400 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
               />
             )}
 

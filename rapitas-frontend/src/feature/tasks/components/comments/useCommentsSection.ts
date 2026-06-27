@@ -127,14 +127,14 @@ export function useCommentsSection(
       el.scrollIntoView({ behavior: 'smooth', block: 'center' });
       el.querySelector<HTMLDivElement>('.group')?.classList.add(
         'ring-2',
-        'ring-blue-400',
+        'ring-indigo-400',
         'ring-offset-1',
       );
       // NOTE: Ring highlight auto-removes after 2s to avoid permanent styling.
       setTimeout(() => {
         el.querySelector<HTMLDivElement>('.group')?.classList.remove(
           'ring-2',
-          'ring-blue-400',
+          'ring-indigo-400',
           'ring-offset-1',
         );
       }, 2000);

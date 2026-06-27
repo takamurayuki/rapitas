@@ -63,15 +63,15 @@ export function QuickActions({
   const dropdownButtonRef = useRef<HTMLButtonElement>(null);
 
   const colorClass = hasRunning
-    ? 'bg-linear-to-r from-blue-500 to-indigo-500 hover:from-blue-600 hover:to-indigo-600 text-white'
+    ? 'bg-linear-to-r from-indigo-500 to-indigo-500 hover:from-indigo-600 hover:to-indigo-600 text-white'
     : 'bg-linear-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white';
 
   const resumeAllBtnClass = hasRunning
-    ? 'bg-blue-100 dark:bg-blue-900/50 hover:bg-blue-200 dark:hover:bg-blue-800 text-blue-700 dark:text-blue-300'
+    ? 'bg-indigo-100 dark:bg-indigo-900/50 hover:bg-indigo-200 dark:hover:bg-indigo-800 text-indigo-700 dark:text-indigo-300'
     : 'bg-amber-100 dark:bg-amber-900/50 hover:bg-amber-200 dark:hover:bg-amber-800 text-amber-700 dark:text-amber-300';
 
   const detailsBorderClass = hasRunning
-    ? 'border-blue-200/50 dark:border-blue-700/30'
+    ? 'border-indigo-200/50 dark:border-indigo-700/30'
     : 'border-amber-200/50 dark:border-amber-700/30';
 
   if (executions.length === 1) {
@@ -93,7 +93,7 @@ export function QuickActions({
         ) : (
           <a
             href={`/tasks/${executions[0].taskId}?showHeader=true`}
-            className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 bg-linear-to-r from-blue-500 to-indigo-500 hover:from-blue-600 hover:to-indigo-600 text-white rounded-lg text-xs font-semibold transition-all shadow-sm hover:shadow-md"
+            className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 bg-linear-to-r from-indigo-500 to-indigo-500 hover:from-indigo-600 hover:to-indigo-600 text-white rounded-lg text-xs font-semibold transition-all shadow-sm hover:shadow-md"
           >
             <ExternalLink className="w-3.5 h-3.5" />
             {t('viewRunningTask')}
@@ -169,7 +169,7 @@ export function QuickActions({
                           {exec.taskTitle || `${t('taskPrefix')}${exec.taskId}`}
                         </span>
                         {(exec.status === 'running' || exec.status === 'waiting_for_input') && (
-                          <span className="shrink-0 flex items-center gap-0.5 px-1 py-0.5 bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 text-[9px] font-medium rounded">
+                          <span className="shrink-0 flex items-center gap-0.5 px-1 py-0.5 bg-indigo-100 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-300 text-[9px] font-medium rounded">
                             <SpinnerIcon className="w-2.5 h-2.5 animate-spin" />
                           </span>
                         )}

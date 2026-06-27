@@ -22,7 +22,7 @@ export default function Toast({ message, type = 'info', duration = 3000, onClose
   const bgColors = {
     success: 'bg-green-500',
     error: 'bg-red-500',
-    info: 'bg-blue-500',
+    info: 'bg-indigo-500',
     warning: 'bg-yellow-500',
   };
 

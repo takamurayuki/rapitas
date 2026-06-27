@@ -117,7 +117,7 @@ const ProgressRing: React.FC<ProgressRingProps> = ({
   percentage,
   size = 120,
   strokeWidth = 8,
-  color = '#3b82f6',
+  color = '#6366f1',
   label,
   value,
 }) => {
@@ -266,7 +266,7 @@ export const TaskStatsBoard: React.FC<TaskStatsBoardProps> = ({ playerStats, cla
             title="総学習時間"
             value={formatTime(totalStudyTimeMinutes)}
             icon={<Clock className="w-5 h-5" />}
-            color="#3b82f6"
+            color="#6366f1"
             trend={{
               value: studyTimeToday,
               label: `今日 ${formatTime(studyTimeToday)}`,
@@ -310,7 +310,7 @@ export const TaskStatsBoard: React.FC<TaskStatsBoardProps> = ({ playerStats, cla
             />
             <ProgressRing
               percentage={weeklyProgress.study}
-              color="#3b82f6"
+              color="#6366f1"
               label="学習時間"
               value={`${formatTime(studyTimeThisWeek)}`}
             />
@@ -340,7 +340,7 @@ export const TaskStatsBoard: React.FC<TaskStatsBoardProps> = ({ playerStats, cla
             max={maxStudyStreak}
             label="学習連続日数"
             icon={<Clock className="w-5 h-5" />}
-            color="#3b82f6"
+            color="#6366f1"
           />
         </div>
       </div>
@@ -360,7 +360,7 @@ export const TaskStatsBoard: React.FC<TaskStatsBoardProps> = ({ playerStats, cla
             </div>
 
             <div className="text-center">
-              <div className="text-3xl font-bold text-blue-600 dark:text-blue-400 mb-1">
+              <div className="text-3xl font-bold text-indigo-600 dark:text-indigo-400 mb-1">
                 {formatTime(studyTimeToday)}
               </div>
               <div className="text-sm text-gray-600 dark:text-gray-400">学習時間</div>

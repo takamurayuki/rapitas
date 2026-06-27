@@ -105,7 +105,7 @@ export function PromptsManagementTab({
               <Target className="w-3 h-3" />
               <span className="font-medium">{promptsData.task.title}</span>
               {promptsData.task.hasSubtasks && promptsData.subtasks && (
-                <span className="px-1.5 py-0.5 bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded">
+                <span className="px-1.5 py-0.5 bg-indigo-100 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 rounded">
                   サブタスク: {promptsData.subtasks.length}件
                 </span>
               )}
@@ -145,7 +145,7 @@ export function PromptsManagementTab({
                               親タスク
                             </span>
                           ) : (
-                            <span className="px-1.5 py-0.5 bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 text-xs rounded">
+                            <span className="px-1.5 py-0.5 bg-indigo-100 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 text-xs rounded">
                               サブタスク
                             </span>
                           )}

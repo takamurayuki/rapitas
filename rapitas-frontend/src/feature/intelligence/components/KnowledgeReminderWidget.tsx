@@ -13,7 +13,7 @@ import {
 import { useKnowledgeReminders } from '../hooks/useIntelligence';
 
 const categoryColors: Record<string, string> = {
-  procedure: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400',
+  procedure: 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-400',
   pattern: 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400',
   insight: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400',
   fact: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400',

@@ -11,7 +11,7 @@ interface IdeaBoxPanelProps {
 const CATEGORY_LABELS: Record<string, { label: string; color: string }> = {
   improvement: {
     label: '改善',
-    color: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300',
+    color: 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300',
   },
   bug_noticed: {
     label: 'バグ',
@@ -185,7 +185,7 @@ export function IdeaBoxPanel({ categoryId }: IdeaBoxPanelProps) {
                     onChange={(e) => setNewTitle(e.target.value)}
                     placeholder="アイデアのタイトル"
                     autoFocus
-                    className="w-full rounded border border-zinc-300 bg-transparent px-2.5 py-1.5 text-xs focus:border-blue-400 focus:outline-none dark:border-zinc-600"
+                    className="w-full rounded border border-zinc-300 bg-transparent px-2.5 py-1.5 text-xs focus:border-indigo-400 focus:outline-none dark:border-zinc-600"
                   />
                   <div className="flex items-center gap-1.5">
                     <input
@@ -196,7 +196,7 @@ export function IdeaBoxPanel({ categoryId }: IdeaBoxPanelProps) {
                         if (e.key === 'Enter') handleSubmit();
                       }}
                       placeholder="具体的な内容"
-                      className="flex-1 rounded border border-zinc-300 bg-transparent px-2.5 py-1.5 text-xs focus:border-blue-400 focus:outline-none dark:border-zinc-600"
+                      className="flex-1 rounded border border-zinc-300 bg-transparent px-2.5 py-1.5 text-xs focus:border-indigo-400 focus:outline-none dark:border-zinc-600"
                     />
                     <button
                       onClick={() => {

@@ -51,8 +51,8 @@ describe('buildLucideMock', () => {
     const mock = await buildLucideMock(makeFakeModule(['Globe']), {});
 
     const GlobeIcon = mock['Globe'] as React.FC<{ className?: string }>;
-    render(<GlobeIcon className="text-blue-500" />);
-    expect(screen.getByTestId('Globe-icon')).toHaveClass('text-blue-500');
+    render(<GlobeIcon className="text-indigo-500" />);
+    expect(screen.getByTestId('Globe-icon')).toHaveClass('text-indigo-500');
   });
 
   it('importOriginal の全 export が網羅される', async () => {

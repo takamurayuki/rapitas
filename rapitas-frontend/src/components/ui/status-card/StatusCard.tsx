@@ -9,10 +9,10 @@ import type { StatusCardProps, AgentStatusType, StatusConfig, StatusCardSize } f
  */
 const STATUS_CONFIG: Record<AgentStatusType, StatusConfig> = {
   processing: {
-    iconColor: 'text-blue-500 dark:text-blue-400',
-    bgColor: 'bg-blue-50 dark:bg-blue-950/40',
-    borderColor: 'border-blue-200 dark:border-blue-800',
-    textColor: 'text-blue-700 dark:text-blue-300',
+    iconColor: 'text-indigo-500 dark:text-indigo-400',
+    bgColor: 'bg-indigo-50 dark:bg-indigo-950/40',
+    borderColor: 'border-indigo-200 dark:border-indigo-800',
+    textColor: 'text-indigo-700 dark:text-indigo-300',
     label: '実行中',
     animation: 'animate-spin',
   },

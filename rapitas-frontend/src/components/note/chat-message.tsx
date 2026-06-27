@@ -23,7 +23,7 @@ export default function ChatMessage({ message }: { message: AIChatMessage }) {
       <div
         className={`max-w-[80%] rounded-2xl px-4 py-3 ${
           isUser
-            ? 'bg-linear-to-r from-blue-500 to-indigo-600 text-white rounded-br-md'
+            ? 'bg-linear-to-r from-indigo-500 to-indigo-600 text-white rounded-br-md'
             : 'bg-zinc-100 dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 rounded-bl-md'
         }`}
       >
@@ -143,7 +143,7 @@ export default function ChatMessage({ message }: { message: AIChatMessage }) {
                 },
                 pre: ({ children }) => <>{children}</>,
                 blockquote: ({ children }) => (
-                  <blockquote className="border-l-4 border-blue-500 dark:border-blue-400 pl-4 my-3 text-zinc-600 dark:text-zinc-400 italic">
+                  <blockquote className="border-l-4 border-indigo-500 dark:border-indigo-400 pl-4 my-3 text-zinc-600 dark:text-zinc-400 italic">
                     {children}
                   </blockquote>
                 ),
@@ -177,7 +177,7 @@ export default function ChatMessage({ message }: { message: AIChatMessage }) {
                     href={href}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="text-blue-500 hover:text-blue-600 dark:text-blue-400 dark:hover:text-blue-300 underline decoration-1 underline-offset-2"
+                    className="text-indigo-500 hover:text-indigo-600 dark:text-indigo-400 dark:hover:text-indigo-300 underline decoration-1 underline-offset-2"
                   >
                     {children}
                   </a>
@@ -196,7 +196,7 @@ export default function ChatMessage({ message }: { message: AIChatMessage }) {
         )}
         <span
           className={`text-xs mt-2 block ${
-            isUser ? 'text-blue-100' : 'text-zinc-400 dark:text-zinc-500'
+            isUser ? 'text-indigo-100' : 'text-zinc-400 dark:text-zinc-500'
           }`}
         >
           {message.timestamp.toLocaleTimeString('ja-JP', {

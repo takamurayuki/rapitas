@@ -37,8 +37,8 @@ const WORKFLOW_MODE_CONFIGS: Record<WorkflowMode, WorkflowModeConfig> = {
     estimatedTime: '1-2時間',
     steps: ['計画作成', '実装', '検証'],
     icon: ArrowRight,
-    color: 'text-blue-600 dark:text-blue-400',
-    bgColor: 'bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800/50',
+    color: 'text-indigo-600 dark:text-indigo-400',
+    bgColor: 'bg-indigo-50 dark:bg-indigo-900/20 border-indigo-200 dark:border-indigo-800/50',
   },
   comprehensive: {
     mode: 'comprehensive',

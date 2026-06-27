@@ -133,7 +133,7 @@ export function SubtaskPanel({
                           st.priority === 'high'
                             ? 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400'
                             : st.priority === 'medium'
-                              ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400'
+                              ? 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-400'
                               : 'bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400'
                         }`}
                       >
