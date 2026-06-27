@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useTranslations } from 'next-intl';
-import { Settings, Globe, ExternalLink } from 'lucide-react';
+import { SlidersHorizontal, Globe, ExternalLink } from 'lucide-react';
 import { useLocaleStore } from '@/stores/locale-store';
 import { locales, type Locale } from '@/i18n/config';
 import { EXTERNAL_BROWSER_KEY } from '@/utils/tauri';
@@ -40,10 +40,10 @@ export default function GeneralSettingsPage() {
   };
 
   return (
-    <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
       <div className="flex items-center gap-3 mb-8">
-        <div className="p-2.5 bg-violet-100 dark:bg-violet-900/30 rounded-xl">
-          <Settings className="w-6 h-6 text-violet-600 dark:text-violet-400" />
+        <div className="p-2.5 bg-indigo-100 dark:bg-indigo-900/30 rounded-xl">
+          <SlidersHorizontal className="w-6 h-6 text-indigo-600 dark:text-indigo-400" />
         </div>
         <div>
           <h1 className="text-2xl font-bold text-zinc-900 dark:text-zinc-50">
@@ -73,7 +73,7 @@ export default function GeneralSettingsPage() {
             <select
               value={browser}
               onChange={(e) => updateBrowser(e.target.value)}
-              className="w-full sm:w-72 rounded-lg border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-800 px-3 py-2 text-sm text-zinc-900 dark:text-zinc-100 focus:outline-none focus:border-violet-400"
+              className="w-full sm:w-72 rounded-lg border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-800 px-3 py-2 text-sm text-zinc-900 dark:text-zinc-100 focus:outline-none focus:border-indigo-400"
             >
               {BROWSER_OPTIONS.map((opt) => (
                 <option key={opt.value} value={opt.value}>
@@ -107,26 +107,26 @@ export default function GeneralSettingsPage() {
                   onClick={() => setLocale(loc)}
                   className={`relative p-4 rounded-xl border-2 text-left transition-all ${
                     locale === loc
-                      ? 'border-violet-500 bg-violet-50 dark:bg-violet-900/20'
-                      : 'border-zinc-200 dark:border-zinc-700 hover:border-violet-300 dark:hover:border-violet-700 bg-white dark:bg-zinc-800'
+                      ? 'border-indigo-500 bg-indigo-50 dark:bg-indigo-900/20'
+                      : 'border-zinc-200 dark:border-zinc-700 hover:border-indigo-300 dark:hover:border-indigo-700 bg-white dark:bg-zinc-800'
                   }`}
                 >
                   {locale === loc && (
                     <div className="absolute top-2 right-2">
-                      <div className="w-2.5 h-2.5 rounded-full bg-violet-500" />
+                      <div className="w-2.5 h-2.5 rounded-full bg-indigo-500" />
                     </div>
                   )}
                   <Globe
                     className={`w-6 h-6 mb-2 ${
                       locale === loc
-                        ? 'text-violet-600 dark:text-violet-400'
+                        ? 'text-indigo-600 dark:text-indigo-400'
                         : 'text-zinc-400 dark:text-zinc-500'
                     }`}
                   />
                   <h3
                     className={`font-medium text-sm ${
                       locale === loc
-                        ? 'text-violet-700 dark:text-violet-300'
+                        ? 'text-indigo-700 dark:text-indigo-300'
                         : 'text-zinc-900 dark:text-zinc-100'
                     }`}
                   >
@@ -135,7 +135,7 @@ export default function GeneralSettingsPage() {
                   <p
                     className={`text-xs mt-1 ${
                       locale === loc
-                        ? 'text-violet-500 dark:text-violet-400'
+                        ? 'text-indigo-500 dark:text-indigo-400'
                         : 'text-zinc-500 dark:text-zinc-400'
                     }`}
                   >

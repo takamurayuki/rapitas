@@ -337,9 +337,9 @@
     "clearError": "エラーをクリア"
   },
   "settings": {
-    "title": "設定",
-    "subtitle": "アプリケーションの動作を管理",
-    "generalTitle": "アプリ設定",
+    "title": "APIキー・モデル",
+    "subtitle": "APIキー・モデル・プロバイダーの設定",
+    "generalTitle": "一般設定",
     "generalDescription": "アプリケーション全体の表示・動作を管理",
     "externalBrowserTitle": "外部リンクのブラウザ",
     "externalBrowserDescription": "リンクを開くときに使うブラウザ（デスクトップアプリのみ）",
@@ -421,8 +421,8 @@
     "modelsFetchFailed": "モデル一覧の取得に失敗:",
     "languageTitle": "言語設定",
     "languageDescription": "アプリケーションの表示言語を切り替えます",
-    "devModeTitle": "タスク設定",
-    "devModeSubtitle": "タスクの設定を管理",
+    "devModeTitle": "タスク自動実行",
+    "devModeSubtitle": "タスクの自動実行に関する設定",
     "devAiAssistantSettings": "AIアシスタント設定",
     "devEnableAiAssistant": "AIアシスタントを有効にする",
     "devEnableAiAssistantDescription": "タスク作成時や実行時にAIアシスタントが支援します",

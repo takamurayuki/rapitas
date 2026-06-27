@@ -337,9 +337,9 @@
     "clearError": "Clear error"
   },
   "settings": {
-    "title": "Settings",
-    "subtitle": "Manage application behavior",
-    "generalTitle": "App Settings",
+    "title": "API Keys & Models",
+    "subtitle": "Configure API keys, models, and providers",
+    "generalTitle": "General",
     "generalDescription": "Manage overall application display and behavior",
     "externalBrowserTitle": "External link browser",
     "externalBrowserDescription": "Browser used to open links (desktop app only)",
@@ -421,8 +421,8 @@
     "modelsFetchFailed": "Failed to fetch model list:",
     "languageTitle": "Language Settings",
     "languageDescription": "Change the application display language",
-    "devModeTitle": "Task Settings",
-    "devModeSubtitle": "Manage task settings",
+    "devModeTitle": "Task Automation",
+    "devModeSubtitle": "Configure automated task execution",
     "devAiAssistantSettings": "AI Assistant Settings",
     "devEnableAiAssistant": "Enable AI Assistant",
     "devEnableAiAssistantDescription": "AI assistant will help during task creation and execution",

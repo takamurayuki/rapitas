@@ -1,7 +1,7 @@
 'use client';
 // DeveloperModeSettingsPage
 
-import { Settings, AlertCircle } from 'lucide-react';
+import { Bot, AlertCircle } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { useDeveloperModeSettings } from './hooks/useDeveloperModeSettings';
@@ -35,8 +35,8 @@ export default function DeveloperModeSettingsPage() {
   return (
     <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
       <div className="flex items-center gap-3 mb-8">
-        <div className="p-2.5 bg-violet-100 dark:bg-violet-900/30 rounded-xl">
-          <Settings className="w-6 h-6 text-violet-600 dark:text-violet-400" />
+        <div className="p-2.5 bg-indigo-100 dark:bg-indigo-900/30 rounded-xl">
+          <Bot className="w-6 h-6 text-indigo-600 dark:text-indigo-400" />
         </div>
         <div>
           <h1 className="text-2xl font-bold text-zinc-900 dark:text-zinc-50">

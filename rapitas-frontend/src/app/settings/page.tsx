@@ -2,7 +2,7 @@
 // SettingsPage
 
 import { useTranslations } from 'next-intl';
-import { Settings, AlertCircle, CheckCircle } from 'lucide-react';
+import { KeyRound, AlertCircle, CheckCircle } from 'lucide-react';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { requireAuth } from '@/contexts/AuthContext';
 import { API_BASE_URL } from '@/utils/api';
@@ -42,11 +42,11 @@ function SettingsPage() {
   }
 
   return (
-    <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
       {/* Page header */}
       <div className="flex items-center gap-3 mb-8">
-        <div className="p-2.5 bg-violet-100 dark:bg-violet-900/30 rounded-xl">
-          <Settings className="w-6 h-6 text-violet-600 dark:text-violet-400" />
+        <div className="p-2.5 bg-indigo-100 dark:bg-indigo-900/30 rounded-xl">
+          <KeyRound className="w-6 h-6 text-indigo-600 dark:text-indigo-400" />
         </div>
         <div>
           <h1 className="text-2xl font-bold text-zinc-900 dark:text-zinc-50">{t('title')}</h1>

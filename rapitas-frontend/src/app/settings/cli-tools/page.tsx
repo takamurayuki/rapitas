@@ -26,7 +26,7 @@ function PageHeader({
           <Terminal className="w-6 h-6 text-indigo-600 dark:text-indigo-400" />
         </div>
         <div>
-          <h1 className="text-2xl font-bold text-zinc-900 dark:text-zinc-50">CLIツール管理</h1>
+          <h1 className="text-2xl font-bold text-zinc-900 dark:text-zinc-50">CLIツール</h1>
           <p className="text-sm text-zinc-500 dark:text-zinc-400">
             AI CLI ツールのインストール・バージョン管理・認証
           </p>
