@@ -211,7 +211,7 @@ export function AIAssistantAccordion({
   );
 
   return (
-    <div className="bg-white dark:bg-indigo-dark-900 rounded-2xl border border-zinc-200/50 dark:border-zinc-800 overflow-hidden">
+    <div className="bg-white dark:bg-indigo-dark-900 rounded-lg border border-zinc-200/50 dark:border-zinc-800 overflow-hidden">
       <div
         className="px-6 py-4 bg-linear-to-r from-violet-50 to-indigo-50 dark:from-violet-900/20 dark:to-indigo-900/20 border-b border-zinc-200 dark:border-zinc-700 cursor-pointer"
         onClick={() => setIsExpanded(!isExpanded)}

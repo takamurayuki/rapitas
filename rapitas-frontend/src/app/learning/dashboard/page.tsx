@@ -111,7 +111,7 @@ export default function LearningDashboardPage() {
       </h1>
 
       {/* Study Streak Banner */}
-      <div className="bg-gradient-to-r from-orange-500 to-amber-500 rounded-2xl p-5 text-white">
+      <div className="bg-gradient-to-r from-orange-500 to-amber-500 rounded-xl p-5 text-white">
         <div className="flex flex-wrap items-center gap-6">
           <div className="flex items-center gap-3">
             <Flame className="w-10 h-10" />

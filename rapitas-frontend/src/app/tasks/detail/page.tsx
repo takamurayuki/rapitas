@@ -19,7 +19,7 @@ function TaskDetailContent() {
   if (!taskId) {
     return (
       <div className="min-h-screen bg-[var(--background)] flex items-center justify-center">
-        <div className="text-center bg-white dark:bg-indigo-dark-900 rounded-2xl p-8 border border-zinc-200 dark:border-zinc-800">
+        <div className="text-center bg-white dark:bg-indigo-dark-900 rounded-lg p-8 border border-zinc-200 dark:border-zinc-800">
           <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-red-100 dark:bg-red-900/30 flex items-center justify-center">
             <span className="text-3xl">!</span>
           </div>
