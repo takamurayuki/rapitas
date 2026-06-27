@@ -10,7 +10,7 @@
  *   - code-block-dom        : DOM fragment construction
  */
 
-export { highlightCode } from './code-block-highlight';
+export { highlightCode, getCursorOffset, setCursorOffset } from './code-block-highlight';
 export {
   getCurrentLine,
   getIndentation,
