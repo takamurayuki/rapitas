@@ -2,7 +2,7 @@
 // useKanbanBoard
 
 import { useState, useCallback, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import type { DropResult } from '@hello-pangea/dnd';
 import { useTaskDetailVisibilityStore } from '@/stores/task-detail-visibility-store';
 import { API_BASE_URL } from '@/utils/api';
@@ -38,6 +38,7 @@ export function useKanbanBoard(
   updateFailedMessage: string,
 ) {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const tasks = useTaskCacheStore((s) => s.tasks);
   const taskCacheInitialized = useTaskCacheStore((s) => s.initialized);
   const taskCacheLoading = useTaskCacheStore((s) => s.loading);
@@ -96,15 +97,23 @@ export function useKanbanBoard(
       setSelectedTaskId(taskId);
       setIsPanelOpen(true);
       showTaskDetail();
+      // NOTE: Encode the open panel in the URL so router.back() from the note split view
+      // returns here with ?panel=taskId, allowing the mount effect below to re-open it.
+      router.replace(`/kanban?panel=${taskId}`);
     },
-    [showTaskDetail],
+    [router, showTaskDetail],
   );
 
   const closeTaskPanel = useCallback(() => {
     setIsPanelOpen(false);
     hideTaskDetail();
     setTimeout(() => setSelectedTaskId(null), 300);
-  }, [hideTaskDetail]);
+    // Remove panel param from URL, preserving other params.
+    const params = new URLSearchParams(window.location.search);
+    params.delete('panel');
+    const qs = params.toString();
+    router.replace('/kanban' + (qs ? `?${qs}` : ''));
+  }, [router, hideTaskDetail]);
 
   // NOTE: Poll only to reflect executing state onto cards (spinner). Auto-opening
   // the detail panel on execution covered the board with its backdrop and made it
@@ -118,9 +127,17 @@ export function useKanbanBoard(
   useEffect(() => {
     fetchTasks();
 
+    // Restore slide panel after returning from the note split view via router.back().
+    // NOTE: [] is intentional — runs once on mount only to restore URL-encoded panel state.
+    const panelTaskId = searchParams.get('panel');
+    if (panelTaskId) {
+      openTaskPanel(Number(panelTaskId));
+    }
+
     const handleFocus = () => fetchTaskUpdates();
     window.addEventListener('focus', handleFocus);
     return () => window.removeEventListener('focus', handleFocus);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   /**
