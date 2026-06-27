@@ -383,11 +383,11 @@ function handleEnter(
     newRange.setStart(newColorSpan.firstChild!, 1);
     newRange.collapse(true);
   } else {
-    if (trailingSpan) {
-      newRange.setStart(trailingSpan, 0);
-    } else {
-      newRange.setStartAfter(br);
-    }
+    // NOTE: For background/highlight spans, always place cursor after <br> so
+    // the new line starts unstyled. trailingSpan (if any) stays in place to
+    // preserve content that was after the cursor, but the cursor itself sits
+    // between <br> and it — outside any styled span.
+    newRange.setStartAfter(br);
     newRange.collapse(true);
   }
 
