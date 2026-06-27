@@ -12,6 +12,7 @@ import { OPEN_SHORTCUTS_EVENT } from '@/components/common/KeyboardShortcuts';
 import { useTranslations } from 'next-intl';
 import { type NavItem } from './types';
 import { NavItemRenderer } from './nav-item';
+import { NavModeSelector } from './nav-mode-selector';
 import type { ShortcutId } from '@/stores/shortcut-store';
 
 type SideNavProps = {
@@ -106,7 +107,11 @@ export function SideNav({
         </div>
 
         <div className="flex-1 overflow-y-auto flex flex-col scrollbar-thin">
-          <div className="p-4 space-y-1 flex-1">
+          {/* Mode switcher: surfaces the otherwise-hidden app-mode filter so
+              users can narrow the nav to development- or learning-only. */}
+          <NavModeSelector />
+
+          <div className="px-4 pt-2 pb-4 space-y-1 flex-1">
             {filteredNavItems.map((item) => (
               <NavItemRenderer
                 key={item.label}
