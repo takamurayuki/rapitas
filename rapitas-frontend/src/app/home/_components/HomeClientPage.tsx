@@ -233,35 +233,15 @@ function HomeClientPage() {
       setSelectedTaskId(taskId);
       setIsPanelOpen(true);
       showTaskDetail();
-      // NOTE: Encode the open panel in the URL so router.back() from the note split view
-      // returns here with ?panel=taskId, allowing the mount effect below to re-open it.
-      router.replace(
-        `/?panel=${taskId}${searchQuery ? `&search=${encodeURIComponent(searchQuery)}` : ''}`,
-      );
     },
-    [router, searchQuery, showTaskDetail, setSelectedTaskId, setIsPanelOpen, setTaskLoading],
+    [showTaskDetail, setSelectedTaskId, setIsPanelOpen, setTaskLoading],
   );
 
   const closeTaskPanel = useCallback(() => {
     setIsPanelOpen(false);
     hideTaskDetail();
     setTimeout(() => setSelectedTaskId(null), 300);
-    // Remove panel param from URL, preserving other params (e.g. ?search=).
-    const params = new URLSearchParams(window.location.search);
-    params.delete('panel');
-    const qs = params.toString();
-    router.replace('/' + (qs ? `?${qs}` : ''));
-  }, [router, hideTaskDetail, setIsPanelOpen, setSelectedTaskId]);
-
-  // Restore slide panel after returning from the note split view via router.back().
-  useEffect(() => {
-    const panelTaskId = searchParams.get('panel');
-    if (panelTaskId) {
-      openTaskPanel(Number(panelTaskId));
-    }
-    // NOTE: [] is intentional — runs once on mount only to restore URL-encoded panel state.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [hideTaskDetail, setIsPanelOpen, setSelectedTaskId]);
 
   // NOTE: Poll only to reflect executing state onto task cards (spinner). Do NOT
   // auto-open the detail panel on execution — its backdrop covered the list and
