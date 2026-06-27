@@ -139,7 +139,7 @@ export function attachKeyHandlers(codeElement: HTMLElement, language: string): v
     }
 
     // Auto-close brackets and quotes
-    if (AUTO_PAIRS[keyboardEvent.key]) {
+    if (AUTO_PAIRS[keyboardEvent.key as string]) {
       e.preventDefault();
       const closing = AUTO_PAIRS[keyboardEvent.key];
       const range = selection.getRangeAt(0);
@@ -168,6 +168,33 @@ export function attachKeyHandlers(codeElement: HTMLElement, language: string): v
         }
       }
     }
+  };
+}
+
+/**
+ * Attach the paste handler that strips HTML formatting from pasted content.
+ * Without this, pasting from an IDE (e.g. VS Code) inserts rich-text HTML that
+ * carries the source editor's background-color/inline styles, causing white
+ * patches to appear inside the dark code block.
+ *
+ * @param codeElement - The contenteditable code element / 編集可能なコード要素
+ */
+function attachPasteHandler(codeElement: HTMLElement): void {
+  codeElement.onpaste = (e) => {
+    e.preventDefault();
+    const plain = e.clipboardData?.getData('text/plain') ?? '';
+    if (!plain) return;
+    const sel = window.getSelection();
+    if (!sel || sel.rangeCount === 0) return;
+    const range = sel.getRangeAt(0);
+    if (!range.collapsed) range.deleteContents();
+    const textNode = document.createTextNode(plain);
+    range.insertNode(textNode);
+    const newRange = document.createRange();
+    newRange.setStartAfter(textNode);
+    newRange.collapse(true);
+    sel.removeAllRanges();
+    sel.addRange(newRange);
   };
 }
 
@@ -416,6 +443,7 @@ export function createCodeBlockNode(language: string, code: string = ''): Docume
 
   attachKeyHandlers(codeElement, language);
   attachHighlightHandlers(codeElement, language);
+  attachPasteHandler(codeElement);
 
   // ── Buttons ────────────────────────────────────────────────────────────────
   const buttonContainer = document.createElement('div');
@@ -489,6 +517,7 @@ export function normalizeCodeBlocks(editorEl: HTMLDivElement, onContentChange: (
           ?.replace('language-', '') ?? 'plaintext';
       attachKeyHandlers(codeEl, lang);
       attachHighlightHandlers(codeEl, lang);
+      attachPasteHandler(codeEl);
 
       // Re-apply highlighting to any content already present (e.g. loaded from storage)
       const text = codeEl.textContent ?? '';
