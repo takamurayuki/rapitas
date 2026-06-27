@@ -3,10 +3,7 @@
  *
  * Confluence-style inline note link chip rendered inside task descriptions.
  * Reads the note title from the local store so it stays current after renames.
- *
- * Behaviour depends on context:
- * - Inside TaskSlidePanel: opens the note in the existing modal overlay so the panel stays open.
- * - Elsewhere: navigates to the split view (/tasks/:taskId?showHeader=true&note=:noteId).
+ * On click, navigates to the task's split view (/tasks/:taskId?note=:noteId).
  *
  * taskId comes from the link itself (/rapitas-note/{taskId}/{noteId} format),
  * so this chip works correctly when rendered on any page, not just the task detail.
@@ -16,7 +13,6 @@
 import { useParams, useRouter } from 'next/navigation';
 import { NotebookPen } from 'lucide-react';
 import { useNoteStore } from '@/stores/note-store';
-import { useIsInSlidePanel } from '@/feature/tasks/contexts/SlidePanelContext';
 
 interface Props {
   /** String ID from the localStorage note store (Date.now().toString()). */
@@ -42,23 +38,13 @@ export function NoteChipLink({ noteId, taskId: propTaskId, fallbackTitle }: Prop
   const router = useRouter();
   const params = useParams();
   const note = useNoteStore((s) => s.notes.find((n) => n.id === noteId));
-  const openModal = useNoteStore((s) => s.openModal);
-  const setCurrentNote = useNoteStore((s) => s.setCurrentNote);
   const title = note?.title || fallbackTitle || '(無題)';
-  const isInSlidePanel = useIsInSlidePanel();
 
   // Prefer the taskId encoded in the link; fall back to current route params (old format).
   const taskId = propTaskId || (params?.id as string | undefined);
 
   const handleClick = (e: React.MouseEvent) => {
     e.preventDefault();
-    if (isInSlidePanel) {
-      // NOTE: Inside TaskSlidePanel we open the note in the existing modal overlay
-      // instead of navigating away, so the slide panel stays open and visible.
-      setCurrentNote(noteId);
-      openModal();
-      return;
-    }
     if (taskId && taskId !== '_placeholder') {
       // NOTE: showHeader=true ensures the app header stays visible in the split view
       // regardless of what context the user came from (page mode or slide panel).
