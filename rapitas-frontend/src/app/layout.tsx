@@ -8,7 +8,6 @@ import { Suspense } from 'react';
 import { ToastProvider } from '@/components/ui/toast/ToastContainer';
 import { PomodoroProvider } from '@/feature/tasks/pomodoro/PomodoroProvider';
 import ExternalLinksProvider from '@/components/providers/ExternalLinksProvider';
-import NoteProvider from '@/components/note/NoteProvider';
 import CacheWarmupInitializer from '@/components/common/CacheWarmupInitializer';
 import SmartCommandBar from '@/components/smart-command-bar/SmartCommandBar';
 import { TerminalProvider } from '@/feature/terminal';
@@ -160,9 +159,6 @@ export default function RootLayout({
                         <SetupGate />
                       </Suspense>
                       <ScheduleReminderProvider />
-                      <Suspense fallback={null}>
-                        <NoteProvider />
-                      </Suspense>
                       <CacheWarmupInitializer />
                       <Suspense fallback={null}>
                         <SmartCommandBar />

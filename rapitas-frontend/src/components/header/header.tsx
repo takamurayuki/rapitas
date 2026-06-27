@@ -136,6 +136,11 @@ export default function Header() {
       shortcut: h.getShortcutLabel('dashboard'),
     },
     {
+      href: '/notes',
+      label: 'ノート',
+      icon: NotebookTabs,
+    },
+    {
       href: '#',
       label: t('learning'),
       icon: GraduationCap,
@@ -308,9 +313,6 @@ export default function Header() {
               isMoreMenuOpen={h.isMoreMenuOpen}
               setIsMoreMenuOpen={h.setIsMoreMenuOpen}
               moreMenuRef={h.moreMenuRef}
-              modalState={h.modalState}
-              openModal={h.openModal}
-              closeModal={h.closeModal}
               isDarkMode={h.isDarkMode}
               darkModeMounted={h.darkModeMounted}
               toggleTheme={h.toggleTheme}
