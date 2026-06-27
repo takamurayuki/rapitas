@@ -52,7 +52,10 @@ export function IdeaBoxHeader({ totalIdeas, onAddClick }: IdeaBoxHeaderProps) {
         </div>
         <div>
           <h1 className="text-lg font-bold text-zinc-900 dark:text-zinc-100">アイデア</h1>
-          <p className="text-xs text-zinc-500 dark:text-zinc-400">{statusText}</p>
+          <p className="text-xs text-zinc-500 dark:text-zinc-400">
+            やってみたい改善・機能の種。気軽にメモして、後でタスク化。
+          </p>
+          <p className="text-[11px] text-zinc-400 dark:text-zinc-500">{statusText}</p>
         </div>
       </div>
       <button
