@@ -105,6 +105,22 @@ export default function NoteHoverSidebar() {
     if (!currentNoteId) return;
     const activeNote = notes.find((n) => n.id === currentNoteId);
     if (!activeNote) return;
+
+    // Primary: use stored metadata
+    if (activeNote.linkedTaskIds?.length && activeNote.linkedTaskMeta) {
+      for (const taskId of activeNote.linkedTaskIds) {
+        const meta = activeNote.linkedTaskMeta[taskId];
+        if (!meta?.categoryName || !meta?.themeName) continue;
+        const themeKey = `${meta.categoryName}|||${meta.themeName}`;
+        const taskKey = `${themeKey}|||${taskId}`;
+        setExpandedCategories((s) => new Set([...s, meta.categoryName]));
+        setExpandedThemes((s) => new Set([...s, themeKey]));
+        setExpandedTasks((s) => new Set([...s, taskKey]));
+      }
+      return;
+    }
+
+    // Fallback: title parsing
     const parsed = parseNotePath(activeNote.title);
     if (!parsed) return;
     const themeKey = `${parsed.category}|||${parsed.theme}`;

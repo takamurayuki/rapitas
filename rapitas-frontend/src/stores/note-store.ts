@@ -1,6 +1,12 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 
+export interface NoteTaskMeta {
+  taskTitle: string;
+  themeName: string;
+  categoryName: string;
+}
+
 export interface Note {
   id: string;
   title: string;
@@ -12,6 +18,8 @@ export interface Note {
   color?: string;
   /** Task IDs this note is linked to. */
   linkedTaskIds?: number[];
+  /** Hierarchy metadata keyed by taskId — populated when linking from a task context. */
+  linkedTaskMeta?: Record<number, NoteTaskMeta>;
 }
 
 export type ModalTab = 'note' | 'ai' | 'split';
@@ -42,7 +50,7 @@ interface NoteState {
   updateNote: (id: string, updates: Partial<Note>) => void;
   deleteNote: (id: string) => void;
   setCurrentNote: (id: string | null) => void;
-  linkNoteToTask: (noteId: string, taskId: number) => void;
+  linkNoteToTask: (noteId: string, taskId: number, meta?: NoteTaskMeta) => void;
   unlinkNoteFromTask: (noteId: string, taskId: number) => void;
   getNotesForTask: (taskId: number) => Note[];
 
@@ -208,11 +216,17 @@ export const useNoteStore = create<NoteState>()(
         }
       },
 
-      linkNoteToTask: (noteId, taskId) => {
+      linkNoteToTask: (noteId, taskId, meta) => {
         set((state) => ({
           notes: state.notes.map((n) =>
             n.id === noteId
-              ? { ...n, linkedTaskIds: [...new Set([...(n.linkedTaskIds ?? []), taskId])] }
+              ? {
+                  ...n,
+                  linkedTaskIds: [...new Set([...(n.linkedTaskIds ?? []), taskId])],
+                  ...(meta
+                    ? { linkedTaskMeta: { ...(n.linkedTaskMeta ?? {}), [taskId]: meta } }
+                    : {}),
+                }
               : n,
           ),
         }));
@@ -220,11 +234,16 @@ export const useNoteStore = create<NoteState>()(
 
       unlinkNoteFromTask: (noteId, taskId) => {
         set((state) => ({
-          notes: state.notes.map((n) =>
-            n.id === noteId
-              ? { ...n, linkedTaskIds: (n.linkedTaskIds ?? []).filter((id) => id !== taskId) }
-              : n,
-          ),
+          notes: state.notes.map((n) => {
+            if (n.id !== noteId) return n;
+            const newMeta = { ...(n.linkedTaskMeta ?? {}) };
+            delete newMeta[taskId];
+            return {
+              ...n,
+              linkedTaskIds: (n.linkedTaskIds ?? []).filter((id) => id !== taskId),
+              linkedTaskMeta: newMeta,
+            };
+          }),
         }));
       },
 

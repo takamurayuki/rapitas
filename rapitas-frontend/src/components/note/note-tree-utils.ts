@@ -2,17 +2,15 @@
  * note-tree-utils
  *
  * Builds a Category → Theme → Task → Notes hierarchy from the note store.
- * Notes created via "タスクに紐づける" have titles of the form
- * "Category > Theme > [#N]_TaskTitle". This module parses that pattern
- * to organise notes into a navigable tree; all other notes land in
- * `standalone`.
+ * Primary source: explicit `linkedTaskMeta` stored when linking from a task.
+ * Fallback: title parsing for notes created before meta was introduced
+ * (titles of the form "Category > Theme > [#N]_TaskTitle").
  */
 
 import type { Note } from '@/stores/note-store';
 
 export interface NoteTaskGroup {
   taskId: number;
-  /** The "[#N]_TaskTitle" portion of the original note title. */
   taskLabel: string;
   notes: Note[];
 }
@@ -29,15 +27,16 @@ export interface NoteCategoryGroup {
 
 export interface NoteTree {
   categories: NoteCategoryGroup[];
-  /** Notes whose titles do not match the "A > B > [#N]..." pattern. */
+  /** Notes not placed in any task hierarchy. */
   standalone: Note[];
 }
 
 /**
  * Parse a note title of the form "Category > Theme > [#N]_rest".
+ * Used as a fallback for notes that predate the linkedTaskMeta field.
  *
  * @param title - The note title to parse / パース対象のノートタイトル
- * @returns Parsed path segments, or null if the title does not match / パース結果またはnull
+ * @returns Parsed path segments, or null if the title does not match
  */
 export function parseNotePath(title: string): {
   category: string;
@@ -55,6 +54,26 @@ export function parseNotePath(title: string): {
   };
 }
 
+type CatMap = Map<string, Map<string, Map<number, { label: string; notes: Note[] }>>>;
+
+function addToTree(
+  catMap: CatMap,
+  categoryName: string,
+  themeName: string,
+  taskId: number,
+  taskLabel: string,
+  note: Note,
+) {
+  if (!catMap.has(categoryName)) catMap.set(categoryName, new Map());
+  const themeMap = catMap.get(categoryName)!;
+
+  if (!themeMap.has(themeName)) themeMap.set(themeName, new Map());
+  const taskMap = themeMap.get(themeName)!;
+
+  if (!taskMap.has(taskId)) taskMap.set(taskId, { label: taskLabel, notes: [] });
+  taskMap.get(taskId)!.notes.push(note);
+}
+
 /**
  * Build a Category → Theme → Task → Notes tree from a flat note array.
  *
@@ -62,27 +81,32 @@ export function parseNotePath(title: string): {
  * @returns NoteTree with linked notes in the hierarchy and the rest in standalone
  */
 export function buildNoteTree(notes: Note[]): NoteTree {
-  // category → theme → taskId → { label, notes[] }
-  const catMap = new Map<string, Map<string, Map<number, { label: string; notes: Note[] }>>>();
+  const catMap: CatMap = new Map();
   const standalone: Note[] = [];
 
   for (const note of notes) {
-    const parsed = parseNotePath(note.title);
-    if (!parsed) {
-      standalone.push(note);
-      continue;
+    let addedToTree = false;
+
+    // Primary: explicit hierarchy metadata stored at link time
+    if (note.linkedTaskIds?.length && note.linkedTaskMeta) {
+      for (const taskId of note.linkedTaskIds) {
+        const meta = note.linkedTaskMeta[taskId];
+        if (!meta?.categoryName || !meta?.themeName) continue;
+        addToTree(catMap, meta.categoryName, meta.themeName, taskId, meta.taskTitle, note);
+        addedToTree = true;
+      }
     }
 
-    if (!catMap.has(parsed.category)) catMap.set(parsed.category, new Map());
-    const themeMap = catMap.get(parsed.category)!;
-
-    if (!themeMap.has(parsed.theme)) themeMap.set(parsed.theme, new Map());
-    const taskMap = themeMap.get(parsed.theme)!;
-
-    if (!taskMap.has(parsed.taskId)) {
-      taskMap.set(parsed.taskId, { label: parsed.taskLabel, notes: [] });
+    // Fallback: title parsing for pre-meta notes
+    if (!addedToTree) {
+      const parsed = parseNotePath(note.title);
+      if (parsed) {
+        addToTree(catMap, parsed.category, parsed.theme, parsed.taskId, parsed.taskLabel, note);
+        addedToTree = true;
+      }
     }
-    taskMap.get(parsed.taskId)!.notes.push(note);
+
+    if (!addedToTree) standalone.push(note);
   }
 
   const categories: NoteCategoryGroup[] = [];

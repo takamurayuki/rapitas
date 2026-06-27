@@ -146,6 +146,7 @@ function NotePicker({
   onClose,
   anchorRef,
   createNoteTitle,
+  taskMeta,
 }: {
   taskId: number;
   linkedNoteIds: Set<string>;
@@ -153,6 +154,7 @@ function NotePicker({
   onClose: () => void;
   anchorRef: React.RefObject<HTMLElement | null>;
   createNoteTitle: string;
+  taskMeta: { taskTitle: string; themeName: string; categoryName: string };
 }) {
   const [query, setQuery] = useState('');
   const pickerRef = useRef<HTMLDivElement>(null);
@@ -198,7 +200,7 @@ function NotePicker({
     createNote(createNoteTitle);
     setTimeout(() => {
       const newNote = useNoteStore.getState().notes.find((n) => !beforeIds.has(n.id));
-      if (newNote) linkNoteToTask(newNote.id, taskId);
+      if (newNote) linkNoteToTask(newNote.id, taskId, taskMeta);
     }, 0);
     onClose();
   };
@@ -308,12 +310,23 @@ export default function NoteLinksSection({ taskId, taskTitle, themeName, categor
         <NotePicker
           taskId={taskId}
           linkedNoteIds={new Set(linkedNotes.map((n) => n.id))}
-          onLink={(noteId) => linkNoteToTask(noteId, taskId)}
+          onLink={(noteId) =>
+            linkNoteToTask(noteId, taskId, {
+              taskTitle: taskTitle ?? '',
+              themeName: themeName ?? '',
+              categoryName: categoryName ?? '',
+            })
+          }
           onClose={() => setIsPickerOpen(false)}
           anchorRef={anchorRef}
           createNoteTitle={[categoryName, themeName, `[#${taskId}]_${taskTitle ?? ''}`]
             .filter(Boolean)
             .join(' > ')}
+          taskMeta={{
+            taskTitle: taskTitle ?? '',
+            themeName: themeName ?? '',
+            categoryName: categoryName ?? '',
+          }}
         />
       )}
 
