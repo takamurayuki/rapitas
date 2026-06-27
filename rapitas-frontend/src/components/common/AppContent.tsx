@@ -8,6 +8,7 @@
  * unpinned, so default layout is unchanged.
  */
 import { useNavStore } from '@/stores/nav-store';
+import { Breadcrumbs } from '@/components/common/Breadcrumbs';
 
 /**
  * @param children - Page content to render / 描画するページコンテンツ
@@ -17,6 +18,7 @@ export default function AppContent({ children }: { children: React.ReactNode }) 
   // ml-72 matches the nav width (w-72). Animate to match the panel transition.
   return (
     <div className={`transition-[margin] duration-300 ${isMenuPinned ? 'lg:ml-72' : ''}`}>
+      <Breadcrumbs />
       {children}
     </div>
   );
