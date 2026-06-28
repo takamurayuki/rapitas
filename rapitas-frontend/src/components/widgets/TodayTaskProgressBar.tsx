@@ -123,116 +123,99 @@ const TodayTaskProgressBar = memo<TodayTaskProgressBarProps>(
 
     if (compact) {
       const isDone = efficiency === 100;
+      const accentText = isDone
+        ? 'text-emerald-600 dark:text-emerald-400'
+        : 'text-indigo-600 dark:text-indigo-400';
       const fillCls = isDone
         ? 'bg-gradient-to-r from-emerald-400 to-emerald-500'
         : 'bg-gradient-to-r from-indigo-400 to-indigo-600';
+      // Shared Ticker left/divider colors
+      const tickerLeft = isDone
+        ? 'bg-emerald-50 dark:bg-emerald-950/40'
+        : 'bg-indigo-50 dark:bg-indigo-950/30';
+      const tickerDiv = isDone
+        ? 'bg-emerald-100 dark:bg-emerald-900/50'
+        : 'bg-indigo-100 dark:bg-indigo-900/40';
 
-      // ── A: Ridge ─────────────────────────────────────────────────────────────
-      // Same bottom-ridge language as the toolbar buttons (indigo → emerald).
-      // The fill bar has a looping shine sweep that signals "this is alive."
-      const designA = (
-        <div
-          className={`rounded-xl border px-3 py-2 transition-all duration-500 ${
-            isDone
-              ? 'border-emerald-200 bg-white shadow-[0_2px_0_0_#6ee7b7] dark:border-emerald-800 dark:bg-zinc-900 dark:shadow-[0_2px_0_0_#065f46]'
-              : 'border-indigo-200 bg-white shadow-[0_2px_0_0_#c7d2fe] dark:border-indigo-800 dark:bg-zinc-900 dark:shadow-[0_2px_0_0_#312e81]'
-          }`}
-        >
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-1.5">
-              {isDone && (
+      // ── D: Arc ────────────────────────────────────────────────────────────────
+      // SVG arc ring as the progress indicator — no linear bar at all.
+      // framer-motion's pathLength (0→1) drives the sweep animation.
+      const designD = (
+        <div className="flex items-center gap-3 rounded-xl border border-slate-200 bg-white px-3 py-2 dark:border-zinc-700 dark:bg-zinc-900">
+          {/* Circular ring */}
+          <div className="relative h-9 w-9 shrink-0">
+            <svg className="h-9 w-9 -rotate-90" viewBox="0 0 36 36">
+              {/* Track */}
+              <circle
+                cx="18"
+                cy="18"
+                r="14"
+                fill="none"
+                strokeWidth="2.5"
+                className="stroke-slate-100 dark:stroke-zinc-800"
+              />
+              {/* Animated arc */}
+              <motion.circle
+                cx="18"
+                cy="18"
+                r="14"
+                fill="none"
+                stroke={isDone ? '#10b981' : '#6366f1'}
+                strokeWidth="2.5"
+                strokeLinecap="round"
+                initial={{ pathLength: 0 }}
+                animate={{ pathLength: efficiency / 100 }}
+                transition={{ duration: 0.8, ease: 'easeOut' }}
+              />
+            </svg>
+            {/* Center label */}
+            <div className="absolute inset-0 flex items-center justify-center">
+              {isDone ? (
                 <motion.div
-                  initial={{ scale: 0, rotate: -180 }}
-                  animate={{ scale: 1, rotate: 0 }}
+                  initial={{ scale: 0 }}
+                  animate={{ scale: 1 }}
                   transition={{ type: 'spring', stiffness: 260, damping: 20 }}
                 >
-                  <Trophy size={11} className="text-amber-400" />
+                  <Trophy size={12} className="text-amber-400" />
                 </motion.div>
+              ) : (
+                <span className={`text-[9px] font-black tabular-nums leading-none ${accentText}`}>
+                  {efficiency}%
+                </span>
               )}
-              <span className="text-[10px] font-medium text-slate-600 dark:text-zinc-400">
-                {t('todayTask')}
-              </span>
-            </div>
-            <div className="flex items-baseline gap-1">
-              <span className="text-[9px] tabular-nums text-slate-400 dark:text-zinc-600">
-                {completedCount}/{totalCount}
-              </span>
-              <span
-                className={`text-xs font-bold tabular-nums ${isDone ? 'text-emerald-600 dark:text-emerald-400' : 'text-indigo-600 dark:text-indigo-400'}`}
-              >
-                {efficiency}%
-              </span>
             </div>
           </div>
-          {/* Fill bar with looping shine — clipped inside overflow-hidden */}
-          <div className="relative mt-1.5 h-2 overflow-hidden rounded-full bg-slate-100 dark:bg-zinc-800">
-            <motion.div
-              className={`absolute inset-y-0 left-0 overflow-hidden rounded-full ${fillCls}`}
-              animate={{ width: `${efficiency}%` }}
-              transition={{ duration: 0.7, ease: 'easeOut' }}
-            >
-              <motion.div
-                className="absolute inset-y-0 w-[50%]"
-                style={{
-                  background:
-                    'linear-gradient(to right,transparent,rgba(255,255,255,0.35),transparent)',
-                }}
-                animate={{ left: ['-50%', '130%'] }}
-                transition={{ repeat: Infinity, duration: 2, ease: 'easeInOut', repeatDelay: 1.5 }}
-              />
-            </motion.div>
+          {/* Label + hero count */}
+          <div className="min-w-0 flex-1">
+            <p className="text-[10px] font-medium text-slate-500 dark:text-zinc-400">
+              {t('todayTask')}
+            </p>
+            <p className={`mt-0.5 text-sm font-black tabular-nums leading-none ${accentText}`}>
+              {completedCount}
+              <span className="ml-0.5 text-[10px] font-normal text-slate-400 dark:text-zinc-600">
+                /{totalCount}
+              </span>
+            </p>
           </div>
         </div>
       );
 
-      // ── B: Capsule ────────────────────────────────────────────────────────────
-      // A rounded-full pill that floods with a tinted fill as tasks complete.
-      // Semi-transparent fill keeps the text readable at any progress level.
-      const designB = (
-        <div className="relative h-9 overflow-hidden rounded-full border border-slate-200 bg-slate-100 dark:border-zinc-700 dark:bg-zinc-800">
-          <motion.div
-            className={`absolute inset-y-0 left-0 rounded-full ${isDone ? 'bg-emerald-400/75' : 'bg-indigo-500/75'}`}
-            animate={{ width: `${efficiency}%` }}
-            transition={{ duration: 0.7, ease: 'easeOut' }}
-          />
-          {/* Top highlight gives the pill a convex feel */}
-          <div className="pointer-events-none absolute inset-x-0 top-0 h-[45%] rounded-t-full bg-white/20 dark:bg-white/10" />
-          <div className="absolute inset-0 flex items-center justify-between px-4">
-            <div className="flex items-center gap-1.5">
-              {isDone && <Trophy size={11} className="text-amber-500" />}
-              <span className="text-[10px] font-semibold text-slate-700 dark:text-zinc-200">
-                {t('todayTask')}
-              </span>
-            </div>
-            <span
-              className={`text-xs font-black tabular-nums ${isDone ? 'text-emerald-700 dark:text-emerald-300' : 'text-indigo-700 dark:text-indigo-300'}`}
-            >
-              {completedCount}/{totalCount}
-            </span>
-          </div>
-        </div>
-      );
-
-      // ── C: Ticker ─────────────────────────────────────────────────────────────
-      // Split layout: large hero task-count on the left (pops when count changes),
-      // label + thin bar on the right. Feels like a game score panel.
-      const designC = (
+      // ── E: Playhead ───────────────────────────────────────────────────────────
+      // Ticker split: left = hero count with spring pop, right = ultra-thin track
+      // with a large circular bullet marker (media-scrubber metaphor).
+      const designE = (
         <div className="overflow-hidden rounded-xl border border-slate-200 bg-white dark:border-zinc-700 dark:bg-zinc-900">
           <div className="flex items-stretch">
-            {/* Left panel: large task counter with accent tint */}
+            {/* Left: hero count */}
             <div
-              className={`flex shrink-0 flex-col items-center justify-center px-3 py-2 transition-colors duration-500 ${
-                isDone
-                  ? 'bg-emerald-50 dark:bg-emerald-950/40'
-                  : 'bg-indigo-50 dark:bg-indigo-950/30'
-              }`}
+              className={`flex shrink-0 flex-col items-center justify-center px-3 py-2 ${tickerLeft} transition-colors duration-500`}
             >
               <motion.span
                 key={completedCount}
-                initial={{ scale: 1.5, opacity: 0 }}
-                animate={{ scale: 1, opacity: 1 }}
-                transition={{ type: 'spring', stiffness: 300, damping: 20 }}
-                className={`font-mono text-lg font-black tabular-nums leading-none ${isDone ? 'text-emerald-600 dark:text-emerald-400' : 'text-indigo-600 dark:text-indigo-400'}`}
+                initial={{ y: 10, opacity: 0 }}
+                animate={{ y: 0, opacity: 1 }}
+                transition={{ type: 'spring', stiffness: 320, damping: 22 }}
+                className={`font-mono text-lg font-black tabular-nums leading-none ${accentText}`}
               >
                 {completedCount}
               </motion.span>
@@ -240,12 +223,9 @@ const TodayTaskProgressBar = memo<TodayTaskProgressBarProps>(
                 /{totalCount}
               </span>
             </div>
-            {/* Divider */}
-            <div
-              className={`w-px shrink-0 transition-colors duration-500 ${isDone ? 'bg-emerald-100 dark:bg-emerald-900/50' : 'bg-indigo-100 dark:bg-indigo-900/40'}`}
-            />
-            {/* Right panel: label, bar, percentage */}
-            <div className="flex flex-1 flex-col justify-center gap-1 px-2.5 py-2">
+            <div className={`w-px shrink-0 ${tickerDiv} transition-colors duration-500`} />
+            {/* Right: label + scrubber */}
+            <div className="flex flex-1 flex-col justify-center gap-1.5 px-2.5 py-2">
               <div className="flex items-center justify-between">
                 <span className="text-[9px] font-medium text-slate-500 dark:text-zinc-500">
                   {t('todayTask')}
@@ -256,12 +236,87 @@ const TodayTaskProgressBar = memo<TodayTaskProgressBarProps>(
                   {efficiency}%
                 </span>
               </div>
-              <div className="h-1.5 overflow-hidden rounded-full bg-slate-100 dark:bg-zinc-800">
+              {/* Track + bullet: container h-4 so bullet has room */}
+              <div className="relative h-4 w-full">
+                <div className="absolute inset-x-0 top-1/2 h-0.5 -translate-y-1/2 overflow-hidden rounded-full bg-slate-100 dark:bg-zinc-800">
+                  <motion.div
+                    className={`h-full ${fillCls}`}
+                    animate={{ width: `${efficiency}%` }}
+                    transition={{ duration: 0.7, ease: 'easeOut' }}
+                  />
+                </div>
+                {efficiency > 0 && (
+                  <motion.div
+                    className={`absolute top-1/2 h-4 w-4 -translate-y-1/2 rounded-full border-2 border-white shadow-md dark:border-zinc-900 ${isDone ? 'bg-emerald-500' : 'bg-indigo-500'}`}
+                    animate={{ left: `calc(${efficiency}% - 8px)` }}
+                    transition={{ duration: 0.7, ease: 'easeOut' }}
+                  />
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      );
+
+      // ── F: Segmented ──────────────────────────────────────────────────────────
+      // Ticker split: left = hero %, right = label + 10 mini-cell grid.
+      // Each cell = 10% of progress; completed cells pop in with a stagger.
+      const designF = (
+        <div className="overflow-hidden rounded-xl border border-slate-200 bg-white dark:border-zinc-700 dark:bg-zinc-900">
+          <div className="flex items-stretch">
+            {/* Left: hero % */}
+            <div
+              className={`flex shrink-0 flex-col items-center justify-center px-3 py-2 ${tickerLeft} transition-colors duration-500`}
+            >
+              {isDone ? (
                 <motion.div
-                  className={`h-full rounded-full ${fillCls}`}
-                  animate={{ width: `${efficiency}%` }}
-                  transition={{ duration: 0.7, ease: 'easeOut' }}
-                />
+                  initial={{ scale: 0, rotate: -90 }}
+                  animate={{ scale: 1, rotate: 0 }}
+                  transition={{ type: 'spring', stiffness: 260, damping: 18 }}
+                >
+                  <Trophy size={18} className="text-amber-400" />
+                </motion.div>
+              ) : (
+                <span
+                  className={`font-mono text-lg font-black tabular-nums leading-none ${accentText}`}
+                >
+                  {efficiency}%
+                </span>
+              )}
+              <span className="mt-0.5 text-[8px] font-mono tabular-nums text-slate-400 dark:text-zinc-600">
+                {completedCount}/{totalCount}
+              </span>
+            </div>
+            <div className={`w-px shrink-0 ${tickerDiv} transition-colors duration-500`} />
+            {/* Right: label + 10-cell segmented grid */}
+            <div className="flex flex-1 flex-col justify-center gap-1.5 px-2.5 py-2">
+              <span className="text-[9px] font-medium text-slate-500 dark:text-zinc-500">
+                {t('todayTask')}
+              </span>
+              <div className="flex gap-[3px]">
+                {Array.from({ length: 10 }, (_, i) => {
+                  const lit = efficiency >= (i + 1) * 10;
+                  const partial = !lit && efficiency > i * 10;
+                  return (
+                    <motion.div
+                      key={i}
+                      className={`h-2 flex-1 rounded-sm transition-colors duration-300 ${
+                        lit
+                          ? isDone
+                            ? 'bg-emerald-400'
+                            : 'bg-indigo-500'
+                          : partial
+                            ? isDone
+                              ? 'bg-emerald-300/60'
+                              : 'bg-indigo-400/50'
+                            : 'bg-slate-100 dark:bg-zinc-800'
+                      }`}
+                      initial={{ scaleY: 0 }}
+                      animate={{ scaleY: 1 }}
+                      transition={{ delay: i * 0.03, duration: 0.25 }}
+                    />
+                  );
+                })}
               </div>
             </div>
           </div>
@@ -270,9 +325,9 @@ const TodayTaskProgressBar = memo<TodayTaskProgressBarProps>(
 
       return (
         <div className={`space-y-1.5 ${className}`}>
-          {designA}
-          {designB}
-          {designC}
+          {designD}
+          {designE}
+          {designF}
         </div>
       );
     }
