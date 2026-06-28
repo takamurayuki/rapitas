@@ -212,7 +212,7 @@ export function ExecutionSection({
         aria-controls="execution-section-content"
       >
         <div className="flex items-center gap-2">
-          <Rocket className="w-4 h-4 text-blue-500" />
+          <Rocket className="w-4 h-4 text-indigo-500" />
           <span className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
             エージェント実行
           </span>
