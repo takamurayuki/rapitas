@@ -208,6 +208,18 @@ export async function stopThemeAgents(
   // Abort the runner loops FIRST so none of these tasks advances to a new phase
   // after we kill the agents, then kill.
   await abortRunnerLoops([...taskIds]);
+
+  // In-memory sweep: stops agents that are alive but have a stale/missing DB
+  // status row (race during spawn, partial prior stop, orphaned execution).
+  // Must run before the DB-based sweep so stopExecution can write the final
+  // 'cancelled' status; the DB sweep then no-ops on already-cancelled rows.
+  const mainOrchestrator = AgentOrchestrator.getInstance(prisma);
+  await mainOrchestrator.stopAllForTasks(taskIds).catch((err) => {
+    log.warn({ err }, '[stopThemeAgents] In-memory sweep failed — falling back to DB sweep');
+  });
+
+  // DB-based sweep: catches worker-path executions (AgentWorkerManager) and
+  // any executions not held by the main-process orchestrator.
   const ids = await findActiveExecutionIds([...taskIds]);
   const executionIds = await stopExecutions(ids, reason);
 

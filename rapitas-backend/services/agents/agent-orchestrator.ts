@@ -353,6 +353,35 @@ export class AgentOrchestrator {
     return true;
   }
 
+  /**
+   * Stop ALL in-memory executions whose taskId is in the given set.
+   *
+   * Uses activeAgents directly, bypassing the DB query — catches agents that
+   * are alive but have a stale or missing DB status row (race condition during
+   * spawn, partial prior stop, orphaned in-progress row).
+   *
+   * @param taskIds - Set of task IDs to sweep. / 停止対象タスクID集合
+   * @returns Execution IDs that were stopped. / 停止した実行ID一覧
+   */
+  async stopAllForTasks(taskIds: Set<number>): Promise<number[]> {
+    const stopped: number[] = [];
+    // Snapshot before iterating — stopExecution mutates activeAgents.
+    const entries = [...this.activeAgents.entries()];
+    for (const [executionId, info] of entries) {
+      if (taskIds.has(info.taskId)) {
+        await this.stopExecution(executionId).catch(() => {});
+        stopped.push(executionId);
+      }
+    }
+    if (stopped.length > 0) {
+      logger.info(
+        { stopped, taskCount: taskIds.size },
+        '[Orchestrator] stopAllForTasks: swept in-memory agents',
+      );
+    }
+    return stopped;
+  }
+
   // ==================== Recovery ====================
 
   async getInterruptedExecutions() {

@@ -48,7 +48,7 @@ export function AutoExecutionMode({ theme }: AutoExecutionModeProps) {
         <button
           onClick={() => start('priority')}
           disabled={actionLoading}
-          title="このテーマのToDoタスクをAI生成なしで上から順に自動実行します"
+          title="このテーマのToDoタスクを上から順に自動実行します"
           className="inline-flex items-center gap-3 rounded-xl border border-indigo-300 bg-white pl-3 pr-4 py-2 text-sm font-medium text-indigo-600 shadow-[0_2px_0_0_#a5b4fc] select-none transition-all duration-75 hover:border-indigo-400 hover:bg-indigo-50 active:translate-y-[2px] active:shadow-none disabled:cursor-not-allowed disabled:opacity-50 dark:border-indigo-700 dark:bg-zinc-900 dark:text-indigo-400 dark:shadow-[0_2px_0_0_#312e81] dark:hover:border-indigo-600 dark:hover:bg-indigo-950/40"
         >
           {actionLoading ? (
