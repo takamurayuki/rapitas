@@ -20,6 +20,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useTranslations } from 'next-intl';
 import { checkIsTaskDetailPage } from './types';
 import { useClickOutside } from './useClickOutside';
+import { useToast } from '@/components/ui/toast/ToastContainer';
 import type { AppMode } from '@/stores/app-mode-store';
 
 /** All state and callbacks surfaced to Header sub-components. */
@@ -111,6 +112,7 @@ export function useHeader(): UseHeaderReturn {
   const { modalState, openModal, closeModal } = useNoteStore();
   const t = useTranslations('nav');
   const tc = useTranslations('common');
+  const { showToast } = useToast();
 
   // Click-outside handlers — stable references required by useClickOutside dep array
   const closeMoreMenu = useCallback(() => setIsMoreMenuOpen(false), []);
@@ -191,7 +193,7 @@ export function useHeader(): UseHeaderReturn {
       setIsRestarting(false);
       // Restart didn't complete in time — re-enable logging so real errors show.
       useServerRestartStore.getState().setRestarting(false);
-      alert(t('restartTimeout'));
+      showToast(t('restartTimeout'), 'error');
     };
     waitForServer();
   };

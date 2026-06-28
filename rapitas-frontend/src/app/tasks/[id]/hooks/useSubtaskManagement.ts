@@ -13,6 +13,7 @@ import { API_BASE_URL } from '@/utils/api';
 import { createLogger } from '@/lib/logger';
 import { useTaskCacheStore } from '@/stores/task-cache-store';
 import { useSubtaskDeletion } from './useSubtaskDeletion';
+import { useToast } from '@/components/ui/toast/ToastContainer';
 
 const logger = createLogger('useSubtaskManagement');
 const API_BASE = API_BASE_URL;
@@ -36,6 +37,7 @@ export function useSubtaskManagement({
   setTask,
   onTaskUpdated,
 }: UseSubtaskManagementParams) {
+  const { showToast } = useToast();
   // ── Add new subtask ─────────────────────────────────────────────────
   const [isAddingSubtask, setIsAddingSubtask] = useState(false);
   const [newSubtaskTitle, setNewSubtaskTitle] = useState('');
@@ -135,7 +137,7 @@ export function useSubtaskManagement({
       onTaskUpdated?.();
     } catch (err) {
       logger.error(err);
-      alert('サブタスクの作成に失敗しました');
+      showToast('サブタスクの作成に失敗しました', 'error');
     }
   }, [
     task,
@@ -145,6 +147,7 @@ export function useSubtaskManagement({
     newSubtaskEstimatedHours,
     refetchTask,
     onTaskUpdated,
+    showToast,
   ]);
 
   // ── Inline editing ────────────────────────────────────────────────────
@@ -191,10 +194,10 @@ export function useSubtaskManagement({
         setEditingSubtaskDescription('');
       } catch (err) {
         logger.error(err);
-        alert('サブタスクの更新に失敗しました');
+        showToast('サブタスクの更新に失敗しました', 'error');
       }
     },
-    [refetchTask],
+    [refetchTask, showToast],
   );
 
   const saveSubtaskEdit = useCallback(() => {

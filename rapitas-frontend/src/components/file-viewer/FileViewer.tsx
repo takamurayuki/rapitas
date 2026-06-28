@@ -22,6 +22,7 @@ import { API_BASE_URL, fetchWithRetry } from '@/utils/api';
 import MarkdownViewer from './MarkdownViewer';
 import './markdown-viewer.css';
 import { createLogger } from '@/lib/logger';
+import { useToast } from '@/components/ui/toast/ToastContainer';
 const logger = createLogger('FileViewer');
 
 type FileViewerProps = {
@@ -39,6 +40,7 @@ export default function FileViewer({
   resources = [],
   onNavigate,
 }: FileViewerProps) {
+  const { showToast } = useToast();
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [textContent, setTextContent] = useState<string>('');
@@ -348,7 +350,7 @@ export default function FileViewer({
                 <button
                   onClick={() => {
                     navigator.clipboard.writeText(getFileUrl(resource));
-                    alert('URLをコピーしました');
+                    showToast('URLをコピーしました', 'success');
                   }}
                   className="flex items-center gap-2 px-4 py-2 bg-zinc-500 text-white rounded-lg hover:bg-zinc-600 transition-colors"
                 >

@@ -8,6 +8,7 @@ import { useBackendHealth } from '@/hooks/common/useBackendHealth';
 import { useOnVisible } from '@/hooks/common/useOnVisible';
 import { useExecutionStateStore } from '@/stores/execution-state-store';
 import { createLogger } from '@/lib/logger';
+import { useToast } from '@/components/ui/toast/ToastContainer';
 import type { ResumableExecution } from './types';
 
 const logger = createLogger('useResumableExecutions');
@@ -45,6 +46,7 @@ export function useResumableExecutions(): UseResumableExecutionsReturn {
   const tc = useTranslations('common');
   const tNotification = useTranslations('notification');
   const t = useTranslations('banner');
+  const { showToast } = useToast();
 
   const [executions, setExecutions] = useState<ResumableExecution[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -206,7 +208,7 @@ export function useResumableExecutions(): UseResumableExecutionsReturn {
         }
       } else {
         logger.error(`Failed to resume execution: ${res.status} ${res.statusText}`);
-        if (!isAutoResume) alert(`${tc('errorOccurred')}: ${res.status}`);
+        if (!isAutoResume) showToast(`${tc('errorOccurred')}: ${res.status}`, 'error');
       }
     } catch (error) {
       logger.warn('Error resuming execution:', error);

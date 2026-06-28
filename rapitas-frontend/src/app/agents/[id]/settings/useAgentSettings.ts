@@ -5,6 +5,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { API_BASE_URL } from '@/utils/api';
+import { useConfirmDialog } from '@/components/ui/dialog/ConfirmDialogProvider';
 import { validateUrl, validateApiKey, type ValidationResult } from '@/utils/validation';
 import { createLogger } from '@/lib/logger';
 import type { AgentConfig, ModelOption } from './agent-settings-types';
@@ -24,6 +25,7 @@ export function useAgentSettings(id: string) {
   const t = useTranslations('agents');
   const tc = useTranslations('common');
   const router = useRouter();
+  const confirm = useConfirmDialog();
 
   const [agent, setAgent] = useState<AgentConfig | null>(null);
   const [loading, setLoading] = useState(true);
@@ -160,7 +162,7 @@ export function useAgentSettings(id: string) {
   };
 
   const handleDeleteApiKey = async () => {
-    if (!confirm(t('confirmDeleteApiKey'))) return;
+    if (!await confirm({ message: t('confirmDeleteApiKey'), variant: 'destructive' })) return;
     setError('');
     setSuccessMessage('');
     try {
@@ -194,7 +196,7 @@ export function useAgentSettings(id: string) {
   };
 
   const handleDelete = async () => {
-    if (!confirm(t('confirmDeleteAgent'))) return;
+    if (!await confirm({ message: t('confirmDeleteAgent'), variant: 'destructive' })) return;
     try {
       await deleteAgent(id);
       router.push('/agents');
