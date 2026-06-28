@@ -89,34 +89,34 @@ export function ResumableExecutionsBanner() {
   const hasRunning = runningCount > 0;
 
   const bannerBg = hasRunning
-    ? 'bg-linear-to-br from-indigo-50 to-indigo-50 dark:from-indigo-950/95 dark:to-indigo-950/95 border-indigo-200/80 dark:border-indigo-700/60 shadow-indigo-500/10 dark:shadow-indigo-900/20'
+    ? 'bg-linear-to-br from-blue-50 to-blue-50 dark:from-blue-950/95 dark:to-blue-950/95 border-blue-200/80 dark:border-blue-700/60 shadow-blue-500/10 dark:shadow-blue-900/20'
     : 'bg-linear-to-br from-amber-50 to-orange-50 dark:from-amber-950/95 dark:to-orange-950/95 border-amber-200/80 dark:border-amber-700/60 shadow-amber-500/10 dark:shadow-amber-900/20';
 
   const headerHoverBg = hasRunning
-    ? 'hover:bg-indigo-100/50 dark:hover:bg-indigo-900/30'
+    ? 'hover:bg-blue-100/50 dark:hover:bg-blue-900/30'
     : 'hover:bg-amber-100/50 dark:hover:bg-amber-900/30';
 
   const iconBg = hasRunning
-    ? 'bg-linear-to-br from-indigo-400 to-indigo-500 shadow-indigo-500/30'
+    ? 'bg-linear-to-br from-blue-400 to-blue-500 shadow-blue-500/30'
     : 'bg-linear-to-br from-amber-400 to-orange-500 shadow-amber-500/30';
 
-  const pingColor = hasRunning ? 'bg-indigo-400' : 'bg-amber-400';
-  const badgeColor = hasRunning ? 'bg-indigo-500' : 'bg-amber-500';
+  const pingColor = hasRunning ? 'bg-blue-400' : 'bg-amber-400';
+  const badgeColor = hasRunning ? 'bg-blue-500' : 'bg-amber-500';
 
   const titleColor = hasRunning
-    ? 'text-indigo-900 dark:text-indigo-100'
+    ? 'text-blue-900 dark:text-blue-100'
     : 'text-amber-900 dark:text-amber-100';
 
   const subtitleColor = hasRunning
-    ? 'text-indigo-600 dark:text-indigo-400/80'
+    ? 'text-blue-600 dark:text-blue-400/80'
     : 'text-amber-600 dark:text-amber-400/80';
 
   const closeIconColor = hasRunning
-    ? 'text-indigo-600 dark:text-indigo-400'
+    ? 'text-blue-600 dark:text-blue-400'
     : 'text-amber-600 dark:text-amber-400';
 
   const closeBtnHover = hasRunning
-    ? 'hover:bg-indigo-200/60 dark:hover:bg-indigo-800/40'
+    ? 'hover:bg-blue-200/60 dark:hover:bg-blue-800/40'
     : 'hover:bg-amber-200/60 dark:hover:bg-amber-800/40';
 
   return (

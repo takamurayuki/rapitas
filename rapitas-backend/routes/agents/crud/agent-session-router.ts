@@ -146,6 +146,8 @@ export const agentSessionRouter = new Elysia({ prefix: '/agents' })
                       id: true,
                       title: true,
                       status: true,
+                      workflowStatus: true,
+                      workflowMode: true,
                       theme: {
                         select: {
                           workingDirectory: true,
@@ -203,6 +205,8 @@ export const agentSessionRouter = new Elysia({ prefix: '/agents' })
           completedAt: exec.completedAt,
           createdAt: exec.createdAt,
           workingDirectory: exec.session.config?.task?.theme?.workingDirectory,
+          workflowStatus: exec.session.config?.task?.workflowStatus ?? null,
+          workflowMode: exec.session.config?.task?.workflowMode ?? null,
           canResume: exec.status === 'interrupted', // Only interrupted can be resumed
         };
       });
