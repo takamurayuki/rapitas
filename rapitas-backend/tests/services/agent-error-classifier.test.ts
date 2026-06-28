@@ -39,6 +39,34 @@ describe('classifyAgentError', () => {
     expect(r?.reason).toBe('rate_limit');
   });
 
+  it('rate_limit_error が行頭に来る場合も判定する', () => {
+    const r = classifyAgentError('\nrate_limit_error: Request rate limited');
+    expect(r?.provider).toBe('claude');
+    expect(r?.reason).toBe('rate_limit');
+  });
+
+  it('エージェントがコード内で rate_limit_error を使っても誤検知しない', () => {
+    // False-positive guard: agents often write code that handles Anthropic
+    // rate limit errors — these strings must NOT trigger the fallback path.
+    const codeSnippets = [
+      "if (error.type === 'rate_limit_error') { handleRateLimit(error); }",
+      "case 'rate_limit_error': return retryWithBackoff();",
+      "const ERR_RATE_LIMIT = 'rate_limit_error';",
+      'I updated the handler to manage rate_limit_error cases properly.',
+      '// TODO: handle rate_limit_error from Anthropic',
+    ];
+    for (const snippet of codeSnippets) {
+      const r = classifyAgentError(snippet, { strict: true });
+      expect(r).toBeNull();
+    }
+    // Also check lenient mode — the lenient heuristics should not catch these
+    // since none of them have an ERROR context marker at the line beginning.
+    for (const snippet of codeSnippets) {
+      const r = classifyAgentError(snippet);
+      expect(r).toBeNull();
+    }
+  });
+
   it('Gemini RESOURCE_EXHAUSTED を quota として判定する', () => {
     const r = classifyAgentError('googleapis: RESOURCE_EXHAUSTED');
     expect(r?.provider).toBe('gemini');

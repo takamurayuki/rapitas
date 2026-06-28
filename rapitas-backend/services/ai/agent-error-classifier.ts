@@ -92,9 +92,17 @@ const RULES: PatternRule[] = [
     reason: 'quota',
     pattern: /credit[ _]?balance[ _]?too[ _]?low/i,
   },
-  // Match Anthropic's specific error name, not the generic phrase, so we
-  // don't false-positive on prose like "implements rate limiting".
-  { provider: 'claude', reason: 'rate_limit', pattern: /rate_limit_error/i },
+  // Match Anthropic's specific error name in API error context only.
+  // The old /rate_limit_error/i also matched when agents wrote code that
+  // handles rate limit errors (e.g. `if (error.type === 'rate_limit_error')`
+  // or `case 'rate_limit_error':`).  Require either:
+  //   1. Same line as "anthropic" (CLI error format: "Anthropic API error: rate_limit_error")
+  //   2. Start of a line (bare CLI error output, not embedded in code)
+  {
+    provider: 'claude',
+    reason: 'rate_limit',
+    pattern: /anthropic[^\n]*rate_limit_error|(^|\n)\s*rate_limit_error\b/im,
+  },
   {
     provider: 'claude',
     reason: 'rate_limit',
