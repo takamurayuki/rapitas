@@ -206,19 +206,6 @@ const TaskCard = memo(function TaskCard({
                   🔄
                 </span>
               )}
-
-              {tc.executionClasses && (
-                <div
-                  className={`flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium shrink-0 ${tc.executionClasses.badgeClass}`}
-                  title={tc.executionClasses.label}
-                >
-                  <div
-                    className={`w-1.5 h-1.5 rounded-full execution-dot-pulse ${tc.executionClasses.dotClass}`}
-                    aria-hidden="true"
-                  />
-                  <span>{tc.executionClasses.label}</span>
-                </div>
-              )}
             </div>
           </div>
 
