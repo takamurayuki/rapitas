@@ -76,9 +76,9 @@ export function HomeExpandedFilters({
                     className={`relative h-6 px-3 font-mono text-[10px] uppercase tracking-wider whitespace-nowrap transition-all duration-200 ${
                       isActive
                         ? statusItem.color === 'amber'
-                          ? 'bg-indigo-500 text-white shadow-md font-bold'
+                          ? 'bg-blue-500 text-white shadow-md font-bold'
                           : statusItem.color === 'blue'
-                            ? 'bg-indigo-500 text-white shadow-md font-bold'
+                            ? 'bg-blue-500 text-white shadow-md font-bold'
                             : statusItem.color === 'green'
                               ? 'bg-green-500 text-white shadow-md font-bold'
                               : 'bg-slate-600 text-white shadow-md font-bold'
@@ -143,13 +143,13 @@ export function HomeExpandedFilters({
                   className={`h-6 px-2.5 font-mono text-[10px] uppercase tracking-wider transition-all duration-200 whitespace-nowrap focus:outline-none focus-visible:outline-none focus-visible:ring-0 ${
                     (priorityFilter || '') === priority.value
                       ? priority.bgColor === 'amber'
-                        ? 'bg-indigo-500 text-white shadow-md font-bold'
+                        ? 'bg-blue-500 text-white shadow-md font-bold'
                         : priority.bgColor === 'red'
                           ? 'bg-red-500 text-white shadow-md font-bold'
                           : priority.bgColor === 'orange'
                             ? 'bg-orange-500 text-white shadow-md font-bold'
                             : priority.bgColor === 'blue'
-                              ? 'bg-indigo-500 text-white shadow-md font-bold'
+                              ? 'bg-blue-500 text-white shadow-md font-bold'
                               : 'bg-slate-600 text-white shadow-md font-bold'
                       : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700'
                   }`}

@@ -193,7 +193,7 @@ export function HomeThemeFilter({
           onClick={onFilterExpandedToggle}
           className={`flex items-center gap-1.5 px-2.5 py-1.5 font-mono text-[10px] uppercase tracking-wider transition-all shrink-0 ${
             isFilterExpanded
-              ? 'bg-indigo-500 text-white shadow-md'
+              ? 'bg-blue-500 text-white shadow-md'
               : 'bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-400 hover:bg-slate-300 dark:hover:bg-slate-600'
           }`}
         >

@@ -67,7 +67,7 @@ export function ConcernFilterBar({
       <select
         value={typeFilter}
         onChange={(e) => setTypeFilter(e.target.value as ConcernType | 'all')}
-        className="rounded-lg border border-zinc-200 bg-white px-2 py-1 text-xs outline-none focus:border-indigo-400 dark:border-zinc-700 dark:bg-zinc-800"
+        className="rounded-lg border border-zinc-200 bg-white px-2 py-1 text-xs outline-none focus:border-blue-400 dark:border-zinc-700 dark:bg-zinc-800"
       >
         <option value="all">すべての種別</option>
         {TYPE_ORDER.map((ty) => (
@@ -79,7 +79,7 @@ export function ConcernFilterBar({
       <select
         value={severityFilter}
         onChange={(e) => setSeverityFilter(e.target.value as ConcernSeverity | 'all')}
-        className="rounded-lg border border-zinc-200 bg-white px-2 py-1 text-xs outline-none focus:border-indigo-400 dark:border-zinc-700 dark:bg-zinc-800"
+        className="rounded-lg border border-zinc-200 bg-white px-2 py-1 text-xs outline-none focus:border-blue-400 dark:border-zinc-700 dark:bg-zinc-800"
       >
         <option value="all">すべての優先度</option>
         {SEVERITY_ORDER.map((sv) => (
@@ -91,7 +91,7 @@ export function ConcernFilterBar({
       <select
         value={themeFilter === 'all' ? '' : String(themeFilter)}
         onChange={(e) => setThemeFilter(e.target.value ? parseInt(e.target.value) : 'all')}
-        className="rounded-lg border border-zinc-200 bg-white px-2 py-1 text-xs outline-none focus:border-indigo-400 dark:border-zinc-700 dark:bg-zinc-800"
+        className="rounded-lg border border-zinc-200 bg-white px-2 py-1 text-xs outline-none focus:border-blue-400 dark:border-zinc-700 dark:bg-zinc-800"
       >
         <option value="">すべてのテーマ</option>
         {workingDirThemes.map((th) => (

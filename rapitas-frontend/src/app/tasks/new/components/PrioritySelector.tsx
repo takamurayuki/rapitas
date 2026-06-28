@@ -39,8 +39,8 @@ export function usePriorityOptions(t: ReturnType<typeof useTranslations>): Prior
       value: 'medium',
       label: t('priorityMedium'),
       icon: <ChevronsUpDown className="w-3.5 h-3.5" />,
-      iconColor: 'text-indigo-500',
-      bgColor: 'bg-indigo-500',
+      iconColor: 'text-blue-500',
+      bgColor: 'bg-blue-500',
     },
     {
       value: 'low',

@@ -48,7 +48,7 @@ export default function PriorityInlineSelect({ value, onChange }: PriorityInline
         onClick={() => setOpen((v) => !v)}
         aria-label={`優先度: ${current?.label ?? '未設定'}（クリックで変更）`}
         title="優先度を変更"
-        className="flex items-center rounded p-0.5 outline-none transition-colors hover:bg-zinc-100 focus-visible:ring-2 focus-visible:ring-indigo-500 dark:hover:bg-zinc-800"
+        className="flex items-center rounded p-0.5 outline-none transition-colors hover:bg-zinc-100 focus-visible:ring-2 focus-visible:ring-blue-500 dark:hover:bg-zinc-800"
       >
         {value ? (
           <PriorityIcon priority={value} size="md" />

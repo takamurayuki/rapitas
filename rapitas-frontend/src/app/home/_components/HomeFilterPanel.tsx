@@ -152,7 +152,7 @@ export function HomeFilterPanel({
   if (categories.length === 0) return null;
 
   return (
-    <div className="relative overflow-hidden border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-sm transition-all duration-300 hover:border-indigo-500/50 mb-4">
+    <div className="relative overflow-hidden border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-sm transition-all duration-300 hover:border-blue-500/50 mb-4">
       <HomeCategoryFilter
         categories={categories}
         themes={themes}

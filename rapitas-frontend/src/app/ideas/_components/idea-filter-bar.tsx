@@ -69,7 +69,7 @@ export function IdeaFilterBar({
       <select
         value={priorityFilter}
         onChange={(e) => setPriorityFilter(e.target.value as 'all' | IdeaPriority)}
-        className="rounded-lg border border-zinc-200 bg-white px-2 py-1.5 text-xs outline-none focus:border-indigo-400 dark:border-zinc-700 dark:bg-zinc-800"
+        className="rounded-lg border border-zinc-200 bg-white px-2 py-1.5 text-xs outline-none focus:border-blue-400 dark:border-zinc-700 dark:bg-zinc-800"
       >
         <option value="all">すべての優先度</option>
         <option value="urgent">緊急</option>
@@ -80,7 +80,7 @@ export function IdeaFilterBar({
       <select
         value={filterCategoryId ?? ''}
         onChange={(e) => onFilterCategoryChange(e.target.value ? parseInt(e.target.value) : null)}
-        className="rounded-lg border border-zinc-200 bg-white px-2 py-1.5 text-xs outline-none focus:border-indigo-400 dark:border-zinc-700 dark:bg-zinc-800"
+        className="rounded-lg border border-zinc-200 bg-white px-2 py-1.5 text-xs outline-none focus:border-blue-400 dark:border-zinc-700 dark:bg-zinc-800"
       >
         <option value="">すべてのカテゴリ</option>
         {categories.map((cat) => (
@@ -92,7 +92,7 @@ export function IdeaFilterBar({
       <select
         value={filterThemeId ?? ''}
         onChange={(e) => setFilterThemeId(e.target.value ? parseInt(e.target.value) : null)}
-        className="rounded-lg border border-zinc-200 bg-white px-2 py-1.5 text-xs outline-none focus:border-indigo-400 dark:border-zinc-700 dark:bg-zinc-800"
+        className="rounded-lg border border-zinc-200 bg-white px-2 py-1.5 text-xs outline-none focus:border-blue-400 dark:border-zinc-700 dark:bg-zinc-800"
       >
         <option value="">すべてのテーマ</option>
         {filterThemes.map((th) => (
