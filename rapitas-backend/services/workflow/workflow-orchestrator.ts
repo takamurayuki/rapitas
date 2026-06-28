@@ -974,6 +974,21 @@ async function tryProviderFallback(args: {
   const classified = classifyAgentError(errorBlob);
   if (!classified || !classified.retryWithFallback) return null;
 
+  // NOTE: model_unavailable = specific model down, not the whole provider.
+  // Retry with same agent config but no --model flag (CLI default). Skip cooldown
+  // so the Claude provider remains available for subsequent phases.
+  if (classified.reason === 'model_unavailable') {
+    log.warn(
+      {
+        taskId: args.taskId,
+        role: args.role,
+        unavailableModel: args.currentConfig.modelId,
+      },
+      'Model unavailable — retrying with same provider, default model (no --model flag)',
+    );
+    return args.runAgent({ ...args.currentConfig, modelId: null } as never);
+  }
+
   markProviderCooldown(classified.provider, classified.reason, classified.resetAt, {
     model: args.currentConfig.modelId ?? undefined,
     message: classified.rawMessage.slice(0, 200),

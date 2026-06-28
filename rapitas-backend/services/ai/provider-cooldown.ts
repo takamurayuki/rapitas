@@ -20,7 +20,7 @@ const log = createLogger('ai:provider-cooldown');
 
 export type { Provider };
 
-export type CooldownReason = 'quota' | 'rate_limit' | 'auth' | 'transient';
+export type CooldownReason = 'quota' | 'rate_limit' | 'auth' | 'transient' | 'model_unavailable';
 
 interface CooldownEntry {
   provider: Provider;
