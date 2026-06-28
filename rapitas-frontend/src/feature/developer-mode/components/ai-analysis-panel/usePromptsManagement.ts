@@ -3,6 +3,7 @@
 
 import { useState } from 'react';
 import { API_BASE_URL } from '@/utils/api';
+import { useConfirmDialog } from '@/components/ui/dialog/ConfirmDialogProvider';
 import type { PromptsData } from './types';
 
 export type UsePromptsManagementReturn = {
@@ -28,6 +29,7 @@ export type UsePromptsManagementReturn = {
  * @returns State values and handler functions for prompt list management.
  */
 export function usePromptsManagement(taskId: number): UsePromptsManagementReturn {
+  const confirm = useConfirmDialog();
   const [promptsData, setPromptsData] = useState<PromptsData | null>(null);
   const [isLoadingPrompts, setIsLoadingPrompts] = useState(false);
   const [isGeneratingAll, setIsGeneratingAll] = useState(false);
@@ -54,7 +56,7 @@ export function usePromptsManagement(taskId: number): UsePromptsManagementReturn
   };
 
   const generateAllPrompts = async () => {
-    if (!confirm('すべてのサブタスク（またはタスク）のプロンプトを生成しますか？')) return;
+    if (!await confirm({ message: 'すべてのサブタスク（またはタスク）のプロンプトを生成しますか？' })) return;
 
     setIsGeneratingAll(true);
     setPromptsError(null);
@@ -95,7 +97,7 @@ export function usePromptsManagement(taskId: number): UsePromptsManagementReturn
   };
 
   const deletePrompt = async (promptId: number) => {
-    if (!confirm('このプロンプトを削除しますか？')) return;
+    if (!await confirm({ message: 'このプロンプトを削除しますか？', variant: 'destructive' })) return;
 
     try {
       const res = await fetch(`${API_BASE_URL}/prompts/${promptId}`, {

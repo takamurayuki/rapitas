@@ -4,6 +4,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useTranslations } from 'next-intl';
 import type { UserSettings, ApiProvider } from '@/types';
+import { useConfirmDialog } from '@/components/ui/dialog/ConfirmDialogProvider';
 import { API_BASE_URL } from '@/utils/api';
 import { createLogger } from '@/lib/logger';
 import { CACHE_KEYS, getCachedData, setCachedData } from './settings-cache';
@@ -134,6 +135,7 @@ function pollDownloadProgress(
 export function useSettingsData() {
   const t = useTranslations('settings');
   const tc = useTranslations('common');
+  const confirm = useConfirmDialog();
 
   const [settings, setSettings] = useState<UserSettings | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -294,7 +296,7 @@ export function useSettingsData() {
    * @param configuredField - Settings field to clear on success.
    */
   const deleteApiKey = async (providerKey: string, configuredField: keyof UserSettings) => {
-    if (!confirm(t('confirmDeleteKey'))) return;
+    if (!await confirm({ message: t('confirmDeleteKey'), variant: 'destructive' })) return;
     updateProviderState(providerKey, { isSaving: true });
     setError(null);
     try {

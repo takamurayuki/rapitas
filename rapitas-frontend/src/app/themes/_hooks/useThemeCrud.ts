@@ -7,6 +7,7 @@
  */
 import { useTranslations } from 'next-intl';
 import { useToast } from '@/components/ui/toast/ToastContainer';
+import { useConfirmDialog } from '@/components/ui/dialog/ConfirmDialogProvider';
 import { API_BASE_URL } from '@/utils/api';
 import { useFilterDataStore } from '@/stores/filter-data-store';
 import { createLogger } from '@/lib/logger';
@@ -56,6 +57,7 @@ export function useThemeCrud({ getFormData, fetchItems }: Options) {
   const t = useTranslations('themes');
   const tc = useTranslations('common');
   const { showToast } = useToast();
+  const confirm = useConfirmDialog();
   const clearFilterCache = useFilterDataStore((s) => s.clearCache);
 
   /**
@@ -164,7 +166,7 @@ export function useThemeCrud({ getFormData, fetchItems }: Options) {
    * @param name - Display name shown in the confirmation prompt. / 確認ダイアログに表示される名前
    */
   const handleDelete = async (id: number, name: string) => {
-    if (!confirm(t('deleteConfirm', { name }))) return;
+    if (!await confirm({ message: t('deleteConfirm', { name }), variant: 'destructive' })) return;
 
     try {
       const res = await fetch(`${API_BASE_URL}/themes/${id}`, {

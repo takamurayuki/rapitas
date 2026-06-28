@@ -5,6 +5,7 @@ import { useEffect, useState, useCallback } from 'react';
 import { useTranslations } from 'next-intl';
 import type { LearningGoal, Category } from '@/types';
 import { useToast } from '@/components/ui/toast/ToastContainer';
+import { useConfirmDialog } from '@/components/ui/dialog/ConfirmDialogProvider';
 import { API_BASE_URL } from '@/utils/api';
 import { createLogger } from '@/lib/logger';
 
@@ -39,6 +40,7 @@ export function useLearningGoals() {
   const t = useTranslations('learning');
   const tc = useTranslations('common');
   const { showToast } = useToast();
+  const confirm = useConfirmDialog();
 
   const [goals, setGoals] = useState<LearningGoal[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
@@ -219,7 +221,7 @@ export function useLearningGoals() {
       showToast(t('alreadyApplied'), 'info');
       return;
     }
-    if (!confirm(t('applyConfirm'))) return;
+    if (!await confirm({ message: t('applyConfirm') })) return;
 
     setApplying(true);
     try {
@@ -257,7 +259,7 @@ export function useLearningGoals() {
    * @param id - Goal id to delete.
    */
   const handleDelete = async (id: number) => {
-    if (!confirm(t('deleteConfirm'))) return;
+    if (!await confirm({ message: t('deleteConfirm'), variant: 'destructive' })) return;
     try {
       const res = await fetch(`${API_BASE_URL}/learning-goals/${id}`, {
         method: 'DELETE',

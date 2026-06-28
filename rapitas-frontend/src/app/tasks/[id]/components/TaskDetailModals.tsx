@@ -5,6 +5,7 @@ import { DeveloperModeConfigModal } from '@/feature/developer-mode/components/De
 import SaveAsTemplateDialog from '@/feature/tasks/components/dialog/SaveAsTemplateDialog';
 import PlanApprovalModal from '@/components/workflow/PlanApprovalModal';
 import { useTranslations } from 'next-intl';
+import { useToast } from '@/components/ui/toast/ToastContainer';
 
 interface TaskDetailModalsProps {
   task: Task;
@@ -46,6 +47,7 @@ export default function TaskDetailModals({
   onApprovalComplete,
 }: TaskDetailModalsProps) {
   const t = useTranslations('task');
+  const { showToast } = useToast();
   return (
     <>
       <GlobalPomodoroModal
@@ -71,7 +73,7 @@ export default function TaskDetailModals({
           isOpen={showSaveTemplateDialog}
           onClose={onCloseSaveTemplateDialog}
           onSuccess={() => {
-            alert(t('templateSaved'));
+            showToast(t('templateSaved'), 'success');
           }}
         />
       )}

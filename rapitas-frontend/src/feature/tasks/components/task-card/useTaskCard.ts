@@ -4,6 +4,7 @@ import { useState, useRef, useEffect } from 'react';
 import type { Task, Status } from '@/types';
 import { type statusConfig, resolveStatusConfig } from '@/feature/tasks/config/StatusConfig';
 import { useToast } from '@/components/ui/toast/ToastContainer';
+import { useConfirmDialog } from '@/components/ui/dialog/ConfirmDialogProvider';
 import { API_BASE_URL } from '@/utils/api';
 import { prefetch } from '@/lib/api-client';
 import { useExecutionStateStore } from '@/stores/execution-state-store';
@@ -93,6 +94,7 @@ export function useTaskCard(
   const [localSubtasks, setLocalSubtasks] = useState(task.subtasks || []);
 
   const { showToast } = useToast();
+  const confirm = useConfirmDialog();
 
   const storeExecutionStatus = useExecutionStateStore((state) =>
     state.getExecutingTaskStatus(task.id),
@@ -229,7 +231,7 @@ export function useTaskCard(
       setShowContextMenu(false);
       return;
     }
-    if (!confirm(tHome('deleteConfirm'))) return;
+    if (!await confirm({ message: tHome('deleteConfirm'), variant: 'destructive' })) return;
     try {
       const res = await fetch(`${API_BASE_URL}/tasks/${task.id}`, {
         method: 'DELETE',

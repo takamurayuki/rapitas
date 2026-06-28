@@ -10,6 +10,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Beaker, Trash2, FlaskConical, CheckCircle2, XCircle, HelpCircle } from 'lucide-react';
 import { API_BASE_URL } from '@/utils/api';
+import { useConfirmDialog } from '@/components/ui/dialog/ConfirmDialogProvider';
 import Pagination from '@/components/ui/pagination/Pagination';
 
 type HypothesisStatus = 'open' | 'supported' | 'refuted' | 'inconclusive';
@@ -63,6 +64,7 @@ const FILTERS: { key: HypothesisStatus | 'all'; label: string }[] = [
 ];
 
 export default function HypothesesClient() {
+  const confirm = useConfirmDialog();
   const [hypotheses, setHypotheses] = useState<HypothesisEntry[]>([]);
   const [stats, setStats] = useState<Stats | null>(null);
   const [statusFilter, setStatusFilter] = useState<HypothesisStatus | 'all'>('open');
@@ -110,7 +112,7 @@ export default function HypothesesClient() {
   };
 
   const remove = async (id: number) => {
-    if (!confirm('この仮説を削除しますか？')) return;
+    if (!await confirm({ message: 'この仮説を削除しますか？', variant: 'destructive' })) return;
     await fetch(`${API_BASE_URL}/hypotheses/${id}`, { method: 'DELETE' }).catch(() => {});
     void load();
   };

@@ -10,6 +10,7 @@
 import { useState, useCallback, useEffect } from 'react';
 import type { DailyScheduleBlock } from '@/types';
 import { API_BASE_URL } from '@/utils/api';
+import { useConfirmDialog } from '@/components/ui/dialog/ConfirmDialogProvider';
 import { requestNotificationPermission, showDesktopNotification } from '@/utils/notification';
 import { createLogger } from '@/lib/logger';
 import { CATEGORY_OPTIONS } from './schedule-utils';
@@ -58,6 +59,7 @@ export type UseScheduleBlocksReturn = {
 export function useScheduleBlocks(
   t: (key: string, values?: Record<string, string | number>) => string,
 ): UseScheduleBlocksReturn {
+  const confirm = useConfirmDialog();
   const [blocks, setBlocks] = useState<DailyScheduleBlock[]>([]);
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -164,7 +166,7 @@ export function useScheduleBlocks(
   };
 
   const handleDelete = async (id: number) => {
-    if (!confirm(t('confirmDeleteBlock'))) return;
+    if (!await confirm({ message: t('confirmDeleteBlock'), variant: 'destructive' })) return;
     try {
       const res = await fetch(`${API_BASE_URL}/daily-schedule/${id}`, {
         method: 'DELETE',
