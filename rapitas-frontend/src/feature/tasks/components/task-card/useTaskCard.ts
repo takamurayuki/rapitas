@@ -222,6 +222,13 @@ export function useTaskCard(
   };
 
   const deleteTask = async () => {
+    // Protected tasks can't be deleted; surface a toast before the confirm so
+    // the user understands why (backend also enforces this with a 409).
+    if (task.isProtected) {
+      showToast('保護されたタスクは削除できません', 'error');
+      setShowContextMenu(false);
+      return;
+    }
     if (!confirm(tHome('deleteConfirm'))) return;
     try {
       const res = await fetch(`${API_BASE_URL}/tasks/${task.id}`, {

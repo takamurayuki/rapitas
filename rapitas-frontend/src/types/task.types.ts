@@ -133,6 +133,8 @@ export type Task = {
   sourceTask?: Task | null;
   generatedTasks?: Task[];
   nextOccurrence?: string | null;
+  /** When true, the task is protected from deletion (guards against accidental loss). */
+  isProtected?: boolean;
   createdAt: string;
   updatedAt: string;
 };

@@ -140,6 +140,9 @@ model Task {
   // theme ran out of work. Counted (todo/in-progress) against the per-theme
   // UserSettings.autoCreateFromBacklogLimit so promotion never overfills a theme.
   autoCreatedFromBacklog Boolean  @default(false)
+  // When true, the task is protected from deletion (manual, bulk, or cleanup
+  // prune) to guard against accidental loss. Enforced at the DELETE endpoint.
+  isProtected           Boolean   @default(false)
 
   @@index([status])
   @@index([themeId])

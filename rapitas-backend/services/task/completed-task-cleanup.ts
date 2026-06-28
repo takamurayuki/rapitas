@@ -115,6 +115,10 @@ export async function cleanupCompletedTasks(opts: CleanupOptions = {}): Promise<
     where: {
       parentId: null,
       status: { in: COMPLETED_STATUSES },
+      // Protected tasks are never pruned, even when completed and beyond
+      // keepRecent. Excluding them here keeps completedTotal / candidate counts
+      // accurate for the dryRun preview.
+      isProtected: { not: true },
       ...(themeId !== null ? { themeId } : {}),
     },
     orderBy: [{ completedAt: 'desc' }, { updatedAt: 'desc' }],

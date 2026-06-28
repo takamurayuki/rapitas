@@ -24,6 +24,8 @@ import {
   Paperclip,
   Repeat,
   NotebookPen,
+  Lock,
+  LockOpen,
 } from 'lucide-react';
 import PriorityInlineSelect from '@/feature/tasks/components/priority/PriorityInlineSelect';
 import RecurrenceSelector from '@/feature/tasks/components/recurrence/RecurrenceSelector';
@@ -161,6 +163,15 @@ export default function CompactTaskDetailCard({
   };
 
   /**
+   * Toggles the task's deletion-protection flag via PATCH and refreshes the view.
+   * Reuses patchTask so cache invalidation + parent refresh behave identically
+   * to the inline field edits above.
+   */
+  const toggleProtected = async () => {
+    await patchTask({ isProtected: !task.isProtected });
+  };
+
+  /**
    * Appends a markdown link to the task description and persists via PATCH.
    * Prepends a newline when there is existing content.
    *
@@ -190,6 +201,20 @@ export default function CompactTaskDetailCard({
               value={task.priority as Priority}
               onChange={(p) => saveField('priority', p)}
             />
+            <button
+              type="button"
+              onClick={toggleProtected}
+              title={task.isProtected ? '保護を解除する' : 'タスクを保護する（削除不可）'}
+              aria-label={task.isProtected ? '保護を解除する' : 'タスクを保護する（削除不可）'}
+              aria-pressed={task.isProtected ?? false}
+              className="flex items-center rounded p-0.5 outline-none transition-colors hover:bg-zinc-100 focus-visible:ring-2 focus-visible:ring-indigo-500 dark:hover:bg-zinc-800"
+            >
+              {task.isProtected ? (
+                <Lock size={16} className="text-amber-500 dark:text-amber-400" />
+              ) : (
+                <LockOpen size={16} className="text-zinc-400 dark:text-zinc-500" />
+              )}
+            </button>
           </div>
 
           {/* Status Buttons - Compact inline with title.

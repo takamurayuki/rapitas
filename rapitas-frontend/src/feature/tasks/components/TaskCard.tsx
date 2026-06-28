@@ -5,7 +5,7 @@ import type { Task, Status } from '@/types';
 import TaskStatusChange from '@/feature/tasks/components/status/TaskStatusChange';
 import PriorityIcon from '@/feature/tasks/components/priority/PriorityIcon';
 import { statusConfig, renderStatusIcon } from '@/feature/tasks/config/StatusConfig';
-import { ExternalLink, Tag, Repeat, RefreshCw } from 'lucide-react';
+import { ExternalLink, Tag, Repeat, RefreshCw, Lock } from 'lucide-react';
 import { API_BASE_URL } from '@/utils/api';
 import { useToast } from '@/components/ui/toast/ToastContainer';
 import { getLabelsArray, hasLabels } from '@/utils/labels';
@@ -185,6 +185,12 @@ const TaskCard = memo(function TaskCard({
                 {task.title}
               </h3>
               <PriorityIcon priority={task.priority} size="md" />
+
+              {task.isProtected && (
+                <span title="保護されたタスク（削除不可）">
+                  <Lock size={14} className="text-amber-500 dark:text-amber-400 shrink-0" />
+                </span>
+              )}
 
               {task.isRecurring && (
                 <span title="繰り返しタスク">
