@@ -10,7 +10,17 @@
 import { useState, useRef, useEffect, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { useRouter } from 'next/navigation';
-import { NotebookPen, Plus, Unlink, ExternalLink, Search, X, Link2, Check } from 'lucide-react';
+import {
+  NotebookPen,
+  Plus,
+  Unlink,
+  ExternalLink,
+  Search,
+  X,
+  Clipboard,
+  FileInput,
+  Check,
+} from 'lucide-react';
 import { useNoteStore, type Note } from '@/stores/note-store';
 
 interface Props {
@@ -67,7 +77,7 @@ function CopyButton({ note, taskId }: { note: Note; taskId: number }) {
           : 'text-blue-400 hover:bg-blue-50 hover:text-blue-600 dark:text-blue-500 dark:hover:bg-blue-950/30 dark:hover:text-blue-400'
       }`}
     >
-      {copied ? <Check className="h-3.5 w-3.5" /> : <Link2 className="h-3.5 w-3.5" />}
+      {copied ? <Check className="h-3.5 w-3.5" /> : <Clipboard className="h-3.5 w-3.5" />}
       {copied ? 'コピー済み' : 'リンクをコピー'}
     </button>
   );
@@ -101,7 +111,7 @@ function InsertButton({
           : 'text-blue-400 hover:bg-blue-50 hover:text-blue-600 dark:text-blue-500 dark:hover:bg-blue-950/30 dark:hover:text-blue-400'
       }`}
     >
-      {inserted ? <Check className="h-3.5 w-3.5" /> : <Link2 className="h-3.5 w-3.5" />}
+      {inserted ? <Check className="h-3.5 w-3.5" /> : <FileInput className="h-3.5 w-3.5" />}
       {inserted ? '挿入済み' : '説明欄へ挿入'}
     </button>
   );
