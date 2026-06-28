@@ -16,6 +16,7 @@ interface NoteEditorHeaderProps {
   note: Note;
   draftTitle: string;
   isDirty: boolean;
+  titleRef?: React.RefObject<HTMLInputElement | null>;
   onTitleChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
   onTitlePaste: (e: React.ClipboardEvent<HTMLInputElement>) => void;
   onSave: () => void;
@@ -33,6 +34,7 @@ export default function NoteEditorHeader({
   note,
   draftTitle,
   isDirty,
+  titleRef,
   onTitleChange,
   onTitlePaste,
   onSave,
@@ -44,6 +46,7 @@ export default function NoteEditorHeader({
       {/* Title row */}
       <div className="flex items-center gap-3">
         <input
+          ref={titleRef}
           type="text"
           value={draftTitle}
           onChange={onTitleChange}

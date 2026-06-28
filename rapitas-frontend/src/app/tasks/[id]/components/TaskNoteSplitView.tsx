@@ -6,6 +6,7 @@
  */
 'use client';
 
+import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { X, ChevronLeft, AlertCircle } from 'lucide-react';
 import { useNoteStore } from '@/stores/note-store';
@@ -27,6 +28,17 @@ interface Props {
  */
 export function TaskNoteSplitView({ taskId, noteId }: Props) {
   const router = useRouter();
+
+  // NOTE: Prevent the page body from scrolling while the split view is active.
+  // The right pane owns the scroll container; body scroll would create a
+  // second outer scrollbar alongside the pane's overflow-y-auto scrollbar.
+  useEffect(() => {
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = prev;
+    };
+  }, []);
   const note = useNoteStore((s) => s.notes.find((n) => n.id === noteId));
 
   const handleClose = () => {
@@ -74,7 +86,7 @@ export function TaskNoteSplitView({ taskId, noteId }: Props) {
       </div>
 
       {/* Right pane: task detail */}
-      <div className="flex w-1/2 flex-col overflow-y-auto">
+      <div className="flex min-h-0 w-1/2 flex-col overflow-y-auto">
         <TaskDetailClient />
       </div>
     </div>

@@ -67,6 +67,7 @@ export default function NoteEditor({ note, children }: NoteEditorProps) {
         note={note}
         draftTitle={editor.draftTitle}
         isDirty={editor.isDirty}
+        titleRef={editor.titleRef}
         onTitleChange={editor.handleTitleChange}
         onTitlePaste={editor.handleTitlePaste}
         onSave={editor.handleSave}

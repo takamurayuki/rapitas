@@ -1,72 +1,88 @@
 #!/usr/bin/env node
 /**
  * Tauri ビルド用のスクリプト
- * 静的エクスポート後にSPAフォールバックを設定します
+ * 静的エクスポート後にビルドキャッシュを除去し、SPA フォールバックを設定します。
+ *
+ * Next.js が output:'export' + distDir:'.next-tauri' で生成するファイル:
+ *   .next-tauri/                ← Tauri の frontendDist
+ *     _next/static/             ← KEEP: クライアント向け JS/CSS チャンク
+ *     *.html                    ← KEEP: ページ HTML
+ *     tasks/_placeholder/       ← DELETE: プレースホルダー（実行時不要）
+ *     cache/                    ← DELETE: webpack/SWC ビルドキャッシュ（数百 MB）
+ *     server/                   ← DELETE: サーバーサイドバンドル（export では不要）
+ *     trace                     ← DELETE: ビルドトレースファイル
  */
 const fs = require('fs');
 const path = require('path');
 
-// Next.js 14以降、静的エクスポートは常に'out'ディレクトリに出力される
-const OUTPUT_DIR = 'out';
+// Next.js が distDir:'.next-tauri' + output:'export' で出力するディレクトリ
+const OUTPUT_DIR = '.next-tauri';
 
-// SPAフォールバックが必要な動的ルート
+// SPAフォールバックが必要な動的ルート（プレースホルダー削除のみ行う）
 const DYNAMIC_ROUTES = [
   { path: 'approvals', placeholder: '_placeholder' },
   { path: 'tasks', placeholder: '_placeholder' },
   { path: 'github/pull-requests', placeholder: '_placeholder' },
 ];
 
-// 生成するプレースホルダーIDの数（1-MAX_IDS）
-const MAX_IDS = 1000;
+// ビルドに不要なディレクトリ・ファイル（Tauri バンドルから除外するため削除）
+const BUILD_ARTIFACTS_TO_REMOVE = [
+  'cache',    // webpack/SWC ビルドキャッシュ（数百 MB になることがある）
+  'server',   // サーバーサイドバンドル（静的エクスポートでは使用しない）
+  'trace',    // Next.js ビルドトレース（デバッグ用、リリース不要）
+];
 
 const action = process.argv[2];
 
 if (action === 'backup') {
   // 何もしない（互換性のため残す）
   console.log('Preparing for Tauri build...');
-  console.log('Dynamic routes will be handled via SPA fallback.');
+  console.log('Dynamic routes will be handled via SPA fallback (404.html).');
 } else if (action === 'restore') {
-  // ビルド後にSPAフォールバックを設定
-  console.log('Setting up SPA fallback for dynamic routes...');
+  console.log('Post-build cleanup for Tauri bundle...');
 
-  for (const route of DYNAMIC_ROUTES) {
-    const placeholderDir = path.join(OUTPUT_DIR, route.path, route.placeholder);
-    const placeholderHtml = path.join(placeholderDir, 'index.html');
-
-    if (!fs.existsSync(placeholderHtml)) {
-      console.log(
-        `  Warning: ${placeholderHtml} not found, skipping ${route.path}`,
-      );
-      continue;
-    }
-
-    // プレースホルダーのHTMLを読み取る
-    const html = fs.readFileSync(placeholderHtml, 'utf8');
-
-    // 数字IDのディレクトリを作成
-    for (let i = 1; i <= MAX_IDS; i++) {
-      const idDir = path.join(OUTPUT_DIR, route.path, String(i));
-      if (!fs.existsSync(idDir)) {
-        fs.mkdirSync(idDir, { recursive: true });
+  // 1. ビルドキャッシュを削除してバンドルサイズを削減
+  console.log('\nStep 1: Removing build artifacts from bundle...');
+  for (const artifact of BUILD_ARTIFACTS_TO_REMOVE) {
+    const artifactPath = path.join(OUTPUT_DIR, artifact);
+    if (fs.existsSync(artifactPath)) {
+      const stat = fs.statSync(artifactPath);
+      if (stat.isDirectory()) {
+        fs.rmSync(artifactPath, { recursive: true });
+      } else {
+        fs.rmSync(artifactPath);
       }
-      fs.writeFileSync(path.join(idDir, 'index.html'), html);
+      console.log(`  Removed: ${artifact}`);
     }
-
-    console.log(`  Created ${MAX_IDS} fallback pages for /${route.path}/[id]`);
-
-    // プレースホルダーディレクトリを削除
-    fs.rmSync(placeholderDir, { recursive: true });
   }
 
-  // 404.htmlも作成（Tauriフォールバック用）
+  // 2. 動的ルートのプレースホルダーを削除
+  //    デスクトップ SPA では Next.js のクライアントサイドルーターが全ナビゲーションを
+  //    処理するため、ID 別の HTML ファイルは不要。
+  console.log('\nStep 2: Cleaning up dynamic route placeholders...');
+  for (const route of DYNAMIC_ROUTES) {
+    const placeholderDir = path.join(OUTPUT_DIR, route.path, route.placeholder);
+    if (fs.existsSync(placeholderDir)) {
+      fs.rmSync(placeholderDir, { recursive: true });
+      console.log(`  Removed placeholder: /${route.path}/${route.placeholder}/`);
+    }
+  }
+
+  // 3. 404.html を作成（SPA フォールバック）
+  //    Tauri が未知のパスを要求された場合に index.html の内容を返す。
+  console.log('\nStep 3: Creating SPA fallback (404.html)...');
   const indexHtmlPath = path.join(OUTPUT_DIR, 'index.html');
   const notFoundPath = path.join(OUTPUT_DIR, '404.html');
   if (fs.existsSync(indexHtmlPath) && !fs.existsSync(notFoundPath)) {
     fs.copyFileSync(indexHtmlPath, notFoundPath);
-    console.log('  Created 404.html for SPA fallback');
+    console.log('  Created 404.html for SPA fallback.');
+  } else if (fs.existsSync(notFoundPath)) {
+    console.log('  404.html already exists, skipping.');
+  } else {
+    console.log('  Warning: index.html not found, skipping 404.html creation.');
   }
 
-  console.log('SPA fallback setup complete.');
+  console.log('\nTauri bundle cleanup complete.');
 } else {
   console.log('Usage: node prepare-tauri-build.js [backup|restore]');
   process.exit(1);

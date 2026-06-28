@@ -38,7 +38,10 @@ function TaskDetailClient({ taskId: propTaskId, onTaskUpdated }: TaskDetailClien
   const router = useRouter();
   const searchParams = useSearchParams();
 
-  const isPageMode = searchParams.get('showHeader') === 'true';
+  // NOTE: In split view (?note=xxx), the right pane (TaskNoteSplitView) owns
+  // the scroll container. Enabling isPageMode here would add a second
+  // overflow-auto + fixed height, causing a double scrollbar.
+  const isPageMode = searchParams.get('showHeader') === 'true' && !searchParams.get('note');
 
   // NOTE: useParams() may not work in Tauri iframes,
   // so we fall back to extracting the ID from window.location.

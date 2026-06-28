@@ -39,6 +39,7 @@ export interface NoteEditorState {
 
   // Refs
   contentRef: React.RefObject<HTMLDivElement | null>;
+  titleRef: React.RefObject<HTMLInputElement | null>;
 
   // Title state
   draftTitle: string;
@@ -118,12 +119,23 @@ export function useNoteEditor(note: Note): NoteEditorState {
   const locale = useLocaleStore((s) => s.locale);
   const dateLocale = toDateLocale(locale);
   const contentRef = useRef<HTMLDivElement>(null);
+  const titleRef = useRef<HTMLInputElement>(null);
   const savedSelectionRef = useRef<Range | null>(null);
   const activeColorSpanRef = useRef<HTMLSpanElement | null>(null);
   const selectedTextColorRef = useRef<string | null>(null);
 
-  const [draftTitle, setDraftTitle] = useState(note.title);
+  // NOTE: '新しいノート' is the store sentinel for an untouched new note.
+  // Display it as empty so the user can type directly without clearing first.
+  const [draftTitle, setDraftTitle] = useState(note.title === '新しいノート' ? '' : note.title);
   const [isDirty, setIsDirty] = useState(false);
+
+  // Focus the title input when a new note is opened.
+  useEffect(() => {
+    if (note.title === '新しいノート') {
+      titleRef.current?.focus();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [note.id]);
 
   // Popup visibility state + close-all/close-others helpers + outside-click effect
   const popups = useNotePopups();
@@ -370,6 +382,7 @@ export function useNoteEditor(note: Note): NoteEditorState {
     locale,
     dateLocale,
     contentRef,
+    titleRef,
     draftTitle,
     isDirty,
     markDirty: handleContentChange,

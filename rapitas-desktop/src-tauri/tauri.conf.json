@@ -58,7 +58,8 @@
       "timestampUrl": "",
       "wix": null,
       "nsis": {
-        "installMode": "both"
+        "installMode": "both",
+        "webviewInstallMode": "downloadBootstrapper"
       }
     },
     "externalBin": [],
