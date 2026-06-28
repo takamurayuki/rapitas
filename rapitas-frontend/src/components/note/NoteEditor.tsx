@@ -7,7 +7,7 @@ import NoteEditorHeader from './editor/NoteEditorHeader';
 import NoteEditorFooter from './editor/NoteEditorFooter';
 import EditorToolbar from './editor/EditorToolbar';
 import DiagramBlockEdit from './editor/DiagramBlockEdit';
-import { renderMermaidBlock } from './editor/diagram-block';
+import { renderMermaidBlock, getDiagramSource, setDiagramSource } from './editor/diagram-block';
 
 interface DiagramEditState {
   el: HTMLElement;
@@ -27,19 +27,33 @@ export default function NoteEditor({ note, children }: NoteEditorProps) {
   const setCurrentNote = useNoteStore((s) => s.setCurrentNote);
   const [editingDiagram, setEditingDiagram] = useState<DiagramEditState | null>(null);
 
-  const handleEditorClick = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
-    const block = (e.target as HTMLElement).closest(
-      '.diagram-block[data-mermaid-source]',
-    ) as HTMLElement | null;
-    if (block) {
-      setEditingDiagram({ el: block, source: block.getAttribute('data-mermaid-source') ?? '' });
-    }
-  }, []);
+  const handleEditorClick = useCallback(
+    (e: React.MouseEvent<HTMLDivElement>) => {
+      const target = e.target as HTMLElement;
+
+      // Delete button takes priority — use class selector; DOMPurify strips data-* on load
+      if (target.closest('.diagram-delete-btn')) {
+        const block = target.closest('.diagram-block') as HTMLElement | null;
+        if (block) {
+          block.remove();
+          editor.markDirty();
+        }
+        return;
+      }
+
+      // Click anywhere else on the block opens the editor
+      const block = target.closest('.diagram-block') as HTMLElement | null;
+      if (block) {
+        setEditingDiagram({ el: block, source: getDiagramSource(block) });
+      }
+    },
+    [editor],
+  );
 
   const handleDiagramSave = useCallback(
     async (newSource: string) => {
       if (!editingDiagram) return;
-      editingDiagram.el.setAttribute('data-mermaid-source', newSource);
+      setDiagramSource(editingDiagram.el, newSource);
       await renderMermaidBlock(editingDiagram.el);
       editor.markDirty();
       setEditingDiagram(null);

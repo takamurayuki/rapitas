@@ -139,7 +139,7 @@
   content: 'クリックして編集';
   position: absolute;
   top: 8px;
-  right: 10px;
+  right: 42px; /* leave room for the delete button */
   font-size: 10px;
   color: #6366f1;
   background: #eef2ff;
@@ -150,6 +150,41 @@
 .note-editor .diagram-block svg {
   max-width: 100%;
   height: auto;
+}
+
+/* Hidden source store — text content is the canonical Mermaid source */
+.note-editor .diagram-source {
+  display: none;
+}
+
+/* Delete button — shown on block hover */
+.note-editor .diagram-delete-btn {
+  display: none;
+  position: absolute;
+  top: 6px;
+  right: 8px;
+  z-index: 10;
+  width: 24px;
+  height: 24px;
+  align-items: center;
+  justify-content: center;
+  background: #fef2f2;
+  color: #ef4444;
+  border: 1px solid #fecaca;
+  border-radius: 4px;
+  font-size: 14px;
+  line-height: 1;
+  cursor: pointer;
+  transition: background 0.1s, color 0.1s;
+}
+
+.note-editor .diagram-delete-btn:hover {
+  background: #ef4444;
+  color: #fff;
+}
+
+.note-editor .diagram-block:hover .diagram-delete-btn {
+  display: flex;
 }
 
 .diagram-error {
@@ -173,6 +208,17 @@
 .dark .note-editor .diagram-block:hover::after {
   color: #818cf8;
   background: #1e1b4b;
+}
+
+.dark .note-editor .diagram-delete-btn {
+  background: #450a0a;
+  color: #fca5a5;
+  border-color: #7f1d1d;
+}
+
+.dark .note-editor .diagram-delete-btn:hover {
+  background: #ef4444;
+  color: #fff;
 }
 
 .dark .diagram-error {
