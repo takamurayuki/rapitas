@@ -168,7 +168,7 @@ export function useNoteEditor(note: Note): NoteEditorState {
 
   // Reset editor content when note changes
   useEffect(() => {
-    setDraftTitle(note.title);
+    setDraftTitle(note.title === '新しいノート' ? '' : note.title);
     setIsDirty(false);
     if (contentRef.current) {
       contentRef.current.innerHTML = DOMPurify.sanitize(note.content);
