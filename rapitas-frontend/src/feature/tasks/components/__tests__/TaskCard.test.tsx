@@ -266,6 +266,19 @@ describe('TaskCard', () => {
     });
   });
 
+  describe('保護表示', () => {
+    it('保護タスクではロックアイコンが表示される', () => {
+      const protectedTask = { ...mockTask, isProtected: true };
+      render(<TaskCard {...mockProps} task={protectedTask} />);
+      expect(screen.getByTestId('Lock-icon')).toBeInTheDocument();
+    });
+
+    it('非保護タスクではロックアイコンが表示されない', () => {
+      render(<TaskCard {...mockProps} />);
+      expect(screen.queryByTestId('Lock-icon')).not.toBeInTheDocument();
+    });
+  });
+
   describe('選択モード', () => {
     it('選択モードでチェックボックスが表示される', () => {
       render(<TaskCard {...mockProps} isSelectionMode={true} />);
