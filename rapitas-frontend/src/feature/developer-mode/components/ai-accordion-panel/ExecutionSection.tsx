@@ -92,10 +92,6 @@ export type ExecutionSectionProps = {
   onRerun: () => Promise<void>;
   /** Raw task.status — disables the run button when the task is already done. */
   taskStatus?: string;
-  /** Current workflow phase shown in the running panel instead of logs. */
-  workflowStatus?: string | null;
-  /** Workflow mode — lightweight changes phase labels in WorkflowStatusIndicator. */
-  workflowMode?: string | null;
 };
 
 /**
@@ -155,8 +151,6 @@ export function ExecutionSection({
   onReset,
   onRerun,
   taskStatus,
-  workflowStatus,
-  workflowMode,
 }: ExecutionSectionProps) {
   const router = useRouter();
   const [prError, setPrError] = useState<string | null>(null);
@@ -444,8 +438,6 @@ export function ExecutionSection({
             onSetBranchName={onSetBranchName}
             onSetBaseBranch={onSetBaseBranch}
             onGenerateBranchName={onGenerateBranchName}
-            workflowStatus={workflowStatus}
-            workflowMode={workflowMode}
           />
         </div>
       )}
