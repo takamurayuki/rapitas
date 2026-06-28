@@ -117,3 +117,65 @@
   border-left-color: #818cf8;
   color: #9ca3af;
 }
+
+/* Mermaid diagram blocks */
+.note-editor .diagram-block {
+  margin: 12px 0;
+  padding: 12px;
+  background: #f8fafc;
+  border: 1.5px solid #e2e8f0;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+  position: relative;
+}
+
+.note-editor .diagram-block:hover {
+  border-color: #6366f1;
+  background: #f5f3ff;
+}
+
+.note-editor .diagram-block:hover::after {
+  content: 'クリックして編集';
+  position: absolute;
+  top: 8px;
+  right: 10px;
+  font-size: 10px;
+  color: #6366f1;
+  background: #eef2ff;
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+.note-editor .diagram-block svg {
+  max-width: 100%;
+  height: auto;
+}
+
+.diagram-error {
+  color: #ef4444;
+  font-size: 0.875rem;
+  padding: 8px;
+  background: #fef2f2;
+  border-radius: 4px;
+}
+
+.dark .note-editor .diagram-block {
+  background: #18181b;
+  border-color: #3f3f46;
+}
+
+.dark .note-editor .diagram-block:hover {
+  border-color: #818cf8;
+  background: #1e1b4b20;
+}
+
+.dark .note-editor .diagram-block:hover::after {
+  color: #818cf8;
+  background: #1e1b4b;
+}
+
+.dark .diagram-error {
+  background: #450a0a;
+  color: #fca5a5;
+}

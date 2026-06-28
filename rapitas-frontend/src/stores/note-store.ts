@@ -7,6 +7,9 @@ export interface NoteTaskMeta {
   categoryName: string;
 }
 
+export const DOC_TYPES = ['要件定義', '設計書', '議事録', '手順書', '仕様書', 'メモ'] as const;
+export type DocType = (typeof DOC_TYPES)[number];
+
 export interface Note {
   id: string;
   title: string;
@@ -16,6 +19,8 @@ export interface Note {
   isPinned: boolean;
   tags: string[];
   color?: string;
+  /** Document type for organizing design/requirements docs / 要件定義・設計書などの種別 */
+  docType?: DocType;
   /** Task IDs this note is linked to. */
   linkedTaskIds?: number[];
   /** Hierarchy metadata keyed by taskId — populated when linking from a task context. */
@@ -44,6 +49,7 @@ interface NoteState {
   modalState: NoteModalState;
   searchQuery: string;
   selectedTags: string[];
+  selectedDocType: DocType | null;
 
   // Note operations
   createNote: (title?: string) => void;
@@ -69,6 +75,7 @@ interface NoteState {
   // Search and filter
   setSearchQuery: (query: string) => void;
   toggleTag: (tag: string) => void;
+  setSelectedDocType: (docType: DocType | null) => void;
   clearFilters: () => void;
 
   // Get filtered notes
@@ -99,6 +106,7 @@ export const useNoteStore = create<NoteState>()(
       modalState: defaultModalState,
       searchQuery: '',
       selectedTags: [],
+      selectedDocType: null,
 
       createNote: (title?: string) => {
         // NOTE: Guard against onClick events being passed as title when used as a
@@ -353,8 +361,12 @@ export const useNoteStore = create<NoteState>()(
         });
       },
 
+      setSelectedDocType: (docType) => {
+        set({ selectedDocType: docType });
+      },
+
       clearFilters: () => {
-        set({ searchQuery: '', selectedTags: [] });
+        set({ searchQuery: '', selectedTags: [], selectedDocType: null });
       },
 
       getFilteredNotes: () => {
@@ -377,6 +389,11 @@ export const useNoteStore = create<NoteState>()(
           filtered = filtered.filter((note) =>
             state.selectedTags.every((tag) => note.tags.includes(tag)),
           );
+        }
+
+        // DocType filter
+        if (state.selectedDocType) {
+          filtered = filtered.filter((note) => note.docType === state.selectedDocType);
         }
 
         // Sort by pinned first, then by updatedAt

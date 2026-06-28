@@ -1,6 +1,6 @@
 'use client';
 // InsertSection
-import { TextQuote, Table, Link2, Code2, Loader2 } from 'lucide-react';
+import { TextQuote, Table, Link2, Code2, Loader2, GitBranch } from 'lucide-react';
 import { borderLineColors, programmingLanguages } from '../constants';
 
 interface InsertSectionProps {
@@ -17,6 +17,7 @@ interface InsertSectionProps {
   onInsertTable: () => void;
   onInsertLink: () => void;
   onInsertCodeBlock: () => void;
+  onInsertDiagram: () => void;
   onOpenLinkInput: () => void;
   onOpenCodeInput: () => void;
   onApplyBorderLine: (color: string) => void;
@@ -42,6 +43,7 @@ export function InsertSection({
   onInsertTable,
   onInsertLink,
   onInsertCodeBlock,
+  onInsertDiagram,
   onOpenLinkInput,
   onOpenCodeInput,
   onApplyBorderLine,
@@ -135,6 +137,15 @@ export function InsertSection({
         title="テーブル挿入"
       >
         <Table className="w-3.5 h-3.5" />
+      </button>
+
+      {/* Diagram block */}
+      <button
+        onClick={onInsertDiagram}
+        className="px-1 py-0.5 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded transition-colors h-6 flex items-center justify-center"
+        title="ダイアグラム挿入（Mermaid）"
+      >
+        <GitBranch className="w-3.5 h-3.5" />
       </button>
 
       {/* Code block */}

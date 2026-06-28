@@ -52,6 +52,7 @@ export interface EditorToolbarProps {
   onInsertTable: () => void;
   onInsertLink: () => void;
   onInsertCodeBlock: () => void;
+  onInsertDiagram: () => void;
   onOpenLinkInput: () => void;
   onOpenCodeInput: () => void;
   onResetTextColor: () => void;
@@ -139,6 +140,7 @@ export default function EditorToolbar(props: EditorToolbarProps) {
     onInsertTable,
     onInsertLink,
     onInsertCodeBlock,
+    onInsertDiagram,
     onOpenLinkInput,
     onOpenCodeInput,
     onResetTextColor,
@@ -241,6 +243,7 @@ export default function EditorToolbar(props: EditorToolbarProps) {
         onInsertTable={onInsertTable}
         onInsertLink={onInsertLink}
         onInsertCodeBlock={onInsertCodeBlock}
+        onInsertDiagram={onInsertDiagram}
         onOpenLinkInput={onOpenLinkInput}
         onOpenCodeInput={onOpenCodeInput}
         onApplyBorderLine={onApplyBorderLine}

@@ -1,26 +1,54 @@
 'use client';
 // NoteEditor
-import { type Note, useNoteStore } from '@/stores/note-store';
+import { useState, useCallback, type ReactNode } from 'react';
+import { type Note, type DocType, useNoteStore } from '@/stores/note-store';
 import { useNoteEditor } from './editor/useNoteEditor';
 import NoteEditorHeader from './editor/NoteEditorHeader';
 import NoteEditorFooter from './editor/NoteEditorFooter';
 import EditorToolbar from './editor/EditorToolbar';
+import DiagramBlockEdit from './editor/DiagramBlockEdit';
+import { renderMermaidBlock } from './editor/diagram-block';
+
+interface DiagramEditState {
+  el: HTMLElement;
+  source: string;
+}
 
 interface NoteEditorProps {
   note: Note;
+  /** Optional extra content rendered below the toolbar (e.g. split-view panels). */
+  children?: ReactNode;
 }
 
-export default function NoteEditor({ note }: NoteEditorProps) {
+export default function NoteEditor({ note, children }: NoteEditorProps) {
   const editor = useNoteEditor(note);
-  // NOTE: Use selectors to avoid re-rendering NoteEditor on every note store
-  // update (e.g. autosave).  Non-selector useNoteStore() subscribes to all
-  // state changes and caused sluggishness when the modal was open alongside the
-  // task detail view.
   const deleteNote = useNoteStore((s) => s.deleteNote);
+  const updateNote = useNoteStore((s) => s.updateNote);
   const setCurrentNote = useNoteStore((s) => s.setCurrentNote);
+  const [editingDiagram, setEditingDiagram] = useState<DiagramEditState | null>(null);
+
+  const handleEditorClick = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
+    const block = (e.target as HTMLElement).closest(
+      '.diagram-block[data-mermaid-source]',
+    ) as HTMLElement | null;
+    if (block) {
+      setEditingDiagram({ el: block, source: block.getAttribute('data-mermaid-source') ?? '' });
+    }
+  }, []);
+
+  const handleDiagramSave = useCallback(
+    async (newSource: string) => {
+      if (!editingDiagram) return;
+      editingDiagram.el.setAttribute('data-mermaid-source', newSource);
+      await renderMermaidBlock(editingDiagram.el);
+      editor.markDirty();
+      setEditingDiagram(null);
+    },
+    [editingDiagram, editor],
+  );
 
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex flex-col h-full relative">
       <NoteEditorHeader
         note={note}
         draftTitle={editor.draftTitle}
@@ -32,6 +60,7 @@ export default function NoteEditor({ note }: NoteEditorProps) {
           deleteNote(note.id);
           setCurrentNote(null);
         }}
+        onSetDocType={(docType) => updateNote(note.id, { docType })}
       />
 
       <EditorToolbar
@@ -71,6 +100,7 @@ export default function NoteEditor({ note }: NoteEditorProps) {
         onInsertTable={editor.insertTable}
         onInsertLink={editor.insertLink}
         onInsertCodeBlock={editor.insertCodeBlock}
+        onInsertDiagram={editor.insertDiagramBlock}
         onOpenLinkInput={editor.openLinkInput}
         onOpenCodeInput={editor.openCodeInput}
         onResetTextColor={editor.handleResetTextColor}
@@ -78,24 +108,35 @@ export default function NoteEditor({ note }: NoteEditorProps) {
         onTextColorButtonClick={editor.handleTextColorButtonClick}
       />
 
-      {/* Editor body */}
-      <div className="flex-1 overflow-y-auto custom-scrollbar">
-        <div
-          ref={editor.contentRef}
-          contentEditable
-          suppressContentEditableWarning
-          className="p-4 min-h-full outline-none prose prose-zinc dark:prose-invert max-w-none note-editor"
-          onInput={editor.onEditorInput}
-          onKeyDown={editor.onEditorKeyDown}
-          style={{ lineHeight: '1.8', fontSize: '16px' }}
-        />
-      </div>
+      {children ?? (
+        <div className="flex-1 overflow-y-auto custom-scrollbar">
+          <div
+            ref={editor.contentRef}
+            contentEditable
+            suppressContentEditableWarning
+            className="p-4 min-h-full outline-none prose prose-zinc dark:prose-invert max-w-none note-editor"
+            onInput={editor.onEditorInput}
+            onKeyDown={editor.onEditorKeyDown}
+            onClick={handleEditorClick}
+            style={{ lineHeight: '1.8', fontSize: '16px' }}
+          />
+        </div>
+      )}
 
       <NoteEditorFooter
         createdAt={note.createdAt}
         updatedAt={note.updatedAt}
         dateLocale={editor.dateLocale}
       />
+
+      {/* Diagram edit overlay — covers the entire editor when a block is clicked */}
+      {editingDiagram && (
+        <DiagramBlockEdit
+          source={editingDiagram.source}
+          onSave={handleDiagramSave}
+          onCancel={() => setEditingDiagram(null)}
+        />
+      )}
     </div>
   );
 }

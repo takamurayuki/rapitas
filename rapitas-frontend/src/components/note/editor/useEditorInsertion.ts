@@ -6,6 +6,7 @@ import { isInTitleInput } from './formatting';
 import { createCodeBlockNode, normalizeCodeBlocks } from './code-block';
 import { createLinkNode } from './link-card';
 import { createTableNode } from './table';
+import { createDiagramBlockNode, renderMermaidBlock } from './diagram-block';
 
 /**
  * Refs required for DOM insertion operations.
@@ -33,6 +34,7 @@ export interface EditorInsertionHandlers {
   insertLink: () => Promise<void>;
   insertTable: () => void;
   insertCodeBlock: () => void;
+  insertDiagramBlock: () => void;
   openLinkInput: () => void;
   openCodeInput: () => void;
 }
@@ -210,11 +212,39 @@ export function useEditorInsertion(
     savedSelectionRef.current = null;
   }, [codeLanguage, contentRef, savedSelectionRef, handleContentChange, setShowCodeInput]);
 
+  const insertDiagramBlock = useCallback(() => {
+    if (!contentRef.current?.contains(document.activeElement)) {
+      contentRef.current?.focus();
+    }
+    const frag = createDiagramBlockNode();
+    // The fragment's first child is the wrapper div — we need it to render the SVG after insertion.
+    const wrapperEl = frag.firstElementChild as HTMLElement | null;
+
+    const selection = window.getSelection();
+    if (selection && selection.rangeCount > 0) {
+      const range = selection.getRangeAt(0);
+      if (contentRef.current?.contains(range.commonAncestorContainer)) {
+        range.deleteContents();
+        range.insertNode(frag);
+      } else {
+        contentRef.current?.appendChild(frag);
+      }
+    } else if (contentRef.current) {
+      contentRef.current.appendChild(frag);
+    }
+
+    handleContentChange();
+
+    // Async render — no need to await; UI updates when Mermaid resolves.
+    if (wrapperEl) renderMermaidBlock(wrapperEl);
+  }, [contentRef, handleContentChange]);
+
   return {
     insertNodeAtCursor,
     insertLink,
     insertTable,
     insertCodeBlock,
+    insertDiagramBlock,
     openLinkInput,
     openCodeInput,
   };

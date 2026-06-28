@@ -26,6 +26,7 @@ import { applyTextColor as applyTextColorUtil } from './text-color';
 import { normalizeCodeBlocks } from './code-block';
 import { useEditorInsertion } from './useEditorInsertion';
 import { useNotePopups } from './useNotePopups';
+import { renderAllDiagrams, getContentWithoutDiagramSvg } from './diagram-block';
 
 /**
  * All values and handlers returned by useNoteEditor.
@@ -97,6 +98,10 @@ export interface NoteEditorState {
   // Table
   insertTable: () => void;
 
+  // Diagram
+  insertDiagramBlock: () => void;
+  markDirty: () => void;
+
   // Editor events
   onEditorInput: (e: React.FormEvent<HTMLDivElement>) => void;
   onEditorKeyDown: (e: React.KeyboardEvent<HTMLDivElement>) => void;
@@ -158,6 +163,8 @@ export function useNoteEditor(note: Note): NoteEditorState {
       normalizeLinkCards(contentRef.current, handleContentChange);
       // Re-attach code block key handlers and delete buttons after HTML is set.
       normalizeCodeBlocks(contentRef.current, handleContentChange);
+      // Re-render Mermaid diagrams (SVG is stripped before saving to keep storage lean).
+      renderAllDiagrams(contentRef.current);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [note.id]);
@@ -165,7 +172,10 @@ export function useNoteEditor(note: Note): NoteEditorState {
   // Ctrl+S save shortcut
   const handleSave = useCallback(() => {
     if (!isDirty) return;
-    const content = contentRef.current?.innerHTML ?? note.content;
+    // Strip Mermaid SVG before saving — diagrams are re-rendered on load from data-mermaid-source.
+    const content = contentRef.current
+      ? getContentWithoutDiagramSvg(contentRef.current)
+      : note.content;
     updateNote(note.id, { title: draftTitle, content });
     setIsDirty(false);
   }, [isDirty, draftTitle, note.id, note.content, updateNote]);
@@ -362,6 +372,7 @@ export function useNoteEditor(note: Note): NoteEditorState {
     contentRef,
     draftTitle,
     isDirty,
+    markDirty: handleContentChange,
     handleTitleChange,
     handleTitlePaste,
     handleSave,
@@ -406,6 +417,7 @@ export function useNoteEditor(note: Note): NoteEditorState {
     handleTextColorButtonClick,
     handleResetTextColor,
     insertTable: insertion.insertTable,
+    insertDiagramBlock: insertion.insertDiagramBlock,
     onEditorInput,
     onEditorKeyDown,
   };

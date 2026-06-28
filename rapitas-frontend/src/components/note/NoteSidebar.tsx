@@ -19,7 +19,7 @@ import {
   SwatchBook,
   NotebookPen,
 } from 'lucide-react';
-import { useNoteStore, type Note } from '@/stores/note-store';
+import { useNoteStore, type Note, DOC_TYPES, type DocType } from '@/stores/note-store';
 import { useFilterDataStore } from '@/stores/filter-data-store';
 import { getIconComponent } from '@/components/category/icon-data';
 import DeleteNoteModal from './DeleteNoteModal';
@@ -69,7 +69,9 @@ export default function NoteSidebar() {
     notes,
     currentNoteId,
     searchQuery,
+    selectedDocType,
     setSearchQuery,
+    setSelectedDocType,
     createNote,
     deleteNote,
     setCurrentNote,
@@ -100,12 +102,18 @@ export default function NoteSidebar() {
   }>({ isOpen: false, noteId: null, noteTitle: '' });
 
   const filtered = useMemo(() => {
-    if (!searchQuery) return notes;
-    const q = searchQuery.toLowerCase();
-    return notes.filter(
-      (n) => n.title.toLowerCase().includes(q) || n.content.toLowerCase().includes(q),
-    );
-  }, [notes, searchQuery]);
+    let result = notes;
+    if (searchQuery) {
+      const q = searchQuery.toLowerCase();
+      result = result.filter(
+        (n) => n.title.toLowerCase().includes(q) || n.content.toLowerCase().includes(q),
+      );
+    }
+    if (selectedDocType) {
+      result = result.filter((n) => n.docType === selectedDocType);
+    }
+    return result;
+  }, [notes, searchQuery, selectedDocType]);
 
   const tree = useMemo(() => buildNoteTree(filtered), [filtered]);
 
@@ -228,6 +236,33 @@ export default function NoteSidebar() {
           <Plus className="w-3.5 h-3.5" />
           新規ノート
         </button>
+      </div>
+
+      {/* DocType filter */}
+      <div className="px-3 pb-2 flex flex-wrap gap-1">
+        <button
+          onClick={() => setSelectedDocType(null)}
+          className={`px-2 py-0.5 text-[10px] rounded-full border transition-colors ${
+            !selectedDocType
+              ? 'bg-indigo-100 dark:bg-indigo-900/30 border-indigo-300 dark:border-indigo-700 text-indigo-700 dark:text-indigo-300 font-medium'
+              : 'border-zinc-200 dark:border-zinc-700 text-zinc-400 dark:text-zinc-500 hover:border-zinc-300 dark:hover:border-zinc-600'
+          }`}
+        >
+          すべて
+        </button>
+        {DOC_TYPES.map((type) => (
+          <button
+            key={type}
+            onClick={() => setSelectedDocType(selectedDocType === type ? null : (type as DocType))}
+            className={`px-2 py-0.5 text-[10px] rounded-full border transition-colors ${
+              selectedDocType === type
+                ? 'bg-indigo-100 dark:bg-indigo-900/30 border-indigo-300 dark:border-indigo-700 text-indigo-700 dark:text-indigo-300 font-medium'
+                : 'border-zinc-200 dark:border-zinc-700 text-zinc-400 dark:text-zinc-500 hover:border-zinc-300 dark:hover:border-zinc-600 hover:text-zinc-600 dark:hover:text-zinc-300'
+            }`}
+          >
+            {type}
+          </button>
+        ))}
       </div>
 
       {/* Tree */}
