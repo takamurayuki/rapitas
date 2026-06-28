@@ -81,7 +81,7 @@ export function IdeaCreateForm({
           <button
             onClick={onSubmit}
             disabled={!newTitle.trim() || isSubmitting}
-            className="flex items-center gap-1 rounded-lg bg-amber-600 px-4 py-1.5 text-xs font-medium text-white hover:bg-amber-700 disabled:opacity-50 transition-colors"
+            className="flex items-center gap-1 rounded-lg px-4 py-1.5 text-xs font-medium text-amber-700 dark:text-amber-300 bg-white dark:bg-zinc-900 border border-amber-200 dark:border-amber-800 shadow-[0_2px_0_0_#fcd34d] dark:shadow-[0_2px_0_0_#78350f] transition-all duration-75 hover:bg-amber-50 dark:hover:bg-amber-900/20 active:translate-y-[1px] active:shadow-none disabled:opacity-50"
           >
             {isSubmitting ? (
               <Loader2 className="h-3 w-3 animate-spin" />
@@ -101,7 +101,7 @@ export function IdeaCreateForm({
               title={
                 newThemeId === null ? 'タスク化にはテーマが必要です' : '変更を保存してタスク化'
               }
-              className="flex items-center gap-1 rounded-lg bg-indigo-600 px-4 py-1.5 text-xs font-medium text-white hover:bg-indigo-700 disabled:opacity-50 transition-colors"
+              className="flex items-center gap-1 rounded-lg px-4 py-1.5 text-xs font-medium text-indigo-700 dark:text-indigo-300 bg-white dark:bg-zinc-900 border border-indigo-200 dark:border-indigo-800 shadow-[0_2px_0_0_#93c5fd] dark:shadow-[0_2px_0_0_#1e3a8a] transition-all duration-75 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 active:translate-y-[1px] active:shadow-none disabled:opacity-50"
             >
               {isSubmitting ? (
                 <Loader2 className="h-3 w-3 animate-spin" />

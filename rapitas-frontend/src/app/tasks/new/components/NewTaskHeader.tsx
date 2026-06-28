@@ -52,18 +52,17 @@ export function NewTaskHeader({
         </button>
 
         <div className="flex items-center gap-2">
-          {/* Template button — ボトムリッジ (紫) */}
+          {/* Template button — フラット (テンプレート選択は表示補助操作) */}
           <button
             type="button"
             onClick={onOpenTemplate}
             className={`
               flex items-center gap-2 px-3.5 py-2 rounded-lg select-none
-              text-sm font-medium
-              border transition-all duration-75
+              text-sm font-medium transition-colors duration-150
               ${
                 appliedTemplate
-                  ? 'text-purple-700 dark:text-purple-300 bg-purple-50 dark:bg-purple-900/20 border-purple-300 dark:border-purple-700 translate-y-[2px] shadow-none'
-                  : 'text-purple-600 dark:text-purple-400 bg-white dark:bg-zinc-900 border-purple-200 dark:border-purple-800 shadow-[0_2px_0_0_#d8b4fe] dark:shadow-[0_2px_0_0_#4c1d95] hover:bg-purple-50 dark:hover:bg-purple-900/20 hover:border-purple-300 dark:hover:border-purple-700 active:translate-y-[2px] active:shadow-none active:bg-purple-50 dark:active:bg-purple-900/20'
+                  ? 'text-purple-700 dark:text-purple-300 bg-purple-100 dark:bg-purple-900/30'
+                  : 'text-zinc-600 dark:text-zinc-400 bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700'
               }
             `}
           >

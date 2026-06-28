@@ -90,7 +90,7 @@ export function ConcernCreateForm({
           <button
             onClick={onSubmit}
             disabled={!newTitle.trim() || !newDetail.trim()}
-            className="rounded-lg bg-rose-500 px-3 py-1.5 text-xs font-medium text-white hover:bg-rose-600 disabled:opacity-40"
+            className="rounded-lg px-3 py-1.5 text-xs font-medium text-rose-700 dark:text-rose-300 bg-white dark:bg-zinc-900 border border-rose-200 dark:border-rose-800 shadow-[0_2px_0_0_#fda4af] dark:shadow-[0_2px_0_0_#881337] transition-all duration-75 hover:bg-rose-50 dark:hover:bg-rose-900/20 active:translate-y-[1px] active:shadow-none disabled:opacity-40"
           >
             登録
           </button>

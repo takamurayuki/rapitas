@@ -152,19 +152,16 @@ export function HomeToolbar({
           {/* Selection mode buttons */}
           {isSelectionMode && (
             <>
-              {/* 全選択 — ボトムリッジ (zinc) */}
+              {/* 全選択 — フラット (表示補助操作のため) */}
               <button
                 onClick={onSelectAll}
                 title={allSelected ? t('deselectAndExit') : t('selectAll')}
                 className="
                   flex items-center gap-2 px-3.5 py-2 rounded-lg select-none
                   text-sm font-medium text-zinc-600 dark:text-zinc-400
-                  bg-white dark:bg-zinc-900
-                  border border-zinc-200 dark:border-zinc-700
-                  shadow-[0_2px_0_0_#d1d5db] dark:shadow-[0_2px_0_0_#374151]
-                  transition-all duration-75
-                  hover:bg-zinc-50 dark:hover:bg-zinc-800 hover:border-zinc-300 dark:hover:border-zinc-600
-                  active:translate-y-[2px] active:shadow-none
+                  bg-zinc-100 dark:bg-zinc-800
+                  transition-colors duration-150
+                  hover:bg-zinc-200 dark:hover:bg-zinc-700
                 "
               >
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
