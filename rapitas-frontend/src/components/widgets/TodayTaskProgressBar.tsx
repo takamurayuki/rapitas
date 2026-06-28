@@ -122,11 +122,109 @@ const TodayTaskProgressBar = memo<TodayTaskProgressBarProps>(
     const t = useTranslations('home');
 
     if (compact) {
+      // ── Variant A: Segmented block bar (10 equal blocks) ──────────────────
+      // Classic retro HP-bar feel. Each block = 10% progress, fills in
+      // left-to-right with a staggered delay so you see the blocks "pop on."
+      const blockBar = (
+        <div className="flex h-2 w-full gap-[2px]">
+          {Array.from({ length: 10 }, (_, i) => {
+            const lit = efficiency >= (i + 1) * 10;
+            const partial = !lit && efficiency > i * 10;
+            return (
+              <div
+                key={i}
+                className="relative flex-1 overflow-hidden rounded-sm bg-zinc-200 dark:bg-zinc-800"
+              >
+                {(lit || partial) && (
+                  <motion.div
+                    className="absolute inset-y-0 left-0 bg-indigo-500 dark:bg-indigo-400"
+                    initial={{ width: '0%' }}
+                    animate={{ width: lit ? '100%' : `${((efficiency - i * 10) / 10) * 100}%` }}
+                    transition={{ duration: 0.35, delay: lit ? i * 0.025 : 0 }}
+                  />
+                )}
+              </div>
+            );
+          })}
+        </div>
+      );
+
+      // ── Variant B: Circuit node path ───────────────────────────────────────
+      // 5 nodes connected by lines. Completed segments glow indigo; the
+      // frontier node pulses to show where work is happening.
+      const circuitBar = (
+        <div className="flex h-4 w-full items-center">
+          {Array.from({ length: 5 }, (_, i) => {
+            const threshold = (i / 4) * 100;
+            const filled = efficiency >= threshold;
+            const isFrontier = filled && (i === 4 || efficiency < ((i + 1) / 4) * 100);
+            return (
+              <React.Fragment key={i}>
+                {i > 0 && (
+                  <div className="relative h-px flex-1 bg-zinc-300 dark:bg-zinc-700">
+                    <motion.div
+                      className="absolute inset-y-0 left-0 bg-indigo-500 dark:bg-indigo-400"
+                      initial={{ width: '0%' }}
+                      animate={{ width: filled ? '100%' : '0%' }}
+                      transition={{ duration: 0.4 }}
+                    />
+                  </div>
+                )}
+                <motion.div
+                  className={`h-2 w-2 shrink-0 rounded-full border ${
+                    filled
+                      ? 'bg-indigo-500 dark:bg-indigo-400 border-indigo-300 dark:border-indigo-300'
+                      : 'bg-white dark:bg-zinc-900 border-zinc-400 dark:border-zinc-600'
+                  }`}
+                  animate={isFrontier && efficiency > 0 ? { scale: [1, 1.35, 1] } : {}}
+                  transition={{ repeat: Infinity, duration: 1.4 }}
+                />
+              </React.Fragment>
+            );
+          })}
+        </div>
+      );
+
+      // ── Variant C: Diagonal-stripe scanline bar ────────────────────────────
+      // Fill is rendered as diagonal chevron stripes (like caution tape).
+      // A bright leading-edge flash marks the current progress point.
+      // Horizontal CRT scanlines overlay gives the widget a terminal feel.
+      const scanlineBar = (
+        <div className="relative h-2.5 w-full overflow-hidden rounded-sm bg-zinc-200 dark:bg-zinc-800">
+          <motion.div
+            className="absolute inset-y-0 left-0"
+            style={{
+              backgroundImage:
+                'repeating-linear-gradient(45deg,#6366f1 0px,#6366f1 3px,#818cf8 3px,#818cf8 6px)',
+            }}
+            initial={{ width: '0%' }}
+            animate={{ width: `${efficiency}%` }}
+            transition={{ duration: 0.8, ease: 'easeOut' }}
+          />
+          {/* Horizontal scanline texture */}
+          <div
+            className="pointer-events-none absolute inset-0"
+            style={{
+              backgroundImage:
+                'repeating-linear-gradient(0deg,transparent,transparent 1px,rgba(0,0,0,0.1) 1px,rgba(0,0,0,0.1) 2px)',
+            }}
+          />
+          {/* Leading-edge flash */}
+          {efficiency > 0 && efficiency < 100 && (
+            <motion.div
+              className="absolute top-0 h-full w-0.5 bg-white/75"
+              animate={{ left: `calc(${efficiency}% - 1px)` }}
+              transition={{ duration: 0.8, ease: 'easeOut' }}
+            />
+          )}
+        </div>
+      );
+
       return (
         <div
           className={`relative overflow-hidden border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 shadow-sm transition-all duration-300 hover:border-amber-500/50 ${className}`}
         >
-          {/* Minimal header */}
+          {/* Header */}
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               {efficiency === 100 && (
@@ -142,84 +240,31 @@ const TodayTaskProgressBar = memo<TodayTaskProgressBarProps>(
                 {t('todayTask')}
               </p>
             </div>
-            <div className="flex items-center gap-2">
-              <p className="text-xs font-medium text-slate-500 dark:text-slate-600">
-                ({completedCount}/{totalCount})
-              </p>
-            </div>
+            <p className="text-xs font-medium text-slate-500 dark:text-slate-600">
+              ({completedCount}/{totalCount})
+            </p>
           </div>
 
-          {/* Compact Progress Bar
-              Layout: h-4 wrapper holds the h-1.5 track as absolute, milestone
-              markers centered on the track.
-              Adaptive markers based on totalCount:
-                2–8  tasks → circle with checkmark at each task boundary
-                9–20 tasks → thin segment dividers inside the bar (no circles)
-                >20  tasks → fill only, no markers */}
-          <div className="relative mt-2 flex h-4 items-center">
-            {/* Track + fill */}
-            <div className="absolute inset-x-0 h-1.5 overflow-hidden bg-slate-200 dark:bg-slate-800">
-              <motion.div
-                animate={{ width: `${efficiency}%` }}
-                className={`h-full transition-all duration-1000 ${
-                  efficiency === 100
-                    ? 'bg-gradient-to-r from-green-500 to-green-400 shadow-[0_0_10px_#10b981]'
-                    : efficiency >= 75
-                      ? 'bg-indigo-500/80'
-                      : efficiency >= 50
-                        ? 'bg-slate-500 dark:bg-slate-400'
-                        : 'bg-slate-400 dark:bg-slate-600'
-                }`}
-              />
-              {/* Medium count (9–20): segment tick marks drawn inside the bar so
-                  they're always clipped to the bar height and visible against
-                  both the fill and the unfilled track. */}
-              {totalCount >= 9 &&
-                totalCount <= 20 &&
-                Array.from({ length: totalCount - 1 }, (_, i) => (
-                  <div
-                    key={i}
-                    className="absolute top-0 h-full w-[1px] bg-slate-500/50 dark:bg-white/25"
-                    style={{ left: `${((i + 1) / totalCount) * 100}%` }}
-                  />
-                ))}
+          {/* Three progress bar designs stacked for comparison */}
+          <div className="mt-2 space-y-2">
+            <div className="space-y-0.5">
+              <p className="text-[8px] font-mono uppercase tracking-widest text-zinc-400 dark:text-zinc-600">
+                BLOCK
+              </p>
+              {blockBar}
             </div>
-
-            {/* Small count (2–8): circle markers at each task boundary.
-                Unfilled circles match the track color so they're present but
-                unobtrusive; filled circles are indigo with a checkmark.
-                Always indigo — never green — to avoid confusion with green=100%. */}
-            {totalCount >= 2 &&
-              totalCount <= 8 &&
-              Array.from({ length: totalCount - 1 }, (_, i) => {
-                const pct = ((i + 1) / totalCount) * 100;
-                const reached = completedCount >= i + 1;
-                return (
-                  <div
-                    key={i}
-                    className={`absolute z-10 flex h-3 w-3 -translate-x-1/2 items-center justify-center rounded-full border-2 transition-all duration-500 ${
-                      reached
-                        ? 'border-indigo-500 bg-indigo-500 dark:border-indigo-400 dark:bg-indigo-400'
-                        : 'border-slate-400 bg-slate-200 dark:border-slate-500 dark:bg-slate-800'
-                    }`}
-                    style={{ left: `${pct}%` }}
-                  >
-                    {reached && (
-                      <svg
-                        className="h-1.5 w-1.5 text-white"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth={4}
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                      >
-                        <path d="M5 13l4 4L19 7" />
-                      </svg>
-                    )}
-                  </div>
-                );
-              })}
+            <div className="space-y-0.5">
+              <p className="text-[8px] font-mono uppercase tracking-widest text-zinc-400 dark:text-zinc-600">
+                CIRCUIT
+              </p>
+              {circuitBar}
+            </div>
+            <div className="space-y-0.5">
+              <p className="text-[8px] font-mono uppercase tracking-widest text-zinc-400 dark:text-zinc-600">
+                SCANLINE
+              </p>
+              {scanlineBar}
+            </div>
           </div>
         </div>
       );
