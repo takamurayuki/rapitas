@@ -57,7 +57,7 @@ export default function TaskDescription({
         prose-h2:text-xl prose-h2:mt-3 prose-h2:mb-2
         prose-h3:text-lg prose-h3:mt-2 prose-h3:mb-1
         prose-p:my-2 prose-p:leading-relaxed
-        prose-a:text-indigo-600 prose-a:no-underline hover:prose-a:underline
+        prose-a:text-blue-600 dark:prose-a:text-blue-400 prose-a:no-underline hover:prose-a:underline
         prose-pre:bg-zinc-100 prose-pre:dark:bg-indigo-dark-800
         prose-pre:p-4 prose-pre:rounded-lg prose-pre:overflow-x-auto
         prose-blockquote:border-l-4 prose-blockquote:border-zinc-300

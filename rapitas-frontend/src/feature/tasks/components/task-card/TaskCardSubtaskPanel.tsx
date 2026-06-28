@@ -63,11 +63,7 @@ export default function TaskCardSubtaskPanel({
             <div
               className={`relative flex items-center justify-center w-6 h-6 rounded ${
                 subtaskStatus.color
-              } ${subtaskStatus.bgColor} ${
-                inProgress
-                  ? ''
-                  : `border ${subtaskStatus.borderColor.replace('border-l-', 'border-')}`
-              } shrink-0`}
+              } ${subtaskStatus.bgColor} border ${subtaskStatus.borderColor.replace('border-l-', 'border-')} shrink-0`}
               aria-label={subtaskStatus.label}
             >
               {/* Spinner only while an agent is actually executing this subtask
@@ -85,7 +81,7 @@ export default function TaskCardSubtaskPanel({
                     width="30"
                     height="30"
                     rx="7"
-                    stroke="#6366f1"
+                    stroke="#3b82f6"
                     strokeWidth="2"
                     strokeDasharray="20 87.96"
                     strokeLinecap="round"

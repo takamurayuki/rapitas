@@ -139,11 +139,7 @@ export function SubtaskItem({
                     const inProgress = isInProgressStatus(subtask.status) || showRunning;
                     return (
                       <div
-                        className={`relative flex w-6 h-6 items-center justify-center rounded-md ${cfg.color} ${cfg.bgColor} ${
-                          inProgress
-                            ? ''
-                            : `border-2 ${cfg.borderColor.replaceAll('border-l-', 'border-')}`
-                        }`}
+                        className={`relative flex w-6 h-6 items-center justify-center rounded-md ${cfg.color} ${cfg.bgColor} border-2 ${cfg.borderColor.replaceAll('border-l-', 'border-')}`}
                         aria-label={cfg.label}
                       >
                         {/* Spinner only while an agent is actually executing this
@@ -161,7 +157,7 @@ export function SubtaskItem({
                               width="30"
                               height="30"
                               rx="7"
-                              stroke="#6366f1"
+                              stroke="#3b82f6"
                               strokeWidth="2"
                               strokeDasharray="20 87.96"
                               strokeLinecap="round"

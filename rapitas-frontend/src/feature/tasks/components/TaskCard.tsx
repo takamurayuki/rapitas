@@ -156,7 +156,7 @@ const TaskCard = memo(function TaskCard({
                   width="30"
                   height="30"
                   rx="7"
-                  stroke={tc.executionStatus === 'waiting_for_input' ? '#f59e0b' : '#6366f1'}
+                  stroke={tc.executionStatus === 'waiting_for_input' ? '#f59e0b' : '#3b82f6'}
                   strokeWidth="2"
                   strokeDasharray="20 87.96"
                   strokeLinecap="round"

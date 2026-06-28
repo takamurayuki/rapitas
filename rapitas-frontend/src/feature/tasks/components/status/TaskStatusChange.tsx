@@ -30,7 +30,7 @@ export default function TaskStatusChange({
       status === 'todo'
         ? 'ring-zinc-400'
         : status === 'in-progress'
-          ? 'ring-indigo-500'
+          ? 'ring-blue-500'
           : 'ring-green-500';
 
     return (
