@@ -69,35 +69,34 @@ export function HomeToolbar({
         {/* Auto-execution toggle — hidden during bulk selection */}
         {!isSelectionMode && <AutoExecutionMode theme={autoRunTheme} />}
 
-        {/* Bulk status change buttons — visible when items are selected */}
-        {isSelectionMode && selectedTasksSize > 0 && (
-          <div className="relative flex items-center gap-1 px-3 py-1 bg-white dark:bg-slate-900/50 rounded-lg border border-slate-300 dark:border-slate-700 shadow-sm">
+        {/* Bulk status segmented control — always visible in selection mode.
+            Disabled (greyed) until at least one task is selected. */}
+        {isSelectionMode && (
+          <div className="flex h-[38px] items-stretch overflow-hidden rounded-lg border border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-900/50">
             {(['todo', 'in-progress', 'done'] as const).map((status, idx) => {
               const config = statusConfig[status];
-              const textColorClasses =
-                status === 'todo'
-                  ? 'text-zinc-600 dark:text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-300'
-                  : status === 'in-progress'
-                    ? 'text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 dark:hover:text-indigo-300'
-                    : 'text-green-600 dark:text-green-400 hover:text-green-700 dark:hover:text-green-300';
+              const enabled = selectedTasksSize > 0;
 
-              const bgHoverClasses =
+              // Per-status hover colours — needs literal class strings for Tailwind JIT
+              const enabledClasses =
                 status === 'todo'
-                  ? 'hover:bg-zinc-100 dark:hover:bg-zinc-900/30'
+                  ? 'text-zinc-400 dark:text-zinc-500 hover:bg-zinc-100 hover:text-zinc-700 dark:hover:bg-zinc-800 dark:hover:text-zinc-200'
                   : status === 'in-progress'
-                    ? 'hover:bg-indigo-100 dark:hover:bg-indigo-900/30'
-                    : 'hover:bg-green-100 dark:hover:bg-green-900/30';
+                    ? 'text-slate-400 dark:text-slate-500 hover:bg-blue-50 hover:text-blue-700 dark:hover:bg-blue-900/30 dark:hover:text-blue-300'
+                    : 'text-slate-400 dark:text-slate-500 hover:bg-green-50 hover:text-green-700 dark:hover:bg-green-900/30 dark:hover:text-green-300';
 
               return (
                 <React.Fragment key={status}>
-                  {idx > 0 && <div className="w-px h-5 bg-slate-300 dark:bg-slate-600" />}
+                  {idx > 0 && <div className="w-px shrink-0 bg-slate-200 dark:bg-slate-700" />}
                   <button
-                    onClick={() => onBulkUpdateStatus(status)}
-                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded transition-all cursor-pointer ${textColorClasses} ${bgHoverClasses}`}
-                    title={t('changeToStatus', { status: config.label })}
+                    onClick={() => enabled && onBulkUpdateStatus(status)}
+                    disabled={!enabled}
+                    title={enabled ? t('changeToStatus', { status: config.label }) : undefined}
+                    className={`flex items-center gap-1.5 px-3 text-sm font-medium transition-colors
+                      ${enabled ? `cursor-pointer ${enabledClasses}` : 'cursor-not-allowed text-slate-300 dark:text-slate-600'}`}
                   >
-                    <span className="w-3.5 h-3.5">{renderStatusIcon(status)}</span>
-                    <span className="text-sm font-medium">{config.label}</span>
+                    <span className="h-3.5 w-3.5">{renderStatusIcon(status)}</span>
+                    <span>{config.label}</span>
                   </button>
                 </React.Fragment>
               );
