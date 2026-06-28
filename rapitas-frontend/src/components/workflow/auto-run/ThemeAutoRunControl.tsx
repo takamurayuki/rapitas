@@ -192,7 +192,7 @@ export function ThemeAutoRunControl({ themeId, isDevelopment }: ThemeAutoRunCont
             }}
             disabled={actionLoading}
             title={t('stopTitle')}
-            className="inline-flex items-center gap-1 px-2 py-1 rounded text-[10px] font-mono uppercase tracking-wider bg-red-500/10 dark:bg-red-500/20 text-red-600 dark:text-red-400 hover:bg-red-500/20 dark:hover:bg-red-500/30 transition-colors disabled:opacity-50"
+            className="inline-flex items-center gap-1 pl-2 py-1 rounded text-[10px] font-mono uppercase tracking-wider bg-red-500/10 dark:bg-red-500/20 text-red-600 dark:text-red-400 hover:bg-red-500/20 dark:hover:bg-red-500/30 transition-colors disabled:opacity-50"
           >
             <Square className="w-3 h-3 fill-current" />
             {t('stop')}

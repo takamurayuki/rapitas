@@ -3,14 +3,13 @@
  * AutoExecutionMode
  *
  * Toolbar toggle for per-theme task auto-execution. Starts/stops the selected
- * development theme's auto-run, which runs that theme's EXISTING todo tasks one
- * at a time (highest priority first, then creation order). This is NOT AI task
- * generation. Rendered only when a development theme is active.
+ * development theme's auto-run. Not AI task generation — runs existing todo
+ * tasks in priority order. Rendered only when a development theme is active.
  *
- * While running, the button reads "タスク自動実行中" with a spinning,
- * gently-pulsing indicator (so it clearly looks alive) and swaps to a red
- * "停止" on hover.
- * While stopping, it shows a loading spinner and is disabled.
+ * Shape: rounded-xl pill (gentle arc left/right, straight top/bottom).
+ * Icon:  rounded-full circle containing the state symbol.
+ * Hover: opaque absolute overlay swaps to red "停止" without touching the
+ *        spinning ancestor (prevents rasterization glitch on the Orbit icon).
  */
 import { Play, Square, Loader2, Orbit, Pause } from 'lucide-react';
 import { useThemeAutoRun } from '@/hooks/workflow/useThemeAutoRun';
@@ -32,7 +31,6 @@ export function AutoExecutionMode({ theme }: AutoExecutionModeProps) {
     theme?.isDevelopment,
   );
 
-  // Auto-run is a per-development-theme feature — nothing to show otherwise.
   if (!theme?.isDevelopment) return null;
 
   const status = data?.autoRun?.status ?? 'idle';
@@ -43,7 +41,7 @@ export function AutoExecutionMode({ theme }: AutoExecutionModeProps) {
     </span>
   ) : null;
 
-  // Idle — plain start button.
+  // ── Idle ─────────────────────────────────────────────────────────────────
   if (status === 'idle') {
     return (
       <div className="flex items-center gap-2">
@@ -51,12 +49,14 @@ export function AutoExecutionMode({ theme }: AutoExecutionModeProps) {
           onClick={() => start('priority')}
           disabled={actionLoading}
           title="このテーマのToDoタスクをAI生成なしで上から順に自動実行します"
-          className="inline-flex min-w-32 items-center justify-center gap-2 rounded-lg border border-indigo-300 bg-indigo-50 px-4 py-2 text-sm font-medium text-indigo-700 shadow-sm transition-colors hover:bg-indigo-100 disabled:cursor-not-allowed disabled:opacity-50 dark:border-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300 dark:hover:bg-indigo-900/50"
+          className="inline-flex items-center gap-3 rounded-xl border border-indigo-300 bg-white pl-3 pr-4 py-2 text-sm font-medium text-indigo-600 shadow-[0_2px_0_0_#a5b4fc] select-none transition-all duration-75 hover:border-indigo-400 hover:bg-indigo-50 active:translate-y-[2px] active:shadow-none disabled:cursor-not-allowed disabled:opacity-50 dark:border-indigo-700 dark:bg-zinc-900 dark:text-indigo-400 dark:shadow-[0_2px_0_0_#312e81] dark:hover:border-indigo-600 dark:hover:bg-indigo-950/40"
         >
           {actionLoading ? (
-            <Loader2 className="h-4 w-4 animate-spin" />
+            <Loader2 className="h-4 w-4 animate-spin text-indigo-400" />
           ) : (
-            <Play className="h-4 w-4 shrink-0" />
+            <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-indigo-500 dark:bg-transparent">
+              <Play className="h-2.5 w-2.5 dark:h-4 dark:w-4 fill-white text-white dark:fill-indigo-400 dark:text-indigo-400" />
+            </span>
           )}
           タスク自動実行
         </button>
@@ -65,15 +65,17 @@ export function AutoExecutionMode({ theme }: AutoExecutionModeProps) {
     );
   }
 
-  // Stopping — loading spinner, disabled (no hover swap).
+  // ── Stopping ──────────────────────────────────────────────────────────────
   if (status === 'stopping') {
     return (
       <div className="flex items-center gap-2">
         <button
           disabled
-          className="inline-flex min-w-32 cursor-not-allowed items-center justify-center gap-2 rounded-lg border border-red-300 bg-red-50 px-4 py-2 text-sm font-medium text-red-600 opacity-80 dark:border-red-700 dark:bg-red-900/30 dark:text-red-400"
+          className="inline-flex cursor-not-allowed items-center gap-3 rounded-xl border border-zinc-200 bg-white pl-3 pr-4 py-2 text-sm font-medium text-zinc-400 opacity-70 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-500"
         >
-          <Loader2 className="h-4 w-4 animate-spin" />
+          <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-zinc-200 dark:bg-transparent">
+            <Loader2 className="h-3 w-3 dark:h-4 dark:w-4 animate-spin text-zinc-500 dark:text-zinc-400" />
+          </span>
           停止中
         </button>
         {errorBadge}
@@ -81,13 +83,23 @@ export function AutoExecutionMode({ theme }: AutoExecutionModeProps) {
     );
   }
 
-  // Active (running / paused) — show a live "running" affordance at rest, and
-  // swap to a red "停止" on hover so the active state reads clearly but stopping
-  // is one click away. Paused (awaiting plan approval) uses an amber rest state.
+  // ── Running / Paused ─────────────────────────────────────────────────────
+  // Rest state is always visible; the hover overlay covers it entirely with the
+  // red "停止" look. The Orbit spinner's parent never changes appearance, which
+  // prevents the rasterization warp that occurs when a spinning element's
+  // ancestor color-transitions mid-frame.
   const paused = status === 'paused';
-  const restColors = paused
-    ? 'border-amber-300 bg-amber-50 text-amber-700 dark:border-amber-700 dark:bg-amber-900/30 dark:text-amber-300'
-    : 'border-emerald-300 bg-emerald-50 text-emerald-700 dark:border-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300';
+
+  const restBorder = paused
+    ? 'border-amber-300 dark:border-amber-700'
+    : 'border-emerald-300 dark:border-emerald-700';
+  const restShadow = paused
+    ? 'shadow-[0_2px_0_0_#fcd34d] dark:shadow-[0_2px_0_0_#78350f]'
+    : 'shadow-[0_2px_0_0_#a7f3d0] dark:shadow-[0_2px_0_0_#065f46]';
+  const restText = paused
+    ? 'text-amber-700 dark:text-amber-400'
+    : 'text-emerald-700 dark:text-emerald-400';
+  const iconBg = paused ? 'bg-amber-400 dark:bg-transparent' : 'bg-emerald-500 dark:bg-transparent';
 
   return (
     <div className="flex items-center gap-2">
@@ -95,35 +107,34 @@ export function AutoExecutionMode({ theme }: AutoExecutionModeProps) {
         onClick={() => stop()}
         disabled={actionLoading}
         title="自動実行を停止します"
-        className={`group relative inline-flex min-w-32 items-center justify-center gap-2 rounded-lg border px-4 py-2 text-sm font-medium shadow-sm disabled:cursor-not-allowed disabled:opacity-50 ${restColors}`}
+        className={`group relative inline-flex items-center gap-3 rounded-xl border bg-white pl-3 pr-4 py-2 text-sm font-medium select-none transition-all duration-75 hover:shadow-none disabled:cursor-not-allowed disabled:opacity-50 dark:bg-zinc-900 ${restBorder} ${restShadow} ${restText}`}
       >
-        {/* REST content — spinner + label, ALWAYS rendered and NEVER touched.
-            Nothing about the spinner's ANCESTORS may change on hover, or the
-            rotating icon gets re-rasterized and distorts. That means: no opacity
-            toggle (re-grouping), AND no colour change on an ancestor (the button
-            used to `transition-colors` to red on hover, repainting this whole
-            subtree — including the spin — every frame of the 150ms fade). So the
-            button no longer changes on hover at all; the hover look is provided
-            entirely by the opaque SIBLING overlay below. The spinner also has a
-            FIXED colour so nothing it inherits can animate. Rigid box (not the
-            SVG) prevents geometric warp. */}
-        {paused ? (
-          <Pause className="h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400" />
-        ) : (
-          <span className="inline-flex h-4 w-4 shrink-0 items-center justify-center animate-spin text-emerald-600 [transform-origin:center] dark:text-emerald-400">
-            <Orbit className="h-4 w-4" />
-          </span>
-        )}
-        <span className={paused ? '' : 'animate-pulse'}>
-          {paused ? '一時停止' : 'タスク自動実行中'}
+        {/* REST — icon circle + label. Parent never mutates on hover (overlay
+            handles the visual swap), so the Orbit spin stays artifact-free. */}
+        <span
+          className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full ${iconBg}`}
+        >
+          {paused ? (
+            <Pause className="h-3 w-3 dark:h-4 dark:w-4 fill-white text-white dark:fill-amber-400 dark:text-amber-400" />
+          ) : (
+            // NOTE: Fixed color on Orbit so ancestor color changes can't
+            // trigger a mid-frame repaint that warps the spinning raster.
+            <span className="inline-flex h-3 w-3 dark:h-4 dark:w-4 animate-spin items-center justify-center [transform-origin:center]">
+              <Orbit className="h-3 w-3 dark:h-4 dark:w-4 text-white dark:text-emerald-400" />
+            </span>
+          )}
         </span>
-        {/* HOVER — OPAQUE overlay covering the rest content (independent icon +
-            label). It carries the ENTIRE red "停止" look (bg + border via
-            -inset-px), so the button itself never has to change colour. Instant
-            opacity swap (no fade) keeps zero animation near the spinner. */}
-        <span className="absolute -inset-px flex items-center justify-center gap-2 rounded-lg border border-red-300 bg-red-50 text-red-700 opacity-0 group-hover:opacity-100 dark:border-red-700 dark:bg-red-950 dark:text-red-300">
-          <Square className="h-4 w-4 fill-current" />
-          停止
+        <span>{paused ? '一時停止中' : 'タスク自動実行中'}</span>
+
+        {/* HOVER OVERLAY — fully opaque; instant opacity swap (no transition)
+            so the spinner's parent never sees a mid-fade partial repaint. */}
+        <span className="absolute -inset-px flex items-center rounded-xl border border-red-300 bg-white pl-3 text-red-600 opacity-0 shadow-[0_2px_0_0_#fca5a5] group-hover:opacity-100 dark:border-red-700 dark:bg-zinc-900 dark:text-red-400 dark:shadow-[0_2px_0_0_#991b1b]">
+          <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-red-500 dark:bg-transparent">
+            <Square className="h-2.5 w-2.5 dark:h-4 dark:w-4 fill-white text-white dark:fill-red-400 dark:text-red-400" />
+          </span>
+          <span className="absolute inset-0 flex translate-x-2 items-center justify-center pointer-events-none">
+            停止
+          </span>
         </span>
       </button>
       {errorBadge}

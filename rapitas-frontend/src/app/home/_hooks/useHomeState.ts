@@ -38,10 +38,6 @@ export function useHomeState() {
   const [selectedTaskId, setSelectedTaskId] = useState<number | null>(null);
   const [isPanelOpen, setIsPanelOpen] = useState(false);
 
-  // --- Quick-add state ---
-  const [isQuickAdding, setIsQuickAdding] = useState(false);
-  const [quickTaskTitle, setQuickTaskTitle] = useState('');
-
   // --- Bulk selection state ---
   const [selectedTasks, setSelectedTasks] = useState<Set<number>>(new Set());
   const [isSelectionMode, setIsSelectionMode] = useState(false);
@@ -79,12 +75,6 @@ export function useHomeState() {
     setSelectedTaskId,
     isPanelOpen,
     setIsPanelOpen,
-
-    // Quick-add
-    isQuickAdding,
-    setIsQuickAdding,
-    quickTaskTitle,
-    setQuickTaskTitle,
 
     // Bulk selection
     selectedTasks,

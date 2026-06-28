@@ -20,7 +20,7 @@ const log = createLogger('ai:provider-cooldown');
 
 export type { Provider };
 
-export type CooldownReason = 'quota' | 'rate_limit' | 'auth' | 'transient';
+export type CooldownReason = 'quota' | 'rate_limit' | 'auth' | 'transient' | 'model_unavailable';
 
 interface CooldownEntry {
   provider: Provider;
@@ -40,6 +40,7 @@ const DEFAULT_DURATION_MS: Record<CooldownReason, number> = {
   rate_limit: 60 * 1000, // 1 minute — short-window throttles
   auth: 5 * 60 * 1000, // 5 minutes — give the user time to re-login
   transient: 30 * 1000, // 30 seconds — flaky network etc.
+  model_unavailable: 60 * 1000, // 1 minute — provider may temporarily not support a model
 };
 
 /**

@@ -25,7 +25,6 @@ import { useHomeInit } from '../_hooks/useHomeInit';
 import { useHomeKeyboard } from '../_hooks/useHomeKeyboard';
 import { useHomeSyncEffects } from '../_hooks/useHomeSyncEffects';
 import { HomeToolbar } from './HomeToolbar';
-import { HomeQuickAdd } from './HomeQuickAdd';
 import { HomeFilterPanel } from './HomeFilterPanel';
 import { HomeTaskList } from './HomeTaskList';
 
@@ -78,10 +77,6 @@ function HomeClientPage() {
     setSelectedTaskId,
     isPanelOpen,
     setIsPanelOpen,
-    isQuickAdding,
-    setIsQuickAdding,
-    quickTaskTitle,
-    setQuickTaskTitle,
     selectedTasks,
     setSelectedTasks,
     isSelectionMode,
@@ -160,23 +155,18 @@ function HomeClientPage() {
     progressRingRef as React.RefObject<HTMLDivElement>,
   );
 
-  const { updateStatus, handleQuickAdd, toggleTaskSelection, bulkUpdateStatus, bulkDelete } =
-    useHomeActions({
-      tasks,
-      themes,
-      categoryFilter,
-      themeFilter,
-      defaultTheme,
-      isSelectionMode,
-      selectedTasks,
-      setSelectedTasks,
-      setIsSelectionMode,
-      setIsQuickAdding,
-      setQuickTaskTitle,
-      triggerTaskCompletion,
-      isTodayTask,
-      fetchTasks,
-    });
+  const { updateStatus, toggleTaskSelection, bulkUpdateStatus, bulkDelete } = useHomeActions({
+    tasks,
+    themes,
+    categoryFilter,
+    isSelectionMode,
+    selectedTasks,
+    setSelectedTasks,
+    setIsSelectionMode,
+    triggerTaskCompletion,
+    isTodayTask,
+    fetchTasks,
+  });
 
   const totalPages = Math.ceil(sortedTasks.length / itemsPerPage);
   const paginatedTasks = sortedTasks.slice(
@@ -216,14 +206,11 @@ function HomeClientPage() {
   });
 
   useHomeKeyboard({
-    isQuickAdding,
     isSelectionMode,
     themeFilter,
     defaultThemeId: defaultTheme?.id,
-    setIsQuickAdding,
     setIsSelectionMode,
     setSelectedTasks,
-    setQuickTaskTitle,
   });
 
   const { setTaskLoading } = useExecutionStateStore();
@@ -293,28 +280,15 @@ function HomeClientPage() {
           isSelectionMode={isSelectionMode}
           selectedTasksSize={selectedTasks.size}
           paginatedTasks={paginatedTasks}
-          isQuickAdding={isQuickAdding}
           themeFilter={themeFilter}
           defaultThemeId={defaultTheme?.id}
           autoRunTheme={autoRunTheme}
-          onQuickAddToggle={() => setIsQuickAdding(!isQuickAdding)}
           onBulkUpdateStatus={bulkUpdateStatus}
           onBulkDelete={bulkDelete}
           onSelectAll={handleSelectAll}
           onToggleSelectionMode={() => {
             setIsSelectionMode(!isSelectionMode);
             setSelectedTasks(new Set());
-          }}
-        />
-
-        <HomeQuickAdd
-          isQuickAdding={isQuickAdding}
-          quickTaskTitle={quickTaskTitle}
-          onTitleChange={setQuickTaskTitle}
-          onSubmit={() => handleQuickAdd(quickTaskTitle)}
-          onCancel={() => {
-            setIsQuickAdding(false);
-            setQuickTaskTitle('');
           }}
         />
 

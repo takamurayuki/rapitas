@@ -5,7 +5,6 @@ import type { Status, Task, Theme } from '@/types';
 import { useToast } from '@/components/ui/toast/ToastContainer';
 import { useConfirmDialog } from '@/components/ui/dialog/ConfirmDialogProvider';
 import { useTaskCacheStore } from '@/stores/task-cache-store';
-import { apiFetch } from '@/lib/api-client';
 import { API_BASE_URL } from '@/utils/api';
 import { useTranslations } from 'next-intl';
 import { createLogger } from '@/lib/logger';
@@ -17,14 +16,10 @@ interface UseHomeActionsParams {
   tasks: Task[];
   themes: Theme[];
   categoryFilter: number | null;
-  themeFilter: number | null;
-  defaultTheme: Theme | null;
   isSelectionMode: boolean;
   selectedTasks: Set<number>;
   setSelectedTasks: (tasks: Set<number>) => void;
   setIsSelectionMode: (v: boolean) => void;
-  setIsQuickAdding: (v: boolean) => void;
-  setQuickTaskTitle: (v: string) => void;
   triggerTaskCompletion: (taskId: number, x: number, y: number) => void;
   isTodayTask: (task?: Task | null) => boolean;
   fetchTasks: () => Promise<void>;
@@ -40,14 +35,10 @@ export function useHomeActions({
   tasks,
   themes,
   categoryFilter,
-  themeFilter,
-  defaultTheme,
   isSelectionMode,
   selectedTasks,
   setSelectedTasks,
   setIsSelectionMode,
-  setIsQuickAdding,
-  setQuickTaskTitle,
   triggerTaskCompletion,
   isTodayTask,
   fetchTasks,
@@ -98,38 +89,6 @@ export function useHomeActions({
       }
     },
     [tasks, themes, categoryFilter, isTodayTask, triggerTaskCompletion, updateTaskLocally, t],
-  );
-
-  /**
-   * Creates a task with the current title and resets quick-add state on success.
-   *
-   * @param quickTaskTitle - Title entered in the quick-add input.
-   */
-  const handleQuickAdd = useCallback(
-    async (quickTaskTitle: string) => {
-      if (!quickTaskTitle.trim()) return;
-      try {
-        await apiFetch('/tasks', {
-          method: 'POST',
-          body: JSON.stringify({
-            title: quickTaskTitle,
-            status: 'todo',
-            priority: 'medium',
-            ...(themeFilter && { themeId: themeFilter }),
-            ...(!themeFilter && defaultTheme && { themeId: defaultTheme.id }),
-          }),
-          skipCache: true,
-        });
-        setQuickTaskTitle('');
-        setIsQuickAdding(false);
-        showToast(t('taskCreated'), 'success');
-        await fetchTasks();
-      } catch (e) {
-        logger.error(e);
-        showToast(t('createFailed'), 'error');
-      }
-    },
-    [themeFilter, defaultTheme, setQuickTaskTitle, setIsQuickAdding, showToast, t, fetchTasks],
   );
 
   /**
@@ -186,7 +145,13 @@ export function useHomeActions({
    * Protected (locked) tasks are skipped and remain in the task list with a partial-failure notice.
    */
   const bulkDelete = useCallback(async () => {
-    if (!await confirm({ message: t('bulkDeleteConfirm', { count: selectedTasks.size }), variant: 'destructive' })) return;
+    if (
+      !(await confirm({
+        message: t('bulkDeleteConfirm', { count: selectedTasks.size }),
+        variant: 'destructive',
+      }))
+    )
+      return;
     const taskIds = Array.from(selectedTasks);
 
     const protectedIds = taskIds.filter((id) => tasks.find((task) => task.id === id)?.isProtected);
@@ -212,7 +177,16 @@ export function useHomeActions({
     } catch {
       showToast(t('bulkDeleteFailed'), 'error');
     }
-  }, [selectedTasks, tasks, removeTaskLocally, showToast, t, setSelectedTasks, setIsSelectionMode, confirm]);
+  }, [
+    selectedTasks,
+    tasks,
+    removeTaskLocally,
+    showToast,
+    t,
+    setSelectedTasks,
+    setIsSelectionMode,
+    confirm,
+  ]);
 
   // NOTE: tc and isSelectionMode are consumed here only to satisfy the interface contract;
   // they originate from callers that pass them for symmetry with setIsSelectionMode.
@@ -221,7 +195,6 @@ export function useHomeActions({
 
   return {
     updateStatus,
-    handleQuickAdd,
     toggleTaskSelection,
     bulkUpdateStatus,
     bulkDelete,

@@ -114,6 +114,13 @@ const RULES: PatternRule[] = [
     reason: 'auth',
     pattern: /authentication.*expired|token.*expired/i,
   },
+  // NOTE: Specific model (e.g. Claude Fable 5) temporarily unavailable — do NOT
+  // cool the whole Claude provider; just drop the model constraint and retry.
+  {
+    provider: 'claude',
+    reason: 'model_unavailable',
+    pattern: /is currently unavailable(?:\b|\.)/i,
+  },
 
   // --- Google / Gemini CLI ---
   { provider: 'gemini', reason: 'quota', pattern: /resource_exhausted/i },

@@ -141,4 +141,29 @@ describe('classifyAgentError', () => {
       expect(r?.reason).toBe('quota');
     });
   });
+
+  describe('model_unavailable', () => {
+    it('Claude Fable 5 is currently unavailable を model_unavailable として判定する', () => {
+      const r = classifyAgentError(
+        'Claude Fable 5 is currently unavailable. Learn more: https://www.anthropic.com/news/fable-mythos-access',
+      );
+      expect(r).not.toBeNull();
+      expect(r!.provider).toBe('claude');
+      expect(r!.reason).toBe('model_unavailable');
+      expect(r!.retryWithFallback).toBe(true);
+    });
+
+    it('provider クールダウンに入れない（retryWithFallback が true）', () => {
+      const r = classifyAgentError('Some model is currently unavailable.');
+      expect(r).not.toBeNull();
+      expect(r!.retryWithFallback).toBe(true);
+    });
+
+    it('unavailable が prose 中に出ても誤検知しない', () => {
+      // "currently unavailable" を含まない prose は null
+      const r = classifyAgentError('The feature is temporarily unavailable due to maintenance.');
+      // "is currently unavailable" のフレーズ要件を満たさないのでマッチしない
+      expect(r).toBeNull();
+    });
+  });
 });
