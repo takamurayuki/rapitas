@@ -207,7 +207,6 @@ const mockProps = {
   onToggleSelect: vi.fn(),
   onTaskUpdated: vi.fn(),
   onOpenInPage: vi.fn(),
-  sweepingTaskId: null,
 };
 
 describe('TaskCard', () => {
@@ -347,15 +346,8 @@ describe('TaskCard', () => {
   });
 
   describe('アニメーション', () => {
-    it('スイープアニメーションコンポーネントがレンダリングされる', () => {
-      render(<TaskCard {...mockProps} sweepingTaskId={1} />);
-      const cardContainer = screen.getByText('Test Task').closest('[data-task-card]');
-      expect(cardContainer).toBeInTheDocument();
-      expect(screen.getByTestId('card-light-sweep')).toBeInTheDocument();
-    });
-
-    it('非スイープ時もカードは正常に表示される', () => {
-      render(<TaskCard {...mockProps} sweepingTaskId={2} />);
+    it('カードは正常に表示される', () => {
+      render(<TaskCard {...mockProps} />);
       const cardContainer = screen.getByText('Test Task').closest('[data-task-card]');
       expect(cardContainer).toBeInTheDocument();
     });
