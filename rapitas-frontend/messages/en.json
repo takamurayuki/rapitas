@@ -197,7 +197,10 @@
     "createFailed": "Failed to create task",
     "updateFailed": "Failed to update",
     "changeToStatus": "Change to {status}",
-    "todayTask": "Today's tasks"
+    "todayTask": "Today's tasks",
+    "todayDueTask": "Tasks due today",
+    "noDueTodayTasks": "No tasks due today",
+    "allDueTodayDone": "All tasks due today completed!"
   },
   "task": {
     "title": "Task Details",

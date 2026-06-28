@@ -31,6 +31,7 @@ import PriorityInlineSelect from '@/feature/tasks/components/priority/PriorityIn
 import RecurrenceSelector from '@/feature/tasks/components/recurrence/RecurrenceSelector';
 import { useLocaleStore } from '@/stores/locale-store';
 import { useFilterDataStore } from '@/stores/filter-data-store';
+import { useTaskCacheStore } from '@/stores/task-cache-store';
 import { toDateLocale } from '@/lib/utils';
 import { API_BASE_URL } from '@/utils/api';
 import { clearApiCache } from '@/lib/api-client';
@@ -109,6 +110,7 @@ export default function CompactTaskDetailCard({
   // from the filter store (which persists full category/theme data including icons).
   const filterThemes = useFilterDataStore((s) => s.themes);
   const filterCategories = useFilterDataStore((s) => s.categories);
+  const updateTaskLocally = useTaskCacheStore((s) => s.updateTaskLocally);
   const resolvedTheme = filterThemes.find((t) => t.id === task.themeId);
   const resolvedCategory = resolvedTheme?.categoryId
     ? filterCategories.find((c) => c.id === resolvedTheme.categoryId)
@@ -144,6 +146,9 @@ export default function CompactTaskDetailCard({
         body: JSON.stringify(data),
       });
       if (!res.ok) throw new Error('update failed');
+      // Reflect the change instantly in the shared cache so widgets like
+      // TodayTaskProgressBar update without waiting for the next poll cycle.
+      updateTaskLocally(task.id, data as Partial<import('@/types').Task>);
       clearApiCache(`/tasks/${task.id}`);
       onTaskUpdated?.();
     } catch {

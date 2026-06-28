@@ -197,7 +197,10 @@
     "createFailed": "タスクの作成に失敗しました",
     "updateFailed": "更新に失敗しました",
     "changeToStatus": "{status}に変更",
-    "todayTask": "本日のタスク"
+    "todayTask": "本日のタスク",
+    "todayDueTask": "本日期限のタスク",
+    "noDueTodayTasks": "本日期限のタスクはありません",
+    "allDueTodayDone": "本日期限のタスクすべて完了！"
   },
   "task": {
     "title": "タスク詳細",

@@ -98,11 +98,13 @@ export const tasksRoutes = new Elysia({ prefix: '/tasks' })
   // Get all tasks (supports incremental fetch via `since` param)
   .get('/', async (context) => {
     const { query } = context;
-    const { projectId, milestoneId, priority, since } = query as {
+    const { projectId, milestoneId, priority, since, dueDateOn } = query as {
       projectId?: string;
       milestoneId?: string;
       priority?: string;
       since?: string;
+      /** Filter to tasks whose dueDate falls on this UTC date (YYYY-MM-DD). */
+      dueDateOn?: string;
     };
 
     const baseWhere = {
@@ -110,6 +112,15 @@ export const tasksRoutes = new Elysia({ prefix: '/tasks' })
       ...(projectId && { projectId: parseInt(projectId) }),
       ...(milestoneId && { milestoneId: parseInt(milestoneId) }),
       ...(priority && { priority }),
+      ...(dueDateOn && {
+        dueDate: {
+          // NOTE: No trailing Z — uses local timezone midnight so JST/local dates match
+          // what the browser stored (new Date('YYYY-MM-DD') in JS = UTC midnight, but
+          // task creation typically stores local midnight; match by local range here).
+          gte: new Date(`${dueDateOn}T00:00:00.000`),
+          lte: new Date(`${dueDateOn}T23:59:59.999`),
+        },
+      }),
     };
 
     // If `since` is provided, return only tasks updated after that timestamp + total count

@@ -53,12 +53,7 @@ export function HomeToolbar({
   return (
     <div className="mb-4 flex items-center justify-between">
       <div className="flex items-center gap-4">
-        <TodayTaskProgressBar
-          completedCount={completedTasksCount}
-          totalCount={totalTasksCount}
-          compact={true}
-          className="w-52"
-        />
+        <TodayTaskProgressBar compact={true} className="w-60" />
       </div>
 
       <div className="flex items-center gap-3">
