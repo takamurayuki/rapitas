@@ -163,8 +163,8 @@ const TodayTaskProgressBar = memo<TodayTaskProgressBarProps>(
       const isDone = efficiency === 100;
       const fillColor = isDone
         ? 'bg-gradient-to-r from-emerald-500 to-emerald-400'
-        : 'bg-gradient-to-r from-indigo-500 to-indigo-400';
-      const circleColor = isDone ? '#10b981' : '#6366f1';
+        : 'bg-gradient-to-r from-blue-500 to-blue-400';
+      const circleColor = isDone ? '#10b981' : '#3b82f6';
       const pctColor = isDone
         ? 'text-emerald-600 dark:text-emerald-400'
         : 'text-slate-500 dark:text-zinc-400';

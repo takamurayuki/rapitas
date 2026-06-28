@@ -10,7 +10,6 @@ import { API_BASE_URL } from '@/utils/api';
 import { useToast } from '@/components/ui/toast/ToastContainer';
 import { getLabelsArray, hasLabels } from '@/utils/labels';
 import { getIconComponent } from '@/components/category/icon-data';
-import { CardLightSweep } from './completion/TaskCompletionAnimation';
 import { ModernCheckbox } from '@/components/ui/ModernCheckbox';
 import { useTranslations } from 'next-intl';
 import { useLocaleStore as _useLocaleStore } from '@/stores/locale-store';
@@ -27,7 +26,6 @@ interface TaskCardProps {
   onToggleSelect?: (taskId: number) => void;
   onTaskUpdated?: () => void;
   onOpenInPage?: (taskId: number) => void;
-  sweepingTaskId?: number | null;
 }
 
 const TaskCard = memo(function TaskCard({
@@ -39,7 +37,6 @@ const TaskCard = memo(function TaskCard({
   onToggleSelect,
   onTaskUpdated,
   onOpenInPage,
-  sweepingTaskId,
 }: TaskCardProps) {
   const t = useTranslations('task');
   const tHome = useTranslations('home');
@@ -101,8 +98,6 @@ const TaskCard = memo(function TaskCard({
             : ''
       }`}
     >
-      <CardLightSweep active={sweepingTaskId === task.id} colors={tc.sweepColors} />
-
       {/* Main row */}
       <div
         className="relative z-10 flex items-center gap-3 px-3 py-2.5 min-w-0 cursor-pointer transition-all duration-300 ease-out hover:bg-zinc-50/50 dark:hover:bg-zinc-800/20 rounded-t-lg"

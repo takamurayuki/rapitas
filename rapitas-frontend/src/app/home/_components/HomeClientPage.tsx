@@ -149,7 +149,7 @@ function HomeClientPage() {
     return taskDate.getTime() === today.getTime();
   }, []);
 
-  const { sweepingTaskId, triggerTaskCompletion } = useTaskCompletionAnimation(
+  const { triggerTaskCompletion } = useTaskCompletionAnimation(
     totalTasksCount,
     completedTasksCount,
     progressRingRef as React.RefObject<HTMLDivElement>,
@@ -339,7 +339,6 @@ function HomeClientPage() {
           defaultThemeId={defaultTheme?.id}
           selectedTasks={selectedTasks}
           isSelectionMode={isSelectionMode}
-          sweepingTaskId={sweepingTaskId}
           currentPage={currentPage}
           totalPages={totalPages}
           itemsPerPage={itemsPerPage}

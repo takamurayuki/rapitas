@@ -20,7 +20,6 @@ interface HomeTaskListProps {
   defaultThemeId: number | undefined;
   selectedTasks: Set<number>;
   isSelectionMode: boolean;
-  sweepingTaskId: number | null;
   currentPage: number;
   totalPages: number;
   itemsPerPage: number;
@@ -50,7 +49,6 @@ export function HomeTaskList({
   defaultThemeId,
   selectedTasks,
   isSelectionMode,
-  sweepingTaskId,
   currentPage,
   totalPages,
   itemsPerPage,
@@ -145,7 +143,6 @@ export function HomeTaskList({
             onToggleSelect={onToggleSelect}
             onTaskUpdated={onTaskUpdated}
             onOpenInPage={onOpenInPage}
-            sweepingTaskId={sweepingTaskId}
           />
         ))}
       </div>
