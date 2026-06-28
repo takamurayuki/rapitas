@@ -197,13 +197,29 @@ interface NotifyParams {
   title: string;
   message: string;
 }
+/**
+ * Dedup window for "保留" notifications. A task that is perpetually blocked
+ * (conflict unresolved, CI always failing, no CI + stuck) would otherwise re-notify
+ * every time the user reads the notification AND every time the 30-min block-retry
+ * window resets — combining to send the same notification indefinitely.
+ * Checking for ANY notification (read or unread) within this window stops that loop.
+ */
+const NOTIFY_COOLDOWN_MS = 4 * 60 * 60 * 1000; // 4 hours
+
 async function notify(p: NotifyParams): Promise<void> {
   const link = `/tasks/${p.taskId}`;
-  // NOTE: Skip if an identical unread notification already exists — the watcher
-  // polls every 60s and would otherwise re-fire the same "自動マージ保留" message
-  // on every tick until the candidate is excluded (after MAX_BLOCK_RETRIES blocks).
+  // NOTE: Check for any recent notification of the same type+link (read OR unread).
+  // Checking isRead:false only would restart the cycle every time the user reads
+  // the notification. Checking by time window prevents re-notification for at least
+  // NOTIFY_COOLDOWN_MS regardless of read status.
   const existing = await prisma.notification
-    .findFirst({ where: { type: p.type, link, isRead: false } })
+    .findFirst({
+      where: {
+        type: p.type,
+        link,
+        createdAt: { gte: new Date(Date.now() - NOTIFY_COOLDOWN_MS) },
+      },
+    })
     .catch(() => null);
   if (existing) return;
   await prisma.notification
