@@ -7,7 +7,7 @@
  * Does not persist data — delegates to parent via callbacks.
  */
 
-import { Check, X, Clock, Tag } from 'lucide-react';
+import { Check, Clock, Tag } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 
 interface AddSubtaskFormProps {
@@ -20,11 +20,10 @@ interface AddSubtaskFormProps {
   onSetNewSubtaskLabels: (v: string) => void;
   onSetNewSubtaskEstimatedHours: (v: string) => void;
   onAddSubtask: () => void;
-  onCancelAddSubtask: () => void;
 }
 
 /**
- * Expandable inline form for creating a new subtask.
+ * Always-visible inline form for adding a new subtask below the list.
  *
  * @param props - AddSubtaskFormProps
  */
@@ -38,13 +37,12 @@ export function AddSubtaskForm({
   onSetNewSubtaskLabels,
   onSetNewSubtaskEstimatedHours,
   onAddSubtask,
-  onCancelAddSubtask,
 }: AddSubtaskFormProps) {
   const t = useTranslations('task');
   const tc = useTranslations('common');
 
   return (
-    <div className="p-4 border-b border-zinc-100 dark:border-zinc-800 bg-emerald-50/30 dark:bg-emerald-950/20">
+    <div className="p-4 border-t border-zinc-100 dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-900/30">
       <div className="space-y-4">
         <div>
           <input
@@ -55,8 +53,6 @@ export function AddSubtaskForm({
             onKeyDown={(e) => {
               if (e.key === 'Enter' && newSubtaskTitle.trim()) {
                 onAddSubtask();
-              } else if (e.key === 'Escape') {
-                onCancelAddSubtask();
               }
             }}
             placeholder={t('addSubtaskPlaceholder')}
@@ -110,21 +106,10 @@ export function AddSubtaskForm({
           <button
             onClick={onAddSubtask}
             disabled={!newSubtaskTitle.trim()}
-            className={`flex items-center gap-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 shadow-sm transition-all duration-300 ${
-              !newSubtaskTitle.trim()
-                ? 'opacity-50 cursor-not-allowed text-gray-400 dark:text-gray-600'
-                : 'hover:border-emerald-500 dark:hover:border-emerald-400 text-emerald-600 dark:text-emerald-400 hover:text-emerald-700 dark:hover:text-emerald-300 cursor-pointer'
-            }`}
+            className="flex items-center gap-2 px-3 py-2 text-xs font-medium rounded-lg border border-indigo-200 dark:border-indigo-800 bg-white dark:bg-zinc-900 text-indigo-700 dark:text-indigo-300 shadow-[0_2px_0_0_#a5b4fc] dark:shadow-[0_2px_0_0_#1e1b4b] hover:bg-indigo-50 dark:hover:bg-indigo-900/20 active:translate-y-[1px] active:shadow-none transition-all duration-75 disabled:opacity-40 disabled:cursor-not-allowed disabled:active:translate-y-0 disabled:active:shadow-[0_2px_0_0_#a5b4fc]"
           >
             <Check className="w-4 h-4" />
-            <span className="font-mono text-xs font-black tracking-tight">{tc('save')}</span>
-          </button>
-          <button
-            onClick={onCancelAddSubtask}
-            className="flex items-center gap-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 shadow-sm transition-all duration-300 hover:border-gray-500 dark:hover:border-gray-400 text-gray-600 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 cursor-pointer"
-          >
-            <X className="w-4 h-4" />
-            <span className="font-mono text-xs font-black tracking-tight">{tc('cancel')}</span>
+            <span className="font-mono font-black tracking-tight">{tc('save')}</span>
           </button>
         </div>
       </div>

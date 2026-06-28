@@ -40,18 +40,15 @@ interface TaskActionsViewSlice {
   setEditingSubtaskEstimatedHours: (v: string) => void;
   saveSubtaskEdit: () => void;
   cancelEditingSubtask: () => void;
-  isAddingSubtask: boolean;
   newSubtaskTitle: string;
   newSubtaskDescription: string;
   newSubtaskLabels: string;
   newSubtaskEstimatedHours: string;
-  toggleAddSubtask: () => void;
   setNewSubtaskTitle: (v: string) => void;
   setNewSubtaskDescription: (v: string) => void;
   setNewSubtaskLabels: (v: string) => void;
   setNewSubtaskEstimatedHours: (v: string) => void;
   addSubtask: () => Promise<void>;
-  cancelAddSubtask: () => void;
 }
 
 /** Subset of useCommentSystem return values consumed by the view body. */
@@ -234,18 +231,15 @@ export default function TaskDetailViewBody({
           onSaveSubtaskEdit={taskActions.saveSubtaskEdit}
           onCancelEditingSubtask={taskActions.cancelEditingSubtask}
           onUpdateStatus={taskActions.updateStatus}
-          isAddingSubtask={taskActions.isAddingSubtask}
           newSubtaskTitle={taskActions.newSubtaskTitle}
           newSubtaskDescription={taskActions.newSubtaskDescription}
           newSubtaskLabels={taskActions.newSubtaskLabels}
           newSubtaskEstimatedHours={taskActions.newSubtaskEstimatedHours}
-          onToggleAddSubtask={taskActions.toggleAddSubtask}
           onSetNewSubtaskTitle={taskActions.setNewSubtaskTitle}
           onSetNewSubtaskDescription={taskActions.setNewSubtaskDescription}
           onSetNewSubtaskLabels={taskActions.setNewSubtaskLabels}
           onSetNewSubtaskEstimatedHours={taskActions.setNewSubtaskEstimatedHours}
           onAddSubtask={taskActions.addSubtask}
-          onCancelAddSubtask={taskActions.cancelAddSubtask}
         />
       </div>
     </>

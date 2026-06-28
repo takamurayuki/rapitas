@@ -7,17 +7,14 @@
  * Owns no state — all callbacks are passed from the parent.
  */
 
-import { ListTodo, ClipboardCheck, Plus, Trash2 } from 'lucide-react';
+import { ListTodo, ClipboardCheck, Trash2 } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import type { Task } from '@/types';
 
 interface SubtaskHeaderProps {
   subtasks: NonNullable<Task['subtasks']>;
-  doneCount: number;
-  progressPercent: number;
   isSubtaskSelectionMode: boolean;
   selectedSubtaskIds: Set<number>;
-  onToggleAddSubtask: () => void;
   onToggleSelectionMode: () => void;
   onSelectAll: () => void;
   onDeselectAll: () => void;
@@ -32,70 +29,26 @@ interface SubtaskHeaderProps {
  */
 export function SubtaskHeader({
   subtasks,
-  doneCount,
-  progressPercent,
   isSubtaskSelectionMode,
   selectedSubtaskIds,
-  onToggleAddSubtask,
   onToggleSelectionMode,
   onSelectAll,
   onDeselectAll,
   onSetDeleteConfirm,
 }: SubtaskHeaderProps) {
   const t = useTranslations('task');
-  const tc = useTranslations('common');
-  const hasSubtasks = subtasks.length > 0;
 
   return (
     <div className="p-4 border-b border-zinc-100 dark:border-zinc-800">
       <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2 text-zinc-900 dark:text-zinc-50 flex-1">
+        <div className="flex items-center gap-2 text-zinc-900 dark:text-zinc-50">
           {/* ListTodo (matches the quick-nav subtask icon) reads as "subtasks",
               unlike a check mark which implies the section is complete. */}
-          <ListTodo className="w-5 h-5 text-emerald-500" />
+          <ListTodo className="w-5 h-5 text-indigo-500" />
           <h2 className="text-lg font-bold">{t('subtasks')}</h2>
-          {hasSubtasks ? (
-            <>
-              <span className="ml-1 px-2 py-0.5 text-xs font-medium bg-emerald-100 dark:bg-emerald-900/50 text-emerald-600 dark:text-emerald-400 rounded-full">
-                {doneCount}/{subtasks.length}
-              </span>
-              <div className="hidden sm:flex items-center gap-2 ml-2">
-                <div className="w-24 h-1.5 bg-zinc-200 dark:bg-zinc-700 rounded-full overflow-hidden">
-                  <div
-                    className="h-full bg-emerald-500 transition-all duration-300"
-                    style={{ width: `${progressPercent}%` }}
-                  />
-                </div>
-                <span className="text-xs text-zinc-500">{progressPercent}%</span>
-              </div>
-            </>
-          ) : (
-            <>
-              <span className="ml-1 px-2 py-0.5 text-xs font-medium bg-zinc-100 dark:bg-zinc-800 text-zinc-400 dark:text-zinc-500 rounded-full">
-                0
-              </span>
-              <div className="hidden sm:flex items-center gap-2 ml-2">
-                <div className="w-24 h-1.5 bg-zinc-200 dark:bg-zinc-700 rounded-full overflow-hidden" />
-              </div>
-            </>
-          )}
         </div>
 
         <div className="flex items-center gap-2">
-          {/* Hide "追加" while in bulk selection mode. */}
-          {!isSubtaskSelectionMode && (
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                onToggleAddSubtask();
-              }}
-              className="flex items-center gap-1 px-2 py-1 text-xs font-medium rounded-lg border border-emerald-200 dark:border-emerald-800 bg-white dark:bg-zinc-900 text-emerald-600 dark:text-emerald-400 shadow-[0_2px_0_0_#6ee7b7] dark:shadow-[0_2px_0_0_#064e3b] hover:bg-emerald-50 dark:hover:bg-emerald-900/30 active:translate-y-[1px] active:shadow-none transition-all duration-75"
-              title={t('addSubtask')}
-            >
-              <Plus className="w-3.5 h-3.5" />
-              {tc('add')}
-            </button>
-          )}
           {/* Bulk select — toggles selection mode, matching the task list's bulk button.
               Outline hidden by default; shown only while selecting. */}
           <button

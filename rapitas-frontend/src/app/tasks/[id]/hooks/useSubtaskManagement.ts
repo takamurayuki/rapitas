@@ -39,7 +39,6 @@ export function useSubtaskManagement({
 }: UseSubtaskManagementParams) {
   const { showToast } = useToast();
   // ── Add new subtask ─────────────────────────────────────────────────
-  const [isAddingSubtask, setIsAddingSubtask] = useState(false);
   const [newSubtaskTitle, setNewSubtaskTitle] = useState('');
   const [newSubtaskDescription, setNewSubtaskDescription] = useState('');
   const [newSubtaskLabels, setNewSubtaskLabels] = useState('');
@@ -82,22 +81,6 @@ export function useSubtaskManagement({
   });
 
   // ── Add subtask ──────────────────────────────────────────────────────
-  const toggleAddSubtask = useCallback(() => {
-    setIsAddingSubtask((prev) => !prev);
-    setNewSubtaskTitle('');
-    setNewSubtaskDescription('');
-    setNewSubtaskLabels('');
-    setNewSubtaskEstimatedHours('');
-  }, []);
-
-  const cancelAddSubtask = useCallback(() => {
-    setIsAddingSubtask(false);
-    setNewSubtaskTitle('');
-    setNewSubtaskDescription('');
-    setNewSubtaskLabels('');
-    setNewSubtaskEstimatedHours('');
-  }, []);
-
   const addSubtask = useCallback(async () => {
     if (!task || !newSubtaskTitle.trim()) return;
 
@@ -133,7 +116,6 @@ export function useSubtaskManagement({
       setNewSubtaskDescription('');
       setNewSubtaskLabels('');
       setNewSubtaskEstimatedHours('');
-      setIsAddingSubtask(false);
       onTaskUpdated?.();
     } catch (err) {
       logger.error(err);
@@ -227,7 +209,6 @@ export function useSubtaskManagement({
   ]);
 
   return {
-    isAddingSubtask,
     newSubtaskTitle,
     setNewSubtaskTitle,
     newSubtaskDescription,
@@ -236,8 +217,6 @@ export function useSubtaskManagement({
     setNewSubtaskLabels,
     newSubtaskEstimatedHours,
     setNewSubtaskEstimatedHours,
-    toggleAddSubtask,
-    cancelAddSubtask,
     addSubtask,
     editingSubtaskId,
     editingSubtaskTitle,

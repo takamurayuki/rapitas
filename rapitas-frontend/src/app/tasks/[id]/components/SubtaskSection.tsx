@@ -43,18 +43,15 @@ interface SubtaskSectionProps {
   onSaveSubtaskEdit: () => void;
   onCancelEditingSubtask: () => void;
   onUpdateStatus: (id: number, status: string) => void;
-  isAddingSubtask: boolean;
   newSubtaskTitle: string;
   newSubtaskDescription: string;
   newSubtaskLabels: string;
   newSubtaskEstimatedHours: string;
-  onToggleAddSubtask: () => void;
   onSetNewSubtaskTitle: (v: string) => void;
   onSetNewSubtaskDescription: (v: string) => void;
   onSetNewSubtaskLabels: (v: string) => void;
   onSetNewSubtaskEstimatedHours: (v: string) => void;
   onAddSubtask: () => void;
-  onCancelAddSubtask: () => void;
 }
 
 export default function SubtaskSection({
@@ -86,32 +83,22 @@ export default function SubtaskSection({
   onSaveSubtaskEdit,
   onCancelEditingSubtask,
   onUpdateStatus,
-  isAddingSubtask,
   newSubtaskTitle,
   newSubtaskDescription,
   newSubtaskLabels,
   newSubtaskEstimatedHours,
-  onToggleAddSubtask,
   onSetNewSubtaskTitle,
   onSetNewSubtaskDescription,
   onSetNewSubtaskLabels,
   onSetNewSubtaskEstimatedHours,
   onAddSubtask,
-  onCancelAddSubtask,
 }: SubtaskSectionProps) {
-  const doneCount = subtasks.filter((s) => s.status === 'done').length;
-  const hasSubtasks = subtasks.length > 0;
-  const progressPercent = hasSubtasks ? Math.round((doneCount / subtasks.length) * 100) : 0;
-
   return (
     <div className="bg-white dark:bg-indigo-dark-900 rounded-lg border border-zinc-200 dark:border-zinc-800 overflow-hidden mb-6">
       <SubtaskHeader
         subtasks={subtasks}
-        doneCount={doneCount}
-        progressPercent={progressPercent}
         isSubtaskSelectionMode={isSubtaskSelectionMode}
         selectedSubtaskIds={selectedSubtaskIds}
-        onToggleAddSubtask={onToggleAddSubtask}
         onToggleSelectionMode={onToggleSelectionMode}
         onSelectAll={onSelectAll}
         onDeselectAll={onDeselectAll}
@@ -125,21 +112,6 @@ export default function SubtaskSection({
           selectedCount={selectedSubtaskIds.size}
           onConfirm={showSubtaskDeleteConfirm === 'all' ? onDeleteAll : onDeleteSelected}
           onCancel={() => onSetDeleteConfirm(null)}
-        />
-      )}
-
-      {isAddingSubtask && (
-        <AddSubtaskForm
-          newSubtaskTitle={newSubtaskTitle}
-          newSubtaskDescription={newSubtaskDescription}
-          newSubtaskLabels={newSubtaskLabels}
-          newSubtaskEstimatedHours={newSubtaskEstimatedHours}
-          onSetNewSubtaskTitle={onSetNewSubtaskTitle}
-          onSetNewSubtaskDescription={onSetNewSubtaskDescription}
-          onSetNewSubtaskLabels={onSetNewSubtaskLabels}
-          onSetNewSubtaskEstimatedHours={onSetNewSubtaskEstimatedHours}
-          onAddSubtask={onAddSubtask}
-          onCancelAddSubtask={onCancelAddSubtask}
         />
       )}
 
@@ -171,6 +143,18 @@ export default function SubtaskSection({
           />
         ))}
       </div>
+
+      <AddSubtaskForm
+        newSubtaskTitle={newSubtaskTitle}
+        newSubtaskDescription={newSubtaskDescription}
+        newSubtaskLabels={newSubtaskLabels}
+        newSubtaskEstimatedHours={newSubtaskEstimatedHours}
+        onSetNewSubtaskTitle={onSetNewSubtaskTitle}
+        onSetNewSubtaskDescription={onSetNewSubtaskDescription}
+        onSetNewSubtaskLabels={onSetNewSubtaskLabels}
+        onSetNewSubtaskEstimatedHours={onSetNewSubtaskEstimatedHours}
+        onAddSubtask={onAddSubtask}
+      />
     </div>
   );
 }
