@@ -675,11 +675,15 @@ export async function executeTask(
         }
       }
 
-      // Mark as failed if fallback didn't succeed
-      if (needsFallback && !fallbackSucceeded) {
+      // Mark as failed if fallback didn't succeed — but only when the original
+      // run itself failed (success:false). If the primary agent exited cleanly
+      // (success:true) and we detected a possible provider error in its output
+      // but have no fallback, trust the exit-0 result rather than overriding
+      // it to failure. Codex CLI exits 0 on quota errors; Claude CLI does not,
+      // so a clean Claude exit reliably means the run completed.
+      if (needsFallback && !fallbackSucceeded && !r.success) {
         r = {
           ...r,
-          success: false,
           errorMessage:
             r.errorMessage ||
             'Provider failure detected and no fallback agent completed successfully',

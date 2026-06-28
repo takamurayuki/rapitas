@@ -734,10 +734,14 @@ export class WorkflowOrchestrator {
         runAgent,
       });
       if (fallback) return fallback;
-      if (firstHasImplicitError) {
+      // Only override to failure when the original run itself failed.
+      // If first.success=true but the output contained a provider-error
+      // pattern, trust the clean exit rather than forcing failure — the
+      // pattern check can false-positive when agents write code that handles
+      // Anthropic rate limit errors (e.g. `error.type === 'rate_limit_error'`).
+      if (firstHasImplicitError && !first.success) {
         return {
           ...first,
-          success: false,
           error: first.error || 'Provider failure detected and no fallback completed successfully',
         };
       }
