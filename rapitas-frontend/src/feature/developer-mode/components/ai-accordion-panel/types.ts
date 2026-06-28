@@ -73,6 +73,10 @@ export type AIAccordionPanelProps = {
   themeId?: number | null;
   /** Raw task.status — used to disable/hide the run button when the task is already done. */
   taskStatus?: string;
+  /** Current workflow phase (draft / research_done / plan_approved / …). */
+  workflowStatus?: string | null;
+  /** Workflow complexity mode — lightweight changes phase labels. */
+  workflowMode?: string | null;
   isExecuting: boolean;
   executionStatus: ExecutionStatus;
   executionResult: ExecutionResult | null;

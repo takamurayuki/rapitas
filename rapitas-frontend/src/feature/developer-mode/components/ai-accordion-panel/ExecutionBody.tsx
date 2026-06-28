@@ -1,13 +1,15 @@
 'use client';
 // ExecutionBody
 
+import { Loader2 } from 'lucide-react';
 import { ExecutionLogViewer, type ExecutionLogStatus } from '../ExecutionLogViewer';
 import { SubtaskLogTabs } from '../SubtaskLogTabs';
-import type { Task } from '@/types';
+import type { Task, WorkflowStatus } from '@/types';
 import type { ParallelExecutionStatus } from '@/feature/tasks/components/status/SubtaskExecutionStatus';
 import { ContinuationForm } from './ContinuationForm';
 import { IdleExecutionForm } from './idle-execution-form';
 import { AgentQuestionCard } from './agent-question-card';
+import WorkflowStatusIndicator from '@/components/workflow/WorkflowStatusIndicator';
 
 export type ExecutionBodyProps = {
   isRunning: boolean;
@@ -52,6 +54,9 @@ export type ExecutionBodyProps = {
   continueInstruction: string;
   onSetContinueInstruction: (v: string) => void;
   onContinueExecution: () => Promise<void>;
+  // Workflow phase shown when running (replaces log display)
+  workflowStatus?: string | null;
+  workflowMode?: string | null;
   // Initial form
   optimizedPrompt?: string | null;
   instruction: string;
@@ -117,6 +122,8 @@ export function ExecutionBody({
   continueInstruction,
   onSetContinueInstruction,
   onContinueExecution,
+  workflowStatus,
+  workflowMode,
   optimizedPrompt,
   instruction,
   branchName,
@@ -130,10 +137,27 @@ export function ExecutionBody({
 }: ExecutionBodyProps) {
   const hasSubtaskLogs = !!(hasSubtasks && subtaskLogs && parallelSessionId);
 
-  // Running state
+  // Running state — blue panel with current workflow phase; no raw logs
   if (isRunning) {
     return (
-      <div className="space-y-2">
+      <div className="space-y-3">
+        <div className="rounded-lg border border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-blue-950/30 p-4">
+          <div className="flex items-center gap-3">
+            <Loader2 className="w-5 h-5 text-blue-500 animate-spin flex-shrink-0" />
+            <div className="flex flex-col gap-2">
+              <span className="text-sm font-medium text-blue-700 dark:text-blue-300">
+                AIエージェント実行中
+              </span>
+              {workflowStatus && (
+                <WorkflowStatusIndicator
+                  status={workflowStatus as WorkflowStatus}
+                  workflowMode={workflowMode}
+                  size="sm"
+                />
+              )}
+            </div>
+          </div>
+        </div>
         {hasQuestion && (
           <AgentQuestionCard
             question={question}
@@ -144,27 +168,6 @@ export function ExecutionBody({
             onSendResponse={onSendResponse}
           />
         )}
-        <div id="execution-logs">
-          {hasSubtaskLogs ? (
-            <SubtaskLogTabs
-              subtasks={subtasks || []}
-              getSubtaskStatus={getSubtaskStatus}
-              subtaskLogs={subtaskLogs!}
-              isRunning={isRunning}
-              onRefreshLogs={onRefreshSubtaskLogs}
-              maxHeight={300}
-            />
-          ) : logs.length > 0 ? (
-            <ExecutionLogViewer
-              logs={logs}
-              status={logViewerStatus}
-              isConnected={isSseConnected}
-              isRunning={isRunning}
-              collapsible={false}
-              maxHeight={300}
-            />
-          ) : null}
-        </div>
       </div>
     );
   }

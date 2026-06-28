@@ -365,6 +365,8 @@ export default function TaskAISection({
       parallelSessionId={parallelSessionId}
       subtaskLogs={subtaskLogs as Parameters<typeof AIAccordionPanel>[0]['subtaskLogs']}
       onRefreshSubtaskLogs={onRefreshSubtaskLogs}
+      workflowStatus={task.workflowStatus}
+      workflowMode={task.workflowMode}
     />
   );
 

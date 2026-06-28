@@ -58,6 +58,8 @@ export function AIAccordionPanelInner({
   subtaskLogs,
   onRefreshSubtaskLogs,
   taskStatus,
+  workflowStatus,
+  workflowMode,
 }: AIAccordionPanelProps) {
   // Subtask selection state (lives here to avoid circular deps between hooks)
   const [selectedSubtasks, setSelectedSubtasks] = useState<number[]>([]);
@@ -237,6 +239,8 @@ export function AIAccordionPanelInner({
           onReset={exec.handleReset}
           onRerun={exec.handleRerunExecution}
           taskStatus={taskStatus}
+          workflowStatus={workflowStatus}
+          workflowMode={workflowMode}
         />
       )}
     </div>
