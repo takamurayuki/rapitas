@@ -37,6 +37,42 @@ function buildMarkdownLink(note: Note, taskId: number): string {
   return `[${title}](/rapitas-note/${taskId}/${note.id})`;
 }
 
+function CopyButton({ note, taskId }: { note: Note; taskId: number }) {
+  const [copied, setCopied] = useState(false);
+
+  const handleCopy = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    const link = buildMarkdownLink(note, taskId);
+    try {
+      await navigator.clipboard.writeText(link);
+    } catch {
+      const el = document.createElement('textarea');
+      el.value = link;
+      document.body.appendChild(el);
+      el.select();
+      document.execCommand('copy');
+      document.body.removeChild(el);
+    }
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  return (
+    <button
+      onClick={handleCopy}
+      title="Markdownリンクをクリップボードにコピー"
+      className={`flex items-center gap-1 rounded px-1.5 py-1 text-xs transition-colors ${
+        copied
+          ? 'bg-green-50 text-green-600 dark:bg-green-950/30 dark:text-green-400'
+          : 'text-blue-400 hover:bg-blue-50 hover:text-blue-600 dark:text-blue-500 dark:hover:bg-blue-950/30 dark:hover:text-blue-400'
+      }`}
+    >
+      {copied ? <Check className="h-3.5 w-3.5" /> : <Link2 className="h-3.5 w-3.5" />}
+      {copied ? 'コピー済み' : 'リンクをコピー'}
+    </button>
+  );
+}
+
 function InsertButton({
   note,
   taskId,
@@ -58,11 +94,11 @@ function InsertButton({
   return (
     <button
       onClick={handleInsert}
-      title="クリックで説明欄へリンクを挿入"
+      title="説明欄へリンクを直接挿入"
       className={`flex items-center gap-1 rounded px-1.5 py-1 text-xs transition-colors ${
         inserted
-          ? 'bg-green-50 text-green-600 dark:bg-green-950/30 dark:text-green-400'
-          : 'text-gray-400 hover:bg-gray-100 hover:text-gray-600 dark:text-zinc-500 dark:hover:bg-zinc-700 dark:hover:text-zinc-300'
+          ? 'bg-blue-50 text-blue-600 dark:bg-blue-950/30 dark:text-blue-400'
+          : 'text-blue-400 hover:bg-blue-50 hover:text-blue-600 dark:text-blue-500 dark:hover:bg-blue-950/30 dark:hover:text-blue-400'
       }`}
     >
       {inserted ? <Check className="h-3.5 w-3.5" /> : <Link2 className="h-3.5 w-3.5" />}
@@ -127,10 +163,15 @@ function NoteRow({
         </div>
       </div>
 
-      {hovered && onInsertToDescription && (
+      {hovered && (
         <div className="flex items-center gap-1 border-t border-gray-100 px-3 py-1.5 dark:border-zinc-700">
-          <span className="mr-1 text-xs text-gray-400 dark:text-zinc-500">説明欄へ挿入:</span>
-          <InsertButton note={note} taskId={taskId} onInsert={onInsertToDescription} />
+          <CopyButton note={note} taskId={taskId} />
+          {onInsertToDescription && (
+            <>
+              <div className="h-3.5 w-px bg-gray-200 dark:bg-zinc-700" />
+              <InsertButton note={note} taskId={taskId} onInsert={onInsertToDescription} />
+            </>
+          )}
         </div>
       )}
     </div>
@@ -369,11 +410,9 @@ export default function NoteLinksSection({
               onInsertToDescription={onInsertToDescription}
             />
           ))}
-          {onInsertToDescription && (
-            <p className="text-[11px] text-gray-300 dark:text-zinc-600">
-              ノートにカーソルを合わせると「説明欄へ挿入」が表示されます。
-            </p>
-          )}
+          <p className="text-[11px] text-gray-300 dark:text-zinc-600">
+            ノートにカーソルを合わせると「リンクをコピー」と「説明欄へ挿入」が表示されます。
+          </p>
         </div>
       ) : (
         <p className="py-1 text-center text-xs text-gray-400 dark:text-zinc-600">
