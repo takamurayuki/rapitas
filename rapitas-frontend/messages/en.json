@@ -193,6 +193,7 @@
     "bulkDeleteConfirm": "Delete {count} task(s)?",
     "bulkDeleted": " task(s) deleted",
     "bulkDeleteFailed": "Bulk delete failed",
+    "bulkDeletePartialSkipped": "{skipped} of {total} task(s) could not be deleted (locked)",
     "createFailed": "Failed to create task",
     "updateFailed": "Failed to update",
     "changeToStatus": "Change to {status}",
