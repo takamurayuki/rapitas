@@ -122,26 +122,23 @@ const TodayTaskProgressBar = memo<TodayTaskProgressBarProps>(
     const t = useTranslations('home');
 
     if (compact) {
-      // Diagonal stripe colors: indigo until complete, then emerald.
       const isDone = efficiency === 100;
-      const stripeA = isDone ? '#059669' : '#6366f1';
-      const stripeB = isDone ? '#10b981' : '#818cf8';
-      const glowHex = isDone ? '#10b981' : '#818cf8';
-      const stripePattern = `repeating-linear-gradient(45deg,${stripeA} 0px,${stripeA} 3px,${stripeB} 3px,${stripeB} 6px)`;
+      const fillCls = isDone
+        ? 'bg-gradient-to-r from-emerald-400 to-emerald-500'
+        : 'bg-gradient-to-r from-indigo-400 to-indigo-600';
 
-      return (
+      // ── A: Ridge ─────────────────────────────────────────────────────────────
+      // Same bottom-ridge language as the toolbar buttons (indigo → emerald).
+      // The fill bar has a looping shine sweep that signals "this is alive."
+      const designA = (
         <div
-          className={`relative overflow-hidden rounded-lg border border-zinc-700/60 bg-zinc-900 dark:bg-zinc-950 px-3 py-2 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] ${className}`}
+          className={`rounded-xl border px-3 py-2 transition-all duration-500 ${
+            isDone
+              ? 'border-emerald-200 bg-white shadow-[0_2px_0_0_#6ee7b7] dark:border-emerald-800 dark:bg-zinc-900 dark:shadow-[0_2px_0_0_#065f46]'
+              : 'border-indigo-200 bg-white shadow-[0_2px_0_0_#c7d2fe] dark:border-indigo-800 dark:bg-zinc-900 dark:shadow-[0_2px_0_0_#312e81]'
+          }`}
         >
-          {/* Left accent stripe — pulses emerald on completion */}
-          <motion.div
-            className="absolute left-0 top-0 h-full w-[3px] rounded-l-lg"
-            animate={{ backgroundColor: isDone ? '#10b981' : '#6366f1' }}
-            transition={{ duration: 0.6 }}
-          />
-
-          {/* Header: label left, count + bold % right */}
-          <div className="flex items-center justify-between pl-2.5">
+          <div className="flex items-center justify-between">
             <div className="flex items-center gap-1.5">
               {isDone && (
                 <motion.div
@@ -152,76 +149,130 @@ const TodayTaskProgressBar = memo<TodayTaskProgressBarProps>(
                   <Trophy size={11} className="text-amber-400" />
                 </motion.div>
               )}
-              <span className="text-[9px] font-mono uppercase tracking-widest text-zinc-500">
-                {isDone ? 'ALL CLEAR' : t('todayTask')}
+              <span className="text-[10px] font-medium text-slate-600 dark:text-zinc-400">
+                {t('todayTask')}
               </span>
             </div>
-            <div className="flex items-baseline gap-1.5">
-              <span className="text-[9px] tabular-nums text-zinc-600">
+            <div className="flex items-baseline gap-1">
+              <span className="text-[9px] tabular-nums text-slate-400 dark:text-zinc-600">
                 {completedCount}/{totalCount}
               </span>
-              <motion.span
-                className="font-mono text-sm font-black tabular-nums leading-none"
-                animate={{ color: isDone ? '#34d399' : '#e4e4e7' }}
-                transition={{ duration: 0.5 }}
+              <span
+                className={`text-xs font-bold tabular-nums ${isDone ? 'text-emerald-600 dark:text-emerald-400' : 'text-indigo-600 dark:text-indigo-400'}`}
               >
                 {efficiency}%
-              </motion.span>
+              </span>
             </div>
           </div>
-
-          {/* Scanline progress bar */}
-          <div
-            className="relative mt-1.5 h-2.5 w-full overflow-hidden rounded-sm bg-zinc-800"
-            style={isDone ? { boxShadow: `0 0 8px 1px ${glowHex}55` } : undefined}
-          >
-            {/* Diagonal stripe fill with clipped shine sweep */}
+          {/* Fill bar with looping shine — clipped inside overflow-hidden */}
+          <div className="relative mt-1.5 h-2 overflow-hidden rounded-full bg-slate-100 dark:bg-zinc-800">
             <motion.div
-              className="absolute inset-y-0 left-0 overflow-hidden"
+              className={`absolute inset-y-0 left-0 overflow-hidden rounded-full ${fillCls}`}
               animate={{ width: `${efficiency}%` }}
-              transition={{ duration: 0.8, ease: 'easeOut' }}
+              transition={{ duration: 0.7, ease: 'easeOut' }}
             >
-              {/* Static diagonal pattern */}
-              <div className="absolute inset-0" style={{ backgroundImage: stripePattern }} />
-              {/* Sweeping metal-sheen that loops across the fill */}
               <motion.div
-                className="absolute inset-y-0 w-[45%]"
+                className="absolute inset-y-0 w-[50%]"
                 style={{
                   background:
-                    'linear-gradient(to right,transparent,rgba(255,255,255,0.18),transparent)',
+                    'linear-gradient(to right,transparent,rgba(255,255,255,0.35),transparent)',
                 }}
-                animate={{ left: ['-45%', '120%'] }}
-                transition={{
-                  repeat: Infinity,
-                  duration: 2.4,
-                  ease: 'easeInOut',
-                  repeatDelay: 1.4,
-                }}
+                animate={{ left: ['-50%', '130%'] }}
+                transition={{ repeat: Infinity, duration: 2, ease: 'easeInOut', repeatDelay: 1.5 }}
               />
             </motion.div>
-
-            {/* Horizontal CRT scanlines */}
-            <div
-              className="pointer-events-none absolute inset-0"
-              style={{
-                backgroundImage:
-                  'repeating-linear-gradient(0deg,transparent,transparent 1px,rgba(0,0,0,0.22) 1px,rgba(0,0,0,0.22) 2px)',
-              }}
-            />
-
-            {/* Neon leading-edge glow */}
-            {efficiency > 0 && !isDone && (
-              <motion.div
-                className="absolute top-0 h-full w-1"
-                style={{
-                  background: `linear-gradient(to right,transparent,${glowHex}cc,transparent)`,
-                  boxShadow: `0 0 6px 2px ${glowHex}88`,
-                }}
-                animate={{ left: `calc(${efficiency}% - 2px)` }}
-                transition={{ duration: 0.8, ease: 'easeOut' }}
-              />
-            )}
           </div>
+        </div>
+      );
+
+      // ── B: Capsule ────────────────────────────────────────────────────────────
+      // A rounded-full pill that floods with a tinted fill as tasks complete.
+      // Semi-transparent fill keeps the text readable at any progress level.
+      const designB = (
+        <div className="relative h-9 overflow-hidden rounded-full border border-slate-200 bg-slate-100 dark:border-zinc-700 dark:bg-zinc-800">
+          <motion.div
+            className={`absolute inset-y-0 left-0 rounded-full ${isDone ? 'bg-emerald-400/75' : 'bg-indigo-500/75'}`}
+            animate={{ width: `${efficiency}%` }}
+            transition={{ duration: 0.7, ease: 'easeOut' }}
+          />
+          {/* Top highlight gives the pill a convex feel */}
+          <div className="pointer-events-none absolute inset-x-0 top-0 h-[45%] rounded-t-full bg-white/20 dark:bg-white/10" />
+          <div className="absolute inset-0 flex items-center justify-between px-4">
+            <div className="flex items-center gap-1.5">
+              {isDone && <Trophy size={11} className="text-amber-500" />}
+              <span className="text-[10px] font-semibold text-slate-700 dark:text-zinc-200">
+                {t('todayTask')}
+              </span>
+            </div>
+            <span
+              className={`text-xs font-black tabular-nums ${isDone ? 'text-emerald-700 dark:text-emerald-300' : 'text-indigo-700 dark:text-indigo-300'}`}
+            >
+              {completedCount}/{totalCount}
+            </span>
+          </div>
+        </div>
+      );
+
+      // ── C: Ticker ─────────────────────────────────────────────────────────────
+      // Split layout: large hero task-count on the left (pops when count changes),
+      // label + thin bar on the right. Feels like a game score panel.
+      const designC = (
+        <div className="overflow-hidden rounded-xl border border-slate-200 bg-white dark:border-zinc-700 dark:bg-zinc-900">
+          <div className="flex items-stretch">
+            {/* Left panel: large task counter with accent tint */}
+            <div
+              className={`flex shrink-0 flex-col items-center justify-center px-3 py-2 transition-colors duration-500 ${
+                isDone
+                  ? 'bg-emerald-50 dark:bg-emerald-950/40'
+                  : 'bg-indigo-50 dark:bg-indigo-950/30'
+              }`}
+            >
+              <motion.span
+                key={completedCount}
+                initial={{ scale: 1.5, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                transition={{ type: 'spring', stiffness: 300, damping: 20 }}
+                className={`font-mono text-lg font-black tabular-nums leading-none ${isDone ? 'text-emerald-600 dark:text-emerald-400' : 'text-indigo-600 dark:text-indigo-400'}`}
+              >
+                {completedCount}
+              </motion.span>
+              <span className="mt-0.5 text-[8px] font-mono tabular-nums text-slate-400 dark:text-zinc-600">
+                /{totalCount}
+              </span>
+            </div>
+            {/* Divider */}
+            <div
+              className={`w-px shrink-0 transition-colors duration-500 ${isDone ? 'bg-emerald-100 dark:bg-emerald-900/50' : 'bg-indigo-100 dark:bg-indigo-900/40'}`}
+            />
+            {/* Right panel: label, bar, percentage */}
+            <div className="flex flex-1 flex-col justify-center gap-1 px-2.5 py-2">
+              <div className="flex items-center justify-between">
+                <span className="text-[9px] font-medium text-slate-500 dark:text-zinc-500">
+                  {t('todayTask')}
+                </span>
+                <span
+                  className={`text-[9px] font-bold tabular-nums ${isDone ? 'text-emerald-500' : 'text-slate-400 dark:text-zinc-500'}`}
+                >
+                  {efficiency}%
+                </span>
+              </div>
+              <div className="h-1.5 overflow-hidden rounded-full bg-slate-100 dark:bg-zinc-800">
+                <motion.div
+                  className={`h-full rounded-full ${fillCls}`}
+                  animate={{ width: `${efficiency}%` }}
+                  transition={{ duration: 0.7, ease: 'easeOut' }}
+                />
+              </div>
+            </div>
+          </div>
+        </div>
+      );
+
+      return (
+        <div className={`space-y-1.5 ${className}`}>
+          {designA}
+          {designB}
+          {designC}
         </div>
       );
     }
