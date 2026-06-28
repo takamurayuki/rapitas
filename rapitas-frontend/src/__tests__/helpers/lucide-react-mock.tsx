@@ -4,7 +4,11 @@
  * Shared self-repairing mock factory for lucide-react.
  * Stubs every real export automatically so newly-added icons never break tests.
  * Use inside vi.mock() via a dynamic import to avoid Vitest hoist conflicts.
+ *
+ * Delegates to the generic buildModuleMock; this file is a thin lucide-specific wrapper.
  */
+
+import { buildModuleMock } from './mock-factory';
 
 /**
  * Builds a complete lucide-react mock that stubs every real export.
@@ -25,20 +29,17 @@ export async function buildLucideMock(
   importOriginal: () => Promise<unknown>,
   overrides: Record<string, string> = {},
 ): Promise<Record<string, unknown>> {
-  const actual = (await importOriginal()) as Record<string, unknown>;
-
-  const createIcon = (testId: string) => {
-    const Icon = ({ className }: { className?: string }) => (
-      <div data-testid={testId} className={className} />
-    );
-    Icon.displayName = testId;
-    return Icon;
-  };
-
-  const mocked: Record<string, unknown> = {};
-  for (const key of Object.keys(actual)) {
-    mocked[key] = createIcon(overrides[key] ?? `${key}-icon`);
-  }
-
-  return mocked;
+  return buildModuleMock(
+    importOriginal,
+    (key) => {
+      // NOTE: lucide uses `${key}-icon` as the fallback testId (not bare key),
+      // so we compute the testId here rather than relying on buildModuleMock's default.
+      const testId = overrides[key] ?? `${key}-icon`;
+      const Icon = ({ className }: { className?: string }) => (
+        <div data-testid={testId} className={className} />
+      );
+      Icon.displayName = testId;
+      return Icon;
+    },
+  );
 }
