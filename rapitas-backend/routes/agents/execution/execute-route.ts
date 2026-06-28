@@ -251,6 +251,7 @@ export const executeRoute = new Elysia().post(
         branchName,
         baseBranch: resolvedBaseBranch,
         workDir,
+        currentWorkflowStatus: task.workflowStatus,
       });
     } catch (setupError) {
       const prismaCode = (setupError as Record<string, unknown>)?.code;

@@ -40,6 +40,11 @@ export interface ExecuteSetupParams {
   /** Base branch to cut the feature branch from (origin/<baseBranch>). */
   baseBranch?: string | null;
   workDir: string;
+  /**
+   * Current workflowStatus from the DB. If null/undefined, defaults to 'draft'
+   * so the frontend can display "調査中" during the research phase.
+   */
+  currentWorkflowStatus?: string | null;
 }
 
 /**
@@ -61,6 +66,7 @@ export async function executeSetup(params: ExecuteSetupParams): Promise<SetupRes
     branchName,
     baseBranch,
     workDir,
+    currentWorkflowStatus,
   } = params;
 
   // Ensure DeveloperModeConfig exists
@@ -155,7 +161,14 @@ export async function executeSetup(params: ExecuteSetupParams): Promise<SetupRes
     }),
     prisma.task.update({
       where: { id: taskIdNum },
-      data: { status: 'in-progress', startedAt: taskStartedAt || new Date() },
+      data: {
+        status: 'in-progress',
+        startedAt: taskStartedAt || new Date(),
+        // NOTE: Ensure workflowStatus is set so the frontend can display the
+        // correct phase label (e.g. '調査中'). Auto-run sets this in the
+        // orchestrator; manual execution must do the same here.
+        workflowStatus: currentWorkflowStatus ?? 'draft',
+      },
     }),
   ]);
   session = updatedSession;
