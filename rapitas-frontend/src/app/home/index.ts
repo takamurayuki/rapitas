@@ -7,7 +7,6 @@
 export { default } from './_components/HomeClientPage';
 export { default as HomeClientPage } from './_components/HomeClientPage';
 export { HomeToolbar } from './_components/HomeToolbar';
-export { HomeQuickAdd } from './_components/HomeQuickAdd';
 export { HomeCategoryFilter } from './_components/HomeCategoryFilter';
 export { HomeThemeFilter } from './_components/HomeThemeFilter';
 export { HomeExpandedFilters } from './_components/HomeExpandedFilters';

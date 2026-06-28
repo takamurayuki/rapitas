@@ -14,12 +14,10 @@ interface HomeToolbarProps {
   isSelectionMode: boolean;
   selectedTasksSize: number;
   paginatedTasks: Task[];
-  isQuickAdding: boolean;
   themeFilter: number | null;
   defaultThemeId: number | undefined;
   /** Active development theme for the auto-execution toggle (null otherwise). */
   autoRunTheme: { id: number; isDevelopment?: boolean } | null;
-  onQuickAddToggle: () => void;
   onBulkUpdateStatus: (status: string) => void;
   onBulkDelete: () => void;
   onSelectAll: () => void;
@@ -38,11 +36,9 @@ export function HomeToolbar({
   isSelectionMode,
   selectedTasksSize,
   paginatedTasks,
-  isQuickAdding,
   themeFilter,
   defaultThemeId,
   autoRunTheme,
-  onQuickAddToggle,
   onBulkUpdateStatus,
   onBulkDelete,
   onSelectAll,
@@ -127,32 +123,6 @@ export function HomeToolbar({
           {/* Normal mode buttons */}
           {!isSelectionMode && (
             <>
-              {/* クイック追加 — ボトムリッジ (緑) */}
-              <button
-                onClick={onQuickAddToggle}
-                title={`${t('quickAdd')} (Ctrl+Q)`}
-                className={`
-                  flex items-center gap-2 px-3.5 py-2 rounded-lg select-none
-                  text-sm font-medium text-green-700 dark:text-green-300
-                  border transition-all duration-75
-                  ${
-                    isQuickAdding
-                      ? 'bg-green-50 dark:bg-green-900/20 border-green-300 dark:border-green-700 translate-y-[2px] shadow-none'
-                      : 'bg-white dark:bg-zinc-900 border-green-200 dark:border-green-800 shadow-[0_2px_0_0_#86efac] dark:shadow-[0_2px_0_0_#166534] hover:bg-green-50 dark:hover:bg-green-900/20 hover:border-green-300 dark:hover:border-green-700 active:translate-y-[2px] active:shadow-none active:bg-green-50 dark:active:bg-green-900/20'
-                  }
-                `}
-              >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2.5}
-                    d="M12 4v16m8-8H4"
-                  />
-                </svg>
-                {t('quickAdd')}
-              </button>
-
               {/* 新規タスク — ボトムリッジ (青) */}
               <button
                 onClick={() => {
@@ -162,13 +132,13 @@ export function HomeToolbar({
                 title={`${t('newTask')} (Ctrl+N)`}
                 className="
                   flex items-center gap-2 px-3.5 py-2 rounded-lg select-none
-                  text-sm font-medium text-indigo-700 dark:text-indigo-300
+                  text-sm font-medium text-blue-700 dark:text-blue-300
                   bg-white dark:bg-zinc-900
-                  border border-indigo-200 dark:border-indigo-800
-                  shadow-[0_2px_0_0_#93c5fd] dark:shadow-[0_2px_0_0_#1e3a5f]
+                  border border-blue-200 dark:border-blue-800
+                  shadow-[0_2px_0_0_#93c5fd] dark:shadow-[0_2px_0_0_#1e3a8a]
                   transition-all duration-75
-                  hover:bg-indigo-50 dark:hover:bg-indigo-900/20 hover:border-indigo-300 dark:hover:border-indigo-700
-                  active:translate-y-[2px] active:shadow-none active:bg-indigo-50 dark:active:bg-indigo-900/20
+                  hover:bg-blue-50 dark:hover:bg-blue-900/20 hover:border-blue-300 dark:hover:border-blue-700
+                  active:translate-y-[2px] active:shadow-none active:bg-blue-50 dark:active:bg-blue-900/20
                 "
               >
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
