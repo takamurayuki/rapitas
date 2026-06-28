@@ -124,14 +124,13 @@ export function useNoteEditor(note: Note): NoteEditorState {
   const activeColorSpanRef = useRef<HTMLSpanElement | null>(null);
   const selectedTextColorRef = useRef<string | null>(null);
 
-  // NOTE: '新しいノート' is the store sentinel for an untouched new note.
-  // Display it as empty so the user can type directly without clearing first.
-  const [draftTitle, setDraftTitle] = useState(note.title === '新しいノート' ? '' : note.title);
+  // NOTE: Empty title indicates a freshly created note that has not been edited.
+  const [draftTitle, setDraftTitle] = useState(note.title.trim() === '' ? '' : note.title);
   const [isDirty, setIsDirty] = useState(false);
 
   // Focus the title input when a new note is opened.
   useEffect(() => {
-    if (note.title === '新しいノート') {
+    if (note.title.trim() === '') {
       titleRef.current?.focus();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -168,7 +167,7 @@ export function useNoteEditor(note: Note): NoteEditorState {
 
   // Reset editor content when note changes
   useEffect(() => {
-    setDraftTitle(note.title === '新しいノート' ? '' : note.title);
+    setDraftTitle(note.title.trim() === '' ? '' : note.title);
     setIsDirty(false);
     if (contentRef.current) {
       contentRef.current.innerHTML = DOMPurify.sanitize(note.content);

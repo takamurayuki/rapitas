@@ -115,7 +115,7 @@ export const useNoteStore = create<NoteState>()(
         const safeTitle = typeof title === 'string' ? title : undefined;
         const newNote: Note = {
           id: Date.now().toString(),
-          title: safeTitle ?? '新しいノート',
+          title: safeTitle ?? '',
           content: '',
           createdAt: new Date(),
           updatedAt: new Date(),
@@ -140,16 +140,16 @@ export const useNoteStore = create<NoteState>()(
           const updatedNote = newState.notes.find((n) => n.id === id);
           if (
             updatedNote &&
-            (updatedNote.content.trim() !== '' || updatedNote.title !== '新しいノート')
+            (updatedNote.content.trim() !== '' || updatedNote.title.trim() !== '')
           ) {
             const hasEmptyNote = newState.notes.some(
-              (n) => n.content.trim() === '' && n.title === '新しいノート' && n.id !== id,
+              (n) => n.content.trim() === '' && n.title.trim() === '' && n.id !== id,
             );
 
             if (!hasEmptyNote) {
               const newNote: Note = {
                 id: Date.now().toString(),
-                title: '新しいノート',
+                title: '',
                 content: '',
                 createdAt: new Date(),
                 updatedAt: new Date(),
@@ -171,13 +171,13 @@ export const useNoteStore = create<NoteState>()(
 
           // After deletion, create new empty note if none exists
           const hasEmptyNote = newNotes.some(
-            (n) => n.content.trim() === '' && n.title === '新しいノート',
+            (n) => n.content.trim() === '' && n.title.trim() === '',
           );
 
           if (!hasEmptyNote && newNotes.length > 0) {
             const newNote: Note = {
               id: Date.now().toString() + '-delete',
-              title: '新しいノート',
+              title: '',
               content: '',
               createdAt: new Date(),
               updatedAt: new Date(),
@@ -198,18 +198,14 @@ export const useNoteStore = create<NoteState>()(
         if (id) {
           const state = get();
           const currentNote = state.notes.find((n) => n.id === id);
-          if (
-            currentNote &&
-            currentNote.content.trim() === '' &&
-            currentNote.title === '新しいノート'
-          ) {
+          if (currentNote && currentNote.content.trim() === '' && currentNote.title.trim() === '') {
             const otherEmptyNote = state.notes.find(
-              (n) => n.content.trim() === '' && n.title === '新しいノート' && n.id !== id,
+              (n) => n.content.trim() === '' && n.title.trim() === '' && n.id !== id,
             );
             if (!otherEmptyNote) {
               const newNote: Note = {
                 id: Date.now().toString() + '-auto',
-                title: '新しいノート',
+                title: '',
                 content: '',
                 createdAt: new Date(),
                 updatedAt: new Date(),
