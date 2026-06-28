@@ -5,7 +5,7 @@ import {
   Flag,
   FileText,
   Settings2,
-  CheckCircle2,
+  ListTodo,
   Sparkles,
   Loader2,
   Target,
@@ -265,13 +265,13 @@ function NewTaskClient() {
           {/* Subtasks accordion */}
           <CompactAccordionGroup
             title={t('subtasks')}
-            icon={<CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />}
+            icon={<ListTodo className="w-3.5 h-3.5 text-emerald-500" />}
             badge={
               <span className="px-2 py-0.5 text-xs font-medium bg-zinc-100 dark:bg-zinc-800 text-zinc-500 dark:text-zinc-400 rounded-full">
                 {form.subtasks.length}
               </span>
             }
-            defaultExpanded
+            defaultExpanded={false}
             className="border-b-0"
           >
             <SubtaskForm
