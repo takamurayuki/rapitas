@@ -2,6 +2,7 @@
 // useCategoryManager
 import { useEffect, useState, useMemo } from 'react';
 import { useToast } from '@/components/ui/toast/ToastContainer';
+import { useConfirmDialog } from '@/components/ui/dialog/ConfirmDialogProvider';
 import { searchIcons } from './icon-data';
 import { useTranslations } from 'next-intl';
 import { API_BASE_URL } from '@/utils/api';
@@ -29,6 +30,7 @@ export function useCategoryManager(config: CategoryManagerConfig) {
   const t = useTranslations('categories');
   const tc = useTranslations('common');
   const { showToast } = useToast();
+  const confirm = useConfirmDialog();
 
   const [items, setItems] = useState<CategoryItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -114,7 +116,7 @@ export function useCategoryManager(config: CategoryManagerConfig) {
   };
 
   const handleDelete = async (id: number, name: string) => {
-    if (!confirm(t('itemDeleteConfirm', { name }))) return;
+    if (!await confirm({ message: t('itemDeleteConfirm', { name }), variant: 'destructive' })) return;
 
     try {
       const res = await fetch(`${API_BASE_URL}/${config.endpoint}/${id}`, {

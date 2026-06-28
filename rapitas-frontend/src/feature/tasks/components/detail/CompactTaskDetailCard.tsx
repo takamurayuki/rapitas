@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { type Task, type Label, type Resource, type Comment, type Priority } from '@/types';
+import { useToast } from '@/components/ui/toast/ToastContainer';
 import TaskDescription from '@/feature/tasks/components/text/TaskDescription';
 import TaskStatusChange from '@/feature/tasks/components/status/TaskStatusChange';
 import { statusConfig, renderStatusIcon } from '@/feature/tasks/config/StatusConfig';
@@ -102,6 +103,7 @@ export default function CompactTaskDetailCard({
   onCreateLink,
   onDeleteLink,
 }: CompactTaskDetailCardProps) {
+  const { showToast } = useToast();
   const locale = useLocaleStore((s) => s.locale);
   const dateLocale = toDateLocale(locale);
 
@@ -147,7 +149,7 @@ export default function CompactTaskDetailCard({
       clearApiCache(`/tasks/${task.id}`);
       onTaskUpdated?.();
     } catch {
-      alert('保存に失敗しました');
+      showToast('保存に失敗しました', 'error');
     }
   };
 

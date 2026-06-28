@@ -16,11 +16,15 @@ import { createLogger } from '@/lib/logger';
 import { CATEGORY_LABELS, type SystemPrompt } from './components/types';
 import { PromptCard } from './components/PromptCard';
 import { AddPromptModal } from './components/AddPromptModal';
+import { useToast } from '@/components/ui/toast/ToastContainer';
+import { useConfirmDialog } from '@/components/ui/dialog/ConfirmDialogProvider';
 
 const logger = createLogger('SystemPromptsPage');
 
 export default function SystemPromptsPage() {
   const t = useTranslations('prompts');
+  const { showToast } = useToast();
+  const confirm = useConfirmDialog();
   const [prompts, setPrompts] = useState<SystemPrompt[]>([]);
   const [loading, setLoading] = useState(true);
   const [editingPrompt, setEditingPrompt] = useState<SystemPrompt | null>(null);
@@ -79,7 +83,7 @@ export default function SystemPromptsPage() {
   };
 
   const handleReset = async (key: string) => {
-    if (!confirm(t('confirmReset'))) return;
+    if (!await confirm({ message: t('confirmReset') })) return;
     try {
       const res = await fetch(`${API_BASE_URL}/system-prompts/${key}/reset`, {
         method: 'POST',
@@ -94,7 +98,7 @@ export default function SystemPromptsPage() {
   };
 
   const handleDelete = async (key: string) => {
-    if (!confirm(t('confirmDelete'))) return;
+    if (!await confirm({ message: t('confirmDelete'), variant: 'destructive' })) return;
     try {
       const res = await fetch(`${API_BASE_URL}/system-prompts/${key}`, {
         method: 'DELETE',
@@ -103,7 +107,7 @@ export default function SystemPromptsPage() {
         fetchPrompts();
       } else {
         const data = await res.json();
-        alert(data.error || t('deleteFailed'));
+        showToast(data.error || t('deleteFailed'), 'error');
       }
     } catch (error) {
       logger.error('Failed to delete system prompt:', error);

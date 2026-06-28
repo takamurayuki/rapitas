@@ -6,6 +6,7 @@ import { useTranslations } from 'next-intl';
 import type { ExamGoal } from '@/types';
 import { Plus, Clock, Trophy, Target } from 'lucide-react';
 import { API_BASE_URL } from '@/utils/api';
+import { useConfirmDialog } from '@/components/ui/dialog/ConfirmDialogProvider';
 import { createLogger } from '@/lib/logger';
 import { UpcomingGoalCard, CompletedGoalCard } from './_components/GoalCard';
 import { GoalModal } from './_components/GoalModal';
@@ -25,6 +26,7 @@ const DEFAULT_FORM: ExamGoalFormData = {
 export default function ExamGoalsPage() {
   const t = useTranslations('examGoals');
   const tc = useTranslations('common');
+  const confirm = useConfirmDialog();
   const [examGoals, setExamGoals] = useState<ExamGoal[]>([]);
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -106,7 +108,7 @@ export default function ExamGoalsPage() {
   };
 
   const handleDelete = async (id: number) => {
-    if (!confirm(t('confirmDeleteGoal'))) return;
+    if (!await confirm({ message: t('confirmDeleteGoal'), variant: 'destructive' })) return;
     try {
       const res = await fetch(`${API_BASE_URL}/exam-goals/${id}`, {
         method: 'DELETE',

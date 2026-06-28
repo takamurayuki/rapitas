@@ -3,6 +3,7 @@
 
 import { useState, useEffect } from 'react';
 import { API_BASE_URL } from '@/utils/api';
+import { useConfirmDialog } from '@/components/ui/dialog/ConfirmDialogProvider';
 import { createLogger } from '@/lib/logger';
 
 const logger = createLogger('useApiKey');
@@ -29,6 +30,7 @@ export type UseApiKeyReturn = {
  * @returns State values and handler functions for API key management.
  */
 export function useApiKey(): UseApiKeyReturn {
+  const confirm = useConfirmDialog();
   const [apiKeyInput, setApiKeyInput] = useState('');
   const [showApiKey, setShowApiKey] = useState(false);
   const [maskedApiKey, setMaskedApiKey] = useState<string | null>(null);
@@ -94,7 +96,7 @@ export function useApiKey(): UseApiKeyReturn {
   };
 
   const deleteApiKey = async () => {
-    if (!confirm('APIキーを削除してもよろしいですか？')) return;
+    if (!await confirm({ message: 'APIキーを削除してもよろしいですか？', variant: 'destructive' })) return;
 
     setIsSavingApiKey(true);
     setApiKeyError(null);

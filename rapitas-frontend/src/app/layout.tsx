@@ -6,6 +6,7 @@ import { ResumableExecutionsBanner } from '@/components/common/ResumableExecutio
 import ScheduleReminderProvider from '@/components/providers/ScheduleReminderProvider';
 import { Suspense } from 'react';
 import { ToastProvider } from '@/components/ui/toast/ToastContainer';
+import { ConfirmDialogProvider } from '@/components/ui/dialog/ConfirmDialogProvider';
 import { PomodoroProvider } from '@/feature/tasks/pomodoro/PomodoroProvider';
 import ExternalLinksProvider from '@/components/providers/ExternalLinksProvider';
 import CacheWarmupInitializer from '@/components/common/CacheWarmupInitializer';
@@ -134,6 +135,8 @@ export default function RootLayout({
           <AuthProvider>
             <PomodoroProvider>
               <ToastProvider>
+                {/* NOTE: ConfirmDialogProvider is inside ToastProvider so it can use toasts. */}
+                <ConfirmDialogProvider>
                 <VoiceInputProvider>
                   <ExternalLinksProvider>
                     <Suspense fallback={<div className="h-16" />}>
@@ -167,6 +170,7 @@ export default function RootLayout({
                     </Suspense>
                   </ExternalLinksProvider>
                 </VoiceInputProvider>
+                </ConfirmDialogProvider>
               </ToastProvider>
             </PomodoroProvider>
           </AuthProvider>

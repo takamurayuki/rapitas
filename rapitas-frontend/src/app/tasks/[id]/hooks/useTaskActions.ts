@@ -15,6 +15,8 @@ import { clearApiCache } from '@/lib/api-client';
 import { createLogger } from '@/lib/logger';
 import { useTaskEdit } from './useTaskEdit';
 import { useSubtaskManagement } from './useSubtaskManagement';
+import { useToast } from '@/components/ui/toast/ToastContainer';
+import { useConfirmDialog } from '@/components/ui/dialog/ConfirmDialogProvider';
 
 const logger = createLogger('useTaskActions');
 const API_BASE = API_BASE_URL;
@@ -49,6 +51,8 @@ export function useTaskActions({
   setShowCompleteOverlay,
 }: UseTaskActionsParams) {
   const router = useRouter();
+  const { showToast } = useToast();
+  const confirm = useConfirmDialog();
 
   const taskEdit = useTaskEdit({ task, setTask });
   const subtaskManagement = useSubtaskManagement({
@@ -106,10 +110,10 @@ export function useTaskActions({
     // Protected tasks can't be deleted; tell the user how to unprotect first
     // (backend also enforces this with a 409).
     if (task?.isProtected) {
-      alert('保護されたタスクは削除できません。詳細ページのロックアイコンで保護を解除してください。');
+      showToast('保護されたタスクは削除できません。詳細ページのロックアイコンで保護を解除してください。', 'warning');
       return;
     }
-    if (!confirm('このタスクを削除しますか?')) return;
+    if (!await confirm({ message: 'このタスクを削除しますか?', variant: 'destructive' })) return;
 
     try {
       const res = await fetch(`${API_BASE}/tasks/${task?.id}`, {
@@ -124,7 +128,7 @@ export function useTaskActions({
       router.back();
     } catch (err) {
       logger.error(err);
-      alert('タスクの削除に失敗しました');
+      showToast('タスクの削除に失敗しました', 'error');
     }
   }, [
     task?.id,
@@ -134,6 +138,8 @@ export function useTaskActions({
     stopTimer,
     setShowPomodoroModal,
     router,
+    showToast,
+    confirm,
   ]);
 
   const duplicateTask = useCallback(async () => {
@@ -165,9 +171,9 @@ export function useTaskActions({
       router.push(getTaskDetailPath(newTask.id));
     } catch (err) {
       logger.error(err);
-      alert('タスクの複製に失敗しました');
+      showToast('タスクの複製に失敗しました', 'error');
     }
-  }, [task, router]);
+  }, [task, router, showToast]);
 
   const refetchTask = useCallback(async () => {
     try {

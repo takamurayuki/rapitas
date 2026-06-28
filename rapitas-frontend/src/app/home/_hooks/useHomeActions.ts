@@ -3,6 +3,7 @@
 import { useCallback } from 'react';
 import type { Status, Task, Theme } from '@/types';
 import { useToast } from '@/components/ui/toast/ToastContainer';
+import { useConfirmDialog } from '@/components/ui/dialog/ConfirmDialogProvider';
 import { useTaskCacheStore } from '@/stores/task-cache-store';
 import { apiFetch } from '@/lib/api-client';
 import { API_BASE_URL } from '@/utils/api';
@@ -52,6 +53,7 @@ export function useHomeActions({
   fetchTasks,
 }: UseHomeActionsParams) {
   const { showToast } = useToast();
+  const confirm = useConfirmDialog();
   const t = useTranslations('home');
   const tc = useTranslations('common');
   const updateTaskLocally = useTaskCacheStore((s) => s.updateTaskLocally);
@@ -184,7 +186,7 @@ export function useHomeActions({
    * Protected (locked) tasks are skipped and remain in the task list with a partial-failure notice.
    */
   const bulkDelete = useCallback(async () => {
-    if (!confirm(t('bulkDeleteConfirm', { count: selectedTasks.size }))) return;
+    if (!await confirm({ message: t('bulkDeleteConfirm', { count: selectedTasks.size }), variant: 'destructive' })) return;
     const taskIds = Array.from(selectedTasks);
 
     const protectedIds = taskIds.filter((id) => tasks.find((task) => task.id === id)?.isProtected);
@@ -210,7 +212,7 @@ export function useHomeActions({
     } catch {
       showToast(t('bulkDeleteFailed'), 'error');
     }
-  }, [selectedTasks, tasks, removeTaskLocally, showToast, t, setSelectedTasks, setIsSelectionMode]);
+  }, [selectedTasks, tasks, removeTaskLocally, showToast, t, setSelectedTasks, setIsSelectionMode, confirm]);
 
   // NOTE: tc and isSelectionMode are consumed here only to satisfy the interface contract;
   // they originate from callers that pass them for symmetry with setIsSelectionMode.

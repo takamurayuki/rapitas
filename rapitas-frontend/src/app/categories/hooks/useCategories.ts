@@ -5,6 +5,7 @@ import { useCallback, useEffect, useState, useMemo } from 'react';
 import { useTranslations } from 'next-intl';
 import { type DropResult } from '@hello-pangea/dnd';
 import { useToast } from '@/components/ui/toast/ToastContainer';
+import { useConfirmDialog } from '@/components/ui/dialog/ConfirmDialogProvider';
 import { searchIcons } from '@/components/category/icon-data';
 import type { Category, CategoryMode, Theme } from '@/types';
 import { API_BASE_URL } from '@/utils/api';
@@ -48,6 +49,7 @@ export function useCategories() {
   const t = useTranslations('categories');
   const tc = useTranslations('common');
   const { showToast } = useToast();
+  const confirm = useConfirmDialog();
   const clearFilterCache = useFilterDataStore((s) => s.clearCache);
 
   const [items, setItems] = useState<CategoryWithThemes[]>([]);
@@ -159,7 +161,7 @@ export function useCategories() {
   };
 
   const handleDelete = async (id: number, name: string) => {
-    if (!confirm(t('deleteConfirm', { name }))) return;
+    if (!await confirm({ message: t('deleteConfirm', { name }), variant: 'destructive' })) return;
     try {
       const res = await fetch(`${API_BASE_URL}/categories/${id}`, {
         method: 'DELETE',
