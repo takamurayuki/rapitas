@@ -89,7 +89,7 @@ export function SubtaskHeader({
                 e.stopPropagation();
                 onToggleAddSubtask();
               }}
-              className="flex items-center gap-1 px-2 py-1 text-xs font-medium text-emerald-600 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-900/30 rounded-lg transition-colors"
+              className="flex items-center gap-1 px-2 py-1 text-xs font-medium rounded-lg border border-emerald-200 dark:border-emerald-800 bg-white dark:bg-zinc-900 text-emerald-600 dark:text-emerald-400 shadow-[0_2px_0_0_#6ee7b7] dark:shadow-[0_2px_0_0_#064e3b] hover:bg-emerald-50 dark:hover:bg-emerald-900/30 active:translate-y-[1px] active:shadow-none transition-all duration-75"
               title={t('addSubtask')}
             >
               <Plus className="w-3.5 h-3.5" />
@@ -136,7 +136,7 @@ export function SubtaskHeader({
                     e.stopPropagation();
                     onSetDeleteConfirm('selected');
                   }}
-                  className="flex items-center gap-1 px-2 py-1 text-xs font-medium text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30 rounded-lg transition-colors"
+                  className="flex items-center gap-1 px-2 py-1 text-xs font-medium rounded-lg border border-red-200 dark:border-red-800 bg-white dark:bg-zinc-900 text-red-600 dark:text-red-400 shadow-[0_2px_0_0_#fca5a5] dark:shadow-[0_2px_0_0_#7f1d1d] hover:bg-red-50 dark:hover:bg-red-900/30 active:translate-y-[1px] active:shadow-none transition-all duration-75"
                 >
                   <Trash2 className="w-3.5 h-3.5" />
                   {t('deleteCount', { count: selectedSubtaskIds.size })}
