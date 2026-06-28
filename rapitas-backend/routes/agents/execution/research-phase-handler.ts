@@ -150,6 +150,20 @@ export async function handleResearchResult(params: HandleResearchResultParams): 
       if (resolved) {
         await writeWorkflowFile(resolved.dir, 'research', researchMarkdown, taskIdNum);
         log.info({ taskId: taskIdNum }, '[API] research.md saved via workflow API');
+        // NOTE: Refine complexityScore/workflowMode from the code-grounded assessment
+        // in research.md. Auto-run does this in workflow-cli-executor; without this
+        // call the manual path kept the pre-execution heuristic score (often off by
+        // one tier) while auto-run showed an accurate research-assessed score.
+        try {
+          const { applyResearchAssessedComplexity } =
+            await import('../../../services/workflow/research-complexity');
+          await applyResearchAssessedComplexity(taskIdNum, researchMarkdown);
+        } catch (cErr) {
+          log.warn(
+            { err: cErr, taskId: taskIdNum },
+            '[API] Failed to apply research-assessed complexity (non-fatal)',
+          );
+        }
       } else {
         log.warn({ taskId: taskIdNum }, '[API] Could not resolve workflow dir for research.md');
       }
