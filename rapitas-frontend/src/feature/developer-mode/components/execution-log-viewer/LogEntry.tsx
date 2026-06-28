@@ -51,7 +51,7 @@ const LogEntry = memo<LogEntryProps>(({ log, index, isNewEntry, searchQuery, hig
     return (
       <span
         key={index}
-        className={`block px-2 py-0.5 my-0.5 bg-indigo-950/30 border-l-2 border-indigo-500 text-indigo-300 font-medium ${isNewEntry ? 'log-entry-new' : ''}`}
+        className={`block px-2 py-0.5 my-0.5 bg-blue-950/30 border-l-2 border-blue-500 text-blue-300 font-medium ${isNewEntry ? 'log-entry-new' : ''}`}
         style={{
           animation: isNewEntry ? 'fadeInSlide 0.3s ease-out' : undefined,
         }}
@@ -70,7 +70,7 @@ const LogEntry = memo<LogEntryProps>(({ log, index, isNewEntry, searchQuery, hig
             log.includes('[継続]') ||
             log.includes('[完了]') ||
             log.includes('フェーズ完了]')
-          ? 'text-indigo-400'
+          ? 'text-blue-400'
           : /^\[.+?\]/.test(log.trimStart())
             ? 'text-cyan-400'
             : hasJson
