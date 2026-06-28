@@ -33,7 +33,7 @@ describe('noteStore', () => {
       useNoteStore.getState().createNote();
       const state = useNoteStore.getState();
       expect(state.notes).toHaveLength(1);
-      expect(state.notes[0].title).toBe('新しいノート');
+      expect(state.notes[0].title).toBe('');
       expect(state.notes[0].content).toBe('');
       expect(state.notes[0].isPinned).toBe(false);
       expect(state.notes[0].tags).toEqual([]);

@@ -106,7 +106,9 @@ export function useTaskActions({
     // Protected tasks can't be deleted; tell the user how to unprotect first
     // (backend also enforces this with a 409).
     if (task?.isProtected) {
-      alert('保護されたタスクは削除できません。詳細ページのロックアイコンで保護を解除してください。');
+      alert(
+        '保護されたタスクは削除できません。詳細ページのロックアイコンで保護を解除してください。',
+      );
       return;
     }
     if (!confirm('このタスクを削除しますか?')) return;
