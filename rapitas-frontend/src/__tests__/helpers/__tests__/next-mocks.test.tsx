@@ -7,11 +7,7 @@
 
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
-import {
-  buildNextIntlMock,
-  buildNextLinkMock,
-  buildNextNavigationMock,
-} from '../next-mocks';
+import { buildNextIntlMock, buildNextLinkMock, buildNextNavigationMock } from '../next-mocks';
 import { buildApiMock } from '../api-mock';
 
 describe('buildNextIntlMock', () => {
@@ -67,7 +63,11 @@ describe('buildNextLinkMock', () => {
 
   it('任意の data-* 属性が透過される', () => {
     const { default: Link } = buildNextLinkMock();
-    render(<Link href="/x" data-custom="yes">Y</Link>);
+    render(
+      <Link href="/x" data-custom="yes">
+        Y
+      </Link>,
+    );
     expect(screen.getByRole('link')).toHaveAttribute('data-custom', 'yes');
   });
 

@@ -29,17 +29,14 @@ export async function buildLucideMock(
   importOriginal: () => Promise<unknown>,
   overrides: Record<string, string> = {},
 ): Promise<Record<string, unknown>> {
-  return buildModuleMock(
-    importOriginal,
-    (key) => {
-      // NOTE: lucide uses `${key}-icon` as the fallback testId (not bare key),
-      // so we compute the testId here rather than relying on buildModuleMock's default.
-      const testId = overrides[key] ?? `${key}-icon`;
-      const Icon = ({ className }: { className?: string }) => (
-        <div data-testid={testId} className={className} />
-      );
-      Icon.displayName = testId;
-      return Icon;
-    },
-  );
+  return buildModuleMock(importOriginal, (key) => {
+    // NOTE: lucide uses `${key}-icon` as the fallback testId (not bare key),
+    // so we compute the testId here rather than relying on buildModuleMock's default.
+    const testId = overrides[key] ?? `${key}-icon`;
+    const Icon = ({ className }: { className?: string }) => (
+      <div data-testid={testId} className={className} />
+    );
+    Icon.displayName = testId;
+    return Icon;
+  });
 }

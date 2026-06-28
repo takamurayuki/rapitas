@@ -20,10 +20,7 @@ function makeFakeModule(keys: string[]): () => Promise<unknown> {
 describe('buildModuleMock', () => {
   it('全エクスポートがスタブ化される', async () => {
     const keys = ['A', 'B', 'C'];
-    const mock = await buildModuleMock(
-      makeFakeModule(keys),
-      (key) => `stub-${key}`,
-    );
+    const mock = await buildModuleMock(makeFakeModule(keys), (key) => `stub-${key}`);
     for (const key of keys) {
       expect(mock[key]).toBe(`stub-${key}`);
     }
@@ -46,13 +43,10 @@ describe('buildModuleMock', () => {
 
   it('overrides 未指定の key は key 自身が testId になる', async () => {
     const received: string[] = [];
-    await buildModuleMock(
-      makeFakeModule(['X', 'Y']),
-      (_key, testId) => {
-        received.push(testId);
-        return null;
-      },
-    );
+    await buildModuleMock(makeFakeModule(['X', 'Y']), (_key, testId) => {
+      received.push(testId);
+      return null;
+    });
     expect(received).toContain('X');
     expect(received).toContain('Y');
   });
@@ -97,9 +91,8 @@ describe('buildModuleMock', () => {
   });
 
   it('makeStub の戻り値が関数でない場合（プリミティブ値）も格納される', async () => {
-    const mock = await buildModuleMock(
-      makeFakeModule(['version', 'debug']),
-      (key) => (key === 'version' ? '1.0.0' : false),
+    const mock = await buildModuleMock(makeFakeModule(['version', 'debug']), (key) =>
+      key === 'version' ? '1.0.0' : false,
     );
     expect(mock['version']).toBe('1.0.0');
     expect(mock['debug']).toBe(false);
@@ -107,10 +100,7 @@ describe('buildModuleMock', () => {
 
   it('vi.fn を返す makeStub の呼び出し記録が追跡できる', async () => {
     const pushFn = vi.fn();
-    const mock = await buildModuleMock(
-      makeFakeModule(['push']),
-      () => pushFn,
-    );
+    const mock = await buildModuleMock(makeFakeModule(['push']), () => pushFn);
     void mock;
     pushFn('/home');
     expect(pushFn).toHaveBeenCalledWith('/home');
