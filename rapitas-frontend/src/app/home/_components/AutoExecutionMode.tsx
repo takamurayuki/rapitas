@@ -54,8 +54,8 @@ export function AutoExecutionMode({ theme }: AutoExecutionModeProps) {
           {actionLoading ? (
             <Loader2 className="h-4 w-4 animate-spin text-indigo-400" />
           ) : (
-            <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-indigo-500">
-              <Play className="h-2.5 w-2.5 fill-white text-white" />
+            <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-indigo-500 dark:bg-transparent">
+              <Play className="h-2.5 w-2.5 dark:h-4 dark:w-4 fill-white text-white dark:fill-indigo-400 dark:text-indigo-400" />
             </span>
           )}
           タスク自動実行
@@ -73,8 +73,8 @@ export function AutoExecutionMode({ theme }: AutoExecutionModeProps) {
           disabled
           className="inline-flex cursor-not-allowed items-center gap-3 rounded-xl border border-zinc-200 bg-white pl-3 pr-4 py-2 text-sm font-medium text-zinc-400 opacity-70 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-500"
         >
-          <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-zinc-200 dark:bg-zinc-700">
-            <Loader2 className="h-3 w-3 animate-spin text-zinc-500 dark:text-zinc-400" />
+          <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-zinc-200 dark:bg-transparent">
+            <Loader2 className="h-3 w-3 dark:h-4 dark:w-4 animate-spin text-zinc-500 dark:text-zinc-400" />
           </span>
           停止中
         </button>
@@ -95,11 +95,11 @@ export function AutoExecutionMode({ theme }: AutoExecutionModeProps) {
     : 'border-emerald-300 dark:border-emerald-700';
   const restShadow = paused
     ? 'shadow-[0_2px_0_0_#fcd34d] dark:shadow-[0_2px_0_0_#78350f]'
-    : 'shadow-[0_2px_0_0_#6ee7b7] dark:shadow-[0_2px_0_0_#064e3b]';
+    : 'shadow-[0_2px_0_0_#a7f3d0] dark:shadow-[0_2px_0_0_#065f46]';
   const restText = paused
     ? 'text-amber-700 dark:text-amber-400'
     : 'text-emerald-700 dark:text-emerald-400';
-  const iconBg = paused ? 'bg-amber-400' : 'bg-emerald-500';
+  const iconBg = paused ? 'bg-amber-400 dark:bg-transparent' : 'bg-emerald-500 dark:bg-transparent';
 
   return (
     <div className="flex items-center gap-2">
@@ -107,7 +107,7 @@ export function AutoExecutionMode({ theme }: AutoExecutionModeProps) {
         onClick={() => stop()}
         disabled={actionLoading}
         title="自動実行を停止します"
-        className={`group relative inline-flex items-center gap-3 rounded-xl border bg-white pl-3 pr-4 py-2 text-sm font-medium select-none shadow-[0_2px_0_0_] transition-all duration-75 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-zinc-900 ${restBorder} ${restShadow} ${restText}`}
+        className={`group relative inline-flex items-center gap-3 rounded-xl border bg-white pl-3 pr-4 py-2 text-sm font-medium select-none transition-all duration-75 hover:shadow-none disabled:cursor-not-allowed disabled:opacity-50 dark:bg-zinc-900 ${restBorder} ${restShadow} ${restText}`}
       >
         {/* REST — icon circle + label. Parent never mutates on hover (overlay
             handles the visual swap), so the Orbit spin stays artifact-free. */}
@@ -115,26 +115,26 @@ export function AutoExecutionMode({ theme }: AutoExecutionModeProps) {
           className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full ${iconBg}`}
         >
           {paused ? (
-            <Pause className="h-3 w-3 fill-white text-white" />
+            <Pause className="h-3 w-3 dark:h-4 dark:w-4 fill-white text-white dark:fill-amber-400 dark:text-amber-400" />
           ) : (
             // NOTE: Fixed color on Orbit so ancestor color changes can't
             // trigger a mid-frame repaint that warps the spinning raster.
-            <span className="inline-flex h-3 w-3 animate-spin items-center justify-center [transform-origin:center]">
-              <Orbit className="h-3 w-3 text-white" />
+            <span className="inline-flex h-3 w-3 dark:h-4 dark:w-4 animate-spin items-center justify-center [transform-origin:center]">
+              <Orbit className="h-3 w-3 dark:h-4 dark:w-4 text-white dark:text-emerald-400" />
             </span>
           )}
         </span>
-        <span className={paused ? '' : 'animate-pulse'}>
-          {paused ? '一時停止中' : 'タスク自動実行中'}
-        </span>
+        <span>{paused ? '一時停止中' : 'タスク自動実行中'}</span>
 
         {/* HOVER OVERLAY — fully opaque; instant opacity swap (no transition)
             so the spinner's parent never sees a mid-fade partial repaint. */}
-        <span className="absolute -inset-px flex items-center gap-3 rounded-xl border border-red-300 bg-white pl-3 pr-4 text-red-600 opacity-0 group-hover:opacity-100 dark:border-red-700 dark:bg-zinc-900 dark:text-red-400">
-          <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-red-500">
-            <Square className="h-2.5 w-2.5 fill-white text-white" />
+        <span className="absolute -inset-px flex items-center rounded-xl border border-red-300 bg-white pl-3 text-red-600 opacity-0 shadow-[0_2px_0_0_#fca5a5] group-hover:opacity-100 dark:border-red-700 dark:bg-zinc-900 dark:text-red-400 dark:shadow-[0_2px_0_0_#991b1b]">
+          <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-red-500 dark:bg-transparent">
+            <Square className="h-2.5 w-2.5 dark:h-4 dark:w-4 fill-white text-white dark:fill-red-400 dark:text-red-400" />
           </span>
-          停止
+          <span className="absolute inset-0 flex translate-x-2 items-center justify-center pointer-events-none">
+            停止
+          </span>
         </span>
       </button>
       {errorBadge}
