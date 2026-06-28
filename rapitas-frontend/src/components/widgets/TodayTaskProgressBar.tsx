@@ -149,28 +149,77 @@ const TodayTaskProgressBar = memo<TodayTaskProgressBarProps>(
             </div>
           </div>
 
-          {/* Compact Progress Bar */}
-          <div className="mt-2 relative flex h-1.5 w-full overflow-hidden bg-slate-200 dark:bg-slate-800">
-            <motion.div
-              animate={{ width: `${efficiency}%` }}
-              className={`h-full transition-all duration-1000 ${
-                efficiency === 100
-                  ? 'bg-gradient-to-r from-green-500 to-green-400 shadow-[0_0_10px_#10b981]'
-                  : efficiency >= 75
-                    ? 'bg-indigo-500/80'
-                    : efficiency >= 50
-                      ? 'bg-slate-500 dark:bg-slate-400'
-                      : 'bg-slate-400 dark:bg-slate-600'
-              }`}
-            />
-            {/* Vertical lines for compact version */}
-            {[25, 50, 75].map((percent) => (
-              <div
-                key={percent}
-                className="absolute top-0 h-full w-[1px] bg-slate-400 dark:bg-slate-600 opacity-50"
-                style={{ left: `${percent}%` }}
+          {/* Compact Progress Bar
+              Layout: h-4 wrapper holds the h-1.5 track as absolute, milestone
+              markers centered on the track.
+              Adaptive markers based on totalCount:
+                2–8  tasks → circle with checkmark at each task boundary
+                9–20 tasks → thin segment dividers inside the bar (no circles)
+                >20  tasks → fill only, no markers */}
+          <div className="relative mt-2 flex h-4 items-center">
+            {/* Track + fill */}
+            <div className="absolute inset-x-0 h-1.5 overflow-hidden bg-slate-200 dark:bg-slate-800">
+              <motion.div
+                animate={{ width: `${efficiency}%` }}
+                className={`h-full transition-all duration-1000 ${
+                  efficiency === 100
+                    ? 'bg-gradient-to-r from-green-500 to-green-400 shadow-[0_0_10px_#10b981]'
+                    : efficiency >= 75
+                      ? 'bg-indigo-500/80'
+                      : efficiency >= 50
+                        ? 'bg-slate-500 dark:bg-slate-400'
+                        : 'bg-slate-400 dark:bg-slate-600'
+                }`}
               />
-            ))}
+              {/* Medium count (9–20): segment tick marks drawn inside the bar so
+                  they're always clipped to the bar height and visible against
+                  both the fill and the unfilled track. */}
+              {totalCount >= 9 &&
+                totalCount <= 20 &&
+                Array.from({ length: totalCount - 1 }, (_, i) => (
+                  <div
+                    key={i}
+                    className="absolute top-0 h-full w-[1px] bg-slate-500/50 dark:bg-white/25"
+                    style={{ left: `${((i + 1) / totalCount) * 100}%` }}
+                  />
+                ))}
+            </div>
+
+            {/* Small count (2–8): circle markers at each task boundary.
+                Unfilled circles match the track color so they're present but
+                unobtrusive; filled circles are indigo with a checkmark.
+                Always indigo — never green — to avoid confusion with green=100%. */}
+            {totalCount >= 2 &&
+              totalCount <= 8 &&
+              Array.from({ length: totalCount - 1 }, (_, i) => {
+                const pct = ((i + 1) / totalCount) * 100;
+                const reached = completedCount >= i + 1;
+                return (
+                  <div
+                    key={i}
+                    className={`absolute z-10 flex h-3 w-3 -translate-x-1/2 items-center justify-center rounded-full border-2 transition-all duration-500 ${
+                      reached
+                        ? 'border-indigo-500 bg-indigo-500 dark:border-indigo-400 dark:bg-indigo-400'
+                        : 'border-slate-400 bg-slate-200 dark:border-slate-500 dark:bg-slate-800'
+                    }`}
+                    style={{ left: `${pct}%` }}
+                  >
+                    {reached && (
+                      <svg
+                        className="h-1.5 w-1.5 text-white"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth={4}
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      >
+                        <path d="M5 13l4 4L19 7" />
+                      </svg>
+                    )}
+                  </div>
+                );
+              })}
           </div>
         </div>
       );
