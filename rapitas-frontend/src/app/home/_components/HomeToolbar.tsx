@@ -70,30 +70,49 @@ export function HomeToolbar({
         {!isSelectionMode && <AutoExecutionMode theme={autoRunTheme} />}
 
         {/* Bulk status segmented control — always visible in selection mode.
-            Disabled (greyed) until at least one task is selected. */}
+            Segments are coloured and clickable once ≥1 task is selected. */}
         {isSelectionMode && (
-          <div className="flex h-[38px] items-stretch overflow-hidden rounded-lg border border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-900/50">
+          <div
+            className={`flex h-[38px] items-stretch overflow-hidden rounded-lg border transition-colors ${
+              selectedTasksSize > 0
+                ? 'border-slate-300 dark:border-slate-600 shadow-sm'
+                : 'border-slate-200 dark:border-slate-700'
+            } bg-white dark:bg-slate-900/50`}
+          >
             {(['todo', 'in-progress', 'done'] as const).map((status, idx) => {
               const config = statusConfig[status];
               const enabled = selectedTasksSize > 0;
 
-              // Per-status hover colours — needs literal class strings for Tailwind JIT
+              // When enabled: each segment shows its status tint immediately so
+              // the user can see "these are clickable buttons" at a glance.
+              // Hover deepens the tint; active shifts down slightly.
               const enabledClasses =
                 status === 'todo'
-                  ? 'text-zinc-400 dark:text-zinc-500 hover:bg-zinc-100 hover:text-zinc-700 dark:hover:bg-zinc-800 dark:hover:text-zinc-200'
+                  ? 'bg-zinc-50 text-zinc-600 dark:bg-zinc-800/60 dark:text-zinc-300 hover:bg-zinc-200 hover:text-zinc-800 dark:hover:bg-zinc-700 dark:hover:text-zinc-100 active:bg-zinc-300 dark:active:bg-zinc-600'
                   : status === 'in-progress'
-                    ? 'text-slate-400 dark:text-slate-500 hover:bg-blue-50 hover:text-blue-700 dark:hover:bg-blue-900/30 dark:hover:text-blue-300'
-                    : 'text-slate-400 dark:text-slate-500 hover:bg-green-50 hover:text-green-700 dark:hover:bg-green-900/30 dark:hover:text-green-300';
+                    ? 'bg-blue-50 text-blue-600 dark:bg-blue-900/20 dark:text-blue-300 hover:bg-blue-100 hover:text-blue-800 dark:hover:bg-blue-900/40 dark:hover:text-blue-200 active:bg-blue-200 dark:active:bg-blue-900/60'
+                    : 'bg-green-50 text-green-600 dark:bg-green-900/20 dark:text-green-300 hover:bg-green-100 hover:text-green-800 dark:hover:bg-green-900/40 dark:hover:text-green-200 active:bg-green-200 dark:active:bg-green-900/60';
 
               return (
                 <React.Fragment key={status}>
-                  {idx > 0 && <div className="w-px shrink-0 bg-slate-200 dark:bg-slate-700" />}
+                  {idx > 0 && (
+                    <div
+                      className={`w-px shrink-0 ${
+                        enabled
+                          ? 'bg-slate-300 dark:bg-slate-600'
+                          : 'bg-slate-200 dark:bg-slate-700'
+                      }`}
+                    />
+                  )}
                   <button
                     onClick={() => enabled && onBulkUpdateStatus(status)}
                     disabled={!enabled}
                     title={enabled ? t('changeToStatus', { status: config.label }) : undefined}
-                    className={`flex items-center gap-1.5 px-3 text-sm font-medium transition-colors
-                      ${enabled ? `cursor-pointer ${enabledClasses}` : 'cursor-not-allowed text-slate-300 dark:text-slate-600'}`}
+                    className={`flex items-center gap-1.5 px-3 text-sm font-medium transition-colors duration-100 ${
+                      enabled
+                        ? `cursor-pointer ${enabledClasses}`
+                        : 'cursor-not-allowed text-slate-300 dark:text-slate-600'
+                    }`}
                   >
                     <span className="h-3.5 w-3.5">{renderStatusIcon(status)}</span>
                     <span>{config.label}</span>
