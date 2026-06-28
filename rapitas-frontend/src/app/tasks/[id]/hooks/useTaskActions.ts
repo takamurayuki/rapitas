@@ -103,6 +103,12 @@ export function useTaskActions({
   );
 
   const deleteTask = useCallback(async () => {
+    // Protected tasks can't be deleted; tell the user how to unprotect first
+    // (backend also enforces this with a 409).
+    if (task?.isProtected) {
+      alert('保護されたタスクは削除できません。詳細ページのロックアイコンで保護を解除してください。');
+      return;
+    }
     if (!confirm('このタスクを削除しますか?')) return;
 
     try {
@@ -122,6 +128,7 @@ export function useTaskActions({
     }
   }, [
     task?.id,
+    task?.isProtected,
     isThisTaskTimer,
     pomodoroState.isTimerRunning,
     stopTimer,

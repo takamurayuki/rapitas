@@ -333,10 +333,24 @@ export const tasksRoutes = new Elysia({ prefix: '/tasks' })
 
   // Delete task
   .delete('/:id', async (context) => {
-    const { params } = context;
+    const { params, set } = context;
     const id = parseInt(params.id);
     if (isNaN(id)) {
       throw new ValidationError(INVALID_ID);
+    }
+
+    // Guard: a protected task is blocked from deletion to prevent accidental
+    // loss. This is the single choke point for ALL manual delete paths (card
+    // context menu, detail page, bulk list delete) since they all hit DELETE
+    // /:id. Checked before any worktree cleanup so we never touch a task we
+    // are not going to delete.
+    const guard = await prisma.task.findUnique({
+      where: { id },
+      select: { isProtected: true },
+    });
+    if (guard?.isProtected) {
+      set.status = 409;
+      return { error: '保護されたタスクは削除できません' };
     }
 
     // Clean up any worktrees associated with this task before deletion

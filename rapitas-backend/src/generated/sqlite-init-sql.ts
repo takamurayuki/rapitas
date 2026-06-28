@@ -412,6 +412,7 @@ CREATE TABLE "Task" (
     "sourceTaskId" INTEGER,
     "nextOccurrence" DATETIME,
     "autoCreatedFromBacklog" BOOLEAN NOT NULL DEFAULT false,
+    "isProtected" BOOLEAN NOT NULL DEFAULT false,
     CONSTRAINT "Task_parentId_fkey" FOREIGN KEY ("parentId") REFERENCES "Task" ("id") ON DELETE CASCADE ON UPDATE CASCADE,
     CONSTRAINT "Task_themeId_fkey" FOREIGN KEY ("themeId") REFERENCES "Theme" ("id") ON DELETE SET NULL ON UPDATE CASCADE,
     CONSTRAINT "Task_projectId_fkey" FOREIGN KEY ("projectId") REFERENCES "Project" ("id") ON DELETE SET NULL ON UPDATE CASCADE,
