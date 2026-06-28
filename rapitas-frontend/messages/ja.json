@@ -193,6 +193,7 @@
     "bulkDeleteConfirm": "{count}件のタスクを削除しますか？",
     "bulkDeleted": "件のタスクを削除しました",
     "bulkDeleteFailed": "一括削除に失敗しました",
+    "bulkDeletePartialSkipped": "{total}件中{skipped}件はロック中のため削除できませんでした",
     "createFailed": "タスクの作成に失敗しました",
     "updateFailed": "更新に失敗しました",
     "changeToStatus": "{status}に変更",

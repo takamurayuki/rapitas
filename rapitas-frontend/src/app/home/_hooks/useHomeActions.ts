@@ -181,26 +181,41 @@ export function useHomeActions({
 
   /**
    * Deletes all currently selected tasks after user confirmation.
+   * Protected (locked) tasks are skipped and remain in the task list with a partial-failure notice.
    */
   const bulkDelete = useCallback(async () => {
     if (!confirm(t('bulkDeleteConfirm', { count: selectedTasks.size }))) return;
     const taskIds = Array.from(selectedTasks);
+
+    const protectedIds = taskIds.filter((id) => tasks.find((task) => task.id === id)?.isProtected);
+    const deletableIds = taskIds.filter((id) => !tasks.find((task) => task.id === id)?.isProtected);
+
     try {
       await Promise.all(
-        taskIds.map((id) => fetch(`${API_BASE}/tasks/${id}`, { method: 'DELETE' })),
+        deletableIds.map((id) => fetch(`${API_BASE}/tasks/${id}`, { method: 'DELETE' })),
       );
-      for (const id of taskIds) removeTaskLocally(id);
-      showToast(`${taskIds.length}${t('bulkDeleted')}`, 'success');
-      setSelectedTasks(new Set());
-      setIsSelectionMode(false);
+      for (const id of deletableIds) removeTaskLocally(id);
+
+      if (protectedIds.length > 0) {
+        showToast(
+          t('bulkDeletePartialSkipped', { total: taskIds.length, skipped: protectedIds.length }),
+          'warning',
+        );
+        setSelectedTasks(new Set(protectedIds));
+      } else {
+        showToast(`${deletableIds.length}${t('bulkDeleted')}`, 'success');
+        setSelectedTasks(new Set());
+        setIsSelectionMode(false);
+      }
     } catch {
       showToast(t('bulkDeleteFailed'), 'error');
     }
-  }, [selectedTasks, removeTaskLocally, showToast, t, setSelectedTasks, setIsSelectionMode]);
+  }, [selectedTasks, tasks, removeTaskLocally, showToast, t, setSelectedTasks, setIsSelectionMode]);
 
-  // NOTE: tc is consumed here only to satisfy the import; the tc reference
-  // originates from the same translations bundle used by child components.
+  // NOTE: tc and isSelectionMode are consumed here only to satisfy the interface contract;
+  // they originate from callers that pass them for symmetry with setIsSelectionMode.
   void tc;
+  void isSelectionMode;
 
   return {
     updateStatus,
