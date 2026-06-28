@@ -18,6 +18,8 @@ interface Props {
   taskTitle?: string;
   themeName?: string;
   categoryName?: string;
+  /** Called with a markdown link string when the user clicks "説明欄へ挿入" */
+  onInsertToDescription?: (link: string) => void;
 }
 
 function formatDate(d: Date | string): string {
@@ -35,38 +37,36 @@ function buildMarkdownLink(note: Note, taskId: number): string {
   return `[${title}](/rapitas-note/${taskId}/${note.id})`;
 }
 
-function CopyButton({ note, taskId }: { note: Note; taskId: number }) {
-  const [copied, setCopied] = useState(false);
+function InsertButton({
+  note,
+  taskId,
+  onInsert,
+}: {
+  note: Note;
+  taskId: number;
+  onInsert: (link: string) => void;
+}) {
+  const [inserted, setInserted] = useState(false);
 
-  const handleCopy = async (e: React.MouseEvent) => {
+  const handleInsert = (e: React.MouseEvent) => {
     e.stopPropagation();
-    const link = buildMarkdownLink(note, taskId);
-    try {
-      await navigator.clipboard.writeText(link);
-    } catch {
-      const el = document.createElement('textarea');
-      el.value = link;
-      document.body.appendChild(el);
-      el.select();
-      document.execCommand('copy');
-      document.body.removeChild(el);
-    }
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+    onInsert(buildMarkdownLink(note, taskId));
+    setInserted(true);
+    setTimeout(() => setInserted(false), 2000);
   };
 
   return (
     <button
-      onClick={handleCopy}
-      title="説明欄に貼り付けるリンクをコピー"
+      onClick={handleInsert}
+      title="クリックで説明欄へリンクを挿入"
       className={`flex items-center gap-1 rounded px-1.5 py-1 text-xs transition-colors ${
-        copied
+        inserted
           ? 'bg-green-50 text-green-600 dark:bg-green-950/30 dark:text-green-400'
           : 'text-gray-400 hover:bg-gray-100 hover:text-gray-600 dark:text-zinc-500 dark:hover:bg-zinc-700 dark:hover:text-zinc-300'
       }`}
     >
-      {copied ? <Check className="h-3.5 w-3.5" /> : <Link2 className="h-3.5 w-3.5" />}
-      {copied ? 'コピー済み' : 'リンクをコピー'}
+      {inserted ? <Check className="h-3.5 w-3.5" /> : <Link2 className="h-3.5 w-3.5" />}
+      {inserted ? '挿入済み' : '説明欄へ挿入'}
     </button>
   );
 }
@@ -75,10 +75,12 @@ function NoteRow({
   note,
   taskId,
   onUnlink,
+  onInsertToDescription,
 }: {
   note: Note;
   taskId: number;
   onUnlink: (noteId: string) => void;
+  onInsertToDescription?: (link: string) => void;
 }) {
   const router = useRouter();
   const [hovered, setHovered] = useState(false);
@@ -125,10 +127,10 @@ function NoteRow({
         </div>
       </div>
 
-      {hovered && (
+      {hovered && onInsertToDescription && (
         <div className="flex items-center gap-1 border-t border-gray-100 px-3 py-1.5 dark:border-zinc-700">
           <span className="mr-1 text-xs text-gray-400 dark:text-zinc-500">説明欄へ挿入:</span>
-          <CopyButton note={note} taskId={taskId} />
+          <InsertButton note={note} taskId={taskId} onInsert={onInsertToDescription} />
         </div>
       )}
     </div>
@@ -279,7 +281,13 @@ function NotePicker({
  *
  * @param props.taskId - ID of the task whose linked notes to display.
  */
-export default function NoteLinksSection({ taskId, taskTitle, themeName, categoryName }: Props) {
+export default function NoteLinksSection({
+  taskId,
+  taskTitle,
+  themeName,
+  categoryName,
+  onInsertToDescription,
+}: Props) {
   const [isPickerOpen, setIsPickerOpen] = useState(false);
   const anchorRef = useRef<HTMLButtonElement>(null);
 
@@ -358,11 +366,14 @@ export default function NoteLinksSection({ taskId, taskTitle, themeName, categor
               note={note}
               taskId={taskId}
               onUnlink={(noteId) => unlinkNoteFromTask(noteId, taskId)}
+              onInsertToDescription={onInsertToDescription}
             />
           ))}
-          <p className="text-[11px] text-gray-300 dark:text-zinc-600">
-            ノートにカーソルを合わせると「リンクをコピー」が表示されます。説明欄に貼り付けるとクリッカブルなノートリンクになります。
-          </p>
+          {onInsertToDescription && (
+            <p className="text-[11px] text-gray-300 dark:text-zinc-600">
+              ノートにカーソルを合わせると「説明欄へ挿入」が表示されます。
+            </p>
+          )}
         </div>
       ) : (
         <p className="py-1 text-center text-xs text-gray-400 dark:text-zinc-600">

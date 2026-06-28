@@ -160,6 +160,18 @@ export default function CompactTaskDetailCard({
     await patchTask({ [field]: value });
   };
 
+  /**
+   * Appends a markdown link to the task description and persists via PATCH.
+   * Prepends a newline when there is existing content.
+   *
+   * @param link - Markdown link string / 挿入するMarkdownリンク
+   */
+  const insertLinkToDescription = async (link: string) => {
+    const current = task.description ?? '';
+    const next = current.trim() ? `${current}\n${link}` : link;
+    await patchTask({ description: next });
+  };
+
   return (
     <div className="bg-white dark:bg-zinc-900 rounded-lg border border-zinc-200 dark:border-zinc-800 overflow-hidden">
       {/* Header: Title & Status in one compact row */}
@@ -459,6 +471,7 @@ export default function CompactTaskDetailCard({
               taskTitle={task.title}
               themeName={task.theme?.name}
               categoryName={resolvedCategoryName}
+              onInsertToDescription={insertLinkToDescription}
             />
           </AccordionContent>
         </AccordionItem>
