@@ -213,8 +213,8 @@ export const LogViewerHeader: React.FC<LogViewerHeaderProps> = ({
 function buildStatusBadge(status: ExecutionLogStatus, isRunning: boolean): React.ReactNode {
   if (isRunning || status === 'running') {
     return (
-      <span className="flex items-center gap-1.5 px-2 py-0.5 bg-indigo-500/20 text-indigo-400 rounded text-xs">
-        <span className="w-1.5 h-1.5 bg-indigo-400 rounded-full animate-pulse" />
+      <span className="flex items-center gap-1.5 px-2 py-0.5 bg-blue-500/20 text-blue-400 rounded text-xs">
+        <span className="w-1.5 h-1.5 bg-blue-400 rounded-full animate-pulse" />
         実行中
       </span>
     );

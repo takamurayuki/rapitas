@@ -72,7 +72,7 @@ function getPhaseStyle(workflowStatus?: string): string {
       return 'text-green-400';
     case 'in_progress':
     case 'plan_approved':
-      return 'text-indigo-400';
+      return 'text-blue-400';
     case 'plan_created':
       return 'text-amber-400';
     case 'research_done':
@@ -106,13 +106,13 @@ export function SubtaskLogTabs({
     const iconClass = 'w-3 h-3';
     switch (status) {
       case 'running':
-        return <Loader2 className={`${iconClass} text-indigo-500 animate-spin`} />;
+        return <Loader2 className={`${iconClass} text-blue-500 animate-spin`} />;
       case 'completed':
         return <CheckCircle2 className={`${iconClass} text-green-500`} />;
       case 'failed':
         return <XCircle className={`${iconClass} text-red-500`} />;
       case 'scheduled':
-        return <Clock className={`${iconClass} text-indigo-400`} />;
+        return <Clock className={`${iconClass} text-blue-400`} />;
       case 'blocked':
         return <Pause className={`${iconClass} text-orange-500`} />;
       case 'cancelled':
@@ -232,7 +232,7 @@ export function SubtaskLogTabs({
           onClick={() => setActiveTab('all')}
           className={`flex items-center gap-1.5 px-2.5 py-1.5 text-[10px] font-medium rounded-t-lg border-b-2 transition-colors whitespace-nowrap shrink-0 ${
             activeTab === 'all'
-              ? 'bg-indigo-50 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300 border-indigo-500'
+              ? 'bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 border-blue-500'
               : 'bg-zinc-50 dark:bg-indigo-dark-800/50 text-zinc-600 dark:text-zinc-400 border-transparent hover:bg-zinc-100 dark:hover:bg-zinc-800'
           }`}
         >
@@ -255,7 +255,7 @@ export function SubtaskLogTabs({
               onClick={() => setActiveTab(subtask.id)}
               className={`flex items-center gap-1.5 px-2.5 py-1.5 text-[10px] font-medium rounded-t-lg border-b-2 transition-colors whitespace-nowrap shrink-0 max-w-[150px] ${
                 isActive
-                  ? 'bg-indigo-50 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300 border-indigo-500'
+                  ? 'bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 border-blue-500'
                   : 'bg-zinc-50 dark:bg-indigo-dark-800/50 text-zinc-600 dark:text-zinc-400 border-transparent hover:bg-zinc-100 dark:hover:bg-zinc-800'
               }`}
               title={subtask.title}
@@ -276,7 +276,7 @@ export function SubtaskLogTabs({
             onClick={() => setShowWorkflowView((prev) => !prev)}
             className={`p-1.5 rounded transition-colors shrink-0 ml-1 ${
               showWorkflowView
-                ? 'text-indigo-400 bg-indigo-900/30'
+                ? 'text-blue-400 bg-blue-900/30'
                 : 'text-zinc-400 hover:text-zinc-300 hover:bg-zinc-800'
             }`}
             title={showWorkflowView ? 'フラット表示に切替' : 'ワークフロー表示に切替'}
@@ -373,7 +373,7 @@ export function SubtaskLogTabs({
                       status === 'completed'
                         ? 'text-green-400'
                         : status === 'running'
-                          ? 'text-indigo-400'
+                          ? 'text-blue-400'
                           : status === 'failed'
                             ? 'text-red-400'
                             : status === 'blocked'

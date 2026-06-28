@@ -154,8 +154,8 @@ export function useTaskCard(
       case 'running':
         return {
           borderColor: 'blue',
-          badgeClass: 'bg-indigo-100 dark:bg-indigo-900 text-indigo-700 dark:text-indigo-300',
-          dotClass: 'bg-indigo-500',
+          badgeClass: 'bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300',
+          dotClass: 'bg-blue-500',
           label: t('running'),
         };
       case 'waiting_for_input':

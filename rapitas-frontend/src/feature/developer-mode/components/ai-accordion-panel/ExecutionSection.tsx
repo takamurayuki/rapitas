@@ -212,13 +212,13 @@ export function ExecutionSection({
         aria-controls="execution-section-content"
       >
         <div className="flex items-center gap-2">
-          <Rocket className="w-4 h-4 text-indigo-500" />
+          <Rocket className="w-4 h-4 text-blue-500" />
           <span className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
             エージェント実行
           </span>
           {/* NOTE: Status badge shown only when collapsed — expanded view has its own status in logs */}
           {!isExpanded && execStatusIcon === 'loading' && (
-            <span className="flex items-center gap-1 px-1.5 py-0.5 bg-indigo-100 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-300 text-[10px] rounded">
+            <span className="flex items-center gap-1 px-1.5 py-0.5 bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-300 text-[10px] rounded">
               <Loader2 className="w-2.5 h-2.5 animate-spin" />
               実行中
             </span>
