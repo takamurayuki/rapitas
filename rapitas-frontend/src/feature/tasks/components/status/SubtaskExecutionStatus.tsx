@@ -75,8 +75,8 @@ export function SubtaskExecutionStatus({
     },
     scheduled: {
       icon: <Clock className={iconSize} />,
-      bgColor: 'bg-indigo-50 dark:bg-indigo-900/30',
-      textColor: 'text-indigo-500 dark:text-indigo-400',
+      bgColor: 'bg-blue-50 dark:bg-blue-900/30',
+      textColor: 'text-blue-500 dark:text-blue-400',
       label: 'スケジュール済み',
     },
     running: {
@@ -105,11 +105,11 @@ export function SubtaskExecutionStatus({
               }}
             />
           </svg>
-          <Circle className={`${iconSize} text-indigo-600 dark:text-indigo-400`} />
+          <Circle className={`${iconSize} text-blue-600 dark:text-blue-400`} />
         </div>
       ),
-      bgColor: 'bg-indigo-100 dark:bg-indigo-900/40',
-      textColor: 'text-indigo-600 dark:text-indigo-400',
+      bgColor: 'bg-blue-100 dark:bg-blue-900/40',
+      textColor: 'text-blue-600 dark:text-blue-400',
       label: '実行中',
       animate: true,
     },
@@ -218,7 +218,7 @@ export function SubtaskTitleIndicator({
               }}
             />
           </svg>
-          <Circle className={`${iconSize} text-indigo-500 dark:text-indigo-400`} />
+          <Circle className={`${iconSize} text-blue-500 dark:text-blue-400`} />
         </div>
       );
     case 'completed':
@@ -233,9 +233,7 @@ export function SubtaskTitleIndicator({
       );
     case 'scheduled':
       return (
-        <Clock
-          className={`${iconSize} text-indigo-400 dark:text-indigo-500 shrink-0 ${className}`}
-        />
+        <Clock className={`${iconSize} text-blue-400 dark:text-blue-500 shrink-0 ${className}`} />
       );
     case 'blocked':
       return (

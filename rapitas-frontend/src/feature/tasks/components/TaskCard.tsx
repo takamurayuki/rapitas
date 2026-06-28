@@ -87,7 +87,7 @@ const TaskCard = memo(function TaskCard({
       onMouseEnter={tc.handleMouseEnter}
       className={`group relative z-0 w-full min-w-0 rounded-lg border-l-4 border-t border-r border-b transition-all duration-300 ease-out hover:duration-200 ${
         isSelected
-          ? 'bg-indigo-50 dark:bg-indigo-900/20 border-indigo-400 dark:border-indigo-600 ring-1 ring-indigo-500/40 dark:ring-indigo-400/40'
+          ? 'bg-blue-50 dark:bg-blue-900/20 border-blue-400 dark:border-blue-600 ring-1 ring-blue-500/40 dark:ring-blue-400/40'
           : `${tc.cardBorderColor} border-zinc-200 dark:border-zinc-800 ${tc.currentStatus.bgColor} dark:bg-indigo-dark-900`
       } ${
         !isSelected

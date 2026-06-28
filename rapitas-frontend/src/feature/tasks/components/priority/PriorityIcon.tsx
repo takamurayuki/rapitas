@@ -22,7 +22,7 @@ const priorityConfig: Record<Priority, PriorityConfig> = {
   },
   medium: {
     Icon: ChevronsUpDown,
-    color: 'text-indigo-400',
+    color: 'text-blue-400',
     title: '中',
   },
   low: {

@@ -29,16 +29,16 @@ const STATUS_CONFIG: Record<
   // (overridden to 実装中 for lightweight below).
   draft: {
     label: '調査中',
-    color: 'text-indigo-600 dark:text-indigo-400',
-    bgColor: 'bg-indigo-50 dark:bg-indigo-900/30',
-    borderColor: 'border-indigo-300 dark:border-indigo-600',
+    color: 'text-blue-600 dark:text-blue-400',
+    bgColor: 'bg-blue-50 dark:bg-blue-900/30',
+    borderColor: 'border-blue-300 dark:border-blue-600',
     icon: FileSearch,
   },
   research_done: {
     label: '計画中',
-    color: 'text-indigo-600 dark:text-indigo-400',
-    bgColor: 'bg-indigo-50 dark:bg-indigo-900/30',
-    borderColor: 'border-indigo-300 dark:border-indigo-600',
+    color: 'text-blue-600 dark:text-blue-400',
+    bgColor: 'bg-blue-50 dark:bg-blue-900/30',
+    borderColor: 'border-blue-300 dark:border-blue-600',
     icon: FileText,
   },
   plan_created: {
@@ -55,9 +55,9 @@ const STATUS_CONFIG: Record<
   // "実装中", making the verify phase look like it was still implementing.
   plan_approved: {
     label: '実装中',
-    color: 'text-indigo-600 dark:text-indigo-400',
-    bgColor: 'bg-indigo-50 dark:bg-indigo-900/30',
-    borderColor: 'border-indigo-300 dark:border-indigo-600',
+    color: 'text-blue-600 dark:text-blue-400',
+    bgColor: 'bg-blue-50 dark:bg-blue-900/30',
+    borderColor: 'border-blue-300 dark:border-blue-600',
     icon: Code,
   },
   in_progress: {
@@ -177,8 +177,8 @@ export function WorkflowProgress({ currentStatus, roles }: WorkflowProgressProps
               className={`h-1.5 w-full rounded-full transition-colors ${
                 isCompleted
                   ? isCurrent
-                    ? 'bg-indigo-500 dark:bg-indigo-400'
-                    : 'bg-indigo-300 dark:bg-indigo-600'
+                    ? 'bg-blue-500 dark:bg-blue-400'
+                    : 'bg-blue-300 dark:bg-blue-600'
                   : 'bg-zinc-200 dark:bg-zinc-700'
               }`}
               title={config.label}

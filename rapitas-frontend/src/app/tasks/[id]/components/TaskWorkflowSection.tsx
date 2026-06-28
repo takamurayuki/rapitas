@@ -88,7 +88,7 @@ export default function TaskWorkflowSection({
       icon: CircleSmall,
     },
     standard: {
-      chip: 'bg-indigo-50 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300',
+      chip: 'bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300',
       icon: Diamond,
     },
     comprehensive: {
@@ -108,7 +108,7 @@ export default function TaskWorkflowSection({
   const modeStyle = task?.workflowMode ? MODE_STYLES[task.workflowMode] : undefined;
   // Brand-coloured fallback keeps the chip visible when the mode is unknown.
   const complexityChipClass =
-    modeStyle?.chip ?? 'bg-indigo-50 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300';
+    modeStyle?.chip ?? 'bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300';
   const ComplexityIcon = modeStyle?.icon ?? Diamond;
 
   return (

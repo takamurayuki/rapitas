@@ -224,7 +224,7 @@ export default function ComplexityIndicator({
                   analysis.recommendedMode === 'lightweight'
                     ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300'
                     : analysis.recommendedMode === 'standard'
-                      ? 'bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300'
+                      ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300'
                       : 'bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300'
                 }`}
               >
