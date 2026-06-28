@@ -122,149 +122,105 @@ const TodayTaskProgressBar = memo<TodayTaskProgressBarProps>(
     const t = useTranslations('home');
 
     if (compact) {
-      // ── Variant A: Segmented block bar (10 equal blocks) ──────────────────
-      // Classic retro HP-bar feel. Each block = 10% progress, fills in
-      // left-to-right with a staggered delay so you see the blocks "pop on."
-      const blockBar = (
-        <div className="flex h-2 w-full gap-[2px]">
-          {Array.from({ length: 10 }, (_, i) => {
-            const lit = efficiency >= (i + 1) * 10;
-            const partial = !lit && efficiency > i * 10;
-            return (
-              <div
-                key={i}
-                className="relative flex-1 overflow-hidden rounded-sm bg-zinc-200 dark:bg-zinc-800"
-              >
-                {(lit || partial) && (
-                  <motion.div
-                    className="absolute inset-y-0 left-0 bg-indigo-500 dark:bg-indigo-400"
-                    initial={{ width: '0%' }}
-                    animate={{ width: lit ? '100%' : `${((efficiency - i * 10) / 10) * 100}%` }}
-                    transition={{ duration: 0.35, delay: lit ? i * 0.025 : 0 }}
-                  />
-                )}
-              </div>
-            );
-          })}
-        </div>
-      );
-
-      // ── Variant B: Circuit node path ───────────────────────────────────────
-      // 5 nodes connected by lines. Completed segments glow indigo; the
-      // frontier node pulses to show where work is happening.
-      const circuitBar = (
-        <div className="flex h-4 w-full items-center">
-          {Array.from({ length: 5 }, (_, i) => {
-            const threshold = (i / 4) * 100;
-            const filled = efficiency >= threshold;
-            const isFrontier = filled && (i === 4 || efficiency < ((i + 1) / 4) * 100);
-            return (
-              <React.Fragment key={i}>
-                {i > 0 && (
-                  <div className="relative h-px flex-1 bg-zinc-300 dark:bg-zinc-700">
-                    <motion.div
-                      className="absolute inset-y-0 left-0 bg-indigo-500 dark:bg-indigo-400"
-                      initial={{ width: '0%' }}
-                      animate={{ width: filled ? '100%' : '0%' }}
-                      transition={{ duration: 0.4 }}
-                    />
-                  </div>
-                )}
-                <motion.div
-                  className={`h-2 w-2 shrink-0 rounded-full border ${
-                    filled
-                      ? 'bg-indigo-500 dark:bg-indigo-400 border-indigo-300 dark:border-indigo-300'
-                      : 'bg-white dark:bg-zinc-900 border-zinc-400 dark:border-zinc-600'
-                  }`}
-                  animate={isFrontier && efficiency > 0 ? { scale: [1, 1.35, 1] } : {}}
-                  transition={{ repeat: Infinity, duration: 1.4 }}
-                />
-              </React.Fragment>
-            );
-          })}
-        </div>
-      );
-
-      // ── Variant C: Diagonal-stripe scanline bar ────────────────────────────
-      // Fill is rendered as diagonal chevron stripes (like caution tape).
-      // A bright leading-edge flash marks the current progress point.
-      // Horizontal CRT scanlines overlay gives the widget a terminal feel.
-      const scanlineBar = (
-        <div className="relative h-2.5 w-full overflow-hidden rounded-sm bg-zinc-200 dark:bg-zinc-800">
-          <motion.div
-            className="absolute inset-y-0 left-0"
-            style={{
-              backgroundImage:
-                'repeating-linear-gradient(45deg,#6366f1 0px,#6366f1 3px,#818cf8 3px,#818cf8 6px)',
-            }}
-            initial={{ width: '0%' }}
-            animate={{ width: `${efficiency}%` }}
-            transition={{ duration: 0.8, ease: 'easeOut' }}
-          />
-          {/* Horizontal scanline texture */}
-          <div
-            className="pointer-events-none absolute inset-0"
-            style={{
-              backgroundImage:
-                'repeating-linear-gradient(0deg,transparent,transparent 1px,rgba(0,0,0,0.1) 1px,rgba(0,0,0,0.1) 2px)',
-            }}
-          />
-          {/* Leading-edge flash */}
-          {efficiency > 0 && efficiency < 100 && (
-            <motion.div
-              className="absolute top-0 h-full w-0.5 bg-white/75"
-              animate={{ left: `calc(${efficiency}% - 1px)` }}
-              transition={{ duration: 0.8, ease: 'easeOut' }}
-            />
-          )}
-        </div>
-      );
+      // Diagonal stripe colors: indigo until complete, then emerald.
+      const isDone = efficiency === 100;
+      const stripeA = isDone ? '#059669' : '#6366f1';
+      const stripeB = isDone ? '#10b981' : '#818cf8';
+      const glowHex = isDone ? '#10b981' : '#818cf8';
+      const stripePattern = `repeating-linear-gradient(45deg,${stripeA} 0px,${stripeA} 3px,${stripeB} 3px,${stripeB} 6px)`;
 
       return (
         <div
-          className={`relative overflow-hidden border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 shadow-sm transition-all duration-300 hover:border-amber-500/50 ${className}`}
+          className={`relative overflow-hidden rounded-lg border border-zinc-700/60 bg-zinc-900 dark:bg-zinc-950 px-3 py-2 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] ${className}`}
         >
-          {/* Header */}
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              {efficiency === 100 && (
+          {/* Left accent stripe — pulses emerald on completion */}
+          <motion.div
+            className="absolute left-0 top-0 h-full w-[3px] rounded-l-lg"
+            animate={{ backgroundColor: isDone ? '#10b981' : '#6366f1' }}
+            transition={{ duration: 0.6 }}
+          />
+
+          {/* Header: label left, count + bold % right */}
+          <div className="flex items-center justify-between pl-2.5">
+            <div className="flex items-center gap-1.5">
+              {isDone && (
                 <motion.div
                   initial={{ scale: 0, rotate: -180 }}
                   animate={{ scale: 1, rotate: 0 }}
                   transition={{ type: 'spring', stiffness: 260, damping: 20 }}
                 >
-                  <Trophy size={14} className="text-amber-500" />
+                  <Trophy size={11} className="text-amber-400" />
                 </motion.div>
               )}
-              <p className="text-xs font-medium text-slate-800 dark:text-slate-100">
-                {t('todayTask')}
-              </p>
+              <span className="text-[9px] font-mono uppercase tracking-widest text-zinc-500">
+                {isDone ? 'ALL CLEAR' : t('todayTask')}
+              </span>
             </div>
-            <p className="text-xs font-medium text-slate-500 dark:text-slate-600">
-              ({completedCount}/{totalCount})
-            </p>
+            <div className="flex items-baseline gap-1.5">
+              <span className="text-[9px] tabular-nums text-zinc-600">
+                {completedCount}/{totalCount}
+              </span>
+              <motion.span
+                className="font-mono text-sm font-black tabular-nums leading-none"
+                animate={{ color: isDone ? '#34d399' : '#e4e4e7' }}
+                transition={{ duration: 0.5 }}
+              >
+                {efficiency}%
+              </motion.span>
+            </div>
           </div>
 
-          {/* Three progress bar designs stacked for comparison */}
-          <div className="mt-2 space-y-2">
-            <div className="space-y-0.5">
-              <p className="text-[8px] font-mono uppercase tracking-widest text-zinc-400 dark:text-zinc-600">
-                BLOCK
-              </p>
-              {blockBar}
-            </div>
-            <div className="space-y-0.5">
-              <p className="text-[8px] font-mono uppercase tracking-widest text-zinc-400 dark:text-zinc-600">
-                CIRCUIT
-              </p>
-              {circuitBar}
-            </div>
-            <div className="space-y-0.5">
-              <p className="text-[8px] font-mono uppercase tracking-widest text-zinc-400 dark:text-zinc-600">
-                SCANLINE
-              </p>
-              {scanlineBar}
-            </div>
+          {/* Scanline progress bar */}
+          <div
+            className="relative mt-1.5 h-2.5 w-full overflow-hidden rounded-sm bg-zinc-800"
+            style={isDone ? { boxShadow: `0 0 8px 1px ${glowHex}55` } : undefined}
+          >
+            {/* Diagonal stripe fill with clipped shine sweep */}
+            <motion.div
+              className="absolute inset-y-0 left-0 overflow-hidden"
+              animate={{ width: `${efficiency}%` }}
+              transition={{ duration: 0.8, ease: 'easeOut' }}
+            >
+              {/* Static diagonal pattern */}
+              <div className="absolute inset-0" style={{ backgroundImage: stripePattern }} />
+              {/* Sweeping metal-sheen that loops across the fill */}
+              <motion.div
+                className="absolute inset-y-0 w-[45%]"
+                style={{
+                  background:
+                    'linear-gradient(to right,transparent,rgba(255,255,255,0.18),transparent)',
+                }}
+                animate={{ left: ['-45%', '120%'] }}
+                transition={{
+                  repeat: Infinity,
+                  duration: 2.4,
+                  ease: 'easeInOut',
+                  repeatDelay: 1.4,
+                }}
+              />
+            </motion.div>
+
+            {/* Horizontal CRT scanlines */}
+            <div
+              className="pointer-events-none absolute inset-0"
+              style={{
+                backgroundImage:
+                  'repeating-linear-gradient(0deg,transparent,transparent 1px,rgba(0,0,0,0.22) 1px,rgba(0,0,0,0.22) 2px)',
+              }}
+            />
+
+            {/* Neon leading-edge glow */}
+            {efficiency > 0 && !isDone && (
+              <motion.div
+                className="absolute top-0 h-full w-1"
+                style={{
+                  background: `linear-gradient(to right,transparent,${glowHex}cc,transparent)`,
+                  boxShadow: `0 0 6px 2px ${glowHex}88`,
+                }}
+                animate={{ left: `calc(${efficiency}% - 2px)` }}
+                transition={{ duration: 0.8, ease: 'easeOut' }}
+              />
+            )}
           </div>
         </div>
       );
