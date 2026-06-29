@@ -54,6 +54,7 @@ Keep this list accurate. If you assign a glyph a new meaning, add it here.
 | `FlaskConical`            | ワークフローの「検証」フェーズ           |
 | `ListTodo`                | サブタスク                               |
 | `ListPlus`                | タスク作成 / タスク起票 (task_created)   |
+| `ListChecks`              | 一括選択モード（複数タスクの一括操作）   |
 | `CheckCircle2`            | 完了したワークフロータブ                 |
 | `PriorityIcon` (chevrons) | タスク/アイデアの優先度                  |
 | `Globe`                   | スコープ「グローバル」                   |
@@ -74,12 +75,15 @@ Keep this list accurate. If you assign a glyph a new meaning, add it here.
 
 ### Known collisions — resolve when you next touch them
 
-| Glyph   | Conflicting meanings                                   |
-| ------- | ------------------------------------------------------ |
-| `Gauge` | 複雑度「標準」 **と** 懸念の種別「パフォーマンス」     |
+| Glyph        | Conflicting meanings                                                                 |
+| ------------ | ------------------------------------------------------------------------------------ |
+| `Gauge`      | 複雑度「標準」 **と** 懸念の種別「パフォーマンス」                                    |
+| `ListChecks` | 一括選択モード（正規）**と** dev-mode「提案されたサブタスク」見出し（→ `ListTodo` へ移行） |
 
 > When you edit either site above, give one of them a different glyph so a
-> single icon stops carrying two meanings.
+> single icon stops carrying two meanings. For `ListChecks`: the dev-mode
+> `TaskAnalysisPanel` 「提案されたサブタスク」header should switch to `ListTodo`
+> (the established subtask glyph) when next touched.
 
 ---
 

@@ -2,7 +2,7 @@
 // HomeToolbar
 import React from 'react';
 import { useRouter } from 'next/navigation';
-import { ListPlus } from 'lucide-react';
+import { ListPlus, ListChecks } from 'lucide-react';
 import type { Task } from '@/types';
 import TodayTaskProgressBar from '@/components/widgets/TodayTaskProgressBar';
 import { statusConfig, renderStatusIcon } from '@/feature/tasks/config/StatusConfig';
@@ -208,7 +208,8 @@ export function HomeToolbar({
             </>
           )}
 
-          {/* 一括 — ボトムリッジ (紫)。選択モード中は押し込んだまま */}
+          {/* 一括選択 — ボトムリッジ (紫)。選択モード中は押し込んだまま。
+              ListChecks = 複数のリスト項目を選択して一括操作する意図を直感的に表す。 */}
           <button
             onClick={onToggleSelectionMode}
             title={t('bulkSelectionMode')}
@@ -223,14 +224,7 @@ export function HomeToolbar({
               }
             `}
           >
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"
-              />
-            </svg>
+            <ListChecks className="w-4 h-4" />
             {isSelectionMode ? t('selecting', { count: selectedTasksSize }) : t('bulk')}
           </button>
         </div>
