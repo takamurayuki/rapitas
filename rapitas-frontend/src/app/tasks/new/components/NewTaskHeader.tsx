@@ -92,7 +92,7 @@ export function NewTaskHeader({
             ) : (
               <Plus className="w-4 h-4" />
             )}
-            <span className="font-mono text-xs font-black tracking-tight">{tc('create')}</span>
+            <span className="font-mono text-xs font-black tracking-tight">{t('createSubmit')}</span>
           </button>
         </div>
       </div>

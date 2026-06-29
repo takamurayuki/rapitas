@@ -278,6 +278,7 @@
     "taskIdNotSpecified": "タスクIDが指定されていません",
     "taskIdUrlHint": "URLパラメータで ?id=123 の形式でタスクIDを指定してください",
     "template": "テンプレート",
+    "createSubmit": "作成する",
     "titleGenerate": "タイトル生成",
     "titleGenerateTooltip": "説明からタイトルを自動生成",
     "specTitle": "ゴール・制約・受入基準",

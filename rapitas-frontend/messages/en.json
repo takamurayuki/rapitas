@@ -278,6 +278,7 @@
     "taskIdNotSpecified": "Task ID is not specified",
     "taskIdUrlHint": "Please specify a task ID in the URL parameter format: ?id=123",
     "template": "Template",
+    "createSubmit": "Create",
     "titleGenerate": "Generate title",
     "titleGenerateTooltip": "Auto-generate title from description",
     "specTitle": "Goals, Constraints & Acceptance",
