@@ -53,6 +53,7 @@ Keep this list accurate. If you assign a glyph a new meaning, add it here.
 | `Layers`                  | 複雑度「詳細」                           |
 | `FlaskConical`            | ワークフローの「検証」フェーズ           |
 | `ListTodo`                | サブタスク                               |
+| `ListPlus`                | タスク作成 / タスク起票 (task_created)   |
 | `CheckCircle2`            | 完了したワークフロータブ                 |
 | `PriorityIcon` (chevrons) | タスク/アイデアの優先度                  |
 | `Globe`                   | スコープ「グローバル」                   |

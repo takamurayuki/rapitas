@@ -5,7 +5,7 @@ import type { Status, Task } from '@/types';
 import TaskCard from '@/feature/tasks/components/TaskCard';
 import Pagination from '@/components/ui/pagination/Pagination';
 import { TaskCardsSkeleton } from '@/components/ui/LoadingSpinner';
-import { SwatchBook, Plus } from 'lucide-react';
+import { SwatchBook, Plus, ListPlus } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 
 interface HomeTaskListProps {
@@ -113,9 +113,7 @@ export function HomeTaskList({
           }}
           className="inline-flex items-center gap-2 px-4 py-2 rounded-lg select-none text-sm font-medium text-blue-700 dark:text-blue-300 bg-white dark:bg-zinc-900 border border-blue-200 dark:border-blue-800 shadow-[0_2px_0_0_#93c5fd] dark:shadow-[0_2px_0_0_#1e3a8a] transition-all duration-75 hover:bg-blue-50 dark:hover:bg-blue-900/20 active:translate-y-[2px] active:shadow-none"
         >
-          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-          </svg>
+          <ListPlus className="w-5 h-5" />
           {t('createTask')}
         </button>
       </div>

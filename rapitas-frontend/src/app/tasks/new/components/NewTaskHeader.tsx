@@ -1,6 +1,6 @@
 'use client';
 // NewTaskHeader
-import { ArrowLeft, FileStack, Plus } from 'lucide-react';
+import { ArrowLeft, FileStack, ListPlus } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import type { TaskTemplate } from '@/types';
@@ -90,7 +90,7 @@ export function NewTaskHeader({
             {isSubmitting ? (
               <div className="w-4 h-4 border-2 border-indigo-200 dark:border-indigo-800 border-t-indigo-600 dark:border-t-indigo-400 rounded-full animate-spin" />
             ) : (
-              <Plus className="w-4 h-4" />
+              <ListPlus className="w-4 h-4" />
             )}
             <span className="font-mono text-xs font-black tracking-tight">{t('createSubmit')}</span>
           </button>

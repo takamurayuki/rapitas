@@ -168,6 +168,11 @@ function HomeClientPage() {
     fetchTasks,
   });
 
+  // Truly-empty workspace (no task at all, after the first fetch). In this state
+  // only the centered empty-state「タスクを作成」CTA is shown — the toolbar and
+  // filter panel are hidden so nothing competes with that single entry point.
+  const isEmptyWorkspace = taskCacheInitialized && tasks.length === 0;
+
   const totalPages = Math.ceil(sortedTasks.length / itemsPerPage);
   const paginatedTasks = sortedTasks.slice(
     (currentPage - 1) * itemsPerPage,
@@ -274,59 +279,62 @@ function HomeClientPage() {
   return (
     <div className="h-[calc(100vh-4.2rem)] overflow-auto bg-background">
       <div className="mx-auto max-w-6xl px-3 sm:px-4 md:px-6 py-3 sm:py-4">
-        <HomeToolbar
-          completedTasksCount={completedTasksCount}
-          totalTasksCount={totalTasksCount}
-          hasTasks={!taskCacheInitialized || tasks.length > 0}
-          isSelectionMode={isSelectionMode}
-          selectedTasksSize={selectedTasks.size}
-          paginatedTasks={paginatedTasks}
-          themeFilter={themeFilter}
-          defaultThemeId={defaultTheme?.id}
-          autoRunTheme={autoRunTheme}
-          onBulkUpdateStatus={bulkUpdateStatus}
-          onBulkDelete={bulkDelete}
-          onSelectAll={handleSelectAll}
-          onToggleSelectionMode={() => {
-            setIsSelectionMode(!isSelectionMode);
-            setSelectedTasks(new Set());
-          }}
-        />
+        {!isEmptyWorkspace && (
+          <>
+            <HomeToolbar
+              completedTasksCount={completedTasksCount}
+              totalTasksCount={totalTasksCount}
+              isSelectionMode={isSelectionMode}
+              selectedTasksSize={selectedTasks.size}
+              paginatedTasks={paginatedTasks}
+              themeFilter={themeFilter}
+              defaultThemeId={defaultTheme?.id}
+              autoRunTheme={autoRunTheme}
+              onBulkUpdateStatus={bulkUpdateStatus}
+              onBulkDelete={bulkDelete}
+              onSelectAll={handleSelectAll}
+              onToggleSelectionMode={() => {
+                setIsSelectionMode(!isSelectionMode);
+                setSelectedTasks(new Set());
+              }}
+            />
 
-        {!isSelectionMode && (
-          <HomeFilterPanel
-            categories={categories}
-            themes={themes}
-            categoryFilter={categoryFilter}
-            themeFilter={themeFilter}
-            filter={filter}
-            priorityFilter={priorityFilter}
-            sortBy={sortBy}
-            sortOrder={sortOrder}
-            appMode={appMode}
-            globalSettings={globalSettings}
-            filtersLoading={filtersLoading}
-            filtersError={filtersError}
-            isFilterExpanded={isFilterExpanded}
-            isScrollNeeded={isScrollNeeded}
-            canScrollLeft={canScrollLeft}
-            canScrollRight={canScrollRight}
-            statusCounts={{ ...statusCounts, all: statusCounts.all ?? 0 }}
-            themeScrollRef={themeScrollRef as React.RefObject<HTMLDivElement>}
-            onCategoryChange={(catId, newThemeId) => {
-              setCategoryFilter(catId);
-              setThemeFilter(newThemeId);
-            }}
-            onThemeChange={setThemeFilter}
-            onFilterChange={setFilter}
-            onPriorityChange={setPriorityFilter}
-            onSortByChange={setSortBy}
-            onSortOrderToggle={() => setSortOrder((o) => (o === 'asc' ? 'desc' : 'asc'))}
-            onFilterExpandedToggle={() => setIsFilterExpanded(!isFilterExpanded)}
-            onScrollLeft={scrollThemeLeft}
-            onScrollRight={scrollThemeRight}
-            onRetry={refreshFilterData}
-          />
+            {!isSelectionMode && (
+              <HomeFilterPanel
+                categories={categories}
+                themes={themes}
+                categoryFilter={categoryFilter}
+                themeFilter={themeFilter}
+                filter={filter}
+                priorityFilter={priorityFilter}
+                sortBy={sortBy}
+                sortOrder={sortOrder}
+                appMode={appMode}
+                globalSettings={globalSettings}
+                filtersLoading={filtersLoading}
+                filtersError={filtersError}
+                isFilterExpanded={isFilterExpanded}
+                isScrollNeeded={isScrollNeeded}
+                canScrollLeft={canScrollLeft}
+                canScrollRight={canScrollRight}
+                statusCounts={{ ...statusCounts, all: statusCounts.all ?? 0 }}
+                themeScrollRef={themeScrollRef as React.RefObject<HTMLDivElement>}
+                onCategoryChange={(catId, newThemeId) => {
+                  setCategoryFilter(catId);
+                  setThemeFilter(newThemeId);
+                }}
+                onThemeChange={setThemeFilter}
+                onFilterChange={setFilter}
+                onPriorityChange={setPriorityFilter}
+                onSortByChange={setSortBy}
+                onSortOrderToggle={() => setSortOrder((o) => (o === 'asc' ? 'desc' : 'asc'))}
+                onFilterExpandedToggle={() => setIsFilterExpanded(!isFilterExpanded)}
+                onScrollLeft={scrollThemeLeft}
+                onScrollRight={scrollThemeRight}
+                onRetry={refreshFilterData}
+              />
+            )}
+          </>
         )}
 
         <HomeTaskList

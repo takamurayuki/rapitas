@@ -14,7 +14,7 @@
  */
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
-import { Mic, MicOff, X, Send, Wand2, Loader2, Navigation, Plus, Search } from 'lucide-react';
+import { Mic, MicOff, X, Send, Wand2, Loader2, Navigation, ListPlus, Search } from 'lucide-react';
 import AudioWaveform from '../smart-command-bar/AudioWaveform';
 import { encodeWav, resamplePcm } from '@/lib/audio/wav-codec';
 
@@ -404,7 +404,9 @@ export default function VoiceInputBar({ isOpen, onClose, target }: VoiceInputBar
               {lastCommand.type === 'navigate' && (
                 <Navigation className="w-4 h-4 text-indigo-400" />
               )}
-              {lastCommand.type === 'create_task' && <Plus className="w-4 h-4 text-green-400" />}
+              {lastCommand.type === 'create_task' && (
+                <ListPlus className="w-4 h-4 text-green-400" />
+              )}
               {lastCommand.type === 'search' && <Search className="w-4 h-4 text-amber-400" />}
               <span className="text-sm text-zinc-300">
                 {lastCommand.type === 'navigate' && `${lastCommand.label} に移動`}
