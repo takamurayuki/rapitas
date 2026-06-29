@@ -284,6 +284,7 @@ function HomeClientPage() {
             <HomeToolbar
               completedTasksCount={completedTasksCount}
               totalTasksCount={totalTasksCount}
+              hasVisibleTasks={!taskCacheInitialized || sortedTasks.length > 0}
               isSelectionMode={isSelectionMode}
               selectedTasksSize={selectedTasks.size}
               paginatedTasks={paginatedTasks}
