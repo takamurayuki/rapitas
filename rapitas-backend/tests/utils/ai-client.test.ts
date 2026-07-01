@@ -2,7 +2,7 @@
  * AI Client テスト
  * マルチプロバイダーAIクライアントのテスト
  */
-import { describe, test, expect, mock, beforeEach } from 'bun:test';
+import { describe, test, expect, mock, beforeEach, afterEach } from 'bun:test';
 
 const mockSettings = {
   claudeApiKeyEncrypted: null as string | null,
@@ -31,6 +31,14 @@ mock.module('../../config/logger', () => ({
     warn: () => {},
     debug: () => {},
   }),
+  // config/index.ts re-exports { logger, createLogger } — provide both so the
+  // barrel's re-export binds cleanly under the mock.
+  logger: {
+    info: () => {},
+    error: () => {},
+    warn: () => {},
+    debug: () => {},
+  },
 }));
 
 const mockDecrypt = mock((val: string) => val);
@@ -49,6 +57,11 @@ const {
   sendAIMessage,
   sendAIMessageStream,
 } = await import('../../utils/ai-client');
+
+// Restore aux-AI routing env after each test to avoid leaking into other files.
+afterEach(() => {
+  delete (process.env as Record<string, string | undefined>).RAPITAS_AUX_AI;
+});
 
 describe('getApiKeyForProvider', () => {
   beforeEach(() => {
@@ -177,6 +190,20 @@ describe('sendAIMessage', () => {
     mockPrisma.userSettings.findFirst.mockReset();
     mockPrisma.userSettings.findFirst.mockResolvedValue(mockSettings);
     mockSettings.claudeApiKeyEncrypted = null;
+    // Default routing is now the subscription CLI; pin `api` to exercise the
+    // paid-provider path these key-missing assertions target.
+    process.env.RAPITAS_AUX_AI = 'api';
+  });
+
+  test('RAPITAS_AUX_AI=off の場合は無効化エラーを投げること', async () => {
+    process.env.RAPITAS_AUX_AI = 'off';
+    try {
+      await sendAIMessage({ messages: [{ role: 'user', content: 'hello' }], provider: 'claude' });
+      expect(true).toBe(false);
+    } catch (e: unknown) {
+      const message = e instanceof Error ? e.message : String(e);
+      expect(message).toContain('無効化');
+    }
   });
 
   test('APIキーが未設定の場合エラーを投げること', async () => {
@@ -212,6 +239,8 @@ describe('sendAIMessageStream', () => {
     mockPrisma.userSettings.findFirst.mockReset();
     mockPrisma.userSettings.findFirst.mockResolvedValue(mockSettings);
     mockSettings.claudeApiKeyEncrypted = null;
+    // Default routing is now the subscription CLI; pin `api` for these assertions.
+    process.env.RAPITAS_AUX_AI = 'api';
   });
 
   test('APIキーが未設定の場合エラーを投げること', async () => {

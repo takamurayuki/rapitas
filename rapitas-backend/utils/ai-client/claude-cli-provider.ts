@@ -1,0 +1,449 @@
+/**
+ * Claude Code CLI Provider (subscription-backed, no per-token billing)
+ *
+ * Runs one-shot text generation through the Claude Code CLI (`claude --print`)
+ * so auxiliary AI features (naming, spec derivation, memory upkeep, reviews, …)
+ * are covered by the Claude subscription instead of the paid Anthropic Messages
+ * API. It is NOT responsible for agent/workflow execution — that path lives under
+ * services/agents/claude-code and manages its own process lifecycle.
+ */
+import { spawn, execSync, type ChildProcess } from 'child_process';
+import { existsSync } from 'fs';
+import { tmpdir } from 'os';
+import { createLogger } from '../../config/logger';
+import { type AIMessage, type AIResponse } from './types';
+
+const log = createLogger('ai-client:claude-cli');
+
+// ── CLI path resolution ────────────────────────────────────────────────────
+// Self-contained copies of the pure path helpers (mirrors
+// services/agents/claude-code/cli-utils). Kept local so utils/ does not depend
+// on services/ (folder policy) and to avoid dragging the agent module graph.
+
+const cliPathCache = new Map<string, string>();
+
+/** Resolve a CLI command to an absolute path on Windows; memoized per process. */
+function resolveCliPath(cliName: string): string {
+  if (process.platform !== 'win32') return cliName;
+  const cached = cliPathCache.get(cliName);
+  if (cached !== undefined) return cached;
+
+  const tryWhere = (name: string): string | null => {
+    try {
+      const resolved = execSync(`where ${name}`, {
+        encoding: 'utf8',
+        timeout: 5000,
+        windowsHide: true,
+      })
+        .trim()
+        .split(/\r?\n/)[0];
+      return resolved && existsSync(resolved) ? resolved : null;
+    } catch {
+      return null;
+    }
+  };
+
+  const resolved =
+    tryWhere(cliName) ?? (!cliName.endsWith('.cmd') ? tryWhere(`${cliName}.cmd`) : null);
+  const result = resolved ?? cliName;
+  cliPathCache.set(cliName, result);
+  return result;
+}
+
+/** Resolve the effective Claude Code CLI path from env or platform default. */
+function getClaudePath(): string {
+  const isWindows = process.platform === 'win32';
+  const base = process.env.CLAUDE_CODE_PATH || (isWindows ? 'claude.cmd' : 'claude');
+  return resolveCliPath(base);
+}
+
+/** Build the platform-specific spawn command/args (UTF-8 code page on Windows). */
+function buildSpawnCommand(claudePath: string, args: string[]): [string, string[]] {
+  if (process.platform !== 'win32') return [claudePath, args];
+  const argsString = args
+    .map((arg) => (arg.includes(' ') || arg.includes('&') || arg.includes('|') ? `"${arg}"` : arg))
+    .join(' ');
+  const quotedPath = claudePath.includes(' ') ? `"${claudePath}"` : claudePath;
+  return [`chcp 65001 >NUL 2>&1 && ${quotedPath} ${argsString}`, []];
+}
+
+/** Whether the CLI responds to `--version` within 10s. */
+function checkClaudeAvailable(): Promise<boolean> {
+  return new Promise((resolve) => {
+    const proc = spawn(getClaudePath(), ['--version'], { shell: true, windowsHide: true });
+    const timeout = setTimeout(() => {
+      proc.kill();
+      resolve(false);
+    }, 10000);
+    proc.on('close', (code) => {
+      clearTimeout(timeout);
+      resolve(code === 0);
+    });
+    proc.on('error', () => {
+      clearTimeout(timeout);
+      resolve(false);
+    });
+  });
+}
+
+/**
+ * Thrown when the CLI path cannot serve a request (binary missing, not logged
+ * in, non-zero exit, timeout). Lets the router / callers degrade gracefully
+ * instead of silently falling back to the paid API.
+ */
+export class ClaudeCliUnavailableError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'ClaudeCliUnavailableError';
+  }
+}
+
+// Per-call wall-clock cap. One-shot helper prompts are small; a stuck CLI must
+// not hang a background job forever.
+const CLI_TIMEOUT_MS = Number(process.env.RAPITAS_AUX_AI_CLI_TIMEOUT_MS) || 120_000;
+
+// Concurrency cap: the auto-run loop + 30s memory queue can fire many aux calls
+// at once. Spawning an unbounded number of CLI processes stampedes both the
+// subscription rate limit and local CPU, so serialize to a small pool.
+const MAX_CONCURRENT = Number(process.env.RAPITAS_AUX_AI_CLI_CONCURRENCY) || 2;
+let activeCount = 0;
+const queue: Array<() => void> = [];
+
+/** Acquire a concurrency slot; resolves once one is free. */
+function acquireSlot(): Promise<void> {
+  if (activeCount < MAX_CONCURRENT) {
+    activeCount++;
+    return Promise.resolve();
+  }
+  return new Promise((resolve) => queue.push(resolve));
+}
+
+/** Release a concurrency slot and hand it to the next waiter. */
+function releaseSlot(): void {
+  const next = queue.shift();
+  if (next) {
+    next();
+  } else {
+    activeCount = Math.max(0, activeCount - 1);
+  }
+}
+
+// Availability probe result, memoized for the process lifetime (the CLI binary
+// does not appear/disappear during a run). A restart re-probes.
+let availabilityCache: boolean | null = null;
+
+/**
+ * Whether the Claude Code CLI binary responds to `--version`.
+ *
+ * @returns true if the CLI is invokable / CLIが起動可能ならtrue
+ */
+export async function isClaudeCliAvailable(): Promise<boolean> {
+  if (availabilityCache !== null) return availabilityCache;
+  availabilityCache = await checkClaudeAvailable();
+  return availabilityCache;
+}
+
+/**
+ * Map a full model id (or undefined) to a Claude Code `--model` alias.
+ * Unspecified defaults to Haiku — aux calls should stay light on the shared
+ * subscription rate limit.
+ *
+ * @param model - Requested model id, if any / 要求モデルID（任意）
+ * @returns CLI model alias / CLIのモデルエイリアス
+ */
+function toCliModel(model?: string): string {
+  const m = (model || '').toLowerCase();
+  if (m.includes('opus')) return 'opus';
+  if (m.includes('sonnet')) return 'sonnet';
+  return 'haiku';
+}
+
+/**
+ * Build the spawn environment. Strips Anthropic API credentials so the CLI is
+ * FORCED to use its subscription login — guaranteeing these calls never bill as
+ * paid API. Adds UTF-8 / non-interactive flags mirroring the agent runner.
+ */
+function buildCliEnv(): NodeJS.ProcessEnv {
+  const isWindows = process.platform === 'win32';
+  const env: NodeJS.ProcessEnv = {
+    ...process.env,
+    FORCE_COLOR: '0',
+    NO_COLOR: '1',
+    CI: '1',
+    TERM: 'dumb',
+    NODE_OPTIONS: '--no-warnings',
+    ...(isWindows && { LANG: 'en_US.UTF-8', CHCP: '65001' }),
+  };
+  // NOTE: Force subscription auth — an API key in the env would make the CLI
+  // bill as paid API, defeating the entire purpose of this provider.
+  delete env.ANTHROPIC_API_KEY;
+  delete env.ANTHROPIC_AUTH_TOKEN;
+  return env;
+}
+
+/** Tools disabled for pure text generation — no repo/file/shell/network access. */
+const DISALLOWED_TOOLS =
+  'Bash,Edit,Write,Read,Glob,Grep,WebFetch,WebSearch,Task,NotebookEdit,TodoWrite,MultiEdit';
+
+/**
+ * Fold system prompt + conversation into a single stdin prompt. Passing text via
+ * stdin (not CLI args) avoids all cross-platform shell-quoting hazards.
+ */
+function combinePrompt(messages: AIMessage[], systemPrompt?: string): string {
+  const system = systemPrompt || messages.find((m) => m.role === 'system')?.content || '';
+  const convo = messages
+    .filter((m) => m.role !== 'system')
+    .map((m) => (m.role === 'assistant' ? `Assistant: ${m.content}` : m.content))
+    .join('\n\n');
+  return system ? `${system}\n\n${convo}` : convo;
+}
+
+/** Extract the last balanced top-level JSON object from CLI stdout. */
+function extractLastJsonObject(text: string): string | null {
+  let depth = 0;
+  let end = -1;
+  for (let i = text.length - 1; i >= 0; i--) {
+    const ch = text[i];
+    if (ch === '}') {
+      if (depth === 0) end = i;
+      depth++;
+    } else if (ch === '{') {
+      depth--;
+      if (depth === 0 && end !== -1) return text.slice(i, end + 1);
+    }
+  }
+  return null;
+}
+
+/** Spawn the CLI with the given args, feed `prompt` on stdin, resolve stdout. */
+function spawnCli(args: string[], prompt: string): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const claudePath = getClaudePath();
+    const [command, spawnArgs] = buildSpawnCommand(claudePath, args);
+    const child: ChildProcess = spawn(command, spawnArgs, {
+      cwd: tmpdir(), // isolate from the repo even if a tool slipped through
+      shell: true,
+      windowsHide: true,
+      stdio: ['pipe', 'pipe', 'pipe'],
+      env: buildCliEnv(),
+    });
+
+    let stdout = '';
+    let stderr = '';
+    child.stdout?.setEncoding('utf8');
+    child.stderr?.setEncoding('utf8');
+    child.stdout?.on('data', (d: string) => (stdout += d));
+    child.stderr?.on('data', (d: string) => (stderr += d));
+
+    const timer = setTimeout(() => {
+      child.kill();
+      reject(new ClaudeCliUnavailableError(`Claude CLI timed out after ${CLI_TIMEOUT_MS}ms`));
+    }, CLI_TIMEOUT_MS);
+
+    child.on('error', (err) => {
+      clearTimeout(timer);
+      reject(new ClaudeCliUnavailableError(`Claude CLI spawn failed: ${err.message}`));
+    });
+    child.on('close', (code) => {
+      clearTimeout(timer);
+      if (code === 0) {
+        resolve(stdout);
+      } else {
+        reject(
+          new ClaudeCliUnavailableError(
+            `Claude CLI exited ${code}: ${(stderr || stdout).slice(0, 300)}`,
+          ),
+        );
+      }
+    });
+
+    const buf = Buffer.from(prompt, 'utf8');
+    child.stdin?.on('error', (err) =>
+      log.warn({ err }, 'Claude CLI stdin error while writing prompt'),
+    );
+    child.stdin?.end(buf);
+  });
+}
+
+/**
+ * One-shot text generation via the Claude Code CLI (non-streaming).
+ *
+ * @param model - Requested model id (mapped to a CLI alias) / モデルID
+ * @param messages - Conversation messages / 会話メッセージ
+ * @param systemPrompt - Optional system instructions / システム指示（任意）
+ * @param _maxTokens - Accepted for signature parity; the CLI manages output length / 署名互換のため受理
+ * @returns The generated text and token usage / 生成テキストとトークン使用量
+ * @throws {ClaudeCliUnavailableError} When the CLI cannot serve the request / CLIが応答できない場合
+ */
+export async function callClaudeCli(
+  model: string | undefined,
+  messages: AIMessage[],
+  systemPrompt: string | undefined,
+  _maxTokens: number,
+): Promise<AIResponse> {
+  await acquireSlot();
+  try {
+    const args = [
+      '--print',
+      '--output-format',
+      'json',
+      '--model',
+      toCliModel(model),
+      '--disallowedTools',
+      DISALLOWED_TOOLS,
+    ];
+    const stdout = await spawnCli(args, combinePrompt(messages, systemPrompt));
+    const jsonText = extractLastJsonObject(stdout.trim()) ?? stdout.trim();
+    let parsed: {
+      result?: string;
+      is_error?: boolean;
+      subtype?: string;
+      usage?: { input_tokens?: number; output_tokens?: number };
+    };
+    try {
+      parsed = JSON.parse(jsonText);
+    } catch {
+      throw new ClaudeCliUnavailableError(
+        `Claude CLI returned unparseable output: ${stdout.slice(0, 300)}`,
+      );
+    }
+    if (parsed.is_error || parsed.subtype === 'error' || typeof parsed.result !== 'string') {
+      throw new ClaudeCliUnavailableError(
+        `Claude CLI reported an error: ${jsonText.slice(0, 300)}`,
+      );
+    }
+    const tokensUsed = (parsed.usage?.input_tokens || 0) + (parsed.usage?.output_tokens || 0);
+    return { content: parsed.result, tokensUsed };
+  } finally {
+    releaseSlot();
+  }
+}
+
+/**
+ * One-shot text generation via the Claude Code CLI (streaming).
+ * Emits the same SSE byte contract as the paid-API stream provider:
+ * `data: {"content":"..."}\n\n` per chunk, then `data: [DONE]\n\n`.
+ *
+ * @param model - Requested model id / モデルID
+ * @param messages - Conversation messages / 会話メッセージ
+ * @param systemPrompt - Optional system instructions / システム指示（任意）
+ * @param _maxTokens - Accepted for signature parity / 署名互換のため受理
+ * @returns A ReadableStream of SSE bytes / SSEバイトのReadableStream
+ */
+export async function callClaudeCliStream(
+  model: string | undefined,
+  messages: AIMessage[],
+  systemPrompt: string | undefined,
+  _maxTokens: number,
+): Promise<ReadableStream> {
+  const prompt = combinePrompt(messages, systemPrompt);
+  const args = [
+    '--print',
+    '--verbose',
+    '--output-format',
+    'stream-json',
+    '--model',
+    toCliModel(model),
+    '--disallowedTools',
+    DISALLOWED_TOOLS,
+  ];
+
+  await acquireSlot();
+  const claudePath = getClaudePath();
+  const [command, spawnArgs] = buildSpawnCommand(claudePath, args);
+  const child = spawn(command, spawnArgs, {
+    cwd: tmpdir(),
+    shell: true,
+    windowsHide: true,
+    stdio: ['pipe', 'pipe', 'pipe'],
+    env: buildCliEnv(),
+  });
+  child.stdout?.setEncoding('utf8');
+  child.stderr?.setEncoding('utf8');
+
+  const encoder = new TextEncoder();
+  const emit = (controller: ReadableStreamDefaultController, payload: object) =>
+    controller.enqueue(encoder.encode(`data: ${JSON.stringify(payload)}\n\n`));
+
+  return new ReadableStream({
+    start(controller) {
+      let lineBuffer = '';
+      let emittedAny = false;
+      let fallbackResult = '';
+      let settled = false;
+
+      const finish = () => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
+        if (!emittedAny && fallbackResult) emit(controller, { content: fallbackResult });
+        controller.enqueue(encoder.encode('data: [DONE]\n\n'));
+        controller.close();
+        releaseSlot();
+      };
+      const fail = (message: string) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
+        emit(controller, { error: message });
+        controller.close();
+        releaseSlot();
+        child.kill();
+      };
+
+      const timer = setTimeout(
+        () => fail(`Claude CLI timed out after ${CLI_TIMEOUT_MS}ms`),
+        CLI_TIMEOUT_MS,
+      );
+
+      const handleLine = (line: string) => {
+        const trimmed = line.trim();
+        if (!trimmed) return;
+        let evt: {
+          type?: string;
+          result?: string;
+          message?: { content?: Array<{ type?: string; text?: string }> };
+        };
+        try {
+          evt = JSON.parse(trimmed);
+        } catch {
+          return; // ignore non-JSON noise
+        }
+        if (evt.type === 'assistant' && Array.isArray(evt.message?.content)) {
+          for (const block of evt.message!.content!) {
+            if (block.type === 'text' && block.text) {
+              emittedAny = true;
+              emit(controller, { content: block.text });
+            }
+          }
+        } else if (evt.type === 'result' && typeof evt.result === 'string') {
+          fallbackResult = evt.result;
+        }
+      };
+
+      child.stdout?.on('data', (chunk: string) => {
+        lineBuffer += chunk;
+        let idx: number;
+        while ((idx = lineBuffer.indexOf('\n')) !== -1) {
+          handleLine(lineBuffer.slice(0, idx));
+          lineBuffer = lineBuffer.slice(idx + 1);
+        }
+      });
+      let stderr = '';
+      child.stderr?.on('data', (d: string) => (stderr += d));
+      child.on('error', (err) => fail(`Claude CLI spawn failed: ${err.message}`));
+      child.on('close', (code) => {
+        if (lineBuffer.trim()) handleLine(lineBuffer);
+        if (code === 0) finish();
+        else fail(`Claude CLI exited ${code}: ${stderr.slice(0, 300)}`);
+      });
+
+      // Feed the prompt now that stdout handlers are attached, then close stdin
+      // so the CLI produces output.
+      child.stdin?.on('error', (err) =>
+        log.warn({ err }, 'Claude CLI stdin error while writing prompt'),
+      );
+      child.stdin?.end(Buffer.from(prompt, 'utf8'));
+    },
+  });
+}

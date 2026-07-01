@@ -29,15 +29,17 @@ export {
 export { formatApiError, handleApiError } from './error-handler';
 
 export { callClaude, callClaudeStream } from './claude-provider';
+export { callClaudeCli, callClaudeCliStream, isClaudeCliAvailable } from './claude-cli-provider';
 export { callChatGPT, callChatGPTStream } from './chatgpt-provider';
 export { callGemini, callGeminiStream } from './gemini-provider';
 export { callOllama, callOllamaStream, checkOllamaConnection } from './ollama-provider';
 
 // --- Unified API ---
-import { type AIProvider, type AIRequestOptions, type AIResponse, PROVIDER_NAMES } from './types';
+import { type AIRequestOptions, type AIResponse, PROVIDER_NAMES } from './types';
 import { getApiKeyForProvider, getDefaultModel, getDefaultProvider } from './credentials';
 import { handleApiError } from './error-handler';
 import { callClaude } from './claude-provider';
+import { callClaudeCli, callClaudeCliStream } from './claude-cli-provider';
 import { callChatGPT } from './chatgpt-provider';
 import { callGemini } from './gemini-provider';
 import { callOllama } from './ollama-provider';
@@ -114,10 +116,62 @@ async function sendStreamWithPaidProvider(options: AIRequestOptions): Promise<Re
   }
 }
 
+export type AuxAiMode = 'cli' | 'api' | 'off';
+
+/**
+ * Routing mode for auxiliary AI helper calls (naming, spec derivation, memory
+ * upkeep, reviews, chat, …). Controls whether these run through the Claude Code
+ * CLI (subscription, no per-token billing), the paid Anthropic API, or are
+ * disabled entirely.
+ *
+ * - `cli` (default): delegate to the subscription-backed CLI. No paid API is hit.
+ * - `api`: use the paid provider (legacy behavior / emergency escape hatch).
+ * - `off`: disable auxiliary AI — callers degrade gracefully.
+ *
+ * @returns The resolved mode / 解決されたモード
+ */
+export function getAuxAiMode(): AuxAiMode {
+  const v = (process.env.RAPITAS_AUX_AI || 'cli').toLowerCase();
+  return v === 'api' || v === 'off' ? v : 'cli';
+}
+
+/**
+ * Non-local generation target: subscription CLI in `cli` mode, else the paid API.
+ * Used as the fallback when the local LLM is unavailable/disabled.
+ */
+async function runAuxNonLocal(options: AIRequestOptions): Promise<AIResponse> {
+  if (getAuxAiMode() === 'cli') {
+    return callClaudeCli(
+      options.model,
+      options.messages,
+      options.systemPrompt,
+      options.maxTokens || 2048,
+    );
+  }
+  return sendWithPaidProvider(options);
+}
+
+/** Streaming counterpart of {@link runAuxNonLocal}. */
+async function runAuxNonLocalStream(options: AIRequestOptions): Promise<ReadableStream> {
+  if (getAuxAiMode() === 'cli') {
+    return callClaudeCliStream(
+      options.model,
+      options.messages,
+      options.systemPrompt,
+      options.maxTokens || 2048,
+    );
+  }
+  return sendStreamWithPaidProvider(options);
+}
+
 /**
  * Unified AI chat API (non-streaming).
  */
 export async function sendAIMessage(options: AIRequestOptions): Promise<AIResponse> {
+  const auxMode = getAuxAiMode();
+  if (auxMode === 'off') {
+    throw new Error('補助AI機能は無効化されています (RAPITAS_AUX_AI=off)。');
+  }
   const provider = options.provider || 'claude';
 
   // Local LLM (Ollama preferred -> llama-server -> paid API fallback)
@@ -126,7 +180,7 @@ export async function sendAIMessage(options: AIRequestOptions): Promise<AIRespon
     // EXPECTED state, not a failure — route straight to the paid API without a
     // warning. Otherwise every memory/contradiction job logged a WARN per call.
     if (!isLocalLLMEnabled()) {
-      const result = await sendWithPaidProvider(options);
+      const result = await runAuxNonLocal(options);
       incrementLlmCall();
       return result;
     }
@@ -198,11 +252,23 @@ export async function sendAIMessage(options: AIRequestOptions): Promise<AIRespon
       incrementLlmCall();
       return ollamaResult;
     } catch (error) {
-      log.warn({ err: error }, 'Local LLM failed, falling back to paid API');
-      const fallbackResult = await sendWithPaidProvider(options);
+      log.warn({ err: error }, 'Local LLM failed, falling back');
+      const fallbackResult = await runAuxNonLocal(options);
       incrementLlmCall();
       return fallbackResult;
     }
+  }
+
+  // Delegate to the subscription CLI instead of any paid API when in `cli` mode.
+  if (auxMode === 'cli') {
+    const result = await callClaudeCli(
+      options.model,
+      options.messages,
+      options.systemPrompt,
+      options.maxTokens || 2048,
+    );
+    incrementLlmCall();
+    return result;
   }
 
   const apiKey = await getApiKeyForProvider(provider);
@@ -260,13 +326,17 @@ export async function sendAIMessage(options: AIRequestOptions): Promise<AIRespon
  * Unified AI chat API (streaming).
  */
 export async function sendAIMessageStream(options: AIRequestOptions): Promise<ReadableStream> {
+  const auxMode = getAuxAiMode();
+  if (auxMode === 'off') {
+    throw new Error('補助AI機能は無効化されています (RAPITAS_AUX_AI=off)。');
+  }
   const provider = options.provider || 'claude';
 
   // Local LLM (Ollama preferred -> llama-server -> paid API fallback)
   if (provider === 'ollama') {
     // Disabled by config is the expected state — fall back silently (see sendAIMessage).
     if (!isLocalLLMEnabled()) {
-      return await sendStreamWithPaidProvider(options);
+      return await runAuxNonLocalStream(options);
     }
     try {
       const ollamaUrl = await getOllamaUrl();
@@ -280,9 +350,19 @@ export async function sendAIMessageStream(options: AIRequestOptions): Promise<Re
         maxTokens,
       );
     } catch (error) {
-      log.warn({ err: error }, 'Local LLM stream failed, falling back to paid API');
-      return await sendStreamWithPaidProvider(options);
+      log.warn({ err: error }, 'Local LLM stream failed, falling back');
+      return await runAuxNonLocalStream(options);
     }
+  }
+
+  // Delegate to the subscription CLI instead of any paid API when in `cli` mode.
+  if (auxMode === 'cli') {
+    return callClaudeCliStream(
+      options.model,
+      options.messages,
+      options.systemPrompt,
+      options.maxTokens || 2048,
+    );
   }
 
   const apiKey = await getApiKeyForProvider(provider);
