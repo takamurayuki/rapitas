@@ -80,7 +80,13 @@ export async function scanAndRemind(): Promise<ReminderScanResult> {
       if (n.metadata) {
         try {
           const meta = JSON.parse(n.metadata);
+          // Legacy rows carry a single entryId; digest rows carry entryIds[].
           if (meta.entryId) recentlyRemindedIds.add(meta.entryId);
+          if (Array.isArray(meta.entryIds)) {
+            for (const id of meta.entryIds) {
+              if (typeof id === 'number') recentlyRemindedIds.add(id);
+            }
+          }
         } catch {
           // ignore
         }
@@ -103,24 +109,29 @@ export async function scanAndRemind(): Promise<ReminderScanResult> {
         content: entry.content.slice(0, 200),
         daysSinceAccess,
       });
+    }
 
-      // Create notification
+    // One digest notification per scan. Per-entry notifications flooded the
+    // feed with 5 same-titled rows every daily scan, burying actionable
+    // notifications (e.g. auto-merge stalls) under review nudges.
+    if (reminderEntries.length > 0) {
+      const lines = reminderEntries.map(
+        (e) =>
+          `「${e.title}」（${e.daysSinceAccess >= 0 ? `${e.daysSinceAccess}日間アクセスなし` : '未アクセス'}、記憶強度${Math.round(e.decayScore * 100)}%）`,
+      );
       await prisma.notification.create({
         data: {
           type: 'knowledge_reminder',
-          title: '忘れかけているナレッジ',
-          message: `「${entry.title}」を復習しませんか？（${daysSinceAccess >= 0 ? `${daysSinceAccess}日間アクセスなし` : '未アクセス'}、記憶強度: ${Math.round(entry.decayScore * 100)}%）`,
+          title: `忘れかけているナレッジ（${reminderEntries.length}件）`,
+          message: `復習しませんか？ ${lines.join('、')}`,
           link: `/knowledge`,
           metadata: JSON.stringify({
-            entryId: entry.id,
-            decayScore: entry.decayScore,
-            daysSinceAccess,
-            category: entry.category,
+            entryIds: reminderEntries.map((e) => e.id),
+            count: reminderEntries.length,
           }),
         },
       });
-
-      remindersCreated++;
+      remindersCreated = reminderEntries.length;
     }
 
     if (remindersCreated > 0) {
