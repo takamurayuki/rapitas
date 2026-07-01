@@ -104,7 +104,17 @@ export function useTaskSubmit(
       const separator = detailPath.includes('?') ? '&' : '?';
       router.push(`${detailPath}${separator}autoExecute=true&showHeader=true`);
     } else {
-      showToast(t('taskCreated'), 'success');
+      // Offer one-tap execution from the toast: the default path used to
+      // require re-opening the task and pressing 実行 (2 extra steps). Reuses
+      // the same autoExecute mechanism as the auto-execute setting.
+      const detailPath = getTaskDetailPath(createdTaskId);
+      const separator = detailPath.includes('?') ? '&' : '?';
+      showToast(t('taskCreated'), 'success', {
+        action: {
+          label: t('startExecution'),
+          onClick: () => router.push(`${detailPath}${separator}autoExecute=true&showHeader=true`),
+        },
+      });
       router.push('/');
     }
   };

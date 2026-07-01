@@ -3,27 +3,38 @@ import { useEffect } from 'react';
 
 export type ToastType = 'success' | 'error' | 'info' | 'warning';
 
+/** Optional one-tap follow-up action rendered inside the toast. */
+export interface ToastAction {
+  label: string;
+  onClick: () => void;
+}
+
 interface ToastProps {
   message: string;
   type?: ToastType;
   duration?: number;
+  action?: ToastAction;
   onClose: () => void;
 }
 
-export default function Toast({ message, type = 'info', duration = 3000, onClose }: ToastProps) {
+export default function Toast({ message, type = 'info', duration, action, onClose }: ToastProps) {
+  // An action needs reading + deciding time — give it a longer default window.
+  const effectiveDuration = duration ?? (action ? 6000 : 3000);
+
   useEffect(() => {
     const timer = setTimeout(() => {
       onClose();
-    }, duration);
+    }, effectiveDuration);
 
     return () => clearTimeout(timer);
-  }, [duration, onClose]);
+  }, [effectiveDuration, onClose]);
 
   const bgColors = {
     success: 'bg-green-500',
     error: 'bg-red-500',
     info: 'bg-indigo-500',
-    warning: 'bg-yellow-500',
+    // NOTE: warning uses AMBER — the app-wide warning hue (was yellow).
+    warning: 'bg-amber-500',
   };
 
   const icons = {
@@ -72,7 +83,19 @@ export default function Toast({ message, type = 'info', duration = 3000, onClose
     >
       {icons[type]}
       <p className="flex-1 font-medium">{message}</p>
-      <button onClick={onClose} className="hover:bg-white/20 rounded p-1 transition-colors">
+      {action && (
+        <button
+          onClick={action.onClick}
+          className="shrink-0 px-2.5 py-1 rounded-md bg-white/20 hover:bg-white/30 text-sm font-semibold transition-colors"
+        >
+          {action.label}
+        </button>
+      )}
+      <button
+        onClick={onClose}
+        className="hover:bg-white/20 rounded p-1 transition-colors"
+        aria-label="閉じる"
+      >
         <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
           <path
             fillRule="evenodd"
