@@ -72,6 +72,7 @@ Keep this list accurate. If you assign a glyph a new meaning, add it here.
 | `Search`                  | 知識ブラウザ (nav: /knowledge)           |
 | `BarChart2`               | 知識の成長トレンドチャートヘッダー       |
 | `Signal`                  | 記憶強度 (MemoryStrengthCard)            |
+| `Footprints`              | エピソード記憶 (agents/memory OverviewCards) |
 
 ### Known collisions — resolve when you next touch them
 
