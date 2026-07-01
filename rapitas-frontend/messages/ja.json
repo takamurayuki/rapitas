@@ -219,6 +219,7 @@
     "newSubtask": "新しいサブタスク",
     "subtaskTitle": "サブタスクタイトル",
     "subtaskTitleRequired": "サブタスクタイトル *",
+    "titleRequiredHint": "タイトルを入力すると作成できます",
     "descriptionMarkdown": "説明（マークダウン対応）",
     "labelsCommaSeparated": "ラベル（カンマ区切り）",
     "estimatedHours": "見積もり時間（h）",

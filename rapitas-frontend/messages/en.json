@@ -219,6 +219,7 @@
     "newSubtask": "New subtask",
     "subtaskTitle": "Subtask title",
     "subtaskTitleRequired": "Subtask title *",
+    "titleRequiredHint": "Enter a title to create the task",
     "descriptionMarkdown": "Description (Markdown)",
     "labelsCommaSeparated": "Labels (comma-separated)",
     "estimatedHours": "Estimated hours (h)",

@@ -39,6 +39,8 @@ export function NewTaskHeader({
   const t = useTranslations('task');
 
   const canCreate = hasTitle && !isSubmitting;
+  // Say WHY the button is disabled — a dimmed button alone doesn't explain itself.
+  const disabledHint = !hasTitle && !isSubmitting ? t('titleRequiredHint') : undefined;
 
   return (
     <div className="max-w-2xl mx-auto px-4 py-4">
@@ -76,6 +78,7 @@ export function NewTaskHeader({
           <button
             onClick={(e) => onSubmit(e)}
             disabled={!canCreate}
+            title={disabledHint}
             className={`
               flex items-center gap-2 px-3.5 py-2 rounded-lg select-none
               text-sm font-medium
@@ -96,6 +99,11 @@ export function NewTaskHeader({
           </button>
         </div>
       </div>
+      {disabledHint && (
+        <p className="mt-1.5 text-right text-xs text-zinc-500 dark:text-zinc-400" role="status">
+          {disabledHint}
+        </p>
+      )}
     </div>
   );
 }
