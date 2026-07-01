@@ -6,7 +6,7 @@
  * gateチェックが未報告→'unknown'。advisoryチェックは無視されること。
  */
 import { describe, test, expect } from 'bun:test';
-import { evaluateAutoMergeChecks, type PrCheck } from '../../services/workflow/auto-merge-watcher';
+import { evaluateAutoMergeChecks, type PrCheck } from '../../services/workflow/auto-merge-checks';
 
 const BLOCKING = new Set(['Test Backend', 'Lint Code', 'Check Frontend']);
 
