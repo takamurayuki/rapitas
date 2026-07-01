@@ -5,10 +5,13 @@ export const statusConfig = {
     borderColor: 'border-l-zinc-400 dark:border-l-zinc-600',
     label: '未着手',
   },
+  // NOTE: in-progress uses INDIGO — the app-wide "running" color (matches
+  // StatusCard / WorkflowStatusIndicator). Was blue, which split the running
+  // meaning across hues between screens.
   'in-progress': {
-    color: 'text-blue-700 dark:text-blue-300',
-    bgColor: 'bg-blue-50 dark:bg-blue-900/40',
-    borderColor: 'border-l-blue-500 dark:border-l-blue-400',
+    color: 'text-indigo-700 dark:text-indigo-300',
+    bgColor: 'bg-indigo-50 dark:bg-indigo-900/40',
+    borderColor: 'border-l-indigo-500 dark:border-l-indigo-400',
     label: '進行中',
   },
   done: {
@@ -21,9 +24,9 @@ export const statusConfig = {
   // pending / transient failure during a run). Per UX request it is surfaced as
   // "進行中" — same look as in-progress — rather than a distinct ⚠ badge.
   blocked: {
-    color: 'text-blue-700 dark:text-blue-300',
-    bgColor: 'bg-blue-50 dark:bg-blue-900/40',
-    borderColor: 'border-l-blue-500 dark:border-l-blue-400',
+    color: 'text-indigo-700 dark:text-indigo-300',
+    bgColor: 'bg-indigo-50 dark:bg-indigo-900/40',
+    borderColor: 'border-l-indigo-500 dark:border-l-indigo-400',
     label: '進行中',
   },
 };

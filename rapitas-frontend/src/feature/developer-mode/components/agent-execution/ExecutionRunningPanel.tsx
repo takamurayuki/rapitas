@@ -74,18 +74,18 @@ export function ExecutionRunningPanel({
                 className={`w-16 h-16 rounded-2xl flex items-center justify-center ${
                   showWaitingUI
                     ? 'bg-amber-100 dark:bg-amber-900/40'
-                    : 'bg-blue-100 dark:bg-blue-900/40'
+                    : 'bg-indigo-100 dark:bg-indigo-900/40'
                 }`}
               >
                 {showWaitingUI ? (
                   <HelpCircle className="w-8 h-8 text-amber-600 dark:text-amber-400" />
                 ) : (
-                  <Rocket className="w-8 h-8 text-blue-600 dark:text-blue-400" />
+                  <Rocket className="w-8 h-8 text-indigo-600 dark:text-indigo-400" />
                 )}
               </div>
               {!showWaitingUI && (
                 <div className="absolute -top-1 -right-1 w-6 h-6 rounded-full bg-white dark:bg-indigo-dark-900 flex items-center justify-center shadow-lg">
-                  <Loader2 className="w-4 h-4 text-blue-500 animate-spin" />
+                  <Loader2 className="w-4 h-4 text-indigo-500 animate-spin" />
                 </div>
               )}
             </div>
