@@ -12,6 +12,11 @@ import { classifyTier, inferCostPer1k } from '../tier-classifier';
 
 const log = createLogger('model-discovery:ollama');
 
+// Warn only on the available→unavailable TRANSITION. The periodic discovery
+// re-probes forever, so on a box without Ollama running a per-failure warn
+// spams the log every cycle (observed: dozens of identical warns per day).
+let lastProbeFailed = false;
+
 interface OllamaTagsResponse {
   models?: Array<{ name?: string; model?: string }>;
 }
@@ -50,6 +55,7 @@ export async function probeOllama(): Promise<ProviderProbeResult> {
     const json = (await res.json()) as OllamaTagsResponse;
     const tags = (json.models ?? []).map((m) => m.name ?? m.model).filter(Boolean) as string[];
     if (tags.length === 0) {
+      lastProbeFailed = false;
       return {
         provider: 'ollama',
         available: true,
@@ -68,9 +74,16 @@ export async function probeOllama(): Promise<ProviderProbeResult> {
         label: id,
       };
     });
+    lastProbeFailed = false;
     return { provider: 'ollama', available: true, models };
   } catch (err) {
-    log.warn({ err: err instanceof Error ? err.message : err }, 'Ollama probe failed');
+    const msg = err instanceof Error ? err.message : err;
+    if (lastProbeFailed) {
+      log.debug({ err: msg }, 'Ollama probe still failing');
+    } else {
+      log.warn({ err: msg }, 'Ollama probe failed');
+    }
+    lastProbeFailed = true;
     return {
       provider: 'ollama',
       available: false,
