@@ -62,7 +62,8 @@
   --input-border: #d1d5db;
   --heading: #0f172a;
   --label: #374151;
-  --placeholder: #9ca3af;
+  /* NOTE: placeholder meets WCAG AA (4.83:1 on white). #9ca3af was 2.54:1. */
+  --placeholder: #6b7280;
   --header-bg: #ffffff;
 }
 
@@ -83,7 +84,8 @@ html.dark {
   --input-border: #334155;
   --heading: #f1f5f9;
   --label: #cbd5e1;
-  --placeholder: #64748b;
+  /* NOTE: placeholder meets WCAG AA (5.02:1 on --input-bg). #64748b was 3.25:1. */
+  --placeholder: #8494ab;
   --header-bg: #111827;
 }
 

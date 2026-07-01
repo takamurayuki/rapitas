@@ -188,7 +188,7 @@ export function WorkflowProgress({ currentStatus, roles }: WorkflowProgressProps
               title={config.label}
             />
             {roles && roleConfig?.agentConfig && (
-              <span className="text-[9px] text-zinc-400 dark:text-zinc-500 truncate max-w-full leading-tight">
+              <span className="text-[10px] text-zinc-500 dark:text-zinc-400 truncate max-w-full leading-tight">
                 {roleConfig.agentConfig.name}
               </span>
             )}

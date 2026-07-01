@@ -234,7 +234,7 @@ export default function DashboardPage() {
               </div>
             </div>
           ) : (
-            <div className="h-40 flex items-center justify-center text-zinc-400 dark:text-zinc-500">
+            <div className="h-40 flex items-center justify-center text-zinc-500 dark:text-zinc-400">
               {t('noRecords')}
             </div>
           )}
@@ -274,7 +274,7 @@ export default function DashboardPage() {
               )}
             </div>
           ) : (
-            <div className="h-32 flex flex-col items-center justify-center text-zinc-400 dark:text-zinc-500">
+            <div className="h-32 flex flex-col items-center justify-center text-zinc-500 dark:text-zinc-400">
               <Target className="w-8 h-8 mb-2 opacity-50" />
               <p className="text-sm">{t('noExamGoals')}</p>
               <a

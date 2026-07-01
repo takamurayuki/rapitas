@@ -49,7 +49,8 @@ export const viewport: Viewport = {
   initialScale: 1,
   maximumScale: 1,
   userScalable: false,
-  themeColor: '#6366f1',
+  // NOTE: must match --accent in globals.css (was #6366f1, a near-miss indigo).
+  themeColor: '#4f46e5',
 };
 
 export default function RootLayout({
@@ -137,39 +138,39 @@ export default function RootLayout({
               <ToastProvider>
                 {/* NOTE: ConfirmDialogProvider is inside ToastProvider so it can use toasts. */}
                 <ConfirmDialogProvider>
-                <VoiceInputProvider>
-                  <ExternalLinksProvider>
-                    <Suspense fallback={<div className="h-16" />}>
+                  <VoiceInputProvider>
+                    <ExternalLinksProvider>
                       <Suspense fallback={<div className="h-16" />}>
-                        <ConditionalHeader />
+                        <Suspense fallback={<div className="h-16" />}>
+                          <ConditionalHeader />
+                        </Suspense>
+                        {/* <WindowResizeOptimizer /> */}
+                        <AppContent>{children}</AppContent>
+                        <Suspense fallback={null}>
+                          <KeyboardShortcuts />
+                        </Suspense>
+                        <Suspense fallback={null}>
+                          <OfflineIndicatorLoader />
+                        </Suspense>
+                        <Suspense fallback={null}>
+                          <ResumableExecutionsBanner />
+                        </Suspense>
+                        <Suspense fallback={null}>
+                          <UpdateBanner />
+                        </Suspense>
+                        <GlobalErrorReporter />
+                        <Suspense fallback={null}>
+                          <SetupGate />
+                        </Suspense>
+                        <ScheduleReminderProvider />
+                        <CacheWarmupInitializer />
+                        <Suspense fallback={null}>
+                          <SmartCommandBar />
+                        </Suspense>
+                        <TerminalProvider />
                       </Suspense>
-                      {/* <WindowResizeOptimizer /> */}
-                      <AppContent>{children}</AppContent>
-                      <Suspense fallback={null}>
-                        <KeyboardShortcuts />
-                      </Suspense>
-                      <Suspense fallback={null}>
-                        <OfflineIndicatorLoader />
-                      </Suspense>
-                      <Suspense fallback={null}>
-                        <ResumableExecutionsBanner />
-                      </Suspense>
-                      <Suspense fallback={null}>
-                        <UpdateBanner />
-                      </Suspense>
-                      <GlobalErrorReporter />
-                      <Suspense fallback={null}>
-                        <SetupGate />
-                      </Suspense>
-                      <ScheduleReminderProvider />
-                      <CacheWarmupInitializer />
-                      <Suspense fallback={null}>
-                        <SmartCommandBar />
-                      </Suspense>
-                      <TerminalProvider />
-                    </Suspense>
-                  </ExternalLinksProvider>
-                </VoiceInputProvider>
+                    </ExternalLinksProvider>
+                  </VoiceInputProvider>
                 </ConfirmDialogProvider>
               </ToastProvider>
             </PomodoroProvider>
