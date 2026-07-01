@@ -123,6 +123,7 @@ export function ExecutionItem({
           disabled={isDismissing}
           className="p-2 hover:bg-zinc-200 dark:hover:bg-zinc-700 rounded-lg transition-colors disabled:opacity-50"
           title={tc('close')}
+          aria-label={tc('close')}
         >
           {isDismissing ? (
             <Loader2 className="w-3.5 h-3.5 animate-spin text-zinc-400" />

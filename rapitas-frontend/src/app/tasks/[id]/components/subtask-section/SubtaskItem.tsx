@@ -118,7 +118,12 @@ export function SubtaskItem({
           <div className="flex items-center justify-between gap-3">
             <div className="flex items-center gap-2 flex-1 min-w-0">
               {isSelectionMode && (
-                <button onClick={onToggleSelection} className="shrink-0">
+                <button
+                  onClick={onToggleSelection}
+                  className="shrink-0"
+                  aria-label={isSelected ? '選択を解除' : '選択'}
+                  aria-pressed={isSelected}
+                >
                   {isSelected ? (
                     <CheckSquare className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />
                   ) : (
