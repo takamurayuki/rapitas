@@ -27,22 +27,23 @@ const STATUS_CONFIG: Record<
   // (→ plan_created) — except in lightweight mode where the implementer runs there
   // (research → implement, no plan). So draft = 調査中 and research_done = 計画中
   // (overridden to 実装中 for lightweight below).
-  // NOTE: All "agent actively running" statuses use INDIGO — the app-wide running
-  // color (see StatusCard). They were blue/purple here, splitting the core
-  // "実行中" meaning across three hues between screens; phase identity is carried
-  // by the icon + label, not the hue.
+  // NOTE: All "agent actively running" statuses use BLUE — the app-wide running
+  // color (user decision; see docs/design/ui-design-language.md §4 status hues).
+  // Blue = running state, indigo = interactive accent. The verify phase was
+  // purple, splitting the core "実行中" meaning across hues; phase identity is
+  // carried by the icon + label, not the hue.
   draft: {
     label: '調査中',
-    color: 'text-indigo-600 dark:text-indigo-400',
-    bgColor: 'bg-indigo-50 dark:bg-indigo-900/30',
-    borderColor: 'border-indigo-300 dark:border-indigo-600',
+    color: 'text-blue-600 dark:text-blue-400',
+    bgColor: 'bg-blue-50 dark:bg-blue-900/30',
+    borderColor: 'border-blue-300 dark:border-blue-600',
     icon: FileSearch,
   },
   research_done: {
     label: '計画中',
-    color: 'text-indigo-600 dark:text-indigo-400',
-    bgColor: 'bg-indigo-50 dark:bg-indigo-900/30',
-    borderColor: 'border-indigo-300 dark:border-indigo-600',
+    color: 'text-blue-600 dark:text-blue-400',
+    bgColor: 'bg-blue-50 dark:bg-blue-900/30',
+    borderColor: 'border-blue-300 dark:border-blue-600',
     icon: FileText,
   },
   plan_created: {
@@ -59,16 +60,16 @@ const STATUS_CONFIG: Record<
   // "実装中", making the verify phase look like it was still implementing.
   plan_approved: {
     label: '実装中',
-    color: 'text-indigo-600 dark:text-indigo-400',
-    bgColor: 'bg-indigo-50 dark:bg-indigo-900/30',
-    borderColor: 'border-indigo-300 dark:border-indigo-600',
+    color: 'text-blue-600 dark:text-blue-400',
+    bgColor: 'bg-blue-50 dark:bg-blue-900/30',
+    borderColor: 'border-blue-300 dark:border-blue-600',
     icon: Code,
   },
   in_progress: {
     label: '検証中',
-    color: 'text-indigo-600 dark:text-indigo-400',
-    bgColor: 'bg-indigo-50 dark:bg-indigo-900/30',
-    borderColor: 'border-indigo-300 dark:border-indigo-600',
+    color: 'text-blue-600 dark:text-blue-400',
+    bgColor: 'bg-blue-50 dark:bg-blue-900/30',
+    borderColor: 'border-blue-300 dark:border-blue-600',
     icon: FlaskConical,
   },
   awaiting_question: {

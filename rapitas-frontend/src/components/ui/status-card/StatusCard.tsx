@@ -8,11 +8,14 @@ import type { StatusCardProps, AgentStatusType, StatusConfig, StatusCardSize } f
  * Status configuration map
  */
 const STATUS_CONFIG: Record<AgentStatusType, StatusConfig> = {
+  // NOTE: processing uses BLUE — the app-wide "running" color (user decision;
+  // see docs/design/ui-design-language.md §4 status hues). Was indigo, which
+  // split the running meaning against the blue used elsewhere.
   processing: {
-    iconColor: 'text-indigo-500 dark:text-indigo-400',
-    bgColor: 'bg-indigo-50 dark:bg-indigo-950/40',
-    borderColor: 'border-indigo-200 dark:border-indigo-800',
-    textColor: 'text-indigo-700 dark:text-indigo-300',
+    iconColor: 'text-blue-500 dark:text-blue-400',
+    bgColor: 'bg-blue-50 dark:bg-blue-950/40',
+    borderColor: 'border-blue-200 dark:border-blue-800',
+    textColor: 'text-blue-700 dark:text-blue-300',
     label: '実行中',
     animation: 'animate-spin',
   },
