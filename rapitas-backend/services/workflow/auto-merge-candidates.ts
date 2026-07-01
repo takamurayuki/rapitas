@@ -87,11 +87,31 @@ export async function findCandidates(): Promise<Candidate[]> {
     .findMany({ where: { githubPrId: { not: null } }, select: { id: true, githubPrId: true } })
     .catch(() => [] as { id: number; githubPrId: number | null }[]);
   for (const t of prTasks) {
-    if (t.githubPrId == null || links.has(t.id)) continue;
+    if (t.githubPrId == null) continue;
+    const existing = links.get(t.id);
+    if (existing && existing.prNumber === t.githubPrId) continue;
     const row = await prisma.gitHubPullRequest
       .findFirst({ where: { prNumber: t.githubPrId, state: 'open' }, select: { baseBranch: true } })
       .catch(() => null);
     if (!row) continue;
+    if (existing) {
+      // The task has TWO open PRs (a re-run created a fresh PR while the old one
+      // stayed open — observed: task 322 with #260 AND #262). Task.githubPrId is
+      // written at PR creation, so it names the LATEST PR; watch that one instead
+      // of an arbitrary linkedTaskId row (which map order made the OLDER PR).
+      // Notify once ever (not on the 4h cooldown) so the user can close the stale PR.
+      const already = await prisma.notification
+        .findFirst({ where: { type: 'duplicate_open_prs', link: `/tasks/${t.id}` } })
+        .catch(() => null);
+      if (!already) {
+        await notify({
+          taskId: t.id,
+          type: 'duplicate_open_prs',
+          title: '同一タスクに複数のopen PR',
+          message: `タスク#${t.id} にPR #${existing.prNumber} と #${t.githubPrId} が両方openです。最新の #${t.githubPrId} を自動マージ対象にします。古い #${existing.prNumber} は手動でcloseしてください。`,
+        });
+      }
+    }
     links.set(t.id, { prNumber: t.githubPrId, baseBranch: row.baseBranch });
   }
 
