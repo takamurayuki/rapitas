@@ -167,7 +167,7 @@ const TodayTaskProgressBar = memo<TodayTaskProgressBarProps>(
       const circleColor = isDone ? '#10b981' : '#3b82f6';
       const pctColor = isDone
         ? 'text-emerald-600 dark:text-emerald-400'
-        : 'text-slate-500 dark:text-zinc-400';
+        : 'text-zinc-500 dark:text-zinc-400';
 
       const remaining = (tasks ?? []).filter((tk) => tk.status !== 'done');
       const popoverTasks = remaining.slice(0, 6);
@@ -177,11 +177,14 @@ const TodayTaskProgressBar = memo<TodayTaskProgressBarProps>(
       if (!dueTodayResult.isLoading && totalCount === 0) {
         return (
           <div className={`relative ${className}`}>
-            <div className="rounded-xl border border-slate-200 bg-white px-3 py-2.5 shadow-sm dark:border-zinc-800 dark:bg-indigo-dark-900">
-              <p className="mb-1.5 text-[12px] font-semibold tracking-wide text-slate-400 dark:text-zinc-500">
+            {/* NOTE: rounded-lg + no shadow + zinc hues — matches the task cards and
+                toolbar controls; the old rounded-xl slate card with shadow-sm floated
+                against its flat neighbours. */}
+            <div className="rounded-lg border border-zinc-200 bg-white px-3 py-2.5 dark:border-zinc-800 dark:bg-indigo-dark-900">
+              <p className="mb-1.5 text-[12px] font-semibold tracking-wide text-zinc-500 dark:text-zinc-400">
                 {t('noDueTodayTasks')}
               </p>
-              <div className="relative h-4 rounded-full border-2 border-slate-200 bg-slate-100 dark:border-zinc-600 dark:bg-zinc-800" />
+              <div className="relative h-4 rounded-full border-2 border-zinc-200 bg-zinc-100 dark:border-zinc-600 dark:bg-zinc-800" />
             </div>
           </div>
         );
@@ -194,7 +197,10 @@ const TodayTaskProgressBar = memo<TodayTaskProgressBarProps>(
           onMouseLeave={() => setIsHovered(false)}
         >
           {/* ── Card ─────────────────────────────────────────────────────────── */}
-          <div className="rounded-xl border border-slate-200 bg-white px-3 py-2.5 shadow-sm transition-all duration-500 dark:border-zinc-800 dark:bg-indigo-dark-900">
+          {/* NOTE: rounded-lg + no shadow + zinc hues — matches the task cards and
+              toolbar controls; the old rounded-xl slate card with shadow-sm floated
+              against its flat neighbours. */}
+          <div className="rounded-lg border border-zinc-200 bg-white px-3 py-2.5 transition-all duration-500 dark:border-zinc-800 dark:bg-indigo-dark-900">
             {/* Top row: label left, percentage right */}
             <div className="mb-1.5 flex items-center justify-between">
               <div className="flex items-center gap-1">
@@ -263,7 +269,7 @@ const TodayTaskProgressBar = memo<TodayTaskProgressBarProps>(
                     </motion.span>
                   )}
                 </AnimatePresence>
-                <p className="text-[12px] font-semibold tracking-wide text-slate-400 dark:text-zinc-500">
+                <p className="text-[12px] font-semibold tracking-wide text-zinc-500 dark:text-zinc-400">
                   {t('todayDueTask')}
                 </p>
               </div>
@@ -282,7 +288,7 @@ const TodayTaskProgressBar = memo<TodayTaskProgressBarProps>(
             </div>
 
             {/* Full-width thermometer bar */}
-            <div className="relative h-4 overflow-visible rounded-full border-2 border-slate-200 bg-slate-100 dark:border-zinc-600 dark:bg-zinc-800">
+            <div className="relative h-4 overflow-visible rounded-full border-2 border-zinc-200 bg-zinc-100 dark:border-zinc-600 dark:bg-zinc-800">
               {efficiency > 0 && (
                 <motion.div
                   className={`absolute bottom-[2px] left-[2px] top-[2px] rounded-full transition-colors duration-500 ${fillColor}`}
@@ -296,7 +302,7 @@ const TodayTaskProgressBar = memo<TodayTaskProgressBarProps>(
               {[12.5, 25, 37.5, 50, 62.5, 75, 87.5].map((pct) => (
                 <div
                   key={pct}
-                  className="pointer-events-none absolute inset-y-0 z-[5] w-px bg-slate-200 dark:bg-zinc-600"
+                  className="pointer-events-none absolute inset-y-0 z-[5] w-px bg-zinc-200 dark:bg-zinc-600"
                   style={{ left: `${pct}%` }}
                 />
               ))}
@@ -319,7 +325,7 @@ const TodayTaskProgressBar = memo<TodayTaskProgressBarProps>(
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: 4 }}
                 transition={{ duration: 0.15 }}
-                className="absolute left-0 top-full z-50 mt-1.5 w-full min-w-[200px] overflow-hidden rounded-xl border border-slate-200 bg-white shadow-lg dark:border-zinc-800 dark:bg-indigo-dark-900"
+                className="absolute left-0 top-full z-50 mt-1.5 w-full min-w-[200px] overflow-hidden rounded-lg border border-zinc-200 bg-white shadow-lg dark:border-zinc-800 dark:bg-indigo-dark-900"
               >
                 {remaining.length === 0 ? (
                   <div className="flex items-center gap-2 px-3 py-2.5">
@@ -330,8 +336,8 @@ const TodayTaskProgressBar = memo<TodayTaskProgressBarProps>(
                   </div>
                 ) : (
                   <>
-                    <div className="border-b border-slate-100 px-3 py-2 dark:border-zinc-800">
-                      <span className="text-[11px] font-semibold text-slate-400 dark:text-zinc-500">
+                    <div className="border-b border-zinc-100 px-3 py-2 dark:border-zinc-800">
+                      <span className="text-[11px] font-semibold text-zinc-500 dark:text-zinc-400">
                         残り {remaining.length} 件
                       </span>
                     </div>
@@ -341,16 +347,16 @@ const TodayTaskProgressBar = memo<TodayTaskProgressBarProps>(
                           <Link
                             href={`/tasks/${tk.id}`}
                             onClick={() => setIsHovered(false)}
-                            className="flex items-center gap-2 px-3 py-1.5 hover:bg-slate-50 dark:hover:bg-zinc-800/60 transition-colors"
+                            className="flex items-center gap-2 px-3 py-1.5 hover:bg-zinc-50 dark:hover:bg-zinc-800/60 transition-colors"
                           >
                             <span
                               className={`h-1.5 w-1.5 shrink-0 rounded-full ${
                                 tk.status === 'in-progress'
                                   ? 'bg-blue-400'
-                                  : 'bg-slate-200 dark:bg-zinc-600'
+                                  : 'bg-zinc-200 dark:bg-zinc-600'
                               }`}
                             />
-                            <span className="min-w-0 truncate text-xs text-slate-700 dark:text-zinc-200">
+                            <span className="min-w-0 truncate text-xs text-zinc-700 dark:text-zinc-200">
                               {tk.title}
                             </span>
                           </Link>
@@ -358,8 +364,8 @@ const TodayTaskProgressBar = memo<TodayTaskProgressBarProps>(
                       ))}
                     </ul>
                     {extraCount > 0 && (
-                      <div className="border-t border-slate-100 px-3 py-1.5 dark:border-zinc-800">
-                        <span className="text-[11px] text-slate-400 dark:text-zinc-500">
+                      <div className="border-t border-zinc-100 px-3 py-1.5 dark:border-zinc-800">
+                        <span className="text-[11px] text-zinc-500 dark:text-zinc-400">
                           他 {extraCount} 件
                         </span>
                       </div>
