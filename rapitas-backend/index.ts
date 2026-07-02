@@ -40,9 +40,18 @@ import { realtimeService } from './services/communication/realtime-service';
 // Ensure database connection before starting server
 await ensureDatabaseConnection();
 
-import { resolveBindHost, createApiTokenGuard } from './middleware/local-auth';
+import {
+  resolveBindHost,
+  createApiTokenGuard,
+  createCrossSiteGuard,
+} from './middleware/local-auth';
 
 const app = new Elysia();
+
+// CSRF backstop: reject cross-site state-changing requests even in the default
+// tokenless loopback deployment (a browser tab on any site can POST to
+// 127.0.0.1 otherwise). Registered first so it runs before route handlers.
+app.onRequest(createCrossSiteGuard());
 
 // Exposure guard: when RAPITAS_API_TOKEN is set (required for any non-loopback
 // bind), every request must carry it. No-op in the default loopback deployment.

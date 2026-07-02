@@ -6,7 +6,7 @@
  * Not responsible for branch management, pull requests, or worktrees.
  */
 
-import { exec } from 'child_process';
+import { execFile } from 'child_process';
 import { promisify } from 'util';
 import { readdir, unlink } from 'fs/promises';
 import { join } from 'path';
@@ -15,7 +15,10 @@ import { ensureNotPrimaryWorkTree } from './worktree-guard';
 
 export { getDiff } from './diff-structured';
 
-const execAsync = promisify(exec);
+// NOTE: execFile (array-args, no shell) instead of exec (shell string) — commit
+// messages / task titles are caller-controlled and passed as literal argv
+// elements, so shell metacharacters in them can't be interpreted.
+const execFileAsync = promisify(execFile);
 const logger = createLogger('git-operations/core-ops');
 
 /**
@@ -49,7 +52,7 @@ async function removeTransientWorkflowFiles(workingDirectory: string): Promise<v
  */
 export async function getGitDiff(workingDirectory: string): Promise<string> {
   try {
-    const { stdout } = await execAsync('git diff', {
+    const { stdout } = await execFileAsync('git', ['diff'], {
       cwd: workingDirectory,
       encoding: 'utf8',
       maxBuffer: 10 * 1024 * 1024,
@@ -69,20 +72,24 @@ export async function getGitDiff(workingDirectory: string): Promise<string> {
  */
 export async function getFullGitDiff(workingDirectory: string): Promise<string> {
   try {
-    const { stdout: staged } = await execAsync('git diff --cached', {
+    const { stdout: staged } = await execFileAsync('git', ['diff', '--cached'], {
       cwd: workingDirectory,
       encoding: 'utf8',
       maxBuffer: 10 * 1024 * 1024,
     });
-    const { stdout: unstaged } = await execAsync('git diff', {
+    const { stdout: unstaged } = await execFileAsync('git', ['diff'], {
       cwd: workingDirectory,
       encoding: 'utf8',
       maxBuffer: 10 * 1024 * 1024,
     });
-    const { stdout: untracked } = await execAsync('git ls-files --others --exclude-standard', {
-      cwd: workingDirectory,
-      encoding: 'utf8',
-    });
+    const { stdout: untracked } = await execFileAsync(
+      'git',
+      ['ls-files', '--others', '--exclude-standard'],
+      {
+        cwd: workingDirectory,
+        encoding: 'utf8',
+      },
+    );
 
     let result = '';
     if (staged) result += '=== Staged Changes ===\n' + staged + '\n';
@@ -114,18 +121,21 @@ export async function commitChanges(
     // commit the developer's own uncommitted work. Agent commits run in a worktree.
     await ensureNotPrimaryWorkTree(workingDirectory, 'commit');
     await removeTransientWorkflowFiles(workingDirectory);
-    await execAsync('git add -A', { cwd: workingDirectory });
+    await execFileAsync('git', ['add', '-A'], { cwd: workingDirectory });
 
     const fullMessage = taskTitle
       ? `${message}\n\nTask: ${taskTitle}\n\nCo-Authored-By: Claude Code <noreply@anthropic.com>`
       : `${message}\n\nCo-Authored-By: Claude Code <noreply@anthropic.com>`;
 
-    await execAsync(`git commit -m "${fullMessage.replace(/"/g, '\\"')}"`, {
+    // NOTE: execFile passes fullMessage as a single literal argv element — no
+    // shell involved, so the manual quote-escaping needed for a shell string is
+    // unnecessary (and the message may contain raw double quotes safely).
+    await execFileAsync('git', ['commit', '-m', fullMessage], {
       cwd: workingDirectory,
       encoding: 'utf8',
     });
 
-    const { stdout: hash } = await execAsync('git rev-parse HEAD', {
+    const { stdout: hash } = await execFileAsync('git', ['rev-parse', 'HEAD'], {
       cwd: workingDirectory,
       encoding: 'utf8',
     });
@@ -161,7 +171,7 @@ export async function createCommit(
   // `git checkout -b`, either of which would clobber the developer's work.
   await ensureNotPrimaryWorkTree(workingDirectory, 'create a commit');
 
-  const { stdout: currentBranch } = await execAsync('git branch --show-current', {
+  const { stdout: currentBranch } = await execFileAsync('git', ['branch', '--show-current'], {
     cwd: workingDirectory,
     encoding: 'utf8',
   });
@@ -169,13 +179,13 @@ export async function createCommit(
 
   if (branch === 'main' || branch === 'master' || branch === 'develop') {
     const featureBranch = `feature/auto-${Date.now()}`;
-    await execAsync(`git checkout -b ${featureBranch}`, { cwd: workingDirectory });
+    await execFileAsync('git', ['checkout', '-b', featureBranch], { cwd: workingDirectory });
   }
 
   await removeTransientWorkflowFiles(workingDirectory);
-  await execAsync('git add -A', { cwd: workingDirectory });
+  await execFileAsync('git', ['add', '-A'], { cwd: workingDirectory });
 
-  const { stdout: diffStat } = await execAsync('git diff --cached --numstat', {
+  const { stdout: diffStat } = await execFileAsync('git', ['diff', '--cached', '--numstat'], {
     cwd: workingDirectory,
     encoding: 'utf8',
   });
@@ -204,11 +214,11 @@ export async function createCommit(
   // with no PR. Treat the empty case as a no-op SUCCESS on the current HEAD so
   // the caller still opens a PR from the commits already on the branch.
   if (filesChanged === 0) {
-    const { stdout: existingHash } = await execAsync('git rev-parse HEAD', {
+    const { stdout: existingHash } = await execFileAsync('git', ['rev-parse', 'HEAD'], {
       cwd: workingDirectory,
       encoding: 'utf8',
     });
-    const { stdout: existingBranch } = await execAsync('git branch --show-current', {
+    const { stdout: existingBranch } = await execFileAsync('git', ['branch', '--show-current'], {
       cwd: workingDirectory,
       encoding: 'utf8',
     });
@@ -222,16 +232,16 @@ export async function createCommit(
   }
 
   const fullMessage = `${message}\n\nCo-Authored-By: Claude Code <noreply@anthropic.com>`;
-  await execAsync(`git commit -m "${fullMessage.replace(/"/g, '\\"')}"`, {
+  await execFileAsync('git', ['commit', '-m', fullMessage], {
     cwd: workingDirectory,
     encoding: 'utf8',
   });
 
-  const { stdout: hash } = await execAsync('git rev-parse HEAD', {
+  const { stdout: hash } = await execFileAsync('git', ['rev-parse', 'HEAD'], {
     cwd: workingDirectory,
     encoding: 'utf8',
   });
-  const { stdout: finalBranch } = await execAsync('git branch --show-current', {
+  const { stdout: finalBranch } = await execFileAsync('git', ['branch', '--show-current'], {
     cwd: workingDirectory,
     encoding: 'utf8',
   });

@@ -97,3 +97,37 @@ export function createApiTokenGuard():
     });
   };
 }
+
+// State-changing methods that a cross-site page could trigger against the
+// loopback API. GET/HEAD are exempt (reads; and the token guard still applies
+// when configured).
+const STATE_CHANGING_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
+
+/**
+ * Cross-site request guard (CSRF backstop for the default tokenless deployment).
+ *
+ * The backend binds to loopback with no user auth, so ANY web page the user has
+ * open can POST to http://127.0.0.1:3001 — a classic drive-by-localhost CSRF
+ * vector (CORS restricts who can READ the response, not who can SEND a
+ * state-changing request). Browsers label such requests `Sec-Fetch-Site:
+ * cross-site`; we reject state-changing methods carrying that label. Same-origin
+ * / same-site / none (direct navigation) and non-browser clients that omit the
+ * header (Tauri IPC, curl, EventSource) pass through, so app traffic is
+ * unaffected. Runs unconditionally, independent of RAPITAS_API_TOKEN.
+ *
+ * @returns onRequest handler that blocks cross-site writes. / クロスサイト書き込みを拒否
+ */
+export function createCrossSiteGuard(): (ctx: { request: Request }) => Response | undefined {
+  return ({ request }) => {
+    if (!STATE_CHANGING_METHODS.has(request.method)) return undefined;
+    const site = request.headers.get('sec-fetch-site');
+    if (site === 'cross-site') {
+      log.warn(`Blocked cross-site ${request.method} to ${new URL(request.url).pathname}`);
+      return new Response(JSON.stringify({ error: 'Cross-site request blocked' }), {
+        status: HTTP_STATUS.FORBIDDEN,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+    return undefined;
+  };
+}

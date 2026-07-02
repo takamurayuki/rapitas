@@ -119,6 +119,33 @@ export function sanitizeBranchName(name: string): string {
 }
 
 /**
+ * Assert a caller-supplied git ref (branch name) is safe to pass to git.
+ *
+ * This is a SECURITY boundary, distinct from `isValidBranchName` (which
+ * enforces the team's prefix convention). It rejects shell metacharacters and
+ * path-traversal so a value threaded into git commands can never break out —
+ * defense-in-depth alongside the array-form (`execFile`) git calls. Bare names
+ * without the feature/ prefix are allowed here; only dangerous characters are
+ * rejected.
+ *
+ * @param ref - Branch/base-branch value from a request. / リクエスト由来のブランチ名
+ * @param field - Field name for the error message. / エラーメッセージ用のフィールド名
+ * @throws {Error} When the ref contains unsafe characters. / 不正文字を含む場合
+ */
+export function assertSafeGitRef(ref: string, field = 'branchName'): void {
+  if (typeof ref !== 'string' || ref.length === 0 || ref.length > 200) {
+    throw new Error(`Invalid ${field}: must be a non-empty string under 200 chars`);
+  }
+  // Git ref rules + shell safety: letters, digits, and a minimal punctuation
+  // set. Excludes whitespace and every shell metacharacter (; & | $ ` ( ) < >
+  // " ' \ * ? ~ ^ : [ { @ !). Also blocks '..' traversal and leading '-'
+  // (which git would parse as an option).
+  if (!/^[A-Za-z0-9][A-Za-z0-9._/-]*$/.test(ref) || ref.includes('..')) {
+    throw new Error(`Invalid ${field}: contains characters not allowed in a branch name`);
+  }
+}
+
+/**
  * Check whether a branch name follows Git naming conventions.
  */
 export function isValidBranchName(name: string): boolean {

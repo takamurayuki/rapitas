@@ -39,9 +39,16 @@ const mockExec = mock(
   },
 );
 
-// NOTE: Mirror ALL child_process exports — bun mock.module is process-global and
-// any module in the same process that imports child_process would break if exec is missing.
+// NOTE: Mirror ALL child_process exports (both specifiers) — bun mock.module is
+// process-global and any module in the same process that imports child_process
+// or node:child_process would break if exec/execFile is missing. Sibling modules
+// (core-ops.ts, worktree-ops.ts, branch-pr-ops.ts) import execFile via
+// 'node:child_process' / 'child_process'.
 mock.module('child_process', () => ({
+  exec: mockExec,
+  execFile: mock(() => {}),
+}));
+mock.module('node:child_process', () => ({
   exec: mockExec,
   execFile: mock(() => {}),
 }));

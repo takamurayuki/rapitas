@@ -38,19 +38,52 @@ function runScripted(cmd: string): { stdout: string; stderr: string } {
   return { stdout: '', stderr: '' };
 }
 
+// NOTE: branch-pr-ops.ts was migrated from exec(shell string) to execFile(file, args[])
+// to close a shell-injection vector (branch/base names interpolated into a shell
+// string). This mock joins file+args back into a "cmd" string so the existing
+// script regexes/assertions below (matched against the pre-migration shell strings)
+// keep working unchanged.
+// NOTE: Mirror ALL child_process exports (both specifiers) — bun mock.module is
+// process-global, so any sibling module in the same test process that imports
+// the shell-string `exec` (e.g. repository-setup.ts, worktree-preflight.ts) would
+// fail to resolve if this mock omitted it.
+const execFileMockImpl = (
+  file: string,
+  args: unknown,
+  _opts: unknown,
+  cb?: (e: Error | null, r?: unknown) => void,
+) => {
+  const argv = Array.isArray(args) ? (args as string[]) : [];
+  const callback = (typeof _opts === 'function' ? _opts : cb) as (
+    e: Error | null,
+    r?: unknown,
+  ) => void;
+  const cmd = [file, ...argv].join(' ');
+  try {
+    callback(null, runScripted(cmd));
+  } catch (err) {
+    callback(err as Error);
+  }
+};
+const execMockImpl = (cmd: string, _opts: unknown, cb?: (e: Error | null, r?: unknown) => void) => {
+  const callback = (typeof _opts === 'function' ? _opts : cb) as (
+    e: Error | null,
+    r?: unknown,
+  ) => void;
+  try {
+    callback(null, runScripted(cmd));
+  } catch (err) {
+    callback(err as Error);
+  }
+};
 mock.module('child_process', () => ({
-  // promisify(exec) calls exec(cmd, options, callback); resolve {stdout,stderr}.
-  exec: (cmd: string, _opts: unknown, cb?: (e: Error | null, r?: unknown) => void) => {
-    const callback = (typeof _opts === 'function' ? _opts : cb) as (
-      e: Error | null,
-      r?: unknown,
-    ) => void;
-    try {
-      callback(null, runScripted(cmd));
-    } catch (err) {
-      callback(err as Error);
-    }
-  },
+  // promisify(execFile) calls execFile(file, args, options, callback); resolve {stdout,stderr}.
+  execFile: execFileMockImpl,
+  exec: execMockImpl,
+}));
+mock.module('node:child_process', () => ({
+  execFile: execFileMockImpl,
+  exec: execMockImpl,
 }));
 mock.module('../../../../config/logger', () => ({
   createLogger: () => ({ info: () => {}, warn: () => {}, error: () => {} }),

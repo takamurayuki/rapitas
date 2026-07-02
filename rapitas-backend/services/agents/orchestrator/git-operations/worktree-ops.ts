@@ -6,7 +6,7 @@
  * All destructive operations are guarded by isPathSafeForWorktreeOperation from safety.ts.
  */
 
-import { exec } from 'node:child_process';
+import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { join } from 'node:path';
 import { existsSync } from 'node:fs';
@@ -26,7 +26,11 @@ import { prisma } from '../../../../config/database';
 
 export { ensureGitRepository, validateAndSetupRemote };
 
-const execAsync = promisify(exec);
+// NOTE: execFile (array-args, no shell) instead of exec (shell string) — branch
+// names, paths, and other caller-controlled values are passed as literal argv
+// elements, so shell metacharacters in them can't be interpreted. See
+// services/github/gh-client.ts for the established pattern.
+const execFileAsync = promisify(execFile);
 const logger = createLogger('git-operations/worktree-ops');
 
 /**
@@ -98,9 +102,8 @@ export async function createWorktree(
   const shortId = randomBytes(4).toString('hex');
   const dirName = taskId ? `task-${taskId}-${shortId}` : `wt-${shortId}`;
   const worktreePath = join(baseDir, WORKTREE_DIR, dirName);
-
-  // NOTE: Quote paths to handle Windows paths with spaces
-  const quotedPath = `"${worktreePath}"`;
+  // NOTE: execFile passes args literally (no shell), so worktreePath needs no
+  // quoting even when it contains spaces — quotes would become literal characters.
 
   try {
     let effectiveBranchName = branchName;
@@ -108,12 +111,18 @@ export async function createWorktree(
     // lists them). Otherwise a removed worktree makes its branch look "in use"
     // below and forces a divergent unique branch — orphaning the PR's commits on
     // a ci_repair re-run that means to reuse the existing feature branch.
-    await execAsync('git worktree prune', { cwd: baseDir, encoding: 'utf8' }).catch(() => {});
+    await execFileAsync('git', ['worktree', 'prune'], { cwd: baseDir, encoding: 'utf8' }).catch(
+      () => {},
+    );
     try {
-      const { stdout: worktreeList } = await execAsync('git worktree list --porcelain', {
-        cwd: baseDir,
-        encoding: 'utf8',
-      });
+      const { stdout: worktreeList } = await execFileAsync(
+        'git',
+        ['worktree', 'list', '--porcelain'],
+        {
+          cwd: baseDir,
+          encoding: 'utf8',
+        },
+      );
 
       const branchInUse = worktreeList.includes(`branch refs/heads/${branchName}`);
 
@@ -129,16 +138,20 @@ export async function createWorktree(
       logger.debug(`[createWorktree] Could not check worktree list: ${listError}`);
     }
 
-    const { stdout: existingBranch } = await execAsync(`git branch --list ${effectiveBranchName}`, {
-      cwd: baseDir,
-      encoding: 'utf8',
-    });
+    const { stdout: existingBranch } = await execFileAsync(
+      'git',
+      ['branch', '--list', effectiveBranchName],
+      {
+        cwd: baseDir,
+        encoding: 'utf8',
+      },
+    );
 
     if (existingBranch.trim()) {
       logger.info(
         `[createWorktree] Branch ${effectiveBranchName} exists, creating worktree at ${worktreePath}`,
       );
-      await execAsync(`git worktree add ${quotedPath} ${effectiveBranchName}`, {
+      await execFileAsync('git', ['worktree', 'add', worktreePath, effectiveBranchName], {
         cwd: baseDir,
         encoding: 'utf8',
       });
@@ -152,7 +165,7 @@ export async function createWorktree(
       let resolvedBase: string | null = null;
       if (baseBranch) {
         const originRef = `origin/${baseBranch}`;
-        const originExists = await execAsync(`git branch -r --list "${originRef}"`, {
+        const originExists = await execFileAsync('git', ['branch', '-r', '--list', originRef], {
           cwd: baseDir,
           encoding: 'utf8',
         })
@@ -161,7 +174,7 @@ export async function createWorktree(
         if (originExists) {
           resolvedBase = originRef;
         } else {
-          const localExists = await execAsync(`git branch --list "${baseBranch}"`, {
+          const localExists = await execFileAsync('git', ['branch', '--list', baseBranch], {
             cwd: baseDir,
             encoding: 'utf8',
           })
@@ -180,12 +193,16 @@ export async function createWorktree(
         parentBranch = resolvedBase;
       } else {
         try {
-          const { stdout: developCheck } = await execAsync('git branch --list develop', {
-            cwd: baseDir,
-            encoding: 'utf8',
-          });
+          const { stdout: developCheck } = await execFileAsync(
+            'git',
+            ['branch', '--list', 'develop'],
+            {
+              cwd: baseDir,
+              encoding: 'utf8',
+            },
+          );
           if (!developCheck.trim()) {
-            const { stdout: mainCheck } = await execAsync('git branch --list main', {
+            const { stdout: mainCheck } = await execFileAsync('git', ['branch', '--list', 'main'], {
               cwd: baseDir,
               encoding: 'utf8',
             });
@@ -199,10 +216,14 @@ export async function createWorktree(
       logger.info(
         `[createWorktree] Creating worktree at ${worktreePath} with new branch ${effectiveBranchName} from ${parentBranch}`,
       );
-      await execAsync(`git worktree add -b ${effectiveBranchName} ${quotedPath} ${parentBranch}`, {
-        cwd: baseDir,
-        encoding: 'utf8',
-      });
+      await execFileAsync(
+        'git',
+        ['worktree', 'add', '-b', effectiveBranchName, worktreePath, parentBranch],
+        {
+          cwd: baseDir,
+          encoding: 'utf8',
+        },
+      );
     }
 
     logger.info(
@@ -216,10 +237,14 @@ export async function createWorktree(
     // (e.g. "変更: 1件 + .wf-tmp.md"). Adding it to the worktree-local git
     // exclude keeps it out of status / diff / `git add .` entirely.
     try {
-      const { stdout: excludeRel } = await execAsync('git rev-parse --git-path info/exclude', {
-        cwd: worktreePath,
-        encoding: 'utf8',
-      });
+      const { stdout: excludeRel } = await execFileAsync(
+        'git',
+        ['rev-parse', '--git-path', 'info/exclude'],
+        {
+          cwd: worktreePath,
+          encoding: 'utf8',
+        },
+      );
       let excludePath = excludeRel.trim();
       if (!excludePath.match(/^([a-zA-Z]:[\\/]|[\\/])/)) {
         excludePath = join(worktreePath, excludePath);
@@ -290,7 +315,7 @@ export async function removeWorktree(
   let branchName: string | null = null;
   if (deleteBranch) {
     try {
-      const { stdout } = await execAsync('git worktree list --porcelain', {
+      const { stdout } = await execFileAsync('git', ['worktree', 'list', '--porcelain'], {
         cwd: baseDir,
         encoding: 'utf8',
       });
@@ -322,7 +347,10 @@ export async function removeWorktree(
   const teardownScript = join(worktreePath, 'scripts', 'setup-worktree.cjs');
   if (existsSync(teardownScript)) {
     try {
-      await execAsync(`node "${teardownScript}" --teardown`, {
+      // NOTE: process.execPath (not the string 'node') runs the same Node/Bun
+      // binary that is executing this process, and execFile array-args need no
+      // quoting for the script path even when it contains spaces.
+      await execFileAsync(process.execPath, [teardownScript, '--teardown'], {
         cwd: worktreePath,
         encoding: 'utf8',
       });
@@ -345,13 +373,13 @@ export async function removeWorktree(
   // during the prior cleanup). Without this, `git worktree remove` may
   // refuse with "is not a working tree".
   try {
-    await execAsync('git worktree prune', { cwd: baseDir, encoding: 'utf8' });
+    await execFileAsync('git', ['worktree', 'prune'], { cwd: baseDir, encoding: 'utf8' });
   } catch (preErr) {
     logger.debug({ err: preErr }, '[removeWorktree] pre-prune failed (non-fatal)');
   }
 
   try {
-    await execAsync(`git worktree remove "${worktreePath}" --force`, {
+    await execFileAsync('git', ['worktree', 'remove', worktreePath, '--force'], {
       cwd: baseDir,
       encoding: 'utf8',
     });
@@ -395,7 +423,7 @@ export async function removeWorktree(
 
   if (deleteBranch && branchName) {
     try {
-      const { stdout: mergedBranches } = await execAsync('git branch --merged', {
+      const { stdout: mergedBranches } = await execFileAsync('git', ['branch', '--merged'], {
         cwd: baseDir,
         encoding: 'utf8',
       });
@@ -406,11 +434,17 @@ export async function removeWorktree(
 
       if (isMerged) {
         // Use -d for merged branches (safer)
-        await execAsync(`git branch -d "${branchName}"`, { cwd: baseDir, encoding: 'utf8' });
+        await execFileAsync('git', ['branch', '-d', branchName], {
+          cwd: baseDir,
+          encoding: 'utf8',
+        });
         logger.info(`[removeWorktree] Deleted merged branch: ${branchName}`);
       } else {
         // Use -D for unmerged branches (force delete)
-        await execAsync(`git branch -D "${branchName}"`, { cwd: baseDir, encoding: 'utf8' });
+        await execFileAsync('git', ['branch', '-D', branchName], {
+          cwd: baseDir,
+          encoding: 'utf8',
+        });
         logger.info(`[removeWorktree] Force deleted unmerged branch: ${branchName}`);
       }
     } catch (branchError) {
@@ -420,7 +454,7 @@ export async function removeWorktree(
 
   // Prune stale worktree metadata regardless of removal success
   try {
-    await execAsync('git worktree prune', { cwd: baseDir });
+    await execFileAsync('git', ['worktree', 'prune'], { cwd: baseDir });
   } catch (pruneError) {
     logger.warn({ err: pruneError }, '[removeWorktree] git worktree prune failed');
   }
@@ -447,9 +481,9 @@ export async function cleanupStaleWorktrees(baseDir: string): Promise<number> {
   let cleanedCount = 0;
 
   try {
-    await execAsync('git worktree prune', { cwd: baseDir });
+    await execFileAsync('git', ['worktree', 'prune'], { cwd: baseDir });
 
-    const { stdout } = await execAsync('git worktree list --porcelain', {
+    const { stdout } = await execFileAsync('git', ['worktree', 'list', '--porcelain'], {
       cwd: baseDir,
       encoding: 'utf8',
     });
@@ -547,10 +581,14 @@ export async function cleanupOrphanedWorktrees(
     const worktreeDir = join(baseDir, WORKTREE_DIR);
     if (existsSync(worktreeDir)) {
       try {
-        const { stdout: gitWorktreeList } = await execAsync('git worktree list --porcelain', {
-          cwd: baseDir,
-          encoding: 'utf8',
-        });
+        const { stdout: gitWorktreeList } = await execFileAsync(
+          'git',
+          ['worktree', 'list', '--porcelain'],
+          {
+            cwd: baseDir,
+            encoding: 'utf8',
+          },
+        );
 
         const gitTrackedPaths = new Set<string>();
         const entries = gitWorktreeList.split('\n\n').filter(Boolean);

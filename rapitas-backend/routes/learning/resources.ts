@@ -7,7 +7,7 @@ import { prisma } from '../../config/database';
 import { ValidationError } from '../../middleware/error-handler';
 import { mkdir, writeFile, unlink, copyFile, stat } from 'fs/promises';
 import { existsSync } from 'fs';
-import { join, basename, extname } from 'path';
+import { join, basename, extname, resolve, sep } from 'path';
 
 // Get MIME type from file extension
 function getMimeType(filePath: string): string {
@@ -59,6 +59,24 @@ import { randomUUID } from 'crypto';
 
 // Upload directory configuration
 const UPLOAD_DIR = join(process.cwd(), 'uploads');
+
+/**
+ * Resolve a request-supplied filename to an absolute path INSIDE UPLOAD_DIR,
+ * or throw if it would escape (path traversal). `path.join` alone does not
+ * strip `..`, so a raw `:filename` param like `../../.env` would read secrets.
+ *
+ * @param filename - Untrusted filename from the URL. / URL由来の未検証ファイル名
+ * @returns Contained absolute path. / uploads配下に収まる絶対パス
+ * @throws {ValidationError} When the path escapes UPLOAD_DIR. / 配下から外れる場合
+ */
+function resolveUploadPath(filename: string): string {
+  const resolved = resolve(UPLOAD_DIR, filename);
+  const root = resolve(UPLOAD_DIR);
+  if (resolved !== root && !resolved.startsWith(root + sep)) {
+    throw new ValidationError('ファイルが見つかりません');
+  }
+  return resolved;
+}
 const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
 const ALLOWED_MIME_TYPES = [
   // Images
@@ -309,7 +327,7 @@ export const resourcesRoutes = new Elysia()
   .get('/resources/file/:filename', async (context) => {
     const { params, set } = context;
     const { filename } = params;
-    const filePath = join(UPLOAD_DIR, filename);
+    const filePath = resolveUploadPath(filename);
 
     if (!existsSync(filePath)) {
       throw new ValidationError('ファイルが見つかりません');
@@ -346,7 +364,7 @@ export const resourcesRoutes = new Elysia()
   .get('/resources/download/:filename', async (context) => {
     const { params, set } = context;
     const { filename } = params;
-    const filePath = join(UPLOAD_DIR, filename);
+    const filePath = resolveUploadPath(filename);
 
     if (!existsSync(filePath)) {
       throw new ValidationError('ファイルが見つかりません');

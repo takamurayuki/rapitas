@@ -34,6 +34,7 @@ import {
   taskNeedsDependencies,
 } from '../../../services/agents/orchestrator/git-operations/dependency-installer';
 import { isShutdownError } from '../../../services/agents/agent-worker/shutdown-error';
+import { assertSafeGitRef } from '../../../utils/common/branch-name-generator';
 import type { AttachmentDescriptor } from './instruction-builder';
 
 const log = createLogger('routes:agent-execution:execute');
@@ -231,6 +232,23 @@ export const executeRoute = new Elysia().post(
     // It is used both as the branch-from base (worktree) AND the PR target, so
     // the two always match. Persisting it to agentExecutionConfig.targetBranch
     // is what makes the later auto-PR open against the chosen base.
+    // Reject shell-metacharacter / traversal payloads in caller-supplied refs
+    // BEFORE they reach any git command (defense-in-depth with the array-form
+    // git calls). branchName/baseBranch flow into worktree creation.
+    try {
+      if (typeof branchName === 'string' && branchName.trim()) {
+        assertSafeGitRef(branchName.trim(), 'branchName');
+      }
+      if (typeof baseBranch === 'string' && baseBranch.trim()) {
+        assertSafeGitRef(baseBranch.trim(), 'baseBranch');
+      }
+    } catch (refErr) {
+      context.set.status = 400;
+      return earlyReturn({
+        error: refErr instanceof Error ? refErr.message : 'Invalid branch name',
+      });
+    }
+
     const resolvedBaseBranch =
       (typeof baseBranch === 'string' && baseBranch.trim()) ||
       task.theme?.defaultBranch ||
@@ -701,5 +719,27 @@ export const executeRoute = new Elysia().post(
     params: t.Object({
       id: t.String(),
     }),
+    // Explicit body schema: rejects unexpected/extra fields and non-JSON
+    // content types (e.g. a form-urlencoded CSRF POST) at the framework layer,
+    // before any handler logic runs. All fields optional — callers may execute
+    // with just the path param.
+    body: t.Optional(
+      t.Object(
+        {
+          agentConfigId: t.Optional(t.Number()),
+          workingDirectory: t.Optional(t.String()),
+          timeout: t.Optional(t.Number()),
+          instruction: t.Optional(t.String()),
+          branchName: t.Optional(t.String()),
+          baseBranch: t.Optional(t.String()),
+          useTaskAnalysis: t.Optional(t.Boolean()),
+          optimizedPrompt: t.Optional(t.String()),
+          sessionId: t.Optional(t.Number()),
+          attachments: t.Optional(t.Array(t.Any())),
+          mode: t.Optional(t.Union([t.Literal('research'), t.Literal('development')])),
+        },
+        { additionalProperties: false },
+      ),
+    ),
   },
 );

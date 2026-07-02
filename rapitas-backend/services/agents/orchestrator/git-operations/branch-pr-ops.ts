@@ -5,7 +5,7 @@
  * Not responsible for low-level diff/commit operations or worktree management.
  */
 
-import { exec } from 'child_process';
+import { execFile } from 'child_process';
 import { promisify } from 'util';
 import { createLogger } from '../../../../config/logger';
 import {
@@ -16,16 +16,22 @@ import {
 import { isHeadBehindError, isAlreadyUpToDate } from '../../../github/gh-retry';
 import { runGhCommandWithBody } from '../../../github/gh-client';
 
-const execAsync = promisify(exec);
+// NOTE: execFile (array-args, no shell) instead of exec (shell string) — branch
+// names, base branches, and other caller-controlled values are passed as
+// literal argv elements, so shell metacharacters in them can't be interpreted.
+const execFileAsync = promisify(execFile);
 const logger = createLogger('git-operations/branch-pr-ops');
 
-/** Path to the GitHub CLI on Windows. */
-const GH_PATH_WIN = '"C:\\Program Files\\GitHub CLI\\gh.exe"';
+// NOTE: UNQUOTED — execFile takes the executable as a separate array element
+// from its args and does not go through a shell, so a path with spaces needs
+// no quoting (quoting is a shell concept; quotes here would become literal
+// characters in the path and fail to spawn).
+const GH_PATH_WIN = 'C:\\Program Files\\GitHub CLI\\gh.exe';
 
 /**
  * Resolve the path to the GitHub CLI for the current platform.
  *
- * @returns Platform-appropriate gh CLI invocation string / プラットフォームに適したgh CLI呼び出し文字列
+ * @returns Platform-appropriate gh CLI executable path / プラットフォームに適したgh CLI実行パス
  */
 function ghPath(): string {
   return process.platform === 'win32' ? GH_PATH_WIN : 'gh';
@@ -43,7 +49,7 @@ export async function createBranch(workingDirectory: string, branchName: string)
     // Switching/creating a branch on the primary checkout changes the
     // developer's current branch — only do it inside a worktree.
     await ensureNotPrimaryWorkTree(workingDirectory, `switch to branch ${branchName}`);
-    const { stdout } = await execAsync(`git branch --list ${branchName}`, {
+    const { stdout } = await execFileAsync('git', ['branch', '--list', branchName], {
       cwd: workingDirectory,
     });
 
@@ -62,10 +68,10 @@ export async function createBranch(workingDirectory: string, branchName: string)
         return false;
       }
       logger.info(`[createBranch] Branch ${branchName} already exists, checking out`);
-      await execAsync(`git checkout ${branchName}`, { cwd: workingDirectory });
+      await execFileAsync('git', ['checkout', branchName], { cwd: workingDirectory });
     } else {
       logger.info(`[createBranch] Creating new branch ${branchName}`);
-      await execAsync(`git checkout -b ${branchName}`, { cwd: workingDirectory });
+      await execFileAsync('git', ['checkout', '-b', branchName], { cwd: workingDirectory });
     }
     return true;
   } catch (error) {
@@ -98,27 +104,27 @@ function isNonFastForwardError(message: string): boolean {
  */
 async function pushBranchForPr(cwd: string, branch: string): Promise<string> {
   try {
-    await execAsync(`git push -u origin ${branch}`, { cwd });
+    await execFileAsync('git', ['push', '-u', 'origin', branch], { cwd });
     return branch;
   } catch (error) {
     const msg = error instanceof Error ? error.message : String(error);
     if (!isNonFastForwardError(msg)) throw error;
 
-    const { stdout: sha } = await execAsync('git rev-parse --short HEAD', { cwd });
+    const { stdout: sha } = await execFileAsync('git', ['rev-parse', '--short', 'HEAD'], { cwd });
     const unique = `${branch}-${sha.trim()}`;
     logger.warn(
       `[createPullRequest] origin/${branch} has diverged; pushing unique branch ${unique} instead`,
     );
     // Rename the local branch so HEAD (and gh's inferred PR head) match the push.
-    await execAsync(`git branch -M ${unique}`, { cwd });
+    await execFileAsync('git', ['branch', '-M', unique], { cwd });
     try {
-      await execAsync(`git push -u origin ${unique}`, { cwd });
+      await execFileAsync('git', ['push', '-u', 'origin', unique], { cwd });
     } catch (err2) {
       const msg2 = err2 instanceof Error ? err2.message : String(err2);
       if (!isNonFastForwardError(msg2)) throw err2;
       // The commit-unique branch also diverged — it is tied to THIS exact commit,
       // so a lease-guarded force can only restore identical work.
-      await execAsync(`git push -u --force-with-lease origin ${unique}`, { cwd });
+      await execFileAsync('git', ['push', '-u', '--force-with-lease', 'origin', unique], { cwd });
     }
     return unique;
   }
@@ -155,14 +161,14 @@ export async function createPullRequest(
       // the recurring #170/#172 mistarget where the PR diff shows main instead of
       // develop until manually retargeted.
       const branchExists = async (b: string): Promise<boolean> => {
-        const local = await execAsync(`git branch --list ${b}`, {
+        const local = await execFileAsync('git', ['branch', '--list', b], {
           cwd: workingDirectory,
           encoding: 'utf8',
         })
           .then((r) => !!r.stdout.trim())
           .catch(() => false);
         if (local) return true;
-        return await execAsync(`git branch -r --list origin/${b}`, {
+        return await execFileAsync('git', ['branch', '-r', '--list', `origin/${b}`], {
           cwd: workingDirectory,
           encoding: 'utf8',
         })
@@ -175,7 +181,7 @@ export async function createPullRequest(
       logger.info(`[createPullRequest] Auto-determined base branch: ${targetBranch}`);
     }
 
-    const { stdout: currentBranchRaw } = await execAsync('git branch --show-current', {
+    const { stdout: currentBranchRaw } = await execFileAsync('git', ['branch', '--show-current'], {
       cwd: workingDirectory,
       encoding: 'utf8',
     });
@@ -190,8 +196,20 @@ export async function createPullRequest(
     // above already updated any existing PR, so reuse it instead of letting
     // `gh pr create` fail with "a pull request already exists".
     try {
-      const { stdout: existing } = await execAsync(
-        `${ghPath()} pr list --head ${currentBranch} --state open --json number,url,baseRefName --jq ".[0]"`,
+      const { stdout: existing } = await execFileAsync(
+        ghPath(),
+        [
+          'pr',
+          'list',
+          '--head',
+          currentBranch,
+          '--state',
+          'open',
+          '--json',
+          'number,url,baseRefName',
+          '--jq',
+          '.[0]',
+        ],
         { cwd: workingDirectory, encoding: 'utf8' },
       );
       const trimmed = existing.trim();
@@ -204,10 +222,14 @@ export async function createPullRequest(
           // right branch. Best-effort: a retarget failure still reuses the PR.
           if (pr.baseRefName && pr.baseRefName !== targetBranch) {
             try {
-              await execAsync(`${ghPath()} pr edit ${pr.number} --base ${targetBranch}`, {
-                cwd: workingDirectory,
-                encoding: 'utf8',
-              });
+              await execFileAsync(
+                ghPath(),
+                ['pr', 'edit', String(pr.number), '--base', targetBranch],
+                {
+                  cwd: workingDirectory,
+                  encoding: 'utf8',
+                },
+              );
               logger.info(
                 `[createPullRequest] Retargeted reused PR #${pr.number} base ${pr.baseRefName} -> ${targetBranch}`,
               );
@@ -270,13 +292,14 @@ async function ensurePrBase(
   intended: string,
 ): Promise<void> {
   try {
-    const { stdout } = await execAsync(
-      `${ghPath()} pr view ${prNumber} --json baseRefName --jq .baseRefName`,
+    const { stdout } = await execFileAsync(
+      ghPath(),
+      ['pr', 'view', String(prNumber), '--json', 'baseRefName', '--jq', '.baseRefName'],
       { cwd: workingDirectory, encoding: 'utf8' },
     );
     const actual = stdout.trim();
     if (actual && actual !== intended) {
-      await execAsync(`${ghPath()} pr edit ${prNumber} --base ${intended}`, {
+      await execFileAsync(ghPath(), ['pr', 'edit', String(prNumber), '--base', intended], {
         cwd: workingDirectory,
         encoding: 'utf8',
       });
@@ -317,15 +340,16 @@ export async function mergePullRequest(
   retriable?: boolean;
 }> {
   try {
-    const { stdout } = await execAsync(
-      `${ghPath()} pr view ${prNumber} --json commits --jq ".commits | length"`,
+    const { stdout } = await execFileAsync(
+      ghPath(),
+      ['pr', 'view', String(prNumber), '--json', 'commits', '--jq', '.commits | length'],
       { cwd: workingDirectory, encoding: 'utf8' },
     );
     const commitCount = parseInt(stdout.trim(), 10) || 1;
     const mergeStrategy = commitCount >= commitThreshold ? 'squash' : 'merge';
     const mergeFlag = mergeStrategy === 'squash' ? '--squash' : '--merge';
 
-    await execAsync(`${ghPath()} pr merge ${prNumber} ${mergeFlag} --delete-branch`, {
+    await execFileAsync(ghPath(), ['pr', 'merge', String(prNumber), mergeFlag, '--delete-branch'], {
       cwd: workingDirectory,
       encoding: 'utf8',
     });
@@ -350,8 +374,8 @@ export async function mergePullRequest(
           '[mergePullRequest] baseBranch is already used by another worktree — skipping local checkout+pull sync',
         );
       } else {
-        await execAsync(`git checkout ${baseBranch}`, { cwd: workingDirectory });
-        await execAsync('git pull', { cwd: workingDirectory });
+        await execFileAsync('git', ['checkout', baseBranch], { cwd: workingDirectory });
+        await execFileAsync('git', ['pull'], { cwd: workingDirectory });
       }
     }
 
@@ -363,7 +387,7 @@ export async function mergePullRequest(
     // caller (AutoMergeWatcher) retries the merge once checks are green again.
     if (isHeadBehindError(msg)) {
       try {
-        await execAsync(`${ghPath()} pr update-branch ${prNumber}`, {
+        await execFileAsync(ghPath(), ['pr', 'update-branch', String(prNumber)], {
           cwd: workingDirectory,
           encoding: 'utf8',
         });
@@ -417,11 +441,13 @@ export async function revertChanges(workingDirectory: string): Promise<boolean> 
       return false;
     }
 
-    await execAsync('git reset HEAD', { cwd: workingDirectory });
-    await execAsync('git checkout -- .', { cwd: workingDirectory });
+    await execFileAsync('git', ['reset', 'HEAD'], { cwd: workingDirectory });
+    await execFileAsync('git', ['checkout', '--', '.'], { cwd: workingDirectory });
     // NOTE: Use -fd (not -fdx) and explicitly exclude .worktrees/ to prevent deleting active worktrees.
     // Also exclude .agent-pids/ to avoid breaking process tracking.
-    await execAsync('git clean -fd -e .worktrees -e .agent-pids', { cwd: workingDirectory });
+    await execFileAsync('git', ['clean', '-fd', '-e', '.worktrees', '-e', '.agent-pids'], {
+      cwd: workingDirectory,
+    });
     return true;
   } catch (error) {
     logger.error({ err: error }, 'Failed to revert changes');

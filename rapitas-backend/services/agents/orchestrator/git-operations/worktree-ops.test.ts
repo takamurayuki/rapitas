@@ -19,19 +19,36 @@ branch refs/heads/feature/task-123
 
 `;
 
-// NOTE: util.promisify(exec) resolves with the FIRST callback argument. To simulate the
-// real exec behaviour (which uses util.promisify.custom to return { stdout, stderr }),
+// NOTE: util.promisify(execFile) resolves with the FIRST callback argument. To simulate
+// the real execFile behaviour (which uses util.promisify.custom to return { stdout, stderr }),
 // we pass { stdout, stderr } as the first callback arg so destructuring works in the module.
+// The production code was migrated from exec(shell string) to execFile(file, args[]) to close
+// a shell-injection vector; this mock joins file+args back into a "command" string so the
+// existing command-matching assertions below keep working unchanged.
 const makeExecResult = (command: string) => ({
   stdout: command.includes('git worktree list --porcelain') ? worktreeListStdout : '',
   stderr: '',
 });
 
+const mockExecFile = mock((file: string, args: unknown, options: unknown, callback?: unknown) => {
+  const argv = Array.isArray(args) ? (args as string[]) : [];
+  const cb = (typeof options === 'function' ? options : callback) as
+    | ((error: Error | null, result: unknown) => void)
+    | undefined;
+  const command = [file, ...argv].join(' ');
+  cb?.(null, makeExecResult(command));
+  return { kill: mock(() => undefined) };
+});
+
+// NOTE: Mirror ALL child_process exports — bun mock.module is process-global, and
+// worktree-ops.ts pulls in repository-setup.ts / git-exec.ts / worktree-preflight.ts,
+// which still import the shell-string `exec` (not under test here). Without this
+// stub, their `import { exec } from 'child_process'` would fail to resolve.
 const mockExec = mock((command: string, options: unknown, callback?: unknown) => {
   const cb = (typeof options === 'function' ? options : callback) as
     | ((error: Error | null, result: unknown) => void)
     | undefined;
-  cb?.(null, makeExecResult(command));
+  cb?.(null, { stdout: '', stderr: '' });
   return { kill: mock(() => undefined) };
 });
 
@@ -57,8 +74,8 @@ mock.module('../../../../config/logger', () => ({
     debug: () => {},
   }),
 }));
-mock.module('child_process', () => ({ exec: mockExec }));
-mock.module('node:child_process', () => ({ exec: mockExec }));
+mock.module('child_process', () => ({ execFile: mockExecFile, exec: mockExec }));
+mock.module('node:child_process', () => ({ execFile: mockExecFile, exec: mockExec }));
 mock.module('node:fs', () => ({
   existsSync: mockExistsSync,
 }));
@@ -157,14 +174,18 @@ describe('removeWorktree', () => {
     mockClearWorktreeDependenciesTracking.mockReset();
     mockClearGitRemoteCache.mockReset();
 
-    mockExec.mockReset();
-    mockExec.mockImplementation((command: string, options: unknown, callback?: unknown) => {
-      const cb = (typeof options === 'function' ? options : callback) as
-        | ((error: Error | null, result: unknown) => void)
-        | undefined;
-      cb?.(null, makeExecResult(command));
-      return { kill: mock(() => undefined) };
-    });
+    mockExecFile.mockReset();
+    mockExecFile.mockImplementation(
+      (file: string, args: unknown, options: unknown, callback?: unknown) => {
+        const argv = Array.isArray(args) ? (args as string[]) : [];
+        const cb = (typeof options === 'function' ? options : callback) as
+          | ((error: Error | null, result: unknown) => void)
+          | undefined;
+        const command = [file, ...argv].join(' ');
+        cb?.(null, makeExecResult(command));
+        return { kill: mock(() => undefined) };
+      },
+    );
   });
 
   test('calls awaitWorktreeDependencies before git worktree remove', async () => {
@@ -174,16 +195,20 @@ describe('removeWorktree', () => {
       callOrder.push('awaitDependencies');
     });
 
-    mockExec.mockImplementation((command: string, options: unknown, callback?: unknown) => {
-      const cb = (typeof options === 'function' ? options : callback) as
-        | ((error: Error | null, result: unknown) => void)
-        | undefined;
-      if (command.includes('git worktree remove')) {
-        callOrder.push('gitWorktreeRemove');
-      }
-      cb?.(null, makeExecResult(command));
-      return { kill: mock(() => undefined) };
-    });
+    mockExecFile.mockImplementation(
+      (file: string, args: unknown, options: unknown, callback?: unknown) => {
+        const argv = Array.isArray(args) ? (args as string[]) : [];
+        const cb = (typeof options === 'function' ? options : callback) as
+          | ((error: Error | null, result: unknown) => void)
+          | undefined;
+        const command = [file, ...argv].join(' ');
+        if (command.includes('git worktree remove')) {
+          callOrder.push('gitWorktreeRemove');
+        }
+        cb?.(null, makeExecResult(command));
+        return { kill: mock(() => undefined) };
+      },
+    );
 
     await removeWorktree(mockBaseDir, mockWorktreePath, false);
 
@@ -200,17 +225,21 @@ describe('removeWorktree', () => {
   });
 
   test('attempts rm when git worktree remove fails and directory exists', async () => {
-    mockExec.mockImplementation((command: string, options: unknown, callback?: unknown) => {
-      const cb = (typeof options === 'function' ? options : callback) as
-        | ((error: Error | null, result: unknown) => void)
-        | undefined;
-      if (command.includes('git worktree remove')) {
-        cb?.(new Error('git error'), undefined);
-      } else {
-        cb?.(null, makeExecResult(command));
-      }
-      return { kill: mock(() => undefined) };
-    });
+    mockExecFile.mockImplementation(
+      (file: string, args: unknown, options: unknown, callback?: unknown) => {
+        const argv = Array.isArray(args) ? (args as string[]) : [];
+        const cb = (typeof options === 'function' ? options : callback) as
+          | ((error: Error | null, result: unknown) => void)
+          | undefined;
+        const command = [file, ...argv].join(' ');
+        if (command.includes('git worktree remove')) {
+          cb?.(new Error('git error'), undefined);
+        } else {
+          cb?.(null, makeExecResult(command));
+        }
+        return { kill: mock(() => undefined) };
+      },
+    );
 
     // Only the worktree root exists (no .git sub-directory)
     mockExistsSync.mockImplementation((p: string) => p === mockWorktreePath);
@@ -243,17 +272,21 @@ describe('removeWorktree', () => {
   });
 
   test('calls clearGitRemoteCache even when git worktree remove fails and fs fallback runs', async () => {
-    mockExec.mockImplementation((command: string, options: unknown, callback?: unknown) => {
-      const cb = (typeof options === 'function' ? options : callback) as
-        | ((error: Error | null, result: unknown) => void)
-        | undefined;
-      if (command.includes('git worktree remove')) {
-        cb?.(new Error('git error'), undefined);
-      } else {
-        cb?.(null, makeExecResult(command));
-      }
-      return { kill: mock(() => undefined) };
-    });
+    mockExecFile.mockImplementation(
+      (file: string, args: unknown, options: unknown, callback?: unknown) => {
+        const argv = Array.isArray(args) ? (args as string[]) : [];
+        const cb = (typeof options === 'function' ? options : callback) as
+          | ((error: Error | null, result: unknown) => void)
+          | undefined;
+        const command = [file, ...argv].join(' ');
+        if (command.includes('git worktree remove')) {
+          cb?.(new Error('git error'), undefined);
+        } else {
+          cb?.(null, makeExecResult(command));
+        }
+        return { kill: mock(() => undefined) };
+      },
+    );
 
     // Only the worktree root exists (no .git sub-directory)
     mockExistsSync.mockImplementation((p: string) => p === mockWorktreePath);
@@ -275,7 +308,7 @@ describe('cleanupOrphanedWorktrees', () => {
   beforeEach(() => {
     mockPrisma.agentSession.findMany.mockReset();
     mockPrisma.agentSession.update.mockReset();
-    mockExec.mockReset();
+    mockExecFile.mockReset();
     mockExistsSync.mockReset();
     mockFsRm.mockReset();
     mockReaddir.mockReset();
@@ -294,13 +327,17 @@ worktree /test/repo/.worktrees/task-123-abc123
 branch refs/heads/feature/task-123
 
 `;
-    mockExec.mockImplementation((command: string, options: unknown, callback?: unknown) => {
-      const cb = (typeof options === 'function' ? options : callback) as
-        | ((error: Error | null, result: unknown) => void)
-        | undefined;
-      cb?.(null, makeExecResult(command));
-      return { kill: mock(() => undefined) };
-    });
+    mockExecFile.mockImplementation(
+      (file: string, args: unknown, options: unknown, callback?: unknown) => {
+        const argv = Array.isArray(args) ? (args as string[]) : [];
+        const cb = (typeof options === 'function' ? options : callback) as
+          | ((error: Error | null, result: unknown) => void)
+          | undefined;
+        const command = [file, ...argv].join(' ');
+        cb?.(null, makeExecResult(command));
+        return { kill: mock(() => undefined) };
+      },
+    );
   });
 
   test('cleans up database-tracked orphaned worktrees', async () => {

@@ -1,0 +1,83 @@
+/**
+ * local-auth.security.test
+ *
+ * Locks down the CSRF backstop (createCrossSiteGuard) and the git-ref safety
+ * assertion — the two guards added after the security audit found a
+ * cross-site-write → git-injection chain reachable on the default loopback
+ * deployment.
+ */
+import { describe, it, expect } from 'bun:test';
+import { createCrossSiteGuard } from './local-auth';
+import { assertSafeGitRef } from '../utils/common/branch-name-generator';
+
+const req = (method: string, site?: string) =>
+  new Request('http://127.0.0.1:3001/tasks/1/execute', {
+    method,
+    headers: site ? { 'sec-fetch-site': site } : {},
+  });
+
+describe('createCrossSiteGuard', () => {
+  const guard = createCrossSiteGuard();
+
+  it('blocks a cross-site POST (drive-by localhost CSRF)', () => {
+    const res = guard({ request: req('POST', 'cross-site') });
+    expect(res).toBeInstanceOf(Response);
+    expect(res!.status).toBe(403);
+  });
+
+  it.each(['POST', 'PUT', 'PATCH', 'DELETE'])('blocks cross-site %s', (method) => {
+    expect(guard({ request: req(method, 'cross-site') })).toBeInstanceOf(Response);
+  });
+
+  it('allows same-origin writes (the app itself)', () => {
+    expect(guard({ request: req('POST', 'same-origin') })).toBeUndefined();
+  });
+
+  it('allows same-site and none (direct navigation)', () => {
+    expect(guard({ request: req('POST', 'same-site') })).toBeUndefined();
+    expect(guard({ request: req('POST', 'none') })).toBeUndefined();
+  });
+
+  it('allows requests with no Sec-Fetch-Site (Tauri IPC, curl, EventSource)', () => {
+    expect(guard({ request: req('POST') })).toBeUndefined();
+  });
+
+  it('never blocks GET/HEAD even cross-site (reads)', () => {
+    expect(guard({ request: req('GET', 'cross-site') })).toBeUndefined();
+    expect(guard({ request: req('HEAD', 'cross-site') })).toBeUndefined();
+  });
+});
+
+describe('assertSafeGitRef', () => {
+  it('accepts normal branch names', () => {
+    for (const ok of ['develop', 'main', 'feature/foo-bar', 'bugfix/123-x', 'release/1.2.3']) {
+      expect(() => assertSafeGitRef(ok)).not.toThrow();
+    }
+  });
+
+  it('rejects shell metacharacters (the injection payloads)', () => {
+    for (const bad of [
+      'x"&calc.exe&"',
+      'x; rm -rf /',
+      'x`whoami`',
+      'x$(id)',
+      'x|nc',
+      'a b',
+      'x&&y',
+      "x'y",
+    ]) {
+      expect(() => assertSafeGitRef(bad)).toThrow();
+    }
+  });
+
+  it('rejects path traversal and leading dash', () => {
+    expect(() => assertSafeGitRef('../../etc/passwd')).toThrow();
+    expect(() => assertSafeGitRef('-D')).toThrow();
+    expect(() => assertSafeGitRef('a..b')).toThrow();
+  });
+
+  it('rejects empty and over-long refs', () => {
+    expect(() => assertSafeGitRef('')).toThrow();
+    expect(() => assertSafeGitRef('a'.repeat(201))).toThrow();
+  });
+});

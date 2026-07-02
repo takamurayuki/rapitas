@@ -23,8 +23,13 @@ const mockExec = mock(
   },
 );
 
-mock.module('node:child_process', () => ({ exec: mockExec }));
-mock.module('child_process', () => ({ exec: mockExec }));
+// NOTE: Mirror ALL child_process exports — bun mock.module is process-global, and
+// sibling modules loaded in the same test process (e.g. core-ops.ts, worktree-ops.ts,
+// branch-pr-ops.ts) import execFile, not exec. Without this stub their import would
+// fail to resolve when this mock is the last one registered for the module.
+const mockExecFile = mock(() => ({ kill: mock(() => undefined) }));
+mock.module('node:child_process', () => ({ exec: mockExec, execFile: mockExecFile }));
+mock.module('child_process', () => ({ exec: mockExec, execFile: mockExecFile }));
 mock.module('../../../../config/logger', () => ({
   createLogger: () => ({
     info: () => {},
