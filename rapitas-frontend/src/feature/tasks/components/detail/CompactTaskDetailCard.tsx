@@ -2,67 +2,28 @@
 
 import { useState, useEffect } from 'react';
 import { useTranslations } from 'next-intl';
-import { type Task, type Label, type Resource, type Comment, type Priority } from '@/types';
-import { useToast } from '@/components/ui/toast/ToastContainer';
+import { type Task, type Resource, type Comment } from '@/types';
 import TaskDescription from '@/feature/tasks/components/text/TaskDescription';
-import TaskStatusChange from '@/feature/tasks/components/status/TaskStatusChange';
-import { getStatusDisplay, renderStatusIcon } from '@/feature/tasks/config/StatusConfig';
 import {
   Accordion,
   AccordionItem,
   AccordionTrigger,
   AccordionContent,
-  useAccordionContext,
 } from '@/components/ui/accordion/Accordion';
-import { SelectedLabelsDisplay } from '@/feature/tasks/components/LabelSelector';
 import FileUploader from '@/feature/tasks/components/FileUploader';
 import NoteLinksSection from '@/app/tasks/[id]/components/NoteLinksSection';
-import {
-  Calendar,
-  Clock,
-  Timer,
-  Tag,
-  FileText,
-  Paperclip,
-  Repeat,
-  NotebookPen,
-  Lock,
-  LockOpen,
-} from 'lucide-react';
-import PriorityInlineSelect from '@/feature/tasks/components/priority/PriorityInlineSelect';
-import RecurrenceSelector from '@/feature/tasks/components/recurrence/RecurrenceSelector';
+import { Clock, FileText, Paperclip, Repeat, NotebookPen } from 'lucide-react';
 import { useLocaleStore } from '@/stores/locale-store';
 import { useFilterDataStore } from '@/stores/filter-data-store';
-import { useTaskCacheStore } from '@/stores/task-cache-store';
 import { toDateLocale } from '@/lib/utils';
-import { API_BASE_URL } from '@/utils/api';
-import { clearApiCache } from '@/lib/api-client';
 import InlineEditableText from '@/feature/tasks/components/text/InlineEditableText';
-
-/**
- * Wrapper for RecurrenceSelector that can close the accordion
- */
-function RecurrenceSelectorWithAccordionClose({
-  task,
-  onTaskUpdated,
-}: {
-  task: Task;
-  onTaskUpdated?: () => void;
-}) {
-  const { toggleItem } = useAccordionContext();
-
-  return (
-    <RecurrenceSelector
-      taskId={task.id}
-      isRecurring={task.isRecurring ?? false}
-      recurrenceRule={task.recurrenceRule ?? null}
-      recurrenceEndAt={task.recurrenceEndAt ?? null}
-      onUpdate={onTaskUpdated ?? (() => {})}
-      onClose={() => toggleItem('recurrence')}
-      inline={true}
-    />
-  );
-}
+import {
+  RecurrenceSelectorWithAccordionClose,
+  toDateTimeLocal,
+} from './CompactTaskDetailCard.helpers';
+import { useCompactTaskDetailActions } from './useCompactTaskDetailActions';
+import CompactTaskDetailHeader from './CompactTaskDetailHeader';
+import CompactTaskDetailWorkloadSection from './CompactTaskDetailWorkloadSection';
 
 interface CompactTaskDetailCardProps {
   task: Task;
@@ -82,32 +43,14 @@ interface CompactTaskDetailCardProps {
   onDeleteLink?: (id: number) => Promise<void>;
 }
 
-/** Converts a UTC ISO string to a value suitable for a datetime-local input. */
-function toDateTimeLocal(isoUtcString: string): string {
-  const d = new Date(isoUtcString);
-  const pad = (n: number) => String(n).padStart(2, '0');
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
-}
-
 export default function CompactTaskDetailCard({
   task,
   onStatusUpdate,
   onTaskUpdated,
   resources = [],
   onResourcesChange,
-  comments = [],
-  newComment = '',
-  isAddingComment = false,
-  onNewCommentChange,
-  onAddComment,
-  onUpdateComment,
-  onDeleteComment,
-  onCreateLink,
-  onDeleteLink,
 }: CompactTaskDetailCardProps) {
   const t = useTranslations('task');
-  const tCommon = useTranslations('common');
-  const { showToast } = useToast();
   const locale = useLocaleStore((s) => s.locale);
   const dateLocale = toDateLocale(locale);
 
@@ -115,7 +58,6 @@ export default function CompactTaskDetailCard({
   // from the filter store (which persists full category/theme data including icons).
   const filterThemes = useFilterDataStore((s) => s.themes);
   const filterCategories = useFilterDataStore((s) => s.categories);
-  const updateTaskLocally = useTaskCacheStore((s) => s.updateTaskLocally);
   const resolvedTheme = filterThemes.find((t) => t.id === task.themeId);
   const resolvedCategory = resolvedTheme?.categoryId
     ? filterCategories.find((c) => c.id === resolvedTheme.categoryId)
@@ -138,135 +80,20 @@ export default function CompactTaskDetailCard({
     setDueDateInput(task.dueDate ? toDateTimeLocal(task.dueDate) : '');
   }, [task.estimatedHours, task.actualHours, task.dueDate]);
 
-  /**
-   * Patches a set of task fields and refreshes the parent view.
-   *
-   * @param data - Partial task fields to update / 更新するフィールドの部分オブジェクト
-   */
-  const patchTask = async (data: Record<string, unknown>) => {
-    try {
-      const res = await fetch(`${API_BASE_URL}/tasks/${task.id}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data),
-      });
-      if (!res.ok) throw new Error('update failed');
-      // Reflect the change instantly in the shared cache so widgets like
-      // TodayTaskProgressBar update without waiting for the next poll cycle.
-      updateTaskLocally(task.id, data as Partial<import('@/types').Task>);
-      clearApiCache(`/tasks/${task.id}`);
-      onTaskUpdated?.();
-    } catch {
-      showToast(tCommon('saveFailed'), 'error');
-    }
-  };
-
-  /**
-   * Persists a single inline-edited field (title/description) via PATCH, then
-   * refreshes the task. Mirrors the full-edit save path.
-   *
-   * @param field - Field to update / 更新するフィールド
-   * @param value - New value / 新しい値
-   */
-  const saveField = async (field: 'title' | 'description' | 'priority', value: string) => {
-    await patchTask({ [field]: value });
-  };
-
-  /**
-   * Toggles the task's deletion-protection flag via PATCH and refreshes the view.
-   * Reuses patchTask so cache invalidation + parent refresh behave identically
-   * to the inline field edits above.
-   */
-  const toggleProtected = async () => {
-    await patchTask({ isProtected: !task.isProtected });
-  };
-
-  /**
-   * Appends a markdown link to the task description and persists via PATCH.
-   * Prepends a newline when there is existing content.
-   *
-   * @param link - Markdown link string / 挿入するMarkdownリンク
-   */
-  const insertLinkToDescription = async (link: string) => {
-    const current = task.description ?? '';
-    const next = current.trim() ? `${current}\n${link}` : link;
-    await patchTask({ description: next });
-  };
+  const { patchTask, saveField, toggleProtected, insertLinkToDescription } =
+    useCompactTaskDetailActions({ task, onTaskUpdated });
 
   return (
     <div className="bg-white dark:bg-zinc-900 rounded-lg border border-zinc-200 dark:border-zinc-800 overflow-hidden">
       {/* Header: Title & Status in one compact row */}
       <div className="p-4">
-        <div className="flex items-center justify-between gap-3">
-          {/* Title with Priority Icon */}
-          <div className="flex items-center gap-2 flex-1 min-w-0">
-            <InlineEditableText
-              value={task.title}
-              onSave={(v) => saveField('title', v)}
-              required
-              ariaLabel={t('compactTaskDetailCard.titleAriaLabel')}
-              className="flex-1 min-w-0 text-xl font-bold text-zinc-900 dark:text-zinc-50 leading-tight truncate"
-            />
-            <PriorityInlineSelect
-              value={task.priority as Priority}
-              onChange={(p) => saveField('priority', p)}
-            />
-            <button
-              type="button"
-              onClick={toggleProtected}
-              title={
-                task.isProtected
-                  ? t('compactTaskDetailCard.unprotectTitle')
-                  : t('compactTaskDetailCard.protectTitle')
-              }
-              aria-label={
-                task.isProtected
-                  ? t('compactTaskDetailCard.unprotectTitle')
-                  : t('compactTaskDetailCard.protectTitle')
-              }
-              aria-pressed={task.isProtected ?? false}
-              className="flex items-center rounded p-0.5 outline-none transition-colors hover:bg-zinc-100 focus-visible:ring-2 focus-visible:ring-indigo-500 dark:hover:bg-zinc-800"
-            >
-              {task.isProtected ? (
-                <Lock size={16} className="text-amber-500 dark:text-amber-400" />
-              ) : (
-                <LockOpen size={16} className="text-zinc-400 dark:text-zinc-500" />
-              )}
-            </button>
-          </div>
-
-          {/* Status Buttons - Compact inline with title.
-              Normalize so the active button always highlights: `blocked` is an
-              internal mid-workflow state shown as 進行中 (see StatusConfig), and
-              legacy `completed` maps to `done`. Without this, such tasks render
-              with NO status selected. */}
-          <div className="flex items-center gap-1 shrink-0">
-            {(['todo', 'in-progress', 'done'] as const).map((status) => {
-              const config = getStatusDisplay(t, status);
-              // `task.status` is typed to the 3 toggle values, but at runtime it
-              // can also be 'blocked'/'completed' — compare as string to normalize.
-              const rawStatus = task.status as string;
-              const normalizedCurrent =
-                rawStatus === 'blocked'
-                  ? 'in-progress'
-                  : rawStatus === 'completed'
-                    ? 'done'
-                    : task.status;
-              return (
-                <TaskStatusChange
-                  key={status}
-                  status={status}
-                  currentStatus={normalizedCurrent}
-                  config={config}
-                  renderIcon={renderStatusIcon}
-                  onClick={(newStatus) => onStatusUpdate(task.id, newStatus)}
-                  size="sm"
-                  showLabel={false}
-                />
-              );
-            })}
-          </div>
-        </div>
+        <CompactTaskDetailHeader
+          task={task}
+          t={t}
+          onStatusUpdate={onStatusUpdate}
+          saveField={saveField}
+          toggleProtected={toggleProtected}
+        />
       </div>
 
       {/* Accordion sections */}
@@ -323,139 +150,17 @@ export default function CompactTaskDetailCard({
             {t('compactTaskDetailCard.workloadDeadlineHeading')}
           </AccordionTrigger>
           <AccordionContent id="meta">
-            {/* NOTE: Use local input state for the progress bar so it updates on keystroke,
-                not only after the parent re-fetches the task on blur. */}
-            {(() => {
-              const displayedEst = estHoursInput ? parseFloat(estHoursInput) : null;
-              const displayedAct = actHoursInput ? parseFloat(actHoursInput) : 0;
-              const hasEst = displayedEst != null && displayedEst > 0;
-              const pct = hasEst ? Math.min(100, (displayedAct / displayedEst) * 100) : 0;
-              const barColor = !hasEst
-                ? 'bg-green-500/30'
-                : displayedAct > displayedEst
-                  ? 'bg-red-500'
-                  : displayedAct >= displayedEst * 0.8
-                    ? 'bg-amber-500'
-                    : 'bg-green-500';
-              return (
-                <div className="space-y-4">
-                  {/* 工数 / 作業時間 / 期限 — 3列横並び */}
-                  <div className="grid grid-cols-3 gap-3">
-                    <div>
-                      <label className="block text-xs font-medium text-zinc-500 dark:text-zinc-400 mb-1.5">
-                        <span className="flex items-center gap-1">
-                          <Clock className="w-3.5 h-3.5" />
-                          {t('compactTaskDetailCard.workloadLabel')}
-                        </span>
-                      </label>
-                      <div className="flex items-center gap-1">
-                        <input
-                          type="number"
-                          step="0.5"
-                          min="0"
-                          value={estHoursInput}
-                          onChange={(e) => setEstHoursInput(e.target.value)}
-                          onBlur={() =>
-                            patchTask({
-                              estimatedHours: estHoursInput ? parseFloat(estHoursInput) : null,
-                            })
-                          }
-                          placeholder="0"
-                          className="w-full bg-zinc-100 dark:bg-zinc-800 rounded-lg px-2 py-1.5 text-sm border-none outline-none focus:ring-2 focus:ring-violet-500/20 transition-all"
-                        />
-                        <span className="text-xs text-zinc-500 dark:text-zinc-400 shrink-0">h</span>
-                      </div>
-                    </div>
-
-                    <div>
-                      <label className="block text-xs font-medium text-zinc-500 dark:text-zinc-400 mb-1.5">
-                        <span className="flex items-center gap-1">
-                          <Timer className="w-3.5 h-3.5" />
-                          {t('compactTaskDetailCard.actualWorkTimeLabel')}
-                        </span>
-                      </label>
-                      <div className="flex items-center gap-1">
-                        <input
-                          type="number"
-                          step="0.1"
-                          min="0"
-                          value={actHoursInput}
-                          onChange={(e) => setActHoursInput(e.target.value)}
-                          onBlur={() =>
-                            patchTask({
-                              actualHours: actHoursInput ? parseFloat(actHoursInput) : null,
-                            })
-                          }
-                          placeholder="0"
-                          className="w-full bg-zinc-100 dark:bg-zinc-800 rounded-lg px-2 py-1.5 text-sm border-none outline-none focus:ring-2 focus:ring-emerald-500/20 transition-all"
-                        />
-                        <span className="text-xs text-zinc-500 dark:text-zinc-400 shrink-0">h</span>
-                      </div>
-                    </div>
-
-                    <div>
-                      <label className="block text-xs font-medium text-zinc-500 dark:text-zinc-400 mb-1.5">
-                        <span className="flex items-center gap-1">
-                          <Calendar className="w-3.5 h-3.5" />
-                          {t('dueDate')}
-                        </span>
-                      </label>
-                      <input
-                        type="datetime-local"
-                        value={dueDateInput}
-                        onChange={(e) => setDueDateInput(e.target.value)}
-                        onBlur={() =>
-                          patchTask({
-                            dueDate: dueDateInput ? new Date(dueDateInput).toISOString() : null,
-                          })
-                        }
-                        className="w-full bg-zinc-100 dark:bg-zinc-800 rounded-lg px-2 py-1.5 text-sm border-none outline-none focus:ring-2 focus:ring-violet-500/20 transition-all"
-                      />
-                    </div>
-                  </div>
-
-                  {/* 進捗バー: 作業時間 / 工数 (入力値をリアルタイム反映) */}
-                  <div>
-                    <div className="flex items-center justify-between mb-1.5">
-                      <span className="text-xs font-medium text-zinc-500 dark:text-zinc-400">
-                        {t('compactTaskDetailCard.progressLabel')}
-                      </span>
-                      <span className="text-xs text-zinc-500 dark:text-zinc-400">
-                        {displayedAct.toFixed(1)}h{hasEst ? ` / ${displayedEst}h` : ''}
-                        {hasEst && (
-                          <span className="ml-1 text-zinc-400 dark:text-zinc-500">
-                            ({pct.toFixed(0)}%)
-                          </span>
-                        )}
-                      </span>
-                    </div>
-                    <div className="h-2 bg-zinc-100 dark:bg-zinc-800 rounded-full overflow-hidden">
-                      <div
-                        className={`h-full rounded-full transition-all duration-150 ${barColor}`}
-                        style={{ width: hasEst ? `${pct}%` : displayedAct > 0 ? '100%' : '0%' }}
-                      />
-                    </div>
-                  </div>
-
-                  {/* Labels (read-only display) */}
-                  {task.taskLabels && task.taskLabels.length > 0 && (
-                    <div>
-                      <label className="block text-xs font-medium text-zinc-500 dark:text-zinc-400 mb-1.5">
-                        <span className="flex items-center gap-1">
-                          <Tag className="w-3.5 h-3.5" />
-                          {t('labels')}
-                        </span>
-                      </label>
-                      <SelectedLabelsDisplay
-                        labels={task.taskLabels
-                          .map((tl) => tl.label)
-                          .filter((l): l is Label => l !== undefined)}
-                      />
-                    </div>
-                  )}
-                </div>
-              );
-            })()}
+            <CompactTaskDetailWorkloadSection
+              task={task}
+              t={t}
+              estHoursInput={estHoursInput}
+              setEstHoursInput={setEstHoursInput}
+              actHoursInput={actHoursInput}
+              setActHoursInput={setActHoursInput}
+              dueDateInput={dueDateInput}
+              setDueDateInput={setDueDateInput}
+              patchTask={patchTask}
+            />
           </AccordionContent>
         </AccordionItem>
 

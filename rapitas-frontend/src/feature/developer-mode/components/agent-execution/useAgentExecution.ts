@@ -1,16 +1,16 @@
 'use client';
 // useAgentExecution
 
-import { useState, useEffect, useRef, useMemo } from 'react';
+import { useState, useRef, useMemo } from 'react';
 import { useTranslations } from 'next-intl';
 import { useExecutionPolling, useExecutionStream } from '../../hooks/useExecutionStream';
 import { useAgentExecutionHandlers } from './useAgentExecutionHandlers';
-import { parseQuestionOptions, type ParsedQuestion } from './agent-execution-utils';
-import { useExecutionStateStore } from '@/stores/execution-state-store';
+import { useAgentExecutionQuestion } from './useAgentExecutionQuestion';
+import { useAgentExecutionLifecycleEffects } from './useAgentExecutionLifecycleEffects';
+import { computeStatusFlags } from './useAgentExecution.helpers';
 import type {
   UseAgentExecutionProps,
   UseAgentExecutionReturn,
-  QuestionType,
   PrState,
 } from './agent-execution-types';
 
@@ -22,127 +22,6 @@ export type {
   UseAgentExecutionProps,
   UseAgentExecutionReturn,
 } from './agent-execution-types';
-
-// ────────────────────────────────────────────────────────────────────────────
-// Helper Functions
-// ────────────────────────────────────────────────────────────────────────────
-
-/**
- * Compute question state from polling data.
- */
-function computeQuestionState(
-  isTerminalStatus: boolean,
-  pollingWaitingForInput: boolean,
-  pollingQuestion: string | undefined,
-  pollingQuestionType: string | undefined,
-): { hasQuestion: boolean; question: string; questionType: QuestionType } {
-  if (!isTerminalStatus && pollingWaitingForInput && pollingQuestion) {
-    return {
-      hasQuestion: true,
-      question: pollingQuestion,
-      questionType: pollingQuestionType === 'tool_call' ? 'tool_call' : 'none',
-    };
-  }
-  return { hasQuestion: false, question: '', questionType: 'none' };
-}
-
-/**
- * Parse question options from structured or text-based format.
- *
- * @param question - Raw question text from the agent. / エージェントからの生の質問文
- * @param pollingQuestionDetails - Structured options from an AskUserQuestion tool call, if any.
- * @param t - Translator (scoped to `devMode.parseQuestionOptions`) used to localize
- *   fallback yes/no-style option labels when text-based parsing is used. / フォールバック選択肢の翻訳に使う関数
- */
-function parseQuestionWithDetails(
-  question: string | undefined,
-  // NOTE: 上流の questionDetails は description / headers / multiSelect 等を持つが
-  // ここで使うのは options[].label のみなので、ワイドな入力を許容する。
-  pollingQuestionDetails:
-    | {
-        options?: { label: string; description?: string }[];
-        headers?: string[];
-        multiSelect?: boolean;
-      }
-    | null
-    | undefined,
-  t: (key: string) => string,
-): ParsedQuestion | null {
-  if (!question) return null;
-
-  // Use structured questionDetails when available (from AskUserQuestion tool calls)
-  if (pollingQuestionDetails?.options && pollingQuestionDetails.options.length > 0) {
-    return {
-      text: question,
-      options: pollingQuestionDetails.options.map((opt) => opt.label),
-    };
-  }
-
-  // Fallback to text-based parsing for legacy support
-  return parseQuestionOptions(question, t);
-}
-
-/** Status flags for execution state. */
-type StatusFlags = {
-  isCompleted: boolean;
-  isCancelled: boolean;
-  isFailed: boolean;
-  isRunning: boolean;
-};
-
-/**
- * Compute derived status flags from execution state.
- */
-function computeStatusFlags(params: {
-  finalStatus: string;
-  isPollingRunning: boolean;
-  isSseRunning: boolean;
-  isWaitingForInput: boolean;
-  isRestoredTerminal: boolean;
-  executionResult: { success?: boolean } | null;
-  isExecuting: boolean;
-  pollingStatus: string;
-  sseStatus: string;
-  error: string | null;
-  pollingError: string | null;
-  sseError: string | null;
-}): StatusFlags {
-  const {
-    finalStatus,
-    isPollingRunning,
-    isSseRunning,
-    isWaitingForInput,
-    isRestoredTerminal,
-    executionResult,
-    isExecuting,
-    pollingStatus,
-    sseStatus,
-    error,
-    pollingError,
-    sseError,
-  } = params;
-
-  const isCompleted =
-    (finalStatus === 'completed' && !isPollingRunning && !isSseRunning && !isWaitingForInput) ||
-    (isRestoredTerminal && executionResult?.success === true);
-
-  const isCancelled = finalStatus === 'cancelled';
-
-  const isFailed =
-    !!(finalStatus === 'failed' || error || pollingError || sseError) ||
-    (isRestoredTerminal && executionResult?.success === false);
-
-  const isRunning =
-    !isRestoredTerminal &&
-    (isExecuting ||
-      isPollingRunning ||
-      isSseRunning ||
-      pollingStatus === 'running' ||
-      sseStatus === 'running' ||
-      isWaitingForInput);
-
-  return { isCompleted, isCancelled, isFailed, isRunning };
-}
 
 /**
  * Core hook for AgentExecutionPanel state and side effects.
@@ -184,7 +63,6 @@ export function useAgentExecution(props: UseAgentExecutionProps): UseAgentExecut
     !props.executionResult && props.executionStatus === 'idle',
   );
   const hasRestoredRef = useRef(false);
-  const [timeoutCountdown, setTimeoutCountdown] = useState<number | null>(null);
   const [prState, setPrState] = useState<PrState>({ status: 'idle' });
 
   const {
@@ -235,154 +113,51 @@ export function useAgentExecution(props: UseAgentExecutionProps): UseAgentExecut
   const isWaitingForInput =
     !isTerminalStatus && (pollingStatus === 'waiting_for_input' || pollingWaitingForInput);
 
-  // NOTE: Question detection uses only API state
-  const { hasQuestion, question, questionType } = useMemo(
-    () =>
-      computeQuestionState(
-        isTerminalStatus,
-        pollingWaitingForInput ?? false,
-        pollingQuestion,
-        pollingQuestionType,
-      ),
-    [pollingWaitingForInput, pollingQuestion, pollingQuestionType, isTerminalStatus],
-  );
-
-  // NOTE: Prefer structured questionDetails from AskUserQuestion tool calls over text parsing
-  const questionParsed = useMemo(
-    () => parseQuestionWithDetails(question, pollingQuestionDetails, tQuestionOptions),
-    [question, pollingQuestionDetails, tQuestionOptions],
-  );
-  const hasOptions = !!(questionParsed && questionParsed.options.length >= 2);
-  const isConfirmedQuestion = questionType === 'tool_call';
-
-  // Question timeout countdown
-  useEffect(() => {
-    if (!isWaitingForInput || !pollingQuestionTimeout) {
-      setTimeoutCountdown(null);
-      return;
-    }
-    setTimeoutCountdown(pollingQuestionTimeout.remainingSeconds);
-    const interval = setInterval(() => {
-      setTimeoutCountdown((prev) => (prev === null || prev <= 0 ? 0 : prev - 1));
-    }, 1000);
-    return () => clearInterval(interval);
-  }, [isWaitingForInput, pollingQuestionTimeout]);
-
-  // Publish the live question to the shared store so the workflow Q&A tab can
-  // render it (the Q&A tab lives in a different subtree with no shared parent).
-  // Cleared when not waiting; the store de-dupes so this is safe on every poll.
-  const setLiveQuestion = useExecutionStateStore((s) => s.setLiveQuestion);
-  useEffect(() => {
-    if (isWaitingForInput && hasQuestion) {
-      setLiveQuestion(taskId, {
-        taskId,
-        text: questionParsed?.text ?? question,
-        options: questionParsed?.options ?? [],
-        sessionId: sessionId ?? undefined,
-        timeoutDeadline: pollingQuestionTimeout?.deadline ?? null,
-        confirmed: isConfirmedQuestion,
-      });
-    } else {
-      setLiveQuestion(taskId, null);
-    }
-  }, [
-    isWaitingForInput,
+  const {
     hasQuestion,
-    taskId,
     question,
+    questionType,
     questionParsed,
-    sessionId,
-    pollingQuestionTimeout,
+    hasOptions,
     isConfirmedQuestion,
-    setLiveQuestion,
-  ]);
-  // Clear the published question when this hook unmounts (task view closed).
-  useEffect(() => () => setLiveQuestion(taskId, null), [taskId, setLiveQuestion]);
+    timeoutCountdown,
+    resetTimeoutCountdown,
+  } = useAgentExecutionQuestion({
+    taskId,
+    sessionId,
+    isTerminalStatus,
+    isWaitingForInput: isWaitingForInput ?? false,
+    pollingWaitingForInput,
+    pollingQuestion,
+    pollingQuestionType,
+    pollingQuestionDetails,
+    pollingQuestionTimeout,
+    tQuestionOptions,
+  });
 
-  // Reset all local state when the displayed task changes
-  const previousTaskIdRef = useRef<number | null>(null);
-  useEffect(() => {
-    if (previousTaskIdRef.current === null) {
-      previousTaskIdRef.current = taskId;
-      return;
-    }
-    if (previousTaskIdRef.current !== taskId) {
-      hasRestoredRef.current = false;
-      setIsExpanded(false);
-      setSessionId(null);
-      setIsRestoring(false);
-      _setShowLogs(true);
-      setUserResponse('');
-      setFollowUpInstruction('');
-      setFollowUpError(null);
-      setTimeoutCountdown(null);
-      stopPolling();
-      clearPollingLogs();
-      clearSseLogs();
-      previousTaskIdRef.current = taskId;
-    }
-  }, [taskId, stopPolling, clearPollingLogs, clearSseLogs]);
-
-  // NOTE: Execution state restoration is handled solely by useDeveloperMode's auto-restore.
-  // This hook only reacts to executionResult/executionStatus changes.
-
-  // NOTE: Once execution result arrives (from any source), stop showing skeleton.
-  // Also stop after 2 seconds max to handle "no execution history" case.
-  useEffect(() => {
-    if (executionResult !== null || props.executionStatus !== 'idle') {
-      setIsRestoring(false);
-      return;
-    }
-    const timeout = setTimeout(() => setIsRestoring(false), 2000);
-    return () => clearTimeout(timeout);
-  }, [executionResult, props.executionStatus]);
-
-  // Start SSE + polling when a new execution result arrives
-  const executionSessionId = executionResult?.sessionId;
-  const executionOutput = executionResult?.output;
-  useEffect(() => {
-    if (executionSessionId) {
-      setSessionId(executionSessionId);
-      startPolling(
-        executionOutput ? { initialOutput: executionOutput, preserveLogs: false } : undefined,
-      );
-    }
-  }, [executionSessionId, executionOutput, startPolling]);
-
-  // Start polling when execution begins
-  useEffect(() => {
-    if (isExecuting && !isPollingRunning) startPolling();
-  }, [isExecuting, isPollingRunning, startPolling]);
-
-  // Notify parent once when polling reaches a terminal state
-  const handledTerminalStatusRef = useRef<string | null>(null);
-  useEffect(() => {
-    if (handledTerminalStatusRef.current === pollingStatus) return;
-    if (['completed', 'failed', 'cancelled'].includes(pollingStatus)) {
-      handledTerminalStatusRef.current = pollingStatus;
-      onExecutionComplete?.();
-    } else {
-      handledTerminalStatusRef.current = null;
-    }
-  }, [pollingStatus, onExecutionComplete]);
-
-  // Also notify on PHASE rollover / completion within an auto-advancing
-  // workflow (researcher → planner → ...). Without this, my earlier fix
-  // that keeps `pollingStatus = 'running'` between phases prevented the
-  // terminal-state effect above from firing, so the workflow status
-  // indicator + file tabs went stale until the user reloaded the page.
-  // The `phaseAdvanceMarker` increments on each phase boundary; that
-  // increment is what we react to. The marker is monotonically growing,
-  // so we only fire when it actually changes.
-  const handledPhaseMarkerRef = useRef<number | undefined>(undefined);
-  useEffect(() => {
-    if (typeof pollingPhaseAdvanceMarker !== 'number') return;
-    if (handledPhaseMarkerRef.current === pollingPhaseAdvanceMarker) return;
-    handledPhaseMarkerRef.current = pollingPhaseAdvanceMarker;
-    if (pollingPhaseAdvanceMarker > 0) {
-      onExecutionComplete?.();
-    }
-  }, [pollingPhaseAdvanceMarker, onExecutionComplete]);
+  useAgentExecutionLifecycleEffects({
+    taskId,
+    isExecuting,
+    executionResult,
+    executionStatus: props.executionStatus,
+    onExecutionComplete,
+    pollingStatus,
+    pollingPhaseAdvanceMarker,
+    isPollingRunning,
+    startPolling,
+    stopPolling,
+    clearPollingLogs,
+    clearSseLogs,
+    hasRestoredRef,
+    setIsExpanded,
+    setSessionId,
+    setIsRestoring,
+    setShowLogs: _setShowLogs,
+    setUserResponse,
+    setFollowUpInstruction,
+    setFollowUpError,
+    resetTimeoutCountdown,
+  });
 
   // Derived status flags
   const finalStatus =
