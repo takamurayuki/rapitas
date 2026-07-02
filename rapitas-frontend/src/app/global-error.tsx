@@ -13,8 +13,9 @@ export default function GlobalError({
     console.error('Global error:', error);
   }, [error]);
 
+  // NOTE: useTranslations() cannot be used here — global-error renders outside IntlProvider.
   return (
-    <html lang="ja">
+    <html lang="en">
       <body>
         <div
           style={{
@@ -44,7 +45,7 @@ export default function GlobalError({
                 marginBottom: '0.5rem',
               }}
             >
-              重大なエラーが発生しました
+              A critical error occurred
             </h2>
             <p
               style={{
@@ -53,7 +54,7 @@ export default function GlobalError({
                 marginBottom: '1.5rem',
               }}
             >
-              アプリケーションの初期化中にエラーが発生しました。
+              An error occurred during application initialization.
             </p>
             <button
               onClick={reset}
@@ -68,7 +69,7 @@ export default function GlobalError({
                 cursor: 'pointer',
               }}
             >
-              再読み込み
+              Reload
             </button>
           </div>
         </div>

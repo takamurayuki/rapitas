@@ -2,6 +2,7 @@
 // WorkflowBanners
 
 import { ShieldCheck, Loader2, AlertCircle, RefreshCw, Play } from 'lucide-react';
+import { useTranslations } from 'next-intl';
 import type { WorkflowStatus, WorkflowRoleConfig } from '@/types';
 import { getStatusToNextRole } from './workflow-viewer-utils';
 import type { WorkflowMode } from './CompactWorkflowSelector';
@@ -22,6 +23,7 @@ export function PlanApprovalBanner({
   onNavigateToPlan,
   onPlanApprovalRequest,
 }: PlanApprovalBannerProps) {
+  const t = useTranslations('workflow');
   return (
     <div className="flex items-center justify-between px-4 py-3 bg-amber-50 dark:bg-amber-900/20 border-b border-amber-200 dark:border-amber-800/50">
       <div className="flex items-center gap-2.5">
@@ -30,10 +32,10 @@ export function PlanApprovalBanner({
         </div>
         <div>
           <p className="text-sm font-medium text-amber-800 dark:text-amber-200">
-            計画の承認が必要です
+            {t('planApprovalRequired')}
           </p>
           <p className="text-xs text-amber-600 dark:text-amber-400">
-            計画タブで内容を確認し、承認すると実装フェーズに移行します
+            {t('reviewPlanToApprove')}
           </p>
         </div>
       </div>
@@ -45,7 +47,7 @@ export function PlanApprovalBanner({
         className="flex items-center gap-1.5 px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white text-sm font-medium rounded-lg transition-colors whitespace-nowrap"
       >
         <ShieldCheck className="h-3.5 w-3.5" />
-        計画を確認・承認
+        {t('reviewAndApprove')}
       </button>
     </div>
   );
@@ -78,6 +80,7 @@ export function NextPhaseButton({
   isAdvancing,
   onAdvance,
 }: NextPhaseButtonProps) {
+  const t = useTranslations('workflow');
   const statusToNextRole = getStatusToNextRole(workflowMode);
   const next = statusToNextRole[effectiveStatus];
   if (!next) return null;
@@ -89,7 +92,9 @@ export function NextPhaseButton({
     <div className="flex items-center justify-between px-4 py-2.5 bg-indigo-50 dark:bg-indigo-900/20 border-b border-indigo-100 dark:border-indigo-800/50">
       <div className="flex items-center gap-2 text-sm">
         <NextIcon className="h-4 w-4 text-indigo-600 dark:text-indigo-400" />
-        <span className="text-indigo-700 dark:text-indigo-300 font-medium">次: {next.label}</span>
+        <span className="text-indigo-700 dark:text-indigo-300 font-medium">
+          {t('nextPhase', { phase: next.label })}
+        </span>
         {roleConfig?.agentConfig && (
           <span className="text-xs text-indigo-500 dark:text-indigo-400 bg-indigo-100 dark:bg-indigo-800/50 px-2 py-0.5 rounded-full">
             {roleConfig.agentConfig.name}
@@ -106,7 +111,7 @@ export function NextPhaseButton({
         ) : (
           <Play className="h-3.5 w-3.5" />
         )}
-        {isAdvancing ? '実行中...' : '実行'}
+        {isAdvancing ? t('executing') : t('execute')}
       </button>
     </div>
   );
@@ -124,13 +129,14 @@ interface AdvanceErrorBannerProps {
  * @param onDismiss - Callback to clear the error / エラーをクリアするコールバック
  */
 export function AdvanceErrorBanner({ error, onDismiss }: AdvanceErrorBannerProps) {
+  const t = useTranslations('workflow');
   return (
     <div className="bg-red-50 dark:bg-red-900/20 border-b border-red-200 dark:border-red-800 px-4 py-2">
       <div className="flex items-center">
         <AlertCircle className="h-4 w-4 text-red-500 mr-2 shrink-0" />
         <span className="text-sm text-red-700 dark:text-red-300">{error}</span>
         <button onClick={onDismiss} className="ml-auto text-red-400 hover:text-red-600 text-xs">
-          閉じる
+          {t('close')}
         </button>
       </div>
     </div>
