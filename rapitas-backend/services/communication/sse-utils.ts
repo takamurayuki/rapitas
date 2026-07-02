@@ -229,7 +229,7 @@ export class SSEStreamController {
 
     try {
       this.controller.close();
-    } catch (error) {
+    } catch {
       // Ignore if already closed
     }
     this.isClosed = true;

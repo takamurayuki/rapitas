@@ -5,8 +5,6 @@ import {
   isValidBranchName,
   generateFallbackBranchName,
 } from '../../utils/common/branch-name-generator';
-import { cleanGeneratedTitle } from '../../utils/common/title-cleaner';
-
 export { cleanGeneratedTitle } from '../../utils/common/title-cleaner';
 
 /**
@@ -15,8 +13,8 @@ export { cleanGeneratedTitle } from '../../utils/common/title-cleaner';
 export async function generateBranchName(
   taskTitle: string,
   taskDescription?: string | null,
-  provider?: AIProvider,
-  model?: string,
+  _provider?: AIProvider,
+  _model?: string,
 ): Promise<{ branchName: string }> {
   const systemPrompt = `You are a Git branch name generator. Output ONLY a branch name, nothing else.
 

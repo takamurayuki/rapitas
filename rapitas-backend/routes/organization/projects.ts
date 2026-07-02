@@ -1,7 +1,7 @@
 /**
  * Projects API Routes
  */
-import { Elysia, t } from 'elysia';
+import { Elysia } from 'elysia';
 import { prisma } from '../../config/database';
 import { projectSchema } from '../../schemas/project.schema';
 import { ValidationError } from '../../middleware/error-handler';

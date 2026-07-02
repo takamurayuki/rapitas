@@ -73,49 +73,49 @@ describe('parseGateManifest', () => {
 });
 
 describe('validateManifestEntryNames', () => {
-  it('returns empty array for .test.ts entries', () => {
-    expect(validateManifestEntryNames(['tests/foo.test.ts', 'tests/bar.test.ts'])).toEqual([]);
-  });
-
-  it('returns empty array for .integration.test.ts entries (.test.ts suffix)', () => {
-    expect(
-      validateManifestEntryNames([
-        'tests/foo.integration.test.ts',
-        'tests/bar.integration.test.ts',
-      ]),
-    ).toEqual([]);
-  });
-
-  it('returns empty array for .test.mjs entries', () => {
-    expect(validateManifestEntryNames(['eslint-rules/no-raw-prisma-insensitive.test.mjs'])).toEqual(
-      [],
-    );
-  });
-
-  it('returns invalid entry for a plain .ts file', () => {
-    expect(validateManifestEntryNames(['src/foo.ts', 'tests/bar.test.ts'])).toEqual(['src/foo.ts']);
-  });
-
-  it('returns invalid entry for a .spec.ts file', () => {
-    expect(validateManifestEntryNames(['tests/foo.spec.ts'])).toEqual(['tests/foo.spec.ts']);
-  });
-
-  it('returns invalid entry for a .test.js file', () => {
-    expect(validateManifestEntryNames(['tests/foo.test.js'])).toEqual(['tests/foo.test.js']);
-  });
-
-  it('returns only invalid entries from a mixed list', () => {
-    const entries = [
-      'tests/valid.test.ts',
-      'src/invalid.ts',
-      'eslint/rule.test.mjs',
-      'src/spec.spec.ts',
-    ];
-    expect(validateManifestEntryNames(entries)).toEqual(['src/invalid.ts', 'src/spec.spec.ts']);
-  });
-
-  it('returns empty array for an empty input', () => {
-    expect(validateManifestEntryNames([])).toEqual([]);
+  it.each([
+    {
+      desc: 'returns empty array for .test.ts entries',
+      input: ['tests/foo.test.ts', 'tests/bar.test.ts'],
+      expected: [] as string[],
+    },
+    {
+      desc: 'returns empty array for .integration.test.ts entries (.test.ts suffix)',
+      input: ['tests/foo.integration.test.ts', 'tests/bar.integration.test.ts'],
+      expected: [] as string[],
+    },
+    {
+      desc: 'returns empty array for .test.mjs entries',
+      input: ['eslint-rules/no-raw-prisma-insensitive.test.mjs'],
+      expected: [] as string[],
+    },
+    {
+      desc: 'returns invalid entry for a plain .ts file',
+      input: ['src/foo.ts', 'tests/bar.test.ts'],
+      expected: ['src/foo.ts'],
+    },
+    {
+      desc: 'returns invalid entry for a .spec.ts file',
+      input: ['tests/foo.spec.ts'],
+      expected: ['tests/foo.spec.ts'],
+    },
+    {
+      desc: 'returns invalid entry for a .test.js file',
+      input: ['tests/foo.test.js'],
+      expected: ['tests/foo.test.js'],
+    },
+    {
+      desc: 'returns only invalid entries from a mixed list',
+      input: ['tests/valid.test.ts', 'src/invalid.ts', 'eslint/rule.test.mjs', 'src/spec.spec.ts'],
+      expected: ['src/invalid.ts', 'src/spec.spec.ts'],
+    },
+    {
+      desc: 'returns empty array for an empty input',
+      input: [] as string[],
+      expected: [] as string[],
+    },
+  ])('$desc', ({ input, expected }) => {
+    expect(validateManifestEntryNames(input)).toEqual(expected);
   });
 });
 
@@ -123,29 +123,30 @@ describe('validateManifestFiles', () => {
   const SCRIPTS_DIR = import.meta.dir;
   const BACKEND_DIR = resolve(SCRIPTS_DIR, '..');
 
-  it('returns empty array when all files exist', () => {
-    // Use the manifest files themselves as known-to-exist targets
-    const knownFiles = [
-      'scripts/gate-manifest-parser.ts',
-      'scripts/ci-gates.ts',
-      'scripts/run-gate.ts',
-    ];
-    expect(validateManifestFiles(knownFiles, BACKEND_DIR)).toEqual([]);
-  });
-
-  it('returns paths that do not exist on disk', () => {
-    const files = ['scripts/gate-manifest-parser.ts', 'scripts/does-not-exist.ts'];
-    const missing = validateManifestFiles(files, BACKEND_DIR);
-    expect(missing).toEqual(['scripts/does-not-exist.ts']);
-  });
-
-  it('returns all paths when none exist', () => {
-    const files = ['non/existent/a.ts', 'non/existent/b.ts'];
-    expect(validateManifestFiles(files, BACKEND_DIR)).toEqual(files);
-  });
-
-  it('returns empty array for an empty file list', () => {
-    expect(validateManifestFiles([], BACKEND_DIR)).toEqual([]);
+  it.each([
+    {
+      desc: 'returns empty array when all files exist',
+      // Use the manifest files themselves as known-to-exist targets
+      files: ['scripts/gate-manifest-parser.ts', 'scripts/ci-gates.ts', 'scripts/run-gate.ts'],
+      expected: [] as string[],
+    },
+    {
+      desc: 'returns paths that do not exist on disk',
+      files: ['scripts/gate-manifest-parser.ts', 'scripts/does-not-exist.ts'],
+      expected: ['scripts/does-not-exist.ts'],
+    },
+    {
+      desc: 'returns all paths when none exist',
+      files: ['non/existent/a.ts', 'non/existent/b.ts'],
+      expected: ['non/existent/a.ts', 'non/existent/b.ts'],
+    },
+    {
+      desc: 'returns empty array for an empty file list',
+      files: [] as string[],
+      expected: [] as string[],
+    },
+  ])('$desc', ({ files, expected }) => {
+    expect(validateManifestFiles(files, BACKEND_DIR)).toEqual(expected);
   });
 
   it('resolves paths relative to rootDir', () => {

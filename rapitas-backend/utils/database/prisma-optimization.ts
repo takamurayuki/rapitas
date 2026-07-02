@@ -48,7 +48,7 @@ export class PrismaOptimizer {
   }
 
   // Cursor-based pagination
-  static cursorPagination<T extends { id: string | number }>(cursor?: string, limit: number = 20) {
+  static cursorPagination(cursor?: string, limit: number = 20) {
     return {
       take: limit + 1,
       ...(cursor && {

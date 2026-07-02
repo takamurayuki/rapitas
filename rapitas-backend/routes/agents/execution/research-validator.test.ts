@@ -12,17 +12,16 @@ import {
 } from './research-output-utils';
 
 describe('isIsolatedWorktree', () => {
-  test('true for a path containing /.worktrees/ (Linux absolute)', () => {
-    expect(isIsolatedWorktree('/home/u/proj/.worktrees/task-1')).toBe(true);
-  });
-
-  test('true for a Windows path with backslash separators', () => {
+  test.each([
+    {
+      label: 'a path containing /.worktrees/ (Linux absolute)',
+      input: '/home/u/proj/.worktrees/task-1',
+    },
     // NOTE: The function normalizes \\ to / before checking, so Windows paths work.
-    expect(isIsolatedWorktree('C:\\repo\\.worktrees\\task-1')).toBe(true);
-  });
-
-  test('true for a relative path containing .worktrees/', () => {
-    expect(isIsolatedWorktree('./.worktrees/task-1')).toBe(true);
+    { label: 'a Windows path with backslash separators', input: 'C:\\repo\\.worktrees\\task-1' },
+    { label: 'a relative path containing .worktrees/', input: './.worktrees/task-1' },
+  ])('true for $label', ({ input }) => {
+    expect(isIsolatedWorktree(input)).toBe(true);
   });
 
   test('false for a path that does not contain .worktrees/', () => {
@@ -46,6 +45,7 @@ describe('isIsolatedWorktree', () => {
 });
 
 describe('validateResearchReport', () => {
+  // eslint-disable-next-line local/prefer-test-each-for-similar -- each case asserts a different result field/condition (exact reason string, reason length, missingSections contents, or a distinct reason substring), not a uniform input/output shape
   test('rejects empty output', () => {
     const res = validateResearchReport('');
     expect(res.ok).toBe(false);

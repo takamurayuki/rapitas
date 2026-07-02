@@ -10,7 +10,7 @@ import { Elysia } from 'elysia';
 import { prisma } from '../../../config/database';
 import { createLogger } from '../../../config/logger';
 import { orchestrator } from '../../../services/core/orchestrator-instance';
-import { toJsonString, fromJsonString } from '../../../utils/database/db-helpers';
+import { fromJsonString } from '../../../utils/database/db-helpers';
 import type { SubtaskProposal } from '../../../services/claude-agent';
 import { resolveAgentForTask } from '../../../services/workflow/role-resolver';
 import { isShutdownError } from '../../../services/agents/agent-worker/shutdown-error';
@@ -187,7 +187,7 @@ export const bulkApproveRoutes = new Elysia()
         } else {
           results.push({ id, success: true });
         }
-      } catch (error) {
+      } catch {
         results.push({ id, success: false });
       }
     }

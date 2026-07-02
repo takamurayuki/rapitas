@@ -16,7 +16,6 @@
  * committing or the retry loop.
  */
 import { spawn } from 'child_process';
-import os from 'os';
 import { existsSync, writeFileSync, unlinkSync } from 'fs';
 import { dirname, extname, join, relative, resolve } from 'path';
 import { buildScopedTestCommands, findRelatedTestFiles, TEST_FILE_RE } from './related-tests';

@@ -78,7 +78,7 @@ export type FilteredCliOutput = {
  */
 export function filterCliDiagnosticOutput(
   output: string,
-  options: { provider: 'codex' | 'gemini' },
+  _options: { provider: 'codex' | 'gemini' },
 ): FilteredCliOutput {
   const displayLines: string[] = [];
   let omittedLines = 0;

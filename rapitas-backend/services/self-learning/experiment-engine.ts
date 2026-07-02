@@ -15,9 +15,6 @@ import type {
   UpdateExperimentInput,
   ExperimentPhase,
   ExperimentResearch,
-  ExperimentPlan,
-  ExperimentEvaluation,
-  ExperimentLearning,
 } from './types';
 
 const log = createLogger('self-learning:experiment');

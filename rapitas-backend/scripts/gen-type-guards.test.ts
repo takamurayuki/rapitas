@@ -133,23 +133,31 @@ describe('extractSsotPairs', () => {
     expect(manualReview).toHaveLength(0);
   });
 
-  test('existing is* suppresses is* generation only', () => {
-    const { pairs } = extractSsotPairs('/fake/file.ts', SOURCE_WITH_IS_GUARD);
-    expect(pairs).toHaveLength(1);
-    expect(pairs[0].generateIs).toBe(false);
-    expect(pairs[0].generateNarrow).toBe(true);
-  });
-
-  test('existing is* and narrow* → pair omitted entirely', () => {
-    const { pairs } = extractSsotPairs('/fake/file.ts', SOURCE_WITH_BOTH_GUARDS);
-    expect(pairs).toHaveLength(0);
-  });
-
-  test('existing normalize* suppresses narrow* generation', () => {
-    const { pairs } = extractSsotPairs('/fake/file.ts', SOURCE_WITH_NORMALIZE);
-    expect(pairs).toHaveLength(1);
-    expect(pairs[0].generateIs).toBe(true);
-    expect(pairs[0].generateNarrow).toBe(false);
+  test.each([
+    {
+      name: 'is* suppresses is* generation only',
+      source: SOURCE_WITH_IS_GUARD,
+      length: 1,
+      generateIs: false,
+      generateNarrow: true,
+    },
+    {
+      name: 'is* and narrow* → pair omitted entirely',
+      source: SOURCE_WITH_BOTH_GUARDS,
+      length: 0,
+    },
+    {
+      name: 'normalize* suppresses narrow* generation',
+      source: SOURCE_WITH_NORMALIZE,
+      length: 1,
+      generateIs: true,
+      generateNarrow: false,
+    },
+  ])('existing $name', ({ source, length, generateIs, generateNarrow }) => {
+    const { pairs } = extractSsotPairs('/fake/file.ts', source);
+    expect(pairs).toHaveLength(length);
+    if (generateIs !== undefined) expect(pairs[0].generateIs).toBe(generateIs);
+    if (generateNarrow !== undefined) expect(pairs[0].generateNarrow).toBe(generateNarrow);
   });
 
   test('@gen-guard-fallback comment overrides first-element default', () => {
@@ -190,34 +198,36 @@ describe('generateGuardSource', () => {
     generateNarrow: true,
   };
 
-  test('generates file header with auto-generated notice', async () => {
+  test.each([
+    {
+      name: 'file header with auto-generated notice',
+      contains: ['自動生成ファイル', 'bun run gen:type-guards', '手動編集不可'],
+    },
+    {
+      // Source and output are adjacent → import path is './workflow-types'
+      name: 'correct import from source file (adjacent → relative path)',
+      contains: [`from './workflow-types'`, 'WorkflowRole', 'WORKFLOW_ROLES'],
+    },
+    {
+      name: 'isWorkflowRole with correct signature',
+      contains: [
+        'export function isWorkflowRole(s: unknown): s is WorkflowRole',
+        'isOneOf(s, WORKFLOW_ROLES)',
+        'isOneOf',
+      ],
+    },
+    {
+      name: 'narrowWorkflowRole with correct signature and fallback',
+      contains: [
+        'export function narrowWorkflowRole(',
+        "fallback: WorkflowRole = 'researcher'",
+        '): WorkflowRole {',
+        'return isWorkflowRole(s) ? s : fallback;',
+      ],
+    },
+  ])('generates $name', async ({ contains }) => {
     const output = await generateGuardSource(sourceFile, outputFile, [pair]);
-    expect(output).toContain('自動生成ファイル');
-    expect(output).toContain('bun run gen:type-guards');
-    expect(output).toContain('手動編集不可');
-  });
-
-  test('generates correct import from source file (adjacent → relative path)', async () => {
-    const output = await generateGuardSource(sourceFile, outputFile, [pair]);
-    // Source and output are adjacent → import path is './workflow-types'
-    expect(output).toContain(`from './workflow-types'`);
-    expect(output).toContain('WorkflowRole');
-    expect(output).toContain('WORKFLOW_ROLES');
-  });
-
-  test('generates isWorkflowRole with correct signature', async () => {
-    const output = await generateGuardSource(sourceFile, outputFile, [pair]);
-    expect(output).toContain('export function isWorkflowRole(s: unknown): s is WorkflowRole');
-    expect(output).toContain('isOneOf(s, WORKFLOW_ROLES)');
-    expect(output).toContain('isOneOf');
-  });
-
-  test('generates narrowWorkflowRole with correct signature and fallback', async () => {
-    const output = await generateGuardSource(sourceFile, outputFile, [pair]);
-    expect(output).toContain('export function narrowWorkflowRole(');
-    expect(output).toContain("fallback: WorkflowRole = 'researcher'");
-    expect(output).toContain('): WorkflowRole {');
-    expect(output).toContain('return isWorkflowRole(s) ? s : fallback;');
+    for (const c of contains) expect(output).toContain(c);
   });
 
   test('skips is* generation when generateIs=false', async () => {
@@ -245,6 +255,7 @@ describe('generateGuardSource', () => {
     expect(output).toContain('export function narrowWorkflowRole');
   });
 
+  // eslint-disable-next-line local/prefer-test-each-for-similar -- each case has distinct setup (secondPair construction, cross-directory paths) and a differing assertion shape (multi toContain vs endsWith), not safely mergeable
   test('generates guards for all pairs when multiple pairs are provided', async () => {
     const secondPair: import('./gen-type-guards').SsotPair = {
       arrayName: 'WORKFLOW_STATUSES',
@@ -497,27 +508,27 @@ describe('checkDrift — tmpdir scenarios', () => {
 // ---------------------------------------------------------------------------
 
 describe('hasSsotCandidate', () => {
-  test('returns true when content has "] as const;"', () => {
-    const content = `export const ROLES = ['admin', 'user'] as const;\nexport type Role = (typeof ROLES)[number];`;
-    expect(hasSsotCandidate(content)).toBe(true);
-  });
-
-  test('returns true for multiline SSOT array', () => {
-    const content = `export const STATUSES = [\n  'draft',\n  'done',\n] as const;`;
-    expect(hasSsotCandidate(content)).toBe(true);
-  });
-
-  test('returns false when no "] as const;" present', () => {
-    expect(hasSsotCandidate('export const foo = "bar";')).toBe(false);
-  });
-
-  test('returns false for empty string', () => {
-    expect(hasSsotCandidate('')).toBe(false);
-  });
-
-  test('returns false for file with object "as const" (not array)', () => {
-    // object as const uses "} as const" not "] as const"
-    expect(hasSsotCandidate('export const CFG = { a: 1 } as const;')).toBe(false);
+  test.each([
+    {
+      name: 'content has "] as const;"',
+      content: `export const ROLES = ['admin', 'user'] as const;\nexport type Role = (typeof ROLES)[number];`,
+      expected: true,
+    },
+    {
+      name: 'multiline SSOT array',
+      content: `export const STATUSES = [\n  'draft',\n  'done',\n] as const;`,
+      expected: true,
+    },
+    { name: 'no "] as const;" present', content: 'export const foo = "bar";', expected: false },
+    { name: 'empty string', content: '', expected: false },
+    {
+      // object as const uses "} as const" not "] as const"
+      name: 'file with object "as const" (not array)',
+      content: 'export const CFG = { a: 1 } as const;',
+      expected: false,
+    },
+  ])('returns $expected for $name', ({ content, expected }) => {
+    expect(hasSsotCandidate(content)).toBe(expected);
   });
 });
 
@@ -646,6 +657,7 @@ describe('checkDrift — incremental files mode', () => {
     if (existsSync(tmpDir)) rmSync(tmpDir, { recursive: true });
   });
 
+  // eslint-disable-next-line local/prefer-test-each-for-similar -- sequential cases share mutable on-disk file state (missing -> matches -> stale), not safely mergeable
   test('reports missing drift when generated file absent', async () => {
     const drifts = await checkDrift({ files: [ssotSrc] });
     expect(drifts).toHaveLength(1);

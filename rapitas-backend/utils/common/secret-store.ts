@@ -18,7 +18,6 @@ function isDesktopKeychainPreferred(): boolean {
 
 function tryCreateEntry(account: string): KeyringEntry | null {
   try {
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
     const mod = require('@napi-rs/keyring') as typeof import('@napi-rs/keyring');
     const entry = new mod.Entry(SERVICE_NAME, account);
     return {

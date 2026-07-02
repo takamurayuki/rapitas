@@ -59,7 +59,6 @@ const HARD_NOISE_PATTERNS: RegExp[] = [
   /^\s*\[Result:\s*\w+/im,
   /^\s*\{"type":\s*"/m, // stream-json event
   /^\s*data:\s*\{/m, // SSE frame
-  // eslint-disable-next-line no-control-regex
   /\[[0-9;]*m/, // ANSI color escape
 ];
 

@@ -11,7 +11,6 @@ import type { GeminiStreamEvent } from './types';
 import type { GeminiCliAgentConfig } from './types';
 import {
   detectQuestionFromToolCall,
-  createInitialWaitingState,
   updateWaitingStateFromDetection,
   tolegacyQuestionType,
 } from '../question-detection';
@@ -204,7 +203,7 @@ export function attachStreamHandlers(
           callbacks.onOutputBufferAppend(displayOutput);
           callbacks.onOutput(displayOutput);
         }
-      } catch (e) {
+      } catch {
         // NOTE: Filter non-JSON output (e.g., chcp command output on Windows)
         if (isNoiseLine(line)) {
           logger.info(`${logPrefix} Filtered non-JSON output: ${line.trim().substring(0, 100)}`);

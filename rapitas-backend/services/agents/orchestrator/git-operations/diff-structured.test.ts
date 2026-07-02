@@ -62,20 +62,16 @@ describe('getDiff — phantom directory guard', () => {
     errorCalls.length = 0;
   });
 
-  test('phantom path → returns []', async () => {
-    const result = await getDiff('C:\\nonexistent\\phantom', () => false);
+  // Merged from 3 separate re-invocations of the same call into one test: each
+  // originally re-ran getDiff() with an identical phantom path just to check a
+  // different facet (return value / warn-not-error / warn payload shape) of the
+  // same side effect — one call, multiple assertions, is equivalent and cheaper.
+  test('phantom path → returns [], logs only warn (never error), tagging workingDirectory', async () => {
+    const path = 'C:\\nonexistent\\phantom';
+    const result = await getDiff(path, () => false);
     expect(result).toEqual([]);
-  });
-
-  test('phantom path → logger.warn 呼び出し / logger.error 未呼び出し', async () => {
-    await getDiff('C:\\nonexistent\\phantom', () => false);
     expect(warnCalls.length).toBeGreaterThanOrEqual(1);
     expect(errorCalls.length).toBe(0);
-  });
-
-  test('phantom path → warn の第1引数に workingDirectory フィールドが含まれる', async () => {
-    const path = 'C:\\nonexistent\\phantom';
-    await getDiff(path, () => false);
     expect(warnCalls[0]?.[0]).toMatchObject({ workingDirectory: path });
   });
 

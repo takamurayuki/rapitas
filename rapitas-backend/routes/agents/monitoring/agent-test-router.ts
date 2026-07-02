@@ -9,11 +9,8 @@
 
 import { Elysia, t } from 'elysia';
 import { prisma } from '../../../config';
-import { createLogger } from '../../../config/logger';
 import { resolveStoredSecret } from '../../../utils/common/secret-store';
 import { logAgentConfigChange } from '../../../utils/agent/agent-audit-log';
-
-const log = createLogger('routes:agent-test');
 
 /**
  * Spawns a CLI binary with --version and resolves with success/message.

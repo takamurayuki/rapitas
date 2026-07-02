@@ -30,29 +30,19 @@ describe('getGitExecCacheTtlMs', () => {
     }
   });
 
-  it('env var 未設定 → デフォルト 30000 を返す', () => {
-    delete process.env['RAPITAS_GIT_EXEC_CACHE_TTL_MS'];
-    expect(getGitExecCacheTtlMs()).toBe(DEFAULT_TTL);
-  });
-
-  it('env var に正の整数 → その値を返す', () => {
-    process.env['RAPITAS_GIT_EXEC_CACHE_TTL_MS'] = '5000';
-    expect(getGitExecCacheTtlMs()).toBe(5000);
-  });
-
-  it('env var が非数値 → デフォルト 30000 にフォールバック', () => {
-    process.env['RAPITAS_GIT_EXEC_CACHE_TTL_MS'] = 'abc';
-    expect(getGitExecCacheTtlMs()).toBe(DEFAULT_TTL);
-  });
-
-  it("env var が '0' → デフォルト 30000 にフォールバック", () => {
-    process.env['RAPITAS_GIT_EXEC_CACHE_TTL_MS'] = '0';
-    expect(getGitExecCacheTtlMs()).toBe(DEFAULT_TTL);
-  });
-
-  it('env var が負値 → デフォルト 30000 にフォールバック', () => {
-    process.env['RAPITAS_GIT_EXEC_CACHE_TTL_MS'] = '-1';
-    expect(getGitExecCacheTtlMs()).toBe(DEFAULT_TTL);
+  it.each([
+    { label: '未設定 → デフォルト 30000 を返す', value: undefined, expected: DEFAULT_TTL },
+    { label: 'に正の整数 → その値を返す', value: '5000', expected: 5000 },
+    { label: 'が非数値 → デフォルト 30000 にフォールバック', value: 'abc', expected: DEFAULT_TTL },
+    { label: "が '0' → デフォルト 30000 にフォールバック", value: '0', expected: DEFAULT_TTL },
+    { label: 'が負値 → デフォルト 30000 にフォールバック', value: '-1', expected: DEFAULT_TTL },
+  ])('env var $label', ({ value, expected }) => {
+    if (value === undefined) {
+      delete process.env['RAPITAS_GIT_EXEC_CACHE_TTL_MS'];
+    } else {
+      process.env['RAPITAS_GIT_EXEC_CACHE_TTL_MS'] = value;
+    }
+    expect(getGitExecCacheTtlMs()).toBe(expected);
   });
 });
 
@@ -73,29 +63,23 @@ describe('getGitRemoteCacheTtlMs', () => {
     }
   });
 
-  it('env var 未設定 → デフォルト 30000 を返す', () => {
-    delete process.env['RAPITAS_GIT_REMOTE_CACHE_TTL_MS'];
-    expect(getGitRemoteCacheTtlMs()).toBe(DEFAULT_TTL);
-  });
-
-  it('env var に正の整数 → その値を返す', () => {
-    process.env['RAPITAS_GIT_REMOTE_CACHE_TTL_MS'] = '8000';
-    expect(getGitRemoteCacheTtlMs()).toBe(8000);
-  });
-
-  it('env var が非数値 → デフォルト 30000 にフォールバック', () => {
-    process.env['RAPITAS_GIT_REMOTE_CACHE_TTL_MS'] = 'invalid';
-    expect(getGitRemoteCacheTtlMs()).toBe(DEFAULT_TTL);
-  });
-
-  it("env var が '0' → デフォルト 30000 にフォールバック", () => {
-    process.env['RAPITAS_GIT_REMOTE_CACHE_TTL_MS'] = '0';
-    expect(getGitRemoteCacheTtlMs()).toBe(DEFAULT_TTL);
-  });
-
-  it('env var が負値 → デフォルト 30000 にフォールバック', () => {
-    process.env['RAPITAS_GIT_REMOTE_CACHE_TTL_MS'] = '-100';
-    expect(getGitRemoteCacheTtlMs()).toBe(DEFAULT_TTL);
+  it.each([
+    { label: '未設定 → デフォルト 30000 を返す', value: undefined, expected: DEFAULT_TTL },
+    { label: 'に正の整数 → その値を返す', value: '8000', expected: 8000 },
+    {
+      label: 'が非数値 → デフォルト 30000 にフォールバック',
+      value: 'invalid',
+      expected: DEFAULT_TTL,
+    },
+    { label: "が '0' → デフォルト 30000 にフォールバック", value: '0', expected: DEFAULT_TTL },
+    { label: 'が負値 → デフォルト 30000 にフォールバック', value: '-100', expected: DEFAULT_TTL },
+  ])('env var $label', ({ value, expected }) => {
+    if (value === undefined) {
+      delete process.env['RAPITAS_GIT_REMOTE_CACHE_TTL_MS'];
+    } else {
+      process.env['RAPITAS_GIT_REMOTE_CACHE_TTL_MS'] = value;
+    }
+    expect(getGitRemoteCacheTtlMs()).toBe(expected);
   });
 });
 

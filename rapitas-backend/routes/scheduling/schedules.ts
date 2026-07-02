@@ -1,7 +1,7 @@
 /**
  * Schedule Events API Routes
  */
-import { Elysia, t } from 'elysia';
+import { Elysia } from 'elysia';
 import { prisma } from '../../config/database';
 import { ValidationError, NotFoundError } from '../../middleware/error-handler';
 import {

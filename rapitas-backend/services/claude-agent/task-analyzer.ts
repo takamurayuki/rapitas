@@ -170,8 +170,8 @@ export async function generateExecutionInstructions(
     description?: string | null;
   },
   subtasks: SubtaskProposal[],
-  provider?: AIProvider,
-  model?: string,
+  _provider?: AIProvider,
+  _model?: string,
 ): Promise<{ instructions: string; tokensUsed: number }> {
   const userPrompt = `以下のタスクとサブタスクについて、実行手順を簡潔に説明してください。
 

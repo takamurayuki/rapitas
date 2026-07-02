@@ -37,38 +37,36 @@ describe('isAgentType', () => {
     },
   );
 
-  it('returns false for an invalid string', () => {
-    expect(isAgentType('openai')).toBe(false);
-  });
-
-  it('returns false for null', () => {
-    expect(isAgentType(null)).toBe(false);
-  });
-
-  it('returns false for undefined', () => {
-    expect(isAgentType(undefined)).toBe(false);
-  });
-
-  it('returns false for empty string', () => {
-    expect(isAgentType('')).toBe(false);
+  it.each([
+    { name: 'an invalid string', value: 'openai' },
+    { name: 'null', value: null },
+    { name: 'undefined', value: undefined },
+    { name: 'empty string', value: '' },
+  ])('returns false for $name', ({ value }) => {
+    expect(isAgentType(value)).toBe(false);
   });
 });
 
 describe('narrowAgentType', () => {
-  it('returns the value when it is a valid agent type', () => {
-    expect(narrowAgentType('gemini')).toBe('gemini');
-  });
-
-  it('returns the default fallback "claude-code" for an invalid string', () => {
-    expect(narrowAgentType('unknown-agent')).toBe('claude-code');
-  });
-
-  it('returns the default fallback for null', () => {
-    expect(narrowAgentType(null)).toBe('claude-code');
-  });
-
-  it('returns the default fallback for undefined', () => {
-    expect(narrowAgentType(undefined)).toBe('claude-code');
+  it.each([
+    {
+      desc: 'returns the value when it is a valid agent type',
+      input: 'gemini',
+      expected: 'gemini',
+    },
+    {
+      desc: 'returns the default fallback "claude-code" for an invalid string',
+      input: 'unknown-agent',
+      expected: 'claude-code',
+    },
+    { desc: 'returns the default fallback for null', input: null, expected: 'claude-code' },
+    {
+      desc: 'returns the default fallback for undefined',
+      input: undefined,
+      expected: 'claude-code',
+    },
+  ])('$desc', ({ input, expected }) => {
+    expect(narrowAgentType(input)).toBe(expected);
   });
 
   it('uses a custom fallback when provided', () => {

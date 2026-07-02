@@ -20,28 +20,15 @@ describe('isWorkflowStatus', () => {
     expect(isWorkflowStatus(status)).toBe(true);
   });
 
-  it('returns false for null', () => {
-    expect(isWorkflowStatus(null)).toBe(false);
-  });
-
-  it('returns false for undefined', () => {
-    expect(isWorkflowStatus(undefined)).toBe(false);
-  });
-
-  it('returns false for empty string', () => {
-    expect(isWorkflowStatus('')).toBe(false);
-  });
-
-  it('returns false for an invalid string', () => {
-    expect(isWorkflowStatus('invalid_status')).toBe(false);
-  });
-
-  it('returns false for a number', () => {
-    expect(isWorkflowStatus(42)).toBe(false);
-  });
-
-  it('returns false for an object', () => {
-    expect(isWorkflowStatus({ status: 'draft' })).toBe(false);
+  it.each([
+    { name: 'null', value: null },
+    { name: 'undefined', value: undefined },
+    { name: 'empty string', value: '' },
+    { name: 'an invalid string', value: 'invalid_status' },
+    { name: 'a number', value: 42 },
+    { name: 'an object', value: { status: 'draft' } },
+  ])('returns false for $name', ({ value }) => {
+    expect(isWorkflowStatus(value)).toBe(false);
   });
 });
 
@@ -50,24 +37,14 @@ describe('isWorkflowMode', () => {
     expect(isWorkflowMode(mode)).toBe(true);
   });
 
-  it('returns false for null', () => {
-    expect(isWorkflowMode(null)).toBe(false);
-  });
-
-  it('returns false for undefined', () => {
-    expect(isWorkflowMode(undefined)).toBe(false);
-  });
-
-  it('returns false for empty string', () => {
-    expect(isWorkflowMode('')).toBe(false);
-  });
-
-  it('returns false for an invalid string', () => {
-    expect(isWorkflowMode('heavy')).toBe(false);
-  });
-
-  it('returns false for a number', () => {
-    expect(isWorkflowMode(0)).toBe(false);
+  it.each([
+    { name: 'null', value: null },
+    { name: 'undefined', value: undefined },
+    { name: 'empty string', value: '' },
+    { name: 'an invalid string', value: 'heavy' },
+    { name: 'a number', value: 0 },
+  ])('returns false for $name', ({ value }) => {
+    expect(isWorkflowMode(value)).toBe(false);
   });
 });
 
@@ -79,20 +56,13 @@ describe('narrowWorkflowStatus', () => {
     },
   );
 
-  it('returns default fallback "draft" for null', () => {
-    expect(narrowWorkflowStatus(null)).toBe('draft');
-  });
-
-  it('returns default fallback "draft" for undefined', () => {
-    expect(narrowWorkflowStatus(undefined)).toBe('draft');
-  });
-
-  it('returns default fallback "draft" for empty string', () => {
-    expect(narrowWorkflowStatus('')).toBe('draft');
-  });
-
-  it('returns default fallback "draft" for an invalid string', () => {
-    expect(narrowWorkflowStatus('bad_status')).toBe('draft');
+  it.each([
+    { name: 'null', value: null },
+    { name: 'undefined', value: undefined },
+    { name: 'empty string', value: '' },
+    { name: 'an invalid string', value: 'bad_status' },
+  ])('returns default fallback "draft" for $name', ({ value }) => {
+    expect(narrowWorkflowStatus(value)).toBe('draft');
   });
 
   it('uses a custom fallback when provided', () => {
@@ -112,20 +82,13 @@ describe('narrowWorkflowMode', () => {
     },
   );
 
-  it('returns default fallback "comprehensive" for null', () => {
-    expect(narrowWorkflowMode(null)).toBe('comprehensive');
-  });
-
-  it('returns default fallback "comprehensive" for undefined', () => {
-    expect(narrowWorkflowMode(undefined)).toBe('comprehensive');
-  });
-
-  it('returns default fallback "comprehensive" for empty string', () => {
-    expect(narrowWorkflowMode('')).toBe('comprehensive');
-  });
-
-  it('returns default fallback "comprehensive" for an invalid string', () => {
-    expect(narrowWorkflowMode('ultra')).toBe('comprehensive');
+  it.each([
+    { name: 'null', value: null },
+    { name: 'undefined', value: undefined },
+    { name: 'empty string', value: '' },
+    { name: 'an invalid string', value: 'ultra' },
+  ])('returns default fallback "comprehensive" for $name', ({ value }) => {
+    expect(narrowWorkflowMode(value)).toBe('comprehensive');
   });
 
   it('uses custom fallback "standard" when provided', () => {

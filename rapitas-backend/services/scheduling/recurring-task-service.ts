@@ -68,7 +68,7 @@ export async function setTaskRecurrence(
   // Validate RRULE format
   try {
     parseRRule(input.recurrenceRule);
-  } catch (err) {
+  } catch {
     throw new Error(`Invalid recurrence rule: ${input.recurrenceRule}`);
   }
 

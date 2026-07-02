@@ -3,16 +3,13 @@
  */
 import { Elysia, t } from 'elysia';
 import { prisma } from '../../config/database';
-import { createLogger } from '../../config/logger';
-
-const logger = createLogger('routes:habits');
 
 /**
  * Calculate streak data from habit logs.
  */
 function calculateStreak(
   logs: { date: Date; count: number }[],
-  frequency: string = 'daily',
+  _frequency: string = 'daily',
 ): { current: number; longest: number; lastDate: Date | null; totalCompletions: number } {
   if (logs.length === 0) {
     return { current: 0, longest: 0, lastDate: null, totalCompletions: 0 };

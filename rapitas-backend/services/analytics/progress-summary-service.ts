@@ -5,12 +5,9 @@
  * Uses local LLM (Ollama/llama-server) for cost-free summarization.
  */
 import { prisma } from '../../config/database';
-import { createLogger } from '../../config/logger';
 import { readFile } from 'fs/promises';
 import { join } from 'path';
 import { getTaskWorkflowDir } from '../workflow/workflow-paths';
-
-const log = createLogger('progress-summary');
 
 /** Generated progress summary. */
 export type ProgressSummary = {

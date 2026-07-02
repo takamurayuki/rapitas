@@ -113,34 +113,44 @@ describe('rmDirWithRetry', () => {
     mockFsRm.mockResolvedValue(undefined);
   });
 
-  test('returns true on first-attempt success', async () => {
-    const result = await rmDirWithRetry('/test/dir', { sleepFn: noopSleep });
-    expect(result).toBe(true);
-    expect(mockFsRm).toHaveBeenCalledTimes(1);
-  });
-
-  test('returns true after EBUSY failures then success', async () => {
-    let callCount = 0;
-    mockFsRm.mockImplementation(() => {
-      callCount++;
-      if (callCount < 4) {
-        const err = Object.assign(new Error('EBUSY: resource busy or locked'), { code: 'EBUSY' });
-        return Promise.reject(err);
-      }
-      return Promise.resolve(undefined);
-    });
-
-    const result = await rmDirWithRetry('/test/dir', { sleepFn: noopSleep, maxAttempts: 5 });
-
-    expect(result).toBe(true);
-    expect(mockFsRm).toHaveBeenCalledTimes(4);
-  });
-
-  test('returns false after all attempts fail and does not throw', async () => {
-    const ebusyErr = Object.assign(new Error('EBUSY: resource busy or locked'), {
-      code: 'EBUSY',
-    });
-    mockFsRm.mockImplementation(() => Promise.reject(ebusyErr));
+  test.each([
+    {
+      desc: 'returns true on first-attempt success',
+      setupFsRm: () => {},
+      expectedResult: true,
+      expectedCalls: 1,
+    },
+    {
+      desc: 'returns true after EBUSY failures then success',
+      setupFsRm: () => {
+        let callCount = 0;
+        mockFsRm.mockImplementation(() => {
+          callCount++;
+          if (callCount < 4) {
+            const err = Object.assign(new Error('EBUSY: resource busy or locked'), {
+              code: 'EBUSY',
+            });
+            return Promise.reject(err);
+          }
+          return Promise.resolve(undefined);
+        });
+      },
+      expectedResult: true,
+      expectedCalls: 4,
+    },
+    {
+      desc: 'returns false after all attempts fail and does not throw',
+      setupFsRm: () => {
+        const ebusyErr = Object.assign(new Error('EBUSY: resource busy or locked'), {
+          code: 'EBUSY',
+        });
+        mockFsRm.mockImplementation(() => Promise.reject(ebusyErr));
+      },
+      expectedResult: false,
+      expectedCalls: 5,
+    },
+  ])('$desc', async ({ setupFsRm, expectedResult, expectedCalls }) => {
+    setupFsRm();
 
     let thrownError: unknown;
     let result: boolean | undefined;
@@ -151,8 +161,8 @@ describe('rmDirWithRetry', () => {
     }
 
     expect(thrownError).toBeUndefined();
-    expect(result).toBe(false);
-    expect(mockFsRm).toHaveBeenCalledTimes(5);
+    expect(result).toBe(expectedResult);
+    expect(mockFsRm).toHaveBeenCalledTimes(expectedCalls);
   });
 });
 

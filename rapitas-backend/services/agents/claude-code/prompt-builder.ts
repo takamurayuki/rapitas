@@ -6,7 +6,6 @@
  */
 
 import type { AgentTask } from '../base-agent';
-import { getProjectRoot } from '../../../config';
 import { createLogger } from '../../../config/logger';
 
 const logger = createLogger('claude-code-agent');

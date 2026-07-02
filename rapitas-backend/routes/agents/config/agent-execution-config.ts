@@ -3,7 +3,7 @@
  *
  * Provides CRUD endpoints for per-task agent execution configuration.
  */
-import { Elysia, t } from 'elysia';
+import { Elysia } from 'elysia';
 import { prisma } from '../../../config/database';
 
 /** Type for agent execution config create/update body */

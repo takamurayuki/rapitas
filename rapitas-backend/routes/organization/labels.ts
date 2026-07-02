@@ -2,7 +2,7 @@
  * Labels API Routes
  * Handles label CRUD operations and task-label associations
  */
-import { Elysia, t } from 'elysia';
+import { Elysia } from 'elysia';
 import { prisma } from '../../config/database';
 import { labelSchema } from '../../schemas/label.schema';
 import { NotFoundError, ValidationError } from '../../middleware/error-handler';

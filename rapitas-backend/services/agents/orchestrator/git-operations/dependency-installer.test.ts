@@ -179,23 +179,22 @@ describe('startWorktreeDependenciesInstall / awaitWorktreeDependencies', () => {
 });
 
 describe('taskNeedsDependencies', () => {
-  test('returns false for docs-only tasks', () => {
-    expect(taskNeedsDependencies('Update docs', 'Fix typos in README')).toBe(false);
-    expect(taskNeedsDependencies('READMEを更新', null)).toBe(false);
-    expect(taskNeedsDependencies('コメント追加', null)).toBe(false);
-    expect(taskNeedsDependencies('誤字修正', null)).toBe(false);
-  });
-
-  test('returns true for code-change tasks', () => {
-    expect(taskNeedsDependencies('Add login feature', null)).toBe(true);
-    expect(taskNeedsDependencies('Fix login bug', null)).toBe(true);
-    expect(taskNeedsDependencies('実装', '新機能を追加')).toBe(true);
-    expect(taskNeedsDependencies('Refactor task service', null)).toBe(true);
-  });
-
-  test('returns true when ambiguous (default safe)', () => {
-    expect(taskNeedsDependencies('Investigate something', null)).toBe(true);
-    expect(taskNeedsDependencies('xyz', null)).toBe(true);
+  test.each([
+    // returns false for docs-only tasks
+    { title: 'Update docs', desc: 'Fix typos in README', expected: false },
+    { title: 'READMEを更新', desc: null, expected: false },
+    { title: 'コメント追加', desc: null, expected: false },
+    { title: '誤字修正', desc: null, expected: false },
+    // returns true for code-change tasks
+    { title: 'Add login feature', desc: null, expected: true },
+    { title: 'Fix login bug', desc: null, expected: true },
+    { title: '実装', desc: '新機能を追加', expected: true },
+    { title: 'Refactor task service', desc: null, expected: true },
+    // returns true when ambiguous (default safe)
+    { title: 'Investigate something', desc: null, expected: true },
+    { title: 'xyz', desc: null, expected: true },
+  ])('taskNeedsDependencies($title, $desc) → $expected', ({ title, desc, expected }) => {
+    expect(taskNeedsDependencies(title, desc)).toBe(expected);
   });
 
   test('code indicators win over docs hints', () => {

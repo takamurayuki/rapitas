@@ -8,7 +8,6 @@
 import { Elysia, t } from 'elysia';
 import { Prisma } from '@prisma/client';
 import { prisma } from '../../config/database';
-import { AppError } from '../../middleware/error-handler';
 import { createLogger } from '../../config/logger';
 import { getInsensitiveMode } from '../../config/db-provider';
 import {
@@ -125,7 +124,7 @@ export const taskSuggestionRoutes = new Elysia({ prefix: '/tasks' })
         });
 
         scored.sort((a, b) => b.relevanceScore - a.relevanceScore);
-        return scored.map(({ relevanceScore, ...task }) => task);
+        return scored.map(({ relevanceScore: _relevanceScore, ...task }) => task);
       }
 
       return tasks;

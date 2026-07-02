@@ -24,23 +24,25 @@ import {
 // hasResolverCandidate
 // ---------------------------------------------------------------------------
 describe('hasResolverCandidate', () => {
-  test('returns true when both markers are present', () => {
-    const content = `import { prisma } from '../config/database';\nexport async function resolveTask(id: number) {}`;
-    expect(hasResolverCandidate(content)).toBe(true);
-  });
-
-  test('returns false when prisma import is absent', () => {
-    const content = `export async function resolveTask(id: number) {}`;
-    expect(hasResolverCandidate(content)).toBe(false);
-  });
-
-  test('returns false when resolve function is absent', () => {
-    const content = `import { prisma } from '../config/database';`;
-    expect(hasResolverCandidate(content)).toBe(false);
-  });
-
-  test('returns false when both markers are absent', () => {
-    expect(hasResolverCandidate('')).toBe(false);
+  test.each([
+    {
+      name: 'both markers are present',
+      content: `import { prisma } from '../config/database';\nexport async function resolveTask(id: number) {}`,
+      expected: true,
+    },
+    {
+      name: 'prisma import is absent',
+      content: `export async function resolveTask(id: number) {}`,
+      expected: false,
+    },
+    {
+      name: 'resolve function is absent',
+      content: `import { prisma } from '../config/database';`,
+      expected: false,
+    },
+    { name: 'both markers are absent', content: '', expected: false },
+  ])('returns $expected when $name', ({ content, expected }) => {
+    expect(hasResolverCandidate(content)).toBe(expected);
   });
 });
 
@@ -99,32 +101,31 @@ describe('detectNonStandardImports', () => {
 // extractResolverFunctions
 // ---------------------------------------------------------------------------
 describe('extractResolverFunctions', () => {
-  test('extracts a single number param function', () => {
-    const content = `export async function resolveTask(taskId: number) { return null; }`;
+  test.each([
+    {
+      name: 'a single number param function',
+      content: `export async function resolveTask(taskId: number) { return null; }`,
+      expected: { name: 'resolveTask', paramName: 'taskId', paramType: 'number' },
+      expectedLength: 1,
+      expectedManualReviewLength: 0,
+    },
+    {
+      name: 'a single string param function',
+      content: `export async function resolveUser(email: string) { return null; }`,
+      expected: { name: 'resolveUser', paramName: 'email', paramType: 'string' },
+    },
+    {
+      name: 'a number | null param function',
+      content: `export async function resolveItem(linkedId: number | null) { return null; }`,
+      expected: { paramType: 'number | null' },
+    },
+  ])('extracts $name', ({ content, expected, expectedLength, expectedManualReviewLength }) => {
     const { functions, manualReview } = extractResolverFunctions('/fake/path.ts', content);
-    expect(functions).toHaveLength(1);
-    expect(functions[0]).toMatchObject({
-      name: 'resolveTask',
-      paramName: 'taskId',
-      paramType: 'number',
-    });
-    expect(manualReview).toHaveLength(0);
-  });
-
-  test('extracts a single string param function', () => {
-    const content = `export async function resolveUser(email: string) { return null; }`;
-    const { functions } = extractResolverFunctions('/fake/path.ts', content);
-    expect(functions[0]).toMatchObject({
-      name: 'resolveUser',
-      paramName: 'email',
-      paramType: 'string',
-    });
-  });
-
-  test('extracts a number | null param function', () => {
-    const content = `export async function resolveItem(linkedId: number | null) { return null; }`;
-    const { functions } = extractResolverFunctions('/fake/path.ts', content);
-    expect(functions[0]).toMatchObject({ paramType: 'number | null' });
+    expect(functions[0]).toMatchObject(expected);
+    if (expectedLength !== undefined) expect(functions).toHaveLength(expectedLength);
+    if (expectedManualReviewLength !== undefined) {
+      expect(manualReview).toHaveLength(expectedManualReviewLength);
+    }
   });
 
   test('flags multi-arg functions in manualReview', () => {
@@ -268,60 +269,66 @@ describe('generateBoundaryTestSource', () => {
     expect(src).toContain("import { describe, test, expect, mock, beforeEach } from 'bun:test'");
   });
 
-  test('imports ID_EDGES for number params', () => {
-    const src = generateBoundaryTestSource(SOURCE, OUTPUT, [NUMBER_FN], [TASK_MODEL], DB_IMPORT);
-    expect(src).toContain('ID_EDGES');
-    expect(src).not.toContain('STRING_EDGES');
+  test.each([
+    {
+      name: 'ID_EDGES for number params',
+      fns: [NUMBER_FN],
+      contains: ['ID_EDGES'],
+      notContains: ['STRING_EDGES'],
+    },
+    {
+      name: 'STRING_EDGES for string params',
+      fns: [STRING_FN],
+      contains: ['STRING_EDGES'],
+      notContains: ['ID_EDGES'],
+    },
+    {
+      name: 'NULLABLE_ID_EDGES for number | null params',
+      fns: [NULLABLE_FN],
+      contains: ['NULLABLE_ID_EDGES'],
+      notContains: [],
+    },
+    {
+      name: 'multiple edge constants when functions have different param types',
+      fns: [NUMBER_FN, STRING_FN],
+      contains: ['ID_EDGES', 'STRING_EDGES'],
+      notContains: [],
+    },
+  ])('imports $name', ({ fns, contains, notContains }) => {
+    const src = generateBoundaryTestSource(SOURCE, OUTPUT, fns, [TASK_MODEL], DB_IMPORT);
+    for (const c of contains) expect(src).toContain(c);
+    for (const c of notContains) expect(src).not.toContain(c);
   });
 
-  test('imports STRING_EDGES for string params', () => {
-    const src = generateBoundaryTestSource(SOURCE, OUTPUT, [STRING_FN], [TASK_MODEL], DB_IMPORT);
-    expect(src).toContain('STRING_EDGES');
-    expect(src).not.toContain('ID_EDGES');
-  });
-
-  test('imports NULLABLE_ID_EDGES for number | null params', () => {
-    const src = generateBoundaryTestSource(SOURCE, OUTPUT, [NULLABLE_FN], [TASK_MODEL], DB_IMPORT);
-    expect(src).toContain('NULLABLE_ID_EDGES');
-  });
-
-  test('imports multiple edge constants when functions have different param types', () => {
-    const src = generateBoundaryTestSource(
-      SOURCE,
-      OUTPUT,
-      [NUMBER_FN, STRING_FN],
-      [TASK_MODEL],
-      DB_IMPORT,
-    );
-    expect(src).toContain('ID_EDGES');
-    expect(src).toContain('STRING_EDGES');
-  });
-
-  test('generates mock variable declaration', () => {
-    const src = generateBoundaryTestSource(SOURCE, OUTPUT, [NUMBER_FN], [TASK_MODEL], DB_IMPORT);
-    expect(src).toContain('const mockTaskFindUnique = mock(() => Promise.resolve(null))');
-  });
-
-  test('generates mock.module with correct db path', () => {
-    const src = generateBoundaryTestSource(SOURCE, OUTPUT, [NUMBER_FN], [TASK_MODEL], DB_IMPORT);
-    expect(src).toContain(`mock.module('${DB_IMPORT}'`);
-    expect(src).toContain('task: { findUnique: mockTaskFindUnique }');
-  });
-
-  test('generates empty prisma shape when no models detected', () => {
-    const src = generateBoundaryTestSource(SOURCE, OUTPUT, [NUMBER_FN], [], DB_IMPORT);
-    expect(src).toContain('prisma: {},');
-  });
-
-  test('generates beforeEach with mock resets', () => {
-    const src = generateBoundaryTestSource(SOURCE, OUTPUT, [NUMBER_FN], [TASK_MODEL], DB_IMPORT);
-    expect(src).toContain('mockTaskFindUnique.mockReset()');
-    expect(src).toContain('mockTaskFindUnique.mockResolvedValue(null)');
-  });
-
-  test('generates test.each with rejection setup', () => {
-    const src = generateBoundaryTestSource(SOURCE, OUTPUT, [NUMBER_FN], [TASK_MODEL], DB_IMPORT);
-    expect(src).toContain('mockTaskFindUnique.mockRejectedValueOnce(new Error');
+  test.each([
+    {
+      name: 'mock variable declaration',
+      models: [TASK_MODEL],
+      contains: ['const mockTaskFindUnique = mock(() => Promise.resolve(null))'],
+    },
+    {
+      name: 'mock.module with correct db path',
+      models: [TASK_MODEL],
+      contains: [`mock.module('${DB_IMPORT}'`, 'task: { findUnique: mockTaskFindUnique }'],
+    },
+    {
+      name: 'empty prisma shape when no models detected',
+      models: [],
+      contains: ['prisma: {},'],
+    },
+    {
+      name: 'beforeEach with mock resets',
+      models: [TASK_MODEL],
+      contains: ['mockTaskFindUnique.mockReset()', 'mockTaskFindUnique.mockResolvedValue(null)'],
+    },
+    {
+      name: 'test.each with rejection setup',
+      models: [TASK_MODEL],
+      contains: ['mockTaskFindUnique.mockRejectedValueOnce(new Error'],
+    },
+  ])('generates $name', ({ models, contains }) => {
+    const src = generateBoundaryTestSource(SOURCE, OUTPUT, [NUMBER_FN], models, DB_IMPORT);
+    for (const c of contains) expect(src).toContain(c);
   });
 
   test('includes the HACK comment exactly once', () => {
@@ -370,19 +377,21 @@ describe('parseFilesArg', () => {
     expect(parseFilesArg(['node', 'script.ts', '--check'])).toBeNull();
   });
 
-  test('parses --files=a.ts,b.ts', () => {
-    const result = parseFilesArg(['node', 'script.ts', '--files=a.ts,b.ts']);
-    expect(result).toEqual(['a.ts', 'b.ts']);
-  });
-
-  test('parses --files= with empty value', () => {
-    const result = parseFilesArg(['node', 'script.ts', '--files=']);
-    expect(result).toEqual([]);
-  });
-
-  test('parses --files followed by positional arguments', () => {
-    const result = parseFilesArg(['node', 'script.ts', '--files', 'a.ts', 'b.ts']);
-    expect(result).toEqual(['a.ts', 'b.ts']);
+  test.each([
+    {
+      name: '--files=a.ts,b.ts',
+      argv: ['node', 'script.ts', '--files=a.ts,b.ts'],
+      expected: ['a.ts', 'b.ts'],
+    },
+    { name: '--files= with empty value', argv: ['node', 'script.ts', '--files='], expected: [] },
+    {
+      name: '--files followed by positional arguments',
+      argv: ['node', 'script.ts', '--files', 'a.ts', 'b.ts'],
+      expected: ['a.ts', 'b.ts'],
+    },
+  ])('parses $name', ({ argv, expected }) => {
+    const result = parseFilesArg(argv);
+    expect(result).toEqual(expected);
   });
 
   test('stops collecting files at the next flag', () => {

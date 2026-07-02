@@ -55,29 +55,21 @@ describe('assertSafeGitRef', () => {
     }
   });
 
-  it('rejects shell metacharacters (the injection payloads)', () => {
-    for (const bad of [
-      'x"&calc.exe&"',
-      'x; rm -rf /',
-      'x`whoami`',
-      'x$(id)',
-      'x|nc',
-      'a b',
-      'x&&y',
-      "x'y",
-    ]) {
+  it.each(['x"&calc.exe&"', 'x; rm -rf /', 'x`whoami`', 'x$(id)', 'x|nc', 'a b', 'x&&y', "x'y"])(
+    'rejects the shell-metacharacter payload %p',
+    (bad) => {
       expect(() => assertSafeGitRef(bad)).toThrow();
-    }
-  });
+    },
+  );
 
-  it('rejects path traversal and leading dash', () => {
-    expect(() => assertSafeGitRef('../../etc/passwd')).toThrow();
-    expect(() => assertSafeGitRef('-D')).toThrow();
-    expect(() => assertSafeGitRef('a..b')).toThrow();
-  });
+  it.each(['../../etc/passwd', '-D', 'a..b'])(
+    'rejects path traversal / leading dash: %p',
+    (bad) => {
+      expect(() => assertSafeGitRef(bad)).toThrow();
+    },
+  );
 
-  it('rejects empty and over-long refs', () => {
-    expect(() => assertSafeGitRef('')).toThrow();
-    expect(() => assertSafeGitRef('a'.repeat(201))).toThrow();
+  it.each(['', 'a'.repeat(201)])('rejects empty and over-long refs: %p', (bad) => {
+    expect(() => assertSafeGitRef(bad)).toThrow();
   });
 });

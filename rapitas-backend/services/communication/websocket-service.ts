@@ -1,4 +1,4 @@
-import { Elysia, t } from 'elysia';
+import { Elysia } from 'elysia';
 import { prisma } from '../../config';
 import { cacheService } from '../core/cache-service';
 import { createLogger } from '../../config/logger';
@@ -215,13 +215,6 @@ class WebSocketManager {
 
 // WebSocket manager instance
 const wsManager = new WebSocketManager();
-
-// WebSocket handler type
-type WebSocketHandler<T = unknown> = (
-  ws: WebSocketInstance,
-  clientId: string,
-  data: T,
-) => void | Promise<void>;
 
 // WebSocket event handlers
 const webSocketHandlers = {

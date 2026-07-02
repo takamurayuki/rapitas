@@ -14,24 +14,14 @@ const NO_DIR = '/nonexistent/workflow/dir';
 
 describe('buildRoleContext', () => {
   describe('auto_verifier role', () => {
-    test('includes 検証結果サマリ heading in instruction', async () => {
+    test.each([
+      { name: '検証結果サマリ heading in instruction', expected: '検証結果サマリ' },
+      { name: 'テスト結果 heading in instruction', expected: 'テスト結果' },
+      { name: 'チェックリスト heading in instruction', expected: 'チェックリスト' },
+      { name: 'task title in context', expected: TASK.title },
+    ])('includes $name', async ({ expected }) => {
       const ctx = await buildRoleContext(1, 'auto_verifier', NO_DIR, TASK);
-      expect(ctx).toContain('検証結果サマリ');
-    });
-
-    test('includes テスト結果 heading in instruction', async () => {
-      const ctx = await buildRoleContext(1, 'auto_verifier', NO_DIR, TASK);
-      expect(ctx).toContain('テスト結果');
-    });
-
-    test('includes チェックリスト heading in instruction', async () => {
-      const ctx = await buildRoleContext(1, 'auto_verifier', NO_DIR, TASK);
-      expect(ctx).toContain('チェックリスト');
-    });
-
-    test('includes task title in context', async () => {
-      const ctx = await buildRoleContext(1, 'auto_verifier', NO_DIR, TASK);
-      expect(ctx).toContain(TASK.title);
+      expect(ctx).toContain(expected);
     });
   });
 

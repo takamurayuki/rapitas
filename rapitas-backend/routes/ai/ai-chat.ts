@@ -2,7 +2,7 @@
  * AI Chat API Routes
  * Multi-provider support (Claude / ChatGPT / Gemini)
  */
-import { Elysia, t } from 'elysia';
+import { Elysia } from 'elysia';
 import {
   sendAIMessage,
   sendAIMessageStream,

@@ -224,25 +224,26 @@ describe('transformResponseHelper', () => {
   // NOTE: tmpDir is initialized per-test in beforeEach; compute path lazily inside each it().
   const routePath = () => join(tmpDir, 'routes', 'foo.ts');
 
-  it('replaces { success: true, data: x } with createResponse(x)', () => {
-    const content = `return { success: true, data: result };`;
+  it.each([
+    {
+      name: 'replaces { success: true, data: x } with createResponse(x)',
+      content: `return { success: true, data: result };`,
+      expectedSubstring: 'createResponse(result)',
+    },
+    {
+      name: 'replaces { success: false, error: "msg" } with createErrorResponse("msg")',
+      content: `return { success: false, error: 'Not found' };`,
+      expectedSubstring: "createErrorResponse('Not found')",
+    },
+    {
+      name: 'replaces { success: true } (no data) with createResponse(undefined)',
+      content: `return { success: true };`,
+      expectedSubstring: 'createResponse(undefined)',
+    },
+  ])('$name', ({ content, expectedSubstring }) => {
     const result = transformResponseHelper({ filePath: routePath(), content });
     expect(result.changed).toBe(true);
-    expect(result.newContent).toContain('createResponse(result)');
-  });
-
-  it('replaces { success: false, error: "msg" } with createErrorResponse("msg")', () => {
-    const content = `return { success: false, error: 'Not found' };`;
-    const result = transformResponseHelper({ filePath: routePath(), content });
-    expect(result.changed).toBe(true);
-    expect(result.newContent).toContain("createErrorResponse('Not found')");
-  });
-
-  it('replaces { success: true } (no data) with createResponse(undefined)', () => {
-    const content = `return { success: true };`;
-    const result = transformResponseHelper({ filePath: routePath(), content });
-    expect(result.changed).toBe(true);
-    expect(result.newContent).toContain('createResponse(undefined)');
+    expect(result.newContent).toContain(expectedSubstring);
   });
 
   it('skips extra-field objects and adds them to manualReview', () => {

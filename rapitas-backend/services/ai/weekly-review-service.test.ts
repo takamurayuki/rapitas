@@ -15,30 +15,39 @@ import {
 } from './weekly-review-service';
 
 describe('getWeekStart', () => {
-  it('returns the same Monday when called on a Monday', () => {
+  it.each([
     // 2026-04-06 is a Monday
-    const monday = new Date('2026-04-06T15:30:00Z');
-    const result = getWeekStart(monday);
-    expect(result.getDay()).toBe(1); // Monday
-    expect(result.getDate()).toBe(6);
-    expect(result.getHours()).toBe(0);
-    expect(result.getMinutes()).toBe(0);
-  });
-
-  it('returns the previous Monday when called on a Sunday', () => {
+    {
+      name: 'same Monday when called on a Monday',
+      input: '2026-04-06T15:30:00Z',
+      hours: 0,
+      minutes: 0,
+    },
     // 2026-04-12 is a Sunday → previous Monday is 2026-04-06
-    const sunday = new Date('2026-04-12T20:00:00Z');
-    const result = getWeekStart(sunday);
+    {
+      name: 'previous Monday when called on a Sunday',
+      input: '2026-04-12T20:00:00Z',
+      hours: undefined,
+      minutes: undefined,
+    },
+    // 2026-04-08 is a Wednesday → previous Monday is 2026-04-06
+    {
+      name: 'previous Monday when called on a Wednesday',
+      input: '2026-04-08T12:00:00Z',
+      hours: undefined,
+      minutes: undefined,
+    },
+  ])('returns the $name', ({ input, hours, minutes }) => {
+    const result = getWeekStart(new Date(input));
     expect(result.getDay()).toBe(1); // Monday
     expect(result.getDate()).toBe(6);
-  });
-
-  it('returns the previous Monday when called on a Wednesday', () => {
-    // 2026-04-08 is a Wednesday → previous Monday is 2026-04-06
-    const wed = new Date('2026-04-08T12:00:00Z');
-    const result = getWeekStart(wed);
-    expect(result.getDay()).toBe(1);
-    expect(result.getDate()).toBe(6);
+    // Only the Monday case originally asserted time-of-day; preserve that distinction.
+    if (hours !== undefined) {
+      expect(result.getHours()).toBe(hours);
+    }
+    if (minutes !== undefined) {
+      expect(result.getMinutes()).toBe(minutes);
+    }
   });
 
   it('normalizes time to midnight', () => {
@@ -95,29 +104,22 @@ describe('buildPrompt', () => {
     dailyDistribution: { '2026-04-07': 1, '2026-04-08': 1 },
   };
 
-  it('includes the period in the prompt', () => {
+  it.each([
+    { name: 'the period in the prompt', contains: ['2026-04-06', '2026-04-12'] },
+    { name: 'the completed task count', contains: ['完了タスク (2件)'] },
+    {
+      name: 'task titles with theme name when available',
+      contains: ['タスク A', '[テーマ X]', '(2.5h)'],
+    },
+    {
+      name: 'pomodoro and time entry totals',
+      contains: ['ポモドーロ完了セッション: 4回', '集中時間 90分', 'TimeEntry 合計: 180分'],
+    },
+  ])('includes $name', ({ contains }) => {
     const prompt = buildPrompt(sampleAggregate);
-    expect(prompt).toContain('2026-04-06');
-    expect(prompt).toContain('2026-04-12');
-  });
-
-  it('includes the completed task count', () => {
-    const prompt = buildPrompt(sampleAggregate);
-    expect(prompt).toContain('完了タスク (2件)');
-  });
-
-  it('includes task titles with theme name when available', () => {
-    const prompt = buildPrompt(sampleAggregate);
-    expect(prompt).toContain('タスク A');
-    expect(prompt).toContain('[テーマ X]');
-    expect(prompt).toContain('(2.5h)');
-  });
-
-  it('includes pomodoro and time entry totals', () => {
-    const prompt = buildPrompt(sampleAggregate);
-    expect(prompt).toContain('ポモドーロ完了セッション: 4回');
-    expect(prompt).toContain('集中時間 90分');
-    expect(prompt).toContain('TimeEntry 合計: 180分');
+    for (const substr of contains) {
+      expect(prompt).toContain(substr);
+    }
   });
 
   it('handles empty task list with placeholder', () => {

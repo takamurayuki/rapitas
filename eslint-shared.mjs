@@ -12,7 +12,7 @@
  *
  * Three tiers enforce progressively relaxed constraints:
  *   prod    – production source; strictest gate
- *   scripts – build/tooling scripts; console allowed as warning
+ *   scripts – build/tooling scripts; console output IS the product, unrestricted
  *   tests   – test files; console and `any` both unrestricted
  *
  * @param {'prod'|'scripts'|'tests'} stage - The code stage.
@@ -32,8 +32,9 @@ export function stagedSeverity(stage) {
       };
     case 'scripts':
       return {
-        // NOTE: Scripts may log freely, but warnings surface accidental debug output.
-        'no-console': 'warn',
+        // NOTE: CLI tools under scripts/** print to stdout/stderr as their actual
+        // output contract, not debug leakage — no-console has no signal here.
+        'no-console': 'off',
       };
     case 'tests':
       return {

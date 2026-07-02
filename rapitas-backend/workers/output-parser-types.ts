@@ -4,11 +4,7 @@
  * Message protocol type definitions for Worker <-> main thread communication.
  */
 
-import type {
-  QuestionKey,
-  QuestionDetails,
-  QuestionDetectionResult,
-} from '../services/agents/question-detection';
+import type { QuestionDetectionResult } from '../services/agents/question-detection';
 
 // ==================== Worker Input Messages ====================
 

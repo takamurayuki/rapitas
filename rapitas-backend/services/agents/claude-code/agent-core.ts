@@ -226,7 +226,10 @@ export class ClaudeCodeAgent extends BaseAgent {
     );
   }
 
-  async execute(task: AgentTask, options?: Record<string, unknown>): Promise<AgentExecutionResult> {
+  async execute(
+    task: AgentTask,
+    _options?: Record<string, unknown>,
+  ): Promise<AgentExecutionResult> {
     this.status = 'running';
     this.outputBuffer = '';
     this.errorBuffer = '';
@@ -259,7 +262,7 @@ export class ClaudeCodeAgent extends BaseAgent {
           executionTimeMs: Date.now() - startTime,
         };
       }
-    } catch (error) {
+    } catch {
       this.status = 'failed';
       return {
         success: false,

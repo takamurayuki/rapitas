@@ -13,18 +13,13 @@ import {
   getLearningStats,
   getGrowthTimeline,
   getMemoryOverview,
-  CreatePatternInput,
   LearningPatternType,
   LearningCategory,
   CriticPhase,
   EpisodePhase,
-  CreatePromptEvolutionInput,
 } from '../../services/self-learning';
 import { getAverageScores } from '../../services/self-learning';
 import { findSimilarEpisodes, getEpisodeStats } from '../../services/self-learning';
-import { createLogger } from '../../config/logger';
-
-const log = createLogger('routes:learning');
 
 export const learningRoutes = new Elysia({ prefix: '/learning' })
   // --- Patterns ---

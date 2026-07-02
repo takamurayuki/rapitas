@@ -125,14 +125,12 @@ async function main(): Promise<void> {
     (process.env.RAPITAS_EVAL_JUDGE || '').trim().toLowerCase(),
   );
   if (!enabled) {
-    // eslint-disable-next-line no-console
     console.log('⏭  Judge eval skipped — set RAPITAS_EVAL_JUDGE=1 to run (makes live LLM calls).');
     return;
   }
 
   const provider = resolveProvider();
   const minAccuracy = Number(process.env.RAPITAS_EVAL_JUDGE_MIN || '0.8');
-  // eslint-disable-next-line no-console
   console.log(`Judge eval — provider=${provider}, ${FIXTURES.length} cases, min=${minAccuracy}\n`);
 
   let correct = 0;
@@ -143,7 +141,6 @@ async function main(): Promise<void> {
       got = await judge(provider, f);
     } catch (err) {
       errored++;
-      // eslint-disable-next-line no-console
       console.error(
         `💥 ${f.name}: judge call failed — ${err instanceof Error ? err.message : err}`,
       );
@@ -151,24 +148,20 @@ async function main(): Promise<void> {
     }
     const ok = got === f.expected;
     if (ok) correct++;
-    // eslint-disable-next-line no-console
     console.log(`${ok ? '✅' : '❌'} ${f.name} → got=${got}, expected=${f.expected}`);
   }
 
   if (errored === FIXTURES.length) {
-    // eslint-disable-next-line no-console
     console.error(`\nAll ${errored} cases errored — judge provider "${provider}" unreachable.`);
     process.exit(1);
   }
 
   const accuracy = correct / FIXTURES.length;
-  // eslint-disable-next-line no-console
   console.log(
     `\nJudge accuracy: ${correct}/${FIXTURES.length} (${Math.round(accuracy * 100)}%)` +
       (errored ? ` — ${errored} errored` : ''),
   );
   if (accuracy < minAccuracy) {
-    // eslint-disable-next-line no-console
     console.error(`Below threshold ${Math.round(minAccuracy * 100)}% — failing.`);
     process.exit(1);
   }

@@ -37,7 +37,7 @@ const log = createLogger('routes:workflow:handlers:mode');
 export async function handleSetMode({
   params,
   body,
-  set,
+  set: _set,
 }: {
   params: { taskId: string };
   body: unknown;
@@ -106,7 +106,7 @@ export async function handleSetMode({
  */
 export async function handleAnalyzeComplexity({
   params,
-  set,
+  set: _set,
 }: {
   params: { taskId: string };
   set: { status: number };
@@ -164,7 +164,7 @@ export async function handleAnalyzeComplexity({
  * @param set - Elysia response set / Elysiaレスポンス
  * @returns Available modes and default mode name
  */
-export async function handleGetModes({ set }: { set: { status: number } }) {
+export async function handleGetModes({ set: _set }: { set: { status: number } }) {
   try {
     const modeConfig = getWorkflowModeConfig();
     return { success: true, modes: modeConfig, defaultMode: 'comprehensive' };

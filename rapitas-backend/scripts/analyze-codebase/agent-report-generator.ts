@@ -9,7 +9,7 @@
  * Output format is designed for direct consumption by AI coding agents.
  */
 
-import type { AnalysisResult, ComplexityWarning, SecurityFinding } from './types';
+import type { AnalysisResult, SecurityFinding } from './types';
 
 interface ActionItem {
   id: string;
@@ -401,7 +401,7 @@ function generateQualityActions(result: AnalysisResult): ActionItem[] {
 /**
  * Generates split suggestion for god objects
  */
-function generateSplitSuggestion(file: string, result: AnalysisResult): string {
+function generateSplitSuggestion(file: string, _result: AnalysisResult): string {
   // Analyze the file to suggest split points
   const isComponent = file.includes('.tsx');
   const isService = file.includes('service') || file.includes('Service');

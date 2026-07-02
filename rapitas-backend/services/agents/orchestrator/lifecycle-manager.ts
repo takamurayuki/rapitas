@@ -4,13 +4,7 @@
  * Signal handlers, graceful shutdown, and agent state persistence.
  */
 import { createLogger } from '../../../config/logger';
-import type {
-  PrismaClientInstance,
-  ActiveAgentInfo,
-  ExecutionState,
-  OrchestratorEvent,
-  EventListener,
-} from './types';
+import type { PrismaClientInstance, ActiveAgentInfo, ExecutionState } from './types';
 import type { QuestionTimeoutManager } from './question-timeout-manager';
 
 const logger = createLogger('lifecycle-manager');

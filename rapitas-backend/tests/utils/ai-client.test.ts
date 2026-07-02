@@ -75,26 +75,27 @@ describe('getApiKeyForProvider', () => {
     delete (process.env as Record<string, string | undefined>).CLAUDE_API_KEY;
   });
 
-  test('DBに保存されたAPIキーを復号して返すこと（Claude）', async () => {
-    mockSettings.claudeApiKeyEncrypted = 'encrypted-key';
-    mockDecrypt.mockReturnValue('sk-ant-api03-validkeylongenoughfor10chars');
-    const key = await getApiKeyForProvider('claude');
-    expect(key).toBe('sk-ant-api03-validkeylongenoughfor10chars');
-  });
-
-  test('DBに保存されたAPIキーを復号して返すこと（ChatGPT）', async () => {
-    mockSettings.chatgptApiKeyEncrypted = 'encrypted-key';
-    mockDecrypt.mockReturnValue('sk-validkeylongenoughfor10charss');
-    const key = await getApiKeyForProvider('chatgpt');
-    expect(key).toBe('sk-validkeylongenoughfor10charss');
-  });
-
-  test('DBに保存されたAPIキーを復号して返すこと（Gemini）', async () => {
-    const geminiKey = 'AIzaSyValidGeminiKeyLong';
-    mockSettings.geminiApiKeyEncrypted = 'encrypted-key';
-    mockDecrypt.mockReturnValue(geminiKey);
-    const key = await getApiKeyForProvider('gemini');
-    expect(key).toBe(geminiKey);
+  test.each([
+    {
+      label: 'Claude',
+      provider: 'claude' as const,
+      decrypted: 'sk-ant-api03-validkeylongenoughfor10chars',
+    },
+    {
+      label: 'ChatGPT',
+      provider: 'chatgpt' as const,
+      decrypted: 'sk-validkeylongenoughfor10charss',
+    },
+    {
+      label: 'Gemini',
+      provider: 'gemini' as const,
+      decrypted: 'AIzaSyValidGeminiKeyLong',
+    },
+  ])('DBに保存されたAPIキーを復号して返すこと（$label）', async ({ provider, decrypted }) => {
+    mockSettings[`${provider}ApiKeyEncrypted`] = 'encrypted-key';
+    mockDecrypt.mockReturnValue(decrypted);
+    const key = await getApiKeyForProvider(provider);
+    expect(key).toBe(decrypted);
   });
 
   test('DBにキーがなくClaude環境変数がある場合フォールバックすること', async () => {

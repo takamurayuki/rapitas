@@ -52,21 +52,12 @@ describe('isShutdownError', () => {
       expect(isShutdownError(new Error(SHUTDOWN_ERROR_MESSAGE))).toBe(true);
     });
 
-    test('Server: start new execution → true', () => {
-      expect(isShutdownError(new Error(buildShutdownErrorMessage('start new execution')))).toBe(
-        true,
-      );
-    });
-
-    test('Server: continue execution → true', () => {
-      expect(isShutdownError(new Error(buildShutdownErrorMessage('continue execution')))).toBe(
-        true,
-      );
-    });
-
-    test('Server: resume execution → true', () => {
-      expect(isShutdownError(new Error(buildShutdownErrorMessage('resume execution')))).toBe(true);
-    });
+    test.each(['start new execution', 'continue execution', 'resume execution'])(
+      'Server: %s → true',
+      (action) => {
+        expect(isShutdownError(new Error(buildShutdownErrorMessage(action)))).toBe(true);
+      },
+    );
   });
 
   describe('false を返すケース（非シャットダウンエラー）', () => {

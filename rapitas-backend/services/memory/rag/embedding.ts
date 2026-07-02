@@ -57,7 +57,7 @@ async function initPipeline(): Promise<void> {
       MODEL_NAME,
     )) as unknown as EmbeddingPipeline;
     log.info('Embedding pipeline initialized (direct)');
-  } catch (_directError) {
+  } catch {
     // If direct import fails, check if the module exists for subprocess fallback
     try {
       require.resolve('@xenova/transformers');

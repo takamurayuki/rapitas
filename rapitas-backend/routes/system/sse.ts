@@ -2,7 +2,7 @@
  * SSE (Server-Sent Events) API Routes
  * Real-time event streaming endpoints
  */
-import { Elysia, t } from 'elysia';
+import { Elysia } from 'elysia';
 import { realtimeService } from '../../services/communication/realtime-service';
 import { createLogger } from '../../config/logger';
 
@@ -52,7 +52,7 @@ export const sseRoutes = new Elysia({ prefix: '/events' })
 
     const clientId = realtimeService.registerClient(
       {
-        write: (data: string) => {
+        write: (_data: string) => {
           // NOTE: simplified implementation
         },
       },

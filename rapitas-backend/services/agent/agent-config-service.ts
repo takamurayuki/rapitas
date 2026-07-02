@@ -37,7 +37,6 @@ export {
   updateCapabilities,
 } from '../agent-config/api-key';
 
-import { createLogger } from '../../config/logger';
 import { getAgentConfigSchema } from '../../utils/agent/agent-config-schema';
 import {
   getActiveAgents,

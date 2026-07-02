@@ -65,6 +65,7 @@ describe('classifyFailures', () => {
 const noopRemove = async (_b: string, _p: string, _d: boolean): Promise<void> => {};
 
 describe('triageTestFailures', () => {
+  // eslint-disable-next-line local/prefer-test-each-for-similar -- rule ignores the it.each below when counting adjacency; these 3 plain its differ in call arity/mocks/assertions (empty-input early return, all-non-failing path, and a cleanup-flag check) and aren't safely parameterizable together
   it('returns empty result when scopedTestFiles is empty', async () => {
     const result = await triageTestFailures('/fake/project', '/fake/work', []);
     expect(result).toEqual({ preExisting: [], newFailures: [] });
@@ -87,37 +88,35 @@ describe('triageTestFailures', () => {
     expect(result).toEqual({ preExisting: [], newFailures: [] });
   });
 
-  it('returns null when merge-base cannot be resolved (fail-safe)', async () => {
-    const result = await triageTestFailures('/fake/project', '/fake/work', ['a.test.ts'], {
+  it.each([
+    {
+      label: 'merge-base cannot be resolved',
       isTestFileFailingFn: async () => true,
       resolveBaseCommitFn: async () => null, // infrastructure failure
       getMainRepoRootFn: async () => '/fake/main',
       createWorktreeFn: async () => true,
       setupWorktreeFn: async () => true,
-      removeWorktreeFn: noopRemove,
-    });
-    expect(result).toBeNull();
-  });
-
-  it('returns null when main repo root cannot be resolved (fail-safe)', async () => {
-    const result = await triageTestFailures('/fake/project', '/fake/work', ['a.test.ts'], {
+    },
+    {
+      label: 'main repo root cannot be resolved',
       isTestFileFailingFn: async () => true,
       resolveBaseCommitFn: async () => 'abc1234',
       getMainRepoRootFn: async () => null, // infrastructure failure
       createWorktreeFn: async () => true,
       setupWorktreeFn: async () => true,
-      removeWorktreeFn: noopRemove,
-    });
-    expect(result).toBeNull();
-  });
-
-  it('returns null when baseline worktree creation fails (fail-safe)', async () => {
-    const result = await triageTestFailures('/fake/project', '/fake/work', ['a.test.ts'], {
+    },
+    {
+      label: 'baseline worktree creation fails',
       isTestFileFailingFn: async () => true,
       resolveBaseCommitFn: async () => 'abc1234',
       getMainRepoRootFn: async () => '/fake/main',
       createWorktreeFn: async () => false, // git worktree add failed
       setupWorktreeFn: async () => true,
+    },
+  ])('returns null when $label (fail-safe)', async (overrides) => {
+    const { label: _label, ...deps } = overrides;
+    const result = await triageTestFailures('/fake/project', '/fake/work', ['a.test.ts'], {
+      ...deps,
       removeWorktreeFn: noopRemove,
     });
     expect(result).toBeNull();

@@ -17,28 +17,21 @@ describe('shouldFinalizeSession', () => {
     expect(shouldFinalizeSession({ lastActivityAtMs: stale, nowMs: NOW })).toBe(true);
   });
 
-  it('does NOT finalize a session within the staleness window (live long phase)', () => {
-    expect(shouldFinalizeSession({ lastActivityAtMs: fresh, nowMs: NOW })).toBe(false);
-  });
-
-  it('does NOT finalize a session awaiting user input', () => {
-    expect(
-      shouldFinalizeSession({
-        lastActivityAtMs: stale,
-        nowMs: NOW,
-        latestExecStatus: 'waiting_for_input',
-      }),
-    ).toBe(false);
-  });
-
-  it('does NOT finalize a task awaiting a clarifying question', () => {
-    expect(
-      shouldFinalizeSession({
-        lastActivityAtMs: stale,
-        nowMs: NOW,
-        taskWorkflowStatus: 'awaiting_question',
-      }),
-    ).toBe(false);
+  it.each([
+    {
+      name: 'a session within the staleness window (live long phase)',
+      input: { lastActivityAtMs: fresh, nowMs: NOW },
+    },
+    {
+      name: 'a session awaiting user input',
+      input: { lastActivityAtMs: stale, nowMs: NOW, latestExecStatus: 'waiting_for_input' },
+    },
+    {
+      name: 'a task awaiting a clarifying question',
+      input: { lastActivityAtMs: stale, nowMs: NOW, taskWorkflowStatus: 'awaiting_question' },
+    },
+  ])('does NOT finalize $name', ({ input }) => {
+    expect(shouldFinalizeSession(input)).toBe(false);
   });
 
   it('staleness threshold exceeds the 30m phase timeout (no false finalize of a max-length phase)', () => {

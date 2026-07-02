@@ -78,18 +78,20 @@ describe('isTaskBlocked', () => {
 });
 
 describe('hasItemAwaitingApproval', () => {
-  it('returns true when any item is waiting_approval', () => {
-    expect(hasItemAwaitingApproval([{ status: 'running' }, { status: 'waiting_approval' }])).toBe(
-      true,
-    );
-  });
-
-  it('returns false when no item is waiting_approval', () => {
-    expect(hasItemAwaitingApproval([{ status: 'running' }, { status: 'queued' }])).toBe(false);
-  });
-
-  it('returns false for empty array', () => {
-    expect(hasItemAwaitingApproval([])).toBe(false);
+  it.each([
+    {
+      name: 'when any item is waiting_approval',
+      items: [{ status: 'running' }, { status: 'waiting_approval' }],
+      expected: true,
+    },
+    {
+      name: 'when no item is waiting_approval',
+      items: [{ status: 'running' }, { status: 'queued' }],
+      expected: false,
+    },
+    { name: 'for empty array', items: [], expected: false },
+  ])('returns $expected $name', ({ items, expected }) => {
+    expect(hasItemAwaitingApproval(items)).toBe(expected);
   });
 });
 
@@ -126,27 +128,38 @@ describe('getThemeActiveQueueItems', () => {
 });
 
 describe('selectNextTask', () => {
-  it('returns concurrency_limit when globalActiveCount >= MAX', async () => {
-    const prisma = makePrisma();
-    const result = await selectNextTask(prisma, 1, 'priority', [], AUTO_RUN_GLOBAL_MAX_CONCURRENCY);
-    expect(result).toEqual({ found: false, reason: 'concurrency_limit' });
-  });
-
-  it('returns all_done when no eligible tasks exist', async () => {
-    const mockFindMany = mock().mockResolvedValue([]);
-    const prisma = makePrisma({ task: { findMany: mockFindMany } });
-    const result = await selectNextTask(prisma, 1, 'priority', [], 0);
-    expect(result).toEqual({ found: false, reason: 'all_done' });
-  });
-
-  it('returns found with taskId for an eligible task', async () => {
-    const tasks = [
-      { id: 10, status: 'todo', workflowStatus: 'draft', priority: 'high', createdAt: new Date() },
-    ];
+  it.each([
+    {
+      desc: 'returns concurrency_limit when globalActiveCount >= MAX',
+      tasks: [] as Record<string, unknown>[],
+      activeCount: AUTO_RUN_GLOBAL_MAX_CONCURRENCY,
+      expected: { found: false, reason: 'concurrency_limit' },
+    },
+    {
+      desc: 'returns all_done when no eligible tasks exist',
+      tasks: [],
+      activeCount: 0,
+      expected: { found: false, reason: 'all_done' },
+    },
+    {
+      desc: 'returns found with taskId for an eligible task',
+      tasks: [
+        {
+          id: 10,
+          status: 'todo',
+          workflowStatus: 'draft',
+          priority: 'high',
+          createdAt: new Date(),
+        },
+      ],
+      activeCount: 0,
+      expected: { found: true, taskId: 10 },
+    },
+  ])('$desc', async ({ tasks, activeCount, expected }) => {
     const mockFindMany = mock().mockResolvedValue(tasks);
     const prisma = makePrisma({ task: { findMany: mockFindMany } });
-    const result = await selectNextTask(prisma, 1, 'priority', [], 0);
-    expect(result).toEqual({ found: true, taskId: 10 });
+    const result = await selectNextTask(prisma, 1, 'priority', [], activeCount);
+    expect(result).toEqual(expected);
   });
 
   it('keeps a todo task eligible even with a terminal workflowStatus (re-run)', async () => {

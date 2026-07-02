@@ -17,7 +17,6 @@ import type {
   AgentHealthStatus,
   ContinuationContext,
   AgentEvent,
-  AgentEventHandler,
   AgentEventType,
 } from './types';
 import type { AgentEventEmitter } from './event-emitter';

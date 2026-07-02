@@ -10,72 +10,67 @@ const COLORS = ['red', 'green', 'blue'] as const;
 type Color = (typeof COLORS)[number];
 
 describe('isOneOf', () => {
-  it('returns true for a valid member', () => {
-    expect(isOneOf('red', COLORS)).toBe(true);
-    expect(isOneOf('green', COLORS)).toBe(true);
-    expect(isOneOf('blue', COLORS)).toBe(true);
-  });
+  const cases: Array<{ label: string; value: unknown; expected: boolean }> = [
+    { label: 'a valid member "red"', value: 'red', expected: true },
+    { label: 'a valid member "green"', value: 'green', expected: true },
+    { label: 'a valid member "blue"', value: 'blue', expected: true },
+    { label: 'an invalid string "yellow"', value: 'yellow', expected: false },
+    { label: 'an invalid empty string', value: '', expected: false },
+    { label: 'a number', value: 0, expected: false },
+    { label: 'null', value: null, expected: false },
+    { label: 'undefined', value: undefined, expected: false },
+    { label: 'a plain object', value: {}, expected: false },
+    { label: 'an array', value: ['red'], expected: false },
+  ];
 
-  it('returns false for an invalid string', () => {
-    expect(isOneOf('yellow', COLORS)).toBe(false);
-    expect(isOneOf('', COLORS)).toBe(false);
-  });
-
-  it('returns false for non-string types', () => {
-    expect(isOneOf(0, COLORS)).toBe(false);
-    expect(isOneOf(null, COLORS)).toBe(false);
-    expect(isOneOf(undefined, COLORS)).toBe(false);
-    expect(isOneOf({}, COLORS)).toBe(false);
-    expect(isOneOf(['red'], COLORS)).toBe(false);
+  it.each(cases)('returns $expected for $label', ({ value, expected }) => {
+    expect(isOneOf(value, COLORS)).toBe(expected);
   });
 });
 
 describe('narrowEnum', () => {
-  it('returns the value unchanged when valid', () => {
-    const result: Color = narrowEnum<Color>('red', COLORS, 'green');
-    expect(result).toBe('red');
-  });
+  const cases: Array<{ label: string; value: unknown; fallback: Color; expected: Color }> = [
+    { label: 'the value unchanged when valid', value: 'red', fallback: 'green', expected: 'red' },
+    {
+      label: 'the fallback for an invalid string "purple"',
+      value: 'purple',
+      fallback: 'blue',
+      expected: 'blue',
+    },
+    {
+      label: 'the fallback for an invalid empty string',
+      value: '',
+      fallback: 'red',
+      expected: 'red',
+    },
+    { label: 'the fallback for null', value: null, fallback: 'green', expected: 'green' },
+    {
+      label: 'the fallback for undefined',
+      value: undefined,
+      fallback: 'green',
+      expected: 'green',
+    },
+    { label: 'the fallback for a number', value: 42, fallback: 'blue', expected: 'blue' },
+    { label: 'the fallback for a plain object', value: {}, fallback: 'blue', expected: 'blue' },
+  ];
 
-  it('returns the fallback for an invalid string', () => {
-    expect(narrowEnum('purple', COLORS, 'blue')).toBe('blue');
-    expect(narrowEnum('', COLORS, 'red')).toBe('red');
-  });
-
-  it('returns the fallback for null', () => {
-    expect(narrowEnum(null, COLORS, 'green')).toBe('green');
-  });
-
-  it('returns the fallback for undefined', () => {
-    expect(narrowEnum(undefined, COLORS, 'green')).toBe('green');
-  });
-
-  it('returns the fallback for non-string types', () => {
-    expect(narrowEnum(42, COLORS, 'blue')).toBe('blue');
-    expect(narrowEnum({}, COLORS, 'blue')).toBe('blue');
+  it.each(cases)('returns $label', ({ value, fallback, expected }) => {
+    expect(narrowEnum(value, COLORS, fallback)).toBe(expected);
   });
 });
 
 describe('narrowEnumOrNull', () => {
-  it('returns the value unchanged when valid', () => {
-    const result: Color | null = narrowEnumOrNull<Color>('blue', COLORS);
-    expect(result).toBe('blue');
-  });
+  const cases: Array<{ label: string; value: unknown; expected: Color | null }> = [
+    { label: 'the value unchanged when valid', value: 'blue', expected: 'blue' },
+    { label: 'null for an invalid string "purple"', value: 'purple', expected: null },
+    { label: 'null for an invalid empty string', value: '', expected: null },
+    { label: 'null for null', value: null, expected: null },
+    { label: 'null for undefined', value: undefined, expected: null },
+    { label: 'null for a number', value: 0, expected: null },
+    { label: 'null for a plain object', value: {}, expected: null },
+  ];
 
-  it('returns null for an invalid string', () => {
-    expect(narrowEnumOrNull('purple', COLORS)).toBeNull();
-    expect(narrowEnumOrNull('', COLORS)).toBeNull();
-  });
-
-  it('returns null for null', () => {
-    expect(narrowEnumOrNull(null, COLORS)).toBeNull();
-  });
-
-  it('returns null for undefined', () => {
-    expect(narrowEnumOrNull(undefined, COLORS)).toBeNull();
-  });
-
-  it('returns null for non-string types', () => {
-    expect(narrowEnumOrNull(0, COLORS)).toBeNull();
-    expect(narrowEnumOrNull({}, COLORS)).toBeNull();
+  it.each(cases)('returns $label', ({ value, expected }) => {
+    expect(narrowEnumOrNull(value, COLORS)).toBe(expected);
   });
 });

@@ -2,15 +2,10 @@
  * Debug Log Analysis API Endpoints
  */
 
-import { Elysia, t, type Context } from 'elysia';
+import { Elysia, t } from 'elysia';
 import { createLogger } from '../../../config/logger';
 import { listLogThemes, readThemeLogs } from '../../../services/system/theme-log-reader';
-import DebugLogAnalyzer, {
-  LogType,
-  LogLevel,
-  LogAnalysisResult,
-  AnalyzeOptions,
-} from '../../../utils/debug-log-analyzer';
+import DebugLogAnalyzer, { AnalyzeOptions } from '../../../utils/debug-log-analyzer';
 import { LogParserFactory } from '../../../utils/common/debug-log-parsers';
 
 const log = createLogger('routes:debug-logs');
@@ -144,7 +139,7 @@ export const debugLogsRouter = new Elysia({ prefix: '/debug-logs' })
     async (context) => {
       const { body, set } = context;
       try {
-        const { url, type, options } = body as {
+        const { url, options } = body as {
           url: string;
           type?: string;
           options?: AnalyzeOptions;

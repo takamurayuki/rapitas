@@ -64,7 +64,10 @@ export class GeminiCliAgent extends BaseAgent {
     };
   }
 
-  async execute(task: AgentTask, options?: Record<string, unknown>): Promise<AgentExecutionResult> {
+  async execute(
+    task: AgentTask,
+    _options?: Record<string, unknown>,
+  ): Promise<AgentExecutionResult> {
     this.status = 'running';
     this.outputBuffer = '';
     this.errorBuffer = '';

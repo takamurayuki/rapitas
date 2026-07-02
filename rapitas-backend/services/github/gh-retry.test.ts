@@ -33,44 +33,35 @@ const {
 // ---------------------------------------------------------------------------
 
 describe('classifyGitHubError', () => {
-  it('rate_limit: API rate limit exceeded', () => {
-    expect(classifyGitHubError('API rate limit exceeded')).toBe('rate_limit');
+  it.each([
+    { name: 'API rate limit exceeded', input: 'API rate limit exceeded' },
+    {
+      name: 'secondary rate limit (GitHub secondary)',
+      input: 'You have exceeded a secondary rate limit',
+    },
+    { name: '403 with rate limit text', input: 'HTTP 403 rate limit' },
+  ])('rate_limit: $name', ({ input }) => {
+    expect(classifyGitHubError(input)).toBe('rate_limit');
   });
 
-  it('rate_limit: secondary rate limit (GitHub secondary)', () => {
-    expect(classifyGitHubError('You have exceeded a secondary rate limit')).toBe('rate_limit');
+  it.each([
+    { name: 'ETIMEDOUT', input: 'ETIMEDOUT connect failed' },
+    { name: 'ECONNRESET', input: 'ECONNRESET connection was reset' },
+    { name: '502 gateway error', input: '502 Bad Gateway' },
+    { name: '504 timeout', input: '504 Gateway Timeout' },
+  ])('transient: $name', ({ input }) => {
+    expect(classifyGitHubError(input)).toBe('transient');
   });
 
-  it('rate_limit: 403 with rate limit text', () => {
-    expect(classifyGitHubError('HTTP 403 rate limit')).toBe('rate_limit');
-  });
-
-  it('transient: ETIMEDOUT', () => {
-    expect(classifyGitHubError('ETIMEDOUT connect failed')).toBe('transient');
-  });
-
-  it('transient: ECONNRESET', () => {
-    expect(classifyGitHubError('ECONNRESET connection was reset')).toBe('transient');
-  });
-
-  it('transient: 502 gateway error', () => {
-    expect(classifyGitHubError('502 Bad Gateway')).toBe('transient');
-  });
-
-  it('transient: 504 timeout', () => {
-    expect(classifyGitHubError('504 Gateway Timeout')).toBe('transient');
-  });
-
-  it('head_behind: not up to date with the base branch', () => {
-    expect(classifyGitHubError('not up to date with the base branch')).toBe('head_behind');
-  });
-
-  it('head_behind: not mergeable', () => {
-    expect(classifyGitHubError('not mergeable')).toBe('head_behind');
-  });
-
-  it('head_behind: base branch was modified', () => {
-    expect(classifyGitHubError('base branch was modified')).toBe('head_behind');
+  it.each([
+    {
+      name: 'not up to date with the base branch',
+      input: 'not up to date with the base branch',
+    },
+    { name: 'not mergeable', input: 'not mergeable' },
+    { name: 'base branch was modified', input: 'base branch was modified' },
+  ])('head_behind: $name', ({ input }) => {
+    expect(classifyGitHubError(input)).toBe('head_behind');
   });
 
   it('auth: bad credentials', () => {
@@ -287,32 +278,28 @@ describe('withGhRetry', () => {
 // ---------------------------------------------------------------------------
 
 describe('isHeadBehindError', () => {
-  it('returns true for "not up to date with the base branch"', () => {
-    expect(isHeadBehindError('not up to date with the base branch')).toBe(true);
-  });
-
-  it('returns true for "not up-to-date with the base branch" (hyphenated)', () => {
-    expect(isHeadBehindError('not up-to-date with the base branch')).toBe(true);
-  });
-
-  it('returns true for "not mergeable"', () => {
-    expect(isHeadBehindError('not mergeable')).toBe(true);
-  });
-
-  it('returns true for "base branch was modified"', () => {
-    expect(isHeadBehindError('base branch was modified')).toBe(true);
-  });
-
-  it('returns false for rate_limit error', () => {
-    expect(isHeadBehindError('API rate limit exceeded')).toBe(false);
-  });
-
-  it('returns false for unrelated error', () => {
-    expect(isHeadBehindError('bad credentials')).toBe(false);
-  });
-
-  it('returns false for empty string', () => {
-    expect(isHeadBehindError('')).toBe(false);
+  it.each([
+    {
+      name: 'true for "not up to date with the base branch"',
+      input: 'not up to date with the base branch',
+      expected: true,
+    },
+    {
+      name: 'true for "not up-to-date with the base branch" (hyphenated)',
+      input: 'not up-to-date with the base branch',
+      expected: true,
+    },
+    { name: 'true for "not mergeable"', input: 'not mergeable', expected: true },
+    {
+      name: 'true for "base branch was modified"',
+      input: 'base branch was modified',
+      expected: true,
+    },
+    { name: 'false for rate_limit error', input: 'API rate limit exceeded', expected: false },
+    { name: 'false for unrelated error', input: 'bad credentials', expected: false },
+    { name: 'false for empty string', input: '', expected: false },
+  ])('returns $name', ({ input, expected }) => {
+    expect(isHeadBehindError(input)).toBe(expected);
   });
 });
 
@@ -321,27 +308,18 @@ describe('isHeadBehindError', () => {
 // ---------------------------------------------------------------------------
 
 describe('isAlreadyUpToDate', () => {
-  it('returns true for "already up to date"', () => {
-    expect(isAlreadyUpToDate('already up to date')).toBe(true);
-  });
-
-  it('returns true for "already up-to-date" (hyphenated)', () => {
-    expect(isAlreadyUpToDate('already up-to-date')).toBe(true);
-  });
-
-  it('returns true for "no new commits"', () => {
-    expect(isAlreadyUpToDate('no new commits')).toBe(true);
-  });
-
-  it('returns true for "not behind"', () => {
-    expect(isAlreadyUpToDate('not behind')).toBe(true);
-  });
-
-  it('returns false for unrelated error', () => {
-    expect(isAlreadyUpToDate('something else failed')).toBe(false);
-  });
-
-  it('returns false for empty string', () => {
-    expect(isAlreadyUpToDate('')).toBe(false);
+  it.each([
+    { name: 'true for "already up to date"', input: 'already up to date', expected: true },
+    {
+      name: 'true for "already up-to-date" (hyphenated)',
+      input: 'already up-to-date',
+      expected: true,
+    },
+    { name: 'true for "no new commits"', input: 'no new commits', expected: true },
+    { name: 'true for "not behind"', input: 'not behind', expected: true },
+    { name: 'false for unrelated error', input: 'something else failed', expected: false },
+    { name: 'false for empty string', input: '', expected: false },
+  ])('returns $name', ({ input, expected }) => {
+    expect(isAlreadyUpToDate(input)).toBe(expected);
   });
 });

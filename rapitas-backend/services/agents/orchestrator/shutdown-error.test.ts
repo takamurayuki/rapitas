@@ -39,20 +39,12 @@ describe('buildShutdownErrorMessage', () => {
 
 describe('isShutdownError', () => {
   describe('true を返すケース', () => {
-    test('buildShutdownErrorMessage で生成したメッセージの Error → true（start）', () => {
-      expect(isShutdownError(new Error(buildShutdownErrorMessage('start new execution')))).toBe(
-        true,
-      );
-    });
-
-    test('buildShutdownErrorMessage で生成したメッセージの Error → true（continue）', () => {
-      expect(isShutdownError(new Error(buildShutdownErrorMessage('continue execution')))).toBe(
-        true,
-      );
-    });
-
-    test('buildShutdownErrorMessage で生成したメッセージの Error → true（resume）', () => {
-      expect(isShutdownError(new Error(buildShutdownErrorMessage('resume execution')))).toBe(true);
+    test.each([
+      { label: 'start', action: 'start new execution' },
+      { label: 'continue', action: 'continue execution' },
+      { label: 'resume', action: 'resume execution' },
+    ])('buildShutdownErrorMessage で生成したメッセージの Error → true（$label）', ({ action }) => {
+      expect(isShutdownError(new Error(buildShutdownErrorMessage(action)))).toBe(true);
     });
 
     test('SHUTDOWN_ERROR_MESSAGE プレフィックスのみの Error → true', () => {

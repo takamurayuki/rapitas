@@ -11,14 +11,8 @@ import {
   listExperiments,
   getExperimentTimeline,
   ExperimentPhase,
-  CreateExperimentInput,
-  UpdateExperimentInput,
-  CreateHypothesisInput,
-  CriticReviewInput,
-  CreateEpisodeInput,
   HypothesisStatus,
   HypothesisTestResult,
-  ExperimentEvaluation,
 } from '../../services/self-learning';
 import type {
   CriticPhase,
@@ -35,9 +29,6 @@ import {
 } from '../../services/self-learning';
 import { performReview, getReviews } from '../../services/self-learning';
 import { saveEpisode, summarizeExperiment } from '../../services/self-learning';
-import { createLogger } from '../../config/logger';
-
-const log = createLogger('routes:experiments');
 
 export const experimentsRoutes = new Elysia({ prefix: '/experiments' })
   // --- Experiment CRUD ---

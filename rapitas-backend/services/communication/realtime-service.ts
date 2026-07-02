@@ -348,7 +348,7 @@ export class RealtimeService {
       try {
         controller.close();
         log.info(`[SSE] Closed stream for client ${clientId}`);
-      } catch (error) {
+      } catch {
         // Ignore if already closed
       }
     }

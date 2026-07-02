@@ -61,18 +61,12 @@ describe('mergePullRequest', () => {
   });
 
   describe('prNumber validation', () => {
-    it('throws without calling gh when prNumber is 0', async () => {
-      await expect(mergePullRequest('owner/repo', 0)).rejects.toThrow('無効なPR番号です: 0');
-      expect(mockRunGhCommand).not.toHaveBeenCalled();
-    });
-
-    it('throws without calling gh when prNumber is negative', async () => {
-      await expect(mergePullRequest('owner/repo', -1)).rejects.toThrow('無効なPR番号です: -1');
-      expect(mockRunGhCommand).not.toHaveBeenCalled();
-    });
-
-    it('throws without calling gh when prNumber is NaN', async () => {
-      await expect(mergePullRequest('owner/repo', NaN)).rejects.toThrow(/無効なPR番号です/);
+    it.each([
+      { name: '0', prNumber: 0, errorMatch: '無効なPR番号です: 0' },
+      { name: 'negative', prNumber: -1, errorMatch: '無効なPR番号です: -1' },
+      { name: 'NaN', prNumber: NaN, errorMatch: /無効なPR番号です/ },
+    ])('throws without calling gh when prNumber is $name', async ({ prNumber, errorMatch }) => {
+      await expect(mergePullRequest('owner/repo', prNumber)).rejects.toThrow(errorMatch);
       expect(mockRunGhCommand).not.toHaveBeenCalled();
     });
   });

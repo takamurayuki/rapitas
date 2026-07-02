@@ -203,16 +203,13 @@ for (const group of GROUPS) {
     }
   }
   const pct = Math.round((gp / group.cases.length) * 100);
-  // eslint-disable-next-line no-console
   console.log(`${pct === 100 ? '✅' : '❌'} ${group.gate}: ${gp}/${group.cases.length} (${pct}%)`);
 }
 
-// eslint-disable-next-line no-console
 console.log(
   `\nGate eval: ${passed}/${total} cases passed (${Math.round((passed / total) * 100)}%)`,
 );
 if (failures.length > 0) {
-  // eslint-disable-next-line no-console
   console.error('\nFailures:\n' + failures.map((f) => `  - ${f}`).join('\n'));
   process.exit(1);
 }

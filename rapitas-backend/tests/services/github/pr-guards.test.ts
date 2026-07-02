@@ -16,38 +16,28 @@ describe('checkPrActionable()', () => {
       ).toBeNull();
     });
 
-    test('prNumber=0 は 422 を返すこと', () => {
-      const result = checkPrActionable(
-        { prNumber: 0, state: 'open' },
-        { operationLabel: 'テスト', requireOpen: true },
-      );
-      expect(result?.status).toBe(422);
-      expect(result?.body.success).toBe(false);
-    });
+    type PrNumberInvalidCase = { label: string; prNumber: number; checkBodySuccess?: boolean };
 
-    test('prNumber=-1 は 422 を返すこと', () => {
-      const result = checkPrActionable(
-        { prNumber: -1, state: 'open' },
-        { operationLabel: 'テスト', requireOpen: true },
-      );
-      expect(result?.status).toBe(422);
-    });
+    const prNumberInvalidCases: PrNumberInvalidCase[] = [
+      { label: 'prNumber=0', prNumber: 0, checkBodySuccess: true },
+      { label: 'prNumber=-1', prNumber: -1 },
+      { label: 'prNumber=1.5（非整数）', prNumber: 1.5 },
+      { label: 'prNumber=NaN', prNumber: NaN },
+    ];
 
-    test('prNumber=1.5（非整数）は 422 を返すこと', () => {
-      const result = checkPrActionable(
-        { prNumber: 1.5, state: 'open' },
-        { operationLabel: 'テスト', requireOpen: true },
-      );
-      expect(result?.status).toBe(422);
-    });
-
-    test('prNumber=NaN は 422 を返すこと', () => {
-      const result = checkPrActionable(
-        { prNumber: NaN, state: 'open' },
-        { operationLabel: 'テスト', requireOpen: true },
-      );
-      expect(result?.status).toBe(422);
-    });
+    test.each(prNumberInvalidCases)(
+      '$label は 422 を返すこと',
+      ({ prNumber, checkBodySuccess }) => {
+        const result = checkPrActionable(
+          { prNumber, state: 'open' },
+          { operationLabel: 'テスト', requireOpen: true },
+        );
+        expect(result?.status).toBe(422);
+        if (checkBodySuccess) {
+          expect(result?.body.success).toBe(false);
+        }
+      },
+    );
   });
 
   describe('state 事前チェック（requireOpen: true）', () => {

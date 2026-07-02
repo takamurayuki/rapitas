@@ -102,19 +102,23 @@ describe('getGlobalRetryPolicy', () => {
     expect(policy.upperBound).toBe(10);
   });
 
-  it('reads RAPITAS_RETRY_MAX', () => {
-    process.env['RAPITAS_RETRY_MAX'] = '5';
-    expect(getGlobalRetryPolicy().maxRetries).toBe(5);
-  });
-
-  it('reads RAPITAS_RETRY_DELAY_MS', () => {
-    process.env['RAPITAS_RETRY_DELAY_MS'] = '1000';
-    expect(getGlobalRetryPolicy().delayMs).toBe(1000);
-  });
-
-  it('reads RAPITAS_RETRY_UPPER_BOUND', () => {
-    process.env['RAPITAS_RETRY_UPPER_BOUND'] = '20';
-    expect(getGlobalRetryPolicy().upperBound).toBe(20);
+  it.each([
+    { envKey: 'RAPITAS_RETRY_MAX', envValue: '5', field: 'maxRetries' as const, expected: 5 },
+    {
+      envKey: 'RAPITAS_RETRY_DELAY_MS',
+      envValue: '1000',
+      field: 'delayMs' as const,
+      expected: 1000,
+    },
+    {
+      envKey: 'RAPITAS_RETRY_UPPER_BOUND',
+      envValue: '20',
+      field: 'upperBound' as const,
+      expected: 20,
+    },
+  ])('reads $envKey', ({ envKey, envValue, field, expected }) => {
+    process.env[envKey] = envValue;
+    expect(getGlobalRetryPolicy()[field]).toBe(expected);
   });
 
   it('clamps negative RAPITAS_RETRY_MAX to 0', () => {

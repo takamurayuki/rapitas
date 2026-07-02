@@ -2,7 +2,6 @@
  * Rate Limiter Middleware
  * Configurable in-memory rate limiting for API endpoints
  */
-import { Elysia } from 'elysia';
 import { createLogger } from '../config/logger';
 import { HTTP_STATUS } from '../utils/common/http-status';
 

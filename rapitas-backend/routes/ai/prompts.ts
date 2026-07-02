@@ -1,7 +1,7 @@
 /**
  * Prompts API Routes
  */
-import { Elysia, t } from 'elysia';
+import { Elysia } from 'elysia';
 import { prisma } from '../../config/database';
 import { generateOptimizedPrompt } from '../../services/claude-agent';
 import { getDefaultProvider, getApiKeyForProvider } from '../../utils/ai-client';

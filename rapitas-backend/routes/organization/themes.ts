@@ -2,7 +2,7 @@
  * Themes API Routes
  * Handles theme CRUD operations and default theme management
  */
-import { Elysia, t } from 'elysia';
+import { Elysia } from 'elysia';
 import { prisma } from '../../config/database';
 import { themeSchema } from '../../schemas/theme.schema';
 import { NotFoundError, ValidationError } from '../../middleware/error-handler';
@@ -307,7 +307,7 @@ export const themesRoutes = new Elysia({ prefix: '/themes' })
         // Initialize git repository
         try {
           execSync('git init', { cwd: projectPath, stdio: 'pipe' });
-        } catch (error) {
+        } catch {
           throw new ValidationError('Git リポジトリの初期化に失敗しました');
         }
 
@@ -355,7 +355,7 @@ export const themesRoutes = new Elysia({ prefix: '/themes' })
         try {
           execSync('git branch develop', { cwd: projectPath, stdio: 'pipe' });
           execSync('git checkout develop', { cwd: projectPath, stdio: 'pipe' });
-        } catch (error) {
+        } catch {
           // NOTE: Non-fatal — develop branch creation can fail if default branch is already 'develop'
         }
 

@@ -46,7 +46,7 @@ export default [
     },
   },
   {
-    files: ["scripts/**/*.ts"],
+    files: ["scripts/**/*.ts", "scripts/**/*.cjs"],
     rules: {
       ...stagedSeverity("scripts"),
     },

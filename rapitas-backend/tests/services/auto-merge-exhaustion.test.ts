@@ -64,25 +64,43 @@ describe('decideTerminalState', () => {
     expect(readHeadSha).not.toHaveBeenCalled();
   });
 
-  test('exhausted + head不変 → skip（パーク継続）', async () => {
-    mockPrisma.workflowTransition.findFirst.mockResolvedValue(exhaustedRow('sha-current'));
-    const d = await decideTerminalState(1, 100, '/repo');
-    expect(d).toEqual({ skip: true, kind: 'exhausted' });
-  });
+  type ExhaustedHeadCase = {
+    label: string;
+    exhaustedHeadSha: string;
+    currentHeadSha: string | null;
+    expected: { skip: boolean; kind: string };
+  };
 
-  test('exhausted + head変化 → 復帰（skip:false, resumed）', async () => {
-    mockPrisma.workflowTransition.findFirst.mockResolvedValue(exhaustedRow('sha-old'));
-    const d = await decideTerminalState(1, 100, '/repo');
-    expect(d.skip).toBe(false);
-    expect(d.kind).toBe('resumed');
-  });
+  const exhaustedHeadCases: ExhaustedHeadCase[] = [
+    {
+      label: 'head不変 → skip（パーク継続）',
+      exhaustedHeadSha: 'sha-current',
+      currentHeadSha: 'sha-current',
+      expected: { skip: true, kind: 'exhausted' },
+    },
+    {
+      label: 'head変化 → 復帰（skip:false, resumed）',
+      exhaustedHeadSha: 'sha-old',
+      currentHeadSha: 'sha-current',
+      expected: { skip: false, kind: 'resumed' },
+    },
+    {
+      label: 'head読取不能（null） → skip（検証不能はパーク維持）',
+      exhaustedHeadSha: 'sha-old',
+      currentHeadSha: null,
+      expected: { skip: true, kind: 'exhausted' },
+    },
+  ];
 
-  test('exhausted + head読取不能（null） → skip（検証不能はパーク維持）', async () => {
-    mockPrisma.workflowTransition.findFirst.mockResolvedValue(exhaustedRow('sha-old'));
-    readHeadSha.mockResolvedValue(null);
-    const d = await decideTerminalState(1, 100, '/repo');
-    expect(d).toEqual({ skip: true, kind: 'exhausted' });
-  });
+  test.each(exhaustedHeadCases)(
+    'exhausted + $label',
+    async ({ exhaustedHeadSha, currentHeadSha, expected }) => {
+      mockPrisma.workflowTransition.findFirst.mockResolvedValue(exhaustedRow(exhaustedHeadSha));
+      readHeadSha.mockResolvedValue(currentHeadSha);
+      const d = await decideTerminalState(1, 100, '/repo');
+      expect(d).toEqual(expected);
+    },
+  );
 
   test('recheckクールダウン内の2回目はghを呼ばずskip', async () => {
     mockPrisma.workflowTransition.findFirst.mockResolvedValue(exhaustedRow('sha-current'));

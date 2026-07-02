@@ -14,7 +14,6 @@ import { exec } from 'node:child_process';
 import { promisify } from 'node:util';
 import { prisma } from '../../../config/database';
 import { createLogger } from '../../../config/logger';
-import { AgentWorkerManager } from '../../../services/agents/agent-worker-manager';
 
 // Async git so the post-execution revert never blocks the single-threaded event
 // loop. Synchronous execSync('git reset/clean', timeout 30s) here would freeze
@@ -28,7 +27,6 @@ import { handleResearchResult } from './research-phase-handler';
 import { isIsolatedWorktree } from './research-output-utils';
 
 const log = createLogger('routes:agent-execution:post-handler');
-const agentWorkerManager = AgentWorkerManager.getInstance();
 
 /** Shape of the result returned by agentWorkerManager.executeTask. */
 interface ExecuteTaskResult {

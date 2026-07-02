@@ -116,20 +116,29 @@ describe('collectDocFiles', () => {
 // ── isRedirectStub ────────────────────────────────────────────────────────────
 
 describe('isRedirectStub', () => {
-  test('returns true for redirect stub with deprecation comment', () => {
-    expect(isRedirectStub('<!-- @deprecated redirectTo: docs/new-path.md -->')).toBe(true);
-  });
-
-  test('returns true with extra whitespace in comment', () => {
-    expect(isRedirectStub('<!--  @deprecated  redirectTo:  docs/other.md  -->')).toBe(true);
-  });
-
-  test('returns false for normal document content', () => {
-    expect(isRedirectStub('# Normal doc\n\nSome content')).toBe(false);
-  });
-
-  test('returns false for incomplete redirect comment', () => {
-    expect(isRedirectStub('<!-- @deprecated -->')).toBe(false);
+  test.each([
+    {
+      name: 'returns true for redirect stub with deprecation comment',
+      content: '<!-- @deprecated redirectTo: docs/new-path.md -->',
+      expected: true,
+    },
+    {
+      name: 'returns true with extra whitespace in comment',
+      content: '<!--  @deprecated  redirectTo:  docs/other.md  -->',
+      expected: true,
+    },
+    {
+      name: 'returns false for normal document content',
+      content: '# Normal doc\n\nSome content',
+      expected: false,
+    },
+    {
+      name: 'returns false for incomplete redirect comment',
+      content: '<!-- @deprecated -->',
+      expected: false,
+    },
+  ])('$name', ({ content, expected }) => {
+    expect(isRedirectStub(content)).toBe(expected);
   });
 });
 
@@ -156,19 +165,15 @@ describe('extractDocPaths', () => {
     expect(paths).not.toContain('services/fake.ts');
   });
 
-  test('excludes external URLs', () => {
-    const result = extractDocPaths('See `https://example.com/path.ts` for info.');
-    expect(result).toHaveLength(0);
-  });
-
-  test('excludes tokens without a slash', () => {
-    const result = extractDocPaths('Use `filename.ts` here.');
-    expect(result).toHaveLength(0);
-  });
-
-  test('excludes tokens without a recognized extension', () => {
-    const result = extractDocPaths('See `some/path` for details.');
-    expect(result).toHaveLength(0);
+  test.each([
+    { name: 'excludes external URLs', input: 'See `https://example.com/path.ts` for info.' },
+    { name: 'excludes tokens without a slash', input: 'Use `filename.ts` here.' },
+    {
+      name: 'excludes tokens without a recognized extension',
+      input: 'See `some/path` for details.',
+    },
+  ])('$name', ({ input }) => {
+    expect(extractDocPaths(input)).toHaveLength(0);
   });
 
   test('returns correct 1-indexed line numbers', () => {
@@ -232,22 +237,29 @@ describe('checkBrokenLinks', () => {
   beforeEach(setup);
   afterEach(teardown);
 
-  test('returns empty array for redirect stub', () => {
-    const content = '<!-- @deprecated redirectTo: docs/new.md -->\n`services/gone.ts`';
-    expect(checkBrokenLinks('doc.md', content, tmpRoot)).toEqual([]);
-  });
-
-  test('returns broken reference for non-existent file', () => {
-    const content = 'See `services/missing.ts` for details.';
+  test.each([
+    {
+      name: 'returns empty array for redirect stub',
+      setup: null,
+      content: '<!-- @deprecated redirectTo: docs/new.md -->\n`services/gone.ts`',
+      expected: [],
+    },
+    {
+      name: 'returns broken reference for non-existent file',
+      setup: null,
+      content: 'See `services/missing.ts` for details.',
+      expected: [{ line: 1, path: 'services/missing.ts' }],
+    },
+    {
+      name: 'returns empty array when referenced file exists',
+      setup: () => writeFile('services/existing.ts', 'export const x = 1;'),
+      content: 'See `services/existing.ts` for details.',
+      expected: [],
+    },
+  ])('$name', ({ setup, content, expected }) => {
+    setup?.();
     const result = checkBrokenLinks('doc.md', content, tmpRoot);
-    expect(result).toEqual([{ line: 1, path: 'services/missing.ts' }]);
-  });
-
-  test('returns empty array when referenced file exists', () => {
-    writeFile('services/existing.ts', 'export const x = 1;');
-    const content = 'See `services/existing.ts` for details.';
-    const result = checkBrokenLinks('doc.md', content, tmpRoot);
-    expect(result).toEqual([]);
+    expect(result).toEqual(expected);
   });
 
   test('normalizes rapitas-backend/ prefix when checking existence', () => {
@@ -270,23 +282,34 @@ describe('checkBrokenLinks', () => {
 // ── jaccardSimilarity ─────────────────────────────────────────────────────────
 
 describe('jaccardSimilarity', () => {
-  test('returns 1 for identical content', () => {
-    const content = 'line one\nline two\nline three';
-    expect(jaccardSimilarity(content, content)).toBe(1);
-  });
-
-  test('returns 1 for two empty strings', () => {
-    expect(jaccardSimilarity('', '')).toBe(1);
-  });
-
-  test('returns 0 when one side is empty', () => {
-    expect(jaccardSimilarity('some content', '')).toBe(0);
-    expect(jaccardSimilarity('', 'some content')).toBe(0);
-  });
-
-  test('returns 0 for completely different content', () => {
-    const score = jaccardSimilarity('alpha beta gamma', 'delta epsilon zeta');
-    expect(score).toBe(0);
+  test.each([
+    {
+      name: 'returns 1 for identical content',
+      a: 'line one\nline two\nline three',
+      b: 'line one\nline two\nline three',
+      expected: 1,
+    },
+    { name: 'returns 1 for two empty strings', a: '', b: '', expected: 1 },
+    {
+      name: 'returns 0 when one side is empty (a is empty)',
+      a: 'some content',
+      b: '',
+      expected: 0,
+    },
+    {
+      name: 'returns 0 when one side is empty (b is empty)',
+      a: '',
+      b: 'some content',
+      expected: 0,
+    },
+    {
+      name: 'returns 0 for completely different content',
+      a: 'alpha beta gamma',
+      b: 'delta epsilon zeta',
+      expected: 0,
+    },
+  ])('$name', ({ a, b, expected }) => {
+    expect(jaccardSimilarity(a, b)).toBe(expected);
   });
 
   test('returns value between 0 and 1 for partially overlapping content', () => {
@@ -401,18 +424,26 @@ describe('detectOrphans', () => {
 // ── parsePhase ────────────────────────────────────────────────────────────────
 
 describe('parsePhase', () => {
-  test('returns 1 for --phase=1', () => {
-    expect(parsePhase(['bun', 'script.ts', '--phase=1'])).toBe(1);
-  });
-
-  test('returns 2 for --phase=2', () => {
-    expect(parsePhase(['bun', 'script.ts', '--phase=2'])).toBe(2);
-  });
-
-  test('returns "all" when --phase flag is absent', () => {
-    expect(parsePhase([])).toBe('all');
-    expect(parsePhase(['--check'])).toBe('all');
-    expect(parsePhase(['--warn-only'])).toBe('all');
+  test.each([
+    { name: 'returns 1 for --phase=1', argv: ['bun', 'script.ts', '--phase=1'], expected: 1 },
+    { name: 'returns 2 for --phase=2', argv: ['bun', 'script.ts', '--phase=2'], expected: 2 },
+    {
+      name: 'returns "all" when --phase flag is absent (no args)',
+      argv: [],
+      expected: 'all',
+    },
+    {
+      name: 'returns "all" when --phase flag is absent (--check)',
+      argv: ['--check'],
+      expected: 'all',
+    },
+    {
+      name: 'returns "all" when --phase flag is absent (--warn-only)',
+      argv: ['--warn-only'],
+      expected: 'all',
+    },
+  ])('$name', ({ argv, expected }) => {
+    expect(parsePhase(argv)).toBe(expected);
   });
 
   test('throws for unrecognised --phase value', () => {

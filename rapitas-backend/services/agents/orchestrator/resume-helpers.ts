@@ -5,7 +5,7 @@
  * from the database. Used exclusively by execution-resume.ts.
  */
 
-import { agentFactory, narrowAgentType } from '../agent-factory';
+import { narrowAgentType } from '../agent-factory';
 import type { AgentConfigInput } from '../agent-factory';
 import { resolveStoredSecret } from '../../../utils/common/secret-store';
 import { createLogger } from '../../../config';

@@ -5,7 +5,6 @@
  * for the Claude Code CLI. Does NOT manage agent lifecycle or provider configuration.
  */
 import { spawn } from 'child_process';
-import { getProjectRoot } from '../../../config';
 import type { AgentExecutionContext, AgentExecutionResult } from '../abstraction/types';
 import { resolveCliPath } from './cli-utils';
 import { processStreamEvent } from './stream-event-parser';

@@ -143,8 +143,8 @@ export class GeminiAgent extends AbstractAgent {
   }
 
   protected async doExecute(
-    task: AgentTaskDefinition,
-    context: AgentExecutionContext,
+    _task: AgentTaskDefinition,
+    _context: AgentExecutionContext,
   ): Promise<AgentExecutionResult> {
     // TODO: Implement actual API calls after installing @google/generative-ai package
     throw new AgentError(
@@ -155,8 +155,8 @@ export class GeminiAgent extends AbstractAgent {
   }
 
   protected async doContinue(
-    continuation: ContinuationContext,
-    context: AgentExecutionContext,
+    _continuation: ContinuationContext,
+    _context: AgentExecutionContext,
   ): Promise<AgentExecutionResult> {
     throw new AgentError('Gemini provider is not yet fully implemented.', 'configuration', false);
   }

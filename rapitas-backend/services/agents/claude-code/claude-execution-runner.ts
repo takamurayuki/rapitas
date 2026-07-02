@@ -217,7 +217,7 @@ export function runClaudeExecution(
   const cleanupPromptFile = () => {
     try {
       unlinkSync(promptFile);
-    } catch (_) {
+    } catch {
       // Prompt file may already be deleted
     }
   };

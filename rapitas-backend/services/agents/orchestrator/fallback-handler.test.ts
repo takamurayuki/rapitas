@@ -68,35 +68,29 @@ describe('isSessionResumeFailure', () => {
       expect(isSessionResumeFailure(result, SESSION_ID)).toBe(true);
     });
 
-    test('"session not found" → true', () => {
-      const result = makeResult({
+    test.each([
+      {
+        desc: '"session not found" → true',
         errorMessage: `Process exited with code 1\n\nsession not found: ${SESSION_ID}`,
         executionTimeMs: 900,
-      });
-      expect(isSessionResumeFailure(result, SESSION_ID)).toBe(true);
-    });
-
-    test('"session id expired" → true', () => {
-      const result = makeResult({
+      },
+      {
+        desc: '"session id expired" → true',
         errorMessage: 'Process exited with code 1\n\nsession id expired',
         executionTimeMs: 500,
-      });
-      expect(isSessionResumeFailure(result, SESSION_ID)).toBe(true);
-    });
-
-    test('"session id invalid" → true', () => {
-      const result = makeResult({
+      },
+      {
+        desc: '"session id invalid" → true',
         errorMessage: 'Process exited with code 1\n\nsession id invalid',
         executionTimeMs: 500,
-      });
-      expect(isSessionResumeFailure(result, SESSION_ID)).toBe(true);
-    });
-
-    test('"session id does not exist" → true', () => {
-      const result = makeResult({
+      },
+      {
+        desc: '"session id does not exist" → true',
         errorMessage: 'session id does not exist',
         executionTimeMs: 1000,
-      });
+      },
+    ])('$desc', ({ errorMessage, executionTimeMs }) => {
+      const result = makeResult({ errorMessage, executionTimeMs });
       expect(isSessionResumeFailure(result, SESSION_ID)).toBe(true);
     });
 

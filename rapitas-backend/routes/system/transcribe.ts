@@ -23,10 +23,7 @@ import {
   isDaemonReady,
   ensureDaemon,
 } from '../../services/transcription/whisper-daemon-service';
-import {
-  parseVoiceCommand,
-  type VoiceCommand,
-} from '../../services/transcription/voice-command-parser';
+import { parseVoiceCommand } from '../../services/transcription/voice-command-parser';
 
 const log = createLogger('routes:transcribe');
 
@@ -189,7 +186,7 @@ export const transcribeRouter = new Elysia({ prefix: '/transcribe' })
         success: true,
         message: 'Daemon warming up. First transcription will be fast once ready.',
       };
-    } catch (error) {
+    } catch {
       set.status = 500;
       return { error: 'Failed to start daemon' };
     }

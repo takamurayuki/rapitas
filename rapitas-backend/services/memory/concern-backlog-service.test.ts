@@ -88,16 +88,12 @@ describe('normalizeConcernType', () => {
       expect(normalizeConcernType(t)).toBe(t),
   );
 
-  it('defaults unknown string to "bug"', () => {
-    expect(normalizeConcernType('unknown')).toBe('bug');
-  });
-
-  it('defaults undefined to "bug"', () => {
-    expect(normalizeConcernType(undefined)).toBe('bug');
-  });
-
-  it('defaults null to "bug"', () => {
-    expect(normalizeConcernType(null)).toBe('bug');
+  it.each([
+    { name: 'unknown string to "bug"', input: 'unknown' },
+    { name: 'undefined to "bug"', input: undefined },
+    { name: 'null to "bug"', input: null },
+  ])('defaults $name', ({ input }) => {
+    expect(normalizeConcernType(input)).toBe('bug');
   });
 });
 

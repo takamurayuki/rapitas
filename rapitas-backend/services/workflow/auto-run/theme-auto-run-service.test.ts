@@ -73,28 +73,40 @@ function resetMocks() {
 describe('isThemeAutoRunActive', () => {
   beforeEach(resetMocks);
 
-  it('returns false for null themeId', async () => {
-    expect(await isThemeAutoRunActive(null)).toBe(false);
-  });
-
-  it('returns true when status is running', async () => {
-    mockFindUnique.mockResolvedValue({ status: 'running' });
-    expect(await isThemeAutoRunActive(42)).toBe(true);
-  });
-
-  it('returns true when status is paused', async () => {
-    mockFindUnique.mockResolvedValue({ status: 'paused' });
-    expect(await isThemeAutoRunActive(42)).toBe(true);
-  });
-
-  it('returns false when status is idle', async () => {
-    mockFindUnique.mockResolvedValue({ status: 'idle' });
-    expect(await isThemeAutoRunActive(42)).toBe(false);
-  });
-
-  it('returns false when record does not exist', async () => {
-    mockFindUnique.mockResolvedValue(null);
-    expect(await isThemeAutoRunActive(42)).toBe(false);
+  it.each([
+    {
+      desc: 'returns false for null themeId',
+      themeId: null as number | null,
+      mockValue: undefined as Record<string, unknown> | null | undefined,
+      expected: false,
+    },
+    {
+      desc: 'returns true when status is running',
+      themeId: 42,
+      mockValue: { status: 'running' },
+      expected: true,
+    },
+    {
+      desc: 'returns true when status is paused',
+      themeId: 42,
+      mockValue: { status: 'paused' },
+      expected: true,
+    },
+    {
+      desc: 'returns false when status is idle',
+      themeId: 42,
+      mockValue: { status: 'idle' },
+      expected: false,
+    },
+    {
+      desc: 'returns false when record does not exist',
+      themeId: 42,
+      mockValue: null,
+      expected: false,
+    },
+  ])('$desc', async ({ themeId, mockValue, expected }) => {
+    if (mockValue !== undefined) mockFindUnique.mockResolvedValue(mockValue);
+    expect(await isThemeAutoRunActive(themeId)).toBe(expected);
   });
 });
 

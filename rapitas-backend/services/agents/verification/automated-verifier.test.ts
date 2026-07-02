@@ -50,95 +50,102 @@ describe('parseTscErrorFiles', () => {
 });
 
 describe('renderVerificationMarkdown', () => {
-  it('renders pass/fail and embeds details only for failing checks', () => {
-    const result: VerificationResult = {
-      ok: false,
-      changedFiles: ['src/a.ts', 'src/b.ts'],
-      checks: [
-        { name: 'lint', ran: true, ok: false, errorCount: 2, details: 'eslint: 2 errors' },
-        { name: 'typecheck', ran: true, ok: true, errorCount: 0, details: 'tsc ok' },
+  it.each([
+    {
+      name: 'renders pass/fail and embeds details only for failing checks',
+      result: {
+        ok: false,
+        changedFiles: ['src/a.ts', 'src/b.ts'],
+        checks: [
+          { name: 'lint', ran: true, ok: false, errorCount: 2, details: 'eslint: 2 errors' },
+          { name: 'typecheck', ran: true, ok: true, errorCount: 0, details: 'tsc ok' },
+        ],
+        summary: '自動検証: lint=NG(2) / typecheck=ok',
+      } as VerificationResult,
+      expectedContains: [
+        '❌ 失敗',
+        'lint: ❌ 2件',
+        'eslint: 2 errors',
+        'typecheck: ✅ OK',
+        '対象変更ファイル: 2件',
       ],
-      summary: '自動検証: lint=NG(2) / typecheck=ok',
-    };
-    const md = renderVerificationMarkdown(result);
-    expect(md).toContain('❌ 失敗');
-    expect(md).toContain('lint: ❌ 2件');
-    expect(md).toContain('eslint: 2 errors');
-    expect(md).toContain('typecheck: ✅ OK');
-    expect(md).toContain('対象変更ファイル: 2件');
-  });
-
-  it('renders a failing test check (Phase ① dynamic gate)', () => {
-    const result: VerificationResult = {
-      ok: false,
-      changedFiles: ['src/a.ts'],
-      checks: [
-        { name: 'lint', ran: true, ok: true, errorCount: 0, details: 'eslint: 0 errors' },
-        { name: 'typecheck', ran: true, ok: true, errorCount: 0, details: 'tsc ok' },
-        {
-          name: 'test',
-          ran: true,
-          ok: false,
-          errorCount: 1,
-          details: 'npm run test failed:\n1 failing',
-        },
+    },
+    {
+      name: 'renders a failing test check (Phase ① dynamic gate)',
+      result: {
+        ok: false,
+        changedFiles: ['src/a.ts'],
+        checks: [
+          { name: 'lint', ran: true, ok: true, errorCount: 0, details: 'eslint: 0 errors' },
+          { name: 'typecheck', ran: true, ok: true, errorCount: 0, details: 'tsc ok' },
+          {
+            name: 'test',
+            ran: true,
+            ok: false,
+            errorCount: 1,
+            details: 'npm run test failed:\n1 failing',
+          },
+        ],
+        summary: '自動検証: lint=ok / typecheck=ok / test=NG(1)',
+      } as VerificationResult,
+      expectedContains: ['test: ❌ 1件', 'npm run test failed'],
+    },
+    {
+      name: 'renders an unverifiable result as fail-closed and shows its details',
+      result: {
+        ok: false,
+        unverifiable: true,
+        changedFiles: ['src/a.ts'],
+        checks: [
+          { name: 'lint', ran: false, ok: true, errorCount: 0, details: 'lint: not applicable' },
+          {
+            name: 'typecheck',
+            ran: false,
+            ok: false,
+            errorCount: 0,
+            details: 'tsconfig.json is present but the tsc binary could not be resolved.',
+            unverifiable: true,
+          },
+        ],
+        summary: '自動検証: lint=skip / typecheck=UNVERIFIED',
+      } as VerificationResult,
+      // details surfaced even though the check did not "run"
+      expectedContains: [
+        '⚠️ 未検証（ツールを実行できず fail-closed）',
+        'typecheck: ⚠️ 未検証（ツール実行不可）',
+        'could not be resolved',
       ],
-      summary: '自動検証: lint=ok / typecheck=ok / test=NG(1)',
-    };
-    const md = renderVerificationMarkdown(result);
-    expect(md).toContain('test: ❌ 1件');
-    expect(md).toContain('npm run test failed');
-  });
-
-  it('renders an unverifiable result as fail-closed and shows its details', () => {
-    const result: VerificationResult = {
-      ok: false,
-      unverifiable: true,
-      changedFiles: ['src/a.ts'],
-      checks: [
-        { name: 'lint', ran: false, ok: true, errorCount: 0, details: 'lint: not applicable' },
-        {
-          name: 'typecheck',
-          ran: false,
-          ok: false,
-          errorCount: 0,
-          details: 'tsconfig.json is present but the tsc binary could not be resolved.',
-          unverifiable: true,
-        },
+    },
+    {
+      name: 'renders pre-existing failures as a separate section when present',
+      result: {
+        ok: true,
+        changedFiles: ['src/a.ts'],
+        checks: [
+          {
+            name: 'test',
+            ran: true,
+            ok: true,
+            errorCount: 0,
+            details: '1 test command(s): passed (2 pre-existing failure(s) excluded)',
+            preExistingFailures: [
+              'tests/services/idea-box-service.test.ts',
+              'tests/services/other.test.ts',
+            ],
+          },
+        ],
+        summary: '自動検証: test=ok',
+      } as VerificationResult,
+      expectedContains: [
+        '✅ 合格',
+        '既存失敗（本変更とは無関係）',
+        'idea-box-service.test.ts',
+        '懸念バックログに起票済み',
       ],
-      summary: '自動検証: lint=skip / typecheck=UNVERIFIED',
-    };
+    },
+  ])('$name', ({ result, expectedContains }) => {
     const md = renderVerificationMarkdown(result);
-    expect(md).toContain('⚠️ 未検証（ツールを実行できず fail-closed）');
-    expect(md).toContain('typecheck: ⚠️ 未検証（ツール実行不可）');
-    // details surfaced even though the check did not "run"
-    expect(md).toContain('could not be resolved');
-  });
-
-  it('renders pre-existing failures as a separate section when present', () => {
-    const result: VerificationResult = {
-      ok: true,
-      changedFiles: ['src/a.ts'],
-      checks: [
-        {
-          name: 'test',
-          ran: true,
-          ok: true,
-          errorCount: 0,
-          details: '1 test command(s): passed (2 pre-existing failure(s) excluded)',
-          preExistingFailures: [
-            'tests/services/idea-box-service.test.ts',
-            'tests/services/other.test.ts',
-          ],
-        },
-      ],
-      summary: '自動検証: test=ok',
-    };
-    const md = renderVerificationMarkdown(result);
-    expect(md).toContain('✅ 合格');
-    expect(md).toContain('既存失敗（本変更とは無関係）');
-    expect(md).toContain('idea-box-service.test.ts');
-    expect(md).toContain('懸念バックログに起票済み');
+    for (const s of expectedContains) expect(md).toContain(s);
   });
 
   it('does not render pre-existing section when none detected', () => {

@@ -128,7 +128,6 @@ export const dailyScheduleRoutes = new Elysia({ prefix: '/daily-schedule' })
           sortOrder?: number;
         }>;
       };
-      const { blocks } = body;
       // Delete all existing blocks and create new ones in a transaction
       await prisma.$transaction([
         prisma.dailyScheduleBlock.deleteMany(),

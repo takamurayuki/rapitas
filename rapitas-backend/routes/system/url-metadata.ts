@@ -12,7 +12,6 @@ export const urlMetadataRoutes = new Elysia().post(
 
     try {
       const parsedUrl = new URL(url);
-      const origin = parsedUrl.origin;
 
       // Fetch the page HTML to extract title
       const controller = new AbortController();

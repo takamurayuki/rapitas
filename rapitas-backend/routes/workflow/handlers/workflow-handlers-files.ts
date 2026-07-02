@@ -109,7 +109,7 @@ async function markLatestExecutionFailed(taskId: number, message: string): Promi
  */
 export async function handleGetFiles({
   params,
-  set,
+  set: _set,
 }: {
   params: { taskId: string };
   set: { status: number };

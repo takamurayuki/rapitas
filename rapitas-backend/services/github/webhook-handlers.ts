@@ -7,12 +7,10 @@
  */
 
 import { PrismaClient } from '@prisma/client';
-import { createLogger } from '../../config/logger';
 import { realtimeService } from '../communication/realtime-service';
 import { makeOwnerRepoString } from './owner-repo';
 import type { GitHubWebhookPayload } from './types';
 
-const log = createLogger('github-service:webhook-handlers');
 type PrismaClientInstance = InstanceType<typeof PrismaClient>;
 
 /**

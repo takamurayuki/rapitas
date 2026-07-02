@@ -402,68 +402,40 @@ describe('classifyGitError', () => {
     expect(classifyGitError('unable to access: 403 Forbidden')).toBe('auth');
   });
 
-  it('not_found: not a git repository', () => {
-    expect(classifyGitError('fatal: not a git repository')).toBe('not_found');
+  it.each([
+    { name: 'not a git repository', input: 'fatal: not a git repository' },
+    {
+      name: 'pathspec did not match',
+      input: "pathspec 'foo' did not match any file(s) known to git",
+    },
+    {
+      name: 'unknown revision',
+      input: 'fatal: unknown revision or path not in the working tree',
+    },
+    { name: "couldn't find remote ref", input: "fatal: couldn't find remote ref main" },
+    { name: 'repository not found', input: 'ERROR: Repository not found.' },
+    { name: '404', input: 'The requested URL returned error: 404' },
+  ])('not_found: $name', ({ input }) => {
+    expect(classifyGitError(input)).toBe('not_found');
   });
 
-  it('not_found: pathspec did not match', () => {
-    expect(classifyGitError("pathspec 'foo' did not match any file(s) known to git")).toBe(
-      'not_found',
-    );
-  });
-
-  it('not_found: unknown revision', () => {
-    expect(classifyGitError('fatal: unknown revision or path not in the working tree')).toBe(
-      'not_found',
-    );
-  });
-
-  it("not_found: couldn't find remote ref", () => {
-    expect(classifyGitError("fatal: couldn't find remote ref main")).toBe('not_found');
-  });
-
-  it('not_found: repository not found', () => {
-    expect(classifyGitError('ERROR: Repository not found.')).toBe('not_found');
-  });
-
-  it('not_found: 404', () => {
-    expect(classifyGitError('The requested URL returned error: 404')).toBe('not_found');
-  });
-
-  it('transient: Could not resolve host', () => {
-    expect(classifyGitError('Could not resolve host: github.com')).toBe('transient');
-  });
-
-  it('transient: Connection timed out', () => {
-    expect(classifyGitError('Connection timed out')).toBe('transient');
-  });
-
-  it('transient: ETIMEDOUT', () => {
-    expect(classifyGitError('connect ETIMEDOUT 140.82.121.4:443')).toBe('transient');
-  });
-
-  it('transient: ECONNRESET', () => {
-    expect(classifyGitError('ECONNRESET socket hang up')).toBe('transient');
-  });
-
-  it('transient: early EOF', () => {
-    expect(classifyGitError('error: RPC failed; curl 56 OpenSSL SSL_read: early EOF')).toBe(
-      'transient',
-    );
-  });
-
-  it('transient: the remote end hung up', () => {
-    expect(classifyGitError('the remote end hung up unexpectedly')).toBe('transient');
-  });
-
-  it('transient: 502', () => {
-    expect(classifyGitError('The requested URL returned error: 502')).toBe('transient');
-  });
-
-  it('transient: 503', () => {
-    expect(classifyGitError('fatal: repository https://github.com/ not found (503)')).toBe(
-      'transient',
-    );
+  it.each([
+    { name: 'Could not resolve host', input: 'Could not resolve host: github.com' },
+    { name: 'Connection timed out', input: 'Connection timed out' },
+    { name: 'ETIMEDOUT', input: 'connect ETIMEDOUT 140.82.121.4:443' },
+    { name: 'ECONNRESET', input: 'ECONNRESET socket hang up' },
+    {
+      name: 'early EOF',
+      input: 'error: RPC failed; curl 56 OpenSSL SSL_read: early EOF',
+    },
+    { name: 'the remote end hung up', input: 'the remote end hung up unexpectedly' },
+    { name: '502', input: 'The requested URL returned error: 502' },
+    {
+      name: '503',
+      input: 'fatal: repository https://github.com/ not found (503)',
+    },
+  ])('transient: $name', ({ input }) => {
+    expect(classifyGitError(input)).toBe('transient');
   });
 
   it('unrecoverable: unknown message', () => {

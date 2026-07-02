@@ -129,25 +129,6 @@ export async function getFileTemporalHistory(
   limit: number = 20,
 ): Promise<FileTemporalHistory> {
   try {
-    // Find commits that touched this file
-    const commits = await prisma.gitCommit.findMany({
-      where: {
-        OR: [{ message: { contains: filePath } }, { commitHash: { not: undefined } }],
-      },
-      include: {
-        execution: {
-          include: {
-            session: {
-              include: { config: { include: { task: { select: { id: true, title: true } } } } },
-            },
-            agentConfig: { select: { modelId: true } },
-          },
-        },
-      },
-      orderBy: { createdAt: 'desc' },
-      take: limit,
-    });
-
     // Also search timeline events for this file
     const events = await prisma.timelineEvent.findMany({
       where: {

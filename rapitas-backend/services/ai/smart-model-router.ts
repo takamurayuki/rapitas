@@ -19,7 +19,7 @@ import {
   type Provider,
 } from './model-discovery';
 import { classifyTier, inferCostPer1k } from './model-discovery/tier-classifier';
-import { isProviderInCooldown, listActiveCooldowns } from './provider-cooldown';
+import { listActiveCooldowns } from './provider-cooldown';
 
 const log = createLogger('smart-model-router');
 

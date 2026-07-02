@@ -96,7 +96,7 @@ function evaluateContent(phase: CriticPhase, content: string, context?: string):
 
 /**
  */
-function generateFeedback(phase: CriticPhase, score: CriticScore, content: string): string {
+function generateFeedback(phase: CriticPhase, score: CriticScore, _content: string): string {
   const parts: string[] = [];
 
   if (score.accuracy >= 0.8) {

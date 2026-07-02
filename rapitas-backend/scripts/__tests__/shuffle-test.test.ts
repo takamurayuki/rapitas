@@ -136,15 +136,11 @@ describe('parseSeed', () => {
     expect(parseSeed('0')).toBe(0);
   });
 
-  test('falls back to default for a non-numeric string', () => {
-    expect(parseSeed('not-a-number')).toBe(parseSeed(undefined));
-  });
-
-  test('falls back to default for "NaN"', () => {
-    expect(parseSeed('NaN')).toBe(parseSeed(undefined));
-  });
-
-  test('falls back to default for "Infinity"', () => {
-    expect(parseSeed('Infinity')).toBe(parseSeed(undefined));
+  test.each([
+    { label: 'a non-numeric string', input: 'not-a-number' },
+    { label: '"NaN"', input: 'NaN' },
+    { label: '"Infinity"', input: 'Infinity' },
+  ])('falls back to default for $label', ({ input }) => {
+    expect(parseSeed(input)).toBe(parseSeed(undefined));
   });
 });

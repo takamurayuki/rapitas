@@ -118,6 +118,7 @@ import { Elysia } from 'elysia';
 const app = new Elysia().use(approvalsRoutes);
 
 describe('Approvals Routes', () => {
+  // eslint-disable-next-line local/prefer-test-each-for-similar -- distinct endpoints/assertion shapes (array vs single body vs null-text) and the last case overrides the mock via mockImplementationOnce; not parallel cases
   test('GET /approvals/ - 承認リスト取得', async () => {
     const res = await app.handle(new Request('http://localhost/approvals/'));
     expect(res.status).toBe(200);

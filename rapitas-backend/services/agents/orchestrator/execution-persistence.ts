@@ -7,9 +7,6 @@ import type { QuestionKey } from '../question-detection';
 import type { ExecutionFileLogger } from '../execution-file-logger';
 import type { ExecutionState, OrchestratorEvent, PrismaClientInstance } from './types';
 import { toJsonString } from './execution-helpers-types';
-import { createLogger } from '../../../config/logger';
-
-const logger = createLogger('execution-persistence');
 
 /**
  * Coerce a possibly-stringified numeric value to a finite number.

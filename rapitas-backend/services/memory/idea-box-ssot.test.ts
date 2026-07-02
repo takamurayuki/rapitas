@@ -23,16 +23,12 @@ describe('normalizeIdeaPriority', () => {
     },
   );
 
-  test('defaults unknown string to "medium"', () => {
-    expect(normalizeIdeaPriority('critical')).toBe('medium');
-  });
-
-  test('defaults undefined to "medium"', () => {
-    expect(normalizeIdeaPriority(undefined)).toBe('medium');
-  });
-
-  test('defaults null to "medium"', () => {
-    expect(normalizeIdeaPriority(null)).toBe('medium');
+  test.each([
+    { name: 'unknown string to "medium"', input: 'critical' },
+    { name: 'undefined to "medium"', input: undefined },
+    { name: 'null to "medium"', input: null },
+  ])('defaults $name', ({ input }) => {
+    expect(normalizeIdeaPriority(input)).toBe('medium');
   });
 });
 

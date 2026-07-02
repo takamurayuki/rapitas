@@ -21,37 +21,21 @@ function makeResult(exitCode: number, file = 'some.test.ts'): TestResult {
 }
 
 describe('parseRetryCount', () => {
-  test('returns 0 for undefined', () => {
-    expect(parseRetryCount(undefined)).toBe(0);
-  });
-
-  test('returns 0 for empty string', () => {
-    expect(parseRetryCount('')).toBe(0);
-  });
-
-  test('returns 0 for "0"', () => {
-    expect(parseRetryCount('0')).toBe(0);
-  });
-
-  test('returns positive integer for valid value', () => {
-    expect(parseRetryCount('1')).toBe(1);
-    expect(parseRetryCount('3')).toBe(3);
-    expect(parseRetryCount('10')).toBe(10);
-  });
-
-  test('returns 0 for negative value', () => {
-    expect(parseRetryCount('-1')).toBe(0);
-    expect(parseRetryCount('-99')).toBe(0);
-  });
-
-  test('returns 0 for non-numeric string', () => {
-    expect(parseRetryCount('abc')).toBe(0);
-    expect(parseRetryCount('NaN')).toBe(0);
-  });
-
-  test('returns 0 for "Infinity"', () => {
+  test.each([
+    { label: 'returns 0 for undefined', input: undefined, expected: 0 },
+    { label: 'returns 0 for empty string', input: '', expected: 0 },
+    { label: 'returns 0 for "0"', input: '0', expected: 0 },
+    { label: 'returns positive integer for valid value: "1"', input: '1', expected: 1 },
+    { label: 'returns positive integer for valid value: "3"', input: '3', expected: 3 },
+    { label: 'returns positive integer for valid value: "10"', input: '10', expected: 10 },
+    { label: 'returns 0 for negative value: "-1"', input: '-1', expected: 0 },
+    { label: 'returns 0 for negative value: "-99"', input: '-99', expected: 0 },
+    { label: 'returns 0 for non-numeric string: "abc"', input: 'abc', expected: 0 },
+    { label: 'returns 0 for non-numeric string: "NaN"', input: 'NaN', expected: 0 },
     // parseInt('Infinity', 10) = NaN → falls back to 0
-    expect(parseRetryCount('Infinity')).toBe(0);
+    { label: 'returns 0 for "Infinity"', input: 'Infinity', expected: 0 },
+  ])('$label', ({ input, expected }) => {
+    expect(parseRetryCount(input)).toBe(expected);
   });
 });
 
@@ -72,23 +56,16 @@ describe('resolveConcurrency', () => {
     expect(resolveConcurrency('16', 4)).toBe(16);
   });
 
-  test('clamps to 1 for zero env value', () => {
-    expect(resolveConcurrency('0', 8)).toBe(1);
-  });
-
-  test('clamps to 1 for negative env value', () => {
-    expect(resolveConcurrency('-3', 8)).toBe(1);
-    expect(resolveConcurrency('-1', 4)).toBe(1);
-  });
-
-  test('clamps to 1 for non-numeric env value', () => {
-    expect(resolveConcurrency('abc', 8)).toBe(1);
-    expect(resolveConcurrency('NaN', 8)).toBe(1);
-  });
-
-  test('clamps to 1 for "Infinity" env value', () => {
-    // NOTE: parseInt('Infinity', 10) → NaN, so it falls back to 1.
-    expect(resolveConcurrency('Infinity', 8)).toBe(1);
+  test.each([
+    { label: 'clamps to 1 for zero env value', env: '0', cpuCount: 8 },
+    { label: 'clamps to 1 for negative env value: "-3"', env: '-3', cpuCount: 8 },
+    { label: 'clamps to 1 for negative env value: "-1"', env: '-1', cpuCount: 4 },
+    { label: 'clamps to 1 for non-numeric env value: "abc"', env: 'abc', cpuCount: 8 },
+    { label: 'clamps to 1 for non-numeric env value: "NaN"', env: 'NaN', cpuCount: 8 },
+    // parseInt('Infinity', 10) → NaN, so it falls back to 1.
+    { label: 'clamps to 1 for "Infinity" env value', env: 'Infinity', cpuCount: 8 },
+  ])('$label', ({ env, cpuCount }) => {
+    expect(resolveConcurrency(env, cpuCount)).toBe(1);
   });
 
   test('ensures minimum of 1 when cpuCount is 0 or 1', () => {
@@ -98,21 +75,17 @@ describe('resolveConcurrency', () => {
 });
 
 describe('aggregateExitCode', () => {
-  test('returns 0 for empty results array', () => {
-    expect(aggregateExitCode([])).toBe(0);
-  });
-
-  test('returns 0 when all tests pass', () => {
-    expect(aggregateExitCode([makeResult(0), makeResult(0), makeResult(0)])).toBe(0);
-  });
-
-  test('returns first non-zero exit code encountered', () => {
-    const results = [makeResult(0), makeResult(1), makeResult(2)];
-    expect(aggregateExitCode(results)).toBe(1);
-  });
-
-  test('returns the leading non-zero code when it is not 1', () => {
-    expect(aggregateExitCode([makeResult(2), makeResult(1)])).toBe(2);
+  test.each([
+    { label: 'returns 0 for empty results array', exitCodes: [], expected: 0 },
+    { label: 'returns 0 when all tests pass', exitCodes: [0, 0, 0], expected: 0 },
+    { label: 'returns first non-zero exit code encountered', exitCodes: [0, 1, 2], expected: 1 },
+    {
+      label: 'returns the leading non-zero code when it is not 1',
+      exitCodes: [2, 1],
+      expected: 2,
+    },
+  ])('$label', ({ exitCodes, expected }) => {
+    expect(aggregateExitCode(exitCodes.map((code) => makeResult(code)))).toBe(expected);
   });
 
   test('normalises negative exit code to 1', () => {

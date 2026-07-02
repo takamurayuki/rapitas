@@ -208,6 +208,7 @@ describe('Idea Extractor — structured logging', () => {
     );
   });
 
+  // eslint-disable-next-line local/prefer-test-each-for-similar -- each case asserts different fields/log channel (info vs warn) and the failure case has a distinct mock setup (mockRejectedValue); not parallel cases
   test('enrichIdea 成功時に durationMs と ideaId を log.info で出力する', async () => {
     await enrichIdea(42, 'タイトル', 'コンテンツ');
 

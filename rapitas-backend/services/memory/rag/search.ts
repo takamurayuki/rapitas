@@ -3,13 +3,10 @@
  *
  * Generates embeddings, searches by cosine similarity, and filters by forgettingStage.
  */
-import { createLogger } from '../../../config/logger';
 import { prisma } from '../../../config/database';
 import { generateEmbedding } from './embedding';
 import { searchSimilar } from './vector-index';
 import type { VectorSearchResult, KnowledgeSearchOptions } from '../types';
-
-const log = createLogger('memory:rag:search');
 
 /**
  * Vector similarity search from a text query.

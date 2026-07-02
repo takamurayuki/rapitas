@@ -13,7 +13,6 @@ import { buildRoleContext, applyPlanModeDirective } from './workflow-context-bui
 import {
   executeCLIAgent,
   executeAPIAgent,
-  type RoleTransition,
   type WorkflowAdvanceResult,
 } from './workflow-agent-executor';
 import {
@@ -26,7 +25,7 @@ import { isReusableArtifact } from './phase-output-validator';
 import { recordTransition } from './transition-recorder';
 import { isShutdownError } from '../agents/orchestrator/shutdown-error';
 import { narrowWorkflowStatus, narrowWorkflowMode } from './workflow-types.guards.generated';
-import type { WorkflowRole, WorkflowStatus, WorkflowMode } from './workflow-types';
+import type { WorkflowRole, WorkflowStatus } from './workflow-types';
 import { TASK_NOT_FOUND } from '../../utils/common/error-messages';
 
 // Re-export sub-module helpers so existing imports from this path keep working.

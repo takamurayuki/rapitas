@@ -193,7 +193,7 @@ export const agentConfigRouter = new Elysia()
       throw new NotFoundError('No default agent is currently set');
     }
 
-    const updated = await prisma.aIAgentConfig.update({
+    await prisma.aIAgentConfig.update({
       where: { id: defaultAgent.id },
       data: { isDefault: false },
     });

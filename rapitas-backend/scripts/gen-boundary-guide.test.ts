@@ -126,70 +126,70 @@ describe('renderValue', () => {
 // generateGuideContent
 // ---------------------------------------------------------------------------
 describe('generateGuideContent', () => {
-  test('includes the auto-generated header', () => {
-    const content = generateGuideContent(MINIMAL_INPUT);
-    expect(content).toContain('自動生成ファイル');
-    expect(content).toContain('gen-boundary-guide');
-  });
-
-  test('includes all section headings', () => {
-    const content = generateGuideContent(MINIMAL_INPUT);
-    const headings = [
-      '### `STRING_EDGES`',
-      '### `ID_EDGES`',
-      '### `NUMERIC_ID_BOUNDARIES`',
-      '### `BOUNDARY_STRINGS`',
-      '### `TIME_BOUNDARIES`',
-      '### `NULLABLE_ID_EDGES`',
-      '### `INVALID_ID_EDGES`',
-      '### `NONEXISTENT_ID`',
-      '### `DATE_EDGES`',
-      '### `ENUM_INVALID_EDGES`',
-      '### `FLOAT_EDGES`',
-      '### `PG_INT_BOUNDARIES`',
-    ];
-    for (const h of headings) {
-      expect(content).toContain(h);
+  test.each([
+    {
+      label: 'includes the auto-generated header',
+      input: MINIMAL_INPUT,
+      expected: ['自動生成ファイル', 'gen-boundary-guide'],
+    },
+    {
+      label: 'includes all section headings',
+      input: MINIMAL_INPUT,
+      expected: [
+        '### `STRING_EDGES`',
+        '### `ID_EDGES`',
+        '### `NUMERIC_ID_BOUNDARIES`',
+        '### `BOUNDARY_STRINGS`',
+        '### `TIME_BOUNDARIES`',
+        '### `NULLABLE_ID_EDGES`',
+        '### `INVALID_ID_EDGES`',
+        '### `NONEXISTENT_ID`',
+        '### `DATE_EDGES`',
+        '### `ENUM_INVALID_EDGES`',
+        '### `FLOAT_EDGES`',
+        '### `PG_INT_BOUNDARIES`',
+      ],
+    },
+    {
+      label: 'renders SSOT path in header',
+      input: MINIMAL_INPUT,
+      expected: [SSOT_RELATIVE],
+    },
+    {
+      label: 'renders NONEXISTENT_ID value',
+      input: MINIMAL_INPUT,
+      expected: ['`999`'],
+    },
+    {
+      label: 'renders null value for NULLABLE_ID_EDGES',
+      input: MINIMAL_INPUT,
+      expected: ['`null`'],
+    },
+    {
+      label: 'renders case labels in table rows',
+      input: MINIMAL_INPUT,
+      expected: ['| 空文字列 |', '| id=0 |'],
+    },
+    {
+      label: 'renders notes when present',
+      input: MINIMAL_INPUT,
+      expected: ['mock null 前提'],
+    },
+    {
+      label: 'renders empty note cell when note is absent',
+      input: { ...MINIMAL_INPUT, ID_EDGES: [{ label: 'id=0', value: 0 }] },
+      expected: ['| id=0 | `0` |  |'],
+    },
+    {
+      label: 'includes toNameTuples documentation',
+      input: MINIMAL_INPUT,
+      expected: ['toNameTuples'],
+    },
+  ])('$label', ({ input, expected }) => {
+    const content = generateGuideContent(input);
+    for (const substring of expected) {
+      expect(content).toContain(substring);
     }
-  });
-
-  test('renders SSOT path in header', () => {
-    const content = generateGuideContent(MINIMAL_INPUT);
-    expect(content).toContain(SSOT_RELATIVE);
-  });
-
-  test('renders NONEXISTENT_ID value', () => {
-    const content = generateGuideContent(MINIMAL_INPUT);
-    expect(content).toContain('`999`');
-  });
-
-  test('renders null value for NULLABLE_ID_EDGES', () => {
-    const content = generateGuideContent(MINIMAL_INPUT);
-    expect(content).toContain('`null`');
-  });
-
-  test('renders case labels in table rows', () => {
-    const content = generateGuideContent(MINIMAL_INPUT);
-    expect(content).toContain('| 空文字列 |');
-    expect(content).toContain('| id=0 |');
-  });
-
-  test('renders notes when present', () => {
-    const content = generateGuideContent(MINIMAL_INPUT);
-    expect(content).toContain('mock null 前提');
-  });
-
-  test('renders empty note cell when note is absent', () => {
-    const content = generateGuideContent({
-      ...MINIMAL_INPUT,
-      ID_EDGES: [{ label: 'id=0', value: 0 }],
-    });
-    expect(content).toContain('| id=0 | `0` |  |');
-  });
-
-  test('includes toNameTuples documentation', () => {
-    const content = generateGuideContent(MINIMAL_INPUT);
-    expect(content).toContain('toNameTuples');
   });
 
   test.each([

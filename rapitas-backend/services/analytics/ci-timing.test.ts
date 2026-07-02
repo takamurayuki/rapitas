@@ -225,6 +225,7 @@ describe('readTimingCacheOrEmpty', () => {
     }
   });
 
+  // eslint-disable-next-line local/prefer-test-each-for-similar -- each case has a distinct fixture setup (no file / corrupt JSON / valid JSON) and checks different result fields; not a plain input/output table.
   test('returns available:false when cache file does not exist', () => {
     const result = readTimingCacheOrEmpty();
     expect(result.available).toBe(false);

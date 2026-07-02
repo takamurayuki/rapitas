@@ -17,43 +17,45 @@ describe('detectExecutionFailures', () => {
     expect(detectExecutionFailures(undefined)).toEqual([]);
   });
 
-  test('detects pnpm test lifecycle failure', () => {
-    const output = `> vitest run\n\n ELIFECYCLE  Test failed. See above for more details.`;
-    const signals = detectExecutionFailures(output);
-    expect(signals.length).toBeGreaterThan(0);
-    expect(signals.some((s) => s.pattern === 'pnpm-test-failed')).toBe(true);
-  });
-
-  test('detects vitest startup error / config load failure', () => {
-    const output = `failed to load config from C:\\path\\rapitas-frontend
+  test.each([
+    {
+      label: 'pnpm test lifecycle failure',
+      output: `> vitest run\n\n ELIFECYCLE  Test failed. See above for more details.`,
+      expectedPattern: 'pnpm-test-failed' as string | null,
+    },
+    {
+      label: 'vitest startup error / config load failure',
+      output: `failed to load config from C:\\path\\rapitas-frontend
 ⎯⎯⎯⎯⎯⎯⎯ Startup Error ⎯⎯⎯⎯⎯⎯⎯⎯
-at ensureServiceIsRunning (...)`;
-    const signals = detectExecutionFailures(output);
-    expect(signals.some((s) => s.pattern === 'vitest-config-load-failed')).toBe(true);
-  });
-
-  test('detects EPERM on spawn (Windows AV / fresh install)', () => {
-    const output = `Error: spawn EPERM at ChildProcess.spawn`;
+at ensureServiceIsRunning (...)`,
+      expectedPattern: 'vitest-config-load-failed' as string | null,
+    },
+    {
+      label: 'EPERM on spawn (Windows AV / fresh install)',
+      output: `Error: spawn EPERM at ChildProcess.spawn`,
+      expectedPattern: null as string | null,
+    },
+    {
+      label: '"exited 1 in NNNms" pattern from agent runner',
+      output: `exited 1 in 22070ms`,
+      expectedPattern: 'codex-exit-1' as string | null,
+    },
+    {
+      label: 'codex router error with non-zero exit',
+      output: `2026-04-30T04:24:44.123Z ERROR codex_core::tools::router: error=Exit code: 1`,
+      expectedPattern: 'codex-router-error' as string | null,
+    },
+    {
+      label: 'node_modules missing warning',
+      output: `WARN  Local package.json exists, but node_modules missing, did you mean to install?`,
+      expectedPattern: 'node-modules-missing' as string | null,
+    },
+  ])('detects $label', ({ output, expectedPattern }) => {
     const signals = detectExecutionFailures(output);
     expect(signals.length).toBeGreaterThan(0);
-  });
-
-  test('detects "exited 1 in NNNms" pattern from agent runner', () => {
-    const output = `exited 1 in 22070ms`;
-    const signals = detectExecutionFailures(output);
-    expect(signals.some((s) => s.pattern === 'codex-exit-1')).toBe(true);
-  });
-
-  test('detects codex router error with non-zero exit', () => {
-    const output = `2026-04-30T04:24:44.123Z ERROR codex_core::tools::router: error=Exit code: 1`;
-    const signals = detectExecutionFailures(output);
-    expect(signals.some((s) => s.pattern === 'codex-router-error')).toBe(true);
-  });
-
-  test('detects node_modules missing warning', () => {
-    const output = `WARN  Local package.json exists, but node_modules missing, did you mean to install?`;
-    const signals = detectExecutionFailures(output);
-    expect(signals.some((s) => s.pattern === 'node-modules-missing')).toBe(true);
+    if (expectedPattern) {
+      expect(signals.some((s) => s.pattern === expectedPattern)).toBe(true);
+    }
   });
 
   test('does NOT match plain prose mentioning "error" / "test failed"', () => {

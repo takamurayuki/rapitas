@@ -219,6 +219,7 @@ describe('SSEStreamController', () => {
     expect(controller).toBeDefined();
   });
 
+  // eslint-disable-next-line local/prefer-test-each-for-similar -- each case asserts a different shape (immediate-fail message, retry count, success-after-retry return value, backoff timing) and isn't safely parameterizable
   test('executeWithRetryでリトライ不可エラーは即座に失敗すること', async () => {
     const controller = new SSEStreamController({ maxRetries: 3 });
     controller.createStream();

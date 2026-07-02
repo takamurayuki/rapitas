@@ -117,7 +117,7 @@ export async function getAgentMetrics(dateRange?: DateRange): Promise<AgentMetri
  * @returns Sorted array of daily trend data / 日別トレンドデータの配列
  */
 export async function getExecutionTrends(
-  period: 'day' | 'week' | 'month' = 'day',
+  _period: 'day' | 'week' | 'month' = 'day',
   days: number = 30,
 ): Promise<ExecutionTrendData[]> {
   const startDate = new Date();

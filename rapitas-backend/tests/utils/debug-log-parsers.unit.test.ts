@@ -91,26 +91,30 @@ describe('SyslogParser', () => {
     expect(result!.metadata!.pid).toBe(1234);
   });
 
-  test('severity 0-2をFATALにマッピングすること', () => {
-    // priority=0 → facility=0, severity=0 → FATAL
-    const result = parser.parse('<0>Jan  5 14:30:00 myhost kernel[0]: panic');
-    expect(result!.level).toBe(LogLevel.FATAL);
-  });
-
-  test('severity 3をERRORにマッピングすること', () => {
-    // priority=3 → facility=0, severity=3 → ERROR
-    const result = parser.parse('<3>Jan  5 14:30:00 myhost app[100]: error occurred');
-    expect(result!.level).toBe(LogLevel.ERROR);
-  });
-
-  test('severity 4をWARNにマッピングすること', () => {
-    const result = parser.parse('<4>Jan  5 14:30:00 myhost app[100]: warning');
-    expect(result!.level).toBe(LogLevel.WARN);
-  });
-
-  test('severity 7をDEBUGにマッピングすること', () => {
-    const result = parser.parse('<7>Jan  5 14:30:00 myhost app[100]: debug info');
-    expect(result!.level).toBe(LogLevel.DEBUG);
+  test.each([
+    {
+      label: '0-2をFATALにマッピングすること',
+      line: '<0>Jan  5 14:30:00 myhost kernel[0]: panic', // priority=0 → facility=0, severity=0 → FATAL
+      expected: LogLevel.FATAL,
+    },
+    {
+      label: '3をERRORにマッピングすること',
+      line: '<3>Jan  5 14:30:00 myhost app[100]: error occurred', // priority=3 → facility=0, severity=3 → ERROR
+      expected: LogLevel.ERROR,
+    },
+    {
+      label: '4をWARNにマッピングすること',
+      line: '<4>Jan  5 14:30:00 myhost app[100]: warning',
+      expected: LogLevel.WARN,
+    },
+    {
+      label: '7をDEBUGにマッピングすること',
+      line: '<7>Jan  5 14:30:00 myhost app[100]: debug info',
+      expected: LogLevel.DEBUG,
+    },
+  ])('severity $label', ({ line, expected }) => {
+    const result = parser.parse(line);
+    expect(result!.level).toBe(expected);
   });
 });
 

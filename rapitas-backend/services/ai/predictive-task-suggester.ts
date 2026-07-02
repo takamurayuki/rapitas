@@ -91,8 +91,9 @@ export async function getSuggestedTasks(limit: number = 5): Promise<{
     });
   }
 
-  // 4. Sort by score and return top results
-  scored.sort((a, b) => b.score - a.score);
+  // 4. Sort by score and return top results. Tie-break on taskId so equal
+  // scores can't reorder across the slice boundary between identical runs.
+  scored.sort((a, b) => b.score - a.score || a.taskId - b.taskId);
   const suggestions = scored.slice(0, limit);
 
   const focusLevel: 'high' | 'medium' | 'low' =
@@ -162,7 +163,8 @@ export async function getProductivityHeatmap(days: number = 90): Promise<{
 
   // Peak hours and low hours
   const sortedHours = Object.entries(hourTotals)
-    .sort((a, b) => b[1] - a[1])
+    // Tie-break on hour so equal-total hours have a stable order across runs.
+    .sort((a, b) => b[1] - a[1] || Number(a[0]) - Number(b[0]))
     .map(([h]) => parseInt(h));
 
   const peakHours = sortedHours.slice(0, 3);
@@ -271,10 +273,18 @@ async function analyzeCurrentPattern(
         if (t.themeId) themeCount[t.themeId] = (themeCount[t.themeId] || 0) + 1;
       }
 
-      preferredPriority = Object.entries(priorityCount).sort((a, b) => b[1] - a[1])[0]?.[0] ?? null;
+      // Tie-break on the key so equal counts resolve to a stable winner.
+      preferredPriority =
+        Object.entries(priorityCount).sort(
+          (a, b) => b[1] - a[1] || a[0].localeCompare(b[0]),
+        )[0]?.[0] ?? null;
       preferredThemeId =
         Object.entries(themeCount).length > 0
-          ? parseInt(Object.entries(themeCount).sort((a, b) => b[1] - a[1])[0][0])
+          ? parseInt(
+              Object.entries(themeCount).sort(
+                (a, b) => b[1] - a[1] || Number(a[0]) - Number(b[0]),
+              )[0][0],
+            )
           : null;
     }
   }

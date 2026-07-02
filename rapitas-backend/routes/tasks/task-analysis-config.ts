@@ -2,7 +2,7 @@
  * Task Analysis Config API Routes
  * Save and retrieve task analysis config
  */
-import { Elysia, t } from 'elysia';
+import { Elysia } from 'elysia';
 import { prisma } from '../../config/database';
 
 export const taskAnalysisConfigRoutes = new Elysia({

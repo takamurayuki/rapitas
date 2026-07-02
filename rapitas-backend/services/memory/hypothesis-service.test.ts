@@ -36,21 +36,14 @@ describe('checkFalsifiable', () => {
 });
 
 describe('isConcreteArtifact', () => {
-  test('accepts file:line', () => {
-    expect(isConcreteArtifact('services/github/git-exec.ts:42')).toBe(true);
-  });
-
-  test('accepts a test name', () => {
-    expect(isConcreteArtifact('worktree-usable.test.ts pass 8/8')).toBe(true);
-  });
-
-  test('accepts a measurement / number', () => {
-    expect(isConcreteArtifact('13.8s -> 2.5s')).toBe(true);
-  });
-
-  test('accepts a #PR / path', () => {
-    expect(isConcreteArtifact('#226')).toBe(true);
-    expect(isConcreteArtifact('routes/memory/')).toBe(true);
+  test.each([
+    { name: 'file:line', input: 'services/github/git-exec.ts:42' },
+    { name: 'a test name', input: 'worktree-usable.test.ts pass 8/8' },
+    { name: 'a measurement / number', input: '13.8s -> 2.5s' },
+    { name: 'a #PR', input: '#226' },
+    { name: 'a path', input: 'routes/memory/' },
+  ])('accepts $name', ({ input }) => {
+    expect(isConcreteArtifact(input)).toBe(true);
   });
 
   test('rejects hand-wavy assertions', () => {

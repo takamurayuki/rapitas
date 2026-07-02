@@ -31,7 +31,7 @@ const log = createLogger('routes:workflow:handlers:plan');
 export async function handleApprovePlan({
   params,
   body,
-  set,
+  set: _set,
 }: {
   params: { taskId: string };
   body: unknown;

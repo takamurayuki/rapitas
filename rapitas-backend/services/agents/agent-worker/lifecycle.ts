@@ -212,7 +212,7 @@ export function startHealthCheck(state: WorkerState): void {
       const status = result as { activeExecutionCount: number };
       state.cachedActiveCount = status.activeExecutionCount;
       consecutiveFailures = 0;
-    } catch (error) {
+    } catch {
       consecutiveFailures++;
       logger.warn(
         { consecutiveFailures, threshold: HEALTH_CHECK_FAILURE_THRESHOLD },

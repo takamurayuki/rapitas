@@ -147,67 +147,55 @@ TypeScript: 1 件のエラー
     expect(validateVerify(failed).ok).toBe(false);
   });
 
-  test('does NOT flag an error-handling verify (✅ success, 失敗テスト数: 0)', () => {
-    // Regression: a bug fix for a FAILURE path (ENOENT/phantom) legitimately
-    // mentions 失敗 and reports the instructed "失敗テスト数: 0". The old regex
-    // matched bare "失敗テスト", wrongly blocking the task (verify_validation_failed).
-    const errorHandlingVerify = `# 検証レポート
+  test.each([
+    {
+      // Regression: a bug fix for a FAILURE path (ENOENT/phantom) legitimately
+      // mentions 失敗 and reports the instructed "失敗テスト数: 0". The old regex
+      // matched bare "失敗テスト", wrongly blocking the task (verify_validation_failed).
+      desc: 'does NOT flag an error-handling verify (✅ success, 失敗テスト数: 0)',
+      content: `# 検証レポート
 ## 検証結果サマリ
 ✅ 検証成功 — phantom path で失敗テストを再現し、cmd.exe を spawn しないことを確認。
 ## テスト結果
 bun test: 4 passed, 失敗テスト数: 0
 ## チェックリスト消化状況
-- [x] existsSync ガード追加`;
-    expect(validateVerify(errorHandlingVerify).ok).toBe(true);
-  });
-
-  test('still flags a real contradiction (✅ success but 10 tests failed)', () => {
-    const contradictory = `# 検証レポート
-## 検証結果サマリ
-✅ 検証成功
-## テスト結果
-bun test: 2 passed, 10 failed
-## チェックリスト消化状況
-- [x] done`;
-    expect(validateVerify(contradictory).ok).toBe(false);
-  });
-
-  test('does NOT flag a passing verify that contains the "❌ の場合" PR-gate legend', () => {
-    // Regression (task 267): a PASSING verify.md routinely includes the PR-gate
-    // legend "全体判定が ❌ の場合のみ PR を作成しないこと。本タスクは ✅ 合格。" — a
-    // CONDITIONAL. The bare /❌/ failure signal matched it and, combined with the
-    // many ✅ pass claims, falsely reported a self-contradiction → verify_repair
-    // ×2 → blocked. A conditional/legend ❌ must NOT count as a failure.
-    const legendPass = `# 実装結果検証レポート
+- [x] existsSync ガード追加`,
+    },
+    {
+      // Regression (task 267): a PASSING verify.md routinely includes the PR-gate
+      // legend "全体判定が ❌ の場合のみ PR を作成しないこと。本タスクは ✅ 合格。" — a
+      // CONDITIONAL. The bare /❌/ failure signal matched it and, combined with the
+      // many ✅ pass claims, falsely reported a self-contradiction → verify_repair
+      // ×2 → blocked. A conditional/legend ❌ must NOT count as a failure.
+      desc: 'does NOT flag a passing verify that contains the "❌ の場合" PR-gate legend',
+      content: `# 実装結果検証レポート
 ## 検証結果サマリ
 | 全体判定 | ✅ 合格 |
 > ⚠️ 全体判定が ❌ の場合のみ PR を作成しないこと。本タスクは ✅ 合格。
 ## テスト結果
 bun test: 53 passed, 0 failed
 ## チェックリスト消化状況
-- [x] done`;
-    expect(validateVerify(legendPass).ok).toBe(true);
-  });
-
-  test('does NOT flag a passing verify quoting the validator summary "(❌)"', () => {
-    // The self-repair feedback appends "...failure signals (❌)..." into verify.md;
-    // that parenthetical reference must not re-trigger the contradiction gate.
-    const quotedPass = `# 実装結果検証レポート
+- [x] done`,
+    },
+    {
+      // The self-repair feedback appends "...failure signals (❌)..." into verify.md;
+      // that parenthetical reference must not re-trigger the contradiction gate.
+      desc: 'does NOT flag a passing verify quoting the validator summary "(❌)"',
+      content: `# 実装結果検証レポート
 ## 検証結果サマリ
 ✅ 合格 — 直前の差し戻し理由: claims all tests pass while body contains failure signals (❌).
 ## テスト結果
 bun test: 10 passed, 0 failed
 ## チェックリスト消化状況
-- [x] done`;
-    expect(validateVerify(quotedPass).ok).toBe(true);
-  });
-
-  test('does NOT flag a passing verify that documents "TSC_EXIT=1" (pre-existing)', () => {
-    // Regression (task 272): an honest verify documents that WHOLE-PROJECT tsc
-    // exits 1 due to 2 PRE-EXISTING out-of-scope errors, written as "TSC_EXIT=1",
-    // while its own scope passes. The bare /exit 1/ signal matched the identifier
-    // and, with the pass claim, falsely reported a self-contradiction → blocked.
-    const tscExitPass = `# 検証レポート
+- [x] done`,
+    },
+    {
+      // Regression (task 272): an honest verify documents that WHOLE-PROJECT tsc
+      // exits 1 due to 2 PRE-EXISTING out-of-scope errors, written as "TSC_EXIT=1",
+      // while its own scope passes. The bare /exit 1/ signal matched the identifier
+      // and, with the pass claim, falsely reported a self-contradiction → blocked.
+      desc: 'does NOT flag a passing verify that documents "TSC_EXIT=1" (pre-existing)',
+      content: `# 検証レポート
 ## 検証結果サマリ
 ✅ 条件付き合格 — スコープ内 DoD 全達成・全テスト通過。
 ## テスト結果
@@ -216,16 +204,15 @@ bun test: 10 passed, 0 failed
 TSC_EXIT=1   # プロジェクト全体tscの既存2エラー(無関係ファイル)
 \`\`\`
 ## チェックリスト消化状況
-- [x] done`;
-    expect(validateVerify(tscExitPass).ok).toBe(true);
-  });
-
-  test('does NOT flag a passing verify that documents guard "exit=1" as evidence', () => {
-    // Regression (CI-gate guard task): an honest verify PROVES the CLI guards
-    // return the right code by documenting `run-gate bogus-id … exit=1` — expected
-    // behaviour, written in key=value form. The old /exit[:=]?1/ matched it and,
-    // with the pass claim, falsely reported a self-contradiction → verify_repair.
-    const guardExitPass = `# 検証レポート
+- [x] done`,
+    },
+    {
+      // Regression (CI-gate guard task): an honest verify PROVES the CLI guards
+      // return the right code by documenting `run-gate bogus-id … exit=1` — expected
+      // behaviour, written in key=value form. The old /exit[:=]?1/ matched it and,
+      // with the pass claim, falsely reported a self-contradiction → verify_repair.
+      desc: 'does NOT flag a passing verify that documents guard "exit=1" as evidence',
+      content: `# 検証レポート
 ## 検証結果サマリ
 ✅ 検証成功（合格） — 48/48 passed
 ## テスト結果
@@ -238,49 +225,63 @@ $ bun scripts/run-gate.ts
 exit=1
 \`\`\`
 ## チェックリスト消化状況
-- [x] done`;
-    expect(validateVerify(guardExitPass).ok).toBe(true);
-  });
-
-  test('does NOT flag a passing verify that documents prose "(exit 1)" behaviour', () => {
-    // Regression (task 376): a CI-gate verify PROVES the gate works by describing
-    // expected exit codes in PROSE — "空マニフェスト(exit 1)" / "exit 1 を返す" — not
-    // a runner failure. The bare /exit 1/ matched these and, with the pass claim,
-    // looped the task in verify_repair → blocked despite 36/36 passing.
-    const proseExit = `# 検証レポート
+- [x] done`,
+    },
+    {
+      // Regression (task 376): a CI-gate verify PROVES the gate works by describing
+      // expected exit codes in PROSE — "空マニフェスト(exit 1)" / "exit 1 を返す" — not
+      // a runner failure. The bare /exit 1/ matched these and, with the pass claim,
+      // looped the task in verify_repair → blocked despite 36/36 passing.
+      desc: 'does NOT flag a passing verify that documents prose "(exit 1)" behaviour',
+      content: `# 検証レポート
 ## 検証結果サマリ
 ✅ 検証成功（合格） — 36/36 passed
 ## テスト結果
 36/36 passed。\`main()\` で --files 解釈・絞り込み。空マニフェスト(exit 1)と絞り込み空で正常終了。
 不正な gate id では exit 1 を返すガードを追加。
 ## チェックリスト消化状況
-- [x] done`;
-    expect(validateVerify(proseExit).ok).toBe(true);
+- [x] done`,
+    },
+  ])('$desc', ({ content }) => {
+    expect(validateVerify(content).ok).toBe(true);
   });
 
-  test('still flags a real "exit 1" command failure on a pass-claiming verify', () => {
-    const realExit = `# 検証レポート
+  test.each([
+    {
+      desc: 'still flags a real contradiction (✅ success but 10 tests failed)',
+      content: `# 検証レポート
+## 検証結果サマリ
+✅ 検証成功
+## テスト結果
+bun test: 2 passed, 10 failed
+## チェックリスト消化状況
+- [x] done`,
+    },
+    {
+      desc: 'still flags a real "exit 1" command failure on a pass-claiming verify',
+      content: `# 検証レポート
 ## 検証結果サマリ
 ✅ 全テスト通過と報告
 ## テスト結果
 bun test → exit 1
 ## チェックリスト消化状況
-- [x] done`;
-    expect(validateVerify(realExit).ok).toBe(false);
-  });
-
-  test('still flags ❌ used as an actual verdict on its own line', () => {
-    // A ❌ verdict that is NOT a conditional/legend and does not assert pass on the
-    // same line must still be caught (defense alongside the numeric signals).
-    const realCross = `# 検証レポート
+- [x] done`,
+    },
+    {
+      // A ❌ verdict that is NOT a conditional/legend and does not assert pass on the
+      // same line must still be caught (defense alongside the numeric signals).
+      desc: 'still flags ❌ used as an actual verdict on its own line',
+      content: `# 検証レポート
 ## 検証結果サマリ
 ✅ 全テスト通過と報告
 ## テスト結果
 | ルートテスト | ❌ |
 追加調査が必要です。
 ## チェックリスト消化状況
-- [x] done`;
-    expect(validateVerify(realCross).ok).toBe(false);
+- [x] done`,
+    },
+  ])('$desc', ({ content }) => {
+    expect(validateVerify(content).ok).toBe(false);
   });
 
   // Regression tests for the auto_verifier WARN: lightweight mode (no plan.md) must still
@@ -314,35 +315,33 @@ bun test: 5 passed, 0 failed
   });
 
   // OR-group synonym tests: any alternative satisfies the 検証結果サマリ requirement
-  test('accepts 検証結果 (L1 heading, no サマリ) as synonym for 検証結果サマリ', () => {
-    const content = `# 検証結果
+  test.each([
+    {
+      name: '検証結果 (L1 heading, no サマリ)',
+      content: `# 検証結果
 ## テスト結果
 bun test: 3 passed
 ## チェックリスト
-- [x] done`;
-    const result = validateVerify(content);
-    expect(result.ok).toBe(true);
-    expect(result.missingSections).toEqual([]);
-  });
-
-  test('accepts 総合評価 heading as synonym for 検証結果サマリ', () => {
-    const content = `## 総合評価
+- [x] done`,
+    },
+    {
+      name: '総合評価',
+      content: `## 総合評価
 合格
 ## テスト結果
 ok
 ## チェックリスト
-- [x]`;
-    const result = validateVerify(content);
-    expect(result.ok).toBe(true);
-    expect(result.missingSections).toEqual([]);
-  });
-
-  test('accepts 実装結果検証レポート heading as synonym for 検証結果サマリ', () => {
-    const content = `# 実装結果検証レポート
+- [x]`,
+    },
+    {
+      name: '実装結果検証レポート',
+      content: `# 実装結果検証レポート
 ## テスト結果
 all pass
 ## チェックリスト
-- [x] all done`;
+- [x] all done`,
+    },
+  ])('accepts $name heading as synonym for 検証結果サマリ', ({ content }) => {
     const result = validateVerify(content);
     expect(result.ok).toBe(true);
     expect(result.missingSections).toEqual([]);

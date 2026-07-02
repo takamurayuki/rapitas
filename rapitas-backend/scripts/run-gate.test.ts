@@ -25,17 +25,10 @@ const BACKEND_DIR = resolve(SCRIPTS_DIR, '..');
 // ─── getGate ─────────────────────────────────────────────────────────────────
 
 describe('getGate', () => {
-  it('returns the backend-tests gate', () => {
-    const gate = getGate('backend-tests');
+  it.each(['backend-tests', 'sqlite-tests'])('returns the %s gate', (id) => {
+    const gate = getGate(id);
     expect(gate).toBeDefined();
-    expect(gate?.id).toBe('backend-tests');
-    expect(gate?.kind).toBe('test-suite');
-  });
-
-  it('returns the sqlite-tests gate', () => {
-    const gate = getGate('sqlite-tests');
-    expect(gate).toBeDefined();
-    expect(gate?.id).toBe('sqlite-tests');
+    expect(gate?.id).toBe(id);
     expect(gate?.kind).toBe('test-suite');
   });
 
@@ -69,6 +62,7 @@ describe('GATES registry', () => {
     }
   });
 
+  // eslint-disable-next-line local/prefer-test-each-for-similar -- each test asserts a different gate field (args / env.RAPITAS_DB_PROVIDER / env.DATABASE_URL) with a distinct assertion shape, not a parameterizable input/output pair
   it('sqlite-tests gate has expected args (--isolate, no --coverage)', () => {
     const gate = getGate('sqlite-tests');
     expect(gate?.kind).toBe('test-suite');
@@ -172,21 +166,30 @@ for (const gate of testSuiteGates) {
 // ─── parseFilesArg ────────────────────────────────────────────────────────────
 
 describe('parseFilesArg', () => {
-  it('returns null when --files flag is absent', () => {
-    expect(parseFilesArg(['bun', 'script.ts'])).toBeNull();
-    expect(parseFilesArg([])).toBeNull();
-  });
-
-  it('returns [] for --files= with empty value', () => {
-    expect(parseFilesArg(['bun', 'script.ts', '--files='])).toEqual([]);
-  });
-
-  it('returns a single file from --files=a.ts', () => {
-    expect(parseFilesArg(['bun', 'script.ts', '--files=a.ts'])).toEqual(['a.ts']);
-  });
-
-  it('returns multiple files from comma-separated --files=a.ts,b.ts', () => {
-    expect(parseFilesArg(['bun', 'script.ts', '--files=a.ts,b.ts'])).toEqual(['a.ts', 'b.ts']);
+  it.each([
+    {
+      label: 'returns null when --files flag is absent (no flag)',
+      argv: ['bun', 'script.ts'],
+      expected: null,
+    },
+    { label: 'returns null when --files flag is absent (empty argv)', argv: [], expected: null },
+    {
+      label: 'returns [] for --files= with empty value',
+      argv: ['bun', 'script.ts', '--files='],
+      expected: [],
+    },
+    {
+      label: 'returns a single file from --files=a.ts',
+      argv: ['bun', 'script.ts', '--files=a.ts'],
+      expected: ['a.ts'],
+    },
+    {
+      label: 'returns multiple files from comma-separated --files=a.ts,b.ts',
+      argv: ['bun', 'script.ts', '--files=a.ts,b.ts'],
+      expected: ['a.ts', 'b.ts'],
+    },
+  ])('$label', ({ argv, expected }) => {
+    expect(parseFilesArg(argv)).toEqual(expected);
   });
 
   it('trims whitespace around comma-separated paths', () => {
@@ -267,16 +270,20 @@ const TRIGGERS: Record<string, string[]> = {
 };
 
 describe('selectTests', () => {
-  it('returns allTests when changedFiles is null (flag absent)', () => {
-    expect(selectTests(ALL_TESTS, null, TRIGGERS)).toEqual(ALL_TESTS);
-  });
-
-  it('returns allTests when changedFiles is [] (flag present but empty)', () => {
-    expect(selectTests(ALL_TESTS, [], TRIGGERS)).toEqual(ALL_TESTS);
-  });
-
-  it('returns allTests when triggers is null (trigger map unavailable)', () => {
-    expect(selectTests(ALL_TESTS, ['README.md'], null)).toEqual(ALL_TESTS);
+  it.each([
+    { label: 'changedFiles is null (flag absent)', changedFiles: null, triggers: TRIGGERS },
+    {
+      label: 'changedFiles is [] (flag present but empty)',
+      changedFiles: [],
+      triggers: TRIGGERS,
+    },
+    {
+      label: 'triggers is null (trigger map unavailable)',
+      changedFiles: ['README.md'],
+      triggers: null,
+    },
+  ])('returns allTests when $label', ({ changedFiles, triggers }) => {
+    expect(selectTests(ALL_TESTS, changedFiles, triggers)).toEqual(ALL_TESTS);
   });
 
   it('includes triggered tests when SSOT file is changed', () => {

@@ -36,22 +36,14 @@ describe('NginxLogParser', () => {
     expect(result!.metadata!.referer).toBeUndefined();
   });
 
-  test('ステータスコード500以上でERRORレベルになること', () => {
-    const log = '10.0.0.1 - - [01/Jan/2026:10:30:00 +0000] "GET / HTTP/1.1" 500 100 "-" "curl"';
+  test.each([
+    { label: '500以上でERRORレベルになること', status: 500, expected: LogLevel.ERROR },
+    { label: '400台でWARNレベルになること', status: 404, expected: LogLevel.WARN },
+    { label: '200台でINFOレベルになること', status: 200, expected: LogLevel.INFO },
+  ])('ステータスコード$label', ({ status, expected }) => {
+    const log = `10.0.0.1 - - [01/Jan/2026:10:30:00 +0000] "GET / HTTP/1.1" ${status} 100 "-" "curl"`;
     const result = parser.parse(log);
-    expect(result!.level).toBe(LogLevel.ERROR);
-  });
-
-  test('ステータスコード400台でWARNレベルになること', () => {
-    const log = '10.0.0.1 - - [01/Jan/2026:10:30:00 +0000] "GET / HTTP/1.1" 404 100 "-" "curl"';
-    const result = parser.parse(log);
-    expect(result!.level).toBe(LogLevel.WARN);
-  });
-
-  test('ステータスコード200台でINFOレベルになること', () => {
-    const log = '10.0.0.1 - - [01/Jan/2026:10:30:00 +0000] "GET / HTTP/1.1" 200 100 "-" "curl"';
-    const result = parser.parse(log);
-    expect(result!.level).toBe(LogLevel.INFO);
+    expect(result!.level).toBe(expected);
   });
 
   test('不正なフォーマットでnullを返すこと', () => {

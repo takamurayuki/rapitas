@@ -5,7 +5,6 @@
  * Checks deployment status and posts preview URLs back to PR comments.
  */
 import { createLogger } from '../../config/logger';
-import { prisma } from '../../config/database';
 import { runGhCommandWithBody } from '../github/gh-client';
 
 const log = createLogger('preview-deploy');
@@ -31,10 +30,6 @@ export async function triggerPreviewDeploy(
   prNumber: number,
   branchName: string,
 ): Promise<DeploymentStatus> {
-  const settings = await prisma.userSettings.findFirst();
-  // HACK(agent): Cast needed until prisma generate runs with new schema fields
-  const settingsData = settings as Record<string, unknown> | null;
-
   const vercelToken = process.env.VERCEL_TOKEN;
   const netlifyToken = process.env.NETLIFY_AUTH_TOKEN;
 
@@ -126,14 +121,12 @@ async function checkGitHubDeployments(
 async function triggerVercelDeploy(
   workingDirectory: string,
   prNumber: number,
-  branchName: string,
-  token: string,
+  _branchName: string,
+  _token: string,
 ): Promise<DeploymentStatus> {
   try {
     // NOTE: Vercel auto-deploys on push if GitHub integration is configured.
     // We poll for the deployment status rather than triggering manually.
-    const { execSync } = await import('child_process');
-    const ghPath = process.platform === 'win32' ? '"C:\\Program Files\\GitHub CLI\\gh.exe"' : 'gh';
 
     // Wait briefly for Vercel to pick up the push
     await new Promise((r) => setTimeout(r, 5000));
@@ -157,8 +150,8 @@ async function triggerVercelDeploy(
 async function triggerNetlifyDeploy(
   workingDirectory: string,
   prNumber: number,
-  branchName: string,
-  token: string,
+  _branchName: string,
+  _token: string,
 ): Promise<DeploymentStatus> {
   try {
     // NOTE: Similar to Vercel — Netlify auto-deploys from GitHub.
