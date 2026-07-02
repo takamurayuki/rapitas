@@ -7,6 +7,8 @@
  * confirm() calls with a design-consistent dialog that respects the app theme.
  */
 
+import { useTranslations } from 'next-intl';
+
 import { Modal } from '@/components/ui/modal/Modal';
 
 export interface ConfirmOptions {
@@ -16,7 +18,7 @@ export interface ConfirmOptions {
   message: string;
   /** Confirm button label (default: 'OK'). */
   confirmLabel?: string;
-  /** Cancel button label (default: 'キャンセル'). */
+  /** Cancel button label (default: localized common.cancel). */
   cancelLabel?: string;
   /** 'destructive' renders the confirm button in red for delete operations. */
   variant?: 'default' | 'destructive';
@@ -38,11 +40,12 @@ interface ConfirmDialogProps {
  * @param onCancel - Called when the cancel button or backdrop/Esc is clicked / キャンセル押下時
  */
 export function ConfirmDialog({ open, config, onConfirm, onCancel }: ConfirmDialogProps) {
+  const ct = useTranslations('common');
   const {
     title,
     message,
     confirmLabel = 'OK',
-    cancelLabel = 'キャンセル',
+    cancelLabel = ct('cancel'),
     variant = 'default',
   } = config;
 

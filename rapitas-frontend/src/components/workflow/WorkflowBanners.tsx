@@ -79,7 +79,7 @@ export function NextPhaseButton({
   onAdvance,
 }: NextPhaseButtonProps) {
   const t = useTranslations('workflow');
-  const statusToNextRole = getStatusToNextRole(workflowMode);
+  const statusToNextRole = getStatusToNextRole(workflowMode, t);
   const next = statusToNextRole[effectiveStatus];
   if (!next) return null;
 

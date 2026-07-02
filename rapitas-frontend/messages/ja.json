@@ -861,6 +861,7 @@
     "createPlan": "計画作成",
     "runReview": "レビュー実行",
     "runResearch": "リサーチ実行",
+    "runVerification": "検証実行",
     "approvePlan": "計画を承認",
     "rejectPlan": "計画を却下",
     "planApprovalRequired": "計画の承認が必要です",

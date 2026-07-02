@@ -861,6 +861,7 @@
     "createPlan": "Create plan",
     "runReview": "Run review",
     "runResearch": "Run research",
+    "runVerification": "Run verification",
     "approvePlan": "Approve plan",
     "rejectPlan": "Reject plan",
     "planApprovalRequired": "Plan approval required",

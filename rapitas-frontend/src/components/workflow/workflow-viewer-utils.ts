@@ -8,7 +8,12 @@
 
 import type { WorkflowFileType, WorkflowStatus, WorkflowRole } from '@/types';
 import { Search, FileText, FlaskConical, MessageSquare, Code } from 'lucide-react';
+import type { useTranslations } from 'next-intl';
 import type { WorkflowMode } from './CompactWorkflowSelector';
+
+// Translator bound to the 'workflow' message namespace; passed in by React
+// callers so these pure helpers stay side-effect-free yet i18n-aware.
+type WorkflowT = ReturnType<typeof useTranslations<'workflow'>>;
 
 export interface WorkflowTab {
   id: WorkflowFileType;
@@ -21,33 +26,34 @@ export interface WorkflowTab {
  * Returns the list of tabs visible for a given workflow mode.
  *
  * @param workflowMode - The active workflow mode string
+ * @param t - Translator bound to the 'workflow' namespace / 'workflow' 名前空間のトランスレータ
  * @returns Filtered array of WorkflowTab definitions
  */
-export const getWorkflowTabs = (workflowMode: string): WorkflowTab[] => {
+export const getWorkflowTabs = (workflowMode: string, t: WorkflowT): WorkflowTab[] => {
   const allTabs: WorkflowTab[] = [
     {
       id: 'research',
-      label: '調査',
+      label: t('researchTab'),
       icon: Search,
-      emptyText: 'AIエージェントが調査を実行するとresearch.mdが生成されます',
+      emptyText: t('researchEmpty'),
     },
     {
       id: 'question',
-      label: 'Q&A',
+      label: t('qaTab'),
       icon: MessageSquare,
-      emptyText: '不明点がある場合、AIエージェントがquestion.mdを生成します',
+      emptyText: t('questionEmpty'),
     },
     {
       id: 'plan',
-      label: '計画',
+      label: t('planTab'),
       icon: FileText,
-      emptyText: '調査完了後にAIエージェントがplan.mdを生成します',
+      emptyText: t('planEmpty'),
     },
     {
       id: 'verify',
-      label: '検証',
+      label: t('verifyTab'),
       icon: FlaskConical,
-      emptyText: '実装完了後にAIエージェントがverify.mdを生成します',
+      emptyText: t('verifyEmpty'),
     },
   ];
 
@@ -81,42 +87,46 @@ export interface NextRoleInfo {
  * Returns the status-to-next-role mapping for a given workflow mode.
  *
  * @param workflowMode - The active workflow mode string
+ * @param t - Translator bound to the 'workflow' namespace / 'workflow' 名前空間のトランスレータ
  * @returns Record mapping workflow status strings to their next-role info
  */
-export const getStatusToNextRole = (workflowMode: string): Record<string, NextRoleInfo> => {
+export const getStatusToNextRole = (
+  workflowMode: string,
+  t: WorkflowT,
+): Record<string, NextRoleInfo> => {
   // NOTE: All modes start with the researcher role (research.md is mandatory).
   // The tiers then diverge by ceremony, matching the backend mode tables:
   //   - lightweight (低): research → implement → auto-verify (no plan, no review)
   //   - standard    (中): research → plan → implement → verify (NO review phase)
   //   - comprehensive(高): research → plan → review → implement → verify (full)
   const lightweightMode: Record<string, NextRoleInfo> = {
-    draft: { role: 'researcher', label: 'リサーチ実行', icon: Search },
-    research_done: { role: 'implementer', label: '実装開始', icon: Code },
+    draft: { role: 'researcher', label: t('runResearch'), icon: Search },
+    research_done: { role: 'implementer', label: t('startImplementation'), icon: Code },
     in_progress: {
       role: 'auto_verifier',
-      label: '自動検証実行',
+      label: t('runAutoVerification'),
       icon: FlaskConical,
     },
   };
 
   // Standard skips the plan-review pass — plan goes straight to implementation.
   const standardMode: Record<string, NextRoleInfo> = {
-    draft: { role: 'researcher', label: 'リサーチ実行', icon: Search },
-    research_done: { role: 'planner', label: '計画作成', icon: FileText },
-    plan_approved: { role: 'implementer', label: '実装開始', icon: Code },
-    in_progress: { role: 'verifier', label: '検証実行', icon: FlaskConical },
+    draft: { role: 'researcher', label: t('runResearch'), icon: Search },
+    research_done: { role: 'planner', label: t('createPlan'), icon: FileText },
+    plan_approved: { role: 'implementer', label: t('startImplementation'), icon: Code },
+    in_progress: { role: 'verifier', label: t('runVerification'), icon: FlaskConical },
   };
 
   const comprehensiveMode: Record<string, NextRoleInfo> = {
-    draft: { role: 'researcher', label: 'リサーチ実行', icon: Search },
-    research_done: { role: 'planner', label: '計画作成', icon: FileText },
+    draft: { role: 'researcher', label: t('runResearch'), icon: Search },
+    research_done: { role: 'planner', label: t('createPlan'), icon: FileText },
     plan_created: {
       role: 'reviewer',
-      label: 'レビュー実行',
+      label: t('runReview'),
       icon: MessageSquare,
     },
-    plan_approved: { role: 'implementer', label: '実装開始', icon: Code },
-    in_progress: { role: 'verifier', label: '検証実行', icon: FlaskConical },
+    plan_approved: { role: 'implementer', label: t('startImplementation'), icon: Code },
+    in_progress: { role: 'verifier', label: t('runVerification'), icon: FlaskConical },
   };
 
   switch (workflowMode) {

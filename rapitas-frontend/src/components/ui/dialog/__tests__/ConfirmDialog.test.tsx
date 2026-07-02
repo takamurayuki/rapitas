@@ -1,6 +1,12 @@
 import { render, screen, fireEvent } from '@testing-library/react';
 import { ConfirmDialog } from '../ConfirmDialog';
 
+// ConfirmDialog resolves its default cancel label via next-intl; mirror the
+// established test mock that echoes the key back so the default resolves to 'cancel'.
+vi.mock('next-intl', () => ({
+  useTranslations: () => (key: string) => key,
+}));
+
 // Modal uses useEffect for Esc key handling; no additional mocks needed.
 
 describe('ConfirmDialog', () => {
@@ -31,7 +37,7 @@ describe('ConfirmDialog', () => {
       <ConfirmDialog open={true} config={baseConfig} onConfirm={onConfirm} onCancel={onCancel} />,
     );
     expect(screen.getByText('OK')).toBeInTheDocument();
-    expect(screen.getByText('キャンセル')).toBeInTheDocument();
+    expect(screen.getByText('cancel')).toBeInTheDocument();
   });
 
   it('renders custom button labels', () => {
@@ -60,7 +66,7 @@ describe('ConfirmDialog', () => {
     render(
       <ConfirmDialog open={true} config={baseConfig} onConfirm={onConfirm} onCancel={onCancel} />,
     );
-    fireEvent.click(screen.getByText('キャンセル'));
+    fireEvent.click(screen.getByText('cancel'));
     expect(onCancel).toHaveBeenCalledTimes(1);
     expect(onConfirm).not.toHaveBeenCalled();
   });

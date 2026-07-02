@@ -1,6 +1,12 @@
 import { render, screen, fireEvent, act } from '@testing-library/react';
 import { ConfirmDialogProvider, useConfirmDialog } from '../ConfirmDialogProvider';
 
+// ConfirmDialog's default cancel label resolves via next-intl; echo the key back
+// (mirrors the shared test mock) so the default cancel button reads 'cancel'.
+vi.mock('next-intl', () => ({
+  useTranslations: () => (key: string) => key,
+}));
+
 /** Helper component that calls confirm() and displays the result. */
 function TestConsumer({ onResult }: { onResult: (v: boolean) => void }) {
   const confirm = useConfirmDialog();
@@ -78,7 +84,7 @@ describe('ConfirmDialogProvider', () => {
     });
 
     await act(async () => {
-      fireEvent.click(screen.getByText('キャンセル'));
+      fireEvent.click(screen.getByText('cancel'));
     });
 
     expect(onResult).toHaveBeenCalledWith(false);
