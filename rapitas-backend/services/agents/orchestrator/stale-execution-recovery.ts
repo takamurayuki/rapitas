@@ -7,6 +7,10 @@
 
 import { createLogger } from '../../../config';
 import type { OrchestratorContext } from './types';
+import {
+  reconcileOrphanedBlockedSessions,
+  pruneStaleWorktreePointers,
+} from './stale-blocked-session-reconciliation';
 
 const logger = createLogger('stale-execution-recovery');
 
@@ -22,12 +26,16 @@ export async function recoverStaleExecutions(ctx: OrchestratorContext): Promise<
   updatedTasks: number;
   updatedSessions: number;
   interruptedExecutionIds: number[];
+  reconciledBlockedSessions: number;
+  prunedWorktreePointers: number;
 }> {
   logger.info('[RecoveryManager] Starting startup recovery of stale executions...');
 
   let recoveredExecutions = 0;
   let updatedTasks = 0;
   let updatedSessions = 0;
+  let reconciledBlockedSessions = 0;
+  let prunedWorktreePointers = 0;
   const interruptedExecutionIds: number[] = [];
 
   try {
@@ -56,11 +64,21 @@ export async function recoverStaleExecutions(ctx: OrchestratorContext): Promise<
 
     if (staleExecutions.length === 0) {
       logger.info('[RecoveryManager] No stale executions found. Recovery complete.');
+      // Even with no stale EXECUTIONS, a task can still be left in a blocked/
+      // verify-exhausted limbo from before this restart (e.g. its session was
+      // never flipped off 'active' because it never had an execution row to
+      // begin with) — always run the broader reconciliation pass.
+      const blockedResult = await reconcileOrphanedBlockedSessions(ctx);
       return {
         recoveredExecutions: 0,
         updatedTasks: 0,
         updatedSessions: 0,
         interruptedExecutionIds: [],
+        reconciledBlockedSessions: blockedResult.reconciledSessionIds.length,
+        prunedWorktreePointers: await pruneStaleWorktreePointers(
+          ctx,
+          new Set(blockedResult.reconciledSessionIds),
+        ),
       };
     }
 
@@ -104,12 +122,37 @@ export async function recoverStaleExecutions(ctx: OrchestratorContext): Promise<
     const tasksUpdated = await updateAffectedTasks(ctx, affectedTaskIds);
     updatedTasks = tasksUpdated;
 
+    // Broaden reconciliation beyond exact task.status === 'in-progress': a task
+    // parked 'blocked' by an exhausted verify-repair/replan loop (see
+    // workflow-orchestrator.ts / verify-self-repair.ts) can still be left with a
+    // dangling AgentSession (status 'active'/'pending' in the DB) if the process
+    // died mid-attempt before the session itself was finalized — this session
+    // was never touched above because it had no matching stale EXECUTION row
+    // (e.g. it never got one, or its only execution already terminated before
+    // the crash). Find and finalize those independently of the execution scan.
+    const blockedResult = await reconcileOrphanedBlockedSessions(ctx);
+    reconciledBlockedSessions = blockedResult.reconciledSessionIds.length;
+
+    // Validate every session touched by EITHER pass still points at a real,
+    // reusable worktree — a session can be reconciled (interrupted) while its
+    // worktreePath was already removed by a stop/cleanup/merged-PR teardown
+    // that happened before this restart. Reusing that phantom path is exactly
+    // the "Working directory does not exist" failure mode (see
+    // git-operations/worktree-usable.ts); nulling it here makes the NEXT
+    // resume/retry recreate a fresh worktree instead of failing.
+    const sessionsToValidate = new Set<number>([
+      ...affectedSessionIds,
+      ...blockedResult.reconciledSessionIds,
+    ]);
+    prunedWorktreePointers = await pruneStaleWorktreePointers(ctx, sessionsToValidate);
+
     if (recoveredExecutions > 0) {
       await createRecoveryNotification(ctx, recoveredExecutions, updatedTasks, updatedSessions);
     }
 
     logger.info(
-      `[RecoveryManager] Recovery complete: ${recoveredExecutions} executions, ${updatedTasks} tasks, ${updatedSessions} sessions updated`,
+      `[RecoveryManager] Recovery complete: ${recoveredExecutions} executions, ${updatedTasks} tasks, ${updatedSessions} sessions updated, ` +
+        `${reconciledBlockedSessions} orphaned blocked sessions reconciled, ${prunedWorktreePointers} stale worktree pointers pruned`,
     );
   } catch (error) {
     logger.error({ err: error }, '[RecoveryManager] Startup recovery failed');
@@ -120,6 +163,8 @@ export async function recoverStaleExecutions(ctx: OrchestratorContext): Promise<
     updatedTasks,
     updatedSessions,
     interruptedExecutionIds,
+    reconciledBlockedSessions,
+    prunedWorktreePointers,
   };
 }
 

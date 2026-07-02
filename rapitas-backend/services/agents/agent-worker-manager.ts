@@ -155,12 +155,16 @@ export class AgentWorkerManager {
     updatedTasks: number;
     updatedSessions: number;
     interruptedExecutionIds: number[];
+    reconciledBlockedSessions: number;
+    prunedWorktreePointers: number;
   }> {
     return this.ipc('recover-stale', {}, 30000) as Promise<{
       recoveredExecutions: number;
       updatedTasks: number;
       updatedSessions: number;
       interruptedExecutionIds: number[];
+      reconciledBlockedSessions: number;
+      prunedWorktreePointers: number;
     }>;
   }
 
