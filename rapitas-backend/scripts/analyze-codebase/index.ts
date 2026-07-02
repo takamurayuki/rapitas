@@ -3,7 +3,8 @@
  *
  * Entry point for the Rapitas Codebase Analysis Script (Enhanced v2).
  * Orchestrates all metric collectors, assembles the AnalysisResult, and
- * writes analysis-result.json and analysis-report.md to the project root.
+ * writes analysis-result.json and analysis-report.md to the project root,
+ * plus an agent-oriented report to docs/internal/analysis-for-agent.md.
  *
  * Usage: bun run rapitas-backend/scripts/analyze-codebase.ts
  * No external dependencies — uses Node.js built-in APIs only.
@@ -122,7 +123,7 @@ async function main() {
   log.info('Generating outputs...');
   const jsonPath = join(PROJECT_ROOT, 'analysis-result.json');
   const mdPath = join(PROJECT_ROOT, 'analysis-report.md');
-  const agentMdPath = join(PROJECT_ROOT, 'analysis-for-agent.md');
+  const agentMdPath = join(PROJECT_ROOT, 'docs', 'internal', 'analysis-for-agent.md');
 
   writeFileSync(jsonPath, JSON.stringify(result, null, 2), 'utf-8');
   log.info(`JSON output: ${jsonPath}`);

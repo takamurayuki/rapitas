@@ -74,17 +74,15 @@ Keep this list accurate. If you assign a glyph a new meaning, add it here.
 | `Signal`                  | 記憶強度 (MemoryStrengthCard)            |
 | `Footprints`              | エピソード記憶 (agents/memory OverviewCards) |
 
-### Known collisions — resolve when you next touch them
+### Known collisions
 
-| Glyph        | Conflicting meanings                                                                 |
-| ------------ | ------------------------------------------------------------------------------------ |
-| `Gauge`      | 複雑度「標準」 **と** 懸念の種別「パフォーマンス」                                    |
-| `ListChecks` | 一括選択モード（正規）**と** dev-mode「提案されたサブタスク」見出し（→ `ListTodo` へ移行） |
+_None outstanding._ Both previously-tracked collisions are resolved:
 
-> When you edit either site above, give one of them a different glyph so a
-> single icon stops carrying two meanings. For `ListChecks`: the dev-mode
-> `TaskAnalysisPanel` 「提案されたサブタスク」header should switch to `ListTodo`
-> (the established subtask glyph) when next touched.
+- `Gauge` — 複雑度「標準」 moved to `ArrowRight` (`WorkflowModeSelector`); `Gauge`
+  now uniquely means 懸念の種別「パフォーマンス」.
+- `ListChecks` — dev-mode `TaskAnalysisPanel`「提案されたサブタスク」 header moved
+  to `ListTodo` (the established subtask glyph); `ListChecks` now uniquely means
+  一括選択モード.
 
 ---
 

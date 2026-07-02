@@ -4,9 +4,10 @@ Operational guide for running rapitas locally. For *what rapitas is and why*, se
 
 ## Prerequisites
 
-- **Node.js** v18+
-- **Bun** (latest): `curl -fsSL https://bun.sh/install | bash`
-- **pnpm** (frontend): `npm i -g pnpm`
+- **Node.js** v20 (pinned in CI; other v20+ versions likely work but are untested)
+- **Bun** 1.3.11 (pinned in CI): `curl -fsSL https://bun.sh/install | bash`
+- **pnpm** 10 (frontend, pinned in CI): `npm i -g pnpm@10`
+- **Rust + rustup** (stable toolchain) — required by the Tauri desktop build: `curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh`
 - **Git**
 - **PostgreSQL** v14+ — only for the Web build; the desktop build uses bundled SQLite
 
@@ -117,9 +118,11 @@ DATABASE_URL="postgresql://user:password@localhost:5432/rapitas"
 ANTHROPIC_API_KEY="..."   # or configure provider keys in-app (encrypted at rest)
 OPENAI_API_KEY="..."
 REDIS_URL="redis://localhost:6379"   # optional
-JWT_SECRET="..."
-SESSION_SECRET="..."
+ENCRYPTION_KEY="..."      # encrypts API keys at rest in the DB; auto-generated into the OS keychain if unset
+ADMIN_SECRET="..."        # required in production for /agents/shutdown, /agents/restart, /agents/diagnose
 ```
+
+See `rapitas-backend/.env.example` for the full, authoritative list of variables.
 
 ## Troubleshooting
 

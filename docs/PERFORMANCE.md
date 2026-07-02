@@ -68,7 +68,7 @@ thin orchestrator hook.
 **Why:** All Claude Code orchestration logic in one module.
 
 **Mitigation (planned):** Split into provider/state/io per ADR-style module
-boundaries (see `project-improve.md`).
+boundaries, per `COMPONENT_SPLITTING_POLICY.md`.
 
 ### 2.4 Bun + Playwright pipe hang on Windows
 

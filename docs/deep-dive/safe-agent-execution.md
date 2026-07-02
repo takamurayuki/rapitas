@@ -38,7 +38,7 @@ createWorktree(baseDir, branch, taskId)         ── git worktree add → .wor
 AgentWorkerManager.executeTask(...)             ── agent CLI runs as a subprocess, cwd = worktree
    │  (may pause as awaiting_question; resumes via executeContinuation)
    ▼
-runVerificationGate(taskId, worktreePath, sid)  ── ESLint --format json + tsc --noEmit on CHANGED files
+runVerificationGate(taskId, worktreePath, sid)  ── ESLint --format json + tsc --noEmit + scoped tests on CHANGED files
    │
    ├── ok ──▶ auto-commit → auto-PR (→ auto-merge) ──▶ removeWorktree()
    │
@@ -86,10 +86,11 @@ What it does:
 - **Scopes to the agent's changes.** It diffs the worktree to find changed files and runs checks against *those*, so pre-existing project errors don't fail the gate (and the agent isn't blamed for them).
 - **Lint:** `eslint --format json` on changed files; counts **errors only** (warnings ignored). If ESLint is configured but the binary can't run, that's treated as *unverifiable* → fail-closed.
 - **Type-check:** `tsc --noEmit --pretty false` when a `tsconfig.json` exists; errors are filtered to the files the agent touched.
+- **Test:** for bun/vitest projects, runs the changed test files plus tests related to changed sources (on by default; `RAPITAS_VERIFY_TESTS=0` disables). Failures are triaged into pre-existing vs. new so a baseline-red test doesn't block the agent.
 - **Bounded I/O:** each command runs via async `spawn` (never `execSync`) with a **180s timeout** and a **2KB** detail cap, so a runaway check can't hang or flood the log.
 - **Result:** `{ ok, changedFiles, checks[], summary, unverifiable? }`, e.g. `summary: "lint=ok / typecheck=NG(2)"`.
 
-Crucially, the gate **guards both paths to a PR** — the post-execution review (`routes/agents/execution/post-execution-review.ts`) and the verify.md auto-commit (`routes/workflow/workflow-auto-commit.ts`) both call `runVerificationGate()` first. There's no back door.
+Crucially, **both paths to a PR are gated** on `automated-verifier.ts` before a commit can happen — the verify.md auto-commit (`routes/workflow/workflow-auto-commit.ts`) calls the shared `runVerificationGate()` wrapper, while the post-execution review (`routes/agents/execution/post-execution-review.ts`) calls `runAutomatedVerification()` directly and re-implements its own blocking/retry handling inline rather than going through `runVerificationGate()`. So there's no back door to an unverified PR today, but it's two call sites enforcing the same rule rather than one shared function — worth consolidating.
 
 **Why fail-closed / changed-files-only?** Fail-closed because a gate that passes when it can't actually check is worse than no gate (false confidence). Changed-files-only because a repo with pre-existing type errors would otherwise make *every* agent run fail for reasons the agent didn't cause — the gate must measure the agent's *marginal* damage.
 
@@ -154,11 +155,11 @@ This makes "save research.md *after* verify.md" impossible — the agent can't q
 | Decision | Why | Cost |
 | --- | --- | --- |
 | Worktree per run | True isolation; safe concurrency; trivial cleanup | Disk; node_modules-linking step |
-| Gate = lint + type-check | Objective, fast, language-server-grade signal without a test suite | Doesn't catch logic bugs (tests are the next gate) |
+| Gate = lint + type-check + scoped tests | Objective, fast signal, plus scoped test execution catches runtime regressions the type-checker can't | Full-suite / cross-cutting logic bugs outside the changed+related scope still aren't caught |
 | Changed-files-only | Measure the agent's marginal damage, not the repo's debt | Won't catch a change that breaks an *unedited* file's types (mitigated: tsc still surfaces cross-file errors in changed files) |
 | Fail-closed / unverifiable=block | A gate that passes blind is worse than none | Occasionally blocks on a tooling hiccup |
 | Retry cap = 2 | Bounded self-repair; no infinite loops | An agent that needs 4 tries gets parked for a human |
-| Gate on **both** PR paths | No back door to merge unverified code | Slight duplication, deliberately shared via one `runVerificationGate` |
+| Gate on **both** PR paths | No back door to merge unverified code | Duplication: each path enforces the gate with its own call site (`runVerificationGate` vs. an inline `runAutomatedVerification` call) instead of one shared function |
 
 ## Failure modes handled
 
@@ -170,7 +171,7 @@ This makes "save research.md *after* verify.md" impossible — the agent can't q
 
 ## Limitations & next steps
 
-- **Test execution** is the obvious third gate (lint → type → tests). Today the gate is lint + type only.
+- **Test execution** is now part of the gate, not just lint + type. `automated-verifier.ts` also runs the project's test suite scoped to changed files (+ related tests), on by default for file-scopeable runners (bun/vitest) — set `RAPITAS_VERIFY_TESTS=0` to disable. Pre-existing (not agent-caused) test failures are triaged out so the agent isn't blamed for baseline red tests.
 - Retry state lives in **session metadata**; persisting it as first-class DB columns would make it queryable and survive schema changes more cleanly.
 - The gate trusts the agent's reported changed-file set + a worktree diff; a malicious agent is out of scope (this is a personal productivity tool, not a sandbox for untrusted code).
 

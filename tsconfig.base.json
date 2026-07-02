@@ -3,15 +3,16 @@
   "_comment": [
     "Shared TypeScript baseline for all subprojects.",
     "",
-    "This file is the SOURCE OF TRUTH for strictness flags. Subproject",
-    "tsconfig.json files are NOT yet wired to extend this — see ADR-0004",
-    "for the rollout plan and the strictness ratchet schedule.",
+    "This file is the SOURCE OF TRUTH for strictness flags. Both",
+    "rapitas-backend/tsconfig.json and rapitas-frontend/tsconfig.json already",
+    "`extend` this file — see ADR-0004 for the strictness ratchet schedule",
+    "and history of the rollout.",
     "",
-    "When a subproject is ready to migrate, replace its compilerOptions",
-    "with `\"extends\": \"../tsconfig.base.json\"` plus the env-specific",
-    "fields it cannot share (lib, jsx, moduleResolution, paths, plugins).",
+    "Each subproject's tsconfig.json layers its own env-specific fields",
+    "on top (lib, jsx, moduleResolution, paths, plugins) that cannot be",
+    "shared here.",
     "",
-    "Last reviewed: 2026-04-08"
+    "Last reviewed: 2026-07-03"
   ],
   "compilerOptions": {
     // ─── Output ──────────────────────────────────────────────────────────

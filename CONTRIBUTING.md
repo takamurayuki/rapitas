@@ -2,10 +2,10 @@
 
 Thanks for your interest in contributing. This document is the **shortest path
 from a fresh clone to a merged PR**. For deeper context, see
-[`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md), [`CLAUDE.md`](CLAUDE.md), and
+[`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md), [`.claude/CLAUDE.md`](.claude/CLAUDE.md), and
 [`docs/adr/`](docs/adr/).
 
-> Working as an AI agent? Read [`CLAUDE.md`](CLAUDE.md) first — its workflow
+> Working as an AI agent? Read [`.claude/CLAUDE.md`](.claude/CLAUDE.md) first — its workflow
 > rules override anything in this file.
 
 ---
@@ -194,10 +194,10 @@ on the Security tab. See [`SECURITY.md`](SECURITY.md) for details.
 
 ## 11. Where to ask questions
 
-- **Architecture / design questions** — open a GitHub Discussion
+- **Architecture / design questions** — open an issue tagged `question`
 - **Bug reports** — issue with the bug report template
 - **Feature ideas** — issue with the feature request template
-- **AI agent workflow questions** — read `CLAUDE.md` first; if unclear, file
+- **AI agent workflow questions** — read `.claude/CLAUDE.md` first; if unclear, file
   an issue tagged `agent-workflow`
 
 Welcome aboard.
