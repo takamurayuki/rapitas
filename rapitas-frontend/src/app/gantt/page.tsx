@@ -3,10 +3,13 @@
 
 import React, { useEffect, useState } from 'react';
 import { Layers } from 'lucide-react';
+import { useTranslations } from 'next-intl';
 import { GanttView } from '@/feature/tasks/components/gantt';
 import { useFilterDataStore } from '@/stores/filter-data-store';
 
 export default function GanttPage() {
+  const t = useTranslations('task');
+  const tCommon = useTranslations('common');
   const [selectedThemeId, setSelectedThemeId] = useState<number | undefined>(undefined);
   const themes = useFilterDataStore((s) => s.themes);
   const initFilterData = useFilterDataStore((s) => s.initializeData);
@@ -21,11 +24,9 @@ export default function GanttPage() {
         {/* ヘッダー */}
         <div className="mb-6">
           <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100 mb-2">
-            ガントチャート
+            {t('ganttView.title')}
           </h1>
-          <p className="text-gray-600 dark:text-gray-400">
-            タスクを時系列で俯瞰できます。バーにカーソルを合わせると詳細が表示されます。
-          </p>
+          <p className="text-gray-600 dark:text-gray-400">{t('ganttView.pageDescription')}</p>
         </div>
 
         {/* テーマフィルタ */}
@@ -40,7 +41,7 @@ export default function GanttPage() {
                   : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-600'
               }`}
             >
-              すべて
+              {tCommon('all')}
             </button>
             {themes.map((theme) => {
               const isSelected = selectedThemeId === theme.id;

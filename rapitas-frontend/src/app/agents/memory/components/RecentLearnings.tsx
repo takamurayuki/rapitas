@@ -2,7 +2,8 @@
 // RecentLearnings
 
 import { Clock, Network, Sparkles, Target } from 'lucide-react';
-import { NODE_TYPE_LABELS } from '../constants';
+import { useTranslations } from 'next-intl';
+import { NODE_TYPE_KEYS } from '../constants';
 import type { MemoryOverview } from '../types';
 
 interface RecentLearningsProps {
@@ -17,6 +18,12 @@ interface RecentLearningsProps {
  * @param formatDate - Formats an ISO date string into a localised label.
  */
 export function RecentLearnings({ memoryOverview, formatDate }: RecentLearningsProps) {
+  const t = useTranslations('agents.memory');
+  const nodeTypeLabel = (nodeType: string) =>
+    (NODE_TYPE_KEYS as readonly string[]).includes(nodeType)
+      ? t(`nodeTypeLabels.${nodeType}`)
+      : nodeType;
+
   return (
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
       {/* Latest learning patterns */}
@@ -25,7 +32,9 @@ export function RecentLearnings({ memoryOverview, formatDate }: RecentLearningsP
           <div className="p-2 bg-orange-100 dark:bg-orange-900/30 text-orange-600 dark:text-orange-400 rounded-lg">
             <Sparkles className="w-5 h-5" />
           </div>
-          <h3 className="font-semibold text-zinc-900 dark:text-zinc-100">最近の学習パターン</h3>
+          <h3 className="font-semibold text-zinc-900 dark:text-zinc-100">
+            {t('recentLearnings.patternsTitle')}
+          </h3>
         </div>
 
         {memoryOverview.recentHighlights.latestPatterns.length > 0 ? (
@@ -38,7 +47,9 @@ export function RecentLearnings({ memoryOverview, formatDate }: RecentLearningsP
                 <div className="flex items-center gap-3 text-xs text-zinc-500 dark:text-zinc-400">
                   <span className="flex items-center gap-1">
                     <Target className="w-3 h-3" />
-                    信頼度 {(pattern.confidence * 100).toFixed(0)}%
+                    {t('recentLearnings.confidenceLabel', {
+                      percent: (pattern.confidence * 100).toFixed(0),
+                    })}
                   </span>
                   <span className="flex items-center gap-1">
                     <Clock className="w-3 h-3" />
@@ -51,11 +62,9 @@ export function RecentLearnings({ memoryOverview, formatDate }: RecentLearningsP
         ) : (
           <div className="text-center py-8 text-zinc-500 dark:text-zinc-400 text-sm">
             <p className="font-medium text-zinc-600 dark:text-zinc-300">
-              学習パターンはまだありません
+              {t('recentLearnings.emptyPatternsTitle')}
             </p>
-            <p className="mt-1 text-xs">
-              エージェントがタスクを重ねると、ここに傾向が蓄積されます。
-            </p>
+            <p className="mt-1 text-xs">{t('recentLearnings.emptyPatternsHint')}</p>
           </div>
         )}
       </div>
@@ -66,7 +75,9 @@ export function RecentLearnings({ memoryOverview, formatDate }: RecentLearningsP
           <div className="p-2 bg-indigo-100 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 rounded-lg">
             <Network className="w-5 h-5" />
           </div>
-          <h3 className="font-semibold text-zinc-900 dark:text-zinc-100">最新のナレッジノード</h3>
+          <h3 className="font-semibold text-zinc-900 dark:text-zinc-100">
+            {t('recentLearnings.nodesTitle')}
+          </h3>
         </div>
 
         {memoryOverview.recentHighlights.latestNodes.length > 0 ? (
@@ -81,7 +92,7 @@ export function RecentLearnings({ memoryOverview, formatDate }: RecentLearningsP
                     {node.label}
                   </p>
                   <p className="text-xs text-zinc-500 dark:text-zinc-400">
-                    {NODE_TYPE_LABELS[node.nodeType] ?? node.nodeType}
+                    {nodeTypeLabel(node.nodeType)}
                   </p>
                 </div>
                 <div className="flex items-center gap-2 shrink-0 ml-3">
@@ -98,9 +109,9 @@ export function RecentLearnings({ memoryOverview, formatDate }: RecentLearningsP
         ) : (
           <div className="text-center py-8 text-zinc-500 dark:text-zinc-400 text-sm">
             <p className="font-medium text-zinc-600 dark:text-zinc-300">
-              ナレッジノードはまだありません
+              {t('recentLearnings.emptyNodesTitle')}
             </p>
-            <p className="mt-1 text-xs">エージェントが学習すると、知識がここに記録されます。</p>
+            <p className="mt-1 text-xs">{t('recentLearnings.emptyNodesHint')}</p>
           </div>
         )}
       </div>

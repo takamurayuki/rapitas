@@ -3,32 +3,33 @@
 import React from 'react';
 import { useRouter } from 'next/navigation';
 import { CheckSquare, MessageSquare, FileText, StickyNote, ExternalLink } from 'lucide-react';
+import { useTranslations } from 'next-intl';
 import type { SearchResult, SearchResultType } from '@/hooks/search/useGlobalSearch';
 
-const typeConfig: Record<
+const typeIconConfig: Record<
   SearchResultType,
-  { label: string; icon: React.ElementType; color: string; darkColor: string }
+  { labelKey: string; icon: React.ElementType; color: string; darkColor: string }
 > = {
   task: {
-    label: 'タスク',
+    labelKey: 'filterTask',
     icon: CheckSquare,
     color: 'bg-indigo-100 text-indigo-700',
     darkColor: 'dark:bg-indigo-900/30 dark:text-indigo-400',
   },
   comment: {
-    label: 'コメント',
+    labelKey: 'filterComment',
     icon: MessageSquare,
     color: 'bg-amber-100 text-amber-700',
     darkColor: 'dark:bg-amber-900/30 dark:text-amber-400',
   },
   note: {
-    label: 'ノート',
+    labelKey: 'filterPanel.typeNote',
     icon: StickyNote,
     color: 'bg-green-100 text-green-700',
     darkColor: 'dark:bg-green-900/30 dark:text-green-400',
   },
   resource: {
-    label: 'リソース',
+    labelKey: 'filterResource',
     icon: FileText,
     color: 'bg-purple-100 text-purple-700',
     darkColor: 'dark:bg-purple-900/30 dark:text-purple-400',
@@ -69,7 +70,9 @@ interface SearchResultCardProps {
 
 export default function SearchResultCard({ result, query }: SearchResultCardProps) {
   const router = useRouter();
-  const config = typeConfig[result.type];
+  const t = useTranslations('search');
+  const config = typeIconConfig[result.type];
+  const configLabel = t(config.labelKey);
   const Icon = config.icon;
 
   const metadata = result.metadata as Record<string, unknown>;
@@ -112,7 +115,7 @@ export default function SearchResultCard({ result, query }: SearchResultCardProp
               className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-medium ${config.color} ${config.darkColor}`}
             >
               <Icon className="w-3 h-3" />
-              {config.label}
+              {configLabel}
             </span>
 
             {status && (
@@ -144,7 +147,7 @@ export default function SearchResultCard({ result, query }: SearchResultCardProp
 
             {/* Relevance */}
             <span className="ml-auto text-[10px] text-zinc-400 dark:text-zinc-500">
-              関連度 {result.relevance}%
+              {t('relevanceLabel', { relevance: result.relevance })}
             </span>
           </div>
         </div>

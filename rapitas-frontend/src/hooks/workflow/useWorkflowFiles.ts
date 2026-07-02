@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { useTranslations } from 'next-intl';
 import type { WorkflowFile, WorkflowFileType, WorkflowStatus, WorkflowPathInfo } from '@/types';
 import { API_BASE_URL } from '@/utils/api';
 
@@ -12,6 +13,7 @@ export type WorkflowFilesData = {
 };
 
 export function useWorkflowFiles(taskId: number | null) {
+  const t = useTranslations('common');
   const [files, setFiles] = useState<WorkflowFilesData | null>(null);
   const [workflowStatus, setWorkflowStatus] = useState<WorkflowStatus | null>(null);
   const [workflowPath, setWorkflowPath] = useState<WorkflowPathInfo | null>(null);
@@ -47,12 +49,12 @@ export function useWorkflowFiles(taskId: number | null) {
       setWorkflowStatus(data.workflowStatus || null);
       setWorkflowPath(data.path || null);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'ワークフローファイルの取得に失敗しました');
+      setError(err instanceof Error ? err.message : t('useWorkflowFiles.fetchFailed'));
     } finally {
       setIsLoading(false);
       isInitialFetch.current = false;
     }
-  }, [taskId]);
+  }, [taskId, t]);
 
   // Reset to initial fetch when taskId changes
   useEffect(() => {

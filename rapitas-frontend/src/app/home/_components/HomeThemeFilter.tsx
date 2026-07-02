@@ -163,8 +163,8 @@ export function HomeThemeFilter({
               {/* Theme add — matches FILTER button palette (slate). */}
               <button
                 onClick={() => router.push('/themes')}
-                title="テーマを追加"
-                aria-label="テーマを追加"
+                title={t('addTheme')}
+                aria-label={t('addTheme')}
                 className="shrink-0 flex items-center justify-center px-2.5 py-1.5 rounded-sm bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-500 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
               >
                 <Plus className="w-3.5 h-3.5" />

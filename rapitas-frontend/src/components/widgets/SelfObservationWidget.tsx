@@ -9,6 +9,7 @@
  */
 import { useEffect, useState } from 'react';
 import { Activity, AlertTriangle, DollarSign, Zap, Loader2 } from 'lucide-react';
+import { useTranslations } from 'next-intl';
 import { API_BASE_URL } from '@/utils/api';
 
 interface DailyCostPoint {
@@ -41,6 +42,7 @@ interface ObservationSummary {
 const WINDOW_OPTIONS = [7, 14, 30] as const;
 
 export default function SelfObservationWidget() {
+  const t = useTranslations('home');
   const [data, setData] = useState<ObservationSummary | null>(null);
   const [windowDays, setWindowDays] = useState<number>(14);
   const [loading, setLoading] = useState(true);
@@ -76,9 +78,11 @@ export default function SelfObservationWidget() {
       <div className="mb-3 flex items-center justify-between">
         <div className="flex items-center gap-2">
           <Activity className="h-4 w-4 text-indigo-500" />
-          <h3 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">自己観測</h3>
+          <h3 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">
+            {t('selfObservation.title')}
+          </h3>
           <span className="text-[11px] text-zinc-500 dark:text-zinc-400">
-            （直近 {windowDays} 日）
+            {t('selfObservation.windowLabel', { days: windowDays })}
           </span>
         </div>
         <div className="flex rounded-md border border-zinc-200 dark:border-zinc-700 overflow-hidden">
@@ -92,7 +96,7 @@ export default function SelfObservationWidget() {
                   : 'text-zinc-500 hover:bg-zinc-50 dark:text-zinc-400 dark:hover:bg-zinc-800'
               }`}
             >
-              {d}日
+              {t('selfObservation.daysButton', { days: d })}
             </button>
           ))}
         </div>
@@ -110,25 +114,25 @@ export default function SelfObservationWidget() {
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
             <Kpi
               icon={<DollarSign className="h-3.5 w-3.5" />}
-              label="支出"
+              label={t('selfObservation.spend')}
               value={`$${data.totalCostUsd.toFixed(2)}`}
               tone="indigo"
             />
             <Kpi
               icon={<Activity className="h-3.5 w-3.5" />}
-              label="実行回数"
+              label={t('selfObservation.executions')}
               value={String(data.totalExecutions)}
               tone="zinc"
             />
             <Kpi
               icon={<Zap className="h-3.5 w-3.5" />}
-              label="キャッシュ命中"
+              label={t('selfObservation.cacheHitRate')}
               value={`${(data.cacheHitRate * 100).toFixed(0)}%`}
               tone="emerald"
             />
             <Kpi
               icon={<AlertTriangle className="h-3.5 w-3.5" />}
-              label="エラー率"
+              label={t('selfObservation.errorRate')}
               value={`${(data.errorRate * 100).toFixed(1)}%`}
               tone={data.errorRate > 0.1 ? 'red' : 'zinc'}
             />
@@ -136,7 +140,9 @@ export default function SelfObservationWidget() {
 
           {/* Daily cost spark bars */}
           <div>
-            <div className="mb-1 text-[11px] text-zinc-500 dark:text-zinc-400">日別コスト</div>
+            <div className="mb-1 text-[11px] text-zinc-500 dark:text-zinc-400">
+              {t('selfObservation.dailyCostLabel')}
+            </div>
             <DailyCostBars points={data.dailyCost} />
           </div>
 
@@ -144,7 +150,7 @@ export default function SelfObservationWidget() {
           {data.modelMix.length > 0 && (
             <div>
               <div className="mb-1 text-[11px] text-zinc-500 dark:text-zinc-400">
-                モデル別シェア
+                {t('selfObservation.modelShareLabel')}
               </div>
               <ModelMixBar entries={data.modelMix} />
               <ul className="mt-1.5 space-y-0.5">
@@ -192,6 +198,7 @@ function Kpi({ icon, label, value, tone }: KpiProps) {
 }
 
 function DailyCostBars({ points }: { points: DailyCostPoint[] }) {
+  const t = useTranslations('home');
   const max = Math.max(...points.map((p) => p.costUsd), 0.0001);
   return (
     <div className="flex h-12 items-end gap-0.5">
@@ -202,7 +209,11 @@ function DailyCostBars({ points }: { points: DailyCostPoint[] }) {
             key={p.date}
             className="flex-1 rounded-t bg-indigo-400 transition-all hover:bg-indigo-500 dark:bg-indigo-500/70 dark:hover:bg-indigo-400"
             style={{ height: `${h}%` }}
-            title={`${p.date}: $${p.costUsd.toFixed(4)} (${p.executions} 実行)`}
+            title={t('selfObservation.dailyCostTooltip', {
+              date: p.date,
+              cost: p.costUsd.toFixed(4),
+              executions: p.executions,
+            })}
           />
         );
       })}

@@ -2,17 +2,43 @@
 // PaidLeaveOptions
 
 import { Bell, ChevronDown } from 'lucide-react';
+import { useTranslations } from 'next-intl';
 
+// NOTE: no static `label` — display text is derived at render time from
+// `value` via getReminderOptionLabel() so it stays translated (mirrors
+// schedule-constants.ts REMINDER_OPTIONS).
 const REMINDER_OPTIONS = [
-  { value: null, label: 'なし' },
-  { value: 5, label: '5分前' },
-  { value: 10, label: '10分前' },
-  { value: 15, label: '15分前' },
-  { value: 30, label: '30分前' },
-  { value: 60, label: '1時間前' },
-  { value: 1440, label: '1日前' },
+  { value: null },
+  { value: 5 },
+  { value: 10 },
+  { value: 15 },
+  { value: 30 },
+  { value: 60 },
+  { value: 1440 },
 ];
 
+/**
+ * Formats a reminder offset value into a translated, human-readable label.
+ *
+ * @param value - Reminder offset in minutes, or null for "no reminder".
+ * @param t - `calendar` namespace translation function.
+ * @param tc - `common` namespace translation function.
+ * @returns Localized label string.
+ */
+function getReminderOptionLabel(
+  value: number | null,
+  t: ReturnType<typeof useTranslations>,
+  tc: ReturnType<typeof useTranslations>,
+): string {
+  if (value === null) return tc('none');
+  if (value < 60) return t('reminderMinutesBefore', { count: value });
+  if (value < 1440) return t('reminderHoursBefore', { count: value / 60 });
+  return t('reminderDaysBefore', { count: value / 1440 });
+}
+
+// NOTE: `label` values below are English color names shown only as a hover
+// `title` tooltip on swatch buttons — deliberately left untranslated (i18n
+// migration, deferred: not Japanese sentence text, low-value to localize).
 const COLOR_OPTIONS = [
   { value: '#FF6B6B', label: 'Pink Red' },
   { value: '#4ECDC4', label: 'Teal' },
@@ -51,6 +77,9 @@ export function PaidLeaveOptions({
   description,
   onDescriptionChange,
 }: PaidLeaveOptionsProps) {
+  const t = useTranslations('calendar');
+  const tc = useTranslations('common');
+  const tp = useTranslations('calendar.paidLeaveOptions');
   return (
     <>
       <button
@@ -61,14 +90,16 @@ export function PaidLeaveOptions({
         <ChevronDown
           className={`w-3.5 h-3.5 transition-transform duration-200 ${showOptions ? 'rotate-180' : ''}`}
         />
-        {showOptions ? 'オプションを閉じる' : 'カラー・リマインド・メモ'}
+        {showOptions ? t('optionsToggle.close') : t('optionsToggle.open')}
       </button>
 
       {showOptions && (
         <div className="mt-3 space-y-3 animate-in fade-in slide-in-from-top-1 duration-200">
           {/* Inline color picker */}
           <div className="flex items-center gap-3">
-            <span className="text-xs text-zinc-400 dark:text-zinc-500 w-10 shrink-0">カラー</span>
+            <span className="text-xs text-zinc-400 dark:text-zinc-500 w-10 shrink-0">
+              {tc('color')}
+            </span>
             <div className="flex gap-1.5">
               {COLOR_OPTIONS.map((c) => (
                 <button
@@ -105,7 +136,7 @@ export function PaidLeaveOptions({
                       : 'bg-zinc-50 dark:bg-zinc-700/50 text-zinc-500 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-700'
                   }`}
                 >
-                  {opt.label}
+                  {getReminderOptionLabel(opt.value, t, tc)}
                 </button>
               ))}
             </div>
@@ -115,7 +146,7 @@ export function PaidLeaveOptions({
           <textarea
             value={description}
             onChange={(e) => onDescriptionChange(e.target.value)}
-            placeholder="理由や備考を入力..."
+            placeholder={tp('reasonPlaceholder')}
             rows={2}
             className="w-full px-3 py-2 bg-zinc-50 dark:bg-zinc-700/50 border border-zinc-200 dark:border-zinc-600 rounded-lg text-zinc-900 dark:text-zinc-100 placeholder-zinc-300 dark:placeholder-zinc-600 focus:outline-none focus:border-indigo-400 text-sm resize-none transition-all"
           />

@@ -6,6 +6,7 @@ import TaskDetailViewBody, { type TaskDetailViewBodyProps } from './TaskDetailVi
 import TaskDetailModals from './TaskDetailModals';
 import { TaskDetailQuickNav, type QuickNavSection } from './TaskDetailQuickNav';
 import { Info, Bot, GitBranch, ListTodo } from 'lucide-react';
+import { useTranslations } from 'next-intl';
 import type { WorkflowFile } from '@/types';
 import type { Priority } from '@/types';
 
@@ -94,6 +95,9 @@ export default function TaskDetailContent({
   taskActions,
   viewBodyProps,
 }: TaskDetailContentProps) {
+  const t = useTranslations('task');
+  const tCommon = useTranslations('common');
+  const tWorkflow = useTranslations('workflow');
   const containerRef = useRef<HTMLDivElement>(null);
   const [contentReady, setContentReady] = useState(false);
   const initialScrollDoneRef = useRef(false);
@@ -109,12 +113,12 @@ export default function TaskDetailContent({
 
   // Quick-jump targets — must match the section ids in TaskDetailViewBody.
   const quickNavSections: QuickNavSection[] = [
-    { id: 'td-info', label: '詳細', icon: Info },
+    { id: 'td-info', label: tCommon('detail'), icon: Info },
     { id: 'td-ai', label: 'AI', icon: Bot },
     ...(task.theme?.isDevelopment === true
-      ? [{ id: 'td-workflow', label: 'ワークフロー', icon: GitBranch }]
+      ? [{ id: 'td-workflow', label: tWorkflow('title'), icon: GitBranch }]
       : []),
-    { id: 'td-subtasks', label: 'サブタスク', icon: ListTodo },
+    { id: 'td-subtasks', label: t('subtasks'), icon: ListTodo },
   ];
 
   return (

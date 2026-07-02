@@ -9,6 +9,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { DollarSign, Zap, Lightbulb } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts';
+import { useTranslations } from 'next-intl';
 import { API_BASE_URL } from '@/utils/api';
 
 type ModelBreakdown = {
@@ -41,6 +42,8 @@ function shortModelName(model: string): string {
 }
 
 export function CostOptimizationWidget() {
+  const t = useTranslations('home');
+  const tCommon = useTranslations('common');
   const [data, setData] = useState<CostData | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -87,7 +90,7 @@ export function CostOptimizationWidget() {
         <div className="flex items-center justify-between mb-3">
           <h3 className="text-sm font-semibold text-zinc-800 dark:text-zinc-200 flex items-center gap-2">
             <DollarSign className="w-4 h-4 text-emerald-500" />
-            コスト最適化
+            {t('costOptimization.title')}
           </h3>
           <div className="flex items-center gap-3 text-xs text-zinc-400">
             <span className="flex items-center gap-1">
@@ -125,7 +128,12 @@ export function CostOptimizationWidget() {
                     fontSize: '12px',
                     color: '#e4e4e7',
                   }}
-                  formatter={((value: number) => [`$${value.toFixed(2)}`, 'コスト']) as never}
+                  formatter={
+                    ((value: number) => [
+                      `$${value.toFixed(2)}`,
+                      t('costOptimization.costLabel'),
+                    ]) as never
+                  }
                 />
                 <Bar dataKey="cost" radius={[4, 4, 0, 0]}>
                   {chartData.map((_, i) => (
@@ -149,7 +157,10 @@ export function CostOptimizationWidget() {
                 <span className="text-zinc-600 dark:text-zinc-400">{shortModelName(m.model)}</span>
               </div>
               <div className="flex items-center gap-3 text-zinc-500 dark:text-zinc-400">
-                <span>{m.executions}回</span>
+                <span>
+                  {m.executions}
+                  {tCommon('times')}
+                </span>
                 <span
                   className={
                     m.successRate >= 80

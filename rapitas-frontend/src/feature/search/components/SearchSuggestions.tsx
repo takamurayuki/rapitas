@@ -2,6 +2,7 @@
 
 import React from 'react';
 import { Search } from 'lucide-react';
+import { useTranslations } from 'next-intl';
 
 export interface Suggestion {
   id: number;
@@ -23,6 +24,8 @@ export default function SearchSuggestions({
   onSelect,
   loading = false,
 }: SearchSuggestionsProps) {
+  const t = useTranslations('search');
+
   if (!query.trim() || (suggestions.length === 0 && !loading)) {
     return null;
   }
@@ -30,7 +33,7 @@ export default function SearchSuggestions({
   return (
     <div className="absolute z-50 mt-1 w-full bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg shadow-lg dark:shadow-black/40 overflow-hidden">
       {loading ? (
-        <div className="px-4 py-3 text-sm text-zinc-400 dark:text-zinc-500">検索中...</div>
+        <div className="px-4 py-3 text-sm text-zinc-400 dark:text-zinc-500">{t('searching')}</div>
       ) : (
         <ul className="max-h-64 overflow-y-auto">
           {suggestions.map((suggestion) => (
@@ -48,10 +51,10 @@ export default function SearchSuggestions({
                 </div>
                 <span className="text-[10px] px-1.5 py-0.5 rounded bg-zinc-100 dark:bg-zinc-700 text-zinc-500 dark:text-zinc-400 flex-shrink-0">
                   {suggestion.type === 'task'
-                    ? 'タスク'
+                    ? t('filterTask')
                     : suggestion.type === 'comment'
-                      ? 'コメント'
-                      : 'リソース'}
+                      ? t('filterComment')
+                      : t('filterResource')}
                 </span>
               </button>
             </li>

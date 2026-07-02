@@ -97,9 +97,9 @@ export default function TaskWorkflowSection({
     },
   };
   const MODE_LABELS: Record<string, string> = {
-    lightweight: '簡単',
-    standard: '標準',
-    comprehensive: '高度',
+    lightweight: t('modeLightweight'),
+    standard: t('modeStandard'),
+    comprehensive: t('modeComprehensive'),
   };
   const complexity = task?.complexityScore;
   const modeLabel = task?.workflowMode
@@ -132,14 +132,18 @@ export default function TaskWorkflowSection({
                 className={`flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium ${complexityChipClass}`}
                 title={
                   modeLabel
-                    ? `ワークフロー: ${modeLabel}${task?.workflowModeOverride ? '（手動指定）' : '（複雑度から自動選択）'}`
+                    ? task?.workflowModeOverride
+                      ? t('taskWorkflowSection.modeTooltipManual', { mode: modeLabel })
+                      : t('taskWorkflowSection.modeTooltipAuto', { mode: modeLabel })
                     : undefined
                 }
               >
                 <ComplexityIcon className="h-3.5 w-3.5" />
-                {modeLabel ?? 'ワークフロー'}
-                {complexity != null ? ` · 複雑度 ${Math.round(complexity)}` : ''}
-                {task?.workflowModeOverride ? '（手動）' : ''}
+                {modeLabel ?? t('title')}
+                {complexity != null
+                  ? t('taskWorkflowSection.complexitySuffix', { score: Math.round(complexity) })
+                  : ''}
+                {task?.workflowModeOverride ? t('taskWorkflowSection.manualSuffix') : ''}
               </span>
             )}
             <span
@@ -148,12 +152,18 @@ export default function TaskWorkflowSection({
                   ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400'
                   : 'bg-zinc-100 text-zinc-500 dark:bg-zinc-800 dark:text-zinc-400'
               }`}
-              title={`計画自動承認: ${effectiveAutoApprove ? 'ON（plan.md 保存で自動進行）' : 'OFF（手動承認が必要）'}`}
+              title={
+                effectiveAutoApprove
+                  ? t('taskWorkflowSection.autoApproveTooltipOn')
+                  : t('taskWorkflowSection.autoApproveTooltipOff')
+              }
             >
               <span
                 className={`inline-block h-1.5 w-1.5 rounded-full ${effectiveAutoApprove ? 'bg-emerald-500' : 'bg-zinc-400'}`}
               />
-              自動承認 {effectiveAutoApprove ? 'ON' : 'OFF'}
+              {t('taskWorkflowSection.autoApproveBadge', {
+                state: effectiveAutoApprove ? 'ON' : 'OFF',
+              })}
             </span>
           </div>
         </div>

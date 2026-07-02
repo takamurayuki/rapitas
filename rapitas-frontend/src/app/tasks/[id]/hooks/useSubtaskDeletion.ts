@@ -7,6 +7,7 @@
  */
 
 import { useState, useCallback } from 'react';
+import { useTranslations } from 'next-intl';
 import type { Task } from '@/types';
 import { API_BASE_URL } from '@/utils/api';
 import { createLogger } from '@/lib/logger';
@@ -28,6 +29,7 @@ interface UseSubtaskDeletionParams {
  * @returns selection state, confirm dialog state, and delete action callbacks
  */
 export function useSubtaskDeletion({ task, onRefetch, onTaskUpdated }: UseSubtaskDeletionParams) {
+  const t = useTranslations('task');
   const { showToast } = useToast();
   const [isSubtaskSelectionMode, setIsSubtaskSelectionMode] = useState(false);
   const [selectedSubtaskIds, setSelectedSubtaskIds] = useState<Set<number>>(new Set());
@@ -46,10 +48,10 @@ export function useSubtaskDeletion({ task, onRefetch, onTaskUpdated }: UseSubtas
         onTaskUpdated?.();
       } catch (err) {
         logger.error(err);
-        showToast('サブタスクの削除に失敗しました', 'error');
+        showToast(t('subtaskManagement.deleteFailed'), 'error');
       }
     },
-    [onRefetch, onTaskUpdated, showToast],
+    [onRefetch, onTaskUpdated, showToast, t],
   );
 
   const deleteAllSubtasks = useCallback(async () => {
@@ -66,9 +68,9 @@ export function useSubtaskDeletion({ task, onRefetch, onTaskUpdated }: UseSubtas
       onTaskUpdated?.();
     } catch (err) {
       logger.error(err);
-      showToast('サブタスクの削除に失敗しました', 'error');
+      showToast(t('subtaskManagement.deleteFailed'), 'error');
     }
-  }, [task, onRefetch, onTaskUpdated, showToast]);
+  }, [task, onRefetch, onTaskUpdated, showToast, t]);
 
   const deleteSelectedSubtasks = useCallback(
     async (subtaskIds: number[]) => {
@@ -87,10 +89,10 @@ export function useSubtaskDeletion({ task, onRefetch, onTaskUpdated }: UseSubtas
         onTaskUpdated?.();
       } catch (err) {
         logger.error(err);
-        showToast('サブタスクの削除に失敗しました', 'error');
+        showToast(t('subtaskManagement.deleteFailed'), 'error');
       }
     },
-    [task, onRefetch, onTaskUpdated, showToast],
+    [task, onRefetch, onTaskUpdated, showToast, t],
   );
 
   const toggleSubtaskSelectionMode = useCallback(() => {

@@ -2,6 +2,7 @@
 // AuthContext
 
 import React, { createContext, useContext, useState, useEffect, type ReactNode } from 'react';
+import { useTranslations } from 'next-intl';
 import { API_BASE_URL, fetchWithRetry } from '@/utils/api';
 import { createLogger } from '@/lib/logger';
 
@@ -75,6 +76,8 @@ export interface AuthContextType extends AuthState {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
+  const tAuth = useTranslations('auth');
+  const t = useTranslations('common');
   const [state, setState] = useState<AuthState>({
     user: null,
     isAuthenticated: false,
@@ -178,13 +181,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setState((prev) => ({ ...prev, isLoading: false }));
         return {
           success: false,
-          error: data.message || 'ログインに失敗しました',
+          error: data.message || tAuth('loginFailed'),
         };
       }
     } catch (error) {
       setState((prev) => ({ ...prev, isLoading: false }));
       logger.error('ログインエラー:', error);
-      return { success: false, error: 'ネットワークエラーが発生しました' };
+      return { success: false, error: t('authContext.networkError') };
     }
   };
 
@@ -219,12 +222,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return { success: true };
       } else {
         setState((prev) => ({ ...prev, isLoading: false }));
-        return { success: false, error: data.message || '登録に失敗しました' };
+        return { success: false, error: data.message || tAuth('registrationFailed') };
       }
     } catch (error) {
       setState((prev) => ({ ...prev, isLoading: false }));
       logger.error('登録エラー:', error);
-      return { success: false, error: 'ネットワークエラーが発生しました' };
+      return { success: false, error: t('authContext.networkError') };
     }
   };
 
@@ -277,13 +280,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setState((prev) => ({ ...prev, isLoading: false }));
         return {
           success: false,
-          error: data.message || 'Google認証URLの取得に失敗しました',
+          error: data.message || t('authContext.googleAuthUrlFailed'),
         };
       }
     } catch (error) {
       setState((prev) => ({ ...prev, isLoading: false }));
       logger.error('Googleログインエラー:', error);
-      return { success: false, error: 'ネットワークエラーが発生しました' };
+      return { success: false, error: t('authContext.networkError') };
     }
   };
 

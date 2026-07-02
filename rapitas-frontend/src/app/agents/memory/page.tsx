@@ -2,6 +2,7 @@
 // AgentMemoryPage
 
 import { AlertTriangle, Sprout } from 'lucide-react';
+import { useTranslations } from 'next-intl';
 import { useMemoryData } from './useMemoryData';
 import { MemoryStrengthCard } from './components/MemoryStrengthCard';
 import { OverviewCards } from './components/OverviewCards';
@@ -30,6 +31,7 @@ function PageSkeleton() {
 }
 
 export default function AgentMemoryPage() {
+  const t = useTranslations('agents.memory');
   const {
     memoryOverview,
     growthTimeline,
@@ -52,11 +54,11 @@ export default function AgentMemoryPage() {
             <div className="p-2 bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400 rounded-lg">
               <Sprout className="w-6 h-6" />
             </div>
-            <h1 className="text-2xl font-bold text-zinc-900 dark:text-zinc-100">記憶の成長</h1>
+            <h1 className="text-2xl font-bold text-zinc-900 dark:text-zinc-100">
+              {t('pageTitle')}
+            </h1>
           </div>
-          <p className="text-zinc-500 dark:text-zinc-400">
-            AIエージェントが蓄積した知識と学習パターンの成長を可視化します
-          </p>
+          <p className="text-zinc-500 dark:text-zinc-400">{t('pageSubtitle')}</p>
         </div>
 
         {/* Error banner */}
@@ -95,11 +97,9 @@ export default function AgentMemoryPage() {
           <div className="text-center py-16">
             <Sprout className="w-16 h-16 text-zinc-300 dark:text-zinc-600 mx-auto mb-4" />
             <h2 className="text-xl font-semibold text-zinc-600 dark:text-zinc-400 mb-2">
-              記憶データがありません
+              {t('emptyTitle')}
             </h2>
-            <p className="text-zinc-500 dark:text-zinc-400">
-              エージェントがタスクを実行すると、ここに学習の成長が表示されます
-            </p>
+            <p className="text-zinc-500 dark:text-zinc-400">{t('emptyHint')}</p>
           </div>
         )}
       </div>

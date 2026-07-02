@@ -98,7 +98,7 @@ export function BasicSettingsSection({
             )}
             {!fieldErrors.endpoint && agent.agentType === 'azure-openai' && (
               <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-1">
-                例: https://your-resource.openai.azure.com/openai/deployments/your-deployment
+                {t('agentSettingsSections.azureEndpointExample')}
               </p>
             )}
           </div>

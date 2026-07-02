@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useCallback } from 'react';
+import { useTranslations } from 'next-intl';
 import type { WorkflowFileType } from '@/types';
 import { API_BASE_URL } from '@/utils/api';
 
@@ -21,6 +22,7 @@ interface SaveResult {
  * @returns saveFile / isSaving / error / clearError
  */
 export function useWorkflowFileSave(taskId: number) {
+  const t = useTranslations('common');
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -41,14 +43,14 @@ export function useWorkflowFileSave(taskId: number) {
         const data = await res.json();
         return { success: true, workflowStatus: data.workflowStatus };
       } catch (err) {
-        const message = err instanceof Error ? err.message : '保存に失敗しました';
+        const message = err instanceof Error ? err.message : t('saveFailed');
         setError(message);
         return { success: false, error: message };
       } finally {
         setIsSaving(false);
       }
     },
-    [taskId],
+    [taskId, t],
   );
 
   const clearError = useCallback(() => setError(null), []);

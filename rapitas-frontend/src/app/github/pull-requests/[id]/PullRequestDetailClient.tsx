@@ -98,14 +98,14 @@ export default function PullRequestDetailClient() {
       });
       const data = await res.json().catch(() => ({}));
       if (res.ok && data.success) {
-        showToast(`マージ先を ${baseBranch} に変更しました`, 'success');
+        showToast(t('pullRequestDetail.baseChanged', { baseBranch }), 'success');
         await fetchPRData();
       } else {
-        showToast(data.error || 'マージ先の変更に失敗しました', 'error');
+        showToast(data.error || t('pullRequestDetail.baseChangeFailed'), 'error');
       }
     } catch (error) {
       logger.error('Failed to change base branch:', error);
-      showToast('マージ先の変更に失敗しました', 'error');
+      showToast(t('pullRequestDetail.baseChangeFailed'), 'error');
     } finally {
       setChangingBase(false);
     }
@@ -178,19 +178,25 @@ export default function PullRequestDetailClient() {
       });
       const data = await res.json().catch(() => ({}));
       if (res.ok && data.resolved) {
-        showToast(data.detail || 'ベースを取り込み、ブランチを更新しました', 'success');
+        showToast(data.detail || t('pullRequestDetail.baseSynced'), 'success');
         await fetchPRData();
       } else if (res.ok && data.taskId) {
         showToast(
-          `競合があります（${data.conflicts?.length ?? 0}件）。解消タスク #${data.taskId} を作成しました。タスク画面で実行してください。`,
+          t('pullRequestDetail.conflictTaskCreated', {
+            count: data.conflicts?.length ?? 0,
+            taskId: data.taskId,
+          }),
           'success',
         );
       } else {
-        showToast(data.error || data.detail || '競合解消に失敗しました', 'error');
+        showToast(
+          data.error || data.detail || t('pullRequestDetail.resolveConflictsFailed'),
+          'error',
+        );
       }
     } catch (error) {
       logger.error('Failed to resolve conflicts:', error);
-      showToast('競合解消に失敗しました', 'error');
+      showToast(t('pullRequestDetail.resolveConflictsFailed'), 'error');
     } finally {
       setResolvingConflicts(false);
     }
@@ -208,24 +214,27 @@ export default function PullRequestDetailClient() {
       const data = await res.json().catch(() => ({}));
       if (res.ok && data.success) {
         if (data.autoQueued) {
-          showToast('条件を満たし次第、自動マージされます', 'success');
+          showToast(t('pullRequestDetail.autoMergeQueued'), 'success');
           await fetchPRData();
           return;
         }
-        showToast(`PR #${pr.prNumber} をマージしました`, 'success');
+        showToast(t('pullRequestDetail.merged', { prNumber: pr.prNumber }), 'success');
         // Report the local base-branch sync outcome (best-effort on the server).
         if (data.localSync?.synced) {
           showToast(data.localSync.detail, 'success');
         } else if (data.localSync && !data.localSync.synced) {
-          showToast(`ローカル同期に失敗しました: ${data.localSync.detail}`, 'error');
+          showToast(
+            t('pullRequestDetail.localSyncFailed', { detail: data.localSync.detail }),
+            'error',
+          );
         }
         await fetchPRData();
       } else {
-        showToast(data.error || 'マージに失敗しました', 'error');
+        showToast(data.error || t('pullRequestDetail.mergeFailed'), 'error');
       }
     } catch (error) {
       logger.error('Failed to merge:', error);
-      showToast('マージに失敗しました', 'error');
+      showToast(t('pullRequestDetail.mergeFailed'), 'error');
     } finally {
       setMerging(false);
     }
@@ -276,7 +285,9 @@ export default function PullRequestDetailClient() {
       {/* Merge bar — only for open PRs. Review the diff/approve first, then merge. */}
       {pr.state === 'open' && (
         <div className="flex flex-wrap items-center gap-3 mb-6 p-3 rounded-lg border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-800">
-          <span className="text-sm font-medium text-zinc-700 dark:text-zinc-300">マージ先</span>
+          <span className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
+            {t('pullRequestDetail.mergeTargetLabel')}
+          </span>
           <select
             value={pr.baseBranch}
             onChange={(e) => handleChangeBase(e.target.value)}
@@ -290,7 +301,9 @@ export default function PullRequestDetailClient() {
             ))}
           </select>
           {changingBase && <Loader2 className="w-4 h-4 animate-spin text-zinc-400" />}
-          <span className="text-sm font-medium text-zinc-700 dark:text-zinc-300">マージ方式</span>
+          <span className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
+            {t('pullRequestDetail.mergeMethodLabel')}
+          </span>
           <select
             value={mergeMethod}
             onChange={(e) => setMergeMethod(e.target.value as MergeMethod)}
@@ -307,11 +320,11 @@ export default function PullRequestDetailClient() {
               onChange={(e) => setDeleteBranch(e.target.checked)}
               className="rounded"
             />
-            ブランチを削除
+            {t('pullRequestDetail.deleteBranchLabel')}
           </label>
           <label
             className="flex items-center gap-1.5 text-sm text-zinc-600 dark:text-zinc-400"
-            title="今すぐマージできない場合（チェック保留など）、条件を満たし次第GitHubが自動マージします。競合は解消されません。"
+            title={t('pullRequestDetail.autoMergeTooltip')}
           >
             <input
               type="checkbox"
@@ -319,12 +332,12 @@ export default function PullRequestDetailClient() {
               onChange={(e) => setAutoMerge(e.target.checked)}
               className="rounded"
             />
-            自動マージ
+            {t('pullRequestDetail.autoMergeLabel')}
           </label>
           <button
             onClick={handleResolveConflicts}
             disabled={resolvingConflicts}
-            title="ベースを取り込み、競合があればエージェント解消タスクを作成します"
+            title={t('pullRequestDetail.resolveConflictsTooltip')}
             className="ml-auto flex items-center gap-2 px-4 py-2 border border-zinc-300 dark:border-zinc-600 text-zinc-700 dark:text-zinc-200 text-sm font-medium rounded-lg transition-colors hover:bg-zinc-100 dark:hover:bg-zinc-700 disabled:opacity-50"
           >
             {resolvingConflicts ? (
@@ -332,7 +345,7 @@ export default function PullRequestDetailClient() {
             ) : (
               <GitMerge className="w-4 h-4" />
             )}
-            競合を解消
+            {t('pullRequestDetail.resolveConflictsButton')}
           </button>
           <button
             onClick={handleMerge}
@@ -344,7 +357,7 @@ export default function PullRequestDetailClient() {
             ) : (
               <GitMerge className="w-4 h-4" />
             )}
-            マージ
+            {t('pullRequestDetail.mergeButton')}
           </button>
         </div>
       )}

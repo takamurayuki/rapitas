@@ -1,6 +1,11 @@
 import { renderHook, waitFor } from '@testing-library/react';
 import { useWorkflowFiles } from '../workflow/useWorkflowFiles';
 
+vi.mock('next-intl', () => {
+  const t = (key: string) => key;
+  return { useTranslations: () => t };
+});
+
 vi.mock('@/utils/api', () => ({
   API_BASE_URL: 'http://test:3001',
 }));

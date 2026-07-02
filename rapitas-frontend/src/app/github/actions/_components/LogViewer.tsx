@@ -9,6 +9,7 @@
 
 import { useState } from 'react';
 import { Copy, Check } from 'lucide-react';
+import { useTranslations } from 'next-intl';
 
 interface LogViewerProps {
   /** Log text to display and copy. / 表示・コピー対象のログ */
@@ -21,6 +22,7 @@ interface LogViewerProps {
  * @param props - The log text / ログ文字列
  */
 export function LogViewer({ log }: LogViewerProps) {
+  const t = useTranslations('github');
   const [copied, setCopied] = useState(false);
 
   const onCopy = async () => {
@@ -37,8 +39,8 @@ export function LogViewer({ log }: LogViewerProps) {
     <div className="relative">
       <button
         onClick={onCopy}
-        title="ログをコピー"
-        aria-label="ログをコピー"
+        title={t('logViewer.copyLog')}
+        aria-label={t('logViewer.copyLog')}
         className="absolute right-2 top-2 z-10 rounded p-1 text-zinc-400 hover:bg-zinc-700 hover:text-zinc-100"
       >
         {copied ? (

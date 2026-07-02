@@ -1,6 +1,11 @@
 import { renderHook, act } from '@testing-library/react';
 import { useGlobalSearch, useSearchSuggest } from '../search/useGlobalSearch';
 
+vi.mock('next-intl', () => {
+  const t = (key: string) => key;
+  return { useTranslations: () => t };
+});
+
 vi.mock('@/utils/api', () => ({
   API_BASE_URL: 'http://test:3001',
 }));
@@ -102,7 +107,7 @@ describe('useGlobalSearch', () => {
       vi.advanceTimersByTime(300);
     });
 
-    expect(result.current.error).toBe('検索に失敗しました');
+    expect(result.current.error).toBe('useGlobalSearch.searchFailed');
   });
 
   it('should clear state with clear()', async () => {

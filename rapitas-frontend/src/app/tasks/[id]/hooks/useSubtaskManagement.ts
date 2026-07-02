@@ -7,6 +7,7 @@
  */
 
 import { useState, useCallback } from 'react';
+import { useTranslations } from 'next-intl';
 import type { Task, Priority } from '@/types';
 import { getLabelsArray } from '@/utils/labels';
 import { API_BASE_URL } from '@/utils/api';
@@ -37,6 +38,7 @@ export function useSubtaskManagement({
   setTask,
   onTaskUpdated,
 }: UseSubtaskManagementParams) {
+  const t = useTranslations('task');
   const { showToast } = useToast();
   // ── Add new subtask ─────────────────────────────────────────────────
   const [newSubtaskTitle, setNewSubtaskTitle] = useState('');
@@ -119,7 +121,7 @@ export function useSubtaskManagement({
       onTaskUpdated?.();
     } catch (err) {
       logger.error(err);
-      showToast('サブタスクの作成に失敗しました', 'error');
+      showToast(t('subtaskManagement.createFailed'), 'error');
     }
   }, [
     task,
@@ -130,6 +132,7 @@ export function useSubtaskManagement({
     refetchTask,
     onTaskUpdated,
     showToast,
+    t,
   ]);
 
   // ── Inline editing ────────────────────────────────────────────────────
@@ -176,10 +179,10 @@ export function useSubtaskManagement({
         setEditingSubtaskDescription('');
       } catch (err) {
         logger.error(err);
-        showToast('サブタスクの更新に失敗しました', 'error');
+        showToast(t('subtaskManagement.updateFailed'), 'error');
       }
     },
-    [refetchTask, showToast],
+    [refetchTask, showToast, t],
   );
 
   const saveSubtaskEdit = useCallback(() => {

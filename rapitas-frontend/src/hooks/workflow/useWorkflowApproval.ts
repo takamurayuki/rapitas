@@ -1,9 +1,11 @@
 'use client';
 
 import { useState, useCallback } from 'react';
+import { useTranslations } from 'next-intl';
 import { API_BASE_URL } from '@/utils/api';
 
 export function useWorkflowApproval(taskId: number, onComplete?: (newStatus: string) => void) {
+  const t = useTranslations('common');
   const [isApproving, setIsApproving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -32,14 +34,14 @@ export function useWorkflowApproval(taskId: number, onComplete?: (newStatus: str
 
         return { success: true, workflowStatus: data.workflowStatus };
       } catch (err) {
-        const message = err instanceof Error ? err.message : '承認処理に失敗しました';
+        const message = err instanceof Error ? err.message : t('useWorkflowApproval.approveFailed');
         setError(message);
         return { success: false, error: message };
       } finally {
         setIsApproving(false);
       }
     },
-    [taskId, onComplete],
+    [taskId, onComplete, t],
   );
 
   const clearError = useCallback(() => setError(null), []);

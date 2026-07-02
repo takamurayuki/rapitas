@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect } from 'react';
+import { useTranslations } from 'next-intl';
 
 export default function Error({
   error,
@@ -9,6 +10,8 @@ export default function Error({
   error: Error & { digest?: string };
   reset: () => void;
 }) {
+  const t = useTranslations('common');
+
   useEffect(() => {
     console.error('[Reports Error]', error);
   }, [error]);
@@ -17,16 +20,16 @@ export default function Error({
     <div className="mx-auto max-w-2xl p-6">
       <div className="rounded-lg border border-red-200 bg-red-50 p-6 text-center dark:border-red-800 dark:bg-red-950/30">
         <h2 className="mb-2 text-lg font-semibold text-red-800 dark:text-red-300">
-          レポート でエラーが発生しました
+          {t('reportsErrorTitle')}
         </h2>
         <p className="mb-4 text-sm text-red-600 dark:text-red-400">
-          {error.message || '予期しないエラーが発生しました。'}
+          {error.message || t('unexpectedError')}
         </p>
         <button
           onClick={reset}
           className="rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700"
         >
-          再試行
+          {t('retry')}
         </button>
       </div>
     </div>

@@ -3,6 +3,7 @@
  * useIdeaBox — hook for managing IdeaBox state and operations.
  */
 import { useState, useCallback, useEffect } from 'react';
+import { useTranslations } from 'next-intl';
 import { API_BASE_URL } from '@/utils/api';
 
 export interface IdeaBoxEntry {
@@ -29,6 +30,7 @@ interface IdeaStats {
  * @param categoryId - Filter ideas by category / カテゴリフィルタ
  */
 export function useIdeaBox(categoryId: number | null) {
+  const t = useTranslations('common');
   const [ideas, setIdeas] = useState<IdeaBoxEntry[]>([]);
   const [stats, setStats] = useState<IdeaStats | null>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -49,11 +51,11 @@ export function useIdeaBox(categoryId: number | null) {
       };
       setIdeas(data.ideas);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'アイデアの取得に失敗');
+      setError(err instanceof Error ? err.message : t('useIdeaBox.fetchFailed'));
     } finally {
       setIsLoading(false);
     }
-  }, [categoryId]);
+  }, [categoryId, t]);
 
   const fetchStats = useCallback(async () => {
     try {
@@ -85,12 +87,12 @@ export function useIdeaBox(categoryId: number | null) {
         await fetchIdeas();
         await fetchStats();
       } catch (err) {
-        setError(err instanceof Error ? err.message : 'アイデアの投稿に失敗');
+        setError(err instanceof Error ? err.message : t('useIdeaBox.submitFailed'));
       } finally {
         setIsSubmitting(false);
       }
     },
-    [fetchIdeas, fetchStats],
+    [fetchIdeas, fetchStats, t],
   );
 
   useEffect(() => {

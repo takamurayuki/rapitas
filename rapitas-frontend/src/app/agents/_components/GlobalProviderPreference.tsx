@@ -18,6 +18,7 @@
 
 import { useEffect, useState, useCallback } from 'react';
 import { Settings, CheckCircle, Cloud, Cpu, AlertTriangle, RefreshCw } from 'lucide-react';
+import { useTranslations } from 'next-intl';
 import type { UserSettings, ApiProvider } from '@/types';
 import { API_BASE_URL } from '@/utils/api';
 import { createLogger } from '@/lib/logger';
@@ -87,6 +88,7 @@ const MAX_AUTO_RETRIES = 2;
 const AUTO_RETRY_DELAY_MS = 2500;
 
 export function GlobalProviderPreference() {
+  const t = useTranslations('agents.globalProviderPreference');
   const [settings, setSettings] = useState<UserSettings | null>(null);
   const [availability, setAvailability] = useState<AvailabilityResponse | null>(null);
   const [refreshing, setRefreshing] = useState(false);
@@ -164,12 +166,8 @@ export function GlobalProviderPreference() {
         <div className="flex items-center gap-3">
           <Settings className="w-5 h-5 text-zinc-400" />
           <div>
-            <h2 className="font-semibold text-zinc-900 dark:text-zinc-50">
-              デフォルトエージェント
-            </h2>
-            <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-0.5">
-              自動選択時の優先プロバイダ。ロール側で個別上書きされない場合に使われます
-            </p>
+            <h2 className="font-semibold text-zinc-900 dark:text-zinc-50">{t('title')}</h2>
+            <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-0.5">{t('subtitle')}</p>
           </div>
         </div>
         <button
@@ -179,10 +177,10 @@ export function GlobalProviderPreference() {
           }}
           disabled={refreshing}
           className="text-xs text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-200 flex items-center gap-1 disabled:opacity-50"
-          title="CLI / API へ再 probe してキャッシュを破棄"
+          title={t('recheckTitle')}
         >
           <RefreshCw className={`w-3 h-3 ${refreshing ? 'animate-spin' : ''}`} />
-          再チェック
+          {t('recheckButton')}
         </button>
       </div>
       <div className="p-6">
@@ -237,21 +235,21 @@ export function GlobalProviderPreference() {
                       {p.description}
                     </p>
                     {availability == null ? (
-                      <p className="text-[10px] mt-2 text-zinc-400">確認中…</p>
+                      <p className="text-[10px] mt-2 text-zinc-400">{t('checking')}</p>
                     ) : isAvailable ? (
                       <p className="text-[10px] mt-2 text-emerald-600 dark:text-emerald-400">
-                        ✓ 応答あり ({probe?.modelCount ?? 0} モデル検出)
+                        {t('available', { count: probe?.modelCount ?? 0 })}
                       </p>
                     ) : (
                       <p
                         className="text-[10px] mt-2 text-amber-500 flex items-center gap-1"
-                        title={probe?.reason ?? '応答なし'}
+                        title={probe?.reason ?? t('noResponse')}
                       >
                         <AlertTriangle className="w-3 h-3 shrink-0" />
                         <span className="truncate">
                           {refreshing && autoRetryCount > 0
-                            ? `再チェック中… (${autoRetryCount}/${MAX_AUTO_RETRIES})`
-                            : (probe?.reason ?? '応答なし')}
+                            ? t('rechecking', { count: autoRetryCount, max: MAX_AUTO_RETRIES })
+                            : (probe?.reason ?? t('noResponse'))}
                         </span>
                       </p>
                     )}
@@ -263,7 +261,7 @@ export function GlobalProviderPreference() {
         </div>
         <p className="mt-4 text-[11px] text-zinc-500 dark:text-zinc-400 flex items-center gap-1.5">
           <Cpu className="w-3 h-3" />
-          CLI が応答するかのみを確認しています（API キーはチェック対象外。5分キャッシュ）
+          {t('footerNote')}
         </p>
       </div>
     </div>

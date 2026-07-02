@@ -7,12 +7,14 @@
  */
 'use client';
 import { useCallback, useEffect, useRef } from 'react';
+import { useTranslations } from 'next-intl';
 import { useTerminalStore } from './terminal-store';
 import { isTauri } from './terminal-ipc';
 import TerminalTabBar from './TerminalTabBar';
 import TerminalPaneGroup from './TerminalPaneGroup';
 
 export default function TerminalPanel() {
+  const t = useTranslations('terminal');
   const isOpen = useTerminalStore((s) => s.isOpen);
   const close = useTerminalStore((s) => s.close);
   const height = useTerminalStore((s) => s.height);
@@ -82,7 +84,7 @@ export default function TerminalPanel() {
       <div className="flex min-h-0 flex-1">
         {!isTauri() ? (
           <div className="flex flex-1 items-center justify-center p-6 text-center text-sm text-zinc-400">
-            ターミナルはデスクトップアプリ (Tauri) でのみ利用できます。
+            {t('desktopOnly')}
           </div>
         ) : (
           tabs.map((tab) => (

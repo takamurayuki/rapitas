@@ -1,6 +1,7 @@
 'use client';
 // LabelsPage — Category → Theme → Labels
 import { Plus, Tags } from 'lucide-react';
+import { useTranslations } from 'next-intl';
 import { ListSkeleton } from '@/components/ui/LoadingSpinner';
 import { useLabelsPage, defaultFormData } from './_hooks/useLabelsPage';
 import { CategoryTabs } from './_components/category-tabs';
@@ -9,6 +10,7 @@ import { LabelList } from './_components/label-list';
 import { LabelForm } from './_components/label-form';
 
 export default function LabelsPage() {
+  const t = useTranslations('labels');
   const {
     labels,
     themes,
@@ -45,11 +47,9 @@ export default function LabelsPage() {
           <div>
             <h1 className="text-2xl font-bold text-zinc-900 dark:text-zinc-50 flex items-center gap-2">
               <Tags className="w-6 h-6 text-indigo-600 dark:text-indigo-400" />
-              ラベル
+              {t('pageTitle')}
             </h1>
-            <p className="mt-1 text-xs text-zinc-600 dark:text-zinc-400">
-              カテゴリ › テーマの順で絞り込んで管理します
-            </p>
+            <p className="mt-1 text-xs text-zinc-600 dark:text-zinc-400">{t('pageSubtitle')}</p>
           </div>
           {!isAdding && (
             <button
@@ -60,7 +60,7 @@ export default function LabelsPage() {
               className="flex items-center gap-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 px-4 py-2 text-sm text-white transition-all shadow-lg hover:shadow-xl font-medium"
             >
               <Plus className="w-4 h-4" />
-              ラベルを追加
+              {t('addButton')}
             </button>
           )}
         </div>

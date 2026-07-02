@@ -23,6 +23,7 @@ import {
   Share2,
   Filter,
 } from 'lucide-react';
+import { useTranslations } from 'next-intl';
 import {
   AchievementPanel,
   TaskStatsBoard,
@@ -42,6 +43,8 @@ type TabType = 'achievements' | 'stats' | 'badges';
  * メイン実績クライアントコンポーネント
  */
 export const AchievementsClient: React.FC<AchievementsClientProps> = ({ userId }) => {
+  const t = useTranslations('achievements');
+  const tCommon = useTranslations('common');
   const [activeTab, setActiveTab] = useState<TabType>('achievements');
   const [notificationsEnabled, setNotificationsEnabled] = useState(true);
 
@@ -97,14 +100,14 @@ export const AchievementsClient: React.FC<AchievementsClientProps> = ({ userId }
         <div className="text-center">
           <Trophy className="w-16 h-16 text-gray-300 dark:text-gray-600 mx-auto mb-4" />
           <h2 className="text-xl font-semibold text-gray-600 dark:text-gray-400 mb-2">
-            実績データの読み込みに失敗しました
+            {t('client.loadFailed')}
           </h2>
           <button
             onClick={() => refreshAchievements()}
             className="inline-flex items-center space-x-2 px-4 py-2 bg-indigo-500 text-white rounded-lg hover:bg-indigo-600 transition-colors"
           >
             <RefreshCw className="w-4 h-4" />
-            <span>再試行</span>
+            <span>{tCommon('retry')}</span>
           </button>
         </div>
       </div>
@@ -112,9 +115,14 @@ export const AchievementsClient: React.FC<AchievementsClientProps> = ({ userId }
   }
 
   const tabs = [
-    { id: 'achievements', label: '実績', icon: Trophy, count: unlockedCount },
-    { id: 'stats', label: '統計', icon: BarChart3 },
-    { id: 'badges', label: 'バッジ', icon: Gift, count: 0 }, // TODO: Implement badges count
+    {
+      id: 'achievements',
+      label: t('client.tabs.achievements'),
+      icon: Trophy,
+      count: unlockedCount,
+    },
+    { id: 'stats', label: t('client.tabs.stats'), icon: BarChart3 },
+    { id: 'badges', label: t('client.tabs.badges'), icon: Gift, count: 0 }, // TODO: Implement badges count
   ] as const;
 
   const handleTabClick = (tabId: TabType) => {
@@ -148,7 +156,7 @@ export const AchievementsClient: React.FC<AchievementsClientProps> = ({ userId }
               initial={{ opacity: 0, y: -20 }}
               animate={{ opacity: 1, y: 0 }}
             >
-              🏆 実績・統計
+              {t('client.headerTitle')}
             </motion.h1>
             <motion.p
               className="text-gray-600 dark:text-gray-400"
@@ -156,7 +164,7 @@ export const AchievementsClient: React.FC<AchievementsClientProps> = ({ userId }
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.1 }}
             >
-              あなたの学習・タスク管理の成果を確認しましょう
+              {t('client.headerSubtitle')}
             </motion.p>
           </div>
 
@@ -169,7 +177,11 @@ export const AchievementsClient: React.FC<AchievementsClientProps> = ({ userId }
                   ? 'bg-indigo-500 text-white'
                   : 'bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-400'
               }`}
-              title={`通知を${notificationsEnabled ? '無効' : '有効'}にする`}
+              title={
+                notificationsEnabled
+                  ? t('client.disableNotifications')
+                  : t('client.enableNotifications')
+              }
             >
               {notificationsEnabled ? (
                 <Bell className="w-5 h-5" />
@@ -183,7 +195,7 @@ export const AchievementsClient: React.FC<AchievementsClientProps> = ({ userId }
               onClick={() => refreshAchievements()}
               disabled={isLoading}
               className="p-2 rounded-lg bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-400 hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors disabled:opacity-50"
-              title="データを更新"
+              title={t('client.refreshTitle')}
             >
               <RefreshCw className={`w-5 h-5 ${isLoading ? 'animate-spin' : ''}`} />
             </button>
@@ -194,7 +206,7 @@ export const AchievementsClient: React.FC<AchievementsClientProps> = ({ userId }
                 onClick={clearNotifications}
                 className="px-3 py-2 text-sm bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors"
               >
-                通知をクリア
+                {t('client.clearNotifications')}
               </button>
             )}
           </div>
@@ -211,28 +223,36 @@ export const AchievementsClient: React.FC<AchievementsClientProps> = ({ userId }
             <div className="text-2xl font-bold text-green-600 dark:text-green-400">
               {unlockedCount}
             </div>
-            <div className="text-sm text-gray-600 dark:text-gray-400">解除済み実績</div>
+            <div className="text-sm text-gray-600 dark:text-gray-400">
+              {t('client.stats.unlockedCount')}
+            </div>
           </div>
 
           <div className="bg-white dark:bg-gray-800 p-4 rounded-xl border border-gray-200 dark:border-gray-700">
             <div className="text-2xl font-bold text-indigo-600 dark:text-indigo-400">
               {Math.round(completionPercentage)}%
             </div>
-            <div className="text-sm text-gray-600 dark:text-gray-400">完了率</div>
+            <div className="text-sm text-gray-600 dark:text-gray-400">
+              {t('client.stats.completionRate')}
+            </div>
           </div>
 
           <div className="bg-white dark:bg-gray-800 p-4 rounded-xl border border-gray-200 dark:border-gray-700">
             <div className="text-2xl font-bold text-yellow-600 dark:text-yellow-400">
               {totalPoints.toLocaleString()}
             </div>
-            <div className="text-sm text-gray-600 dark:text-gray-400">ポイント</div>
+            <div className="text-sm text-gray-600 dark:text-gray-400">
+              {t('client.stats.points')}
+            </div>
           </div>
 
           <div className="bg-white dark:bg-gray-800 p-4 rounded-xl border border-gray-200 dark:border-gray-700">
             <div className="text-2xl font-bold text-purple-600 dark:text-purple-400">
               {playerStats?.totalTasksCompleted || 0}
             </div>
-            <div className="text-sm text-gray-600 dark:text-gray-400">総タスク数</div>
+            <div className="text-sm text-gray-600 dark:text-gray-400">
+              {t('client.stats.totalTasks')}
+            </div>
           </div>
         </motion.div>
 
@@ -322,9 +342,11 @@ export const AchievementsClient: React.FC<AchievementsClientProps> = ({ userId }
                 >
                   <Gift className="w-16 h-16 text-gray-300 dark:text-gray-600 mx-auto mb-4" />
                   <h3 className="text-lg font-semibold text-gray-600 dark:text-gray-400 mb-2">
-                    バッジ機能は準備中です
+                    {t('client.badgesComingSoonTitle')}
                   </h3>
-                  <p className="text-gray-500 dark:text-gray-500">近日公開予定です。お楽しみに！</p>
+                  <p className="text-gray-500 dark:text-gray-500">
+                    {t('client.badgesComingSoonHint')}
+                  </p>
                 </motion.div>
               )}
             </AnimatePresence>
@@ -340,7 +362,7 @@ export const AchievementsClient: React.FC<AchievementsClientProps> = ({ userId }
             transition={{ delay: 0.4 }}
           >
             <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
-              🎉 最近の実績
+              {t('client.recentActivityTitle')}
             </h3>
             <div className="flex flex-wrap gap-2">
               {recentAchievements.map((achievementId, index) => (
@@ -361,7 +383,9 @@ export const AchievementsClient: React.FC<AchievementsClientProps> = ({ userId }
         {/* Debug info (development only) */}
         {process.env.NODE_ENV === 'development' && (
           <div className="mt-8 p-4 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-700 rounded-lg">
-            <h4 className="font-semibold text-yellow-800 dark:text-yellow-200 mb-2">開発情報</h4>
+            <h4 className="font-semibold text-yellow-800 dark:text-yellow-200 mb-2">
+              {t('client.devInfoTitle')}
+            </h4>
             <div className="text-sm text-yellow-700 dark:text-yellow-300 space-y-1">
               <div>User ID: {userId}</div>
               <div>Tracking: {isTracking ? 'Active' : 'Inactive'}</div>

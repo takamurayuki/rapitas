@@ -8,6 +8,7 @@
  * useSpeechRecognition when not running in Tauri.
  */
 import { useState, useCallback, useRef, useEffect } from 'react';
+import { useTranslations } from 'next-intl';
 
 /** Check if running inside Tauri. */
 function isTauri(): boolean {
@@ -33,6 +34,7 @@ interface TauriVoiceReturn {
  * @returns Voice state and controls / 音声状態とコントロール
  */
 export function useTauriVoice(onResult?: (text: string) => void): TauriVoiceReturn {
+  const t = useTranslations('common');
   const [isListening, setIsListening] = useState(false);
   const [isTranscribing, setIsTranscribing] = useState(false);
   const [transcript, setTranscript] = useState('');
@@ -84,7 +86,7 @@ export function useTauriVoice(onResult?: (text: string) => void): TauriVoiceRetu
         setTranscript((prev) => prev + text);
         onResultRef.current?.(text);
       } else {
-        setError('音声を認識できませんでした。');
+        setError(t('useTauriVoice.recognitionFailed'));
       }
     } catch (err) {
       const message = typeof err === 'string' ? err : (err as Error).message || 'Unknown error';
@@ -92,7 +94,7 @@ export function useTauriVoice(onResult?: (text: string) => void): TauriVoiceRetu
       setIsListening(false);
       setIsTranscribing(false);
     }
-  }, []);
+  }, [t]);
 
   const stopListening = useCallback(async () => {
     if (!isTauri()) return;

@@ -15,7 +15,8 @@ import {
   Legend,
 } from 'recharts';
 import { BarChart2, Brain, TrendingUp, Zap } from 'lucide-react';
-import { PIE_COLORS, NODE_TYPE_LABELS } from '../constants';
+import { useTranslations } from 'next-intl';
+import { PIE_COLORS, NODE_TYPE_KEYS } from '../constants';
 import type { GrowthTimeline, MemoryOverview } from '../types';
 
 const TOOLTIP_STYLE = {
@@ -69,6 +70,18 @@ export function GrowthTrendChart({
   onPeriodChange,
   formatChartDate,
 }: GrowthTrendChartProps) {
+  const t = useTranslations('agents.memory');
+  const periodLabel = (p: '7d' | '30d' | 'all') =>
+    p === '7d'
+      ? t('growthTrendChart.period7d')
+      : p === '30d'
+        ? t('growthTrendChart.period30d')
+        : t('growthTrendChart.periodAll');
+  const nodeTypeLabel = (category: string) =>
+    (NODE_TYPE_KEYS as readonly string[]).includes(category)
+      ? t(`nodeTypeLabels.${category}`)
+      : category;
+
   return (
     <>
       {/* Knowledge growth area chart */}
@@ -78,7 +91,9 @@ export function GrowthTrendChart({
             <div className="p-2 bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400 rounded-lg">
               <BarChart2 className="w-5 h-5" />
             </div>
-            <h3 className="font-semibold text-zinc-900 dark:text-zinc-100">知識の成長トレンド</h3>
+            <h3 className="font-semibold text-zinc-900 dark:text-zinc-100">
+              {t('growthTrendChart.title')}
+            </h3>
           </div>
           <div className="flex gap-2">
             {(['7d', '30d', 'all'] as const).map((p) => (
@@ -91,7 +106,7 @@ export function GrowthTrendChart({
                     : 'bg-zinc-100 dark:bg-zinc-700 text-zinc-600 dark:text-zinc-300 hover:bg-zinc-200 dark:hover:bg-zinc-600'
                 }`}
               >
-                {p === '7d' ? '7日間' : p === '30d' ? '30日間' : '全期間'}
+                {periodLabel(p)}
               </button>
             ))}
           </div>
@@ -131,9 +146,9 @@ export function GrowthTrendChart({
                 formatter={
                   ((value: unknown, name: unknown) => {
                     const labels: Record<string, string> = {
-                      knowledgeNodes: 'ナレッジノード',
-                      learningPatterns: '学習パターン',
-                      experimentsCompleted: '完了実験',
+                      knowledgeNodes: t('growthTrendChart.legendKnowledgeNodes'),
+                      learningPatterns: t('growthTrendChart.legendLearningPatterns'),
+                      experimentsCompleted: t('growthTrendChart.legendExperimentsCompleted'),
                     };
                     return [value, labels[name as string] ?? name];
                   }) as never
@@ -142,9 +157,9 @@ export function GrowthTrendChart({
               <Legend
                 formatter={(value) => {
                   const labels: Record<string, string> = {
-                    knowledgeNodes: 'ナレッジノード',
-                    learningPatterns: '学習パターン',
-                    experimentsCompleted: '完了実験',
+                    knowledgeNodes: t('growthTrendChart.legendKnowledgeNodes'),
+                    learningPatterns: t('growthTrendChart.legendLearningPatterns'),
+                    experimentsCompleted: t('growthTrendChart.legendExperimentsCompleted'),
                   };
                   return labels[value] ?? value;
                 }}
@@ -173,7 +188,7 @@ export function GrowthTrendChart({
             </AreaChart>
           </ResponsiveContainer>
         ) : (
-          <EmptyChart message="成長データがまだありません" />
+          <EmptyChart message={t('growthTrendChart.emptyGrowth')} />
         )}
       </div>
 
@@ -185,7 +200,9 @@ export function GrowthTrendChart({
             <div className="p-2 bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400 rounded-lg">
               <Zap className="w-5 h-5" />
             </div>
-            <h3 className="font-semibold text-zinc-900 dark:text-zinc-100">成功率の推移</h3>
+            <h3 className="font-semibold text-zinc-900 dark:text-zinc-100">
+              {t('growthTrendChart.successRateTitle')}
+            </h3>
           </div>
 
           {growthTimeline && growthTimeline.timeline.length > 0 ? (
@@ -216,7 +233,10 @@ export function GrowthTrendChart({
                 <Tooltip
                   contentStyle={TOOLTIP_STYLE}
                   formatter={
-                    ((v: unknown) => [`${(Number(v) * 100).toFixed(1)}%`, '成功率']) as never
+                    ((v: unknown) => [
+                      `${(Number(v) * 100).toFixed(1)}%`,
+                      t('growthTrendChart.successRateLabel'),
+                    ]) as never
                   }
                 />
                 <Area
@@ -229,7 +249,7 @@ export function GrowthTrendChart({
               </AreaChart>
             </ResponsiveContainer>
           ) : (
-            <EmptyChart message="成功率データがまだありません" />
+            <EmptyChart message={t('growthTrendChart.emptySuccessRate')} />
           )}
         </div>
 
@@ -239,7 +259,9 @@ export function GrowthTrendChart({
             <div className="p-2 bg-indigo-100 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 rounded-lg">
               <TrendingUp className="w-5 h-5" />
             </div>
-            <h3 className="font-semibold text-zinc-900 dark:text-zinc-100">知識分布</h3>
+            <h3 className="font-semibold text-zinc-900 dark:text-zinc-100">
+              {t('growthTrendChart.distributionTitle')}
+            </h3>
           </div>
 
           {memoryOverview && memoryOverview.knowledgeDistribution.length > 0 ? (
@@ -248,7 +270,7 @@ export function GrowthTrendChart({
                 <PieChart>
                   <Pie
                     data={memoryOverview.knowledgeDistribution.map((d) => ({
-                      name: NODE_TYPE_LABELS[d.category] ?? d.category,
+                      name: nodeTypeLabel(d.category),
                       value: d.count,
                     }))}
                     cx="50%"
@@ -275,7 +297,7 @@ export function GrowthTrendChart({
                       }}
                     />
                     <span className="text-sm text-zinc-700 dark:text-zinc-300 flex-1 truncate">
-                      {NODE_TYPE_LABELS[item.category] ?? item.category}
+                      {nodeTypeLabel(item.category)}
                     </span>
                     <span className="text-sm font-medium text-zinc-900 dark:text-zinc-100">
                       {item.count}
@@ -285,7 +307,7 @@ export function GrowthTrendChart({
               </div>
             </div>
           ) : (
-            <EmptyChart message="まだ知識が蓄積されていません" />
+            <EmptyChart message={t('growthTrendChart.emptyDistribution')} />
           )}
         </div>
       </div>

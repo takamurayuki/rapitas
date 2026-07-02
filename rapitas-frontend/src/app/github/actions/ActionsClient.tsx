@@ -12,6 +12,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { RefreshCw, FolderGit2 } from 'lucide-react';
+import { useTranslations } from 'next-intl';
 import type { GitHubIntegration } from '@/types';
 import { API_BASE_URL } from '@/utils/api';
 import { createLogger } from '@/lib/logger';
@@ -23,6 +24,8 @@ import type { WorkflowRun, RunDetail } from './_types/actions.types';
 const logger = createLogger('ActionsClient');
 
 export default function ActionsClient() {
+  const t = useTranslations('github');
+  const tCommon = useTranslations('common');
   const locale = useLocaleStore((s) => s.locale);
   const dateLocale = toDateLocale(locale);
 
@@ -115,7 +118,7 @@ export default function ActionsClient() {
         <div className="flex items-center gap-3">
           <h1 className="text-2xl font-bold text-zinc-900 dark:text-zinc-50">CI/CD</h1>
           <span className="text-sm text-zinc-500 dark:text-zinc-400">
-            GitHub Actions の実行履歴
+            {t('actionsClient.subtitle')}
           </span>
         </div>
         <div className="flex items-center gap-2">
@@ -136,7 +139,7 @@ export default function ActionsClient() {
             className="flex items-center gap-1.5 rounded-lg border border-zinc-200 dark:border-zinc-700 px-3 py-1.5 text-sm text-zinc-600 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 disabled:opacity-50"
           >
             <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
-            更新
+            {tCommon('update')}
           </button>
         </div>
       </div>
@@ -152,26 +155,22 @@ export default function ActionsClient() {
           {selectedIntegration ? (
             <>
               <p className="font-medium text-zinc-600 dark:text-zinc-300">
-                このリポジトリにはまだワークフロー実行がありません
+                {t('actionsClient.noRunsTitle')}
               </p>
-              <p className="mt-1 text-xs">
-                プッシュやプルリクエストでCIが走ると、ここに表示されます。
-              </p>
+              <p className="mt-1 text-xs">{t('actionsClient.noRunsHint')}</p>
             </>
           ) : (
             <>
               <p className="font-medium text-zinc-600 dark:text-zinc-300">
-                連携済みのリポジトリがありません
+                {t('actionsClient.noIntegrationsTitle')}
               </p>
-              <p className="mt-1 text-xs">
-                リポジトリを連携すると、CIの実行状況をここで確認できます。
-              </p>
+              <p className="mt-1 text-xs">{t('actionsClient.noIntegrationsHint')}</p>
               <Link
                 href="/github"
                 className="mt-4 inline-flex items-center gap-1.5 rounded-lg bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white transition-colors hover:bg-indigo-700"
               >
                 <FolderGit2 className="h-4 w-4" />
-                リポジトリを連携
+                {t('actionsClient.linkRepository')}
               </Link>
             </>
           )}

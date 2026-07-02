@@ -2,6 +2,7 @@
 // PaidLeaveDialog
 
 import { useState, useRef, useEffect } from 'react';
+import { useTranslations } from 'next-intl';
 import type { ScheduleEventInput } from '@/types';
 import { useLocaleStore } from '@/stores/locale-store';
 import { toDateLocale } from '@/lib/utils';
@@ -9,11 +10,13 @@ import { PaidLeaveHeader } from './paid-leave/PaidLeaveHeader';
 import { PaidLeaveDurationPicker } from './paid-leave/PaidLeaveDurationPicker';
 import { PaidLeaveOptions } from './paid-leave/PaidLeaveOptions';
 
+// NOTE: `labelKey` — resolved via useTranslations('calendar.paidLeaveDialog')
+// in the component so leave-type names stay translated.
 const PAID_LEAVE_TYPES = [
-  { value: 'annual_leave', label: '年次有給休暇' },
-  { value: 'special_leave', label: '特別休暇' },
-  { value: 'sick_leave', label: '病気休暇' },
-  { value: 'personal_leave', label: '私用休暇' },
+  { value: 'annual_leave', labelKey: 'annualLeave' as const },
+  { value: 'special_leave', labelKey: 'specialLeave' as const },
+  { value: 'sick_leave', labelKey: 'sickLeave' as const },
+  { value: 'personal_leave', labelKey: 'personalLeave' as const },
 ];
 
 type Props = {
@@ -44,6 +47,8 @@ export default function PaidLeaveDialog({
   onSubmit,
   remainingDays = 20,
 }: Props) {
+  const t = useTranslations('calendar');
+  const tp = useTranslations('calendar.paidLeaveDialog');
   const locale = useLocaleStore((s) => s.locale);
   const dateLocale = toDateLocale(locale);
   const defaults = getDefaultTimes();
@@ -66,8 +71,9 @@ export default function PaidLeaveDialog({
   // Auto-fill title from selected leave type and focus the input
   useEffect(() => {
     titleRef.current?.focus();
-    const selectedType = PAID_LEAVE_TYPES.find((t) => t.value === leaveType);
-    if (selectedType) setTitle(selectedType.label);
+    const selectedType = PAID_LEAVE_TYPES.find((lt) => lt.value === leaveType);
+    if (selectedType) setTitle(tp(selectedType.labelKey));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [leaveType]);
 
   // Close on Escape key
@@ -194,7 +200,7 @@ export default function PaidLeaveDialog({
           {/* Leave type selection */}
           <div className="mb-4">
             <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-2">
-              休暇の種類
+              {tp('leaveTypeLabel')}
             </label>
             <div className="grid grid-cols-2 gap-2">
               {PAID_LEAVE_TYPES.map((type) => (
@@ -208,7 +214,7 @@ export default function PaidLeaveDialog({
                       : 'bg-zinc-100 dark:bg-zinc-700 text-zinc-500 dark:text-zinc-400 hover:bg-zinc-200 dark:hover:bg-zinc-600'
                   }`}
                 >
-                  {type.label}
+                  {tp(type.labelKey)}
                 </button>
               ))}
             </div>
@@ -220,7 +226,7 @@ export default function PaidLeaveDialog({
             type="text"
             value={title}
             onChange={(e) => setTitle(e.target.value)}
-            placeholder="タイトルを入力"
+            placeholder={t('titleInputPlaceholder')}
             className="w-full py-3 text-lg font-medium bg-transparent text-zinc-900 dark:text-zinc-50 placeholder-zinc-300 dark:placeholder-zinc-600 focus:outline-none border-b border-zinc-100 dark:border-zinc-700 focus:border-indigo-400 dark:focus:border-indigo-500 transition-colors"
           />
 
@@ -282,12 +288,12 @@ export default function PaidLeaveDialog({
             {submitting ? (
               <span className="flex items-center justify-center gap-2">
                 <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                申請中...
+                {tp('submitting')}
               </span>
             ) : afterUsage < 0 ? (
-              '残日数不足'
+              t('insufficientBalance')
             ) : (
-              `有給申請 (${usedDays}日)`
+              `${t('paidLeaveRequest')} (${t('paidLeaveDays', { count: usedDays })})`
             )}
           </button>
         </form>

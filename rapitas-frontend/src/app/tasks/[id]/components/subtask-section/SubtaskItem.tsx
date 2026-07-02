@@ -121,7 +121,7 @@ export function SubtaskItem({
                 <button
                   onClick={onToggleSelection}
                   className="shrink-0"
-                  aria-label={isSelected ? '選択を解除' : '選択'}
+                  aria-label={isSelected ? t('deselect') : t('select')}
                   aria-pressed={isSelected}
                 >
                   {isSelected ? (

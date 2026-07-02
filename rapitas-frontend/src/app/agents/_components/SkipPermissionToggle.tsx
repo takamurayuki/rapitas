@@ -11,6 +11,7 @@
 
 import { useEffect, useState, useCallback } from 'react';
 import { ShieldOff, ShieldCheck } from 'lucide-react';
+import { useTranslations } from 'next-intl';
 import type { UserSettings } from '@/types';
 import { API_BASE_URL } from '@/utils/api';
 import { Toggle } from '@/components/ui/Toggle';
@@ -19,6 +20,7 @@ import { createLogger } from '@/lib/logger';
 const logger = createLogger('SkipPermissionToggle');
 
 export function SkipPermissionToggle() {
+  const t = useTranslations('agents.skipPermissionToggle');
   const [settings, setSettings] = useState<UserSettings | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -65,28 +67,22 @@ export function SkipPermissionToggle() {
         <div className="flex items-start gap-2 min-w-0">
           <Icon className={`w-4 h-4 shrink-0 mt-0.5 ${tone}`} />
           <div className="min-w-0">
-            <div className="text-sm font-medium text-zinc-900 dark:text-zinc-100">
-              エージェントの許可確認をスキップ
-            </div>
+            <div className="text-sm font-medium text-zinc-900 dark:text-zinc-100">{t('title')}</div>
             <p className="text-[11px] text-zinc-500 dark:text-zinc-400 mt-0.5">
-              {checked ? (
-                <>
-                  Claude Code には{' '}
-                  <code className="text-[10px] bg-zinc-100 dark:bg-zinc-800 px-1 rounded">
-                    --dangerously-skip-permissions
-                  </code>
-                  、Codex / Gemini には{' '}
-                  <code className="text-[10px] bg-zinc-100 dark:bg-zinc-800 px-1 rounded">
-                    --yolo
-                  </code>{' '}
-                  を付けて起動します。実行が止まりませんが、ファイル編集やコマンド実行を即座に行うので注意。
-                </>
-              ) : (
-                <>
-                  CLI 標準の許可プロンプトを surface
-                  します。安全ですが、実行中に質問が来るたびタスクが一時停止します。
-                </>
-              )}
+              {checked
+                ? t.rich('onDescription', {
+                    code1: (chunks) => (
+                      <code className="text-[10px] bg-zinc-100 dark:bg-zinc-800 px-1 rounded">
+                        {chunks}
+                      </code>
+                    ),
+                    code2: (chunks) => (
+                      <code className="text-[10px] bg-zinc-100 dark:bg-zinc-800 px-1 rounded">
+                        {chunks}
+                      </code>
+                    ),
+                  })
+                : t('offDescription')}
             </p>
           </div>
         </div>
@@ -95,7 +91,7 @@ export function SkipPermissionToggle() {
           onChange={onToggle}
           disabled={busy}
           color="indigo"
-          srLabel="エージェント許可確認スキップ"
+          srLabel={t('srLabel')}
         />
       </div>
     </div>

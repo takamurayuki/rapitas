@@ -1,6 +1,11 @@
 import { renderHook, act } from '@testing-library/react';
 import { useLoginForm } from '../auth/useLoginForm';
 
+vi.mock('next-intl', () => {
+  const t = (key: string) => key;
+  return { useTranslations: () => t };
+});
+
 vi.mock('@/lib/logger', () => ({
   createLogger: () => ({
     debug: vi.fn(),
@@ -95,7 +100,7 @@ describe('useLoginForm', () => {
       } as unknown as React.FormEvent);
     });
 
-    expect(result.current.errors.password).toContain('6');
+    expect(result.current.errors.password).toContain('passwordTooShort');
     expect(fetch).not.toHaveBeenCalled();
   });
 

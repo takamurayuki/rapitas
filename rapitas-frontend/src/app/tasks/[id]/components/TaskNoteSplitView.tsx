@@ -9,6 +9,7 @@
 import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { X, ChevronLeft, AlertCircle } from 'lucide-react';
+import { useTranslations } from 'next-intl';
 import { useNoteStore } from '@/stores/note-store';
 import NoteEditor from '@/components/note/NoteEditor';
 import TaskDetailClient from '../TaskDetailClient';
@@ -27,6 +28,7 @@ interface Props {
  * @param props.noteId - String ID of the note to open.
  */
 export function TaskNoteSplitView({ taskId, noteId }: Props) {
+  const t = useTranslations('task');
   const router = useRouter();
 
   // NOTE: Prevent the page body from scrolling while the split view is active.
@@ -61,7 +63,7 @@ export function TaskNoteSplitView({ taskId, noteId }: Props) {
             className="flex items-center gap-1 rounded-md px-2 py-1 text-xs text-gray-500 transition-colors hover:bg-gray-200 hover:text-gray-800 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-200"
           >
             <ChevronLeft className="h-3.5 w-3.5" />
-            タスクへ戻る
+            {t('noteSplitView.backToTask')}
           </button>
           <div className="flex-1" />
           <button
@@ -79,7 +81,7 @@ export function TaskNoteSplitView({ taskId, noteId }: Props) {
           ) : (
             <div className="flex h-full items-center justify-center gap-2 text-sm text-gray-400 dark:text-zinc-500">
               <AlertCircle className="h-4 w-4" />
-              ノートが見つかりません
+              {t('noteSplitView.noteNotFound')}
             </div>
           )}
         </div>

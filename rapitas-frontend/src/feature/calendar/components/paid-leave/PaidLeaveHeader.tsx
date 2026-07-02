@@ -2,6 +2,7 @@
 // PaidLeaveHeader
 
 import { X, Coffee } from 'lucide-react';
+import { useTranslations } from 'next-intl';
 
 type PaidLeaveHeaderProps = {
   /** Hex color used for the icon background. */
@@ -40,6 +41,8 @@ export function PaidLeaveHeader({
   afterUsage,
   onClose,
 }: PaidLeaveHeaderProps) {
+  const t = useTranslations('calendar');
+  const tp = useTranslations('calendar.paidLeaveHeader');
   return (
     <div className="px-5 pt-4 pb-0">
       <div className="flex items-center justify-between mb-3">
@@ -60,11 +63,13 @@ export function PaidLeaveHeader({
               <p className="text-xs text-zinc-400 dark:text-zinc-500 mt-0.5">
                 〜 {formattedEndDate}
                 <span className="ml-1 text-red-500 dark:text-red-400 font-medium">
-                  ({dayCount}日間)
+                  {t('dayCountSuffix', { count: dayCount })}
                 </span>
               </p>
             ) : (
-              <p className="text-xs text-zinc-400 dark:text-zinc-500 mt-0.5">有給休暇を申請</p>
+              <p className="text-xs text-zinc-400 dark:text-zinc-500 mt-0.5">
+                {tp('requestPrompt')}
+              </p>
             )}
           </div>
         </div>
@@ -88,12 +93,18 @@ export function PaidLeaveHeader({
           }`}
         >
           <div className="flex justify-between items-center">
-            <span>有給残日数: {remainingDays}日</span>
-            <span>使用: {usedDays}日</span>
+            <span>
+              {t('paidLeaveBalance')}: {t('paidLeaveDays', { count: remainingDays })}
+            </span>
+            <span>
+              {tp('usedLabel')}: {t('paidLeaveDays', { count: usedDays })}
+            </span>
           </div>
           <div className="flex justify-between items-center mt-1">
-            <span className="font-medium">申請後: {afterUsage}日</span>
-            {afterUsage < 0 && <span className="text-xs">⚠️ 残日数不足</span>}
+            <span className="font-medium">
+              {tp('afterUsageLabel')}: {t('paidLeaveDays', { count: afterUsage })}
+            </span>
+            {afterUsage < 0 && <span className="text-xs">⚠️ {t('insufficientBalance')}</span>}
           </div>
         </div>
       </div>

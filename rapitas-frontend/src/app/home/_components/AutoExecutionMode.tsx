@@ -12,6 +12,7 @@
  *        spinning ancestor (prevents rasterization glitch on the Orbit icon).
  */
 import { Play, Square, Loader2, Orbit, Pause } from 'lucide-react';
+import { useTranslations } from 'next-intl';
 import { useThemeAutoRun } from '@/hooks/workflow/useThemeAutoRun';
 
 interface AutoExecutionModeProps {
@@ -26,6 +27,9 @@ interface AutoExecutionModeProps {
  * @returns The control, or null for non-development themes. / コントロール（非開発テーマはnull）
  */
 export function AutoExecutionMode({ theme }: AutoExecutionModeProps) {
+  const t = useTranslations('home');
+  const tSettings = useTranslations('settings');
+  const tAutoRun = useTranslations('autoRun');
   const { data, actionLoading, error, start, stop } = useThemeAutoRun(
     theme?.id ?? null,
     theme?.isDevelopment,
@@ -48,7 +52,7 @@ export function AutoExecutionMode({ theme }: AutoExecutionModeProps) {
         <button
           onClick={() => start('priority')}
           disabled={actionLoading}
-          title="このテーマのToDoタスクを上から順に自動実行します"
+          title={t('autoExecutionMode.startTitle')}
           className="inline-flex items-center gap-3 rounded-xl border border-indigo-300 bg-white pl-3 pr-4 py-2 text-sm font-medium text-indigo-600 shadow-[0_2px_0_0_#a5b4fc] select-none transition-all duration-75 hover:border-indigo-400 hover:bg-indigo-50 active:translate-y-[2px] active:shadow-none disabled:cursor-not-allowed disabled:opacity-50 dark:border-indigo-700 dark:bg-zinc-900 dark:text-indigo-400 dark:shadow-[0_2px_0_0_#312e81] dark:hover:border-indigo-600 dark:hover:bg-indigo-950/40"
         >
           {actionLoading ? (
@@ -58,7 +62,7 @@ export function AutoExecutionMode({ theme }: AutoExecutionModeProps) {
               <Play className="h-2.5 w-2.5 dark:h-4 dark:w-4 fill-white text-white dark:fill-indigo-400 dark:text-indigo-400" />
             </span>
           )}
-          タスク自動実行
+          {tSettings('devModeTitle')}
         </button>
         {errorBadge}
       </div>
@@ -76,7 +80,7 @@ export function AutoExecutionMode({ theme }: AutoExecutionModeProps) {
           <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-zinc-200 dark:bg-transparent">
             <Loader2 className="h-3 w-3 dark:h-4 dark:w-4 animate-spin text-zinc-500 dark:text-zinc-400" />
           </span>
-          停止中
+          {tAutoRun('statusStopping')}
         </button>
         {errorBadge}
       </div>
@@ -106,7 +110,7 @@ export function AutoExecutionMode({ theme }: AutoExecutionModeProps) {
       <button
         onClick={() => stop()}
         disabled={actionLoading}
-        title="自動実行を停止します"
+        title={t('autoExecutionMode.stopTitle')}
         className={`group relative inline-flex items-center gap-3 rounded-xl border bg-white pl-3 pr-4 py-2 text-sm font-medium select-none transition-all duration-75 hover:shadow-none disabled:cursor-not-allowed disabled:opacity-50 dark:bg-zinc-900 ${restBorder} ${restShadow} ${restText}`}
       >
         {/* REST — icon circle + label. Parent never mutates on hover (overlay
@@ -124,7 +128,7 @@ export function AutoExecutionMode({ theme }: AutoExecutionModeProps) {
             </span>
           )}
         </span>
-        <span>{paused ? '一時停止中' : 'タスク自動実行中'}</span>
+        <span>{paused ? t('autoExecutionMode.paused') : t('autoExecutionMode.runningLabel')}</span>
 
         {/* HOVER OVERLAY — fully opaque; instant opacity swap (no transition)
             so the spinner's parent never sees a mid-fade partial repaint. */}
@@ -133,7 +137,7 @@ export function AutoExecutionMode({ theme }: AutoExecutionModeProps) {
             <Square className="h-2.5 w-2.5 dark:h-4 dark:w-4 fill-white text-white dark:fill-red-400 dark:text-red-400" />
           </span>
           <span className="absolute inset-0 flex translate-x-2 items-center justify-center pointer-events-none">
-            停止
+            {tAutoRun('stop')}
           </span>
         </span>
       </button>

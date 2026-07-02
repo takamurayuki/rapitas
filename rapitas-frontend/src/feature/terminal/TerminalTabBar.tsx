@@ -6,9 +6,11 @@
  */
 'use client';
 import { Plus, X, SplitSquareHorizontal, SplitSquareVertical, SquareTerminal } from 'lucide-react';
+import { useTranslations } from 'next-intl';
 import { useTerminalStore } from './terminal-store';
 
 export default function TerminalTabBar() {
+  const t = useTranslations('terminal');
   const tabs = useTerminalStore((s) => s.tabs);
   const activeTabId = useTerminalStore((s) => s.activeTabId);
   const setActiveTab = useTerminalStore((s) => s.setActiveTab);
@@ -41,7 +43,7 @@ export default function TerminalTabBar() {
               type="button"
               onClick={() => closeTab(tab.id)}
               className="rounded p-0.5 text-zinc-500 hover:bg-zinc-600 hover:text-zinc-100"
-              aria-label={`${tab.title} を閉じる`}
+              aria-label={t('closeTabAria', { title: tab.title })}
             >
               <X className="h-3 w-3" aria-hidden="true" />
             </button>
@@ -54,8 +56,8 @@ export default function TerminalTabBar() {
           type="button"
           onClick={() => splitActivePane('row')}
           className="rounded p-1 hover:bg-zinc-700 hover:text-zinc-100"
-          aria-label="左右に分割"
-          title="左右に分割"
+          aria-label={t('splitHorizontal')}
+          title={t('splitHorizontal')}
         >
           <SplitSquareHorizontal className="h-4 w-4" aria-hidden="true" />
         </button>
@@ -63,8 +65,8 @@ export default function TerminalTabBar() {
           type="button"
           onClick={() => splitActivePane('column')}
           className="rounded p-1 hover:bg-zinc-700 hover:text-zinc-100"
-          aria-label="上下に分割"
-          title="上下に分割"
+          aria-label={t('splitVertical')}
+          title={t('splitVertical')}
         >
           <SplitSquareVertical className="h-4 w-4" aria-hidden="true" />
         </button>
@@ -72,8 +74,8 @@ export default function TerminalTabBar() {
           type="button"
           onClick={() => addTab()}
           className="rounded p-1 hover:bg-zinc-700 hover:text-zinc-100"
-          aria-label="新しいターミナル"
-          title="新しいターミナル"
+          aria-label={t('newTerminal')}
+          title={t('newTerminal')}
         >
           <Plus className="h-4 w-4" aria-hidden="true" />
         </button>
@@ -81,8 +83,8 @@ export default function TerminalTabBar() {
           type="button"
           onClick={() => close()}
           className="rounded p-1 hover:bg-zinc-700 hover:text-zinc-100"
-          aria-label="ターミナルを閉じる"
-          title="ターミナルを閉じる (Ctrl+`)"
+          aria-label={t('closeTerminal')}
+          title={t('closeTerminalTitle')}
         >
           <X className="h-4 w-4" aria-hidden="true" />
         </button>

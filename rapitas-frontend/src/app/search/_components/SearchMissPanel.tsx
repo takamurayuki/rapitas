@@ -9,6 +9,7 @@
 
 import { useEffect, useState, useCallback } from 'react';
 import { Lightbulb, Plus, RefreshCw } from 'lucide-react';
+import { useTranslations } from 'next-intl';
 import { API_BASE_URL } from '@/utils/api';
 import { createLogger } from '@/lib/logger';
 
@@ -26,6 +27,8 @@ interface SearchMissItem {
  * Panel that surfaces zero-result queries and allows task creation to fill them.
  */
 export function SearchMissPanel() {
+  const t = useTranslations('search');
+  const tCommon = useTranslations('common');
   const [items, setItems] = useState<SearchMissItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState<number | null>(null);
@@ -89,12 +92,12 @@ export function SearchMissPanel() {
       <div className="flex items-center gap-2 mb-3">
         <Lightbulb className="w-4 h-4 text-amber-500" />
         <h3 className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
-          よく検索されているが結果がないキーワード
+          {t('missPanel.heading')}
         </h3>
         <button
           onClick={fetchMisses}
           className="ml-auto text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 transition-colors"
-          aria-label="更新"
+          aria-label={tCommon('update')}
         >
           <RefreshCw className="w-3.5 h-3.5" />
         </button>
@@ -110,7 +113,7 @@ export function SearchMissPanel() {
                 {miss.query}
               </span>
               <span className="flex-shrink-0 text-xs text-zinc-400 dark:text-zinc-500">
-                {miss.hitCount}回
+                {t('missPanel.hitCount', { count: miss.hitCount })}
               </span>
             </div>
             <button
@@ -119,7 +122,7 @@ export function SearchMissPanel() {
               className="flex-shrink-0 flex items-center gap-1 text-xs text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 dark:hover:text-indigo-300 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >
               <Plus className="w-3.5 h-3.5" />
-              {creating === miss.id ? '作成中…' : 'タスク作成'}
+              {creating === miss.id ? t('missPanel.creating') : t('missPanel.createTask')}
             </button>
           </div>
         ))}

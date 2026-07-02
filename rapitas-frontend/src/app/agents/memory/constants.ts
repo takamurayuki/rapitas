@@ -16,14 +16,12 @@ export const PIE_COLORS = [
   '#ec4899',
 ];
 
-/** Human-readable Japanese labels for knowledge node types. */
-export const NODE_TYPE_LABELS: Record<string, string> = {
-  concept: 'コンセプト',
-  problem: '問題',
-  solution: '解決策',
-  technology: 'テクノロジー',
-  pattern: 'パターン',
-};
+/**
+ * Known knowledge-node type keys, used to validate a category against
+ * `agents.memory.nodeTypeLabels.*` before calling the translator — unknown
+ * categories fall back to the raw value instead of a missing-message error.
+ */
+export const NODE_TYPE_KEYS = ['concept', 'problem', 'solution', 'technology', 'pattern'] as const;
 
 /** Tailwind class sets keyed by memory strength level. */
 export const LEVEL_CONFIG: Record<
@@ -61,10 +59,9 @@ export const LEVEL_CONFIG: Record<
   },
 };
 
-/** Japanese display labels for memory strength levels. */
-export const LEVEL_LABELS: Record<string, string> = {
-  expert: 'エキスパート',
-  advanced: 'アドバンスド',
-  intermediate: '中級',
-  beginner: 'ビギナー',
-};
+/**
+ * Known memory-strength level keys, used to validate a level against
+ * `agents.memory.levelLabels.*` before calling the translator — unknown
+ * levels fall back to the raw value instead of a missing-message error.
+ */
+export const LEVEL_KEYS = ['expert', 'advanced', 'intermediate', 'beginner'] as const;

@@ -172,7 +172,7 @@ export function useWizard() {
       }
     } catch (error) {
       setProposals([]);
-      setAiErrorMessage(error instanceof Error ? error.message : 'プロポーザル生成に失敗しました');
+      setAiErrorMessage(error instanceof Error ? error.message : t('proposalGenerateFailed'));
     }
     setPhase('proposals');
   };
@@ -245,11 +245,11 @@ export function useWizard() {
         setCreatedThemePath(data.projectPath);
       } else {
         setSetupPhase('error');
-        setSetupError(data.error || 'テーマの作成に失敗しました');
+        setSetupError(data.error || t('themeCreateError'));
       }
     } catch (error) {
       setSetupPhase('error');
-      setSetupError(error instanceof Error ? error.message : 'テーマの作成に失敗しました');
+      setSetupError(error instanceof Error ? error.message : t('themeCreateError'));
     }
   };
 

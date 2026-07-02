@@ -11,6 +11,7 @@
 
 import { useState } from 'react';
 import { ChevronRight } from 'lucide-react';
+import { useTranslations } from 'next-intl';
 import { StatusIcon } from './StatusIcon';
 import { StepRow } from './StepRow';
 import { API_BASE_URL } from '@/utils/api';
@@ -33,6 +34,7 @@ interface JobSectionProps {
  * @param props - job data, integration id, and expand state / ジョブと展開状態
  */
 export function JobSection({ job, integrationId, isExpanded, onToggle }: JobSectionProps) {
+  const t = useTranslations('github');
   const [expandedSteps, setExpandedSteps] = useState<Set<number>>(new Set());
   const [sections, setSections] = useState<JobLogSection[] | null>(null);
   const [loadingStep, setLoadingStep] = useState<number | null>(null);
@@ -83,13 +85,13 @@ export function JobSection({ job, integrationId, isExpanded, onToggle }: JobSect
           {job.name}
         </span>
         <span className="ml-auto shrink-0 text-[10px] text-zinc-400">
-          {job.steps.length} ステップ
+          {t('jobSection.stepsCount', { count: job.steps.length })}
         </span>
       </button>
       {isExpanded && (
         <div className="space-y-1 px-2.5 pb-2 pl-8">
           {job.steps.length === 0 ? (
-            <p className="text-[11px] text-zinc-400">ステップ情報がありません</p>
+            <p className="text-[11px] text-zinc-400">{t('jobSection.noSteps')}</p>
           ) : (
             job.steps.map((step) => (
               <StepRow

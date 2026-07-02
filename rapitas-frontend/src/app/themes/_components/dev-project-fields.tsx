@@ -143,7 +143,7 @@ export function DevProjectFields({
             {dirStatus.isGitRepo && formData.repositoryUrl && !editingId && (
               <p className="mt-1 text-xs text-green-600 dark:text-green-400 flex items-center gap-1">
                 <CheckCircle className="w-3 h-3" />
-                リポジトリURLを自動検出しました
+                {t('repoUrlAutoDetected')}
               </p>
             )}
           </div>
@@ -216,7 +216,7 @@ export function DevProjectFields({
                 {branches.map((branch) => (
                   <option key={branch} value={branch}>
                     {branch}
-                    {branch === 'develop' && ' (推奨)'}
+                    {branch === 'develop' && ` ${t('branchRecommendedSuffix')}`}
                     {branch === 'main' && branches.length > 1 && ' (GitHub Flow)'}
                   </option>
                 ))}
@@ -241,8 +241,8 @@ export function DevProjectFields({
 
             <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
               {branches.length > 0
-                ? `${branches.length}個のブランチが見つかりました`
-                : 'リポジトリURLを入力するとブランチ一覧が表示されます'}
+                ? t('branchesFoundCount', { count: branches.length })
+                : t('branchesEmptyHint')}
             </p>
           </div>
         </div>

@@ -4,6 +4,7 @@
  */
 
 import { useState, useEffect, useCallback } from 'react';
+import { useTranslations } from 'next-intl';
 import { API_BASE_URL } from '@/utils/api';
 import { createLogger } from '@/lib/logger';
 
@@ -28,6 +29,7 @@ const EMPTY_STATS: PomodoroStatsData = {
 };
 
 export function usePomodoroStats() {
+  const t = useTranslations('common');
   const [stats, setStats] = useState<PomodoroStatsData>(EMPTY_STATS);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -41,13 +43,13 @@ export function usePomodoroStats() {
       const data = await res.json();
       setStats(data);
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'ポモドーロ統計の取得に失敗しました';
+      const message = err instanceof Error ? err.message : t('usePomodoroStats.fetchFailed');
       setError(message);
       logger.error('Failed to fetch pomodoro stats:', err);
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [t]);
 
   useEffect(() => {
     fetchStats();

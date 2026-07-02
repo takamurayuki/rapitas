@@ -2,6 +2,7 @@
 // OverviewCards
 
 import { ArrowDownRight, ArrowUpRight, Database, Footprints, Network, Target } from 'lucide-react';
+import { useTranslations } from 'next-intl';
 import type { MemoryOverview } from '../types';
 
 interface OverviewCardsProps {
@@ -50,6 +51,7 @@ function GrowthBadge({ value, label }: GrowthBadgeProps) {
  * @param memoryOverview - Memory statistics including totals and growth rates.
  */
 export function OverviewCards({ memoryOverview }: OverviewCardsProps) {
+  const t = useTranslations('agents.memory.overviewCards');
   const totalMemory =
     memoryOverview.totalMemorySize.nodes +
     memoryOverview.totalMemorySize.patterns +
@@ -63,8 +65,8 @@ export function OverviewCards({ memoryOverview }: OverviewCardsProps) {
           <div className="text-xl font-bold leading-tight text-zinc-900 dark:text-zinc-50">
             {totalMemory.toLocaleString()}
           </div>
-          <p className="truncate text-xs text-zinc-500 dark:text-zinc-400">記憶総量</p>
-          <GrowthBadge value={memoryOverview.growthRate.weekly} label="先週比" />
+          <p className="truncate text-xs text-zinc-500 dark:text-zinc-400">{t('totalMemory')}</p>
+          <GrowthBadge value={memoryOverview.growthRate.weekly} label={t('weeklyChange')} />
         </div>
       </div>
 
@@ -74,9 +76,9 @@ export function OverviewCards({ memoryOverview }: OverviewCardsProps) {
           <div className="text-xl font-bold leading-tight text-zinc-900 dark:text-zinc-50">
             {memoryOverview.totalMemorySize.nodes.toLocaleString()}
           </div>
-          <p className="truncate text-xs text-zinc-500 dark:text-zinc-400">ナレッジノード</p>
+          <p className="truncate text-xs text-zinc-500 dark:text-zinc-400">{t('knowledgeNodes')}</p>
           <p className="truncate text-xs text-zinc-500 dark:text-zinc-400">
-            パターン: {memoryOverview.totalMemorySize.patterns}
+            {t('patterns', { count: memoryOverview.totalMemorySize.patterns })}
           </p>
         </div>
       </div>
@@ -87,9 +89,9 @@ export function OverviewCards({ memoryOverview }: OverviewCardsProps) {
           <div className="text-xl font-bold leading-tight text-zinc-900 dark:text-zinc-50">
             {(memoryOverview.currentSuccessRate * 100).toFixed(1)}%
           </div>
-          <p className="truncate text-xs text-zinc-500 dark:text-zinc-400">成功率</p>
+          <p className="truncate text-xs text-zinc-500 dark:text-zinc-400">{t('successRate')}</p>
           <p className="truncate text-xs text-zinc-500 dark:text-zinc-400">
-            実験数: {memoryOverview.totalMemorySize.experiments}
+            {t('experiments', { count: memoryOverview.totalMemorySize.experiments })}
           </p>
         </div>
       </div>
@@ -100,8 +102,8 @@ export function OverviewCards({ memoryOverview }: OverviewCardsProps) {
           <div className="text-xl font-bold leading-tight text-zinc-900 dark:text-zinc-50">
             {memoryOverview.totalMemorySize.episodes.toLocaleString()}
           </div>
-          <p className="truncate text-xs text-zinc-500 dark:text-zinc-400">エピソード記憶</p>
-          <GrowthBadge value={memoryOverview.growthRate.monthly} label="先月比" />
+          <p className="truncate text-xs text-zinc-500 dark:text-zinc-400">{t('episodes')}</p>
+          <GrowthBadge value={memoryOverview.growthRate.monthly} label={t('monthlyChange')} />
         </div>
       </div>
     </div>

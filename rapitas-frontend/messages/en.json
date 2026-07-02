@@ -143,6 +143,69 @@
       "nameRequired": "Please enter a folder name",
       "invalidChars": "Folder name contains invalid characters",
       "createError": "Failed to create folder"
+    },
+    "authContext": {
+      "networkError": "A network error occurred",
+      "googleAuthUrlFailed": "Failed to get the Google authentication URL"
+    },
+    "loginForm": {
+      "usernameRequired": "Please enter your username",
+      "passwordRequired": "Please enter your password",
+      "passwordTooShort": "Password must be at least 6 characters",
+      "loginError": "An error occurred while logging in"
+    },
+    "useSse": {
+      "connectionError": "An error occurred with the SSE connection",
+      "connectionErrorDetail": "A connection error occurred. Please check your network connection.",
+      "createFailed": "Failed to create the SSE connection",
+      "createFailedShort": "Failed to create the connection."
+    },
+    "useTauriVoice": {
+      "recognitionFailed": "Could not recognize the speech."
+    },
+    "useDebugLogAnalyzer": {
+      "analysisFailed": "Log analysis failed",
+      "analysisError": "An error occurred during log analysis",
+      "typeDetectionFailed": "Type detection failed",
+      "typeListFetchFailed": "Failed to fetch the list of supported types",
+      "streamAnalysisFailed": "Stream analysis failed",
+      "streamAnalysisError": "An error occurred during stream analysis"
+    },
+    "useIdeaBox": {
+      "fetchFailed": "Failed to fetch ideas",
+      "submitFailed": "Failed to submit idea"
+    },
+    "useReportGenerator": {
+      "generateFailed": "Failed to generate the report ({status})",
+      "generateError": "An error occurred while generating the report"
+    },
+    "useScheduleReminders": {
+      "eventAtTime": "You have an event at {time}"
+    },
+    "useGlobalSearch": {
+      "searchFailed": "Search failed"
+    },
+    "usePomodoroStats": {
+      "fetchFailed": "Failed to fetch Pomodoro stats"
+    },
+    "useStudyProgress": {
+      "fetchFailed": "Failed to fetch progress data"
+    },
+    "useWorkflowApproval": {
+      "approveFailed": "Approval failed"
+    },
+    "useWorkflowFiles": {
+      "fetchFailed": "Failed to fetch workflow files"
+    },
+    "useWorkflowRoles": {
+      "fetchFailed": "Failed to fetch role settings",
+      "updateFailed": "Failed to update role settings"
+    },
+    "kanbanErrorTitle": "An error occurred in Kanban",
+    "knowledgeErrorTitle": "An error occurred in Knowledge Base",
+    "reportsErrorTitle": "An error occurred in Reports",
+    "iconGrid": {
+      "noMatch": "No matching icons"
     }
   },
   "metadata": {
@@ -283,7 +346,56 @@
     "todayTask": "Today's tasks",
     "todayDueTask": "Tasks due today",
     "noDueTodayTasks": "No tasks due today",
-    "allDueTodayDone": "All tasks due today completed!"
+    "allDueTodayDone": "All tasks due today completed!",
+    "categoryFilter": {
+      "addCategory": "Add category"
+    },
+    "autoExecutionMode": {
+      "startTitle": "Automatically run this theme's To Do tasks in order",
+      "stopTitle": "Stop auto-run",
+      "paused": "Paused",
+      "runningLabel": "Auto-run active"
+    },
+    "todayTaskProgress": {
+      "remainingCount": "{count} remaining",
+      "moreCount": "{count} more"
+    },
+    "weeklyReview": {
+      "title": "AI weekly review",
+      "loadFailed": "Failed to load the weekly review",
+      "regenerateTooltip": "Regenerate from the latest activity data",
+      "regenerateLabel": "Regenerate",
+      "generateLabel": "Generate",
+      "emptyHint": "No review yet. Click \"Generate\" to create last week's review.",
+      "periodRange": "{start} – {end}",
+      "completedCount": "{count} completed",
+      "focusTime": "Focus {time}",
+      "pomodoroSessions": "{count} pomodoro sessions",
+      "minutesOnly": "{minutes}m",
+      "hoursOnly": "{hours}h",
+      "hoursAndMinutes": "{hours}h {minutes}m"
+    },
+    "costOptimization": {
+      "title": "Cost optimization",
+      "costLabel": "Cost"
+    },
+    "progressSummary": {
+      "title": "Weekly summary",
+      "completedStats": "{count} completed · {hours}h",
+      "showTasksCount": "Show {count} tasks"
+    },
+    "selfObservation": {
+      "title": "Self-observation",
+      "windowLabel": "(last {days} days)",
+      "daysButton": "{days}d",
+      "spend": "Spend",
+      "executions": "Executions",
+      "cacheHitRate": "Cache hit rate",
+      "errorRate": "Error rate",
+      "dailyCostLabel": "Daily cost",
+      "modelShareLabel": "Model share",
+      "dailyCostTooltip": "{date}: ${cost} ({executions} executions)"
+    }
   },
   "task": {
     "title": "Task Details",
@@ -450,7 +562,8 @@
       "zoomDay": "Day",
       "zoomWeek": "Week",
       "zoomMonth": "Month",
-      "today": "Today"
+      "today": "Today",
+      "pageDescription": "See your tasks laid out over time. Hover a bar for details."
     },
     "taskSelector": {
       "fetchFailed": "Failed to fetch tasks",
@@ -717,6 +830,42 @@
     "descriptionToggle": {
       "collapse": "Show less",
       "expand": "Show more"
+    },
+    "noteLinksSection": {
+      "copyLinkTooltip": "Copy Markdown link to clipboard",
+      "copied": "Copied",
+      "copyLink": "Copy link",
+      "insertTooltip": "Insert link directly into description",
+      "inserted": "Inserted",
+      "insertToDescription": "Insert into description",
+      "openSplitView": "Open in split view",
+      "unlink": "Unlink",
+      "noContent": "(No content)",
+      "searchPlaceholder": "Search notes…",
+      "createAndLink": "Create a new note and link it",
+      "noMatchingNotes": "No notes match \"{query}\"",
+      "noLinkableNotes": "No notes available to link",
+      "linkNote": "Link a note",
+      "hoverHint": "Hover over a note to show \"Copy link\" and \"Insert into description\".",
+      "noLinkedNotes": "No notes linked"
+    },
+    "noteSplitView": {
+      "backToTask": "Back to task",
+      "noteNotFound": "Note not found"
+    },
+    "commentSystem": {
+      "deleteConfirm": "Delete this comment?"
+    },
+    "subtaskManagement": {
+      "deleteFailed": "Failed to delete subtask",
+      "createFailed": "Failed to create subtask",
+      "updateFailed": "Failed to update subtask"
+    },
+    "taskEdit": {
+      "updateFailed": "Failed to update task"
+    },
+    "errorPage": {
+      "sectionLabel": "Task"
     }
   },
   "auth": {
@@ -1149,7 +1298,10 @@
     "weeklySummary": "Weekly Summary",
     "completedTasks": "Completed tasks",
     "consecutiveDays": "Consecutive days",
-    "controllingExams": "Upcoming exams"
+    "controllingExams": "Upcoming exams",
+    "errorBoundary": {
+      "defaultMessage": "An unexpected error occurred."
+    }
   },
   "reports": {
     "title": "Weekly Report",
@@ -1399,7 +1551,92 @@
     "localCliMode": "Local CLI Mode",
     "localCliDescription": "Claude Code uses the locally installed claude command. No API key is required, but Claude CLI must be properly installed.",
     "connectionTest": "Connection Test",
-    "testConnection": "Test Connection"
+    "testConnection": "Test Connection",
+    "errorPage": {
+      "title": "An error occurred in Agents",
+      "defaultMessage": "An unexpected error occurred.",
+      "retry": "Retry"
+    },
+    "globalProviderPreference": {
+      "title": "Default Agent",
+      "subtitle": "Preferred provider for auto-selection. Used when a role has no individual override.",
+      "recheckTitle": "Re-probe CLI / API and discard cache",
+      "recheckButton": "Recheck",
+      "checking": "Checking…",
+      "available": "✓ Responding ({count} models detected)",
+      "noResponse": "No response",
+      "rechecking": "Rechecking… ({count}/{max})",
+      "footerNote": "Only checks whether the CLI responds (API keys are not checked; 5-minute cache)"
+    },
+    "skipPermissionToggle": {
+      "title": "Skip agent permission prompts",
+      "onDescription": "Launches Claude Code with <code1>--dangerously-skip-permissions</code1> and Codex / Gemini with <code2>--yolo</code2>. Execution never pauses, so be aware it edits files and runs commands immediately.",
+      "offDescription": "Surfaces the CLI's standard permission prompt. Safer, but the task pauses each time a question comes up during execution.",
+      "srLabel": "Skip agent permission prompts"
+    },
+    "agentSettingsSections": {
+      "azureEndpointExample": "Example: https://your-resource.openai.azure.com/openai/deployments/your-deployment"
+    },
+    "memory": {
+      "pageTitle": "Memory Growth",
+      "pageSubtitle": "Visualize the growth of knowledge and learning patterns accumulated by AI agents",
+      "emptyTitle": "No memory data",
+      "emptyHint": "Learning growth will appear here once agents complete tasks",
+      "strengthCard": {
+        "title": "Memory Strength"
+      },
+      "overviewCards": {
+        "totalMemory": "Total Memory",
+        "weeklyChange": "vs last week",
+        "knowledgeNodes": "Knowledge Nodes",
+        "patterns": "Patterns: {count}",
+        "successRate": "Success Rate",
+        "experiments": "Experiments: {count}",
+        "episodes": "Episodic Memory",
+        "monthlyChange": "vs last month"
+      },
+      "growthTrendChart": {
+        "title": "Knowledge Growth Trend",
+        "period7d": "7 days",
+        "period30d": "30 days",
+        "periodAll": "All time",
+        "legendKnowledgeNodes": "Knowledge Nodes",
+        "legendLearningPatterns": "Learning Patterns",
+        "legendExperimentsCompleted": "Completed Experiments",
+        "emptyGrowth": "No growth data yet",
+        "successRateTitle": "Success Rate Trend",
+        "successRateLabel": "Success Rate",
+        "emptySuccessRate": "No success rate data yet",
+        "distributionTitle": "Knowledge Distribution",
+        "emptyDistribution": "No knowledge accumulated yet"
+      },
+      "confidenceTrendChart": {
+        "title": "Confidence Trend",
+        "tooltipLabel": "Confidence"
+      },
+      "recentLearnings": {
+        "patternsTitle": "Recent Learning Patterns",
+        "confidenceLabel": "Confidence {percent}%",
+        "emptyPatternsTitle": "No learning patterns yet",
+        "emptyPatternsHint": "Trends will accumulate here as agents complete more tasks.",
+        "nodesTitle": "Latest Knowledge Nodes",
+        "emptyNodesTitle": "No knowledge nodes yet",
+        "emptyNodesHint": "Knowledge is recorded here as agents learn."
+      },
+      "nodeTypeLabels": {
+        "concept": "Concept",
+        "problem": "Problem",
+        "solution": "Solution",
+        "technology": "Technology",
+        "pattern": "Pattern"
+      },
+      "levelLabels": {
+        "expert": "Expert",
+        "advanced": "Advanced",
+        "intermediate": "Intermediate",
+        "beginner": "Beginner"
+      }
+    }
   },
   "github": {
     "title": "GitHub Integration",
@@ -1458,7 +1695,56 @@
     "added": "Added",
     "orAddManually": "Or add manually",
     "importAsConcern": "Import as concern",
-    "concernLinked": "View concern"
+    "concernLinked": "View concern",
+    "jobSection": {
+      "stepsCount": "{count} steps",
+      "noSteps": "No step information"
+    },
+    "logViewer": {
+      "copyLog": "Copy log"
+    },
+    "stepRow": {
+      "noLogPlaceholder": "(No log)",
+      "logNotFound": "Log for this step was not found."
+    },
+    "workflowRunItem": {
+      "noJobs": "No job information"
+    },
+    "actionsClient": {
+      "subtitle": "GitHub Actions run history",
+      "noRunsTitle": "No workflow runs yet for this repository",
+      "noRunsHint": "Runs will appear here once CI triggers from a push or pull request.",
+      "noIntegrationsTitle": "No linked repositories",
+      "noIntegrationsHint": "Link a repository to see its CI run status here.",
+      "linkRepository": "Link repository"
+    },
+    "error": {
+      "title": "An error occurred in GitHub",
+      "unexpectedError": "An unexpected error occurred."
+    },
+    "pullRequestDetail": {
+      "baseChanged": "Changed the merge target to {baseBranch}",
+      "baseChangeFailed": "Failed to change the merge target",
+      "baseSynced": "Merged in the base and updated the branch",
+      "conflictTaskCreated": "There are {count} conflict(s). Created resolution task #{taskId} — run it from the task screen.",
+      "resolveConflictsFailed": "Failed to resolve conflicts",
+      "autoMergeQueued": "Will auto-merge once conditions are met",
+      "merged": "Merged PR #{prNumber}",
+      "localSyncFailed": "Local sync failed: {detail}",
+      "mergeFailed": "Failed to merge",
+      "mergeTargetLabel": "Merge target",
+      "mergeMethodLabel": "Merge method",
+      "deleteBranchLabel": "Delete branch",
+      "autoMergeTooltip": "If it can't merge right now (e.g. pending checks), GitHub will auto-merge once conditions are met. This does not resolve conflicts.",
+      "autoMergeLabel": "Auto-merge",
+      "resolveConflictsTooltip": "Merge in the base branch and create an agent resolution task if there are conflicts",
+      "resolveConflictsButton": "Resolve conflicts",
+      "mergeButton": "Merge"
+    },
+    "pullRequestsClient": {
+      "allRepositories": "All repositories",
+      "resultCount": "{count} results"
+    }
   },
   "workflow": {
     "title": "Workflow",
@@ -1655,6 +1941,15 @@
       "backToEdit": "Back to editing",
       "preview": "Preview",
       "noContent": "(No content)"
+    },
+    "taskWorkflowSection": {
+      "modeTooltipManual": "Workflow: {mode} (manually set)",
+      "modeTooltipAuto": "Workflow: {mode} (auto-selected from complexity)",
+      "complexitySuffix": " · Complexity {score}",
+      "manualSuffix": " (manual)",
+      "autoApproveTooltipOn": "Auto-approve plan: ON (advances automatically when plan.md is saved)",
+      "autoApproveTooltipOff": "Auto-approve plan: OFF (manual approval required)",
+      "autoApproveBadge": "Auto-approve {state}"
     }
   },
   "categories": {
@@ -1777,11 +2072,36 @@
     "descriptionPlaceholder": "Enter description",
     "dragToReorder": "Drag to reorder",
     "default": "Default",
-    "setAsDefault": "Set as default"
+    "setAsDefault": "Set as default",
+    "repoUrlAutoDetected": "Repository URL auto-detected",
+    "branchRecommendedSuffix": "(recommended)",
+    "branchesFoundCount": "Found {count} branches",
+    "branchesEmptyHint": "Enter a repository URL to see the branch list",
+    "branchFetchFailed": "Failed to fetch branches",
+    "branchFetchError": "An error occurred while fetching branches"
   },
   "labels": {
     "title": "Labels",
-    "itemName": "Label"
+    "itemName": "Label",
+    "form": {
+      "nameLabel": "Label name",
+      "namePlaceholder": "e.g. Bug fix",
+      "descriptionPlaceholder": "Enter a description for this label",
+      "selectedIconLabel": "Selected icon",
+      "selectIconLabel": "Select an icon",
+      "iconNotSelectedSuffix": "(none selected)",
+      "iconSearchPlaceholder": "Search icons...",
+      "iconLimitWarning": "Showing the first 50 results. Narrow your search for more precise results."
+    },
+    "list": {
+      "emptyTitle": "This theme has no labels yet",
+      "emptyHint": "Create one from \"Add label\" above",
+      "taskCount": "{count} tasks",
+      "deleteConfirm": "Delete this label?"
+    },
+    "pageTitle": "Labels",
+    "pageSubtitle": "Filter by category, then theme, to manage labels",
+    "addButton": "Add label"
   },
   "search": {
     "title": "Search",
@@ -1795,7 +2115,22 @@
     "searchResultsFor": "Search results for \"{query}\": {total} items",
     "noMatchResults": "No results found for \"{query}\"",
     "tryDifferentKeyword": "Try searching with different keywords",
-    "enterKeywordToSearch": "Enter a keyword to start searching"
+    "enterKeywordToSearch": "Enter a keyword to start searching",
+    "missPanel": {
+      "heading": "Frequently searched keywords with no results",
+      "hitCount": "{count} times",
+      "creating": "Creating…",
+      "createTask": "Create task"
+    },
+    "filterPanel": {
+      "typeHeading": "Type",
+      "statusHeading": "Status",
+      "typeNote": "Note",
+      "statusActive": "In progress"
+    },
+    "historyHeading": "Recent searches",
+    "relevanceLabel": "Relevance {relevance}%",
+    "searching": "Searching..."
   },
   "calendar": {
     "title": "Calendar",
@@ -1848,7 +2183,55 @@
     "selectDateFromCalendar": "Select a date from the calendar",
     "deadline": "Deadline",
     "taskNamePlaceholder": "Enter task name...",
-    "creating": "Creating..."
+    "creating": "Creating...",
+    "errorPage": {
+      "title": "An error occurred in Calendar",
+      "defaultMessage": "An unexpected error occurred.",
+      "retry": "Retry"
+    },
+    "titleInputPlaceholder": "Enter a title",
+    "dayCountSuffix": "({count} days)",
+    "optionsToggle": {
+      "open": "Color, reminder & memo",
+      "close": "Hide options"
+    },
+    "insufficientBalance": "Insufficient balance",
+    "paidLeaveDurationPicker": {
+      "halfDay": "Half day",
+      "halfDayTimeLabel": "Half-day leave time",
+      "morningRange": "Morning (9:00-13:00)",
+      "afternoonRange": "Afternoon (13:00-17:00)"
+    },
+    "paidLeaveHeader": {
+      "requestPrompt": "Request paid leave",
+      "usedLabel": "Used",
+      "afterUsageLabel": "After request"
+    },
+    "paidLeaveOptions": {
+      "reasonPlaceholder": "Enter a reason or note..."
+    },
+    "paidLeaveDialog": {
+      "leaveTypeLabel": "Leave type",
+      "submitting": "Submitting...",
+      "annualLeave": "Annual paid leave",
+      "specialLeave": "Special leave",
+      "sickLeave": "Sick leave",
+      "personalLeave": "Personal leave"
+    },
+    "scheduleEventDialog": {
+      "timedOption": "Set time",
+      "addPrompt": "Add an event",
+      "addButton": "Add"
+    },
+    "scheduleOptionsPanel": {
+      "memoPlaceholder": "Add a memo..."
+    },
+    "scheduleConstants": {
+      "quickTimeMorning": "Morning",
+      "quickTimeNoon": "Noon",
+      "quickTimeAfternoon": "Afternoon",
+      "quickTimeEvening": "Evening"
+    }
   },
   "pomodoro": {
     "timeManagement": "Time Management",
@@ -1889,7 +2272,10 @@
     "taskStatus": "Task is {status}",
     "openInPage": "Open in page",
     "priorityUrgent": "Urgent",
-    "updateFailed": "Failed to update"
+    "updateFailed": "Failed to update",
+    "priorityLow": "Low",
+    "priorityMedium": "Medium",
+    "priorityHigh": "High"
   },
   "focus": {
     "currentTask": "Current task",
@@ -2321,7 +2707,9 @@
     "themeCreated": "Theme created",
     "themeCreatedDescription": "Git repository initialized with requirement and design docs (docs/) and agent instruction files committed.",
     "themeCreateError": "Failed to create theme",
-    "createAnother": "Create another theme"
+    "createAnother": "Create another theme",
+    "proposalGenerateFailed": "Failed to generate proposals",
+    "claudeMdGenerateFailed": "Failed to generate CLAUDE.md"
   },
   "knowledge": {
     "title": "Knowledge Base",
@@ -3927,5 +4315,85 @@
     "sidebar": {
       "noSearchResults": "No results"
     }
+  },
+  "achievements": {
+    "client": {
+      "loadFailed": "Failed to load achievement data",
+      "headerTitle": "🏆 Achievements & Stats",
+      "headerSubtitle": "Review your learning and task-management progress",
+      "disableNotifications": "Disable notifications",
+      "enableNotifications": "Enable notifications",
+      "refreshTitle": "Refresh data",
+      "clearNotifications": "Clear notifications",
+      "tabs": {
+        "achievements": "Achievements",
+        "stats": "Stats",
+        "badges": "Badges"
+      },
+      "stats": {
+        "unlockedCount": "Unlocked",
+        "completionRate": "Completion rate",
+        "points": "Points",
+        "totalTasks": "Total tasks"
+      },
+      "badgesComingSoonTitle": "Badges are coming soon",
+      "badgesComingSoonHint": "Stay tuned — coming soon!",
+      "recentActivityTitle": "🎉 Recent achievements",
+      "devInfoTitle": "Debug info"
+    },
+    "toast": {
+      "unlockedLabel": "Achievement unlocked!",
+      "pointsLabel": "points",
+      "moreCount": "+{count} more achievements"
+    },
+    "statsBoard": {
+      "overviewHeading": "📊 Overview",
+      "totalTasks": "Total tasks",
+      "totalStudyTime": "Total study time",
+      "agentExecutions": "Agent executions",
+      "highPriorityTasks": "High-priority tasks",
+      "completionRateSubtitle": "{rate}% completion",
+      "todayWithTime": "Today {time}",
+      "weeklyProgressHeading": "📈 This week's progress",
+      "taskCompletionLabel": "Tasks completed",
+      "agentLabel": "Agent",
+      "streaksHeading": "🔥 Streaks",
+      "taskStreakLabel": "Task completion streak",
+      "studyStreakLabel": "Study streak",
+      "maxStreakSuffix": "/ best {max}d",
+      "todayActivityHeading": "📅 Today's activity",
+      "completedTasksLabel": "Completed tasks",
+      "lastUpdated": "Last updated: {date}",
+      "minutesOnly": "{minutes}m",
+      "hoursOnly": "{hours}h",
+      "hoursAndMinutes": "{hours}h {minutes}m"
+    }
+  },
+  "logs": {
+    "title": "Log Analysis",
+    "loading": "Loading…",
+    "noThemesHint": "No theme has a working directory configured. Set a working directory on a theme to analyze its logs here.",
+    "themeLabel": "Theme",
+    "reload": "Reload",
+    "truncatedSuffix": "(partial output)",
+    "noteHint": "You can also paste logs into the input box below to analyze them.",
+    "loadingLogs": "Loading logs…",
+    "analyzeFailed": "Failed to analyze the log",
+    "sourceLabels": {
+      "configured": "Configured log directory",
+      "scanned": "Auto-detected from working directory",
+      "none": "No logs found"
+    }
+  },
+  "terminal": {
+    "desktopOnly": "The terminal is only available in the desktop app (Tauri).",
+    "closeTabAria": "Close {title}",
+    "splitHorizontal": "Split left/right",
+    "splitVertical": "Split top/bottom",
+    "newTerminal": "New terminal",
+    "closeTerminal": "Close terminal",
+    "closeTerminalTitle": "Close terminal (Ctrl+`)",
+    "closePane": "Close pane",
+    "commandCompleteToast": "Terminal command finished (exit {exitCode}, {seconds}s)"
   }
 }

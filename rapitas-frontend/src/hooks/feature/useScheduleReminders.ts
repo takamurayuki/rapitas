@@ -1,5 +1,6 @@
 'use client';
 import { useEffect, useRef, useCallback } from 'react';
+import { useTranslations } from 'next-intl';
 import { API_BASE_URL } from '@/utils/api';
 import { requestNotificationPermission, showDesktopNotification } from '@/utils/notification';
 import type { ScheduleEvent } from '@/types';
@@ -11,6 +12,8 @@ const CHECK_INTERVAL_MS = 30_000; // Check every 30 seconds
  * and displays desktop notifications
  */
 export function useScheduleReminders() {
+  const tCalendar = useTranslations('calendar');
+  const t = useTranslations('common');
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const permissionGranted = useRef(false);
 
@@ -30,14 +33,14 @@ export function useScheduleReminders() {
       for (const event of pendingEvents) {
         const startDate = new Date(event.startAt);
         const timeStr = event.isAllDay
-          ? '終日'
+          ? tCalendar('allDay')
           : startDate.toLocaleTimeString('ja-JP', {
               hour: '2-digit',
               minute: '2-digit',
             });
 
         showDesktopNotification(`Rapitas - ${event.title}`, {
-          body: `${timeStr} に予定があります`,
+          body: t('useScheduleReminders.eventAtTime', { time: timeStr }),
           tag: `schedule-reminder-${event.id}`,
           onClick: () => {
             window.location.href = '/calendar';
@@ -57,7 +60,7 @@ export function useScheduleReminders() {
     } finally {
       clearTimeout(timeoutId);
     }
-  }, []);
+  }, [tCalendar, t]);
 
   useEffect(() => {
     // Request notification permission on first load

@@ -3,6 +3,7 @@
  * Uses new backend /search endpoint
  */
 import { useState, useEffect, useRef, useCallback } from 'react';
+import { useTranslations } from 'next-intl';
 import { API_BASE_URL } from '@/utils/api';
 
 export type SearchResultType = 'task' | 'comment' | 'note' | 'resource';
@@ -80,6 +81,7 @@ interface UseGlobalSearchOptions {
 }
 
 export function useGlobalSearch(options: UseGlobalSearchOptions = {}) {
+  const t = useTranslations('common');
   const { debounceDelay = 300, types, limit: initialLimit = 20, initialQuery = '' } = options;
 
   const [query, setQuery] = useState(initialQuery);
@@ -103,66 +105,69 @@ export function useGlobalSearch(options: UseGlobalSearchOptions = {}) {
   typesRef.current = typesState;
   limitRef.current = limit;
 
-  const search = useCallback(async (q: string, searchOffset = 0) => {
-    if (abortRef.current) abortRef.current.abort();
-    if (!q.trim()) {
-      setResults([]);
-      setTotal(0);
-      setLoading(false);
-      return;
-    }
-
-    // Check cache first
-    const cacheKey = generateCacheKey(q, typesRef.current, limitRef.current, searchOffset);
-    const cachedResult = getCachedResult(cacheKey);
-
-    if (cachedResult) {
-      // Cache hit - return immediately
-      setResults(cachedResult.results);
-      setTotal(cachedResult.total);
-      setLoading(false);
-      return;
-    }
-
-    setLoading(true);
-    setError(null);
-    abortRef.current = new AbortController();
-
-    try {
-      const params = new URLSearchParams({
-        q,
-        limit: String(limitRef.current),
-        offset: String(searchOffset),
-      });
-      if (typesRef.current?.length) params.set('type', typesRef.current.join(','));
-
-      const res = await fetch(`${API_BASE_URL}/search?${params}`, {
-        signal: abortRef.current.signal,
-      });
-
-      if (!res.ok) throw new Error('検索に失敗しました');
-
-      const data = await res.json();
-      if (!abortRef.current.signal.aborted) {
-        const results = data.results || [];
-        const total = data.total || 0;
-
-        setResults(results);
-        setTotal(total);
-
-        // Cache the results
-        setCachedResult(cacheKey, results, total);
-      }
-    } catch (err) {
-      if (err instanceof Error && err.name !== 'AbortError') {
-        setError(err.message);
-      }
-    } finally {
-      if (!abortRef.current?.signal.aborted) {
+  const search = useCallback(
+    async (q: string, searchOffset = 0) => {
+      if (abortRef.current) abortRef.current.abort();
+      if (!q.trim()) {
+        setResults([]);
+        setTotal(0);
         setLoading(false);
+        return;
       }
-    }
-  }, []); // Stable dependency array - prevents circular references
+
+      // Check cache first
+      const cacheKey = generateCacheKey(q, typesRef.current, limitRef.current, searchOffset);
+      const cachedResult = getCachedResult(cacheKey);
+
+      if (cachedResult) {
+        // Cache hit - return immediately
+        setResults(cachedResult.results);
+        setTotal(cachedResult.total);
+        setLoading(false);
+        return;
+      }
+
+      setLoading(true);
+      setError(null);
+      abortRef.current = new AbortController();
+
+      try {
+        const params = new URLSearchParams({
+          q,
+          limit: String(limitRef.current),
+          offset: String(searchOffset),
+        });
+        if (typesRef.current?.length) params.set('type', typesRef.current.join(','));
+
+        const res = await fetch(`${API_BASE_URL}/search?${params}`, {
+          signal: abortRef.current.signal,
+        });
+
+        if (!res.ok) throw new Error(t('useGlobalSearch.searchFailed'));
+
+        const data = await res.json();
+        if (!abortRef.current.signal.aborted) {
+          const results = data.results || [];
+          const total = data.total || 0;
+
+          setResults(results);
+          setTotal(total);
+
+          // Cache the results
+          setCachedResult(cacheKey, results, total);
+        }
+      } catch (err) {
+        if (err instanceof Error && err.name !== 'AbortError') {
+          setError(err.message);
+        }
+      } finally {
+        if (!abortRef.current?.signal.aborted) {
+          setLoading(false);
+        }
+      }
+    },
+    [t],
+  ); // Stable dependency array - prevents circular references
 
   // Flag for immediate execution of initial query
   const isInitialQuery = useRef(!!initialQuery.trim());

@@ -10,6 +10,7 @@
  */
 
 import { ChevronRight, ExternalLink, Loader2 } from 'lucide-react';
+import { useTranslations } from 'next-intl';
 import { StatusIcon } from './StatusIcon';
 import { JobSection } from './JobSection';
 import type { WorkflowRun, RunDetail } from '../_types/actions.types';
@@ -46,6 +47,7 @@ export function WorkflowRunItem({
   onToggle,
   onToggleJob,
 }: WorkflowRunItemProps) {
+  const t = useTranslations('github');
   return (
     <div className="rounded-lg border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-800/50">
       <button onClick={onToggle} className="flex w-full items-center gap-3 px-4 py-2.5 text-left">
@@ -82,7 +84,7 @@ export function WorkflowRunItem({
           rel="noopener noreferrer"
           onClick={(e) => e.stopPropagation()}
           className="shrink-0 rounded p-1 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-600 dark:hover:bg-zinc-800"
-          title="GitHub で開く"
+          title={t('openInGitHub')}
         >
           <ExternalLink className="h-4 w-4" />
         </a>
@@ -91,7 +93,7 @@ export function WorkflowRunItem({
       {isExpanded && detail && (
         <div className="space-y-1.5 border-t border-zinc-100 px-4 py-3 dark:border-zinc-700/50">
           {detail.jobs.length === 0 ? (
-            <p className="text-xs text-zinc-400">ジョブ情報がありません</p>
+            <p className="text-xs text-zinc-400">{t('workflowRunItem.noJobs')}</p>
           ) : (
             detail.jobs.map((job) => (
               <JobSection

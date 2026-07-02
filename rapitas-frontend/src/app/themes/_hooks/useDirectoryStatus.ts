@@ -76,12 +76,12 @@ export function useDirectoryStatus(
           setFormData((prev) => ({ ...prev, defaultBranch: data.branches[0] }));
         }
       } else {
-        setBranchError(data.message || 'ブランチの取得に失敗しました');
+        setBranchError(data.message || t('branchFetchFailed'));
         setBranches([]);
       }
     } catch (error) {
       logger.error('Failed to fetch branches:', error);
-      setBranchError('ブランチの取得中にエラーが発生しました');
+      setBranchError(t('branchFetchError'));
       setBranches([]);
     } finally {
       setLoadingBranches(false);

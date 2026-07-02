@@ -199,7 +199,7 @@ export default function PullRequestsClient() {
               onChange={(e) => setSelectedIntegration(e.target.value)}
               className="px-3 py-2 border border-zinc-300 dark:border-zinc-600 rounded-lg bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 text-sm focus:border-indigo-400"
             >
-              <option value="">すべてのリポジトリ</option>
+              <option value="">{t('pullRequestsClient.allRepositories')}</option>
               {integrations.map((integration) => (
                 <option key={integration.id} value={integration.id}>
                   {integration.ownerName}/{integration.repositoryName}
@@ -230,7 +230,7 @@ export default function PullRequestsClient() {
 
           {!loading && filteredRows.length > 0 && (
             <span className="text-sm text-zinc-500 dark:text-zinc-400 ml-auto">
-              {filteredRows.length} 件
+              {t('pullRequestsClient.resultCount', { count: filteredRows.length })}
             </span>
           )}
         </div>

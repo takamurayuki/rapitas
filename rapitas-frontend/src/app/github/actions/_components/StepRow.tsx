@@ -9,6 +9,7 @@
  */
 
 import { ChevronRight, Loader2 } from 'lucide-react';
+import { useTranslations } from 'next-intl';
 import { StatusIcon } from './StatusIcon';
 import { LogViewer } from './LogViewer';
 import type { RunStep, JobLogSection } from '../_types/actions.types';
@@ -29,6 +30,7 @@ interface StepRowProps {
  * @param props - step data, the matched section, and expand/loading state / ステップと展開状態
  */
 export function StepRow({ step, isExpanded, isLoadingLog, section, onToggle }: StepRowProps) {
+  const t = useTranslations('github');
   return (
     <div>
       <button onClick={onToggle} className="flex w-full items-center gap-2 py-0.5 text-left">
@@ -45,9 +47,9 @@ export function StepRow({ step, isExpanded, isLoadingLog, section, onToggle }: S
       {isExpanded && (
         <div className="mt-1 pl-5">
           {section ? (
-            <LogViewer log={section.log || '(ログがありません)'} />
+            <LogViewer log={section.log || t('stepRow.noLogPlaceholder')} />
           ) : (
-            <p className="text-[11px] text-zinc-400">このステップのログが見つかりませんでした。</p>
+            <p className="text-[11px] text-zinc-400">{t('stepRow.logNotFound')}</p>
           )}
         </div>
       )}

@@ -2,6 +2,7 @@
 // KanbanFilterBar
 
 import { Flag, Tag, Layers } from 'lucide-react';
+import { useTranslations } from 'next-intl';
 import type { Label, Theme } from '@/types';
 import { getIconComponent } from '@/components/category/icon-search';
 
@@ -58,6 +59,7 @@ export function KanbanFilterBar({
   onSelectTheme,
   tt,
 }: KanbanFilterBarProps) {
+  const tCommon = useTranslations('common');
   if (!showFilters) return null;
 
   return (
@@ -67,7 +69,7 @@ export function KanbanFilterBar({
         <div>
           <div className="flex items-center gap-2 mb-2 text-sm font-medium text-zinc-700 dark:text-zinc-300">
             <Layers className="w-4 h-4" />
-            テーマ
+            {tt('theme')}
           </div>
           <div className="flex flex-wrap gap-2">
             <button
@@ -78,7 +80,7 @@ export function KanbanFilterBar({
                   : 'bg-zinc-100 dark:bg-zinc-700 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-200 dark:hover:bg-zinc-600'
               }`}
             >
-              すべて
+              {tCommon('all')}
             </button>
             {themes.map((theme) => {
               const isSelected = selectedThemeId === theme.id;

@@ -2,40 +2,45 @@
 // IdeaBoxPanel — compact icon button that opens a modal with improvement ideas.
 import { useState } from 'react';
 import { Lightbulb, X, Plus, Loader2, Send, Tag } from 'lucide-react';
+import { useTranslations } from 'next-intl';
 import { useIdeaBox } from '@/hooks/feature/useIdeaBox';
 
 interface IdeaBoxPanelProps {
   categoryId: number | null;
 }
 
-const CATEGORY_LABELS: Record<string, { label: string; color: string }> = {
+// NOTE: labels are resolved via ideaBox.cat* translation keys at render time —
+// only the styling + i18n key suffix live in this static map.
+const CATEGORY_META: Record<string, { labelKey: string; color: string }> = {
   improvement: {
-    label: '改善',
+    labelKey: 'catImprovement',
     color: 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300',
   },
   bug_noticed: {
-    label: 'バグ',
+    labelKey: 'catBugNoticed',
     color: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300',
   },
   tech_debt: {
-    label: '技術的負債',
+    labelKey: 'catTechDebt',
     color: 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-300',
   },
   ux: {
-    label: 'UX',
+    labelKey: 'catUx',
     color: 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300',
   },
   feature: {
-    label: '新機能',
+    labelKey: 'catFeature',
     color: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300',
   },
   performance: {
-    label: '性能',
+    labelKey: 'catPerformance',
     color: 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-300',
   },
 };
 
 export function IdeaBoxPanel({ categoryId }: IdeaBoxPanelProps) {
+  const t = useTranslations('ideaBox');
+  const tCommon = useTranslations('common');
   const { ideas, stats, isLoading, isSubmitting, submitIdea } = useIdeaBox(categoryId);
   const [isOpen, setIsOpen] = useState(false);
   const [showForm, setShowForm] = useState(false);
@@ -57,7 +62,7 @@ export function IdeaBoxPanel({ categoryId }: IdeaBoxPanelProps) {
       {/* Compact icon button */}
       <button
         onClick={() => setIsOpen(true)}
-        aria-label={`アイデアボックスを開く${unusedCount > 0 ? `（${unusedCount}件未使用）` : ''}`}
+        aria-label={unusedCount > 0 ? t('openWithCount', { count: unusedCount }) : t('openLabel')}
         className="relative flex items-center justify-center w-9 h-9 rounded-lg border border-amber-300 bg-amber-50 text-amber-600 shadow-sm transition-colors hover:bg-amber-100 dark:border-amber-700 dark:bg-amber-900/30 dark:text-amber-400 dark:hover:bg-amber-900/50"
       >
         <Lightbulb className="h-4 w-4" />
@@ -92,17 +97,17 @@ export function IdeaBoxPanel({ categoryId }: IdeaBoxPanelProps) {
                   id="ideabox-title"
                   className="text-sm font-semibold text-zinc-900 dark:text-zinc-100"
                 >
-                  アイデアボックス
+                  {t('title')}
                 </h2>
                 {unusedCount > 0 && (
                   <span className="rounded-full bg-amber-100 px-1.5 text-[10px] font-medium text-amber-700 dark:bg-amber-900/40 dark:text-amber-300">
-                    未使用 {unusedCount}
+                    {t('unusedCount', { count: unusedCount })}
                   </span>
                 )}
               </div>
               <button
                 onClick={() => setIsOpen(false)}
-                aria-label="閉じる"
+                aria-label={tCommon('close')}
                 className="text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200"
               >
                 <X className="h-5 w-5" />
@@ -113,17 +118,16 @@ export function IdeaBoxPanel({ categoryId }: IdeaBoxPanelProps) {
             {stats && stats.byCategory.length > 0 && (
               <div className="flex flex-wrap gap-1.5 px-5 pt-3">
                 {stats.byCategory.map((cat) => {
-                  const cfg = CATEGORY_LABELS[cat.category] ?? {
-                    label: cat.category,
-                    color: 'bg-zinc-100 text-zinc-600',
-                  };
+                  const meta = CATEGORY_META[cat.category];
+                  const label = meta ? t(meta.labelKey) : cat.category;
+                  const color = meta?.color ?? 'bg-zinc-100 text-zinc-600';
                   return (
                     <span
                       key={cat.category}
-                      className={`flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium ${cfg.color}`}
+                      className={`flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium ${color}`}
                     >
                       <Tag className="h-2.5 w-2.5" />
-                      {cfg.label} ({cat.count})
+                      {label} ({cat.count})
                     </span>
                   );
                 })}
@@ -137,26 +141,21 @@ export function IdeaBoxPanel({ categoryId }: IdeaBoxPanelProps) {
                   <Loader2 className="h-5 w-5 animate-spin text-zinc-400" />
                 </div>
               ) : ideas.length === 0 ? (
-                <p className="py-6 text-center text-xs text-zinc-400">
-                  アイデアがまだありません。AIが実行中に改善案を自動収集します。
-                </p>
+                <p className="py-6 text-center text-xs text-zinc-400">{t('emptyState')}</p>
               ) : (
                 <div className="space-y-1.5 max-h-64 overflow-y-auto">
                   {ideas.map((idea) => {
-                    const cfg = CATEGORY_LABELS[idea.category] ?? {
-                      label: idea.category,
-                      color: 'bg-zinc-100 text-zinc-600',
-                    };
+                    const meta = CATEGORY_META[idea.category];
+                    const label = meta ? t(meta.labelKey) : idea.category;
+                    const color = meta?.color ?? 'bg-zinc-100 text-zinc-600';
                     return (
                       <div
                         key={idea.id}
                         className={`rounded-lg px-3 py-2 text-xs ${idea.usedInTaskId ? 'opacity-40' : 'bg-zinc-50 dark:bg-zinc-700/50'}`}
                       >
                         <div className="flex items-center gap-1.5">
-                          <span
-                            className={`rounded px-1 py-0.5 text-[9px] font-medium ${cfg.color}`}
-                          >
-                            {cfg.label}
+                          <span className={`rounded px-1 py-0.5 text-[9px] font-medium ${color}`}>
+                            {label}
                           </span>
                           <span className="font-medium text-zinc-700 dark:text-zinc-300 line-clamp-1">
                             {idea.title}
@@ -183,7 +182,7 @@ export function IdeaBoxPanel({ categoryId }: IdeaBoxPanelProps) {
                     type="text"
                     value={newTitle}
                     onChange={(e) => setNewTitle(e.target.value)}
-                    placeholder="アイデアのタイトル"
+                    placeholder={t('titlePlaceholder')}
                     autoFocus
                     className="w-full rounded border border-zinc-300 bg-transparent px-2.5 py-1.5 text-xs focus:border-indigo-400 focus:outline-none dark:border-zinc-600"
                   />
@@ -195,7 +194,7 @@ export function IdeaBoxPanel({ categoryId }: IdeaBoxPanelProps) {
                       onKeyDown={(e) => {
                         if (e.key === 'Enter') handleSubmit();
                       }}
-                      placeholder="具体的な内容"
+                      placeholder={t('contentPlaceholder')}
                       className="flex-1 rounded border border-zinc-300 bg-transparent px-2.5 py-1.5 text-xs focus:border-indigo-400 focus:outline-none dark:border-zinc-600"
                     />
                     <button
@@ -206,7 +205,7 @@ export function IdeaBoxPanel({ categoryId }: IdeaBoxPanelProps) {
                       }}
                       className="rounded px-2 py-1.5 text-[11px] text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-700"
                     >
-                      キャンセル
+                      {tCommon('cancel')}
                     </button>
                     <button
                       onClick={handleSubmit}
@@ -218,7 +217,7 @@ export function IdeaBoxPanel({ categoryId }: IdeaBoxPanelProps) {
                       ) : (
                         <Send className="h-3 w-3" />
                       )}
-                      投稿
+                      {t('submit')}
                     </button>
                   </div>
                 </div>
@@ -228,7 +227,7 @@ export function IdeaBoxPanel({ categoryId }: IdeaBoxPanelProps) {
                   className="flex w-full items-center justify-center gap-1 rounded-lg border border-dashed border-zinc-300 py-2 text-xs text-zinc-500 hover:border-amber-400 hover:text-amber-600 dark:border-zinc-600 dark:hover:border-amber-500 dark:hover:text-amber-400 transition-colors"
                 >
                   <Plus className="h-3 w-3" />
-                  アイデアを追加
+                  {t('addIdea')}
                 </button>
               )}
             </div>

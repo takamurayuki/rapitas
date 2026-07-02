@@ -143,6 +143,69 @@
       "nameRequired": "フォルダ名を入力してください",
       "invalidChars": "フォルダ名に使用できない文字が含まれています",
       "createError": "フォルダの作成に失敗しました"
+    },
+    "authContext": {
+      "networkError": "ネットワークエラーが発生しました",
+      "googleAuthUrlFailed": "Google認証URLの取得に失敗しました"
+    },
+    "loginForm": {
+      "usernameRequired": "ユーザー名を入力してください",
+      "passwordRequired": "パスワードを入力してください",
+      "passwordTooShort": "パスワードは6文字以上で入力してください",
+      "loginError": "ログイン中にエラーが発生しました"
+    },
+    "useSse": {
+      "connectionError": "SSE接続でエラーが発生しました",
+      "connectionErrorDetail": "接続エラーが発生しました。ネットワーク接続を確認してください。",
+      "createFailed": "SSE接続の作成に失敗しました",
+      "createFailedShort": "接続の作成に失敗しました。"
+    },
+    "useTauriVoice": {
+      "recognitionFailed": "音声を認識できませんでした。"
+    },
+    "useDebugLogAnalyzer": {
+      "analysisFailed": "ログ解析に失敗しました",
+      "analysisError": "ログ解析中にエラーが発生しました",
+      "typeDetectionFailed": "タイプ検出に失敗しました",
+      "typeListFetchFailed": "タイプ一覧の取得に失敗しました",
+      "streamAnalysisFailed": "ストリーム解析に失敗しました",
+      "streamAnalysisError": "ストリーム解析中にエラーが発生しました"
+    },
+    "useIdeaBox": {
+      "fetchFailed": "アイデアの取得に失敗",
+      "submitFailed": "アイデアの投稿に失敗"
+    },
+    "useReportGenerator": {
+      "generateFailed": "レポートの生成に失敗しました ({status})",
+      "generateError": "レポート生成中にエラーが発生しました"
+    },
+    "useScheduleReminders": {
+      "eventAtTime": "{time} に予定があります"
+    },
+    "useGlobalSearch": {
+      "searchFailed": "検索に失敗しました"
+    },
+    "usePomodoroStats": {
+      "fetchFailed": "ポモドーロ統計の取得に失敗しました"
+    },
+    "useStudyProgress": {
+      "fetchFailed": "進捗データの取得に失敗しました"
+    },
+    "useWorkflowApproval": {
+      "approveFailed": "承認処理に失敗しました"
+    },
+    "useWorkflowFiles": {
+      "fetchFailed": "ワークフローファイルの取得に失敗しました"
+    },
+    "useWorkflowRoles": {
+      "fetchFailed": "ロール設定の取得に失敗しました",
+      "updateFailed": "ロール設定の更新に失敗しました"
+    },
+    "kanbanErrorTitle": "かんばん でエラーが発生しました",
+    "knowledgeErrorTitle": "ナレッジベース でエラーが発生しました",
+    "reportsErrorTitle": "レポート でエラーが発生しました",
+    "iconGrid": {
+      "noMatch": "一致するアイコンがありません"
     }
   },
   "metadata": {
@@ -283,7 +346,56 @@
     "todayTask": "本日のタスク",
     "todayDueTask": "本日期限のタスク",
     "noDueTodayTasks": "本日期限のタスクはありません",
-    "allDueTodayDone": "本日期限のタスクすべて完了！"
+    "allDueTodayDone": "本日期限のタスクすべて完了！",
+    "categoryFilter": {
+      "addCategory": "カテゴリを追加"
+    },
+    "autoExecutionMode": {
+      "startTitle": "このテーマのToDoタスクを上から順に自動実行します",
+      "stopTitle": "自動実行を停止します",
+      "paused": "一時停止中",
+      "runningLabel": "タスク自動実行中"
+    },
+    "todayTaskProgress": {
+      "remainingCount": "残り {count} 件",
+      "moreCount": "他 {count} 件"
+    },
+    "weeklyReview": {
+      "title": "AI 週次レビュー",
+      "loadFailed": "週次レビューの読み込みに失敗しました",
+      "regenerateTooltip": "最新の活動データから再生成します",
+      "regenerateLabel": "再生成",
+      "generateLabel": "生成",
+      "emptyHint": "まだレビューがありません。「生成」ボタンで先週のレビューを作成できます。",
+      "periodRange": "{start} 〜 {end}",
+      "completedCount": "完了 {count} 件",
+      "focusTime": "集中 {time}",
+      "pomodoroSessions": "ポモドーロ {count} 回",
+      "minutesOnly": "{minutes}分",
+      "hoursOnly": "{hours}時間",
+      "hoursAndMinutes": "{hours}時間{minutes}分"
+    },
+    "costOptimization": {
+      "title": "コスト最適化",
+      "costLabel": "コスト"
+    },
+    "progressSummary": {
+      "title": "週間サマリー",
+      "completedStats": "{count}件完了 · {hours}h",
+      "showTasksCount": "{count}件のタスクを表示"
+    },
+    "selfObservation": {
+      "title": "自己観測",
+      "windowLabel": "（直近 {days} 日）",
+      "daysButton": "{days}日",
+      "spend": "支出",
+      "executions": "実行回数",
+      "cacheHitRate": "キャッシュ命中",
+      "errorRate": "エラー率",
+      "dailyCostLabel": "日別コスト",
+      "modelShareLabel": "モデル別シェア",
+      "dailyCostTooltip": "{date}: ${cost} ({executions} 実行)"
+    }
   },
   "task": {
     "title": "タスク詳細",
@@ -450,7 +562,8 @@
       "zoomDay": "日",
       "zoomWeek": "週",
       "zoomMonth": "月",
-      "today": "今日"
+      "today": "今日",
+      "pageDescription": "タスクを時系列で俯瞰できます。バーにカーソルを合わせると詳細が表示されます。"
     },
     "taskSelector": {
       "fetchFailed": "タスクの取得に失敗しました",
@@ -717,6 +830,42 @@
     "descriptionToggle": {
       "collapse": "折りたたむ",
       "expand": "もっと見る"
+    },
+    "noteLinksSection": {
+      "copyLinkTooltip": "Markdownリンクをクリップボードにコピー",
+      "copied": "コピー済み",
+      "copyLink": "リンクをコピー",
+      "insertTooltip": "説明欄へリンクを直接挿入",
+      "inserted": "挿入済み",
+      "insertToDescription": "説明欄へ挿入",
+      "openSplitView": "スプリットビューで開く",
+      "unlink": "紐づけを解除",
+      "noContent": "(内容なし)",
+      "searchPlaceholder": "ノートを検索…",
+      "createAndLink": "新しいノートを作成して紐づける",
+      "noMatchingNotes": "「{query}」に一致するノートはありません",
+      "noLinkableNotes": "紐づけ可能なノートがありません",
+      "linkNote": "ノートを紐づける",
+      "hoverHint": "ノートにカーソルを合わせると「リンクをコピー」と「説明欄へ挿入」が表示されます。",
+      "noLinkedNotes": "紐づけられたノートはありません"
+    },
+    "noteSplitView": {
+      "backToTask": "タスクへ戻る",
+      "noteNotFound": "ノートが見つかりません"
+    },
+    "commentSystem": {
+      "deleteConfirm": "このコメントを削除しますか?"
+    },
+    "subtaskManagement": {
+      "deleteFailed": "サブタスクの削除に失敗しました",
+      "createFailed": "サブタスクの作成に失敗しました",
+      "updateFailed": "サブタスクの更新に失敗しました"
+    },
+    "taskEdit": {
+      "updateFailed": "タスクの更新に失敗しました"
+    },
+    "errorPage": {
+      "sectionLabel": "タスク"
     }
   },
   "auth": {
@@ -1149,7 +1298,10 @@
     "weeklySummary": "今週のサマリー",
     "completedTasks": "完了タスク",
     "consecutiveDays": "連続日数",
-    "controllingExams": "控えている試験"
+    "controllingExams": "控えている試験",
+    "errorBoundary": {
+      "defaultMessage": "予期しないエラーが発生しました。"
+    }
   },
   "reports": {
     "title": "週次レポート",
@@ -1399,7 +1551,92 @@
     "localCliMode": "ローカルCLIモード",
     "localCliDescription": "Claude Codeはローカルにインストールされたclaudeコマンドを使用します。APIキーは不要ですが、Claude CLIが正しくインストールされている必要があります。",
     "connectionTest": "接続テスト",
-    "testConnection": "接続をテスト"
+    "testConnection": "接続をテスト",
+    "errorPage": {
+      "title": "エージェント でエラーが発生しました",
+      "defaultMessage": "予期しないエラーが発生しました。",
+      "retry": "再試行"
+    },
+    "globalProviderPreference": {
+      "title": "デフォルトエージェント",
+      "subtitle": "自動選択時の優先プロバイダ。ロール側で個別上書きされない場合に使われます",
+      "recheckTitle": "CLI / API へ再 probe してキャッシュを破棄",
+      "recheckButton": "再チェック",
+      "checking": "確認中…",
+      "available": "✓ 応答あり ({count} モデル検出)",
+      "noResponse": "応答なし",
+      "rechecking": "再チェック中… ({count}/{max})",
+      "footerNote": "CLI が応答するかのみを確認しています（API キーはチェック対象外。5分キャッシュ）"
+    },
+    "skipPermissionToggle": {
+      "title": "エージェントの許可確認をスキップ",
+      "onDescription": "Claude Code には <code1>--dangerously-skip-permissions</code1>、Codex / Gemini には <code2>--yolo</code2> を付けて起動します。実行が止まりませんが、ファイル編集やコマンド実行を即座に行うので注意。",
+      "offDescription": "CLI 標準の許可プロンプトを surface します。安全ですが、実行中に質問が来るたびタスクが一時停止します。",
+      "srLabel": "エージェント許可確認スキップ"
+    },
+    "agentSettingsSections": {
+      "azureEndpointExample": "例: https://your-resource.openai.azure.com/openai/deployments/your-deployment"
+    },
+    "memory": {
+      "pageTitle": "記憶の成長",
+      "pageSubtitle": "AIエージェントが蓄積した知識と学習パターンの成長を可視化します",
+      "emptyTitle": "記憶データがありません",
+      "emptyHint": "エージェントがタスクを実行すると、ここに学習の成長が表示されます",
+      "strengthCard": {
+        "title": "記憶強度"
+      },
+      "overviewCards": {
+        "totalMemory": "記憶総量",
+        "weeklyChange": "先週比",
+        "knowledgeNodes": "ナレッジノード",
+        "patterns": "パターン: {count}",
+        "successRate": "成功率",
+        "experiments": "実験数: {count}",
+        "episodes": "エピソード記憶",
+        "monthlyChange": "先月比"
+      },
+      "growthTrendChart": {
+        "title": "知識の成長トレンド",
+        "period7d": "7日間",
+        "period30d": "30日間",
+        "periodAll": "全期間",
+        "legendKnowledgeNodes": "ナレッジノード",
+        "legendLearningPatterns": "学習パターン",
+        "legendExperimentsCompleted": "完了実験",
+        "emptyGrowth": "成長データがまだありません",
+        "successRateTitle": "成功率の推移",
+        "successRateLabel": "成功率",
+        "emptySuccessRate": "成功率データがまだありません",
+        "distributionTitle": "知識分布",
+        "emptyDistribution": "まだ知識が蓄積されていません"
+      },
+      "confidenceTrendChart": {
+        "title": "信頼度の推移",
+        "tooltipLabel": "信頼度"
+      },
+      "recentLearnings": {
+        "patternsTitle": "最近の学習パターン",
+        "confidenceLabel": "信頼度 {percent}%",
+        "emptyPatternsTitle": "学習パターンはまだありません",
+        "emptyPatternsHint": "エージェントがタスクを重ねると、ここに傾向が蓄積されます。",
+        "nodesTitle": "最新のナレッジノード",
+        "emptyNodesTitle": "ナレッジノードはまだありません",
+        "emptyNodesHint": "エージェントが学習すると、知識がここに記録されます。"
+      },
+      "nodeTypeLabels": {
+        "concept": "コンセプト",
+        "problem": "問題",
+        "solution": "解決策",
+        "technology": "テクノロジー",
+        "pattern": "パターン"
+      },
+      "levelLabels": {
+        "expert": "エキスパート",
+        "advanced": "アドバンスド",
+        "intermediate": "中級",
+        "beginner": "ビギナー"
+      }
+    }
   },
   "github": {
     "title": "GitHub連携",
@@ -1458,7 +1695,56 @@
     "added": "追加済み",
     "orAddManually": "または手動で追加",
     "importAsConcern": "懸念として取り込み",
-    "concernLinked": "懸念を見る"
+    "concernLinked": "懸念を見る",
+    "jobSection": {
+      "stepsCount": "{count} ステップ",
+      "noSteps": "ステップ情報がありません"
+    },
+    "logViewer": {
+      "copyLog": "ログをコピー"
+    },
+    "stepRow": {
+      "noLogPlaceholder": "(ログがありません)",
+      "logNotFound": "このステップのログが見つかりませんでした。"
+    },
+    "workflowRunItem": {
+      "noJobs": "ジョブ情報がありません"
+    },
+    "actionsClient": {
+      "subtitle": "GitHub Actions の実行履歴",
+      "noRunsTitle": "このリポジトリにはまだワークフロー実行がありません",
+      "noRunsHint": "プッシュやプルリクエストでCIが走ると、ここに表示されます。",
+      "noIntegrationsTitle": "連携済みのリポジトリがありません",
+      "noIntegrationsHint": "リポジトリを連携すると、CIの実行状況をここで確認できます。",
+      "linkRepository": "リポジトリを連携"
+    },
+    "error": {
+      "title": "GitHub でエラーが発生しました",
+      "unexpectedError": "予期しないエラーが発生しました。"
+    },
+    "pullRequestDetail": {
+      "baseChanged": "マージ先を {baseBranch} に変更しました",
+      "baseChangeFailed": "マージ先の変更に失敗しました",
+      "baseSynced": "ベースを取り込み、ブランチを更新しました",
+      "conflictTaskCreated": "競合があります（{count}件）。解消タスク #{taskId} を作成しました。タスク画面で実行してください。",
+      "resolveConflictsFailed": "競合解消に失敗しました",
+      "autoMergeQueued": "条件を満たし次第、自動マージされます",
+      "merged": "PR #{prNumber} をマージしました",
+      "localSyncFailed": "ローカル同期に失敗しました: {detail}",
+      "mergeFailed": "マージに失敗しました",
+      "mergeTargetLabel": "マージ先",
+      "mergeMethodLabel": "マージ方式",
+      "deleteBranchLabel": "ブランチを削除",
+      "autoMergeTooltip": "今すぐマージできない場合（チェック保留など）、条件を満たし次第GitHubが自動マージします。競合は解消されません。",
+      "autoMergeLabel": "自動マージ",
+      "resolveConflictsTooltip": "ベースを取り込み、競合があればエージェント解消タスクを作成します",
+      "resolveConflictsButton": "競合を解消",
+      "mergeButton": "マージ"
+    },
+    "pullRequestsClient": {
+      "allRepositories": "すべてのリポジトリ",
+      "resultCount": "{count} 件"
+    }
   },
   "workflow": {
     "title": "ワークフロー",
@@ -1655,6 +1941,15 @@
       "backToEdit": "編集に戻る",
       "preview": "プレビュー",
       "noContent": "（内容なし）"
+    },
+    "taskWorkflowSection": {
+      "modeTooltipManual": "ワークフロー: {mode}（手動指定）",
+      "modeTooltipAuto": "ワークフロー: {mode}（複雑度から自動選択）",
+      "complexitySuffix": " · 複雑度 {score}",
+      "manualSuffix": "（手動）",
+      "autoApproveTooltipOn": "計画自動承認: ON（plan.md 保存で自動進行）",
+      "autoApproveTooltipOff": "計画自動承認: OFF（手動承認が必要）",
+      "autoApproveBadge": "自動承認 {state}"
     }
   },
   "categories": {
@@ -1777,11 +2072,36 @@
     "descriptionPlaceholder": "説明を入力",
     "dragToReorder": "ドラッグして並び替え",
     "default": "デフォルト",
-    "setAsDefault": "デフォルト設定"
+    "setAsDefault": "デフォルト設定",
+    "repoUrlAutoDetected": "リポジトリURLを自動検出しました",
+    "branchRecommendedSuffix": "(推奨)",
+    "branchesFoundCount": "{count}個のブランチが見つかりました",
+    "branchesEmptyHint": "リポジトリURLを入力するとブランチ一覧が表示されます",
+    "branchFetchFailed": "ブランチの取得に失敗しました",
+    "branchFetchError": "ブランチの取得中にエラーが発生しました"
   },
   "labels": {
     "title": "ラベル一覧",
-    "itemName": "ラベル"
+    "itemName": "ラベル",
+    "form": {
+      "nameLabel": "ラベル名",
+      "namePlaceholder": "例: バグ修正",
+      "descriptionPlaceholder": "ラベルの説明を入力",
+      "selectedIconLabel": "選択中のアイコン",
+      "selectIconLabel": "アイコンを選択",
+      "iconNotSelectedSuffix": "（未選択）",
+      "iconSearchPlaceholder": "アイコンを検索...",
+      "iconLimitWarning": "上位50件を表示しています。検索を絞り込んでください。"
+    },
+    "list": {
+      "emptyTitle": "このテーマにラベルはまだありません",
+      "emptyHint": "上の「ラベルを追加」から作成できます",
+      "taskCount": "{count} タスク",
+      "deleteConfirm": "このラベルを削除しますか？"
+    },
+    "pageTitle": "ラベル",
+    "pageSubtitle": "カテゴリ › テーマの順で絞り込んで管理します",
+    "addButton": "ラベルを追加"
   },
   "search": {
     "title": "検索",
@@ -1795,7 +2115,22 @@
     "searchResultsFor": "「{query}」の検索結果: {total}件",
     "noMatchResults": "「{query}」に一致する結果が見つかりませんでした",
     "tryDifferentKeyword": "別のキーワードで検索してみてください",
-    "enterKeywordToSearch": "キーワードを入力して検索を開始してください"
+    "enterKeywordToSearch": "キーワードを入力して検索を開始してください",
+    "missPanel": {
+      "heading": "よく検索されているが結果がないキーワード",
+      "hitCount": "{count}回",
+      "creating": "作成中…",
+      "createTask": "タスク作成"
+    },
+    "filterPanel": {
+      "typeHeading": "種類",
+      "statusHeading": "ステータス",
+      "typeNote": "ノート",
+      "statusActive": "進行中"
+    },
+    "historyHeading": "最近の検索",
+    "relevanceLabel": "関連度 {relevance}%",
+    "searching": "検索中..."
   },
   "calendar": {
     "title": "カレンダー",
@@ -1848,7 +2183,55 @@
     "selectDateFromCalendar": "カレンダーから日付を選択してください",
     "deadline": "締め切り",
     "taskNamePlaceholder": "タスク名を入力...",
-    "creating": "作成中..."
+    "creating": "作成中...",
+    "errorPage": {
+      "title": "カレンダー でエラーが発生しました",
+      "defaultMessage": "予期しないエラーが発生しました。",
+      "retry": "再試行"
+    },
+    "titleInputPlaceholder": "タイトルを入力",
+    "dayCountSuffix": "({count}日間)",
+    "optionsToggle": {
+      "open": "カラー・リマインド・メモ",
+      "close": "オプションを閉じる"
+    },
+    "insufficientBalance": "残日数不足",
+    "paidLeaveDurationPicker": {
+      "halfDay": "半日",
+      "halfDayTimeLabel": "半日休暇の時間",
+      "morningRange": "午前 (9:00-13:00)",
+      "afternoonRange": "午後 (13:00-17:00)"
+    },
+    "paidLeaveHeader": {
+      "requestPrompt": "有給休暇を申請",
+      "usedLabel": "使用",
+      "afterUsageLabel": "申請後"
+    },
+    "paidLeaveOptions": {
+      "reasonPlaceholder": "理由や備考を入力..."
+    },
+    "paidLeaveDialog": {
+      "leaveTypeLabel": "休暇の種類",
+      "submitting": "申請中...",
+      "annualLeave": "年次有給休暇",
+      "specialLeave": "特別休暇",
+      "sickLeave": "病気休暇",
+      "personalLeave": "私用休暇"
+    },
+    "scheduleEventDialog": {
+      "timedOption": "時間指定",
+      "addPrompt": "予定を追加",
+      "addButton": "追加する"
+    },
+    "scheduleOptionsPanel": {
+      "memoPlaceholder": "メモを追加..."
+    },
+    "scheduleConstants": {
+      "quickTimeMorning": "午前",
+      "quickTimeNoon": "昼",
+      "quickTimeAfternoon": "午後",
+      "quickTimeEvening": "夜"
+    }
   },
   "pomodoro": {
     "timeManagement": "時間管理",
@@ -1889,7 +2272,10 @@
     "taskStatus": "タスクが{status}です",
     "openInPage": "ページで開く",
     "priorityUrgent": "緊急",
-    "updateFailed": "更新に失敗しました"
+    "updateFailed": "更新に失敗しました",
+    "priorityLow": "低",
+    "priorityMedium": "中",
+    "priorityHigh": "高"
   },
   "focus": {
     "currentTask": "現在のタスク",
@@ -2321,7 +2707,9 @@
     "themeCreated": "テーマが作成されました",
     "themeCreatedDescription": "Gitリポジトリが初期化され、要件・設計書（docs/）とエージェント指示書がコミットされました。",
     "themeCreateError": "テーマの作成に失敗しました",
-    "createAnother": "別のテーマを作成"
+    "createAnother": "別のテーマを作成",
+    "proposalGenerateFailed": "プロポーザル生成に失敗しました",
+    "claudeMdGenerateFailed": "CLAUDE.md生成に失敗しました"
   },
   "knowledge": {
     "title": "知識ベース",
@@ -3927,5 +4315,85 @@
     "sidebar": {
       "noSearchResults": "検索結果なし"
     }
+  },
+  "achievements": {
+    "client": {
+      "loadFailed": "実績データの読み込みに失敗しました",
+      "headerTitle": "🏆 実績・統計",
+      "headerSubtitle": "あなたの学習・タスク管理の成果を確認しましょう",
+      "disableNotifications": "通知を無効にする",
+      "enableNotifications": "通知を有効にする",
+      "refreshTitle": "データを更新",
+      "clearNotifications": "通知をクリア",
+      "tabs": {
+        "achievements": "実績",
+        "stats": "統計",
+        "badges": "バッジ"
+      },
+      "stats": {
+        "unlockedCount": "解除済み実績",
+        "completionRate": "完了率",
+        "points": "ポイント",
+        "totalTasks": "総タスク数"
+      },
+      "badgesComingSoonTitle": "バッジ機能は準備中です",
+      "badgesComingSoonHint": "近日公開予定です。お楽しみに！",
+      "recentActivityTitle": "🎉 最近の実績",
+      "devInfoTitle": "開発情報"
+    },
+    "toast": {
+      "unlockedLabel": "実績解除！",
+      "pointsLabel": "ポイント",
+      "moreCount": "+{count} 個の実績"
+    },
+    "statsBoard": {
+      "overviewHeading": "📊 統計概要",
+      "totalTasks": "総タスク数",
+      "totalStudyTime": "総学習時間",
+      "agentExecutions": "エージェント実行",
+      "highPriorityTasks": "高優先度タスク",
+      "completionRateSubtitle": "完了率 {rate}%",
+      "todayWithTime": "今日 {time}",
+      "weeklyProgressHeading": "📈 今週の進捗",
+      "taskCompletionLabel": "タスク完了",
+      "agentLabel": "エージェント",
+      "streaksHeading": "🔥 連続記録",
+      "taskStreakLabel": "タスク完了連続日数",
+      "studyStreakLabel": "学習連続日数",
+      "maxStreakSuffix": "/ 最高 {max}日",
+      "todayActivityHeading": "📅 今日のアクティビティ",
+      "completedTasksLabel": "完了タスク",
+      "lastUpdated": "最終更新: {date}",
+      "minutesOnly": "{minutes}分",
+      "hoursOnly": "{hours}時間",
+      "hoursAndMinutes": "{hours}時間{minutes}分"
+    }
+  },
+  "logs": {
+    "title": "ログ分析",
+    "loading": "読み込み中…",
+    "noThemesHint": "作業ディレクトリが設定されたテーマがありません。テーマに作業ディレクトリを設定すると、そのテーマのログをここで分析できます。",
+    "themeLabel": "テーマ",
+    "reload": "再読み込み",
+    "truncatedSuffix": "（一部のみ表示）",
+    "noteHint": "下の入力欄にログを貼り付けて分析することもできます。",
+    "loadingLogs": "ログを読み込み中…",
+    "analyzeFailed": "ログ分析に失敗しました",
+    "sourceLabels": {
+      "configured": "設定されたログディレクトリ",
+      "scanned": "作業ディレクトリから自動検出",
+      "none": "ログ未検出"
+    }
+  },
+  "terminal": {
+    "desktopOnly": "ターミナルはデスクトップアプリ (Tauri) でのみ利用できます。",
+    "closeTabAria": "{title} を閉じる",
+    "splitHorizontal": "左右に分割",
+    "splitVertical": "上下に分割",
+    "newTerminal": "新しいターミナル",
+    "closeTerminal": "ターミナルを閉じる",
+    "closeTerminalTitle": "ターミナルを閉じる (Ctrl+`)",
+    "closePane": "ペインを閉じる",
+    "commandCompleteToast": "ターミナルのコマンドが完了しました (exit {exitCode}, {seconds}s)"
   }
 }

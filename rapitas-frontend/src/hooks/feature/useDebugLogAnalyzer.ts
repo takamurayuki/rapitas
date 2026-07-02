@@ -3,6 +3,7 @@
  */
 
 import { useState, useCallback } from 'react';
+import { useTranslations } from 'next-intl';
 import {
   type LogType,
   type LogAnalysisResult,
@@ -41,6 +42,7 @@ interface LogTypeInfo {
 }
 
 export function useDebugLogAnalyzer(): UseDebugLogAnalyzerResult {
+  const t = useTranslations('common');
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -81,7 +83,7 @@ export function useDebugLogAnalyzer(): UseDebugLogAnalyzerResult {
         const data: AnalyzeLogResponse = await response.json();
 
         if (!data.success || !data.result) {
-          throw new Error(data.error || 'ログ解析に失敗しました');
+          throw new Error(data.error || t('useDebugLogAnalyzer.analysisFailed'));
         }
 
         // Convert date string to Date object
@@ -104,7 +106,7 @@ export function useDebugLogAnalyzer(): UseDebugLogAnalyzerResult {
 
         return result;
       } catch (err) {
-        const message = err instanceof Error ? err.message : 'ログ解析中にエラーが発生しました';
+        const message = err instanceof Error ? err.message : t('useDebugLogAnalyzer.analysisError');
         setError(message);
         logger.error('Log analysis error:', err);
         return null;
@@ -112,7 +114,7 @@ export function useDebugLogAnalyzer(): UseDebugLogAnalyzerResult {
         setIsAnalyzing(false);
       }
     },
-    [API_BASE_URL],
+    [API_BASE_URL, t],
   );
 
   // Detect log type
@@ -130,7 +132,7 @@ export function useDebugLogAnalyzer(): UseDebugLogAnalyzerResult {
         const data = await response.json();
 
         if (!data.success) {
-          throw new Error(data.error || 'タイプ検出に失敗しました');
+          throw new Error(data.error || t('useDebugLogAnalyzer.typeDetectionFailed'));
         }
 
         return data.type as LogType;
@@ -139,7 +141,7 @@ export function useDebugLogAnalyzer(): UseDebugLogAnalyzerResult {
         return 'unknown';
       }
     },
-    [API_BASE_URL],
+    [API_BASE_URL, t],
   );
 
   // Get supported log types
@@ -149,7 +151,7 @@ export function useDebugLogAnalyzer(): UseDebugLogAnalyzerResult {
       const data = await response.json();
 
       if (!data.success) {
-        throw new Error(data.error || 'タイプ一覧の取得に失敗しました');
+        throw new Error(data.error || t('useDebugLogAnalyzer.typeListFetchFailed'));
       }
 
       return data.types;
@@ -157,7 +159,7 @@ export function useDebugLogAnalyzer(): UseDebugLogAnalyzerResult {
       logger.error('Get supported types error:', err);
       return [];
     }
-  }, [API_BASE_URL]);
+  }, [API_BASE_URL, t]);
 
   // Analyze logs from URL (for large files)
   const analyzeFromUrl = useCallback(
@@ -196,7 +198,7 @@ export function useDebugLogAnalyzer(): UseDebugLogAnalyzerResult {
         const data = await response.json();
 
         if (!data.success || !data.result) {
-          throw new Error(data.error || 'ストリーム解析に失敗しました');
+          throw new Error(data.error || t('useDebugLogAnalyzer.streamAnalysisFailed'));
         }
 
         // Convert date string to Date object
@@ -220,7 +222,7 @@ export function useDebugLogAnalyzer(): UseDebugLogAnalyzerResult {
         return result;
       } catch (err) {
         const message =
-          err instanceof Error ? err.message : 'ストリーム解析中にエラーが発生しました';
+          err instanceof Error ? err.message : t('useDebugLogAnalyzer.streamAnalysisError');
         setError(message);
         logger.error('Stream analysis error:', err);
         return null;
@@ -228,7 +230,7 @@ export function useDebugLogAnalyzer(): UseDebugLogAnalyzerResult {
         setIsAnalyzing(false);
       }
     },
-    [API_BASE_URL],
+    [API_BASE_URL, t],
   );
 
   return {

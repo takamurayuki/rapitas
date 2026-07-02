@@ -9,7 +9,27 @@
  */
 
 import { Bell } from 'lucide-react';
+import { useTranslations } from 'next-intl';
 import { COLOR_OPTIONS, REMINDER_OPTIONS } from './schedule-constants';
+
+/**
+ * Formats a reminder offset value into a translated, human-readable label.
+ *
+ * @param value - Reminder offset in minutes, or null for "no reminder".
+ * @param t - `calendar` namespace translation function.
+ * @param tc - `common` namespace translation function.
+ * @returns Localized label string.
+ */
+function getReminderOptionLabel(
+  value: number | null,
+  t: ReturnType<typeof useTranslations>,
+  tc: ReturnType<typeof useTranslations>,
+): string {
+  if (value === null) return tc('none');
+  if (value < 60) return t('reminderMinutesBefore', { count: value });
+  if (value < 1440) return t('reminderHoursBefore', { count: value / 60 });
+  return t('reminderDaysBefore', { count: value / 1440 });
+}
 
 /** Props for ScheduleOptionsPanel. */
 export interface ScheduleOptionsPanelProps {
@@ -32,11 +52,16 @@ export function ScheduleOptionsPanel({
   description,
   setDescription,
 }: ScheduleOptionsPanelProps) {
+  const t = useTranslations('calendar');
+  const tc = useTranslations('common');
+  const tp = useTranslations('calendar.scheduleOptionsPanel');
   return (
     <div className="mt-3 space-y-3 animate-in fade-in slide-in-from-top-1 duration-200">
       {/* Color picker */}
       <div className="flex items-center gap-3">
-        <span className="text-xs text-zinc-400 dark:text-zinc-500 w-10 shrink-0">カラー</span>
+        <span className="text-xs text-zinc-400 dark:text-zinc-500 w-10 shrink-0">
+          {tc('color')}
+        </span>
         <div className="flex gap-1.5">
           {COLOR_OPTIONS.map((c) => (
             <button
@@ -73,7 +98,7 @@ export function ScheduleOptionsPanel({
                   : 'bg-zinc-50 dark:bg-zinc-700/50 text-zinc-500 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-700'
               }`}
             >
-              {opt.label}
+              {getReminderOptionLabel(opt.value, t, tc)}
             </button>
           ))}
         </div>
@@ -83,7 +108,7 @@ export function ScheduleOptionsPanel({
       <textarea
         value={description}
         onChange={(e) => setDescription(e.target.value)}
-        placeholder="メモを追加..."
+        placeholder={tp('memoPlaceholder')}
         rows={2}
         className="w-full px-3 py-2 bg-zinc-50 dark:bg-zinc-700/50 border border-zinc-200 dark:border-zinc-600 rounded-lg text-zinc-900 dark:text-zinc-100 placeholder-zinc-300 dark:placeholder-zinc-600 focus:outline-none focus:border-indigo-400 text-sm resize-none transition-all"
       />

@@ -12,6 +12,7 @@
 import React, { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Trophy, Star, Crown, Award, Sparkles, X, CheckCircle } from 'lucide-react';
+import { useTranslations } from 'next-intl';
 import type { AchievementNotification } from '../../types/achievement';
 import { getRarityColor } from '../../data/achievements';
 
@@ -43,6 +44,7 @@ const SingleToast: React.FC<SingleToastProps> = ({
   autoHideDuration,
   index,
 }) => {
+  const t = useTranslations('achievements');
   const [isVisible, setIsVisible] = useState(true);
   const [progress, setProgress] = useState(100);
 
@@ -152,7 +154,7 @@ const SingleToast: React.FC<SingleToastProps> = ({
               <div className="flex items-center space-x-2">
                 <span className="text-lg">{getRarityEmoji(notification.rarity)}</span>
                 <span className="text-sm font-medium text-gray-600 dark:text-gray-400">
-                  実績解除！
+                  {t('toast.unlockedLabel')}
                 </span>
               </div>
               <button
@@ -208,7 +210,9 @@ const SingleToast: React.FC<SingleToastProps> = ({
               <div className="flex items-center space-x-1 text-yellow-500">
                 <Star className="w-4 h-4 fill-current" />
                 <span className="font-semibold">+{notification.pointsReward}</span>
-                <span className="text-xs text-gray-500 dark:text-gray-400">ポイント</span>
+                <span className="text-xs text-gray-500 dark:text-gray-400">
+                  {t('toast.pointsLabel')}
+                </span>
               </div>
 
               <div className="text-xs text-gray-400 dark:text-gray-500">
@@ -268,6 +272,7 @@ export const AchievementToast: React.FC<AchievementToastProps> = ({
   autoHideDuration = 5000,
   position = 'top-right',
 }) => {
+  const t = useTranslations('achievements');
   // Only show unshown notifications, limited by maxVisible
   const visibleNotifications = notifications
     .filter((n) => !n.isShown)
@@ -314,8 +319,10 @@ export const AchievementToast: React.FC<AchievementToastProps> = ({
           className="text-center"
         >
           <div className="inline-flex items-center px-3 py-2 bg-gray-800 dark:bg-gray-700 text-white text-sm rounded-lg shadow-lg">
-            <Sparkles className="w-4 h-4 mr-2" />+
-            {notifications.filter((n) => !n.isShown).length - maxVisible} 個の実績
+            <Sparkles className="w-4 h-4 mr-2" />
+            {t('toast.moreCount', {
+              count: notifications.filter((n) => !n.isShown).length - maxVisible,
+            })}
           </div>
         </motion.div>
       )}

@@ -6,21 +6,21 @@ import type { DraggableProvided, DraggableStateSnapshot } from '@hello-pangea/dn
 import { getLabelsArray, hasLabels } from '@/utils/labels';
 import type { Priority } from '@/types';
 
-const PRIORITY_BADGE: Record<Priority, { label: string; className: string }> = {
+const PRIORITY_BADGE: Record<Priority, { labelKey: string; className: string }> = {
   low: {
-    label: '低',
+    labelKey: 'priorityLow',
     className: 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400',
   },
   medium: {
-    label: '中',
+    labelKey: 'priorityMedium',
     className: 'bg-indigo-100 text-indigo-600 dark:bg-indigo-900 dark:text-indigo-400',
   },
   high: {
-    label: '高',
+    labelKey: 'priorityHigh',
     className: 'bg-amber-100 text-amber-600 dark:bg-amber-900 dark:text-amber-400',
   },
   urgent: {
-    label: '緊急',
+    labelKey: 'priorityUrgent',
     className: 'bg-rose-100 text-rose-600 dark:bg-rose-900 dark:text-rose-400',
   },
 };
@@ -96,7 +96,7 @@ export function KanbanCard({
             <span
               className={`flex-shrink-0 px-1.5 py-0.5 rounded text-xs font-medium ${PRIORITY_BADGE[task.priority].className}`}
             >
-              {PRIORITY_BADGE[task.priority].label}
+              {t(PRIORITY_BADGE[task.priority].labelKey)}
             </span>
           )}
           {/* Execution state badge */}

@@ -1,6 +1,11 @@
 import { renderHook, act } from '@testing-library/react';
 import { useAsyncOperation } from '../common/useAsyncOperation';
 
+vi.mock('next-intl', () => {
+  const t = (key: string) => key;
+  return { useTranslations: () => t };
+});
+
 describe('useAsyncOperation', () => {
   it('should have correct initial state', () => {
     const { result } = renderHook(() => useAsyncOperation(async () => 'data'));
@@ -144,6 +149,6 @@ describe('useAsyncOperation', () => {
       await result.current.execute();
     });
 
-    expect(result.current.error).toBe('エラーが発生しました');
+    expect(result.current.error).toBe('errorOccurred');
   });
 });

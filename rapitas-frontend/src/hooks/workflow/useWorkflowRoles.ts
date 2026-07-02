@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
+import { useTranslations } from 'next-intl';
 import { API_BASE_URL } from '@/utils/api';
 import type { WorkflowRoleConfig, WorkflowRole } from '@/types';
 import { createLogger } from '@/lib/logger';
@@ -8,6 +9,7 @@ import { createLogger } from '@/lib/logger';
 const logger = createLogger('useWorkflowRoles');
 
 export function useWorkflowRoles() {
+  const t = useTranslations('common');
   const [roles, setRoles] = useState<WorkflowRoleConfig[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -24,11 +26,11 @@ export function useWorkflowRoles() {
       setRoles(data);
     } catch (err) {
       logger.error('Failed to fetch workflow roles:', err);
-      setError(err instanceof Error ? err.message : 'ロール設定の取得に失敗しました');
+      setError(err instanceof Error ? err.message : t('useWorkflowRoles.fetchFailed'));
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [t]);
 
   useEffect(() => {
     fetchRoles();
@@ -60,12 +62,12 @@ export function useWorkflowRoles() {
         setRoles((prev) => prev.map((r) => (r.role === role ? updated : r)));
         return { success: true };
       } catch (err) {
-        const message = err instanceof Error ? err.message : 'ロール設定の更新に失敗しました';
+        const message = err instanceof Error ? err.message : t('useWorkflowRoles.updateFailed');
         setError(message);
         return { success: false, error: message };
       }
     },
-    [],
+    [t],
   );
 
   return {

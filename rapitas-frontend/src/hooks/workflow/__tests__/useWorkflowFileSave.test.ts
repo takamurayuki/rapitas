@@ -1,6 +1,11 @@
 import { renderHook, act } from '@testing-library/react';
 import { useWorkflowFileSave } from '../useWorkflowFileSave';
 
+vi.mock('next-intl', () => {
+  const t = (key: string) => key;
+  return { useTranslations: () => t };
+});
+
 vi.mock('@/utils/api', () => ({
   API_BASE_URL: 'http://test:3001',
 }));

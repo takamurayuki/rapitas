@@ -10,6 +10,7 @@ import {
   CheckCircle2,
   Clock,
 } from 'lucide-react';
+import { useTranslations } from 'next-intl';
 import { useWeeklyReview } from './useWeeklyReview';
 import type { WeeklyReviewStats } from '@/types/weekly-review.types';
 
@@ -18,16 +19,20 @@ const formatDate = (iso: string): string => {
   return `${d.getFullYear()}/${String(d.getMonth() + 1).padStart(2, '0')}/${String(d.getDate()).padStart(2, '0')}`;
 };
 
-const formatMinutes = (m: number): string => {
-  if (m < 60) return `${m}分`;
-  const h = Math.floor(m / 60);
-  const r = m % 60;
-  return r === 0 ? `${h}時間` : `${h}時間${r}分`;
-};
-
 export function WeeklyReviewCard() {
+  const t = useTranslations('home');
   const { review, isLoading, error, isRegenerating, regenerateError, regenerate } =
     useWeeklyReview();
+
+  // Moved inside the component (was module-level) so it can localize via `t`.
+  const formatMinutes = (m: number): string => {
+    if (m < 60) return t('weeklyReview.minutesOnly', { minutes: m });
+    const h = Math.floor(m / 60);
+    const r = m % 60;
+    return r === 0
+      ? t('weeklyReview.hoursOnly', { hours: h })
+      : t('weeklyReview.hoursAndMinutes', { hours: h, minutes: r });
+  };
 
   // Decode the stats JSON for display. Falls back to null on parse failure.
   const stats: WeeklyReviewStats | null = useMemo(() => {
@@ -45,7 +50,7 @@ export function WeeklyReviewCard() {
         <div className="flex items-center gap-2 mb-4">
           <Sparkles className="h-5 w-5 text-indigo-500" />
           <h2 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100">
-            AI 週次レビュー
+            {t('weeklyReview.title')}
           </h2>
         </div>
         <div className="animate-pulse space-y-3">
@@ -61,7 +66,7 @@ export function WeeklyReviewCard() {
       <div className="rounded-xl border border-red-200 bg-red-50 p-6 dark:border-red-800 dark:bg-red-900/30">
         <div className="flex items-center gap-2 text-red-700 dark:text-red-300">
           <AlertCircle className="h-5 w-5" />
-          <span className="text-sm">週次レビューの読み込みに失敗しました</span>
+          <span className="text-sm">{t('weeklyReview.loadFailed')}</span>
         </div>
       </div>
     );
@@ -73,7 +78,7 @@ export function WeeklyReviewCard() {
         <div className="flex items-center gap-2">
           <Sparkles className="h-5 w-5 text-indigo-500" />
           <h2 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100">
-            AI 週次レビュー
+            {t('weeklyReview.title')}
           </h2>
         </div>
         <button
@@ -81,14 +86,14 @@ export function WeeklyReviewCard() {
           onClick={() => regenerate()}
           disabled={isRegenerating}
           className="inline-flex items-center gap-1 rounded-md border border-zinc-300 bg-white px-3 py-1.5 text-xs text-zinc-700 shadow-sm hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700"
-          title="最新の活動データから再生成します"
+          title={t('weeklyReview.regenerateTooltip')}
         >
           {isRegenerating ? (
             <Loader2 className="h-3 w-3 animate-spin" />
           ) : (
             <RefreshCw className="h-3 w-3" />
           )}
-          {review ? '再生成' : '生成'}
+          {review ? t('weeklyReview.regenerateLabel') : t('weeklyReview.generateLabel')}
         </button>
       </div>
 
@@ -99,16 +104,17 @@ export function WeeklyReviewCard() {
       )}
 
       {!review ? (
-        <p className="text-sm text-zinc-500 dark:text-zinc-400">
-          まだレビューがありません。「生成」ボタンで先週のレビューを作成できます。
-        </p>
+        <p className="text-sm text-zinc-500 dark:text-zinc-400">{t('weeklyReview.emptyHint')}</p>
       ) : (
         <div className="space-y-4">
           {/* Period */}
           <div className="flex items-center gap-2 text-xs text-zinc-500 dark:text-zinc-400">
             <Calendar className="h-3 w-3" />
             <span>
-              {formatDate(review.weekStart)} 〜 {formatDate(review.weekEnd)}
+              {t('weeklyReview.periodRange', {
+                start: formatDate(review.weekStart),
+                end: formatDate(review.weekEnd),
+              })}
             </span>
             <span className="text-zinc-400 dark:text-zinc-600">·</span>
             <span>{review.modelUsed}</span>
@@ -119,15 +125,19 @@ export function WeeklyReviewCard() {
             <div className="flex flex-wrap gap-4 text-sm text-zinc-700 dark:text-zinc-300">
               <div className="flex items-center gap-1.5">
                 <CheckCircle2 className="h-4 w-4 text-green-500" />
-                <span>完了 {stats.totalCompletedCount} 件</span>
+                <span>
+                  {t('weeklyReview.completedCount', { count: stats.totalCompletedCount })}
+                </span>
               </div>
               <div className="flex items-center gap-1.5">
                 <Clock className="h-4 w-4 text-indigo-500" />
-                <span>集中 {formatMinutes(stats.totalFocusMinutes)}</span>
+                <span>
+                  {t('weeklyReview.focusTime', { time: formatMinutes(stats.totalFocusMinutes) })}
+                </span>
               </div>
               {stats.pomodoroSessions > 0 && (
                 <div className="text-zinc-500 dark:text-zinc-400">
-                  ポモドーロ {stats.pomodoroSessions} 回
+                  {t('weeklyReview.pomodoroSessions', { count: stats.pomodoroSessions })}
                 </div>
               )}
             </div>

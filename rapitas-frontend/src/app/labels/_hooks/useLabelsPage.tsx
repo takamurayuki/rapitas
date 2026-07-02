@@ -8,6 +8,7 @@
 'use client';
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { Tag } from 'lucide-react';
+import { useTranslations } from 'next-intl';
 import { API_BASE_URL } from '@/utils/api';
 import { useConfirmDialog } from '@/components/ui/dialog/ConfirmDialogProvider';
 import { searchIcons, getIconComponent } from '@/components/category/icon-data';
@@ -50,6 +51,7 @@ function pickDefault<T extends { id: number; isDefault?: boolean }>(items: T[]):
 }
 
 export function useLabelsPage() {
+  const t = useTranslations('labels');
   const confirm = useConfirmDialog();
   const [labels, setLabels] = useState<LabelItem[]>([]);
   const [themes, setThemes] = useState<Theme[]>([]);
@@ -176,12 +178,11 @@ export function useLabelsPage() {
 
   const handleDelete = useCallback(
     async (id: number) => {
-      if (!(await confirm({ message: 'このラベルを削除しますか？', variant: 'destructive' })))
-        return;
+      if (!(await confirm({ message: t('list.deleteConfirm'), variant: 'destructive' }))) return;
       const res = await fetch(`${API_BASE_URL}/labels/${id}`, { method: 'DELETE' });
       if (res.ok) await fetchAll();
     },
-    [fetchAll, confirm],
+    [fetchAll, confirm, t],
   );
 
   const startEdit = useCallback((label: LabelItem) => {

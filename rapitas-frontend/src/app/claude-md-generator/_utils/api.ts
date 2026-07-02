@@ -70,7 +70,7 @@ export async function proposeApps(
 
   if (!response.ok) {
     const errorData = await response.json().catch(() => ({}));
-    throw new Error(errorData.error || `HTTP ${response.status}: プロポーザル生成に失敗しました`);
+    throw new Error(errorData.error || `HTTP ${response.status}: ${t('proposalGenerateFailed')}`);
   }
 
   const data = await response.json();
@@ -109,7 +109,7 @@ export async function generateClaudeMd(
 
   if (!response.ok) {
     const errorData = await response.json().catch(() => ({}));
-    throw new Error(errorData.error || `HTTP ${response.status}: CLAUDE.md生成に失敗しました`);
+    throw new Error(errorData.error || `HTTP ${response.status}: ${t('claudeMdGenerateFailed')}`);
   }
 
   const data = await response.json();

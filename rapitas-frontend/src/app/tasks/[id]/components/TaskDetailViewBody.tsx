@@ -10,6 +10,7 @@ import type { ParallelExecutionStatus } from '@/feature/tasks/components/status/
 import { useExecutionStateStore } from '@/stores/execution-state-store';
 import { CopilotChatPanel } from '@/components/copilot';
 import { ErrorBoundary } from '@/components/common/ErrorBoundary';
+import { useTranslations } from 'next-intl';
 
 const API_BASE = API_BASE_URL;
 
@@ -120,6 +121,7 @@ export default function TaskDetailViewBody({
   isParallelExecutionRunning,
   getSubtaskStatus,
 }: TaskDetailViewBodyProps) {
+  const tDev = useTranslations('devMode');
   const isTaskStatusLoading = useExecutionStateStore((s) => s.loadingTaskIds.has(taskId));
 
   // Context for the copilot's "next action" recommender (rule-based, see
@@ -173,7 +175,7 @@ export default function TaskDetailViewBody({
               workingDirectory, or API key. The legacy showAIPanel gate is
               kept as a kill-switch but defaults to true. */}
           {showAIPanel && (
-            <ErrorBoundary section="エージェント実行">
+            <ErrorBoundary section={tDev('executionSection.title')}>
               <TaskAISection
                 task={task}
                 taskId={taskId}
