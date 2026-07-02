@@ -3,6 +3,12 @@ import { render, screen, fireEvent } from '@testing-library/react';
 import TaskCardSubtaskProgress from './TaskCardSubtaskProgress';
 import type { Task, Status } from '@/types';
 
+// next-intl mock echoes the key back so assertions can target the key path
+// rather than a locale-specific string.
+vi.mock('next-intl', () => ({
+  useTranslations: () => (key: string) => key,
+}));
+
 const makeSubtask = (id: number, status: Status): Task => ({
   id,
   title: `Subtask ${id}`,
@@ -36,7 +42,10 @@ describe('TaskCardSubtaskProgress', () => {
         subtasks={[makeSubtask(1, 'done'), makeSubtask(2, 'in-progress'), makeSubtask(3, 'todo')]}
       />,
     );
-    expect(screen.getByRole('button')).toHaveAttribute('title', '完了 1 / 進行中 1 / 未着手 1');
+    expect(screen.getByRole('button')).toHaveAttribute(
+      'title',
+      'statusDone 1 / statusInProgress 1 / statusTodo 1',
+    );
   });
 
   it('バーが完了=green・進行中=blueのセグメントで描画される', () => {
@@ -64,7 +73,10 @@ describe('TaskCardSubtaskProgress', () => {
         subtasks={[makeSubtask(1, 'blocked' as Status), makeSubtask(2, 'todo')]}
       />,
     );
-    expect(screen.getByRole('button')).toHaveAttribute('title', '完了 0 / 進行中 1 / 未着手 1');
+    expect(screen.getByRole('button')).toHaveAttribute(
+      'title',
+      'statusDone 0 / statusInProgress 1 / statusTodo 1',
+    );
   });
 
   it('クリックで onToggle が呼ばれ、クリックイベントは親に伝播しない', () => {

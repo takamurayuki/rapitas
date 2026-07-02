@@ -7,7 +7,7 @@ import { Link2, Search, X, MessageSquare, Loader2 } from 'lucide-react';
 import type { CommentSearchResult } from '@/types';
 import { API_BASE_URL } from '@/utils/api';
 import type { NoteData } from './comment-types';
-import { LABEL_COLORS } from './comment-types';
+import { LABEL_COLORS, getLinkLabelDisplay } from './comment-types';
 import { timeAgo } from './comment-types';
 
 type LinkModalProps = {
@@ -120,7 +120,7 @@ export const LinkModal = memo(function LinkModal({
                       : 'border-zinc-200 dark:border-zinc-700 text-zinc-500 hover:border-zinc-300 dark:hover:border-zinc-600'
                   }`}
                 >
-                  {l}
+                  {getLinkLabelDisplay(t, l)}
                 </button>
               );
             })}
@@ -148,7 +148,7 @@ export const LinkModal = memo(function LinkModal({
                       {r.content}
                     </p>
                     <p className="text-[10px] text-zinc-400 mt-0.5">
-                      {timeAgo(new Date(r.createdAt))}
+                      {timeAgo(new Date(r.createdAt), t)}
                     </p>
                   </div>
                   <Link2 className="w-3 h-3 text-zinc-300 group-hover:text-indigo-500 shrink-0 mt-0.5 transition-colors" />

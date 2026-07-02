@@ -15,6 +15,7 @@
  * control flows live in `speech-recognition-controllers`.
  */
 import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
+import { useTranslations } from 'next-intl';
 import { BACKEND_URL } from './speech-recognition-utils';
 import {
   sendForTranscription as sendForTranscriptionImpl,
@@ -35,6 +36,7 @@ export function useSpeechRecognition(
   lang: string = 'ja-JP',
   onResult?: (transcript: string) => void,
 ): UseSpeechRecognitionReturn {
+  const t = useTranslations('voice');
   const [isListening, setIsListening] = useState(false);
   const [isTranscribing, setIsTranscribing] = useState(false);
   const [transcript, setTranscript] = useState('');
@@ -70,6 +72,7 @@ export function useSpeechRecognition(
   const controllerCtx = useMemo<SpeechControllerContext>(
     () => ({
       lang,
+      t,
       setError,
       setIsListening,
       setIsTranscribing,
@@ -83,7 +86,7 @@ export function useSpeechRecognition(
       lastRawTextRef,
       onResultRef,
     }),
-    [lang],
+    [lang, t],
   );
 
   /** Send recorded PCM chunks as WAV to backend for transcription. */

@@ -130,7 +130,9 @@ export function InsertSection({
                     className="w-1 h-4 rounded-full shrink-0"
                     style={{ backgroundColor: color.value }}
                   />
-                  <span className="text-xs text-zinc-700 dark:text-zinc-200">{color.name}</span>
+                  <span className="text-xs text-zinc-700 dark:text-zinc-200">
+                    {t(`editorColors.border.${color.nameKey}`)}
+                  </span>
                 </button>
               ))}
             </div>

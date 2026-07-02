@@ -2,7 +2,7 @@
 // useTaskCard
 import { useState, useRef, useEffect } from 'react';
 import type { Task, Status } from '@/types';
-import { type statusConfig, resolveStatusConfig } from '@/feature/tasks/config/StatusConfig';
+import { getStatusDisplay } from '@/feature/tasks/config/StatusConfig';
 import { useToast } from '@/components/ui/toast/ToastContainer';
 import { useConfirmDialog } from '@/components/ui/dialog/ConfirmDialogProvider';
 import { API_BASE_URL } from '@/utils/api';
@@ -48,7 +48,7 @@ export interface TaskCardHook {
   setExpandedSubtasks: React.Dispatch<React.SetStateAction<boolean>>;
   localSubtasks: Task[];
   handleSubtaskStatusChange: (subtaskId: number, newStatus: string) => void;
-  currentStatus: (typeof statusConfig)[keyof typeof statusConfig];
+  currentStatus: ReturnType<typeof getStatusDisplay>;
   executionStatus: string | null;
   executionClasses: ExecutionClasses | null;
   isWaitingForInput: boolean;
@@ -134,7 +134,7 @@ export function useTaskCard(
     onStatusChange(subtaskId, newStatus as Status);
   };
 
-  const currentStatus = resolveStatusConfig(task.status);
+  const currentStatus = getStatusDisplay(t, task.status);
 
   // NOTE: Removed completionRate/getProgressBarColor — subtask progress
   // aggregation now lives in TaskCardSubtaskProgress (segmented status-hue bar).

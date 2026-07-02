@@ -7,15 +7,20 @@
  * Not responsible for API calls or UI rendering.
  */
 
+/** Translator shape accepted by describeRule. */
+type TFunc = (key: string, values?: Record<string, string | number>) => string;
+
+// NOTE: labelKey is an i18n key into the `task` namespace — resolve via
+// t(day.labelKey) at render time rather than reading `.label` directly.
 /** Days of the week used for custom RRULE BYDAY selection. */
 export const WEEKDAYS = [
-  { key: 'MO', label: '月' },
-  { key: 'TU', label: '火' },
-  { key: 'WE', label: '水' },
-  { key: 'TH', label: '木' },
-  { key: 'FR', label: '金' },
-  { key: 'SA', label: '土' },
-  { key: 'SU', label: '日' },
+  { key: 'MO', labelKey: 'weekday.mon' },
+  { key: 'TU', labelKey: 'weekday.tue' },
+  { key: 'WE', labelKey: 'weekday.wed' },
+  { key: 'TH', labelKey: 'weekday.thu' },
+  { key: 'FR', labelKey: 'weekday.fri' },
+  { key: 'SA', labelKey: 'weekday.sat' },
+  { key: 'SU', labelKey: 'weekday.sun' },
 ] as const;
 
 /** Weekday keys that constitute the Monday–Friday business-day set. */
@@ -42,13 +47,14 @@ export function buildCustomRule(
 }
 
 /**
- * Parse an RRULE string and return a human-readable Japanese description.
+ * Parse an RRULE string and return a human-readable description.
  *
  * @param rule - RRULE string or null / RRULE文字列またはnull
- * @returns Localized description / 日本語の説明文字列
+ * @param t - Translator bound to the `task` namespace / `task` 名前空間の翻訳関数
+ * @returns Localized description / 翻訳済みの説明文字列
  */
-export function describeRule(rule: string | null): string {
-  if (!rule) return '繰り返しなし';
+export function describeRule(rule: string | null, t: TFunc): string {
+  if (!rule) return t('recurrenceDesc.none');
 
   const parts = rule.split(';');
   const freq = parts.find((p) => p.startsWith('FREQ='))?.split('=')[1];
@@ -57,25 +63,36 @@ export function describeRule(rule: string | null): string {
 
   switch (freq) {
     case 'DAILY':
-      return interval > 1 ? `${interval}日ごと` : '毎日';
+      return interval > 1
+        ? t('recurrenceDesc.dailyInterval', { interval })
+        : t('recurrenceDesc.daily');
     case 'WEEKLY': {
       if (byday) {
         const days = byday.split(',');
         // Detect Monday–Friday shorthand
         if (days.length === 5 && WEEKDAY_KEYS.every((d) => days.includes(d))) {
-          return '平日';
+          return t('recurrenceDesc.weekdaysOnly');
         }
-        const dayLabels = days.map((d) => WEEKDAYS.find((w) => w.key === d)?.label).filter(Boolean);
+        const dayLabels = days
+          .map((d) => WEEKDAYS.find((w) => w.key === d))
+          .filter((w): w is (typeof WEEKDAYS)[number] => Boolean(w))
+          .map((w) => t(w.labelKey));
         return interval > 1
-          ? `${interval}週ごと (${dayLabels.join(', ')})`
-          : `毎週 ${dayLabels.join(', ')}`;
+          ? t('recurrenceDesc.weeklyIntervalWithDays', { interval, days: dayLabels.join(', ') })
+          : t('recurrenceDesc.weeklyWithDays', { days: dayLabels.join(', ') });
       }
-      return interval > 1 ? `${interval}週ごと` : '毎週';
+      return interval > 1
+        ? t('recurrenceDesc.weeklyInterval', { interval })
+        : t('recurrenceDesc.weekly');
     }
     case 'MONTHLY':
-      return interval > 1 ? `${interval}ヶ月ごと` : '毎月';
+      return interval > 1
+        ? t('recurrenceDesc.monthlyInterval', { interval })
+        : t('recurrenceDesc.monthly');
     case 'YEARLY':
-      return interval > 1 ? `${interval}年ごと` : '毎年';
+      return interval > 1
+        ? t('recurrenceDesc.yearlyInterval', { interval })
+        : t('recurrenceDesc.yearly');
     default:
       return rule;
   }

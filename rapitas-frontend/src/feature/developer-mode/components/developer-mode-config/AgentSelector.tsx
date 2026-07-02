@@ -61,15 +61,17 @@ type Props = {
  * falling back to a generic bot icon for unknown types.
  *
  * @param agentType - Agent type identifier string. / エージェント種別識別子
+ * @param t - Translator scoped to `devMode.agentTypeInfo`. / `devMode.agentTypeInfo` にスコープした翻訳関数
  */
-function getAgentTypeInfo(agentType: string) {
-  return (
-    AGENT_TYPE_INFO[agentType] || {
-      icon: Bot,
-      color: 'text-zinc-500',
-      label: agentType,
-    }
-  );
+function getAgentTypeInfo(agentType: string, t: (key: string) => string) {
+  const info = AGENT_TYPE_INFO[agentType];
+  return info
+    ? { icon: info.icon, color: info.color, label: t(info.labelKey) }
+    : {
+        icon: Bot,
+        color: 'text-zinc-500',
+        label: agentType,
+      };
 }
 
 /**
@@ -115,6 +117,7 @@ export function AgentSelector({
 }: Props) {
   const t = useTranslations('devMode.agentSelector');
   const tCommon = useTranslations('common');
+  const tAgentType = useTranslations('devMode.agentTypeInfo');
   const handleCancelInlineAdd = () => {
     onToggleInlineAdd();
   };
@@ -184,7 +187,7 @@ export function AgentSelector({
         >
           <option value="">{t('selectModel')}</option>
           {agents.map((agent) => {
-            const typeInfo = getAgentTypeInfo(agent.agentType);
+            const typeInfo = getAgentTypeInfo(agent.agentType, tAgentType);
             return (
               <option key={agent.id} value={agent.id}>
                 {agent.name} ({typeInfo.label}
@@ -226,7 +229,7 @@ export function AgentSelector({
       {selectedAgent && (
         <div className="flex items-center gap-2 px-3 py-2 bg-violet-50 dark:bg-violet-900/20 rounded-lg border border-violet-200 dark:border-violet-800">
           {(() => {
-            const typeInfo = getAgentTypeInfo(selectedAgent.agentType);
+            const typeInfo = getAgentTypeInfo(selectedAgent.agentType, tAgentType);
             const TypeIcon = typeInfo.icon;
             return (
               <>

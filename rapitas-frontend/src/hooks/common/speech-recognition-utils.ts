@@ -3,9 +3,19 @@
  *
  * Pure helpers for the speech recognition hook: backend transcription calls,
  * audio analyser/level math, silence detection config, WAV conversion, and
- * interim-transcript formatting. Holds no React state.
+ * interim-transcript formatting. Holds no React state. Display strings are
+ * resolved via a translator function passed in by the caller (see
+ * `SpeechTranslator`) rather than a hook, since this module is not a React
+ * component.
  */
 import { encodeWav, resamplePcm } from '@/lib/audio/wav-codec';
+
+/**
+ * Translator shape accepted by these helpers. Structurally matches next-intl's
+ * `useTranslations('voice')` return value — callers pass that hook result
+ * straight through.
+ */
+export type SpeechTranslator = (key: string, params?: Record<string, string | number>) => string;
 
 /** Backend base URL for transcription endpoints. */
 export const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:3001';
@@ -46,11 +56,13 @@ interface TranscriptionError {
  *
  * @param audioBlob - WAV audio blob to transcribe / 文字起こし対象のWAV音声
  * @param langCode - Language code (e.g., 'ja') / 言語コード
+ * @param t - Translator scoped to `voice`, used for the localized fallback error / `voice` にスコープした翻訳関数（フォールバックエラー用）
  * @returns Transcription result or error / 文字起こし結果またはエラー
  */
 export async function transcribeAudioBlob(
   audioBlob: Blob,
   langCode: string,
+  t: SpeechTranslator,
 ): Promise<{ success: true; result: TranscriptionResult } | { success: false; error: string }> {
   const formData = new FormData();
   formData.append('audio', audioBlob, 'audio.wav');
@@ -65,7 +77,7 @@ export async function transcribeAudioBlob(
     const data = await response.json().catch(() => ({ error: 'Unknown error' }));
     return {
       success: false,
-      error: (data as TranscriptionError).error || '文字起こしに失敗しました',
+      error: (data as TranscriptionError).error || t('inputBar.transcribeFailed'),
     };
   }
 
@@ -152,6 +164,7 @@ export async function convertToWav(audioBlob: Blob): Promise<Blob> {
 /**
  * Format interim transcript with audio level info.
  *
+ * @param t - Translator scoped to `voice` / `voice` にスコープした翻訳関数
  * @param hasSpoken - Whether speech has been detected yet / これまでに発話が検出されたか
  * @param freqAvg - Frequency average level / 周波数平均レベル
  * @param rms - RMS level / RMSレベル
@@ -159,14 +172,21 @@ export async function convertToWav(audioBlob: Blob): Promise<Blob> {
  * @returns Localized interim status string / ローカライズされた途中経過文字列
  */
 export function formatInterimTranscript(
+  t: SpeechTranslator,
   hasSpoken: boolean,
   freqAvg: number,
   rms: number,
   silenceMs: number,
 ): string {
-  const levelInfo = `(音量:${freqAvg.toFixed(0)} rms:${(rms * 1000).toFixed(0)}`;
   if (hasSpoken) {
-    return `録音中... ${levelInfo} 無音:${(silenceMs / 1000).toFixed(1)}s)`;
+    return t('speechRecognitionHook.recordingWithLevel', {
+      freqAvg: freqAvg.toFixed(0),
+      rms: (rms * 1000).toFixed(0),
+      silenceSec: (silenceMs / 1000).toFixed(1),
+    });
   }
-  return `話してください... ${levelInfo})`;
+  return t('speechRecognitionHook.listeningWithLevel', {
+    freqAvg: freqAvg.toFixed(0),
+    rms: (rms * 1000).toFixed(0),
+  });
 }

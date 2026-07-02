@@ -55,6 +55,7 @@ export const ExecutionLogViewer: React.FC<ExecutionLogViewerProps> = ({
   taskId,
 }) => {
   const t = useTranslations('devMode.executionLogViewer');
+  const tLog = useTranslations('devMode.logTransformer');
   const {
     isExpanded,
     isFullscreen,
@@ -86,6 +87,7 @@ export const ExecutionLogViewer: React.FC<ExecutionLogViewerProps> = ({
     logs,
     defaultExpanded,
     defaultFullscreen,
+    t: tLog,
   });
 
   // Formatted log entries (filtered by search / errors-only). New-entry animation

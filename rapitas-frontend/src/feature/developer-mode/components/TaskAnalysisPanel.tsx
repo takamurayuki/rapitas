@@ -16,7 +16,7 @@ import {
   BrainCircuit,
 } from 'lucide-react';
 import type { TaskAnalysisResult, SubtaskProposal, Priority } from '@/types';
-import { priorityColors, priorityLabels } from '@/types';
+import { priorityColors, priorityLabelKeys } from '@/types';
 import { SkeletonBlock } from '@/components/ui/LoadingSpinner';
 
 type TaskAnalysisPanelProps = {
@@ -302,6 +302,7 @@ function SubtaskProposalItem({
   isSelected: boolean;
   onToggle: () => void;
 }) {
+  const tt = useTranslations('task');
   return (
     <button
       onClick={onToggle}
@@ -335,7 +336,7 @@ function SubtaskProposalItem({
           <span
             className={`px-2 py-0.5 rounded text-xs font-medium ${priorityColors[subtask.priority as Priority]}`}
           >
-            {priorityLabels[subtask.priority as Priority]}
+            {tt(priorityLabelKeys[subtask.priority as Priority])}
           </span>
           {subtask.estimatedHours && (
             <span className="flex items-center gap-1 text-xs text-zinc-500 dark:text-zinc-400">

@@ -29,7 +29,10 @@ import {
   attachLineNumbers,
   buildCopyButton,
   buildDeleteButton,
+  type CodeBlockLabels,
 } from './code-block-elements';
+
+export type { CodeBlockLabels } from './code-block-elements';
 
 // Re-export so the original import path keeps exposing the same public API.
 export { attachKeyHandlers } from './code-block-handlers';
@@ -52,11 +55,16 @@ export { attachKeyHandlers } from './code-block-handlers';
  * access to the `handleContentChange` callback. The caller must call
  * `normalizeCodeBlocks()` after insertion, or wire the handler manually.
  *
+ * @param labels - Localized strings for the block's chrome / ブロック装飾の多言語文字列
  * @param language - Programming language identifier / プログラミング言語識別子
  * @param code - Initial code content (defaults to empty) / 初期コード内容
  * @returns DocumentFragment containing the code block and a trailing `<p>` / DocumentFragment
  */
-export function createCodeBlockNode(language: string, code: string = ''): DocumentFragment {
+export function createCodeBlockNode(
+  labels: CodeBlockLabels,
+  language: string,
+  code: string = '',
+): DocumentFragment {
   const frag = document.createDocumentFragment();
 
   // ── Outer container ────────────────────────────────────────────────────────
@@ -78,8 +86,8 @@ export function createCodeBlockNode(language: string, code: string = ''): Docume
   container.style.outline = 'none';
 
   // ── Collapse toggle + description area ────────────────────────────────────
-  const collapseToggle = buildCollapseToggle();
-  const descEl = buildDescEl();
+  const collapseToggle = buildCollapseToggle(labels);
+  const descEl = buildDescEl(labels);
 
   // ── Header ─────────────────────────────────────────────────────────────────
   const header = document.createElement('div');
@@ -142,7 +150,7 @@ export function createCodeBlockNode(language: string, code: string = ''): Docume
   codeElement.spellcheck = false;
 
   // Apply initial highlighting (or show placeholder text as highlighted code)
-  const initialText = code || '// ここにコードを入力...';
+  const initialText = code || labels.codePlaceholder;
   codeElement.innerHTML = highlightCode(initialText, language);
 
   attachKeyHandlers(codeElement, language);
@@ -154,8 +162,8 @@ export function createCodeBlockNode(language: string, code: string = ''): Docume
   buttonContainer.style.display = 'flex';
   buttonContainer.style.gap = '4px';
   buttonContainer.style.alignItems = 'center';
-  buttonContainer.appendChild(buildCopyButton(codeElement));
-  buttonContainer.appendChild(buildDeleteButton());
+  buttonContainer.appendChild(buildCopyButton(codeElement, labels));
+  buttonContainer.appendChild(buildDeleteButton(labels));
 
   // Left side: [chevron, langBadge]
   const headerLeft = document.createElement('div');
@@ -211,8 +219,13 @@ export function createCodeBlockNode(language: string, code: string = ''): Docume
  *
  * @param editorEl - The editor's contentEditable root element / エディタのルート要素
  * @param onContentChange - Callback to mark the note dirty / 変更通知コールバック
+ * @param labels - Localized strings for the block's chrome / ブロック装飾の多言語文字列
  */
-export function normalizeCodeBlocks(editorEl: HTMLDivElement, onContentChange: () => void): void {
+export function normalizeCodeBlocks(
+  editorEl: HTMLDivElement,
+  onContentChange: () => void,
+  labels: CodeBlockLabels,
+): void {
   editorEl.querySelectorAll<HTMLElement>('[data-rapitas-code-block]').forEach((block) => {
     // Ensure the non-editable guard is set even on blocks restored from storage
     block.contentEditable = 'false';
@@ -234,7 +247,7 @@ export function normalizeCodeBlocks(editorEl: HTMLDivElement, onContentChange: (
     let descEl2 = block.querySelector<HTMLElement>('.code-block-desc');
     if (!descEl2) {
       // Old block without description area — inject one after the header
-      descEl2 = buildDescEl();
+      descEl2 = buildDescEl(labels);
       const headerEl = block.querySelector<HTMLElement>('div:first-child');
       if (headerEl) headerEl.insertAdjacentElement('afterend', descEl2);
       else block.prepend(descEl2);

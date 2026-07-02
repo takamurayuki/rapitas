@@ -194,7 +194,7 @@ export default function RecurrenceSelector({
         >
           <Repeat size={14} />
           <span>
-            {isRecurring ? describeRule(recurrenceRule) : t('recurrenceSelector.repeatLabel')}
+            {isRecurring ? describeRule(recurrenceRule, t) : t('recurrenceSelector.repeatLabel')}
           </span>
           <ChevronDown size={14} className={isOpen ? 'rotate-180' : ''} />
         </button>

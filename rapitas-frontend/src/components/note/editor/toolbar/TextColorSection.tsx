@@ -57,7 +57,7 @@ export function TextColorSection({
                     ? 'border-indigo-500 dark:border-indigo-400 ring-2 ring-indigo-500/20'
                     : 'border-zinc-200 dark:border-zinc-600 hover:border-zinc-300 dark:hover:border-zinc-500'
                 }`}
-                title={item.name}
+                title={t(`editorColors.quickText.${item.nameKey}`)}
               >
                 <div className="w-4 h-4 rounded-full" style={{ backgroundColor: item.color }} />
               </button>

@@ -1,14 +1,17 @@
 /**
  * Build a 3-column, 2-row table wrapped in a DocumentFragment.
  * A trailing empty paragraph is appended so the cursor can escape the table.
+ *
+ * @param headings - Localized header cell labels (caller supplies via `useTranslations`,
+ *   since this module builds raw DOM and has no hook access) / 見出しセルの多言語文字列
  */
-export function createTableNode(): DocumentFragment {
+export function createTableNode(headings: readonly [string, string, string]): DocumentFragment {
   const frag = document.createDocumentFragment();
 
   const table = document.createElement('table');
   const thead = document.createElement('thead');
   const headRow = document.createElement('tr');
-  ['見出し1', '見出し2', '見出し3'].forEach((text) => {
+  headings.forEach((text) => {
     const th = document.createElement('th');
     th.textContent = text;
     headRow.appendChild(th);

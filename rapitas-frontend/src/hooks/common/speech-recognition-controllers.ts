@@ -20,6 +20,7 @@ import {
   formatInterimTranscript,
   hasSound,
   transcribeAudioBlob,
+  type SpeechTranslator,
 } from './speech-recognition-utils';
 
 /**
@@ -28,6 +29,8 @@ import {
  */
 export interface SpeechControllerContext {
   lang: string;
+  /** Translator scoped to `voice`, threaded down from `useSpeechRecognition`. / `voice` にスコープした翻訳関数 */
+  t: SpeechTranslator;
   setError: Dispatch<SetStateAction<string | null>>;
   setIsListening: Dispatch<SetStateAction<boolean>>;
   setIsTranscribing: Dispatch<SetStateAction<boolean>>;
@@ -56,7 +59,7 @@ export async function sendForTranscription(
 ): Promise<void> {
   const totalLength = pcmChunks.reduce((sum, c) => sum + c.length, 0);
   if (totalLength < 1600) {
-    ctx.setError('録音が短すぎます。');
+    ctx.setError(ctx.t('speechRecognitionHook.recordingTooShort'));
     ctx.setIsListening(false);
     return;
   }
@@ -74,10 +77,10 @@ export async function sendForTranscription(
   const wavBlob = encodeWav(resampled, 16000);
 
   ctx.setIsTranscribing(true);
-  ctx.setInterimTranscript('文字起こし中...');
+  ctx.setInterimTranscript(ctx.t('inputBar.recognizing'));
 
   try {
-    const result = await transcribeAudioBlob(wavBlob, ctx.lang.split('-')[0]);
+    const result = await transcribeAudioBlob(wavBlob, ctx.lang.split('-')[0], ctx.t);
     if (result.success && result.result.text.trim()) {
       ctx.lastRawTextRef.current = result.result.rawText || result.result.text;
       ctx.setTranscript((prev) => prev + result.result.text);
@@ -86,7 +89,7 @@ export async function sendForTranscription(
       ctx.setError(result.error);
     }
   } catch {
-    ctx.setError('文字起こしサーバーへの接続に失敗しました。');
+    ctx.setError(ctx.t('speechRecognitionHook.transcribeConnectionFailed'));
   } finally {
     ctx.setIsTranscribing(false);
     ctx.setInterimTranscript('');
@@ -102,7 +105,7 @@ export async function sendForTranscription(
 export async function startWhisperRecording(ctx: SpeechControllerContext): Promise<void> {
   try {
     ctx.setError(null);
-    ctx.setInterimTranscript('話してください...');
+    ctx.setInterimTranscript(ctx.t('inputBar.listening'));
 
     const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
     ctx.streamRef.current = stream;
@@ -140,7 +143,7 @@ export async function startWhisperRecording(ctx: SpeechControllerContext): Promi
       const silenceMs =
         silenceState.lastSoundTime > 0 ? Date.now() - silenceState.lastSoundTime : 0;
       ctx.setInterimTranscript(
-        formatInterimTranscript(silenceState.hasSpoken, freqAvg, rms, silenceMs),
+        formatInterimTranscript(ctx.t, silenceState.hasSpoken, freqAvg, rms, silenceMs),
       );
 
       // Auto-send after silence following speech
@@ -166,7 +169,7 @@ export async function startWhisperRecording(ctx: SpeechControllerContext): Promi
 
       const audioBlob = new Blob(chunks, { type: 'audio/webm' });
       if (audioBlob.size < 500) {
-        ctx.setError('録音が短すぎます。');
+        ctx.setError(ctx.t('speechRecognitionHook.recordingTooShort'));
         ctx.setIsListening(false);
         return;
       }
@@ -174,11 +177,11 @@ export async function startWhisperRecording(ctx: SpeechControllerContext): Promi
       // Process and transcribe
       ctx.setIsTranscribing(true);
       ctx.setIsListening(false);
-      ctx.setInterimTranscript('文字起こし中...');
+      ctx.setInterimTranscript(ctx.t('inputBar.recognizing'));
 
       try {
         const wavBlob = await convertToWav(audioBlob);
-        const result = await transcribeAudioBlob(wavBlob, ctx.lang.split('-')[0]);
+        const result = await transcribeAudioBlob(wavBlob, ctx.lang.split('-')[0], ctx.t);
 
         if (result.success && result.result.text.trim()) {
           ctx.lastRawTextRef.current = result.result.rawText || result.result.text;
@@ -189,7 +192,9 @@ export async function startWhisperRecording(ctx: SpeechControllerContext): Promi
         }
       } catch (decodeErr) {
         ctx.setError(
-          `音声処理エラー: ${decodeErr instanceof Error ? decodeErr.message : 'Unknown'}`,
+          ctx.t('speechRecognitionHook.audioProcessingError', {
+            message: decodeErr instanceof Error ? decodeErr.message : 'Unknown',
+          }),
         );
       } finally {
         ctx.setIsTranscribing(false);
@@ -204,9 +209,9 @@ export async function startWhisperRecording(ctx: SpeechControllerContext): Promi
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Unknown error';
     if (message.includes('Permission') || message.includes('NotAllowed')) {
-      ctx.setError('マイクの使用が許可されていません。');
+      ctx.setError(ctx.t('speechRecognitionHook.micPermissionDenied'));
     } else {
-      ctx.setError(`マイクの起動に失敗しました: ${message}`);
+      ctx.setError(ctx.t('speechRecognitionHook.micStartFailed', { message }));
     }
     ctx.setIsListening(false);
   }
@@ -272,9 +277,9 @@ export function startWebSpeechAPI(
       return;
     }
     if (code === 'not-allowed') {
-      ctx.setError('マイクの使用が許可されていません。');
+      ctx.setError(ctx.t('speechRecognitionHook.micPermissionDenied'));
     } else {
-      ctx.setError(`音声認識エラー: ${code}`);
+      ctx.setError(ctx.t('speechRecognitionHook.recognitionError', { code }));
     }
     ctx.setIsListening(false);
   };

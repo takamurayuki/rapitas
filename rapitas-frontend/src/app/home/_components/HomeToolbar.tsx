@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { ListPlus, ListChecks } from 'lucide-react';
 import type { Task } from '@/types';
 import TodayTaskProgressBar from '@/components/widgets/TodayTaskProgressBar';
-import { statusConfig, renderStatusIcon } from '@/feature/tasks/config/StatusConfig';
+import { getStatusDisplay, renderStatusIcon } from '@/feature/tasks/config/StatusConfig';
 import { useTranslations } from 'next-intl';
 import { AutoExecutionMode } from './AutoExecutionMode';
 
@@ -52,6 +52,7 @@ export function HomeToolbar({
   const router = useRouter();
   const t = useTranslations('home');
   const tc = useTranslations('common');
+  const tt = useTranslations('task');
 
   const allSelected = selectedTasksSize === paginatedTasks.length && paginatedTasks.length > 0;
 
@@ -79,7 +80,7 @@ export function HomeToolbar({
               } bg-white dark:bg-slate-900/50`}
             >
               {(['todo', 'in-progress', 'done'] as const).map((status, idx) => {
-                const config = statusConfig[status];
+                const config = getStatusDisplay(tt, status);
                 const enabled = selectedTasksSize > 0;
 
                 // When enabled: each segment shows its status tint immediately so

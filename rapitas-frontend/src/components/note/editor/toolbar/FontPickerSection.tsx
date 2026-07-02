@@ -49,7 +49,10 @@ export function FontPickerSection({
           data-popup-trigger="1"
         >
           <span className="truncate">
-            {fonts.find((f) => f.value === currentFont)?.label || t('common.default')}
+            {(() => {
+              const found = fonts.find((f) => f.value === currentFont);
+              return found ? t(`editorColors.font.${found.labelKey}`) : t('common.default');
+            })()}
           </span>
           <ChevronDown className="w-2.5 h-2.5 shrink-0" />
         </button>
@@ -68,7 +71,9 @@ export function FontPickerSection({
                     currentFont === font.value ? 'bg-zinc-100 dark:bg-zinc-700' : ''
                   }`}
                 >
-                  <span style={{ fontFamily: font.value }}>{font.label}</span>
+                  <span style={{ fontFamily: font.value }}>
+                    {t(`editorColors.font.${font.labelKey}`)}
+                  </span>
                 </button>
               ))}
             </div>

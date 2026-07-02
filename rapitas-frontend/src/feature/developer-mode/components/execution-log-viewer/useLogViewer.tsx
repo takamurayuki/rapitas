@@ -17,13 +17,15 @@ import {
   transformLogsToSimple,
   generateExecutionSummary,
 } from '../../utils/log-message-transformer';
-import type { UserFriendlyLogEntry } from '../../utils/log-pattern-rules';
+import type { UserFriendlyLogEntry, LogTranslate } from '../../utils/log-pattern-rules';
 import { useLogSearch } from './useLogSearch';
 
 type UseLogViewerOptions = {
   logs: string[];
   defaultExpanded: boolean;
   defaultFullscreen: boolean;
+  /** Translator (scoped to `devMode.logTransformer`) for the friendly log messages. */
+  t?: LogTranslate;
 };
 
 type UseLogViewerReturn = {
@@ -82,6 +84,7 @@ export function useLogViewer({
   logs,
   defaultExpanded,
   defaultFullscreen,
+  t,
 }: UseLogViewerOptions): UseLogViewerReturn {
   const [isExpanded, setIsExpanded] = useState(defaultExpanded);
   const [isFullscreen, setIsFullscreen] = useState(defaultFullscreen);
@@ -211,7 +214,7 @@ export function useLogViewer({
   }, [logs.length, displayedLogsCount]);
 
   // Transform logs into the formatted, always-on "simple" entries.
-  const simpleLogEntries = useMemo(() => transformLogsToSimple(logs), [logs]);
+  const simpleLogEntries = useMemo(() => transformLogsToSimple(logs, t), [logs, t]);
 
   // Apply the errors-only quick filter then the (debounced) text search. Filtering
   // the already-formatted entries — rather than the raw log lines — keeps the

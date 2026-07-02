@@ -138,7 +138,7 @@ export function RecurrenceCustomForm({
                     : 'bg-zinc-100 dark:bg-zinc-700 text-zinc-600 dark:text-zinc-400'
                 }`}
               >
-                {day.label}
+                {t(day.labelKey)}
               </button>
             ))}
           </div>

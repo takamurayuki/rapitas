@@ -2,6 +2,7 @@
 // useAgentExecution
 
 import { useState, useEffect, useRef, useMemo } from 'react';
+import { useTranslations } from 'next-intl';
 import { useExecutionPolling, useExecutionStream } from '../../hooks/useExecutionStream';
 import { useAgentExecutionHandlers } from './useAgentExecutionHandlers';
 import { parseQuestionOptions, type ParsedQuestion } from './agent-execution-utils';
@@ -47,6 +48,11 @@ function computeQuestionState(
 
 /**
  * Parse question options from structured or text-based format.
+ *
+ * @param question - Raw question text from the agent. / エージェントからの生の質問文
+ * @param pollingQuestionDetails - Structured options from an AskUserQuestion tool call, if any.
+ * @param t - Translator (scoped to `devMode.parseQuestionOptions`) used to localize
+ *   fallback yes/no-style option labels when text-based parsing is used. / フォールバック選択肢の翻訳に使う関数
  */
 function parseQuestionWithDetails(
   question: string | undefined,
@@ -60,6 +66,7 @@ function parseQuestionWithDetails(
       }
     | null
     | undefined,
+  t: (key: string) => string,
 ): ParsedQuestion | null {
   if (!question) return null;
 
@@ -72,7 +79,7 @@ function parseQuestionWithDetails(
   }
 
   // Fallback to text-based parsing for legacy support
-  return parseQuestionOptions(question);
+  return parseQuestionOptions(question, t);
 }
 
 /** Status flags for execution state. */
@@ -159,6 +166,7 @@ export function useAgentExecution(props: UseAgentExecutionProps): UseAgentExecut
     parallelSessionId,
   } = props;
 
+  const tQuestionOptions = useTranslations('devMode.parseQuestionOptions');
   const [isExpanded, setIsExpanded] = useState(false);
   const [showOptions, setShowOptions] = useState(false);
   const [_showLogs, _setShowLogs] = useState(true);
@@ -241,8 +249,8 @@ export function useAgentExecution(props: UseAgentExecutionProps): UseAgentExecut
 
   // NOTE: Prefer structured questionDetails from AskUserQuestion tool calls over text parsing
   const questionParsed = useMemo(
-    () => parseQuestionWithDetails(question, pollingQuestionDetails),
-    [question, pollingQuestionDetails],
+    () => parseQuestionWithDetails(question, pollingQuestionDetails, tQuestionOptions),
+    [question, pollingQuestionDetails, tQuestionOptions],
   );
   const hasOptions = !!(questionParsed && questionParsed.options.length >= 2);
   const isConfirmedQuestion = questionType === 'tool_call';

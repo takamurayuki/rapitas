@@ -9,23 +9,59 @@
 import { type ExecutionStreamState, trimLogs } from './execution-stream-types';
 import { logger, type PollRefs } from './execution-poll-shared';
 
-// Workflow phase completion messages keyed by sessionMode.
+/** Translator function shape accepted by the poll-completion handlers. */
+export type PollTranslate = (key: string, params?: Record<string, string | number>) => string;
+
+/** Resolves `{param}` placeholders in a template string. */
+function interpolate(template: string, params?: Record<string, string | number>): string {
+  if (!params) return template;
+  return template.replace(/\{(\w+)\}/g, (match, key) =>
+    key in params ? String(params[key]) : match,
+  );
+}
+
+const JA_TEMPLATES: Record<string, string> = {
+  completedLog: '[完了] 実行が完了しました。',
+  'workflowPhase.researcher':
+    '[調査完了] 調査フェーズが完了しました。次のフェーズへ自動で進みます...',
+  'workflowPhase.planner':
+    '[計画作成完了] 計画フェーズが完了しました。自動承認が有効な場合はそのまま実装へ進みます（無効の場合のみ計画タブで承認してください）。',
+  'workflowPhase.reviewer':
+    '[レビュー完了] レビューフェーズが完了しました。自動承認が有効な場合はそのまま実装へ進みます（無効の場合のみ計画タブで承認してください）。',
+  'workflowPhase.implementer': '[実装完了] 実装フェーズが完了しました。検証フェーズを自動実行中...',
+  'workflowPhase.verifier':
+    '[検証完了] 検証フェーズが完了しました。問題がなければステータスは自動で「完了」になります。',
+  'workflowPhase.default': '[フェーズ完了] {mode}が完了しました。',
+  prCreatedLog: '[PR作成] PRを作成しました: {info}',
+  failedLog: '[Error] {message}',
+  failedDefaultMessage: '実行に失敗しました',
+  cancelledLog: '[キャンセル] 実行が停止されました。',
+  interruptedLog: '[中断] 実行が中断されました。',
+  interruptedDefaultError: '実行が中断されました',
+};
+
+// NOTE: `t` defaults to the original Japanese source strings so existing
+// callers without i18n context (e.g. the pre-existing test suite) keep
+// getting identical output; real usage (useExecutionPolling.ts) passes a
+// next-intl translator scoped to `devMode.executionPolling`.
+export const defaultPollT: PollTranslate = (key, params) =>
+  interpolate(JA_TEMPLATES[key] ?? key, params);
+
+// Workflow phase completion messages keyed by sessionMode, resolved via `t`
+// (scoped to `devMode.executionPolling.workflowPhase`).
 // NOTE: researcher/planner/reviewer are auto-advancing phases — the orchestrator
 // proceeds to the next phase automatically (planner/reviewer also auto-approve
 // when the setting is on). The messages must NOT imply a hard manual stop, which
 // previously contradicted the actual auto-run ("自動承認なのに実装実行をお願いします").
-const WORKFLOW_PHASE_LABELS: Record<string, string> = {
-  // NOTE: The researcher run sometimes also produces & auto-approves the plan in
-  // the same pass, so don't claim "→ plan phase" (which read as a contradiction
-  // right after "プランは自動承認されました"). Stay neutral about which phase is next.
-  'workflow-researcher': '[調査完了] 調査フェーズが完了しました。次のフェーズへ自動で進みます...',
-  'workflow-planner':
-    '[計画作成完了] 計画フェーズが完了しました。自動承認が有効な場合はそのまま実装へ進みます（無効の場合のみ計画タブで承認してください）。',
-  'workflow-reviewer':
-    '[レビュー完了] レビューフェーズが完了しました。自動承認が有効な場合はそのまま実装へ進みます（無効の場合のみ計画タブで承認してください）。',
-  'workflow-implementer': '[実装完了] 実装フェーズが完了しました。検証フェーズを自動実行中...',
-  'workflow-verifier':
-    '[検証完了] 検証フェーズが完了しました。問題がなければステータスは自動で「完了」になります。',
+// NOTE: The researcher run sometimes also produces & auto-approves the plan in
+// the same pass, so don't claim "→ plan phase" (which read as a contradiction
+// right after "プランは自動承認されました"). Stay neutral about which phase is next.
+const WORKFLOW_PHASE_LABEL_KEYS: Record<string, string> = {
+  'workflow-researcher': 'workflowPhase.researcher',
+  'workflow-planner': 'workflowPhase.planner',
+  'workflow-reviewer': 'workflowPhase.reviewer',
+  'workflow-implementer': 'workflowPhase.implementer',
+  'workflow-verifier': 'workflowPhase.verifier',
 };
 
 /**
@@ -80,11 +116,13 @@ function isTaskActivelyProgressing(data: Record<string, unknown>): boolean {
  *
  * @param data - Raw polling response data / ポーリングレスポンスデータ
  * @param refs - Shared mutable refs / 共有可変ref群
+ * @param t - Translator scoped to `devMode.executionPolling`. / `devMode.executionPolling` にスコープした翻訳関数
  * @returns State updater or null / stateアップデータまたはnull
  */
 export function handleCompleted(
   data: Record<string, unknown>,
   refs: PollRefs,
+  t: PollTranslate = defaultPollT,
 ): ((prev: ExecutionStreamState) => ExecutionStreamState) | null {
   const isStatusChanged = refs.lastProcessedStatusRef.current !== data.executionStatus;
 
@@ -106,12 +144,11 @@ export function handleCompleted(
   const autoAdvancing =
     !isWorkflowTerminal(data) &&
     (isAutoAdvancingPhase(sessionMode) || isTaskActivelyProgressing(data));
-  let completionMessage = '\n[完了] 実行が完了しました。\n';
+  let completionMessage = `\n${t('completedLog')}\n`;
   if (sessionMode?.startsWith('workflow-')) {
+    const phaseKey = WORKFLOW_PHASE_LABEL_KEYS[sessionMode];
     completionMessage =
-      '\n' +
-      (WORKFLOW_PHASE_LABELS[sessionMode] || `[フェーズ完了] ${sessionMode}が完了しました。`) +
-      '\n';
+      '\n' + (phaseKey ? t(phaseKey) : t('workflowPhase.default', { mode: sessionMode })) + '\n';
   }
 
   // When the whole task has finished AND an auto-PR was created, surface it in
@@ -120,7 +157,7 @@ export function handleCompleted(
   const prUrl = typeof data.prUrl === 'string' ? data.prUrl : null;
   if (isWorkflowTerminal(data) && prUrl) {
     const prNumber = typeof data.prNumber === 'number' ? `#${data.prNumber} ` : '';
-    completionMessage += `[PR作成] PRを作成しました: ${prNumber}${prUrl}\n`;
+    completionMessage += `${t('prCreatedLog', { info: `${prNumber}${prUrl}` })}\n`;
   }
 
   // PHASE-COMPLETE BUT NOT TASK-COMPLETE: do NOT reset the dedup refs here.

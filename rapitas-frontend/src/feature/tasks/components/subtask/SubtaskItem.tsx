@@ -13,7 +13,7 @@ import remarkBreaks from 'remark-breaks';
 import { getLabelsArray, hasLabels } from '@/utils/labels';
 import TaskStatusChange from '@/feature/tasks/components/status/TaskStatusChange';
 import PriorityIcon from '@/feature/tasks/components/priority/PriorityIcon';
-import { statusConfig, renderStatusIcon } from '@/feature/tasks/config/StatusConfig';
+import { getStatusDisplay, renderStatusIcon } from '@/feature/tasks/config/StatusConfig';
 import { Pencil, Check, X, Bot, CheckSquare, Square } from 'lucide-react';
 import {
   SubtaskTitleIndicator,
@@ -124,7 +124,7 @@ export default function SubtaskItem({
           </div>
           <div className="flex items-center gap-1 ml-4">
             {(['todo', 'in-progress', 'done'] as const).map((status) => {
-              const config = statusConfig[status];
+              const config = getStatusDisplay(t, status);
               return (
                 <TaskStatusChange
                   key={status}
@@ -242,7 +242,7 @@ export default function SubtaskItem({
             </div>
             <div className="flex items-center gap-1 ml-4 shrink-0">
               {(['todo', 'in-progress', 'done'] as const).map((status) => {
-                const config = statusConfig[status];
+                const config = getStatusDisplay(t, status);
                 return (
                   <TaskStatusChange
                     key={status}

@@ -5,7 +5,7 @@ import { useMemo } from 'react';
 import { useTranslations } from 'next-intl';
 import { ChevronLeft, ChevronRight, Coffee } from 'lucide-react';
 import type { ScheduleEvent } from '@/types';
-import { getHolidaysForMonth } from '@/utils/holidays';
+import { getHolidaysForMonth, type HolidayLabelKey } from '@/utils/holidays';
 import {
   getDaysInMonth,
   formatDateStr,
@@ -173,7 +173,8 @@ type DayCellProps = {
   isSelected: boolean;
   isToday: boolean;
   dayOfWeek: number;
-  holidayName?: string;
+  /** Holiday label key for this date, if it is a holiday (used only as an `isHoliday` flag here — no text is rendered). */
+  holidayLabelKey?: HolidayLabelKey;
   barAreaHeight: number;
   onSelectDate: (dateStr: string) => void;
   onDoubleClickDate: (dateStr: string) => void;
@@ -188,13 +189,13 @@ function DayCell({
   isSelected,
   isToday,
   dayOfWeek,
-  holidayName,
+  holidayLabelKey,
   barAreaHeight,
   onSelectDate,
   onDoubleClickDate,
 }: DayCellProps) {
   const tc = useTranslations('common');
-  const isHoliday = !!holidayName;
+  const isHoliday = !!holidayLabelKey;
   const hiddenCount = singleDayEvents.length - MAX_VISIBLE_EVENTS;
 
   const headerBgClass = isSelected
@@ -346,8 +347,8 @@ export function CalendarGrid({
   );
 
   const holidayMap = useMemo(() => {
-    const map = new Map<string, string>();
-    for (const h of holidays) map.set(h.date, h.name);
+    const map = new Map<string, HolidayLabelKey>();
+    for (const h of holidays) map.set(h.date, h.labelKey);
     return map;
   }, [holidays]);
 
@@ -413,7 +414,7 @@ export function CalendarGrid({
                     isSelected={selectedDate === dateStr}
                     isToday={isToday(day)}
                     dayOfWeek={colIndex}
-                    holidayName={holidayMap.get(dateStr)}
+                    holidayLabelKey={holidayMap.get(dateStr)}
                     barAreaHeight={barAreaHeight}
                     onSelectDate={onSelectDate}
                     onDoubleClickDate={onDoubleClickDate}

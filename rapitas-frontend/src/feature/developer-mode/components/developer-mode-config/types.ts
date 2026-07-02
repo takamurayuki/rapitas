@@ -32,63 +32,72 @@ export type ModalProps = {
 
 export type ApiKeyStatusMap = Record<ApiProvider, ApiKeyStatus>;
 
-export const AGENT_TYPE_INFO: Record<string, { icon: typeof Bot; color: string; label: string }> = {
+// NOTE: labels are resolved via translation at render time (see labelKey).
+// `devMode.agentTypeInfo` — same product names in ja/en, so translation is a
+// no-op today, but callers stay consistent with the rest of this file.
+export const AGENT_TYPE_INFO: Record<
+  string,
+  { icon: typeof Bot; color: string; labelKey: string }
+> = {
   'claude-code': {
     icon: Terminal,
     color: 'text-orange-500',
-    label: 'Claude Code',
+    labelKey: 'claudeCode',
   },
-  codex: { icon: Zap, color: 'text-green-500', label: 'Codex CLI' },
-  gemini: { icon: Activity, color: 'text-indigo-500', label: 'Gemini CLI' },
+  codex: { icon: Zap, color: 'text-green-500', labelKey: 'codex' },
+  gemini: { icon: Activity, color: 'text-indigo-500', labelKey: 'gemini' },
 };
 
-export const TABS: { id: TabId; label: string; icon: typeof Search }[] = [
-  { id: 'task-analysis', label: 'タスク分析', icon: Search },
-  { id: 'agent-execution', label: 'エージェント実行', icon: Play },
+// labelKey resolved via devMode.developerModeConfigModal's `t` (e.g. t('tabs.taskAnalysis')).
+export const TABS: { id: TabId; labelKey: string; icon: typeof Search }[] = [
+  { id: 'task-analysis', labelKey: 'tabs.taskAnalysis', icon: Search },
+  { id: 'agent-execution', labelKey: 'tabs.agentExecution', icon: Play },
 ];
 
+// labelKey/descriptionKey resolved via devMode.taskAnalysisTab's `t`.
 export const PRIORITY_OPTIONS = [
   {
     value: 'conservative' as const,
-    label: '慎重',
+    labelKey: 'priorityOptions.conservative.label',
     icon: Shield,
-    description: '少数の大きなサブタスクに分解',
+    descriptionKey: 'priorityOptions.conservative.description',
   },
   {
     value: 'balanced' as const,
-    label: 'バランス',
+    labelKey: 'priorityOptions.balanced.label',
     icon: Scale,
-    description: '適度な粒度で分解（推奨）',
+    descriptionKey: 'priorityOptions.balanced.description',
   },
   {
     value: 'aggressive' as const,
-    label: '詳細',
+    labelKey: 'priorityOptions.aggressive.label',
     icon: Zap,
-    description: '細かいサブタスクに詳細分解',
+    descriptionKey: 'priorityOptions.aggressive.description',
   },
 ];
 
+// labelKey resolved via devMode.apiKeyProviders' `t` (product names — same in ja/en).
 export const API_KEY_PROVIDERS: {
   value: ApiProvider;
-  label: string;
+  labelKey: string;
   placeholder: string;
   link: string;
 }[] = [
   {
     value: 'claude',
-    label: 'Claude (Anthropic)',
+    labelKey: 'claude',
     placeholder: 'sk-ant-api...',
     link: 'https://console.anthropic.com/',
   },
   {
     value: 'chatgpt',
-    label: 'ChatGPT (OpenAI)',
+    labelKey: 'chatgpt',
     placeholder: 'sk-proj-...',
     link: 'https://platform.openai.com/api-keys',
   },
   {
     value: 'gemini',
-    label: 'Gemini (Google)',
+    labelKey: 'gemini',
     placeholder: 'AIza...',
     link: 'https://aistudio.google.com/apikey',
   },

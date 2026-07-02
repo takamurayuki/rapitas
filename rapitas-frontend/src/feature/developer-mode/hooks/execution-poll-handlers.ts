@@ -8,6 +8,7 @@
  */
 
 export type { PollRefs } from './execution-poll-shared';
+export type { PollTranslate } from './execution-poll-completion';
 export { handleCompleted, shouldKeepPollingAfterCompleted } from './execution-poll-completion';
 export { handleFailed, handleCancelled, handleInterrupted } from './execution-poll-terminal';
 export { executePoll } from './execution-poll-loop';

@@ -221,7 +221,7 @@ export function DeveloperModeConfigModal(props: ModalProps) {
                   }`}
                 >
                   <TabIcon className="w-4 h-4" />
-                  {tab.label}
+                  {t(tab.labelKey)}
                 </button>
               );
             })}

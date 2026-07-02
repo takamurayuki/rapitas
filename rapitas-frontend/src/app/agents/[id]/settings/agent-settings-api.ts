@@ -11,7 +11,9 @@ import {
   validateApiKey,
   collectErrors,
   validateConfigOnServer,
+  translateValidationError,
   type ValidationResult,
+  type ValidationTranslator,
 } from '@/utils/validation';
 
 type SaveParams = {
@@ -32,9 +34,13 @@ type SaveResult =
  * Validates then persists agent config and optional API key.
  *
  * @param params - SaveParams
+ * @param t - Translator scoped to `common.validation`, used to localize validator errors / `common.validation` にスコープした翻訳関数
  * @returns SaveResult with field errors on failure / 失敗時はフィールドエラーを返す
  */
-export async function saveAgentSettings(params: SaveParams): Promise<SaveResult> {
+export async function saveAgentSettings(
+  params: SaveParams,
+  t: ValidationTranslator,
+): Promise<SaveResult> {
   const { id, agentType, endpoint, modelId, apiKey, capabilities, settingsEndpointLabel } = params;
 
   const endpointEditable =
@@ -54,29 +60,46 @@ export async function saveAgentSettings(params: SaveParams): Promise<SaveResult>
 
   const { valid, errors } = collectErrors(endpointResult, apiKeyResult);
 
+  // NOTE: full-width comma matches the Japanese list-separator convention used
+  // elsewhere in this file's error messages; `listSeparator` lets the English
+  // locale use ", " instead.
+  const separator = t('listSeparator');
+
   if (!valid) {
     return {
       ok: false,
       fieldErrors: {
-        endpoint: endpointResult.valid ? null : (endpointResult.error ?? null),
-        apiKey: apiKeyResult.valid ? null : (apiKeyResult.error ?? null),
+        endpoint: endpointResult.valid
+          ? null
+          : endpointResult.error
+            ? translateValidationError(t, endpointResult.error)
+            : null,
+        apiKey: apiKeyResult.valid
+          ? null
+          : apiKeyResult.error
+            ? translateValidationError(t, apiKeyResult.error)
+            : null,
       },
-      message: errors.join('、'),
+      message: errors.map((e) => translateValidationError(t, e)).join(separator),
     };
   }
 
-  const serverResult = await validateConfigOnServer(API_BASE_URL, {
-    agentType,
-    apiKey: apiKey || undefined,
-    endpoint: endpoint || undefined,
-    modelId: modelId || undefined,
-  });
+  const serverResult = await validateConfigOnServer(
+    API_BASE_URL,
+    {
+      agentType,
+      apiKey: apiKey || undefined,
+      endpoint: endpoint || undefined,
+      modelId: modelId || undefined,
+    },
+    t,
+  );
 
   if (!serverResult.valid) {
     return {
       ok: false,
       fieldErrors: {},
-      message: serverResult.errors.join('、'),
+      message: serverResult.errors.join(separator),
     };
   }
 

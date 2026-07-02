@@ -1,9 +1,10 @@
 'use client';
 // SubtaskList
 import { Clock, Trash2 } from 'lucide-react';
+import { useTranslations } from 'next-intl';
 import type { PendingSubtask } from '../hooks/useNewTaskForm';
 import type { PriorityOption } from './PrioritySelector';
-import { statusConfig, renderStatusIcon } from '@/feature/tasks/config/StatusConfig';
+import { getStatusDisplay, renderStatusIcon } from '@/feature/tasks/config/StatusConfig';
 
 interface SubtaskListProps {
   subtasks: PendingSubtask[];
@@ -20,13 +21,14 @@ interface SubtaskListProps {
  * @param props.onRemove - Remove handler / 削除ハンドラ
  */
 export function SubtaskList({ subtasks, priorityOptions, onRemove }: SubtaskListProps) {
+  const t = useTranslations('task');
   if (subtasks.length === 0) return null;
 
   return (
     <div className="bg-zinc-50/50 dark:bg-indigo-dark-900/50 rounded-lg overflow-hidden">
       {subtasks.map((st, index) => {
         // NOTE: New subtasks always display with 'todo' status styling.
-        const subtaskStatus = statusConfig.todo;
+        const subtaskStatus = getStatusDisplay(t, 'todo');
         const isFirst = index === 0;
         const isLast = index === subtasks.length - 1;
         const roundedClass =

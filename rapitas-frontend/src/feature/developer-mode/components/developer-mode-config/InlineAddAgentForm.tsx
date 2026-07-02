@@ -9,7 +9,7 @@
 
 import { X, Plus, AlertCircle, Loader2 } from 'lucide-react';
 import { useTranslations } from 'next-intl';
-import { validateName } from '@/utils/validation';
+import { validateName, translateValidationError } from '@/utils/validation';
 
 type Props = {
   /** Current name input value. / 名前の入力値 */
@@ -48,10 +48,14 @@ export function InlineAddAgentForm({
   onCancel,
 }: Props) {
   const t = useTranslations('devMode.inlineAddAgentForm');
+  const tv = useTranslations('common.validation');
   const handleNameInput = (raw: string) => {
     if (raw.trim()) {
-      const result = validateName(raw, 'エージェント名', 1, 50);
-      onNameChange(raw, result.valid ? null : (result.error ?? null));
+      const result = validateName(raw, t('agentNameField'), 1, 50);
+      onNameChange(
+        raw,
+        result.valid ? null : result.error ? translateValidationError(tv, result.error) : null,
+      );
     } else {
       onNameChange(raw, null);
     }

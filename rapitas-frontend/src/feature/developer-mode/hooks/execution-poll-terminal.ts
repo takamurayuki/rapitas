@@ -8,6 +8,7 @@
 
 import { type ExecutionStreamState, trimLogs } from './execution-stream-types';
 import { logger, type PollRefs } from './execution-poll-shared';
+import { defaultPollT, type PollTranslate } from './execution-poll-completion';
 
 /**
  * Handle the 'failed' execution status.
@@ -15,11 +16,13 @@ import { logger, type PollRefs } from './execution-poll-shared';
  *
  * @param data - Raw polling response data / ポーリングレスポンスデータ
  * @param refs - Shared mutable refs / 共有可変ref群
+ * @param t - Translator scoped to `devMode.executionPolling`. / `devMode.executionPolling` にスコープした翻訳関数
  * @returns State updater or null / stateアップデータまたはnull
  */
 export function handleFailed(
   data: Record<string, unknown>,
   refs: PollRefs,
+  t: PollTranslate = defaultPollT,
 ): ((prev: ExecutionStreamState) => ExecutionStreamState) | null {
   const isStatusChanged = refs.lastProcessedStatusRef.current !== data.executionStatus;
 
@@ -45,6 +48,10 @@ export function handleFailed(
     refs.hasAddedFinalLogRef.current = true;
   }
 
+  const failedMessage = t('failedLog', {
+    message: (data.errorMessage as string) || t('failedDefaultMessage'),
+  });
+
   return (prev) => ({
     ...prev,
     isRunning: false,
@@ -53,12 +60,9 @@ export function handleFailed(
     error: data.errorMessage as string | null,
     logs:
       shouldAddLog && prev.logs.length > 0
-        ? trimLogs([
-            ...prev.logs,
-            `\n[Error] ${(data.errorMessage as string) || 'Execution failed'}\n`,
-          ])
+        ? trimLogs([...prev.logs, `\n${failedMessage}\n`])
         : shouldAddLog
-          ? [`[Error] ${(data.errorMessage as string) || 'Execution failed'}\n`]
+          ? [`${failedMessage}\n`]
           : prev.logs,
   });
 }
@@ -69,11 +73,13 @@ export function handleFailed(
  *
  * @param data - Raw polling response data / ポーリングレスポンスデータ
  * @param refs - Shared mutable refs / 共有可変ref群
+ * @param t - Translator scoped to `devMode.executionPolling`. / `devMode.executionPolling` にスコープした翻訳関数
  * @returns State updater or null / stateアップデータまたはnull
  */
 export function handleCancelled(
   data: Record<string, unknown>,
   refs: PollRefs,
+  t: PollTranslate = defaultPollT,
 ): ((prev: ExecutionStreamState) => ExecutionStreamState) | null {
   const isStatusChanged = refs.lastProcessedStatusRef.current !== data.executionStatus;
 
@@ -89,6 +95,11 @@ export function handleCancelled(
     refs.hasAddedFinalLogRef.current = true;
   }
 
+  // NOTE: Reuses the same `cancelledLog` key as useExecutionPolling's
+  // setCancelled() so the immediate UI update and the polled confirmation
+  // render identical text.
+  const cancelledMessage = t('cancelledLog');
+
   return (prev) => ({
     ...prev,
     isRunning: false,
@@ -96,9 +107,9 @@ export function handleCancelled(
     waitingForInput: false,
     logs:
       shouldAddLog && prev.logs.length > 0
-        ? trimLogs([...prev.logs, '\n[キャンセル] 実行が停止されました。\n'])
+        ? trimLogs([...prev.logs, `\n${cancelledMessage}\n`])
         : shouldAddLog
-          ? ['[キャンセル] 実行が停止されました。\n']
+          ? [`${cancelledMessage}\n`]
           : prev.logs,
   });
 }
@@ -109,11 +120,13 @@ export function handleCancelled(
  *
  * @param data - Raw polling response data / ポーリングレスポンスデータ
  * @param refs - Shared mutable refs / 共有可変ref群
+ * @param t - Translator scoped to `devMode.executionPolling`. / `devMode.executionPolling` にスコープした翻訳関数
  * @returns State updater or null / stateアップデータまたはnull
  */
 export function handleInterrupted(
   data: Record<string, unknown>,
   refs: PollRefs,
+  t: PollTranslate = defaultPollT,
 ): ((prev: ExecutionStreamState) => ExecutionStreamState) | null {
   const isStatusChanged = refs.lastProcessedStatusRef.current !== data.executionStatus;
 
@@ -136,17 +149,19 @@ export function handleInterrupted(
     refs.hasAddedFinalLogRef.current = true;
   }
 
+  const interruptedMessage = t('interruptedLog');
+
   return (prev) => ({
     ...prev,
     isRunning: false,
     status: 'failed',
     waitingForInput: false,
-    error: (data.errorMessage as string) || '実行が中断されました',
+    error: (data.errorMessage as string) || t('interruptedDefaultError'),
     logs:
       shouldAddLog && prev.logs.length > 0
-        ? trimLogs([...prev.logs, '\n[中断] 実行が中断されました。\n'])
+        ? trimLogs([...prev.logs, `\n${interruptedMessage}\n`])
         : shouldAddLog
-          ? ['[中断] 実行が中断されました。\n']
+          ? [`${interruptedMessage}\n`]
           : prev.logs,
   });
 }

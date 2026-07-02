@@ -65,21 +65,24 @@ export type ExecutionBodyProps = {
   onGenerateBranchName: () => Promise<void>;
 };
 
+/** Maps a workflow session mode to its phase-label translation key. */
+const WORKFLOW_PHASE_LABEL_KEYS: Record<string, string> = {
+  'workflow-researcher': 'phase.researcher',
+  'workflow-planner': 'phase.planner',
+  'workflow-reviewer': 'phase.reviewer',
+  'workflow-implementer': 'phase.implementer',
+  'workflow-verifier': 'phase.verifier',
+};
+
 /**
- * Returns a Japanese phase label for workflow session modes.
+ * Returns a translated phase label for workflow session modes.
  *
  * @param mode - Session mode string starting with "workflow-".
- * @returns Human-readable phase label / <日本語フェーズラベル>
+ * @param t - Translator scoped to `devMode.executionSection`. / `devMode.executionSection` にスコープした翻訳関数
+ * @returns Human-readable phase label / 人間が読めるフェーズラベル
  */
-export function workflowPhaseLabel(mode: string): string {
-  const labels: Record<string, string> = {
-    'workflow-researcher': '調査フェーズ完了',
-    'workflow-planner': '計画フェーズ完了',
-    'workflow-reviewer': 'レビューフェーズ完了',
-    'workflow-implementer': '実装フェーズ完了',
-    'workflow-verifier': '検証フェーズ完了',
-  };
-  return labels[mode] || 'フェーズ完了';
+export function workflowPhaseLabel(mode: string, t: (key: string) => string): string {
+  return t(WORKFLOW_PHASE_LABEL_KEYS[mode] || 'phase.default');
 }
 
 /**

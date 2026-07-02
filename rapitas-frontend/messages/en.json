@@ -206,6 +206,24 @@
     "reportsErrorTitle": "An error occurred in Reports",
     "iconGrid": {
       "noMatch": "No matching icons"
+    },
+    "validation": {
+      "required": "Please enter {field}",
+      "minLength": "{field} must be at least {min} characters",
+      "maxLength": "{field} must be at most {max} characters",
+      "urlProtocol": "{field} must use HTTP or HTTPS",
+      "urlInvalid": "{field} format is invalid",
+      "apiKeyRequired": "Please enter your API key",
+      "apiKeyTooShort": "API key is too short (10+ characters required)",
+      "apiKeyPrefixAnthropic": "Anthropic API key must start with \"sk-ant-api\"",
+      "apiKeyPrefixOpenai": "OpenAI API key must start with \"sk-\"",
+      "apiKeyPrefixGemini": "Google AI API key must start with \"AIza\"",
+      "apiKeyPrefixClaude": "Claude API key must start with \"sk-ant-api\"",
+      "numberInvalid": "{field} must be a number",
+      "numberMin": "{field} must be at least {min}",
+      "numberMax": "{field} must be at most {max}",
+      "serverCommError": "Failed to communicate with the server",
+      "listSeparator": ", "
     }
   },
   "metadata": {
@@ -770,7 +788,9 @@
       "collapseButton": "Collapse",
       "showMoreButton": "Show {count} more",
       "cachedLabel": "Cached",
-      "aiGenerationFailedLabel": "Failed to generate AI suggestions"
+      "aiGenerationFailedLabel": "Failed to generate AI suggestions",
+      "completionCriteriaHeading": "[Completion Criteria]",
+      "measurableOutcomeHeading": "[Measurable Outcome]"
     },
     "suggestionDetailModal": {
       "title": "Task details"
@@ -866,6 +886,101 @@
     },
     "errorPage": {
       "sectionLabel": "Task"
+    },
+    "memoTemplates": {
+      "workStart": {
+        "label": "Start of Work",
+        "content": "## Start of Work\n\n**Goal:**\n- \n\n**Tasks:**\n- \n\n**Notes:**\n- ",
+        "description": "Template for logging the start of a work session"
+      },
+      "workEnd": {
+        "label": "End of Work",
+        "content": "## End of Work\n\n**Completed:**\n- \n\n**Progress:**\n- \n\n**Next steps:**\n- \n\n**Notes:**\n- ",
+        "description": "Template for reviewing the end of a work session"
+      },
+      "issueReport": {
+        "label": "Issue Report",
+        "content": "## Issue Report\n\n**Problem:**\n\n\n**Conditions:**\n- \n\n**Impact:**\n- \n\n**Urgency:** [High/Medium/Low]\n\n**Approach:**\n- ",
+        "description": "Template for reporting an issue or problem"
+      },
+      "solution": {
+        "label": "Solution",
+        "content": "## Solution\n\n**Target issue:**\n\n\n**Solution:**\n\n\n**Steps:**\n1. \n2. \n3. \n\n**Verification:**\n- \n\n**Risks:**\n- ",
+        "description": "Template for proposing a solution"
+      },
+      "idea": {
+        "label": "Idea",
+        "content": "## Idea\n\n**Overview:**\n\n\n**Benefits:**\n- \n\n**Feasibility:** [High/Medium/Low]\n\n**Resources needed:**\n- \n\n**Next steps:**\n- ",
+        "description": "Template for organizing a new idea"
+      },
+      "meetingNotes": {
+        "label": "Meeting Notes",
+        "content": "## Meeting Notes\n\n**Date:** \n**Attendees:** \n\n**Agenda:**\n- \n\n**Decisions:**\n- \n\n**Action items:**\n- [ ] \n- [ ] \n\n**Next meeting:**\n",
+        "description": "Template for recording a meeting"
+      }
+    },
+    "memoTypes": {
+      "workLog": "Work Log",
+      "idea": "Idea",
+      "issue": "Issue",
+      "solution": "Solution",
+      "general": "General"
+    },
+    "time": {
+      "now": "Just now",
+      "minutesAgo": "{count}m ago",
+      "hoursAgo": "{count}h ago",
+      "daysAgo": "{count}d ago",
+      "monthsAgo": "{count}mo ago"
+    },
+    "linkLabels": {
+      "related": "Related",
+      "expansion": "Expansion",
+      "supplement": "Supplement"
+    },
+    "mockActivity": {
+      "statusChanged": "Changed status",
+      "todoToInProgress": "To Do → In Progress",
+      "system": "System",
+      "priorityChanged": "Changed priority",
+      "mediumToHigh": "Medium → High",
+      "user": "User",
+      "taskCreated": "Created task"
+    },
+    "mockAnalysis": {
+      "actionItemsSuffix": "(includes action items)",
+      "issueReportedSuffix": "(reports an issue)"
+    },
+    "weekday": {
+      "mon": "Mon",
+      "tue": "Tue",
+      "wed": "Wed",
+      "thu": "Thu",
+      "fri": "Fri",
+      "sat": "Sat",
+      "sun": "Sun"
+    },
+    "recurrenceDesc": {
+      "none": "No repeat",
+      "daily": "Daily",
+      "dailyInterval": "Every {interval} days",
+      "weekdaysOnly": "Weekdays",
+      "weeklyWithDays": "Weekly on {days}",
+      "weeklyIntervalWithDays": "Every {interval} weeks ({days})",
+      "weekly": "Weekly",
+      "weeklyInterval": "Every {interval} weeks",
+      "monthly": "Monthly",
+      "monthlyInterval": "Every {interval} months",
+      "yearly": "Yearly",
+      "yearlyInterval": "Every {interval} years"
+    },
+    "ganttMonthYear": "{month}/{year}",
+    "pomodoroNotification": {
+      "workCompleteTitle": "Pomodoro complete!",
+      "workCompleteBody": "{task} — time for a break",
+      "taskFallback": "Task",
+      "breakEndTitle": "Break over!",
+      "breakEndBody": "Time to get back to work"
     }
   },
   "auth": {
@@ -1279,7 +1394,18 @@
     "shortcutChanged": "Shortcut changed",
     "resetDone": "Reset to default",
     "defaultConflictsWith": "Default value conflicts with \"{label}\"",
-    "changedToShortcut": "Shortcut changed to {shortcut}"
+    "changedToShortcut": "Shortcut changed to {shortcut}",
+    "labels": {
+      "newTask": "Create New Task",
+      "dashboard": "Dashboard",
+      "home": "Home (Task List)",
+      "kanban": "Kanban View",
+      "calendar": "Calendar",
+      "focusMode": "Focus Mode",
+      "shortcutHelp": "Shortcut Help",
+      "toggleAI": "Notes + AI",
+      "commandBar": "Command Bar"
+    }
   },
   "dashboard": {
     "title": "Dashboard",
@@ -2231,6 +2357,27 @@
       "quickTimeNoon": "Noon",
       "quickTimeAfternoon": "Afternoon",
       "quickTimeEvening": "Evening"
+    },
+    "holidays": {
+      "newYearsDay": "New Year's Day",
+      "comingOfAgeDay": "Coming of Age Day",
+      "nationalFoundationDay": "National Foundation Day",
+      "emperorsBirthday": "Emperor's Birthday",
+      "vernalEquinoxDay": "Vernal Equinox Day",
+      "showaDay": "Showa Day",
+      "greeneryDay": "Greenery Day",
+      "constitutionDay": "Constitution Day",
+      "childrensDay": "Children's Day",
+      "marineDay": "Marine Day",
+      "mountainDay": "Mountain Day",
+      "respectForTheAgedDay": "Respect for the Aged Day",
+      "autumnalEquinoxDay": "Autumnal Equinox Day",
+      "sportsDay": "Sports Day",
+      "healthAndSportsDay": "Health and Sports Day",
+      "cultureDay": "Culture Day",
+      "laborThanksgivingDay": "Labor Thanksgiving Day",
+      "substituteHoliday": "Substitute Holiday",
+      "citizensHoliday": "Citizens' Holiday"
     }
   },
   "pomodoro": {
@@ -3143,6 +3290,20 @@
           "label": "Completion notification",
           "description": "Send a notification when analysis completes"
         }
+      },
+      "priorityOptions": {
+        "conservative": {
+          "label": "Conservative",
+          "description": "Break into fewer, larger subtasks"
+        },
+        "balanced": {
+          "label": "Balanced",
+          "description": "Moderate granularity (recommended)"
+        },
+        "aggressive": {
+          "label": "Detailed",
+          "description": "Break into many detailed subtasks"
+        }
       }
     },
     "promptOptimizationTab": {
@@ -3313,7 +3474,8 @@
       "namePlaceholder": "e.g. Main development agent",
       "setAsDefault": "Set as default",
       "cancel": "Cancel",
-      "add": "Add"
+      "add": "Add",
+      "agentNameField": "Agent name"
     },
     "useAgentExecutionHandlers": {
       "continuationFailed": "Failed to continue execution",
@@ -3422,7 +3584,15 @@
       "runDisabledTaskDone": "Can't run — this task is already complete",
       "runDisabledSetupIncomplete": "The agent can run once task setup is complete",
       "startExecution": "Start execution",
-      "run": "Run"
+      "run": "Run",
+      "phase": {
+        "researcher": "Research phase complete",
+        "planner": "Planning phase complete",
+        "reviewer": "Review phase complete",
+        "implementer": "Implementation phase complete",
+        "verifier": "Verification phase complete",
+        "default": "Phase complete"
+      }
     },
     "taskAnalysisPanel": {
       "complexitySimple": "Simple",
@@ -3572,7 +3742,11 @@
       "loadingSettings": "Loading settings...",
       "saveSettings": "Save settings",
       "analysisConfigSaveFailed": "Failed to save task analysis settings",
-      "executionConfigSaveFailed": "Failed to save agent execution settings"
+      "executionConfigSaveFailed": "Failed to save agent execution settings",
+      "tabs": {
+        "taskAnalysis": "Task Analysis",
+        "agentExecution": "Agent Execution"
+      }
     },
     "inlineApiKeySetup": {
       "apiKeySettings": "API key settings",
@@ -3603,7 +3777,21 @@
       "requiredQuestionsUnanswered": "Please answer the required questions"
     },
     "executionPolling": {
-      "cancelledLog": "[Cancelled] Execution was stopped."
+      "cancelledLog": "[Cancelled] Execution was stopped.",
+      "completedLog": "[Completed] Execution finished.",
+      "workflowPhase": {
+        "researcher": "[Research Complete] The research phase is complete. Automatically advancing to the next phase...",
+        "planner": "[Planning Complete] The planning phase is complete. If auto-approval is enabled, implementation will start automatically (otherwise, approve it in the Plan tab).",
+        "reviewer": "[Review Complete] The review phase is complete. If auto-approval is enabled, implementation will start automatically (otherwise, approve it in the Plan tab).",
+        "implementer": "[Implementation Complete] The implementation phase is complete. Automatically running the verification phase...",
+        "verifier": "[Verification Complete] The verification phase is complete. If there are no issues, the status will automatically become \"Completed.\"",
+        "default": "[Phase Complete] {mode} is complete."
+      },
+      "prCreatedLog": "[PR Created] Created a pull request: {info}",
+      "failedLog": "[Error] {message}",
+      "failedDefaultMessage": "Execution failed",
+      "interruptedLog": "[Interrupted] Execution was interrupted.",
+      "interruptedDefaultError": "Execution was interrupted"
     },
     "subtaskLogTabs": {
       "phase": {
@@ -3760,7 +3948,8 @@
       "submitAnswers": "Submit answers"
     },
     "useAgentManager": {
-      "addAgentFailed": "Failed to add agent"
+      "addAgentFailed": "Failed to add agent",
+      "agentNameField": "Agent name"
     },
     "useExecutionStreamSSE": {
       "startedLog": "[Started] Agent execution started...",
@@ -3805,6 +3994,92 @@
     },
     "aiAccordionPanelInner": {
       "panelAriaLabel": "AI agent execution panel"
+    },
+    "agentTypeInfo": {
+      "claudeCode": "Claude Code",
+      "codex": "Codex CLI",
+      "gemini": "Gemini CLI"
+    },
+    "apiKeyProviders": {
+      "claude": "Claude (Anthropic)",
+      "chatgpt": "ChatGPT (OpenAI)",
+      "gemini": "Gemini (Google)"
+    },
+    "parseQuestionOptions": {
+      "yesAll": "Yes (all)",
+      "noAll": "No (all)",
+      "answerIndividually": "Answer individually",
+      "yes": "Yes",
+      "no": "No",
+      "yesEn": "Yes",
+      "noEn": "No"
+    },
+    "logTransformer": {
+      "phaseStart": {
+        "research": "📊 Starting research phase",
+        "plan": "📋 Starting planning phase",
+        "implement": "💻 Starting implementation phase",
+        "verify": "🧪 Starting verification phase"
+      },
+      "fileEdited": "📝 Edited {basename}",
+      "fileCreated": "✨ Created new file {name}",
+      "errorOccurred": "❌ An error occurred",
+      "testsCompleted": "✅ Tests completed successfully",
+      "committed": "💾 Committed changes",
+      "processing": "⏳ Processing...",
+      "agentPrefix": "Agent: {text}",
+      "continuationResumed": "Resuming execution with additional instructions",
+      "agentInitializing": "Initializing agent...",
+      "systemError": "System error: {detail}",
+      "providerStarting": "Starting {provider} execution",
+      "workingDirectory": "Working directory: {dir}",
+      "processStarted": "Process started (PID {pid})",
+      "timeoutSetting": "Timeout setting: {timeout}",
+      "instructionPrefix": "Instruction: {text}",
+      "providerTimedOut": "{provider} execution timed out",
+      "providerError": "{provider} error: {detail}",
+      "executionCompleted": "Execution complete",
+      "toolRead": "Read {path}",
+      "toolEdit": "Edit {path}",
+      "toolWrite": "Create {path}",
+      "testRunning": "Running tests...",
+      "verifyRunning": "Running verification command...",
+      "committing": "Committing...",
+      "pushing": "Pushing to remote...",
+      "gitCommand": "Git: {cmd}",
+      "searchCommand": "Investigating: {cmd}",
+      "shellCommand": "$ {cmd}",
+      "toolSearch": "Search {query}",
+      "webSearch": "Web search: {query}",
+      "webFetch": "Web fetch: {url}",
+      "subAgent": "Sub-agent: {text}",
+      "subAgentStarting": "Starting...",
+      "itemCount": "{count} items",
+      "objectDataPlaceholder": "(data)",
+      "toolErrorSuffix": "Error in {name}",
+      "questionPrefix": "Question: {text}",
+      "testsPassedCount": "{count} tests passed",
+      "testsFailedCount": "{count} tests failed",
+      "typecheckRunning": "Running type check...",
+      "commitMessage": "Commit: {message}",
+      "pushCompleted": "Pushed to remote",
+      "waitingForAnswer": "Waiting for an answer...",
+      "timedOut": "Timed out",
+      "jsonStatus": "Status: {status}",
+      "jsonStatusTranslated": "Status: {status} ({translated})",
+      "jsonTaskId": "Task: {taskId}",
+      "statusLabels": {
+        "running": "Running",
+        "completed": "Completed",
+        "failed": "Failed",
+        "pending": "Pending",
+        "cancelled": "Cancelled",
+        "waitingForInput": "Waiting for input",
+        "inProgress": "In progress",
+        "todo": "Not started",
+        "waiting": "Waiting",
+        "success": "Success"
+      }
     }
   },
   "backlog": {
@@ -4069,7 +4344,45 @@
     },
     "nextActionRecommendations": {
       "noRecommendations": "No recommended actions for the current state.",
-      "heading": "Next steps"
+      "heading": "Next steps",
+      "actions": {
+        "reflect": {
+          "label": "Reflect on this task",
+          "reason": "Dig into the deliverables (research/plan/verify) and capture learnings as knowledge"
+        },
+        "complete": {
+          "label": "Mark task as done",
+          "reason": "All {done}/{total} subtasks are complete"
+        },
+        "continue": {
+          "label": "Run with the agent",
+          "reason": "In progress — the agent can run the next phase"
+        },
+        "completeManual": {
+          "label": "Mark task as done",
+          "reason": "Close the task once implementation is finished"
+        },
+        "analyze": {
+          "label": "Analyze with AI",
+          "reason": "Let AI suggest an approach and subtasks before you start"
+        },
+        "execute": {
+          "label": "Run with the agent",
+          "reason": "Subtasks are ready — let the agent get started"
+        },
+        "start": {
+          "label": "Start working",
+          "reason": "Ready to go — set the status to in progress"
+        },
+        "split": {
+          "label": "Split into subtasks",
+          "reason": "Complexity {score}. Splitting it up keeps things manageable"
+        },
+        "estimate": {
+          "label": "Estimate effort",
+          "reason": "No estimate yet — adding one makes planning easier"
+        }
+      }
     },
     "useCopilotChat": {
       "sendMessageError": "An error occurred",
@@ -4278,7 +4591,8 @@
         "fontSizeTitle": "Font size"
       },
       "highlight": {
-        "highlightTitle": "Highlight"
+        "highlightTitle": "Highlight",
+        "colorSample": "{name} sample"
       },
       "insert": {
         "linkInsertTitle": "Insert link",
@@ -4314,6 +4628,72 @@
     },
     "sidebar": {
       "noSearchResults": "No results"
+    },
+    "editorColors": {
+      "highlight": {
+        "yellow": "Yellow",
+        "green": "Green",
+        "blue": "Blue",
+        "pink": "Pink",
+        "purple": "Purple",
+        "orange": "Orange"
+      },
+      "border": {
+        "gray": "Gray",
+        "blue": "Blue",
+        "green": "Green",
+        "red": "Red",
+        "purple": "Purple",
+        "orange": "Orange"
+      },
+      "quickText": {
+        "black": "Black",
+        "red": "Red",
+        "orange": "Orange",
+        "green": "Green",
+        "blue": "Blue",
+        "purple": "Purple"
+      },
+      "highlightStyle": {
+        "full": "Full",
+        "boldMarker": "Bold marker",
+        "thinMarker": "Thin marker",
+        "underline": "Underline"
+      },
+      "font": {
+        "default": "Default",
+        "notoSansJp": "Noto Sans JP",
+        "hiraginoSans": "Hiragino Sans",
+        "yuGothic": "Yu Gothic",
+        "meiryo": "Meiryo",
+        "msGothic": "MS Gothic",
+        "georgia": "Georgia",
+        "arial": "Arial",
+        "timesNewRoman": "Times New Roman",
+        "courierNew": "Courier New",
+        "consolas": "Consolas"
+      }
+    },
+    "editorDom": {
+      "collapseToggleTitle": "Collapse / Expand",
+      "descPlaceholder": "Describe what this code does...",
+      "copyButtonText": "Copy",
+      "copyButtonDoneText": "✓ Copied",
+      "deleteButtonTitle": "Delete code block",
+      "codePlaceholder": "// Enter your code here...",
+      "diagramDeleteTitle": "Delete diagram",
+      "diagramLoadingText": "Loading diagram...",
+      "diagramSyntaxError": "Syntax error — check your Mermaid notation",
+      "linkCopyDoneText": "Copied!",
+      "tableHeading1": "Heading 1",
+      "tableHeading2": "Heading 2",
+      "tableHeading3": "Heading 3"
+    },
+    "aiService": {
+      "apiError": "API error: {status} {statusText}",
+      "communicationError": "An error occurred while communicating with the AI",
+      "streamUnavailable": "Could not get the response stream",
+      "responseFailed": "Failed to get a response"
     }
   },
   "achievements": {
@@ -4395,5 +4775,17 @@
     "closeTerminalTitle": "Close terminal (Ctrl+`)",
     "closePane": "Close pane",
     "commandCompleteToast": "Terminal command finished (exit {exitCode}, {seconds}s)"
+  },
+  "voice": {
+    "speechRecognitionHook": {
+      "recordingTooShort": "Recording is too short.",
+      "transcribeConnectionFailed": "Failed to connect to the transcription server.",
+      "micPermissionDenied": "Microphone access was denied.",
+      "micStartFailed": "Failed to start the microphone: {message}",
+      "audioProcessingError": "Audio processing error: {message}",
+      "recognitionError": "Speech recognition error: {code}",
+      "recordingWithLevel": "Recording... (level:{freqAvg} rms:{rms} silence:{silenceSec}s)",
+      "listeningWithLevel": "Please speak... (level:{freqAvg} rms:{rms})"
+    }
   }
 }

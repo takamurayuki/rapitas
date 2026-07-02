@@ -46,6 +46,7 @@ export function MemoStatsBar({
   onBulkAnalyze,
 }: MemoStatsBarProps) {
   const t = useTranslations('task.memoStatsBar');
+  const tt = useTranslations('task');
   return (
     <div className="flex flex-col gap-2 mb-3">
       {/* Count row */}
@@ -115,7 +116,7 @@ export function MemoStatsBar({
                 }`}
               >
                 <Icon className="w-2.5 h-2.5" />
-                {config.label} ({count})
+                {tt(config.labelKey)} ({count})
               </button>
             );
           })}

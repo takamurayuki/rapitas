@@ -1,6 +1,7 @@
 'use client';
+import { useTranslations } from 'next-intl';
 import TaskStatusChange from './TaskStatusChange';
-import { statusConfig, renderStatusIcon } from '../../config/StatusConfig';
+import { getStatusDisplay, renderStatusIcon } from '../../config/StatusConfig';
 import { API_BASE_URL } from '@/utils/api';
 import type { Status } from '@/types';
 import { createLogger } from '@/lib/logger';
@@ -88,12 +89,13 @@ export function StatusButtonGroup({
   showLabel = false,
   className = '',
 }: StatusButtonGroupProps) {
+  const t = useTranslations('task');
   const gapClass = showLabel ? 'gap-2' : 'gap-1';
 
   return (
     <div className={`flex items-center ${gapClass} shrink-0 ${className}`}>
       {STATUS_OPTIONS.map((status) => {
-        const config = statusConfig[status];
+        const config = getStatusDisplay(t, status);
         return (
           <TaskStatusChange
             key={status}

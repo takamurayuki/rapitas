@@ -37,6 +37,7 @@ export function MemoInputArea({
   onOpenTemplates,
 }: MemoInputAreaProps) {
   const t = useTranslations('task.memoInputArea');
+  const tt = useTranslations('task');
   return (
     <div className="space-y-2 mb-3">
       {/* Memo Type Selector & Template Button */}
@@ -59,7 +60,7 @@ export function MemoInputArea({
                 }`}
               >
                 <Icon className="w-2.5 h-2.5" />
-                {config.label}
+                {tt(config.labelKey)}
               </button>
             );
           })}
@@ -88,7 +89,7 @@ export function MemoInputArea({
               }
             }}
             placeholder={t('addMemoPlaceholder', {
-              type: MEMO_TYPE_CONFIG[selectedMemoType].label,
+              type: tt(MEMO_TYPE_CONFIG[selectedMemoType].labelKey),
             })}
             className={`w-full px-2.5 py-2 text-xs bg-zinc-50 dark:bg-zinc-800 border rounded-lg outline-none focus:ring-1 placeholder:text-zinc-400 resize-none transition-colors ${
               selectedMemoType !== 'general'

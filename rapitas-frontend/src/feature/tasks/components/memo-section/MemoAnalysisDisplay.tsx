@@ -130,7 +130,7 @@ export const MemoAnalysisDisplay = memo(function MemoAnalysisDisplay({
 
           {/* Analysis timestamp */}
           <div className="text-[8px] text-zinc-400 text-right">
-            {t('memoAnalysisDisplay.analyzedAt')} {timeAgo(new Date(analysis.analyzedAt))}
+            {t('memoAnalysisDisplay.analyzedAt')} {timeAgo(new Date(analysis.analyzedAt), t)}
           </div>
         </div>
       )}

@@ -104,7 +104,7 @@ export const NoteItem = memo(function NoteItem({
   const handleAnalyze = async () => {
     setIsAnalyzing(true);
     try {
-      const analysisResult = await analyzeMemo(note.content);
+      const analysisResult = await analyzeMemo(note.content, t);
       persistMemoData({ analysis: analysisResult, showAnalysis: true });
     } catch (error) {
       logger.error('Analysis failed:', error);
@@ -161,7 +161,7 @@ export const NoteItem = memo(function NoteItem({
                     className={`inline-flex items-center gap-1 px-2 py-0.5 text-[10px] rounded-full font-medium ${typeConfig.color.badge}`}
                   >
                     <TypeIcon className="w-2.5 h-2.5" />
-                    {typeConfig.label}
+                    {t(typeConfig.labelKey)}
                   </span>
                   {isPinned && (
                     <span className="inline-flex items-center gap-1 px-1.5 py-0.5 text-[9px] bg-indigo-100 dark:bg-indigo-900/50 text-indigo-600 dark:text-indigo-400 rounded-full font-medium">

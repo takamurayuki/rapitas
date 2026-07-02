@@ -18,7 +18,7 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import remarkBreaks from 'remark-breaks';
 import type { NoteData } from './comment-types';
-import { LABEL_COLORS, DEFAULT_LINK_STYLE } from './comment-types';
+import { LABEL_COLORS, DEFAULT_LINK_STYLE, getLinkLabelDisplay } from './comment-types';
 
 type NoteProps = {
   note: NoteData;
@@ -150,7 +150,9 @@ export const Note = memo(function Note({
                           ) : (
                             <ArrowLeft className="w-2.5 h-2.5 shrink-0" />
                           )}
-                          {l.label && <span className="font-medium">{l.label}</span>}
+                          {l.label && (
+                            <span className="font-medium">{getLinkLabelDisplay(t, l.label)}</span>
+                          )}
                           <span className="max-w-[120px] truncate">{l.linkedComment.content}</span>
                           <span
                             role="button"

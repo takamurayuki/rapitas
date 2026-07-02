@@ -7,7 +7,7 @@ import NoteEditorHeader from './editor/NoteEditorHeader';
 import NoteEditorFooter from './editor/NoteEditorFooter';
 import EditorToolbar from './editor/EditorToolbar';
 import DiagramBlockEdit from './editor/DiagramBlockEdit';
-import { renderMermaidBlock, getDiagramSource, setDiagramSource } from './editor/diagram-block';
+import { getDiagramSource, setDiagramSource } from './editor/diagram-block';
 
 interface DiagramEditState {
   el: HTMLElement;
@@ -54,7 +54,7 @@ export default function NoteEditor({ note, children }: NoteEditorProps) {
     async (newSource: string) => {
       if (!editingDiagram) return;
       setDiagramSource(editingDiagram.el, newSource);
-      await renderMermaidBlock(editingDiagram.el);
+      await editor.renderDiagramBlock(editingDiagram.el);
       editor.markDirty();
       setEditingDiagram(null);
     },

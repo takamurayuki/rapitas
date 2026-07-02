@@ -86,7 +86,7 @@ export function GanttChart({
 
   const bars = ganttData.tasks.map((task, index) => taskToBar(task, index, viewport));
   const gridLines = zoomLevel === 'day' ? getDayGridLines(viewport) : getWeekGridLines(viewport);
-  const timelineLabels = getTimelineLabels(viewport, zoomLevel);
+  const timelineLabels = getTimelineLabels(viewport, zoomLevel, t);
   const primaryLabels = timelineLabels.filter((l) => l.level === 'primary');
   const secondaryLabels = timelineLabels.filter((l) => l.level === 'secondary');
 

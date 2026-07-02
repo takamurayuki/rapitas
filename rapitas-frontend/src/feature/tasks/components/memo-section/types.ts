@@ -38,12 +38,15 @@ export type NoteData = Comment & {
   showAnalysis?: boolean;
 };
 
+// NOTE: label/content/description are i18n keys into the `task` namespace,
+// not display strings — resolve via t(key) at render time (see
+// TemplateSelector.tsx / useMemoSection.ts).
 export type MemoTemplate = {
   id: string;
-  label: string;
-  content: string;
+  labelKey: string;
+  contentKey: string;
   type: MemoType;
-  description: string;
+  descriptionKey: string;
 };
 
 export type Props = {
@@ -60,63 +63,60 @@ export type Props = {
 export const MEMO_TEMPLATES: MemoTemplate[] = [
   {
     id: 'work-start',
-    label: '作業開始',
-    content: '## 作業開始\n\n**目標:**\n- \n\n**作業内容:**\n- \n\n**注意事項:**\n- ',
+    labelKey: 'memoTemplates.workStart.label',
+    contentKey: 'memoTemplates.workStart.content',
     type: 'work-log',
-    description: '作業開始時の記録用テンプレート',
+    descriptionKey: 'memoTemplates.workStart.description',
   },
   {
     id: 'work-end',
-    label: '作業終了',
-    content:
-      '## 作業終了\n\n**完了項目:**\n- \n\n**進捗状況:**\n- \n\n**次回作業:**\n- \n\n**気づき:**\n- ',
+    labelKey: 'memoTemplates.workEnd.label',
+    contentKey: 'memoTemplates.workEnd.content',
     type: 'work-log',
-    description: '作業終了時の振り返り用テンプレート',
+    descriptionKey: 'memoTemplates.workEnd.description',
   },
   {
     id: 'issue-report',
-    label: '課題報告',
-    content:
-      '## 課題報告\n\n**問題:**\n\n\n**発生条件:**\n- \n\n**影響範囲:**\n- \n\n**緊急度:** [高/中/低]\n\n**対応方針:**\n- ',
+    labelKey: 'memoTemplates.issueReport.label',
+    contentKey: 'memoTemplates.issueReport.content',
     type: 'issue',
-    description: '課題や問題の報告用テンプレート',
+    descriptionKey: 'memoTemplates.issueReport.description',
   },
   {
     id: 'solution',
-    label: '解決策',
-    content:
-      '## 解決策\n\n**対象課題:**\n\n\n**解決方法:**\n\n\n**実装手順:**\n1. \n2. \n3. \n\n**検証方法:**\n- \n\n**リスク:**\n- ',
+    labelKey: 'memoTemplates.solution.label',
+    contentKey: 'memoTemplates.solution.content',
     type: 'solution',
-    description: '解決策の提案用テンプレート',
+    descriptionKey: 'memoTemplates.solution.description',
   },
   {
     id: 'idea',
-    label: 'アイデア',
-    content:
-      '## アイデア\n\n**概要:**\n\n\n**メリット:**\n- \n\n**実現可能性:** [高/中/低]\n\n**必要リソース:**\n- \n\n**次のステップ:**\n- ',
+    labelKey: 'memoTemplates.idea.label',
+    contentKey: 'memoTemplates.idea.content',
     type: 'idea',
-    description: '新しいアイデアの整理用テンプレート',
+    descriptionKey: 'memoTemplates.idea.description',
   },
   {
     id: 'meeting-notes',
-    label: '会議メモ',
-    content:
-      '## 会議メモ\n\n**日時:** \n**参加者:** \n\n**議題:**\n- \n\n**決定事項:**\n- \n\n**アクションアイテム:**\n- [ ] \n- [ ] \n\n**次回予定:**\n',
+    labelKey: 'memoTemplates.meetingNotes.label',
+    contentKey: 'memoTemplates.meetingNotes.content',
     type: 'general',
-    description: '会議や打ち合わせの記録用テンプレート',
+    descriptionKey: 'memoTemplates.meetingNotes.description',
   },
 ];
 
+// NOTE: labelKey is an i18n key into the `task` namespace — resolve via
+// t(config.labelKey) at render time rather than reading a `.label` field.
 export const MEMO_TYPE_CONFIG: Record<
   MemoType,
   {
-    label: string;
+    labelKey: string;
     icon: React.ElementType;
     color: { bg: string; text: string; border: string; badge: string };
   }
 > = {
   'work-log': {
-    label: '作業ログ',
+    labelKey: 'memoTypes.workLog',
     icon: Clock,
     color: {
       bg: 'bg-indigo-50 dark:bg-indigo-900/20',
@@ -126,7 +126,7 @@ export const MEMO_TYPE_CONFIG: Record<
     },
   },
   idea: {
-    label: 'アイデア',
+    labelKey: 'memoTypes.idea',
     icon: Lightbulb,
     color: {
       bg: 'bg-amber-50 dark:bg-amber-900/20',
@@ -136,7 +136,7 @@ export const MEMO_TYPE_CONFIG: Record<
     },
   },
   issue: {
-    label: '課題',
+    labelKey: 'memoTypes.issue',
     icon: AlertTriangle,
     color: {
       bg: 'bg-red-50 dark:bg-red-900/20',
@@ -146,7 +146,7 @@ export const MEMO_TYPE_CONFIG: Record<
     },
   },
   solution: {
-    label: '解決策',
+    labelKey: 'memoTypes.solution',
     icon: CheckCircle,
     color: {
       bg: 'bg-emerald-50 dark:bg-emerald-900/20',
@@ -156,7 +156,7 @@ export const MEMO_TYPE_CONFIG: Record<
     },
   },
   general: {
-    label: '一般',
+    labelKey: 'memoTypes.general',
     icon: MessageSquare,
     color: {
       bg: 'bg-zinc-50 dark:bg-zinc-800/50',

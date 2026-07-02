@@ -172,7 +172,7 @@ export function useExecutionPolling(taskId: number | null) {
         if (pollInFlightRef.current) return;
         pollInFlightRef.current = true;
         void Promise.resolve(
-          executePoll(taskId, refs, lastOutputLengthRef, setState, stopPolling),
+          executePoll(taskId, refs, lastOutputLengthRef, setState, stopPolling, t),
         ).finally(() => {
           pollInFlightRef.current = false;
         });

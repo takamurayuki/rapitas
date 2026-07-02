@@ -1,6 +1,7 @@
 'use client';
 // useNoteEditor
-import { useState, useRef, useEffect, useCallback } from 'react';
+import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
+import { useTranslations } from 'next-intl';
 import DOMPurify from 'dompurify';
 import { type Note, useNoteStore } from '@/stores/note-store';
 import { useLocaleStore } from '@/stores/locale-store';
@@ -24,9 +25,13 @@ import {
 } from './color-persistence';
 import { applyTextColor as applyTextColorUtil } from './text-color';
 import { normalizeCodeBlocks } from './code-block';
-import { useEditorInsertion } from './useEditorInsertion';
+import { useEditorInsertion, type EditorDomLabels } from './useEditorInsertion';
 import { useNotePopups } from './useNotePopups';
-import { renderAllDiagrams, getContentWithoutDiagramSvg } from './diagram-block';
+import {
+  renderAllDiagrams,
+  renderMermaidBlock,
+  getContentWithoutDiagramSvg,
+} from './diagram-block';
 
 /**
  * All values and handlers returned by useNoteEditor.
@@ -101,6 +106,8 @@ export interface NoteEditorState {
 
   // Diagram
   insertDiagramBlock: () => void;
+  /** Re-renders a single diagram block's Mermaid SVG (labels bound). / 図ブロックの再描画（ラベル束縛済み） */
+  renderDiagramBlock: (block: HTMLElement) => Promise<void>;
   markDirty: () => void;
 
   // Editor events
@@ -118,6 +125,32 @@ export function useNoteEditor(note: Note): NoteEditorState {
   const { updateNote } = useNoteStore();
   const locale = useLocaleStore((s) => s.locale);
   const dateLocale = toDateLocale(locale);
+  const t = useTranslations('notes');
+
+  // Localized strings for the raw-DOM editor builders (code/diagram/table/link-card
+  // chrome). These modules construct DOM directly and have no hook access, so the
+  // labels are built here and threaded down through useEditorInsertion.
+  const editorDomLabels = useMemo<EditorDomLabels>(
+    () => ({
+      collapseToggleTitle: t('editorDom.collapseToggleTitle'),
+      descPlaceholder: t('editorDom.descPlaceholder'),
+      copyButtonText: t('editorDom.copyButtonText'),
+      copyButtonDoneText: t('editorDom.copyButtonDoneText'),
+      deleteButtonTitle: t('editorDom.deleteButtonTitle'),
+      codePlaceholder: t('editorDom.codePlaceholder'),
+      deleteTitle: t('editorDom.diagramDeleteTitle'),
+      loadingText: t('editorDom.diagramLoadingText'),
+      syntaxErrorText: t('editorDom.diagramSyntaxError'),
+      copyDoneText: t('editorDom.linkCopyDoneText'),
+      tableHeadings: [
+        t('editorDom.tableHeading1'),
+        t('editorDom.tableHeading2'),
+        t('editorDom.tableHeading3'),
+      ],
+    }),
+    [t],
+  );
+
   const contentRef = useRef<HTMLDivElement>(null);
   const titleRef = useRef<HTMLInputElement>(null);
   const savedSelectionRef = useRef<Range | null>(null);
@@ -171,11 +204,11 @@ export function useNoteEditor(note: Note): NoteEditorState {
     setIsDirty(false);
     if (contentRef.current) {
       contentRef.current.innerHTML = DOMPurify.sanitize(note.content);
-      normalizeLinkCards(contentRef.current, handleContentChange);
+      normalizeLinkCards(contentRef.current, handleContentChange, editorDomLabels);
       // Re-attach code block key handlers and delete buttons after HTML is set.
-      normalizeCodeBlocks(contentRef.current, handleContentChange);
+      normalizeCodeBlocks(contentRef.current, handleContentChange, editorDomLabels);
       // Re-render Mermaid diagrams (SVG is stripped before saving to keep storage lean).
-      renderAllDiagrams(contentRef.current);
+      renderAllDiagrams(contentRef.current, editorDomLabels);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [note.id]);
@@ -360,6 +393,14 @@ export function useNoteEditor(note: Note): NoteEditorState {
     codeLanguage,
     handleContentChange,
     closeOtherPopups,
+    editorDomLabels,
+  );
+
+  // Bound so NoteEditor.tsx can re-render a single diagram block (e.g. after
+  // the user edits its source) without needing its own copy of the labels.
+  const renderDiagramBlock = useCallback(
+    (block: HTMLElement) => renderMermaidBlock(block, editorDomLabels),
+    [editorDomLabels],
   );
 
   const onEditorInput = (e: React.FormEvent<HTMLDivElement>) => {
@@ -430,6 +471,7 @@ export function useNoteEditor(note: Note): NoteEditorState {
     handleResetTextColor,
     insertTable: insertion.insertTable,
     insertDiagramBlock: insertion.insertDiagramBlock,
+    renderDiagramBlock,
     onEditorInput,
     onEditorKeyDown,
   };

@@ -18,3 +18,4 @@ export {
   shouldAutoIndent,
 } from './code-block-indent';
 export { createCodeBlockNode, normalizeCodeBlocks } from './code-block-dom';
+export type { CodeBlockLabels } from './code-block-elements';

@@ -7,6 +7,27 @@
  */
 
 /**
+ * Localized strings for the code-block chrome (collapse toggle, description
+ * placeholder, copy/delete buttons, initial code placeholder). Supplied by the
+ * React layer (useNoteEditor) via `useTranslations('notes')`, since these
+ * modules build raw DOM and have no hook access themselves.
+ */
+export interface CodeBlockLabels {
+  /** Collapse/expand chevron button title. */
+  collapseToggleTitle: string;
+  /** Placeholder shown in the block's (initially hidden) description area. */
+  descPlaceholder: string;
+  /** Copy button default text. */
+  copyButtonText: string;
+  /** Copy button text shown briefly after a successful copy. */
+  copyButtonDoneText: string;
+  /** Delete button title. */
+  deleteButtonTitle: string;
+  /** Placeholder text shown in a freshly created empty code block. */
+  codePlaceholder: string;
+}
+
+/**
  * Tracks the active MutationObserver per code element.
  * Prevents observer accumulation when normalizeCodeBlocks runs multiple times
  * on the same element — each new observer disconnects the previous one.
@@ -91,9 +112,10 @@ function refreshLineNumbers(gutterEl: HTMLElement, codeElement: HTMLElement): vo
 /**
  * Build the chevron toggle button for collapsing/expanding the code block.
  *
+ * @param labels - Localized strings for the button title / ボタンタイトルの多言語文字列
  * @returns Configured toggle button / 折りたたみトグルボタン
  */
-export function buildCollapseToggle(): HTMLButtonElement {
+export function buildCollapseToggle(labels: CodeBlockLabels): HTMLButtonElement {
   const btn = document.createElement('button');
   btn.dataset.collapseToggle = '1';
   btn.style.backgroundColor = 'transparent';
@@ -105,7 +127,7 @@ export function buildCollapseToggle(): HTMLButtonElement {
   btn.style.alignItems = 'center';
   btn.style.flexShrink = '0';
   btn.style.transition = 'color 0.15s';
-  btn.title = '折りたたむ / 展開する';
+  btn.title = labels.collapseToggleTitle;
 
   const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
   svg.setAttribute('width', '12');
@@ -137,14 +159,15 @@ export function buildCollapseToggle(): HTMLButtonElement {
  * Build the description area shown when the block is collapsed.
  * Uses the CSS placeholder pattern (.code-block-desc:empty::before) defined in globals.css.
  *
+ * @param labels - Localized strings for the placeholder text / プレースホルダーの多言語文字列
  * @returns Description div element / 説明エリア要素
  */
-export function buildDescEl(): HTMLElement {
+export function buildDescEl(labels: CodeBlockLabels): HTMLElement {
   const el = document.createElement('div');
   el.className = 'code-block-desc';
   el.contentEditable = 'true';
   el.spellcheck = false;
-  el.setAttribute('placeholder', 'この処理の説明を入力...');
+  el.setAttribute('placeholder', labels.descPlaceholder);
   el.style.padding = '10px 18px';
   el.style.fontFamily = "Consolas, Monaco, 'Courier New', monospace";
   el.style.fontSize = '12px';
@@ -223,11 +246,15 @@ export function attachLineNumbers(preEl: HTMLElement, codeElement: HTMLElement):
  * Build and return the copy button element.
  *
  * @param codeElement - Code element whose text will be copied / コピー元コード要素
+ * @param labels - Localized strings for the button text / ボタン文言の多言語文字列
  * @returns Configured copy button / コピーボタン要素
  */
-export function buildCopyButton(codeElement: HTMLElement): HTMLButtonElement {
+export function buildCopyButton(
+  codeElement: HTMLElement,
+  labels: CodeBlockLabels,
+): HTMLButtonElement {
   const btn = document.createElement('button');
-  btn.textContent = 'コピー';
+  btn.textContent = labels.copyButtonText;
   btn.style.padding = '3px 10px';
   btn.style.fontSize = '11px';
   btn.style.fontFamily = 'sans-serif';
@@ -252,7 +279,7 @@ export function buildCopyButton(codeElement: HTMLElement): HTMLButtonElement {
     const codeText = codeElement.textContent ?? '';
     navigator.clipboard.writeText(codeText).then(() => {
       const originalText = btn.textContent;
-      btn.textContent = '✓ コピー済';
+      btn.textContent = labels.copyButtonDoneText;
       btn.style.backgroundColor = '#1a3d1a';
       btn.style.color = '#6fbf6f';
       btn.style.borderColor = '#2d6b2d';
@@ -271,9 +298,10 @@ export function buildCopyButton(codeElement: HTMLElement): HTMLButtonElement {
  * Build and return the delete button element (SVG trash icon).
  * The actual deletion handler must be attached by the caller after insertion.
  *
+ * @param labels - Localized strings for the button title / ボタンタイトルの多言語文字列
  * @returns Delete button marked with data-delete-handler="1" / 削除ボタン要素
  */
-export function buildDeleteButton(): HTMLButtonElement {
+export function buildDeleteButton(labels: CodeBlockLabels): HTMLButtonElement {
   const btn = document.createElement('button');
 
   const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
@@ -307,7 +335,7 @@ export function buildDeleteButton(): HTMLButtonElement {
   btn.style.transition = 'all 0.15s';
   btn.style.display = 'flex';
   btn.style.alignItems = 'center';
-  btn.title = 'コードブロックを削除';
+  btn.title = labels.deleteButtonTitle;
   btn.dataset.deleteHandler = '1';
   btn.onmouseover = () => {
     btn.style.backgroundColor = '#3d1010';

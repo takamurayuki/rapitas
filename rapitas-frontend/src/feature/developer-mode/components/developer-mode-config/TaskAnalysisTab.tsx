@@ -262,13 +262,18 @@ export function TaskAnalysisTab({
                     : 'text-zinc-600 dark:text-zinc-400'
                 }`}
               >
-                {option.label}
+                {t(option.labelKey)}
               </span>
             </button>
           ))}
         </div>
         <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
-          {PRIORITY_OPTIONS.find((o) => o.value === priorityStrategy)?.description}
+          {(() => {
+            const descKey = PRIORITY_OPTIONS.find(
+              (o) => o.value === priorityStrategy,
+            )?.descriptionKey;
+            return descKey ? t(descKey) : null;
+          })()}
         </p>
       </div>
 

@@ -8,7 +8,7 @@ import type { ScheduleEventInput, PaidLeaveBalance } from '@/types';
 import { useToast } from '@/components/ui/toast/ToastContainer';
 import ScheduleEventDialog from '@/feature/calendar/components/ScheduleEventDialog';
 import PaidLeaveDialog from '@/feature/calendar/components/PaidLeaveDialog';
-import { getHolidaysForMonth } from '@/utils/holidays';
+import { getHolidaysForMonth, type HolidayLabelKey } from '@/utils/holidays';
 import { useCalendarEvents } from './_hooks/useCalendarEvents';
 import { CalendarGrid } from './_components/CalendarGrid';
 import { DayEventsSidebar } from './_components/DayEventsSidebar';
@@ -41,8 +41,8 @@ export default function CalendarPage() {
   );
 
   const holidayMap = useMemo(() => {
-    const map = new Map<string, string>();
-    for (const h of holidays) map.set(h.date, h.name);
+    const map = new Map<string, HolidayLabelKey>();
+    for (const h of holidays) map.set(h.date, h.labelKey);
     return map;
   }, [holidays]);
 

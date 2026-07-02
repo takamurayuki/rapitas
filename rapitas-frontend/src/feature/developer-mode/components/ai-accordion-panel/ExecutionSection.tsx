@@ -223,7 +223,7 @@ export function ExecutionSection({
             <span className="flex items-center gap-1 px-1.5 py-0.5 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 text-[10px] rounded">
               <CheckCircle2 className="w-2.5 h-2.5" />
               {pollingSessionMode?.startsWith('workflow-')
-                ? workflowPhaseLabel(pollingSessionMode)
+                ? workflowPhaseLabel(pollingSessionMode, t)
                 : t('statusCompleted')}
             </span>
           )}

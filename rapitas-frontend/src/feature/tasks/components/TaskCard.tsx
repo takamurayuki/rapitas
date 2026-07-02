@@ -4,7 +4,7 @@ import React, { useState, memo } from 'react';
 import type { Task, Status } from '@/types';
 import TaskStatusChange from '@/feature/tasks/components/status/TaskStatusChange';
 import PriorityIcon from '@/feature/tasks/components/priority/PriorityIcon';
-import { statusConfig, renderStatusIcon } from '@/feature/tasks/config/StatusConfig';
+import { getStatusDisplay, renderStatusIcon } from '@/feature/tasks/config/StatusConfig';
 import { ExternalLink, Tag, Repeat, RefreshCw, Lock } from 'lucide-react';
 import { API_BASE_URL } from '@/utils/api';
 import { useToast } from '@/components/ui/toast/ToastContainer';
@@ -306,7 +306,7 @@ const TaskCard = memo(function TaskCard({
             )}
             {['todo', 'in-progress', 'done'].map((status) => {
               // NOTE: Amber override applied to in-progress button when task is waiting_for_input
-              const baseConfig = statusConfig[status as keyof typeof statusConfig];
+              const baseConfig = getStatusDisplay(t, status);
               const config =
                 tc.isWaitingForInput && status === 'in-progress'
                   ? { ...baseConfig, ...tc.waitingAmberConfig }

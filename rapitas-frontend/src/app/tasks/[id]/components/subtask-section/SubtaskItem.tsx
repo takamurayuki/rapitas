@@ -13,7 +13,7 @@ import PriorityIcon from '@/feature/tasks/components/priority/PriorityIcon';
 import TaskStatusChange from '@/feature/tasks/components/status/TaskStatusChange';
 import { useExecutionStateStore } from '@/stores/execution-state-store';
 import {
-  statusConfig as sharedStatusConfig,
+  getStatusDisplay,
   renderStatusIcon,
   isInProgressStatus,
 } from '@/feature/tasks/config/StatusConfig';
@@ -138,9 +138,7 @@ export function SubtaskItem({
                     // + renderStatusIcon glyph in a rounded box, and — when the
                     // subtask is in-progress/running — the same outer-border
                     // spinning loader the task list uses (icon-outer-border-spin).
-                    const cfg =
-                      sharedStatusConfig[subtask.status as keyof typeof sharedStatusConfig] ??
-                      sharedStatusConfig.todo;
+                    const cfg = getStatusDisplay(t, subtask.status);
                     const inProgress = isInProgressStatus(subtask.status) || showRunning;
                     return (
                       <div
@@ -221,7 +219,7 @@ export function SubtaskItem({
             </div>
             <div className="flex items-center gap-1 shrink-0">
               {(['todo', 'in-progress', 'done'] as const).map((status) => {
-                const config = sharedStatusConfig[status];
+                const config = getStatusDisplay(t, status);
                 return (
                   <TaskStatusChange
                     key={status}

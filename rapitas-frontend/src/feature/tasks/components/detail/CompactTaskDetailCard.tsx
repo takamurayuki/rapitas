@@ -6,7 +6,7 @@ import { type Task, type Label, type Resource, type Comment, type Priority } fro
 import { useToast } from '@/components/ui/toast/ToastContainer';
 import TaskDescription from '@/feature/tasks/components/text/TaskDescription';
 import TaskStatusChange from '@/feature/tasks/components/status/TaskStatusChange';
-import { statusConfig, renderStatusIcon } from '@/feature/tasks/config/StatusConfig';
+import { getStatusDisplay, renderStatusIcon } from '@/feature/tasks/config/StatusConfig';
 import {
   Accordion,
   AccordionItem,
@@ -242,7 +242,7 @@ export default function CompactTaskDetailCard({
               with NO status selected. */}
           <div className="flex items-center gap-1 shrink-0">
             {(['todo', 'in-progress', 'done'] as const).map((status) => {
-              const config = statusConfig[status];
+              const config = getStatusDisplay(t, status);
               // `task.status` is typed to the 3 toggle values, but at runtime it
               // can also be 'blocked'/'completed' — compare as string to normalize.
               const rawStatus = task.status as string;

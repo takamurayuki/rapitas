@@ -6,7 +6,12 @@ import { useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { API_BASE_URL } from '@/utils/api';
 import { useConfirmDialog } from '@/components/ui/dialog/ConfirmDialogProvider';
-import { validateUrl, validateApiKey, type ValidationResult } from '@/utils/validation';
+import {
+  validateUrl,
+  validateApiKey,
+  translateValidationError,
+  type ValidationResult,
+} from '@/utils/validation';
 import { createLogger } from '@/lib/logger';
 import type { AgentConfig, ModelOption } from './agent-settings-types';
 import { saveAgentSettings, deleteAgentApiKey, deleteAgent } from './agent-settings-api';
@@ -24,6 +29,7 @@ const logger = createLogger('useAgentSettings');
 export function useAgentSettings(id: string) {
   const t = useTranslations('agents');
   const tc = useTranslations('common');
+  const tv = useTranslations('common.validation');
   const router = useRouter();
   const confirm = useConfirmDialog();
 
@@ -102,16 +108,24 @@ export function useAgentSettings(id: string) {
             t('settingsEndpoint'),
             agent?.agentType === 'custom' || agent?.agentType === 'azure-openai',
           );
-          return result.valid ? null : (result.error ?? null);
+          return result.valid
+            ? null
+            : result.error
+              ? translateValidationError(tv, result.error)
+              : null;
         case 'apiKey':
           if (!value.trim()) return null;
           result = validateApiKey(value, agent?.agentType);
-          return result.valid ? null : (result.error ?? null);
+          return result.valid
+            ? null
+            : result.error
+              ? translateValidationError(tv, result.error)
+              : null;
         default:
           return null;
       }
     },
-    [agent?.agentType, t],
+    [agent?.agentType, t, tv],
   );
 
   const updateField = useCallback(
@@ -132,15 +146,18 @@ export function useAgentSettings(id: string) {
     setSaving(true);
 
     try {
-      const result = await saveAgentSettings({
-        id,
-        agentType: agent.agentType,
-        endpoint,
-        modelId,
-        apiKey,
-        capabilities,
-        settingsEndpointLabel: t('settingsEndpoint'),
-      });
+      const result = await saveAgentSettings(
+        {
+          id,
+          agentType: agent.agentType,
+          endpoint,
+          modelId,
+          apiKey,
+          capabilities,
+          settingsEndpointLabel: t('settingsEndpoint'),
+        },
+        tv,
+      );
 
       if (!result.ok) {
         setFieldErrors(result.fieldErrors);

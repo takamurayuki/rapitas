@@ -12,9 +12,11 @@ export type ShortcutId =
   | 'toggleAI'
   | 'commandBar';
 
+// NOTE: no static `label` field — `id` doubles as the message key under
+// `shortcuts.labels` (see KeyboardShortcuts.tsx / in-app-shortcuts-section.tsx),
+// so the display label stays localized instead of being frozen in this store.
 export type ShortcutBinding = {
   id: ShortcutId;
-  label: string;
   /** Key (e.g. 'N', 'D', '/') */
   key: string;
   /** Whether to use Ctrl/Cmd */
@@ -28,7 +30,6 @@ export type ShortcutBinding = {
 const DEFAULT_SHORTCUTS: ShortcutBinding[] = [
   {
     id: 'newTask',
-    label: '新規タスク作成',
     key: 'N',
     meta: true,
     shift: false,
@@ -36,7 +37,6 @@ const DEFAULT_SHORTCUTS: ShortcutBinding[] = [
   },
   {
     id: 'dashboard',
-    label: 'ダッシュボード',
     key: 'D',
     meta: true,
     shift: false,
@@ -44,7 +44,6 @@ const DEFAULT_SHORTCUTS: ShortcutBinding[] = [
   },
   {
     id: 'home',
-    label: 'ホーム（タスク一覧）',
     key: 'H',
     meta: true,
     shift: false,
@@ -52,7 +51,6 @@ const DEFAULT_SHORTCUTS: ShortcutBinding[] = [
   },
   {
     id: 'kanban',
-    label: 'カンバンビュー',
     key: 'K',
     meta: true,
     shift: true,
@@ -60,7 +58,6 @@ const DEFAULT_SHORTCUTS: ShortcutBinding[] = [
   },
   {
     id: 'calendar',
-    label: 'カレンダー',
     key: 'L',
     meta: true,
     shift: false,
@@ -68,7 +65,6 @@ const DEFAULT_SHORTCUTS: ShortcutBinding[] = [
   },
   {
     id: 'focusMode',
-    label: 'フォーカスモード',
     key: 'F',
     meta: true,
     shift: true,
@@ -76,7 +72,6 @@ const DEFAULT_SHORTCUTS: ShortcutBinding[] = [
   },
   {
     id: 'shortcutHelp',
-    label: 'ショートカットヘルプ',
     key: '/',
     meta: true,
     shift: false,
@@ -84,7 +79,6 @@ const DEFAULT_SHORTCUTS: ShortcutBinding[] = [
   },
   {
     id: 'toggleAI',
-    label: 'ノート+AI機能',
     key: 'E',
     meta: false,
     shift: false,
@@ -92,7 +86,6 @@ const DEFAULT_SHORTCUTS: ShortcutBinding[] = [
   },
   {
     id: 'commandBar',
-    label: 'コマンドバー',
     key: 'K',
     meta: true,
     shift: false,

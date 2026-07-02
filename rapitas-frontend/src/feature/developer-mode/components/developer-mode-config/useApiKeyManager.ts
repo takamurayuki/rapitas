@@ -25,6 +25,7 @@ const logger = createLogger('useApiKeyManager');
 export function useApiKeyManager() {
   const t = useTranslations('devMode.apiKeyManager');
   const tCommon = useTranslations('common');
+  const tProviders = useTranslations('devMode.apiKeyProviders');
   const [apiKeyStatuses, setApiKeyStatuses] = useState<ApiKeyStatusMap>({
     claude: { configured: false, maskedKey: null },
     chatgpt: { configured: false, maskedKey: null },
@@ -139,9 +140,12 @@ export function useApiKeyManager() {
         }));
         setApiKeyInput('');
         setShowApiKey(false);
+        const providerLabelKey = API_KEY_PROVIDERS.find(
+          (p) => p.value === apiKeyProvider,
+        )?.labelKey;
         setApiKeySuccessMessage(
           t('savedKeyMessage', {
-            provider: API_KEY_PROVIDERS.find((p) => p.value === apiKeyProvider)?.label ?? '',
+            provider: providerLabelKey ? tProviders(providerLabelKey) : '',
           }),
         );
         setTimeout(() => setApiKeySuccessMessage(null), 3000);

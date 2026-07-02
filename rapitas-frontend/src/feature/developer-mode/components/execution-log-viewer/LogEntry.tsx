@@ -69,7 +69,12 @@ const LogEntry = memo<LogEntryProps>(({ log, index, isNewEntry, searchQuery, hig
         : log.includes('[実行開始]') ||
             log.includes('[継続]') ||
             log.includes('[完了]') ||
-            log.includes('フェーズ完了]')
+            log.includes('[Completed]') ||
+            log.includes('フェーズ完了]') ||
+            // NOTE: English equivalent of the "フェーズ完了]" fallback-phase tag
+            // (execution-poll-completion.ts's devMode.executionPolling.workflowPhase.default) —
+            // kept in sync so phase-complete coloring survives locale switching.
+            log.includes('Phase Complete]')
           ? 'text-blue-400'
           : /^\[.+?\]/.test(log.trimStart())
             ? 'text-cyan-400'

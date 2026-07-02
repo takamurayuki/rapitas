@@ -206,6 +206,24 @@
     "reportsErrorTitle": "レポート でエラーが発生しました",
     "iconGrid": {
       "noMatch": "一致するアイコンがありません"
+    },
+    "validation": {
+      "required": "{field}を入力してください",
+      "minLength": "{field}は{min}文字以上で入力してください",
+      "maxLength": "{field}は{max}文字以下で入力してください",
+      "urlProtocol": "{field}はHTTPまたはHTTPSプロトコルを使用してください",
+      "urlInvalid": "{field}の形式が正しくありません",
+      "apiKeyRequired": "APIキーを入力してください",
+      "apiKeyTooShort": "APIキーが短すぎます（10文字以上）",
+      "apiKeyPrefixAnthropic": "Anthropic APIキーは「sk-ant-api」で始まる必要があります",
+      "apiKeyPrefixOpenai": "OpenAI APIキーは「sk-」で始まる必要があります",
+      "apiKeyPrefixGemini": "Google AI APIキーは「AIza」で始まる必要があります",
+      "apiKeyPrefixClaude": "Claude APIキーは「sk-ant-api」で始まる必要があります",
+      "numberInvalid": "{field}は数値で入力してください",
+      "numberMin": "{field}は{min}以上で入力してください",
+      "numberMax": "{field}は{max}以下で入力してください",
+      "serverCommError": "サーバーとの通信に失敗しました",
+      "listSeparator": "、"
     }
   },
   "metadata": {
@@ -770,7 +788,9 @@
       "collapseButton": "折りたたむ",
       "showMoreButton": "他 {count} 件を表示",
       "cachedLabel": "キャッシュ済み",
-      "aiGenerationFailedLabel": "AI提案の生成に失敗しました"
+      "aiGenerationFailedLabel": "AI提案の生成に失敗しました",
+      "completionCriteriaHeading": "【完了条件】",
+      "measurableOutcomeHeading": "【測定可能な成果】"
     },
     "suggestionDetailModal": {
       "title": "タスクの詳細"
@@ -866,6 +886,101 @@
     },
     "errorPage": {
       "sectionLabel": "タスク"
+    },
+    "memoTemplates": {
+      "workStart": {
+        "label": "作業開始",
+        "content": "## 作業開始\n\n**目標:**\n- \n\n**作業内容:**\n- \n\n**注意事項:**\n- ",
+        "description": "作業開始時の記録用テンプレート"
+      },
+      "workEnd": {
+        "label": "作業終了",
+        "content": "## 作業終了\n\n**完了項目:**\n- \n\n**進捗状況:**\n- \n\n**次回作業:**\n- \n\n**気づき:**\n- ",
+        "description": "作業終了時の振り返り用テンプレート"
+      },
+      "issueReport": {
+        "label": "課題報告",
+        "content": "## 課題報告\n\n**問題:**\n\n\n**発生条件:**\n- \n\n**影響範囲:**\n- \n\n**緊急度:** [高/中/低]\n\n**対応方針:**\n- ",
+        "description": "課題や問題の報告用テンプレート"
+      },
+      "solution": {
+        "label": "解決策",
+        "content": "## 解決策\n\n**対象課題:**\n\n\n**解決方法:**\n\n\n**実装手順:**\n1. \n2. \n3. \n\n**検証方法:**\n- \n\n**リスク:**\n- ",
+        "description": "解決策の提案用テンプレート"
+      },
+      "idea": {
+        "label": "アイデア",
+        "content": "## アイデア\n\n**概要:**\n\n\n**メリット:**\n- \n\n**実現可能性:** [高/中/低]\n\n**必要リソース:**\n- \n\n**次のステップ:**\n- ",
+        "description": "新しいアイデアの整理用テンプレート"
+      },
+      "meetingNotes": {
+        "label": "会議メモ",
+        "content": "## 会議メモ\n\n**日時:** \n**参加者:** \n\n**議題:**\n- \n\n**決定事項:**\n- \n\n**アクションアイテム:**\n- [ ] \n- [ ] \n\n**次回予定:**\n",
+        "description": "会議や打ち合わせの記録用テンプレート"
+      }
+    },
+    "memoTypes": {
+      "workLog": "作業ログ",
+      "idea": "アイデア",
+      "issue": "課題",
+      "solution": "解決策",
+      "general": "一般"
+    },
+    "time": {
+      "now": "今",
+      "minutesAgo": "{count}分前",
+      "hoursAgo": "{count}時間前",
+      "daysAgo": "{count}日前",
+      "monthsAgo": "{count}ヶ月前"
+    },
+    "linkLabels": {
+      "related": "関連",
+      "expansion": "発展",
+      "supplement": "補足"
+    },
+    "mockActivity": {
+      "statusChanged": "ステータスを変更",
+      "todoToInProgress": "TODO → 進行中",
+      "system": "システム",
+      "priorityChanged": "優先度を変更",
+      "mediumToHigh": "中 → 高",
+      "user": "ユーザー",
+      "taskCreated": "タスクを作成"
+    },
+    "mockAnalysis": {
+      "actionItemsSuffix": "(アクション項目を含む)",
+      "issueReportedSuffix": "(課題を報告)"
+    },
+    "weekday": {
+      "mon": "月",
+      "tue": "火",
+      "wed": "水",
+      "thu": "木",
+      "fri": "金",
+      "sat": "土",
+      "sun": "日"
+    },
+    "recurrenceDesc": {
+      "none": "繰り返しなし",
+      "daily": "毎日",
+      "dailyInterval": "{interval}日ごと",
+      "weekdaysOnly": "平日",
+      "weeklyWithDays": "毎週 {days}",
+      "weeklyIntervalWithDays": "{interval}週ごと ({days})",
+      "weekly": "毎週",
+      "weeklyInterval": "{interval}週ごと",
+      "monthly": "毎月",
+      "monthlyInterval": "{interval}ヶ月ごと",
+      "yearly": "毎年",
+      "yearlyInterval": "{interval}年ごと"
+    },
+    "ganttMonthYear": "{year}年{month}月",
+    "pomodoroNotification": {
+      "workCompleteTitle": "ポモドーロ完了！",
+      "workCompleteBody": "{task} — 休憩を取りましょう",
+      "taskFallback": "タスク",
+      "breakEndTitle": "休憩終了！",
+      "breakEndBody": "作業を再開しましょう"
     }
   },
   "auth": {
@@ -1279,7 +1394,18 @@
     "shortcutChanged": "ショートカットを変更しました",
     "resetDone": "デフォルトに戻しました",
     "defaultConflictsWith": "デフォルト値が「{label}」と重複しています",
-    "changedToShortcut": "ショートカットを {shortcut} に変更しました"
+    "changedToShortcut": "ショートカットを {shortcut} に変更しました",
+    "labels": {
+      "newTask": "新規タスク作成",
+      "dashboard": "ダッシュボード",
+      "home": "ホーム（タスク一覧）",
+      "kanban": "カンバンビュー",
+      "calendar": "カレンダー",
+      "focusMode": "フォーカスモード",
+      "shortcutHelp": "ショートカットヘルプ",
+      "toggleAI": "ノート+AI機能",
+      "commandBar": "コマンドバー"
+    }
   },
   "dashboard": {
     "title": "ダッシュボード",
@@ -2231,6 +2357,27 @@
       "quickTimeNoon": "昼",
       "quickTimeAfternoon": "午後",
       "quickTimeEvening": "夜"
+    },
+    "holidays": {
+      "newYearsDay": "元日",
+      "comingOfAgeDay": "成人の日",
+      "nationalFoundationDay": "建国記念の日",
+      "emperorsBirthday": "天皇誕生日",
+      "vernalEquinoxDay": "春分の日",
+      "showaDay": "昭和の日",
+      "greeneryDay": "みどりの日",
+      "constitutionDay": "憲法記念日",
+      "childrensDay": "こどもの日",
+      "marineDay": "海の日",
+      "mountainDay": "山の日",
+      "respectForTheAgedDay": "敬老の日",
+      "autumnalEquinoxDay": "秋分の日",
+      "sportsDay": "スポーツの日",
+      "healthAndSportsDay": "体育の日",
+      "cultureDay": "文化の日",
+      "laborThanksgivingDay": "勤労感謝の日",
+      "substituteHoliday": "振替休日",
+      "citizensHoliday": "国民の休日"
     }
   },
   "pomodoro": {
@@ -3143,6 +3290,20 @@
           "label": "完了通知",
           "description": "分析完了時に通知を送信"
         }
+      },
+      "priorityOptions": {
+        "conservative": {
+          "label": "慎重",
+          "description": "少数の大きなサブタスクに分解"
+        },
+        "balanced": {
+          "label": "バランス",
+          "description": "適度な粒度で分解（推奨）"
+        },
+        "aggressive": {
+          "label": "詳細",
+          "description": "細かいサブタスクに詳細分解"
+        }
       }
     },
     "promptOptimizationTab": {
@@ -3313,7 +3474,8 @@
       "namePlaceholder": "例: メイン開発エージェント",
       "setAsDefault": "デフォルトに設定",
       "cancel": "キャンセル",
-      "add": "追加"
+      "add": "追加",
+      "agentNameField": "エージェント名"
     },
     "useAgentExecutionHandlers": {
       "continuationFailed": "継続実行に失敗しました",
@@ -3422,7 +3584,15 @@
       "runDisabledTaskDone": "タスクが完了しているため実行できません",
       "runDisabledSetupIncomplete": "タスクの設定が完了するとエージェントを実行できます",
       "startExecution": "実行開始",
-      "run": "実行"
+      "run": "実行",
+      "phase": {
+        "researcher": "調査フェーズ完了",
+        "planner": "計画フェーズ完了",
+        "reviewer": "レビューフェーズ完了",
+        "implementer": "実装フェーズ完了",
+        "verifier": "検証フェーズ完了",
+        "default": "フェーズ完了"
+      }
     },
     "taskAnalysisPanel": {
       "complexitySimple": "シンプル",
@@ -3572,7 +3742,11 @@
       "loadingSettings": "設定を読み込み中...",
       "saveSettings": "設定を保存",
       "analysisConfigSaveFailed": "タスク分析設定の保存に失敗しました",
-      "executionConfigSaveFailed": "エージェント実行設定の保存に失敗しました"
+      "executionConfigSaveFailed": "エージェント実行設定の保存に失敗しました",
+      "tabs": {
+        "taskAnalysis": "タスク分析",
+        "agentExecution": "エージェント実行"
+      }
     },
     "inlineApiKeySetup": {
       "apiKeySettings": "APIキー設定",
@@ -3603,7 +3777,21 @@
       "requiredQuestionsUnanswered": "必須の質問に回答してください"
     },
     "executionPolling": {
-      "cancelledLog": "[キャンセル] 実行が停止されました。"
+      "cancelledLog": "[キャンセル] 実行が停止されました。",
+      "completedLog": "[完了] 実行が完了しました。",
+      "workflowPhase": {
+        "researcher": "[調査完了] 調査フェーズが完了しました。次のフェーズへ自動で進みます...",
+        "planner": "[計画作成完了] 計画フェーズが完了しました。自動承認が有効な場合はそのまま実装へ進みます（無効の場合のみ計画タブで承認してください）。",
+        "reviewer": "[レビュー完了] レビューフェーズが完了しました。自動承認が有効な場合はそのまま実装へ進みます（無効の場合のみ計画タブで承認してください）。",
+        "implementer": "[実装完了] 実装フェーズが完了しました。検証フェーズを自動実行中...",
+        "verifier": "[検証完了] 検証フェーズが完了しました。問題がなければステータスは自動で「完了」になります。",
+        "default": "[フェーズ完了] {mode}が完了しました。"
+      },
+      "prCreatedLog": "[PR作成] PRを作成しました: {info}",
+      "failedLog": "[Error] {message}",
+      "failedDefaultMessage": "実行に失敗しました",
+      "interruptedLog": "[中断] 実行が中断されました。",
+      "interruptedDefaultError": "実行が中断されました"
     },
     "subtaskLogTabs": {
       "phase": {
@@ -3760,7 +3948,8 @@
       "submitAnswers": "回答を送信"
     },
     "useAgentManager": {
-      "addAgentFailed": "エージェントの追加に失敗しました"
+      "addAgentFailed": "エージェントの追加に失敗しました",
+      "agentNameField": "エージェント名"
     },
     "useExecutionStreamSSE": {
       "startedLog": "[開始] エージェントの実行を開始しました...",
@@ -3805,6 +3994,92 @@
     },
     "aiAccordionPanelInner": {
       "panelAriaLabel": "AI エージェント実行パネル"
+    },
+    "agentTypeInfo": {
+      "claudeCode": "Claude Code",
+      "codex": "Codex CLI",
+      "gemini": "Gemini CLI"
+    },
+    "apiKeyProviders": {
+      "claude": "Claude (Anthropic)",
+      "chatgpt": "ChatGPT (OpenAI)",
+      "gemini": "Gemini (Google)"
+    },
+    "parseQuestionOptions": {
+      "yesAll": "はい（すべて）",
+      "noAll": "いいえ（すべて）",
+      "answerIndividually": "個別に回答する",
+      "yes": "はい",
+      "no": "いいえ",
+      "yesEn": "Yes",
+      "noEn": "No"
+    },
+    "logTransformer": {
+      "phaseStart": {
+        "research": "📊 調査フェーズを開始しました",
+        "plan": "📋 計画フェーズを開始しました",
+        "implement": "💻 実装フェーズを開始しました",
+        "verify": "🧪 検証フェーズを開始しました"
+      },
+      "fileEdited": "📝 {basename} を編集しました",
+      "fileCreated": "✨ 新しいファイル {name} を作成しました",
+      "errorOccurred": "❌ エラーが発生しました",
+      "testsCompleted": "✅ テストが正常に完了しました",
+      "committed": "💾 変更をコミットしました",
+      "processing": "⏳ 処理中です",
+      "agentPrefix": "エージェント: {text}",
+      "continuationResumed": "追加指示の実行を再開",
+      "agentInitializing": "エージェントを初期化中...",
+      "systemError": "システムエラー: {detail}",
+      "providerStarting": "{provider} の実行を開始",
+      "workingDirectory": "作業ディレクトリ: {dir}",
+      "processStarted": "プロセス起動 PID {pid}",
+      "timeoutSetting": "タイムアウト設定: {timeout}",
+      "instructionPrefix": "指示: {text}",
+      "providerTimedOut": "{provider} の実行がタイムアウトしました",
+      "providerError": "{provider} エラー: {detail}",
+      "executionCompleted": "実行完了",
+      "toolRead": "読込 {path}",
+      "toolEdit": "編集 {path}",
+      "toolWrite": "作成 {path}",
+      "testRunning": "テストを実行中...",
+      "verifyRunning": "検証コマンドを実行中...",
+      "committing": "コミット中...",
+      "pushing": "リモートにプッシュ中...",
+      "gitCommand": "Git: {cmd}",
+      "searchCommand": "調査: {cmd}",
+      "shellCommand": "$ {cmd}",
+      "toolSearch": "検索 {query}",
+      "webSearch": "Web検索: {query}",
+      "webFetch": "Web取得: {url}",
+      "subAgent": "サブエージェント: {text}",
+      "subAgentStarting": "起動中...",
+      "itemCount": "{count}件",
+      "objectDataPlaceholder": "(データ)",
+      "toolErrorSuffix": "{name} でエラー",
+      "questionPrefix": "質問: {text}",
+      "testsPassedCount": "テスト {count}件成功",
+      "testsFailedCount": "テスト {count}件失敗",
+      "typecheckRunning": "型チェックを実行中...",
+      "commitMessage": "コミット: {message}",
+      "pushCompleted": "リモートにプッシュ完了",
+      "waitingForAnswer": "回答を待っています...",
+      "timedOut": "タイムアウトしました",
+      "jsonStatus": "状態: {status}",
+      "jsonStatusTranslated": "状態: {status} ({translated})",
+      "jsonTaskId": "タスク: {taskId}",
+      "statusLabels": {
+        "running": "実行中",
+        "completed": "完了",
+        "failed": "失敗",
+        "pending": "待機中",
+        "cancelled": "中止",
+        "waitingForInput": "回答待ち",
+        "inProgress": "進行中",
+        "todo": "未着手",
+        "waiting": "待機中",
+        "success": "成功"
+      }
     }
   },
   "backlog": {
@@ -4069,7 +4344,45 @@
     },
     "nextActionRecommendations": {
       "noRecommendations": "いまの状態でおすすめのアクションはありません。",
-      "heading": "次の一手"
+      "heading": "次の一手",
+      "actions": {
+        "reflect": {
+          "label": "振り返りをする",
+          "reason": "成果物(調査/計画/検証)を深掘りし、学びをナレッジに蓄積します"
+        },
+        "complete": {
+          "label": "タスクを完了にする",
+          "reason": "サブタスク {done}/{total} がすべて完了しています"
+        },
+        "continue": {
+          "label": "エージェントで実行する",
+          "reason": "進行中です。エージェントで次のフェーズを実行できます"
+        },
+        "completeManual": {
+          "label": "タスクを完了にする",
+          "reason": "実装が終わったらタスクをクローズしましょう"
+        },
+        "analyze": {
+          "label": "AIで分析する",
+          "reason": "着手前にAIが進め方とサブタスクを提案します"
+        },
+        "execute": {
+          "label": "エージェントで実行する",
+          "reason": "サブタスクの準備ができています。エージェントに着手させましょう"
+        },
+        "start": {
+          "label": "着手する",
+          "reason": "準備OK。ステータスを進行中にします"
+        },
+        "split": {
+          "label": "サブタスクに分解する",
+          "reason": "複雑度 {score}。分割して進めると安全です"
+        },
+        "estimate": {
+          "label": "工数を見積もる",
+          "reason": "工数が未設定です。見積もると計画が立てやすくなります"
+        }
+      }
     },
     "useCopilotChat": {
       "sendMessageError": "エラーが発生しました",
@@ -4278,7 +4591,8 @@
         "fontSizeTitle": "フォントサイズ"
       },
       "highlight": {
-        "highlightTitle": "ハイライト"
+        "highlightTitle": "ハイライト",
+        "colorSample": "{name}サンプル"
       },
       "insert": {
         "linkInsertTitle": "リンク挿入",
@@ -4314,6 +4628,72 @@
     },
     "sidebar": {
       "noSearchResults": "検索結果なし"
+    },
+    "editorColors": {
+      "highlight": {
+        "yellow": "イエロー",
+        "green": "グリーン",
+        "blue": "ブルー",
+        "pink": "ピンク",
+        "purple": "パープル",
+        "orange": "オレンジ"
+      },
+      "border": {
+        "gray": "グレー",
+        "blue": "ブルー",
+        "green": "グリーン",
+        "red": "レッド",
+        "purple": "パープル",
+        "orange": "オレンジ"
+      },
+      "quickText": {
+        "black": "黒",
+        "red": "赤",
+        "orange": "橙",
+        "green": "緑",
+        "blue": "青",
+        "purple": "紫"
+      },
+      "highlightStyle": {
+        "full": "全体",
+        "boldMarker": "太マーカー",
+        "thinMarker": "細マーカー",
+        "underline": "下線"
+      },
+      "font": {
+        "default": "デフォルト",
+        "notoSansJp": "Noto Sans JP",
+        "hiraginoSans": "ヒラギノ角ゴ",
+        "yuGothic": "游ゴシック",
+        "meiryo": "メイリオ",
+        "msGothic": "MS ゴシック",
+        "georgia": "Georgia",
+        "arial": "Arial",
+        "timesNewRoman": "Times New Roman",
+        "courierNew": "Courier New",
+        "consolas": "Consolas"
+      }
+    },
+    "editorDom": {
+      "collapseToggleTitle": "折りたたむ / 展開する",
+      "descPlaceholder": "この処理の説明を入力...",
+      "copyButtonText": "コピー",
+      "copyButtonDoneText": "✓ コピー済",
+      "deleteButtonTitle": "コードブロックを削除",
+      "codePlaceholder": "// ここにコードを入力...",
+      "diagramDeleteTitle": "ダイアグラムを削除",
+      "diagramLoadingText": "ダイアグラムを読み込み中...",
+      "diagramSyntaxError": "構文エラー — Mermaidの記法を確認してください",
+      "linkCopyDoneText": "コピーしました！",
+      "tableHeading1": "見出し1",
+      "tableHeading2": "見出し2",
+      "tableHeading3": "見出し3"
+    },
+    "aiService": {
+      "apiError": "APIエラー: {status} {statusText}",
+      "communicationError": "AIとの通信中にエラーが発生しました",
+      "streamUnavailable": "レスポンスストリームを取得できませんでした",
+      "responseFailed": "応答の取得に失敗しました"
     }
   },
   "achievements": {
@@ -4395,5 +4775,17 @@
     "closeTerminalTitle": "ターミナルを閉じる (Ctrl+`)",
     "closePane": "ペインを閉じる",
     "commandCompleteToast": "ターミナルのコマンドが完了しました (exit {exitCode}, {seconds}s)"
+  },
+  "voice": {
+    "speechRecognitionHook": {
+      "recordingTooShort": "録音が短すぎます。",
+      "transcribeConnectionFailed": "文字起こしサーバーへの接続に失敗しました。",
+      "micPermissionDenied": "マイクの使用が許可されていません。",
+      "micStartFailed": "マイクの起動に失敗しました: {message}",
+      "audioProcessingError": "音声処理エラー: {message}",
+      "recognitionError": "音声認識エラー: {code}",
+      "recordingWithLevel": "録音中... (音量:{freqAvg} rms:{rms} 無音:{silenceSec}s)",
+      "listeningWithLevel": "話してください... (音量:{freqAvg} rms:{rms})"
+    }
   }
 }

@@ -48,7 +48,9 @@ describe('CopilotChatPanel', () => {
       />,
     );
     expect(screen.getByText('heading')).toBeInTheDocument();
-    expect(screen.getByText('着手する')).toBeInTheDocument();
+    // NOTE: the mocked t() echoes the key verbatim (see the next-intl mock above);
+    // labels/reasons are now resolved via labelKey/reasonKey, not raw text.
+    expect(screen.getByText('actions.start.label')).toBeInTheDocument();
   });
 
   it('executes the copilot action when a recommendation is clicked', async () => {
@@ -60,7 +62,7 @@ describe('CopilotChatPanel', () => {
         nextActionContext={ctxTodoManual}
       />,
     );
-    fireEvent.click(screen.getByText('着手する'));
+    fireEvent.click(screen.getByText('actions.start.label'));
     await waitFor(() => {
       const calls = vi.mocked(global.fetch).mock.calls;
       expect(calls.some((c) => String(c[0]).includes('/copilot/action'))).toBe(true);
@@ -77,7 +79,7 @@ describe('CopilotChatPanel', () => {
         nextActionContext={ctxDone}
       />,
     );
-    fireEvent.click(screen.getByText('振り返りをする'));
+    fireEvent.click(screen.getByText('actions.reflect.label'));
     await waitFor(() => {
       const calls = vi.mocked(global.fetch).mock.calls;
       expect(calls.some((c) => String(c[0]).includes('/copilot/tasks/1/retrospective'))).toBe(true);

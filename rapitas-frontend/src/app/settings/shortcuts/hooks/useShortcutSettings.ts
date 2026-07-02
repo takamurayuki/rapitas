@@ -114,6 +114,7 @@ export function useShortcutSettings() {
   const [isTauriEnv, setIsTauriEnv] = useState(false);
   const t = useTranslations('shortcuts');
   const tc = useTranslations('common');
+  const tLabels = useTranslations('shortcuts.labels');
 
   const [currentGlobalShortcut, setCurrentGlobalShortcut] = useState(DEFAULT_GLOBAL_SHORTCUT);
   const [globalModifiers, setGlobalModifiers] = useState<ModifierKey[]>(['Ctrl', 'Alt']);
@@ -189,10 +190,10 @@ export function useShortcutSettings() {
       setEditBinding(binding);
       if (editingId) {
         const dup = findDuplicate(editingId, binding);
-        setDuplicateWarning(dup ? t('duplicateWith', { label: dup.label }) : null);
+        setDuplicateWarning(dup ? t('duplicateWith', { label: tLabels(dup.id) }) : null);
       }
     },
-    [editingId, findDuplicate, t],
+    [editingId, findDuplicate, t, tLabels],
   );
 
   // Use extracted keyboard recording hooks
@@ -293,7 +294,7 @@ export function useShortcutSettings() {
     if (dup) {
       setInAppMessage({
         type: 'error',
-        text: t('cannotSaveDuplicate', { label: dup.label }),
+        text: t('cannotSaveDuplicate', { label: tLabels(dup.id) }),
       });
       return;
     }
@@ -313,7 +314,7 @@ export function useShortcutSettings() {
       if (dup) {
         setInAppMessage({
           type: 'error',
-          text: t('defaultConflictsWith', { label: dup.label }),
+          text: t('defaultConflictsWith', { label: tLabels(dup.id) }),
         });
         return;
       }

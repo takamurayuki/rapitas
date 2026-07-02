@@ -14,7 +14,12 @@ import {
 } from './execution-stream-types';
 import { API_BASE_URL } from '@/utils/api';
 import { logger, type PollRefs } from './execution-poll-shared';
-import { handleCompleted, shouldKeepPollingAfterCompleted } from './execution-poll-completion';
+import {
+  handleCompleted,
+  shouldKeepPollingAfterCompleted,
+  defaultPollT,
+  type PollTranslate,
+} from './execution-poll-completion';
 import { handleFailed, handleCancelled, handleInterrupted } from './execution-poll-terminal';
 
 type SetState = (
@@ -30,6 +35,7 @@ type SetState = (
  * @param lastOutputLengthRef - Tracks cursor in accumulated output / 累積出力のカーソル位置
  * @param setState - React state setter / ReactのsetState
  * @param stopPolling - Stop the polling interval / ポーリング停止関数
+ * @param t - Translator scoped to `devMode.executionPolling`, forwarded to the status handlers. / `devMode.executionPolling` にスコープした翻訳関数
  */
 export async function executePoll(
   taskId: number,
@@ -37,6 +43,7 @@ export async function executePoll(
   lastOutputLengthRef: React.MutableRefObject<number>,
   setState: SetState,
   stopPolling: () => void,
+  t: PollTranslate = defaultPollT,
 ): Promise<void> {
   if (refs.lastProcessedStatusRef.current === 'cancelled') {
     logger.debug('Skipping poll - already cancelled');
@@ -185,7 +192,7 @@ export async function executePoll(
 
     // Dispatch by status
     if (data.executionStatus === 'completed') {
-      const updater = handleCompleted(data, refs);
+      const updater = handleCompleted(data, refs, t);
       if (updater) {
         setState(updater);
         // Only stop polling when the task as a whole is done. For
@@ -196,19 +203,19 @@ export async function executePoll(
         }
       }
     } else if (data.executionStatus === 'failed') {
-      const updater = handleFailed(data, refs);
+      const updater = handleFailed(data, refs, t);
       if (updater) {
         setState(updater);
         stopPolling();
       }
     } else if (data.executionStatus === 'cancelled') {
-      const updater = handleCancelled(data, refs);
+      const updater = handleCancelled(data, refs, t);
       if (updater) {
         setState(updater);
         stopPolling();
       }
     } else if (data.executionStatus === 'interrupted') {
-      const updater = handleInterrupted(data, refs);
+      const updater = handleInterrupted(data, refs, t);
       if (updater) {
         setState(updater);
         stopPolling();

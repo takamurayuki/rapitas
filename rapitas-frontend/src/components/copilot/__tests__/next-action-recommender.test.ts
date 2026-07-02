@@ -23,7 +23,10 @@ describe('getNextActions', () => {
   it('recommends starting a simple non-dev todo', () => {
     const [first] = getNextActions(ctx());
     expect(first.actionType).toBe('update_status');
-    expect(first.params).toEqual({ status: 'in_progress' });
+    // NOTE: Task status type uses 'in-progress' (hyphen), matching the source
+    // in next-action-recommender.ts — the test previously asserted the wrong
+    // literal ('in_progress').
+    expect(first.params).toEqual({ status: 'in-progress' });
     expect(first.tone).toBe('primary');
   });
 

@@ -43,6 +43,7 @@ export function HomeExpandedFilters({
   onSortOrderToggle,
 }: HomeExpandedFiltersProps) {
   const t = useTranslations('home');
+  const tt = useTranslations('task');
 
   return (
     <div
@@ -59,13 +60,13 @@ export function HomeExpandedFilters({
           <div className="flex items-center">
             {[
               { value: 'all', label: t('all'), color: 'amber' },
-              { value: 'todo', label: statusConfig.todo.label, color: 'slate' },
+              { value: 'todo', label: tt(statusConfig.todo.labelKey), color: 'slate' },
               {
                 value: 'in-progress',
-                label: statusConfig['in-progress'].label,
+                label: tt(statusConfig['in-progress'].labelKey),
                 color: 'blue',
               },
-              { value: 'done', label: statusConfig.done.label, color: 'green' },
+              { value: 'done', label: tt(statusConfig.done.labelKey), color: 'green' },
             ].map((statusItem, idx) => {
               const count = statusCounts[statusItem.value] || 0;
               const isActive = filter === statusItem.value;
@@ -122,7 +123,7 @@ export function HomeExpandedFilters({
                 >
               ).map(([key, cfg]) => ({
                 value: key,
-                label: cfg.title,
+                label: tt(cfg.titleKey),
                 icon: <cfg.Icon className="w-3 h-3" />,
                 iconColor: cfg.color,
                 bgColor:

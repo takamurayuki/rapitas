@@ -2,7 +2,7 @@ import { useTranslations } from 'next-intl';
 import { type Task } from '@/types';
 import TaskDescription from '@/feature/tasks/components/text/TaskDescription';
 import TaskStatusChange from '@/feature/tasks/components/status/TaskStatusChange';
-import { statusConfig, renderStatusIcon } from '@/feature/tasks/config/StatusConfig';
+import { getStatusDisplay, renderStatusIcon } from '@/feature/tasks/config/StatusConfig';
 import { getLabelsArray, hasLabels } from '@/utils/labels';
 import { Tag } from 'lucide-react';
 import { getIconComponent } from '@/components/category/icon-data';
@@ -65,7 +65,7 @@ export default function TaskDetail({
               />
               <div className="flex items-center gap-1 shrink-0">
                 {(['todo', 'in-progress', 'done'] as const).map((status) => {
-                  const config = statusConfig[status];
+                  const config = getStatusDisplay(t, status);
                   return (
                     <TaskStatusChange
                       key={status}
@@ -135,7 +135,7 @@ export default function TaskDetail({
             <h1 className="text-3xl font-bold text-zinc-900 dark:text-zinc-50">{task.title}</h1>
             <div className="flex items-center gap-2">
               {(['todo', 'in-progress', 'done'] as const).map((status) => {
-                const config = statusConfig[status];
+                const config = getStatusDisplay(t, status);
                 return (
                   <TaskStatusChange
                     key={status}

@@ -117,25 +117,30 @@ vi.mock('@/feature/tasks/config/StatusConfig', () => {
       color: 'text-zinc-700',
       bgColor: 'bg-zinc-100',
       borderColor: 'border-l-zinc-400',
-      label: '未着手',
+      labelKey: 'statusTodo',
     },
     'in-progress': {
       color: 'text-indigo-700',
       bgColor: 'bg-indigo-50',
       borderColor: 'border-l-indigo-500',
-      label: '進行中',
+      labelKey: 'statusInProgress',
     },
     done: {
       color: 'text-green-700',
       bgColor: 'bg-green-50',
       borderColor: 'border-l-green-500',
-      label: '完了',
+      labelKey: 'statusDone',
     },
   };
+  const resolveStatusConfig = (status: string) =>
+    statusConfig[status as keyof typeof statusConfig] || statusConfig.todo;
   return {
     statusConfig,
-    resolveStatusConfig: (status: string) =>
-      statusConfig[status as keyof typeof statusConfig] || statusConfig.todo,
+    resolveStatusConfig,
+    getStatusDisplay: (t: (key: string) => string, status: string) => {
+      const config = resolveStatusConfig(status);
+      return { ...config, label: t(config.labelKey) };
+    },
     isInProgressStatus: (status: string) => status === 'in-progress' || status === 'blocked',
     renderStatusIcon: (status: string) => <span data-testid={`status-icon-${status}`} />,
   };

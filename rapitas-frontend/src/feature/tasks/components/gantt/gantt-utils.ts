@@ -240,17 +240,22 @@ export interface TimelineLabel {
   level: 'primary' | 'secondary';
 }
 
+/** Translator shape accepted by getTimelineLabels. */
+type TFunc = (key: string, values?: Record<string, number>) => string;
+
 /**
  * タイムライン軸のラベルを生成する。
  * ズームレベルに応じて上段（月/年）・下段（週/日）の2段構成でラベルを返す。
  *
  * @param viewport - ガントビューポート設定
  * @param zoomLevel - 現在のズームレベル
+ * @param t - `task` 名前空間にバインドされた翻訳関数 / Translator bound to the `task` namespace
  * @returns タイムラインラベルの配列
  */
 export function getTimelineLabels(
   viewport: GanttViewport,
   zoomLevel: 'day' | 'week' | 'month',
+  t: TFunc,
 ): TimelineLabel[] {
   const { startDate, endDate } = viewport;
   const labels: TimelineLabel[] = [];
@@ -263,7 +268,10 @@ export function getTimelineLabels(
     while (monthCur <= endDate) {
       labels.push({
         x: dateToX(monthCur, viewport),
-        label: `${monthCur.getFullYear()}年${monthCur.getMonth() + 1}月`,
+        label: t('ganttMonthYear', {
+          year: monthCur.getFullYear(),
+          month: monthCur.getMonth() + 1,
+        }),
         level: 'primary',
       });
       monthCur.setMonth(monthCur.getMonth() + 1);
@@ -287,7 +295,10 @@ export function getTimelineLabels(
     while (monthCur <= endDate) {
       labels.push({
         x: dateToX(monthCur, viewport),
-        label: `${monthCur.getFullYear()}年${monthCur.getMonth() + 1}月`,
+        label: t('ganttMonthYear', {
+          year: monthCur.getFullYear(),
+          month: monthCur.getMonth() + 1,
+        }),
         level: 'primary',
       });
       monthCur.setMonth(monthCur.getMonth() + 1);
@@ -313,7 +324,7 @@ export function getTimelineLabels(
     while (cur <= endDate) {
       labels.push({
         x: dateToX(cur, viewport),
-        label: `${cur.getFullYear()}年${cur.getMonth() + 1}月`,
+        label: t('ganttMonthYear', { year: cur.getFullYear(), month: cur.getMonth() + 1 }),
         level: 'primary',
       });
       cur.setMonth(cur.getMonth() + 1);

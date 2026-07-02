@@ -61,6 +61,7 @@ export function InlineApiKeySetup({
 }: Props) {
   const t = useTranslations('devMode.inlineApiKeySetup');
   const tCommon = useTranslations('common');
+  const tProviders = useTranslations('devMode.apiKeyProviders');
   const currentProvider = API_KEY_PROVIDERS.find((p) => p.value === apiKeyProvider)!;
   const currentStatus = apiKeyStatuses[apiKeyProvider];
 
@@ -94,7 +95,7 @@ export function InlineApiKeySetup({
               ) : (
                 <AlertCircle className="w-2.5 h-2.5 text-zinc-400" />
               )}
-              {provider.label}
+              {tProviders(provider.labelKey)}
             </button>
           );
         })}

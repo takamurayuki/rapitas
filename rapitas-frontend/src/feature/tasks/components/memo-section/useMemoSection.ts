@@ -6,6 +6,7 @@
  */
 
 import { useState, useMemo, useCallback, useEffect } from 'react';
+import { useTranslations } from 'next-intl';
 import type { Comment } from '@/types';
 import { createLogger } from '@/lib/logger';
 import type { MemoType, NoteData, MemoTemplate } from './types';
@@ -34,6 +35,7 @@ export function useMemoSection({
   onNewCommentChange,
   newComment,
 }: UseMemoSectionOptions) {
+  const t = useTranslations('task');
   const [editId, setEditId] = useState<number | null>(null);
   const [editText, setEditText] = useState('');
   const [replyId, setReplyId] = useState<number | null>(null);
@@ -65,7 +67,7 @@ export function useMemoSection({
 
       return {
         ...c,
-        time: timeAgo(new Date(c.createdAt)),
+        time: timeAgo(new Date(c.createdAt), t),
         replies: c.replies?.map(process),
         memoType: (memoData.memoType as MemoType) || 'general',
         isPinned: (memoData.isPinned as boolean) || false,
@@ -84,7 +86,7 @@ export function useMemoSection({
       if (!a.isPinned && b.isPinned) return 1;
       return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
     });
-  }, [comments, filterType, storageUpdate]);
+  }, [comments, filterType, storageUpdate, t]);
 
   const typeStats = useMemo(() => {
     const stats: Record<MemoType, number> = {
@@ -154,11 +156,11 @@ export function useMemoSection({
 
   const handleTemplateSelect = useCallback(
     (template: MemoTemplate) => {
-      onNewCommentChange(template.content);
+      onNewCommentChange(t(template.contentKey));
       setSelectedMemoType(template.type);
       setShowTemplates(false);
     },
-    [onNewCommentChange],
+    [onNewCommentChange, t],
   );
 
   const handleBulkAnalyze = useCallback(async () => {
@@ -174,7 +176,7 @@ export function useMemoSection({
 
     for (const note of unanalyzedNotes) {
       try {
-        const analysis = await analyzeMemo(note.content);
+        const analysis = await analyzeMemo(note.content, t);
         const savedData = (() => {
           try {
             const saved = localStorage.getItem(`memo-data-${note.id}`);
@@ -192,7 +194,7 @@ export function useMemoSection({
     }
 
     setStorageUpdate((prev) => prev + 1);
-  }, [notes]);
+  }, [notes, t]);
 
   return {
     // State

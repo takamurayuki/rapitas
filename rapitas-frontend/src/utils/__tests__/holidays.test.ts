@@ -8,15 +8,15 @@ describe('getHolidaysForYear', () => {
 
   it('includes New Year for any valid year', () => {
     const holidays = getHolidaysForYear(2026);
-    expect(holidays.find((h) => h.name === '元日')).toEqual({
+    expect(holidays.find((h) => h.labelKey === 'newYearsDay')).toEqual({
       date: '2026-01-01',
-      name: '元日',
+      labelKey: 'newYearsDay',
     });
   });
 
   it('includes Coming of Age Day as 2nd Monday for 2026', () => {
     const holidays = getHolidaysForYear(2026);
-    const seijin = holidays.find((h) => h.name === '成人の日');
+    const seijin = holidays.find((h) => h.labelKey === 'comingOfAgeDay');
     expect(seijin).toBeDefined();
     // 2026-01-12 is the 2nd Monday of January 2026
     expect(seijin!.date).toBe('2026-01-12');
@@ -24,21 +24,21 @@ describe('getHolidaysForYear', () => {
 
   it('includes Emperor Birthday on Feb 23 for 2026', () => {
     const holidays = getHolidaysForYear(2026);
-    expect(holidays.find((h) => h.date === '2026-02-23')?.name).toBe('天皇誕生日');
+    expect(holidays.find((h) => h.date === '2026-02-23')?.labelKey).toBe('emperorsBirthday');
   });
 
   it('includes Golden Week holidays', () => {
     const holidays = getHolidaysForYear(2026);
-    const names = holidays.map((h) => h.name);
-    expect(names).toContain('憲法記念日');
-    expect(names).toContain('みどりの日');
-    expect(names).toContain('こどもの日');
+    const labelKeys = holidays.map((h) => h.labelKey);
+    expect(labelKeys).toContain('constitutionDay');
+    expect(labelKeys).toContain('greeneryDay');
+    expect(labelKeys).toContain('childrensDay');
   });
 
   it('includes substitute holidays when holiday falls on Sunday', () => {
     // 2026-05-03 (Constitution Day) falls on Sunday
     const holidays = getHolidaysForYear(2026);
-    const substituteHolidays = holidays.filter((h) => h.name === '振替休日');
+    const substituteHolidays = holidays.filter((h) => h.labelKey === 'substituteHoliday');
     expect(substituteHolidays.length).toBeGreaterThanOrEqual(0);
   });
 
@@ -51,16 +51,20 @@ describe('getHolidaysForYear', () => {
 
   it('handles 2020 Olympic special dates', () => {
     const holidays = getHolidaysForYear(2020);
-    expect(holidays.find((h) => h.date === '2020-07-23')?.name).toBe('海の日');
-    expect(holidays.find((h) => h.date === '2020-08-10')?.name).toBe('山の日');
+    expect(holidays.find((h) => h.date === '2020-07-23')?.labelKey).toBe('marineDay');
+    expect(holidays.find((h) => h.date === '2020-08-10')?.labelKey).toBe('mountainDay');
   });
 
   it('returns Showa Day for years >= 2007', () => {
-    expect(getHolidaysForYear(2026).find((h) => h.date === '2026-04-29')?.name).toBe('昭和の日');
+    expect(getHolidaysForYear(2026).find((h) => h.date === '2026-04-29')?.labelKey).toBe(
+      'showaDay',
+    );
   });
 
   it('returns Greenery Day for 1989-2006', () => {
-    expect(getHolidaysForYear(2000).find((h) => h.date === '2000-04-29')?.name).toBe('みどりの日');
+    expect(getHolidaysForYear(2000).find((h) => h.date === '2000-04-29')?.labelKey).toBe(
+      'greeneryDay',
+    );
   });
 });
 
@@ -79,8 +83,8 @@ describe('getHolidaysForMonth', () => {
 });
 
 describe('getHolidayName', () => {
-  it('returns holiday name for a known holiday', () => {
-    expect(getHolidayName('2026-01-01')).toBe('元日');
+  it('returns the holiday label key for a known holiday', () => {
+    expect(getHolidayName('2026-01-01')).toBe('newYearsDay');
   });
 
   it('returns null for non-holiday dates', () => {

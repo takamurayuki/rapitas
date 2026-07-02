@@ -1,9 +1,10 @@
 'use client';
 // TaskCardSubtaskPanel
+import { useTranslations } from 'next-intl';
 import type { Task } from '@/types';
 import SubtaskStatusButtons from '@/feature/tasks/components/status/SubtaskStatusButtons';
 import {
-  statusConfig,
+  getStatusDisplay,
   renderStatusIcon,
   isInProgressStatus,
 } from '@/feature/tasks/config/StatusConfig';
@@ -25,6 +26,7 @@ export default function TaskCardSubtaskPanel({
   onTaskUpdated,
   onStatusChange,
 }: TaskCardSubtaskPanelProps) {
+  const t = useTranslations('task');
   // Live agent-execution state (GET /tasks/executing polling). The spinner is
   // driven by THIS — actual agent execution — not the in-progress status.
   const executingTasks = useExecutionStateStore((s) => s.executingTasks);
@@ -34,8 +36,7 @@ export default function TaskCardSubtaskPanel({
       onClick={(e) => e.stopPropagation()}
     >
       {subtasks.map((subtask, index) => {
-        const subtaskStatus =
-          statusConfig[subtask.status as keyof typeof statusConfig] || statusConfig.todo;
+        const subtaskStatus = getStatusDisplay(t, subtask.status);
         // in-progress STATUS drives the box look; agent EXECUTION drives the spinner.
         const inProgress = isInProgressStatus(subtask.status);
         // A done subtask must never show the running spinner even if a stale

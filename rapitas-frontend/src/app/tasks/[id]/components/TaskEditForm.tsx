@@ -2,10 +2,7 @@
 import type { Priority } from '@/types';
 import LabelSelector from '@/feature/tasks/components/LabelSelector';
 import TaskStatusChange from '@/feature/tasks/components/status/TaskStatusChange';
-import {
-  statusConfig as sharedStatusConfig,
-  renderStatusIcon,
-} from '@/feature/tasks/config/StatusConfig';
+import { getStatusDisplay, renderStatusIcon } from '@/feature/tasks/config/StatusConfig';
 import {
   Clock,
   FileText,
@@ -103,7 +100,7 @@ export default function TaskEditForm({
           />
           <div className="flex items-center gap-1 shrink-0">
             {(['todo', 'in-progress', 'done'] as const).map((status) => {
-              const config = sharedStatusConfig[status];
+              const config = getStatusDisplay(t, status);
               return (
                 <TaskStatusChange
                   key={status}

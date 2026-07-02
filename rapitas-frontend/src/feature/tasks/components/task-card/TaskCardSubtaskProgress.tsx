@@ -1,5 +1,6 @@
 'use client';
 // TaskCardSubtaskProgress
+import { useTranslations } from 'next-intl';
 import type { Task } from '@/types';
 import { statusConfig, isInProgressStatus } from '@/feature/tasks/config/StatusConfig';
 
@@ -28,6 +29,7 @@ export default function TaskCardSubtaskProgress({
   onToggle,
   label,
 }: TaskCardSubtaskProgressProps) {
+  const t = useTranslations('task');
   const total = subtasks.length;
   if (total === 0) return null;
 
@@ -37,7 +39,7 @@ export default function TaskCardSubtaskProgress({
   const donePct = Math.round((done / total) * 100);
   const inProgressPct = Math.round((inProgress / total) * 100);
   const isComplete = done === total;
-  const breakdown = `${statusConfig.done.label} ${done} / ${statusConfig['in-progress'].label} ${inProgress} / ${statusConfig.todo.label} ${total - done - inProgress}`;
+  const breakdown = `${t(statusConfig.done.labelKey)} ${done} / ${t(statusConfig['in-progress'].labelKey)} ${inProgress} / ${t(statusConfig.todo.labelKey)} ${total - done - inProgress}`;
 
   return (
     <button

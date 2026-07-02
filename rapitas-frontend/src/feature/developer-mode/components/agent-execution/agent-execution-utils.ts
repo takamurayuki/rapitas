@@ -65,12 +65,38 @@ function containsJpQuestionKeyword(line: string): boolean {
   );
 }
 
+/** Translator function shape accepted by {@link parseQuestionOptions}. */
+type Translate = (key: string) => string;
+
+// NOTE: `t` is optional so existing callers that don't have i18n context (and
+// tests) keep getting the original Japanese defaults unchanged; callers with
+// a next-intl translator get localized option labels instead.
+const defaultT: Translate = (key) => {
+  const ja: Record<string, string> = {
+    yesAll: 'はい（すべて）',
+    noAll: 'いいえ（すべて）',
+    answerIndividually: '個別に回答する',
+    yes: 'はい',
+    no: 'いいえ',
+    yesEn: 'Yes',
+    noEn: 'No',
+  };
+  return ja[key] ?? key;
+};
+
 /**
  * Parse question text to extract options or sub-questions.
  * Handles: explicit option lists, numbered lists, Japanese yes/no questions,
  * and multi-line question format with trailing punctuation.
+ *
+ * @param questionText - Raw question text from the AI agent
+ * @param t - Optional translator (scoped to `devMode.parseQuestionOptions`) used to
+ *   localize the generated yes/no-style option labels. / 生成される選択肢ラベルの翻訳に使う関数（任意）
  */
-export function parseQuestionOptions(questionText: string): ParsedQuestion | null {
+export function parseQuestionOptions(
+  questionText: string,
+  t: Translate = defaultT,
+): ParsedQuestion | null {
   if (!questionText) return null;
 
   // 1. Explicit option list: "Options:\nA) ...\nB) ..."
@@ -106,7 +132,7 @@ export function parseQuestionOptions(questionText: string): ParsedQuestion | nul
     const contextLines = lines.filter((l) => !jpQuestionLines.includes(l));
     return {
       text: contextLines.join('\n') || jpQuestionLines[0],
-      options: ['はい（すべて）', 'いいえ（すべて）', '個別に回答する'],
+      options: [t('yesAll'), t('noAll'), t('answerIndividually')],
       subQuestions: jpQuestionLines.map((q, i) => ({
         question: q.replace(/[.…]+$/, ''),
         key: `q${i}`,
@@ -123,7 +149,7 @@ export function parseQuestionOptions(questionText: string): ParsedQuestion | nul
   ) {
     return {
       text: questionText,
-      options: ['はい', 'いいえ'],
+      options: [t('yes'), t('no')],
     };
   }
 
@@ -131,7 +157,7 @@ export function parseQuestionOptions(questionText: string): ParsedQuestion | nul
   if (/\b(yes|no|confirm|would you like|do you want|should I)\b/i.test(questionText)) {
     return {
       text: questionText,
-      options: ['Yes', 'No'],
+      options: [t('yesEn'), t('noEn')],
     };
   }
 
@@ -141,7 +167,7 @@ export function parseQuestionOptions(questionText: string): ParsedQuestion | nul
     const contextLines = lines.filter((l) => !anyQuestionLines.includes(l));
     return {
       text: contextLines.join('\n'),
-      options: ['はい（すべて）', 'いいえ（すべて）', '個別に回答する'],
+      options: [t('yesAll'), t('noAll'), t('answerIndividually')],
       subQuestions: anyQuestionLines.map((q, i) => ({
         question: q,
         key: `q${i}`,

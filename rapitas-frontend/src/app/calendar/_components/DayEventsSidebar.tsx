@@ -18,14 +18,15 @@ import type { ScheduleEvent } from '@/types';
 import { getTaskDetailPath } from '@/utils/tauri';
 import { useLocaleStore } from '@/stores/locale-store';
 import { toDateLocale } from '@/lib/utils';
+import type { HolidayLabelKey } from '@/utils/holidays';
 import type { CalendarEvent } from '../_utils/calendar-helpers';
 
 type Props = {
   selectedDate: string | null;
   events: CalendarEvent[];
   schedules: ScheduleEvent[];
-  /** Map from date string to holiday name. */
-  holidayMap: Map<string, string>;
+  /** Map from date string to holiday label key (resolved via `calendar.holidays`). */
+  holidayMap: Map<string, HolidayLabelKey>;
   onAddSchedule: () => void;
   onAddTask: () => void;
   onAddPaidLeave: () => void;
@@ -63,6 +64,7 @@ export function DayEventsSidebar({
   const router = useRouter();
   const t = useTranslations('calendar');
   const tc = useTranslations('common');
+  const tHoliday = useTranslations('calendar.holidays');
   const locale = useLocaleStore((s) => s.locale);
   const dateLocale = toDateLocale(locale);
 
@@ -91,7 +93,7 @@ export function DayEventsSidebar({
           </h3>
           {selectedDate && holidayMap.get(selectedDate) && (
             <p className="text-xs font-medium text-red-500 dark:text-red-400 mt-0.5">
-              {holidayMap.get(selectedDate)}
+              {tHoliday(holidayMap.get(selectedDate)!)}
             </p>
           )}
         </div>

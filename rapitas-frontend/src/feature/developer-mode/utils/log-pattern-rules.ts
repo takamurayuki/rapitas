@@ -24,6 +24,9 @@ export interface UserFriendlyLogEntry {
   phase?: 'research' | 'plan' | 'implement' | 'verify';
 }
 
+/** Translator function shape accepted by the log-classification pipeline. */
+export type LogTranslate = (key: string, params?: Record<string, string | number>) => string;
+
 export interface ExecutionSummary {
   filesEdited: string[];
   filesCreated: string[];
@@ -38,4 +41,4 @@ export interface ExecutionSummary {
 }
 
 // Re-export patterns so log-transformers can import from one place
-export { LOG_PATTERNS, HIDDEN_PATTERNS } from './log-patterns-table';
+export { getLogPatterns, HIDDEN_PATTERNS } from './log-patterns-table';

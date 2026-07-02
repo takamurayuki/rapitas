@@ -1,10 +1,36 @@
 /**
  * Utility to calculate Japanese national holidays (based on the National Holidays Act)
+ *
+ * NOTE: holiday names are returned as `labelKey`s (not display text) — callers
+ * resolve the localized name via `useTranslations('calendar.holidays')` so the
+ * calendar UI stays translated. See `HolidayLabelKey` for the full key set.
  */
+
+/** Message keys under `calendar.holidays` naming each Japanese national holiday. */
+export type HolidayLabelKey =
+  | 'newYearsDay'
+  | 'comingOfAgeDay'
+  | 'nationalFoundationDay'
+  | 'emperorsBirthday'
+  | 'vernalEquinoxDay'
+  | 'showaDay'
+  | 'greeneryDay'
+  | 'constitutionDay'
+  | 'childrensDay'
+  | 'marineDay'
+  | 'mountainDay'
+  | 'respectForTheAgedDay'
+  | 'autumnalEquinoxDay'
+  | 'sportsDay'
+  | 'healthAndSportsDay'
+  | 'cultureDay'
+  | 'laborThanksgivingDay'
+  | 'substituteHoliday'
+  | 'citizensHoliday';
 
 export type Holiday = {
   date: string; // YYYY-MM-DD
-  name: string;
+  labelKey: HolidayLabelKey;
 };
 
 /** Return the date of the nth Monday of the specified month */
@@ -47,79 +73,79 @@ export function getHolidaysForYear(year: number): Holiday[] {
   const holidays: Holiday[] = [];
 
   // January: New Year's Day (1/1)
-  holidays.push({ date: formatDate(year, 0, 1), name: '元日' });
+  holidays.push({ date: formatDate(year, 0, 1), labelKey: 'newYearsDay' });
 
   // January: Coming of Age Day (1/15 -> 2nd Monday from 2000)
   if (year >= 2000) {
     holidays.push({
       date: formatDate(year, 0, getNthMonday(year, 0, 2)),
-      name: '成人の日',
+      labelKey: 'comingOfAgeDay',
     });
   } else {
-    holidays.push({ date: formatDate(year, 0, 15), name: '成人の日' });
+    holidays.push({ date: formatDate(year, 0, 15), labelKey: 'comingOfAgeDay' });
   }
 
   // February: National Foundation Day (2/11, from 1967)
   if (year >= 1967) {
-    holidays.push({ date: formatDate(year, 1, 11), name: '建国記念の日' });
+    holidays.push({ date: formatDate(year, 1, 11), labelKey: 'nationalFoundationDay' });
   }
 
   // February: Emperor's Birthday (2/23, from 2020)
   if (year >= 2020) {
-    holidays.push({ date: formatDate(year, 1, 23), name: '天皇誕生日' });
+    holidays.push({ date: formatDate(year, 1, 23), labelKey: 'emperorsBirthday' });
   }
 
   // March: Vernal Equinox Day
   const vernalDay = getVernalEquinoxDay(year);
   if (vernalDay > 0) {
-    holidays.push({ date: formatDate(year, 2, vernalDay), name: '春分の日' });
+    holidays.push({ date: formatDate(year, 2, vernalDay), labelKey: 'vernalEquinoxDay' });
   }
 
   // April: Showa Day (4/29)
   if (year >= 2007) {
-    holidays.push({ date: formatDate(year, 3, 29), name: '昭和の日' });
+    holidays.push({ date: formatDate(year, 3, 29), labelKey: 'showaDay' });
   } else if (year >= 1989) {
-    holidays.push({ date: formatDate(year, 3, 29), name: 'みどりの日' });
+    holidays.push({ date: formatDate(year, 3, 29), labelKey: 'greeneryDay' });
   } else {
-    holidays.push({ date: formatDate(year, 3, 29), name: '天皇誕生日' });
+    holidays.push({ date: formatDate(year, 3, 29), labelKey: 'emperorsBirthday' });
   }
 
   // May: Constitution Day (5/3)
-  holidays.push({ date: formatDate(year, 4, 3), name: '憲法記念日' });
+  holidays.push({ date: formatDate(year, 4, 3), labelKey: 'constitutionDay' });
 
   // May: Greenery Day (5/4, from 2007)
   if (year >= 2007) {
-    holidays.push({ date: formatDate(year, 4, 4), name: 'みどりの日' });
+    holidays.push({ date: formatDate(year, 4, 4), labelKey: 'greeneryDay' });
   }
 
   // May: Children's Day (5/5)
-  holidays.push({ date: formatDate(year, 4, 5), name: 'こどもの日' });
+  holidays.push({ date: formatDate(year, 4, 5), labelKey: 'childrensDay' });
 
   // July: Marine Day (3rd Monday from 2003 / 7/20 for 1996-2002)
   if (year >= 2003) {
     // NOTE: 2020-2021 have Tokyo Olympics special exceptions
     if (year === 2020) {
-      holidays.push({ date: formatDate(year, 6, 23), name: '海の日' });
+      holidays.push({ date: formatDate(year, 6, 23), labelKey: 'marineDay' });
     } else if (year === 2021) {
-      holidays.push({ date: formatDate(year, 6, 22), name: '海の日' });
+      holidays.push({ date: formatDate(year, 6, 22), labelKey: 'marineDay' });
     } else {
       holidays.push({
         date: formatDate(year, 6, getNthMonday(year, 6, 3)),
-        name: '海の日',
+        labelKey: 'marineDay',
       });
     }
   } else if (year >= 1996) {
-    holidays.push({ date: formatDate(year, 6, 20), name: '海の日' });
+    holidays.push({ date: formatDate(year, 6, 20), labelKey: 'marineDay' });
   }
 
   // August: Mountain Day (8/11, from 2016)
   if (year >= 2016) {
     if (year === 2020) {
-      holidays.push({ date: formatDate(year, 7, 10), name: '山の日' });
+      holidays.push({ date: formatDate(year, 7, 10), labelKey: 'mountainDay' });
     } else if (year === 2021) {
-      holidays.push({ date: formatDate(year, 7, 8), name: '山の日' });
+      holidays.push({ date: formatDate(year, 7, 8), labelKey: 'mountainDay' });
     } else {
-      holidays.push({ date: formatDate(year, 7, 11), name: '山の日' });
+      holidays.push({ date: formatDate(year, 7, 11), labelKey: 'mountainDay' });
     }
   }
 
@@ -127,43 +153,43 @@ export function getHolidaysForYear(year: number): Holiday[] {
   if (year >= 2003) {
     holidays.push({
       date: formatDate(year, 8, getNthMonday(year, 8, 3)),
-      name: '敬老の日',
+      labelKey: 'respectForTheAgedDay',
     });
   } else if (year >= 1966) {
-    holidays.push({ date: formatDate(year, 8, 15), name: '敬老の日' });
+    holidays.push({ date: formatDate(year, 8, 15), labelKey: 'respectForTheAgedDay' });
   }
 
   // September: Autumnal Equinox Day
   const autumnDay = getAutumnalEquinoxDay(year);
   if (autumnDay > 0) {
-    holidays.push({ date: formatDate(year, 8, autumnDay), name: '秋分の日' });
+    holidays.push({ date: formatDate(year, 8, autumnDay), labelKey: 'autumnalEquinoxDay' });
   }
 
   // October: Sports Day (2nd Monday from 2000 / 10/10 for 1966-1999)
   if (year >= 2000) {
     if (year === 2020) {
-      holidays.push({ date: formatDate(year, 6, 24), name: 'スポーツの日' });
+      holidays.push({ date: formatDate(year, 6, 24), labelKey: 'sportsDay' });
     } else if (year === 2021) {
-      holidays.push({ date: formatDate(year, 6, 23), name: 'スポーツの日' });
+      holidays.push({ date: formatDate(year, 6, 23), labelKey: 'sportsDay' });
     } else {
       holidays.push({
         date: formatDate(year, 9, getNthMonday(year, 9, 2)),
-        name: 'スポーツの日',
+        labelKey: 'sportsDay',
       });
     }
   } else if (year >= 1966) {
-    holidays.push({ date: formatDate(year, 9, 10), name: '体育の日' });
+    holidays.push({ date: formatDate(year, 9, 10), labelKey: 'healthAndSportsDay' });
   }
 
   // November: Culture Day (11/3)
-  holidays.push({ date: formatDate(year, 10, 3), name: '文化の日' });
+  holidays.push({ date: formatDate(year, 10, 3), labelKey: 'cultureDay' });
 
   // November: Labor Thanksgiving Day (11/23)
-  holidays.push({ date: formatDate(year, 10, 23), name: '勤労感謝の日' });
+  holidays.push({ date: formatDate(year, 10, 23), labelKey: 'laborThanksgivingDay' });
 
   // December: Emperor's Birthday (12/23, 1989-2018)
   if (year >= 1989 && year <= 2018) {
-    holidays.push({ date: formatDate(year, 11, 23), name: '天皇誕生日' });
+    holidays.push({ date: formatDate(year, 11, 23), labelKey: 'emperorsBirthday' });
   }
 
   // Substitute holiday: when a holiday falls on Sunday, the next weekday is a holiday
@@ -181,7 +207,7 @@ export function getHolidaysForYear(year: number): Holiday[] {
       }
       const subDateStr = formatDateFromDate(substitute);
       holidayDates.add(subDateStr);
-      substituteHolidays.push({ date: subDateStr, name: '振替休日' });
+      substituteHolidays.push({ date: subDateStr, labelKey: 'substituteHoliday' });
     }
   }
 
@@ -198,7 +224,7 @@ export function getHolidaysForYear(year: number): Holiday[] {
       between.setDate(between.getDate() + 1);
       const betweenStr = formatDateFromDate(between);
       if (!holidayDates.has(betweenStr) && between.getDay() !== 0) {
-        holidays.push({ date: betweenStr, name: '国民の休日' });
+        holidays.push({ date: betweenStr, labelKey: 'citizensHoliday' });
       }
     }
   }
@@ -218,10 +244,10 @@ export function getHolidaysForMonth(year: number, month: number): Holiday[] {
   return yearHolidays.filter((h) => h.date.startsWith(prefix));
 }
 
-/** Check if a date is a holiday and return its name */
-export function getHolidayName(dateStr: string): string | null {
+/** Check if a date is a holiday and return its label key */
+export function getHolidayName(dateStr: string): HolidayLabelKey | null {
   const year = parseInt(dateStr.substring(0, 4));
   const holidays = getHolidaysForYear(year);
   const holiday = holidays.find((h) => h.date === dateStr);
-  return holiday ? holiday.name : null;
+  return holiday ? holiday.labelKey : null;
 }

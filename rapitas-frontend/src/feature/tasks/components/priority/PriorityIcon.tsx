@@ -1,34 +1,36 @@
 'use client';
 
 import { ChevronDown, ChevronsUpDown, ChevronUp, ChevronsUp, type LucideIcon } from 'lucide-react';
+import { useTranslations } from 'next-intl';
 import type { Priority } from '@/types';
 
 interface PriorityConfig {
   Icon: LucideIcon;
   color: string;
-  title: string;
+  /** i18n key into the `task` namespace — resolve via t(titleKey), not a raw string. */
+  titleKey: string;
 }
 
 const priorityConfig: Record<Priority, PriorityConfig> = {
   urgent: {
     Icon: ChevronsUp,
     color: 'text-red-500',
-    title: '緊急',
+    titleKey: 'priorityUrgent',
   },
   high: {
     Icon: ChevronUp,
     color: 'text-orange-500',
-    title: '高',
+    titleKey: 'priorityHigh',
   },
   medium: {
     Icon: ChevronsUpDown,
     color: 'text-blue-400',
-    title: '中',
+    titleKey: 'priorityMedium',
   },
   low: {
     Icon: ChevronDown,
     color: 'text-gray-400',
-    title: '低',
+    titleKey: 'priorityLow',
   },
 };
 
@@ -43,6 +45,7 @@ export default function PriorityIcon({
   size = 'md',
   showTitle = false,
 }: PriorityIconProps) {
+  const t = useTranslations('task');
   if (!priority) return null;
 
   const config = priorityConfig[priority];
@@ -55,11 +58,12 @@ export default function PriorityIcon({
   };
 
   const { Icon } = config;
+  const title = t(config.titleKey);
 
   return (
-    <span className={`shrink-0 flex items-center gap-1 ${config.color}`} title={config.title}>
+    <span className={`shrink-0 flex items-center gap-1 ${config.color}`} title={title}>
       <Icon className={sizeClasses[size]} />
-      {showTitle && <span className="text-xs font-medium">{config.title}</span>}
+      {showTitle && <span className="text-xs font-medium">{title}</span>}
     </span>
   );
 }

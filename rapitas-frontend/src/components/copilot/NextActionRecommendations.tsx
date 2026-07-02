@@ -108,9 +108,11 @@ export function NextActionRecommendations({
                     : 'text-zinc-800 dark:text-zinc-200'
                 }`}
               >
-                {a.label}
+                {t(a.labelKey)}
               </span>
-              <span className="block text-xs text-zinc-500 dark:text-zinc-400">{a.reason}</span>
+              <span className="block text-xs text-zinc-500 dark:text-zinc-400">
+                {t(a.reasonKey, a.reasonParams)}
+              </span>
             </span>
           </button>
         );

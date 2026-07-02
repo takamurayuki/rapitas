@@ -17,6 +17,7 @@ export default function KeyboardShortcuts() {
   const router = useRouter();
   const t = useTranslations('common');
   const tNav = useTranslations('nav');
+  const tLabels = useTranslations('shortcuts.labels');
   const [showHelp, setShowHelp] = useState(false);
   const [isMac, _setIsMac] = useState(() => getIsMac());
   const shortcuts = useShortcutStore((state) => state.shortcuts);
@@ -138,7 +139,9 @@ export default function KeyboardShortcuts() {
         <div className="p-4 space-y-2 max-h-96 overflow-y-auto">
           {shortcuts.map((binding) => (
             <div key={binding.id} className="flex items-center justify-between py-2">
-              <span className="text-sm text-zinc-700 dark:text-zinc-300">{binding.label}</span>
+              <span className="text-sm text-zinc-700 dark:text-zinc-300">
+                {tLabels(binding.id)}
+              </span>
               <kbd className="px-2 py-1 bg-zinc-100 dark:bg-zinc-700 rounded text-xs font-mono text-zinc-600 dark:text-zinc-400">
                 {formatShortcut(binding)}
               </kbd>

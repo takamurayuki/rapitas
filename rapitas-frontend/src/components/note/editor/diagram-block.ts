@@ -13,6 +13,20 @@ export const DEFAULT_DIAGRAM_SOURCE = `graph TD
     C --> E[終了]
     D --> E`;
 
+/**
+ * Localized strings for diagram-block DOM chrome. Supplied by the React layer
+ * (useNoteEditor) via `useTranslations`, since this module builds raw DOM and
+ * has no hook access itself.
+ */
+export interface DiagramBlockLabels {
+  /** Delete button title on a diagram block. */
+  deleteTitle: string;
+  /** Placeholder shown before the first Mermaid render completes. */
+  loadingText: string;
+  /** Message shown when Mermaid fails to parse the source (prefixed with a ⚠ icon). */
+  syntaxErrorText: string;
+}
+
 let _mermaidInitialized = false;
 let _renderId = 0;
 
@@ -50,8 +64,12 @@ export function setDiagramSource(block: HTMLElement, source: string): void {
  * Reads source from .diagram-source text content.
  *
  * @param block - The .diagram-block wrapper element
+ * @param labels - Localized strings for the error message / エラーメッセージの多言語文字列
  */
-export async function renderMermaidBlock(block: HTMLElement): Promise<void> {
+export async function renderMermaidBlock(
+  block: HTMLElement,
+  labels: DiagramBlockLabels,
+): Promise<void> {
   const source = getDiagramSource(block).trim();
   const renderEl = block.querySelector('.diagram-render') as HTMLElement | null;
   if (!source || !renderEl) return;
@@ -62,7 +80,7 @@ export async function renderMermaidBlock(block: HTMLElement): Promise<void> {
     const { svg } = await mermaid.render(id, source);
     renderEl.innerHTML = svg;
   } catch {
-    renderEl.innerHTML = `<div class="diagram-error">⚠ 構文エラー — Mermaidの記法を確認してください</div>`;
+    renderEl.innerHTML = `<div class="diagram-error">⚠ ${labels.syntaxErrorText}</div>`;
   }
 }
 
@@ -71,12 +89,16 @@ export async function renderMermaidBlock(block: HTMLElement): Promise<void> {
  * Called after DOMPurify sanitization, which may strip the contenteditable attribute.
  *
  * @param container - The editor's contentEditable div
+ * @param labels - Localized strings for the error message / エラーメッセージの多言語文字列
  */
-export async function renderAllDiagrams(container: HTMLElement): Promise<void> {
+export async function renderAllDiagrams(
+  container: HTMLElement,
+  labels: DiagramBlockLabels,
+): Promise<void> {
   const blocks = Array.from(container.querySelectorAll('.diagram-block')) as HTMLElement[];
   for (const block of blocks) {
     block.contentEditable = 'false';
-    await renderMermaidBlock(block);
+    await renderMermaidBlock(block, labels);
   }
 }
 
@@ -90,10 +112,14 @@ export async function renderAllDiagrams(container: HTMLElement): Promise<void> {
  *     pre.diagram-source          ← hidden; text content is the source of truth
  *   p                             ← trailing cursor target
  *
+ * @param labels - Localized strings for the block's chrome / ブロック装飾の多言語文字列
  * @param source - Initial Mermaid source / 初期Mermaidソース
  * @returns Fragment ready for insertion into contentEditable
  */
-export function createDiagramBlockNode(source: string = DEFAULT_DIAGRAM_SOURCE): DocumentFragment {
+export function createDiagramBlockNode(
+  labels: DiagramBlockLabels,
+  source: string = DEFAULT_DIAGRAM_SOURCE,
+): DocumentFragment {
   const frag = document.createDocumentFragment();
 
   const wrapper = document.createElement('div');
@@ -102,14 +128,13 @@ export function createDiagramBlockNode(source: string = DEFAULT_DIAGRAM_SOURCE):
 
   const delBtn = document.createElement('button');
   delBtn.className = 'diagram-delete-btn';
-  delBtn.title = 'ダイアグラムを削除';
+  delBtn.title = labels.deleteTitle;
   delBtn.textContent = '×';
   wrapper.appendChild(delBtn);
 
   const renderEl = document.createElement('div');
   renderEl.className = 'diagram-render';
-  renderEl.innerHTML =
-    '<p style="color:#94a3b8;font-size:0.875rem;margin:0">ダイアグラムを読み込み中...</p>';
+  renderEl.innerHTML = `<p style="color:#94a3b8;font-size:0.875rem;margin:0">${labels.loadingText}</p>`;
   wrapper.appendChild(renderEl);
 
   // Source stored as text content — survives DOMPurify attribute sanitization

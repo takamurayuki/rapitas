@@ -20,11 +20,14 @@ export const priorityColors = {
   urgent: 'bg-red-100 text-red-700 dark:bg-red-800 dark:text-red-300',
 };
 
-export const priorityLabels = {
-  low: '低',
-  medium: '中',
-  high: '高',
-  urgent: '緊急',
+// NOTE: Values are i18n keys into the `task` namespace (e.g. t('priorityLow')),
+// not display strings — resolve via useTranslations('task') at render time.
+// Reuses the existing task.priorityLow/Medium/High/Urgent keys.
+export const priorityLabelKeys = {
+  low: 'priorityLow',
+  medium: 'priorityMedium',
+  high: 'priorityHigh',
+  urgent: 'priorityUrgent',
 };
 
 export type TimeEntry = {

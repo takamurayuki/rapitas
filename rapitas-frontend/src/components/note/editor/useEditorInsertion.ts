@@ -3,10 +3,25 @@
 import { useCallback } from 'react';
 import { API_BASE_URL } from '@/utils/api';
 import { isInTitleInput } from './formatting';
-import { createCodeBlockNode, normalizeCodeBlocks } from './code-block';
-import { createLinkNode } from './link-card';
+import { createCodeBlockNode, normalizeCodeBlocks, type CodeBlockLabels } from './code-block';
+import { createLinkNode, type LinkCardLabels } from './link-card';
 import { createTableNode } from './table';
-import { createDiagramBlockNode, renderMermaidBlock } from './diagram-block';
+import {
+  createDiagramBlockNode,
+  renderMermaidBlock,
+  type DiagramBlockLabels,
+} from './diagram-block';
+
+/**
+ * Aggregated localized strings needed by the raw-DOM editor builders
+ * (code blocks, diagram blocks, link cards, tables). Built once by
+ * useNoteEditor via `useTranslations('notes')` and threaded down here since
+ * these builder modules construct DOM directly and have no hook access.
+ */
+export interface EditorDomLabels extends CodeBlockLabels, DiagramBlockLabels, LinkCardLabels {
+  /** The 3 default header cell labels for a freshly inserted table. */
+  tableHeadings: readonly [string, string, string];
+}
 
 /**
  * Refs required for DOM insertion operations.
@@ -48,6 +63,7 @@ export interface EditorInsertionHandlers {
  * @param codeLanguage - Currently selected code language for block insertion.
  * @param handleContentChange - Callback to mark the editor as dirty.
  * @param closeOtherPopups - Callback to dismiss all other open popups.
+ * @param labels - Localized strings for the raw-DOM builders / DOM生成の多言語文字列
  * @returns Object containing all insertion handler functions.
  */
 export function useEditorInsertion(
@@ -57,6 +73,7 @@ export function useEditorInsertion(
   codeLanguage: string,
   handleContentChange: () => void,
   closeOtherPopups: (except: 'link' | 'code') => void,
+  labels: EditorDomLabels,
 ): EditorInsertionHandlers {
   const { contentRef, savedSelectionRef } = refs;
   const { setIsLinkLoading, setShowLinkInput, setLinkUrl, setShowCodeInput } = setters;
@@ -154,7 +171,7 @@ export function useEditorInsertion(
     if (!contentRef.current?.contains(document.activeElement)) {
       contentRef.current?.focus();
     }
-    const frag = createTableNode();
+    const frag = createTableNode(labels.tableHeadings);
     const lastChild = frag.lastChild;
     const selection = window.getSelection();
     if (selection && selection.rangeCount > 0) {
@@ -173,10 +190,10 @@ export function useEditorInsertion(
       contentRef.current.appendChild(frag);
     }
     handleContentChange();
-  }, [contentRef, handleContentChange]);
+  }, [contentRef, handleContentChange, labels]);
 
   const insertCodeBlock = useCallback(() => {
-    const frag = createCodeBlockNode(codeLanguage);
+    const frag = createCodeBlockNode(labels, codeLanguage);
     const lastChild = frag.lastChild;
 
     if (savedSelectionRef.current) {
@@ -201,7 +218,7 @@ export function useEditorInsertion(
 
     if (contentRef.current) {
       // Wire up delete buttons and key handlers via the shared normalizer.
-      normalizeCodeBlocks(contentRef.current, handleContentChange);
+      normalizeCodeBlocks(contentRef.current, handleContentChange, labels);
       contentRef.current
         .querySelectorAll('[data-needs-delete-handler]')
         .forEach((b) => (b as HTMLElement).removeAttribute('data-needs-delete-handler'));
@@ -210,13 +227,13 @@ export function useEditorInsertion(
     handleContentChange();
     setShowCodeInput(false);
     savedSelectionRef.current = null;
-  }, [codeLanguage, contentRef, savedSelectionRef, handleContentChange, setShowCodeInput]);
+  }, [codeLanguage, contentRef, savedSelectionRef, handleContentChange, setShowCodeInput, labels]);
 
   const insertDiagramBlock = useCallback(() => {
     if (!contentRef.current?.contains(document.activeElement)) {
       contentRef.current?.focus();
     }
-    const frag = createDiagramBlockNode();
+    const frag = createDiagramBlockNode(labels);
     // The fragment's first child is the wrapper div — we need it to render the SVG after insertion.
     const wrapperEl = frag.firstElementChild as HTMLElement | null;
 
@@ -236,8 +253,8 @@ export function useEditorInsertion(
     handleContentChange();
 
     // Async render — no need to await; UI updates when Mermaid resolves.
-    if (wrapperEl) renderMermaidBlock(wrapperEl);
-  }, [contentRef, handleContentChange]);
+    if (wrapperEl) renderMermaidBlock(wrapperEl, labels);
+  }, [contentRef, handleContentChange, labels]);
 
   return {
     insertNodeAtCursor,

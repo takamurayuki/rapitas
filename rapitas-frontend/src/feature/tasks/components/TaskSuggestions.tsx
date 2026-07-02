@@ -150,10 +150,12 @@ export default function TaskSuggestions({ themeId, onApply }: TaskSuggestionsPro
   const handleApply = (suggestion: TaskSuggestion) => {
     let enhancedDescription = suggestion.description ?? '';
     if (suggestion.completionCriteria) {
-      enhancedDescription += '\n\n【完了条件】\n' + suggestion.completionCriteria;
+      enhancedDescription +=
+        `\n\n${t('taskSuggestions.completionCriteriaHeading')}\n` + suggestion.completionCriteria;
     }
     if (suggestion.measurableOutcome) {
-      enhancedDescription += '\n\n【測定可能な成果】\n' + suggestion.measurableOutcome;
+      enhancedDescription +=
+        `\n\n${t('taskSuggestions.measurableOutcomeHeading')}\n` + suggestion.measurableOutcome;
     }
 
     onApply({

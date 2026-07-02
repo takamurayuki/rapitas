@@ -1,26 +1,28 @@
+// NOTE: `nameKey` / `labelKey` look up the display text in the `notes.editorColors`
+// i18n namespace (see the 4 toolbar consumers); `value` stays a raw CSS color / font.
 export const highlightColors = [
-  { name: 'イエロー', value: '#fef08a' },
-  { name: 'グリーン', value: '#bbf7d0' },
-  { name: 'ブルー', value: '#bfdbfe' },
-  { name: 'ピンク', value: '#fbcfe8' },
-  { name: 'パープル', value: '#e9d5ff' },
-  { name: 'オレンジ', value: '#fed7aa' },
-];
+  { nameKey: 'yellow', value: '#fef08a' },
+  { nameKey: 'green', value: '#bbf7d0' },
+  { nameKey: 'blue', value: '#bfdbfe' },
+  { nameKey: 'pink', value: '#fbcfe8' },
+  { nameKey: 'purple', value: '#e9d5ff' },
+  { nameKey: 'orange', value: '#fed7aa' },
+] as const;
 
 export const borderLineColors = [
-  { name: 'グレー', value: '#a1a1aa' },
-  { name: 'ブルー', value: '#3b82f6' },
-  { name: 'グリーン', value: '#22c55e' },
-  { name: 'レッド', value: '#ef4444' },
-  { name: 'パープル', value: '#a855f7' },
-  { name: 'オレンジ', value: '#f97316' },
-];
+  { nameKey: 'gray', value: '#a1a1aa' },
+  { nameKey: 'blue', value: '#3b82f6' },
+  { nameKey: 'green', value: '#22c55e' },
+  { nameKey: 'red', value: '#ef4444' },
+  { nameKey: 'purple', value: '#a855f7' },
+  { nameKey: 'orange', value: '#f97316' },
+] as const;
 
 export const highlightStyles = [
-  { name: '全体', top: 0, label: 'A' },
-  { name: '太マーカー', top: 50, label: 'A' },
-  { name: '細マーカー', top: 70, label: 'A' },
-  { name: '下線', top: 85, label: 'A' },
+  { nameKey: 'full', top: 0, label: 'A' },
+  { nameKey: 'boldMarker', top: 50, label: 'A' },
+  { nameKey: 'thinMarker', top: 70, label: 'A' },
+  { nameKey: 'underline', top: 85, label: 'A' },
 ] as const;
 
 export const programmingLanguages = [
@@ -62,18 +64,18 @@ export const fontSizes = [
 ];
 
 export const fonts = [
-  { value: 'inherit', label: 'デフォルト' },
-  { value: "'Noto Sans JP', sans-serif", label: 'Noto Sans JP' },
-  { value: "'Hiragino Sans', sans-serif", label: 'ヒラギノ角ゴ' },
-  { value: "'Yu Gothic', sans-serif", label: '游ゴシック' },
-  { value: "'Meiryo', sans-serif", label: 'メイリオ' },
-  { value: "'MS Gothic', monospace", label: 'MS ゴシック' },
-  { value: 'Georgia, serif', label: 'Georgia' },
-  { value: 'Arial, sans-serif', label: 'Arial' },
-  { value: "'Times New Roman', serif", label: 'Times New Roman' },
-  { value: "'Courier New', monospace", label: 'Courier New' },
-  { value: "'Consolas', monospace", label: 'Consolas' },
-];
+  { value: 'inherit', labelKey: 'default' },
+  { value: "'Noto Sans JP', sans-serif", labelKey: 'notoSansJp' },
+  { value: "'Hiragino Sans', sans-serif", labelKey: 'hiraginoSans' },
+  { value: "'Yu Gothic', sans-serif", labelKey: 'yuGothic' },
+  { value: "'Meiryo', sans-serif", labelKey: 'meiryo' },
+  { value: "'MS Gothic', monospace", labelKey: 'msGothic' },
+  { value: 'Georgia, serif', labelKey: 'georgia' },
+  { value: 'Arial, sans-serif', labelKey: 'arial' },
+  { value: "'Times New Roman', serif", labelKey: 'timesNewRoman' },
+  { value: "'Courier New', monospace", labelKey: 'courierNew' },
+  { value: "'Consolas', monospace", labelKey: 'consolas' },
+] as const;
 
 export const textColors = [
   { name: '黒', value: '#000000' },
@@ -95,13 +97,13 @@ export const fontSizePresets = [8, 9, 10, 11, 12, 14, 16, 18, 20, 22, 24, 26, 28
 
 /** Quick-access text color palette */
 export const quickTextColors = [
-  { color: '#000000', name: '黒' },
-  { color: '#DC2626', name: '赤' },
-  { color: '#EA580C', name: '橙' },
-  { color: '#16A34A', name: '緑' },
-  { color: '#2563EB', name: '青' },
-  { color: '#9333EA', name: '紫' },
-];
+  { color: '#000000', nameKey: 'black' },
+  { color: '#DC2626', nameKey: 'red' },
+  { color: '#EA580C', nameKey: 'orange' },
+  { color: '#16A34A', nameKey: 'green' },
+  { color: '#2563EB', nameKey: 'blue' },
+  { color: '#9333EA', nameKey: 'purple' },
+] as const;
 
 /** Gray scale palette row */
 export const grayScalePalette = [

@@ -37,11 +37,19 @@ export type NextActionIcon = 'analyze' | 'split' | 'play' | 'check' | 'estimate'
 /**
  * A single recommended next action. Carries EITHER `actionType` (one-click
  * copilot action) OR `prompt` (a message sent to the copilot chat), never both.
+ *
+ * NOTE: `labelKey` / `reasonKey` are message keys under the
+ * `copilot.nextActionRecommendations` i18n namespace (not raw text) — this
+ * module is pure/non-React and has no `useTranslations` access, so the view
+ * (NextActionRecommendations.tsx) resolves them. `reasonParams` carries the
+ * ICU interpolation values for reasons that embed numbers (e.g. subtask counts).
  */
 export interface RecommendedAction {
   id: string;
-  label: string;
-  reason: string;
+  labelKey: string;
+  reasonKey: string;
+  /** ICU interpolation values for `reasonKey` (next-intl's TranslationValues shape). */
+  reasonParams?: Record<string, string | number | Date>;
   /** Copilot action to execute, when this is an action recommendation. */
   actionType?: NextActionType;
   params?: Record<string, unknown>;
@@ -71,8 +79,8 @@ export function getNextActions(ctx: NextActionContext): RecommendedAction[] {
     return [
       {
         id: 'reflect',
-        label: '振り返りをする',
-        reason: '成果物(調査/計画/検証)を深掘りし、学びをナレッジに蓄積します',
+        labelKey: 'actions.reflect.label',
+        reasonKey: 'actions.reflect.reason',
         runRetrospective: true,
         icon: 'reflect',
         tone: 'primary',
@@ -91,8 +99,9 @@ export function getNextActions(ctx: NextActionContext): RecommendedAction[] {
   if (ctx.status === 'in-progress' && allSubtasksDone) {
     out.push({
       id: 'complete',
-      label: 'タスクを完了にする',
-      reason: `サブタスク ${ctx.subtaskDone}/${ctx.subtaskTotal} がすべて完了しています`,
+      labelKey: 'actions.complete.label',
+      reasonKey: 'actions.complete.reason',
+      reasonParams: { done: ctx.subtaskDone, total: ctx.subtaskTotal },
       actionType: 'update_status',
       params: { status: 'done' },
       icon: 'check',
@@ -102,8 +111,8 @@ export function getNextActions(ctx: NextActionContext): RecommendedAction[] {
     if (ctx.canRunAgent) {
       out.push({
         id: 'continue',
-        label: 'エージェントで実行する',
-        reason: '進行中です。エージェントで次のフェーズを実行できます',
+        labelKey: 'actions.continue.label',
+        reasonKey: 'actions.continue.reason',
         actionType: 'execute',
         icon: 'play',
         tone: 'primary',
@@ -111,8 +120,8 @@ export function getNextActions(ctx: NextActionContext): RecommendedAction[] {
     } else {
       out.push({
         id: 'complete-manual',
-        label: 'タスクを完了にする',
-        reason: '実装が終わったらタスクをクローズしましょう',
+        labelKey: 'actions.completeManual.label',
+        reasonKey: 'actions.completeManual.reason',
         actionType: 'update_status',
         params: { status: 'done' },
         icon: 'check',
@@ -123,8 +132,8 @@ export function getNextActions(ctx: NextActionContext): RecommendedAction[] {
     if (ctx.canRunAgent && ctx.subtaskTotal === 0) {
       out.push({
         id: 'analyze',
-        label: 'AIで分析する',
-        reason: '着手前にAIが進め方とサブタスクを提案します',
+        labelKey: 'actions.analyze.label',
+        reasonKey: 'actions.analyze.reason',
         actionType: 'analyze',
         icon: 'analyze',
         tone: 'primary',
@@ -133,8 +142,8 @@ export function getNextActions(ctx: NextActionContext): RecommendedAction[] {
     } else if (ctx.canRunAgent) {
       out.push({
         id: 'execute',
-        label: 'エージェントで実行する',
-        reason: 'サブタスクの準備ができています。エージェントに着手させましょう',
+        labelKey: 'actions.execute.label',
+        reasonKey: 'actions.execute.reason',
         actionType: 'execute',
         icon: 'play',
         tone: 'primary',
@@ -142,8 +151,8 @@ export function getNextActions(ctx: NextActionContext): RecommendedAction[] {
     } else {
       out.push({
         id: 'start',
-        label: '着手する',
-        reason: '準備OK。ステータスを進行中にします',
+        labelKey: 'actions.start.label',
+        reasonKey: 'actions.start.reason',
         actionType: 'update_status',
         params: { status: 'in-progress' },
         icon: 'play',
@@ -157,8 +166,9 @@ export function getNextActions(ctx: NextActionContext): RecommendedAction[] {
   if (!primaryCoversSubtasks && ctx.subtaskTotal === 0 && isComplex) {
     out.push({
       id: 'split',
-      label: 'サブタスクに分解する',
-      reason: `複雑度 ${Math.round(ctx.complexityScore as number)}。分割して進めると安全です`,
+      labelKey: 'actions.split.label',
+      reasonKey: 'actions.split.reason',
+      reasonParams: { score: Math.round(ctx.complexityScore as number) },
       actionType: 'create_subtasks',
       icon: 'split',
       tone: 'normal',
@@ -169,8 +179,8 @@ export function getNextActions(ctx: NextActionContext): RecommendedAction[] {
   if (ctx.estimatedHours === null) {
     out.push({
       id: 'estimate',
-      label: '工数を見積もる',
-      reason: '工数が未設定です。見積もると計画が立てやすくなります',
+      labelKey: 'actions.estimate.label',
+      reasonKey: 'actions.estimate.reason',
       actionType: 'update_estimate',
       icon: 'estimate',
       tone: 'normal',

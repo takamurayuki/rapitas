@@ -51,7 +51,7 @@ export const TemplateSelector = memo(function TemplateSelector({
                 className={`flex items-center gap-1 px-2 py-0.5 text-[10px] rounded-full ${typeConfig.color.badge}`}
               >
                 <TypeIcon className="w-2.5 h-2.5" />
-                {typeConfig.label}
+                {t(typeConfig.labelKey)}
               </div>
             </div>
             <button
@@ -82,10 +82,10 @@ export const TemplateSelector = memo(function TemplateSelector({
                       </div>
                       <div className="flex-1 min-w-0">
                         <h3 className="text-sm font-medium text-zinc-800 dark:text-zinc-200 group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">
-                          {template.label}
+                          {t(template.labelKey)}
                         </h3>
                         <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5 line-clamp-2">
-                          {template.description}
+                          {t(template.descriptionKey)}
                         </p>
                       </div>
                       <ChevronLeft className="w-4 h-4 text-zinc-300 group-hover:text-zinc-500 transition-colors rotate-180" />
@@ -98,7 +98,7 @@ export const TemplateSelector = memo(function TemplateSelector({
             <div className="p-6 text-center">
               <FileText className="w-8 h-8 text-zinc-300 dark:text-zinc-600 mx-auto mb-2" />
               <p className="text-sm text-zinc-500 dark:text-zinc-400">
-                {t('templateSelector.noTemplatesForType', { type: typeConfig.label })}
+                {t('templateSelector.noTemplatesForType', { type: t(typeConfig.labelKey) })}
               </p>
             </div>
           )}

@@ -87,7 +87,11 @@ export const useTaskCacheStore = create<TaskCacheState>()((set, get) => ({
       if (!res.ok) {
         const text = await res.text().catch(() => '<no body>');
         logger.error('GET /tasks failed:', res.status, res.statusText, text);
-        throw new Error('取得に失敗しました');
+        // NOTE: `lastError` is never rendered in the UI today (verified: no
+        // component reads it) — a stable code (matching `common.fetchFailed`)
+        // is stored instead of a hardcoded Japanese string so a future
+        // display site can localize it via `t('common.fetchFailed')`.
+        throw new Error('fetchFailed');
       }
       const raw: Task[] = await res.json();
       const data = applyMaxCacheSize(raw);
