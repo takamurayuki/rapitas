@@ -93,6 +93,21 @@ export async function notifyAwaitingUserAnswer(themeId: number, taskId: number):
   });
 }
 
+/** A task exceeded its wall-clock budget and was force-stopped by the hang backstop. */
+export async function notifyHangBackstop(
+  themeId: number,
+  taskId: number,
+  wallMinutes: number,
+): Promise<void> {
+  await notifyOnce({
+    type: 'auto_run_hang_backstop',
+    themeId,
+    taskId,
+    title: '自動実行: タスクが時間上限で停止しました',
+    message: `タスク #${taskId}「${await taskLabel(taskId)}」が時間上限（${wallMinutes}分）を超えたため停止しました — ログを確認して再実行してください。`,
+  });
+}
+
 /** A task failed/was blocked and auto-run skipped it. */
 export async function notifyTaskSkipped(
   themeId: number,

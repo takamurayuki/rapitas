@@ -57,6 +57,7 @@ import {
   notifyAwaitingUserAnswer,
   notifyTaskSkipped,
   notifyAllDone,
+  notifyHangBackstop,
 } from './auto-run-notifications';
 
 const log = createLogger('theme-auto-run-scheduler');
@@ -352,6 +353,11 @@ export class ThemeAutoRunScheduler {
           wallMinutes: Math.round(MAX_TASK_WALL_MS / 60000),
           msg: 'task force-stopped by hang backstop',
         });
+        // NOTE: logCycleEvent only writes the NDJSON cycle log — invisible unless
+        // an operator is tailing it. Persist a Notification too so a stalled run
+        // surfaces in the NotificationBell (same pattern as the other auto-run
+        // lifecycle notifications above).
+        await notifyHangBackstop(themeId, currentTaskId, Math.round(MAX_TASK_WALL_MS / 60000));
         await this.stopThemeExecution(themeId, currentTaskId);
         await prisma.task
           .update({ where: { id: currentTaskId }, data: { status: 'blocked' } })

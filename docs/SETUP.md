@@ -138,7 +138,7 @@ cd rapitas-backend && npx prisma migrate reset && npx prisma db push
 rustup update && cd rapitas-desktop && npm run ci:prepare
 ```
 
-Health check: `http://localhost:3001/health`.
+Health check: `http://localhost:3001/agents/health` (there is no root `/health` route — it lives under the `agents` router).
 
 ## Contributing / pre-commit
 

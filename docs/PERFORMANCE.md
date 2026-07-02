@@ -13,7 +13,7 @@ you measure something interesting or apply a fix that survives review.
 
 | Surface                         | Metric                | Target   | Current (2026-04-28) | Measurement Command                |
 | ------------------------------- | --------------------- | -------- | -------------------- | ---------------------------------- |
-| Backend cold start (Bun)        | time to first request | < 500 ms | ~200 ms              | `time curl localhost:3001/health`  |
+| Backend cold start (Bun)        | time to first request | < 500 ms | ~200 ms              | `time curl localhost:3001/agents/health` |
 | Backend p95 task list endpoint  | latency               | < 150 ms | ~80 ms               | `npm run perf`                     |
 | Backend p95 settings endpoint   | latency               | < 100 ms | ~30 ms               | `npm run perf`                     |
 | Frontend static JS bundle       | total size            | < 500 KB | ~350 KB              | `npm run perf`                     |

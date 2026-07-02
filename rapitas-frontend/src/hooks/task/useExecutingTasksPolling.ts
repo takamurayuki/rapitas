@@ -96,6 +96,7 @@ export function useExecutingTasksPolling(options?: {
         sessionId: number;
         parentId?: number | null;
         executionStatus: string;
+        startedAt?: string | null;
       }> = await res.json();
 
       const currentExecutingIds = new Set<number>();
@@ -107,14 +108,21 @@ export function useExecutingTasksPolling(options?: {
             taskId: item.taskId,
             sessionId: item.sessionId,
             status: item.executionStatus as 'running' | 'waiting_for_input',
+            startedAt: item.startedAt ?? null,
           });
 
           // Reflect a running subtask on its PARENT card too: the home list does
           // not render subtasks as their own cards, so the parent shows the
-          // spinner while one of its subtasks is executing.
+          // spinner while one of its subtasks is executing. The parent's elapsed
+          // timer reflects the subtask's own startedAt, since the parent has no
+          // execution row of its own.
           if (item.parentId != null) {
             currentExecutingIds.add(item.parentId);
-            setExecutingTask({ taskId: item.parentId, status: 'running' });
+            setExecutingTask({
+              taskId: item.parentId,
+              status: 'running',
+              startedAt: item.startedAt ?? null,
+            });
           }
 
           // Only callback for newly detected tasks

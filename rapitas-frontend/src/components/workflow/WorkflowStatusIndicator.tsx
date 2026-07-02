@@ -121,12 +121,21 @@ interface WorkflowStatusIndicatorProps {
   size?: 'sm' | 'md';
   /** Workflow mode — lightweight has no plan phase, so research_done = 実装中. */
   workflowMode?: string | null;
+  /**
+   * Why the task is blocked (e.g. the latest WorkflowTransition.cause, such as
+   * `plan_invalid_replan_exhausted` or `verify_pr_not_created`). Only rendered
+   * when `status === 'blocked'`. Callers that don't have this handy (it lives
+   * in a separate `/workflow/tasks/:taskId/transitions` fetch, not on the Task
+   * object itself) can omit it — a generic actionable hint is shown instead.
+   */
+  blockedCause?: string | null;
 }
 
 export default function WorkflowStatusIndicator({
   status,
   size = 'sm',
   workflowMode,
+  blockedCause,
 }: WorkflowStatusIndicatorProps) {
   const t = useTranslations('workflow');
   const tc = useTranslations('common');
@@ -143,9 +152,16 @@ export default function WorkflowStatusIndicator({
   const sizeClasses = size === 'sm' ? 'text-xs px-2 py-0.5 gap-1' : 'text-sm px-3 py-1 gap-1.5';
   const iconSize = size === 'sm' ? 'w-3 h-3' : 'w-4 h-4';
 
+  // The blocked pill otherwise gives no clue why — the cause only lives in the
+  // notification feed / transitions log today. Surface whatever we have as a
+  // tooltip rather than leaving a bare red badge.
+  const title =
+    status === 'blocked' ? (blockedCause ?? t('statusIndicator.blockedGenericHint')) : undefined;
+
   return (
     <span
       className={`inline-flex items-center font-medium rounded-full border ${config.bgColor} ${config.color} ${config.borderColor} ${sizeClasses}`}
+      title={title}
     >
       <Icon className={iconSize} />
       {label}

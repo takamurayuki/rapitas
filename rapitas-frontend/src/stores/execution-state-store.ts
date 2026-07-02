@@ -4,6 +4,8 @@ interface ExecutingTask {
   taskId: number;
   sessionId?: number;
   status: 'running' | 'waiting_for_input' | 'completed' | 'failed';
+  /** ISO timestamp the underlying AgentExecution started, for elapsed-time display. */
+  startedAt?: string | null;
 }
 
 /**
@@ -42,6 +44,8 @@ interface ExecutionStateStore {
   isTaskExecuting: (taskId: number) => boolean;
   /** Get execution status of specified task */
   getExecutingTaskStatus: (taskId: number) => 'running' | 'waiting_for_input' | null;
+  /** Get the ISO start timestamp of a task's running execution, or null if unknown. */
+  getExecutingTaskStartedAt: (taskId: number) => string | null;
   /** Mark a task as loading execution status (skeleton should be shown) */
   setTaskLoading: (taskId: number) => void;
   /** Mark a task as done loading execution status */
@@ -166,7 +170,15 @@ export const useExecutionStateStore = create<ExecutionStateStore>()((set, get) =
   setExecutingTask: (task) =>
     set((state) => {
       const existing = state.executingTasks.get(task.taskId);
-      if (existing && existing.status === task.status && existing.sessionId === task.sessionId) {
+      if (
+        existing &&
+        existing.status === task.status &&
+        existing.sessionId === task.sessionId &&
+        // Normalize BOTH sides: a stored task may hold `undefined` while the
+        // incoming one is normalized to null — without this the dedup never
+        // short-circuits and re-clones the Map every poll.
+        (existing.startedAt ?? null) === (task.startedAt ?? null)
+      ) {
         return state;
       }
       const newMap = new Map(state.executingTasks);
@@ -193,4 +205,5 @@ export const useExecutionStateStore = create<ExecutionStateStore>()((set, get) =
     }
     return null;
   },
+  getExecutingTaskStartedAt: (taskId) => get().executingTasks.get(taskId)?.startedAt ?? null,
 }));

@@ -612,7 +612,8 @@
       "generatedFromRecurrenceBadge": "繰り返しから生成されたタスク",
       "retryTooltip": "再実行（todo に戻して自動実行の対象に戻します）",
       "retryAriaLabel": "タスクを再実行",
-      "protectedDeleteError": "保護されたタスクは削除できません"
+      "protectedDeleteError": "保護されたタスクは削除できません",
+      "elapsedTimeTooltip": "エージェントの実行開始からの経過時間"
     },
     "suggestionCard": {
       "category": {
@@ -2038,6 +2039,7 @@
       "verifying": "検証中",
       "awaitingAnswer": "回答待ち",
       "blocked": "ブロック中",
+      "blockedGenericHint": "タスクがブロックされています。通知一覧またはログで原因を確認してください。",
       "verifyDone": "検証完了"
     },
     "tabBar": {
@@ -2859,7 +2861,11 @@
     "themeCreateError": "テーマの作成に失敗しました",
     "createAnother": "別のテーマを作成",
     "proposalGenerateFailed": "プロポーザル生成に失敗しました",
-    "claudeMdGenerateFailed": "CLAUDE.md生成に失敗しました"
+    "claudeMdGenerateFailed": "CLAUDE.md生成に失敗しました",
+    "aiParseFailed": "AIからの応答を解析できませんでした。再試行してください。",
+    "aiTimeout": "AIからの応答がタイムアウトしました。再試行してください。",
+    "aiConnectionFailed": "AIサービスへの接続に失敗しました。",
+    "aiServerError": "AIサーバーからエラーが返されました。"
   },
   "knowledge": {
     "title": "知識ベース",

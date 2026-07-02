@@ -10,6 +10,7 @@ import { prefetch } from '@/lib/api-client';
 import { useExecutionStateStore } from '@/stores/execution-state-store';
 import { useTranslations } from 'next-intl';
 import { createLogger } from '@/lib/logger';
+import { useElapsedTime } from '@/hooks/common/useElapsedTime';
 import { useProgressColors } from '../completion/TaskCompletionAnimation';
 
 const logger = createLogger('TaskCard');
@@ -50,6 +51,8 @@ export interface TaskCardHook {
   handleSubtaskStatusChange: (subtaskId: number, newStatus: string) => void;
   currentStatus: ReturnType<typeof getStatusDisplay>;
   executionStatus: string | null;
+  /** Live-ticking "M:SS" elapsed time since the agent started, or null when not running. */
+  executionElapsed: string | null;
   executionClasses: ExecutionClasses | null;
   isWaitingForInput: boolean;
   waitingAmberConfig: WaitingAmberConfig;
@@ -97,6 +100,9 @@ export function useTaskCard(
   const storeExecutionStatus = useExecutionStateStore((state) =>
     state.getExecutingTaskStatus(task.id),
   );
+  const storeExecutionStartedAt = useExecutionStateStore((state) =>
+    state.getExecutingTaskStartedAt(task.id),
+  );
 
   // Sync localSubtasks when the prop changes
   useEffect(() => {
@@ -110,6 +116,10 @@ export function useTaskCard(
   // "any subtask has in-progress STATUS", which spun the loader even for tasks a
   // user had manually marked in-progress.)
   const executionStatus = storeExecutionStatus;
+  const executionElapsed = useElapsedTime(
+    storeExecutionStartedAt,
+    executionStatus === 'running' || executionStatus === 'waiting_for_input',
+  );
 
   // Close context menu on outside click
   useEffect(() => {
@@ -246,6 +256,7 @@ export function useTaskCard(
     handleSubtaskStatusChange,
     currentStatus,
     executionStatus,
+    executionElapsed,
     executionClasses,
     isWaitingForInput,
     waitingAmberConfig,

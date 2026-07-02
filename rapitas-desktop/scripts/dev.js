@@ -146,6 +146,15 @@ function killZombieSocketOwners(port) {
         console.log(`  PID ${pid} is already dead (orphaned socket).`);
         continue;
       }
+      // Identity guard: only force-kill node/bun processes that look
+      // rapitas-related. A live, unrelated process camped on this port is
+      // left alone — better to warn than to kill someone else's process.
+      if (!isRapitasOwnedProcess(pid)) {
+        console.warn(
+          `  PID ${pid} on port ${port} does not look rapitas-related (not node/bun, or no "rapitas" in its command line) — skipping kill.`,
+        );
+        continue;
+      }
       try {
         execSync(`taskkill /F /PID ${pid}`, { stdio: "pipe" });
         console.log(`  Killed zombie socket owner PID ${pid}`);
@@ -420,6 +429,14 @@ async function ensurePortAvailable(port) {
     );
   }
   for (const pid of pids) {
+    // Same identity guard as forceKillAllOnPort — this fallback path must not
+    // become a way to bypass it for a process we already declined to kill.
+    if (!isRapitasOwnedProcess(pid)) {
+      console.warn(
+        `  PID ${pid} on port ${port} does not look rapitas-related — skipping direct kill.`,
+      );
+      continue;
+    }
     try {
       execSync(`taskkill /F /PID ${pid}`, { stdio: "pipe" });
       console.log(`  Direct-killed PID ${pid} on port ${port}`);
@@ -472,6 +489,13 @@ async function ensurePortAvailable(port) {
     // 最終手段: PowerShell の Stop-Process を試行。taskkill とは別 API なので、
     // taskkill で落とせなかったプロセスを倒せることがある。
     for (const pid of remainingPids) {
+      // Last-resort kill path — still gated by the same identity guard.
+      if (!isRapitasOwnedProcess(pid)) {
+        console.warn(
+          `  PID ${pid} on port ${port} does not look rapitas-related — skipping Stop-Process kill.`,
+        );
+        continue;
+      }
       try {
         execFileSync(
           "powershell.exe",
@@ -514,10 +538,10 @@ async function ensurePortAvailable(port) {
  * "Command failed" で落ちる。CIM コマンドはその公式後継で PowerShell 5.1+ 標準。
  *
  * @param {string} filter WQL の WHERE 句 (例: "Name='bun.exe'", "ParentProcessId=123")
- * @returns {Array<{ProcessId:number, CommandLine:string|null, ExecutablePath:string|null}>}
+ * @returns {Array<{ProcessId:number, Name:string|null, CommandLine:string|null, ExecutablePath:string|null}>}
  */
 function queryWin32Processes(filter) {
-  const script = `Get-CimInstance Win32_Process -Filter "${filter}" | Select-Object ProcessId,CommandLine,ExecutablePath | ConvertTo-Json -Compress`;
+  const script = `Get-CimInstance Win32_Process -Filter "${filter}" | Select-Object ProcessId,Name,CommandLine,ExecutablePath | ConvertTo-Json -Compress`;
   let out = "";
   try {
     out = execFileSync(
@@ -538,6 +562,48 @@ function queryWin32Processes(filter) {
   }
   // ConvertTo-Json は要素 1 件だと配列ではなくオブジェクトを返す。
   return Array.isArray(parsed) ? parsed : [parsed];
+}
+
+/**
+ * ポートkill前のPID身元確認ガード (Windows専用)。
+ *
+ * forceKillAllOnPort / killZombieSocketOwners は元々「3000/3001でLISTENしている
+ * ものは何であれ kill」していた。開発機で別アプリが偶然同じポートを使っている
+ * ケースや、Windowsがポートを別プロセスに再割当てした直後のタイミングでは、
+ * rapitas と無関係なプロセスを巻き込んで強制終了しかねない。
+ *
+ * killStrayBunProcesses() が既に使っている「rapitas を含む CommandLine /
+ * ExecutablePath」ヒューリスティックを、kill 対象の識別にも適用する。
+ * 対象は rapitas が実際に spawn する既知のプロセス種別
+ * (node.exe / bun.exe、および local-LLM サイドカーの llama-server.exe — 通常
+ * `~/.rapitas/bin/llama-server.exe` に自動ダウンロードされ、8922番ポートの
+ * 回収で forceKillAllOnPort から呼ばれる) に限定する。それ以外、または
+ * rapitas 関連と判定できないプロセスは対象外とし、呼び出し側は kill を
+ * スキップして警告するだけに留める（オーファンな rapitas ソケット自体の
+ * 回収ロジックは変更しない — そこではそもそも生存プロセスが存在しないため、
+ * この関数は呼ばれない）。
+ *
+ * @param {number} pid
+ * @returns {boolean} 既知のrapitas管理プロセスかつ rapitas 関連と判定できれば true
+ */
+function isRapitasOwnedProcess(pid) {
+  if (process.platform !== "win32") {
+    // POSIX 経路 (killStrayBunPosix 等) は ps + grep で既に rapitas スコープ
+    // 済みのコマンドラインしか対象にしていないため、ここでは常に true でよい。
+    return true;
+  }
+  const procs = queryWin32Processes(`ProcessId=${pid}`);
+  if (procs.length === 0) {
+    // CIM から消えている = 既にプロセスが存在しない。identity 不明として false
+    // を返す（呼び出し側は isProcessRunning() で生死を別途判定済み）。
+    return false;
+  }
+  const proc = procs[0];
+  const name = (proc.Name || "").toLowerCase();
+  const KNOWN_RAPITAS_PROCESS_NAMES = ["node.exe", "bun.exe", "llama-server.exe"];
+  if (!KNOWN_RAPITAS_PROCESS_NAMES.includes(name)) return false;
+  const inspectable = `${proc.CommandLine || ""} ${proc.ExecutablePath || ""}`;
+  return /rapitas[-_/\\]/i.test(inspectable);
 }
 
 /**
@@ -594,12 +660,25 @@ function forceKillAllOnPort(port, maxRetries = 5) {
       return true;
     }
 
+    let killedAny = false;
+    let unrelatedAny = false;
     for (const pid of pids) {
+      // Identity guard: verify this is actually a rapitas node/bun process
+      // before force-killing it. Ports 3000/3001 are common defaults — a
+      // completely unrelated dev server could legitimately be sitting on one.
+      if (!isRapitasOwnedProcess(pid)) {
+        unrelatedAny = true;
+        console.warn(
+          `  PID ${pid} on port ${port} does not look rapitas-related (not node/bun, or no "rapitas" in its command line) — skipping kill.`,
+        );
+        continue;
+      }
       try {
         execSync(`taskkill /F /T /PID ${pid}`, { stdio: "pipe" });
         console.log(
           `  Killed PID ${pid} on port ${port} (attempt ${attempt + 1})`,
         );
+        killedAny = true;
       } catch (err) {
         const errMsg = err.message || err.stderr?.toString() || "";
         // 「見つかりません」は成功とみなす
@@ -612,6 +691,16 @@ function forceKillAllOnPort(port, maxRetries = 5) {
         }
         // それ以外のエラーは無視して続行
       }
+    }
+
+    // Every occupant was identity-rejected and none could be killed: retrying
+    // won't change that, so stop immediately instead of burning 5 more
+    // attempts against a process we've deliberately chosen not to touch.
+    if (unrelatedAny && !killedAny) {
+      console.warn(
+        `  Port ${port} is held by non-rapitas process(es); refusing to force-kill. Free the port manually or stop the other process.`,
+      );
+      return false;
     }
 
     // kill後にソケット解放を待つ（Windows TCPスタックがソケットを解放するまでのラグ対策）
