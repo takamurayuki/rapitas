@@ -105,14 +105,14 @@ describe('TaskCardSubtaskProgress', () => {
     expect(screen.getByRole('button').className).toContain('text-green-600');
   });
 
-  it('未完了ありの場合はテキストがアクセント色(indigo)になる', () => {
+  it('未完了ありの場合はテキストが進行中色(blue)になる', () => {
     render(
       <TaskCardSubtaskProgress
         {...defaultProps}
         subtasks={[makeSubtask(1, 'done'), makeSubtask(2, 'todo')]}
       />,
     );
-    expect(screen.getByRole('button').className).toContain('text-indigo-600');
+    expect(screen.getByRole('button').className).toContain('text-blue-600');
   });
 
   it('サブタスクが空なら何も描画しない', () => {

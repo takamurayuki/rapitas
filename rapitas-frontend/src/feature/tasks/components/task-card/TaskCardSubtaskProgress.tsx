@@ -46,7 +46,9 @@ export default function TaskCardSubtaskProgress({
         onToggle();
       }}
       className={`shrink-0 flex items-center gap-1.5 -ml-1.5 -my-1 px-1.5 py-1 rounded-md font-medium transition-colors duration-200 hover:bg-zinc-200/60 dark:hover:bg-zinc-700/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 ${
-        isComplete ? 'text-green-600 dark:text-green-400' : 'text-indigo-600 dark:text-indigo-400'
+        // NOTE: Blue (not the indigo accent) per user decision — matches the
+        // in-progress status hue since the row summarizes work in flight.
+        isComplete ? 'text-green-600 dark:text-green-400' : 'text-blue-600 dark:text-blue-400'
       }`}
       aria-expanded={expanded}
       aria-label={`${label} ${done}/${total}`}
