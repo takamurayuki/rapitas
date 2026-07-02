@@ -89,6 +89,7 @@ export default function PlanApprovalModal({
             </div>
             <button
               onClick={handleClose}
+              aria-label={tc('close')}
               className="text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 transition-colors"
             >
               <X className="h-6 w-6" />

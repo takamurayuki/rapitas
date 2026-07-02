@@ -176,7 +176,7 @@ export function HeaderToolbar({
                   {user.username}
                 </p>
                 <p className="text-xs text-zinc-500 dark:text-zinc-400">{user.email}</p>
-                <p className="text-xs text-zinc-400 dark:text-zinc-500 mt-1">
+                <p className="text-xs text-zinc-500 dark:text-zinc-500 mt-1">
                   {user.role === 'admin' ? t('admin') : t('user')}
                 </p>
               </div>

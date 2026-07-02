@@ -130,7 +130,7 @@ export default function CompactTaskDetailCard({
             id="meta"
             icon={<Clock className="w-4 h-4" />}
             badge={
-              <span className="text-xs text-zinc-400 dark:text-zinc-500">
+              <span className="text-xs text-zinc-500 dark:text-zinc-500">
                 {[
                   task.estimatedHours
                     ? t('compactTaskDetailCard.estimateBadge', { hours: task.estimatedHours })
@@ -235,13 +235,13 @@ export default function CompactTaskDetailCard({
           compact chips. */}
       <div className="flex flex-wrap items-center justify-end gap-1.5 px-4 py-2.5 border-t border-zinc-100 dark:border-zinc-800">
         <span className="inline-flex items-center gap-1 rounded-full bg-zinc-100 px-2 py-0.5 text-[11px] text-zinc-500 dark:bg-zinc-800/60 dark:text-zinc-400">
-          <span className="font-medium text-zinc-400 dark:text-zinc-500">
+          <span className="font-medium text-zinc-500 dark:text-zinc-500">
             {t('compactTaskDetailCard.createdChip')}
           </span>
           {new Date(task.createdAt).toLocaleString(dateLocale)}
         </span>
         <span className="inline-flex items-center gap-1 rounded-full bg-zinc-100 px-2 py-0.5 text-[11px] text-zinc-500 dark:bg-zinc-800/60 dark:text-zinc-400">
-          <span className="font-medium text-zinc-400 dark:text-zinc-500">
+          <span className="font-medium text-zinc-500 dark:text-zinc-500">
             {t('compactTaskDetailCard.updatedChip')}
           </span>
           {new Date(task.updatedAt).toLocaleString(dateLocale)}

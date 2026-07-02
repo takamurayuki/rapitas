@@ -77,7 +77,7 @@ export function ProgressSummaryWidget() {
             {t('progressSummary.title')}
           </h3>
           <div className="flex items-center gap-2">
-            <span className="text-xs text-zinc-400">
+            <span className="text-xs text-zinc-500 dark:text-zinc-400">
               {t('progressSummary.completedStats', {
                 count: data.completedCount,
                 hours: data.totalHours,
@@ -86,6 +86,7 @@ export function ProgressSummaryWidget() {
             <button
               onClick={handleRefresh}
               disabled={refreshing}
+              aria-label={t('progressSummary.refresh')}
               className="p-1 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 transition-colors"
             >
               <RefreshCw className={`w-3.5 h-3.5 ${refreshing ? 'animate-spin' : ''}`} />
@@ -131,7 +132,7 @@ export function ProgressSummaryWidget() {
                 <span className="truncate flex-1">
                   #{t.id} {t.title}
                 </span>
-                <span className="shrink-0 ml-2 text-zinc-400">
+                <span className="shrink-0 ml-2 text-zinc-500 dark:text-zinc-400">
                   {new Date(t.completedAt).toLocaleDateString(toDateLocale(locale), {
                     month: 'short',
                     day: 'numeric',

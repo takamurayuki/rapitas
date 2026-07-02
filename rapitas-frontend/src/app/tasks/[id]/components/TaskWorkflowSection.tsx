@@ -20,6 +20,22 @@ export interface TaskWorkflowSectionProps {
 }
 
 /**
+ * WorkflowTransition.cause codes that co-occur with `task.status === 'blocked'`
+ * writes (grepped from services/workflow — see the recordTransition call sites
+ * in workflow-orchestrator.ts, workflow-cli-executor.ts and
+ * subtask-completion-handler.ts). Maps each to a translation key under
+ * `workflow.statusIndicator.blockedCauses`; unrecognized/unset causes fall back
+ * to the generic hint.
+ */
+const BLOCKED_CAUSE_I18N_KEYS: Record<string, string> = {
+  plan_invalid_replan_exhausted: 'planInvalidReplanExhausted',
+  verify_pr_not_created: 'verifyPrNotCreated',
+  verify_validation_failed: 'verifyValidationFailed',
+  verify_no_changes: 'verifyNoChanges',
+  subtask_failed: 'subtaskFailed',
+};
+
+/**
  * Workflow section component for development theme tasks.
  * Displays workflow status, progress, viewer, and error states.
  */
@@ -35,6 +51,52 @@ export default function TaskWorkflowSection({
   setTask,
 }: TaskWorkflowSectionProps) {
   const t = useTranslations('workflow');
+
+  // task.status (not workflowStatus) is what actually goes 'blocked' — the
+  // phase pill above only tracks workflowStatus, which stays at whatever
+  // phase it last reached (e.g. 'plan_approved') even while the task itself
+  // is blocked. Cast is needed because Status only types 'todo'/'in-progress'/
+  // 'done' at the type level, though the backend also sends 'blocked'/'failed'
+  // (same pattern as TaskCard.tsx's isRetryable check).
+  const isBlocked = (task?.status as string) === 'blocked';
+
+  // Why the task is blocked — fetched lazily (only while blocked) from the
+  // append-only WorkflowTransition log, since the cause isn't on the Task
+  // object itself. See BLOCKED_CAUSE_I18N_KEYS above for the causes this
+  // recognizes; anything else falls back to the generic hint.
+  const [blockedCause, setBlockedCause] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!isBlocked || !taskId) {
+      setBlockedCause(null);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch(`${API_BASE_URL}/workflow/tasks/${taskId}/transitions`);
+        if (!res.ok) return;
+        const data = (await res.json()) as {
+          success?: boolean;
+          transitions?: Array<{ cause?: string | null }>;
+        };
+        if (cancelled || !data.success || !data.transitions?.length) return;
+        const latestCause = data.transitions[data.transitions.length - 1]?.cause ?? null;
+        if (!latestCause) return;
+        const i18nKey = BLOCKED_CAUSE_I18N_KEYS[latestCause];
+        setBlockedCause(
+          i18nKey
+            ? t(`statusIndicator.blockedCauses.${i18nKey}`)
+            : t('statusIndicator.blockedCauseUnknown', { cause: latestCause }),
+        );
+      } catch {
+        // Non-fatal — the pill falls back to the generic hint.
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [isBlocked, taskId, t]);
 
   // Compute the *effective* auto-approve state by OR-ing the task-level flag
   // with the global UserSettings entries — matches the backend rule in
@@ -118,9 +180,10 @@ export default function TaskWorkflowSection({
           <div className="flex items-center space-x-3">
             <h3 className="text-lg font-semibold text-zinc-900 dark:text-zinc-50">{t('title')}</h3>
             <WorkflowStatusIndicator
-              status={currentWorkflowStatus}
+              status={isBlocked ? 'blocked' : currentWorkflowStatus}
               size="sm"
               workflowMode={task?.workflowMode}
+              blockedCause={isBlocked ? blockedCause : undefined}
             />
             {/* Loading spinner lives on the left so the right chips end flush
                 with the card padding (matching the title's left inset). */}

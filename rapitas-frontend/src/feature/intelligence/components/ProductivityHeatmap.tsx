@@ -126,7 +126,7 @@ export function ProductivityHeatmap() {
           </div>
         )}
         {data.lowHours.length > 0 && (
-          <div className="flex items-center gap-1.5 text-zinc-400 dark:text-zinc-500">
+          <div className="flex items-center gap-1.5 text-zinc-500 dark:text-zinc-500">
             <Moon className="w-3.5 h-3.5" />
             <span>
               {t('lowLabel')} {data.lowHours.map((h) => t('hourSuffix', { hour: h })).join(', ')}
@@ -143,7 +143,7 @@ export function ProductivityHeatmap() {
             {HOUR_LABELS.map((h, i) => (
               <div
                 key={i}
-                className="flex-1 text-center text-[9px] text-zinc-400 dark:text-zinc-500"
+                className="flex-1 text-center text-[9px] text-zinc-500 dark:text-zinc-500"
               >
                 {i % 3 === 0 ? h : ''}
               </div>
@@ -174,7 +174,7 @@ export function ProductivityHeatmap() {
           ))}
 
           {/* Legend */}
-          <div className="flex items-center justify-end gap-1.5 mt-2 text-[10px] text-zinc-400 dark:text-zinc-500">
+          <div className="flex items-center justify-end gap-1.5 mt-2 text-[10px] text-zinc-500 dark:text-zinc-500">
             <span>{t('legendLow')}</span>
             <div className="w-3 h-3 rounded-sm bg-zinc-100 dark:bg-zinc-800" />
             <div className="w-3 h-3 rounded-sm bg-indigo-200 dark:bg-indigo-800/40" />
@@ -207,6 +207,7 @@ export function ProductivityHeatmap() {
               </div>
               <button
                 onClick={handleClosePopover}
+                aria-label={t('closePopover')}
                 className="p-1 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-700 rounded transition-colors"
               >
                 <X className="w-4 h-4" />
@@ -243,7 +244,7 @@ export function ProductivityHeatmap() {
                 ))}
               </div>
             ) : (
-              <div className="py-4 text-center text-sm text-zinc-400 dark:text-zinc-500">
+              <div className="py-4 text-center text-sm text-zinc-500 dark:text-zinc-500">
                 {t('noTasksInSlot')}
               </div>
             )}

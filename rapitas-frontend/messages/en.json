@@ -265,6 +265,7 @@
     "openMenu": "Open menu",
     "menu": "Menu",
     "searchPlaceholder": "Search... (Enter for cross-search)",
+    "clearSearch": "Clear search",
     "list": "List",
     "kanban": "Kanban",
     "userMenu": "User menu",
@@ -400,7 +401,8 @@
     "progressSummary": {
       "title": "Weekly summary",
       "completedStats": "{count} completed · {hours}h",
-      "showTasksCount": "Show {count} tasks"
+      "showTasksCount": "Show {count} tasks",
+      "refresh": "Refresh summary"
     },
     "selfObservation": {
       "title": "Self-observation",
@@ -797,7 +799,8 @@
       "measurableOutcomeHeading": "[Measurable Outcome]"
     },
     "suggestionDetailModal": {
-      "title": "Task details"
+      "title": "Task details",
+      "close": "Close"
     },
     "commentsSection": {
       "title": "Notes",
@@ -1901,6 +1904,7 @@
     "executing": "Executing...",
     "execute": "Execute",
     "close": "Close",
+    "retry": "Retry",
     "modeLightweight": "Simple",
     "modeStandard": "Standard",
     "modeComprehensive": "Advanced",
@@ -2040,6 +2044,14 @@
       "awaitingAnswer": "Awaiting answer",
       "blocked": "Blocked",
       "blockedGenericHint": "This task is blocked. Check the notification feed or logs for the cause.",
+      "blockedCauseUnknown": "This task is blocked (cause code: {cause}).",
+      "blockedCauses": {
+        "planInvalidReplanExhausted": "plan.md stayed invalid after repeated re-plans, so re-planning was stopped and the task blocked. Check plan.md manually.",
+        "verifyPrNotCreated": "Verify passed but no PR was created. Check the GitHub integration and for missing commits.",
+        "verifyValidationFailed": "The verify content was self-contradictory or incomplete and hit the auto-repair limit. Check verify.md.",
+        "verifyNoChanges": "Verify passed but no code changes were detected from the implementation.",
+        "subtaskFailed": "One or more subtasks failed, so the parent task was blocked."
+      },
       "verifyDone": "Verified"
     },
     "tabBar": {
@@ -2872,6 +2884,7 @@
     "description": "Manage knowledge learned by AI agents and user learning data",
     "search": "Search knowledge...",
     "searchPlaceholder": "Search by keyword or natural language",
+    "clearSearch": "Clear search",
     "noResults": "No knowledge entries found",
     "noResultsDescription": "Try changing your search criteria or add new knowledge",
     "createEntry": "Add Knowledge",
@@ -4462,7 +4475,8 @@
       "legendHigh": "High",
       "popoverTitle": "{day} {hour}:00 completed tasks",
       "completedAtLabel": "Completed:",
-      "noTasksInSlot": "No tasks completed in this time slot"
+      "noTasksInSlot": "No tasks completed in this time slot",
+      "closePopover": "Close details"
     },
     "relatedKnowledgePanel": {
       "categoryProcedure": "Procedure",
@@ -4733,7 +4747,8 @@
     "toast": {
       "unlockedLabel": "Achievement unlocked!",
       "pointsLabel": "points",
-      "moreCount": "+{count} more achievements"
+      "moreCount": "+{count} more achievements",
+      "dismissLabel": "Dismiss"
     },
     "statsBoard": {
       "overviewHeading": "📊 Overview",

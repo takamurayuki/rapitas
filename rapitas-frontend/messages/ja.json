@@ -265,6 +265,7 @@
     "openMenu": "メニューを開く",
     "menu": "メニュー",
     "searchPlaceholder": "検索... (Enterで横断検索)",
+    "clearSearch": "検索をクリア",
     "list": "リスト",
     "kanban": "カンバン",
     "userMenu": "ユーザーメニュー",
@@ -400,7 +401,8 @@
     "progressSummary": {
       "title": "週間サマリー",
       "completedStats": "{count}件完了 · {hours}h",
-      "showTasksCount": "{count}件のタスクを表示"
+      "showTasksCount": "{count}件のタスクを表示",
+      "refresh": "サマリーを更新"
     },
     "selfObservation": {
       "title": "自己観測",
@@ -797,7 +799,8 @@
       "measurableOutcomeHeading": "【測定可能な成果】"
     },
     "suggestionDetailModal": {
-      "title": "タスクの詳細"
+      "title": "タスクの詳細",
+      "close": "閉じる"
     },
     "commentsSection": {
       "title": "メモ",
@@ -1901,6 +1904,7 @@
     "executing": "実行中...",
     "execute": "実行",
     "close": "閉じる",
+    "retry": "再試行",
     "modeLightweight": "簡単",
     "modeStandard": "標準",
     "modeComprehensive": "高度",
@@ -2040,6 +2044,14 @@
       "awaitingAnswer": "回答待ち",
       "blocked": "ブロック中",
       "blockedGenericHint": "タスクがブロックされています。通知一覧またはログで原因を確認してください。",
+      "blockedCauseUnknown": "タスクがブロックされています（原因コード: {cause}）。",
+      "blockedCauses": {
+        "planInvalidReplanExhausted": "計画(plan.md)が繰り返し不正だったため、再計画を打ち切ってブロックしました。plan.mdを手動で確認してください。",
+        "verifyPrNotCreated": "検証は通過しましたがPRが作成されませんでした。GitHub連携やcommit漏れを確認してください。",
+        "verifyValidationFailed": "検証内容に自己矛盾・不備があり、自動修復の上限に達しました。verify.mdを確認してください。",
+        "verifyNoChanges": "検証は通過しましたが実装による変更が検出されませんでした。",
+        "subtaskFailed": "一部のサブタスクが失敗したため、親タスクをブロックしました。"
+      },
       "verifyDone": "検証完了"
     },
     "tabBar": {
@@ -2872,6 +2884,7 @@
     "description": "AIエージェントが学んだ知識と学習データの管理",
     "search": "知識を検索...",
     "searchPlaceholder": "キーワードまたは自然文で検索",
+    "clearSearch": "検索をクリア",
     "noResults": "知識エントリが見つかりません",
     "noResultsDescription": "検索条件を変更するか、新しい知識を追加してください",
     "createEntry": "知識を追加",
@@ -4462,7 +4475,8 @@
       "legendHigh": "多",
       "popoverTitle": "{day} {hour}時の完了タスク",
       "completedAtLabel": "完了:",
-      "noTasksInSlot": "この時間帯に完了したタスクはありません"
+      "noTasksInSlot": "この時間帯に完了したタスクはありません",
+      "closePopover": "詳細を閉じる"
     },
     "relatedKnowledgePanel": {
       "categoryProcedure": "手順",
@@ -4733,7 +4747,8 @@
     "toast": {
       "unlockedLabel": "実績解除！",
       "pointsLabel": "ポイント",
-      "moreCount": "+{count} 個の実績"
+      "moreCount": "+{count} 個の実績",
+      "dismissLabel": "閉じる"
     },
     "statsBoard": {
       "overviewHeading": "📊 統計概要",

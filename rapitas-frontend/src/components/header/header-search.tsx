@@ -64,6 +64,7 @@ export function HeaderSearch({
         {searchQuery && (
           <button
             onClick={handleClear}
+            aria-label={t('clearSearch')}
             className="absolute right-3 top-1/2 transform -translate-y-1/2 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300"
           >
             <X className="w-4 h-4" />

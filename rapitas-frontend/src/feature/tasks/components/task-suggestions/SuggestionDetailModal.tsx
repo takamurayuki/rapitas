@@ -34,6 +34,7 @@ export function SuggestionDetailModal({
           </h2>
           <button
             onClick={onClose}
+            aria-label={t('suggestionDetailModal.close')}
             className="p-1 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 rounded-md hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
           >
             <X className="w-4 h-4" />

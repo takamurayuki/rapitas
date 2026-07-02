@@ -147,6 +147,7 @@ const SingleToast: React.FC<SingleToastProps> = ({
               </div>
               <button
                 onClick={handleDismiss}
+                aria-label={t('toast.dismissLabel')}
                 className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 transition-colors"
               >
                 <X className="w-4 h-4" />

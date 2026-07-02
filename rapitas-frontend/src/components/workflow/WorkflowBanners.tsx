@@ -154,6 +154,7 @@ interface FetchErrorBannerProps {
  * @param onRefetch - Retry callback / 再取得コールバック
  */
 export function FetchErrorBanner({ error, isLoading, onRefetch }: FetchErrorBannerProps) {
+  const t = useTranslations('workflow');
   return (
     <div className="bg-red-50 dark:bg-red-900/20 border-b border-red-200 dark:border-red-800 p-3">
       <div className="flex items-center justify-between">
@@ -164,6 +165,7 @@ export function FetchErrorBanner({ error, isLoading, onRefetch }: FetchErrorBann
         <button
           onClick={onRefetch}
           disabled={isLoading}
+          aria-label={t('retry')}
           className="text-red-600 dark:text-red-400 hover:text-red-700 disabled:opacity-50"
         >
           <RefreshCw className={`h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />

@@ -56,7 +56,7 @@ export function DirectoryPicker({
                     picker.handleEditCancel();
                   }
                 }}
-                className="flex-1 rounded-lg border-2 border-purple-500 dark:border-purple-400 bg-white dark:bg-zinc-800 px-4 py-2.5 pr-24 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500/30 transition-all font-mono"
+                className="flex-1 rounded-lg border-2 border-purple-500 dark:border-purple-400 bg-white dark:bg-zinc-800 px-4 py-2.5 pr-24 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 transition-all font-mono"
                 placeholder={t('directoryPicker.pathInputPlaceholder')}
               />
               <div className="absolute right-2 flex items-center gap-1">

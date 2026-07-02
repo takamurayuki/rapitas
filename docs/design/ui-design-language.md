@@ -77,7 +77,7 @@ real code we have already corrected or should watch for.
 ## 4. Tokens & defaults (current stack: Tailwind v4)
 
 - **Surfaces**: `bg-white` / `dark:bg-indigo-dark-900`. Separators: `border-zinc-200 dark:border-zinc-800`.
-- **Text**: primary `text-zinc-900 dark:text-zinc-100`; secondary `text-zinc-600 dark:text-zinc-400`; muted `text-zinc-400 dark:text-zinc-500`.
+- **Text**: primary `text-zinc-900 dark:text-zinc-100`; secondary `text-zinc-600 dark:text-zinc-400`; muted `text-zinc-500 dark:text-zinc-500` (light-mode `zinc-400` is ~2.8:1 on white — fails WCAG AA for real text; `zinc-400`/`zinc-500` remain fine on dark surfaces).
 - **Accent (single)**: `indigo` — active bg `indigo-50 dark:indigo-900/30`, active fg `indigo-600 dark:indigo-400`, primary action `bg-indigo-500/600`. Brand mark (logo/wordmark) may also use indigo as a small fixed identity element (see principle #3).
 - **Radius**: controls `rounded-md`/`rounded-lg`; avoid `rounded-2xl`+ on everything.
 - **Elevation**: borders by default; `shadow-lg` only for overlays/menus. Avoid `shadow-2xl`.
@@ -94,7 +94,7 @@ real code we have already corrected or should watch for.
 | Section heading | `text-sm font-semibold` (14, often `uppercase tracking-wide text-zinc-500`) |
 | Body / default | `text-base` (16) or `text-sm` (14) in dense UI |
 | Secondary / label | `text-sm text-zinc-600 dark:text-zinc-400` (14) |
-| Caption / meta / kbd | `text-xs text-zinc-400 dark:text-zinc-500` (12) |
+| Caption / meta / kbd | `text-xs text-zinc-500 dark:text-zinc-400` (12) — bumped from `zinc-400` in light mode for AA contrast; dark stays `zinc-400` |
 
 Limit weights to `font-normal` / `font-medium` / `font-semibold`. Build emphasis with size + weight + color, not size alone, and never with the accent.
 
