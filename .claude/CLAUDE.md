@@ -58,7 +58,7 @@ Automatically handles on each start:
 
 - No `any` type in TypeScript. If unavoidable, add `// HACK(agent): reason`.
 - File size limit: 300–500 lines. Split before adding to an oversized file.
-- Test coverage: ≥ 80% for all new code.
+- Test coverage: new code should ship with tests. **≥ 80% is the long-term target, not an immediate gate** — coverage is raised via the staged ratchet in [ADR-0002](../docs/adr/0002-coverage-gate-staging.md); the enforced floor lives in `rapitas-frontend/vitest.config.ts`. Do not claim 80% is met today; it is not.
 - All public functions require JSDoc/rustdoc. (See COMMENT_POLICY.md)
 
 ### Naming conventions

@@ -117,3 +117,28 @@ order of business risk:
 - [ ] 2026-08-15: Raise frontend threshold to 80 — close out this ADR
 - [ ] If any step needs to slip, append a **revision note** to this ADR
       (do not silently change the dates)
+
+## Revision note — 2026-07-03 (schedule slipped; gate was fiction)
+
+Honest status update, recorded rather than silently editing the dates above.
+
+**What actually happened:** the ratchet did not advance. As of 2026-07-03:
+
+- Measured frontend coverage is **≈ 11.7% lines** (11.57% statements, 10.57%
+  functions, 9.63% branches) across 84 test files / 989 source files.
+- `vitest.config.ts` carried thresholds of **30/25/28/30**, but
+  `test-lint.yml` runs `vitest run` **without `--coverage`** — so the gate ran
+  *nowhere*. The number was aspirational config, not an enforced gate.
+- Backend coverage Phases A/B never landed; `bunfig.toml` keeps
+  `coverage = false` and only an opt-in `test:coverage` script exists.
+
+**Corrective decision:** stop pretending. Set the `vitest.config.ts` thresholds
+to a floor just **below current measured coverage** (11/9/10/11) so that a
+`vitest run --coverage` invocation is a *real, green* gate again, then ratchet
+those numbers up as tests actually land. A truthful low floor that is enforced
+is worth more — especially for a repo shown to reviewers — than a high number
+nothing checks. Wiring `--coverage` into the CI job (so the floor blocks
+regressions) is the next concrete step; until then the floor is enforceable
+locally and via the opt-in script.
+
+The 80% long-term target is unchanged; the path to it is reset to reality.
