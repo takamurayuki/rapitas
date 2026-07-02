@@ -49,8 +49,6 @@ export interface TaskCardHook {
   localSubtasks: Task[];
   handleSubtaskStatusChange: (subtaskId: number, newStatus: string) => void;
   currentStatus: (typeof statusConfig)[keyof typeof statusConfig];
-  completionRate: number | null;
-  getProgressBarColor: (rate: number) => string;
   executionStatus: string | null;
   executionClasses: ExecutionClasses | null;
   isWaitingForInput: boolean;
@@ -138,19 +136,8 @@ export function useTaskCard(
 
   const currentStatus = resolveStatusConfig(task.status);
 
-  const completionRate = localSubtasks.length
-    ? Math.round(
-        (localSubtasks.filter((s) => s.status === 'done').length / localSubtasks.length) * 100,
-      )
-    : null;
-
-  const getProgressBarColor = (rate: number) => {
-    if (rate === 100) return 'bg-green-500';
-    if (rate >= 80) return 'bg-gradient-to-r from-indigo-500 to-green-500';
-    if (rate >= 50) return 'bg-indigo-500';
-    return 'bg-gradient-to-r from-indigo-500 to-orange-500';
-  };
-
+  // NOTE: Removed completionRate/getProgressBarColor — subtask progress
+  // aggregation now lives in TaskCardSubtaskProgress (segmented status-hue bar).
   const getExecutionClasses = (): ExecutionClasses | null => {
     switch (executionStatus) {
       case 'running':
@@ -231,7 +218,7 @@ export function useTaskCard(
       setShowContextMenu(false);
       return;
     }
-    if (!await confirm({ message: tHome('deleteConfirm'), variant: 'destructive' })) return;
+    if (!(await confirm({ message: tHome('deleteConfirm'), variant: 'destructive' }))) return;
     try {
       const res = await fetch(`${API_BASE_URL}/tasks/${task.id}`, {
         method: 'DELETE',
@@ -258,8 +245,6 @@ export function useTaskCard(
     localSubtasks,
     handleSubtaskStatusChange,
     currentStatus,
-    completionRate,
-    getProgressBarColor,
     executionStatus,
     executionClasses,
     isWaitingForInput,

@@ -16,6 +16,7 @@ import { useLocaleStore as _useLocaleStore } from '@/stores/locale-store';
 import { useTaskCard } from './task-card/useTaskCard';
 import TaskCardContextMenu from './task-card/TaskCardContextMenu';
 import TaskCardSubtaskPanel from './task-card/TaskCardSubtaskPanel';
+import TaskCardSubtaskProgress from './task-card/TaskCardSubtaskProgress';
 
 interface TaskCardProps {
   task: Task;
@@ -208,47 +209,12 @@ const TaskCard = memo(function TaskCard({
               NOTE: flex-wrap + min-w-0 で狭幅時にバッジを折返し、横スクロールを防ぐ */}
           <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-zinc-500 dark:text-zinc-400 min-w-0">
             {tc.localSubtasks.length > 0 && (
-              <>
-                <div className="shrink-0 flex items-center gap-2">
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      tc.setExpandedSubtasks(!tc.expandedSubtasks);
-                    }}
-                    className="text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 dark:hover:text-indigo-300 font-medium flex items-center gap-1 transition-all duration-200 ease-out hover:scale-105"
-                    aria-expanded={tc.expandedSubtasks}
-                    aria-label={t('subtasks')}
-                  >
-                    <svg
-                      className={`w-3 h-3 transition-transform duration-300 ease-out ${
-                        tc.expandedSubtasks ? 'rotate-90' : ''
-                      }`}
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                      aria-hidden="true"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M9 5l7 7-7 7"
-                      />
-                    </svg>
-                    {tc.localSubtasks.filter((s) => s.status === 'done').length}/
-                    {tc.localSubtasks.length}
-                  </button>
-                  {tc.completionRate !== null && (
-                    // NOTE: w-75 は非標準のため無効だった。狭幅で潰れないよう shrink-0 + 最大幅を指定。
-                    <div className="w-20 sm:w-32 md:w-48 max-w-full h-1 ml-1 shrink-0 bg-zinc-200 dark:bg-zinc-700 rounded-full overflow-hidden">
-                      <div
-                        className={`h-full ${tc.getProgressBarColor(tc.completionRate)} transition-all duration-700 ease-out`}
-                        style={{ width: `${tc.completionRate}%` }}
-                      />
-                    </div>
-                  )}
-                </div>
-              </>
+              <TaskCardSubtaskProgress
+                subtasks={tc.localSubtasks}
+                expanded={tc.expandedSubtasks}
+                onToggle={() => tc.setExpandedSubtasks(!tc.expandedSubtasks)}
+                label={t('subtasks')}
+              />
             )}
 
             {task.estimatedHours && (
