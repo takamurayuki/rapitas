@@ -32,7 +32,7 @@ export function StatusIcon({ status, conclusion, className = 'h-4 w-4' }: Status
   }
   switch (conclusion) {
     case 'success':
-      return <CheckCircle2 className={`${className} text-emerald-500`} />;
+      return <CheckCircle2 className={`${className} text-green-500`} />;
     case 'failure':
       return <XCircle className={`${className} text-red-500`} />;
     case 'cancelled':

@@ -254,7 +254,7 @@ export const TaskStatsBoard: React.FC<TaskStatsBoardProps> = ({ playerStats, cla
             title="総タスク数"
             value={totalTasksCompleted}
             icon={<CheckSquare className="w-5 h-5" />}
-            color="#10b981"
+            color="#22c55e"
             trend={{
               value: tasksCompletedToday,
               label: '今日',
@@ -304,7 +304,7 @@ export const TaskStatsBoard: React.FC<TaskStatsBoardProps> = ({ playerStats, cla
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
             <ProgressRing
               percentage={weeklyProgress.tasks}
-              color="#10b981"
+              color="#22c55e"
               label="タスク完了"
               value={`${tasksCompletedThisWeek}/${weeklyTaskGoal}`}
             />
@@ -333,7 +333,7 @@ export const TaskStatsBoard: React.FC<TaskStatsBoardProps> = ({ playerStats, cla
             max={maxTaskStreak}
             label="タスク完了連続日数"
             icon={<CheckSquare className="w-5 h-5" />}
-            color="#10b981"
+            color="#22c55e"
           />
           <StreakIndicator
             current={currentStudyStreak}

@@ -86,7 +86,7 @@ export function IntakeQuestionFlow({
             key={i}
             className={`h-1.5 flex-1 rounded-full ${
               i < idx
-                ? 'bg-emerald-400 dark:bg-emerald-500'
+                ? 'bg-green-400 dark:bg-green-500'
                 : i === idx
                   ? 'bg-amber-500'
                   : 'bg-zinc-200 dark:bg-zinc-700'

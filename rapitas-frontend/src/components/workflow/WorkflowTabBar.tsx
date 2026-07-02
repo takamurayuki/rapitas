@@ -101,7 +101,7 @@ export function WorkflowTabBar({
                 ) : hasContent ? (
                   // A filled check reads as "this phase is done" — the previous
                   // solid green dot looked like a live/active status light.
-                  <CheckCircle2 className="h-4 w-4 text-emerald-500 dark:text-emerald-400" />
+                  <CheckCircle2 className="h-4 w-4 text-green-500 dark:text-green-400" />
                 ) : null
                 // Not produced yet: show nothing — an in-progress phase surfaces
                 // its own loading indicator elsewhere.

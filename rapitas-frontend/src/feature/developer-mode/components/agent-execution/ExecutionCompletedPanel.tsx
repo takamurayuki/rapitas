@@ -147,12 +147,12 @@ export function ExecutionCompletedPanel({
 
   return (
     <>
-      <div className="bg-linear-to-r from-emerald-50 to-green-50 dark:from-emerald-950/30 dark:to-green-950/30 rounded-xl border border-emerald-200 dark:border-emerald-800 overflow-hidden">
+      <div className="bg-linear-to-r from-green-50 to-green-50 dark:from-green-950/30 dark:to-green-950/30 rounded-xl border border-green-200 dark:border-green-800 overflow-hidden">
         {/* Header */}
         <div className="p-6">
           <div className="flex items-start gap-4">
-            <div className="p-3 bg-emerald-100 dark:bg-emerald-900/40 rounded-xl">
-              <CheckCircle2 className="w-8 h-8 text-emerald-600 dark:text-emerald-400" />
+            <div className="p-3 bg-green-100 dark:bg-green-900/40 rounded-xl">
+              <CheckCircle2 className="w-8 h-8 text-green-600 dark:text-green-400" />
             </div>
             <div className="flex-1">
               <h3 className="font-bold text-lg text-zinc-900 dark:text-zinc-50">
@@ -161,7 +161,7 @@ export function ExecutionCompletedPanel({
               <p className="text-sm text-zinc-600 dark:text-zinc-400 mt-1">
                 {workflowPhaseInfo?.message || 'AIエージェントによる実行が完了しました。'}
               </p>
-              <p className="text-sm text-emerald-700 dark:text-emerald-300 mt-2">
+              <p className="text-sm text-green-700 dark:text-green-300 mt-2">
                 {workflowPhaseInfo?.nextAction || 'このタスクのPRページで変更を確認してください。'}
               </p>
               {prError && (
@@ -187,7 +187,7 @@ export function ExecutionCompletedPanel({
               </button>
               <button
                 onClick={openTaskPr}
-                className="flex items-center gap-2 px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg font-medium transition-colors"
+                className="flex items-center gap-2 px-4 py-2.5 bg-green-600 hover:bg-green-700 text-white rounded-lg font-medium transition-colors"
               >
                 <ExternalLink className="w-4 h-4" />
                 PRを開く
@@ -197,7 +197,7 @@ export function ExecutionCompletedPanel({
         </div>
 
         {/* Follow-up instruction section */}
-        <div className="px-6 py-4 border-t border-emerald-200 dark:border-emerald-800 bg-white/50 dark:bg-indigo-dark-900/30">
+        <div className="px-6 py-4 border-t border-green-200 dark:border-green-800 bg-white/50 dark:bg-indigo-dark-900/30">
           <div className="flex items-center gap-2 mb-2">
             <MessageSquarePlus className="w-4 h-4 text-violet-600 dark:text-violet-400" />
             <span className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
@@ -260,7 +260,7 @@ export function ExecutionCompletedPanel({
           onApproveMerge={onApproveMerge}
         />
 
-        <div className="px-6 py-3 bg-emerald-100/50 dark:bg-emerald-900/20 border-t border-emerald-200 dark:border-emerald-800">
+        <div className="px-6 py-3 bg-green-100/50 dark:bg-green-900/20 border-t border-green-200 dark:border-green-800">
           {logsNode}
         </div>
       </div>

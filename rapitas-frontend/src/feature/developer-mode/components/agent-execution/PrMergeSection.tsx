@@ -30,7 +30,7 @@ type Props = {
  */
 export function PrMergeSection({ prState, resetPrState, onCreatePR, onApproveMerge }: Props) {
   return (
-    <div className="px-6 py-4 border-t border-emerald-200 dark:border-emerald-800 bg-white/30 dark:bg-indigo-dark-900/20">
+    <div className="px-6 py-4 border-t border-green-200 dark:border-green-800 bg-white/30 dark:bg-indigo-dark-900/20">
       <div className="flex items-center gap-2 mb-3">
         <GitPullRequest className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
         <span className="text-sm font-medium text-zinc-700 dark:text-zinc-300">PR & マージ</span>
@@ -55,7 +55,7 @@ export function PrMergeSection({ prState, resetPrState, onCreatePR, onApproveMer
 
       {prState.status === 'pr_created' && (
         <div className="space-y-3">
-          <div className="flex items-center gap-2 text-sm text-emerald-600 dark:text-emerald-400">
+          <div className="flex items-center gap-2 text-sm text-green-600 dark:text-green-400">
             <CheckCircle2 className="w-4 h-4" />
             PR #{prState.prNumber} 作成済み
             {prState.prUrl && (
@@ -72,7 +72,7 @@ export function PrMergeSection({ prState, resetPrState, onCreatePR, onApproveMer
           </div>
           <button
             onClick={onApproveMerge}
-            className="flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-sm font-medium transition-colors"
+            className="flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg text-sm font-medium transition-colors"
           >
             <GitMerge className="w-4 h-4" />
             承認 & マージ
@@ -88,7 +88,7 @@ export function PrMergeSection({ prState, resetPrState, onCreatePR, onApproveMer
       )}
 
       {prState.status === 'merged' && (
-        <div className="flex items-center gap-2 text-sm text-emerald-600 dark:text-emerald-400">
+        <div className="flex items-center gap-2 text-sm text-green-600 dark:text-green-400">
           <GitMerge className="w-4 h-4" />
           PR #{prState.prNumber} がマージされました。ローカルのdevelopは最新です。
         </div>

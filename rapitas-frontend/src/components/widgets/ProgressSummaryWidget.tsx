@@ -93,7 +93,7 @@ export function ProgressSummaryWidget() {
                 key={i}
                 className="flex items-start gap-2 text-xs text-zinc-500 dark:text-zinc-400"
               >
-                <TrendingUp className="w-3 h-3 mt-0.5 text-emerald-500 shrink-0" />
+                <TrendingUp className="w-3 h-3 mt-0.5 text-green-500 shrink-0" />
                 <span>{h}</span>
               </div>
             ))}

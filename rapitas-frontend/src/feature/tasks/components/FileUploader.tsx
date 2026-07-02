@@ -324,7 +324,7 @@ export default function FileUploader({ taskId, resources, onResourcesChange }: F
                     disabled={downloadStates[resource.id] === 'downloading'}
                     className={`relative p-1.5 rounded-lg transition-all duration-300 ${
                       downloadStates[resource.id] === 'completed'
-                        ? 'text-emerald-500 bg-emerald-100 dark:bg-emerald-900/40 scale-110'
+                        ? 'text-green-500 bg-green-100 dark:bg-green-900/40 scale-110'
                         : downloadStates[resource.id] === 'downloading'
                           ? 'text-indigo-500 bg-indigo-50 dark:bg-indigo-900/30'
                           : 'text-zinc-500 hover:text-indigo-500 hover:bg-indigo-50 dark:hover:bg-indigo-900/30'
@@ -346,12 +346,12 @@ export default function FileUploader({ taskId, resources, onResourcesChange }: F
                     )}
                     {/* Ripple effect on completion */}
                     {downloadStates[resource.id] === 'completed' && (
-                      <span className="absolute inset-0 rounded-lg bg-emerald-400/30 animate-[ripple_0.6s_ease-out]" />
+                      <span className="absolute inset-0 rounded-lg bg-green-400/30 animate-[ripple_0.6s_ease-out]" />
                     )}
                   </button>
                   {/* Success tooltip */}
                   {downloadStates[resource.id] === 'completed' && (
-                    <span className="absolute -top-8 left-1/2 -translate-x-1/2 px-2 py-1 text-xs font-medium text-emerald-700 dark:text-emerald-300 bg-emerald-100 dark:bg-emerald-900/60 rounded-md whitespace-nowrap animate-[fadeInUp_0.3s_ease-out] shadow-sm">
+                    <span className="absolute -top-8 left-1/2 -translate-x-1/2 px-2 py-1 text-xs font-medium text-green-700 dark:text-green-300 bg-green-100 dark:bg-green-900/60 rounded-md whitespace-nowrap animate-[fadeInUp_0.3s_ease-out] shadow-sm">
                       完了!
                     </span>
                   )}

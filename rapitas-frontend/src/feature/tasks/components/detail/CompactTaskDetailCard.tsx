@@ -314,12 +314,12 @@ export default function CompactTaskDetailCard({
               const hasEst = displayedEst != null && displayedEst > 0;
               const pct = hasEst ? Math.min(100, (displayedAct / displayedEst) * 100) : 0;
               const barColor = !hasEst
-                ? 'bg-emerald-500/30'
+                ? 'bg-green-500/30'
                 : displayedAct > displayedEst
                   ? 'bg-red-500'
                   : displayedAct >= displayedEst * 0.8
                     ? 'bg-amber-500'
-                    : 'bg-emerald-500';
+                    : 'bg-green-500';
               return (
                 <div className="space-y-4">
                   {/* 工数 / 作業時間 / 期限 — 3列横並び */}

@@ -81,7 +81,7 @@ export function ConcernCard({
             {c.status === 'task_created' && c.createdTaskId && (
               <a
                 href={`/tasks/${c.createdTaskId}`}
-                className="rounded-full bg-emerald-50 px-1.5 py-0.5 text-[10px] font-medium text-emerald-600 hover:underline dark:bg-emerald-900/30 dark:text-emerald-300"
+                className="rounded-full bg-green-50 px-1.5 py-0.5 text-[10px] font-medium text-green-600 hover:underline dark:bg-green-900/30 dark:text-green-300"
               >
                 タスク化済 #{c.createdTaskId}
               </a>

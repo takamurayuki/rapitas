@@ -19,8 +19,7 @@ const typeIcons: Record<string, string> = {
   pr_approved: 'bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400',
   pr_changes_requested: 'bg-orange-100 dark:bg-orange-900/30 text-orange-600 dark:text-orange-400',
   agent_execution_started: 'bg-cyan-100 dark:bg-cyan-900/30 text-cyan-600 dark:text-cyan-400',
-  agent_execution_complete:
-    'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400',
+  agent_execution_complete: 'bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400',
   github_sync_complete: 'bg-gray-100 dark:bg-gray-900/30 text-gray-600 dark:text-gray-400',
   knowledge_extracted: 'bg-indigo-100 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400',
   knowledge_reminder: 'bg-amber-100 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400',

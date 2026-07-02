@@ -204,7 +204,7 @@ function Step({
           <h2 className="text-base font-semibold text-zinc-900 dark:text-zinc-100">{title}</h2>
         </div>
         {ok ? (
-          <CheckCircle className="h-5 w-5 text-emerald-500" />
+          <CheckCircle className="h-5 w-5 text-green-500" />
         ) : (
           <XCircle className="h-5 w-5 text-zinc-300 dark:text-zinc-600" />
         )}
@@ -232,9 +232,7 @@ function DbDetail({ db }: { db: DbStatus }) {
         <span className="text-zinc-500 dark:text-zinc-400">接続</span>
         <span
           className={
-            db.connected
-              ? 'text-emerald-600 dark:text-emerald-400'
-              : 'text-red-600 dark:text-red-400'
+            db.connected ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'
           }
         >
           {db.connected ? 'OK' : 'エラー'}
@@ -283,7 +281,7 @@ function ProviderList({ providers }: { providers: ProviderStatus[] }) {
         >
           <div className="flex items-center gap-2">
             {p.available ? (
-              <CheckCircle className="h-4 w-4 text-emerald-500" />
+              <CheckCircle className="h-4 w-4 text-green-500" />
             ) : (
               <XCircle className="h-4 w-4 text-zinc-300 dark:text-zinc-600" />
             )}

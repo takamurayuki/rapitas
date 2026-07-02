@@ -67,7 +67,7 @@ export default function ReportsPage() {
   };
 
   const getTrend = (value: number) => {
-    if (value > 0) return { icon: TrendingUp, color: 'text-emerald-500', text: `+${value}` };
+    if (value > 0) return { icon: TrendingUp, color: 'text-green-500', text: `+${value}` };
     if (value < 0) return { icon: TrendingDown, color: 'text-red-500', text: `${value}` };
     return { icon: Minus, color: 'text-zinc-400', text: '±0' };
   };

@@ -224,7 +224,7 @@ export function ExecutionSection({
             </span>
           )}
           {!isExpanded && execStatusIcon === 'success' && (
-            <span className="flex items-center gap-1 px-1.5 py-0.5 bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300 text-[10px] rounded">
+            <span className="flex items-center gap-1 px-1.5 py-0.5 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 text-[10px] rounded">
               <CheckCircle2 className="w-2.5 h-2.5" />
               {pollingSessionMode?.startsWith('workflow-')
                 ? workflowPhaseLabel(pollingSessionMode)
@@ -232,7 +232,7 @@ export function ExecutionSection({
             </span>
           )}
           {!isExpanded && execStatusIcon === 'idle' && isTaskDone && (
-            <span className="flex items-center gap-1 px-1.5 py-0.5 bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300 text-[10px] rounded">
+            <span className="flex items-center gap-1 px-1.5 py-0.5 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 text-[10px] rounded">
               <CheckCircle2 className="w-2.5 h-2.5" />
               実行完了
             </span>
@@ -288,7 +288,7 @@ export function ExecutionSection({
                   e.stopPropagation();
                   openTaskPr();
                 }}
-                className="flex items-center gap-1 px-2 py-1 bg-emerald-600 hover:bg-emerald-700 text-white text-[10px] font-medium rounded transition-colors"
+                className="flex items-center gap-1 px-2 py-1 bg-green-600 hover:bg-green-700 text-white text-[10px] font-medium rounded transition-colors"
               >
                 <ExternalLink className="w-2.5 h-2.5" />
                 PRを開く

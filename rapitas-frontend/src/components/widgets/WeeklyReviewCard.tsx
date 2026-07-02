@@ -118,7 +118,7 @@ export function WeeklyReviewCard() {
           {stats && (
             <div className="flex flex-wrap gap-4 text-sm text-zinc-700 dark:text-zinc-300">
               <div className="flex items-center gap-1.5">
-                <CheckCircle2 className="h-4 w-4 text-emerald-500" />
+                <CheckCircle2 className="h-4 w-4 text-green-500" />
                 <span>完了 {stats.totalCompletedCount} 件</span>
               </div>
               <div className="flex items-center gap-1.5">

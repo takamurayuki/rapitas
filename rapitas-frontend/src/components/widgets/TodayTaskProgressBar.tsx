@@ -161,12 +161,15 @@ const TodayTaskProgressBar = memo<TodayTaskProgressBarProps>(
 
     if (compact) {
       const isDone = efficiency === 100;
+      // NOTE: done state uses GREEN — the app-wide completion hue (was emerald,
+      // which split the "完了" meaning against the green used by task done /
+      // completed states everywhere else).
       const fillColor = isDone
-        ? 'bg-gradient-to-r from-emerald-500 to-emerald-400'
+        ? 'bg-gradient-to-r from-green-500 to-green-400'
         : 'bg-gradient-to-r from-blue-500 to-blue-400';
-      const circleColor = isDone ? '#10b981' : '#3b82f6';
+      const circleColor = isDone ? '#22c55e' : '#3b82f6';
       const pctColor = isDone
-        ? 'text-emerald-600 dark:text-emerald-400'
+        ? 'text-green-600 dark:text-green-400'
         : 'text-zinc-500 dark:text-zinc-400';
 
       const remaining = (tasks ?? []).filter((tk) => tk.status !== 'done');
@@ -213,11 +216,11 @@ const TodayTaskProgressBar = memo<TodayTaskProgressBarProps>(
                       exit={{ scale: 0, opacity: 0 }}
                       transition={{ type: 'spring', stiffness: 400, damping: 15 }}
                     >
-                      {/* Emerald glow ring — expands outward on completion */}
+                      {/* Green glow ring — expands outward on completion */}
                       <AnimatePresence>
                         {isCelebrating && (
                           <motion.span
-                            className="pointer-events-none absolute rounded-full border-2 border-emerald-400"
+                            className="pointer-events-none absolute rounded-full border-2 border-green-400"
                             style={{ inset: -3 }}
                             initial={{ scale: 1, opacity: 0.9 }}
                             animate={{ scale: 5, opacity: 0 }}
@@ -226,18 +229,18 @@ const TodayTaskProgressBar = memo<TodayTaskProgressBarProps>(
                           />
                         )}
                       </AnimatePresence>
-                      {/* Ray burst — 8 emerald/teal lines radiating outward like sunbeams */}
+                      {/* Ray burst — 8 green-family lines radiating outward like sunbeams */}
                       <AnimatePresence>
                         {isCelebrating &&
                           [
-                            '#10b981',
-                            '#34d399',
-                            '#059669',
-                            '#6ee7b7',
-                            '#14b8a6',
-                            '#2dd4bf',
-                            '#0d9488',
-                            '#5eead4',
+                            '#22c55e',
+                            '#4ade80',
+                            '#16a34a',
+                            '#86efac',
+                            '#15803d',
+                            '#4ade80',
+                            '#22c55e',
+                            '#bbf7d0',
                           ].map((color, i, arr) => {
                             const angle = (i / arr.length) * Math.PI * 2;
                             const deg = (i / arr.length) * 360;
@@ -265,7 +268,7 @@ const TodayTaskProgressBar = memo<TodayTaskProgressBarProps>(
                             );
                           })}
                       </AnimatePresence>
-                      <CheckCheck size={14} className="relative text-emerald-500" />
+                      <CheckCheck size={14} className="relative text-green-500" />
                     </motion.span>
                   )}
                 </AnimatePresence>
@@ -330,7 +333,7 @@ const TodayTaskProgressBar = memo<TodayTaskProgressBarProps>(
                 {remaining.length === 0 ? (
                   <div className="flex items-center gap-2 px-3 py-2.5">
                     <Trophy size={13} className="shrink-0 text-amber-500" />
-                    <span className="text-xs font-semibold text-emerald-600 dark:text-emerald-400">
+                    <span className="text-xs font-semibold text-green-600 dark:text-green-400">
                       {t('allDueTodayDone')}
                     </span>
                   </div>

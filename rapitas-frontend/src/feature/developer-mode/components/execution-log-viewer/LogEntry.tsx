@@ -65,7 +65,7 @@ const LogEntry = memo<LogEntryProps>(({ log, index, isNewEntry, searchQuery, hig
     log.includes('[Error]')
       ? 'text-red-400'
       : log.includes('[エージェント]')
-        ? 'text-emerald-400 font-semibold'
+        ? 'text-green-400 font-semibold'
         : log.includes('[実行開始]') ||
             log.includes('[継続]') ||
             log.includes('[完了]') ||

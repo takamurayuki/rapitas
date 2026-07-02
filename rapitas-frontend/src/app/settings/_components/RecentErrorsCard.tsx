@@ -96,7 +96,7 @@ export default function RecentErrorsCard() {
           <Loader2 className="h-4 w-4 animate-spin text-zinc-400" />
         </div>
       ) : !data?.errors.length ? (
-        <p className="text-xs text-emerald-600 dark:text-emerald-400">エラーはありません ✓</p>
+        <p className="text-xs text-green-600 dark:text-green-400">エラーはありません ✓</p>
       ) : (
         <ul className="divide-y divide-zinc-100 dark:divide-zinc-800">
           {data.errors.map((e) => (

@@ -48,7 +48,7 @@ export function OptimizationResultView({
       className={`bg-white dark:bg-indigo-dark-900 rounded-xl border border-zinc-200 dark:border-zinc-700 overflow-hidden ${className}`}
     >
       {/* Header */}
-      <div className="px-6 py-4 bg-linear-to-r from-green-50 to-emerald-50 dark:from-green-900/20 dark:to-emerald-900/20 border-b border-zinc-200 dark:border-zinc-700">
+      <div className="px-6 py-4 bg-linear-to-r from-green-50 to-green-50 dark:from-green-900/20 dark:to-green-900/20 border-b border-zinc-200 dark:border-zinc-700">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="p-2 bg-green-100 dark:bg-green-900/40 rounded-lg">

@@ -179,12 +179,12 @@ export default function BurnupChart({
         <div className="flex items-center justify-between gap-3">
           <div className="flex items-center gap-4">
             <div className="flex items-center gap-1.5">
-              <TrendingUp className="w-4 h-4 text-emerald-500" />
+              <TrendingUp className="w-4 h-4 text-green-500" />
               <h2 className="text-sm font-bold text-zinc-900 dark:text-zinc-50">{t('title')}</h2>
             </div>
             {/* Inline summary */}
             <div className="hidden sm:flex items-center gap-3 text-xs">
-              <span className="flex items-center gap-1 text-emerald-600 dark:text-emerald-400">
+              <span className="flex items-center gap-1 text-green-600 dark:text-green-400">
                 <Award className="w-3 h-3" />
                 {t('completed')}
                 <span className="font-semibold">{summary.totalCompleted}</span>
@@ -232,7 +232,7 @@ export default function BurnupChart({
                   onClick={() => setSelectedDays(d)}
                   className={`px-2 py-1 text-xs transition-colors ${
                     selectedDays === d
-                      ? 'bg-emerald-500 text-white'
+                      ? 'bg-green-500 text-white'
                       : 'bg-zinc-50 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-700'
                   }`}
                 >
@@ -244,7 +244,7 @@ export default function BurnupChart({
         </div>
         {/* Mobile summary */}
         <div className="flex sm:hidden items-center gap-3 mt-2 text-xs">
-          <span className="flex items-center gap-1 text-emerald-600 dark:text-emerald-400">
+          <span className="flex items-center gap-1 text-green-600 dark:text-green-400">
             {t('completed')}
             <span className="font-semibold">{summary.totalCompleted}</span>
           </span>
@@ -316,7 +316,7 @@ export default function BurnupChart({
             })}
 
           {/* Cumulative completed area fill */}
-          <path d={chartConfig.areaPath} fill="#10b981" fillOpacity={0.1} />
+          <path d={chartConfig.areaPath} fill="#22c55e" fillOpacity={0.1} />
 
           {/* Ideal pace reference line */}
           <path
@@ -331,7 +331,7 @@ export default function BurnupChart({
           <path
             d={chartConfig.completedPath}
             fill="none"
-            stroke="#10b981"
+            stroke="#22c55e"
             strokeWidth={2}
             strokeLinecap="round"
             strokeLinejoin="round"
@@ -348,7 +348,7 @@ export default function BurnupChart({
                 cx={chartConfig.xScale(i)}
                 cy={chartConfig.yScale(d.cumulativeCompleted)}
                 r={3}
-                fill="#10b981"
+                fill="#22c55e"
                 stroke="white"
                 strokeWidth={1.5}
                 className="cursor-pointer"
@@ -367,7 +367,7 @@ export default function BurnupChart({
         {/* Legend */}
         <div className="flex items-center justify-center gap-4 mt-1">
           <div className="flex items-center gap-1.5">
-            <div className="w-3 h-0.5 bg-emerald-500 rounded" />
+            <div className="w-3 h-0.5 bg-green-500 rounded" />
             <span className="text-[10px] text-zinc-500 dark:text-zinc-400">
               {t('cumulativeCompleted')}
             </span>

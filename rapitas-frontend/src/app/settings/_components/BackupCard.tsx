@@ -115,7 +115,7 @@ export default function BackupCard() {
         <>
           <div className="mb-3 flex items-center gap-2 rounded-lg bg-zinc-50 px-3 py-2 dark:bg-zinc-800/50">
             {data.status.lastResult === 'success' ? (
-              <CheckCircle className="h-4 w-4 text-emerald-500" />
+              <CheckCircle className="h-4 w-4 text-green-500" />
             ) : data.status.lastResult === 'failed' ? (
               <AlertTriangle className="h-4 w-4 text-red-500" />
             ) : (
