@@ -285,14 +285,54 @@ export const tasksRoutes = new Elysia({ prefix: '/tasks' })
   )
 
   // Update task
-  .patch('/:id', async (context) => {
-    const { params, body } = context;
-    const taskId = parseInt(params.id);
-    if (isNaN(taskId)) {
-      throw new ValidationError(INVALID_ID);
-    }
-    return await updateTask(prisma, taskId, body as Parameters<typeof updateTask>[2]);
-  })
+  .patch(
+    '/:id',
+    async (context) => {
+      const { params, body } = context;
+      const taskId = parseInt(params.id);
+      if (isNaN(taskId)) {
+        throw new ValidationError(INVALID_ID);
+      }
+      return await updateTask(prisma, taskId, body as Parameters<typeof updateTask>[2]);
+    },
+    {
+      // NOTE: Length caps on free-text fields prevent an unbounded-payload DoS
+      // (e.g. a multi-MB `description`) from reaching the DB layer. Mirrors the
+      // field whitelist in UpdateTaskInput (task-mutations.ts); all optional.
+      body: t.Object(
+        {
+          title: t.Optional(t.String({ maxLength: 500 })),
+          description: t.Optional(t.String({ maxLength: 20000 })),
+          themeId: t.Optional(t.Number()),
+          status: t.Optional(t.String({ maxLength: 100 })),
+          priority: t.Optional(t.String({ maxLength: 100 })),
+          labels: t.Optional(t.String({ maxLength: 2000 })),
+          labelIds: t.Optional(t.Array(t.Number())),
+          estimatedHours: t.Optional(t.Nullable(t.Number())),
+          actualHours: t.Optional(t.Nullable(t.Number())),
+          dueDate: t.Optional(t.Nullable(t.String({ maxLength: 100 }))),
+          startedAt: t.Optional(t.Nullable(t.String({ maxLength: 100 }))),
+          subject: t.Optional(t.String({ maxLength: 500 })),
+          projectId: t.Optional(t.Number()),
+          milestoneId: t.Optional(t.Number()),
+          examGoalId: t.Optional(t.Number()),
+          autoApprovePlan: t.Optional(t.Boolean()),
+          goals: t.Optional(t.Array(t.String({ maxLength: 20000 }), { maxItems: 200 })),
+          constraints: t.Optional(t.Array(t.String({ maxLength: 20000 }), { maxItems: 200 })),
+          acceptanceCriteria: t.Optional(
+            t.Array(t.String({ maxLength: 20000 }), { maxItems: 200 }),
+          ),
+          isProtected: t.Optional(t.Boolean()),
+        },
+        // NOTE: additionalProperties left permissive (not false) — updateTask()
+        // already destructures only the whitelisted fields above and silently
+        // drops the rest, and unlike execute-route's body this one has many
+        // long-tail callers; hard-rejecting unknown fields risked breaking a
+        // caller that (harmlessly) sends an extra field.
+        { additionalProperties: true },
+      ),
+    },
+  )
 
   // Retry a task that auto-run parked as blocked (or that failed): return it to
   // 'todo' so the next selection picks it up. Without this the only recovery

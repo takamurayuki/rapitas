@@ -8,7 +8,7 @@ import { themeSchema } from '../../schemas/theme.schema';
 import { NotFoundError, ValidationError } from '../../middleware/error-handler';
 import * as fs from 'fs';
 import * as path from 'path';
-import { execSync } from 'child_process';
+import { execSync, execFileSync } from 'child_process';
 
 export const themesRoutes = new Elysia({ prefix: '/themes' })
   // Get all themes
@@ -444,15 +444,21 @@ export const themesRoutes = new Elysia({ prefix: '/themes' })
       throw new ValidationError('repositoryUrl パラメータが必要です');
     }
 
-    // Validate URL format
-    if (!repositoryUrl.match(/^https?:\/\/.+\/.+\.git$|^https?:\/\/.+\/.+$/)) {
+    // Validate URL format. The trailing `.+` used to allow shell metacharacters
+    // (" ; ` $ | &) through to a shell-string git command — a command-injection
+    // sink reachable cross-site (GET bypasses the CSRF guard). Reject any
+    // metacharacter, and run git via execFile (array args, no shell) below.
+    if (
+      !repositoryUrl.match(/^https?:\/\/.+\/.+\.git$|^https?:\/\/.+\/.+$/) ||
+      /["'`;$|&<>\\\s]/.test(repositoryUrl)
+    ) {
       throw new ValidationError('無効なリポジトリURLです');
     }
 
     try {
-      // Use git ls-remote to fetch branches
-      const command = `git ls-remote --heads "${repositoryUrl}"`;
-      const output = execSync(command, {
+      // execFile (no shell): repositoryUrl is passed as a discrete argv element,
+      // so metacharacters can never be interpreted even if the regex is loosened.
+      const output = execFileSync('git', ['ls-remote', '--heads', repositoryUrl], {
         encoding: 'utf8',
         timeout: 10000, // 10 second timeout
         maxBuffer: 1024 * 1024, // 1MB buffer

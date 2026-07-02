@@ -305,6 +305,57 @@ export const importRoutes = new Elysia({ prefix: '/import' })
       query: t.Object({
         mode: t.Optional(t.Union([t.Literal('skip'), t.Literal('overwrite')], { default: 'skip' })),
       }),
+      // NOTE: Per-array item cap prevents an unbounded-payload DoS (a crafted
+      // backup file with e.g. millions of task rows) from reaching the DB
+      // insert loop. Item shape stays loose (t.Record) — importEntities()
+      // casts each entity to its concrete type internally and each entity
+      // type has its own required fields, so re-declaring per-entity shapes
+      // here would duplicate that and risk drifting out of sync.
+      body: t.Object(
+        {
+          version: t.Optional(t.String()),
+          exportedAt: t.Optional(t.String()),
+          counts: t.Optional(t.Record(t.String(), t.Number())),
+          data: t.Object(
+            {
+              tasks: t.Optional(t.Array(t.Record(t.String(), t.Unknown()), { maxItems: 50000 })),
+              projects: t.Optional(t.Array(t.Record(t.String(), t.Unknown()), { maxItems: 50000 })),
+              milestones: t.Optional(
+                t.Array(t.Record(t.String(), t.Unknown()), { maxItems: 50000 }),
+              ),
+              labels: t.Optional(t.Array(t.Record(t.String(), t.Unknown()), { maxItems: 50000 })),
+              categories: t.Optional(
+                t.Array(t.Record(t.String(), t.Unknown()), { maxItems: 50000 }),
+              ),
+              themes: t.Optional(t.Array(t.Record(t.String(), t.Unknown()), { maxItems: 50000 })),
+              habits: t.Optional(t.Array(t.Record(t.String(), t.Unknown()), { maxItems: 50000 })),
+              habitLogs: t.Optional(
+                t.Array(t.Record(t.String(), t.Unknown()), { maxItems: 50000 }),
+              ),
+              examGoals: t.Optional(
+                t.Array(t.Record(t.String(), t.Unknown()), { maxItems: 50000 }),
+              ),
+              learningGoals: t.Optional(
+                t.Array(t.Record(t.String(), t.Unknown()), { maxItems: 50000 }),
+              ),
+              studyStreaks: t.Optional(
+                t.Array(t.Record(t.String(), t.Unknown()), { maxItems: 50000 }),
+              ),
+              scheduleEvents: t.Optional(
+                t.Array(t.Record(t.String(), t.Unknown()), { maxItems: 50000 }),
+              ),
+              timeEntries: t.Optional(
+                t.Array(t.Record(t.String(), t.Unknown()), { maxItems: 50000 }),
+              ),
+              pomodoroSessions: t.Optional(
+                t.Array(t.Record(t.String(), t.Unknown()), { maxItems: 50000 }),
+              ),
+            },
+            { additionalProperties: true },
+          ),
+        },
+        { additionalProperties: true },
+      ),
     },
   )
 

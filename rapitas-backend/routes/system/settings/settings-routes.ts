@@ -13,7 +13,7 @@ import { getApiKeyForProvider } from '../../../utils/ai-client';
 import { systemSchemas } from '../../../schemas/system.schema';
 import { createLogger } from '../../../config/logger';
 import { t } from 'elysia';
-import { PROVIDER_MODEL_COLUMNS, isValidProvider } from './settings-types';
+import { PROVIDER_MODEL_COLUMNS, isValidProvider, validateOllamaUrl } from './settings-types';
 import { fetchAvailableModels } from './model-fetcher';
 
 const log = createLogger('routes:settings');
@@ -102,6 +102,18 @@ export const settingsRoutes = new Elysia({ prefix: '/settings' })
         titleGenerationProvider?: string | null;
         skipAgentPermissionPrompts?: boolean;
       };
+
+      // NOTE: ollamaUrl is fetched server-side (see services/local-llm,
+      // services/ai/model-discovery/probes/ollama-probe.ts) — without this
+      // check a client could point it at an arbitrary internal/public host
+      // and use the backend as an SSRF proxy. Ollama only ever runs locally.
+      if (ollamaUrl !== undefined) {
+        const check = validateOllamaUrl(ollamaUrl);
+        if (!check.valid) {
+          set.status = 400;
+          return { error: check.error };
+        }
+      }
 
       try {
         let settings = await prisma.userSettings.findFirst();

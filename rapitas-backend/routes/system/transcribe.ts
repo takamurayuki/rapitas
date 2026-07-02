@@ -30,6 +30,11 @@ import {
 
 const log = createLogger('routes:transcribe');
 
+// A voice-note recording is at most a few minutes of compressed audio; 25MB
+// comfortably covers that while capping the buffer this handler reads fully
+// into memory (Buffer.from(await audio.arrayBuffer())) against a DoS upload.
+const MAX_AUDIO_BYTES = 25 * 1024 * 1024;
+
 export const transcribeRouter = new Elysia({ prefix: '/transcribe' })
 
   /**
@@ -48,6 +53,21 @@ export const transcribeRouter = new Elysia({ prefix: '/transcribe' })
       if (!audio || !audio.size) {
         set.status = 400;
         return { error: '音声データが空です' };
+      }
+
+      if (audio.size > MAX_AUDIO_BYTES) {
+        set.status = 413;
+        return { error: `音声データが大きすぎます（上限 ${MAX_AUDIO_BYTES / (1024 * 1024)}MB）` };
+      }
+
+      // NOTE: MediaRecorder blobs are always audio/* (webm/wav/mp4/ogg); an
+      // empty type can occur on some browsers, so it is tolerated. Anything
+      // else (e.g. a client sending an arbitrary file as "audio") is rejected
+      // before it reaches the transcription pipeline / OpenAI fallback.
+      const mimeType = audio.type || '';
+      if (mimeType && !mimeType.startsWith('audio/')) {
+        set.status = 400;
+        return { error: `対応していない音声形式です: ${mimeType}` };
       }
 
       log.info(

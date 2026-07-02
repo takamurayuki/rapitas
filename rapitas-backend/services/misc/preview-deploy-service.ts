@@ -63,15 +63,25 @@ async function checkGitHubDeployments(
   prNumber: number,
 ): Promise<DeploymentStatus> {
   try {
-    const { execSync } = await import('child_process');
-    const ghPath = process.platform === 'win32' ? '"C:\\Program Files\\GitHub CLI\\gh.exe"' : 'gh';
+    // NOTE: prNumber must be validated BEFORE it's interpolated anywhere near
+    // a shell command — this guard makes that invariant explicit and
+    // enforced, rather than just asserted in a comment.
+    if (!Number.isInteger(prNumber)) {
+      throw new Error(`Invalid prNumber: ${prNumber}`);
+    }
 
-    // SECURITY: safe - prNumber is a validated integer from function parameter
-    const checksJson = execSync(`${ghPath} pr checks ${prNumber} --json name,state,link`, {
-      cwd: workingDirectory,
-      encoding: 'utf8',
-      timeout: 15000,
-    });
+    const { execFileSync } = await import('child_process');
+    const ghPath = process.platform === 'win32' ? 'C:\\Program Files\\GitHub CLI\\gh.exe' : 'gh';
+
+    const checksJson = execFileSync(
+      ghPath,
+      ['pr', 'checks', String(prNumber), '--json', 'name,state,link'],
+      {
+        cwd: workingDirectory,
+        encoding: 'utf8',
+        timeout: 15000,
+      },
+    );
 
     const checks = JSON.parse(checksJson) as Array<{
       name: string;

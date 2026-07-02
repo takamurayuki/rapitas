@@ -17,6 +17,7 @@ import { decideWorktree } from '../../../services/agents/orchestrator/git-operat
 import { isBackendPrimaryCheckout } from '../../../services/agents/orchestrator/git-operations/worktree-guard';
 import { toJsonString } from '../../../utils/database/db-helpers';
 import { acquireTaskExecutionLock, releaseTaskExecutionLock } from './execution-lock';
+import { agentRateLimiter } from '../../../middleware/rate-limiter';
 import { handleContinueResult, handleContinueError } from './continue-post-handler';
 import { resolveTaskForExecution } from '../../../services/task/task-resolver';
 import {
@@ -30,6 +31,15 @@ const agentWorkerManager = AgentWorkerManager.getInstance();
 export const continueRoute = new Elysia().post(
   '/tasks/:id/continue-execution',
   async (context) => {
+    const ip = context.headers?.['x-forwarded-for'] || 'local';
+    if (
+      !agentRateLimiter(
+        context.set as { status?: number | string; headers: Record<string, string> },
+        ip,
+      )
+    ) {
+      return { success: false, error: 'Too many requests. Please try again later.' };
+    }
     const taskId = parseInt(context.params.id);
     const { instruction, sessionId, agentConfigId } = context.body as {
       instruction?: string;

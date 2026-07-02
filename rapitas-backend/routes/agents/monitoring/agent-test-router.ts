@@ -28,7 +28,10 @@ async function testCliAvailability(
 ): Promise<{ success: boolean; message: string }> {
   const { spawn } = await import('child_process');
   return new Promise((resolve) => {
-    const proc = spawn(cliPath, ['--version'], { shell: true });
+    // NOTE: shell:false — args are already an array; a shell isn't needed to
+    // invoke a binary/cmd-shim by name (Node resolves it via PATHEXT on
+    // Windows), and not using one closes off shell metacharacter injection.
+    const proc = spawn(cliPath, ['--version'], { shell: false });
     let stdout = '';
     let stderr = '';
 
@@ -234,7 +237,8 @@ export const agentTestRouter = new Elysia()
           output?: string;
           error?: string;
         }>((resolve) => {
-          const proc = spawn(claudePath, ['--version'], { shell: true });
+          // NOTE: shell:false — see testCliAvailability() above for rationale.
+          const proc = spawn(claudePath, ['--version'], { shell: false });
           let stdout = '';
           let stderr = '';
 

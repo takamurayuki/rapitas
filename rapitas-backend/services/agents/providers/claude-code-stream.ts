@@ -9,6 +9,7 @@ import { getProjectRoot } from '../../../config';
 import type { AgentExecutionContext, AgentExecutionResult } from '../abstraction/types';
 import { resolveCliPath } from './cli-utils';
 import { processStreamEvent } from './stream-event-parser';
+import { buildSanitizedSpawnEnv } from '../../../utils/agent';
 
 export { processStreamEvent } from './stream-event-parser';
 
@@ -161,7 +162,11 @@ export async function runClaudeCode(
         cwd: workDir,
         shell: true,
         stdio: ['pipe', 'pipe', 'pipe'],
-        env: { ...process.env, FORCE_COLOR: '0', NO_COLOR: '1', CI: '1', TERM: 'dumb' },
+        // NOTE: The spawned CLI is prompt-steerable (the task prompt can ask it
+        // to print/exfiltrate its own env), so start from a sanitized base —
+        // never the raw inherited env — to keep ENCRYPTION_KEY/DATABASE_URL/
+        // GITHUB_TOKEN/etc out of its reach.
+        env: buildSanitizedSpawnEnv({ FORCE_COLOR: '0', NO_COLOR: '1', CI: '1', TERM: 'dumb' }),
       });
 
       if (proc.stdout) proc.stdout.setEncoding('utf8');

@@ -197,3 +197,62 @@ export function validateApiKeyFormat(
 
   return { valid: true };
 }
+
+// NOTE: Private-use ranges per RFC 1918 (IPv4) / RFC 4193 (IPv6 ULA) plus
+// link-local, used to allow LAN-hosted Ollama instances while still
+// rejecting public hosts.
+const PRIVATE_IPV4_PATTERNS: RegExp[] = [
+  /^10\./,
+  /^192\.168\./,
+  /^172\.(1[6-9]|2\d|3[01])\./,
+  /^169\.254\./, // link-local
+];
+
+/**
+ * Whether `hostname` is loopback, a private/LAN IPv4 or IPv6 address, or a
+ * `.local` mDNS name — the set of hosts a local Ollama server can plausibly
+ * live on.
+ *
+ * @param hostname - Hostname or IP literal from a parsed URL / パース済みURLのホスト名
+ * @returns True if the host is loopback/private/LAN / ホストがループバック/プライベート/LANならtrue
+ */
+export function isLoopbackOrPrivateHost(hostname: string): boolean {
+  const host = hostname.toLowerCase();
+  if (host === 'localhost' || host === '127.0.0.1' || host === '::1' || host === '[::1]') {
+    return true;
+  }
+  if (host.endsWith('.local')) return true;
+  if (PRIVATE_IPV4_PATTERNS.some((re) => re.test(host))) return true;
+  // IPv6 unique local addresses (fc00::/7) and link-local (fe80::/10).
+  if (/^\[?f[cd][0-9a-f]{2}:/i.test(host) || /^\[?fe80:/i.test(host)) return true;
+  return false;
+}
+
+/**
+ * Validates a user-supplied Ollama base URL: must be http(s) and must point
+ * at a loopback/private/LAN host. Ollama is a local service — accepting an
+ * arbitrary public URL here would turn this settings field into a
+ * server-side-request-forgery (SSRF) primitive (the backend fetches this URL
+ * on the server's behalf).
+ *
+ * @param url - Raw URL string from the request body / リクエストボディの生URL文字列
+ * @returns Validation result with an optional error message / バリデーション結果（エラーメッセージ付き）
+ */
+export function validateOllamaUrl(url: string): { valid: boolean; error?: string } {
+  let parsed: URL;
+  try {
+    parsed = new URL(url);
+  } catch {
+    return { valid: false, error: 'ollamaUrl は有効なURLである必要があります' };
+  }
+  if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+    return { valid: false, error: 'ollamaUrl は http または https のURLである必要があります' };
+  }
+  if (!isLoopbackOrPrivateHost(parsed.hostname)) {
+    return {
+      valid: false,
+      error: 'ollamaUrl はローカル/プライベートホストである必要があります（パブリックURLは不可）',
+    };
+  }
+  return { valid: true };
+}

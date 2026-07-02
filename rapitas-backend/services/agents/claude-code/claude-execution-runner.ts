@@ -23,6 +23,7 @@ import {
   killProcessTreeSafely,
 } from '../agent-process-tracker';
 import { getClaudePath, buildSpawnCommand } from './cli-utils';
+import { buildSanitizedSpawnEnv } from '../../../utils/agent';
 import { buildStructuredPrompt } from './prompt-builder';
 import { startIdleMonitor } from './idle-monitor';
 import type { ClaudeCodeAgent } from './agent-core';
@@ -95,8 +96,11 @@ function buildClaudeArgs(agent: ClaudeCodeAgent): { args: string[]; logExtras: s
 /** Build the env passed to the Claude Code CLI subprocess. */
 function buildSpawnEnv(): NodeJS.ProcessEnv {
   const isWindows = process.platform === 'win32';
-  return {
-    ...process.env,
+  // NOTE: The spawned CLI is prompt-steerable (the task prompt itself can ask
+  // it to print/exfiltrate its own env), so start from a sanitized base —
+  // never the raw inherited env — to keep ENCRYPTION_KEY/DATABASE_URL/
+  // GITHUB_TOKEN/etc out of its reach.
+  return buildSanitizedSpawnEnv({
     FORCE_COLOR: '0',
     NO_COLOR: '1',
     CI: '1',
@@ -109,7 +113,7 @@ function buildSpawnEnv(): NodeJS.ProcessEnv {
       PYTHONUTF8: '1',
       CHCP: '65001', // Enable UTF-8 mode on Windows 10+
     }),
-  };
+  });
 }
 
 /** Stream the prompt to stdin in 16 KB chunks (avoids buffering issues). */

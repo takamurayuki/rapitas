@@ -26,6 +26,13 @@ export const systemSchemas = {
     defaultAiProvider: t.Optional(t.String()),
     defaultCategoryId: t.Optional(t.Number()),
     activeMode: t.Optional(t.String()),
+    // NOTE: format:'uri' only checks shape; the loopback/private-host SSRF
+    // check happens in the handler (validateOllamaUrl) since TypeBox has no
+    // hostname-range validator.
+    ollamaUrl: t.Optional(t.String({ format: 'uri', maxLength: 2048 })),
+    ollamaDefaultModel: t.Optional(t.String({ maxLength: 200 })),
+    titleGenerationProvider: t.Optional(t.Union([t.String(), t.Null()])),
+    skipAgentPermissionPrompts: t.Optional(t.Boolean()),
   }),
 
   aiProviderConfig: t.Object({
