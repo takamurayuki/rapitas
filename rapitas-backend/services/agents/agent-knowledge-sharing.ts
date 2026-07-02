@@ -206,65 +206,71 @@ async function findRelevantPatterns(task: {
     where: {
       confidence: { gte: 0.4 },
     },
-    orderBy: [{ occurrences: 'desc' }, { confidence: 'desc' }],
+    // id tiebreak: two patterns tying on occurrences+confidence would
+    // otherwise have DB-whim ordering decide which 30 make the `take` cutoff.
+    orderBy: [{ occurrences: 'desc' }, { confidence: 'desc' }, { id: 'asc' }],
     take: 30,
   });
 
   // Filter and rank by relevance
-  return patterns
-    .map((p) => {
-      let relevance = 0;
-      try {
-        const conditions = JSON.parse(p.conditions);
-
-        if (conditions.titleKeywords) {
-          const matchCount = (conditions.titleKeywords as string[]).filter((kw: string) =>
-            keywords.includes(kw),
-          ).length;
-          relevance += matchCount * 10;
-        }
-
-        if (conditions.labels) {
-          const matchCount = (conditions.labels as string[]).filter((l: string) =>
-            labels.includes(l),
-          ).length;
-          relevance += matchCount * 15;
-        }
-
-        if (conditions.themeId && conditions.themeId === task.themeId) {
-          relevance += 20;
-        }
-
-        const taskCategory = inferTaskCategory(task.title, labels);
-        if (p.category === taskCategory) {
-          relevance += 10;
-        }
-      } catch {
-        // NOTE: On conditions parse failure, fall back to category match only
-        const taskCategory = inferTaskCategory(task.title, labels);
-        if (p.category === taskCategory) relevance += 10;
-      }
-
-      return { pattern: p, relevance };
-    })
-    .filter((item) => item.relevance > 0)
-    .sort((a, b) => b.relevance - a.relevance)
-    .slice(0, 5)
-    .map((item) => ({
-      id: item.pattern.id,
-      type: item.pattern.patternType,
-      category: item.pattern.category,
-      description: item.pattern.description,
-      actions: (() => {
+  return (
+    patterns
+      .map((p) => {
+        let relevance = 0;
         try {
-          return JSON.parse(item.pattern.actions);
+          const conditions = JSON.parse(p.conditions);
+
+          if (conditions.titleKeywords) {
+            const matchCount = (conditions.titleKeywords as string[]).filter((kw: string) =>
+              keywords.includes(kw),
+            ).length;
+            relevance += matchCount * 10;
+          }
+
+          if (conditions.labels) {
+            const matchCount = (conditions.labels as string[]).filter((l: string) =>
+              labels.includes(l),
+            ).length;
+            relevance += matchCount * 15;
+          }
+
+          if (conditions.themeId && conditions.themeId === task.themeId) {
+            relevance += 20;
+          }
+
+          const taskCategory = inferTaskCategory(task.title, labels);
+          if (p.category === taskCategory) {
+            relevance += 10;
+          }
         } catch {
-          return [];
+          // NOTE: On conditions parse failure, fall back to category match only
+          const taskCategory = inferTaskCategory(task.title, labels);
+          if (p.category === taskCategory) relevance += 10;
         }
-      })(),
-      confidence: item.pattern.confidence,
-      occurrences: item.pattern.occurrences,
-    }));
+
+        return { pattern: p, relevance };
+      })
+      .filter((item) => item.relevance > 0)
+      // id tiebreak keeps the top-5 slice reproducible when two patterns tie on
+      // computed relevance.
+      .sort((a, b) => b.relevance - a.relevance || a.pattern.id - b.pattern.id)
+      .slice(0, 5)
+      .map((item) => ({
+        id: item.pattern.id,
+        type: item.pattern.patternType,
+        category: item.pattern.category,
+        description: item.pattern.description,
+        actions: (() => {
+          try {
+            return JSON.parse(item.pattern.actions);
+          } catch {
+            return [];
+          }
+        })(),
+        confidence: item.pattern.confidence,
+        occurrences: item.pattern.occurrences,
+      }))
+  );
 }
 
 async function findRelevantKnowledgeForAgent(task: {
@@ -295,16 +301,19 @@ async function findRelevantKnowledgeForAgent(task: {
       confidence: true,
       themeId: true,
     },
-    orderBy: [{ confidence: 'desc' }, { decayScore: 'desc' }],
+    // id tiebreak: confidence/decayScore ties would otherwise leave the
+    // pre-`take` candidate set to DB-whim ordering.
+    orderBy: [{ confidence: 'desc' }, { decayScore: 'desc' }, { id: 'asc' }],
     take: 5,
   });
 
-  // Prioritize theme matches
+  // Prioritize theme matches. id tiebreak keeps the top-3 slice reproducible
+  // when two entries tie on the theme-bonus + confidence score.
   return entries
     .sort((a, b) => {
       const aBonus = a.themeId === task.themeId ? 100 : 0;
       const bBonus = b.themeId === task.themeId ? 100 : 0;
-      return bBonus + b.confidence * 10 - (aBonus + a.confidence * 10);
+      return bBonus + b.confidence * 10 - (aBonus + a.confidence * 10) || a.id - b.id;
     })
     .slice(0, 3)
     .map((e) => ({

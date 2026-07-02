@@ -102,6 +102,9 @@ async function gatherContext(categoryId?: number | null) {
         isDevelopment: true,
         ...(categoryId ? { categoryId } : {}),
       },
+      // No orderBy previously — DB-whim ordering fed a differently-ordered
+      // theme list into the same prompt across identical calls.
+      orderBy: { id: 'asc' },
     }),
     getUnusedIdeasForContext(categoryId ?? null, 10),
   ]);
@@ -246,7 +249,9 @@ export async function autoGenerateTasks(
     const response = await client.messages.create({
       model: MODEL,
       max_tokens: MAX_TOKENS,
-      temperature: 0.7,
+      // Pinned to 0 — this generates task suggestions from a fixed input
+      // snapshot; the same input should always yield the same suggestions.
+      temperature: 0,
       messages: [{ role: 'user', content: prompt }],
     });
     text = response.content.map((block) => (block.type === 'text' ? block.text : '')).join('');

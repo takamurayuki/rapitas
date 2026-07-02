@@ -469,7 +469,10 @@ export async function listHypotheses(options: {
   const [rows, total] = await Promise.all([
     prisma.knowledgeEntry.findMany({
       where,
-      orderBy: [{ confidence: 'desc' }, { updatedAt: 'desc' }],
+      // id tiebreak: confidence/updatedAt ties would otherwise leave paginated
+      // (skip/take) ordering to DB-implementation whim, so the same page can
+      // reshuffle across identical requests.
+      orderBy: [{ confidence: 'desc' }, { updatedAt: 'desc' }, { id: 'asc' }],
       take: limit,
       skip: offset,
       select: HYP_SELECT,

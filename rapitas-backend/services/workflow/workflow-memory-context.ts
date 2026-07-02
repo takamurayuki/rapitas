@@ -147,7 +147,10 @@ async function fetchOutcomes(taskIds: number[]): Promise<Map<number, EntryOutcom
         eventType: 'task_outcome',
         correlationId: { in: taskIds.map((id) => `task_${id}`) },
       },
-      orderBy: { createdAt: 'desc' },
+      // id tiebreak: two task_outcome events can share a createdAt timestamp
+      // (same millisecond); the "first = latest" dedup below relies on a
+      // stable order, so break ties by id (higher id = written later).
+      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
       select: { correlationId: true, payload: true },
     });
     for (const ev of events) {

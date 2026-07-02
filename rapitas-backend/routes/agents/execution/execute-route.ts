@@ -331,12 +331,15 @@ export const executeRoute = new Elysia().post(
       );
     } else if (roleAgent?.shouldAutoSelectModel) {
       try {
-        const [{ getSmartRoute }, { resolveRoleProviderPreferences }] = await Promise.all([
-          import('../../../services/ai/smart-model-router'),
+        const [{ getStableSmartRoute }, { resolveRoleProviderPreferences }] = await Promise.all([
+          import('../../../services/ai/model-route-stability'),
           import('../../../services/workflow/role-provider-resolver'),
         ]);
         const prefs = await resolveRoleProviderPreferences(roleAgent.role, taskIdNum);
-        const route = await getSmartRoute(taskIdNum, prefs);
+        // NOTE (determinism): pinned per taskId+role so a same-phase manual
+        // re-run reuses the same model instead of re-routing on cache
+        // rollover / provider health flap. See services/ai/model-route-stability.ts.
+        const route = await getStableSmartRoute(taskIdNum, roleAgent.role, prefs);
         resolvedModelOverride = route.recommendedModel;
         log.info(
           {

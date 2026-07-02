@@ -179,7 +179,11 @@ export class AnthropicApiAgent extends AbstractAgent {
       const response = await client.messages.create({
         model: modelId,
         max_tokens: maxTokens,
-        temperature: this.config.temperature,
+        // NOTE (determinism): Anthropic defaults temperature to 1.0 when
+        // omitted. This direct-SDK path feeds an agent execution prompt, so
+        // pin it to 0 (most deterministic) unless a caller explicitly asked
+        // for a different value.
+        temperature: this.config.temperature ?? 0,
         system: this.config.systemPrompt || getDefaultSystemPrompt(context),
         messages: this.conversationHistory.map((msg) => ({
           role: msg.role,

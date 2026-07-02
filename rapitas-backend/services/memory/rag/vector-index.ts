@@ -118,8 +118,12 @@ export function searchSimilar(
 ): VectorSearchResult[] {
   const database = getDb();
 
+  // NOTE (determinism): SQLite does not guarantee a scan order without an
+  // ORDER BY — ordering by the table's own `id` primary key makes repeated
+  // scans of an unchanged table return rows in the same order, so the
+  // similarity-tie-break below is reproducible run-to-run.
   const rows = database
-    .query('SELECT knowledge_entry_id, embedding, text_preview FROM embeddings')
+    .query('SELECT knowledge_entry_id, embedding, text_preview FROM embeddings ORDER BY id ASC')
     .all() as Array<{
     knowledge_entry_id: number;
     embedding: Buffer;
@@ -143,8 +147,11 @@ export function searchSimilar(
     }
   }
 
-  // Sort by similarity descending and truncate to limit
-  results.sort((a, b) => b.similarity - a.similarity);
+  // Sort by similarity descending and truncate to limit. Tie-break on
+  // knowledgeEntryId — Array#sort ties are not guaranteed stable across
+  // engines, so an explicit tiebreak keeps the truncated top-`limit` set
+  // (and thus the prompt built from it) identical across repeated runs.
+  results.sort((a, b) => b.similarity - a.similarity || a.knowledgeEntryId - b.knowledgeEntryId);
   return results.slice(0, limit);
 }
 

@@ -21,7 +21,9 @@ const log = createLogger('ai:weekly-review');
 
 const DEFAULT_MODEL = 'claude-haiku-4-5-20251001';
 const MAX_TOKENS = 600;
-const TEMPERATURE = 0.5;
+// Pinned to 0 — the same week's aggregate stats should always narrate the
+// same review text, not vary run-to-run.
+const TEMPERATURE = 0;
 
 /** Aggregated stats fed into the Claude prompt. */
 export interface WeeklyAggregate {

@@ -7,7 +7,6 @@ import { createLogger } from '../../../config/logger';
 import { prisma } from '../../../config/database';
 import { generateEmbedding } from './embedding';
 import { searchSimilar } from './vector-index';
-import { boostDecayOnAccess } from '../forgetting';
 import type { VectorSearchResult, KnowledgeSearchOptions } from '../types';
 
 const log = createLogger('memory:rag:search');
@@ -84,6 +83,10 @@ export async function searchKnowledge(options: KnowledgeSearchOptions): Promise<
       taskId: true,
       validationStatus: true,
     },
+    // NOTE: no meaningful ranking column here (rankScore is computed in JS
+    // below) — an explicit id order keeps the pre-rank candidate set stable
+    // across identical calls so the same prompt always sees the same context.
+    orderBy: { id: 'asc' },
   });
 
   // Merge vector search results with DB results
@@ -106,17 +109,25 @@ export async function searchKnowledge(options: KnowledgeSearchOptions): Promise<
         tags: JSON.parse(e.tags) as string[],
       };
     })
-    .sort((a, b) => b.rankScore - a.rankScore)
+    // Tie-break on id: two entries can land on the exact same rankScore (e.g.
+    // both TRUST_WEIGHT-boosted to an identical value), and Array#sort is not
+    // guaranteed stable across engines/versions for equal keys — pinning the
+    // tie order to id keeps the top-`limit` slice (and thus the prompt) the
+    // same across repeated runs of the same query.
+    .sort((a, b) => b.rankScore - a.rankScore || a.id - b.id)
     .slice(0, limit)
     .map(({ rankScore: _rankScore, ...rest }) => rest);
 
-  // Retrieval is only a WEAK signal — being surfaced is not proof of usefulness.
-  // Apply a small boost here; the STRONG reward is applied at task outcome by
-  // outcome-reinforcement (boost on success / penalty on failure), so what
-  // survives the forgetting curve is what actually helped, not what was popular.
-  for (const entry of results) {
-    boostDecayOnAccess(entry.id, 0.05).catch(() => {});
-  }
-
+  // NOTE (determinism): this function used to fire-and-forget a small
+  // boostDecayOnAccess() on every returned entry as a "weak retrieval signal".
+  // That mutated decayScore/accessCount/forgettingStage on READ, so a dormant
+  // entry could cross the 'active' threshold mid-run and change what a
+  // SUBSEQUENT retrieval in the same task (e.g. the verify phase re-querying
+  // after the research phase already read) would see — the same prompt could
+  // then produce a different context depending on timing. The outcome-gated
+  // path (recordRetrieval + applyOutcomeReinforcement in
+  // ../../memory/outcome-reinforcement.ts, wired from
+  // workflow-memory-context.ts) already reinforces/decays these exact entries
+  // once the task reaches a terminal outcome — reads no longer mutate state.
   return results;
 }

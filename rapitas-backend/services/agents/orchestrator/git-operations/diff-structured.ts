@@ -219,6 +219,14 @@ export async function getDiff(
       });
     }
 
+    // NOTE (determinism): fileMap's iteration order follows raw `git diff`
+    // output order, which is not guaranteed stable (rename detection, index
+    // state, git version can all reorder it). The verifier and adversarial
+    // diff-review read this list as part of the agent-visible context, so
+    // sort by filename to make it reproducible run-to-run regardless of git's
+    // internal ordering.
+    files.sort((a, b) => a.filename.localeCompare(b.filename));
+
     return files;
   } catch (error) {
     logger.error({ err: error }, 'Failed to get diff');
