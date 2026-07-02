@@ -77,7 +77,18 @@ async function countPriorRepairs(taskId: number): Promise<number> {
         ...(lastRetry ? { createdAt: { gt: lastRetry.createdAt } } : {}),
       },
     })
-    .catch(() => 0);
+    .catch((err) => {
+      // FAIL CLOSED: a count error must NOT read as "0 prior repairs" — that
+      // would let the caller (prior >= max) keep bouncing indefinitely because
+      // every failed count resets the apparent budget to zero. Returning
+      // MAX_SAFE_INTEGER makes `prior >= max` true for any configured max, so
+      // the caller blocks instead of looping when the budget can't be verified.
+      log.warn(
+        { err, taskId },
+        '[verify-repair] Failed to count prior repairs — treating budget as exhausted',
+      );
+      return Number.MAX_SAFE_INTEGER;
+    });
 }
 
 /**

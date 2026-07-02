@@ -122,12 +122,30 @@ export async function retryOrBlock(params: RetryParams): Promise<{ retried: bool
     .catch(() => null);
 
   // Persist the incremented counter before launching, so a crash can't loop.
-  await prisma.agentSession
+  const counterPersisted = await prisma.agentSession
     .update({
       where: { id: sessionId },
       data: { metadata: withRetryCount(session?.metadata, attempt), status: 'running' },
     })
-    .catch((err) => log.warn({ err, sessionId }, 'Failed to persist retry count'));
+    .then(() => true)
+    .catch((err) => {
+      log.warn({ err, sessionId }, 'Failed to persist retry count');
+      return false;
+    });
+
+  // FAIL CLOSED: if the incremented counter can't be persisted, `attempt` will
+  // be re-derived as the SAME stale value next time (parseRetryCount reads the
+  // old metadata), so the cap in this function would never trip and the agent
+  // could be relaunched unboundedly. Treat a persist failure as terminal for
+  // this attempt and block rather than proceeding on an unrecorded retry.
+  if (!counterPersisted) {
+    log.error(
+      { taskId, sessionId, attempt },
+      'Could not persist retry counter — blocking task instead of risking an unbounded retry loop',
+    );
+    await blockTaskForVerification(taskId, result, sessionId);
+    return { retried: false };
+  }
 
   log.info({ taskId, sessionId, attempt, maxRetries }, 'Triggering self-repair retry');
 

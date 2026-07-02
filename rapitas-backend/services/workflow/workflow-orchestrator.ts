@@ -468,9 +468,47 @@ export class WorkflowOrchestrator {
             { taskId, priorReplans },
             '[WorkflowOrchestrator] plan.md still invalid after repeated re-plans — blocking instead of looping',
           );
-          await prisma.task
+          // Durable block write: this is the write that actually STOPS the
+          // plan-invalid-replan loop (downstream schedulers/UI key off
+          // status==='blocked' to stop re-dispatching). Swallowing a failure here
+          // silently let the loop re-enter on the very next poll. Retry once, and
+          // if it still fails, escalate via a Notification so a human intervenes
+          // instead of the loop silently repeating.
+          const blockWriteOk = await prisma.task
             .update({ where: { id: taskId }, data: { status: 'blocked', updatedAt: new Date() } })
-            .catch(() => {});
+            .then(() => true)
+            .catch(async (err) => {
+              log.warn(
+                { err, taskId },
+                '[WorkflowOrchestrator] status=blocked write failed — retrying once',
+              );
+              return prisma.task
+                .update({
+                  where: { id: taskId },
+                  data: { status: 'blocked', updatedAt: new Date() },
+                })
+                .then(() => true)
+                .catch((err2) => {
+                  log.error(
+                    { err: err2, taskId },
+                    '[WorkflowOrchestrator] status=blocked write failed twice — loop may re-enter; escalating',
+                  );
+                  return false;
+                });
+            });
+          if (!blockWriteOk) {
+            import('../communication/notification-service')
+              .then(({ createNotification }) =>
+                createNotification({
+                  type: 'system',
+                  title: 'ブロック処理の書き込みに失敗',
+                  message: `タスク #${taskId} を blocked にする更新が2回失敗しました。再計画ループが再発する可能性があるため手動確認が必要です。`,
+                  link: `/tasks?taskId=${taskId}`,
+                  metadata: { taskId, reason: 'block_write_failed' },
+                }),
+              )
+              .catch(() => {});
+          }
           await recordTransition({
             taskId,
             fromStatus: 'plan_approved',
@@ -565,12 +603,12 @@ export class WorkflowOrchestrator {
         }
 
         const [
-          { getSmartRoute },
+          { getStableSmartRoute },
           { resolveRoleProviderPreferences },
           { computeMinTier, detectHighRisk },
           { WorkflowQueueService },
         ] = await Promise.all([
-          import('../ai/smart-model-router'),
+          import('../ai/model-route-stability'),
           import('./role-provider-resolver'),
           import('./routing-policy'),
           import('./workflow-queue'),
@@ -611,7 +649,13 @@ export class WorkflowOrchestrator {
         // Role floor + escalation + risk → the minimum tier SmartRouter may not
         // go below (it still RAISES further when complexity is high).
         const minTier = computeMinTier({ role: transition.role, escalation, riskHigh });
-        const route = await getSmartRoute(taskId, {
+        // NOTE (determinism): pinned per taskId+role+minTier so a same-phase
+        // retry (queue re-run, discovery cache rollover, a provider briefly
+        // flapping in/out of cooldown) reuses the SAME model instead of
+        // silently re-routing. A genuine escalation/risk change computes a
+        // different minTier, which is a different cache key, so it still
+        // re-routes deliberately. See services/ai/model-route-stability.ts.
+        const route = await getStableSmartRoute(taskId, transition.role, {
           ...prefs,
           minTier,
           includeAlternatives: false,
@@ -973,6 +1017,14 @@ async function tryProviderFallback(args: {
 
   const classified = classifyAgentError(errorBlob);
   if (!classified || !classified.retryWithFallback) return null;
+
+  // This is the DELIBERATE provider-failure re-route the pin cache is meant
+  // to defer to: drop this task+role's pinned model so the next ORDINARY
+  // retry (a later advanceWorkflow call) recomputes fresh via
+  // getStableSmartRoute instead of reusing a pin that is now known-bad (its
+  // provider just entered cooldown, or its specific model is unavailable).
+  const { invalidateStableRoute } = await import('../ai/model-route-stability');
+  invalidateStableRoute(args.taskId, args.role);
 
   // NOTE: model_unavailable = specific model down, not the whole provider.
   // Retry with same agent config but no --model flag (CLI default). Skip cooldown

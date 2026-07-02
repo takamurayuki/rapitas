@@ -9,7 +9,7 @@
 import { PrismaClient } from '@prisma/client';
 import { createLogger } from '../../config/logger';
 import { UserBehaviorService } from '../../src/services/user-behavior-service';
-import { notifyTaskCompleted } from '../communication/notification-service';
+import { notifyTaskCompleted, createNotification } from '../communication/notification-service';
 import { onGeneratedTaskCompleted } from '../scheduling/recurring-task-service';
 import { createSubtask, createParentTask } from './task-create-helpers';
 import { realtimeService } from '../communication/realtime-service';
@@ -305,10 +305,23 @@ export async function updateTask(prisma: PrismaInstance, taskId: number, input: 
   // `currentTask?.parentId` guard, making it dead code that never ran, so a
   // split parent was never driven to completion after its subtasks finished.
   if (fields.status === 'done' && currentTask?.parentId && updatedTask) {
+    const parentId = currentTask.parentId;
     import('../workflow/subtask-completion-handler')
       .then(({ onSubtaskCompleted }) => {
         onSubtaskCompleted(taskId).catch((err) => {
-          logger.warn({ err, taskId }, 'Failed to handle subtask completion');
+          // FAIL RECOVERABLE, not silent: onSubtaskCompleted is the ONLY driver of
+          // parent finalization, and it fires again only when a SIBLING completes.
+          // If this is the last sibling, a swallowed failure here would strand the
+          // parent forever with no further trigger. Notify so a human can retry
+          // finalization (via the parent task) instead of it silently vanishing.
+          logger.warn({ err, taskId, parentId }, 'Failed to handle subtask completion');
+          createNotification({
+            type: 'system',
+            title: 'サブタスク完了処理に失敗',
+            message: `サブタスク #${taskId} の完了処理でエラーが発生しました。親タスク #${parentId} が完了しない場合は手動確認してください。`,
+            link: `/tasks?taskId=${parentId}`,
+            metadata: { taskId, parentId, reason: 'subtask_completion_handler_failed' },
+          }).catch(() => {});
         });
       })
       .catch(() => {});

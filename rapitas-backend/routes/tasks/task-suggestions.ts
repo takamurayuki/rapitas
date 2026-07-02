@@ -53,12 +53,16 @@ export const taskSuggestionRoutes = new Elysia({ prefix: '/tasks' })
       const insensitive = getInsensitiveMode();
       const searchConditions = words.map((word) => {
         const conditions: Prisma.TaskWhereInput[] = [
+          // HACK(agent): `mode` exists only on the Postgres StringFilter; the
+          // SQLite-generated client's StringFilter omits it, so this spread needs
+          // an `any` cast to type-check against both generated clients.
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           { title: { contains: word, ...insensitive } as any },
         ];
 
         if (searchDescription === 'true') {
           conditions.push({
+            // HACK(agent): same cross-provider StringFilter mismatch as above.
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             description: { contains: word, ...insensitive } as any,
           });

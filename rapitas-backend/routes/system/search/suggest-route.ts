@@ -5,6 +5,7 @@
  * matching a partial search query. Capped at 8 results for low-latency UI use.
  */
 import { Elysia } from 'elysia';
+import type { Prisma } from '@prisma/client';
 import { prisma } from '../../../config/database';
 import { createLogger } from '../../../config/logger';
 import { getInsensitiveMode } from '../../../config/db-provider';
@@ -27,10 +28,9 @@ export const searchSuggestRoute = new Elysia().get('/suggest', async ({ query: q
     // NOTE: `mode: 'insensitive'` is PostgreSQL-only; the SQLite Prisma client
     // omits the field from StringFilter, causing PrismaClientValidationError at
     // runtime. getInsensitiveMode() centralises the provider check.
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- `mode` exists only on the Postgres StringFilter; typing as any lets this spread compile against the SQLite-generated client too.
-    const insensitive: any = getInsensitiveMode();
+    const insensitive = getInsensitiveMode();
 
-    const taskWhere: any = {
+    const taskWhere: Prisma.TaskWhereInput = {
       AND: words.map((word) => ({
         OR: [
           { title: { contains: word, ...insensitive } },
@@ -52,7 +52,7 @@ export const searchSuggestRoute = new Elysia().get('/suggest', async ({ query: q
       orderBy: { updatedAt: 'desc' },
     });
 
-    const commentWhere: any = {
+    const commentWhere: Prisma.CommentWhereInput = {
       AND: words.map((word) => ({
         content: { contains: word, ...insensitive },
       })),

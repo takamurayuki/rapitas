@@ -120,8 +120,14 @@ async function evaluateRole(
 async function emitEvolutionCandidate(prisma: PrismaClient, ev: RoleEvaluation): Promise<void> {
   // PromptEvolution model がある前提。フィールド構成はリポジトリ標準に合わせて
   // basePromptKey + status='pending' で記録する。
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const promptEvolutionDelegate = (prisma as any).promptEvolution;
+  // NOTE: feature-detected via an unknown-cast rather than `any` — the model may
+  // be absent from an older/regenerated client, so callers must null-check
+  // `create` before use anyway; `unknown` keeps that check type-safe.
+  const promptEvolutionDelegate = (
+    prisma as unknown as {
+      promptEvolution?: { create: (args: unknown) => Promise<unknown> };
+    }
+  ).promptEvolution;
   if (!promptEvolutionDelegate || typeof promptEvolutionDelegate.create !== 'function') {
     log.warn('[runner] PromptEvolution model unavailable in current schema; skip emit');
     return;

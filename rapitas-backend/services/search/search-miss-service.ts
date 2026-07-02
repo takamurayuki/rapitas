@@ -207,8 +207,7 @@ export async function resolveSearchMissForTask(
   // NOTE: `mode: 'insensitive'` is PostgreSQL-only; the SQLite Prisma client
   // omits the field from StringFilter, causing PrismaClientValidationError at
   // runtime. getInsensitiveMode() centralises the provider check.
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- `mode` は Postgres の StringFilter にのみ存在。any にすることで SQLite 生成クライアントでもこのスプレッドが型チェックを通る。
-  const insensitive: any = getInsensitiveMode();
+  const insensitive = getInsensitiveMode();
 
   // Count matches for EVERY miss in parallel. Previously this awaited one
   // `task.count()` per miss inside the loop — an N+1 of 1+N sequential DB
