@@ -35,8 +35,8 @@ interface HomeToolbarProps {
  * @returns The toolbar JSX.
  */
 export function HomeToolbar({
-  completedTasksCount,
-  totalTasksCount,
+  completedTasksCount: _completedTasksCount,
+  totalTasksCount: _totalTasksCount,
   hasVisibleTasks,
   isSelectionMode,
   selectedTasksSize,

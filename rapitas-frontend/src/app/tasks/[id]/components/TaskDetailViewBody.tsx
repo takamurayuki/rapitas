@@ -122,7 +122,7 @@ export default function TaskDetailViewBody({
   getSubtaskStatus,
 }: TaskDetailViewBodyProps) {
   const tDev = useTranslations('devMode');
-  const isTaskStatusLoading = useExecutionStateStore((s) => s.loadingTaskIds.has(taskId));
+  useExecutionStateStore((s) => s.loadingTaskIds.has(taskId));
 
   // Context for the copilot's "next action" recommender (rule-based, see
   // next-action-recommender.ts). canRunAgent mirrors the execute-route gate.

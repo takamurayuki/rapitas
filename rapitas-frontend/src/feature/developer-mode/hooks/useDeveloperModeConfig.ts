@@ -68,7 +68,7 @@ export function useDeveloperModeConfig(taskId: number): UseDeveloperModeConfigRe
       } else {
         setConfig(null);
       }
-    } catch (err) {
+    } catch {
       setError(t('configFetchFailed'));
     } finally {
       setIsLoading(false);

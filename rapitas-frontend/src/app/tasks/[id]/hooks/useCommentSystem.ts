@@ -19,7 +19,7 @@ export interface UseCommentSystemParams {
 
 export function useCommentSystem({
   resolvedTaskId,
-  comments,
+  comments: _comments,
   setComments,
   newComment,
   setNewComment,

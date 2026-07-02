@@ -8,7 +8,6 @@
  * Not responsible for any data fetching or favorites logic.
  */
 
-import { useRef } from 'react';
 import {
   Folder,
   FolderOpen,

@@ -2,7 +2,6 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { useTranslations } from 'next-intl';
 import {
-  Bot,
   Send,
   Loader2,
   Trash2,
@@ -10,7 +9,6 @@ import {
   Settings,
   AlertCircle,
   MessageCircle,
-  X,
   Minimize2,
   Maximize2,
 } from 'lucide-react';

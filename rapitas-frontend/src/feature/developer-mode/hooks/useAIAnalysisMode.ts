@@ -40,7 +40,7 @@ export function useDeveloperMode(taskId: number) {
       } else {
         setConfig(null);
       }
-    } catch (err) {
+    } catch {
       setError(t('fetchConfigFailed'));
     } finally {
       setIsLoading(false);

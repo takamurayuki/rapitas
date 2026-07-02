@@ -4,7 +4,7 @@ import { useState, useRef, useEffect, memo } from 'react';
 import { useTranslations } from 'next-intl';
 import { ChevronDown, Terminal, Zap, Globe, Check } from 'lucide-react';
 import type { AIAgentConfig } from '@/types';
-import { PROVIDER_CONFIGS, getModelName, getProviderLabel } from '../constants/provider-configs';
+import { getModelName, getProviderLabel } from '../constants/provider-configs';
 
 type Props = {
   agents: AIAgentConfig[];

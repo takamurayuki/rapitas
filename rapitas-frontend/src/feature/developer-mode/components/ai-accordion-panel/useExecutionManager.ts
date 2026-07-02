@@ -36,7 +36,7 @@ export function useExecutionManager({
   isParallelExecutionRunning,
   onExecute,
   onReset,
-  onRestoreExecutionState,
+  onRestoreExecutionState: _onRestoreExecutionState,
   onStopExecution,
   onExecutionComplete,
   onStartParallelExecution,

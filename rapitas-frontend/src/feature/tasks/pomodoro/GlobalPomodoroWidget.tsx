@@ -99,7 +99,6 @@ export default function GlobalPomodoroWidget() {
     isTimerRunning,
     isPaused,
     isBreakTime,
-    taskId,
     taskTitle,
     pomodoroCount,
     pomodoroSeconds,

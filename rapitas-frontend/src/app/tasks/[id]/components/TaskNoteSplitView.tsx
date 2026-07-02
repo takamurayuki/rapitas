@@ -27,7 +27,7 @@ interface Props {
  * @param props.taskId - ID of the parent task (used for the back link).
  * @param props.noteId - String ID of the note to open.
  */
-export function TaskNoteSplitView({ taskId, noteId }: Props) {
+export function TaskNoteSplitView({ taskId: _taskId, noteId }: Props) {
   const t = useTranslations('task');
   const router = useRouter();
 

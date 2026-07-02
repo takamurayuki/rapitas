@@ -123,7 +123,7 @@ export function useExecutionStream(sessionId: number | null) {
             logs: logsRef.current,
             result: data.result,
           }));
-        } catch (e) {
+        } catch {
           setState((prev) => ({
             ...prev,
             isRunning: false,
@@ -149,7 +149,7 @@ export function useExecutionStream(sessionId: number | null) {
             logs: logsRef.current,
             error: data.error?.errorMessage || t('failedLog'),
           }));
-        } catch (e) {
+        } catch {
           setState((prev) => ({
             ...prev,
             isRunning: false,
@@ -160,7 +160,7 @@ export function useExecutionStream(sessionId: number | null) {
       });
 
       // Cancellation event
-      eventSource.addEventListener('execution_cancelled', (event) => {
+      eventSource.addEventListener('execution_cancelled', (_event) => {
         logger.info('Execution cancelled');
         logsRef.current = trimLogs([...logsRef.current, `\n${t('cancelledLog')}\n`]);
         setState((prev) => ({

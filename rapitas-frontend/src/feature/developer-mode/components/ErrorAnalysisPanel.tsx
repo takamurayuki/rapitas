@@ -1,7 +1,7 @@
 'use client';
 // ErrorAnalysisPanel
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { FlaskConical } from 'lucide-react';
 import { useTranslations } from 'next-intl';
@@ -86,10 +86,6 @@ export const ErrorAnalysisPanel: React.FC<ErrorAnalysisPanelProps> = ({
     const interval = setInterval(updateSummary, 5000);
     return () => clearInterval(interval);
   }, []); // NOTE: deps left empty — summary should refresh on its own timer, not on prop changes
-
-  const refreshSummary = useCallback(() => {
-    setSummary(errorAnalysisService.getErrorSummary());
-  }, []);
 
   const toggleErrorExpansion = (errorId: string) => {
     setExpandedErrors((prev) => {

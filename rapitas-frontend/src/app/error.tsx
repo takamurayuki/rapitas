@@ -2,6 +2,9 @@
 
 import { useEffect } from 'react';
 import { useTranslations } from 'next-intl';
+import { createLogger } from '@/lib/logger';
+
+const logger = createLogger('RootError');
 
 export default function Error({
   error,
@@ -13,7 +16,7 @@ export default function Error({
   const t = useTranslations('common');
 
   useEffect(() => {
-    console.error('Unhandled error:', error);
+    logger.error('Unhandled error:', error);
   }, [error]);
 
   return (

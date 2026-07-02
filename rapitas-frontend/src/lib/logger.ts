@@ -78,10 +78,10 @@ export function createLogger(name: string) {
       if (!ok('warn')) return;
       const key = makeThrottleKey(p, a);
       if (shouldThrottle(key)) {
-        ok('debug') && console.debug(p, '[throttled]', ...a);
+        if (ok('debug')) console.debug(p, '[throttled]', ...a);
         return;
       }
-      ok('error') && console.error(p, ...a);
+      if (ok('error')) console.error(p, ...a);
     },
 
     /**
@@ -91,9 +91,9 @@ export function createLogger(name: string) {
     transientError: (message: string, error?: unknown, ...rest: unknown[]) => {
       if (isServerRestarting()) return;
       if (isTransientError(error)) {
-        ok('warn') && console.warn(p, message, error, ...rest);
+        if (ok('warn')) console.warn(p, message, error, ...rest);
       } else {
-        ok('error') && console.error(p, message, error, ...rest);
+        if (ok('error')) console.error(p, message, error, ...rest);
       }
     },
   };

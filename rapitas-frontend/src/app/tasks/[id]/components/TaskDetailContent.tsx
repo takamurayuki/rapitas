@@ -1,7 +1,7 @@
 'use client';
 // TaskDetailContent
 import { useRef, useState, useEffect } from 'react';
-import type { Task, Resource, Comment, WorkflowStatus, DeveloperModeConfig } from '@/types';
+import type { Task, DeveloperModeConfig } from '@/types';
 import TaskDetailViewBody, { type TaskDetailViewBodyProps } from './TaskDetailViewBody';
 import TaskDetailModals from './TaskDetailModals';
 import { TaskDetailQuickNav, type QuickNavSection } from './TaskDetailQuickNav';

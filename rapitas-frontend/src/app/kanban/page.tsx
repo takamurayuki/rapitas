@@ -51,7 +51,7 @@ function getWeekDateRange(weekOffset: number): { start: Date; end: Date } {
 export default function KanbanPage() {
   const t = useTranslations('kanban');
   const tt = useTranslations('task');
-  const tc = useTranslations('common');
+  useTranslations('common');
   const locale = useLocaleStore((s) => s.locale);
   const dateLocale = toDateLocale(locale);
   const themes = useFilterDataStore((s) => s.themes);

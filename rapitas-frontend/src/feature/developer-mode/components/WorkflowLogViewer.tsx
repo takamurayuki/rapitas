@@ -6,7 +6,6 @@ import {
   ChevronRight,
   Search,
   FileText,
-  Pencil,
   Wrench,
   CheckCircle2,
   Loader2,
@@ -179,11 +178,11 @@ function getStatusLabel(status: PhaseStatus, t: (key: string) => string): string
  * WorkflowLogViewer - Group and display logs by workflow phase
  */
 export function WorkflowLogViewer({
-  taskTitle,
-  taskId,
+  taskTitle: _taskTitle,
+  taskId: _taskId,
   logs,
   workflowStatus,
-  isRunning = false,
+  isRunning: _isRunning = false,
   maxHeight = 300,
 }: WorkflowLogViewerProps) {
   const t = useTranslations('devMode.workflowLogViewer');

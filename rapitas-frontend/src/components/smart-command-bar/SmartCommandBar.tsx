@@ -19,7 +19,10 @@ import { API_BASE_URL } from '@/utils/api';
 import { useTranslations } from 'next-intl';
 import { useShortcutStore } from '@/stores/shortcut-store';
 import { useSpeechRecognition } from '@/hooks/common/useSpeechRecognition';
+import { createLogger } from '@/lib/logger';
 import AudioWaveform from './AudioWaveform';
+
+const logger = createLogger('SmartCommandBar');
 
 type Intent = 'create_task' | 'start_learning' | 'navigate' | 'search';
 
@@ -182,7 +185,7 @@ export default function SmartCommandBar() {
         }
       }
     } catch (e) {
-      console.error('Smart action failed:', e);
+      logger.error('Smart action failed:', e);
     } finally {
       setIsProcessing(false);
     }

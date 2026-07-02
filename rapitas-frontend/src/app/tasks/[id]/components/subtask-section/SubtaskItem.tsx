@@ -12,11 +12,7 @@ import type { ParallelExecutionStatus } from '@/feature/tasks/components/status/
 import PriorityIcon from '@/feature/tasks/components/priority/PriorityIcon';
 import TaskStatusChange from '@/feature/tasks/components/status/TaskStatusChange';
 import { useExecutionStateStore } from '@/stores/execution-state-store';
-import {
-  getStatusDisplay,
-  renderStatusIcon,
-  isInProgressStatus,
-} from '@/feature/tasks/config/StatusConfig';
+import { getStatusDisplay, renderStatusIcon } from '@/feature/tasks/config/StatusConfig';
 import { useTranslations } from 'next-intl';
 import { getLabelsArray, hasLabels } from '@/utils/labels';
 import { SubtaskEditForm } from './SubtaskEditForm';
@@ -139,7 +135,6 @@ export function SubtaskItem({
                     // subtask is in-progress/running — the same outer-border
                     // spinning loader the task list uses (icon-outer-border-spin).
                     const cfg = getStatusDisplay(t, subtask.status);
-                    const inProgress = isInProgressStatus(subtask.status) || showRunning;
                     return (
                       <div
                         className={`relative flex w-6 h-6 items-center justify-center rounded-md ${cfg.color} ${cfg.bgColor} border ${cfg.borderColor.replaceAll('border-l-', 'border-')}`}

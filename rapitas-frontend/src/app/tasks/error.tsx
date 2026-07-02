@@ -2,6 +2,9 @@
 
 import { useEffect } from 'react';
 import { useTranslations } from 'next-intl';
+import { createLogger } from '@/lib/logger';
+
+const logger = createLogger('TasksError');
 
 export default function Error({
   error,
@@ -14,7 +17,7 @@ export default function Error({
   const tCommon = useTranslations('common');
 
   useEffect(() => {
-    console.error('[Tasks Error]', error);
+    logger.error('[Tasks Error]', error);
   }, [error]);
 
   return (

@@ -48,7 +48,7 @@ export type AgentQuestionCardProps = {
 export function AgentQuestionCard({
   question,
   questionDetails,
-  userResponse,
+  userResponse: _userResponse,
   isSendingResponse,
   onSetUserResponse,
   onSendResponse,

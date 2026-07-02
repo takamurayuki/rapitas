@@ -75,7 +75,6 @@ function TaskDetailClient({ taskId: propTaskId, onTaskUpdated }: TaskDetailClien
     setResources,
     globalSettings,
     cliAvailability,
-    showAIAssistant,
     setShowAIAssistant,
     refreshTask,
   } = useTaskDetailData({ resolvedTaskId });
@@ -183,7 +182,7 @@ function TaskDetailClient({ taskId: propTaskId, onTaskUpdated }: TaskDetailClien
   // ─── Task actions / comment system ────────────────────────────────────────
   const [newComment, setNewComment] = useState('');
   const [isAddingComment, setIsAddingComment] = useState(false);
-  const [showCompleteOverlay, setShowCompleteOverlay] = useState(false);
+  const [, setShowCompleteOverlay] = useState(false);
 
   const taskActions = useTaskActions({
     task,

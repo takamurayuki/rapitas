@@ -9,9 +9,7 @@
 import { useState } from 'react';
 import type { Task } from '@/types';
 import { API_BASE_URL } from '@/utils/api';
-import { createLogger } from '@/lib/logger';
 
-const logger = createLogger('useAnalysisHandlers');
 const API_BASE = API_BASE_URL;
 
 export interface UseAnalysisHandlersParams {

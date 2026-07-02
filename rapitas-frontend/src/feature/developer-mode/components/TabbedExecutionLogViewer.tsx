@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useCallback, useMemo, useEffect } from 'react';
-import { Terminal, Loader2, CheckCircle2, AlertCircle, Square, Clock, Layers } from 'lucide-react';
+import { Loader2, CheckCircle2, AlertCircle, Square, Clock, Layers } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { ExecutionLogViewer, type ExecutionLogStatus } from './ExecutionLogViewer';
 import { API_BASE_URL } from '@/utils/api';

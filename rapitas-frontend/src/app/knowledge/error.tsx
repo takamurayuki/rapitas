@@ -2,6 +2,9 @@
 
 import { useEffect } from 'react';
 import { useTranslations } from 'next-intl';
+import { createLogger } from '@/lib/logger';
+
+const logger = createLogger('KnowledgeError');
 
 export default function Error({
   error,
@@ -13,7 +16,7 @@ export default function Error({
   const t = useTranslations('common');
 
   useEffect(() => {
-    console.error('[Knowledge Error]', error);
+    logger.error('[Knowledge Error]', error);
   }, [error]);
 
   return (

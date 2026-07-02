@@ -4,13 +4,11 @@ import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { useTranslations } from 'next-intl';
 import {
   BrainCircuit,
-  Bot,
   ChevronDown,
   ChevronUp,
   Settings,
   Sparkles,
   CheckCircle2,
-  Play,
   Loader2,
 } from 'lucide-react';
 import type { DeveloperModeConfig, TaskAnalysisResult, Task } from '@/types';

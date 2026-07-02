@@ -10,15 +10,10 @@ import { API_BASE_URL } from '@/utils/api';
 
 export default function MemoryAdminPage() {
   const t = useTranslations('knowledge.admin');
-  const tc = useTranslations('common');
+  useTranslations('common');
 
-  const {
-    queueStatus,
-    consolidationRuns,
-    isLoading,
-    triggerConsolidation,
-    triggerForgettingSweep,
-  } = useMemoryStats();
+  const { queueStatus, consolidationRuns, triggerConsolidation, triggerForgettingSweep } =
+    useMemoryStats();
 
   const [isConsolidating, setIsConsolidating] = useState(false);
   const [isSweeping, setIsSweeping] = useState(false);

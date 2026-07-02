@@ -38,7 +38,7 @@ export function useAgentExecution(props: UseAgentExecutionProps): UseAgentExecut
     agentConfigId,
     onExecute,
     onReset,
-    onRestoreExecutionState,
+    onRestoreExecutionState: _onRestoreExecutionState,
     onStopExecution,
     onExecutionComplete,
     subtasks,

@@ -1,7 +1,7 @@
 'use client';
 // NoteEditor
 import { useState, useCallback, type ReactNode } from 'react';
-import { type Note, type DocType, useNoteStore } from '@/stores/note-store';
+import { type Note, useNoteStore } from '@/stores/note-store';
 import { useNoteEditor } from './editor/useNoteEditor';
 import NoteEditorHeader from './editor/NoteEditorHeader';
 import NoteEditorFooter from './editor/NoteEditorFooter';

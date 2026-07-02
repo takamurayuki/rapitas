@@ -73,7 +73,7 @@ export function useTaskCard(
   task: Task,
   onStatusChange: (taskId: number, status: Status, cardElement?: HTMLElement) => void,
   onTaskUpdated?: () => void,
-  onTaskClick?: (taskId: number) => void,
+  _onTaskClick?: (taskId: number) => void,
 ): TaskCardHook {
   const t = useTranslations('task');
   const tc = useTranslations('common');

@@ -103,7 +103,7 @@ export function ExecutionBody({
   logViewerStatus,
   isSseConnected,
   executionError,
-  pollingSessionMode,
+  pollingSessionMode: _pollingSessionMode,
   hasQuestion,
   question,
   questionDetails,
@@ -125,11 +125,11 @@ export function ExecutionBody({
   branchName,
   baseBranch,
   baseBranches,
-  isGeneratingBranchName,
+  isGeneratingBranchName: _isGeneratingBranchName,
   onSetInstruction,
   onSetBranchName,
   onSetBaseBranch,
-  onGenerateBranchName,
+  onGenerateBranchName: _onGenerateBranchName,
 }: ExecutionBodyProps) {
   const hasSubtaskLogs = !!(hasSubtasks && subtaskLogs && parallelSessionId);
 

@@ -2,6 +2,9 @@
 
 import { Component, type ReactNode } from 'react';
 import { useTranslations } from 'next-intl';
+import { createLogger } from '@/lib/logger';
+
+const logger = createLogger('ErrorBoundary');
 
 interface ErrorBoundaryProps {
   children: ReactNode;
@@ -36,7 +39,7 @@ class ErrorBoundaryInner extends Component<ErrorBoundaryInnerProps, ErrorBoundar
   }
 
   override componentDidCatch(error: Error, errorInfo: React.ErrorInfo): void {
-    console.error(
+    logger.error(
       `[ErrorBoundary${this.props.section ? `:${this.props.section}` : ''}]`,
       error,
       errorInfo,

@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import type { Task, Theme, Category, Priority } from '@/types';
+import type { Task, Theme, Priority } from '@/types';
 
 interface UseFilteredTasksProps {
   tasks: Task[];

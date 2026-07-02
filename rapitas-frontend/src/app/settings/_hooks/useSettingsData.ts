@@ -75,20 +75,6 @@ async function fetchWithSWR<T>(
   return { cached: false, data: null };
 }
 
-/**
- * Make an API request with standard error handling.
- *
- * @returns Response data on success, throws on failure
- */
-async function apiRequest<T>(url: string, options: RequestInit, errorMessage: string): Promise<T> {
-  const res = await fetch(url, options);
-  if (!res.ok) {
-    const errData = await res.json().catch(() => null);
-    throw new Error(errData?.error ?? errorMessage);
-  }
-  return res.json();
-}
-
 // ────────────────────────────────────────────────────────────────────────────
 // Download Progress Polling
 // ────────────────────────────────────────────────────────────────────────────
@@ -182,7 +168,7 @@ export function useSettingsData() {
   const fetchSettings = useCallback(async () => {
     setIsLoading(true);
     try {
-      const { cached, data } = await fetchWithSWR<UserSettings>(
+      const { cached } = await fetchWithSWR<UserSettings>(
         `${API_BASE_URL}/settings`,
         CACHE_KEYS.settings,
         (data) => {

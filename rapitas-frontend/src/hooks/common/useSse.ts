@@ -148,7 +148,9 @@ export function useSSE<T = unknown>(options: UseSSEOptions<T> = {}): UseSSERetur
 
         eventSource.addEventListener('start', (event) => {
           try {
-            const parsed: SSEEvent = JSON.parse(event.data);
+            // Parsing (not just the result) gates onStart — malformed payloads fall
+            // through to the catch below instead of firing the callback.
+            JSON.parse(event.data);
             optionsRef.current.onStart?.();
           } catch (e) {
             logger.errorThrottled('Failed to parse start event:', e);

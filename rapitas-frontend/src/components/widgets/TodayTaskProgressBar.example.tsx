@@ -3,7 +3,7 @@ import React, { useState } from 'react';
 import TodayTaskProgressBar from './TodayTaskProgressBar';
 
 export default function TodayTaskProgressBarExample() {
-  const [example1Completed, setExample1Completed] = useState(2);
+  const [, setExample1Completed] = useState(2);
   const [example2Completed, setExample2Completed] = useState(5);
 
   return (

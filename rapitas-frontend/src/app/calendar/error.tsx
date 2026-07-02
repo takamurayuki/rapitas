@@ -2,6 +2,9 @@
 
 import { useEffect } from 'react';
 import { useTranslations } from 'next-intl';
+import { createLogger } from '@/lib/logger';
+
+const logger = createLogger('CalendarError');
 
 export default function Error({
   error,
@@ -12,7 +15,7 @@ export default function Error({
 }) {
   const t = useTranslations('calendar.errorPage');
   useEffect(() => {
-    console.error('[Calendar Error]', error);
+    logger.error('[Calendar Error]', error);
   }, [error]);
 
   return (

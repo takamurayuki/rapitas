@@ -63,6 +63,14 @@ export default function RootLayout({
       <head>
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
+        {/*
+          NOTE: loaded as a raw stylesheet (not next/font/google) because the note
+          editor (src/components/note/editor/constants.ts) lets users pick
+          "Noto Sans JP" as a literal font-family string on arbitrary content;
+          next/font would only expose it as a scoped class/variable, not a
+          browser-wide family name any element can request.
+        */}
+        {/* eslint-disable-next-line @next/next/no-page-custom-font */}
         <link
           href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@300;400;500;600;700&display=swap"
           rel="stylesheet"

@@ -6,7 +6,7 @@
  * Small microphone button that can be placed inside any input field.
  * Opens the global voice input bar targeting the associated input element.
  */
-import { useCallback, useRef } from 'react';
+import { useCallback } from 'react';
 import { useTranslations } from 'next-intl';
 import { Mic } from 'lucide-react';
 import { useVoiceInput } from './VoiceInputProvider';

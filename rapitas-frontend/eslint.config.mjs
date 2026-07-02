@@ -59,6 +59,24 @@ const eslintConfig = defineConfig([
       ...stagedSeverity('tests'),
     },
   },
+  {
+    // global-error.tsx replaces the root layout (including its providers) when
+    // the layout itself throws, so it cannot safely depend on app providers/stores
+    // the shared logger transitively pulls in. console.error is the intentional
+    // last-resort here.
+    files: ['src/app/global-error.tsx'],
+    rules: {
+      'no-console': 'off',
+    },
+  },
+  {
+    // logger.ts is the createLogger() implementation itself — its console.*
+    // calls are the actual sink every other module's logger calls funnel into.
+    files: ['src/lib/logger.ts'],
+    rules: {
+      'no-console': 'off',
+    },
+  },
 ]);
 
 export default eslintConfig;

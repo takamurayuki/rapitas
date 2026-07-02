@@ -11,19 +11,7 @@
 
 import React, { useMemo } from 'react';
 import { motion } from 'framer-motion';
-import {
-  CheckSquare,
-  Clock,
-  Bot,
-  Target,
-  Flame,
-  Calendar,
-  TrendingUp,
-  Award,
-  BarChart3,
-  PieChart,
-  Activity,
-} from 'lucide-react';
+import { CheckSquare, Clock, Bot, Target, TrendingUp } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import type { PlayerStats } from '../../types/achievement';
 
@@ -124,7 +112,6 @@ const ProgressRing: React.FC<ProgressRingProps> = ({
 }) => {
   const radius = (size - strokeWidth) / 2;
   const circumference = 2 * Math.PI * radius;
-  const strokeDasharray = `${(percentage / 100) * circumference} ${circumference}`;
 
   return (
     <div className="flex flex-col items-center">

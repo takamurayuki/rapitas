@@ -11,6 +11,7 @@ import { useTaskCacheStore } from '@/stores/task-cache-store';
 import { useTaskAutoSync } from '@/hooks/task/useTaskAutoSync';
 import { useExecutionStateStore } from '@/stores/execution-state-store';
 import { createLogger } from '@/lib/logger';
+import type { Status } from '@/types';
 
 const logger = createLogger('useKanbanBoard');
 const API_BASE = API_BASE_URL;
@@ -66,7 +67,7 @@ export function useKanbanBoard(
 
   const updateStatus = async (id: number, status: string) => {
     const oldTask = tasks.find((task) => task.id === id);
-    updateTaskLocally(id, { status: status as import('@/types').Status });
+    updateTaskLocally(id, { status: status as Status });
 
     try {
       const res = await fetch(`${API_BASE}/tasks/${id}`, {

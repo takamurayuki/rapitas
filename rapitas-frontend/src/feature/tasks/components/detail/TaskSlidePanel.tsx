@@ -2,7 +2,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslations } from 'next-intl';
 import TaskDetailClient from '@/app/tasks/[id]/TaskDetailClient';
-import TaskDetailSkeleton from '@/components/ui/skeleton/TaskDetailSkeleton';
 import { useTaskDetailVisibilityStore } from '@/stores/task-detail-visibility-store';
 
 interface TaskSlidePanelProps {

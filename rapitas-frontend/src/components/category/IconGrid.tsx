@@ -1,5 +1,4 @@
 import { memo } from 'react';
-import type { LucideIcon } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 
 type IconGridProps = {

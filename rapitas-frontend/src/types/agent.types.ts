@@ -7,7 +7,7 @@
  */
 
 import type { Priority } from './common.types';
-import type { FileDiff, ScreenshotInfo } from './github.types';
+import type { FileDiff, GitCommit, ScreenshotInfo } from './github.types';
 
 // ==================== Execution status ====================
 
@@ -242,7 +242,7 @@ export type AgentExecution = {
   executionTimeMs?: number | null;
   errorMessage?: string | null;
   createdAt: string;
-  gitCommits?: import('./github.types').GitCommit[];
+  gitCommits?: GitCommit[];
 };
 
 // NOTE: TaskAnalysisConfig and AgentExecutionConfig moved to agent-config.types.ts

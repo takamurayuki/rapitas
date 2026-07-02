@@ -258,7 +258,6 @@ export const useFilterDataStore = create<FilterDataStore>()(
 
       // Background update (transparent to user)
       backgroundRefresh: async () => {
-        const state = get();
         logger.debug('[filterDataStore] backgroundRefresh: Starting background update');
 
         try {

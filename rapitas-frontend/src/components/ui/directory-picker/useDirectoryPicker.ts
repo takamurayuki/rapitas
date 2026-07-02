@@ -11,11 +11,8 @@
 import { useState, useEffect, useRef } from 'react';
 import { useTranslations } from 'next-intl';
 import { API_BASE_URL } from '@/utils/api';
-import { createLogger } from '@/lib/logger';
 import type { BrowseResult, FavoriteDirectory, DirectoryEntry } from './types';
 import { useFavorites } from './useFavorites';
-
-const logger = createLogger('useDirectoryPicker');
 
 export type UseDirectoryPickerReturn = {
   isOpen: boolean;

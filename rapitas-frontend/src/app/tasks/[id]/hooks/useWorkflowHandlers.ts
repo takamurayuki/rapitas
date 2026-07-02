@@ -41,7 +41,7 @@ export interface UseWorkflowHandlersResult {
  * @returns Modal visibility state and handler functions.
  */
 export function useWorkflowHandlers({
-  taskId,
+  taskId: _taskId,
   workflowStatus,
   refetchWorkflowFiles,
   restoreExecutionState,

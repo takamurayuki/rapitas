@@ -4,7 +4,6 @@ import { useState, useEffect, useCallback } from 'react';
 import { useTranslations } from 'next-intl';
 import {
   Brain,
-  TrendingUp,
   RefreshCw,
   ChevronDown,
   ChevronUp,

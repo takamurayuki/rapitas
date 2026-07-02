@@ -113,7 +113,7 @@ export function ExecutionSection({
   isFailed,
   isInterrupted,
   isExecuting,
-  isParallelExecutionRunning,
+  isParallelExecutionRunning: _isParallelExecutionRunning,
   hasSubtasks,
   execStatusIcon,
   logs,

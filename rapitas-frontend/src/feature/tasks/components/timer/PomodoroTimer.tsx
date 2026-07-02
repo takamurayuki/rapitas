@@ -1,7 +1,7 @@
 'use client';
 import { useState } from 'react';
 import { type TimeEntry } from '@/types';
-import { Circle, Play, Pause, Square, Coffee, Hourglass, Clock } from 'lucide-react';
+import { Circle, Play, Pause, Square, Coffee, Hourglass } from 'lucide-react';
 import Tomato from '@/components/icons/Tomato';
 import { useTranslations } from 'next-intl';
 import {
@@ -49,12 +49,12 @@ interface PomodoroTimerProps {
 export default function PomodoroTimer({
   taskId,
   taskTitle,
-  estimatedHours,
+  estimatedHours: _estimatedHours,
   actualHours,
-  timeEntries,
+  timeEntries: _timeEntries,
   subtasks,
   onUpdate,
-  onStatusChange,
+  onStatusChange: _onStatusChange,
   showTaskTitle = false,
 }: PomodoroTimerProps) {
   const t = useTranslations('pomodoro');

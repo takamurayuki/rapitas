@@ -5,7 +5,6 @@ import { useTranslations } from 'next-intl';
 import {
   Sparkles,
   Trash2,
-  CheckCircle2,
   Lightbulb,
   ListTodo,
   BookOpen,

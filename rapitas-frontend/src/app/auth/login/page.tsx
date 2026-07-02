@@ -66,7 +66,7 @@ export default function LoginPage() {
       } else {
         setError(result.error || t('loginFailed'));
       }
-    } catch (err) {
+    } catch {
       setError(tc('unexpectedError'));
     } finally {
       setIsSubmitting(false);
@@ -90,7 +90,7 @@ export default function LoginPage() {
         setError(result.error || t('loginFailed'));
       }
       // On success, redirect is automatically handled by AuthContext
-    } catch (err) {
+    } catch {
       setError(tc('unexpectedError'));
     } finally {
       setIsGoogleLoading(false);

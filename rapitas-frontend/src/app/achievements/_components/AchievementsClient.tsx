@@ -11,18 +11,7 @@
 
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import {
-  Trophy,
-  BarChart3,
-  Gift,
-  Settings,
-  RefreshCw,
-  Bell,
-  BellOff,
-  Download,
-  Share2,
-  Filter,
-} from 'lucide-react';
+import { Trophy, BarChart3, Gift, RefreshCw, Bell, BellOff } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import {
   AchievementPanel,
@@ -51,7 +40,6 @@ export const AchievementsClient: React.FC<AchievementsClientProps> = ({ userId }
   // Hooks
   const {
     achievements,
-    unlockedAchievements,
     progress,
     notifications,
     playerStats,
@@ -66,13 +54,7 @@ export const AchievementsClient: React.FC<AchievementsClientProps> = ({ userId }
     refreshAchievements,
   } = useAchievements({ userId });
 
-  const {
-    trackTaskCompletion,
-    trackStudySession,
-    trackAgentExecution,
-    recentAchievements,
-    isTracking,
-  } = useTaskStats({ userId });
+  const { recentAchievements, isTracking } = useTaskStats({ userId });
 
   // Loading state
   if (isLoading && !playerStats) {

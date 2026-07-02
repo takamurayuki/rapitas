@@ -9,7 +9,7 @@ export function getFaviconUrl(url: string): string {
     // Use Google's favicon service as primary option
     // It provides high quality favicons and handles most edge cases
     return `https://www.google.com/s2/favicons?domain=${domain}&sz=64`;
-  } catch (error) {
+  } catch {
     // Return empty string for invalid URLs
     return '';
   }

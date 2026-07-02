@@ -2,6 +2,9 @@
 
 import { useEffect } from 'react';
 import { useTranslations } from 'next-intl';
+import { createLogger } from '@/lib/logger';
+
+const logger = createLogger('SettingsError');
 
 export default function Error({
   error,
@@ -12,7 +15,7 @@ export default function Error({
 }) {
   const t = useTranslations('settings.errorPage');
   useEffect(() => {
-    console.error('[Settings Error]', error);
+    logger.error('[Settings Error]', error);
   }, [error]);
 
   return (

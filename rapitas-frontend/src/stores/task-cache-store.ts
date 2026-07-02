@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { Task, Status } from '@/types';
+import type { Task } from '@/types';
 import { API_BASE_URL, fetchWithRetry } from '@/utils/api';
 import { createLogger } from '@/lib/logger';
 const logger = createLogger('taskCacheStore');
@@ -46,7 +46,7 @@ const MAX_CACHE_SIZE = 800;
  * @param merged - Full merged task array / マージ済みタスク配列
  * @returns Possibly pruned array / 必要に応じてトリミングされた配列
  */
-function applyMaxCacheSize(merged: import('@/types').Task[]): import('@/types').Task[] {
+function applyMaxCacheSize(merged: Task[]): Task[] {
   if (merged.length <= MAX_CACHE_SIZE) return merged;
   const active = merged.filter((t) => t.status !== 'done');
   const done = merged

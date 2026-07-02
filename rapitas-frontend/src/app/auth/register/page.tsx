@@ -111,7 +111,7 @@ export default function RegisterPage() {
       } else {
         setError(result.error || t('registrationFailed'));
       }
-    } catch (err) {
+    } catch {
       setError(tc('unexpectedError'));
     } finally {
       setIsSubmitting(false);
@@ -135,7 +135,7 @@ export default function RegisterPage() {
         setError(result.error || t('googleConnectionFailed'));
       }
       // On success, redirect is automatically handled by AuthContext
-    } catch (err) {
+    } catch {
       setError(tc('unexpectedError'));
     } finally {
       setIsGoogleLoading(false);

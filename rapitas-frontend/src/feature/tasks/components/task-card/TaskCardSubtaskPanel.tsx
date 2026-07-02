@@ -3,11 +3,7 @@
 import { useTranslations } from 'next-intl';
 import type { Task } from '@/types';
 import SubtaskStatusButtons from '@/feature/tasks/components/status/SubtaskStatusButtons';
-import {
-  getStatusDisplay,
-  renderStatusIcon,
-  isInProgressStatus,
-} from '@/feature/tasks/config/StatusConfig';
+import { getStatusDisplay, renderStatusIcon } from '@/feature/tasks/config/StatusConfig';
 import { useExecutionStateStore } from '@/stores/execution-state-store';
 
 interface TaskCardSubtaskPanelProps {
@@ -37,8 +33,6 @@ export default function TaskCardSubtaskPanel({
     >
       {subtasks.map((subtask, index) => {
         const subtaskStatus = getStatusDisplay(t, subtask.status);
-        // in-progress STATUS drives the box look; agent EXECUTION drives the spinner.
-        const inProgress = isInProgressStatus(subtask.status);
         // A done subtask must never show the running spinner even if a stale
         // execution-state entry lingers (orphaned agentExecution row still
         // returned by /tasks/executing) — trust the persisted terminal status.

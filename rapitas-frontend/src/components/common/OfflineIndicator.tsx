@@ -1,6 +1,5 @@
 'use client';
 // OfflineIndicator
-import { useEffect, useState } from 'react';
 import { WifiOff, CloudOff, Loader2 } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { useOfflineQueue } from '@/hooks/common/useOfflineQueue';

@@ -8,9 +8,12 @@
 
 import { API_BASE_URL } from '@/utils/api';
 import { offlineFetch } from '@/lib/offline-queue';
+import { createLogger } from '@/lib/logger';
 import { ApiClientCache } from './cache';
 import { ApiClientBatch } from './batch';
 import type { RequestOptions } from './types';
+
+const logger = createLogger('api-client');
 
 /**
  * Hard ceiling on any single API request. Without a cap, a stalled
@@ -331,7 +334,7 @@ export class APIClient {
       const elapsed = Date.now() - requestStartedAt;
       const msg = `Request timeout after ${elapsed}ms — ${requestLabel}`;
 
-      console.error('[api-client] timeout', { requestLabel, elapsedMs: elapsed });
+      logger.error('[api-client] timeout', { requestLabel, elapsedMs: elapsed });
       timeoutController.abort(new Error(msg));
     }, timeoutMs);
 

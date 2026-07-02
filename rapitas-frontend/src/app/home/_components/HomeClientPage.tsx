@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import React from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import type { Status, Theme, UserSettings } from '@/types';
+import type { Theme, UserSettings } from '@/types';
 import TaskSlidePanel from '@/feature/tasks/components/detail/TaskSlidePanel';
 import { useTaskDetailVisibilityStore } from '@/stores/task-detail-visibility-store';
 import { useExecutingTasksPolling } from '@/hooks/task/useExecutingTasksPolling';

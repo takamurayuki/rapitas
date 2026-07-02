@@ -72,7 +72,6 @@ export function AgentExecutionPanel(props: Props) {
     error,
     subtasks,
     subtaskLogs,
-    parallelSessionId,
     getSubtaskStatus,
     onRefreshSubtaskLogs,
     optimizedPrompt,

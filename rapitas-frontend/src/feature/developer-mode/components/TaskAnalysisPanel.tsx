@@ -6,7 +6,6 @@ import {
   Sparkles,
   Loader2,
   AlertCircle,
-  Brain,
   Clock,
   ListTodo,
   Lightbulb,

@@ -27,7 +27,7 @@ export default function TaskTimeTracking({
   onStartTimer,
   onStopTimer,
   getElapsedTime,
-  formatDuration,
+  formatDuration: _formatDuration,
   getAccumulatedBreakTime: getAccumulatedBreakTimeRef,
 }: TaskTimeTrackingProps) {
   const t = useTranslations('task');

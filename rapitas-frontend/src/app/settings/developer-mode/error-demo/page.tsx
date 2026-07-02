@@ -52,7 +52,7 @@ export default function ErrorDemoPage() {
   const triggerNetworkError = async () => {
     try {
       await fetch('https://invalid-domain-that-does-not-exist.com/api/test');
-    } catch (error) {
+    } catch {
       // NOTE: fetch errors are automatically captured by useErrorCapture.
     }
   };

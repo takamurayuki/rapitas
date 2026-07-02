@@ -2,6 +2,9 @@
 
 import { useEffect } from 'react';
 import { useTranslations } from 'next-intl';
+import { createLogger } from '@/lib/logger';
+
+const logger = createLogger('AgentsError');
 
 export default function Error({
   error,
@@ -12,7 +15,7 @@ export default function Error({
 }) {
   const t = useTranslations('agents.errorPage');
   useEffect(() => {
-    console.error('[Agents Error]', error);
+    logger.error('[Agents Error]', error);
   }, [error]);
 
   return (

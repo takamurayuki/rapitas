@@ -41,7 +41,7 @@ export function useHomeActions({
   setIsSelectionMode,
   triggerTaskCompletion,
   isTodayTask,
-  fetchTasks,
+  fetchTasks: _fetchTasks,
 }: UseHomeActionsParams) {
   const { showToast } = useToast();
   const confirm = useConfirmDialog();

@@ -27,7 +27,7 @@ export function KnowledgeEntryCard({
   entry,
   similarity,
   onClick,
-  onArchive,
+  onArchive: _onArchive,
 }: KnowledgeEntryCardProps) {
   const t = useTranslations('knowledge');
 

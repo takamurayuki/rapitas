@@ -3,7 +3,7 @@
 
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useTranslations } from 'next-intl';
-import type { WorkflowFileType, WorkflowStatus, WorkflowRole, WorkflowRoleConfig } from '@/types';
+import type { WorkflowFileType, WorkflowStatus, WorkflowRoleConfig } from '@/types';
 import { useWorkflowFiles } from '@/hooks/workflow/useWorkflowFiles';
 import { useLocaleStore } from '@/stores/locale-store';
 import { useExecutionStateStore } from '@/stores/execution-state-store';
@@ -47,7 +47,7 @@ export interface UseWorkflowViewerOptions {
 export function useWorkflowViewer({
   taskId,
   workflowStatus,
-  workflowMode,
+  workflowMode: _workflowMode,
   onStatusChange,
   onWorkflowModeChange,
   workflowModeOverride,

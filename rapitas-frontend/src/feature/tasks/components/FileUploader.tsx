@@ -4,7 +4,10 @@ import {
   Upload,
   X,
   File,
-  Image,
+  // NOTE: aliased — eslint-config-next's jsx-a11y setup treats any component
+  // literally named `Image` as next/image's <Image>, which requires an `alt`
+  // prop this decorative lucide icon doesn't have.
+  Image as ImageIcon,
   FileText,
   Trash2,
   Download,
@@ -181,7 +184,7 @@ export default function FileUploader({ taskId, resources, onResourcesChange }: F
 
   const getFileIcon = (resource: Resource) => {
     if (resource.type === 'image' || resource.mimeType?.startsWith('image/')) {
-      return <Image className="w-4 h-4 text-emerald-500" />;
+      return <ImageIcon className="w-4 h-4 text-emerald-500" />;
     }
     if (resource.type === 'pdf' || resource.mimeType === 'application/pdf') {
       return <FileText className="w-4 h-4 text-rose-500" />;
@@ -277,6 +280,12 @@ export default function FileUploader({ taskId, resources, onResourcesChange }: F
               {/* Preview or Icon */}
               {resource.type === 'image' && resource.filePath ? (
                 <div className="w-10 h-10 rounded-lg overflow-hidden bg-zinc-200 dark:bg-zinc-700 shrink-0">
+                  {/*
+                    NOTE: thumbnail is served from the (deployment-specific) API host,
+                    which isn't registered in next.config's image remotePatterns, so
+                    next/image isn't a safe swap here.
+                  */}
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
                     src={getFileUrl(resource)}
                     alt={resource.title}

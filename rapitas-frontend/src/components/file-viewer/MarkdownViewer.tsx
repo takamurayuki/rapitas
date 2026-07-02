@@ -307,6 +307,10 @@ export default function MarkdownViewer({
             ),
             hr: () => <hr className="border-t border-zinc-200 dark:border-zinc-700 my-8" />,
             img: ({ src, alt, ...props }) => (
+              // NOTE: renders arbitrary image URLs embedded in user-authored markdown —
+              // unknown dimensions and arbitrary source hosts not covered by
+              // next.config's image remotePatterns, so next/image isn't a safe swap.
+              // eslint-disable-next-line @next/next/no-img-element
               <img
                 src={src}
                 alt={alt || ''}

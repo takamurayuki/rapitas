@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useTranslations } from 'next-intl';
-import type { WorkflowFile, WorkflowFileType, WorkflowStatus, WorkflowPathInfo } from '@/types';
+import type { WorkflowFile, WorkflowStatus, WorkflowPathInfo } from '@/types';
 import { API_BASE_URL } from '@/utils/api';
 
 export type WorkflowFilesData = {

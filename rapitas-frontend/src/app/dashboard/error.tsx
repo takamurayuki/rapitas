@@ -2,6 +2,9 @@
 
 import { useEffect } from 'react';
 import { useTranslations } from 'next-intl';
+import { createLogger } from '@/lib/logger';
+
+const logger = createLogger('DashboardError');
 
 export default function Error({
   error,
@@ -14,7 +17,7 @@ export default function Error({
   const tDashboard = useTranslations('dashboard');
 
   useEffect(() => {
-    console.error('[Dashboard Error]', error);
+    logger.error('[Dashboard Error]', error);
   }, [error]);
 
   return (

@@ -46,7 +46,7 @@ export default function RecurrenceSelector({
   taskId,
   isRecurring,
   recurrenceRule,
-  recurrenceEndAt,
+  recurrenceEndAt: _recurrenceEndAt,
   onUpdate,
   onClose,
   className = '',

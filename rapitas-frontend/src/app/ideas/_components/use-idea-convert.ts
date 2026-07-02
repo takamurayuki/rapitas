@@ -8,7 +8,10 @@
 import { useCallback, useState } from 'react';
 import { API_BASE_URL } from '@/utils/api';
 import { useFilterDataStore } from '@/stores/filter-data-store';
+import { createLogger } from '@/lib/logger';
 import type { Idea } from './idea-box.types';
+
+const logger = createLogger('useIdeaConvert');
 
 interface UseIdeaConvertArgs {
   /** Refetch the idea list after a conversion. / 変換後に一覧を再取得する。 */
@@ -62,10 +65,10 @@ export function useIdeaConvert({ fetchIdeas }: UseIdeaConvertArgs) {
         if (response.ok) {
           await fetchIdeas();
         } else {
-          console.error('Failed to convert idea to task');
+          logger.error('Failed to convert idea to task');
         }
       } catch (error) {
-        console.error('Error converting idea to task:', error);
+        logger.error('Error converting idea to task:', error);
       } finally {
         setConvertingIdeaId(null);
         setIsConverting(false);

@@ -19,7 +19,7 @@ import {
   Loader2,
 } from 'lucide-react';
 import type { Resource } from '@/types';
-import { API_BASE_URL, fetchWithRetry } from '@/utils/api';
+import { API_BASE_URL } from '@/utils/api';
 import MarkdownViewer from './MarkdownViewer';
 import './markdown-viewer.css';
 import { createLogger } from '@/lib/logger';
@@ -151,7 +151,7 @@ export default function FileViewer({
   }, [isOpen, resource]);
 
   // On image load complete
-  const handleImageLoad = (e: React.SyntheticEvent<HTMLImageElement>) => {
+  const handleImageLoad = (_e: React.SyntheticEvent<HTMLImageElement>) => {
     setIsLoading(false);
   };
 
@@ -370,6 +370,13 @@ export default function FileViewer({
           {/* Image Viewer */}
           {fileType === 'image' && !error && (
             <div className="flex items-center justify-center h-full p-8">
+              {/*
+                NOTE: next/image is not a safe swap here — this is a zoomable/rotatable
+                viewer for images served from the (deployment-specific) API host, which
+                isn't registered in next.config's image remotePatterns, and dimensions
+                are unknown ahead of load.
+              */}
+              {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 src={getFileUrl(resource)}
                 alt={resource.title || resource.fileName || ''}
