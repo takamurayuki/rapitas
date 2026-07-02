@@ -7,6 +7,8 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { X, CheckCircle, AlertTriangle, FileText, Loader2 } from 'lucide-react';
 import { useTranslations } from 'next-intl';
+import { useLocaleStore } from '@/stores/locale-store';
+import { toDateLocale } from '@/lib/utils';
 
 export interface PlanApprovalModalProps {
   isOpen: boolean;
@@ -25,6 +27,7 @@ export default function PlanApprovalModal({
 }: PlanApprovalModalProps) {
   const t = useTranslations('workflow');
   const tc = useTranslations('common');
+  const locale = useLocaleStore((s) => s.locale);
   const [showRejectReason, setShowRejectReason] = useState(false);
   const [rejectReason, setRejectReason] = useState('');
 
@@ -108,7 +111,7 @@ export default function PlanApprovalModal({
               <div>
                 {t('planApprovalModal.lastUpdated')}{' '}
                 {planFile.lastModified
-                  ? new Date(planFile.lastModified).toLocaleString('ja-JP')
+                  ? new Date(planFile.lastModified).toLocaleString(toDateLocale(locale))
                   : t('planApprovalModal.unknown')}
               </div>
               <div>

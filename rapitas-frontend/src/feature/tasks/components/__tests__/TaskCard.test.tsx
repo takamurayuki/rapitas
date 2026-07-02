@@ -18,9 +18,15 @@ vi.mock('@/stores/execution-state-store', () => ({
   useExecutionStateStore: (
     selector: (state: {
       getExecutingTaskStatus: (id: number) => null;
+      getExecutingTaskStartedAt: (id: number) => null;
       executingTasks: Map<number, unknown>;
     }) => unknown,
-  ) => selector({ getExecutingTaskStatus: () => null, executingTasks: new Map() }),
+  ) =>
+    selector({
+      getExecutingTaskStatus: () => null,
+      getExecutingTaskStartedAt: () => null,
+      executingTasks: new Map(),
+    }),
 }));
 
 vi.mock('next-intl', () => ({

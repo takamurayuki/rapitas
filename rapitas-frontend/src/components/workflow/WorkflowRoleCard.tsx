@@ -5,7 +5,16 @@
  *
  * Expandable card for configuring a single workflow role (agent, model, prompt).
  */
-import { ChevronDown, Loader2, Save, ArrowDown, ShieldCheck, Cpu } from 'lucide-react';
+import {
+  ChevronDown,
+  Loader2,
+  Save,
+  ArrowDown,
+  ShieldCheck,
+  Cpu,
+  Bot,
+  Shuffle,
+} from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import type { AIAgentConfig, WorkflowRole, WorkflowRoleConfig } from '@/types';
 import { Toggle } from '@/components/ui/Toggle';
@@ -161,8 +170,8 @@ export function WorkflowRoleCard({
               {!isExpanded && (
                 <div className="hidden sm:flex items-center gap-1.5 text-xs text-zinc-600 dark:text-zinc-300 bg-white/60 dark:bg-zinc-700/60 px-2.5 py-1 rounded-lg">
                   {isAutoSelect ? (
-                    <span className="text-indigo-600 dark:text-indigo-400">
-                      🤖 {t('rolesConfig.autoSelect')}
+                    <span className="inline-flex items-center gap-1 text-indigo-600 dark:text-indigo-400">
+                      <Bot className="h-3 w-3" /> {t('rolesConfig.autoSelect')}
                     </span>
                   ) : (
                     <>
@@ -202,7 +211,7 @@ export function WorkflowRoleCard({
             {/* Auto-select toggle */}
             <div className="flex items-center justify-between mb-4 p-3 rounded-lg bg-indigo-50 dark:bg-indigo-900/20 border border-indigo-200 dark:border-indigo-800">
               <div className="flex items-center gap-2">
-                <span className="text-sm">🤖</span>
+                <Bot className="h-4 w-4 text-indigo-600 dark:text-indigo-400" />
                 <div>
                   <span className="text-sm font-medium text-indigo-700 dark:text-indigo-300">
                     {t('rolesConfig.autoSelectMode')}

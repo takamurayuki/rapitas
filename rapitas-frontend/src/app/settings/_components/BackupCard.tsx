@@ -9,6 +9,8 @@ import { useCallback, useEffect, useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { Database, Download, Loader2, AlertTriangle, CheckCircle } from 'lucide-react';
 import { API_BASE_URL } from '@/utils/api';
+import { useLocaleStore } from '@/stores/locale-store';
+import { toDateLocale } from '@/lib/utils';
 
 interface BackupItem {
   filename: string;
@@ -53,6 +55,7 @@ function formatRelative(iso: string | null, t: ReturnType<typeof useTranslations
 
 export default function BackupCard() {
   const t = useTranslations('settings.backupCard');
+  const locale = useLocaleStore((s) => s.locale);
   const [data, setData] = useState<ListResponse | null>(null);
   const [running, setRunning] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -147,7 +150,8 @@ export default function BackupCard() {
                     {b.filename}
                   </span>
                   <span className="ml-2 shrink-0 text-zinc-500 dark:text-zinc-400">
-                    {formatSize(b.sizeBytes)} · {new Date(b.createdAt).toLocaleString('ja-JP')}
+                    {formatSize(b.sizeBytes)} ·{' '}
+                    {new Date(b.createdAt).toLocaleString(toDateLocale(locale))}
                   </span>
                 </li>
               ))}

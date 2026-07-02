@@ -15,6 +15,8 @@ import { Trophy, Star, Crown, Award, Sparkles, X, CheckCircle } from 'lucide-rea
 import { useTranslations } from 'next-intl';
 import type { AchievementNotification } from '../../types/achievement';
 import { getRarityColor } from '../../data/achievements';
+import { useLocaleStore } from '@/stores/locale-store';
+import { toDateLocale } from '@/lib/utils';
 
 interface AchievementToastProps {
   notifications: AchievementNotification[];
@@ -45,6 +47,7 @@ const SingleToast: React.FC<SingleToastProps> = ({
   index,
 }) => {
   const t = useTranslations('achievements');
+  const locale = useLocaleStore((s) => s.locale);
   const [isVisible, setIsVisible] = useState(true);
   const [progress, setProgress] = useState(100);
 
@@ -95,21 +98,6 @@ const SingleToast: React.FC<SingleToastProps> = ({
       CheckCircle,
     }[notification.icon] || Trophy;
 
-  const getRarityEmoji = (rarity: string) => {
-    switch (rarity) {
-      case 'legendary':
-        return '🏆';
-      case 'epic':
-        return '💜';
-      case 'rare':
-        return '💙';
-      case 'common':
-        return '💚';
-      default:
-        return '🏅';
-    }
-  };
-
   return (
     <AnimatePresence>
       {isVisible && (
@@ -152,7 +140,7 @@ const SingleToast: React.FC<SingleToastProps> = ({
             {/* Header */}
             <div className="flex items-start justify-between mb-3">
               <div className="flex items-center space-x-2">
-                <span className="text-lg">{getRarityEmoji(notification.rarity)}</span>
+                <Trophy className="w-4 h-4" style={{ color: rarityColor }} />
                 <span className="text-sm font-medium text-gray-600 dark:text-gray-400">
                   {t('toast.unlockedLabel')}
                 </span>
@@ -216,7 +204,7 @@ const SingleToast: React.FC<SingleToastProps> = ({
               </div>
 
               <div className="text-xs text-gray-400 dark:text-gray-500">
-                {new Date(notification.timestamp).toLocaleTimeString('ja-JP', {
+                {new Date(notification.timestamp).toLocaleTimeString(toDateLocale(locale), {
                   hour: '2-digit',
                   minute: '2-digit',
                 })}

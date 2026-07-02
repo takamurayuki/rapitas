@@ -11,7 +11,7 @@ describe('log-message-transformer', () => {
       const result = transformLogToUserFriendly(researchLog);
 
       expect(result.category).toBe('progress');
-      expect(result.message).toBe('📊 調査フェーズを開始しました');
+      expect(result.message).toBe('調査フェーズを開始しました');
       expect(result.phase).toBe('research');
       expect(result.iconName).toBe('Search');
     });
@@ -21,7 +21,7 @@ describe('log-message-transformer', () => {
       const result = transformLogToUserFriendly(editLog);
 
       expect(result.category).toBe('info');
-      expect(result.message).toBe('📝 Button.tsx を編集しました');
+      expect(result.message).toBe('Button.tsx を編集しました');
       expect(result.detail).toBe('src/components/Button.tsx');
       expect(result.iconName).toBe('FileEdit');
     });
@@ -31,7 +31,7 @@ describe('log-message-transformer', () => {
       const result = transformLogToUserFriendly(createLog);
 
       expect(result.category).toBe('success');
-      expect(result.message).toBe('✨ 新しいファイル new-component.tsx を作成しました');
+      expect(result.message).toBe('新しいファイル new-component.tsx を作成しました');
       expect(result.iconName).toBe('FileEdit');
     });
 
@@ -40,7 +40,7 @@ describe('log-message-transformer', () => {
       const result = transformLogToUserFriendly(errorLog);
 
       expect(result.category).toBe('error');
-      expect(result.message).toBe('❌ エラーが発生しました');
+      expect(result.message).toBe('エラーが発生しました');
       expect(result.detail).toBe(errorLog);
       expect(result.iconName).toBe('AlertCircle');
     });
@@ -50,7 +50,7 @@ describe('log-message-transformer', () => {
       const result = transformLogToUserFriendly(testLog);
 
       expect(result.category).toBe('success');
-      expect(result.message).toBe('✅ テストが正常に完了しました');
+      expect(result.message).toBe('テストが正常に完了しました');
       expect(result.iconName).toBe('TestTube');
     });
 
@@ -59,7 +59,7 @@ describe('log-message-transformer', () => {
       const result = transformLogToUserFriendly(gitLog);
 
       expect(result.category).toBe('success');
-      expect(result.message).toBe('💾 変更をコミットしました');
+      expect(result.message).toBe('変更をコミットしました');
       expect(result.iconName).toBe('GitBranch');
     });
 
@@ -179,7 +179,7 @@ describe('log-message-transformer', () => {
 
       // 重複する "処理中です" メッセージが統合されることを確認
       const progressMessages = results.filter(
-        (entry) => entry.category === 'progress' && entry.message === '⏳ 処理中です',
+        (entry) => entry.category === 'progress' && entry.message === '処理中です',
       );
       expect(progressMessages).toHaveLength(2); // "processing" と最初の "waiting"
     });

@@ -17,6 +17,8 @@ import { fetchConfiguredProviders, fetchAvailableModels } from '../note/ai-servi
 import Link from 'next/link';
 import type { AIChatMessage, ApiProvider } from '@/types';
 import { useUIModeStore } from '@/stores/ui-mode-store';
+import { useLocaleStore } from '@/stores/locale-store';
+import { toDateLocale } from '@/lib/utils';
 
 const PROVIDER_LABELS: Record<ApiProvider, string> = {
   claude: 'Claude',
@@ -34,6 +36,7 @@ const PROVIDER_COLORS: Record<ApiProvider, string> = {
 
 const ChatMessage = ({ message }: { message: AIChatMessage }) => {
   const isUser = message.role === 'user';
+  const locale = useLocaleStore((s) => s.locale);
 
   return (
     <div className={`flex ${isUser ? 'justify-end' : 'justify-start'} mb-4`}>
@@ -50,7 +53,7 @@ const ChatMessage = ({ message }: { message: AIChatMessage }) => {
             isUser ? 'text-indigo-100' : 'text-zinc-400 dark:text-zinc-500'
           }`}
         >
-          {message.timestamp.toLocaleTimeString('ja-JP', {
+          {message.timestamp.toLocaleTimeString(toDateLocale(locale), {
             hour: '2-digit',
             minute: '2-digit',
           })}

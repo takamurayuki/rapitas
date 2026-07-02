@@ -69,15 +69,16 @@ export async function proposeApps(
   });
 
   if (!response.ok) {
-    const errorData = await response.json().catch(() => ({}));
-    throw new Error(errorData.error || `HTTP ${response.status}: ${t('proposalGenerateFailed')}`);
+    // NOTE: Prefer the translated fallback over the raw API error string —
+    // the route may return Japanese prose regardless of the user's locale.
+    throw new Error(t('proposalGenerateFailed'));
   }
 
   const data = await response.json();
   if (data.error) {
-    throw new Error(data.error);
+    throw new Error(t('proposalGenerateFailed'));
   }
-  // NOTE: aiFailed with errorMessage is handled by the caller, not thrown here.
+  // NOTE: aiFailed with errorCode is handled by the caller, not thrown here.
   return data;
 }
 
@@ -108,13 +109,14 @@ export async function generateClaudeMd(
   });
 
   if (!response.ok) {
-    const errorData = await response.json().catch(() => ({}));
-    throw new Error(errorData.error || `HTTP ${response.status}: ${t('claudeMdGenerateFailed')}`);
+    // NOTE: Prefer the translated fallback over the raw API error string —
+    // the route may return Japanese prose regardless of the user's locale.
+    throw new Error(t('claudeMdGenerateFailed'));
   }
 
   const data = await response.json();
   if (data.error) {
-    throw new Error(data.error);
+    throw new Error(t('claudeMdGenerateFailed'));
   }
   return data;
 }

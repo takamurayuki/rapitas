@@ -10,6 +10,8 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { Sparkles, TrendingUp, RefreshCw, ChevronDown, ChevronUp } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { API_BASE_URL } from '@/utils/api';
+import { useLocaleStore } from '@/stores/locale-store';
+import { toDateLocale } from '@/lib/utils';
 
 type ProgressSummary = {
   period: string;
@@ -24,6 +26,7 @@ type ProgressSummary = {
 export function ProgressSummaryWidget() {
   const t = useTranslations('home');
   const tCommon = useTranslations('common');
+  const locale = useLocaleStore((s) => s.locale);
   const [data, setData] = useState<ProgressSummary | null>(null);
   const [loading, setLoading] = useState(true);
   const [expanded, setExpanded] = useState(false);
@@ -129,7 +132,7 @@ export function ProgressSummaryWidget() {
                   #{t.id} {t.title}
                 </span>
                 <span className="shrink-0 ml-2 text-zinc-400">
-                  {new Date(t.completedAt).toLocaleDateString('ja-JP', {
+                  {new Date(t.completedAt).toLocaleDateString(toDateLocale(locale), {
                     month: 'short',
                     day: 'numeric',
                   })}

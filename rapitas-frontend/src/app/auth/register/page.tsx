@@ -154,7 +154,7 @@ export default function RegisterPage() {
           </div>
 
           {/* Form skeleton */}
-          <div className="bg-white dark:bg-zinc-800 rounded-xl shadow-2xl p-8 space-y-6">
+          <div className="bg-white dark:bg-zinc-800 rounded-xl shadow-lg p-8 space-y-6">
             <div className="space-y-4">
               {[1, 2, 3, 4].map((i) => (
                 <div key={i}>

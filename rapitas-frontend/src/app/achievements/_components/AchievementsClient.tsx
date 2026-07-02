@@ -20,6 +20,8 @@ import {
 } from '../../../components/achievement';
 import { useAchievements } from '../../../hooks/use-achievements';
 import { useTaskStats } from '../../../hooks/use-task-stats';
+import { useLocaleStore } from '@/stores/locale-store';
+import { toDateLocale } from '@/lib/utils';
 
 interface AchievementsClientProps {
   userId: number;
@@ -34,6 +36,7 @@ type TabType = 'achievements' | 'stats' | 'badges';
 export const AchievementsClient: React.FC<AchievementsClientProps> = ({ userId }) => {
   const t = useTranslations('achievements');
   const tCommon = useTranslations('common');
+  const locale = useLocaleStore((s) => s.locale);
   const [activeTab, setActiveTab] = useState<TabType>('achievements');
   const [notificationsEnabled, setNotificationsEnabled] = useState(true);
 
@@ -372,7 +375,9 @@ export const AchievementsClient: React.FC<AchievementsClientProps> = ({ userId }
               <div>User ID: {userId}</div>
               <div>Tracking: {isTracking ? 'Active' : 'Inactive'}</div>
               <div>Notifications: {notifications.length} pending</div>
-              <div>Last update: {playerStats?.lastUpdatedAt?.toLocaleString('ja-JP')}</div>
+              <div>
+                Last update: {playerStats?.lastUpdatedAt?.toLocaleString(toDateLocale(locale))}
+              </div>
             </div>
           </div>
         )}

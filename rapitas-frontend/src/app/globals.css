@@ -345,6 +345,24 @@ html {
   }
 }
 
+/* NOTE: Global reduced-motion guard (design principle #10 / ui-design-language.md
+   §4 "Motion"). Collapses every keyframe animation and CSS transition app-wide
+   to near-zero duration for users who prefer reduced motion, instead of relying
+   on each component to opt in individually. The rule above is more targeted
+   (fully disables specific execution-state animations); this one is the
+   catch-all so newly added animations are covered automatically. !important is
+   required to win over component-level duration classes (e.g. .duration-500). */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  ::before,
+  ::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
 /* Floating AI Menu animations */
 .floating-ai-menu-button {
   box-shadow: 0 4px 20px rgba(99, 102, 241, 0.3);

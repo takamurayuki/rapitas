@@ -11,6 +11,8 @@
 
 import { X } from 'lucide-react';
 import { useTranslations } from 'next-intl';
+import { useLocaleStore } from '@/stores/locale-store';
+import { toDateLocale } from '@/lib/utils';
 import { WEEKDAYS } from './recurrence-utils';
 
 /** Props for RecurrenceCustomForm. */
@@ -56,6 +58,7 @@ export function RecurrenceCustomForm({
 }: RecurrenceCustomFormProps) {
   const t = useTranslations('task');
   const tc = useTranslations('common');
+  const locale = useLocaleStore((s) => s.locale);
   return (
     <div className="p-3 space-y-3">
       <div className="flex items-center justify-between">
@@ -195,7 +198,7 @@ export function RecurrenceCustomForm({
           <div className="mt-1 text-xs text-zinc-600 dark:text-zinc-400 space-y-0.5">
             {previewDates.slice(0, 5).map((date, i) => (
               <div key={i}>
-                {new Date(date).toLocaleDateString('ja-JP', {
+                {new Date(date).toLocaleDateString(toDateLocale(locale), {
                   month: 'short',
                   day: 'numeric',
                   weekday: 'short',

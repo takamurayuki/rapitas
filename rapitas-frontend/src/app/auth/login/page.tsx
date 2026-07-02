@@ -109,7 +109,7 @@ export default function LoginPage() {
           </div>
 
           {/* Form skeleton */}
-          <div className="bg-white dark:bg-zinc-800 rounded-xl shadow-2xl p-8 space-y-6">
+          <div className="bg-white dark:bg-zinc-800 rounded-xl shadow-lg p-8 space-y-6">
             <div className="space-y-4">
               <div>
                 <div className="h-4 w-16 bg-zinc-200 dark:bg-zinc-700 rounded mb-2 animate-pulse" />

@@ -22,6 +22,8 @@ import { useTranslations } from 'next-intl';
 import type { GitHubPullRequest } from '@/types';
 import { MarkdownView } from '@/components/markdown/MarkdownView';
 import { getReviewIcon } from './PrUtils';
+import { useLocaleStore } from '@/stores/locale-store';
+import { toDateLocale } from '@/lib/utils';
 
 interface PRConversationTabProps {
   pr: GitHubPullRequest;
@@ -71,6 +73,7 @@ export function PRConversationTab({
   onReview,
 }: PRConversationTabProps) {
   const t = useTranslations('github');
+  const locale = useLocaleStore((s) => s.locale);
 
   return (
     <div className="space-y-2">
@@ -114,7 +117,7 @@ export function PRConversationTab({
                     : 'Commented'}
               </span>
               <span className="text-xs text-zinc-400 flex-shrink-0">
-                {new Date(review.submittedAt).toLocaleString('ja-JP')}
+                {new Date(review.submittedAt).toLocaleString(toDateLocale(locale))}
               </span>
             </>
           }
@@ -142,7 +145,7 @@ export function PRConversationTab({
                 </span>
               )}
               <span className="text-xs text-zinc-400 flex-shrink-0">
-                {new Date(comment.createdAt).toLocaleString('ja-JP')}
+                {new Date(comment.createdAt).toLocaleString(toDateLocale(locale))}
               </span>
             </>
           }

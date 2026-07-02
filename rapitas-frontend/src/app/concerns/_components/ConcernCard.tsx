@@ -21,6 +21,8 @@ import {
 } from 'lucide-react';
 import { getIconComponent } from '@/components/category/icon-data';
 import PriorityIcon from '@/feature/tasks/components/priority/PriorityIcon';
+import { useLocaleStore } from '@/stores/locale-store';
+import { toDateLocale } from '@/lib/utils';
 import { TYPE_META, TYPE_LABEL_KEY, SEVERITY_HINT_KEY, type Concern } from './concern-shared';
 
 interface ConcernCardProps {
@@ -51,6 +53,7 @@ export function ConcernCard({
 }: ConcernCardProps) {
   const t = useTranslations('concerns');
   const tCommon = useTranslations('common');
+  const locale = useLocaleStore((s) => s.locale);
   const TyIcon = TYPE_META[c.type].icon;
   const ThemeIcon = getIconComponent(theme?.icon || '') || FolderOpen;
 
@@ -108,7 +111,7 @@ export function ConcernCard({
               </a>
             )}
             <span className="ml-auto text-[10px] text-zinc-400">
-              {new Date(c.createdAt).toLocaleDateString('ja-JP')}
+              {new Date(c.createdAt).toLocaleDateString(toDateLocale(locale))}
             </span>
           </div>
           <p className="mt-1.5 text-sm font-medium text-zinc-900 dark:text-zinc-100">{c.title}</p>

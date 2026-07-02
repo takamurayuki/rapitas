@@ -110,6 +110,7 @@ export function BrowserModal({
           </div>
           <button
             onClick={onClose}
+            aria-label={t('close')}
             className="p-1.5 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 hover:bg-zinc-200 dark:hover:bg-zinc-700 rounded-md transition-colors"
           >
             <X className="w-5 h-5" />

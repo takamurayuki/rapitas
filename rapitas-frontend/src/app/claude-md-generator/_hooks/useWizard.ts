@@ -156,6 +156,29 @@ export function useWizard() {
   };
 
   /**
+   * Maps the propose-apps route's stable error code to a translated message.
+   * The route never sends prose directly — only a locale-independent code —
+   * so the UI always shows an i18n string, never raw API text.
+   *
+   * @param code - error code from the route ('parse_failed' | 'server_error' | 'timeout' | 'connection_failed') / ルートからのエラーコード
+   * @returns translated error message / 翻訳済みエラーメッセージ
+   */
+  const translateAiErrorCode = (code: string): string => {
+    switch (code) {
+      case 'parse_failed':
+        return t('aiParseFailed');
+      case 'timeout':
+        return t('aiTimeout');
+      case 'connection_failed':
+        return t('aiConnectionFailed');
+      case 'server_error':
+        return t('aiServerError');
+      default:
+        return t('proposalGenerateFailed');
+    }
+  };
+
+  /**
    * Runs AI proposal generation and transitions through proposing → proposals phases.
    *
    * @param overrideAnswers - answers snapshot including platform/scale/priority / プラットフォーム等を含む回答スナップショット
@@ -165,14 +188,14 @@ export function useWizard() {
     try {
       const r = await proposeApps(t, overrideAnswers, dynamicSubs, dynamicElements);
       setProposals(r.proposals || []);
-      if (r.aiFailed && r.errorMessage) {
-        setAiErrorMessage(r.errorMessage);
+      if (r.aiFailed && r.errorCode) {
+        setAiErrorMessage(translateAiErrorCode(r.errorCode));
       } else {
         setAiErrorMessage('');
       }
-    } catch (error) {
+    } catch {
       setProposals([]);
-      setAiErrorMessage(error instanceof Error ? error.message : t('proposalGenerateFailed'));
+      setAiErrorMessage(t('proposalGenerateFailed'));
     }
     setPhase('proposals');
   };
@@ -244,12 +267,15 @@ export function useWizard() {
         setSetupPhase('success');
         setCreatedThemePath(data.projectPath);
       } else {
+        // NOTE: Prefer the translated fallback over `data.error` — the API
+        // route returns Japanese prose that would otherwise leak into an
+        // English UI regardless of the user's locale setting.
         setSetupPhase('error');
-        setSetupError(data.error || t('themeCreateError'));
+        setSetupError(t('themeCreateError'));
       }
-    } catch (error) {
+    } catch {
       setSetupPhase('error');
-      setSetupError(error instanceof Error ? error.message : t('themeCreateError'));
+      setSetupError(t('themeCreateError'));
     }
   };
 

@@ -52,7 +52,7 @@ export default function SettingsLayout({ children }: { children: React.ReactNode
 
   return (
     <div>
-      <div className="sticky top-16 z-30 border-b border-zinc-200 dark:border-zinc-800 bg-white/95 dark:bg-indigo-dark-900/95 backdrop-blur">
+      <div className="sticky top-16 z-30 border-b border-zinc-200 dark:border-zinc-800 bg-white/95 dark:bg-indigo-dark-900/95">
         <nav
           aria-label={t('layout.navAriaLabel')}
           className="mx-auto flex max-w-6xl gap-1 overflow-x-auto px-4 sm:px-6 lg:px-8 scrollbar-thin"

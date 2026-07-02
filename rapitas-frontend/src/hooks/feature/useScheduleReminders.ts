@@ -4,6 +4,8 @@ import { useTranslations } from 'next-intl';
 import { API_BASE_URL } from '@/utils/api';
 import { requestNotificationPermission, showDesktopNotification } from '@/utils/notification';
 import type { ScheduleEvent } from '@/types';
+import { useLocaleStore } from '@/stores/locale-store';
+import { toDateLocale } from '@/lib/utils';
 
 const CHECK_INTERVAL_MS = 30_000; // Check every 30 seconds
 
@@ -14,6 +16,7 @@ const CHECK_INTERVAL_MS = 30_000; // Check every 30 seconds
 export function useScheduleReminders() {
   const tCalendar = useTranslations('calendar');
   const t = useTranslations('common');
+  const locale = useLocaleStore((s) => s.locale);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const permissionGranted = useRef(false);
 
@@ -34,7 +37,7 @@ export function useScheduleReminders() {
         const startDate = new Date(event.startAt);
         const timeStr = event.isAllDay
           ? tCalendar('allDay')
-          : startDate.toLocaleTimeString('ja-JP', {
+          : startDate.toLocaleTimeString(toDateLocale(locale), {
               hour: '2-digit',
               minute: '2-digit',
             });
@@ -60,7 +63,7 @@ export function useScheduleReminders() {
     } finally {
       clearTimeout(timeoutId);
     }
-  }, [tCalendar, t]);
+  }, [tCalendar, t, locale]);
 
   useEffect(() => {
     // Request notification permission on first load

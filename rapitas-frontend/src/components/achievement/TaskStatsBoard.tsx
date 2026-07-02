@@ -13,6 +13,8 @@ import React, { useMemo } from 'react';
 import { motion } from 'framer-motion';
 import { CheckSquare, Clock, Bot, Target, TrendingUp } from 'lucide-react';
 import { useTranslations } from 'next-intl';
+import { useLocaleStore } from '@/stores/locale-store';
+import { toDateLocale } from '@/lib/utils';
 import type { PlayerStats } from '../../types/achievement';
 
 interface TaskStatsBoardProps {
@@ -198,6 +200,7 @@ export const TaskStatsBoard: React.FC<TaskStatsBoardProps> = ({ playerStats, cla
   const t = useTranslations('achievements');
   const tCommon = useTranslations('common');
   const tDashboard = useTranslations('dashboard');
+  const locale = useLocaleStore((s) => s.locale);
   const {
     totalTasksCompleted,
     tasksCompletedToday,
@@ -387,7 +390,7 @@ export const TaskStatsBoard: React.FC<TaskStatsBoardProps> = ({ playerStats, cla
           <div className="mt-6 pt-6 border-t border-gray-200 dark:border-gray-700">
             <div className="text-sm text-gray-600 dark:text-gray-400 text-center">
               {t('statsBoard.lastUpdated', {
-                date: playerStats.lastUpdatedAt.toLocaleString('ja-JP'),
+                date: playerStats.lastUpdatedAt.toLocaleString(toDateLocale(locale)),
               })}
             </div>
           </div>

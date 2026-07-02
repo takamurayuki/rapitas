@@ -100,6 +100,7 @@ function NewFolderForm({
         <button
           onClick={onCancel}
           disabled={isCreating}
+          aria-label={t('cancel')}
           className="p-1.5 text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 hover:bg-zinc-200 dark:hover:bg-zinc-700 rounded-md transition-colors disabled:opacity-50"
         >
           <X className="w-4 h-4" />

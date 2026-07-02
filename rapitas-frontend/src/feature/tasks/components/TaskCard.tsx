@@ -5,14 +5,15 @@ import type { Task, Status } from '@/types';
 import TaskStatusChange from '@/feature/tasks/components/status/TaskStatusChange';
 import PriorityIcon from '@/feature/tasks/components/priority/PriorityIcon';
 import { getStatusDisplay, renderStatusIcon } from '@/feature/tasks/config/StatusConfig';
-import { ExternalLink, Tag, Repeat, RefreshCw, Lock } from 'lucide-react';
+import { ExternalLink, Tag, Repeat, RefreshCw, Lock, Clock } from 'lucide-react';
 import { API_BASE_URL } from '@/utils/api';
 import { useToast } from '@/components/ui/toast/ToastContainer';
 import { getLabelsArray, hasLabels } from '@/utils/labels';
 import { getIconComponent } from '@/components/category/icon-data';
 import { ModernCheckbox } from '@/components/ui/ModernCheckbox';
 import { useTranslations } from 'next-intl';
-import { useLocaleStore as _useLocaleStore } from '@/stores/locale-store';
+import { useLocaleStore } from '@/stores/locale-store';
+import { toDateLocale } from '@/lib/utils';
 import { useTaskCard } from './task-card/useTaskCard';
 import TaskCardContextMenu from './task-card/TaskCardContextMenu';
 import TaskCardSubtaskPanel from './task-card/TaskCardSubtaskPanel';
@@ -41,6 +42,7 @@ const TaskCard = memo(function TaskCard({
 }: TaskCardProps) {
   const t = useTranslations('task');
   const tHome = useTranslations('home');
+  const locale = useLocaleStore((s) => s.locale);
   const { showToast } = useToast();
 
   const tc = useTaskCard(task, onStatusChange, onTaskUpdated, onTaskClick);
@@ -208,6 +210,25 @@ const TaskCard = memo(function TaskCard({
           {/* Subtask progress + meta badges
               NOTE: flex-wrap + min-w-0 で狭幅時にバッジを折返し、横スクロールを防ぐ */}
           <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-zinc-500 dark:text-zinc-400 min-w-0">
+            {/* Elapsed time for a running/waiting agent — the #1 operator blind
+                spot: a spinner alone doesn't say whether an agent has been
+                stuck for 30s or 30min. */}
+            {tc.executionElapsed && (
+              <>
+                <span
+                  className={`inline-flex items-center gap-0.5 shrink-0 font-medium ${
+                    tc.isWaitingForInput
+                      ? 'text-amber-600 dark:text-amber-400'
+                      : 'text-blue-600 dark:text-blue-400'
+                  }`}
+                  title={t('taskCard.elapsedTimeTooltip')}
+                >
+                  <Clock className="w-3 h-3" aria-hidden="true" />
+                  {tc.executionElapsed}
+                </span>
+                <span className="text-zinc-300 dark:text-zinc-700">•</span>
+              </>
+            )}
             {tc.localSubtasks.length > 0 && (
               <TaskCardSubtaskProgress
                 subtasks={tc.localSubtasks}
@@ -228,7 +249,7 @@ const TaskCard = memo(function TaskCard({
               <>
                 <span className="text-zinc-300 dark:text-zinc-700">•</span>
                 <span className="shrink-0">
-                  {new Date(task.createdAt).toLocaleDateString('ja-JP', {
+                  {new Date(task.createdAt).toLocaleDateString(toDateLocale(locale), {
                     month: 'numeric',
                     day: 'numeric',
                   })}

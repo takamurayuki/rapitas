@@ -8,6 +8,8 @@ import remarkBreaks from 'remark-breaks';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { oneDark } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import { Copy, Check } from 'lucide-react';
+import { useLocaleStore } from '@/stores/locale-store';
+import { toDateLocale } from '@/lib/utils';
 import type { AIChatMessage } from '@/types';
 
 /**
@@ -17,6 +19,7 @@ import type { AIChatMessage } from '@/types';
  */
 export default function ChatMessage({ message }: { message: AIChatMessage }) {
   const t = useTranslations('notes');
+  const locale = useLocaleStore((s) => s.locale);
   const isUser = message.role === 'user';
   const [copiedCode, setCopiedCode] = useState<string | null>(null);
 
@@ -201,7 +204,7 @@ export default function ChatMessage({ message }: { message: AIChatMessage }) {
             isUser ? 'text-indigo-100' : 'text-zinc-400 dark:text-zinc-500'
           }`}
         >
-          {message.timestamp.toLocaleTimeString('ja-JP', {
+          {message.timestamp.toLocaleTimeString(toDateLocale(locale), {
             hour: '2-digit',
             minute: '2-digit',
           })}

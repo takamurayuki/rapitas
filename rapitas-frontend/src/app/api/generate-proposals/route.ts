@@ -112,8 +112,11 @@ export async function POST(request: NextRequest) {
 規模: ${scale}
 優先事項: ${prio}`;
 
-    // Try AI generation via backend
-    let errorMessage = '';
+    // Try AI generation via backend.
+    // NOTE: errorCode is a stable, locale-independent identifier — the client
+    // maps it to a translated message (see useWizard.ts) instead of displaying
+    // this route's internal diagnostics directly.
+    let errorCode: 'parse_failed' | 'server_error' | 'timeout' | 'connection_failed' | '' = '';
     try {
       const response = await fetch(`${BACKEND_URL}/ai/chat`, {
         method: 'POST',
@@ -134,27 +137,26 @@ export async function POST(request: NextRequest) {
             return NextResponse.json(parsed);
           }
           logger.warn('AI response could not be parsed as valid proposals JSON');
-          errorMessage = 'AIからの応答を解析できませんでした。再試行してください。';
+          errorCode = 'parse_failed';
         }
       } else {
         const errData = await response.json().catch(() => ({}));
         logger.warn('Backend AI chat returned error:', errData);
-        errorMessage =
-          errData.error || `AIサーバーからエラーが返されました（ステータス: ${response.status}）`;
+        errorCode = 'server_error';
       }
     } catch (aiError) {
       logger.warn('AI generation failed:', aiError);
       if (aiError instanceof DOMException && aiError.name === 'TimeoutError') {
-        errorMessage = 'AIからの応答がタイムアウトしました。再試行してください。';
+        errorCode = 'timeout';
       } else {
-        errorMessage = 'AIサービスへの接続に失敗しました。';
+        errorCode = 'connection_failed';
       }
     }
 
     // No static fallback - return error so frontend can show retry
-    return NextResponse.json({ proposals: [], aiFailed: true, errorMessage });
+    return NextResponse.json({ proposals: [], aiFailed: true, errorCode });
   } catch (error) {
     logger.error('Error generating proposals:', error);
-    return NextResponse.json({ error: 'プロポーザルの生成に失敗しました' }, { status: 500 });
+    return NextResponse.json({ error: 'server_error' }, { status: 500 });
   }
 }

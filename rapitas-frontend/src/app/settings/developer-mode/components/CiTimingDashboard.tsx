@@ -20,6 +20,8 @@ import {
 } from 'recharts';
 import { Timer, RefreshCw, Loader2, AlertCircle } from 'lucide-react';
 import { API_BASE_URL } from '@/utils/api';
+import { useLocaleStore } from '@/stores/locale-store';
+import { toDateLocale } from '@/lib/utils';
 
 /** Shared tooltip style matching MetricsCharts.tsx dark-mode palette. */
 const tooltipStyle = {
@@ -78,6 +80,7 @@ function shortLabel(file: string): string {
  */
 export function CiTimingDashboard() {
   const t = useTranslations('settings.ciTimingDashboard');
+  const locale = useLocaleStore((s) => s.locale);
   const [data, setData] = useState<CiTimingData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -206,7 +209,7 @@ export function CiTimingDashboard() {
               {data.generatedAt && (
                 <p className="mt-2 text-xs text-zinc-400 dark:text-zinc-500">
                   {t('cacheGeneratedAt', {
-                    datetime: new Date(data.generatedAt).toLocaleString('ja-JP'),
+                    datetime: new Date(data.generatedAt).toLocaleString(toDateLocale(locale)),
                   })}{' '}
                   {data.wallClockMs !== undefined &&
                     t('wallClockSuffix', { wallClock: fmtMs(data.wallClockMs) })}

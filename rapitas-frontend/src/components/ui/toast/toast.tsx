@@ -81,7 +81,8 @@ export default function Toast({ message, type = 'info', duration, action, onClos
   return (
     <div
       className={`${bgColors[type]} text-white px-6 py-4 rounded-lg shadow-lg flex items-center gap-3 min-w-[300px] max-w-md animate-slide-in`}
-      role="alert"
+      role={type === 'error' ? 'alert' : 'status'}
+      aria-live={type === 'error' ? 'assertive' : 'polite'}
     >
       {icons[type]}
       <p className="flex-1 font-medium">{message}</p>

@@ -20,6 +20,8 @@ import {
   Shield,
 } from 'lucide-react';
 import { CATEGORY_LABELS, type SystemPrompt } from './types';
+import { useLocaleStore } from '@/stores/locale-store';
+import { toDateLocale } from '@/lib/utils';
 
 interface PromptCardProps {
   prompt: SystemPrompt;
@@ -54,6 +56,7 @@ export function PromptCard({
 }: PromptCardProps) {
   const t = useTranslations('prompts');
   const tc = useTranslations('common');
+  const locale = useLocaleStore((s) => s.locale);
   const [editContent, setEditContent] = useState('');
   const [editName, setEditName] = useState('');
   const [editDescription, setEditDescription] = useState('');
@@ -215,7 +218,8 @@ export function PromptCard({
                     {prompt.key}
                   </code>
                   <span className="mx-2">|</span>
-                  {t('updatedLabel')} {new Date(prompt.updatedAt).toLocaleString('ja-JP')}
+                  {t('updatedLabel')}{' '}
+                  {new Date(prompt.updatedAt).toLocaleString(toDateLocale(locale))}
                 </div>
                 <div className="flex items-center gap-1">
                   <button

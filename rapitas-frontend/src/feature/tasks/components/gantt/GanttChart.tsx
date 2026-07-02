@@ -152,193 +152,204 @@ export function GanttChart({
         setIsDragging(false);
       }}
     >
-      <svg
-        width={viewport.width}
-        height={viewport.height}
-        className="w-full min-w-[600px]"
-        style={{ cursor: svgCursor, userSelect: 'none' }}
-        onMouseDown={handleMouseDown}
-        onMouseMove={handleMouseMove}
-        onMouseUp={handleMouseUp}
-      >
-        {/* ヘッダー背景 */}
-        <rect
-          x={viewport.margin.left}
-          y={0}
-          width={Math.max(0, viewport.width - viewport.margin.left - viewport.margin.right)}
-          height={viewport.margin.top}
-          fill="transparent"
-        />
+      {/* NOTE: overflow-x-auto here (not on the outer container) so the chart
+          scrolls horizontally on narrow screens instead of being clipped by
+          the outer overflow-x-hidden, which exists to hide the scrollbar
+          during drag-to-pan. */}
+      <div className="w-full overflow-x-auto">
+        <svg
+          width={viewport.width}
+          height={viewport.height}
+          className="w-full min-w-[600px]"
+          style={{ cursor: svgCursor, userSelect: 'none' }}
+          onMouseDown={handleMouseDown}
+          onMouseMove={handleMouseMove}
+          onMouseUp={handleMouseUp}
+        >
+          {/* ヘッダー背景 */}
+          <rect
+            x={viewport.margin.left}
+            y={0}
+            width={Math.max(0, viewport.width - viewport.margin.left - viewport.margin.right)}
+            height={viewport.margin.top}
+            fill="transparent"
+          />
 
-        {/* タイムライン軸ラベル — 上段 (月/年) */}
-        <g className="timeline-primary">
-          {primaryLabels.map((label, i) => (
-            <g key={`p-${i}`}>
-              <line
-                x1={Math.max(label.x, viewport.margin.left)}
-                y1={0}
-                x2={Math.max(label.x, viewport.margin.left)}
-                y2={viewport.margin.top}
-                stroke="#D1D5DB"
-                strokeWidth="1"
-              />
-              <text
-                x={Math.max(label.x + 4, viewport.margin.left + 4)}
-                y={18}
-                fontSize="11"
-                fontWeight="600"
-                fill="currentColor"
-                className="text-gray-700 dark:text-gray-200 pointer-events-none select-none"
-              >
-                {label.label}
-              </text>
-            </g>
-          ))}
-        </g>
+          {/* タイムライン軸ラベル — 上段 (月/年) */}
+          <g className="timeline-primary">
+            {primaryLabels.map((label, i) => (
+              <g key={`p-${i}`}>
+                <line
+                  x1={Math.max(label.x, viewport.margin.left)}
+                  y1={0}
+                  x2={Math.max(label.x, viewport.margin.left)}
+                  y2={viewport.margin.top}
+                  stroke="#D1D5DB"
+                  strokeWidth="1"
+                />
+                <text
+                  x={Math.max(label.x + 4, viewport.margin.left + 4)}
+                  y={18}
+                  fontSize="11"
+                  fontWeight="600"
+                  fill="currentColor"
+                  className="text-gray-700 dark:text-gray-200 pointer-events-none select-none"
+                >
+                  {label.label}
+                </text>
+              </g>
+            ))}
+          </g>
 
-        {/* タイムライン軸ラベル — 下段 (週/日) */}
-        <g className="timeline-secondary">
-          {secondaryLabels.map((label, i) => (
-            <g key={`s-${i}`}>
+          {/* タイムライン軸ラベル — 下段 (週/日) */}
+          <g className="timeline-secondary">
+            {secondaryLabels.map((label, i) => (
+              <g key={`s-${i}`}>
+                <line
+                  x1={label.x}
+                  y1={viewport.margin.top - 22}
+                  x2={label.x}
+                  y2={viewport.margin.top}
+                  stroke="#E5E7EB"
+                  strokeWidth="1"
+                />
+                <text
+                  x={label.x + 3}
+                  y={viewport.margin.top - 6}
+                  fontSize="10"
+                  fill="currentColor"
+                  className="text-gray-500 dark:text-gray-400 pointer-events-none select-none"
+                >
+                  {label.label}
+                </text>
+              </g>
+            ))}
+          </g>
+
+          {/* ヘッダー区切り線 */}
+          <line
+            x1={0}
+            y1={viewport.margin.top}
+            x2={viewport.width}
+            y2={viewport.margin.top}
+            stroke="#E5E7EB"
+            strokeWidth="1"
+          />
+
+          {/* 背景グリッド */}
+          <g className="grid-lines">
+            {gridLines.map((x, index) => (
               <line
-                x1={label.x}
-                y1={viewport.margin.top - 22}
-                x2={label.x}
-                y2={viewport.margin.top}
+                key={index}
+                x1={x}
+                y1={viewport.margin.top}
+                x2={x}
+                y2={viewport.height - viewport.margin.bottom}
                 stroke="#E5E7EB"
                 strokeWidth="1"
+                opacity="0.4"
               />
-              <text
-                x={label.x + 3}
-                y={viewport.margin.top - 6}
-                fontSize="10"
-                fill="currentColor"
-                className="text-gray-500 dark:text-gray-400 pointer-events-none select-none"
-              >
-                {label.label}
-              </text>
-            </g>
-          ))}
-        </g>
-
-        {/* ヘッダー区切り線 */}
-        <line
-          x1={0}
-          y1={viewport.margin.top}
-          x2={viewport.width}
-          y2={viewport.margin.top}
-          stroke="#E5E7EB"
-          strokeWidth="1"
-        />
-
-        {/* 背景グリッド */}
-        <g className="grid-lines">
-          {gridLines.map((x, index) => (
-            <line
-              key={index}
-              x1={x}
-              y1={viewport.margin.top}
-              x2={x}
-              y2={viewport.height - viewport.margin.bottom}
-              stroke="#E5E7EB"
-              strokeWidth="1"
-              opacity="0.4"
-            />
-          ))}
-        </g>
-
-        {/* 偶数行の背景 */}
-        <g className="row-backgrounds">
-          {ganttData.tasks.map((_, index) =>
-            index % 2 === 1 ? (
-              <rect
-                key={index}
-                x={viewport.margin.left}
-                y={viewport.margin.top + index * viewport.rowHeight}
-                width={Math.max(0, viewport.width - viewport.margin.left - viewport.margin.right)}
-                height={viewport.rowHeight}
-                fill="#F9FAFB"
-                fillOpacity="0.5"
-                className="dark:fill-gray-800"
-              />
-            ) : null,
-          )}
-        </g>
-
-        {/* 今日の縦線 — テキストはヘッダーと重なるため三角マーカーのみ */}
-        {todayX !== null && (
-          <g className="today-line">
-            <line
-              x1={todayX}
-              y1={0}
-              x2={todayX}
-              y2={viewport.height - viewport.margin.bottom}
-              stroke="#EF4444"
-              strokeWidth="1.5"
-              strokeDasharray="4,3"
-              opacity="0.5"
-            />
-            <polygon
-              points={`${todayX - 5},0 ${todayX + 5},0 ${todayX},8`}
-              fill="#EF4444"
-              opacity="0.7"
-            />
+            ))}
           </g>
-        )}
 
-        {/* タスク名エリア — foreignObject で CSS text-overflow: ellipsis を実現 */}
-        <g className="task-labels">
-          {ganttData.tasks.map((task, index) => {
-            const isHovered = hoveredTaskId === task.id;
-            const rowY = viewport.margin.top + index * viewport.rowHeight;
-            return (
-              <g key={task.id}>
+          {/* 偶数行の背景 */}
+          <g className="row-backgrounds">
+            {ganttData.tasks.map((_, index) =>
+              index % 2 === 1 ? (
                 <rect
-                  x="0"
-                  y={rowY}
-                  width={viewport.margin.left - 10}
+                  key={index}
+                  x={viewport.margin.left}
+                  y={viewport.margin.top + index * viewport.rowHeight}
+                  width={Math.max(0, viewport.width - viewport.margin.left - viewport.margin.right)}
                   height={viewport.rowHeight}
-                  fill={isHovered ? '#EFF6FF' : 'transparent'}
-                  className={isHovered ? 'dark:fill-indigo-900/20' : ''}
+                  fill="#F9FAFB"
+                  fillOpacity="0.5"
+                  className="dark:fill-gray-800"
                 />
-                <foreignObject
-                  x={8}
-                  y={rowY}
-                  width={viewport.margin.left - 18}
-                  height={viewport.rowHeight}
-                >
-                  <div
-                    style={{ display: 'flex', alignItems: 'center', height: '100%', width: '100%' }}
-                  >
-                    <span
-                      className={`block overflow-hidden whitespace-nowrap text-ellipsis w-full text-xs ${
-                        isHovered
-                          ? 'font-semibold text-indigo-700 dark:text-indigo-400'
-                          : 'text-gray-700 dark:text-gray-300'
-                      }`}
-                      title={task.title}
-                    >
-                      {task.title}
-                    </span>
-                  </div>
-                </foreignObject>
-              </g>
-            );
-          })}
-        </g>
+              ) : null,
+            )}
+          </g>
 
-        {/* タスクバー */}
-        <g className="task-bars">
-          {bars.map((bar) => (
-            <GanttBar
-              key={bar.taskId}
-              bar={bar}
-              onClick={handleBarClick}
-              onHover={setHoveredTaskId}
-            />
-          ))}
-        </g>
-      </svg>
+          {/* 今日の縦線 — テキストはヘッダーと重なるため三角マーカーのみ */}
+          {todayX !== null && (
+            <g className="today-line">
+              <line
+                x1={todayX}
+                y1={0}
+                x2={todayX}
+                y2={viewport.height - viewport.margin.bottom}
+                stroke="#EF4444"
+                strokeWidth="1.5"
+                strokeDasharray="4,3"
+                opacity="0.5"
+              />
+              <polygon
+                points={`${todayX - 5},0 ${todayX + 5},0 ${todayX},8`}
+                fill="#EF4444"
+                opacity="0.7"
+              />
+            </g>
+          )}
+
+          {/* タスク名エリア — foreignObject で CSS text-overflow: ellipsis を実現 */}
+          <g className="task-labels">
+            {ganttData.tasks.map((task, index) => {
+              const isHovered = hoveredTaskId === task.id;
+              const rowY = viewport.margin.top + index * viewport.rowHeight;
+              return (
+                <g key={task.id}>
+                  <rect
+                    x="0"
+                    y={rowY}
+                    width={viewport.margin.left - 10}
+                    height={viewport.rowHeight}
+                    fill={isHovered ? '#EFF6FF' : 'transparent'}
+                    className={isHovered ? 'dark:fill-indigo-900/20' : ''}
+                  />
+                  <foreignObject
+                    x={8}
+                    y={rowY}
+                    width={viewport.margin.left - 18}
+                    height={viewport.rowHeight}
+                  >
+                    <div
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        height: '100%',
+                        width: '100%',
+                      }}
+                    >
+                      <span
+                        className={`block overflow-hidden whitespace-nowrap text-ellipsis w-full text-xs ${
+                          isHovered
+                            ? 'font-semibold text-indigo-700 dark:text-indigo-400'
+                            : 'text-gray-700 dark:text-gray-300'
+                        }`}
+                        title={task.title}
+                      >
+                        {task.title}
+                      </span>
+                    </div>
+                  </foreignObject>
+                </g>
+              );
+            })}
+          </g>
+
+          {/* タスクバー */}
+          <g className="task-bars">
+            {bars.map((bar) => (
+              <GanttBar
+                key={bar.taskId}
+                bar={bar}
+                onClick={handleBarClick}
+                onHover={setHoveredTaskId}
+              />
+            ))}
+          </g>
+        </svg>
+      </div>
 
       {/* ホバーツールチップ */}
       {hoveredTask && tooltipPos && (

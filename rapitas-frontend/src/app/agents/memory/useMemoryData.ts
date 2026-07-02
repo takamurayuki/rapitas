@@ -5,6 +5,8 @@ import { useState, useEffect, useCallback } from 'react';
 import { useTranslations } from 'next-intl';
 import { API_BASE_URL } from '@/utils/api';
 import { createLogger } from '@/lib/logger';
+import { useLocaleStore } from '@/stores/locale-store';
+import { toDateLocale } from '@/lib/utils';
 import type { MemoryOverview, GrowthTimeline } from './types';
 
 const logger = createLogger('useMemoryData');
@@ -28,6 +30,7 @@ export interface UseMemoryDataReturn {
  */
 export function useMemoryData(): UseMemoryDataReturn {
   const tc = useTranslations('common');
+  const locale = useLocaleStore((s) => s.locale);
 
   const [memoryOverview, setMemoryOverview] = useState<MemoryOverview | null>(null);
   const [growthTimeline, setGrowthTimeline] = useState<GrowthTimeline | null>(null);
@@ -65,7 +68,7 @@ export function useMemoryData(): UseMemoryDataReturn {
    * @returns Localised string, e.g. "3月20日 14:05".
    */
   const formatDate = (dateString: string) =>
-    new Date(dateString).toLocaleDateString('ja-JP', {
+    new Date(dateString).toLocaleDateString(toDateLocale(locale), {
       month: 'short',
       day: 'numeric',
       hour: '2-digit',
