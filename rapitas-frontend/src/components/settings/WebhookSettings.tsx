@@ -7,10 +7,13 @@
  * Follows the same UI pattern as the Local LLM settings section.
  */
 import React, { useState, useEffect, useCallback } from 'react';
+import { useTranslations } from 'next-intl';
 import { Bell, CheckCircle, AlertCircle, Loader2, Send } from 'lucide-react';
 import { API_BASE_URL } from '@/utils/api';
 
 export function WebhookSettings() {
+  const t = useTranslations('settings.webhookSettings');
+  const tCommon = useTranslations('common');
   const [slackUrl, setSlackUrl] = useState('');
   const [discordUrl, setDiscordUrl] = useState('');
   const [saving, setSaving] = useState(false);
@@ -51,19 +54,19 @@ export function WebhookSettings() {
         }),
       });
       if (res.ok) {
-        setTestResult({ type: 'save', success: true, message: '保存しました' });
+        setTestResult({ type: 'save', success: true, message: t('saved') });
       } else {
         setTestResult({
           type: 'save',
           success: false,
-          message: '保存に失敗しました',
+          message: tCommon('saveFailed'),
         });
       }
     } catch {
       setTestResult({
         type: 'save',
         success: false,
-        message: '保存に失敗しました',
+        message: tCommon('saveFailed'),
       });
     } finally {
       setSaving(false);
@@ -90,13 +93,13 @@ export function WebhookSettings() {
       setTestResult({
         type,
         success: res.ok,
-        message: res.ok ? 'テスト通知を送信しました' : `エラー: HTTP ${res.status}`,
+        message: res.ok ? t('testSent') : t('testHttpError', { status: res.status }),
       });
     } catch {
       setTestResult({
         type,
         success: false,
-        message: '接続に失敗しました。URLを確認してください。',
+        message: t('connectionFailed'),
       });
     }
   };
@@ -105,17 +108,15 @@ export function WebhookSettings() {
     <div className="space-y-4">
       <div className="flex items-center gap-2 mb-2">
         <Bell className="w-4 h-4 text-violet-500" />
-        <h4 className="text-sm font-medium text-zinc-700 dark:text-zinc-300">Webhook通知</h4>
+        <h4 className="text-sm font-medium text-zinc-700 dark:text-zinc-300">{t('title')}</h4>
       </div>
 
-      <p className="text-xs text-zinc-500 dark:text-zinc-400">
-        タスク完了・PR作成・エラー発生時にSlack/Discordへ自動通知します
-      </p>
+      <p className="text-xs text-zinc-500 dark:text-zinc-400">{t('description')}</p>
 
       {/* Slack */}
       <div>
         <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1.5">
-          Slack Webhook URL
+          {t('slackUrlLabel')}
         </label>
         <div className="flex gap-2">
           <input
@@ -138,7 +139,7 @@ export function WebhookSettings() {
       {/* Discord */}
       <div>
         <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1.5">
-          Discord Webhook URL
+          {t('discordUrlLabel')}
         </label>
         <div className="flex gap-2">
           <input
@@ -165,7 +166,7 @@ export function WebhookSettings() {
         className="flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg bg-violet-500 text-white hover:bg-violet-600 disabled:opacity-50 transition-colors"
       >
         {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
-        保存
+        {tCommon('save')}
       </button>
 
       {/* Result feedback */}

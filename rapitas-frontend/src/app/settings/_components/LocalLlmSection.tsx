@@ -144,10 +144,10 @@ export function LocalLlmSection({
           <div className="flex items-center justify-between mb-2">
             <div>
               <h4 className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
-                Qwen2.5-0.5B (Q4) — llama-server用
+                {t('localLlmSection.bundledModelTitle')}
               </h4>
               <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5">
-                Ollamaがない場合のフォールバックモデル (~400MB)
+                {t('localLlmSection.bundledModelDescription')}
               </p>
             </div>
             <span

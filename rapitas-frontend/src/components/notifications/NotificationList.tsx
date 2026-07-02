@@ -2,6 +2,7 @@
 
 import React from 'react';
 import { Bell, Check, Circle } from 'lucide-react';
+import { useTranslations } from 'next-intl';
 
 interface NotificationItem {
   id: number;
@@ -18,14 +19,21 @@ interface NotificationListProps {
   onMarkAllRead: () => void;
 }
 
-function formatRelativeTime(dateStr: string): string {
+/**
+ * Formats a timestamp as a locale-aware relative time string (e.g. "5 minutes ago").
+ *
+ * @param dateStr - ISO date string to format / フォーマット対象の日時文字列
+ * @param t - Translation function bound to the `notification` namespace / notification名前空間の翻訳関数
+ * @returns Human-readable relative time / 相対時間の文字列
+ */
+function formatRelativeTime(dateStr: string, t: ReturnType<typeof useTranslations>): string {
   const diff = Date.now() - new Date(dateStr).getTime();
   const minutes = Math.floor(diff / 60000);
-  if (minutes < 1) return 'たった今';
-  if (minutes < 60) return `${minutes}分前`;
+  if (minutes < 1) return t('justNow');
+  if (minutes < 60) return t('minutesAgo', { count: minutes });
   const hours = Math.floor(minutes / 60);
-  if (hours < 24) return `${hours}時間前`;
-  return `${Math.floor(hours / 24)}日前`;
+  if (hours < 24) return t('hoursAgo', { count: hours });
+  return t('daysAgo', { count: Math.floor(hours / 24) });
 }
 
 export default function NotificationList({
@@ -33,6 +41,7 @@ export default function NotificationList({
   onMarkRead,
   onMarkAllRead,
 }: NotificationListProps) {
+  const t = useTranslations('notification');
   const unreadCount = notifications.filter((n) => !n.isRead).length;
 
   return (
@@ -40,7 +49,7 @@ export default function NotificationList({
       <div className="flex items-center justify-between px-4 py-3 border-b border-zinc-200 dark:border-zinc-700">
         <h3 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100 flex items-center gap-2">
           <Bell className="w-4 h-4" />
-          通知
+          {t('title')}
           {unreadCount > 0 && (
             <span className="px-1.5 py-0.5 text-[10px] font-bold rounded-full bg-red-500 text-white">
               {unreadCount}
@@ -53,14 +62,14 @@ export default function NotificationList({
             onClick={onMarkAllRead}
             className="text-xs text-indigo-600 dark:text-indigo-400 hover:underline"
           >
-            すべて既読にする
+            {t('list.markAllRead')}
           </button>
         )}
       </div>
 
       {notifications.length === 0 ? (
         <div className="px-4 py-8 text-center text-sm text-zinc-400 dark:text-zinc-500">
-          通知はありません
+          {t('noNotifications')}
         </div>
       ) : (
         <ul className="divide-y divide-zinc-100 dark:divide-zinc-700 max-h-80 overflow-y-auto">
@@ -86,7 +95,7 @@ export default function NotificationList({
                   {item.message}
                 </p>
                 <span className="text-[10px] text-zinc-400 dark:text-zinc-500">
-                  {formatRelativeTime(item.createdAt)}
+                  {formatRelativeTime(item.createdAt, t)}
                 </span>
               </div>
               {!item.isRead && (
@@ -95,7 +104,7 @@ export default function NotificationList({
                   onClick={() => onMarkRead(item.id)}
                   className="text-xs text-zinc-400 hover:text-indigo-600 dark:hover:text-indigo-400 flex-shrink-0"
                 >
-                  既読
+                  {t('list.markRead')}
                 </button>
               )}
             </li>

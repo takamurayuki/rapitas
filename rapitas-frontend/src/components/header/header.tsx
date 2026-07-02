@@ -66,6 +66,7 @@ import { RestartDialogs } from './restart-dialogs';
 export default function Header() {
   const h = useHeader();
   const t = useTranslations('nav');
+  const tTask = useTranslations('task');
 
   if (h.hideHeader || (h.isTaskDetailPage && !h.showHeader)) {
     return null;
@@ -78,7 +79,7 @@ export default function Header() {
       icon: Home,
       shortcut: h.getShortcutLabel('home'),
       children: [
-        { href: '/gantt', label: 'ガントチャート', icon: GanttChartSquare },
+        { href: '/gantt', label: tTask('ganttView.title'), icon: GanttChartSquare },
         {
           href: '#',
           label: t('category'),
@@ -97,13 +98,13 @@ export default function Header() {
     },
     {
       href: '#',
-      label: 'バックログ',
+      label: t('backlog'),
       icon: Inbox,
       children: [
-        { href: '/ideas', label: 'アイデア', icon: Lightbulb },
-        { href: '/concerns', label: '懸念', icon: Bug },
-        { href: '/hypotheses', label: '仮説', icon: Beaker },
-        { href: '/backlog/settings', label: '設定', icon: CalendarClock },
+        { href: '/ideas', label: t('ideas'), icon: Lightbulb },
+        { href: '/concerns', label: t('concerns'), icon: Bug },
+        { href: '/hypotheses', label: t('hypotheses'), icon: Beaker },
+        { href: '/backlog/settings', label: t('settings'), icon: CalendarClock },
       ],
     },
     {
@@ -114,7 +115,7 @@ export default function Header() {
     },
     {
       href: '/notes',
-      label: 'ノート',
+      label: t('notes'),
       icon: NotebookTabs,
     },
     {
@@ -169,7 +170,7 @@ export default function Header() {
             { href: '/github/actions', label: 'CI/CD', icon: GitMerge },
           ],
         },
-        { href: '/logs', label: 'ログ分析', icon: ScrollText },
+        { href: '/logs', label: t('logAnalysis'), icon: ScrollText },
         {
           href: '#',
           label: t('agent'),

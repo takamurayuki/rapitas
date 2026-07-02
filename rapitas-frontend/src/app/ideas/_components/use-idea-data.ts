@@ -7,6 +7,7 @@
 'use client';
 import { useCallback, useEffect, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
+import { useTranslations } from 'next-intl';
 import { useLocalStorageState } from '@/hooks/common/useLocalStorageState';
 import { API_BASE_URL } from '@/utils/api';
 import { useFilterDataStore } from '@/stores/filter-data-store';
@@ -19,6 +20,7 @@ import type { Idea, IdeaPriority, IdeaStats } from './idea-box.types';
  * @returns List data, filter/pagination state, and the delete handler. / 一覧データ・フィルタ/ページネーション状態・削除ハンドラ。
  */
 export function useIdeaData() {
+  const t = useTranslations('ideaBox');
   const [ideas, setIdeas] = useState<Idea[]>([]);
   const [stats, setStats] = useState<IdeaStats | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -111,7 +113,7 @@ export function useIdeaData() {
       try {
         const res = await fetch(`${API_BASE_URL}/idea-box/${id}`, { method: 'DELETE' });
         if (!res.ok) {
-          showToast('アイデアの削除に失敗しました', 'error');
+          showToast(t('messages.deleteFailed'), 'error');
           return;
         }
         // 楽観的に即削除して反応を即時化
@@ -124,10 +126,10 @@ export function useIdeaData() {
           await fetchIdeas();
         }
       } catch {
-        showToast('アイデアの削除に失敗しました', 'error');
+        showToast(t('messages.deleteFailed'), 'error');
       }
     },
-    [ideas.length, currentPage, fetchIdeas, showToast],
+    [ideas.length, currentPage, fetchIdeas, showToast, t],
   );
 
   // NOTE: filterThemeIdはサーバーサイドで処理されるため、クライアント側ではsearchQueryのみフィルタリング

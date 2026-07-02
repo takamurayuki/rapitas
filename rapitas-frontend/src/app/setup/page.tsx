@@ -13,6 +13,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
+import { useTranslations } from 'next-intl';
 import {
   CheckCircle,
   XCircle,
@@ -49,12 +50,28 @@ interface SetupStatus {
   env: { nodeEnv?: string; tauriBuild?: boolean };
 }
 
-const PROVIDER_LABEL: Record<ProviderStatus['provider'], string> = {
-  claude: 'Claude Code CLI',
-  chatgpt: 'Codex CLI',
-  gemini: 'Gemini CLI',
-  ollama: 'Ollama (ローカルLLM)',
-};
+/**
+ * Returns the display label for an AI provider.
+ *
+ * @param provider - The provider identifier being labeled.
+ * @param t - Scoped translation function from `settings.setupWizard`.
+ * @returns The provider's display label.
+ */
+function getProviderLabel(
+  provider: ProviderStatus['provider'],
+  t: ReturnType<typeof useTranslations>,
+): string {
+  switch (provider) {
+    case 'claude':
+      return 'Claude Code CLI';
+    case 'chatgpt':
+      return 'Codex CLI';
+    case 'gemini':
+      return 'Gemini CLI';
+    case 'ollama':
+      return t('providerOllama');
+  }
+}
 
 function formatBytes(n?: number): string {
   if (!n) return '—';
@@ -64,6 +81,7 @@ function formatBytes(n?: number): string {
 }
 
 export default function SetupWizardPage() {
+  const t = useTranslations('settings.setupWizard');
   const [status, setStatus] = useState<SetupStatus | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -102,12 +120,8 @@ export default function SetupWizardPage() {
       <div className="mx-auto max-w-3xl px-4 py-10">
         <header className="mb-8 flex items-start justify-between">
           <div>
-            <h1 className="text-2xl font-bold text-zinc-900 dark:text-zinc-100">
-              初回セットアップ
-            </h1>
-            <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
-              データベース接続と AI プロバイダーの状態を確認します。
-            </p>
+            <h1 className="text-2xl font-bold text-zinc-900 dark:text-zinc-100">{t('title')}</h1>
+            <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">{t('description')}</p>
           </div>
           <button
             onClick={fetchStatus}
@@ -119,7 +133,7 @@ export default function SetupWizardPage() {
             ) : (
               <RefreshCw className="h-3 w-3" />
             )}
-            再チェック
+            {t('recheck')}
           </button>
         </header>
 
@@ -133,7 +147,7 @@ export default function SetupWizardPage() {
           <div className="space-y-4">
             <Step
               index={1}
-              title="データベース"
+              title={t('stepDatabase')}
               icon={<Database className="h-5 w-5" />}
               ok={status.database.connected}
             >
@@ -142,7 +156,7 @@ export default function SetupWizardPage() {
 
             <Step
               index={2}
-              title="AI プロバイダー"
+              title={t('stepAiProvider')}
               icon={<Sparkles className="h-5 w-5" />}
               ok={status.providers.some((p) => p.available)}
             >
@@ -151,26 +165,24 @@ export default function SetupWizardPage() {
 
             <Step
               index={3}
-              title="準備完了"
+              title={t('stepReady')}
               icon={<HardDrive className="h-5 w-5" />}
               ok={status.setupComplete}
             >
               {status.setupComplete ? (
                 <div className="space-y-2">
                   <p className="text-sm text-zinc-700 dark:text-zinc-300">
-                    すべての必要項目が揃いました。
+                    {t('allRequirementsMet')}
                   </p>
                   <Link
                     href="/"
                     className="inline-flex items-center gap-1 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700"
                   >
-                    アプリを開始 <ArrowRight className="h-3.5 w-3.5" />
+                    {t('startApp')} <ArrowRight className="h-3.5 w-3.5" />
                   </Link>
                 </div>
               ) : (
-                <p className="text-sm text-zinc-500 dark:text-zinc-400">
-                  上のステップを解決してから戻ってきてください。
-                </p>
+                <p className="text-sm text-zinc-500 dark:text-zinc-400">{t('resolveStepsHint')}</p>
               )}
             </Step>
           </div>
@@ -215,32 +227,33 @@ function Step({
 }
 
 function DbDetail({ db }: { db: DbStatus }) {
+  const t = useTranslations('settings.setupWizard');
   const providerLabel =
     db.provider === 'sqlite'
-      ? 'SQLite (デスクトップ配布版)'
+      ? t('dbProviderSqlite')
       : db.provider === 'postgresql'
-        ? 'PostgreSQL (Web/サーバ版)'
-        : '未設定';
+        ? t('dbProviderPostgresql')
+        : t('dbProviderUnset');
 
   return (
     <div className="space-y-2 text-sm">
       <div className="flex items-center justify-between">
-        <span className="text-zinc-500 dark:text-zinc-400">プロバイダー</span>
+        <span className="text-zinc-500 dark:text-zinc-400">{t('dbProviderLabel')}</span>
         <span className="font-medium text-zinc-900 dark:text-zinc-100">{providerLabel}</span>
       </div>
       <div className="flex items-center justify-between">
-        <span className="text-zinc-500 dark:text-zinc-400">接続</span>
+        <span className="text-zinc-500 dark:text-zinc-400">{t('dbConnectionLabel')}</span>
         <span
           className={
             db.connected ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'
           }
         >
-          {db.connected ? 'OK' : 'エラー'}
+          {db.connected ? 'OK' : t('dbConnectionError')}
         </span>
       </div>
       {db.filePath && (
         <div className="flex items-center justify-between">
-          <span className="text-zinc-500 dark:text-zinc-400">ファイル</span>
+          <span className="text-zinc-500 dark:text-zinc-400">{t('dbFileLabel')}</span>
           <code className="truncate font-mono text-xs text-zinc-700 dark:text-zinc-300">
             {db.filePath}
           </code>
@@ -248,7 +261,7 @@ function DbDetail({ db }: { db: DbStatus }) {
       )}
       {db.fileSizeBytes !== undefined && (
         <div className="flex items-center justify-between">
-          <span className="text-zinc-500 dark:text-zinc-400">サイズ</span>
+          <span className="text-zinc-500 dark:text-zinc-400">{t('dbSizeLabel')}</span>
           <span className="text-zinc-700 dark:text-zinc-300">{formatBytes(db.fileSizeBytes)}</span>
         </div>
       )}
@@ -259,9 +272,8 @@ function DbDetail({ db }: { db: DbStatus }) {
             <>
               <br />
               <span className="text-[11px]">
-                Tauri ビルドは起動時に自動でファイルを作成します。手動で動かしている場合は{' '}
-                <code>RAPITAS_DB_PROVIDER=sqlite</code> と <code>DATABASE_URL=file:...</code>{' '}
-                を設定してください。
+                {t('dbSqliteHintBefore')} <code>RAPITAS_DB_PROVIDER=sqlite</code>{' '}
+                {t('dbSqliteHintAnd')} <code>DATABASE_URL=file:...</code> {t('dbSqliteHintAfter')}
               </span>
             </>
           )}
@@ -272,6 +284,7 @@ function DbDetail({ db }: { db: DbStatus }) {
 }
 
 function ProviderList({ providers }: { providers: ProviderStatus[] }) {
+  const t = useTranslations('settings.setupWizard');
   return (
     <ul className="space-y-1.5">
       {providers.map((p) => (
@@ -285,10 +298,12 @@ function ProviderList({ providers }: { providers: ProviderStatus[] }) {
             ) : (
               <XCircle className="h-4 w-4 text-zinc-300 dark:text-zinc-600" />
             )}
-            <span className="text-zinc-900 dark:text-zinc-100">{PROVIDER_LABEL[p.provider]}</span>
+            <span className="text-zinc-900 dark:text-zinc-100">
+              {getProviderLabel(p.provider, t)}
+            </span>
             {p.modelCount > 0 && (
               <span className="text-[11px] text-zinc-500 dark:text-zinc-400">
-                ({p.modelCount} モデル)
+                {t('modelCount', { count: p.modelCount })}
               </span>
             )}
           </div>
@@ -298,32 +313,32 @@ function ProviderList({ providers }: { providers: ProviderStatus[] }) {
         </li>
       ))}
       <li className="pt-2 text-[11px] text-zinc-500 dark:text-zinc-400">
-        最低 1 つのプロバイダーが利用可能であれば動作します。CLI が未認証の場合は ターミナルで{' '}
-        <code>claude</code> / <code>codex</code> / <code>gemini</code>{' '}
-        を起動してログインしてください。
+        {t('providerHintBefore')} <code>claude</code> / <code>codex</code> / <code>gemini</code>{' '}
+        {t('providerHintAfter')}
       </li>
     </ul>
   );
 }
 
 function ErrorPanel({ message, onRetry }: { message: string; onRetry: () => void }) {
+  const t = useTranslations('settings.setupWizard');
   return (
     <div className="rounded-xl border border-red-200 bg-red-50 p-5 dark:border-red-800 dark:bg-red-900/20">
       <div className="flex items-center gap-2">
         <XCircle className="h-5 w-5 text-red-500" />
         <h2 className="text-base font-semibold text-red-700 dark:text-red-300">
-          バックエンドに接続できません
+          {t('backendUnreachable')}
         </h2>
       </div>
       <p className="mt-2 text-sm text-red-600 dark:text-red-400">{message}</p>
       <p className="mt-2 text-xs text-red-500 dark:text-red-300">
-        サーバが起動しているか、{API_BASE_URL} に到達できるかを確認してください。
+        {t('checkServerHint', { apiBaseUrl: API_BASE_URL })}
       </p>
       <button
         onClick={onRetry}
         className="mt-3 inline-flex items-center gap-1 rounded-lg bg-red-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-red-700"
       >
-        <RefreshCw className="h-3 w-3" /> 再試行
+        <RefreshCw className="h-3 w-3" /> {t('retry')}
       </button>
     </div>
   );

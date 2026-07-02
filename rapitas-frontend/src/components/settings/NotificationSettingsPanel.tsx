@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useCallback } from 'react';
+import { useTranslations } from 'next-intl';
 import { Bell, BellOff, Moon } from 'lucide-react';
 
 interface NotificationSettings {
@@ -20,6 +21,7 @@ const DEFAULT_SETTINGS: NotificationSettings = {
 };
 
 export default function NotificationSettingsPanel() {
+  const t = useTranslations('settings.notificationSettingsPanel');
   const [settings, setSettings] = useState<NotificationSettings>(() => {
     try {
       const saved = localStorage.getItem('rapitas-notification-settings');
@@ -44,13 +46,13 @@ export default function NotificationSettingsPanel() {
     <div className="flex flex-col gap-4 p-4 bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg">
       <h3 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100 flex items-center gap-2">
         <Bell className="w-4 h-4" />
-        通知設定
+        {t('title')}
       </h3>
 
       <label className="flex items-center justify-between text-sm text-zinc-700 dark:text-zinc-300 cursor-pointer">
         <span className="flex items-center gap-2">
           {settings.enabled ? <Bell className="w-4 h-4" /> : <BellOff className="w-4 h-4" />}
-          通知を有効にする
+          {t('enableNotifications')}
         </span>
         <input
           type="checkbox"
@@ -61,7 +63,7 @@ export default function NotificationSettingsPanel() {
       </label>
 
       <label className="flex items-center justify-between text-sm text-zinc-700 dark:text-zinc-300 cursor-pointer">
-        通知音
+        {t('notificationSound')}
         <input
           type="checkbox"
           checked={settings.sound}
@@ -74,7 +76,7 @@ export default function NotificationSettingsPanel() {
         <label className="flex items-center justify-between text-sm text-zinc-700 dark:text-zinc-300 cursor-pointer mb-2">
           <span className="flex items-center gap-2">
             <Moon className="w-4 h-4" />
-            おやすみモード
+            {t('quietHoursMode')}
           </span>
           <input
             type="checkbox"

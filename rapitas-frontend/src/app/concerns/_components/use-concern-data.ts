@@ -7,6 +7,7 @@
  */
 'use client';
 import { useCallback, useEffect, useState } from 'react';
+import { useTranslations } from 'next-intl';
 import { API_BASE_URL } from '@/utils/api';
 import { useFilterDataStore } from '@/stores/filter-data-store';
 import { useToast } from '@/components/ui/toast/ToastContainer';
@@ -25,6 +26,7 @@ import {
  *   handlers. / 一覧データ・フィルタ/ページネーション状態と変換/削除/公開ハンドラ。
  */
 export function useConcernData() {
+  const t = useTranslations('concerns');
   const [concerns, setConcerns] = useState<Concern[]>([]);
   const [total, setTotal] = useState(0);
   const [statusFilter, setStatusFilter] = useState<ConcernStatus | 'all'>('open');
@@ -99,15 +101,15 @@ export function useConcernData() {
         if (res.ok) {
           await fetchConcerns();
         } else {
-          showToast('タスクへの変換に失敗しました', 'error');
+          showToast(t('messages.convertFailed'), 'error');
         }
       } catch {
-        showToast('タスクへの変換に失敗しました', 'error');
+        showToast(t('messages.convertFailed'), 'error');
       } finally {
         setBusyId(null);
       }
     },
-    [fetchConcerns, showToast],
+    [fetchConcerns, showToast, t],
   );
 
   const handleDelete = useCallback(
@@ -117,17 +119,17 @@ export function useConcernData() {
         const res = await fetch(`${API_BASE_URL}/concerns/${id}`, { method: 'DELETE' });
         if (res.ok) {
           setConcerns((prev) => prev.filter((c) => c.id !== id));
-          setTotal((t) => Math.max(0, t - 1));
+          setTotal((prevTotal) => Math.max(0, prevTotal - 1));
         } else {
-          showToast('懸念の削除に失敗しました', 'error');
+          showToast(t('messages.deleteFailed'), 'error');
         }
       } catch {
-        showToast('懸念の削除に失敗しました', 'error');
+        showToast(t('messages.deleteFailed'), 'error');
       } finally {
         setBusyId(null);
       }
     },
-    [showToast],
+    [showToast, t],
   );
 
   const handlePublish = useCallback(
@@ -142,19 +144,19 @@ export function useConcernData() {
           body: JSON.stringify({}),
         });
         if (res.ok) {
-          showToast('GitHub Issue を作成しました', 'success');
+          showToast(t('messages.publishSuccess'), 'success');
           await fetchConcerns();
           return;
         }
         const data = (await res.json().catch(() => null)) as { error?: string } | null;
-        showToast(data?.error || 'GitHub への公開に失敗しました', 'error');
+        showToast(data?.error || t('messages.publishFailed'), 'error');
       } catch {
-        showToast('GitHub への公開に失敗しました', 'error');
+        showToast(t('messages.publishFailed'), 'error');
       } finally {
         setBusyId(null);
       }
     },
-    [fetchConcerns, showToast],
+    [fetchConcerns, showToast, t],
   );
 
   return {

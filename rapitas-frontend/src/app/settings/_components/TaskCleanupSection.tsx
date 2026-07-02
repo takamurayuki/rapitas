@@ -2,6 +2,7 @@
 // TaskCleanupSection
 
 import { useEffect, useState } from 'react';
+import { useTranslations } from 'next-intl';
 import { Trash2, Loader2, FolderOpen, AlertCircle } from 'lucide-react';
 import { API_BASE_URL } from '@/utils/api';
 import { useConfirmDialog } from '@/components/ui/dialog/ConfirmDialogProvider';
@@ -35,6 +36,7 @@ const DEFAULT_KEEP_RECENT = 100;
  * before the destructive run.
  */
 export function TaskCleanupSection() {
+  const t = useTranslations('settings.taskCleanupSection');
   const confirm = useConfirmDialog();
   const [themes, setThemes] = useState<ThemeOption[]>([]);
   // '' = all themes; otherwise the selected theme id (as string).
@@ -85,7 +87,7 @@ export function TaskCleanupSection() {
       }
       setResult(data);
     } catch (e) {
-      setError(e instanceof Error ? e.message : '処理に失敗しました');
+      setError(e instanceof Error ? e.message : t('processFailed'));
     } finally {
       setBusy(null);
     }
@@ -94,13 +96,15 @@ export function TaskCleanupSection() {
   const onRun = async () => {
     const scope =
       themeId === ''
-        ? '全テーマ'
-        : (themes.find((t) => String(t.id) === themeId)?.name ?? `テーマ#${themeId}`);
+        ? t('allThemes')
+        : (themes.find((theme) => String(theme.id) === themeId)?.name ??
+          t('themeFallback', { themeId }));
     const n = result && result.dryRun ? result.candidateCount : null;
-    const confirmMsg =
-      `[${scope}] 直近${keepRecent}件を残し、それより古い完了タスクを削除します。` +
-      (n !== null ? `\n削除対象: 約${n}件。` : '') +
-      `\nナレッジ未記録のものは記録してから削除します。元に戻せません。実行しますか？`;
+    const confirmMsg = t('confirmMessage', {
+      scope,
+      keepRecent,
+      candidateLine: n !== null ? t('confirmCandidateLine', { n }) : '',
+    });
     if (!(await confirm({ message: confirmMsg }))) return;
     await callCleanup(false);
   };
@@ -110,20 +114,16 @@ export function TaskCleanupSection() {
       <div className="border-b border-zinc-200 px-6 py-4 dark:border-zinc-800">
         <div className="flex items-center gap-3">
           <Trash2 className="h-5 w-5 text-violet-500" />
-          <h2 className="font-semibold text-zinc-900 dark:text-zinc-50">
-            タスク整理（完了タスクの削除）
-          </h2>
+          <h2 className="font-semibold text-zinc-900 dark:text-zinc-50">{t('title')}</h2>
         </div>
-        <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
-          テーマごとに、直近N件を残して古い完了タスクを削除します。削除前にナレッジを記録（記録済みはスキップ）し、ワークフローのmdファイルも削除します。
-        </p>
+        <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">{t('description')}</p>
       </div>
 
       <div className="space-y-6 p-6">
         <div className="flex flex-wrap items-end gap-4">
           {/* Theme selector */}
           <label className="flex flex-col gap-1 text-sm">
-            <span className="font-medium text-zinc-700 dark:text-zinc-300">対象テーマ</span>
+            <span className="font-medium text-zinc-700 dark:text-zinc-300">{t('targetTheme')}</span>
             <span className="flex items-center gap-1.5">
               <FolderOpen className="h-4 w-4 text-zinc-400" />
               <select
@@ -131,10 +131,10 @@ export function TaskCleanupSection() {
                 onChange={(e) => setThemeId(e.target.value)}
                 className="rounded-lg border border-zinc-300 bg-white px-3 py-1.5 text-sm dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-100"
               >
-                <option value="">全テーマ</option>
-                {themes.map((t) => (
-                  <option key={t.id} value={String(t.id)}>
-                    {t.name}
+                <option value="">{t('allThemes')}</option>
+                {themes.map((theme) => (
+                  <option key={theme.id} value={String(theme.id)}>
+                    {theme.name}
                   </option>
                 ))}
               </select>
@@ -143,7 +143,9 @@ export function TaskCleanupSection() {
 
           {/* keepRecent */}
           <label className="flex flex-col gap-1 text-sm">
-            <span className="font-medium text-zinc-700 dark:text-zinc-300">保持件数（直近）</span>
+            <span className="font-medium text-zinc-700 dark:text-zinc-300">
+              {t('keepRecentLabel')}
+            </span>
             <input
               type="number"
               min={0}
@@ -160,7 +162,7 @@ export function TaskCleanupSection() {
               className="flex items-center gap-1.5 rounded-lg border border-zinc-300 px-3 py-1.5 text-sm font-medium text-zinc-700 hover:bg-zinc-100 disabled:opacity-50 dark:border-zinc-600 dark:text-zinc-200 dark:hover:bg-zinc-800"
             >
               {busy === 'preview' ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-              プレビュー
+              {t('preview')}
             </button>
             <button
               onClick={onRun}
@@ -172,7 +174,7 @@ export function TaskCleanupSection() {
               ) : (
                 <Trash2 className="h-4 w-4" />
               )}
-              整理を実行
+              {t('runCleanup')}
             </button>
           </div>
         </div>
@@ -194,10 +196,15 @@ export function TaskCleanupSection() {
           >
             <p className="font-medium">{result.message}</p>
             <p className="mt-1 text-xs opacity-80">
-              完了タスク総数 {result.completedTotal} / 対象 {result.candidateCount} /{' '}
-              {result.dryRun ? '削除予定' : '削除済み'} {result.deletedCount} / ナレッジ新規記録{' '}
-              {result.knowledgeRecorded} / 記録済み {result.alreadyRecorded} / サブタスク未完で除外{' '}
-              {result.skippedWithOpenSubtasks}
+              {t('resultSummary', {
+                completedTotal: result.completedTotal,
+                candidateCount: result.candidateCount,
+                statusLabel: result.dryRun ? t('pendingDeletion') : t('alreadyDeleted'),
+                deletedCount: result.deletedCount,
+                knowledgeRecorded: result.knowledgeRecorded,
+                alreadyRecorded: result.alreadyRecorded,
+                skippedWithOpenSubtasks: result.skippedWithOpenSubtasks,
+              })}
             </p>
           </div>
         )}

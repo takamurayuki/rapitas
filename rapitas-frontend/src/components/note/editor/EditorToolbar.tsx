@@ -1,5 +1,6 @@
 'use client';
 // EditorToolbar
+import { useTranslations } from 'next-intl';
 import { Bold, Italic, Underline, List, ListOrdered } from 'lucide-react';
 import { FontPickerSection } from './toolbar/FontPickerSection';
 import { TextColorSection } from './toolbar/TextColorSection';
@@ -107,6 +108,7 @@ function makeToggle(
  * @param props - All toolbar state, setters, and action callbacks
  */
 export default function EditorToolbar(props: EditorToolbarProps) {
+  const t = useTranslations('notes');
   const {
     currentFont,
     currentFontSize,
@@ -171,21 +173,21 @@ export default function EditorToolbar(props: EditorToolbarProps) {
       <button
         onClick={() => onApplyFormat('bold')}
         className="px-1 py-0.5 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded transition-colors h-6 flex items-center justify-center"
-        title="太字"
+        title={t('editorToolbar.boldTitle')}
       >
         <Bold className="w-3.5 h-3.5" />
       </button>
       <button
         onClick={() => onApplyFormat('italic')}
         className="px-1 py-0.5 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded transition-colors h-6 flex items-center justify-center"
-        title="斜体"
+        title={t('editorToolbar.italicTitle')}
       >
         <Italic className="w-3.5 h-3.5" />
       </button>
       <button
         onClick={() => onApplyFormat('underline')}
         className="px-1 py-0.5 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded transition-colors h-6 flex items-center justify-center"
-        title="下線"
+        title={t('editorToolbar.underlineTitle')}
       >
         <Underline className="w-3.5 h-3.5" />
       </button>
@@ -215,14 +217,14 @@ export default function EditorToolbar(props: EditorToolbarProps) {
       <button
         onClick={() => onApplyFormat('insertUnorderedList')}
         className="px-1 py-0.5 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded transition-colors h-6 flex items-center justify-center"
-        title="箇条書き"
+        title={t('editorToolbar.bulletListTitle')}
       >
         <List className="w-3.5 h-3.5" />
       </button>
       <button
         onClick={() => onApplyFormat('insertOrderedList')}
         className="px-1 py-0.5 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded transition-colors h-6 flex items-center justify-center"
-        title="番号付きリスト"
+        title={t('editorToolbar.numberedListTitle')}
       >
         <ListOrdered className="w-3.5 h-3.5" />
       </button>

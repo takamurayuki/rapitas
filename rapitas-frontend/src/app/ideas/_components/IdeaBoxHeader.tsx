@@ -1,5 +1,6 @@
 'use client';
 import { useEffect, useState } from 'react';
+import { useTranslations } from 'next-intl';
 import { Lightbulb, Plus } from 'lucide-react';
 
 interface IdeaBoxHeaderProps {
@@ -12,6 +13,7 @@ interface IdeaBoxHeaderProps {
  * animation when a new idea is added (like a eureka moment).
  */
 export function IdeaBoxHeader({ totalIdeas, onAddClick }: IdeaBoxHeaderProps) {
+  const t = useTranslations('ideaBox');
   const [isPinging, setIsPinging] = useState(false);
   const [prevCount, setPrevCount] = useState(totalIdeas);
 
@@ -25,7 +27,8 @@ export function IdeaBoxHeader({ totalIdeas, onAddClick }: IdeaBoxHeaderProps) {
     setPrevCount(totalIdeas);
   }, [totalIdeas, prevCount]);
 
-  const statusText = totalIdeas === 0 ? 'ひらめきを気軽にメモ' : `${totalIdeas}件のアイデア`;
+  const statusText =
+    totalIdeas === 0 ? t('header.statusEmpty') : t('header.statusCount', { count: totalIdeas });
 
   return (
     <div className="flex items-center justify-between mb-6">
@@ -51,10 +54,10 @@ export function IdeaBoxHeader({ totalIdeas, onAddClick }: IdeaBoxHeaderProps) {
           )}
         </div>
         <div>
-          <h1 className="text-lg font-bold text-zinc-900 dark:text-zinc-100">アイデア</h1>
-          <p className="text-xs text-zinc-500 dark:text-zinc-400">
-            やってみたい改善・機能の種。気軽にメモして、後でタスク化。
-          </p>
+          <h1 className="text-lg font-bold text-zinc-900 dark:text-zinc-100">
+            {t('header.title')}
+          </h1>
+          <p className="text-xs text-zinc-500 dark:text-zinc-400">{t('header.subtitle')}</p>
           <p className="text-[11px] text-zinc-400 dark:text-zinc-500">{statusText}</p>
         </div>
       </div>
@@ -63,7 +66,7 @@ export function IdeaBoxHeader({ totalIdeas, onAddClick }: IdeaBoxHeaderProps) {
         className="flex items-center gap-2 rounded-lg bg-amber-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-amber-700 transition-colors"
       >
         <Plus className="h-4 w-4" />
-        アイデアを追加
+        {t('header.addButton')}
       </button>
     </div>
   );

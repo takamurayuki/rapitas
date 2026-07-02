@@ -10,6 +10,7 @@
  */
 
 import { Folder, X, Check } from 'lucide-react';
+import { useTranslations } from 'next-intl';
 import type { FavoriteDirectory, DirectoryEntry } from './types';
 import { BrowserToolbar } from './BrowserToolbar';
 import { FavoritesOnlyPanel } from './FavoritesOnlyPanel';
@@ -94,6 +95,8 @@ export function BrowserModal({
   onCreateConfirm,
   onCreateCancel,
 }: BrowserModalProps) {
+  const t = useTranslations('common');
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50">
       <div className="w-full max-w-2xl bg-white dark:bg-zinc-900 rounded-xl shadow-2xl border border-zinc-200 dark:border-zinc-700 overflow-hidden">
@@ -102,7 +105,7 @@ export function BrowserModal({
           <div className="flex items-center gap-3">
             <Folder className="w-5 h-5 text-purple-600 dark:text-purple-400" />
             <span className="font-semibold text-zinc-900 dark:text-zinc-50">
-              ディレクトリを選択
+              {t('directoryPicker.selectDirectory')}
             </span>
           </div>
           <button
@@ -144,7 +147,7 @@ export function BrowserModal({
               onKeyDown={(e) => {
                 if (e.key === 'Enter') onGoToPath();
               }}
-              placeholder="パスを直接入力 (例: C:\Projects, D:\)"
+              placeholder={t('directoryPicker.manualPathPlaceholder')}
               className="flex-1 px-3 py-1.5 text-sm font-mono bg-white dark:bg-zinc-900 border border-zinc-300 dark:border-zinc-600 rounded-md focus:outline-none focus:border-indigo-400"
             />
             <button
@@ -152,7 +155,7 @@ export function BrowserModal({
               disabled={!manualPath.trim() || isLoading}
               className="px-3 py-1.5 text-sm font-medium text-white bg-purple-600 hover:bg-purple-700 rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              移動
+              {t('directoryPicker.move')}
             </button>
           </div>
         )}
@@ -205,21 +208,21 @@ export function BrowserModal({
           {favoritesOnlyMode ? (
             <>
               <div className="text-sm text-zinc-500 dark:text-zinc-400">
-                お気に入りからフォルダを選択してください
+                {t('directoryPicker.chooseFromFavoritesHint')}
               </div>
               <button
                 onClick={onClose}
                 className="px-4 py-2 text-sm font-medium text-zinc-600 dark:text-zinc-400 hover:text-zinc-800 dark:hover:text-zinc-200 transition-colors"
               >
-                キャンセル
+                {t('cancel')}
               </button>
             </>
           ) : (
             <>
               <div className="text-sm text-zinc-500 dark:text-zinc-400">
-                選択中:{' '}
+                {t('directoryPicker.currentlySelected')}{' '}
                 <span className="font-mono text-zinc-700 dark:text-zinc-300">
-                  {currentPath || 'なし'}
+                  {currentPath || t('none')}
                 </span>
               </div>
               <div className="flex items-center gap-2">
@@ -227,7 +230,7 @@ export function BrowserModal({
                   onClick={onClose}
                   className="px-4 py-2 text-sm font-medium text-zinc-600 dark:text-zinc-400 hover:text-zinc-800 dark:hover:text-zinc-200 transition-colors"
                 >
-                  キャンセル
+                  {t('cancel')}
                 </button>
                 <button
                   onClick={onSelect}
@@ -235,7 +238,7 @@ export function BrowserModal({
                   className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-purple-600 hover:bg-purple-700 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   <Check className="w-4 h-4" />
-                  選択
+                  {t('directoryPicker.select')}
                 </button>
               </div>
             </>

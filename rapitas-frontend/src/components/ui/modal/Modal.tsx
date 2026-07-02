@@ -11,6 +11,7 @@
 
 import { useEffect, type ReactNode } from 'react';
 import { X } from 'lucide-react';
+import { useTranslations } from 'next-intl';
 
 interface ModalProps {
   open: boolean;
@@ -45,6 +46,8 @@ export function Modal({
   footer,
   maxWidthClass = 'max-w-lg',
 }: ModalProps) {
+  const t = useTranslations('common');
+
   useEffect(() => {
     if (!open) return;
     const onKey = (e: KeyboardEvent) => {
@@ -77,7 +80,7 @@ export function Modal({
             <button
               type="button"
               onClick={onClose}
-              aria-label="閉じる"
+              aria-label={t('close')}
               className="rounded p-1 text-zinc-400 transition-colors hover:bg-zinc-100 hover:text-zinc-700 dark:hover:bg-zinc-800 dark:hover:text-zinc-200"
             >
               <X className="h-4 w-4" />

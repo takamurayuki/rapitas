@@ -1,5 +1,6 @@
 'use client';
 import { useEffect } from 'react';
+import { useTranslations } from 'next-intl';
 
 export type ToastType = 'success' | 'error' | 'info' | 'warning';
 
@@ -18,6 +19,7 @@ interface ToastProps {
 }
 
 export default function Toast({ message, type = 'info', duration, action, onClose }: ToastProps) {
+  const t = useTranslations('common');
   // An action needs reading + deciding time — give it a longer default window.
   const effectiveDuration = duration ?? (action ? 6000 : 3000);
 
@@ -94,7 +96,7 @@ export default function Toast({ message, type = 'info', duration, action, onClos
       <button
         onClick={onClose}
         className="hover:bg-white/20 rounded p-1 transition-colors"
-        aria-label="閉じる"
+        aria-label={t('close')}
       >
         <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
           <path

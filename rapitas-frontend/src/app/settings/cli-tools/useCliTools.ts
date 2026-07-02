@@ -2,6 +2,7 @@
 // use-cli-tools
 
 import { useState, useEffect, useCallback } from 'react';
+import { useTranslations } from 'next-intl';
 import { API_BASE_URL } from '@/utils/api';
 import type { CLITool, ToolsSummary, ToolActionState, AuthModalState } from './types';
 
@@ -32,6 +33,7 @@ export interface UseCLIToolsReturn {
  * @returns All state and handlers needed by the CLI Tools page.
  */
 export function useCLITools(): UseCLIToolsReturn {
+  const t = useTranslations('settings.useCliTools');
   const [tools, setTools] = useState<CLITool[]>([]);
   const [summary, setSummary] = useState<ToolsSummary | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -189,9 +191,7 @@ export function useCLITools(): UseCLIToolsReturn {
           // Auto-close after showing the completion state for 3 s
           setTimeout(() => closeAuthModal(), 3000);
         } else {
-          setError(
-            `${authModal.tool.name}の認証が完了していません。ターミナルでコマンドを実行してください。`,
-          );
+          setError(t('authNotCompleted', { toolName: authModal.tool.name }));
         }
       } else throw new Error(data.error || 'Authentication verification failed');
     } catch (err) {
@@ -204,9 +204,9 @@ export function useCLITools(): UseCLIToolsReturn {
   const copyToClipboard = async (text: string) => {
     try {
       await navigator.clipboard.writeText(text);
-      showSuccess('コマンドをクリップボードにコピーしました', 3000);
+      showSuccess(t('copiedToClipboard'), 3000);
     } catch {
-      setError('クリップボードへのコピーに失敗しました');
+      setError(t('copyFailed'));
     }
   };
 

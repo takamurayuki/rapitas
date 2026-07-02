@@ -6,13 +6,14 @@
  */
 'use client';
 import type { Dispatch, SetStateAction } from 'react';
+import { useTranslations } from 'next-intl';
 import type { Theme } from '@/types';
 import {
   STATUS_TABS,
-  TYPE_META,
   TYPE_ORDER,
-  SEVERITY_META,
+  TYPE_LABEL_KEY,
   SEVERITY_ORDER,
+  SEVERITY_LABEL_KEY,
   type ConcernSeverity,
   type ConcernStatus,
   type ConcernType,
@@ -47,6 +48,7 @@ export function ConcernFilterBar({
   setThemeFilter,
   workingDirThemes,
 }: ConcernFilterBarProps) {
+  const t = useTranslations('concerns');
   return (
     <div className="mb-3 flex flex-wrap items-center gap-2">
       <div className="flex overflow-hidden rounded-lg border border-zinc-200 dark:border-zinc-700">
@@ -60,7 +62,7 @@ export function ConcernFilterBar({
                 : 'text-zinc-500 hover:bg-zinc-50 dark:hover:bg-zinc-800'
             }`}
           >
-            {tab.label}
+            {t(tab.labelKey)}
           </button>
         ))}
       </div>
@@ -69,10 +71,10 @@ export function ConcernFilterBar({
         onChange={(e) => setTypeFilter(e.target.value as ConcernType | 'all')}
         className="rounded-lg border border-zinc-200 bg-white px-2 py-1 text-xs outline-none focus:border-blue-400 dark:border-zinc-700 dark:bg-zinc-800"
       >
-        <option value="all">すべての種別</option>
+        <option value="all">{t('filterBar.allTypes')}</option>
         {TYPE_ORDER.map((ty) => (
           <option key={ty} value={ty}>
-            {TYPE_META[ty].label}
+            {t(TYPE_LABEL_KEY[ty])}
           </option>
         ))}
       </select>
@@ -81,10 +83,10 @@ export function ConcernFilterBar({
         onChange={(e) => setSeverityFilter(e.target.value as ConcernSeverity | 'all')}
         className="rounded-lg border border-zinc-200 bg-white px-2 py-1 text-xs outline-none focus:border-blue-400 dark:border-zinc-700 dark:bg-zinc-800"
       >
-        <option value="all">すべての優先度</option>
+        <option value="all">{t('filterBar.allSeverities')}</option>
         {SEVERITY_ORDER.map((sv) => (
           <option key={sv} value={sv}>
-            {SEVERITY_META[sv].label}
+            {t(SEVERITY_LABEL_KEY[sv])}
           </option>
         ))}
       </select>
@@ -93,7 +95,7 @@ export function ConcernFilterBar({
         onChange={(e) => setThemeFilter(e.target.value ? parseInt(e.target.value) : 'all')}
         className="rounded-lg border border-zinc-200 bg-white px-2 py-1 text-xs outline-none focus:border-blue-400 dark:border-zinc-700 dark:bg-zinc-800"
       >
-        <option value="">すべてのテーマ</option>
+        <option value="">{t('filterBar.allThemes')}</option>
         {workingDirThemes.map((th) => (
           <option key={th.id} value={th.id}>
             {th.name}

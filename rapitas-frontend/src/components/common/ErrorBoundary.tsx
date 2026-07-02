@@ -10,13 +10,23 @@ interface ErrorBoundaryProps {
   section?: string;
 }
 
+// NOTE: ErrorBoundaryInner is a class component (required for
+// getDerivedStateFromError / componentDidCatch), so it cannot call the
+// useTranslations hook itself. The functional ErrorBoundary wrapper below
+// resolves the translated strings and passes them down as props.
+interface ErrorBoundaryInnerProps extends ErrorBoundaryProps {
+  errorTitle: string;
+  unexpectedErrorText: string;
+  retryText: string;
+}
+
 interface ErrorBoundaryState {
   hasError: boolean;
   error: Error | null;
 }
 
-class ErrorBoundaryInner extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
-  constructor(props: ErrorBoundaryProps) {
+class ErrorBoundaryInner extends Component<ErrorBoundaryInnerProps, ErrorBoundaryState> {
+  constructor(props: ErrorBoundaryInnerProps) {
     super(props);
     this.state = { hasError: false, error: null };
   }
@@ -47,18 +57,16 @@ class ErrorBoundaryInner extends Component<ErrorBoundaryProps, ErrorBoundaryStat
       return (
         <div className="rounded-lg border border-red-200 bg-red-50 p-4 dark:border-red-800 dark:bg-red-950/30">
           <p className="mb-2 text-sm font-medium text-red-800 dark:text-red-300">
-            {this.props.section
-              ? `${this.props.section} でエラーが発生しました`
-              : 'このセクションでエラーが発生しました'}
+            {this.props.errorTitle}
           </p>
           <p className="mb-3 text-xs text-red-600 dark:text-red-400">
-            {this.state.error?.message || '予期しないエラー'}
+            {this.state.error?.message || this.props.unexpectedErrorText}
           </p>
           <button
             onClick={this.handleReset}
             className="rounded bg-red-600 px-3 py-1 text-xs font-medium text-white hover:bg-red-700"
           >
-            再試行
+            {this.props.retryText}
           </button>
         </div>
       );
@@ -69,5 +77,17 @@ class ErrorBoundaryInner extends Component<ErrorBoundaryProps, ErrorBoundaryStat
 }
 
 export function ErrorBoundary(props: ErrorBoundaryProps) {
-  return <ErrorBoundaryInner {...props} />;
+  const t = useTranslations('common');
+  const errorTitle = props.section
+    ? t('errorBoundary.sectionError', { section: props.section })
+    : t('errorBoundary.genericError');
+
+  return (
+    <ErrorBoundaryInner
+      {...props}
+      errorTitle={errorTitle}
+      unexpectedErrorText={t('errorBoundary.unexpectedError')}
+      retryText={t('retry')}
+    />
+  );
 }

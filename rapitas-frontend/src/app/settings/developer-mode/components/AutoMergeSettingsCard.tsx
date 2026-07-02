@@ -1,6 +1,7 @@
 'use client';
 // AutoMergeSettingsCard
 
+import { useTranslations } from 'next-intl';
 import { GitMerge } from 'lucide-react';
 import type { UserSettings } from '@/types';
 
@@ -33,6 +34,7 @@ export function AutoMergeSettingsCard({
   isSaving,
   onUpdateSettings,
 }: AutoMergeSettingsCardProps) {
+  const t = useTranslations('settings.autoMergeSettingsCard');
   const autoCommit = settings?.autoCommitDefault ?? false;
   const autoCreatePR = settings?.autoCreatePRDefault ?? false;
   const autoMergePR = settings?.autoMergePRDefault ?? false;
@@ -71,24 +73,20 @@ export function AutoMergeSettingsCard({
       <div className="border-b border-zinc-200 px-6 py-4 dark:border-zinc-800">
         <div className="flex items-center gap-3">
           <GitMerge className="h-5 w-5 text-violet-500" />
-          <h2 className="font-semibold text-zinc-900 dark:text-zinc-50">
-            自動化（コミット / PR / マージ）
-          </h2>
+          <h2 className="font-semibold text-zinc-900 dark:text-zinc-50">{t('title')}</h2>
         </div>
-        <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
-          全タスクの既定値です。タスク個別の設定があればそちらが優先されます。
-        </p>
+        <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">{t('description')}</p>
       </div>
       <div className="space-y-6 p-6">
         <Row
-          label="自動コミット"
-          description="完了時に変更を自動コミット"
+          label={t('autoCommitLabel')}
+          description={t('autoCommitDescription')}
           value={autoCommit}
           onToggle={() => onUpdateSettings({ autoCommitDefault: !autoCommit })}
         />
         <Row
-          label="自動PR作成"
-          description="完了時にPull Requestを自動作成"
+          label={t('autoCreatePRLabel')}
+          description={t('autoCreatePRDescription')}
           value={autoCreatePR}
           // Turning off auto-PR also disables auto-merge (nothing to merge).
           onToggle={() =>
@@ -102,14 +100,16 @@ export function AutoMergeSettingsCard({
         {autoCreatePR && (
           <div className="ml-4 space-y-4 border-l border-zinc-200 pl-4 dark:border-zinc-700">
             <Row
-              label="自動マージ"
-              description="PRのCIが緑になったら自動マージ（CI失敗時は自動修正→再CI）"
+              label={t('autoMergeLabel')}
+              description={t('autoMergeDescription')}
               value={autoMergePR}
               onToggle={() => onUpdateSettings({ autoMergePRDefault: !autoMergePR })}
             />
             {autoMergePR && (
               <div className="flex items-center gap-2">
-                <label className="text-xs text-zinc-500 dark:text-zinc-400">Squashマージ閾値</label>
+                <label className="text-xs text-zinc-500 dark:text-zinc-400">
+                  {t('squashThresholdLabel')}
+                </label>
                 <input
                   type="number"
                   min={1}
@@ -124,7 +124,7 @@ export function AutoMergeSettingsCard({
                   className="w-16 rounded border border-zinc-300 bg-white px-2 py-1 text-xs dark:border-zinc-600 dark:bg-zinc-700 dark:text-zinc-200"
                 />
                 <span className="text-xs text-zinc-400 dark:text-zinc-500">
-                  コミット以上でsquash
+                  {t('squashThresholdSuffix')}
                 </span>
               </div>
             )}

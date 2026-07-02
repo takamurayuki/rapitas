@@ -7,6 +7,7 @@
 'use client';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { Dispatch, SetStateAction } from 'react';
+import { useTranslations } from 'next-intl';
 import { API_BASE_URL } from '@/utils/api';
 import { useFilterDataStore } from '@/stores/filter-data-store';
 import { useToast } from '@/components/ui/toast/ToastContainer';
@@ -26,6 +27,7 @@ interface UseIdeaFormArgs {
  * @returns Form state, refs, and submit/edit/cancel handlers. / フォーム状態・ref・送信/編集/キャンセルハンドラ。
  */
 export function useIdeaForm({ fetchIdeas, setIdeas }: UseIdeaFormArgs) {
+  const t = useTranslations('ideaBox');
   const [showQuickAdd, setShowQuickAdd] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [newTitle, setNewTitle] = useState('');
@@ -90,7 +92,7 @@ export function useIdeaForm({ fetchIdeas, setIdeas }: UseIdeaFormArgs) {
         setShowQuickAdd(false);
         await fetchIdeas();
       } catch {
-        showToast('アイデアの更新に失敗しました', 'error');
+        showToast(t('messages.updateFailed'), 'error');
       } finally {
         setIsSubmitting(false);
       }
@@ -133,7 +135,7 @@ export function useIdeaForm({ fetchIdeas, setIdeas }: UseIdeaFormArgs) {
     } catch {
       // Roll back the optimistic entry if the submission failed.
       setIdeas((prev) => prev.filter((i) => i.id !== tempId));
-      showToast('アイデアの登録に失敗しました', 'error');
+      showToast(t('messages.createFailed'), 'error');
     }
   }, [
     editingId,
@@ -145,6 +147,7 @@ export function useIdeaForm({ fetchIdeas, setIdeas }: UseIdeaFormArgs) {
     resetForm,
     showToast,
     setIdeas,
+    t,
   ]);
 
   const handleEdit = useCallback(
@@ -221,11 +224,21 @@ export function useIdeaForm({ fetchIdeas, setIdeas }: UseIdeaFormArgs) {
       setShowQuickAdd(false);
       await fetchIdeas();
     } catch {
-      showToast('タスクへの変換に失敗しました', 'error');
+      showToast(t('messages.convertFailed'), 'error');
     } finally {
       setIsSubmitting(false);
     }
-  }, [editingId, newTitle, newContent, newPriority, newThemeId, fetchIdeas, resetForm, showToast]);
+  }, [
+    editingId,
+    newTitle,
+    newContent,
+    newPriority,
+    newThemeId,
+    fetchIdeas,
+    resetForm,
+    showToast,
+    t,
+  ]);
 
   return {
     categories,

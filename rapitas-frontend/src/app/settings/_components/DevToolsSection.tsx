@@ -53,9 +53,11 @@ export function DevToolsSection() {
       {/* Integrations panel */}
       <div className="bg-white dark:bg-zinc-900 rounded-lg border border-zinc-200 dark:border-zinc-800 shadow-xs overflow-hidden">
         <div className="p-6 border-b border-zinc-200 dark:border-zinc-800">
-          <h2 className="text-xl font-bold text-zinc-900 dark:text-zinc-50">外部連携</h2>
+          <h2 className="text-xl font-bold text-zinc-900 dark:text-zinc-50">
+            {t('devToolsSection.integrationsTitle')}
+          </h2>
           <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-0.5">
-            Webhook通知とIDE統合の設定
+            {t('devToolsSection.integrationsDescription')}
           </p>
         </div>
         <div className="p-6 space-y-6">

@@ -8,6 +8,7 @@
  * 手動の状態上書きと削除のみ提供。
  */
 import { useCallback, useEffect, useState } from 'react';
+import { useTranslations } from 'next-intl';
 import { Beaker, Trash2, FlaskConical, CheckCircle2, XCircle, HelpCircle } from 'lucide-react';
 import { API_BASE_URL } from '@/utils/api';
 import { useConfirmDialog } from '@/components/ui/dialog/ConfirmDialogProvider';
@@ -45,25 +46,26 @@ interface Stats {
   inconclusive: number;
 }
 
-const STATUS_META: Record<
-  HypothesisStatus,
-  { label: string; cls: string; Icon: typeof CheckCircle2 }
-> = {
-  open: { label: '検証待ち', cls: 'bg-indigo-100 text-indigo-700', Icon: FlaskConical },
-  supported: { label: '立証済み', cls: 'bg-green-100 text-green-700', Icon: CheckCircle2 },
-  refuted: { label: '反証済み', cls: 'bg-red-100 text-red-700', Icon: XCircle },
-  inconclusive: { label: '結論保留', cls: 'bg-amber-100 text-amber-700', Icon: HelpCircle },
+// NOTE: `label` text moved to i18n (hypotheses.status.*); look it up with
+// `t(\`status.${status}\`)` at each render site.
+const STATUS_META: Record<HypothesisStatus, { cls: string; Icon: typeof CheckCircle2 }> = {
+  open: { cls: 'bg-indigo-100 text-indigo-700', Icon: FlaskConical },
+  supported: { cls: 'bg-green-100 text-green-700', Icon: CheckCircle2 },
+  refuted: { cls: 'bg-red-100 text-red-700', Icon: XCircle },
+  inconclusive: { cls: 'bg-amber-100 text-amber-700', Icon: HelpCircle },
 };
 
-const FILTERS: { key: HypothesisStatus | 'all'; label: string }[] = [
-  { key: 'open', label: '検証待ち' },
-  { key: 'supported', label: '立証済み' },
-  { key: 'refuted', label: '反証済み' },
-  { key: 'inconclusive', label: '結論保留' },
-  { key: 'all', label: 'すべて' },
+const FILTER_KEYS: (HypothesisStatus | 'all')[] = [
+  'open',
+  'supported',
+  'refuted',
+  'inconclusive',
+  'all',
 ];
 
 export default function HypothesesClient() {
+  const t = useTranslations('hypotheses');
+  const tCommon = useTranslations('common');
   const confirm = useConfirmDialog();
   const [hypotheses, setHypotheses] = useState<HypothesisEntry[]>([]);
   const [stats, setStats] = useState<Stats | null>(null);
@@ -112,7 +114,7 @@ export default function HypothesesClient() {
   };
 
   const remove = async (id: number) => {
-    if (!(await confirm({ message: 'この仮説を削除しますか？', variant: 'destructive' }))) return;
+    if (!(await confirm({ message: t('deleteConfirm'), variant: 'destructive' }))) return;
     await fetch(`${API_BASE_URL}/hypotheses/${id}`, { method: 'DELETE' }).catch(() => {});
     void load();
   };
@@ -124,10 +126,10 @@ export default function HypothesesClient() {
           <Beaker className="h-5 w-5 text-indigo-600 dark:text-indigo-400" />
         </div>
         <div>
-          <h1 className="text-lg font-bold text-zinc-900 dark:text-zinc-100">仮説</h1>
-          <p className="text-xs text-zinc-500 dark:text-zinc-400">
-            エージェントが調査で立てた反証可能な仮説と、証拠・確信度の推移。立証済みは想起時に信頼重み付けされ、反証済みは注入されません。
-          </p>
+          <h1 className="text-lg font-bold text-zinc-900 dark:text-zinc-100">
+            {t('header.title')}
+          </h1>
+          <p className="text-xs text-zinc-500 dark:text-zinc-400">{t('header.subtitle')}</p>
         </div>
       </div>
 
@@ -139,41 +141,48 @@ export default function HypothesesClient() {
               className="rounded-lg border border-zinc-200 bg-white p-3 text-center dark:border-zinc-700 dark:bg-zinc-900"
             >
               <div className="text-2xl font-bold text-zinc-900 dark:text-zinc-100">{stats[k]}</div>
-              <div className="text-xs text-zinc-500 dark:text-zinc-400">{STATUS_META[k].label}</div>
+              <div className="text-xs text-zinc-500 dark:text-zinc-400">{t(`status.${k}`)}</div>
             </div>
           ))}
         </div>
       )}
 
       <div className="mb-4 flex flex-wrap gap-2">
-        {FILTERS.map((f) => (
+        {FILTER_KEYS.map((key) => (
           <button
-            key={f.key}
+            key={key}
             onClick={() => {
-              setStatusFilter(f.key);
+              setStatusFilter(key);
               setCurrentPage(1);
             }}
             className={`rounded-full px-3 py-1 text-sm ${
-              statusFilter === f.key
+              statusFilter === key
                 ? 'bg-indigo-600 text-white'
                 : 'bg-zinc-100 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300'
             }`}
           >
-            {f.label}
+            {t(`status.${key}`)}
           </button>
         ))}
       </div>
 
       {loading ? (
-        <div className="py-12 text-center text-zinc-400 dark:text-zinc-500">読み込み中…</div>
+        <div className="py-12 text-center text-zinc-400 dark:text-zinc-500">{t('loading')}</div>
       ) : hypotheses.length === 0 ? (
         <div className="rounded-lg border border-dashed border-zinc-300 py-12 text-center text-zinc-400 dark:border-zinc-700 dark:text-zinc-500">
-          仮説がありません。エージェントが調査フェーズで反証可能な仮説を立てると、ここに記録されます。
+          {t('empty')}
         </div>
       ) : (
         <ul className="space-y-3">
           {hypotheses.map((h) => (
-            <HypothesisCard key={h.id} h={h} onSetStatus={setStatus} onRemove={remove} />
+            <HypothesisCard
+              key={h.id}
+              h={h}
+              onSetStatus={setStatus}
+              onRemove={remove}
+              t={t}
+              tCommon={tCommon}
+            />
           ))}
         </ul>
       )}
@@ -200,10 +209,14 @@ function HypothesisCard({
   h,
   onSetStatus,
   onRemove,
+  t,
+  tCommon,
 }: {
   h: HypothesisEntry;
   onSetStatus: (id: number, s: HypothesisStatus) => void;
   onRemove: (id: number) => void;
+  t: ReturnType<typeof useTranslations>;
+  tCommon: ReturnType<typeof useTranslations>;
 }) {
   const meta = STATUS_META[h.status];
   const pct = Math.round((h.confidence ?? 0) * 100);
@@ -216,14 +229,14 @@ function HypothesisCard({
               className={`inline-flex items-center gap-1 rounded px-2 py-0.5 text-xs ${meta.cls}`}
             >
               <meta.Icon className="h-3 w-3" />
-              {meta.label}
+              {t(`status.${h.status}`)}
             </span>
             <span className="rounded bg-zinc-100 px-2 py-0.5 text-xs text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300">
               {h.domain}
             </span>
             {h.originTaskId != null && (
               <span className="text-xs text-zinc-400 dark:text-zinc-500">
-                #task {h.originTaskId}
+                {t('card.taskRef', { id: h.originTaskId })}
               </span>
             )}
           </div>
@@ -235,7 +248,7 @@ function HypothesisCard({
         <button
           onClick={() => onRemove(h.id)}
           className="text-zinc-400 hover:text-red-500"
-          title="削除"
+          title={tCommon('delete')}
         >
           <Trash2 className="h-4 w-4" />
         </button>
@@ -249,7 +262,7 @@ function HypothesisCard({
           />
         </div>
         <span className="w-12 text-right text-xs text-zinc-500 dark:text-zinc-400">
-          確信 {pct}%
+          {t('card.confidenceLabel', { pct })}
         </span>
       </div>
 
@@ -261,7 +274,9 @@ function HypothesisCard({
                 {e.stance === 'for' ? '＋' : '−'}
               </span>
               <span className="text-zinc-700 dark:text-zinc-300">{e.detail}</span>
-              <span className="text-zinc-400 dark:text-zinc-500">（{e.artifact}）</span>
+              <span className="text-zinc-400 dark:text-zinc-500">
+                {t('card.artifactWrap', { artifact: e.artifact })}
+              </span>
             </li>
           ))}
         </ul>
@@ -276,7 +291,7 @@ function HypothesisCard({
               onClick={() => onSetStatus(h.id, s)}
               className="rounded border border-zinc-200 px-2 py-0.5 text-zinc-500 hover:bg-zinc-50 dark:border-zinc-700 dark:text-zinc-400 dark:hover:bg-zinc-800"
             >
-              → {STATUS_META[s].label}
+              {t('card.moveTo', { label: t(`status.${s}`) })}
             </button>
           ))}
       </div>

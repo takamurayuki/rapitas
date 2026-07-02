@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
+import { useTranslations } from 'next-intl';
 import {
   Brain,
   TrendingUp,
@@ -44,13 +45,6 @@ type OptimizationRule = {
   createdAt: string;
 };
 
-const ruleTypeLabels: Record<string, string> = {
-  skip_phase: 'フェーズスキップ',
-  downgrade_mode: 'モード軽量化',
-  upgrade_mode: 'モード強化',
-  adjust_time: '時間調整',
-};
-
 const ruleTypeColors: Record<string, string> = {
   skip_phase: 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-400',
   downgrade_mode: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400',
@@ -58,13 +52,19 @@ const ruleTypeColors: Record<string, string> = {
   adjust_time: 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400',
 };
 
-const modeLabels: Record<string, string> = {
-  lightweight: '簡単',
-  standard: '標準',
-  comprehensive: '高度',
-};
-
 export function WorkflowLearningPanel() {
+  const t = useTranslations('intelligence.workflowLearningPanel');
+  const ruleTypeLabels: Record<string, string> = {
+    skip_phase: t('ruleTypeSkipPhase'),
+    downgrade_mode: t('ruleTypeDowngradeMode'),
+    upgrade_mode: t('ruleTypeUpgradeMode'),
+    adjust_time: t('ruleTypeAdjustTime'),
+  };
+  const modeLabels: Record<string, string> = {
+    lightweight: t('modeLightweight'),
+    standard: t('modeStandard'),
+    comprehensive: t('modeComprehensive'),
+  };
   const [stats, setStats] = useState<LearningStats | null>(null);
   const [rules, setRules] = useState<OptimizationRule[]>([]);
   const [loading, setLoading] = useState(true);
@@ -153,7 +153,7 @@ export function WorkflowLearningPanel() {
       <div className="flex items-center justify-between mb-4">
         <h2 className="text-lg font-semibold text-zinc-800 dark:text-zinc-200 flex items-center gap-2">
           <Brain className="w-5 h-5 text-violet-500" />
-          ワークフロー学習
+          {t('title')}
         </h2>
         <div className="flex items-center gap-2">
           <button
@@ -166,7 +166,7 @@ export function WorkflowLearningPanel() {
             ) : (
               <Zap className="w-3.5 h-3.5" />
             )}
-            ルール生成
+            {t('generateRulesButton')}
           </button>
         </div>
       </div>
@@ -177,25 +177,29 @@ export function WorkflowLearningPanel() {
           <div className="text-xl font-bold text-zinc-800 dark:text-zinc-200">
             {stats.totalRecords}
           </div>
-          <div className="text-[10px] text-zinc-500 dark:text-zinc-400">学習記録</div>
+          <div className="text-[10px] text-zinc-500 dark:text-zinc-400">{t('recordsStat')}</div>
         </div>
         <div className="text-center p-3 rounded-lg bg-zinc-50 dark:bg-zinc-700/50">
           <div className="text-xl font-bold text-violet-600 dark:text-violet-400">
             {activeRules.length}
           </div>
-          <div className="text-[10px] text-zinc-500 dark:text-zinc-400">有効ルール</div>
+          <div className="text-[10px] text-zinc-500 dark:text-zinc-400">{t('activeRulesStat')}</div>
         </div>
         <div className="text-center p-3 rounded-lg bg-zinc-50 dark:bg-zinc-700/50">
           <div className="text-xl font-bold text-zinc-800 dark:text-zinc-200">
             {Math.round(stats.overrideRate * 100)}%
           </div>
-          <div className="text-[10px] text-zinc-500 dark:text-zinc-400">オーバーライド率</div>
+          <div className="text-[10px] text-zinc-500 dark:text-zinc-400">
+            {t('overrideRateStat')}
+          </div>
         </div>
         <div className="text-center p-3 rounded-lg bg-zinc-50 dark:bg-zinc-700/50">
           <div className="text-xl font-bold text-green-600 dark:text-green-400">
             {Math.round(stats.predictionAccuracy * 100)}%
           </div>
-          <div className="text-[10px] text-zinc-500 dark:text-zinc-400">予測精度</div>
+          <div className="text-[10px] text-zinc-500 dark:text-zinc-400">
+            {t('predictionAccuracyStat')}
+          </div>
         </div>
       </div>
 
@@ -204,7 +208,7 @@ export function WorkflowLearningPanel() {
         <div className="mb-4">
           <h3 className="text-xs font-medium text-zinc-500 dark:text-zinc-400 mb-2 flex items-center gap-1.5">
             <BarChart3 className="w-3.5 h-3.5" />
-            モード別実績
+            {t('modeStatsHeading')}
           </h3>
           <div className="space-y-1.5">
             {stats.modeStats?.map((ms) => (
@@ -224,11 +228,11 @@ export function WorkflowLearningPanel() {
                   </div>
                 </div>
                 <div className="flex items-center gap-3 text-[10px] text-zinc-500 dark:text-zinc-400 shrink-0">
-                  <span>{ms.count}件</span>
+                  <span>{t('itemCount', { count: ms.count })}</span>
                   <span className="text-green-600 dark:text-green-400">
                     {Math.round(ms.successRate * 100)}%
                   </span>
-                  <span>{Math.round(ms.avgDuration)}分</span>
+                  <span>{t('minutesLabel', { minutes: Math.round(ms.avgDuration) })}</span>
                 </div>
               </div>
             ))}
@@ -244,7 +248,7 @@ export function WorkflowLearningPanel() {
         >
           <span className="flex items-center gap-1.5">
             <Layers className="w-3.5 h-3.5" />
-            最適化ルール ({rules.length})
+            {t('optimizationRulesHeading', { count: rules.length })}
           </span>
           {showRules ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
         </button>
@@ -253,7 +257,7 @@ export function WorkflowLearningPanel() {
           <div className="space-y-2 mt-1">
             {rules.length === 0 ? (
               <p className="text-xs text-zinc-400 dark:text-zinc-500 py-3 text-center">
-                学習データが蓄積されるとルールが自動生成されます
+                {t('noRulesYet')}
               </p>
             ) : (
               rules.map((rule) => (
@@ -273,9 +277,11 @@ export function WorkflowLearningPanel() {
                         {ruleTypeLabels[rule.ruleType] || rule.ruleType}
                       </span>
                       <span className="text-[10px] text-zinc-400">
-                        信頼度: {Math.round(rule.confidence * 100)}%
+                        {t('confidenceLabel', { confidence: Math.round(rule.confidence * 100) })}
                       </span>
-                      <span className="text-[10px] text-zinc-400">({rule.sampleSize}件)</span>
+                      <span className="text-[10px] text-zinc-400">
+                        {t('sampleSizeLabel', { count: rule.sampleSize })}
+                      </span>
                     </div>
                     {rule.description && (
                       <p className="text-xs text-zinc-600 dark:text-zinc-400 truncate">
@@ -286,7 +292,7 @@ export function WorkflowLearningPanel() {
                   <button
                     onClick={() => handleToggleRule(rule.id, rule.isActive)}
                     className="p-1 shrink-0"
-                    title={rule.isActive ? '無効化' : '有効化'}
+                    title={rule.isActive ? t('deactivateTitle') : t('activateTitle')}
                   >
                     {rule.isActive ? (
                       <ToggleRight className="w-5 h-5 text-violet-500" />

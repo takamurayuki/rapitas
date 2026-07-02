@@ -11,6 +11,7 @@
  */
 
 import { useState, useEffect, useCallback } from 'react';
+import { useTranslations } from 'next-intl';
 import { Lightbulb, Bug, Activity, Loader2, FolderCog } from 'lucide-react';
 import { API_BASE_URL } from '@/utils/api';
 import { useToast } from '@/components/ui/toast/ToastContainer';
@@ -32,31 +33,19 @@ interface Override {
   logFormat: LogFormat | null;
 }
 
+// NOTE: `label` text moved to i18n (backlog.projectOverrides.jobs.<kind>); look
+// it up with `t(\`jobs.${kind}\`)` at each render site.
 const PROJECT_JOBS: {
   kind: JobKind;
-  label: string;
   icon: typeof Lightbulb;
   color: string;
   defaultEnabled: boolean;
   hasLogConfig?: boolean;
 }[] = [
-  {
-    kind: 'innovation',
-    label: 'イノベーション',
-    icon: Lightbulb,
-    color: 'text-amber-500',
-    defaultEnabled: true,
-  },
-  {
-    kind: 'vuln_scan',
-    label: '脆弱性・バグ調査',
-    icon: Bug,
-    color: 'text-rose-500',
-    defaultEnabled: true,
-  },
+  { kind: 'innovation', icon: Lightbulb, color: 'text-amber-500', defaultEnabled: true },
+  { kind: 'vuln_scan', icon: Bug, color: 'text-rose-500', defaultEnabled: true },
   {
     kind: 'health_check',
-    label: 'ログヘルスチェック',
     icon: Activity,
     color: 'text-sky-500',
     defaultEnabled: false,
@@ -64,11 +53,7 @@ const PROJECT_JOBS: {
   },
 ];
 
-const LOG_FORMATS: { value: LogFormat; label: string }[] = [
-  { value: 'pino', label: 'pino / NDJSON' },
-  { value: 'json', label: '汎用JSON' },
-  { value: 'text', label: 'プレーンテキスト' },
-];
+const LOG_FORMAT_VALUES: LogFormat[] = ['pino', 'json', 'text'];
 
 /** Small on/off switch matching the global settings toggle. */
 function Toggle({
@@ -101,6 +86,7 @@ function Toggle({
 }
 
 export default function ProjectOverridesSection() {
+  const t = useTranslations('backlog');
   const [themes, setThemes] = useState<ThemeRow[]>([]);
   const [overrides, setOverrides] = useState<Map<string, Override>>(new Map());
   const [isLoading, setIsLoading] = useState(true);
@@ -156,14 +142,14 @@ export default function ProjectOverridesSection() {
           setOverrides((prev) => new Map(prev).set(key, data.override));
         } else {
           setOverrides(before);
-          showToast('プロジェクト設定の更新に失敗しました', 'error');
+          showToast(t('projectOverrides.updateFailed'), 'error');
         }
       } catch {
         setOverrides(before);
-        showToast('プロジェクト設定の更新に失敗しました', 'error');
+        showToast(t('projectOverrides.updateFailed'), 'error');
       }
     },
-    [showToast],
+    [showToast, t],
   );
 
   if (isLoading) {
@@ -178,15 +164,15 @@ export default function ProjectOverridesSection() {
     <div className="mt-8">
       <div className="mb-1 flex items-center gap-2 text-sm font-semibold text-zinc-900 dark:text-zinc-100">
         <FolderCog className="h-4 w-4 text-zinc-500" />
-        プロジェクト別設定
+        {t('projectOverrides.title')}
       </div>
       <p className="mb-4 text-xs text-zinc-500 dark:text-zinc-400">
-        作業ディレクトリを設定したプロジェクト（テーマ）のみ対象です。ジョブごとに有効/無効を切り替えられます。ログヘルスチェックは、プロジェクトのログ出力先と形式を指定したときだけそのプロジェクトを対象にします。スケジュール（頻度・時刻）は上の共通設定に従います。
+        {t('projectOverrides.subtitle')}
       </p>
 
       {themes.length === 0 ? (
         <p className="rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-4 text-xs text-zinc-500 dark:border-zinc-700 dark:bg-zinc-800/50 dark:text-zinc-400">
-          作業ディレクトリを設定したプロジェクトがありません。テーマに作業ディレクトリを設定すると、ここでプロジェクト別の設定ができます。
+          {t('projectOverrides.noThemes')}
         </p>
       ) : (
         <div className="space-y-3">
@@ -208,7 +194,7 @@ export default function ProjectOverridesSection() {
                       <div className="flex items-center gap-2">
                         <Icon className={`h-3.5 w-3.5 ${job.color}`} />
                         <span className="text-xs text-zinc-700 dark:text-zinc-300">
-                          {job.label}
+                          {t(`projectOverrides.jobs.${job.kind}`)}
                         </span>
                         <span className="ml-auto">
                           <Toggle
@@ -223,11 +209,11 @@ export default function ProjectOverridesSection() {
                           <DirectoryPicker
                             value={ov?.logDir ?? ''}
                             onChange={(path) => patch(job.kind, theme.id, { logDir: path })}
-                            placeholder="ログ出力ディレクトリを入力または参照で選択"
+                            placeholder={t('projectOverrides.logDirPlaceholder')}
                           />
                           <div className="flex items-center gap-2">
                             <span className="text-[11px] text-zinc-500 dark:text-zinc-400">
-                              ログ形式
+                              {t('projectOverrides.logFormatLabel')}
                             </span>
                             <select
                               value={ov?.logFormat ?? 'text'}
@@ -238,9 +224,9 @@ export default function ProjectOverridesSection() {
                               }
                               className="rounded-lg border border-zinc-200 bg-white px-2 py-1 text-[11px] dark:border-zinc-700 dark:bg-zinc-800"
                             >
-                              {LOG_FORMATS.map((f) => (
-                                <option key={f.value} value={f.value}>
-                                  {f.label}
+                              {LOG_FORMAT_VALUES.map((f) => (
+                                <option key={f} value={f}>
+                                  {t(`projectOverrides.logFormats.${f}`)}
                                 </option>
                               ))}
                             </select>

@@ -1,4 +1,5 @@
 'use client';
+import { useTranslations } from 'next-intl';
 import { AlertCircle } from 'lucide-react';
 
 interface DeleteNoteModalProps {
@@ -14,6 +15,9 @@ export default function DeleteNoteModal({
   onConfirm,
   onCancel,
 }: DeleteNoteModalProps) {
+  const t = useTranslations('notes');
+  const tc = useTranslations('common');
+  const tTask = useTranslations('task');
   if (!isOpen) return null;
 
   return (
@@ -28,14 +32,19 @@ export default function DeleteNoteModal({
             <AlertCircle className="w-6 h-6 text-red-600 dark:text-red-500" />
           </div>
           <div>
-            <h3 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100">ノートの削除</h3>
-            <p className="text-sm text-zinc-500 dark:text-zinc-400">この操作は取り消せません</p>
+            <h3 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100">
+              {t('deleteModal.title')}
+            </h3>
+            <p className="text-sm text-zinc-500 dark:text-zinc-400">{t('deleteModal.subtitle')}</p>
           </div>
         </div>
 
         <div className="mb-6">
           <p className="text-sm text-zinc-700 dark:text-zinc-300">
-            「<span className="font-medium">{noteTitle}</span>」を削除しますか？
+            {t.rich('deleteModal.confirmQuestion', {
+              noteTitle,
+              b: (chunks) => <span className="font-medium">{chunks}</span>,
+            })}
           </p>
         </div>
 
@@ -44,13 +53,13 @@ export default function DeleteNoteModal({
             onClick={onCancel}
             className="px-4 py-2 text-sm font-medium text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 transition-colors"
           >
-            キャンセル
+            {tc('cancel')}
           </button>
           <button
             onClick={onConfirm}
             className="px-4 py-2 text-sm font-medium text-white bg-red-600 hover:bg-red-700 rounded-lg transition-colors"
           >
-            削除する
+            {tTask('confirmDelete')}
           </button>
         </div>
       </div>

@@ -19,6 +19,7 @@ import {
   X,
   Loader2,
 } from 'lucide-react';
+import { useTranslations } from 'next-intl';
 import { SkeletonBlock } from '../LoadingSpinner';
 import type { DirectoryEntry } from './types';
 
@@ -55,12 +56,14 @@ function NewFolderForm({
   onConfirm,
   onCancel,
 }: NewFolderFormProps) {
+  const t = useTranslations('common');
+
   return (
     <div className="px-4 py-3 border-b border-zinc-200 dark:border-zinc-700 bg-green-50 dark:bg-green-900/10">
       <div className="flex items-center gap-2 mb-2">
         <FolderPlus className="w-4 h-4 text-green-600 dark:text-green-400" />
         <span className="text-sm font-medium text-green-700 dark:text-green-300">
-          新規フォルダを作成
+          {t('directoryPicker.createFolderTitle')}
         </span>
         <span className="text-xs text-zinc-400 dark:text-zinc-500 font-mono ml-1">
           in {currentPath}
@@ -79,7 +82,7 @@ function NewFolderForm({
               onCancel();
             }
           }}
-          placeholder="フォルダ名を入力..."
+          placeholder={t('directoryPicker.folderNamePlaceholder')}
           className="flex-1 px-3 py-1.5 text-sm bg-white dark:bg-zinc-900 border border-zinc-300 dark:border-zinc-600 rounded-md focus:outline-none focus:border-indigo-400"
           disabled={isCreating}
         />
@@ -93,7 +96,7 @@ function NewFolderForm({
           ) : (
             <Check className="w-3.5 h-3.5" />
           )}
-          作成
+          {t('create')}
         </button>
         <button
           onClick={onCancel}
@@ -165,6 +168,8 @@ export function DirectoryList({
   onCreateConfirm,
   onCreateCancel,
 }: DirectoryListProps) {
+  const t = useTranslations('common');
+
   return (
     <>
       {isCreatingFolder && (
@@ -197,13 +202,13 @@ export function DirectoryList({
               onClick={onGoToDrives}
               className="mt-4 px-4 py-2 text-sm text-zinc-600 dark:text-zinc-400 hover:text-zinc-800 dark:hover:text-zinc-200 underline"
             >
-              ドライブ一覧に戻る
+              {t('directoryPicker.backToDrives')}
             </button>
           </div>
         ) : directories.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full text-zinc-500 dark:text-zinc-400">
             <FolderOpen className="w-12 h-12 mb-2 text-zinc-300 dark:text-zinc-600" />
-            <p className="text-sm">サブフォルダがありません</p>
+            <p className="text-sm">{t('directoryPicker.noSubfolders')}</p>
           </div>
         ) : (
           <div className="divide-y divide-zinc-100 dark:divide-zinc-800">

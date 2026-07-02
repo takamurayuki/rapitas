@@ -13,11 +13,13 @@ import type { IdeaPriority } from './idea-box.types';
  */
 export const PRIORITY_ORDER: IdeaPriority[] = ['urgent', 'high', 'medium', 'low'];
 
-export const PRIORITY_HINT: Record<IdeaPriority, string> = {
-  urgent: '最優先で取り組むべき',
-  high: '革新的・アプリ価値を大きく底上げ',
-  medium: '着実に価値を高める',
-  low: '小さな改善・あれば良い',
+// NOTE: Hint text moved to i18n (ideaBox.priorityHint.*); this only maps a
+// priority to its message key so callers can `t(PRIORITY_HINT_KEY[priority])`.
+export const PRIORITY_HINT_KEY: Record<IdeaPriority, string> = {
+  urgent: 'priorityHint.urgent',
+  high: 'priorityHint.high',
+  medium: 'priorityHint.medium',
+  low: 'priorityHint.low',
 };
 
 // Sparkles here labels the AI "code_review" source (a real state), not decoration.

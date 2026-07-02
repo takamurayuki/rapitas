@@ -1,5 +1,6 @@
 'use client';
 // NoteEditorHeader
+import { useTranslations } from 'next-intl';
 import { Save, Trash2 } from 'lucide-react';
 import { type Note, type DocType, DOC_TYPES } from '@/stores/note-store';
 
@@ -10,6 +11,16 @@ const DOC_TYPE_COLORS: Record<DocType, string> = {
   手順書: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300',
   仕様書: 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300',
   メモ: 'bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300',
+};
+
+/** Maps each raw DocType value to its `docTypes.*` i18n message key. */
+const DOC_TYPE_LABEL_KEYS: Record<DocType, string> = {
+  要件定義: 'requirements',
+  設計書: 'design',
+  議事録: 'minutes',
+  手順書: 'procedure',
+  仕様書: 'specification',
+  メモ: 'memo',
 };
 
 interface NoteEditorHeaderProps {
@@ -41,6 +52,8 @@ export default function NoteEditorHeader({
   onDelete,
   onSetDocType,
 }: NoteEditorHeaderProps) {
+  const t = useTranslations('notes');
+  const tc = useTranslations('common');
   return (
     <div className="px-4 pt-3 pb-2">
       {/* Title row */}
@@ -52,13 +65,13 @@ export default function NoteEditorHeader({
           onChange={onTitleChange}
           onPaste={onTitlePaste}
           className="flex-1 text-xl font-bold bg-transparent outline-none placeholder:text-zinc-400 dark:placeholder:text-zinc-500 text-zinc-900 dark:text-zinc-100"
-          placeholder="タイトルを入力..."
+          placeholder={t('editorHeader.titlePlaceholder')}
           style={{ fontStyle: 'normal', textDecoration: 'none', fontWeight: 700 }}
         />
         <button
           onClick={onDelete}
           className="p-1.5 rounded-lg transition-colors shrink-0 text-zinc-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20"
-          title="このノートを削除"
+          title={t('editorHeader.deleteNoteTitle')}
         >
           <Trash2 className="w-4 h-4" />
         </button>
@@ -70,10 +83,10 @@ export default function NoteEditorHeader({
               ? 'bg-indigo-500 hover:bg-indigo-600 text-white'
               : 'bg-zinc-100 dark:bg-zinc-800 text-zinc-400 dark:text-zinc-500 cursor-default'
           }`}
-          title="保存（Ctrl+S）"
+          title={t('editorHeader.saveTitle')}
         >
           <Save className="w-3.5 h-3.5" />
-          {isDirty ? '保存' : '保存済み'}
+          {isDirty ? tc('save') : t('editorHeader.saved')}
         </button>
       </div>
 
@@ -87,7 +100,7 @@ export default function NoteEditorHeader({
               : 'border-zinc-200 dark:border-zinc-700 text-zinc-400 dark:text-zinc-500 hover:border-zinc-300'
           }`}
         >
-          種別なし
+          {t('editorHeader.noType')}
         </button>
         {DOC_TYPES.map((type) => (
           <button
@@ -99,7 +112,7 @@ export default function NoteEditorHeader({
                 : 'border-zinc-200 dark:border-zinc-700 text-zinc-400 dark:text-zinc-500 hover:border-zinc-300 dark:hover:border-zinc-600 hover:text-zinc-600 dark:hover:text-zinc-300'
             }`}
           >
-            {type}
+            {t(`docTypes.${DOC_TYPE_LABEL_KEYS[type]}`)}
           </button>
         ))}
       </div>

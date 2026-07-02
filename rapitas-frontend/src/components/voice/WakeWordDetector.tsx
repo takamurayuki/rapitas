@@ -14,6 +14,7 @@
  * - Only activates full recording when wake word is detected
  */
 import { useEffect, useRef, useState, useCallback } from 'react';
+import { useTranslations } from 'next-intl';
 import { useVoiceInput } from './VoiceInputProvider';
 
 /** Wake word configuration. */
@@ -46,6 +47,7 @@ import type { SpeechRecognition } from '@/hooks/common/speech-recognition.types'
 
 export default function WakeWordDetector({ config, onWakeWordDetected }: WakeWordDetectorProps) {
   const { openVoiceInput, isVoiceOpen } = useVoiceInput();
+  const t = useTranslations('devTools');
   const [isListening, setIsListening] = useState(false);
   const [lastHeard, setLastHeard] = useState('');
   const recognitionRef = useRef<SpeechRecognition | null>(null);
@@ -189,14 +191,16 @@ export default function WakeWordDetector({ config, onWakeWordDetected }: WakeWor
   return (
     <div
       className="fixed bottom-4 right-4 z-40 flex items-center gap-1.5 pointer-events-none select-none"
-      title={`ウェイクワード待機中${lastHeard ? ` (最後: ${lastHeard})` : ''}`}
+      title={`${t('voice.wakeWord.listening')}${lastHeard ? t('voice.wakeWord.lastHeard', { text: lastHeard }) : ''}`}
     >
       <div
         className={`w-2 h-2 rounded-full transition-colors ${
           isListening ? 'bg-green-500 animate-pulse' : 'bg-zinc-600'
         }`}
       />
-      <span className="text-[9px] text-zinc-500">{isListening ? '「ラピタス」で起動' : ''}</span>
+      <span className="text-[9px] text-zinc-500">
+        {isListening ? t('voice.wakeWord.activeIndicator') : ''}
+      </span>
     </div>
   );
 }

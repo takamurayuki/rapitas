@@ -7,6 +7,7 @@
  */
 
 import { useEffect, useState, useCallback } from 'react';
+import { useTranslations } from 'next-intl';
 import {
   BarChart,
   Bar,
@@ -76,6 +77,7 @@ function shortLabel(file: string): string {
  * Shows slowest-test chart, gate comparison, and promotion/demotion tables.
  */
 export function CiTimingDashboard() {
+  const t = useTranslations('settings.ciTimingDashboard');
   const [data, setData] = useState<CiTimingData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -91,10 +93,11 @@ export function CiTimingDashboard() {
       }
       setData(json.data);
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'データ取得に失敗しました');
+      setError(e instanceof Error ? e.message : t('fetchFailed'));
     } finally {
       setLoading(false);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- t is stable across renders; omitted to avoid re-triggering the fetch effect.
   }, []);
 
   useEffect(() => {
@@ -118,9 +121,7 @@ export function CiTimingDashboard() {
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
             <Timer className="h-5 w-5 text-violet-500" />
-            <h2 className="font-semibold text-zinc-900 dark:text-zinc-50">
-              CI テスト実行時間ダッシュボード
-            </h2>
+            <h2 className="font-semibold text-zinc-900 dark:text-zinc-50">{t('title')}</h2>
           </div>
           <button
             onClick={() => void fetchData()}
@@ -132,14 +133,14 @@ export function CiTimingDashboard() {
             ) : (
               <RefreshCw className="h-4 w-4" />
             )}
-            更新
+            {t('refresh')}
           </button>
         </div>
         <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
           <code className="rounded bg-zinc-100 px-1 py-0.5 text-xs dark:bg-zinc-800">
             bun run test:timing
           </code>{' '}
-          で収集したキャッシュを可視化します。
+          {t('cacheVisualization')}
         </p>
       </div>
 
@@ -156,16 +157,16 @@ export function CiTimingDashboard() {
         {loading && !data && (
           <div className="flex items-center gap-2 text-sm text-zinc-400 dark:text-zinc-500">
             <Loader2 className="h-4 w-4 animate-spin" />
-            データを取得中…
+            {t('fetchingData')}
           </div>
         )}
 
         {/* No cache available */}
         {!loading && data && !data.available && (
           <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-4 text-sm text-zinc-600 dark:border-zinc-700 dark:bg-zinc-800/50 dark:text-zinc-300">
-            <p className="font-medium">未計測（キャッシュが存在しません）</p>
+            <p className="font-medium">{t('noCache')}</p>
             <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
-              以下のコマンドを実行してキャッシュを生成してください:
+              {t('generateCacheHint')}
             </p>
             <code className="mt-2 block rounded bg-zinc-100 px-3 py-1.5 text-xs dark:bg-zinc-900">
               bun run test:timing
@@ -182,14 +183,14 @@ export function CiTimingDashboard() {
             {/* Summary stats */}
             <div>
               <p className="mb-3 text-xs font-medium uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
-                概要
+                {t('summary')}
               </p>
               <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
                 {[
-                  { label: '計測ファイル数', value: `${data.totalFiles}件` },
-                  { label: '平均', value: fmtMs(data.stats.mean) },
+                  { label: t('measuredFiles'), value: t('itemsCount', { count: data.totalFiles }) },
+                  { label: t('mean'), value: fmtMs(data.stats.mean) },
                   { label: 'P90', value: fmtMs(data.stats.p90) },
-                  { label: '最大', value: fmtMs(data.stats.max) },
+                  { label: t('max'), value: fmtMs(data.stats.max) },
                 ].map(({ label, value }) => (
                   <div
                     key={label}
@@ -204,8 +205,11 @@ export function CiTimingDashboard() {
               </div>
               {data.generatedAt && (
                 <p className="mt-2 text-xs text-zinc-400 dark:text-zinc-500">
-                  キャッシュ生成: {new Date(data.generatedAt).toLocaleString('ja-JP')}{' '}
-                  {data.wallClockMs !== undefined && `/ 壁時計: ${fmtMs(data.wallClockMs)}`}
+                  {t('cacheGeneratedAt', {
+                    datetime: new Date(data.generatedAt).toLocaleString('ja-JP'),
+                  })}{' '}
+                  {data.wallClockMs !== undefined &&
+                    t('wallClockSuffix', { wallClock: fmtMs(data.wallClockMs) })}
                 </p>
               )}
             </div>
@@ -214,10 +218,10 @@ export function CiTimingDashboard() {
             {chartData.length > 0 && (
               <div>
                 <p className="mb-3 text-xs font-medium uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
-                  最遅テスト (上位 {chartData.length} 件) —{' '}
-                  <span className="text-indigo-500">●</span> 通常{' '}
-                  <span className="text-green-500">●</span> ゲート内{' '}
-                  <span className="text-red-500">●</span> 失敗
+                  {t('slowestTests', { count: chartData.length })} —{' '}
+                  <span className="text-indigo-500">●</span> {t('legendNormal')}{' '}
+                  <span className="text-green-500">●</span> {t('legendInGate')}{' '}
+                  <span className="text-red-500">●</span> {t('legendFailed')}
                 </p>
                 <div className="h-72">
                   <ResponsiveContainer width="100%" height="100%">
@@ -260,34 +264,35 @@ export function CiTimingDashboard() {
             {/* Gate comparison */}
             <div>
               <p className="mb-3 text-xs font-medium uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
-                シリアルゲート vs 全体比較
+                {t('gateComparisonTitle')}
               </p>
               <div className="grid grid-cols-2 gap-3">
                 <div className="rounded-lg border border-green-200 bg-green-50 p-3 dark:border-green-800 dark:bg-green-900/20">
                   <p className="text-xs text-green-600 dark:text-green-400">
-                    シリアルゲート合計 ({data.serialGate.length} ファイル)
+                    {t('serialGateTotal', { fileCount: data.serialGate.length })}
                   </p>
                   <p className="mt-0.5 text-lg font-semibold text-green-700 dark:text-green-300">
                     {fmtMs(serialGateTotalMs)}
                   </p>
                   <p className="text-xs text-green-500 dark:text-green-500">
-                    逐次実行（CI 合否ゲート）
+                    {t('serialExecution')}
                   </p>
                 </div>
                 <div className="rounded-lg border border-indigo-200 bg-indigo-50 p-3 dark:border-indigo-800 dark:bg-indigo-900/20">
                   <p className="text-xs text-indigo-600 dark:text-indigo-400">
-                    全体 壁時計 ({data.totalFiles} ファイル)
+                    {t('overallWallClock', { fileCount: data.totalFiles })}
                   </p>
                   <p className="mt-0.5 text-lg font-semibold text-indigo-700 dark:text-indigo-300">
                     {data.wallClockMs !== undefined ? fmtMs(data.wallClockMs) : '—'}
                   </p>
-                  <p className="text-xs text-indigo-500 dark:text-indigo-500">並列実行</p>
+                  <p className="text-xs text-indigo-500 dark:text-indigo-500">
+                    {t('parallelExecution')}
+                  </p>
                 </div>
               </div>
               {data.missingFromResults.length > 0 && (
                 <p className="mt-2 text-xs text-amber-600 dark:text-amber-400">
-                  ⚠ ゲートリスト内で計測結果が見つからないファイル:{' '}
-                  {data.missingFromResults.join(', ')}
+                  ⚠ {t('missingFromResults')} {data.missingFromResults.join(', ')}
                 </p>
               )}
             </div>
@@ -296,9 +301,9 @@ export function CiTimingDashboard() {
             {data.promotionCandidates.length > 0 && (
               <div>
                 <p className="mb-2 text-xs font-medium uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
-                  昇格候補（{fmtMs(data.promoteThresholdMs)} 以下・ゲート未掲載）
+                  {t('promotionCandidatesTitle', { threshold: fmtMs(data.promoteThresholdMs) })}
                   <span className="ml-2 font-normal normal-case text-zinc-400">
-                    {data.promotionCandidates.length} 件 — ゲートに追加するとカバレッジが増える
+                    {t('promotionCandidatesHint', { count: data.promotionCandidates.length })}
                   </span>
                 </p>
                 <div className="overflow-hidden rounded-lg border border-zinc-200 dark:border-zinc-700">
@@ -306,10 +311,10 @@ export function CiTimingDashboard() {
                     <thead>
                       <tr className="border-b border-zinc-200 bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-800/50">
                         <th className="px-3 py-2 text-left text-zinc-500 dark:text-zinc-400">
-                          ファイル
+                          {t('fileColumn')}
                         </th>
                         <th className="px-3 py-2 text-right text-zinc-500 dark:text-zinc-400">
-                          時間
+                          {t('timeColumn')}
                         </th>
                       </tr>
                     </thead>
@@ -337,9 +342,9 @@ export function CiTimingDashboard() {
             {data.demotionCandidates.length > 0 && (
               <div>
                 <p className="mb-2 text-xs font-medium uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
-                  降格候補（{fmtMs(data.promoteThresholdMs)} 以上・ゲート掲載済み）
+                  {t('demotionCandidatesTitle', { threshold: fmtMs(data.promoteThresholdMs) })}
                   <span className="ml-2 font-normal normal-case text-zinc-400">
-                    {data.demotionCandidates.length} 件 — CI 待ち時間を押し上げている
+                    {t('demotionCandidatesHint', { count: data.demotionCandidates.length })}
                   </span>
                 </p>
                 <div className="overflow-hidden rounded-lg border border-amber-200 dark:border-amber-800">
@@ -347,10 +352,10 @@ export function CiTimingDashboard() {
                     <thead>
                       <tr className="border-b border-amber-200 bg-amber-50 dark:border-amber-800 dark:bg-amber-900/20">
                         <th className="px-3 py-2 text-left text-amber-600 dark:text-amber-400">
-                          ファイル
+                          {t('fileColumn')}
                         </th>
                         <th className="px-3 py-2 text-right text-amber-600 dark:text-amber-400">
-                          時間
+                          {t('timeColumn')}
                         </th>
                       </tr>
                     </thead>
@@ -377,7 +382,7 @@ export function CiTimingDashboard() {
             {/* All candidates absent */}
             {data.promotionCandidates.length === 0 && data.demotionCandidates.length === 0 && (
               <p className="text-sm text-zinc-500 dark:text-zinc-400">
-                昇格・降格候補はありません（閾値: {fmtMs(data.promoteThresholdMs)}）。
+                {t('noCandidates', { threshold: fmtMs(data.promoteThresholdMs) })}
               </p>
             )}
           </>

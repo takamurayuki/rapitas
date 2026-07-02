@@ -10,6 +10,7 @@
  */
 
 import { Folder, FolderOpen, Check, X } from 'lucide-react';
+import { useTranslations } from 'next-intl';
 import { useDirectoryPicker } from './directory-picker/useDirectoryPicker';
 import { BrowserModal } from './directory-picker/BrowserModal';
 
@@ -29,9 +30,11 @@ import type { DirectoryPickerProps } from './directory-picker/types';
 export function DirectoryPicker({
   value,
   onChange,
-  placeholder = 'ディレクトリパスを入力または選択',
+  placeholder,
   className = '',
 }: DirectoryPickerProps) {
+  const t = useTranslations('common');
+  const resolvedPlaceholder = placeholder ?? t('directoryPicker.placeholder');
   const picker = useDirectoryPicker(value, onChange);
 
   return (
@@ -54,14 +57,14 @@ export function DirectoryPicker({
                   }
                 }}
                 className="flex-1 rounded-lg border-2 border-purple-500 dark:border-purple-400 bg-white dark:bg-zinc-800 px-4 py-2.5 pr-24 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500/30 transition-all font-mono"
-                placeholder="パスを入力..."
+                placeholder={t('directoryPicker.pathInputPlaceholder')}
               />
               <div className="absolute right-2 flex items-center gap-1">
                 <button
                   type="button"
                   onClick={picker.handleEditComplete}
                   className="p-1.5 text-green-600 hover:bg-green-100 dark:hover:bg-green-900/30 rounded transition-colors"
-                  title="確定"
+                  title={t('directoryPicker.confirm')}
                 >
                   <Check className="w-4 h-4" />
                 </button>
@@ -69,7 +72,7 @@ export function DirectoryPicker({
                   type="button"
                   onClick={picker.handleEditCancel}
                   className="p-1.5 text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-700 rounded transition-colors"
-                  title="キャンセル"
+                  title={t('cancel')}
                 >
                   <X className="w-4 h-4" />
                 </button>
@@ -86,14 +89,16 @@ export function DirectoryPicker({
                     </span>
                   </>
                 ) : (
-                  <span className="text-sm text-zinc-400 dark:text-zinc-500">{placeholder}</span>
+                  <span className="text-sm text-zinc-400 dark:text-zinc-500">
+                    {resolvedPlaceholder}
+                  </span>
                 )}
               </div>
               <button
                 type="button"
                 onClick={picker.handleStartEdit}
                 className="px-3 py-2.5 text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-700 border-l border-zinc-300 dark:border-zinc-700 transition-colors"
-                title="パスを直接入力"
+                title={t('directoryPicker.manualEntryTitle')}
               >
                 <svg
                   className="w-4 h-4"
@@ -117,10 +122,10 @@ export function DirectoryPicker({
           type="button"
           onClick={picker.handleOpen}
           className="flex items-center gap-2 px-4 py-2.5 rounded-lg bg-purple-600 hover:bg-purple-700 text-white transition-all text-sm font-medium shrink-0"
-          title="フォルダを参照"
+          title={t('directoryPicker.browseTitle')}
         >
           <FolderOpen className="w-4 h-4" />
-          参照
+          {t('directoryPicker.browse')}
         </button>
       </div>
 

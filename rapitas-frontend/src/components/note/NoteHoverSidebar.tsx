@@ -7,6 +7,7 @@
  * Notes not matching the hierarchy pattern appear under "その他".
  */
 import { useState, useRef, useEffect, useMemo } from 'react';
+import { useTranslations } from 'next-intl';
 import {
   NotebookTabs,
   ChevronRight,
@@ -30,6 +31,8 @@ import { toDateLocale } from '@/lib/utils';
 import { buildNoteTree, parseNotePath, parseNotePathThemeOnly } from './note-tree-utils';
 
 export default function NoteHoverSidebar() {
+  const t = useTranslations('notes');
+  const tc = useTranslations('common');
   const {
     currentNoteId,
     notes,
@@ -195,9 +198,9 @@ export default function NoteHoverSidebar() {
     const d = new Date(date);
     const now = new Date();
     const diffDays = Math.ceil(Math.abs(now.getTime() - d.getTime()) / (1000 * 60 * 60 * 24));
-    if (diffDays === 0) return '今日';
-    if (diffDays === 1) return '昨日';
-    if (diffDays < 7) return `${diffDays}日前`;
+    if (diffDays === 0) return tc('today');
+    if (diffDays === 1) return t('hoverSidebar.yesterday');
+    if (diffDays < 7) return t('hoverSidebar.daysAgo', { days: diffDays });
     return d.toLocaleDateString(dateLocale, { month: 'short', day: 'numeric' });
   };
 
@@ -224,11 +227,11 @@ export default function NoteHoverSidebar() {
             <h4 className="font-medium text-xs truncate text-zinc-900 dark:text-zinc-100">
               {note.title.includes(' > ')
                 ? (note.title.split(' > ').pop() ?? note.title)
-                : note.title || '(無題)'}
+                : note.title || t('common.untitled')}
             </h4>
           </div>
           <p className="text-xs text-zinc-500 dark:text-zinc-400 line-clamp-1">
-            {note.content.replace(/<[^>]*>/g, '') || '内容なし'}
+            {note.content.replace(/<[^>]*>/g, '') || t('hoverSidebar.noContent')}
           </p>
           <div className="flex items-center gap-1 mt-0.5 text-[10px] text-zinc-400">
             <Calendar className="w-2.5 h-2.5" />
@@ -282,7 +285,7 @@ export default function NoteHoverSidebar() {
           <div className="p-4 border-b border-zinc-200 dark:border-zinc-800">
             <div className="flex items-center gap-2 mb-3">
               <NotebookTabs className="w-5 h-5 text-indigo-500" />
-              <h3 className="font-semibold text-lg">ノート</h3>
+              <h3 className="font-semibold text-lg">{t('common.note')}</h3>
             </div>
             {/* Search at top */}
             <div className="space-y-2">
@@ -292,7 +295,7 @@ export default function NoteHoverSidebar() {
                   type="text"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder="ノートを検索..."
+                  placeholder={t('common.searchPlaceholder')}
                   className="w-full pl-9 pr-3 py-2 bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg text-sm focus:outline-none focus:border-indigo-400"
                 />
               </div>
@@ -301,7 +304,7 @@ export default function NoteHoverSidebar() {
                 className="w-full flex items-center justify-center gap-2 px-3 py-2 bg-indigo-500 hover:bg-indigo-600 text-white rounded-lg text-sm font-medium transition-colors"
               >
                 <Plus className="w-4 h-4" />
-                新規ノート
+                {t('common.newNote')}
               </button>
             </div>
           </div>
@@ -330,7 +333,7 @@ export default function NoteHoverSidebar() {
                   onClick={clearFilters}
                   className="mt-2 text-xs text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-200"
                 >
-                  フィルターをクリア
+                  {t('hoverSidebar.clearFilters')}
                 </button>
               )}
             </div>
@@ -343,8 +346,8 @@ export default function NoteHoverSidebar() {
                 <FileText className="w-12 h-12 mx-auto text-zinc-300 dark:text-zinc-600 mb-2" />
                 <p className="text-sm text-zinc-500 dark:text-zinc-400">
                   {searchQuery || selectedTags.length > 0
-                    ? '検索結果がありません'
-                    : 'ノートがありません'}
+                    ? t('hoverSidebar.noSearchResults')
+                    : t('common.noNotes')}
                 </p>
               </div>
             ) : (
@@ -473,7 +476,7 @@ export default function NoteHoverSidebar() {
                     {hasLinked && (
                       <div className="flex items-center gap-2 px-2 pt-2 pb-1">
                         <div className="flex-1 h-px bg-zinc-200 dark:bg-zinc-700" />
-                        <span className="text-[10px] text-zinc-400 shrink-0">その他</span>
+                        <span className="text-[10px] text-zinc-400 shrink-0">{tc('other')}</span>
                         <div className="flex-1 h-px bg-zinc-200 dark:bg-zinc-700" />
                       </div>
                     )}

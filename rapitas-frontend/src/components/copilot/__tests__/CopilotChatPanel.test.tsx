@@ -4,6 +4,10 @@ import type { NextActionContext } from '../next-action-recommender';
 
 vi.mock('@/utils/api', () => ({ API_BASE_URL: 'http://test' }));
 
+vi.mock('next-intl', () => ({
+  useTranslations: () => (key: string) => key,
+}));
+
 // Non-dev todo with an estimate and low complexity → a single "着手する" action.
 const ctxTodoManual: NextActionContext = {
   status: 'todo',
@@ -26,12 +30,12 @@ describe('CopilotChatPanel', () => {
 
   it('renders the panel header', () => {
     render(<CopilotChatPanel taskId={1} taskTitle="test" taskStatus="todo" />);
-    expect(screen.getByText('AIアシスタント')).toBeInTheDocument();
+    expect(screen.getByText('title')).toBeInTheDocument();
   });
 
   it('renders proactive insight for todo status', () => {
     render(<CopilotChatPanel taskId={1} taskTitle="test" taskStatus="todo" />);
-    expect(screen.getByText(/着手前/)).toBeInTheDocument();
+    expect(screen.getByText(/todoInsight/)).toBeInTheDocument();
   });
 
   it('renders a recommended next action from context', () => {
@@ -43,7 +47,7 @@ describe('CopilotChatPanel', () => {
         nextActionContext={ctxTodoManual}
       />,
     );
-    expect(screen.getByText('次の一手')).toBeInTheDocument();
+    expect(screen.getByText('heading')).toBeInTheDocument();
     expect(screen.getByText('着手する')).toBeInTheDocument();
   });
 

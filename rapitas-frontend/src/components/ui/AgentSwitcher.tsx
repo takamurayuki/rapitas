@@ -13,6 +13,7 @@ import {
   CheckCircle2,
   Loader2,
 } from 'lucide-react';
+import { useTranslations } from 'next-intl';
 import type { AIAgentConfig } from '@/types';
 import { API_BASE_URL } from '@/utils/api';
 import { createLogger } from '@/lib/logger';
@@ -60,14 +61,19 @@ const AGENT_TYPE_INFO: Record<string, { name: string; icon: React.ReactNode; col
     icon: <Activity className="w-4 h-4" />,
     color: 'text-indigo-500',
   },
-  custom: {
-    name: 'カスタム',
-    icon: <Cpu className="w-4 h-4" />,
-    color: 'text-zinc-500',
-  },
 };
 
-function getTypeInfo(type: string) {
+/**
+ * Resolves display info (name/icon/color) for an agent type.
+ *
+ * @param type - The agent's `agentType` value / エージェント種別
+ * @param customLabel - Translated label for the 'custom' type, since AGENT_TYPE_INFO
+ *   is a module-level map and cannot call useTranslations itself / 「カスタム」の翻訳済みラベル
+ */
+function getTypeInfo(type: string, customLabel: string) {
+  if (type === 'custom') {
+    return { name: customLabel, icon: <Cpu className="w-4 h-4" />, color: 'text-zinc-500' };
+  }
   return (
     AGENT_TYPE_INFO[type] || {
       name: type,
@@ -83,6 +89,7 @@ export function AgentSwitcher({
   size = 'md',
   showLabel = true,
 }: AgentSwitcherProps) {
+  const t = useTranslations('common');
   const [agents, setAgents] = useState<AIAgentConfig[]>([]);
   const [loading, setLoading] = useState(true);
   const [isOpen, setIsOpen] = useState(false);
@@ -128,7 +135,7 @@ export function AgentSwitcher({
         className={`flex items-center gap-2 px-3 ${isSm ? 'py-1.5' : 'py-2'} bg-zinc-100 dark:bg-zinc-800 rounded-lg`}
       >
         <Loader2 className="w-4 h-4 text-zinc-400 animate-spin" />
-        <span className="text-xs text-zinc-400">読込中...</span>
+        <span className="text-xs text-zinc-400">{t('agentSwitcher.loading')}</span>
       </div>
     );
   }
@@ -139,7 +146,7 @@ export function AgentSwitcher({
         className={`flex items-center gap-2 px-3 ${isSm ? 'py-1.5' : 'py-2'} bg-zinc-100 dark:bg-zinc-800 rounded-lg`}
       >
         <Bot className="w-4 h-4 text-zinc-400" />
-        <span className="text-xs text-zinc-400">Claude Code（ビルトイン）</span>
+        <span className="text-xs text-zinc-400">{t('agentSwitcher.builtIn')}</span>
       </div>
     );
   }
@@ -148,7 +155,7 @@ export function AgentSwitcher({
     <div ref={dropdownRef} className="relative">
       {showLabel && (
         <label className="block text-xs font-medium text-zinc-500 dark:text-zinc-400 mb-1">
-          実行エージェント
+          {t('agentSwitcher.label')}
         </label>
       )}
       <button
@@ -158,8 +165,10 @@ export function AgentSwitcher({
         <div className="flex items-center gap-2 min-w-0">
           {displayAgent ? (
             <>
-              <span className={getTypeInfo(displayAgent.agentType).color}>
-                {getTypeInfo(displayAgent.agentType).icon}
+              <span
+                className={getTypeInfo(displayAgent.agentType, t('agentSwitcher.custom')).color}
+              >
+                {getTypeInfo(displayAgent.agentType, t('agentSwitcher.custom')).icon}
               </span>
               <span
                 className={`${isSm ? 'text-xs' : 'text-sm'} font-medium text-zinc-900 dark:text-zinc-100 truncate`}
@@ -168,7 +177,7 @@ export function AgentSwitcher({
               </span>
               {displayAgent.isDefault && !selectedAgentId && (
                 <span className="px-1.5 py-0.5 text-[10px] bg-indigo-100 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 rounded">
-                  デフォルト
+                  {t('agentSwitcher.default')}
                 </span>
               )}
             </>
@@ -176,7 +185,7 @@ export function AgentSwitcher({
             <>
               <Bot className="w-4 h-4 text-zinc-400" />
               <span className={`${isSm ? 'text-xs' : 'text-sm'} text-zinc-500 dark:text-zinc-400`}>
-                エージェントを選択
+                {t('agentSwitcher.selectPlaceholder')}
               </span>
             </>
           )}
@@ -201,7 +210,7 @@ export function AgentSwitcher({
               <Star className="w-4 h-4 text-indigo-500" />
               <div className="flex-1 text-left">
                 <span className="text-sm text-indigo-600 dark:text-indigo-400 font-medium">
-                  デフォルトに戻す
+                  {t('resetToDefault')}
                 </span>
                 <span className="text-xs text-zinc-400 dark:text-zinc-500 ml-1.5">
                   ({defaultAgent.name})
@@ -213,7 +222,7 @@ export function AgentSwitcher({
           {/* Agent list */}
           <div className="max-h-[240px] overflow-y-auto">
             {agents.map((agent) => {
-              const info = getTypeInfo(agent.agentType);
+              const info = getTypeInfo(agent.agentType, t('agentSwitcher.custom'));
               const isSelected =
                 agent.id === selectedAgentId || (!selectedAgentId && agent.isDefault);
 

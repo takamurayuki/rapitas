@@ -1,6 +1,7 @@
 'use client';
 // AITabContent
 import { useEffect, useRef, useState, useCallback } from 'react';
+import { useTranslations } from 'next-intl';
 import { Send, Loader2, Trash2, Settings, AlertCircle, MessageCircle } from 'lucide-react';
 import Link from 'next/link';
 import { useAIChat } from './useAIChat';
@@ -31,6 +32,7 @@ const SYSTEM_PROMPT =
  * and input form.
  */
 export default function AITabContent() {
+  const t = useTranslations('notes');
   const [inputValue, setInputValue] = useState('');
   const [showSettings, setShowSettings] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -114,7 +116,7 @@ export default function AITabContent() {
                 ? 'bg-zinc-200 dark:bg-zinc-700 text-zinc-900 dark:text-zinc-100'
                 : 'text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-200 hover:bg-zinc-200 dark:hover:bg-zinc-700'
             }`}
-            title="AI設定"
+            title={t('aiTab.settingsTitle')}
           >
             <Settings className="w-4 h-4" />
           </button>
@@ -122,7 +124,7 @@ export default function AITabContent() {
             <button
               onClick={clearMessages}
               className="p-1.5 text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-200 hover:bg-zinc-200 dark:hover:bg-zinc-700 rounded-lg transition-colors"
-              title="会話をクリア"
+              title={t('aiTab.clearChatTitle')}
             >
               <Trash2 className="w-4 h-4" />
             </button>
@@ -135,7 +137,7 @@ export default function AITabContent() {
         <div className="px-3 py-3 border-b border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800/50 space-y-3">
           <div>
             <label className="block text-xs font-medium text-zinc-600 dark:text-zinc-400 mb-1.5">
-              AIプロバイダー
+              {t('aiTab.providerLabel')}
             </label>
             <div className="flex gap-1.5">
               {(['claude', 'chatgpt', 'gemini'] as ApiProvider[]).map((p) => {
@@ -175,21 +177,21 @@ export default function AITabContent() {
                 className="inline-flex items-center gap-1 mt-1.5 text-xs text-indigo-500 hover:text-indigo-600 dark:text-indigo-400"
               >
                 <Settings className="w-3 h-3" />
-                設定画面でAPIキーを登録
+                {t('aiTab.apiKeyLink')}
               </Link>
             )}
           </div>
           {currentModels.length > 0 && (
             <div>
               <label className="block text-xs font-medium text-zinc-600 dark:text-zinc-400 mb-1.5">
-                モデル
+                {t('aiTab.modelLabel')}
               </label>
               <select
                 value={selectedModel}
                 onChange={(e) => setSelectedModel(e.target.value)}
                 className="w-full px-2 py-1.5 bg-white dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-600 rounded-lg text-xs text-zinc-900 dark:text-zinc-100 focus:outline-none focus:border-indigo-400"
               >
-                <option value="">デフォルト</option>
+                <option value="">{t('common.default')}</option>
                 {currentModels.map((m) => (
                   <option key={m.value} value={m.value}>
                     {m.label}
@@ -209,12 +211,12 @@ export default function AITabContent() {
               <MessageCircle className="w-8 h-8 text-zinc-400 dark:text-zinc-500" />
             </div>
             <h3 className="text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">
-              AIアシスタント
+              {t('aiTab.emptyTitle')}
             </h3>
             <p className="text-xs text-zinc-500 dark:text-zinc-400 max-w-xs">
-              タスク管理、学習計画、コーディングの質問など、
+              {t('aiTab.emptyLine1')}
               <br />
-              あなたの作業をサポートします。
+              {t('aiTab.emptyLine2')}
             </p>
           </div>
         ) : (
@@ -227,7 +229,9 @@ export default function AITabContent() {
                 <div className="bg-zinc-100 dark:bg-zinc-800 rounded-2xl rounded-bl-md px-3 py-2">
                   <div className="flex items-center gap-2">
                     <Loader2 className="w-3.5 h-3.5 animate-spin text-indigo-500" />
-                    <span className="text-xs text-zinc-500 dark:text-zinc-400">考え中...</span>
+                    <span className="text-xs text-zinc-500 dark:text-zinc-400">
+                      {t('aiTab.thinking')}
+                    </span>
                   </div>
                 </div>
               </div>
@@ -255,7 +259,7 @@ export default function AITabContent() {
             value={inputValue}
             onChange={handleInputChange}
             onKeyDown={handleKeyDown}
-            placeholder="メッセージを入力..."
+            placeholder={t('aiTab.messagePlaceholder')}
             disabled={isLoading}
             className="flex-1 resize-none rounded-xl border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800 px-3 py-2 text-sm text-zinc-900 dark:text-zinc-100 placeholder:text-zinc-400 focus:outline-none focus:border-indigo-400 disabled:opacity-50 disabled:cursor-not-allowed min-h-10 max-h-[120px]"
             rows={1}
@@ -273,7 +277,7 @@ export default function AITabContent() {
           </button>
         </div>
         <p className="text-[10px] text-zinc-400 dark:text-zinc-500 mt-1 text-center">
-          Enter で送信・Shift+Enter で改行
+          {t('aiTab.sendHint')}
         </p>
       </div>
     </div>

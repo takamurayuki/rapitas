@@ -5,6 +5,7 @@
  * ConcernCard rows. Pagination and filters are rendered by the orchestrator.
  */
 'use client';
+import { useTranslations } from 'next-intl';
 import { Loader2 } from 'lucide-react';
 import type { Theme } from '@/types';
 import { ConcernCard } from './ConcernCard';
@@ -39,6 +40,7 @@ export function ConcernList({
   onDelete,
   onPublish,
 }: ConcernListProps) {
+  const t = useTranslations('concerns');
   if (isLoading) {
     return (
       <div className="flex justify-center py-12">
@@ -50,7 +52,7 @@ export function ConcernList({
   if (concerns.length === 0) {
     return (
       <div className="rounded-xl border border-dashed border-zinc-200 py-12 text-center text-sm text-zinc-400 dark:border-zinc-700">
-        該当する懸念はありません。
+        {t('emptyState')}
       </div>
     );
   }

@@ -10,6 +10,7 @@
  */
 
 import { useState, useEffect, useCallback } from 'react';
+import { useTranslations } from 'next-intl';
 import { Lightbulb, Bug, Activity, Play, Loader2, CalendarClock } from 'lucide-react';
 import { API_BASE_URL } from '@/utils/api';
 import { useToast } from '@/components/ui/toast/ToastContainer';
@@ -27,35 +28,16 @@ interface Schedule {
   lastRunAt: string | null;
 }
 
-const JOB_META: Record<
-  JobKind,
-  { label: string; icon: typeof Lightbulb; color: string; desc: string }
-> = {
-  innovation: {
-    label: 'イノベーションセッション',
-    icon: Lightbulb,
-    color: 'text-amber-500',
-    desc: '完了タスクや既存機能を分析し、新しい価値のアイデアを生成してアイデアボックスに蓄積します。',
-  },
-  vuln_scan: {
-    label: '脆弱性・バグ調査',
-    icon: Bug,
-    color: 'text-rose-500',
-    desc: '各テーマの直近のコード変更をAIがレビューし、バグ・セキュリティ上の懸念を懸念バックログに起票します（依存の既知脆弱性も bun audit で確認）。',
-  },
-  health_check: {
-    label: 'ログヘルスチェック',
-    icon: Activity,
-    color: 'text-sky-500',
-    desc: 'その日のバックエンドログから warning / error を抽出し、種類ごとにまとめて懸念バックログに起票します。',
-  },
+// NOTE: `label`/`desc` text moved to i18n (backlog.settings.jobs.<kind>.*);
+// look it up with `t(\`jobs.${kind}.label\`)` at each render site.
+const JOB_META: Record<JobKind, { icon: typeof Lightbulb; color: string }> = {
+  innovation: { icon: Lightbulb, color: 'text-amber-500' },
+  vuln_scan: { icon: Bug, color: 'text-rose-500' },
+  health_check: { icon: Activity, color: 'text-sky-500' },
 };
 
-const FREQUENCIES: { value: Frequency; label: string }[] = [
-  { value: 'daily', label: '毎日' },
-  { value: 'weekly', label: '毎週' },
-];
-const WEEKDAYS = ['日', '月', '火', '水', '木', '金', '土'];
+const FREQUENCIES: Frequency[] = ['daily', 'weekly'];
+const WEEKDAY_INDEXES = [0, 1, 2, 3, 4, 5, 6];
 
 /** Formats an ISO timestamp as a short local datetime, or a dash. */
 function formatLastRun(iso: string | null): string {
@@ -67,6 +49,7 @@ function formatLastRun(iso: string | null): string {
 }
 
 export default function BacklogSettingsClient() {
+  const t = useTranslations('backlog');
   const [schedules, setSchedules] = useState<Schedule[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [runningKind, setRunningKind] = useState<JobKind | null>(null);
@@ -109,14 +92,14 @@ export default function BacklogSettingsClient() {
           setSchedules((prev) => prev.map((s) => (s.kind === kind ? data.schedule : s)));
         } else {
           setSchedules(before);
-          showToast('スケジュールの更新に失敗しました', 'error');
+          showToast(t('settings.scheduleUpdateFailed'), 'error');
         }
       } catch {
         setSchedules(before);
-        showToast('スケジュールの更新に失敗しました', 'error');
+        showToast(t('settings.scheduleUpdateFailed'), 'error');
       }
     },
-    [showToast],
+    [showToast, t],
   );
 
   const runNow = useCallback(
@@ -130,20 +113,18 @@ export default function BacklogSettingsClient() {
         });
         if (res.ok) {
           setNotice(
-            kind === 'innovation'
-              ? '実行を開始しました。生成されたアイデアはアイデアボックスに表示されます。'
-              : '実行を開始しました。検出された懸念は懸念バックログに表示されます。',
+            kind === 'innovation' ? t('settings.noticeInnovation') : t('settings.noticeOther'),
           );
         } else {
-          showToast('実行の開始に失敗しました', 'error');
+          showToast(t('settings.runFailed'), 'error');
         }
       } catch {
-        showToast('実行の開始に失敗しました', 'error');
+        showToast(t('settings.runFailed'), 'error');
       } finally {
         setRunningKind(null);
       }
     },
-    [showToast],
+    [showToast, t],
   );
 
   if (isLoading) {
@@ -158,11 +139,9 @@ export default function BacklogSettingsClient() {
     <div className="mx-auto max-w-3xl px-4 py-6">
       <div className="mb-1 flex items-center gap-2 text-lg font-semibold text-zinc-900 dark:text-zinc-100">
         <CalendarClock className="h-5 w-5 text-zinc-500" />
-        定期調査スケジュール
+        {t('settings.title')}
       </div>
-      <p className="mb-5 text-sm text-zinc-500 dark:text-zinc-400">
-        AIエージェントは実装時に随時アイデア・懸念を起票します。ここではそれとは別に、定期的に実行する調査のタイミングを設定します。
-      </p>
+      <p className="mb-5 text-sm text-zinc-500 dark:text-zinc-400">{t('settings.subtitle')}</p>
 
       {notice && (
         <div className="mb-4 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-700 dark:border-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-300">
@@ -184,9 +163,11 @@ export default function BacklogSettingsClient() {
                   <Icon className={`mt-0.5 h-5 w-5 ${meta.color}`} />
                   <div>
                     <div className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">
-                      {meta.label}
+                      {t(`settings.jobs.${s.kind}.label`)}
                     </div>
-                    <p className="mt-0.5 text-xs text-zinc-500 dark:text-zinc-400">{meta.desc}</p>
+                    <p className="mt-0.5 text-xs text-zinc-500 dark:text-zinc-400">
+                      {t(`settings.jobs.${s.kind}.desc`)}
+                    </p>
                   </div>
                 </div>
                 {/* Enable toggle */}
@@ -221,8 +202,8 @@ export default function BacklogSettingsClient() {
                   className="rounded-lg border border-zinc-200 bg-white px-2 py-1 text-xs dark:border-zinc-700 dark:bg-zinc-800"
                 >
                   {FREQUENCIES.map((f) => (
-                    <option key={f.value} value={f.value}>
-                      {f.label}
+                    <option key={f} value={f}>
+                      {t(`settings.frequency.${f}`)}
                     </option>
                   ))}
                 </select>
@@ -233,9 +214,9 @@ export default function BacklogSettingsClient() {
                     onChange={(e) => patchSchedule(s.kind, { weekday: parseInt(e.target.value) })}
                     className="rounded-lg border border-zinc-200 bg-white px-2 py-1 text-xs dark:border-zinc-700 dark:bg-zinc-800"
                   >
-                    {WEEKDAYS.map((w, i) => (
+                    {WEEKDAY_INDEXES.map((i) => (
                       <option key={i} value={i}>
-                        {w}曜
+                        {t(`settings.weekday.${i}`)}
                       </option>
                     ))}
                   </select>
@@ -254,7 +235,7 @@ export default function BacklogSettingsClient() {
                 </select>
 
                 <span className="text-xs text-zinc-400">
-                  最終実行: {formatLastRun(s.lastRunAt)}
+                  {t('settings.lastRun', { value: formatLastRun(s.lastRunAt) })}
                 </span>
 
                 <button
@@ -268,7 +249,7 @@ export default function BacklogSettingsClient() {
                   ) : (
                     <Play className="h-3 w-3" />
                   )}
-                  今すぐ実行
+                  {t('settings.runNow')}
                 </button>
               </div>
             </div>

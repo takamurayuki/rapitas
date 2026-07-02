@@ -8,19 +8,21 @@
  */
 
 import { useState } from 'react';
+import { useTranslations } from 'next-intl';
 import { NotebookTabs, Sparkles, Columns2, ArrowLeftRight, NotebookPen } from 'lucide-react';
 import { useNoteStore, type ModalTab, type SplitNoteSide } from '@/stores/note-store';
 import NoteTabContent from '@/components/note/note-tab-content';
 import AITabContent from '@/components/note/ai-tab-content';
 
-const TABS: { id: ModalTab; label: string; icon: React.ElementType }[] = [
-  { id: 'note', label: 'ノート', icon: NotebookTabs },
-  { id: 'ai', label: 'AI', icon: Sparkles },
-  { id: 'split', label: '両方', icon: Columns2 },
-];
-
 export default function NotesPage() {
+  const t = useTranslations('notes');
   const { notes, currentNoteId, createNote } = useNoteStore();
+
+  const TABS: { id: ModalTab; label: string; icon: React.ElementType }[] = [
+    { id: 'note', label: t('common.note'), icon: NotebookTabs },
+    { id: 'ai', label: 'AI', icon: Sparkles },
+    { id: 'split', label: t('common.split'), icon: Columns2 },
+  ];
 
   const [activeTab, setActiveTab] = useState<ModalTab>('note');
   const [splitNoteSide, setSplitNoteSide] = useState<SplitNoteSide>('right');
@@ -41,7 +43,9 @@ export default function NotesPage() {
         {/* Title */}
         <div className="flex items-center gap-2.5">
           <NotebookPen className="w-5 h-5 text-indigo-500 shrink-0" />
-          <h1 className="text-base font-semibold text-zinc-800 dark:text-zinc-100">ノート</h1>
+          <h1 className="text-base font-semibold text-zinc-800 dark:text-zinc-100">
+            {t('page.headerTitle')}
+          </h1>
         </div>
 
         {/* Right: swap button (split only) + segmented tab control */}
@@ -51,11 +55,9 @@ export default function NotesPage() {
               onClick={() => setSplitNoteSide((s) => (s === 'right' ? 'left' : 'right'))}
               className="p-2 text-zinc-500 dark:text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-lg transition-colors"
               title={
-                splitNoteSide === 'right'
-                  ? 'ノートを左に移動（AIを右に）'
-                  : 'ノートを右に移動（AIを左に）'
+                splitNoteSide === 'right' ? t('common.swapNoteLeft') : t('common.swapNoteRight')
               }
-              aria-label="左右を入れ替える"
+              aria-label={t('common.swapAriaLabel')}
             >
               <ArrowLeftRight className="w-4 h-4" />
             </button>

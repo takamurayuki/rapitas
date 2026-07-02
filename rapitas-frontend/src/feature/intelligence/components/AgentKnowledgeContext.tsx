@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
+import { useTranslations } from 'next-intl';
 import {
   Share2,
   AlertTriangle,
@@ -58,18 +59,18 @@ const categoryColors: Record<string, string> = {
   fact: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400',
 };
 
-const categoryLabels: Record<string, string> = {
-  success_strategy: '成功パターン',
-  failure_pattern: '失敗パターン',
-  optimization: '最適化',
-  anti_pattern: 'アンチパターン',
-  procedure: '手順',
-  pattern: 'パターン',
-  insight: '知見',
-  fact: '事実',
-};
-
 export function AgentKnowledgeContext({ taskId }: AgentKnowledgeContextProps) {
+  const t = useTranslations('intelligence.agentKnowledgeContext');
+  const categoryLabels: Record<string, string> = {
+    success_strategy: t('categorySuccessStrategy'),
+    failure_pattern: t('categoryFailurePattern'),
+    optimization: t('categoryOptimization'),
+    anti_pattern: t('categoryAntiPattern'),
+    procedure: t('categoryProcedure'),
+    pattern: t('categoryPattern'),
+    insight: t('categoryInsight'),
+    fact: t('categoryFact'),
+  };
   const [knowledge, setKnowledge] = useState<SharedKnowledge | null>(null);
   const [hasData, setHasData] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -100,7 +101,7 @@ export function AgentKnowledgeContext({ taskId }: AgentKnowledgeContextProps) {
       <div className="px-4 py-2 bg-indigo-50/50 dark:bg-indigo-900/10 border-t border-indigo-100 dark:border-indigo-900/30">
         <div className="flex items-center gap-2 text-xs text-indigo-500">
           <div className="w-3 h-3 border-2 border-indigo-300 border-t-transparent rounded-full animate-spin" />
-          共有ナレッジを取得中...
+          {t('loading')}
         </div>
       </div>
     );
@@ -121,14 +122,14 @@ export function AgentKnowledgeContext({ taskId }: AgentKnowledgeContextProps) {
         <div className="flex items-center gap-2">
           <Share2 className="w-4 h-4 text-indigo-500" />
           <span className="text-sm font-medium text-indigo-700 dark:text-indigo-300">
-            エージェント共有ナレッジ
+            {t('title')}
           </span>
           <span className="px-1.5 py-0.5 bg-indigo-100 dark:bg-indigo-900/40 text-indigo-600 dark:text-indigo-400 rounded text-[10px] font-medium">
-            {totalItems}件
+            {t('itemCount', { count: totalItems })}
           </span>
           {knowledge.warnings.length > 0 && (
             <span className="px-1.5 py-0.5 bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 rounded text-[10px] font-medium">
-              {knowledge.warnings.length}件の警告
+              {t('warningCount', { count: knowledge.warnings.length })}
             </span>
           )}
         </div>
@@ -147,7 +148,7 @@ export function AgentKnowledgeContext({ taskId }: AgentKnowledgeContextProps) {
             <div>
               <h4 className="text-[10px] font-medium text-red-600 dark:text-red-400 mb-1.5 flex items-center gap-1">
                 <AlertTriangle className="w-3 h-3" />
-                過去の失敗パターン
+                {t('pastFailuresHeading')}
               </h4>
               {knowledge.warnings.map((w) => (
                 <div
@@ -156,7 +157,7 @@ export function AgentKnowledgeContext({ taskId }: AgentKnowledgeContextProps) {
                 >
                   <p className="text-xs text-red-700 dark:text-red-300">{w.description}</p>
                   <span className="text-[10px] text-red-500 dark:text-red-400">
-                    {w.occurrences}回発生
+                    {t('occurrenceCount', { count: w.occurrences })}
                   </span>
                 </div>
               ))}
@@ -168,7 +169,7 @@ export function AgentKnowledgeContext({ taskId }: AgentKnowledgeContextProps) {
             <div>
               <h4 className="text-[10px] font-medium text-green-600 dark:text-green-400 mb-1.5 flex items-center gap-1">
                 <CheckCircle2 className="w-3 h-3" />
-                学習パターン
+                {t('learnedPatternsHeading')}
               </h4>
               <div className="space-y-1">
                 {knowledge.patterns.slice(0, 5).map((p) => (
@@ -198,7 +199,7 @@ export function AgentKnowledgeContext({ taskId }: AgentKnowledgeContextProps) {
             <div>
               <h4 className="text-[10px] font-medium text-indigo-600 dark:text-indigo-400 mb-1.5 flex items-center gap-1">
                 <BookOpen className="w-3 h-3" />
-                関連ナレッジ
+                {t('relatedKnowledgeHeading')}
               </h4>
               <div className="space-y-1">
                 {knowledge.relevantKnowledge.slice(0, 3).map((k) => (
@@ -227,7 +228,7 @@ export function AgentKnowledgeContext({ taskId }: AgentKnowledgeContextProps) {
             <div>
               <h4 className="text-[10px] font-medium text-violet-600 dark:text-violet-400 mb-1.5 flex items-center gap-1">
                 <Sparkles className="w-3 h-3" />
-                プロンプト改善履歴
+                {t('promptEvolutionsHeading')}
               </h4>
               {knowledge.promptEvolutions.slice(0, 3).map((pe) => (
                 <div
@@ -237,7 +238,7 @@ export function AgentKnowledgeContext({ taskId }: AgentKnowledgeContextProps) {
                   <span className="flex-1 truncate">{pe.changeDescription}</span>
                   {pe.performanceScore !== null && (
                     <span className="text-[10px] text-violet-500 shrink-0">
-                      スコア: {pe.performanceScore}
+                      {t('scoreLabel', { score: pe.performanceScore })}
                     </span>
                   )}
                 </div>

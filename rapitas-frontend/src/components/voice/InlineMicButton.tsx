@@ -7,6 +7,7 @@
  * Opens the global voice input bar targeting the associated input element.
  */
 import { useCallback, useRef } from 'react';
+import { useTranslations } from 'next-intl';
 import { Mic } from 'lucide-react';
 import { useVoiceInput } from './VoiceInputProvider';
 
@@ -21,6 +22,7 @@ interface InlineMicButtonProps {
 
 export default function InlineMicButton({ inputRef, onText, className }: InlineMicButtonProps) {
   const { openVoiceInput } = useVoiceInput();
+  const t = useTranslations('devTools');
 
   const handleClick = useCallback(() => {
     if (onText) {
@@ -37,8 +39,8 @@ export default function InlineMicButton({ inputRef, onText, className }: InlineM
       type="button"
       onClick={handleClick}
       className={`p-1 text-zinc-400 hover:text-indigo-500 transition-colors ${className || ''}`}
-      aria-label="音声入力"
-      title="音声入力 (Ctrl+Shift+V)"
+      aria-label={t('voice.inlineMicButton.ariaLabel')}
+      title={t('voice.inlineMicButton.title')}
     >
       <Mic className="w-4 h-4" />
     </button>

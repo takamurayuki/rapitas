@@ -5,12 +5,13 @@
  * convert/edit/delete actions. Pure presentational.
  */
 'use client';
+import { useTranslations } from 'next-intl';
 import { FolderOpen, Globe, Lightbulb, ListPlus, Loader2, Pencil, Trash2 } from 'lucide-react';
 import { getIconComponent } from '@/components/category/icon-data';
 import PriorityIcon from '@/feature/tasks/components/priority/PriorityIcon';
 import type { Theme } from '@/types';
 import type { Idea } from './idea-box.types';
-import { PRIORITY_HINT, SOURCE_ICONS } from './idea-box.utils';
+import { PRIORITY_HINT_KEY, SOURCE_ICONS } from './idea-box.utils';
 
 interface IdeaCardProps {
   idea: Idea;
@@ -36,6 +37,8 @@ export function IdeaCard({
   onEdit,
   onDelete,
 }: IdeaCardProps) {
+  const t = useTranslations('ideaBox');
+  const tCommon = useTranslations('common');
   const SourceIcon = SOURCE_ICONS[idea.source] ?? SOURCE_ICONS.user;
   // Converted ideas stay fully visible (not dimmed) and show a clickable
   // "タスク化済 #ID" badge — matching how the concern backlog renders
@@ -70,12 +73,12 @@ export function IdeaCard({
                       style={{ color: themeColor }}
                     >
                       <ThemeIcon className="h-3 w-3" />
-                      {currentTheme?.name ?? 'プロジェクト'}
+                      {currentTheme?.name ?? t('card.themeFallback')}
                     </span>
                   );
                 })()
               )}
-              <span title={`優先度: ${PRIORITY_HINT[idea.priority]}`}>
+              <span title={t('card.priorityTitle', { hint: t(PRIORITY_HINT_KEY[idea.priority]) })}>
                 <PriorityIcon priority={idea.priority} size="sm" />
               </span>
             </span>
@@ -86,18 +89,18 @@ export function IdeaCard({
                 href={`/tasks/${idea.usedInTaskId}`}
                 className="shrink-0 rounded-full bg-green-50 px-1.5 py-0.5 text-[10px] font-medium text-green-600 hover:underline dark:bg-green-900/30 dark:text-green-300"
               >
-                タスク化済 #{idea.usedInTaskId}
+                {t('card.taskCreatedBadge', { id: idea.usedInTaskId })}
               </a>
             )}
             {/* Source (manual / agent / AI assistant) — far right */}
             <span className="ml-auto flex shrink-0 items-center gap-0.5 text-[10px] text-zinc-400">
               <SourceIcon className="h-2.5 w-2.5" />
               {idea.source === 'user'
-                ? '手動'
+                ? t('card.sourceUser')
                 : idea.source === 'agent_execution'
-                  ? 'エージェント'
+                  ? t('card.sourceAgent')
                   : idea.source === 'copilot'
-                    ? 'AIアシスタント'
+                    ? t('card.sourceCopilot')
                     : idea.source}
             </span>
           </div>
@@ -118,7 +121,7 @@ export function IdeaCard({
           <button
             onClick={() => onConvert(idea)}
             disabled={isConverting && convertingIdeaId === idea.id}
-            title="タスク化（すぐ起票・AIなし）"
+            title={t('card.convertTitle')}
             className="flex items-center gap-1 rounded-lg bg-indigo-500 px-2.5 py-1 text-[11px] font-medium text-white hover:bg-indigo-600 disabled:opacity-50"
           >
             {isConverting && convertingIdeaId === idea.id ? (
@@ -126,22 +129,22 @@ export function IdeaCard({
             ) : (
               <ListPlus className="h-3 w-3" />
             )}
-            タスク化
+            {t('card.convertButton')}
           </button>
         )}
         <button
           onClick={() => onEdit(idea)}
           className="rounded-lg p-1 text-zinc-400 hover:bg-zinc-100 hover:text-amber-600 dark:hover:bg-zinc-800 dark:hover:text-amber-400 transition-colors"
-          aria-label="アイデアを編集"
-          title="アイデアを編集"
+          aria-label={t('card.editAriaLabel')}
+          title={t('card.editAriaLabel')}
         >
           <Pencil className="h-3.5 w-3.5" />
         </button>
         <button
           onClick={() => onDelete(idea.id)}
           className="rounded-lg p-1 text-zinc-400 hover:bg-zinc-100 hover:text-red-500 dark:hover:bg-zinc-800 transition-colors"
-          aria-label="削除"
-          title="削除"
+          aria-label={tCommon('delete')}
+          title={tCommon('delete')}
         >
           <Trash2 className="h-3.5 w-3.5" />
         </button>

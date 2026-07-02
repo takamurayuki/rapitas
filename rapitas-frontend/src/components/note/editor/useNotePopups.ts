@@ -74,10 +74,9 @@ export function useNotePopups(): NotePopupsState {
     const handleClickOutside = (event: MouseEvent) => {
       const target = event.target as HTMLElement;
       const isInsidePopup = target.closest('.absolute.top-full') !== null;
-      const isButton =
-        target.closest(
-          'button[title="ハイライト"], button[title="縦線"], button[title="リンク挿入"], button[title="コードブロック挿入"], button[title="文字サイズ"], button[title="フォント"], button[title="文字色"]',
-        ) !== null;
+      // NOTE: Uses a stable data attribute (not the translated `title` text) so
+      // outside-click detection keeps working regardless of the active locale.
+      const isButton = target.closest('button[data-popup-trigger="1"]') !== null;
       if (!isInsidePopup && !isButton) closeAllPopups();
     };
 

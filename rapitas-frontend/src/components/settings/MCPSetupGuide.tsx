@@ -7,6 +7,7 @@
  * Provides copy-paste config snippets for Cursor, Claude Code, etc.
  */
 import React, { useState } from 'react';
+import { useTranslations } from 'next-intl';
 import { Plug, Copy, Check, ChevronDown, ChevronUp } from 'lucide-react';
 
 const MCP_CONFIG = `{
@@ -29,6 +30,7 @@ const CLAUDE_CODE_CONFIG = `// ~/.claude/claude_desktop_config.json
 }`;
 
 export function MCPSetupGuide() {
+  const t = useTranslations('settings.mcpSetupGuide');
   const [expanded, setExpanded] = useState(false);
   const [copied, setCopied] = useState<string | null>(null);
 
@@ -45,20 +47,18 @@ export function MCPSetupGuide() {
         className="flex items-center gap-2 text-sm font-medium text-zinc-700 dark:text-zinc-300 hover:text-violet-600 dark:hover:text-violet-400 transition-colors"
       >
         <Plug className="w-4 h-4 text-indigo-500" />
-        MCP連携 (IDE統合)
+        {t('sectionTitle')}
         {expanded ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
       </button>
 
       {expanded && (
         <div className="space-y-4">
-          <p className="text-xs text-zinc-500 dark:text-zinc-400">
-            Cursor、Claude Code、WindsurfなどのIDEからRapitasのタスク管理を直接操作できます
-          </p>
+          <p className="text-xs text-zinc-500 dark:text-zinc-400">{t('description')}</p>
 
           <div>
             <div className="flex items-center justify-between mb-1">
               <span className="text-xs font-medium text-zinc-600 dark:text-zinc-400">
-                Cursor / Windsurf 設定
+                {t('cursorConfigTitle')}
               </span>
               <button
                 onClick={() => copyToClipboard(MCP_CONFIG, 'cursor')}
@@ -69,7 +69,7 @@ export function MCPSetupGuide() {
                 ) : (
                   <Copy className="w-3 h-3" />
                 )}
-                {copied === 'cursor' ? 'コピー済み' : 'コピー'}
+                {copied === 'cursor' ? t('copied') : t('copy')}
               </button>
             </div>
             <pre className="text-xs bg-zinc-900 text-zinc-300 p-3 rounded-lg overflow-x-auto font-mono">
@@ -80,7 +80,7 @@ export function MCPSetupGuide() {
           <div>
             <div className="flex items-center justify-between mb-1">
               <span className="text-xs font-medium text-zinc-600 dark:text-zinc-400">
-                Claude Code 設定
+                {t('claudeCodeConfigTitle')}
               </span>
               <button
                 onClick={() => copyToClipboard(CLAUDE_CODE_CONFIG, 'claude')}
@@ -91,7 +91,7 @@ export function MCPSetupGuide() {
                 ) : (
                   <Copy className="w-3 h-3" />
                 )}
-                {copied === 'claude' ? 'コピー済み' : 'コピー'}
+                {copied === 'claude' ? t('copied') : t('copy')}
               </button>
             </div>
             <pre className="text-xs bg-zinc-900 text-zinc-300 p-3 rounded-lg overflow-x-auto font-mono">
@@ -100,9 +100,9 @@ export function MCPSetupGuide() {
           </div>
 
           <div className="text-xs text-zinc-500 dark:text-zinc-400 space-y-1">
-            <p>利用可能なツール: タスク一覧/作成/更新、ワークフロー管理、進捗サマリー</p>
+            <p>{t('availableTools')}</p>
             <p>
-              API確認:{' '}
+              {t('apiCheck')}:{' '}
               <code className="px-1.5 py-0.5 bg-zinc-100 dark:bg-zinc-800 rounded text-zinc-600 dark:text-zinc-400">
                 GET http://localhost:3001/mcp/info
               </code>

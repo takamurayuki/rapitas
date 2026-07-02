@@ -6,6 +6,7 @@
  */
 
 import React from 'react';
+import { useTranslations } from 'next-intl';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Select } from '@/components/ui/select';
@@ -31,16 +32,18 @@ interface LogSettingsTabProps {
  * @param props - LogSettingsTabProps
  */
 export const LogSettingsTab: React.FC<LogSettingsTabProps> = ({ filter, onFilterChange }) => {
+  const t = useTranslations('devTools');
+  const tCommon = useTranslations('common');
   return (
     <div className="space-y-4">
       <Card>
         <CardHeader>
-          <CardTitle>フィルター設定</CardTitle>
+          <CardTitle>{t('debugLogAnalyzer.settings.filterTitle')}</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label>最小ログレベル</Label>
+              <Label>{t('debugLogAnalyzer.settings.minLevel')}</Label>
               <Select
                 value={filter.level || ''}
                 onChange={(e) =>
@@ -50,7 +53,7 @@ export const LogSettingsTab: React.FC<LogSettingsTabProps> = ({ filter, onFilter
                   })
                 }
               >
-                <option value="">すべて</option>
+                <option value="">{tCommon('all')}</option>
                 <option value="trace">TRACE</option>
                 <option value="debug">DEBUG</option>
                 <option value="info">INFO</option>
@@ -61,9 +64,9 @@ export const LogSettingsTab: React.FC<LogSettingsTabProps> = ({ filter, onFilter
             </div>
 
             <div className="space-y-2">
-              <Label>ソースフィルター</Label>
+              <Label>{t('debugLogAnalyzer.settings.sourceFilter')}</Label>
               <Input
-                placeholder="例: app.main"
+                placeholder={t('debugLogAnalyzer.settings.sourceFilterPlaceholder')}
                 value={filter.source || ''}
                 onChange={(e) =>
                   onFilterChange({
@@ -75,7 +78,7 @@ export const LogSettingsTab: React.FC<LogSettingsTabProps> = ({ filter, onFilter
             </div>
 
             <div className="space-y-2">
-              <Label>開始時刻</Label>
+              <Label>{t('debugLogAnalyzer.settings.startTime')}</Label>
               <Input
                 type="datetime-local"
                 value={filter.startTime ? filter.startTime.toISOString().slice(0, 16) : ''}
@@ -89,7 +92,7 @@ export const LogSettingsTab: React.FC<LogSettingsTabProps> = ({ filter, onFilter
             </div>
 
             <div className="space-y-2">
-              <Label>終了時刻</Label>
+              <Label>{t('debugLogAnalyzer.settings.endTime')}</Label>
               <Input
                 type="datetime-local"
                 value={filter.endTime ? filter.endTime.toISOString().slice(0, 16) : ''}
@@ -103,9 +106,9 @@ export const LogSettingsTab: React.FC<LogSettingsTabProps> = ({ filter, onFilter
             </div>
 
             <div className="col-span-2 space-y-2">
-              <Label>テキスト検索</Label>
+              <Label>{t('debugLogAnalyzer.settings.textSearch')}</Label>
               <Input
-                placeholder="検索キーワード..."
+                placeholder={t('debugLogAnalyzer.settings.searchPlaceholder')}
                 value={filter.searchText || ''}
                 onChange={(e) =>
                   onFilterChange({
@@ -122,20 +125,18 @@ export const LogSettingsTab: React.FC<LogSettingsTabProps> = ({ filter, onFilter
             onClickAction={() => onFilterChange({})}
             disabled={Object.keys(filter).length === 0}
           >
-            フィルターをクリア
+            {t('debugLogAnalyzer.settings.clearFilter')}
           </Button>
         </CardContent>
       </Card>
 
       <Card>
         <CardHeader>
-          <CardTitle>カスタムパーサー設定</CardTitle>
+          <CardTitle>{t('debugLogAnalyzer.settings.customParserTitle')}</CardTitle>
         </CardHeader>
         <CardContent>
           <Alert>
-            <AlertDescription>
-              カスタムパーサーの設定は、APIエンドポイント経由で設定可能です。
-            </AlertDescription>
+            <AlertDescription>{t('debugLogAnalyzer.settings.customParserHint')}</AlertDescription>
           </Alert>
         </CardContent>
       </Card>

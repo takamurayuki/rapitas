@@ -1,5 +1,6 @@
 'use client';
 // NoteModalHeader
+import { useTranslations } from 'next-intl';
 import {
   NotebookTabs,
   Sparkles,
@@ -53,6 +54,8 @@ export default function NoteModalHeader({
   onClose,
   onSwapSplit,
 }: NoteModalHeaderProps) {
+  const t = useTranslations('notes');
+  const tc = useTranslations('common');
   const handleTabClick = (tab: ModalTab) => (e: React.MouseEvent) => {
     // NOTE: Suppress click when the mousedown was the start of a drag gesture.
     if (didDragRef.current) {
@@ -97,10 +100,10 @@ export default function NoteModalHeader({
       <div
         className="relative flex items-center bg-white/15 rounded-md p-0.5"
         role="tablist"
-        aria-label="ノートモーダル"
+        aria-label={t('modalHeader.ariaLabel')}
       >
         <span id="note-modal-title" className="sr-only">
-          ノート
+          {t('common.note')}
         </span>
         <button
           role="tab"
@@ -115,7 +118,7 @@ export default function NoteModalHeader({
           }`}
         >
           <NotebookTabs className="w-3.5 h-3.5" aria-hidden="true" />
-          <span>ノート</span>
+          <span>{t('common.note')}</span>
         </button>
         <button
           role="tab"
@@ -145,7 +148,7 @@ export default function NoteModalHeader({
           }`}
         >
           <Columns2 className="w-3.5 h-3.5" aria-hidden="true" />
-          <span>両方</span>
+          <span>{t('common.split')}</span>
         </button>
       </div>
 
@@ -161,8 +164,8 @@ export default function NoteModalHeader({
               type="text"
               value={searchQuery}
               onChange={(e) => onSearchChange(e.target.value)}
-              placeholder="ノートを検索..."
-              aria-label="ノートを検索"
+              placeholder={t('common.searchPlaceholder')}
+              aria-label={t('modalHeader.searchAriaLabel')}
               className="w-full pl-7 pr-2 py-1 bg-white/15 hover:bg-white/20 focus:bg-white/25 text-white placeholder:text-white/50 text-sm rounded-lg border border-white/10 focus:border-white/30 focus:outline-none transition-all"
             />
           </div>
@@ -179,12 +182,8 @@ export default function NoteModalHeader({
             onMouseDown={isMaximized ? undefined : onDragStart}
             onClick={handleSwapClick}
             className="p-1.5 text-white/80 hover:text-white hover:bg-white/10 rounded-lg transition-colors"
-            title={
-              splitNoteSide === 'right'
-                ? 'ノートを左に移動（AIを右に）'
-                : 'ノートを右に移動（AIを左に）'
-            }
-            aria-label="左右を入れ替える"
+            title={splitNoteSide === 'right' ? t('common.swapNoteLeft') : t('common.swapNoteRight')}
+            aria-label={t('common.swapAriaLabel')}
           >
             <ArrowLeftRight className="w-4 h-4" />
           </button>
@@ -193,7 +192,7 @@ export default function NoteModalHeader({
           onMouseDown={isMaximized ? undefined : onDragStart}
           onClick={handleMaximizeClick}
           className="p-1.5 text-white/80 hover:text-white hover:bg-white/10 rounded-lg transition-colors"
-          title={isMaximized ? '元のサイズに戻す' : '全画面表示'}
+          title={isMaximized ? t('modalHeader.restoreTitle') : t('modalHeader.maximizeTitle')}
         >
           {isMaximized ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
         </button>
@@ -201,7 +200,7 @@ export default function NoteModalHeader({
           onMouseDown={isMaximized ? undefined : onDragStart}
           onClick={handleCloseClick}
           className="p-1.5 text-white/80 hover:text-white hover:bg-white/10 rounded-lg transition-colors"
-          title="閉じる"
+          title={tc('close')}
         >
           <X className="w-4 h-4" />
         </button>

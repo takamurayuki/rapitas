@@ -1,5 +1,6 @@
 'use client';
 import { useEffect, useState, useRef } from 'react';
+import { useTranslations } from 'next-intl';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
@@ -32,6 +33,7 @@ export default function MarkdownViewer({
   const [showTocPanel, setShowTocPanel] = useState(false);
   const contentRef = useRef<HTMLDivElement>(null);
   const { isDarkMode } = useDarkMode();
+  const t = useTranslations('devTools');
 
   useEffect(() => {
     setMounted(true);
@@ -92,7 +94,7 @@ export default function MarkdownViewer({
         <button
           onClick={() => setShowTocPanel(!showTocPanel)}
           className="fixed right-8 top-32 z-40 p-2 bg-white dark:bg-zinc-800 rounded-lg shadow-lg hover:shadow-xl transition-all duration-200 border border-zinc-200 dark:border-zinc-700"
-          title="目次"
+          title={t('markdownViewer.toc')}
         >
           <List className="w-5 h-5 text-zinc-600 dark:text-zinc-400" />
         </button>
@@ -102,7 +104,9 @@ export default function MarkdownViewer({
       {showToc && showTocPanel && (
         <div className="fixed right-8 top-44 z-40 w-72 max-h-[70vh] bg-white dark:bg-zinc-800 rounded-lg shadow-xl border border-zinc-200 dark:border-zinc-700 overflow-hidden">
           <div className="p-4 border-b border-zinc-200 dark:border-zinc-700">
-            <h3 className="font-semibold text-zinc-900 dark:text-zinc-100">目次</h3>
+            <h3 className="font-semibold text-zinc-900 dark:text-zinc-100">
+              {t('markdownViewer.toc')}
+            </h3>
           </div>
           <div className="overflow-y-auto max-h-[calc(70vh-60px)] p-4">
             {toc.map((item) => (
@@ -261,7 +265,7 @@ export default function MarkdownViewer({
                   <button
                     onClick={() => handleCopyCode(codeString, codeId)}
                     className="absolute top-2 right-2 p-2 bg-zinc-800 dark:bg-zinc-700 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 hover:bg-zinc-700 dark:hover:bg-zinc-600"
-                    title="コードをコピー"
+                    title={t('markdownViewer.copyCode')}
                   >
                     {copiedCode === codeId ? (
                       <Check className="w-4 h-4 text-green-400" />

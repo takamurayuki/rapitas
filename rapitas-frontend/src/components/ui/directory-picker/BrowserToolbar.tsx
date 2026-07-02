@@ -10,6 +10,7 @@
  */
 
 import { FolderPlus, ArrowUp, Monitor, HardDrive, GitBranch, Star, StarOff } from 'lucide-react';
+import { useTranslations } from 'next-intl';
 import type { FavoriteDirectory } from './types';
 
 type BrowserToolbarProps = {
@@ -66,6 +67,8 @@ export function BrowserToolbar({
   onAddFavorite,
   onRemoveFavorite,
 }: BrowserToolbarProps) {
+  const t = useTranslations('common');
+
   return (
     <div className="flex items-center gap-2 px-4 py-2 border-b border-zinc-200 dark:border-zinc-700">
       <div className="flex items-center gap-1 border-r border-zinc-200 dark:border-zinc-700 pr-2 mr-1">
@@ -73,7 +76,7 @@ export function BrowserToolbar({
           onClick={onGoUp}
           disabled={isLoading}
           className="p-2 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-          title="上のフォルダへ"
+          title={t('directoryPicker.goUp')}
         >
           <ArrowUp className="w-4 h-4" />
         </button>
@@ -81,7 +84,7 @@ export function BrowserToolbar({
           onClick={onGoToDrives}
           disabled={isLoading}
           className="p-2 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-md transition-colors disabled:opacity-50"
-          title="ドライブ一覧"
+          title={t('directoryPicker.driveList')}
         >
           <Monitor className="w-4 h-4" />
         </button>
@@ -90,7 +93,7 @@ export function BrowserToolbar({
       <div className="flex-1 flex items-center gap-2 px-3 py-1.5 bg-zinc-100 dark:bg-zinc-800 rounded-lg overflow-x-auto min-w-0">
         <HardDrive className="w-4 h-4 text-zinc-400 shrink-0" />
         <span className="text-sm font-mono text-zinc-700 dark:text-zinc-300 truncate">
-          {currentPath || 'ドライブ一覧'}
+          {currentPath || t('directoryPicker.driveList')}
         </span>
         {isGitRepo && (
           <span className="flex items-center gap-1 px-2 py-0.5 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 rounded text-xs font-medium shrink-0">
@@ -106,10 +109,10 @@ export function BrowserToolbar({
             onClick={onStartCreateFolder}
             disabled={isCreatingFolder}
             className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium text-green-600 dark:text-green-400 hover:bg-green-50 dark:hover:bg-green-900/20 transition-colors disabled:opacity-50"
-            title="新規フォルダを作成"
+            title={t('directoryPicker.createFolderTitle')}
           >
             <FolderPlus className="w-3.5 h-3.5" />
-            <span className="hidden sm:inline">新規</span>
+            <span className="hidden sm:inline">{t('directoryPicker.newShort')}</span>
           </button>
         )}
 
@@ -120,7 +123,9 @@ export function BrowserToolbar({
               ? 'text-yellow-600 bg-yellow-50 dark:bg-yellow-900/20 dark:text-yellow-400'
               : 'text-zinc-500 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800'
           }`}
-          title={showFavorites ? 'お気に入りを非表示' : 'お気に入りを表示'}
+          title={
+            showFavorites ? t('directoryPicker.hideFavorites') : t('directoryPicker.showFavorites')
+          }
         >
           <Star className={`w-3.5 h-3.5 ${showFavorites ? 'fill-current' : ''}`} />
           <span className="hidden sm:inline">{favorites.length}</span>
@@ -141,17 +146,21 @@ export function BrowserToolbar({
                 ? 'text-yellow-600 bg-yellow-100 dark:bg-yellow-900/30 dark:text-yellow-400'
                 : 'text-zinc-500 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800'
             }`}
-            title={isFavorite(currentPath) ? 'お気に入りから削除' : 'お気に入りに追加'}
+            title={
+              isFavorite(currentPath)
+                ? t('directoryPicker.removeFavorite')
+                : t('directoryPicker.addFavoriteTitle')
+            }
           >
             {isFavorite(currentPath) ? (
               <>
                 <Star className="w-3.5 h-3.5 fill-current" />
-                <span className="hidden sm:inline">登録済</span>
+                <span className="hidden sm:inline">{t('directoryPicker.favorited')}</span>
               </>
             ) : (
               <>
                 <StarOff className="w-3.5 h-3.5" />
-                <span className="hidden sm:inline">追加</span>
+                <span className="hidden sm:inline">{t('add')}</span>
               </>
             )}
           </button>

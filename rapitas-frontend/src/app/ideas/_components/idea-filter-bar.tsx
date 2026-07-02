@@ -6,6 +6,7 @@
  */
 'use client';
 import type { Dispatch, SetStateAction } from 'react';
+import { useTranslations } from 'next-intl';
 import type { Category, Theme } from '@/types';
 import type { IdeaPriority } from './idea-box.types';
 
@@ -41,27 +42,22 @@ export function IdeaFilterBar({
   filterThemes,
   searchQuery,
 }: IdeaFilterBarProps) {
+  const t = useTranslations('ideaBox');
   return (
     <div className="mb-4 flex flex-wrap items-center gap-3">
       {/* Status */}
       <div className="flex overflow-hidden rounded-lg border border-zinc-200 dark:border-zinc-700">
-        {(
-          [
-            { value: 'open', label: '未対応' },
-            { value: 'used', label: 'タスク化済み' },
-            { value: 'all', label: 'すべて' },
-          ] as const
-        ).map((tab) => (
+        {(['open', 'used', 'all'] as const).map((value) => (
           <button
-            key={tab.value}
-            onClick={() => setStatusFilter(tab.value)}
+            key={value}
+            onClick={() => setStatusFilter(value)}
             className={`px-3 py-1.5 text-xs font-medium transition-colors ${
-              statusFilter === tab.value
+              statusFilter === value
                 ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300'
                 : 'text-zinc-500 hover:bg-zinc-50 dark:hover:bg-zinc-800'
             }`}
           >
-            {tab.label}
+            {t(`filterBar.status.${value}`)}
           </button>
         ))}
       </div>
@@ -71,18 +67,18 @@ export function IdeaFilterBar({
         onChange={(e) => setPriorityFilter(e.target.value as 'all' | IdeaPriority)}
         className="rounded-lg border border-zinc-200 bg-white px-2 py-1.5 text-xs outline-none focus:border-blue-400 dark:border-zinc-700 dark:bg-zinc-800"
       >
-        <option value="all">すべての優先度</option>
-        <option value="urgent">緊急</option>
-        <option value="high">高</option>
-        <option value="medium">中</option>
-        <option value="low">低</option>
+        <option value="all">{t('filterBar.allPriorities')}</option>
+        <option value="urgent">{t('filterBar.priority.urgent')}</option>
+        <option value="high">{t('filterBar.priority.high')}</option>
+        <option value="medium">{t('filterBar.priority.medium')}</option>
+        <option value="low">{t('filterBar.priority.low')}</option>
       </select>
       <select
         value={filterCategoryId ?? ''}
         onChange={(e) => onFilterCategoryChange(e.target.value ? parseInt(e.target.value) : null)}
         className="rounded-lg border border-zinc-200 bg-white px-2 py-1.5 text-xs outline-none focus:border-blue-400 dark:border-zinc-700 dark:bg-zinc-800"
       >
-        <option value="">すべてのカテゴリ</option>
+        <option value="">{t('filterBar.allCategories')}</option>
         {categories.map((cat) => (
           <option key={cat.id} value={cat.id}>
             {cat.name}
@@ -94,7 +90,7 @@ export function IdeaFilterBar({
         onChange={(e) => setFilterThemeId(e.target.value ? parseInt(e.target.value) : null)}
         className="rounded-lg border border-zinc-200 bg-white px-2 py-1.5 text-xs outline-none focus:border-blue-400 dark:border-zinc-700 dark:bg-zinc-800"
       >
-        <option value="">すべてのテーマ</option>
+        <option value="">{t('filterBar.allThemes')}</option>
         {filterThemes.map((th) => (
           <option key={th.id} value={th.id}>
             {th.name}
@@ -103,7 +99,7 @@ export function IdeaFilterBar({
       </select>
       {searchQuery && (
         <span className="text-[11px] text-zinc-500 dark:text-zinc-400">
-          検索: 「{searchQuery}」
+          {t('filterBar.searchLabel', { query: searchQuery })}
         </span>
       )}
     </div>

@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import { useTranslations } from 'next-intl';
 import { SearchX } from 'lucide-react';
 import { API_BASE_URL } from '@/utils/api';
 import { createLogger } from '@/lib/logger';
@@ -27,6 +28,7 @@ interface RelatedSearchMissPanelProps {
  * GET /search/miss/related; renders nothing when there are no related misses.
  */
 export function RelatedSearchMissPanel({ title, description }: RelatedSearchMissPanelProps) {
+  const t = useTranslations('intelligence.relatedSearchMissPanel');
   const [items, setItems] = useState<SearchMissItem[]>([]);
   const [loading, setLoading] = useState(false);
   const debounceRef = useRef<ReturnType<typeof setTimeout>>(undefined);
@@ -64,16 +66,14 @@ export function RelatedSearchMissPanel({ title, description }: RelatedSearchMiss
     <div className="rounded-lg border border-amber-200 dark:border-amber-800/50 bg-amber-50/50 dark:bg-amber-900/10 p-3">
       <div className="flex items-center gap-2 mb-2">
         <SearchX className="w-4 h-4 text-amber-500" />
-        <span className="text-sm font-medium text-amber-700 dark:text-amber-300">
-          この領域で見つからなかった検索
-        </span>
+        <span className="text-sm font-medium text-amber-700 dark:text-amber-300">{t('title')}</span>
         {loading && (
           <div className="w-3 h-3 border-2 border-amber-300 border-t-transparent rounded-full animate-spin" />
         )}
       </div>
 
       <p className="text-[10px] text-amber-600/80 dark:text-amber-400/70 mb-2">
-        過去に同じ領域で結果が得られなかった検索です。事前に落とし穴を把握できます。
+        {t('description')}
       </p>
 
       <div className="space-y-1.5">
@@ -87,7 +87,7 @@ export function RelatedSearchMissPanel({ title, description }: RelatedSearchMiss
               {item.query}
             </p>
             <span className="text-[10px] text-amber-600 dark:text-amber-400 shrink-0">
-              {item.hitCount} 回失敗
+              {t('failCount', { count: item.hitCount })}
             </span>
           </div>
         ))}

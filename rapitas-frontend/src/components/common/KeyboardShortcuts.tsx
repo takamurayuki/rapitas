@@ -2,6 +2,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { X, Keyboard } from 'lucide-react';
+import { useTranslations } from 'next-intl';
 import { useShortcutStore, type ShortcutId } from '@/stores/shortcut-store';
 import { useNoteStore } from '@/stores/note-store';
 
@@ -14,6 +15,8 @@ export const OPEN_SHORTCUTS_EVENT = 'openKeyboardShortcuts';
 
 export default function KeyboardShortcuts() {
   const router = useRouter();
+  const t = useTranslations('common');
+  const tNav = useTranslations('nav');
   const [showHelp, setShowHelp] = useState(false);
   const [isMac, _setIsMac] = useState(() => getIsMac());
   const shortcuts = useShortcutStore((state) => state.shortcuts);
@@ -120,13 +123,13 @@ export default function KeyboardShortcuts() {
               id="keyboard-shortcuts-title"
               className="text-lg font-semibold text-zinc-900 dark:text-zinc-50"
             >
-              キーボードショートカット
+              {tNav('keyboardShortcuts')}
             </h2>
           </div>
           <button
             onClick={() => setShowHelp(false)}
             className="p-1.5 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-700 rounded-lg"
-            aria-label="閉じる"
+            aria-label={t('close')}
           >
             <X className="w-5 h-5" aria-hidden="true" />
           </button>
@@ -145,7 +148,7 @@ export default function KeyboardShortcuts() {
 
         <div className="p-4 border-t border-zinc-200 dark:border-zinc-700 text-center">
           <p className="text-xs text-zinc-500 dark:text-zinc-400">
-            {isMac ? '\u2318 は Command キー、\u21E7 は Shift キー' : 'Ctrl は Control キー'}
+            {isMac ? t('keyboardShortcuts.macHelp') : t('keyboardShortcuts.ctrlHelp')}
           </p>
         </div>
       </div>

@@ -9,6 +9,7 @@
  */
 
 import { useState, useEffect, useRef } from 'react';
+import { useTranslations } from 'next-intl';
 import { API_BASE_URL } from '@/utils/api';
 import { createLogger } from '@/lib/logger';
 import type { BrowseResult, FavoriteDirectory, DirectoryEntry } from './types';
@@ -75,6 +76,7 @@ export function useDirectoryPicker(
   value: string,
   onChange: (path: string) => void,
 ): UseDirectoryPickerReturn {
+  const t = useTranslations('common');
   const {
     favorites,
     isLoadingFavorites,
@@ -141,7 +143,7 @@ export function useDirectoryPicker(
       setIsGitRepo(data.isGitRepo || false);
       setIsDriveList(data.isDriveList || false);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'ディレクトリの取得に失敗しました');
+      setError(err instanceof Error ? err.message : t('directoryPicker.fetchError'));
     } finally {
       setIsLoading(false);
     }
@@ -233,11 +235,11 @@ export function useDirectoryPicker(
 
   const handleCreateFolder = async () => {
     if (!newFolderName.trim()) {
-      setCreateError('フォルダ名を入力してください');
+      setCreateError(t('directoryPicker.nameRequired'));
       return;
     }
     if (/[<>:"/\\|?*]/.test(newFolderName)) {
-      setCreateError('フォルダ名に使用できない文字が含まれています');
+      setCreateError(t('directoryPicker.invalidChars'));
       return;
     }
     const sep = currentPath.includes('\\') ? '\\' : '/';
@@ -254,7 +256,7 @@ export function useDirectoryPicker(
       });
       const data = await res.json();
       if (!data.success) {
-        setCreateError(data.error || 'フォルダの作成に失敗しました');
+        setCreateError(data.error || t('directoryPicker.createError'));
         return;
       }
       setIsCreatingFolder(false);
@@ -262,7 +264,7 @@ export function useDirectoryPicker(
       setCreateError(null);
       browseDirectory(data.path);
     } catch (err) {
-      setCreateError(err instanceof Error ? err.message : 'フォルダの作成に失敗しました');
+      setCreateError(err instanceof Error ? err.message : t('directoryPicker.createError'));
     } finally {
       setIsCreating(false);
     }

@@ -1,6 +1,7 @@
 'use client';
 // ChatMessage
 import { useState } from 'react';
+import { useTranslations } from 'next-intl';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import remarkBreaks from 'remark-breaks';
@@ -15,6 +16,7 @@ import type { AIChatMessage } from '@/types';
  * @param message - The chat message to display / 表示するチャットメッセージ
  */
 export default function ChatMessage({ message }: { message: AIChatMessage }) {
+  const t = useTranslations('notes');
   const isUser = message.role === 'user';
   const [copiedCode, setCopiedCode] = useState<string | null>(null);
 
@@ -124,7 +126,7 @@ export default function ChatMessage({ message }: { message: AIChatMessage }) {
                           setTimeout(() => setCopiedCode(null), 2000);
                         }}
                         className="absolute top-2 right-2 px-2 py-1 text-xs bg-zinc-700 hover:bg-zinc-600 text-zinc-300 rounded opacity-0 group-hover:opacity-100 transition-all duration-200 flex items-center gap-1"
-                        title="コードをコピー"
+                        title={t('chatMessage.copyCodeTitle')}
                       >
                         {copiedCode === codeString ? (
                           <>

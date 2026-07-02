@@ -14,6 +14,7 @@
  */
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
+import { useTranslations } from 'next-intl';
 import { Mic, MicOff, X, Send, Wand2, Loader2, Navigation, ListPlus, Search } from 'lucide-react';
 import AudioWaveform from '../smart-command-bar/AudioWaveform';
 import { encodeWav, resamplePcm } from '@/lib/audio/wav-codec';
@@ -47,6 +48,8 @@ interface VoiceInputBarProps {
 
 export default function VoiceInputBar({ isOpen, onClose, target }: VoiceInputBarProps) {
   const router = useRouter();
+  const t = useTranslations('devTools');
+  const tCommon = useTranslations('common');
   const [isRecording, setIsRecording] = useState(false);
   const [isTranscribing, setIsTranscribing] = useState(false);
   const [lastCommand, setLastCommand] = useState<VoiceCommandResponse | null>(null);
@@ -66,7 +69,7 @@ export default function VoiceInputBar({ isOpen, onClose, target }: VoiceInputBar
     try {
       setError(null);
       setTranscript('');
-      setInterimInfo('話してください...');
+      setInterimInfo(t('voice.inputBar.listening'));
 
       const mediaStream = await navigator.mediaDevices.getUserMedia({
         audio: true,
@@ -118,14 +121,14 @@ export default function VoiceInputBar({ isOpen, onClose, target }: VoiceInputBar
 
         if (state.hasSpoken) {
           const silenceMs = Date.now() - state.lastSoundTime;
-          setInterimInfo(`録音中... (${(silenceMs / 1000).toFixed(1)}s)`);
+          setInterimInfo(t('voice.inputBar.recording', { seconds: (silenceMs / 1000).toFixed(1) }));
 
           if (silenceMs > SILENCE_MS) {
             clearInterval(timer);
             recorder.stop();
           }
         } else {
-          setInterimInfo(`話してください... (音量: ${avg.toFixed(0)})`);
+          setInterimInfo(t('voice.inputBar.listeningVolume', { volume: avg.toFixed(0) }));
         }
       }, 100);
 
@@ -152,9 +155,9 @@ export default function VoiceInputBar({ isOpen, onClose, target }: VoiceInputBar
       mediaRecorderRef.current = recorder;
       setIsRecording(true);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'マイクの起動に失敗しました');
+      setError(err instanceof Error ? err.message : t('voice.inputBar.micStartFailed'));
     }
-  }, []);
+  }, [t]);
 
   // Stop recording manually
   const stopRecording = useCallback(() => {
@@ -170,7 +173,7 @@ export default function VoiceInputBar({ isOpen, onClose, target }: VoiceInputBar
   // Transcribe audio and deliver result
   const transcribeAndDeliver = async (blob: Blob) => {
     setIsTranscribing(true);
-    setInterimInfo('文字起こし中...');
+    setInterimInfo(t('voice.inputBar.recognizing'));
 
     try {
       // Decode webm → PCM → WAV
@@ -214,14 +217,14 @@ export default function VoiceInputBar({ isOpen, onClose, target }: VoiceInputBar
             deliverResult(result.text.trim());
           }
         } else {
-          setInterimInfo('音声を認識できませんでした');
+          setInterimInfo(t('voice.inputBar.recognitionFailed'));
         }
       } else {
-        const data = await response.json().catch(() => ({ error: 'エラー' }));
-        setError((data as { error?: string }).error || '文字起こしに失敗しました');
+        const data = await response.json().catch(() => ({ error: tCommon('error') }));
+        setError((data as { error?: string }).error || t('voice.inputBar.transcribeFailed'));
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : '文字起こしエラー');
+      setError(err instanceof Error ? err.message : t('voice.inputBar.transcribeError'));
     } finally {
       setIsTranscribing(false);
       setInterimInfo('');
@@ -234,7 +237,7 @@ export default function VoiceInputBar({ isOpen, onClose, target }: VoiceInputBar
       switch (cmd.type) {
         case 'navigate':
           if (cmd.path) {
-            setInterimInfo(`${cmd.label || cmd.path} に移動します...`);
+            setInterimInfo(t('voice.inputBar.navigatingTo', { label: cmd.label || cmd.path }));
             setTimeout(() => {
               router.push(cmd.path!);
               onClose();
@@ -244,7 +247,7 @@ export default function VoiceInputBar({ isOpen, onClose, target }: VoiceInputBar
 
         case 'create_task':
           if (cmd.title) {
-            setInterimInfo(`タスク「${cmd.title}」を作成中...`);
+            setInterimInfo(t('voice.inputBar.creatingTask', { title: cmd.title }));
             fetch(`${BACKEND_URL}/tasks`, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
@@ -252,11 +255,11 @@ export default function VoiceInputBar({ isOpen, onClose, target }: VoiceInputBar
             })
               .then((res) => {
                 if (res.ok) {
-                  setInterimInfo(`タスク「${cmd.title}」を作成しました`);
+                  setInterimInfo(t('voice.inputBar.taskCreated', { title: cmd.title! }));
                   setTimeout(() => onClose(), 1500);
                 }
               })
-              .catch(() => setError('タスク作成に失敗しました'));
+              .catch(() => setError(t('voice.inputBar.taskCreateFailed')));
           }
           break;
 
@@ -268,7 +271,7 @@ export default function VoiceInputBar({ isOpen, onClose, target }: VoiceInputBar
           break;
       }
     },
-    [router, onClose],
+    [router, onClose, t],
   );
 
   // Deliver transcribed text to target
@@ -319,9 +322,9 @@ export default function VoiceInputBar({ isOpen, onClose, target }: VoiceInputBar
         onClose();
       }
     } catch {
-      setError('コマンド実行に失敗しました');
+      setError(t('voice.inputBar.commandExecFailed'));
     }
-  }, [transcript, onClose]);
+  }, [transcript, onClose, t]);
 
   // Keyboard shortcut to toggle
   useEffect(() => {
@@ -409,9 +412,12 @@ export default function VoiceInputBar({ isOpen, onClose, target }: VoiceInputBar
               )}
               {lastCommand.type === 'search' && <Search className="w-4 h-4 text-amber-400" />}
               <span className="text-sm text-zinc-300">
-                {lastCommand.type === 'navigate' && `${lastCommand.label} に移動`}
-                {lastCommand.type === 'create_task' && `タスク「${lastCommand.title}」を作成`}
-                {lastCommand.type === 'search' && `「${lastCommand.query}」を検索`}
+                {lastCommand.type === 'navigate' &&
+                  t('voice.inputBar.navigateToResult', { label: lastCommand.label ?? '' })}
+                {lastCommand.type === 'create_task' &&
+                  t('voice.inputBar.createTaskResult', { title: lastCommand.title ?? '' })}
+                {lastCommand.type === 'search' &&
+                  t('voice.inputBar.searchResult', { query: lastCommand.query ?? '' })}
               </span>
             </div>
           )}
@@ -424,19 +430,19 @@ export default function VoiceInputBar({ isOpen, onClose, target }: VoiceInputBar
                 value={transcript}
                 onChange={(e) => setTranscript(e.target.value)}
                 className="flex-1 bg-zinc-800 text-zinc-100 rounded-lg px-3 py-2 text-sm border border-zinc-700 focus:border-indigo-400 outline-none"
-                placeholder="音声テキストを編集..."
+                placeholder={t('voice.inputBar.editPlaceholder')}
               />
               <button
                 onClick={sendAsCommand}
                 className="p-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
-                title="AIコマンドとして実行"
+                title={t('voice.inputBar.sendAsCommand')}
               >
                 <Wand2 className="w-4 h-4" />
               </button>
               <button
                 onClick={() => deliverResult(transcript)}
                 className="p-2 bg-zinc-700 text-white rounded-lg hover:bg-zinc-600 transition-colors"
-                title="テキストを入力欄に挿入"
+                title={t('voice.inputBar.insertText')}
               >
                 <Send className="w-4 h-4" />
               </button>
@@ -445,9 +451,9 @@ export default function VoiceInputBar({ isOpen, onClose, target }: VoiceInputBar
 
           {/* Shortcut hint */}
           <div className="flex items-center justify-center gap-4 text-[10px] text-zinc-600">
-            <span>Ctrl+Shift+V: 録音開始/停止</span>
-            <span>Esc: 閉じる</span>
-            <span>無音2秒で自動変換</span>
+            <span>{t('voice.inputBar.shortcutToggle')}</span>
+            <span>{t('voice.inputBar.shortcutClose')}</span>
+            <span>{t('voice.inputBar.autoConvert')}</span>
           </div>
         </div>
       </div>

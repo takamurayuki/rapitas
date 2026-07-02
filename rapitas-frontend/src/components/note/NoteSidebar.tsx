@@ -9,6 +9,7 @@
  *   Flat:    "その他" section for unlinked notes
  */
 import { useState, useEffect, useMemo } from 'react';
+import { useTranslations } from 'next-intl';
 import {
   FileText,
   Trash2,
@@ -25,6 +26,16 @@ import { getIconComponent } from '@/components/category/icon-data';
 import DeleteNoteModal from './DeleteNoteModal';
 import { buildNoteTree, parseNotePath, parseNotePathThemeOnly } from './note-tree-utils';
 
+/** Maps each raw DocType value to its `docTypes.*` i18n message key. */
+const DOC_TYPE_LABEL_KEYS: Record<DocType, string> = {
+  要件定義: 'requirements',
+  設計書: 'design',
+  議事録: 'minutes',
+  手順書: 'procedure',
+  仕様書: 'specification',
+  メモ: 'memo',
+};
+
 function NoteItem({
   note,
   isActive,
@@ -36,9 +47,10 @@ function NoteItem({
   onSelect: () => void;
   onDelete: () => void;
 }) {
+  const t = useTranslations('notes');
   const displayTitle = note.title.includes(' > ')
     ? (note.title.split(' > ').pop() ?? note.title)
-    : note.title || '(無題)';
+    : note.title || t('common.untitled');
 
   return (
     <div
@@ -65,6 +77,8 @@ function NoteItem({
 }
 
 export default function NoteSidebar() {
+  const t = useTranslations('notes');
+  const tc = useTranslations('common');
   const {
     notes,
     currentNoteId,
@@ -221,7 +235,7 @@ export default function NoteSidebar() {
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="ノートを検索..."
+            placeholder={t('common.searchPlaceholder')}
             className="w-full pl-8 pr-3 py-1.5 text-xs bg-white dark:bg-zinc-700 border border-zinc-200 dark:border-zinc-600 rounded-lg focus:outline-none focus:border-indigo-400 dark:focus:border-indigo-500 text-zinc-700 dark:text-zinc-200 placeholder:text-zinc-400"
           />
         </div>
@@ -234,7 +248,7 @@ export default function NoteSidebar() {
           className="w-full flex items-center justify-center gap-1.5 px-3 py-1.5 bg-indigo-500 hover:bg-indigo-600 text-white rounded-lg text-xs font-medium transition-colors"
         >
           <Plus className="w-3.5 h-3.5" />
-          新規ノート
+          {t('common.newNote')}
         </button>
       </div>
 
@@ -248,7 +262,7 @@ export default function NoteSidebar() {
               : 'border-zinc-200 dark:border-zinc-700 text-zinc-400 dark:text-zinc-500 hover:border-zinc-300 dark:hover:border-zinc-600'
           }`}
         >
-          すべて
+          {tc('all')}
         </button>
         {DOC_TYPES.map((type) => (
           <button
@@ -260,7 +274,7 @@ export default function NoteSidebar() {
                 : 'border-zinc-200 dark:border-zinc-700 text-zinc-400 dark:text-zinc-500 hover:border-zinc-300 dark:hover:border-zinc-600 hover:text-zinc-600 dark:hover:text-zinc-300'
             }`}
           >
-            {type}
+            {t(`docTypes.${DOC_TYPE_LABEL_KEYS[type]}`)}
           </button>
         ))}
       </div>
@@ -271,7 +285,7 @@ export default function NoteSidebar() {
           <div className="py-6 text-center">
             <FileText className="w-10 h-10 mx-auto text-zinc-300 dark:text-zinc-600 mb-2" />
             <p className="text-xs text-zinc-400 dark:text-zinc-500">
-              {searchQuery ? '検索結果なし' : 'ノートがありません'}
+              {searchQuery ? t('sidebar.noSearchResults') : t('common.noNotes')}
             </p>
           </div>
         )}
@@ -409,7 +423,7 @@ export default function NoteSidebar() {
               <div className="flex items-center gap-2 px-2 pt-2 pb-1">
                 <div className="flex-1 h-px bg-zinc-200 dark:bg-zinc-700" />
                 <span className="text-[10px] text-zinc-400 dark:text-zinc-500 shrink-0">
-                  その他
+                  {tc('other')}
                 </span>
                 <div className="flex-1 h-px bg-zinc-200 dark:bg-zinc-700" />
               </div>

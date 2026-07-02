@@ -66,7 +66,84 @@
     "monthly": "月間",
     "export": "エクスポート",
     "adding": "追加中...",
-    "resetToDefault": "デフォルトに戻す"
+    "resetToDefault": "デフォルトに戻す",
+    "retry": "再試行",
+    "backendConnectionError": {
+      "title": "バックエンドサーバーに接続できません",
+      "description": "バックエンドサーバー（ポート3001）が起動していることを確認してください。開発サーバーを再起動するか、ターミナルで<code>bun run dev</code>を実行してください。",
+      "errorDetails": "エラー詳細"
+    },
+    "errorBoundary": {
+      "genericError": "このセクションでエラーが発生しました",
+      "sectionError": "{section} でエラーが発生しました",
+      "unexpectedError": "予期しないエラー"
+    },
+    "keyboardShortcuts": {
+      "macHelp": "⌘ は Command キー、⇧ は Shift キー",
+      "ctrlHelp": "Ctrl は Control キー"
+    },
+    "offlineIndicator": {
+      "offlineTitle": "オフライン中。変更はローカルに保存されています。",
+      "offlineLabel": "オフライン",
+      "syncing": "同期中...",
+      "pendingTitle": "{count}件の変更が同期待ちです。タップで同期。",
+      "pendingLabel": "{count}件 同期待ち"
+    },
+    "agentSwitcher": {
+      "custom": "カスタム",
+      "loading": "読込中...",
+      "builtIn": "Claude Code（ビルトイン）",
+      "label": "実行エージェント",
+      "selectPlaceholder": "エージェントを選択",
+      "default": "デフォルト"
+    },
+    "pagination": {
+      "firstPage": "最初のページ",
+      "prevPage": "前のページ",
+      "nextPage": "次のページ",
+      "lastPage": "最後のページ"
+    },
+    "statusCard": {
+      "processing": "実行中",
+      "waitingForInput": "入力待ち",
+      "ariaLabel": "ステータス: {label}"
+    },
+    "directoryPicker": {
+      "placeholder": "ディレクトリパスを入力または選択",
+      "pathInputPlaceholder": "パスを入力...",
+      "confirm": "確定",
+      "manualEntryTitle": "パスを直接入力",
+      "browse": "参照",
+      "browseTitle": "フォルダを参照",
+      "selectDirectory": "ディレクトリを選択",
+      "manualPathPlaceholder": "パスを直接入力 (例: C:\\Projects, D:\\)",
+      "move": "移動",
+      "chooseFromFavoritesHint": "お気に入りからフォルダを選択してください",
+      "currentlySelected": "選択中:",
+      "select": "選択",
+      "goUp": "上のフォルダへ",
+      "driveList": "ドライブ一覧",
+      "createFolderTitle": "新規フォルダを作成",
+      "newShort": "新規",
+      "hideFavorites": "お気に入りを非表示",
+      "showFavorites": "お気に入りを表示",
+      "removeFavorite": "お気に入りから削除",
+      "addFavoriteTitle": "お気に入りに追加",
+      "favorited": "登録済",
+      "folderNamePlaceholder": "フォルダ名を入力...",
+      "backToDrives": "ドライブ一覧に戻る",
+      "noSubfolders": "サブフォルダがありません",
+      "selectFromFavorites": "お気に入りから選択",
+      "favoritesCount": "({count}件)",
+      "selectAnotherFolder": "別のフォルダを選択",
+      "currentlySelectedInline": "(現在選択中)",
+      "favoritesHeader": "お気に入り ({count})",
+      "hide": "非表示",
+      "fetchError": "ディレクトリの取得に失敗しました",
+      "nameRequired": "フォルダ名を入力してください",
+      "invalidChars": "フォルダ名に使用できない文字が含まれています",
+      "createError": "フォルダの作成に失敗しました"
+    }
   },
   "metadata": {
     "title": "Rapi+",
@@ -133,7 +210,13 @@
     "restartingMessage": "完了後に自動でページがリロードされます",
     "restartTimeout": "サーバーの再起動がタイムアウトしました。手動でページをリロードしてください。",
     "devDashboard": "リポジトリ連携",
-    "packages": "パッケージ"
+    "packages": "パッケージ",
+    "backlog": "バックログ",
+    "ideas": "アイデア",
+    "concerns": "懸念",
+    "hypotheses": "仮説",
+    "notes": "ノート",
+    "logAnalysis": "ログ分析"
   },
   "home": {
     "title": "タスク一覧",
@@ -806,7 +889,214 @@
     "errorDemoTimeoutBtn": "Timeout Error を発生",
     "errorDemoValidationBtn": "Validation Error を発生",
     "errorDemoPromiseBtn": "Unhandled Promise Rejection",
-    "errorDemoPrismaBtn": "Prisma Database Error"
+    "errorDemoPrismaBtn": "Prisma Database Error",
+    "backupCard": {
+      "title": "データベース バックアップ",
+      "running": "バックアップ中…",
+      "runNow": "今すぐバックアップ",
+      "descriptionBefore": "週1回 自動的に暗号化アーカイブを",
+      "descriptionAfter": "に作成します。直近 8 件保持。",
+      "notRun": "未実行",
+      "justNow": "たった今",
+      "hoursAgo": "{hours}時間前",
+      "daysAgo": "{days}日前",
+      "lastBackup": "最後のバックアップ: {relative}",
+      "lastRunFailed": "直近の実行は失敗: {error}",
+      "notRunYet": "まだバックアップが実行されていません",
+      "noArchivesYet": "アーカイブはまだありません。"
+    },
+    "devToolsSection": {
+      "integrationsTitle": "外部連携",
+      "integrationsDescription": "Webhook通知とIDE統合の設定"
+    },
+    "localLlmSection": {
+      "bundledModelTitle": "Qwen2.5-0.5B (Q4) — llama-server用",
+      "bundledModelDescription": "Ollamaがない場合のフォールバックモデル (~400MB)"
+    },
+    "recentErrorsCard": {
+      "title": "最近のエラー",
+      "sentryConnected": "Sentry連携中",
+      "reload": "再読み込み",
+      "clear": "クリア",
+      "description": "フロント・バック両方でキャッチされた直近のエラー。`SENTRY_DSN` を設定すると Sentry にも送信されます（任意）。",
+      "noErrors": "エラーはありません ✓",
+      "sourceUncaughtException": "バックエンド (uncaught)",
+      "sourceUnhandledRejection": "バックエンド (rejection)",
+      "sourceExplicit": "バックエンド (明示)",
+      "sourceFrontend": "フロントエンド"
+    },
+    "taskCleanupSection": {
+      "title": "タスク整理（完了タスクの削除）",
+      "description": "テーマごとに、直近N件を残して古い完了タスクを削除します。削除前にナレッジを記録（記録済みはスキップ）し、ワークフローのmdファイルも削除します。",
+      "targetTheme": "対象テーマ",
+      "allThemes": "全テーマ",
+      "keepRecentLabel": "保持件数（直近）",
+      "preview": "プレビュー",
+      "runCleanup": "整理を実行",
+      "processFailed": "処理に失敗しました",
+      "themeFallback": "テーマ#{themeId}",
+      "confirmMessage": "[{scope}] 直近{keepRecent}件を残し、それより古い完了タスクを削除します。{candidateLine}\nナレッジ未記録のものは記録してから削除します。元に戻せません。実行しますか？",
+      "confirmCandidateLine": "\n削除対象: 約{n}件。",
+      "resultSummary": "完了タスク総数 {completedTotal} / 対象 {candidateCount} / {statusLabel} {deletedCount} / ナレッジ新規記録 {knowledgeRecorded} / 記録済み {alreadyRecorded} / サブタスク未完で除外 {skippedWithOpenSubtasks}",
+      "pendingDeletion": "削除予定",
+      "alreadyDeleted": "削除済み"
+    },
+    "cliToolsPage": {
+      "title": "CLIツール",
+      "subtitle": "AI CLI ツールのインストール・バージョン管理・認証",
+      "refresh": "更新",
+      "authenticateTerminalTitle": "{toolName} 認証",
+      "infoBannerPart1": "インストール・認証は rapitas のターミナルで実行されます（コマンドがプリフィルされるので Enter で実行）。完了後「更新」で状態を再確認できます。なお、新しく入れたツールを",
+      "infoBannerStrong": "エージェントが使う",
+      "infoBannerPart2": "には再起動が必要です。"
+    },
+    "toolCard": {
+      "statusNotInstalled": "未インストール",
+      "statusAuthenticated": "認証済み",
+      "statusInstalled": "インストール済み",
+      "version": "バージョン",
+      "installPath": "パス",
+      "install": "インストール",
+      "hide": "非表示",
+      "show": "表示",
+      "officialSite": "公式サイト",
+      "documentation": "ドキュメント",
+      "installAction": "インストール",
+      "updateAction": "更新",
+      "checkAuth": "認証確認",
+      "authenticate": "認証"
+    },
+    "useCliTools": {
+      "authNotCompleted": "{toolName}の認証が完了していません。ターミナルでコマンドを実行してください。",
+      "copiedToClipboard": "コマンドをクリップボードにコピーしました",
+      "copyFailed": "クリップボードへのコピーに失敗しました"
+    },
+    "autoMergeSettingsCard": {
+      "title": "自動化（コミット / PR / マージ）",
+      "description": "全タスクの既定値です。タスク個別の設定があればそちらが優先されます。",
+      "autoCommitLabel": "自動コミット",
+      "autoCommitDescription": "完了時に変更を自動コミット",
+      "autoCreatePRLabel": "自動PR作成",
+      "autoCreatePRDescription": "完了時にPull Requestを自動作成",
+      "autoMergeLabel": "自動マージ",
+      "autoMergeDescription": "PRのCIが緑になったら自動マージ（CI失敗時は自動修正→再CI）",
+      "squashThresholdLabel": "Squashマージ閾値",
+      "squashThresholdSuffix": "コミット以上でsquash"
+    },
+    "autoRunSettingsCard": {
+      "description": "タスク自動実行（auto-run）の挙動に関する設定です。",
+      "backlogLimitLabel": "懸念・アイデアから自動起票（上限）",
+      "backlogLimitDescription": "自動実行でタスクが無くなったとき、懸念バックログ（解決後はアイデアボックス）からタスクを自動起票します。テーマごとの同時起票上限。0で無効。",
+      "repairLimitLabel": "検証失敗時のリトライ回数（自己改善ループ上限）",
+      "repairLimitDescription": "検証が失敗したとき、その指摘を実装者に差し戻して「実装を修正→再検証」を自動で繰り返す上限回数です。上限まで自己改善ループを回し、超えるとブロックします。0でリトライ無効。",
+      "restartOnDryLabel": "枯渇時にバックエンドを再起動して修正を反映（開発用）",
+      "restartOnDryDescription": "自動実行でタスクが無くなった静止点（実行中エージェント0）で、起動後に新しいコミットがある場合のみ安全に再起動し、コミット済みの修正を反映してから次の自動起票へ進みます（10分のレート制限つき）。dev 起動時のみ有効。",
+      "savingSuffix": "（保存中…）"
+    },
+    "ciTimingDashboard": {
+      "fetchFailed": "データ取得に失敗しました",
+      "title": "CI テスト実行時間ダッシュボード",
+      "refresh": "更新",
+      "cacheVisualization": "で収集したキャッシュを可視化します。",
+      "fetchingData": "データを取得中…",
+      "noCache": "未計測（キャッシュが存在しません）",
+      "generateCacheHint": "以下のコマンドを実行してキャッシュを生成してください:",
+      "summary": "概要",
+      "measuredFiles": "計測ファイル数",
+      "itemsCount": "{count}件",
+      "mean": "平均",
+      "max": "最大",
+      "cacheGeneratedAt": "キャッシュ生成: {datetime}",
+      "wallClockSuffix": "/ 壁時計: {wallClock}",
+      "slowestTests": "最遅テスト (上位 {count} 件)",
+      "legendNormal": "通常",
+      "legendInGate": "ゲート内",
+      "legendFailed": "失敗",
+      "gateComparisonTitle": "シリアルゲート vs 全体比較",
+      "serialGateTotal": "シリアルゲート合計 ({fileCount} ファイル)",
+      "serialExecution": "逐次実行（CI 合否ゲート）",
+      "overallWallClock": "全体 壁時計 ({fileCount} ファイル)",
+      "parallelExecution": "並列実行",
+      "missingFromResults": "ゲートリスト内で計測結果が見つからないファイル:",
+      "promotionCandidatesTitle": "昇格候補（{threshold} 以下・ゲート未掲載）",
+      "promotionCandidatesHint": "{count} 件 — ゲートに追加するとカバレッジが増える",
+      "fileColumn": "ファイル",
+      "timeColumn": "時間",
+      "demotionCandidatesTitle": "降格候補（{threshold} 以上・ゲート掲載済み）",
+      "demotionCandidatesHint": "{count} 件 — CI 待ち時間を押し上げている",
+      "noCandidates": "昇格・降格候補はありません（閾値: {threshold}）。"
+    },
+    "errorPage": {
+      "title": "設定 でエラーが発生しました",
+      "defaultMessage": "予期しないエラーが発生しました。",
+      "retry": "再試行"
+    },
+    "generalPage": {
+      "setupCheckTitle": "セットアップ確認",
+      "setupCheckDescription": "データベースと AI プロバイダーの状態を再確認します。",
+      "openSetupScreen": "セットアップ画面を開く"
+    },
+    "layout": {
+      "navAriaLabel": "設定",
+      "generalTab": "一般",
+      "shortcutsTab": "ショートカット",
+      "cliToolsTab": "CLIツール"
+    },
+    "setupWizard": {
+      "providerOllama": "Ollama (ローカルLLM)",
+      "title": "初回セットアップ",
+      "description": "データベース接続と AI プロバイダーの状態を確認します。",
+      "recheck": "再チェック",
+      "stepDatabase": "データベース",
+      "stepAiProvider": "AI プロバイダー",
+      "stepReady": "準備完了",
+      "allRequirementsMet": "すべての必要項目が揃いました。",
+      "startApp": "アプリを開始",
+      "resolveStepsHint": "上のステップを解決してから戻ってきてください。",
+      "dbProviderSqlite": "SQLite (デスクトップ配布版)",
+      "dbProviderPostgresql": "PostgreSQL (Web/サーバ版)",
+      "dbProviderUnset": "未設定",
+      "dbProviderLabel": "プロバイダー",
+      "dbConnectionLabel": "接続",
+      "dbConnectionError": "エラー",
+      "dbFileLabel": "ファイル",
+      "dbSizeLabel": "サイズ",
+      "dbSqliteHintBefore": "Tauri ビルドは起動時に自動でファイルを作成します。手動で動かしている場合は",
+      "dbSqliteHintAnd": "と",
+      "dbSqliteHintAfter": "を設定してください。",
+      "modelCount": "({count} モデル)",
+      "providerHintBefore": "最低 1 つのプロバイダーが利用可能であれば動作します。CLI が未認証の場合は ターミナルで",
+      "providerHintAfter": "を起動してログインしてください。",
+      "backendUnreachable": "バックエンドに接続できません",
+      "checkServerHint": "サーバが起動しているか、{apiBaseUrl} に到達できるかを確認してください。",
+      "retry": "再試行"
+    },
+    "mcpSetupGuide": {
+      "sectionTitle": "MCP連携 (IDE統合)",
+      "description": "Cursor、Claude Code、WindsurfなどのIDEからRapitasのタスク管理を直接操作できます",
+      "cursorConfigTitle": "Cursor / Windsurf 設定",
+      "claudeCodeConfigTitle": "Claude Code 設定",
+      "copied": "コピー済み",
+      "copy": "コピー",
+      "availableTools": "利用可能なツール: タスク一覧/作成/更新、ワークフロー管理、進捗サマリー",
+      "apiCheck": "API確認"
+    },
+    "notificationSettingsPanel": {
+      "title": "通知設定",
+      "enableNotifications": "通知を有効にする",
+      "notificationSound": "通知音",
+      "quietHoursMode": "おやすみモード"
+    },
+    "webhookSettings": {
+      "saved": "保存しました",
+      "title": "Webhook通知",
+      "description": "タスク完了・PR作成・エラー発生時にSlack/Discordへ自動通知します",
+      "slackUrlLabel": "Slack Webhook URL",
+      "discordUrlLabel": "Discord Webhook URL",
+      "testSent": "テスト通知を送信しました",
+      "testHttpError": "エラー: HTTP {status}",
+      "connectionFailed": "接続に失敗しました。URLを確認してください。"
+    }
   },
   "shortcuts": {
     "title": "ショートカット設定",
@@ -1633,7 +1923,11 @@
     "settingsTitle": "通知設定",
     "enableNotifications": "通知を有効にする",
     "sound": "通知音",
-    "quietHours": "おやすみモード"
+    "quietHours": "おやすみモード",
+    "list": {
+      "markAllRead": "すべて既読にする",
+      "markRead": "既読"
+    }
   },
   "banner": {
     "backendDisconnected": "バックエンドサーバーとの接続が切断されました",
@@ -2226,7 +2520,80 @@
     "catTechDebt": "技術的負債",
     "catUx": "UX",
     "catFeature": "新機能",
-    "catPerformance": "性能"
+    "catPerformance": "性能",
+    "priorityHint": {
+      "urgent": "最優先で取り組むべき",
+      "high": "革新的・アプリ価値を大きく底上げ",
+      "medium": "着実に価値を高める",
+      "low": "小さな改善・あれば良い"
+    },
+    "header": {
+      "statusEmpty": "ひらめきを気軽にメモ",
+      "statusCount": "{count}件のアイデア",
+      "title": "アイデア",
+      "subtitle": "やってみたい改善・機能の種。気軽にメモして、後でタスク化。",
+      "addButton": "アイデアを追加"
+    },
+    "list": {
+      "emptySearch": "検索結果がありません",
+      "emptyDefault": "アイデアがまだありません",
+      "emptyHint": "上の「アイデアを追加」ボタンで気軽にメモしましょう"
+    },
+    "card": {
+      "themeFallback": "プロジェクト",
+      "priorityTitle": "優先度: {hint}",
+      "taskCreatedBadge": "タスク化済 #{id}",
+      "sourceUser": "手動",
+      "sourceAgent": "エージェント",
+      "sourceCopilot": "AIアシスタント",
+      "convertTitle": "タスク化（すぐ起票・AIなし）",
+      "convertButton": "タスク化",
+      "editAriaLabel": "アイデアを編集"
+    },
+    "createForm": {
+      "titleEdit": "アイデアを編集",
+      "titleAdd": "アイデアを追加",
+      "saveAndConvert": "保存してタスク化",
+      "saveAndConvertNeedsTheme": "タスク化にはテーマが必要です",
+      "saveAndConvertTitle": "変更を保存してタスク化",
+      "titlePlaceholder": "アイデアをひとことで...",
+      "detailPlaceholder": "詳細（任意）",
+      "priorityLabel": "優先度",
+      "priorityTitle": "優先度（アプリへの革新性・価値の底上げ度合い）",
+      "categoryOption": "カテゴリ",
+      "themeOption": "テーマ"
+    },
+    "filterBar": {
+      "status": {
+        "open": "未対応",
+        "used": "タスク化済み",
+        "all": "すべて"
+      },
+      "allPriorities": "すべての優先度",
+      "priority": {
+        "urgent": "緊急",
+        "high": "高",
+        "medium": "中",
+        "low": "低"
+      },
+      "allCategories": "すべてのカテゴリ",
+      "allThemes": "すべてのテーマ",
+      "searchLabel": "検索: 「{query}」"
+    },
+    "themePicker": {
+      "title": "テーマを選択",
+      "description": "このアイデアにはテーマが設定されていません。タスクとして登録するにはテーマを選択してください。",
+      "categoryLabel": "カテゴリ",
+      "themeLabel": "テーマ",
+      "themeSelectPlaceholder": "テーマを選択してください",
+      "noThemesWarning": "選択したカテゴリにテーマがありません。先にテーマを作成してください。"
+    },
+    "messages": {
+      "deleteFailed": "アイデアの削除に失敗しました",
+      "updateFailed": "アイデアの更新に失敗しました",
+      "createFailed": "アイデアの登録に失敗しました",
+      "convertFailed": "タスクへの変換に失敗しました"
+    }
   },
   "concerns": {
     "emptyState": "該当する懸念はありません。",
@@ -2241,7 +2608,52 @@
     "severityLow": "低",
     "statusOpen": "未対応",
     "statusTaskCreated": "タスク化済",
-    "statusAll": "すべて"
+    "statusAll": "すべて",
+    "severityHint": {
+      "urgent": "緊急 — 早急に対処すべき",
+      "high": "高 — 影響が大きい",
+      "medium": "中 — 着実に対処したい",
+      "low": "低 — あれば直したい"
+    },
+    "header": {
+      "title": "懸念",
+      "subtitle": "バグ・リスク・技術的負債など「直すべき問題」を記録してタスク化",
+      "addButton": "懸念を追加"
+    },
+    "filterBar": {
+      "allTypes": "すべての種別",
+      "allSeverities": "すべての優先度",
+      "allThemes": "すべてのテーマ"
+    },
+    "createForm": {
+      "title": "懸念を追加",
+      "submit": "登録",
+      "titlePlaceholder": "懸念をひとことで（例: 認証トークンが失効しても再ログインされない）",
+      "detailPlaceholder": "何が問題で、なぜ重要か",
+      "priorityLabel": "優先度",
+      "priorityTitle": "優先度（将来の影響の大きさ）",
+      "categoryOption": "カテゴリ",
+      "themeOption": "テーマ",
+      "locationPlaceholder": "対象箇所 (任意, 例: src/auth/token.ts:42)"
+    },
+    "card": {
+      "themeTitle": "テーマ: {name}",
+      "priorityTitle": "優先度: {hint}",
+      "taskCreatedBadge": "タスク化済 #{id}",
+      "githubIssueTitle": "GitHub Issue を開く",
+      "closedSuffix": " · closed",
+      "convertButton": "タスク化",
+      "publishTitle": "GitHub Issue として公開",
+      "publishButton": "GitHubに公開",
+      "originLink": "発見元 #{id}"
+    },
+    "messages": {
+      "convertFailed": "タスクへの変換に失敗しました",
+      "deleteFailed": "懸念の削除に失敗しました",
+      "publishSuccess": "GitHub Issue を作成しました",
+      "publishFailed": "GitHub への公開に失敗しました",
+      "createFailed": "懸念の登録に失敗しました"
+    }
   },
   "devMode": {
     "executionCompletedPanel": {
@@ -3005,6 +3417,515 @@
     },
     "aiAccordionPanelInner": {
       "panelAriaLabel": "AI エージェント実行パネル"
+    }
+  },
+  "backlog": {
+    "settings": {
+      "title": "定期調査スケジュール",
+      "subtitle": "AIエージェントは実装時に随時アイデア・懸念を起票します。ここではそれとは別に、定期的に実行する調査のタイミングを設定します。",
+      "jobs": {
+        "innovation": {
+          "label": "イノベーションセッション",
+          "desc": "完了タスクや既存機能を分析し、新しい価値のアイデアを生成してアイデアボックスに蓄積します。"
+        },
+        "vuln_scan": {
+          "label": "脆弱性・バグ調査",
+          "desc": "各テーマの直近のコード変更をAIがレビューし、バグ・セキュリティ上の懸念を懸念バックログに起票します（依存の既知脆弱性も bun audit で確認）。"
+        },
+        "health_check": {
+          "label": "ログヘルスチェック",
+          "desc": "その日のバックエンドログから warning / error を抽出し、種類ごとにまとめて懸念バックログに起票します。"
+        }
+      },
+      "frequency": {
+        "daily": "毎日",
+        "weekly": "毎週"
+      },
+      "weekday": {
+        "0": "日曜",
+        "1": "月曜",
+        "2": "火曜",
+        "3": "水曜",
+        "4": "木曜",
+        "5": "金曜",
+        "6": "土曜"
+      },
+      "lastRun": "最終実行: {value}",
+      "runNow": "今すぐ実行",
+      "noticeInnovation": "実行を開始しました。生成されたアイデアはアイデアボックスに表示されます。",
+      "noticeOther": "実行を開始しました。検出された懸念は懸念バックログに表示されます。",
+      "scheduleUpdateFailed": "スケジュールの更新に失敗しました",
+      "runFailed": "実行の開始に失敗しました"
+    },
+    "projectOverrides": {
+      "title": "プロジェクト別設定",
+      "subtitle": "作業ディレクトリを設定したプロジェクト（テーマ）のみ対象です。ジョブごとに有効/無効を切り替えられます。ログヘルスチェックは、プロジェクトのログ出力先と形式を指定したときだけそのプロジェクトを対象にします。スケジュール（頻度・時刻）は上の共通設定に従います。",
+      "noThemes": "作業ディレクトリを設定したプロジェクトがありません。テーマに作業ディレクトリを設定すると、ここでプロジェクト別の設定ができます。",
+      "jobs": {
+        "innovation": "イノベーション",
+        "vuln_scan": "脆弱性・バグ調査",
+        "health_check": "ログヘルスチェック"
+      },
+      "logDirPlaceholder": "ログ出力ディレクトリを入力または参照で選択",
+      "logFormatLabel": "ログ形式",
+      "logFormats": {
+        "pino": "pino / NDJSON",
+        "json": "汎用JSON",
+        "text": "プレーンテキスト"
+      },
+      "updateFailed": "プロジェクト設定の更新に失敗しました"
+    }
+  },
+  "hypotheses": {
+    "header": {
+      "title": "仮説",
+      "subtitle": "エージェントが調査で立てた反証可能な仮説と、証拠・確信度の推移。立証済みは想起時に信頼重み付けされ、反証済みは注入されません。"
+    },
+    "status": {
+      "open": "検証待ち",
+      "supported": "立証済み",
+      "refuted": "反証済み",
+      "inconclusive": "結論保留",
+      "all": "すべて"
+    },
+    "loading": "読み込み中…",
+    "empty": "仮説がありません。エージェントが調査フェーズで反証可能な仮説を立てると、ここに記録されます。",
+    "deleteConfirm": "この仮説を削除しますか？",
+    "card": {
+      "taskRef": "#task {id}",
+      "confidenceLabel": "確信 {pct}%",
+      "artifactWrap": "（{artifact}）",
+      "moveTo": "→ {label}"
+    }
+  },
+  "devTools": {
+    "debugLogAnalyzer": {
+      "title": "デバッグログ解析ツール",
+      "supportedFormats": "対応形式: JSON, Syslog, Apache, Nginx, Node.js",
+      "tabs": {
+        "input": "ログ入力",
+        "result": "解析結果",
+        "settings": "設定"
+      },
+      "errors": {
+        "emptyContent": "ログコンテンツを入力してください",
+        "analysisFailed": "解析中にエラーが発生しました"
+      },
+      "input": {
+        "logType": "ログタイプ:",
+        "autoDetect": "自動検出",
+        "custom": "カスタム",
+        "file": "ファイル:",
+        "sample": "サンプル:",
+        "logContent": "ログコンテンツ:",
+        "lineCount": "{count} 行",
+        "placeholder": "ログを貼り付けるか、ファイルをアップロードしてください...",
+        "clear": "クリア",
+        "analyzing": "解析中...",
+        "analyzeStart": "解析開始"
+      },
+      "viewer": {
+        "title": "ログ解析結果",
+        "tabs": {
+          "overview": "概要",
+          "timeline": "タイムライン",
+          "patterns": "パターン",
+          "sources": "ソース",
+          "logs": "ログ詳細"
+        }
+      },
+      "summaryCards": {
+        "totalEntries": "総エントリー数",
+        "errorCount": "エラー数",
+        "warningCount": "警告数",
+        "timeRange": "時間範囲",
+        "minutes": "{count}分",
+        "notAvailable": "N/A"
+      },
+      "charts": {
+        "levelDistribution": "ログレベル分布",
+        "timeline": "ログタイムライン",
+        "sourceDistribution": "ソース別ログ数",
+        "legendErrors": "エラー",
+        "legendWarnings": "警告",
+        "legendInfo": "情報"
+      },
+      "patterns": {
+        "frequentErrors": "頻出エラーパターン",
+        "frequentWarnings": "頻出警告パターン",
+        "frequentMessages": "頻出メッセージ",
+        "occurrenceCount": "{count}回"
+      },
+      "entries": {
+        "title": "ログエントリー",
+        "searchPlaceholder": "ログを検索...",
+        "limitExceeded": "表示上限（1000件）を超えています。フィルターを使用して絞り込んでください。"
+      },
+      "settings": {
+        "filterTitle": "フィルター設定",
+        "minLevel": "最小ログレベル",
+        "sourceFilter": "ソースフィルター",
+        "sourceFilterPlaceholder": "例: app.main",
+        "startTime": "開始時刻",
+        "endTime": "終了時刻",
+        "textSearch": "テキスト検索",
+        "searchPlaceholder": "検索キーワード...",
+        "clearFilter": "フィルターをクリア",
+        "customParserTitle": "カスタムパーサー設定",
+        "customParserHint": "カスタムパーサーの設定は、APIエンドポイント経由で設定可能です。"
+      }
+    },
+    "fileViewer": {
+      "loadFailedStatus": "ファイルの読み込みに失敗しました: {status} {statusText}",
+      "loadFailedMessage": "ファイルの読み込みに失敗しました: {message}",
+      "imageLoadFailed": "画像の読み込みに失敗しました: {url}",
+      "pdfLoadFailed": "PDFの読み込みに失敗しました: {url}",
+      "previousFile": "前のファイル (←)",
+      "nextFile": "次のファイル (→)",
+      "download": "ダウンロード",
+      "zoomIn": "拡大",
+      "zoomOut": "縮小",
+      "rotate": "回転",
+      "fullscreen": "全画面表示",
+      "normalView": "通常表示",
+      "closeWithEsc": "閉じる (Esc)",
+      "openInNewTab": "新しいタブで開く",
+      "openInBrowser": "ブラウザで開く",
+      "copyUrl": "URLをコピー",
+      "urlCopied": "URLをコピーしました",
+      "unpreviewable": "このファイルタイプはプレビューできません"
+    },
+    "markdownViewer": {
+      "toc": "目次",
+      "copyCode": "コードをコピー"
+    },
+    "voice": {
+      "inlineMicButton": {
+        "ariaLabel": "音声入力",
+        "title": "音声入力 (Ctrl+Shift+V)"
+      },
+      "inputBar": {
+        "listening": "話してください...",
+        "recording": "録音中... ({seconds}s)",
+        "listeningVolume": "話してください... (音量: {volume})",
+        "micStartFailed": "マイクの起動に失敗しました",
+        "recognizing": "文字起こし中...",
+        "recognitionFailed": "音声を認識できませんでした",
+        "transcribeFailed": "文字起こしに失敗しました",
+        "transcribeError": "文字起こしエラー",
+        "navigatingTo": "{label} に移動します...",
+        "creatingTask": "タスク「{title}」を作成中...",
+        "taskCreated": "タスク「{title}」を作成しました",
+        "taskCreateFailed": "タスク作成に失敗しました",
+        "commandExecFailed": "コマンド実行に失敗しました",
+        "navigateToResult": "{label} に移動",
+        "createTaskResult": "タスク「{title}」を作成",
+        "searchResult": "「{query}」を検索",
+        "editPlaceholder": "音声テキストを編集...",
+        "sendAsCommand": "AIコマンドとして実行",
+        "insertText": "テキストを入力欄に挿入",
+        "shortcutToggle": "Ctrl+Shift+V: 録音開始/停止",
+        "shortcutClose": "Esc: 閉じる",
+        "autoConvert": "無音2秒で自動変換"
+      },
+      "wakeWord": {
+        "listening": "ウェイクワード待機中",
+        "lastHeard": " (最後: {text})",
+        "activeIndicator": "「ラピタス」で起動"
+      }
+    }
+  },
+  "copilot": {
+    "aiAssistantPanel": {
+      "title": "AIアシスタント",
+      "subtitle": "何でもお気軽にご質問ください",
+      "settingsTitle": "AI設定",
+      "clearTitle": "会話をクリア",
+      "expand": "展開",
+      "minimize": "最小化",
+      "providerLabel": "AIプロバイダー",
+      "notConfiguredSuffix": "（未設定）",
+      "registerApiKeyLink": "設定画面でAPIキーを登録",
+      "modelLabel": "モデル",
+      "defaultOption": "デフォルト",
+      "welcomeTitle": "AIアシスタントへようこそ",
+      "welcomeDescLine1": "タスク管理、学習計画、コーディングの質問など、",
+      "welcomeDescLine2": "あなたの作業をサポートします。",
+      "thinking": "考え中...",
+      "setApiKeyLink": "設定画面でAPIキーを設定する",
+      "messagePlaceholder": "メッセージを入力...",
+      "sendHint": "Enter で送信・Shift+Enter で改行"
+    },
+    "chatComponents": {
+      "analysisCard": {
+        "complexityLabel": "複雑度:",
+        "estimateLabel": "推定:",
+        "appliedLabel": "反映済み",
+        "applyEstimateButton": "見積もりを反映",
+        "suggestedSubtasksLabel": "提案サブタスク ({count}件)",
+        "deselectLabel": "解除",
+        "selectedCountLabel": "{count}件選択",
+        "createSubtasksButton": "サブタスクを作成",
+        "subtasksCreatedMessage": "サブタスクを作成しました"
+      },
+      "proactiveInsight": {
+        "todoInsight": "着手前です。アプローチの壁打ちをしませんか？",
+        "inProgressInsight": "進行中です。詰まっている点はありませんか？",
+        "doneInsight": "完了済みです。振り返りを行いますか？"
+      }
+    },
+    "chatPanel": {
+      "title": "AIアシスタント",
+      "resetAriaLabel": "最初に戻る",
+      "resetTitle": "会話を最初に戻す"
+    },
+    "nextActionRecommendations": {
+      "noRecommendations": "いまの状態でおすすめのアクションはありません。",
+      "heading": "次の一手"
+    },
+    "useCopilotChat": {
+      "sendMessageError": "エラーが発生しました",
+      "actionAnalyzing": "タスクを分析中...",
+      "actionExecuting": "エージェント実行を開始中...",
+      "actionCreatingSubtasks": "サブタスクを作成中...",
+      "actionUpdatingStatus": "ステータスを更新中...",
+      "actionApplyingEstimate": "見積もりを反映中...",
+      "actionCheckingExecutionStatus": "実行状態を確認中...",
+      "actionRunningGeneric": "{action}を実行中...",
+      "createSubtasksLabel": "サブタスクを作成 ({count}件)",
+      "actionError": "アクション実行に失敗しました",
+      "retrospectiveGenerating": "成果物を分析して振り返りを生成中...",
+      "retrospectiveError": "振り返りの生成に失敗しました"
+    }
+  },
+  "intelligence": {
+    "agentKnowledgeContext": {
+      "categorySuccessStrategy": "成功パターン",
+      "categoryFailurePattern": "失敗パターン",
+      "categoryOptimization": "最適化",
+      "categoryAntiPattern": "アンチパターン",
+      "categoryProcedure": "手順",
+      "categoryPattern": "パターン",
+      "categoryInsight": "知見",
+      "categoryFact": "事実",
+      "loading": "共有ナレッジを取得中...",
+      "title": "エージェント共有ナレッジ",
+      "itemCount": "{count}件",
+      "warningCount": "{count}件の警告",
+      "pastFailuresHeading": "過去の失敗パターン",
+      "occurrenceCount": "{count}回発生",
+      "learnedPatternsHeading": "学習パターン",
+      "relatedKnowledgeHeading": "関連ナレッジ",
+      "promptEvolutionsHeading": "プロンプト改善履歴",
+      "scoreLabel": "スコア: {score}"
+    },
+    "knowledgeReminderWidget": {
+      "title": "ナレッジリマインド",
+      "atRiskStat": "忘却リスク",
+      "dormantStat": "休眠中",
+      "recentlyReviewedStat": "復習済み",
+      "needsReviewHeading": "復習が必要なナレッジ",
+      "showContentTitle": "内容を表示",
+      "retentionScore": "記憶定着度: {score}%",
+      "snoozeTitle": "後で復習（24時間スヌーズ）",
+      "markReviewedTitle": "復習済みにする",
+      "noContent": "コンテンツなし",
+      "allStable": "すべてのナレッジが安定しています"
+    },
+    "productivityHeatmap": {
+      "title": "生産性ヒートマップ",
+      "daysLabel": "{days}日",
+      "peakLabel": "ピーク:",
+      "lowLabel": "低調:",
+      "hourSuffix": "{hour}時",
+      "dayLabels": {
+        "0": "日",
+        "1": "月",
+        "2": "火",
+        "3": "水",
+        "4": "木",
+        "5": "金",
+        "6": "土"
+      },
+      "cellTitle": "{day} {hour}時: {count}件完了 (クリックで詳細)",
+      "legendLow": "少",
+      "legendHigh": "多",
+      "popoverTitle": "{day} {hour}時の完了タスク",
+      "completedAtLabel": "完了:",
+      "noTasksInSlot": "この時間帯に完了したタスクはありません"
+    },
+    "relatedKnowledgePanel": {
+      "categoryProcedure": "手順",
+      "categoryPattern": "パターン",
+      "categoryInsight": "知見",
+      "categoryFact": "事実",
+      "categoryPreference": "設定",
+      "categoryGeneral": "一般",
+      "title": "関連ナレッジ",
+      "relevanceScore": "関連度: {score}%"
+    },
+    "relatedSearchMissPanel": {
+      "title": "この領域で見つからなかった検索",
+      "description": "過去に同じ領域で結果が得られなかった検索です。事前に落とし穴を把握できます。",
+      "failCount": "{count} 回失敗"
+    },
+    "suggestedTasksWidget": {
+      "title": "今やるべきタスク",
+      "allSnoozed": "すべてのタスクがスヌーズされています",
+      "noTasksAvailable": "着手できるタスクがありません。",
+      "createTaskLink": "タスクを作成",
+      "startTodayTitle": "ステータスを進行中にしてポモドーロを開始",
+      "startTodayButton": "今日やる",
+      "snoozeTitle": "24時間スヌーズ",
+      "clearSnoozeButton": "スヌーズ解除 ({count}件)"
+    },
+    "workflowLearningPanel": {
+      "title": "ワークフロー学習",
+      "generateRulesButton": "ルール生成",
+      "recordsStat": "学習記録",
+      "activeRulesStat": "有効ルール",
+      "overrideRateStat": "オーバーライド率",
+      "predictionAccuracyStat": "予測精度",
+      "modeStatsHeading": "モード別実績",
+      "itemCount": "{count}件",
+      "minutesLabel": "{minutes}分",
+      "optimizationRulesHeading": "最適化ルール ({count})",
+      "noRulesYet": "学習データが蓄積されるとルールが自動生成されます",
+      "confidenceLabel": "信頼度: {confidence}%",
+      "sampleSizeLabel": "({count}件)",
+      "deactivateTitle": "無効化",
+      "activateTitle": "有効化",
+      "ruleTypeSkipPhase": "フェーズスキップ",
+      "ruleTypeDowngradeMode": "モード軽量化",
+      "ruleTypeUpgradeMode": "モード強化",
+      "ruleTypeAdjustTime": "時間調整",
+      "modeLightweight": "簡単",
+      "modeStandard": "標準",
+      "modeComprehensive": "高度"
+    }
+  },
+  "notes": {
+    "common": {
+      "note": "ノート",
+      "split": "両方",
+      "searchPlaceholder": "ノートを検索...",
+      "newNote": "新規ノート",
+      "untitled": "(無題)",
+      "noNotes": "ノートがありません",
+      "default": "デフォルト",
+      "swapNoteLeft": "ノートを左に移動（AIを右に）",
+      "swapNoteRight": "ノートを右に移動（AIを左に）",
+      "swapAriaLabel": "左右を入れ替える"
+    },
+    "docTypes": {
+      "requirements": "要件定義",
+      "design": "設計書",
+      "minutes": "議事録",
+      "procedure": "手順書",
+      "specification": "仕様書",
+      "memo": "メモ"
+    },
+    "page": {
+      "headerTitle": "ノート"
+    },
+    "aiTab": {
+      "providerLabel": "AIプロバイダー",
+      "apiKeyLink": "設定画面でAPIキーを登録",
+      "modelLabel": "モデル",
+      "emptyTitle": "AIアシスタント",
+      "emptyLine1": "タスク管理、学習計画、コーディングの質問など、",
+      "emptyLine2": "あなたの作業をサポートします。",
+      "thinking": "考え中...",
+      "settingsTitle": "AI設定",
+      "clearChatTitle": "会話をクリア",
+      "messagePlaceholder": "メッセージを入力...",
+      "sendHint": "Enter で送信・Shift+Enter で改行"
+    },
+    "chatMessage": {
+      "copyCodeTitle": "コードをコピー"
+    },
+    "deleteModal": {
+      "title": "ノートの削除",
+      "subtitle": "この操作は取り消せません",
+      "confirmQuestion": "「<b>{noteTitle}</b>」を削除しますか？"
+    },
+    "diagramEdit": {
+      "headerTitle": "ダイアグラム編集",
+      "templatesLabel": "テンプレート:",
+      "templates": {
+        "flowchart": "フローチャート",
+        "sequence": "シーケンス図",
+        "state": "状態遷移図",
+        "er": "ER図",
+        "class": "クラス図",
+        "gantt": "Gantt"
+      },
+      "sourceLabel": "Mermaid ソース",
+      "sourcePlaceholder": "Mermaidコードを入力...",
+      "previewLabel": "プレビュー",
+      "rendering": "レンダリング中...",
+      "syntaxError": "⚠ 構文エラー — Mermaidの記法を確認してください"
+    },
+    "editorToolbar": {
+      "boldTitle": "太字",
+      "italicTitle": "斜体",
+      "underlineTitle": "下線",
+      "bulletListTitle": "箇条書き",
+      "numberedListTitle": "番号付きリスト"
+    },
+    "editorFooter": {
+      "createdAt": "作成: {date}",
+      "updatedAt": "更新: {date}"
+    },
+    "editorHeader": {
+      "titlePlaceholder": "タイトルを入力...",
+      "deleteNoteTitle": "このノートを削除",
+      "saveTitle": "保存（Ctrl+S）",
+      "saved": "保存済み",
+      "noType": "種別なし"
+    },
+    "toolbar": {
+      "fontPicker": {
+        "fontTitle": "フォント",
+        "fontSizeTitle": "フォントサイズ"
+      },
+      "highlight": {
+        "highlightTitle": "ハイライト"
+      },
+      "insert": {
+        "linkInsertTitle": "リンク挿入",
+        "urlPlaceholder": "URLを入力...",
+        "insertButton": "挿入",
+        "borderLineTitle": "縦線",
+        "tableInsertTitle": "テーブル挿入",
+        "diagramInsertTitle": "ダイアグラム挿入（Mermaid）",
+        "codeBlockInsertTitle": "コードブロック挿入",
+        "selectLanguageLabel": "プログラミング言語を選択"
+      },
+      "textColor": {
+        "textColorTitle": "文字色",
+        "textColorLabel": "テキスト色"
+      }
+    },
+    "modalHeader": {
+      "ariaLabel": "ノートモーダル",
+      "searchAriaLabel": "ノートを検索",
+      "maximizeTitle": "全画面表示",
+      "restoreTitle": "元のサイズに戻す"
+    },
+    "tabContent": {
+      "emptyStateText": "ノートを選択するか、新規作成してください",
+      "createNoteButton": "新規ノート作成"
+    },
+    "hoverSidebar": {
+      "clearFilters": "フィルターをクリア",
+      "noSearchResults": "検索結果がありません",
+      "noContent": "内容なし",
+      "yesterday": "昨日",
+      "daysAgo": "{days}日前"
+    },
+    "sidebar": {
+      "noSearchResults": "検索結果なし"
     }
   }
 }

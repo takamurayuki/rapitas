@@ -1,5 +1,6 @@
 'use client';
 // HighlightSection
+import { useTranslations } from 'next-intl';
 import { Highlighter } from 'lucide-react';
 import { highlightColors, highlightStyles } from '../constants';
 
@@ -23,12 +24,14 @@ export function HighlightSection({
   onToggleColorPicker,
   onApplyHighlight,
 }: HighlightSectionProps) {
+  const t = useTranslations('notes');
   return (
     <div className="relative">
       <button
         onClick={onToggleColorPicker}
         className="px-1 py-0.5 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded transition-colors h-6 flex items-center justify-center"
-        title="ハイライト"
+        title={t('toolbar.highlight.highlightTitle')}
+        data-popup-trigger="1"
       >
         <Highlighter className="w-3.5 h-3.5" />
       </button>

@@ -7,6 +7,7 @@
  * Supports quick prompts, message history, and contextual insights.
  */
 import { useState, useRef, useEffect, useCallback } from 'react';
+import { useTranslations } from 'next-intl';
 import { Bot, RotateCcw } from 'lucide-react';
 import { useCopilotChat } from './useCopilotChat';
 import { MessageBubble, ProactiveInsight } from './CopilotChatComponents';
@@ -25,6 +26,8 @@ export function CopilotChatPanel({
   embedded = false,
   children,
 }: CopilotChatPanelProps) {
+  const t = useTranslations('copilot.chatPanel');
+  const tCommon = useTranslations('common');
   const {
     messages,
     isLoading,
@@ -92,7 +95,7 @@ export function CopilotChatPanel({
         className={`flex items-center gap-2 rounded-xl border border-zinc-200 bg-white px-4 py-2.5 text-sm hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900 dark:hover:bg-zinc-800 ${className}`}
       >
         <Bot className="h-4 w-4 text-indigo-500" />
-        <span className="font-medium text-zinc-700 dark:text-zinc-300">AIアシスタント</span>
+        <span className="font-medium text-zinc-700 dark:text-zinc-300">{t('title')}</span>
         {messages.length > 0 && (
           <span className="rounded-full bg-indigo-100 px-1.5 text-[10px] font-medium text-indigo-600 dark:bg-indigo-900/40 dark:text-indigo-300">
             {messages.length}
@@ -113,14 +116,14 @@ export function CopilotChatPanel({
       <div className="flex items-center justify-between border-b border-zinc-200 px-4 py-2.5 dark:border-zinc-700">
         <div className="flex items-center gap-2">
           <Bot className="h-4 w-4 text-indigo-500" />
-          <h3 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">AIアシスタント</h3>
+          <h3 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">{t('title')}</h3>
         </div>
         <div className="flex items-center gap-1">
           {messages.length > 0 && (
             <button
               onClick={clearChat}
-              aria-label="最初に戻る"
-              title="会話を最初に戻す"
+              aria-label={t('resetAriaLabel')}
+              title={t('resetTitle')}
               className="rounded p-1 text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800"
             >
               <RotateCcw className="h-3.5 w-3.5" />
@@ -161,7 +164,7 @@ export function CopilotChatPanel({
               onClick={cancelRetrospective}
               className="rounded-full border border-zinc-300 px-3 py-1 text-xs text-zinc-600 transition-colors hover:bg-zinc-100 dark:border-zinc-600 dark:text-zinc-300 dark:hover:bg-zinc-800"
             >
-              キャンセル
+              {tCommon('cancel')}
             </button>
           </div>
         )}

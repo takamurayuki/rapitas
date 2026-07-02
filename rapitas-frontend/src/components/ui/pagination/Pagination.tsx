@@ -1,6 +1,7 @@
 'use client';
 
 import React from 'react';
+import { useTranslations } from 'next-intl';
 
 interface PaginationProps {
   currentPage: number;
@@ -27,6 +28,8 @@ export default function Pagination({
   itemsPerPageOptions = [5, 10, 15],
   alwaysShow = true,
 }: PaginationProps) {
+  const t = useTranslations('common');
+
   if (totalPages <= 1 && !alwaysShow) return null;
 
   // With a single page there's nothing to navigate — show only the page-size
@@ -64,7 +67,7 @@ export default function Pagination({
             onClick={() => onPageChange(1)}
             disabled={currentPage === 1}
             className="p-1.5 rounded hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
-            title="最初のページ"
+            title={t('pagination.firstPage')}
           >
             <svg
               className="w-4 h-4 text-zinc-600 dark:text-zinc-400"
@@ -85,7 +88,7 @@ export default function Pagination({
             onClick={() => onPageChange(Math.max(1, currentPage - 1))}
             disabled={currentPage === 1}
             className="p-1.5 rounded hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
-            title="前のページ"
+            title={t('pagination.prevPage')}
           >
             <svg
               className="w-4 h-4 text-zinc-600 dark:text-zinc-400"
@@ -132,7 +135,7 @@ export default function Pagination({
             onClick={() => onPageChange(Math.min(totalPages, currentPage + 1))}
             disabled={currentPage === totalPages}
             className="p-1.5 rounded hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
-            title="次のページ"
+            title={t('pagination.nextPage')}
           >
             <svg
               className="w-4 h-4 text-zinc-600 dark:text-zinc-400"
@@ -148,7 +151,7 @@ export default function Pagination({
             onClick={() => onPageChange(totalPages)}
             disabled={currentPage === totalPages}
             className="p-1.5 rounded hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
-            title="最後のページ"
+            title={t('pagination.lastPage')}
           >
             <svg
               className="w-4 h-4 text-zinc-600 dark:text-zinc-400"

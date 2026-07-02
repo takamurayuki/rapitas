@@ -6,6 +6,7 @@
  */
 
 import React, { useMemo } from 'react';
+import { useTranslations } from 'next-intl';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import {
   BarChart,
@@ -44,6 +45,7 @@ interface LogChartsTabProps {
  * @param analysis - Full log analysis result object / ログ解析結果全体
  */
 export const LogChartsTab: React.FC<LogChartsTabProps> = ({ analysis }) => {
+  const t = useTranslations('devTools');
   const levelChartData = useMemo(
     () =>
       Object.entries(analysis.summary.levelDistribution)
@@ -111,7 +113,7 @@ export const LogChartsTab: React.FC<LogChartsTabProps> = ({ analysis }) => {
       <TabsContent value="overview" className="space-y-4">
         <Card>
           <CardHeader>
-            <CardTitle>ログレベル分布</CardTitle>
+            <CardTitle>{t('debugLogAnalyzer.charts.levelDistribution')}</CardTitle>
           </CardHeader>
           <CardContent>
             <ResponsiveContainer width="100%" height={300}>
@@ -141,7 +143,7 @@ export const LogChartsTab: React.FC<LogChartsTabProps> = ({ analysis }) => {
       <TabsContent value="timeline" className="space-y-4">
         <Card>
           <CardHeader>
-            <CardTitle>ログタイムライン</CardTitle>
+            <CardTitle>{t('debugLogAnalyzer.charts.timeline')}</CardTitle>
           </CardHeader>
           <CardContent>
             <ResponsiveContainer width="100%" height={400}>
@@ -161,9 +163,24 @@ export const LogChartsTab: React.FC<LogChartsTabProps> = ({ analysis }) => {
                   }}
                 />
                 <Legend />
-                <Line type="monotone" dataKey="errors" stroke="#EF4444" name="エラー" />
-                <Line type="monotone" dataKey="warnings" stroke="#F59E0B" name="警告" />
-                <Line type="monotone" dataKey="info" stroke="#3B82F6" name="情報" />
+                <Line
+                  type="monotone"
+                  dataKey="errors"
+                  stroke="#EF4444"
+                  name={t('debugLogAnalyzer.charts.legendErrors')}
+                />
+                <Line
+                  type="monotone"
+                  dataKey="warnings"
+                  stroke="#F59E0B"
+                  name={t('debugLogAnalyzer.charts.legendWarnings')}
+                />
+                <Line
+                  type="monotone"
+                  dataKey="info"
+                  stroke="#3B82F6"
+                  name={t('debugLogAnalyzer.charts.legendInfo')}
+                />
               </LineChart>
             </ResponsiveContainer>
           </CardContent>
@@ -174,7 +191,7 @@ export const LogChartsTab: React.FC<LogChartsTabProps> = ({ analysis }) => {
       <TabsContent value="sources" className="space-y-4">
         <Card>
           <CardHeader>
-            <CardTitle>ソース別ログ数</CardTitle>
+            <CardTitle>{t('debugLogAnalyzer.charts.sourceDistribution')}</CardTitle>
           </CardHeader>
           <CardContent>
             <ResponsiveContainer width="100%" height={400}>

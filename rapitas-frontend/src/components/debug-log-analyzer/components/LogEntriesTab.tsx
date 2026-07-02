@@ -6,6 +6,7 @@
  */
 
 import React, { useState, useMemo } from 'react';
+import { useTranslations } from 'next-intl';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
@@ -42,6 +43,7 @@ interface LogEntriesTabProps {
  * @param entries - All parsed log entries from the analysis result / 解析結果からのすべてのログエントリー
  */
 export const LogEntriesTab: React.FC<LogEntriesTabProps> = ({ entries }) => {
+  const t = useTranslations('devTools');
   const [searchText, setSearchText] = useState('');
   const [selectedLevel, setSelectedLevel] = useState<LogLevel | null>(null);
 
@@ -107,7 +109,7 @@ export const LogEntriesTab: React.FC<LogEntriesTabProps> = ({ entries }) => {
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
                 <Input
-                  placeholder="ログを検索..."
+                  placeholder={t('debugLogAnalyzer.entries.searchPlaceholder')}
                   value={searchText}
                   onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
                     setSearchText(e.target.value)
@@ -138,7 +140,7 @@ export const LogEntriesTab: React.FC<LogEntriesTabProps> = ({ entries }) => {
       <Card>
         <CardHeader>
           <CardTitle>
-            ログエントリー
+            {t('debugLogAnalyzer.entries.title')}
             <span className="text-sm text-gray-500 ml-2">
               ({filteredEntries.length} / {entries.length})
             </span>
@@ -149,7 +151,7 @@ export const LogEntriesTab: React.FC<LogEntriesTabProps> = ({ entries }) => {
             {filteredEntries.slice(0, 1000).map((entry, index) => renderLogEntry(entry, index))}
             {filteredEntries.length > 1000 && (
               <div className="p-4 text-center text-gray-500">
-                表示上限（1000件）を超えています。フィルターを使用して絞り込んでください。
+                {t('debugLogAnalyzer.entries.limitExceeded')}
               </div>
             )}
           </div>

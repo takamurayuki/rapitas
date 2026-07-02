@@ -7,6 +7,7 @@
  */
 'use client';
 import { useCallback, useRef, useState } from 'react';
+import { useTranslations } from 'next-intl';
 import { API_BASE_URL } from '@/utils/api';
 import { useFilterDataStore } from '@/stores/filter-data-store';
 import { useToast } from '@/components/ui/toast/ToastContainer';
@@ -25,6 +26,7 @@ interface UseConcernFormArgs {
  *   handlers. / フォーム状態・ref・カテゴリ変更ハンドラと送信/閉じるハンドラ。
  */
 export function useConcernForm({ fetchConcerns }: UseConcernFormArgs) {
+  const t = useTranslations('concerns');
   const [showAdd, setShowAdd] = useState(false);
   const titleRef = useRef<HTMLInputElement>(null);
   const [newTitle, setNewTitle] = useState('');
@@ -86,7 +88,7 @@ export function useConcernForm({ fetchConcerns }: UseConcernFormArgs) {
         }),
       });
       if (!res.ok) {
-        showToast('懸念の登録に失敗しました', 'error');
+        showToast(t('messages.createFailed'), 'error');
         return;
       }
       resetForm();
@@ -94,7 +96,7 @@ export function useConcernForm({ fetchConcerns }: UseConcernFormArgs) {
       setTimeout(() => titleRef.current?.focus(), 0);
       await fetchConcerns();
     } catch {
-      showToast('懸念の登録に失敗しました', 'error');
+      showToast(t('messages.createFailed'), 'error');
     }
   }, [
     newTitle,
@@ -106,6 +108,7 @@ export function useConcernForm({ fetchConcerns }: UseConcernFormArgs) {
     fetchConcerns,
     resetForm,
     showToast,
+    t,
   ]);
 
   return {

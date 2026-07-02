@@ -3,6 +3,7 @@
 
 import { Play } from 'lucide-react';
 import { useEffect, useState } from 'react';
+import { useTranslations } from 'next-intl';
 import type { UserSettings } from '@/types';
 
 interface AutoRunSettingsCardProps {
@@ -25,6 +26,9 @@ export function AutoRunSettingsCard({
   isSaving,
   onUpdateSettings,
 }: AutoRunSettingsCardProps) {
+  const t = useTranslations('settings.autoRunSettingsCard');
+  const tCommon = useTranslations('common');
+  const tSettings = useTranslations('settings');
   const serverLimit = settings?.autoCreateFromBacklogLimit ?? 0;
 
   // NOTE: Local state so the field accepts free typing (incl. clearing). Binding
@@ -64,22 +68,21 @@ export function AutoRunSettingsCard({
       <div className="border-b border-zinc-200 px-6 py-4 dark:border-zinc-800">
         <div className="flex items-center gap-3">
           <Play className="h-5 w-5 text-violet-500" />
-          <h2 className="font-semibold text-zinc-900 dark:text-zinc-50">タスク自動実行</h2>
+          <h2 className="font-semibold text-zinc-900 dark:text-zinc-50">
+            {tSettings('devModeTitle')}
+          </h2>
         </div>
-        <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
-          タスク自動実行（auto-run）の挙動に関する設定です。
-        </p>
+        <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">{t('description')}</p>
       </div>
       <div className="space-y-6 p-6">
-        {/* Auto-create from backlog limit (per-theme cap; 0 = disabled).
-            NOTE: literal JP copy — add i18n keys (devAutoCreateFromBacklog*) later. */}
+        {/* Auto-create from backlog limit (per-theme cap; 0 = disabled). */}
         <div className="flex items-center justify-between">
           <div>
             <h3 className="font-medium text-zinc-900 dark:text-zinc-50">
-              懸念・アイデアから自動起票（上限）
+              {t('backlogLimitLabel')}
             </h3>
             <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
-              自動実行でタスクが無くなったとき、懸念バックログ（解決後はアイデアボックス）からタスクを自動起票します。テーマごとの同時起票上限。0で無効。
+              {t('backlogLimitDescription')}
             </p>
           </div>
           <div className="flex items-center gap-2">
@@ -102,20 +105,18 @@ export function AutoRunSettingsCard({
               className="w-16 rounded-lg border border-zinc-300 bg-white px-2 py-1 text-center text-sm text-zinc-900 focus:border-indigo-400 focus:outline-none dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-50"
             />
             <span className="text-sm text-zinc-500 dark:text-zinc-400">
-              件{isSaving ? '（保存中…）' : ''}
+              {tCommon('items')}
+              {isSaving ? t('savingSuffix') : ''}
             </span>
           </div>
         </div>
 
-        {/* Verify->implement self-repair limit (retry count; 0 = disabled).
-            NOTE: literal JP copy — add i18n keys (devVerifyRepairLimit*) later. */}
+        {/* Verify->implement self-repair limit (retry count; 0 = disabled). */}
         <div className="flex items-center justify-between">
           <div>
-            <h3 className="font-medium text-zinc-900 dark:text-zinc-50">
-              検証失敗時のリトライ回数（自己改善ループ上限）
-            </h3>
+            <h3 className="font-medium text-zinc-900 dark:text-zinc-50">{t('repairLimitLabel')}</h3>
             <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
-              検証が失敗したとき、その指摘を実装者に差し戻して「実装を修正→再検証」を自動で繰り返す上限回数です。上限まで自己改善ループを回し、超えるとブロックします。0でリトライ無効。
+              {t('repairLimitDescription')}
             </p>
           </div>
           <div className="flex items-center gap-2">
@@ -138,21 +139,20 @@ export function AutoRunSettingsCard({
               className="w-16 rounded-lg border border-zinc-300 bg-white px-2 py-1 text-center text-sm text-zinc-900 focus:border-indigo-400 focus:outline-none dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-50"
             />
             <span className="text-sm text-zinc-500 dark:text-zinc-400">
-              回{isSaving ? '（保存中…）' : ''}
+              {tCommon('times')}
+              {isSaving ? t('savingSuffix') : ''}
             </span>
           </div>
         </div>
 
-        {/* Restart backend when auto-run runs dry (apply committed fixes safely).
-            NOTE: literal JP copy — add i18n keys (devRestartOnAutoRunDry*) later. */}
+        {/* Restart backend when auto-run runs dry (apply committed fixes safely). */}
         <div className="flex items-center justify-between">
           <div>
             <h3 className="font-medium text-zinc-900 dark:text-zinc-50">
-              枯渇時にバックエンドを再起動して修正を反映（開発用）
+              {t('restartOnDryLabel')}
             </h3>
             <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
-              自動実行でタスクが無くなった静止点（実行中エージェント0）で、起動後に新しいコミットがある場合のみ安全に再起動し、コミット済みの修正を反映してから次の自動起票へ進みます（10分のレート制限つき）。dev
-              起動時のみ有効。
+              {t('restartOnDryDescription')}
             </p>
           </div>
           <button

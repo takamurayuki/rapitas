@@ -1,5 +1,6 @@
 'use client';
 // TextColorSection
+import { useTranslations } from 'next-intl';
 import { Baseline } from 'lucide-react';
 import { quickTextColors, grayScalePalette, extendedColorPalette } from '../constants';
 
@@ -25,19 +26,21 @@ export function TextColorSection({
   onApplyTextColor,
   onResetTextColor,
 }: TextColorSectionProps) {
+  const t = useTranslations('notes');
   return (
     <div className="relative">
       <button
         onClick={onTextColorButtonClick}
         className="px-1 py-0.5 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded transition-colors h-6 flex items-center justify-center"
-        title="文字色"
+        title={t('toolbar.textColor.textColorTitle')}
+        data-popup-trigger="1"
       >
         <Baseline className="w-3.5 h-3.5" style={{ color: currentTextColor }} />
       </button>
       {showTextColorPicker && (
         <div className="absolute top-full left-0 mt-1 p-3 bg-white dark:bg-zinc-800 rounded-lg shadow-lg border border-zinc-200 dark:border-zinc-700 z-10 min-w-60">
           <div className="text-xs font-semibold text-zinc-500 dark:text-zinc-400 mb-2">
-            テキスト色
+            {t('toolbar.textColor.textColorLabel')}
           </div>
 
           {/* Frequently used colors */}
@@ -113,7 +116,7 @@ export function TextColorSection({
               className="w-full text-center text-xs text-zinc-600 dark:text-zinc-300 hover:text-zinc-900 dark:hover:text-zinc-100 py-1 px-2 rounded hover:bg-zinc-100 dark:hover:bg-zinc-700 transition-colors"
               onClick={onResetTextColor}
             >
-              デフォルト
+              {t('common.default')}
             </button>
           </div>
         </div>

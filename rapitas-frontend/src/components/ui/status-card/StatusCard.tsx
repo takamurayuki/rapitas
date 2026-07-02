@@ -2,12 +2,15 @@
 
 import React, { useMemo, useEffect, useRef } from 'react';
 import { Loader2, MessageCircleQuestion, AlertCircle, CheckCircle2 } from 'lucide-react';
+import { useTranslations } from 'next-intl';
 import type { StatusCardProps, AgentStatusType, StatusConfig, StatusCardSize } from './types';
 
 /**
- * Status configuration map
+ * Status style configuration map (colors/animation only — labels are resolved
+ * via useTranslations inside the component, since this is a module-level
+ * const and cannot call hooks).
  */
-const STATUS_CONFIG: Record<AgentStatusType, StatusConfig> = {
+const STATUS_CONFIG: Record<AgentStatusType, Omit<StatusConfig, 'label'>> = {
   // NOTE: processing uses BLUE — the app-wide "running" color (user decision;
   // see docs/design/ui-design-language.md §4 status hues). Was indigo, which
   // split the running meaning against the blue used elsewhere.
@@ -16,7 +19,6 @@ const STATUS_CONFIG: Record<AgentStatusType, StatusConfig> = {
     bgColor: 'bg-blue-50 dark:bg-blue-950/40',
     borderColor: 'border-blue-200 dark:border-blue-800',
     textColor: 'text-blue-700 dark:text-blue-300',
-    label: '実行中',
     animation: 'animate-spin',
   },
   waiting_for_input: {
@@ -24,7 +26,6 @@ const STATUS_CONFIG: Record<AgentStatusType, StatusConfig> = {
     bgColor: 'bg-amber-50 dark:bg-amber-950/40',
     borderColor: 'border-amber-200 dark:border-amber-800',
     textColor: 'text-amber-700 dark:text-amber-300',
-    label: '入力待ち',
     animation: 'animate-pulse',
   },
   error: {
@@ -32,14 +33,12 @@ const STATUS_CONFIG: Record<AgentStatusType, StatusConfig> = {
     bgColor: 'bg-red-50 dark:bg-red-950/40',
     borderColor: 'border-red-200 dark:border-red-800',
     textColor: 'text-red-700 dark:text-red-300',
-    label: 'エラー',
   },
   completed: {
     iconColor: 'text-green-500 dark:text-green-400',
     bgColor: 'bg-green-50 dark:bg-green-950/40',
     borderColor: 'border-green-200 dark:border-green-800',
     textColor: 'text-green-700 dark:text-green-300',
-    label: '完了',
   },
 };
 
@@ -69,7 +68,7 @@ const SIZE_CONFIG: Record<StatusCardSize, { card: string; icon: string; text: st
  */
 const getDefaultIcon = (
   status: AgentStatusType,
-  config: StatusConfig,
+  config: Omit<StatusConfig, 'label'>,
   sizeClass: string,
 ): React.ReactNode => {
   const iconProps = {
@@ -106,11 +105,26 @@ export const StatusCard: React.FC<StatusCardProps> = ({
   ariaLabel,
   onStatusChange,
 }) => {
+  const t = useTranslations('common');
   const prevStatusRef = useRef<AgentStatusType>(status);
   const cardRef = useRef<HTMLDivElement>(null);
 
   const config = useMemo(() => STATUS_CONFIG[status], [status]);
   const sizeConfig = useMemo(() => SIZE_CONFIG[size], [size]);
+  const statusLabel = useMemo(() => {
+    switch (status) {
+      case 'processing':
+        return t('statusCard.processing');
+      case 'waiting_for_input':
+        return t('statusCard.waitingForInput');
+      case 'error':
+        return t('error');
+      case 'completed':
+        return t('completed');
+      default:
+        return '';
+    }
+  }, [status, t]);
 
   // Callback on status change
   useEffect(() => {
@@ -141,13 +155,13 @@ export const StatusCard: React.FC<StatusCardProps> = ({
     return getDefaultIcon(status, config, sizeConfig.icon);
   }, [icon, status, config, sizeConfig.icon]);
 
-  const displayMessage = message || config.label;
+  const displayMessage = message || statusLabel;
 
   return (
     <div
       ref={cardRef}
       role="status"
-      aria-label={ariaLabel || `ステータス: ${config.label}`}
+      aria-label={ariaLabel || t('statusCard.ariaLabel', { label: statusLabel })}
       aria-live="polite"
       className={`
         inline-flex items-center gap-3
@@ -172,7 +186,7 @@ export const StatusCard: React.FC<StatusCardProps> = ({
             .trim()
             .replace(/\s+/g, ' ')}
         >
-          {config.label}
+          {statusLabel}
         </span>
         {message && (
           <span

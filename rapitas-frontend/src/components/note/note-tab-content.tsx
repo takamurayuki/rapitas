@@ -1,6 +1,7 @@
 'use client';
 // NoteTabContent
 import { useRef, useState } from 'react';
+import { useTranslations } from 'next-intl';
 import { FileText, Plus, PanelLeftOpen } from 'lucide-react';
 import NoteEditor from './NoteEditor';
 import NoteSidebar from './NoteSidebar';
@@ -20,6 +21,7 @@ interface NoteTabContentProps {
  * @param onCreateNote - Called when the user requests a new note / 新規ノート要求時に呼ばれる
  */
 export default function NoteTabContent({ currentNote, onCreateNote }: NoteTabContentProps) {
+  const t = useTranslations('notes');
   const [isSidebarHovered, setIsSidebarHovered] = useState(false);
   const sidebarTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -73,14 +75,14 @@ export default function NoteTabContent({ currentNote, onCreateNote }: NoteTabCon
             <div className="text-center">
               <FileText className="w-16 h-16 mx-auto text-zinc-300 dark:text-zinc-600 mb-4" />
               <p className="text-zinc-500 dark:text-zinc-400 mb-4">
-                ノートを選択するか、新規作成してください
+                {t('tabContent.emptyStateText')}
               </p>
               <button
                 onClick={() => onCreateNote()}
                 className="px-4 py-2 bg-indigo-500 text-white rounded-lg hover:bg-indigo-600 transition-colors flex items-center gap-2 mx-auto"
               >
                 <Plus className="w-4 h-4" />
-                新規ノート作成
+                {t('tabContent.createNoteButton')}
               </button>
             </div>
           </div>

@@ -9,6 +9,7 @@
  */
 
 import { useEffect, useState } from 'react';
+import { useTranslations } from 'next-intl';
 import {
   Sparkles,
   SplitSquareVertical,
@@ -49,6 +50,7 @@ export function NextActionRecommendations({
   onSelect,
   isBusy,
 }: NextActionRecommendationsProps) {
+  const t = useTranslations('copilot.nextActionRecommendations');
   // Track which card was clicked so only IT shows a spinner (not all of them).
   const [activeId, setActiveId] = useState<string | null>(null);
   useEffect(() => {
@@ -58,14 +60,14 @@ export function NextActionRecommendations({
   if (actions.length === 0) {
     return (
       <p className="rounded-lg border border-zinc-200 px-3 py-4 text-center text-xs text-zinc-500 dark:border-zinc-700 dark:text-zinc-400">
-        いまの状態でおすすめのアクションはありません。
+        {t('noRecommendations')}
       </p>
     );
   }
 
   return (
     <div className="space-y-2">
-      <p className="text-[11px] font-medium text-zinc-400 dark:text-zinc-500">次の一手</p>
+      <p className="text-[11px] font-medium text-zinc-400 dark:text-zinc-500">{t('heading')}</p>
       {actions.map((a) => {
         const Icon = ICONS[a.icon];
         const isPrimary = a.tone === 'primary';

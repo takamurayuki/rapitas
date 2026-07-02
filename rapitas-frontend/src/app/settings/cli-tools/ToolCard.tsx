@@ -1,6 +1,7 @@
 'use client';
 // ToolCard
 
+import { useTranslations } from 'next-intl';
 import {
   Terminal,
   Download,
@@ -32,25 +33,26 @@ interface ToolCardProps {
  * Returns the status badge config (icon, label, className) for a tool.
  *
  * @param tool - The CLI tool whose status is being evaluated.
+ * @param t - Scoped translation function from `settings.toolCard`.
  */
-function getStatusDisplay(tool: CLITool) {
+function getStatusDisplay(tool: CLITool, t: ReturnType<typeof useTranslations>) {
   if (!tool.isInstalled) {
     return {
       icon: <AlertCircle className="w-4 h-4 text-amber-500" />,
-      label: '未インストール',
+      label: t('statusNotInstalled'),
       className: 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300',
     };
   }
   if (tool.isAuthenticated) {
     return {
       icon: <CheckCircle className="w-4 h-4 text-green-500" />,
-      label: '認証済み',
+      label: t('statusAuthenticated'),
       className: 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300',
     };
   }
   return {
     icon: <AlertCircle className="w-4 h-4 text-indigo-500" />,
-    label: 'インストール済み',
+    label: t('statusInstalled'),
     className: 'bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300',
   };
 }
@@ -91,7 +93,8 @@ export function ToolCard({
   onAuthenticate,
   onToggleCommand,
 }: ToolCardProps) {
-  const statusDisplay = getStatusDisplay(tool);
+  const t = useTranslations('settings.toolCard');
+  const statusDisplay = getStatusDisplay(tool, t);
 
   return (
     <div className="bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-700 overflow-hidden">
@@ -120,7 +123,9 @@ export function ToolCard({
                 <div className="flex flex-wrap items-center gap-4 mb-3">
                   {tool.version && (
                     <div className="flex items-center gap-2">
-                      <span className="text-xs text-zinc-500 dark:text-zinc-400">バージョン:</span>
+                      <span className="text-xs text-zinc-500 dark:text-zinc-400">
+                        {t('version')}:
+                      </span>
                       <code className="px-2 py-1 bg-zinc-100 dark:bg-zinc-800 rounded text-xs font-mono">
                         {tool.version}
                       </code>
@@ -128,7 +133,9 @@ export function ToolCard({
                   )}
                   {tool.installPath && (
                     <div className="flex items-center gap-2">
-                      <span className="text-xs text-zinc-500 dark:text-zinc-400">パス:</span>
+                      <span className="text-xs text-zinc-500 dark:text-zinc-400">
+                        {t('installPath')}:
+                      </span>
                       <code className="px-2 py-1 bg-zinc-100 dark:bg-zinc-800 rounded text-xs font-mono truncate max-w-xs">
                         {tool.installPath}
                       </code>
@@ -141,7 +148,9 @@ export function ToolCard({
               <div className="flex flex-wrap items-center gap-4">
                 {tool.installCommand && (
                   <div className="flex items-center gap-2">
-                    <span className="text-xs text-zinc-500 dark:text-zinc-400">インストール:</span>
+                    <span className="text-xs text-zinc-500 dark:text-zinc-400">
+                      {t('install')}:
+                    </span>
                     <button
                       onClick={() => onToggleCommand(tool.id, actionState.showCommand)}
                       className="flex items-center gap-1 px-2 py-1 bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 rounded text-xs transition-colors"
@@ -151,7 +160,7 @@ export function ToolCard({
                       ) : (
                         <Eye className="w-3 h-3" />
                       )}
-                      {actionState.showCommand ? 'Hide' : 'Show'}
+                      {actionState.showCommand ? t('hide') : t('show')}
                     </button>
                   </div>
                 )}
@@ -162,7 +171,7 @@ export function ToolCard({
                   rel="noopener noreferrer"
                   className="inline-flex items-center gap-1 text-xs text-indigo-600 dark:text-indigo-400 hover:underline"
                 >
-                  公式サイト
+                  {t('officialSite')}
                   <ExternalLink className="w-3 h-3" />
                 </a>
 
@@ -172,7 +181,7 @@ export function ToolCard({
                   rel="noopener noreferrer"
                   className="inline-flex items-center gap-1 text-xs text-indigo-600 dark:text-indigo-400 hover:underline"
                 >
-                  ドキュメント
+                  {t('documentation')}
                   <ExternalLink className="w-3 h-3" />
                 </a>
               </div>
@@ -201,7 +210,7 @@ export function ToolCard({
                 ) : (
                   <Download className="w-4 h-4" />
                 )}
-                インストール
+                {t('installAction')}
               </button>
             ) : (
               <div className="flex items-center gap-2">
@@ -216,7 +225,7 @@ export function ToolCard({
                     ) : (
                       <RefreshCcw className="w-4 h-4" />
                     )}
-                    更新
+                    {t('updateAction')}
                   </button>
                 )}
 
@@ -237,7 +246,7 @@ export function ToolCard({
                     ) : (
                       <Key className="w-4 h-4" />
                     )}
-                    {tool.isAuthenticated ? '認証確認' : '認証'}
+                    {tool.isAuthenticated ? t('checkAuth') : t('authenticate')}
                   </button>
                 )}
               </div>

@@ -5,6 +5,7 @@
  * IdeaCard rows. Pagination and filters are rendered by the orchestrator.
  */
 'use client';
+import { useTranslations } from 'next-intl';
 import { Lightbulb, Loader2 } from 'lucide-react';
 import type { Theme } from '@/types';
 import type { Idea } from './idea-box.types';
@@ -40,6 +41,7 @@ export function IdeaList({
   onEdit,
   onDelete,
 }: IdeaListProps) {
+  const t = useTranslations('ideaBox');
   if (isLoading) {
     return (
       <div className="flex items-center justify-center py-16">
@@ -53,11 +55,9 @@ export function IdeaList({
       <div className="flex flex-col items-center justify-center py-16 text-center">
         <Lightbulb className="h-12 w-12 text-zinc-200 dark:text-zinc-700 mb-3" />
         <p className="text-sm text-zinc-500 dark:text-zinc-400">
-          {searchQuery ? '検索結果がありません' : 'アイデアがまだありません'}
+          {searchQuery ? t('list.emptySearch') : t('list.emptyDefault')}
         </p>
-        <p className="text-xs text-zinc-400 dark:text-zinc-500 mt-1">
-          上の「アイデアを追加」ボタンで気軽にメモしましょう
-        </p>
+        <p className="text-xs text-zinc-400 dark:text-zinc-500 mt-1">{t('list.emptyHint')}</p>
       </div>
     );
   }

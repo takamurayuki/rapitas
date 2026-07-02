@@ -6,6 +6,12 @@ vi.mock('@/utils/api', () => ({ API_BASE_URL: 'http://test' }));
 vi.mock('@/stores/filter-data-store', () => ({
   useFilterDataStore: () => ({ categories: [], themes: [] }),
 }));
+// NOTE: Idea box child components now source text via next-intl; the mock
+// echoes the message key so assertions below check key paths, not the
+// Japanese copy.
+vi.mock('next-intl', () => ({
+  useTranslations: () => (key: string) => key,
+}));
 
 const mockIdeas = [
   {
@@ -40,7 +46,7 @@ describe('IdeasClient', () => {
 
   it('renders the page title', async () => {
     renderWithProviders(<IdeasClient />);
-    expect(screen.getByText('アイデア')).toBeInTheDocument();
+    expect(screen.getByText('header.title')).toBeInTheDocument();
   });
 
   it('fetches and displays ideas', async () => {
@@ -59,15 +65,15 @@ describe('IdeasClient', () => {
     ) as unknown as typeof fetch;
     renderWithProviders(<IdeasClient />);
     await waitFor(() => {
-      expect(screen.getByText(/アイデアがまだありません/)).toBeInTheDocument();
+      expect(screen.getByText('list.emptyDefault')).toBeInTheDocument();
     });
   });
 
   it('opens quick add form when button clicked', async () => {
     renderWithProviders(<IdeasClient />);
     await waitFor(() => screen.getByText('テストアイデア'));
-    fireEvent.click(screen.getByText('アイデアを追加'));
-    expect(screen.getByPlaceholderText(/アイデアをひとことで/)).toBeInTheDocument();
+    fireEvent.click(screen.getByText('header.addButton'));
+    expect(screen.getByPlaceholderText('createForm.titlePlaceholder')).toBeInTheDocument();
   });
 
   it('does not show pagination when total pages is 1', async () => {

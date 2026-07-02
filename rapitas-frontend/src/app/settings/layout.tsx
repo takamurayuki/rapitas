@@ -9,19 +9,21 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { useTranslations } from 'next-intl';
 
 /** One settings destination shown in the hub tab bar. */
 type SettingsTab = {
   href: string;
-  label: string;
+  /** Key passed to `useTranslations('settings')`, e.g. `layout.generalTab` or a top-level reuse like `title`. */
+  labelKey: string;
 };
 
 const SETTINGS_TABS: SettingsTab[] = [
-  { href: '/settings/general', label: '一般' },
-  { href: '/settings', label: 'APIキー・モデル' },
-  { href: '/settings/developer-mode', label: 'タスク自動実行' },
-  { href: '/settings/shortcuts', label: 'ショートカット' },
-  { href: '/settings/cli-tools', label: 'CLIツール' },
+  { href: '/settings/general', labelKey: 'layout.generalTab' },
+  { href: '/settings', labelKey: 'title' },
+  { href: '/settings/developer-mode', labelKey: 'devModeTitle' },
+  { href: '/settings/shortcuts', labelKey: 'layout.shortcutsTab' },
+  { href: '/settings/cli-tools', labelKey: 'layout.cliToolsTab' },
 ];
 
 /**
@@ -45,13 +47,14 @@ function isTabActive(tabHref: string, pathname: string): boolean {
  * @param children - The active settings route's content / アクティブな設定ページの内容
  */
 export default function SettingsLayout({ children }: { children: React.ReactNode }) {
+  const t = useTranslations('settings');
   const pathname = usePathname() ?? '';
 
   return (
     <div>
       <div className="sticky top-16 z-30 border-b border-zinc-200 dark:border-zinc-800 bg-white/95 dark:bg-indigo-dark-900/95 backdrop-blur">
         <nav
-          aria-label="設定"
+          aria-label={t('layout.navAriaLabel')}
           className="mx-auto flex max-w-6xl gap-1 overflow-x-auto px-4 sm:px-6 lg:px-8 scrollbar-thin"
         >
           {SETTINGS_TABS.map((tab) => {
@@ -67,7 +70,7 @@ export default function SettingsLayout({ children }: { children: React.ReactNode
                     : 'border-transparent text-zinc-500 hover:text-zinc-800 dark:text-zinc-400 dark:hover:text-zinc-200'
                 }`}
               >
-                {tab.label}
+                {t(tab.labelKey)}
               </Link>
             );
           })}

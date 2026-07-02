@@ -7,6 +7,7 @@
  * analysis result cards, message bubbles, and proactive insights.
  */
 import { useState, useCallback } from 'react';
+import { useTranslations } from 'next-intl';
 import {
   Loader2,
   Cpu,
@@ -68,6 +69,8 @@ export function AnalysisResultCard({
   data: AnalysisData;
   onAction?: (action: string, params?: Record<string, unknown>) => void;
 }) {
+  const t = useTranslations('copilot.chatComponents.analysisCard');
+  const tPriority = useTranslations('task');
   const subtasks = data.suggestedSubtasks ?? [];
   const [selected, setSelected] = useState<number[]>(() => subtasks.map((_, i) => i));
   const [created, setCreated] = useState(false);
@@ -97,15 +100,19 @@ export function AnalysisResultCard({
       <div className="rounded-lg bg-violet-50/70 px-3 py-2 dark:bg-violet-900/20">
         <div className="flex items-center justify-between gap-2">
           <div className="flex items-center gap-2 text-[11px] text-violet-600 dark:text-violet-400">
-            <span className="font-medium">複雑度: {data.complexity}</span>
+            <span className="font-medium">
+              {t('complexityLabel')} {data.complexity}
+            </span>
             <span>|</span>
-            <span>推定: {data.estimatedTotalHours}h</span>
+            <span>
+              {t('estimateLabel')} {data.estimatedTotalHours}h
+            </span>
           </div>
           {data.estimatedTotalHours != null &&
             (estimateApplied ? (
               <span className="flex shrink-0 items-center gap-1 text-[10px] text-green-600 dark:text-green-400">
                 <CheckCircle2 className="w-2.5 h-2.5" />
-                反映済み
+                {t('appliedLabel')}
               </span>
             ) : (
               <button
@@ -115,7 +122,7 @@ export function AnalysisResultCard({
                 }}
                 className="shrink-0 rounded border border-violet-300 px-2 py-0.5 text-[10px] font-medium text-violet-700 transition-colors hover:bg-violet-100 dark:border-violet-700 dark:text-violet-300 dark:hover:bg-violet-900/30"
               >
-                見積もりを反映
+                {t('applyEstimateButton')}
               </button>
             ))}
         </div>
@@ -125,14 +132,14 @@ export function AnalysisResultCard({
         <div className="space-y-1.5">
           <div className="flex items-center justify-between">
             <p className="text-[10px] font-medium text-zinc-500 dark:text-zinc-400 uppercase tracking-wide">
-              提案サブタスク ({subtasks.length}件)
+              {t('suggestedSubtasksLabel', { count: subtasks.length })}
             </p>
             {!created && (
               <button
                 onClick={toggleAll}
                 className="text-[10px] text-violet-600 dark:text-violet-400 hover:underline"
               >
-                {selected.length === subtasks.length ? '解除' : '全選択'}
+                {selected.length === subtasks.length ? t('deselectLabel') : tPriority('selectAll')}
               </button>
             )}
           </div>
@@ -175,7 +182,11 @@ export function AnalysisResultCard({
                       ) : (
                         <ChevronDown className="w-2.5 h-2.5" />
                       )}
-                      {st.priority === 'high' ? '高' : st.priority === 'medium' ? '中' : '低'}
+                      {st.priority === 'high'
+                        ? tPriority('priorityHigh')
+                        : st.priority === 'medium'
+                          ? tPriority('priorityMedium')
+                          : tPriority('priorityLow')}
                     </span>
                     {st.estimatedHours != null && (
                       <span className="text-[9px] text-zinc-400">{st.estimatedHours}h</span>
@@ -187,21 +198,23 @@ export function AnalysisResultCard({
           </div>
           {!created && (
             <div className="flex items-center justify-end gap-2 pt-1">
-              <span className="text-[10px] text-zinc-500">{selected.length}件選択</span>
+              <span className="text-[10px] text-zinc-500">
+                {t('selectedCountLabel', { count: selected.length })}
+              </span>
               <button
                 onClick={handleCreate}
                 disabled={selected.length === 0}
                 className="flex items-center gap-1 px-2 py-1 bg-violet-600 hover:bg-violet-700 text-white text-[10px] font-medium rounded transition-colors disabled:opacity-50"
               >
                 <CheckCircle2 className="w-2.5 h-2.5" />
-                サブタスクを作成
+                {t('createSubtasksButton')}
               </button>
             </div>
           )}
           {created && (
             <div className="flex items-center gap-1.5 p-1.5 bg-green-50 dark:bg-green-900/20 rounded text-[10px] text-green-700 dark:text-green-300">
               <CheckCircle2 className="w-3 h-3" />
-              サブタスクを作成しました
+              {t('subtasksCreatedMessage')}
             </div>
           )}
         </div>
@@ -285,6 +298,7 @@ export function ProactiveInsight({
   taskStatus?: string;
   taskTitle?: string;
 }) {
+  const t = useTranslations('copilot.chatComponents.proactiveInsight');
   if (!taskStatus || !taskTitle) return null;
 
   const insights: Array<{ icon: typeof Zap; text: string; color: string }> = [];
@@ -292,19 +306,19 @@ export function ProactiveInsight({
   if (taskStatus === 'todo')
     insights.push({
       icon: Zap,
-      text: '着手前です。アプローチの壁打ちをしませんか？',
+      text: t('todoInsight'),
       color: 'text-amber-500',
     });
   else if (taskStatus === 'in-progress')
     insights.push({
       icon: ArrowRight,
-      text: '進行中です。詰まっている点はありませんか？',
+      text: t('inProgressInsight'),
       color: 'text-indigo-500',
     });
   else if (taskStatus === 'done' || taskStatus === 'completed')
     insights.push({
       icon: CheckCircle2,
-      text: '完了済みです。振り返りを行いますか？',
+      text: t('doneInsight'),
       color: 'text-emerald-500',
     });
 

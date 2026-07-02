@@ -6,6 +6,7 @@
  * and a "Run now" button that triggers POST /system/backups/run.
  */
 import { useCallback, useEffect, useState } from 'react';
+import { useTranslations } from 'next-intl';
 import { Database, Download, Loader2, AlertTriangle, CheckCircle } from 'lucide-react';
 import { API_BASE_URL } from '@/utils/api';
 
@@ -34,16 +35,24 @@ function formatSize(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
-function formatRelative(iso: string | null): string {
-  if (!iso) return '未実行';
+/**
+ * Formats a backup timestamp relative to now, using translated units.
+ *
+ * @param iso - ISO timestamp of the last run, or null if it never ran.
+ * @param t - Scoped translation function from `settings.backupCard`.
+ * @returns A human-readable relative time string.
+ */
+function formatRelative(iso: string | null, t: ReturnType<typeof useTranslations>): string {
+  if (!iso) return t('notRun');
   const diff = Date.now() - new Date(iso).getTime();
   const hours = Math.floor(diff / 3_600_000);
-  if (hours < 1) return 'たった今';
-  if (hours < 24) return `${hours}時間前`;
-  return `${Math.floor(hours / 24)}日前`;
+  if (hours < 1) return t('justNow');
+  if (hours < 24) return t('hoursAgo', { hours });
+  return t('daysAgo', { days: Math.floor(hours / 24) });
 }
 
 export default function BackupCard() {
+  const t = useTranslations('settings.backupCard');
   const [data, setData] = useState<ListResponse | null>(null);
   const [running, setRunning] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -82,9 +91,7 @@ export default function BackupCard() {
       <div className="mb-3 flex items-center justify-between">
         <div className="flex items-center gap-2">
           <Database className="h-5 w-5 text-emerald-500" />
-          <h2 className="text-base font-semibold text-zinc-900 dark:text-zinc-100">
-            データベース バックアップ
-          </h2>
+          <h2 className="text-base font-semibold text-zinc-900 dark:text-zinc-100">{t('title')}</h2>
         </div>
         <button
           onClick={runNow}
@@ -96,13 +103,13 @@ export default function BackupCard() {
           ) : (
             <Download className="h-3 w-3" />
           )}
-          {running ? 'バックアップ中…' : '今すぐバックアップ'}
+          {running ? t('running') : t('runNow')}
         </button>
       </div>
 
       <p className="mb-3 text-xs text-zinc-500 dark:text-zinc-400">
-        週1回 自動的に暗号化アーカイブを <code className="font-mono">~/.rapitas/backups/</code>{' '}
-        に作成します。直近 8 件保持。
+        {t('descriptionBefore')} <code className="font-mono">~/.rapitas/backups/</code>{' '}
+        {t('descriptionAfter')}
       </p>
 
       {loading ? (
@@ -123,17 +130,15 @@ export default function BackupCard() {
             )}
             <span className="text-xs text-zinc-700 dark:text-zinc-300">
               {data.status.lastResult === 'success'
-                ? `最後のバックアップ: ${formatRelative(data.status.lastRunAt)}`
+                ? t('lastBackup', { relative: formatRelative(data.status.lastRunAt, t) })
                 : data.status.lastResult === 'failed'
-                  ? `直近の実行は失敗: ${data.status.lastError ?? ''}`
-                  : 'まだバックアップが実行されていません'}
+                  ? t('lastRunFailed', { error: data.status.lastError ?? '' })
+                  : t('notRunYet')}
             </span>
           </div>
 
           {data.backups.length === 0 ? (
-            <div className="text-xs text-zinc-500 dark:text-zinc-400">
-              アーカイブはまだありません。
-            </div>
+            <div className="text-xs text-zinc-500 dark:text-zinc-400">{t('noArchivesYet')}</div>
           ) : (
             <ul className="divide-y divide-zinc-100 dark:divide-zinc-800">
               {data.backups.map((b) => (

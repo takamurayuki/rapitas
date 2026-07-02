@@ -2,6 +2,7 @@
 // CLIToolsPage
 
 import { useState, useEffect } from 'react';
+import { useTranslations } from 'next-intl';
 import { Terminal, RefreshCcw, Info } from 'lucide-react';
 import { requireAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/components/ui/toast/ToastContainer';
@@ -19,6 +20,7 @@ function PageHeader({
   onRefresh?: () => void;
   isRefreshing?: boolean;
 }) {
+  const t = useTranslations('settings.cliToolsPage');
   return (
     <div className="flex items-center justify-between mb-6">
       <div className="flex items-center gap-3">
@@ -26,10 +28,8 @@ function PageHeader({
           <Terminal className="w-6 h-6 text-indigo-600 dark:text-indigo-400" />
         </div>
         <div>
-          <h1 className="text-2xl font-bold text-zinc-900 dark:text-zinc-50">CLIツール</h1>
-          <p className="text-sm text-zinc-500 dark:text-zinc-400">
-            AI CLI ツールのインストール・バージョン管理・認証
-          </p>
+          <h1 className="text-2xl font-bold text-zinc-900 dark:text-zinc-50">{t('title')}</h1>
+          <p className="text-sm text-zinc-500 dark:text-zinc-400">{t('subtitle')}</p>
         </div>
       </div>
       <button
@@ -38,7 +38,7 @@ function PageHeader({
         className="flex items-center gap-2 px-4 py-2 bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 text-zinc-700 dark:text-zinc-300 rounded-lg transition-colors disabled:opacity-50"
       >
         <RefreshCcw className={`w-4 h-4 ${isRefreshing ? 'animate-spin' : ''}`} />
-        更新
+        {t('refresh')}
       </button>
     </div>
   );
@@ -83,6 +83,7 @@ function CLIToolsPage() {
     updateActionState,
   } = useCLITools();
 
+  const t = useTranslations('settings.cliToolsPage');
   const { showToast } = useToast();
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(5);
@@ -108,7 +109,7 @@ function CLIToolsPage() {
     runInTerminal(tool?.name ?? 'install', tool?.installCommand);
   };
   const handleAuthenticate = (tool: CLITool) => {
-    runInTerminal(`${tool.name} 認証`, tool.authCommand);
+    runInTerminal(t('authenticateTerminalTitle', { toolName: tool.name }), tool.authCommand);
   };
 
   if (isLoading) {
@@ -137,9 +138,9 @@ function CLIToolsPage() {
         <div className="flex items-start gap-2 text-sm text-indigo-700 dark:text-indigo-300">
           <Info className="w-4 h-4 mt-0.5 shrink-0" />
           <span>
-            インストール・認証は rapitas のターミナルで実行されます（コマンドがプリフィルされるので
-            Enter で実行）。完了後「更新」で状態を再確認できます。なお、新しく入れたツールを
-            <strong>エージェントが使う</strong>には再起動が必要です。
+            {t('infoBannerPart1')}
+            <strong>{t('infoBannerStrong')}</strong>
+            {t('infoBannerPart2')}
           </span>
         </div>
       </div>

@@ -9,6 +9,7 @@
  * concern's theme, so there is no repo picker.
  */
 
+import { useTranslations } from 'next-intl';
 import {
   ListPlus,
   Trash2,
@@ -20,7 +21,7 @@ import {
 } from 'lucide-react';
 import { getIconComponent } from '@/components/category/icon-data';
 import PriorityIcon from '@/feature/tasks/components/priority/PriorityIcon';
-import { TYPE_META, SEVERITY_HINT, type Concern } from './concern-shared';
+import { TYPE_META, TYPE_LABEL_KEY, SEVERITY_HINT_KEY, type Concern } from './concern-shared';
 
 interface ConcernCardProps {
   concern: Concern;
@@ -48,6 +49,8 @@ export function ConcernCard({
   onDelete,
   onPublish,
 }: ConcernCardProps) {
+  const t = useTranslations('concerns');
+  const tCommon = useTranslations('common');
   const TyIcon = TYPE_META[c.type].icon;
   const ThemeIcon = getIconComponent(theme?.icon || '') || FolderOpen;
 
@@ -60,7 +63,7 @@ export function ConcernCard({
               className={`flex items-center gap-0.5 rounded-full px-1.5 py-0.5 text-[10px] font-medium ${TYPE_META[c.type].badge}`}
             >
               <TyIcon className="h-2.5 w-2.5" />
-              {TYPE_META[c.type].label}
+              {t(TYPE_LABEL_KEY[c.type])}
             </span>
             {/* Theme, then priority icon to its right (matches the idea box). */}
             <span className="flex items-center gap-1">
@@ -68,13 +71,13 @@ export function ConcernCard({
                 <span
                   className="flex items-center gap-0.5 text-[10px] font-medium"
                   style={{ color: theme.color || '#059669' }}
-                  title={`テーマ: ${theme.name}`}
+                  title={t('card.themeTitle', { name: theme.name })}
                 >
                   <ThemeIcon className="h-2.5 w-2.5" />
                   {theme.name}
                 </span>
               )}
-              <span title={`優先度: ${SEVERITY_HINT[c.severity]}`}>
+              <span title={t('card.priorityTitle', { hint: t(SEVERITY_HINT_KEY[c.severity]) })}>
                 <PriorityIcon priority={c.severity} size="sm" />
               </span>
             </span>
@@ -83,7 +86,7 @@ export function ConcernCard({
                 href={`/tasks/${c.createdTaskId}`}
                 className="rounded-full bg-green-50 px-1.5 py-0.5 text-[10px] font-medium text-green-600 hover:underline dark:bg-green-900/30 dark:text-green-300"
               >
-                タスク化済 #{c.createdTaskId}
+                {t('card.taskCreatedBadge', { id: c.createdTaskId })}
               </a>
             )}
             {/* GitHub publish link badge */}
@@ -92,7 +95,7 @@ export function ConcernCard({
                 href={c.linkedIssue.url}
                 target="_blank"
                 rel="noopener noreferrer"
-                title="GitHub Issue を開く"
+                title={t('card.githubIssueTitle')}
                 className={`flex items-center gap-0.5 rounded-full px-1.5 py-0.5 text-[10px] font-medium hover:underline ${
                   c.linkedIssue.state === 'closed'
                     ? 'bg-purple-50 text-purple-600 dark:bg-purple-900/30 dark:text-purple-300'
@@ -100,7 +103,7 @@ export function ConcernCard({
                 }`}
               >
                 <CircleDot className="h-2.5 w-2.5" />#{c.linkedIssue.issueNumber}
-                {c.linkedIssue.state === 'closed' ? ' · closed' : ''}
+                {c.linkedIssue.state === 'closed' ? t('card.closedSuffix') : ''}
                 <ExternalLink className="h-2 w-2" />
               </a>
             )}
@@ -120,7 +123,7 @@ export function ConcernCard({
             )}
             {c.originTaskId && (
               <a href={`/tasks/${c.originTaskId}`} className="hover:underline">
-                発見元 #{c.originTaskId}
+                {t('card.originLink', { id: c.originTaskId })}
               </a>
             )}
           </div>
@@ -136,7 +139,7 @@ export function ConcernCard({
             className="flex items-center gap-1 rounded-lg bg-indigo-500 px-2.5 py-1 text-[11px] font-medium text-white hover:bg-indigo-600 disabled:opacity-50"
           >
             {busy ? <Loader2 className="h-3 w-3 animate-spin" /> : <ListPlus className="h-3 w-3" />}
-            タスク化
+            {t('card.convertButton')}
           </button>
         )}
         {/* Publish to GitHub — one click; the server resolves the repo from the
@@ -145,17 +148,17 @@ export function ConcernCard({
           <button
             onClick={() => onPublish(c.id)}
             disabled={busy}
-            title="GitHub Issue として公開"
+            title={t('card.publishTitle')}
             className="flex items-center gap-1 rounded-lg border border-zinc-200 px-2.5 py-1 text-[11px] font-medium text-zinc-600 hover:bg-zinc-100 disabled:opacity-50 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-800"
           >
             {busy ? <Loader2 className="h-3 w-3 animate-spin" /> : <Upload className="h-3 w-3" />}
-            GitHubに公開
+            {t('card.publishButton')}
           </button>
         )}
         <button
           onClick={() => onDelete(c.id)}
           disabled={busy}
-          title="削除"
+          title={tCommon('delete')}
           className="rounded-lg p-1 text-zinc-400 hover:bg-zinc-100 hover:text-rose-500 disabled:opacity-50 dark:hover:bg-zinc-800"
         >
           {busy ? (

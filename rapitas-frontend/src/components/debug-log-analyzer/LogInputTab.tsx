@@ -6,6 +6,7 @@
  */
 
 import React, { useCallback } from 'react';
+import { useTranslations } from 'next-intl';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
@@ -69,6 +70,7 @@ export const LogInputTab: React.FC<LogInputTabProps> = ({
   onAnalyze,
   onClear,
 }) => {
+  const t = useTranslations('devTools');
   const handleFileUpload = useCallback(
     (event: React.ChangeEvent<HTMLInputElement>) => {
       const file = event.target.files?.[0];
@@ -104,13 +106,13 @@ export const LogInputTab: React.FC<LogInputTabProps> = ({
   return (
     <Card>
       <CardHeader>
-        <CardTitle>ログ入力</CardTitle>
+        <CardTitle>{t('debugLogAnalyzer.tabs.input')}</CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
         {/* Log type selector */}
         <div className="flex items-center gap-4">
           <Label htmlFor="logType" className="min-w-[100px]">
-            ログタイプ:
+            {t('debugLogAnalyzer.input.logType')}
           </Label>
           <Select
             id="logType"
@@ -118,21 +120,21 @@ export const LogInputTab: React.FC<LogInputTabProps> = ({
             value={selectedLogType}
             onChange={(e) => onLogTypeChange(e.target.value as LogType)}
           >
-            <option value="unknown">自動検出</option>
+            <option value="unknown">{t('debugLogAnalyzer.input.autoDetect')}</option>
             <option value="json">JSON</option>
             <option value="syslog">Syslog</option>
             <option value="apache_common">Apache Common</option>
             <option value="apache_combined">Apache Combined</option>
             <option value="nginx">Nginx</option>
             <option value="nodejs">Node.js</option>
-            <option value="custom">カスタム</option>
+            <option value="custom">{t('debugLogAnalyzer.input.custom')}</option>
           </Select>
         </div>
 
         {/* File upload */}
         <div className="flex items-center gap-4">
           <Label htmlFor="fileUpload" className="min-w-[100px]">
-            ファイル:
+            {t('debugLogAnalyzer.input.file')}
           </Label>
           <div className="flex-1">
             <Input
@@ -147,7 +149,7 @@ export const LogInputTab: React.FC<LogInputTabProps> = ({
 
         {/* Sample log buttons */}
         <div className="flex items-center gap-4">
-          <Label className="min-w-[100px]">サンプル:</Label>
+          <Label className="min-w-[100px]">{t('debugLogAnalyzer.input.sample')}</Label>
           <div className="flex gap-2">
             {(['json', 'nodejs', 'apache', 'nginx'] as SampleKey[]).map((key) => (
               <Button
@@ -165,17 +167,19 @@ export const LogInputTab: React.FC<LogInputTabProps> = ({
         {/* Log content textarea */}
         <div className="space-y-2">
           <div className="flex justify-between items-center">
-            <Label>ログコンテンツ:</Label>
+            <Label>{t('debugLogAnalyzer.input.logContent')}</Label>
             {logContent && (
               <span className="text-sm text-gray-500">
-                {logContent.split('\n').filter((l) => l.trim()).length} 行
+                {t('debugLogAnalyzer.input.lineCount', {
+                  count: logContent.split('\n').filter((l) => l.trim()).length,
+                })}
               </span>
             )}
           </div>
           <Textarea
             value={logContent}
             onChange={(e) => onLogContentChange(e.target.value)}
-            placeholder="ログを貼り付けるか、ファイルをアップロードしてください..."
+            placeholder={t('debugLogAnalyzer.input.placeholder')}
             className="font-mono text-sm"
             rows={15}
           />
@@ -185,18 +189,18 @@ export const LogInputTab: React.FC<LogInputTabProps> = ({
         <div className="flex justify-between">
           <Button variant="outline" onClickAction={onClear} disabled={!logContent}>
             <Trash2 className="w-4 h-4 mr-2" />
-            クリア
+            {t('debugLogAnalyzer.input.clear')}
           </Button>
           <Button onClickAction={onAnalyze} disabled={!logContent || isAnalyzing}>
             {isAnalyzing ? (
               <>
                 <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                解析中...
+                {t('debugLogAnalyzer.input.analyzing')}
               </>
             ) : (
               <>
                 <Play className="w-4 h-4 mr-2" />
-                解析開始
+                {t('debugLogAnalyzer.input.analyzeStart')}
               </>
             )}
           </Button>

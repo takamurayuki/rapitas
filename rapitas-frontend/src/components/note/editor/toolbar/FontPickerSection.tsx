@@ -1,5 +1,6 @@
 'use client';
 // FontPickerSection
+import { useTranslations } from 'next-intl';
 import { ChevronDown } from 'lucide-react';
 import { fonts, fontSizePresets } from '../constants';
 
@@ -33,6 +34,7 @@ export function FontPickerSection({
   onApplyFont,
   onApplyFontSize,
 }: FontPickerSectionProps) {
+  const t = useTranslations('notes');
   return (
     <>
       {/* Font family */}
@@ -43,10 +45,11 @@ export function FontPickerSection({
             setShowFontPicker(!showFontPicker);
           }}
           className="flex items-center gap-0.5 px-1.5 py-0.5 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded transition-colors text-xs min-w-[100px] justify-between h-6"
-          title="フォント"
+          title={t('toolbar.fontPicker.fontTitle')}
+          data-popup-trigger="1"
         >
           <span className="truncate">
-            {fonts.find((f) => f.value === currentFont)?.label || 'デフォルト'}
+            {fonts.find((f) => f.value === currentFont)?.label || t('common.default')}
           </span>
           <ChevronDown className="w-2.5 h-2.5 shrink-0" />
         </button>
@@ -101,7 +104,7 @@ export function FontPickerSection({
             }
           }}
           className="w-10 px-0.5 text-center text-xs bg-white dark:bg-zinc-700 border border-zinc-200 dark:border-zinc-600 focus:outline-none focus:border-indigo-400 h-6 rounded"
-          title="フォントサイズ"
+          title={t('toolbar.fontPicker.fontSizeTitle')}
         />
         <button
           onClick={() => {
@@ -109,6 +112,7 @@ export function FontPickerSection({
             setShowFontSizePicker(!showFontSizePicker);
           }}
           className="absolute right-0 top-0 bottom-0 px-0.5 hover:bg-zinc-100 dark:hover:bg-zinc-700 transition-colors rounded-r"
+          data-popup-trigger="1"
         >
           <ChevronDown className="w-2.5 h-2.5" />
         </button>
