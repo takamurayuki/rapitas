@@ -6,7 +6,12 @@
  * task.workflowStatus momentarily diverge — the bug that lost a parent's work.
  */
 import { describe, it, expect } from 'bun:test';
-import { isSubtaskFinished, isSubtaskFailed, isSubtaskPassed } from './subtask-completion-handler';
+import {
+  isSubtaskFinished,
+  isSubtaskFailed,
+  isSubtaskPassed,
+  isParentFinalizable,
+} from './subtask-completion-handler';
 
 describe('subtask completion predicates', () => {
   it('treats a done task as finished + passed', () => {
@@ -42,6 +47,27 @@ describe('subtask completion predicates', () => {
       expect(isSubtaskFinished(s)).toBe(true);
       expect(isSubtaskFailed(s)).toBe(true);
       expect(isSubtaskPassed(s)).toBe(false);
+    }
+  });
+});
+
+describe('isParentFinalizable', () => {
+  it('rejects a parent whose workflow never started (null / draft)', () => {
+    // Task 430 regression: a lone manually-added "test" subtask completed and
+    // stamped a never-run parent as completed with a stub verify.md.
+    expect(isParentFinalizable({ workflowStatus: null })).toBe(false);
+    expect(isParentFinalizable({ workflowStatus: 'draft' })).toBe(false);
+  });
+
+  it('allows a parent whose workflow is underway (plan split)', () => {
+    for (const workflowStatus of [
+      'research_done',
+      'plan_created',
+      'plan_approved',
+      'in_progress',
+      'verify_done',
+    ]) {
+      expect(isParentFinalizable({ workflowStatus })).toBe(true);
     }
   });
 });

@@ -46,6 +46,22 @@ export function isSubtaskPassed(s: SubtaskState): boolean {
 }
 
 /**
+ * A parent may be finalized by its subtasks only if its own workflow actually
+ * started. A plan-split parent is always dispatched first (workflowStatus
+ * advances past draft before subtasks exist), so null/draft means the
+ * "subtasks" are manual additions — finalizing then falsely completes a parent
+ * whose research/plan/implement never ran (task 430: a lone manually-added
+ * "test" subtask stamped the parent completed with a stub verify.md, and the
+ * completed state blocks every later attempt to run the real workflow).
+ *
+ * @param parent - Parent task's workflow state. / 親タスクのワークフロー状態
+ * @returns True when subtask completion may finalize the parent. / 確定可否
+ */
+export function isParentFinalizable(parent: { workflowStatus: string | null }): boolean {
+  return parent.workflowStatus !== null && parent.workflowStatus !== 'draft';
+}
+
+/**
  * Check if all sibling subtasks are complete after one finishes.
  * If all done, generate the parent task's integration verify.md and finalize
  * the parent's status.
@@ -94,6 +110,13 @@ export async function onSubtaskCompleted(completedSubtaskId: number): Promise<vo
     // Idempotency guard: if the parent is already terminal, do not re-finalize
     // (sibling completions can race onto this handler concurrently).
     if (parentTask.status === 'done' || parentTask.workflowStatus === 'completed') {
+      return;
+    }
+
+    if (!isParentFinalizable({ workflowStatus: parentTask.workflowStatus ?? null })) {
+      log.info(
+        `[SubtaskCompletion] Parent #${parentTask.id} workflow never started (workflowStatus=${parentTask.workflowStatus ?? 'null'}) — skipping finalization (manual subtasks, not a plan split)`,
+      );
       return;
     }
 
