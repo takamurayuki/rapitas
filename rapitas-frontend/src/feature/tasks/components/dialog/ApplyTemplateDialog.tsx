@@ -274,21 +274,27 @@ export default function ApplyTemplateDialog({ isOpen, onClose, selectedTheme, on
                         {template.templateData.estimatedHours && (
                           <span className="flex items-center gap-1">
                             <Clock className="w-3 h-3" />
-                            {template.templateData.estimatedHours}時間
+                            {t('cardEstimatedHours', {
+                              hours: template.templateData.estimatedHours,
+                            })}
                           </span>
                         )}
                         {template.templateData.subtasks &&
                           template.templateData.subtasks.length > 0 && (
                             <span className="flex items-center gap-1">
                               <CheckCircle2 className="w-3 h-3" />
-                              サブタスク{template.templateData.subtasks.length}件
+                              {t('cardSubtasksCount', {
+                                count: template.templateData.subtasks.length,
+                              })}
                             </span>
                           )}
                         {template.templateData.labels &&
                           template.templateData.labels.length > 0 && (
                             <span className="flex items-center gap-1">
                               <Tag className="w-3 h-3" />
-                              ラベル{template.templateData.labels.length}件
+                              {t('cardLabelsCount', {
+                                count: template.templateData.labels.length,
+                              })}
                             </span>
                           )}
                         <span className="text-zinc-300 dark:text-zinc-600">

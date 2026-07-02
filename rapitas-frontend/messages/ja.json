@@ -540,7 +540,10 @@
       "previewFieldEstimatedHours": "見積もり時間: {value}時間",
       "previewFieldSubtasks": "サブタスク: {count}件",
       "previewMoreSubtasks": "...他 {count}件",
-      "previewFieldLabels": "ラベル: {value}"
+      "previewFieldLabels": "ラベル: {value}",
+      "cardEstimatedHours": "{hours}時間",
+      "cardSubtasksCount": "サブタスク{count}件",
+      "cardLabelsCount": "ラベル{count}件"
     },
     "globalPomodoroModal": {
       "todayStats": "今日の統計",

@@ -540,7 +540,10 @@
       "previewFieldEstimatedHours": "Estimated hours: {value}h",
       "previewFieldSubtasks": "Subtasks: {count}",
       "previewMoreSubtasks": "...and {count} more",
-      "previewFieldLabels": "Labels: {value}"
+      "previewFieldLabels": "Labels: {value}",
+      "cardEstimatedHours": "{hours}h",
+      "cardSubtasksCount": "{count} subtasks",
+      "cardLabelsCount": "{count} labels"
     },
     "globalPomodoroModal": {
       "todayStats": "Today's stats",
