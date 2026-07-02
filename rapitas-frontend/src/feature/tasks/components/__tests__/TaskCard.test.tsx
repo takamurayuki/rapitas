@@ -8,6 +8,12 @@ vi.mock('@/components/ui/toast/ToastContainer', () => ({
   useToast: () => ({ showToast: vi.fn() }),
 }));
 
+// NOTE: useTaskCard now calls useConfirmDialog; without this mock every render
+// throws "must be used within ConfirmDialogProvider".
+vi.mock('@/components/ui/dialog/ConfirmDialogProvider', () => ({
+  useConfirmDialog: () => vi.fn().mockResolvedValue(false),
+}));
+
 vi.mock('@/stores/execution-state-store', () => ({
   useExecutionStateStore: (
     selector: (state: {
