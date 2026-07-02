@@ -101,7 +101,7 @@ export function TaskCleanupSection() {
       `[${scope}] 直近${keepRecent}件を残し、それより古い完了タスクを削除します。` +
       (n !== null ? `\n削除対象: 約${n}件。` : '') +
       `\nナレッジ未記録のものは記録してから削除します。元に戻せません。実行しますか？`;
-    if (!await confirm({ message: confirmMsg })) return;
+    if (!(await confirm({ message: confirmMsg }))) return;
     await callCleanup(false);
   };
 

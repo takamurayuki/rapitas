@@ -176,7 +176,8 @@ export function useLabelsPage() {
 
   const handleDelete = useCallback(
     async (id: number) => {
-      if (!await confirm({ message: 'このラベルを削除しますか？', variant: 'destructive' })) return;
+      if (!(await confirm({ message: 'このラベルを削除しますか？', variant: 'destructive' })))
+        return;
       const res = await fetch(`${API_BASE_URL}/labels/${id}`, { method: 'DELETE' });
       if (res.ok) await fetchAll();
     },

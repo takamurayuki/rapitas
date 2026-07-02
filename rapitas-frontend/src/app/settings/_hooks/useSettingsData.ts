@@ -296,7 +296,7 @@ export function useSettingsData() {
    * @param configuredField - Settings field to clear on success.
    */
   const deleteApiKey = async (providerKey: string, configuredField: keyof UserSettings) => {
-    if (!await confirm({ message: t('confirmDeleteKey'), variant: 'destructive' })) return;
+    if (!(await confirm({ message: t('confirmDeleteKey'), variant: 'destructive' }))) return;
     updateProviderState(providerKey, { isSaving: true });
     setError(null);
     try {

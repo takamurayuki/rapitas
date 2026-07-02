@@ -38,8 +38,13 @@ interface ConfirmDialogProps {
  * @param onCancel - Called when the cancel button or backdrop/Esc is clicked / キャンセル押下時
  */
 export function ConfirmDialog({ open, config, onConfirm, onCancel }: ConfirmDialogProps) {
-  const { title, message, confirmLabel = 'OK', cancelLabel = 'キャンセル', variant = 'default' } =
-    config;
+  const {
+    title,
+    message,
+    confirmLabel = 'OK',
+    cancelLabel = 'キャンセル',
+    variant = 'default',
+  } = config;
 
   const confirmButtonClass =
     variant === 'destructive'
@@ -61,11 +66,7 @@ export function ConfirmDialog({ open, config, onConfirm, onCancel }: ConfirmDial
           >
             {cancelLabel}
           </button>
-          <button
-            type="button"
-            onClick={onConfirm}
-            className={confirmButtonClass}
-          >
+          <button type="button" onClick={onConfirm} className={confirmButtonClass}>
             {confirmLabel}
           </button>
         </>

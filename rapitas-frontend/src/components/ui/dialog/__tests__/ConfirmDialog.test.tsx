@@ -36,18 +36,14 @@ describe('ConfirmDialog', () => {
 
   it('renders custom button labels', () => {
     const config = { message: 'msg', confirmLabel: '削除', cancelLabel: '戻る' };
-    render(
-      <ConfirmDialog open={true} config={config} onConfirm={onConfirm} onCancel={onCancel} />,
-    );
+    render(<ConfirmDialog open={true} config={config} onConfirm={onConfirm} onCancel={onCancel} />);
     expect(screen.getByText('削除')).toBeInTheDocument();
     expect(screen.getByText('戻る')).toBeInTheDocument();
   });
 
   it('renders title when provided', () => {
     const config = { message: 'msg', title: 'タイトル' };
-    render(
-      <ConfirmDialog open={true} config={config} onConfirm={onConfirm} onCancel={onCancel} />,
-    );
+    render(<ConfirmDialog open={true} config={config} onConfirm={onConfirm} onCancel={onCancel} />);
     expect(screen.getByText('タイトル')).toBeInTheDocument();
   });
 
@@ -71,9 +67,7 @@ describe('ConfirmDialog', () => {
 
   it('applies destructive style to confirm button when variant=destructive', () => {
     const config = { message: 'msg', variant: 'destructive' as const };
-    render(
-      <ConfirmDialog open={true} config={config} onConfirm={onConfirm} onCancel={onCancel} />,
-    );
+    render(<ConfirmDialog open={true} config={config} onConfirm={onConfirm} onCancel={onCancel} />);
     const confirmBtn = screen.getByText('OK');
     expect(confirmBtn.className).toContain('bg-red-600');
   });

@@ -8,6 +8,7 @@
 
 import { useCallback } from 'react';
 import { useRouter } from 'next/navigation';
+import { useTranslations } from 'next-intl';
 import type { Task } from '@/types';
 import { getTaskDetailPath } from '@/utils/tauri';
 import { API_BASE_URL } from '@/utils/api';
@@ -51,6 +52,8 @@ export function useTaskActions({
   setShowCompleteOverlay,
 }: UseTaskActionsParams) {
   const router = useRouter();
+  const t = useTranslations('task');
+  const ct = useTranslations('common');
   const { showToast } = useToast();
   const confirm = useConfirmDialog();
 
@@ -93,7 +96,7 @@ export function useTaskActions({
         });
         if (!res.ok) {
           setTask(previousTask);
-          throw new Error('ステータス更新に失敗しました');
+          throw new Error(t('statusUpdateFailed'));
         }
         // NOTE: Invalidate apiFetch cache so subsequent fetches get fresh data
         clearApiCache(`/tasks/${taskId}`);
@@ -110,16 +113,16 @@ export function useTaskActions({
     // Protected tasks can't be deleted; tell the user how to unprotect first
     // (backend also enforces this with a 409).
     if (task?.isProtected) {
-      showToast('保護されたタスクは削除できません。詳細ページのロックアイコンで保護を解除してください。', 'warning');
+      showToast(t('protectedDeleteWarning'), 'warning');
       return;
     }
-    if (!await confirm({ message: 'このタスクを削除しますか?', variant: 'destructive' })) return;
+    if (!(await confirm({ message: t('deleteTaskConfirm'), variant: 'destructive' }))) return;
 
     try {
       const res = await fetch(`${API_BASE}/tasks/${task?.id}`, {
         method: 'DELETE',
       });
-      if (!res.ok) throw new Error('削除に失敗しました');
+      if (!res.ok) throw new Error(t('deleteTaskFailed'));
 
       if (isThisTaskTimer && pomodoroState.isTimerRunning) {
         stopTimer();
@@ -128,7 +131,7 @@ export function useTaskActions({
       router.back();
     } catch (err) {
       logger.error(err);
-      showToast('タスクの削除に失敗しました', 'error');
+      showToast(t('deleteTaskFailed'), 'error');
     }
   }, [
     task?.id,
@@ -147,7 +150,7 @@ export function useTaskActions({
 
     try {
       const duplicateData = {
-        title: `${task.title} (コピー)`,
+        title: `${task.title} ${ct('copySuffix')}`,
         description: task.description || undefined,
         status: 'todo',
         labels: task.labels || undefined,
@@ -165,13 +168,13 @@ export function useTaskActions({
         body: JSON.stringify(duplicateData),
       });
 
-      if (!res.ok) throw new Error('複製に失敗しました');
+      if (!res.ok) throw new Error(t('duplicateTaskFailed'));
 
       const newTask = await res.json();
       router.push(getTaskDetailPath(newTask.id));
     } catch (err) {
       logger.error(err);
-      showToast('タスクの複製に失敗しました', 'error');
+      showToast(t('duplicateTaskFailed'), 'error');
     }
   }, [task, router, showToast]);
 

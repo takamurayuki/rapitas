@@ -116,7 +116,8 @@ export function useCategoryManager(config: CategoryManagerConfig) {
   };
 
   const handleDelete = async (id: number, name: string) => {
-    if (!await confirm({ message: t('itemDeleteConfirm', { name }), variant: 'destructive' })) return;
+    if (!(await confirm({ message: t('itemDeleteConfirm', { name }), variant: 'destructive' })))
+      return;
 
     try {
       const res = await fetch(`${API_BASE_URL}/${config.endpoint}/${id}`, {

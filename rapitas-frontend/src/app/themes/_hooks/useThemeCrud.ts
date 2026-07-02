@@ -166,7 +166,7 @@ export function useThemeCrud({ getFormData, fetchItems }: Options) {
    * @param name - Display name shown in the confirmation prompt. / 確認ダイアログに表示される名前
    */
   const handleDelete = async (id: number, name: string) => {
-    if (!await confirm({ message: t('deleteConfirm', { name }), variant: 'destructive' })) return;
+    if (!(await confirm({ message: t('deleteConfirm', { name }), variant: 'destructive' }))) return;
 
     try {
       const res = await fetch(`${API_BASE_URL}/themes/${id}`, {

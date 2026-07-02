@@ -56,7 +56,12 @@ export function usePromptsManagement(taskId: number): UsePromptsManagementReturn
   };
 
   const generateAllPrompts = async () => {
-    if (!await confirm({ message: 'すべてのサブタスク（またはタスク）のプロンプトを生成しますか？' })) return;
+    if (
+      !(await confirm({
+        message: 'すべてのサブタスク（またはタスク）のプロンプトを生成しますか？',
+      }))
+    )
+      return;
 
     setIsGeneratingAll(true);
     setPromptsError(null);
@@ -97,7 +102,8 @@ export function usePromptsManagement(taskId: number): UsePromptsManagementReturn
   };
 
   const deletePrompt = async (promptId: number) => {
-    if (!await confirm({ message: 'このプロンプトを削除しますか？', variant: 'destructive' })) return;
+    if (!(await confirm({ message: 'このプロンプトを削除しますか？', variant: 'destructive' })))
+      return;
 
     try {
       const res = await fetch(`${API_BASE_URL}/prompts/${promptId}`, {

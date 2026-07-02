@@ -221,7 +221,7 @@ export function useLearningGoals() {
       showToast(t('alreadyApplied'), 'info');
       return;
     }
-    if (!await confirm({ message: t('applyConfirm') })) return;
+    if (!(await confirm({ message: t('applyConfirm') }))) return;
 
     setApplying(true);
     try {
@@ -259,7 +259,7 @@ export function useLearningGoals() {
    * @param id - Goal id to delete.
    */
   const handleDelete = async (id: number) => {
-    if (!await confirm({ message: t('deleteConfirm'), variant: 'destructive' })) return;
+    if (!(await confirm({ message: t('deleteConfirm'), variant: 'destructive' }))) return;
     try {
       const res = await fetch(`${API_BASE_URL}/learning-goals/${id}`, {
         method: 'DELETE',

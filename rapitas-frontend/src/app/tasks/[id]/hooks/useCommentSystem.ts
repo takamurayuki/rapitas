@@ -89,7 +89,8 @@ export function useCommentSystem({
   /** Delete a comment by ID */
   const handleDeleteComment = useCallback(
     async (commentId: number) => {
-      if (!await confirm({ message: 'このコメントを削除しますか?', variant: 'destructive' })) return;
+      if (!(await confirm({ message: 'このコメントを削除しますか?', variant: 'destructive' })))
+        return;
 
       try {
         const res = await fetch(`${API_BASE}/comments/${commentId}`, {

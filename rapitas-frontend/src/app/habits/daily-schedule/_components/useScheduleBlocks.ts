@@ -166,7 +166,7 @@ export function useScheduleBlocks(
   };
 
   const handleDelete = async (id: number) => {
-    if (!await confirm({ message: t('confirmDeleteBlock'), variant: 'destructive' })) return;
+    if (!(await confirm({ message: t('confirmDeleteBlock'), variant: 'destructive' }))) return;
     try {
       const res = await fetch(`${API_BASE_URL}/daily-schedule/${id}`, {
         method: 'DELETE',

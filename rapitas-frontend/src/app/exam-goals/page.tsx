@@ -108,7 +108,7 @@ export default function ExamGoalsPage() {
   };
 
   const handleDelete = async (id: number) => {
-    if (!await confirm({ message: t('confirmDeleteGoal'), variant: 'destructive' })) return;
+    if (!(await confirm({ message: t('confirmDeleteGoal'), variant: 'destructive' }))) return;
     try {
       const res = await fetch(`${API_BASE_URL}/exam-goals/${id}`, {
         method: 'DELETE',

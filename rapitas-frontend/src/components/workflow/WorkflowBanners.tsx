@@ -34,9 +34,7 @@ export function PlanApprovalBanner({
           <p className="text-sm font-medium text-amber-800 dark:text-amber-200">
             {t('planApprovalRequired')}
           </p>
-          <p className="text-xs text-amber-600 dark:text-amber-400">
-            {t('reviewPlanToApprove')}
-          </p>
+          <p className="text-xs text-amber-600 dark:text-amber-400">{t('reviewPlanToApprove')}</p>
         </div>
       </div>
       <button

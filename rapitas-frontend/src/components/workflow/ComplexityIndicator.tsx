@@ -249,7 +249,9 @@ export default function ComplexityIndicator({
                   <span className="font-medium">{analysis.factors.keywords}/100</span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-zinc-600 dark:text-zinc-400">{t('estimatedTimeLabel')}</span>
+                  <span className="text-zinc-600 dark:text-zinc-400">
+                    {t('estimatedTimeLabel')}
+                  </span>
                   <span className="font-medium">{analysis.factors.estimatedTime}/100</span>
                 </div>
                 <div className="flex justify-between">
