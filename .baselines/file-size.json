@@ -1,12 +1,9 @@
 {
-  "generated": "2026-06-24T13:37:51.829Z",
+  "generated": "2026-07-02T21:42:58.442Z",
   "hard_limit": 500,
   "soft_limit": 300,
   "_comment": "Files at or above the hard limit at snapshot time. Their listed lineCount becomes a per-file ceiling — they may shrink but not grow. Remove an entry by splitting the file.",
   "files": {
-    "rapitas-backend/src/generated/sqlite-init-sql.ts": {
-      "lineCount": 1766
-    },
     "rapitas-backend/routes/workflow/handlers/workflow-handlers-files.ts": {
       "lineCount": 1214
     },
@@ -14,16 +11,13 @@
       "lineCount": 1109
     },
     "rapitas-backend/services/workflow/workflow-orchestrator.ts": {
-      "lineCount": 1041
-    },
-    "rapitas-frontend/src/app/ideas/_components/IdeasClient.tsx": {
-      "lineCount": 916
-    },
-    "rapitas-backend/services/agents/orchestrator/task-executor.ts": {
-      "lineCount": 736
+      "lineCount": 1060
     },
     "rapitas-backend/routes/agents/execution/execute-route.ts": {
-      "lineCount": 704
+      "lineCount": 743
+    },
+    "rapitas-backend/services/agents/orchestrator/task-executor.ts": {
+      "lineCount": 740
     },
     "rapitas-backend/services/agents/verification/automated-verifier.ts": {
       "lineCount": 702
@@ -37,32 +31,20 @@
     "rapitas-backend/services/memory/idea-box-service.ts": {
       "lineCount": 659
     },
-    "rapitas-backend/services/workflow/auto-merge-watcher.ts": {
-      "lineCount": 657
+    "rapitas-backend/services/agents/orchestrator/git-operations/worktree-ops.ts": {
+      "lineCount": 648
     },
     "rapitas-backend/services/memory/task-knowledge-extractor.ts": {
       "lineCount": 633
     },
-    "rapitas-frontend/src/feature/developer-mode/hooks/execution-poll-handlers.ts": {
-      "lineCount": 625
-    },
-    "rapitas-frontend/src/app/github/page.tsx": {
-      "lineCount": 620
-    },
     "rapitas-backend/services/agents/codex-cli-agent/process-runner.ts": {
       "lineCount": 618
     },
-    "rapitas-frontend/src/feature/developer-mode/components/ai-accordion-panel/ExecutionBody.tsx": {
-      "lineCount": 616
-    },
-    "rapitas-backend/services/agents/orchestrator/git-operations/worktree-ops.ts": {
-      "lineCount": 614
+    "rapitas-backend/routes/tasks/tasks.ts": {
+      "lineCount": 607
     },
     "rapitas-backend/services/workflow/subtask-splitter.ts": {
       "lineCount": 583
-    },
-    "rapitas-backend/routes/tasks/tasks.ts": {
-      "lineCount": 582
     },
     "rapitas-backend/services/memory/idea-extractor.ts": {
       "lineCount": 578
@@ -70,33 +52,26 @@
     "rapitas-backend/services/workflow/workflow-runner.ts": {
       "lineCount": 573
     },
+    "rapitas-frontend/src/feature/developer-mode/utils/log-patterns-table.ts": {
+      "lineCount": 568
+    },
+    "rapitas-backend/services/agents/agent-orchestrator.ts": {
+      "lineCount": 567
+    },
     "rapitas-backend/services/memory/hypothesis-service.ts": {
       "lineCount": 558
     },
     "rapitas-backend/scripts/gen-type-guards.ts": {
       "lineCount": 547
     },
-    "rapitas-frontend/src/hooks/common/useSpeechRecognition.ts": {
-      "lineCount": 541
-    },
-    "rapitas-backend/services/agents/agent-orchestrator.ts": {
-      "lineCount": 538
-    },
     "rapitas-backend/services/memory/concern-backlog-service.ts": {
       "lineCount": 538
     },
-    "rapitas-frontend/src/feature/developer-mode/utils/log-patterns-table.ts": {
-      "lineCount": 535
+    "rapitas-backend/index.ts": {
+      "lineCount": 513
     },
-    "rapitas-backend/services/workflow/workflow-reconciler.ts": {
-      "lineCount": 534
-    },
-
     "rapitas-backend/routes/organization/themes.ts": {
       "lineCount": 505
-    },
-    "rapitas-backend/index.ts": {
-      "lineCount": 504
     }
   }
 }

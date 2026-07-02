@@ -62,6 +62,7 @@ const SKIP_PATH_PARTS = [
   '/uploads',
   '/logs',
   '/rapitas-backend/tasks/',       // workflow files written by agents (NOT routes/tasks/)
+  '/generated/',                  // codegen output (e.g. src/generated/sqlite-init-sql.ts) — tool-maintained, exempt per COMPONENT_SPLITTING_POLICY §6
   '/data',                        // memory vector db
   '/__tests__',
   '/migrations',
