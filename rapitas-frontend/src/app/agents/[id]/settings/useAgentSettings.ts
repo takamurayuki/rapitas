@@ -162,7 +162,7 @@ export function useAgentSettings(id: string) {
   };
 
   const handleDeleteApiKey = async () => {
-    if (!await confirm({ message: t('confirmDeleteApiKey'), variant: 'destructive' })) return;
+    if (!(await confirm({ message: t('confirmDeleteApiKey'), variant: 'destructive' }))) return;
     setError('');
     setSuccessMessage('');
     try {
@@ -196,7 +196,7 @@ export function useAgentSettings(id: string) {
   };
 
   const handleDelete = async () => {
-    if (!await confirm({ message: t('confirmDeleteAgent'), variant: 'destructive' })) return;
+    if (!(await confirm({ message: t('confirmDeleteAgent'), variant: 'destructive' }))) return;
     try {
       await deleteAgent(id);
       router.push('/agents');

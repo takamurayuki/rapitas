@@ -161,7 +161,7 @@ export function useCategories() {
   };
 
   const handleDelete = async (id: number, name: string) => {
-    if (!await confirm({ message: t('deleteConfirm', { name }), variant: 'destructive' })) return;
+    if (!(await confirm({ message: t('deleteConfirm', { name }), variant: 'destructive' }))) return;
     try {
       const res = await fetch(`${API_BASE_URL}/categories/${id}`, {
         method: 'DELETE',

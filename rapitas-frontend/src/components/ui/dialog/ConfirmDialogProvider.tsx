@@ -9,13 +9,7 @@
  * per-component state boilerplate.
  */
 
-import {
-  createContext,
-  useCallback,
-  useContext,
-  useState,
-  type ReactNode,
-} from 'react';
+import { createContext, useCallback, useContext, useState, type ReactNode } from 'react';
 import { ConfirmDialog, type ConfirmOptions } from './ConfirmDialog';
 
 /** Function signature for the confirm() hook return value. */

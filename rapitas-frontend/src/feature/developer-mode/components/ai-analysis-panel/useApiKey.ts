@@ -96,7 +96,10 @@ export function useApiKey(): UseApiKeyReturn {
   };
 
   const deleteApiKey = async () => {
-    if (!await confirm({ message: 'APIキーを削除してもよろしいですか？', variant: 'destructive' })) return;
+    if (
+      !(await confirm({ message: 'APIキーを削除してもよろしいですか？', variant: 'destructive' }))
+    )
+      return;
 
     setIsSavingApiKey(true);
     setApiKeyError(null);

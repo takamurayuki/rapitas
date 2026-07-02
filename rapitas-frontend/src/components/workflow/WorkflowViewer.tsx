@@ -2,6 +2,7 @@
 // WorkflowViewer
 
 import { useEffect, useRef, useState } from 'react';
+import { useTranslations } from 'next-intl';
 import type { WorkflowFileType, WorkflowStatus } from '@/types';
 import { API_BASE_URL } from '@/utils/api';
 import { useExecutionStateStore } from '@/stores/execution-state-store';
@@ -74,7 +75,8 @@ export default function WorkflowViewer({
   });
 
   const resolvedMode = workflowMode || 'comprehensive';
-  const allWorkflowTabs = getWorkflowTabs(resolvedMode);
+  const tWorkflow = useTranslations('workflow');
+  const allWorkflowTabs = getWorkflowTabs(resolvedMode, tWorkflow);
 
   // Live agent question (published by the execution layer). Rendered in the Q&A
   // tab; the interactive prompt was relocated here from the execution log.

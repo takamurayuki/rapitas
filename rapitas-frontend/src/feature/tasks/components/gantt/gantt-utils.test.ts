@@ -113,7 +113,7 @@ describe('gantt-utils', () => {
       };
 
       const bar = taskToBar(task, 0, mockViewport);
-      expect(bar.color).toBe('#10B981'); // completed color
+      expect(bar.color).toBe('#22c55e'); // completed color
     });
 
     test('ブロック中タスクの色', () => {

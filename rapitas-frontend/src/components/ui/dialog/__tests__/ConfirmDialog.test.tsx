@@ -1,6 +1,12 @@
 import { render, screen, fireEvent } from '@testing-library/react';
 import { ConfirmDialog } from '../ConfirmDialog';
 
+// ConfirmDialog resolves its default cancel label via next-intl; mirror the
+// established test mock that echoes the key back so the default resolves to 'cancel'.
+vi.mock('next-intl', () => ({
+  useTranslations: () => (key: string) => key,
+}));
+
 // Modal uses useEffect for Esc key handling; no additional mocks needed.
 
 describe('ConfirmDialog', () => {
@@ -31,23 +37,19 @@ describe('ConfirmDialog', () => {
       <ConfirmDialog open={true} config={baseConfig} onConfirm={onConfirm} onCancel={onCancel} />,
     );
     expect(screen.getByText('OK')).toBeInTheDocument();
-    expect(screen.getByText('キャンセル')).toBeInTheDocument();
+    expect(screen.getByText('cancel')).toBeInTheDocument();
   });
 
   it('renders custom button labels', () => {
     const config = { message: 'msg', confirmLabel: '削除', cancelLabel: '戻る' };
-    render(
-      <ConfirmDialog open={true} config={config} onConfirm={onConfirm} onCancel={onCancel} />,
-    );
+    render(<ConfirmDialog open={true} config={config} onConfirm={onConfirm} onCancel={onCancel} />);
     expect(screen.getByText('削除')).toBeInTheDocument();
     expect(screen.getByText('戻る')).toBeInTheDocument();
   });
 
   it('renders title when provided', () => {
     const config = { message: 'msg', title: 'タイトル' };
-    render(
-      <ConfirmDialog open={true} config={config} onConfirm={onConfirm} onCancel={onCancel} />,
-    );
+    render(<ConfirmDialog open={true} config={config} onConfirm={onConfirm} onCancel={onCancel} />);
     expect(screen.getByText('タイトル')).toBeInTheDocument();
   });
 
@@ -64,16 +66,14 @@ describe('ConfirmDialog', () => {
     render(
       <ConfirmDialog open={true} config={baseConfig} onConfirm={onConfirm} onCancel={onCancel} />,
     );
-    fireEvent.click(screen.getByText('キャンセル'));
+    fireEvent.click(screen.getByText('cancel'));
     expect(onCancel).toHaveBeenCalledTimes(1);
     expect(onConfirm).not.toHaveBeenCalled();
   });
 
   it('applies destructive style to confirm button when variant=destructive', () => {
     const config = { message: 'msg', variant: 'destructive' as const };
-    render(
-      <ConfirmDialog open={true} config={config} onConfirm={onConfirm} onCancel={onCancel} />,
-    );
+    render(<ConfirmDialog open={true} config={config} onConfirm={onConfirm} onCancel={onCancel} />);
     const confirmBtn = screen.getByText('OK');
     expect(confirmBtn.className).toContain('bg-red-600');
   });

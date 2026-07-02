@@ -112,7 +112,7 @@ export default function HypothesesClient() {
   };
 
   const remove = async (id: number) => {
-    if (!await confirm({ message: 'この仮説を削除しますか？', variant: 'destructive' })) return;
+    if (!(await confirm({ message: 'この仮説を削除しますか？', variant: 'destructive' }))) return;
     await fetch(`${API_BASE_URL}/hypotheses/${id}`, { method: 'DELETE' }).catch(() => {});
     void load();
   };

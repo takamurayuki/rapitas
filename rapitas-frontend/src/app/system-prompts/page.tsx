@@ -83,7 +83,7 @@ export default function SystemPromptsPage() {
   };
 
   const handleReset = async (key: string) => {
-    if (!await confirm({ message: t('confirmReset') })) return;
+    if (!(await confirm({ message: t('confirmReset') }))) return;
     try {
       const res = await fetch(`${API_BASE_URL}/system-prompts/${key}/reset`, {
         method: 'POST',
@@ -98,7 +98,7 @@ export default function SystemPromptsPage() {
   };
 
   const handleDelete = async (key: string) => {
-    if (!await confirm({ message: t('confirmDelete'), variant: 'destructive' })) return;
+    if (!(await confirm({ message: t('confirmDelete'), variant: 'destructive' }))) return;
     try {
       const res = await fetch(`${API_BASE_URL}/system-prompts/${key}`, {
         method: 'DELETE',
