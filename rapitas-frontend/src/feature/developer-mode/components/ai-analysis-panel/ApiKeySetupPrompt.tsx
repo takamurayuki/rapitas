@@ -1,6 +1,7 @@
 'use client';
 // ai-analysis-panel/ApiKeySetupPrompt.tsx
 
+import { useTranslations } from 'next-intl';
 import { Key, Eye, EyeOff, ExternalLink, Loader2, Save, AlertCircle } from 'lucide-react';
 
 type Props = {
@@ -33,20 +34,20 @@ export function ApiKeySetupPrompt({
   apiKeyError,
   onSave,
 }: Props) {
+  const t = useTranslations('devMode.apiKeySetupPrompt');
+  const tCommon = useTranslations('common');
   return (
     <div className="bg-white dark:bg-indigo-dark-900 rounded-xl border border-amber-200 dark:border-amber-700 overflow-hidden">
       <div className="px-4 py-3 bg-amber-50 dark:bg-amber-900/20 border-b border-amber-200 dark:border-amber-700">
         <div className="flex items-center gap-2">
           <Key className="w-4 h-4 text-amber-600 dark:text-amber-400" />
           <span className="text-sm font-medium text-amber-800 dark:text-amber-200">
-            APIキーの設定が必要です
+            {t('setupRequired')}
           </span>
         </div>
       </div>
       <div className="p-4 space-y-3">
-        <p className="text-sm text-zinc-600 dark:text-zinc-400">
-          AI分析機能を使用するにはClaude APIキーを設定してください。
-        </p>
+        <p className="text-sm text-zinc-600 dark:text-zinc-400">{t('setupHint')}</p>
         <div className="space-y-2">
           <div className="relative">
             <input
@@ -71,7 +72,7 @@ export function ApiKeySetupPrompt({
               rel="noopener noreferrer"
               className="inline-flex items-center gap-1 text-xs text-amber-600 dark:text-amber-400 hover:underline"
             >
-              APIキーを取得
+              {t('getApiKey')}
               <ExternalLink className="w-3 h-3" />
             </a>
             <button
@@ -84,7 +85,7 @@ export function ApiKeySetupPrompt({
               ) : (
                 <Save className="w-3 h-3" />
               )}
-              保存
+              {tCommon('save')}
             </button>
           </div>
         </div>

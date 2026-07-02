@@ -2,6 +2,7 @@
 // useWorkflowViewer
 
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import { useTranslations } from 'next-intl';
 import type { WorkflowFileType, WorkflowStatus, WorkflowRole, WorkflowRoleConfig } from '@/types';
 import { useWorkflowFiles } from '@/hooks/workflow/useWorkflowFiles';
 import { useLocaleStore } from '@/stores/locale-store';
@@ -51,6 +52,8 @@ export function useWorkflowViewer({
   onWorkflowModeChange,
   workflowModeOverride,
 }: UseWorkflowViewerOptions) {
+  const t = useTranslations('workflow');
+  const tc = useTranslations('common');
   const [activeTab, setActiveTab] = useState<WorkflowFileType>('research');
   const locale = useLocaleStore((s) => s.locale);
   // Live agent-execution flag for this task. While the agent runs it writes the
@@ -204,7 +207,7 @@ export function useWorkflowViewer({
       });
       const data = await res.json();
       if (!res.ok || !data.success) {
-        setAdvanceError(data.error || 'フェーズの実行に失敗しました');
+        setAdvanceError(data.error || t('viewer.advanceFailed'));
       } else if (data.async) {
         // Async execution: monitor state with polling
         startPolling(3000);
@@ -213,11 +216,11 @@ export function useWorkflowViewer({
         await refetch();
       }
     } catch (err) {
-      setAdvanceError(err instanceof Error ? err.message : 'エラーが発生しました');
+      setAdvanceError(err instanceof Error ? err.message : tc('errorOccurred'));
     } finally {
       setIsAdvancing(false);
     }
-  }, [taskId, locale, refetch, startPolling]);
+  }, [taskId, locale, refetch, startPolling, t, tc]);
 
   // Stop polling and refetch when status reaches final state
   useEffect(() => {

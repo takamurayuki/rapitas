@@ -2,6 +2,7 @@
 // MemoSection
 
 import { useRef } from 'react';
+import { useTranslations } from 'next-intl';
 import { MessageSquare, History } from 'lucide-react';
 import type { Props } from './types';
 import { useMemoSection } from './useMemoSection';
@@ -33,6 +34,7 @@ export default function MemoSection({
   onUpdateComment,
   onDeleteComment,
 }: Props) {
+  const t = useTranslations('task');
   const containerRef = useRef<HTMLDivElement>(null);
 
   const {
@@ -97,7 +99,7 @@ export default function MemoSection({
           <div className="flex items-center gap-1.5 mb-3">
             <History className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
             <span className="text-[10px] font-medium text-emerald-700 dark:text-emerald-300">
-              タスク履歴とメモの統合表示
+              {t('memoSection.timelineTitle')}
             </span>
           </div>
           <div className="max-h-80 overflow-y-auto pr-1 scrollbar-thin">
@@ -146,7 +148,7 @@ export default function MemoSection({
           <div className="w-10 h-10 bg-zinc-100 dark:bg-zinc-800 rounded-full flex items-center justify-center mx-auto mb-2">
             <MessageSquare className="w-5 h-5 text-zinc-400 dark:text-zinc-500" />
           </div>
-          <p className="text-xs text-zinc-400">メモを追加してアイデアを記録</p>
+          <p className="text-xs text-zinc-400">{t('memoSection.emptyHint')}</p>
         </div>
       )}
 

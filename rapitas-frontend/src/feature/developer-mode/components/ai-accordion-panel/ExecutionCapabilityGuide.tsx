@@ -11,6 +11,7 @@
 
 import Link from 'next/link';
 import { FolderTree, FolderCog, TerminalSquare, ArrowRight } from 'lucide-react';
+import { useTranslations } from 'next-intl';
 
 /** Capability state derived from task + CLI availability. */
 export type ExecutionCapability =
@@ -40,6 +41,7 @@ interface ExecutionCapabilityGuideProps {
 /** Copy + icon + setup link for a non-ready capability state. */
 function guideContent(
   capability: Exclude<ExecutionCapability, 'ready'>,
+  t: ReturnType<typeof useTranslations>,
   themeId?: number | null,
 ): {
   icon: typeof FolderTree;
@@ -52,26 +54,26 @@ function guideContent(
     case 'no-theme':
       return {
         icon: FolderTree,
-        title: 'テーマを設定するとエージェント実行できます',
-        body: 'タスクにテーマを紐付けると、そのテーマの作業ディレクトリでエージェントが動きます。',
+        title: t('noThemeTitle'),
+        body: t('noThemeBody'),
         href: '/themes',
-        cta: 'テーマを設定する',
+        cta: t('noThemeCta'),
       };
     case 'no-working-directory':
       return {
         icon: FolderCog,
-        title: 'テーマに作業ディレクトリを設定してください',
-        body: 'このタスクのテーマに作業ディレクトリ (リポジトリのローカルパス) が登録されていません。',
+        title: t('noWorkingDirTitle'),
+        body: t('noWorkingDirBody'),
         href: themeId ? `/themes?edit=${themeId}` : '/themes',
-        cta: 'テーマを編集する',
+        cta: t('noWorkingDirCta'),
       };
     case 'no-cli-available':
       return {
         icon: TerminalSquare,
-        title: 'CLI が利用可能ではありません',
-        body: 'Claude Code / Codex / Gemini CLI のいずれかをインストールし、ターミナルから実行できる状態にしてください。',
+        title: t('noCliTitle'),
+        body: t('noCliBody'),
         href: '/setup',
-        cta: 'セットアップ状況を確認',
+        cta: t('noCliCta'),
       };
   }
 }
@@ -81,7 +83,8 @@ function guideContent(
  * is not yet able to run an agent.
  */
 export function ExecutionCapabilityGuide({ capability, themeId }: ExecutionCapabilityGuideProps) {
-  const { icon: Icon, title, body, href, cta } = guideContent(capability, themeId);
+  const t = useTranslations('devMode.executionCapabilityGuide');
+  const { icon: Icon, title, body, href, cta } = guideContent(capability, t, themeId);
 
   return (
     <div

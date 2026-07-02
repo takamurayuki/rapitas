@@ -2,6 +2,7 @@
 
 import React, { useState, useCallback, useMemo, useEffect } from 'react';
 import { Terminal, Loader2, CheckCircle2, AlertCircle, Square, Clock, Layers } from 'lucide-react';
+import { useTranslations } from 'next-intl';
 import { ExecutionLogViewer, type ExecutionLogStatus } from './ExecutionLogViewer';
 import { API_BASE_URL } from '@/utils/api';
 import { createLogger } from '@/lib/logger';
@@ -97,6 +98,7 @@ export const TabbedExecutionLogViewer: React.FC<TabbedExecutionLogViewerProps> =
   maxHeight = 200,
   className = '',
 }) => {
+  const t = useTranslations('devMode.tabbedExecutionLogViewer');
   // Selected tab (null = overall, number = subtask ID)
   const [selectedTab, setSelectedTab] = useState<number | null>(null);
   // Per-subtask log cache
@@ -195,7 +197,7 @@ export const TabbedExecutionLogViewer: React.FC<TabbedExecutionLogViewerProps> =
           }`}
         >
           <Layers className="w-3 h-3" />
-          全体
+          {t('overall')}
           {getStatusIcon(overallStatus)}
         </button>
 

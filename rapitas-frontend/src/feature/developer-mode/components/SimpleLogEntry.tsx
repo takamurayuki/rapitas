@@ -5,6 +5,7 @@
  * No emoji — all visual cues come from lucide-react icons and color coding.
  */
 import React, { useState } from 'react';
+import { useTranslations } from 'next-intl';
 import {
   AlertCircle,
   AlertTriangle,
@@ -182,6 +183,7 @@ const AgentTextRow: React.FC<
     isNew: boolean;
   } & HighlightProps
 > = ({ entry, isNew, ...hp }) => {
+  const t = useTranslations('devMode.simpleLogEntry');
   const [open, setOpen] = useState(false);
   const hasMore = !!entry.detail;
 
@@ -198,7 +200,7 @@ const AgentTextRow: React.FC<
           <>
             <button className="flex items-center gap-0.5 mt-0.5 text-xs text-zinc-600 hover:text-zinc-400">
               {open ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
-              {open ? '閉じる' : '全文'}
+              {open ? t('close') : t('fullText')}
             </button>
             {open && (
               <pre className="mt-1 p-2 bg-zinc-900/60 rounded text-xs text-zinc-500 whitespace-pre-wrap max-h-48 overflow-y-auto">
@@ -274,12 +276,13 @@ export const SimpleLogEntryList: React.FC<
     newEntriesCount?: number;
   } & HighlightProps
 > = ({ entries, newEntriesCount = 0, searchQuery, highlightText }) => {
+  const t = useTranslations('devMode.simpleLogEntry');
   if (entries.length === 0) {
     return (
       <div className="flex items-center justify-center py-8 text-zinc-500">
         <div className="text-center">
           <Loader className="w-6 h-6 mx-auto mb-2 text-zinc-600 animate-spin" />
-          <p className="text-sm">実行ログを待機中...</p>
+          <p className="text-sm">{t('waitingForLogs')}</p>
         </div>
       </div>
     );

@@ -2,6 +2,13 @@ import { render, fireEvent } from '@testing-library/react';
 import { WorkflowFileContent } from '../WorkflowFileContent';
 import type { WorkflowTab } from '../workflow-viewer-utils';
 
+// The mock echoes the translation key back; this suite only asserts on the
+// TOC's heading structure, not translated copy, so no key-path assertions
+// are needed here.
+vi.mock('next-intl', () => ({
+  useTranslations: () => (key: string) => key,
+}));
+
 /**
  * Regression coverage for the in-file table of contents: every TOC link must
  * resolve to a rendered <h2> with the matching id. The earlier counter-based id

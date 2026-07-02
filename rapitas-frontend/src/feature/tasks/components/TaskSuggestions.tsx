@@ -2,6 +2,7 @@
 // TaskSuggestions
 
 import { useState, useCallback, useEffect } from 'react';
+import { useTranslations } from 'next-intl';
 import { Info } from 'lucide-react';
 import type { Priority } from '@/types';
 import { API_BASE_URL } from '@/utils/api';
@@ -36,6 +37,7 @@ type TaskSuggestionsProps = {
  * @returns Collapsible panel with suggestion list and detail modal.
  */
 export default function TaskSuggestions({ themeId, onApply }: TaskSuggestionsProps) {
+  const t = useTranslations('task');
   const [aiSuggestions, setAiSuggestions] = useState<TaskSuggestion[]>([]);
   const [aiAnalysis, setAiAnalysis] = useState<string | null>(null);
   const [isAiLoading, setIsAiLoading] = useState(false);
@@ -236,13 +238,17 @@ export default function TaskSuggestions({ themeId, onApply }: TaskSuggestionsPro
               onClick={() => setIsListExpanded(!isListExpanded)}
               className="mt-1.5 w-full py-0.5 text-[9px] text-zinc-500 dark:text-zinc-400 hover:text-violet-600 dark:hover:text-violet-400 font-medium transition-colors duration-200"
             >
-              {isListExpanded ? '折りたたむ' : `他 ${filteredSuggestions.length - 3} 件を表示`}
+              {isListExpanded
+                ? t('taskSuggestions.collapseButton')
+                : t('taskSuggestions.showMoreButton', { count: filteredSuggestions.length - 3 })}
             </button>
           )}
 
           {isCached && (
             <div className="mt-1 text-center">
-              <span className="text-[8px] text-zinc-400 dark:text-zinc-500">キャッシュ済み</span>
+              <span className="text-[8px] text-zinc-400 dark:text-zinc-500">
+                {t('taskSuggestions.cachedLabel')}
+              </span>
             </div>
           )}
         </div>
@@ -253,7 +259,7 @@ export default function TaskSuggestions({ themeId, onApply }: TaskSuggestionsPro
         <div className="px-3 py-2 border-t border-zinc-100 dark:border-zinc-800/50">
           <div className="flex items-center justify-center gap-1.5 text-zinc-500 dark:text-zinc-400">
             <Info className="w-3 h-3" />
-            <p className="text-[10px]">AI提案の生成に失敗しました</p>
+            <p className="text-[10px]">{t('taskSuggestions.aiGenerationFailedLabel')}</p>
           </div>
         </div>
       )}

@@ -3,6 +3,7 @@
 
 import React from 'react';
 import { Play, Bot, GitBranch, Sparkles, ChevronDown, ChevronUp, Settings } from 'lucide-react';
+import { useTranslations } from 'next-intl';
 import { AgentSwitcher } from '@/components/ui/AgentSwitcher';
 import { AgentKnowledgeContext } from '@/feature/intelligence/components/AgentKnowledgeContext';
 
@@ -60,6 +61,7 @@ export function ExecutionIdlePanel({
   logsNode,
   onExecute,
 }: Props) {
+  const t = useTranslations('devMode.executionIdlePanel');
   return (
     <div className="bg-white dark:bg-indigo-dark-900 rounded-xl border border-zinc-200 dark:border-zinc-700 overflow-hidden">
       {/* Header / toggle row */}
@@ -70,13 +72,11 @@ export function ExecutionIdlePanel({
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <Bot className="w-5 h-5 text-violet-600 dark:text-violet-400" />
-            <span className="font-semibold text-zinc-900 dark:text-zinc-50">
-              AI エージェント実行
-            </span>
+            <span className="font-semibold text-zinc-900 dark:text-zinc-50">{t('title')}</span>
             {hasOptimizedPrompt && (
               <span className="flex items-center gap-1 px-2 py-0.5 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 rounded-full text-xs">
                 <Sparkles className="w-3 h-3" />
-                最適化済み
+                {t('optimizedBadge')}
               </span>
             )}
           </div>
@@ -91,7 +91,7 @@ export function ExecutionIdlePanel({
                 className="flex items-center gap-1.5 px-3 py-1.5 bg-violet-600 hover:bg-violet-700 text-white rounded-lg text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <Play className="w-4 h-4" />
-                実行
+                {t('execute')}
               </button>
             )}
             {isExpanded ? (
@@ -105,16 +105,13 @@ export function ExecutionIdlePanel({
 
       {isExpanded && (
         <div className="p-4">
-          <p className="text-sm text-zinc-600 dark:text-zinc-400 mb-4">
-            Claude
-            Codeがこのタスクを自動で実行します。完了後、差分をレビューしてコミットやPRを作成できます。
-          </p>
+          <p className="text-sm text-zinc-600 dark:text-zinc-400 mb-4">{t('description')}</p>
 
           {hasOptimizedPrompt && (
             <div className="flex items-center gap-2 px-3 py-2 bg-green-50 dark:bg-green-900/20 rounded-lg border border-green-200 dark:border-green-800 mb-4">
               <Sparkles className="w-4 h-4 text-green-600 dark:text-green-400" />
               <span className="text-sm text-green-700 dark:text-green-300">
-                最適化されたプロンプトを使用して実行します。
+                {t('optimizedPromptNotice')}
               </span>
             </div>
           )}
@@ -127,7 +124,7 @@ export function ExecutionIdlePanel({
               <div className="flex items-center gap-2">
                 <Settings className="w-4 h-4 text-zinc-400" />
                 <span className="text-sm font-medium text-zinc-600 dark:text-zinc-400">
-                  詳細オプション
+                  {t('advancedOptions')}
                 </span>
               </div>
               <ChevronDown
@@ -143,7 +140,7 @@ export function ExecutionIdlePanel({
               className="h-11 flex items-center gap-2 px-6 bg-violet-600 hover:bg-violet-700 text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed shrink-0"
             >
               <Play className="w-4 h-4" />
-              実行
+              {t('execute')}
             </button>
           </div>
 
@@ -160,12 +157,12 @@ export function ExecutionIdlePanel({
 
               <div>
                 <label className="flex text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-2">
-                  追加の実行指示（任意）
+                  {t('instructionLabel')}
                 </label>
                 <textarea
                   value={instruction}
                   onChange={(e) => setInstruction(e.target.value)}
-                  placeholder="例: TypeScriptの型を厳密に定義してください。テストも作成してください。"
+                  placeholder={t('instructionPlaceholder')}
                   rows={3}
                   className="w-full px-3 py-2 bg-white dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-600 rounded-lg text-sm focus:outline-none focus:border-indigo-400 transition-all resize-none"
                 />
@@ -174,17 +171,17 @@ export function ExecutionIdlePanel({
               <div>
                 <label className="flex text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-2 items-center gap-2">
                   <GitBranch className="w-4 h-4" />
-                  作業ブランチ名（空欄で自動生成）
+                  {t('branchNameLabel')}
                 </label>
                 <input
                   type="text"
                   value={branchName}
                   onChange={(e) => setBranchName(e.target.value)}
-                  placeholder="AIが自動で適切なブランチ名を生成します"
+                  placeholder={t('branchNamePlaceholder')}
                   className="w-full px-3 py-2 bg-white dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-600 rounded-lg text-sm font-mono focus:outline-none focus:border-indigo-400 transition-all"
                 />
                 <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
-                  指定しない場合、AIがタスク内容を基に適切なブランチ名を自動生成します。
+                  {t('branchNameHint')}
                 </p>
               </div>
             </div>

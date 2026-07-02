@@ -13,6 +13,7 @@ import {
   Check,
   Eye,
 } from 'lucide-react';
+import { useTranslations } from 'next-intl';
 import type { Resource } from '@/types';
 import { API_BASE_URL } from '@/utils/api';
 import FileViewer from '@/components/file-viewer/FileViewer';
@@ -23,11 +24,13 @@ const logger = createLogger('FileUploader');
 // Download state type
 type DownloadState = 'idle' | 'downloading' | 'completed';
 
-async function downloadFile(url: string, fileName: string) {
+// NOTE: Pure helper outside the component — receives the already-resolved
+// message so it doesn't need a useTranslations hook of its own.
+async function downloadFile(url: string, fileName: string, failedMessage: string) {
   try {
     const response = await fetch(url);
     if (!response.ok) {
-      throw new Error('ダウンロードに失敗しました');
+      throw new Error(failedMessage);
     }
     const blob = await response.blob();
     const blobUrl = URL.createObjectURL(blob);
@@ -51,6 +54,8 @@ type FileUploaderProps = {
 };
 
 export default function FileUploader({ taskId, resources, onResourcesChange }: FileUploaderProps) {
+  const t = useTranslations('task.fileUploader');
+  const tc = useTranslations('common');
   const [isUploading, setIsUploading] = useState(false);
   const [dragActive, setDragActive] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -59,20 +64,23 @@ export default function FileUploader({ taskId, resources, onResourcesChange }: F
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Download with animation feedback
-  const handleDownload = useCallback(async (resourceId: number, url: string, fileName: string) => {
-    setDownloadStates((prev) => ({ ...prev, [resourceId]: 'downloading' }));
-    try {
-      await downloadFile(url, fileName);
-      setDownloadStates((prev) => ({ ...prev, [resourceId]: 'completed' }));
-      // Reset to idle after 2 seconds
-      setTimeout(() => {
+  const handleDownload = useCallback(
+    async (resourceId: number, url: string, fileName: string) => {
+      setDownloadStates((prev) => ({ ...prev, [resourceId]: 'downloading' }));
+      try {
+        await downloadFile(url, fileName, t('downloadFailed'));
+        setDownloadStates((prev) => ({ ...prev, [resourceId]: 'completed' }));
+        // Reset to idle after 2 seconds
+        setTimeout(() => {
+          setDownloadStates((prev) => ({ ...prev, [resourceId]: 'idle' }));
+        }, 2000);
+      } catch (e) {
         setDownloadStates((prev) => ({ ...prev, [resourceId]: 'idle' }));
-      }, 2000);
-    } catch (e) {
-      setDownloadStates((prev) => ({ ...prev, [resourceId]: 'idle' }));
-      setError(e instanceof Error ? e.message : 'ダウンロードに失敗しました');
-    }
-  }, []);
+        setError(e instanceof Error ? e.message : t('downloadFailed'));
+      }
+    },
+    [t],
+  );
 
   const uploadFiles = useCallback(
     async (files: FileList) => {
@@ -92,19 +100,19 @@ export default function FileUploader({ taskId, resources, onResourcesChange }: F
 
           if (!res.ok) {
             const errorData = await res.json().catch(() => ({}));
-            throw new Error(errorData.message || 'アップロードに失敗しました');
+            throw new Error(errorData.message || t('uploadFailed'));
           }
           await res.json();
         }
 
         onResourcesChange();
       } catch (e) {
-        setError(e instanceof Error ? e.message : 'アップロードに失敗しました');
+        setError(e instanceof Error ? e.message : t('uploadFailed'));
       } finally {
         setIsUploading(false);
       }
     },
-    [taskId, onResourcesChange],
+    [taskId, onResourcesChange, t],
   );
 
   // NOTE: Native browser drag events (works in Tauri with dragDropEnabled: true)
@@ -162,12 +170,12 @@ export default function FileUploader({ taskId, resources, onResourcesChange }: F
       });
 
       if (!res.ok) {
-        throw new Error('削除に失敗しました');
+        throw new Error(t('deleteFailed'));
       }
 
       onResourcesChange();
     } catch (e) {
-      setError(e instanceof Error ? e.message : '削除に失敗しました');
+      setError(e instanceof Error ? e.message : t('deleteFailed'));
     }
   };
 
@@ -237,11 +245,9 @@ export default function FileUploader({ taskId, resources, onResourcesChange }: F
           )}
           <div>
             <p className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
-              {isUploading ? 'アップロード中...' : 'ファイルをドラッグ&ドロップ'}
+              {isUploading ? t('uploading') : t('dragDrop')}
             </p>
-            <p className="text-xs text-zinc-500 dark:text-zinc-400">
-              または クリックして選択（最大10MB）
-            </p>
+            <p className="text-xs text-zinc-500 dark:text-zinc-400">{t('dragDropHint')}</p>
           </div>
         </div>
       </div>
@@ -299,7 +305,7 @@ export default function FileUploader({ taskId, resources, onResourcesChange }: F
                 <button
                   onClick={() => setViewingResource(resource)}
                   className="p-1.5 text-zinc-500 hover:text-indigo-500 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 rounded-lg transition-colors"
-                  title="プレビュー"
+                  title={t('preview')}
                 >
                   <Eye className="w-4 h-4" />
                 </button>
@@ -308,7 +314,7 @@ export default function FileUploader({ taskId, resources, onResourcesChange }: F
                   target="_blank"
                   rel="noopener noreferrer"
                   className="p-1.5 text-zinc-500 hover:text-indigo-500 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 rounded-lg transition-colors"
-                  title="新しいタブで開く"
+                  title={t('openInNewTab')}
                 >
                   <ExternalLink className="w-4 h-4" />
                 </a>
@@ -331,10 +337,10 @@ export default function FileUploader({ taskId, resources, onResourcesChange }: F
                     }`}
                     title={
                       downloadStates[resource.id] === 'completed'
-                        ? 'ダウンロード完了'
+                        ? t('downloadCompleted')
                         : downloadStates[resource.id] === 'downloading'
-                          ? 'ダウンロード中...'
-                          : 'ダウンロード'
+                          ? t('downloading')
+                          : t('download')
                     }
                   >
                     {downloadStates[resource.id] === 'completed' ? (
@@ -352,14 +358,14 @@ export default function FileUploader({ taskId, resources, onResourcesChange }: F
                   {/* Success tooltip */}
                   {downloadStates[resource.id] === 'completed' && (
                     <span className="absolute -top-8 left-1/2 -translate-x-1/2 px-2 py-1 text-xs font-medium text-green-700 dark:text-green-300 bg-green-100 dark:bg-green-900/60 rounded-md whitespace-nowrap animate-[fadeInUp_0.3s_ease-out] shadow-sm">
-                      完了!
+                      {t('done')}
                     </span>
                   )}
                 </div>
                 <button
                   onClick={() => handleDelete(resource.id)}
                   className="p-1.5 text-zinc-500 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-900/30 rounded-lg transition-colors"
-                  title="削除"
+                  title={tc('delete')}
                 >
                   <Trash2 className="w-4 h-4" />
                 </button>

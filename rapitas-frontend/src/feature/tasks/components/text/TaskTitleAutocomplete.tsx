@@ -9,6 +9,7 @@ import {
   useImperativeHandle,
   useMemo,
 } from 'react';
+import { useTranslations } from 'next-intl';
 import { API_BASE_URL } from '@/utils/api';
 import { createLogger } from '@/lib/logger';
 
@@ -45,17 +46,11 @@ export type TaskTitleAutocompleteRef = {
 
 const TaskTitleAutocomplete = forwardRef<TaskTitleAutocompleteRef, TaskTitleAutocompleteProps>(
   function TaskTitleAutocomplete(
-    {
-      value,
-      onChange,
-      placeholder = 'タスクのタイトル',
-      className = '',
-      autoFocus = false,
-      themeId,
-      projectId,
-    },
+    { value, onChange, placeholder, className = '', autoFocus = false, themeId, projectId },
     ref,
   ) {
+    const t = useTranslations('task.taskTitleAutocomplete');
+    const resolvedPlaceholder = placeholder ?? t('placeholder');
     const [suggestions, setSuggestions] = useState<TaskSuggestion[]>([]);
     const [isFocused, setIsFocused] = useState(false);
 
@@ -171,7 +166,7 @@ const TaskTitleAutocomplete = forwardRef<TaskTitleAutocompleteRef, TaskTitleAuto
           onKeyDown={handleKeyDown}
           onFocus={() => setIsFocused(true)}
           onBlur={() => setIsFocused(false)}
-          placeholder={placeholder}
+          placeholder={resolvedPlaceholder}
           className={`relative w-full text-xl font-semibold bg-transparent border-none outline-none placeholder:text-zinc-300 dark:placeholder:text-zinc-600 ${className}`}
           autoFocus={autoFocus}
           autoComplete="off"

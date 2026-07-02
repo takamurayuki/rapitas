@@ -10,6 +10,7 @@
 
 import React from 'react';
 import { CheckCircle2, AlertCircle, Square, FileEdit, TestTube } from 'lucide-react';
+import { useTranslations } from 'next-intl';
 import type { ExecutionSummary } from '../../utils/log-message-transformer';
 import type { ExecutionLogStatus } from './types';
 
@@ -25,6 +26,8 @@ type ExecutionSummaryCardProps = {
  * @param status - Final execution status, used to choose success / failure theming. / 成功／失敗テーマの選択に使う最終ステータス。
  */
 export const ExecutionSummaryCard: React.FC<ExecutionSummaryCardProps> = ({ summary, status }) => {
+  const t = useTranslations('devMode.executionSummaryCard');
+  const tCommon = useTranslations('common');
   const isSuccess = status === 'completed';
   const totalFiles = summary.filesEdited.length + summary.filesCreated.length;
 
@@ -41,26 +44,30 @@ export const ExecutionSummaryCard: React.FC<ExecutionSummaryCardProps> = ({ summ
         }`}
       >
         {isSuccess ? <CheckCircle2 className="w-4 h-4" /> : <AlertCircle className="w-4 h-4" />}
-        {isSuccess ? '完了しました' : '実行に失敗しました'}
+        {isSuccess ? t('completed') : t('failed')}
       </div>
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-1.5 text-sm">
         {totalFiles > 0 && (
           <div className="flex items-center gap-2 text-zinc-300">
             <FileEdit className="w-3.5 h-3.5 text-zinc-500" />
-            <span className="text-zinc-500">変更:</span>
-            <span className="font-medium">{totalFiles}件</span>
+            <span className="text-zinc-500">{t('changesLabel')}</span>
+            <span className="font-medium">{t('countItems', { count: totalFiles })}</span>
           </div>
         )}
         {summary.testsRun > 0 && (
           <div className="flex items-center gap-2 text-zinc-300">
             <TestTube className="w-3.5 h-3.5 text-zinc-500" />
-            <span className="text-zinc-500">テスト:</span>
+            <span className="text-zinc-500">{t('testsLabel')}</span>
             <span className="font-medium">
               {summary.testsPassed > 0 && (
-                <span className="text-green-400">{summary.testsPassed}成功</span>
+                <span className="text-green-400">
+                  {t('testsPassed', { count: summary.testsPassed })}
+                </span>
               )}
               {summary.testsFailed > 0 && (
-                <span className="text-red-400 ml-1">{summary.testsFailed}失敗</span>
+                <span className="text-red-400 ml-1">
+                  {t('testsFailed', { count: summary.testsFailed })}
+                </span>
               )}
             </span>
           </div>
@@ -68,23 +75,26 @@ export const ExecutionSummaryCard: React.FC<ExecutionSummaryCardProps> = ({ summ
         {summary.commits > 0 && (
           <div className="flex items-center gap-2 text-zinc-300">
             <CheckCircle2 className="w-3.5 h-3.5 text-zinc-500" />
-            <span className="text-zinc-500">コミット:</span>
-            <span className="font-medium">{summary.commits}件</span>
+            <span className="text-zinc-500">{t('commitsLabel')}</span>
+            <span className="font-medium">{t('countItems', { count: summary.commits })}</span>
           </div>
         )}
         {summary.durationSeconds !== undefined && (
           <div className="flex items-center gap-2 text-zinc-300">
             <Square className="w-3.5 h-3.5 text-zinc-500" />
-            <span className="text-zinc-500">所要時間:</span>
+            <span className="text-zinc-500">{t('durationLabel')}</span>
             <span className="font-medium">
               {summary.durationSeconds >= 60
-                ? `${Math.floor(summary.durationSeconds / 60)}分${Math.round(summary.durationSeconds % 60)}秒`
-                : `${Math.round(summary.durationSeconds)}秒`}
+                ? t('durationMinSec', {
+                    min: Math.floor(summary.durationSeconds / 60),
+                    sec: Math.round(summary.durationSeconds % 60),
+                  })
+                : t('durationSec', { sec: Math.round(summary.durationSeconds) })}
             </span>
           </div>
         )}
         <div className="col-span-2 flex items-center gap-2 text-zinc-300">
-          <span className="text-zinc-500">課題:</span>
+          <span className="text-zinc-500">{t('issuesLabel')}</span>
           <span className="font-medium">
             {summary.errors.length > 0
               ? summary.errors.map((e, i) => (
@@ -93,14 +103,14 @@ export const ExecutionSummaryCard: React.FC<ExecutionSummaryCardProps> = ({ summ
                     {i < summary.errors.length - 1 ? ', ' : ''}
                   </span>
                 ))
-              : 'なし'}
+              : tCommon('none')}
           </span>
         </div>
       </div>
       {(summary.filesEdited.length > 0 || summary.filesCreated.length > 0) && (
         <details className="mt-3">
           <summary className="text-xs text-zinc-500 cursor-pointer hover:text-zinc-400">
-            変更ファイル一覧
+            {t('changedFilesList')}
           </summary>
           <div className="mt-2 text-xs text-zinc-400 font-mono space-y-0.5 pl-2 border-l border-zinc-700">
             {summary.filesCreated.map((f) => (

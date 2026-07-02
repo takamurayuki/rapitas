@@ -2,6 +2,7 @@
 // LinkModal
 
 import { useState, useEffect, memo } from 'react';
+import { useTranslations } from 'next-intl';
 import { Link2, Search, X, MessageSquare, Loader2 } from 'lucide-react';
 import type { CommentSearchResult } from '@/types';
 import { API_BASE_URL } from '@/utils/api';
@@ -27,6 +28,7 @@ export const LinkModal = memo(function LinkModal({
   onSelect,
   onClose,
 }: LinkModalProps) {
+  const t = useTranslations('task');
   const [q, setQ] = useState('');
   const [results, setResults] = useState<CommentSearchResult[]>([]);
   const [loading, setLoading] = useState(false);
@@ -70,7 +72,7 @@ export const LinkModal = memo(function LinkModal({
             <div className="flex items-center gap-1.5">
               <Link2 className="w-3.5 h-3.5 text-indigo-500" />
               <span className="text-xs font-medium text-zinc-700 dark:text-zinc-300">
-                メモをリンク
+                {t('linkModal.title')}
               </span>
             </div>
             <button
@@ -84,7 +86,7 @@ export const LinkModal = memo(function LinkModal({
           {/* Source preview */}
           <div className="px-2 py-1.5 mb-2 bg-indigo-50 dark:bg-indigo-900/20 border border-indigo-100 dark:border-indigo-800 rounded-md">
             <p className="text-[10px] text-indigo-500 dark:text-indigo-400 font-medium mb-0.5">
-              リンク元
+              {t('linkModal.sourceLabel')}
             </p>
             <p className="text-[10px] text-zinc-600 dark:text-zinc-400 line-clamp-1">
               {source.content}
@@ -97,7 +99,7 @@ export const LinkModal = memo(function LinkModal({
             <input
               value={q}
               onChange={(e) => setQ(e.target.value)}
-              placeholder="メモを検索..."
+              placeholder={t('linkModal.searchPlaceholder')}
               className="w-full pl-7 pr-3 py-1.5 text-xs bg-zinc-50 dark:bg-indigo-dark-800 border border-zinc-200 dark:border-zinc-700 rounded-lg outline-none focus:border-indigo-400 focus:border-indigo-400 transition-colors"
               autoFocus
             />
@@ -130,7 +132,7 @@ export const LinkModal = memo(function LinkModal({
           {loading ? (
             <div className="p-4 text-center">
               <Loader2 className="w-4 h-4 animate-spin mx-auto text-indigo-500" />
-              <p className="text-[10px] text-zinc-400 mt-1">検索中...</p>
+              <p className="text-[10px] text-zinc-400 mt-1">{t('linkModal.searching')}</p>
             </div>
           ) : results.length > 0 ? (
             <div className="p-1.5 space-y-0.5">
@@ -157,7 +159,7 @@ export const LinkModal = memo(function LinkModal({
             <div className="p-6 text-center">
               <Search className="w-5 h-5 text-zinc-300 dark:text-zinc-600 mx-auto mb-1.5" />
               <p className="text-xs text-zinc-400">
-                {q ? '一致するメモがありません' : 'リンク先のメモを検索'}
+                {q ? t('linkModal.noResults') : t('linkModal.searchHint')}
               </p>
             </div>
           )}

@@ -16,36 +16,39 @@ vi.mock('next/link', () => ({
   ),
 }));
 
+// NOTE: Mirrors the established next-intl test mock (see TaskCard.test.tsx) —
+// t(key) resolves to the raw key, so assertions target key names instead of
+// translated copy.
+vi.mock('next-intl', () => ({
+  useTranslations: () => (key: string) => key,
+}));
+
 describe('ExecutionCapabilityGuide', () => {
   test('renders the no-theme state with a link to /themes', () => {
     render(<ExecutionCapabilityGuide capability="no-theme" />);
-    expect(screen.getByText('テーマを設定するとエージェント実行できます')).toBeInTheDocument();
-    const cta = screen.getByRole('link', { name: /テーマを設定する/ });
+    expect(screen.getByText('noThemeTitle')).toBeInTheDocument();
+    const cta = screen.getByRole('link', { name: /noThemeCta/ });
     expect(cta).toHaveAttribute('href', '/themes');
   });
 
   test('renders the no-working-directory state and deep-links by themeId', () => {
     render(<ExecutionCapabilityGuide capability="no-working-directory" themeId={42} />);
-    expect(screen.getByText('テーマに作業ディレクトリを設定してください')).toBeInTheDocument();
-    const cta = screen.getByRole('link', { name: /テーマを編集する/ });
+    expect(screen.getByText('noWorkingDirTitle')).toBeInTheDocument();
+    const cta = screen.getByRole('link', { name: /noWorkingDirCta/ });
     expect(cta).toHaveAttribute('href', '/themes?edit=42');
   });
 
   test('falls back to /themes when no-working-directory has no themeId', () => {
     render(<ExecutionCapabilityGuide capability="no-working-directory" />);
-    const cta = screen.getByRole('link', { name: /テーマを編集する/ });
+    const cta = screen.getByRole('link', { name: /noWorkingDirCta/ });
     expect(cta).toHaveAttribute('href', '/themes');
   });
 
   test('renders the no-cli-available state with a link to /setup', () => {
     render(<ExecutionCapabilityGuide capability="no-cli-available" />);
-    expect(screen.getByText('CLI が利用可能ではありません')).toBeInTheDocument();
-    expect(
-      screen.getByText(
-        'Claude Code / Codex / Gemini CLI のいずれかをインストールし、ターミナルから実行できる状態にしてください。',
-      ),
-    ).toBeInTheDocument();
-    const cta = screen.getByRole('link', { name: /セットアップ状況を確認/ });
+    expect(screen.getByText('noCliTitle')).toBeInTheDocument();
+    expect(screen.getByText('noCliBody')).toBeInTheDocument();
+    const cta = screen.getByRole('link', { name: /noCliCta/ });
     expect(cta).toHaveAttribute('href', '/setup');
   });
 

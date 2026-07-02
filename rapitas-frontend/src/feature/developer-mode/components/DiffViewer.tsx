@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { useTranslations } from 'next-intl';
 import {
   FileText,
   FilePlus,
@@ -20,6 +21,7 @@ type DiffViewerProps = {
 };
 
 export function DiffViewer({ files, showRawDiff = false, onToggleView }: DiffViewerProps) {
+  const t = useTranslations('devMode.diffViewer');
   const [expandedFiles, setExpandedFiles] = useState<Set<string>>(
     new Set(files.map((f) => f.filename)),
   );
@@ -60,15 +62,15 @@ export function DiffViewer({ files, showRawDiff = false, onToggleView }: DiffVie
   const getStatusLabel = (status: string) => {
     switch (status) {
       case 'added':
-        return '追加';
+        return t('statusLabel.added');
       case 'deleted':
       case 'removed':
-        return '削除';
+        return t('statusLabel.deleted');
       case 'modified':
       case 'changed':
-        return '変更';
+        return t('statusLabel.modified');
       case 'renamed':
-        return '名前変更';
+        return t('statusLabel.renamed');
       default:
         return status;
     }
@@ -115,7 +117,7 @@ export function DiffViewer({ files, showRawDiff = false, onToggleView }: DiffVie
       <div className="flex flex-wrap items-center justify-between gap-2 px-4 py-3 bg-zinc-50 dark:bg-indigo-dark-800/50 border-b border-zinc-200 dark:border-zinc-700">
         <div className="flex items-center gap-2 sm:gap-4">
           <span className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
-            {files.length} ファイル
+            {t('fileCount', { count: files.length })}
           </span>
           <div className="flex items-center gap-3 text-sm">
             <span className="flex items-center gap-1 text-green-600 dark:text-green-400">
@@ -133,12 +135,12 @@ export function DiffViewer({ files, showRawDiff = false, onToggleView }: DiffVie
           {isRawView ? (
             <>
               <FileCode className="w-4 h-4" />
-              構造化表示
+              {t('structuredView')}
             </>
           ) : (
             <>
               <Code className="w-4 h-4" />
-              RAW表示
+              {t('rawView')}
             </>
           )}
         </button>
@@ -230,7 +232,7 @@ export function DiffViewer({ files, showRawDiff = false, onToggleView }: DiffVie
             {/* No patch available */}
             {expandedFiles.has(file.filename) && !file.patch && (
               <div className="px-4 py-6 bg-zinc-50 dark:bg-indigo-dark-800/30 text-center">
-                <p className="text-sm text-zinc-500 dark:text-zinc-400">差分情報がありません</p>
+                <p className="text-sm text-zinc-500 dark:text-zinc-400">{t('noDiffInfo')}</p>
               </div>
             )}
           </div>
@@ -241,7 +243,7 @@ export function DiffViewer({ files, showRawDiff = false, onToggleView }: DiffVie
       {files.length === 0 && (
         <div className="px-4 py-12 text-center">
           <FileText className="w-12 h-12 mx-auto text-zinc-300 dark:text-zinc-600 mb-3" />
-          <p className="text-sm text-zinc-500 dark:text-zinc-400">変更されたファイルはありません</p>
+          <p className="text-sm text-zinc-500 dark:text-zinc-400">{t('noChangedFiles')}</p>
         </div>
       )}
     </div>

@@ -2,6 +2,7 @@
 // useDeveloperModeConfig
 
 import { useState, useCallback } from 'react';
+import { useTranslations } from 'next-intl';
 import type { DeveloperModeConfig, TaskAnalysisResult, AgentSession, AIAgentConfig } from '@/types';
 import { API_BASE_URL } from '@/utils/api';
 import { createLogger } from '@/lib/logger';
@@ -44,6 +45,8 @@ export interface UseDeveloperModeConfigReturn {
  * @returns UseDeveloperModeConfigReturn
  */
 export function useDeveloperModeConfig(taskId: number): UseDeveloperModeConfigReturn {
+  const t = useTranslations('devMode.developerModeConfig');
+  const tCommon = useTranslations('common');
   const [config, setConfig] = useState<DeveloperModeConfig | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
@@ -66,11 +69,11 @@ export function useDeveloperModeConfig(taskId: number): UseDeveloperModeConfigRe
         setConfig(null);
       }
     } catch (err) {
-      setError('設定の取得に失敗しました');
+      setError(t('configFetchFailed'));
     } finally {
       setIsLoading(false);
     }
-  }, [taskId]);
+  }, [taskId, t]);
 
   /**
    * Enable developer mode for the task with optional configuration overrides.
@@ -93,15 +96,15 @@ export function useDeveloperModeConfig(taskId: number): UseDeveloperModeConfigRe
           setConfig(data);
           return data;
         }
-        throw new Error('有効化に失敗しました');
+        throw new Error(t('enableFailed'));
       } catch (err) {
-        setError(err instanceof Error ? err.message : 'エラーが発生しました');
+        setError(err instanceof Error ? err.message : tCommon('errorOccurred'));
         return null;
       } finally {
         setIsLoading(false);
       }
     },
-    [taskId],
+    [taskId, t, tCommon],
   );
 
   /**
@@ -121,14 +124,14 @@ export function useDeveloperModeConfig(taskId: number): UseDeveloperModeConfigRe
         setAnalysisResult(null);
         return true;
       }
-      throw new Error('無効化に失敗しました');
+      throw new Error(t('disableFailed'));
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'エラーが発生しました');
+      setError(err instanceof Error ? err.message : tCommon('errorOccurred'));
       return false;
     } finally {
       setIsLoading(false);
     }
-  }, [taskId]);
+  }, [taskId, t, tCommon]);
 
   /**
    * Partially update developer-mode configuration fields.
@@ -151,15 +154,15 @@ export function useDeveloperModeConfig(taskId: number): UseDeveloperModeConfigRe
           setConfig(data);
           return data;
         }
-        throw new Error('更新に失敗しました');
+        throw new Error(tCommon('updateFailed'));
       } catch (err) {
-        setError(err instanceof Error ? err.message : 'エラーが発生しました');
+        setError(err instanceof Error ? err.message : tCommon('errorOccurred'));
         return null;
       } finally {
         setIsLoading(false);
       }
     },
-    [taskId],
+    [taskId, tCommon],
   );
 
   /**
@@ -184,14 +187,14 @@ export function useDeveloperModeConfig(taskId: number): UseDeveloperModeConfigRe
         }
         return data;
       }
-      throw new Error(data.error || '分析に失敗しました');
+      throw new Error(data.error || t('analysisFailed'));
     } catch (err) {
-      setAnalysisError(err instanceof Error ? err.message : 'エラーが発生しました');
+      setAnalysisError(err instanceof Error ? err.message : tCommon('errorOccurred'));
       return null;
     } finally {
       setIsAnalyzing(false);
     }
-  }, [taskId]);
+  }, [taskId, t, tCommon]);
 
   const fetchSessions = useCallback(async () => {
     try {
@@ -213,7 +216,7 @@ export function useDeveloperModeConfig(taskId: number): UseDeveloperModeConfigRe
   const approveSubtaskCreation = useCallback(
     async (selectedSubtaskIndices?: number[]) => {
       if (!analysisApprovalId) {
-        setError('承認リクエストがありません');
+        setError(t('noApprovalRequest'));
         return null;
       }
       setIsLoading(true);
@@ -229,15 +232,15 @@ export function useDeveloperModeConfig(taskId: number): UseDeveloperModeConfigRe
           setAnalysisApprovalId(null);
           return data;
         }
-        throw new Error(data.error || '承認に失敗しました');
+        throw new Error(data.error || t('approvalFailed'));
       } catch (err) {
-        setError(err instanceof Error ? err.message : 'エラーが発生しました');
+        setError(err instanceof Error ? err.message : tCommon('errorOccurred'));
         return null;
       } finally {
         setIsLoading(false);
       }
     },
-    [analysisApprovalId],
+    [analysisApprovalId, t, tCommon],
   );
 
   const fetchAgents = useCallback(async () => {

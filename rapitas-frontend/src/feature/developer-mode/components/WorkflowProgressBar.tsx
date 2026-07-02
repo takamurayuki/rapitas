@@ -1,36 +1,18 @@
 import React from 'react';
 import { Search, FileText, Code, CheckCircle } from 'lucide-react';
+import { useTranslations } from 'next-intl';
 
 interface WorkflowProgressBarProps {
   currentPhase: 'research' | 'plan' | 'implement' | 'verify' | null;
   className?: string;
 }
 
-const WORKFLOW_STEPS = [
-  {
-    key: 'research',
-    label: '調査',
-    icon: Search,
-    description: 'コードを調査中',
-  },
-  {
-    key: 'plan',
-    label: '計画',
-    icon: FileText,
-    description: '実装計画を作成中',
-  },
-  {
-    key: 'implement',
-    label: '実装',
-    icon: Code,
-    description: 'コードを実装中',
-  },
-  {
-    key: 'verify',
-    label: '検証',
-    icon: CheckCircle,
-    description: '実装結果を検証中',
-  },
+/** Workflow step icons, keyed by phase (labels are resolved via translation). */
+const WORKFLOW_STEP_ICONS = [
+  { key: 'research', icon: Search },
+  { key: 'plan', icon: FileText },
+  { key: 'implement', icon: Code },
+  { key: 'verify', icon: CheckCircle },
 ] as const;
 
 /**
@@ -41,6 +23,13 @@ export const WorkflowProgressBar: React.FC<WorkflowProgressBarProps> = ({
   currentPhase,
   className = '',
 }) => {
+  const t = useTranslations('devMode.workflowProgressBar');
+  const WORKFLOW_STEPS = WORKFLOW_STEP_ICONS.map((step) => ({
+    ...step,
+    label: t(`steps.${step.key}.label`),
+    description: t(`steps.${step.key}.description`),
+  }));
+
   const getCurrentStepIndex = () => {
     if (!currentPhase) return -1;
     return WORKFLOW_STEPS.findIndex((step) => step.key === currentPhase);
@@ -137,7 +126,7 @@ export const WorkflowProgressBar: React.FC<WorkflowProgressBarProps> = ({
       {currentPhase && (
         <div className="mt-3 text-center">
           <div className="text-xs text-zinc-400">
-            全体進捗: {currentStepIndex + 1}/{WORKFLOW_STEPS.length} ステップ完了
+            {t('overallProgress', { current: currentStepIndex + 1, total: WORKFLOW_STEPS.length })}
           </div>
           <div className="mt-1 w-full bg-zinc-700 rounded-full h-1 max-w-xs mx-auto">
             <div

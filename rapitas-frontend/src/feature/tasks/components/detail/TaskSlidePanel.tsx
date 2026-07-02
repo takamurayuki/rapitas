@@ -1,5 +1,6 @@
 'use client';
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { useTranslations } from 'next-intl';
 import TaskDetailClient from '@/app/tasks/[id]/TaskDetailClient';
 import TaskDetailSkeleton from '@/components/ui/skeleton/TaskDetailSkeleton';
 import { useTaskDetailVisibilityStore } from '@/stores/task-detail-visibility-store';
@@ -19,6 +20,7 @@ export default function TaskSlidePanel({
   onClose,
   onTaskUpdated,
 }: TaskSlidePanelProps) {
+  const t = useTranslations('task.taskSlidePanel');
   // Keep DOM mounted until close animation completes
   const [isVisible, setIsVisible] = useState(false);
   const [isAnimatingOut, setIsAnimatingOut] = useState(false);
@@ -141,11 +143,11 @@ export default function TaskSlidePanel({
       >
         {/* Header (compact) */}
         <div className="shrink-0 flex items-center justify-between border-b border-zinc-200 dark:border-zinc-800 bg-white dark:bg-indigo-dark-900 px-4 py-2.5">
-          <h2 className="text-base font-semibold text-zinc-900 dark:text-zinc-50">タスク詳細</h2>
+          <h2 className="text-base font-semibold text-zinc-900 dark:text-zinc-50">{t('title')}</h2>
           <button
             onClick={handleClose}
             className="p-1.5 text-zinc-600 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-100 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-lg transition-colors"
-            title="閉じる (Esc)"
+            title={t('closeTooltip')}
           >
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path

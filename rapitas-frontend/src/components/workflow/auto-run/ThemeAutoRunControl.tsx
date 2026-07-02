@@ -18,8 +18,15 @@ interface ThemeAutoRunControlProps {
   isDevelopment?: boolean;
 }
 
-/** Visual config per auto-run status. */
-const STATUS_CONFIG: Record<
+/**
+ * Visual config per auto-run status. Labels come from the `autoRun` namespace
+ * (statusIdle/statusRunning/statusPaused/statusStopping) since t() cannot be
+ * called at module scope.
+ *
+ * @param t - Translator scoped to the `autoRun` namespace / autoRun名前空間のt
+ * @returns Status → visual config map / ステータスごとの表示設定
+ */
+function getStatusConfig(t: ReturnType<typeof useTranslations<'autoRun'>>): Record<
   AutoRunStatus,
   {
     label: string;
@@ -28,36 +35,38 @@ const STATUS_CONFIG: Record<
     darkBg: string;
     icon: React.ComponentType<{ className?: string }>;
   }
-> = {
-  idle: {
-    label: '待機',
-    color: 'text-zinc-500 dark:text-zinc-400',
-    bgColor: 'bg-zinc-100',
-    darkBg: 'dark:bg-zinc-800',
-    icon: Clock,
-  },
-  running: {
-    label: '実行中',
-    color: 'text-emerald-700 dark:text-emerald-300',
-    bgColor: 'bg-emerald-100',
-    darkBg: 'dark:bg-emerald-900/30',
-    icon: CheckCircle2,
-  },
-  paused: {
-    label: '一時停止',
-    color: 'text-amber-700 dark:text-amber-300',
-    bgColor: 'bg-amber-100',
-    darkBg: 'dark:bg-amber-900/30',
-    icon: Pause,
-  },
-  stopping: {
-    label: '停止中',
-    color: 'text-red-600 dark:text-red-400',
-    bgColor: 'bg-red-100',
-    darkBg: 'dark:bg-red-900/30',
-    icon: Loader2,
-  },
-};
+> {
+  return {
+    idle: {
+      label: t('statusIdle'),
+      color: 'text-zinc-500 dark:text-zinc-400',
+      bgColor: 'bg-zinc-100',
+      darkBg: 'dark:bg-zinc-800',
+      icon: Clock,
+    },
+    running: {
+      label: t('statusRunning'),
+      color: 'text-emerald-700 dark:text-emerald-300',
+      bgColor: 'bg-emerald-100',
+      darkBg: 'dark:bg-emerald-900/30',
+      icon: CheckCircle2,
+    },
+    paused: {
+      label: t('statusPaused'),
+      color: 'text-amber-700 dark:text-amber-300',
+      bgColor: 'bg-amber-100',
+      darkBg: 'dark:bg-amber-900/30',
+      icon: Pause,
+    },
+    stopping: {
+      label: t('statusStopping'),
+      color: 'text-red-600 dark:text-red-400',
+      bgColor: 'bg-red-100',
+      darkBg: 'dark:bg-red-900/30',
+      icon: Loader2,
+    },
+  };
+}
 
 /**
  * Compact control widget for theme auto-run.
@@ -83,7 +92,7 @@ export function ThemeAutoRunControl({ themeId, isDevelopment }: ThemeAutoRunCont
   }
 
   const status: AutoRunStatus = data?.autoRun?.status ?? 'idle';
-  const cfg = STATUS_CONFIG[status];
+  const cfg = getStatusConfig(t)[status];
   const StatusIcon = cfg.icon;
   const processedCount = data?.autoRun?.processedCount ?? 0;
   const currentTitle = data?.currentTask?.title;

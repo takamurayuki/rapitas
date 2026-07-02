@@ -10,6 +10,7 @@ import {
   Loader2,
   Play,
 } from 'lucide-react';
+import { useTranslations } from 'next-intl';
 import { SkeletonBlock } from '@/components/ui/LoadingSpinner';
 import type { TaskAnalysisResult } from '@/types';
 
@@ -47,6 +48,7 @@ export function SubtaskPanel({
   onApproveSubtasks,
   onAnalyze,
 }: SubtaskPanelProps) {
+  const t = useTranslations('devMode.subtaskPanel');
   if (isAnalyzing) {
     return (
       <div
@@ -88,14 +90,14 @@ export function SubtaskPanel({
           <>
             <div className="flex items-center justify-between">
               <p className="text-[10px] font-medium text-zinc-500 dark:text-zinc-400 uppercase tracking-wide">
-                提案サブタスク
+                {t('suggestedSubtasks')}
               </p>
               {analysisApprovalId && !subtaskCreationSuccess && (
                 <button
                   onClick={onSelectAll}
                   className="text-[10px] text-violet-600 dark:text-violet-400 hover:underline"
                 >
-                  {allSelected ? '解除' : '全選択'}
+                  {allSelected ? t('deselectAll') : t('selectAll')}
                 </button>
               )}
             </div>
@@ -120,7 +122,7 @@ export function SubtaskPanel({
                       checked={selectedSubtasks.includes(i)}
                       onChange={() => {}}
                       className="mt-0.5 w-3 h-3 rounded border-violet-300 text-violet-600"
-                      aria-label={`${st.title}を選択`}
+                      aria-label={t('selectSubtaskAriaLabel', { title: st.title })}
                     />
                   )}
                   <div className="flex-1 min-w-0">
@@ -146,7 +148,11 @@ export function SubtaskPanel({
                         ) : (
                           <ChevronDown className="w-2.5 h-2.5" />
                         )}
-                        {st.priority === 'high' ? '高' : st.priority === 'medium' ? '中' : '低'}
+                        {st.priority === 'high'
+                          ? t('priority.high')
+                          : st.priority === 'medium'
+                            ? t('priority.medium')
+                            : t('priority.low')}
                       </span>
                     </div>
                   </div>
@@ -155,7 +161,9 @@ export function SubtaskPanel({
             </div>
             {analysisApprovalId && !subtaskCreationSuccess && (
               <div className="flex items-center justify-end gap-2 pt-1">
-                <span className="text-[10px] text-zinc-500">{selectedSubtasks.length}件選択</span>
+                <span className="text-[10px] text-zinc-500">
+                  {t('selectedCount', { count: selectedSubtasks.length })}
+                </span>
                 <button
                   onClick={onApproveSubtasks}
                   disabled={isCreatingSubtasks}
@@ -166,14 +174,14 @@ export function SubtaskPanel({
                   ) : (
                     <CheckCircle2 className="w-2.5 h-2.5" />
                   )}
-                  作成
+                  {t('create')}
                 </button>
               </div>
             )}
             {subtaskCreationSuccess && (
               <div className="flex items-center gap-1.5 p-1.5 bg-green-50 dark:bg-green-900/20 rounded text-[10px] text-green-700 dark:text-green-300">
                 <CheckCircle2 className="w-3 h-3" />
-                サブタスクを作成しました
+                {t('createSuccess')}
               </div>
             )}
           </>
@@ -186,15 +194,13 @@ export function SubtaskPanel({
   return (
     <div id="subtasks-panel" role="tabpanel" className="text-center py-4">
       <BrainCircuit className="w-6 h-6 text-zinc-300 dark:text-zinc-600 mx-auto mb-1.5" />
-      <p className="text-[10px] text-zinc-500 dark:text-zinc-400 mb-2">
-        AIがタスクを分析し、サブタスクを提案します
-      </p>
+      <p className="text-[10px] text-zinc-500 dark:text-zinc-400 mb-2">{t('idleHint')}</p>
       <button
         onClick={onAnalyze}
         className="inline-flex items-center gap-1 px-2.5 py-1.5 bg-violet-600 hover:bg-violet-700 text-white text-[10px] font-medium rounded-lg transition-colors"
       >
         <Play className="w-3 h-3" />
-        分析開始
+        {t('startAnalysis')}
       </button>
     </div>
   );

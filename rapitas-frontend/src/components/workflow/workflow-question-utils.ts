@@ -22,14 +22,18 @@ export interface ResolvedQuestionOptions {
  * never traps the user.
  *
  * @param agentOptions - Options parsed from the agent's question / エージェント提示の選択肢
+ * @param defaultOptions - Localized yes/no fallback (caller supplies the
+ *   translated pair; this pure module has no access to `useTranslations`). /
+ *   ローカライズ済みのはい/いいえ既定値
  * @returns The options to render and whether they are synthesized / 表示する選択肢と既定かどうか
  */
 export function resolveQuestionOptions(
   agentOptions: string[] | null | undefined,
+  defaultOptions: readonly [string, string] = DEFAULT_QUESTION_OPTIONS,
 ): ResolvedQuestionOptions {
   const cleaned = (agentOptions ?? []).map((o) => o.trim()).filter((o) => o.length > 0);
   if (cleaned.length > 0) return { options: cleaned, isDefault: false };
-  return { options: [...DEFAULT_QUESTION_OPTIONS], isDefault: true };
+  return { options: [...defaultOptions], isDefault: true };
 }
 
 /** One parsed intake question (1問1答). */

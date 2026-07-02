@@ -10,6 +10,7 @@
 import React, { useState, useMemo, useCallback } from 'react';
 import useSWR from 'swr';
 import { ChevronLeft, ChevronRight, Loader2 } from 'lucide-react';
+import { useTranslations } from 'next-intl';
 import type { GanttData } from '@/types/task.types';
 import TaskSlidePanel from '@/feature/tasks/components/detail/TaskSlidePanel';
 import { useTaskDetailVisibilityStore } from '@/stores/task-detail-visibility-store';
@@ -29,6 +30,7 @@ type ZoomLevel = 'day' | 'week' | 'month';
 const ZOOM_DAYS: Record<ZoomLevel, number> = { day: 7, week: 30, month: 90 };
 
 export function GanttView({ themeId, categoryId, className = '' }: GanttViewProps) {
+  const t = useTranslations('task.ganttView');
   const [zoomLevel, setZoomLevel] = useState<ZoomLevel>('week');
   const [viewDate, setViewDate] = useState(new Date());
   const [containerSize, setContainerSize] = useState({ width: 800, height: 400 });
@@ -105,7 +107,7 @@ export function GanttView({ themeId, categoryId, className = '' }: GanttViewProp
     return (
       <div className={`flex items-center justify-center p-8 ${className}`}>
         <Loader2 className="h-8 w-8 animate-spin text-gray-500" />
-        <span className="ml-3 text-gray-600 dark:text-gray-400">ガントチャートを読み込み中...</span>
+        <span className="ml-3 text-gray-600 dark:text-gray-400">{t('loading')}</span>
       </div>
     );
   }
@@ -116,7 +118,7 @@ export function GanttView({ themeId, categoryId, className = '' }: GanttViewProp
         className={`bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800 rounded-lg p-4 ${className}`}
       >
         <p className="text-red-800 dark:text-red-300">
-          ガントチャートの読み込みに失敗しました: {error.message}
+          {t('fetchFailed', { message: error.message })}
         </p>
       </div>
     );
@@ -125,9 +127,7 @@ export function GanttView({ themeId, categoryId, className = '' }: GanttViewProp
   if (!ganttData || ganttData.tasks.length === 0) {
     return (
       <div className={`text-center py-8 ${className}`}>
-        <p className="text-gray-500 dark:text-gray-400">
-          表示するタスクがありません。タスクを作成するか、フィルター条件を変更してください。
-        </p>
+        <p className="text-gray-500 dark:text-gray-400">{t('empty')}</p>
       </div>
     );
   }
@@ -139,9 +139,9 @@ export function GanttView({ themeId, categoryId, className = '' }: GanttViewProp
       {/* ヘッダー */}
       <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
         <div className="flex items-center space-x-4">
-          <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">ガントチャート</h2>
+          <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">{t('title')}</h2>
           <div className="text-sm text-gray-500 dark:text-gray-400">
-            {ganttData.metadata.totalTasks} タスク
+            {t('taskCount', { count: ganttData.metadata.totalTasks })}
           </div>
         </div>
 
@@ -152,7 +152,7 @@ export function GanttView({ themeId, categoryId, className = '' }: GanttViewProp
             <button
               onClick={() => navigate('prev')}
               className="p-1 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
-              title="前の期間"
+              title={t('prevPeriod')}
             >
               <ChevronLeft className="h-5 w-5" />
             </button>
@@ -162,7 +162,7 @@ export function GanttView({ themeId, categoryId, className = '' }: GanttViewProp
             <button
               onClick={() => navigate('next')}
               className="p-1 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
-              title="次の期間"
+              title={t('nextPeriod')}
             >
               <ChevronRight className="h-5 w-5" />
             </button>
@@ -180,7 +180,7 @@ export function GanttView({ themeId, categoryId, className = '' }: GanttViewProp
                     : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700'
                 } first:rounded-l-md last:rounded-r-md`}
               >
-                {level === 'day' ? '日' : level === 'week' ? '週' : '月'}
+                {level === 'day' ? t('zoomDay') : level === 'week' ? t('zoomWeek') : t('zoomMonth')}
               </button>
             ))}
           </div>
@@ -190,7 +190,7 @@ export function GanttView({ themeId, categoryId, className = '' }: GanttViewProp
             onClick={() => setViewDate(new Date())}
             className="px-3 py-1 text-sm text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200"
           >
-            今日
+            {t('today')}
           </button>
         </div>
       </div>

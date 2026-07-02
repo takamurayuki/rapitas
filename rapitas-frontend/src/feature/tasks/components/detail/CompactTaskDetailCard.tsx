@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useTranslations } from 'next-intl';
 import { type Task, type Label, type Resource, type Comment, type Priority } from '@/types';
 import { useToast } from '@/components/ui/toast/ToastContainer';
 import TaskDescription from '@/feature/tasks/components/text/TaskDescription';
@@ -104,6 +105,8 @@ export default function CompactTaskDetailCard({
   onCreateLink,
   onDeleteLink,
 }: CompactTaskDetailCardProps) {
+  const t = useTranslations('task');
+  const tCommon = useTranslations('common');
   const { showToast } = useToast();
   const locale = useLocaleStore((s) => s.locale);
   const dateLocale = toDateLocale(locale);
@@ -154,7 +157,7 @@ export default function CompactTaskDetailCard({
       clearApiCache(`/tasks/${task.id}`);
       onTaskUpdated?.();
     } catch {
-      showToast('保存に失敗しました', 'error');
+      showToast(tCommon('saveFailed'), 'error');
     }
   };
 
@@ -201,7 +204,7 @@ export default function CompactTaskDetailCard({
               value={task.title}
               onSave={(v) => saveField('title', v)}
               required
-              ariaLabel="タスクのタイトル"
+              ariaLabel={t('compactTaskDetailCard.titleAriaLabel')}
               className="flex-1 min-w-0 text-xl font-bold text-zinc-900 dark:text-zinc-50 leading-tight truncate"
             />
             <PriorityInlineSelect
@@ -211,8 +214,16 @@ export default function CompactTaskDetailCard({
             <button
               type="button"
               onClick={toggleProtected}
-              title={task.isProtected ? '保護を解除する' : 'タスクを保護する（削除不可）'}
-              aria-label={task.isProtected ? '保護を解除する' : 'タスクを保護する（削除不可）'}
+              title={
+                task.isProtected
+                  ? t('compactTaskDetailCard.unprotectTitle')
+                  : t('compactTaskDetailCard.protectTitle')
+              }
+              aria-label={
+                task.isProtected
+                  ? t('compactTaskDetailCard.unprotectTitle')
+                  : t('compactTaskDetailCard.protectTitle')
+              }
               aria-pressed={task.isProtected ?? false}
               className="flex items-center rounded p-0.5 outline-none transition-colors hover:bg-zinc-100 focus-visible:ring-2 focus-visible:ring-indigo-500 dark:hover:bg-zinc-800"
             >
@@ -267,7 +278,7 @@ export default function CompactTaskDetailCard({
         {/* Description - Default expanded; double-click to edit, blur to save */}
         <AccordionItem id="description">
           <AccordionTrigger id="description" icon={<FileText className="w-4 h-4" />}>
-            説明
+            {t('description')}
           </AccordionTrigger>
           <AccordionContent id="description">
             <div className="bg-zinc-50 dark:bg-zinc-800/50 rounded-lg p-4">
@@ -275,8 +286,8 @@ export default function CompactTaskDetailCard({
                 value={task.description ?? ''}
                 onSave={(v) => saveField('description', v)}
                 multiline
-                placeholder="説明を追加（ダブルクリックで編集）"
-                ariaLabel="タスクの説明"
+                placeholder={t('compactTaskDetailCard.descriptionPlaceholder')}
+                ariaLabel={t('compactTaskDetailCard.descriptionAriaLabel')}
                 className="text-sm leading-relaxed text-zinc-700 dark:text-zinc-300"
                 renderDisplay={(v) => (
                   <TaskDescription description={v} isCompact={true} maxInitialLength={300} />
@@ -294,8 +305,14 @@ export default function CompactTaskDetailCard({
             badge={
               <span className="text-xs text-zinc-400 dark:text-zinc-500">
                 {[
-                  task.estimatedHours ? `見積: ${task.estimatedHours}h` : null,
-                  task.actualHours != null ? `実績: ${task.actualHours.toFixed(1)}h` : null,
+                  task.estimatedHours
+                    ? t('compactTaskDetailCard.estimateBadge', { hours: task.estimatedHours })
+                    : null,
+                  task.actualHours != null
+                    ? t('compactTaskDetailCard.actualBadge', {
+                        hours: task.actualHours.toFixed(1),
+                      })
+                    : null,
                   task.dueDate ? new Date(task.dueDate).toLocaleDateString(dateLocale) : null,
                 ]
                   .filter(Boolean)
@@ -303,7 +320,7 @@ export default function CompactTaskDetailCard({
               </span>
             }
           >
-            工数・期限
+            {t('compactTaskDetailCard.workloadDeadlineHeading')}
           </AccordionTrigger>
           <AccordionContent id="meta">
             {/* NOTE: Use local input state for the progress bar so it updates on keystroke,
@@ -328,7 +345,7 @@ export default function CompactTaskDetailCard({
                       <label className="block text-xs font-medium text-zinc-500 dark:text-zinc-400 mb-1.5">
                         <span className="flex items-center gap-1">
                           <Clock className="w-3.5 h-3.5" />
-                          工数
+                          {t('compactTaskDetailCard.workloadLabel')}
                         </span>
                       </label>
                       <div className="flex items-center gap-1">
@@ -354,7 +371,7 @@ export default function CompactTaskDetailCard({
                       <label className="block text-xs font-medium text-zinc-500 dark:text-zinc-400 mb-1.5">
                         <span className="flex items-center gap-1">
                           <Timer className="w-3.5 h-3.5" />
-                          作業時間
+                          {t('compactTaskDetailCard.actualWorkTimeLabel')}
                         </span>
                       </label>
                       <div className="flex items-center gap-1">
@@ -380,7 +397,7 @@ export default function CompactTaskDetailCard({
                       <label className="block text-xs font-medium text-zinc-500 dark:text-zinc-400 mb-1.5">
                         <span className="flex items-center gap-1">
                           <Calendar className="w-3.5 h-3.5" />
-                          期限
+                          {t('dueDate')}
                         </span>
                       </label>
                       <input
@@ -401,7 +418,7 @@ export default function CompactTaskDetailCard({
                   <div>
                     <div className="flex items-center justify-between mb-1.5">
                       <span className="text-xs font-medium text-zinc-500 dark:text-zinc-400">
-                        進捗
+                        {t('compactTaskDetailCard.progressLabel')}
                       </span>
                       <span className="text-xs text-zinc-500 dark:text-zinc-400">
                         {displayedAct.toFixed(1)}h{hasEst ? ` / ${displayedEst}h` : ''}
@@ -426,7 +443,7 @@ export default function CompactTaskDetailCard({
                       <label className="block text-xs font-medium text-zinc-500 dark:text-zinc-400 mb-1.5">
                         <span className="flex items-center gap-1">
                           <Tag className="w-3.5 h-3.5" />
-                          ラベル
+                          {t('labels')}
                         </span>
                       </label>
                       <SelectedLabelsDisplay
@@ -450,12 +467,12 @@ export default function CompactTaskDetailCard({
             badge={
               task.isRecurring ? (
                 <span className="px-1.5 py-0.5 text-xs font-medium bg-indigo-100 dark:bg-indigo-900/50 text-indigo-600 dark:text-indigo-400 rounded-full">
-                  設定済み
+                  {t('compactTaskDetailCard.recurrenceConfiguredBadge')}
                 </span>
               ) : undefined
             }
           >
-            繰り返し設定
+            {t('compactTaskDetailCard.recurrenceHeading')}
           </AccordionTrigger>
           <AccordionContent id="recurrence">
             <RecurrenceSelectorWithAccordionClose task={task} onTaskUpdated={onTaskUpdated} />
@@ -475,7 +492,7 @@ export default function CompactTaskDetailCard({
               ) : undefined
             }
           >
-            添付ファイル
+            {t('compactTaskDetailCard.attachmentsHeading')}
           </AccordionTrigger>
           <AccordionContent id="attachments">
             {onResourcesChange ? (
@@ -486,7 +503,7 @@ export default function CompactTaskDetailCard({
               />
             ) : (
               <div className="text-sm text-zinc-500 dark:text-zinc-400">
-                ファイルの追加には編集権限が必要です
+                {t('compactTaskDetailCard.attachmentsPermissionHint')}
               </div>
             )}
           </AccordionContent>
@@ -495,7 +512,7 @@ export default function CompactTaskDetailCard({
         {/* Notes - Collapsible */}
         <AccordionItem id="memos">
           <AccordionTrigger id="memos" icon={<NotebookPen className="w-4 h-4" />}>
-            ノート
+            {t('compactTaskDetailCard.notesHeading')}
           </AccordionTrigger>
           <AccordionContent id="memos">
             <NoteLinksSection
@@ -513,11 +530,15 @@ export default function CompactTaskDetailCard({
           compact chips. */}
       <div className="flex flex-wrap items-center justify-end gap-1.5 px-4 py-2.5 border-t border-zinc-100 dark:border-zinc-800">
         <span className="inline-flex items-center gap-1 rounded-full bg-zinc-100 px-2 py-0.5 text-[11px] text-zinc-500 dark:bg-zinc-800/60 dark:text-zinc-400">
-          <span className="font-medium text-zinc-400 dark:text-zinc-500">作成</span>
+          <span className="font-medium text-zinc-400 dark:text-zinc-500">
+            {t('compactTaskDetailCard.createdChip')}
+          </span>
           {new Date(task.createdAt).toLocaleString(dateLocale)}
         </span>
         <span className="inline-flex items-center gap-1 rounded-full bg-zinc-100 px-2 py-0.5 text-[11px] text-zinc-500 dark:bg-zinc-800/60 dark:text-zinc-400">
-          <span className="font-medium text-zinc-400 dark:text-zinc-500">更新</span>
+          <span className="font-medium text-zinc-400 dark:text-zinc-500">
+            {t('compactTaskDetailCard.updatedChip')}
+          </span>
           {new Date(task.updatedAt).toLocaleString(dateLocale)}
         </span>
       </div>

@@ -2,6 +2,7 @@
 // ai-analysis-panel/AIAnalysisPanel.tsx
 
 import { useState, useEffect } from 'react';
+import { useTranslations } from 'next-intl';
 import {
   Bot,
   Wand2,
@@ -71,6 +72,7 @@ export function AIAnalysisPanel({
   onPromptGenerated,
   onSubtasksCreated,
 }: Props) {
+  const t = useTranslations('devMode.aiAnalysisPanel');
   const [activeTab, setActiveTab] = useState<TabType>('analysis');
   const [isExpanded, setIsExpanded] = useState(false);
 
@@ -158,10 +160,10 @@ export function AIAnalysisPanel({
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <BrainCircuit className="w-5 h-5 text-violet-600 dark:text-violet-400" />
-            <span className="font-semibold text-zinc-900 dark:text-zinc-50">AIアシスタント</span>
+            <span className="font-semibold text-zinc-900 dark:text-zinc-50">{t('title')}</span>
             <span className="flex items-center gap-1 px-2 py-0.5 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 rounded-full text-xs">
               <CheckCircle2 className="w-3 h-3" />
-              準備完了
+              {t('ready')}
             </span>
           </div>
           {isExpanded ? (
@@ -178,19 +180,19 @@ export function AIAnalysisPanel({
           <div className="flex border-b border-zinc-200 dark:border-zinc-700">
             <button onClick={() => setActiveTab('analysis')} className={tabClass('analysis')}>
               <Bot className="w-4 h-4" />
-              分析
+              {t('tabAnalysis')}
             </button>
             <button onClick={() => setActiveTab('prompt')} className={tabClass('prompt')}>
               <Wand2 className="w-4 h-4" />
-              最適化
+              {t('tabOptimize')}
             </button>
             <button onClick={() => setActiveTab('prompts')} className={tabClass('prompts')}>
               <List className="w-4 h-4" />
-              管理
+              {t('tabManage')}
             </button>
             <button onClick={() => setActiveTab('dependency')} className={tabClass('dependency')}>
               <GitBranch className="w-4 h-4" />
-              依存度
+              {t('tabDependency')}
             </button>
             {/* NOTE: Settings tab has no label — icon-only to save horizontal space. */}
             <button

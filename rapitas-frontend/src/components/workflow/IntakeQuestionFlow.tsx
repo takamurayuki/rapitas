@@ -10,6 +10,7 @@
  */
 import React, { useState } from 'react';
 import { ChevronLeft } from 'lucide-react';
+import { useTranslations } from 'next-intl';
 import { WorkflowQuestionPanel } from './WorkflowQuestionPanel';
 import type { ParsedIntakeQuestion } from './workflow-question-utils';
 
@@ -33,6 +34,7 @@ export function IntakeQuestionFlow({
   submitting,
   onSubmitAll,
 }: IntakeQuestionFlowProps) {
+  const t = useTranslations('workflow');
   const total = questions.length;
   const [idx, setIdx] = useState(0);
   const [answers, setAnswers] = useState<string[]>(() => questions.map(() => ''));
@@ -65,7 +67,7 @@ export function IntakeQuestionFlow({
 
       <div className="flex items-center justify-between">
         <span className="text-xs font-medium text-zinc-500 dark:text-zinc-400">
-          質問 {idx + 1} / {total}
+          {t('intakeQuestionFlow.progress', { current: idx + 1, total })}
         </span>
         {idx > 0 && (
           <button
@@ -74,7 +76,7 @@ export function IntakeQuestionFlow({
             className="flex items-center gap-1 text-xs text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-200"
           >
             <ChevronLeft className="h-3.5 w-3.5" />
-            前の質問
+            {t('intakeQuestionFlow.previousQuestion')}
           </button>
         )}
       </div>
@@ -101,7 +103,9 @@ export function IntakeQuestionFlow({
         submitting={submitting && isLast}
         onAnswer={handleAnswer}
         freeTextOnly={current.options.length === 0}
-        submitLabel={isLast ? 'すべて回答して再開' : '次の質問へ'}
+        submitLabel={
+          isLast ? t('intakeQuestionFlow.submitAll') : t('intakeQuestionFlow.nextQuestion')
+        }
       />
     </div>
   );

@@ -3,6 +3,7 @@
 
 import { useState } from 'react';
 import { Loader2, Eye, Pencil, X, Check } from 'lucide-react';
+import { useTranslations } from 'next-intl';
 import type { WorkflowFileType } from '@/types';
 import { MarkdownView } from '../markdown/MarkdownView';
 import { useWorkflowFileSave } from '@/hooks/workflow/useWorkflowFileSave';
@@ -37,6 +38,8 @@ export function WorkflowFileEditor({
   onSaved,
   onCancel,
 }: WorkflowFileEditorProps) {
+  const t = useTranslations('workflow');
+  const tc = useTranslations('common');
   const [draft, setDraft] = useState(initialContent);
   const [preview, setPreview] = useState(false);
   const { saveFile, isSaving } = useWorkflowFileSave(taskId);
@@ -47,10 +50,10 @@ export function WorkflowFileEditor({
   const handleSave = async () => {
     const result = await saveFile(fileType, draft);
     if (result.success) {
-      showToast('計画を保存しました', 'success');
+      showToast(t('fileEditor.planSaved'), 'success');
       onSaved();
     } else {
-      showToast(result.error || '保存に失敗しました', 'error');
+      showToast(result.error || tc('saveFailed'), 'error');
     }
   };
 
@@ -63,7 +66,7 @@ export function WorkflowFileEditor({
           className="inline-flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-medium text-zinc-600 transition-colors hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-zinc-800"
         >
           {preview ? <Pencil className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
-          <span>{preview ? '編集に戻る' : 'プレビュー'}</span>
+          <span>{preview ? t('fileEditor.backToEdit') : t('fileEditor.preview')}</span>
         </button>
         <div className="flex items-center gap-2">
           <button
@@ -73,7 +76,7 @@ export function WorkflowFileEditor({
             className="inline-flex items-center gap-1 rounded-md border border-zinc-300 px-3 py-1.5 text-xs font-medium text-zinc-600 transition-colors hover:bg-zinc-100 disabled:opacity-50 dark:border-zinc-600 dark:text-zinc-300 dark:hover:bg-zinc-800"
           >
             <X className="h-3.5 w-3.5" />
-            キャンセル
+            {tc('cancel')}
           </button>
           <button
             type="button"
@@ -86,14 +89,14 @@ export function WorkflowFileEditor({
             ) : (
               <Check className="h-3.5 w-3.5" />
             )}
-            保存
+            {tc('save')}
           </button>
         </div>
       </div>
 
       {preview ? (
         <div className="rounded-lg border border-zinc-200 p-4 dark:border-zinc-700">
-          <MarkdownView content={draft || '（内容なし）'} />
+          <MarkdownView content={draft || t('fileEditor.noContent')} />
         </div>
       ) : (
         <textarea

@@ -11,6 +11,7 @@
 
 import { useState } from 'react';
 import { Bot, X, Save, Loader2, AlertCircle } from 'lucide-react';
+import { useTranslations } from 'next-intl';
 import type { ModalProps, TabId } from './types';
 import { TABS } from './types';
 import { useDeveloperModeConfigModal } from './useDeveloperModeConfigModal';
@@ -25,6 +26,8 @@ import { AgentExecutionTab } from './AgentExecutionTab';
  */
 export function DeveloperModeConfigModal(props: ModalProps) {
   const { isOpen, onCloseAction } = props;
+  const t = useTranslations('devMode.developerModeConfigModal');
+  const tCommon = useTranslations('common');
 
   // NOTE: activeTab lives here, not in the hook, because it controls only
   // which panel is visible and does not affect any persisted state.
@@ -188,9 +191,7 @@ export function DeveloperModeConfigModal(props: ModalProps) {
             <div className="p-2 bg-violet-100 dark:bg-violet-900/30 rounded-lg">
               <Bot className="w-5 h-5 text-violet-600 dark:text-violet-400" />
             </div>
-            <h2 className="text-lg font-semibold text-zinc-900 dark:text-zinc-50">
-              AIアシスタント設定
-            </h2>
+            <h2 className="text-lg font-semibold text-zinc-900 dark:text-zinc-50">{t('title')}</h2>
           </div>
           <button
             onClick={onCloseAction}
@@ -232,7 +233,7 @@ export function DeveloperModeConfigModal(props: ModalProps) {
           {isLoadingConfigs ? (
             <div className="flex items-center justify-center gap-2 py-8 text-sm text-zinc-500">
               <Loader2 className="w-4 h-4 animate-spin" />
-              設定を読み込み中...
+              {t('loadingSettings')}
             </div>
           ) : (
             <>
@@ -328,7 +329,7 @@ export function DeveloperModeConfigModal(props: ModalProps) {
             onClick={onCloseAction}
             className="px-4 py-2 text-sm font-medium text-zinc-600 dark:text-zinc-400 hover:text-zinc-800 dark:hover:text-zinc-200 transition-colors"
           >
-            キャンセル
+            {tCommon('cancel')}
           </button>
           <button
             onClick={handleSaveAction}
@@ -338,12 +339,12 @@ export function DeveloperModeConfigModal(props: ModalProps) {
             {isSaving ? (
               <>
                 <Loader2 className="w-4 h-4 animate-spin" />
-                保存中...
+                {tCommon('saving')}
               </>
             ) : (
               <>
                 <Save className="w-4 h-4" />
-                設定を保存
+                {t('saveSettings')}
               </>
             )}
           </button>

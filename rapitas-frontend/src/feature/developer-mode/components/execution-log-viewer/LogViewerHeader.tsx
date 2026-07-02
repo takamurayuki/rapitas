@@ -24,6 +24,7 @@ import {
   AlertCircle,
   Square,
 } from 'lucide-react';
+import { useTranslations } from 'next-intl';
 import type { ExecutionLogStatus } from './types';
 
 type LogViewerHeaderProps = {
@@ -82,18 +83,19 @@ export const LogViewerHeader: React.FC<LogViewerHeaderProps> = ({
   onSearchKeyDown,
   onClearSearchQuery,
 }) => {
-  const statusBadge = buildStatusBadge(status, isRunning);
+  const t = useTranslations('devMode.logViewerHeader');
+  const statusBadge = buildStatusBadge(status, isRunning, t);
 
   return (
     <div className="flex flex-wrap items-center justify-between gap-2 px-4 py-2 bg-zinc-800 rounded-t-lg border-b border-zinc-700">
       {/* Left: title + badges */}
       <div className="flex items-center gap-2">
         <Terminal className="w-4 h-4 text-green-400" />
-        <span className="text-sm font-medium text-zinc-200">実行ログ</span>
+        <span className="text-sm font-medium text-zinc-200">{t('title')}</span>
         {taskId != null && (
           <span
             className="px-1.5 py-0.5 bg-zinc-700 text-zinc-300 rounded text-xs font-mono"
-            title="このタスクのID（共有用）"
+            title={t('taskIdTooltip')}
           >
             Task #{taskId}
           </span>
@@ -102,7 +104,7 @@ export const LogViewerHeader: React.FC<LogViewerHeaderProps> = ({
         {isConnected && (
           <span
             className="flex items-center gap-1 px-2 py-0.5 bg-cyan-500/20 text-cyan-400 rounded text-xs"
-            title="リアルタイムストリーミング接続中"
+            title={t('liveTooltip')}
           >
             <span className="w-1.5 h-1.5 bg-cyan-400 rounded-full" />
             LIVE
@@ -120,7 +122,7 @@ export const LogViewerHeader: React.FC<LogViewerHeaderProps> = ({
               value={searchQuery}
               onChange={onSearchQueryChange}
               onKeyDown={onSearchKeyDown}
-              placeholder="ログを検索..."
+              placeholder={t('searchPlaceholder')}
               className="w-44 px-3 py-1 pl-7 bg-zinc-900 border border-zinc-600 rounded text-xs text-zinc-200 placeholder-zinc-500 focus:outline-none focus:border-indigo-400 focus:w-60 transition-all"
             />
             <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-3 h-3 text-zinc-500" />
@@ -130,12 +132,12 @@ export const LogViewerHeader: React.FC<LogViewerHeaderProps> = ({
               <span
                 className={`text-xs whitespace-nowrap ${matchCount > 0 ? 'text-zinc-400' : 'text-amber-400'}`}
               >
-                {matchCount > 0 ? `${matchCount}件` : '0件'}
+                {t('matchCount', { count: matchCount })}
               </span>
               <button
                 onClick={onClearSearchQuery}
                 className="p-1 text-zinc-400 hover:text-zinc-200 hover:bg-zinc-700 rounded"
-                title="検索をクリア (Esc)"
+                title={t('clearSearchTooltip')}
               >
                 <X className="w-3 h-3" />
               </button>
@@ -151,10 +153,10 @@ export const LogViewerHeader: React.FC<LogViewerHeaderProps> = ({
               ? 'text-red-300 bg-red-500/20'
               : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-700'
           }`}
-          title={errorOnly ? '全ログを表示' : 'エラー・警告のみ表示'}
+          title={errorOnly ? t('showAllTooltip') : t('errorsOnlyTooltip')}
         >
           <AlertCircle className="w-3.5 h-3.5" />
-          エラーのみ
+          {t('errorsOnly')}
         </button>
 
         <div className="w-px h-4 bg-zinc-600" />
@@ -166,7 +168,7 @@ export const LogViewerHeader: React.FC<LogViewerHeaderProps> = ({
               ? 'text-green-400 bg-zinc-700'
               : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-700'
           }`}
-          title={autoScroll ? '自動スクロール中' : '最下部へスクロール'}
+          title={autoScroll ? t('autoScrollingTooltip') : t('scrollToBottomTooltip')}
         >
           <ArrowDown className="w-4 h-4" />
         </button>
@@ -174,7 +176,7 @@ export const LogViewerHeader: React.FC<LogViewerHeaderProps> = ({
         <button
           onClick={onCopyLogs}
           className="p-1.5 text-zinc-400 hover:text-zinc-200 hover:bg-zinc-700 rounded transition-colors"
-          title="ログをコピー"
+          title={t('copyLogsTooltip')}
         >
           {copied ? <Check className="w-4 h-4 text-green-400" /> : <Copy className="w-4 h-4" />}
         </button>
@@ -182,7 +184,7 @@ export const LogViewerHeader: React.FC<LogViewerHeaderProps> = ({
         <button
           onClick={onToggleFullscreen}
           className="p-1.5 text-zinc-400 hover:text-zinc-200 hover:bg-zinc-700 rounded transition-colors"
-          title={isFullscreen ? '縮小' : '拡大'}
+          title={isFullscreen ? t('shrinkTooltip') : t('expandTooltip')}
         >
           {isFullscreen ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
         </button>
@@ -191,7 +193,7 @@ export const LogViewerHeader: React.FC<LogViewerHeaderProps> = ({
           <button
             onClick={onToggleExpanded}
             className="p-1.5 text-zinc-400 hover:text-zinc-200 hover:bg-zinc-700 rounded transition-colors"
-            title="折りたたむ"
+            title={t('collapseTooltip')}
           >
             <ChevronUp className="w-4 h-4" />
           </button>
@@ -208,14 +210,19 @@ export const LogViewerHeader: React.FC<LogViewerHeaderProps> = ({
  *
  * @param status - Current execution status. / 現在の実行ステータス。
  * @param isRunning - Whether execution is actively running. / 実行が進行中かどうか。
+ * @param t - Scoped translation function for this component. / このコンポーネント用の翻訳関数。
  * @returns Badge element or `null`. / バッジ要素または `null`。
  */
-function buildStatusBadge(status: ExecutionLogStatus, isRunning: boolean): React.ReactNode {
+function buildStatusBadge(
+  status: ExecutionLogStatus,
+  isRunning: boolean,
+  t: (key: string) => string,
+): React.ReactNode {
   if (isRunning || status === 'running') {
     return (
       <span className="flex items-center gap-1.5 px-2 py-0.5 bg-blue-500/20 text-blue-400 rounded text-xs">
         <span className="w-1.5 h-1.5 bg-blue-400 rounded-full animate-pulse" />
-        実行中
+        {t('statusRunning')}
       </span>
     );
   }
@@ -223,7 +230,7 @@ function buildStatusBadge(status: ExecutionLogStatus, isRunning: boolean): React
     return (
       <span className="flex items-center gap-1 px-2 py-0.5 bg-yellow-500/20 text-yellow-400 rounded text-xs">
         <Square className="w-3 h-3" />
-        停止
+        {t('statusCancelled')}
       </span>
     );
   }
@@ -231,7 +238,7 @@ function buildStatusBadge(status: ExecutionLogStatus, isRunning: boolean): React
     return (
       <span className="flex items-center gap-1 px-2 py-0.5 bg-green-500/20 text-green-400 rounded text-xs">
         <CheckCircle2 className="w-3 h-3" />
-        完了
+        {t('statusCompleted')}
       </span>
     );
   }
@@ -239,7 +246,7 @@ function buildStatusBadge(status: ExecutionLogStatus, isRunning: boolean): React
     return (
       <span className="flex items-center gap-1 px-2 py-0.5 bg-red-500/20 text-red-400 rounded text-xs">
         <AlertCircle className="w-3 h-3" />
-        失敗
+        {t('statusFailed')}
       </span>
     );
   }

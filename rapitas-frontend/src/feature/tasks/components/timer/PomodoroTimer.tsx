@@ -58,6 +58,7 @@ export default function PomodoroTimer({
   showTaskTitle = false,
 }: PomodoroTimerProps) {
   const t = useTranslations('pomodoro');
+  const tTask = useTranslations('task');
   const store = usePomodoroStore();
 
   // NOTE: null = attribute time to the parent task itself
@@ -372,18 +373,24 @@ export default function PomodoroTimer({
         subtasks.length > 0 && (
           <div className="w-full mb-4 px-2">
             <label className="block text-xs font-medium text-zinc-500 dark:text-zinc-400 mb-1.5">
-              作業時間の帰属先
+              {tTask('pomodoroTimer.subtaskAttributionLabel')}
             </label>
             <select
               value={selectedSubtaskId ?? ''}
               onChange={(e) => setSelectedSubtaskId(e.target.value ? Number(e.target.value) : null)}
               className="w-full px-3 py-2 text-sm bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
             >
-              <option value="">親タスク（{taskTitle}）</option>
+              <option value="">
+                {tTask('pomodoroTimer.parentTaskOption', { taskTitle: taskTitle ?? '' })}
+              </option>
               {subtasks.map((s) => (
                 <option key={s.id} value={s.id}>
                   {s.title}
-                  {s.estimatedHours ? ` (工数: ${s.estimatedHours}h)` : ''}
+                  {s.estimatedHours
+                    ? tTask('pomodoroTimer.subtaskEstimatedHoursSuffix', {
+                        hours: s.estimatedHours,
+                      })
+                    : ''}
                 </option>
               ))}
             </select>

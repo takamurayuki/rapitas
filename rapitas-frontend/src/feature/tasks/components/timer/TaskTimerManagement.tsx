@@ -1,6 +1,7 @@
 'use client';
 import { type TimeEntry } from '@/types';
 import { useState, useEffect, useRef } from 'react';
+import { useTranslations } from 'next-intl';
 
 interface TaskTimeTrackingProps {
   estimatedHours?: number;
@@ -29,6 +30,7 @@ export default function TaskTimeTracking({
   formatDuration,
   getAccumulatedBreakTime: getAccumulatedBreakTimeRef,
 }: TaskTimeTrackingProps) {
+  const t = useTranslations('task');
   const [pomodoroSeconds, setPomodoroSeconds] = useState(0);
   const [isBreakTime, setIsBreakTime] = useState(false);
   const [pomodoroCount, setPomodoroCount] = useState(0);
@@ -130,20 +132,22 @@ export default function TaskTimeTracking({
             d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
           />
         </svg>
-        時間トラッキング + ポモドーロ
+        {t('taskTimerManagement.heading')}
       </h2>
 
       {estimatedHours && estimatedHours > 0 && (
         <div className="mb-4">
           <div className="flex justify-between text-sm mb-2">
             <div>
-              <span className="text-zinc-600 dark:text-zinc-400">見積もり時間</span>
+              <span className="text-zinc-600 dark:text-zinc-400">{t('estimatedTime')}</span>
               <span className="ml-2 font-semibold text-zinc-900 dark:text-zinc-50">
                 {estimatedHours.toFixed(1)}h
               </span>
             </div>
             <div>
-              <span className="text-zinc-600 dark:text-zinc-400">残り時間</span>
+              <span className="text-zinc-600 dark:text-zinc-400">
+                {t('taskTimerManagement.remainingTimeLabel')}
+              </span>
               <span
                 className={`ml-2 font-semibold ${
                   remainingHours <= 0
@@ -171,12 +175,18 @@ export default function TaskTimeTracking({
           </div>
           <div className="flex justify-between text-xs text-zinc-500 dark:text-zinc-400">
             <span>
-              作業: {actualHours?.toFixed(1) || 0}h / {estimatedHours.toFixed(1)}h (
-              {progressPercent.toFixed(0)}%)
+              {t('taskTimerManagement.workProgressSummary', {
+                actual: actualHours?.toFixed(1) || 0,
+                estimated: estimatedHours.toFixed(1),
+                percent: progressPercent.toFixed(0),
+              })}
             </span>
             {totalBreakHours > 0 && (
               <span className="text-zinc-400 dark:text-zinc-500">
-                休憩: {totalBreakHours.toFixed(1)}h | 総時間: {totalElapsedHours.toFixed(1)}h
+                {t('taskTimerManagement.breakTotalSummary', {
+                  breakHours: totalBreakHours.toFixed(1),
+                  totalHours: totalElapsedHours.toFixed(1),
+                })}
               </span>
             )}
           </div>
@@ -189,19 +199,23 @@ export default function TaskTimeTracking({
             <span className="text-2xl">🍅</span>
             <div>
               <div className="text-sm font-semibold text-zinc-900 dark:text-zinc-50">
-                {isBreakTime ? '休憩時間' : '作業時間'}
+                {isBreakTime
+                  ? t('taskTimerManagement.breakTimeLabel')
+                  : t('taskTimerManagement.workTimeLabel')}
               </div>
               <div className="text-xs text-zinc-500 dark:text-zinc-400">
                 {isBreakTime
                   ? pomodoroCount % 4 === 0
-                    ? '長い休憩（15分）'
-                    : '短い休憩（5分）'
-                  : `ポモドーロ #${pomodoroCount + 1}`}
+                    ? t('taskTimerManagement.longBreakDuration')
+                    : t('taskTimerManagement.shortBreakDuration')
+                  : t('taskTimerManagement.pomodoroNumber', { number: pomodoroCount + 1 })}
               </div>
             </div>
           </div>
           {!isBreakTime && (
-            <div className="text-xs text-zinc-600 dark:text-zinc-400">完了: {pomodoroCount}回</div>
+            <div className="text-xs text-zinc-600 dark:text-zinc-400">
+              {t('taskTimerManagement.completedCount', { count: pomodoroCount })}
+            </div>
           )}
         </div>
 
@@ -216,7 +230,9 @@ export default function TaskTimeTracking({
             {formatTime(remainingSeconds)}
           </div>
           <div className="text-xs text-zinc-500 dark:text-zinc-400 mt-1">
-            {isBreakTime ? '休憩終了まで' : '次の休憩まで'}
+            {isBreakTime
+              ? t('taskTimerManagement.untilBreakEnd')
+              : t('taskTimerManagement.untilNextBreak')}
           </div>
         </div>
 
@@ -262,12 +278,12 @@ export default function TaskTimeTracking({
                     clipRule="evenodd"
                   />
                 </svg>
-                停止
+                {t('taskTimerManagement.stopButton')}
               </button>
               <div className="flex-1 bg-indigo-100 dark:bg-indigo-900 border border-indigo-300 dark:border-indigo-700 rounded-lg px-4 py-2 flex items-center justify-center">
                 <div className="text-center">
                   <div className="text-xs text-indigo-700 dark:text-indigo-300 mb-0.5">
-                    経過時間
+                    {t('taskTimerManagement.elapsedTimeLabel')}
                   </div>
                   <div className="text-lg font-mono font-bold text-indigo-600 dark:text-indigo-400">
                     {getElapsedTime()}
@@ -287,7 +303,7 @@ export default function TaskTimeTracking({
                   clipRule="evenodd"
                 />
               </svg>
-              🍅 ポモドーロ開始
+              {t('taskTimerManagement.startPomodoroButton')}
             </button>
           )}
         </div>
@@ -303,12 +319,12 @@ export default function TaskTimeTracking({
             <div className="text-center mb-4">
               <div className="text-5xl mb-3">🎉</div>
               <h3 className="text-2xl font-bold text-zinc-900 dark:text-zinc-50 mb-2">
-                ポモドーロ完了！
+                {t('taskTimerManagement.pomodoroCompleteHeading')}
               </h3>
               <p className="text-zinc-600 dark:text-zinc-400">
-                25分間の作業お疲れ様でした。
-                {pomodoroCount % 4 === 0 ? '15分の長い休憩' : '5分の短い休憩'}
-                を取りましょう。
+                {pomodoroCount % 4 === 0
+                  ? t('taskTimerManagement.breakPromptLong')
+                  : t('taskTimerManagement.breakPromptShort')}
               </p>
             </div>
 
@@ -320,13 +336,13 @@ export default function TaskTimeTracking({
                 }}
                 className="flex-1 px-4 py-3 bg-green-500 text-white rounded-lg hover:bg-green-600 font-medium transition-colors"
               >
-                休憩する
+                {t('taskTimerManagement.takeBreakButton')}
               </button>
               <button
                 onClick={handleSkipBreak}
                 className="flex-1 px-4 py-3 bg-zinc-200 dark:bg-indigo-dark-800 text-zinc-700 dark:text-zinc-300 rounded-lg hover:bg-zinc-300 dark:hover:bg-zinc-700 font-medium transition-colors"
               >
-                スキップ
+                {t('taskTimerManagement.skipBreakButton')}
               </button>
             </div>
           </div>

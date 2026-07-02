@@ -9,6 +9,7 @@
 'use client';
 
 import React, { useState, useRef, useEffect, useCallback } from 'react';
+import { useTranslations } from 'next-intl';
 import type { GanttData } from '@/types/task.types';
 import { GanttBar } from './GanttBar';
 import {
@@ -52,6 +53,7 @@ export function GanttChart({
   onTaskClick,
   onResize,
 }: GanttChartProps) {
+  const t = useTranslations('task');
   const containerRef = useRef<HTMLDivElement>(null);
   const [hoveredTaskId, setHoveredTaskId] = useState<number | null>(null);
   const [tooltipPos, setTooltipPos] = useState<{ x: number; y: number } | null>(null);
@@ -355,9 +357,17 @@ export function GanttChart({
           </div>
           <div className="space-y-0.5 text-xs text-gray-500 dark:text-gray-400">
             {hoveredTask.dueDate && (
-              <div>期限: {new Date(hoveredTask.dueDate).toLocaleDateString('ja-JP')}</div>
+              <div>
+                {t('ganttChart.dueDateLabel', {
+                  date: new Date(hoveredTask.dueDate).toLocaleDateString('ja-JP'),
+                })}
+              </div>
             )}
-            {hoveredTask.estimatedHours && <div>見積: {hoveredTask.estimatedHours}h</div>}
+            {hoveredTask.estimatedHours && (
+              <div>
+                {t('ganttChart.estimatedHoursLabel', { hours: hoveredTask.estimatedHours })}
+              </div>
+            )}
             <div>
               <span
                 className="inline-block mt-1 px-2 py-0.5 rounded-full text-white text-[10px] font-medium"
@@ -367,12 +377,12 @@ export function GanttChart({
                 }}
               >
                 {hoveredTask.status === 'done'
-                  ? '完了'
+                  ? t('statusDone')
                   : hoveredTask.status === 'in-progress'
-                    ? '進行中'
+                    ? t('statusInProgress')
                     : hoveredTask.status === 'blocked'
-                      ? 'ブロック中'
-                      : '未着手'}
+                      ? t('ganttChart.statusBlocked')
+                      : t('statusTodo')}
               </span>
             </div>
           </div>

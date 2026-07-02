@@ -6,6 +6,7 @@
  * Expandable card for configuring a single workflow role (agent, model, prompt).
  */
 import { ChevronDown, Loader2, Save, ArrowDown, ShieldCheck, Cpu } from 'lucide-react';
+import { useTranslations } from 'next-intl';
 import type { AIAgentConfig, WorkflowRole, WorkflowRoleConfig } from '@/types';
 import { Toggle } from '@/components/ui/Toggle';
 import {
@@ -32,13 +33,24 @@ const AGENT_TYPE_TO_PROVIDER: Record<string, 'claude' | 'openai' | 'gemini' | 'o
   local: 'ollama',
 };
 
-/** Human label per provider for the preferred-provider dropdown. */
-const PROVIDER_LABEL: Record<'claude' | 'openai' | 'gemini' | 'ollama', string> = {
-  claude: 'Claude',
-  openai: 'OpenAI',
-  gemini: 'Gemini',
-  ollama: 'Ollama (ローカル)',
-};
+/**
+ * Human label per provider for the preferred-provider dropdown. Provider
+ * names are brand names (not translated); only Ollama's "(ローカル)"
+ * qualifier is localized text, supplied via `localSuffix`.
+ *
+ * @param localSuffix - Localized "(local)" qualifier / ローカル修飾語
+ * @returns Provider → display label map / プロバイダごとの表示名
+ */
+function getProviderLabel(
+  localSuffix: string,
+): Record<'claude' | 'openai' | 'gemini' | 'ollama', string> {
+  return {
+    claude: 'Claude',
+    openai: 'OpenAI',
+    gemini: 'Gemini',
+    ollama: `Ollama (${localSuffix})`,
+  };
+}
 
 const ALL_PROVIDERS = ['claude', 'openai', 'gemini', 'ollama'] as const;
 
@@ -92,6 +104,9 @@ export function WorkflowRoleCard({
   onToggleEnabled,
   onManualSetup,
 }: WorkflowRoleCardProps) {
+  const t = useTranslations('workflow');
+  const tc = useTranslations('common');
+  const PROVIDER_LABEL = getProviderLabel(t('rolesConfig.local'));
   const Icon = config.icon;
   const isEnabled = roleData?.isEnabled !== false;
   const selectedAgent = roleData?.agentConfig;
@@ -146,11 +161,13 @@ export function WorkflowRoleCard({
               {!isExpanded && (
                 <div className="hidden sm:flex items-center gap-1.5 text-xs text-zinc-600 dark:text-zinc-300 bg-white/60 dark:bg-zinc-700/60 px-2.5 py-1 rounded-lg">
                   {isAutoSelect ? (
-                    <span className="text-indigo-600 dark:text-indigo-400">🤖 自動選択</span>
+                    <span className="text-indigo-600 dark:text-indigo-400">
+                      🤖 {t('rolesConfig.autoSelect')}
+                    </span>
                   ) : (
                     <>
                       <Cpu className="h-3 w-3" />
-                      <span>{selectedAgent?.name ?? '未設定'}</span>
+                      <span>{selectedAgent?.name ?? tc('notConfigured')}</span>
                       <span className="text-zinc-400 dark:text-zinc-500">/ {effectiveModelId}</span>
                     </>
                   )}
@@ -165,7 +182,7 @@ export function WorkflowRoleCard({
               <Toggle
                 checked={isEnabled}
                 onChange={(checked) => onToggleEnabled(checked)}
-                srLabel={`${config.label}を有効化`}
+                srLabel={t('rolesConfig.enableRoleLabel', { role: config.label })}
                 stopPropagation
               />
 
@@ -188,10 +205,10 @@ export function WorkflowRoleCard({
                 <span className="text-sm">🤖</span>
                 <div>
                   <span className="text-sm font-medium text-indigo-700 dark:text-indigo-300">
-                    自動選択モード
+                    {t('rolesConfig.autoSelectMode')}
                   </span>
                   <p className="text-[10px] text-indigo-600/70 dark:text-indigo-400/70">
-                    タスクの複雑度と予算に応じて最適なモデルを自動選択します
+                    {t('rolesConfig.autoSelectModeDesc')}
                   </p>
                 </div>
               </div>
@@ -218,7 +235,7 @@ export function WorkflowRoleCard({
                   }
                 }}
                 disabled={isSaving}
-                srLabel="自動選択モード"
+                srLabel={t('rolesConfig.autoSelectMode')}
               />
             </div>
 
@@ -226,7 +243,7 @@ export function WorkflowRoleCard({
             {isAutoSelect && (
               <div className="mb-4 p-3 rounded-lg border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900">
                 <label className="block text-xs font-medium text-zinc-600 dark:text-zinc-400 mb-1.5">
-                  優先プロバイダ（同性能ティア時のタイブレーカー）
+                  {t('rolesConfig.preferredProviderLabel')}
                 </label>
                 <div className="relative">
                   <select
@@ -235,7 +252,7 @@ export function WorkflowRoleCard({
                     disabled={isSaving}
                     className="w-full appearance-none bg-white dark:bg-zinc-900 border border-zinc-300 dark:border-zinc-600 rounded-lg px-3 py-2 pr-8 text-sm text-zinc-900 dark:text-white disabled:opacity-50 focus:border-indigo-400"
                   >
-                    <option value="">デフォルト設定に従う</option>
+                    <option value="">{t('rolesConfig.followDefaultSetting')}</option>
                     {providerOptions.map((p) => (
                       <option key={p} value={p}>
                         {PROVIDER_LABEL[p]}
@@ -243,7 +260,7 @@ export function WorkflowRoleCard({
                     ))}
                     {ROLES_SUPPORTING_CROSS_PROVIDER.has(roleKey) && (
                       <option value="cross-provider">
-                        🔀 別プロバイダ（前フェーズと違うものを選ぶ）
+                        🔀 {t('rolesConfig.crossProviderOption')}
                       </option>
                     )}
                   </select>
@@ -251,8 +268,8 @@ export function WorkflowRoleCard({
                 </div>
                 <p className="text-[10px] text-zinc-500 dark:text-zinc-400 mt-1">
                   {ROLES_SUPPORTING_CROSS_PROVIDER.has(roleKey)
-                    ? '「別プロバイダ」を選ぶと直前フェーズと異なる AI で評価し、自己バイアスを軽減します'
-                    : 'グローバル設定（/settings の「デフォルトAIプロバイダ」）の値を使うか、ロール個別に上書きできます'}
+                    ? t('rolesConfig.crossProviderHint')
+                    : t('rolesConfig.defaultProviderHint')}
                 </p>
               </div>
             )}
@@ -263,7 +280,7 @@ export function WorkflowRoleCard({
                 {/* Agent selector */}
                 <div>
                   <label className="block text-xs font-medium text-zinc-600 dark:text-zinc-400 mb-1.5">
-                    AIエージェント
+                    {t('rolesConfig.aiAgentLabel')}
                   </label>
                   <div className="relative">
                     <select
@@ -275,7 +292,7 @@ export function WorkflowRoleCard({
                       disabled={isSaving}
                       className="w-full appearance-none bg-white dark:bg-zinc-900 border border-zinc-300 dark:border-zinc-600 rounded-lg px-3 py-2 pr-8 text-sm text-zinc-900 dark:text-white disabled:opacity-50 focus:border-indigo-400"
                     >
-                      <option value="">未設定</option>
+                      <option value="">{tc('notConfigured')}</option>
                       {activeAgents.map((agent) => (
                         <option key={agent.id} value={agent.id}>
                           {agent.name}
@@ -289,7 +306,7 @@ export function WorkflowRoleCard({
                 {/* Model selector */}
                 <div>
                   <label className="block text-xs font-medium text-zinc-600 dark:text-zinc-400 mb-1.5">
-                    モデル
+                    {t('rolesConfig.modelLabel')}
                   </label>
                   <div className="relative">
                     <select
@@ -303,10 +320,10 @@ export function WorkflowRoleCard({
                     >
                       <option value="" disabled>
                         {!selectedAgent
-                          ? 'エージェント未選択'
+                          ? t('rolesConfig.noAgentSelected')
                           : models.length === 0
-                            ? '利用可能なモデルなし'
-                            : 'モデルを選択'}
+                            ? t('rolesConfig.noModelsAvailable')
+                            : t('rolesConfig.selectModel')}
                       </option>
                       {models.map((model) => (
                         <option key={model.value} value={model.value}>
@@ -322,7 +339,7 @@ export function WorkflowRoleCard({
                 {/* Prompt selector */}
                 <div>
                   <label className="block text-xs font-medium text-zinc-600 dark:text-zinc-400 mb-1.5">
-                    システムプロンプト
+                    {t('rolesConfig.systemPromptLabel')}
                   </label>
                   <div className="relative">
                     <select
@@ -334,7 +351,7 @@ export function WorkflowRoleCard({
                       disabled={isSaving}
                       className="w-full appearance-none bg-white dark:bg-zinc-900 border border-zinc-300 dark:border-zinc-600 rounded-lg px-3 py-2 pr-8 text-sm text-zinc-900 dark:text-white disabled:opacity-50 focus:border-indigo-400"
                     >
-                      <option value="">デフォルト</option>
+                      <option value="">{t('rolesConfig.default')}</option>
                       {systemPrompts.map((sp) => (
                         <option key={sp.key} value={sp.key}>
                           {sp.name}
@@ -350,13 +367,13 @@ export function WorkflowRoleCard({
             {/* Flow info */}
             <div className="mt-3 flex items-center gap-4 text-xs text-zinc-500 dark:text-zinc-400">
               <span>
-                入力:{' '}
+                {t('rolesConfig.inputLabel')}{' '}
                 <code className="bg-zinc-100 dark:bg-zinc-700 px-1.5 py-0.5 rounded">
                   {config.inputLabel}
                 </code>
               </span>
               <span>
-                出力:{' '}
+                {t('rolesConfig.outputLabel')}{' '}
                 <code className="bg-zinc-100 dark:bg-zinc-700 px-1.5 py-0.5 rounded">
                   {config.outputFile}
                 </code>
@@ -378,7 +395,7 @@ export function WorkflowRoleCard({
               <span className="flex items-center gap-1">
                 <ShieldCheck className="h-3.5 w-3.5 text-indigo-500" />
                 <span className="text-indigo-500 dark:text-indigo-400 font-medium">
-                  ユーザー承認
+                  {t('rolesConfig.userApproval')}
                 </span>
               </span>
             ) : (

@@ -1,3 +1,4 @@
+import { useTranslations } from 'next-intl';
 import { type Task } from '@/types';
 import TaskDescription from '@/feature/tasks/components/text/TaskDescription';
 import TaskStatusChange from '@/feature/tasks/components/status/TaskStatusChange';
@@ -44,6 +45,7 @@ export default function TaskDetail({
   onDragLeave,
   onDrop,
 }: TaskDetailProps) {
+  const t = useTranslations('task');
   return (
     <div className="bg-white dark:bg-indigo-dark-900 rounded-lg shadow-lg border border-zinc-200 dark:border-zinc-800 p-8 mb-6">
       {isEditing ? (
@@ -51,7 +53,7 @@ export default function TaskDetail({
         <div className="space-y-6">
           <div>
             <label className="block text-sm font-semibold text-zinc-900 dark:text-zinc-50 mb-2">
-              タイトル <span className="text-red-500">*</span>
+              {t('taskDetail.titleLabel')} <span className="text-red-500">*</span>
             </label>
             <div className="flex flex-col sm:flex-row sm:items-center gap-3">
               <input
@@ -82,7 +84,7 @@ export default function TaskDetail({
 
           <div>
             <label className="block text-sm font-semibold text-zinc-900 dark:text-zinc-50 mb-2">
-              説明
+              {t('description')}
             </label>
             <textarea
               className="w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-indigo-dark-900 px-4 py-3 shadow-sm focus:outline-none focus:border-indigo-400 font-mono text-sm"
@@ -92,19 +94,19 @@ export default function TaskDetail({
               onDragOver={onDragOver}
               onDragLeave={onDragLeave}
               onDrop={onDrop}
-              placeholder="マークダウン形式で記述できます&#10;&#10;# 見出し1&#10;## 見出し2&#10;&#10;**太字** *斜体*&#10;&#10;- [ ] チェックボックス&#10;- [x] 完了済み&#10;&#10;`インラインコード` や > 引用&#10;&#10;ファイルや画像はここにドラッグ&ドロップできます"
+              placeholder={t('taskDetail.descriptionPlaceholder')}
             />
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div>
               <label className="block text-sm font-semibold text-zinc-900 dark:text-zinc-50 mb-2">
-                ラベル
+                {t('labels')}
               </label>
               <input
                 type="text"
                 className="w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-indigo-dark-900 px-4 py-3 shadow-sm focus:outline-none focus:border-indigo-400"
-                placeholder="カンマ区切りで入力"
+                placeholder={t('taskDetail.labelsPlaceholder')}
                 value={editLabels}
                 onChange={(e) => onEditLabelsChange(e.target.value)}
               />
@@ -112,14 +114,14 @@ export default function TaskDetail({
 
             <div>
               <label className="block text-sm font-semibold text-zinc-900 dark:text-zinc-50 mb-2">
-                見積もり時間
+                {t('estimatedTime')}
               </label>
               <input
                 type="number"
                 step="0.5"
                 min="0"
                 className="w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-indigo-dark-900 px-4 py-3 shadow-sm focus:outline-none focus:border-indigo-400"
-                placeholder="時間"
+                placeholder={t('taskDetail.hoursPlaceholder')}
                 value={editEstimatedHours}
                 onChange={(e) => onEditEstimatedHoursChange(e.target.value)}
               />
@@ -151,7 +153,9 @@ export default function TaskDetail({
 
           {task.description && (
             <div className="mb-6">
-              <h2 className="text-sm font-semibold text-zinc-700 dark:text-zinc-300 mb-2">説明</h2>
+              <h2 className="text-sm font-semibold text-zinc-700 dark:text-zinc-300 mb-2">
+                {t('description')}
+              </h2>
               <TaskDescription description={task.description} />
             </div>
           )}
@@ -160,7 +164,7 @@ export default function TaskDetail({
             {task.taskLabels && task.taskLabels.length > 0 ? (
               <div>
                 <h3 className="text-sm font-semibold text-zinc-700 dark:text-zinc-300 mb-2">
-                  ラベル
+                  {t('labels')}
                 </h3>
                 <div className="flex flex-wrap gap-2">
                   {task.taskLabels.map((tl) => {
@@ -185,7 +189,7 @@ export default function TaskDetail({
             ) : hasLabels(task.labels) ? (
               <div>
                 <h3 className="text-sm font-semibold text-zinc-700 dark:text-zinc-300 mb-2">
-                  ラベル
+                  {t('labels')}
                 </h3>
                 <div className="flex flex-wrap gap-2">
                   {getLabelsArray(task.labels).map((label, idx) => (
@@ -204,18 +208,22 @@ export default function TaskDetail({
             {task.estimatedHours && (
               <div>
                 <h3 className="text-sm font-semibold text-zinc-700 dark:text-zinc-300 mb-2">
-                  見積もり時間
+                  {t('estimatedTime')}
                 </h3>
                 <span className="px-3 py-1 rounded-full bg-orange-100 text-orange-700 dark:bg-orange-900 dark:text-orange-300 text-sm inline-block">
-                  ⏱ {task.estimatedHours}時間
+                  {t('taskDetail.estimatedHoursBadge', { hours: task.estimatedHours })}
                 </span>
               </div>
             )}
           </div>
 
           <div className="text-sm text-zinc-500 dark:text-zinc-400 border-t border-zinc-200 dark:border-zinc-700 pt-4">
-            <p>作成日時: {new Date(task.createdAt).toLocaleString('ja-JP')}</p>
-            <p>更新日時: {new Date(task.updatedAt).toLocaleString('ja-JP')}</p>
+            <p>
+              {t('createdAt')}: {new Date(task.createdAt).toLocaleString('ja-JP')}
+            </p>
+            <p>
+              {t('updatedAt')}: {new Date(task.updatedAt).toLocaleString('ja-JP')}
+            </p>
           </div>
         </>
       )}

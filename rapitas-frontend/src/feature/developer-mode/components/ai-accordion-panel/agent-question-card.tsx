@@ -8,6 +8,7 @@
  */
 
 import { useState, useRef } from 'react';
+import { useTranslations } from 'next-intl';
 import { Loader2, Send } from 'lucide-react';
 
 /** Structured question payload from the agent (single- or multi-question). */
@@ -52,6 +53,8 @@ export function AgentQuestionCard({
   onSetUserResponse,
   onSendResponse,
 }: AgentQuestionCardProps) {
+  const t = useTranslations('devMode.agentQuestionCard');
+  const tCommon = useTranslations('common');
   const subQuestions = questionDetails?.questions;
   const hasMulti = !!subQuestions && subQuestions.length > 0;
 
@@ -139,9 +142,7 @@ export function AgentQuestionCard({
       {/* Progress + header */}
       {hasMulti && (
         <div className="flex items-center justify-between text-[10px] text-amber-700 dark:text-amber-300">
-          <span>
-            質問 {currentIndex + 1} / {steps.length}
-          </span>
+          <span>{t('questionProgress', { current: currentIndex + 1, total: steps.length })}</span>
           <div className="flex gap-0.5">
             {steps.map((_, i) => (
               <span
@@ -201,10 +202,10 @@ export function AgentQuestionCard({
           onKeyDown={(e) => {
             if (e.key === 'Enter' && currentAnswer.trim()) handleNext();
           }}
-          placeholder={hasOptions ? '自由入力でも回答できます…' : '回答を入力…'}
+          placeholder={hasOptions ? t('freeTextPlaceholder') : t('answerPlaceholder')}
           className="flex-1 px-2 py-1 bg-white dark:bg-zinc-800 border border-amber-300 dark:border-amber-700 rounded text-[11px] focus:outline-none focus:ring-1 focus:ring-amber-500"
           autoFocus
-          aria-label="エージェントへの回答"
+          aria-label={t('answerAriaLabel')}
         />
         {currentIndex > 0 && (
           <button
@@ -212,33 +213,33 @@ export function AgentQuestionCard({
             disabled={isSendingResponse}
             className="px-2 py-1 text-amber-700 dark:text-amber-300 text-[10px] hover:bg-amber-100 dark:hover:bg-amber-900/40 rounded"
           >
-            戻る
+            {tCommon('back')}
           </button>
         )}
         <button
           onClick={handleNext}
           disabled={!currentAnswer.trim() || isSendingResponse}
           className="flex items-center gap-1 px-2 py-1 bg-amber-600 hover:bg-amber-700 text-white text-[10px] font-medium rounded transition-colors disabled:opacity-50"
-          aria-label={isLast ? '回答を送信' : '次の質問へ'}
+          aria-label={isLast ? t('submitAnswer') : t('nextQuestion')}
         >
           {isSendingResponse ? (
             <Loader2 className="w-2.5 h-2.5 animate-spin" />
           ) : (
             <Send className="w-2.5 h-2.5" />
           )}
-          {isLast ? '送信' : '次へ'}
+          {isLast ? t('submit') : t('next')}
         </button>
       </div>
 
       {/* Show a quick recap of answers given so far in multi-question mode */}
       {hasMulti && currentIndex > 0 && (
         <details className="text-[10px] text-amber-700 dark:text-amber-300">
-          <summary className="cursor-pointer">これまでの回答</summary>
+          <summary className="cursor-pointer">{t('answersSoFar')}</summary>
           <ul className="mt-1 space-y-0.5 pl-3">
             {answers.slice(0, currentIndex).map((a, i) => (
               <li key={i} className="truncate">
                 <span className="font-medium">{steps[i].header ?? `Q${i + 1}`}:</span>{' '}
-                {a || <span className="italic">(未回答)</span>}
+                {a || <span className="italic">{t('unanswered')}</span>}
               </li>
             ))}
           </ul>

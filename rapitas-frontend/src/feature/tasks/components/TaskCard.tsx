@@ -59,10 +59,10 @@ const TaskCard = memo(function TaskCard({
       if (res.ok) {
         await onTaskUpdated?.();
       } else {
-        showToast('再実行への切り替えに失敗しました', 'error');
+        showToast(t('taskCard.retryFailed'), 'error');
       }
     } catch {
-      showToast('再実行への切り替えに失敗しました', 'error');
+      showToast(t('taskCard.retryFailed'), 'error');
     } finally {
       setIsRetrying(false);
     }
@@ -183,13 +183,13 @@ const TaskCard = memo(function TaskCard({
               <PriorityIcon priority={task.priority} size="md" />
 
               {task.isProtected && (
-                <span title="保護されたタスク（削除不可）">
+                <span title={t('taskCard.protectedBadge')}>
                   <Lock size={14} className="text-amber-500 dark:text-amber-400 shrink-0" />
                 </span>
               )}
 
               {task.isRecurring && (
-                <span title="繰り返しタスク">
+                <span title={t('taskCard.recurringBadge')}>
                   <Repeat size={14} className="text-indigo-500 dark:text-indigo-400 shrink-0" />
                 </span>
               )}
@@ -197,7 +197,7 @@ const TaskCard = memo(function TaskCard({
               {task.sourceTaskId && (
                 <span
                   className="text-xs text-zinc-400 dark:text-zinc-500 shrink-0"
-                  title="繰り返しから生成されたタスク"
+                  title={t('taskCard.generatedFromRecurrenceBadge')}
                 >
                   🔄
                 </span>
@@ -294,8 +294,8 @@ const TaskCard = memo(function TaskCard({
               <button
                 onClick={handleRetry}
                 disabled={isRetrying}
-                title="再実行（todo に戻して自動実行の対象に戻します）"
-                aria-label="タスクを再実行"
+                title={t('taskCard.retryTooltip')}
+                aria-label={t('taskCard.retryAriaLabel')}
                 className="w-7 h-7 rounded-md flex items-center justify-center text-rose-500 dark:text-rose-400 hover:text-rose-700 dark:hover:text-rose-300 hover:bg-rose-50 dark:hover:bg-rose-900/30 transition-all duration-200 ease-out hover:scale-110 disabled:opacity-50"
               >
                 <RefreshCw

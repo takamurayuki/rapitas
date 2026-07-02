@@ -8,6 +8,7 @@
  */
 
 import { Bot, GitBranch, FileSearch, Play, Bell, FileText } from 'lucide-react';
+import { useTranslations } from 'next-intl';
 import { ToggleSwitch } from './ToggleSwitch';
 import { AgentSelector } from './AgentSelector';
 import type {
@@ -152,6 +153,8 @@ export function AgentExecutionTab({
   additionalInstructions,
   setAdditionalInstructions,
 }: Props) {
+  const t = useTranslations('devMode.agentExecutionTab');
+  const tCommon = useTranslations('common');
   return (
     <div className="space-y-5">
       {/* Agent selection */}
@@ -159,7 +162,7 @@ export function AgentExecutionTab({
         <div className="flex items-center gap-2">
           <Bot className="w-4 h-4 text-violet-500" />
           <label className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
-            実行用AIエージェント
+            {t('executionAgent')}
           </label>
         </div>
         <AgentSelector
@@ -203,27 +206,29 @@ export function AgentExecutionTab({
       <div className="space-y-3">
         <div className="flex items-center gap-2">
           <GitBranch className="w-4 h-4 text-violet-500" />
-          <label className="text-sm font-medium text-zinc-700 dark:text-zinc-300">Git設定</label>
+          <label className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
+            {t('gitSettings')}
+          </label>
         </div>
 
         <div>
           <label className="block text-xs text-zinc-500 dark:text-zinc-400 mb-1">
-            ブランチ戦略
+            {t('branchStrategy')}
           </label>
           <select
             value={branchStrategy}
             onChange={(e) => setBranchStrategy(e.target.value as BranchStrategy)}
             className="w-full px-3 py-2 bg-white dark:bg-indigo-dark-800 border border-zinc-200 dark:border-zinc-700 rounded-lg text-sm focus:outline-none focus:border-indigo-400"
           >
-            <option value="auto">自動（推奨）</option>
-            <option value="manual">手動</option>
-            <option value="none">なし</option>
+            <option value="auto">{t('branchStrategyAuto')}</option>
+            <option value="manual">{t('branchStrategyManual')}</option>
+            <option value="none">{tCommon('none')}</option>
           </select>
         </div>
 
         <div>
           <label className="block text-xs text-zinc-500 dark:text-zinc-400 mb-1">
-            ブランチプレフィックス
+            {t('branchPrefix')}
           </label>
           <input
             type="text"
@@ -237,14 +242,14 @@ export function AgentExecutionTab({
         <ToggleSwitch
           value={autoCommit}
           onChange={setAutoCommit}
-          label="自動コミット"
-          description="変更を自動的にコミット"
+          label={t('autoCommitLabel')}
+          description={t('autoCommitDesc')}
         />
         <ToggleSwitch
           value={autoCreatePR}
           onChange={setAutoCreatePR}
-          label="自動PR作成"
-          description="完了時にPull Requestを自動作成"
+          label={t('autoCreatePRLabel')}
+          description={t('autoCreatePRDesc')}
         />
 
         {autoCreatePR && (
@@ -252,12 +257,14 @@ export function AgentExecutionTab({
             <ToggleSwitch
               value={autoMergePR}
               onChange={setAutoMergePR}
-              label="自動マージ"
-              description="PR作成後に自動でマージ（squash/merge）"
+              label={t('autoMergeLabel')}
+              description={t('autoMergeDesc')}
             />
             {autoMergePR && (
               <div className="ml-4 flex items-center gap-2">
-                <label className="text-xs text-zinc-500 dark:text-zinc-400">Squashマージ閾値</label>
+                <label className="text-xs text-zinc-500 dark:text-zinc-400">
+                  {t('squashThresholdLabel')}
+                </label>
                 <input
                   type="number"
                   min={1}
@@ -269,7 +276,7 @@ export function AgentExecutionTab({
                   className="w-16 rounded border border-zinc-300 bg-white px-2 py-1 text-xs dark:border-zinc-600 dark:bg-zinc-700 dark:text-zinc-200"
                 />
                 <span className="text-xs text-zinc-400 dark:text-zinc-500">
-                  コミット以上でsquash
+                  {t('squashThresholdSuffix')}
                 </span>
               </div>
             )}
@@ -282,30 +289,30 @@ export function AgentExecutionTab({
         <div className="flex items-center gap-2">
           <FileSearch className="w-4 h-4 text-violet-500" />
           <label className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
-            コードレビュー
+            {t('codeReview')}
           </label>
         </div>
 
         <ToggleSwitch
           value={autoCodeReview}
           onChange={setAutoCodeReview}
-          label="自動コードレビュー"
-          description="実行完了後に自動でコードレビュー"
+          label={t('autoCodeReviewLabel')}
+          description={t('autoCodeReviewDesc')}
         />
 
         {autoCodeReview && (
           <div>
             <label className="block text-xs text-zinc-500 dark:text-zinc-400 mb-1">
-              レビュー範囲
+              {t('reviewScopeLabel')}
             </label>
             <select
               value={reviewScope}
               onChange={(e) => setReviewScope(e.target.value as ReviewScope)}
               className="w-full px-3 py-2 bg-white dark:bg-indigo-dark-800 border border-zinc-200 dark:border-zinc-700 rounded-lg text-sm focus:outline-none focus:border-indigo-400"
             >
-              <option value="changes">変更箇所のみ</option>
-              <option value="full">全体</option>
-              <option value="none">なし</option>
+              <option value="changes">{t('reviewScopeChanges')}</option>
+              <option value="full">{t('reviewScopeFull')}</option>
+              <option value="none">{tCommon('none')}</option>
             </select>
           </div>
         )}
@@ -316,20 +323,20 @@ export function AgentExecutionTab({
         <div className="flex items-center gap-2">
           <Play className="w-4 h-4 text-violet-500" />
           <label className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
-            実行オプション
+            {t('executionOptions')}
           </label>
         </div>
         <ToggleSwitch
           value={autoExecuteOnAnalysis}
           onChange={setAutoExecuteOnAnalysis}
-          label="分析後自動実行"
-          description="タスク分析完了後にエージェントを自動実行"
+          label={t('autoExecuteLabel')}
+          description={t('autoExecuteDesc')}
         />
         <ToggleSwitch
           value={useOptimizedPrompt}
           onChange={setUseOptimizedPrompt}
-          label="最適化プロンプト使用"
-          description="タスク分析の最適化プロンプトを使用"
+          label={t('useOptimizedPromptLabel')}
+          description={t('useOptimizedPromptDesc')}
         />
       </div>
 
@@ -337,17 +344,17 @@ export function AgentExecutionTab({
       <div className="space-y-3">
         <div className="flex items-center gap-2">
           <FileText className="w-4 h-4 text-violet-500" />
-          <label className="text-sm font-medium text-zinc-700 dark:text-zinc-300">実行ルール</label>
+          <label className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
+            {t('executionRules')}
+          </label>
         </div>
-        <p className="text-xs text-zinc-500 dark:text-zinc-400">
-          エージェント実行時に追加で適用されるルールや指示を設定します
-        </p>
+        <p className="text-xs text-zinc-500 dark:text-zinc-400">{t('executionRulesDesc')}</p>
         <textarea
           value={additionalInstructions}
           onChange={(e) => setAdditionalInstructions(e.target.value)}
           rows={6}
           className="w-full px-3 py-2 bg-white dark:bg-indigo-dark-800 border border-zinc-200 dark:border-zinc-700 rounded-lg text-sm focus:outline-none focus:border-indigo-400 resize-vertical"
-          placeholder="例: ファイルを修正する際は必ずバックアップを作成すること&#10;コミット前に必ずテストを実行すること&#10;セキュリティリスクを慎重に検討すること"
+          placeholder={t('executionRulesPlaceholder')}
         />
       </div>
 
@@ -355,25 +362,27 @@ export function AgentExecutionTab({
       <div className="space-y-3">
         <div className="flex items-center gap-2">
           <Bell className="w-4 h-4 text-violet-500" />
-          <label className="text-sm font-medium text-zinc-700 dark:text-zinc-300">通知設定</label>
+          <label className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
+            {t('notificationSettings')}
+          </label>
         </div>
         <ToggleSwitch
           value={execNotifyOnStart}
           onChange={setExecNotifyOnStart}
-          label="実行開始通知"
-          description="エージェント実行開始時に通知"
+          label={t('notifyStartLabel')}
+          description={t('notifyStartDesc')}
         />
         <ToggleSwitch
           value={execNotifyOnComplete}
           onChange={setExecNotifyOnComplete}
-          label="実行完了通知"
-          description="エージェント実行完了時に通知"
+          label={t('notifyCompleteLabel')}
+          description={t('notifyCompleteDesc')}
         />
         <ToggleSwitch
           value={execNotifyOnError}
           onChange={setExecNotifyOnError}
-          label="Error通知"
-          description="Error発生時に通知"
+          label={t('notifyErrorLabel')}
+          description={t('notifyErrorDesc')}
         />
       </div>
     </div>

@@ -14,6 +14,7 @@ import {
   ExternalLink,
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
+import { useTranslations } from 'next-intl';
 import { useState } from 'react';
 import type { Task } from '@/types';
 import { API_BASE_URL } from '@/utils/api';
@@ -153,6 +154,7 @@ export function ExecutionSection({
   taskStatus,
 }: ExecutionSectionProps) {
   const router = useRouter();
+  const t = useTranslations('devMode.executionSection');
   const [prError, setPrError] = useState<string | null>(null);
 
   // NOTE: task.status reflects the manual status toggle, which is independent of
@@ -181,16 +183,12 @@ export function ExecutionSection({
       // PR exists on GitHub but isn't synced locally — open it on GitHub.
       if (body?.reason === 'not_synced') {
         if (body.prUrl) window.open(body.prUrl, '_blank', 'noopener,noreferrer');
-        setPrError(
-          body.prUrl
-            ? 'PRはローカル未同期のため、GitHubで開きました。統合ページで同期すると一覧にも表示されます。'
-            : (body.error ?? 'PRはローカルに同期されていません。'),
-        );
+        setPrError(body.prUrl ? t('prNotSyncedOpened') : (body.error ?? t('prNotSynced')));
         return;
       }
-      setPrError(body?.error ?? 'このタスクのPRはまだ作成されていません。');
+      setPrError(body?.error ?? t('prNotCreated'));
     } catch {
-      setPrError('PR情報の取得に失敗しました。時間をおいて再度お試しください。');
+      setPrError(t('prFetchFailed'));
     }
   };
 
@@ -213,14 +211,12 @@ export function ExecutionSection({
       >
         <div className="flex items-center gap-2">
           <Rocket className="w-4 h-4 text-indigo-500" />
-          <span className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
-            エージェント実行
-          </span>
+          <span className="text-sm font-medium text-zinc-700 dark:text-zinc-300">{t('title')}</span>
           {/* NOTE: Status badge shown only when collapsed — expanded view has its own status in logs */}
           {!isExpanded && execStatusIcon === 'loading' && (
             <span className="flex items-center gap-1 px-1.5 py-0.5 bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-300 text-[10px] rounded">
               <Loader2 className="w-2.5 h-2.5 animate-spin" />
-              実行中
+              {t('statusRunning')}
             </span>
           )}
           {!isExpanded && execStatusIcon === 'success' && (
@@ -228,31 +224,31 @@ export function ExecutionSection({
               <CheckCircle2 className="w-2.5 h-2.5" />
               {pollingSessionMode?.startsWith('workflow-')
                 ? workflowPhaseLabel(pollingSessionMode)
-                : '実行完了'}
+                : t('statusCompleted')}
             </span>
           )}
           {!isExpanded && execStatusIcon === 'idle' && isTaskDone && (
             <span className="flex items-center gap-1 px-1.5 py-0.5 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 text-[10px] rounded">
               <CheckCircle2 className="w-2.5 h-2.5" />
-              実行完了
+              {t('statusCompleted')}
             </span>
           )}
           {!isExpanded && execStatusIcon === 'error' && (
             <span className="flex items-center gap-1 px-1.5 py-0.5 bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 text-[10px] rounded">
               <AlertCircle className="w-2.5 h-2.5" />
-              エラー
+              {t('statusError')}
             </span>
           )}
           {!isExpanded && execStatusIcon === 'cancelled' && (
             <span className="flex items-center gap-1 px-1.5 py-0.5 bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-300 text-[10px] rounded">
               <Square className="w-2.5 h-2.5" />
-              停止
+              {t('statusStopped')}
             </span>
           )}
           {!isExpanded && execStatusIcon === 'interrupted' && (
             <span className="flex items-center gap-1 px-1.5 py-0.5 bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 text-[10px] rounded">
               <AlertCircle className="w-2.5 h-2.5" />
-              中断
+              {t('statusInterrupted')}
             </span>
           )}
         </div>
@@ -265,10 +261,10 @@ export function ExecutionSection({
                 onStop();
               }}
               className="flex items-center gap-1 px-2 py-1 bg-zinc-200 dark:bg-zinc-700 hover:bg-zinc-300 dark:hover:bg-zinc-600 text-zinc-700 dark:text-zinc-300 text-[10px] font-medium rounded transition-colors"
-              aria-label="実行を停止"
+              aria-label={t('stopAria')}
             >
               <Square className="w-2.5 h-2.5" />
-              停止
+              {t('stop')}
             </button>
           )}
           {isCompleted && (
@@ -281,7 +277,7 @@ export function ExecutionSection({
                 className="flex items-center gap-1 px-2 py-1 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 text-[10px] rounded transition-colors"
               >
                 <RefreshCw className="w-2.5 h-2.5" />
-                リセット
+                {t('reset')}
               </button>
               <button
                 onClick={(e) => {
@@ -291,7 +287,7 @@ export function ExecutionSection({
                 className="flex items-center gap-1 px-2 py-1 bg-green-600 hover:bg-green-700 text-white text-[10px] font-medium rounded transition-colors"
               >
                 <ExternalLink className="w-2.5 h-2.5" />
-                PRを開く
+                {t('openPr')}
               </button>
             </>
           )}
@@ -304,7 +300,7 @@ export function ExecutionSection({
               className="flex items-center gap-1 px-2 py-1 bg-yellow-600 hover:bg-yellow-700 text-white text-[10px] font-medium rounded transition-colors"
             >
               <RefreshCw className="w-2.5 h-2.5" />
-              再実行
+              {t('rerun')}
             </button>
           )}
           {isInterrupted && (
@@ -317,7 +313,7 @@ export function ExecutionSection({
                 className="flex items-center gap-1 px-2 py-1 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 text-[10px] rounded transition-colors"
               >
                 <RefreshCw className="w-2.5 h-2.5" />
-                リセット
+                {t('reset')}
               </button>
               <button
                 onClick={(e) => {
@@ -327,7 +323,7 @@ export function ExecutionSection({
                 className="flex items-center gap-1 px-2 py-1 bg-amber-600 hover:bg-amber-700 text-white text-[10px] font-medium rounded transition-colors"
               >
                 <RefreshCw className="w-2.5 h-2.5" />
-                再実行
+                {t('rerun')}
               </button>
             </>
           )}
@@ -341,7 +337,7 @@ export function ExecutionSection({
                 className="flex items-center gap-1 px-2 py-1 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 text-[10px] rounded transition-colors"
               >
                 <RefreshCw className="w-2.5 h-2.5" />
-                リセット
+                {t('reset')}
               </button>
               <button
                 onClick={(e) => {
@@ -351,7 +347,7 @@ export function ExecutionSection({
                 className="flex items-center gap-1 px-2 py-1 bg-red-600 hover:bg-red-700 text-white text-[10px] font-medium rounded transition-colors"
               >
                 <RefreshCw className="w-2.5 h-2.5" />
-                再試行
+                {t('retry')}
               </button>
             </>
           )}
@@ -364,16 +360,16 @@ export function ExecutionSection({
               disabled={isExecuting || capability !== 'ready' || isTaskDone}
               title={
                 isTaskDone
-                  ? 'タスクが完了しているため実行できません'
+                  ? t('runDisabledTaskDone')
                   : capability !== 'ready'
-                    ? 'タスクの設定が完了するとエージェントを実行できます'
-                    : '実行開始'
+                    ? t('runDisabledSetupIncomplete')
+                    : t('startExecution')
               }
               className="flex items-center gap-1 px-2 py-1 bg-indigo-600 hover:bg-indigo-700 text-white text-[10px] font-medium rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-              aria-label="実行開始"
+              aria-label={t('startExecution')}
             >
               <Play className="w-2.5 h-2.5" />
-              実行
+              {t('run')}
             </button>
           )}
           {isExpanded ? (

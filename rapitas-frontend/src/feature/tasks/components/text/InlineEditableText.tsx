@@ -7,6 +7,7 @@
  * Lets the task detail edit title/description without a separate edit screen.
  */
 import { useEffect, useRef, useState } from 'react';
+import { useTranslations } from 'next-intl';
 
 interface InlineEditableTextProps {
   /** Current value. */
@@ -43,6 +44,7 @@ export default function InlineEditableText({
   className = '',
   renderDisplay,
 }: InlineEditableTextProps) {
+  const t = useTranslations('task');
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(value);
   const inputRef = useRef<HTMLInputElement & HTMLTextAreaElement>(null);
@@ -136,7 +138,7 @@ export default function InlineEditableText({
   return (
     <div
       onDoubleClick={begin}
-      title="ダブルクリックで編集"
+      title={t('inlineEditableText.doubleClickToEdit')}
       className={`cursor-text ${className} ${isEmpty ? 'italic text-zinc-400 dark:text-zinc-500' : ''}`}
     >
       {isEmpty ? (placeholder ?? '') : renderDisplay ? renderDisplay(value) : value}

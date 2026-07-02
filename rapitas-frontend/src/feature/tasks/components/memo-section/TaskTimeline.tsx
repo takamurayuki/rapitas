@@ -3,6 +3,7 @@
 
 import { memo, useMemo } from 'react';
 import { History, MessageSquare, Pin } from 'lucide-react';
+import { useTranslations } from 'next-intl';
 import type { NoteData, TaskActivity } from './types';
 import { MEMO_TYPE_CONFIG } from './types';
 import { generateMockTaskActivities } from './memo-utils';
@@ -21,6 +22,7 @@ export const TaskTimeline = memo(function TaskTimeline({
   taskId: number;
   notes: NoteData[];
 }) {
+  const t = useTranslations('task.taskTimeline');
   const activities = useMemo(() => generateMockTaskActivities(taskId), [taskId]);
 
   const timelineItems = useMemo(() => {
@@ -52,7 +54,7 @@ export const TaskTimeline = memo(function TaskTimeline({
     return (
       <div className="text-center py-4">
         <History className="w-6 h-6 text-zinc-300 dark:text-zinc-600 mx-auto mb-1.5" />
-        <p className="text-[10px] text-zinc-400">タスクの履歴がありません</p>
+        <p className="text-[10px] text-zinc-400">{t('empty')}</p>
       </div>
     );
   }

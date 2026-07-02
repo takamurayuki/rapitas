@@ -1,5 +1,6 @@
 'use client';
 import { useEffect, useState } from 'react';
+import { useTranslations } from 'next-intl';
 import type { Label } from '@/types';
 import { getIconComponent, ICON_DATA } from '@/components/category/icon-data';
 import { API_BASE_URL } from '@/utils/api';
@@ -18,6 +19,7 @@ export default function LabelSelector({
   onChange,
   className = '',
 }: LabelSelectorProps) {
+  const t = useTranslations('task.labelSelector');
   const [labels, setLabels] = useState<Label[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -70,9 +72,9 @@ export default function LabelSelector({
   if (labels.length === 0) {
     return (
       <div className={`text-sm text-zinc-500 dark:text-zinc-400 ${className}`}>
-        ラベルがありません。
+        {t('empty')}
         <a href="/labels" className="text-indigo-600 dark:text-indigo-400 hover:underline ml-1">
-          ラベルを作成
+          {t('createLabel')}
         </a>
       </div>
     );

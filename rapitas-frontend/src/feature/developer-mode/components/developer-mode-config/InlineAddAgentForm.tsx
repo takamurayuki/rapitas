@@ -8,6 +8,7 @@
  */
 
 import { X, Plus, AlertCircle, Loader2 } from 'lucide-react';
+import { useTranslations } from 'next-intl';
 import { validateName } from '@/utils/validation';
 
 type Props = {
@@ -46,6 +47,7 @@ export function InlineAddAgentForm({
   onSave,
   onCancel,
 }: Props) {
+  const t = useTranslations('devMode.inlineAddAgentForm');
   const handleNameInput = (raw: string) => {
     if (raw.trim()) {
       const result = validateName(raw, 'エージェント名', 1, 50);
@@ -61,7 +63,7 @@ export function InlineAddAgentForm({
         <div className="flex items-center gap-2">
           <Plus className="w-3.5 h-3.5 text-violet-500" />
           <span className="text-xs font-medium text-zinc-600 dark:text-zinc-300">
-            エージェントを追加
+            {t('addAgent')}
           </span>
         </div>
         <button
@@ -77,7 +79,7 @@ export function InlineAddAgentForm({
           type="text"
           value={name}
           onChange={(e) => handleNameInput(e.target.value)}
-          placeholder="例: メイン開発エージェント"
+          placeholder={t('namePlaceholder')}
           className={`w-full px-2.5 py-1.5 bg-white dark:bg-indigo-dark-900 border rounded text-xs focus:outline-none focus:ring-2 transition-all ${
             nameError
               ? 'border-red-400 dark:border-red-600 focus:ring-red-500/20'
@@ -108,7 +110,7 @@ export function InlineAddAgentForm({
             onChange={(e) => onIsDefaultChange(e.target.checked)}
             className="w-3 h-3 text-violet-600 border-zinc-300 rounded focus:ring-violet-500"
           />
-          デフォルトに設定
+          {t('setAsDefault')}
         </label>
       </div>
 
@@ -124,7 +126,7 @@ export function InlineAddAgentForm({
           onClick={onCancel}
           className="px-2 py-1 text-[10px] text-zinc-500 dark:text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-300 transition-colors"
         >
-          キャンセル
+          {t('cancel')}
         </button>
         <button
           onClick={onSave}
@@ -132,7 +134,7 @@ export function InlineAddAgentForm({
           className="flex items-center gap-1 px-2.5 py-1 bg-violet-600 hover:bg-violet-700 text-white text-[10px] font-medium rounded transition-colors disabled:opacity-50"
         >
           {isSaving ? <Loader2 className="w-3 h-3 animate-spin" /> : <Plus className="w-3 h-3" />}
-          追加
+          {t('add')}
         </button>
       </div>
     </div>

@@ -2,6 +2,7 @@
 // ai-analysis-panel/usePromptsManagement.ts
 
 import { useState } from 'react';
+import { useTranslations } from 'next-intl';
 import { API_BASE_URL } from '@/utils/api';
 import { useConfirmDialog } from '@/components/ui/dialog/ConfirmDialogProvider';
 import type { PromptsData } from './types';
@@ -29,6 +30,8 @@ export type UsePromptsManagementReturn = {
  * @returns State values and handler functions for prompt list management.
  */
 export function usePromptsManagement(taskId: number): UsePromptsManagementReturn {
+  const t = useTranslations('devMode.promptsManagement');
+  const tCommon = useTranslations('common');
   const confirm = useConfirmDialog();
   const [promptsData, setPromptsData] = useState<PromptsData | null>(null);
   const [isLoadingPrompts, setIsLoadingPrompts] = useState(false);
@@ -46,10 +49,10 @@ export function usePromptsManagement(taskId: number): UsePromptsManagementReturn
         const data = await res.json();
         setPromptsData(data);
       } else {
-        throw new Error('プロンプト一覧の取得に失敗しました');
+        throw new Error(t('fetchFailed'));
       }
     } catch (err) {
-      setPromptsError(err instanceof Error ? err.message : 'Errorが発生しました');
+      setPromptsError(err instanceof Error ? err.message : t('genericError'));
     } finally {
       setIsLoadingPrompts(false);
     }
@@ -58,7 +61,7 @@ export function usePromptsManagement(taskId: number): UsePromptsManagementReturn
   const generateAllPrompts = async () => {
     if (
       !(await confirm({
-        message: 'すべてのサブタスク（またはタスク）のプロンプトを生成しますか？',
+        message: t('generateAllConfirm'),
       }))
     )
       return;
@@ -73,10 +76,10 @@ export function usePromptsManagement(taskId: number): UsePromptsManagementReturn
         await fetchPrompts();
       } else {
         const errData = await res.json();
-        throw new Error(errData.error || '一括生成に失敗しました');
+        throw new Error(errData.error || t('generateAllFailed'));
       }
     } catch (err) {
-      setPromptsError(err instanceof Error ? err.message : 'Errorが発生しました');
+      setPromptsError(err instanceof Error ? err.message : t('genericError'));
     } finally {
       setIsGeneratingAll(false);
     }
@@ -94,16 +97,15 @@ export function usePromptsManagement(taskId: number): UsePromptsManagementReturn
         setEditingPromptText('');
         await fetchPrompts();
       } else {
-        throw new Error('更新に失敗しました');
+        throw new Error(tCommon('updateFailed'));
       }
     } catch (err) {
-      setPromptsError(err instanceof Error ? err.message : 'Errorが発生しました');
+      setPromptsError(err instanceof Error ? err.message : t('genericError'));
     }
   };
 
   const deletePrompt = async (promptId: number) => {
-    if (!(await confirm({ message: 'このプロンプトを削除しますか？', variant: 'destructive' })))
-      return;
+    if (!(await confirm({ message: t('deleteConfirm'), variant: 'destructive' }))) return;
 
     try {
       const res = await fetch(`${API_BASE_URL}/prompts/${promptId}`, {
@@ -112,10 +114,10 @@ export function usePromptsManagement(taskId: number): UsePromptsManagementReturn
       if (res.ok) {
         await fetchPrompts();
       } else {
-        throw new Error('削除に失敗しました');
+        throw new Error(tCommon('deleteFailed'));
       }
     } catch (err) {
-      setPromptsError(err instanceof Error ? err.message : 'Errorが発生しました');
+      setPromptsError(err instanceof Error ? err.message : t('genericError'));
     }
   };
 

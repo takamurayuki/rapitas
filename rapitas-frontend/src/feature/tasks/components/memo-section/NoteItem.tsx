@@ -2,6 +2,7 @@
 // NoteItem
 
 import { memo, useState, useMemo } from 'react';
+import { useTranslations } from 'next-intl';
 import { ChevronDown, ChevronUp, Pin } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -64,6 +65,7 @@ export const NoteItem = memo(function NoteItem({
   highlightedNoteId,
   storageUpdate,
 }: NoteItemProps) {
+  const t = useTranslations('task');
   const [collapsed, setCollapsed] = useState(false);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
 
@@ -164,7 +166,7 @@ export const NoteItem = memo(function NoteItem({
                   {isPinned && (
                     <span className="inline-flex items-center gap-1 px-1.5 py-0.5 text-[9px] bg-indigo-100 dark:bg-indigo-900/50 text-indigo-600 dark:text-indigo-400 rounded-full font-medium">
                       <Pin className="w-2 h-2" />
-                      ピン留め
+                      {t('noteActionBar.pin')}
                     </span>
                   )}
                 </div>

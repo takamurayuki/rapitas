@@ -1,5 +1,6 @@
 'use client';
 import { useState, useMemo } from 'react';
+import { useTranslations } from 'next-intl';
 import ReactMarkdown, { defaultUrlTransform } from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import remarkBreaks from 'remark-breaks';
@@ -17,6 +18,7 @@ export default function TaskDescription({
   isCompact = false,
   maxInitialLength = 500,
 }: TaskDescriptionProps) {
+  const t = useTranslations('task');
   const [isExpanded, setIsExpanded] = useState(false);
 
   // Determine if description is long
@@ -100,12 +102,12 @@ export default function TaskDescription({
             {isExpanded ? (
               <>
                 <ChevronUp className="w-4 h-4" />
-                折りたたむ
+                {t('descriptionToggle.collapse')}
               </>
             ) : (
               <>
                 <ChevronDown className="w-4 h-4" />
-                もっと見る
+                {t('descriptionToggle.expand')}
               </>
             )}
           </button>

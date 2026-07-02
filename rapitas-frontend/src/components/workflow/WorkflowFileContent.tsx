@@ -3,6 +3,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Loader2, List, ChevronDown, Pencil } from 'lucide-react';
+import { useTranslations } from 'next-intl';
 import type { WorkflowTab } from './workflow-viewer-utils';
 import { MarkdownView } from '../markdown/MarkdownView';
 import { WorkflowFileEditor } from './WorkflowFileEditor';
@@ -121,6 +122,8 @@ export function WorkflowFileContent({
   taskId,
   onSaved,
 }: WorkflowFileContentProps) {
+  const t = useTranslations('workflow');
+  const tc = useTranslations('common');
   const headings = useMemo(() => extractHeadings(activeFile?.content ?? ''), [activeFile?.content]);
 
   // Inline editing is offered for the plan only (refine before approving). It
@@ -171,7 +174,7 @@ export function WorkflowFileContent({
     return (
       <div className="flex items-center justify-center h-32">
         <Loader2 className="h-5 w-5 text-zinc-400 animate-spin mr-2" />
-        <span className="text-sm text-zinc-500 dark:text-zinc-400">読み込み中...</span>
+        <span className="text-sm text-zinc-500 dark:text-zinc-400">{tc('loading')}</span>
       </div>
     );
   }
@@ -214,7 +217,7 @@ export function WorkflowFileContent({
             className="inline-flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-medium text-zinc-600 transition-colors hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-zinc-800"
           >
             <Pencil className="h-3.5 w-3.5" />
-            計画を編集
+            {t('fileContent.editPlan')}
           </button>
         </div>
       )}
@@ -236,7 +239,7 @@ export function WorkflowFileContent({
             className="flex items-center gap-1 text-[11px] font-medium text-zinc-400 transition-colors hover:text-zinc-600 dark:text-zinc-500 dark:hover:text-zinc-300"
           >
             <List className="h-3.5 w-3.5" />
-            <span>目次</span>
+            <span>{t('fileContent.tableOfContents')}</span>
             <span className="text-zinc-400/70 dark:text-zinc-500/70">({headings.length})</span>
             <ChevronDown
               className={`h-3.5 w-3.5 transition-transform ${tocOpen ? '' : '-rotate-90'}`}
@@ -277,17 +280,17 @@ export function WorkflowFileContent({
           <div className="flex items-center justify-between bg-amber-50 dark:bg-amber-900/20 rounded-lg p-4 border border-amber-200 dark:border-amber-800">
             <div>
               <p className="text-sm font-medium text-amber-900 dark:text-amber-200">
-                計画の承認が必要です
+                {t('planApprovalRequired')}
               </p>
               <p className="text-xs text-amber-700 dark:text-amber-400 mt-0.5">
-                内容を確認して承認すると実装フェーズに移行します
+                {t('fileContent.approveToImplementHint')}
               </p>
             </div>
             <button
               onClick={onPlanApprovalRequest}
               className="bg-amber-600 hover:bg-amber-700 text-white px-5 py-2 rounded-lg text-sm font-medium transition-colors whitespace-nowrap"
             >
-              承認して実装開始
+              {t('fileContent.approveAndImplement')}
             </button>
           </div>
         </div>

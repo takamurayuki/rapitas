@@ -12,6 +12,7 @@ import {
   Copy,
   Check,
 } from 'lucide-react';
+import { useTranslations } from 'next-intl';
 import type { PromptResult, PromptClarificationQuestion } from './types';
 
 export type PromptPanelProps = {
@@ -55,6 +56,7 @@ export function PromptPanel({
   onRetryPrompt,
   getCategoryLabel,
 }: PromptPanelProps) {
+  const t = useTranslations('devMode.promptPanel');
   if (isGeneratingPrompt) {
     return (
       <div
@@ -63,7 +65,7 @@ export function PromptPanel({
         className="flex items-center gap-2 p-2.5 bg-zinc-50 dark:bg-zinc-800/50 rounded-lg"
       >
         <Loader2 className="w-3.5 h-3.5 text-indigo-500 animate-spin" />
-        <span className="text-xs text-zinc-600 dark:text-zinc-400">最適化中...</span>
+        <span className="text-xs text-zinc-600 dark:text-zinc-400">{t('optimizing')}</span>
       </div>
     );
   }
@@ -85,7 +87,7 @@ export function PromptPanel({
           onClick={onRetryPrompt}
           className="text-[10px] text-red-600 hover:text-red-700 font-medium shrink-0"
         >
-          再試行
+          {t('retry')}
         </button>
       </div>
     );
@@ -118,13 +120,13 @@ export function PromptPanel({
           <div className="flex items-center gap-1.5">
             <CheckCircle2 className="w-3 h-3 text-green-500" />
             <span className="text-[10px] text-zinc-700 dark:text-zinc-300">
-              スコア: {promptResult.promptQuality.score}/100
+              {t('score', { score: promptResult.promptQuality.score })}
             </span>
           </div>
           <button
             onClick={onCopyPrompt}
             className="p-1 text-zinc-400 hover:text-zinc-600 rounded"
-            aria-label="プロンプトをコピー"
+            aria-label={t('copyPromptAriaLabel')}
           >
             {copied ? <Check className="w-3 h-3 text-green-500" /> : <Copy className="w-3 h-3" />}
           </button>
@@ -139,14 +141,14 @@ export function PromptPanel({
             onClick={onRegeneratePrompt}
             className="text-[10px] text-zinc-500 hover:text-zinc-700 px-2 py-1"
           >
-            再生成
+            {t('regenerate')}
           </button>
           <button
             onClick={onUsePrompt}
             className="flex items-center gap-1 px-2 py-1 bg-green-600 hover:bg-green-700 text-white text-[10px] font-medium rounded transition-colors"
           >
             <Sparkles className="w-2.5 h-2.5" />
-            使用
+            {t('use')}
           </button>
         </div>
       </div>
@@ -157,15 +159,13 @@ export function PromptPanel({
   return (
     <div id="prompt-panel" role="tabpanel" className="text-center py-4">
       <Wand2 className="w-6 h-6 text-zinc-300 dark:text-zinc-600 mx-auto mb-1.5" />
-      <p className="text-[10px] text-zinc-500 dark:text-zinc-400 mb-2">
-        タスク説明をAIエージェント向けに最適化
-      </p>
+      <p className="text-[10px] text-zinc-500 dark:text-zinc-400 mb-2">{t('idleHint')}</p>
       <button
         onClick={onGeneratePrompt}
         className="inline-flex items-center gap-1 px-2.5 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-[10px] font-medium rounded-lg transition-colors"
       >
         <Sparkles className="w-3 h-3" />
-        プロンプト生成
+        {t('generatePrompt')}
       </button>
     </div>
   );
@@ -203,14 +203,15 @@ function ClarificationQuestionsView({
   onSubmit,
   getCategoryLabel,
 }: ClarificationQuestionsViewProps) {
+  const t = useTranslations('devMode.promptPanel');
   return (
     <div id="prompt-panel" role="tabpanel" className="space-y-3">
       <div className="flex items-center gap-1.5 text-amber-600 dark:text-amber-400">
         <HelpCircle className="w-3.5 h-3.5" />
-        <span className="text-[11px] font-medium">追加情報が必要です</span>
+        <span className="text-[11px] font-medium">{t('needMoreInfo')}</span>
       </div>
       <div className="text-[10px] text-zinc-500 dark:text-zinc-400 mb-2">
-        スコア: {score}/100 - より良いプロンプトを生成するために回答してください
+        {t('scoreWithHint', { score })}
       </div>
       <div className="space-y-2.5 max-h-48 overflow-y-auto">
         {questions.map((q) => (
@@ -245,7 +246,7 @@ function ClarificationQuestionsView({
                 type="text"
                 value={questionAnswers[q.id] || ''}
                 onChange={(e) => onSetQuestionAnswer(q.id, e.target.value)}
-                placeholder="回答を入力..."
+                placeholder={t('answerPlaceholder')}
                 className="w-full px-2 py-1 bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded text-[10px] focus:outline-none focus:border-indigo-400"
               />
             )}
@@ -257,7 +258,7 @@ function ClarificationQuestionsView({
           onClick={onCancel}
           className="text-[10px] text-zinc-500 hover:text-zinc-700 px-2 py-1"
         >
-          キャンセル
+          {t('cancel')}
         </button>
         <button
           onClick={onSubmit}
@@ -269,7 +270,7 @@ function ClarificationQuestionsView({
           ) : (
             <Send className="w-2.5 h-2.5" />
           )}
-          回答を送信
+          {t('submitAnswers')}
         </button>
       </div>
     </div>

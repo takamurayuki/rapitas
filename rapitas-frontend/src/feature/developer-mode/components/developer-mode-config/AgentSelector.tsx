@@ -9,6 +9,7 @@
  * providers.
  */
 
+import { useTranslations } from 'next-intl';
 import { Loader2, CheckCircle, Plus, Bot } from 'lucide-react';
 import type { AIAgentConfig, ApiProvider, ApiKeyStatusMap } from './types';
 import { AGENT_TYPE_INFO, CLI_AGENT_TYPES } from './types';
@@ -112,6 +113,8 @@ export function AgentSelector({
   isSavingAgent,
   onSaveInlineAgent,
 }: Props) {
+  const t = useTranslations('devMode.agentSelector');
+  const tCommon = useTranslations('common');
   const handleCancelInlineAdd = () => {
     onToggleInlineAdd();
   };
@@ -120,7 +123,7 @@ export function AgentSelector({
     return (
       <div className="flex items-center gap-2 text-sm text-zinc-500">
         <Loader2 className="w-4 h-4 animate-spin" />
-        読み込み中...
+        {tCommon('loading')}
       </div>
     );
   }
@@ -129,9 +132,7 @@ export function AgentSelector({
   if (agents.length === 0 && allAgents.length === 0) {
     return (
       <div className="space-y-2">
-        <p className="text-sm text-zinc-500 dark:text-zinc-400">
-          エージェントが設定されていません。
-        </p>
+        <p className="text-sm text-zinc-500 dark:text-zinc-400">{t('noAgentsConfigured')}</p>
         {showInlineAddAgent ? (
           <InlineAddAgentForm
             name={inlineAgentName}
@@ -152,7 +153,7 @@ export function AgentSelector({
             className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm text-violet-600 dark:text-violet-400 border border-violet-300 dark:border-violet-700 rounded-lg hover:bg-violet-50 dark:hover:bg-violet-900/20 transition-colors"
           >
             <Plus className="w-3.5 h-3.5" />
-            エージェントを追加
+            {t('addAgent')}
           </button>
         )}
       </div>
@@ -181,14 +182,14 @@ export function AgentSelector({
           }}
           className="flex-1 px-3 py-2 bg-white dark:bg-indigo-dark-800 border border-zinc-200 dark:border-zinc-700 rounded-lg text-sm focus:outline-none focus:border-indigo-400"
         >
-          <option value="">モデルを選択...</option>
+          <option value="">{t('selectModel')}</option>
           {agents.map((agent) => {
             const typeInfo = getAgentTypeInfo(agent.agentType);
             return (
               <option key={agent.id} value={agent.id}>
                 {agent.name} ({typeInfo.label}
                 {agent.modelId ? ` · ${agent.modelId}` : ''})
-                {agent.isDefault ? ' [デフォルト]' : ''}
+                {agent.isDefault ? ` [${t('defaultBadge')}]` : ''}
               </option>
             );
           })}
@@ -200,7 +201,7 @@ export function AgentSelector({
               ? 'border-violet-500 bg-violet-50 dark:bg-violet-900/20 text-violet-600 dark:text-violet-400'
               : 'border-zinc-200 dark:border-zinc-700 text-zinc-400 hover:text-violet-600 dark:hover:text-violet-400 hover:border-violet-400 dark:hover:border-violet-500'
           }`}
-          title="エージェントを追加"
+          title={t('addAgent')}
         >
           <Plus className="w-4 h-4" />
         </button>
@@ -237,7 +238,7 @@ export function AgentSelector({
                     </span>
                     {selectedAgent.isDefault ? (
                       <span className="px-1.5 py-0.5 bg-violet-100 dark:bg-violet-900/30 text-violet-600 dark:text-violet-400 rounded text-[10px] font-medium">
-                        デフォルト
+                        {t('defaultBadge')}
                       </span>
                     ) : (
                       <button
@@ -250,7 +251,7 @@ export function AgentSelector({
                         ) : (
                           <CheckCircle className="w-3 h-3" />
                         )}
-                        デフォルトに設定
+                        {t('setAsDefault')}
                       </button>
                     )}
                   </div>

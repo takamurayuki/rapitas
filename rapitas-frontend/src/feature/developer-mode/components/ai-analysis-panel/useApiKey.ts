@@ -2,6 +2,7 @@
 // ai-analysis-panel/useApiKey.ts
 
 import { useState, useEffect } from 'react';
+import { useTranslations } from 'next-intl';
 import { API_BASE_URL } from '@/utils/api';
 import { useConfirmDialog } from '@/components/ui/dialog/ConfirmDialogProvider';
 import { createLogger } from '@/lib/logger';
@@ -30,6 +31,8 @@ export type UseApiKeyReturn = {
  * @returns State values and handler functions for API key management.
  */
 export function useApiKey(): UseApiKeyReturn {
+  const t = useTranslations('devMode.apiKey');
+  const tCommon = useTranslations('common');
   const confirm = useConfirmDialog();
   const [apiKeyInput, setApiKeyInput] = useState('');
   const [showApiKey, setShowApiKey] = useState(false);
@@ -82,24 +85,21 @@ export function useApiKey(): UseApiKeyReturn {
         setIsEditingApiKey(false);
         setShowApiKey(false);
         setIsApiKeyConfigured(true);
-        setApiKeySuccess('APIキーを保存しました');
+        setApiKeySuccess(t('savedMessage'));
         // NOTE: Clear success message after 3 s to avoid stale UI feedback.
         setTimeout(() => setApiKeySuccess(null), 3000);
       } else {
-        throw new Error('保存に失敗しました');
+        throw new Error(tCommon('saveFailed'));
       }
     } catch (err) {
-      setApiKeyError(err instanceof Error ? err.message : 'Errorが発生しました');
+      setApiKeyError(err instanceof Error ? err.message : t('genericError'));
     } finally {
       setIsSavingApiKey(false);
     }
   };
 
   const deleteApiKey = async () => {
-    if (
-      !(await confirm({ message: 'APIキーを削除してもよろしいですか？', variant: 'destructive' }))
-    )
-      return;
+    if (!(await confirm({ message: t('deleteConfirm'), variant: 'destructive' }))) return;
 
     setIsSavingApiKey(true);
     setApiKeyError(null);
@@ -113,13 +113,13 @@ export function useApiKey(): UseApiKeyReturn {
         setApiKeyInput('');
         setIsEditingApiKey(false);
         setIsApiKeyConfigured(false);
-        setApiKeySuccess('APIキーを削除しました');
+        setApiKeySuccess(t('deletedMessage'));
         setTimeout(() => setApiKeySuccess(null), 3000);
       } else {
-        throw new Error('削除に失敗しました');
+        throw new Error(tCommon('deleteFailed'));
       }
     } catch (err) {
-      setApiKeyError(err instanceof Error ? err.message : 'Errorが発生しました');
+      setApiKeyError(err instanceof Error ? err.message : t('genericError'));
     } finally {
       setIsSavingApiKey(false);
     }

@@ -11,6 +11,7 @@
  */
 import React, { useEffect, useState } from 'react';
 import { HelpCircle, Send, Loader2, Clock } from 'lucide-react';
+import { useTranslations } from 'next-intl';
 import type { LiveQuestion } from '@/stores/execution-state-store';
 import { resolveQuestionOptions, secondsUntil } from './workflow-question-utils';
 
@@ -44,9 +45,11 @@ export function WorkflowQuestionPanel({
   freeTextOnly = false,
   submitLabel,
 }: WorkflowQuestionPanelProps) {
+  const t = useTranslations('workflow');
+  const tc = useTranslations('common');
   const { options, isDefault } = freeTextOnly
     ? { options: [] as string[], isDefault: false }
-    : resolveQuestionOptions(question.options);
+    : resolveQuestionOptions(question.options, [tc('yes'), tc('no')]);
   const [selected, setSelected] = useState<string>('');
   const [freeText, setFreeText] = useState<string>('');
   const [remaining, setRemaining] = useState<number | null>(
@@ -81,11 +84,11 @@ export function WorkflowQuestionPanel({
           <HelpCircle className="h-4 w-4 text-amber-600 dark:text-amber-400" />
         </div>
         <h4 className="text-sm font-medium text-amber-800 dark:text-amber-200">
-          AIエージェントからの質問
+          {t('questionPanel.title')}
         </h4>
         {question.confirmed && (
           <span className="rounded bg-green-100 px-1.5 py-0.5 text-xs text-green-700 dark:bg-green-900/40 dark:text-green-300">
-            確認済み
+            {t('questionPanel.confirmed')}
           </span>
         )}
       </div>
@@ -96,7 +99,7 @@ export function WorkflowQuestionPanel({
 
       {options.length > 0 && (
         <p className="mb-2 text-xs font-medium text-amber-700 dark:text-amber-300">
-          回答を選んでください（下の入力欄で自由記述も可）
+          {t('questionPanel.chooseAnswer')}
         </p>
       )}
 
@@ -137,8 +140,7 @@ export function WorkflowQuestionPanel({
 
       {isDefault && (
         <p className="mt-2 text-xs text-amber-700 dark:text-amber-300">
-          ※
-          選択肢が提示されなかったため既定の選択肢を表示しています。下の入力欄で自由に回答することもできます。
+          {t('questionPanel.defaultOptionsNote')}
         </p>
       )}
 
@@ -146,8 +148,9 @@ export function WorkflowQuestionPanel({
         <div className="mt-3 flex items-center gap-2 rounded-lg border border-indigo-200 bg-indigo-50 px-3 py-2 dark:border-indigo-700 dark:bg-indigo-900/30">
           <Clock className="h-4 w-4 text-indigo-600 dark:text-indigo-400" />
           <span className="text-sm text-indigo-700 dark:text-indigo-300">
-            回答がない場合、約 <span className="font-mono font-medium">{remaining}</span>{' '}
-            秒後に自動的に続行します。
+            {t('questionPanel.autoContinuePrefix')}{' '}
+            <span className="font-mono font-medium">{remaining}</span>{' '}
+            {t('questionPanel.autoContinueSuffix')}
           </span>
         </div>
       )}
@@ -158,9 +161,7 @@ export function WorkflowQuestionPanel({
             value={freeText}
             onChange={(e) => setFreeText(e.target.value)}
             rows={5}
-            placeholder={
-              '達成したいこと・守るべき制約・「完了」と言える条件を箇条書きで入力...\n例:\n- ゴール: 生成スクリプトの実行時間を半減\n- 制約: 既存の生成物と出力差分なし\n- 受入: ベンチで before/after を計測し50%短縮を確認'
-            }
+            placeholder={t('questionPanel.freeTextPlaceholder')}
             className="w-full resize-y rounded-lg border border-amber-300 bg-white px-3 py-2 text-sm focus:border-amber-500 focus:outline-none focus:ring-2 focus:ring-amber-500/30 dark:border-amber-700 dark:bg-zinc-800"
           />
           <div className="mt-2 flex justify-end">
@@ -175,14 +176,16 @@ export function WorkflowQuestionPanel({
               ) : (
                 <Send className="h-4 w-4" />
               )}
-              {submitLabel ?? '回答してワークフローを再開'}
+              {submitLabel ?? t('questionPanel.submitAndResume')}
             </button>
           </div>
         </div>
       ) : (
         <div className="mt-3">
           {options.length > 0 && (
-            <p className="mb-1 text-xs text-amber-700 dark:text-amber-300">その他（自由記述）</p>
+            <p className="mb-1 text-xs text-amber-700 dark:text-amber-300">
+              {t('questionPanel.otherFreeText')}
+            </p>
           )}
           <div className="flex items-center gap-2">
             <input
@@ -190,7 +193,7 @@ export function WorkflowQuestionPanel({
               value={freeText}
               onChange={(e) => setFreeText(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && canSubmit && onAnswer(answer)}
-              placeholder="選択肢に当てはまらない場合はこちらに入力..."
+              placeholder={t('questionPanel.freeTextInputPlaceholder')}
               className="flex-1 rounded-lg border border-amber-300 bg-white px-3 py-2 text-sm focus:border-amber-500 focus:outline-none focus:ring-2 focus:ring-amber-500/30 dark:border-amber-700 dark:bg-zinc-800"
             />
             <button
@@ -204,7 +207,7 @@ export function WorkflowQuestionPanel({
               ) : (
                 <Send className="h-4 w-4" />
               )}
-              {submitLabel ?? '送信'}
+              {submitLabel ?? t('questionPanel.submit')}
             </button>
           </div>
         </div>

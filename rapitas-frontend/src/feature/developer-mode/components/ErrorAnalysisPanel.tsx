@@ -4,6 +4,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { FlaskConical } from 'lucide-react';
+import { useTranslations } from 'next-intl';
 import {
   errorAnalysisService,
   type ErrorAnalysis,
@@ -50,6 +51,7 @@ export const ErrorAnalysisPanel: React.FC<ErrorAnalysisPanelProps> = ({
   currentAgent,
   onErrorSelect,
 }) => {
+  const t = useTranslations('devMode.errorAnalysisPanel');
   const [errors, setErrors] = useState<ErrorAnalysis[]>([]);
   const [summary, setSummary] = useState<ErrorSummary | null>(null);
   const [expandedErrors, setExpandedErrors] = useState<Set<string>>(new Set());
@@ -128,17 +130,15 @@ export const ErrorAnalysisPanel: React.FC<ErrorAnalysisPanelProps> = ({
       {/* Header with demo link */}
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-lg font-semibold">エラー解析ダッシュボード</h2>
-          <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-            リアルタイムでエラーを検出し、解決策を提案します
-          </p>
+          <h2 className="text-lg font-semibold">{t('title')}</h2>
+          <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">{t('subtitle')}</p>
         </div>
         <a
           href="/settings/developer-mode/error-demo"
           className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-violet-600 dark:text-violet-400 bg-violet-50 dark:bg-violet-900/20 border border-violet-200 dark:border-violet-800 rounded-lg hover:bg-violet-100 dark:hover:bg-violet-900/30 transition-colors"
         >
           <FlaskConical className="h-4 w-4" />
-          エラーデモを試す
+          {t('tryDemo')}
         </a>
       </div>
 

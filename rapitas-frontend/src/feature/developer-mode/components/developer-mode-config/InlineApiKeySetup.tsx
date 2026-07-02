@@ -19,6 +19,7 @@ import {
   Loader2,
   ExternalLink,
 } from 'lucide-react';
+import { useTranslations } from 'next-intl';
 import type { ApiProvider, ApiKeyStatusMap } from './types';
 import { API_KEY_PROVIDERS } from './types';
 
@@ -58,6 +59,8 @@ export function InlineApiKeySetup({
   onSave,
   onDelete,
 }: Props) {
+  const t = useTranslations('devMode.inlineApiKeySetup');
+  const tCommon = useTranslations('common');
   const currentProvider = API_KEY_PROVIDERS.find((p) => p.value === apiKeyProvider)!;
   const currentStatus = apiKeyStatuses[apiKeyProvider];
 
@@ -65,8 +68,10 @@ export function InlineApiKeySetup({
     <div className="mt-3 p-3 bg-zinc-50 dark:bg-indigo-dark-800/50 rounded-lg border border-zinc-200 dark:border-zinc-700 space-y-3">
       <div className="flex items-center gap-2">
         <Key className="w-3.5 h-3.5 text-zinc-400" />
-        <span className="text-xs font-medium text-zinc-600 dark:text-zinc-300">APIキー設定</span>
-        <span className="text-[10px] text-zinc-400">（APIが必要なモデルを有効化）</span>
+        <span className="text-xs font-medium text-zinc-600 dark:text-zinc-300">
+          {t('apiKeySettings')}
+        </span>
+        <span className="text-[10px] text-zinc-400">{t('enableModelsHint')}</span>
       </div>
 
       {/* Provider tabs */}
@@ -110,7 +115,7 @@ export function InlineApiKeySetup({
             className="flex items-center gap-1 px-1.5 py-0.5 text-[10px] text-red-500 hover:text-red-600 dark:text-red-400 transition-colors disabled:opacity-50"
           >
             <Trash2 className="w-3 h-3" />
-            削除
+            {tCommon('delete')}
           </button>
         </div>
       )}
@@ -153,7 +158,7 @@ export function InlineApiKeySetup({
               rel="noopener noreferrer"
               className="inline-flex items-center gap-1 text-[10px] text-violet-600 dark:text-violet-400 hover:underline"
             >
-              APIキーを取得
+              {t('getApiKey')}
               <ExternalLink className="w-2.5 h-2.5" />
             </a>
             <button
@@ -166,7 +171,7 @@ export function InlineApiKeySetup({
               ) : (
                 <Save className="w-3 h-3" />
               )}
-              保存
+              {tCommon('save')}
             </button>
           </div>
         </div>

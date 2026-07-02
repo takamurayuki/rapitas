@@ -2,6 +2,7 @@
 // WorkflowTabBar
 
 import { Clock, RefreshCw, CheckCircle2, HelpCircle } from 'lucide-react';
+import { useTranslations } from 'next-intl';
 import type { WorkflowFileType, WorkflowStatus } from '@/types';
 import type { WorkflowTab } from './workflow-viewer-utils';
 
@@ -46,6 +47,8 @@ export function WorkflowTabBar({
   onRefetch,
   isRefetching,
 }: WorkflowTabBarProps) {
+  const t = useTranslations('workflow');
+  const tAutoRun = useTranslations('autoRun');
   return (
     // Sticky below the task-detail toolbar (top-11) so the tabs stay reachable
     // while scrolling the file; the in-file TOC sticks just beneath this bar.
@@ -96,7 +99,7 @@ export function WorkflowTabBar({
                     ) : (
                       <Clock className="h-2.5 w-2.5" />
                     )}
-                    {questionNeedsAnswer ? '要回答' : '承認待ち'}
+                    {questionNeedsAnswer ? t('tabBar.answerNeeded') : tAutoRun('awaitingApproval')}
                   </span>
                 ) : hasContent ? (
                   // A filled check reads as "this phase is done" — the previous
@@ -114,13 +117,16 @@ export function WorkflowTabBar({
         <div className="flex shrink-0 items-center gap-2 px-3 text-xs text-zinc-500 dark:text-zinc-400">
           {lastModified !== undefined && (
             <span>
-              更新: {lastModified ? new Date(lastModified).toLocaleString('ja-JP') : '不明'}
+              {t('tabBar.updated')}{' '}
+              {lastModified
+                ? new Date(lastModified).toLocaleString('ja-JP')
+                : t('planApprovalModal.unknown')}
             </span>
           )}
           <button
             onClick={onRefetch}
             disabled={isRefetching}
-            title="再読み込み"
+            title={t('tabBar.reload')}
             className="text-zinc-400 transition-colors hover:text-zinc-600 disabled:opacity-50 dark:hover:text-zinc-300"
           >
             <RefreshCw className={`h-3.5 w-3.5 ${isRefetching ? 'animate-spin' : ''}`} />

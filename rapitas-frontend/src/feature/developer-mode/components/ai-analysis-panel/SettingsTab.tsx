@@ -1,6 +1,7 @@
 'use client';
 // ai-analysis-panel/SettingsTab.tsx
 
+import { useTranslations } from 'next-intl';
 import {
   Key,
   CheckCircle2,
@@ -50,6 +51,8 @@ export function SettingsTab({
   onDeleteApiKey,
   onOpenSettings,
 }: Props) {
+  const t = useTranslations('devMode.settingsTab');
+  const tCommon = useTranslations('common');
   return (
     <div className="space-y-4">
       <div className="p-3 bg-zinc-50 dark:bg-indigo-dark-800/50 rounded-lg">
@@ -57,13 +60,13 @@ export function SettingsTab({
           <div className="flex items-center gap-2">
             <Key className="w-4 h-4 text-zinc-500" />
             <span className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
-              Claude API キー
+              {t('apiKeyLabel')}
             </span>
           </div>
           {isApiKeyConfigured && (
             <span className="flex items-center gap-1 px-2 py-0.5 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 rounded text-xs">
               <CheckCircle2 className="w-3 h-3" />
-              設定済み
+              {tCommon('configured')}
             </span>
           )}
         </div>
@@ -91,7 +94,7 @@ export function SettingsTab({
                 onClick={() => onSetIsEditingApiKey(true)}
                 className="px-2 py-1 text-xs text-zinc-600 dark:text-zinc-400 hover:text-zinc-800"
               >
-                変更
+                {tCommon('change')}
               </button>
               <button
                 onClick={onDeleteApiKey}
@@ -127,7 +130,7 @@ export function SettingsTab({
                 rel="noopener noreferrer"
                 className="text-xs text-violet-600 dark:text-violet-400 hover:underline"
               >
-                APIキーを取得
+                {t('getApiKey')}
               </a>
               <div className="flex items-center gap-2">
                 {isEditingApiKey && (
@@ -138,7 +141,7 @@ export function SettingsTab({
                     }}
                     className="text-xs text-zinc-500"
                   >
-                    キャンセル
+                    {tCommon('cancel')}
                   </button>
                 )}
                 <button
@@ -151,7 +154,7 @@ export function SettingsTab({
                   ) : (
                     <Save className="w-3 h-3" />
                   )}
-                  保存
+                  {tCommon('save')}
                 </button>
               </div>
             </div>
@@ -166,7 +169,7 @@ export function SettingsTab({
         <div className="flex items-center gap-2">
           <Settings className="w-4 h-4 text-zinc-500" />
           <span className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
-            開発者モード詳細設定
+            {t('advancedSettings')}
           </span>
         </div>
         <ChevronDown className="w-4 h-4 text-zinc-400 -rotate-90" />

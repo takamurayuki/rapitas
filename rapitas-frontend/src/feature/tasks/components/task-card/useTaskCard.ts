@@ -214,7 +214,7 @@ export function useTaskCard(
     // Protected tasks can't be deleted; surface a toast before the confirm so
     // the user understands why (backend also enforces this with a 409).
     if (task.isProtected) {
-      showToast('保護されたタスクは削除できません', 'error');
+      showToast(t('taskCard.protectedDeleteError'), 'error');
       setShowContextMenu(false);
       return;
     }

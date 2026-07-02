@@ -9,6 +9,7 @@
  */
 
 import { useState } from 'react';
+import { useTranslations } from 'next-intl';
 import { Sparkles, GitBranch, ChevronDown, ChevronUp } from 'lucide-react';
 
 export type IdleExecutionFormProps = {
@@ -38,6 +39,7 @@ export function IdleExecutionForm({
   onSetBaseBranch,
 }: IdleExecutionFormProps) {
   const [showDetails, setShowDetails] = useState(false);
+  const t = useTranslations('devMode.idleExecutionForm');
 
   return (
     <div className="space-y-2">
@@ -47,9 +49,9 @@ export function IdleExecutionForm({
           type="text"
           value={instruction}
           onChange={(e) => onSetInstruction(e.target.value)}
-          placeholder="追加指示があれば入力...（任意）"
+          placeholder={t('instructionPlaceholder')}
           className="flex-1 px-2.5 py-1.5 bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded text-xs focus:outline-none focus:border-indigo-400"
-          aria-label="追加の実装指示"
+          aria-label={t('instructionAriaLabel')}
         />
       </div>
 
@@ -58,7 +60,7 @@ export function IdleExecutionForm({
         <div className="flex items-center gap-1.5 px-1">
           <Sparkles className="w-2.5 h-2.5 text-green-500" />
           <span className="text-[10px] text-green-600 dark:text-green-400">
-            最適化プロンプト適用済み
+            {t('optimizedPromptApplied')}
           </span>
         </div>
       )}
@@ -73,7 +75,7 @@ export function IdleExecutionForm({
         ) : (
           <ChevronDown className="w-2.5 h-2.5" />
         )}
-        詳細設定
+        {t('detailsToggle')}
       </button>
 
       {showDetails && (
@@ -81,16 +83,16 @@ export function IdleExecutionForm({
           <div>
             <label className="flex items-center gap-1 text-[10px] text-zinc-500 dark:text-zinc-400 mb-1">
               <GitBranch className="w-2.5 h-2.5" />
-              ブランチ名
-              <span className="text-zinc-400 dark:text-zinc-500">（空欄で自動生成）</span>
+              {t('branchNameLabel')}
+              <span className="text-zinc-400 dark:text-zinc-500">{t('branchNameHint')}</span>
             </label>
             <input
               type="text"
               value={branchName}
               onChange={(e) => onSetBranchName(e.target.value)}
-              placeholder="自動生成されます"
+              placeholder={t('branchNamePlaceholder')}
               className="w-full px-2 py-1 bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded text-[10px] font-mono focus:outline-none focus:border-indigo-400"
-              aria-label="ブランチ名"
+              aria-label={t('branchNameLabel')}
             />
           </div>
 
@@ -100,15 +102,15 @@ export function IdleExecutionForm({
           <div>
             <label className="flex items-center gap-1 text-[10px] text-zinc-500 dark:text-zinc-400 mb-1">
               <GitBranch className="w-2.5 h-2.5" />
-              ベースブランチ
-              <span className="text-zinc-400 dark:text-zinc-500">（PR作成先 / 分岐元）</span>
+              {t('baseBranchLabel')}
+              <span className="text-zinc-400 dark:text-zinc-500">{t('baseBranchHint')}</span>
             </label>
             {baseBranches.length > 0 ? (
               <select
                 value={baseBranch}
                 onChange={(e) => onSetBaseBranch(e.target.value)}
                 className="w-full px-2 py-1 bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded text-[10px] font-mono focus:outline-none focus:border-indigo-400"
-                aria-label="ベースブランチ"
+                aria-label={t('baseBranchLabel')}
               >
                 {baseBranches.map((b) => (
                   <option key={b} value={b}>
@@ -123,7 +125,7 @@ export function IdleExecutionForm({
                 onChange={(e) => onSetBaseBranch(e.target.value)}
                 placeholder="develop"
                 className="w-full px-2 py-1 bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded text-[10px] font-mono focus:outline-none focus:border-indigo-400"
-                aria-label="ベースブランチ"
+                aria-label={t('baseBranchLabel')}
               />
             )}
           </div>

@@ -2,6 +2,7 @@
 
 import React from 'react';
 import { CheckCircle2, Circle, XCircle, Clock, Pause } from 'lucide-react';
+import { useTranslations } from 'next-intl';
 
 /**
  * Subtask status during parallel execution.
@@ -37,6 +38,8 @@ export function SubtaskExecutionStatus({
   size = 'sm',
   className = '',
 }: SubtaskExecutionStatusProps) {
+  const t = useTranslations('task.subtaskExecutionStatus');
+
   // Render nothing when no status is provided
   if (!executionStatus) {
     return null;
@@ -71,13 +74,13 @@ export function SubtaskExecutionStatus({
       icon: <Circle className={iconSize} />,
       bgColor: 'bg-zinc-100 dark:bg-indigo-dark-800',
       textColor: 'text-zinc-400 dark:text-zinc-500',
-      label: '待機中',
+      label: t('pending'),
     },
     scheduled: {
       icon: <Clock className={iconSize} />,
       bgColor: 'bg-blue-50 dark:bg-blue-900/30',
       textColor: 'text-blue-500 dark:text-blue-400',
-      label: 'スケジュール済み',
+      label: t('scheduled'),
     },
     running: {
       icon: (
@@ -110,32 +113,32 @@ export function SubtaskExecutionStatus({
       ),
       bgColor: 'bg-blue-100 dark:bg-blue-900/40',
       textColor: 'text-blue-600 dark:text-blue-400',
-      label: '実行中',
+      label: t('running'),
       animate: true,
     },
     completed: {
       icon: <CheckCircle2 className={iconSize} />,
       bgColor: 'bg-green-100 dark:bg-green-900/40',
       textColor: 'text-green-600 dark:text-green-400',
-      label: '完了',
+      label: t('completed'),
     },
     failed: {
       icon: <XCircle className={iconSize} />,
       bgColor: 'bg-red-100 dark:bg-red-900/40',
       textColor: 'text-red-600 dark:text-red-400',
-      label: '失敗',
+      label: t('failed'),
     },
     cancelled: {
       icon: <Pause className={iconSize} />,
       bgColor: 'bg-yellow-100 dark:bg-yellow-900/40',
       textColor: 'text-yellow-600 dark:text-yellow-400',
-      label: 'キャンセル',
+      label: t('cancelled'),
     },
     blocked: {
       icon: <Pause className={iconSize} />,
       bgColor: 'bg-orange-100 dark:bg-orange-900/40',
       textColor: 'text-orange-600 dark:text-orange-400',
-      label: 'ブロック中',
+      label: t('blocked'),
     },
   };
 

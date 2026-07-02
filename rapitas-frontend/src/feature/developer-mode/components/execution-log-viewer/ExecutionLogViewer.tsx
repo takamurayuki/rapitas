@@ -15,6 +15,7 @@
  */
 
 import React, { useMemo } from 'react';
+import { useTranslations } from 'next-intl';
 import { Terminal, ChevronDown, Loader2, SearchX } from 'lucide-react';
 import { SimpleLogEntryList } from '../SimpleLogEntry';
 import { LogViewerHeader } from './LogViewerHeader';
@@ -53,6 +54,7 @@ export const ExecutionLogViewer: React.FC<ExecutionLogViewerProps> = ({
   maxHeight = 256,
   taskId,
 }) => {
+  const t = useTranslations('devMode.executionLogViewer');
   const {
     isExpanded,
     isFullscreen,
@@ -119,7 +121,7 @@ export const ExecutionLogViewer: React.FC<ExecutionLogViewerProps> = ({
       >
         <div className="flex items-center gap-2">
           <Terminal className="w-4 h-4 text-green-400" />
-          <span className="text-sm font-medium text-zinc-200">実行ログ</span>
+          <span className="text-sm font-medium text-zinc-200">{t('executionLog')}</span>
           {taskId != null && (
             <span className="px-1.5 py-0.5 bg-zinc-700 text-zinc-300 rounded text-xs font-mono">
               Task #{taskId}
@@ -187,9 +189,7 @@ export const ExecutionLogViewer: React.FC<ExecutionLogViewerProps> = ({
               <div className="text-center">
                 <SearchX className="w-7 h-7 mx-auto mb-2 text-zinc-600" />
                 <p className="text-sm">
-                  {searchQuery
-                    ? `「${searchQuery}」に一致するログはありません`
-                    : '該当するログはありません'}
+                  {searchQuery ? t('noMatchForQuery', { query: searchQuery }) : t('noMatchingLogs')}
                 </p>
               </div>
             </div>
@@ -198,7 +198,7 @@ export const ExecutionLogViewer: React.FC<ExecutionLogViewerProps> = ({
               <div className="flex items-center justify-center py-8 text-zinc-500">
                 <div className="text-center">
                   <Loader2 className="w-8 h-8 mx-auto mb-2 animate-spin" />
-                  <p>実行ログを取得中...</p>
+                  <p>{t('fetchingLogs')}</p>
                 </div>
               </div>
             )

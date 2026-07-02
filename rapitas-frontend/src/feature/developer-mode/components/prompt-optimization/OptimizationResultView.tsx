@@ -1,6 +1,7 @@
 'use client';
 // OptimizationResultView
 
+import { useTranslations } from 'next-intl';
 import {
   Sparkles,
   ChevronDown,
@@ -43,6 +44,8 @@ export function OptimizationResultView({
   onRegenerate,
   className = '',
 }: Props) {
+  const t = useTranslations('devMode.optimizationResultView');
+  const tCommon = useTranslations('common');
   return (
     <div
       className={`bg-white dark:bg-indigo-dark-900 rounded-xl border border-zinc-200 dark:border-zinc-700 overflow-hidden ${className}`}
@@ -55,11 +58,9 @@ export function OptimizationResultView({
               <CheckCircle2 className="w-5 h-5 text-green-600 dark:text-green-400" />
             </div>
             <div>
-              <h3 className="font-semibold text-zinc-900 dark:text-zinc-50">
-                最適化されたプロンプト
-              </h3>
+              <h3 className="font-semibold text-zinc-900 dark:text-zinc-50">{t('title')}</h3>
               <p className="text-sm text-zinc-600 dark:text-zinc-400">
-                品質スコア:{' '}
+                {t('qualityScoreLabel')}{' '}
                 <span className={`font-medium ${getQualityColor(result.promptQuality.score)}`}>
                   {result.promptQuality.score}/100
                 </span>
@@ -72,14 +73,14 @@ export function OptimizationResultView({
               className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-zinc-600 dark:text-zinc-400 hover:text-zinc-800 dark:hover:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-lg transition-colors"
             >
               {copied ? <Check className="w-4 h-4 text-green-500" /> : <Copy className="w-4 h-4" />}
-              コピー
+              {tCommon('copy')}
             </button>
             <button
               onClick={onUse}
               className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-white bg-green-600 hover:bg-green-700 rounded-lg transition-colors"
             >
               <Sparkles className="w-4 h-4" />
-              このプロンプトを使用
+              {t('useThisPrompt')}
             </button>
           </div>
         </div>
@@ -108,7 +109,7 @@ export function OptimizationResultView({
             <div className="flex items-start gap-2">
               <AlertTriangle className="w-4 h-4 text-amber-500 mt-0.5 shrink-0" />
               <div className="text-sm text-amber-700 dark:text-amber-400">
-                <span className="font-medium">注意点: </span>
+                <span className="font-medium">{t('issuesLabel')}</span>
                 {result.promptQuality.issues.join(', ')}
               </div>
             </div>
@@ -117,7 +118,7 @@ export function OptimizationResultView({
             <div className="flex items-start gap-2">
               <Lightbulb className="w-4 h-4 text-indigo-500 mt-0.5 shrink-0" />
               <div className="text-sm text-indigo-700 dark:text-indigo-400">
-                <span className="font-medium">提案: </span>
+                <span className="font-medium">{t('suggestionsLabel')}</span>
                 {result.promptQuality.suggestions.join(', ')}
               </div>
             </div>
@@ -131,7 +132,7 @@ export function OptimizationResultView({
         className="w-full px-6 py-3 flex items-center justify-between bg-zinc-50 dark:bg-indigo-dark-800/30 border-t border-zinc-200 dark:border-zinc-700 hover:bg-zinc-100 dark:hover:bg-zinc-800/50 transition-colors"
       >
         <span className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
-          構造化された詳細を表示
+          {t('showStructuredDetails')}
         </span>
         {showDetails ? (
           <ChevronUp className="w-4 h-4 text-zinc-500" />
@@ -146,7 +147,7 @@ export function OptimizationResultView({
             <Target className="w-4 h-4 text-violet-500 mt-0.5 shrink-0" />
             <div>
               <p className="text-xs font-medium text-violet-600 dark:text-violet-400 uppercase tracking-wide mb-1">
-                目標
+                {t('objectiveLabel')}
               </p>
               <p className="text-sm text-zinc-700 dark:text-zinc-300">
                 {result.structuredSections.objective}
@@ -159,7 +160,7 @@ export function OptimizationResultView({
               <FileText className="w-4 h-4 text-indigo-500 mt-0.5 shrink-0" />
               <div>
                 <p className="text-xs font-medium text-indigo-600 dark:text-indigo-400 uppercase tracking-wide mb-1">
-                  背景・コンテキスト
+                  {t('contextLabel')}
                 </p>
                 <p className="text-sm text-zinc-700 dark:text-zinc-300">
                   {result.structuredSections.context}
@@ -171,7 +172,7 @@ export function OptimizationResultView({
           {result.structuredSections.requirements.length > 0 && (
             <div>
               <p className="text-xs font-medium text-green-600 dark:text-green-400 uppercase tracking-wide mb-2">
-                要件
+                {t('requirementsLabel')}
               </p>
               <ul className="space-y-1">
                 {result.structuredSections.requirements.map((req, i) => (
@@ -190,7 +191,7 @@ export function OptimizationResultView({
           {result.structuredSections.constraints.length > 0 && (
             <div>
               <p className="text-xs font-medium text-orange-600 dark:text-orange-400 uppercase tracking-wide mb-2">
-                制約条件
+                {t('constraintsLabel')}
               </p>
               <ul className="space-y-1">
                 {result.structuredSections.constraints.map((con, i) => (
@@ -209,7 +210,7 @@ export function OptimizationResultView({
           {result.structuredSections.deliverables.length > 0 && (
             <div>
               <p className="text-xs font-medium text-purple-600 dark:text-purple-400 uppercase tracking-wide mb-2">
-                成果物
+                {t('deliverablesLabel')}
               </p>
               <ul className="space-y-1">
                 {result.structuredSections.deliverables.map((del, i) => (
@@ -233,7 +234,7 @@ export function OptimizationResultView({
           onClick={onRegenerate}
           className="text-sm text-zinc-500 dark:text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 transition-colors"
         >
-          プロンプトを再生成
+          {t('regenerate')}
         </button>
       </div>
     </div>

@@ -2,6 +2,7 @@
 // useExecutionPolling
 
 import { useState, useCallback, useRef, useEffect } from 'react';
+import { useTranslations } from 'next-intl';
 import { createLogger } from '@/lib/logger';
 import { type ExecutionStreamState, trimLogs } from './execution-stream-types';
 import { type PollRefs, executePoll } from './execution-poll-handlers';
@@ -15,6 +16,7 @@ const logger = createLogger('ExecutionStream');
  * @returns Execution stream state and polling control methods
  */
 export function useExecutionPolling(taskId: number | null) {
+  const t = useTranslations('devMode.executionPolling');
   const [state, setState] = useState<ExecutionStreamState>({
     isConnected: false,
     isRunning: false,
@@ -213,12 +215,12 @@ export function useExecutionPolling(taskId: number | null) {
       question: undefined,
       logs:
         shouldAddLog && prev.logs.length > 0
-          ? trimLogs([...prev.logs, '\n[キャンセル] 実行が停止されました。\n'])
+          ? trimLogs([...prev.logs, `\n${t('cancelledLog')}\n`])
           : shouldAddLog
-            ? ['[キャンセル] 実行が停止されました。\n']
+            ? [`${t('cancelledLog')}\n`]
             : prev.logs,
     }));
-  }, []);
+  }, [t]);
 
   const clearLogs = useCallback(() => {
     lastOutputLengthRef.current = 0;

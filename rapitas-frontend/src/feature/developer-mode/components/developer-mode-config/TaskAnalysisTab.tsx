@@ -8,6 +8,7 @@
  */
 
 import { Bot } from 'lucide-react';
+import { useTranslations } from 'next-intl';
 import { ToggleSwitch } from './ToggleSwitch';
 import { AgentSelector } from './AgentSelector';
 import type {
@@ -139,6 +140,7 @@ export function TaskAnalysisTab({
   analysisNotifyOnComplete,
   setAnalysisNotifyOnComplete,
 }: Props) {
+  const t = useTranslations('devMode.taskAnalysisTab');
   return (
     <div className="space-y-5">
       {/* Agent selection */}
@@ -146,7 +148,7 @@ export function TaskAnalysisTab({
         <div className="flex items-center gap-2">
           <Bot className="w-4 h-4 text-violet-500" />
           <label className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
-            分析用AIエージェント
+            {t('agentLabel')}
           </label>
         </div>
         <AgentSelector
@@ -189,22 +191,22 @@ export function TaskAnalysisTab({
       {/* Analysis depth */}
       <div>
         <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-2">
-          分析深度
+          {t('depthLabel')}
         </label>
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
           {(
             [
               {
                 value: 'quick' as const,
-                label: 'クイック',
-                desc: '素早い概要分析',
+                label: t('depth.quick.label'),
+                desc: t('depth.quick.desc'),
               },
               {
                 value: 'standard' as const,
-                label: '標準',
-                desc: 'バランスの良い分析',
+                label: t('depth.standard.label'),
+                desc: t('depth.standard.desc'),
               },
-              { value: 'deep' as const, label: '詳細', desc: '深い詳細分析' },
+              { value: 'deep' as const, label: t('depth.deep.label'), desc: t('depth.deep.desc') },
             ] satisfies { value: AnalysisDepth; label: string; desc: string }[]
           ).map((opt) => (
             <button
@@ -233,7 +235,7 @@ export function TaskAnalysisTab({
       {/* Priority strategy */}
       <div>
         <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-2">
-          優先度戦略
+          {t('priorityLabel')}
         </label>
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
           {PRIORITY_OPTIONS.map((option) => (
@@ -273,24 +275,24 @@ export function TaskAnalysisTab({
       {/* Prompt strategy */}
       <div>
         <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-2">
-          プロンプト戦略
+          {t('promptStrategyLabel')}
         </label>
         <select
           value={promptStrategy}
           onChange={(e) => setPromptStrategy(e.target.value as PromptStrategy)}
           className="w-full px-3 py-2 bg-white dark:bg-indigo-dark-800 border border-zinc-200 dark:border-zinc-700 rounded-lg text-sm focus:outline-none focus:border-indigo-400"
         >
-          <option value="auto">自動</option>
-          <option value="detailed">詳細</option>
-          <option value="concise">簡潔</option>
-          <option value="custom">カスタム</option>
+          <option value="auto">{t('promptStrategy.auto')}</option>
+          <option value="detailed">{t('promptStrategy.detailed')}</option>
+          <option value="concise">{t('promptStrategy.concise')}</option>
+          <option value="custom">{t('promptStrategy.custom')}</option>
         </select>
       </div>
 
       {/* Max subtasks slider */}
       <div>
         <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-2">
-          最大サブタスク数: {analysisMaxSubtasks}
+          {t('maxSubtasksLabel', { count: analysisMaxSubtasks })}
         </label>
         <input
           type="range"
@@ -309,48 +311,50 @@ export function TaskAnalysisTab({
       {/* Output options */}
       <div className="space-y-3">
         <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300">
-          出力オプション
+          {t('outputOptionsLabel')}
         </label>
         <ToggleSwitch
           value={includeEstimates}
           onChange={setIncludeEstimates}
-          label="工数見積もり"
-          description="各サブタスクの見積もり時間を含める"
+          label={t('outputOptions.estimates.label')}
+          description={t('outputOptions.estimates.description')}
         />
         <ToggleSwitch
           value={includeDependencies}
           onChange={setIncludeDependencies}
-          label="依存関係"
-          description="サブタスク間の依存関係を含める"
+          label={t('outputOptions.dependencies.label')}
+          description={t('outputOptions.dependencies.description')}
         />
         <ToggleSwitch
           value={includeTips}
           onChange={setIncludeTips}
-          label="実装ヒント"
-          description="実装のヒントやアドバイスを含める"
+          label={t('outputOptions.tips.label')}
+          description={t('outputOptions.tips.description')}
         />
       </div>
 
       {/* Automation */}
       <div className="space-y-3">
-        <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300">自動化</label>
+        <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300">
+          {t('automationLabel')}
+        </label>
         <ToggleSwitch
           value={autoApproveSubtasks}
           onChange={setAutoApproveSubtasks}
-          label="サブタスク自動承認"
-          description="Analysis resultsのサブタスクを自動承認"
+          label={t('automation.autoApproveSubtasks.label')}
+          description={t('automation.autoApproveSubtasks.description')}
         />
         <ToggleSwitch
           value={autoOptimizePrompt}
           onChange={setAutoOptimizePrompt}
-          label="プロンプト自動最適化"
-          description="分析前にプロンプトを自動最適化"
+          label={t('automation.autoOptimizePrompt.label')}
+          description={t('automation.autoOptimizePrompt.description')}
         />
         <ToggleSwitch
           value={analysisNotifyOnComplete}
           onChange={setAnalysisNotifyOnComplete}
-          label="完了通知"
-          description="分析完了時に通知を送信"
+          label={t('automation.notifyOnComplete.label')}
+          description={t('automation.notifyOnComplete.description')}
         />
       </div>
     </div>

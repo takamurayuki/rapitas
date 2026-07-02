@@ -9,6 +9,7 @@
  */
 
 import { useCallback, useRef } from 'react';
+import { useTranslations } from 'next-intl';
 import type { LogLine } from './terminal-utils';
 import { appendCapped } from './terminal-utils';
 
@@ -49,6 +50,7 @@ export function useTerminalSubmit({
   setSubmitting,
   setInput,
 }: UseTerminalSubmitOptions) {
+  const t = useTranslations('devMode.useTerminalSubmit');
   // Keep a stable ref to isWaiting so the callback doesn't re-create on every poll tick.
   const isWaitingRef = useRef(isWaiting);
   isWaitingRef.current = isWaiting;
@@ -90,7 +92,7 @@ export function useTerminalSubmit({
               {
                 id: `e-${lineIdCounter.current++}`,
                 type: 'error' as const,
-                text: '[エラー] 回答の送信に失敗しました',
+                text: t('sendResponseFailed'),
                 ts: Date.now(),
               },
             ]),
@@ -105,13 +107,14 @@ export function useTerminalSubmit({
             instruction: text,
             agentConfigId: selectedAgentId ?? undefined,
           });
-          if (result?.sessionId) {
+          const sessionId = result?.sessionId;
+          if (sessionId) {
             setLines((prev) =>
               appendCapped(prev, [
                 {
                   id: `s-${lineIdCounter.current++}`,
                   type: 'system' as const,
-                  text: `[System] 実行開始 (session: ${result.sessionId})`,
+                  text: t('executionStarted', { sessionId }),
                   ts: Date.now(),
                 },
               ]),
@@ -124,7 +127,7 @@ export function useTerminalSubmit({
               {
                 id: `e-${lineIdCounter.current++}`,
                 type: 'error' as const,
-                text: '[エラー] 実行の開始に失敗しました',
+                text: t('executionStartFailed'),
                 ts: Date.now(),
               },
             ]),
@@ -137,7 +140,17 @@ export function useTerminalSubmit({
     // NOTE: isWaiting intentionally excluded — read via ref to avoid stale-closure
     // re-creation on every polling tick.
 
-    [taskId, selectedAgentId, onExecute, polling, setLines, setSubmitting, setInput, lineIdCounter],
+    [
+      taskId,
+      selectedAgentId,
+      onExecute,
+      polling,
+      setLines,
+      setSubmitting,
+      setInput,
+      lineIdCounter,
+      t,
+    ],
   );
 
   return handleSubmit;

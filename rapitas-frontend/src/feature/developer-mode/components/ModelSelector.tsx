@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect, memo } from 'react';
+import { useTranslations } from 'next-intl';
 import { ChevronDown, Terminal, Zap, Globe, Check } from 'lucide-react';
 import type { AIAgentConfig } from '@/types';
 import { PROVIDER_CONFIGS, getModelName, getProviderLabel } from '../constants/provider-configs';
@@ -27,6 +28,7 @@ export const ModelSelector = memo(function ModelSelector({
   onSelect,
   disabled,
 }: Props) {
+  const t = useTranslations('devMode.modelSelector');
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
@@ -41,7 +43,7 @@ export const ModelSelector = memo(function ModelSelector({
   const selected = agents.find((a) => a.id === selectedAgentId);
   const label = selected
     ? `${getProviderLabel(selected.agentType)} / ${getModelName(selected.agentType, selected.modelId || '')}`
-    : 'エージェント未選択';
+    : t('noAgentSelected');
 
   const grouped = agents.reduce(
     (acc, a) => {
@@ -99,7 +101,7 @@ export const ModelSelector = memo(function ModelSelector({
           ))}
           {agents.length === 0 && (
             <div className="px-3 py-3 text-[10px] text-zinc-500 text-center">
-              エージェント未設定
+              {t('noAgentsSet')}
             </div>
           )}
         </div>

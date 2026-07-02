@@ -2,6 +2,7 @@
 // Note
 
 import { useState, memo } from 'react';
+import { useTranslations } from 'next-intl';
 import {
   Trash2,
   Pencil,
@@ -65,6 +66,8 @@ export const Note = memo(function Note({
   onUnlink,
   onScrollToNote,
 }: NoteProps) {
+  const t = useTranslations('task');
+  const tc = useTranslations('common');
   const [collapsed, setCollapsed] = useState(false);
   const isEdit = editId === note.id;
   const isReply = replyId === note.id;
@@ -106,14 +109,14 @@ export const Note = memo(function Note({
                     onClick={onCancel}
                     className="px-2 py-1 text-[10px] text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 rounded transition-colors"
                   >
-                    キャンセル
+                    {tc('cancel')}
                   </button>
                   <button
                     onClick={onSave}
                     disabled={!editText.trim()}
                     className="px-2.5 py-1 text-[10px] bg-indigo-600 hover:bg-indigo-700 text-white rounded-md disabled:opacity-50 transition-colors"
                   >
-                    保存
+                    {tc('save')}
                   </button>
                 </div>
               </div>
@@ -185,28 +188,28 @@ export const Note = memo(function Note({
                     <button
                       onClick={() => onReply(note)}
                       className="p-1 text-zinc-400 hover:text-indigo-500 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 rounded transition-colors"
-                      title="返信"
+                      title={t('note.replyTitle')}
                     >
                       <CornerDownRight className="w-3 h-3" />
                     </button>
                     <button
                       onClick={() => onLink(note)}
                       className="p-1 text-zinc-400 hover:text-indigo-500 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 rounded transition-colors"
-                      title="リンク"
+                      title={t('note.linkTitle')}
                     >
                       <Link2 className="w-3 h-3" />
                     </button>
                     <button
                       onClick={() => onEdit(note)}
                       className="p-1 text-zinc-400 hover:text-amber-500 hover:bg-amber-50 dark:hover:bg-amber-900/30 rounded transition-colors"
-                      title="編集"
+                      title={tc('edit')}
                     >
                       <Pencil className="w-3 h-3" />
                     </button>
                     <button
                       onClick={() => onDelete(note.id)}
                       className="p-1 text-zinc-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/30 rounded transition-colors"
-                      title="削除"
+                      title={tc('delete')}
                     >
                       <Trash2 className="w-3 h-3" />
                     </button>
@@ -219,7 +222,7 @@ export const Note = memo(function Note({
                     <input
                       value={replyText}
                       onChange={(e) => onReplyText(e.target.value)}
-                      placeholder="返信を入力..."
+                      placeholder={t('note.replyPlaceholder')}
                       className="flex-1 px-2 py-1 text-xs bg-transparent outline-none placeholder:text-zinc-400"
                       autoFocus
                       onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), onReplySubmit())}
@@ -235,7 +238,7 @@ export const Note = memo(function Note({
                       disabled={!replyText.trim()}
                       className="px-2 py-1 bg-indigo-600 hover:bg-indigo-700 text-white rounded-md text-[10px] disabled:opacity-50 transition-colors"
                     >
-                      送信
+                      {t('note.sendButton')}
                     </button>
                   </div>
                 )}

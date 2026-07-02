@@ -2,6 +2,7 @@
 // useDeveloperMode
 
 import { useState, useRef, useEffect } from 'react';
+import { useTranslations } from 'next-intl';
 import type { ExecutionStatus, ExecutionResult } from '@/types';
 import { API_BASE_URL } from '@/utils/api';
 import { useExecutionStateStore } from '@/stores/execution-state-store';
@@ -14,6 +15,7 @@ const logger = createLogger('useDeveloperMode');
 export type { ExecutionStatus, ExecutionResult };
 
 export function useDeveloperMode(taskId: number) {
+  const t = useTranslations('devMode.useDeveloperMode');
   const [isExecuting, setIsExecuting] = useState(false);
   const [executionStatus, setExecutionStatus] = useState<ExecutionStatus>('idle');
   const [executionResult, setExecutionResult] = useState<ExecutionResult | null>(null);
@@ -169,7 +171,7 @@ export function useDeveloperMode(taskId: number) {
         success: statusData.executionStatus !== 'failed',
         sessionId: statusData.sessionId,
         executionId: statusData.executionId,
-        message: '実行状態を復元しました',
+        message: t('stateRestored'),
         output: fullOutput,
         waitingForInput: statusData.waitingForInput,
         question: statusData.question,

@@ -1,6 +1,8 @@
 'use client';
 // NoteEditForm
 
+import { useTranslations } from 'next-intl';
+
 type NoteEditFormProps = {
   editText: string;
   onEditText: (s: string) => void;
@@ -17,6 +19,7 @@ type NoteEditFormProps = {
  * @param onCancel - Discards the edit / キャンセルコールバック
  */
 export function NoteEditForm({ editText, onEditText, onSave, onCancel }: NoteEditFormProps) {
+  const t = useTranslations('common');
   return (
     <div className="space-y-1.5">
       <textarea
@@ -31,14 +34,14 @@ export function NoteEditForm({ editText, onEditText, onSave, onCancel }: NoteEdi
           onClick={onCancel}
           className="px-2 py-1 text-[10px] text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 rounded transition-colors"
         >
-          キャンセル
+          {t('cancel')}
         </button>
         <button
           onClick={onSave}
           disabled={!editText.trim()}
           className="px-2.5 py-1 text-[10px] bg-indigo-600 hover:bg-indigo-700 text-white rounded-md disabled:opacity-50 transition-colors"
         >
-          保存
+          {t('save')}
         </button>
       </div>
     </div>

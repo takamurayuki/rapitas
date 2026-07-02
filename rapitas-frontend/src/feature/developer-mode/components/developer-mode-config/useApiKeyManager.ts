@@ -9,6 +9,7 @@
  */
 
 import { useState } from 'react';
+import { useTranslations } from 'next-intl';
 import { API_BASE_URL } from '@/utils/api';
 import { createLogger } from '@/lib/logger';
 import type { ApiProvider, ApiKeyStatusMap } from './types';
@@ -22,6 +23,8 @@ const logger = createLogger('useApiKeyManager');
  * @returns API key statuses, form state, and I/O action callbacks.
  */
 export function useApiKeyManager() {
+  const t = useTranslations('devMode.apiKeyManager');
+  const tCommon = useTranslations('common');
   const [apiKeyStatuses, setApiKeyStatuses] = useState<ApiKeyStatusMap>({
     claude: { configured: false, maskedKey: null },
     chatgpt: { configured: false, maskedKey: null },
@@ -72,37 +75,37 @@ export function useApiKeyManager() {
     provider: ApiProvider,
   ): { valid: boolean; error?: string } => {
     const trimmed = apiKey.trim();
-    if (!trimmed) return { valid: false, error: 'APIキーを入力してください' };
+    if (!trimmed) return { valid: false, error: t('emptyKey') };
     if (trimmed.length < 10)
       return {
         valid: false,
-        error: 'APIキーが短すぎます（10文字以上必要です）',
+        error: t('tooShort'),
       };
     switch (provider) {
       case 'claude':
         if (!trimmed.startsWith('sk-ant-api'))
           return {
             valid: false,
-            error: 'Claude APIキーは「sk-ant-api」で始まる必要があります',
+            error: t('claudePrefix'),
           };
         break;
       case 'chatgpt':
         if (!trimmed.startsWith('sk-'))
           return {
             valid: false,
-            error: 'OpenAI APIキーは「sk-」で始まる必要があります',
+            error: t('openaiPrefix'),
           };
         if (trimmed.startsWith('sk-ant-api'))
           return {
             valid: false,
-            error: 'これはClaude APIキーです。OpenAI APIキーを入力してください',
+            error: t('claudeKeyForOpenai'),
           };
         break;
       case 'gemini':
         if (!trimmed.startsWith('AIza'))
           return {
             valid: false,
-            error: 'Gemini APIキーは「AIza」で始まる必要があります',
+            error: t('geminiPrefix'),
           };
         break;
     }
@@ -137,15 +140,17 @@ export function useApiKeyManager() {
         setApiKeyInput('');
         setShowApiKey(false);
         setApiKeySuccessMessage(
-          `${API_KEY_PROVIDERS.find((p) => p.value === apiKeyProvider)?.label} のAPIキーを保存しました`,
+          t('savedKeyMessage', {
+            provider: API_KEY_PROVIDERS.find((p) => p.value === apiKeyProvider)?.label ?? '',
+          }),
         );
         setTimeout(() => setApiKeySuccessMessage(null), 3000);
       } else {
         const data = await res.json().catch(() => null);
-        throw new Error(data?.error ?? '保存に失敗しました');
+        throw new Error(data?.error ?? tCommon('saveFailed'));
       }
     } catch (err) {
-      setApiKeyValidationError(err instanceof Error ? err.message : 'Errorが発生しました');
+      setApiKeyValidationError(err instanceof Error ? err.message : t('genericError'));
     } finally {
       setIsSavingApiKey(false);
     }
@@ -167,7 +172,7 @@ export function useApiKeyManager() {
           ...prev,
           [provider]: { configured: false, maskedKey: null },
         }));
-        setApiKeySuccessMessage(`APIキーを削除しました`);
+        setApiKeySuccessMessage(t('deletedMessage'));
         setTimeout(() => setApiKeySuccessMessage(null), 3000);
       }
     } catch (err) {

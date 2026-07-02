@@ -11,6 +11,7 @@
  */
 
 import { useState, useEffect, useCallback } from 'react';
+import { useTranslations } from 'next-intl';
 import { Repeat, Calendar, ChevronDown, X, Check } from 'lucide-react';
 import { API_BASE_URL } from '@/utils/api';
 import { createLogger } from '@/lib/logger';
@@ -51,6 +52,7 @@ export default function RecurrenceSelector({
   className = '',
   inline = false,
 }: RecurrenceSelectorProps) {
+  const t = useTranslations('task');
   const [isOpen, setIsOpen] = useState(inline); // Auto-open in inline mode
   const [presets, setPresets] = useState<RecurrencePreset[]>([]);
   const [loading, setLoading] = useState(false);
@@ -191,7 +193,9 @@ export default function RecurrenceSelector({
           }`}
         >
           <Repeat size={14} />
-          <span>{isRecurring ? describeRule(recurrenceRule) : '繰り返し'}</span>
+          <span>
+            {isRecurring ? describeRule(recurrenceRule) : t('recurrenceSelector.repeatLabel')}
+          </span>
           <ChevronDown size={14} className={isOpen ? 'rotate-180' : ''} />
         </button>
       )}
@@ -205,7 +209,7 @@ export default function RecurrenceSelector({
           {!showCustom ? (
             <div className="p-2">
               <div className="text-xs font-medium text-zinc-500 dark:text-zinc-400 px-2 py-1">
-                プリセット
+                {t('recurrenceSelector.presetsLabel')}
               </div>
               {presets.map((preset) => (
                 <button
@@ -229,7 +233,7 @@ export default function RecurrenceSelector({
                 className="w-full flex items-center gap-2 px-3 py-2 text-sm rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-700 transition-colors"
               >
                 <Calendar size={14} />
-                <span>カスタム...</span>
+                <span>{t('recurrenceSelector.customEllipsis')}</span>
               </button>
 
               {isRecurring && (
@@ -242,7 +246,7 @@ export default function RecurrenceSelector({
                     className="w-full flex items-center gap-2 px-3 py-2 text-sm rounded-lg text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
                   >
                     <X size={14} />
-                    <span>繰り返しを解除</span>
+                    <span>{t('recurrenceSelector.removeRecurrenceButton')}</span>
                   </button>
                 </>
               )}

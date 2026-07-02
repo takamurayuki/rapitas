@@ -12,6 +12,7 @@ import {
   Tag,
   SwatchBook,
 } from 'lucide-react';
+import { useTranslations } from 'next-intl';
 import type { TaskTemplate, Theme } from '@/types';
 import { getIconComponent } from '@/components/category/icon-data';
 import { API_BASE_URL } from '@/utils/api';
@@ -25,6 +26,8 @@ type Props = {
 };
 
 export default function ApplyTemplateDialog({ isOpen, onClose, selectedTheme, onApply }: Props) {
+  const t = useTranslations('task.applyTemplateDialog');
+  const tc = useTranslations('common');
   const [templates, setTemplates] = useState<TaskTemplate[]>([]);
   const [categories, setCategories] = useState<string[]>([]);
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
@@ -48,24 +51,24 @@ export default function ApplyTemplateDialog({ isOpen, onClose, selectedTheme, on
 
         const res = await fetch(`${API_BASE_URL}/templates?${params.toString()}`);
         if (!res.ok) {
-          throw new Error('テンプレートの取得に失敗しました');
+          throw new Error(t('fetchFailed'));
         }
         const data = await res.json();
         setTemplates(data);
 
         const uniqueCategories = [
-          ...new Set(data.map((t: TaskTemplate) => t.category)),
+          ...new Set(data.map((tpl: TaskTemplate) => tpl.category)),
         ] as string[];
         setCategories(uniqueCategories);
       } catch (err) {
-        setError(err instanceof Error ? err.message : 'エラーが発生しました');
+        setError(err instanceof Error ? err.message : tc('errorOccurred'));
       } finally {
         setIsLoading(false);
       }
     };
 
     fetchTemplates();
-  }, [isOpen, selectedTheme]);
+  }, [isOpen, selectedTheme, t, tc]);
 
   // Reset when modal closes
   useEffect(() => {
@@ -116,7 +119,7 @@ export default function ApplyTemplateDialog({ isOpen, onClose, selectedTheme, on
           <div>
             <h2 className="text-lg font-bold text-zinc-900 dark:text-zinc-50 flex items-center gap-2">
               <FileStack className="w-5 h-5 text-violet-500" />
-              テンプレートを適用
+              {t('title')}
             </h2>
             {selectedTheme && (
               <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-1 flex items-center gap-1.5">
@@ -129,7 +132,7 @@ export default function ApplyTemplateDialog({ isOpen, onClose, selectedTheme, on
                         style={{ backgroundColor: selectedTheme.color }}
                       />
                       <ThemeIcon className="w-3.5 h-3.5" style={{ color: selectedTheme.color }} />
-                      {selectedTheme.name}のテンプレート
+                      {t('themeTemplates', { theme: selectedTheme.name })}
                     </>
                   );
                 })()}
@@ -153,7 +156,7 @@ export default function ApplyTemplateDialog({ isOpen, onClose, selectedTheme, on
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="テンプレートを検索..."
+              placeholder={t('searchPlaceholder')}
               className="w-full bg-zinc-50 dark:bg-zinc-800 rounded-xl pl-10 pr-4 py-2.5 text-sm border border-zinc-200 dark:border-zinc-700 outline-none focus:border-indigo-400 transition-all"
             />
           </div>
@@ -170,7 +173,7 @@ export default function ApplyTemplateDialog({ isOpen, onClose, selectedTheme, on
                     : 'bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 border border-zinc-200 dark:border-zinc-700 hover:border-zinc-300 dark:hover:border-zinc-600'
                 }`}
               >
-                すべて
+                {tc('all')}
               </button>
               {categories.map((cat) => (
                 <button
@@ -230,13 +233,11 @@ export default function ApplyTemplateDialog({ isOpen, onClose, selectedTheme, on
               <p className="text-sm text-zinc-500 dark:text-zinc-400">
                 {templates.length === 0
                   ? selectedTheme
-                    ? `${selectedTheme.name}のテンプレートはまだありません`
-                    : 'テンプレートがありません'
-                  : '条件に一致するテンプレートがありません'}
+                    ? t('emptyForTheme', { theme: selectedTheme.name })
+                    : t('empty')
+                  : t('noMatch')}
               </p>
-              <p className="text-xs text-zinc-400 dark:text-zinc-500 mt-1">
-                タスク詳細画面から「テンプレートとして保存」で作成できます
-              </p>
+              <p className="text-xs text-zinc-400 dark:text-zinc-500 mt-1">{t('emptyHint')}</p>
             </div>
           ) : (
             <div className="grid gap-3">
@@ -291,7 +292,7 @@ export default function ApplyTemplateDialog({ isOpen, onClose, selectedTheme, on
                             </span>
                           )}
                         <span className="text-zinc-300 dark:text-zinc-600">
-                          使用回数: {template.useCount}
+                          {t('useCount', { count: template.useCount })}
                         </span>
                       </div>
                     </div>
@@ -307,38 +308,54 @@ export default function ApplyTemplateDialog({ isOpen, onClose, selectedTheme, on
         {selectedTemplate && (
           <div className="border-t border-zinc-200 dark:border-zinc-800 p-4 bg-zinc-50 dark:bg-zinc-800/50 shrink-0">
             <h4 className="text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-2">
-              テンプレートに含まれる情報
+              {t('previewTitle')}
             </h4>
             <ul className="text-sm text-zinc-500 dark:text-zinc-400 space-y-1">
               {selectedTemplate.templateData.title && (
-                <li>• タイトル: {selectedTemplate.templateData.title}</li>
+                <li>• {t('previewFieldTitle', { value: selectedTemplate.templateData.title })}</li>
               )}
               {selectedTemplate.templateData.priority && (
-                <li>• 優先度: {selectedTemplate.templateData.priority}</li>
+                <li>
+                  • {t('previewFieldPriority', { value: selectedTemplate.templateData.priority })}
+                </li>
               )}
               {selectedTemplate.templateData.estimatedHours && (
                 <li>
-                  • 見積もり時間: {selectedTemplate.templateData.estimatedHours}
-                  時間
+                  •{' '}
+                  {t('previewFieldEstimatedHours', {
+                    value: selectedTemplate.templateData.estimatedHours,
+                  })}
                 </li>
               )}
               {selectedTemplate.templateData.subtasks &&
                 selectedTemplate.templateData.subtasks.length > 0 && (
                   <li>
-                    • サブタスク: {selectedTemplate.templateData.subtasks.length}件
+                    •{' '}
+                    {t('previewFieldSubtasks', {
+                      count: selectedTemplate.templateData.subtasks.length,
+                    })}
                     <ul className="ml-4 mt-1 space-y-0.5 text-xs text-zinc-400 dark:text-zinc-500">
                       {selectedTemplate.templateData.subtasks.slice(0, 3).map((st, idx) => (
                         <li key={idx}>- {st.title}</li>
                       ))}
                       {selectedTemplate.templateData.subtasks.length > 3 && (
-                        <li>...他 {selectedTemplate.templateData.subtasks.length - 3}件</li>
+                        <li>
+                          {t('previewMoreSubtasks', {
+                            count: selectedTemplate.templateData.subtasks.length - 3,
+                          })}
+                        </li>
                       )}
                     </ul>
                   </li>
                 )}
               {selectedTemplate.templateData.labels &&
                 selectedTemplate.templateData.labels.length > 0 && (
-                  <li>• ラベル: {selectedTemplate.templateData.labels.join(', ')}</li>
+                  <li>
+                    •{' '}
+                    {t('previewFieldLabels', {
+                      value: selectedTemplate.templateData.labels.join(', '),
+                    })}
+                  </li>
                 )}
             </ul>
           </div>
@@ -351,7 +368,7 @@ export default function ApplyTemplateDialog({ isOpen, onClose, selectedTheme, on
             onClick={handleClose}
             className="flex-1 px-4 py-2.5 text-sm font-medium text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-xl transition-colors"
           >
-            キャンセル
+            {tc('cancel')}
           </button>
           <button
             type="button"
@@ -359,7 +376,7 @@ export default function ApplyTemplateDialog({ isOpen, onClose, selectedTheme, on
             disabled={!selectedTemplate}
             className="flex-1 px-4 py-2.5 text-sm font-medium text-white bg-violet-600 rounded-xl hover:bg-violet-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            テンプレートを適用
+            {t('title')}
           </button>
         </div>
       </div>

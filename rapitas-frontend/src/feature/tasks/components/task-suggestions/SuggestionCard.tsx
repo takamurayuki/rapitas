@@ -11,6 +11,7 @@ import {
   CheckCircle2,
   Target,
 } from 'lucide-react';
+import { useTranslations } from 'next-intl';
 
 /** Shared shape for a task suggestion coming from the AI API. */
 export type TaskSuggestion = {
@@ -28,24 +29,23 @@ export type TaskSuggestion = {
   suggestedApproach?: string | null;
 };
 
-const CATEGORY_CONFIG: Record<string, { label: string; icon: React.ReactNode; color: string }> = {
+// NOTE: Labels are resolved via t('category.<key>') at render time (see
+// getCategoryConfig below) since this constant can't call the useTranslations
+// hook itself; icon/color stay static.
+const CATEGORY_CONFIG: Record<string, { icon: React.ReactNode; color: string }> = {
   recurring: {
-    label: '定期',
     icon: <Repeat className="w-2.5 h-2.5" />,
     color: 'bg-indigo-100 dark:bg-indigo-900/40 text-indigo-600 dark:text-indigo-400',
   },
   extension: {
-    label: '発展',
     icon: <ArrowRight className="w-2.5 h-2.5" />,
     color: 'bg-green-100 dark:bg-green-900/40 text-green-600 dark:text-green-400',
   },
   improvement: {
-    label: '改善',
     icon: <Wrench className="w-2.5 h-2.5" />,
     color: 'bg-orange-100 dark:bg-orange-900/40 text-orange-600 dark:text-orange-400',
   },
   new: {
-    label: '新規',
     icon: <PlusCircle className="w-2.5 h-2.5" />,
     color: 'bg-purple-100 dark:bg-purple-900/40 text-purple-600 dark:text-purple-400',
   },
@@ -65,6 +65,8 @@ type SuggestionCardProps = {
  * @returns Card element with title, badges, and hover action buttons.
  */
 export function SuggestionCard({ suggestion, onApply, onDismiss, onClick }: SuggestionCardProps) {
+  const t = useTranslations('task.suggestionCard');
+  const tc = useTranslations('common');
   return (
     <div className="group relative rounded-lg bg-white dark:bg-zinc-900/30 border border-zinc-200/60 dark:border-zinc-700/40 hover:border-violet-300 dark:hover:border-violet-500 transition-all duration-200 hover:shadow-sm">
       <div className="flex items-center gap-2 p-2">
@@ -78,9 +80,7 @@ export function SuggestionCard({ suggestion, onApply, onDismiss, onClick }: Sugg
                   }`}
                 >
                   {CATEGORY_CONFIG[suggestion.category]?.icon}
-                  <span className="hidden sm:inline">
-                    {CATEGORY_CONFIG[suggestion.category]?.label}
-                  </span>
+                  <span className="hidden sm:inline">{t(`category.${suggestion.category}`)}</span>
                 </span>
               )}
 
@@ -121,7 +121,7 @@ export function SuggestionCard({ suggestion, onApply, onDismiss, onClick }: Sugg
               onApply();
             }}
             className="p-1 bg-linear-to-r from-indigo-500 to-violet-500 hover:from-indigo-600 hover:to-violet-600 text-white rounded transition-all duration-200 hover:scale-110"
-            title="作成"
+            title={tc('create')}
           >
             <PlusCircle className="w-3 h-3" />
           </button>
@@ -132,7 +132,7 @@ export function SuggestionCard({ suggestion, onApply, onDismiss, onClick }: Sugg
               onDismiss();
             }}
             className="p-1 text-zinc-400 hover:text-rose-500 rounded hover:bg-rose-50 dark:hover:bg-rose-900/20 transition-all duration-200"
-            title="削除"
+            title={tc('delete')}
           >
             <X className="w-3 h-3" />
           </button>

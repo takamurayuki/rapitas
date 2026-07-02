@@ -2,6 +2,12 @@ import { screen, fireEvent, waitFor } from '@testing-library/react';
 import { renderWithProviders } from '@/__tests__/test-utils';
 import { WorkflowFileEditor } from '../WorkflowFileEditor';
 
+// The mock echoes the translation key back, so assertions below match on the
+// key path (e.g. 'fileEditor.preview') rather than the Japanese UI copy.
+vi.mock('next-intl', () => ({
+  useTranslations: () => (key: string) => key,
+}));
+
 vi.mock('@/utils/api', () => ({
   API_BASE_URL: 'http://test:3001',
 }));
@@ -35,7 +41,7 @@ describe('WorkflowFileEditor', () => {
 
   it('disables save until the content is changed (dirty)', () => {
     renderEditor();
-    const save = screen.getByRole('button', { name: /保存/ });
+    const save = screen.getByRole('button', { name: /save/ });
     expect(save).toBeDisabled();
   });
 
@@ -49,7 +55,7 @@ describe('WorkflowFileEditor', () => {
     fireEvent.change(screen.getByRole('textbox'), {
       target: { value: '# Plan\n- step\n- extra' },
     });
-    const save = screen.getByRole('button', { name: /保存/ });
+    const save = screen.getByRole('button', { name: /save/ });
     expect(save).not.toBeDisabled();
     fireEvent.click(save);
 
@@ -69,7 +75,7 @@ describe('WorkflowFileEditor', () => {
     const { onSaved } = renderEditor();
 
     fireEvent.change(screen.getByRole('textbox'), { target: { value: 'changed' } });
-    fireEvent.click(screen.getByRole('button', { name: /保存/ }));
+    fireEvent.click(screen.getByRole('button', { name: /save/ }));
 
     await waitFor(() => expect(mockFetch).toHaveBeenCalled());
     expect(onSaved).not.toHaveBeenCalled();
@@ -77,14 +83,14 @@ describe('WorkflowFileEditor', () => {
 
   it('cancel invokes onCancel', () => {
     const { onCancel } = renderEditor();
-    fireEvent.click(screen.getByRole('button', { name: /キャンセル/ }));
+    fireEvent.click(screen.getByRole('button', { name: /cancel/ }));
     expect(onCancel).toHaveBeenCalledTimes(1);
   });
 
   it('toggles a markdown preview', () => {
     renderEditor();
     expect(screen.getByRole('textbox')).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: /プレビュー/ }));
+    fireEvent.click(screen.getByRole('button', { name: 'fileEditor.preview' }));
     // In preview mode the textarea is replaced by the rendered markdown.
     expect(screen.queryByRole('textbox')).not.toBeInTheDocument();
   });

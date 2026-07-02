@@ -2,6 +2,7 @@
 // ScoreBreakdownSection
 
 import { ChevronDown, ChevronUp, AlertTriangle } from 'lucide-react';
+import { useTranslations } from 'next-intl';
 import type { ScoreBreakdown } from './prompt-optimization-types';
 
 type ScoreBarProps = {
@@ -53,6 +54,7 @@ type Props = {
  * @param props - ScoreBreakdownSection props
  */
 export function ScoreBreakdownSection({ breakdown, showDetails, onToggle }: Props) {
+  const t = useTranslations('devMode.scoreBreakdownSection');
   return (
     <div className="px-6 py-4 border-t border-zinc-200 dark:border-zinc-700">
       <button
@@ -60,41 +62,41 @@ export function ScoreBreakdownSection({ breakdown, showDetails, onToggle }: Prop
         className="flex items-center gap-2 text-sm font-medium text-zinc-700 dark:text-zinc-300 hover:text-zinc-900 dark:hover:text-zinc-100 transition-colors"
       >
         {showDetails ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-        スコア詳細を{showDetails ? '非表示' : '表示'}
+        {t(showDetails ? 'toggleHide' : 'toggleShow')}
       </button>
 
       {showDetails && (
         <div className="mt-4 space-y-3">
           <ScoreBar
-            label="明確性"
+            label={t('clarity')}
             score={breakdown.clarity.score}
             max={20}
             thresholdHigh={15}
             thresholdMid={10}
           />
           <ScoreBar
-            label="完全性"
+            label={t('completeness')}
             score={breakdown.completeness.score}
             max={25}
             thresholdHigh={20}
             thresholdMid={12}
           />
           <ScoreBar
-            label="技術的具体性"
+            label={t('technicalSpecificity')}
             score={breakdown.technicalSpecificity.score}
             max={20}
             thresholdHigh={15}
             thresholdMid={10}
           />
           <ScoreBar
-            label="実行可能性"
+            label={t('executability')}
             score={breakdown.executability.score}
             max={20}
             thresholdHigh={15}
             thresholdMid={10}
           />
           <ScoreBar
-            label="コンテキスト"
+            label={t('context')}
             score={breakdown.context.score}
             max={15}
             thresholdHigh={12}
@@ -107,7 +109,7 @@ export function ScoreBreakdownSection({ breakdown, showDetails, onToggle }: Prop
                 <AlertTriangle className="w-4 h-4 text-amber-500 mt-0.5 shrink-0" />
                 <div>
                   <p className="text-sm font-medium text-amber-700 dark:text-amber-400">
-                    不足している情報:
+                    {t('missingInfo')}
                   </p>
                   <ul className="mt-1 text-sm text-amber-600 dark:text-amber-300 list-disc list-inside">
                     {breakdown.completeness.missing.map((item, i) => (

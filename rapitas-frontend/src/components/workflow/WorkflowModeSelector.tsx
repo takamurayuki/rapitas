@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { ChevronDown, Zap, ArrowRight, Settings, Info, Loader2 } from 'lucide-react';
+import { useTranslations } from 'next-intl';
 import { API_BASE_URL } from '@/utils/api';
 import { createLogger } from '@/lib/logger';
 const logger = createLogger('WorkflowModeSelector');
@@ -19,38 +20,49 @@ export interface WorkflowModeConfig {
   bgColor: string;
 }
 
-const WORKFLOW_MODE_CONFIGS: Record<WorkflowMode, WorkflowModeConfig> = {
-  lightweight: {
-    mode: 'lightweight',
-    name: '簡単モード',
-    description: 'バグ修正、UI調整、軽微な変更に最適',
-    estimatedTime: '15-30分',
-    steps: ['実装', '自動検証'],
-    icon: Zap,
-    color: 'text-green-600 dark:text-green-400',
-    bgColor: 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800/50',
-  },
-  standard: {
-    mode: 'standard',
-    name: '標準モード',
-    description: '中規模機能追加、リファクタリングに最適',
-    estimatedTime: '1-2時間',
-    steps: ['計画作成', '実装', '検証'],
-    icon: ArrowRight,
-    color: 'text-blue-600 dark:text-blue-400',
-    bgColor: 'bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800/50',
-  },
-  comprehensive: {
-    mode: 'comprehensive',
-    name: '高度モード',
-    description: '大規模機能、アーキテクチャ変更に最適',
-    estimatedTime: '3-4時間',
-    steps: ['調査', '計画作成', '実装', '検証'],
-    icon: Settings,
-    color: 'text-purple-600 dark:text-purple-400',
-    bgColor: 'bg-purple-50 dark:bg-purple-900/20 border-purple-200 dark:border-purple-800/50',
-  },
-};
+/**
+ * Builds the mode selector's display config. A function (not a module
+ * constant) because the names/descriptions/steps are translated.
+ *
+ * @param t - Translator scoped to the `workflow` namespace / workflow名前空間のt
+ * @returns Mode → display config map / モードごとの表示設定
+ */
+function getWorkflowModeConfigs(
+  t: ReturnType<typeof useTranslations<'workflow'>>,
+): Record<WorkflowMode, WorkflowModeConfig> {
+  return {
+    lightweight: {
+      mode: 'lightweight',
+      name: t('modeSelector.lightweightName'),
+      description: t('modeLightweightDesc'),
+      estimatedTime: t('modeSelector.lightweightTime'),
+      steps: [t('stepImplement'), t('stepVerify')],
+      icon: Zap,
+      color: 'text-green-600 dark:text-green-400',
+      bgColor: 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800/50',
+    },
+    standard: {
+      mode: 'standard',
+      name: t('modeSelector.standardName'),
+      description: t('modeStandardDesc'),
+      estimatedTime: t('modeSelector.standardTime'),
+      steps: [t('stepPlan'), t('stepImplement'), t('stepVerifyFull')],
+      icon: ArrowRight,
+      color: 'text-blue-600 dark:text-blue-400',
+      bgColor: 'bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800/50',
+    },
+    comprehensive: {
+      mode: 'comprehensive',
+      name: t('modeSelector.comprehensiveName'),
+      description: t('modeComprehensiveDesc'),
+      estimatedTime: t('modeSelector.comprehensiveTime'),
+      steps: [t('stepResearch'), t('stepPlan'), t('stepImplement'), t('stepVerifyFull')],
+      icon: Settings,
+      color: 'text-purple-600 dark:text-purple-400',
+      bgColor: 'bg-purple-50 dark:bg-purple-900/20 border-purple-200 dark:border-purple-800/50',
+    },
+  };
+}
 
 export interface WorkflowModeSelectorProps {
   taskId: number;
@@ -71,6 +83,9 @@ export default function WorkflowModeSelector({
   showAnalyzeButton = true,
   className = '',
 }: WorkflowModeSelectorProps) {
+  const t = useTranslations('workflow');
+  const tc = useTranslations('common');
+  const WORKFLOW_MODE_CONFIGS = getWorkflowModeConfigs(t);
   const [selectedMode, setSelectedMode] = useState<WorkflowMode>(currentMode || 'comprehensive');
   const [isOpen, setIsOpen] = useState(false);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
@@ -149,7 +164,7 @@ export default function WorkflowModeSelector({
                   </h3>
                   {isOverridden && (
                     <span className="px-2 py-0.5 bg-amber-100 dark:bg-amber-800/50 text-amber-700 dark:text-amber-300 text-xs font-medium rounded-full">
-                      手動設定
+                      {t('modeSelector.manualSetting')}
                     </span>
                   )}
                 </div>
@@ -157,8 +172,12 @@ export default function WorkflowModeSelector({
                   {currentConfig.description}
                 </p>
                 <div className="flex items-center gap-4 mt-2 text-xs text-zinc-500 dark:text-zinc-400">
-                  <span>実行時間: {currentConfig.estimatedTime}</span>
-                  <span>ステップ: {currentConfig.steps.join(' → ')}</span>
+                  <span>
+                    {t('modeSelector.executionTimeLabel')} {currentConfig.estimatedTime}
+                  </span>
+                  <span>
+                    {t('modeSelector.stepsLabel')} {currentConfig.steps.join(' → ')}
+                  </span>
                 </div>
               </div>
             </div>
@@ -170,14 +189,14 @@ export default function WorkflowModeSelector({
                   onClick={handleAnalyze}
                   disabled={disabled || isAnalyzing || isUpdating}
                   className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-zinc-600 dark:text-zinc-400 hover:text-zinc-800 dark:hover:text-zinc-200 bg-white dark:bg-zinc-700 border border-zinc-200 dark:border-zinc-600 rounded-md hover:bg-zinc-50 dark:hover:bg-zinc-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                  title="タスクの複雑度を自動分析してモードを提案"
+                  title={t('modeSelector.autoAnalyzeHint')}
                 >
                   {isAnalyzing ? (
                     <Loader2 className="h-3 w-3 animate-spin" />
                   ) : (
                     <Info className="h-3 w-3" />
                   )}
-                  自動分析
+                  {t('autoAnalyze')}
                 </button>
               )}
 
@@ -191,7 +210,7 @@ export default function WorkflowModeSelector({
                   <Loader2 className="h-3 w-3 animate-spin" />
                 ) : (
                   <>
-                    変更
+                    {tc('change')}
                     <ChevronDown
                       className={`h-3 w-3 transition-transform ${isOpen ? 'rotate-180' : ''}`}
                     />
@@ -206,7 +225,7 @@ export default function WorkflowModeSelector({
         {isOpen && (
           <div className="space-y-2 bg-white dark:bg-zinc-800 rounded-lg border border-zinc-200 dark:border-zinc-700 p-3 shadow-lg">
             <h4 className="text-sm font-medium text-zinc-900 dark:text-zinc-100 mb-2">
-              ワークフローモードを選択
+              {t('modeSelector.selectMode')}
             </h4>
             {(Object.entries(WORKFLOW_MODE_CONFIGS) as [WorkflowMode, WorkflowModeConfig][]).map(
               ([mode, config]) => {
@@ -240,7 +259,9 @@ export default function WorkflowModeSelector({
                             {config.name}
                           </span>
                           {isSelected && (
-                            <span className="text-xs text-zinc-500 dark:text-zinc-400">(現在)</span>
+                            <span className="text-xs text-zinc-500 dark:text-zinc-400">
+                              {t('modeSelector.current')}
+                            </span>
                           )}
                         </div>
                         <p className="text-xs text-zinc-600 dark:text-zinc-400 mt-0.5">
@@ -262,7 +283,7 @@ export default function WorkflowModeSelector({
                 onClick={() => setIsOpen(false)}
                 className="w-full px-3 py-1.5 text-xs text-zinc-500 dark:text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 text-center"
               >
-                閉じる
+                {tc('close')}
               </button>
             </div>
           </div>

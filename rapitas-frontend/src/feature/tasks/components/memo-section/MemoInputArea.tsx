@@ -2,6 +2,7 @@
 // MemoInputArea
 
 import { Loader2, Plus, Zap } from 'lucide-react';
+import { useTranslations } from 'next-intl';
 import type { MemoType } from './types';
 import { MEMO_TYPE_CONFIG } from './types';
 
@@ -35,11 +36,12 @@ export function MemoInputArea({
   onSubmit,
   onOpenTemplates,
 }: MemoInputAreaProps) {
+  const t = useTranslations('task.memoInputArea');
   return (
     <div className="space-y-2 mb-3">
       {/* Memo Type Selector & Template Button */}
       <div className="flex items-center gap-2 px-1">
-        <span className="text-[10px] text-zinc-500">種類:</span>
+        <span className="text-[10px] text-zinc-500">{t('typeLabel')}</span>
         <div className="flex gap-1">
           {(Object.keys(MEMO_TYPE_CONFIG) as MemoType[]).map((type) => {
             const config = MEMO_TYPE_CONFIG[type];
@@ -66,10 +68,10 @@ export function MemoInputArea({
         <button
           onClick={onOpenTemplates}
           className="flex items-center gap-1 px-2 py-0.5 text-[10px] text-violet-600 dark:text-violet-400 bg-violet-50 dark:bg-violet-900/20 border border-violet-200 dark:border-violet-800 rounded-full hover:bg-violet-100 dark:hover:bg-violet-900/30 transition-colors"
-          title="テンプレートを使用"
+          title={t('useTemplateTooltip')}
         >
           <Zap className="w-2.5 h-2.5" />
-          テンプレート
+          {t('template')}
         </button>
       </div>
 
@@ -85,7 +87,9 @@ export function MemoInputArea({
                 onSubmit();
               }
             }}
-            placeholder={`${MEMO_TYPE_CONFIG[selectedMemoType].label}メモを追加...（Shift+Enterで改行）`}
+            placeholder={t('addMemoPlaceholder', {
+              type: MEMO_TYPE_CONFIG[selectedMemoType].label,
+            })}
             className={`w-full px-2.5 py-2 text-xs bg-zinc-50 dark:bg-zinc-800 border rounded-lg outline-none focus:ring-1 placeholder:text-zinc-400 resize-none transition-colors ${
               selectedMemoType !== 'general'
                 ? `${MEMO_TYPE_CONFIG[selectedMemoType].color.border} focus:border-current focus:ring-current/30`

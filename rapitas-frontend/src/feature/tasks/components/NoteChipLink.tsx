@@ -12,6 +12,7 @@
 
 import { useParams, useRouter } from 'next/navigation';
 import { NotebookPen } from 'lucide-react';
+import { useTranslations } from 'next-intl';
 import { useNoteStore } from '@/stores/note-store';
 
 interface Props {
@@ -35,10 +36,11 @@ interface Props {
  * @param props.fallbackTitle - Text to show when the note cannot be found.
  */
 export function NoteChipLink({ noteId, taskId: propTaskId, fallbackTitle }: Props) {
+  const t = useTranslations('task.noteChipLink');
   const router = useRouter();
   const params = useParams();
   const note = useNoteStore((s) => s.notes.find((n) => n.id === noteId));
-  const title = note?.title || fallbackTitle || '(無題)';
+  const title = note?.title || fallbackTitle || t('untitled');
 
   // Prefer the taskId encoded in the link; fall back to current route params (old format).
   const taskId = propTaskId || (params?.id as string | undefined);
@@ -56,7 +58,7 @@ export function NoteChipLink({ noteId, taskId: propTaskId, fallbackTitle }: Prop
     <button
       type="button"
       onClick={handleClick}
-      title={`ノート「${title}」を開く`}
+      title={t('openTooltip', { title })}
       className="inline-flex items-center gap-1 rounded border border-blue-200 bg-blue-50 px-1.5 py-0.5 text-sm font-medium text-blue-700 transition-colors hover:bg-blue-100 dark:border-blue-800 dark:bg-blue-950/30 dark:text-blue-300 dark:hover:bg-blue-900/40"
     >
       <NotebookPen className="h-3.5 w-3.5 shrink-0" />

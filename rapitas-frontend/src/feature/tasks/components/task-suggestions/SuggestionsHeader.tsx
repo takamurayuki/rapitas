@@ -2,6 +2,7 @@
 // SuggestionsHeader
 
 import { ChevronDown, Sparkles, RefreshCw, X } from 'lucide-react';
+import { useTranslations } from 'next-intl';
 import { SkeletonBlock } from '@/components/ui/LoadingSpinner';
 
 type SuggestionsHeaderProps = {
@@ -38,6 +39,7 @@ export function SuggestionsHeader({
   onRefresh,
   onClear,
 }: SuggestionsHeaderProps) {
+  const t = useTranslations('task.suggestionsHeader');
   return (
     <div
       onClick={onHeaderClick}
@@ -49,7 +51,7 @@ export function SuggestionsHeader({
         <div className="flex items-center gap-1">
           <Sparkles className="w-3 h-3 text-violet-500 dark:text-violet-400" />
           <span className="text-[11px] font-medium text-zinc-600 dark:text-zinc-400">
-            AIタスク提案
+            {t('title')}
           </span>
         </div>
         {hasSuggestions && (
@@ -69,10 +71,10 @@ export function SuggestionsHeader({
               onGenerate();
             }}
             className="group flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-medium transition-all duration-200 bg-linear-to-r from-violet-500 to-indigo-500 text-white hover:from-violet-600 hover:to-indigo-600 shadow-sm hover:shadow-md transform hover:scale-105"
-            title="AI提案を生成"
+            title={t('generateTooltip')}
           >
             <Sparkles className="w-3 h-3 group-hover:rotate-12 transition-transform duration-200" />
-            <span>提案を生成</span>
+            <span>{t('generate')}</span>
           </button>
         )}
 
@@ -94,7 +96,7 @@ export function SuggestionsHeader({
                 onRefresh();
               }}
               className="p-1 rounded hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-500 dark:text-zinc-400 hover:text-violet-600 dark:hover:text-violet-400 transition-all duration-200"
-              title="再生成"
+              title={t('regenerate')}
             >
               <RefreshCw className="w-3 h-3" />
             </button>
@@ -105,7 +107,7 @@ export function SuggestionsHeader({
                 onClear();
               }}
               className="p-1 rounded hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-400 dark:text-zinc-500 hover:text-rose-500 dark:hover:text-rose-400 transition-all duration-200"
-              title="クリア"
+              title={t('clear')}
             >
               <X className="w-3 h-3" />
             </button>

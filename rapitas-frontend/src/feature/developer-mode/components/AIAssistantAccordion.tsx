@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useCallback, useEffect, useRef } from 'react';
+import { useTranslations } from 'next-intl';
 import {
   BrainCircuit,
   Bot,
@@ -117,6 +118,7 @@ export function AIAssistantAccordion({
   getSubtaskStatus,
   onRefreshSubtaskLogs,
 }: Props) {
+  const t = useTranslations('devMode.aiAssistantAccordion');
   const [isExpanded, setIsExpanded] = useState(false);
   const [localOptimizedPrompt, setLocalOptimizedPrompt] = useState<string | null>(
     optimizedPrompt || null,
@@ -222,10 +224,8 @@ export function AIAssistantAccordion({
               <BrainCircuit className="w-5 h-5 text-violet-600 dark:text-violet-400" />
             </div>
             <div>
-              <h2 className="font-bold text-lg text-zinc-900 dark:text-zinc-50">AI アシスタント</h2>
-              <p className="text-xs text-zinc-500 dark:text-zinc-400">
-                タスク分析・プロンプト最適化・自動実装
-              </p>
+              <h2 className="font-bold text-lg text-zinc-900 dark:text-zinc-50">{t('title')}</h2>
+              <p className="text-xs text-zinc-500 dark:text-zinc-400">{t('subtitle')}</p>
             </div>
           </div>
 
@@ -233,21 +233,21 @@ export function AIAssistantAccordion({
             {config?.isEnabled && (
               <span className="flex items-center gap-1 px-2 py-1 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 rounded-full text-xs font-medium">
                 <CheckCircle2 className="w-3 h-3" />
-                準備完了
+                {t('ready')}
               </span>
             )}
 
             {localOptimizedPrompt && (
               <span className="flex items-center gap-1 px-2 py-1 bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300 rounded-full text-xs font-medium">
                 <Sparkles className="w-3 h-3" />
-                最適化済み
+                {t('optimized')}
               </span>
             )}
 
             {isExecuting && (
               <span className="flex items-center gap-1 px-2 py-1 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 rounded-full text-xs font-medium animate-pulse">
                 <Loader2 className="w-3 h-3 animate-spin" />
-                実行中
+                {t('running')}
               </span>
             )}
 
@@ -257,7 +257,7 @@ export function AIAssistantAccordion({
                 onOpenSettings();
               }}
               className="p-2 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-lg transition-colors"
-              title="設定"
+              title={t('settings')}
             >
               <Settings className="w-4 h-4" />
             </button>
@@ -331,7 +331,7 @@ export function AIAssistantAccordion({
             onMouseDown={handleResizeStart}
             className={`shrink-0 h-5 flex items-center justify-center bg-zinc-100 dark:bg-indigo-dark-800 border-t border-zinc-200 dark:border-zinc-700 hover:bg-violet-100 dark:hover:bg-violet-900/30 transition-colors group select-none touch-none ${isResizing ? 'bg-violet-200 dark:bg-violet-900/50' : ''}`}
             style={{ cursor: 'ns-resize' }}
-            title="ドラッグしてサイズを変更"
+            title={t('dragToResize')}
           >
             <div className="flex items-center gap-0.5">
               <div

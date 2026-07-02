@@ -14,6 +14,7 @@ import {
   XCircle,
   AlertTriangle,
 } from 'lucide-react';
+import { useTranslations } from 'next-intl';
 import { ExecutionLogViewer, type ExecutionLogStatus } from './ExecutionLogViewer';
 
 /** Workflow phase definition */
@@ -46,32 +47,27 @@ interface WorkflowLogViewerProps {
   maxHeight?: number;
 }
 
-/** Phase display config */
+/** Phase display config (labels are resolved via translation at render time). */
 const PHASE_CONFIG: Record<
   WorkflowPhase,
   {
-    label: string;
     icon: React.ElementType;
     keywords: string[];
   }
 > = {
   research: {
-    label: '調査フェーズ',
     icon: Search,
     keywords: ['[research]', '調査', 'research_done', '依存関係を分析', '影響範囲'],
   },
   plan: {
-    label: '計画フェーズ',
     icon: FileText,
     keywords: ['[plan]', '計画', 'plan_created', 'plan_approved', '自動承認', '実装計画'],
   },
   implement: {
-    label: '実装フェーズ',
     icon: Wrench,
     keywords: ['[implement]', '実装', 'in_progress', '編集中', 'テストを実行', 'コミット'],
   },
   verify: {
-    label: '検証フェーズ',
     icon: CheckCircle2,
     keywords: ['[verify]', '検証', 'verify', '完了', 'completed'],
   },
@@ -162,20 +158,20 @@ function PhaseStatusIcon({ status }: { status: PhaseStatus }) {
 }
 
 /** Phase status label */
-function getStatusLabel(status: PhaseStatus): string {
+function getStatusLabel(status: PhaseStatus, t: (key: string) => string): string {
   switch (status) {
     case 'completed':
-      return '完了';
+      return t('statusLabels.completed');
     case 'approved':
-      return '承認済';
+      return t('statusLabels.approved');
     case 'running':
-      return '実行中';
+      return t('statusLabels.running');
     case 'waiting':
-      return '待機中';
+      return t('statusLabels.waiting');
     case 'failed':
-      return '失敗';
+      return t('statusLabels.failed');
     case 'skipped':
-      return 'スキップ';
+      return t('statusLabels.skipped');
   }
 }
 
@@ -190,6 +186,7 @@ export function WorkflowLogViewer({
   isRunning = false,
   maxHeight = 300,
 }: WorkflowLogViewerProps) {
+  const t = useTranslations('devMode.workflowLogViewer');
   const [expandedPhases, setExpandedPhases] = useState<Set<WorkflowPhase>>(
     new Set(['research', 'plan', 'implement', 'verify']),
   );
@@ -304,7 +301,7 @@ export function WorkflowLogViewer({
                       : 'text-zinc-400'
                 }`}
               >
-                {config.label}
+                {t(`phaseLabels.${phase}`)}
               </span>
               <div className="ml-auto flex items-center gap-2">
                 {phaseLogs.length > 0 && (
@@ -324,7 +321,7 @@ export function WorkflowLogViewer({
                           : 'text-zinc-500'
                   }`}
                 >
-                  {getStatusLabel(status)}
+                  {getStatusLabel(status, t)}
                 </span>
               </div>
             </button>
@@ -343,7 +340,7 @@ export function WorkflowLogViewer({
             )}
 
             {isExpanded && phaseLogs.length === 0 && status !== 'waiting' && (
-              <div className="px-4 pb-2 text-[10px] text-zinc-500 italic">ログなし</div>
+              <div className="px-4 pb-2 text-[10px] text-zinc-500 italic">{t('noLogs')}</div>
             )}
           </div>
         );

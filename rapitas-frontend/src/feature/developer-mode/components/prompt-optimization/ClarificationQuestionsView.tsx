@@ -1,6 +1,7 @@
 'use client';
 // ClarificationQuestionsView
 
+import { useTranslations } from 'next-intl';
 import { Loader2, MessageSquare, HelpCircle, Send } from 'lucide-react';
 import type { PromptClarificationQuestion } from './prompt-optimization-types';
 import { getCategoryLabel, getCategoryColor } from './prompt-optimization-types';
@@ -29,6 +30,9 @@ export function ClarificationQuestionsView({
   onCancel,
   className = '',
 }: Props) {
+  const t = useTranslations('devMode.clarificationQuestionsView');
+  const tCategory = useTranslations('devMode.promptOptimizationTypes');
+  const tCommon = useTranslations('common');
   return (
     <div
       className={`bg-white dark:bg-indigo-dark-900 rounded-xl border border-amber-200 dark:border-amber-700 overflow-hidden ${className}`}
@@ -39,10 +43,8 @@ export function ClarificationQuestionsView({
             <HelpCircle className="w-5 h-5 text-amber-600 dark:text-amber-400" />
           </div>
           <div>
-            <h3 className="font-semibold text-zinc-900 dark:text-zinc-50">追加情報が必要です</h3>
-            <p className="text-sm text-zinc-600 dark:text-zinc-400">
-              より良いプロンプトを生成するために、以下の質問に回答してください
-            </p>
+            <h3 className="font-semibold text-zinc-900 dark:text-zinc-50">{t('title')}</h3>
+            <p className="text-sm text-zinc-600 dark:text-zinc-400">{t('subtitle')}</p>
           </div>
         </div>
       </div>
@@ -57,9 +59,9 @@ export function ClarificationQuestionsView({
                   <span className="font-medium text-zinc-900 dark:text-zinc-50 text-sm">
                     {q.question}
                   </span>
-                  {q.isRequired && <span className="text-xs text-red-500">*必須</span>}
+                  {q.isRequired && <span className="text-xs text-red-500">{t('required')}</span>}
                   <span className={`px-1.5 py-0.5 text-xs rounded ${getCategoryColor(q.category)}`}>
-                    {getCategoryLabel(q.category)}
+                    {getCategoryLabel(q.category, tCategory)}
                   </span>
                 </div>
                 {q.options && q.options.length > 0 ? (
@@ -83,7 +85,7 @@ export function ClarificationQuestionsView({
                     type="text"
                     value={answers[q.id] || ''}
                     onChange={(e) => onAnswerChange(q.id, e.target.value)}
-                    placeholder="回答を入力..."
+                    placeholder={t('answerPlaceholder')}
                     className="w-full mt-1 px-3 py-2 bg-white dark:bg-indigo-dark-800 border border-zinc-200 dark:border-zinc-700 rounded-lg text-sm focus:outline-none focus:border-indigo-400"
                   />
                 )}
@@ -98,7 +100,7 @@ export function ClarificationQuestionsView({
           onClick={onCancel}
           className="px-4 py-2 text-sm font-medium text-zinc-600 dark:text-zinc-400 hover:text-zinc-800 dark:hover:text-zinc-200 transition-colors"
         >
-          キャンセル
+          {tCommon('cancel')}
         </button>
         <button
           onClick={onSubmit}
@@ -110,7 +112,7 @@ export function ClarificationQuestionsView({
           ) : (
             <Send className="w-4 h-4" />
           )}
-          回答を送信
+          {t('submitAnswers')}
         </button>
       </div>
     </div>

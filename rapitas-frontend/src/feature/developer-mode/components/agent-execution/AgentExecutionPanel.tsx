@@ -2,6 +2,7 @@
 // AgentExecutionPanel
 
 import React from 'react';
+import { useTranslations } from 'next-intl';
 import type { ExecutionStatus, ExecutionResult } from '../../hooks/useDeveloperMode';
 import { ExecutionLogViewer, type ExecutionLogStatus } from '../ExecutionLogViewer';
 import { SubtaskLogTabs } from '../SubtaskLogTabs';
@@ -63,6 +64,7 @@ export type Props = {
  * @param props - See Props type
  */
 export function AgentExecutionPanel(props: Props) {
+  const t = useTranslations('devMode.agentExecutionPanel');
   const {
     taskId,
     isExecuting,
@@ -237,7 +239,7 @@ export function AgentExecutionPanel(props: Props) {
   if (isFailed) {
     return (
       <ExecutionFailedPanel
-        errorMessage={error || executionResult?.error || '不明なErrorが発生しました'}
+        errorMessage={error || executionResult?.error || t('unknownError')}
         pollingTokensUsed={pollingTokensUsed}
         isExecuting={isExecuting}
         logsNode={buildLogsNode(false)}

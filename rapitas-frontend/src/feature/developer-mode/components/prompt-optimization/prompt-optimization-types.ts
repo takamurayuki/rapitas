@@ -62,22 +62,24 @@ export type OptimizedPromptResult = {
 // ─── Category helpers ────────────────────────────────────────────────────────
 
 /**
- * Returns the Japanese display label for a question category.
+ * Returns the display label for a question category.
  *
  * @param category - Category key / カテゴリキー
- * @returns Japanese label string
+ * @param t - Translation function from `useTranslations('devMode.promptOptimizationTypes')` / 翻訳関数
+ * @returns Localized label string
  */
-export const getCategoryLabel = (category: string): string => {
-  const labels: Record<string, string> = {
-    scope: 'スコープ',
-    technical: '技術的',
-    requirements: '要件',
-    constraints: '制約',
-    integration: '統合',
-    testing: 'テスト',
-    deliverables: '成果物',
+export const getCategoryLabel = (category: string, t: (key: string) => string): string => {
+  const keys: Record<string, string> = {
+    scope: 'category.scope',
+    technical: 'category.technical',
+    requirements: 'category.requirements',
+    constraints: 'category.constraints',
+    integration: 'category.integration',
+    testing: 'category.testing',
+    deliverables: 'category.deliverables',
   };
-  return labels[category] || category;
+  const key = keys[category];
+  return key ? t(key) : category;
 };
 
 /**

@@ -10,6 +10,7 @@
  */
 
 import { X } from 'lucide-react';
+import { useTranslations } from 'next-intl';
 import { WEEKDAYS } from './recurrence-utils';
 
 /** Props for RecurrenceCustomForm. */
@@ -53,10 +54,12 @@ export function RecurrenceCustomForm({
   onApply,
   onBack,
 }: RecurrenceCustomFormProps) {
+  const t = useTranslations('task');
+  const tc = useTranslations('common');
   return (
     <div className="p-3 space-y-3">
       <div className="flex items-center justify-between">
-        <span className="text-sm font-medium">カスタム設定</span>
+        <span className="text-sm font-medium">{t('recurrenceCustomForm.customSettingsTitle')}</span>
         <button
           type="button"
           onClick={onBack}
@@ -68,7 +71,9 @@ export function RecurrenceCustomForm({
 
       {/* Frequency */}
       <div>
-        <label className="text-xs text-zinc-500 dark:text-zinc-400">頻度</label>
+        <label className="text-xs text-zinc-500 dark:text-zinc-400">
+          {t('recurrenceCustomForm.frequencyLabel')}
+        </label>
         <div className="flex gap-1 mt-1">
           {(['DAILY', 'WEEKLY', 'MONTHLY'] as const).map((f) => (
             <button
@@ -81,7 +86,11 @@ export function RecurrenceCustomForm({
                   : 'bg-zinc-100 dark:bg-zinc-700 text-zinc-600 dark:text-zinc-400'
               }`}
             >
-              {f === 'DAILY' ? '日' : f === 'WEEKLY' ? '週' : '月'}
+              {f === 'DAILY'
+                ? t('recurrenceCustomForm.frequencyDaily')
+                : f === 'WEEKLY'
+                  ? t('recurrenceCustomForm.frequencyWeekly')
+                  : t('recurrenceCustomForm.frequencyMonthly')}
             </button>
           ))}
         </div>
@@ -89,7 +98,9 @@ export function RecurrenceCustomForm({
 
       {/* Interval */}
       <div>
-        <label className="text-xs text-zinc-500 dark:text-zinc-400">間隔</label>
+        <label className="text-xs text-zinc-500 dark:text-zinc-400">
+          {t('recurrenceCustomForm.intervalLabel')}
+        </label>
         <div className="flex items-center gap-2 mt-1">
           <input
             type="number"
@@ -100,7 +111,11 @@ export function RecurrenceCustomForm({
             className="w-16 px-2 py-1 text-sm rounded-lg border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-800"
           />
           <span className="text-sm text-zinc-600 dark:text-zinc-400">
-            {customFreq === 'DAILY' ? '日ごと' : customFreq === 'WEEKLY' ? '週ごと' : 'ヶ月ごと'}
+            {customFreq === 'DAILY'
+              ? t('recurrenceCustomForm.intervalUnitDaily')
+              : customFreq === 'WEEKLY'
+                ? t('recurrenceCustomForm.intervalUnitWeekly')
+                : t('recurrenceCustomForm.intervalUnitMonthly')}
           </span>
         </div>
       </div>
@@ -108,7 +123,9 @@ export function RecurrenceCustomForm({
       {/* Weekdays (only for WEEKLY) */}
       {customFreq === 'WEEKLY' && (
         <div>
-          <label className="text-xs text-zinc-500 dark:text-zinc-400">曜日</label>
+          <label className="text-xs text-zinc-500 dark:text-zinc-400">
+            {t('recurrenceCustomForm.weekdayLabel')}
+          </label>
           <div className="flex gap-1 mt-1">
             {WEEKDAYS.map((day) => (
               <button
@@ -130,7 +147,9 @@ export function RecurrenceCustomForm({
 
       {/* End date */}
       <div>
-        <label className="text-xs text-zinc-500 dark:text-zinc-400">終了日（任意）</label>
+        <label className="text-xs text-zinc-500 dark:text-zinc-400">
+          {t('recurrenceCustomForm.endDateLabel')}
+        </label>
         <input
           type="date"
           value={endDate}
@@ -141,7 +160,9 @@ export function RecurrenceCustomForm({
 
       {/* Execution time */}
       <div>
-        <label className="text-xs text-zinc-500 dark:text-zinc-400">実行時刻</label>
+        <label className="text-xs text-zinc-500 dark:text-zinc-400">
+          {t('recurrenceCustomForm.executionTimeLabel')}
+        </label>
         <input
           type="time"
           value={recurrenceTime}
@@ -160,7 +181,7 @@ export function RecurrenceCustomForm({
             className="w-4 h-4 rounded border-zinc-300 dark:border-zinc-600 text-indigo-500 focus:ring-indigo-500"
           />
           <span className="text-zinc-600 dark:text-zinc-400">
-            前回の実行履歴を継承（research/plan/verify.md）
+            {t('recurrenceCustomForm.inheritWorkflowLabel')}
           </span>
         </label>
       </div>
@@ -168,7 +189,9 @@ export function RecurrenceCustomForm({
       {/* Preview */}
       {previewDates.length > 0 && (
         <div>
-          <label className="text-xs text-zinc-500 dark:text-zinc-400">プレビュー</label>
+          <label className="text-xs text-zinc-500 dark:text-zinc-400">
+            {t('recurrenceCustomForm.previewLabel')}
+          </label>
           <div className="mt-1 text-xs text-zinc-600 dark:text-zinc-400 space-y-0.5">
             {previewDates.slice(0, 5).map((date, i) => (
               <div key={i}>
@@ -190,7 +213,7 @@ export function RecurrenceCustomForm({
         disabled={loading}
         className="w-full py-2 text-sm font-medium bg-indigo-500 text-white rounded-lg hover:bg-indigo-600 transition-colors disabled:opacity-50"
       >
-        {loading ? '保存中...' : '適用'}
+        {loading ? tc('saving') : t('recurrenceCustomForm.applyButton')}
       </button>
     </div>
   );

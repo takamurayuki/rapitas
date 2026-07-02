@@ -12,17 +12,19 @@ import {
   Send,
   Sparkles,
 } from 'lucide-react';
+import { useTranslations } from 'next-intl';
 import type { OptimizedPromptResult } from './types';
 
 /** Returns a human-readable category label for a clarification question. */
-function getCategoryLabel(category: string): string {
-  const labels: Record<string, string> = {
-    scope: 'スコープ',
-    technical: '技術的',
-    requirements: '要件',
-    constraints: '制約',
+function getCategoryLabel(category: string, t: (key: string) => string): string {
+  const keys: Record<string, string> = {
+    scope: 'categories.scope',
+    technical: 'categories.technical',
+    requirements: 'categories.requirements',
+    constraints: 'categories.constraints',
   };
-  return labels[category] ?? category;
+  const key = keys[category];
+  return key ? t(key) : category;
 }
 
 /** Returns Tailwind badge classes keyed on question category. */
@@ -77,11 +79,12 @@ export function PromptOptimizationTab({
   onCopy,
   onUse,
 }: Props) {
+  const t = useTranslations('devMode.promptOptimizationTab');
   if (isGeneratingPrompt) {
     return (
       <div className="flex items-center gap-3 p-4 bg-zinc-50 dark:bg-indigo-dark-800/50 rounded-lg">
         <Loader2 className="w-5 h-5 text-indigo-500 animate-spin" />
-        <span className="text-sm text-zinc-600 dark:text-zinc-400">プロンプトを最適化中...</span>
+        <span className="text-sm text-zinc-600 dark:text-zinc-400">{t('optimizing')}</span>
       </div>
     );
   }
@@ -100,7 +103,7 @@ export function PromptOptimizationTab({
           }}
           className="text-sm text-red-600 hover:text-red-700 font-medium"
         >
-          再試行
+          {t('retry')}
         </button>
       </div>
     );
@@ -111,7 +114,7 @@ export function PromptOptimizationTab({
       <div className="space-y-3">
         <div className="flex items-center gap-2 text-amber-600 dark:text-amber-400">
           <HelpCircle className="w-4 h-4" />
-          <span className="text-sm font-medium">追加情報が必要です</span>
+          <span className="text-sm font-medium">{t('needMoreInfo')}</span>
         </div>
         {promptResult.clarificationQuestions.map((q) => (
           <div key={q.id} className="p-3 bg-amber-50 dark:bg-amber-900/20 rounded-lg">
@@ -119,9 +122,9 @@ export function PromptOptimizationTab({
               <span className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
                 {q.question}
               </span>
-              {q.isRequired && <span className="text-xs text-red-500">*必須</span>}
+              {q.isRequired && <span className="text-xs text-red-500">{t('required')}</span>}
               <span className={`px-1.5 py-0.5 text-xs rounded ${getCategoryColor(q.category)}`}>
-                {getCategoryLabel(q.category)}
+                {getCategoryLabel(q.category, t)}
               </span>
             </div>
             {q.options ? (
@@ -150,7 +153,7 @@ export function PromptOptimizationTab({
                     [q.id]: e.target.value,
                   }))
                 }
-                placeholder="回答を入力..."
+                placeholder={t('answerPlaceholder')}
                 className="w-full px-3 py-1.5 bg-white dark:bg-indigo-dark-800 border border-zinc-200 dark:border-zinc-700 rounded text-sm"
               />
             )}
@@ -161,7 +164,7 @@ export function PromptOptimizationTab({
             onClick={() => setPromptResult(null)}
             className="px-3 py-1.5 text-sm text-zinc-600 dark:text-zinc-400"
           >
-            キャンセル
+            {t('cancel')}
           </button>
           <button
             onClick={onSubmitAnswers}
@@ -173,7 +176,7 @@ export function PromptOptimizationTab({
             ) : (
               <Send className="w-3 h-3" />
             )}
-            送信
+            {t('submit')}
           </button>
         </div>
       </div>
@@ -186,9 +189,11 @@ export function PromptOptimizationTab({
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <CheckCircle2 className="w-4 h-4 text-green-500" />
-            <span className="text-sm font-medium text-zinc-700 dark:text-zinc-300">最適化完了</span>
+            <span className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
+              {t('optimizationComplete')}
+            </span>
             <span className={`text-sm ${getQualityColor(promptResult.promptQuality.score)}`}>
-              (スコア: {promptResult.promptQuality.score}/100)
+              {t('scoreParenthetical', { score: promptResult.promptQuality.score })}
             </span>
           </div>
           <div className="flex items-center gap-1">
@@ -208,14 +213,14 @@ export function PromptOptimizationTab({
             }}
             className="text-sm text-zinc-500 hover:text-zinc-700"
           >
-            再生成
+            {t('regenerate')}
           </button>
           <button
             onClick={onUse}
             className="flex items-center gap-1 px-3 py-1.5 bg-green-600 hover:bg-green-700 text-white text-sm font-medium rounded transition-colors"
           >
             <Sparkles className="w-3 h-3" />
-            使用する
+            {t('use')}
           </button>
         </div>
       </div>
@@ -225,15 +230,13 @@ export function PromptOptimizationTab({
   return (
     <div className="text-center py-6">
       <Wand2 className="w-10 h-10 text-zinc-300 dark:text-zinc-600 mx-auto mb-3" />
-      <p className="text-sm text-zinc-500 dark:text-zinc-400 mb-4">
-        タスク説明をAIエージェント向けに最適化します
-      </p>
+      <p className="text-sm text-zinc-500 dark:text-zinc-400 mb-4">{t('idleHint')}</p>
       <button
         onClick={onGenerate}
         className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium rounded-lg transition-colors"
       >
         <Sparkles className="w-4 h-4" />
-        プロンプトを生成
+        {t('generatePrompt')}
       </button>
     </div>
   );

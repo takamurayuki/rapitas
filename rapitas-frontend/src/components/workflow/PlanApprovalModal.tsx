@@ -6,6 +6,7 @@ import { useWorkflowApproval } from '@/hooks/workflow/useWorkflowApproval';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { X, CheckCircle, AlertTriangle, FileText, Loader2 } from 'lucide-react';
+import { useTranslations } from 'next-intl';
 
 export interface PlanApprovalModalProps {
   isOpen: boolean;
@@ -22,6 +23,8 @@ export default function PlanApprovalModal({
   planFile,
   onApprovalComplete,
 }: PlanApprovalModalProps) {
+  const t = useTranslations('workflow');
+  const tc = useTranslations('common');
   const [showRejectReason, setShowRejectReason] = useState(false);
   const [rejectReason, setRejectReason] = useState('');
 
@@ -78,7 +81,7 @@ export default function PlanApprovalModal({
             <div className="flex items-center space-x-2">
               <FileText className="h-6 w-6 text-indigo-600 dark:text-indigo-400" />
               <h2 className="text-lg font-semibold text-zinc-900 dark:text-white">
-                実装計画の承認
+                {t('planApprovalModal.title')}
               </h2>
             </div>
             <button
@@ -103,12 +106,17 @@ export default function PlanApprovalModal({
           <div className="px-6 py-3 bg-zinc-50 dark:bg-zinc-700/50 border-b border-zinc-200 dark:border-zinc-700">
             <div className="flex items-center justify-between text-sm text-zinc-600 dark:text-zinc-400">
               <div>
-                最終更新:{' '}
+                {t('planApprovalModal.lastUpdated')}{' '}
                 {planFile.lastModified
                   ? new Date(planFile.lastModified).toLocaleString('ja-JP')
-                  : '不明'}
+                  : t('planApprovalModal.unknown')}
               </div>
-              <div>サイズ: {planFile.size ? `${Math.round(planFile.size / 1024)}KB` : '不明'}</div>
+              <div>
+                {t('planApprovalModal.size')}{' '}
+                {planFile.size
+                  ? `${Math.round(planFile.size / 1024)}KB`
+                  : t('planApprovalModal.unknown')}
+              </div>
             </div>
           </div>
 
@@ -149,7 +157,7 @@ export default function PlanApprovalModal({
             ) : (
               <div className="text-center text-zinc-500 dark:text-zinc-400 py-8">
                 <FileText className="mx-auto h-12 w-12 mb-3 opacity-50" />
-                <p>計画ファイルの内容を読み込めませんでした</p>
+                <p>{t('planApprovalModal.loadFailed')}</p>
               </div>
             )}
           </div>
@@ -161,13 +169,13 @@ export default function PlanApprovalModal({
                 htmlFor="reject-reason"
                 className="block text-sm font-medium text-orange-700 dark:text-orange-300 mb-2"
               >
-                却下理由を入力してください
+                {t('planApprovalModal.rejectReasonLabel')}
               </label>
               <textarea
                 id="reject-reason"
                 value={rejectReason}
                 onChange={(e) => setRejectReason(e.target.value)}
-                placeholder="具体的な修正点や改善提案を入力してください..."
+                placeholder={t('planApprovalModal.rejectReasonPlaceholder')}
                 className="w-full p-3 border border-orange-300 dark:border-orange-600 rounded-lg resize-none bg-white dark:bg-zinc-800 text-zinc-900 dark:text-white placeholder-zinc-500 dark:placeholder-zinc-400"
                 rows={3}
                 disabled={isApproving}
@@ -178,7 +186,7 @@ export default function PlanApprovalModal({
           {/* Footer */}
           <div className="flex items-center justify-between p-6 border-t border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-700/50">
             <div className="text-sm text-zinc-600 dark:text-zinc-400">
-              この計画内容を確認して、実装を開始するか判断してください
+              {t('planApprovalModal.confirmPrompt')}
             </div>
             <div className="flex space-x-3">
               <button
@@ -186,7 +194,7 @@ export default function PlanApprovalModal({
                 disabled={isApproving}
                 className="px-4 py-2 text-sm font-medium text-zinc-700 dark:text-zinc-300 bg-white dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-600 rounded-lg hover:bg-zinc-50 dark:hover:bg-zinc-700 disabled:opacity-50 transition-colors"
               >
-                キャンセル
+                {tc('cancel')}
               </button>
               <button
                 onClick={handleReject}
@@ -198,7 +206,9 @@ export default function PlanApprovalModal({
                 ) : (
                   <AlertTriangle className="h-4 w-4 mr-2" />
                 )}
-                {showRejectReason ? '却下実行' : '却下'}
+                {showRejectReason
+                  ? t('planApprovalModal.rejectExecute')
+                  : t('planApprovalModal.reject')}
               </button>
               {!showRejectReason && (
                 <button
@@ -211,7 +221,7 @@ export default function PlanApprovalModal({
                   ) : (
                     <CheckCircle className="h-4 w-4 mr-2" />
                   )}
-                  承認・実装開始
+                  {t('planApprovalModal.approve')}
                 </button>
               )}
             </div>

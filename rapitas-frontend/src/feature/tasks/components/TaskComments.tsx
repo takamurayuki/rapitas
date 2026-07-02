@@ -1,3 +1,6 @@
+'use client';
+
+import { useTranslations } from 'next-intl';
 import { type Comment } from '@/types';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -20,6 +23,8 @@ export default function TaskComments({
   onAddComment,
   onDeleteComment,
 }: TaskCommentsProps) {
+  const t = useTranslations('task');
+  const tc = useTranslations('common');
   return (
     <div className="bg-white dark:bg-indigo-dark-900 rounded-lg shadow-lg border border-zinc-200 dark:border-zinc-800 p-6 mt-6">
       <h2 className="text-xl font-bold text-zinc-900 dark:text-zinc-50 mb-4 flex items-center gap-2">
@@ -31,7 +36,7 @@ export default function TaskComments({
             d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z"
           />
         </svg>
-        コメント ({comments.length})
+        {t('taskComments.title', { count: comments.length })}
       </h2>
 
       <div className="mb-4">
@@ -40,7 +45,7 @@ export default function TaskComments({
           onChange={(e) => onNewCommentChange(e.target.value)}
           className="w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-indigo-dark-900 px-4 py-3 text-sm shadow-sm focus:outline-none focus:border-indigo-400 font-mono"
           rows={3}
-          placeholder="コメントを追加... (マークダウン対応)"
+          placeholder={t('taskComments.addPlaceholder')}
         />
         <div className="mt-2 flex justify-end">
           <button
@@ -48,7 +53,7 @@ export default function TaskComments({
             disabled={!newComment.trim() || isAddingComment}
             className="px-4 py-2 bg-indigo-500 text-white rounded-lg hover:bg-indigo-600 font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            {isAddingComment ? '追加中...' : 'コメント追加'}
+            {isAddingComment ? tc('adding') : t('taskComments.addButton')}
           </button>
         </div>
       </div>
@@ -65,7 +70,7 @@ export default function TaskComments({
                   onClick={() => onDeleteComment(comment.id)}
                   className="text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300 text-xs"
                 >
-                  削除
+                  {tc('delete')}
                 </button>
               </div>
               <div className="prose prose-sm prose-zinc dark:prose-invert max-w-none">

@@ -26,6 +26,7 @@ interface PriorityInlineSelectProps {
  */
 export default function PriorityInlineSelect({ value, onChange }: PriorityInlineSelectProps) {
   const t = useTranslations('task');
+  const tInline = useTranslations('task.priorityInlineSelect');
   const options = usePriorityOptions(t);
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
@@ -46,14 +47,14 @@ export default function PriorityInlineSelect({ value, onChange }: PriorityInline
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        aria-label={`優先度: ${current?.label ?? '未設定'}（クリックで変更）`}
-        title="優先度を変更"
+        aria-label={tInline('ariaLabel', { priority: current?.label ?? tInline('unset') })}
+        title={tInline('changeTooltip')}
         className="flex items-center rounded p-0.5 outline-none transition-colors hover:bg-zinc-100 focus-visible:ring-2 focus-visible:ring-blue-500 dark:hover:bg-zinc-800"
       >
         {value ? (
           <PriorityIcon priority={value} size="md" />
         ) : (
-          <span className="text-xs text-zinc-400 dark:text-zinc-500">優先度</span>
+          <span className="text-xs text-zinc-400 dark:text-zinc-500">{t('priority')}</span>
         )}
       </button>
       {open && (

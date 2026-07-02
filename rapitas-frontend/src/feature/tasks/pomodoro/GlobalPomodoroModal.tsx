@@ -13,6 +13,7 @@ import {
   ChevronUp,
 } from 'lucide-react';
 import Link from 'next/link';
+import { useTranslations } from 'next-intl';
 import PomodoroTimer, {
   type PomodoroSubtask,
 } from '@/feature/tasks/components/timer/PomodoroTimer';
@@ -37,6 +38,9 @@ export default function GlobalPomodoroModal({
   taskId: propTaskId,
   taskTitle: propTaskTitle,
 }: GlobalPomodoroModalProps) {
+  const t = useTranslations('task.globalPomodoroModal');
+  const tTask = useTranslations('task');
+  const tc = useTranslations('common');
   const state = usePomodoroStore();
   const [timeEntries, setTimeEntries] = useState<TimeEntry[]>([]);
   const [taskData, setTaskData] = useState<{
@@ -173,12 +177,14 @@ export default function GlobalPomodoroModal({
         <div className="flex items-center justify-between p-4 border-b border-zinc-200 dark:border-zinc-800">
           <div className="flex items-center gap-2 min-w-0">
             <Timer className="w-5 h-5 text-indigo-500 shrink-0" />
-            <h2 className="text-lg font-bold text-zinc-900 dark:text-zinc-50">時間管理</h2>
+            <h2 className="text-lg font-bold text-zinc-900 dark:text-zinc-50">
+              {tTask('timeManagement')}
+            </h2>
           </div>
           <button
             onClick={onClose}
             className="p-2 text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-lg transition-colors shrink-0"
-            title="閉じる"
+            title={tc('close')}
           >
             <X className="w-5 h-5" />
           </button>
@@ -211,20 +217,24 @@ export default function GlobalPomodoroModal({
         <div className="px-4 py-3 bg-zinc-50 dark:bg-zinc-800/50 border-t border-zinc-200 dark:border-zinc-800">
           <div className="flex items-center gap-2 mb-2">
             <BarChart3 className="w-4 h-4 text-emerald-500" />
-            <span className="text-sm font-medium text-zinc-700 dark:text-zinc-300">今日の統計</span>
+            <span className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
+              {t('todayStats')}
+            </span>
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div className="bg-white dark:bg-zinc-900 rounded-lg p-3 border border-zinc-200 dark:border-zinc-700">
               <div className="text-2xl font-bold text-emerald-600 dark:text-emerald-400">
                 {state.todayCompletedPomodoros || 0}
               </div>
-              <div className="text-xs text-zinc-500 dark:text-zinc-400">完了ポモドーロ</div>
+              <div className="text-xs text-zinc-500 dark:text-zinc-400">
+                {t('completedPomodoros')}
+              </div>
             </div>
             <div className="bg-white dark:bg-zinc-900 rounded-lg p-3 border border-zinc-200 dark:border-zinc-700">
               <div className="text-2xl font-bold text-indigo-600 dark:text-indigo-400">
                 {formatTime(state.todayTotalWorkSeconds || 0)}
               </div>
-              <div className="text-xs text-zinc-500 dark:text-zinc-400">合計作業時間</div>
+              <div className="text-xs text-zinc-500 dark:text-zinc-400">{t('totalWorkTime')}</div>
             </div>
           </div>
         </div>
@@ -236,7 +246,7 @@ export default function GlobalPomodoroModal({
           >
             <div className="flex items-center gap-2">
               <Settings className="w-4 h-4" />
-              設定
+              {t('settings')}
             </div>
             {showSettings ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
           </button>
@@ -245,7 +255,9 @@ export default function GlobalPomodoroModal({
             <div className="px-4 pb-4 space-y-4">
               <div>
                 <div className="flex items-center justify-between mb-2">
-                  <label className="text-sm text-zinc-600 dark:text-zinc-400">通知音</label>
+                  <label className="text-sm text-zinc-600 dark:text-zinc-400">
+                    {t('notificationSound')}
+                  </label>
                   <button
                     onClick={() =>
                       state.updateSettings({
@@ -267,7 +279,7 @@ export default function GlobalPomodoroModal({
                 </div>
                 {state.settings.soundEnabled && (
                   <div className="flex items-center gap-3">
-                    <span className="text-xs text-zinc-500">小</span>
+                    <span className="text-xs text-zinc-500">{t('volumeLow')}</span>
                     <input
                       type="range"
                       min="0.1"
@@ -281,7 +293,7 @@ export default function GlobalPomodoroModal({
                       }
                       className="flex-1 h-2 bg-zinc-200 dark:bg-zinc-700 rounded-lg appearance-none cursor-pointer accent-indigo-500"
                     />
-                    <span className="text-xs text-zinc-500">大</span>
+                    <span className="text-xs text-zinc-500">{t('volumeHigh')}</span>
                   </div>
                 )}
               </div>
@@ -289,7 +301,7 @@ export default function GlobalPomodoroModal({
               <div className="grid grid-cols-3 gap-3">
                 <div>
                   <label className="block text-xs text-zinc-500 dark:text-zinc-400 mb-1">
-                    作業時間
+                    {t('workDuration')}
                   </label>
                   <select
                     value={state.settings.pomodoroDuration / 60}
@@ -302,14 +314,14 @@ export default function GlobalPomodoroModal({
                   >
                     {[15, 20, 25, 30, 45, 60].map((min) => (
                       <option key={min} value={min}>
-                        {min}分
+                        {t('minutes', { count: min })}
                       </option>
                     ))}
                   </select>
                 </div>
                 <div>
                   <label className="block text-xs text-zinc-500 dark:text-zinc-400 mb-1">
-                    短い休憩
+                    {t('shortBreak')}
                   </label>
                   <select
                     value={state.settings.shortBreakDuration / 60}
@@ -322,14 +334,14 @@ export default function GlobalPomodoroModal({
                   >
                     {[3, 5, 10, 15].map((min) => (
                       <option key={min} value={min}>
-                        {min}分
+                        {t('minutes', { count: min })}
                       </option>
                     ))}
                   </select>
                 </div>
                 <div>
                   <label className="block text-xs text-zinc-500 dark:text-zinc-400 mb-1">
-                    長い休憩
+                    {t('longBreak')}
                   </label>
                   <select
                     value={state.settings.longBreakDuration / 60}
@@ -342,7 +354,7 @@ export default function GlobalPomodoroModal({
                   >
                     {[10, 15, 20, 30].map((min) => (
                       <option key={min} value={min}>
-                        {min}分
+                        {t('minutes', { count: min })}
                       </option>
                     ))}
                   </select>

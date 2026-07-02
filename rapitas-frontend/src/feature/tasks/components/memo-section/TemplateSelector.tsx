@@ -2,6 +2,7 @@
 // TemplateSelector
 
 import { memo } from 'react';
+import { useTranslations } from 'next-intl';
 import { X, FileText, ChevronLeft } from 'lucide-react';
 import type { MemoType, MemoTemplate } from './types';
 import { MEMO_TEMPLATES, MEMO_TYPE_CONFIG } from './types';
@@ -22,6 +23,7 @@ export const TemplateSelector = memo(function TemplateSelector({
   onSelect: (template: MemoTemplate) => void;
   onClose: () => void;
 }) {
+  const t = useTranslations('task');
   const filteredTemplates = MEMO_TEMPLATES.filter(
     (t) => t.type === selectedType || selectedType === 'general',
   );
@@ -43,7 +45,7 @@ export const TemplateSelector = memo(function TemplateSelector({
             <div className="flex items-center gap-2">
               <FileText className="w-4 h-4 text-indigo-500" />
               <span className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
-                メモテンプレート選択
+                {t('templateSelector.title')}
               </span>
               <div
                 className={`flex items-center gap-1 px-2 py-0.5 text-[10px] rounded-full ${typeConfig.color.badge}`}
@@ -96,7 +98,7 @@ export const TemplateSelector = memo(function TemplateSelector({
             <div className="p-6 text-center">
               <FileText className="w-8 h-8 text-zinc-300 dark:text-zinc-600 mx-auto mb-2" />
               <p className="text-sm text-zinc-500 dark:text-zinc-400">
-                {typeConfig.label}用のテンプレートがありません
+                {t('templateSelector.noTemplatesForType', { type: typeConfig.label })}
               </p>
             </div>
           )}
@@ -108,7 +110,7 @@ export const TemplateSelector = memo(function TemplateSelector({
             onClick={onClose}
             className="w-full px-3 py-2 text-sm text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 border border-zinc-200 dark:border-zinc-700 rounded-lg transition-colors"
           >
-            手動で入力
+            {t('templateSelector.manualInput')}
           </button>
         </div>
       </div>

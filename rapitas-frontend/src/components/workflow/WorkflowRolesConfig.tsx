@@ -10,13 +10,14 @@
  */
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { Loader2, AlertTriangle } from 'lucide-react';
+import { useTranslations } from 'next-intl';
 import type { AIAgentConfig, WorkflowRole } from '@/types';
 import { useWorkflowRoles } from '@/hooks/workflow/useWorkflowRoles';
 import { API_BASE_URL } from '@/utils/api';
 import { createLogger } from '@/lib/logger';
 import { WorkflowRoleCard } from './WorkflowRoleCard';
 import {
-  ROLE_CONFIG,
+  getRoleConfig,
   type ModelOption,
   type SystemPrompt,
   type RoleConfigItem,
@@ -37,11 +38,35 @@ interface ModeSettings {
 }
 
 const MODE_ORDER: ModeKey[] = ['lightweight', 'standard', 'comprehensive'];
-const MODE_META: Record<ModeKey, { label: string; tier: string; desc: string }> = {
-  lightweight: { label: '簡単', tier: '低', desc: 'バグ修正・UI調整・軽微な変更' },
-  standard: { label: '標準', tier: '中', desc: '中規模の機能追加・リファクタリング' },
-  comprehensive: { label: '高度', tier: '高', desc: '大規模機能・アーキテクチャ変更' },
-};
+
+/**
+ * Builds the complexity-tier tab metadata (label/tier/short description).
+ * A function (not a module constant) because the text is translated.
+ *
+ * @param t - Translator scoped to the `workflow` namespace / workflow名前空間のt
+ * @returns Mode → tab metadata map / モードごとのタブ情報
+ */
+function getModeMeta(
+  t: ReturnType<typeof useTranslations<'workflow'>>,
+): Record<ModeKey, { label: string; tier: string; desc: string }> {
+  return {
+    lightweight: {
+      label: t('modeLightweight'),
+      tier: t('rolesConfig.tierLow'),
+      desc: t('rolesConfig.tierLightweightDesc'),
+    },
+    standard: {
+      label: t('modeStandard'),
+      tier: t('rolesConfig.tierMedium'),
+      desc: t('rolesConfig.tierStandardDesc'),
+    },
+    comprehensive: {
+      label: t('modeComprehensive'),
+      tier: t('rolesConfig.tierHigh'),
+      desc: t('rolesConfig.tierComprehensiveDesc'),
+    },
+  };
+}
 
 /** Roles a mode runs, in execution order, derived from its phase toggles. */
 function rolesForMode(s: ModeSettings): WorkflowRole[] {
@@ -63,16 +88,27 @@ function rolesForMode(s: ModeSettings): WorkflowRole[] {
  *
  * @param roleKey - The role being rendered. / 対象ロール
  * @param s - The active tier's settings. / ティア設定
+ * @param roleConfig - The translated role config map for the current render. / 翻訳済みロール設定
+ * @param t - Translator scoped to the `workflow` namespace / workflow名前空間のt
  * @returns A (possibly overridden) role config for display. / 表示用ロール設定
  */
-function roleConfigForMode(roleKey: WorkflowRole, s: ModeSettings): RoleConfigItem {
-  const base = ROLE_CONFIG[roleKey];
+function roleConfigForMode(
+  roleKey: WorkflowRole,
+  s: ModeSettings,
+  roleConfig: Record<WorkflowRole, RoleConfigItem>,
+  t: ReturnType<typeof useTranslations<'workflow'>>,
+): RoleConfigItem {
+  const base = roleConfig[roleKey];
   if (roleKey === 'implementer') {
     if (!s.includePlan) {
-      return { ...base, inputLabel: 'research.md', description: '調査結果を基にコードを実装' };
+      return {
+        ...base,
+        inputLabel: 'research.md',
+        description: t('rolesConfig.implementerNoPlanDescription'),
+      };
     }
     if (!s.includeReview) {
-      return { ...base, inputLabel: 'plan.md', description: '承認された計画に従いコードを実装' };
+      return { ...base, inputLabel: 'plan.md', description: t('roles.implementer.description') };
     }
     return base; // plan + review → default input 'plan.md + question.md'
   }
@@ -88,6 +124,10 @@ interface WorkflowRolesConfigProps {
 }
 
 export default function WorkflowRolesConfig({ agents, availableModels }: WorkflowRolesConfigProps) {
+  const t = useTranslations('workflow');
+  const tc = useTranslations('common');
+  const ROLE_CONFIG = useMemo(() => getRoleConfig(t), [t]);
+  const MODE_META = useMemo(() => getModeMeta(t), [t]);
   const { roles, isLoading, error, updateRole } = useWorkflowRoles();
   const [systemPrompts, setSystemPrompts] = useState<SystemPrompt[]>([]);
   const [savingRole, setSavingRole] = useState<WorkflowRole | null>(null);
@@ -223,7 +263,7 @@ export default function WorkflowRolesConfig({ agents, availableModels }: Workflo
       <div className="flex items-center justify-center py-12">
         <Loader2 className="h-6 w-6 animate-spin text-zinc-400" />
         <span className="ml-2 text-sm text-zinc-500 dark:text-zinc-400">
-          ロール設定を読み込み中...
+          {t('rolesConfig.loading')}
         </span>
       </div>
     );
@@ -303,11 +343,11 @@ export default function WorkflowRolesConfig({ agents, availableModels }: Workflo
               <span className="font-semibold">{MODE_META[activeTab].label}</span>
               <span className="ml-2 text-[11px] text-zinc-400">{MODE_META[activeTab].desc}</span>
               {savingMode === activeTab && (
-                <span className="ml-2 text-[10px] text-zinc-400">保存中...</span>
+                <span className="ml-2 text-[10px] text-zinc-400">{tc('saving')}</span>
               )}
             </div>
             <div className="flex items-center gap-2 text-[11px] text-zinc-500 dark:text-zinc-400">
-              <span>このワークフローを適用する複雑度範囲</span>
+              <span>{t('rolesConfig.complexityRangeLabel')}</span>
               {activeTab === 'lightweight' && (
                 <>
                   {readonlyBox(0)}
@@ -319,7 +359,7 @@ export default function WorkflowRolesConfig({ agents, availableModels }: Workflo
                     value={activeMode.complexityMax}
                     onChange={(e) => setLightMax(Number(e.target.value))}
                     className="w-16 px-1.5 py-0.5 bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded text-center"
-                    aria-label="簡単の複雑度上限"
+                    aria-label={t('rolesConfig.lightweightMaxLabel')}
                   />
                 </>
               )}
@@ -329,7 +369,7 @@ export default function WorkflowRolesConfig({ agents, availableModels }: Workflo
                   <span>〜</span>
                   {readonlyBox(stdMax)}
                   <span className="text-zinc-400 dark:text-zinc-500">
-                    （簡単・高度の設定から自動算出）
+                    {t('rolesConfig.standardRangeAutoComputed')}
                   </span>
                 </>
               )}
@@ -342,7 +382,7 @@ export default function WorkflowRolesConfig({ agents, availableModels }: Workflo
                     value={activeMode.complexityMin}
                     onChange={(e) => setCompMin(Number(e.target.value))}
                     className="w-16 px-1.5 py-0.5 bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded text-center"
-                    aria-label="詳細の複雑度下限"
+                    aria-label={t('rolesConfig.comprehensiveMinLabel')}
                   />
                   <span>〜</span>
                   {readonlyBox(100)}
@@ -353,7 +393,7 @@ export default function WorkflowRolesConfig({ agents, availableModels }: Workflo
 
           {/* Roles used by this tier (in execution order) */}
           <p className="text-[11px] text-zinc-400 dark:text-zinc-500 mb-2">
-            このティアで実行するロール（{tabRoles.length}フェーズ）
+            {t('rolesConfig.tierRolesCount', { count: tabRoles.length })}
           </p>
           <div className="space-y-0">
             {tabRoles.map((roleKey, index) => (
@@ -361,7 +401,7 @@ export default function WorkflowRolesConfig({ agents, availableModels }: Workflo
                 key={roleKey}
                 roleKey={roleKey}
                 index={index}
-                config={roleConfigForMode(roleKey, activeMode)}
+                config={roleConfigForMode(roleKey, activeMode, ROLE_CONFIG, t)}
                 roleData={roles.find((r) => r.role === roleKey)}
                 models={getModelsForRole(roleKey)}
                 systemPrompts={systemPrompts}

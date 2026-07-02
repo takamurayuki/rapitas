@@ -2,6 +2,7 @@
 // useExecutionStreamSSE
 
 import { useState, useCallback, useRef, useEffect } from 'react';
+import { useTranslations } from 'next-intl';
 import { API_BASE_URL } from '@/utils/api';
 import { createLogger } from '@/lib/logger';
 import { type ExecutionStreamState, trimLogs } from './execution-stream-types';
@@ -18,6 +19,7 @@ const SSE_ENABLED = false;
  * @returns Execution stream state and control methods
  */
 export function useExecutionStream(sessionId: number | null) {
+  const t = useTranslations('devMode.useExecutionStreamSSE');
   const [state, setState] = useState<ExecutionStreamState>({
     isConnected: false,
     isRunning: false,
@@ -84,7 +86,7 @@ export function useExecutionStream(sessionId: number | null) {
       // Execution started event
       eventSource.addEventListener('execution_started', (event) => {
         logger.info('Execution started:', event.data);
-        logsRef.current = ['[開始] エージェントの実行を開始しました...\n'];
+        logsRef.current = [`${t('startedLog')}\n`];
         setState((prev) => ({
           ...prev,
           isRunning: true,
@@ -113,10 +115,7 @@ export function useExecutionStream(sessionId: number | null) {
         logger.info('Execution completed:', event.data);
         try {
           const data = JSON.parse(event.data);
-          logsRef.current = trimLogs([
-            ...logsRef.current,
-            '\n[完了] エージェントの実行が完了しました。\n',
-          ]);
+          logsRef.current = trimLogs([...logsRef.current, `\n${t('completedLog')}\n`]);
           setState((prev) => ({
             ...prev,
             isRunning: false,
@@ -129,7 +128,7 @@ export function useExecutionStream(sessionId: number | null) {
             ...prev,
             isRunning: false,
             status: 'completed',
-            logs: [...logsRef.current, '\n[完了] 実行完了\n'],
+            logs: [...logsRef.current, `\n${t('completedShortLog')}\n`],
           }));
         }
       });
@@ -141,14 +140,14 @@ export function useExecutionStream(sessionId: number | null) {
           const data = JSON.parse(event.data);
           logsRef.current = trimLogs([
             ...logsRef.current,
-            `\n[Error] ${data.error?.errorMessage || '実行に失敗しました'}\n`,
+            `\n[Error] ${data.error?.errorMessage || t('failedLog')}\n`,
           ]);
           setState((prev) => ({
             ...prev,
             isRunning: false,
             status: 'failed',
             logs: logsRef.current,
-            error: data.error?.errorMessage || '実行に失敗しました',
+            error: data.error?.errorMessage || t('failedLog'),
           }));
         } catch (e) {
           setState((prev) => ({
@@ -163,10 +162,7 @@ export function useExecutionStream(sessionId: number | null) {
       // Cancellation event
       eventSource.addEventListener('execution_cancelled', (event) => {
         logger.info('Execution cancelled');
-        logsRef.current = trimLogs([
-          ...logsRef.current,
-          '\n[キャンセル] 実行がキャンセルされました。\n',
-        ]);
+        logsRef.current = trimLogs([...logsRef.current, `\n${t('cancelledLog')}\n`]);
         setState((prev) => ({
           ...prev,
           isRunning: false,
@@ -184,10 +180,10 @@ export function useExecutionStream(sessionId: number | null) {
       setState((prev) => ({
         ...prev,
         isConnected: false,
-        error: 'SSE接続の作成に失敗しました',
+        error: t('connectionFailed'),
       }));
     }
-  }, [sessionId]);
+  }, [sessionId, t]);
 
   const disconnect = useCallback(() => {
     if (eventSourceRef.current) {

@@ -2,6 +2,7 @@
 // AIAccordionPanelInner
 
 import { useState, useCallback } from 'react';
+import { useTranslations } from 'next-intl';
 import { ExecutionSection } from './ExecutionSection';
 import { useAccordionState } from './useAccordionState';
 import { usePromptOptimization } from './usePromptOptimization';
@@ -59,6 +60,7 @@ export function AIAccordionPanelInner({
   onRefreshSubtaskLogs,
   taskStatus,
 }: AIAccordionPanelProps) {
+  const t = useTranslations('devMode.aiAccordionPanelInner');
   // Subtask selection state (lives here to avoid circular deps between hooks)
   const [selectedSubtasks, setSelectedSubtasks] = useState<number[]>([]);
   const [isCreatingSubtasks, setIsCreatingSubtasks] = useState(false);
@@ -183,7 +185,7 @@ export function AIAccordionPanelInner({
           : 'border-t border-zinc-200 dark:border-zinc-700 overflow-hidden'
       }
       role="region"
-      aria-label="AI エージェント実行パネル"
+      aria-label={t('panelAriaLabel')}
     >
       {showAgentPanel && (
         <ExecutionSection
