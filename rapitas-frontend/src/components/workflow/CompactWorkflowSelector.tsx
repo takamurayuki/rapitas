@@ -12,6 +12,7 @@ import {
   TrendingUp,
   Minus,
 } from 'lucide-react';
+import { useTranslations } from 'next-intl';
 import { API_BASE_URL } from '@/utils/api';
 import { createLogger } from '@/lib/logger';
 const logger = createLogger('CompactWorkflowSelector');

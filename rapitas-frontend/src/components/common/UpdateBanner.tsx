@@ -7,6 +7,7 @@
  */
 import { useEffect, useState } from 'react';
 import { Download, X, Loader2 } from 'lucide-react';
+import { useTranslations } from 'next-intl';
 import { isTauri } from '@/utils/tauri';
 import { createLogger } from '@/lib/logger';
 
@@ -22,6 +23,8 @@ interface PendingUpdate {
 const DISMISS_KEY = 'rapitas:update-dismissed-version';
 
 export default function UpdateBanner() {
+  const t = useTranslations('banner');
+  const ct = useTranslations('common');
   const [pending, setPending] = useState<PendingUpdate | null>(null);
   const [installing, setInstalling] = useState(false);
   const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
@@ -83,7 +86,7 @@ export default function UpdateBanner() {
         <Download className="mt-0.5 h-5 w-5 shrink-0 text-indigo-500" />
         <div className="flex-1 min-w-0">
           <p className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">
-            アップデート v{pending.version} が利用可能
+            {t('updateAvailable', { version: pending.version })}
           </p>
           {pending.notes && (
             <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400 line-clamp-3">
@@ -99,7 +102,7 @@ export default function UpdateBanner() {
                 />
               </div>
               <p className="text-[10px] text-zinc-500">
-                {pct === null ? 'ダウンロード中…' : `${pct}% 完了`}
+                {pct === null ? t('downloading') : t('percentComplete', { pct })}
               </p>
             </div>
           )}
@@ -123,7 +126,7 @@ export default function UpdateBanner() {
               ) : (
                 <Download className="h-3 w-3" />
               )}
-              {installing ? 'インストール中…' : '今すぐ更新'}
+              {installing ? t('installing') : t('updateNow')}
             </button>
             <button
               onClick={() => {
@@ -133,7 +136,7 @@ export default function UpdateBanner() {
               disabled={installing}
               className="text-xs text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300"
             >
-              後で
+              {t('laterDismiss')}
             </button>
           </div>
         </div>
@@ -144,7 +147,7 @@ export default function UpdateBanner() {
           }}
           disabled={installing}
           className="rounded p-1 text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800"
-          aria-label="閉じる"
+          aria-label={ct('close')}
         >
           <X className="h-3.5 w-3.5" />
         </button>

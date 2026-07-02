@@ -35,7 +35,7 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: 'Rapi+',
-  description: '高パフォーマンスで直感的なUIのタスク管理アプリケーション',
+  description: 'A high-performance, intuitive task management application',
   manifest: '/manifest.webmanifest',
   appleWebApp: {
     capable: true,
