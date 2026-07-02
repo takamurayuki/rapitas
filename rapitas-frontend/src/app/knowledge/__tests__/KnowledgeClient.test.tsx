@@ -1,6 +1,22 @@
 import { render, screen, waitFor, fireEvent } from '@testing-library/react';
 import { vi, describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { NextIntlClientProvider } from 'next-intl';
 import KnowledgeClient from '../KnowledgeClient';
+// NOTE: KnowledgeClient and its children (Pagination, KnowledgeFilterPanel,
+// KnowledgeSearchBar, ...) call useTranslations() directly, which throws
+// without a NextIntlClientProvider ancestor. Assertions below check real
+// Japanese label text, so real ja messages are supplied rather than a
+// key-echo mock.
+import ja from '../../../../messages/ja.json';
+
+/** Renders with the real ja message catalog so localized text assertions match. */
+function renderWithIntl(ui: React.ReactElement) {
+  return render(
+    <NextIntlClientProvider locale="ja" messages={ja} timeZone="Asia/Tokyo">
+      {ui}
+    </NextIntlClientProvider>,
+  );
+}
 
 // Mock modules
 vi.mock('@/utils/api', () => ({ API_BASE_URL: 'http://test' }));
@@ -9,22 +25,57 @@ vi.mock('@/feature/knowledge/hooks/useKnowledge');
 vi.mock('@/feature/knowledge/hooks/useKnowledgeSearch');
 vi.mock('@/feature/knowledge/hooks/useMemoryStats');
 
+// KnowledgeEntryCard reads every field on KnowledgeEntry (tags, forgettingStage,
+// validationStatus, etc.) — a partial fixture crashes the render (entry.tags
+// undefined) and produces MISSING_MESSAGE warnings for undefined enum keys.
 const mockKnowledgeEntries = [
   {
     id: 1,
+    sourceType: 'user_learning',
+    sourceId: null,
     title: 'テスト知識1',
     content: 'テスト内容1',
+    contentHash: 'hash1',
     category: 'general',
-    sourceType: 'user_learning',
+    tags: [],
+    confidence: 0.8,
+    accessCount: 0,
+    lastAccessedAt: null,
+    forgettingStage: 'active',
+    decayScore: 1,
+    lastDecayAt: '2026-05-01T00:00:00Z',
+    pinnedUntil: null,
+    validationStatus: 'pending',
+    validatedAt: null,
+    validationMethod: null,
+    themeId: null,
+    taskId: null,
     createdAt: '2026-05-01T00:00:00Z',
+    updatedAt: '2026-05-01T00:00:00Z',
   },
   {
     id: 2,
+    sourceType: 'user_learning',
+    sourceId: null,
     title: 'テスト知識2',
     content: 'テスト内容2',
+    contentHash: 'hash2',
     category: 'procedure',
-    sourceType: 'user_learning',
+    tags: [],
+    confidence: 0.8,
+    accessCount: 0,
+    lastAccessedAt: null,
+    forgettingStage: 'active',
+    decayScore: 1,
+    lastDecayAt: '2026-05-01T01:00:00Z',
+    pinnedUntil: null,
+    validationStatus: 'pending',
+    validatedAt: null,
+    validationMethod: null,
+    themeId: null,
+    taskId: null,
     createdAt: '2026-05-01T01:00:00Z',
+    updatedAt: '2026-05-01T01:00:00Z',
   },
 ];
 
@@ -78,7 +129,7 @@ describe('KnowledgeClient', () => {
   });
 
   it('初期表示でページサイズ15件でAPIを呼び出すこと', async () => {
-    render(<KnowledgeClient />);
+    renderWithIntl(<KnowledgeClient />);
 
     expect(mockUseKnowledge).toHaveBeenCalledWith({
       page: 1,
@@ -90,7 +141,7 @@ describe('KnowledgeClient', () => {
   });
 
   it('知識エントリーが表示されること', async () => {
-    render(<KnowledgeClient />);
+    renderWithIntl(<KnowledgeClient />);
 
     await waitFor(() => {
       expect(screen.getByText('テスト知識1')).toBeInTheDocument();
@@ -99,7 +150,7 @@ describe('KnowledgeClient', () => {
   });
 
   it('Paginationコンポーネントが表示されること', async () => {
-    render(<KnowledgeClient />);
+    renderWithIntl(<KnowledgeClient />);
 
     await waitFor(() => {
       // Paginationコンポーネントの要素を確認
@@ -109,7 +160,7 @@ describe('KnowledgeClient', () => {
   });
 
   it('ページサイズ変更時にlocalStorageとページが更新されること', async () => {
-    render(<KnowledgeClient />);
+    renderWithIntl(<KnowledgeClient />);
 
     await waitFor(() => {
       const button10 = screen.getByRole('button', { name: '10' });
@@ -120,11 +171,13 @@ describe('KnowledgeClient', () => {
   });
 
   it('フィルタ変更時にページが1にリセットされること', async () => {
-    render(<KnowledgeClient />);
+    renderWithIntl(<KnowledgeClient />);
 
     await waitFor(() => {
-      // カテゴリフィルターを変更
-      const categoryFilter = screen.getByRole('combobox', { name: /カテゴリ/i });
+      // カテゴリフィルターを変更。KnowledgeFilterPanel renders category/stage/
+      // validation <select>s with no <label>/aria-label, so they have no
+      // accessible name — select by DOM order (category is rendered first).
+      const [categoryFilter] = screen.getAllByRole('combobox');
       fireEvent.change(categoryFilter, { target: { value: 'procedure' } });
 
       // 最新の呼び出しでpage: 1になっていることを確認
@@ -142,7 +195,7 @@ describe('KnowledgeClient', () => {
       createEntry: vi.fn(),
     });
 
-    render(<KnowledgeClient />);
+    renderWithIntl(<KnowledgeClient />);
 
     await waitFor(() => {
       expect(screen.queryByRole('button', { name: '15' })).not.toBeInTheDocument();
@@ -158,7 +211,7 @@ describe('KnowledgeClient', () => {
       createEntry: vi.fn(),
     });
 
-    render(<KnowledgeClient />);
+    renderWithIntl(<KnowledgeClient />);
 
     expect(screen.queryByRole('button', { name: '15' })).not.toBeInTheDocument();
   });
@@ -172,7 +225,7 @@ describe('KnowledgeClient', () => {
       search: mockSearch,
     } as unknown as ReturnType<typeof useKnowledgeSearch>);
 
-    render(<KnowledgeClient />);
+    renderWithIntl(<KnowledgeClient />);
 
     // 検索を実行
     const searchInput = screen.getByPlaceholderText(/検索/i);

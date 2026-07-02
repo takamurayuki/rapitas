@@ -231,15 +231,17 @@ describe('HeaderToolbar', () => {
       expect(setIsMoreMenuOpen).toHaveBeenCalled();
     });
 
-    it('shows dark mode toggle in the more menu when open', () => {
-      render(<HeaderToolbar {...defaultProps} isMoreMenuOpen={true} />);
-      expect(screen.getByText('switchToDark')).toBeInTheDocument();
+    it('shows the dark mode toggle switch (standalone, not in the more menu)', () => {
+      render(<HeaderToolbar {...defaultProps} isMoreMenuOpen={false} />);
+      // Dark mode is a standalone toggle switch always visible in the toolbar,
+      // labelled via aria-label/title (t('switchToDark')) rather than text.
+      expect(screen.getByRole('switch', { name: 'switchToDark' })).toBeInTheDocument();
     });
 
     it('calls toggleTheme when dark mode toggle is clicked', () => {
       const toggleTheme = vi.fn();
-      render(<HeaderToolbar {...defaultProps} isMoreMenuOpen={true} toggleTheme={toggleTheme} />);
-      fireEvent.click(screen.getByText('switchToDark'));
+      render(<HeaderToolbar {...defaultProps} toggleTheme={toggleTheme} />);
+      fireEvent.click(screen.getByRole('switch', { name: 'switchToDark' }));
       expect(toggleTheme).toHaveBeenCalled();
     });
 
@@ -248,17 +250,12 @@ describe('HeaderToolbar', () => {
       expect(screen.getByTestId('moon-icon')).toBeInTheDocument();
     });
 
-    it('shows Sun icon and switchToLight text in dark mode', () => {
-      render(
-        <HeaderToolbar
-          {...defaultProps}
-          isMoreMenuOpen={true}
-          isDarkMode={true}
-          darkModeMounted={true}
-        />,
-      );
+    it('shows switchToLight label and aria-checked=true in dark mode', () => {
+      render(<HeaderToolbar {...defaultProps} isDarkMode={true} darkModeMounted={true} />);
+      const toggle = screen.getByRole('switch', { name: 'switchToLight' });
+      expect(toggle).toBeInTheDocument();
+      expect(toggle).toHaveAttribute('aria-checked', 'true');
       expect(screen.getByTestId('sun-icon')).toBeInTheDocument();
-      expect(screen.getByText('switchToLight')).toBeInTheDocument();
     });
 
     it('shows settings link in the more menu', () => {

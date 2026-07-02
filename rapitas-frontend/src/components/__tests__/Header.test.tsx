@@ -49,7 +49,7 @@ vi.mock('@/hooks/useDarkMode', () => ({
   }),
 }));
 
-vi.mock('@/stores/shortcutStore', () => ({
+vi.mock('@/stores/shortcut-store', () => ({
   useShortcutStore: (selector: (state: { shortcuts: [] }) => unknown) =>
     selector({ shortcuts: [] }),
 }));
@@ -72,7 +72,7 @@ vi.mock('next-intl', () => ({
 }));
 
 // Mock components
-vi.mock('@/components/app-icon', () => ({
+vi.mock('@/components/common/app-icon', () => ({
   default: ({ size, className }: { size?: number; className?: string }) => (
     <div data-testid="app-icon" />
   ),
@@ -82,7 +82,7 @@ vi.mock('@/feature/tasks/pomodoro/GlobalPomodoroWidget', () => ({
   default: () => <div data-testid="pomodoro-widget" />,
 }));
 
-vi.mock('@/components/KeyboardShortcuts', () => ({
+vi.mock('@/components/common/KeyboardShortcuts', () => ({
   OPEN_SHORTCUTS_EVENT: 'open-shortcuts',
 }));
 
@@ -92,6 +92,13 @@ vi.mock('@/components/NotificationBell', () => ({
 
 vi.mock('@/components/LanguageSwitcher', () => ({
   default: () => <div data-testid="language-switcher" />,
+}));
+
+// NOTE: useHeader() throws without a ToastProvider ancestor (used for the
+// restart-timeout toast). Mock the hook directly — same pattern as
+// TaskCard.test.tsx.
+vi.mock('@/components/ui/toast/ToastContainer', () => ({
+  useToast: () => ({ showToast: vi.fn() }),
 }));
 
 // Mock Tauri utilities
@@ -257,31 +264,23 @@ describe('Header', () => {
   });
 
   describe('Dark mode toggle', () => {
-    it('dark mode button in more menu is clickable', async () => {
+    it('dark mode toggle switch is clickable', () => {
       render(<Header />);
-      // Dark mode toggle is inside the more menu (EllipsisVertical button)
-      const moreMenuButton = screen.getByRole('button', { name: /moreMenu/i });
-      fireEvent.click(moreMenuButton);
-
-      await waitFor(() => {
-        // The dark mode button text is t('switchToDark') = 'switchToDark'
-        const darkModeButton = screen.getByText('switchToDark');
-        fireEvent.click(darkModeButton);
-        expect(mockToggleTheme).toHaveBeenCalled();
-      });
+      // Dark mode is a standalone toggle switch in the toolbar (not behind a
+      // menu); its accessible name is t('switchToDark') = 'switchToDark' in
+      // light mode (useDarkMode mock returns isDarkMode: false).
+      const darkModeButton = screen.getByRole('switch', { name: 'switchToDark' });
+      fireEvent.click(darkModeButton);
+      expect(mockToggleTheme).toHaveBeenCalled();
     });
 
-    it('displays appropriate icon based on dark mode state', async () => {
+    it('displays appropriate icon based on dark mode state', () => {
       render(<Header />);
-      // Open more menu
-      const moreMenuButton = screen.getByRole('button', { name: /moreMenu/i });
-      fireEvent.click(moreMenuButton);
-
-      await waitFor(() => {
-        // In light mode (isDarkMode: false), shows Moon icon and "switchToDark" text
-        expect(screen.getByTestId('moon-icon')).toBeInTheDocument();
-        expect(screen.getByText('switchToDark')).toBeInTheDocument();
-      });
+      // In light mode (isDarkMode: false), both Moon and Sun icons are always
+      // rendered (opacity-toggled); the switch's accessible name reflects the
+      // action it performs next.
+      expect(screen.getByTestId('moon-icon')).toBeInTheDocument();
+      expect(screen.getByRole('switch', { name: 'switchToDark' })).toBeInTheDocument();
     });
   });
 
