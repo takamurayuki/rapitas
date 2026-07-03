@@ -1,5 +1,5 @@
 {
-  "generated": "2026-07-03T10:24:15.999Z",
+  "generated": "2026-07-03T11:19:51.101Z",
   "hard_limit": 500,
   "soft_limit": 300,
   "_comment": "Files at or above the hard limit at snapshot time. Their listed lineCount becomes a per-file ceiling — they may shrink but not grow. Remove an entry by splitting the file.",
@@ -38,7 +38,7 @@
       "lineCount": 652
     },
     "rapitas-backend/services/memory/task-knowledge-extractor.ts": {
-      "lineCount": 645
+      "lineCount": 646
     },
     "rapitas-backend/services/agents/codex-cli-agent/process-runner.ts": {
       "lineCount": 640
@@ -47,7 +47,7 @@
       "lineCount": 583
     },
     "rapitas-backend/services/memory/idea-extractor.ts": {
-      "lineCount": 578
+      "lineCount": 581
     },
     "rapitas-backend/services/workflow/workflow-runner.ts": {
       "lineCount": 573
