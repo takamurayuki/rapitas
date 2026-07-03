@@ -202,10 +202,14 @@ export class DebugLogAnalyzer {
 
   /** Normalizes a message into a pattern by replacing numbers, IPs, emails, and paths. */
   private extractPattern(message: string): string {
+    // NOTE: IP must be replaced before NUMBER — each octet is itself a
+    // standalone \d+ token, so a NUMBER-first pass consumes them and the
+    // IP pattern below would never match (dead code producing
+    // "{NUMBER}.{NUMBER}.{NUMBER}.{NUMBER}" instead of "{IP}").
     return message
+      .replace(/\b\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}\b/g, '{IP}')
       .replace(/\b\d+\b/g, '{NUMBER}')
       .replace(/\b[0-9a-fA-F]{8,}\b/g, '{HEX}')
-      .replace(/\b\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}\b/g, '{IP}')
       .replace(/\b[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}\b/g, '{EMAIL}')
       .replace(/\/[^\/\s]+/g, '{PATH}');
   }

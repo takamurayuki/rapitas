@@ -88,7 +88,9 @@ export class DockerLogParser implements LogParser {
   private isDockerJsonLog(logLine: string): boolean {
     try {
       const json = JSON.parse(logLine);
-      return json.log && json.stream && json.time;
+      // NOTE: coerce to boolean — json is `any`, so the raw `&&` chain otherwise
+      // returns the last field's value (e.g. a timestamp string) instead of a bool.
+      return Boolean(json.log && json.stream && json.time);
     } catch {
       // intentionally ignore - invalid JSON
       return false;
