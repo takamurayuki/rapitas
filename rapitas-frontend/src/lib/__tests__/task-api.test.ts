@@ -138,6 +138,39 @@ describe('fetchTaskStatistics', () => {
     });
     expect(result).toEqual(stats);
   });
+
+  it('falls back to computed statistics from /tasks when the statistics endpoint fails', async () => {
+    mockApiFetch.mockImplementation((path: string) => {
+      if (path === '/tasks/statistics') return Promise.reject(new Error('not implemented'));
+      if (path === '/tasks') {
+        return Promise.resolve([
+          { id: 1, status: 'todo', theme: { categoryId: 1 } },
+          { id: 2, status: 'done', theme: { categoryId: 1 } },
+          { id: 3, status: 'in-progress', theme: { categoryId: 2 } },
+          { id: 4, status: 'todo' },
+        ]);
+      }
+      return Promise.reject(new Error(`unexpected path: ${path}`));
+    });
+
+    const result = await fetchTaskStatistics();
+
+    expect(result.total).toBe(4);
+    expect(result.byStatus).toEqual({ todo: 2, 'in-progress': 1, done: 1 });
+    expect(result.byCategory).toEqual({ 1: 2, 2: 1, 0: 1 });
+  });
+
+  it('returns zeroed defaults when both the statistics endpoint and the /tasks fallback fail', async () => {
+    mockApiFetch.mockRejectedValue(new Error('backend down'));
+
+    const result = await fetchTaskStatistics();
+
+    expect(result).toEqual({
+      total: 0,
+      byStatus: { todo: 0, 'in-progress': 0, done: 0 },
+      byCategory: {},
+    });
+  });
 });
 
 describe('fetchRecentTasks', () => {

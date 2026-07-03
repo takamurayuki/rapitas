@@ -80,6 +80,8 @@ export type UseAgentExecutionReturn = AgentExecutionHandlers & {
   logs: string[];
   isSseConnected: boolean;
   pollingTokensUsed: number | undefined;
+  /** Accumulated AI cost (USD) across the whole session. */
+  pollingTotalSessionCostUsd: number | undefined;
   pollingSessionMode: string | undefined;
   isRunning: boolean;
   isCompleted: boolean;

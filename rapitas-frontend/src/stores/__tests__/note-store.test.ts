@@ -16,6 +16,7 @@ describe('noteStore', () => {
       },
       searchQuery: '',
       selectedTags: [],
+      selectedDocType: null,
     });
   });
 
@@ -175,6 +176,19 @@ describe('noteStore', () => {
       useNoteStore.getState().setModalTab('ai');
       expect(useNoteStore.getState().modalState.activeTab).toBe('ai');
     });
+
+    it('setSplitNoteSide should update splitNoteSide', () => {
+      useNoteStore.getState().setSplitNoteSide('left');
+      expect(useNoteStore.getState().modalState.splitNoteSide).toBe('left');
+    });
+
+    it('toggleSplitNoteSide should flip right -> left -> right', () => {
+      expect(useNoteStore.getState().modalState.splitNoteSide).toBe('right');
+      useNoteStore.getState().toggleSplitNoteSide();
+      expect(useNoteStore.getState().modalState.splitNoteSide).toBe('left');
+      useNoteStore.getState().toggleSplitNoteSide();
+      expect(useNoteStore.getState().modalState.splitNoteSide).toBe('right');
+    });
   });
 
   describe('search and filter', () => {
@@ -200,6 +214,11 @@ describe('noteStore', () => {
       useNoteStore.getState().clearFilters();
       expect(useNoteStore.getState().searchQuery).toBe('');
       expect(useNoteStore.getState().selectedTags).toEqual([]);
+    });
+
+    it('setSelectedDocType should update selectedDocType', () => {
+      useNoteStore.getState().setSelectedDocType('設計書');
+      expect(useNoteStore.getState().selectedDocType).toBe('設計書');
     });
   });
 
@@ -270,6 +289,36 @@ describe('noteStore', () => {
       const filtered = useNoteStore.getState().getFilteredNotes();
       expect(filtered).toHaveLength(1);
       expect(filtered[0].id).toBe('3');
+    });
+
+    it('should filter by docType', () => {
+      useNoteStore.setState({
+        notes: [
+          {
+            id: '10',
+            title: 'Design doc',
+            content: '',
+            createdAt: new Date(),
+            updatedAt: new Date(),
+            isPinned: false,
+            tags: [],
+            docType: '設計書',
+          },
+          {
+            id: '11',
+            title: 'Other doc',
+            content: '',
+            createdAt: new Date(),
+            updatedAt: new Date(),
+            isPinned: false,
+            tags: [],
+          },
+        ],
+        selectedDocType: '設計書',
+      });
+      const filtered = useNoteStore.getState().getFilteredNotes();
+      expect(filtered).toHaveLength(1);
+      expect(filtered[0].id).toBe('10');
     });
   });
 

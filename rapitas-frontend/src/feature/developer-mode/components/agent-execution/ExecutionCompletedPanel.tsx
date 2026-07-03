@@ -15,7 +15,7 @@ import { useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { API_BASE_URL } from '@/utils/api';
 import type { PrState } from './agent-execution-types';
-import { formatTokenCount } from './agent-execution-utils';
+import { formatTokenCount, formatCostUsd } from './agent-execution-utils';
 import { PrMergeSection } from './PrMergeSection';
 
 /** Workflow session modes with a phase-specific translation key. */
@@ -32,6 +32,8 @@ type Props = {
   pollingSessionMode: string | undefined;
   /** Total tokens used in this session. */
   pollingTokensUsed: number | undefined;
+  /** Accumulated AI cost (USD) across the whole session. */
+  pollingTotalSessionCostUsd: number | undefined;
   /** Whether a new execution is in progress (disables follow-up button). */
   isExecuting: boolean;
   /** Current follow-up instruction text. */
@@ -68,6 +70,7 @@ type Props = {
 export function ExecutionCompletedPanel({
   pollingSessionMode,
   pollingTokensUsed,
+  pollingTotalSessionCostUsd,
   isExecuting,
   followUpInstruction,
   setFollowUpInstruction,
@@ -159,9 +162,14 @@ export function ExecutionCompletedPanel({
                 </p>
               )}
               {(pollingTokensUsed ?? 0) > 0 && (
-                <div className="flex items-center gap-1.5 mt-2 text-sm text-zinc-500 dark:text-zinc-400">
-                  <Zap className="w-3.5 h-3.5" />
-                  <span>{formatTokenCount(pollingTokensUsed ?? 0)}</span>
+                <div className="flex items-center gap-3 mt-2 text-sm text-zinc-500 dark:text-zinc-400">
+                  <span className="flex items-center gap-1.5">
+                    <Zap className="w-3.5 h-3.5" />
+                    {formatTokenCount(pollingTokensUsed ?? 0)}
+                  </span>
+                  {(pollingTotalSessionCostUsd ?? 0) > 0 && (
+                    <span>{formatCostUsd(pollingTotalSessionCostUsd ?? 0)}</span>
+                  )}
                 </div>
               )}
             </div>

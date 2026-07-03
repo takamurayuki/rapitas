@@ -46,4 +46,28 @@ describe('useSplitViewExit', () => {
     addSpy.mockRestore();
     removeSpy.mockRestore();
   });
+
+  it('handles an Escape keydown without throwing while split view is active', () => {
+    // @ts-expect-error injecting Tauri marker for the test
+    window.__TAURI_INTERNALS__ = {};
+    // @ts-expect-error injecting split-view marker for the test
+    window.__RAPITAS_SPLIT_VIEW__ = {};
+
+    renderHook(() => useSplitViewExit());
+
+    expect(() => {
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
+    }).not.toThrow();
+  });
+
+  it('ignores non-Escape keydown events while running in Tauri', () => {
+    // @ts-expect-error injecting Tauri marker for the test
+    window.__TAURI_INTERNALS__ = {};
+
+    renderHook(() => useSplitViewExit());
+
+    expect(() => {
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter' }));
+    }).not.toThrow();
+  });
 });

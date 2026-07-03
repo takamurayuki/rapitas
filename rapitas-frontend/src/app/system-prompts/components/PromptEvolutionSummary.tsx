@@ -34,6 +34,60 @@ function DeltaIcon({ delta }: { delta: number | null }) {
   );
 }
 
+/** Direction of the latest completed swap relative to the one before it. */
+type TrendDirection = 'up' | 'down' | 'flat';
+
+/**
+ * Compare the two most recent COMPLETED entries (recentEntries is already
+ * newest-first) to tell whether the latest prompt swap did better or worse
+ * than the swap before it. This is distinct from the group's `DeltaIcon`,
+ * which only looks at the sign of the single latest delta — here we look at
+ * the direction of change across time, i.e. whether recent swaps are trending
+ * toward bigger or smaller gains.
+ *
+ * @param entries - `recentEntries` from the group summary (newest-first)
+ * @returns Trend direction, or null when fewer than 2 completed entries exist
+ */
+function trendDirectionFor(
+  entries: Array<{ status: string; performanceDelta: number }>,
+): TrendDirection | null {
+  const completed = entries.filter((e) => e.status === 'completed');
+  if (completed.length < 2) return null;
+  const diff = completed[0].performanceDelta - completed[1].performanceDelta;
+  if (diff > 0) return 'up';
+  if (diff < 0) return 'down';
+  return 'flat';
+}
+
+/** Small chronological (oldest-left) tick row visualizing recent performanceDelta signs. */
+function RecentDeltaTicks({
+  entries,
+}: {
+  entries: Array<{ id: number; status: string; performanceDelta: number }>;
+}) {
+  const completed = entries.filter((e) => e.status === 'completed');
+  if (completed.length === 0) return null;
+  // recentEntries arrives newest-first; reverse for left-to-right chronological reading.
+  const chronological = [...completed].reverse();
+  return (
+    <div className="mt-1.5 flex items-center gap-1">
+      {chronological.map((entry) => (
+        <span
+          key={entry.id}
+          title={entry.performanceDelta.toFixed(3)}
+          className={`h-1.5 w-3 rounded-full ${
+            entry.performanceDelta > 0
+              ? 'bg-green-400 dark:bg-green-500'
+              : entry.performanceDelta < 0
+                ? 'bg-red-400 dark:bg-red-500'
+                : 'bg-zinc-300 dark:bg-zinc-600'
+          }`}
+        />
+      ))}
+    </div>
+  );
+}
+
 export function PromptEvolutionSummary() {
   const t = useTranslations('prompts');
   const [groups, setGroups] = useState<PromptEvolutionGroupSummary[] | null>(null);
@@ -85,35 +139,48 @@ export function PromptEvolutionSummary() {
         </div>
       ) : (
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          {groups.map((group) => (
-            <div
-              key={group.key}
-              className="rounded-xl border border-zinc-200 bg-white px-4 py-3 dark:border-zinc-700 dark:bg-zinc-800"
-            >
-              <div className="mb-2 flex items-center justify-between gap-2">
-                <span className="truncate text-sm font-medium text-zinc-900 dark:text-zinc-50">
-                  {group.key}
-                </span>
-                <DeltaIcon delta={group.latestPerformanceDelta} />
+          {groups.map((group) => {
+            const trend = trendDirectionFor(group.recentEntries);
+            return (
+              <div
+                key={group.key}
+                className="rounded-xl border border-zinc-200 bg-white px-4 py-3 dark:border-zinc-700 dark:bg-zinc-800"
+              >
+                <div className="mb-2 flex items-center justify-between gap-2">
+                  <span className="truncate text-sm font-medium text-zinc-900 dark:text-zinc-50">
+                    {group.key}
+                  </span>
+                  <DeltaIcon delta={group.latestPerformanceDelta} />
+                </div>
+                <div className="flex items-center gap-4 text-xs text-zinc-500 dark:text-zinc-400">
+                  <span>{t('promptEvolution.entries', { count: group.entryCount })}</span>
+                  <span>
+                    {t('promptEvolution.pendingOfCompleted', {
+                      pending: group.pendingCount,
+                      completed: group.completedCount,
+                    })}
+                  </span>
+                </div>
+                {group.averagePerformanceDelta !== null && (
+                  <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
+                    {t('promptEvolution.avgDelta', {
+                      value: group.averagePerformanceDelta.toFixed(3),
+                    })}
+                  </p>
+                )}
+                <RecentDeltaTicks entries={group.recentEntries} />
+                {trend !== null && (
+                  <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
+                    {t('promptEvolution.recentTrend', {
+                      direction: t(
+                        `promptEvolution.trend${trend === 'up' ? 'Up' : trend === 'down' ? 'Down' : 'Flat'}`,
+                      ),
+                    })}
+                  </p>
+                )}
               </div>
-              <div className="flex items-center gap-4 text-xs text-zinc-500 dark:text-zinc-400">
-                <span>{t('promptEvolution.entries', { count: group.entryCount })}</span>
-                <span>
-                  {t('promptEvolution.pendingOfCompleted', {
-                    pending: group.pendingCount,
-                    completed: group.completedCount,
-                  })}
-                </span>
-              </div>
-              {group.averagePerformanceDelta !== null && (
-                <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
-                  {t('promptEvolution.avgDelta', {
-                    value: group.averagePerformanceDelta.toFixed(3),
-                  })}
-                </p>
-              )}
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
     </div>

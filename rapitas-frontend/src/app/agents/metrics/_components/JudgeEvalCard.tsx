@@ -11,7 +11,7 @@
  * disappearing like RepairConvergenceCard does for its zero-data case.
  */
 import { useEffect, useState } from 'react';
-import { Gavel, CheckCircle2, XCircle, AlertTriangle } from 'lucide-react';
+import { Gavel, CheckCircle2, XCircle, AlertTriangle, HelpCircle } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { API_BASE_URL } from '@/utils/api';
 
@@ -135,6 +135,38 @@ export function JudgeEvalCard() {
                   : t('judgeEval.lastRun')}
               </p>
             </div>
+          </div>
+        </div>
+      )}
+
+      {data && data.cases.length > 0 && (
+        <div className="mt-3 rounded-xl border border-zinc-200 bg-white px-4 py-3 dark:border-zinc-700 dark:bg-zinc-800">
+          <p className="mb-2 text-xs font-medium text-zinc-500 dark:text-zinc-400">
+            {t('judgeEval.caseBreakdown')}
+          </p>
+          <div className="flex flex-wrap gap-2">
+            {data.cases.map((c) => (
+              <span
+                key={c.name}
+                title={`expected: ${c.expected} / got: ${c.got}`}
+                className={`flex items-center gap-1 rounded-full px-2 py-1 text-xs ${
+                  c.ok
+                    ? 'bg-green-50 text-green-700 dark:bg-green-900/30 dark:text-green-300'
+                    : c.got === 'unknown'
+                      ? 'bg-amber-50 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300'
+                      : 'bg-red-50 text-red-700 dark:bg-red-900/30 dark:text-red-300'
+                }`}
+              >
+                {c.ok ? (
+                  <CheckCircle2 className="h-3 w-3 shrink-0" />
+                ) : c.got === 'unknown' ? (
+                  <HelpCircle className="h-3 w-3 shrink-0" />
+                ) : (
+                  <XCircle className="h-3 w-3 shrink-0" />
+                )}
+                {c.name}
+              </span>
+            ))}
           </div>
         </div>
       )}

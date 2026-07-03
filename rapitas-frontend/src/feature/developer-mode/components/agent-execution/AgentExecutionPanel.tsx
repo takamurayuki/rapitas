@@ -103,6 +103,7 @@ export function AgentExecutionPanel(props: Props) {
     logs,
     isSseConnected,
     pollingTokensUsed,
+    pollingTotalSessionCostUsd,
     pollingSessionMode,
     isRunning,
     isCompleted,
@@ -196,6 +197,7 @@ export function AgentExecutionPanel(props: Props) {
         isSendingResponse={isSendingResponse}
         timeoutCountdown={timeoutCountdown}
         pollingTokensUsed={pollingTokensUsed}
+        pollingTotalSessionCostUsd={pollingTotalSessionCostUsd}
         logsNode={buildLogsNode(true)}
         onStop={handleStopExecution}
         onSendResponse={handleSendResponse}
@@ -208,6 +210,7 @@ export function AgentExecutionPanel(props: Props) {
       <ExecutionCompletedPanel
         pollingSessionMode={pollingSessionMode}
         pollingTokensUsed={pollingTokensUsed}
+        pollingTotalSessionCostUsd={pollingTotalSessionCostUsd}
         isExecuting={isExecuting}
         followUpInstruction={followUpInstruction}
         setFollowUpInstruction={setFollowUpInstruction}
@@ -229,6 +232,7 @@ export function AgentExecutionPanel(props: Props) {
     return (
       <ExecutionCancelledPanel
         pollingTokensUsed={pollingTokensUsed}
+        pollingTotalSessionCostUsd={pollingTotalSessionCostUsd}
         logsNode={buildLogsNode(false)}
         onReset={handleReset}
       />
@@ -240,6 +244,7 @@ export function AgentExecutionPanel(props: Props) {
       <ExecutionFailedPanel
         errorMessage={error || executionResult?.error || t('unknownError')}
         pollingTokensUsed={pollingTokensUsed}
+        pollingTotalSessionCostUsd={pollingTotalSessionCostUsd}
         isExecuting={isExecuting}
         logsNode={buildLogsNode(false)}
         onReset={handleReset}

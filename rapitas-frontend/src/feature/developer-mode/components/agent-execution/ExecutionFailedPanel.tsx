@@ -5,12 +5,15 @@ import React from 'react';
 import { useTranslations } from 'next-intl';
 import { Play, AlertCircle, RefreshCw, Zap } from 'lucide-react';
 import { formatTokenCount } from './useAgentExecution';
+import { formatCostUsd } from './agent-execution-utils';
 
 type Props = {
   /** Error message to display. */
   errorMessage: string;
   /** Total tokens used before the failure. */
   pollingTokensUsed: number | undefined;
+  /** Accumulated AI cost (USD) across the whole session. */
+  pollingTotalSessionCostUsd: number | undefined;
   /** Whether a new execution is in progress (disables retry button). */
   isExecuting: boolean;
   /** Rendered log panel (passed from parent). */
@@ -29,6 +32,7 @@ type Props = {
 export function ExecutionFailedPanel({
   errorMessage,
   pollingTokensUsed,
+  pollingTotalSessionCostUsd,
   isExecuting,
   logsNode,
   onReset,
@@ -47,9 +51,14 @@ export function ExecutionFailedPanel({
               <h3 className="font-bold text-lg text-red-700 dark:text-red-300">{t('title')}</h3>
               <p className="text-sm text-red-600 dark:text-red-400 mt-1">{errorMessage}</p>
               {(pollingTokensUsed ?? 0) > 0 && (
-                <div className="flex items-center gap-1.5 mt-2 text-sm text-zinc-500 dark:text-zinc-400">
-                  <Zap className="w-3.5 h-3.5" />
-                  <span>{formatTokenCount(pollingTokensUsed ?? 0)}</span>
+                <div className="flex items-center gap-3 mt-2 text-sm text-zinc-500 dark:text-zinc-400">
+                  <span className="flex items-center gap-1.5">
+                    <Zap className="w-3.5 h-3.5" />
+                    {formatTokenCount(pollingTokensUsed ?? 0)}
+                  </span>
+                  {(pollingTotalSessionCostUsd ?? 0) > 0 && (
+                    <span>{formatCostUsd(pollingTotalSessionCostUsd ?? 0)}</span>
+                  )}
                 </div>
               )}
             </div>

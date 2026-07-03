@@ -145,6 +145,27 @@ describe('offline-queue', () => {
       expect(status.lastSyncAt).toBeNull();
       expect(status.lastError).toBeNull();
     });
+
+    it('falls back to safe defaults when reading the DB fails', async () => {
+      vi.resetModules();
+      vi.stubGlobal('indexedDB', {
+        open() {
+          const req = new FakeIDBRequest();
+          queueMicrotask(() => req.onerror?.());
+          return req;
+        },
+      });
+      const mod = await import('../offline-queue');
+
+      const status = await mod.getQueueStatus();
+
+      expect(status).toEqual({
+        pendingCount: 0,
+        isSyncing: false,
+        lastSyncAt: null,
+        lastError: null,
+      });
+    });
   });
 
   describe('clearQueue', () => {
@@ -328,6 +349,36 @@ describe('offline-queue', () => {
       expect(pending[0].headers['x-test']).toBe('yes');
     });
 
+    it('extracts headers from an array-of-tuples format when queuing', async () => {
+      const { mod } = await freshModule();
+      vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new TypeError('Failed to fetch')));
+      vi.spyOn(navigator, 'onLine', 'get').mockReturnValue(false);
+
+      await mod.offlineFetch('https://api.test/tasks/4', {
+        method: 'POST',
+        headers: [['x-test', 'array-value']],
+        body: '{}',
+      });
+
+      const pending = await mod.getPendingMutations();
+      expect(pending[0].headers['x-test']).toBe('array-value');
+    });
+
+    it('extracts headers from a plain object when queuing', async () => {
+      const { mod } = await freshModule();
+      vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new TypeError('Failed to fetch')));
+      vi.spyOn(navigator, 'onLine', 'get').mockReturnValue(false);
+
+      await mod.offlineFetch('https://api.test/tasks/5', {
+        method: 'POST',
+        headers: { 'x-test': 'plain-value' },
+        body: '{}',
+      });
+
+      const pending = await mod.getPendingMutations();
+      expect(pending[0].headers['x-test']).toBe('plain-value');
+    });
+
     it('re-throws non-network errors instead of queuing', async () => {
       const { mod } = await freshModule();
       vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('boom')));
@@ -336,6 +387,21 @@ describe('offline-queue', () => {
       await expect(
         mod.offlineFetch('https://api.test/tasks/3', { method: 'POST', body: '{}' }),
       ).rejects.toThrow('boom');
+      expect(await mod.getPendingMutations()).toHaveLength(0);
+    });
+  });
+
+  describe('auto-sync on browser online event', () => {
+    it('automatically syncs the queue when the browser comes back online', async () => {
+      const { mod } = await freshModule();
+      await mod.enqueueMutation('/a', 'POST', {}, null, 'a');
+      vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, status: 200 }));
+
+      window.dispatchEvent(new Event('online'));
+      // Let the queued microtask-based syncQueue() chain (fake IDB reads +
+      // mocked fetch + removeMutation) fully settle.
+      await new Promise((resolve) => setTimeout(resolve, 0));
+
       expect(await mod.getPendingMutations()).toHaveLength(0);
     });
   });

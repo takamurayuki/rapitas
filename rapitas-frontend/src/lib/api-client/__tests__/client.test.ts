@@ -1,4 +1,5 @@
 import { APIClient, isTransientError } from '../client';
+import * as apiUtils from '@/utils/api';
 
 vi.mock('@/utils/api', () => ({ API_BASE_URL: 'http://test:3001' }));
 
@@ -315,5 +316,129 @@ describe('APIClient.clearCache / getCacheStats', () => {
 
     expect(stats.entries.length).toBeGreaterThan(0);
     expect(stats.size).toBeGreaterThan(0);
+  });
+});
+
+describe('APIClient.performFetch - caller AbortSignal composition', () => {
+  beforeEach(() => {
+    mockOfflineFetch.mockReset();
+  });
+
+  it('composes the caller AbortSignal using the native AbortSignal.any when available', async () => {
+    mockOfflineFetch.mockImplementation((_url: string, init: RequestInit) => {
+      expect(init.signal).toBeInstanceOf(AbortSignal);
+      return Promise.resolve(okResponse({ id: 1 }));
+    });
+
+    const controller = new AbortController();
+    const client = new APIClient();
+
+    const result = await client.fetch('/tasks/1', {
+      skipCache: true,
+      signal: controller.signal,
+    });
+
+    expect(result).toEqual({ id: 1 });
+  });
+});
+
+describe('APIClient.performFetch - caller AbortSignal composition without AbortSignal.any', () => {
+  const originalAny = AbortSignal.any;
+
+  beforeEach(() => {
+    mockOfflineFetch.mockReset();
+    // Force the manual-chaining fallback branches (taken in runtimes where the
+    // AbortSignal.any static method is unavailable).
+    // @ts-expect-error simulating an environment without AbortSignal.any
+    delete AbortSignal.any;
+  });
+
+  afterEach(() => {
+    AbortSignal.any = originalAny;
+  });
+
+  it('immediately aborts the composed signal when the caller signal is already aborted', async () => {
+    mockOfflineFetch.mockImplementation((_url: string, init: RequestInit) => {
+      expect((init.signal as AbortSignal).aborted).toBe(true);
+      return Promise.resolve(okResponse({ id: 1 }));
+    });
+
+    const controller = new AbortController();
+    controller.abort(new Error('caller aborted'));
+    const client = new APIClient();
+
+    const result = await client.fetch('/tasks/1', {
+      skipCache: true,
+      signal: controller.signal,
+    });
+
+    expect(result).toEqual({ id: 1 });
+    expect(mockOfflineFetch).toHaveBeenCalledTimes(1);
+  });
+
+  it('registers an abort listener that propagates a not-yet-aborted caller signal', async () => {
+    let capturedSignal: AbortSignal | undefined;
+    mockOfflineFetch.mockImplementation((_url: string, init: RequestInit) => {
+      capturedSignal = init.signal as AbortSignal;
+      return Promise.resolve(okResponse({ id: 1 }));
+    });
+
+    const controller = new AbortController();
+    const client = new APIClient();
+
+    await client.fetch('/tasks/1', {
+      skipCache: true,
+      signal: controller.signal,
+    });
+
+    expect(capturedSignal!.aborted).toBe(false);
+    controller.abort(new Error('late abort'));
+    // The bridging listener fires synchronously, propagating the abort onto
+    // the composed timeout signal.
+    expect(capturedSignal!.aborted).toBe(true);
+  });
+});
+
+describe('APIClient.performFetch - SSR / non-browser fallbacks', () => {
+  beforeEach(() => {
+    mockOfflineFetch.mockReset();
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it('falls back to native fetch (not offlineFetch) when window is undefined', async () => {
+    const nativeFetch = vi.fn().mockResolvedValue(okResponse({ id: 42 }));
+    vi.stubGlobal('window', undefined);
+    vi.stubGlobal('fetch', nativeFetch);
+
+    const client = new APIClient();
+    const result = await client.fetch('/tasks/1', { skipCache: true });
+
+    expect(result).toEqual({ id: 42 });
+    expect(nativeFetch).toHaveBeenCalled();
+    expect(mockOfflineFetch).not.toHaveBeenCalled();
+  });
+
+  it('falls back to the raw URL for the request label when the base URL cannot be parsed', async () => {
+    const original = apiUtils.API_BASE_URL;
+    // Mutate the mocked export so `${API_BASE_URL}${path}` produces a
+    // relative (non-absolute) string that `new URL()` cannot parse.
+    (apiUtils as { API_BASE_URL: string }).API_BASE_URL = '';
+    try {
+      mockOfflineFetch.mockImplementation((url: string) => {
+        // pathname parsing failed -> the raw relative url is used as-is
+        expect(url).toBe('/tasks/1');
+        return Promise.resolve(okResponse({ id: 1 }));
+      });
+
+      const client = new APIClient();
+      const result = await client.fetch('/tasks/1', { skipCache: true });
+
+      expect(result).toEqual({ id: 1 });
+    } finally {
+      (apiUtils as { API_BASE_URL: string }).API_BASE_URL = original;
+    }
   });
 });

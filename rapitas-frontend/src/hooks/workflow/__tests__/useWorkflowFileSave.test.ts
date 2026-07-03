@@ -79,6 +79,55 @@ describe('useWorkflowFileSave', () => {
     expect(res!.error).toBe('Network error');
   });
 
+  it('falls back to an HTTP-status message when the error body has no error field', async () => {
+    mockFetch.mockResolvedValueOnce({
+      ok: false,
+      status: 500,
+      json: async () => ({}),
+    });
+
+    const { result } = renderHook(() => useWorkflowFileSave(1));
+    let res: { success: boolean; error?: string } | undefined;
+    await act(async () => {
+      res = await result.current.saveFile('plan', 'x');
+    });
+
+    expect(res!.success).toBe(false);
+    expect(res!.error).toBe('HTTP 500');
+  });
+
+  it('falls back to an HTTP-status message when res.json() itself rejects', async () => {
+    mockFetch.mockResolvedValueOnce({
+      ok: false,
+      status: 503,
+      json: async () => {
+        throw new Error('body not JSON');
+      },
+    });
+
+    const { result } = renderHook(() => useWorkflowFileSave(1));
+    let res: { success: boolean; error?: string } | undefined;
+    await act(async () => {
+      res = await result.current.saveFile('plan', 'x');
+    });
+
+    expect(res!.success).toBe(false);
+    expect(res!.error).toBe('HTTP 503');
+  });
+
+  it('falls back to the translated saveFailed key when a non-Error value is thrown', async () => {
+    mockFetch.mockRejectedValueOnce('not an Error instance');
+
+    const { result } = renderHook(() => useWorkflowFileSave(1));
+    let res: { success: boolean; error?: string } | undefined;
+    await act(async () => {
+      res = await result.current.saveFile('plan', 'x');
+    });
+
+    expect(res!.success).toBe(false);
+    expect(res!.error).toBe('saveFailed');
+  });
+
   it('clearError resets the error', async () => {
     mockFetch.mockRejectedValueOnce(new Error('boom'));
     const { result } = renderHook(() => useWorkflowFileSave(1));

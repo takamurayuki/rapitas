@@ -1675,6 +1675,7 @@
       "failed": "不合格",
       "errored": "{count}件エラー",
       "lastRun": "最終実行",
+      "caseBreakdown": "ケース別の結果",
       "empty": "判定精度evalは未実行です。RAPITAS_EVAL_JUDGE=1 を設定して scripts/eval-judge.ts を実行してください。",
       "loadFailed": "判定精度evalの結果取得に失敗しました"
     },
@@ -2623,6 +2624,10 @@
       "entries": "{count}件",
       "pendingOfCompleted": "未処理{pending}件 / 完了{completed}件",
       "avgDelta": "平均差分 {value}",
+      "recentTrend": "直近の傾向: {direction}",
+      "trendUp": "改善傾向",
+      "trendDown": "悪化傾向",
+      "trendFlat": "横ばい",
       "empty": "プロンプト進化の履歴はまだありません。",
       "loadFailed": "プロンプト進化履歴の取得に失敗しました"
     }

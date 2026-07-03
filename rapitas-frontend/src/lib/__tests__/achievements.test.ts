@@ -277,6 +277,45 @@ describe('Achievement Logic', () => {
       expect(updatedStats.totalTasksCompleted).toBe(8);
       expect(updatedStats.tasksCompletedToday).toBe(5);
     });
+
+    it('continues the study streak on a consecutive next day', () => {
+      // Noon UTC on both ends keeps `sameDay`/`isNextDay` (which compare via
+      // toDateString() in the local timezone) unambiguous across timezones,
+      // matching the convention used by the "day transitions" test above.
+      const stats = createMockPlayerStats({
+        currentStudyStreak: 3,
+        maxStudyStreak: 3,
+        studyTimeToday: 30,
+        lastUpdatedAt: new Date('2023-01-01T12:00:00Z'),
+      });
+      const updateRequest: StatsUpdateRequest = {
+        studyTimeMinutes: 15,
+        timestamp: new Date('2023-01-02T12:00:00Z'), // next day
+      };
+
+      const updatedStats = updatePlayerStats(stats, updateRequest);
+
+      expect(updatedStats.currentStudyStreak).toBe(4); // existingStudyStreak(3) + 1
+      expect(updatedStats.maxStudyStreak).toBe(4);
+    });
+
+    it('resets the study streak to 1 after a gap of more than one day', () => {
+      const stats = createMockPlayerStats({
+        currentStudyStreak: 5,
+        maxStudyStreak: 5,
+        studyTimeToday: 30,
+        lastUpdatedAt: new Date('2023-01-01T12:00:00Z'),
+      });
+      const updateRequest: StatsUpdateRequest = {
+        studyTimeMinutes: 15,
+        timestamp: new Date('2023-01-05T12:00:00Z'), // 4 days later: neither same-day nor next-day
+      };
+
+      const updatedStats = updatePlayerStats(stats, updateRequest);
+
+      expect(updatedStats.currentStudyStreak).toBe(1);
+      expect(updatedStats.maxStudyStreak).toBe(5); // existing max (5) retained over the reset (1)
+    });
   });
 
   describe('createAchievementNotification', () => {
@@ -308,6 +347,11 @@ describe('Achievement Logic', () => {
         const badge = BADGES.find((b) => b.id === 'task_novice')!;
 
         const isEligible = checkBadgeEligibility(unlockedAchievements, badge.id);
+        expect(isEligible).toBe(false);
+      });
+
+      it('should return false when badgeId does not match any known badge', () => {
+        const isEligible = checkBadgeEligibility(['first_steps'], 'nonexistent_badge');
         expect(isEligible).toBe(false);
       });
     });

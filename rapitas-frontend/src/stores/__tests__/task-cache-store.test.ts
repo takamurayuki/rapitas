@@ -459,6 +459,24 @@ describe('taskCacheStore', () => {
       expect(useTaskCacheStore.getState().connectionStatus).toBe('online');
     });
 
+    it('suppresses further error logs after MAX_LOGGED_FAILURES + 1 consecutive failures', async () => {
+      useTaskCacheStore.setState({
+        tasks: [{ id: 1, title: 'Task' } as never],
+        lastFetchedAt: new Date().toISOString(),
+        initialized: true,
+      });
+
+      vi.mocked(fetchWithRetry).mockRejectedValue(new Error('Failed to fetch'));
+
+      // MAX_LOGGED_FAILURES = 3: the 4th consecutive failure crosses into the
+      // "suppress further error logs" branch.
+      for (let i = 0; i < 4; i++) {
+        await useTaskCacheStore.getState().fetchUpdates(true);
+      }
+
+      expect(useTaskCacheStore.getState().consecutiveFailures).toBe(4);
+    });
+
     it('should set offline on HTTP error response', async () => {
       useTaskCacheStore.setState({
         tasks: [{ id: 1, title: 'Task' } as never],
@@ -536,6 +554,48 @@ describe('taskCacheStore', () => {
       await expect(useTaskCacheStore.getState().fetchAll()).resolves.toBeUndefined();
       expect(useTaskCacheStore.getState().tasks).toEqual(mockTasks);
       expect(useTaskCacheStore.getState().lastFetchedAt).not.toBeNull();
+    });
+  });
+
+  describe('applyMaxCacheSize (via fetchAll cache cap)', () => {
+    it('evicts the oldest completed tasks when the merged list exceeds MAX_CACHE_SIZE (800)', async () => {
+      const activeTasks = Array.from({ length: 10 }, (_, i) => ({
+        id: i + 1,
+        status: 'todo',
+        title: `Active ${i}`,
+      }));
+      const doneTasks = Array.from({ length: 800 }, (_, i) => ({
+        id: 1000 + i,
+        status: 'done',
+        title: `Done ${i}`,
+      }));
+      const allTasks = [...activeTasks, ...doneTasks]; // 810 total, over the 800 cap
+
+      vi.mocked(fetchWithRetry).mockResolvedValue({
+        ok: true,
+        json: () => Promise.resolve(allTasks),
+      } as Response);
+
+      await useTaskCacheStore.getState().fetchAll();
+
+      const state = useTaskCacheStore.getState();
+      const active = state.tasks.filter(
+        (t) => (t as unknown as { status: string }).status !== 'done',
+      );
+      const done = state.tasks.filter(
+        (t) => (t as unknown as { status: string }).status === 'done',
+      );
+
+      // All active tasks are always retained; done tasks are capped so the
+      // total stays at MAX_CACHE_SIZE (800).
+      expect(active).toHaveLength(10);
+      expect(done).toHaveLength(790);
+      expect(state.tasks).toHaveLength(800);
+
+      // The highest-id (most recent) done tasks are kept; the oldest 10 are evicted.
+      const doneIds = done.map((t) => t.id);
+      expect(Math.min(...doneIds)).toBe(1010);
+      expect(Math.max(...doneIds)).toBe(1799);
     });
   });
 });

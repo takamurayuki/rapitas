@@ -55,6 +55,18 @@ describe('getHolidaysForYear', () => {
     expect(holidays.find((h) => h.date === '2020-08-10')?.labelKey).toBe('mountainDay');
   });
 
+  it('handles 2021 Olympic special dates (marine/mountain/sports day)', () => {
+    const holidays = getHolidaysForYear(2021);
+    expect(holidays.find((h) => h.date === '2021-07-22')?.labelKey).toBe('marineDay');
+    expect(holidays.find((h) => h.date === '2021-08-08')?.labelKey).toBe('mountainDay');
+    expect(holidays.find((h) => h.date === '2021-07-23')?.labelKey).toBe('sportsDay');
+  });
+
+  it('returns healthAndSportsDay (10/10) for years 1966-1999', () => {
+    const holidays = getHolidaysForYear(1990);
+    expect(holidays.find((h) => h.date === '1990-10-10')?.labelKey).toBe('healthAndSportsDay');
+  });
+
   it('returns Showa Day for years >= 2007', () => {
     expect(getHolidaysForYear(2026).find((h) => h.date === '2026-04-29')?.labelKey).toBe(
       'showaDay',

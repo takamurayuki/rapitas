@@ -22,6 +22,20 @@ export function formatTokenCount(tokens: number): string {
 }
 
 /**
+ * Format a USD cost amount for the execution panels.
+ * Uses 4 decimal places below $0.01 so small per-execution costs don't all
+ * collapse to "$0.00" (a single cheap phase can cost fractions of a cent).
+ *
+ * @param costUsd - Non-negative cost in US dollars
+ * @returns Formatted string, e.g. "$0.0032" or "$1.24"
+ */
+export function formatCostUsd(costUsd: number): string {
+  if (!Number.isFinite(costUsd) || costUsd <= 0) return '$0.00';
+  if (costUsd < 0.01) return `$${costUsd.toFixed(4)}`;
+  return `$${costUsd.toFixed(2)}`;
+}
+
+/**
  * Format a remaining-seconds value as mm:ss.
  *
  * @param seconds - Non-negative integer seconds remaining

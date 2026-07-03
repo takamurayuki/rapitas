@@ -114,16 +114,20 @@ export async function executePoll(
       refs.lastExecutionIdRef.current = newExecutionId;
     }
 
-    // Always update token usage
+    // Always update token usage (and accumulated session cost, surfaced
+    // alongside tokens since both are read from the same AgentSession row).
     const polledTokensUsed = data.tokensUsed as number | undefined;
     const polledTotalSessionTokens = data.totalSessionTokens as number | undefined;
-    if (polledTokensUsed || polledTotalSessionTokens) {
+    const polledTotalSessionCostUsd = data.totalSessionCostUsd as number | undefined;
+    if (polledTokensUsed || polledTotalSessionTokens || polledTotalSessionCostUsd) {
       setState((prev) => {
         const nextTokensUsed = polledTokensUsed ?? prev.tokensUsed;
         const nextTotalSessionTokens = polledTotalSessionTokens ?? prev.totalSessionTokens;
+        const nextTotalSessionCostUsd = polledTotalSessionCostUsd ?? prev.totalSessionCostUsd;
         if (
           prev.tokensUsed === nextTokensUsed &&
-          prev.totalSessionTokens === nextTotalSessionTokens
+          prev.totalSessionTokens === nextTotalSessionTokens &&
+          prev.totalSessionCostUsd === nextTotalSessionCostUsd
         ) {
           return prev;
         }
@@ -131,6 +135,7 @@ export async function executePoll(
           ...prev,
           tokensUsed: nextTokensUsed,
           totalSessionTokens: nextTotalSessionTokens,
+          totalSessionCostUsd: nextTotalSessionCostUsd,
         };
       });
     }

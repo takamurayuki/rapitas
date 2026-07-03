@@ -1675,6 +1675,7 @@
       "failed": "Failed",
       "errored": "{count} errored",
       "lastRun": "Last run",
+      "caseBreakdown": "Case breakdown",
       "empty": "Judge eval has never run. Set RAPITAS_EVAL_JUDGE=1 and run scripts/eval-judge.ts to produce a result.",
       "loadFailed": "Failed to load judge eval result"
     },
@@ -2623,6 +2624,10 @@
       "entries": "{count} entries",
       "pendingOfCompleted": "{pending} pending / {completed} completed",
       "avgDelta": "avg delta {value}",
+      "recentTrend": "vs previous: {direction}",
+      "trendUp": "improving",
+      "trendDown": "declining",
+      "trendFlat": "stable",
       "empty": "No prompt evolution history yet.",
       "loadFailed": "Failed to load prompt evolution history"
     }

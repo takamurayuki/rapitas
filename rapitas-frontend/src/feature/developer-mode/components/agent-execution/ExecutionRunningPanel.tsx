@@ -5,6 +5,7 @@ import React from 'react';
 import { useTranslations } from 'next-intl';
 import { Loader2, Rocket, HelpCircle, Square, Zap } from 'lucide-react';
 import { formatTokenCount, formatCountdown } from './useAgentExecution';
+import { formatCostUsd } from './agent-execution-utils';
 
 type Props = {
   /** Whether the agent is waiting for a user answer (AskUserQuestion tool call). */
@@ -29,6 +30,8 @@ type Props = {
   timeoutCountdown: number | null;
   /** Total tokens used in this session. */
   pollingTokensUsed: number | undefined;
+  /** Accumulated AI cost (USD) across the whole session. */
+  pollingTotalSessionCostUsd: number | undefined;
   /** Rendered log panel (passed from parent to avoid prop-drilling ExecutionLogViewer). */
   logsNode: React.ReactNode;
   /** Stop the running execution. */
@@ -51,6 +54,7 @@ export function ExecutionRunningPanel({
   hasOptions,
   timeoutCountdown,
   pollingTokensUsed,
+  pollingTotalSessionCostUsd,
   logsNode,
   onStop,
 }: Props) {
@@ -115,9 +119,14 @@ export function ExecutionRunningPanel({
 
           <div className="flex items-center justify-between mt-4">
             {(pollingTokensUsed ?? 0) > 0 ? (
-              <div className="flex items-center gap-1.5 text-sm text-zinc-500 dark:text-zinc-400">
-                <Zap className="w-3.5 h-3.5" />
-                <span>{formatTokenCount(pollingTokensUsed ?? 0)}</span>
+              <div className="flex items-center gap-3 text-sm text-zinc-500 dark:text-zinc-400">
+                <span className="flex items-center gap-1.5">
+                  <Zap className="w-3.5 h-3.5" />
+                  {formatTokenCount(pollingTokensUsed ?? 0)}
+                </span>
+                {(pollingTotalSessionCostUsd ?? 0) > 0 && (
+                  <span>{formatCostUsd(pollingTotalSessionCostUsd ?? 0)}</span>
+                )}
               </div>
             ) : (
               <div />
