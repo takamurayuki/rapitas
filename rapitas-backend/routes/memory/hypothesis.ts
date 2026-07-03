@@ -163,17 +163,25 @@ export const hypothesisRoutes = new Elysia()
   )
 
   /** Delete a hypothesis. */
-  .delete('/hypotheses/:id', async ({ params, set }) => {
-    const id = parseInt(params.id);
-    if (!Number.isFinite(id)) {
-      set.status = 400;
-      return { error: '無効なIDです' };
-    }
-    const ok = await deleteHypothesis(id);
-    if (!ok) {
-      set.status = 404;
-      return { error: '仮説が見つかりません' };
-    }
-    log.info({ id }, 'Hypothesis deleted');
-    return { success: true };
-  });
+  .delete(
+    '/hypotheses/:id',
+    async ({ params, set }) => {
+      const id = parseInt(params.id);
+      if (!Number.isFinite(id)) {
+        set.status = 400;
+        return { error: '無効なIDです' };
+      }
+      const ok = await deleteHypothesis(id);
+      if (!ok) {
+        set.status = 404;
+        return { error: '仮説が見つかりません' };
+      }
+      log.info({ id }, 'Hypothesis deleted');
+      return { success: true };
+    },
+    {
+      params: t.Object({
+        id: t.String(),
+      }),
+    },
+  );

@@ -93,9 +93,27 @@ export async function retryOrBlock(params: RetryParams): Promise<{ retried: bool
     return { retried: false };
   }
 
-  const session = await prisma.agentSession
-    .findUnique({ where: { id: sessionId }, select: { metadata: true } })
-    .catch(() => null);
+  let session: { metadata: string | null } | null;
+  try {
+    session = await prisma.agentSession.findUnique({
+      where: { id: sessionId },
+      select: { metadata: true },
+    });
+  } catch (err) {
+    // FAIL CLOSED: a bare `.catch(() => null)` here would make `session?.metadata`
+    // undefined, so `parseRetryCount` reads 0 and `attempt` is (re)computed as 1
+    // regardless of the TRUE prior count — a transient DB read failure would
+    // silently reset the self-repair loop's attempt counter, letting it bypass
+    // `maxRetries` and relaunch unboundedly (the same loop-budget-bypass class
+    // the counter-persist check below already guards against). Block instead of
+    // guessing this is attempt 1.
+    log.error(
+      { err, taskId, sessionId },
+      'Failed to read session for retry count — blocking task instead of assuming attempt 1',
+    );
+    await blockTaskForVerification(taskId, result, sessionId);
+    return { retried: false };
+  }
   const attempt = parseRetryCount(session?.metadata) + 1;
 
   const execConfig = await prisma.agentExecutionConfig
@@ -162,7 +180,24 @@ export async function retryOrBlock(params: RetryParams): Promise<{ retried: bool
       },
     )
     .then(() => onReverify())
-    .catch((err) => log.warn({ err, taskId, sessionId }, 'Self-repair retry execution failed'));
+    .catch((err) => {
+      // FAIL CLOSED: the session was already persisted as status='running' just
+      // above, and this call is fire-and-forget from retryOrBlock's perspective
+      // (it already returned {retried:true}). A bare `.catch(() => log.warn(...))`
+      // here means that if the relaunch itself rejects, `onReverify()` never
+      // runs — nothing would ever move the task/session out of 'running', so it
+      // would sit there forever with no active process. Block explicitly instead.
+      log.error(
+        { err, taskId, sessionId },
+        'Self-repair retry execution failed — blocking task instead of leaving it stuck running',
+      );
+      blockTaskForVerification(taskId, result, sessionId).catch((blockErr) =>
+        log.error(
+          { err: blockErr, taskId, sessionId },
+          'Failed to block task after retry-launch failure',
+        ),
+      );
+    });
 
   return { retried: true };
 }

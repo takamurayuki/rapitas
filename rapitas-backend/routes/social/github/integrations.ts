@@ -4,7 +4,7 @@
  * Integration CRUD, repository status, available-repos listing,
  * PR/Issue sync, and webhook receiver.
  */
-import { Elysia } from 'elysia';
+import { Elysia, t } from 'elysia';
 import { prisma } from '../../../config/database';
 import { GitHubService, type GitHubWebhookPayload } from '../../../services/core/github-service';
 import { githubSchemas, githubParamSchemas } from '../../../schemas/github.schema';
@@ -50,34 +50,53 @@ export const integrationRoutes = new Elysia()
   })
 
   // Create integration
-  .post('/integrations', async (context) => {
-    const {
-      repositoryUrl,
-      ownerName,
-      repositoryName,
-      syncIssues,
-      syncPullRequests,
-      autoLinkTasks,
-    } = context.body as {
-      repositoryUrl: string;
-      ownerName: string;
-      repositoryName: string;
-      syncIssues?: boolean;
-      syncPullRequests?: boolean;
-      autoLinkTasks?: boolean;
-    };
-
-    return await prisma.gitHubIntegration.create({
-      data: {
+  .post(
+    '/integrations',
+    async (context) => {
+      const {
         repositoryUrl,
         ownerName,
         repositoryName,
-        syncIssues: syncIssues ?? true,
-        syncPullRequests: syncPullRequests ?? true,
-        autoLinkTasks: autoLinkTasks ?? true,
-      },
-    });
-  })
+        syncIssues,
+        syncPullRequests,
+        autoLinkTasks,
+      } = context.body as {
+        repositoryUrl: string;
+        ownerName: string;
+        repositoryName: string;
+        syncIssues?: boolean;
+        syncPullRequests?: boolean;
+        autoLinkTasks?: boolean;
+      };
+
+      return await prisma.gitHubIntegration.create({
+        data: {
+          repositoryUrl,
+          ownerName,
+          repositoryName,
+          syncIssues: syncIssues ?? true,
+          syncPullRequests: syncPullRequests ?? true,
+          autoLinkTasks: autoLinkTasks ?? true,
+        },
+      });
+    },
+    {
+      // Inline (not added to shared githubSchemas) — this route is the only
+      // creator of an integration and the shared helpers file is out of scope
+      // for this change.
+      body: t.Object(
+        {
+          repositoryUrl: t.String({ maxLength: 500 }),
+          ownerName: t.String({ maxLength: 200 }),
+          repositoryName: t.String({ maxLength: 200 }),
+          syncIssues: t.Optional(t.Boolean()),
+          syncPullRequests: t.Optional(t.Boolean()),
+          autoLinkTasks: t.Optional(t.Boolean()),
+        },
+        { additionalProperties: false },
+      ),
+    },
+  )
 
   // Integration details
   .get('/integrations/:id', async ({ params }) => {
@@ -148,13 +167,24 @@ export const integrationRoutes = new Elysia()
   })
 
   // Webhook receiver
-  .post('/webhook', async (context) => {
-    const { request, body } = context;
-    const event = request.headers.get('x-github-event');
-    if (!event) {
-      return { error: 'Missing X-GitHub-Event header' };
-    }
+  .post(
+    '/webhook',
+    async (context) => {
+      const { request, body } = context;
+      const event = request.headers.get('x-github-event');
+      if (!event) {
+        return { error: 'Missing X-GitHub-Event header' };
+      }
 
-    await githubService.handleWebhook(event, body as GitHubWebhookPayload);
-    return { success: true };
-  });
+      await githubService.handleWebhook(event, body as GitHubWebhookPayload);
+      return { success: true };
+    },
+    {
+      // NOTE: GitHub's webhook payload shape differs per event type (push,
+      // pull_request, issues, ...), so we deliberately do NOT enforce a strict
+      // additionalProperties:false schema here — that would reject legitimate
+      // webhooks for event types we don't explicitly model. This loose object
+      // schema only rejects non-JSON/non-object bodies at the framework layer.
+      body: t.Object({}, { additionalProperties: true }),
+    },
+  );

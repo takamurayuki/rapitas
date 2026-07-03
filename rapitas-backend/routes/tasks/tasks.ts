@@ -12,6 +12,7 @@ import {
   updateTask,
   cleanupDuplicateSubtasks,
   cleanupAllDuplicateSubtasks,
+  attachBlockedCauses,
 } from '../../services/task/task-service';
 import { removeWorktree } from '../../services/agents/orchestrator/git-operations/worktree-ops';
 import { getProjectRoot } from '../../config';
@@ -167,6 +168,8 @@ export const tasksRoutes = new Elysia({ prefix: '/tasks' })
         }),
       ]);
 
+      await attachBlockedCauses(prisma, updated);
+
       return {
         tasks: updated,
         totalCount,
@@ -200,6 +203,8 @@ export const tasksRoutes = new Elysia({ prefix: '/tasks' })
       ...(pageSize && { take: pageSize }),
       ...(page && pageSize && { skip: (page - 1) * pageSize }),
     });
+
+    await attachBlockedCauses(prisma, tasks);
 
     if (page && pageSize) {
       const totalCount = await prisma.task.count({ where: baseWhere });
@@ -383,80 +388,86 @@ export const tasksRoutes = new Elysia({ prefix: '/tasks' })
   })
 
   // Delete task
-  .delete('/:id', async (context) => {
-    const { params, set } = context;
-    const id = parseInt(params.id);
-    if (isNaN(id)) {
-      throw new ValidationError(INVALID_ID);
-    }
+  .delete(
+    '/:id',
+    async (context) => {
+      const { params, set } = context;
+      const id = parseInt(params.id);
+      if (isNaN(id)) {
+        throw new ValidationError(INVALID_ID);
+      }
 
-    // Guard: a protected task is blocked from deletion to prevent accidental
-    // loss. This is the single choke point for ALL manual delete paths (card
-    // context menu, detail page, bulk list delete) since they all hit DELETE
-    // /:id. Checked before any worktree cleanup so we never touch a task we
-    // are not going to delete.
-    const guard = await prisma.task.findUnique({
-      where: { id },
-      select: { isProtected: true },
-    });
-    if (guard?.isProtected) {
-      set.status = 409;
-      return { error: '保護されたタスクは削除できません' };
-    }
-
-    // Clean up any worktrees associated with this task before deletion
-    try {
-      const task = await prisma.task.findUnique({
+      // Guard: a protected task is blocked from deletion to prevent accidental
+      // loss. This is the single choke point for ALL manual delete paths (card
+      // context menu, detail page, bulk list delete) since they all hit DELETE
+      // /:id. Checked before any worktree cleanup so we never touch a task we
+      // are not going to delete.
+      const guard = await prisma.task.findUnique({
         where: { id },
-        select: { workingDirectory: true },
+        select: { isProtected: true },
       });
+      if (guard?.isProtected) {
+        set.status = 409;
+        return { error: '保護されたタスクは削除できません' };
+      }
 
-      if (task) {
-        // Find any agent sessions with worktrees for this task
-        const sessionsWithWorktrees = await prisma.agentSession.findMany({
-          where: {
-            worktreePath: { not: null },
-            config: {
-              taskId: id,
-            },
-          },
-          select: {
-            id: true,
-            worktreePath: true,
-          },
+      // Clean up any worktrees associated with this task before deletion
+      try {
+        const task = await prisma.task.findUnique({
+          where: { id },
+          select: { workingDirectory: true },
         });
 
-        const baseDir = task.workingDirectory || getProjectRoot();
+        if (task) {
+          // Find any agent sessions with worktrees for this task
+          const sessionsWithWorktrees = await prisma.agentSession.findMany({
+            where: {
+              worktreePath: { not: null },
+              config: {
+                taskId: id,
+              },
+            },
+            select: {
+              id: true,
+              worktreePath: true,
+            },
+          });
 
-        for (const session of sessionsWithWorktrees) {
-          if (session.worktreePath) {
-            try {
-              await removeWorktree(baseDir, session.worktreePath);
-              await prisma.agentSession.update({
-                where: { id: session.id },
-                data: { worktreePath: null },
-              });
-              logger.info(`[tasks] Cleaned up worktree for task ${id}: ${session.worktreePath}`);
-            } catch (worktreeError) {
-              logger.warn(
-                { err: worktreeError },
-                `[tasks] Failed to clean up worktree for task ${id}: ${session.worktreePath}`,
-              );
+          const baseDir = task.workingDirectory || getProjectRoot();
+
+          for (const session of sessionsWithWorktrees) {
+            if (session.worktreePath) {
+              try {
+                await removeWorktree(baseDir, session.worktreePath);
+                await prisma.agentSession.update({
+                  where: { id: session.id },
+                  data: { worktreePath: null },
+                });
+                logger.info(`[tasks] Cleaned up worktree for task ${id}: ${session.worktreePath}`);
+              } catch (worktreeError) {
+                logger.warn(
+                  { err: worktreeError },
+                  `[tasks] Failed to clean up worktree for task ${id}: ${session.worktreePath}`,
+                );
+              }
             }
           }
         }
+      } catch (cleanupError) {
+        logger.warn(
+          { err: cleanupError },
+          `[tasks] Failed to clean up worktrees for task ${id}, proceeding with deletion`,
+        );
       }
-    } catch (cleanupError) {
-      logger.warn(
-        { err: cleanupError },
-        `[tasks] Failed to clean up worktrees for task ${id}, proceeding with deletion`,
-      );
-    }
 
-    return await prisma.task.delete({
-      where: { id },
-    });
-  })
+      return await prisma.task.delete({
+        where: { id },
+      });
+    },
+    {
+      params: t.Object({ id: t.String() }),
+    },
+  )
 
   // Delete duplicate subtasks (under a specific task)
   .post('/:id/cleanup-duplicates', async (context) => {
@@ -537,43 +548,49 @@ export const tasksRoutes = new Elysia({ prefix: '/tasks' })
   })
 
   // Bulk delete all subtasks under a specific task
-  .delete('/:id/subtasks', async (context) => {
-    const { params } = context;
-    const parentId = parseInt(params.id);
-    if (isNaN(parentId)) {
-      throw new ValidationError(INVALID_ID);
-    }
+  .delete(
+    '/:id/subtasks',
+    async (context) => {
+      const { params } = context;
+      const parentId = parseInt(params.id);
+      if (isNaN(parentId)) {
+        throw new ValidationError(INVALID_ID);
+      }
 
-    const parentTask = await prisma.task.findUnique({
-      where: { id: parentId },
-    });
+      const parentTask = await prisma.task.findUnique({
+        where: { id: parentId },
+      });
 
-    if (!parentTask) {
-      throw new ValidationError(TASK_NOT_FOUND);
-    }
+      if (!parentTask) {
+        throw new ValidationError(TASK_NOT_FOUND);
+      }
 
-    const subtasks = await prisma.task.findMany({
-      where: { parentId },
-      select: { id: true },
-    });
+      const subtasks = await prisma.task.findMany({
+        where: { parentId },
+        select: { id: true },
+      });
 
-    const deletedCount = subtasks.length;
+      const deletedCount = subtasks.length;
 
-    await prisma.task.deleteMany({
-      where: { parentId },
-    });
+      await prisma.task.deleteMany({
+        where: { parentId },
+      });
 
-    logger.info(`[tasks] Deleted all ${deletedCount} subtasks for parent task ${parentId}`);
+      logger.info(`[tasks] Deleted all ${deletedCount} subtasks for parent task ${parentId}`);
 
-    return {
-      success: true,
-      deletedCount,
-      message:
-        deletedCount > 0
-          ? `${deletedCount}件のサブタスクを削除しました`
-          : '削除するサブタスクがありませんでした',
-    };
-  })
+      return {
+        success: true,
+        deletedCount,
+        message:
+          deletedCount > 0
+            ? `${deletedCount}件のサブタスクを削除しました`
+            : '削除するサブタスクがありませんでした',
+      };
+    },
+    {
+      params: t.Object({ id: t.String() }),
+    },
+  )
 
   // Delete selected subtasks by ID
   .post(
@@ -640,8 +657,12 @@ export const tasksRoutes = new Elysia({ prefix: '/tasks' })
       };
     },
     {
-      body: t.Object({
-        subtaskIds: t.Array(t.Number()),
-      }),
+      params: t.Object({ id: t.String() }),
+      body: t.Object(
+        {
+          subtaskIds: t.Array(t.Number(), { maxItems: 500 }),
+        },
+        { additionalProperties: false },
+      ),
     },
   );

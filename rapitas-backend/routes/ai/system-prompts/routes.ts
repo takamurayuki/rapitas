@@ -5,7 +5,7 @@
  * Not responsible for the seed-data definitions (see default-prompts.ts).
  */
 
-import { Elysia } from 'elysia';
+import { Elysia, t } from 'elysia';
 import { prisma } from '../../../config/database';
 import { NotFoundError, ValidationError, ConflictError } from '../../../middleware/error-handler';
 import { DEFAULT_SYSTEM_PROMPTS } from './default-prompts';
@@ -39,95 +39,134 @@ export const systemPromptsRoutes = new Elysia()
     return prompt;
   })
 
-  .post('/system-prompts', async (context) => {
-    const { body } = context;
-    const { key, name, description, content, category } = body as {
-      key: string;
-      name: string;
-      description?: string;
-      content: string;
-      category?: string;
-    };
+  .post(
+    '/system-prompts',
+    async (context) => {
+      const { body } = context;
+      const { key, name, description, content, category } = body as {
+        key: string;
+        name: string;
+        description?: string;
+        content: string;
+        category?: string;
+      };
 
-    if (!key || !name || !content) {
-      throw new ValidationError('key, name, content は必須です');
-    }
+      if (!key || !name || !content) {
+        throw new ValidationError('key, name, content は必須です');
+      }
 
-    const existing = await prisma.systemPrompt.findUnique({
-      where: { key },
-    });
+      const existing = await prisma.systemPrompt.findUnique({
+        where: { key },
+      });
 
-    if (existing) {
-      throw new ConflictError('同じキーのプロンプトが既に存在します');
-    }
+      if (existing) {
+        throw new ConflictError('同じキーのプロンプトが既に存在します');
+      }
 
-    const prompt = await prisma.systemPrompt.create({
-      data: {
-        key,
-        name,
-        description,
-        content,
-        category: category || 'general',
-        isDefault: false,
-      },
-    });
+      const prompt = await prisma.systemPrompt.create({
+        data: {
+          key,
+          name,
+          description,
+          content,
+          category: category || 'general',
+          isDefault: false,
+        },
+      });
 
-    return prompt;
-  })
+      return prompt;
+    },
+    {
+      body: t.Object(
+        {
+          key: t.String({ maxLength: 100 }),
+          name: t.String({ maxLength: 200 }),
+          description: t.Optional(t.String()),
+          content: t.String({ maxLength: 50_000 }),
+          category: t.Optional(t.String()),
+        },
+        { additionalProperties: false },
+      ),
+    },
+  )
 
-  .patch('/system-prompts/:key', async (context) => {
-    const { params, body } = context;
-    const existing = await prisma.systemPrompt.findUnique({
-      where: { key: params.key },
-    });
+  .patch(
+    '/system-prompts/:key',
+    async (context) => {
+      const { params, body } = context;
+      const existing = await prisma.systemPrompt.findUnique({
+        where: { key: params.key },
+      });
 
-    if (!existing) {
-      throw new NotFoundError('システムプロンプトが見つかりません');
-    }
+      if (!existing) {
+        throw new NotFoundError('システムプロンプトが見つかりません');
+      }
 
-    const { name, description, content, category, isActive } = body as {
-      name?: string;
-      description?: string;
-      content?: string;
-      category?: string;
-      isActive?: boolean;
-    };
+      const { name, description, content, category, isActive } = body as {
+        name?: string;
+        description?: string;
+        content?: string;
+        category?: string;
+        isActive?: boolean;
+      };
 
-    const updated = await prisma.systemPrompt.update({
-      where: { key: params.key },
-      data: {
-        ...(name !== undefined && { name }),
-        ...(description !== undefined && { description }),
-        ...(content !== undefined && { content }),
-        ...(category !== undefined && { category }),
-        ...(isActive !== undefined && { isActive }),
-      },
-    });
+      const updated = await prisma.systemPrompt.update({
+        where: { key: params.key },
+        data: {
+          ...(name !== undefined && { name }),
+          ...(description !== undefined && { description }),
+          ...(content !== undefined && { content }),
+          ...(category !== undefined && { category }),
+          ...(isActive !== undefined && { isActive }),
+        },
+      });
 
-    return updated;
-  })
+      return updated;
+    },
+    {
+      params: t.Object({ key: t.String() }),
+      body: t.Optional(
+        t.Object(
+          {
+            name: t.Optional(t.String({ maxLength: 200 })),
+            description: t.Optional(t.String()),
+            content: t.Optional(t.String({ maxLength: 50_000 })),
+            category: t.Optional(t.String()),
+            isActive: t.Optional(t.Boolean()),
+          },
+          { additionalProperties: false },
+        ),
+      ),
+    },
+  )
 
   // NOTE: Default prompts cannot be deleted — use PATCH isActive:false to disable them
-  .delete('/system-prompts/:key', async (context) => {
-    const { params } = context;
-    const existing = await prisma.systemPrompt.findUnique({
-      where: { key: params.key },
-    });
+  .delete(
+    '/system-prompts/:key',
+    async (context) => {
+      const { params } = context;
+      const existing = await prisma.systemPrompt.findUnique({
+        where: { key: params.key },
+      });
 
-    if (!existing) {
-      throw new NotFoundError('システムプロンプトが見つかりません');
-    }
+      if (!existing) {
+        throw new NotFoundError('システムプロンプトが見つかりません');
+      }
 
-    if (existing.isDefault) {
-      throw new ValidationError('デフォルトプロンプトは削除できません。無効化してください。');
-    }
+      if (existing.isDefault) {
+        throw new ValidationError('デフォルトプロンプトは削除できません。無効化してください。');
+      }
 
-    await prisma.systemPrompt.delete({
-      where: { key: params.key },
-    });
+      await prisma.systemPrompt.delete({
+        where: { key: params.key },
+      });
 
-    return { success: true };
-  })
+      return { success: true };
+    },
+    {
+      params: t.Object({ key: t.String() }),
+    },
+  )
 
   // Reset a default prompt to its original content
   .post('/system-prompts/:key/reset', async (context) => {

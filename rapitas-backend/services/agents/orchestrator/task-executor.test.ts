@@ -80,9 +80,12 @@ mock.module('../execution-file-logger', () => ({
   },
 }));
 
+const createNotification = mock(() => Promise.resolve({})) as any;
+mock.module('../../communication/notification-service', () => ({ createNotification }));
+
 // ── 動的 import（全 mock.module 宣言後） ──────────────────────────────────────
 
-const { executeTask } = await import('./task-executor');
+const { executeTask, autoCompleteTaskDurable } = await import('./task-executor');
 
 // ── 型 import（ランタイムに影響なし） ─────────────────────────────────────────
 
@@ -157,5 +160,38 @@ describe('executeTask() — 早期シャットダウン guard', () => {
 
     // NOTE: 早期 guard で throw するため agentFactory.createAgent には到達しない
     expect(createAgentMock).not.toHaveBeenCalled();
+  });
+});
+
+describe('autoCompleteTaskDurable() — fault injection', () => {
+  test('retries once on a transient failure, then succeeds without notifying', async () => {
+    createNotification.mockClear();
+    const update = mock()
+      .mockImplementationOnce(() => Promise.reject(new Error('transient DB error')))
+      .mockImplementationOnce(() => Promise.resolve({}));
+    const prisma = { task: { update } } as unknown as OrchestratorContext['prisma'];
+
+    await autoCompleteTaskDurable(prisma, 42, 7);
+
+    expect(update).toHaveBeenCalledTimes(2);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(createNotification).not.toHaveBeenCalled();
+  });
+
+  test('notifies instead of silently leaving the task stuck when both attempts fail', async () => {
+    createNotification.mockClear();
+    const update = mock(() => Promise.reject(new Error('DB down')));
+    const prisma = { task: { update } } as unknown as OrchestratorContext['prisma'];
+
+    // Must resolve, never throw — a stuck completion write must not crash the
+    // (fire-and-forget) caller.
+    await autoCompleteTaskDurable(prisma, 42, 7);
+
+    expect(update).toHaveBeenCalledTimes(2);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(createNotification).toHaveBeenCalledTimes(1);
+    expect(createNotification.mock.calls[0][0]).toEqual(
+      expect.objectContaining({ metadata: expect.objectContaining({ taskId: 42 }) }),
+    );
   });
 });

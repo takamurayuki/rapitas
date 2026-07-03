@@ -138,7 +138,7 @@ describe('POST /tasks/:id/prompts', () => {
     expect(body.optimizedPrompt).toBe('test prompt');
   });
 
-  test('optimizedPromptなしで400を返すこと', async () => {
+  test('optimizedPromptなしで422を返すこと（スキーマ検証で必須フィールド欠落を拒否）', async () => {
     const res = await app.handle(
       new Request('http://localhost/tasks/1/prompts', {
         method: 'POST',
@@ -146,10 +146,9 @@ describe('POST /tasks/:id/prompts', () => {
         body: JSON.stringify({}),
       }),
     );
-    const body = await res.json();
 
-    expect(res.status).toBe(400);
-    expect(body.error).toBeDefined();
+    // Elysia の body スキーマ（optimizedPrompt 必須）がハンドラ到達前に 422 で弾く。
+    expect(res.status).toBe(422);
   });
 });
 

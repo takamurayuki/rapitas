@@ -1,7 +1,7 @@
 /**
  * Notifications API Routes
  */
-import { Elysia } from 'elysia';
+import { Elysia, t } from 'elysia';
 import { prisma } from '../../config/database';
 import { ValidationError, NotFoundError } from '../../middleware/error-handler';
 import { realtimeService } from '../../services/communication/realtime-service';
@@ -107,27 +107,35 @@ export const notificationsRoutes = new Elysia({ prefix: '/notifications' })
   })
 
   // Delete notification
-  .delete('/:id', async (context) => {
-    const { params } = context;
-    const id = parseInt(params.id);
-    if (isNaN(id)) {
-      throw new ValidationError(INVALID_ID);
-    }
+  .delete(
+    '/:id',
+    async (context) => {
+      const { params } = context;
+      const id = parseInt(params.id);
+      if (isNaN(id)) {
+        throw new ValidationError(INVALID_ID);
+      }
 
-    const existing = await prisma.notification.findUnique({
-      where: { id },
-    });
+      const existing = await prisma.notification.findUnique({
+        where: { id },
+      });
 
-    if (!existing) {
-      throw new NotFoundError('通知が見つかりません');
-    }
+      if (!existing) {
+        throw new NotFoundError('通知が見つかりません');
+      }
 
-    await prisma.notification.delete({
-      where: { id },
-    });
+      await prisma.notification.delete({
+        where: { id },
+      });
 
-    return { success: true, id };
-  })
+      return { success: true, id };
+    },
+    {
+      params: t.Object({
+        id: t.String(),
+      }),
+    },
+  )
 
   // Delete all notifications
   .delete('/', async () => {

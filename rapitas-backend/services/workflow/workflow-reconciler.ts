@@ -278,19 +278,37 @@ export async function reconcileOnce(): Promise<{
   inFlight = true;
   const nowMs = Date.now();
   try {
-    const zombieSessions = await healZombieSessions(nowMs);
-    const phantomWorktrees = await clearPhantomWorktrees(nowMs);
-    const completedDesyncs = await healCompletedDesync(nowMs);
+    // NOTE: Each heal pass is isolated in its own try/catch (via `runHealPass`)
+    // rather than sharing one try/catch around the whole sequence. These 7
+    // passes fix UNRELATED kinds of divergence (zombie sessions, phantom
+    // worktrees, completed-status desync, orphan requeue, blocked-task retry,
+    // undispatchable todos, orphan flagging) — a non-DB throw in one (e.g. a
+    // bad row shape) must not starve the other 6 for this whole cycle. Without
+    // this, a deterministically-throwing row in an EARLY pass would
+    // permanently prevent every LATER pass from ever running again.
+    const zombieSessions = await runHealPass('healZombieSessions', () => healZombieSessions(nowMs));
+    const phantomWorktrees = await runHealPass('clearPhantomWorktrees', () =>
+      clearPhantomWorktrees(nowMs),
+    );
+    const completedDesyncs = await runHealPass('healCompletedDesync', () =>
+      healCompletedDesync(nowMs),
+    );
     // Try to recover orphans (re-queue) BEFORE flagging — a successful re-queue
     // means we don't also notify the user about the same task.
-    const requeuedOrphans = await requeueOrphanTasks(nowMs);
+    const requeuedOrphans = await runHealPass('requeueOrphanTasks', () =>
+      requeueOrphanTasks(nowMs),
+    );
     // Auto-retry blocked tasks so the perpetual loop self-heals instead of idling
     // with a cap full of permanently-blocked tasks.
-    const retriedBlocked = await requeueBlockedTasks(nowMs);
+    const retriedBlocked = await runHealPass('requeueBlockedTasks', () =>
+      requeueBlockedTasks(nowMs),
+    );
     // Reset todo tasks stranded in an undispatchable workflowStatus so the
     // scheduler stops burning selections on them every cycle.
-    const undispatchableTodos = await healUndispatchableTodo(nowMs);
-    const orphanTasks = await flagOrphanTasks(nowMs);
+    const undispatchableTodos = await runHealPass('healUndispatchableTodo', () =>
+      healUndispatchableTodo(nowMs),
+    );
+    const orphanTasks = await runHealPass('flagOrphanTasks', () => flagOrphanTasks(nowMs));
     const counts = {
       zombieSessions,
       phantomWorktrees,
@@ -309,6 +327,25 @@ export async function reconcileOnce(): Promise<{
     return empty;
   } finally {
     inFlight = false;
+  }
+}
+
+/**
+ * Runs a single heal pass in isolation: a throw is logged and treated as
+ * "0 healed this cycle" for that pass only, so it never blocks the other
+ * (unrelated) heal passes in the same `reconcileOnce()` call. The next
+ * scheduled cycle retries this pass again.
+ *
+ * @param name - Pass name, for the log line. / パス名（ログ用）
+ * @param fn - The heal-pass call to run. / 実行するヒールパス
+ * @returns The pass's healed count, or 0 if it threw. / 修復件数（失敗時は0）
+ */
+export async function runHealPass(name: string, fn: () => Promise<number>): Promise<number> {
+  try {
+    return await fn();
+  } catch (err) {
+    log.warn({ err, pass: name }, '[reconciler] heal pass failed — continuing with the rest');
+    return 0;
   }
 }
 

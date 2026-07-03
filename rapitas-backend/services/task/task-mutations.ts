@@ -258,7 +258,14 @@ export async function updateTask(prisma: PrismaInstance, taskId: number, input: 
               logger.warn({ err, taskId }, 'Failed to extract knowledge from completed task');
             });
           })
-          .catch(() => {});
+          .catch((err) => {
+            // NOTE: Unlike the inner catch above (which logs an extraction
+            // failure), this outer catch fires when the extractor MODULE
+            // itself couldn't even be imported. Without this log there was
+            // zero signal that knowledge extraction never ran at all for
+            // this completed task.
+            logger.warn({ err, taskId }, 'Failed to load knowledge extractor module');
+          });
       }
     }
 

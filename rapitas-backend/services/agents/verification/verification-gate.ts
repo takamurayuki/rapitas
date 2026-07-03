@@ -18,6 +18,7 @@ import {
 } from './automated-verifier';
 import { resolveWorkflowDir, readWorkflowFile } from '../../workflow/workflow-file-utils';
 import { submitConcern } from '../../memory/concern-backlog-service';
+import { writeBlockedStatusDurable } from '../../workflow/durable-blocked-write';
 
 const log = createLogger('agents:verification-gate');
 
@@ -129,19 +130,56 @@ export async function blockTaskForVerification(
     { taskId, sessionId, summary: result.summary },
     'Automated verification failed — blocking',
   );
-  await prisma.task
-    .update({ where: { id: taskId }, data: { status: 'blocked', updatedAt: new Date() } })
-    .catch((err) => log.warn({ err, taskId }, 'Failed to mark task blocked'));
+  // DURABLE WRITE: `status: 'blocked'` is the terminal action that actually
+  // stops the self-repair retry loop (verification-retry.ts reads task status
+  // via this same block path). A bare `.catch(() => warn)` here used to let
+  // the write silently no-op, leaving the task looking un-blocked to any
+  // downstream automation even though verification genuinely failed.
+  await writeBlockedStatusDurable({
+    taskId,
+    log,
+    source: 'verification-gate',
+    notification: {
+      title: '検証失敗タスクのブロック処理に失敗',
+      message: `タスク #${taskId} は自動検証に失敗しましたが、ブロック状態として記録できませんでした。手動で確認してください。`,
+    },
+  });
   if (sessionId !== undefined) {
-    await prisma.agentSession
-      .update({
-        where: { id: sessionId },
-        data: {
-          status: 'failed',
-          completedAt: new Date(),
-          errorMessage: `自動検証に失敗しました（${result.summary}）。エージェントの変更が新たな lint/型エラーを混入しています。worktree は保持しています。\n\n${renderVerificationMarkdown(result)}`,
-        },
-      })
-      .catch((err) => log.warn({ err, sessionId }, 'Failed to mark session failed'));
+    await markSessionFailedDurable(sessionId, taskId, result);
   }
+}
+
+/**
+ * Marks a session `failed` with the verification evidence, retrying once on
+ * failure. Mirrors `writeBlockedStatusDurable`'s retry-once pattern: without
+ * it, a swallowed write here left the session stuck `running` with no active
+ * process even though the task itself was correctly blocked above.
+ *
+ * @param sessionId - Session to fail / 失敗にするセッション
+ * @param taskId - Owning task, for log context / ログ用のタスクID
+ * @param result - The failing verification result / 失敗した検証結果
+ */
+async function markSessionFailedDurable(
+  sessionId: number,
+  taskId: number,
+  result: VerificationResult,
+): Promise<void> {
+  const data = {
+    status: 'failed' as const,
+    completedAt: new Date(),
+    errorMessage: `自動検証に失敗しました（${result.summary}）。エージェントの変更が新たな lint/型エラーを混入しています。worktree は保持しています。\n\n${renderVerificationMarkdown(result)}`,
+  };
+  const attempt = () =>
+    prisma.agentSession
+      .update({ where: { id: sessionId }, data })
+      .then(() => true)
+      .catch(() => false);
+
+  if (await attempt()) return;
+  log.warn({ taskId, sessionId }, 'Failed to mark session failed — retrying once');
+  if (await attempt()) return;
+  log.error(
+    { taskId, sessionId },
+    'Failed to mark session failed twice — session may remain stuck running',
+  );
 }

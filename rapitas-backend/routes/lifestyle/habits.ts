@@ -195,65 +195,102 @@ export const habitsRoutes = new Elysia({ prefix: '/habits' })
     },
   )
 
-  .patch('/:id', async ({ params, body }) => {
-    const id = parseInt(params.id);
-    const { name, description, icon, color, frequency, targetCount, isActive } = body as {
-      name?: string;
-      description?: string;
-      icon?: string;
-      color?: string;
-      frequency?: string;
-      targetCount?: number;
-      isActive?: boolean;
-    };
-    return await prisma.habit.update({
-      where: { id },
-      data: {
-        ...(name && { name }),
-        ...(description !== undefined && { description }),
-        ...(icon !== undefined && { icon }),
-        ...(color && { color }),
-        ...(frequency && { frequency }),
-        ...(targetCount && { targetCount }),
-        ...(isActive !== undefined && { isActive }),
-      },
-    });
-  })
+  .patch(
+    '/:id',
+    async ({ params, body }) => {
+      const id = parseInt(params.id);
+      const { name, description, icon, color, frequency, targetCount, isActive } = body as {
+        name?: string;
+        description?: string;
+        icon?: string;
+        color?: string;
+        frequency?: string;
+        targetCount?: number;
+        isActive?: boolean;
+      };
+      return await prisma.habit.update({
+        where: { id },
+        data: {
+          ...(name && { name }),
+          ...(description !== undefined && { description }),
+          ...(icon !== undefined && { icon }),
+          ...(color && { color }),
+          ...(frequency && { frequency }),
+          ...(targetCount && { targetCount }),
+          ...(isActive !== undefined && { isActive }),
+        },
+      });
+    },
+    {
+      params: t.Object({
+        id: t.String(),
+      }),
+      body: t.Object({
+        name: t.Optional(t.String({ maxLength: 200 })),
+        description: t.Optional(t.String({ maxLength: 5000 })),
+        icon: t.Optional(t.String({ maxLength: 200 })),
+        color: t.Optional(t.String({ maxLength: 200 })),
+        frequency: t.Optional(t.String({ maxLength: 200 })),
+        targetCount: t.Optional(t.Number()),
+        isActive: t.Optional(t.Boolean()),
+      }),
+    },
+  )
 
-  .delete('/:id', async (context) => {
-    const { params } = context;
-    const id = parseInt(params.id);
-    return await prisma.habit.delete({ where: { id } });
-  })
+  .delete(
+    '/:id',
+    async (context) => {
+      const { params } = context;
+      const id = parseInt(params.id);
+      return await prisma.habit.delete({ where: { id } });
+    },
+    {
+      params: t.Object({
+        id: t.String(),
+      }),
+    },
+  )
 
-  .post('/:id/log', async ({ params, body }) => {
-    const id = parseInt(params.id);
-    const { date, note } = body as { date?: string; note?: string };
+  .post(
+    '/:id/log',
+    async ({ params, body }) => {
+      const id = parseInt(params.id);
+      const { date, note } = body as { date?: string; note?: string };
 
-    const targetDate = date ? new Date(date) : new Date();
-    targetDate.setHours(0, 0, 0, 0);
+      const targetDate = date ? new Date(date) : new Date();
+      targetDate.setHours(0, 0, 0, 0);
 
-    const log = await prisma.habitLog.upsert({
-      where: {
-        habitId_date: {
+      const log = await prisma.habitLog.upsert({
+        where: {
+          habitId_date: {
+            habitId: id,
+            date: targetDate,
+          },
+        },
+        update: {
+          count: { increment: 1 },
+          ...(note && { note }),
+        },
+        create: {
           habitId: id,
           date: targetDate,
+          count: 1,
+          ...(note && { note }),
         },
-      },
-      update: {
-        count: { increment: 1 },
-        ...(note && { note }),
-      },
-      create: {
-        habitId: id,
-        date: targetDate,
-        count: 1,
-        ...(note && { note }),
-      },
-    });
+      });
 
-    return log;
-  })
+      return log;
+    },
+    {
+      params: t.Object({
+        id: t.String(),
+      }),
+      body: t.Object({
+        date: t.Optional(t.String()),
+        note: t.Optional(t.String({ maxLength: 5000 })),
+      }),
+    },
+  )
 
   // Habit statistics
   .get('/:id/statistics', async (context) => {

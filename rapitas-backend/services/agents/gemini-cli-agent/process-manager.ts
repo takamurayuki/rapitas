@@ -90,6 +90,15 @@ export function buildCliArgs(config: GeminiCliAgentConfig, resumeId?: string | n
     args.push('--allowlist', config.allowedTools.join(','));
   }
 
+  // NOTE(security): Gemini CLI supports `--allowed-mcp-server-names` to
+  // restrict which MCP servers may connect (mirroring Claude Code's
+  // `--strict-mcp-config`, see claude-execution-runner.ts), but its
+  // empty-list semantics (does an empty/omitted value mean "allow none" or
+  // "no restriction"?) could not be confirmed — the Gemini CLI is not
+  // installed in this environment to test against, and passing the flag with
+  // unverified semantics risks silently allowing everything (worse than
+  // today) rather than blocking it. Left as a follow-up: verify the flag's
+  // empty-list behavior against a real Gemini CLI install before wiring it in.
   if (config.disallowedTools && config.disallowedTools.length > 0) {
     args.push('--denylist', config.disallowedTools.join(','));
   }

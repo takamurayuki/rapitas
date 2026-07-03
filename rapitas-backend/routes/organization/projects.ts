@@ -1,7 +1,7 @@
 /**
  * Projects API Routes
  */
-import { Elysia } from 'elysia';
+import { Elysia, t } from 'elysia';
 import { prisma } from '../../config/database';
 import { projectSchema } from '../../schemas/project.schema';
 import { ValidationError } from '../../middleware/error-handler';
@@ -70,39 +70,57 @@ export const projectsRoutes = new Elysia({ prefix: '/projects' })
   )
 
   // Update project
-  .patch('/:id', async (context) => {
-    const { params, body } = context;
-    const id = parseInt(params.id);
-    if (isNaN(id)) {
-      throw new ValidationError('無効なIDです');
-    }
+  .patch(
+    '/:id',
+    async (context) => {
+      const { params, body } = context;
+      const id = parseInt(params.id);
+      if (isNaN(id)) {
+        throw new ValidationError('無効なIDです');
+      }
 
-    const { name, description, color, icon } = body as {
-      name?: string;
-      description?: string;
-      color?: string;
-      icon?: string;
-    };
-    return await prisma.project.update({
-      where: { id },
-      data: {
-        ...(name && { name }),
-        ...(description !== undefined && { description }),
-        ...(color && { color }),
-        ...(icon !== undefined && { icon }),
-      },
-    });
-  })
+      const { name, description, color, icon } = body as {
+        name?: string;
+        description?: string;
+        color?: string;
+        icon?: string;
+      };
+      return await prisma.project.update({
+        where: { id },
+        data: {
+          ...(name && { name }),
+          ...(description !== undefined && { description }),
+          ...(color && { color }),
+          ...(icon !== undefined && { icon }),
+        },
+      });
+    },
+    {
+      params: t.Object({ id: t.String() }),
+      body: t.Object({
+        name: t.Optional(t.String({ maxLength: 200 })),
+        description: t.Optional(t.String({ maxLength: 5000 })),
+        color: t.Optional(t.String({ maxLength: 200 })),
+        icon: t.Optional(t.String({ maxLength: 200 })),
+      }),
+    },
+  )
 
   // Delete project
-  .delete('/:id', async (context) => {
-    const { params } = context;
-    const id = parseInt(params.id);
-    if (isNaN(id)) {
-      throw new ValidationError('無効なIDです');
-    }
+  .delete(
+    '/:id',
+    async (context) => {
+      const { params } = context;
+      const id = parseInt(params.id);
+      if (isNaN(id)) {
+        throw new ValidationError('無効なIDです');
+      }
 
-    return await prisma.project.delete({
-      where: { id },
-    });
-  });
+      return await prisma.project.delete({
+        where: { id },
+      });
+    },
+    {
+      params: t.Object({ id: t.String() }),
+    },
+  );

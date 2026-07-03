@@ -2,7 +2,7 @@
  * Workflow Roles Routes
  * AI agent role configuration for each workflow phase (research, plan, review, implement, verify)
  */
-import { Elysia } from 'elysia';
+import { Elysia, t } from 'elysia';
 import { prisma } from '../../../config';
 import { formatAgentDisplayName } from '../../../utils/agent/agent-display-name';
 import { WORKFLOW_ROLES } from '../../../services/workflow/workflow-types';
@@ -119,96 +119,117 @@ export const workflowRolesRoutes = new Elysia()
     return config;
   })
 
-  .put('/workflow-roles/:role', async ({ params, body, set }) => {
-    const role = params.role as string;
-    if (!isWorkflowRole(role)) {
-      set.status = HTTP_STATUS.BAD_REQUEST;
-      return { error: `無効なロール: ${role}` };
-    }
-
-    await ensureRolesExist();
-
-    const {
-      agentConfigId,
-      modelId,
-      systemPromptKey,
-      isEnabled,
-      metadata,
-      preferredProviderOverride,
-    } = body as {
-      agentConfigId?: number | null;
-      modelId?: string | null;
-      systemPromptKey?: string | null;
-      isEnabled?: boolean;
-      metadata?: string;
-      /** `claude` | `openai` | `gemini` | `ollama` | `cross-provider` | null */
-      preferredProviderOverride?: string | null;
-    };
-
-    if (preferredProviderOverride !== undefined && preferredProviderOverride !== null) {
-      const valid = ['claude', 'openai', 'gemini', 'ollama', 'cross-provider'];
-      if (!valid.includes(preferredProviderOverride)) {
+  .put(
+    '/workflow-roles/:role',
+    async ({ params, body, set }) => {
+      const role = params.role as string;
+      if (!isWorkflowRole(role)) {
         set.status = HTTP_STATUS.BAD_REQUEST;
-        return {
-          error: `preferredProviderOverride must be one of ${valid.join(', ')} or null`,
-        };
+        return { error: `無効なロール: ${role}` };
       }
-    }
 
-    // Check existence when agentConfigId is specified
-    if (agentConfigId !== undefined && agentConfigId !== null) {
-      const agent = await prisma.aIAgentConfig.findUnique({
-        where: { id: agentConfigId },
-      });
-      if (!agent) {
-        set.status = HTTP_STATUS.BAD_REQUEST;
-        return { error: `エージェントID ${agentConfigId} が見つかりません` };
+      await ensureRolesExist();
+
+      const {
+        agentConfigId,
+        modelId,
+        systemPromptKey,
+        isEnabled,
+        metadata,
+        preferredProviderOverride,
+      } = body as {
+        agentConfigId?: number | null;
+        modelId?: string | null;
+        systemPromptKey?: string | null;
+        isEnabled?: boolean;
+        metadata?: string;
+        /** `claude` | `openai` | `gemini` | `ollama` | `cross-provider` | null */
+        preferredProviderOverride?: string | null;
+      };
+
+      if (preferredProviderOverride !== undefined && preferredProviderOverride !== null) {
+        const valid = ['claude', 'openai', 'gemini', 'ollama', 'cross-provider'];
+        if (!valid.includes(preferredProviderOverride)) {
+          set.status = HTTP_STATUS.BAD_REQUEST;
+          return {
+            error: `preferredProviderOverride must be one of ${valid.join(', ')} or null`,
+          };
+        }
       }
-      if (!agent.isActive) {
-        set.status = HTTP_STATUS.BAD_REQUEST;
-        return { error: `エージェント "${agent.name}" は無効化されています` };
+
+      // Check existence when agentConfigId is specified
+      if (agentConfigId !== undefined && agentConfigId !== null) {
+        const agent = await prisma.aIAgentConfig.findUnique({
+          where: { id: agentConfigId },
+        });
+        if (!agent) {
+          set.status = HTTP_STATUS.BAD_REQUEST;
+          return { error: `エージェントID ${agentConfigId} が見つかりません` };
+        }
+        if (!agent.isActive) {
+          set.status = HTTP_STATUS.BAD_REQUEST;
+          return { error: `エージェント "${agent.name}" は無効化されています` };
+        }
       }
-    }
 
-    // Check existence when systemPromptKey is specified
-    if (systemPromptKey !== undefined && systemPromptKey !== null) {
-      const prompt = await prisma.systemPrompt.findUnique({
-        where: { key: systemPromptKey },
-      });
-      if (!prompt) {
-        set.status = HTTP_STATUS.BAD_REQUEST;
-        return { error: `システムプロンプト "${systemPromptKey}" が見つかりません` };
+      // Check existence when systemPromptKey is specified
+      if (systemPromptKey !== undefined && systemPromptKey !== null) {
+        const prompt = await prisma.systemPrompt.findUnique({
+          where: { key: systemPromptKey },
+        });
+        if (!prompt) {
+          set.status = HTTP_STATUS.BAD_REQUEST;
+          return { error: `システムプロンプト "${systemPromptKey}" が見つかりません` };
+        }
       }
-    }
 
-    const updateData: Record<string, unknown> = {};
-    if (agentConfigId !== undefined) updateData.agentConfigId = agentConfigId;
-    if (modelId !== undefined) updateData.modelId = modelId;
-    if (systemPromptKey !== undefined) updateData.systemPromptKey = systemPromptKey;
-    if (isEnabled !== undefined) updateData.isEnabled = isEnabled;
-    if (metadata !== undefined) updateData.metadata = metadata;
-    if (preferredProviderOverride !== undefined) {
-      updateData.preferredProviderOverride = preferredProviderOverride;
-    }
+      const updateData: Record<string, unknown> = {};
+      if (agentConfigId !== undefined) updateData.agentConfigId = agentConfigId;
+      if (modelId !== undefined) updateData.modelId = modelId;
+      if (systemPromptKey !== undefined) updateData.systemPromptKey = systemPromptKey;
+      if (isEnabled !== undefined) updateData.isEnabled = isEnabled;
+      if (metadata !== undefined) updateData.metadata = metadata;
+      if (preferredProviderOverride !== undefined) {
+        updateData.preferredProviderOverride = preferredProviderOverride;
+      }
 
-    const updated = await prisma.workflowRoleConfig.update({
-      where: { role },
-      data: updateData,
-      include: {
-        agentConfig: {
-          select: {
-            id: true,
-            agentType: true,
-            name: true,
-            modelId: true,
-            isActive: true,
+      const updated = await prisma.workflowRoleConfig.update({
+        where: { role },
+        data: updateData,
+        include: {
+          agentConfig: {
+            select: {
+              id: true,
+              agentType: true,
+              name: true,
+              modelId: true,
+              isActive: true,
+            },
           },
         },
-      },
-    });
+      });
 
-    return updated;
-  })
+      return updated;
+    },
+    {
+      params: t.Object({ role: t.String() }),
+      body: t.Optional(
+        t.Object(
+          {
+            agentConfigId: t.Optional(t.Union([t.Number(), t.Null()])),
+            modelId: t.Optional(t.Union([t.String(), t.Null()])),
+            systemPromptKey: t.Optional(t.Union([t.String(), t.Null()])),
+            isEnabled: t.Optional(t.Boolean()),
+            // Raw JSON string — previously unchecked; cap length to keep an
+            // oversized payload from reaching the DB write.
+            metadata: t.Optional(t.String({ maxLength: 20_000 })),
+            preferredProviderOverride: t.Optional(t.Union([t.String(), t.Null()])),
+          },
+          { additionalProperties: false },
+        ),
+      ),
+    },
+  )
 
   // Reset all roles to defaults
   .post('/workflow-roles/initialize', async () => {
@@ -255,21 +276,41 @@ export const workflowRolesRoutes = new Elysia()
    * range. Body: { includePlan?, includeReview?, autoVerify?, complexityMin?,
    * complexityMax?, isEnabled? }.
    */
-  .put('/workflow-modes/:mode', async ({ params, body, set }) => {
-    const mode = params.mode as 'lightweight' | 'standard' | 'comprehensive';
-    if (!isWorkflowMode(mode)) {
-      set.status = HTTP_STATUS.BAD_REQUEST;
-      return { error: 'Invalid mode' };
-    }
-    const b = (body ?? {}) as Record<string, unknown>;
-    const patch: Record<string, unknown> = {};
-    for (const k of ['includePlan', 'includeReview', 'autoVerify', 'isEnabled'] as const) {
-      if (typeof b[k] === 'boolean') patch[k] = b[k];
-    }
-    for (const k of ['complexityMin', 'complexityMax'] as const) {
-      if (typeof b[k] === 'number') patch[k] = b[k];
-    }
-    const { updateModeSettings } = await import('../../../services/workflow/workflow-mode-config');
-    const updated = await updateModeSettings(mode, patch);
-    return { success: true, mode: updated };
-  });
+  .put(
+    '/workflow-modes/:mode',
+    async ({ params, body, set }) => {
+      const mode = params.mode as 'lightweight' | 'standard' | 'comprehensive';
+      if (!isWorkflowMode(mode)) {
+        set.status = HTTP_STATUS.BAD_REQUEST;
+        return { error: 'Invalid mode' };
+      }
+      const b = (body ?? {}) as Record<string, unknown>;
+      const patch: Record<string, unknown> = {};
+      for (const k of ['includePlan', 'includeReview', 'autoVerify', 'isEnabled'] as const) {
+        if (typeof b[k] === 'boolean') patch[k] = b[k];
+      }
+      for (const k of ['complexityMin', 'complexityMax'] as const) {
+        if (typeof b[k] === 'number') patch[k] = b[k];
+      }
+      const { updateModeSettings } =
+        await import('../../../services/workflow/workflow-mode-config');
+      const updated = await updateModeSettings(mode, patch);
+      return { success: true, mode: updated };
+    },
+    {
+      params: t.Object({ mode: t.String() }),
+      body: t.Optional(
+        t.Object(
+          {
+            includePlan: t.Optional(t.Boolean()),
+            includeReview: t.Optional(t.Boolean()),
+            autoVerify: t.Optional(t.Boolean()),
+            complexityMin: t.Optional(t.Number()),
+            complexityMax: t.Optional(t.Number()),
+            isEnabled: t.Optional(t.Boolean()),
+          },
+          { additionalProperties: false },
+        ),
+      ),
+    },
+  );

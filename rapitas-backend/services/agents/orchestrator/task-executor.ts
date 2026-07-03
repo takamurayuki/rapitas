@@ -552,21 +552,73 @@ function handleExecutionSuccess(
   // Auto-complete task
   const shouldAutoComplete = autoCompleteTask !== false && taskId && !result.waitingForInput;
   if (shouldAutoComplete) {
-    ctx.prisma.task
-      .update({
-        where: { id: taskId },
-        data: { status: 'done', completedAt: new Date() },
-      })
-      .then(() => {
-        logger.info(
-          { taskId, executionId: execution.id },
-          '[TaskExecutor] Task auto-completed on successful agent execution',
-        );
-      })
-      .catch((err) => {
-        logger.warn({ err, taskId }, '[TaskExecutor] Failed to auto-complete task');
-      });
+    autoCompleteTaskDurable(ctx.prisma, taskId, execution.id).catch((err) => {
+      logger.error(
+        { err, taskId, executionId: execution.id },
+        '[TaskExecutor] Unexpected error in auto-complete retry helper',
+      );
+    });
   }
+}
+
+/**
+ * Marks a task `done` after a successful agent run, retrying once on failure
+ * and escalating via Notification if the write still doesn't land.
+ *
+ * A bare `.catch(() => log.warn(...))` on this write used to leave a
+ * genuinely-successful task stuck at its prior (non-terminal) status forever
+ * on a transient DB error, with only a warn-level log nobody would see.
+ *
+ * @param prisma - Orchestrator's Prisma client / オーケストレーターのPrismaクライアント
+ * @param taskId - Task to mark done / 完了にするタスク
+ * @param executionId - Execution that produced the success, for log context / ログ用の実行ID
+ */
+export async function autoCompleteTaskDurable(
+  prisma: OrchestratorContext['prisma'],
+  taskId: number,
+  executionId: number,
+): Promise<void> {
+  const attempt = () =>
+    prisma.task
+      .update({ where: { id: taskId }, data: { status: 'done', completedAt: new Date() } })
+      .then(() => true)
+      .catch(() => false);
+
+  if (await attempt()) {
+    logger.info(
+      { taskId, executionId },
+      '[TaskExecutor] Task auto-completed on successful agent execution',
+    );
+    return;
+  }
+
+  logger.warn(
+    { taskId, executionId },
+    '[TaskExecutor] Failed to auto-complete task — retrying once',
+  );
+  if (await attempt()) {
+    logger.info({ taskId, executionId }, '[TaskExecutor] Task auto-completed on retry');
+    return;
+  }
+
+  logger.error(
+    { taskId, executionId },
+    '[TaskExecutor] Failed to auto-complete task twice — task may remain stuck; notifying',
+  );
+  // Dynamic import mirrors the pre-existing durable-blocked-write pattern
+  // (avoids an orchestrator -> routes/services import cycle) — best-effort,
+  // must never throw.
+  import('../../communication/notification-service')
+    .then(({ createNotification }) =>
+      createNotification({
+        type: 'system',
+        title: 'タスク自動完了の記録に失敗',
+        message: `タスク #${taskId} はエージェントの実行に成功しましたが、完了状態への更新に失敗しました。手動で確認してください。`,
+        link: `/tasks?taskId=${taskId}`,
+        metadata: { taskId, executionId, reason: 'auto_complete_write_failed' },
+      }),
+    )
+    .catch(() => {});
 }
 
 /**

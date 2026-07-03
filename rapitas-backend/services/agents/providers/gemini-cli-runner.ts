@@ -55,6 +55,9 @@ function buildArgs(
   if (config.checkpointId) args.push('--checkpoint', config.checkpointId);
   if (config.allowedTools?.length) args.push('--allowlist', config.allowedTools.join(','));
   if (config.disallowedTools?.length) args.push('--denylist', config.disallowedTools.join(','));
+  // NOTE(security): See gemini-cli-agent/process-manager.ts's buildCliArgs for
+  // why --allowed-mcp-server-names isn't wired in here either (unverified
+  // empty-list semantics — Gemini CLI not installed in this environment).
   return args;
 }
 

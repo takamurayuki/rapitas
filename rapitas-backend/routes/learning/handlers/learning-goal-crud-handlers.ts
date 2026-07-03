@@ -115,10 +115,18 @@ export const learningGoalCrudRoutes = new Elysia()
     },
   )
 
-  .delete('/:id', async (context) => {
-    const { params } = context;
-    const id = parseInt(params.id);
-    return await prisma.learningGoal.delete({
-      where: { id },
-    });
-  });
+  .delete(
+    '/:id',
+    async (context) => {
+      const { params } = context;
+      const id = parseInt(params.id);
+      return await prisma.learningGoal.delete({
+        where: { id },
+      });
+    },
+    {
+      params: t.Object({
+        id: t.String(),
+      }),
+    },
+  );

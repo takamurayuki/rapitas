@@ -119,14 +119,40 @@ export async function writeWorkflowFile(
 
   const filePath = join(dir, `${fileType}.md`);
 
-  // Archive the previous version when present so users can compare iterations.
-  try {
-    await stat(filePath);
-    const archiveDir = getArchiveDir(dir, new Date().toISOString());
-    await mkdir(archiveDir, { recursive: true });
-    await rename(filePath, join(archiveDir, `${fileType}.md`));
-  } catch {
-    // No prior file — skip archiving silently.
+  // Archive the previous version when present so users can compare iterations
+  // (and so a regenerated plan never silently destroys the previous one).
+  // NOTE: `stat` failing with ENOENT ("no prior file") is the only case that's
+  // safe to skip silently. A bare `catch { }` around the WHOLE block used to
+  // also swallow a real `mkdir`/`rename` failure (e.g. EBUSY/EPERM on a locked
+  // file) identically — in that case the prior version was never actually
+  // moved out of the way, yet the code fell straight through to `writeFile`
+  // below and overwrote it anyway, permanently losing it. Only the "no prior
+  // file" case is treated as a no-op; any other archiving failure aborts the
+  // write instead of risking that data loss.
+  const priorExists = await stat(filePath)
+    .then(() => true)
+    .catch((err: unknown) => {
+      if ((err as NodeJS.ErrnoException)?.code !== 'ENOENT') {
+        log.warn(
+          { err, filePath },
+          '[WorkflowFileUtils] stat failed before archiving (not "file missing") — treating as no prior file',
+        );
+      }
+      return false;
+    });
+
+  if (priorExists) {
+    try {
+      const archiveDir = getArchiveDir(dir, new Date().toISOString());
+      await mkdir(archiveDir, { recursive: true });
+      await rename(filePath, join(archiveDir, `${fileType}.md`));
+    } catch (err) {
+      log.error(
+        { err, filePath },
+        '[WorkflowFileUtils] Failed to archive prior version — aborting write to avoid destroying it',
+      );
+      throw new Error(`Failed to archive prior ${fileType}.md before overwrite: ${String(err)}`);
+    }
   }
 
   await writeFile(filePath, sanitizeResult.content, 'utf-8');

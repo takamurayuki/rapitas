@@ -4,7 +4,7 @@
  * HTTP route handlers for CLI tool lifecycle: list, detail, install, update,
  * authenticate, and installation guides. Delegates status checks to tool-status.ts.
  */
-import { Elysia } from 'elysia';
+import { Elysia, t } from 'elysia';
 import { exec } from 'child_process';
 import { promisify } from 'util';
 import { createLogger } from '../../../config/logger';
@@ -187,54 +187,63 @@ export const cliToolsManagementRoutes = new Elysia()
   })
 
   // Authenticate CLI tool
-  .post('/cli-tools/:toolId/auth', async ({ params, body }) => {
-    try {
-      const { toolId } = params;
-      const { interactive = false } = body as { interactive?: boolean };
-      const tool = CLI_TOOLS.find((t) => t.id === toolId);
+  .post(
+    '/cli-tools/:toolId/auth',
+    async ({ params, body }) => {
+      try {
+        const { toolId } = params;
+        const { interactive = false } = body as { interactive?: boolean };
+        const tool = CLI_TOOLS.find((t) => t.id === toolId);
 
-      if (!tool || !tool.authCommand) {
-        return { success: false, error: 'Tool not found or authentication not supported' };
-      }
+        if (!tool || !tool.authCommand) {
+          return { success: false, error: 'Tool not found or authentication not supported' };
+        }
 
-      const currentStatus = await getToolStatus(tool);
-      if (!currentStatus.isInstalled) {
-        return { success: false, error: 'Tool is not installed' };
-      }
+        const currentStatus = await getToolStatus(tool);
+        if (!currentStatus.isInstalled) {
+          return { success: false, error: 'Tool is not installed' };
+        }
 
-      if (interactive) {
-        // For interactive auth, return instructions for the user to run manually
+        if (interactive) {
+          // For interactive auth, return instructions for the user to run manually
+          return {
+            success: true,
+            data: {
+              interactive: true,
+              command: tool.authCommand,
+              message: `Please run the following command in your terminal to authenticate ${tool.name}: ${tool.authCommand}`,
+            },
+          };
+        }
+
+        const newStatus = await getToolStatus(tool);
+
         return {
           success: true,
           data: {
-            interactive: true,
-            command: tool.authCommand,
-            message: `Please run the following command in your terminal to authenticate ${tool.name}: ${tool.authCommand}`,
+            tool: { ...tool, ...newStatus },
+            isAuthenticated: newStatus.isAuthenticated,
+            message: newStatus.isAuthenticated
+              ? `${tool.name} is authenticated`
+              : `${tool.name} requires authentication. Run: ${tool.authCommand}`,
           },
         };
+      } catch (error) {
+        log.error({ err: error }, '[CLI Tools] Error checking authentication');
+        return {
+          success: false,
+          error: 'Failed to check authentication',
+          details: error instanceof Error ? error.message : String(error),
+        };
       }
-
-      const newStatus = await getToolStatus(tool);
-
-      return {
-        success: true,
-        data: {
-          tool: { ...tool, ...newStatus },
-          isAuthenticated: newStatus.isAuthenticated,
-          message: newStatus.isAuthenticated
-            ? `${tool.name} is authenticated`
-            : `${tool.name} requires authentication. Run: ${tool.authCommand}`,
-        },
-      };
-    } catch (error) {
-      log.error({ err: error }, '[CLI Tools] Error checking authentication');
-      return {
-        success: false,
-        error: 'Failed to check authentication',
-        details: error instanceof Error ? error.message : String(error),
-      };
-    }
-  })
+    },
+    {
+      params: t.Object({ toolId: t.String() }),
+      body: t.Optional(
+        t.Object({ interactive: t.Optional(t.Boolean()) }, { additionalProperties: false }),
+      ),
+    },
+  )
 
   // Get installation guide for tool
   .get('/cli-tools/:toolId/install-guide', async ({ params }) => {

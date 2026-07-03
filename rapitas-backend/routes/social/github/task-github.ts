@@ -4,7 +4,7 @@
  * Routes that create or link GitHub resources (Issues, PRs) from a task context.
  * These routes have no prefix — they live under /tasks/:id/...
  */
-import { Elysia } from 'elysia';
+import { Elysia, t } from 'elysia';
 import { prisma } from '../../../config/database';
 import { GitHubService } from '../../../services/core/github-service';
 import { resolveIntegrationOrThrow } from '../../../services/github/resource-guard';
@@ -14,48 +14,67 @@ const githubService = new GitHubService(prisma);
 
 export const taskGithubRoutes = new Elysia()
   // Create GitHub Issue from Task
-  .post('/tasks/:id/create-github-issue', async (context) => {
-    const { id } = context.params as { id: string };
-    const { integrationId, labels } = context.body as { integrationId: number; labels?: string[] };
+  .post(
+    '/tasks/:id/create-github-issue',
+    async (context) => {
+      const { id } = context.params as { id: string };
+      const { integrationId, labels } = context.body as {
+        integrationId: number;
+        labels?: string[];
+      };
 
-    const task = await prisma.task.findUnique({
-      where: { id: parseInt(id) },
-    });
-    if (!task) return { error: 'Task not found' };
+      const task = await prisma.task.findUnique({
+        where: { id: parseInt(id) },
+      });
+      if (!task) return { error: 'Task not found' };
 
-    const integration = await resolveIntegrationOrThrow(integrationId);
+      const integration = await resolveIntegrationOrThrow(integrationId);
 
-    const repo = makeOwnerRepoString(integration.ownerName, integration.repositoryName);
-    const issue = await githubService.createIssue(repo, {
-      title: task.title,
-      body: task.description || '',
-      labels,
-    });
+      const repo = makeOwnerRepoString(integration.ownerName, integration.repositoryName);
+      const issue = await githubService.createIssue(repo, {
+        title: task.title,
+        body: task.description || '',
+        labels,
+      });
 
-    // Save Issue to DB
-    const savedIssue = await prisma.gitHubIssue.create({
-      data: {
-        integrationId,
-        issueNumber: issue.number,
-        title: issue.title,
-        body: issue.body,
-        state: issue.state,
-        labels: JSON.stringify(issue.labels),
-        authorLogin: issue.authorLogin,
-        url: issue.url,
-        linkedTaskId: parseInt(id),
-        lastSyncedAt: new Date(),
-      },
-    });
+      // Save Issue to DB
+      const savedIssue = await prisma.gitHubIssue.create({
+        data: {
+          integrationId,
+          issueNumber: issue.number,
+          title: issue.title,
+          body: issue.body,
+          state: issue.state,
+          labels: JSON.stringify(issue.labels),
+          authorLogin: issue.authorLogin,
+          url: issue.url,
+          linkedTaskId: parseInt(id),
+          lastSyncedAt: new Date(),
+        },
+      });
 
-    // Update Task
-    await prisma.task.update({
-      where: { id: parseInt(id) },
-      data: { githubIssueId: savedIssue.id },
-    });
+      // Update Task
+      await prisma.task.update({
+        where: { id: parseInt(id) },
+        data: { githubIssueId: savedIssue.id },
+      });
 
-    return savedIssue;
-  })
+      return savedIssue;
+    },
+    {
+      params: t.Object({ id: t.String() }),
+      // integrationId flows straight into a Prisma `where` lookup, so it MUST
+      // be validated as a number here (not just cast) to avoid a Prisma
+      // runtime error on malformed input.
+      body: t.Object(
+        {
+          integrationId: t.Number(),
+          labels: t.Optional(t.Array(t.String(), { maxItems: 50 })),
+        },
+        { additionalProperties: false },
+      ),
+    },
+  )
 
   // Link GitHub PR to Task
   .post('/tasks/:id/link-github-pr/:prId', async (context) => {

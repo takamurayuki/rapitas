@@ -86,7 +86,7 @@ describe('POST /ai/chat', () => {
     expect(body.error).toBeDefined();
   });
 
-  test('メッセージなしで400を返すこと', async () => {
+  test('メッセージなしで422を返すこと（スキーマ検証で必須フィールド欠落を拒否）', async () => {
     const res = await app.handle(
       new Request('http://localhost/ai/chat', {
         method: 'POST',
@@ -94,10 +94,9 @@ describe('POST /ai/chat', () => {
         body: JSON.stringify({}),
       }),
     );
-    const body = await res.json();
 
-    expect(res.status).toBe(400);
-    expect(body.error).toBeDefined();
+    // Elysia の body スキーマ（message 必須）がハンドラ到達前に 422 で弾く。
+    expect(res.status).toBe(422);
   });
 
   test('会話履歴付きでメッセージを送信できること', async () => {
@@ -154,7 +153,7 @@ describe('POST /ai/chat', () => {
     expect(body.error).toBeDefined();
   });
 
-  test('100,000文字を超えるメッセージで400を返すこと', async () => {
+  test('100,000文字を超えるメッセージで422を返すこと（スキーマ maxLength で拒否）', async () => {
     const longMessage = 'a'.repeat(100_001);
 
     const res = await app.handle(
@@ -164,10 +163,9 @@ describe('POST /ai/chat', () => {
         body: JSON.stringify({ message: longMessage }),
       }),
     );
-    const body = await res.json();
 
-    expect(res.status).toBe(400);
-    expect(body.error).toContain('長すぎ');
+    // スキーマの maxLength:100_000 がハンドラの手動チェック到達前に 422 で弾く。
+    expect(res.status).toBe(422);
   });
 });
 

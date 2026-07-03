@@ -151,6 +151,13 @@ export async function runClaudeCode(
     if (config.model) args.push('--model', config.model);
     if (config.maxTokens) args.push('--max-tokens', String(config.maxTokens));
 
+    // NOTE(security): No --mcp-config is passed to this spawn either, so
+    // --strict-mcp-config prevents the CLI from ambiently loading MCP servers
+    // from the machine's global/project config (see claude-execution-runner.ts's
+    // buildClaudeArgs for the full rationale — this is the same fix mirrored
+    // for the streaming provider's spawn path).
+    args.push('--strict-mcp-config');
+
     // NOTE: Disable worktree tools to prevent the spawned CLI from creating nested worktrees
     // that conflict with rapitas-managed worktrees and could corrupt .git/ directory structure.
     // NOTE(security): Also block network-egress (WebFetch/WebSearch) and

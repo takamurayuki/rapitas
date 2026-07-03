@@ -1,7 +1,7 @@
 /**
  * Milestones API Routes
  */
-import { Elysia } from 'elysia';
+import { Elysia, t } from 'elysia';
 import { prisma } from '../../config/database';
 import { milestoneSchema } from '../../schemas/milestone.schema';
 import { ValidationError } from '../../middleware/error-handler';
@@ -70,39 +70,56 @@ export const milestonesRoutes = new Elysia({ prefix: '/milestones' })
   )
 
   // Update milestone
-  .patch('/:id', async (context) => {
-    const { params, body } = context;
-    const id = parseInt(params.id);
-    if (isNaN(id)) {
-      throw new ValidationError('無効なIDです');
-    }
+  .patch(
+    '/:id',
+    async (context) => {
+      const { params, body } = context;
+      const id = parseInt(params.id);
+      if (isNaN(id)) {
+        throw new ValidationError('無効なIDです');
+      }
 
-    const { name, description, dueDate } = body as {
-      name?: string;
-      description?: string;
-      dueDate?: string | null;
-    };
-    return await prisma.milestone.update({
-      where: { id },
-      data: {
-        ...(name && { name }),
-        ...(description !== undefined && { description }),
-        ...(dueDate !== undefined && {
-          dueDate: dueDate ? new Date(dueDate) : null,
-        }),
-      },
-    });
-  })
+      const { name, description, dueDate } = body as {
+        name?: string;
+        description?: string;
+        dueDate?: string | null;
+      };
+      return await prisma.milestone.update({
+        where: { id },
+        data: {
+          ...(name && { name }),
+          ...(description !== undefined && { description }),
+          ...(dueDate !== undefined && {
+            dueDate: dueDate ? new Date(dueDate) : null,
+          }),
+        },
+      });
+    },
+    {
+      params: t.Object({ id: t.String() }),
+      body: t.Object({
+        name: t.Optional(t.String({ maxLength: 200 })),
+        description: t.Optional(t.String({ maxLength: 5000 })),
+        dueDate: t.Optional(t.Nullable(t.String({ maxLength: 40 }))),
+      }),
+    },
+  )
 
   // Delete milestone
-  .delete('/:id', async (context) => {
-    const { params } = context;
-    const id = parseInt(params.id);
-    if (isNaN(id)) {
-      throw new ValidationError('無効なIDです');
-    }
+  .delete(
+    '/:id',
+    async (context) => {
+      const { params } = context;
+      const id = parseInt(params.id);
+      if (isNaN(id)) {
+        throw new ValidationError('無効なIDです');
+      }
 
-    return await prisma.milestone.delete({
-      where: { id },
-    });
-  });
+      return await prisma.milestone.delete({
+        where: { id },
+      });
+    },
+    {
+      params: t.Object({ id: t.String() }),
+    },
+  );

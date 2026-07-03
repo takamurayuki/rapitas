@@ -1,7 +1,7 @@
 /**
  * Schedule Events API Routes
  */
-import { Elysia } from 'elysia';
+import { Elysia, t } from 'elysia';
 import { prisma } from '../../config/database';
 import { ValidationError, NotFoundError } from '../../middleware/error-handler';
 import {
@@ -14,6 +14,68 @@ import { realtimeService } from '../../services/communication/realtime-service';
 import { syncCalendarToTask } from '../../services/scheduling/task-calendar-sync';
 
 const log = createLogger('routes:schedules');
+
+// `:id` params schema shared across all mutating routes below.
+const scheduleIdParams = t.Object({ id: t.String() });
+
+// Date-ish fields (startAt/endAt/originalDate/stopDate/reminderSentAt) are
+// passed straight to `new Date(...)` by the handlers, which tolerates loose
+// formats (not just strict ISO-8601) — so we only enforce string type + a
+// length cap here, not a date-format regex, to avoid rejecting input the
+// handler itself accepts.
+const scheduleCreateBody = t.Object(
+  {
+    title: t.String({ minLength: 1, maxLength: 200 }),
+    description: t.Optional(t.String({ maxLength: 5000 })),
+    startAt: t.String({ maxLength: 100 }),
+    endAt: t.Optional(t.String({ maxLength: 100 })),
+    isAllDay: t.Optional(t.Boolean()),
+    color: t.Optional(t.String({ maxLength: 50 })),
+    reminderMinutes: t.Optional(t.Nullable(t.Number())),
+    taskId: t.Optional(t.Nullable(t.Number())),
+    type: t.Optional(t.String({ maxLength: 50 })),
+    userId: t.Optional(t.String({ maxLength: 100 })),
+    recurrenceRule: t.Optional(t.Nullable(t.String({ maxLength: 1000 }))),
+    recurrenceEnd: t.Optional(t.Nullable(t.String({ maxLength: 100 }))),
+  },
+  { additionalProperties: false },
+);
+
+// PATCH is a partial update — every field optional, mirroring data_input in
+// the handler below (which only writes fields that are `!== undefined`).
+const scheduleUpdateBody = t.Object(
+  {
+    title: t.Optional(t.String({ maxLength: 200 })),
+    description: t.Optional(t.Nullable(t.String({ maxLength: 5000 }))),
+    startAt: t.Optional(t.String({ maxLength: 100 })),
+    endAt: t.Optional(t.Nullable(t.String({ maxLength: 100 }))),
+    isAllDay: t.Optional(t.Boolean()),
+    color: t.Optional(t.String({ maxLength: 50 })),
+    reminderMinutes: t.Optional(t.Nullable(t.Number())),
+    reminderSentAt: t.Optional(t.Nullable(t.String({ maxLength: 100 }))),
+    taskId: t.Optional(t.Nullable(t.Number())),
+    type: t.Optional(t.String({ maxLength: 50 })),
+    userId: t.Optional(t.String({ maxLength: 100 })),
+  },
+  { additionalProperties: false },
+);
+
+const scheduleExceptionBody = t.Object(
+  {
+    originalDate: t.String({ maxLength: 100 }),
+    title: t.Optional(t.String({ maxLength: 200 })),
+    description: t.Optional(t.String({ maxLength: 5000 })),
+    startAt: t.Optional(t.String({ maxLength: 100 })),
+    endAt: t.Optional(t.String({ maxLength: 100 })),
+    color: t.Optional(t.String({ maxLength: 50 })),
+  },
+  { additionalProperties: false },
+);
+
+const scheduleStopRecurrenceBody = t.Object(
+  { stopDate: t.String({ maxLength: 100 }) },
+  { additionalProperties: false },
+);
 
 export const schedulesRoutes = new Elysia({ prefix: '/schedules' })
   // Get all schedule events (with optional date range filter)
@@ -125,184 +187,216 @@ export const schedulesRoutes = new Elysia({ prefix: '/schedules' })
   })
 
   // Create schedule event
-  .post('/', async (context) => {
-    const { body } = context;
-    const data = body as {
-      title: string;
-      description?: string;
-      startAt: string;
-      endAt?: string;
-      isAllDay?: boolean;
-      color?: string;
-      reminderMinutes?: number | null;
-      taskId?: number | null;
-      type?: string;
-      userId?: string;
-      recurrenceRule?: string | null;
-      recurrenceEnd?: string | null;
-    };
+  .post(
+    '/',
+    async (context) => {
+      const { body } = context;
+      const data = body as {
+        title: string;
+        description?: string;
+        startAt: string;
+        endAt?: string;
+        isAllDay?: boolean;
+        color?: string;
+        reminderMinutes?: number | null;
+        taskId?: number | null;
+        type?: string;
+        userId?: string;
+        recurrenceRule?: string | null;
+        recurrenceEnd?: string | null;
+      };
 
-    if (!data.title?.trim()) throw new ValidationError('Title is required');
-    if (!data.startAt) throw new ValidationError('Start date/time is required');
+      if (!data.title?.trim()) throw new ValidationError('Title is required');
+      if (!data.startAt) throw new ValidationError('Start date/time is required');
 
-    const event = await prisma.scheduleEvent.create({
-      data: {
-        title: data.title.trim(),
-        description: data.description?.trim() || null,
-        startAt: new Date(data.startAt),
-        endAt: data.endAt ? new Date(data.endAt) : null,
-        isAllDay: data.isAllDay ?? false,
-        color: data.color || '#6366F1',
-        reminderMinutes: data.reminderMinutes ?? null,
-        taskId: data.taskId ?? null,
-        type: data.type === 'PAID_LEAVE' ? 'PAID_LEAVE' : 'GENERAL',
-        userId: data.userId || 'default',
-        recurrenceRule: data.recurrenceRule || null,
-        recurrenceEnd: data.recurrenceEnd ? new Date(data.recurrenceEnd) : null,
-      },
-    });
+      const event = await prisma.scheduleEvent.create({
+        data: {
+          title: data.title.trim(),
+          description: data.description?.trim() || null,
+          startAt: new Date(data.startAt),
+          endAt: data.endAt ? new Date(data.endAt) : null,
+          isAllDay: data.isAllDay ?? false,
+          color: data.color || '#6366F1',
+          reminderMinutes: data.reminderMinutes ?? null,
+          taskId: data.taskId ?? null,
+          type: data.type === 'PAID_LEAVE' ? 'PAID_LEAVE' : 'GENERAL',
+          userId: data.userId || 'default',
+          recurrenceRule: data.recurrenceRule || null,
+          recurrenceEnd: data.recurrenceEnd ? new Date(data.recurrenceEnd) : null,
+        },
+      });
 
-    // NOTE: Broadcast schedule creation for real-time calendar sync.
-    realtimeService.broadcastAll('schedule_created', {
-      eventId: event.id,
-      title: event.title,
-      startAt: event.startAt,
-      timestamp: new Date().toISOString(),
-    });
+      // NOTE: Broadcast schedule creation for real-time calendar sync.
+      realtimeService.broadcastAll('schedule_created', {
+        eventId: event.id,
+        title: event.title,
+        startAt: event.startAt,
+        timestamp: new Date().toISOString(),
+      });
 
-    return event;
-  })
+      return event;
+    },
+    { body: scheduleCreateBody },
+  )
 
   // Update schedule event
-  .patch('/:id', async (context) => {
-    const { params, body } = context;
-    const data_input = body as {
-      title?: string;
-      description?: string | null;
-      startAt?: string;
-      endAt?: string | null;
-      isAllDay?: boolean;
-      color?: string;
-      reminderMinutes?: number | null;
-      reminderSentAt?: string | null;
-      taskId?: number | null;
-      type?: string;
-      userId?: string;
-    };
+  .patch(
+    '/:id',
+    async (context) => {
+      const { params, body } = context;
+      const data_input = body as {
+        title?: string;
+        description?: string | null;
+        startAt?: string;
+        endAt?: string | null;
+        isAllDay?: boolean;
+        color?: string;
+        reminderMinutes?: number | null;
+        reminderSentAt?: string | null;
+        taskId?: number | null;
+        type?: string;
+        userId?: string;
+      };
 
-    const id = parseInt(params.id);
-    if (isNaN(id)) throw new ValidationError('Invalid ID');
+      const id = parseInt(params.id);
+      if (isNaN(id)) throw new ValidationError('Invalid ID');
 
-    const existing = await prisma.scheduleEvent.findUnique({ where: { id } });
-    if (!existing) throw new NotFoundError('Schedule event not found');
+      const existing = await prisma.scheduleEvent.findUnique({ where: { id } });
+      if (!existing) throw new NotFoundError('Schedule event not found');
 
-    const data: Record<string, unknown> = {};
-    if (data_input.title !== undefined) data.title = data_input.title.trim();
-    if (data_input.description !== undefined) data.description = data_input.description;
-    if (data_input.startAt !== undefined) data.startAt = new Date(data_input.startAt);
-    if (data_input.endAt !== undefined)
-      data.endAt = data_input.endAt ? new Date(data_input.endAt) : null;
-    if (data_input.isAllDay !== undefined) data.isAllDay = data_input.isAllDay;
-    if (data_input.color !== undefined) data.color = data_input.color;
-    if (data_input.reminderMinutes !== undefined) data.reminderMinutes = data_input.reminderMinutes;
-    if (data_input.reminderSentAt !== undefined)
-      data.reminderSentAt = data_input.reminderSentAt ? new Date(data_input.reminderSentAt) : null;
-    if (data_input.taskId !== undefined) data.taskId = data_input.taskId;
+      const data: Record<string, unknown> = {};
+      if (data_input.title !== undefined) data.title = data_input.title.trim();
+      if (data_input.description !== undefined) data.description = data_input.description;
+      if (data_input.startAt !== undefined) data.startAt = new Date(data_input.startAt);
+      if (data_input.endAt !== undefined)
+        data.endAt = data_input.endAt ? new Date(data_input.endAt) : null;
+      if (data_input.isAllDay !== undefined) data.isAllDay = data_input.isAllDay;
+      if (data_input.color !== undefined) data.color = data_input.color;
+      if (data_input.reminderMinutes !== undefined)
+        data.reminderMinutes = data_input.reminderMinutes;
+      if (data_input.reminderSentAt !== undefined)
+        data.reminderSentAt = data_input.reminderSentAt
+          ? new Date(data_input.reminderSentAt)
+          : null;
+      if (data_input.taskId !== undefined) data.taskId = data_input.taskId;
 
-    const updated = await prisma.scheduleEvent.update({
-      where: { id },
-      data,
-    });
-
-    realtimeService.broadcastAll('schedule_updated', {
-      eventId: id,
-      title: updated.title,
-      startAt: updated.startAt,
-      timestamp: new Date().toISOString(),
-    });
-
-    // NOTE: Bidirectional sync — calendar date changes propagate back to linked task.
-    if (data_input.startAt && updated.taskId) {
-      syncCalendarToTask(id, new Date(data_input.startAt)).catch((err) => {
-        log.warn({ err, eventId: id }, 'Calendar-to-task sync failed');
+      const updated = await prisma.scheduleEvent.update({
+        where: { id },
+        data,
       });
-    }
 
-    return updated;
-  })
+      realtimeService.broadcastAll('schedule_updated', {
+        eventId: id,
+        title: updated.title,
+        startAt: updated.startAt,
+        timestamp: new Date().toISOString(),
+      });
+
+      // NOTE: Bidirectional sync — calendar date changes propagate back to linked task.
+      if (data_input.startAt && updated.taskId) {
+        syncCalendarToTask(id, new Date(data_input.startAt)).catch((err) => {
+          log.warn({ err, eventId: id }, 'Calendar-to-task sync failed');
+        });
+      }
+
+      return updated;
+    },
+    {
+      params: scheduleIdParams,
+      body: scheduleUpdateBody,
+    },
+  )
 
   // Delete schedule event
-  .delete('/:id', async (context) => {
-    const { params } = context;
-    const id = parseInt(params.id);
-    if (isNaN(id)) throw new ValidationError('Invalid ID');
+  .delete(
+    '/:id',
+    async (context) => {
+      const { params } = context;
+      const id = parseInt(params.id);
+      if (isNaN(id)) throw new ValidationError('Invalid ID');
 
-    const existing = await prisma.scheduleEvent.findUnique({ where: { id } });
-    if (!existing) throw new NotFoundError('Schedule event not found');
+      const existing = await prisma.scheduleEvent.findUnique({ where: { id } });
+      if (!existing) throw new NotFoundError('Schedule event not found');
 
-    await prisma.scheduleEvent.delete({ where: { id } });
+      await prisma.scheduleEvent.delete({ where: { id } });
 
-    realtimeService.broadcastAll('schedule_deleted', {
-      eventId: id,
-      timestamp: new Date().toISOString(),
-    });
+      realtimeService.broadcastAll('schedule_deleted', {
+        eventId: id,
+        timestamp: new Date().toISOString(),
+      });
 
-    return { success: true, id };
-  })
+      return { success: true, id };
+    },
+    { params: scheduleIdParams },
+  )
 
   // Edit a single instance of a recurring event (this occurrence only)
-  .post('/:id/exception', async (context) => {
-    const { params, body } = context;
-    const parentId = parseInt(params.id);
-    if (isNaN(parentId)) throw new ValidationError('Invalid ID');
+  .post(
+    '/:id/exception',
+    async (context) => {
+      const { params, body } = context;
+      const parentId = parseInt(params.id);
+      if (isNaN(parentId)) throw new ValidationError('Invalid ID');
 
-    const data = body as {
-      originalDate: string; // original recurrence date
-      title?: string;
-      description?: string;
-      startAt?: string;
-      endAt?: string;
-      color?: string;
-    };
+      const data = body as {
+        originalDate: string; // original recurrence date
+        title?: string;
+        description?: string;
+        startAt?: string;
+        endAt?: string;
+        color?: string;
+      };
 
-    const parent = await prisma.scheduleEvent.findUnique({ where: { id: parentId } });
-    if (!parent) throw new NotFoundError('Parent event not found');
+      const parent = await prisma.scheduleEvent.findUnique({ where: { id: parentId } });
+      if (!parent) throw new NotFoundError('Parent event not found');
 
-    // Create exception instance
-    return await prisma.scheduleEvent.create({
-      data: {
-        title: data.title || parent.title,
-        description: data.description ?? parent.description,
-        startAt: data.startAt ? new Date(data.startAt) : new Date(data.originalDate),
-        endAt: data.endAt ? new Date(data.endAt) : parent.endAt,
-        isAllDay: parent.isAllDay,
-        color: data.color || parent.color,
-        reminderMinutes: parent.reminderMinutes,
-        taskId: parent.taskId,
-        type: parent.type,
-        userId: parent.userId,
-        parentEventId: parentId,
-        isRecurrenceException: true,
-        originalDate: new Date(data.originalDate),
-      },
-    });
-  })
+      // Create exception instance
+      return await prisma.scheduleEvent.create({
+        data: {
+          title: data.title || parent.title,
+          description: data.description ?? parent.description,
+          startAt: data.startAt ? new Date(data.startAt) : new Date(data.originalDate),
+          endAt: data.endAt ? new Date(data.endAt) : parent.endAt,
+          isAllDay: parent.isAllDay,
+          color: data.color || parent.color,
+          reminderMinutes: parent.reminderMinutes,
+          taskId: parent.taskId,
+          type: parent.type,
+          userId: parent.userId,
+          parentEventId: parentId,
+          isRecurrenceException: true,
+          originalDate: new Date(data.originalDate),
+        },
+      });
+    },
+    {
+      params: scheduleIdParams,
+      body: scheduleExceptionBody,
+    },
+  )
 
   // Stop recurrence from a given date (updates recurrenceEnd)
-  .post('/:id/stop-recurrence', async (context) => {
-    const { params, body } = context;
-    const id = parseInt(params.id);
-    if (isNaN(id)) throw new ValidationError('Invalid ID');
+  .post(
+    '/:id/stop-recurrence',
+    async (context) => {
+      const { params, body } = context;
+      const id = parseInt(params.id);
+      if (isNaN(id)) throw new ValidationError('Invalid ID');
 
-    const data = body as { stopDate: string };
+      const data = body as { stopDate: string };
 
-    return await prisma.scheduleEvent.update({
-      where: { id },
-      data: {
-        recurrenceEnd: new Date(data.stopDate),
-      },
-    });
-  })
+      return await prisma.scheduleEvent.update({
+        where: { id },
+        data: {
+          recurrenceEnd: new Date(data.stopDate),
+        },
+      });
+    },
+    {
+      params: scheduleIdParams,
+      body: scheduleStopRecurrenceBody,
+    },
+  )
 
   // Get upcoming reminders (events with unsent reminders that are due)
   .get('/reminders/pending', async () => {

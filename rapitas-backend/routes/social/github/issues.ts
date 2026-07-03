@@ -4,7 +4,7 @@
  * Issue list/detail, comments, task creation from issue, concern import/publish.
  * Includes the concern bridge endpoints (publish and import).
  */
-import { Elysia } from 'elysia';
+import { Elysia, t } from 'elysia';
 import { prisma } from '../../../config/database';
 import { GitHubService } from '../../../services/core/github-service';
 import {
@@ -14,6 +14,7 @@ import {
 } from '../../../services/github/concern-bridge';
 import { resolveIssueOrThrow } from '../../../services/github/resource-guard';
 import { makeOwnerRepoString } from '../../../services/github/owner-repo';
+import { githubSchemas } from '../../../schemas/github.schema';
 
 const githubService = new GitHubService(prisma);
 
@@ -58,46 +59,66 @@ export const issueRoutes = new Elysia()
   })
 
   // Post Issue comment
-  .post('/issues/:id/comments', async (context) => {
-    const { id } = context.params as { id: string };
-    const { body: commentBody } = context.body as { body: string };
+  .post(
+    '/issues/:id/comments',
+    async (context) => {
+      const { id } = context.params as { id: string };
+      const { body: commentBody } = context.body as { body: string };
 
-    const issue = await resolveIssueOrThrow(id);
+      const issue = await resolveIssueOrThrow(id);
 
-    const repo = makeOwnerRepoString(issue.integration.ownerName, issue.integration.repositoryName);
-    return await githubService.addIssueComment(repo, issue.issueNumber, commentBody);
-  })
+      const repo = makeOwnerRepoString(
+        issue.integration.ownerName,
+        issue.integration.repositoryName,
+      );
+      return await githubService.addIssueComment(repo, issue.issueNumber, commentBody);
+    },
+    {
+      params: t.Object({ id: t.String() }),
+      body: t.Object(
+        { body: t.String({ minLength: 1, maxLength: 10000 }) },
+        { additionalProperties: false },
+      ),
+    },
+  )
 
   // Create Task from Issue
-  .post('/issues/:id/create-task', async (context) => {
-    const { id } = context.params as { id: string };
-    const { projectId, themeId, priority } = context.body as {
-      projectId?: number;
-      themeId?: number;
-      priority?: string;
-    };
+  .post(
+    '/issues/:id/create-task',
+    async (context) => {
+      const { id } = context.params as { id: string };
+      const { projectId, themeId, priority } = context.body as {
+        projectId?: number;
+        themeId?: number;
+        priority?: string;
+      };
 
-    const issue = await resolveIssueOrThrow(id);
+      const issue = await resolveIssueOrThrow(id);
 
-    const task = await prisma.task.create({
-      data: {
-        title: `[GitHub] ${issue.title}`,
-        description: issue.body || '',
-        priority: priority || 'medium',
-        githubIssueId: issue.id,
-        ...(projectId && { projectId }),
-        ...(themeId && { themeId }),
-      },
-    });
+      const task = await prisma.task.create({
+        data: {
+          title: `[GitHub] ${issue.title}`,
+          description: issue.body || '',
+          priority: priority || 'medium',
+          githubIssueId: issue.id,
+          ...(projectId && { projectId }),
+          ...(themeId && { themeId }),
+        },
+      });
 
-    // Link Issue and Task
-    await prisma.gitHubIssue.update({
-      where: { id: parseInt(id) },
-      data: { linkedTaskId: task.id },
-    });
+      // Link Issue and Task
+      await prisma.gitHubIssue.update({
+        where: { id: parseInt(id) },
+        data: { linkedTaskId: task.id },
+      });
 
-    return task;
-  })
+      return task;
+    },
+    {
+      params: t.Object({ id: t.String() }),
+      body: githubSchemas.linkTask,
+    },
+  )
 
   // Import a synced Issue into the concern backlog
   .post('/issues/:id/create-concern', async (context) => {
@@ -111,31 +132,46 @@ export const issueRoutes = new Elysia()
   })
 
   // Publish a concern to GitHub as a new Issue
-  .post('/concerns/:id/publish', async (context) => {
-    const { id } = context.params as { id: string };
-    const { integrationId, labels } = (context.body ?? {}) as {
-      integrationId?: number;
-      labels?: string[];
-    };
-    // The concern's theme determines the target repo, so integrationId is
-    // optional — resolve it from the theme. Only when that fails (no theme/repo
-    // or no matching integration) do we ask the user to pick a repo.
-    let targetIntegrationId = integrationId;
-    if (!targetIntegrationId) {
-      const resolved = await resolveConcernIntegration(parseInt(id));
-      targetIntegrationId = resolved?.id;
-    }
-    if (!targetIntegrationId) {
-      context.set.status = 409;
-      return {
-        error: 'テーマから公開先リポジトリを特定できませんでした。公開先を選択してください。',
-        code: 'NEEDS_INTEGRATION',
+  .post(
+    '/concerns/:id/publish',
+    async (context) => {
+      const { id } = context.params as { id: string };
+      const { integrationId, labels } = (context.body ?? {}) as {
+        integrationId?: number;
+        labels?: string[];
       };
-    }
-    const result = await publishConcernToIssue(parseInt(id), targetIntegrationId, labels);
-    if (!result.success) {
-      context.set.status = result.status;
-      return { error: result.error };
-    }
-    return { success: true, issue: result.issue };
-  });
+      // The concern's theme determines the target repo, so integrationId is
+      // optional — resolve it from the theme. Only when that fails (no theme/repo
+      // or no matching integration) do we ask the user to pick a repo.
+      let targetIntegrationId = integrationId;
+      if (!targetIntegrationId) {
+        const resolved = await resolveConcernIntegration(parseInt(id));
+        targetIntegrationId = resolved?.id;
+      }
+      if (!targetIntegrationId) {
+        context.set.status = 409;
+        return {
+          error: 'テーマから公開先リポジトリを特定できませんでした。公開先を選択してください。',
+          code: 'NEEDS_INTEGRATION',
+        };
+      }
+      const result = await publishConcernToIssue(parseInt(id), targetIntegrationId, labels);
+      if (!result.success) {
+        context.set.status = result.status;
+        return { error: result.error };
+      }
+      return { success: true, issue: result.issue };
+    },
+    {
+      params: t.Object({ id: t.String() }),
+      body: t.Optional(
+        t.Object(
+          {
+            integrationId: t.Optional(t.Number()),
+            labels: t.Optional(t.Array(t.String(), { maxItems: 50 })),
+          },
+          { additionalProperties: false },
+        ),
+      ),
+    },
+  );

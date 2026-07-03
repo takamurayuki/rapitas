@@ -98,14 +98,19 @@ export function handleOrchestratorEvent(eventData: Record<string, unknown>): voi
     case 'execution_output': {
       const outputData = eventData.data as { output: string; isError: boolean } | undefined;
       if (outputData) {
+        // NOTE: sessionId is included so consumers of the shared/app-wide SSE
+        // connection (which receives every session's output on one socket) can
+        // filter to the session they own — see useExecutionStreamSSE.ts.
         realtimeService.broadcast(executionChannel, 'execution_output', {
           executionId,
+          sessionId,
           output: outputData.output,
           isError: outputData.isError,
           timestamp: new Date().toISOString(),
         });
         realtimeService.broadcast(sessionChannel, 'execution_output', {
           executionId,
+          sessionId,
           output: outputData.output,
           isError: outputData.isError,
           timestamp: new Date().toISOString(),

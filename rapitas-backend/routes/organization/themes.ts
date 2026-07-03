@@ -2,7 +2,7 @@
  * Themes API Routes
  * Handles theme CRUD operations and default theme management
  */
-import { Elysia } from 'elysia';
+import { Elysia, t } from 'elysia';
 import { prisma } from '../../config/database';
 import { themeSchema } from '../../schemas/theme.schema';
 import { NotFoundError, ValidationError } from '../../middleware/error-handler';
@@ -180,34 +180,54 @@ export const themesRoutes = new Elysia({ prefix: '/themes' })
   )
 
   // Delete theme
-  .delete('/:id', async (context) => {
-    const { params } = context;
-    const id = parseInt(params.id);
-    if (isNaN(id)) {
-      throw new ValidationError('無効なIDです');
-    }
+  .delete(
+    '/:id',
+    async (context) => {
+      const { params } = context;
+      const id = parseInt(params.id);
+      if (isNaN(id)) {
+        throw new ValidationError('無効なIDです');
+      }
 
-    return await prisma.theme.delete({
-      where: { id },
-    });
-  })
+      return await prisma.theme.delete({
+        where: { id },
+      });
+    },
+    {
+      params: t.Object({ id: t.String() }),
+    },
+  )
 
   // Reorder themes
-  .patch('/reorder', async (context) => {
-    const { body } = context;
-    const { orders } = body as { orders: Array<{ id: number; sortOrder: number }> };
+  .patch(
+    '/reorder',
+    async (context) => {
+      const { body } = context;
+      const { orders } = body as { orders: Array<{ id: number; sortOrder: number }> };
 
-    await Promise.all(
-      orders.map(({ id, sortOrder }) =>
-        prisma.theme.update({
-          where: { id },
-          data: { sortOrder },
-        }),
-      ),
-    );
+      await Promise.all(
+        orders.map(({ id, sortOrder }) =>
+          prisma.theme.update({
+            where: { id },
+            data: { sortOrder },
+          }),
+        ),
+      );
 
-    return { success: true };
-  })
+      return { success: true };
+    },
+    {
+      body: t.Object({
+        orders: t.Array(
+          t.Object({
+            id: t.Number(),
+            sortOrder: t.Number(),
+          }),
+          { maxItems: 500 },
+        ),
+      }),
+    },
+  )
 
   // Set default theme (per category: only one default per category)
   .patch('/:id/set-default', async (context) => {

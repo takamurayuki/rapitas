@@ -91,6 +91,14 @@ describe('buildClaudeArgs', () => {
       expect(disallowed).toContain(tool);
     }
   });
+
+  test('--strict-mcp-config は常に付与される（機械全体のMCPサーバーをアンビエントに読み込ませない）', () => {
+    const agent = new ClaudeCodeAgent('t5', 'test-agent', {});
+    const { args } = buildClaudeArgs(agent);
+    expect(args).toContain('--strict-mcp-config');
+    // --mcp-config は渡さない設計 — strict と組み合わせて初めて「MCPサーバーを一切読み込まない」になる
+    expect(args).not.toContain('--mcp-config');
+  });
 });
 
 describe('buildSpawnEnv', () => {

@@ -161,6 +161,20 @@ function buildCodexArgs(
 ): ArgsResult {
   const args: string[] = ['exec'];
 
+  // NOTE(security): Unlike Claude Code (`--strict-mcp-config`, see
+  // claude-execution-runner.ts), Codex CLI has no single flag that restricts
+  // MCP loading to an explicit allowlist and ignores ambient config. Its only
+  // documented controls are per-server: `codex mcp disable <name>` (mutates
+  // ~/.codex/config.toml persistently — not a per-spawn flag) or
+  // `-c mcp_servers.<name>.enabled=false` overrides, both of which require
+  // enumerating server names this codebase has no way to know ahead of time
+  // (they live in the operator's machine-level ~/.codex/config.toml, not
+  // ours). Pointing CODEX_HOME at an isolated directory per spawn was
+  // considered but rejected: it would also relocate the session/auth store
+  // Codex needs to function, is a larger behavioral change than this hardening
+  // pass's scope, and could not be verified here (the Codex CLI is not
+  // installed in this environment). Left as a follow-up — track "generic
+  // MCP-isolation flag" against future Codex CLI releases.
   // JSON mode for implementation (not investigation)
   if (!config.investigationMode) {
     args.push('--json');

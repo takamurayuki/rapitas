@@ -1,7 +1,7 @@
 /**
  * Prompts API Routes
  */
-import { Elysia } from 'elysia';
+import { Elysia, t } from 'elysia';
 import { prisma } from '../../config/database';
 import { generateOptimizedPrompt } from '../../services/claude-agent';
 import { getDefaultProvider, getApiKeyForProvider } from '../../utils/ai-client';
@@ -48,86 +48,124 @@ export const promptsRoutes = new Elysia()
     };
   })
 
-  .post('/tasks/:id/prompts', async (context) => {
-    const { params, body, set } = context;
-    const taskIdNum = parseInt(params.id);
-    const { name, optimizedPrompt, structuredSections, qualityScore, originalDescription } =
-      body as {
+  .post(
+    '/tasks/:id/prompts',
+    async (context) => {
+      const { params, body, set } = context;
+      const taskIdNum = parseInt(params.id);
+      const { name, optimizedPrompt, structuredSections, qualityScore, originalDescription } =
+        body as {
+          name?: string;
+          optimizedPrompt: string;
+          structuredSections?: string;
+          qualityScore?: number;
+          originalDescription?: string;
+        };
+
+      if (!optimizedPrompt) {
+        set.status = 400;
+        return { error: 'optimizedPromptは必須です' };
+      }
+
+      const prompt = await prisma.taskPrompt.create({
+        data: {
+          taskId: taskIdNum,
+          name,
+          optimizedPrompt,
+          structuredSections,
+          qualityScore,
+          originalDescription,
+          isActive: true,
+        },
+      });
+
+      return prompt;
+    },
+    {
+      params: t.Object({ id: t.String() }),
+      body: t.Object(
+        {
+          name: t.Optional(t.String()),
+          optimizedPrompt: t.String({ maxLength: 50_000 }),
+          structuredSections: t.Optional(t.String()),
+          qualityScore: t.Optional(t.Number()),
+          originalDescription: t.Optional(t.String()),
+        },
+        { additionalProperties: false },
+      ),
+    },
+  )
+
+  .patch(
+    '/prompts/:id',
+    async ({ params, body, set }) => {
+      const promptId = parseInt(params.id);
+      const { name, optimizedPrompt, isActive } = body as {
         name?: string;
-        optimizedPrompt: string;
-        structuredSections?: string;
-        qualityScore?: number;
-        originalDescription?: string;
+        optimizedPrompt?: string;
+        isActive?: boolean;
       };
 
-    if (!optimizedPrompt) {
-      set.status = 400;
-      return { error: 'optimizedPromptは必須です' };
-    }
+      const existing = await prisma.taskPrompt.findUnique({
+        where: { id: promptId },
+      });
 
-    const prompt = await prisma.taskPrompt.create({
-      data: {
-        taskId: taskIdNum,
-        name,
-        optimizedPrompt,
-        structuredSections,
-        qualityScore,
-        originalDescription,
-        isActive: true,
-      },
-    });
+      if (!existing) {
+        set.status = 404;
+        return { error: 'プロンプトが見つかりません' };
+      }
 
-    return prompt;
-  })
+      const updated = await prisma.taskPrompt.update({
+        where: { id: promptId },
+        data: {
+          ...(name !== undefined && { name }),
+          ...(optimizedPrompt !== undefined && { optimizedPrompt }),
+          ...(isActive !== undefined && { isActive }),
+        },
+      });
 
-  .patch('/prompts/:id', async ({ params, body, set }) => {
-    const promptId = parseInt(params.id);
-    const { name, optimizedPrompt, isActive } = body as {
-      name?: string;
-      optimizedPrompt?: string;
-      isActive?: boolean;
-    };
+      return updated;
+    },
+    {
+      params: t.Object({ id: t.String() }),
+      body: t.Optional(
+        t.Object(
+          {
+            name: t.Optional(t.String()),
+            optimizedPrompt: t.Optional(t.String({ maxLength: 50_000 })),
+            isActive: t.Optional(t.Boolean()),
+          },
+          { additionalProperties: false },
+        ),
+      ),
+    },
+  )
 
-    const existing = await prisma.taskPrompt.findUnique({
-      where: { id: promptId },
-    });
+  .delete(
+    '/prompts/:id',
+    async (context) => {
+      const { params, set } = context;
+      const promptId = parseInt(params.id);
 
-    if (!existing) {
-      set.status = 404;
-      return { error: 'プロンプトが見つかりません' };
-    }
+      const existing = await prisma.taskPrompt.findUnique({
+        where: { id: promptId },
+      });
 
-    const updated = await prisma.taskPrompt.update({
-      where: { id: promptId },
-      data: {
-        ...(name !== undefined && { name }),
-        ...(optimizedPrompt !== undefined && { optimizedPrompt }),
-        ...(isActive !== undefined && { isActive }),
-      },
-    });
+      if (!existing) {
+        set.status = 404;
+        return { error: 'プロンプトが見つかりません' };
+      }
 
-    return updated;
-  })
+      await prisma.taskPrompt.delete({
+        where: { id: promptId },
+      });
 
-  .delete('/prompts/:id', async (context) => {
-    const { params, set } = context;
-    const promptId = parseInt(params.id);
-
-    const existing = await prisma.taskPrompt.findUnique({
-      where: { id: promptId },
-    });
-
-    if (!existing) {
-      set.status = 404;
-      return { error: 'プロンプトが見つかりません' };
-    }
-
-    await prisma.taskPrompt.delete({
-      where: { id: promptId },
-    });
-
-    return { success: true };
-  })
+      return { success: true };
+    },
+    {
+      params: t.Object({ id: t.String() }),
+    },
+  )
 
   // Bulk prompt optimization for task and all subtasks
   .post('/tasks/:id/prompts/generate-all', async (context) => {

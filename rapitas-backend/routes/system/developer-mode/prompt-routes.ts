@@ -27,123 +27,137 @@ const log = createLogger('routes:developer-mode:prompt');
 export const developerModePromptRoutes = new Elysia({ prefix: '/developer-mode' })
 
   // Prompt optimization API
-  .post('/optimize-prompt/:taskId', async (context) => {
-    const { params, body, set } = context;
-    const taskId = parseInt(params.taskId);
-    const { clarificationAnswers, savePrompt } = (body || {}) as {
-      clarificationAnswers?: Record<string, string>;
-      savePrompt?: boolean;
-    };
-
-    const optimizeProvider = await getDefaultProvider();
-    const optimizeApiKey = await getApiKeyForProvider(optimizeProvider);
-    if (!optimizeApiKey) {
-      set.status = 400;
-      return {
-        error: 'AIのAPIキーが設定されていません。設定ページでAPIキーを登録してください。',
+  .post(
+    '/optimize-prompt/:taskId',
+    async (context) => {
+      const { params, body, set } = context;
+      const taskId = parseInt(params.taskId);
+      const { clarificationAnswers, savePrompt } = (body || {}) as {
+        clarificationAnswers?: Record<string, string>;
+        savePrompt?: boolean;
       };
-    }
 
-    const task = await prisma.task.findUnique({
-      where: { id: taskId },
-      include: { subtasks: true },
-    });
+      const optimizeProvider = await getDefaultProvider();
+      const optimizeApiKey = await getApiKeyForProvider(optimizeProvider);
+      if (!optimizeApiKey) {
+        set.status = 400;
+        return {
+          error: 'AIのAPIキーが設定されていません。設定ページでAPIキーを登録してください。',
+        };
+      }
 
-    if (!task) {
-      set.status = 404;
-      return { error: TASK_NOT_FOUND };
-    }
+      const task = await prisma.task.findUnique({
+        where: { id: taskId },
+        include: { subtasks: true },
+      });
 
-    // Get latest AI analysis result if available
-    const config = await prisma.developerModeConfig.findUnique({
-      where: { taskId },
-      include: {
-        agentSessions: {
-          orderBy: { createdAt: 'desc' },
-          take: 1,
-          include: {
-            agentActions: {
-              where: { actionType: 'analysis', status: 'success' },
-              orderBy: { createdAt: 'desc' },
-              take: 1,
+      if (!task) {
+        set.status = 404;
+        return { error: TASK_NOT_FOUND };
+      }
+
+      // Get latest AI analysis result if available
+      const config = await prisma.developerModeConfig.findUnique({
+        where: { taskId },
+        include: {
+          agentSessions: {
+            orderBy: { createdAt: 'desc' },
+            take: 1,
+            include: {
+              agentActions: {
+                where: { actionType: 'analysis', status: 'success' },
+                orderBy: { createdAt: 'desc' },
+                take: 1,
+              },
             },
           },
         },
-      },
-    });
+      });
 
-    let analysisResult = null;
-    if (config?.agentSessions?.[0]?.agentActions?.[0]?.output) {
-      analysisResult = fromJsonString(config.agentSessions[0].agentActions[0].output);
-    }
-
-    try {
-      const { result, tokensUsed } = await generateOptimizedPrompt(
-        {
-          title: task.title,
-          description: task.description,
-          priority: task.priority,
-          labels: getLabelsArray(task.labels),
-        },
-        analysisResult as TaskAnalysisResult | null,
-        clarificationAnswers,
-        optimizeProvider,
-      );
-
-      // Record token usage if session exists
-      if (config?.agentSessions?.[0]) {
-        await prisma.agentSession.update({
-          where: { id: config.agentSessions[0].id },
-          data: { totalTokensUsed: { increment: tokensUsed }, lastActivityAt: new Date() },
-        });
+      let analysisResult = null;
+      if (config?.agentSessions?.[0]?.agentActions?.[0]?.output) {
+        analysisResult = fromJsonString(config.agentSessions[0].agentActions[0].output);
       }
 
-      // Save prompt if no clarification questions and save option is enabled
-      let savedPromptId = null;
-      if (
-        savePrompt &&
-        (!result.clarificationQuestions || result.clarificationQuestions.length === 0)
-      ) {
-        const savedPrompt = await prisma.taskPrompt.create({
-          data: {
-            taskId,
-            name: `${task.title} - 最適化プロンプト`,
-            originalDescription: task.description,
-            optimizedPrompt: result.optimizedPrompt,
-            structuredSections: toJsonString(result.structuredSections),
-            qualityScore: result.promptQuality.score,
-            isActive: true,
+      try {
+        const { result, tokensUsed } = await generateOptimizedPrompt(
+          {
+            title: task.title,
+            description: task.description,
+            priority: task.priority,
+            labels: getLabelsArray(task.labels),
           },
-        });
-        savedPromptId = savedPrompt.id;
+          analysisResult as TaskAnalysisResult | null,
+          clarificationAnswers,
+          optimizeProvider,
+        );
+
+        // Record token usage if session exists
+        if (config?.agentSessions?.[0]) {
+          await prisma.agentSession.update({
+            where: { id: config.agentSessions[0].id },
+            data: { totalTokensUsed: { increment: tokensUsed }, lastActivityAt: new Date() },
+          });
+        }
+
+        // Save prompt if no clarification questions and save option is enabled
+        let savedPromptId = null;
+        if (
+          savePrompt &&
+          (!result.clarificationQuestions || result.clarificationQuestions.length === 0)
+        ) {
+          const savedPrompt = await prisma.taskPrompt.create({
+            data: {
+              taskId,
+              name: `${task.title} - 最適化プロンプト`,
+              originalDescription: task.description,
+              optimizedPrompt: result.optimizedPrompt,
+              structuredSections: toJsonString(result.structuredSections),
+              qualityScore: result.promptQuality.score,
+              isActive: true,
+            },
+          });
+          savedPromptId = savedPrompt.id;
+        }
+
+        const hasQuestions = (result.clarificationQuestions?.length || 0) > 0;
+
+        return {
+          optimizedPrompt: result.optimizedPrompt,
+          structuredSections: result.structuredSections,
+          clarificationQuestions: result.clarificationQuestions || [],
+          promptQuality: result.promptQuality,
+          tokensUsed,
+          hasQuestions,
+          savedPromptId,
+          taskInfo: {
+            id: task.id,
+            title: task.title,
+            hasSubtasks: task.subtasks.length > 0,
+            subtaskCount: task.subtasks.length,
+          },
+        };
+      } catch (error: unknown) {
+        log.error({ err: error }, 'Prompt optimization error');
+        set.status = 500;
+        return {
+          error: 'プロンプト最適化に失敗しました',
+          details: error instanceof Error ? error.message : 'Unknown error',
+        };
       }
-
-      const hasQuestions = (result.clarificationQuestions?.length || 0) > 0;
-
-      return {
-        optimizedPrompt: result.optimizedPrompt,
-        structuredSections: result.structuredSections,
-        clarificationQuestions: result.clarificationQuestions || [],
-        promptQuality: result.promptQuality,
-        tokensUsed,
-        hasQuestions,
-        savedPromptId,
-        taskInfo: {
-          id: task.id,
-          title: task.title,
-          hasSubtasks: task.subtasks.length > 0,
-          subtaskCount: task.subtasks.length,
-        },
-      };
-    } catch (error: unknown) {
-      log.error({ err: error }, 'Prompt optimization error');
-      set.status = 500;
-      return {
-        error: 'プロンプト最適化に失敗しました',
-        details: error instanceof Error ? error.message : 'Unknown error',
-      };
-    }
-  })
+    },
+    {
+      body: t.Optional(
+        t.Object(
+          {
+            clarificationAnswers: t.Optional(t.Record(t.String(), t.String())),
+            savePrompt: t.Optional(t.Boolean()),
+          },
+          { additionalProperties: false },
+        ),
+      ),
+    },
+  )
 
   // Convert optimized prompt to agent execution format
   .post(

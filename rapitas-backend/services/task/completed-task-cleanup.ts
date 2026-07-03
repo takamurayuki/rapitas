@@ -150,8 +150,13 @@ export async function cleanupCompletedTasks(opts: CleanupOptions = {}): Promise<
         continue;
       }
 
-      const hasKnowledge =
-        (await prisma.knowledgeEntry.count({ where: { taskId: t.id } }).catch(() => 0)) > 0;
+      // NOTE: No `.catch()` here — a thrown error must propagate to the
+      // per-task try/catch below, which SKIPS (does not delete) the task this
+      // cycle. A bare `.catch(() => 0)` would make a transient DB failure look
+      // identical to "no knowledge recorded yet", which — combined with the
+      // extraction call below — could delete a task whose lessons were never
+      // actually verified as captured.
+      const hasKnowledge = (await prisma.knowledgeEntry.count({ where: { taskId: t.id } })) > 0;
 
       if (dryRun) {
         // Count what the real run would do, without recording or deleting.
@@ -166,7 +171,11 @@ export async function cleanupCompletedTasks(opts: CleanupOptions = {}): Promise<
         result.alreadyRecorded++;
       } else {
         // Capture lessons before the task (and its verify.md) are gone.
-        const ids = await extractKnowledgeFromTask(t.id).catch(() => [] as number[]);
+        // NOTE: No `.catch()` — see the knowledgeEntry.count note above. A
+        // thrown extraction error must also skip deletion this cycle rather
+        // than be conflated with "extraction ran fine and genuinely found
+        // nothing" (ids.length === 0 on a successful call).
+        const ids = await extractKnowledgeFromTask(t.id);
         if (ids.length > 0) result.knowledgeRecorded++;
         // If nothing was extractable, we still delete — there is nothing to keep.
       }

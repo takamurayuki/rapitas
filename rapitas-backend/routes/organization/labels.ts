@@ -2,7 +2,7 @@
  * Labels API Routes
  * Handles label CRUD operations and task-label associations
  */
-import { Elysia } from 'elysia';
+import { Elysia, t } from 'elysia';
 import { prisma } from '../../config/database';
 import { labelSchema } from '../../schemas/label.schema';
 import { NotFoundError, ValidationError } from '../../middleware/error-handler';
@@ -118,33 +118,53 @@ export const labelsRoutes = new Elysia({ prefix: '/labels' })
   )
 
   // Reorder labels
-  .patch('/reorder', async ({ body }) => {
-    const { orders } = body as { orders: Array<{ id: number; sortOrder: number }> };
+  .patch(
+    '/reorder',
+    async ({ body }) => {
+      const { orders } = body as { orders: Array<{ id: number; sortOrder: number }> };
 
-    await Promise.all(
-      orders.map(({ id, sortOrder }) =>
-        prisma.label.update({
-          where: { id },
-          data: { sortOrder },
-        }),
-      ),
-    );
+      await Promise.all(
+        orders.map(({ id, sortOrder }) =>
+          prisma.label.update({
+            where: { id },
+            data: { sortOrder },
+          }),
+        ),
+      );
 
-    return { success: true };
-  })
+      return { success: true };
+    },
+    {
+      body: t.Object({
+        orders: t.Array(
+          t.Object({
+            id: t.Number(),
+            sortOrder: t.Number(),
+          }),
+          { maxItems: 500 },
+        ),
+      }),
+    },
+  )
 
   // Delete label
-  .delete('/:id', async (context) => {
-    const { params } = context;
-    const id = parseInt(params.id);
-    if (isNaN(id)) {
-      throw new ValidationError('無効なIDです');
-    }
+  .delete(
+    '/:id',
+    async (context) => {
+      const { params } = context;
+      const id = parseInt(params.id);
+      if (isNaN(id)) {
+        throw new ValidationError('無効なIDです');
+      }
 
-    return await prisma.label.delete({
-      where: { id },
-    });
-  });
+      return await prisma.label.delete({
+        where: { id },
+      });
+    },
+    {
+      params: t.Object({ id: t.String() }),
+    },
+  );
 
 /**
  * Task Labels Routes

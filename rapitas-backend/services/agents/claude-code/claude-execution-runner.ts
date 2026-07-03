@@ -78,6 +78,15 @@ export function buildClaudeArgs(agent: ClaudeCodeAgent): { args: string[]; logEx
   if (cfg.model) args.push('--model', cfg.model);
   if (cfg.maxTokens) args.push('--max-tokens', String(cfg.maxTokens));
 
+  // NOTE(security): No --mcp-config is ever passed to this spawn, so without
+  // --strict-mcp-config the CLI would still ambiently load MCP servers from
+  // the machine's global (~/.claude.json) or project (.mcp.json) config —
+  // reachable tools this workflow's prompts never sanction and that an
+  // implementer/verifier agent has no legitimate need for. --strict-mcp-config
+  // restricts loading to --mcp-config sources only, and since none is passed
+  // here that means zero MCP servers are loaded for spawned agents.
+  args.push('--strict-mcp-config');
+
   // NOTE: Disable worktree tools to prevent the spawned CLI from creating nested worktrees
   // that conflict with rapitas-managed worktrees and could corrupt .git/ directory structure.
   // NOTE(security): WebFetch/WebSearch (network egress), ToolSearch/Skill (can

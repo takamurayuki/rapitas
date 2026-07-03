@@ -275,5 +275,17 @@ export const continueRoute = new Elysia().post(
     params: t.Object({
       id: t.String(),
     }),
+    // Explicit body schema: rejects unexpected/extra fields and oversized
+    // free-text payloads at the framework layer before handler logic runs.
+    body: t.Optional(
+      t.Object(
+        {
+          instruction: t.Optional(t.String({ maxLength: 20000 })),
+          sessionId: t.Optional(t.Number()),
+          agentConfigId: t.Optional(t.Number()),
+        },
+        { additionalProperties: false },
+      ),
+    ),
   },
 );

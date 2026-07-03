@@ -43,6 +43,9 @@ const mockPrisma = {
     create: mock(() => Promise.resolve({ id: 1 })),
     updateMany: mock(() => Promise.resolve({ count: 0 })),
   },
+  workflowTransition: {
+    findMany: mock(() => Promise.resolve([])),
+  },
   $transaction: mock((fn: (tx: unknown) => Promise<unknown>) => fn(mockPrisma)),
 };
 
@@ -203,6 +206,38 @@ describe('GET /tasks', () => {
   test('不正なsinceパラメータで400を返すこと', async () => {
     const res = await app.handle(new Request('http://localhost/tasks?since=invalid'));
     expect(res.status).toBe(400);
+  });
+
+  test('blockedタスクにWorkflowTransitionの最新causeを1クエリで付与すること', async () => {
+    const tasks = [
+      { id: 1, title: 'Task 1', status: 'todo', parentId: null },
+      { id: 2, title: 'Task 2', status: 'blocked', parentId: null },
+    ];
+    mockPrisma.task.findMany.mockResolvedValue(tasks);
+    mockPrisma.workflowTransition.findMany.mockResolvedValue([
+      { taskId: 2, cause: 'verify_pr_not_created' },
+    ]);
+
+    const res = await app.handle(new Request('http://localhost/tasks'));
+    const body = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(mockPrisma.workflowTransition.findMany).toHaveBeenCalledTimes(1);
+    const call = mockPrisma.workflowTransition.findMany.mock.calls[0]![0] as {
+      where: { taskId: { in: number[] } };
+    };
+    expect(call.where.taskId.in).toEqual([2]);
+    expect(body[0].blockedCause).toBeUndefined();
+    expect(body[1].blockedCause).toBe('verify_pr_not_created');
+  });
+
+  test('blockedタスクが無ければWorkflowTransitionへ問い合わせないこと', async () => {
+    const tasks = [{ id: 1, title: 'Task 1', status: 'todo', parentId: null }];
+    mockPrisma.task.findMany.mockResolvedValue(tasks);
+
+    await app.handle(new Request('http://localhost/tasks'));
+
+    expect(mockPrisma.workflowTransition.findMany).not.toHaveBeenCalled();
   });
 });
 

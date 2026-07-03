@@ -192,26 +192,34 @@ export const ideaBoxRoutes = new Elysia()
   )
 
   /** Delete an idea by ID. */
-  .delete('/idea-box/:id', async ({ params, set }) => {
-    const id = parseInt(params.id);
-    if (isNaN(id)) {
-      set.status = 400;
-      return { error: 'Invalid ID' };
-    }
-
-    try {
-      const success = await deleteIdea(id);
-      if (!success) {
-        set.status = HTTP_STATUS.NOT_FOUND;
-        return { error: 'アイデアが見つかりません' };
+  .delete(
+    '/idea-box/:id',
+    async ({ params, set }) => {
+      const id = parseInt(params.id);
+      if (isNaN(id)) {
+        set.status = 400;
+        return { error: 'Invalid ID' };
       }
-      return { success: true };
-    } catch (err) {
-      log.error({ err, id }, 'Failed to delete idea');
-      set.status = 500;
-      return { error: 'アイデアの削除に失敗しました' };
-    }
-  })
+
+      try {
+        const success = await deleteIdea(id);
+        if (!success) {
+          set.status = HTTP_STATUS.NOT_FOUND;
+          return { error: 'アイデアが見つかりません' };
+        }
+        return { success: true };
+      } catch (err) {
+        log.error({ err, id }, 'Failed to delete idea');
+        set.status = 500;
+        return { error: 'アイデアの削除に失敗しました' };
+      }
+    },
+    {
+      params: t.Object({
+        id: t.String(),
+      }),
+    },
+  )
 
   /** Convert an idea to a task using AI. */
   .post(

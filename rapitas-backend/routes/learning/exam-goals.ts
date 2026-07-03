@@ -67,43 +67,69 @@ export const examGoalsRoutes = new Elysia({ prefix: '/exam-goals' })
     },
   )
 
-  .patch('/:id', async (context) => {
-    const { params, body } = context;
-    const id = parseInt(params.id);
-    if (isNaN(id)) throw new ValidationError('無効なIDです');
+  .patch(
+    '/:id',
+    async (context) => {
+      const { params, body } = context;
+      const id = parseInt(params.id);
+      if (isNaN(id)) throw new ValidationError('無効なIDです');
 
-    const { name, description, examDate, targetScore, color, icon, isCompleted, actualScore } =
-      body as {
-        name?: string;
-        description?: string;
-        examDate?: string;
-        targetScore?: string | null;
-        color?: string;
-        icon?: string | null;
-        isCompleted?: boolean;
-        actualScore?: string | null;
-      };
-    return await prisma.examGoal.update({
-      where: { id },
-      data: {
-        ...(name && { name }),
-        ...(description !== undefined && { description }),
-        ...(examDate && { examDate: new Date(examDate) }),
-        ...(targetScore !== undefined && { targetScore }),
-        ...(color && { color }),
-        ...(icon !== undefined && { icon }),
-        ...(isCompleted !== undefined && { isCompleted }),
-        ...(actualScore !== undefined && { actualScore }),
-      },
-    });
-  })
+      const { name, description, examDate, targetScore, color, icon, isCompleted, actualScore } =
+        body as {
+          name?: string;
+          description?: string;
+          examDate?: string;
+          targetScore?: string | null;
+          color?: string;
+          icon?: string | null;
+          isCompleted?: boolean;
+          actualScore?: string | null;
+        };
+      return await prisma.examGoal.update({
+        where: { id },
+        data: {
+          ...(name && { name }),
+          ...(description !== undefined && { description }),
+          ...(examDate && { examDate: new Date(examDate) }),
+          ...(targetScore !== undefined && { targetScore }),
+          ...(color && { color }),
+          ...(icon !== undefined && { icon }),
+          ...(isCompleted !== undefined && { isCompleted }),
+          ...(actualScore !== undefined && { actualScore }),
+        },
+      });
+    },
+    {
+      params: t.Object({
+        id: t.String(),
+      }),
+      body: t.Object({
+        name: t.Optional(t.String({ maxLength: 200 })),
+        description: t.Optional(t.String({ maxLength: 5000 })),
+        examDate: t.Optional(t.String()),
+        targetScore: t.Optional(t.Nullable(t.String({ maxLength: 200 }))),
+        color: t.Optional(t.String({ maxLength: 200 })),
+        icon: t.Optional(t.Nullable(t.String({ maxLength: 200 }))),
+        isCompleted: t.Optional(t.Boolean()),
+        actualScore: t.Optional(t.Nullable(t.String({ maxLength: 200 }))),
+      }),
+    },
+  )
 
-  .delete('/:id', async (context) => {
-    const { params } = context;
-    const id = parseInt(params.id);
-    if (isNaN(id)) throw new ValidationError('無効なIDです');
+  .delete(
+    '/:id',
+    async (context) => {
+      const { params } = context;
+      const id = parseInt(params.id);
+      if (isNaN(id)) throw new ValidationError('無効なIDです');
 
-    return await prisma.examGoal.delete({
-      where: { id },
-    });
-  });
+      return await prisma.examGoal.delete({
+        where: { id },
+      });
+    },
+    {
+      params: t.Object({
+        id: t.String(),
+      }),
+    },
+  );

@@ -4,7 +4,7 @@
  * CRUD routes for DeveloperModeConfig: enable, disable, and update configuration.
  * Does not include AI-powered analysis or prompt generation endpoints.
  */
-import { Elysia } from 'elysia';
+import { Elysia, t } from 'elysia';
 import { prisma } from '../../../config/database';
 import { createLogger } from '../../../config/logger';
 
@@ -36,106 +36,145 @@ export const developerModeConfigRoutes = new Elysia({ prefix: '/developer-mode' 
     return config;
   })
 
-  .post('/enable/:taskId', async (context) => {
-    const { params, body } = context;
-    const taskId = parseInt(params.taskId);
-    const { autoApprove, maxSubtasks, priority } = body as {
-      autoApprove?: boolean;
-      maxSubtasks?: number;
-      priority?: string;
-    };
+  .post(
+    '/enable/:taskId',
+    async (context) => {
+      const { params, body } = context;
+      const taskId = parseInt(params.taskId);
+      const { autoApprove, maxSubtasks, priority } = body as {
+        autoApprove?: boolean;
+        maxSubtasks?: number;
+        priority?: string;
+      };
 
-    await prisma.task.update({
-      where: { id: taskId },
-      data: { isDeveloperMode: true },
-    });
-
-    let config;
-    try {
-      config = await prisma.developerModeConfig.upsert({
-        where: { taskId },
-        update: {
-          isEnabled: true,
-          ...(autoApprove !== undefined && { autoApprove }),
-          ...(maxSubtasks !== undefined && { maxSubtasks }),
-          ...(priority !== undefined && { priority }),
-        },
-        create: {
-          taskId,
-          isEnabled: true,
-          autoApprove: autoApprove ?? false,
-          maxSubtasks: maxSubtasks ?? 10,
-          priority: priority ?? 'balanced',
-        },
+      await prisma.task.update({
+        where: { id: taskId },
+        data: { isDeveloperMode: true },
       });
-    } catch (upsertError: unknown) {
-      // NOTE: Prisma upsert can race under concurrent requests — both see no row, both try to create, one gets P2002.
-      const isPrismaUniqueViolation =
-        upsertError instanceof Error &&
-        'code' in upsertError &&
-        (upsertError as { code: string }).code === 'P2002';
-      if (isPrismaUniqueViolation) {
-        log.warn(`[API] Concurrent upsert race for taskId=${taskId}, updating existing record`);
-        config = await prisma.developerModeConfig.update({
+
+      let config;
+      try {
+        config = await prisma.developerModeConfig.upsert({
           where: { taskId },
-          data: {
+          update: {
             isEnabled: true,
             ...(autoApprove !== undefined && { autoApprove }),
             ...(maxSubtasks !== undefined && { maxSubtasks }),
             ...(priority !== undefined && { priority }),
           },
+          create: {
+            taskId,
+            isEnabled: true,
+            autoApprove: autoApprove ?? false,
+            maxSubtasks: maxSubtasks ?? 10,
+            priority: priority ?? 'balanced',
+          },
         });
-      } else {
-        throw upsertError;
+      } catch (upsertError: unknown) {
+        // NOTE: Prisma upsert can race under concurrent requests — both see no row, both try to create, one gets P2002.
+        const isPrismaUniqueViolation =
+          upsertError instanceof Error &&
+          'code' in upsertError &&
+          (upsertError as { code: string }).code === 'P2002';
+        if (isPrismaUniqueViolation) {
+          log.warn(`[API] Concurrent upsert race for taskId=${taskId}, updating existing record`);
+          config = await prisma.developerModeConfig.update({
+            where: { taskId },
+            data: {
+              isEnabled: true,
+              ...(autoApprove !== undefined && { autoApprove }),
+              ...(maxSubtasks !== undefined && { maxSubtasks }),
+              ...(priority !== undefined && { priority }),
+            },
+          });
+        } else {
+          throw upsertError;
+        }
       }
-    }
 
-    return config;
-  })
+      return config;
+    },
+    {
+      params: t.Object({ taskId: t.String() }),
+      body: t.Optional(
+        t.Object(
+          {
+            autoApprove: t.Optional(t.Boolean()),
+            maxSubtasks: t.Optional(t.Number()),
+            priority: t.Optional(t.String()),
+          },
+          { additionalProperties: false },
+        ),
+      ),
+    },
+  )
 
-  .delete('/disable/:taskId', async (context) => {
-    const { params } = context;
-    const taskId = parseInt(params.taskId);
+  .delete(
+    '/disable/:taskId',
+    async (context) => {
+      const { params } = context;
+      const taskId = parseInt(params.taskId);
 
-    await prisma.task.update({
-      where: { id: taskId },
-      data: { isDeveloperMode: false },
-    });
-
-    const config = await prisma.developerModeConfig.findUnique({
-      where: { taskId },
-    });
-
-    if (config) {
-      await prisma.developerModeConfig.update({
-        where: { taskId },
-        data: { isEnabled: false },
+      await prisma.task.update({
+        where: { id: taskId },
+        data: { isDeveloperMode: false },
       });
-    }
 
-    return { success: true };
-  })
+      const config = await prisma.developerModeConfig.findUnique({
+        where: { taskId },
+      });
 
-  .patch('/config/:taskId', async (context) => {
-    const { params, body } = context;
-    const taskId = parseInt(params.taskId);
-    const { autoApprove, notifyInApp, maxSubtasks, priority } = body as {
-      autoApprove?: boolean;
-      notifyInApp?: boolean;
-      maxSubtasks?: number;
-      priority?: string;
-    };
+      if (config) {
+        await prisma.developerModeConfig.update({
+          where: { taskId },
+          data: { isEnabled: false },
+        });
+      }
 
-    return await prisma.developerModeConfig.update({
-      where: { taskId },
-      data: {
-        ...(autoApprove !== undefined && { autoApprove }),
-        ...(notifyInApp !== undefined && { notifyInApp }),
-        ...(maxSubtasks !== undefined && { maxSubtasks }),
-        ...(priority !== undefined && { priority }),
-      },
-    });
-  })
+      return { success: true };
+    },
+    {
+      params: t.Object({ taskId: t.String() }),
+    },
+  )
+
+  .patch(
+    '/config/:taskId',
+    async (context) => {
+      const { params, body } = context;
+      const taskId = parseInt(params.taskId);
+      const { autoApprove, notifyInApp, maxSubtasks, priority } = body as {
+        autoApprove?: boolean;
+        notifyInApp?: boolean;
+        maxSubtasks?: number;
+        priority?: string;
+      };
+
+      return await prisma.developerModeConfig.update({
+        where: { taskId },
+        data: {
+          ...(autoApprove !== undefined && { autoApprove }),
+          ...(notifyInApp !== undefined && { notifyInApp }),
+          ...(maxSubtasks !== undefined && { maxSubtasks }),
+          ...(priority !== undefined && { priority }),
+        },
+      });
+    },
+    {
+      params: t.Object({ taskId: t.String() }),
+      body: t.Optional(
+        t.Object(
+          {
+            autoApprove: t.Optional(t.Boolean()),
+            notifyInApp: t.Optional(t.Boolean()),
+            maxSubtasks: t.Optional(t.Number()),
+            priority: t.Optional(t.String()),
+          },
+          { additionalProperties: false },
+        ),
+      ),
+    },
+  )
 
   .get('/sessions/:taskId', async (context) => {
     const { params } = context;

@@ -10,11 +10,12 @@ import { describe, it, expect } from 'bun:test';
 import { createCrossSiteGuard } from './local-auth';
 import { assertSafeGitRef } from '../utils/common/branch-name-generator';
 
-const req = (method: string, site?: string) =>
-  new Request('http://127.0.0.1:3001/tasks/1/execute', {
-    method,
-    headers: site ? { 'sec-fetch-site': site } : {},
-  });
+const req = (method: string, site?: string, origin?: string) => {
+  const headers: Record<string, string> = {};
+  if (site) headers['sec-fetch-site'] = site;
+  if (origin) headers['origin'] = origin;
+  return new Request('http://127.0.0.1:3001/tasks/1/execute', { method, headers });
+};
 
 describe('createCrossSiteGuard', () => {
   const guard = createCrossSiteGuard();
@@ -45,6 +46,46 @@ describe('createCrossSiteGuard', () => {
   it('never blocks GET/HEAD even cross-site (reads)', () => {
     expect(guard({ request: req('GET', 'cross-site') })).toBeUndefined();
     expect(guard({ request: req('HEAD', 'cross-site') })).toBeUndefined();
+  });
+
+  // Origin fallback: defense in depth for clients that send Origin but omit
+  // Sec-Fetch-Site entirely (see NOTE(security) in local-auth.ts). Uses its
+  // own guard instance with CORS_ORIGIN explicitly cleared so the expected
+  // allow-list (the hardcoded default) doesn't depend on this machine's .env.
+  it('blocks a disallowed Origin when Sec-Fetch-Site is absent', () => {
+    const prev = process.env.CORS_ORIGIN;
+    delete process.env.CORS_ORIGIN;
+    try {
+      const defaultGuard = createCrossSiteGuard();
+      const res = defaultGuard({ request: req('POST', undefined, 'https://evil.example.com') });
+      expect(res).toBeInstanceOf(Response);
+      expect(res!.status).toBe(403);
+    } finally {
+      if (prev !== undefined) process.env.CORS_ORIGIN = prev;
+    }
+  });
+
+  it('allows an allow-listed Origin when Sec-Fetch-Site is absent', () => {
+    const prev = process.env.CORS_ORIGIN;
+    delete process.env.CORS_ORIGIN;
+    try {
+      const defaultGuard = createCrossSiteGuard();
+      expect(
+        defaultGuard({ request: req('POST', undefined, 'http://localhost:3000') }),
+      ).toBeUndefined();
+      expect(
+        defaultGuard({ request: req('POST', undefined, 'http://127.0.0.1:3000') }),
+      ).toBeUndefined();
+      expect(
+        defaultGuard({ request: req('POST', undefined, 'tauri://localhost') }),
+      ).toBeUndefined();
+    } finally {
+      if (prev !== undefined) process.env.CORS_ORIGIN = prev;
+    }
+  });
+
+  it('allows requests with no Origin and no Sec-Fetch-Site (Tauri IPC, curl)', () => {
+    expect(guard({ request: req('POST') })).toBeUndefined();
   });
 });
 

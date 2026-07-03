@@ -103,6 +103,19 @@ export function createApiTokenGuard():
 // when configured).
 const STATE_CHANGING_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
 
+// Origins the app itself is allowed to send state-changing requests from.
+// Mirrors index.ts's cors() origin allowlist (CORS_ORIGIN when set, otherwise
+// the frontend dev server / Tauri webview defaults) so the Origin fallback
+// below never blocks legitimate app traffic.
+function resolveAllowedOrigins(): Set<string> {
+  const configured = process.env.CORS_ORIGIN?.split(',').map((o) => o.trim());
+  return new Set(
+    configured && configured.length > 0
+      ? configured
+      : ['http://localhost:3000', 'http://127.0.0.1:3000', 'tauri://localhost'],
+  );
+}
+
 /**
  * Cross-site request guard (CSRF backstop for the default tokenless deployment).
  *
@@ -115,18 +128,42 @@ const STATE_CHANGING_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
  * header (Tauri IPC, curl, EventSource) pass through, so app traffic is
  * unaffected. Runs unconditionally, independent of RAPITAS_API_TOKEN.
  *
+ * NOTE(security): Some non-browser HTTP clients (older WebViews, some
+ * fetch polyfills) send an `Origin` header but no `Sec-Fetch-Site` at all,
+ * which would otherwise slip past the check above. As defense in depth, when
+ * Sec-Fetch-Site is absent AND an Origin header IS present, that Origin must
+ * be in the allowed set (same set index.ts's cors() trusts) or the request is
+ * blocked. Requests with neither header (Tauri IPC, curl, server-to-server,
+ * EventSource) are not the CSRF threat model (a browser tab can't forge them
+ * without also sending Sec-Fetch-Site or Origin) and still pass through.
+ *
  * @returns onRequest handler that blocks cross-site writes. / クロスサイト書き込みを拒否
  */
 export function createCrossSiteGuard(): (ctx: { request: Request }) => Response | undefined {
+  const allowedOrigins = resolveAllowedOrigins();
+
   return ({ request }) => {
     if (!STATE_CHANGING_METHODS.has(request.method)) return undefined;
-    const site = request.headers.get('sec-fetch-site');
-    if (site === 'cross-site') {
-      log.warn(`Blocked cross-site ${request.method} to ${new URL(request.url).pathname}`);
+
+    const block = (reason: string): Response => {
+      log.warn(
+        `Blocked cross-site ${request.method} to ${new URL(request.url).pathname} (${reason})`,
+      );
       return new Response(JSON.stringify({ error: 'Cross-site request blocked' }), {
         status: HTTP_STATUS.FORBIDDEN,
         headers: { 'Content-Type': 'application/json' },
       });
+    };
+
+    const site = request.headers.get('sec-fetch-site');
+    if (site === 'cross-site') {
+      return block('sec-fetch-site: cross-site');
+    }
+    if (!site) {
+      const origin = request.headers.get('origin');
+      if (origin && !allowedOrigins.has(origin)) {
+        return block(`no sec-fetch-site, disallowed origin: ${origin}`);
+      }
     }
     return undefined;
   };
