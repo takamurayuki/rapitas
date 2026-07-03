@@ -6,6 +6,7 @@
  * to sub-modules in this directory.
  */
 
+import { execSync } from 'child_process';
 import type { ChildProcess } from 'child_process';
 import { BaseAgent } from '../base-agent';
 import type {
@@ -303,8 +304,7 @@ export class ClaudeCodeAgent extends BaseAgent {
       try {
         const pid = this.process.pid;
         if (pid) {
-          const { execSync: exec } = require('child_process');
-          exec(`taskkill /PID ${pid} /T /F`, { stdio: 'ignore' });
+          execSync(`taskkill /PID ${pid} /T /F`, { stdio: 'ignore' });
           logger.info(`${this.logPrefix} Process ${pid} killed via taskkill (question detected)`);
         }
       } catch (e) {
@@ -332,9 +332,8 @@ export class ClaudeCodeAgent extends BaseAgent {
         try {
           const pid = this.process.pid;
           if (pid) {
-            const { execSync: exec } = require('child_process');
             // /T terminates the entire process tree, /F forces termination
-            exec(`taskkill /PID ${pid} /T /F`, { stdio: 'ignore' });
+            execSync(`taskkill /PID ${pid} /T /F`, { stdio: 'ignore' });
             logger.info(`${this.logPrefix} Process ${pid} killed via taskkill`);
           }
         } catch (e) {
