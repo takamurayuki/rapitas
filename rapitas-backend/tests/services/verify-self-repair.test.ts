@@ -85,6 +85,12 @@ describe('attemptVerifyRepair', () => {
     mockPrisma.task.findUnique.mockResolvedValue({ themeId: null });
     isThemeAutoRunActive.mockReset();
     isThemeAutoRunActive.mockResolvedValue(false);
+    // NOTE: Must reset per-test — a test that sets verifyRepairLimit would
+    // otherwise leak into later tests since these mocks are shared across it()s.
+    mockPrisma.userSettings.findFirst.mockReset();
+    mockPrisma.userSettings.findFirst.mockResolvedValue(null);
+    mockPrisma.activityLog.findFirst.mockReset();
+    mockPrisma.activityLog.findFirst.mockResolvedValue(null);
   });
 
   test('plan あり → plan_approved へ bounce（attempt 1）すること', async () => {
@@ -163,5 +169,54 @@ describe('attemptVerifyRepair', () => {
     expect(content).toContain('検証フェーズからの差し戻し');
     expect(content).toContain('テストを実際に通す');
     expect(content).toContain('VERIFY BODY');
+  });
+
+  test('境界値: prior = max-1 は bounce する（attempt = max）こと', async () => {
+    // Default max is 2 (DEFAULT_MAX_VERIFY_REPAIRS); prior=1 is the last bounce-able attempt.
+    mockPrisma.workflowTransition.count.mockResolvedValue(1);
+    mockPrisma.workflowFile.findFirst.mockResolvedValue({ id: 7 });
+    const r = await attemptVerifyRepair(1, 'in_progress', 'fail', 'v');
+    expect(r.bounced).toBe(true);
+    expect(r.attempt).toBe(2);
+  });
+
+  // NOTE: RAPITAS_MAX_VERIFY_REPAIRS is read into a MODULE-LEVEL constant
+  // (DEFAULT_MAX_VERIFY_REPAIRS) at import time, so setting the env var from a
+  // test cannot change it post-import. The runtime-configurable disable path is
+  // UserSettings.verifyRepairLimit=0 (covered below), which resolveMaxRepairs()
+  // reads dynamically on every call.
+
+  test('UserSettings.verifyRepairLimit が設定されていれば env/既定より優先されること（上限を1に絞る）', async () => {
+    mockPrisma.userSettings.findFirst.mockResolvedValue({ verifyRepairLimit: 1 });
+    mockPrisma.workflowFile.findFirst.mockResolvedValue({ id: 7 });
+    // prior=1 === configured max(1) -> exhausted, must block instead of the
+    // env-default max(2) which would still allow this attempt.
+    mockPrisma.workflowTransition.count.mockResolvedValue(1);
+    const r = await attemptVerifyRepair(1, 'in_progress', 'fail', 'v');
+    expect(r.bounced).toBe(false);
+  });
+
+  test('UserSettings.verifyRepairLimit=0 は明示的な無効化として尊重されること', async () => {
+    mockPrisma.userSettings.findFirst.mockResolvedValue({ verifyRepairLimit: 0 });
+    const r = await attemptVerifyRepair(1, 'in_progress', 'fail', 'v');
+    expect(r.bounced).toBe(false);
+    expect(mockPrisma.workflowTransition.count).not.toHaveBeenCalled();
+  });
+
+  test('直近の task_retried 以降の repair のみをカウントし、リトライで予算がリセットされること', async () => {
+    // A retry happened after 2 prior repairs (>= default max 2) — the count query
+    // is scoped to createdAt > lastRetry.createdAt, so a fresh mock returning 0
+    // for "since last retry" must reset the budget (not read as exhausted).
+    const retriedAt = new Date('2026-01-01T00:00:00Z');
+    mockPrisma.activityLog.findFirst.mockResolvedValue({ createdAt: retriedAt });
+    mockPrisma.workflowTransition.count.mockResolvedValue(0);
+    mockPrisma.workflowFile.findFirst.mockResolvedValue({ id: 7 });
+    const r = await attemptVerifyRepair(1, 'in_progress', 'fail', 'v');
+    expect(r.bounced).toBe(true);
+    expect(r.attempt).toBe(1);
+    // The count query must have been scoped by the retry timestamp.
+    const firstCall = mockPrisma.workflowTransition.count.mock.calls[0] as unknown as unknown[];
+    const countArgs = firstCall[0] as { where: { createdAt?: { gt: Date } } };
+    expect(countArgs.where.createdAt?.gt).toEqual(retriedAt);
   });
 });

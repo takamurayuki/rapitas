@@ -3,7 +3,9 @@
   "compilerOptions": {
     "target": "ES2020",
     "module": "ESNext",
-    "moduleResolution": "node",
+    // Align with tsconfig.base.json ("bundler"); the old "node" (=node10) is
+    // deprecated (TS5107) and hard-fails `tsc -p tsconfig.test.json`.
+    "moduleResolution": "bundler",
     "lib": ["ES2020"],
     "strict": false,
     "noImplicitAny": false,

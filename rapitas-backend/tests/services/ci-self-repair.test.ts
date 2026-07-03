@@ -53,6 +53,9 @@ describe('attemptCiRepair', () => {
     mockPrisma.workflowTransition.count.mockReset().mockResolvedValue(0);
     mockPrisma.workflowFile.findFirst.mockReset().mockResolvedValue(null);
     mockPrisma.task.update.mockReset().mockResolvedValue({});
+    // Default: no conflict-resolution task match (see ci-self-repair.ts:126) so
+    // existing tests keep exercising the normal bounce path.
+    mockPrisma.task.findUnique.mockReset().mockResolvedValue(null);
     recordTransition.mockReset().mockResolvedValue(undefined);
     writeWorkflowFile.mockReset().mockResolvedValue('/p/question.md');
     readWorkflowFile.mockReset().mockResolvedValue('');
@@ -115,5 +118,48 @@ describe('attemptCiRepair', () => {
     expect(content).toContain('CIからの差し戻し');
     expect(content).toContain('Check Frontend');
     expect(content).toContain('Lint Code');
+  });
+
+  test('境界値: prior = max-1 は bounce する（attempt = max）こと', async () => {
+    // Default max is 2 (DEFAULT_MAX_CI_REPAIRS); prior=1 is the last bounce-able attempt.
+    mockPrisma.workflowTransition.count.mockResolvedValue(1);
+    mockPrisma.workflowFile.findFirst.mockResolvedValue({ id: 7 });
+    const r = await attemptCiRepair(1, ['Test Backend']);
+    expect(r.bounced).toBe(true);
+    expect(r.attempt).toBe(2);
+  });
+
+  test('競合解消タスク（PR #N の競合を解消）は CI-repair をスキップし completed のまま残ること', async () => {
+    // NOTE: Regression guard — re-running the agent on a conflict-resolution
+    // task finds no conflict left and cannot fix a CI bug, so bouncing it merely
+    // un-completes an already-finished task (observed task 280 bug).
+    mockPrisma.task.findUnique.mockResolvedValue({
+      title: 'PR #123 の競合を解消',
+      githubPrId: 42,
+    });
+    const r = await attemptCiRepair(5, ['Test Backend']);
+    expect(r.bounced).toBe(false);
+    expect(mockPrisma.workflowTransition.count).not.toHaveBeenCalled();
+    expect(mockPrisma.task.update).not.toHaveBeenCalled();
+    expect(enqueue).not.toHaveBeenCalled();
+  });
+
+  test('タイトルが似ていても githubPrId が無ければ通常どおり CI-repair すること', async () => {
+    // The conflict-task skip requires BOTH the title pattern AND a linked PR —
+    // a task merely titled similarly (no PR yet) must not be skipped.
+    mockPrisma.task.findUnique.mockResolvedValue({
+      title: 'PR #123 の競合を解消',
+      githubPrId: null,
+    });
+    mockPrisma.workflowFile.findFirst.mockResolvedValue({ id: 7 });
+    const r = await attemptCiRepair(5, ['Test Backend']);
+    expect(r.bounced).toBe(true);
+  });
+
+  test('タイトルが競合解消パターンに一致しない通常タスクは CI-repair すること', async () => {
+    mockPrisma.task.findUnique.mockResolvedValue({ title: 'Add dark mode toggle', githubPrId: 99 });
+    mockPrisma.workflowFile.findFirst.mockResolvedValue({ id: 7 });
+    const r = await attemptCiRepair(5, ['Test Backend']);
+    expect(r.bounced).toBe(true);
   });
 });

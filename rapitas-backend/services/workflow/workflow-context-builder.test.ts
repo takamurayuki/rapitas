@@ -6,7 +6,11 @@
  */
 
 import { describe, expect, test } from 'bun:test';
-import { buildRoleContext, researchModeDirective } from './workflow-context-builder';
+import {
+  buildRoleContext,
+  researchModeDirective,
+  applyPlanModeDirective,
+} from './workflow-context-builder';
 
 const TASK = { title: 'Test task', description: 'A test description' };
 // Use a path that does not exist so readWorkflowFile returns null for all files.
@@ -59,5 +63,38 @@ describe('researchModeDirective', () => {
   test('english variants', () => {
     expect(researchModeDirective('lightweight', 'en')).toContain('no planning phase');
     expect(researchModeDirective('standard', 'en')).toContain('planning phase will run');
+  });
+});
+
+describe('applyPlanModeDirective', () => {
+  test('implementer without a plan gets the plan-less directive prepended', () => {
+    const out = applyPlanModeDirective('implementer', 'BASE PROMPT', false);
+    expect(out.startsWith('## 実行モード: 調査→実装→検証（plan.md なし）')).toBe(true);
+    expect(out).toContain('plan.md を新規作成・保存しないでください');
+    expect(out.endsWith('BASE PROMPT')).toBe(true);
+  });
+
+  test('implementer with a plan gets the with-plan directive prepended', () => {
+    const out = applyPlanModeDirective('implementer', 'BASE PROMPT', true);
+    expect(out.startsWith('## 実行モード: 計画あり（plan.md）')).toBe(true);
+    expect(out).toContain('承認済みの plan.md');
+    expect(out).not.toContain('plan.md を新規作成・保存しないでください');
+  });
+
+  test('verifier without a plan gets the plan-less verifier directive prepended', () => {
+    const out = applyPlanModeDirective('verifier', 'BASE PROMPT', false);
+    expect(out).toContain('検証の基準は **タスク要件と research.md** です');
+  });
+
+  test('verifier with a plan gets the with-plan verifier directive prepended', () => {
+    const out = applyPlanModeDirective('verifier', 'BASE PROMPT', true);
+    expect(out).toContain('plan.md のチェックリストと実装結果を照合して検証');
+  });
+
+  test('every other role (researcher/planner/reviewer/auto_verifier) is left unchanged', () => {
+    for (const role of ['researcher', 'planner', 'reviewer', 'auto_verifier']) {
+      expect(applyPlanModeDirective(role, 'BASE PROMPT', true)).toBe('BASE PROMPT');
+      expect(applyPlanModeDirective(role, 'BASE PROMPT', false)).toBe('BASE PROMPT');
+    }
   });
 });
