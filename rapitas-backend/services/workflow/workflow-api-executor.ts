@@ -251,14 +251,17 @@ export async function executeAPIAgent(
 
     if (transition.role === 'implementer') {
       log.info('[WorkflowAPIExecutor] Implementer done, auto-starting verifier...');
-      try {
-        // NOTE: 1s delay to ensure DB updates have committed before the next phase reads them.
-        setTimeout(async () => {
-          await advanceWorkflow(taskId, language);
-        }, 1000);
-      } catch (error) {
-        log.error({ err: error }, '[WorkflowAPIExecutor] Failed to auto-advance to verifier');
-      }
+      // NOTE: 1s delay to ensure DB updates have committed before the next phase reads them.
+      // The rejection handler lives INSIDE the callback — a try/catch around
+      // setTimeout() itself never observes a rejection from the async callback,
+      // since that callback runs later, after this function has already returned.
+      // Wrapping the outer call instead silently dropped auto-advance failures
+      // as unhandled promise rejections.
+      setTimeout(() => {
+        advanceWorkflow(taskId, language).catch((error) => {
+          log.error({ err: error }, '[WorkflowAPIExecutor] Failed to auto-advance to verifier');
+        });
+      }, 1000);
     }
 
     return finalResult;

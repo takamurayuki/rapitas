@@ -51,8 +51,12 @@ export async function estimateDurationFromHistory(
   let weightSum = 0;
 
   for (const r of records) {
-    if (!r.actualDurationMinutes) continue;
-    const diff = r.predictedComplexity ? Math.abs(complexityScore - r.predictedComplexity) : 50;
+    // NOTE: Strict null checks — a falsy-value check (`!r.actualDurationMinutes`)
+    // would wrongly skip/misweight a genuine 0-minute duration or a
+    // predictedComplexity of 0, both legitimate values in this domain.
+    if (r.actualDurationMinutes === null) continue;
+    const diff =
+      r.predictedComplexity !== null ? Math.abs(complexityScore - r.predictedComplexity) : 50;
     // NOTE: Weight decays as 1/(1 + diff/20) so a 20-point difference halves the weight.
     const weight = 1 / (1 + diff / 20);
     weightedSum += r.actualDurationMinutes * weight;
@@ -87,7 +91,9 @@ export async function getDirectInsight(
 
   // Most-used mode among tasks with similar complexity (within ±15 points)
   const similar = themeRecords.filter(
-    (r) => r.predictedComplexity && Math.abs(r.predictedComplexity - complexityScore) < 15,
+    // NOTE: `!== null`, not a truthy check — predictedComplexity of 0 is a
+    // valid score and must not be treated as "missing".
+    (r) => r.predictedComplexity !== null && Math.abs(r.predictedComplexity - complexityScore) < 15,
   );
 
   if (similar.length < 3) return null;
