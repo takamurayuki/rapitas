@@ -21,10 +21,10 @@ export default defineConfig({
       // run --coverage, so the gate was fiction; a true floor is more defensible
       // than an unenforced target.
       thresholds: {
-        lines: 11,
-        branches: 9,
-        functions: 10,
-        statements: 11,
+        lines: 14,
+        branches: 11,
+        functions: 13,
+        statements: 14,
       },
     },
   },
