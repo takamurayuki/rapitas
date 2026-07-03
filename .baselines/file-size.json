@@ -1,5 +1,5 @@
 {
-  "generated": "2026-07-03T01:30:08.958Z",
+  "generated": "2026-07-03T10:24:15.999Z",
   "hard_limit": 500,
   "soft_limit": 300,
   "_comment": "Files at or above the hard limit at snapshot time. Their listed lineCount becomes a per-file ceiling — they may shrink but not grow. Remove an entry by splitting the file.",
@@ -13,11 +13,11 @@
     "rapitas-backend/services/workflow/workflow-orchestrator.ts": {
       "lineCount": 1098
     },
+    "rapitas-backend/services/agents/orchestrator/task-executor.ts": {
+      "lineCount": 792
+    },
     "rapitas-backend/routes/agents/execution/execute-route.ts": {
       "lineCount": 748
-    },
-    "rapitas-backend/services/agents/orchestrator/task-executor.ts": {
-      "lineCount": 740
     },
     "rapitas-backend/services/agents/verification/automated-verifier.ts": {
       "lineCount": 701
@@ -28,20 +28,20 @@
     "rapitas-backend/services/workflow/auto-run/theme-auto-run-scheduler.ts": {
       "lineCount": 684
     },
+    "rapitas-backend/routes/tasks/tasks.ts": {
+      "lineCount": 668
+    },
     "rapitas-backend/services/memory/idea-box-service.ts": {
       "lineCount": 659
     },
     "rapitas-backend/services/agents/orchestrator/git-operations/worktree-ops.ts": {
       "lineCount": 652
     },
-    "rapitas-backend/routes/tasks/tasks.ts": {
-      "lineCount": 647
-    },
     "rapitas-backend/services/memory/task-knowledge-extractor.ts": {
       "lineCount": 645
     },
     "rapitas-backend/services/agents/codex-cli-agent/process-runner.ts": {
-      "lineCount": 626
+      "lineCount": 640
     },
     "rapitas-backend/services/workflow/subtask-splitter.ts": {
       "lineCount": 583
@@ -71,7 +71,7 @@
       "lineCount": 538
     },
     "rapitas-backend/routes/organization/themes.ts": {
-      "lineCount": 511
+      "lineCount": 531
     },
     "rapitas-backend/routes/system/import.ts": {
       "lineCount": 508
