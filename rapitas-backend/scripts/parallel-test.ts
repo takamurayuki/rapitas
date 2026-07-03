@@ -157,7 +157,13 @@ export async function runFile(file: string, root: string): Promise<TestResult> {
     proc.exited,
   ]);
 
-  return { file, exitCode, stdout, stderr, elapsedMs: performance.now() - start };
+  return {
+    file,
+    exitCode,
+    stdout,
+    stderr,
+    elapsedMs: performance.now() - start,
+  };
 }
 
 async function main(): Promise<void> {
@@ -167,7 +173,11 @@ async function main(): Promise<void> {
   const retryCount = parseRetryCount(process.env.RAPITAS_TEST_RETRY_COUNT);
 
   const policyConfig = parseRetryPolicyConfig(process.env);
-  let flakeHistory: FlakeHistoryFile = { version: 1, updatedAt: '', entries: {} };
+  let flakeHistory: FlakeHistoryFile = {
+    version: 1,
+    updatedAt: '',
+    entries: {},
+  };
   if (policyConfig.enabled) {
     flakeHistory = loadFlakeHistoryOrEmpty(root);
   }
@@ -179,7 +189,11 @@ async function main(): Promise<void> {
     process.exit(0);
   }
 
-  const retryDisplay = policyConfig.enabled ? 'retry=adaptive' : retryCount > 0 ? `retry=${retryCount}` : '';
+  const retryDisplay = policyConfig.enabled
+    ? 'retry=adaptive'
+    : retryCount > 0
+      ? `retry=${retryCount}`
+      : '';
   console.log(
     `[parallel-test] files=${files.length} concurrency=${concurrency}${failFast ? ' fail-fast=ON' : ''}${retryDisplay ? ` ${retryDisplay}` : ''}`,
   );

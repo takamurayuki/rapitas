@@ -47,7 +47,12 @@ mock.module('../../config', () => ({
   },
 }));
 mock.module('../../config/logger', () => ({
-  createLogger: () => ({ info: () => {}, warn: () => {}, error: () => {}, debug: () => {} }),
+  createLogger: () => ({
+    info: () => {},
+    warn: () => {},
+    error: () => {},
+    debug: () => {},
+  }),
 }));
 mock.module('../workflow/workflow-file-utils', () => ({
   resolveWorkflowDir,
@@ -55,8 +60,13 @@ mock.module('../workflow/workflow-file-utils', () => ({
   writeWorkflowFile,
 }));
 mock.module('../workflow/transition-recorder', () => ({ recordTransition }));
-mock.module('../task/task-spec-deriver', () => ({ deriveTaskSpec, generateIntakeQuestions }));
-mock.module('../communication/notification-service', () => ({ createNotification }));
+mock.module('../task/task-spec-deriver', () => ({
+  deriveTaskSpec,
+  generateIntakeQuestions,
+}));
+mock.module('../communication/notification-service', () => ({
+  createNotification,
+}));
 
 const { ensureIntakeReady } = await import('./intake-gate');
 
@@ -91,12 +101,10 @@ describe('ensureIntakeReady', () => {
     readWorkflowFile.mockReset().mockResolvedValue(null);
     writeWorkflowFile.mockReset().mockResolvedValue('/wf/1/question.md');
     recordTransition.mockReset().mockResolvedValue(undefined);
-    deriveTaskSpec
-      .mockReset()
-      .mockResolvedValue({
-        spec: { goals: [], constraints: [], acceptanceCriteria: [] },
-        source: 'empty',
-      });
+    deriveTaskSpec.mockReset().mockResolvedValue({
+      spec: { goals: [], constraints: [], acceptanceCriteria: [] },
+      source: 'empty',
+    });
     generateIntakeQuestions.mockReset().mockResolvedValue([]);
     createNotification.mockReset().mockResolvedValue(undefined);
     delete process.env.RAPITAS_INTAKE_ASK_WHEN_AMBIGUOUS;
@@ -130,7 +138,10 @@ describe('ensureIntakeReady', () => {
       where: { id: 1 },
       data: expect.objectContaining({ workflowStatus: 'awaiting_question' }),
     });
-    const rt = recordTransition.mock.calls[0][0] as { cause: string; toStatus: string };
+    const rt = recordTransition.mock.calls[0][0] as {
+      cause: string;
+      toStatus: string;
+    };
     expect(rt.cause).toBe('intake_question');
     expect(rt.toStatus).toBe('awaiting_question');
   });
@@ -189,7 +200,9 @@ describe('ensureIntakeReady', () => {
     const r = await ensureIntakeReady(1);
     expect(r.status).toBe('awaiting_question');
     expect(taskUpdate).not.toHaveBeenCalledWith(
-      expect.objectContaining({ data: expect.objectContaining({ goals: expect.anything() }) }),
+      expect.objectContaining({
+        data: expect.objectContaining({ goals: expect.anything() }),
+      }),
     );
   });
 
