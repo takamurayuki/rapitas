@@ -327,15 +327,25 @@ export class AgentOrchestrator {
       logger.error({ err: error }, `[Orchestrator] Error stopping agent`);
     }
 
-    await this.prisma.agentExecution.update({
-      where: { id: executionId },
-      data: {
-        status: 'cancelled',
-        output: state.output,
-        completedAt: new Date(),
-        errorMessage: 'Cancelled by user',
-      },
-    });
+    try {
+      await this.prisma.agentExecution.update({
+        where: { id: executionId },
+        data: {
+          status: 'cancelled',
+          output: state.output,
+          completedAt: new Date(),
+          errorMessage: 'Cancelled by user',
+        },
+      });
+    } catch (error) {
+      // NOTE: The agent process is already stopped above; a DB write failure
+      // here must not abort the rest of this method, or the in-memory
+      // activeExecutions/activeAgents maps are left with a permanently
+      // stale entry for an execution whose agent no longer exists — the
+      // caller (e.g. stopAllForTasks) already treats stopExecution as
+      // best-effort via `.catch(() => {})`, so this mirrors that contract.
+      logger.error({ err: error }, `[Orchestrator] Failed to persist cancellation for execution`);
+    }
 
     this.activeExecutions.delete(executionId);
     this.activeAgents.delete(executionId);
