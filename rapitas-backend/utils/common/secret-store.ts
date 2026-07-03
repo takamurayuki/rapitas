@@ -92,7 +92,10 @@ export function resolveStoredSecret(storedValue: string | null | undefined): str
   if (!storedValue) return null;
 
   const account = accountFromRef(storedValue);
-  if (account) {
+  // NOTE: account can legitimately be '' (malformed "keychain:" ref with no
+  // account suffix); a truthy check would fall through to decrypt() below and
+  // throw "Invalid encrypted text format" since the ref is not ciphertext.
+  if (account !== null) {
     const entry = tryCreateEntry(account);
     if (!entry) return null;
     return entry.getPassword();
