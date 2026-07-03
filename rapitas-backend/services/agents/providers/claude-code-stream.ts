@@ -133,6 +133,17 @@ export async function runClaudeCode(
     }
 
     if (config.dangerouslySkipPermissions || context.dangerouslySkipPermissions) {
+      // NOTE(security): Same headless-no-TTY constraint as
+      // claude-execution-runner.ts's buildClaudeArgs — this process is spawned
+      // with piped stdio and no TTY, so any permission mode that can still
+      // prompt (acceptEdits auto-approves only a handful of filesystem Bash
+      // commands; everything else, including test/build/git, still prompts)
+      // would abort the run with nobody able to answer. `dontAsk` avoids that
+      // but requires enumerating exact Bash command patterns up front, which
+      // this general-purpose coding agent can't know ahead of time. Bypass
+      // stays, compensated by worktree isolation, the sanitized spawn env
+      // below (strips ENCRYPTION_KEY/DATABASE_URL/*_TOKEN/etc.), and the
+      // `--disallowedTools` denylist.
       args.push('--dangerously-skip-permissions');
       args.push('--permission-mode', 'bypassPermissions');
     }
@@ -142,7 +153,14 @@ export async function runClaudeCode(
 
     // NOTE: Disable worktree tools to prevent the spawned CLI from creating nested worktrees
     // that conflict with rapitas-managed worktrees and could corrupt .git/ directory structure.
-    args.push('--disallowedTools', 'EnterWorktree,ExitWorktree');
+    // NOTE(security): Also block network-egress (WebFetch/WebSearch) and
+    // meta/recursion tools (ToolSearch/Skill/Task) — no prompt built for this
+    // agent instructs it to use them, so they are pure attack surface. Mirrors
+    // the denylist in claude-execution-runner.ts's buildClaudeArgs.
+    args.push(
+      '--disallowedTools',
+      'EnterWorktree,ExitWorktree,WebFetch,WebSearch,ToolSearch,Skill,Task',
+    );
 
     let finalCommand: string;
     let finalArgs: string[];
