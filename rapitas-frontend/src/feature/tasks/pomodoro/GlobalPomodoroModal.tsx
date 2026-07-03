@@ -42,6 +42,13 @@ export default function GlobalPomodoroModal({
   const tTask = useTranslations('task');
   const tc = useTranslations('common');
   const state = usePomodoroStore();
+  // NOTE: destructured so effects can depend on the stable `stopTimer` action
+  // reference directly, instead of calling it as `state.stopTimer()` — the
+  // pomodoro store's `tick()` action (setInterval, every second) replaces the
+  // whole `state` object on every tick, so a dependency that resolves to the
+  // whole object (as calling a member-expression method does) would re-run
+  // any effect depending on it once per second while the timer is running.
+  const { stopTimer } = state;
   const [timeEntries, setTimeEntries] = useState<TimeEntry[]>([]);
   const [taskData, setTaskData] = useState<{
     estimatedHours?: number;
@@ -77,7 +84,7 @@ export default function GlobalPomodoroModal({
           if (!res.ok) {
             // Stop timer and close modal if task not found
             logger.info('Task not found, stopping timer');
-            state.stopTimer();
+            stopTimer();
             onClose();
             return null;
           }
@@ -106,7 +113,7 @@ export default function GlobalPomodoroModal({
         })
         .catch((err) => logger.error('Failed to fetch task:', err));
     }
-  }, [propTaskId, state.taskId, isOpen, state.stopTimer, onClose]);
+  }, [propTaskId, state.taskId, isOpen, stopTimer, onClose]);
 
   if (!isOpen) return null;
   if (!mounted) return null;
@@ -134,7 +141,7 @@ export default function GlobalPomodoroModal({
           if (!res.ok) {
             // Stop timer and close modal if task not found
             logger.info('Task not found, stopping timer');
-            state.stopTimer();
+            stopTimer();
             onClose();
             return null;
           }

@@ -293,7 +293,7 @@ export function useNoteEditor(note: Note): NoteEditorState {
       if (applied) handleContentChange();
       setShowColorPicker(false);
     },
-    [highlightStyleIndex, handleContentChange],
+    [highlightStyleIndex, handleContentChange, setShowColorPicker],
   );
 
   const onApplyBorderLine = useCallback(
@@ -302,7 +302,7 @@ export function useNoteEditor(note: Note): NoteEditorState {
       if (applied) handleContentChange();
       setShowBorderPicker(false);
     },
-    [handleContentChange],
+    [handleContentChange, setShowBorderPicker],
   );
 
   const onApplyFontSize = useCallback(
@@ -311,7 +311,7 @@ export function useNoteEditor(note: Note): NoteEditorState {
       if (applied) handleContentChange();
       setShowFontSizePicker(false);
     },
-    [handleContentChange],
+    [handleContentChange, setShowFontSizePicker],
   );
 
   const onApplyFont = useCallback(
@@ -320,7 +320,7 @@ export function useNoteEditor(note: Note): NoteEditorState {
       if (applied) handleContentChange();
       setShowFontPicker(false);
     },
-    [handleContentChange],
+    [handleContentChange, setShowFontPicker],
   );
 
   const editorRefs = { contentRef, activeColorSpanRef, selectedTextColorRef };
@@ -366,7 +366,16 @@ export function useNoteEditor(note: Note): NoteEditorState {
         }
       }
     }
-  }, [showTextColorPicker]);
+  }, [
+    showTextColorPicker,
+    setShowTextColorPicker,
+    setShowFontSizePicker,
+    setShowFontPicker,
+    setShowColorPicker,
+    setShowBorderPicker,
+    setShowLinkInput,
+    setShowCodeInput,
+  ]);
 
   const handleResetTextColor = useCallback(() => {
     selectedTextColorRef.current = null;
@@ -383,7 +392,7 @@ export function useNoteEditor(note: Note): NoteEditorState {
     }
     selectedTextColorRef.current = null;
     setShowTextColorPicker(false);
-  }, []);
+  }, [setShowTextColorPicker]);
 
   // DOM insertion operations delegated to useEditorInsertion
   const insertion = useEditorInsertion(

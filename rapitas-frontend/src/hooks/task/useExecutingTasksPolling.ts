@@ -32,6 +32,12 @@ export function useExecutingTasksPolling(options?: {
   const currentIntervalRef = useRef(interval);
   const errorCountRef = useRef(0);
   const lastSuccessTimeRef = useRef<number>(Date.now());
+  // NOTE: adjustPollingInterval and checkExecutingTasks are mutually
+  // recursive (adjustPollingInterval re-arms the interval with
+  // checkExecutingTasks; checkExecutingTasks calls adjustPollingInterval at
+  // the end of each poll). A ref breaks the circular dependency so neither
+  // useCallback needs the other declared first.
+  const checkExecutingTasksRef = useRef<() => void>(() => {});
 
   useEffect(() => {
     onExecutingTaskFoundRef.current = onExecutingTaskFound;
@@ -66,7 +72,7 @@ export function useExecutingTasksPolling(options?: {
 
         if (intervalRef.current) {
           clearInterval(intervalRef.current);
-          intervalRef.current = setInterval(checkExecutingTasks, newInterval);
+          intervalRef.current = setInterval(() => checkExecutingTasksRef.current(), newInterval);
         }
       }
     },
@@ -170,6 +176,10 @@ export function useExecutingTasksPolling(options?: {
       }
     }
   }, [setExecutingTask, removeExecutingTask, fetchTaskUpdates, adjustPollingInterval]);
+
+  useEffect(() => {
+    checkExecutingTasksRef.current = checkExecutingTasks;
+  }, [checkExecutingTasks]);
 
   useEffect(() => {
     currentIntervalRef.current = interval;

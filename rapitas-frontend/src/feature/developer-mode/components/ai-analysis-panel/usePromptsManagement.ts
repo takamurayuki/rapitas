@@ -1,7 +1,7 @@
 'use client';
 // ai-analysis-panel/usePromptsManagement.ts
 
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import { useTranslations } from 'next-intl';
 import { API_BASE_URL } from '@/utils/api';
 import { useConfirmDialog } from '@/components/ui/dialog/ConfirmDialogProvider';
@@ -40,7 +40,10 @@ export function usePromptsManagement(taskId: number): UsePromptsManagementReturn
   const [editingPromptText, setEditingPromptText] = useState('');
   const [promptsError, setPromptsError] = useState<string | null>(null);
 
-  const fetchPrompts = async () => {
+  // NOTE: memoized — consumers (e.g. AIAnalysisPanel's tab-switch effect) depend
+  // on this function's identity; an unmemoized version recreated every render
+  // would re-trigger that effect on every render and fetch in a loop.
+  const fetchPrompts = useCallback(async () => {
     setIsLoadingPrompts(true);
     setPromptsError(null);
     try {
@@ -56,7 +59,7 @@ export function usePromptsManagement(taskId: number): UsePromptsManagementReturn
     } finally {
       setIsLoadingPrompts(false);
     }
-  };
+  }, [taskId, t]);
 
   const generateAllPrompts = async () => {
     if (

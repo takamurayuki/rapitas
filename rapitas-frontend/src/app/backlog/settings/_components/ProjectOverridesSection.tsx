@@ -12,7 +12,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { useTranslations } from 'next-intl';
-import { Lightbulb, Bug, Activity, Loader2, FolderCog } from 'lucide-react';
+import { Sparkles, Bug, Activity, Loader2, FolderCog } from 'lucide-react';
 import { API_BASE_URL } from '@/utils/api';
 import { useToast } from '@/components/ui/toast/ToastContainer';
 import { DirectoryPicker } from '@/components/ui/DirectoryPicker';
@@ -37,12 +37,12 @@ interface Override {
 // it up with `t(\`jobs.${kind}\`)` at each render site.
 const PROJECT_JOBS: {
   kind: JobKind;
-  icon: typeof Lightbulb;
+  icon: typeof Sparkles;
   color: string;
   defaultEnabled: boolean;
   hasLogConfig?: boolean;
 }[] = [
-  { kind: 'innovation', icon: Lightbulb, color: 'text-amber-500', defaultEnabled: true },
+  { kind: 'innovation', icon: Sparkles, color: 'text-amber-500', defaultEnabled: true },
   { kind: 'vuln_scan', icon: Bug, color: 'text-rose-500', defaultEnabled: true },
   {
     kind: 'health_check',

@@ -6,7 +6,7 @@
 
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Search, X, Loader2 } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import type { Task } from '@/types/task.types';
@@ -25,11 +25,16 @@ interface TaskSelectorProps {
 
 const API_BASE = process.env.NODE_ENV === 'development' ? 'http://localhost:3001' : '';
 
+// NOTE: stable reference for the `excludeTaskIds` default — an inline `= []`
+// default creates a new array every render, which would defeat memoizing
+// `fetchTasks` below and re-trigger the fetch effects on every render.
+const EMPTY_TASK_IDS: number[] = [];
+
 export function TaskSelector({
   isOpen,
   onClose,
   onSelect,
-  excludeTaskIds = [],
+  excludeTaskIds = EMPTY_TASK_IDS,
   title,
   description,
 }: TaskSelectorProps) {
@@ -44,43 +49,46 @@ export function TaskSelector({
   const resolvedTitle = title ?? t('defaultTitle');
   const resolvedDescription = description ?? t('defaultDescription');
 
-  const fetchTasks = async (query: string = '') => {
-    setIsLoading(true);
-    setError(null);
+  const fetchTasks = useCallback(
+    async (query: string = '') => {
+      setIsLoading(true);
+      setError(null);
 
-    try {
-      const searchParams = new URLSearchParams();
-      if (query) {
-        searchParams.append('search', query);
+      try {
+        const searchParams = new URLSearchParams();
+        if (query) {
+          searchParams.append('search', query);
+        }
+        searchParams.append('limit', '50');
+        searchParams.append('status', 'todo');
+        searchParams.append('status', 'in_progress');
+        searchParams.append('status', 'completed');
+
+        const response = await fetch(`${API_BASE}/tasks?${searchParams.toString()}`);
+        if (!response.ok) {
+          throw new Error(`Failed to fetch tasks: ${response.statusText}`);
+        }
+
+        const data = await response.json();
+        // NOTE: GET /tasks returns a flat array, not { tasks: [...] }.
+        const taskList = Array.isArray(data) ? data : (data.tasks ?? []);
+        const filteredTasks = taskList.filter((task: Task) => !excludeTaskIds.includes(task.id));
+        setTasks(filteredTasks);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : t('fetchFailed'));
+        setTasks([]);
+      } finally {
+        setIsLoading(false);
       }
-      searchParams.append('limit', '50');
-      searchParams.append('status', 'todo');
-      searchParams.append('status', 'in_progress');
-      searchParams.append('status', 'completed');
-
-      const response = await fetch(`${API_BASE}/tasks?${searchParams.toString()}`);
-      if (!response.ok) {
-        throw new Error(`Failed to fetch tasks: ${response.statusText}`);
-      }
-
-      const data = await response.json();
-      // NOTE: GET /tasks returns a flat array, not { tasks: [...] }.
-      const taskList = Array.isArray(data) ? data : (data.tasks ?? []);
-      const filteredTasks = taskList.filter((task: Task) => !excludeTaskIds.includes(task.id));
-      setTasks(filteredTasks);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : t('fetchFailed'));
-      setTasks([]);
-    } finally {
-      setIsLoading(false);
-    }
-  };
+    },
+    [excludeTaskIds, t],
+  );
 
   useEffect(() => {
     if (isOpen) {
       fetchTasks();
     }
-  }, [isOpen]);
+  }, [isOpen, fetchTasks]);
 
   useEffect(() => {
     if (isOpen) {
@@ -90,7 +98,7 @@ export function TaskSelector({
 
       return () => clearTimeout(timeoutId);
     }
-  }, [searchQuery, isOpen]);
+  }, [searchQuery, isOpen, fetchTasks]);
 
   const handleSelect = (task: Task) => {
     onSelect(task);

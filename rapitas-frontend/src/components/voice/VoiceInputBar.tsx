@@ -64,6 +64,146 @@ export default function VoiceInputBar({ isOpen, onClose, target }: VoiceInputBar
   const chunksRef = useRef<Blob[]>([]);
   const silenceTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
+  // Deliver transcribed text to target
+  const deliverResult = useCallback(
+    (text: string) => {
+      if (!target || target.type === 'command') {
+        // AI command mode — will be handled by parent
+        return;
+      }
+
+      if (target.type === 'input' && target.element) {
+        const el = target.element;
+        const currentValue = el.value;
+        const start = el.selectionStart ?? currentValue.length;
+        const end = el.selectionEnd ?? currentValue.length;
+        const newValue = currentValue.slice(0, start) + text + currentValue.slice(end);
+
+        // Set value and trigger React change event
+        const nativeSetter =
+          Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value')?.set ??
+          Object.getOwnPropertyDescriptor(window.HTMLTextAreaElement.prototype, 'value')?.set;
+
+        nativeSetter?.call(el, newValue);
+        el.dispatchEvent(new Event('input', { bubbles: true }));
+        el.focus();
+        el.setSelectionRange(start + text.length, start + text.length);
+      }
+
+      if (target.type === 'callback') {
+        target.onText(text);
+      }
+    },
+    [target],
+  );
+
+  // Execute a parsed voice command
+  const executeCommand = useCallback(
+    (cmd: VoiceCommandResponse) => {
+      switch (cmd.type) {
+        case 'navigate':
+          if (cmd.path) {
+            setInterimInfo(t('voice.inputBar.navigatingTo', { label: cmd.label || cmd.path }));
+            setTimeout(() => {
+              router.push(cmd.path!);
+              onClose();
+            }, 500);
+          }
+          break;
+
+        case 'create_task':
+          if (cmd.title) {
+            setInterimInfo(t('voice.inputBar.creatingTask', { title: cmd.title }));
+            fetch(`${BACKEND_URL}/tasks`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ title: cmd.title }),
+            })
+              .then((res) => {
+                if (res.ok) {
+                  setInterimInfo(t('voice.inputBar.taskCreated', { title: cmd.title! }));
+                  setTimeout(() => onClose(), 1500);
+                }
+              })
+              .catch(() => setError(t('voice.inputBar.taskCreateFailed')));
+          }
+          break;
+
+        case 'search':
+          if (cmd.query) {
+            router.push(`/search?q=${encodeURIComponent(cmd.query)}`);
+            onClose();
+          }
+          break;
+      }
+    },
+    [router, onClose, t],
+  );
+
+  // Transcribe audio and deliver result
+  const transcribeAndDeliver = useCallback(
+    async (blob: Blob) => {
+      setIsTranscribing(true);
+      setInterimInfo(t('voice.inputBar.recognizing'));
+
+      try {
+        // Decode webm → PCM → WAV
+        const decodeCtx = new AudioContext();
+        const arrayBuffer = await blob.arrayBuffer();
+        const audioBuffer = await decodeCtx.decodeAudioData(arrayBuffer);
+        await decodeCtx.close();
+
+        const pcm = audioBuffer.getChannelData(0);
+        const rate = audioBuffer.sampleRate;
+        const resampled = rate === 16000 ? pcm : resamplePcm(pcm, rate, 16000);
+        const wavBlob = encodeWav(
+          resampled instanceof Float32Array ? resampled : new Float32Array(resampled),
+          16000,
+        );
+
+        const formData = new FormData();
+        formData.append('audio', wavBlob, 'audio.wav');
+        formData.append('language', 'ja');
+
+        const response = await fetch(`${BACKEND_URL}/transcribe`, {
+          method: 'POST',
+          body: formData,
+        });
+
+        if (response.ok) {
+          const result = (await response.json()) as {
+            text: string;
+            command?: VoiceCommandResponse;
+            processingMs?: number;
+          };
+
+          if (result.text.trim()) {
+            setTranscript(result.text.trim());
+
+            // Auto-execute voice commands
+            if (result.command && result.command.type !== 'text') {
+              setLastCommand(result.command);
+              executeCommand(result.command);
+            } else {
+              deliverResult(result.text.trim());
+            }
+          } else {
+            setInterimInfo(t('voice.inputBar.recognitionFailed'));
+          }
+        } else {
+          const data = await response.json().catch(() => ({ error: tCommon('error') }));
+          setError((data as { error?: string }).error || t('voice.inputBar.transcribeFailed'));
+        }
+      } catch (err) {
+        setError(err instanceof Error ? err.message : t('voice.inputBar.transcribeError'));
+      } finally {
+        setIsTranscribing(false);
+        setInterimInfo('');
+      }
+    },
+    [t, tCommon, executeCommand, deliverResult],
+  );
+
   // Start recording
   const startRecording = useCallback(async () => {
     try {
@@ -157,7 +297,7 @@ export default function VoiceInputBar({ isOpen, onClose, target }: VoiceInputBar
     } catch (err) {
       setError(err instanceof Error ? err.message : t('voice.inputBar.micStartFailed'));
     }
-  }, [t]);
+  }, [t, transcribeAndDeliver]);
 
   // Stop recording manually
   const stopRecording = useCallback(() => {
@@ -169,143 +309,6 @@ export default function VoiceInputBar({ isOpen, onClose, target }: VoiceInputBar
       mediaRecorderRef.current.stop();
     }
   }, []);
-
-  // Transcribe audio and deliver result
-  const transcribeAndDeliver = async (blob: Blob) => {
-    setIsTranscribing(true);
-    setInterimInfo(t('voice.inputBar.recognizing'));
-
-    try {
-      // Decode webm → PCM → WAV
-      const decodeCtx = new AudioContext();
-      const arrayBuffer = await blob.arrayBuffer();
-      const audioBuffer = await decodeCtx.decodeAudioData(arrayBuffer);
-      await decodeCtx.close();
-
-      const pcm = audioBuffer.getChannelData(0);
-      const rate = audioBuffer.sampleRate;
-      const resampled = rate === 16000 ? pcm : resamplePcm(pcm, rate, 16000);
-      const wavBlob = encodeWav(
-        resampled instanceof Float32Array ? resampled : new Float32Array(resampled),
-        16000,
-      );
-
-      const formData = new FormData();
-      formData.append('audio', wavBlob, 'audio.wav');
-      formData.append('language', 'ja');
-
-      const response = await fetch(`${BACKEND_URL}/transcribe`, {
-        method: 'POST',
-        body: formData,
-      });
-
-      if (response.ok) {
-        const result = (await response.json()) as {
-          text: string;
-          command?: VoiceCommandResponse;
-          processingMs?: number;
-        };
-
-        if (result.text.trim()) {
-          setTranscript(result.text.trim());
-
-          // Auto-execute voice commands
-          if (result.command && result.command.type !== 'text') {
-            setLastCommand(result.command);
-            executeCommand(result.command);
-          } else {
-            deliverResult(result.text.trim());
-          }
-        } else {
-          setInterimInfo(t('voice.inputBar.recognitionFailed'));
-        }
-      } else {
-        const data = await response.json().catch(() => ({ error: tCommon('error') }));
-        setError((data as { error?: string }).error || t('voice.inputBar.transcribeFailed'));
-      }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : t('voice.inputBar.transcribeError'));
-    } finally {
-      setIsTranscribing(false);
-      setInterimInfo('');
-    }
-  };
-
-  // Execute a parsed voice command
-  const executeCommand = useCallback(
-    (cmd: VoiceCommandResponse) => {
-      switch (cmd.type) {
-        case 'navigate':
-          if (cmd.path) {
-            setInterimInfo(t('voice.inputBar.navigatingTo', { label: cmd.label || cmd.path }));
-            setTimeout(() => {
-              router.push(cmd.path!);
-              onClose();
-            }, 500);
-          }
-          break;
-
-        case 'create_task':
-          if (cmd.title) {
-            setInterimInfo(t('voice.inputBar.creatingTask', { title: cmd.title }));
-            fetch(`${BACKEND_URL}/tasks`, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ title: cmd.title }),
-            })
-              .then((res) => {
-                if (res.ok) {
-                  setInterimInfo(t('voice.inputBar.taskCreated', { title: cmd.title! }));
-                  setTimeout(() => onClose(), 1500);
-                }
-              })
-              .catch(() => setError(t('voice.inputBar.taskCreateFailed')));
-          }
-          break;
-
-        case 'search':
-          if (cmd.query) {
-            router.push(`/search?q=${encodeURIComponent(cmd.query)}`);
-            onClose();
-          }
-          break;
-      }
-    },
-    [router, onClose, t],
-  );
-
-  // Deliver transcribed text to target
-  const deliverResult = useCallback(
-    (text: string) => {
-      if (!target || target.type === 'command') {
-        // AI command mode — will be handled by parent
-        return;
-      }
-
-      if (target.type === 'input' && target.element) {
-        const el = target.element;
-        const currentValue = el.value;
-        const start = el.selectionStart ?? currentValue.length;
-        const end = el.selectionEnd ?? currentValue.length;
-        const newValue = currentValue.slice(0, start) + text + currentValue.slice(end);
-
-        // Set value and trigger React change event
-        const nativeSetter =
-          Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value')?.set ??
-          Object.getOwnPropertyDescriptor(window.HTMLTextAreaElement.prototype, 'value')?.set;
-
-        nativeSetter?.call(el, newValue);
-        el.dispatchEvent(new Event('input', { bubbles: true }));
-        el.focus();
-        el.setSelectionRange(start + text.length, start + text.length);
-      }
-
-      if (target.type === 'callback') {
-        target.onText(text);
-      }
-    },
-    [target],
-  );
 
   // Send transcript as AI command
   const sendAsCommand = useCallback(async () => {
@@ -348,10 +351,15 @@ export default function VoiceInputBar({ isOpen, onClose, target }: VoiceInputBar
   }, [isOpen, isRecording, startRecording, stopRecording, onClose]);
 
   // Auto-start recording when opened
+  // NOTE: intentionally keyed only on `isOpen` — this must fire once when the
+  // bar transitions closed→open, not whenever isRecording/isTranscribing flip
+  // back to false at the end of a recording (that would auto-restart a new
+  // recording immediately after every command, without the user asking).
   useEffect(() => {
     if (isOpen && !isRecording && !isTranscribing) {
       startRecording();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen]);
 
   if (!isOpen) return null;

@@ -7,7 +7,7 @@
  * Uses recharts for visualization.
  */
 import React, { useState, useEffect, useCallback } from 'react';
-import { DollarSign, Zap, Lightbulb } from 'lucide-react';
+import { DollarSign, Zap, Info } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 import { useTranslations } from 'next-intl';
 import { API_BASE_URL } from '@/utils/api';
@@ -184,7 +184,7 @@ export function CostOptimizationWidget() {
                 key={i}
                 className="text-xs text-amber-700 dark:text-amber-300 flex items-start gap-1.5"
               >
-                <Lightbulb className="w-3 h-3 mt-0.5 shrink-0" />
+                <Info className="w-3 h-3 mt-0.5 shrink-0" />
                 {s}
               </p>
             ))}

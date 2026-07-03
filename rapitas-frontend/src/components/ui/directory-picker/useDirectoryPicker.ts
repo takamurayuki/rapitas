@@ -8,7 +8,7 @@
  * Not responsible for any JSX rendering.
  */
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useTranslations } from 'next-intl';
 import { API_BASE_URL } from '@/utils/api';
 import type { BrowseResult, FavoriteDirectory, DirectoryEntry } from './types';
@@ -107,6 +107,11 @@ export function useDirectoryPicker(
   const editInputRef = useRef<HTMLInputElement>(null);
   const newFolderInputRef = useRef<HTMLInputElement>(null);
 
+  const handleEditComplete = useCallback(() => {
+    if (editValue !== value) onChange(editValue);
+    setIsEditing(false);
+  }, [editValue, value, onChange]);
+
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (
@@ -119,7 +124,7 @@ export function useDirectoryPicker(
     };
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, [isEditing, editValue]);
+  }, [isEditing, handleEditComplete]);
 
   const browseDirectory = async (path?: string) => {
     setIsLoading(true);
@@ -203,11 +208,6 @@ export function useDirectoryPicker(
       editInputRef.current?.focus();
       editInputRef.current?.select();
     }, 0);
-  };
-
-  const handleEditComplete = () => {
-    if (editValue !== value) onChange(editValue);
-    setIsEditing(false);
   };
 
   const handleEditCancel = () => {

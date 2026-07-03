@@ -83,69 +83,6 @@ export function useTaskDetailData({
   const skeletonStartRef = useRef<number>(Date.now());
   const taskLoadedRef = useRef(false);
 
-  const fetchTask = async (isInitialLoad: boolean) => {
-    try {
-      // Seed from the already-loaded task list so the detail renders IMMEDIATELY
-      // instead of holding a skeleton while the network fetch is in flight. When
-      // the backend is momentarily busy (e.g. an agent run doing git/worktree
-      // work) that fetch can take seconds, which is the "selected task stays on
-      // 読み込み中 then appears" symptom. The fresh fetch below still revalidates
-      // (covers post-split subtask changes the cached list might miss).
-      const seed =
-        isInitialLoad && resolvedTaskId
-          ? useTaskCacheStore
-              .getState()
-              .tasks.find((cachedTask) => cachedTask.id === parseInt(resolvedTaskId, 10))
-          : undefined;
-      if (seed) {
-        setTask(seed);
-        taskLoadedRef.current = true;
-        setLoading(false);
-        setShowSkeleton(false);
-      } else if (isInitialLoad) {
-        setLoading(true);
-        setShowSkeleton(true);
-        skeletonStartRef.current = Date.now();
-      }
-      // NOTE: The focused task must always reflect current server state — most
-      // importantly subtasks created by background workflow execution after this
-      // task was last cached. The shared /tasks/:id cache is 24h and persisted to
-      // localStorage, so without invalidating here the detail view can render a
-      // stale task whose `subtasks` array predates a server-side split (the list
-      // view uses a different cache key and looked correct). Revalidate fresh.
-      if (resolvedTaskId) {
-        clearApiCache(`/tasks/${resolvedTaskId}`);
-      }
-      const data = await apiFetch<Task>(`/tasks/${resolvedTaskId}`, {
-        cacheTime: 24 * 60 * 60 * 1000,
-      });
-      setTask(data);
-      taskLoadedRef.current = true;
-
-      if (resolvedTaskId) {
-        const numericId = parseInt(resolvedTaskId, 10);
-        if (!isNaN(numericId)) {
-          recordTaskAccess(numericId);
-        }
-      }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : t('fetchFailed'));
-    } finally {
-      if (isInitialLoad) {
-        setLoading(false);
-        const elapsed = Date.now() - skeletonStartRef.current;
-        const remaining = SKELETON_MIN_DURATION - elapsed;
-        if (remaining > 0) {
-          skeletonTimerRef.current = setTimeout(() => {
-            setShowSkeleton(false);
-          }, remaining);
-        } else {
-          setShowSkeleton(false);
-        }
-      }
-    }
-  };
-
   /** Re-fetches task without affecting skeleton state. */
   const refreshTask = async () => {
     if (!resolvedTaskId) return;
@@ -191,6 +128,69 @@ export function useTaskDetailData({
 
   useEffect(() => {
     const isInitialLoad = !taskLoadedRef.current;
+
+    const fetchTask = async (initialLoad: boolean) => {
+      try {
+        // Seed from the already-loaded task list so the detail renders IMMEDIATELY
+        // instead of holding a skeleton while the network fetch is in flight. When
+        // the backend is momentarily busy (e.g. an agent run doing git/worktree
+        // work) that fetch can take seconds, which is the "selected task stays on
+        // 読み込み中 then appears" symptom. The fresh fetch below still revalidates
+        // (covers post-split subtask changes the cached list might miss).
+        const seed =
+          initialLoad && resolvedTaskId
+            ? useTaskCacheStore
+                .getState()
+                .tasks.find((cachedTask) => cachedTask.id === parseInt(resolvedTaskId, 10))
+            : undefined;
+        if (seed) {
+          setTask(seed);
+          taskLoadedRef.current = true;
+          setLoading(false);
+          setShowSkeleton(false);
+        } else if (initialLoad) {
+          setLoading(true);
+          setShowSkeleton(true);
+          skeletonStartRef.current = Date.now();
+        }
+        // NOTE: The focused task must always reflect current server state — most
+        // importantly subtasks created by background workflow execution after this
+        // task was last cached. The shared /tasks/:id cache is 24h and persisted to
+        // localStorage, so without invalidating here the detail view can render a
+        // stale task whose `subtasks` array predates a server-side split (the list
+        // view uses a different cache key and looked correct). Revalidate fresh.
+        if (resolvedTaskId) {
+          clearApiCache(`/tasks/${resolvedTaskId}`);
+        }
+        const data = await apiFetch<Task>(`/tasks/${resolvedTaskId}`, {
+          cacheTime: 24 * 60 * 60 * 1000,
+        });
+        setTask(data);
+        taskLoadedRef.current = true;
+
+        if (resolvedTaskId) {
+          const numericId = parseInt(resolvedTaskId, 10);
+          if (!isNaN(numericId)) {
+            recordTaskAccess(numericId);
+          }
+        }
+      } catch (err) {
+        setError(err instanceof Error ? err.message : t('fetchFailed'));
+      } finally {
+        if (initialLoad) {
+          setLoading(false);
+          const elapsed = Date.now() - skeletonStartRef.current;
+          const remaining = SKELETON_MIN_DURATION - elapsed;
+          if (remaining > 0) {
+            skeletonTimerRef.current = setTimeout(() => {
+              setShowSkeleton(false);
+            }, remaining);
+          } else {
+            setShowSkeleton(false);
+          }
+        }
+      }
+    };
 
     const fetchTimeEntries = async () => {
       try {
@@ -272,7 +272,7 @@ export function useTaskDetailData({
         skeletonTimerRef.current = null;
       }
     };
-  }, [resolvedTaskId]);
+  }, [resolvedTaskId, t]);
 
   // NOTE: Fallback safety for skeleton display.
   // If main useEffect re-triggers and clears the timer,

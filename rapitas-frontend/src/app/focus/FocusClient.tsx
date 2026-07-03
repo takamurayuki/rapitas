@@ -90,7 +90,7 @@ export default function FocusClient() {
     } catch (e) {
       logger.error('Failed to save time entry:', e);
     }
-  }, [customWorkTime, taskId, startTime, sessionsCompleted, showToast]);
+  }, [customWorkTime, taskId, startTime, sessionsCompleted, showToast, t]);
 
   const playNotificationSound = useCallback(() => {
     // Generate simple beep sound
@@ -139,7 +139,15 @@ export default function FocusClient() {
       setMode('work');
       setTimeLeft(customWorkTime * 60);
     }
-  }, [soundEnabled, mode, saveTimeEntry, customBreakTime, customWorkTime, playNotificationSound]);
+  }, [
+    soundEnabled,
+    mode,
+    saveTimeEntry,
+    customBreakTime,
+    customWorkTime,
+    playNotificationSound,
+    t,
+  ]);
 
   const startTimer = () => {
     if (!isRunning && mode === 'work') {

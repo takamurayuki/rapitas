@@ -64,6 +64,10 @@ export default function FileUploader({ taskId, resources, onResourcesChange }: F
   const [error, setError] = useState<string | null>(null);
   const [downloadStates, setDownloadStates] = useState<Record<number, DownloadState>>({});
   const [viewingResource, setViewingResource] = useState<Resource | null>(null);
+  // NOTE: memoized so FileViewer's keyboard-navigation effect (which depends
+  // on these callbacks) doesn't re-subscribe its listener on every render.
+  const handleCloseViewer = useCallback(() => setViewingResource(null), []);
+  const handleNavigateViewer = useCallback((res: Resource) => setViewingResource(res), []);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Download with animation feedback
@@ -389,9 +393,9 @@ export default function FileUploader({ taskId, resources, onResourcesChange }: F
         <FileViewer
           resource={viewingResource}
           isOpen={!!viewingResource}
-          onClose={() => setViewingResource(null)}
+          onClose={handleCloseViewer}
           resources={fileResources}
-          onNavigate={(res) => setViewingResource(res)}
+          onNavigate={handleNavigateViewer}
         />
       )}
     </div>

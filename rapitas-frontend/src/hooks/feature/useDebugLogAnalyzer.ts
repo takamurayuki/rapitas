@@ -114,7 +114,7 @@ export function useDebugLogAnalyzer(): UseDebugLogAnalyzerResult {
         setIsAnalyzing(false);
       }
     },
-    [API_BASE_URL, t],
+    [t],
   );
 
   // Detect log type
@@ -141,7 +141,7 @@ export function useDebugLogAnalyzer(): UseDebugLogAnalyzerResult {
         return 'unknown';
       }
     },
-    [API_BASE_URL, t],
+    [t],
   );
 
   // Get supported log types
@@ -159,7 +159,7 @@ export function useDebugLogAnalyzer(): UseDebugLogAnalyzerResult {
       logger.error('Get supported types error:', err);
       return [];
     }
-  }, [API_BASE_URL, t]);
+  }, [t]);
 
   // Analyze logs from URL (for large files)
   const analyzeFromUrl = useCallback(
@@ -230,7 +230,7 @@ export function useDebugLogAnalyzer(): UseDebugLogAnalyzerResult {
         setIsAnalyzing(false);
       }
     },
-    [API_BASE_URL, t],
+    [t],
   );
 
   return {

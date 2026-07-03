@@ -84,13 +84,18 @@ export function AIAnalysisPanel({
   const apiKey = useApiKey();
   const promptOpt = usePromptOptimization(taskId, onPromptGenerated);
   const promptsMgmt = usePromptsManagement(taskId);
+  // NOTE: destructured so the effect below can depend on the memoized
+  // `fetchPrompts` reference directly — calling it as `promptsMgmt.fetchPrompts()`
+  // would make the effect depend on the whole `promptsMgmt` object (recreated
+  // every render), re-fetching on every render while the prompts tab is active.
+  const { fetchPrompts } = promptsMgmt;
 
   // Load saved prompts when switching to the management tab.
   useEffect(() => {
     if (activeTab === 'prompts' && apiKey.isApiKeyConfigured) {
-      promptsMgmt.fetchPrompts();
+      fetchPrompts();
     }
-  }, [activeTab, apiKey.isApiKeyConfigured]);
+  }, [activeTab, apiKey.isApiKeyConfigured, fetchPrompts]);
 
   const handleCreateSubtasks = async () => {
     setIsCreatingSubtasks(true);

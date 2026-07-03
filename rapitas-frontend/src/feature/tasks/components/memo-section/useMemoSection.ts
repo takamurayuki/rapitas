@@ -56,6 +56,11 @@ export function useMemoSection({
   }, []);
 
   const notes = useMemo(() => {
+    // NOTE: storageUpdate isn't read here — referencing it is what makes eslint
+    // recognize the dep below as "used", so the intentional cache-bust (force a
+    // re-read of localStorage-backed memo data whenever a NoteItem persists a
+    // change) survives lint.
+    void storageUpdate;
     const process = (c: Comment): NoteData => {
       let memoData: Record<string, unknown> = {};
       try {

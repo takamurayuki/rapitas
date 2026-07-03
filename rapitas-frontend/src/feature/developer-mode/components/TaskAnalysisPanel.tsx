@@ -8,7 +8,7 @@ import {
   AlertCircle,
   Clock,
   ListTodo,
-  Lightbulb,
+  Info,
   Check,
   X,
   Settings,
@@ -250,7 +250,7 @@ export function TaskAnalysisPanel({
             )}
             {analysisResult.tips && analysisResult.tips.length > 0 && (
               <div className="flex items-start gap-2">
-                <Lightbulb className="w-4 h-4 text-amber-500 mt-0.5 shrink-0" />
+                <Info className="w-4 h-4 text-amber-500 mt-0.5 shrink-0" />
                 <div className="text-sm text-zinc-600 dark:text-zinc-400">
                   {analysisResult.tips.map((tip, i) => (
                     <p key={i}>{tip}</p>

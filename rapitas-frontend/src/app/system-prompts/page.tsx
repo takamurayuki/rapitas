@@ -7,7 +7,7 @@
  * Handles data fetching, filtering, and delegates rendering to sub-components.
  */
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useTranslations } from 'next-intl';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { MessageSquare, Plus, Search } from 'lucide-react';
@@ -33,11 +33,19 @@ export default function SystemPromptsPage() {
   const [filterCategory, setFilterCategory] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState('');
 
-  useEffect(() => {
-    fetchPrompts();
+  const seedPrompts = useCallback(async () => {
+    try {
+      await fetch(`${API_BASE_URL}/system-prompts/seed`, { method: 'POST' });
+      const res = await fetch(`${API_BASE_URL}/system-prompts`);
+      if (res.ok) {
+        setPrompts(await res.json());
+      }
+    } catch (error) {
+      logger.error('Failed to seed system prompts:', error);
+    }
   }, []);
 
-  const fetchPrompts = async () => {
+  const fetchPrompts = useCallback(async () => {
     try {
       const res = await fetch(`${API_BASE_URL}/system-prompts`);
       if (res.ok) {
@@ -52,19 +60,11 @@ export default function SystemPromptsPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [seedPrompts]);
 
-  const seedPrompts = async () => {
-    try {
-      await fetch(`${API_BASE_URL}/system-prompts/seed`, { method: 'POST' });
-      const res = await fetch(`${API_BASE_URL}/system-prompts`);
-      if (res.ok) {
-        setPrompts(await res.json());
-      }
-    } catch (error) {
-      logger.error('Failed to seed system prompts:', error);
-    }
-  };
+  useEffect(() => {
+    fetchPrompts();
+  }, [fetchPrompts]);
 
   const handleSave = async (key: string, updates: Partial<SystemPrompt>) => {
     try {

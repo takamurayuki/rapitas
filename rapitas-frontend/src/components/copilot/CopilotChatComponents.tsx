@@ -6,7 +6,7 @@
  * Helper components for the copilot chat panel including tier badges,
  * analysis result cards, message bubbles, and proactive insights.
  */
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useMemo } from 'react';
 import { useTranslations } from 'next-intl';
 import {
   Loader2,
@@ -71,7 +71,11 @@ export function AnalysisResultCard({
 }) {
   const t = useTranslations('copilot.chatComponents.analysisCard');
   const tPriority = useTranslations('task');
-  const subtasks = data.suggestedSubtasks ?? [];
+  // NOTE: memoized — `?? []` creates a new array every render when
+  // suggestedSubtasks is absent, which would make the useCallbacks below
+  // that depend on `subtasks` recreate (and their own effects/handlers
+  // re-trigger) on every render.
+  const subtasks = useMemo(() => data.suggestedSubtasks ?? [], [data.suggestedSubtasks]);
   const [selected, setSelected] = useState<number[]>(() => subtasks.map((_, i) => i));
   const [created, setCreated] = useState(false);
   const [estimateApplied, setEstimateApplied] = useState(false);
@@ -84,7 +88,7 @@ export function AnalysisResultCard({
 
   const toggleAll = useCallback(() => {
     setSelected((prev) => (prev.length === subtasks.length ? [] : subtasks.map((_, i) => i)));
-  }, [subtasks.length]);
+  }, [subtasks]);
 
   const handleCreate = useCallback(() => {
     const selectedSubs = selected.map((i) => ({

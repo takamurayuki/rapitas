@@ -94,7 +94,7 @@ export function useCategories() {
     } finally {
       setLoading(false);
     }
-  }, [showToast]);
+  }, [showToast, t, tc]);
 
   useEffect(() => {
     seedDefaults().then(() => {

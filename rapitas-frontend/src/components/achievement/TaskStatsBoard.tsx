@@ -240,7 +240,7 @@ export const TaskStatsBoard: React.FC<TaskStatsBoardProps> = ({ playerStats, cla
       study: Math.min((studyTimeThisWeek / weeklyStudyGoal) * 100, 100),
       agents: Math.min((agentExecutionsThisWeek / weeklyAgentGoal) * 100, 100),
     }),
-    [tasksCompletedThisWeek, studyTimeThisWeek, agentExecutionsThisWeek],
+    [tasksCompletedThisWeek, studyTimeThisWeek, agentExecutionsThisWeek, weeklyStudyGoal],
   );
 
   return (

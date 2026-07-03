@@ -106,7 +106,7 @@ export function useTaskActions({
         setTask(previousTask);
       }
     },
-    [task, setTask, onTaskUpdated, setShowCompleteOverlay],
+    [task, setTask, onTaskUpdated, setShowCompleteOverlay, t],
   );
 
   const deleteTask = useCallback(async () => {
@@ -143,6 +143,7 @@ export function useTaskActions({
     router,
     showToast,
     confirm,
+    t,
   ]);
 
   const duplicateTask = useCallback(async () => {
@@ -176,7 +177,7 @@ export function useTaskActions({
       logger.error(err);
       showToast(t('duplicateTaskFailed'), 'error');
     }
-  }, [task, router, showToast]);
+  }, [task, router, showToast, ct, t]);
 
   const refetchTask = useCallback(async () => {
     try {

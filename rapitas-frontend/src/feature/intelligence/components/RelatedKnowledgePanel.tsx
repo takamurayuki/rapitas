@@ -2,7 +2,7 @@
 
 import { useEffect, useRef } from 'react';
 import { useTranslations } from 'next-intl';
-import { Lightbulb, BookOpen, ExternalLink } from 'lucide-react';
+import { Library, BookOpen, ExternalLink } from 'lucide-react';
 import Link from 'next/link';
 import { useRelatedKnowledge } from '../hooks/useIntelligence';
 
@@ -40,7 +40,7 @@ export function RelatedKnowledgePanel({ title, description, themeId }: RelatedKn
   return (
     <div className="rounded-lg border border-indigo-200 dark:border-indigo-800/50 bg-indigo-50/50 dark:bg-indigo-900/10 p-3">
       <div className="flex items-center gap-2 mb-2">
-        <Lightbulb className="w-4 h-4 text-indigo-500" />
+        <Library className="w-4 h-4 text-indigo-500" />
         <span className="text-sm font-medium text-indigo-700 dark:text-indigo-300">
           {t('title')}
         </span>

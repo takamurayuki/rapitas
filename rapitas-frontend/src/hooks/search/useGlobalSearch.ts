@@ -189,7 +189,7 @@ export function useGlobalSearch(options: UseGlobalSearchOptions = {}) {
     return () => {
       if (timerRef.current) clearTimeout(timerRef.current);
     };
-  }, [query, offset, debounceDelay, typesState]); // Add typesState to dependency array
+  }, [query, offset, debounceDelay, typesState, search]); // Add typesState to dependency array
 
   useEffect(() => {
     return () => {

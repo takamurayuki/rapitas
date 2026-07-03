@@ -8,7 +8,7 @@
  * delegating all rendering to sub-components.
  */
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useParams } from 'next/navigation';
 import { MessageSquare, FileCode, GitMerge, Loader2 } from 'lucide-react';
 import { useTranslations } from 'next-intl';
@@ -49,9 +49,30 @@ export default function PullRequestDetailClient() {
   const [resolvingConflicts, setResolvingConflicts] = useState(false);
   const { showToast } = useToast();
 
+  const fetchPRData = useCallback(async () => {
+    setLoading(true);
+    try {
+      const [prRes, diffRes] = await Promise.all([
+        fetch(`${API_BASE_URL}/github/pull-requests/${id}`),
+        fetch(`${API_BASE_URL}/github/pull-requests/${id}/diff`),
+      ]);
+
+      if (prRes.ok) {
+        setPr(await prRes.json());
+      }
+      if (diffRes.ok) {
+        setDiff(await diffRes.json());
+      }
+    } catch (error) {
+      logger.error('Failed to fetch PR:', error);
+    } finally {
+      setLoading(false);
+    }
+  }, [id]);
+
   useEffect(() => {
     fetchPRData();
-  }, [id]);
+  }, [fetchPRData]);
 
   // Load the repo's branches so the user can change the merge target branch.
   const repositoryUrl = pr?.integration?.repositoryUrl;
@@ -108,27 +129,6 @@ export default function PullRequestDetailClient() {
       showToast(t('pullRequestDetail.baseChangeFailed'), 'error');
     } finally {
       setChangingBase(false);
-    }
-  };
-
-  const fetchPRData = async () => {
-    setLoading(true);
-    try {
-      const [prRes, diffRes] = await Promise.all([
-        fetch(`${API_BASE_URL}/github/pull-requests/${id}`),
-        fetch(`${API_BASE_URL}/github/pull-requests/${id}/diff`),
-      ]);
-
-      if (prRes.ok) {
-        setPr(await prRes.json());
-      }
-      if (diffRes.ok) {
-        setDiff(await diffRes.json());
-      }
-    } catch (error) {
-      logger.error('Failed to fetch PR:', error);
-    } finally {
-      setLoading(false);
     }
   };
 

@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
-import { Bell, BookOpen, Check, CheckCheck, Lightbulb, ListPlus, X } from 'lucide-react';
+import { Bell, BookOpen, Check, CheckCheck, Library, ListPlus, X } from 'lucide-react';
 import Link from 'next/link';
 import { useTranslations } from 'next-intl';
 import { useNotifications } from '@/feature/developer-mode/hooks/useNotifications';
@@ -282,7 +282,7 @@ function NotificationContent({
             />
           </svg>
         )}
-        {notification.type === 'knowledge_extracted' && <Lightbulb className="w-4 h-4" />}
+        {notification.type === 'knowledge_extracted' && <Library className="w-4 h-4" />}
         {notification.type === 'knowledge_reminder' && <BookOpen className="w-4 h-4" />}
         {notification.type === 'agent_execution_started' && (
           <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">

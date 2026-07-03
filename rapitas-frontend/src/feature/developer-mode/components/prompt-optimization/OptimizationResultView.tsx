@@ -11,7 +11,7 @@ import {
   Target,
   FileText,
   AlertTriangle,
-  Lightbulb,
+  Info,
   CheckCircle2,
 } from 'lucide-react';
 import type { OptimizedPromptResult } from './prompt-optimization-types';
@@ -116,7 +116,7 @@ export function OptimizationResultView({
           )}
           {result.promptQuality.suggestions.length > 0 && (
             <div className="flex items-start gap-2">
-              <Lightbulb className="w-4 h-4 text-indigo-500 mt-0.5 shrink-0" />
+              <Info className="w-4 h-4 text-indigo-500 mt-0.5 shrink-0" />
               <div className="text-sm text-indigo-700 dark:text-indigo-400">
                 <span className="font-medium">{t('suggestionsLabel')}</span>
                 {result.promptQuality.suggestions.join(', ')}

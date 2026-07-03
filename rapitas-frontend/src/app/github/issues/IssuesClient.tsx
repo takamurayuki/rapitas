@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { CircleDot, Filter, ArrowLeft, Loader2, ArrowRightCircle, Bug } from 'lucide-react';
@@ -29,32 +29,23 @@ export default function IssuesPage() {
   const [loading, setLoading] = useState(true);
   const [importing, setImporting] = useState<number | null>(null);
 
-  useEffect(() => {
-    fetchIntegrations();
-  }, []);
-
-  useEffect(() => {
-    if (selectedIntegration) {
-      fetchIssues();
-    }
-  }, [selectedIntegration, stateFilter]);
-
-  const fetchIntegrations = async () => {
+  // NOTE: uses the setState updater form so this never needs
+  // `selectedIntegration` in its closure — keeps the callback stable ([]
+  // deps) so the mount effect below fetches integrations exactly once.
+  const fetchIntegrations = useCallback(async () => {
     try {
       const res = await fetch(`${API_BASE_URL}/github/integrations`);
       if (res.ok) {
         const data = await res.json();
         setIntegrations(data);
-        if (!selectedIntegration && data.length > 0) {
-          setSelectedIntegration(data[0].id.toString());
-        }
+        setSelectedIntegration((prev) => (!prev && data.length > 0 ? data[0].id.toString() : prev));
       }
     } catch (error) {
       logger.error('Failed to fetch integrations:', error);
     }
-  };
+  }, []);
 
-  const fetchIssues = async () => {
+  const fetchIssues = useCallback(async () => {
     setLoading(true);
     try {
       const res = await fetch(
@@ -68,7 +59,17 @@ export default function IssuesPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [selectedIntegration, stateFilter]);
+
+  useEffect(() => {
+    fetchIntegrations();
+  }, [fetchIntegrations]);
+
+  useEffect(() => {
+    if (selectedIntegration) {
+      fetchIssues();
+    }
+  }, [selectedIntegration, stateFilter, fetchIssues]);
 
   const importAsConcern = async (issueId: number) => {
     setImporting(issueId);

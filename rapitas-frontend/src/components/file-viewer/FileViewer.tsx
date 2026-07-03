@@ -1,5 +1,5 @@
 'use client';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useTranslations } from 'next-intl';
 import {
   X,
@@ -169,17 +169,17 @@ export default function FileViewer({
   const canNavigatePrev = currentIndex > 0;
   const canNavigateNext = currentIndex < resources.length - 1;
 
-  const handlePrevious = () => {
+  const handlePrevious = useCallback(() => {
     if (canNavigatePrev && onNavigate) {
       onNavigate(resources[currentIndex - 1]);
     }
-  };
+  }, [canNavigatePrev, onNavigate, resources, currentIndex]);
 
-  const handleNext = () => {
+  const handleNext = useCallback(() => {
     if (canNavigateNext && onNavigate) {
       onNavigate(resources[currentIndex + 1]);
     }
-  };
+  }, [canNavigateNext, onNavigate, resources, currentIndex]);
 
   // Keyboard navigation
   useEffect(() => {
@@ -197,7 +197,7 @@ export default function FileViewer({
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isOpen, currentIndex]);
+  }, [isOpen, handlePrevious, handleNext, onClose]);
 
   if (!isOpen) return null;
 

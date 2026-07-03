@@ -102,5 +102,6 @@ export function useDeveloperModeEffects({
     isParallelExecutionRunning,
     parallelSessionId,
     isTaskExecutingInStore,
+    setShowAIAssistant,
   ]);
 }

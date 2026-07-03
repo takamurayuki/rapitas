@@ -55,7 +55,7 @@ export function useWorkflowHandlers({
     if (workflowStatus && workflowStatus !== currentWorkflowStatus) {
       setCurrentWorkflowStatus(workflowStatus);
     }
-  }, [workflowStatus]);
+  }, [workflowStatus, currentWorkflowStatus]);
 
   const handlePlanApprovalRequest = useCallback(() => {
     setShowPlanApprovalModal(true);

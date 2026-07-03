@@ -5,7 +5,7 @@ import { useTranslations } from 'next-intl';
 import {
   Sparkles,
   Trash2,
-  Lightbulb,
+  Info,
   ListTodo,
   BookOpen,
   Clock,
@@ -343,7 +343,7 @@ export function GoalDetailPanel({
           {plan.tips && plan.tips.length > 0 && (
             <div className="bg-amber-50 dark:bg-amber-900/20 rounded-lg p-4 mb-4">
               <h3 className="font-semibold text-amber-800 dark:text-amber-200 mb-2 flex items-center gap-2">
-                <Lightbulb className="w-4 h-4" />
+                <Info className="w-4 h-4" />
                 {t('learningTips')}
               </h3>
               <ul className="space-y-1">

@@ -69,7 +69,7 @@ export function useFilteredTasks({
     });
 
     return { filteredTasks: filtered, statusCounts: counts };
-  }, [tasks, filter, categoryFilter, themeFilter, priorityFilter, searchQuery, categoryThemeIds]);
+  }, [tasks, filter, themeFilter, priorityFilter, searchQuery, categoryThemeIds]);
 
   // Count today's tasks (filtered by selected theme)
   const todayTasksCounts = useMemo(() => {

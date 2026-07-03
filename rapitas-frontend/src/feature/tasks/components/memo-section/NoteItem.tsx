@@ -76,13 +76,16 @@ export const NoteItem = memo(function NoteItem({
   const isHighlighted = highlightedNoteId === note.id;
 
   const savedMemoData = useMemo(() => {
+    // NOTE: storageUpdate isn't read here — referencing it is what makes eslint
+    // recognize the dep below as "used", so the intentional cache-bust (force a
+    // re-read whenever NoteItem's storage-change counter increments) survives lint.
+    void storageUpdate;
     try {
       const saved = localStorage.getItem(`memo-data-${note.id}`);
       return saved ? JSON.parse(saved) : {};
     } catch {
       return {};
     }
-    // NOTE: storageUpdate is intentionally included to force re-read on storage changes.
   }, [note.id, storageUpdate]);
 
   const memoType: MemoType = savedMemoData.memoType || 'general';

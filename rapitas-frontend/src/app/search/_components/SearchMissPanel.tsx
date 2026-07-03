@@ -8,7 +8,7 @@
  */
 
 import { useEffect, useState, useCallback } from 'react';
-import { Lightbulb, Plus, RefreshCw } from 'lucide-react';
+import { Info, Plus, RefreshCw } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { API_BASE_URL } from '@/utils/api';
 import { createLogger } from '@/lib/logger';
@@ -90,7 +90,7 @@ export function SearchMissPanel() {
   return (
     <div className="mt-6 animate-in fade-in-0 duration-200">
       <div className="flex items-center gap-2 mb-3">
-        <Lightbulb className="w-4 h-4 text-amber-500" />
+        <Info className="w-4 h-4 text-amber-500" />
         <h3 className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
           {t('missPanel.heading')}
         </h3>

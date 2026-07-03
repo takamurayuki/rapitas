@@ -51,6 +51,10 @@ export default function AITabContent() {
     model: selectedModel || undefined,
   });
 
+  // NOTE: `selectedProvider` is read only to pick an initial default and is
+  // intentionally excluded — this fetch must run once on mount, not every
+  // time the user picks a provider (that would re-trigger the network call
+  // from the very state update this effect makes).
   useEffect(() => {
     fetchConfiguredProviders().then((providers) => {
       setConfiguredProviders(providers);
@@ -59,6 +63,7 @@ export default function AITabContent() {
       }
     });
     fetchAvailableModels().then(setAvailableModels);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {

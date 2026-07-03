@@ -78,5 +78,15 @@ export function useAutoExecute({
       const basePath = window.location.pathname;
       router.replace(newQuery ? `${basePath}?${newQuery}` : basePath);
     }
-  }, [task, loading, isExecuting, taskId, searchParams, executeAgent, router]);
+  }, [
+    task,
+    loading,
+    isExecuting,
+    taskId,
+    searchParams,
+    executeAgent,
+    router,
+    setShowAIAssistant,
+    setTask,
+  ]);
 }

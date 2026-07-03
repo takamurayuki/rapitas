@@ -86,7 +86,7 @@ export default function SearchClient() {
       if (currentLimit !== 10) params.set('limit', String(currentLimit));
       router.push(`/search?${params.toString()}`);
     },
-    [router], // NOTE: Intentionally omit `limit` — read latest value at call time to avoid stale closures.
+    [router, limit],
   );
 
   const handleTypeChange = (type: SearchResultType | 'all') => {

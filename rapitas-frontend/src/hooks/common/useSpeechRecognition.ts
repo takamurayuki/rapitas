@@ -148,9 +148,16 @@ export function useSpeechRecognition(
   }, []);
 
   // Cleanup on unmount
+  // NOTE: deliberately reads `.current` live inside the cleanup rather than
+  // capturing it into a local variable here — this cleanup must stop
+  // whichever recorder/stream is ACTIVE at unmount time, not whatever
+  // existed when the effect first ran (which is always null, since
+  // recording only starts later via user interaction). Capturing the ref
+  // value up front would make this cleanup a permanent no-op.
   useEffect(() => {
     return () => {
       if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+        // eslint-disable-next-line react-hooks/exhaustive-deps
         mediaRecorderRef.current.stop();
       }
       if (streamRef.current) {

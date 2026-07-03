@@ -11,7 +11,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { useTranslations } from 'next-intl';
-import { Lightbulb, Bug, Activity, Play, Loader2, CalendarClock } from 'lucide-react';
+import { Sparkles, Bug, Activity, Play, Loader2, CalendarClock } from 'lucide-react';
 import { API_BASE_URL } from '@/utils/api';
 import { useToast } from '@/components/ui/toast/ToastContainer';
 import ProjectOverridesSection from './ProjectOverridesSection';
@@ -30,8 +30,8 @@ interface Schedule {
 
 // NOTE: `label`/`desc` text moved to i18n (backlog.settings.jobs.<kind>.*);
 // look it up with `t(\`jobs.${kind}.label\`)` at each render site.
-const JOB_META: Record<JobKind, { icon: typeof Lightbulb; color: string }> = {
-  innovation: { icon: Lightbulb, color: 'text-amber-500' },
+const JOB_META: Record<JobKind, { icon: typeof Sparkles; color: string }> = {
+  innovation: { icon: Sparkles, color: 'text-amber-500' },
   vuln_scan: { icon: Bug, color: 'text-rose-500' },
   health_check: { icon: Activity, color: 'text-sky-500' },
 };

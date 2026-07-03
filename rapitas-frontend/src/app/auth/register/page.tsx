@@ -67,7 +67,11 @@ export default function RegisterPage() {
 
   // Check password strength
   useEffect(() => {
-    const { password } = formData;
+    // NOTE: reads `formData.password` directly (not destructured from the
+    // whole object) so this effect can depend on just that field — depending
+    // on the whole `formData` would re-run on every keystroke in any field
+    // (username/email/confirmPassword too), not just password changes.
+    const password = formData.password;
     setPasswordStrength({
       length: password.length >= 8,
       lowercase: /[a-z]/.test(password),

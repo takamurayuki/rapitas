@@ -43,7 +43,7 @@ Keep this list accurate. If you assign a glyph a new meaning, add it here.
 
 | Glyph (lucide)            | Meaning                                  |
 | ------------------------- | ---------------------------------------- |
-| `Lightbulb`               | アイデア (idea box / an idea)            |
+| `Lightbulb`               | アイデア (idea box / an idea) — 許可パスは `/ideas` に加え、同一概念の正当な再利用として `IdeaBoxPanel`（ホームのアイデアボックス起動ウィジェット）、`memo-section`（メモ種別「アイデア」バッジ）、`category/icons`（アイコンピッカー登録）、`header/header.tsx`（/ideas へのnavリンク）を明示許可（`eslint-rules/icon-policy-map.mjs`） |
 | `Beaker`                  | 仮説台帳 / 仮説 (hypothesis ledger)      |
 | `Inbox`                   | 「バックログ」ナビ群                     |
 | `Bug`                     | 懸念バックログ / 懸念の種別「バグ」      |
@@ -68,11 +68,14 @@ Keep this list accurate. If you assign a glyph a new meaning, add it here.
 | `SplitSquareHorizontal`   | ターミナルのペイン左右分割               |
 | `SplitSquareVertical`     | ターミナルのペイン上下分割               |
 | `Sprout`                  | 記憶の成長 (nav: /agents/memory)         |
-| `Library`                 | 知識ベース (nav: /knowledge グループ)    |
+| `Library`                 | 知識ベース (nav: /knowledge グループ; 知識関連の通知・サジェストパネルでの再利用も可) |
 | `Search`                  | 知識ブラウザ (nav: /knowledge)           |
 | `BarChart2`               | 知識の成長トレンドチャートヘッダー       |
 | `Signal`                  | 記憶強度 (MemoryStrengthCard)            |
 | `Footprints`              | エピソード記憶 (agents/memory OverviewCards) |
+| `Info`                    | ヒント/提案バレット（AI分析・プロンプト最適化・学習プラン等の提案リスト先頭アイコン。`Lightbulb`＝アイデアと混同しないこと） |
+| `Sparkles`                | AI生成/おすすめ操作（分析実行・プロンプト最適化・イノベーションジョブ種別など、AIが生成/提案する操作全般） |
+| `Gauge`                   | 懸念の種別「パフォーマンス」（旧・複雑度「標準」との衝突は解消済み — 下記 Known collisions 参照） |
 
 ### Known collisions
 
