@@ -106,6 +106,16 @@ mock.module('../../config', () => ({
   getInsensitiveMode: () => 'default',
 }));
 
+// NOTE: task-resolver.ts imports `prisma` directly from '../../config/database'
+// (not the '../../config' barrel above), so it must be mocked separately —
+// otherwise resolveTaskWorkflowState()/resolveTaskForPlanApproval() silently
+// hit the real database, fail with "Task 1 not found", and mask every
+// shutdown-handling assertion behind an unrelated real-DB error.
+mock.module('../../config/database', () => ({
+  prisma: prismaMock,
+  ensureDatabaseConnection: () => Promise.resolve(),
+}));
+
 // NOTE: execution-timeouts getPhaseTimeoutMs returns 30min by default; keep it short in tests.
 mock.module('../agents/execution-timeouts', () => ({
   DEFAULT_PHASE_TIMEOUT_MS: 5000,
