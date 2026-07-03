@@ -1,5 +1,5 @@
 {
-  "generated": "2026-07-02T21:46:48.045Z",
+  "generated": "2026-07-03T01:30:08.958Z",
   "hard_limit": 500,
   "soft_limit": 300,
   "_comment": "Files at or above the hard limit at snapshot time. Their listed lineCount becomes a per-file ceiling — they may shrink but not grow. Remove an entry by splitting the file.",
@@ -8,25 +8,25 @@
       "lineCount": 1214
     },
     "rapitas-backend/services/workflow/workflow-cli-executor.ts": {
-      "lineCount": 1109
+      "lineCount": 1120
     },
     "rapitas-backend/services/workflow/workflow-orchestrator.ts": {
-      "lineCount": 1060
+      "lineCount": 1098
     },
     "rapitas-backend/routes/agents/execution/execute-route.ts": {
-      "lineCount": 745
+      "lineCount": 748
     },
     "rapitas-backend/services/agents/orchestrator/task-executor.ts": {
       "lineCount": 740
     },
     "rapitas-backend/services/agents/verification/automated-verifier.ts": {
-      "lineCount": 702
+      "lineCount": 701
     },
     "rapitas-backend/scripts/analyze-codebase/agent-report-generator.ts": {
       "lineCount": 684
     },
     "rapitas-backend/services/workflow/auto-run/theme-auto-run-scheduler.ts": {
-      "lineCount": 678
+      "lineCount": 684
     },
     "rapitas-backend/services/memory/idea-box-service.ts": {
       "lineCount": 659
@@ -34,14 +34,14 @@
     "rapitas-backend/services/agents/orchestrator/git-operations/worktree-ops.ts": {
       "lineCount": 652
     },
+    "rapitas-backend/routes/tasks/tasks.ts": {
+      "lineCount": 647
+    },
     "rapitas-backend/services/memory/task-knowledge-extractor.ts": {
-      "lineCount": 633
+      "lineCount": 645
     },
     "rapitas-backend/services/agents/codex-cli-agent/process-runner.ts": {
-      "lineCount": 618
-    },
-    "rapitas-backend/routes/tasks/tasks.ts": {
-      "lineCount": 607
+      "lineCount": 626
     },
     "rapitas-backend/services/workflow/subtask-splitter.ts": {
       "lineCount": 583
@@ -59,7 +59,10 @@
       "lineCount": 567
     },
     "rapitas-backend/services/memory/hypothesis-service.ts": {
-      "lineCount": 558
+      "lineCount": 561
+    },
+    "rapitas-backend/index.ts": {
+      "lineCount": 550
     },
     "rapitas-backend/scripts/gen-type-guards.ts": {
       "lineCount": 547
@@ -67,11 +70,14 @@
     "rapitas-backend/services/memory/concern-backlog-service.ts": {
       "lineCount": 538
     },
-    "rapitas-backend/index.ts": {
-      "lineCount": 513
-    },
     "rapitas-backend/routes/organization/themes.ts": {
-      "lineCount": 505
+      "lineCount": 511
+    },
+    "rapitas-backend/routes/system/import.ts": {
+      "lineCount": 508
+    },
+    "rapitas-backend/services/agents/agent-knowledge-sharing.ts": {
+      "lineCount": 502
     }
   }
 }
