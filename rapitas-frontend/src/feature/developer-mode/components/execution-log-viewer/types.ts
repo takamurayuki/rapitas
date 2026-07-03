@@ -18,7 +18,11 @@ export type ExecutionLogViewerProps = {
   logs: string[];
   /** Execution status */
   status: ExecutionLogStatus;
-  /** SSE connection state */
+  /**
+   * SSE connection state. Accepted for backward compatibility but no longer
+   * rendered — the "LIVE" streaming indicator was removed. Kept so existing
+   * callers compile unchanged.
+   */
   isConnected?: boolean;
   /** Whether running */
   isRunning?: boolean;

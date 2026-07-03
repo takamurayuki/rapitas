@@ -3414,7 +3414,6 @@
     "logViewerHeader": {
       "title": "Execution log",
       "taskIdTooltip": "This task's ID (for sharing)",
-      "liveTooltip": "Real-time streaming connected",
       "searchPlaceholder": "Search logs...",
       "matchCount": "{count}",
       "clearSearchTooltip": "Clear search (Esc)",

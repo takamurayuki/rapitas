@@ -3414,7 +3414,6 @@
     "logViewerHeader": {
       "title": "実行ログ",
       "taskIdTooltip": "このタスクのID（共有用）",
-      "liveTooltip": "リアルタイムストリーミング接続中",
       "searchPlaceholder": "ログを検索...",
       "matchCount": "{count}件",
       "clearSearchTooltip": "検索をクリア (Esc)",

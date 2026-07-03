@@ -33,7 +33,6 @@ export type { ExecutionLogStatus, ExecutionLogViewMode, ExecutionLogViewerProps 
  *
  * @param logs - Array of log strings to display. / 表示するログ文字列の配列。
  * @param status - Current execution status. / 現在の実行ステータス。
- * @param isConnected - Indicates if real-time streaming is active. / リアルタイムストリーミングが有効かどうか。
  * @param isRunning - Indicates if the execution is currently running. / 実行が進行中かどうか。
  * @param defaultExpanded - Whether the log viewer is expanded by default. / デフォルトで展開するかどうか。
  * @param defaultFullscreen - Whether the log viewer starts in fullscreen mode. / フルスクリーンモードで開始するかどうか。
@@ -45,7 +44,6 @@ export type { ExecutionLogStatus, ExecutionLogViewMode, ExecutionLogViewerProps 
 export const ExecutionLogViewer: React.FC<ExecutionLogViewerProps> = ({
   logs,
   status,
-  isConnected = false,
   isRunning = false,
   defaultExpanded = true,
   defaultFullscreen = false,
@@ -154,7 +152,6 @@ export const ExecutionLogViewer: React.FC<ExecutionLogViewerProps> = ({
           status={status}
           taskId={taskId}
           isRunning={isRunning}
-          isConnected={isConnected}
           isFullscreen={isFullscreen}
           collapsible={collapsible}
           autoScroll={autoScroll}

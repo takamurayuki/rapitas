@@ -3,10 +3,10 @@
 /**
  * execution-log-viewer/LogViewerHeader.tsx
  *
- * Header bar for ExecutionLogViewer. Contains the title, status badge, LIVE
- * streaming indicator, an always-visible search box (filters the log entries) with
- * an "errors only" quick-filter, and action buttons (scroll-to-bottom, copy,
- * fullscreen toggle, collapse).
+ * Header bar for ExecutionLogViewer. Contains the title, status badge, an
+ * always-visible search box (filters the log entries) with an "errors only"
+ * quick-filter, and action buttons (scroll-to-bottom, copy, fullscreen toggle,
+ * collapse).
  */
 
 import React from 'react';
@@ -32,7 +32,6 @@ type LogViewerHeaderProps = {
   /** Task id — rendered as `Task #<id>` so the run is easy to reference/share. */
   taskId?: number;
   isRunning: boolean;
-  isConnected: boolean;
   isFullscreen: boolean;
   collapsible: boolean;
   autoScroll: boolean;
@@ -65,7 +64,6 @@ export const LogViewerHeader: React.FC<LogViewerHeaderProps> = ({
   status,
   taskId,
   isRunning,
-  isConnected,
   isFullscreen,
   collapsible,
   autoScroll,
@@ -101,15 +99,6 @@ export const LogViewerHeader: React.FC<LogViewerHeaderProps> = ({
           </span>
         )}
         {statusBadge}
-        {isConnected && (
-          <span
-            className="flex items-center gap-1 px-2 py-0.5 bg-cyan-500/20 text-cyan-400 rounded text-xs"
-            title={t('liveTooltip')}
-          >
-            <span className="w-1.5 h-1.5 bg-cyan-400 rounded-full" />
-            LIVE
-          </span>
-        )}
       </div>
 
       {/* Right: controls — search box is always visible to aid log review */}
