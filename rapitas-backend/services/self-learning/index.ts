@@ -35,9 +35,14 @@ export {
   listPatterns,
   recordPromptEvolution,
   getPromptEvolutionHistory,
+  summarizePromptEvolution,
+  getPromptEvolutionSummary,
   getLearningStats,
   getGrowthTimeline,
   getMemoryOverview,
+  type PromptEvolutionRow,
+  type PromptEvolutionRecentEntry,
+  type PromptEvolutionGroupSummary,
 } from './learning-engine';
 
 // Knowledge Graph

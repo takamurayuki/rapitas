@@ -14,6 +14,7 @@ import { getAgentPerformanceComparison } from './performance-query';
 import { getSelfObservationSummary } from './observation-query';
 import { getCostOptimizationInsights } from './cost-optimization-query';
 import { getRepairConvergenceStats } from './repair-convergence-query';
+import { readJudgeEvalResult } from '../../../services/observability/eval-judge-results';
 import type { DateRange } from './types';
 
 const log = createLogger('routes:agent-metrics');
@@ -218,5 +219,20 @@ export const agentMetricsRouter = new Elysia({ prefix: '/agent-metrics' })
     } catch (error) {
       log.error({ err: error }, 'Error computing repair convergence stats');
       return { error: 'Failed to compute repair convergence stats' };
+    }
+  })
+
+  /**
+   * Latest adversarial-judge accuracy eval snapshot (scripts/eval-judge.ts,
+   * opt-in RAPITAS_EVAL_JUDGE=1). `data` is null when the eval has never run.
+   */
+  .get('/judge-eval', ({ set }) => {
+    try {
+      const data = readJudgeEvalResult();
+      return { success: true, data };
+    } catch (error) {
+      log.error({ err: error }, 'Error reading judge eval result');
+      set.status = 500;
+      return { success: false, data: null };
     }
   });

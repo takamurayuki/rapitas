@@ -21,6 +21,10 @@ import {
 } from '../services/agents/verification/adversarial-diff-review';
 import { sendAIMessage } from '../utils/ai-client';
 import { DEFAULT_MODELS, type AIProvider } from '../utils/ai-client/types';
+import {
+  writeJudgeEvalResult,
+  type JudgeEvalCaseResult,
+} from '../services/observability/eval-judge-results';
 
 interface Fixture {
   name: string;
@@ -135,6 +139,7 @@ async function main(): Promise<void> {
 
   let correct = 0;
   let errored = 0;
+  const cases: JudgeEvalCaseResult[] = [];
   for (const f of FIXTURES) {
     let got: ReviewVerdict = 'unknown';
     try {
@@ -144,19 +149,35 @@ async function main(): Promise<void> {
       console.error(
         `💥 ${f.name}: judge call failed — ${err instanceof Error ? err.message : err}`,
       );
+      cases.push({ name: f.name, expected: f.expected, got: 'unknown', ok: false });
       continue;
     }
     const ok = got === f.expected;
     if (ok) correct++;
+    cases.push({ name: f.name, expected: f.expected, got, ok });
     console.log(`${ok ? '✅' : '❌'} ${f.name} → got=${got}, expected=${f.expected}`);
   }
+
+  const accuracy = correct / FIXTURES.length;
+  // Persist the snapshot before any threshold-driven exit so a failing run's
+  // result is still visible in the metrics UI, not just in CI logs.
+  writeJudgeEvalResult({
+    timestamp: new Date().toISOString(),
+    provider,
+    correct,
+    total: FIXTURES.length,
+    errored,
+    accuracy,
+    minAccuracy,
+    passed: accuracy >= minAccuracy,
+    cases,
+  });
 
   if (errored === FIXTURES.length) {
     console.error(`\nAll ${errored} cases errored — judge provider "${provider}" unreachable.`);
     process.exit(1);
   }
 
-  const accuracy = correct / FIXTURES.length;
   console.log(
     `\nJudge accuracy: ${correct}/${FIXTURES.length} (${Math.round(accuracy * 100)}%)` +
       (errored ? ` — ${errored} errored` : ''),

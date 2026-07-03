@@ -10,6 +10,7 @@ import {
   createPattern,
   recordPromptEvolution,
   getPromptEvolutionHistory,
+  getPromptEvolutionSummary,
   getLearningStats,
   getGrowthTimeline,
   getMemoryOverview,
@@ -18,6 +19,9 @@ import {
   CriticPhase,
   EpisodePhase,
 } from '../../services/self-learning';
+import { createLogger } from '../../config/logger';
+
+const log = createLogger('routes:learning');
 import { getAverageScores } from '../../services/self-learning';
 import { findSimilarEpisodes, getEpisodeStats } from '../../services/self-learning';
 
@@ -85,6 +89,22 @@ export const learningRoutes = new Elysia({ prefix: '/learning' })
   .get('/prompt-evolution', async ({ query }) => {
     const category = query.category as string | undefined;
     return getPromptEvolutionHistory(category);
+  })
+
+  /**
+   * Read-only summary of the PromptEvolution table, grouped by
+   * basePromptKey/category: entry/pending/completed counts and performance
+   * trend per group. Does not pick or promote a "winner" prompt.
+   */
+  .get('/prompt-evolution/summary', async ({ set }) => {
+    try {
+      const data = await getPromptEvolutionSummary();
+      return { success: true, data };
+    } catch (error) {
+      log.error({ err: error }, 'Error summarizing prompt evolution');
+      set.status = 500;
+      return { success: false, data: [] };
+    }
   })
 
   .post(
