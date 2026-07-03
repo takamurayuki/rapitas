@@ -8,6 +8,10 @@ import { describe, test, expect, mock, beforeEach } from 'bun:test';
 
 const workerStopMock = mock((_id: number) => Promise.resolve(true));
 const mainStopMock = mock((_id: number) => Promise.resolve(true));
+// stopThemeAgents also sweeps in-memory executions via AgentOrchestrator.stopAllForTasks
+// (agent-orchestrator.ts:366) before the DB-based sweep; mocked as a no-op empty sweep
+// since these tests exercise the DB-based path via mainStopMock/workerStopMock.
+const stopAllForTasksMock = mock((_taskIds: Set<number>) => Promise.resolve([] as number[]));
 
 const mockPrisma = {
   agentExecution: {
@@ -36,7 +40,7 @@ mock.module('./agent-worker-manager', () => ({
 }));
 mock.module('./agent-orchestrator', () => ({
   AgentOrchestrator: {
-    getInstance: () => ({ stopExecution: mainStopMock }),
+    getInstance: () => ({ stopExecution: mainStopMock, stopAllForTasks: stopAllForTasksMock }),
   },
 }));
 
@@ -46,6 +50,7 @@ const { acquireTaskExecutionLock, isTaskExecutionLocked } = await import('./task
 function resetMocks() {
   workerStopMock.mockClear();
   mainStopMock.mockClear();
+  stopAllForTasksMock.mockClear();
   mockPrisma.agentExecution.findMany.mockReset();
   mockPrisma.agentExecution.update.mockReset();
   mockPrisma.agentExecutionLog.deleteMany.mockReset();

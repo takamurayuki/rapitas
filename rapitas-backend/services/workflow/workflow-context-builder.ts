@@ -310,7 +310,10 @@ export async function buildRoleContext(
       const diffSession = await prisma.agentSession
         .findFirst({
           where: { config: { taskId }, worktreePath: { not: null } },
-          orderBy: { createdAt: 'desc' },
+          // Secondary `id` key breaks ties on identical createdAt timestamps —
+          // otherwise which session diff gets shown to the verifier could
+          // vary across identical re-runs.
+          orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
           select: { worktreePath: true },
         })
         .catch(() => null);

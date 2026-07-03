@@ -13,6 +13,12 @@ const mockPrisma = {
   agentExecution: {
     count: mock(() => Promise.resolve(0)),
   },
+  // getAgentSystemSnapshot() (agent-system-router.ts) queries the auto-run
+  // backlog depth via workflowQueueItem.count — must be mocked or /system-status
+  // and /health 500 (undefined.count is not a function).
+  workflowQueueItem: {
+    count: mock(() => Promise.resolve(0)),
+  },
   $queryRaw: mock(() => Promise.resolve([1])),
 };
 
@@ -167,6 +173,88 @@ describe('Agent System Router', () => {
       const data = (await response.json()) as SystemStatusResponse;
       expect(data).toBeDefined();
       expect(typeof data.status).toBe('string');
+    });
+
+    // getAgentSystemSnapshot() is the shared source for /agents/system-status AND the
+    // top-level /health aggregate (index.ts) — both must report the same fields, so
+    // pinning this shape here catches drift for both call sites without booting index.ts
+    // (which binds the real port).
+    it('should return the full snapshot shape with correct field types', async () => {
+      const response = await app.handle(new Request('http://localhost/agents/system-status'));
+      const data = (await response.json()) as Record<string, unknown>;
+
+      expect(Object.keys(data).sort()).toEqual(
+        [
+          'activeExecutions',
+          'interruptedExecutions',
+          'isShuttingDown',
+          'queueDepth',
+          'runningExecutions',
+          'serverTime',
+          'status',
+        ].sort(),
+      );
+      expect(typeof data.status).toBe('string');
+      expect(typeof data.isShuttingDown).toBe('boolean');
+      expect(typeof data.activeExecutions).toBe('number');
+      expect(typeof data.runningExecutions).toBe('number');
+      expect(typeof data.interruptedExecutions).toBe('number');
+      expect(typeof data.queueDepth).toBe('number');
+      expect(typeof data.serverTime).toBe('string');
+      expect(Number.isNaN(Date.parse(data.serverTime as string))).toBe(false);
+    });
+
+    describe('status derivation', () => {
+      // Each test overrides one signal and restores the shared mocks afterward —
+      // this file mounts a single module-level mockOrchestrator/mockPrisma shared
+      // across every describe block, so leaking an override would corrupt later tests.
+      afterEach(() => {
+        mockOrchestrator.isInShutdown = mock(() => false);
+        mockOrchestrator.getActiveExecutionCountAsync = mock(() => Promise.resolve(0));
+        mockPrisma.agentExecution.count = mock(() => Promise.resolve(0));
+        mockPrisma.workflowQueueItem.count = mock(() => Promise.resolve(0));
+      });
+
+      it("reports 'healthy' when nothing is running, shutting down, or interrupted", async () => {
+        const response = await app.handle(new Request('http://localhost/agents/system-status'));
+        const data = (await response.json()) as SystemStatusResponse;
+        expect(data.status).toBe('healthy');
+      });
+
+      it("reports 'shutting_down' regardless of other signals (highest priority)", async () => {
+        mockOrchestrator.isInShutdown = mock(() => true);
+        mockOrchestrator.getActiveExecutionCountAsync = mock(() => Promise.resolve(3));
+
+        const response = await app.handle(new Request('http://localhost/agents/system-status'));
+        const data = (await response.json()) as SystemStatusResponse;
+        expect(data.status).toBe('shutting_down');
+      });
+
+      it("reports 'busy' when there are active executions", async () => {
+        mockOrchestrator.getActiveExecutionCountAsync = mock(() => Promise.resolve(2));
+
+        const response = await app.handle(new Request('http://localhost/agents/system-status'));
+        const data = (await response.json()) as SystemStatusResponse;
+        expect(data.status).toBe('busy');
+        expect(data.activeExecutions).toBe(2);
+      });
+
+      it("reports 'interrupted_executions' when idle but rows are stranded", async () => {
+        mockPrisma.agentExecution.count = mock(() => Promise.resolve(1));
+
+        const response = await app.handle(new Request('http://localhost/agents/system-status'));
+        const data = (await response.json()) as SystemStatusResponse;
+        expect(data.status).toBe('interrupted_executions');
+        expect(data.interruptedExecutions).toBe(1);
+      });
+
+      it('reflects the auto-run backlog depth via queueDepth', async () => {
+        mockPrisma.workflowQueueItem.count = mock(() => Promise.resolve(7));
+
+        const response = await app.handle(new Request('http://localhost/agents/system-status'));
+        const data = (await response.json()) as SystemStatusResponse;
+        expect(data.queueDepth).toBe(7);
+      });
     });
   });
 

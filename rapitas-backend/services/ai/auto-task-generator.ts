@@ -83,7 +83,10 @@ async function gatherContext(categoryId?: number | null) {
         completedAt: true,
         theme: { select: { name: true } },
       },
-      orderBy: { completedAt: 'desc' },
+      // Secondary `id` key breaks ties on identical completedAt timestamps —
+      // without it, tied rows can reorder across otherwise-identical calls
+      // and reshuffle the task list fed into this prompt.
+      orderBy: [{ completedAt: 'desc' }, { id: 'asc' }],
       take: 20,
     }),
     prisma.task.findMany({
@@ -93,7 +96,8 @@ async function gatherContext(categoryId?: number | null) {
         ...categoryFilter,
       },
       select: { title: true, status: true, priority: true, theme: { select: { name: true } } },
-      orderBy: { updatedAt: 'desc' },
+      // Secondary `id` key breaks ties on identical updatedAt timestamps (see above).
+      orderBy: [{ updatedAt: 'desc' }, { id: 'asc' }],
       take: 20,
     }),
     prisma.theme.findMany({

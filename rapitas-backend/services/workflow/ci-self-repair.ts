@@ -15,6 +15,7 @@ import { createLogger } from '../../config/logger';
 import { resolveWorkflowDir, readWorkflowFile, writeWorkflowFile } from './workflow-file-utils';
 import { recordTransition } from './transition-recorder';
 import { WorkflowQueueService } from './workflow-queue';
+import { countWithFailClosed } from '../../utils/database/fail-closed-count';
 
 const log = createLogger('workflow:ci-self-repair');
 
@@ -36,9 +37,13 @@ export interface CiRepairResult {
 
 /** Count how many CI-repair bounces this task has already had. */
 async function countPriorRepairs(taskId: number): Promise<number> {
-  return prisma.workflowTransition
-    .count({ where: { taskId, cause: CI_REPAIR_CAUSE } })
-    .catch(() => 0);
+  return countWithFailClosed(
+    prisma.workflowTransition.count({ where: { taskId, cause: CI_REPAIR_CAUSE } }),
+    DEFAULT_MAX_CI_REPAIRS,
+    log,
+    { taskId },
+    'ci-repair',
+  );
 }
 
 /**

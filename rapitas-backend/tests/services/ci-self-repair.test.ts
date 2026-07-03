@@ -92,6 +92,19 @@ describe('attemptCiRepair', () => {
     expect(recordTransition).not.toHaveBeenCalled();
   });
 
+  test('FAIL CLOSED: カウントクエリが reject しても bounced:false（レビュー待ち）になり、再投入しないこと', async () => {
+    // Fault injection: a prior `.catch(() => 0)` here made a DB hiccup read as
+    // "0 prior repairs" (always < max), so the loop kept bouncing forever
+    // instead of ever reaching the exhausted/review-wait branch.
+    mockPrisma.workflowTransition.count.mockRejectedValue(new Error('connection reset'));
+    const r = await attemptCiRepair(1, ['Test Backend']);
+    expect(r.bounced).toBe(false);
+    expect(enqueue).not.toHaveBeenCalled();
+    expect(recordTransition).not.toHaveBeenCalled();
+    // Must NOT have proceeded to reset the task for a re-run.
+    expect(mockPrisma.task.update).not.toHaveBeenCalled();
+  });
+
   test('差し戻しフィードバックを verify.md に追記し、失敗チェック名を明記すること', async () => {
     mockPrisma.workflowFile.findFirst.mockResolvedValue({ id: 7 });
     await attemptCiRepair(1, ['Check Frontend', 'Lint Code']);

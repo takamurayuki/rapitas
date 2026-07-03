@@ -191,8 +191,13 @@ export class AgentRegistry implements IAgentRegistry {
 
     if (candidates.length === 0) return null;
 
-    // Return the highest-scoring candidate
-    candidates.sort((a, b) => b.score - a.score);
+    // Return the highest-scoring candidate. Secondary providerId key breaks
+    // ties deterministically — without it, which provider (and therefore
+    // which model) executes a task on a tied score is left to sort/insertion
+    // order, which is not guaranteed stable across refactors.
+    candidates.sort(
+      (a, b) => b.score - a.score || a.provider.providerId.localeCompare(b.provider.providerId),
+    );
     return candidates[0].provider;
   }
 

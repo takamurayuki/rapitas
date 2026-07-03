@@ -119,6 +119,20 @@ describe('decideTerminalState', () => {
     const rt = recordTransition.mock.calls[0][0] as { cause: string };
     expect(rt.cause).toBe(EXHAUSTED_CAUSE);
   });
+
+  test('FAIL CLOSED: block累計カウントが reject しても、その場でパーク（exhausted_now）すること', async () => {
+    // Fault injection: this is the exact escape valve the module header
+    // describes as having spun for 3+ days on tasks 322/363. A prior
+    // `.catch(() => 0)` here would let a DB hiccup reset the apparent block
+    // count to zero every tick, defeating the valve and re-admitting the
+    // candidate forever instead of parking it.
+    mockPrisma.workflowTransition.count.mockRejectedValue(new Error('connection reset'));
+    const d = await decideTerminalState(1, 100, '/repo');
+    expect(d.skip).toBe(true);
+    expect(d.kind).toBe('exhausted_now');
+    const rt = recordTransition.mock.calls[0][0] as { cause: string };
+    expect(rt.cause).toBe(EXHAUSTED_CAUSE);
+  });
 });
 
 describe('markExhausted', () => {

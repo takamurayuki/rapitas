@@ -17,6 +17,7 @@ import { resolveWorkflowDir } from '../workflow-file-utils';
 import { getArchiveDir } from '../workflow-paths';
 import { critiquePhase, isPhaseCriticEnabled } from './phase-critic';
 import type { CriticPhase } from './phase-critic-types';
+import { countWithFailClosed } from '../../../utils/database/fail-closed-count';
 
 const log = createLogger('workflow:phase-critic-gate');
 
@@ -71,9 +72,18 @@ export async function applyPhaseCriticGate(args: {
     const result = await critiquePhase(phase, content);
     if (result.verdict !== 'fail') return { bounced: false };
 
-    const priorBounces = await prisma.workflowTransition
-      .count({ where: { taskId, cause: `${phase}_critic_failed` } })
-      .catch(() => 0);
+    // FAIL CLOSED: a count error must not read as "0 prior bounces" — that
+    // would let this gate keep archiving + rolling back the artifact forever
+    // on a recurring DB hiccup instead of respecting MAX_BOUNCES. Treating the
+    // budget as exhausted here takes the existing fail-open "proceed" branch
+    // below, which is the safe outcome (advisory gate, not a hard block).
+    const priorBounces = await countWithFailClosed(
+      prisma.workflowTransition.count({ where: { taskId, cause: `${phase}_critic_failed` } }),
+      MAX_BOUNCES,
+      log,
+      { taskId, phase },
+      'phase-critic-bounces',
+    );
 
     if (priorBounces >= MAX_BOUNCES) {
       // Budget exhausted — proceed (fail-open) but record that we did.

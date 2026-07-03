@@ -13,6 +13,7 @@ import { resolveTaskWithTheme } from '../task/task-resolver';
 import type { RoleTransition, WorkflowAdvanceResult } from './workflow-types';
 import { assessComplexity } from '../local-llm/complexity-assessor';
 import { sendAIMessage } from '../../utils/ai-client';
+import { writeBlockedStatusDurable } from './durable-blocked-write';
 
 const log = createLogger('workflow-api-executor');
 
@@ -177,10 +178,20 @@ export async function executeAPIAgent(
           if (repair.bounced && repair.newStatus) {
             resolvedNextStatus = repair.newStatus;
           } else {
-            // Exhausted — block; do NOT advance to verify_done.
-            await prisma.task
-              .update({ where: { id: taskId }, data: { status: 'blocked' } })
-              .catch(() => {});
+            // Exhausted — block; do NOT advance to verify_done. This write is
+            // what actually STOPS the verify self-repair loop, so a swallowed
+            // failure here (mirroring the workflow-orchestrator plan-replan
+            // incident) could let it re-enter on the next poll. Retry once,
+            // then notify a human on continued failure.
+            await writeBlockedStatusDurable({
+              taskId,
+              log,
+              source: 'WorkflowAPIExecutor',
+              notification: {
+                title: 'ブロック処理の書き込みに失敗',
+                message: `タスク #${taskId} を blocked にする更新が2回失敗しました（検証自己修復の上限到達）。手動確認が必要です。`,
+              },
+            });
             await prisma.agentExecution
               .update({
                 where: { id: execution.id },

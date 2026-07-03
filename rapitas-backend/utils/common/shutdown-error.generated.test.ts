@@ -13,13 +13,25 @@ import { describe, expect, test } from 'bun:test';
 import { buildShutdownErrorMessage, isShutdownError } from './shutdown-error';
 
 describe('SHUTDOWN_ACTIONS ラウンドトリップ（自動生成）', () => {
-  test.each([
-    ['start new execution', 'Server is shutting down, cannot start new execution'],
-    ['continue execution', 'Server is shutting down, cannot continue execution'],
-    ['resume execution', 'Server is shutting down, cannot resume execution'],
-  ])('action: "%s" — buildShutdownErrorMessage + isShutdownError', (action, expectedMessage) => {
-    expect(buildShutdownErrorMessage(action)).toBe(expectedMessage);
-    expect(isShutdownError(new Error(buildShutdownErrorMessage(action)))).toBe(true);
+  test('action: "start new execution" — buildShutdownErrorMessage + isShutdownError', () => {
+    expect(buildShutdownErrorMessage('start new execution')).toBe(
+      'Server is shutting down, cannot start new execution',
+    );
+    expect(isShutdownError(new Error(buildShutdownErrorMessage('start new execution')))).toBe(true);
+  });
+
+  test('action: "continue execution" — buildShutdownErrorMessage + isShutdownError', () => {
+    expect(buildShutdownErrorMessage('continue execution')).toBe(
+      'Server is shutting down, cannot continue execution',
+    );
+    expect(isShutdownError(new Error(buildShutdownErrorMessage('continue execution')))).toBe(true);
+  });
+
+  test('action: "resume execution" — buildShutdownErrorMessage + isShutdownError', () => {
+    expect(buildShutdownErrorMessage('resume execution')).toBe(
+      'Server is shutting down, cannot resume execution',
+    );
+    expect(isShutdownError(new Error(buildShutdownErrorMessage('resume execution')))).toBe(true);
   });
 });
 

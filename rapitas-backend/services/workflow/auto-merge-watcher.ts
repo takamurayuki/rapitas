@@ -26,6 +26,7 @@ import {
 import { markExhausted } from './auto-merge-exhaustion';
 import { notify } from './auto-merge-notify';
 import { findCandidates, type Candidate } from './auto-merge-candidates';
+import { countWithFailClosed } from '../../utils/database/fail-closed-count';
 
 const log = createLogger('workflow:auto-merge-watcher');
 
@@ -130,9 +131,19 @@ export class AutoMergeWatcher {
     // block it for manual review.
     if (ghState !== 'DIRTY') return false;
 
-    const conflictAttempts = await prisma.workflowTransition
-      .count({ where: { taskId: c.taskId, cause: 'auto_merge_conflict_filed' } })
-      .catch(() => 0);
+    // FAIL CLOSED: a count error must not read as "0 prior conflict-filings" —
+    // that would re-file a conflict-resolution task on every DB hiccup instead
+    // of respecting MAX_CONFLICT_RETRIES, the exact unbounded re-filing this
+    // bound exists to prevent (see the multi-day PR #287 spin noted below).
+    const conflictAttempts = await countWithFailClosed(
+      prisma.workflowTransition.count({
+        where: { taskId: c.taskId, cause: 'auto_merge_conflict_filed' },
+      }),
+      MAX_CONFLICT_RETRIES,
+      log,
+      { taskId: c.taskId, prNumber: c.prNumber },
+      'auto-merge-conflict-retries',
+    );
     if (conflictAttempts >= MAX_CONFLICT_RETRIES) {
       // Park as exhausted (terminal until the PR head changes). A windowed
       // `auto_merge_blocked` mark here recycled forever: the 30-min retry window

@@ -75,8 +75,11 @@ describe('submitIdea — theme-saturation gate (anti-monoculture)', () => {
       { id: 100, title: '型ガード関数の標準化' },
       { id: 101, title: '型ガード関数の汎用化' },
     ];
+    // NOTE: タイトルは同一テーマ判定(lcsLen>=SALIENT_LEN=4)を保ちつつ、near-duplicate
+    // ゲート(bigram Jaccard >= 0.45)には掛からない語を選ぶ — 「型ガード関数の自動生成」だと
+    // 既存2件と語尾以外ほぼ同一(jaccard≈0.46)で near-dup ゲートに先に捕捉されてしまうため。
     const id = await submitIdea({
-      title: '型ガード関数の自動生成',
+      title: '型ガードの自動生成ヘルパー導入',
       content: 'まだ少数の型ガード提案',
     });
     expect(id).toBe(500); // only 2 < CAP(8) → admitted

@@ -14,6 +14,7 @@ import { prisma } from '../../config/database';
 import { createLogger } from '../../config/logger';
 import { recordTransition } from './transition-recorder';
 import { readHeadSha } from './auto-merge-checks';
+import { countWithFailClosed } from '../../utils/database/fail-closed-count';
 
 const log = createLogger('workflow:auto-merge-exhaustion');
 
@@ -148,10 +149,18 @@ export async function decideTerminalState(
     return { skip: false, kind: 'resumed' };
   }
 
-  // No terminal mark yet — escape valve on total accumulated blocks.
-  const totalBlocks = await prisma.workflowTransition
-    .count({ where: { taskId, cause: 'auto_merge_blocked' } })
-    .catch(() => 0);
+  // No terminal mark yet — escape valve on total accumulated blocks. FAIL
+  // CLOSED on a count error (see countWithFailClosed): this is the exact
+  // escape valve this module's header describes as having spun for 3+ days
+  // on tasks 322/363 — a `.catch(() => 0)` here would let a DB hiccup reset
+  // the apparent block-count to zero every tick, defeating the valve.
+  const totalBlocks = await countWithFailClosed(
+    prisma.workflowTransition.count({ where: { taskId, cause: 'auto_merge_blocked' } }),
+    MAX_TOTAL_BLOCKS,
+    log,
+    { taskId, prNumber },
+    'auto-merge-total-blocks',
+  );
   if (totalBlocks >= MAX_TOTAL_BLOCKS) {
     const reason = `block budget exhausted (${totalBlocks} blocks all-time)`;
     await markExhausted(taskId, prNumber, cwd, reason);

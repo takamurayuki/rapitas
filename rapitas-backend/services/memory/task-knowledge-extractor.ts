@@ -367,7 +367,10 @@ export async function findRelatedKnowledge(
         tags: true,
         validationStatus: true,
       },
-      orderBy: [{ decayScore: 'desc' }, { confidence: 'desc' }],
+      // Tertiary `id` key breaks ties when both decayScore and confidence
+      // match — otherwise which entries survive the take/slice boundary
+      // (and their relative order) could vary run to run.
+      orderBy: [{ decayScore: 'desc' }, { confidence: 'desc' }, { id: 'asc' }],
       take: limit * 3, // Fetch extra for post-scoring
     });
 
@@ -405,7 +408,11 @@ export async function findRelatedKnowledge(
       };
     });
 
-    return scored.sort((a, b) => b.relevanceScore - a.relevanceScore).slice(0, limit);
+    // Secondary `id` key breaks ties on identical relevanceScore — this list
+    // feeds the related-knowledge context in the next prompt.
+    return scored
+      .sort((a, b) => b.relevanceScore - a.relevanceScore || a.id - b.id)
+      .slice(0, limit);
   } catch (error) {
     log.error({ err: error }, 'Failed to find related knowledge');
     return [];
@@ -470,7 +477,8 @@ export async function searchCrossProjectKnowledge(
         themeId: true,
         tags: true,
       },
-      orderBy: [{ decayScore: 'desc' }, { confidence: 'desc' }],
+      // Tertiary `id` key breaks ties (see getRelatedKnowledge above).
+      orderBy: [{ decayScore: 'desc' }, { confidence: 'desc' }, { id: 'asc' }],
       take: limit * 5,
     });
 
@@ -513,7 +521,11 @@ export async function searchCrossProjectKnowledge(
       };
     });
 
-    const sorted = scored.sort((a, b) => b.relevanceScore - a.relevanceScore).slice(0, limit);
+    // Secondary `id` key breaks ties on identical relevanceScore (see
+    // getRelatedKnowledge above) — this list also feeds a prompt.
+    const sorted = scored
+      .sort((a, b) => b.relevanceScore - a.relevanceScore || a.id - b.id)
+      .slice(0, limit);
     const uniqueThemes = new Set(entries.map((e) => e.themeId).filter(Boolean));
 
     return {

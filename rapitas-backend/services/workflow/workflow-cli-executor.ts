@@ -33,6 +33,7 @@ import {
 import type { RoleTransition, WorkflowAdvanceResult } from './workflow-types';
 import { recordTransition, type TransitionActor } from './transition-recorder';
 import { evaluateCompletionGate } from './completion-gate';
+import { writeBlockedStatusDurable } from './durable-blocked-write';
 import { checkWorkflowInvariants } from './workflow-invariants';
 import { maybeAutoApprovePlan } from './plan-auto-approve';
 
@@ -734,9 +735,19 @@ curl -X POST http://localhost:${port}/idea-box \\
           // The HTTP handler already completed it — don't touch / regress.
           phaseStatus = 'completed';
         } else if (hardFail) {
-          await prisma.task
-            .update({ where: { id: taskId }, data: { status: 'blocked', updatedAt: new Date() } })
-            .catch(() => {});
+          // This write is what actually STOPS the verify hard-fail loop, so a
+          // swallowed failure here (mirroring the workflow-orchestrator
+          // plan-replan incident) could let the task re-enter verify on the
+          // next poll. Retry once, then notify a human on continued failure.
+          await writeBlockedStatusDurable({
+            taskId,
+            log,
+            source: 'WorkflowCLIExecutor',
+            notification: {
+              title: 'ブロック処理の書き込みに失敗',
+              message: `タスク #${taskId} を blocked にする更新が2回失敗しました（検証バリデーション不合格）。手動確認が必要です。`,
+            },
+          });
           await recordTransition({
             taskId,
             fromStatus: currentWfStatus,

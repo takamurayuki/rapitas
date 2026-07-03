@@ -27,6 +27,8 @@ import { isShutdownError } from '../agents/orchestrator/shutdown-error';
 import { narrowWorkflowStatus, narrowWorkflowMode } from './workflow-types.guards.generated';
 import type { WorkflowRole, WorkflowStatus } from './workflow-types';
 import { TASK_NOT_FOUND } from '../../utils/common/error-messages';
+import { countWithFailClosed } from '../../utils/database/fail-closed-count';
+import { writeBlockedStatusDurable } from './durable-blocked-write';
 
 // Re-export sub-module helpers so existing imports from this path keep working.
 export { resolveWorkflowDir, readWorkflowFile, writeWorkflowFile } from './workflow-file-utils';
@@ -452,15 +454,19 @@ export class WorkflowOrchestrator {
         // instead of looping.
         // Window to "recent" so old replans from an unrelated past run don't
         // pre-block a fresh re-run; a real loop trips this within seconds.
-        const priorReplans = await prisma.workflowTransition
-          .count({
+        const priorReplans = await countWithFailClosed(
+          prisma.workflowTransition.count({
             where: {
               taskId,
               cause: 'plan_invalid_replan',
               createdAt: { gt: new Date(Date.now() - 60 * 60 * 1000) },
             },
-          })
-          .catch(() => 0);
+          }),
+          MAX_PLAN_REPLANS,
+          log,
+          { taskId },
+          'plan-replan',
+        );
 
         if (priorReplans >= MAX_PLAN_REPLANS) {
           log.warn(
@@ -473,41 +479,15 @@ export class WorkflowOrchestrator {
           // silently let the loop re-enter on the very next poll. Retry once, and
           // if it still fails, escalate via a Notification so a human intervenes
           // instead of the loop silently repeating.
-          const blockWriteOk = await prisma.task
-            .update({ where: { id: taskId }, data: { status: 'blocked', updatedAt: new Date() } })
-            .then(() => true)
-            .catch(async (err) => {
-              log.warn(
-                { err, taskId },
-                '[WorkflowOrchestrator] status=blocked write failed — retrying once',
-              );
-              return prisma.task
-                .update({
-                  where: { id: taskId },
-                  data: { status: 'blocked', updatedAt: new Date() },
-                })
-                .then(() => true)
-                .catch((err2) => {
-                  log.error(
-                    { err: err2, taskId },
-                    '[WorkflowOrchestrator] status=blocked write failed twice — loop may re-enter; escalating',
-                  );
-                  return false;
-                });
-            });
-          if (!blockWriteOk) {
-            import('../communication/notification-service')
-              .then(({ createNotification }) =>
-                createNotification({
-                  type: 'system',
-                  title: 'ブロック処理の書き込みに失敗',
-                  message: `タスク #${taskId} を blocked にする更新が2回失敗しました。再計画ループが再発する可能性があるため手動確認が必要です。`,
-                  link: `/tasks?taskId=${taskId}`,
-                  metadata: { taskId, reason: 'block_write_failed' },
-                }),
-              )
-              .catch(() => {});
-          }
+          await writeBlockedStatusDurable({
+            taskId,
+            log,
+            source: 'WorkflowOrchestrator',
+            notification: {
+              title: 'ブロック処理の書き込みに失敗',
+              message: `タスク #${taskId} を blocked にする更新が2回失敗しました。再計画ループが再発する可能性があるため手動確認が必要です。`,
+            },
+          });
           await recordTransition({
             taskId,
             fromStatus: 'plan_approved',
@@ -623,6 +603,13 @@ export class WorkflowOrchestrator {
           .findByTaskId(taskId)
           .catch(() => null);
         const { recentThemeEscalation } = await import('./outcome-telemetry');
+        // NOT a fail-closed candidate: this is a soft routing SIGNAL, not a
+        // cap that bounds a loop. It only feeds Math.max(...) below to decide
+        // between a stronger/weaker MODEL TIER — recentThemeEscalation already
+        // fails open internally (returns 0, "no escalation") because a lost
+        // signal just means "start at the base tier" (a quality nudge), never
+        // an unbounded retry/repair loop. The outer .catch(() => 0) here is
+        // pure defense-in-depth for the (already-caught) call itself throwing.
         const themeEscalation = await recentThemeEscalation(task.themeId).catch(() => 0);
         const escalation = Math.max(queueItem?.retryCount ?? 0, themeEscalation);
 
