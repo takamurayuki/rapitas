@@ -65,12 +65,15 @@ export const GATES: readonly GateEntry[] = [
       'SQLite compatibility gate — runs scripts/sqlite-compat-tests.txt with RAPITAS_DB_PROVIDER=sqlite',
     manifest: 'sqlite-compat-tests.txt',
     args: ['--isolate'],
-    // NOTE: Mirrors buildSQLiteEnv() in run-sqlite-tests.cjs:70-77.
-    // DATABASE_URL uses the current process value as fallback to the SQLite file path.
+    // NOTE: DATABASE_URL is forced (not a `?? fallback`) so the gate reliably tests
+    // SQLite compatibility regardless of the ambient DATABASE_URL (e.g. a developer's
+    // .env pointing at Postgres — the `??` previously left it Postgres-backed locally).
+    // CI (test-lint.yml `test-sqlite` job) already sets DATABASE_URL="file:./rapitas-ci.db"
+    // explicitly before invoking this gate; this mirrors that so local runs match CI.
     // RAPITAS_DB_PROVIDER forces the ORM to SQLite mode.
     env: {
       RAPITAS_DB_PROVIDER: 'sqlite',
-      DATABASE_URL: process.env.DATABASE_URL ?? 'file:./rapitas-ci.db',
+      DATABASE_URL: 'file:./rapitas-ci.db',
     },
   },
 ];

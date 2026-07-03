@@ -60,9 +60,11 @@ describe('icon-policy-map — 構造検証', () => {
     }
   });
 
-  it('② KNOWN_COLLISIONS は string[] であり Gauge を含む', () => {
+  it('② KNOWN_COLLISIONS は string[] である（Gauge 衝突は解消済みのため現在は空）', () => {
+    // NOTE: Gauge の複雑度「標準」↔懸念「パフォーマンス」衝突は ArrowRight への移行で解消済み
+    // (icon-policy-map.mjs 冒頭の NOTE 参照)。KNOWN_COLLISIONS は現在意図的に空。
     expect(Array.isArray(KNOWN_COLLISIONS)).toBe(true);
-    expect(KNOWN_COLLISIONS).toContain('Gauge');
+    expect(KNOWN_COLLISIONS).toEqual([]);
   });
 
   it('③ OWNED_ICONS は Lightbulb を allowedPathPatterns=["/ideas"] で含む', () => {
@@ -124,8 +126,13 @@ describe('no-icon-collision — valid (0件)', () => {
 // ---------------------------------------------------------------------------
 
 describe('no-icon-collision — invalid', () => {
-  it('① Gauge を import → iconCollision を warn', () => {
-    const msgs = runRule(`import { Gauge } from 'lucide-react';`);
+  it('① 衝突グリフを import → iconCollision を warn', () => {
+    // NOTE: Gauge は既知衝突が解消済みで KNOWN_COLLISIONS のデフォルトは空のため、
+    // 検出ロジック自体は custom collisions 注入で検証する。
+    const msgs = runRule(`import { Gauge } from 'lucide-react';`, {
+      policy: [],
+      collisions: ['Gauge'],
+    });
     expect(msgs).toHaveLength(1);
     expect(msgs[0].messageId).toBe('iconCollision');
     expect(msgs[0].severity).toBe(1); // warn
@@ -156,13 +163,20 @@ describe('no-icon-collision — invalid', () => {
 
 describe('no-icon-collision — 境界ケース', () => {
   it('① Gauge と X を同じ import で混在 → Gauge の specifier のみ 1件', () => {
-    const msgs = runRule(`import { Gauge, X } from 'lucide-react';`);
+    // NOTE: Gauge はデフォルトで既知衝突ではなくなったため custom collisions で注入する。
+    const msgs = runRule(`import { Gauge, X } from 'lucide-react';`, {
+      policy: [],
+      collisions: ['Gauge'],
+    });
     expect(msgs).toHaveLength(1);
     expect(msgs[0].messageId).toBe('iconCollision');
   });
 
   it('② Lightbulb (misuse) と Gauge (collision) を同時 import → 2件', () => {
-    const msgs = runRule(`import { Lightbulb, Gauge } from 'lucide-react';`);
+    const msgs = runRule(`import { Lightbulb, Gauge } from 'lucide-react';`, {
+      policy: OWNED_ICONS,
+      collisions: ['Gauge'],
+    });
     expect(msgs).toHaveLength(2);
     const ids = msgs.map((m) => m.messageId).sort();
     expect(ids).toEqual(['iconCollision', 'iconMisuse']);
@@ -257,9 +271,12 @@ describe('no-icon-collision — TypeScript (tsParser)', () => {
   });
 
   it('③ { Gauge } (非型) → tsParser でも iconCollision', () => {
-    const msgs = runRule(`import { Gauge } from 'lucide-react';`, undefined, {
-      parser: tsParser,
-    });
+    // NOTE: Gauge はデフォルトで既知衝突ではなくなったため custom collisions で注入する。
+    const msgs = runRule(
+      `import { Gauge } from 'lucide-react';`,
+      { policy: [], collisions: ['Gauge'] },
+      { parser: tsParser },
+    );
     expect(msgs).toHaveLength(1);
     expect(msgs[0].messageId).toBe('iconCollision');
   });

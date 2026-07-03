@@ -17,12 +17,26 @@
  *      inside prompt-text-builder files (name matches `*prompt*builder*`
  *      or `*-prompt-*`) — wall-clock/random values must never shape prompt
  *      text or which content gets selected.
+ *   4. `.findFirst(` calls whose options object has no `orderBy` (an
+ *      unordered pick-one read is the riskiest case of all — ties are
+ *      resolved by DB whim rather than by an explicit rule). Best-effort:
+ *      many findFirst calls filter on a unique field and are already
+ *      deterministic without an orderBy; false positives are expected and
+ *      carry the same suppress-with-a-comment tradeoff as rule 1.
+ *   5. `.sort((a, b) => single-expr)` calls whose comparator body is a bare
+ *      subtraction (score difference) or localeCompare with no fallback
+ *      operator for a secondary key — this exact shape reshuffled ties
+ *      across otherwise-identical runs in an earlier fix pass. Only flags
+ *      single-expression arrow comparators; block-bodied comparators are
+ *      too varied to judge heuristically and are skipped.
  *
  * This is a dependency-free heuristic (fs + regex over source text, no
  * TypeScript parser), so it can run in CI with zero install step and will
  * have false positives — non-prompt-feeding queries/calls that happen to
- * live in a scanned directory. Suppress a single-line false positive with
- * an opt-out comment on the line directly above the flagged line:
+ * live in a scanned directory, and (since it is not comment-aware) plain
+ * comment text that happens to contain a stray quote character. Suppress a
+ * single-line false positive with an opt-out comment on the line directly
+ * above the flagged line:
  *
  *   // determinism-ok: <reason>
  *
@@ -269,6 +283,86 @@ function checkPromptBuilderNonDeterminism(files) {
   return findings;
 }
 
+// ── Rule 4: findFirst(...) missing orderBy ─────────────────────────────────
+
+function checkFindFirstOrdering(files) {
+  const findings = [];
+  const CALL_RE = /\.findFirst\s*\(/g;
+  for (const absPath of files) {
+    const content = fs.readFileSync(absPath, 'utf8');
+    let match;
+    CALL_RE.lastIndex = 0;
+    while ((match = CALL_RE.exec(content))) {
+      const openParenIdx = match.index + match[0].length - 1;
+      const closeParenIdx = findMatchingParen(content, openParenIdx);
+      const callLine = lineAt(content, match.index);
+      if (isSuppressed(content, callLine)) continue;
+      const argsText =
+        closeParenIdx === -1 ? content.slice(openParenIdx + 1, openParenIdx + 400) : content.slice(openParenIdx + 1, closeParenIdx);
+      if (!/\borderBy\s*:/.test(argsText)) {
+        findings.push({
+          file: rel(absPath),
+          line: callLine,
+          rule: 'findFirst-no-orderby',
+          message: `findFirst(...) call has no 'orderBy' — the single row picked may vary run to run when the filter isn't unique.`,
+        });
+      }
+    }
+  }
+  return findings;
+}
+
+// ── Rule 5: .sort(...) comparator with no secondary tiebreak key ──────────
+
+/**
+ * True if `body` (the arrow-function comparator body, single-expression
+ * form only) reads as a bare subtraction or `.localeCompare(...)` result
+ * with no `||` fallback carrying a secondary key.
+ *
+ * @param body - Comparator body source text / コンパレータ本体のソース
+ * @returns Whether the body looks like a single-key comparator / 単一キー比較かどうか
+ */
+function looksLikeSingleKeyComparator(body) {
+  if (/\|\|/.test(body)) return false; // already has a fallback key
+  const isSubtraction = /^[^{}]*[)\w\]]\s*-\s*[\w$][\w$.[\]]*\s*;?\s*$/.test(body);
+  const isLocaleCompare = /\.localeCompare\s*\(/.test(body);
+  return isSubtraction || isLocaleCompare;
+}
+
+function checkSortMissingTiebreak(files) {
+  const findings = [];
+  const CALL_RE = /\.sort\s*\(/g;
+  for (const absPath of files) {
+    const content = fs.readFileSync(absPath, 'utf8');
+    let match;
+    CALL_RE.lastIndex = 0;
+    while ((match = CALL_RE.exec(content))) {
+      const openParenIdx = match.index + match[0].length - 1;
+      const closeParenIdx = findMatchingParen(content, openParenIdx);
+      if (closeParenIdx === -1) continue;
+      const callLine = lineAt(content, match.index);
+      if (isSuppressed(content, callLine)) continue;
+      const argsText = content.slice(openParenIdx + 1, closeParenIdx).trim();
+      // Only single-expression arrow comparators, e.g. `(a, b) => b.x - a.x`
+      // — a block body `(a, b) => { ... }` can hide a secondary key in a
+      // `return` statement and is too varied to judge heuristically here.
+      const arrowMatch = argsText.match(/^\(?\s*[^,(){}]+\s*,\s*[^,(){}]+\)?\s*=>\s*([\s\S]+)$/);
+      if (!arrowMatch) continue;
+      const body = arrowMatch[1].trim();
+      if (body.startsWith('{')) continue;
+      if (looksLikeSingleKeyComparator(body)) {
+        findings.push({
+          file: rel(absPath),
+          line: callLine,
+          rule: 'sort-single-key-comparator',
+          message: `.sort(...) comparator has no secondary tiebreak ('||' fallback) — ties may reorder inconsistently across runs.`,
+        });
+      }
+    }
+  }
+  return findings;
+}
+
 // ── Main ────────────────────────────────────────────────────────────────────
 
 function main() {
@@ -278,15 +372,26 @@ function main() {
   const tempLiteralFindings = checkNonZeroTemperature(files);
   const providerCallFindings = checkProviderCallsMissingTemperature(files);
   const promptBuilderFindings = checkPromptBuilderNonDeterminism(files);
+  const findFirstFindings = checkFindFirstOrdering(files);
+  const sortTiebreakFindings = checkSortMissingTiebreak(files);
 
   const byRule = {
     'findMany-no-orderby': findManyFindings,
     'nonzero-temperature': tempLiteralFindings,
     'provider-call-no-temperature': providerCallFindings,
     'prompt-builder-wallclock-random': promptBuilderFindings,
+    'findFirst-no-orderby': findFirstFindings,
+    'sort-single-key-comparator': sortTiebreakFindings,
   };
 
-  const all = [...findManyFindings, ...tempLiteralFindings, ...providerCallFindings, ...promptBuilderFindings];
+  const all = [
+    ...findManyFindings,
+    ...tempLiteralFindings,
+    ...providerCallFindings,
+    ...promptBuilderFindings,
+    ...findFirstFindings,
+    ...sortTiebreakFindings,
+  ];
   all.sort((a, b) => (a.file === b.file ? a.line - b.line : a.file.localeCompare(b.file)));
 
   const summary = {

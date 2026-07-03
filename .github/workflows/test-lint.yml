@@ -399,6 +399,14 @@ jobs:
         # Run `bun run gen:type-guards` to regenerate and commit the updated files.
         run: bun run check:type-guards
 
+      - name: Check determinism guard (advisory)
+        working-directory: rapitas-backend
+        continue-on-error: true
+        # NOTE: Advisory only — surfaces prompt-nondeterminism heuristics (unordered
+        # findMany feeding a prompt, missing temperature, wall-clock/random in prompt
+        # builders) without blocking merges. See scripts/check-determinism.cjs.
+        run: bun run determinism:check
+
       - name: Lint frontend code
         working-directory: rapitas-frontend
         run: pnpm lint

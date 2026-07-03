@@ -374,7 +374,9 @@ export async function fetchAnalysisInfo(configId: number): Promise<AnalysisInfo 
         actionType: 'analysis',
         status: 'success',
       },
-      orderBy: { createdAt: 'desc' },
+      // Secondary `id` key breaks ties on identical createdAt timestamps —
+      // this feeds the analysis info baked into the next instruction/prompt.
+      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
     });
 
     if (!latestAnalysisAction?.output) return undefined;

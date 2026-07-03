@@ -98,7 +98,10 @@ export function parseCreateTableOrder(sql: string): string[] {
   return [...sql.matchAll(/CREATE TABLE\s+"([^"]+)"/g)].map((match) => match[1]);
 }
 
-export function normalizeSqliteValue(value: unknown): unknown {
+/** Value shapes bun:sqlite's `Statement.run()` bindings accept after normalization. */
+type SqliteBindingValue = string | number | null | Buffer;
+
+export function normalizeSqliteValue(value: unknown): SqliteBindingValue {
   if (value === null || value === undefined) return null;
   if (typeof value === 'boolean') return value ? 1 : 0;
   if (typeof value === 'bigint') return Number(value);
@@ -112,7 +115,11 @@ export function normalizeSqliteValue(value: unknown): unknown {
     return JSON.stringify(value);
   }
 
-  return value;
+  // NOTE: All non-primitive/boolean/bigint/Date cases are handled above and return early,
+  // so control only reaches here for plain string/number values. TS can't narrow `unknown`
+  // down to that pair through the preceding typeof/instanceof chain, so an explicit
+  // annotation (not `any`) documents the real remaining shape instead of widening it away.
+  return value as string | number;
 }
 
 export async function migrateSecretFields(row: AnyRow): Promise<AnyRow> {
@@ -156,7 +163,7 @@ export function insertRows(
 
   const insertMany = database.transaction((items: AnyRow[]) => {
     for (const row of items) {
-      const values = columns.map((column) => normalizeSqliteValue(row[column])) as any[];
+      const values = columns.map((column) => normalizeSqliteValue(row[column]));
       statement.run(...values);
     }
   });
