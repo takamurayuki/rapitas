@@ -44,6 +44,19 @@ ${lastOutput}
 \`\`\`
 `;
 
+  // NOTE: logSummary was accepted as a parameter but never appended to the
+  // prompt — the caller's last-50-chunk execution log context was silently
+  // dropped, leaving the resumed agent without the log detail the parameter
+  // exists to provide. Restored.
+  if (logSummary.trim()) {
+    prompt += `
+## 直近のログ
+\`\`\`
+${logSummary}
+\`\`\`
+`;
+  }
+
   if (errorMessage) {
     prompt += `
 ## 中断理由
