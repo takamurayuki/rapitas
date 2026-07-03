@@ -116,8 +116,11 @@ export async function recoverStaleExecutions(ctx: OrchestratorContext): Promise<
       }
     }
 
-    await updateAffectedSessions(ctx, affectedSessionIds);
-    updatedSessions = affectedSessionIds.size;
+    // NOTE: updatedSessions must reflect sessions actually marked interrupted,
+    // not affectedSessionIds.size — a session with a still-live execution (or
+    // a failed update) is intentionally skipped inside updateAffectedSessions,
+    // so counting the input set overstated this in the returned summary.
+    updatedSessions = await updateAffectedSessions(ctx, affectedSessionIds);
 
     const tasksUpdated = await updateAffectedTasks(ctx, affectedTaskIds);
     updatedTasks = tasksUpdated;
@@ -173,11 +176,13 @@ export async function recoverStaleExecutions(ctx: OrchestratorContext): Promise<
  *
  * @param ctx - Orchestrator context / オーケストレーターコンテキスト
  * @param sessionIds - Set of session IDs to check / チェックするセッションIDのセット
+ * @returns Number of sessions actually marked interrupted / 実際に中断済みにしたセッション数
  */
 async function updateAffectedSessions(
   ctx: OrchestratorContext,
   sessionIds: Set<number>,
-): Promise<void> {
+): Promise<number> {
+  let updated = 0;
   for (const sessionId of sessionIds) {
     try {
       const activeCount = await ctx.prisma.agentExecution.count({
@@ -195,12 +200,14 @@ async function updateAffectedSessions(
             lastActivityAt: new Date(),
           },
         });
+        updated++;
         logger.info(`[RecoveryManager] Session ${sessionId} marked as interrupted`);
       }
     } catch (error) {
       logger.error({ err: error, sessionId }, `[RecoveryManager] Failed to update session`);
     }
   }
+  return updated;
 }
 
 /**
