@@ -9,16 +9,23 @@
  * Integration tests are excluded via INTEGRATION_EXCLUDE_PATTERN from shuffle-test.ts.
  *
  * Environment variables:
- *   RAPITAS_TEST_CONCURRENCY    Max parallel subprocesses (default: max(1, cpuCount-1))
- *   RAPITAS_TEST_FAILFAST       Set to "1" to stop dispatching new files on first failure
- *   RAPITAS_TEST_RETRY_COUNT    Additional retry attempts on failure (default: 0, disabled)
- *   RAPITAS_TEST_REPORT         Set to "1" to write .rapitas-test-report.json on completion
- *   RAPITAS_TEST_REPORT_PATH    Explicit output path for the test report (implies reporting)
+ *   RAPITAS_TEST_CONCURRENCY         Max parallel subprocesses (default: max(1, cpuCount-1))
+ *   RAPITAS_TEST_FAILFAST            Set to "1" to stop dispatching new files on first failure
+ *   RAPITAS_TEST_RETRY_COUNT         Additional retry attempts on failure (default: 0, disabled)
+ *   RAPITAS_TEST_REPORT              Set to "1" to write .rapitas-test-report.json on completion
+ *   RAPITAS_TEST_REPORT_PATH         Explicit output path for the test report (implies reporting)
+ *   RAPITAS_TEST_ADAPTIVE_RETRY      Set to "1" to enable per-file adaptive retry (default: off)
+ *   RAPITAS_TEST_FLAKE_WINDOW        History window size in runs for adaptive retry (default: 10)
+ *   RAPITAS_TEST_FLAKE_HIGH_THRESHOLD Flake rate threshold for extra retries (default: 0.2)
+ *   RAPITAS_TEST_FLAKE_EXTRA_RETRIES  Extra retries for high-flake files (default: 2)
+ *   RAPITAS_TEST_HIGH_FLAKE_PATTERNS  Comma-separated regexes for inherently-flaky test paths
+ *   RAPITAS_TEST_FLAKE_HISTORY_PATH   Explicit path for the flake history JSON file
  *
  * Usage:
  *   bun scripts/parallel-test.ts
  *   RAPITAS_TEST_CONCURRENCY=8 bun scripts/parallel-test.ts
  *   RAPITAS_TEST_RETRY_COUNT=2 RAPITAS_TEST_REPORT=1 bun scripts/parallel-test.ts
+ *   RAPITAS_TEST_ADAPTIVE_RETRY=1 RAPITAS_TEST_REPORT=1 bun scripts/parallel-test.ts
  */
 
 import { cpus } from 'os';
@@ -26,6 +33,15 @@ import { relative, resolve } from 'path';
 import { collectTestFiles } from './shuffle-test';
 import { writeTestReport } from './test-report';
 import type { TestResultEntry } from './test-report';
+import {
+  parseRetryPolicyConfig,
+  resolveFileRetryCount,
+  updateFlakeHistory,
+  pruneFlakeHistory,
+  loadFlakeHistoryOrEmpty,
+  saveFlakeHistory,
+} from './retry-policy';
+import type { FlakeHistoryFile } from './retry-policy';
 
 /** Completed result for a single test file subprocess. */
 export interface TestResult {
@@ -150,6 +166,12 @@ async function main(): Promise<void> {
   const failFast = process.env.RAPITAS_TEST_FAILFAST === '1';
   const retryCount = parseRetryCount(process.env.RAPITAS_TEST_RETRY_COUNT);
 
+  const policyConfig = parseRetryPolicyConfig(process.env);
+  let flakeHistory: FlakeHistoryFile = { version: 1, updatedAt: '', entries: {} };
+  if (policyConfig.enabled) {
+    flakeHistory = loadFlakeHistoryOrEmpty(root);
+  }
+
   const files = await collectTestFiles(root);
 
   if (files.length === 0) {
@@ -157,8 +179,9 @@ async function main(): Promise<void> {
     process.exit(0);
   }
 
+  const retryDisplay = policyConfig.enabled ? 'retry=adaptive' : retryCount > 0 ? `retry=${retryCount}` : '';
   console.log(
-    `[parallel-test] files=${files.length} concurrency=${concurrency}${failFast ? ' fail-fast=ON' : ''}${retryCount > 0 ? ` retry=${retryCount}` : ''}`,
+    `[parallel-test] files=${files.length} concurrency=${concurrency}${failFast ? ' fail-fast=ON' : ''}${retryDisplay ? ` ${retryDisplay}` : ''}`,
   );
   const wallStart = performance.now();
 
@@ -183,12 +206,13 @@ async function main(): Promise<void> {
       if (!file) break;
 
       const relPath = relative(root, file);
+      const fileRetryCount = resolveFileRetryCount(relPath, retryCount, flakeHistory, policyConfig);
       let result = await runFile(file, root);
       let attempts = 1;
 
-      // Retry on failure up to retryCount additional times.
-      while (result.exitCode !== 0 && attempts <= retryCount) {
-        console.log(`[parallel-test] Retry ${attempts}/${retryCount}: ${relPath}`);
+      // Retry on failure up to fileRetryCount additional times.
+      while (result.exitCode !== 0 && attempts <= fileRetryCount) {
+        console.log(`[parallel-test] Retry ${attempts}/${fileRetryCount}: ${relPath}`);
         result = await runFile(file, root);
         attempts++;
       }
@@ -246,6 +270,14 @@ async function main(): Promise<void> {
       if (r.stdout.trim()) process.stdout.write(r.stdout);
       if (r.stderr.trim()) process.stderr.write(r.stderr);
     }
+  }
+
+  // Update and persist flake history after all workers complete (no concurrency risk here).
+  if (policyConfig.enabled) {
+    const now = new Date().toISOString();
+    const updated = updateFlakeHistory(flakeHistory, reportResults, now);
+    const pruned = pruneFlakeHistory(updated, policyConfig.historyWindow);
+    saveFlakeHistory(pruned, root);
   }
 
   // Write test report if enabled via env (RAPITAS_TEST_REPORT=1 or RAPITAS_TEST_REPORT_PATH).
