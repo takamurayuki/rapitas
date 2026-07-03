@@ -3,8 +3,9 @@
 
 import { useState } from 'react';
 import { useTranslations } from 'next-intl';
-import { BookMarked, Target, Loader2 } from 'lucide-react';
+import { BookMarked, Target } from 'lucide-react';
 import type { GeneratedLearningPlan } from '@/types';
+import { Spinner } from '@/components/ui/spinner';
 import { useLearningGoals } from './_hooks/useLearningGoals';
 import { GoalWizard } from './_components/GoalWizard';
 import { GoalList } from './_components/GoalList';
@@ -118,7 +119,7 @@ export default function LearningGoalsPage() {
         <div className="lg:col-span-2">
           {generating ? (
             <div className="bg-white dark:bg-zinc-800 rounded-xl border border-zinc-200 dark:border-zinc-700 p-12 text-center">
-              <Loader2 className="w-12 h-12 mx-auto text-emerald-500 animate-spin mb-4" />
+              <Spinner size="xl" className="mx-auto text-emerald-500 mb-4" />
               <h3 className="text-lg font-semibold text-zinc-700 dark:text-zinc-300 mb-2">
                 {t('aiGenerating')}
               </h3>

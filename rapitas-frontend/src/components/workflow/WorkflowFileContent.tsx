@@ -2,7 +2,8 @@
 // WorkflowFileContent
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Loader2, List, ChevronDown, Pencil } from 'lucide-react';
+import { List, ChevronDown, Pencil } from 'lucide-react';
+import { Spinner } from '@/components/ui/spinner';
 import { useTranslations } from 'next-intl';
 import type { WorkflowTab } from './workflow-viewer-utils';
 import { MarkdownView } from '../markdown/MarkdownView';
@@ -173,7 +174,7 @@ export function WorkflowFileContent({
   if (isLoading && !activeFile) {
     return (
       <div className="flex items-center justify-center h-32">
-        <Loader2 className="h-5 w-5 text-zinc-500 animate-spin mr-2" />
+        <Spinner size="md" className="mr-2" />
         <span className="text-sm text-zinc-500 dark:text-zinc-400">{tc('loading')}</span>
       </div>
     );

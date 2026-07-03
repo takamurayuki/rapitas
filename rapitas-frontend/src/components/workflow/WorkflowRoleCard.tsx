@@ -147,6 +147,14 @@ export function WorkflowRoleCard({
         <div
           className={`${config.bgColor} px-4 py-3 cursor-pointer select-none`}
           onClick={onToggleExpand}
+          role="button"
+          tabIndex={0}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+              e.preventDefault();
+              onToggleExpand();
+            }
+          }}
         >
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">

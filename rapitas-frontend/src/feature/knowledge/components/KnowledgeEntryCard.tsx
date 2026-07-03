@@ -38,6 +38,18 @@ export function KnowledgeEntryCard({
     <div
       className="rounded-lg border border-gray-200 bg-white p-4 transition-shadow hover:shadow-md dark:border-gray-700 dark:bg-gray-800 cursor-pointer"
       onClick={onClick}
+      role={onClick ? 'button' : undefined}
+      tabIndex={onClick ? 0 : undefined}
+      onKeyDown={
+        onClick
+          ? (e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                onClick();
+              }
+            }
+          : undefined
+      }
     >
       <div className="flex items-start justify-between gap-2">
         <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100 line-clamp-1">

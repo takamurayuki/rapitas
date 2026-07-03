@@ -15,6 +15,7 @@ import { useTranslations } from 'next-intl';
 import type { GitHubPullRequest, FileDiff } from '@/types';
 import { API_BASE_URL } from '@/utils/api';
 import { PRDetailSkeleton } from './components/PRDetailSkeleton';
+import { Spinner } from '@/components/ui/spinner';
 import { useToast } from '@/components/ui/toast/ToastContainer';
 import { createLogger } from '@/lib/logger';
 
@@ -300,7 +301,7 @@ export default function PullRequestDetailClient() {
               </option>
             ))}
           </select>
-          {changingBase && <Loader2 className="w-4 h-4 animate-spin text-zinc-400" />}
+          {changingBase && <Spinner size="sm" />}
           <span className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
             {t('pullRequestDetail.mergeMethodLabel')}
           </span>

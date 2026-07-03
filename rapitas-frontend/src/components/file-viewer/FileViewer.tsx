@@ -16,13 +16,13 @@ import {
   Code,
   Image as ImageIcon,
   File,
-  Loader2,
 } from 'lucide-react';
 import type { Resource } from '@/types';
 import { API_BASE_URL } from '@/utils/api';
 import MarkdownViewer from './MarkdownViewer';
 import './markdown-viewer.css';
 import { createLogger } from '@/lib/logger';
+import { Spinner } from '@/components/ui/spinner';
 import { useToast } from '@/components/ui/toast/ToastContainer';
 import { useFocusTrap } from '@/components/ui/modal/use-focus-trap';
 const logger = createLogger('FileViewer');
@@ -347,7 +347,7 @@ export default function FileViewer({
         <div className="pt-24 sm:pt-20 h-full overflow-auto bg-zinc-50 dark:bg-black/50">
           {isLoading && (
             <div className="flex items-center justify-center h-full">
-              <Loader2 className="w-8 h-8 text-zinc-400 animate-spin" />
+              <Spinner size="lg" />
             </div>
           )}
 

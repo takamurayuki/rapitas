@@ -43,6 +43,18 @@ export function SuggestionsHeader({
   return (
     <div
       onClick={onHeaderClick}
+      role={canExpand ? 'button' : undefined}
+      tabIndex={canExpand ? 0 : undefined}
+      onKeyDown={
+        canExpand
+          ? (e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                onHeaderClick();
+              }
+            }
+          : undefined
+      }
       className={`flex items-center justify-between px-3 py-1.5 ${
         canExpand ? 'cursor-pointer hover:bg-zinc-50 dark:hover:bg-zinc-800/30' : ''
       } transition-all duration-200`}

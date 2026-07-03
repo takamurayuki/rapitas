@@ -13,6 +13,7 @@ import {
   FileCode,
 } from 'lucide-react';
 import type { FileDiff } from '@/types';
+import { EmptyState } from '@/components/ui/empty-state';
 
 type DiffViewerProps = {
   files: FileDiff[];
@@ -241,10 +242,7 @@ export function DiffViewer({ files, showRawDiff = false, onToggleView }: DiffVie
 
       {/* Empty State */}
       {files.length === 0 && (
-        <div className="px-4 py-12 text-center">
-          <FileText className="w-12 h-12 mx-auto text-zinc-300 dark:text-zinc-600 mb-3" />
-          <p className="text-sm text-zinc-500 dark:text-zinc-400">{t('noChangedFiles')}</p>
-        </div>
+        <EmptyState icon={FileText} title={t('noChangedFiles')} className="px-4" />
       )}
     </div>
   );

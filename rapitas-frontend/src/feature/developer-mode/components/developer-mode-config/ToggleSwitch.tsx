@@ -31,6 +31,9 @@ export function ToggleSwitch({ value, onChange, label, description }: Props) {
       </div>
       <button
         onClick={() => onChange(!value)}
+        role="switch"
+        aria-checked={value}
+        aria-label={label}
         className={`relative w-11 h-6 rounded-full transition-colors flex-shrink-0 ${
           value ? 'bg-violet-500' : 'bg-zinc-300 dark:bg-zinc-600'
         }`}

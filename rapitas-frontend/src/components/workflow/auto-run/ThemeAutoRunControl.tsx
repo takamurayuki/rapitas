@@ -10,6 +10,7 @@ import React, { useState } from 'react';
 import { Play, Pause, Square, Loader2, CheckCircle2, AlertCircle, Clock } from 'lucide-react';
 import { useThemeAutoRun, type AutoRunStatus } from '@/hooks/workflow/useThemeAutoRun';
 import { useTranslations } from 'next-intl';
+import { Spinner } from '@/components/ui/spinner';
 
 interface ThemeAutoRunControlProps {
   /** Theme ID to control / 制御するテーマID */
@@ -86,7 +87,7 @@ export function ThemeAutoRunControl({ themeId, isDevelopment }: ThemeAutoRunCont
   if (loading && !data) {
     return (
       <div className="flex items-center gap-1 px-2 py-1 text-xs text-zinc-500">
-        <Loader2 className="w-3 h-3 animate-spin" />
+        <Spinner size="sm" />
       </div>
     );
   }

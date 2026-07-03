@@ -130,6 +130,7 @@ export default function CommentsSection({
                 }
               }}
               placeholder={t('commentsSection.addPlaceholder')}
+              aria-label={t('commentsSection.addPlaceholder')}
               className="flex-1 px-2.5 py-2 text-xs bg-zinc-50 dark:bg-indigo-dark-800 border border-zinc-200 dark:border-zinc-700 rounded-lg outline-none focus:border-indigo-400 focus:border-indigo-400 placeholder:text-zinc-400 resize-none transition-colors"
               disabled={isAddingComment}
               rows={2}

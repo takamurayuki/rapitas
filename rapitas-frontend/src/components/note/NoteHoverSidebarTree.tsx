@@ -13,6 +13,7 @@ import type { Note } from '@/stores/note-store';
 import { getIconComponent } from '@/components/category/icon-data';
 import type { NoteTree as NoteTreeData } from './note-tree-utils';
 import NoteHoverSidebarNoteItem from './NoteHoverSidebarNoteItem';
+import { EmptyState } from '@/components/ui/empty-state';
 
 export interface NoteHoverSidebarTreeProps {
   tree: NoteTreeData;
@@ -75,14 +76,15 @@ export default function NoteHoverSidebarTree({
 
   if (isEmpty) {
     return (
-      <div className="py-6 text-center">
-        <FileText className="w-12 h-12 mx-auto text-zinc-300 dark:text-zinc-600 mb-2" />
-        <p className="text-sm text-zinc-500 dark:text-zinc-400">
-          {searchQuery || selectedTagsCount > 0
+      <EmptyState
+        icon={FileText}
+        title={
+          searchQuery || selectedTagsCount > 0
             ? t('hoverSidebar.noSearchResults')
-            : t('common.noNotes')}
-        </p>
-      </div>
+            : t('common.noNotes')
+        }
+        className="py-6"
+      />
     );
   }
 

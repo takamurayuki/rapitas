@@ -11,10 +11,10 @@ import {
   Cpu,
   Star,
   CheckCircle2,
-  Loader2,
 } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import type { AIAgentConfig } from '@/types';
+import { Spinner } from '@/components/ui/spinner';
 import { API_BASE_URL } from '@/utils/api';
 import { createLogger } from '@/lib/logger';
 const logger = createLogger('AgentSwitcher');
@@ -134,7 +134,7 @@ export function AgentSwitcher({
       <div
         className={`flex items-center gap-2 px-3 ${isSm ? 'py-1.5' : 'py-2'} bg-zinc-100 dark:bg-zinc-800 rounded-lg`}
       >
-        <Loader2 className="w-4 h-4 text-zinc-400 animate-spin" />
+        <Spinner size="sm" />
         <span className="text-xs text-zinc-500">{t('agentSwitcher.loading')}</span>
       </div>
     );

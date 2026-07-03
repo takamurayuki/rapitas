@@ -91,6 +91,7 @@ export default function NotificationSettingsPanel() {
               type="time"
               value={settings.quietHoursStart}
               onChange={(e) => update('quietHoursStart', e.target.value)}
+              aria-label={t('quietHoursStartLabel')}
               className="px-2 py-1 rounded border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-700 text-zinc-700 dark:text-zinc-300"
             />
             <span>~</span>
@@ -98,6 +99,7 @@ export default function NotificationSettingsPanel() {
               type="time"
               value={settings.quietHoursEnd}
               onChange={(e) => update('quietHoursEnd', e.target.value)}
+              aria-label={t('quietHoursEndLabel')}
               className="px-2 py-1 rounded border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-700 text-zinc-700 dark:text-zinc-300"
             />
           </div>

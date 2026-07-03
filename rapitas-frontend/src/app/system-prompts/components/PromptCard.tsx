@@ -89,6 +89,14 @@ export function PromptCard({
       <div
         className="flex items-center justify-between p-4 cursor-pointer"
         onClick={() => !isEditing && onToggleExpand()}
+        role="button"
+        tabIndex={0}
+        onKeyDown={(e) => {
+          if ((e.key === 'Enter' || e.key === ' ') && !isEditing) {
+            e.preventDefault();
+            onToggleExpand();
+          }
+        }}
       >
         <div className="flex items-center gap-3 flex-1 min-w-0">
           <button

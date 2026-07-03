@@ -64,6 +64,7 @@ export default function TaskDetail({
                 className="flex-1 min-w-0 rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-indigo-dark-900 px-4 py-3 text-lg font-bold shadow-sm focus:outline-none focus:border-indigo-400"
                 value={editTitle}
                 onChange={(e) => onEditTitleChange(e.target.value)}
+                aria-label={t('taskDetail.titleLabel')}
                 required
               />
               <div className="flex items-center gap-1 shrink-0">
@@ -98,6 +99,7 @@ export default function TaskDetail({
               onDragLeave={onDragLeave}
               onDrop={onDrop}
               placeholder={t('taskDetail.descriptionPlaceholder')}
+              aria-label={t('description')}
             />
           </div>
 
@@ -112,6 +114,7 @@ export default function TaskDetail({
                 placeholder={t('taskDetail.labelsPlaceholder')}
                 value={editLabels}
                 onChange={(e) => onEditLabelsChange(e.target.value)}
+                aria-label={t('labels')}
               />
             </div>
 
@@ -127,6 +130,7 @@ export default function TaskDetail({
                 placeholder={t('taskDetail.hoursPlaceholder')}
                 value={editEstimatedHours}
                 onChange={(e) => onEditEstimatedHoursChange(e.target.value)}
+                aria-label={t('estimatedTime')}
               />
             </div>
           </div>

@@ -67,10 +67,19 @@ export default function SearchHistory({ onSelect }: SearchHistoryProps) {
           >
             {item}
             <X
+              role="button"
+              tabIndex={0}
               className="w-3 h-3 opacity-0 group-hover:opacity-100 transition-opacity"
               onClick={(e) => {
                 e.stopPropagation();
                 removeItem(item);
+              }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  removeItem(item);
+                }
               }}
             />
           </button>

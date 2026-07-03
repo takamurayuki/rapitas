@@ -75,6 +75,7 @@ export default function CompactTaskDetailWorkloadSection({
                 })
               }
               placeholder="0"
+              aria-label={t('compactTaskDetailCard.workloadLabel')}
               className="w-full bg-zinc-100 dark:bg-zinc-800 rounded-lg px-2 py-1.5 text-sm border-none outline-none focus:ring-2 focus:ring-violet-500/20 transition-all"
             />
             <span className="text-xs text-zinc-500 dark:text-zinc-400 shrink-0">h</span>
@@ -101,6 +102,7 @@ export default function CompactTaskDetailWorkloadSection({
                 })
               }
               placeholder="0"
+              aria-label={t('compactTaskDetailCard.actualWorkTimeLabel')}
               className="w-full bg-zinc-100 dark:bg-zinc-800 rounded-lg px-2 py-1.5 text-sm border-none outline-none focus:ring-2 focus:ring-emerald-500/20 transition-all"
             />
             <span className="text-xs text-zinc-500 dark:text-zinc-400 shrink-0">h</span>
@@ -123,6 +125,7 @@ export default function CompactTaskDetailWorkloadSection({
                 dueDate: dueDateInput ? new Date(dueDateInput).toISOString() : null,
               })
             }
+            aria-label={t('dueDate')}
             className="w-full bg-zinc-100 dark:bg-zinc-800 rounded-lg px-2 py-1.5 text-sm border-none outline-none focus:ring-2 focus:ring-violet-500/20 transition-all"
           />
         </div>

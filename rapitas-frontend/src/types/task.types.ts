@@ -138,6 +138,13 @@ export type Task = {
   nextOccurrence?: string | null;
   /** When true, the task is protected from deletion (guards against accidental loss). */
   isProtected?: boolean;
+  /**
+   * Latest `WorkflowTransition.cause` for this task, present only when
+   * `status === 'blocked'`. Batched onto the task-list response (see
+   * `attachBlockedCauses` on the backend) so list views can show the real
+   * blocked reason without an N-request per-card fetch.
+   */
+  blockedCause?: string | null;
   createdAt: string;
   updatedAt: string;
 };

@@ -97,6 +97,7 @@ export default function TaskEditForm({
             value={editTitle}
             onChange={(e) => setEditTitle(e.target.value)}
             placeholder={t('taskNamePlaceholder')}
+            aria-label={t('taskNamePlaceholder')}
           />
           <div className="flex items-center gap-1 shrink-0">
             {(['todo', 'in-progress', 'done'] as const).map((status) => {
@@ -140,6 +141,7 @@ export default function TaskEditForm({
           value={editDescription}
           onChange={(e) => setEditDescription(e.target.value)}
           placeholder={t('markdownPlaceholder')}
+          aria-label={t('description')}
         />
       </div>
 
@@ -194,6 +196,7 @@ export default function TaskEditForm({
             placeholder="0"
             value={editEstimatedHours}
             onChange={(e) => setEditEstimatedHours(e.target.value)}
+            aria-label={t('estimatedTime')}
           />
           <span className="text-sm text-zinc-500 dark:text-zinc-400">{tc('hours')}</span>
         </div>

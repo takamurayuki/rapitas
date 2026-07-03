@@ -9,6 +9,7 @@ import { useTranslations } from 'next-intl';
 import Link from 'next/link';
 import { GitBranch, GitPullRequest, CircleDot, RefreshCw, ExternalLink } from 'lucide-react';
 import type { GitHubIntegration } from '@/types';
+import { EmptyState } from '@/components/ui/empty-state';
 
 interface GitHubRepoListProps {
   integrations: GitHubIntegration[];
@@ -92,16 +93,19 @@ export function GitHubRepoList({ integrations, syncing, onSync, onAdd }: GitHubR
         {t('linkedRepos')}
       </h2>
       {integrations.length === 0 ? (
-        <div className="text-center py-12 bg-zinc-50 dark:bg-zinc-800/50 rounded-lg border border-dashed border-zinc-300 dark:border-zinc-700">
-          <GitBranch className="w-12 h-12 mx-auto text-zinc-400 mb-4" />
-          <p className="text-zinc-500 dark:text-zinc-400">{t('noLinkedRepos')}</p>
-          <button
-            onClick={onAdd}
-            className="mt-4 text-indigo-600 dark:text-indigo-400 hover:underline"
-          >
-            {t('addRepo')}
-          </button>
-        </div>
+        <EmptyState
+          icon={GitBranch}
+          title={t('noLinkedRepos')}
+          className="bg-zinc-50 dark:bg-zinc-800/50 rounded-lg border border-dashed border-zinc-300 dark:border-zinc-700"
+          action={
+            <button
+              onClick={onAdd}
+              className="text-indigo-600 dark:text-indigo-400 hover:underline"
+            >
+              {t('addRepo')}
+            </button>
+          }
+        />
       ) : (
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
           {integrations.map((integration) => (

@@ -16,7 +16,8 @@
 
 import React, { useMemo } from 'react';
 import { useTranslations } from 'next-intl';
-import { Terminal, ChevronDown, Loader2, SearchX } from 'lucide-react';
+import { Terminal, ChevronDown, SearchX } from 'lucide-react';
+import { Spinner } from '@/components/ui/spinner';
 import { SimpleLogEntryList } from '../SimpleLogEntry';
 import { LogViewerHeader } from './LogViewerHeader';
 import { ExecutionSummaryCard } from './ExecutionSummaryCard';
@@ -199,7 +200,7 @@ export const ExecutionLogViewer: React.FC<ExecutionLogViewerProps> = ({
             logContent || (
               <div className="flex items-center justify-center py-8 text-zinc-500">
                 <div className="text-center">
-                  <Loader2 className="w-8 h-8 mx-auto mb-2 animate-spin" />
+                  <Spinner size="lg" className="mx-auto mb-2" />
                   <p>{t('fetchingLogs')}</p>
                 </div>
               </div>

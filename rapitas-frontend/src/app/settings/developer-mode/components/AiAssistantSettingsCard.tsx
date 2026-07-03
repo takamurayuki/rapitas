@@ -52,6 +52,9 @@ export function AiAssistantSettingsCard({
               })
             }
             disabled={isSaving}
+            role="switch"
+            aria-checked={!!settings?.aiTaskAnalysisDefault}
+            aria-label={t('devEnableAiAssistant')}
             className={`relative w-11 h-6 rounded-full transition-colors ${
               settings?.aiTaskAnalysisDefault ? 'bg-violet-500' : 'bg-zinc-300 dark:bg-zinc-600'
             }`}

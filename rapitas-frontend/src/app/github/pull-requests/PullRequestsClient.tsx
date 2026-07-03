@@ -20,6 +20,7 @@ import { createLogger } from '@/lib/logger';
 // Shared pagination control — ALWAYS use this for paginated lists (see
 // COMPONENT_SPLITTING_POLICY §7). Do not hand-roll prev/next buttons.
 import Pagination from '@/components/ui/pagination/Pagination';
+import { EmptyState } from '@/components/ui/empty-state';
 
 const logger = createLogger('PullRequestsClient');
 
@@ -242,12 +243,11 @@ export default function PullRequestsClient() {
             ))}
           </div>
         ) : filteredRows.length === 0 ? (
-          <div className="text-center py-12 bg-zinc-50 dark:bg-zinc-800/50 rounded-lg border border-dashed border-zinc-300 dark:border-zinc-700">
-            <GitPullRequest className="w-12 h-12 mx-auto text-zinc-400 mb-4" />
-            <p className="text-zinc-500 dark:text-zinc-400">
-              {integrations.length === 0 ? t('selectRepositoryPrompt') : t('noPullRequests')}
-            </p>
-          </div>
+          <EmptyState
+            icon={GitPullRequest}
+            title={integrations.length === 0 ? t('selectRepositoryPrompt') : t('noPullRequests')}
+            className="bg-zinc-50 dark:bg-zinc-800/50 rounded-lg border border-dashed border-zinc-300 dark:border-zinc-700"
+          />
         ) : (
           <>
             <div className="space-y-3">

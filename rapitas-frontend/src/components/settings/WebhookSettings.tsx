@@ -124,6 +124,7 @@ export function WebhookSettings() {
             value={slackUrl}
             onChange={(e) => setSlackUrl(e.target.value)}
             placeholder="https://hooks.slack.com/services/..."
+            aria-label={t('slackUrlLabel')}
             className="flex-1 px-3 py-2 text-sm rounded-lg border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 focus:border-indigo-400"
           />
           <button
@@ -147,6 +148,7 @@ export function WebhookSettings() {
             value={discordUrl}
             onChange={(e) => setDiscordUrl(e.target.value)}
             placeholder="https://discord.com/api/webhooks/..."
+            aria-label={t('discordUrlLabel')}
             className="flex-1 px-3 py-2 text-sm rounded-lg border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 focus:border-indigo-400"
           />
           <button

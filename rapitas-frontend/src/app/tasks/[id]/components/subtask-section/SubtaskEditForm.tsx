@@ -58,6 +58,7 @@ export function SubtaskEditForm({
           value={editingSubtaskTitle}
           onChange={(e) => onSetEditingTitle(e.target.value)}
           placeholder={t('subtaskTitle')}
+          aria-label={t('subtaskTitle')}
           autoFocus
         />
 
@@ -66,6 +67,7 @@ export function SubtaskEditForm({
           value={editingSubtaskDescription}
           onChange={(e) => onSetEditingDescription(e.target.value)}
           placeholder={t('descriptionMarkdown')}
+          aria-label={t('descriptionMarkdown')}
           rows={3}
         />
 
@@ -117,6 +119,7 @@ export function SubtaskEditForm({
               placeholder="0"
               value={editingSubtaskEstimatedHours}
               onChange={(e) => onSetEditingEstimatedHours(e.target.value)}
+              aria-label={t('subtaskEstimatedHours')}
             />
           </div>
         </div>
@@ -132,6 +135,7 @@ export function SubtaskEditForm({
             placeholder={t('labelsCommaSeparated')}
             value={editingSubtaskLabels}
             onChange={(e) => onSetEditingLabels(e.target.value)}
+            aria-label={t('subtaskLabels')}
           />
         </div>
 

@@ -32,6 +32,14 @@ export default function NoteHoverSidebarNoteItem({
   return (
     <div
       onClick={onSelect}
+      role="button"
+      tabIndex={0}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          onSelect();
+        }
+      }}
       className={`group px-3 py-2 rounded-lg cursor-pointer transition-all ${
         isActive
           ? 'bg-indigo-50 dark:bg-indigo-900/20 border-l-2 border-indigo-500'

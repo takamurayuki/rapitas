@@ -100,6 +100,7 @@ export const Note = memo(function Note({
                 <textarea
                   value={editText}
                   onChange={(e) => onEditText(e.target.value)}
+                  aria-label={tc('edit')}
                   className="w-full p-2 text-xs bg-white dark:bg-indigo-dark-800 border border-zinc-200 dark:border-zinc-700 rounded-lg resize-none outline-none focus:border-indigo-400 focus:border-indigo-400"
                   rows={3}
                   autoFocus
@@ -156,9 +157,17 @@ export const Note = memo(function Note({
                           <span className="max-w-[120px] truncate">{l.linkedComment.content}</span>
                           <span
                             role="button"
+                            tabIndex={0}
                             onClick={(e) => {
                               e.stopPropagation();
                               onUnlink(l.id);
+                            }}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter' || e.key === ' ') {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                onUnlink(l.id);
+                              }
                             }}
                             className="opacity-0 group-hover/l:opacity-100 hover:text-red-500 ml-0.5 transition-opacity"
                           >
@@ -225,6 +234,7 @@ export const Note = memo(function Note({
                       value={replyText}
                       onChange={(e) => onReplyText(e.target.value)}
                       placeholder={t('note.replyPlaceholder')}
+                      aria-label={t('note.replyPlaceholder')}
                       className="flex-1 px-2 py-1 text-xs bg-transparent outline-none placeholder:text-zinc-500"
                       autoFocus
                       onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), onReplySubmit())}

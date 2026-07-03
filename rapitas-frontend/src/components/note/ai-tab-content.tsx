@@ -8,6 +8,7 @@ import { useAIChat } from './useAIChat';
 import { fetchConfiguredProviders, fetchAvailableModels } from './ai-service';
 import ChatMessage from './chat-message';
 import type { ApiProvider } from '@/types';
+import { Spinner } from '@/components/ui/spinner';
 
 const PROVIDER_LABELS: Record<ApiProvider, string> = {
   claude: 'Claude',
@@ -234,7 +235,7 @@ export default function AITabContent() {
               <div className="flex justify-start mb-3">
                 <div className="bg-zinc-100 dark:bg-zinc-800 rounded-2xl rounded-bl-md px-3 py-2">
                   <div className="flex items-center gap-2">
-                    <Loader2 className="w-3.5 h-3.5 animate-spin text-indigo-500" />
+                    <Spinner size="sm" className="text-indigo-500" />
                     <span className="text-xs text-zinc-500 dark:text-zinc-400">
                       {t('aiTab.thinking')}
                     </span>

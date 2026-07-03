@@ -82,6 +82,14 @@ export function KanbanCard({
       {...provided.draggableProps}
       {...provided.dragHandleProps}
       onClick={() => onOpen(task.id)}
+      onKeyDown={(e) => {
+        // NOTE: @hello-pangea/dnd's drag-handle keyboard sensor listens at the
+        // window level, not via an onKeyDown prop, so overriding this handler
+        // does not interfere with keyboard drag-and-drop.
+        if (e.key === 'Enter') {
+          onOpen(task.id);
+        }
+      }}
       className={`rounded-lg border bg-white dark:bg-zinc-800 p-3 shadow-sm transition-all cursor-pointer ${
         snapshot.isDragging
           ? 'shadow-lg border-indigo-500'

@@ -3,15 +3,9 @@
 
 import React from 'react';
 import { useTranslations } from 'next-intl';
-import {
-  Loader2,
-  AlertCircle,
-  CheckCircle2,
-  GitPullRequest,
-  GitMerge,
-  ExternalLink,
-} from 'lucide-react';
+import { AlertCircle, CheckCircle2, GitPullRequest, GitMerge, ExternalLink } from 'lucide-react';
 import type { PrState } from './agent-execution-types';
+import { Spinner } from '@/components/ui/spinner';
 
 type Props = {
   /** Current PR workflow state. */
@@ -50,7 +44,7 @@ export function PrMergeSection({ prState, resetPrState, onCreatePR, onApproveMer
 
       {prState.status === 'creating_pr' && (
         <div className="flex items-center gap-2 text-sm text-zinc-500 dark:text-zinc-400">
-          <Loader2 className="w-4 h-4 animate-spin" />
+          <Spinner size="sm" />
           {t('creatingPr')}
         </div>
       )}
@@ -84,7 +78,7 @@ export function PrMergeSection({ prState, resetPrState, onCreatePR, onApproveMer
 
       {prState.status === 'merging' && (
         <div className="flex items-center gap-2 text-sm text-zinc-500 dark:text-zinc-400">
-          <Loader2 className="w-4 h-4 animate-spin" />
+          <Spinner size="sm" />
           {t('merging')}
         </div>
       )}

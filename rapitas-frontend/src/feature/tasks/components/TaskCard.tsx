@@ -11,6 +11,7 @@ import { useToast } from '@/components/ui/toast/ToastContainer';
 import { getLabelsArray, hasLabels } from '@/utils/labels';
 import { getIconComponent } from '@/components/category/icon-data';
 import { ModernCheckbox } from '@/components/ui/ModernCheckbox';
+import { resolveBlockedCauseLabel } from '@/components/workflow/workflow-blocked-cause';
 import { useTranslations } from 'next-intl';
 import { useLocaleStore } from '@/stores/locale-store';
 import { toDateLocale } from '@/lib/utils';
@@ -142,14 +143,14 @@ const TaskCard = memo(function TaskCard({
                   ).replace('border-l-', 'border-')}`
             } shrink-0`}
             aria-label={tc.isWaitingForInput ? tc.waitingAmberConfig.label : tc.currentStatus.label}
-            // NOTE: Only the GENERIC hint — the actual blocked cause lives in a
-            // separate /workflow/tasks/:taskId/transitions fetch, and firing that
-            // per card in a list view would be N requests. The richer follow-up
-            // is a batched fetch (join the latest WorkflowTransition per task
-            // into the list endpoint) so the list can show the real cause.
+            // The list endpoint batches the latest WorkflowTransition.cause onto
+            // `task.blockedCause` for blocked tasks (one query for the whole
+            // list — see attachBlockedCauses on the backend). Fall back to the
+            // generic hint when the cause is absent/unrecognized.
             title={
               (task.status as string) === 'blocked'
-                ? tWorkflow('statusIndicator.blockedGenericHint')
+                ? (resolveBlockedCauseLabel(tWorkflow, task.blockedCause) ??
+                  tWorkflow('statusIndicator.blockedGenericHint'))
                 : undefined
             }
           >

@@ -13,6 +13,7 @@ import {
   Sparkles,
 } from 'lucide-react';
 import { useTranslations } from 'next-intl';
+import { Spinner } from '@/components/ui/spinner';
 import type { OptimizedPromptResult } from './types';
 
 /** Returns a human-readable category label for a clarification question. */
@@ -84,7 +85,7 @@ export function PromptOptimizationTab({
   if (isGeneratingPrompt) {
     return (
       <div className="flex items-center gap-3 p-4 bg-zinc-50 dark:bg-indigo-dark-800/50 rounded-lg">
-        <Loader2 className="w-5 h-5 text-indigo-500 animate-spin" />
+        <Spinner size="md" className="text-indigo-500" />
         <span className="text-sm text-zinc-600 dark:text-zinc-400">{t('optimizing')}</span>
       </div>
     );

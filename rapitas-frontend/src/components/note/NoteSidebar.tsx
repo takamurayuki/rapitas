@@ -55,6 +55,14 @@ function NoteItem({
   return (
     <div
       onClick={onSelect}
+      role="button"
+      tabIndex={0}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          onSelect();
+        }
+      }}
       className={`group flex items-center gap-2 pl-10 pr-2 py-1.5 rounded-md cursor-pointer transition-colors ${
         isActive
           ? 'bg-indigo-50 dark:bg-indigo-900/20 text-indigo-700 dark:text-indigo-300'
@@ -236,6 +244,7 @@ export default function NoteSidebar() {
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             placeholder={t('common.searchPlaceholder')}
+            aria-label={t('common.searchPlaceholder')}
             className="w-full pl-8 pr-3 py-1.5 text-xs bg-white dark:bg-zinc-700 border border-zinc-200 dark:border-zinc-600 rounded-lg focus:outline-none focus:border-indigo-400 dark:focus:border-indigo-500 text-zinc-700 dark:text-zinc-200 placeholder:text-zinc-400"
           />
         </div>

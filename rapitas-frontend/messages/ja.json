@@ -1361,7 +1361,9 @@
       "title": "通知設定",
       "enableNotifications": "通知を有効にする",
       "notificationSound": "通知音",
-      "quietHoursMode": "おやすみモード"
+      "quietHoursMode": "おやすみモード",
+      "quietHoursStartLabel": "おやすみモード開始時刻",
+      "quietHoursEndLabel": "おやすみモード終了時刻"
     },
     "webhookSettings": {
       "saved": "保存しました",

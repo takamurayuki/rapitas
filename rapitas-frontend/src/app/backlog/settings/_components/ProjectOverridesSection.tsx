@@ -12,10 +12,11 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { useTranslations } from 'next-intl';
-import { Sparkles, Bug, Activity, Loader2, FolderCog } from 'lucide-react';
+import { Sparkles, Bug, Activity, FolderCog } from 'lucide-react';
 import { API_BASE_URL } from '@/utils/api';
 import { useToast } from '@/components/ui/toast/ToastContainer';
 import { DirectoryPicker } from '@/components/ui/DirectoryPicker';
+import { Spinner } from '@/components/ui/spinner';
 
 type JobKind = 'innovation' | 'vuln_scan' | 'health_check';
 type LogFormat = 'pino' | 'json' | 'text';
@@ -158,7 +159,7 @@ export default function ProjectOverridesSection() {
   if (isLoading) {
     return (
       <div className="flex items-center justify-center py-10 text-zinc-400">
-        <Loader2 className="h-4 w-4 animate-spin" />
+        <Spinner size="sm" />
       </div>
     );
   }

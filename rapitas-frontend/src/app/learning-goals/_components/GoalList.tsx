@@ -6,6 +6,7 @@ import { ChevronRight, CheckCircle2, Target } from 'lucide-react';
 import type { LearningGoal } from '@/types';
 import { useLocaleStore } from '@/stores/locale-store';
 import { toDateLocale } from '@/lib/utils';
+import { EmptyState } from '@/components/ui/empty-state';
 
 type Props = {
   /** The list of goals to display. */
@@ -30,14 +31,12 @@ export function GoalList({ goals, selectedGoalId, showWizard, onSelect }: Props)
 
   if (goals.length === 0) {
     return showWizard ? null : (
-      <div className="bg-white dark:bg-zinc-800 rounded-xl border border-zinc-200 dark:border-zinc-700 p-8 text-center">
-        <Target className="w-12 h-12 mx-auto text-zinc-300 dark:text-zinc-600 mb-3" />
-        <p className="text-sm text-zinc-500 dark:text-zinc-400">
-          {t('noGoalsYet')}
-          <br />
-          {t('startFromNewGoal')}
-        </p>
-      </div>
+      <EmptyState
+        icon={Target}
+        title={t('noGoalsYet')}
+        description={t('startFromNewGoal')}
+        className="bg-white dark:bg-zinc-800 rounded-xl border border-zinc-200 dark:border-zinc-700"
+      />
     );
   }
 

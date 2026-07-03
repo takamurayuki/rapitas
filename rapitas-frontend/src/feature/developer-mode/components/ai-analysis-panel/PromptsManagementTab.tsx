@@ -15,6 +15,7 @@ import {
   Save,
 } from 'lucide-react';
 import type { PromptsData } from './types';
+import { Spinner } from '@/components/ui/spinner';
 
 type Props = {
   promptsData: PromptsData | null;
@@ -99,7 +100,7 @@ export function PromptsManagementTab({
 
       {isLoadingPrompts ? (
         <div className="flex items-center justify-center py-8">
-          <Loader2 className="w-6 h-6 text-zinc-400 animate-spin" />
+          <Spinner size="lg" />
         </div>
       ) : promptsData ? (
         <div className="space-y-3">

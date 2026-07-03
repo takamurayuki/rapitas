@@ -16,6 +16,7 @@ import {
   timeToMinutes,
   getDurationParts,
 } from './schedule-utils';
+import { EmptyState } from '@/components/ui/empty-state';
 
 type BlockListProps = {
   blocks: DailyScheduleBlock[];
@@ -60,11 +61,12 @@ export function BlockList({
         </h2>
 
         {blocks.length === 0 ? (
-          <div className="text-center py-8">
-            <Clock className="w-12 h-12 mx-auto text-zinc-300 dark:text-zinc-600 mb-3" />
-            <p className="text-zinc-500 dark:text-zinc-400">{t('noBlocks')}</p>
-            <p className="text-sm text-zinc-500 dark:text-zinc-500 mt-1">{t('noBlocksHint')}</p>
-          </div>
+          <EmptyState
+            icon={Clock}
+            title={t('noBlocks')}
+            description={t('noBlocksHint')}
+            className="py-8"
+          />
         ) : (
           <div className="space-y-2">
             {blocks

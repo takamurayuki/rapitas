@@ -7,10 +7,11 @@
  */
 import { useCallback, useEffect, useState } from 'react';
 import { useTranslations } from 'next-intl';
-import { AlertTriangle, RefreshCw, Trash2, Loader2 } from 'lucide-react';
+import { AlertTriangle, RefreshCw, Trash2 } from 'lucide-react';
 import { API_BASE_URL } from '@/utils/api';
 import { useLocaleStore } from '@/stores/locale-store';
 import { toDateLocale } from '@/lib/utils';
+import { Spinner } from '@/components/ui/spinner';
 
 interface CapturedError {
   id: string;
@@ -111,7 +112,7 @@ export default function RecentErrorsCard() {
 
       {loading ? (
         <div className="flex h-20 items-center justify-center">
-          <Loader2 className="h-4 w-4 animate-spin text-zinc-400" />
+          <Spinner size="sm" />
         </div>
       ) : !data?.errors.length ? (
         <p className="text-xs text-green-600 dark:text-green-400">{t('noErrors')}</p>

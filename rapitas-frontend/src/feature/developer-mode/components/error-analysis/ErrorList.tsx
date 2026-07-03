@@ -103,7 +103,18 @@ export function ErrorList({
               key={error.id}
               className="border-b dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors"
             >
-              <div className="p-4 cursor-pointer" onClick={() => onToggleExpansion(error.id)}>
+              <div
+                className="p-4 cursor-pointer"
+                onClick={() => onToggleExpansion(error.id)}
+                role="button"
+                tabIndex={0}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    onToggleExpansion(error.id);
+                  }
+                }}
+              >
                 <div className="flex items-start space-x-3">
                   <button
                     className="mt-1"

@@ -22,6 +22,7 @@ import { Timer, RefreshCw, Loader2, AlertCircle } from 'lucide-react';
 import { API_BASE_URL } from '@/utils/api';
 import { useLocaleStore } from '@/stores/locale-store';
 import { toDateLocale } from '@/lib/utils';
+import { Spinner } from '@/components/ui/spinner';
 
 /** Shared tooltip style matching MetricsCharts.tsx dark-mode palette. */
 const tooltipStyle = {
@@ -159,7 +160,7 @@ export function CiTimingDashboard() {
         {/* Loading skeleton */}
         {loading && !data && (
           <div className="flex items-center gap-2 text-sm text-zinc-500 dark:text-zinc-500">
-            <Loader2 className="h-4 w-4 animate-spin" />
+            <Spinner size="sm" />
             {t('fetchingData')}
           </div>
         )}

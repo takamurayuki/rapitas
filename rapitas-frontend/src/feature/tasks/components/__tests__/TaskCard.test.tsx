@@ -287,6 +287,44 @@ describe('TaskCard', () => {
       const icon = screen.getByTestId('status-icon-todo');
       expect(icon.closest('div')).not.toHaveAttribute('title');
     });
+
+    it('blockedCauseが既知コードの場合、バッチ取得したcauseを反映したtitleになる', () => {
+      const blockedTask = {
+        ...mockTask,
+        status: 'blocked' as Status,
+        blockedCause: 'verify_pr_not_created',
+      };
+      render(<TaskCard {...mockProps} task={blockedTask} />);
+      const icon = screen.getByTestId('status-icon-blocked');
+      expect(icon.closest('div[title]')).toHaveAttribute(
+        'title',
+        'statusIndicator.blockedCauses.verifyPrNotCreated',
+      );
+    });
+
+    it('blockedCauseが未知コードの場合、unknown-causeのtitleになる', () => {
+      const blockedTask = {
+        ...mockTask,
+        status: 'blocked' as Status,
+        blockedCause: 'some_unrecognized_code',
+      };
+      render(<TaskCard {...mockProps} task={blockedTask} />);
+      const icon = screen.getByTestId('status-icon-blocked');
+      expect(icon.closest('div[title]')).toHaveAttribute(
+        'title',
+        'statusIndicator.blockedCauseUnknown',
+      );
+    });
+
+    it('blockedCauseが無い場合は汎用ヒントにフォールバックする', () => {
+      const blockedTask = { ...mockTask, status: 'blocked' as Status, blockedCause: null };
+      render(<TaskCard {...mockProps} task={blockedTask} />);
+      const icon = screen.getByTestId('status-icon-blocked');
+      expect(icon.closest('div[title]')).toHaveAttribute(
+        'title',
+        'statusIndicator.blockedGenericHint',
+      );
+    });
   });
 
   describe('プライオリティ表示', () => {

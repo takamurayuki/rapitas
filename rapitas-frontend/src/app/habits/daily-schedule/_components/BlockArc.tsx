@@ -67,6 +67,15 @@ export function BlockArc({ block, isHovered, onHover, onClick }: BlockArcProps) 
       onMouseEnter={() => onHover(block.id)}
       onMouseLeave={() => onHover(null)}
       onClick={() => onClick(block)}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          onClick(block);
+        }
+      }}
+      role="button"
+      tabIndex={0}
+      aria-label={block.label}
       className="cursor-pointer"
     >
       <path

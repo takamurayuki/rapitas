@@ -7,6 +7,7 @@ import { CircleSmall, Diamond, Pyramid, type LucideIcon } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { API_BASE_URL } from '@/utils/api';
 import { Spinner } from '@/components/ui/spinner';
+import { resolveBlockedCauseLabel } from '@/components/workflow/workflow-blocked-cause';
 
 export interface TaskWorkflowSectionProps {
   task: Task;
@@ -19,22 +20,6 @@ export interface TaskWorkflowSectionProps {
   onTaskUpdated?: () => void;
   setTask: React.Dispatch<React.SetStateAction<Task | null>>;
 }
-
-/**
- * WorkflowTransition.cause codes that co-occur with `task.status === 'blocked'`
- * writes (grepped from services/workflow — see the recordTransition call sites
- * in workflow-orchestrator.ts, workflow-cli-executor.ts and
- * subtask-completion-handler.ts). Maps each to a translation key under
- * `workflow.statusIndicator.blockedCauses`; unrecognized/unset causes fall back
- * to the generic hint.
- */
-const BLOCKED_CAUSE_I18N_KEYS: Record<string, string> = {
-  plan_invalid_replan_exhausted: 'planInvalidReplanExhausted',
-  verify_pr_not_created: 'verifyPrNotCreated',
-  verify_validation_failed: 'verifyValidationFailed',
-  verify_no_changes: 'verifyNoChanges',
-  subtask_failed: 'subtaskFailed',
-};
 
 /**
  * Workflow section component for development theme tasks.
@@ -83,13 +68,8 @@ export default function TaskWorkflowSection({
         };
         if (cancelled || !data.success || !data.transitions?.length) return;
         const latestCause = data.transitions[data.transitions.length - 1]?.cause ?? null;
-        if (!latestCause) return;
-        const i18nKey = BLOCKED_CAUSE_I18N_KEYS[latestCause];
-        setBlockedCause(
-          i18nKey
-            ? t(`statusIndicator.blockedCauses.${i18nKey}`)
-            : t('statusIndicator.blockedCauseUnknown', { cause: latestCause }),
-        );
+        const label = resolveBlockedCauseLabel(t, latestCause);
+        if (label) setBlockedCause(label);
       } catch {
         // Non-fatal — the pill falls back to the generic hint.
       }

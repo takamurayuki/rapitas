@@ -65,6 +65,7 @@ export function LabelForm({
             value={formData.name}
             onChange={(e) => set({ name: e.target.value })}
             placeholder={t('form.namePlaceholder')}
+            aria-label={t('form.nameLabel')}
             className="w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 px-3 py-2 text-sm focus:outline-none focus:border-indigo-400 transition-all"
             autoFocus
           />
@@ -80,6 +81,7 @@ export function LabelForm({
             onChange={(e) => set({ description: e.target.value })}
             placeholder={t('form.descriptionPlaceholder')}
             rows={1}
+            aria-label={tCommon('descriptionOptional')}
             className="w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 px-3 py-2 text-sm focus:outline-none focus:border-indigo-400 transition-all resize-none"
           />
         </div>
@@ -95,12 +97,14 @@ export function LabelForm({
                 type="color"
                 value={formData.color}
                 onChange={(e) => set({ color: e.target.value })}
+                aria-label={tCommon('color')}
                 className="h-9 w-12 rounded-lg border border-zinc-300 dark:border-zinc-700 cursor-pointer"
               />
               <input
                 type="text"
                 value={formData.color}
                 onChange={(e) => set({ color: e.target.value })}
+                aria-label={tCommon('color')}
                 className="flex-1 rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 px-3 py-2 text-sm focus:outline-none focus:border-indigo-400 transition-all font-mono"
               />
             </div>
@@ -135,6 +139,7 @@ export function LabelForm({
               value={iconSearchQuery}
               onChange={(e) => setIconSearchQuery(e.target.value)}
               placeholder={t('form.iconSearchPlaceholder')}
+              aria-label={t('form.iconSearchPlaceholder')}
               className="w-full pl-9 pr-3 py-2 rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-sm focus:outline-none focus:border-indigo-400 transition-all"
             />
           </div>

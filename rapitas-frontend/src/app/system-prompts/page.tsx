@@ -19,6 +19,7 @@ import { AddPromptModal } from './components/AddPromptModal';
 import { PromptEvolutionSummary } from './components/PromptEvolutionSummary';
 import { useToast } from '@/components/ui/toast/ToastContainer';
 import { useConfirmDialog } from '@/components/ui/dialog/ConfirmDialogProvider';
+import { EmptyState } from '@/components/ui/empty-state';
 
 const logger = createLogger('SystemPromptsPage');
 
@@ -217,12 +218,11 @@ export default function SystemPromptsPage() {
         </div>
 
         {Object.keys(groupedPrompts).length === 0 ? (
-          <div className="text-center py-12 bg-zinc-50 dark:bg-zinc-800/50 rounded-lg border border-dashed border-zinc-300 dark:border-zinc-700">
-            <MessageSquare className="w-12 h-12 mx-auto text-zinc-400 mb-4" />
-            <p className="text-zinc-500 dark:text-zinc-400">
-              {searchQuery ? t('noSearchResults') : t('noPrompts')}
-            </p>
-          </div>
+          <EmptyState
+            icon={MessageSquare}
+            title={searchQuery ? t('noSearchResults') : t('noPrompts')}
+            className="bg-zinc-50 dark:bg-zinc-800/50 rounded-lg border border-dashed border-zinc-300 dark:border-zinc-700"
+          />
         ) : (
           <div className="space-y-6">
             {Object.entries(groupedPrompts).map(([category, categoryPrompts]) => {

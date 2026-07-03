@@ -14,6 +14,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useTranslations } from 'next-intl';
+import { Spinner } from '@/components/ui/spinner';
 import {
   CheckCircle,
   XCircle,
@@ -141,7 +142,7 @@ export default function SetupWizardPage() {
           <ErrorPanel message={error} onRetry={fetchStatus} />
         ) : !status ? (
           <div className="flex h-40 items-center justify-center">
-            <Loader2 className="h-6 w-6 animate-spin text-zinc-400" />
+            <Spinner size="md" />
           </div>
         ) : (
           <div className="space-y-4">

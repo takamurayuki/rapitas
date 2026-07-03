@@ -9,6 +9,7 @@ import { Pencil, Trash2, Tag } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import type { LabelItem, LabelFormData } from '../_hooks/useLabelsPage';
 import { LabelForm } from './label-form';
+import { EmptyState } from '@/components/ui/empty-state';
 
 type Props = {
   labels: LabelItem[];
@@ -49,11 +50,12 @@ export function LabelList({
 
   if (labels.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center py-16 text-zinc-500 dark:text-zinc-600">
-        <Tag className="w-10 h-10 mb-3 opacity-40" />
-        <p className="text-sm">{t('list.emptyTitle')}</p>
-        <p className="text-xs mt-1">{t('list.emptyHint')}</p>
-      </div>
+      <EmptyState
+        icon={Tag}
+        title={t('list.emptyTitle')}
+        description={t('list.emptyHint')}
+        className="py-16"
+      />
     );
   }
 

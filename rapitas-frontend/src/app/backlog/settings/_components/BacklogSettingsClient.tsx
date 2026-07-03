@@ -15,6 +15,7 @@ import { Sparkles, Bug, Activity, Play, Loader2, CalendarClock } from 'lucide-re
 import { API_BASE_URL } from '@/utils/api';
 import { useToast } from '@/components/ui/toast/ToastContainer';
 import ProjectOverridesSection from './ProjectOverridesSection';
+import { Spinner } from '@/components/ui/spinner';
 
 type JobKind = 'innovation' | 'vuln_scan' | 'health_check';
 type Frequency = 'daily' | 'weekly';
@@ -130,7 +131,7 @@ export default function BacklogSettingsClient() {
   if (isLoading) {
     return (
       <div className="flex items-center justify-center py-20 text-zinc-400">
-        <Loader2 className="h-5 w-5 animate-spin" />
+        <Spinner size="md" />
       </div>
     );
   }

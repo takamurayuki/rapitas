@@ -6,6 +6,7 @@ import { useTranslations } from 'next-intl';
 import { ExecutionLogViewer, type ExecutionLogStatus } from './ExecutionLogViewer';
 import { API_BASE_URL } from '@/utils/api';
 import { createLogger } from '@/lib/logger';
+import { Spinner } from '@/components/ui/spinner';
 
 const logger = createLogger('TabbedExecutionLogViewer');
 import type { ParallelExecutionStatus } from '@/feature/tasks/components/status/SubtaskExecutionStatus';
@@ -221,7 +222,7 @@ export const TabbedExecutionLogViewer: React.FC<TabbedExecutionLogViewerProps> =
       <div className="relative">
         {loadingSubtaskId === selectedTab && (
           <div className="absolute inset-0 flex items-center justify-center bg-zinc-900/80 z-10">
-            <Loader2 className="w-5 h-5 animate-spin text-violet-400" />
+            <Spinner size="md" className="text-violet-400" />
           </div>
         )}
         <ExecutionLogViewer

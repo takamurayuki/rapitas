@@ -11,6 +11,7 @@ import { Database, Download, Loader2, AlertTriangle, CheckCircle } from 'lucide-
 import { API_BASE_URL } from '@/utils/api';
 import { useLocaleStore } from '@/stores/locale-store';
 import { toDateLocale } from '@/lib/utils';
+import { Spinner } from '@/components/ui/spinner';
 
 interface BackupItem {
   filename: string;
@@ -117,7 +118,7 @@ export default function BackupCard() {
 
       {loading ? (
         <div className="flex h-20 items-center justify-center">
-          <Loader2 className="h-4 w-4 animate-spin text-zinc-400" />
+          <Spinner size="sm" />
         </div>
       ) : error ? (
         <div className="text-xs text-red-500">{error}</div>

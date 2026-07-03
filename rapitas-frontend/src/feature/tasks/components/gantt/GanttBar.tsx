@@ -20,6 +20,14 @@ export function GanttBar({ bar, isOnCriticalPath = false, onClick, onHover }: Ga
     onClick?.(bar.taskId);
   };
 
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      e.stopPropagation();
+      onClick?.(bar.taskId);
+    }
+  };
+
   const handleMouseEnter = () => {
     onHover?.(bar.taskId);
   };
@@ -57,6 +65,9 @@ export function GanttBar({ bar, isOnCriticalPath = false, onClick, onHover }: Ga
         onClick={handleClick}
         onMouseEnter={handleMouseEnter}
         onMouseLeave={handleMouseLeave}
+        onKeyDown={onClick ? handleKeyDown : undefined}
+        role={onClick ? 'button' : undefined}
+        tabIndex={onClick ? 0 : undefined}
       />
 
       {/* ステータスインジケーター */}

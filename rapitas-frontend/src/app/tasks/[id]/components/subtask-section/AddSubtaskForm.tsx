@@ -56,6 +56,7 @@ export function AddSubtaskForm({
               }
             }}
             placeholder={t('addSubtaskPlaceholder')}
+            aria-label={t('addSubtaskPlaceholder')}
             autoFocus
           />
         </div>
@@ -66,6 +67,7 @@ export function AddSubtaskForm({
             value={newSubtaskDescription}
             onChange={(e) => onSetNewSubtaskDescription(e.target.value)}
             placeholder={t('subtaskDescriptionPlaceholder')}
+            aria-label={t('subtaskDescriptionPlaceholder')}
             rows={3}
           />
         </div>
@@ -84,6 +86,7 @@ export function AddSubtaskForm({
               placeholder="0"
               value={newSubtaskEstimatedHours}
               onChange={(e) => onSetNewSubtaskEstimatedHours(e.target.value)}
+              aria-label={t('subtaskEstimatedHours')}
             />
           </div>
 
@@ -98,6 +101,7 @@ export function AddSubtaskForm({
               placeholder={t('labelsCommaSeparated')}
               value={newSubtaskLabels}
               onChange={(e) => onSetNewSubtaskLabels(e.target.value)}
+              aria-label={t('subtaskLabels')}
             />
           </div>
         </div>

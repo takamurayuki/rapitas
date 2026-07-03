@@ -11,6 +11,7 @@
 
 import { useTranslations } from 'next-intl';
 import { Loader2, CheckCircle, Plus, Bot } from 'lucide-react';
+import { Spinner } from '@/components/ui/spinner';
 import type { AIAgentConfig, ApiProvider, ApiKeyStatusMap } from './types';
 import { AGENT_TYPE_INFO, CLI_AGENT_TYPES } from './types';
 import { InlineAddAgentForm } from './InlineAddAgentForm';
@@ -125,7 +126,7 @@ export function AgentSelector({
   if (isLoadingAgents || isLoadingApiKeys) {
     return (
       <div className="flex items-center gap-2 text-sm text-zinc-500">
-        <Loader2 className="w-4 h-4 animate-spin" />
+        <Spinner size="sm" />
         {tCommon('loading')}
       </div>
     );

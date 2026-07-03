@@ -9,7 +9,8 @@
  * that tier actually uses. Replaces the separate roles + modes panels.
  */
 import { useState, useEffect, useMemo, useCallback } from 'react';
-import { Loader2, AlertTriangle } from 'lucide-react';
+import { AlertTriangle } from 'lucide-react';
+import { Spinner } from '@/components/ui/spinner';
 import { useTranslations } from 'next-intl';
 import type { AIAgentConfig, WorkflowRole } from '@/types';
 import { useWorkflowRoles } from '@/hooks/workflow/useWorkflowRoles';
@@ -261,7 +262,7 @@ export default function WorkflowRolesConfig({ agents, availableModels }: Workflo
   if (isLoading) {
     return (
       <div className="flex items-center justify-center py-12">
-        <Loader2 className="h-6 w-6 animate-spin text-zinc-500" />
+        <Spinner size="md" />
         <span className="ml-2 text-sm text-zinc-500 dark:text-zinc-400">
           {t('rolesConfig.loading')}
         </span>

@@ -13,6 +13,7 @@ import {
   Check,
 } from 'lucide-react';
 import { useTranslations } from 'next-intl';
+import { Spinner } from '@/components/ui/spinner';
 import type { PromptResult, PromptClarificationQuestion } from './types';
 
 export type PromptPanelProps = {
@@ -64,7 +65,7 @@ export function PromptPanel({
         role="tabpanel"
         className="flex items-center gap-2 p-2.5 bg-zinc-50 dark:bg-zinc-800/50 rounded-lg"
       >
-        <Loader2 className="w-3.5 h-3.5 text-indigo-500 animate-spin" />
+        <Spinner size="sm" className="text-indigo-500" />
         <span className="text-xs text-zinc-600 dark:text-zinc-400">{t('optimizing')}</span>
       </div>
     );

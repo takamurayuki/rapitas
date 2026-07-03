@@ -8,9 +8,10 @@
  * the per-execution metrics already recorded by the orchestrator.
  */
 import { useEffect, useState } from 'react';
-import { Activity, AlertTriangle, DollarSign, Zap, Loader2 } from 'lucide-react';
+import { Activity, AlertTriangle, DollarSign, Zap } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { API_BASE_URL } from '@/utils/api';
+import { Spinner } from '@/components/ui/spinner';
 
 interface DailyCostPoint {
   date: string;
@@ -104,7 +105,7 @@ export default function SelfObservationWidget() {
 
       {loading ? (
         <div className="flex h-32 items-center justify-center">
-          <Loader2 className="h-5 w-5 animate-spin text-zinc-400" />
+          <Spinner size="md" />
         </div>
       ) : error ? (
         <div className="flex h-32 items-center justify-center text-xs text-red-500">{error}</div>

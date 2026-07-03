@@ -49,6 +49,7 @@ export default function TaskComments({
           className="w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-indigo-dark-900 px-4 py-3 text-sm shadow-sm focus:outline-none focus:border-indigo-400 font-mono"
           rows={3}
           placeholder={t('taskComments.addPlaceholder')}
+          aria-label={t('taskComments.addPlaceholder')}
         />
         <div className="mt-2 flex justify-end">
           <button

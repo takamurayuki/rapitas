@@ -40,7 +40,7 @@ export function ProductivityHeatmap() {
   }, [fetch, selectedDays]);
 
   const handleCellClick = useCallback(
-    async (day: number, hour: number, e: React.MouseEvent) => {
+    async (day: number, hour: number, e: React.MouseEvent | React.KeyboardEvent) => {
       e.preventDefault();
       const rect = (e.target as HTMLElement).getBoundingClientRect();
       setLoadingPopover(true);
@@ -166,6 +166,14 @@ export function ProductivityHeatmap() {
                       className={`flex-1 h-5 rounded-sm cursor-pointer ${getHeatColor(completions, maxCompletions)} hover:ring-2 hover:ring-indigo-300 dark:hover:ring-indigo-500 transition-all`}
                       title={t('cellTitle', { day: dayLabel, hour: hourIndex, count: completions })}
                       onClick={(e) => handleCellClick(dayIndex, hourIndex, e)}
+                      role="button"
+                      tabIndex={0}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' || e.key === ' ') {
+                          e.preventDefault();
+                          handleCellClick(dayIndex, hourIndex, e);
+                        }
+                      }}
                     />
                   );
                 })}

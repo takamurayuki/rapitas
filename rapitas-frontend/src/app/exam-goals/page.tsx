@@ -11,6 +11,7 @@ import { createLogger } from '@/lib/logger';
 import { UpcomingGoalCard, CompletedGoalCard } from './_components/GoalCard';
 import { GoalModal } from './_components/GoalModal';
 import type { ExamGoalFormData } from './_components/constants';
+import { EmptyState } from '@/components/ui/empty-state';
 
 const logger = createLogger('ExamGoalsPage');
 
@@ -204,12 +205,7 @@ export default function ExamGoalsPage() {
         </div>
       )}
 
-      {examGoals.length === 0 && (
-        <div className="text-center py-12">
-          <Target className="w-12 h-12 mx-auto text-zinc-300 dark:text-zinc-600 mb-4" />
-          <p className="text-zinc-500 dark:text-zinc-400">{t('none')}</p>
-        </div>
-      )}
+      {examGoals.length === 0 && <EmptyState icon={Target} title={t('none')} />}
 
       {isModalOpen && (
         <GoalModal

@@ -13,6 +13,7 @@ import {
   Maximize2,
 } from 'lucide-react';
 import { useAIChat } from '../note/useAIChat';
+import { Spinner } from '@/components/ui/spinner';
 import { fetchConfiguredProviders, fetchAvailableModels } from '../note/ai-service';
 import Link from 'next/link';
 import type { AIChatMessage, ApiProvider } from '@/types';
@@ -315,7 +316,7 @@ export default function AIAssistantPanel() {
                   <div className="flex justify-start mb-4">
                     <div className="bg-white dark:bg-zinc-800 rounded-2xl rounded-bl-md px-4 py-3 shadow-md">
                       <div className="flex items-center gap-2">
-                        <Loader2 className="w-4 h-4 animate-spin text-indigo-500" />
+                        <Spinner size="sm" className="text-indigo-500" />
                         <span className="text-sm text-zinc-500 dark:text-zinc-400">
                           {t('thinking')}
                         </span>
