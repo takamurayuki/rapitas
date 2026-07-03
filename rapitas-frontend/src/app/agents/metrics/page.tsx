@@ -10,6 +10,7 @@ import { MetricsOverviewCards } from './_components/MetricsOverviewCards';
 import { MetricsFilters } from './_components/MetricsFilters';
 import { MetricsCharts } from './_components/MetricsCharts';
 import { MetricsTable } from './_components/MetricsTable';
+import { RepairConvergenceCard } from './_components/RepairConvergenceCard';
 import { SelfObservationWidget, CostOptimizationWidget } from '@/components/widgets';
 import { WorkflowLearningPanel } from '@/feature/intelligence/components/WorkflowLearningPanel';
 
@@ -79,6 +80,8 @@ function AgentMetricsPage() {
         />
 
         {overview && <MetricsOverviewCards overview={overview} />}
+
+        <RepairConvergenceCard />
 
         <div className="my-6">
           <SelfObservationWidget />
