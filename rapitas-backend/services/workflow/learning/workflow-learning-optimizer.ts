@@ -149,26 +149,28 @@ export async function getWorkflowRecommendation(
       }
     }
 
-    const estimatedDuration = await estimateDurationFromHistory(
-      task.themeId,
-      recommendedMode,
-      analysis.complexityScore,
-    );
-
     if (matchedRules.length > 0) {
       await prisma.workflowOptimizationRule.updateMany({
         where: { id: { in: matchedRules.map((r) => r.ruleId) } },
         data: { lastEvaluated: new Date() },
       });
-    }
-
-    if (matchedRules.length === 0) {
+    } else {
+      // NOTE: Resolved before estimateDurationFromHistory below so the duration
+      // estimate reflects the final recommended mode. Previously this ran AFTER
+      // the estimate was computed, so a direct-insight override left the
+      // returned estimatedDuration stale (computed for the pre-override mode).
       const directInsight = await getDirectInsight(task, analysis.complexityScore);
       if (directInsight) {
         recommendedMode = directInsight.mode as 'lightweight' | 'standard' | 'comprehensive';
         reasons.push(directInsight.reason);
       }
     }
+
+    const estimatedDuration = await estimateDurationFromHistory(
+      task.themeId,
+      recommendedMode,
+      analysis.complexityScore,
+    );
 
     const confidence =
       matchedRules.length > 0
