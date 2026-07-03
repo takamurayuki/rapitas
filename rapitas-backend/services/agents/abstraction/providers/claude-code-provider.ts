@@ -14,12 +14,16 @@ import type {
 import type { IAgentProvider, IAgent } from '../interfaces';
 import { createDefaultCapabilities } from '../index';
 import { ClaudeCodeAgentAdapter } from './claude-code-agent-adapter';
+import { execSync } from 'child_process';
+import { existsSync } from 'fs';
 
+// NOTE: static imports (not require()) so bun:test's mock.module() can
+// intercept this path in tests — require() bypasses Bun's ESM module mock
+// registry, which silently made resolveCliPath's `where` resolution hit the
+// real filesystem/CLI in any test that exercised isAvailable()/healthCheck().
 function resolveCliPath(cliName: string): string {
   if (process.platform !== 'win32') return cliName;
   try {
-    const { execSync } = require('child_process');
-    const { existsSync } = require('fs');
     const resolved = execSync(`where ${cliName}`, {
       encoding: 'utf8',
       timeout: 5000,
