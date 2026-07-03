@@ -1,4 +1,6 @@
+import { useEffect, useRef } from 'react';
 import { useTranslations } from 'next-intl';
+import { useFocusTrap } from '@/components/ui/modal/use-focus-trap';
 
 interface TimeEntryDialogProps {
   show: boolean;
@@ -17,12 +19,35 @@ export default function TimeEntryDialog({
 }: TimeEntryDialogProps) {
   const t = useTranslations('task');
   const tCommon = useTranslations('common');
+  const panelRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!show) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onCancel();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [show, onCancel]);
+
+  useFocusTrap(panelRef, show);
+
   if (!show) return null;
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white dark:bg-indigo-dark-900 rounded-lg shadow-xl border border-zinc-200 dark:border-zinc-800 w-full max-w-md p-6">
-        <h3 className="text-lg font-bold text-zinc-900 dark:text-zinc-50 mb-4">
+      <div
+        ref={panelRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="time-entry-dialog-title"
+        tabIndex={-1}
+        className="bg-white dark:bg-indigo-dark-900 rounded-lg shadow-xl border border-zinc-200 dark:border-zinc-800 w-full max-w-md p-6"
+      >
+        <h3
+          id="time-entry-dialog-title"
+          className="text-lg font-bold text-zinc-900 dark:text-zinc-50 mb-4"
+        >
           {t('timeEntryDialog.heading')}
         </h3>
         <div className="mb-4">

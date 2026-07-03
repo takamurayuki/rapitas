@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { WorkflowFile } from '@/types';
 import { useWorkflowApproval } from '@/hooks/workflow/useWorkflowApproval';
 import ReactMarkdown from 'react-markdown';
@@ -9,6 +9,7 @@ import { X, CheckCircle, AlertTriangle, FileText, Loader2 } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { useLocaleStore } from '@/stores/locale-store';
 import { toDateLocale } from '@/lib/utils';
+import { useFocusTrap } from '@/components/ui/modal/use-focus-trap';
 
 export interface PlanApprovalModalProps {
   isOpen: boolean;
@@ -40,6 +41,24 @@ export default function PlanApprovalModal({
       onClose();
     },
   );
+
+  const dialogRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setShowRejectReason(false);
+        setRejectReason('');
+        clearError();
+        onClose();
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [isOpen, onClose, clearError]);
+
+  useFocusTrap(dialogRef, isOpen);
 
   if (!isOpen) return null;
 
@@ -78,12 +97,22 @@ export default function PlanApprovalModal({
 
       {/* Modal content */}
       <div className="flex items-center justify-center min-h-screen p-4">
-        <div className="relative bg-white dark:bg-zinc-800 rounded-2xl shadow-xl w-full max-w-4xl max-h-[90vh] overflow-hidden">
+        <div
+          ref={dialogRef}
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="plan-approval-modal-title"
+          tabIndex={-1}
+          className="relative bg-white dark:bg-zinc-800 rounded-2xl shadow-xl w-full max-w-4xl max-h-[90vh] overflow-hidden"
+        >
           {/* Header */}
           <div className="flex items-center justify-between p-6 border-b border-zinc-200 dark:border-zinc-700">
             <div className="flex items-center space-x-2">
               <FileText className="h-6 w-6 text-indigo-600 dark:text-indigo-400" />
-              <h2 className="text-lg font-semibold text-zinc-900 dark:text-white">
+              <h2
+                id="plan-approval-modal-title"
+                className="text-lg font-semibold text-zinc-900 dark:text-white"
+              >
                 {t('planApprovalModal.title')}
               </h2>
             </div>

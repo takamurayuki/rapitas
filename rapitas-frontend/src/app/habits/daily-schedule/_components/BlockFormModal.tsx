@@ -9,11 +9,13 @@
  * Not responsible for data fetching.
  */
 
+import { useEffect, useRef } from 'react';
 import { Bell, BellOff, Save } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import type { DailyScheduleBlock } from '@/types';
 import { CATEGORY_OPTIONS, PRESET_COLORS } from './schedule-utils';
 import type { BlockFormData } from './useScheduleBlocks';
+import { useFocusTrap } from '@/components/ui/modal/use-focus-trap';
 
 type BlockFormModalProps = {
   isOpen: boolean;
@@ -47,14 +49,36 @@ export function BlockFormModal({
 }: BlockFormModalProps) {
   const t = useTranslations('habits');
   const tc = useTranslations('common');
+  const panelRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [isOpen, onClose]);
+
+  useFocusTrap(panelRef, isOpen);
 
   if (!isOpen) return null;
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white dark:bg-zinc-800 rounded-xl w-full max-w-md max-h-[90vh] overflow-y-auto">
+      <div
+        ref={panelRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="block-form-modal-title"
+        tabIndex={-1}
+        className="bg-white dark:bg-zinc-800 rounded-xl w-full max-w-md max-h-[90vh] overflow-y-auto"
+      >
         <div className="p-6">
-          <h2 className="text-xl font-bold text-zinc-900 dark:text-zinc-50 mb-4">
+          <h2
+            id="block-form-modal-title"
+            className="text-xl font-bold text-zinc-900 dark:text-zinc-50 mb-4"
+          >
             {editingBlock ? t('editBlock') : t('newBlock')}
           </h2>
 

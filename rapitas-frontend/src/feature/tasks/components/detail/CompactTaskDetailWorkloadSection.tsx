@@ -137,7 +137,7 @@ export default function CompactTaskDetailWorkloadSection({
           <span className="text-xs text-zinc-500 dark:text-zinc-400">
             {displayedAct.toFixed(1)}h{hasEst ? ` / ${displayedEst}h` : ''}
             {hasEst && (
-              <span className="ml-1 text-zinc-400 dark:text-zinc-500">({pct.toFixed(0)}%)</span>
+              <span className="ml-1 text-zinc-500 dark:text-zinc-500">({pct.toFixed(0)}%)</span>
             )}
           </span>
         </div>

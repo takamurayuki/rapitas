@@ -1,11 +1,12 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { FileStack, X, FolderPlus, Check } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import type { Task, TaskTemplate } from '@/types';
 import { API_BASE_URL } from '@/utils/api';
 import { createLogger } from '@/lib/logger';
+import { useFocusTrap } from '@/components/ui/modal/use-focus-trap';
 
 const logger = createLogger('SaveAsTemplateDialog');
 
@@ -41,6 +42,24 @@ export default function SaveAsTemplateDialog({ task, isOpen, onClose, onSuccess 
   const [categories, setCategories] = useState<string[]>(DEFAULT_CATEGORIES);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
+  const customCategoryRef = useRef<HTMLInputElement>(null);
+
+  // Trap Tab focus inside the panel. Declared before the custom-category
+  // focus effect below so that effect wins the final focus (React runs
+  // effects in declaration order) — otherwise useFocusTrap would steal focus
+  // to the first focusable element (the close button) instead of the input.
+  useFocusTrap(panelRef, isOpen);
+
+  // Close on Escape key
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen, onClose]);
 
   // Set initial values from task info when modal opens
   useEffect(() => {
@@ -70,6 +89,13 @@ export default function SaveAsTemplateDialog({ task, isOpen, onClose, onSuccess 
       fetchCategories();
     }
   }, [isOpen]);
+
+  // NOTE: Converted from native `autoFocus` to a ref-based effect declared
+  // after useFocusTrap above, so it runs last and wins the final focus when
+  // the custom-category input mounts (see focus-trap ordering note above).
+  useEffect(() => {
+    if (isCustomCategory) customCategoryRef.current?.focus();
+  }, [isCustomCategory]);
 
   const handleSubmit = async () => {
     const finalCategory = isCustomCategory ? customCategory : category;
@@ -131,17 +157,26 @@ export default function SaveAsTemplateDialog({ task, isOpen, onClose, onSuccess 
       onClick={handleClose}
     >
       <div
+        ref={panelRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="save-as-template-dialog-title"
+        tabIndex={-1}
         className="bg-white dark:bg-zinc-900 rounded-2xl shadow-2xl border border-zinc-200 dark:border-zinc-800 w-full max-w-lg overflow-hidden"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
         <div className="flex items-center justify-between p-5 border-b border-zinc-200 dark:border-zinc-800">
-          <h2 className="text-lg font-bold text-zinc-900 dark:text-zinc-50 flex items-center gap-2">
+          <h2
+            id="save-as-template-dialog-title"
+            className="text-lg font-bold text-zinc-900 dark:text-zinc-50 flex items-center gap-2"
+          >
             <FileStack className="w-5 h-5 text-violet-500" />
             {t('saveAsTemplate')}
           </h2>
           <button
             onClick={handleClose}
+            aria-label={tCommon('close')}
             className="p-2 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-lg transition-colors"
           >
             <X className="w-5 h-5" />
@@ -221,12 +256,12 @@ export default function SaveAsTemplateDialog({ task, isOpen, onClose, onSuccess 
             ) : (
               <div className="space-y-2">
                 <input
+                  ref={customCategoryRef}
                   type="text"
                   value={customCategory}
                   onChange={(e) => setCustomCategory(e.target.value)}
                   placeholder={t('saveAsTemplateDialog.newCategoryPlaceholder')}
                   className="w-full bg-zinc-50 dark:bg-zinc-800 rounded-xl px-4 py-2.5 text-sm border border-zinc-200 dark:border-zinc-700 outline-none focus:border-indigo-400 transition-all"
-                  autoFocus
                 />
                 <button
                   type="button"

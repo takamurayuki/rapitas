@@ -1,10 +1,11 @@
 'use client';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { X, Keyboard } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { useShortcutStore, type ShortcutId } from '@/stores/shortcut-store';
 import { useNoteStore } from '@/stores/note-store';
+import { useFocusTrap } from '@/components/ui/modal/use-focus-trap';
 
 const getIsMac = () => {
   if (typeof window === 'undefined') return false;
@@ -21,6 +22,9 @@ export default function KeyboardShortcuts() {
   const [showHelp, setShowHelp] = useState(false);
   const [isMac, _setIsMac] = useState(() => getIsMac());
   const shortcuts = useShortcutStore((state) => state.shortcuts);
+  const panelRef = useRef<HTMLDivElement>(null);
+
+  useFocusTrap(panelRef, showHelp);
 
   useEffect(() => {
     const handleOpenShortcuts = () => setShowHelp(true);
@@ -111,9 +115,11 @@ export default function KeyboardShortcuts() {
       onClick={() => setShowHelp(false)}
     >
       <div
+        ref={panelRef}
         role="dialog"
         aria-modal="true"
         aria-labelledby="keyboard-shortcuts-title"
+        tabIndex={-1}
         className="bg-white dark:bg-zinc-800 rounded-xl w-full max-w-md shadow-2xl"
         onClick={(e) => e.stopPropagation()}
       >

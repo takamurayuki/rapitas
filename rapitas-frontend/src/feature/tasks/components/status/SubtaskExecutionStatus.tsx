@@ -73,7 +73,7 @@ export function SubtaskExecutionStatus({
     pending: {
       icon: <Circle className={iconSize} />,
       bgColor: 'bg-zinc-100 dark:bg-indigo-dark-800',
-      textColor: 'text-zinc-400 dark:text-zinc-500',
+      textColor: 'text-zinc-500 dark:text-zinc-500',
       label: t('pending'),
     },
     scheduled: {

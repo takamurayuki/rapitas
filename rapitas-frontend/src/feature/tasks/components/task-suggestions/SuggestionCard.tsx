@@ -131,7 +131,7 @@ export function SuggestionCard({ suggestion, onApply, onDismiss, onClick }: Sugg
               e.stopPropagation();
               onDismiss();
             }}
-            className="p-1 text-zinc-400 hover:text-rose-500 rounded hover:bg-rose-50 dark:hover:bg-rose-900/20 transition-all duration-200"
+            className="p-1 text-zinc-500 hover:text-rose-500 rounded hover:bg-rose-50 dark:hover:bg-rose-900/20 transition-all duration-200"
             title={tc('delete')}
           >
             <X className="w-3 h-3" />

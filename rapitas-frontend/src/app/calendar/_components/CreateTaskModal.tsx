@@ -1,11 +1,12 @@
 'use client';
 // CreateTaskModal
 
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { X } from 'lucide-react';
 import { useLocaleStore } from '@/stores/locale-store';
 import { toDateLocale } from '@/lib/utils';
+import { useFocusTrap } from '@/components/ui/modal/use-focus-trap';
 
 type Props = {
   /** ISO date string (YYYY-MM-DD) for the task's due date. */
@@ -28,6 +29,25 @@ export function CreateTaskModal({ selectedDate, onSubmit, onClose }: Props) {
   const dateLocale = toDateLocale(locale);
   const [title, setTitle] = useState('');
   const [creating, setCreating] = useState(false);
+  const panelRef = useRef<HTMLDivElement>(null);
+  const titleInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onClose]);
+
+  useFocusTrap(panelRef, true);
+
+  // NOTE: declared after useFocusTrap so this effect's focus() call wins over
+  // the trap's initial-focus targeting (the close button precedes this input
+  // in DOM order, so native autoFocus would otherwise lose to the trap).
+  useEffect(() => {
+    titleInputRef.current?.focus();
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -46,13 +66,24 @@ export function CreateTaskModal({ selectedDate, onSubmit, onClose }: Props) {
       onClick={onClose}
     >
       <div
+        ref={panelRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="create-task-modal-title"
+        tabIndex={-1}
         className="bg-white dark:bg-zinc-800 rounded-xl border border-zinc-200 dark:border-zinc-700 p-6 w-full max-w-md"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between mb-4">
-          <h3 className="text-lg font-semibold text-zinc-900 dark:text-zinc-50">{t('addTask')}</h3>
+          <h3
+            id="create-task-modal-title"
+            className="text-lg font-semibold text-zinc-900 dark:text-zinc-50"
+          >
+            {t('addTask')}
+          </h3>
           <button
             onClick={onClose}
+            aria-label={tc('close')}
             className="p-1.5 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-700 rounded-lg"
           >
             <X className="w-5 h-5" />
@@ -70,12 +101,12 @@ export function CreateTaskModal({ selectedDate, onSubmit, onClose }: Props) {
 
         <form onSubmit={handleSubmit}>
           <input
+            ref={titleInputRef}
             type="text"
             value={title}
             onChange={(e) => setTitle(e.target.value)}
             placeholder={t('taskNamePlaceholder')}
             className="w-full px-4 py-3 bg-zinc-50 dark:bg-zinc-700 border border-zinc-200 dark:border-zinc-600 rounded-lg text-zinc-900 dark:text-zinc-100 placeholder-zinc-400 dark:placeholder-zinc-500 focus:outline-none focus:border-indigo-400"
-            autoFocus
           />
           <div className="flex gap-2 mt-4">
             <button

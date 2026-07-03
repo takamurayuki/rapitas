@@ -5,11 +5,13 @@
  * task, since workflow registration requires a theme. Pure presentational.
  */
 'use client';
+import { useEffect, useRef } from 'react';
 import type { Dispatch, SetStateAction } from 'react';
 import { useTranslations } from 'next-intl';
 import { ArrowRight, X } from 'lucide-react';
 import type { Category, Theme } from '@/types';
 import type { Idea } from './idea-box.types';
+import { useFocusTrap } from '@/components/ui/modal/use-focus-trap';
 
 interface ThemePickerModalProps {
   idea: Idea;
@@ -41,17 +43,37 @@ export function ThemePickerModal({
 }: ThemePickerModalProps) {
   const t = useTranslations('ideaBox');
   const tCommon = useTranslations('common');
+  const panelRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onClose]);
+
+  useFocusTrap(panelRef, true);
+
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
       onClick={onClose}
     >
       <div
+        ref={panelRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="theme-picker-modal-title"
+        tabIndex={-1}
         className="w-full max-w-md mx-3 bg-white dark:bg-zinc-900 rounded-lg shadow-xl"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between px-5 py-3 border-b border-zinc-200 dark:border-zinc-700">
-          <h2 className="text-base font-semibold text-zinc-900 dark:text-zinc-100">
+          <h2
+            id="theme-picker-modal-title"
+            className="text-base font-semibold text-zinc-900 dark:text-zinc-100"
+          >
             {t('themePicker.title')}
           </h2>
           <button

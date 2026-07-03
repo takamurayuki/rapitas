@@ -38,7 +38,7 @@ interface EmptyChartProps {
  */
 function EmptyChart({ message }: EmptyChartProps) {
   return (
-    <div className="h-60 flex flex-col items-center justify-center text-zinc-400 dark:text-zinc-500">
+    <div className="h-60 flex flex-col items-center justify-center text-zinc-500 dark:text-zinc-500">
       <Brain className="w-12 h-12 mb-3 opacity-30" />
       <p className="text-sm">{message}</p>
     </div>

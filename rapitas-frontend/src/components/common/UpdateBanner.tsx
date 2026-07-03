@@ -6,10 +6,11 @@
  * No-op outside the Tauri runtime (web mode).
  */
 import { useEffect, useState } from 'react';
-import { Download, X, Loader2 } from 'lucide-react';
+import { Download, X } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { isTauri } from '@/utils/tauri';
 import { createLogger } from '@/lib/logger';
+import { Spinner } from '@/components/ui/spinner';
 
 const log = createLogger('UpdateBanner');
 
@@ -122,7 +123,7 @@ export default function UpdateBanner() {
               className="inline-flex items-center gap-1 rounded-lg bg-indigo-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-indigo-700 disabled:opacity-60"
             >
               {installing ? (
-                <Loader2 className="h-3 w-3 animate-spin" />
+                <Spinner size="sm" className="text-white dark:text-white" />
               ) : (
                 <Download className="h-3 w-3" />
               )}

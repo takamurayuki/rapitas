@@ -80,7 +80,7 @@ export function SubtaskList({ subtasks, priorityOptions, onRemove }: SubtaskList
               <button
                 type="button"
                 onClick={() => onRemove(st.id)}
-                className="p-1 text-zinc-400 hover:text-rose-500 opacity-0 group-hover:opacity-100 transition-all shrink-0"
+                className="p-1 text-zinc-500 hover:text-rose-500 opacity-0 group-hover:opacity-100 transition-all shrink-0"
               >
                 <Trash2 className="w-3.5 h-3.5" />
               </button>

@@ -7,12 +7,13 @@
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { Search, X, Loader2 } from 'lucide-react';
+import { Search, X } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import type { Task } from '@/types/task.types';
 import { useFocusTrap } from '@/hooks/common/useFocusTrap';
 import { useLocaleStore } from '@/stores/locale-store';
 import { toDateLocale } from '@/lib/utils';
+import { Spinner } from '@/components/ui/spinner';
 
 interface TaskSelectorProps {
   isOpen: boolean;
@@ -185,7 +186,7 @@ export function TaskSelector({
           <div className="flex-1 overflow-auto">
             {isLoading ? (
               <div className="flex items-center justify-center py-8">
-                <Loader2 className="h-6 w-6 animate-spin text-gray-500" />
+                <Spinner size="md" className="text-gray-500 dark:text-gray-500" />
                 <span className="ml-2 text-gray-500">{t('searching')}</span>
               </div>
             ) : error ? (

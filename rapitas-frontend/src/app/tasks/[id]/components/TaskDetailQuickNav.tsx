@@ -144,7 +144,7 @@ export function TaskDetailQuickNav({
   return (
     <div
       ref={navRef}
-      className="sticky top-0 z-10 border-b border-zinc-200 bg-white/95 backdrop-blur dark:border-zinc-800 dark:bg-zinc-900/95"
+      className="sticky top-0 z-10 border-b border-zinc-200 bg-white/95 dark:border-zinc-800 dark:bg-zinc-900/95"
     >
       <div className="mx-auto flex max-w-4xl items-center justify-between gap-2 px-3 py-1.5 sm:px-4 md:px-6">
         <div className="flex min-w-0 flex-1 items-center gap-1.5 overflow-x-auto scrollbar-thin">

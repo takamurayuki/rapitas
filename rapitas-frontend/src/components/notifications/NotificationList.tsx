@@ -3,6 +3,7 @@
 import React from 'react';
 import { Bell, Check, Circle } from 'lucide-react';
 import { useTranslations } from 'next-intl';
+import { EmptyState } from '@/components/ui/empty-state';
 
 interface NotificationItem {
   id: number;
@@ -68,9 +69,7 @@ export default function NotificationList({
       </div>
 
       {notifications.length === 0 ? (
-        <div className="px-4 py-8 text-center text-sm text-zinc-400 dark:text-zinc-500">
-          {t('noNotifications')}
-        </div>
+        <EmptyState icon={Bell} title={t('noNotifications')} />
       ) : (
         <ul className="divide-y divide-zinc-100 dark:divide-zinc-700 max-h-80 overflow-y-auto">
           {notifications.map((item) => (

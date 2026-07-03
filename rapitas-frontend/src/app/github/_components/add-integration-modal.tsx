@@ -5,9 +5,11 @@
  * URL-entry form. State lives in {@link useAddIntegration}; this is the shell.
  */
 'use client';
+import { useEffect, useRef } from 'react';
 import { useTranslations } from 'next-intl';
 import { useAddIntegration } from '../_hooks/use-add-integration';
 import { GitHubRepoPicker } from './github-repo-picker';
+import { useFocusTrap } from '@/components/ui/modal/use-focus-trap';
 
 interface AddIntegrationModalProps {
   /** Close the modal without refreshing. / 更新せずに閉じる。 */
@@ -42,11 +44,33 @@ export function AddIntegrationModal({ onClose, onSuccess }: AddIntegrationModalP
     handleClose,
   } = useAddIntegration({ onSuccess, onClose });
 
+  const panelRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') handleClose();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [handleClose]);
+
+  useFocusTrap(panelRef, true);
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-      <div className="w-full max-w-lg max-h-[85vh] overflow-y-auto bg-white dark:bg-zinc-800 rounded-lg shadow-xl scrollbar-thin">
+      <div
+        ref={panelRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="add-integration-modal-title"
+        tabIndex={-1}
+        className="w-full max-w-lg max-h-[85vh] overflow-y-auto bg-white dark:bg-zinc-800 rounded-lg shadow-xl scrollbar-thin"
+      >
         <div className="p-6">
-          <h2 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100 mb-4">
+          <h2
+            id="add-integration-modal-title"
+            className="text-lg font-semibold text-zinc-900 dark:text-zinc-100 mb-4"
+          >
             {t('addGitHubIntegration')}
           </h2>
 

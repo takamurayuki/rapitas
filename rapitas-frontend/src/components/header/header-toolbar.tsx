@@ -18,7 +18,6 @@ import {
   Settings,
   SquareArrowDown,
   RotateCw,
-  Loader2,
   User,
   LogOut,
 } from 'lucide-react';
@@ -28,6 +27,7 @@ import LanguageSwitcher from '@/components/LanguageSwitcher';
 import { useTaskDetailVisibilityStore } from '@/stores/task-detail-visibility-store';
 import { useTranslations } from 'next-intl';
 import { hideToTray } from '@/utils/tauri';
+import { Spinner } from '@/components/ui/spinner';
 import type { UseHeaderReturn } from './useHeader';
 
 type HeaderToolbarProps = Pick<
@@ -230,7 +230,7 @@ export function HeaderToolbar({
               className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {isRestarting ? (
-                <Loader2 className="w-4 h-4 animate-spin" />
+                <Spinner size="sm" className="text-zinc-700 dark:text-zinc-300" />
               ) : (
                 <RotateCw className="w-4 h-4" />
               )}

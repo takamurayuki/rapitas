@@ -1,12 +1,13 @@
 'use client';
 // GoalModal
 
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { ICON_DATA, searchIcons } from '@/components/category/icon-data';
 import { PRESET_COLORS } from './constants';
 import { renderGoalIcon } from './GoalCard';
 import type { ExamGoalFormData } from './constants';
+import { useFocusTrap } from '@/components/ui/modal/use-focus-trap';
 
 interface GoalModalProps {
   isEditing: boolean;
@@ -30,6 +31,17 @@ export function GoalModal({ isEditing, formData, onChange, onSubmit, onClose }: 
   const tc = useTranslations('common');
   const [iconSearch, setIconSearch] = useState('');
   const [showIconPicker, setShowIconPicker] = useState(false);
+  const panelRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onClose]);
+
+  useFocusTrap(panelRef, true);
 
   const filteredIcons = iconSearch ? searchIcons(iconSearch) : Object.keys(ICON_DATA).slice(0, 30);
 
@@ -37,9 +49,19 @@ export function GoalModal({ isEditing, formData, onChange, onSubmit, onClose }: 
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white dark:bg-zinc-800 rounded-xl w-full max-w-md max-h-[90vh] overflow-y-auto">
+      <div
+        ref={panelRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="goal-modal-title"
+        tabIndex={-1}
+        className="bg-white dark:bg-zinc-800 rounded-xl w-full max-w-md max-h-[90vh] overflow-y-auto"
+      >
         <div className="p-6">
-          <h2 className="text-xl font-bold text-zinc-900 dark:text-zinc-50 mb-4">
+          <h2
+            id="goal-modal-title"
+            className="text-xl font-bold text-zinc-900 dark:text-zinc-50 mb-4"
+          >
             {isEditing ? t('editTitle') : t('newTitle')}
           </h2>
 

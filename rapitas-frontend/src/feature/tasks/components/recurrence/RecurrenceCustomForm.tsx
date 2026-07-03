@@ -66,7 +66,7 @@ export function RecurrenceCustomForm({
         <button
           type="button"
           onClick={onBack}
-          className="text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300"
+          className="text-zinc-500 hover:text-zinc-600 dark:hover:text-zinc-300"
         >
           <X size={16} />
         </button>

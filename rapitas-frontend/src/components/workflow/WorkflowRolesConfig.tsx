@@ -261,7 +261,7 @@ export default function WorkflowRolesConfig({ agents, availableModels }: Workflo
   if (isLoading) {
     return (
       <div className="flex items-center justify-center py-12">
-        <Loader2 className="h-6 w-6 animate-spin text-zinc-400" />
+        <Loader2 className="h-6 w-6 animate-spin text-zinc-500" />
         <span className="ml-2 text-sm text-zinc-500 dark:text-zinc-400">
           {t('rolesConfig.loading')}
         </span>
@@ -341,9 +341,9 @@ export default function WorkflowRolesConfig({ agents, availableModels }: Workflo
           <div className="rounded-lg border border-zinc-200 dark:border-zinc-700 p-4 mb-4">
             <div className="text-sm text-zinc-600 dark:text-zinc-300 mb-2">
               <span className="font-semibold">{MODE_META[activeTab].label}</span>
-              <span className="ml-2 text-[11px] text-zinc-400">{MODE_META[activeTab].desc}</span>
+              <span className="ml-2 text-[11px] text-zinc-500">{MODE_META[activeTab].desc}</span>
               {savingMode === activeTab && (
-                <span className="ml-2 text-[10px] text-zinc-400">{tc('saving')}</span>
+                <span className="ml-2 text-[10px] text-zinc-500">{tc('saving')}</span>
               )}
             </div>
             <div className="flex items-center gap-2 text-[11px] text-zinc-500 dark:text-zinc-400">
@@ -368,7 +368,7 @@ export default function WorkflowRolesConfig({ agents, availableModels }: Workflo
                   {readonlyBox(stdMin)}
                   <span>〜</span>
                   {readonlyBox(stdMax)}
-                  <span className="text-zinc-400 dark:text-zinc-500">
+                  <span className="text-zinc-500 dark:text-zinc-500">
                     {t('rolesConfig.standardRangeAutoComputed')}
                   </span>
                 </>
@@ -392,7 +392,7 @@ export default function WorkflowRolesConfig({ agents, availableModels }: Workflo
           </div>
 
           {/* Roles used by this tier (in execution order) */}
-          <p className="text-[11px] text-zinc-400 dark:text-zinc-500 mb-2">
+          <p className="text-[11px] text-zinc-500 dark:text-zinc-500 mb-2">
             {t('rolesConfig.tierRolesCount', { count: tabRoles.length })}
           </p>
           <div className="space-y-0">

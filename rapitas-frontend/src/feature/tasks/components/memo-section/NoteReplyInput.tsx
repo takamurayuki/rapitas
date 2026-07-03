@@ -32,11 +32,11 @@ export function NoteReplyInput({
         value={replyText}
         onChange={(e) => onReplyText(e.target.value)}
         placeholder={t('placeholder')}
-        className="flex-1 px-2 py-1 text-xs bg-transparent outline-none placeholder:text-zinc-400"
+        className="flex-1 px-2 py-1 text-xs bg-transparent outline-none placeholder:text-zinc-500"
         autoFocus
         onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), onReplySubmit())}
       />
-      <button onClick={onReplyCancel} className="p-1 text-zinc-400 hover:text-zinc-600">
+      <button onClick={onReplyCancel} className="p-1 text-zinc-500 hover:text-zinc-600">
         <X className="w-3 h-3" />
       </button>
       <button

@@ -139,7 +139,7 @@ export default function InlineEditableText({
     <div
       onDoubleClick={begin}
       title={t('inlineEditableText.doubleClickToEdit')}
-      className={`cursor-text ${className} ${isEmpty ? 'italic text-zinc-400 dark:text-zinc-500' : ''}`}
+      className={`cursor-text ${className} ${isEmpty ? 'italic text-zinc-500 dark:text-zinc-500' : ''}`}
     >
       {isEmpty ? (placeholder ?? '') : renderDisplay ? renderDisplay(value) : value}
     </div>

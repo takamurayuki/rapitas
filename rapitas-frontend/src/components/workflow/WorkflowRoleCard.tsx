@@ -177,14 +177,14 @@ export function WorkflowRoleCard({
                     <>
                       <Cpu className="h-3 w-3" />
                       <span>{selectedAgent?.name ?? tc('notConfigured')}</span>
-                      <span className="text-zinc-400 dark:text-zinc-500">/ {effectiveModelId}</span>
+                      <span className="text-zinc-500 dark:text-zinc-500">/ {effectiveModelId}</span>
                     </>
                   )}
                 </div>
               )}
 
               {/* Saving/saved indicator */}
-              {isSaving && <Loader2 className="h-4 w-4 animate-spin text-zinc-400" />}
+              {isSaving && <Loader2 className="h-4 w-4 animate-spin text-zinc-500" />}
               {isSaved && <Save className="h-4 w-4 text-green-500" />}
 
               {/* Enable/disable toggle */}
@@ -197,7 +197,7 @@ export function WorkflowRoleCard({
 
               {/* Expand/collapse icon */}
               <ChevronDown
-                className={`h-4 w-4 text-zinc-400 transition-transform ${
+                className={`h-4 w-4 text-zinc-500 transition-transform ${
                   isExpanded ? 'rotate-180' : ''
                 }`}
               />
@@ -273,7 +273,7 @@ export function WorkflowRoleCard({
                       </option>
                     )}
                   </select>
-                  <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 h-4 w-4 text-zinc-400 pointer-events-none" />
+                  <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 h-4 w-4 text-zinc-500 pointer-events-none" />
                 </div>
                 <p className="text-[10px] text-zinc-500 dark:text-zinc-400 mt-1">
                   {ROLES_SUPPORTING_CROSS_PROVIDER.has(roleKey)
@@ -308,7 +308,7 @@ export function WorkflowRoleCard({
                         </option>
                       ))}
                     </select>
-                    <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 h-4 w-4 text-zinc-400 pointer-events-none" />
+                    <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 h-4 w-4 text-zinc-500 pointer-events-none" />
                   </div>
                 </div>
 
@@ -341,7 +341,7 @@ export function WorkflowRoleCard({
                         </option>
                       ))}
                     </select>
-                    <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 h-4 w-4 text-zinc-400 pointer-events-none" />
+                    <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 h-4 w-4 text-zinc-500 pointer-events-none" />
                   </div>
                 </div>
 
@@ -367,7 +367,7 @@ export function WorkflowRoleCard({
                         </option>
                       ))}
                     </select>
-                    <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 h-4 w-4 text-zinc-400 pointer-events-none" />
+                    <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 h-4 w-4 text-zinc-500 pointer-events-none" />
                   </div>
                 </div>
               </div>
@@ -398,7 +398,7 @@ export function WorkflowRoleCard({
           plan.md) — otherwise it shows this phase's output artifact. */}
       {!isLast && (
         <div className="flex items-center justify-center py-1.5">
-          <div className="flex items-center gap-2 text-xs text-zinc-400 dark:text-zinc-500">
+          <div className="flex items-center gap-2 text-xs text-zinc-500 dark:text-zinc-500">
             <ArrowDown className="h-4 w-4" />
             {approvalAfter ? (
               <span className="flex items-center gap-1">

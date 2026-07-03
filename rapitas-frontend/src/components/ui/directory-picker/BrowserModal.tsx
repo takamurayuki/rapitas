@@ -9,6 +9,7 @@
  * Not responsible for data fetching — receives all state via props.
  */
 
+import { useEffect, useRef } from 'react';
 import { Folder, X, Check } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import type { FavoriteDirectory, DirectoryEntry } from './types';
@@ -16,6 +17,7 @@ import { BrowserToolbar } from './BrowserToolbar';
 import { FavoritesOnlyPanel } from './FavoritesOnlyPanel';
 import { FavoritesSidebar } from './FavoritesSidebar';
 import { DirectoryList } from './DirectoryList';
+import { useFocusTrap } from '@/components/ui/modal/use-focus-trap';
 
 type BrowserModalProps = {
   currentPath: string;
@@ -97,14 +99,36 @@ export function BrowserModal({
 }: BrowserModalProps) {
   const t = useTranslations('common');
 
+  const panelRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onClose]);
+
+  useFocusTrap(panelRef, true);
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50">
-      <div className="w-full max-w-2xl bg-white dark:bg-zinc-900 rounded-xl shadow-2xl border border-zinc-200 dark:border-zinc-700 overflow-hidden">
+      <div
+        ref={panelRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="browser-modal-title"
+        tabIndex={-1}
+        className="w-full max-w-2xl bg-white dark:bg-zinc-900 rounded-xl shadow-2xl border border-zinc-200 dark:border-zinc-700 overflow-hidden"
+      >
         {/* Header */}
         <div className="flex items-center justify-between px-4 py-3 border-b border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800">
           <div className="flex items-center gap-3">
             <Folder className="w-5 h-5 text-purple-600 dark:text-purple-400" />
-            <span className="font-semibold text-zinc-900 dark:text-zinc-50">
+            <span
+              id="browser-modal-title"
+              className="font-semibold text-zinc-900 dark:text-zinc-50"
+            >
               {t('directoryPicker.selectDirectory')}
             </span>
           </div>

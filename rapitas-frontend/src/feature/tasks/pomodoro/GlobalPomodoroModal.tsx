@@ -1,5 +1,5 @@
 'use client';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import {
   Timer,
@@ -22,6 +22,7 @@ import { type TimeEntry } from '@/types';
 import { getTaskDetailPath } from '@/utils/tauri';
 import { API_BASE_URL } from '@/utils/api';
 import { createLogger } from '@/lib/logger';
+import { useFocusTrap } from '@/components/ui/modal/use-focus-trap';
 
 const logger = createLogger('GlobalPomodoroModal');
 
@@ -115,6 +116,19 @@ export default function GlobalPomodoroModal({
     }
   }, [propTaskId, state.taskId, isOpen, stopTimer, onClose]);
 
+  const dialogRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [isOpen, onClose]);
+
+  useFocusTrap(dialogRef, isOpen);
+
   if (!isOpen) return null;
   if (!mounted) return null;
 
@@ -178,18 +192,27 @@ export default function GlobalPomodoroModal({
       onClick={onClose}
     >
       <div
+        ref={dialogRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="global-pomodoro-modal-title"
+        tabIndex={-1}
         className="bg-white dark:bg-zinc-900 rounded-xl shadow-2xl border border-zinc-200 dark:border-zinc-800 w-full max-w-lg my-auto"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between p-4 border-b border-zinc-200 dark:border-zinc-800">
           <div className="flex items-center gap-2 min-w-0">
             <Timer className="w-5 h-5 text-indigo-500 shrink-0" />
-            <h2 className="text-lg font-bold text-zinc-900 dark:text-zinc-50">
+            <h2
+              id="global-pomodoro-modal-title"
+              className="text-lg font-bold text-zinc-900 dark:text-zinc-50"
+            >
               {tTask('timeManagement')}
             </h2>
           </div>
           <button
             onClick={onClose}
+            aria-label={tc('close')}
             className="p-2 text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-lg transition-colors shrink-0"
             title={tc('close')}
           >

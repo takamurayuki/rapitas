@@ -1636,12 +1636,40 @@
     "successRate": "成功率",
     "totalTokenUsage": "総トークン使用量",
     "activeAgents": "アクティブエージェント",
+    "systemStatus": {
+      "title": "システム状態",
+      "pill": {
+        "healthy": "正常",
+        "busy": "実行中",
+        "shutting_down": "シャットダウン中",
+        "interrupted": "中断あり",
+        "unhealthy": "異常"
+      },
+      "running": "実行中のexecution数",
+      "active": "アクティブなexecution数",
+      "interrupted": "中断したexecution数",
+      "queueDepth": "キュー滞留数",
+      "uptime": "稼働時間"
+    },
     "repairConvergence": {
       "title": "自己修復ループの収束状況",
       "convergenceRate": "収束率",
       "avgIterations": "平均反復回数",
       "enteredLoop": "修復ループ突入数",
       "blocked": "ブロック中"
+    },
+    "judgeEval": {
+      "title": "敵対的レビュー判定の精度",
+      "accuracy": "正解率",
+      "correctOfTotal": "{correct} / {total} 件正解",
+      "provider": "プロバイダ",
+      "status": "ステータス",
+      "passed": "合格",
+      "failed": "不合格",
+      "errored": "{count}件エラー",
+      "lastRun": "最終実行",
+      "empty": "判定精度evalは未実行です。RAPITAS_EVAL_JUDGE=1 を設定して scripts/eval-judge.ts を実行してください。",
+      "loadFailed": "判定精度evalの結果取得に失敗しました"
     },
     "executionTrend": "実行トレンド",
     "successful": "成功",
@@ -2575,7 +2603,15 @@
     "contentPlaceholder": "システムプロンプトの内容を入力...",
     "requiredFields": "キー、名前、プロンプト内容は必須です",
     "keyValidation": "キーは英小文字、数字、アンダースコアのみ使用できます",
-    "addFailed": "プロンプトの追加に失敗しました"
+    "addFailed": "プロンプトの追加に失敗しました",
+    "promptEvolution": {
+      "title": "プロンプト進化の履歴",
+      "entries": "{count}件",
+      "pendingOfCompleted": "未処理{pending}件 / 完了{completed}件",
+      "avgDelta": "平均差分 {value}",
+      "empty": "プロンプト進化の履歴はまだありません。",
+      "loadFailed": "プロンプト進化履歴の取得に失敗しました"
+    }
   },
   "claudeMd": {
     "wizardLabel": "PROJECT SPEC GENERATOR",

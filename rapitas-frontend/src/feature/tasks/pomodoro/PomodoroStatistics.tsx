@@ -146,7 +146,7 @@ export default function PomodoroStatistics() {
                   }}
                   title={`${day.date}: ${day.count}${tc('times')} (${Math.round(day.minutes)}min)`}
                 />
-                <span className="text-[9px] text-zinc-400 dark:text-zinc-500">
+                <span className="text-[9px] text-zinc-500 dark:text-zinc-500">
                   {day.date.slice(-2)}
                 </span>
               </div>

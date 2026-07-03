@@ -43,7 +43,7 @@ export const MemoAnalysisDisplay = memo(function MemoAnalysisDisplay({
       case 'negative':
         return <span className="text-red-500">😔</span>;
       case 'neutral':
-        return <span className="text-zinc-400">😐</span>;
+        return <span className="text-zinc-500">😐</span>;
     }
   };
 
@@ -129,7 +129,7 @@ export const MemoAnalysisDisplay = memo(function MemoAnalysisDisplay({
           )}
 
           {/* Analysis timestamp */}
-          <div className="text-[8px] text-zinc-400 text-right">
+          <div className="text-[8px] text-zinc-500 text-right">
             {t('memoAnalysisDisplay.analyzedAt')} {timeAgo(new Date(analysis.analyzedAt), t)}
           </div>
         </div>

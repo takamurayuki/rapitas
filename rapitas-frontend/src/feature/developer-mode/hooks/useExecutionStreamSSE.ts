@@ -9,7 +9,24 @@ import { type ExecutionStreamState, trimLogs } from './execution-stream-types';
 
 const logger = createLogger('ExecutionStream');
 
-// NOTE: SSE is currently disabled (polling is the primary mechanism)
+// NOTE: SSE is disabled. Verified live-tail assessment (operability review,
+// 2026-07): useExecutionPolling's ~1s cursor poll (see useExecutionPolling.ts)
+// is the ONLY mechanism actually driving the log tail today — this hook's
+// `connect()` no-ops while SSE_ENABLED is false, so `isConnected` never
+// becomes true, and useAgentExecution's `logs` selector
+// (`isSseConnected && sseLogs.length > 0 ? sseLogs : pollingLogs`) always
+// falls through to pollingLogs. Confirmed working, so this stays off rather
+// than being "fixed" — the reason it was turned off in the first place is
+// still true: this hook opens ONE EventSource PER SESSION
+// (`new EventSource(.../events/subscribe/session:{sessionId})`), and
+// Chromium/WebView2 caps concurrent connections at ~6 per origin (see
+// src/lib/sse/shared-event-source.ts's header comment for the incident this
+// caused during auto-run). A safe re-enable would NOT reopen a per-session
+// EventSource here — it would subscribe through the app-wide
+// `sharedEventSource` singleton (already the transport for every other SSE
+// consumer) and filter its `execution_output` events by `sessionId` in the
+// handler, so all execution streams share the one connection instead of each
+// mounting its own.
 const SSE_ENABLED = false;
 
 /**

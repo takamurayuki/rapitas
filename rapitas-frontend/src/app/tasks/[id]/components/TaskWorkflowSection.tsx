@@ -3,9 +3,10 @@ import type { Task } from '@/types';
 import type { WorkflowStatus } from '@/types';
 import WorkflowViewer from '@/components/workflow/WorkflowViewer';
 import WorkflowStatusIndicator from '@/components/workflow/WorkflowStatusIndicator';
-import { Loader2, CircleSmall, Diamond, Pyramid, type LucideIcon } from 'lucide-react';
+import { CircleSmall, Diamond, Pyramid, type LucideIcon } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { API_BASE_URL } from '@/utils/api';
+import { Spinner } from '@/components/ui/spinner';
 
 export interface TaskWorkflowSectionProps {
   task: Task;
@@ -187,7 +188,9 @@ export default function TaskWorkflowSection({
             />
             {/* Loading spinner lives on the left so the right chips end flush
                 with the card padding (matching the title's left inset). */}
-            {isWorkflowLoading && <Loader2 className="h-4 w-4 animate-spin text-zinc-400" />}
+            {isWorkflowLoading && (
+              <Spinner size="sm" className="text-zinc-400 dark:text-zinc-400" />
+            )}
           </div>
           <div className="flex items-center gap-2">
             {(modeLabel || complexity != null) && (

@@ -164,7 +164,7 @@ export function GlobalProviderPreference() {
     <div className="bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-700 overflow-hidden">
       <div className="px-6 py-4 border-b border-zinc-200 dark:border-zinc-800 flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <Settings className="w-5 h-5 text-zinc-400" />
+          <Settings className="w-5 h-5 text-zinc-500" />
           <div>
             <h2 className="font-semibold text-zinc-900 dark:text-zinc-50">{t('title')}</h2>
             <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-0.5">{t('subtitle')}</p>
@@ -220,7 +220,7 @@ export function GlobalProviderPreference() {
                           ? 'text-violet-700 dark:text-violet-300'
                           : isAvailable
                             ? 'text-zinc-900 dark:text-zinc-100'
-                            : 'text-zinc-400 dark:text-zinc-600'
+                            : 'text-zinc-500 dark:text-zinc-600'
                       }`}
                     >
                       {p.label}
@@ -235,7 +235,7 @@ export function GlobalProviderPreference() {
                       {p.description}
                     </p>
                     {availability == null ? (
-                      <p className="text-[10px] mt-2 text-zinc-400">{t('checking')}</p>
+                      <p className="text-[10px] mt-2 text-zinc-500">{t('checking')}</p>
                     ) : isAvailable ? (
                       <p className="text-[10px] mt-2 text-emerald-600 dark:text-emerald-400">
                         {t('available', { count: probe?.modelCount ?? 0 })}

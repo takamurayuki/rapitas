@@ -51,7 +51,7 @@ export function MemoStatsBar({
     <div className="flex flex-col gap-2 mb-3">
       {/* Count row */}
       <div className="flex items-center gap-2 px-1">
-        <span className="text-[10px] text-zinc-400 flex items-center gap-1">
+        <span className="text-[10px] text-zinc-500 flex items-center gap-1">
           <MessageSquare className="w-3 h-3" />
           {t('noteCount', { count: noteCount })}
         </span>
@@ -67,7 +67,7 @@ export function MemoStatsBar({
           className={`flex items-center gap-1 px-2 py-0.5 text-[10px] rounded-full border transition-colors ${
             showTimeline
               ? 'bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800'
-              : 'text-zinc-400 border-zinc-200 dark:border-zinc-700 hover:border-zinc-300 dark:hover:border-zinc-600'
+              : 'text-zinc-500 border-zinc-200 dark:border-zinc-700 hover:border-zinc-300 dark:hover:border-zinc-600'
           }`}
         >
           <History className="w-3 h-3" />
@@ -78,7 +78,7 @@ export function MemoStatsBar({
           className={`flex items-center gap-1 px-2 py-0.5 text-[10px] rounded-full border transition-colors ${
             showFilters
               ? 'bg-indigo-50 dark:bg-indigo-900/20 text-indigo-600 dark:text-indigo-400 border-indigo-200 dark:border-indigo-800'
-              : 'text-zinc-400 border-zinc-200 dark:border-zinc-700 hover:border-zinc-300 dark:hover:border-zinc-600'
+              : 'text-zinc-500 border-zinc-200 dark:border-zinc-700 hover:border-zinc-300 dark:hover:border-zinc-600'
           }`}
         >
           <Filter className="w-3 h-3" />

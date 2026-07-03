@@ -15,6 +15,7 @@ import { useTranslations } from 'next-intl';
 import type { ScheduleEventInput } from '@/types';
 import { useLocaleStore } from '@/stores/locale-store';
 import { toDateLocale } from '@/lib/utils';
+import { useFocusTrap } from '@/components/ui/modal/use-focus-trap';
 import { DEFAULT_EVENT_COLOR, DEFAULT_REMINDER_MINUTES, QUICK_TIMES } from './schedule-constants';
 import { getDefaultTimes, toUTCISO, calcDayCount, resolveEndAt } from './schedule-utils';
 import { ScheduleOptionsPanel } from './ScheduleOptionsPanel';
@@ -53,6 +54,13 @@ export default function ScheduleEventDialog({ selectedDate, onClose, onSubmit }:
   const [submitting, setSubmitting] = useState(false);
   const [showOptions, setShowOptions] = useState(false);
   const titleRef = useRef<HTMLInputElement>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
+
+  // Trap Tab focus inside the panel; declared before the title auto-focus
+  // effect below so that effect's explicit titleRef focus wins (React runs
+  // effects in declaration order, and useFocusTrap would otherwise steal
+  // focus to the first focusable element — the close button in the header).
+  useFocusTrap(panelRef, true);
 
   useEffect(() => {
     titleRef.current?.focus();
@@ -110,6 +118,11 @@ export default function ScheduleEventDialog({ selectedDate, onClose, onSubmit }:
       onClick={onClose}
     >
       <div
+        ref={panelRef}
+        role="dialog"
+        aria-modal="true"
+        aria-label={td('addPrompt')}
+        tabIndex={-1}
         className="bg-white dark:bg-zinc-800 sm:rounded-2xl rounded-t-2xl border border-zinc-200 dark:border-zinc-700 shadow-2xl w-full sm:max-w-md animate-in slide-in-from-bottom sm:slide-in-from-bottom-0 duration-200"
         onClick={(e) => e.stopPropagation()}
       >
@@ -158,6 +171,7 @@ export default function ScheduleEventDialog({ selectedDate, onClose, onSubmit }:
             </div>
             <button
               onClick={onClose}
+              aria-label="Close"
               className="p-1.5 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-700 rounded-lg transition-colors"
             >
               <X className="w-5 h-5" />

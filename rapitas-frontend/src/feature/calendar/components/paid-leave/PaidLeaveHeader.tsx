@@ -43,6 +43,7 @@ export function PaidLeaveHeader({
 }: PaidLeaveHeaderProps) {
   const t = useTranslations('calendar');
   const tp = useTranslations('calendar.paidLeaveHeader');
+  const tc = useTranslations('common');
   return (
     <div className="px-5 pt-4 pb-0">
       <div className="flex items-center justify-between mb-3">
@@ -75,6 +76,7 @@ export function PaidLeaveHeader({
         </div>
         <button
           onClick={onClose}
+          aria-label={tc('close')}
           className="p-1.5 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-700 rounded-lg transition-colors"
         >
           <X className="w-5 h-5" />

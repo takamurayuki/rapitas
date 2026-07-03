@@ -2,6 +2,7 @@
 import { type TimeEntry } from '@/types';
 import { useState, useEffect, useRef } from 'react';
 import { useTranslations } from 'next-intl';
+import { useFocusTrap } from '@/components/ui/modal/use-focus-trap';
 
 interface TaskTimeTrackingProps {
   estimatedHours?: number;
@@ -37,6 +38,19 @@ export default function TaskTimeTracking({
   const [showBreakDialog, setShowBreakDialog] = useState(false);
   const [accumulatedBreakSeconds, setAccumulatedBreakSeconds] = useState(0);
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const breakDialogRef = useRef<HTMLDivElement>(null);
+
+  // Escape closes the break-complete dialog
+  useEffect(() => {
+    if (!showBreakDialog) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setShowBreakDialog(false);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [showBreakDialog]);
+
+  useFocusTrap(breakDialogRef, showBreakDialog);
 
   // Allow parent component to retrieve break time
   useEffect(() => {
@@ -315,10 +329,20 @@ export default function TaskTimeTracking({
             className="fixed inset-0 bg-black/50 z-50"
             onClick={() => setShowBreakDialog(false)}
           />
-          <div className="fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-60 bg-white dark:bg-indigo-dark-900 rounded-xl shadow-2xl p-6 w-96 max-w-[90vw]">
+          <div
+            ref={breakDialogRef}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="pomodoro-break-dialog-title"
+            tabIndex={-1}
+            className="fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-60 bg-white dark:bg-indigo-dark-900 rounded-xl shadow-2xl p-6 w-96 max-w-[90vw]"
+          >
             <div className="text-center mb-4">
               <div className="text-5xl mb-3">🎉</div>
-              <h3 className="text-2xl font-bold text-zinc-900 dark:text-zinc-50 mb-2">
+              <h3
+                id="pomodoro-break-dialog-title"
+                className="text-2xl font-bold text-zinc-900 dark:text-zinc-50 mb-2"
+              >
                 {t('taskTimerManagement.pomodoroCompleteHeading')}
               </h3>
               <p className="text-zinc-600 dark:text-zinc-400">

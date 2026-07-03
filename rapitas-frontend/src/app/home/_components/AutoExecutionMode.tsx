@@ -14,6 +14,7 @@
 import { Play, Square, Loader2, Orbit, Pause } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { useThemeAutoRun } from '@/hooks/workflow/useThemeAutoRun';
+import { Spinner } from '@/components/ui/spinner';
 
 interface AutoExecutionModeProps {
   /** Selected development theme to control, or null when none is active. */
@@ -56,7 +57,7 @@ export function AutoExecutionMode({ theme }: AutoExecutionModeProps) {
           className="inline-flex items-center gap-3 rounded-xl border border-indigo-300 bg-white pl-3 pr-4 py-2 text-sm font-medium text-indigo-600 shadow-[0_2px_0_0_#a5b4fc] select-none transition-all duration-75 hover:border-indigo-400 hover:bg-indigo-50 active:translate-y-[2px] active:shadow-none disabled:cursor-not-allowed disabled:opacity-50 dark:border-indigo-700 dark:bg-zinc-900 dark:text-indigo-400 dark:shadow-[0_2px_0_0_#312e81] dark:hover:border-indigo-600 dark:hover:bg-indigo-950/40"
         >
           {actionLoading ? (
-            <Loader2 className="h-4 w-4 animate-spin text-indigo-400" />
+            <Spinner size="sm" className="text-indigo-400 dark:text-indigo-400" />
           ) : (
             <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-indigo-500 dark:bg-transparent">
               <Play className="h-2.5 w-2.5 dark:h-4 dark:w-4 fill-white text-white dark:fill-indigo-400 dark:text-indigo-400" />

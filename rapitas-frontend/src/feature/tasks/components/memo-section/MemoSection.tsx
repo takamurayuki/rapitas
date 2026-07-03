@@ -146,9 +146,9 @@ export default function MemoSection({
       ) : (
         <div className="text-center py-6">
           <div className="w-10 h-10 bg-zinc-100 dark:bg-zinc-800 rounded-full flex items-center justify-center mx-auto mb-2">
-            <MessageSquare className="w-5 h-5 text-zinc-400 dark:text-zinc-500" />
+            <MessageSquare className="w-5 h-5 text-zinc-500 dark:text-zinc-500" />
           </div>
-          <p className="text-xs text-zinc-400">{t('memoSection.emptyHint')}</p>
+          <p className="text-xs text-zinc-500">{t('memoSection.emptyHint')}</p>
         </div>
       )}
 

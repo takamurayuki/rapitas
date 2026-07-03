@@ -6,10 +6,12 @@
  */
 'use client';
 import { useTranslations } from 'next-intl';
-import { Loader2 } from 'lucide-react';
+import { Bug } from 'lucide-react';
 import type { Theme } from '@/types';
 import { ConcernCard } from './ConcernCard';
 import type { Concern } from './concern-shared';
+import { EmptyState } from '@/components/ui/empty-state';
+import { Spinner } from '@/components/ui/spinner';
 
 interface ConcernListProps {
   isLoading: boolean;
@@ -44,17 +46,13 @@ export function ConcernList({
   if (isLoading) {
     return (
       <div className="flex justify-center py-12">
-        <Loader2 className="h-5 w-5 animate-spin text-zinc-400" />
+        <Spinner />
       </div>
     );
   }
 
   if (concerns.length === 0) {
-    return (
-      <div className="rounded-xl border border-dashed border-zinc-200 py-12 text-center text-sm text-zinc-400 dark:border-zinc-700">
-        {t('emptyState')}
-      </div>
-    );
+    return <EmptyState icon={Bug} title={t('emptyState')} />;
   }
 
   return (

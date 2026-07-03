@@ -243,12 +243,12 @@ export default function CompactWorkflowSelector({
                 {complexity.label}
               </span>
             ) : (
-              <span className="text-zinc-400 dark:text-zinc-500 px-2 py-1 rounded-md border border-zinc-200 dark:border-zinc-600">
+              <span className="text-zinc-500 dark:text-zinc-500 px-2 py-1 rounded-md border border-zinc-200 dark:border-zinc-600">
                 {t('unanalyzed')}
               </span>
             )}
             {effectiveScore !== null && effectiveScore !== undefined && (
-              <span className="text-xs text-zinc-400 dark:text-zinc-500">({effectiveScore})</span>
+              <span className="text-xs text-zinc-500 dark:text-zinc-500">({effectiveScore})</span>
             )}
           </div>
         </div>

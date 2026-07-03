@@ -86,7 +86,7 @@ export const Note = memo(function Note({
           {hasReplies ? (
             <button
               onClick={() => setCollapsed(!collapsed)}
-              className="shrink-0 p-0.5 mt-0.5 text-zinc-400 hover:text-indigo-500 transition-colors rounded"
+              className="shrink-0 p-0.5 mt-0.5 text-zinc-500 hover:text-indigo-500 transition-colors rounded"
             >
               {collapsed ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
             </button>
@@ -172,9 +172,9 @@ export const Note = memo(function Note({
 
                 {/* Meta & Actions */}
                 <div className="flex items-center gap-2 mt-1.5">
-                  <span className="text-[10px] text-zinc-400">{note.time}</span>
+                  <span className="text-[10px] text-zinc-500">{note.time}</span>
                   {hasReplies && (
-                    <span className="text-[10px] text-zinc-400 flex items-center gap-0.5">
+                    <span className="text-[10px] text-zinc-500 flex items-center gap-0.5">
                       <CornerDownRight className="w-2.5 h-2.5" />
                       {note.replies!.length}
                     </span>
@@ -189,28 +189,28 @@ export const Note = memo(function Note({
                   <div className="flex gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
                     <button
                       onClick={() => onReply(note)}
-                      className="p-1 text-zinc-400 hover:text-indigo-500 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 rounded transition-colors"
+                      className="p-1 text-zinc-500 hover:text-indigo-500 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 rounded transition-colors"
                       title={t('note.replyTitle')}
                     >
                       <CornerDownRight className="w-3 h-3" />
                     </button>
                     <button
                       onClick={() => onLink(note)}
-                      className="p-1 text-zinc-400 hover:text-indigo-500 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 rounded transition-colors"
+                      className="p-1 text-zinc-500 hover:text-indigo-500 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 rounded transition-colors"
                       title={t('note.linkTitle')}
                     >
                       <Link2 className="w-3 h-3" />
                     </button>
                     <button
                       onClick={() => onEdit(note)}
-                      className="p-1 text-zinc-400 hover:text-amber-500 hover:bg-amber-50 dark:hover:bg-amber-900/30 rounded transition-colors"
+                      className="p-1 text-zinc-500 hover:text-amber-500 hover:bg-amber-50 dark:hover:bg-amber-900/30 rounded transition-colors"
                       title={tc('edit')}
                     >
                       <Pencil className="w-3 h-3" />
                     </button>
                     <button
                       onClick={() => onDelete(note.id)}
-                      className="p-1 text-zinc-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/30 rounded transition-colors"
+                      className="p-1 text-zinc-500 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/30 rounded transition-colors"
                       title={tc('delete')}
                     >
                       <Trash2 className="w-3 h-3" />
@@ -225,13 +225,13 @@ export const Note = memo(function Note({
                       value={replyText}
                       onChange={(e) => onReplyText(e.target.value)}
                       placeholder={t('note.replyPlaceholder')}
-                      className="flex-1 px-2 py-1 text-xs bg-transparent outline-none placeholder:text-zinc-400"
+                      className="flex-1 px-2 py-1 text-xs bg-transparent outline-none placeholder:text-zinc-500"
                       autoFocus
                       onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), onReplySubmit())}
                     />
                     <button
                       onClick={onReplyCancel}
-                      className="p-1 text-zinc-400 hover:text-zinc-600"
+                      className="p-1 text-zinc-500 hover:text-zinc-600"
                     >
                       <X className="w-3 h-3" />
                     </button>

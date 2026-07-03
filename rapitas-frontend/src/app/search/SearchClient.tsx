@@ -8,6 +8,7 @@ import { useGlobalSearch, type SearchResultType } from '@/hooks/search/useGlobal
 import SearchResultCard from '@/feature/search/components/SearchResultCard';
 import Pagination from '@/components/ui/pagination/Pagination';
 import { SearchMissPanel } from './_components/SearchMissPanel';
+import { EmptyState } from '@/components/ui/empty-state';
 
 export default function SearchClient() {
   const t = useTranslations('search');
@@ -185,22 +186,22 @@ export default function SearchClient() {
 
         {!loading && query && results.length === 0 && !error && (
           <>
-            <div className="text-center py-12 animate-in fade-in-0 duration-300">
-              <SearchX className="w-12 h-12 mx-auto text-zinc-300 dark:text-zinc-600 mb-4" />
-              <p className="text-zinc-500 dark:text-zinc-400 mb-2">
-                {t('noMatchResults', { query })}
-              </p>
-              <p className="text-sm text-zinc-400 dark:text-zinc-500">{t('tryDifferentKeyword')}</p>
-            </div>
+            <EmptyState
+              icon={SearchX}
+              title={t('noMatchResults', { query })}
+              description={t('tryDifferentKeyword')}
+              className="animate-in fade-in-0 duration-300"
+            />
             <SearchMissPanel />
           </>
         )}
 
         {!loading && !query && (
-          <div className="text-center py-16 animate-in fade-in-0 duration-300">
-            <Search className="w-12 h-12 mx-auto text-zinc-300 dark:text-zinc-600 mb-4" />
-            <p className="text-zinc-500 dark:text-zinc-400">{t('enterKeywordToSearch')}</p>
-          </div>
+          <EmptyState
+            icon={Search}
+            title={t('enterKeywordToSearch')}
+            className="animate-in fade-in-0 duration-300"
+          />
         )}
       </div>
 

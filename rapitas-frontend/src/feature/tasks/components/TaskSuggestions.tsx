@@ -248,7 +248,7 @@ export default function TaskSuggestions({ themeId, onApply }: TaskSuggestionsPro
 
           {isCached && (
             <div className="mt-1 text-center">
-              <span className="text-[8px] text-zinc-400 dark:text-zinc-500">
+              <span className="text-[8px] text-zinc-500 dark:text-zinc-500">
                 {t('taskSuggestions.cachedLabel')}
               </span>
             </div>

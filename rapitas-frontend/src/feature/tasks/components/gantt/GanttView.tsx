@@ -9,13 +9,14 @@
 
 import React, { useState, useMemo, useCallback } from 'react';
 import useSWR from 'swr';
-import { ChevronLeft, ChevronRight, Loader2 } from 'lucide-react';
+import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import type { GanttData } from '@/types/task.types';
 import TaskSlidePanel from '@/feature/tasks/components/detail/TaskSlidePanel';
 import { useTaskDetailVisibilityStore } from '@/stores/task-detail-visibility-store';
 import { useLocaleStore } from '@/stores/locale-store';
 import { toDateLocale } from '@/lib/utils';
+import { Spinner } from '@/components/ui/spinner';
 import { GanttChart } from './GanttChart';
 import type { GanttViewport } from './gantt-utils';
 
@@ -109,7 +110,7 @@ export function GanttView({ themeId, categoryId, className = '' }: GanttViewProp
   if (isLoading) {
     return (
       <div className={`flex items-center justify-center p-8 ${className}`}>
-        <Loader2 className="h-8 w-8 animate-spin text-gray-500" />
+        <Spinner size="lg" className="text-gray-500 dark:text-gray-500" />
         <span className="ml-3 text-gray-600 dark:text-gray-400">{t('loading')}</span>
       </div>
     );

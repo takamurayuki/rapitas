@@ -99,7 +99,7 @@ export function RecentLearnings({ memoryOverview, formatDate }: RecentLearningsP
                   <span className="text-xs px-2 py-1 bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300 rounded-full">
                     w: {node.weight.toFixed(1)}
                   </span>
-                  <span className="text-xs text-zinc-400 dark:text-zinc-500">
+                  <span className="text-xs text-zinc-500 dark:text-zinc-500">
                     {formatDate(node.createdAt)}
                   </span>
                 </div>

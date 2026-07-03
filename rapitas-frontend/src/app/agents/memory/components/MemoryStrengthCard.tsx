@@ -55,7 +55,7 @@ export function MemoryStrengthCard({ memoryOverview }: MemoryStrengthCardProps) 
           }}
         />
       </div>
-      <div className="flex justify-between mt-2 text-xs text-zinc-400 dark:text-zinc-500">
+      <div className="flex justify-between mt-2 text-xs text-zinc-500 dark:text-zinc-500">
         <span>{t('levelLabels.beginner')}</span>
         <span>{t('levelLabels.intermediate')}</span>
         <span>{t('levelLabels.advanced')}</span>

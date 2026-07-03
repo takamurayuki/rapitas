@@ -2,7 +2,8 @@
 
 import { useState, useCallback, useRef } from 'react';
 import { useTranslations } from 'next-intl';
-import { Search, X, Loader2 } from 'lucide-react';
+import { Search, X } from 'lucide-react';
+import { Spinner } from '@/components/ui/spinner';
 
 interface KnowledgeSearchBarProps {
   onSearch: (query: string) => void;
@@ -39,7 +40,7 @@ export function KnowledgeSearchBar({
     <div className="relative">
       <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
         {isSearching ? (
-          <Loader2 className="h-4 w-4 text-gray-400 animate-spin" />
+          <Spinner size="sm" className="text-gray-400 dark:text-gray-400" />
         ) : (
           <Search className="h-4 w-4 text-gray-400" />
         )}

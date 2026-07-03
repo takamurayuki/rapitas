@@ -106,7 +106,7 @@ export function SuggestionsHeader({
                 e.stopPropagation();
                 onClear();
               }}
-              className="p-1 rounded hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-400 dark:text-zinc-500 hover:text-rose-500 dark:hover:text-rose-400 transition-all duration-200"
+              className="p-1 rounded hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-500 dark:text-zinc-500 hover:text-rose-500 dark:hover:text-rose-400 transition-all duration-200"
               title={t('clear')}
             >
               <X className="w-3 h-3" />
@@ -116,7 +116,7 @@ export function SuggestionsHeader({
 
         {canExpand && (
           <div
-            className={`transition-transform duration-200 text-zinc-400 dark:text-zinc-500 ${isExpanded ? 'rotate-180' : ''}`}
+            className={`transition-transform duration-200 text-zinc-500 dark:text-zinc-500 ${isExpanded ? 'rotate-180' : ''}`}
           >
             <ChevronDown className="w-3 h-3" />
           </div>

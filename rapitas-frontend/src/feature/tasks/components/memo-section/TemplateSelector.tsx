@@ -1,11 +1,12 @@
 'use client';
 // TemplateSelector
 
-import { memo } from 'react';
+import { memo, useEffect, useRef } from 'react';
 import { useTranslations } from 'next-intl';
 import { X, FileText, ChevronLeft } from 'lucide-react';
 import type { MemoType, MemoTemplate } from './types';
 import { MEMO_TEMPLATES, MEMO_TYPE_CONFIG } from './types';
+import { useFocusTrap } from '@/components/ui/modal/use-focus-trap';
 
 /**
  * Renders a full-screen modal listing templates filtered by selectedType.
@@ -30,12 +31,29 @@ export const TemplateSelector = memo(function TemplateSelector({
   const typeConfig = MEMO_TYPE_CONFIG[selectedType];
   const TypeIcon = typeConfig.icon;
 
+  const panelRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onClose]);
+
+  useFocusTrap(panelRef, true);
+
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-[2px]"
       onClick={onClose}
     >
       <div
+        ref={panelRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="template-selector-title"
+        tabIndex={-1}
         className="w-full max-w-md mx-4 bg-white dark:bg-zinc-900 rounded-xl shadow-2xl border border-zinc-200 dark:border-zinc-700 overflow-hidden"
         onClick={(e) => e.stopPropagation()}
       >
@@ -44,7 +62,10 @@ export const TemplateSelector = memo(function TemplateSelector({
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <FileText className="w-4 h-4 text-indigo-500" />
-              <span className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
+              <span
+                id="template-selector-title"
+                className="text-sm font-medium text-zinc-700 dark:text-zinc-300"
+              >
                 {t('templateSelector.title')}
               </span>
               <div
@@ -56,6 +77,7 @@ export const TemplateSelector = memo(function TemplateSelector({
             </div>
             <button
               onClick={onClose}
+              aria-label="Close"
               className="p-1 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-md transition-colors"
             >
               <X className="w-4 h-4" />

@@ -65,7 +65,7 @@ export default function CompactTaskDetailHeader({
           {task.isProtected ? (
             <Lock size={16} className="text-amber-500 dark:text-amber-400" />
           ) : (
-            <LockOpen size={16} className="text-zinc-400 dark:text-zinc-500" />
+            <LockOpen size={16} className="text-zinc-500 dark:text-zinc-500" />
           )}
         </button>
       </div>

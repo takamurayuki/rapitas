@@ -54,7 +54,7 @@ export default function PriorityInlineSelect({ value, onChange }: PriorityInline
         {value ? (
           <PriorityIcon priority={value} size="md" />
         ) : (
-          <span className="text-xs text-zinc-400 dark:text-zinc-500">{t('priority')}</span>
+          <span className="text-xs text-zinc-500 dark:text-zinc-500">{t('priority')}</span>
         )}
       </button>
       {open && (

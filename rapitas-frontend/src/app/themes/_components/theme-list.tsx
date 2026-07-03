@@ -137,7 +137,7 @@ export function ThemeList({
                     ref={draggableProvided.innerRef}
                     {...draggableProvided.draggableProps}
                     className={`rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-indigo-dark-900 hover:shadow-lg transition-all overflow-hidden ${
-                      snapshot.isDragging ? 'shadow-2xl ring-2 ring-purple-500/50' : ''
+                      snapshot.isDragging ? 'shadow-lg ring-2 ring-purple-500/50' : ''
                     }`}
                   >
                     {editingId === item.id ? (

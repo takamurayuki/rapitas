@@ -123,7 +123,7 @@ export function SubtaskItem({
                   {isSelected ? (
                     <CheckSquare className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />
                   ) : (
-                    <Square className="w-5 h-5 text-zinc-400" />
+                    <Square className="w-5 h-5 text-zinc-500" />
                   )}
                 </button>
               )}
@@ -175,7 +175,7 @@ export function SubtaskItem({
                 </div>
               )}
               <span
-                className={`text-sm truncate ${subtask.status === 'done' ? 'text-zinc-400 line-through' : 'text-zinc-900 dark:text-zinc-50'}`}
+                className={`text-sm truncate ${subtask.status === 'done' ? 'text-zinc-500 line-through' : 'text-zinc-900 dark:text-zinc-50'}`}
               >
                 {subtask.title}
               </span>
@@ -199,7 +199,7 @@ export function SubtaskItem({
                       </span>
                     ))}
                   {getLabelsArray(subtask.labels).length > 2 && (
-                    <span className="text-[10px] px-1 py-0.5 text-zinc-400">
+                    <span className="text-[10px] px-1 py-0.5 text-zinc-500">
                       +{getLabelsArray(subtask.labels).length - 2}
                     </span>
                   )}
@@ -229,7 +229,7 @@ export function SubtaskItem({
               })}
               <button
                 onClick={() => onStartEditing(subtask)}
-                className="flex items-center justify-center rounded-lg p-1.5 text-zinc-400 dark:text-zinc-500 hover:bg-indigo-50 hover:text-indigo-600 dark:hover:bg-indigo-900/30 dark:hover:text-indigo-400 transition-colors"
+                className="flex items-center justify-center rounded-lg p-1.5 text-zinc-500 dark:text-zinc-500 hover:bg-indigo-50 hover:text-indigo-600 dark:hover:bg-indigo-900/30 dark:hover:text-indigo-400 transition-colors"
                 title={t('subtaskDetails')}
               >
                 <Pencil className="w-3.5 h-3.5" />

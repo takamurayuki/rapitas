@@ -85,7 +85,7 @@ export function ThemeAutoRunControl({ themeId, isDevelopment }: ThemeAutoRunCont
   if (!isDevelopment) return null;
   if (loading && !data) {
     return (
-      <div className="flex items-center gap-1 px-2 py-1 text-xs text-zinc-400">
+      <div className="flex items-center gap-1 px-2 py-1 text-xs text-zinc-500">
         <Loader2 className="w-3 h-3 animate-spin" />
       </div>
     );

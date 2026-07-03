@@ -8,6 +8,7 @@ import { useNotifications } from '@/feature/developer-mode/hooks/useNotification
 import type { Notification } from '@/types';
 import { useLocaleStore } from '@/stores/locale-store';
 import { toDateLocale } from '@/lib/utils';
+import { EmptyState } from '@/components/ui/empty-state';
 
 const typeIcons: Record<string, string> = {
   approval_request: 'bg-violet-100 dark:bg-violet-900/30 text-violet-600 dark:text-violet-400',
@@ -149,9 +150,7 @@ export default function NotificationBell() {
                 {tc('loading')}
               </div>
             ) : notifications.length === 0 ? (
-              <div className="py-8 text-center text-sm text-zinc-500 dark:text-zinc-400">
-                {t('noNotifications')}
-              </div>
+              <EmptyState icon={Bell} title={t('noNotifications')} />
             ) : (
               notifications.map((notification) => (
                 <div

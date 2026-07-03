@@ -15,9 +15,10 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
-import { Mic, MicOff, X, Send, Wand2, Loader2, Navigation, ListPlus, Search } from 'lucide-react';
+import { Mic, MicOff, X, Send, Wand2, Navigation, ListPlus, Search } from 'lucide-react';
 import AudioWaveform from '../smart-command-bar/AudioWaveform';
 import { encodeWav, resamplePcm } from '@/lib/audio/wav-codec';
+import { Spinner } from '@/components/ui/spinner';
 
 const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:3001';
 
@@ -382,7 +383,7 @@ export default function VoiceInputBar({ isOpen, onClose, target }: VoiceInputBar
               }`}
             >
               {isTranscribing ? (
-                <Loader2 className="w-5 h-5 animate-spin" />
+                <Spinner size="md" className="text-amber-400 dark:text-amber-400" />
               ) : isRecording ? (
                 <MicOff className="w-5 h-5" />
               ) : (

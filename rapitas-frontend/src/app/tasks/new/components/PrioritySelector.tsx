@@ -46,7 +46,7 @@ export function usePriorityOptions(t: ReturnType<typeof useTranslations>): Prior
       value: 'low',
       label: t('priorityLow'),
       icon: <ChevronDown className="w-3.5 h-3.5" />,
-      iconColor: 'text-zinc-400',
+      iconColor: 'text-zinc-500',
       bgColor: 'bg-zinc-500',
     },
   ];

@@ -1,7 +1,7 @@
 'use client';
 // LinkModal
 
-import { useState, useEffect, memo } from 'react';
+import { useState, useEffect, useRef, memo } from 'react';
 import { useTranslations } from 'next-intl';
 import { Link2, Search, X, MessageSquare, Loader2 } from 'lucide-react';
 import type { CommentSearchResult } from '@/types';
@@ -9,6 +9,7 @@ import { API_BASE_URL } from '@/utils/api';
 import type { NoteData } from './comment-types';
 import { LABEL_COLORS, getLinkLabelDisplay } from './comment-types';
 import { timeAgo } from './comment-types';
+import { useFocusTrap } from '@/components/ui/modal/use-focus-trap';
 
 type LinkModalProps = {
   source: NoteData;
@@ -33,6 +34,25 @@ export const LinkModal = memo(function LinkModal({
   const [results, setResults] = useState<CommentSearchResult[]>([]);
   const [loading, setLoading] = useState(false);
   const [label, setLabel] = useState('');
+  const panelRef = useRef<HTMLDivElement>(null);
+  const searchInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onClose]);
+
+  useFocusTrap(panelRef, true);
+
+  // NOTE: Declared after useFocusTrap so this effect runs later and wins final
+  // focus — the close button precedes the search input in DOM order, so the
+  // trap's auto-focus would otherwise land on the close button instead.
+  useEffect(() => {
+    searchInputRef.current?.focus();
+  }, []);
 
   useEffect(() => {
     const search = async () => {
@@ -63,6 +83,11 @@ export const LinkModal = memo(function LinkModal({
       onClick={onClose}
     >
       <div
+        ref={panelRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="link-modal-title"
+        tabIndex={-1}
         className="w-full max-w-sm mx-4 bg-white dark:bg-indigo-dark-900 rounded-xl shadow-2xl border border-zinc-200 dark:border-zinc-700 overflow-hidden"
         onClick={(e) => e.stopPropagation()}
       >
@@ -71,12 +96,16 @@ export const LinkModal = memo(function LinkModal({
           <div className="flex items-center justify-between mb-2">
             <div className="flex items-center gap-1.5">
               <Link2 className="w-3.5 h-3.5 text-indigo-500" />
-              <span className="text-xs font-medium text-zinc-700 dark:text-zinc-300">
+              <span
+                id="link-modal-title"
+                className="text-xs font-medium text-zinc-700 dark:text-zinc-300"
+              >
                 {t('linkModal.title')}
               </span>
             </div>
             <button
               onClick={onClose}
+              aria-label="Close"
               className="p-1 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-md transition-colors"
             >
               <X className="w-3.5 h-3.5" />
@@ -97,11 +126,11 @@ export const LinkModal = memo(function LinkModal({
           <div className="relative">
             <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-zinc-400" />
             <input
+              ref={searchInputRef}
               value={q}
               onChange={(e) => setQ(e.target.value)}
               placeholder={t('linkModal.searchPlaceholder')}
               className="w-full pl-7 pr-3 py-1.5 text-xs bg-zinc-50 dark:bg-indigo-dark-800 border border-zinc-200 dark:border-zinc-700 rounded-lg outline-none focus:border-indigo-400 focus:border-indigo-400 transition-colors"
-              autoFocus
             />
           </div>
 

@@ -2,7 +2,8 @@
 // NoteActionBar
 
 import { useTranslations } from 'next-intl';
-import { Loader2, Pin, PinOff, Brain, Pencil, Trash2, CornerDownRight } from 'lucide-react';
+import { Pin, PinOff, Brain, Pencil, Trash2, CornerDownRight } from 'lucide-react';
+import { Spinner } from '@/components/ui/spinner';
 import type { NoteData } from './types';
 
 type NoteActionBarProps = {
@@ -79,7 +80,14 @@ export function NoteActionBar({
           title={t('aiAnalysis')}
         >
           {isAnalyzing ? (
-            <Loader2 className="w-3 h-3 animate-spin" />
+            <Spinner
+              size="sm"
+              className={
+                hasAnalysis
+                  ? 'text-purple-500 dark:text-purple-500'
+                  : 'text-zinc-400 dark:text-zinc-400'
+              }
+            />
           ) : (
             <Brain className="w-3 h-3" />
           )}

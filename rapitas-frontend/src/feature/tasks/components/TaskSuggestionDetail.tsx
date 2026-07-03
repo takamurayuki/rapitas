@@ -155,9 +155,9 @@ export default function TaskSuggestionDetail({ suggestion, onApply }: TaskSugges
                 </span>
               </div>
               {expandedSections.has('criteria') ? (
-                <ChevronDown className="w-4 h-4 text-zinc-400" />
+                <ChevronDown className="w-4 h-4 text-zinc-500" />
               ) : (
-                <ChevronRight className="w-4 h-4 text-zinc-400" />
+                <ChevronRight className="w-4 h-4 text-zinc-500" />
               )}
             </button>
             {expandedSections.has('criteria') && (
@@ -192,9 +192,9 @@ export default function TaskSuggestionDetail({ suggestion, onApply }: TaskSugges
                 </span>
               </div>
               {expandedSections.has('dependencies') ? (
-                <ChevronDown className="w-4 h-4 text-zinc-400" />
+                <ChevronDown className="w-4 h-4 text-zinc-500" />
               ) : (
-                <ChevronRight className="w-4 h-4 text-zinc-400" />
+                <ChevronRight className="w-4 h-4 text-zinc-500" />
               )}
             </button>
             {expandedSections.has('dependencies') && (
@@ -221,9 +221,9 @@ export default function TaskSuggestionDetail({ suggestion, onApply }: TaskSugges
                 </span>
               </div>
               {expandedSections.has('approach') ? (
-                <ChevronDown className="w-4 h-4 text-zinc-400" />
+                <ChevronDown className="w-4 h-4 text-zinc-500" />
               ) : (
-                <ChevronRight className="w-4 h-4 text-zinc-400" />
+                <ChevronRight className="w-4 h-4 text-zinc-500" />
               )}
             </button>
             {expandedSections.has('approach') && (
@@ -248,9 +248,9 @@ export default function TaskSuggestionDetail({ suggestion, onApply }: TaskSugges
                 <span className="text-sm font-medium">{t('taskSuggestionDetail.reasonLabel')}</span>
               </div>
               {expandedSections.has('reason') ? (
-                <ChevronDown className="w-4 h-4 text-zinc-400" />
+                <ChevronDown className="w-4 h-4 text-zinc-500" />
               ) : (
-                <ChevronRight className="w-4 h-4 text-zinc-400" />
+                <ChevronRight className="w-4 h-4 text-zinc-500" />
               )}
             </button>
             {expandedSections.has('reason') && (

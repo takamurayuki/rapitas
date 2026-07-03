@@ -55,7 +55,7 @@ export const TaskTimeline = memo(function TaskTimeline({
     return (
       <div className="text-center py-4">
         <History className="w-6 h-6 text-zinc-300 dark:text-zinc-600 mx-auto mb-1.5" />
-        <p className="text-[10px] text-zinc-400">{t('empty')}</p>
+        <p className="text-[10px] text-zinc-500">{t('empty')}</p>
       </div>
     );
   }
@@ -95,7 +95,7 @@ export const TaskTimeline = memo(function TaskTimeline({
                   <p className="text-xs text-zinc-700 dark:text-zinc-300 mt-0.5 line-clamp-2">
                     {(item.data as NoteData).content}
                   </p>
-                  <div className="text-[10px] text-zinc-400 mt-0.5">
+                  <div className="text-[10px] text-zinc-500 mt-0.5">
                     {(item.data as NoteData).time}
                   </div>
                 </div>

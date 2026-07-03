@@ -130,7 +130,7 @@ export function WorkflowTabBar({
             onClick={onRefetch}
             disabled={isRefetching}
             title={t('tabBar.reload')}
-            className="text-zinc-400 transition-colors hover:text-zinc-600 disabled:opacity-50 dark:hover:text-zinc-300"
+            className="text-zinc-500 transition-colors hover:text-zinc-600 disabled:opacity-50 dark:hover:text-zinc-300"
           >
             <RefreshCw className={`h-3.5 w-3.5 ${isRefetching ? 'animate-spin' : ''}`} />
           </button>

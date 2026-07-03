@@ -1,9 +1,11 @@
 'use client';
 // IdeaBoxPanel — compact icon button that opens a modal with improvement ideas.
-import { useState } from 'react';
-import { Lightbulb, X, Plus, Loader2, Send, Tag } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
+import { Lightbulb, X, Plus, Send, Tag } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { useIdeaBox } from '@/hooks/feature/useIdeaBox';
+import { useFocusTrap } from '@/components/ui/modal/use-focus-trap';
+import { Spinner } from '@/components/ui/spinner';
 
 interface IdeaBoxPanelProps {
   categoryId: number | null;
@@ -46,6 +48,17 @@ export function IdeaBoxPanel({ categoryId }: IdeaBoxPanelProps) {
   const [showForm, setShowForm] = useState(false);
   const [newTitle, setNewTitle] = useState('');
   const [newContent, setNewContent] = useState('');
+  const panelRef = useRef<HTMLDivElement>(null);
+  const titleInputRef = useRef<HTMLInputElement>(null);
+
+  useFocusTrap(panelRef, isOpen);
+
+  // NOTE: the title input was previously autoFocus'd, but it isn't the first
+  // focusable element in the panel (the header close button is) — useFocusTrap
+  // would otherwise steal focus back to that button once the form opens.
+  useEffect(() => {
+    if (showForm) titleInputRef.current?.focus();
+  }, [showForm]);
 
   const handleSubmit = async () => {
     if (!newTitle.trim() || !newContent.trim()) return;
@@ -83,9 +96,11 @@ export function IdeaBoxPanel({ categoryId }: IdeaBoxPanelProps) {
           }}
         >
           <div
+            ref={panelRef}
             role="dialog"
             aria-modal="true"
             aria-labelledby="ideabox-title"
+            tabIndex={-1}
             className="mx-4 w-full max-w-lg rounded-xl border border-zinc-200 bg-white shadow-2xl dark:border-zinc-700 dark:bg-zinc-800"
             onClick={(e) => e.stopPropagation()}
           >
@@ -138,7 +153,7 @@ export function IdeaBoxPanel({ categoryId }: IdeaBoxPanelProps) {
             <div className="px-5 py-3">
               {isLoading ? (
                 <div className="flex items-center justify-center py-8">
-                  <Loader2 className="h-5 w-5 animate-spin text-zinc-400" />
+                  <Spinner size="md" className="text-zinc-400 dark:text-zinc-400" />
                 </div>
               ) : ideas.length === 0 ? (
                 <p className="py-6 text-center text-xs text-zinc-400">{t('emptyState')}</p>
@@ -179,11 +194,11 @@ export function IdeaBoxPanel({ categoryId }: IdeaBoxPanelProps) {
               {showForm ? (
                 <div className="space-y-2">
                   <input
+                    ref={titleInputRef}
                     type="text"
                     value={newTitle}
                     onChange={(e) => setNewTitle(e.target.value)}
                     placeholder={t('titlePlaceholder')}
-                    autoFocus
                     className="w-full rounded border border-zinc-300 bg-transparent px-2.5 py-1.5 text-xs focus:border-indigo-400 focus:outline-none dark:border-zinc-600"
                   />
                   <div className="flex items-center gap-1.5">
@@ -213,7 +228,7 @@ export function IdeaBoxPanel({ categoryId }: IdeaBoxPanelProps) {
                       className="flex items-center gap-1 rounded bg-amber-600 px-2.5 py-1.5 text-[11px] font-medium text-white hover:bg-amber-700 disabled:opacity-50"
                     >
                       {isSubmitting ? (
-                        <Loader2 className="h-3 w-3 animate-spin" />
+                        <Spinner size="sm" className="text-white dark:text-white" />
                       ) : (
                         <Send className="h-3 w-3" />
                       )}

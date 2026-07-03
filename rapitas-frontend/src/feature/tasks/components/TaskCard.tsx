@@ -42,6 +42,7 @@ const TaskCard = memo(function TaskCard({
 }: TaskCardProps) {
   const t = useTranslations('task');
   const tHome = useTranslations('home');
+  const tWorkflow = useTranslations('workflow');
   const locale = useLocaleStore((s) => s.locale);
   const { showToast } = useToast();
 
@@ -141,6 +142,16 @@ const TaskCard = memo(function TaskCard({
                   ).replace('border-l-', 'border-')}`
             } shrink-0`}
             aria-label={tc.isWaitingForInput ? tc.waitingAmberConfig.label : tc.currentStatus.label}
+            // NOTE: Only the GENERIC hint — the actual blocked cause lives in a
+            // separate /workflow/tasks/:taskId/transitions fetch, and firing that
+            // per card in a list view would be N requests. The richer follow-up
+            // is a batched fetch (join the latest WorkflowTransition per task
+            // into the list endpoint) so the list can show the real cause.
+            title={
+              (task.status as string) === 'blocked'
+                ? tWorkflow('statusIndicator.blockedGenericHint')
+                : undefined
+            }
           >
             {(tc.executionStatus === 'running' || tc.executionStatus === 'waiting_for_input') && (
               <svg

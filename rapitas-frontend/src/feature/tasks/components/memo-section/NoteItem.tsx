@@ -135,7 +135,7 @@ export const NoteItem = memo(function NoteItem({
             {hasReplies ? (
               <button
                 onClick={() => setCollapsed(!collapsed)}
-                className="p-0.5 text-zinc-400 hover:text-indigo-500 transition-colors rounded"
+                className="p-0.5 text-zinc-500 hover:text-indigo-500 transition-colors rounded"
               >
                 {collapsed ? (
                   <ChevronUp className="w-3 h-3" />

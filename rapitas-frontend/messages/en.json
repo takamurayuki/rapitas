@@ -1636,12 +1636,40 @@
     "successRate": "Success Rate",
     "totalTokenUsage": "Total Token Usage",
     "activeAgents": "Active Agents",
+    "systemStatus": {
+      "title": "System Status",
+      "pill": {
+        "healthy": "Healthy",
+        "busy": "Busy",
+        "shutting_down": "Shutting down",
+        "interrupted": "Interrupted",
+        "unhealthy": "Unhealthy"
+      },
+      "running": "Running executions",
+      "active": "Active executions",
+      "interrupted": "Interrupted executions",
+      "queueDepth": "Queue depth",
+      "uptime": "Uptime"
+    },
     "repairConvergence": {
       "title": "Self-repair loop convergence",
       "convergenceRate": "Convergence rate",
       "avgIterations": "Avg iterations",
       "enteredLoop": "Entered repair loop",
       "blocked": "Blocked"
+    },
+    "judgeEval": {
+      "title": "Adversarial judge accuracy",
+      "accuracy": "Accuracy",
+      "correctOfTotal": "{correct} / {total} correct",
+      "provider": "Provider",
+      "status": "Status",
+      "passed": "Passed",
+      "failed": "Failed",
+      "errored": "{count} errored",
+      "lastRun": "Last run",
+      "empty": "Judge eval has never run. Set RAPITAS_EVAL_JUDGE=1 and run scripts/eval-judge.ts to produce a result.",
+      "loadFailed": "Failed to load judge eval result"
     },
     "executionTrend": "Execution Trend",
     "successful": "Successful",
@@ -2575,7 +2603,15 @@
     "contentPlaceholder": "Enter system prompt content...",
     "requiredFields": "Key, name, and prompt content are required",
     "keyValidation": "Key can only contain lowercase letters, numbers, and underscores",
-    "addFailed": "Failed to add prompt"
+    "addFailed": "Failed to add prompt",
+    "promptEvolution": {
+      "title": "Prompt evolution history",
+      "entries": "{count} entries",
+      "pendingOfCompleted": "{pending} pending / {completed} completed",
+      "avgDelta": "avg delta {value}",
+      "empty": "No prompt evolution history yet.",
+      "loadFailed": "Failed to load prompt evolution history"
+    }
   },
   "claudeMd": {
     "wizardLabel": "PROJECT SPEC GENERATOR",

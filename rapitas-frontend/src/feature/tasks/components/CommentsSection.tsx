@@ -2,7 +2,8 @@
 // CommentsSection
 
 import { useTranslations } from 'next-intl';
-import { Plus, Link2, ChevronDown, ChevronUp, MessageSquare, Loader2 } from 'lucide-react';
+import { Plus, Link2, ChevronDown, ChevronUp, MessageSquare } from 'lucide-react';
+import { Spinner } from '@/components/ui/spinner';
 import type { Comment } from '@/types';
 import { Note } from './comments/Note';
 import { LinkModal } from './comments/LinkModal';
@@ -138,7 +139,7 @@ export default function CommentsSection({
               className="self-end px-3 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg disabled:opacity-40 transition-colors"
             >
               {isAddingComment ? (
-                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                <Spinner size="sm" className="text-white dark:text-white" />
               ) : (
                 <Plus className="w-3.5 h-3.5" />
               )}

@@ -190,7 +190,7 @@ function NewTaskClient() {
                 el.style.height = `${Math.max(el.scrollHeight, 84)}px`;
               }}
               placeholder={t('taskDetailPlaceholder')}
-              className="w-full min-h-[84px] bg-zinc-50 dark:bg-zinc-800/50 rounded-xl px-4 py-3 text-sm border-none outline-none resize-none focus:ring-2 focus:ring-indigo-500/20 transition-all placeholder:text-zinc-400 dark:placeholder:text-zinc-500"
+              className="w-full min-h-[84px] bg-zinc-50 dark:bg-zinc-800/50 rounded-xl px-4 py-3 text-sm border-none outline-none resize-none focus:ring-2 focus:ring-indigo-500/20 transition-all placeholder:text-zinc-500 dark:placeholder:text-zinc-500"
             />
           </CompactAccordionGroup>
 
@@ -241,7 +241,7 @@ function NewTaskClient() {
                     onChange={(e) => f.onChange(e.target.value)}
                     placeholder={t('specItemPlaceholder')}
                     rows={3}
-                    className="w-full bg-zinc-50 dark:bg-zinc-800/50 rounded-xl px-4 py-2.5 text-sm border-none outline-none resize-y focus:ring-2 focus:ring-indigo-500/20 transition-all placeholder:text-zinc-400 dark:placeholder:text-zinc-500"
+                    className="w-full bg-zinc-50 dark:bg-zinc-800/50 rounded-xl px-4 py-2.5 text-sm border-none outline-none resize-y focus:ring-2 focus:ring-indigo-500/20 transition-all placeholder:text-zinc-500 dark:placeholder:text-zinc-500"
                   />
                 </div>
               ))}

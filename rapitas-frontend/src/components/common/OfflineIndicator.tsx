@@ -1,8 +1,9 @@
 'use client';
 // OfflineIndicator
-import { WifiOff, CloudOff, Loader2 } from 'lucide-react';
+import { WifiOff, CloudOff } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { useOfflineQueue } from '@/hooks/common/useOfflineQueue';
+import { Spinner } from '@/components/ui/spinner';
 
 export function OfflineIndicator() {
   const t = useTranslations('common');
@@ -49,7 +50,7 @@ export function OfflineIndicator() {
       {!isOnline ? (
         <WifiOff className="h-3.5 w-3.5" />
       ) : isSyncing ? (
-        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+        <Spinner size="sm" className="text-white dark:text-white" />
       ) : (
         <CloudOff className="h-3.5 w-3.5" />
       )}

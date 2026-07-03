@@ -62,7 +62,7 @@ export const TaskActivityItem = memo(function TaskActivityItem({
             <span className="text-zinc-500 dark:text-zinc-400">{activity.details}</span>
           )}
         </div>
-        <div className="flex items-center gap-2 mt-0.5 text-[10px] text-zinc-400">
+        <div className="flex items-center gap-2 mt-0.5 text-[10px] text-zinc-500">
           <span>{timeAgo(new Date(activity.timestamp), t)}</span>
           {activity.user && (
             <>

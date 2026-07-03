@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import {
   FileStack,
   X,
@@ -17,6 +17,7 @@ import type { TaskTemplate, Theme } from '@/types';
 import { getIconComponent } from '@/components/category/icon-data';
 import { API_BASE_URL } from '@/utils/api';
 import { SkeletonBlock } from '@/components/ui/LoadingSpinner';
+import { useFocusTrap } from '@/components/ui/modal/use-focus-trap';
 
 type Props = {
   isOpen: boolean;
@@ -35,6 +36,19 @@ export default function ApplyTemplateDialog({ isOpen, onClose, selectedTheme, on
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [selectedTemplate, setSelectedTemplate] = useState<TaskTemplate | null>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
+
+  useFocusTrap(panelRef, isOpen);
+
+  // Close on Escape key
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen, onClose]);
 
   useEffect(() => {
     const fetchTemplates = async () => {
@@ -111,13 +125,21 @@ export default function ApplyTemplateDialog({ isOpen, onClose, selectedTheme, on
       onClick={handleClose}
     >
       <div
+        ref={panelRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="apply-template-dialog-title"
+        tabIndex={-1}
         className="bg-white dark:bg-zinc-900 rounded-2xl shadow-2xl border border-zinc-200 dark:border-zinc-800 w-full max-w-2xl max-h-[80vh] flex flex-col overflow-hidden"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
         <div className="flex items-center justify-between p-5 border-b border-zinc-200 dark:border-zinc-800 shrink-0">
           <div>
-            <h2 className="text-lg font-bold text-zinc-900 dark:text-zinc-50 flex items-center gap-2">
+            <h2
+              id="apply-template-dialog-title"
+              className="text-lg font-bold text-zinc-900 dark:text-zinc-50 flex items-center gap-2"
+            >
               <FileStack className="w-5 h-5 text-violet-500" />
               {t('title')}
             </h2>
@@ -141,6 +163,7 @@ export default function ApplyTemplateDialog({ isOpen, onClose, selectedTheme, on
           </div>
           <button
             onClick={handleClose}
+            aria-label={tc('close')}
             className="p-2 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-lg transition-colors"
           >
             <X className="w-5 h-5" />

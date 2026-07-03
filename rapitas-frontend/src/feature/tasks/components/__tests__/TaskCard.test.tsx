@@ -271,6 +271,22 @@ describe('TaskCard', () => {
       render(<TaskCard {...mockProps} task={taskInProgress} />);
       expect(screen.getByTestId('status-icon-in-progress')).toBeInTheDocument();
     });
+
+    it('blockedステータスではステータスアイコンに汎用ヒントのtitleが付く', () => {
+      const blockedTask = { ...mockTask, status: 'blocked' as Status };
+      render(<TaskCard {...mockProps} task={blockedTask} />);
+      const icon = screen.getByTestId('status-icon-blocked');
+      expect(icon.closest('div[title]')).toHaveAttribute(
+        'title',
+        'statusIndicator.blockedGenericHint',
+      );
+    });
+
+    it('blocked以外のステータスではtitleが付かない', () => {
+      render(<TaskCard {...mockProps} />);
+      const icon = screen.getByTestId('status-icon-todo');
+      expect(icon.closest('div')).not.toHaveAttribute('title');
+    });
   });
 
   describe('プライオリティ表示', () => {

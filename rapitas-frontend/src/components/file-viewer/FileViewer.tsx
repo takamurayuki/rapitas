@@ -1,5 +1,5 @@
 'use client';
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useTranslations } from 'next-intl';
 import {
   X,
@@ -24,6 +24,7 @@ import MarkdownViewer from './MarkdownViewer';
 import './markdown-viewer.css';
 import { createLogger } from '@/lib/logger';
 import { useToast } from '@/components/ui/toast/ToastContainer';
+import { useFocusTrap } from '@/components/ui/modal/use-focus-trap';
 const logger = createLogger('FileViewer');
 
 type FileViewerProps = {
@@ -199,6 +200,9 @@ export default function FileViewer({
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isOpen, handlePrevious, handleNext, onClose]);
 
+  const dialogRef = useRef<HTMLDivElement>(null);
+  useFocusTrap(dialogRef, isOpen);
+
   if (!isOpen) return null;
 
   const fileType = getFileType(resource);
@@ -207,6 +211,11 @@ export default function FileViewer({
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm">
       {/* Main Container */}
       <div
+        ref={dialogRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="file-viewer-title"
+        tabIndex={-1}
         className={`relative bg-white dark:bg-zinc-900 rounded-2xl shadow-2xl overflow-hidden transition-all duration-300 ${
           isFullscreen
             ? 'w-full h-full m-0 rounded-none'
@@ -230,7 +239,10 @@ export default function FileViewer({
               )}
             </div>
             <div>
-              <h3 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100">
+              <h3
+                id="file-viewer-title"
+                className="text-lg font-semibold text-zinc-900 dark:text-zinc-100"
+              >
                 {resource.title || resource.fileName}
               </h3>
               <p className="text-sm text-zinc-500 dark:text-zinc-400">{resource.mimeType}</p>
@@ -322,6 +334,7 @@ export default function FileViewer({
             </a>
             <button
               onClick={onClose}
+              aria-label="Close"
               className="p-1.5 sm:p-2 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
               title={t('fileViewer.closeWithEsc')}
             >

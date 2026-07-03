@@ -12,7 +12,6 @@ import {
   Trash2,
   Download,
   ExternalLink,
-  Loader2,
   Check,
   Eye,
 } from 'lucide-react';
@@ -21,6 +20,7 @@ import type { Resource } from '@/types';
 import { API_BASE_URL } from '@/utils/api';
 import FileViewer from '@/components/file-viewer/FileViewer';
 import { createLogger } from '@/lib/logger';
+import { Spinner } from '@/components/ui/spinner';
 
 const logger = createLogger('FileUploader');
 
@@ -246,7 +246,7 @@ export default function FileUploader({ taskId, resources, onResourcesChange }: F
         />
         <div className="flex flex-col items-center gap-2 text-center pointer-events-none">
           {isUploading ? (
-            <Loader2 className="w-8 h-8 text-indigo-500 animate-spin" />
+            <Spinner size="lg" className="text-indigo-500 dark:text-indigo-500" />
           ) : (
             <Upload className="w-8 h-8 text-zinc-400 dark:text-zinc-500" />
           )}
@@ -359,7 +359,7 @@ export default function FileUploader({ taskId, resources, onResourcesChange }: F
                     {downloadStates[resource.id] === 'completed' ? (
                       <Check className="w-4 h-4 animate-[successPop_0.4s_ease-out]" />
                     ) : downloadStates[resource.id] === 'downloading' ? (
-                      <Loader2 className="w-4 h-4 animate-spin" />
+                      <Spinner size="sm" className="text-indigo-500 dark:text-indigo-500" />
                     ) : (
                       <Download className="w-4 h-4" />
                     )}

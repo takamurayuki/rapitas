@@ -68,7 +68,7 @@ export default function TaskStatusChange({
       className={`${sizeClass} rounded flex items-center justify-center transition-all border ${
         isCurrent
           ? `${config.bgColor} ${config.color} ${borderColor}`
-          : `border-zinc-200 dark:border-zinc-700 hover:border-zinc-300 dark:hover:border-zinc-600 hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-400 dark:text-zinc-500`
+          : `border-zinc-200 dark:border-zinc-700 hover:border-zinc-300 dark:hover:border-zinc-600 hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-500 dark:text-zinc-500`
       }`}
       title={config.label}
     >

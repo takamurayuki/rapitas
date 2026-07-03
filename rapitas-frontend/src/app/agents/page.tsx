@@ -7,6 +7,7 @@ import { API_BASE_URL } from '@/utils/api';
 import WorkflowRolesConfig from '@/components/workflow/WorkflowRolesConfig';
 import { GlobalProviderPreference } from './_components/GlobalProviderPreference';
 import { SkipPermissionToggle } from './_components/SkipPermissionToggle';
+import { SystemStatusPanel } from './_components/SystemStatusPanel';
 import { createLogger } from '@/lib/logger';
 import { isDevHost } from '@/lib/dev-mode';
 
@@ -134,6 +135,8 @@ export default function AgentsPage() {
           <h1 className="text-2xl font-bold text-zinc-900 dark:text-zinc-100">{t('pageTitle')}</h1>
           <p className="text-zinc-500 dark:text-zinc-400 mt-1">{t('pageSubtitle')}</p>
         </div>
+
+        <SystemStatusPanel />
 
         <div className="mb-6 space-y-3">
           <GlobalProviderPreference />

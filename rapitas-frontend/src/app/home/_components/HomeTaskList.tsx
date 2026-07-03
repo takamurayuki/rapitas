@@ -5,7 +5,8 @@ import type { Status, Task } from '@/types';
 import TaskCard from '@/feature/tasks/components/TaskCard';
 import Pagination from '@/components/ui/pagination/Pagination';
 import { TaskCardsSkeleton } from '@/components/ui/LoadingSpinner';
-import { SwatchBook, Plus, ListPlus } from 'lucide-react';
+import { EmptyState } from '@/components/ui/empty-state';
+import { SwatchBook, Plus, ListPlus, FolderOpen } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 
 interface HomeTaskListProps {
@@ -73,50 +74,42 @@ export function HomeTaskList({
     // Empty state: no themes for the selected category
     if (categoryFilter !== null && themesInCategoryCount === 0) {
       return (
-        <div className="text-center py-12 text-zinc-500 dark:text-zinc-400">
-          <SwatchBook className="w-16 h-16 mx-auto mb-4 text-zinc-300 dark:text-zinc-700" />
-          <p className="text-lg font-medium mb-2">{t('noThemes')}</p>
-          <p className="text-sm mb-4">{t('noThemesDescription')}</p>
-          <button
-            onClick={() => router.push('/themes')}
-            className="inline-flex items-center gap-2 px-4 py-2 rounded-lg select-none text-sm font-medium text-purple-700 dark:text-purple-300 bg-white dark:bg-zinc-900 border border-purple-200 dark:border-purple-800 shadow-[0_2px_0_0_#d8b4fe] dark:shadow-[0_2px_0_0_#4c1d95] transition-all duration-75 hover:bg-purple-50 dark:hover:bg-purple-900/20 active:translate-y-[2px] active:shadow-none"
-          >
-            <Plus className="w-5 h-5" />
-            {t('addTheme')}
-          </button>
-        </div>
+        <EmptyState
+          icon={SwatchBook}
+          title={t('noThemes')}
+          description={t('noThemesDescription')}
+          action={
+            <button
+              onClick={() => router.push('/themes')}
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-lg select-none text-sm font-medium text-purple-700 dark:text-purple-300 bg-white dark:bg-zinc-900 border border-purple-200 dark:border-purple-800 shadow-[0_2px_0_0_#d8b4fe] dark:shadow-[0_2px_0_0_#4c1d95] transition-all duration-75 hover:bg-purple-50 dark:hover:bg-purple-900/20 active:translate-y-[2px] active:shadow-none"
+            >
+              <Plus className="w-5 h-5" />
+              {t('addTheme')}
+            </button>
+          }
+        />
       );
     }
 
     // Empty state: no tasks match current filters
     return (
-      <div className="text-center py-12 text-zinc-500 dark:text-zinc-400">
-        <svg
-          className="w-16 h-16 mx-auto mb-4 text-zinc-300 dark:text-zinc-700"
-          fill="none"
-          stroke="currentColor"
-          viewBox="0 0 24 24"
-        >
-          <path
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            strokeWidth={2}
-            d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"
-          />
-        </svg>
-        <p className="text-lg font-medium mb-2">{t('noTasks')}</p>
-        <p className="text-sm mb-4">{t('noTasksDescription')}</p>
-        <button
-          onClick={() => {
-            const themeParam = themeFilter || defaultThemeId;
-            router.push(`/tasks/new${themeParam ? `?themeId=${themeParam}` : ''}`);
-          }}
-          className="inline-flex items-center gap-2 px-4 py-2 rounded-lg select-none text-sm font-medium text-blue-700 dark:text-blue-300 bg-white dark:bg-zinc-900 border border-blue-200 dark:border-blue-800 shadow-[0_2px_0_0_#93c5fd] dark:shadow-[0_2px_0_0_#1e3a8a] transition-all duration-75 hover:bg-blue-50 dark:hover:bg-blue-900/20 active:translate-y-[2px] active:shadow-none"
-        >
-          <ListPlus className="w-5 h-5" />
-          {t('createTask')}
-        </button>
-      </div>
+      <EmptyState
+        icon={FolderOpen}
+        title={t('noTasks')}
+        description={t('noTasksDescription')}
+        action={
+          <button
+            onClick={() => {
+              const themeParam = themeFilter || defaultThemeId;
+              router.push(`/tasks/new${themeParam ? `?themeId=${themeParam}` : ''}`);
+            }}
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-lg select-none text-sm font-medium text-blue-700 dark:text-blue-300 bg-white dark:bg-zinc-900 border border-blue-200 dark:border-blue-800 shadow-[0_2px_0_0_#93c5fd] dark:shadow-[0_2px_0_0_#1e3a8a] transition-all duration-75 hover:bg-blue-50 dark:hover:bg-blue-900/20 active:translate-y-[2px] active:shadow-none"
+          >
+            <ListPlus className="w-5 h-5" />
+            {t('createTask')}
+          </button>
+        }
+      />
     );
   }
 

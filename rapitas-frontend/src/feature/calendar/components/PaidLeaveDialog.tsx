@@ -6,6 +6,7 @@ import { useTranslations } from 'next-intl';
 import type { ScheduleEventInput } from '@/types';
 import { useLocaleStore } from '@/stores/locale-store';
 import { toDateLocale } from '@/lib/utils';
+import { useFocusTrap } from '@/components/ui/modal/use-focus-trap';
 import { PaidLeaveHeader } from './paid-leave/PaidLeaveHeader';
 import { PaidLeaveDurationPicker } from './paid-leave/PaidLeaveDurationPicker';
 import { PaidLeaveOptions } from './paid-leave/PaidLeaveOptions';
@@ -67,6 +68,13 @@ export default function PaidLeaveDialog({
   const [submitting, setSubmitting] = useState(false);
   const [showOptions, setShowOptions] = useState(false);
   const titleRef = useRef<HTMLInputElement>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
+
+  // Trap Tab focus inside the panel; declared before the title auto-focus
+  // effect below so that effect's explicit titleRef focus wins (React runs
+  // effects in declaration order, and useFocusTrap would otherwise steal
+  // focus to the first focusable element — the close button in the header).
+  useFocusTrap(panelRef, true);
 
   // Auto-fill title from selected leave type and focus the input
   useEffect(() => {
@@ -175,6 +183,11 @@ export default function PaidLeaveDialog({
       onClick={onClose}
     >
       <div
+        ref={panelRef}
+        role="dialog"
+        aria-modal="true"
+        aria-label={t('paidLeaveRequest')}
+        tabIndex={-1}
         className="bg-white dark:bg-zinc-800 sm:rounded-2xl rounded-t-2xl border border-zinc-200 dark:border-zinc-700 shadow-2xl w-full sm:max-w-md animate-in slide-in-from-bottom sm:slide-in-from-bottom-0 duration-200"
         onClick={(e) => e.stopPropagation()}
       >

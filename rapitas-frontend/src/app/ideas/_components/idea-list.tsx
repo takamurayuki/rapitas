@@ -6,10 +6,12 @@
  */
 'use client';
 import { useTranslations } from 'next-intl';
-import { Lightbulb, Loader2 } from 'lucide-react';
+import { Lightbulb } from 'lucide-react';
 import type { Theme } from '@/types';
 import type { Idea } from './idea-box.types';
 import { IdeaCard } from './idea-card';
+import { EmptyState } from '@/components/ui/empty-state';
+import { Spinner } from '@/components/ui/spinner';
 
 interface IdeaListProps {
   isLoading: boolean;
@@ -45,20 +47,18 @@ export function IdeaList({
   if (isLoading) {
     return (
       <div className="flex items-center justify-center py-16">
-        <Loader2 className="h-6 w-6 animate-spin text-amber-500" />
+        <Spinner size="lg" className="text-amber-500 dark:text-amber-500" />
       </div>
     );
   }
 
   if (filtered.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center py-16 text-center">
-        <Lightbulb className="h-12 w-12 text-zinc-200 dark:text-zinc-700 mb-3" />
-        <p className="text-sm text-zinc-500 dark:text-zinc-400">
-          {searchQuery ? t('list.emptySearch') : t('list.emptyDefault')}
-        </p>
-        <p className="text-xs text-zinc-400 dark:text-zinc-500 mt-1">{t('list.emptyHint')}</p>
-      </div>
+      <EmptyState
+        icon={Lightbulb}
+        title={searchQuery ? t('list.emptySearch') : t('list.emptyDefault')}
+        description={t('list.emptyHint')}
+      />
     );
   }
 

@@ -16,6 +16,7 @@ import { createLogger } from '@/lib/logger';
 import { CATEGORY_LABELS, type SystemPrompt } from './components/types';
 import { PromptCard } from './components/PromptCard';
 import { AddPromptModal } from './components/AddPromptModal';
+import { PromptEvolutionSummary } from './components/PromptEvolutionSummary';
 import { useToast } from '@/components/ui/toast/ToastContainer';
 import { useConfirmDialog } from '@/components/ui/dialog/ConfirmDialogProvider';
 
@@ -174,6 +175,8 @@ export default function SystemPromptsPage() {
             {t('addPrompt')}
           </button>
         </div>
+
+        <PromptEvolutionSummary />
 
         <div className="flex flex-col sm:flex-row gap-3 mb-6">
           <div className="relative flex-1">

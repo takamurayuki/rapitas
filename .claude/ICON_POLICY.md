@@ -67,6 +67,9 @@ Keep this list accurate. If you assign a glyph a new meaning, add it here.
 | `SquareTerminal`          | 統合ターミナル                           |
 | `SplitSquareHorizontal`   | ターミナルのペイン左右分割               |
 | `SplitSquareVertical`     | ターミナルのペイン上下分割               |
+| `Server`                  | バックエンドサーバー本体の状態 (BackendConnectionError, agents SystemStatusPanel status pill) |
+| `PlayCircle`              | いま実際に実行中のエージェント数 (SystemStatusPanel activeExecutions) |
+| `Layers3`                 | 自動実行キューの積み上げ件数 (SystemStatusPanel queueDepth) |
 | `Sprout`                  | 記憶の成長 (nav: /agents/memory)         |
 | `Library`                 | 知識ベース (nav: /knowledge グループ; 知識関連の通知・サジェストパネルでの再利用も可) |
 | `Search`                  | 知識ブラウザ (nav: /knowledge)           |
@@ -76,6 +79,7 @@ Keep this list accurate. If you assign a glyph a new meaning, add it here.
 | `Info`                    | ヒント/提案バレット（AI分析・プロンプト最適化・学習プラン等の提案リスト先頭アイコン。`Lightbulb`＝アイデアと混同しないこと） |
 | `Sparkles`                | AI生成/おすすめ操作（分析実行・プロンプト最適化・イノベーションジョブ種別など、AIが生成/提案する操作全般） |
 | `Gauge`                   | 懸念の種別「パフォーマンス」（旧・複雑度「標準」との衝突は解消済み — 下記 Known collisions 参照） |
+| `Gavel`                   | 敵対的レビュー判定（adversarial diff-review judge eval）カードタイトル |
 
 ### Known collisions
 

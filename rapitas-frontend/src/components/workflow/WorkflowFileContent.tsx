@@ -173,7 +173,7 @@ export function WorkflowFileContent({
   if (isLoading && !activeFile) {
     return (
       <div className="flex items-center justify-center h-32">
-        <Loader2 className="h-5 w-5 text-zinc-400 animate-spin mr-2" />
+        <Loader2 className="h-5 w-5 text-zinc-500 animate-spin mr-2" />
         <span className="text-sm text-zinc-500 dark:text-zinc-400">{tc('loading')}</span>
       </div>
     );
@@ -183,7 +183,7 @@ export function WorkflowFileContent({
     return (
       <div className="text-center py-10">
         <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-zinc-100 dark:bg-zinc-800 mb-3">
-          <activeTabConfig.icon className="h-6 w-6 text-zinc-400" />
+          <activeTabConfig.icon className="h-6 w-6 text-zinc-500" />
         </div>
         <p className="text-sm text-zinc-500 dark:text-zinc-400">{activeTabConfig.emptyText}</p>
       </div>
@@ -236,11 +236,11 @@ export function WorkflowFileContent({
             type="button"
             onClick={() => setTocOpen((open) => !open)}
             aria-expanded={tocOpen}
-            className="flex items-center gap-1 text-[11px] font-medium text-zinc-400 transition-colors hover:text-zinc-600 dark:text-zinc-500 dark:hover:text-zinc-300"
+            className="flex items-center gap-1 text-[11px] font-medium text-zinc-500 transition-colors hover:text-zinc-600 dark:text-zinc-500 dark:hover:text-zinc-300"
           >
             <List className="h-3.5 w-3.5" />
             <span>{t('fileContent.tableOfContents')}</span>
-            <span className="text-zinc-400/70 dark:text-zinc-500/70">({headings.length})</span>
+            <span className="text-zinc-500/70 dark:text-zinc-500/70">({headings.length})</span>
             <ChevronDown
               className={`h-3.5 w-3.5 transition-transform ${tocOpen ? '' : '-rotate-90'}`}
             />

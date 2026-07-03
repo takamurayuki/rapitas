@@ -5,7 +5,6 @@ import {
   type Search,
   Command,
   ArrowRight,
-  Loader2,
   BookOpen,
   ListTodo,
   Compass,
@@ -19,7 +18,9 @@ import { API_BASE_URL } from '@/utils/api';
 import { useTranslations } from 'next-intl';
 import { useShortcutStore } from '@/stores/shortcut-store';
 import { useSpeechRecognition } from '@/hooks/common/useSpeechRecognition';
+import { useFocusTrap } from '@/components/ui/modal/use-focus-trap';
 import { createLogger } from '@/lib/logger';
+import { Spinner } from '@/components/ui/spinner';
 import AudioWaveform from './AudioWaveform';
 
 const logger = createLogger('SmartCommandBar');
@@ -44,6 +45,7 @@ export default function SmartCommandBar() {
   const [isSearching, setIsSearching] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
   const router = useRouter();
   const t = useTranslations('commandBar');
   const shortcuts = useShortcutStore((s) => s.shortcuts);
@@ -115,6 +117,8 @@ export default function SmartCommandBar() {
       setSelectedIndex(-1);
     }
   }, [isOpen]);
+
+  useFocusTrap(panelRef, isOpen);
 
   // Debounced search suggestions
   useEffect(() => {
@@ -204,9 +208,11 @@ export default function SmartCommandBar() {
 
       {/* Command bar */}
       <div
+        ref={panelRef}
         role="dialog"
         aria-modal="true"
         aria-label={t('placeholder')}
+        tabIndex={-1}
         className="relative w-full max-w-xl mx-4 bg-white dark:bg-zinc-800 rounded-2xl shadow-2xl border border-zinc-200 dark:border-zinc-700 overflow-hidden"
       >
         {/* Input */}
@@ -272,7 +278,7 @@ export default function SmartCommandBar() {
               type="button"
             >
               {isTranscribing ? (
-                <Loader2 className="w-4 h-4 animate-spin" />
+                <Spinner size="sm" className="text-white dark:text-white" />
               ) : isListening ? (
                 <MicOff className="w-4 h-4" />
               ) : (
@@ -293,7 +299,7 @@ export default function SmartCommandBar() {
             <span className="text-xs text-amber-500 truncate max-w-48">{voiceError}</span>
           )}
           {isProcessing ? (
-            <Loader2 className="w-5 h-5 text-purple-500 animate-spin shrink-0" />
+            <Spinner size="md" className="text-purple-500 dark:text-purple-500 shrink-0" />
           ) : (
             <button
               onClick={handleSubmit}
@@ -369,7 +375,7 @@ export default function SmartCommandBar() {
           </div>
         ) : isSearching ? (
           <div className="px-4 py-3 flex items-center gap-2 text-sm text-zinc-400 dark:text-zinc-500 border-b border-zinc-100 dark:border-zinc-700">
-            <Loader2 className="w-4 h-4 animate-spin" />
+            <Spinner size="sm" />
             <span>Searching...</span>
           </div>
         ) : null}
