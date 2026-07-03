@@ -69,18 +69,14 @@ export function parseRetryPolicyConfig(env: NodeJS.ProcessEnv): RetryPolicyConfi
   const enabled = env.RAPITAS_TEST_ADAPTIVE_RETRY === '1';
 
   const rawWindow = parseInt(env.RAPITAS_TEST_FLAKE_WINDOW ?? '', 10);
-  const historyWindow =
-    Number.isFinite(rawWindow) && rawWindow > 0 ? rawWindow : 10;
+  const historyWindow = Number.isFinite(rawWindow) && rawWindow > 0 ? rawWindow : 10;
 
   const rawThreshold = parseFloat(env.RAPITAS_TEST_FLAKE_HIGH_THRESHOLD ?? '');
   const highThreshold =
-    Number.isFinite(rawThreshold) && rawThreshold >= 0 && rawThreshold <= 1
-      ? rawThreshold
-      : 0.2;
+    Number.isFinite(rawThreshold) && rawThreshold >= 0 && rawThreshold <= 1 ? rawThreshold : 0.2;
 
   const rawExtra = parseInt(env.RAPITAS_TEST_FLAKE_EXTRA_RETRIES ?? '', 10);
-  const flakeExtraRetries =
-    Number.isFinite(rawExtra) && rawExtra >= 0 ? rawExtra : 2;
+  const flakeExtraRetries = Number.isFinite(rawExtra) && rawExtra >= 0 ? rawExtra : 2;
 
   const highFlakePatterns: RegExp[] = [];
   const rawPatterns = env.RAPITAS_TEST_HIGH_FLAKE_PATTERNS;
@@ -92,7 +88,9 @@ export function parseRetryPolicyConfig(env: NodeJS.ProcessEnv): RetryPolicyConfi
         highFlakePatterns.push(new RegExp(trimmed));
       } catch {
         // NOTE: Invalid regex silently skipped to prevent a typo from breaking CI.
-        console.warn(`[retry-policy] Invalid regex in RAPITAS_TEST_HIGH_FLAKE_PATTERNS: "${trimmed}" — skipped`);
+        console.warn(
+          `[retry-policy] Invalid regex in RAPITAS_TEST_HIGH_FLAKE_PATTERNS: "${trimmed}" — skipped`,
+        );
       }
     }
   }

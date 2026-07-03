@@ -27,11 +27,7 @@ function emptyHistory(): FlakeHistoryFile {
   return { version: 1, updatedAt: '', entries: {} };
 }
 
-function historyWithEntry(
-  file: string,
-  runCount: number,
-  flakeCount: number,
-): FlakeHistoryFile {
+function historyWithEntry(file: string, runCount: number, flakeCount: number): FlakeHistoryFile {
   return {
     version: 1,
     updatedAt: '2025-01-01T00:00:00Z',
@@ -72,9 +68,7 @@ describe('parseRetryPolicyConfig', () => {
   });
 
   test('historyWindow parsed from env', () => {
-    expect(
-      parseRetryPolicyConfig({ RAPITAS_TEST_FLAKE_WINDOW: '20' }).historyWindow,
-    ).toBe(20);
+    expect(parseRetryPolicyConfig({ RAPITAS_TEST_FLAKE_WINDOW: '20' }).historyWindow).toBe(20);
   });
 
   test('historyWindow falls back to 10 for invalid values', () => {
@@ -88,21 +82,21 @@ describe('parseRetryPolicyConfig', () => {
   });
 
   test('highThreshold parsed from env', () => {
-    expect(
-      parseRetryPolicyConfig({ RAPITAS_TEST_FLAKE_HIGH_THRESHOLD: '0.5' }).highThreshold,
-    ).toBe(0.5);
+    expect(parseRetryPolicyConfig({ RAPITAS_TEST_FLAKE_HIGH_THRESHOLD: '0.5' }).highThreshold).toBe(
+      0.5,
+    );
   });
 
   test('highThreshold falls back to 0.2 for out-of-range values', () => {
     expect(
       parseRetryPolicyConfig({ RAPITAS_TEST_FLAKE_HIGH_THRESHOLD: '-0.1' }).highThreshold,
     ).toBe(0.2);
-    expect(
-      parseRetryPolicyConfig({ RAPITAS_TEST_FLAKE_HIGH_THRESHOLD: '1.5' }).highThreshold,
-    ).toBe(0.2);
-    expect(
-      parseRetryPolicyConfig({ RAPITAS_TEST_FLAKE_HIGH_THRESHOLD: 'bad' }).highThreshold,
-    ).toBe(0.2);
+    expect(parseRetryPolicyConfig({ RAPITAS_TEST_FLAKE_HIGH_THRESHOLD: '1.5' }).highThreshold).toBe(
+      0.2,
+    );
+    expect(parseRetryPolicyConfig({ RAPITAS_TEST_FLAKE_HIGH_THRESHOLD: 'bad' }).highThreshold).toBe(
+      0.2,
+    );
   });
 
   test('flakeExtraRetries defaults to 2', () => {
@@ -236,9 +230,11 @@ describe('updateFlakeHistory', () => {
   const now = '2025-06-01T00:00:00Z';
 
   test('adds new entry for a file not in history', () => {
-    const result = updateFlakeHistory(emptyHistory(), [
-      { file: 'a.test.ts', elapsedMs: 100, exitCode: 0, attempts: 1, flaky: false },
-    ], now);
+    const result = updateFlakeHistory(
+      emptyHistory(),
+      [{ file: 'a.test.ts', elapsedMs: 100, exitCode: 0, attempts: 1, flaky: false }],
+      now,
+    );
     expect(result.entries['a.test.ts']).toEqual({
       runCount: 1,
       flakeCount: 0,
@@ -247,17 +243,21 @@ describe('updateFlakeHistory', () => {
   });
 
   test('increments flakeCount when result.flaky is true', () => {
-    const result = updateFlakeHistory(emptyHistory(), [
-      { file: 'b.test.ts', elapsedMs: 200, exitCode: 0, attempts: 2, flaky: true },
-    ], now);
+    const result = updateFlakeHistory(
+      emptyHistory(),
+      [{ file: 'b.test.ts', elapsedMs: 200, exitCode: 0, attempts: 2, flaky: true }],
+      now,
+    );
     expect(result.entries['b.test.ts']?.flakeCount).toBe(1);
   });
 
   test('increments runCount without incrementing flakeCount for non-flaky result', () => {
     const history = historyWithEntry('c.test.ts', 5, 2);
-    const result = updateFlakeHistory(history, [
-      { file: 'c.test.ts', elapsedMs: 150, exitCode: 0, attempts: 1, flaky: false },
-    ], now);
+    const result = updateFlakeHistory(
+      history,
+      [{ file: 'c.test.ts', elapsedMs: 150, exitCode: 0, attempts: 1, flaky: false }],
+      now,
+    );
     expect(result.entries['c.test.ts']).toEqual({
       runCount: 6,
       flakeCount: 2,
@@ -267,9 +267,11 @@ describe('updateFlakeHistory', () => {
 
   test('increments both runCount and flakeCount for flaky result', () => {
     const history = historyWithEntry('d.test.ts', 5, 1);
-    const result = updateFlakeHistory(history, [
-      { file: 'd.test.ts', elapsedMs: 300, exitCode: 0, attempts: 2, flaky: true },
-    ], now);
+    const result = updateFlakeHistory(
+      history,
+      [{ file: 'd.test.ts', elapsedMs: 300, exitCode: 0, attempts: 2, flaky: true }],
+      now,
+    );
     expect(result.entries['d.test.ts']).toEqual({
       runCount: 6,
       flakeCount: 2,
@@ -279,17 +281,23 @@ describe('updateFlakeHistory', () => {
 
   test('does not mutate the input history', () => {
     const original = emptyHistory();
-    updateFlakeHistory(original, [
-      { file: 'x.test.ts', elapsedMs: 100, exitCode: 0, attempts: 1, flaky: false },
-    ], now);
+    updateFlakeHistory(
+      original,
+      [{ file: 'x.test.ts', elapsedMs: 100, exitCode: 0, attempts: 1, flaky: false }],
+      now,
+    );
     expect(original.entries).toEqual({});
   });
 
   test('handles multiple results in one call', () => {
-    const result = updateFlakeHistory(emptyHistory(), [
-      { file: 'e.test.ts', elapsedMs: 100, exitCode: 0, attempts: 1, flaky: false },
-      { file: 'f.test.ts', elapsedMs: 200, exitCode: 0, attempts: 2, flaky: true },
-    ], now);
+    const result = updateFlakeHistory(
+      emptyHistory(),
+      [
+        { file: 'e.test.ts', elapsedMs: 100, exitCode: 0, attempts: 1, flaky: false },
+        { file: 'f.test.ts', elapsedMs: 200, exitCode: 0, attempts: 2, flaky: true },
+      ],
+      now,
+    );
     expect(result.entries['e.test.ts']?.runCount).toBe(1);
     expect(result.entries['f.test.ts']?.flakeCount).toBe(1);
   });
