@@ -105,7 +105,10 @@ export function ErrorList({
             >
               <div className="p-4 cursor-pointer" onClick={() => onToggleExpansion(error.id)}>
                 <div className="flex items-start space-x-3">
-                  <button className="mt-1">
+                  <button
+                    className="mt-1"
+                    aria-label={expandedErrors.has(error.id) ? 'Collapse' : 'Expand'}
+                  >
                     {expandedErrors.has(error.id) ? (
                       <ChevronDown className="h-4 w-4" />
                     ) : (

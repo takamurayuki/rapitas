@@ -291,7 +291,7 @@ export default function SmartCommandBar() {
             <AudioWaveform stream={activeStream} width={120} height={28} />
           )}
           {interimTranscript && !activeStream && (
-            <span className="text-xs text-zinc-400 italic truncate max-w-32">
+            <span className="text-xs text-zinc-500 italic truncate max-w-32">
               {interimTranscript}
             </span>
           )}
@@ -352,7 +352,7 @@ export default function SmartCommandBar() {
                     <HighlightText text={s.title} query={input} />
                   </div>
                   {s.matchContext === 'description' && (
-                    <span className="text-xs text-zinc-400 dark:text-zinc-500">
+                    <span className="text-xs text-zinc-500 dark:text-zinc-500">
                       matched in description
                     </span>
                   )}
@@ -374,7 +374,7 @@ export default function SmartCommandBar() {
             ))}
           </div>
         ) : isSearching ? (
-          <div className="px-4 py-3 flex items-center gap-2 text-sm text-zinc-400 dark:text-zinc-500 border-b border-zinc-100 dark:border-zinc-700">
+          <div className="px-4 py-3 flex items-center gap-2 text-sm text-zinc-500 dark:text-zinc-500 border-b border-zinc-100 dark:border-zinc-700">
             <Spinner size="sm" />
             <span>Searching...</span>
           </div>
@@ -405,7 +405,7 @@ export default function SmartCommandBar() {
         )}
 
         {/* Footer */}
-        <div className="px-4 py-2 border-t border-zinc-100 dark:border-zinc-700 flex items-center justify-between text-xs text-zinc-400 dark:text-zinc-500">
+        <div className="px-4 py-2 border-t border-zinc-100 dark:border-zinc-700 flex items-center justify-between text-xs text-zinc-500 dark:text-zinc-500">
           <span className="flex items-center gap-1">
             <Command className="w-3 h-3" />
             <span>+K {t('toToggle')}</span>
@@ -432,7 +432,7 @@ function HintItem({
     <div className="flex items-center gap-2 text-sm">
       <Icon className={`w-4 h-4 ${color} shrink-0`} />
       <span className="text-zinc-600 dark:text-zinc-400">{text}</span>
-      <span className="text-zinc-400 dark:text-zinc-500 text-xs">— {example}</span>
+      <span className="text-zinc-500 dark:text-zinc-500 text-xs">— {example}</span>
     </div>
   );
 }

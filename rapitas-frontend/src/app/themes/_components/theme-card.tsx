@@ -79,12 +79,12 @@ export function ThemeCard({ item, provided, renderIcon, onEdit, onDelete, onSetD
 
         <div className="flex items-center gap-2 mt-1">
           {item._count && (
-            <span className="text-xs text-zinc-400 dark:text-zinc-500">
+            <span className="text-xs text-zinc-500 dark:text-zinc-500">
               {item._count.tasks} {t('tasks')}
             </span>
           )}
           {item.isDevelopment && item.workingDirectory && (
-            <span className="hidden md:flex text-xs text-zinc-400 dark:text-zinc-500 items-center gap-1 font-mono">
+            <span className="hidden md:flex text-xs text-zinc-500 dark:text-zinc-500 items-center gap-1 font-mono">
               <FolderOpen className="w-3 h-3" />
               {item.workingDirectory.length > 30
                 ? '...' + item.workingDirectory.slice(-27)

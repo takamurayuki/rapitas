@@ -68,6 +68,11 @@
     "adding": "Adding...",
     "resetToDefault": "Reset to default",
     "retry": "Retry",
+    "showApiKey": "Show API key",
+    "hideApiKey": "Hide API key",
+    "expand": "Expand",
+    "collapse": "Collapse",
+    "sendMessage": "Send message",
     "backendConnectionError": {
       "title": "Cannot connect to the backend server",
       "description": "Make sure the backend server (port 3001) is running. Restart the dev server, or run <code>bun run dev</code> in a terminal.",
@@ -2338,6 +2343,8 @@
     "weekFri": "Fri",
     "weekSat": "Sat",
     "yearMonth": "{month}/{year}",
+    "prevMonth": "Previous month",
+    "nextMonth": "Next month",
     "paidLeaveBalance": "Paid leave remaining",
     "paidLeaveDays": "{count} day(s)",
     "fiscalYear": "FY{year}",
@@ -2463,6 +2470,7 @@
     "prevWeek": "Previous week",
     "backToThisWeek": "Back to this week",
     "nextWeek": "Next week",
+    "toggleFilters": "Toggle filters",
     "clear": "Clear",
     "tasksFound": " task(s) found",
     "thisWeek": "This week ({start} - {end})",
@@ -2492,7 +2500,10 @@
     "takeBreakMessage": "Good work! Take a break.",
     "resumeWorkMessage": "Let's resume work.",
     "taskCompleted": "Task completed!",
-    "taskCompleteFailed": "Failed to complete task"
+    "taskCompleteFailed": "Failed to complete task",
+    "resetTimer": "Reset timer",
+    "pauseTimer": "Pause timer",
+    "startTimer": "Start timer"
   },
   "notification": {
     "justNow": "Just now",
@@ -2584,6 +2595,7 @@
     "categoryChat": "Chat",
     "noSearchResults": "No prompts match the search criteria",
     "defaultLabel": "Default",
+    "toggleActive": "Toggle active",
     "keyLabel": "Key:",
     "updatedLabel": "Updated:",
     "name": "Name",
@@ -4354,7 +4366,9 @@
         "insertText": "Insert text into field",
         "shortcutToggle": "Ctrl+Shift+V: Start/stop recording",
         "shortcutClose": "Esc: Close",
-        "autoConvert": "Auto-convert after 2s of silence"
+        "autoConvert": "Auto-convert after 2s of silence",
+        "startRecording": "Start recording",
+        "stopRecording": "Stop recording"
       },
       "wakeWord": {
         "listening": "Listening for wake word",

@@ -116,7 +116,7 @@ export default function Pagination({
             .map((page, index, array) => (
               <React.Fragment key={page}>
                 {index > 0 && array[index - 1] !== page - 1 && (
-                  <span className="px-1 text-zinc-400 text-xs">•••</span>
+                  <span className="px-1 text-zinc-500 text-xs">•••</span>
                 )}
                 <button
                   onClick={() => onPageChange(page)}

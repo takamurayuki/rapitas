@@ -29,6 +29,7 @@ interface Props {
  */
 export function TaskNoteSplitView({ taskId: _taskId, noteId }: Props) {
   const t = useTranslations('task');
+  const tc = useTranslations('common');
   const router = useRouter();
 
   // NOTE: Prevent the page body from scrolling while the split view is active.
@@ -68,6 +69,7 @@ export function TaskNoteSplitView({ taskId: _taskId, noteId }: Props) {
           <div className="flex-1" />
           <button
             onClick={handleClose}
+            aria-label={tc('close')}
             className="rounded p-1 text-gray-400 transition-colors hover:bg-gray-200 hover:text-gray-700 dark:text-zinc-500 dark:hover:bg-zinc-800 dark:hover:text-zinc-200"
           >
             <X className="h-4 w-4" />

@@ -50,7 +50,7 @@ const ChatMessage = ({ message }: { message: AIChatMessage }) => {
         <p className="text-sm whitespace-pre-wrap leading-relaxed">{message.content}</p>
         <span
           className={`text-xs mt-1 block ${
-            isUser ? 'text-indigo-100' : 'text-zinc-400 dark:text-zinc-500'
+            isUser ? 'text-indigo-100' : 'text-zinc-500 dark:text-zinc-500'
           }`}
         >
           {message.timestamp.toLocaleTimeString(toDateLocale(locale), {
@@ -65,6 +65,7 @@ const ChatMessage = ({ message }: { message: AIChatMessage }) => {
 
 export default function AIAssistantPanel() {
   const t = useTranslations('copilot.aiAssistantPanel');
+  const tCommon = useTranslations('common');
   const { currentMode } = useUIModeStore();
   const [inputValue, setInputValue] = useState('');
   const [showSettings, setShowSettings] = useState(false);
@@ -231,7 +232,7 @@ export default function AIAssistantPanel() {
                               ? 'bg-indigo-600 dark:bg-indigo-500 text-white shadow-sm'
                               : isConfigured
                                 ? 'bg-white dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-700 border border-zinc-300 dark:border-zinc-600'
-                                : 'bg-zinc-100 dark:bg-zinc-800 text-zinc-400 dark:text-zinc-600 cursor-not-allowed'
+                                : 'bg-zinc-100 dark:bg-zinc-800 text-zinc-500 dark:text-zinc-600 cursor-not-allowed'
                           }`}
                           title={
                             isConfigured
@@ -370,6 +371,7 @@ export default function AIAssistantPanel() {
             <button
               onClick={handleSendMessage}
               disabled={!inputValue.trim() || isLoading}
+              aria-label={tCommon('sendMessage')}
               className="px-4 py-3 bg-indigo-600 hover:bg-indigo-700 dark:bg-indigo-500 dark:hover:bg-indigo-600 disabled:bg-zinc-300 dark:disabled:bg-zinc-700 disabled:cursor-not-allowed text-white rounded-md transition-colors duration-150 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2"
             >
               {isLoading ? (
@@ -379,7 +381,7 @@ export default function AIAssistantPanel() {
               )}
             </button>
           </div>
-          <p className="text-xs text-zinc-400 dark:text-zinc-500 mt-2 text-center">
+          <p className="text-xs text-zinc-500 dark:text-zinc-500 mt-2 text-center">
             {t('sendHint')}
           </p>
         </div>

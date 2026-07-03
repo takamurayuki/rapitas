@@ -116,7 +116,7 @@ export function WeeklyReviewCard() {
                 end: formatDate(review.weekEnd),
               })}
             </span>
-            <span className="text-zinc-400 dark:text-zinc-600">·</span>
+            <span className="text-zinc-500 dark:text-zinc-600">·</span>
             <span>{review.modelUsed}</span>
           </div>
 

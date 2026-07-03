@@ -61,14 +61,14 @@ export function PaidLeaveHeader({
               {formattedStartDate}
             </p>
             {formattedEndDate ? (
-              <p className="text-xs text-zinc-400 dark:text-zinc-500 mt-0.5">
+              <p className="text-xs text-zinc-500 dark:text-zinc-500 mt-0.5">
                 〜 {formattedEndDate}
                 <span className="ml-1 text-red-500 dark:text-red-400 font-medium">
                   {t('dayCountSuffix', { count: dayCount })}
                 </span>
               </p>
             ) : (
-              <p className="text-xs text-zinc-400 dark:text-zinc-500 mt-0.5">
+              <p className="text-xs text-zinc-500 dark:text-zinc-500 mt-0.5">
                 {tp('requestPrompt')}
               </p>
             )}

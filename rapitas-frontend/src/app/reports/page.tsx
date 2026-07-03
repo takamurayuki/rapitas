@@ -69,7 +69,7 @@ export default function ReportsPage() {
   const getTrend = (value: number) => {
     if (value > 0) return { icon: TrendingUp, color: 'text-green-500', text: `+${value}` };
     if (value < 0) return { icon: TrendingDown, color: 'text-red-500', text: `${value}` };
-    return { icon: Minus, color: 'text-zinc-400', text: '±0' };
+    return { icon: Minus, color: 'text-zinc-500', text: '±0' };
   };
 
   if (loading) {
@@ -174,7 +174,7 @@ export default function ReportsPage() {
                       minHeight: day.tasks > 0 ? '4px' : '0',
                     }}
                   />
-                  <span className="text-xs text-zinc-400 mt-1">
+                  <span className="text-xs text-zinc-500 mt-1">
                     {new Date(day.date).toLocaleDateString(dateLocale, {
                       weekday: 'short',
                     })}
@@ -196,7 +196,7 @@ export default function ReportsPage() {
                       minHeight: day.hours > 0 ? '4px' : '0',
                     }}
                   />
-                  <span className="text-xs text-zinc-400 mt-1">{day.hours.toFixed(1)}h</span>
+                  <span className="text-xs text-zinc-500 mt-1">{day.hours.toFixed(1)}h</span>
                 </div>
               ))}
             </div>

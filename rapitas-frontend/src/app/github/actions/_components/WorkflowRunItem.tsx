@@ -70,7 +70,7 @@ export function WorkflowRunItem({
               {run.displayTitle}
             </span>
           </div>
-          <div className="mt-0.5 flex items-center gap-2 text-[11px] text-zinc-400">
+          <div className="mt-0.5 flex items-center gap-2 text-[11px] text-zinc-500">
             <span className="rounded bg-zinc-100 px-1 py-0.5 font-mono dark:bg-zinc-800">
               {run.headBranch}
             </span>
@@ -93,7 +93,7 @@ export function WorkflowRunItem({
       {isExpanded && detail && (
         <div className="space-y-1.5 border-t border-zinc-100 px-4 py-3 dark:border-zinc-700/50">
           {detail.jobs.length === 0 ? (
-            <p className="text-xs text-zinc-400">{t('workflowRunItem.noJobs')}</p>
+            <p className="text-xs text-zinc-500">{t('workflowRunItem.noJobs')}</p>
           ) : (
             detail.jobs.map((job) => (
               <JobSection

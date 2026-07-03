@@ -181,4 +181,171 @@ describe('CacheManager', () => {
       expect(stats.entries).toEqual([]);
     });
   });
+
+  describe('fetchWithETag ネットワークエラー時のフォールバック', () => {
+    it('キャッシュがあればネットワークエラー時にキャッシュを返すこと', async () => {
+      const fetchSpy = vi.spyOn(globalThis, 'fetch');
+      fetchSpy.mockResolvedValueOnce(
+        new Response(JSON.stringify({ id: 1 }), { status: 200, headers: { ETag: '"e1"' } }),
+      );
+      await cacheManager.fetchWithETag('https://api.com/fallback');
+
+      fetchSpy.mockRejectedValueOnce(new TypeError('Failed to fetch'));
+      const result = await cacheManager.fetchWithETag('https://api.com/fallback');
+
+      expect(result).toEqual({ data: { id: 1 }, fromCache: true });
+      fetchSpy.mockRestore();
+    });
+
+    it('キャッシュが無い場合はネットワークエラーをそのまま投げること', async () => {
+      const fetchSpy = vi
+        .spyOn(globalThis, 'fetch')
+        .mockRejectedValue(new TypeError('Failed to fetch'));
+
+      await expect(cacheManager.fetchWithETag('https://api.com/no-cache')).rejects.toThrow(
+        'Failed to fetch',
+      );
+      fetchSpy.mockRestore();
+    });
+
+    it('キャッシュが古すぎる場合はネットワークエラーをそのまま投げること', async () => {
+      vi.useFakeTimers();
+      try {
+        const fetchSpy = vi.spyOn(globalThis, 'fetch');
+        fetchSpy.mockResolvedValueOnce(
+          new Response(JSON.stringify({ id: 1 }), { status: 200, headers: { ETag: '"e1"' } }),
+        );
+        await cacheManager.fetchWithETag('https://api.com/stale');
+
+        vi.advanceTimersByTime(6 * 60 * 1000); // past the 5-minute isCacheValid window
+
+        fetchSpy.mockRejectedValueOnce(new TypeError('Failed to fetch'));
+        await expect(cacheManager.fetchWithETag('https://api.com/stale')).rejects.toThrow(
+          'Failed to fetch',
+        );
+        fetchSpy.mockRestore();
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+  });
+
+  describe('applyCacheStrategy', () => {
+    describe('cache-first', () => {
+      it('有効なキャッシュがあればネットワークを呼ばずキャッシュを返すこと', async () => {
+        const fetchSpy = vi.spyOn(globalThis, 'fetch');
+        fetchSpy.mockResolvedValueOnce(
+          new Response(JSON.stringify({ v: 1 }), { status: 200, headers: { ETag: '"e1"' } }),
+        );
+        await cacheManager.applyCacheStrategy('https://api.com/cf', 'cache-first');
+
+        fetchSpy.mockClear();
+        const result = await cacheManager.applyCacheStrategy('https://api.com/cf', 'cache-first');
+
+        expect(result).toEqual({ v: 1 });
+        expect(fetchSpy).not.toHaveBeenCalled();
+        fetchSpy.mockRestore();
+      });
+
+      it('キャッシュが無ければネットワークから取得すること', async () => {
+        const fetchSpy = vi
+          .spyOn(globalThis, 'fetch')
+          .mockResolvedValueOnce(new Response(JSON.stringify({ v: 2 }), { status: 200 }));
+
+        const result = await cacheManager.applyCacheStrategy('https://api.com/cf2', 'cache-first');
+
+        expect(result).toEqual({ v: 2 });
+        fetchSpy.mockRestore();
+      });
+    });
+
+    describe('network-first', () => {
+      it('ネットワーク成功時はネットワークの結果を返すこと', async () => {
+        const fetchSpy = vi
+          .spyOn(globalThis, 'fetch')
+          .mockResolvedValueOnce(new Response(JSON.stringify({ v: 3 }), { status: 200 }));
+
+        const result = await cacheManager.applyCacheStrategy('https://api.com/nf', 'network-first');
+
+        expect(result).toEqual({ v: 3 });
+        fetchSpy.mockRestore();
+      });
+
+      it('ネットワーク失敗時は有効なキャッシュへフォールバックすること', async () => {
+        const fetchSpy = vi.spyOn(globalThis, 'fetch');
+        fetchSpy.mockResolvedValueOnce(new Response(JSON.stringify({ v: 4 }), { status: 200 }));
+        await cacheManager.applyCacheStrategy('https://api.com/nf2', 'network-first');
+
+        fetchSpy.mockRejectedValueOnce(new TypeError('down'));
+        const result = await cacheManager.applyCacheStrategy(
+          'https://api.com/nf2',
+          'network-first',
+        );
+
+        expect(result).toEqual({ v: 4 });
+        fetchSpy.mockRestore();
+      });
+
+      it('ネットワーク失敗かつキャッシュも無い場合はエラーを投げること', async () => {
+        const fetchSpy = vi.spyOn(globalThis, 'fetch').mockRejectedValue(new TypeError('down'));
+
+        await expect(
+          cacheManager.applyCacheStrategy('https://api.com/nf3', 'network-first'),
+        ).rejects.toThrow('down');
+        fetchSpy.mockRestore();
+      });
+    });
+
+    describe('stale-while-revalidate', () => {
+      it('キャッシュがあれば即座にstaleなデータを返し、裏でネットワークを呼ぶこと', async () => {
+        const fetchSpy = vi.spyOn(globalThis, 'fetch');
+        fetchSpy.mockResolvedValueOnce(new Response(JSON.stringify({ v: 5 }), { status: 200 }));
+        await cacheManager.applyCacheStrategy('https://api.com/swr', 'stale-while-revalidate');
+
+        fetchSpy.mockResolvedValueOnce(new Response(JSON.stringify({ v: 6 }), { status: 200 }));
+        const result = await cacheManager.applyCacheStrategy(
+          'https://api.com/swr',
+          'stale-while-revalidate',
+        );
+
+        // Immediately returns the stale (previous) value, not the in-flight revalidation.
+        expect(result).toEqual({ v: 5 });
+        fetchSpy.mockRestore();
+      });
+
+      it('キャッシュが無ければネットワークから取得すること', async () => {
+        const fetchSpy = vi
+          .spyOn(globalThis, 'fetch')
+          .mockResolvedValueOnce(new Response(JSON.stringify({ v: 7 }), { status: 200 }));
+
+        const result = await cacheManager.applyCacheStrategy(
+          'https://api.com/swr2',
+          'stale-while-revalidate',
+        );
+
+        expect(result).toEqual({ v: 7 });
+        fetchSpy.mockRestore();
+      });
+    });
+  });
+
+  describe('warmupCache', () => {
+    it('複数URLをまとめてプリフェッチしキャッシュへ格納すること', async () => {
+      const fetchSpy = vi.spyOn(globalThis, 'fetch');
+      fetchSpy.mockResolvedValueOnce(new Response(JSON.stringify({ a: 1 }), { status: 200 }));
+      fetchSpy.mockResolvedValueOnce(new Response(JSON.stringify({ b: 1 }), { status: 200 }));
+
+      await cacheManager.warmupCache(['https://api.com/w1', 'https://api.com/w2']);
+
+      expect(fetchSpy).toHaveBeenCalledTimes(2);
+      fetchSpy.mockRestore();
+    });
+
+    it('個々のURLが失敗しても例外を投げないこと', async () => {
+      const fetchSpy = vi.spyOn(globalThis, 'fetch').mockRejectedValue(new Error('boom'));
+
+      await expect(cacheManager.warmupCache(['https://api.com/w3'])).resolves.toBeUndefined();
+      fetchSpy.mockRestore();
+    });
+  });
 });

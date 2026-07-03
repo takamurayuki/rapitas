@@ -68,7 +68,7 @@ export function IdleExecutionForm({
       {/* Collapsible details */}
       <button
         onClick={() => setShowDetails(!showDetails)}
-        className="flex items-center gap-1 px-1 text-[10px] text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 transition-colors"
+        className="flex items-center gap-1 px-1 text-[10px] text-zinc-500 hover:text-zinc-600 dark:hover:text-zinc-300 transition-colors"
       >
         {showDetails ? (
           <ChevronUp className="w-2.5 h-2.5" />
@@ -84,7 +84,7 @@ export function IdleExecutionForm({
             <label className="flex items-center gap-1 text-[10px] text-zinc-500 dark:text-zinc-400 mb-1">
               <GitBranch className="w-2.5 h-2.5" />
               {t('branchNameLabel')}
-              <span className="text-zinc-400 dark:text-zinc-500">{t('branchNameHint')}</span>
+              <span className="text-zinc-500 dark:text-zinc-500">{t('branchNameHint')}</span>
             </label>
             <input
               type="text"
@@ -103,7 +103,7 @@ export function IdleExecutionForm({
             <label className="flex items-center gap-1 text-[10px] text-zinc-500 dark:text-zinc-400 mb-1">
               <GitBranch className="w-2.5 h-2.5" />
               {t('baseBranchLabel')}
-              <span className="text-zinc-400 dark:text-zinc-500">{t('baseBranchHint')}</span>
+              <span className="text-zinc-500 dark:text-zinc-500">{t('baseBranchHint')}</span>
             </label>
             {baseBranches.length > 0 ? (
               <select

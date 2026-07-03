@@ -5,7 +5,7 @@ import type { Task, Status } from '@/types';
 import TaskStatusChange from '@/feature/tasks/components/status/TaskStatusChange';
 import PriorityIcon from '@/feature/tasks/components/priority/PriorityIcon';
 import { getStatusDisplay, renderStatusIcon } from '@/feature/tasks/config/StatusConfig';
-import { ExternalLink, Tag, Repeat, RefreshCw, Lock, Clock } from 'lucide-react';
+import { ExternalLink, Tag, Repeat, RefreshCw, Lock, Clock, History } from 'lucide-react';
 import { API_BASE_URL } from '@/utils/api';
 import { useToast } from '@/components/ui/toast/ToastContainer';
 import { getLabelsArray, hasLabels } from '@/utils/labels';
@@ -209,10 +209,10 @@ const TaskCard = memo(function TaskCard({
 
               {task.sourceTaskId && (
                 <span
-                  className="text-xs text-zinc-400 dark:text-zinc-500 shrink-0"
+                  className="text-zinc-500 dark:text-zinc-500 shrink-0"
                   title={t('taskCard.generatedFromRecurrenceBadge')}
                 >
-                  🔄
+                  <History size={14} aria-hidden="true" />
                 </span>
               )}
             </div>

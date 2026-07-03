@@ -39,6 +39,7 @@ export default function CommentsSection({
   onDeleteLink,
 }: Props) {
   const t = useTranslations('task');
+  const tCommon = useTranslations('common');
   const {
     notes,
     count,
@@ -136,6 +137,7 @@ export default function CommentsSection({
             <button
               onClick={handleSubmit}
               disabled={!newComment.trim() || isAddingComment}
+              aria-label={tCommon('add')}
               className="self-end px-3 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg disabled:opacity-40 transition-colors"
             >
               {isAddingComment ? (
@@ -177,7 +179,7 @@ export default function CommentsSection({
               <div className="w-10 h-10 bg-zinc-100 dark:bg-zinc-800 rounded-full flex items-center justify-center mx-auto mb-2">
                 <MessageSquare className="w-5 h-5 text-zinc-400 dark:text-zinc-500" />
               </div>
-              <p className="text-xs text-zinc-400">{t('commentsSection.emptyTitle')}</p>
+              <p className="text-xs text-zinc-500">{t('commentsSection.emptyTitle')}</p>
               <p className="text-[10px] text-zinc-300 dark:text-zinc-600 mt-0.5">
                 {t('commentsSection.emptyHint')}
               </p>

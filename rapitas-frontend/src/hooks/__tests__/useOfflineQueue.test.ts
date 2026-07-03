@@ -69,14 +69,12 @@ describe('useOfflineQueue', () => {
 
   it('sync() calls syncQueue then refreshes status', async () => {
     mockSyncQueue.mockResolvedValue(2);
-    mockGetQueueStatus
-      .mockResolvedValueOnce(defaultStatus)
-      .mockResolvedValueOnce({
-        pendingCount: 0,
-        isSyncing: false,
-        lastSyncAt: 'now',
-        lastError: null,
-      });
+    mockGetQueueStatus.mockResolvedValueOnce(defaultStatus).mockResolvedValueOnce({
+      pendingCount: 0,
+      isSyncing: false,
+      lastSyncAt: 'now',
+      lastError: null,
+    });
 
     const { result } = renderHook(() => useOfflineQueue());
     await waitFor(() => expect(result.current.pendingCount).toBe(0));

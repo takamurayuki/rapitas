@@ -26,7 +26,7 @@ export function ConcernsHeader({ onAddClick }: ConcernsHeaderProps) {
       <div className="flex items-center gap-2">
         <Bug className="h-5 w-5 text-rose-500" />
         <h1 className="text-lg font-bold text-zinc-900 dark:text-zinc-100">{t('header.title')}</h1>
-        <span className="text-xs text-zinc-400">{t('header.subtitle')}</span>
+        <span className="text-xs text-zinc-500">{t('header.subtitle')}</span>
       </div>
       <button
         onClick={onAddClick}

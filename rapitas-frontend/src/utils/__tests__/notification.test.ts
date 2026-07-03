@@ -75,4 +75,64 @@ describe('showDesktopNotification', () => {
     expect(constructorArgs[0]).toBe('Hello');
     expect(constructorArgs[1]?.body).toBe('World');
   });
+
+  it('defaults the icon when none is provided', () => {
+    let constructorArgs: [string, NotificationOptions?] = ['', undefined];
+    class MockNotification {
+      static permission = 'granted';
+      constructor(title: string, options?: NotificationOptions) {
+        constructorArgs = [title, options];
+      }
+      close() {}
+    }
+    // @ts-expect-error mock Notification class
+    window.Notification = MockNotification;
+
+    showDesktopNotification('Hello');
+
+    expect(constructorArgs[1]?.icon).toBe('/icons/icon.ico');
+  });
+
+  it('wires onClick to focus the window, invoke the callback, then close the notification', () => {
+    const closeSpy = vi.fn();
+    class MockNotification {
+      static permission = 'granted';
+      onclick: (() => void) | null = null;
+      constructor(
+        public title: string,
+        public options?: NotificationOptions,
+      ) {}
+      close = closeSpy;
+    }
+    // @ts-expect-error mock Notification class
+    window.Notification = MockNotification;
+    const focusSpy = vi.spyOn(window, 'focus').mockImplementation(() => {});
+    const onClick = vi.fn();
+
+    const result = showDesktopNotification('Hello', { onClick });
+    result?.onclick?.(new Event('click'));
+
+    expect(focusSpy).toHaveBeenCalledTimes(1);
+    expect(onClick).toHaveBeenCalledTimes(1);
+    expect(closeSpy).toHaveBeenCalledTimes(1);
+    focusSpy.mockRestore();
+  });
+
+  it('does not set onclick when no onClick callback is given', () => {
+    class MockNotification {
+      static permission = 'granted';
+      onclick: (() => void) | null = null;
+      constructor(
+        public title: string,
+        public options?: NotificationOptions,
+      ) {}
+      close() {}
+    }
+    // @ts-expect-error mock Notification class
+    window.Notification = MockNotification;
+
+    const result = showDesktopNotification('Hello');
+
+    expect(result?.onclick).toBeNull();
+  });
 });

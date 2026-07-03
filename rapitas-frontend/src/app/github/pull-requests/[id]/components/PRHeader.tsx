@@ -37,7 +37,7 @@ export function PRHeader({ pr }: PRHeaderProps) {
       <div className="flex-1">
         <h1 className="text-xl font-bold text-zinc-900 dark:text-zinc-100">
           {pr.title}
-          <span className="ml-2 text-zinc-400 font-normal">#{pr.prNumber}</span>
+          <span className="ml-2 text-zinc-500 font-normal">#{pr.prNumber}</span>
         </h1>
         <div className="flex items-center gap-3 mt-2 text-sm text-zinc-500 dark:text-zinc-400">
           <span>by {pr.authorLogin}</span>

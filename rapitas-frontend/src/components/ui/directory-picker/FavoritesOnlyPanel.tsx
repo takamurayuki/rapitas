@@ -92,7 +92,7 @@ export function FavoritesOnlyPanel({
                       </span>
                     )}
                   </div>
-                  <div className="text-xs text-zinc-400 dark:text-zinc-500 truncate font-mono">
+                  <div className="text-xs text-zinc-500 dark:text-zinc-500 truncate font-mono">
                     {fav.path}
                   </div>
                 </div>

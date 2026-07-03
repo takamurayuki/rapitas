@@ -231,6 +231,7 @@ export const Note = memo(function Note({
                     />
                     <button
                       onClick={onReplyCancel}
+                      aria-label={tc('cancel')}
                       className="p-1 text-zinc-500 hover:text-zinc-600"
                     >
                       <X className="w-3 h-3" />

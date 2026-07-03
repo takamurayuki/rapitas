@@ -84,14 +84,14 @@ export function JobSection({ job, integrationId, isExpanded, onToggle }: JobSect
         <span className="truncate text-xs font-medium text-zinc-700 dark:text-zinc-200">
           {job.name}
         </span>
-        <span className="ml-auto shrink-0 text-[10px] text-zinc-400">
+        <span className="ml-auto shrink-0 text-[10px] text-zinc-500">
           {t('jobSection.stepsCount', { count: job.steps.length })}
         </span>
       </button>
       {isExpanded && (
         <div className="space-y-1 px-2.5 pb-2 pl-8">
           {job.steps.length === 0 ? (
-            <p className="text-[11px] text-zinc-400">{t('jobSection.noSteps')}</p>
+            <p className="text-[11px] text-zinc-500">{t('jobSection.noSteps')}</p>
           ) : (
             job.steps.map((step) => (
               <StepRow

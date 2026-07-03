@@ -63,7 +63,7 @@ export function BlockList({
           <div className="text-center py-8">
             <Clock className="w-12 h-12 mx-auto text-zinc-300 dark:text-zinc-600 mb-3" />
             <p className="text-zinc-500 dark:text-zinc-400">{t('noBlocks')}</p>
-            <p className="text-sm text-zinc-400 dark:text-zinc-500 mt-1">{t('noBlocksHint')}</p>
+            <p className="text-sm text-zinc-500 dark:text-zinc-500 mt-1">{t('noBlocksHint')}</p>
           </div>
         ) : (
           <div className="space-y-2">

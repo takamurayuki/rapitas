@@ -80,6 +80,7 @@ export function PromptOptimizationTab({
   onUse,
 }: Props) {
   const t = useTranslations('devMode.promptOptimizationTab');
+  const tCommon = useTranslations('common');
   if (isGeneratingPrompt) {
     return (
       <div className="flex items-center gap-3 p-4 bg-zinc-50 dark:bg-indigo-dark-800/50 rounded-lg">
@@ -197,7 +198,11 @@ export function PromptOptimizationTab({
             </span>
           </div>
           <div className="flex items-center gap-1">
-            <button onClick={onCopy} className="p-1.5 text-zinc-400 hover:text-zinc-600 rounded">
+            <button
+              onClick={onCopy}
+              aria-label={tCommon('copy')}
+              className="p-1.5 text-zinc-400 hover:text-zinc-600 rounded"
+            >
               {copied ? <Check className="w-4 h-4 text-green-500" /> : <Copy className="w-4 h-4" />}
             </button>
           </div>

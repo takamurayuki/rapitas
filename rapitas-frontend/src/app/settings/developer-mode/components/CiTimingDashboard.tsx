@@ -158,7 +158,7 @@ export function CiTimingDashboard() {
 
         {/* Loading skeleton */}
         {loading && !data && (
-          <div className="flex items-center gap-2 text-sm text-zinc-400 dark:text-zinc-500">
+          <div className="flex items-center gap-2 text-sm text-zinc-500 dark:text-zinc-500">
             <Loader2 className="h-4 w-4 animate-spin" />
             {t('fetchingData')}
           </div>
@@ -175,7 +175,7 @@ export function CiTimingDashboard() {
               bun run test:timing
             </code>
             {data.note && (
-              <p className="mt-2 text-xs text-zinc-400 dark:text-zinc-500">{data.note}</p>
+              <p className="mt-2 text-xs text-zinc-500 dark:text-zinc-500">{data.note}</p>
             )}
           </div>
         )}
@@ -207,7 +207,7 @@ export function CiTimingDashboard() {
                 ))}
               </div>
               {data.generatedAt && (
-                <p className="mt-2 text-xs text-zinc-400 dark:text-zinc-500">
+                <p className="mt-2 text-xs text-zinc-500 dark:text-zinc-500">
                   {t('cacheGeneratedAt', {
                     datetime: new Date(data.generatedAt).toLocaleString(toDateLocale(locale)),
                   })}{' '}
@@ -305,7 +305,7 @@ export function CiTimingDashboard() {
               <div>
                 <p className="mb-2 text-xs font-medium uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
                   {t('promotionCandidatesTitle', { threshold: fmtMs(data.promoteThresholdMs) })}
-                  <span className="ml-2 font-normal normal-case text-zinc-400">
+                  <span className="ml-2 font-normal normal-case text-zinc-500">
                     {t('promotionCandidatesHint', { count: data.promotionCandidates.length })}
                   </span>
                 </p>
@@ -346,7 +346,7 @@ export function CiTimingDashboard() {
               <div>
                 <p className="mb-2 text-xs font-medium uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
                   {t('demotionCandidatesTitle', { threshold: fmtMs(data.promoteThresholdMs) })}
-                  <span className="ml-2 font-normal normal-case text-zinc-400">
+                  <span className="ml-2 font-normal normal-case text-zinc-500">
                     {t('demotionCandidatesHint', { count: data.demotionCandidates.length })}
                   </span>
                 </p>

@@ -125,7 +125,7 @@ export function SuggestedTasksWidget() {
           <Zap className="w-5 h-5 text-amber-500" />
           {t('title')}
         </h2>
-        <div className="py-6 text-center text-sm text-zinc-400 dark:text-zinc-500">
+        <div className="py-6 text-center text-sm text-zinc-500 dark:text-zinc-500">
           <Brain className="w-8 h-8 mx-auto mb-2 opacity-50" />
           {data && data.suggestions.length > 0 ? (
             t('allSnoozed')
@@ -188,7 +188,7 @@ export function SuggestedTasksWidget() {
               >
                 {task.priority}
               </span>
-              <span className="text-xs text-zinc-400 dark:text-zinc-500">{task.score}pt</span>
+              <span className="text-xs text-zinc-500 dark:text-zinc-500">{task.score}pt</span>
 
               {/* Status Dropdown */}
               <select
@@ -242,7 +242,7 @@ export function SuggestedTasksWidget() {
               localStorage.removeItem(SNOOZE_STORAGE_KEY);
               setSnoozedTasks([]);
             }}
-            className="text-[10px] text-zinc-400 dark:text-zinc-500 hover:text-zinc-600 dark:hover:text-zinc-300 transition-colors"
+            className="text-[10px] text-zinc-500 dark:text-zinc-500 hover:text-zinc-600 dark:hover:text-zinc-300 transition-colors"
           >
             {t('clearSnoozeButton', { count: snoozedTasks.length })}
           </button>

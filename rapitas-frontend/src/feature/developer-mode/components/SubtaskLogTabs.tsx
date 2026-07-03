@@ -324,7 +324,7 @@ export function SubtaskLogTabs({
             maxHeight={maxHeight}
           />
         ) : (
-          <div className="flex flex-col items-center justify-center py-8 text-zinc-400 dark:text-zinc-500">
+          <div className="flex flex-col items-center justify-center py-8 text-zinc-500 dark:text-zinc-500">
             <Terminal className="w-6 h-6 mb-2 opacity-50" />
             <p className="text-[10px]">{isRunning ? t('waitingLogs') : t('noLogs')}</p>
           </div>

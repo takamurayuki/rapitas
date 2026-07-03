@@ -296,7 +296,7 @@ function StatCard({
         <span className="text-sm text-zinc-500 dark:text-zinc-400">{label}</span>
       </div>
       <div className="text-2xl font-bold text-zinc-900 dark:text-zinc-100">{value}</div>
-      <div className="text-xs text-zinc-400 dark:text-zinc-500 mt-1">{sub}</div>
+      <div className="text-xs text-zinc-500 dark:text-zinc-500 mt-1">{sub}</div>
     </div>
   );
 }

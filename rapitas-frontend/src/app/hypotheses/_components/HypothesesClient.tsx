@@ -167,9 +167,9 @@ export default function HypothesesClient() {
       </div>
 
       {loading ? (
-        <div className="py-12 text-center text-zinc-400 dark:text-zinc-500">{t('loading')}</div>
+        <div className="py-12 text-center text-zinc-500 dark:text-zinc-500">{t('loading')}</div>
       ) : hypotheses.length === 0 ? (
-        <div className="rounded-lg border border-dashed border-zinc-300 py-12 text-center text-zinc-400 dark:border-zinc-700 dark:text-zinc-500">
+        <div className="rounded-lg border border-dashed border-zinc-300 py-12 text-center text-zinc-500 dark:border-zinc-700 dark:text-zinc-500">
           {t('empty')}
         </div>
       ) : (
@@ -235,7 +235,7 @@ function HypothesisCard({
               {h.domain}
             </span>
             {h.originTaskId != null && (
-              <span className="text-xs text-zinc-400 dark:text-zinc-500">
+              <span className="text-xs text-zinc-500 dark:text-zinc-500">
                 {t('card.taskRef', { id: h.originTaskId })}
               </span>
             )}
@@ -274,7 +274,7 @@ function HypothesisCard({
                 {e.stance === 'for' ? '＋' : '−'}
               </span>
               <span className="text-zinc-700 dark:text-zinc-300">{e.detail}</span>
-              <span className="text-zinc-400 dark:text-zinc-500">
+              <span className="text-zinc-500 dark:text-zinc-500">
                 {t('card.artifactWrap', { artifact: e.artifact })}
               </span>
             </li>

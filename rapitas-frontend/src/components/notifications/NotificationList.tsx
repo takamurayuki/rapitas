@@ -93,7 +93,7 @@ export default function NotificationList({
                 <p className="text-xs text-zinc-500 dark:text-zinc-400 line-clamp-2">
                   {item.message}
                 </p>
-                <span className="text-[10px] text-zinc-400 dark:text-zinc-500">
+                <span className="text-[10px] text-zinc-500 dark:text-zinc-500">
                   {formatRelativeTime(item.createdAt, t)}
                 </span>
               </div>
@@ -101,7 +101,7 @@ export default function NotificationList({
                 <button
                   type="button"
                   onClick={() => onMarkRead(item.id)}
-                  className="text-xs text-zinc-400 hover:text-indigo-600 dark:hover:text-indigo-400 flex-shrink-0"
+                  className="text-xs text-zinc-500 hover:text-indigo-600 dark:hover:text-indigo-400 flex-shrink-0"
                 >
                   {t('list.markRead')}
                 </button>

@@ -15,6 +15,7 @@ import {
   ChevronDown,
   Link2,
 } from 'lucide-react';
+import { useTranslations } from 'next-intl';
 import { getScoreColor, getScoreBgColor, type TreeNode } from './types';
 
 interface TreeNodeItemProps {
@@ -31,6 +32,7 @@ interface TreeNodeItemProps {
  * @param props - TreeNodeItemProps
  */
 export function TreeNodeItem({ node, isExpanded, onToggle, depth = 0 }: TreeNodeItemProps) {
+  const tc = useTranslations('common');
   const hasChildren = node.children.length > 0;
   const hasDependencies = node.dependsOn.length > 0;
 
@@ -43,6 +45,7 @@ export function TreeNodeItem({ node, isExpanded, onToggle, depth = 0 }: TreeNode
       >
         <button
           onClick={onToggle}
+          aria-label={isExpanded ? tc('collapse') : tc('expand')}
           className={`p-0.5 rounded hover:bg-zinc-200 dark:hover:bg-zinc-700 ${
             !hasChildren && !hasDependencies ? 'invisible' : ''
           }`}

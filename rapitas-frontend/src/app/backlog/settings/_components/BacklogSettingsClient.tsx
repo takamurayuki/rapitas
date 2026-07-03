@@ -234,7 +234,7 @@ export default function BacklogSettingsClient() {
                   ))}
                 </select>
 
-                <span className="text-xs text-zinc-400">
+                <span className="text-xs text-zinc-500">
                   {t('settings.lastRun', { value: formatLastRun(s.lastRunAt) })}
                 </span>
 

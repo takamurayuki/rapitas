@@ -307,7 +307,7 @@ export function TaskAnalysisTab({
           onChange={(e) => setAnalysisMaxSubtasks(parseInt(e.target.value))}
           className="w-full h-2 bg-zinc-200 dark:bg-zinc-700 rounded-lg appearance-none cursor-pointer accent-violet-500"
         />
-        <div className="flex justify-between text-xs text-zinc-400 mt-1">
+        <div className="flex justify-between text-xs text-zinc-500 mt-1">
           <span>3</span>
           <span>20</span>
         </div>

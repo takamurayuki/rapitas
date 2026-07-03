@@ -76,7 +76,7 @@ export function AutoExecutionMode({ theme }: AutoExecutionModeProps) {
       <div className="flex items-center gap-2">
         <button
           disabled
-          className="inline-flex cursor-not-allowed items-center gap-3 rounded-xl border border-zinc-200 bg-white pl-3 pr-4 py-2 text-sm font-medium text-zinc-400 opacity-70 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-500"
+          className="inline-flex cursor-not-allowed items-center gap-3 rounded-xl border border-zinc-200 bg-white pl-3 pr-4 py-2 text-sm font-medium text-zinc-500 opacity-70 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-500"
         >
           <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-zinc-200 dark:bg-transparent">
             <Loader2 className="h-3 w-3 dark:h-4 dark:w-4 animate-spin text-zinc-500 dark:text-zinc-400" />

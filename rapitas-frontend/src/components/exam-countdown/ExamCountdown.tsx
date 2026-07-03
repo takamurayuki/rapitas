@@ -129,12 +129,12 @@ export function ExamCountdown({ examDate, color, compact = false }: ExamCountdow
           </div>
         ) : isPast ? (
           <div className="flex items-baseline gap-1">
-            <span className="text-3xl font-extrabold text-zinc-400">{Math.abs(daysRemaining)}</span>
-            <span className="text-sm font-medium text-zinc-400">{t('daysElapsedUnit')}</span>
+            <span className="text-3xl font-extrabold text-zinc-500">{Math.abs(daysRemaining)}</span>
+            <span className="text-sm font-medium text-zinc-500">{t('daysElapsedUnit')}</span>
           </div>
         ) : (
           <>
-            <div className="text-[10px] font-medium text-zinc-400 dark:text-zinc-500 uppercase tracking-wider">
+            <div className="text-[10px] font-medium text-zinc-500 dark:text-zinc-500 uppercase tracking-wider">
               {t('remaining')}
             </div>
             <div className="flex items-baseline gap-1">
@@ -146,7 +146,7 @@ export function ExamCountdown({ examDate, color, compact = false }: ExamCountdow
               </span>
             </div>
             {daysRemaining > 7 && (
-              <div className="text-[10px] text-zinc-400 dark:text-zinc-500 mt-0.5">
+              <div className="text-[10px] text-zinc-500 dark:text-zinc-500 mt-0.5">
                 {t('weeksAndDays', {
                   weeks: Math.floor(daysRemaining / 7),
                   days: daysRemaining % 7,

@@ -49,7 +49,7 @@ export function StepRow({ step, isExpanded, isLoadingLog, section, onToggle }: S
           {section ? (
             <LogViewer log={section.log || t('stepRow.noLogPlaceholder')} />
           ) : (
-            <p className="text-[11px] text-zinc-400">{t('stepRow.logNotFound')}</p>
+            <p className="text-[11px] text-zinc-500">{t('stepRow.logNotFound')}</p>
           )}
         </div>
       )}

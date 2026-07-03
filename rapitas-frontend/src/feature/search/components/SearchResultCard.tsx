@@ -146,7 +146,7 @@ export default function SearchResultCard({ result, query }: SearchResultCardProp
             )}
 
             {/* Relevance */}
-            <span className="ml-auto text-[10px] text-zinc-400 dark:text-zinc-500">
+            <span className="ml-auto text-[10px] text-zinc-500 dark:text-zinc-500">
               {t('relevanceLabel', { relevance: result.relevance })}
             </span>
           </div>

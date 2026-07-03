@@ -110,7 +110,7 @@ export function ConcernCard({
                 <ExternalLink className="h-2 w-2" />
               </a>
             )}
-            <span className="ml-auto text-[10px] text-zinc-400">
+            <span className="ml-auto text-[10px] text-zinc-500">
               {new Date(c.createdAt).toLocaleDateString(toDateLocale(locale))}
             </span>
           </div>
@@ -118,7 +118,7 @@ export function ConcernCard({
           <p className="mt-0.5 whitespace-pre-wrap text-xs text-zinc-500 dark:text-zinc-400">
             {c.detail}
           </p>
-          <div className="mt-1.5 flex flex-wrap items-center gap-2 text-[10px] text-zinc-400">
+          <div className="mt-1.5 flex flex-wrap items-center gap-2 text-[10px] text-zinc-500">
             {c.location && (
               <code className="rounded bg-zinc-100 px-1 py-0.5 font-mono dark:bg-zinc-800">
                 {c.location}

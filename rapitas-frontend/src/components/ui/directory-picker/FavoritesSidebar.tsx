@@ -53,7 +53,7 @@ export function FavoritesSidebar({
         </div>
         <button
           onClick={onHide}
-          className="text-xs text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300"
+          className="text-xs text-zinc-500 hover:text-zinc-600 dark:hover:text-zinc-300"
         >
           {t('directoryPicker.hide')}
         </button>
@@ -89,7 +89,7 @@ export function FavoritesSidebar({
                       </span>
                     )}
                   </div>
-                  <div className="text-xs text-zinc-400 dark:text-zinc-500 truncate font-mono">
+                  <div className="text-xs text-zinc-500 dark:text-zinc-500 truncate font-mono">
                     {fav.path}
                   </div>
                 </div>

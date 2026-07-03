@@ -96,7 +96,7 @@ export function IdeaCard({
               </a>
             )}
             {/* Source (manual / agent / AI assistant) — far right */}
-            <span className="ml-auto flex shrink-0 items-center gap-0.5 text-[10px] text-zinc-400">
+            <span className="ml-auto flex shrink-0 items-center gap-0.5 text-[10px] text-zinc-500">
               <SourceIcon className="h-2.5 w-2.5" />
               {idea.source === 'user'
                 ? t('card.sourceUser')
@@ -112,7 +112,7 @@ export function IdeaCard({
               {idea.content}
             </p>
           )}
-          <div className="mt-1.5 flex items-center gap-2 text-[10px] text-zinc-400">
+          <div className="mt-1.5 flex items-center gap-2 text-[10px] text-zinc-500">
             <span>{new Date(idea.createdAt).toLocaleDateString(toDateLocale(locale))}</span>
           </div>
         </div>

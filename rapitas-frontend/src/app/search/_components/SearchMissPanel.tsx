@@ -112,7 +112,7 @@ export function SearchMissPanel() {
               <span className="text-sm text-zinc-700 dark:text-zinc-300 truncate">
                 {miss.query}
               </span>
-              <span className="flex-shrink-0 text-xs text-zinc-400 dark:text-zinc-500">
+              <span className="flex-shrink-0 text-xs text-zinc-500 dark:text-zinc-500">
                 {t('missPanel.hitCount', { count: miss.hitCount })}
               </span>
             </div>

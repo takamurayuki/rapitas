@@ -55,6 +55,7 @@ export function GoalDetailPanel({
   onAdapt,
 }: Props) {
   const t = useTranslations('learning');
+  const tCommon = useTranslations('common');
   const locale = useLocaleStore((s) => s.locale);
   const dateLocale = toDateLocale(locale);
 
@@ -106,6 +107,7 @@ export function GoalDetailPanel({
           )}
           <button
             onClick={onDelete}
+            aria-label={tCommon('delete')}
             className="p-2 text-zinc-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
           >
             <Trash2 className="w-5 h-5" />
@@ -262,7 +264,7 @@ export function GoalDetailPanel({
                                       </span>
                                     )}
                                     {sub.estimatedHours && (
-                                      <span className="text-zinc-400 dark:text-zinc-500">
+                                      <span className="text-zinc-500 dark:text-zinc-500">
                                         {' '}
                                         ({sub.estimatedHours}h)
                                       </span>

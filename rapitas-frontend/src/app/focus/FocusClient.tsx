@@ -327,6 +327,7 @@ export default function FocusClient() {
         <div className="flex items-center gap-4 mb-8">
           <button
             onClick={resetTimer}
+            aria-label={t('resetTimer')}
             className="p-4 text-white/60 hover:text-white hover:bg-white/10 rounded-full transition-colors"
           >
             <RotateCcw className="w-6 h-6" />
@@ -334,6 +335,7 @@ export default function FocusClient() {
 
           <button
             onClick={isRunning ? pauseTimer : startTimer}
+            aria-label={isRunning ? t('pauseTimer') : t('startTimer')}
             className={`w-20 h-20 rounded-full flex items-center justify-center transition-all ${
               mode === 'work'
                 ? 'bg-indigo-500 hover:bg-indigo-400'

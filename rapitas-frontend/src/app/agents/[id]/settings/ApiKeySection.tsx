@@ -34,6 +34,7 @@ export function ApiKeySection({
   onDeleteApiKey,
 }: Props) {
   const t = useTranslations('agents');
+  const tc = useTranslations('common');
 
   if (!providerConfig.requiresApiKey) return null;
 
@@ -107,6 +108,7 @@ export function ApiKeySection({
           <button
             type="button"
             onClick={onToggleShow}
+            aria-label={showApiKey ? tc('hideApiKey') : tc('showApiKey')}
             className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-zinc-500 hover:text-zinc-600 dark:hover:text-zinc-300"
           >
             {showApiKey ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}

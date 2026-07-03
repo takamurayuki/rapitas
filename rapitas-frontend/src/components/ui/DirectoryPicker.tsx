@@ -89,7 +89,7 @@ export function DirectoryPicker({
                     </span>
                   </>
                 ) : (
-                  <span className="text-sm text-zinc-400 dark:text-zinc-500">
+                  <span className="text-sm text-zinc-500 dark:text-zinc-500">
                     {resolvedPlaceholder}
                   </span>
                 )}

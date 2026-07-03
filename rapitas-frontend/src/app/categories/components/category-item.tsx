@@ -76,7 +76,7 @@ export function CategoryItem({
           )}
 
           <div className="flex items-center gap-2 mt-1">
-            <span className="text-xs text-zinc-400 dark:text-zinc-500 flex items-center gap-1">
+            <span className="text-xs text-zinc-500 dark:text-zinc-500 flex items-center gap-1">
               <SwatchBook className="w-3 h-3" />
               {item._count?.themes ?? item.themes?.length ?? 0} {t('themeName')}
             </span>
@@ -134,7 +134,7 @@ export function CategoryItem({
               );
             })}
             {item.themes.length > 5 && (
-              <span className="text-xs text-zinc-400 dark:text-zinc-500">
+              <span className="text-xs text-zinc-500 dark:text-zinc-500">
                 +{item.themes.length - 5}
               </span>
             )}

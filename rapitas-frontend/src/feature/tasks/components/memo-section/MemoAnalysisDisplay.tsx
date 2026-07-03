@@ -3,7 +3,7 @@
 
 import { memo } from 'react';
 import { useTranslations } from 'next-intl';
-import { Brain, Eye, EyeOff } from 'lucide-react';
+import { Brain, Eye, EyeOff, Smile, Meh, Frown } from 'lucide-react';
 import type { MemoAnalysis } from './types';
 import { timeAgo } from './memo-utils';
 
@@ -39,11 +39,11 @@ export const MemoAnalysisDisplay = memo(function MemoAnalysisDisplay({
   const getSentimentIcon = (sentiment: MemoAnalysis['sentiment']) => {
     switch (sentiment) {
       case 'positive':
-        return <span className="text-emerald-500">😊</span>;
+        return <Smile className="w-3 h-3 text-emerald-500" aria-hidden="true" />;
       case 'negative':
-        return <span className="text-red-500">😔</span>;
+        return <Frown className="w-3 h-3 text-red-500" aria-hidden="true" />;
       case 'neutral':
-        return <span className="text-zinc-500">😐</span>;
+        return <Meh className="w-3 h-3 text-zinc-500" aria-hidden="true" />;
     }
   };
 

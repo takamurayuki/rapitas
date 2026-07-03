@@ -30,7 +30,7 @@ export const LiveStatsBar: React.FC<LiveStatsBarProps> = ({ summary }) => {
   const totalFiles = summary.filesEdited.length + summary.filesCreated.length;
 
   return (
-    <div className="flex items-center gap-4 px-4 py-1.5 bg-zinc-800/60 border-b border-zinc-700/50 text-xs text-zinc-400">
+    <div className="flex items-center gap-4 px-4 py-1.5 bg-zinc-800/60 border-b border-zinc-700/50 text-xs text-zinc-500">
       {totalFiles > 0 && (
         <span className="flex items-center gap-1">
           <FileEdit className="w-3 h-3" />

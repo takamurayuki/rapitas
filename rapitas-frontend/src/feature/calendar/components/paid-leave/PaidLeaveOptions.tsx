@@ -85,7 +85,7 @@ export function PaidLeaveOptions({
       <button
         type="button"
         onClick={onToggleOptions}
-        className="mt-3 flex items-center gap-1.5 text-xs text-zinc-400 dark:text-zinc-500 hover:text-zinc-600 dark:hover:text-zinc-300 transition-colors"
+        className="mt-3 flex items-center gap-1.5 text-xs text-zinc-500 dark:text-zinc-500 hover:text-zinc-600 dark:hover:text-zinc-300 transition-colors"
       >
         <ChevronDown
           className={`w-3.5 h-3.5 transition-transform duration-200 ${showOptions ? 'rotate-180' : ''}`}
@@ -97,7 +97,7 @@ export function PaidLeaveOptions({
         <div className="mt-3 space-y-3 animate-in fade-in slide-in-from-top-1 duration-200">
           {/* Inline color picker */}
           <div className="flex items-center gap-3">
-            <span className="text-xs text-zinc-400 dark:text-zinc-500 w-10 shrink-0">
+            <span className="text-xs text-zinc-500 dark:text-zinc-500 w-10 shrink-0">
               {tc('color')}
             </span>
             <div className="flex gap-1.5">

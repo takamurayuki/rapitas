@@ -116,7 +116,7 @@ export function PRConversationTab({
                     ? 'Changes requested'
                     : 'Commented'}
               </span>
-              <span className="text-xs text-zinc-400 flex-shrink-0">
+              <span className="text-xs text-zinc-500 flex-shrink-0">
                 {new Date(review.submittedAt).toLocaleString(toDateLocale(locale))}
               </span>
             </>
@@ -125,7 +125,7 @@ export function PRConversationTab({
           {review.body ? (
             <MarkdownView content={review.body} />
           ) : (
-            <p className="text-sm text-zinc-400 italic">No comment body.</p>
+            <p className="text-sm text-zinc-500 italic">No comment body.</p>
           )}
         </CollapsibleCard>
       ))}
@@ -144,7 +144,7 @@ export function PRConversationTab({
                   {comment.path}:{comment.line}
                 </span>
               )}
-              <span className="text-xs text-zinc-400 flex-shrink-0">
+              <span className="text-xs text-zinc-500 flex-shrink-0">
                 {new Date(comment.createdAt).toLocaleString(toDateLocale(locale))}
               </span>
             </>

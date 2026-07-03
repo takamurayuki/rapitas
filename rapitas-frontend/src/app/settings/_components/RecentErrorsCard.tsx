@@ -135,7 +135,7 @@ export default function RecentErrorsCard() {
                 <span className="flex-1 truncate font-mono text-zinc-700 dark:text-zinc-300">
                   {e.message}
                 </span>
-                <span className="shrink-0 text-zinc-400 dark:text-zinc-500">
+                <span className="shrink-0 text-zinc-500 dark:text-zinc-500">
                   {new Date(e.timestamp).toLocaleTimeString(toDateLocale(locale))}
                 </span>
               </button>

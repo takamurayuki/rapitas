@@ -68,6 +68,11 @@
     "adding": "追加中...",
     "resetToDefault": "デフォルトに戻す",
     "retry": "再試行",
+    "showApiKey": "APIキーを表示",
+    "hideApiKey": "APIキーを隠す",
+    "expand": "展開",
+    "collapse": "折りたたむ",
+    "sendMessage": "メッセージを送信",
     "backendConnectionError": {
       "title": "バックエンドサーバーに接続できません",
       "description": "バックエンドサーバー（ポート3001）が起動していることを確認してください。開発サーバーを再起動するか、ターミナルで<code>bun run dev</code>を実行してください。",
@@ -2338,6 +2343,8 @@
     "weekFri": "金",
     "weekSat": "土",
     "yearMonth": "{year}年 {month}月",
+    "prevMonth": "前月",
+    "nextMonth": "翌月",
     "paidLeaveBalance": "有給残日数",
     "paidLeaveDays": "{count}日",
     "fiscalYear": "{year}年度",
@@ -2463,6 +2470,7 @@
     "prevWeek": "前の週",
     "backToThisWeek": "今週に戻る",
     "nextWeek": "次の週",
+    "toggleFilters": "フィルターの切り替え",
     "clear": "クリア",
     "tasksFound": "件のタスクが見つかりました",
     "thisWeek": "今週 ({start} - {end})",
@@ -2492,7 +2500,10 @@
     "takeBreakMessage": "お疲れ様でした。休憩しましょう。",
     "resumeWorkMessage": "作業を再開しましょう。",
     "taskCompleted": "タスクを完了しました！",
-    "taskCompleteFailed": "タスクの完了に失敗しました"
+    "taskCompleteFailed": "タスクの完了に失敗しました",
+    "resetTimer": "タイマーをリセット",
+    "pauseTimer": "タイマーを一時停止",
+    "startTimer": "タイマーを開始"
   },
   "notification": {
     "justNow": "たった今",
@@ -2584,6 +2595,7 @@
     "categoryChat": "チャット",
     "noSearchResults": "検索条件に一致するプロンプトがありません",
     "defaultLabel": "デフォルト",
+    "toggleActive": "有効/無効を切り替え",
     "keyLabel": "キー:",
     "updatedLabel": "更新:",
     "name": "名前",
@@ -4354,7 +4366,9 @@
         "insertText": "テキストを入力欄に挿入",
         "shortcutToggle": "Ctrl+Shift+V: 録音開始/停止",
         "shortcutClose": "Esc: 閉じる",
-        "autoConvert": "無音2秒で自動変換"
+        "autoConvert": "無音2秒で自動変換",
+        "startRecording": "録音を開始",
+        "stopRecording": "録音を停止"
       },
       "wakeWord": {
         "listening": "ウェイクワード待機中",

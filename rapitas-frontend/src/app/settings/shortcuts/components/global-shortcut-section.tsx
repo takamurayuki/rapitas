@@ -94,7 +94,7 @@ export function GlobalShortcutSection({
       {/* Divider */}
       <div className="flex items-center gap-4 mb-4">
         <div className="flex-1 border-t border-zinc-200 dark:border-zinc-700" />
-        <span className="text-xs text-zinc-400 dark:text-zinc-500">{t('orSelectManually')}</span>
+        <span className="text-xs text-zinc-500 dark:text-zinc-500">{t('orSelectManually')}</span>
         <div className="flex-1 border-t border-zinc-200 dark:border-zinc-700" />
       </div>
 

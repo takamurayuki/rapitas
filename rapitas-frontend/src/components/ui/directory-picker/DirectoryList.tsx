@@ -64,7 +64,7 @@ function NewFolderForm({
         <span className="text-sm font-medium text-green-700 dark:text-green-300">
           {t('directoryPicker.createFolderTitle')}
         </span>
-        <span className="text-xs text-zinc-400 dark:text-zinc-500 font-mono ml-1">
+        <span className="text-xs text-zinc-500 dark:text-zinc-500 font-mono ml-1">
           in {currentPath}
         </span>
       </div>

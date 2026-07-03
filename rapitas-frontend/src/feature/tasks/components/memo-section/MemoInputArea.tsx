@@ -39,6 +39,7 @@ export function MemoInputArea({
 }: MemoInputAreaProps) {
   const t = useTranslations('task.memoInputArea');
   const tt = useTranslations('task');
+  const tCommon = useTranslations('common');
   return (
     <div className="space-y-2 mb-3">
       {/* Memo Type Selector & Template Button */}
@@ -57,7 +58,7 @@ export function MemoInputArea({
                 className={`flex items-center gap-1 px-2 py-0.5 text-[10px] rounded-full border transition-colors ${
                   isSelected
                     ? `${config.color.badge} border-current`
-                    : 'text-zinc-400 border-zinc-200 dark:border-zinc-700 hover:border-zinc-300 dark:hover:border-zinc-600 hover:text-zinc-600 dark:hover:text-zinc-300'
+                    : 'text-zinc-500 border-zinc-200 dark:border-zinc-700 hover:border-zinc-300 dark:hover:border-zinc-600 hover:text-zinc-600 dark:hover:text-zinc-300'
                 }`}
               >
                 <Icon className="w-2.5 h-2.5" />
@@ -104,6 +105,7 @@ export function MemoInputArea({
         <button
           onClick={onSubmit}
           disabled={!newComment.trim() || isAddingComment}
+          aria-label={tCommon('add')}
           className="self-stretch px-3 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg disabled:opacity-40 transition-colors"
         >
           {isAddingComment ? (

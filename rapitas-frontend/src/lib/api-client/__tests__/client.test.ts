@@ -12,6 +12,14 @@ vi.mock('@/lib/offline-queue', () => ({
 const okResponse = (body: unknown) =>
   ({ ok: true, status: 200, json: async () => body }) as unknown as Response;
 
+// ApiClientCache persists `/tasks/*` entries to the REAL localStorage (jsdom),
+// and every `new APIClient()` eagerly loads them back into its in-memory
+// cache. Without clearing between tests, a `/tasks/1` fetch cached by an
+// earlier test would silently short-circuit a later test's network call.
+beforeEach(() => {
+  localStorage.clear();
+});
+
 describe('isTransientError', () => {
   it('flags timeout / network / 5xx as transient', () => {
     expect(isTransientError(new Error('Request timeout after 15000ms — GET /tasks/1'))).toBe(true);
@@ -62,5 +70,250 @@ describe('APIClient GET retry', () => {
       client.fetch('/tasks', { method: 'POST', body: '{}', skipCache: true }),
     ).rejects.toThrow();
     expect(mockOfflineFetch).toHaveBeenCalledTimes(1); // POST never retried
+  });
+});
+
+describe('APIClient caching and dedup', () => {
+  beforeEach(() => {
+    mockOfflineFetch.mockReset();
+  });
+
+  it('2回目以降のGETはキャッシュから返しネットワークを呼ばないこと', async () => {
+    mockOfflineFetch.mockResolvedValue(okResponse({ id: 1 }));
+    const client = new APIClient();
+
+    const first = await client.fetch('/tasks/1');
+    const second = await client.fetch('/tasks/1');
+
+    expect(first).toEqual({ id: 1 });
+    expect(second).toEqual({ id: 1 });
+    expect(mockOfflineFetch).toHaveBeenCalledTimes(1);
+  });
+
+  it('skipCache指定時はキャッシュを無視して再度ネットワークを呼ぶこと', async () => {
+    mockOfflineFetch.mockResolvedValue(okResponse({ id: 1 }));
+    const client = new APIClient();
+
+    await client.fetch('/tasks/1');
+    await client.fetch('/tasks/1', { skipCache: true });
+
+    expect(mockOfflineFetch).toHaveBeenCalledTimes(2);
+  });
+
+  it('同時に発行された同一リクエストは1回のfetchに集約されること（in-flight dedup）', async () => {
+    let resolveFetch!: (v: Response) => void;
+    mockOfflineFetch.mockReturnValue(
+      new Promise((resolve) => {
+        resolveFetch = resolve;
+      }),
+    );
+    const client = new APIClient();
+
+    const p1 = client.fetch('/tasks/1', { skipCache: true });
+    const p2 = client.fetch('/tasks/1', { skipCache: true });
+
+    resolveFetch(okResponse({ id: 1 }));
+
+    const [r1, r2] = await Promise.all([p1, p2]);
+    expect(r1).toEqual({ id: 1 });
+    expect(r2).toEqual({ id: 1 });
+    expect(mockOfflineFetch).toHaveBeenCalledTimes(1);
+  });
+
+  it('リクエスト失敗後は同じキーで再度ネットワークを呼べること（キュー解放）', async () => {
+    mockOfflineFetch.mockResolvedValueOnce({
+      ok: false,
+      status: 404,
+      text: async () => 'nope',
+    } as unknown as Response);
+    const client = new APIClient();
+
+    await expect(client.fetch('/tasks/1', { skipCache: true })).rejects.toThrow();
+
+    mockOfflineFetch.mockResolvedValueOnce(okResponse({ id: 1 }));
+    const result = await client.fetch('/tasks/1', { skipCache: true });
+
+    expect(result).toEqual({ id: 1 });
+    expect(mockOfflineFetch).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe('APIClient.batchFetch', () => {
+  it('batch経由でも通常のfetchと同じ結果を得られること', async () => {
+    mockOfflineFetch.mockReset();
+    mockOfflineFetch.mockResolvedValue(okResponse({ id: 1 }));
+    vi.useFakeTimers();
+    try {
+      const client = new APIClient();
+      const promise = client.batchFetch<{ id: number }>('/tasks/1', { skipCache: true });
+      await vi.advanceTimersByTimeAsync(50);
+      await expect(promise).resolves.toEqual({ id: 1 });
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+});
+
+describe('APIClient.debouncedFetch', () => {
+  beforeEach(() => {
+    mockOfflineFetch.mockReset();
+    vi.useFakeTimers();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('遅延ウィンドウ内の連続呼び出しは最後の1回だけ実行されること', async () => {
+    mockOfflineFetch.mockResolvedValue(okResponse({ id: 'latest' }));
+    const client = new APIClient();
+
+    const p1 = client.debouncedFetch('/search', { skipCache: true }, 100);
+    const p2 = client.debouncedFetch('/search', { skipCache: true }, 100);
+
+    await vi.advanceTimersByTimeAsync(100);
+
+    await expect(p2).resolves.toEqual({ id: 'latest' });
+    expect(mockOfflineFetch).toHaveBeenCalledTimes(1);
+    void p1;
+  });
+
+  it('内部fetchが失敗した場合はPromiseをrejectすること', async () => {
+    // A 4xx is non-transient (see isTransientError), so getWithRetries fails on
+    // the first attempt without needing to advance fake timers through the
+    // retry backoff delay.
+    mockOfflineFetch.mockResolvedValue({
+      ok: false,
+      status: 400,
+      text: async () => 'bad request',
+    } as unknown as Response);
+    const client = new APIClient();
+
+    const result = client.debouncedFetch('/search', { skipCache: true }, 50);
+    const assertion = expect(result).rejects.toThrow();
+
+    await vi.advanceTimersByTimeAsync(50);
+    await assertion;
+  });
+});
+
+describe('APIClient.throttledFetch', () => {
+  beforeEach(() => {
+    mockOfflineFetch.mockReset();
+  });
+
+  it('間隔内の再呼び出しはキャッシュ済みデータを返しネットワークを呼ばないこと', async () => {
+    mockOfflineFetch.mockResolvedValue(okResponse({ id: 1 }));
+    const client = new APIClient();
+
+    const first = await client.throttledFetch('/tasks/1', {}, 5000);
+    const second = await client.throttledFetch('/tasks/1', {}, 5000);
+
+    expect(first).toEqual({ id: 1 });
+    expect(second).toEqual({ id: 1 });
+    expect(mockOfflineFetch).toHaveBeenCalledTimes(1);
+  });
+
+  it('間隔内でキャッシュが無い場合はエラーを投げること', async () => {
+    mockOfflineFetch.mockResolvedValue(okResponse({ id: 1 }));
+    const client = new APIClient();
+
+    // POST responses are never cached by fetch(), so the second throttled call
+    // within the interval has nothing to fall back to.
+    await client.throttledFetch('/tasks', { method: 'POST', body: '{}' }, 5000);
+    await expect(
+      client.throttledFetch('/tasks', { method: 'POST', body: '{}' }, 5000),
+    ).rejects.toThrow('Request throttled and no cache available');
+  });
+
+  it('間隔を過ぎれば再度ネットワークを呼ぶこと', async () => {
+    vi.useFakeTimers();
+    try {
+      mockOfflineFetch.mockResolvedValue(okResponse({ id: 1 }));
+      const client = new APIClient();
+
+      await client.throttledFetch('/tasks/1', { skipCache: true }, 1000);
+      vi.setSystemTime(Date.now() + 1500);
+      await client.throttledFetch('/tasks/1', { skipCache: true }, 1000);
+
+      expect(mockOfflineFetch).toHaveBeenCalledTimes(2);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+});
+
+describe('APIClient.parallelFetch', () => {
+  it('個々の失敗が他の結果に影響しないこと', async () => {
+    mockOfflineFetch.mockReset();
+    mockOfflineFetch.mockResolvedValueOnce(okResponse({ id: 1 })).mockResolvedValueOnce({
+      ok: false,
+      status: 500,
+      text: async () => 'boom',
+    } as unknown as Response);
+    const client = new APIClient();
+
+    const result = await client.parallelFetch<{
+      good: { id: number };
+      bad: { error: unknown };
+    }>({
+      good: { path: '/tasks/1', options: { skipCache: true } },
+      bad: { path: '/tasks/2', options: { skipCache: true } },
+    });
+
+    expect(result.good).toEqual({ id: 1 });
+    expect(result.bad).toHaveProperty('error');
+  });
+});
+
+describe('APIClient.prefetch', () => {
+  it('複数パスをフェッチしキャッシュへ格納すること', async () => {
+    mockOfflineFetch.mockReset();
+    mockOfflineFetch.mockResolvedValue(okResponse({ ok: true }));
+    const client = new APIClient();
+
+    await client.prefetch(['/tasks/1', '/tasks/2']);
+
+    expect(mockOfflineFetch).toHaveBeenCalledTimes(2);
+    // Subsequent fetch for the same path should hit the warmed cache.
+    mockOfflineFetch.mockClear();
+    await client.fetch('/tasks/1');
+    expect(mockOfflineFetch).not.toHaveBeenCalled();
+  });
+
+  it('個々のパスが失敗しても例外を投げないこと', async () => {
+    mockOfflineFetch.mockReset();
+    mockOfflineFetch.mockRejectedValue(new Error('network down'));
+    const client = new APIClient();
+
+    await expect(client.prefetch(['/tasks/1'])).resolves.toBeUndefined();
+  });
+});
+
+describe('APIClient.clearCache / getCacheStats', () => {
+  beforeEach(() => {
+    mockOfflineFetch.mockReset();
+  });
+
+  it('パターンに一致するキャッシュのみ消去し、以降は再度ネットワークを呼ぶこと', async () => {
+    mockOfflineFetch.mockResolvedValue(okResponse({ id: 1 }));
+    const client = new APIClient();
+
+    await client.fetch('/tasks/1');
+    client.clearCache('/tasks/1');
+    await client.fetch('/tasks/1');
+
+    expect(mockOfflineFetch).toHaveBeenCalledTimes(2);
+  });
+
+  it('getCacheStatsはキャッシュ済みエントリの統計を返すこと', async () => {
+    mockOfflineFetch.mockResolvedValue(okResponse({ id: 1 }));
+    const client = new APIClient();
+
+    await client.fetch('/tasks/1');
+    const stats = client.getCacheStats();
+
+    expect(stats.entries.length).toBeGreaterThan(0);
+    expect(stats.size).toBeGreaterThan(0);
   });
 });

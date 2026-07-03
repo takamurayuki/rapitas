@@ -99,6 +99,7 @@ export function SettingsTab({
               <button
                 onClick={onDeleteApiKey}
                 disabled={isSavingApiKey}
+                aria-label={tCommon('delete')}
                 className="p-1 text-red-500 hover:text-red-600 disabled:opacity-50"
               >
                 <Trash2 className="w-3 h-3" />
@@ -118,6 +119,7 @@ export function SettingsTab({
               <button
                 type="button"
                 onClick={onToggleShowApiKey}
+                aria-label={showApiKey ? tCommon('hideApiKey') : tCommon('showApiKey')}
                 className="absolute right-2 top-1/2 -translate-y-1/2 text-zinc-400"
               >
                 {showApiKey ? <EyeOff className="w-3 h-3" /> : <Eye className="w-3 h-3" />}

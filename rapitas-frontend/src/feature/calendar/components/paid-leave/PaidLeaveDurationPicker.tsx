@@ -91,7 +91,7 @@ export function PaidLeaveDurationPicker({
       {isMultiDay && (
         <div className="flex items-center gap-2">
           <div className="flex-1">
-            <label className="block text-xs text-zinc-400 dark:text-zinc-500 mb-1">
+            <label className="block text-xs text-zinc-500 dark:text-zinc-500 mb-1">
               {t('startDate')}
             </label>
             <input
@@ -103,7 +103,7 @@ export function PaidLeaveDurationPicker({
           </div>
           <div className="w-5 h-px bg-zinc-300 dark:bg-zinc-600 shrink-0 mt-5" />
           <div className="flex-1">
-            <label className="block text-xs text-zinc-400 dark:text-zinc-500 mb-1">
+            <label className="block text-xs text-zinc-500 dark:text-zinc-500 mb-1">
               {t('endDate')}
             </label>
             <input
@@ -120,7 +120,7 @@ export function PaidLeaveDurationPicker({
       {/* Half-day time selection — only for single day */}
       {isHalfDay && !isMultiDay && (
         <div className="space-y-2">
-          <p className="text-xs text-zinc-400 dark:text-zinc-500">{tp('halfDayTimeLabel')}</p>
+          <p className="text-xs text-zinc-500 dark:text-zinc-500">{tp('halfDayTimeLabel')}</p>
           <div className="flex gap-2">
             <button
               type="button"

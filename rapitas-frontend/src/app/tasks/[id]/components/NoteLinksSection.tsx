@@ -212,6 +212,7 @@ function NotePicker({
   taskMeta: { taskTitle: string; themeName: string; categoryName: string };
 }) {
   const t = useTranslations('task');
+  const tc = useTranslations('common');
   const [query, setQuery] = useState('');
   const pickerRef = useRef<HTMLDivElement>(null);
   const [anchorRect, setAnchorRect] = useState<DOMRect | null>(null);
@@ -287,6 +288,7 @@ function NotePicker({
         />
         <button
           onClick={onClose}
+          aria-label={tc('close')}
           className="text-gray-400 hover:text-gray-600 dark:text-zinc-500 dark:hover:text-zinc-300"
         >
           <X className="h-3.5 w-3.5" />

@@ -202,7 +202,7 @@ export default function NoteHoverSidebarTree({
           {hasLinked && (
             <div className="flex items-center gap-2 px-2 pt-2 pb-1">
               <div className="flex-1 h-px bg-zinc-200 dark:bg-zinc-700" />
-              <span className="text-[10px] text-zinc-400 shrink-0">{tc('other')}</span>
+              <span className="text-[10px] text-zinc-500 shrink-0">{tc('other')}</span>
               <div className="flex-1 h-px bg-zinc-200 dark:bg-zinc-700" />
             </div>
           )}

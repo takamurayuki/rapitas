@@ -67,7 +67,7 @@ export function NextActionRecommendations({
 
   return (
     <div className="space-y-2">
-      <p className="text-[11px] font-medium text-zinc-400 dark:text-zinc-500">{t('heading')}</p>
+      <p className="text-[11px] font-medium text-zinc-500 dark:text-zinc-500">{t('heading')}</p>
       {actions.map((a) => {
         const Icon = ICONS[a.icon];
         const isPrimary = a.tone === 'primary';

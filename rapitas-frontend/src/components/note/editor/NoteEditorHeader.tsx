@@ -81,7 +81,7 @@ export default function NoteEditorHeader({
           className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors shrink-0 ${
             isDirty
               ? 'bg-indigo-500 hover:bg-indigo-600 text-white'
-              : 'bg-zinc-100 dark:bg-zinc-800 text-zinc-400 dark:text-zinc-500 cursor-default'
+              : 'bg-zinc-100 dark:bg-zinc-800 text-zinc-500 dark:text-zinc-500 cursor-default'
           }`}
           title={t('editorHeader.saveTitle')}
         >
@@ -97,7 +97,7 @@ export default function NoteEditorHeader({
           className={`px-2 py-0.5 text-[11px] rounded-full border transition-colors ${
             !note.docType
               ? 'border-zinc-400 dark:border-zinc-500 bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300 font-medium'
-              : 'border-zinc-200 dark:border-zinc-700 text-zinc-400 dark:text-zinc-500 hover:border-zinc-300'
+              : 'border-zinc-200 dark:border-zinc-700 text-zinc-500 dark:text-zinc-500 hover:border-zinc-300'
           }`}
         >
           {t('editorHeader.noType')}
@@ -109,7 +109,7 @@ export default function NoteEditorHeader({
             className={`px-2 py-0.5 text-[11px] rounded-full border transition-colors ${
               note.docType === type
                 ? `${DOC_TYPE_COLORS[type]} border-transparent font-medium`
-                : 'border-zinc-200 dark:border-zinc-700 text-zinc-400 dark:text-zinc-500 hover:border-zinc-300 dark:hover:border-zinc-600 hover:text-zinc-600 dark:hover:text-zinc-300'
+                : 'border-zinc-200 dark:border-zinc-700 text-zinc-500 dark:text-zinc-500 hover:border-zinc-300 dark:hover:border-zinc-600 hover:text-zinc-600 dark:hover:text-zinc-300'
             }`}
           >
             {t(`docTypes.${DOC_TYPE_LABEL_KEYS[type]}`)}

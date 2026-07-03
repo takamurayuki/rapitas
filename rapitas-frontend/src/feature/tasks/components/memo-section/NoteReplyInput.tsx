@@ -26,6 +26,7 @@ export function NoteReplyInput({
   onReplyCancel,
 }: NoteReplyInputProps) {
   const t = useTranslations('task.noteReplyInput');
+  const tCommon = useTranslations('common');
   return (
     <div className="flex gap-1.5 mt-2 p-1.5 bg-white dark:bg-zinc-800 rounded-lg border border-zinc-200 dark:border-zinc-700">
       <input
@@ -36,7 +37,11 @@ export function NoteReplyInput({
         autoFocus
         onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), onReplySubmit())}
       />
-      <button onClick={onReplyCancel} className="p-1 text-zinc-500 hover:text-zinc-600">
+      <button
+        onClick={onReplyCancel}
+        aria-label={tCommon('cancel')}
+        className="p-1 text-zinc-500 hover:text-zinc-600"
+      >
         <X className="w-3 h-3" />
       </button>
       <button

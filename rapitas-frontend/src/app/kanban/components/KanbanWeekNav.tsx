@@ -88,6 +88,7 @@ export function KanbanWeekNav({
       {/* Filter toggle */}
       <button
         onClick={onToggleFilters}
+        aria-label={t('toggleFilters')}
         className={`relative flex items-center gap-1.5 px-3 py-2 text-sm rounded-lg border transition-colors ${
           showFilters
             ? 'bg-indigo-50 dark:bg-indigo-900/30 border-indigo-200 dark:border-indigo-700 text-indigo-600 dark:text-indigo-400'
@@ -113,7 +114,7 @@ export function KanbanWeekNav({
 
       {/* Result count */}
       {hasActiveFilters && (
-        <span className="text-sm text-zinc-400 dark:text-zinc-500">
+        <span className="text-sm text-zinc-500 dark:text-zinc-500">
           {filteredCount}
           {t('tasksFound')}
         </span>

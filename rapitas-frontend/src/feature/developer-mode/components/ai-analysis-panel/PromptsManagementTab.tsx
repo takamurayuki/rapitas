@@ -51,6 +51,7 @@ export function PromptsManagementTab({
   onCancelEditing,
 }: Props) {
   const t = useTranslations('devMode.promptsManagementTab');
+  const tCommon = useTranslations('common');
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
@@ -118,7 +119,7 @@ export function PromptsManagementTab({
             <div className="text-center py-6">
               <FileText className="w-10 h-10 text-zinc-300 dark:text-zinc-600 mx-auto mb-3" />
               <p className="text-sm text-zinc-500 dark:text-zinc-400 mb-2">{t('emptyHint')}</p>
-              <p className="text-xs text-zinc-400 dark:text-zinc-500">{t('emptyGuide')}</p>
+              <p className="text-xs text-zinc-500 dark:text-zinc-500">{t('emptyGuide')}</p>
             </div>
           ) : (
             <div className="space-y-2 max-h-64 overflow-y-auto">
@@ -169,12 +170,14 @@ export function PromptsManagementTab({
                           <>
                             <button
                               onClick={() => onUpdatePrompt(prompt.id, editingPromptText)}
+                              aria-label={tCommon('save')}
                               className="p-1 text-green-500 hover:text-green-600"
                             >
                               <Save className="w-3 h-3" />
                             </button>
                             <button
                               onClick={onCancelEditing}
+                              aria-label={tCommon('cancel')}
                               className="p-1 text-zinc-400 hover:text-zinc-600"
                             >
                               ×

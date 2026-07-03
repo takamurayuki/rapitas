@@ -374,6 +374,9 @@ export default function VoiceInputBar({ isOpen, onClose, target }: VoiceInputBar
             <button
               onClick={isRecording ? stopRecording : startRecording}
               disabled={isTranscribing}
+              aria-label={
+                isRecording ? t('voice.inputBar.stopRecording') : t('voice.inputBar.startRecording')
+              }
               className={`p-3 rounded-xl transition-all ${
                 isTranscribing
                   ? 'bg-amber-500/20 text-amber-400'
@@ -394,7 +397,7 @@ export default function VoiceInputBar({ isOpen, onClose, target }: VoiceInputBar
             <div className="flex-1 min-w-0">
               {stream && <AudioWaveform stream={stream} width={300} height={32} />}
               {!stream && interimInfo && (
-                <span className="text-sm text-zinc-400">{interimInfo}</span>
+                <span className="text-sm text-zinc-500">{interimInfo}</span>
               )}
               {error && <span className="text-sm text-red-400">{error}</span>}
             </div>

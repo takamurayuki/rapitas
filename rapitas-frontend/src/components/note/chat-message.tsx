@@ -95,7 +95,7 @@ export default function ChatMessage({ message }: { message: AIChatMessage }) {
                   return (
                     <div className="relative group mb-3">
                       {lang !== 'text' && (
-                        <div className="absolute top-0 right-0 px-2 py-1 text-xs text-zinc-400 bg-zinc-800 rounded-tr-md rounded-bl-md z-10">
+                        <div className="absolute top-0 right-0 px-2 py-1 text-xs text-zinc-500 bg-zinc-800 rounded-tr-md rounded-bl-md z-10">
                           {lang}
                         </div>
                       )}
@@ -201,7 +201,7 @@ export default function ChatMessage({ message }: { message: AIChatMessage }) {
         )}
         <span
           className={`text-xs mt-2 block ${
-            isUser ? 'text-indigo-100' : 'text-zinc-400 dark:text-zinc-500'
+            isUser ? 'text-indigo-100' : 'text-zinc-500 dark:text-zinc-500'
           }`}
         >
           {message.timestamp.toLocaleTimeString(toDateLocale(locale), {

@@ -129,7 +129,7 @@ export default function DiagramBlockEdit({ source, onSave, onCancel }: Props) {
 
       {/* Templates */}
       <div className="flex items-center gap-1.5 px-4 py-2 border-b border-zinc-100 dark:border-zinc-800 overflow-x-auto shrink-0">
-        <span className="text-[11px] text-zinc-400 dark:text-zinc-500 shrink-0">
+        <span className="text-[11px] text-zinc-500 dark:text-zinc-500 shrink-0">
           {t('diagramEdit.templatesLabel')}
         </span>
         {TEMPLATES.map((template) => (
@@ -147,7 +147,7 @@ export default function DiagramBlockEdit({ source, onSave, onCancel }: Props) {
       <div className="flex-1 flex overflow-hidden">
         {/* Source */}
         <div className="w-1/2 flex flex-col border-r border-zinc-200 dark:border-zinc-700">
-          <div className="px-3 py-1 text-[11px] text-zinc-400 dark:text-zinc-500 border-b border-zinc-100 dark:border-zinc-800 shrink-0">
+          <div className="px-3 py-1 text-[11px] text-zinc-500 dark:text-zinc-500 border-b border-zinc-100 dark:border-zinc-800 shrink-0">
             {t('diagramEdit.sourceLabel')}
           </div>
           <textarea
@@ -162,7 +162,7 @@ export default function DiagramBlockEdit({ source, onSave, onCancel }: Props) {
 
         {/* Preview */}
         <div className="w-1/2 flex flex-col">
-          <div className="px-3 py-1 text-[11px] text-zinc-400 dark:text-zinc-500 border-b border-zinc-100 dark:border-zinc-800 shrink-0">
+          <div className="px-3 py-1 text-[11px] text-zinc-500 dark:text-zinc-500 border-b border-zinc-100 dark:border-zinc-800 shrink-0">
             {t('diagramEdit.previewLabel')}
           </div>
           <div className="flex-1 overflow-auto p-4 flex items-start justify-center">
@@ -176,7 +176,7 @@ export default function DiagramBlockEdit({ source, onSave, onCancel }: Props) {
                 className="max-w-full [&_svg]:max-w-full [&_svg]:h-auto"
               />
             ) : (
-              <div className="text-sm text-zinc-400 dark:text-zinc-500">
+              <div className="text-sm text-zinc-500 dark:text-zinc-500">
                 {t('diagramEdit.rendering')}
               </div>
             )}

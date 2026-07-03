@@ -135,7 +135,7 @@ export function AgentSwitcher({
         className={`flex items-center gap-2 px-3 ${isSm ? 'py-1.5' : 'py-2'} bg-zinc-100 dark:bg-zinc-800 rounded-lg`}
       >
         <Loader2 className="w-4 h-4 text-zinc-400 animate-spin" />
-        <span className="text-xs text-zinc-400">{t('agentSwitcher.loading')}</span>
+        <span className="text-xs text-zinc-500">{t('agentSwitcher.loading')}</span>
       </div>
     );
   }
@@ -146,7 +146,7 @@ export function AgentSwitcher({
         className={`flex items-center gap-2 px-3 ${isSm ? 'py-1.5' : 'py-2'} bg-zinc-100 dark:bg-zinc-800 rounded-lg`}
       >
         <Bot className="w-4 h-4 text-zinc-400" />
-        <span className="text-xs text-zinc-400">{t('agentSwitcher.builtIn')}</span>
+        <span className="text-xs text-zinc-500">{t('agentSwitcher.builtIn')}</span>
       </div>
     );
   }
@@ -212,7 +212,7 @@ export function AgentSwitcher({
                 <span className="text-sm text-indigo-600 dark:text-indigo-400 font-medium">
                   {t('resetToDefault')}
                 </span>
-                <span className="text-xs text-zinc-400 dark:text-zinc-500 ml-1.5">
+                <span className="text-xs text-zinc-500 dark:text-zinc-500 ml-1.5">
                   ({defaultAgent.name})
                 </span>
               </div>
@@ -249,7 +249,7 @@ export function AgentSwitcher({
                         <Star className="w-3 h-3 text-indigo-500 fill-indigo-500 shrink-0" />
                       )}
                     </div>
-                    <p className="text-xs text-zinc-400 dark:text-zinc-500 truncate">
+                    <p className="text-xs text-zinc-500 dark:text-zinc-500 truncate">
                       {info.name}
                       {agent.modelId && ` / ${agent.modelId}`}
                     </p>

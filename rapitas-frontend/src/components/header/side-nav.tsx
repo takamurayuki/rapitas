@@ -88,7 +88,7 @@ export function SideNav({
         {/* Slim bar: section label + pin toggle. The app name/icon live in the
             header, so they are intentionally not repeated here. */}
         <div className="flex items-center justify-between h-12 px-4 border-b border-zinc-200 dark:border-zinc-800">
-          <span className="text-xs font-semibold uppercase tracking-wider text-zinc-400 dark:text-zinc-500">
+          <span className="text-xs font-semibold uppercase tracking-wider text-zinc-500 dark:text-zinc-500">
             {t('menu')}
           </span>
           <button
@@ -136,7 +136,7 @@ export function SideNav({
                 <Keyboard className="w-4 h-4" />
                 <span className="text-sm">{t('keyboardShortcuts')}</span>
               </div>
-              <kbd className="px-1.5 py-0.5 text-[10px] font-mono text-zinc-400 dark:text-zinc-500 bg-zinc-100 dark:bg-zinc-800 rounded border border-zinc-200 dark:border-zinc-700">
+              <kbd className="px-1.5 py-0.5 text-[10px] font-mono text-zinc-500 dark:text-zinc-500 bg-zinc-100 dark:bg-zinc-800 rounded border border-zinc-200 dark:border-zinc-700">
                 {getShortcutLabel('shortcutHelp') || '⌘/'}
               </kbd>
             </button>

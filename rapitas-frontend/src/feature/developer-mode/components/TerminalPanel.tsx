@@ -225,7 +225,7 @@ export const TerminalPanel = memo(function TerminalPanel({
       {/* Header */}
       <div className="flex items-center gap-2 px-3 py-2 bg-zinc-800 border-b border-zinc-700">
         <StatusDot status={polling.status} waitingForInput={isWaiting} />
-        <span className="text-[10px] text-zinc-400 font-mono">{statusLabel}</span>
+        <span className="text-[10px] text-zinc-500 font-mono">{statusLabel}</span>
         <div className="flex-1" />
 
         <ModelSelector

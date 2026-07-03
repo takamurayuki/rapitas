@@ -204,7 +204,7 @@ export function AnalysisTab({
       <div className="text-center py-6">
         <BrainCircuit className="w-10 h-10 text-zinc-300 dark:text-zinc-600 mx-auto mb-3" />
         <p className="text-sm text-zinc-500 dark:text-zinc-400 mb-2">{t('enableDevModeHint')}</p>
-        <p className="text-xs text-zinc-400 dark:text-zinc-500">{t('enableDevModeSubHint')}</p>
+        <p className="text-xs text-zinc-500 dark:text-zinc-500">{t('enableDevModeSubHint')}</p>
       </div>
     );
   }

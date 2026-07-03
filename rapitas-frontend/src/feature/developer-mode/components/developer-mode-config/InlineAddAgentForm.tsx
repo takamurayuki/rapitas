@@ -49,6 +49,7 @@ export function InlineAddAgentForm({
 }: Props) {
   const t = useTranslations('devMode.inlineAddAgentForm');
   const tv = useTranslations('common.validation');
+  const tCommon = useTranslations('common');
   const handleNameInput = (raw: string) => {
     if (raw.trim()) {
       const result = validateName(raw, t('agentNameField'), 1, 50);
@@ -72,6 +73,7 @@ export function InlineAddAgentForm({
         </div>
         <button
           onClick={onCancel}
+          aria-label={tCommon('cancel')}
           className="p-0.5 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 rounded transition-colors"
         >
           <X className="w-3.5 h-3.5" />

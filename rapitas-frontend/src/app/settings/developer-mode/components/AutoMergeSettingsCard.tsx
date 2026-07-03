@@ -62,6 +62,7 @@ export function AutoMergeSettingsCard({
         className={toggleClass(value)}
         role="switch"
         aria-checked={value}
+        aria-label={label}
       >
         <span className={thumbClass(value)} />
       </button>
@@ -123,7 +124,7 @@ export function AutoMergeSettingsCard({
                   }
                   className="w-16 rounded border border-zinc-300 bg-white px-2 py-1 text-xs dark:border-zinc-600 dark:bg-zinc-700 dark:text-zinc-200"
                 />
-                <span className="text-xs text-zinc-400 dark:text-zinc-500">
+                <span className="text-xs text-zinc-500 dark:text-zinc-500">
                   {t('squashThresholdSuffix')}
                 </span>
               </div>

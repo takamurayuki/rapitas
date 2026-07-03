@@ -72,7 +72,7 @@ export function InlineApiKeySetup({
         <span className="text-xs font-medium text-zinc-600 dark:text-zinc-300">
           {t('apiKeySettings')}
         </span>
-        <span className="text-[10px] text-zinc-400">{t('enableModelsHint')}</span>
+        <span className="text-[10px] text-zinc-500">{t('enableModelsHint')}</span>
       </div>
 
       {/* Provider tabs */}
@@ -139,6 +139,7 @@ export function InlineApiKeySetup({
             <button
               type="button"
               onClick={onShowApiKeyToggle}
+              aria-label={showApiKey ? tCommon('hideApiKey') : tCommon('showApiKey')}
               className="absolute right-2 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300"
             >
               {showApiKey ? <EyeOff className="w-3 h-3" /> : <Eye className="w-3 h-3" />}

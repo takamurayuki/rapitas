@@ -51,7 +51,7 @@ export default function NoteHoverSidebarNoteItem({
           <p className="text-xs text-zinc-500 dark:text-zinc-400 line-clamp-1">
             {note.content.replace(/<[^>]*>/g, '') || t('hoverSidebar.noContent')}
           </p>
-          <div className="flex items-center gap-1 mt-0.5 text-[10px] text-zinc-400">
+          <div className="flex items-center gap-1 mt-0.5 text-[10px] text-zinc-500">
             <Calendar className="w-2.5 h-2.5" />
             {formatDate(note.updatedAt)}
           </div>

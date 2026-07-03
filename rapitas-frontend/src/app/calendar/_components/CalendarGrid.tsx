@@ -44,6 +44,7 @@ function CalendarHeader({
       <div className="flex items-center gap-2">
         <button
           onClick={onPrevMonth}
+          aria-label={t('prevMonth')}
           className="p-2 hover:bg-zinc-100 dark:hover:bg-zinc-700 rounded-lg"
         >
           <ChevronLeft className="w-5 h-5" />
@@ -56,6 +57,7 @@ function CalendarHeader({
         </h2>
         <button
           onClick={onNextMonth}
+          aria-label={t('nextMonth')}
           className="p-2 hover:bg-zinc-100 dark:hover:bg-zinc-700 rounded-lg"
         >
           <ChevronRight className="w-5 h-5" />
@@ -237,7 +239,7 @@ function DayCell({
             <EventItem key={`${event.type}-${event.id}`} event={event} schedules={schedules} />
           ))}
           {hiddenCount > 0 && (
-            <div className="text-[9px] text-zinc-400 dark:text-zinc-500 pl-1 leading-tight">
+            <div className="text-[9px] text-zinc-500 dark:text-zinc-500 pl-1 leading-tight">
               +{hiddenCount}
               {tc('items')}
             </div>
@@ -315,7 +317,7 @@ function CalendarLegend() {
           {t('legendHoliday')}
         </div>
       </div>
-      <span className="text-xs text-zinc-400 dark:text-zinc-500 hidden sm:inline">
+      <span className="text-xs text-zinc-500 dark:text-zinc-500 hidden sm:inline">
         {t('doubleClickToAdd')}
       </span>
     </div>

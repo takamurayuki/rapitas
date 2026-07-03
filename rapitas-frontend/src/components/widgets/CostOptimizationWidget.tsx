@@ -92,7 +92,7 @@ export function CostOptimizationWidget() {
             <DollarSign className="w-4 h-4 text-emerald-500" />
             {t('costOptimization.title')}
           </h3>
-          <div className="flex items-center gap-3 text-xs text-zinc-400">
+          <div className="flex items-center gap-3 text-xs text-zinc-500">
             <span className="flex items-center gap-1">
               <Zap className="w-3 h-3" />
               {(data.totalTokens / 1000).toFixed(0)}K tokens

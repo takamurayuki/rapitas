@@ -62,7 +62,7 @@ export function MCPSetupGuide() {
               </span>
               <button
                 onClick={() => copyToClipboard(MCP_CONFIG, 'cursor')}
-                className="flex items-center gap-1 text-xs text-zinc-400 hover:text-violet-500 transition-colors"
+                className="flex items-center gap-1 text-xs text-zinc-500 hover:text-violet-500 transition-colors"
               >
                 {copied === 'cursor' ? (
                   <Check className="w-3 h-3 text-emerald-500" />
@@ -84,7 +84,7 @@ export function MCPSetupGuide() {
               </span>
               <button
                 onClick={() => copyToClipboard(CLAUDE_CODE_CONFIG, 'claude')}
-                className="flex items-center gap-1 text-xs text-zinc-400 hover:text-violet-500 transition-colors"
+                className="flex items-center gap-1 text-xs text-zinc-500 hover:text-violet-500 transition-colors"
               >
                 {copied === 'claude' ? (
                   <Check className="w-3 h-3 text-emerald-500" />

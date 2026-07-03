@@ -89,7 +89,7 @@ export function GoalWizard({ categories, onSubmit, onCancel }: Props) {
                 ? 'text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-900/20'
                 : idx < getStepIndex(currentStep)
                   ? 'text-emerald-500 dark:text-emerald-400 cursor-pointer hover:bg-zinc-50 dark:hover:bg-zinc-700/50'
-                  : 'text-zinc-400 dark:text-zinc-500 cursor-default'
+                  : 'text-zinc-500 dark:text-zinc-500 cursor-default'
             }`}
           >
             <div className="flex items-center justify-center gap-2">

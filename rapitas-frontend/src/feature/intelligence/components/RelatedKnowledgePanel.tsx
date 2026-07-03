@@ -68,7 +68,7 @@ export function RelatedKnowledgePanel({ title, description, themeId }: RelatedKn
                 <span className="text-[10px] text-indigo-500 dark:text-indigo-400">
                   {categoryLabels[entry.category] || entry.category}
                 </span>
-                <span className="text-[10px] text-zinc-400">
+                <span className="text-[10px] text-zinc-500">
                   {t('relevanceScore', { score: Math.round(entry.relevanceScore) })}
                 </span>
               </div>

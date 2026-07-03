@@ -60,6 +60,7 @@ export function ApiKeySetupPrompt({
             <button
               type="button"
               onClick={onToggleShowApiKey}
+              aria-label={showApiKey ? tCommon('hideApiKey') : tCommon('showApiKey')}
               className="absolute right-2 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300"
             >
               {showApiKey ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}

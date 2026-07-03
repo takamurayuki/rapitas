@@ -49,7 +49,7 @@ export function LabelList({
 
   if (labels.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center py-16 text-zinc-400 dark:text-zinc-600">
+      <div className="flex flex-col items-center justify-center py-16 text-zinc-500 dark:text-zinc-600">
         <Tag className="w-10 h-10 mb-3 opacity-40" />
         <p className="text-sm">{t('list.emptyTitle')}</p>
         <p className="text-xs mt-1">{t('list.emptyHint')}</p>
@@ -101,7 +101,7 @@ export function LabelList({
                     {label.description}
                   </p>
                 )}
-                <span className="text-xs text-zinc-400 dark:text-zinc-500 mt-1 block">
+                <span className="text-xs text-zinc-500 dark:text-zinc-500 mt-1 block">
                   {t('list.taskCount', { count: label._count.tasks })}
                 </span>
               </div>

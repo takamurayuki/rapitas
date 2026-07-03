@@ -58,7 +58,7 @@ export function IdeaBoxHeader({ totalIdeas, onAddClick }: IdeaBoxHeaderProps) {
             {t('header.title')}
           </h1>
           <p className="text-xs text-zinc-500 dark:text-zinc-400">{t('header.subtitle')}</p>
-          <p className="text-[11px] text-zinc-400 dark:text-zinc-500">{statusText}</p>
+          <p className="text-[11px] text-zinc-500 dark:text-zinc-500">{statusText}</p>
         </div>
       </div>
       <button

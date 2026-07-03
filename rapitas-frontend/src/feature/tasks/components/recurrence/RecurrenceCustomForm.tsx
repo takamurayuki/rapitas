@@ -66,6 +66,7 @@ export function RecurrenceCustomForm({
         <button
           type="button"
           onClick={onBack}
+          aria-label={tc('back')}
           className="text-zinc-500 hover:text-zinc-600 dark:hover:text-zinc-300"
         >
           <X size={16} />

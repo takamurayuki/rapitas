@@ -194,7 +194,7 @@ export function DayEventsSidebar({
                         </span>
                       )}
                       {event.time && (
-                        <span className="flex items-center gap-1 text-xs text-zinc-400 dark:text-zinc-500">
+                        <span className="flex items-center gap-1 text-xs text-zinc-500 dark:text-zinc-500">
                           <Clock className="w-3 h-3" />
                           {event.time}
                           {event.endTime && ` 〜 ${event.endTime}`}
@@ -208,7 +208,7 @@ export function DayEventsSidebar({
                       )}
                     </div>
                     {event.description && (
-                      <p className="text-xs text-zinc-400 dark:text-zinc-500 mt-1 truncate">
+                      <p className="text-xs text-zinc-500 dark:text-zinc-500 mt-1 truncate">
                         {event.description}
                       </p>
                     )}

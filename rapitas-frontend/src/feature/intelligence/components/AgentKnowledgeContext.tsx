@@ -185,7 +185,7 @@ export function AgentKnowledgeContext({ taskId }: AgentKnowledgeContextProps) {
                     <p className="text-xs text-zinc-700 dark:text-zinc-300 flex-1 line-clamp-2">
                       {p.description}
                     </p>
-                    <span className="text-[10px] text-zinc-400 shrink-0">
+                    <span className="text-[10px] text-zinc-500 shrink-0">
                       {Math.round(p.confidence * 100)}%
                     </span>
                   </div>

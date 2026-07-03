@@ -156,7 +156,7 @@ export function IdeaBoxPanel({ categoryId }: IdeaBoxPanelProps) {
                   <Spinner size="md" className="text-zinc-400 dark:text-zinc-400" />
                 </div>
               ) : ideas.length === 0 ? (
-                <p className="py-6 text-center text-xs text-zinc-400">{t('emptyState')}</p>
+                <p className="py-6 text-center text-xs text-zinc-500">{t('emptyState')}</p>
               ) : (
                 <div className="space-y-1.5 max-h-64 overflow-y-auto">
                   {ideas.map((idea) => {
@@ -175,7 +175,7 @@ export function IdeaBoxPanel({ categoryId }: IdeaBoxPanelProps) {
                           <span className="font-medium text-zinc-700 dark:text-zinc-300 line-clamp-1">
                             {idea.title}
                           </span>
-                          <span className="ml-auto shrink-0 text-[9px] text-zinc-400">
+                          <span className="ml-auto shrink-0 text-[9px] text-zinc-500">
                             {idea.source}
                           </span>
                         </div>

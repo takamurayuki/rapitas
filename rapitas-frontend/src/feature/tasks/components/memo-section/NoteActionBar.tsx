@@ -49,9 +49,9 @@ export function NoteActionBar({
   const tc = useTranslations('common');
   return (
     <div className="flex items-center gap-2 mt-1.5">
-      <span className="text-[10px] text-zinc-400">{note.time}</span>
+      <span className="text-[10px] text-zinc-500">{note.time}</span>
       {hasReplies && (
-        <span className="text-[10px] text-zinc-400 flex items-center gap-0.5">
+        <span className="text-[10px] text-zinc-500 flex items-center gap-0.5">
           <CornerDownRight className="w-2.5 h-2.5" />
           {note.replies!.length}
         </span>

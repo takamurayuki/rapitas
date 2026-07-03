@@ -255,7 +255,7 @@ export function WorkflowLearningPanel() {
         {showRules && (
           <div className="space-y-2 mt-1">
             {rules.length === 0 ? (
-              <p className="text-xs text-zinc-400 dark:text-zinc-500 py-3 text-center">
+              <p className="text-xs text-zinc-500 dark:text-zinc-500 py-3 text-center">
                 {t('noRulesYet')}
               </p>
             ) : (
@@ -275,10 +275,10 @@ export function WorkflowLearningPanel() {
                       >
                         {ruleTypeLabels[rule.ruleType] || rule.ruleType}
                       </span>
-                      <span className="text-[10px] text-zinc-400">
+                      <span className="text-[10px] text-zinc-500">
                         {t('confidenceLabel', { confidence: Math.round(rule.confidence * 100) })}
                       </span>
-                      <span className="text-[10px] text-zinc-400">
+                      <span className="text-[10px] text-zinc-500">
                         {t('sampleSizeLabel', { count: rule.sampleSize })}
                       </span>
                     </div>

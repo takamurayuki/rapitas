@@ -33,6 +33,7 @@ const SYSTEM_PROMPT =
  */
 export default function AITabContent() {
   const t = useTranslations('notes');
+  const tCommon = useTranslations('common');
   const [inputValue, setInputValue] = useState('');
   const [showSettings, setShowSettings] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -163,7 +164,7 @@ export default function AITabContent() {
                         ? 'bg-linear-to-r from-indigo-500 to-indigo-600 text-white'
                         : isConfigured
                           ? 'bg-white dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-700 border border-zinc-300 dark:border-zinc-600'
-                          : 'bg-zinc-100 dark:bg-zinc-800 text-zinc-400 dark:text-zinc-600 cursor-not-allowed'
+                          : 'bg-zinc-100 dark:bg-zinc-800 text-zinc-500 dark:text-zinc-600 cursor-not-allowed'
                     }`}
                   >
                     <span
@@ -272,6 +273,7 @@ export default function AITabContent() {
           <button
             onClick={handleSendMessage}
             disabled={!inputValue.trim() || isLoading}
+            aria-label={tCommon('sendMessage')}
             className="px-3 py-2 bg-linear-to-r from-indigo-500 to-indigo-600 hover:from-indigo-600 hover:to-indigo-700 disabled:from-zinc-300 disabled:to-zinc-300 dark:disabled:from-zinc-700 dark:disabled:to-zinc-700 disabled:cursor-not-allowed text-white rounded-xl transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-indigo-500"
           >
             {isLoading ? (
@@ -281,7 +283,7 @@ export default function AITabContent() {
             )}
           </button>
         </div>
-        <p className="text-[10px] text-zinc-400 dark:text-zinc-500 mt-1 text-center">
+        <p className="text-[10px] text-zinc-500 dark:text-zinc-500 mt-1 text-center">
           {t('aiTab.sendHint')}
         </p>
       </div>

@@ -33,12 +33,10 @@ describe('useAnalyticsDashboard', () => {
   });
 
   it('fetches analytics for a given initial range', async () => {
-    const fetchMock = vi
-      .fn()
-      .mockResolvedValue({
-        ok: true,
-        json: () => Promise.resolve({ totalTasks: 5, completedTasks: 2 }),
-      });
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve({ totalTasks: 5, completedTasks: 2 }),
+    });
     vi.stubGlobal('fetch', fetchMock);
 
     const range = { from: '2026-01-01', to: '2026-01-31' };

@@ -93,7 +93,7 @@ export const WorkflowProgressBar: React.FC<WorkflowProgressBarProps> = ({
                 <div className="text-center">
                   <div className={`text-xs font-medium ${styles.text}`}>{step.label}</div>
                   {isActive && (
-                    <div className="text-xs text-zinc-400 mt-0.5 whitespace-nowrap">
+                    <div className="text-xs text-zinc-500 mt-0.5 whitespace-nowrap">
                       {step.description}
                     </div>
                   )}
@@ -125,7 +125,7 @@ export const WorkflowProgressBar: React.FC<WorkflowProgressBarProps> = ({
       {/* 全体の進行状況 */}
       {currentPhase && (
         <div className="mt-3 text-center">
-          <div className="text-xs text-zinc-400">
+          <div className="text-xs text-zinc-500">
             {t('overallProgress', { current: currentStepIndex + 1, total: WORKFLOW_STEPS.length })}
           </div>
           <div className="mt-1 w-full bg-zinc-700 rounded-full h-1 max-w-xs mx-auto">

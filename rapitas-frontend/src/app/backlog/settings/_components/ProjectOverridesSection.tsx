@@ -60,16 +60,19 @@ function Toggle({
   on,
   onClick,
   disabled,
+  ariaLabel,
 }: {
   on: boolean;
   onClick: () => void;
   disabled?: boolean;
+  ariaLabel?: string;
 }) {
   return (
     <button
       type="button"
       role="switch"
       aria-checked={on}
+      aria-label={ariaLabel}
       disabled={disabled}
       onClick={onClick}
       className={`relative h-6 w-11 shrink-0 rounded-full transition-colors disabled:opacity-40 ${
@@ -200,6 +203,7 @@ export default function ProjectOverridesSection() {
                           <Toggle
                             on={enabled}
                             onClick={() => patch(job.kind, theme.id, { enabled: !enabled })}
+                            ariaLabel={t(`projectOverrides.jobs.${job.kind}`)}
                           />
                         </span>
                       </div>

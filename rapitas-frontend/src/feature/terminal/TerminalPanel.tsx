@@ -83,7 +83,7 @@ export default function TerminalPanel() {
 
       <div className="flex min-h-0 flex-1">
         {!isTauri() ? (
-          <div className="flex flex-1 items-center justify-center p-6 text-center text-sm text-zinc-400">
+          <div className="flex flex-1 items-center justify-center p-6 text-center text-sm text-zinc-500">
             {t('desktopOnly')}
           </div>
         ) : (

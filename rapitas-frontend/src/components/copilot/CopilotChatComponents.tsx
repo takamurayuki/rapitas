@@ -193,7 +193,7 @@ export function AnalysisResultCard({
                           : tPriority('priorityLow')}
                     </span>
                     {st.estimatedHours != null && (
-                      <span className="text-[9px] text-zinc-400">{st.estimatedHours}h</span>
+                      <span className="text-[9px] text-zinc-500">{st.estimatedHours}h</span>
                     )}
                   </div>
                 </div>

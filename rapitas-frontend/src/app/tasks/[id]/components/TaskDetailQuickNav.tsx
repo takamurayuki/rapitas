@@ -171,7 +171,7 @@ export function TaskDetailQuickNav({
                 aria-current={isActive ? 'true' : undefined}
                 className={`flex shrink-0 items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium transition-colors ${
                   !isScrollable
-                    ? 'cursor-default text-zinc-400 opacity-60 dark:text-zinc-500'
+                    ? 'cursor-default text-zinc-500 opacity-60 dark:text-zinc-500'
                     : isActive
                       ? 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300'
                       : 'text-zinc-500 hover:bg-zinc-100 hover:text-zinc-800 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-200'

@@ -175,7 +175,7 @@ export function KnowledgeReminderWidget() {
                       >
                         {entry.category}
                       </span>
-                      <span className="text-[10px] text-zinc-400">
+                      <span className="text-[10px] text-zinc-500">
                         {t('retentionScore', { score: Math.round(entry.decayScore * 100) })}
                       </span>
                     </div>
@@ -211,7 +211,7 @@ export function KnowledgeReminderWidget() {
                         {content}
                       </p>
                     ) : (
-                      <p className="text-xs text-zinc-400 italic">{t('noContent')}</p>
+                      <p className="text-xs text-zinc-500 italic">{t('noContent')}</p>
                     )}
                   </div>
                 )}
@@ -220,7 +220,7 @@ export function KnowledgeReminderWidget() {
           })}
         </div>
       ) : (
-        <div className="py-4 text-center text-sm text-zinc-400 dark:text-zinc-500">
+        <div className="py-4 text-center text-sm text-zinc-500 dark:text-zinc-500">
           <CheckCircle2 className="w-6 h-6 mx-auto mb-1 text-green-500 opacity-50" />
           {t('allStable')}
         </div>

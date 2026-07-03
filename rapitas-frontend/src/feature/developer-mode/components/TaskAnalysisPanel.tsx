@@ -321,7 +321,7 @@ function SubtaskProposalItem({
 
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2 mb-1">
-          <span className="text-xs text-zinc-400 dark:text-zinc-500">#{index + 1}</span>
+          <span className="text-xs text-zinc-500 dark:text-zinc-500">#{index + 1}</span>
           <span className="font-medium text-zinc-900 dark:text-zinc-50 truncate">
             {subtask.title}
           </span>

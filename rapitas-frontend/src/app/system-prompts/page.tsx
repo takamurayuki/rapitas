@@ -237,7 +237,7 @@ export default function SystemPromptsPage() {
                     <span className={`px-2 py-0.5 rounded text-xs ${categoryInfo.color}`}>
                       {t(categoryInfo.labelKey)}
                     </span>
-                    <span className="text-zinc-400 dark:text-zinc-600">
+                    <span className="text-zinc-500 dark:text-zinc-600">
                       ({categoryPrompts.length})
                     </span>
                   </h2>

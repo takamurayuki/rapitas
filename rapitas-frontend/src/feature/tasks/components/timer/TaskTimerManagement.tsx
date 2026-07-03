@@ -3,6 +3,7 @@ import { type TimeEntry } from '@/types';
 import { useState, useEffect, useRef } from 'react';
 import { useTranslations } from 'next-intl';
 import { useFocusTrap } from '@/components/ui/modal/use-focus-trap';
+import { Timer } from 'lucide-react';
 
 interface TaskTimeTrackingProps {
   estimatedHours?: number;
@@ -196,7 +197,7 @@ export default function TaskTimeTracking({
               })}
             </span>
             {totalBreakHours > 0 && (
-              <span className="text-zinc-400 dark:text-zinc-500">
+              <span className="text-zinc-500 dark:text-zinc-500">
                 {t('taskTimerManagement.breakTotalSummary', {
                   breakHours: totalBreakHours.toFixed(1),
                   totalHours: totalElapsedHours.toFixed(1),
@@ -210,7 +211,7 @@ export default function TaskTimeTracking({
       <div className="bg-linear-to-br from-indigo-50 to-purple-50 dark:from-indigo-950 dark:to-purple-950 border-2 border-indigo-200 dark:border-indigo-800 rounded-xl p-4 mb-4">
         <div className="flex items-center justify-between mb-3">
           <div className="flex items-center gap-2">
-            <span className="text-2xl">🍅</span>
+            <Timer className="w-6 h-6 text-indigo-500 dark:text-indigo-400" aria-hidden="true" />
             <div>
               <div className="text-sm font-semibold text-zinc-900 dark:text-zinc-50">
                 {isBreakTime
