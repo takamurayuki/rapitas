@@ -351,7 +351,13 @@ export async function executeContinuationInternal(
     await fileLogger.flush();
     ctx.activeExecutions.delete(execution.id);
     ctx.activeAgents.delete(execution.id);
-    await agentFactory.removeAgent(agent.id);
+    // NOTE: Remove agentInfo.agent (not the stale `agent` local), because
+    // handleResumeFailureFallbacks swaps agentInfo.agent to a new agent
+    // instance on --resume failure. Removing the original `agent` here left
+    // every post-fallback agent permanently registered in AgentFactory's
+    // activeAgents map (fallback-handler.ts only ever removes the *previous*
+    // agent in its chain, never the final one it returns).
+    await agentFactory.removeAgent(agentInfo.agent.id);
   }
 }
 

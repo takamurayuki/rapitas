@@ -1,0 +1,184 @@
+/**
+ * execution-persistence ユニットテスト（イベント／エラー系）
+ *
+ * emitResultEvent のイベント整形と handleExecutionError のエラー正規化を検証する。
+ * DB書き込み・自己学習レコーダー連携の検証は execution-persistence.test.ts 側。
+ * どちらの関数も自己学習レコーダーを呼ばないため mock.module は不要。
+ */
+import { describe, test, expect, mock } from 'bun:test';
+import { emitResultEvent, handleExecutionError } from './execution-persistence';
+import type { ExecutionState, OrchestratorEvent } from './types';
+
+// ── ヘルパー ──────────────────────────────────────────────────────────────────
+
+/** テスト用の最小 ExecutionState を生成する。 */
+function makeState(overrides: Partial<ExecutionState> = {}): ExecutionState {
+  return {
+    executionId: 1,
+    sessionId: 2,
+    agentId: 'agent-1',
+    taskId: 3,
+    status: 'running',
+    startedAt: new Date(),
+    output: '',
+    ...overrides,
+  };
+}
+
+/** テスト用の fileLogger スタブ（すべてスパイ）を生成する。 */
+function makeFileLogger() {
+  return {
+    logStatusChange: mock(() => {}),
+    logExecutionEnd: mock(() => {}),
+    logGitCommit: mock(() => {}),
+    logError: mock(() => {}),
+    logWarn: mock(() => {}),
+    logInfo: mock(() => {}),
+    flush: mock(async () => {}),
+  } as unknown as import('../execution-file-logger').ExecutionFileLogger;
+}
+
+/** テスト用の Prisma スタブを生成する。 */
+function makePrisma(overrides: Record<string, unknown> = {}) {
+  return {
+    agentExecution: {
+      update: mock(async () => ({})),
+    },
+    ...overrides,
+  };
+}
+
+// ── emitResultEvent() ─────────────────────────────────────────────────────────
+
+describe('emitResultEvent()', () => {
+  test('waitingForInput=true → execution_output イベントを質問情報付きで発火する', () => {
+    const emitEvent = mock((_e: OrchestratorEvent) => {});
+
+    emitResultEvent(
+      {
+        success: false,
+        waitingForInput: true,
+        output: 'partial',
+        question: '続けますか？',
+        questionType: 'confirm',
+        questionDetails: { foo: 'bar' },
+      },
+      1,
+      2,
+      3,
+      emitEvent,
+    );
+
+    expect(emitEvent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: 'execution_output',
+        executionId: 1,
+        sessionId: 2,
+        taskId: 3,
+        data: expect.objectContaining({
+          output: 'partial',
+          waitingForInput: true,
+          question: '続けますか？',
+          questionType: 'confirm',
+        }),
+      }),
+    );
+  });
+
+  test('success=true かつ waitingForInput なし → execution_completed を発火する', () => {
+    const emitEvent = mock((_e: OrchestratorEvent) => {});
+    const result = { success: true, output: 'done' };
+
+    emitResultEvent(result, 1, 2, 3, emitEvent);
+
+    expect(emitEvent).toHaveBeenCalledWith(
+      expect.objectContaining({ type: 'execution_completed', data: result }),
+    );
+  });
+
+  test('success=false → execution_failed を発火する', () => {
+    const emitEvent = mock((_e: OrchestratorEvent) => {});
+    const result = { success: false, output: '' };
+
+    emitResultEvent(result, 1, 2, 3, emitEvent);
+
+    expect(emitEvent).toHaveBeenCalledWith(
+      expect.objectContaining({ type: 'execution_failed', data: result }),
+    );
+  });
+});
+
+// ── handleExecutionError() ───────────────────────────────────────────────────
+
+describe('handleExecutionError()', () => {
+  test('Error インスタンス → そのままログし、DB更新とイベント発火を行う', async () => {
+    const prisma = makePrisma();
+    const state = makeState({ output: 'partial output' });
+    const fileLogger = makeFileLogger();
+    const emitEvent = mock((_e: OrchestratorEvent) => {});
+    const error = new Error('agent died');
+
+    await handleExecutionError(
+      prisma as never,
+      1,
+      2,
+      3,
+      state,
+      error,
+      fileLogger,
+      emitEvent,
+      'Continuation',
+    );
+
+    expect(state.status).toBe('failed');
+    expect(fileLogger.logError).toHaveBeenCalledWith(
+      'Continuation failed with uncaught error',
+      error,
+    );
+    expect(prisma.agentExecution.update).toHaveBeenCalledWith({
+      where: { id: 1 },
+      data: expect.objectContaining({
+        status: 'failed',
+        output: 'partial output',
+        errorMessage: 'agent died',
+      }),
+    });
+    expect(emitEvent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: 'execution_failed',
+        executionId: 1,
+        sessionId: 2,
+        taskId: 3,
+        data: { errorMessage: 'agent died' },
+      }),
+    );
+  });
+
+  test('Error でない値がthrowされた場合 → String化し、新しいErrorでログする', async () => {
+    const prisma = makePrisma();
+    const state = makeState();
+    const fileLogger = makeFileLogger();
+    const emitEvent = mock((_e: OrchestratorEvent) => {});
+
+    await handleExecutionError(
+      prisma as never,
+      1,
+      2,
+      3,
+      state,
+      'raw string failure',
+      fileLogger,
+      emitEvent,
+      'Task',
+    );
+
+    expect(fileLogger.logError).toHaveBeenCalledTimes(1);
+    const loggedError = fileLogger.logError.mock.calls[0][1] as Error;
+    expect(loggedError).toBeInstanceOf(Error);
+    expect(loggedError.message).toBe('raw string failure');
+    expect(prisma.agentExecution.update).toHaveBeenCalledWith({
+      where: { id: 1 },
+      data: expect.objectContaining({ errorMessage: 'raw string failure' }),
+    });
+  });
+});
