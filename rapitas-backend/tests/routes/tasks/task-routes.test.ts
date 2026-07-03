@@ -57,7 +57,13 @@ mock.module('../../../services/achievement-checker', () => ({
   checkAchievements: mock(() => Promise.resolve()),
 }));
 mock.module('../../../services/communication/notification-service', () => ({
+  createNotification: mock(() => Promise.resolve({ id: 1 })),
   notifyTaskCompleted: mock(() => Promise.resolve()),
+  notifyAgentExecutionCompleted: mock(() => Promise.resolve()),
+  notifyApprovalRequested: mock(() => Promise.resolve()),
+  AUTH_FAILURE_NOTIFICATION_TITLE: 'Claude 認証切れ',
+  notifyAuthenticationFailure: mock(() => Promise.resolve()),
+  notifyPomodoroCompleted: mock(() => Promise.resolve()),
 }));
 mock.module('../../../src/services/user-behavior-service', () => ({
   UserBehaviorService: {

@@ -250,7 +250,10 @@ class BatchProcessor {
           id: request.id,
           status: 200,
           body: result as string | object,
-          cached: (result as { cached?: boolean }).cached || false,
+          // NOTE: result can be `null` (e.g. GET /tasks/:id for a missing task) —
+          // `null.cached` throws, which used to bounce this branch into the catch
+          // block and turn a legitimate 200/null response into a 500.
+          cached: (result as { cached?: boolean } | null)?.cached || false,
           executionTime,
         };
       } catch (error: unknown) {
@@ -267,17 +270,15 @@ class BatchProcessor {
   }
 
   private buildHandlerKey(method: string, pathParts: string[]): string {
-    // Convert path to pattern (e.g. tasks/123 -> tasks/:id)
-    const pattern = pathParts
-      .map((part, index) => {
-        if (/^\d+$/.test(part) && index > 0) {
-          return ':id';
-        }
-        return part;
-      })
-      .join('/');
-
-    return `${method}:/${pattern}`;
+    // NOTE: Do NOT pre-substitute numeric segments to ':id' here. Doing so made
+    // this key collide with the registered pattern string itself (e.g.
+    // "GET:/tasks/5" -> "GET:/tasks/:id"), which hit the `requestHandlers.has()`
+    // exact-match branch in findHandler() and returned `params: {}` — silently
+    // discarding the real id and turning every /tasks/:id lookup into
+    // `where: { id: NaN }`. Keeping the raw value here forces parameterized
+    // routes through the regex fallback in findHandler(), which extracts the
+    // real id correctly.
+    return `${method}:/${pathParts.join('/')}`;
   }
 
   private findHandler(key: string): {
@@ -355,7 +356,9 @@ export const batchRoutesV2 = new Elysia({ prefix: '/batch/v2' })
           errorCount: results.filter((r) => r.status !== 200).length,
           cachedCount,
           totalExecutionTime: totalTime,
-          averageExecutionTime: totalTime / results.length,
+          // NOTE: an empty `requests` array made this 0/0 = NaN, which
+          // JSON.stringify silently drops to `null` in the response body.
+          averageExecutionTime: results.length > 0 ? totalTime / results.length : 0,
         },
       };
     },

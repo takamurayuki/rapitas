@@ -69,7 +69,7 @@ export const tasksRoutes = new Elysia({ prefix: '/tasks' })
   )
 
   // Get task statistics
-  .get('/statistics', async () => {
+  .get('/statistics', async ({ set }) => {
     try {
       const stats = await QueryOptimizers.getTaskStatistics(prisma, { parentId: null });
 
@@ -91,7 +91,13 @@ export const tasksRoutes = new Elysia({ prefix: '/tasks' })
         byCategory,
       };
     } catch (error) {
+      // NOTE: BUG FIX — this previously returned 200 on failure. The frontend
+      // (fetchTaskStatistics in task-api.ts) relies on a non-2xx status to
+      // trigger its fallback (recompute stats from GET /tasks); a 200 with an
+      // `{error}` body silently bypassed that fallback and returned malformed
+      // data (missing total/byStatus/byCategory) to callers instead.
       logger.error({ err: error }, 'Statistics endpoint error');
+      set.status = 500;
       return { error: error instanceof Error ? error.message : 'Unknown error' };
     }
   })
