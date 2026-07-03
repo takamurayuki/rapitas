@@ -277,16 +277,22 @@ export abstract class AbstractAgent implements IAgent {
    * @param toolId - Unique tool execution ID / ツール実行の一意ID
    * @param toolName - Tool name / ツール名
    * @param input - Tool input / ツール入力
-   * @returns Object with an end() callback to signal tool completion / ツール完了を通知するend()コールバック付きオブジェクト
+   * @returns Object with `skipped` (true when a `beforeToolCall` hook vetoed the
+   *   call — the caller must not run the tool) and an end() callback to signal
+   *   completion / `skipped`(`beforeToolCall`フックが呼び出しを拒否した場合true。
+   *   呼び出し元はツールを実行してはならない)と完了を通知するend()コールバック
    */
   protected async notifyToolExecution(
     toolId: string,
     toolName: string,
     input: unknown,
-  ): Promise<{ end: (output: unknown, success: boolean, error?: string) => Promise<void> }> {
+  ): Promise<{
+    skipped: boolean;
+    end: (output: unknown, success: boolean, error?: string) => Promise<void>;
+  }> {
     if (!this._currentContext) {
       // NOTE: Guard against subclasses calling this outside an active execution.
-      return { end: async () => {} };
+      return { skipped: false, end: async () => {} };
     }
     return EventHelpers.notifyToolExecution(
       this._events,
