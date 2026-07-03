@@ -63,7 +63,12 @@ export async function analyzeTaskComplexityWithLearning(
       modeCount[r.workflowMode] = (modeCount[r.workflowMode] || 0) + 1;
     }
 
-    const sortedModes = Object.entries(modeCount).sort((a, b) => b[1] - a[1]);
+    // Tie-break on mode name: this picks the top workflow MODE (an
+    // execution-selection decision), so equal counts must resolve to the same
+    // winner across runs rather than by object-key-iteration whim.
+    const sortedModes = Object.entries(modeCount).sort(
+      (a, b) => b[1] - a[1] || a[0].localeCompare(b[0]),
+    );
     const topMode = sortedModes[0];
 
     // If sufficient data recommends a different mode than base analysis

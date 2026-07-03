@@ -43,6 +43,9 @@ function pruneExpired(now: number): void {
   }
   // Backstop: if still over the cap, evict the oldest.
   if (traces.size > MAX_TRACES) {
+    // in-memory LRU eviction bookkeeping (evict oldest traces over the cap) —
+    // never feeds a prompt or an execution-selection decision.
+    // determinism-ok: in-memory eviction bookkeeping, not prompt-visible.
     const oldest = [...traces.entries()].sort((a, b) => a[1].at - b[1].at);
     for (let i = 0; i < traces.size - MAX_TRACES; i++) traces.delete(oldest[i][0]);
   }

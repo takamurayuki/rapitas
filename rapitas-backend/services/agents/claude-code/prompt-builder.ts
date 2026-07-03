@@ -146,6 +146,10 @@ function buildAnalysisPrompt(task: AgentTask, workDir: string): string {
     sections.push('Please implement the task in the following order:');
     sections.push('');
 
+    // `order` is a unique explicit sequence key (used as the dependency
+    // identifier via `subtasks.find(s => s.order === depOrder)`), so there are
+    // no ties to resolve — the sort is already deterministic.
+    // determinism-ok: unique sequence key, no ties.
     const sortedSubtasks = [...analysis.subtasks].sort((a, b) => a.order - b.order);
 
     for (const subtask of sortedSubtasks) {

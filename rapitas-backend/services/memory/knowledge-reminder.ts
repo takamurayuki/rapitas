@@ -67,6 +67,9 @@ export async function scanAndRemind(): Promise<ReminderScanResult> {
 
     // Exclude recently reminded entries
     const minInterval = MIN_REMINDER_INTERVAL_DAYS * 24 * 60 * 60 * 1000;
+    // results are collapsed into a Set of ids below — used only to exclude
+    // recently-reminded entries.
+    // determinism-ok: collapsed into a Set, order irrelevant.
     const recentReminders = await prisma.notification.findMany({
       where: {
         type: 'knowledge_reminder',

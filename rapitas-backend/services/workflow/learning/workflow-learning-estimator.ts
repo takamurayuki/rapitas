@@ -97,7 +97,11 @@ export async function getDirectInsight(
     modeCount[r.workflowMode] = (modeCount[r.workflowMode] || 0) + 1;
   }
 
-  const bestMode = Object.entries(modeCount).sort((a, b) => b[1] - a[1])[0];
+  // Tie-break on mode name so the chosen "best mode" (a mode-selection
+  // decision) is stable across runs when two modes tie on usage count.
+  const bestMode = Object.entries(modeCount).sort(
+    (a, b) => b[1] - a[1] || a[0].localeCompare(b[0]),
+  )[0];
 
   if (bestMode && bestMode[0] !== task.workflowMode) {
     return {

@@ -225,6 +225,9 @@ export async function getDiff(
     // diff-review read this list as part of the agent-visible context, so
     // sort by filename to make it reproducible run-to-run regardless of git's
     // internal ordering.
+    // filenames are unique within a single diff, so the localeCompare sort has
+    // no ties to resolve — it is fully deterministic.
+    // determinism-ok: unique filenames per diff, no ties.
     files.sort((a, b) => a.filename.localeCompare(b.filename));
 
     return files;

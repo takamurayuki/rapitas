@@ -251,6 +251,9 @@ export function runEnrichAndReview(id: number, title: string, content: string): 
  * @returns Number of ideas queued for reprocessing. / 再処理キューに積んだ件数
  */
 export async function reclassifyExistingIdeas(): Promise<number> {
+  // backfill that enqueues each idea for independent re-enrichment — order does
+  // not affect any prompt or per-idea result.
+  // determinism-ok: independent per-item enqueue, order irrelevant.
   const ideas = await prisma.knowledgeEntry.findMany({
     where: { sourceType: 'idea_box', forgettingStage: 'active' },
     select: { id: true, title: true, content: true },

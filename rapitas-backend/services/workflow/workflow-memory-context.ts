@@ -91,16 +91,29 @@ export function applyOutcomeWeighting(
   entries: MemoryEntry[],
   outcomeByTaskId: Map<number, EntryOutcome>,
 ): MemoryEntry[] {
-  return entries
-    .map((e) => {
-      const outcome = e.sourceTaskId != null ? (outcomeByTaskId.get(e.sourceTaskId) ?? null) : null;
-      return {
-        entry: { ...e, outcome },
-        score: e.similarity * (outcome ? OUTCOME_MULTIPLIER[outcome] : 1),
-      };
-    })
-    .sort((a, b) => b.score - a.score)
-    .map((x) => x.entry);
+  return (
+    entries
+      .map((e) => {
+        const outcome =
+          e.sourceTaskId != null ? (outcomeByTaskId.get(e.sourceTaskId) ?? null) : null;
+        return {
+          entry: { ...e, outcome },
+          score: e.similarity * (outcome ? OUTCOME_MULTIPLIER[outcome] : 1),
+        };
+      })
+      // Tie-break on title then content: MemoryEntry has no id, and two entries
+      // can land on an identical outcome-adjusted score (e.g. equal similarity +
+      // same outcome weight). Array#sort is not guaranteed stable across engines,
+      // so pin the tie order to the entry text to keep the injected prompt slice
+      // identical across repeated runs of the same query.
+      .sort(
+        (a, b) =>
+          b.score - a.score ||
+          a.entry.title.localeCompare(b.entry.title) ||
+          a.entry.content.localeCompare(b.entry.content),
+      )
+      .map((x) => x.entry)
+  );
 }
 
 /**

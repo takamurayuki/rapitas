@@ -15,6 +15,25 @@ import type { AgentExecutionWithExtras } from '../../../types/agent-execution-ty
 const log = createLogger('routes:agent-execution:status');
 const agentWorkerManager = AgentWorkerManager.getInstance();
 
+/**
+ * Convert a Prisma Decimal cost column to a plain JS number for JSON
+ * responses. `costUsd`/`totalCostUsd` are stored as Decimal (or already a
+ * plain number on the SQLite desktop schema); a bare `Number()` would throw
+ * on a Decimal object in some call paths, and would return NaN for the
+ * legacy double-JSON-encoded strings a past IPC bug left in this column
+ * (see routes/agents/agent-metrics/observation-query.ts) — coerce those
+ * unparsable cases to 0 instead of leaking NaN into the response.
+ *
+ * @param v - Raw Decimal/number/string value from Prisma
+ * @returns Finite non-negative cost, or 0 when unparsable
+ */
+function toCostNumber(v: unknown): number {
+  if (v === null || v === undefined) return 0;
+  if (typeof v === 'number') return Number.isFinite(v) ? v : 0;
+  const n = parseFloat(String(v));
+  return Number.isFinite(n) ? n : 0;
+}
+
 export const statusRoute = new Elysia().get(
   '/tasks/:id/execution-status',
   async (context) => {
@@ -175,6 +194,10 @@ export const statusRoute = new Elysia().get(
         completedAt: latestExecution?.completedAt,
         tokensUsed: latestExecution?.tokensUsed || 0,
         totalSessionTokens: latestSession.totalTokensUsed || 0,
+        // Accumulated cost across every execution in this session — mirrors
+        // totalSessionTokens (see execution-persistence.ts, which increments
+        // both fields in lockstep on every usage-bearing execution update).
+        totalSessionCostUsd: toCostNumber(latestSession.totalCostUsd),
         waitingForInput: isWaitingForInput,
         question: questionText,
         questionType,

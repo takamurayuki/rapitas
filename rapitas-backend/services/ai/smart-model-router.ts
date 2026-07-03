@@ -274,6 +274,10 @@ export async function getSmartRoute(
         tradeoff: tradeoffLabel(m),
       });
     }
+    // `alternatives` is an informational display list attached to the decision
+    // (cheapest-first), not the selected route — equal-cost reordering has no
+    // effect on which model is actually chosen or on any prompt.
+    // determinism-ok: display-only alternatives list, not the selected route.
     alternatives.sort((a, b) => a.estimatedCost - b.estimatedCost);
   }
 

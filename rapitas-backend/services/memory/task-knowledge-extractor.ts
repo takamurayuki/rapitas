@@ -486,7 +486,8 @@ export async function searchCrossProjectKnowledge(
     const themeIds = [...new Set(entries.map((e) => e.themeId).filter(Boolean))] as number[];
     const themes =
       themeIds.length > 0
-        ? await prisma.theme.findMany({
+        ? // determinism-ok: collapsed into an id→name Map below — order irrelevant.
+          await prisma.theme.findMany({
             where: { id: { in: themeIds } },
             select: { id: true, name: true },
           })
