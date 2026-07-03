@@ -19,6 +19,7 @@ const mockPrisma = {
   notification: {
     create: mock(() => Promise.resolve(mockNotification)),
     count: mock(() => Promise.resolve(3)),
+    findFirst: mock(() => Promise.resolve(null as typeof mockNotification | null)),
   },
 };
 
@@ -41,6 +42,8 @@ const {
   notifyAgentExecutionCompleted,
   notifyApprovalRequested,
   notifyPomodoroCompleted,
+  notifyAuthenticationFailure,
+  AUTH_FAILURE_NOTIFICATION_TITLE,
 } = await import('../../services/communication/notification-service');
 
 describe('createNotification', () => {
@@ -201,5 +204,63 @@ describe('notifyPomodoroCompleted', () => {
     };
     expect(createCall.data.message).not.toContain('「');
     expect(createCall.data.message).toContain('#5');
+  });
+});
+
+// notifyAuthenticationFailure dedupes: auth breakage fails EVERY queued task's
+// EVERY phase, so without the findFirst-within-window guard the notification
+// feed floods with one identical "Claude 認証切れ" entry per failed phase
+// across the whole backlog. This locks the dedup window behavior (see
+// AUTH_NOTIFY_WINDOW_MS in notification-service.ts) so a future refactor
+// cannot silently drop it and reintroduce the flood.
+describe('notifyAuthenticationFailure — dedup window', () => {
+  beforeEach(() => {
+    mockPrisma.notification.create.mockReset();
+    mockPrisma.notification.create.mockResolvedValue(mockNotification);
+    mockPrisma.notification.findFirst.mockReset();
+    mockPrisma.notification.findFirst.mockResolvedValue(null);
+    mockBroadcast.mockReset();
+  });
+
+  test('creates the notification when no recent auth-failure alert exists', async () => {
+    mockPrisma.notification.findFirst.mockResolvedValue(null);
+
+    const result = await notifyAuthenticationFailure();
+
+    expect(result).not.toBeNull();
+    expect(mockPrisma.notification.create).toHaveBeenCalledTimes(1);
+    const createCall = mockPrisma.notification.create.mock.calls[0]![0] as {
+      data: { type: string; title: string; link: string };
+    };
+    expect(createCall.data.type).toBe('system');
+    expect(createCall.data.title).toBe(AUTH_FAILURE_NOTIFICATION_TITLE);
+    expect(createCall.data.link).toBe('/');
+  });
+
+  test('suppresses (returns null, does not create) when an alert already fired within the window', async () => {
+    mockPrisma.notification.findFirst.mockResolvedValue({
+      ...mockNotification,
+      title: AUTH_FAILURE_NOTIFICATION_TITLE,
+      createdAt: new Date(),
+    });
+
+    const result = await notifyAuthenticationFailure();
+
+    expect(result).toBeNull();
+    expect(mockPrisma.notification.create).not.toHaveBeenCalled();
+  });
+
+  test('scopes the dedup lookup to type=system and the exact auth-failure title', async () => {
+    await notifyAuthenticationFailure();
+
+    const [findFirstArgs] = mockPrisma.notification.findFirst.mock.calls[0] as [
+      { where: { type: string; title: string; createdAt: { gte: Date } } },
+    ];
+    expect(findFirstArgs.where.type).toBe('system');
+    expect(findFirstArgs.where.title).toBe(AUTH_FAILURE_NOTIFICATION_TITLE);
+    // A `gte` cutoff must be present — an unbounded lookup would suppress
+    // every future auth alert forever after the first one.
+    expect(findFirstArgs.where.createdAt.gte).toBeInstanceOf(Date);
+    expect(findFirstArgs.where.createdAt.gte.getTime()).toBeLessThan(Date.now());
   });
 });

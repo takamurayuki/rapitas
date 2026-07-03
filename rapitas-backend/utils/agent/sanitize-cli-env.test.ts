@@ -84,4 +84,31 @@ describe('buildSanitizedSpawnEnv', () => {
       expect(env.NO_COLOR).toBe('1');
     });
   });
+
+  // Codex/Gemini CLI spawns pass extraKeepPrefixes (['OPENAI_'] / ['GEMINI_', 'GOOGLE_'])
+  // so those CLIs' own provider auth vars survive sanitization — see
+  // codex-cli-agent/process-runner.ts and gemini-cli-agent/process-manager.ts.
+  test('extraKeepPrefixes preserves caller-specified provider auth vars that look secret-shaped', () => {
+    withEnv({ OPENAI_API_KEY: 'sk-openai-dummy' }, () => {
+      const env = buildSanitizedSpawnEnv({}, ['OPENAI_']);
+      expect(env.OPENAI_API_KEY).toBe('sk-openai-dummy');
+    });
+  });
+
+  test('extraKeepPrefixes supports multiple prefixes (Gemini CLI: GEMINI_ and GOOGLE_)', () => {
+    withEnv({ GEMINI_API_KEY: 'g-key', GOOGLE_APPLICATION_CREDENTIALS: '/path/creds.json' }, () => {
+      const env = buildSanitizedSpawnEnv({}, ['GEMINI_', 'GOOGLE_']);
+      expect(env.GEMINI_API_KEY).toBe('g-key');
+      expect(env.GOOGLE_APPLICATION_CREDENTIALS).toBe('/path/creds.json');
+    });
+  });
+
+  test('without extraKeepPrefixes, a same-shaped provider key is stripped (no accidental cross-CLI leak)', () => {
+    withEnv({ OPENAI_API_KEY: 'sk-openai-dummy' }, () => {
+      // Simulates a Claude Code spawn (no extraKeepPrefixes) inheriting an
+      // OPENAI_API_KEY set for a different CLI — must NOT leak through.
+      const env = buildSanitizedSpawnEnv();
+      expect(env.OPENAI_API_KEY).toBeUndefined();
+    });
+  });
 });

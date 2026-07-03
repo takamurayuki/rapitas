@@ -203,6 +203,42 @@ describe('attemptVerifyRepair', () => {
     expect(mockPrisma.workflowTransition.count).not.toHaveBeenCalled();
   });
 
+  // FAIL CLOSED: countPriorRepairs (verify-self-repair.ts) explicitly catches a
+  // rejecting count() and returns Number.MAX_SAFE_INTEGER instead of 0 — a bare
+  // `.catch(() => 0)` would make a transient DB error read as "no prior
+  // repairs", letting the bounce loop re-enter forever on every failed count.
+  // This asserts the caller-visible effect: a rejecting count blocks (bounced:
+  // false) instead of bouncing, regardless of the configured cap.
+  test('FAIL CLOSED: カウントクエリが reject したら bounced:false（block）になり、無限バウンスしないこと', async () => {
+    mockPrisma.workflowTransition.count.mockImplementation(() =>
+      Promise.reject(new Error('connection reset')),
+    );
+    mockPrisma.workflowFile.findFirst.mockResolvedValue({ id: 7 });
+
+    const r = await attemptVerifyRepair(1, 'in_progress', 'fail', 'v');
+
+    expect(r.bounced).toBe(false);
+    // Must not attempt the bounce (no transition recorded, no self-drive re-queue).
+    expect(recordTransition).not.toHaveBeenCalled();
+    expect(enqueue).not.toHaveBeenCalled();
+    expect(startProcessing).not.toHaveBeenCalled();
+    expect(mockPrisma.task.update).not.toHaveBeenCalled();
+  });
+
+  test('FAIL CLOSED: カウントクエリが reject したら、非常に高い上限(cap)を設定しても block すること', async () => {
+    // Even a generous configured cap must not let a failed count masquerade as
+    // "budget available" — MAX_SAFE_INTEGER prior must exceed any realistic cap.
+    mockPrisma.userSettings.findFirst.mockResolvedValue({ verifyRepairLimit: 1_000_000 });
+    mockPrisma.workflowTransition.count.mockImplementation(() =>
+      Promise.reject(new Error('timeout')),
+    );
+    mockPrisma.workflowFile.findFirst.mockResolvedValue({ id: 7 });
+
+    const r = await attemptVerifyRepair(1, 'in_progress', 'fail', 'v');
+
+    expect(r.bounced).toBe(false);
+  });
+
   test('直近の task_retried 以降の repair のみをカウントし、リトライで予算がリセットされること', async () => {
     // A retry happened after 2 prior repairs (>= default max 2) — the count query
     // is scoped to createdAt > lastRetry.createdAt, so a fresh mock returning 0
