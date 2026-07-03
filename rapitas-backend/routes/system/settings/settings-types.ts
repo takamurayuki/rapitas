@@ -198,15 +198,13 @@ export function validateApiKeyFormat(
   return { valid: true };
 }
 
-// NOTE: Private-use ranges per RFC 1918 (IPv4) / RFC 4193 (IPv6 ULA) plus
-// link-local, used to allow LAN-hosted Ollama instances while still
-// rejecting public hosts.
-const PRIVATE_IPV4_PATTERNS: RegExp[] = [
-  /^10\./,
-  /^192\.168\./,
-  /^172\.(1[6-9]|2\d|3[01])\./,
-  /^169\.254\./, // link-local
-];
+// NOTE: Private-use ranges per RFC 1918 (IPv4) / RFC 4193 (IPv6 ULA), used to
+// allow LAN-hosted Ollama instances while still rejecting public hosts.
+// Deliberately EXCLUDES 169.254.0.0/16 (IPv4 link-local): that range contains
+// 169.254.169.254, the AWS/GCP/Azure cloud-metadata endpoint. Ollama never
+// runs there, so allowing it here would only hand an SSRF primitive a path to
+// instance credentials.
+const PRIVATE_IPV4_PATTERNS: RegExp[] = [/^10\./, /^192\.168\./, /^172\.(1[6-9]|2\d|3[01])\./];
 
 /**
  * Whether `hostname` is loopback, a private/LAN IPv4 or IPv6 address, or a
@@ -223,8 +221,11 @@ export function isLoopbackOrPrivateHost(hostname: string): boolean {
   }
   if (host.endsWith('.local')) return true;
   if (PRIVATE_IPV4_PATTERNS.some((re) => re.test(host))) return true;
-  // IPv6 unique local addresses (fc00::/7) and link-local (fe80::/10).
-  if (/^\[?f[cd][0-9a-f]{2}:/i.test(host) || /^\[?fe80:/i.test(host)) return true;
+  // IPv6 unique local addresses (fc00::/7) only. IPv6 link-local (fe80::/10)
+  // is deliberately excluded — same cloud-metadata-adjacent reasoning as the
+  // IPv4 169.254.0.0/16 exclusion above (some cloud metadata services are
+  // also reachable via link-local-scoped addresses).
+  if (/^\[?f[cd][0-9a-f]{2}:/i.test(host)) return true;
   return false;
 }
 

@@ -17,6 +17,7 @@ import type { CodexCliAgentConfig } from './types';
 import { resolveCliPath } from './types';
 import { processJsonEvent } from './json-event-handler';
 import { filterCliDiagnosticOutput, shouldHideRawCliLine } from '../cli-output-filter';
+import { buildSanitizedSpawnEnv } from '../../../utils/agent';
 
 const logger = createLogger('codex-cli-agent/process-runner');
 
@@ -85,18 +86,25 @@ export function buildSpawnCommand(
 
 /**
  * Build the environment variables for the Codex CLI process.
+ *
+ * NOTE: The spawned CLI is prompt-steerable (the task prompt can ask it to
+ * print/exfiltrate its own env), so start from a sanitized base — never the
+ * raw inherited process.env — to keep ENCRYPTION_KEY/DATABASE_URL/tokens out
+ * of its reach. OPENAI_* is kept because the Codex CLI authenticates with it.
  */
 export function buildProcessEnv(
   config: CodexCliAgentConfig,
   isWindows: boolean,
 ): NodeJS.ProcessEnv {
-  const env: NodeJS.ProcessEnv = {
-    ...process.env,
-    FORCE_COLOR: '0',
-    NO_COLOR: '1',
-    CI: '1',
-    TERM: 'dumb',
-  };
+  const env: NodeJS.ProcessEnv = buildSanitizedSpawnEnv(
+    {
+      FORCE_COLOR: '0',
+      NO_COLOR: '1',
+      CI: '1',
+      TERM: 'dumb',
+    },
+    ['OPENAI_'],
+  );
 
   if (config.apiKey) env.OPENAI_API_KEY = config.apiKey;
 

@@ -31,12 +31,19 @@ const ALWAYS_KEEP_PREFIXES = ['ANTHROPIC_'];
  * as the `env` option to a spawned agent CLI process.
  *
  * @param overrides - Additional env vars to set/override after sanitizing (e.g. FORCE_COLOR) / サニタイズ後に上書きする追加環境変数
+ * @param extraKeepPrefixes - Additional prefixes to never strip, on top of ALWAYS_KEEP_PREFIXES —
+ *   for CLIs (Codex/Gemini) that authenticate via their own provider env vars
+ *   (OPENAI_*, GEMINI_*, GOOGLE_*) rather than ANTHROPIC_*. / 追加で保持する接頭辞
  * @returns Sanitized environment object / サニタイズ済み環境変数オブジェクト
  */
-export function buildSanitizedSpawnEnv(overrides: NodeJS.ProcessEnv = {}): NodeJS.ProcessEnv {
+export function buildSanitizedSpawnEnv(
+  overrides: NodeJS.ProcessEnv = {},
+  extraKeepPrefixes: string[] = [],
+): NodeJS.ProcessEnv {
+  const keepPrefixes = [...ALWAYS_KEEP_PREFIXES, ...extraKeepPrefixes];
   const env: NodeJS.ProcessEnv = { ...process.env };
   for (const key of Object.keys(env)) {
-    if (ALWAYS_KEEP_PREFIXES.some((prefix) => key.startsWith(prefix))) continue;
+    if (keepPrefixes.some((prefix) => key.startsWith(prefix))) continue;
     if (SENSITIVE_ENV_KEYS.has(key) || SENSITIVE_ENV_KEY_PATTERN.test(key)) {
       delete env[key];
     }

@@ -6,7 +6,7 @@
  * Not responsible for business logic, file I/O, or git operations.
  */
 
-import { Elysia } from 'elysia';
+import { Elysia, t } from 'elysia';
 import { prisma } from '../../../config';
 import {
   handleGetFiles,
@@ -32,6 +32,22 @@ export type { WorkflowFileType } from './workflow-helpers';
 export { performAutoCommitAndPR } from '../workflow-auto-commit';
 export type { AutoCommitPRResult } from '../workflow-auto-commit';
 
+// PUT /tasks/:taskId/files/:fileType accepts EITHER a raw markdown/text body
+// (Content-Type: text/markdown or text/plain) OR a JSON object — see the
+// NOTE in handleSaveFile (workflow-handlers-files.ts) for why the raw-text
+// path exists (Windows shell encoding). The union mirrors both shapes so the
+// route rejects non-string/non-object payloads while still accepting
+// whichever form the caller sends; the 3MB cap bounds a single report body
+// well above any real research/plan/verify markdown while still capping the
+// route from unbounded-size payloads.
+const workflowFileSaveBodySchema = t.Union([
+  t.String({ maxLength: 3_000_000 }),
+  t.Object({
+    content: t.String({ maxLength: 3_000_000 }),
+    language: t.Optional(t.String({ maxLength: 10 })),
+  }),
+]);
+
 // NOTE: Each handler is wrapped in an arrow function so Elysia can infer
 // the full context type. Passing the handler directly causes TS2345 because
 // the handler's explicit parameter annotations are narrower than the
@@ -40,8 +56,10 @@ export const workflowRoutes = new Elysia({ prefix: '/workflow' })
 
   .get('/tasks/:taskId/files', (ctx) => handleGetFiles(ctx as Parameters<typeof handleGetFiles>[0]))
 
-  .put('/tasks/:taskId/files/:fileType', (ctx) =>
-    handleSaveFile(ctx as Parameters<typeof handleSaveFile>[0]),
+  .put(
+    '/tasks/:taskId/files/:fileType',
+    (ctx) => handleSaveFile(ctx as Parameters<typeof handleSaveFile>[0]),
+    { body: workflowFileSaveBodySchema },
   )
 
   .post('/tasks/:taskId/approve-plan', (ctx) =>

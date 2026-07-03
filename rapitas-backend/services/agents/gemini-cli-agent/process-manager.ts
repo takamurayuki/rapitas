@@ -9,6 +9,7 @@ import { spawn, ChildProcess, execSync } from 'child_process';
 import { existsSync } from 'fs';
 import type { GeminiCliAgentConfig } from './types';
 import { createLogger } from '../../../config/logger';
+import { buildSanitizedSpawnEnv } from '../../../utils/agent';
 
 const logger = createLogger('gemini-cli-agent:process-manager');
 
@@ -99,26 +100,34 @@ export function buildCliArgs(config: GeminiCliAgentConfig, resumeId?: string | n
 /**
  * Build the environment variables for the Gemini CLI process.
  *
+ * NOTE: The spawned CLI is prompt-steerable (the task prompt can ask it to
+ * print/exfiltrate its own env), so start from a sanitized base — never the
+ * raw inherited process.env — to keep ENCRYPTION_KEY/DATABASE_URL/tokens out
+ * of its reach. GEMINI_ and GOOGLE_-prefixed vars are kept because the Gemini CLI
+ * authenticates and configures itself with them.
+ *
  * @param config - Agent configuration / エージェント設定
  * @returns Merged environment object
  */
 export function buildProcessEnv(config: GeminiCliAgentConfig): NodeJS.ProcessEnv {
   const isWindows = process.platform === 'win32';
 
-  const env: NodeJS.ProcessEnv = {
-    ...process.env,
-    FORCE_COLOR: '0',
-    NO_COLOR: '1',
-    CI: '1',
-    TERM: 'dumb',
-    // Gemini CLI refuses to run in directories it doesn't recognise as
-    // "trusted" with exit code 55. Workflows operate against external
-    // working directories the user has already opted into via theme
-    // configuration, so flag the workspace as trusted unconditionally.
-    // The user can override by setting GEMINI_CLI_TRUST_WORKSPACE=false
-    // at the parent-process level if they want stricter behaviour.
-    GEMINI_CLI_TRUST_WORKSPACE: process.env.GEMINI_CLI_TRUST_WORKSPACE ?? 'true',
-  };
+  const env: NodeJS.ProcessEnv = buildSanitizedSpawnEnv(
+    {
+      FORCE_COLOR: '0',
+      NO_COLOR: '1',
+      CI: '1',
+      TERM: 'dumb',
+      // Gemini CLI refuses to run in directories it doesn't recognise as
+      // "trusted" with exit code 55. Workflows operate against external
+      // working directories the user has already opted into via theme
+      // configuration, so flag the workspace as trusted unconditionally.
+      // The user can override by setting GEMINI_CLI_TRUST_WORKSPACE=false
+      // at the parent-process level if they want stricter behaviour.
+      GEMINI_CLI_TRUST_WORKSPACE: process.env.GEMINI_CLI_TRUST_WORKSPACE ?? 'true',
+    },
+    ['GEMINI_', 'GOOGLE_'],
+  );
 
   if (config.apiKey) {
     env.GEMINI_API_KEY = config.apiKey;

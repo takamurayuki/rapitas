@@ -3,7 +3,7 @@
  *
  * Provides CRUD endpoints for per-task agent execution configuration.
  */
-import { Elysia } from 'elysia';
+import { Elysia, t } from 'elysia';
 import { prisma } from '../../../config/database';
 
 /** Type for agent execution config create/update body */
@@ -31,6 +31,38 @@ interface ExecutionConfigBody {
   notifyOnError?: boolean;
   notifyOnQuestion?: boolean;
 }
+
+// All fields optional and deliberately typed loosely (t.String() rather than
+// an enum of literals) — the handler already whitelists/validates specific
+// values itself (branchStrategy/requireApproval/reviewScope) and returns a
+// friendly 400 message; a stricter schema would instead 422 before the
+// handler runs and lose that message. This schema only adds the missing
+// baseline (reject non-JSON-shaped bodies, cap string lengths) that neither
+// route previously had.
+const executionConfigBodySchema = t.Object({
+  agentConfigId: t.Optional(t.Nullable(t.Number())),
+  workingDirectory: t.Optional(t.Nullable(t.String({ maxLength: 1000 }))),
+  timeoutMs: t.Optional(t.Number()),
+  maxRetries: t.Optional(t.Number()),
+  branchStrategy: t.Optional(t.String({ maxLength: 50 })),
+  branchPrefix: t.Optional(t.String({ maxLength: 100 })),
+  autoCommit: t.Optional(t.Boolean()),
+  autoCreatePR: t.Optional(t.Boolean()),
+  autoMergePR: t.Optional(t.Boolean()),
+  mergeCommitThreshold: t.Optional(t.Number()),
+  requireApproval: t.Optional(t.String({ maxLength: 50 })),
+  autoExecuteOnAnalysis: t.Optional(t.Boolean()),
+  parallelExecution: t.Optional(t.Boolean()),
+  maxConcurrentAgents: t.Optional(t.Number()),
+  useOptimizedPrompt: t.Optional(t.Boolean()),
+  additionalInstructions: t.Optional(t.Nullable(t.String({ maxLength: 20000 }))),
+  autoCodeReview: t.Optional(t.Boolean()),
+  reviewScope: t.Optional(t.String({ maxLength: 50 })),
+  notifyOnStart: t.Optional(t.Boolean()),
+  notifyOnComplete: t.Optional(t.Boolean()),
+  notifyOnError: t.Optional(t.Boolean()),
+  notifyOnQuestion: t.Optional(t.Boolean()),
+});
 
 export const agentExecutionConfigRoutes = new Elysia({
   prefix: '/agent-execution-config',
@@ -62,221 +94,239 @@ export const agentExecutionConfigRoutes = new Elysia({
     return config;
   })
 
-  .put('/:taskId', async (context) => {
-    const { params, set } = context;
-    const body = context.body as ExecutionConfigBody;
-    const taskId = parseInt((params as { taskId: string }).taskId);
+  .put(
+    '/:taskId',
+    async (context) => {
+      const { params, set } = context;
+      const body = context.body as ExecutionConfigBody;
+      const taskId = parseInt((params as { taskId: string }).taskId);
 
-    const task = await prisma.task.findUnique({ where: { id: taskId } });
-    if (!task) {
-      set.status = 404;
-      return { error: 'Task not found' };
-    }
-
-    if (body.branchStrategy && !['auto', 'manual', 'none'].includes(body.branchStrategy)) {
-      set.status = 400;
-      return { error: 'Invalid branchStrategy. Must be: auto, manual, none' };
-    }
-    if (body.requireApproval && !['always', 'major_only', 'never'].includes(body.requireApproval)) {
-      set.status = 400;
-      return { error: 'Invalid requireApproval. Must be: always, major_only, never' };
-    }
-    if (body.reviewScope && !['changes', 'full', 'none'].includes(body.reviewScope)) {
-      set.status = 400;
-      return { error: 'Invalid reviewScope. Must be: changes, full, none' };
-    }
-    if (body.timeoutMs !== undefined && (body.timeoutMs < 30000 || body.timeoutMs > 3600000)) {
-      set.status = 400;
-      return { error: 'timeoutMs must be between 30000 (30s) and 3600000 (1h)' };
-    }
-    if (
-      body.maxConcurrentAgents !== undefined &&
-      (body.maxConcurrentAgents < 1 || body.maxConcurrentAgents > 10)
-    ) {
-      set.status = 400;
-      return { error: 'maxConcurrentAgents must be between 1 and 10' };
-    }
-    if (body.maxRetries !== undefined && (body.maxRetries < 0 || body.maxRetries > 5)) {
-      set.status = 400;
-      return { error: 'maxRetries must be between 0 and 5' };
-    }
-    if (
-      body.mergeCommitThreshold !== undefined &&
-      (body.mergeCommitThreshold < 1 || body.mergeCommitThreshold > 100)
-    ) {
-      set.status = 400;
-      return { error: 'mergeCommitThreshold must be between 1 and 100' };
-    }
-
-    if (body.agentConfigId) {
-      const agentConfig = await prisma.aIAgentConfig.findUnique({
-        where: { id: body.agentConfigId },
-      });
-      if (!agentConfig) {
-        set.status = 400;
-        return { error: 'Agent config not found' };
+      const task = await prisma.task.findUnique({ where: { id: taskId } });
+      if (!task) {
+        set.status = 404;
+        return { error: 'Task not found' };
       }
-    }
 
-    const config = await prisma.agentExecutionConfig.upsert({
-      where: { taskId },
-      update: {
-        ...(body.agentConfigId !== undefined && { agentConfigId: body.agentConfigId }),
-        ...(body.workingDirectory !== undefined && { workingDirectory: body.workingDirectory }),
-        ...(body.timeoutMs !== undefined && { timeoutMs: body.timeoutMs }),
-        ...(body.maxRetries !== undefined && { maxRetries: body.maxRetries }),
-        ...(body.branchStrategy !== undefined && { branchStrategy: body.branchStrategy }),
-        ...(body.branchPrefix !== undefined && { branchPrefix: body.branchPrefix }),
-        ...(body.autoCommit !== undefined && { autoCommit: body.autoCommit }),
-        ...(body.autoCreatePR !== undefined && { autoCreatePR: body.autoCreatePR }),
-        ...(body.autoMergePR !== undefined && { autoMergePR: body.autoMergePR }),
-        ...(body.mergeCommitThreshold !== undefined && {
-          mergeCommitThreshold: body.mergeCommitThreshold,
-        }),
-        ...(body.requireApproval !== undefined && { requireApproval: body.requireApproval }),
-        ...(body.autoExecuteOnAnalysis !== undefined && {
-          autoExecuteOnAnalysis: body.autoExecuteOnAnalysis,
-        }),
-        ...(body.parallelExecution !== undefined && { parallelExecution: body.parallelExecution }),
-        ...(body.maxConcurrentAgents !== undefined && {
-          maxConcurrentAgents: body.maxConcurrentAgents,
-        }),
-        ...(body.useOptimizedPrompt !== undefined && {
-          useOptimizedPrompt: body.useOptimizedPrompt,
-        }),
-        ...(body.additionalInstructions !== undefined && {
-          additionalInstructions: body.additionalInstructions,
-        }),
-        ...(body.autoCodeReview !== undefined && { autoCodeReview: body.autoCodeReview }),
-        ...(body.reviewScope !== undefined && { reviewScope: body.reviewScope }),
-        ...(body.notifyOnStart !== undefined && { notifyOnStart: body.notifyOnStart }),
-        ...(body.notifyOnComplete !== undefined && { notifyOnComplete: body.notifyOnComplete }),
-        ...(body.notifyOnError !== undefined && { notifyOnError: body.notifyOnError }),
-        ...(body.notifyOnQuestion !== undefined && { notifyOnQuestion: body.notifyOnQuestion }),
-      },
-      create: {
-        taskId,
-        agentConfigId: body.agentConfigId ?? null,
-        workingDirectory: body.workingDirectory ?? null,
-        timeoutMs: body.timeoutMs ?? 900000,
-        maxRetries: body.maxRetries ?? 0,
-        branchStrategy: body.branchStrategy ?? 'auto',
-        branchPrefix: body.branchPrefix ?? 'feature/',
-        autoCommit: body.autoCommit ?? false,
-        autoCreatePR: body.autoCreatePR ?? false,
-        autoMergePR: body.autoMergePR ?? false,
-        mergeCommitThreshold: body.mergeCommitThreshold ?? 5,
-        requireApproval: body.requireApproval ?? 'always',
-        autoExecuteOnAnalysis: body.autoExecuteOnAnalysis ?? false,
-        parallelExecution: body.parallelExecution ?? false,
-        maxConcurrentAgents: body.maxConcurrentAgents ?? 3,
-        useOptimizedPrompt: body.useOptimizedPrompt ?? true,
-        additionalInstructions: body.additionalInstructions ?? null,
-        autoCodeReview: body.autoCodeReview ?? true,
-        reviewScope: body.reviewScope ?? 'changes',
-        notifyOnStart: body.notifyOnStart ?? true,
-        notifyOnComplete: body.notifyOnComplete ?? true,
-        notifyOnError: body.notifyOnError ?? true,
-        notifyOnQuestion: body.notifyOnQuestion ?? true,
-      },
-      include: {
-        agentConfig: {
-          select: {
-            id: true,
-            agentType: true,
-            name: true,
-            modelId: true,
-            isActive: true,
+      if (body.branchStrategy && !['auto', 'manual', 'none'].includes(body.branchStrategy)) {
+        set.status = 400;
+        return { error: 'Invalid branchStrategy. Must be: auto, manual, none' };
+      }
+      if (
+        body.requireApproval &&
+        !['always', 'major_only', 'never'].includes(body.requireApproval)
+      ) {
+        set.status = 400;
+        return { error: 'Invalid requireApproval. Must be: always, major_only, never' };
+      }
+      if (body.reviewScope && !['changes', 'full', 'none'].includes(body.reviewScope)) {
+        set.status = 400;
+        return { error: 'Invalid reviewScope. Must be: changes, full, none' };
+      }
+      if (body.timeoutMs !== undefined && (body.timeoutMs < 30000 || body.timeoutMs > 3600000)) {
+        set.status = 400;
+        return { error: 'timeoutMs must be between 30000 (30s) and 3600000 (1h)' };
+      }
+      if (
+        body.maxConcurrentAgents !== undefined &&
+        (body.maxConcurrentAgents < 1 || body.maxConcurrentAgents > 10)
+      ) {
+        set.status = 400;
+        return { error: 'maxConcurrentAgents must be between 1 and 10' };
+      }
+      if (body.maxRetries !== undefined && (body.maxRetries < 0 || body.maxRetries > 5)) {
+        set.status = 400;
+        return { error: 'maxRetries must be between 0 and 5' };
+      }
+      if (
+        body.mergeCommitThreshold !== undefined &&
+        (body.mergeCommitThreshold < 1 || body.mergeCommitThreshold > 100)
+      ) {
+        set.status = 400;
+        return { error: 'mergeCommitThreshold must be between 1 and 100' };
+      }
+
+      if (body.agentConfigId) {
+        const agentConfig = await prisma.aIAgentConfig.findUnique({
+          where: { id: body.agentConfigId },
+        });
+        if (!agentConfig) {
+          set.status = 400;
+          return { error: 'Agent config not found' };
+        }
+      }
+
+      const config = await prisma.agentExecutionConfig.upsert({
+        where: { taskId },
+        update: {
+          ...(body.agentConfigId !== undefined && { agentConfigId: body.agentConfigId }),
+          ...(body.workingDirectory !== undefined && { workingDirectory: body.workingDirectory }),
+          ...(body.timeoutMs !== undefined && { timeoutMs: body.timeoutMs }),
+          ...(body.maxRetries !== undefined && { maxRetries: body.maxRetries }),
+          ...(body.branchStrategy !== undefined && { branchStrategy: body.branchStrategy }),
+          ...(body.branchPrefix !== undefined && { branchPrefix: body.branchPrefix }),
+          ...(body.autoCommit !== undefined && { autoCommit: body.autoCommit }),
+          ...(body.autoCreatePR !== undefined && { autoCreatePR: body.autoCreatePR }),
+          ...(body.autoMergePR !== undefined && { autoMergePR: body.autoMergePR }),
+          ...(body.mergeCommitThreshold !== undefined && {
+            mergeCommitThreshold: body.mergeCommitThreshold,
+          }),
+          ...(body.requireApproval !== undefined && { requireApproval: body.requireApproval }),
+          ...(body.autoExecuteOnAnalysis !== undefined && {
+            autoExecuteOnAnalysis: body.autoExecuteOnAnalysis,
+          }),
+          ...(body.parallelExecution !== undefined && {
+            parallelExecution: body.parallelExecution,
+          }),
+          ...(body.maxConcurrentAgents !== undefined && {
+            maxConcurrentAgents: body.maxConcurrentAgents,
+          }),
+          ...(body.useOptimizedPrompt !== undefined && {
+            useOptimizedPrompt: body.useOptimizedPrompt,
+          }),
+          ...(body.additionalInstructions !== undefined && {
+            additionalInstructions: body.additionalInstructions,
+          }),
+          ...(body.autoCodeReview !== undefined && { autoCodeReview: body.autoCodeReview }),
+          ...(body.reviewScope !== undefined && { reviewScope: body.reviewScope }),
+          ...(body.notifyOnStart !== undefined && { notifyOnStart: body.notifyOnStart }),
+          ...(body.notifyOnComplete !== undefined && { notifyOnComplete: body.notifyOnComplete }),
+          ...(body.notifyOnError !== undefined && { notifyOnError: body.notifyOnError }),
+          ...(body.notifyOnQuestion !== undefined && { notifyOnQuestion: body.notifyOnQuestion }),
+        },
+        create: {
+          taskId,
+          agentConfigId: body.agentConfigId ?? null,
+          workingDirectory: body.workingDirectory ?? null,
+          timeoutMs: body.timeoutMs ?? 900000,
+          maxRetries: body.maxRetries ?? 0,
+          branchStrategy: body.branchStrategy ?? 'auto',
+          branchPrefix: body.branchPrefix ?? 'feature/',
+          autoCommit: body.autoCommit ?? false,
+          autoCreatePR: body.autoCreatePR ?? false,
+          autoMergePR: body.autoMergePR ?? false,
+          mergeCommitThreshold: body.mergeCommitThreshold ?? 5,
+          requireApproval: body.requireApproval ?? 'always',
+          autoExecuteOnAnalysis: body.autoExecuteOnAnalysis ?? false,
+          parallelExecution: body.parallelExecution ?? false,
+          maxConcurrentAgents: body.maxConcurrentAgents ?? 3,
+          useOptimizedPrompt: body.useOptimizedPrompt ?? true,
+          additionalInstructions: body.additionalInstructions ?? null,
+          autoCodeReview: body.autoCodeReview ?? true,
+          reviewScope: body.reviewScope ?? 'changes',
+          notifyOnStart: body.notifyOnStart ?? true,
+          notifyOnComplete: body.notifyOnComplete ?? true,
+          notifyOnError: body.notifyOnError ?? true,
+          notifyOnQuestion: body.notifyOnQuestion ?? true,
+        },
+        include: {
+          agentConfig: {
+            select: {
+              id: true,
+              agentType: true,
+              name: true,
+              modelId: true,
+              isActive: true,
+            },
           },
         },
-      },
-    });
+      });
 
-    return config;
-  })
+      return config;
+    },
+    { body: executionConfigBodySchema },
+  )
 
-  .patch('/:taskId', async (context) => {
-    const { set } = context;
-    const body = context.body as ExecutionConfigBody;
-    const taskId = parseInt((context.params as { taskId: string }).taskId);
+  .patch(
+    '/:taskId',
+    async (context) => {
+      const { set } = context;
+      const body = context.body as ExecutionConfigBody;
+      const taskId = parseInt((context.params as { taskId: string }).taskId);
 
-    const existing = await prisma.agentExecutionConfig.findUnique({
-      where: { taskId },
-    });
+      const existing = await prisma.agentExecutionConfig.findUnique({
+        where: { taskId },
+      });
 
-    if (!existing) {
-      set.status = 404;
-      return { error: 'Agent execution config not found. Use PUT to create.' };
-    }
+      if (!existing) {
+        set.status = 404;
+        return { error: 'Agent execution config not found. Use PUT to create.' };
+      }
 
-    if (body.branchStrategy && !['auto', 'manual', 'none'].includes(body.branchStrategy)) {
-      set.status = 400;
-      return { error: 'Invalid branchStrategy. Must be: auto, manual, none' };
-    }
-    if (body.requireApproval && !['always', 'major_only', 'never'].includes(body.requireApproval)) {
-      set.status = 400;
-      return { error: 'Invalid requireApproval. Must be: always, major_only, never' };
-    }
-    if (body.reviewScope && !['changes', 'full', 'none'].includes(body.reviewScope)) {
-      set.status = 400;
-      return { error: 'Invalid reviewScope. Must be: changes, full, none' };
-    }
-    if (body.timeoutMs !== undefined && (body.timeoutMs < 30000 || body.timeoutMs > 3600000)) {
-      set.status = 400;
-      return { error: 'timeoutMs must be between 30000 (30s) and 3600000 (1h)' };
-    }
+      if (body.branchStrategy && !['auto', 'manual', 'none'].includes(body.branchStrategy)) {
+        set.status = 400;
+        return { error: 'Invalid branchStrategy. Must be: auto, manual, none' };
+      }
+      if (
+        body.requireApproval &&
+        !['always', 'major_only', 'never'].includes(body.requireApproval)
+      ) {
+        set.status = 400;
+        return { error: 'Invalid requireApproval. Must be: always, major_only, never' };
+      }
+      if (body.reviewScope && !['changes', 'full', 'none'].includes(body.reviewScope)) {
+        set.status = 400;
+        return { error: 'Invalid reviewScope. Must be: changes, full, none' };
+      }
+      if (body.timeoutMs !== undefined && (body.timeoutMs < 30000 || body.timeoutMs > 3600000)) {
+        set.status = 400;
+        return { error: 'timeoutMs must be between 30000 (30s) and 3600000 (1h)' };
+      }
 
-    const config = await prisma.agentExecutionConfig.update({
-      where: { taskId },
-      data: {
-        ...(body.agentConfigId !== undefined && { agentConfigId: body.agentConfigId }),
-        ...(body.workingDirectory !== undefined && { workingDirectory: body.workingDirectory }),
-        ...(body.timeoutMs !== undefined && { timeoutMs: body.timeoutMs }),
-        ...(body.maxRetries !== undefined && { maxRetries: body.maxRetries }),
-        ...(body.branchStrategy !== undefined && { branchStrategy: body.branchStrategy }),
-        ...(body.branchPrefix !== undefined && { branchPrefix: body.branchPrefix }),
-        ...(body.autoCommit !== undefined && { autoCommit: body.autoCommit }),
-        ...(body.autoCreatePR !== undefined && { autoCreatePR: body.autoCreatePR }),
-        ...(body.autoMergePR !== undefined && { autoMergePR: body.autoMergePR }),
-        ...(body.mergeCommitThreshold !== undefined && {
-          mergeCommitThreshold: body.mergeCommitThreshold,
-        }),
-        ...(body.requireApproval !== undefined && { requireApproval: body.requireApproval }),
-        ...(body.autoExecuteOnAnalysis !== undefined && {
-          autoExecuteOnAnalysis: body.autoExecuteOnAnalysis,
-        }),
-        ...(body.parallelExecution !== undefined && { parallelExecution: body.parallelExecution }),
-        ...(body.maxConcurrentAgents !== undefined && {
-          maxConcurrentAgents: body.maxConcurrentAgents,
-        }),
-        ...(body.useOptimizedPrompt !== undefined && {
-          useOptimizedPrompt: body.useOptimizedPrompt,
-        }),
-        ...(body.additionalInstructions !== undefined && {
-          additionalInstructions: body.additionalInstructions,
-        }),
-        ...(body.autoCodeReview !== undefined && { autoCodeReview: body.autoCodeReview }),
-        ...(body.reviewScope !== undefined && { reviewScope: body.reviewScope }),
-        ...(body.notifyOnStart !== undefined && { notifyOnStart: body.notifyOnStart }),
-        ...(body.notifyOnComplete !== undefined && { notifyOnComplete: body.notifyOnComplete }),
-        ...(body.notifyOnError !== undefined && { notifyOnError: body.notifyOnError }),
-        ...(body.notifyOnQuestion !== undefined && { notifyOnQuestion: body.notifyOnQuestion }),
-      },
-      include: {
-        agentConfig: {
-          select: {
-            id: true,
-            agentType: true,
-            name: true,
-            modelId: true,
-            isActive: true,
+      const config = await prisma.agentExecutionConfig.update({
+        where: { taskId },
+        data: {
+          ...(body.agentConfigId !== undefined && { agentConfigId: body.agentConfigId }),
+          ...(body.workingDirectory !== undefined && { workingDirectory: body.workingDirectory }),
+          ...(body.timeoutMs !== undefined && { timeoutMs: body.timeoutMs }),
+          ...(body.maxRetries !== undefined && { maxRetries: body.maxRetries }),
+          ...(body.branchStrategy !== undefined && { branchStrategy: body.branchStrategy }),
+          ...(body.branchPrefix !== undefined && { branchPrefix: body.branchPrefix }),
+          ...(body.autoCommit !== undefined && { autoCommit: body.autoCommit }),
+          ...(body.autoCreatePR !== undefined && { autoCreatePR: body.autoCreatePR }),
+          ...(body.autoMergePR !== undefined && { autoMergePR: body.autoMergePR }),
+          ...(body.mergeCommitThreshold !== undefined && {
+            mergeCommitThreshold: body.mergeCommitThreshold,
+          }),
+          ...(body.requireApproval !== undefined && { requireApproval: body.requireApproval }),
+          ...(body.autoExecuteOnAnalysis !== undefined && {
+            autoExecuteOnAnalysis: body.autoExecuteOnAnalysis,
+          }),
+          ...(body.parallelExecution !== undefined && {
+            parallelExecution: body.parallelExecution,
+          }),
+          ...(body.maxConcurrentAgents !== undefined && {
+            maxConcurrentAgents: body.maxConcurrentAgents,
+          }),
+          ...(body.useOptimizedPrompt !== undefined && {
+            useOptimizedPrompt: body.useOptimizedPrompt,
+          }),
+          ...(body.additionalInstructions !== undefined && {
+            additionalInstructions: body.additionalInstructions,
+          }),
+          ...(body.autoCodeReview !== undefined && { autoCodeReview: body.autoCodeReview }),
+          ...(body.reviewScope !== undefined && { reviewScope: body.reviewScope }),
+          ...(body.notifyOnStart !== undefined && { notifyOnStart: body.notifyOnStart }),
+          ...(body.notifyOnComplete !== undefined && { notifyOnComplete: body.notifyOnComplete }),
+          ...(body.notifyOnError !== undefined && { notifyOnError: body.notifyOnError }),
+          ...(body.notifyOnQuestion !== undefined && { notifyOnQuestion: body.notifyOnQuestion }),
+        },
+        include: {
+          agentConfig: {
+            select: {
+              id: true,
+              agentType: true,
+              name: true,
+              modelId: true,
+              isActive: true,
+            },
           },
         },
-      },
-    });
+      });
 
-    return config;
-  })
+      return config;
+    },
+    { body: executionConfigBodySchema },
+  )
 
   .delete('/:taskId', async (context) => {
     const { params, set } = context;
