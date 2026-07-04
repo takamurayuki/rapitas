@@ -12,6 +12,7 @@ import { UserBehaviorService } from '../../src/services/user-behavior-service';
 import { notifyTaskCompleted, createNotification } from '../communication/notification-service';
 import { onGeneratedTaskCompleted } from '../scheduling/recurring-task-service';
 import { createSubtask, createParentTask } from './task-create-helpers';
+import { syncParentStatusFromSubtasks } from './task-parent-status-sync';
 import { realtimeService } from '../communication/realtime-service';
 import { syncTaskToCalendar } from '../scheduling/task-calendar-sync';
 import {
@@ -303,6 +304,13 @@ export async function updateTask(prisma: PrismaInstance, taskId: number, input: 
       where: { id: currentTask.parentId },
       data: { actualHours: parentActual > 0 ? parentActual : null },
     });
+  }
+
+  // NOTE: When a subtask's status changes, recompute the parent's status from
+  // all sibling statuses. See task-parent-status-sync.ts for the rule and why
+  // it defers 'done' to onSubtaskCompleted for workflow-managed parents.
+  if (fields.status !== undefined && currentTask.parentId) {
+    await syncParentStatusFromSubtasks(prisma, currentTask.parentId);
   }
 
   // Subtask completion: when a SUBTASK (has parentId) is marked done via the

@@ -4524,15 +4524,7 @@
       "peakLabel": "ピーク:",
       "lowLabel": "低調:",
       "hourSuffix": "{hour}時",
-      "dayLabels": {
-        "0": "日",
-        "1": "月",
-        "2": "火",
-        "3": "水",
-        "4": "木",
-        "5": "金",
-        "6": "土"
-      },
+      "dayLabels": ["日", "月", "火", "水", "木", "金", "土"],
       "cellTitle": "{day} {hour}時: {count}件完了 (クリックで詳細)",
       "legendLow": "少",
       "legendHigh": "多",

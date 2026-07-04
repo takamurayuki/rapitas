@@ -4524,15 +4524,7 @@
       "peakLabel": "Peak:",
       "lowLabel": "Low:",
       "hourSuffix": "{hour}:00",
-      "dayLabels": {
-        "0": "Sun",
-        "1": "Mon",
-        "2": "Tue",
-        "3": "Wed",
-        "4": "Thu",
-        "5": "Fri",
-        "6": "Sat"
-      },
+      "dayLabels": ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"],
       "cellTitle": "{day} {hour}:00: {count} completed (click for details)",
       "legendLow": "Low",
       "legendHigh": "High",

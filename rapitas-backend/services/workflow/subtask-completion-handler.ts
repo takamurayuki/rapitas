@@ -108,8 +108,29 @@ export async function onSubtaskCompleted(completedSubtaskId: number): Promise<vo
     if (!parentTask) return;
 
     // Idempotency guard: if the parent is already terminal, do not re-finalize
-    // (sibling completions can race onto this handler concurrently).
-    if (parentTask.status === 'done' || parentTask.workflowStatus === 'completed') {
+    // (sibling completions can race onto this handler concurrently). When the
+    // workflow already finished (workflowStatus === 'completed') but `status`
+    // hasn't caught up — e.g. syncParentStatusFromSubtasks had previously left
+    // it at 'in-progress' from an ad-hoc subtask toggle — reconcile `status`
+    // directly instead of re-running verify.md/auto-commit/PR.
+    if (parentTask.workflowStatus === 'completed') {
+      if (parentTask.status !== 'done') {
+        await prisma.task.update({
+          where: { id: parentTask.id },
+          data: { status: 'done', completedAt: parentTask.completedAt ?? new Date() },
+        });
+        realtimeService.sendTaskUpdate(parentTask.id, 'task_completed', {
+          taskId: parentTask.id,
+          status: 'done',
+          title: parentTask.title,
+          priority: parentTask.priority,
+          themeId: parentTask.themeId,
+          timestamp: new Date().toISOString(),
+        });
+      }
+      return;
+    }
+    if (parentTask.status === 'done') {
       return;
     }
 

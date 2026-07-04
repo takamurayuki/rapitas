@@ -65,6 +65,17 @@ export function useTaskActions({
     onTaskUpdated,
   });
 
+  const refetchTask = useCallback(async () => {
+    try {
+      const res = await fetch(`${API_BASE}/tasks/${resolvedTaskId}`);
+      if (res.ok) {
+        setTask(await res.json());
+      }
+    } catch (err) {
+      logger.error('Failed to refetch task:', err);
+    }
+  }, [resolvedTaskId, setTask]);
+
   const updateStatus = useCallback(
     async (taskId: number, newStatus: string) => {
       if (newStatus === 'done') {
@@ -72,6 +83,7 @@ export function useTaskActions({
       }
 
       const previousTask = task;
+      const isSubtaskUpdate = task ? taskId !== task.id : false;
       setTask((prev) => {
         if (!prev) return prev;
         if (prev.id === taskId) {
@@ -100,13 +112,21 @@ export function useTaskActions({
         }
         // NOTE: Invalidate apiFetch cache so subsequent fetches get fresh data
         clearApiCache(`/tasks/${taskId}`);
+        // NOTE: A subtask's status change can trigger backend-side recomputation
+        // of the PARENT task's own status (and actualHours) — the optimistic
+        // patch above only touches the subtask entry in local state, so without
+        // this the page keeps showing the parent's stale status until a manual
+        // reload. Refetch the whole (parent) task to pick up that side effect.
+        if (isSubtaskUpdate) {
+          await refetchTask();
+        }
         onTaskUpdated?.();
       } catch (err) {
         logger.error(err);
         setTask(previousTask);
       }
     },
-    [task, setTask, onTaskUpdated, setShowCompleteOverlay, t],
+    [task, setTask, onTaskUpdated, setShowCompleteOverlay, t, refetchTask],
   );
 
   const deleteTask = useCallback(async () => {
@@ -178,17 +198,6 @@ export function useTaskActions({
       showToast(t('duplicateTaskFailed'), 'error');
     }
   }, [task, router, showToast, ct, t]);
-
-  const refetchTask = useCallback(async () => {
-    try {
-      const res = await fetch(`${API_BASE}/tasks/${resolvedTaskId}`);
-      if (res.ok) {
-        setTask(await res.json());
-      }
-    } catch (err) {
-      logger.error('Failed to refetch task:', err);
-    }
-  }, [resolvedTaskId, setTask]);
 
   return {
     // Task edit state
