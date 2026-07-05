@@ -35,6 +35,7 @@ const breakdown = {
   windowDays: 14,
   totalCostUsd: 100.5,
   totalExecutions: 42,
+  usdJpyRate: 150,
   roles: [
     {
       role: 'implementer',
@@ -96,8 +97,9 @@ describe('AgentUsageBreakdownWidget', () => {
 
     expect(await screen.findByText('agentUsage.roles.implementer')).toBeInTheDocument();
     expect(screen.getByText('agentUsage.roles.verifier')).toBeInTheDocument();
-    // Cost with share, failures, and one stacked series per role with cost.
-    expect(screen.getByText('$80.25')).toBeInTheDocument();
+    // Cost in YEN (80.25 USD × rate 150 = ¥12,038) with share and failures,
+    // and one stacked series per role with cost.
+    expect(screen.getByText(`¥${(12038).toLocaleString('ja-JP')}`)).toBeInTheDocument();
     expect(screen.getByText('(80%)')).toBeInTheDocument();
     expect(screen.getByText('5')).toBeInTheDocument();
     expect(screen.getByTestId('bar-implementer')).toBeInTheDocument();

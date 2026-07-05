@@ -15,6 +15,7 @@ mock.module('../../../config/database', () => ({
 }));
 
 import { getAgentUsageBreakdown, normalizeRole } from './usage-breakdown-query';
+import { classifyCliAgent } from './cli-agent-classifier';
 
 /** Build a minimal execution row for the mocked findMany. */
 function row(overrides: Record<string, unknown> = {}): Record<string, unknown> {
@@ -30,7 +31,9 @@ function row(overrides: Record<string, unknown> = {}): Record<string, unknown> {
     cacheCreationInputTokens: 50,
     costUsd: 1.5,
     llmCallCount: 3,
+    modelName: 'claude-sonnet-4-6',
     session: { mode: 'workflow-implementer' },
+    agentConfig: { agentType: 'claude-code' },
     ...overrides,
   };
 }
@@ -50,6 +53,22 @@ describe('normalizeRole', () => {
     expect(normalizeRole(null)).toBe('other');
     expect(normalizeRole(undefined)).toBe('other');
     expect(normalizeRole('single')).toBe('single');
+  });
+});
+
+describe('classifyCliAgent', () => {
+  test('classifies by model name prefix', () => {
+    expect(classifyCliAgent('claude-haiku-4-5-20251001', null)).toBe('claude-code');
+    expect(classifyCliAgent('gpt-5.2-codex', null)).toBe('codex');
+    expect(classifyCliAgent('o3-mini', null)).toBe('codex');
+    expect(classifyCliAgent('gemini-3-pro', null)).toBe('gemini');
+  });
+
+  test('falls back to agentType when the model is unknown', () => {
+    expect(classifyCliAgent(null, 'claude-code')).toBe('claude-code');
+    expect(classifyCliAgent(null, 'codex-cli')).toBe('codex');
+    expect(classifyCliAgent(null, 'gemini-cli')).toBe('gemini');
+    expect(classifyCliAgent(null, null)).toBe('other');
   });
 });
 
@@ -116,6 +135,27 @@ describe('getAgentUsageBreakdown', () => {
 
     const result = await getAgentUsageBreakdown(7);
     expect(result.totalCostUsd).toBe(2.5);
+  });
+
+  test('aggregates per CLI agent from modelName with agentType fallback', async () => {
+    findMany.mockImplementation(() =>
+      Promise.resolve([
+        row({ costUsd: 2, modelName: 'claude-sonnet-4-6' }),
+        row({ costUsd: 1, modelName: 'gpt-5.2-codex', agentConfig: { agentType: 'codex-cli' } }),
+        row({ costUsd: 1, modelName: 'gemini-3-pro', agentConfig: { agentType: 'gemini-cli' } }),
+        // Model unknown (died before reporting) → falls back to agentType.
+        row({ costUsd: 0, modelName: null, status: 'failed' }),
+      ]),
+    );
+
+    const result = await getAgentUsageBreakdown(7);
+    expect(result.agents.map((a) => a.agent)).toEqual(['claude-code', 'codex', 'gemini']);
+    const claude = result.agents[0];
+    expect(claude.executions).toBe(2); // sonnet + agentType fallback
+    expect(claude.failedExecutions).toBe(1);
+    expect(claude.costUsd).toBe(2);
+    expect(claude.shareOfCost).toBe(0.5);
+    expect(result.usdJpyRate).toBeGreaterThan(0);
   });
 
   test('groups null-session and null-mode executions under other', async () => {

@@ -13,6 +13,7 @@ import { getAgentMetrics, getExecutionTrends, getMetricsOverview } from './queri
 import { getAgentPerformanceComparison } from './performance-query';
 import { getSelfObservationSummary } from './observation-query';
 import { getAgentUsageBreakdown } from './usage-breakdown-query';
+import { getUsdJpyRate } from './currency-config';
 import { getCostOptimizationInsights } from './cost-optimization-query';
 import { getRepairConvergenceStats } from './repair-convergence-query';
 import { readJudgeEvalResult } from '../../../services/observability/eval-judge-results';
@@ -83,6 +84,12 @@ export const agentMetricsRouter = new Elysia({ prefix: '/agent-metrics' })
       return { error: 'Failed to fetch self-observation summary' };
     }
   })
+
+  /**
+   * Display config for usage views — currently the USD→JPY rate so every
+   * usage widget converts recorded USD costs to yen consistently.
+   */
+  .get('/usage-config', () => ({ usdJpyRate: getUsdJpyRate() }))
 
   /**
    * Per-role usage breakdown: cost / tokens / cache effectiveness grouped by

@@ -12,6 +12,7 @@ import { Activity, AlertTriangle, DollarSign, Zap } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { API_BASE_URL } from '@/utils/api';
 import { Spinner } from '@/components/ui/spinner';
+import { formatJpy, useUsdJpyRate } from './useUsdJpyRate';
 
 interface DailyCostPoint {
   date: string;
@@ -44,6 +45,7 @@ const WINDOW_OPTIONS = [7, 14, 30] as const;
 
 export default function SelfObservationWidget() {
   const t = useTranslations('home');
+  const jpyRate = useUsdJpyRate();
   const [data, setData] = useState<ObservationSummary | null>(null);
   const [windowDays, setWindowDays] = useState<number>(14);
   const [loading, setLoading] = useState(true);
@@ -116,7 +118,7 @@ export default function SelfObservationWidget() {
             <Kpi
               icon={<DollarSign className="h-3.5 w-3.5" />}
               label={t('selfObservation.spend')}
-              value={`$${data.totalCostUsd.toFixed(2)}`}
+              value={formatJpy(data.totalCostUsd, jpyRate)}
               tone="indigo"
             />
             <Kpi
@@ -144,7 +146,7 @@ export default function SelfObservationWidget() {
             <div className="mb-1 text-[11px] text-zinc-500 dark:text-zinc-400">
               {t('selfObservation.dailyCostLabel')}
             </div>
-            <DailyCostBars points={data.dailyCost} />
+            <DailyCostBars points={data.dailyCost} jpyRate={jpyRate} />
           </div>
 
           {/* Model mix */}
@@ -159,7 +161,7 @@ export default function SelfObservationWidget() {
                   <li key={m.modelName} className="flex items-center justify-between text-[11px]">
                     <span className="truncate text-zinc-600 dark:text-zinc-400">{m.modelName}</span>
                     <span className="text-zinc-500">
-                      ${m.costUsd.toFixed(2)} ({(m.shareOfCost * 100).toFixed(0)}%)
+                      {formatJpy(m.costUsd, jpyRate)} ({(m.shareOfCost * 100).toFixed(0)}%)
                     </span>
                   </li>
                 ))}
@@ -198,7 +200,7 @@ function Kpi({ icon, label, value, tone }: KpiProps) {
   );
 }
 
-function DailyCostBars({ points }: { points: DailyCostPoint[] }) {
+function DailyCostBars({ points, jpyRate }: { points: DailyCostPoint[]; jpyRate: number }) {
   const t = useTranslations('home');
   const max = Math.max(...points.map((p) => p.costUsd), 0.0001);
   return (
@@ -212,7 +214,7 @@ function DailyCostBars({ points }: { points: DailyCostPoint[] }) {
             style={{ height: `${h}%` }}
             title={t('selfObservation.dailyCostTooltip', {
               date: p.date,
-              cost: p.costUsd.toFixed(4),
+              cost: formatJpy(p.costUsd, jpyRate),
               executions: p.executions,
             })}
           />

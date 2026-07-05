@@ -16,6 +16,7 @@ import {
   SelfObservationWidget,
   CostOptimizationWidget,
   AgentUsageBreakdownWidget,
+  CliAgentUsageWidget,
 } from '@/components/widgets';
 import { WorkflowLearningPanel } from '@/feature/intelligence/components/WorkflowLearningPanel';
 
@@ -91,8 +92,9 @@ function AgentMetricsPage() {
         <JudgeEvalCard />
 
         <div className="my-6 space-y-6">
-          <SelfObservationWidget />
+          <CliAgentUsageWidget />
           <AgentUsageBreakdownWidget />
+          <SelfObservationWidget />
         </div>
 
         {/* AI operational widgets moved here from the dashboard (they describe

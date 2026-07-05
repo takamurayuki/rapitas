@@ -10,3 +10,4 @@ export { default as BurnupChart } from './BurnupChart';
 export { default as TodayTaskProgressBar } from './TodayTaskProgressBar';
 export { default as SelfObservationWidget } from './SelfObservationWidget';
 export { default as AgentUsageBreakdownWidget } from './AgentUsageBreakdownWidget';
+export { default as CliAgentUsageWidget } from './CliAgentUsageWidget';

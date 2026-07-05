@@ -10,6 +10,8 @@
 
 import { prisma } from '../../../config/database';
 import { toNumber, toInt } from './metric-coercion';
+import { classifyCliAgent, CLI_AGENT_ORDER, type CliAgentKind } from './cli-agent-classifier';
+import { getUsdJpyRate } from './currency-config';
 
 /** Canonical display order for the workflow roles. Unknown roles sort after. */
 export const KNOWN_ROLE_ORDER = [
@@ -46,11 +48,30 @@ export interface DailyRoleCostPoint {
   byRole: Record<string, number>;
 }
 
+/** Usage aggregated per coding-CLI agent (Claude Code / Codex / Gemini). */
+export interface CliAgentUsageEntry {
+  agent: CliAgentKind;
+  executions: number;
+  failedExecutions: number;
+  costUsd: number;
+  /** This agent's share of the window's total cost (0..1). */
+  shareOfCost: number;
+  inputTokens: number;
+  outputTokens: number;
+  cacheReadInputTokens: number;
+  llmCalls: number;
+  averageExecutionTimeMs: number | null;
+}
+
 export interface AgentUsageBreakdown {
   windowDays: number;
   totalCostUsd: number;
   totalExecutions: number;
+  /** USD→JPY display rate (env RAPITAS_USD_JPY_RATE, default 150). */
+  usdJpyRate: number;
   roles: RoleUsageEntry[];
+  /** Per-CLI-agent breakdown; only agents with executions appear. */
+  agents: CliAgentUsageEntry[];
   dailyRoleCost: DailyRoleCostPoint[];
 }
 
@@ -66,7 +87,9 @@ interface BreakdownRow {
   cacheCreationInputTokens: number;
   costUsd: unknown; // Prisma Decimal — stringified
   llmCallCount: number;
+  modelName: string | null;
   session: { mode: string | null } | null;
+  agentConfig: { agentType: string | null } | null;
 }
 
 /**
@@ -154,11 +177,14 @@ export async function getAgentUsageBreakdown(windowDays = 14): Promise<AgentUsag
       cacheCreationInputTokens: true,
       costUsd: true,
       llmCallCount: true,
+      modelName: true,
       session: { select: { mode: true } },
+      agentConfig: { select: { agentType: true } },
     },
   })) as unknown as BreakdownRow[];
 
   const roleMap = new Map<string, RoleAccumulator>();
+  const agentMap = new Map<CliAgentKind, RoleAccumulator>();
   // Pre-seed daily buckets so the stacked chart shows a continuous timeline.
   const dailyMap = new Map<string, DailyRoleCostPoint>();
   for (let i = 0; i < windowDays; i++) {
@@ -189,6 +215,23 @@ export async function getAgentUsageBreakdown(windowDays = 14): Promise<AgentUsag
       acc.timeSamples += 1;
     }
     roleMap.set(role, acc);
+
+    // Same aggregation keyed by CLI agent (Claude Code / Codex / Gemini).
+    const cliAgent = classifyCliAgent(r.modelName, r.agentConfig?.agentType);
+    const agentAcc = agentMap.get(cliAgent) ?? emptyRoleAcc();
+    agentAcc.executions += 1;
+    if (r.status === 'failed' || r.errorMessage) agentAcc.failed += 1;
+    agentAcc.costUsd += cost;
+    agentAcc.inputTokens += toInt(r.inputTokens);
+    agentAcc.outputTokens += toInt(r.outputTokens);
+    agentAcc.cacheRead += toInt(r.cacheReadInputTokens);
+    agentAcc.llmCalls += toInt(r.llmCallCount);
+    if (execTime > 0) {
+      agentAcc.timeTotal += execTime;
+      agentAcc.timeSamples += 1;
+    }
+    agentMap.set(cliAgent, agentAcc);
+
     totalCostUsd += cost;
 
     const bucket = dailyMap.get(isoDate(r.startedAt ?? r.createdAt));
@@ -218,11 +261,28 @@ export async function getAgentUsageBreakdown(windowDays = 14): Promise<AgentUsag
     })
     .sort((a, b) => roleSortIndex(a.role) - roleSortIndex(b.role) || b.costUsd - a.costUsd);
 
+  const agents: CliAgentUsageEntry[] = Array.from(agentMap.entries())
+    .map(([agent, a]) => ({
+      agent,
+      executions: a.executions,
+      failedExecutions: a.failed,
+      costUsd: round6(a.costUsd),
+      shareOfCost: totalCostUsd > 0 ? round4(a.costUsd / totalCostUsd) : 0,
+      inputTokens: a.inputTokens,
+      outputTokens: a.outputTokens,
+      cacheReadInputTokens: a.cacheRead,
+      llmCalls: a.llmCalls,
+      averageExecutionTimeMs: a.timeSamples > 0 ? Math.round(a.timeTotal / a.timeSamples) : null,
+    }))
+    .sort((a, b) => CLI_AGENT_ORDER.indexOf(a.agent) - CLI_AGENT_ORDER.indexOf(b.agent));
+
   return {
     windowDays,
     totalCostUsd: round6(totalCostUsd),
     totalExecutions: rows.length,
+    usdJpyRate: getUsdJpyRate(),
     roles,
+    agents,
     dailyRoleCost: Array.from(dailyMap.values()).sort((a, b) => a.date.localeCompare(b.date)),
   };
 }

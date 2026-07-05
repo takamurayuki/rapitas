@@ -11,6 +11,7 @@ import { DollarSign, Zap, Info } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 import { useTranslations } from 'next-intl';
 import { API_BASE_URL } from '@/utils/api';
+import { formatJpy, useUsdJpyRate } from './useUsdJpyRate';
 
 type ModelBreakdown = {
   model: string;
@@ -44,6 +45,7 @@ function shortModelName(model: string): string {
 export function CostOptimizationWidget() {
   const t = useTranslations('home');
   const tCommon = useTranslations('common');
+  const jpyRate = useUsdJpyRate();
   const [data, setData] = useState<CostData | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -77,9 +79,10 @@ export function CostOptimizationWidget() {
 
   if (!data || data.totalExecutions === 0) return null;
 
+  // Chart values in yen so axis/tooltip read directly in JPY.
   const chartData = data.modelBreakdown.map((m) => ({
     name: shortModelName(m.model),
-    cost: m.estimatedCost,
+    cost: Math.round(m.estimatedCost * jpyRate),
     successRate: m.successRate,
     executions: m.executions,
   }));
@@ -98,7 +101,7 @@ export function CostOptimizationWidget() {
               {(data.totalTokens / 1000).toFixed(0)}K tokens
             </span>
             <span className="font-medium text-emerald-600 dark:text-emerald-400">
-              ${data.totalCost.toFixed(2)}
+              {formatJpy(data.totalCost, jpyRate)}
             </span>
           </div>
         </div>
@@ -117,8 +120,8 @@ export function CostOptimizationWidget() {
                   tick={{ fontSize: 10, fill: '#a1a1aa' }}
                   axisLine={false}
                   tickLine={false}
-                  width={35}
-                  tickFormatter={(v: number) => `$${v}`}
+                  width={48}
+                  tickFormatter={(v: number) => (v >= 1000 ? `¥${v / 1000}k` : `¥${v}`)}
                 />
                 <Tooltip
                   contentStyle={{
@@ -130,7 +133,7 @@ export function CostOptimizationWidget() {
                   }}
                   formatter={
                     ((value: number) => [
-                      `$${value.toFixed(2)}`,
+                      `¥${Math.round(value).toLocaleString('ja-JP')}`,
                       t('costOptimization.costLabel'),
                     ]) as never
                   }
@@ -170,7 +173,7 @@ export function CostOptimizationWidget() {
                 >
                   {m.successRate}%
                 </span>
-                <span className="font-medium">${m.estimatedCost.toFixed(2)}</span>
+                <span className="font-medium">{formatJpy(m.estimatedCost, jpyRate)}</span>
               </div>
             </div>
           ))}

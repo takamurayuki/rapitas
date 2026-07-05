@@ -13,6 +13,7 @@ import { useTranslations } from 'next-intl';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { API_BASE_URL } from '@/utils/api';
 import { Spinner } from '@/components/ui/spinner';
+import { formatJpy, DEFAULT_USD_JPY_RATE } from './useUsdJpyRate';
 
 interface RoleUsageEntry {
   role: string;
@@ -39,6 +40,7 @@ interface AgentUsageBreakdown {
   windowDays: number;
   totalCostUsd: number;
   totalExecutions: number;
+  usdJpyRate?: number;
   roles: RoleUsageEntry[];
   dailyRoleCost: DailyRoleCostPoint[];
 }
@@ -100,13 +102,18 @@ export default function AgentUsageBreakdownWidget() {
   const labelOf = (role: string) => roleLabels[role] ?? role;
   const colorOf = (role: string) => ROLE_COLORS[role] ?? ROLE_COLORS.other;
 
+  const rate = data?.usdJpyRate ?? DEFAULT_USD_JPY_RATE;
+
   // Series follow the backend's canonical role order; roles without cost still
-  // appear in the table but are dropped from the stacked chart.
+  // appear in the table but are dropped from the stacked chart. Chart values
+  // are converted to yen up-front so axis/tooltip read directly in JPY.
   const chartRoles = data ? data.roles.filter((r) => r.costUsd > 0).map((r) => r.role) : [];
   const chartData =
     data?.dailyRoleCost.map((d) => ({
       date: d.date.slice(5).replace('-', '/'),
-      ...d.byRole,
+      ...Object.fromEntries(
+        Object.entries(d.byRole).map(([k, usd]) => [k, Math.round(usd * rate)]),
+      ),
     })) ?? [];
 
   return (
@@ -126,7 +133,7 @@ export default function AgentUsageBreakdownWidget() {
             <span className="text-xs text-zinc-500 dark:text-zinc-400">
               {t('agentUsage.headerSummary', {
                 executions: data.totalExecutions,
-                cost: data.totalCostUsd.toFixed(2),
+                cost: formatJpy(data.totalCostUsd, rate),
               })}
             </span>
           )}
@@ -175,8 +182,8 @@ export default function AgentUsageBreakdownWidget() {
                   tick={{ fontSize: 10, fill: '#a1a1aa' }}
                   axisLine={false}
                   tickLine={false}
-                  width={40}
-                  tickFormatter={(v: number) => `$${v}`}
+                  width={48}
+                  tickFormatter={(v: number) => (v >= 1000 ? `¥${v / 1000}k` : `¥${v}`)}
                 />
                 <Tooltip
                   contentStyle={{
@@ -188,7 +195,7 @@ export default function AgentUsageBreakdownWidget() {
                   }}
                   formatter={
                     ((value: number, name: string) => [
-                      `$${value.toFixed(2)}`,
+                      `¥${Math.round(value).toLocaleString('ja-JP')}`,
                       labelOf(name),
                     ]) as never
                   }
@@ -259,7 +266,7 @@ export default function AgentUsageBreakdownWidget() {
                     </td>
                     <td className="py-1.5 pr-2 text-right">{(r.cacheHitRate * 100).toFixed(1)}%</td>
                     <td className="py-1.5 text-right font-medium text-zinc-900 dark:text-zinc-100">
-                      ${r.costUsd.toFixed(2)}
+                      {formatJpy(r.costUsd, rate)}
                       <span className="ml-1 font-normal text-zinc-400 dark:text-zinc-500">
                         ({(r.shareOfCost * 100).toFixed(0)}%)
                       </span>
