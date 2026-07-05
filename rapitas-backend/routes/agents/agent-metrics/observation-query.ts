@@ -9,6 +9,7 @@
  */
 
 import { prisma } from '../../../config/database';
+import { toNumber, toInt } from './metric-coercion';
 
 export interface DailyCostPoint {
   /** ISO date (YYYY-MM-DD), UTC. */
@@ -61,41 +62,8 @@ interface ExecutionMetricRow {
   llmCallCount: number;
 }
 
-/**
- * Convert Prisma Decimal | string | number to JS number.
- * Defensive against legacy double-JSON-encoded values like `"\"0\""`
- * that earlier IPC bugs left in AgentExecution.costUsd. Auto-unwraps
- * up to 5 nested JSON-string layers before parsing as float.
- */
-function toNumber(v: unknown): number {
-  if (v === null || v === undefined) return 0;
-  if (typeof v === 'number') return Number.isFinite(v) ? v : 0;
-  let current: unknown = v;
-  for (let i = 0; i < 5; i++) {
-    if (typeof current !== 'string') break;
-    if (current.length === 0) return 0;
-    if (current[0] !== '"') break;
-    try {
-      current = JSON.parse(current);
-    } catch {
-      break;
-    }
-  }
-  if (typeof current === 'number') return Number.isFinite(current) ? current : 0;
-  if (typeof current === 'string') {
-    const n = parseFloat(current);
-    return Number.isFinite(n) ? n : 0;
-  }
-  // Prisma Decimal exposes toString()
-  const n = parseFloat(String(current));
-  return Number.isFinite(n) ? n : 0;
-}
-
-/** Defensive integer coercion mirroring `toNumber`. */
-function toInt(v: unknown): number {
-  if (typeof v === 'number' && Number.isFinite(v)) return Math.trunc(v);
-  return Math.trunc(toNumber(v));
-}
+// NOTE: toNumber/toInt moved to metric-coercion.ts so usage-breakdown-query
+// can share the same defensive coercion against legacy double-encoded values.
 
 function isoDate(d: Date): string {
   return d.toISOString().slice(0, 10);

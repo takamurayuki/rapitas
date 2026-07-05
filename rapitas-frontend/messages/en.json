@@ -420,6 +420,27 @@
       "dailyCostLabel": "Daily cost",
       "modelShareLabel": "Model share",
       "dailyCostTooltip": "{date}: ${cost} ({executions} executions)"
+    },
+    "agentUsage": {
+      "title": "Usage by agent",
+      "windowLabel": "(last {days} days)",
+      "daysButton": "{days}d",
+      "headerSummary": "{executions} executions / ${cost}",
+      "noData": "No execution data in this window",
+      "tableRole": "Role",
+      "tableExecutions": "Runs",
+      "tableFailed": "Failed",
+      "tableOutputTokens": "Output tokens",
+      "tableCacheHit": "Cache hit",
+      "tableCost": "Cost",
+      "roles": {
+        "researcher": "Researcher",
+        "planner": "Planner",
+        "implementer": "Implementer",
+        "verifier": "Verifier",
+        "auto_verifier": "Auto verifier",
+        "other": "Other"
+      }
     }
   },
   "task": {

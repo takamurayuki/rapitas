@@ -420,6 +420,27 @@
       "dailyCostLabel": "日別コスト",
       "modelShareLabel": "モデル別シェア",
       "dailyCostTooltip": "{date}: ${cost} ({executions} 実行)"
+    },
+    "agentUsage": {
+      "title": "エージェント別使用量",
+      "windowLabel": "（直近 {days} 日）",
+      "daysButton": "{days}日",
+      "headerSummary": "{executions} 実行 / ${cost}",
+      "noData": "この期間の実行データはありません",
+      "tableRole": "役割",
+      "tableExecutions": "実行",
+      "tableFailed": "失敗",
+      "tableOutputTokens": "出力トークン",
+      "tableCacheHit": "キャッシュ命中",
+      "tableCost": "コスト",
+      "roles": {
+        "researcher": "リサーチャー",
+        "planner": "プランナー",
+        "implementer": "実装",
+        "verifier": "検証",
+        "auto_verifier": "自動検証",
+        "other": "その他"
+      }
     }
   },
   "task": {

@@ -12,6 +12,7 @@ import { createLogger } from '../../../config/logger';
 import { getAgentMetrics, getExecutionTrends, getMetricsOverview } from './queries';
 import { getAgentPerformanceComparison } from './performance-query';
 import { getSelfObservationSummary } from './observation-query';
+import { getAgentUsageBreakdown } from './usage-breakdown-query';
 import { getCostOptimizationInsights } from './cost-optimization-query';
 import { getRepairConvergenceStats } from './repair-convergence-query';
 import { readJudgeEvalResult } from '../../../services/observability/eval-judge-results';
@@ -80,6 +81,20 @@ export const agentMetricsRouter = new Elysia({ prefix: '/agent-metrics' })
     } catch (error) {
       log.error({ err: error }, 'Error fetching self-observation summary');
       return { error: 'Failed to fetch self-observation summary' };
+    }
+  })
+
+  /**
+   * Per-role usage breakdown: cost / tokens / cache effectiveness grouped by
+   * the workflow role that ran each execution. Powers the agent usage widget.
+   */
+  .get('/usage-breakdown', async ({ query }) => {
+    try {
+      const days = Math.min(90, Math.max(1, parseInt(query.days as string) || 14));
+      return await getAgentUsageBreakdown(days);
+    } catch (error) {
+      log.error({ err: error }, 'Error fetching agent usage breakdown');
+      return { error: 'Failed to fetch agent usage breakdown' };
     }
   })
 

@@ -12,7 +12,11 @@ import { MetricsCharts } from './_components/MetricsCharts';
 import { MetricsTable } from './_components/MetricsTable';
 import { RepairConvergenceCard } from './_components/RepairConvergenceCard';
 import { JudgeEvalCard } from './_components/JudgeEvalCard';
-import { SelfObservationWidget, CostOptimizationWidget } from '@/components/widgets';
+import {
+  SelfObservationWidget,
+  CostOptimizationWidget,
+  AgentUsageBreakdownWidget,
+} from '@/components/widgets';
 import { WorkflowLearningPanel } from '@/feature/intelligence/components/WorkflowLearningPanel';
 
 function AgentMetricsPage() {
@@ -86,8 +90,9 @@ function AgentMetricsPage() {
 
         <JudgeEvalCard />
 
-        <div className="my-6">
+        <div className="my-6 space-y-6">
           <SelfObservationWidget />
+          <AgentUsageBreakdownWidget />
         </div>
 
         {/* AI operational widgets moved here from the dashboard (they describe
