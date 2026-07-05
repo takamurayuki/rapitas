@@ -6,14 +6,19 @@
  * it FAILS — so what survives the forgetting curve is what actually HELPED, not
  * merely what was recent or popular.
  *
- * The retrieval→outcome link is held in a short-term, in-memory trace (a task
- * retrieves at the start of a phase and finishes minutes later in the same
- * process). The trace is best-effort: a backend restart between retrieval and
- * outcome simply drops it (an unconsolidated memory), which is acceptable.
+ * The retrieval→outcome link is held in a fast in-memory trace PLUS a durable
+ * timeline event (`memory_retrieval`). The in-memory map alone leaked the
+ * central learning signal: a backend restart, or the hours-long gap between
+ * retrieval and outcome under staged completion (completion deferred to
+ * CI-green/merge), silently dropped the reward/penalty. On outcome the two
+ * sources are merged and the durable events are consumed (deleted) so a
+ * duplicate outcome never double-applies.
  * This module owns the trace ONLY; the actual decay math lives in forgetting.ts.
  */
+import { prisma } from '../../config/database';
 import { createLogger } from '../../config/logger';
 import { boostDecayOnAccess, penalizeOnFailure } from './forgetting';
+import { appendEvent, queryEvents } from './timeline';
 
 const log = createLogger('memory:outcome-reinforcement');
 
@@ -69,12 +74,55 @@ export function recordRetrieval(taskId: number, entryIds: number[]): void {
   } else {
     traces.set(taskId, { entryIds: new Set(entryIds), at: now });
   }
+
+  // Durable copy: survives restarts and the multi-hour retrieval→outcome gap
+  // under staged completion. Fire-and-forget — a DB hiccup must never block
+  // the retrieval path (the in-memory trace still covers the common case).
+  appendEvent({
+    eventType: 'memory_retrieval',
+    actorType: 'system',
+    payload: { taskId, entryIds },
+    correlationId: `task_${taskId}`,
+  }).catch((err) => log.debug({ err, taskId }, '[kb-reinforce] durable trace write failed'));
+}
+
+/**
+ * Load and CONSUME the durable retrieval trace for a task: reads all
+ * `memory_retrieval` timeline events for `task_<taskId>` and deletes them so a
+ * duplicate outcome (blocked → retried → completed) never double-applies.
+ *
+ * @param taskId - Task whose durable trace to consume. / 対象タスクID
+ * @returns Entry ids recorded durably (empty on none/failure). / 記録済みID
+ */
+async function consumeDurableTrace(taskId: number): Promise<number[]> {
+  try {
+    const { events } = await queryEvents({
+      eventType: 'memory_retrieval',
+      correlationId: `task_${taskId}`,
+      limit: 50,
+    });
+    if (events.length === 0) return [];
+    const ids = new Set<number>();
+    for (const e of events) {
+      const payload = e.payload as { entryIds?: unknown };
+      if (Array.isArray(payload.entryIds)) {
+        for (const id of payload.entryIds) if (Number.isInteger(id)) ids.add(id as number);
+      }
+    }
+    await prisma.timelineEvent.deleteMany({
+      where: { eventType: 'memory_retrieval', correlationId: `task_${taskId}` },
+    });
+    return [...ids];
+  } catch (err) {
+    log.warn({ err, taskId }, '[kb-reinforce] durable trace read failed');
+    return [];
+  }
 }
 
 /**
  * Apply outcome-gated reinforcement for a finished task: boost the entries it
- * used on SUCCESS, decay them on failure, then clear the trace. Best-effort —
- * a missing trace (e.g. after a restart) is a no-op.
+ * used on SUCCESS, decay them on failure, then clear both the in-memory and
+ * durable traces. Best-effort — no trace anywhere is a no-op.
  *
  * @param taskId - The task that just reached a terminal outcome. / 終了タスクID
  * @param success - Whether the task completed successfully. / 成功したか
@@ -82,10 +130,16 @@ export function recordRetrieval(taskId: number, entryIds: number[]): void {
  */
 export async function applyOutcomeReinforcement(taskId: number, success: boolean): Promise<number> {
   const trace = traces.get(taskId);
-  if (!trace) return 0;
   traces.delete(taskId);
 
-  const ids = [...trace.entryIds];
+  // Merge the fast in-memory trace with the durable timeline copy — either may
+  // be missing (restart drops the map; a DB hiccup drops the events), and the
+  // union double-counts nothing because it is a Set.
+  const merged = new Set<number>(trace?.entryIds ?? []);
+  for (const id of await consumeDurableTrace(taskId)) merged.add(id);
+  if (merged.size === 0) return 0;
+
+  const ids = [...merged];
   for (const id of ids) {
     try {
       if (success) await boostDecayOnAccess(id, SUCCESS_BOOST);

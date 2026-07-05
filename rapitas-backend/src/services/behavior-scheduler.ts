@@ -2,6 +2,7 @@ import { UserBehaviorService } from './user-behavior-service';
 import { createLogger } from '../../config/logger';
 import { memoryTaskQueue } from '../../services/memory';
 import { scanAndRemind } from '../../services/memory/knowledge-reminder';
+import { revalidateStaleConflicts } from '../../services/memory/contradiction';
 import { generateOptimizationRules } from '../../services/workflow/learning/workflow-learning-optimizer';
 import { processAllPendingRecurrences } from '../../services/scheduling/recurring-task-service';
 import { runScheduledTechDebtScan } from '../../services/misc/tech-debt-liquidator';
@@ -81,6 +82,16 @@ export class BehaviorScheduler {
         log.info('[BehaviorScheduler] Running autonomous tech debt scan');
         await runScheduledTechDebtScan().catch((err: Error) => {
           log.error({ err }, '[BehaviorScheduler] Tech debt scan failed');
+        });
+      }
+
+      // 5 AM: stale-conflict revalidation — 'conflict' knowledge must be able
+      // to recover (or die) without a human; otherwise recall trust-demotes a
+      // growing share of the KB forever.
+      if (h === 5 && m === 0) {
+        log.info('[BehaviorScheduler] Revalidating stale knowledge conflicts');
+        await revalidateStaleConflicts().catch((err: Error) => {
+          log.error({ err }, '[BehaviorScheduler] Conflict revalidation failed');
         });
       }
 

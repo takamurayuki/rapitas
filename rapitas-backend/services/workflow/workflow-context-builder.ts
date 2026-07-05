@@ -215,6 +215,14 @@ export async function buildRoleContext(
       if (planCritic) {
         ctx += `\n\n${planCritic}`;
       }
+      // Recall prior knowledge for the planner too — recorded design decisions
+      // and blocked-task lessons should shape the plan, not be re-discovered
+      // (or re-violated) at implementation time. Previously only researcher and
+      // implementer received memory, so the planner re-decided settled points.
+      const plannerMemory = await buildMemoryContext(taskId, task, language);
+      if (plannerMemory) {
+        ctx += `\n\n${plannerMemory}`;
+      }
       // Recall human rejections of prior plans in this theme so the new plan
       // addresses them instead of repeating a turned-down design.
       const rejected = await buildRejectedPlanContext(taskId, language);
@@ -288,6 +296,12 @@ export async function buildRoleContext(
     case 'verifier': {
       const plan = await readWorkflowFile(dir, 'plan');
       let ctx = taskInfo;
+      // Recall prior knowledge for the verifier too — failure lessons from
+      // similar tasks tell it exactly which regressions to probe for.
+      const verifierMemory = await buildMemoryContext(taskId, task, language);
+      if (verifierMemory) {
+        ctx += `\n\n${verifierMemory}`;
+      }
       // Hypothesis ledger: the verifier is the ONLY phase that explicitly JUDGES
       // whether each open hypothesis's prediction held — its `## 仮説評価` verdicts
       // graduate (成立→validated) / refute (不成立→rejected) them. Without this the

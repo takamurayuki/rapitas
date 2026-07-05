@@ -147,6 +147,59 @@ export function renderMemorySection(entries: MemoryEntry[], language: 'ja' | 'en
   return `${t.header}\n\n${t.lead}\n\n${items}`;
 }
 
+/** Trailing window and cap for episodic failure recall. */
+const EPISODE_WINDOW_DAYS = 14;
+const MAX_EPISODES = 3;
+
+/**
+ * Render the freshest failure episodes (theme-scoped when possible) as a short
+ * prompt section. Best-effort — any failure yields ''.
+ *
+ * @param themeId - Theme to scope to (null → all themes). / 対象テーマ
+ * @param language - Output language. / 出力言語
+ * @returns Markdown section, or '' when there are no recent failures. / 節
+ */
+async function buildFailureEpisodeSection(
+  themeId: number | null,
+  language: 'ja' | 'en',
+): Promise<string> {
+  try {
+    const cutoff = new Date();
+    cutoff.setUTCDate(cutoff.getUTCDate() - EPISODE_WINDOW_DAYS);
+    const rows = await prisma.episodeMemory.findMany({
+      where: { outcome: 'failure', phase: 'evaluate', createdAt: { gte: cutoff } },
+      orderBy: [{ importance: 'desc' }, { createdAt: 'desc' }],
+      // Over-fetch so theme filtering (context is a JSON string) still fills the cap.
+      take: 20,
+      select: { content: true, context: true, createdAt: true },
+    });
+    if (rows.length === 0) return '';
+
+    const matchesTheme = (context: string): boolean => {
+      if (themeId == null) return true;
+      try {
+        return (JSON.parse(context) as { themeId?: number | null }).themeId === themeId;
+      } catch {
+        return false;
+      }
+    };
+    const themed = rows.filter((r) => matchesTheme(r.context));
+    const picked = (themed.length > 0 ? themed : rows).slice(0, MAX_EPISODES);
+    if (picked.length === 0) return '';
+
+    const header =
+      language === 'ja'
+        ? '## 最近の失敗エピソード（直近の実行で実際に起きたこと）'
+        : '## Recent failure episodes (what actually went wrong lately)';
+    const items = picked
+      .map((e) => `- ${e.createdAt.toISOString().slice(0, 10)}: ${e.content}`)
+      .join('\n');
+    return `${header}\n${items}`;
+  } catch {
+    return '';
+  }
+}
+
 /**
  * Fetch the outcome of each source task from the timeline (`task_outcome`
  * events). Best-effort — a failure yields an empty map (no weighting applied).
@@ -251,7 +304,14 @@ export async function buildMemoryContext(
     const outcomes = await fetchOutcomes(sourceTaskIds);
     const ranked = applyOutcomeWeighting(entries, outcomes);
 
-    const section = renderMemorySection(ranked, language);
+    let section = renderMemorySection(ranked, language);
+    // Episodic recall: recent failure episodes for this theme. The episode
+    // table was write-only for the loop (recorded per task outcome, read by
+    // no prompt) — surfacing the freshest failures tells the agent what has
+    // been going wrong RIGHT NOW in this area, complementing the distilled
+    // knowledge entries above.
+    const episodes = await buildFailureEpisodeSection(themeId ?? null, language);
+    if (episodes) section = section ? `${section}\n\n${episodes}` : episodes;
     if (section) {
       log.info(
         { taskId, themeId, count: ranked.length, weighted: outcomes.size },
