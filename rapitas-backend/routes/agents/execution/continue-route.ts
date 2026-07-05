@@ -14,7 +14,7 @@ import { createLogger } from '../../../config/logger';
 import { getProjectRoot } from '../../../config';
 import { AgentWorkerManager } from '../../../services/agents/agent-worker-manager';
 import { decideWorktree } from '../../../services/agents/orchestrator/git-operations/worktree-usable';
-import { isBackendPrimaryCheckout } from '../../../services/agents/orchestrator/git-operations/worktree-guard';
+import { isPrimaryWorkTree } from '../../../services/agents/orchestrator/git-operations/worktree-guard';
 import { toJsonString } from '../../../utils/database/db-helpers';
 import { acquireTaskExecutionLock, releaseTaskExecutionLock } from './execution-lock';
 import { agentRateLimiter } from '../../../middleware/rate-limiter';
@@ -169,12 +169,15 @@ export const continueRoute = new Elysia().post(
       }
 
       // SAFETY: when worktree isolation fell back to the working directory, REFUSE
-      // if that directory is the backend's OWN primary checkout. Resuming a
-      // mutating agent there lets its git commands switch the dev backend's branch
-      // and clobber uncommitted work (the recurring main-checkout clobber). Only
-      // fires for the rapitas self-dev primary — never other themes' repos or
-      // linked worktrees. Mirrors the workflow-cli-executor guard.
-      if (await isBackendPrimaryCheckout(executionDir)) {
+      // if that directory is ANY repo's primary checkout — repo-agnostic, not just
+      // the rapitas self-dev primary. Resuming a mutating agent there lets its
+      // own git commands switch branches / clobber uncommitted work in the
+      // developer's real checkout (the recurring main-checkout clobber). Mirrors
+      // the workflow-cli-executor guard. Escape hatch: RAPITAS_ALLOW_PRIMARY_EXEC=1.
+      if (
+        process.env.RAPITAS_ALLOW_PRIMARY_EXEC !== '1' &&
+        (await isPrimaryWorkTree(executionDir))
+      ) {
         log.error(
           { taskId, executionDir },
           '[continue-execution] Refusing to resume a mutating agent in the primary checkout — worktree isolation failed',

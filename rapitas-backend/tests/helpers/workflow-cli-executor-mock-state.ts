@@ -142,6 +142,7 @@ export const wf = {
   latestSessionWorktree: null as LatestSessionWorktreeLike | null,
   canReuseWorktree: false,
   isBackendPrimaryCheckout: false,
+  isPrimaryWorkTree: false,
   taskHasLinkedPrRow: null as { githubPrId: number | null } | null,
   linkedPrRow: null as { id: number } | null,
 
@@ -218,6 +219,7 @@ export const spies = {
   resolveLatestSessionWorktree: mock(() => Promise.resolve(wf.latestSessionWorktree)),
   canReuseWorktree: mock(() => wf.canReuseWorktree),
   isBackendPrimaryCheckout: mock(() => Promise.resolve(wf.isBackendPrimaryCheckout)),
+  isPrimaryWorkTree: mock(() => Promise.resolve(wf.isPrimaryWorkTree)),
   createWorktree: mock(
     (
       base: string,
@@ -278,6 +280,7 @@ export function resetWfMockState(): void {
   wf.latestSessionWorktree = null;
   wf.canReuseWorktree = false;
   wf.isBackendPrimaryCheckout = false;
+  wf.isPrimaryWorkTree = false;
   wf.taskHasLinkedPrRow = null;
   wf.linkedPrRow = null;
   wf.createWorktreeImpl = async () => '/fake/worktree/new';
@@ -447,7 +450,7 @@ export function installWorkflowCliExecutorMocks(): void {
   }));
 
   mock.module(p('services/agents/orchestrator/git-operations/worktree-guard'), () => ({
-    isPrimaryWorkTree: mock(() => Promise.resolve(false)),
+    isPrimaryWorkTree: spies.isPrimaryWorkTree,
     ensureNotPrimaryWorkTree: mock(() => Promise.resolve()),
     isBackendPrimaryCheckout: spies.isBackendPrimaryCheckout,
     findConflictingWorktreeForBranch: mock(() => Promise.resolve(null)),

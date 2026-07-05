@@ -46,7 +46,7 @@ const execAsync = promisify(exec);
 // point (orchestrator, continue-execution route) shares the same check.
 export { canReuseWorktree } from '../agents/orchestrator/git-operations/worktree-usable';
 import { canReuseWorktree } from '../agents/orchestrator/git-operations/worktree-usable';
-import { isBackendPrimaryCheckout } from '../agents/orchestrator/git-operations/worktree-guard';
+import { isPrimaryWorkTree } from '../agents/orchestrator/git-operations/worktree-guard';
 
 /**
  * Resolves the git repository root for a directory.
@@ -226,10 +226,23 @@ export async function executeCLIAgent(
             '[WorkflowCLIExecutor] Created new worktree (no prior session had one)',
           );
         } catch (wtErr) {
+          // NOTE(safety): worktree creation failure is FATAL for mutating
+          // roles. The old behavior fell through to themeWorkDir — usually a
+          // real project's PRIMARY checkout — and spawned a bypass-permissions
+          // agent directly in it (the main-checkout clobber class of incident).
+          // Failing the phase is recoverable (retry after fixing the worktree
+          // problem); a clobbered checkout is not.
           log.error(
             { err: wtErr, taskId, role: transition.role, worktreeBase },
-            '[WorkflowCLIExecutor] Failed to create worktree — running without isolation',
+            '[WorkflowCLIExecutor] Failed to create worktree — refusing to run a mutating role without isolation',
           );
+          return {
+            success: false,
+            role: transition.role,
+            status: (taskWithTheme?.workflowStatus as WorkflowAdvanceResult['status']) || 'draft',
+            error:
+              'worktree の作成に失敗したため実行を中止しました（隔離なしでの変更系エージェント実行を防止）。worktree の問題を解消して再実行してください。',
+          };
         }
       } else {
         log.warn(
@@ -253,27 +266,32 @@ export async function executeCLIAgent(
     resolvedWorktreePath ??
     (isImplementationRole || isVerifierRole ? (themeWorkDir ?? process.cwd()) : process.cwd());
 
-  // SAFETY (②): a mutating role running in the backend's OWN primary checkout
-  // would create/switch a branch there via its own git commands, and the dev
-  // backend would then run that stale branch on restart (the recurring
-  // main-checkout clobber). When worktree isolation failed and the cwd fell back
-  // to the self primary, REFUSE rather than clobber — the task errors with a
-  // clear cause and can be retried once a worktree can be created. Other themes'
-  // repos and linked worktrees of the self repo are NOT affected.
+  // SAFETY (②): a mutating role must run inside a LINKED worktree — never any
+  // repo's PRIMARY checkout. This is repo-agnostic on purpose: the earlier
+  // isBackendPrimaryCheckout guard protected only the rapitas self-checkout,
+  // so when worktree isolation failed for a normal theme the agent (spawned
+  // with --dangerously-skip-permissions) still ran directly in THAT project's
+  // primary checkout, where its own git commands could commit/switch/reset the
+  // developer's tree (the main-checkout clobber class of incident). Refusing
+  // fails safe — the task errors with a clear cause and is retryable.
+  // isPrimaryWorkTree also returns true for non-git directories (fail safe):
+  // mutating roles produce commits/PRs, which are meaningless without git.
+  // Escape hatch: RAPITAS_ALLOW_PRIMARY_EXEC=1 restores the old behavior.
   if (
     (isImplementationRole || isVerifierRole) &&
-    (await isBackendPrimaryCheckout(effectiveWorkDir))
+    process.env.RAPITAS_ALLOW_PRIMARY_EXEC !== '1' &&
+    (await isPrimaryWorkTree(effectiveWorkDir))
   ) {
     log.error(
       { taskId, role: transition.role, effectiveWorkDir },
-      '[WorkflowCLIExecutor] Refusing to run a mutating role in the primary checkout — worktree isolation failed',
+      '[WorkflowCLIExecutor] Refusing to run a mutating role in a primary checkout — worktree isolation required',
     );
     return {
       success: false,
       role: transition.role,
       status: (taskWithTheme?.workflowStatus as WorkflowAdvanceResult['status']) || 'draft',
       error:
-        'worktree 隔離に失敗したため primary チェックアウトでの実行を中止しました（dev ブランチの切替を防止）。worktree を再生成して再実行してください。',
+        'worktree 隔離に失敗したため primary チェックアウトでの実行を中止しました（開発チェックアウトの破壊を防止）。worktree を再生成して再実行してください。',
     };
   }
 
@@ -538,12 +556,22 @@ ${
 **あなたは「実装」エージェントです。research.md（存在すれば plan.md も）に基づき、実際にコードを実装してください。**
 - **plan.md を作成しないこと。** 計画フェーズは完了済み（plan.md があればそれに従う）か、このタスクは軽量モードで計画フェーズが意図的にスキップされています。CLAUDE.md に「plan.md を作成する」とあっても、実装フェーズの今は従わないでください。
 - Write/Edit で直接コードを変更し、関連テストを追加/更新し、変更を完成させてください（調査・計画だけで終わらせない）。
-- 完了後、検証フェーズが自動で続きます。`
+- 完了後、検証フェーズが自動で続きます。
+
+### git 操作の制限（厳守）
+今の作業ディレクトリはこのタスク専用の worktree で、ブランチは開いた PR に紐づいている場合があります。
+- **禁止**: \`git push --force\` / \`git reset --hard\` / \`git stash\` / \`git clean\` / ブランチの切替（\`git checkout <branch>\` / \`git switch\`）/ \`.git\` 設定の変更。force-push は開いている PR を閉じて成果を失わせます。
+- **許可**: \`git status\` / \`git diff\` / \`git log\` / \`git add\` / 現在のブランチへの \`git commit\`。コミット・push・PR 作成は基本的に Rapitas が自動で行います。`
         : `\n\n## Implementation phase (strict)
 **You are the IMPLEMENTER. Based on research.md (and plan.md if present), actually implement the code changes.**
 - **Do NOT create plan.md.** The plan phase is already done (follow plan.md if present), or this is a lightweight task whose plan phase is intentionally skipped. Even if CLAUDE.md says to create plan.md, do NOT do so in this implementation phase.
 - Edit code directly (Write/Edit), add/update the relevant tests, and complete the change (do not stop at investigation/planning).
-- The verification phase follows automatically.`;
+- The verification phase follows automatically.
+
+### git restrictions (strict)
+Your working directory is a task-dedicated worktree whose branch may back an OPEN pull request.
+- **Forbidden**: \`git push --force\` / \`git reset --hard\` / \`git stash\` / \`git clean\` / switching branches (\`git checkout <branch>\` / \`git switch\`) / changing \`.git\` config. A force-push closes the open PR and orphans its work.
+- **Allowed**: \`git status\` / \`git diff\` / \`git log\` / \`git add\` / \`git commit\` on the current branch. Rapitas normally creates commits, pushes, and PRs automatically.`;
   }
 
   // Concern Backlog: agents must FILE out-of-scope issues, never fix them inline.

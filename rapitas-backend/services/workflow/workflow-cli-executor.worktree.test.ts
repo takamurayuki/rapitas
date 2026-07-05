@@ -4,9 +4,11 @@
  * executeCLIAgent's per-task git worktree resolution: reuse a still-existing
  * recorded worktree, recreate one when the recorded path is missing/phantom,
  * fall back to the cwd's git root when the theme has no workingDirectory, and
- * refuse to run a mutating role in the backend's own primary checkout when
- * isolation failed. Non-mutating roles (researcher / planner / reviewer) must
- * never touch any of this machinery.
+ * the worktree-or-hard-fail invariant: a mutating role NEVER runs in any
+ * repo's PRIMARY checkout — worktree creation failure is fatal, and the
+ * repo-agnostic isPrimaryWorkTree pre-spawn guard refuses the leftovers.
+ * Non-mutating roles (researcher / planner / reviewer) must never touch any
+ * of this machinery.
  *
  * Uses `role: 'verifier'` with `outputFile: null` as a synthetic "mutating
  * role" fixture so worktree assertions stay isolated from the (separately
@@ -81,7 +83,7 @@ describe('executeCLIAgent — worktree resolution', () => {
 
     expect(spies.resolveLatestSessionWorktree).not.toHaveBeenCalled();
     expect(spies.createWorktree).not.toHaveBeenCalled();
-    expect(spies.isBackendPrimaryCheckout).not.toHaveBeenCalled();
+    expect(spies.isPrimaryWorkTree).not.toHaveBeenCalled();
     // By design (see the executor's `effectiveWorkDir` ternary — non-mutating
     // roles always run at process.cwd(), regardless of themeWorkDir).
     const [, options] = lastExecuteTaskCall();
@@ -157,22 +159,26 @@ describe('executeCLIAgent — worktree resolution', () => {
     expect(base).toBe('/fake/git/root');
   });
 
-  test('runs without isolation when there is no themeWorkDir AND no git root', async () => {
+  test('refuses a mutating role when there is no themeWorkDir, no git root, and cwd is a primary checkout', async () => {
     wf.taskWithTheme = {
       ...wf.taskWithTheme!,
       theme: { workingDirectory: null, name: 'No Dir Theme' },
     };
     wf.latestSessionWorktree = null;
     // wf.gitRevParseImpl defaults to rejecting ("not a git repository").
+    // In production process.cwd() is the backend's own primary checkout —
+    // isPrimaryWorkTree also fails safe to true for non-git dirs.
+    wf.isPrimaryWorkTree = true;
 
-    await run(mutatingTransition());
+    const result = await run(mutatingTransition());
 
     expect(spies.createWorktree).not.toHaveBeenCalled();
-    const [, options] = lastExecuteTaskCall();
-    expect(options.workingDirectory).toBe(process.cwd());
+    expect(result.success).toBe(false);
+    expect(result.error).toContain('primary チェックアウト');
+    expect(spies.executeTask).not.toHaveBeenCalled();
   });
 
-  test('swallows a createWorktree failure and continues without isolation', async () => {
+  test('a createWorktree failure is FATAL for a mutating role (no un-isolated fallback)', async () => {
     wf.latestSessionWorktree = null;
     wf.createWorktreeImpl = async () => {
       throw new Error('git worktree add failed');
@@ -181,17 +187,16 @@ describe('executeCLIAgent — worktree resolution', () => {
     const result = await run(mutatingTransition());
 
     expect(spies.createWorktree).toHaveBeenCalledTimes(1);
-    expect(result.success).toBe(true);
-    const [, options] = lastExecuteTaskCall();
-    // Falls back to themeWorkDir — never crashes the whole phase over a
-    // worktree-creation error.
-    expect(options.workingDirectory).toBe('/fake/project');
+    expect(result.success).toBe(false);
+    expect(result.error).toContain('worktree の作成に失敗');
+    expect(spies.executeTask).not.toHaveBeenCalled();
+    expect(spies.agentSessionCreate).not.toHaveBeenCalled();
   });
 
-  test('refuses to run a mutating role in the backend primary checkout', async () => {
+  test('refuses to run a mutating role in ANY primary checkout (repo-agnostic)', async () => {
     wf.latestSessionWorktree = { worktreePath: '/fake/worktree/existing', branchName: 'x' };
     wf.canReuseWorktree = true;
-    wf.isBackendPrimaryCheckout = true;
+    wf.isPrimaryWorkTree = true;
     wf.taskWithTheme = { ...wf.taskWithTheme!, workflowStatus: 'plan_approved' };
 
     const result = await run(mutatingTransition());
@@ -206,7 +211,7 @@ describe('executeCLIAgent — worktree resolution', () => {
   test('the primary-checkout refusal also applies to auto_verifier', async () => {
     wf.latestSessionWorktree = { worktreePath: '/fake/worktree/existing', branchName: 'x' };
     wf.canReuseWorktree = true;
-    wf.isBackendPrimaryCheckout = true;
+    wf.isPrimaryWorkTree = true;
 
     const result = await run(autoVerifierTransition());
 
@@ -214,12 +219,26 @@ describe('executeCLIAgent — worktree resolution', () => {
     expect(spies.executeTask).not.toHaveBeenCalled();
   });
 
-  test('isBackendPrimaryCheckout is never even consulted for a non-mutating role', async () => {
-    wf.isBackendPrimaryCheckout = true;
+  test('RAPITAS_ALLOW_PRIMARY_EXEC=1 escape hatch restores the old fallback behavior', async () => {
+    wf.latestSessionWorktree = { worktreePath: '/fake/worktree/existing', branchName: 'x' };
+    wf.canReuseWorktree = true;
+    wf.isPrimaryWorkTree = true;
+    process.env.RAPITAS_ALLOW_PRIMARY_EXEC = '1';
+    try {
+      const result = await run(mutatingTransition());
+      expect(result.success).toBe(true);
+      expect(spies.executeTask).toHaveBeenCalled();
+    } finally {
+      delete process.env.RAPITAS_ALLOW_PRIMARY_EXEC;
+    }
+  });
+
+  test('the primary guard is never even consulted for a non-mutating role', async () => {
+    wf.isPrimaryWorkTree = true;
 
     const result = await run(nonMutatingTransition());
 
-    expect(spies.isBackendPrimaryCheckout).not.toHaveBeenCalled();
+    expect(spies.isPrimaryWorkTree).not.toHaveBeenCalled();
     expect(result.success).toBe(true);
   });
 });

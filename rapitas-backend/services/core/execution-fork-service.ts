@@ -8,6 +8,7 @@
 import { prisma } from '../../config/database';
 import { createLogger } from '../../config/logger';
 import { GitOperations } from '../agents/orchestrator/git-operations';
+import { ensureNotPrimaryWorkTree } from '../agents/orchestrator/git-operations/worktree-guard';
 
 const log = createLogger('execution-fork');
 
@@ -108,6 +109,15 @@ export async function forkExecution(input: ForkExecutionInput): Promise<ForkResu
     } catch (err) {
       log.error({ err }, `[ForkExecution] Failed to create worktree for fork`);
       return { success: false, error: 'Failed to create fork worktree' };
+    }
+
+    // SAFETY (defense-in-depth): never spawn a fork agent on a path that turned
+    // out to be a PRIMARY checkout (partial createWorktree failure class).
+    try {
+      await ensureNotPrimaryWorkTree(worktreePath, 'spawn a fork agent');
+    } catch (err) {
+      log.error({ err, worktreePath }, `[ForkExecution] Fork worktree failed isolation check`);
+      return { success: false, error: 'Fork worktree failed isolation check' };
     }
 
     // Create a new AgentSession for this fork

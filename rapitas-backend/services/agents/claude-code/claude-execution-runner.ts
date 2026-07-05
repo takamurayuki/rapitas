@@ -104,6 +104,26 @@ export function buildClaudeArgs(agent: ClaudeCodeAgent): { args: string[]; logEx
     'ToolSearch',
     'Skill',
     'Task',
+    // NOTE(security): destructive git operations are denied even in mutating
+    // mode. The agent works in a disposable worktree, but its branch may back
+    // an OPEN PR (force-push auto-closes/orphans it — observed with PR #253),
+    // `git stash` on a shared branch has clobbered real work before, and
+    // reset --hard / clean erase the agent's own uncommitted progress that the
+    // repair loop may still need. Prefix rules — a determined prompt injection
+    // can rephrase, so the worktree isolation guard remains the real boundary;
+    // this denylist removes the ACCIDENTAL destruction class.
+    'Bash(git push --force:*)',
+    'Bash(git push -f:*)',
+    'Bash(git reset --hard:*)',
+    'Bash(git clean:*)',
+    'Bash(git stash:*)',
+    'Bash(git switch:*)',
+    'PowerShell(git push --force:*)',
+    'PowerShell(git push -f:*)',
+    'PowerShell(git reset --hard:*)',
+    'PowerShell(git clean:*)',
+    'PowerShell(git stash:*)',
+    'PowerShell(git switch:*)',
   ];
   if (cfg.investigationMode) {
     // Investigation mode (research / planner / reviewer): additionally block

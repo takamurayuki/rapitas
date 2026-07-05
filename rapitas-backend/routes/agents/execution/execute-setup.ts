@@ -16,6 +16,7 @@ import { createLogger } from '../../../config/logger';
 import { AgentWorkerManager } from '../../../services/agents/agent-worker-manager';
 import { toJsonString } from '../../../utils/database/db-helpers';
 import { generateFallbackBranchName } from '../../../utils/common/branch-name-generator';
+import { ensureNotPrimaryWorkTree } from '../../../services/agents/orchestrator/git-operations/worktree-guard';
 
 const log = createLogger('routes:agent-execution:setup');
 const agentWorkerManager = AgentWorkerManager.getInstance();
@@ -141,6 +142,12 @@ export async function executeSetup(params: ExecuteSetupParams): Promise<SetupRes
     // NOTE: Re-throw — caller will return an error response and release the lock.
     throw worktreeError;
   }
+
+  // SAFETY (defense-in-depth): assert the path createWorktree returned really is
+  // a LINKED worktree. A create path that mkdir-succeeds but leaves the dir
+  // non-isolated (the task-288 class of partial failure) would otherwise spawn a
+  // bypass-permissions agent on the parent PRIMARY checkout with no backstop.
+  await ensureNotPrimaryWorkTree(worktreePath, 'spawn an agent');
 
   // NOTE: Three writes below are independent (no FK ordering between them) —
   // run them concurrently to shave ~30-90ms off the response path.
