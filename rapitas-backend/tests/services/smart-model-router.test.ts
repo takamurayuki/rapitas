@@ -164,6 +164,38 @@ describe('getSmartRoute — minTier フロア（引き上げのみ・引き下�
   });
 });
 
+describe('getSmartRoute — capTier（実績に基づく引き下げ・1段階まで）', () => {
+  test('standard 推奨 + capTier=economy → economy へ引き下げ、reason に実績根拠', async () => {
+    taskRow = { complexityScore: 55, title: 'T', priority: 'medium' };
+    selectBestModelImpl = (ctx) => ({ model: model('m', ctx.desiredTier), tier: ctx.desiredTier });
+    const route = await getSmartRoute(1, { capTier: 'economy' });
+    expect(route.recommendedTier).toBe('economy');
+    expect(route.reason).toContain('実績');
+  });
+
+  test('premium 推奨 + capTier=economy → 1段階の standard 止まり', async () => {
+    taskRow = { complexityScore: 90, title: 'T', priority: 'urgent' };
+    selectBestModelImpl = (ctx) => ({ model: model('m', ctx.desiredTier), tier: ctx.desiredTier });
+    const route = await getSmartRoute(1, { capTier: 'economy' });
+    expect(route.recommendedTier).toBe('standard');
+  });
+
+  test('capTier が推奨より高い場合は引き上げない（cap は下げ専用）', async () => {
+    taskRow = { complexityScore: 20, title: 'T', priority: 'medium' };
+    selectBestModelImpl = (ctx) => ({ model: model('m', ctx.desiredTier), tier: ctx.desiredTier });
+    const route = await getSmartRoute(1, { capTier: 'premium' });
+    expect(route.recommendedTier).toBe('economy');
+  });
+
+  test('minTier フロアは capTier より優先される', async () => {
+    taskRow = { complexityScore: 55, title: 'T', priority: 'medium' };
+    selectBestModelImpl = (ctx) => ({ model: model('m', ctx.desiredTier), tier: ctx.desiredTier });
+    const route = await getSmartRoute(1, { capTier: 'economy', minTier: 'standard' });
+    expect(route.recommendedTier).toBe('standard');
+    expect(route.reason).not.toContain('実績');
+  });
+});
+
 describe('getSmartRoute — cooldown プロバイダーの自動除外（フォールバック）', () => {
   test('cooldown 中の provider が excludeProviders にマージされる', async () => {
     markProviderCooldown('openai', 'quota');
@@ -239,6 +271,35 @@ describe('getBudgetStatus — 推奨メッセージの閾値', () => {
     const status = await getBudgetStatus(5);
     expect(status.spent).toBe(0);
     expect(status.recommendation).toContain('✅');
+  });
+
+  test('記録済み costUsd がある実行は実測値で spent を計算する', async () => {
+    // tokensUsed×単価なら 1000*0.006=6.0 だが、実測 costUsd=1.5 が優先される
+    agentExecutions = [
+      { tokensUsed: 1_000_000, costUsd: 1.5, agentConfig: { modelId: 'm' } } as never,
+    ];
+    discoveryModels = [];
+    const status = await getBudgetStatus(5);
+    expect(status.spent).toBe(1.5);
+    expect(status.recommendation).toContain('✅');
+  });
+
+  test('costUsd が旧二重エンコード文字列でも実測値として解釈する', async () => {
+    agentExecutions = [
+      { tokensUsed: 1_000_000, costUsd: '"2.5"', agentConfig: { modelId: 'm' } } as never,
+    ];
+    discoveryModels = [];
+    const status = await getBudgetStatus(5);
+    expect(status.spent).toBe(2.5);
+  });
+
+  test('costUsd=0 の旧行はレート見積へフォールバックする', async () => {
+    agentExecutions = [
+      { tokensUsed: 1_000_000, costUsd: 0, agentConfig: { modelId: 'm' } } as never,
+    ];
+    discoveryModels = [];
+    const status = await getBudgetStatus(5); // 1000 * 0.006 = 6.0
+    expect(status.spent).toBe(6);
   });
 
   test('weeklyBudget未指定（null）→ remaining は null', async () => {

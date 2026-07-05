@@ -632,18 +632,35 @@ export class WorkflowOrchestrator {
           planContent,
         });
 
+        // Evidence layer: the cheapest tier with a PROVEN success record for
+        // this role (recorded outcomes, role-evidence.ts). Only consulted on
+        // the safe path — escalation and high-risk work keep their premium
+        // floors and never downgrade on history.
+        const { resolveProvenTier } = await import('./role-evidence');
+        const provenTier =
+          escalation === 0 && !riskHigh
+            ? await resolveProvenTier(transition.role).catch(() => undefined)
+            : undefined;
+
         // Role floor + escalation + risk → the minimum tier SmartRouter may not
-        // go below (it still RAISES further when complexity is high).
-        const minTier = computeMinTier({ role: transition.role, escalation, riskHigh });
-        // NOTE (determinism): pinned per taskId+role+minTier so a same-phase
-        // retry (queue re-run, discovery cache rollover, a provider briefly
-        // flapping in/out of cooldown) reuses the SAME model instead of
-        // silently re-routing. A genuine escalation/risk change computes a
-        // different minTier, which is a different cache key, so it still
-        // re-routes deliberately. See services/ai/model-route-stability.ts.
+        // go below (it still RAISES further when complexity is high). The
+        // evidence-proven tier relaxes the static role floor only.
+        const minTier = computeMinTier({
+          role: transition.role,
+          escalation,
+          riskHigh,
+          provenTier,
+        });
+        // NOTE (determinism): pinned per taskId+role+minTier+capTier so a
+        // same-phase retry (queue re-run, discovery cache rollover, a provider
+        // briefly flapping in/out of cooldown) reuses the SAME model instead of
+        // silently re-routing. A genuine escalation/risk/evidence change
+        // computes a different key, so it still re-routes deliberately. See
+        // services/ai/model-route-stability.ts.
         const route = await getStableSmartRoute(taskId, transition.role, {
           ...prefs,
           minTier,
+          capTier: provenTier,
           includeAlternatives: false,
         });
         effectiveModelId = route.recommendedModel;
@@ -654,6 +671,7 @@ export class WorkflowOrchestrator {
             model: effectiveModelId,
             tier: route.recommendedTier,
             minTier: minTier ?? null,
+            provenTier: provenTier ?? null,
             escalation,
             riskHigh,
             riskReason: riskReason ?? null,

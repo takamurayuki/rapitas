@@ -86,17 +86,33 @@ export function detectHighRisk(opts: { text?: string | null; planContent?: strin
  * escalation level, and the risk override. Returned to SmartRouter as
  * `minTier`, which only ever RAISES the complexity/budget tier.
  *
+ * The static role floor exists because, absent evidence, capability phases
+ * are unsafe on economy models. When the caller supplies `provenTier` —
+ * a cheaper tier with a measured ≥90% success record for THIS role (see
+ * role-evidence.ts) — the role floor relaxes to it. Escalation and risk
+ * floors are never relaxed: a model that just failed, or high-risk work,
+ * still forces premium regardless of history.
+ *
  * @param opts.role - Workflow role being executed. / 実行中のロール
  * @param opts.escalation - Prior failed attempts for this task (queue retryCount). / 失敗回数
  * @param opts.riskHigh - Whether detectHighRisk flagged the work. / 高リスクか
+ * @param opts.provenTier - Evidence-proven cheaper tier for this role, if any. / 実証済みティア
  * @returns The floor tier, or undefined for no floor. / 下限ティア（無ければ undefined）
  */
 export function computeMinTier(opts: {
   role: string;
   escalation: number;
   riskHigh: boolean;
+  provenTier?: ModelTier;
 }): ModelTier | undefined {
-  const roleFloor: ModelTier | undefined = isCapabilityRole(opts.role) ? 'standard' : undefined;
+  let roleFloor: ModelTier | undefined = isCapabilityRole(opts.role) ? 'standard' : undefined;
+  if (
+    roleFloor &&
+    opts.provenTier &&
+    TIER_ORDER.indexOf(opts.provenTier) > TIER_ORDER.indexOf(roleFloor)
+  ) {
+    roleFloor = opts.provenTier;
+  }
   // A weak model already failed this task — go strong on the retry.
   const escalationFloor: ModelTier | undefined = opts.escalation >= 1 ? 'premium' : undefined;
   const riskFloor: ModelTier | undefined = opts.riskHigh ? 'premium' : undefined;

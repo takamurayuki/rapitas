@@ -34,6 +34,9 @@ const MODEL_COST_RATES: Record<string, number> = {};
 /** Tier fallback table mirroring `MODEL_COST_RATES`. Empty by design. */
 const MODEL_TIERS: Record<string, 'premium' | 'standard' | 'economy' | 'free'> = {};
 
+/** Highest → lowest capability. Index 0 is the strongest tier. */
+const TIER_ORDER: ModelTier[] = ['premium', 'standard', 'economy', 'free'];
+
 /** Provider label shown in trade-off strings. */
 const PROVIDER_LABEL: Record<'claude' | 'openai' | 'gemini' | 'ollama', string> = {
   claude: 'Claude',
@@ -41,6 +44,20 @@ const PROVIDER_LABEL: Record<'claude' | 'openai' | 'gemini' | 'ollama', string> 
   gemini: 'Gemini',
   ollama: 'Ollama (ローカル)',
 };
+
+/**
+ * Coerce a recorded AgentExecution.costUsd (Prisma Decimal | number | string,
+ * incl. legacy double-JSON-encoded strings like `"\"0.5\""`) to a number.
+ *
+ * @param v - Raw column value / 生のカラム値
+ * @returns Finite non-negative number, 0 when unparseable / パース不能時は0
+ */
+function coerceCostUsd(v: unknown): number {
+  if (v === null || v === undefined) return 0;
+  if (typeof v === 'number') return Number.isFinite(v) && v > 0 ? v : 0;
+  const n = parseFloat(String(v).replace(/"/g, ''));
+  return Number.isFinite(n) && n > 0 ? n : 0;
+}
 
 /** Pre-execution cost estimate. */
 export type CostEstimate = {
@@ -179,6 +196,14 @@ export interface SmartRouteOptions {
    * cost-explorer, NOT by the orchestrator's decision. Default true.
    */
   includeAlternatives?: boolean;
+  /**
+   * Evidence-proven cheaper tier for the role being routed (role-evidence.ts).
+   * LOWERS the complexity/budget tier toward it — by at most ONE step per
+   * decision, and never below `minTier` — so proven-cheap models are actually
+   * chosen instead of the heuristic always paying for the safe default.
+   * Callers must not pass this when escalation/risk floors are active.
+   */
+  capTier?: ModelTier;
 }
 
 export async function getSmartRoute(
@@ -214,13 +239,28 @@ export async function getSmartRoute(
     recommendedTier = isUrgent ? 'premium' : 'standard';
   }
 
+  // Evidence cap: when a cheaper tier has a proven success record for this
+  // role, lower the heuristic tier toward it — at most ONE step per decision
+  // so a high-complexity task never jumps straight from premium to economy on
+  // evidence gathered mostly from smaller tasks.
+  let evidenceApplied = false;
+  if (opts.capTier) {
+    const rec = TIER_ORDER.indexOf(recommendedTier as ModelTier);
+    const cap = TIER_ORDER.indexOf(opts.capTier);
+    if (cap > rec) {
+      recommendedTier = TIER_ORDER[Math.min(cap, rec + 1)];
+      evidenceApplied = true;
+    }
+  }
+
   // Role floor: raise (never lower) the tier to the caller's minimum so
   // capability-critical phases don't run on an economy model on a low-complexity
-  // task. TIER_ORDER index 0 = highest capability.
+  // task. Applied AFTER the evidence cap — floors always win. TIER_ORDER
+  // index 0 = highest capability.
   if (opts.minTier) {
-    const TIER_ORDER: ModelTier[] = ['premium', 'standard', 'economy', 'free'];
     if (TIER_ORDER.indexOf(recommendedTier as ModelTier) > TIER_ORDER.indexOf(opts.minTier)) {
       recommendedTier = opts.minTier;
+      evidenceApplied = false;
     }
   }
 
@@ -287,13 +327,15 @@ export async function getSmartRoute(
   const finalModel = recommendedModel ?? discovery.models[0]?.id ?? 'claude-sonnet-4-6';
   const costEstimate = await estimateCost(complexity, finalModel);
 
-  const reason = budgetPressure
-    ? `予算残高が少ないため${recommendedTier}モデルを推奨`
-    : complexity <= 35
-      ? `複雑度${complexity}（低）のため${recommendedTier}モデルで十分`
-      : complexity > 70
-        ? `複雑度${complexity}（高）のため${recommendedTier}モデルを推奨`
-        : `複雑度${complexity}（中）に基づき${recommendedTier}モデルを推奨`;
+  const reason = evidenceApplied
+    ? `直近の実行実績でこのロールは${recommendedTier}モデルの成功率が高いため引き下げ`
+    : budgetPressure
+      ? `予算残高が少ないため${recommendedTier}モデルを推奨`
+      : complexity <= 35
+        ? `複雑度${complexity}（低）のため${recommendedTier}モデルで十分`
+        : complexity > 70
+          ? `複雑度${complexity}（高）のため${recommendedTier}モデルを推奨`
+          : `複雑度${complexity}（中）に基づき${recommendedTier}モデルを推奨`;
 
   const availableProviders = discovery.providers.filter((p) => p.available).map((p) => p.provider);
   log.info(
@@ -341,6 +383,16 @@ export async function getBudgetStatus(weeklyBudget: number | null = null): Promi
   const rateById = new Map(discoveredForBudget.map((m) => [m.id, m.costPer1kTokens ?? 0]));
   let spent = 0;
   for (const exec of executions) {
+    // Prefer the REAL recorded cost (parsed from the CLI's total_cost_usd).
+    // The tokensUsed×rate estimate includes cache-read tokens at full rate,
+    // which overstates spend by orders of magnitude on cache-heavy runs and
+    // made budgetPressure fire spuriously. Estimate only for legacy rows
+    // that predate cost recording.
+    const recorded = coerceCostUsd((exec as { costUsd?: unknown }).costUsd);
+    if (recorded > 0) {
+      spent += recorded;
+      continue;
+    }
     const modelId = exec.agentConfig?.modelId || 'default';
     const rate =
       rateById.get(modelId) ??

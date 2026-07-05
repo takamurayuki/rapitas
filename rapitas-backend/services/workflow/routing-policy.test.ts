@@ -63,4 +63,42 @@ describe('computeMinTier', () => {
   test('高リスクは premium に引き上げ', () => {
     expect(computeMinTier({ role: 'planner', escalation: 0, riskHigh: true })).toBe('premium');
   });
+  test('実証済みティアは capability ロールの床を緩和する', () => {
+    expect(
+      computeMinTier({
+        role: 'implementer',
+        escalation: 0,
+        riskHigh: false,
+        provenTier: 'economy',
+      }),
+    ).toBe('economy');
+  });
+  test('実証済みティアが床より強い場合は緩和しない（床は下がるだけ）', () => {
+    expect(
+      computeMinTier({
+        role: 'implementer',
+        escalation: 0,
+        riskHigh: false,
+        provenTier: 'premium',
+      }),
+    ).toBe('standard');
+  });
+  test('高リスク/エスカレーション時は実証済みでも premium を維持', () => {
+    expect(
+      computeMinTier({ role: 'implementer', escalation: 0, riskHigh: true, provenTier: 'economy' }),
+    ).toBe('premium');
+    expect(
+      computeMinTier({
+        role: 'implementer',
+        escalation: 1,
+        riskHigh: false,
+        provenTier: 'economy',
+      }),
+    ).toBe('premium');
+  });
+  test('非 capability ロールは provenTier があっても床なしのまま', () => {
+    expect(
+      computeMinTier({ role: 'researcher', escalation: 0, riskHigh: false, provenTier: 'economy' }),
+    ).toBeUndefined();
+  });
 });

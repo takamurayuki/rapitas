@@ -29,8 +29,16 @@ import { getSmartRoute, type SmartRouteOptions, type RoutingDecision } from './s
 
 const routeCache = new Map<string, RoutingDecision>();
 
-function cacheKey(taskId: number, role: string, minTier?: string | null): string {
-  return `${taskId}:${role}:${minTier ?? 'none'}`;
+// NOTE: capTier joins minTier in the key so an evidence change (a role newly
+// proving a cheaper tier, or losing that proof) re-routes deliberately instead
+// of being masked by a stale pin.
+function cacheKey(
+  taskId: number,
+  role: string,
+  minTier?: string | null,
+  capTier?: string | null,
+): string {
+  return `${taskId}:${role}:${minTier ?? 'none'}:${capTier ?? 'none'}`;
 }
 
 /**
@@ -47,7 +55,7 @@ export async function getStableSmartRoute(
   role: string,
   options: SmartRouteOptions = {},
 ): Promise<RoutingDecision> {
-  const key = cacheKey(taskId, role, options.minTier);
+  const key = cacheKey(taskId, role, options.minTier, options.capTier);
   const cached = routeCache.get(key);
   if (cached) return cached;
 

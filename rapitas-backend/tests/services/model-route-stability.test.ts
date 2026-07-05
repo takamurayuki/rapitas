@@ -85,6 +85,21 @@ describe('getStableSmartRoute — キャッシュミス（別キー）', () => {
   });
 });
 
+describe('getStableSmartRoute — capTier もキーに含まれる', () => {
+  test('capTier が異なれば別キー — 実績変化による引き下げは再ルートされる', async () => {
+    await getStableSmartRoute(7, 'implementer', { minTier: 'standard' });
+    await getStableSmartRoute(7, 'implementer', { minTier: 'standard', capTier: 'economy' });
+    expect(getSmartRouteCallCount).toBe(2);
+  });
+
+  test('同一 capTier の再呼び出しはキャッシュヒットする', async () => {
+    const first = await getStableSmartRoute(7, 'implementer', { capTier: 'economy' });
+    const second = await getStableSmartRoute(7, 'implementer', { capTier: 'economy' });
+    expect(getSmartRouteCallCount).toBe(1);
+    expect(second).toBe(first);
+  });
+});
+
 describe('invalidateStableRoute — 指定 taskId:role の全 minTier バリアントのみ消去', () => {
   test('無効化後の再呼び出しは再ルートされる', async () => {
     await getStableSmartRoute(1, 'implementer', {});
