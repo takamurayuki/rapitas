@@ -427,7 +427,13 @@
       "daysButton": "{days}d",
       "noData": "No execution data in this window",
       "otherAgent": "Other",
-      "cardStats": "{executions} runs ({failed} failed) · {tokens} output tokens"
+      "cardStats": "{executions} runs ({failed} failed) · {tokens} output tokens",
+      "subGaugeLabel": "Subscription window ({hours}h rolling)",
+      "subResets": "resets {time}",
+      "subIdle": "no active window (unused)",
+      "subRemaining": "{remaining} left ({percent}% used)",
+      "subCovered": "period: {amount} within plan",
+      "subOverage": "{amount} over limit"
     },
     "agentUsage": {
       "title": "Usage by role",

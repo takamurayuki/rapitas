@@ -27,12 +27,30 @@ interface CliAgentUsageEntry {
   averageExecutionTimeMs: number | null;
 }
 
+interface SubscriptionUsage {
+  windowHours: number;
+  windowLimitUsd: number;
+  currentWindow: {
+    startedAt: string | null;
+    endsAt: string | null;
+    usedUsd: number;
+    remainingUsd: number;
+    usedRatio: number;
+  };
+  period: {
+    coveredUsd: number;
+    overageUsd: number;
+  };
+}
+
 interface UsageBreakdownResponse {
   windowDays: number;
   totalCostUsd: number;
   totalExecutions: number;
-  usdJpyRate: number;
-  agents: CliAgentUsageEntry[];
+  usdJpyRate?: number;
+  /** Absent on pre-upgrade backends — treat as empty (no crash). */
+  agents?: CliAgentUsageEntry[];
+  subscription?: SubscriptionUsage | null;
 }
 
 const WINDOW_OPTIONS = [7, 14, 30] as const;
@@ -52,6 +70,58 @@ const AGENT_LABELS: Record<string, string> = {
   codex: 'Codex',
   gemini: 'Gemini',
 };
+
+/**
+ * Subscription window gauge: how much of the current rolling window remains,
+ * plus the period's covered-vs-overage split (overage is tracked separately).
+ */
+function SubscriptionGauge({ sub, rate }: { sub: SubscriptionUsage; rate: number }) {
+  const t = useTranslations('home');
+  const active = sub.currentWindow.startedAt != null;
+  const ratio = sub.currentWindow.usedRatio;
+  const barColor = ratio >= 0.9 ? 'bg-red-500' : ratio >= 0.75 ? 'bg-amber-500' : 'bg-indigo-500';
+  const resetTime = sub.currentWindow.endsAt
+    ? new Date(sub.currentWindow.endsAt).toLocaleTimeString('ja-JP', {
+        hour: '2-digit',
+        minute: '2-digit',
+      })
+    : null;
+
+  return (
+    <div className="rounded-lg bg-zinc-50 px-3 py-2 dark:bg-zinc-800/50">
+      <div className="flex items-center justify-between text-[11px] text-zinc-500 dark:text-zinc-400">
+        <span>{t('cliUsage.subGaugeLabel', { hours: sub.windowHours })}</span>
+        <span>
+          {active && resetTime
+            ? t('cliUsage.subResets', { time: resetTime })
+            : t('cliUsage.subIdle')}
+        </span>
+      </div>
+      <div className="mt-1.5 h-2 w-full overflow-hidden rounded-full bg-zinc-200 dark:bg-zinc-700">
+        <div
+          className={`h-full rounded-full ${barColor}`}
+          style={{ width: `${Math.min(100, ratio * 100)}%` }}
+        />
+      </div>
+      <div className="mt-1 flex items-center justify-between text-xs">
+        <span className="font-medium text-zinc-800 dark:text-zinc-200">
+          {t('cliUsage.subRemaining', {
+            remaining: formatJpy(sub.currentWindow.remainingUsd, rate),
+            percent: Math.min(999, Math.round(ratio * 100)),
+          })}
+        </span>
+        <span className="text-zinc-500 dark:text-zinc-400">
+          {t('cliUsage.subCovered', { amount: formatJpy(sub.period.coveredUsd, rate) })}
+          {sub.period.overageUsd > 0 && (
+            <span className="ml-2 font-medium text-red-600 dark:text-red-400">
+              {t('cliUsage.subOverage', { amount: formatJpy(sub.period.overageUsd, rate) })}
+            </span>
+          )}
+        </span>
+      </div>
+    </div>
+  );
+}
 
 export default function CliAgentUsageWidget() {
   const t = useTranslations('home');
@@ -86,6 +156,11 @@ export default function CliAgentUsageWidget() {
   }, [windowDays]);
 
   const rate = data?.usdJpyRate ?? DEFAULT_USD_JPY_RATE;
+  // NOTE: A backend that predates this widget returns no `agents` field —
+  // default to [] so the widget degrades to its empty state instead of
+  // crashing on `.length` (observed live before the backend restart).
+  const agents = data?.agents ?? [];
+  const subscription = data?.subscription ?? null;
   const labelOf = (agent: string) => AGENT_LABELS[agent] ?? t('cliUsage.otherAgent');
   const colorOf = (agent: string) => AGENT_COLORS[agent] ?? AGENT_COLORS.other;
 
@@ -131,16 +206,18 @@ export default function CliAgentUsageWidget() {
         </div>
       ) : error ? (
         <div className="flex h-28 items-center justify-center text-xs text-red-500">{error}</div>
-      ) : !data || data.agents.length === 0 ? (
+      ) : !data || agents.length === 0 ? (
         <div className="flex h-28 items-center justify-center text-xs text-zinc-500 dark:text-zinc-400">
           {t('cliUsage.noData')}
         </div>
       ) : (
         <div className="space-y-3">
+          {subscription && <SubscriptionGauge sub={subscription} rate={rate} />}
+
           {/* Cost share bar across agents */}
           {data.totalCostUsd > 0 && (
             <div className="flex h-2 w-full overflow-hidden rounded-full bg-zinc-100 dark:bg-zinc-800">
-              {data.agents
+              {agents
                 .filter((a) => a.shareOfCost > 0)
                 .map((a) => (
                   <div
@@ -154,7 +231,7 @@ export default function CliAgentUsageWidget() {
 
           {/* Per-agent cards */}
           <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
-            {data.agents.map((a) => (
+            {agents.map((a) => (
               <div key={a.agent} className="rounded-lg bg-zinc-50 px-3 py-2 dark:bg-zinc-800/50">
                 <div className="flex items-center justify-between">
                   <span className="flex items-center gap-1.5 text-xs font-medium text-zinc-700 dark:text-zinc-300">

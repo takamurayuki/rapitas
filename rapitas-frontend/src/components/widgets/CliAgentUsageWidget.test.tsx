@@ -82,6 +82,49 @@ describe('CliAgentUsageWidget', () => {
     expect(screen.getByText('20%')).toBeInTheDocument();
   });
 
+  it('does not crash on a legacy payload without the agents field', async () => {
+    // A backend that predates this widget returns roles/dailyRoleCost only.
+    mockFetch.mockResolvedValue({
+      ok: true,
+      json: async () => ({ windowDays: 14, totalCostUsd: 5, totalExecutions: 3 }),
+    });
+
+    render(<CliAgentUsageWidget />);
+    expect(await screen.findByText('cliUsage.noData')).toBeInTheDocument();
+  });
+
+  it('renders the subscription gauge with remaining budget and overage split', async () => {
+    mockFetch.mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        ...breakdown,
+        subscription: {
+          windowHours: 5,
+          windowLimitUsd: 35,
+          currentWindow: {
+            startedAt: '2026-07-06T08:00:00.000Z',
+            endsAt: '2026-07-06T13:00:00.000Z',
+            usedUsd: 28,
+            remainingUsd: 7,
+            usedRatio: 0.8,
+          },
+          period: { coveredUsd: 100, overageUsd: 2 },
+        },
+      }),
+    });
+
+    render(<CliAgentUsageWidget />);
+
+    // remaining ¥1,050 (7 × 150), 80% used; covered ¥15,000; overage ¥300.
+    expect(
+      await screen.findByText(`cliUsage.subRemaining:{"remaining":"¥1,050","percent":80}`),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(`cliUsage.subCovered:{"amount":"¥${(15000).toLocaleString('ja-JP')}"}`),
+    ).toBeInTheDocument();
+    expect(screen.getByText(`cliUsage.subOverage:{"amount":"¥300"}`)).toBeInTheDocument();
+  });
+
   it('shows the empty state when no agents have executions', async () => {
     mockFetch.mockResolvedValue({
       ok: true,

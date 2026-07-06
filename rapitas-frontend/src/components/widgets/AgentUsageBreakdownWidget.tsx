@@ -41,8 +41,9 @@ interface AgentUsageBreakdown {
   totalCostUsd: number;
   totalExecutions: number;
   usdJpyRate?: number;
-  roles: RoleUsageEntry[];
-  dailyRoleCost: DailyRoleCostPoint[];
+  /** Optional so a mismatched backend degrades to empty instead of crashing. */
+  roles?: RoleUsageEntry[];
+  dailyRoleCost?: DailyRoleCostPoint[];
 }
 
 const WINDOW_OPTIONS = [7, 14, 30] as const;
@@ -103,13 +104,14 @@ export default function AgentUsageBreakdownWidget() {
   const colorOf = (role: string) => ROLE_COLORS[role] ?? ROLE_COLORS.other;
 
   const rate = data?.usdJpyRate ?? DEFAULT_USD_JPY_RATE;
+  const roles = data?.roles ?? [];
 
   // Series follow the backend's canonical role order; roles without cost still
   // appear in the table but are dropped from the stacked chart. Chart values
   // are converted to yen up-front so axis/tooltip read directly in JPY.
-  const chartRoles = data ? data.roles.filter((r) => r.costUsd > 0).map((r) => r.role) : [];
+  const chartRoles = roles.filter((r) => r.costUsd > 0).map((r) => r.role);
   const chartData =
-    data?.dailyRoleCost.map((d) => ({
+    data?.dailyRoleCost?.map((d) => ({
       date: d.date.slice(5).replace('-', '/'),
       ...Object.fromEntries(
         Object.entries(d.byRole).map(([k, usd]) => [k, Math.round(usd * rate)]),
@@ -239,7 +241,7 @@ export default function AgentUsageBreakdownWidget() {
                 </tr>
               </thead>
               <tbody>
-                {data.roles.map((r) => (
+                {roles.map((r) => (
                   <tr
                     key={r.role}
                     className="border-t border-zinc-100 text-zinc-600 dark:border-zinc-800 dark:text-zinc-400"

@@ -12,6 +12,11 @@ import { prisma } from '../../../config/database';
 import { toNumber, toInt } from './metric-coercion';
 import { classifyCliAgent, CLI_AGENT_ORDER, type CliAgentKind } from './cli-agent-classifier';
 import { getUsdJpyRate } from './currency-config';
+import {
+  computeSubscriptionUsage,
+  getSubscriptionConfig,
+  type SubscriptionUsage,
+} from './subscription-usage';
 
 /** Canonical display order for the workflow roles. Unknown roles sort after. */
 export const KNOWN_ROLE_ORDER = [
@@ -72,6 +77,8 @@ export interface AgentUsageBreakdown {
   roles: RoleUsageEntry[];
   /** Per-CLI-agent breakdown; only agents with executions appear. */
   agents: CliAgentUsageEntry[];
+  /** Claude subscription window state; null when disabled. */
+  subscription: SubscriptionUsage | null;
   dailyRoleCost: DailyRoleCostPoint[];
 }
 
@@ -185,6 +192,8 @@ export async function getAgentUsageBreakdown(windowDays = 14): Promise<AgentUsag
 
   const roleMap = new Map<string, RoleAccumulator>();
   const agentMap = new Map<CliAgentKind, RoleAccumulator>();
+  // Claude executions feed the subscription-window computation below.
+  const claudeExecs: Array<{ at: Date; costUsd: number }> = [];
   // Pre-seed daily buckets so the stacked chart shows a continuous timeline.
   const dailyMap = new Map<string, DailyRoleCostPoint>();
   for (let i = 0; i < windowDays; i++) {
@@ -231,6 +240,9 @@ export async function getAgentUsageBreakdown(windowDays = 14): Promise<AgentUsag
       agentAcc.timeSamples += 1;
     }
     agentMap.set(cliAgent, agentAcc);
+    if (cliAgent === 'claude-code') {
+      claudeExecs.push({ at: r.startedAt ?? r.createdAt, costUsd: cost });
+    }
 
     totalCostUsd += cost;
 
@@ -276,6 +288,9 @@ export async function getAgentUsageBreakdown(windowDays = 14): Promise<AgentUsag
     }))
     .sort((a, b) => CLI_AGENT_ORDER.indexOf(a.agent) - CLI_AGENT_ORDER.indexOf(b.agent));
 
+  const subCfg = getSubscriptionConfig();
+  const subscription = subCfg.enabled ? computeSubscriptionUsage(claudeExecs, subCfg) : null;
+
   return {
     windowDays,
     totalCostUsd: round6(totalCostUsd),
@@ -283,6 +298,7 @@ export async function getAgentUsageBreakdown(windowDays = 14): Promise<AgentUsag
     usdJpyRate: getUsdJpyRate(),
     roles,
     agents,
+    subscription,
     dailyRoleCost: Array.from(dailyMap.values()).sort((a, b) => a.date.localeCompare(b.date)),
   };
 }

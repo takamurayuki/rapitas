@@ -427,7 +427,13 @@
       "daysButton": "{days}日",
       "noData": "この期間の実行データはありません",
       "otherAgent": "その他",
-      "cardStats": "{executions} 実行（失敗 {failed}）・出力 {tokens} トークン"
+      "cardStats": "{executions} 実行（失敗 {failed}）・出力 {tokens} トークン",
+      "subGaugeLabel": "サブスク枠（{hours}時間ローリング）",
+      "subResets": "リセット {time}",
+      "subIdle": "アクティブな枠なし（未使用）",
+      "subRemaining": "残り {remaining}（{percent}% 使用）",
+      "subCovered": "期間内: 枠内 {amount}",
+      "subOverage": "枠超過 {amount}"
     },
     "agentUsage": {
       "title": "役割別の使用量",
