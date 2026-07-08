@@ -158,7 +158,7 @@ export function IdeaBoxPanel({ categoryId }: IdeaBoxPanelProps) {
               ) : ideas.length === 0 ? (
                 <p className="py-6 text-center text-xs text-zinc-500">{t('emptyState')}</p>
               ) : (
-                <div className="space-y-1.5 max-h-64 overflow-y-auto">
+                <div className="space-y-1.5 max-h-64 overflow-y-auto scrollbar-thin">
                   {ideas.map((idea) => {
                     const meta = CATEGORY_META[idea.category];
                     const label = meta ? t(meta.labelKey) : idea.category;

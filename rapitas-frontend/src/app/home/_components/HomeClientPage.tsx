@@ -276,8 +276,11 @@ function HomeClientPage() {
   const autoRunTheme = selectedThemeForAutoRun?.isDevelopment ? selectedThemeForAutoRun : null;
 
   // --- Render ---
+  // NOTE: scrollbar-thin (hover-only thin bar) — without it a bare
+  // overflow-auto shows a permanent scrollbar whenever the window is narrow
+  // enough (e.g. split screen) for the task list to overflow vertically.
   return (
-    <div className="h-[calc(100vh-4.2rem)] overflow-auto bg-background">
+    <div className="h-[calc(100vh-4.2rem)] overflow-auto scrollbar-thin bg-background">
       <div className="mx-auto max-w-6xl px-3 sm:px-4 md:px-6 py-3 sm:py-4">
         {!isEmptyWorkspace && (
           <>
