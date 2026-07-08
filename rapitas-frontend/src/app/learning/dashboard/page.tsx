@@ -20,7 +20,7 @@ import {
   CheckCircle2,
 } from 'lucide-react';
 
-const API_BASE = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:3001';
+const API_BASE = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://127.0.0.1:3001';
 
 interface ExamGoalData {
   id: number;

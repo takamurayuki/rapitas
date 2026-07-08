@@ -163,7 +163,7 @@ plan.md を読んでも判断できない場合、勝手に推測せず以下の
    - **影響範囲**: [この質問の答え次第で変わるファイル/動作]
    \`\`\`
 3. workflow API で question.md を保存:
-   \`curl -X PUT http://localhost:3001/workflow/tasks/{taskId}/files/question -H 'Content-Type: application/json' -d '{"content":"..."}'\`
+   \`curl -X PUT http://127.0.0.1:3001/workflow/tasks/{taskId}/files/question -H 'Content-Type: application/json' -d '{"content":"..."}'\`
 4. **ここで終了する**。プランナーが回答を反映した plan.md を作成し、再度実装フェーズに戻ってきます。
 
 → ただし、**plan.md がよく書かれていれば質問は出ないはず**。質問が出る = プランナーの記述不足の可能性大。気軽に質問してください。

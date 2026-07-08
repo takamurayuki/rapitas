@@ -170,7 +170,7 @@ export function buildFullInstruction(params: {
 
 1. 既存内容を取得（作業ディレクトリではなくワークフローAPIに保存されています）:
 \`\`\`bash
-curl -s http://localhost:3001/workflow/tasks/${taskId}/files
+curl -s http://127.0.0.1:3001/workflow/tasks/${taskId}/files
 \`\`\`
 （レスポンスの research.content / plan.content を読む）
 
@@ -201,7 +201,7 @@ curl -s http://localhost:3001/workflow/tasks/${taskId}/files
 **この実行で実装(コード変更)を始めないでください。** 実装は調査完了後、Rapitas が自動で次フェーズ(実装)を起動して行います。CLAUDE.md に「Step 2 — Plan / plan.md を作成」とあっても従わないでください。
 
 ### Step 1: 調査 (research.md の作成)
-- 既存の research.md があれば取得（\`curl -s http://localhost:3001/workflow/tasks/${taskId}/files\`）して妥当性を評価。**妥当でも、軽量モードでは下記の "次フェーズ起動" のために必ず一度 PUT で再保存**してください（内容は同等で可）。不足なら補って保存。無ければ調査して保存。
+- 既存の research.md があれば取得（\`curl -s http://127.0.0.1:3001/workflow/tasks/${taskId}/files\`）して妥当性を評価。**妥当でも、軽量モードでは下記の "次フェーズ起動" のために必ず一度 PUT で再保存**してください（内容は同等で可）。不足なら補って保存。無ければ調査して保存。
 - 軽量モードは後続に計画フェーズが無いため、research.md は**実装に直接使える具体度**（変更対象ファイル・具体的な修正方針・テスト方針）まで書くこと。判断を後続へ先送りしない。
 
 ### Step 1.4: 既に要件を満たしている場合（修正不要での完了）
@@ -241,7 +241,7 @@ research.md を保存したら、**コードを一切変更せずにすぐ終了
 5. 以下の API で research.md を保存:
 
 \`\`\`bash
-curl -X PUT http://localhost:3001/workflow/tasks/${taskId}/files/research \\
+curl -X PUT http://127.0.0.1:3001/workflow/tasks/${taskId}/files/research \\
   -H 'Content-Type: application/json' \\
   -d '{"content":"<下記テンプレートで埋める>"}'
 \`\`\`
@@ -279,7 +279,7 @@ research.md テンプレート:
 固定の定型質問ではなく、**この調査で実際に不明だった点**のうち「コードを読んでも解消できず、推測で進めるとやり直しになる、ユーザーにしか決められない論点」だけを question.md に書いて停止する。コード/型/既存実装を読めば分かる技術的詳細や、後段（プランナー/実装者）が決められる実装手段は質問しない。質問は **1論点=1問**（長い複合質問にしない）で分割し、各問に **2〜4個の選択肢** を必ず付ける（ユーザーが選ぶだけで答えられるように）:
 
 \`\`\`bash
-curl -X PUT http://localhost:3001/workflow/tasks/${taskId}/files/question \\
+curl -X PUT http://127.0.0.1:3001/workflow/tasks/${taskId}/files/question \\
   -H 'Content-Type: application/json' \\
   -d '{"content":"# 仕様確認\\n\\n（なぜユーザー確認が必要かを1〜2文）\\n\\n## 質問1: <論点の要約>\\n<質問文>\\n### 選択肢\\n- <選択肢A>\\n- <選択肢B>\\n\\n## 回答方法\\n各質問について選択肢から選ぶか、当てはまらない場合は自由記述で回答してください。"}'
 \`\`\`
@@ -295,7 +295,7 @@ curl -X PUT http://localhost:3001/workflow/tasks/${taskId}/files/question \\
 5. 以下の API で plan.md を保存:
 
 \`\`\`bash
-curl -X PUT http://localhost:3001/workflow/tasks/${taskId}/files/plan \\
+curl -X PUT http://127.0.0.1:3001/workflow/tasks/${taskId}/files/plan \\
   -H 'Content-Type: application/json' \\
   -d '{"content":"<下記テンプレートで埋める>"}'
 \`\`\`

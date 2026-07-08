@@ -54,7 +54,7 @@ ${taskDescription ? `- **詳細**: ${taskDescription}` : ''}
 \`research.md\` として保存します。**あなた自身がファイルを保存する必要は一切
 ありません。** 以下の操作は禁止です:
 
-- \`curl\` / \`wget\` / \`Invoke-RestMethod\` で \`http://localhost:3001/workflow/\` を叩くこと
+- \`curl\` / \`wget\` / \`Invoke-RestMethod\` で \`http://127.0.0.1:3001/workflow/\` を叩くこと
 - \`Bash\` / \`PowerShell\` ツールの呼び出し (そもそも禁止リストに入っており、呼んでも失敗します)
 - \`WebFetch\` で localhost を呼ぶこと (sandbox で拒否されます)
 - 「保存できなかった」「curl を実行できない」等のエラーメッセージを最終出力に含めること

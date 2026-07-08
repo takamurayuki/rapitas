@@ -6,7 +6,7 @@ const logger = createLogger('Api');
  * API Base URL
  * Retrieved from environment variable, falls back to default value
  */
-export const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:3001';
+export const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://127.0.0.1:3001';
 
 /**
  * Helper function to construct API endpoints

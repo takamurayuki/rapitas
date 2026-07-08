@@ -13,7 +13,7 @@ import { Plug, Copy, Check, ChevronDown, ChevronUp } from 'lucide-react';
 const MCP_CONFIG = `{
   "mcpServers": {
     "rapitas": {
-      "url": "http://localhost:3001/mcp",
+      "url": "http://127.0.0.1:3001/mcp",
       "transport": "http"
     }
   }
@@ -24,7 +24,7 @@ const CLAUDE_CODE_CONFIG = `// ~/.claude/claude_desktop_config.json
   "mcpServers": {
     "rapitas": {
       "command": "curl",
-      "args": ["-s", "http://localhost:3001/mcp/tools"]
+      "args": ["-s", "http://127.0.0.1:3001/mcp/tools"]
     }
   }
 }`;
@@ -104,7 +104,7 @@ export function MCPSetupGuide() {
             <p>
               {t('apiCheck')}:{' '}
               <code className="px-1.5 py-0.5 bg-zinc-100 dark:bg-zinc-800 rounded text-zinc-600 dark:text-zinc-400">
-                GET http://localhost:3001/mcp/info
+                GET http://127.0.0.1:3001/mcp/info
               </code>
             </p>
           </div>

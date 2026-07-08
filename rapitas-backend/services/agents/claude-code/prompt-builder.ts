@@ -67,7 +67,7 @@ function buildSimplePrompt(task: AgentTask, workDir: string): string {
     ``,
     `**ファイル保存API（UTF-8厳守）**:`,
     `1. 保存内容を Write ツールで UTF-8 の一時ファイルに書き出す（例: \`${workDir}/.wf-tmp.md\`。プロジェクトルートには作らない）`,
-    `2. 生ファイルを送信: \`curl.exe -X PUT http://localhost:${port}/workflow/tasks/${task.id}/files/<research|question|plan|verify> -H "Content-Type: text/markdown; charset=utf-8" --data-binary @${workDir}/.wf-tmp.md\``,
+    `2. 生ファイルを送信: \`curl.exe -X PUT http://127.0.0.1:${port}/workflow/tasks/${task.id}/files/<research|question|plan|verify> -H "Content-Type: text/markdown; charset=utf-8" --data-binary @${workDir}/.wf-tmp.md\``,
     `3. 2xx 応答後に一時ファイルを削除`,
     `- **重要**: Windows では PowerShell のパイプや \`-d\` のインライン文字列で curl に渡さない（既定の US-ASCII で日本語が "?" に化ける）。必ず上記の一時ファイル+\`--data-binary\` 方式・\`curl.exe\` を使う。`,
     `- 文字化け("?"置換)を検出すると保存APIは HTTP 422 で拒否する。その場合は UTF-8 で再送信する。`,
@@ -235,7 +235,7 @@ function buildAnalysisPrompt(task: AgentTask, workDir: string): string {
     `1. Write the markdown to a UTF-8 temp file with your Write tool inside the working directory (e.g. \`${workDir}/.wf-tmp.md\`) — NOT in the project root.`,
   );
   sections.push(
-    `2. Send the raw file as the body: \`curl.exe -X PUT http://localhost:${port}/workflow/tasks/${task.id}/files/<research|question|plan|verify> -H "Content-Type: text/markdown; charset=utf-8" --data-binary @${workDir}/.wf-tmp.md\``,
+    `2. Send the raw file as the body: \`curl.exe -X PUT http://127.0.0.1:${port}/workflow/tasks/${task.id}/files/<research|question|plan|verify> -H "Content-Type: text/markdown; charset=utf-8" --data-binary @${workDir}/.wf-tmp.md\``,
   );
   sections.push('3. Delete the temp file after a successful (2xx) response.');
   sections.push('');

@@ -18,7 +18,7 @@ import { encodeWav, resamplePcm } from '@/lib/audio/wav-codec';
 export type SpeechTranslator = (key: string, params?: Record<string, string | number>) => string;
 
 /** Backend base URL for transcription endpoints. */
-export const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:3001';
+export const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://127.0.0.1:3001';
 
 // ────────────────────────────────────────────────────────────────────────────
 // Silence Detection Configuration

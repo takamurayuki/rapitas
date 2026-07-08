@@ -20,7 +20,7 @@ import { Spinner } from '@/components/ui/spinner';
 import { GanttChart } from './GanttChart';
 import type { GanttViewport } from './gantt-utils';
 
-const API_BASE = process.env.NODE_ENV === 'development' ? 'http://localhost:3001' : '';
+const API_BASE = process.env.NODE_ENV === 'development' ? 'http://127.0.0.1:3001' : '';
 
 interface GanttViewProps {
   themeId?: number;

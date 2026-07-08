@@ -128,22 +128,22 @@ If categoryId or themeId is unset, use `0`.
 
 ```bash
 # Save a workflow file
-curl -X PUT http://localhost:3001/workflow/tasks/{taskId}/files/{fileType} \
+curl -X PUT http://127.0.0.1:3001/workflow/tasks/{taskId}/files/{fileType} \
   -H 'Content-Type: application/json' \
   -d '{"content":"..."}'
 
 # fileType: research | question | plan | verify
 
 # Read all workflow files
-curl http://localhost:3001/workflow/tasks/{taskId}/files
+curl http://127.0.0.1:3001/workflow/tasks/{taskId}/files
 
 # Approve / reject plan
-curl -X POST http://localhost:3001/workflow/tasks/{taskId}/approve-plan \
+curl -X POST http://127.0.0.1:3001/workflow/tasks/{taskId}/approve-plan \
   -H 'Content-Type: application/json' \
   -d '{"approved": true}'
 
 # Update status manually
-curl -X PUT http://localhost:3001/workflow/tasks/{taskId}/status \
+curl -X PUT http://127.0.0.1:3001/workflow/tasks/{taskId}/status \
   -H 'Content-Type: application/json' \
   -d '{"status": "in_progress"}'
 ```
@@ -226,7 +226,7 @@ When the plan meets **any** of the following thresholds, split into subtasks:
 
 ```bash
 # Register subtasks via API (parent taskId = current task)
-curl -X POST http://localhost:3001/tasks \
+curl -X POST http://127.0.0.1:3001/tasks \
   -H 'Content-Type: application/json' \
   -d '{"title":"<subtask title>","parentId":<parentTaskId>,"description":"<scope>"}'
 ```

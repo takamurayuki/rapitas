@@ -531,13 +531,13 @@ ${
     // also produce md files.
     fullPrompt += `\n\n${cliT.fileHeader}\n${cliT.fileInstruction}\n${cliT.noRootFiles}\n\n`;
     fullPrompt += `${cliT.apiCommand}\n\`\`\`bash\n`;
-    fullPrompt += `curl -X PUT http://localhost:${process.env.PORT || '3001'}/workflow/tasks/${taskId}/files/${transition.outputFile} \\\n`;
+    fullPrompt += `curl -X PUT http://127.0.0.1:${process.env.PORT || '3001'}/workflow/tasks/${taskId}/files/${transition.outputFile} \\\n`;
     fullPrompt += `  -H 'Content-Type: application/json' \\\n`;
     fullPrompt += `  -d '{"content":"${cliT.contentPlaceholder}"}'\n\`\`\`\n\n`;
     fullPrompt += `${cliT.powershellCommand}\n\`\`\`powershell\n`;
     fullPrompt += `$content = @'\n${cliT.contentPlaceholder}\n'@\n`;
     fullPrompt += `$body = @{ content = $content } | ConvertTo-Json -Depth 10\n`;
-    fullPrompt += `Invoke-RestMethod -Method Put -Uri "http://localhost:${process.env.PORT || '3001'}/workflow/tasks/${taskId}/files/${transition.outputFile}" -ContentType "application/json; charset=utf-8" -Body $body\n`;
+    fullPrompt += `Invoke-RestMethod -Method Put -Uri "http://127.0.0.1:${process.env.PORT || '3001'}/workflow/tasks/${taskId}/files/${transition.outputFile}" -ContentType "application/json; charset=utf-8" -Body $body\n`;
     fullPrompt += `\`\`\`\n\n`;
     fullPrompt += `${cliT.prohibitions}\n${cliT.mandatory}`;
   }
@@ -588,7 +588,7 @@ Your working directory is a task-dedicated worktree whose branch may back an OPE
 （「リファクタ」は"バグの温床・壊れやすい"ことが理由のときだけ懸念。単に綺麗にしたい/より良くしたいだけならアイデアボックスへ。）
 起票（修正は起票されたタスクで別途行う）:
 \`\`\`bash
-curl -X POST http://localhost:${port}/concerns \\
+curl -X POST http://127.0.0.1:${port}/concerns \\
   -H 'Content-Type: application/json' \\
   -d '{"title":"簡潔な要約","detail":"何が問題で、なぜ重要か","type":"bug|refactor|security|perf|other","severity":"high|medium|low","location":"path/to/file.ts:行 など","originTaskId":${taskId}}'
 \`\`\`
@@ -596,7 +596,7 @@ curl -X POST http://localhost:${port}/concerns \\
 ### アイデアボックス（前向きな改善・革新）→ POST /idea-box
 対象: 新機能、既存機能のブラッシュアップ、UX改善、革新的なアイデア（今は壊れていないが、あれば品質・生産性・価値が上がるもの）。バグ・リスクは入れない。起票:
 \`\`\`bash
-curl -X POST http://localhost:${port}/idea-box \\
+curl -X POST http://127.0.0.1:${port}/idea-box \\
   -H 'Content-Type: application/json' \\
   -d '{"title":"簡潔なアイデア名","content":"何を・なぜ・期待される効果","category":"improvement","scope":"global|project","priority":"high|medium|low"}'
 \`\`\`

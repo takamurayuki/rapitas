@@ -24,7 +24,7 @@ interface TaskSelectorProps {
   description?: string;
 }
 
-const API_BASE = process.env.NODE_ENV === 'development' ? 'http://localhost:3001' : '';
+const API_BASE = process.env.NODE_ENV === 'development' ? 'http://127.0.0.1:3001' : '';
 
 // NOTE: stable reference for the `excludeTaskIds` default — an inline `= []`
 // default creates a new array every render, which would defeat memoizing
