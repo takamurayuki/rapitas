@@ -195,7 +195,15 @@ export class WorkflowRunner {
     try {
       // Progress workflow from current phase to completion (with infinite loop prevention)
       let continueLoop = true;
-      const maxIterations = 20; // Prevent infinite loops
+      // NOTE: Long-run knob. 20 phases fits the normal pipeline + a couple of
+      // repair bounces; raise RAPITAS_RUNNER_MAX_ITERATIONS (together with
+      // AUTO_RUN_MAX_TASK_WALL_MS and verifyRepairLimit / RAPITAS_MAX_CI_REPAIRS)
+      // to let a task iterate implement→evaluate for hours. Floor of 1 keeps a
+      // typo from disabling execution entirely.
+      const maxIterations = Math.max(
+        1,
+        parseInt(process.env.RAPITAS_RUNNER_MAX_ITERATIONS ?? '20', 10) || 20,
+      );
       let iterationCount = 0;
 
       while (continueLoop && !abortController.signal.aborted && iterationCount < maxIterations) {
