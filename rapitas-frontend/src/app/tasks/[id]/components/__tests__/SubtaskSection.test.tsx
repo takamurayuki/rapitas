@@ -21,9 +21,6 @@ vi.mock('../subtask-section/SubtaskHeader', () => ({
     <button data-testid="toggle-add-form" onClick={onToggleAddForm} />
   ),
 }));
-vi.mock('../subtask-section/SubtaskDeleteConfirm', () => ({
-  SubtaskDeleteConfirm: () => <div data-testid="subtask-delete-confirm" />,
-}));
 vi.mock('../subtask-section/AddSubtaskForm', () => ({
   AddSubtaskForm: () => <div data-testid="add-subtask-form" />,
 }));
@@ -49,7 +46,6 @@ const baseProps = {
   subtasks: [makeSubtask(1), makeSubtask(2), makeSubtask(3)],
   isSubtaskSelectionMode: false,
   selectedSubtaskIds: new Set<number>(),
-  showSubtaskDeleteConfirm: null,
   editingSubtaskId: null,
   editingSubtaskTitle: '',
   editingSubtaskDescription: '',
@@ -62,8 +58,6 @@ const baseProps = {
   onSelectAll: vi.fn(),
   onDeselectAll: vi.fn(),
   onToggleSubtaskSelection: vi.fn(),
-  onSetDeleteConfirm: vi.fn(),
-  onDeleteAll: vi.fn(),
   onDeleteSelected: vi.fn(),
   onStartEditingSubtask: vi.fn(),
   onSetEditingSubtaskTitle: vi.fn(),

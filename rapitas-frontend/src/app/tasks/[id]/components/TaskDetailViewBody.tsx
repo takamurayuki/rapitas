@@ -19,8 +19,6 @@ interface TaskActionsViewSlice {
   updateStatus: (id: number, status: string) => Promise<void>;
   isSubtaskSelectionMode: boolean;
   selectedSubtaskIds: Set<number>;
-  showSubtaskDeleteConfirm: 'all' | 'selected' | null;
-  setShowSubtaskDeleteConfirm: (v: 'all' | 'selected' | null) => void;
   editingSubtaskId: number | null;
   editingSubtaskTitle: string;
   editingSubtaskDescription: string;
@@ -31,7 +29,6 @@ interface TaskActionsViewSlice {
   selectAllSubtasks: () => void;
   deselectAllSubtasks: () => void;
   toggleSubtaskSelection: (id: number) => void;
-  handleDeleteAllSubtasks: () => Promise<void>;
   handleDeleteSelectedSubtasks: () => Promise<void>;
   startEditingSubtask: (subtask: NonNullable<Task['subtasks']>[number]) => void;
   setEditingSubtaskTitle: (v: string) => void;
@@ -212,7 +209,6 @@ export default function TaskDetailViewBody({
           categoryName={task.theme?.category?.name}
           isSubtaskSelectionMode={taskActions.isSubtaskSelectionMode}
           selectedSubtaskIds={taskActions.selectedSubtaskIds}
-          showSubtaskDeleteConfirm={taskActions.showSubtaskDeleteConfirm}
           editingSubtaskId={taskActions.editingSubtaskId}
           editingSubtaskTitle={taskActions.editingSubtaskTitle}
           editingSubtaskDescription={taskActions.editingSubtaskDescription}
@@ -225,8 +221,6 @@ export default function TaskDetailViewBody({
           onSelectAll={taskActions.selectAllSubtasks}
           onDeselectAll={taskActions.deselectAllSubtasks}
           onToggleSubtaskSelection={taskActions.toggleSubtaskSelection}
-          onSetDeleteConfirm={taskActions.setShowSubtaskDeleteConfirm}
-          onDeleteAll={taskActions.handleDeleteAllSubtasks}
           onDeleteSelected={taskActions.handleDeleteSelectedSubtasks}
           onStartEditingSubtask={taskActions.startEditingSubtask}
           onSetEditingSubtaskTitle={taskActions.setEditingSubtaskTitle}

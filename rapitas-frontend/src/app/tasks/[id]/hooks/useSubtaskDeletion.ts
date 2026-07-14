@@ -1,9 +1,9 @@
 /**
  * useSubtaskDeletion
  *
- * Handles subtask deletion: single, selected-batch, and all-at-once.
- * Also owns the multi-select UI state (selection mode, selected IDs,
- * delete-confirm dialog).
+ * Handles subtask deletion: single and selected-batch (guarded by the shared
+ * confirm modal). Also owns the multi-select UI state (selection mode,
+ * selected IDs).
  */
 
 import { useState, useCallback } from 'react';
@@ -12,6 +12,7 @@ import type { Task } from '@/types';
 import { API_BASE_URL } from '@/utils/api';
 import { createLogger } from '@/lib/logger';
 import { useToast } from '@/components/ui/toast/ToastContainer';
+import { useConfirmDialog } from '@/components/ui/dialog/ConfirmDialogProvider';
 
 const logger = createLogger('useSubtaskDeletion');
 const API_BASE = API_BASE_URL;
@@ -31,11 +32,9 @@ interface UseSubtaskDeletionParams {
 export function useSubtaskDeletion({ task, onRefetch, onTaskUpdated }: UseSubtaskDeletionParams) {
   const t = useTranslations('task');
   const { showToast } = useToast();
+  const confirm = useConfirmDialog();
   const [isSubtaskSelectionMode, setIsSubtaskSelectionMode] = useState(false);
   const [selectedSubtaskIds, setSelectedSubtaskIds] = useState<Set<number>>(new Set());
-  const [showSubtaskDeleteConfirm, setShowSubtaskDeleteConfirm] = useState<
-    'all' | 'selected' | null
-  >(null);
 
   const deleteSubtask = useCallback(
     async (subtaskId: number) => {
@@ -53,24 +52,6 @@ export function useSubtaskDeletion({ task, onRefetch, onTaskUpdated }: UseSubtas
     },
     [onRefetch, onTaskUpdated, showToast, t],
   );
-
-  const deleteAllSubtasks = useCallback(async () => {
-    if (!task) return;
-
-    try {
-      const res = await fetch(`${API_BASE}/tasks/${task.id}/subtasks`, {
-        method: 'DELETE',
-      });
-      if (!res.ok) throw new Error('削除に失敗しました');
-      const result = await res.json();
-      logger.debug(`[TaskDetail] Deleted all subtasks: ${result.deletedCount} items`);
-      await onRefetch();
-      onTaskUpdated?.();
-    } catch (err) {
-      logger.error(err);
-      showToast(t('subtaskManagement.deleteFailed'), 'error');
-    }
-  }, [task, onRefetch, onTaskUpdated, showToast, t]);
 
   const deleteSelectedSubtasks = useCallback(
     async (subtaskIds: number[]) => {
@@ -127,31 +108,33 @@ export function useSubtaskDeletion({ task, onRefetch, onTaskUpdated }: UseSubtas
     setSelectedSubtaskIds(new Set());
   }, []);
 
+  /**
+   * Confirms via the shared modal (same one the task list uses, with a
+   * subtask-specific message), then deletes the selected subtasks and exits
+   * selection mode.
+   */
   const handleDeleteSelectedSubtasks = useCallback(async () => {
-    if (selectedSubtaskIds.size > 0) {
-      await deleteSelectedSubtasks(Array.from(selectedSubtaskIds));
-      setSelectedSubtaskIds(new Set());
-      setIsSubtaskSelectionMode(false);
-      setShowSubtaskDeleteConfirm(null);
-    }
-  }, [selectedSubtaskIds, deleteSelectedSubtasks]);
-
-  const handleDeleteAllSubtasks = useCallback(async () => {
-    await deleteAllSubtasks();
-    setShowSubtaskDeleteConfirm(null);
-  }, [deleteAllSubtasks]);
+    if (selectedSubtaskIds.size === 0) return;
+    if (
+      !(await confirm({
+        message: t('subtaskBulkDeleteConfirm', { count: selectedSubtaskIds.size }),
+        variant: 'destructive',
+      }))
+    )
+      return;
+    await deleteSelectedSubtasks(Array.from(selectedSubtaskIds));
+    setSelectedSubtaskIds(new Set());
+    setIsSubtaskSelectionMode(false);
+  }, [selectedSubtaskIds, deleteSelectedSubtasks, confirm, t]);
 
   return {
     isSubtaskSelectionMode,
     selectedSubtaskIds,
-    showSubtaskDeleteConfirm,
-    setShowSubtaskDeleteConfirm,
     deleteSubtask,
     toggleSubtaskSelectionMode,
     toggleSubtaskSelection,
     selectAllSubtasks,
     deselectAllSubtasks,
     handleDeleteSelectedSubtasks,
-    handleDeleteAllSubtasks,
   };
 }

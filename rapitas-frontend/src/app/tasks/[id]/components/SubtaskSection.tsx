@@ -3,8 +3,9 @@
 /**
  * SubtaskSection
  *
- * Orchestrates the subtask card: header, delete confirmation, add form, and item list.
- * All state is owned by the parent and threaded in as props.
+ * Orchestrates the subtask card: header, add form, item list, and the
+ * selection footer. All state except add-form visibility is owned by the
+ * parent and threaded in as props.
  */
 
 import { useState } from 'react';
@@ -13,7 +14,6 @@ import { useTranslations } from 'next-intl';
 import type { Task, Priority } from '@/types';
 import type { ParallelExecutionStatus } from '@/feature/tasks/components/status/SubtaskExecutionStatus';
 import { SubtaskHeader } from './subtask-section/SubtaskHeader';
-import { SubtaskDeleteConfirm } from './subtask-section/SubtaskDeleteConfirm';
 import { AddSubtaskForm } from './subtask-section/AddSubtaskForm';
 import { SubtaskItem } from './subtask-section/SubtaskItem';
 
@@ -25,7 +25,6 @@ interface SubtaskSectionProps {
   categoryName?: string;
   isSubtaskSelectionMode: boolean;
   selectedSubtaskIds: Set<number>;
-  showSubtaskDeleteConfirm: 'all' | 'selected' | null;
   editingSubtaskId: number | null;
   editingSubtaskTitle: string;
   editingSubtaskDescription: string;
@@ -38,8 +37,7 @@ interface SubtaskSectionProps {
   onSelectAll: () => void;
   onDeselectAll: () => void;
   onToggleSubtaskSelection: (id: number) => void;
-  onSetDeleteConfirm: (v: 'all' | 'selected' | null) => void;
-  onDeleteAll: () => void;
+  /** Deletes the selected subtasks — the handler shows the shared confirm modal first. */
   onDeleteSelected: () => void;
   onStartEditingSubtask: (subtask: NonNullable<Task['subtasks']>[number]) => void;
   onSetEditingSubtaskTitle: (v: string) => void;
@@ -69,7 +67,6 @@ export default function SubtaskSection({
   categoryName,
   isSubtaskSelectionMode,
   selectedSubtaskIds,
-  showSubtaskDeleteConfirm,
   editingSubtaskId,
   editingSubtaskTitle,
   editingSubtaskDescription,
@@ -82,8 +79,6 @@ export default function SubtaskSection({
   onSelectAll,
   onDeselectAll,
   onToggleSubtaskSelection,
-  onSetDeleteConfirm,
-  onDeleteAll,
   onDeleteSelected,
   onStartEditingSubtask,
   onSetEditingSubtaskTitle,
@@ -135,16 +130,6 @@ export default function SubtaskSection({
         onToggleAddForm={() => setIsAddFormVisible((v) => !v)}
       />
 
-      {showSubtaskDeleteConfirm && (
-        <SubtaskDeleteConfirm
-          mode={showSubtaskDeleteConfirm}
-          totalCount={subtasks.length}
-          selectedCount={selectedSubtaskIds.size}
-          onConfirm={showSubtaskDeleteConfirm === 'all' ? onDeleteAll : onDeleteSelected}
-          onCancel={() => onSetDeleteConfirm(null)}
-        />
-      )}
-
       {/* border-b closes the last row with a line even when nothing renders
           below (selection mode); forms below carry no top border of their own.
           Hidden entirely while the add form is open — add mode focuses the
@@ -190,9 +175,10 @@ export default function SubtaskSection({
       {isSubtaskSelectionMode && selectedSubtaskIds.size > 0 && (
         <div className="flex items-center justify-end gap-2 px-4 py-3 bg-zinc-100/70 dark:bg-zinc-900/60">
           {/* ボタン自体は従来のコンパクトな削除デザインのまま — フッター
-              セクション化 (区切り+帯) だけをフォームの保存行と揃える。 */}
+              セクション化 (区切り+帯) だけをフォームの保存行と揃える。
+              確認はタスク一覧と同じ共通モーダル (ハンドラ側で表示)。 */}
           <button
-            onClick={() => onSetDeleteConfirm('selected')}
+            onClick={onDeleteSelected}
             className="flex h-8 items-center gap-1 px-2.5 text-xs font-medium rounded-lg border border-red-200 dark:border-red-800 bg-white dark:bg-zinc-900 text-red-600 dark:text-red-400 shadow-[0_2px_0_0_#fca5a5] dark:shadow-[0_2px_0_0_#7f1d1d] hover:bg-red-50 dark:hover:bg-red-900/30 active:translate-y-[1px] active:shadow-none transition-all duration-75"
           >
             <Trash2 className="w-3.5 h-3.5" />

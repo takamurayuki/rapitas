@@ -480,6 +480,7 @@
     "estimatedHours": "Estimated hours (h)",
     "addSubtask": "Add subtask",
     "toggleAddSubtaskForm": "Show/hide add form",
+    "subtaskBulkDeleteConfirm": "Delete {count} subtasks?",
     "subtaskDetails": "Details",
     "subtaskPriority": "Priority",
     "subtaskLabels": "Labels",
