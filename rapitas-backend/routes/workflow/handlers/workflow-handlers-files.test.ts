@@ -53,10 +53,16 @@ mock.module('../core/workflow-helpers', () => ({
 }));
 
 // ---- writeWorkflowFile mock ----
+// Existing research.md content served to the re-run fast-forward check.
+// Tests set this to simulate a prior run's artifact on disk.
+let existingResearchContent: string | null = null;
 mock.module('../../../services/workflow/workflow-file-utils', () => ({
   // Echo the saved content so handler logic that inspects it (e.g. the research
   // "no change" verdict) sees the real body.
   writeWorkflowFile: mock((_dir: string, _ft: string, content: string) => Promise.resolve(content)),
+  readWorkflowFile: mock((_dir: string, ft: string) =>
+    Promise.resolve(ft === 'research' ? existingResearchContent : null),
+  ),
   // Identity passthrough — the handler strips conversational preamble via this;
   // these tests pass already-clean bodies, so returning content as-is is faithful.
   sliceFromReportHeading: (content: string) => content,
@@ -113,6 +119,9 @@ mock.module('../../../services/workflow/completion-gate', () => ({
 // ---- phase-output-validator mock (verify path + pollution guard) ----
 mock.module('../../../services/workflow/phase-output-validator', () => ({
   validateVerify: () => ({ ok: true, missingSections: [], severity: 0, summary: 'ok' }),
+  // Fast-forward reuse check: any non-trivial body counts as reusable here;
+  // the real validator's thresholds are covered by phase-output-reuse.test.ts.
+  isReusableArtifact: (_ft: string, c: string) => !!c && c.trim().length >= 10,
   // Faithful-enough mirror of the real detector for the handler's reject guard.
   looksLogPolluted: (c: string | null | undefined) => {
     if (!c) return false;
@@ -172,6 +181,7 @@ beforeEach(() => {
   // The verify path calls prisma.task.findUnique() to detect conflict-resolution tasks;
   // returning null means "not a conflict task" — the normal code path continues.
   mockFindUnique.mockResolvedValue(null);
+  existingResearchContent = null;
 });
 
 // -------------------------------------------------------------------------
@@ -244,6 +254,98 @@ describe('handleSaveFile — dev-mode single-session verify from plan_approved',
   test('still rejects verify.md save at plan_created (only plan/question allowed there)', async () => {
     mockResolveWorkflowDir.mockResolvedValueOnce({
       task: { workflowStatus: 'plan_created', id: 1 },
+      dir: '/fake/dir/1',
+      categoryId: null,
+      themeId: null,
+    });
+    mockFindMany.mockResolvedValueOnce([]);
+
+    await expect(
+      handleSaveFile({
+        params: { taskId: '1', fileType: 'verify' },
+        body: 'verify content',
+        set: makeSet(),
+      }),
+    ).rejects.toMatchObject({ name: 'ValidationError' });
+  });
+});
+
+// -------------------------------------------------------------------------
+describe('handleSaveFile — 再実行の fast-forward（既存 research.md の再送不要化）', () => {
+  test('draft + 既存の有効な research.md があれば verify.md 保存を受理すること（再送不要）', async () => {
+    existingResearchContent = '# 調査結果\n依存関係とテスト戦略を確認済み。';
+    mockResolveWorkflowDir.mockResolvedValueOnce({
+      task: { workflowStatus: 'draft', id: 1 },
+      dir: '/fake/dir/1',
+      categoryId: null,
+      themeId: null,
+    });
+    mockFindMany.mockResolvedValueOnce([]); // no subtasks
+    mockCheckInvariants.mockResolvedValueOnce([]);
+    mockPerformAutoCommitAndPR.mockResolvedValueOnce({
+      requested: { autoCommit: true, autoCreatePR: true, autoMergePR: false },
+      autoCommitResult: { success: true },
+      autoPRResult: { success: true, prNumber: 2, prUrl: 'https://x/pull/2' },
+    });
+
+    const result = await handleSaveFile({
+      params: { taskId: '1', fileType: 'verify' },
+      body: 'verify content',
+      set: makeSet(),
+    });
+
+    // Rejected before the fix (draft only accepts research/question); now the
+    // existing research.md fast-forwards draft → research_done and the save runs.
+    expect((result as { workflowStatus?: string }).workflowStatus).toBe('completed');
+    // The fast-forward persisted research_done before the verify transition.
+    const statuses = mockUpdate.mock.calls.map(
+      (c) => (c[0] as { data?: { workflowStatus?: string } })?.data?.workflowStatus,
+    );
+    expect(statuses).toContain('research_done');
+  });
+
+  test('draft + 既存 research.md が無ければ従来どおり verify.md 保存を拒否すること', async () => {
+    existingResearchContent = null;
+    mockResolveWorkflowDir.mockResolvedValueOnce({
+      task: { workflowStatus: 'draft', id: 1 },
+      dir: '/fake/dir/1',
+      categoryId: null,
+      themeId: null,
+    });
+    mockFindMany.mockResolvedValueOnce([]);
+
+    await expect(
+      handleSaveFile({
+        params: { taskId: '1', fileType: 'verify' },
+        body: 'verify content',
+        set: makeSet(),
+      }),
+    ).rejects.toMatchObject({ name: 'ValidationError' });
+  });
+
+  test('draft + 既存 research.md があれば plan.md 保存も受理し plan_created へ進むこと', async () => {
+    existingResearchContent = '# 調査結果\n依存関係とテスト戦略を確認済み。';
+    mockResolveWorkflowDir.mockResolvedValueOnce({
+      task: { workflowStatus: 'draft', id: 1 },
+      dir: '/fake/dir/1',
+      categoryId: null,
+      themeId: null,
+    });
+    mockCheckInvariants.mockResolvedValueOnce([]);
+
+    const result = await handleSaveFile({
+      params: { taskId: '1', fileType: 'plan' },
+      body: '# 実装計画\n- [ ] 手順1',
+      set: makeSet(),
+    });
+
+    expect((result as { workflowStatus?: string }).workflowStatus).toBe('plan_created');
+  });
+
+  test('既存 research.md が薄すぎる（再利用不可）なら fast-forward せず拒否すること', async () => {
+    existingResearchContent = '短い'; // isReusableArtifact mock: <10 chars → not reusable
+    mockResolveWorkflowDir.mockResolvedValueOnce({
+      task: { workflowStatus: 'draft', id: 1 },
       dir: '/fake/dir/1',
       categoryId: null,
       themeId: null,

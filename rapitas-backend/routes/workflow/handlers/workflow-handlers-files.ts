@@ -20,10 +20,14 @@ import {
 } from '../core/workflow-helpers';
 import {
   writeWorkflowFile,
+  readWorkflowFile,
   sliceFromReportHeading,
 } from '../../../services/workflow/workflow-file-utils';
 import { detectReplacementLoss } from '../../../utils/common/mojibake-detector';
-import { looksLogPolluted } from '../../../services/workflow/phase-output-validator';
+import {
+  looksLogPolluted,
+  isReusableArtifact,
+} from '../../../services/workflow/phase-output-validator';
 import { performAutoCommitAndPR, isNoChangeCompletion } from '../workflow-auto-commit';
 import { resolveLandingMode } from '../../../services/workflow/automation-policy';
 import {
@@ -217,7 +221,44 @@ export async function handleSaveFile({
     };
     // NOTE: normalizeWorkflowStatus handles null/undefined/empty-string — an empty workflowStatus
     // would cause ALLOWED_FILE_TYPES_BY_STATUS[""] to return undefined and skip the guard entirely.
-    const currentStatusForGuard = normalizeWorkflowStatus(resolved.task.workflowStatus);
+    let currentStatusForGuard = normalizeWorkflowStatus(resolved.task.workflowStatus);
+
+    // Re-run fast-forward: a re-run resets workflowStatus to draft, but the
+    // prior run's research.md still exists — the agent (correctly) skips
+    // regenerating it and jumps ahead to plan/verify. Without this the gate
+    // below rejects that save (draft only accepts research/question) and the
+    // task stalls until someone manually RE-SAVES the unchanged research.md
+    // (task 485 re-run). When a valid research.md already exists, advance
+    // draft → research_done so the artifact counts without being re-sent.
+    // Forward-only, one hop; the plan-approval gate is never skipped, and the
+    // completion/verification gates still govern verify.md itself.
+    if (currentStatusForGuard === 'draft' && !ALLOWED_FILE_TYPES_BY_STATUS.draft.has(fileType)) {
+      const existingResearch = await readWorkflowFile(resolved.dir, 'research').catch(() => null);
+      if (existingResearch && isReusableArtifact('research', existingResearch)) {
+        await prisma.task
+          .update({ where: { id: taskId }, data: { workflowStatus: 'research_done' } })
+          .catch(() => {});
+        await recordTransition({
+          taskId,
+          fromStatus: 'draft',
+          toStatus: 'research_done',
+          actor: 'system',
+          cause: 'artifact_reuse_fastforward',
+          phase: 'research',
+          metadata: { trigger: `save:${fileType}`, reason: 'existing research.md reused' },
+        }).catch(() => {});
+        currentStatusForGuard = 'research_done';
+        // Keep the in-memory snapshot consistent — the auto-transition logic
+        // below reads resolved.task.workflowStatus to compute the NEXT status
+        // (e.g. plan save at research_done → plan_created).
+        resolved.task.workflowStatus = 'research_done';
+        log.info(
+          { taskId, fileType },
+          '[Workflow] Fast-forwarded draft → research_done from existing research.md (re-run reuse; no re-save needed)',
+        );
+      }
+    }
+
     const allowedForCurrent = ALLOWED_FILE_TYPES_BY_STATUS[currentStatusForGuard];
     if (allowedForCurrent && !allowedForCurrent.has(fileType)) {
       log.warn(
