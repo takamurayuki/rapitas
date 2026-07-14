@@ -1,18 +1,25 @@
 /**
- * Adversarial Diff Review
+ * Adversarial Diff Review — jury edition
  *
- * An INDEPENDENT, adversarial judge of the agent's FINAL diff — distinct from the
- * implementer's own self-reported verify.md (which can hallucinate success). A
- * judge model (preferably a different provider than the implementer, to cut
- * self-evaluation bias) scores the actual code change against plan.md + the
- * task's acceptance criteria with a rubric, actively trying to find ways the
- * change is wrong / incomplete / unsafe. On a FAIL verdict the caller bounces the
- * workflow back to the implementer (self-repair loop). Fail-OPEN on infra/parse
- * errors so a broken judge never dead-ends a task. Read-only; runs no git/tools.
+ * INDEPENDENT adversarial judging of the agent's FINAL diff — distinct from the
+ * implementer's self-reported verify.md (which can hallucinate success). Up to
+ * three judges from DIFFERENT provider families each score the actual code
+ * change against plan.md + acceptance criteria; the verdict is the MAJORITY
+ * vote (tie breaks to fail — skeptical default). On FAIL the caller bounces the
+ * workflow back to the implementer (self-repair loop).
  *
- * Latest-practice basis: verifiable checks (lint/type/test/scope) answer "does it
- * work", an LLM rubric judge answers "is it correct/complete/secure", and an
- * adversarial second opinion catches the cases self-verification misses.
+ * Availability policy is RISK-GATED: when no judge produced a verdict, low-risk
+ * work fails open ('unknown' → proceed) but HIGH-RISK work (schema/auth/payment/
+ * security per routing-policy) fails CLOSED — an unavailable jury must not wave
+ * through dangerous changes. Read-only; runs no git/tools.
+ *
+ * Research basis (docs/research/autonomous-os-improvement-roadmap.md R1):
+ * single LLM judges are near-chance on objective correctness (JudgeBench,
+ * arXiv:2410.12784); small heterogeneous juries beat a single frontier judge at
+ * a fraction of the cost (PoLL, arXiv:2404.18796); independent votes beat
+ * debate/devil's-advocate protocols (arXiv:2508.17536). Per-juror verdicts are
+ * recorded to the timeline so future weighting can calibrate each judge against
+ * realized task outcomes (Weaver, arXiv:2506.18203).
  */
 import { getDiff } from '../orchestrator/git-operations/diff-structured';
 import { sendAIMessage } from '../../../utils/ai-client';
@@ -20,6 +27,8 @@ import type { AIProvider } from '../../../utils/ai-client/types';
 import { DEFAULT_MODELS } from '../../../utils/ai-client/types';
 import { inferProviderFromModelId } from '../../workflow/role-provider-resolver';
 import { resolveWorkflowDir, readWorkflowFile } from '../../workflow/workflow-file-utils';
+import { detectHighRisk } from '../../workflow/routing-policy';
+import { appendEvent } from '../../memory/timeline';
 import { prisma } from '../../../config/database';
 import { createLogger } from '../../../config/logger';
 
@@ -32,15 +41,25 @@ const JUDGE_PROVIDERS: AIProvider[] = ['claude', 'gemini', 'chatgpt'];
 
 export type ReviewVerdict = 'pass' | 'fail' | 'unknown';
 
+/** One juror's independent verdict (provider = model family). */
+export interface JurorVerdict {
+  provider: AIProvider;
+  verdict: ReviewVerdict;
+  severity: number;
+  reasons: string[];
+}
+
 export interface DiffReviewResult {
-  /** 'fail' = the diff does NOT satisfy the task; 'unknown' = judge unavailable. */
+  /** 'fail' = the diff does NOT satisfy the task; 'unknown' = jury unavailable. */
   verdict: ReviewVerdict;
   /** 0-100; higher = more serious. Only meaningful for 'fail'. */
   severity: number;
   /** Short human-readable reasons (used as self-repair feedback). */
   reasons: string[];
-  /** True when a judge actually evaluated the diff. */
+  /** True when at least one juror actually evaluated the diff. */
   judged: boolean;
+  /** Individual juror verdicts — recorded for future reliability weighting. */
+  jurors?: JurorVerdict[];
 }
 
 /** Whether the adversarial review is enabled (default ON; set 0/false to skip). */
@@ -149,6 +168,35 @@ export function parseReviewVerdict(text: string | null | undefined): DiffReviewR
   }
 }
 
+/**
+ * Aggregate independent juror verdicts into one result by majority vote.
+ * Pure and unit-testable.
+ *
+ * Rules: only judged (non-unknown) verdicts count; more fails than passes →
+ * fail, more passes → pass, TIE → fail (skeptical default — a bounced repair
+ * is cheap and bounded by the repair cap, a waved-through defect is not);
+ * zero judged verdicts → unknown (availability handled by the caller's risk
+ * gate). Severity = max among failing jurors; reasons = deduped union.
+ *
+ * @param jurors - Individual verdicts. / 各ジャッジの判定
+ * @returns Aggregated verdict. / 集計結果
+ */
+export function aggregateJuryVerdicts(jurors: JurorVerdict[]): DiffReviewResult {
+  const judged = jurors.filter((j) => j.verdict !== 'unknown');
+  if (judged.length === 0) {
+    return { verdict: 'unknown', severity: 0, reasons: [], judged: false, jurors };
+  }
+  const fails = judged.filter((j) => j.verdict === 'fail');
+  const passes = judged.filter((j) => j.verdict === 'pass');
+  const verdict: ReviewVerdict = fails.length >= passes.length ? 'fail' : 'pass';
+  if (verdict === 'pass') {
+    return { verdict, severity: 0, reasons: [], judged: true, jurors };
+  }
+  const severity = Math.max(0, ...fails.map((j) => j.severity));
+  const reasons = [...new Set(fails.flatMap((j) => j.reasons))].slice(0, 8);
+  return { verdict, severity, reasons, judged: true, jurors };
+}
+
 /** Map a role-resolver Provider (e.g. 'openai') to an AI-client provider. */
 function toAIProvider(p: string | null): AIProvider | null {
   if (p === 'openai') return 'chatgpt';
@@ -169,12 +217,39 @@ async function implementerAIProvider(taskId: number): Promise<AIProvider | null>
 }
 
 /**
- * Run the adversarial diff review for a task. Fail-open: returns 'unknown' when
- * disabled, when there is no diff, or when no judge could be reached.
+ * Ask one juror (provider) for an independent verdict. Never throws.
+ *
+ * @param provider - Judge provider. / ジャッジのプロバイダ
+ * @param prompt - Shared review prompt. / 共通レビュープロンプト
+ * @returns The juror's verdict ('unknown' on error/unparseable). / 判定
+ */
+async function askJuror(provider: AIProvider, prompt: string): Promise<JurorVerdict> {
+  try {
+    const res = await sendAIMessage({
+      provider,
+      model: DEFAULT_MODELS[provider],
+      systemPrompt: 'You are a meticulous, skeptical senior code reviewer.',
+      maxTokens: 1200,
+      messages: [{ role: 'user', content: prompt }],
+    });
+    const v = parseReviewVerdict(res.content);
+    return { provider, verdict: v.verdict, severity: v.severity, reasons: v.reasons };
+  } catch (err) {
+    log.warn({ err, provider }, '[adversarial-review] Juror failed');
+    return { provider, verdict: 'unknown', severity: 0, reasons: [] };
+  }
+}
+
+/**
+ * Run the adversarial diff review for a task with a cross-provider jury.
+ *
+ * Availability: 'unknown' when disabled or no diff. When ALL jurors are
+ * unavailable, low-risk work fails open ('unknown') but high-risk work
+ * (routing-policy detectHighRisk) fails CLOSED with a synthetic 'fail'.
  *
  * @param params.taskId - Task under review. / 対象タスク
  * @param params.worktreePath - The task's git worktree (diff source). / worktree
- * @returns The judge's verdict. / ジャッジ判定
+ * @returns The aggregated jury verdict. / 陪審の集計判定
  */
 export async function reviewDiffAdversarially(params: {
   taskId: number;
@@ -201,7 +276,10 @@ export async function reviewDiffAdversarially(params: {
     const resolved = await resolveWorkflowDir(taskId);
     const planContent = resolved ? ((await readWorkflowFile(resolved.dir, 'plan')) ?? '') : '';
     const task = await prisma.task
-      .findUnique({ where: { id: taskId }, select: { title: true, acceptanceCriteria: true } })
+      .findUnique({
+        where: { id: taskId },
+        select: { title: true, description: true, acceptanceCriteria: true },
+      })
       .catch(() => null);
     const acceptanceCriteria = parseAcceptanceCriteria(task?.acceptanceCriteria);
 
@@ -212,40 +290,70 @@ export async function reviewDiffAdversarially(params: {
       diffText,
     });
 
-    // Prefer a provider different from the implementer's (cross-provider second
-    // opinion); fall back through the others. First successful call wins.
+    // Jury: every provider judges INDEPENDENTLY and in parallel (no debate —
+    // independent votes measurably beat argumentative protocols). Ordering
+    // still lists non-implementer families first for log readability only.
     const implProvider = await implementerAIProvider(taskId);
     const order = [
       ...JUDGE_PROVIDERS.filter((p) => p !== implProvider),
       ...JUDGE_PROVIDERS.filter((p) => p === implProvider),
     ];
-    for (const provider of order) {
-      try {
-        const res = await sendAIMessage({
-          provider,
-          model: DEFAULT_MODELS[provider],
-          systemPrompt: 'You are a meticulous, skeptical senior code reviewer.',
-          maxTokens: 1200,
-          messages: [{ role: 'user', content: prompt }],
-        });
-        const verdict = parseReviewVerdict(res.content);
-        if (verdict.verdict !== 'unknown') {
-          log.info(
-            { taskId, provider, verdict: verdict.verdict, severity: verdict.severity },
-            '[adversarial-review] Diff judged',
-          );
-          return verdict;
-        }
-        // Unparseable reply — try the next provider.
-      } catch (err) {
-        log.warn(
-          { err, taskId, provider },
-          '[adversarial-review] Judge provider failed — trying next',
-        );
-      }
+    const jurors = await Promise.all(order.map((provider) => askJuror(provider, prompt)));
+    const aggregated = aggregateJuryVerdicts(jurors);
+
+    // Durable per-juror record — the raw material for calibrating judge
+    // reliability against realized task outcomes (Weaver-style weighting).
+    void appendEvent({
+      eventType: 'adversarial_review',
+      actorType: 'system',
+      payload: {
+        taskId,
+        verdict: aggregated.verdict,
+        severity: aggregated.severity,
+        jurors: jurors.map((j) => ({
+          provider: j.provider,
+          verdict: j.verdict,
+          severity: j.severity,
+        })),
+      },
+      correlationId: `task-${taskId}`,
+    }).catch(() => {});
+
+    if (aggregated.verdict !== 'unknown') {
+      log.info(
+        {
+          taskId,
+          verdict: aggregated.verdict,
+          severity: aggregated.severity,
+          votes: jurors.map((j) => `${j.provider}:${j.verdict}`).join(','),
+        },
+        '[adversarial-review] Jury verdict',
+      );
+      return aggregated;
     }
-    log.warn({ taskId }, '[adversarial-review] No judge produced a verdict — failing open');
-    return { verdict: 'unknown', severity: 0, reasons: [], judged: false };
+
+    // No juror produced a verdict — risk-gated availability policy.
+    const risk = detectHighRisk({
+      text: `${task?.title ?? ''}\n${task?.description ?? ''}`,
+      planContent,
+    });
+    if (risk.high) {
+      log.warn(
+        { taskId, riskReason: risk.reason },
+        '[adversarial-review] Jury unavailable on HIGH-RISK change — failing closed',
+      );
+      return {
+        verdict: 'fail',
+        severity: 70,
+        reasons: [
+          '差分レビューのジャッジが利用できませんでした。高リスク変更（スキーマ/認証/決済/セキュリティ）のため安全側でブロックします。ジャッジ復旧後に再検証してください。',
+        ],
+        judged: false,
+        jurors,
+      };
+    }
+    log.warn({ taskId }, '[adversarial-review] Jury unavailable on low-risk change — failing open');
+    return { verdict: 'unknown', severity: 0, reasons: [], judged: false, jurors };
   } catch (err) {
     log.warn({ err, taskId }, '[adversarial-review] Review errored — failing open');
     return { verdict: 'unknown', severity: 0, reasons: [], judged: false };

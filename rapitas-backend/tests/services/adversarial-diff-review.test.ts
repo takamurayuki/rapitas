@@ -9,6 +9,8 @@ import { describe, test, expect } from 'bun:test';
 import {
   parseReviewVerdict,
   buildDiffReviewPrompt,
+  aggregateJuryVerdicts,
+  type JurorVerdict,
 } from '../../services/agents/verification/adversarial-diff-review';
 
 describe('parseReviewVerdict', () => {
@@ -44,6 +46,60 @@ describe('parseReviewVerdict', () => {
     expect(parseReviewVerdict('{"verdict":').verdict).toBe('unknown');
     expect(parseReviewVerdict('').verdict).toBe('unknown');
     expect(parseReviewVerdict(null).judged).toBe(false);
+  });
+});
+
+describe('aggregateJuryVerdicts', () => {
+  const juror = (
+    provider: JurorVerdict['provider'],
+    verdict: JurorVerdict['verdict'],
+    severity = 0,
+    reasons: string[] = [],
+  ): JurorVerdict => ({ provider, verdict, severity, reasons });
+
+  test('多数決: 2 pass / 1 fail → pass', () => {
+    const r = aggregateJuryVerdicts([
+      juror('claude', 'pass'),
+      juror('gemini', 'pass'),
+      juror('chatgpt', 'fail', 90, ['x']),
+    ]);
+    expect(r.verdict).toBe('pass');
+    expect(r.judged).toBe(true);
+  });
+
+  test('多数決: 2 fail / 1 pass → fail、severityは失格者の最大、reasonsは和集合', () => {
+    const r = aggregateJuryVerdicts([
+      juror('claude', 'fail', 60, ['基準未達']),
+      juror('gemini', 'fail', 85, ['nullチェック漏れ', '基準未達']),
+      juror('chatgpt', 'pass'),
+    ]);
+    expect(r.verdict).toBe('fail');
+    expect(r.severity).toBe(85);
+    expect(r.reasons).toEqual(['基準未達', 'nullチェック漏れ']);
+  });
+
+  test('同数 (1-1) は懐疑側に倒して fail', () => {
+    const r = aggregateJuryVerdicts([
+      juror('claude', 'fail', 50, ['懸念']),
+      juror('gemini', 'pass'),
+      juror('chatgpt', 'unknown'),
+    ]);
+    expect(r.verdict).toBe('fail');
+  });
+
+  test('判定者1人だけならその判定を採用', () => {
+    const r = aggregateJuryVerdicts([
+      juror('claude', 'unknown'),
+      juror('gemini', 'pass'),
+      juror('chatgpt', 'unknown'),
+    ]);
+    expect(r.verdict).toBe('pass');
+  });
+
+  test('全員 unknown → unknown（可用性は呼び出し側のリスクゲートが処理）', () => {
+    const r = aggregateJuryVerdicts([juror('claude', 'unknown'), juror('gemini', 'unknown')]);
+    expect(r.verdict).toBe('unknown');
+    expect(r.judged).toBe(false);
   });
 });
 

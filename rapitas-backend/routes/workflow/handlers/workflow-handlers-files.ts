@@ -804,12 +804,13 @@ export async function handleSaveFile({
       }
     }
 
-    // Independent adversarial diff review: a separate judge (ideally a different
-    // provider than the implementer) scores the ACTUAL diff against plan +
-    // acceptance criteria, catching wrong/incomplete implementations that the
-    // self-reported verify.md misses. On a FAIL verdict, bounce the workflow back
-    // to the implementer (self-repair loop) instead of completing. Fail-open: an
-    // unavailable judge ('unknown') does not block.
+    // Independent adversarial diff review: a cross-provider JURY (majority
+    // vote, tie→fail) scores the ACTUAL diff against plan + acceptance
+    // criteria, catching wrong/incomplete implementations that the
+    // self-reported verify.md misses. On a FAIL verdict, bounce the workflow
+    // back to the implementer (self-repair loop). Availability is risk-gated
+    // inside the reviewer: low-risk 'unknown' fails open; high-risk changes
+    // fail closed when no juror is reachable.
     if (
       fileType === 'verify' &&
       newStatus === 'verify_done' &&
