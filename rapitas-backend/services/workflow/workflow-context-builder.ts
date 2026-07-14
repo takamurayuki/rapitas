@@ -308,6 +308,22 @@ export async function buildRoleContext(
       }
       const implementerLead = plan ? t.implementer.leadWithPlan : t.implementer.leadNoPlan;
       ctx += `\n\n${implementerLead}\n\n${t.implementer.constraints}`;
+      // Bug-fix tasks: require a reproducing test BEFORE the fix (R4). The
+      // verification gate enforces "a test file changed" for these tasks, so
+      // tell the implementer up front instead of bouncing it later.
+      const { looksLikeBugFixTask } = await import('../agents/verification/automated-verifier');
+      if (looksLikeBugFixTask(`${task.title}\n${task.description ?? ''}`)) {
+        ctx +=
+          language === 'ja'
+            ? '\n\n## バグ修正の必須手順（検証ゲートで強制されます）\n' +
+              '1. 修正の**前に**、不具合を再現する失敗テストを書き、現状コードで失敗することを確認する。\n' +
+              '2. 修正を実装し、そのテストが通ることを確認する（fail→pass が完了の根拠）。\n' +
+              '3. 再現テスト（または回帰テスト）の追加・更新なしのバグ修正は検証ゲート (coverage) で差し戻されます。UI操作のみで再現するなどテスト化が本当に不可能な場合のみ、その理由を最終サマリに明記してください。'
+            : '\n\n## Bug-fix protocol (enforced by the verification gate)\n' +
+              '1. BEFORE fixing, write a failing test that reproduces the defect and confirm it fails on the current code.\n' +
+              '2. Implement the fix and confirm that test now passes (the fail→pass transition is the completion evidence).\n' +
+              '3. A bug fix without an added/updated reproducing (or regression) test is bounced by the coverage gate. Only when a test is genuinely impossible (e.g. UI-interaction-only repro) state the reason in your final summary.';
+      }
       return ctx;
     }
 

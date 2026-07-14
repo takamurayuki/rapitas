@@ -14,6 +14,7 @@ import { createLogger } from '../../../config/logger';
 import {
   runAutomatedVerification,
   renderVerificationMarkdown,
+  looksLikeBugFixTask,
   type VerificationResult,
 } from './automated-verifier';
 import { resolveWorkflowDir, readWorkflowFile } from '../../workflow/workflow-file-utils';
@@ -93,10 +94,18 @@ export async function runVerificationGate(
   sessionId?: number,
 ): Promise<GateOutcome> {
   const planContent = await loadPlanContent(taskId);
-  const result = await runAutomatedVerification(worktreePath, { planContent }).catch((err) => {
-    log.warn({ err, taskId }, 'Automated verification crashed — skipping gate');
-    return null;
-  });
+  // Bug-fix tasks must ship a reproducing/regression test: a fix that changes
+  // no test is exactly the leaky gate SWT-Bench / UTBoost measured (R4).
+  const task = await prisma.task
+    .findUnique({ where: { id: taskId }, select: { title: true, description: true } })
+    .catch(() => null);
+  const requireTests = looksLikeBugFixTask(`${task?.title ?? ''}\n${task?.description ?? ''}`);
+  const result = await runAutomatedVerification(worktreePath, { planContent, requireTests }).catch(
+    (err) => {
+      log.warn({ err, taskId }, 'Automated verification crashed — skipping gate');
+      return null;
+    },
+  );
   if (!result) return { ok: true, result: null };
 
   // Report pre-existing failures as concerns before the gate verdict is applied.

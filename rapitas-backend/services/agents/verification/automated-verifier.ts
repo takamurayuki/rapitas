@@ -18,9 +18,12 @@
 import { spawn } from 'child_process';
 import { existsSync, writeFileSync, unlinkSync } from 'fs';
 import { dirname, extname, join, relative, resolve } from 'path';
+import { createLogger } from '../../../config/logger';
 import { buildScopedTestCommands, findRelatedTestFiles, TEST_FILE_RE } from './related-tests';
 import { triageTestFailures } from './test-triage';
 import { parsePlanFiles, evaluateScopeCheck } from './scope-check';
+
+const log = createLogger('agents:automated-verifier');
 
 /** Code extensions worth linting / typechecking. */
 const CODE_EXTENSIONS = new Set(['.ts', '.tsx', '.js', '.jsx', '.mjs', '.cjs']);
@@ -34,7 +37,7 @@ const MAX_OUTPUT_CHARS = 16 * 1024 * 1024;
 const MAX_DETAIL_CHARS = 2_000;
 
 export interface VerificationCheck {
-  name: 'lint' | 'typecheck' | 'test' | 'scope' | 'coverage';
+  name: 'lint' | 'typecheck' | 'test' | 'scope' | 'coverage' | 'runtime' | 'tamper';
   /** Whether the check was applicable and actually executed. */
   ran: boolean;
   /** True when the check passed (no new failures in the changed files). */
@@ -574,18 +577,82 @@ function mergeChecks(
 const COVERAGE_EXEMPT_RE = /(\.d\.ts$|\.config\.[cm]?[jt]s$|\.stories\.[jt]sx?$)/i;
 
 /**
- * OPT-IN gate (RAPITAS_REQUIRE_TESTS=1): a substantive source change must ship
- * with an added/changed test file. Off by default — enabling it without tuning
- * would block legitimate test-free changes (docs/config/UI tweaks). Deterministic
- * (runs on the changed-file list, zero cost), per the "deterministic checks
- * first" practice. Returns null when disabled or no source needs a test.
+ * Paths whose modification by an agent counts as GATE TAMPERING: the
+ * verification gates themselves, CI workflows, and commit hooks. Reward-hacking
+ * research shows agents game checks far more when they can touch the checker
+ * (METR o3 eval: ~43x more hacking when the scorer is reachable) and a cheap
+ * deterministic tripwire on checker edits catches most hacks (EvilGenie,
+ * arXiv:2511.21654). Legitimate self-development changes to these files are
+ * allowed only when the (human-approved) plan explicitly lists them.
+ */
+const PROTECTED_PATH_RE =
+  /(services[\\/]agents[\\/]verification[\\/]|services[\\/]workflow[\\/](completion-gate|phase-output-validator|verify-self-repair|phase-critic)|\.github[\\/]workflows[\\/]|\.husky[\\/]|scripts[\\/](pre-commit-check|auto-fix-commit))/i;
+
+/**
+ * Bug-fix task detector (conservative — plain 「修正」 alone is too broad).
+ * Pure and unit-testable; used to require a reproducing test for bug fixes.
+ *
+ * @param text - Task title + description. / タスク本文
+ * @returns Whether the task looks like a bug fix. / バグ修正らしさ
+ */
+export function looksLikeBugFixTask(text: string | null | undefined): boolean {
+  if (!text) return false;
+  return /(バグ|不具合|クラッシュ|例外が|エラーになる|落ちる|表示されない|動かない|\bbug\b|\bcrash\b|\bregression\b|\bbroken\b)/i.test(
+    text,
+  );
+}
+
+/**
+ * Deterministic anti-tampering tripwire: fails when the diff touches protected
+ * gate/CI/hook paths that the approved plan did not list. Pure and testable.
+ *
+ * @param allChangedFiles - Every changed file in the diff. / 全変更ファイル
+ * @param planFiles - Files the plan declares (null = plan-less mode). / 計画対象
+ * @returns A tamper check, or null when no protected file changed. / 判定 or null
+ */
+export function tamperCheck(
+  allChangedFiles: string[],
+  planFiles: string[] | null,
+): VerificationCheck | null {
+  const norm = (p: string) => p.replace(/\\/g, '/').toLowerCase();
+  const flagged = allChangedFiles.filter((f) => PROTECTED_PATH_RE.test(f));
+  if (flagged.length === 0) return null;
+
+  const plan = (planFiles ?? []).map(norm).filter(Boolean);
+  const planned = (file: string) => {
+    const f = norm(file);
+    return plan.some((p) => f === p || f.endsWith(`/${p}`) || p.endsWith(`/${f}`) || f.includes(p));
+  };
+  const unplanned = flagged.filter((f) => !planned(f));
+  const ok = unplanned.length === 0;
+  return {
+    name: 'tamper',
+    ran: true,
+    ok,
+    errorCount: unplanned.length,
+    details: ok
+      ? `tamper: ${flagged.length} protected file(s) changed — all listed in the approved plan`
+      : `検証ゲート/CI/コミットフック自体への計画外の変更を検出しました。ゲートの改変を含むタスクは自動完了できません（正当な変更であれば plan.md に対象ファイルを明記し承認を得てください）:\n${unplanned
+          .slice(0, 20)
+          .join('\n')}`.slice(0, MAX_DETAIL_CHARS),
+  };
+}
+
+/**
+ * Coverage gate: a substantive source change must ship with an added/changed
+ * test file. Globally OPT-IN (RAPITAS_REQUIRE_TESTS=1) because forcing it on
+ * every change blocks legitimate test-free work (docs/config/UI tweaks) — but
+ * callers can FORCE it per task (bug fixes: a fix without a reproducing test
+ * is exactly the leaky gate SWT-Bench/UTBoost measured). Deterministic.
  *
  * @param changedCodeFiles - Added/modified code files. / 変更コードファイル
+ * @param force - Require tests regardless of the env opt-in. / 強制フラグ
  * @returns A coverage check, or null when not applicable. / 判定 or null
  */
-export function coverageCheck(changedCodeFiles: string[]): VerificationCheck | null {
+export function coverageCheck(changedCodeFiles: string[], force = false): VerificationCheck | null {
   const raw = (process.env.RAPITAS_REQUIRE_TESTS || '').trim().toLowerCase();
-  if (raw !== '1' && raw !== 'true' && raw !== 'on') return null;
+  const enabled = force || raw === '1' || raw === 'true' || raw === 'on';
+  if (!enabled) return null;
 
   const tests = changedCodeFiles.filter((f) => TEST_FILE_RE.test(f));
   const sources = changedCodeFiles.filter(
@@ -613,6 +680,11 @@ export interface VerificationOptions {
    * fails on out-of-plan file changes. Omit in plan-less (lightweight) mode.
    */
   planContent?: string | null;
+  /**
+   * Force the coverage gate for this run (bug-fix tasks must ship a
+   * reproducing test) regardless of the RAPITAS_REQUIRE_TESTS env opt-in.
+   */
+  requireTests?: boolean;
 }
 
 /**
@@ -629,20 +701,24 @@ export async function runAutomatedVerification(
 ): Promise<VerificationResult> {
   const changedFiles = await getChangedCodeFiles(workdir);
 
-  // Plan-scope check runs over the FULL diff (not just code files): an
-  // out-of-plan doc/config/deletion is a violation too.
-  let scopeCheck: VerificationCheck | null = null;
-  if (options.planContent) {
-    const planFiles = parsePlanFiles(options.planContent);
-    const allChanged = await getAllChangedFiles(workdir);
-    scopeCheck = evaluateScopeCheck(allChanged, planFiles);
-  }
+  // Full-diff views (not just code files): scope violations and gate tampering
+  // can live in docs/config/CI files too.
+  const allChanged = await getAllChangedFiles(workdir);
+  const planFiles = options.planContent ? parsePlanFiles(options.planContent) : null;
 
-  if (changedFiles.length === 0 && (!scopeCheck || scopeCheck.ok)) {
+  // Plan-scope check (advisory) — only meaningful when a plan exists.
+  const scopeCheck: VerificationCheck | null =
+    options.planContent && planFiles ? evaluateScopeCheck(allChanged, planFiles) : null;
+
+  // Anti-tampering tripwire (HARD gate) — always evaluated, even when no code
+  // file changed (a CI/hook-only diff is exactly the case it must catch).
+  const tamper = tamperCheck(allChanged, planFiles);
+
+  if (changedFiles.length === 0 && (!scopeCheck || scopeCheck.ok) && (!tamper || tamper.ok)) {
     return {
       ok: true,
       changedFiles: [],
-      checks: scopeCheck ? [scopeCheck] : [],
+      checks: [...(scopeCheck ? [scopeCheck] : []), ...(tamper ? [tamper] : [])],
       summary: '自動検証: 対象のコード変更なし',
       unverifiable: false,
     };
@@ -663,15 +739,15 @@ export async function runAutomatedVerification(
     if (test) testParts.push(test);
   }
 
-  const coverage = coverageCheck(changedFiles);
+  const coverage = coverageCheck(changedFiles, options.requireTests === true);
   const checks = [
     mergeChecks('lint', lintParts),
     mergeChecks('typecheck', typeParts),
     mergeChecks('test', testParts),
     ...(scopeCheck ? [scopeCheck] : []),
+    ...(tamper ? [tamper] : []),
     ...(coverage ? [coverage] : []),
   ];
-  const unverifiable = checks.some((c) => c.unverifiable);
   // Scope is ADVISORY, not a hard gate. A plan-scope deviation while lint +
   // typecheck + test are all green means the agent made valid, working changes
   // that merely touch a file the plan didn't list precisely (e.g. a refactor's
@@ -680,6 +756,23 @@ export async function runAutomatedVerification(
   // → blocked, re-run, blocked…). Gate on the CORRECTNESS checks only; scope stays
   // in the summary for visibility, and adversarial-review + PR review still catch
   // genuine scope sprawl.
+  const staticOk = checks.filter((c) => c.name !== 'scope').every((c) => c.ok);
+
+  // Runtime smoke (Evaluator "actually run it" stage): only for projects that
+  // opt in via rapitas.runtime.json, and only once the static checks pass —
+  // launching the app costs ~a minute and a static failure bounces anyway.
+  // A runtime failure joins the same verify-repair loop as any other check.
+  if (staticOk) {
+    try {
+      const { runRuntimeSmokeCheck } = await import('./runtime-smoke');
+      const runtime = await runRuntimeSmokeCheck(workdir);
+      if (runtime) checks.push(runtime);
+    } catch (e) {
+      log.warn({ err: e, workdir }, '[verify] runtime smoke stage crashed — skipping (fail-open)');
+    }
+  }
+
+  const unverifiable = checks.some((c) => c.unverifiable);
   const ok = checks.filter((c) => c.name !== 'scope').every((c) => c.ok);
   const summary = checks
     .map((c) =>
