@@ -4,7 +4,7 @@ import {
   Layers,
   Flag,
   FileText,
-  Settings2,
+  GitBranch,
   ListTodo,
   Sparkles,
   Loader2,
@@ -102,12 +102,45 @@ function NewTaskClient() {
                   onSelect={form.handleThemeSelect}
                 />
               </FieldItem>
+
+              {/* ラベル — 旧「詳細設定」アコーディオンから昇格 (2026-07-14 要望)。
+                  選択テーマのカテゴリにスコープ。 */}
+              <FieldItem
+                label={t('labels')}
+                icon={<Tag className="w-3.5 h-3.5" />}
+                className="flex-1"
+              >
+                <LabelSelector
+                  selectedLabelIds={form.selectedLabelIds}
+                  onChange={form.setSelectedLabelIds}
+                  categoryId={form.selectedTheme?.categoryId ?? null}
+                />
+              </FieldItem>
             </InlineFieldGroup>
           </div>
 
-          {/* Due Date + Estimated Hours — always-visible row */}
+          {/* Workload + Due Date — always-visible row (工数が先) */}
           <div className="px-4 py-3 border-b border-zinc-100 dark:border-zinc-800">
             <InlineFieldGroup>
+              <FieldItem
+                label={t('compactTaskDetailCard.workloadLabel')}
+                icon={<Clock className="w-3.5 h-3.5" />}
+                className="flex-1 min-w-[100px]"
+              >
+                <div className="flex items-center gap-2">
+                  <input
+                    type="number"
+                    step="0.5"
+                    min="0"
+                    value={form.estimatedHours}
+                    onChange={(e) => form.setEstimatedHours(e.target.value)}
+                    placeholder="0"
+                    className="w-16 bg-zinc-50 dark:bg-zinc-800/50 rounded-lg px-3 py-2 text-sm border-none outline-none focus:ring-2 focus:ring-indigo-500/20 transition-all"
+                  />
+                  <span className="text-xs text-zinc-500 dark:text-zinc-400">{tc('hours')}</span>
+                </div>
+              </FieldItem>
+
               <FieldItem
                 label={t('deadlineDate')}
                 icon={<Calendar className="w-3.5 h-3.5" />}
@@ -129,25 +162,6 @@ function NewTaskClient() {
                       )
                     </span>
                   )}
-                </div>
-              </FieldItem>
-
-              <FieldItem
-                label={t('estimatedTime')}
-                icon={<Clock className="w-3.5 h-3.5" />}
-                className="flex-1 min-w-[100px]"
-              >
-                <div className="flex items-center gap-2">
-                  <input
-                    type="number"
-                    step="0.5"
-                    min="0"
-                    value={form.estimatedHours}
-                    onChange={(e) => form.setEstimatedHours(e.target.value)}
-                    placeholder="0"
-                    className="w-16 bg-zinc-50 dark:bg-zinc-800/50 rounded-lg px-3 py-2 text-sm border-none outline-none focus:ring-2 focus:ring-indigo-500/20 transition-all"
-                  />
-                  <span className="text-xs text-zinc-500 dark:text-zinc-400">{tc('hours')}</span>
                 </div>
               </FieldItem>
             </InlineFieldGroup>
@@ -248,24 +262,10 @@ function NewTaskClient() {
             </div>
           </CompactAccordionGroup>
 
-          {/* Advanced settings accordion — labels only */}
-          <CompactAccordionGroup
-            title={t('advancedSettings')}
-            icon={<Settings2 className="w-3.5 h-3.5" />}
-            defaultExpanded={false}
-          >
-            <FieldItem label={t('labels')} icon={<Tag className="w-3.5 h-3.5" />} fullWidth>
-              <LabelSelector
-                selectedLabelIds={form.selectedLabelIds}
-                onChange={form.setSelectedLabelIds}
-              />
-            </FieldItem>
-          </CompactAccordionGroup>
-
           {/* Subtasks accordion */}
           <CompactAccordionGroup
             title={t('subtasks')}
-            icon={<ListTodo className="w-3.5 h-3.5 text-emerald-500" />}
+            icon={<ListTodo className="w-3.5 h-3.5" />}
             badge={
               <span className="px-2 py-0.5 text-xs font-medium bg-zinc-100 dark:bg-zinc-800 text-zinc-500 dark:text-zinc-400 rounded-full">
                 {form.subtasks.length}
@@ -278,12 +278,10 @@ function NewTaskClient() {
               title={form.newSubtaskTitle}
               description={form.newSubtaskDescription}
               priority={form.newSubtaskPriority}
-              labels={form.newSubtaskLabels}
               estimatedHours={form.newSubtaskEstimatedHours}
               onTitleChange={form.setNewSubtaskTitle}
               onDescriptionChange={form.setNewSubtaskDescription}
               onPriorityChange={form.setNewSubtaskPriority}
-              onLabelsChange={form.setNewSubtaskLabels}
               onEstimatedHoursChange={form.setNewSubtaskEstimatedHours}
               onAdd={form.addSubtask}
               onReset={form.resetSubtaskForm}
@@ -296,10 +294,11 @@ function NewTaskClient() {
             />
           </CompactAccordionGroup>
 
-          {/* Workflow mode accordion */}
+          {/* Workflow mode accordion — GitBranch: same glyph as the task
+              detail's workflow section. */}
           <CompactAccordionGroup
             title={t('workflowModeTitle')}
-            icon={<Settings2 className="w-3.5 h-3.5" />}
+            icon={<GitBranch className="w-3.5 h-3.5" />}
             defaultExpanded={false}
             className="border-b-0"
           >
