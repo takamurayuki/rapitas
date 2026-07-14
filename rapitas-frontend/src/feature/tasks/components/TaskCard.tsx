@@ -250,11 +250,15 @@ const TaskCard = memo(function TaskCard({
               />
             )}
 
-            {task.estimatedHours && (
-              <>
-                <span className="text-zinc-300 dark:text-zinc-700">•</span>
-                <span className="shrink-0">{task.estimatedHours}h</span>
-              </>
+            {/* 工数バッジ — サブタスク行と同じオレンジのピル (Clock + Xh)。 */}
+            {task.estimatedHours != null && (
+              <span
+                className="inline-flex items-center gap-0.5 text-[10px] px-1.5 py-0.5 rounded-full bg-orange-100 text-orange-700 dark:bg-orange-900/50 dark:text-orange-300 shrink-0"
+                title={t('compactTaskDetailCard.workloadLabel')}
+              >
+                <Clock className="w-2.5 h-2.5" aria-hidden="true" />
+                {task.estimatedHours}h
+              </span>
             )}
 
             {task.createdAt && (
