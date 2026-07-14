@@ -2,7 +2,8 @@
 
 import { useState, useEffect } from 'react';
 import { useTranslations } from 'next-intl';
-import { type Task, type Resource, type Comment } from '@/types';
+import { type Task, type Resource, type Comment, type Label } from '@/types';
+import { API_BASE_URL } from '@/utils/api';
 import TaskDescription from '@/feature/tasks/components/text/TaskDescription';
 import {
   Accordion,
@@ -89,6 +90,29 @@ export default function CompactTaskDetailCard({
   // registered (falls back to the task's own actualHours otherwise).
   const displayActualHours = sumSubtaskActualHours(task.subtasks) ?? task.actualHours;
 
+  // Labels of the task's category — the label section hides entirely when the
+  // category has none (要件: テーマに紐づくラベルが無ければ非表示).
+  const labelCategoryId = task.theme?.categoryId ?? null;
+  const [categoryLabels, setCategoryLabels] = useState<Label[]>([]);
+  useEffect(() => {
+    let cancelled = false;
+    if (labelCategoryId == null) {
+      setCategoryLabels([]);
+      return;
+    }
+    fetch(`${API_BASE_URL}/labels?categoryId=${labelCategoryId}`)
+      .then((res) => (res.ok ? res.json() : []))
+      .then((data: Label[]) => {
+        if (!cancelled) setCategoryLabels(Array.isArray(data) ? data : []);
+      })
+      .catch(() => {
+        if (!cancelled) setCategoryLabels([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [labelCategoryId]);
+
   return (
     <div className="bg-white dark:bg-zinc-900 rounded-lg border border-zinc-200 dark:border-zinc-800 overflow-hidden">
       {/* Header: Title & Status in one compact row */}
@@ -131,22 +155,25 @@ export default function CompactTaskDetailCard({
         </AccordionItem>
 
         {/* Labels — flat (non-accordion) section right above the workload
-            accordion; editable in place, scoped to the task's category. */}
-        <div className="border-b border-zinc-100 dark:border-zinc-800 px-4 py-3">
-          <label className="block text-xs font-medium text-zinc-500 dark:text-zinc-400 mb-1.5">
-            <span className="flex items-center gap-1">
-              <Tag className="w-3.5 h-3.5" />
-              {t('labels')}
-            </span>
-          </label>
-          <LabelSelector
-            selectedLabelIds={(task.taskLabels ?? [])
-              .map((tl) => tl.labelId ?? tl.label?.id)
-              .filter((id): id is number => id != null)}
-            onChange={updateLabels}
-            categoryId={task.theme?.categoryId ?? null}
-          />
-        </div>
+            accordion; editable in place. Hidden when the task's category has
+            no labels. */}
+        {categoryLabels.length > 0 && (
+          <div className="border-b border-zinc-100 dark:border-zinc-800 px-4 py-3">
+            <label className="block text-xs font-medium text-zinc-500 dark:text-zinc-400 mb-1.5">
+              <span className="flex items-center gap-1">
+                <Tag className="w-3.5 h-3.5" />
+                {t('labels')}
+              </span>
+            </label>
+            <LabelSelector
+              selectedLabelIds={(task.taskLabels ?? [])
+                .map((tl) => tl.labelId ?? tl.label?.id)
+                .filter((id): id is number => id != null)}
+              onChange={updateLabels}
+              labels={categoryLabels}
+            />
+          </div>
+        )}
 
         {/* Workload & Deadline - always visible so users can set values */}
         <AccordionItem id="meta">

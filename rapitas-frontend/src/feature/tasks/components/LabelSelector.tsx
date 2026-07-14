@@ -11,9 +11,12 @@ const logger = createLogger('LabelSelector');
 type LabelSelectorProps = {
   selectedLabelIds: number[];
   onChange: (labelIds: number[]) => void;
-  /** Restrict choices to this category's labels (labels are category-scoped).
-      Global labels (categoryId null) always show; omit to show everything. */
+  /** Restrict choices to this category's labels (labels are category-scoped);
+      omit to show everything. */
   categoryId?: number | null;
+  /** Pre-fetched labels — when provided the selector skips its own fetch
+      (parents use this to hide themselves when the list is empty). */
+  labels?: Label[];
   className?: string;
 };
 
@@ -21,22 +24,23 @@ export default function LabelSelector({
   selectedLabelIds,
   onChange,
   categoryId,
+  labels: providedLabels,
   className = '',
 }: LabelSelectorProps) {
   const t = useTranslations('task.labelSelector');
-  const [labels, setLabels] = useState<Label[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [fetchedLabels, setFetchedLabels] = useState<Label[]>([]);
+  const [loading, setLoading] = useState(providedLabels == null);
+  const hasProvidedLabels = providedLabels != null;
 
   useEffect(() => {
+    if (hasProvidedLabels) return; // parent owns the data
     const fetchLabels = async () => {
       try {
         const res = await fetch(`${API_BASE_URL}/labels`);
         if (res.ok) {
           const data = (await res.json()) as Label[];
-          setLabels(
-            categoryId != null
-              ? data.filter((l) => l.categoryId === categoryId || l.categoryId == null)
-              : data,
+          setFetchedLabels(
+            categoryId != null ? data.filter((l) => l.categoryId === categoryId) : data,
           );
         }
       } catch (e) {
@@ -46,7 +50,9 @@ export default function LabelSelector({
       }
     };
     fetchLabels();
-  }, [categoryId]);
+  }, [categoryId, hasProvidedLabels]);
+
+  const labels = providedLabels ?? fetchedLabels;
 
   const toggleLabel = (labelId: number) => {
     if (selectedLabelIds.includes(labelId)) {
