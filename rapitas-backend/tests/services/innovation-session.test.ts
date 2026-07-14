@@ -186,5 +186,38 @@ describe('innovation pure helpers', () => {
     expect(prompt).toContain('既存アイデアW');
     // Frames concerns as opportunity sources.
     expect(prompt).toContain('課題→機会の転換');
+    // R3: verbalized sampling + persona conditioning are baked into the prompt.
+    expect(prompt).toContain('typicality');
+    expect(prompt).toContain('エンドユーザー');
+  });
+
+  test('buildInnovationPrompt: 指定ペルソナが本文に入ること', async () => {
+    const { buildInnovationPrompt, IDEATION_PERSONAS } =
+      await import('../../services/memory/innovation-session');
+    const empty = { completedTasks: [], openConcerns: [], backlogTasks: [], existingIdeas: [] };
+    const prompt = buildInnovationPrompt('P', empty, IDEATION_PERSONAS[2]);
+    expect(prompt).toContain('セキュリティ監査者');
+  });
+
+  test('pickPersona: シードで決定的に回転する', async () => {
+    const { pickPersona, IDEATION_PERSONAS } =
+      await import('../../services/memory/innovation-session');
+    expect(pickPersona(0)).toBe(IDEATION_PERSONAS[0]);
+    expect(pickPersona(IDEATION_PERSONAS.length)).toBe(IDEATION_PERSONAS[0]);
+    expect(pickPersona(3)).toBe(pickPersona(3 + IDEATION_PERSONAS.length));
+  });
+
+  test('selectTailCandidates: 低typicality優先で採用し、欠損は0.5扱い', async () => {
+    const { selectTailCandidates } = await import('../../services/memory/innovation-session');
+    const picked = selectTailCandidates(
+      [
+        { title: '定番', content: 'c', typicality: 0.9 },
+        { title: '独創', content: 'c', typicality: 0.1 },
+        { title: '中庸', content: 'c' }, // → 0.5
+        { title: '', content: 'c', typicality: 0.0 }, // invalid: title空
+      ],
+      2,
+    );
+    expect(picked.map((p) => p.title)).toEqual(['独創', '中庸']);
   });
 });

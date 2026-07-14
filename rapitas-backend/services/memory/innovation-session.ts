@@ -42,7 +42,34 @@ const MAX_CONCERNS = 8;
 const MAX_BACKLOG = 8;
 const MAX_EXISTING_IDEAS = 25;
 
+/**
+ * Stakeholder personas rotated across runs (R3). Persona conditioning steers
+ * generation into different regions of the model's knowledge — a measurably
+ * stronger diversity axis than sampling temperature (Persona Hub,
+ * arXiv:2406.20094; temperature correlates with incoherence, not novelty,
+ * arXiv:2405.00492).
+ */
+export const IDEATION_PERSONAS = [
+  'エンドユーザー（毎日このプロダクトで作業する人。手数と迷いを減らしたい）',
+  'SRE・運用者（安定稼働・可観測性・障害からの回復を最優先する人）',
+  'セキュリティ監査者（悪用・情報漏えい・権限の穴を探す人）',
+  '初日の新規ユーザー（今日中に価値を感じたい。学習コストに敏感）',
+  'アクセシビリティ利用者（キーボード操作・スクリーンリーダー・色覚多様性の観点）',
+  'データアナリスト（蓄積されたデータから意思決定に効く洞察を得たい人）',
+] as const;
+
+/**
+ * Deterministic persona rotation. Pure and testable.
+ *
+ * @param seed - Any integer (e.g. themeId + day-of-year). / 回転シード
+ * @returns One persona string. / ペルソナ
+ */
+export function pickPersona(seed: number): string {
+  return IDEATION_PERSONAS[Math.abs(Math.trunc(seed)) % IDEATION_PERSONAS.length];
+}
+
 const INNOVATION_PROMPT = `あなたはプロダクトイノベーターです。
+今回は特に **{persona}** の視点に立って考えてください。
 対象プロジェクトの情報から、既存機能の「組み合わせ」や「転用」で生まれる
 新しい価値を提案してください。改善やバグ修正ではなく、斬新なアイデアを求めています。
 
@@ -84,8 +111,13 @@ const INNOVATION_PROMPT = `あなたはプロダクトイノベーターです�
 ## 既存アイデア（重複回避）
 {existingIdeas}
 
-新しいアイデアを1〜3件、JSON配列で返してください（他のテキスト不要）:
-[{"title":"斬新なタイトル","content":"具体的な説明。何が新しく、なぜユーザーに価値があるか"}]
+## 出力（Verbalized Sampling — 分布ごと出力する）
+アイデア候補を**互いに方向性の異なる5件**、それぞれに typicality（典型度）を付けてJSON配列で返してください（他のテキスト不要）:
+[{"title":"斬新なタイトル","content":"具体的な説明。何が新しく、なぜユーザーに価値があるか","typicality":0.0}]
+
+typicality = 「同じ入力を与えられた平均的なAIがその案を思いつく確率」の自己推定（0.0〜1.0）。
+ありきたり・定番の案ほど高く（0.7〜）、独創的で意外な案ほど低く（〜0.3）付けてください。
+採用はシステム側で**低typicality優先**で行うので、高typicalityの案も正直に高く申告して構いません。
 
 本当に新しいアイデアがなければ空配列 [] を返してください。無理に数を合わせないでください。`;
 
@@ -118,18 +150,43 @@ function bullets(items: Array<{ title: string }>): string {
  *
  * @param projectName - Theme name / プロジェクト名
  * @param signals - Gathered signals / 収集した信号
+ * @param persona - Stakeholder persona to ideate as. / 発想の視点ペルソナ
  * @returns The filled prompt / 完成したプロンプト
  */
-export function buildInnovationPrompt(projectName: string, signals: ThemeSignals): string {
+export function buildInnovationPrompt(
+  projectName: string,
+  signals: ThemeSignals,
+  persona: string = IDEATION_PERSONAS[0],
+): string {
   const recentTasksText =
     signals.completedTasks.length > 0
       ? signals.completedTasks.map((t) => `- ${t.title}`).join('\n')
       : '(なし)';
-  return INNOVATION_PROMPT.replace('{project}', projectName)
+  return INNOVATION_PROMPT.replace('{persona}', persona)
+    .replace('{project}', projectName)
     .replace('{recentTasks}', recentTasksText)
     .replace('{concerns}', bullets(signals.openConcerns))
     .replace('{backlog}', bullets(signals.backlogTasks))
     .replace('{existingIdeas}', bullets(signals.existingIdeas));
+}
+
+/**
+ * Pick the low-typicality tail of a verbalized-sampling candidate set (R3):
+ * candidates the model itself rates as less typical are the semantically
+ * novel modes that temperature cannot reach (arXiv:2510.01171). Missing
+ * typicality is treated as neutral 0.5 so plain (pre-VS) replies still work.
+ *
+ * @param candidates - Parsed candidates. / 候補
+ * @param n - How many to keep. / 採用数
+ * @returns Valid candidates, least-typical first. / 低典型度順の採用分
+ */
+export function selectTailCandidates<
+  T extends { title?: string; content?: string; typicality?: number },
+>(candidates: T[], n: number): T[] {
+  return candidates
+    .filter((c) => c.title && c.content)
+    .sort((a, b) => (a.typicality ?? 0.5) - (b.typicality ?? 0.5))
+    .slice(0, n);
 }
 
 /** Gathers the ideation signals for one theme. */
@@ -175,7 +232,11 @@ async function generateForTheme(
   signals: ThemeSignals,
   model: LocalModel,
 ): Promise<number> {
-  const prompt = buildInnovationPrompt(theme.name, signals);
+  // Rotate persona by theme AND calendar day so consecutive daily runs view
+  // the same project through different stakeholder lenses.
+  const dayOfYear = Math.floor(Date.now() / 86_400_000);
+  const persona = pickPersona(theme.id + dayOfYear);
+  const prompt = buildInnovationPrompt(theme.name, signals, persona);
 
   let response;
   try {
@@ -183,17 +244,21 @@ async function generateForTheme(
       provider: model.provider,
       model: model.name,
       messages: [{ role: 'user', content: prompt }],
-      maxTokens: 900,
+      // 5 verbalized-sampling candidates need more room than the old 1-3.
+      maxTokens: 1600,
     });
   } catch (err) {
     log.warn({ err, themeId: theme.id }, 'Innovation generation failed for theme');
     return 0;
   }
 
-  const parsedIdeas = parseJsonArray<{ title: string; content: string }>(response.content);
+  const parsedIdeas = parseJsonArray<{ title: string; content: string; typicality?: number }>(
+    response.content,
+  );
   if (!parsedIdeas) return 0;
 
-  const ideas = parsedIdeas.filter((i) => i.title && i.content).slice(0, IDEAS_PER_THEME);
+  // Verbalized sampling: keep the LOW-typicality tail of the candidate set.
+  const ideas = selectTailCandidates(parsedIdeas, IDEAS_PER_THEME);
 
   let created = 0;
   for (const idea of ideas) {
