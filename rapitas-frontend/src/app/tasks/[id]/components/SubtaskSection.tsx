@@ -8,6 +8,8 @@
  */
 
 import { useState } from 'react';
+import { Trash2 } from 'lucide-react';
+import { useTranslations } from 'next-intl';
 import type { Task, Priority } from '@/types';
 import type { ParallelExecutionStatus } from '@/feature/tasks/components/status/SubtaskExecutionStatus';
 import { SubtaskHeader } from './subtask-section/SubtaskHeader';
@@ -104,13 +106,18 @@ export default function SubtaskSection({
   onSetNewSubtaskActualHours,
   onAddSubtask,
 }: SubtaskSectionProps) {
+  const tc = useTranslations('common');
+
   // While a subtask is being edited, collapse the card to just that item so the
   // edit form is the only thing on screen (other rows and the add form hide).
   const isEditingAny = editingSubtaskId !== null;
 
   // User-controlled visibility of the add form (header toggle) — purely a
   // view preference, so it lives here rather than in the parent hooks.
-  const [isAddFormVisible, setIsAddFormVisible] = useState(true);
+  // Hidden by default; while open the card focuses on the form alone
+  // (subtask list hides), mirroring the edit-mode behaviour.
+  const [isAddFormVisible, setIsAddFormVisible] = useState(false);
+  const isAddMode = isAddFormVisible && !isEditingAny && !isSubtaskSelectionMode;
   const visibleSubtasks = isEditingAny
     ? subtasks.filter((s) => s.id === editingSubtaskId)
     : subtasks;
@@ -124,7 +131,6 @@ export default function SubtaskSection({
         onToggleSelectionMode={onToggleSelectionMode}
         onSelectAll={onSelectAll}
         onDeselectAll={onDeselectAll}
-        onSetDeleteConfirm={onSetDeleteConfirm}
         isAddFormVisible={isAddFormVisible}
         onToggleAddForm={() => setIsAddFormVisible((v) => !v)}
       />
@@ -140,11 +146,13 @@ export default function SubtaskSection({
       )}
 
       {/* border-b closes the last row with a line even when nothing renders
-          below (selection mode); forms below carry no top border of their own. */}
+          below (selection mode); forms below carry no top border of their own.
+          Hidden entirely while the add form is open — add mode focuses the
+          card on the form alone, like edit mode does. */}
       <div
         className={`divide-y divide-zinc-100 dark:divide-zinc-800 ${
-          visibleSubtasks.length > 0 ? 'border-b border-zinc-100 dark:border-zinc-800' : ''
-        }`}
+          isAddMode ? 'hidden' : ''
+        } ${visibleSubtasks.length > 0 ? 'border-b border-zinc-100 dark:border-zinc-800' : ''}`}
       >
         {visibleSubtasks.map((subtask) => (
           <SubtaskItem
@@ -176,7 +184,26 @@ export default function SubtaskSection({
         ))}
       </div>
 
-      {!isEditingAny && isAddFormVisible && (
+      {/* Selection footer — mirrors the forms' footer band (divider comes from
+          the list's border-b): the destructive bulk action sits at the bottom,
+          styled like the save button. */}
+      {isSubtaskSelectionMode && selectedSubtaskIds.size > 0 && (
+        <div className="flex items-center justify-end gap-2 px-4 py-3 bg-zinc-100/70 dark:bg-zinc-900/60">
+          {/* ボタン自体は従来のコンパクトな削除デザインのまま — フッター
+              セクション化 (区切り+帯) だけをフォームの保存行と揃える。 */}
+          <button
+            onClick={() => onSetDeleteConfirm('selected')}
+            className="flex h-8 items-center gap-1 px-2.5 text-xs font-medium rounded-lg border border-red-200 dark:border-red-800 bg-white dark:bg-zinc-900 text-red-600 dark:text-red-400 shadow-[0_2px_0_0_#fca5a5] dark:shadow-[0_2px_0_0_#7f1d1d] hover:bg-red-50 dark:hover:bg-red-900/30 active:translate-y-[1px] active:shadow-none transition-all duration-75"
+          >
+            <Trash2 className="w-3.5 h-3.5" />
+            {tc('delete')}
+          </button>
+        </div>
+      )}
+
+      {/* Add form only in add mode (never while editing or bulk-selecting);
+          adding closes the form so the updated list is immediately visible. */}
+      {isAddMode && (
         <AddSubtaskForm
           newSubtaskTitle={newSubtaskTitle}
           newSubtaskDescription={newSubtaskDescription}
@@ -188,7 +215,10 @@ export default function SubtaskSection({
           onSetNewSubtaskPriority={onSetNewSubtaskPriority}
           onSetNewSubtaskEstimatedHours={onSetNewSubtaskEstimatedHours}
           onSetNewSubtaskActualHours={onSetNewSubtaskActualHours}
-          onAddSubtask={onAddSubtask}
+          onAddSubtask={() => {
+            onAddSubtask();
+            setIsAddFormVisible(false);
+          }}
         />
       )}
     </div>
