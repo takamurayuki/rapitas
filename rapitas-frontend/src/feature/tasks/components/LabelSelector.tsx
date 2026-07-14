@@ -11,12 +11,16 @@ const logger = createLogger('LabelSelector');
 type LabelSelectorProps = {
   selectedLabelIds: number[];
   onChange: (labelIds: number[]) => void;
+  /** Restrict choices to this category's labels (labels are category-scoped).
+      Global labels (categoryId null) always show; omit to show everything. */
+  categoryId?: number | null;
   className?: string;
 };
 
 export default function LabelSelector({
   selectedLabelIds,
   onChange,
+  categoryId,
   className = '',
 }: LabelSelectorProps) {
   const t = useTranslations('task.labelSelector');
@@ -28,8 +32,12 @@ export default function LabelSelector({
       try {
         const res = await fetch(`${API_BASE_URL}/labels`);
         if (res.ok) {
-          const data = await res.json();
-          setLabels(data);
+          const data = (await res.json()) as Label[];
+          setLabels(
+            categoryId != null
+              ? data.filter((l) => l.categoryId === categoryId || l.categoryId == null)
+              : data,
+          );
         }
       } catch (e) {
         logger.error('Failed to fetch labels:', e);
@@ -38,7 +46,7 @@ export default function LabelSelector({
       }
     };
     fetchLabels();
-  }, []);
+  }, [categoryId]);
 
   const toggleLabel = (labelId: number) => {
     if (selectedLabelIds.includes(labelId)) {

@@ -349,6 +349,7 @@
     "noThemes": "No themes registered",
     "noThemesDescription": "Add a theme to this category to organize tasks",
     "addTheme": "Add theme",
+    "addLabel": "Add label",
     "noTasksDescription": "Try creating a new task",
     "filterDataFailed": "Failed to load filter data: ",
     "retry": "Retry",

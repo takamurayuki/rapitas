@@ -349,6 +349,7 @@
     "noThemes": "テーマが未登録です",
     "noThemesDescription": "このカテゴリにテーマを追加してタスクを整理しましょう",
     "addTheme": "テーマを追加",
+    "addLabel": "ラベルを追加",
     "noTasksDescription": "新しいタスクを作成してみましょう",
     "filterDataFailed": "フィルターデータの読み込みに失敗しました: ",
     "retry": "再試行",

@@ -160,8 +160,14 @@ export default function TaskSlidePanel({
         </div>
 
         {/* Content — single scroll container (TaskDetailContent flows inside).
-            Marked so the quick-nav scroll-spy can resolve it deterministically. */}
-        <div ref={contentRef} data-task-scroll-container className="flex-1 min-h-0 overflow-y-auto">
+            Marked so the quick-nav scroll-spy can resolve it deterministically.
+            scrollbar-thin: hover-only thin scrollbar like the rest of the app —
+            the default OS scrollbar looked oversized in the side panel. */}
+        <div
+          ref={contentRef}
+          data-task-scroll-container
+          className="flex-1 min-h-0 overflow-y-auto scrollbar-thin"
+        >
           <TaskDetailClient taskId={taskId} onTaskUpdated={onTaskUpdated} onClose={handleClose} />
         </div>
       </div>

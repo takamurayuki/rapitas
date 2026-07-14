@@ -88,5 +88,26 @@ export function useCompactTaskDetailActions({
     await patchTask({ description: next });
   };
 
-  return { patchTask, saveField, toggleProtected, insertLinkToDescription };
+  /**
+   * Replaces the task's full label set (PUT /tasks/:id/labels — labels have
+   * their own association endpoint, not a PATCH field).
+   *
+   * @param labelIds - Complete set of label IDs to keep / 設定するラベルIDの全量
+   */
+  const updateLabels = async (labelIds: number[]) => {
+    try {
+      const res = await fetch(`${API_BASE_URL}/tasks/${task.id}/labels`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ labelIds }),
+      });
+      if (!res.ok) throw new Error('update failed');
+      clearApiCache(`/tasks/${task.id}`);
+      onTaskUpdated?.();
+    } catch {
+      showToast(tCommon('saveFailed'), 'error');
+    }
+  };
+
+  return { patchTask, saveField, toggleProtected, insertLinkToDescription, updateLabels };
 }

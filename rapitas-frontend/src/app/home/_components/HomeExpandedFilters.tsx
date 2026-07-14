@@ -1,10 +1,12 @@
 'use client';
 // HomeExpandedFilters
 import React from 'react';
-import { Tag } from 'lucide-react';
+import { useRouter } from 'next/navigation';
+import { Tag, Plus } from 'lucide-react';
 import type { Label, Priority } from '@/types';
 import { statusConfig } from '@/feature/tasks/config/StatusConfig';
 import { priorityConfig } from '@/feature/tasks/components/priority/PriorityIcon';
+import { getIconComponent } from '@/components/category/icon-data';
 import { useTranslations } from 'next-intl';
 
 interface StatusCounts {
@@ -50,6 +52,7 @@ export function HomeExpandedFilters({
   onSortByChange,
   onSortOrderToggle,
 }: HomeExpandedFiltersProps) {
+  const router = useRouter();
   const t = useTranslations('home');
   const tt = useTranslations('task');
 
@@ -237,6 +240,9 @@ export function HomeExpandedFilters({
           <div className="flex items-center gap-2 overflow-x-auto theme-scroll-hidden flex-1">
             {labels.map((label) => {
               const isActive = labelFilter === label.id;
+              // Registered icon, falling back to the generic Tag glyph —
+              // mirrors the theme chips' icon resolution.
+              const LabelIcon = getIconComponent(label.icon || '') || Tag;
               return (
                 <button
                   key={label.id}
@@ -252,11 +258,20 @@ export function HomeExpandedFilters({
                     color: isActive ? '#ffffff' : label.color,
                   }}
                 >
-                  <Tag className="w-3.5 h-3.5" />
+                  <LabelIcon className="w-3.5 h-3.5" />
                   {label.name}
                 </button>
               );
             })}
+            {/* ラベル追加 — テーマ行の＋ボタンと同じ意匠でラベル管理へ遷移。 */}
+            <button
+              onClick={() => router.push('/labels')}
+              title={t('addLabel')}
+              aria-label={t('addLabel')}
+              className="shrink-0 flex items-center justify-center px-2.5 py-1.5 rounded-sm bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-500 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
+            >
+              <Plus className="w-3.5 h-3.5" />
+            </button>
           </div>
         </div>
       )}

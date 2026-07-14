@@ -8,8 +8,8 @@
  */
 'use client';
 import { type useTranslations } from 'next-intl';
-import { type Task, type Label } from '@/types';
-import { SelectedLabelsDisplay } from '@/feature/tasks/components/LabelSelector';
+import { type Task } from '@/types';
+import LabelSelector from '@/feature/tasks/components/LabelSelector';
 import { sumSubtaskActualHours } from '@/utils/subtask-hours';
 import { Calendar, Clock, Timer, Tag } from 'lucide-react';
 
@@ -24,6 +24,8 @@ export interface CompactTaskDetailWorkloadSectionProps {
   dueDateInput: string;
   setDueDateInput: (value: string) => void;
   patchTask: (data: Record<string, unknown>) => Promise<void>;
+  /** Replaces the task's label set (PUT /tasks/:id/labels). */
+  onLabelsChange: (labelIds: number[]) => Promise<void>;
 }
 
 /** Workload/deadline accordion body (hours inputs + progress bar + labels). */
@@ -37,6 +39,7 @@ export default function CompactTaskDetailWorkloadSection({
   dueDateInput,
   setDueDateInput,
   patchTask,
+  onLabelsChange,
 }: CompactTaskDetailWorkloadSectionProps) {
   // When any subtask has work time registered, the parent's work time is the
   // subtask total (read-only) — manual input would be overwritten by the
@@ -178,22 +181,23 @@ export default function CompactTaskDetailWorkloadSection({
         </div>
       </div>
 
-      {/* Labels (read-only display) */}
-      {task.taskLabels && task.taskLabels.length > 0 && (
-        <div>
-          <label className="block text-xs font-medium text-zinc-500 dark:text-zinc-400 mb-1.5">
-            <span className="flex items-center gap-1">
-              <Tag className="w-3.5 h-3.5" />
-              {t('labels')}
-            </span>
-          </label>
-          <SelectedLabelsDisplay
-            labels={task.taskLabels
-              .map((tl) => tl.label)
-              .filter((l): l is Label => l !== undefined)}
-          />
-        </div>
-      )}
+      {/* Labels — editable in place via the shared LabelSelector, scoped to
+          the task's category (labels are category-scoped). */}
+      <div>
+        <label className="block text-xs font-medium text-zinc-500 dark:text-zinc-400 mb-1.5">
+          <span className="flex items-center gap-1">
+            <Tag className="w-3.5 h-3.5" />
+            {t('labels')}
+          </span>
+        </label>
+        <LabelSelector
+          selectedLabelIds={(task.taskLabels ?? [])
+            .map((tl) => tl.labelId ?? tl.label?.id)
+            .filter((id): id is number => id != null)}
+          onChange={onLabelsChange}
+          categoryId={task.theme?.categoryId ?? null}
+        />
+      </div>
     </div>
   );
 }

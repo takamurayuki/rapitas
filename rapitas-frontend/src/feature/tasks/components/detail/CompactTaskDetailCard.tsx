@@ -81,7 +81,7 @@ export default function CompactTaskDetailCard({
     setDueDateInput(task.dueDate ? toDateTimeLocal(task.dueDate) : '');
   }, [task.estimatedHours, task.actualHours, task.dueDate]);
 
-  const { patchTask, saveField, toggleProtected, insertLinkToDescription } =
+  const { patchTask, saveField, toggleProtected, insertLinkToDescription, updateLabels } =
     useCompactTaskDetailActions({ task, onTaskUpdated });
 
   // Parent work time shows the subtask total whenever subtasks have hours
@@ -165,6 +165,7 @@ export default function CompactTaskDetailCard({
               dueDateInput={dueDateInput}
               setDueDateInput={setDueDateInput}
               patchTask={patchTask}
+              onLabelsChange={updateLabels}
             />
           </AccordionContent>
         </AccordionItem>
