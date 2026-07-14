@@ -12,6 +12,8 @@ export type Label = {
   color: string;
   icon?: string | null;
   sortOrder: number;
+  /** Owning theme — null for global labels. */
+  themeId?: number | null;
   createdAt: string;
   updatedAt: string;
   _count?: { tasks: number };

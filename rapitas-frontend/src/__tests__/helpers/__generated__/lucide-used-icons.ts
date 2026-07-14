@@ -271,6 +271,7 @@ export const LUCIDE_USED_ICONS = [
   'LayoutDashboard',
   'LayoutGrid',
   'LayoutList',
+  'LayoutTemplate',
   'Leaf',
   'Library',
   'Lightbulb',

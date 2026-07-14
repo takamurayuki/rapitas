@@ -7,6 +7,8 @@ interface UseFilteredTasksProps {
   categoryFilter: number | null;
   themeFilter: number | null;
   priorityFilter: Priority | null;
+  /** Selected label ID — matches tasks carrying that label (optional for callers without a label UI). */
+  labelFilter?: number | null;
   searchQuery: string;
   themes: Theme[];
 }
@@ -23,6 +25,7 @@ export function useFilteredTasks({
   categoryFilter,
   themeFilter,
   priorityFilter,
+  labelFilter = null,
   searchQuery,
   themes,
 }: UseFilteredTasksProps): UseFilteredTasksResult {
@@ -52,13 +55,17 @@ export function useFilteredTasks({
         categoryThemeIds === null ||
         (t.themeId && categoryThemeIds.has(t.themeId));
       const priorityMatch = priorityFilter === null || t.priority === priorityFilter;
+      const labelMatch =
+        labelFilter === null ||
+        (t.taskLabels?.some((tl) => (tl.labelId ?? tl.label?.id) === labelFilter) ?? false);
       const searchMatch = !searchQuery || t.title.toLowerCase().includes(searchQuery.toLowerCase());
 
       // Check if all conditions match
-      const matches = statusMatch && themeMatch && categoryMatch && priorityMatch && searchMatch;
+      const matches =
+        statusMatch && themeMatch && categoryMatch && priorityMatch && labelMatch && searchMatch;
 
       // Update counts (theme and category conditions always apply)
-      if (themeMatch && categoryMatch && priorityMatch && searchMatch) {
+      if (themeMatch && categoryMatch && priorityMatch && labelMatch && searchMatch) {
         counts.all++;
         if (t.status === 'todo') counts.todo++;
         else if (t.status === 'in-progress') counts['in-progress']++;
@@ -69,7 +76,7 @@ export function useFilteredTasks({
     });
 
     return { filteredTasks: filtered, statusCounts: counts };
-  }, [tasks, filter, themeFilter, priorityFilter, searchQuery, categoryThemeIds]);
+  }, [tasks, filter, themeFilter, priorityFilter, labelFilter, searchQuery, categoryThemeIds]);
 
   // Count today's tasks (filtered by selected theme)
   const todayTasksCounts = useMemo(() => {

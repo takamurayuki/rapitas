@@ -1,7 +1,8 @@
 'use client';
 // HomeExpandedFilters
 import React from 'react';
-import type { Priority } from '@/types';
+import { Tag } from 'lucide-react';
+import type { Label, Priority } from '@/types';
 import { statusConfig } from '@/feature/tasks/config/StatusConfig';
 import { priorityConfig } from '@/feature/tasks/components/priority/PriorityIcon';
 import { useTranslations } from 'next-intl';
@@ -14,12 +15,16 @@ interface StatusCounts {
 interface HomeExpandedFiltersProps {
   filter: string;
   priorityFilter: Priority | null;
+  /** Theme-scoped labels — the LABEL row is hidden when this is empty. */
+  labels: Label[];
+  labelFilter: number | null;
   sortBy: 'createdAt' | 'priority' | 'title';
   sortOrder: 'asc' | 'desc';
   isFilterExpanded: boolean;
   statusCounts: StatusCounts;
   onFilterChange: (status: string) => void;
   onPriorityChange: (priority: Priority | null) => void;
+  onLabelChange: (labelId: number | null) => void;
   onSortByChange: (sortBy: 'createdAt' | 'priority' | 'title') => void;
   onSortOrderToggle: () => void;
 }
@@ -33,12 +38,15 @@ interface HomeExpandedFiltersProps {
 export function HomeExpandedFilters({
   filter,
   priorityFilter,
+  labels,
+  labelFilter,
   sortBy,
   sortOrder,
   isFilterExpanded,
   statusCounts,
   onFilterChange,
   onPriorityChange,
+  onLabelChange,
   onSortByChange,
   onSortOrderToggle,
 }: HomeExpandedFiltersProps) {
@@ -217,6 +225,41 @@ export function HomeExpandedFilters({
           </div>
         </div>
       </div>
+
+      {/* Label row — its own row, styled like the theme chips (colored fill
+          when active). Hidden when the current theme scope has no labels
+          (要件: テーマに紐づくラベルが無ければ段ごと非表示)。 */}
+      {labels.length > 0 && (
+        <div className="flex items-center gap-2 px-3 py-2 border-t border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/30">
+          <span className="font-mono text-[10px] uppercase tracking-wider text-slate-600 dark:text-slate-400 whitespace-nowrap">
+            LABEL:
+          </span>
+          <div className="flex items-center gap-2 overflow-x-auto theme-scroll-hidden flex-1">
+            {labels.map((label) => {
+              const isActive = labelFilter === label.id;
+              return (
+                <button
+                  key={label.id}
+                  // Toggle: clicking the active label clears the filter.
+                  onClick={() => onLabelChange(isActive ? null : label.id)}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 font-medium text-xs transition-all whitespace-nowrap shrink-0 rounded-sm ${
+                    isActive
+                      ? 'shadow-lg font-bold text-white dark:text-white'
+                      : 'bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700'
+                  }`}
+                  style={{
+                    backgroundColor: isActive ? label.color : undefined,
+                    color: isActive ? '#ffffff' : label.color,
+                  }}
+                >
+                  <Tag className="w-3.5 h-3.5" />
+                  {label.name}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

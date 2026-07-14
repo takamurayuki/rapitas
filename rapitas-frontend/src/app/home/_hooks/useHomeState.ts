@@ -21,6 +21,7 @@ export function useHomeState() {
     null,
   );
   const [priorityFilter, setPriorityFilter] = useState<Priority | null>(null);
+  const [labelFilter, setLabelFilter] = useState<number | null>(null);
   const [isFilterExpanded, setIsFilterExpanded] = useLocalStorageState<boolean>(
     'isFilterExpanded',
     false,
@@ -55,6 +56,8 @@ export function useHomeState() {
     setThemeFilter,
     priorityFilter,
     setPriorityFilter,
+    labelFilter,
+    setLabelFilter,
     isFilterExpanded,
     setIsFilterExpanded,
 

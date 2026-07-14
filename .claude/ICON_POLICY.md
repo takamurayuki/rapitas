@@ -83,6 +83,7 @@ Keep this list accurate. If you assign a glyph a new meaning, add it here.
 | `Gavel`                   | 敵対的レビュー判定（adversarial diff-review judge eval）カードタイトル |
 | `AlignLeft`               | サブタスク説明の展開/折りたたみトグル（タスク詳細のサブタスク行） |
 | `CircleCheckBig`          | 一括選択モードの「すべて選択」（全解除時は汎用 `X`。タスク一覧 HomeToolbar とサブタスクヘッダー共通） |
+| `LayoutTemplate`          | テンプレート設定（タスク詳細メニュー。テンプレート実体は `FileStack`） |
 
 ### Known collisions
 

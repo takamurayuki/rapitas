@@ -3,14 +3,13 @@
  *
  * Orchestrates all task-level and subtask-level actions for the task detail page.
  * Delegates task field editing to useTaskEdit and subtask management to
- * useSubtaskManagement. Owns task CRUD (status update, delete, duplicate, refetch).
+ * useSubtaskManagement. Owns task CRUD (status update, delete, refetch).
  */
 
 import { useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import type { Task } from '@/types';
-import { getTaskDetailPath } from '@/utils/tauri';
 import { API_BASE_URL } from '@/utils/api';
 import { clearApiCache } from '@/lib/api-client';
 import { createLogger } from '@/lib/logger';
@@ -53,7 +52,6 @@ export function useTaskActions({
 }: UseTaskActionsParams) {
   const router = useRouter();
   const t = useTranslations('task');
-  const ct = useTranslations('common');
   const { showToast } = useToast();
   const confirm = useConfirmDialog();
 
@@ -166,38 +164,8 @@ export function useTaskActions({
     t,
   ]);
 
-  const duplicateTask = useCallback(async () => {
-    if (!task) return;
-
-    try {
-      const duplicateData = {
-        title: `${task.title} ${ct('copySuffix')}`,
-        description: task.description || undefined,
-        status: 'todo',
-        labels: task.labels || undefined,
-        labelIds: task.taskLabels?.map((tl) => tl.labelId) || [],
-        estimatedHours: task.estimatedHours || undefined,
-        dueDate: task.dueDate || undefined,
-        projectId: task.projectId || undefined,
-        milestoneId: task.milestoneId || undefined,
-        themeId: task.themeId || undefined,
-      };
-
-      const res = await fetch(`${API_BASE}/tasks`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(duplicateData),
-      });
-
-      if (!res.ok) throw new Error(t('duplicateTaskFailed'));
-
-      const newTask = await res.json();
-      router.push(getTaskDetailPath(newTask.id));
-    } catch (err) {
-      logger.error(err);
-      showToast(t('duplicateTaskFailed'), 'error');
-    }
-  }, [task, router, showToast, ct, t]);
+  // NOTE: duplicateTask was removed 2026-07-14 — the detail-menu 複製 action
+  // was dropped in favor of the template flow (テンプレート設定 → 適用).
 
   return {
     // Task edit state
@@ -207,7 +175,6 @@ export function useTaskActions({
     // Task CRUD
     updateStatus,
     deleteTask,
-    duplicateTask,
     refetchTask,
   };
 }

@@ -50,6 +50,27 @@ describe('useFilteredTasks', () => {
     });
   });
 
+  it('should filter by label', () => {
+    const tasks = [
+      createTask({
+        id: 1,
+        taskLabels: [{ id: 10, taskId: 1, labelId: 5, createdAt: '' }],
+      }),
+      createTask({ id: 2 }),
+      createTask({
+        id: 3,
+        taskLabels: [{ id: 11, taskId: 3, labelId: 6, createdAt: '' }],
+      }),
+    ];
+
+    const { result } = renderHook(() =>
+      useFilteredTasks({ ...defaultProps, tasks, labelFilter: 5 }),
+    );
+
+    expect(result.current.filteredTasks).toHaveLength(1);
+    expect(result.current.filteredTasks[0].id).toBe(1);
+  });
+
   it('should filter by status', () => {
     const tasks = [
       createTask({ id: 1, status: 'todo' }),

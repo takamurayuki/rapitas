@@ -481,6 +481,7 @@
     "addSubtask": "Add subtask",
     "toggleAddSubtaskForm": "Show/hide add form",
     "subtaskBulkDeleteConfirm": "Delete {count} subtasks?",
+    "templateSettings": "Template settings",
     "subtaskDetails": "Details",
     "subtaskPriority": "Priority",
     "subtaskLabels": "Labels",

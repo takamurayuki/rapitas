@@ -16,7 +16,6 @@ interface TaskEditSlice {
   startEditing: () => void;
   saveTask: () => Promise<void>;
   cancelEditing: () => void;
-  duplicateTask: () => Promise<void>;
   deleteTask: () => Promise<void>;
   editTitle: string;
   setEditTitle: (v: string) => void;
@@ -146,7 +145,6 @@ export default function TaskDetailContent({
         pomodoroState={pomodoroState}
         onBack={onBack}
         onOpenPomodoro={() => setShowPomodoroModal(true)}
-        onDuplicateTask={taskActions.duplicateTask}
         onDeleteTask={taskActions.deleteTask}
         onOpenSaveTemplate={() => setShowSaveTemplateDialog(true)}
       />

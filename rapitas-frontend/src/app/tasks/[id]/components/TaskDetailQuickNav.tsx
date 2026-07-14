@@ -9,7 +9,7 @@
  */
 import { useEffect, useRef, useState } from 'react';
 import { useTranslations } from 'next-intl';
-import { ArrowLeft, Copy, FileStack, Trash2, type LucideIcon } from 'lucide-react';
+import { ArrowLeft, LayoutTemplate, Trash2, type LucideIcon } from 'lucide-react';
 import type { Task } from '@/types';
 import DropdownMenu from '@/components/ui/dropdown/DropdownMenu';
 import TaskPomodoroButton from './TaskPomodoroButton';
@@ -34,7 +34,6 @@ interface TaskDetailQuickNavProps {
   pomodoroState: PomodoroState;
   onBack: () => void;
   onOpenPomodoro: () => void;
-  onDuplicateTask: () => void;
   onDeleteTask: () => void;
   onOpenSaveTemplate: () => void;
 }
@@ -52,7 +51,6 @@ export function TaskDetailQuickNav({
   pomodoroState,
   onBack,
   onOpenPomodoro,
-  onDuplicateTask,
   onDeleteTask,
   onOpenSaveTemplate,
 }: TaskDetailQuickNavProps) {
@@ -196,13 +194,10 @@ export function TaskDetailQuickNav({
             variant="ghost"
             items={[
               {
-                label: t('duplicateTask'),
-                icon: <Copy className="w-4 h-4" />,
-                onClick: onDuplicateTask,
-              },
-              {
-                label: t('saveAsTemplate'),
-                icon: <FileStack className="w-4 h-4" />,
+                // NOTE: 複製は削除 (2026-07-14 要望)。テンプレート設定から
+                // テンプレート適用で代替できる。
+                label: t('templateSettings'),
+                icon: <LayoutTemplate className="w-4 h-4" />,
                 onClick: onOpenSaveTemplate,
               },
               {

@@ -2,7 +2,7 @@
 // HomeThemeFilter
 import React, { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import type { Priority, Theme } from '@/types';
+import type { Label, Priority, Theme } from '@/types';
 import { useTerminalContextStore } from '@/feature/terminal';
 import { Star, SwatchBook, ChevronDown, ChevronLeft, ChevronRight, Plus } from 'lucide-react';
 import { getIconComponent } from '@/components/category/icon-data';
@@ -20,6 +20,8 @@ interface HomeThemeFilterProps {
   themeFilter: number | null;
   filter: string;
   priorityFilter: Priority | null;
+  labels: Label[];
+  labelFilter: number | null;
   sortBy: 'createdAt' | 'priority' | 'title';
   sortOrder: 'asc' | 'desc';
   isFilterExpanded: boolean;
@@ -31,6 +33,7 @@ interface HomeThemeFilterProps {
   onThemeChange: (themeId: number) => void;
   onFilterChange: (status: string) => void;
   onPriorityChange: (priority: Priority | null) => void;
+  onLabelChange: (labelId: number | null) => void;
   onSortByChange: (sortBy: 'createdAt' | 'priority' | 'title') => void;
   onSortOrderToggle: () => void;
   onFilterExpandedToggle: () => void;
@@ -50,6 +53,8 @@ export function HomeThemeFilter({
   themeFilter,
   filter,
   priorityFilter,
+  labels,
+  labelFilter,
   sortBy,
   sortOrder,
   isFilterExpanded,
@@ -61,6 +66,7 @@ export function HomeThemeFilter({
   onThemeChange,
   onFilterChange,
   onPriorityChange,
+  onLabelChange,
   onSortByChange,
   onSortOrderToggle,
   onFilterExpandedToggle,
@@ -215,12 +221,15 @@ export function HomeThemeFilter({
       <HomeExpandedFilters
         filter={filter}
         priorityFilter={priorityFilter}
+        labels={labels}
+        labelFilter={labelFilter}
         sortBy={sortBy}
         sortOrder={sortOrder}
         isFilterExpanded={isFilterExpanded}
         statusCounts={statusCounts}
         onFilterChange={onFilterChange}
         onPriorityChange={onPriorityChange}
+        onLabelChange={onLabelChange}
         onSortByChange={onSortByChange}
         onSortOrderToggle={onSortOrderToggle}
       />

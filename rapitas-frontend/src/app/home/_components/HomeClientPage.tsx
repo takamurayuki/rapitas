@@ -3,7 +3,8 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import React from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import type { Theme, UserSettings } from '@/types';
+import type { Label, Theme, UserSettings } from '@/types';
+import { API_BASE_URL } from '@/utils/api';
 import TaskSlidePanel from '@/feature/tasks/components/detail/TaskSlidePanel';
 import { useTaskDetailVisibilityStore } from '@/stores/task-detail-visibility-store';
 import { useExecutingTasksPolling } from '@/hooks/task/useExecutingTasksPolling';
@@ -63,6 +64,8 @@ function HomeClientPage() {
     setThemeFilter,
     priorityFilter,
     setPriorityFilter,
+    labelFilter,
+    setLabelFilter,
     isFilterExpanded,
     setIsFilterExpanded,
     sortBy,
@@ -86,6 +89,37 @@ function HomeClientPage() {
 
   const [defaultTheme, setDefaultTheme] = useState<Theme | null>(null);
   const [globalSettings, setGlobalSettings] = useState<UserSettings | null>(null);
+
+  // Labels for the label filter row (fetched once; the filter panel scopes
+  // them to the selected theme/category).
+  const [labels, setLabels] = useState<Label[]>([]);
+  useEffect(() => {
+    fetch(`${API_BASE_URL}/labels`)
+      .then((res) => (res.ok ? res.json() : []))
+      .then((data: Label[]) => setLabels(Array.isArray(data) ? data : []))
+      .catch(() => setLabels([]));
+  }, []);
+
+  // Labels shown in the filter row: only those tied to the current theme
+  // scope. Empty → the row is hidden (要件: テーマに紐づくラベルが無ければ非表示).
+  const filterLabels = useMemo(() => {
+    if (themeFilter !== null) return labels.filter((l) => l.themeId === themeFilter);
+    if (categoryFilter !== null) {
+      const themeIds = new Set(
+        themes.filter((t) => t.categoryId === categoryFilter).map((t) => t.id),
+      );
+      return labels.filter((l) => l.themeId != null && themeIds.has(l.themeId));
+    }
+    return labels;
+  }, [labels, themeFilter, categoryFilter, themes]);
+
+  // A label filter pointing outside the current scope would silently hide
+  // every task — clear it when the theme/category scope changes.
+  useEffect(() => {
+    if (labelFilter !== null && !filterLabels.some((l) => l.id === labelFilter)) {
+      setLabelFilter(null);
+    }
+  }, [filterLabels, labelFilter, setLabelFilter]);
 
   // fetchTasks: incremental after first load, full fetch otherwise
   const fetchTasks = useCallback(async () => {
@@ -120,6 +154,7 @@ function HomeClientPage() {
     categoryFilter,
     themeFilter,
     priorityFilter,
+    labelFilter,
     searchQuery: debouncedSearchQuery,
     themes,
   });
@@ -197,6 +232,7 @@ function HomeClientPage() {
     categoryFilter,
     themeFilter,
     priorityFilter,
+    labelFilter,
     searchQuery,
     themes,
     visibleCategories,
@@ -311,6 +347,8 @@ function HomeClientPage() {
                 themeFilter={themeFilter}
                 filter={filter}
                 priorityFilter={priorityFilter}
+                labels={filterLabels}
+                labelFilter={labelFilter}
                 sortBy={sortBy}
                 sortOrder={sortOrder}
                 appMode={appMode}
@@ -330,6 +368,7 @@ function HomeClientPage() {
                 onThemeChange={setThemeFilter}
                 onFilterChange={setFilter}
                 onPriorityChange={setPriorityFilter}
+                onLabelChange={setLabelFilter}
                 onSortByChange={setSortBy}
                 onSortOrderToggle={() => setSortOrder((o) => (o === 'asc' ? 'desc' : 'asc'))}
                 onFilterExpandedToggle={() => setIsFilterExpanded(!isFilterExpanded)}

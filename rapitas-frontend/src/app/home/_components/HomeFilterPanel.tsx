@@ -1,6 +1,6 @@
 'use client';
 // HomeFilterPanel
-import type { Category, Priority, Theme, UserSettings } from '@/types';
+import type { Category, Label, Priority, Theme, UserSettings } from '@/types';
 import { EnhancedSkeletonBlock } from '@/components/ui/LoadingSpinner';
 import { useTranslations } from 'next-intl';
 import { HomeCategoryFilter } from './HomeCategoryFilter';
@@ -14,6 +14,9 @@ interface HomeFilterPanelProps {
   themeFilter: number | null;
   filter: string;
   priorityFilter: Priority | null;
+  /** Theme-scoped labels for the label filter row (empty → row hidden). */
+  labels: Label[];
+  labelFilter: number | null;
   sortBy: 'createdAt' | 'priority' | 'title';
   sortOrder: 'asc' | 'desc';
   appMode: string;
@@ -30,6 +33,7 @@ interface HomeFilterPanelProps {
   onThemeChange: (themeId: number) => void;
   onFilterChange: (status: string) => void;
   onPriorityChange: (priority: Priority | null) => void;
+  onLabelChange: (labelId: number | null) => void;
   onSortByChange: (sortBy: 'createdAt' | 'priority' | 'title') => void;
   onSortOrderToggle: () => void;
   onFilterExpandedToggle: () => void;
@@ -51,6 +55,8 @@ export function HomeFilterPanel({
   themeFilter,
   filter,
   priorityFilter,
+  labels,
+  labelFilter,
   sortBy,
   sortOrder,
   appMode,
@@ -67,6 +73,7 @@ export function HomeFilterPanel({
   onThemeChange,
   onFilterChange,
   onPriorityChange,
+  onLabelChange,
   onSortByChange,
   onSortOrderToggle,
   onFilterExpandedToggle,
@@ -168,6 +175,8 @@ export function HomeFilterPanel({
         themeFilter={themeFilter}
         filter={filter}
         priorityFilter={priorityFilter}
+        labels={labels}
+        labelFilter={labelFilter}
         sortBy={sortBy}
         sortOrder={sortOrder}
         isFilterExpanded={isFilterExpanded}
@@ -179,6 +188,7 @@ export function HomeFilterPanel({
         onThemeChange={onThemeChange}
         onFilterChange={onFilterChange}
         onPriorityChange={onPriorityChange}
+        onLabelChange={onLabelChange}
         onSortByChange={onSortByChange}
         onSortOrderToggle={onSortOrderToggle}
         onFilterExpandedToggle={onFilterExpandedToggle}
