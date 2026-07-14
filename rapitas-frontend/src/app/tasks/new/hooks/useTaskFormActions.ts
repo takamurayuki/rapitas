@@ -46,6 +46,8 @@ export function useTaskFormActions(
   const [isDerivingSpec, setIsDerivingSpec] = useState(false);
   const [showTemplateDialog, setShowTemplateDialog] = useState(false);
   const [appliedTemplate, setAppliedTemplate] = useState<TaskTemplate | null>(null);
+  // Remembered so 適用解除 knows exactly which fields to revert.
+  const [appliedFields, setAppliedFields] = useState<ApplyTemplateFields | null>(null);
 
   // ── Subtask list ──────────────────────────────────────────────────────────
   const [subtasks, setSubtasks] = useState<PendingSubtask[]>([]);
@@ -125,8 +127,10 @@ export function useTaskFormActions(
       priority: true,
       estimatedHours: true,
       subtasks: true,
+      labels: true,
     };
     setAppliedTemplate(template);
+    setAppliedFields(f);
     const data = template.templateData;
     if (f.title && data.title) setters.setTitle(data.title);
     if (f.description && data.description) setters.setDescription(data.description);
@@ -144,6 +148,35 @@ export function useTaskFormActions(
         })),
       );
     }
+    // Templates persist label NAMES; resolve them to current label IDs before
+    // filling the form's selector. Names that no longer exist are skipped.
+    if (f.labels && data.labels && data.labels.length > 0) {
+      const names = data.labels;
+      fetch(`${API_BASE}/labels`)
+        .then((res) => (res.ok ? res.json() : []))
+        .then((all: Array<{ id: number; name: string }>) => {
+          const ids = all.filter((l) => names.includes(l.name)).map((l) => l.id);
+          if (ids.length > 0) setters.setSelectedLabelIds(ids);
+        })
+        .catch((err) => logger.error('Failed to apply template labels:', err));
+    }
+  };
+
+  /**
+   * Reverts a previously applied template: only the fields that were applied
+   * reset to their defaults (manual edits to those fields are discarded).
+   */
+  const handleClearTemplate = () => {
+    if (appliedFields) {
+      if (appliedFields.title) setters.setTitle('');
+      if (appliedFields.description) setters.setDescription('');
+      if (appliedFields.priority) setters.setPriority('medium');
+      if (appliedFields.estimatedHours) setters.setEstimatedHours('');
+      if (appliedFields.subtasks) setSubtasks([]);
+      if (appliedFields.labels) setters.setSelectedLabelIds([]);
+    }
+    setAppliedTemplate(null);
+    setAppliedFields(null);
   };
 
   // ── Title generation ──────────────────────────────────────────────────────
@@ -298,6 +331,7 @@ export function useTaskFormActions(
     handleSubmit,
     handleSubmitWithTitle,
     handleApplyTemplate,
+    handleClearTemplate,
     handleApplySuggestion,
   };
 }

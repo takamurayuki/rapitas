@@ -60,6 +60,7 @@ function NewTaskClient() {
         hasTitle={form.title.trim().length > 0}
         appliedTemplate={form.appliedTemplate}
         onOpenTemplate={() => form.setShowTemplateDialog(true)}
+        onClearTemplate={form.handleClearTemplate}
         onSubmit={form.handleSubmit}
       />
 

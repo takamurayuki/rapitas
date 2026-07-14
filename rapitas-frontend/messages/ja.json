@@ -483,6 +483,7 @@
     "toggleAddSubtaskForm": "追加フォームの表示/非表示",
     "subtaskBulkDeleteConfirm": "{count}件のサブタスクを削除しますか？",
     "templateSettings": "テンプレート設定",
+    "clearTemplate": "テンプレートの適用を解除",
     "subtaskDetails": "詳細",
     "subtaskPriority": "優先度",
     "subtaskLabels": "ラベル",

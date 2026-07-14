@@ -26,6 +26,7 @@ export type ApplyTemplateFields = {
   priority: boolean;
   estimatedHours: boolean;
   subtasks: boolean;
+  labels: boolean;
 };
 
 const ALL_FIELDS: ApplyTemplateFields = {
@@ -34,6 +35,7 @@ const ALL_FIELDS: ApplyTemplateFields = {
   priority: true,
   estimatedHours: true,
   subtasks: true,
+  labels: true,
 };
 
 type Props = {
@@ -434,14 +436,22 @@ export default function ApplyTemplateDialog({ isOpen, onClose, selectedTheme, on
                     </label>
                   </li>
                 )}
-              {/* NOTE: Labels are informational only — template labels are not
-                  applied to the new-task form (labels are picked there directly). */}
               {selectedTemplate.templateData.labels &&
                 selectedTemplate.templateData.labels.length > 0 && (
-                  <li className="pl-6">
-                    {t('previewFieldLabels', {
-                      value: selectedTemplate.templateData.labels.join(', '),
-                    })}
+                  <li>
+                    <label className="flex items-start gap-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={applyFields.labels}
+                        onChange={() => toggleField('labels')}
+                        className="mt-0.5 accent-violet-600"
+                      />
+                      <span>
+                        {t('previewFieldLabels', {
+                          value: selectedTemplate.templateData.labels.join(', '),
+                        })}
+                      </span>
+                    </label>
                   </li>
                 )}
             </ul>

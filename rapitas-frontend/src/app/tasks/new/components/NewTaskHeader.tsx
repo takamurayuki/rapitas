@@ -1,6 +1,6 @@
 'use client';
 // NewTaskHeader
-import { ArrowLeft, LayoutTemplate, ListPlus } from 'lucide-react';
+import { ArrowLeft, LayoutTemplate, ListPlus, X } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import type { TaskTemplate } from '@/types';
@@ -14,6 +14,8 @@ interface NewTaskHeaderProps {
   appliedTemplate: TaskTemplate | null;
   /** Called when the user clicks the template button. */
   onOpenTemplate: () => void;
+  /** Reverts the applied template (fields it filled reset to defaults). */
+  onClearTemplate: () => void;
   /** Called when the user clicks the Create button. */
   onSubmit: (e?: React.FormEvent) => void;
 }
@@ -32,6 +34,7 @@ export function NewTaskHeader({
   hasTitle,
   appliedTemplate,
   onOpenTemplate,
+  onClearTemplate,
   onSubmit,
 }: NewTaskHeaderProps) {
   const router = useRouter();
@@ -75,6 +78,19 @@ export function NewTaskHeader({
               {appliedTemplate ? appliedTemplate.name : t('template')}
             </span>
           </button>
+
+          {/* 適用解除 — 適用中のみ表示。適用したフィールドを初期値に戻す。 */}
+          {appliedTemplate && (
+            <button
+              type="button"
+              onClick={onClearTemplate}
+              title={t('clearTemplate')}
+              aria-label={t('clearTemplate')}
+              className="flex items-center justify-center p-2 rounded-lg text-purple-500 dark:text-purple-400 hover:bg-purple-100 dark:hover:bg-purple-900/30 hover:text-purple-700 dark:hover:text-purple-200 transition-colors"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          )}
 
           {/* Create button — ボトムリッジ (青) */}
           <button
