@@ -9,9 +9,7 @@
 
 import { useState } from 'react';
 import { Pencil, Bot, Clock, Timer, AlignLeft } from 'lucide-react';
-import ReactMarkdown from 'react-markdown';
-import remarkGfm from 'remark-gfm';
-import remarkBreaks from 'remark-breaks';
+import TaskDescription from '@/feature/tasks/components/text/TaskDescription';
 import type { ParallelExecutionStatus } from '@/feature/tasks/components/status/SubtaskExecutionStatus';
 import PriorityIcon from '@/feature/tasks/components/priority/PriorityIcon';
 import TaskStatusChange from '@/feature/tasks/components/status/TaskStatusChange';
@@ -267,10 +265,13 @@ export function SubtaskItem({
               </button>
             </div>
           </div>
-          {/* pl-8 aligns the panel with the title (w-6 icon/checkbox + gap-2). */}
+          {/* pl-8 aligns the panel with the title (w-6 icon/checkbox + gap-2).
+              NOTE: TaskDescription (same renderer as the parent card) so
+              /rapitas-note/ links become working note chips instead of raw
+              anchors that 404. */}
           {isDetailsExpanded && description && (
-            <div className="mt-2 pl-8 prose prose-sm prose-zinc dark:prose-invert max-w-none text-xs">
-              <ReactMarkdown remarkPlugins={[remarkGfm, remarkBreaks]}>{description}</ReactMarkdown>
+            <div className="mt-2 pl-8 text-xs">
+              <TaskDescription description={description} isCompact={true} maxInitialLength={300} />
             </div>
           )}
         </div>

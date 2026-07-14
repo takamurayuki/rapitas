@@ -76,9 +76,9 @@ export function SubtaskEditForm({
   };
 
   return (
-    // NOTE: border-b mirrors the header's border-t so the edit panel is framed
-    // top AND bottom while it is displayed alone in the card.
-    <div className="bg-zinc-50/50 dark:bg-zinc-800/20 border-b border-zinc-100 dark:border-zinc-800">
+    // NOTE: No own bottom border — the subtask list container closes itself
+    // with border-b, which frames this panel while it is displayed alone.
+    <div className="bg-zinc-50/50 dark:bg-zinc-800/20">
       <div className="p-4 space-y-4">
         <input
           type="text"

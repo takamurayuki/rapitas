@@ -42,8 +42,12 @@ export function SubtaskHeader({
   onBulkUpdateStatus,
 }: SubtaskHeaderProps) {
   const t = useTranslations('task');
-  // Bulk status tooltip reuses the task list's existing key (home namespace).
+  const tc = useTranslations('common');
+  // Bulk labels/tooltips reuse the task list's existing keys (home namespace)
+  // so both screens read identically.
   const tHome = useTranslations('home');
+
+  const allSelected = subtasks.length > 0 && selectedSubtaskIds.size === subtasks.length;
 
   return (
     <div className="p-4 border-b border-zinc-100 dark:border-zinc-800">
@@ -111,21 +115,46 @@ export function SubtaskHeader({
                     );
                   })}
                 </div>
-                {/* 全選択 — フラット。タスク一覧の HomeToolbar と同じ視覚言語。 */}
+                {/* すべて選択/すべて解除 — フラット。文言・アイコンとも
+                    タスク一覧の HomeToolbar と同一。 */}
                 <button
                   onClick={(e) => {
                     e.stopPropagation();
-                    if (selectedSubtaskIds.size === subtasks.length) {
+                    if (allSelected) {
                       onDeselectAll();
                     } else {
                       onSelectAll();
                     }
                   }}
-                  className="px-2.5 py-1.5 text-xs font-medium rounded-lg select-none text-zinc-600 dark:text-zinc-400 bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-colors duration-150"
+                  title={allSelected ? tHome('deselectAll') : tHome('selectAll')}
+                  className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium rounded-lg select-none text-zinc-600 dark:text-zinc-400 bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-colors duration-150"
                 >
-                  {selectedSubtaskIds.size === subtasks.length ? t('deselectAll') : t('selectAll')}
+                  <svg
+                    className="w-3.5 h-3.5"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    {allSelected ? (
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M6 18L18 6M6 6l12 12"
+                      />
+                    ) : (
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M9 12l2 2 4-4m5 2a9 9 0 11-18 0 9 9 0 0118 0z"
+                      />
+                    )}
+                  </svg>
+                  {allSelected ? tHome('deselectAll') : tHome('selectAll')}
                 </button>
-                {/* 削除 — ボトムリッジ (赤)。 */}
+                {/* 削除 — ボトムリッジ (赤)。件数は「選択中 (n件)」側に出るので
+                    ラベルは「削除」のみ (タスク一覧と同じ)。 */}
                 {selectedSubtaskIds.size > 0 && (
                   <button
                     onClick={(e) => {
@@ -135,7 +164,7 @@ export function SubtaskHeader({
                     className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium rounded-lg border border-red-200 dark:border-red-800 bg-white dark:bg-zinc-900 text-red-600 dark:text-red-400 shadow-[0_2px_0_0_#fca5a5] dark:shadow-[0_2px_0_0_#7f1d1d] hover:bg-red-50 dark:hover:bg-red-900/30 active:translate-y-[1px] active:shadow-none transition-all duration-75"
                   >
                     <Trash2 className="w-3.5 h-3.5" />
-                    {t('deleteCount', { count: selectedSubtaskIds.size })}
+                    {tc('delete')}
                   </button>
                 )}
               </>

@@ -135,7 +135,13 @@ export default function SubtaskSection({
         />
       )}
 
-      <div className="divide-y divide-zinc-100 dark:divide-zinc-800">
+      {/* border-b closes the last row with a line even when nothing renders
+          below (selection mode); forms below carry no top border of their own. */}
+      <div
+        className={`divide-y divide-zinc-100 dark:divide-zinc-800 ${
+          visibleSubtasks.length > 0 ? 'border-b border-zinc-100 dark:border-zinc-800' : ''
+        }`}
+      >
         {visibleSubtasks.map((subtask) => (
           <SubtaskItem
             key={subtask.id}

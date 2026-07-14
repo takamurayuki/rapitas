@@ -55,7 +55,8 @@ export function AddSubtaskForm({
   useAutosizeTextarea(descriptionRef, newSubtaskDescription);
 
   return (
-    <div className="border-t border-zinc-100 dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-900/30">
+    // NOTE: No top border — the subtask list above closes itself with border-b.
+    <div className="bg-zinc-50/50 dark:bg-zinc-900/30">
       <div className="p-4 space-y-4">
         <div>
           <input

@@ -22,12 +22,10 @@ vi.mock('@/stores/execution-state-store', () => ({
     selector({ getExecutingTaskStatus: () => null }),
 }));
 
-// Markdown pipeline is irrelevant here — render children as-is.
-vi.mock('react-markdown', () => ({
-  default: ({ children }: { children: string }) => <div>{children}</div>,
+// Markdown pipeline is irrelevant here — render the description as-is.
+vi.mock('@/feature/tasks/components/text/TaskDescription', () => ({
+  default: ({ description }: { description: string }) => <div>{description}</div>,
 }));
-vi.mock('remark-gfm', () => ({ default: () => undefined }));
-vi.mock('remark-breaks', () => ({ default: () => undefined }));
 
 // NoteLinksSection pulls in the note store + portals; stub it and just assert
 // it receives the subtask's id.
