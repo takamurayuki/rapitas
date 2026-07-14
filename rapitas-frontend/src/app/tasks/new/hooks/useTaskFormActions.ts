@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useTranslations } from 'next-intl';
 import type { Priority, TaskTemplate, UserSettings } from '@/types';
+import type { ApplyTemplateFields } from '@/feature/tasks/components/dialog/ApplyTemplateDialog';
 import { useToast } from '@/components/ui/toast/ToastContainer';
 import { API_BASE_URL } from '@/utils/api';
 import { createLogger } from '@/lib/logger';
@@ -115,15 +116,25 @@ export function useTaskFormActions(
    * Applies a template's data to the controlled form fields.
    *
    * @param template - Template to apply / 適用するテンプレート
+   * @param fields - Which fields to apply (all when omitted) / 適用するフィールドの選択
    */
-  const handleApplyTemplate = (template: TaskTemplate) => {
+  const handleApplyTemplate = (template: TaskTemplate, fields?: ApplyTemplateFields) => {
+    const f: ApplyTemplateFields = fields ?? {
+      title: true,
+      description: true,
+      priority: true,
+      estimatedHours: true,
+      subtasks: true,
+    };
     setAppliedTemplate(template);
     const data = template.templateData;
-    if (data.title) setters.setTitle(data.title);
-    if (data.description) setters.setDescription(data.description);
-    if (data.priority) setters.setPriority(data.priority);
-    if (data.estimatedHours) setters.setEstimatedHours(data.estimatedHours.toString());
-    if (data.subtasks && Array.isArray(data.subtasks)) {
+    if (f.title && data.title) setters.setTitle(data.title);
+    if (f.description && data.description) setters.setDescription(data.description);
+    if (f.priority && data.priority) setters.setPriority(data.priority);
+    if (f.estimatedHours && data.estimatedHours) {
+      setters.setEstimatedHours(data.estimatedHours.toString());
+    }
+    if (f.subtasks && data.subtasks && Array.isArray(data.subtasks)) {
       setSubtasks(
         data.subtasks.map((st, idx) => ({
           id: `template-${idx}-${Date.now()}`,
