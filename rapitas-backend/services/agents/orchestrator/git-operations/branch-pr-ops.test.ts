@@ -238,6 +238,46 @@ describe('createPullRequest — push 分岐耐性', () => {
     expect(ghWithBodyCalls.some((c) => c.baseArgs.includes('create'))).toBe(true);
   });
 
+  test('指定された base がリポジトリに存在しなければ自動検出へフォールバックすること (task 485 回帰)', async () => {
+    // theme.defaultBranch='develop' を明示指定したが、外部リポジトリに develop が
+    // 無いケース。存在しない base を gh に渡すと "Base sha can't be blank / No
+    // commits between" で失敗するため、main へフォールバックすること。
+    ghWithBodyResult = 'https://github.com/x/y/pull/13';
+    script = [
+      // develop はローカルにもリモートにも存在しない（デフォルトの空 stdout に任せる）
+      { match: /git branch --list main/, result: 'main\n' },
+      { match: /git branch --show-current/, result: 'feature/implement-uiux\n' },
+      { match: /git push -u origin feature\/implement-uiux$/, result: '' },
+      { match: /pr list --head/, result: '' },
+    ];
+
+    const res = await createPullRequest('/repo', 't', 'b', 'develop');
+
+    expect(res.success).toBe(true);
+    expect(res.prNumber).toBe(13);
+    const create = ghWithBodyCalls.find((c) => c.baseArgs.includes('create'));
+    expect(create).toBeDefined();
+    const baseIdx = create!.baseArgs.indexOf('--base');
+    expect(create!.baseArgs[baseIdx + 1]).toBe('main');
+  });
+
+  test('指定された base が存在すればそのまま使うこと', async () => {
+    ghWithBodyResult = 'https://github.com/x/y/pull/14';
+    script = [
+      { match: /git branch --list release/, result: 'release\n' },
+      { match: /git branch --show-current/, result: 'feature/z\n' },
+      { match: /git push -u origin feature\/z$/, result: '' },
+      { match: /pr list --head/, result: '' },
+    ];
+
+    const res = await createPullRequest('/repo', 't', 'b', 'release');
+
+    expect(res.success).toBe(true);
+    const create = ghWithBodyCalls.find((c) => c.baseArgs.includes('create'));
+    const baseIdx = create!.baseArgs.indexOf('--base');
+    expect(create!.baseArgs[baseIdx + 1]).toBe('release');
+  });
+
   test('分岐以外の push 失敗 (認証等) は PR 失敗として返すこと', async () => {
     script = [
       { match: /git branch --list develop/, result: 'develop\n' },

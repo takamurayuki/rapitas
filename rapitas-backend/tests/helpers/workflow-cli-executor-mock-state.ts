@@ -472,6 +472,18 @@ export function installWorkflowCliExecutorMocks(): void {
 
   mock.module(p('routes/workflow/workflow-auto-commit'), () => ({
     performAutoCommitAndPR: spies.performAutoCommitAndPR,
+    // Mirror the real pure classifier (task 485): base-branch errors and real
+    // committed changes are NEVER a no-change completion.
+    isNoChangeCompletion: (q: { errorBlob: string; filesChanged: number | undefined }) => {
+      if (/base (?:sha|ref)|sha can't be blank|must be a branch/i.test(q.errorBlob)) return false;
+      if (typeof q.filesChanged === 'number' && q.filesChanged > 0) return false;
+      return (
+        q.filesChanged === 0 ||
+        /no commits between|nothing to commit|no changes added|変更がありません|差分がありません/i.test(
+          q.errorBlob,
+        )
+      );
+    },
   }));
 
   mock.module(p('services/memory/timeline'), () => ({

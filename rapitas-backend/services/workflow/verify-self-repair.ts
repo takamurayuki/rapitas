@@ -226,6 +226,37 @@ export async function attemptVerifyRepair(
 }
 
 /**
+ * Whether the most recent workflow transition for this task is a fresh
+ * verify-phase rejection — a self-repair bounce or an adversarial-review FAIL.
+ *
+ * The CLI executor's verify epilogue runs AFTER the agent's HTTP verify.md save,
+ * so a bounce recorded during that save must veto the epilogue's commit/PR/
+ * complete path. Without this check the epilogue completed task 485 seconds
+ * after the jury had bounced it, clobbering the self-repair loop. The freshness
+ * window guards against stale rows from earlier attempts when a later save
+ * bypassed the HTTP handler (executor fallback extraction).
+ *
+ * @param taskId - Task id / タスクID
+ * @param windowMs - Max age for the rejection to count. / 有効期間
+ * @returns True when completion must be skipped. / 完了処理を止めるべきか
+ */
+export async function hasFreshVerifyRejection(
+  taskId: number,
+  windowMs = 30 * 60_000,
+): Promise<boolean> {
+  const last = await prisma.workflowTransition
+    .findFirst({
+      where: { taskId },
+      orderBy: { createdAt: 'desc' },
+      select: { cause: true, createdAt: true },
+    })
+    .catch(() => null);
+  if (!last) return false;
+  if (last.cause !== REPAIR_CAUSE && last.cause !== 'adversarial_review_failed') return false;
+  return Date.now() - last.createdAt.getTime() <= windowMs;
+}
+
+/**
  * Re-queue the task and ensure the WorkflowRunner is processing, so the
  * implement→verify re-run happens for a SINGLE/MANUAL execution that has no
  * poller driving it.

@@ -152,29 +152,41 @@ export async function createPullRequest(
   error?: string;
 }> {
   try {
+    // Check the REMOTE-tracking ref (origin/<b>) as well as a local branch:
+    // `gh pr create --base` targets the remote, and in many checkouts `develop`
+    // exists ONLY as `origin/develop` (no local branch). The old local-only
+    // check then fell through to main — the recurring #170/#172 mistarget where
+    // the PR diff shows main instead of develop until manually retargeted.
+    const branchExists = async (b: string): Promise<boolean> => {
+      const local = await execFileAsync('git', ['branch', '--list', b], {
+        cwd: workingDirectory,
+        encoding: 'utf8',
+      })
+        .then((r) => !!r.stdout.trim())
+        .catch(() => false);
+      if (local) return true;
+      return await execFileAsync('git', ['branch', '-r', '--list', `origin/${b}`], {
+        cwd: workingDirectory,
+        encoding: 'utf8',
+      })
+        .then((r) => !!r.stdout.trim())
+        .catch(() => false);
+    };
+
     let targetBranch = baseBranch;
+    // A caller-supplied base (typically theme.defaultBranch) may not exist in
+    // THIS repo — themes default to 'develop' but external repos often only
+    // have main/master. gh then fails with "Base sha can't be blank / No
+    // commits between develop and X" (task 485). Validate and fall back to
+    // auto-detection instead of passing a nonexistent base through.
+    if (targetBranch && !(await branchExists(targetBranch))) {
+      logger.warn(
+        `[createPullRequest] Requested base branch "${targetBranch}" not found (local or origin) — falling back to auto-detection`,
+      );
+      targetBranch = undefined;
+    }
     if (!targetBranch) {
-      // Prefer develop, then main, then master. Check the REMOTE-tracking ref
-      // (origin/<b>) as well as a local branch: `gh pr create --base` targets the
-      // remote, and in many checkouts `develop` exists ONLY as `origin/develop`
-      // (no local branch). The old local-only check then fell through to main —
-      // the recurring #170/#172 mistarget where the PR diff shows main instead of
-      // develop until manually retargeted.
-      const branchExists = async (b: string): Promise<boolean> => {
-        const local = await execFileAsync('git', ['branch', '--list', b], {
-          cwd: workingDirectory,
-          encoding: 'utf8',
-        })
-          .then((r) => !!r.stdout.trim())
-          .catch(() => false);
-        if (local) return true;
-        return await execFileAsync('git', ['branch', '-r', '--list', `origin/${b}`], {
-          cwd: workingDirectory,
-          encoding: 'utf8',
-        })
-          .then((r) => !!r.stdout.trim())
-          .catch(() => false);
-      };
+      // Prefer develop, then main, then master.
       if (await branchExists('develop')) targetBranch = 'develop';
       else if (await branchExists('main')) targetBranch = 'main';
       else targetBranch = 'master';

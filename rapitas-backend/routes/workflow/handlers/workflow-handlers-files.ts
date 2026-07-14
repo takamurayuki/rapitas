@@ -24,7 +24,7 @@ import {
 } from '../../../services/workflow/workflow-file-utils';
 import { detectReplacementLoss } from '../../../utils/common/mojibake-detector';
 import { looksLogPolluted } from '../../../services/workflow/phase-output-validator';
-import { performAutoCommitAndPR } from '../workflow-auto-commit';
+import { performAutoCommitAndPR, isNoChangeCompletion } from '../workflow-auto-commit';
 import { resolveLandingMode } from '../../../services/workflow/automation-policy';
 import {
   evaluateCompletionGate,
@@ -975,21 +975,20 @@ export async function handleSaveFile({
         }
 
         // No-diff / already-implemented: verify passed but there is NOTHING to PR
-        // because the code already satisfies the task (gh: "No commits between
-        // <base> and <branch>", or auto-commit found no changes). Requiring a PR
-        // here wrongly blocks an already-done task — complete it as a no-change
-        // result instead (mirrors the research "## 結論: 修正不要" path). PR is
-        // required ONLY when there were ACTUAL changes to land. (User request.)
-        const noChangeBlob = `${pr?.error ?? ''} ${commit?.error ?? ''} ${autoCommitPRResult.error ?? ''}`;
-        const isNoChangeCompletion =
+        // because the code already satisfies the task. Requiring a PR here
+        // wrongly blocks an already-done task — complete it as a no-change
+        // result instead (mirrors the research "## 結論: 修正不要" path). The
+        // shared classifier excludes base-branch errors and real committed
+        // changes (task 485: nonexistent base also says "No commits between").
+        const noChangeCompletion =
           prRequested &&
           !prSatisfied &&
-          (/no commits between|nothing to commit|no changes added|変更がありません|差分がありません/i.test(
-            noChangeBlob,
-          ) ||
-            commit?.filesChanged === 0);
+          isNoChangeCompletion({
+            errorBlob: `${pr?.error ?? ''} ${commit?.error ?? ''} ${autoCommitPRResult.error ?? ''}`,
+            filesChanged: commit?.filesChanged,
+          });
 
-        if (isNoChangeCompletion) {
+        if (noChangeCompletion) {
           await prisma.task
             .update({
               where: { id: taskId },

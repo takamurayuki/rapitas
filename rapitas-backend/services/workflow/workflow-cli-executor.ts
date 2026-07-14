@@ -759,9 +759,21 @@ curl -X POST http://127.0.0.1:${port}/idea-box \\
         // task.status still 'in-progress'. A passing verify completes the task;
         // a hard validation failure blocks it for fix + re-verify.
         const hardFail = !validation.ok && validation.severity >= 80;
+        // The agent saved verify.md via the HTTP API during its run — if that
+        // save was just REJECTED there (self-repair bounce or adversarial-review
+        // FAIL), the rejection owns the task's next step. Running the completion
+        // epilogue anyway would commit/PR/complete over the bounce (task 485).
+        const { hasFreshVerifyRejection } = await import('./verify-self-repair');
+        const verifyRejected = await hasFreshVerifyRejection(taskId).catch(() => false);
         if (currentWfStatus === 'completed') {
           // The HTTP handler already completed it — don't touch / regress.
           phaseStatus = 'completed';
+        } else if (verifyRejected) {
+          phaseStatus = currentWfStatus as WorkflowAdvanceResult['status'];
+          log.warn(
+            { taskId, currentWfStatus },
+            '[WorkflowCLIExecutor] Verify was rejected (self-repair bounce / adversarial review) — honoring it and skipping the completion epilogue',
+          );
         } else if (hardFail) {
           // This write is what actually STOPS the verify hard-fail loop, so a
           // swallowed failure here (mirroring the workflow-orchestrator
@@ -830,11 +842,18 @@ curl -X POST http://127.0.0.1:${port}/idea-box \\
             let prSatisfied = await taskHasLinkedPr(taskId);
             let prRequested = true;
             let prError: string | undefined;
+            // No-diff / already-implemented classification: PR creation failed
+            // because there is nothing to land. Requiring a PR would wrongly
+            // block an already-done task — complete as a no-change result
+            // instead (PR required ONLY for actual changes). The shared
+            // classifier excludes base-branch errors and real committed changes
+            // (task 485 false completion). Mirrors the HTTP handler.
+            let noChangeCompletion = false;
             if (!prSatisfied) {
               // No PR yet (e.g. the HTTP save bounced before PR creation). Run the
               // shared commit/PR flow; a pre-existing PR is re-confirmed via
               // taskHasLinkedPr. Dynamic import avoids a routes↔services import cycle.
-              const { performAutoCommitAndPR } =
+              const { performAutoCommitAndPR, isNoChangeCompletion } =
                 await import('../../routes/workflow/workflow-auto-commit');
               const acpr = await performAutoCommitAndPR(
                 taskId,
@@ -846,21 +865,16 @@ curl -X POST http://127.0.0.1:${port}/idea-box \\
                 acpr.autoPRResult?.success === true ||
                 (await taskHasLinkedPr(taskId));
               prError = acpr.autoPRResult?.error ?? acpr.error;
+              noChangeCompletion =
+                prRequested &&
+                !prSatisfied &&
+                isNoChangeCompletion({
+                  errorBlob: `${acpr.autoPRResult?.error ?? ''} ${acpr.autoCommitResult?.error ?? ''} ${acpr.error ?? ''}`,
+                  filesChanged: acpr.autoCommitResult?.filesChanged,
+                });
             }
 
-            // No-diff / already-implemented: PR creation failed because there is
-            // nothing to land (gh: "No commits between ..."). Requiring a PR would
-            // wrongly block an already-done task — complete as a no-change result
-            // instead (PR required ONLY for actual changes). Mirrors the HTTP
-            // handler (workflow-handlers-files.ts) and the research 修正不要 path.
-            const isNoChangeCompletion =
-              prRequested &&
-              !prSatisfied &&
-              /no commits between|nothing to commit|no changes added|変更がありません|差分がありません/i.test(
-                prError ?? '',
-              );
-
-            if (isNoChangeCompletion) {
+            if (noChangeCompletion) {
               await prisma.task.update({
                 where: { id: taskId },
                 data: { status: 'done', workflowStatus: 'completed', completedAt: new Date() },

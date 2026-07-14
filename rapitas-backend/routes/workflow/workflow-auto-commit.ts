@@ -48,6 +48,39 @@ export type AutoCommitPRResult = {
 };
 
 /**
+ * Classify whether a failed commit/PR outcome means "no change was needed"
+ * (already implemented — safe to complete WITHOUT a PR) as opposed to a real
+ * PR failure that must block. Shared by both verify-completion paths (HTTP
+ * file-save handler and the CLI executor epilogue). Pure and unit-testable.
+ *
+ * Task 485 incident: `gh pr create` against a base branch that does not exist
+ * in the repo also says "No commits between <base> and <head>" — a naive regex
+ * match then completed a 261-line change with NO PR. Two guards close that:
+ * a base-branch error is never no-change, and a commit that actually changed
+ * files proves there WAS work to land.
+ *
+ * @param p.errorBlob - Concatenated commit/PR/step error messages. / エラー文字列連結
+ * @param p.filesChanged - Files changed by the auto-commit (undefined = no commit made). / コミットの変更ファイル数
+ * @returns True when completion-without-PR is justified. / PRなし完了が正当か
+ */
+export function isNoChangeCompletion(p: {
+  errorBlob: string;
+  filesChanged: number | undefined;
+}): boolean {
+  // A missing/invalid base produces "No commits between ..." too — that is a
+  // PR-creation failure, not an already-implemented no-op.
+  if (/base (?:sha|ref)|sha can't be blank|must be a branch/i.test(p.errorBlob)) return false;
+  // The commit itself changed files: there IS work that failed to reach a PR.
+  if (typeof p.filesChanged === 'number' && p.filesChanged > 0) return false;
+  return (
+    p.filesChanged === 0 ||
+    /no commits between|nothing to commit|no changes added|変更がありません|差分がありません/i.test(
+      p.errorBlob,
+    )
+  );
+}
+
+/**
  * Perform auto-commit, PR creation, optional merge, and worktree cleanup after verify.md is saved.
  *
  * @param taskId - Task ID that was completed / 完了したタスクID

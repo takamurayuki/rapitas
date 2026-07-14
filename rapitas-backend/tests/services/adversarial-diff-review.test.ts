@@ -130,3 +130,59 @@ describe('buildDiffReviewPrompt', () => {
     expect(p).toContain('明示的な受入基準なし');
   });
 });
+
+describe('buildJuryDiffText', () => {
+  const file = (
+    filename: string,
+    patchLen: number,
+    additions = 10,
+  ): {
+    filename: string;
+    status: string;
+    additions: number;
+    deletions: number;
+    patch?: string;
+  } => ({
+    filename,
+    status: 'modified',
+    additions,
+    deletions: 2,
+    patch: 'x'.repeat(patchLen),
+  });
+
+  test('小さい差分は省略なし（バナーもマーカーも出ない）', async () => {
+    const { buildJuryDiffText } =
+      await import('../../services/agents/verification/adversarial-diff-review');
+    const text = buildJuryDiffText([file('a.ts', 100), file('b.ts', 100)]);
+    expect(text).toContain('a.ts');
+    expect(text).toContain('b.ts');
+    expect(text).not.toContain('[省略');
+    expect(text).not.toContain('⚠️');
+  });
+
+  test('上限超過でも全ファイルがマニフェストと本文ヘッダに現れること (task 485 回帰)', async () => {
+    const { buildJuryDiffText } =
+      await import('../../services/agents/verification/adversarial-diff-review');
+    // 5ファイル × 大きなpatch。旧実装 (join後slice) では末尾ファイルが完全消失した。
+    const files = [
+      file('a.ts', 9000),
+      file('b.ts', 9000),
+      file('c.ts', 9000),
+      file('d.ts', 9000),
+      file('topic_editor_sheet.dart', 9000),
+    ];
+    const text = buildJuryDiffText(files, 10000);
+    for (const f of files) {
+      expect(text).toContain(`- ${f.filename} (modified, +10/-2)`); // マニフェスト
+      expect(text).toContain(`--- ${f.filename}`); // 本文ヘッダ
+    }
+    expect(text).toContain('[省略');
+    expect(text).toContain('未実装」と判定しない');
+  });
+
+  test('空配列は空文字を返す', async () => {
+    const { buildJuryDiffText } =
+      await import('../../services/agents/verification/adversarial-diff-review');
+    expect(buildJuryDiffText([])).toBe('');
+  });
+});

@@ -8,7 +8,10 @@
 import { describe, test, expect, mock, beforeEach } from 'bun:test';
 
 const mockPrisma = {
-  workflowTransition: { count: mock(() => Promise.resolve(0)) },
+  workflowTransition: {
+    count: mock(() => Promise.resolve(0)),
+    findFirst: mock(() => Promise.resolve(null as { cause: string; createdAt: Date } | null)),
+  },
   workflowFile: { findFirst: mock(() => Promise.resolve(null)) },
   task: {
     update: mock(() => Promise.resolve({})),
@@ -61,7 +64,8 @@ mock.module('../../services/workflow/auto-run/theme-auto-run-service', () => ({
   isThemeAutoRunActive,
 }));
 
-const { attemptVerifyRepair } = await import('../../services/workflow/verify-self-repair');
+const { attemptVerifyRepair, hasFreshVerifyRejection } =
+  await import('../../services/workflow/verify-self-repair');
 
 describe('attemptVerifyRepair', () => {
   beforeEach(() => {
@@ -254,5 +258,48 @@ describe('attemptVerifyRepair', () => {
     const firstCall = mockPrisma.workflowTransition.count.mock.calls[0] as unknown as unknown[];
     const countArgs = firstCall[0] as { where: { createdAt?: { gt: Date } } };
     expect(countArgs.where.createdAt?.gt).toEqual(retriedAt);
+  });
+});
+
+describe('hasFreshVerifyRejection', () => {
+  beforeEach(() => {
+    mockPrisma.workflowTransition.findFirst.mockReset();
+    mockPrisma.workflowTransition.findFirst.mockResolvedValue(null);
+  });
+
+  test('直近 transition が verify_repair なら true（完了処理を止める）', async () => {
+    mockPrisma.workflowTransition.findFirst.mockResolvedValue({
+      cause: 'verify_repair',
+      createdAt: new Date(),
+    });
+    expect(await hasFreshVerifyRejection(1)).toBe(true);
+  });
+
+  test('直近 transition が adversarial_review_failed でも true (task 485 回帰)', async () => {
+    mockPrisma.workflowTransition.findFirst.mockResolvedValue({
+      cause: 'adversarial_review_failed',
+      createdAt: new Date(),
+    });
+    expect(await hasFreshVerifyRejection(1)).toBe(true);
+  });
+
+  test('直近 transition が別 cause なら false', async () => {
+    mockPrisma.workflowTransition.findFirst.mockResolvedValue({
+      cause: 'verify_passed',
+      createdAt: new Date(),
+    });
+    expect(await hasFreshVerifyRejection(1)).toBe(false);
+  });
+
+  test('古い rejection（有効期間超過）は false', async () => {
+    mockPrisma.workflowTransition.findFirst.mockResolvedValue({
+      cause: 'verify_repair',
+      createdAt: new Date(Date.now() - 60 * 60_000),
+    });
+    expect(await hasFreshVerifyRejection(1, 30 * 60_000)).toBe(false);
+  });
+
+  test('transition が無ければ false', async () => {
+    expect(await hasFreshVerifyRejection(1)).toBe(false);
   });
 });

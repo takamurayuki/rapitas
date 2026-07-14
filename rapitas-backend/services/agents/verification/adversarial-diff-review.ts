@@ -35,7 +35,13 @@ import { createLogger } from '../../../config/logger';
 const log = createLogger('verification:adversarial-diff-review');
 
 /** Max diff characters sent to the judge (keeps token cost bounded). */
-const MAX_DIFF_CHARS = 14000;
+// NOTE: 14000 was too small — a ~260-line multi-file diff silently lost its tail
+// files, and all jurors unanimously (and wrongly) failed the task as
+// "unimplemented" (task 485). Truncation is now explicit per-file with a
+// manifest (buildJuryDiffText); this cap only bounds worst-case token cost.
+const MAX_DIFF_CHARS = 48000;
+/** Minimum patch budget per file so no changed file is entirely invisible. */
+const MIN_FILE_PATCH_CHARS = 1500;
 /** Providers we will use as a judge, in default preference order. */
 const JUDGE_PROVIDERS: AIProvider[] = ['claude', 'gemini', 'chatgpt'];
 
@@ -60,6 +66,60 @@ export interface DiffReviewResult {
   judged: boolean;
   /** Individual juror verdicts — recorded for future reliability weighting. */
   jurors?: JurorVerdict[];
+}
+
+/** One changed file as returned by getDiff (subset used for jury text). */
+export interface JuryDiffFile {
+  filename: string;
+  status: string;
+  additions: number;
+  deletions: number;
+  patch?: string | null;
+}
+
+/**
+ * Build the diff text shown to jurors, with TRUNCATION MADE EXPLICIT.
+ *
+ * The manifest (every changed file + its +/- stats) is always complete; only
+ * patch BODIES are budgeted. When a patch is cut, an explicit [省略] marker is
+ * inserted and a banner tells jurors not to treat manifest-listed files as
+ * unimplemented — silent tail-truncation previously caused unanimous false
+ * FAIL verdicts ("file X missing from diff") on large-but-correct diffs.
+ *
+ * @param files - Structured diff entries. / 構造化差分
+ * @param maxChars - Total character budget. / 全体の文字数上限
+ * @returns Jury-facing diff text. / 陪審に渡す差分テキスト
+ */
+export function buildJuryDiffText(files: JuryDiffFile[], maxChars = MAX_DIFF_CHARS): string {
+  if (files.length === 0) return '';
+  const manifest = files
+    .map((f) => `- ${f.filename} (${f.status}, +${f.additions}/-${f.deletions})`)
+    .join('\n');
+  const header = `### 変更ファイル一覧（全${files.length}件 — この一覧は省略なしの完全なもの）\n${manifest}\n\n### 差分本文\n`;
+
+  let remaining = Math.max(0, maxChars - header.length);
+  const parts: string[] = [];
+  let truncated = false;
+  for (let i = 0; i < files.length; i++) {
+    const f = files[i];
+    const head = `--- ${f.filename} (${f.status}, +${f.additions}/-${f.deletions})\n`;
+    const patch = f.patch ?? '';
+    // Fair share of what's left, but never starve a file below the floor —
+    // every file must be at least partially visible to the jury.
+    const budget = Math.max(MIN_FILE_PATCH_CHARS, Math.floor(remaining / (files.length - i)));
+    let body = patch;
+    if (patch.length > budget) {
+      body = `${patch.slice(0, budget)}\n…[省略: このファイルの差分は文字数制限で途中までしか表示されていません]`;
+      truncated = true;
+    }
+    parts.push(head + body);
+    remaining = Math.max(0, remaining - (head.length + body.length));
+  }
+
+  const banner = truncated
+    ? '⚠️ 注意: 差分本文は長さ制限により一部省略されています（[省略]マーカー参照）。冒頭の「変更ファイル一覧」は完全です。一覧に載っているファイルの変更が差分本文に見えないことを根拠に「未実装」と判定しないでください。省略部分は一覧の+/-統計と表示されている範囲から判断してください。\n\n'
+    : '';
+  return banner + header + parts.join('\n\n');
 }
 
 /** Whether the adversarial review is enabled (default ON; set 0/false to skip). */
@@ -105,6 +165,7 @@ ${p.diffText}
 - 正しさ: 明確なバグ・ロジック誤り・エッジケース未処理・型/契約違反
 - 安全性: 機密情報の混入、危険な操作、インジェクション等
 - 範囲: 計画外の不要・破壊的変更が混ざっていないか
+- 省略の扱い: 差分に「変更ファイル一覧」がある場合、その一覧が変更の全量。[省略]マーカーで本文が切れているファイルを「未実装」と断定しない（表示上の制約であり、実装の欠落ではない）
 
 ## 出力（厳守）
 **JSONオブジェクトのみ**を出力してください（前置き・コードフェンス不要）:
@@ -262,12 +323,7 @@ export async function reviewDiffAdversarially(params: {
 
   try {
     const diff = await getDiff(worktreePath);
-    const diffText = diff
-      .map(
-        (f) => `--- ${f.filename} (${f.status}, +${f.additions}/-${f.deletions})\n${f.patch ?? ''}`,
-      )
-      .join('\n\n')
-      .slice(0, MAX_DIFF_CHARS);
+    const diffText = buildJuryDiffText(diff);
     if (!diffText.trim()) {
       // No code change to review — the completion gate already governs no-op.
       return { verdict: 'unknown', severity: 0, reasons: [], judged: false };
