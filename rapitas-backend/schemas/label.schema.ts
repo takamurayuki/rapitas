@@ -9,7 +9,7 @@ export const labelSchema = {
     description: t.Optional(t.String()),
     color: t.Optional(t.String()),
     icon: t.Optional(t.String()),
-    themeId: t.Optional(t.Nullable(t.Number())),
+    categoryId: t.Optional(t.Nullable(t.Number())),
   }),
 
   update: t.Object({
@@ -18,7 +18,7 @@ export const labelSchema = {
     color: t.Optional(t.String()),
     icon: t.Optional(t.String()),
     sortOrder: t.Optional(t.Number()),
-    themeId: t.Optional(t.Nullable(t.Number())),
+    categoryId: t.Optional(t.Nullable(t.Number())),
   }),
 
   taskLabels: t.Object({

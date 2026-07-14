@@ -5,12 +5,11 @@
  * Shows category icon, ☆ for default categories, and label count.
  */
 import { Star } from 'lucide-react';
-import type { Category, Theme } from '@/types';
+import type { Category } from '@/types';
 import type { LabelItem } from '../_hooks/useLabelsPage';
 
 type Props = {
   categories: Category[];
-  themes: Theme[];
   labels: LabelItem[];
   selectedCategoryId: number | null;
   onSelectCategory: (id: number) => void;
@@ -21,7 +20,6 @@ type Props = {
  * Renders a scrollable row of category filter buttons with label counts.
  *
  * @param props.categories - All categories.
- * @param props.themes - All themes (used to resolve label → category).
  * @param props.labels - All labels (used to compute per-category counts).
  * @param props.selectedCategoryId - Currently selected category id.
  * @param props.onSelectCategory - Called when the user clicks a tab.
@@ -29,7 +27,6 @@ type Props = {
  */
 export function CategoryTabs({
   categories,
-  themes,
   labels,
   selectedCategoryId,
   onSelectCategory,
@@ -37,14 +34,10 @@ export function CategoryTabs({
 }: Props) {
   if (categories.length === 0) return null;
 
-  const themeCategoryMap = new Map(themes.map((t) => [t.id, t.categoryId]));
-
   return (
     <div className="mb-2 flex items-center gap-1.5 overflow-x-auto pb-1">
       {categories.map((cat) => {
-        const count = labels.filter(
-          (l) => l.themeId != null && themeCategoryMap.get(l.themeId) === cat.id,
-        ).length;
+        const count = labels.filter((l) => l.categoryId === cat.id).length;
         const isSelected = selectedCategoryId === cat.id;
 
         return (

@@ -2,7 +2,7 @@
  * useLabelsPage
  *
  * State and CRUD logic for the labels management page.
- * Supports two-level filtering: Category → Theme → Labels.
+ * Labels are scoped per CATEGORY (2026-07 migration): Category → Labels.
  * Also owns icon-picker state (mirrors useThemesPage pattern).
  */
 'use client';
@@ -13,7 +13,7 @@ import { API_BASE_URL } from '@/utils/api';
 import { useConfirmDialog } from '@/components/ui/dialog/ConfirmDialogProvider';
 import { searchIcons, getIconComponent } from '@/components/category/icon-data';
 import { useDebounce } from '@/hooks/common/useDebounce';
-import type { Theme, Category } from '@/types';
+import type { Category } from '@/types';
 
 export interface LabelItem {
   id: number;
@@ -22,8 +22,8 @@ export interface LabelItem {
   color: string;
   icon: string | null;
   sortOrder: number;
-  themeId: number | null;
-  theme: { id: number; name: string; color: string; icon: string | null } | null;
+  categoryId: number | null;
+  category: { id: number; name: string; color: string; icon: string | null } | null;
   _count: { tasks: number };
 }
 
@@ -32,7 +32,7 @@ export interface LabelFormData {
   description: string;
   color: string;
   icon: string;
-  themeId: number | null;
+  categoryId: number | null;
 }
 
 export const defaultFormData: LabelFormData = {
@@ -40,7 +40,7 @@ export const defaultFormData: LabelFormData = {
   description: '',
   color: '#6366F1',
   icon: 'Tag',
-  themeId: null,
+  categoryId: null,
 };
 
 /** Pick the default item (isDefault=true) or fall back to the first item. */
@@ -54,12 +54,10 @@ export function useLabelsPage() {
   const t = useTranslations('labels');
   const confirm = useConfirmDialog();
   const [labels, setLabels] = useState<LabelItem[]>([]);
-  const [themes, setThemes] = useState<Theme[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
 
   const [selectedCategoryId, setSelectedCategoryId] = useState<number | null>(null);
-  const [selectedThemeId, setSelectedThemeId] = useState<number | null>(null);
 
   const [editingId, setEditingId] = useState<number | null>(null);
   const [isAdding, setIsAdding] = useState(false);
@@ -86,18 +84,15 @@ export function useLabelsPage() {
   const fetchAll = useCallback(async () => {
     setLoading(true);
     try {
-      const [labelsRes, themesRes, categoriesRes] = await Promise.all([
+      const [labelsRes, categoriesRes] = await Promise.all([
         fetch(`${API_BASE_URL}/labels`),
-        fetch(`${API_BASE_URL}/themes`),
         fetch(`${API_BASE_URL}/categories`),
       ]);
-      const [labelsData, themesData, categoriesData] = await Promise.all([
+      const [labelsData, categoriesData] = await Promise.all([
         labelsRes.ok ? labelsRes.json() : [],
-        themesRes.ok ? themesRes.json() : [],
         categoriesRes.ok ? categoriesRes.json() : [],
       ]);
       setLabels(labelsData);
-      setThemes(themesData);
       setCategories(categoriesData);
     } finally {
       setLoading(false);
@@ -115,22 +110,11 @@ export function useLabelsPage() {
     }
   }, [categories, selectedCategoryId]);
 
-  // Auto-select default (or first) theme when the selected category changes.
-  useEffect(() => {
-    if (selectedCategoryId === null) return;
-    const forCategory = themes.filter((t) => t.categoryId === selectedCategoryId);
-    setSelectedThemeId(pickDefault(forCategory));
-  }, [selectedCategoryId, themes]);
-
   // ── derived ───────────────────────────────────────────────────────────────
 
-  /** Themes belonging to the currently selected category. */
-  const themesForCategory =
-    selectedCategoryId != null ? themes.filter((t) => t.categoryId === selectedCategoryId) : themes;
-
-  /** Labels belonging to the currently selected theme. */
+  /** Labels belonging to the currently selected category. */
   const filteredLabels =
-    selectedThemeId != null ? labels.filter((l) => l.themeId === selectedThemeId) : labels;
+    selectedCategoryId != null ? labels.filter((l) => l.categoryId === selectedCategoryId) : labels;
 
   // ── CRUD ──────────────────────────────────────────────────────────────────
 
@@ -144,7 +128,7 @@ export function useLabelsPage() {
         description: formData.description || undefined,
         color: formData.color,
         icon: formData.icon || undefined,
-        themeId: formData.themeId,
+        categoryId: formData.categoryId,
       }),
     });
     if (res.ok) {
@@ -164,7 +148,7 @@ export function useLabelsPage() {
           description: formData.description || undefined,
           color: formData.color,
           icon: formData.icon || undefined,
-          themeId: formData.themeId,
+          categoryId: formData.categoryId,
         }),
       });
       if (res.ok) {
@@ -194,7 +178,7 @@ export function useLabelsPage() {
       description: label.description ?? '',
       color: label.color,
       icon: label.icon ?? 'Tag',
-      themeId: label.themeId,
+      categoryId: label.categoryId,
     });
   }, []);
 
@@ -213,23 +197,12 @@ export function useLabelsPage() {
     [cancelEdit],
   );
 
-  const selectTheme = useCallback(
-    (id: number) => {
-      setSelectedThemeId(id);
-      cancelEdit();
-    },
-    [cancelEdit],
-  );
-
   return {
     labels,
-    themes,
-    themesForCategory,
     categories,
     filteredLabels,
     loading,
     selectedCategoryId,
-    selectedThemeId,
     editingId,
     isAdding,
     setIsAdding,
@@ -247,6 +220,5 @@ export function useLabelsPage() {
     startEdit,
     cancelEdit,
     selectCategory,
-    selectTheme,
   };
 }

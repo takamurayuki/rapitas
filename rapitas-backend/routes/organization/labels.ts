@@ -1,20 +1,44 @@
 /**
  * Labels API Routes
- * Handles label CRUD operations and task-label associations
+ * Handles label CRUD operations and task-label associations.
+ * Labels are scoped per CATEGORY (2026-07 migration from per-theme scoping).
  */
 import { Elysia, t } from 'elysia';
 import { prisma } from '../../config/database';
 import { labelSchema } from '../../schemas/label.schema';
 import { NotFoundError, ValidationError } from '../../middleware/error-handler';
 
+// NOTE: One-shot backfill for the theme→category label migration: theme-scoped
+// labels inherit their theme's category. Idempotent (only rows still missing
+// categoryId are touched) and best-effort — a failure retries on next boot.
+// Remove together with Label.themeId once all rows carry categoryId.
+void (async () => {
+  try {
+    const orphans = await prisma.label.findMany({
+      where: { categoryId: null, themeId: { not: null } },
+      select: { id: true, theme: { select: { categoryId: true } } },
+    });
+    for (const label of orphans) {
+      if (label.theme?.categoryId != null) {
+        await prisma.label.update({
+          where: { id: label.id },
+          data: { categoryId: label.theme.categoryId },
+        });
+      }
+    }
+  } catch {
+    /* best-effort — retried on next boot */
+  }
+})();
+
 export const labelsRoutes = new Elysia({ prefix: '/labels' })
-  // Get all labels (optionally filtered by themeId via ?themeId=N)
+  // Get all labels (optionally filtered by categoryId via ?categoryId=N)
   .get('/', async ({ query }) => {
-    const themeId = query.themeId ? parseInt(query.themeId as string) : undefined;
+    const categoryId = query.categoryId ? parseInt(query.categoryId as string) : undefined;
     return await prisma.label.findMany({
-      where: themeId != null ? { themeId } : undefined,
+      where: categoryId != null ? { categoryId } : undefined,
       include: {
-        theme: { select: { id: true, name: true, color: true, icon: true } },
+        category: { select: { id: true, name: true, color: true, icon: true } },
         _count: { select: { tasks: true } },
       },
       orderBy: [{ sortOrder: 'asc' }, { createdAt: 'desc' }],
@@ -52,12 +76,12 @@ export const labelsRoutes = new Elysia({ prefix: '/labels' })
     '/',
     async (context) => {
       const { body } = context;
-      const { name, description, color, icon, themeId } = body as {
+      const { name, description, color, icon, categoryId } = body as {
         name: string;
         description?: string;
         color?: string;
         icon?: string;
-        themeId?: number | null;
+        categoryId?: number | null;
       };
 
       return await prisma.label.create({
@@ -66,10 +90,10 @@ export const labelsRoutes = new Elysia({ prefix: '/labels' })
           ...(description && { description }),
           ...(color && { color }),
           ...(icon && { icon }),
-          ...(themeId != null && { themeId }),
+          ...(categoryId != null && { categoryId }),
         },
         include: {
-          theme: { select: { id: true, name: true, color: true, icon: true } },
+          category: { select: { id: true, name: true, color: true, icon: true } },
           _count: { select: { tasks: true } },
         },
       });
@@ -89,12 +113,12 @@ export const labelsRoutes = new Elysia({ prefix: '/labels' })
         throw new ValidationError('無効なIDです');
       }
 
-      const { name, description, color, icon, themeId } = body as {
+      const { name, description, color, icon, categoryId } = body as {
         name?: string;
         description?: string;
         color?: string;
         icon?: string;
-        themeId?: number | null;
+        categoryId?: number | null;
       };
 
       return await prisma.label.update({
@@ -104,10 +128,10 @@ export const labelsRoutes = new Elysia({ prefix: '/labels' })
           ...(description !== undefined && { description }),
           ...(color && { color }),
           ...(icon !== undefined && { icon }),
-          ...(themeId !== undefined && { themeId }),
+          ...(categoryId !== undefined && { categoryId }),
         },
         include: {
-          theme: { select: { id: true, name: true, color: true, icon: true } },
+          category: { select: { id: true, name: true, color: true, icon: true } },
           _count: { select: { tasks: true } },
         },
       });

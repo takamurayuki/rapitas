@@ -1,11 +1,10 @@
 'use client';
-// LabelsPage — Category → Theme → Labels
+// LabelsPage — Category → Labels (per-category scoping, 2026-07 migration)
 import { Plus, Tags } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { ListSkeleton } from '@/components/ui/LoadingSpinner';
 import { useLabelsPage, defaultFormData } from './_hooks/useLabelsPage';
 import { CategoryTabs } from './_components/category-tabs';
-import { ThemeTabs } from './_components/theme-tabs';
 import { LabelList } from './_components/label-list';
 import { LabelForm } from './_components/label-form';
 
@@ -13,13 +12,10 @@ export default function LabelsPage() {
   const t = useTranslations('labels');
   const {
     labels,
-    themes,
-    themesForCategory,
     categories,
     filteredLabels,
     loading,
     selectedCategoryId,
-    selectedThemeId,
     editingId,
     isAdding,
     setIsAdding,
@@ -36,7 +32,6 @@ export default function LabelsPage() {
     startEdit,
     cancelEdit,
     selectCategory,
-    selectTheme,
   } = useLabelsPage();
 
   return (
@@ -54,7 +49,7 @@ export default function LabelsPage() {
           {!isAdding && (
             <button
               onClick={() => {
-                setFormData({ ...defaultFormData, themeId: selectedThemeId });
+                setFormData({ ...defaultFormData, categoryId: selectedCategoryId });
                 setIsAdding(true);
               }}
               className="flex items-center gap-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 px-4 py-2 text-sm text-white transition-all shadow-lg hover:shadow-xl font-medium"
@@ -65,22 +60,12 @@ export default function LabelsPage() {
           )}
         </div>
 
-        {/* Level 1 — Category tabs */}
+        {/* Category tabs — labels are scoped per category */}
         <CategoryTabs
           categories={categories}
-          themes={themes}
           labels={labels}
           selectedCategoryId={selectedCategoryId}
           onSelectCategory={selectCategory}
-          renderIcon={renderIcon}
-        />
-
-        {/* Level 2 — Theme tabs (filtered by selected category) */}
-        <ThemeTabs
-          themes={themesForCategory}
-          labels={labels}
-          selectedThemeId={selectedThemeId}
-          onSelectTheme={selectTheme}
           renderIcon={renderIcon}
         />
 

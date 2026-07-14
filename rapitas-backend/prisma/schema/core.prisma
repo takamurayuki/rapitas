@@ -16,6 +16,7 @@ model Category {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
   themes      Theme[]
+  labels      Label[]
 }
 
 model Theme {
@@ -194,6 +195,12 @@ model Label {
   color       String      @default("#6366F1")
   icon        String?
   sortOrder   Int         @default(0)
+  // NOTE: Labels are scoped per CATEGORY (2026-07 migration) — a per-theme
+  // scope forced re-creating the same vocabulary for every theme.
+  categoryId  Int?
+  category    Category?   @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  // NOTE: Deprecated — superseded by categoryId. Kept so the startup backfill
+  // (routes/organization/labels.ts) can migrate old rows; remove afterwards.
   themeId     Int?
   theme       Theme?      @relation(fields: [themeId], references: [id], onDelete: SetNull)
   createdAt   DateTime    @default(now())

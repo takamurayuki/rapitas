@@ -2,8 +2,8 @@
  * LabelForm
  *
  * Create / edit form for a label. Mirrors the ThemeForm UI style:
- * name, description, color + icon preview, flexible icon picker (with search),
- * and theme selector. No category field — category is determined by the tabs.
+ * name, description, color + icon preview, flexible icon picker (with search).
+ * No category field — the category comes from the selected category tab.
  */
 'use client';
 import { Save, X, Search } from 'lucide-react';
@@ -28,7 +28,6 @@ type Props = {
  *
  * @param props.formData - Current form state.
  * @param props.setFormData - Setter for form state.
- * @param props.themes - Available themes for the themeId selector.
  * @param props.iconSearchQuery - Current icon search input value.
  * @param props.setIconSearchQuery - Setter for icon search.
  * @param props.filteredIcons - Icon names matching the current search.

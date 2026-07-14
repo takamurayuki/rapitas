@@ -100,17 +100,16 @@ function HomeClientPage() {
       .catch(() => setLabels([]));
   }, []);
 
-  // Labels shown in the filter row: only those tied to the current theme
-  // scope. Empty → the row is hidden (要件: テーマに紐づくラベルが無ければ非表示).
+  // Labels shown in the filter row: labels are category-scoped (2026-07
+  // migration), so resolve the active category — directly, or via the
+  // selected theme. Empty → the row is hidden.
   const filterLabels = useMemo(() => {
-    if (themeFilter !== null) return labels.filter((l) => l.themeId === themeFilter);
-    if (categoryFilter !== null) {
-      const themeIds = new Set(
-        themes.filter((t) => t.categoryId === categoryFilter).map((t) => t.id),
-      );
-      return labels.filter((l) => l.themeId != null && themeIds.has(l.themeId));
-    }
-    return labels;
+    const scopeCategoryId =
+      themeFilter !== null
+        ? (themes.find((t) => t.id === themeFilter)?.categoryId ?? null)
+        : categoryFilter;
+    if (scopeCategoryId === null) return labels;
+    return labels.filter((l) => l.categoryId === scopeCategoryId);
   }, [labels, themeFilter, categoryFilter, themes]);
 
   // A label filter pointing outside the current scope would silently hide
