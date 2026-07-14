@@ -39,6 +39,17 @@ export async function buildRoleContext(
       taskInfo: `# タスク情報\n- **タイトル**: ${task.title}\n- **説明**: ${task.description || '(なし)'}\n- **タスクID**: ${taskId}`,
       researcher: {
         instruction: '上記のタスクについてコードベースを調査してください。',
+        // NOTE: Premise audit (R2, roadmap) — LLMs critique premises well when
+        // explicitly told to and almost never otherwise (PCBench); restating
+        // claims as neutral questions counters sycophantic agreement.
+        premiseAudit:
+          '## 前提監査（必須・最初に実施）\n' +
+          'タスク記述を鵜呑みにせず、調査の最初に前提を検証してください:\n' +
+          '1. タスク記述が暗黙に仮定していること（原子仮定）を3〜7個列挙する。各仮定は依頼文の言い回しから切り離し、「〜は本当に成り立つか？」という**中立的な疑問文**に言い換える。\n' +
+          '2. 各仮定をコードベースの実物・実測で検証し、`成立 / 不成立 / 未確認` を根拠 (file:line やコマンド結果) 付きで判定する。\n' +
+          '3. 結果を research.md 冒頭の `## 前提監査` セクション（箇条書きまたは表）として必ず記載する。\n' +
+          '4. **中核的な仮定が不成立**の場合（例: 報告された不具合が再現しない、依頼が前提とする機能・状態が存在しない、既に別の形で解決済み）、plan/実装に進まず `## 結論: 修正不要` で終了し、根拠に「前提誤り: どの仮定がなぜ不成立か」を明記する。\n' +
+          '5. 前提は崩れたが調査中に**実在する別の問題**を発見した場合は、その事実を前提監査に記録した上で、実在する問題の調査として続行する。',
         items:
           '調査項目:\n- 既存コードの構造と依存関係\n- 変更が必要なファイルの特定\n- 類似実装の有無\n- リスクと影響範囲の評価',
         output:
@@ -114,6 +125,15 @@ export async function buildRoleContext(
       taskInfo: `# Task Information\n- **Title**: ${task.title}\n- **Description**: ${task.description || '(None)'}\n- **Task ID**: ${taskId}`,
       researcher: {
         instruction: 'Please investigate the codebase for the above task.',
+        // NOTE: Premise audit (R2, roadmap) — see ja variant for rationale.
+        premiseAudit:
+          '## Premise audit (REQUIRED — do this first)\n' +
+          'Do not take the task description at face value; audit its premises first:\n' +
+          '1. List 3-7 atomic assumptions the task description implicitly makes. Restate each as a **neutral question** ("does X actually hold?") detached from the requester\'s framing.\n' +
+          '2. Verify each assumption against the actual codebase / measurements and judge it `holds / does not hold / unverified`, with evidence (file:line or command output).\n' +
+          '3. Record the results as a `## 前提監査` section at the top of research.md (bullets or table).\n' +
+          '4. If a CORE assumption does not hold (the reported bug does not reproduce; the feature/state the request presumes does not exist; it is already solved another way), do NOT proceed to plan/implementation — finish with `## Conclusion: No change needed` and state "false premise: which assumption failed and why".\n' +
+          '5. If the premise fails but you discover a REAL different problem, record that in the audit and continue investigating the real problem.',
         items:
           'Investigation items:\n- Existing code structure and dependencies\n- Identification of files that need changes\n- Presence of similar implementations\n- Risk assessment and impact analysis',
         output:
@@ -204,7 +224,7 @@ export async function buildRoleContext(
       // steps to the planner. Without this, research.md was always written
       // assuming a plan would follow — wrong for lightweight tasks.
       const modeBlock = `\n\n${researchModeDirective(mode, language)}`;
-      return `${taskInfo}${criticBlock}${modeBlock}${memoryBlock}${hypothesisBlock}\n\n${t.researcher.instruction}\n\n${t.researcher.items}\n\n${t.researcher.output}`;
+      return `${taskInfo}${criticBlock}${modeBlock}${memoryBlock}${hypothesisBlock}\n\n${t.researcher.instruction}\n\n${t.researcher.premiseAudit}\n\n${t.researcher.items}\n\n${t.researcher.output}`;
     }
 
     case 'planner': {
