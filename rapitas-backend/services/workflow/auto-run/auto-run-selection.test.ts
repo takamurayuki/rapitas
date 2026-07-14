@@ -300,3 +300,84 @@ describe('selectNextTask', () => {
     expect(arg.where.OR).toEqual(expect.arrayContaining([{ workflowStatus: null }]));
   });
 });
+
+describe('valueBandScore (R6 learnable band)', () => {
+  it('成功率シグナルが無ければ 0（レガシー順序を維持）', async () => {
+    const { valueBandScore } = await import('./auto-run-selection');
+    expect(valueBandScore(50, null)).toBe(0);
+    expect(valueBandScore(null, null)).toBe(0);
+  });
+
+  it('帯の中心に近い複雑度ほど高スコア', async () => {
+    const { valueBandScore } = await import('./auto-run-selection');
+    // successRate 0.5 → target 50
+    expect(valueBandScore(50, 0.5)).toBeGreaterThan(valueBandScore(90, 0.5));
+    expect(valueBandScore(50, 0.5)).toBeGreaterThan(valueBandScore(10, 0.5));
+  });
+
+  it('成功率が高いほど帯が高複雑度側へ動く', async () => {
+    const { valueBandScore } = await import('./auto-run-selection');
+    // cruising (rate 1.0 → target 80): 80 beats 30
+    expect(valueBandScore(80, 1.0)).toBeGreaterThan(valueBandScore(30, 1.0));
+    // struggling (rate 0 → target 20): 20 beats 80
+    expect(valueBandScore(20, 0)).toBeGreaterThan(valueBandScore(80, 0));
+  });
+
+  it('複雑度未評価は固定の中間ペナルティ (-0.3)', async () => {
+    const { valueBandScore } = await import('./auto-run-selection');
+    expect(valueBandScore(null, 0.5)).toBe(-0.3);
+    // in-band evidence beats unknown; unknown beats far out-of-band
+    expect(valueBandScore(50, 0.5)).toBeGreaterThan(valueBandScore(null, 0.5));
+    expect(valueBandScore(null, 0.5)).toBeGreaterThan(valueBandScore(100, 0.0));
+  });
+
+  it('selectNextTask: 同一優先度では帯に近いタスクが選ばれる', async () => {
+    const base = Date.now();
+    const tasks = [
+      {
+        id: 30,
+        status: 'todo',
+        workflowStatus: null,
+        priority: 'medium',
+        createdAt: new Date(base), // older, but far out of band
+        complexityScore: 95,
+      },
+      {
+        id: 31,
+        status: 'todo',
+        workflowStatus: null,
+        priority: 'medium',
+        createdAt: new Date(base + 1000),
+        complexityScore: 50, // in band for successRate 0.5
+      },
+    ];
+    const prisma = makePrisma({ task: { findMany: mock().mockResolvedValue(tasks) } });
+    const result = await selectNextTask(prisma, 1, 'priority', [], 0, 0.5);
+    expect(result).toEqual({ found: true, taskId: 31 });
+  });
+
+  it('selectNextTask: successRate 未指定なら従来どおり作成順', async () => {
+    const base = Date.now();
+    const tasks = [
+      {
+        id: 40,
+        status: 'todo',
+        workflowStatus: null,
+        priority: 'medium',
+        createdAt: new Date(base),
+        complexityScore: 95,
+      },
+      {
+        id: 41,
+        status: 'todo',
+        workflowStatus: null,
+        priority: 'medium',
+        createdAt: new Date(base + 1000),
+        complexityScore: 50,
+      },
+    ];
+    const prisma = makePrisma({ task: { findMany: mock().mockResolvedValue(tasks) } });
+    const result = await selectNextTask(prisma, 1, 'priority', [], 0);
+    expect(result).toEqual({ found: true, taskId: 40 });
+  });
+});

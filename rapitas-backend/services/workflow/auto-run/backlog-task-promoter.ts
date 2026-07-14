@@ -2,12 +2,13 @@
  * backlog-task-promoter
  *
  * When a theme's auto-run runs out of work, refill it from the backlog so the
- * loop keeps making progress instead of going idle: promote OPEN concerns into
- * tasks first (higher priority), and only once the concern backlog is clear,
- * promote ideas from the idea box. Bounded by the per-theme
- * UserSettings.autoCreateFromBacklogLimit (counted against the theme's
- * outstanding auto-created tasks). NOT responsible for selecting/executing the
- * created tasks — the scheduler re-selects after this returns.
+ * loop keeps making progress instead of going idle. The concern-vs-idea split
+ * is decided per pick by a realized-reward bandit (backlog-bandit, R6) instead
+ * of the old fixed "ideas only after the concern backlog is empty" hierarchy;
+ * critical concerns (severity >= 80) still always run first. Bounded by the
+ * per-theme UserSettings.autoCreateFromBacklogLimit (counted against the
+ * theme's outstanding auto-created tasks). NOT responsible for selecting/
+ * executing the created tasks — the scheduler re-selects after this returns.
  */
 import { prisma } from '../../../config/database';
 import { createLogger } from '../../../config/logger';
@@ -15,6 +16,11 @@ import { listConcerns, convertConcernToTask } from '../../memory/concern-backlog
 import { listIdeas, markIdeaAsUsed } from '../../memory/idea-box-service';
 import { createTask } from '../../task/task-mutations';
 import { logCycleEvent } from '../../observability';
+import {
+  selectBacklogArm,
+  getBacklogArmStats,
+  CRITICAL_CONCERN_SEVERITIES,
+} from './backlog-bandit';
 
 const log = createLogger('auto-run:backlog-promoter');
 
@@ -87,12 +93,79 @@ async function markAutoCreated(taskId: number): Promise<void> {
     .catch((err) => log.warn({ err, taskId }, '[backlog-promoter] Failed to mark autoCreated'));
 }
 
+/** Promote one concern; returns true when a task was created. */
+async function promoteConcern(
+  themeId: number,
+  concern: { id: number; severity: string },
+): Promise<boolean> {
+  try {
+    const taskId = await convertConcernToTask(concern.id);
+    if (!taskId) return false;
+    await markAutoCreated(taskId);
+    log.info(
+      { themeId, concernId: concern.id, taskId, severity: concern.severity },
+      '[backlog-promoter] Promoted concern to task',
+    );
+    logCycleEvent('backlog.promoted', {
+      theme: themeId,
+      task: taskId,
+      kind: 'concern',
+      concernId: concern.id,
+      severity: concern.severity,
+      msg: 'concern promoted to task (起票)',
+    });
+    return true;
+  } catch (err) {
+    log.warn({ err, themeId, concernId: concern.id }, '[backlog-promoter] Concern promote failed');
+    return false;
+  }
+}
+
+/** Promote one idea; returns true when a task was created. */
+async function promoteIdea(
+  themeId: number,
+  idea: { id: number; title: string; content: string; priority: string; themeId: number | null },
+): Promise<boolean> {
+  try {
+    const description = [idea.content, '', `アイデアボックスから自動起票 (idea #${idea.id})`].join(
+      '\n',
+    );
+    const task = await createTask(prisma, {
+      title: `[Idea] ${idea.title}`.slice(0, 200),
+      description,
+      priority: idea.priority,
+      status: 'todo',
+      themeId: idea.themeId ?? themeId,
+    });
+    if (!task) return false;
+    await markAutoCreated(task.id);
+    await markIdeaAsUsed(idea.id, task.id).catch(() => {});
+    log.info(
+      { themeId, ideaId: idea.id, taskId: task.id, priority: idea.priority },
+      '[backlog-promoter] Promoted idea to task',
+    );
+    logCycleEvent('backlog.promoted', {
+      theme: themeId,
+      task: task.id,
+      kind: 'idea',
+      ideaId: idea.id,
+      priority: idea.priority,
+      msg: 'idea promoted to task (起票)',
+    });
+    return true;
+  } catch (err) {
+    log.warn({ err, themeId, ideaId: idea.id }, '[backlog-promoter] Idea promote failed');
+    return false;
+  }
+}
+
 /**
  * Promote backlog items into tasks for a theme that has run out of work.
  *
- * Concern backlog takes priority over the idea box: ideas are only promoted once
- * NO open concerns remain (the concern backlog is fully cleared). Both are taken
- * highest-priority first (the list services order by severity/priority weight).
+ * Each slot's concern-vs-idea choice comes from the realized-reward bandit
+ * (UCB1 over recent promoted-task outcomes); a critical concern (severity >= 80)
+ * still forces concerns first, and within an arm items stay highest-severity/
+ * priority first (the list services order them).
  *
  * @param themeId - Theme whose auto-run ran dry. / タスク切れになったテーマID
  * @returns Number of tasks created (0 when disabled or already at the cap). / 起票した件数
@@ -105,93 +178,52 @@ export async function promoteBacklogForTheme(themeId: number): Promise<number> {
   let remaining = limit - outstanding;
   if (remaining <= 0) return 0;
 
-  let created = 0;
-
-  // 1) Drain OPEN concerns first (highest severity first).
-  const { concerns, total: openConcernTotal } = await listConcerns({
-    status: 'open',
-    themeId,
-    limit: remaining,
-  }).catch(() => ({ concerns: [], total: 0 }));
-  for (const concern of concerns) {
-    if (remaining <= 0) break;
-    try {
-      const taskId = await convertConcernToTask(concern.id);
-      if (taskId) {
-        await markAutoCreated(taskId);
-        created += 1;
-        remaining -= 1;
-        log.info(
-          { themeId, concernId: concern.id, taskId, severity: concern.severity },
-          '[backlog-promoter] Promoted concern to task',
-        );
-        logCycleEvent('backlog.promoted', {
-          theme: themeId,
-          task: taskId,
-          kind: 'concern',
-          concernId: concern.id,
-          severity: concern.severity,
-          msg: 'concern promoted to task (起票)',
-        });
-      }
-    } catch (err) {
-      log.warn(
-        { err, themeId, concernId: concern.id },
-        '[backlog-promoter] Concern promote failed',
-      );
-    }
-  }
-
-  // 2) Ideas ONLY when the concern backlog is fully clear — i.e. there were zero
-  // OPEN concerns this round (total counts matches before the limit is applied).
-  if (remaining > 0 && openConcernTotal === 0) {
-    const { ideas } = await listIdeas({ status: 'open', themeId, limit: remaining }).catch(() => ({
+  const [concernList, ideaList, armStats] = await Promise.all([
+    listConcerns({ status: 'open', themeId, limit: remaining }).catch(() => ({
+      concerns: [],
+      total: 0,
+    })),
+    listIdeas({ status: 'open', themeId, limit: remaining }).catch(() => ({
       ideas: [],
       total: 0,
-    }));
-    for (const idea of ideas) {
-      if (remaining <= 0) break;
-      try {
-        const description = [
-          idea.content,
-          '',
-          `アイデアボックスから自動起票 (idea #${idea.id})`,
-        ].join('\n');
-        const task = await createTask(prisma, {
-          title: `[Idea] ${idea.title}`.slice(0, 200),
-          description,
-          priority: idea.priority,
-          status: 'todo',
-          themeId: idea.themeId ?? themeId,
-        });
-        if (task) {
-          await markAutoCreated(task.id);
-          await markIdeaAsUsed(idea.id, task.id).catch(() => {});
-          created += 1;
-          remaining -= 1;
-          log.info(
-            { themeId, ideaId: idea.id, taskId: task.id, priority: idea.priority },
-            '[backlog-promoter] Promoted idea to task',
-          );
-          logCycleEvent('backlog.promoted', {
-            theme: themeId,
-            task: task.id,
-            kind: 'idea',
-            ideaId: idea.id,
-            priority: idea.priority,
-            msg: 'idea promoted to task (起票)',
-          });
-        }
-      } catch (err) {
-        log.warn({ err, themeId, ideaId: idea.id }, '[backlog-promoter] Idea promote failed');
+    })),
+    getBacklogArmStats(prisma, themeId),
+  ]);
+  const concerns = [...concernList.concerns];
+  const ideas = [...ideaList.ideas];
+
+  let created = 0;
+  while (remaining > 0) {
+    const arm = selectBacklogArm({
+      concern: armStats.concern,
+      idea: armStats.idea,
+      openConcerns: concerns.length,
+      openIdeas: ideas.length,
+      hasCriticalConcern: concerns.some((c) => CRITICAL_CONCERN_SEVERITIES.has(c.severity)),
+    });
+    if (!arm) break;
+
+    if (arm === 'concern') {
+      const concern = concerns.shift();
+      if (!concern) continue;
+      if (await promoteConcern(themeId, concern)) {
+        created += 1;
+        remaining -= 1;
+      }
+    } else {
+      const idea = ideas.shift();
+      if (!idea) continue;
+      if (await promoteIdea(themeId, idea)) {
+        created += 1;
+        remaining -= 1;
       }
     }
   }
 
   if (created > 0) {
     log.info(
-      { themeId, created, limit, outstanding },
-      '[backlog-promoter] Refilled theme from backlog',
+      { themeId, created, limit, outstanding, armStats },
+      '[backlog-promoter] Refilled theme from backlog (bandit split)',
     );
   }
   return created;

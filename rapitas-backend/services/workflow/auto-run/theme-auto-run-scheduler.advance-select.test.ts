@@ -175,6 +175,13 @@ describe('advanceTheme — selection: task found', () => {
 
     await internal(scheduler).advanceTheme(1, null, 'priority', 0, null);
 
-    expect(mockSelectNextTask).toHaveBeenCalledWith(expect.anything(), 1, 'priority', [50, 51], 0);
+    expect(mockSelectNextTask).toHaveBeenCalledWith(
+      expect.anything(),
+      1,
+      'priority',
+      [50, 51],
+      0,
+      null, // R6: success-rate signal (mocked to null = legacy ordering)
+    );
   });
 });

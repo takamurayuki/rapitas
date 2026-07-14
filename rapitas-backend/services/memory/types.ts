@@ -45,7 +45,8 @@ export type TimelineEventType =
   | 'knowledge_reviewed'
   | 'task_outcome'
   | 'memory_retrieval'
-  | 'adversarial_review';
+  | 'adversarial_review'
+  | 'ideation_calibration';
 
 export type ActorType = 'user' | 'agent' | 'system';
 

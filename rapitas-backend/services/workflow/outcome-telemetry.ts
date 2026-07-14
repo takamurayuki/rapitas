@@ -80,6 +80,15 @@ export async function recordTaskOutcome(taskId: number, finalStatus: string): Pr
       '[telemetry] Task outcome recorded',
     );
 
+    // Ideation calibration (R6): when this task was promoted from a concern or
+    // idea, record the ideation-time value estimate (priority/confidence) next
+    // to the realized outcome. LLM ideation scores are systematically
+    // optimistic and re-rank after execution (Ideation-Execution Gap) — this
+    // event stream is the ground truth a future scorer recalibrates against.
+    await recordIdeationCalibration(taskId, finalStatus, firstTrySuccess, troubleCount).catch(
+      (err) => log.warn({ err, taskId }, '[telemetry] Ideation calibration failed'),
+    );
+
     // Outcome-gated reinforcement: reward the knowledge entries this task used
     // when it completed, decay them when it was blocked — so what survives the
     // forgetting curve is what actually helped. Best-effort, never blocks.
@@ -125,6 +134,61 @@ export async function recordTaskOutcome(taskId: number, finalStatus: string): Pr
   } catch (err) {
     log.warn({ err, taskId }, '[telemetry] Failed to record task outcome');
   }
+}
+
+/**
+ * Record the ideation-vs-execution calibration event for a backlog-promoted
+ * task: what the origin concern/idea PREDICTED (priority, confidence) against
+ * what actually HAPPENED. No-op when the task has no backlog origin.
+ *
+ * @param taskId - Terminal task. / 終了タスク
+ * @param finalStatus - Terminal status. / 最終状態
+ * @param firstTrySuccess - Completed without repair bounces. / 一発成功か
+ * @param troubleCount - Repair/bounce transition count. / 修復回数
+ */
+async function recordIdeationCalibration(
+  taskId: number,
+  finalStatus: string,
+  firstTrySuccess: boolean,
+  troubleCount: number,
+): Promise<void> {
+  const origin = await prisma.knowledgeEntry
+    .findFirst({
+      where: {
+        OR: [
+          { sourceType: 'concern', sourceId: `task_${taskId}` },
+          { sourceType: 'idea_box', sourceId: `used_task_${taskId}` },
+        ],
+      },
+      select: { id: true, sourceType: true, confidence: true, tags: true },
+    })
+    .catch(() => null);
+  if (!origin) return;
+
+  const task = await prisma.task
+    .findUnique({ where: { id: taskId }, select: { priority: true, themeId: true } })
+    .catch(() => null);
+
+  await appendEvent({
+    eventType: 'ideation_calibration',
+    actorType: 'system',
+    payload: {
+      taskId,
+      themeId: task?.themeId ?? null,
+      origin: origin.sourceType === 'concern' ? 'concern' : 'idea',
+      entryId: origin.id,
+      predictedPriority: task?.priority ?? null,
+      predictedConfidence: origin.confidence,
+      realizedStatus: finalStatus,
+      firstTrySuccess,
+      troubleCount,
+    },
+    correlationId: `task_${taskId}`,
+  });
+  log.info(
+    { taskId, origin: origin.sourceType, entryId: origin.id, finalStatus, firstTrySuccess },
+    '[telemetry] Ideation calibration recorded',
+  );
 }
 
 /**

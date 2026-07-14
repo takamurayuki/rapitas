@@ -226,6 +226,9 @@ mock.module('./auto-run-selection', () => ({
   getThemeActiveQueueItems: mockGetThemeActiveQueueItems,
   isAwaitingUserAnswer: mockIsAwaitingUserAnswer,
   selectNextTask: mockSelectNextTask,
+  // R6 learnable-band signal — null means "no data", i.e. the legacy ordering.
+  recentThemeSuccessRate: mock(() => Promise.resolve(null)),
+  valueBandScore: () => 0,
   // Real (trivial) logic — no test needs to override "is any item waiting_approval".
   hasItemAwaitingApproval: (items: Array<{ status: string }>) =>
     items.some((i) => i.status === 'waiting_approval'),

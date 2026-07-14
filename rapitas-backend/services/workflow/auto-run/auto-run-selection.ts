@@ -14,6 +14,7 @@ export interface SelectableTask {
   workflowStatus: string | null;
   priority: string;
   createdAt: Date;
+  complexityScore?: number | null;
 }
 
 /** Reason the selection returned no task. */
@@ -57,6 +58,61 @@ export function priorityRank(priority: string | null | undefined): number {
   if (!priority) return PRIORITY_RANK.medium;
   const r = PRIORITY_RANK[priority.toLowerCase()];
   return r === undefined ? PRIORITY_RANK.medium : r;
+}
+
+/**
+ * Learnable-band value score for priority ties (R6): prefer tasks whose
+ * complexity sits in the band the theme can currently LEARN from — neither
+ * trivial nor beyond its measured ability. Proposer rewards centered on an
+ * intermediate success band drive the strongest self-improvement (AZR,
+ * arXiv:2505.03335). The theme's recent success rate moves the target band:
+ * succeeding often → reach for harder work; failing often → consolidate on
+ * easier work. Pure and unit-testable.
+ *
+ * @param complexityScore - Task complexity 0-100 (null = not yet assessed). / 複雑度
+ * @param themeSuccessRate - Recent completion rate 0-1 (null = no data). / 直近成功率
+ * @returns Score in [-1, 0]; higher = closer to the learnable band. / 帯スコア
+ */
+export function valueBandScore(
+  complexityScore: number | null | undefined,
+  themeSuccessRate: number | null | undefined,
+): number {
+  if (themeSuccessRate == null) return 0; // no signal — keep legacy ordering
+  const rate = Math.max(0, Math.min(1, themeSuccessRate));
+  const target = 20 + 60 * rate; // 20 (struggling) … 80 (cruising)
+  // Unassessed complexity = a fixed mid-distance penalty, so tasks with REAL
+  // in-band evidence outrank unknowns, but unknowns still beat far-out-of-band.
+  if (complexityScore == null) return -0.3;
+  const c = Math.max(0, Math.min(100, complexityScore));
+  return -Math.abs(c - target) / 100;
+}
+
+/**
+ * Recent completion rate for a theme's terminal top-level tasks (done vs
+ * blocked), used to position the learnable band. Returns null with fewer than
+ * 3 samples so selection keeps its legacy ordering until there is signal.
+ *
+ * @param prisma - Prisma client instance
+ * @param themeId - Theme to measure / 対象テーマ
+ * @returns Success rate 0-1, or null when data is insufficient. / 直近成功率
+ */
+export async function recentThemeSuccessRate(
+  prisma: PrismaClient,
+  themeId: number,
+): Promise<number | null> {
+  try {
+    const recent = await prisma.task.findMany({
+      where: { themeId, parentId: null, status: { in: ['done', 'completed', 'blocked'] } },
+      orderBy: [{ completedAt: 'desc' }, { updatedAt: 'desc' }],
+      take: 10,
+      select: { status: true },
+    });
+    if (recent.length < 3) return null;
+    const done = recent.filter((t) => t.status === 'done' || t.status === 'completed').length;
+    return done / recent.length;
+  } catch {
+    return null;
+  }
 }
 
 /**
@@ -141,6 +197,7 @@ export async function isAwaitingUserAnswer(prisma: PrismaClient, taskId: number)
  * @param order - 'priority' or 'created' ordering / 優先度順か作成日順
  * @param skipTaskIds - task IDs to skip (e.g. currently running) / スキップするタスクIDセット
  * @param globalActiveCount - current global auto-run active items count / グローバルアクティブ数
+ * @param themeSuccessRate - Recent theme success rate for the learnable-band tiebreak (null = legacy ordering). / 直近成功率
  * @returns SelectionResult with taskId or reason why none was found / 選択結果
  */
 export async function selectNextTask(
@@ -149,6 +206,7 @@ export async function selectNextTask(
   order: 'priority' | 'created',
   skipTaskIds: number[],
   globalActiveCount: number,
+  themeSuccessRate: number | null = null,
 ): Promise<SelectionResult> {
   if (globalActiveCount >= AUTO_RUN_GLOBAL_MAX_CONCURRENCY) {
     return { found: false, reason: 'concurrency_limit' };
@@ -178,7 +236,14 @@ export async function selectNextTask(
     },
     // Stable createdAt order from the DB; priority is ranked in JS below.
     orderBy: [{ createdAt: 'asc' }],
-    select: { id: true, status: true, workflowStatus: true, priority: true, createdAt: true },
+    select: {
+      id: true,
+      status: true,
+      workflowStatus: true,
+      priority: true,
+      createdAt: true,
+      complexityScore: true,
+    },
     take: 100,
   });
 
@@ -189,12 +254,18 @@ export async function selectNextTask(
     return { found: false, reason: 'all_done' };
   }
 
-  // Highest priority first, ties broken by creation order (oldest first). Done
-  // in JS because the stored priority is a string and can't be SQL-ordered.
+  // Highest priority first; priority TIES break by the learnable-band value
+  // score (R6 — closest to the theme's current learning band wins), then by
+  // creation order (oldest first). Done in JS because the stored priority is a
+  // string and can't be SQL-ordered.
   if (order === 'priority') {
     eligible.sort((a, b) => {
       const pr = priorityRank(a.priority) - priorityRank(b.priority);
       if (pr !== 0) return pr;
+      const band =
+        valueBandScore(b.complexityScore, themeSuccessRate) -
+        valueBandScore(a.complexityScore, themeSuccessRate);
+      if (band !== 0) return band;
       return a.createdAt.getTime() - b.createdAt.getTime();
     });
   }

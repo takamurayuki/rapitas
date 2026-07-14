@@ -200,8 +200,9 @@ describe('promoteBacklogForTheme — concern promotion', () => {
       'backlog.promoted',
       expect.objectContaining({ kind: 'concern', concernId: 10, task: 501 }),
     );
-    // Concern backlog was non-empty, so ideas must never be consulted.
-    expect(mockListIdeas).not.toHaveBeenCalled();
+    // No realized-reward stats yet → the bandit's tie breaks to 'concern' for
+    // every pick, so no idea task is created while concerns remain.
+    expect(mockCreateTask).not.toHaveBeenCalled();
   });
 
   test('stops promoting once the remaining cap hits zero mid-loop', async () => {
@@ -259,7 +260,7 @@ describe('promoteBacklogForTheme — concern promotion', () => {
 describe('promoteBacklogForTheme — idea promotion', () => {
   beforeEach(resetMocks);
 
-  test('promotes ideas only when the concern backlog is fully clear', async () => {
+  test('promotes ideas when the fetched concern list is empty', async () => {
     mockUserSettingsFindFirst.mockResolvedValue({ autoCreateFromBacklogLimit: 5 });
     mockTaskCount.mockResolvedValue(0);
     mockListConcerns.mockResolvedValue({ concerns: [], total: 0 });
@@ -289,16 +290,24 @@ describe('promoteBacklogForTheme — idea promotion', () => {
     });
   });
 
-  test('does not touch ideas while any open concern remains, even if remaining > 0', async () => {
-    mockUserSettingsFindFirst.mockResolvedValue({ autoCreateFromBacklogLimit: 5 });
+  test('urgent 懸念があるとバンディットに関係なく concern が先に起票されること（安全側優先）', async () => {
+    // NOTE: bandit replacement (R6) — the old "ideas only when the concern
+    // backlog is fully clear" hierarchy is gone; the surviving invariant is
+    // that a CRITICAL (urgent) concern always beats ideas.
+    mockUserSettingsFindFirst.mockResolvedValue({ autoCreateFromBacklogLimit: 1 });
     mockTaskCount.mockResolvedValue(0);
-    // total=1 means an open concern exists even though this round's array is empty.
-    mockListConcerns.mockResolvedValue({ concerns: [], total: 1 });
+    mockListConcerns.mockResolvedValue({ concerns: [{ id: 90, severity: 'urgent' }], total: 1 });
+    mockListIdeas.mockResolvedValue({
+      ideas: [{ id: 91, title: 'i', content: 'c', priority: 'high', themeId: 3 }],
+      total: 1,
+    });
+    mockConvertConcernToTask.mockResolvedValue(950);
 
     const created = await promoteBacklogForTheme(3);
 
-    expect(created).toBe(0);
-    expect(mockListIdeas).not.toHaveBeenCalled();
+    expect(created).toBe(1);
+    expect(mockConvertConcernToTask).toHaveBeenCalledWith(90);
+    expect(mockCreateTask).not.toHaveBeenCalled();
   });
 
   test('truncates an overlong idea title to 200 characters', async () => {

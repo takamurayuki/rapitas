@@ -39,6 +39,7 @@ import {
   hasItemAwaitingApproval,
   isAwaitingUserAnswer,
   selectNextTask,
+  recentThemeSuccessRate,
 } from './auto-run-selection';
 import {
   findByStatuses,
@@ -520,7 +521,10 @@ export class ThemeAutoRunScheduler {
     // rate-limited; if it restarts, the process exits and dev.js relaunches.
     if (await maybeRestartForUpdate(themeId)) return;
 
-    const result = await selectNextTask(prisma, themeId, order, skipIds, globalActive);
+    // Learnable-band tiebreak (R6): recent success rate positions the target
+    // complexity band; ties within a priority pick the task closest to it.
+    const successRate = await recentThemeSuccessRate(prisma, themeId).catch(() => null);
+    const result = await selectNextTask(prisma, themeId, order, skipIds, globalActive, successRate);
 
     if (!result.found) {
       if (result.reason === 'all_done') {
