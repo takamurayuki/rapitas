@@ -139,25 +139,23 @@ export function SubtaskEditForm({
           />
         </div>
 
+        {/* NOTE: Buttons mirror AddSubtaskForm's raised-shadow style so the edit
+            and add forms read as the same control family. */}
         <div className="flex items-center gap-2 pt-1">
           <button
             onClick={onSaveEdit}
             disabled={!editingSubtaskTitle.trim()}
-            className={`flex items-center gap-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 shadow-sm transition-all duration-300 ${
-              !editingSubtaskTitle.trim()
-                ? 'opacity-50 cursor-not-allowed text-gray-400 dark:text-gray-600'
-                : 'hover:border-green-500 dark:hover:border-green-400 text-green-600 dark:text-green-400 hover:text-green-700 dark:hover:text-green-300 cursor-pointer'
-            }`}
+            className="flex items-center gap-2 px-3 py-2 text-xs font-medium rounded-lg border border-indigo-200 dark:border-indigo-800 bg-white dark:bg-zinc-900 text-indigo-700 dark:text-indigo-300 shadow-[0_2px_0_0_#a5b4fc] dark:shadow-[0_2px_0_0_#1e1b4b] hover:bg-indigo-50 dark:hover:bg-indigo-900/20 active:translate-y-[1px] active:shadow-none transition-all duration-75 disabled:opacity-40 disabled:cursor-not-allowed disabled:active:translate-y-0 disabled:active:shadow-[0_2px_0_0_#a5b4fc]"
           >
             <Check className="w-4 h-4" />
-            <span className="font-mono text-xs font-black tracking-tight">{tc('save')}</span>
+            <span className="font-mono font-black tracking-tight">{tc('save')}</span>
           </button>
           <button
             onClick={onCancelEdit}
-            className="flex items-center gap-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 shadow-sm transition-all duration-300 hover:border-gray-500 dark:hover:border-gray-400 text-gray-600 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 cursor-pointer"
+            className="flex items-center gap-2 px-3 py-2 text-xs font-medium rounded-lg border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-zinc-600 dark:text-zinc-400 shadow-[0_2px_0_0_#d4d4d8] dark:shadow-[0_2px_0_0_#27272a] hover:bg-zinc-50 dark:hover:bg-zinc-800/40 active:translate-y-[1px] active:shadow-none transition-all duration-75"
           >
             <X className="w-4 h-4" />
-            <span className="font-mono text-xs font-black tracking-tight">{tc('cancel')}</span>
+            <span className="font-mono font-black tracking-tight">{tc('cancel')}</span>
           </button>
         </div>
       </div>

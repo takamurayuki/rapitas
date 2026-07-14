@@ -7,6 +7,7 @@
  * or delegates to SubtaskEditForm when this item is being edited.
  */
 
+import { useState } from 'react';
 import { Pencil, CheckSquare, Square, Bot, Clock } from 'lucide-react';
 import type { ParallelExecutionStatus } from '@/feature/tasks/components/status/SubtaskExecutionStatus';
 import PriorityIcon from '@/feature/tasks/components/priority/PriorityIcon';
@@ -74,6 +75,12 @@ export function SubtaskItem({
   onUpdateStatus,
 }: SubtaskItemProps) {
   const t = useTranslations('task');
+  const tc = useTranslations('common');
+
+  // Long agent-generated descriptions would dominate the list, so clamp to two
+  // lines by default and let the user toggle the full text in place.
+  const [isDescriptionExpanded, setIsDescriptionExpanded] = useState(false);
+  const description = subtask.description?.trim();
 
   // Live agent-execution state for THIS subtask (from GET /tasks/executing polling).
   // Sequential subtasks each run their own agent, so the running one shows a spinner.
@@ -236,6 +243,19 @@ export function SubtaskItem({
               </button>
             </div>
           </div>
+          {description && (
+            <button
+              type="button"
+              onClick={() => setIsDescriptionExpanded((v) => !v)}
+              title={isDescriptionExpanded ? tc('collapse') : tc('expand')}
+              aria-expanded={isDescriptionExpanded}
+              className={`mt-1.5 block w-full cursor-pointer text-left text-xs text-zinc-500 dark:text-zinc-400 whitespace-pre-wrap break-words ${
+                isSelectionMode ? 'pl-7' : 'pl-8'
+              } ${isDescriptionExpanded ? '' : 'line-clamp-2'}`}
+            >
+              {description}
+            </button>
+          )}
         </div>
       )}
     </div>

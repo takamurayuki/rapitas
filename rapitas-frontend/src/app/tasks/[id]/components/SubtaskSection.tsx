@@ -93,6 +93,13 @@ export default function SubtaskSection({
   onSetNewSubtaskEstimatedHours,
   onAddSubtask,
 }: SubtaskSectionProps) {
+  // While a subtask is being edited, collapse the card to just that item so the
+  // edit form is the only thing on screen (other rows and the add form hide).
+  const isEditingAny = editingSubtaskId !== null;
+  const visibleSubtasks = isEditingAny
+    ? subtasks.filter((s) => s.id === editingSubtaskId)
+    : subtasks;
+
   return (
     <div className="bg-white dark:bg-indigo-dark-900 rounded-lg border border-zinc-200 dark:border-zinc-800 overflow-hidden mb-6">
       <SubtaskHeader
@@ -116,7 +123,7 @@ export default function SubtaskSection({
       )}
 
       <div className="divide-y divide-zinc-100 dark:divide-zinc-800">
-        {subtasks.map((subtask) => (
+        {visibleSubtasks.map((subtask) => (
           <SubtaskItem
             key={subtask.id}
             subtask={subtask}
@@ -144,17 +151,19 @@ export default function SubtaskSection({
         ))}
       </div>
 
-      <AddSubtaskForm
-        newSubtaskTitle={newSubtaskTitle}
-        newSubtaskDescription={newSubtaskDescription}
-        newSubtaskLabels={newSubtaskLabels}
-        newSubtaskEstimatedHours={newSubtaskEstimatedHours}
-        onSetNewSubtaskTitle={onSetNewSubtaskTitle}
-        onSetNewSubtaskDescription={onSetNewSubtaskDescription}
-        onSetNewSubtaskLabels={onSetNewSubtaskLabels}
-        onSetNewSubtaskEstimatedHours={onSetNewSubtaskEstimatedHours}
-        onAddSubtask={onAddSubtask}
-      />
+      {!isEditingAny && (
+        <AddSubtaskForm
+          newSubtaskTitle={newSubtaskTitle}
+          newSubtaskDescription={newSubtaskDescription}
+          newSubtaskLabels={newSubtaskLabels}
+          newSubtaskEstimatedHours={newSubtaskEstimatedHours}
+          onSetNewSubtaskTitle={onSetNewSubtaskTitle}
+          onSetNewSubtaskDescription={onSetNewSubtaskDescription}
+          onSetNewSubtaskLabels={onSetNewSubtaskLabels}
+          onSetNewSubtaskEstimatedHours={onSetNewSubtaskEstimatedHours}
+          onAddSubtask={onAddSubtask}
+        />
+      )}
     </div>
   );
 }
