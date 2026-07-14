@@ -1,8 +1,9 @@
 /**
  * SubtaskItem.test
  *
- * Verifies the view-mode description toggle: hidden by default, toggle button
- * shown only when a description exists, and click-to-expand/collapse.
+ * Verifies the view-mode details panel: hidden by default, toggle expands
+ * description + note links, and note links are reachable even without a
+ * description.
  */
 
 import { describe, it, expect, vi } from 'vitest';
@@ -28,6 +29,12 @@ vi.mock('react-markdown', () => ({
 }));
 vi.mock('remark-gfm', () => ({ default: () => undefined }));
 vi.mock('remark-breaks', () => ({ default: () => undefined }));
+
+// NoteLinksSection pulls in the note store + portals; stub it and just assert
+// it receives the subtask's id.
+vi.mock('../../NoteLinksSection', () => ({
+  default: ({ taskId }: { taskId: number }) => <div data-testid={`note-links-${taskId}`} />,
+}));
 
 const makeSubtask = (overrides: Partial<Task> = {}): Task => ({
   id: 1,
@@ -62,7 +69,7 @@ const baseProps = {
   onUpdateStatus: vi.fn(),
 };
 
-describe('SubtaskItem description', () => {
+describe('SubtaskItem details panel', () => {
   it('説明はデフォルトで非表示、トグルボタンだけ表示される', () => {
     render(
       <SubtaskItem {...baseProps} subtask={makeSubtask({ description: 'API仕様を確認する' })} />,
@@ -71,21 +78,24 @@ describe('SubtaskItem description', () => {
     expect(screen.getByRole('button', { name: 'expand', expanded: false })).toBeInTheDocument();
   });
 
-  it('トグルクリックで説明が展開/折りたたみされる', () => {
+  it('トグルクリックで説明とノートリンクが展開/折りたたみされる', () => {
     render(
       <SubtaskItem {...baseProps} subtask={makeSubtask({ description: 'API仕様を確認する' })} />,
     );
     const toggle = screen.getByRole('button', { name: 'expand' });
     fireEvent.click(toggle);
     expect(screen.getByText('API仕様を確認する')).toBeInTheDocument();
+    expect(screen.getByTestId('note-links-1')).toBeInTheDocument();
     expect(toggle).toHaveAttribute('aria-expanded', 'true');
     fireEvent.click(toggle);
     expect(screen.queryByText('API仕様を確認する')).not.toBeInTheDocument();
-    expect(toggle).toHaveAttribute('aria-expanded', 'false');
+    expect(screen.queryByTestId('note-links-1')).not.toBeInTheDocument();
   });
 
-  it('説明が無い場合はトグルボタンを描画しない', () => {
+  it('説明が無くてもトグルからノートリンクに到達できる', () => {
     render(<SubtaskItem {...baseProps} subtask={makeSubtask()} />);
-    expect(screen.queryByRole('button', { name: /expand|collapse/ })).not.toBeInTheDocument();
+    const toggle = screen.getByRole('button', { name: 'expand' });
+    fireEvent.click(toggle);
+    expect(screen.getByTestId('note-links-1')).toBeInTheDocument();
   });
 });

@@ -206,6 +206,8 @@ export default function TaskDetailViewBody({
       <div id="td-subtasks" className="scroll-mt-16">
         <SubtaskSection
           subtasks={task.subtasks || []}
+          themeName={task.theme?.name}
+          categoryName={task.theme?.category?.name}
           isSubtaskSelectionMode={taskActions.isSubtaskSelectionMode}
           selectedSubtaskIds={taskActions.selectedSubtaskIds}
           showSubtaskDeleteConfirm={taskActions.showSubtaskDeleteConfirm}

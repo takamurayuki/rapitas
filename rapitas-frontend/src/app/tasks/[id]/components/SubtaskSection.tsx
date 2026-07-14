@@ -16,6 +16,10 @@ import { SubtaskItem } from './subtask-section/SubtaskItem';
 
 interface SubtaskSectionProps {
   subtasks: NonNullable<Task['subtasks']>;
+  /** Parent task's theme name — note-link hierarchy metadata for subtasks. */
+  themeName?: string;
+  /** Parent task's category name — note-link hierarchy metadata for subtasks. */
+  categoryName?: string;
   isSubtaskSelectionMode: boolean;
   selectedSubtaskIds: Set<number>;
   showSubtaskDeleteConfirm: 'all' | 'selected' | null;
@@ -56,6 +60,8 @@ interface SubtaskSectionProps {
 
 export default function SubtaskSection({
   subtasks,
+  themeName,
+  categoryName,
   isSubtaskSelectionMode,
   selectedSubtaskIds,
   showSubtaskDeleteConfirm,
@@ -127,6 +133,8 @@ export default function SubtaskSection({
           <SubtaskItem
             key={subtask.id}
             subtask={subtask}
+            themeName={themeName}
+            categoryName={categoryName}
             isEditing={editingSubtaskId === subtask.id}
             isSelectionMode={isSubtaskSelectionMode}
             isSelected={selectedSubtaskIds.has(subtask.id)}
