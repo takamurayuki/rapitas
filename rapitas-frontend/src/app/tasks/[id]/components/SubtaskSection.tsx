@@ -7,6 +7,7 @@
  * All state is owned by the parent and threaded in as props.
  */
 
+import { useState } from 'react';
 import type { Task, Priority } from '@/types';
 import type { ParallelExecutionStatus } from '@/feature/tasks/components/status/SubtaskExecutionStatus';
 import { SubtaskHeader } from './subtask-section/SubtaskHeader';
@@ -108,6 +109,10 @@ export default function SubtaskSection({
   // While a subtask is being edited, collapse the card to just that item so the
   // edit form is the only thing on screen (other rows and the add form hide).
   const isEditingAny = editingSubtaskId !== null;
+
+  // User-controlled visibility of the add form (header toggle) — purely a
+  // view preference, so it lives here rather than in the parent hooks.
+  const [isAddFormVisible, setIsAddFormVisible] = useState(true);
   const visibleSubtasks = isEditingAny
     ? subtasks.filter((s) => s.id === editingSubtaskId)
     : subtasks;
@@ -123,6 +128,8 @@ export default function SubtaskSection({
         onDeselectAll={onDeselectAll}
         onSetDeleteConfirm={onSetDeleteConfirm}
         onBulkUpdateStatus={onBulkUpdateStatus}
+        isAddFormVisible={isAddFormVisible}
+        onToggleAddForm={() => setIsAddFormVisible((v) => !v)}
       />
 
       {showSubtaskDeleteConfirm && (
@@ -172,7 +179,7 @@ export default function SubtaskSection({
         ))}
       </div>
 
-      {!isEditingAny && (
+      {!isEditingAny && isAddFormVisible && (
         <AddSubtaskForm
           newSubtaskTitle={newSubtaskTitle}
           newSubtaskDescription={newSubtaskDescription}

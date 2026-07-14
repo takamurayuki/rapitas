@@ -479,6 +479,7 @@
     "labelsCommaSeparated": "Labels (comma-separated)",
     "estimatedHours": "Estimated hours (h)",
     "addSubtask": "Add subtask",
+    "toggleAddSubtaskForm": "Show/hide add form",
     "subtaskDetails": "Details",
     "subtaskPriority": "Priority",
     "subtaskLabels": "Labels",

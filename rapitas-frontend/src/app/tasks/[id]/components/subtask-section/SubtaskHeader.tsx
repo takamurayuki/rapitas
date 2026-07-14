@@ -10,7 +10,7 @@
  */
 
 import React from 'react';
-import { ListTodo, CopyCheck, Trash2, CircleCheckBig, X } from 'lucide-react';
+import { ListTodo, ListPlus, CopyCheck, Trash2, CircleCheckBig, X } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import type { Task } from '@/types';
 import { getStatusDisplay, renderStatusIcon } from '@/feature/tasks/config/StatusConfig';
@@ -26,6 +26,9 @@ interface SubtaskHeaderProps {
   onSetDeleteConfirm: (v: 'all' | 'selected' | null) => void;
   /** @param status - target status for all selected subtasks / 選択中サブタスクの変更先ステータス */
   onBulkUpdateStatus: (status: string) => void;
+  /** Whether the add-subtask form below the list is currently shown. */
+  isAddFormVisible: boolean;
+  onToggleAddForm: () => void;
 }
 
 /**
@@ -43,6 +46,8 @@ export function SubtaskHeader({
   onDeselectAll,
   onSetDeleteConfirm,
   onBulkUpdateStatus,
+  isAddFormVisible,
+  onToggleAddForm,
 }: SubtaskHeaderProps) {
   const t = useTranslations('task');
   const tc = useTranslations('common');
@@ -62,36 +67,58 @@ export function SubtaskHeader({
           <h2 className="text-lg font-bold">{t('subtasks')}</h2>
         </div>
 
-        {/* Header keeps ONLY the mode toggle — the actions themselves live in
-            the toolbar band below so the row never crowds. */}
-        {subtasks.length > 0 && (
-          /* 一括選択 — ボトムリッジ (紫)。選択モード中は押し込んだまま。
-             タスク一覧 (HomeToolbar) と同じデザイン。CopyCheck = 一括選択モード。 */
+        {/* Header keeps ONLY mode/view toggles — the bulk actions themselves
+            live in the toolbar band below so the row never crowds. */}
+        <div className="flex items-center gap-2">
+          {/* 追加フォームの表示/非表示 — ボトムリッジ (インディゴ=アクティブ)。
+              表示中は押し込んだまま。ListPlus = タスク起票 (同一概念の再利用)。 */}
           <button
             onClick={(e) => {
               e.stopPropagation();
-              onToggleSelectionMode();
+              onToggleAddForm();
             }}
-            title={t('bulkSelect')}
-            className={`flex h-8 items-center gap-1.5 px-2.5 text-xs font-medium rounded-lg select-none text-purple-700 dark:text-purple-300 border transition-all duration-75 ${
-              isSubtaskSelectionMode
-                ? 'bg-purple-50 dark:bg-purple-900/20 border-purple-300 dark:border-purple-700 translate-y-[1px] shadow-none'
-                : 'bg-white dark:bg-zinc-900 border-purple-200 dark:border-purple-800 shadow-[0_2px_0_0_#d8b4fe] dark:shadow-[0_2px_0_0_#4c1d95] hover:bg-purple-50 dark:hover:bg-purple-900/20 hover:border-purple-300 dark:hover:border-purple-700 active:translate-y-[1px] active:shadow-none'
+            title={t('toggleAddSubtaskForm')}
+            aria-label={t('toggleAddSubtaskForm')}
+            aria-pressed={isAddFormVisible}
+            className={`flex h-8 items-center gap-1.5 px-2.5 text-xs font-medium rounded-lg select-none text-indigo-700 dark:text-indigo-300 border transition-all duration-75 ${
+              isAddFormVisible
+                ? 'bg-indigo-50 dark:bg-indigo-900/20 border-indigo-300 dark:border-indigo-700 translate-y-[1px] shadow-none'
+                : 'bg-white dark:bg-zinc-900 border-indigo-200 dark:border-indigo-800 shadow-[0_2px_0_0_#a5b4fc] dark:shadow-[0_2px_0_0_#312e81] hover:bg-indigo-50 dark:hover:bg-indigo-900/20 hover:border-indigo-300 dark:hover:border-indigo-700 active:translate-y-[1px] active:shadow-none'
             }`}
           >
-            <CopyCheck className="w-3.5 h-3.5" />
-            {isSubtaskSelectionMode
-              ? t('selecting', { count: selectedSubtaskIds.size })
-              : t('bulkSelect')}
+            <ListPlus className="w-3.5 h-3.5" />
+            {t('addSubtask')}
           </button>
-        )}
+
+          {subtasks.length > 0 && (
+            /* 一括選択 — ボトムリッジ (紫)。選択モード中は押し込んだまま。
+               タスク一覧 (HomeToolbar) と同じデザイン。CopyCheck = 一括選択モード。 */
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onToggleSelectionMode();
+              }}
+              title={t('bulkSelect')}
+              className={`flex h-8 items-center gap-1.5 px-2.5 text-xs font-medium rounded-lg select-none text-purple-700 dark:text-purple-300 border transition-all duration-75 ${
+                isSubtaskSelectionMode
+                  ? 'bg-purple-50 dark:bg-purple-900/20 border-purple-300 dark:border-purple-700 translate-y-[1px] shadow-none'
+                  : 'bg-white dark:bg-zinc-900 border-purple-200 dark:border-purple-800 shadow-[0_2px_0_0_#d8b4fe] dark:shadow-[0_2px_0_0_#4c1d95] hover:bg-purple-50 dark:hover:bg-purple-900/20 hover:border-purple-300 dark:hover:border-purple-700 active:translate-y-[1px] active:shadow-none'
+              }`}
+            >
+              <CopyCheck className="w-3.5 h-3.5" />
+              {isSubtaskSelectionMode
+                ? t('selecting', { count: selectedSubtaskIds.size })
+                : t('bulkSelect')}
+            </button>
+          )}
+        </div>
       </div>
 
-      {/* Selection toolbar band — full width, purple-tinted so the active
-          bulk mode is unmistakable. Delete sits apart on the right because it
-          is destructive. */}
+      {/* Selection toolbar band — quiet neutral surface per the design
+          language (color must carry meaning; the checkboxes already signal
+          the mode). Delete sits apart on the right because it is destructive. */}
       {isSubtaskSelectionMode && subtasks.length > 0 && (
-        <div className="flex items-center gap-2 px-4 py-2 border-t border-zinc-100 dark:border-zinc-800 bg-purple-50/40 dark:bg-purple-900/10">
+        <div className="flex items-center gap-2 px-4 py-2 border-t border-zinc-100 dark:border-zinc-800 bg-zinc-50/80 dark:bg-zinc-900/40">
           {/* すべて選択/すべて解除 — フラット。文言・アイコンとも
               タスク一覧の HomeToolbar と同一。 */}
           <button
