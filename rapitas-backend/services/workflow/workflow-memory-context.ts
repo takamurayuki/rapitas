@@ -36,6 +36,8 @@ export type EntryOutcome = 'first_try' | 'completed' | 'blocked';
 
 /** A knowledge entry shaped for rendering. */
 export interface MemoryEntry {
+  /** KnowledgeEntry id — rendered as K-<id> so agents can declare usage (R8). */
+  id: number;
   title: string;
   content: string;
   category: string;
@@ -66,6 +68,8 @@ const TEXT = {
       completed: '☑ 完了タスクの知見',
       blocked: '⚠️ 前回ブロック（失敗の教訓 — 同じ轍を避ける）',
     } as Record<EntryOutcome, string>,
+    usageDeclaration:
+      '### 使用申告（必須 — R8 学習ループ用）\n作業の最終出力（verify.md など、このフェーズで保存する .md）の末尾に `## 使用知識` セクションを設け、上記の知見のうち**実際に判断・実装に使ったもの**だけを `- K-<番号>` 形式で列挙してください。内容が誤っていた・現状と矛盾していた知見は `- K-<番号>: 誤り — <簡潔な理由>` と記してください。使わなかった知見は書かないこと（列挙が正確なほど、次回以降の想起品質が上がります）。',
   },
   en: {
     header: '# Prior Knowledge (recalled from memory — do not repeat past mistakes)',
@@ -76,6 +80,8 @@ const TEXT = {
       completed: '☑ from a completed task',
       blocked: '⚠️ previously BLOCKED (failure lesson — avoid repeating)',
     } as Record<EntryOutcome, string>,
+    usageDeclaration:
+      '### Usage declaration (REQUIRED — feeds the learning loop)\nAt the end of the final .md you save for this phase (e.g. verify.md), add a `## 使用知識` section listing ONLY the entries you actually used, one per line as `- K-<id>`. If an entry was WRONG or contradicted reality, write `- K-<id>: 誤り — <short reason>`. Do not list unused entries.',
   },
 } as const;
 
@@ -141,10 +147,10 @@ export function renderMemorySection(entries: MemoryEntry[], language: 'ja' | 'en
       const marker = `${outcomeMark}${conflictMark}`;
       const snippet =
         e.content.length > SNIPPET_LEN ? `${e.content.slice(0, SNIPPET_LEN)}…` : e.content;
-      return `## [${e.category}] ${e.title} (${t.relevance} ${pct}%)${marker}\n${snippet}`;
+      return `## K-${e.id} [${e.category}] ${e.title} (${t.relevance} ${pct}%)${marker}\n${snippet}`;
     })
     .join('\n\n');
-  return `${t.header}\n\n${t.lead}\n\n${items}`;
+  return `${t.header}\n\n${t.lead}\n\n${items}\n\n${t.usageDeclaration}`;
 }
 
 /** Trailing window and cap for episodic failure recall. */
@@ -289,6 +295,7 @@ export async function buildMemoryContext(
     );
 
     const entries: MemoryEntry[] = results.map((r) => ({
+      id: r.id,
       title: r.title,
       content: r.content,
       category: r.category,

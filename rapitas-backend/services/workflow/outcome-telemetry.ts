@@ -91,11 +91,16 @@ export async function recordTaskOutcome(taskId: number, finalStatus: string): Pr
 
     // Outcome-gated reinforcement: reward the knowledge entries this task used
     // when it completed, decay them when it was blocked — so what survives the
-    // forgetting curve is what actually helped. Best-effort, never blocks.
+    // forgetting curve is what actually helped. Fine-grained when the agent
+    // declared per-entry usage in verify.md (R8: entry-level credit assignment
+    // instead of uniform set-level ±). Best-effort, never blocks.
     await import('../memory/outcome-reinforcement')
-      .then(({ applyOutcomeReinforcement }) =>
-        applyOutcomeReinforcement(taskId, finalStatus === 'completed'),
-      )
+      .then(async ({ applyOutcomeReinforcement, parseKnowledgeUsage }) => {
+        const usage = await readVerifyForUsage(taskId)
+          .then(parseKnowledgeUsage)
+          .catch(() => undefined);
+        return applyOutcomeReinforcement(taskId, finalStatus === 'completed', usage);
+      })
       .catch((err) => log.warn({ err, taskId }, '[telemetry] Outcome reinforcement failed'));
 
     // Validate the hypotheses this task formed: completion → "for" evidence, a
@@ -134,6 +139,22 @@ export async function recordTaskOutcome(taskId: number, finalStatus: string): Pr
   } catch (err) {
     log.warn({ err, taskId }, '[telemetry] Failed to record task outcome');
   }
+}
+
+/**
+ * Read the task's saved verify.md (fall back to research.md for research-only
+ * completions) so the knowledge usage declaration can be parsed from it.
+ *
+ * @param taskId - Task whose artifacts to read. / 対象タスク
+ * @returns Artifact body or null. / 成果物本文
+ */
+async function readVerifyForUsage(taskId: number): Promise<string | null> {
+  const { resolveWorkflowDir, readWorkflowFile } = await import('./workflow-file-utils');
+  const resolved = await resolveWorkflowDir(taskId);
+  if (!resolved) return null;
+  const verify = await readWorkflowFile(resolved.dir, 'verify').catch(() => null);
+  if (verify?.trim()) return verify;
+  return readWorkflowFile(resolved.dir, 'research').catch(() => null);
 }
 
 /**

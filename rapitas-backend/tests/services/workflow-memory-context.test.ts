@@ -72,6 +72,7 @@ describe('renderMemorySection', () => {
     const out = renderMemorySection(
       [
         {
+          id: 77,
           title: 'N+1クエリ',
           content: 'findManyをループで呼ぶと遅い',
           category: 'perf',
@@ -84,16 +85,20 @@ describe('renderMemorySection', () => {
     expect(out).toContain('[perf] N+1クエリ');
     expect(out).toContain('82%');
     expect(out).toContain('findManyをループ');
+    // R8: entries carry a K-<id> handle + the usage-declaration instruction.
+    expect(out).toContain('K-77');
+    expect(out).toContain('使用知識');
   });
 
   test('長い本文は切り詰める(…付き)', () => {
     const long = 'x'.repeat(1000);
     const out = renderMemorySection(
-      [{ title: 'T', content: long, category: 'bug', similarity: 0.6 }],
+      [{ id: 1, title: 'T', content: long, category: 'bug', similarity: 0.6 }],
       'en',
     );
     expect(out).toContain('…');
-    expect(out.length).toBeLessThan(long.length);
+    // The full 1000-char body must not appear verbatim (only the 400-char snippet).
+    expect(out).not.toContain(long);
   });
 });
 

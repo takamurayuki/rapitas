@@ -47,3 +47,78 @@ describe('outcome-reinforcement', () => {
     expect(await applyOutcomeReinforcement(5, true)).toBe(0);
   });
 });
+
+describe('parseKnowledgeUsage (R8 usage declaration)', () => {
+  test('使用知識セクションから used / wrong を抽出する', async () => {
+    const { parseKnowledgeUsage } = await import('./outcome-reinforcement');
+    const md = [
+      '# 検証レポート',
+      '本文...',
+      '## 使用知識',
+      '- K-10',
+      '- K-11: 誤り — 現在のスキーマと矛盾',
+      '- K-12',
+      '',
+      '## 別のセクション',
+      '- K-99 これは数えない',
+    ].join('\n');
+    const u = parseKnowledgeUsage(md);
+    expect(u.declared).toBe(true);
+    expect(u.used.sort()).toEqual([10, 12]);
+    expect(u.wrong).toEqual([11]);
+  });
+
+  test('セクションが無ければ declared:false', async () => {
+    const { parseKnowledgeUsage } = await import('./outcome-reinforcement');
+    expect(parseKnowledgeUsage('# 検証\nK-10 を使った')).toEqual({
+      declared: false,
+      used: [],
+      wrong: [],
+    });
+    expect(parseKnowledgeUsage(null).declared).toBe(false);
+  });
+
+  test('英語見出し Knowledge Used / wrong マーカーも解釈する', async () => {
+    const { parseKnowledgeUsage } = await import('./outcome-reinforcement');
+    const u = parseKnowledgeUsage('## Knowledge Used\n- K-5\n- K-6: wrong, outdated API');
+    expect(u.declared).toBe(true);
+    expect(u.used).toEqual([5]);
+    expect(u.wrong).toEqual([6]);
+  });
+});
+
+describe('applyOutcomeReinforcement — 細粒度クレジット割当 (R8)', () => {
+  beforeEach(() => {
+    _resetTraces();
+  });
+
+  test('申告あり: used と wrong のみ反映、未申告の注入分は中立', async () => {
+    recordRetrieval(60, [10, 11, 12]);
+    const applied = await applyOutcomeReinforcement(60, true, {
+      declared: true,
+      used: [10],
+      wrong: [11],
+    });
+    expect(applied).toBe(2); // 12 is injected-but-undeclared → neutral
+  });
+
+  test('申告に注入されていないIDがあっても反映されない（トレースと交差）', async () => {
+    recordRetrieval(61, [20]);
+    const applied = await applyOutcomeReinforcement(61, true, {
+      declared: true,
+      used: [999],
+      wrong: [998],
+    });
+    expect(applied).toBe(0);
+  });
+
+  test('申告なし（declared:false）はレガシーの一律反映', async () => {
+    recordRetrieval(62, [30, 31]);
+    const applied = await applyOutcomeReinforcement(62, false, {
+      declared: false,
+      used: [],
+      wrong: [],
+    });
+    expect(applied).toBe(2);
+  });
+});
