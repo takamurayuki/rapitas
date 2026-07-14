@@ -12,7 +12,7 @@ import { Save, X, Clock, Timer, AlertTriangle, NotebookPen } from 'lucide-react'
 import { useTranslations } from 'next-intl';
 import type { Task, Priority } from '@/types';
 import { useAutosizeTextarea } from '@/hooks/ui/useAutosizeTextarea';
-import { priorityOptions } from './types';
+import { PrioritySelector } from '@/app/tasks/new/components/PrioritySelector';
 import NoteLinksSection from '../NoteLinksSection';
 
 interface SubtaskEditFormProps {
@@ -98,39 +98,30 @@ export function SubtaskEditForm({
           rows={3}
         />
 
+        {/* Notes sit directly under the description so the "insert to
+            description" action lands right next to its target field. */}
+        <div>
+          <label className="flex items-center gap-1.5 text-xs font-medium text-zinc-500 dark:text-zinc-400 mb-1.5">
+            <NotebookPen className="w-3.5 h-3.5" />
+            {t('compactTaskDetailCard.notesHeading')}
+          </label>
+          <NoteLinksSection
+            taskId={subtask.id}
+            taskTitle={editingSubtaskTitle || subtask.title}
+            themeName={themeName}
+            categoryName={categoryName}
+            onInsertToDescription={insertLinkToDescription}
+          />
+        </div>
+
         <div className="flex flex-col sm:flex-row gap-3">
           <div className="flex-1">
             <label className="flex items-center gap-1.5 text-xs font-medium text-zinc-500 dark:text-zinc-400 mb-1.5">
               <AlertTriangle className="w-3.5 h-3.5" />
               {t('subtaskPriority')}
             </label>
-            <div className="flex gap-1">
-              {priorityOptions.map((opt) => {
-                const isActive = editingSubtaskPriority === opt.value;
-                return (
-                  <button
-                    key={opt.value}
-                    type="button"
-                    onClick={() => onSetEditingPriority(opt.value)}
-                    className={`flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium rounded-lg border transition-colors ${
-                      isActive
-                        ? `${opt.activeBorder} ${opt.color} ${opt.activeBg}`
-                        : 'border-zinc-200 dark:border-zinc-700 text-zinc-500 dark:text-zinc-400 hover:border-zinc-400 dark:hover:border-zinc-500'
-                    }`}
-                  >
-                    <span className={isActive ? opt.color : ''}>{opt.icon}</span>
-                    {t(
-                      `priority${opt.value.charAt(0).toUpperCase() + opt.value.slice(1)}` as
-                        | 'priorityLow'
-                        | 'priorityMedium'
-                        | 'priorityHigh'
-                        | 'priorityCritical'
-                        | 'priorityUrgent',
-                    )}
-                  </button>
-                );
-              })}
-            </div>
+            {/* Shared selector — same design as the new-task page (§7 reuse). */}
+            <PrioritySelector value={editingSubtaskPriority} onChange={onSetEditingPriority} />
           </div>
 
           {/* NOTE: No label input — subtask labels are configured on the parent task. */}
@@ -169,23 +160,9 @@ export function SubtaskEditForm({
           </div>
         </div>
 
-        <div>
-          <label className="flex items-center gap-1.5 text-xs font-medium text-zinc-500 dark:text-zinc-400 mb-1.5">
-            <NotebookPen className="w-3.5 h-3.5" />
-            {t('compactTaskDetailCard.notesHeading')}
-          </label>
-          <NoteLinksSection
-            taskId={subtask.id}
-            taskTitle={editingSubtaskTitle || subtask.title}
-            themeName={themeName}
-            categoryName={categoryName}
-            onInsertToDescription={insertLinkToDescription}
-          />
-        </div>
-
         {/* NOTE: Buttons mirror AddSubtaskForm's raised-shadow style so the edit
             and add forms read as the same control family. */}
-        <div className="flex items-center gap-2 pt-1">
+        <div className="flex items-center justify-end gap-2 pt-1">
           <button
             onClick={onSaveEdit}
             disabled={!editingSubtaskTitle.trim()}

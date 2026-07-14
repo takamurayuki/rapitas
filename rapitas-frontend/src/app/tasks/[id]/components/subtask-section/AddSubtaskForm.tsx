@@ -117,7 +117,7 @@ export function AddSubtaskForm({
           </div>
         </div>
 
-        <div className="flex items-center gap-2 pt-1">
+        <div className="flex items-center justify-end gap-2 pt-1">
           <button
             onClick={onAddSubtask}
             disabled={!newSubtaskTitle.trim()}

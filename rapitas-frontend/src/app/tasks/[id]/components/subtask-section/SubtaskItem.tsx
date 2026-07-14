@@ -8,7 +8,7 @@
  */
 
 import { useState } from 'react';
-import { Pencil, CheckSquare, Square, Bot, Clock, Timer, AlignLeft } from 'lucide-react';
+import { Pencil, Bot, Clock, Timer, AlignLeft } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import remarkBreaks from 'remark-breaks';
@@ -18,6 +18,7 @@ import TaskStatusChange from '@/feature/tasks/components/status/TaskStatusChange
 import { useExecutionStateStore } from '@/stores/execution-state-store';
 import { getStatusDisplay, renderStatusIcon } from '@/feature/tasks/config/StatusConfig';
 import { useTranslations } from 'next-intl';
+import { ModernCheckbox } from '@/components/ui/ModernCheckbox';
 import { SubtaskEditForm } from './SubtaskEditForm';
 import NoteLinksSection from '../NoteLinksSection';
 import type { Task, Priority } from '@/types';
@@ -130,21 +131,21 @@ export function SubtaskItem({
         />
       ) : (
         <div className="p-3 hover:bg-zinc-50 dark:hover:bg-zinc-800/30">
-          <div className="flex items-center justify-between gap-3">
+          {/* In selection mode the whole row toggles selection (mirrors the
+              task list's card behaviour) and the action cluster is hidden. */}
+          <div
+            className={`flex items-center justify-between gap-3 ${isSelectionMode ? 'cursor-pointer' : ''}`}
+            onClick={isSelectionMode ? onToggleSelection : undefined}
+          >
             <div className="flex items-center gap-2 flex-1 min-w-0">
               {isSelectionMode && (
-                <button
-                  onClick={onToggleSelection}
+                <ModernCheckbox
+                  checked={isSelected}
+                  onChange={onToggleSelection}
+                  onClick={(e) => e.stopPropagation()}
                   className="shrink-0"
-                  aria-label={isSelected ? t('deselect') : t('select')}
-                  aria-pressed={isSelected}
-                >
-                  {isSelected ? (
-                    <CheckSquare className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />
-                  ) : (
-                    <Square className="w-5 h-5 text-zinc-500" />
-                  )}
-                </button>
+                  aria-label={`${t('select')} ${subtask.title}`}
+                />
               )}
               {!isSelectionMode && (
                 <div className="shrink-0">
@@ -225,7 +226,9 @@ export function SubtaskItem({
                 </span>
               )}
             </div>
-            <div className="flex items-center gap-1 shrink-0">
+            {/* Action cluster hidden while selecting — the row itself is the
+                selection target, mirroring the task list. */}
+            <div className={`flex items-center gap-1 shrink-0 ${isSelectionMode ? 'hidden' : ''}`}>
               {/* Always shown (not only when a description exists) — the panel
                   is also the entry point for linking notes to the subtask. */}
               <button
@@ -264,8 +267,9 @@ export function SubtaskItem({
               </button>
             </div>
           </div>
+          {/* pl-8 aligns the panel with the title (w-6 icon/checkbox + gap-2). */}
           {isDetailsExpanded && (
-            <div className={`mt-2 ${isSelectionMode ? 'pl-7' : 'pl-8'} space-y-3`}>
+            <div className="mt-2 pl-8 space-y-3">
               {description && (
                 <div className="prose prose-sm prose-zinc dark:prose-invert max-w-none text-xs">
                   <ReactMarkdown remarkPlugins={[remarkGfm, remarkBreaks]}>
