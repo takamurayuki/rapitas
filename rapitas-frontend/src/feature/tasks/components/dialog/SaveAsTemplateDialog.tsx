@@ -1,28 +1,12 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { FileStack, X, FolderPlus, Check } from 'lucide-react';
+import { LayoutTemplate, X } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import type { Task, TaskTemplate } from '@/types';
 import { API_BASE_URL } from '@/utils/api';
-import { createLogger } from '@/lib/logger';
+import { useFilterDataStore } from '@/stores/filter-data-store';
 import { useFocusTrap } from '@/components/ui/modal/use-focus-trap';
-
-const logger = createLogger('SaveAsTemplateDialog');
-
-// NOTE: These category values are also persisted as the template's `category`
-// field, so they intentionally stay in Japanese rather than being localized —
-// translating the button labels would desync the displayed value from the
-// value actually sent to the API.
-const DEFAULT_CATEGORIES = [
-  '開発',
-  'デザイン',
-  'ドキュメント',
-  'ミーティング',
-  'レビュー',
-  '調査',
-  'その他',
-];
 
 type Props = {
   task: Task;
@@ -36,19 +20,28 @@ export default function SaveAsTemplateDialog({ task, isOpen, onClose, onSuccess 
   const tCommon = useTranslations('common');
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
-  const [category, setCategory] = useState('');
-  const [customCategory, setCustomCategory] = useState('');
-  const [isCustomCategory, setIsCustomCategory] = useState(false);
-  const [categories, setCategories] = useState<string[]>(DEFAULT_CATEGORIES);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const panelRef = useRef<HTMLDivElement>(null);
-  const customCategoryRef = useRef<HTMLInputElement>(null);
 
-  // Trap Tab focus inside the panel. Declared before the custom-category
-  // focus effect below so that effect wins the final focus (React runs
-  // effects in declaration order) — otherwise useFocusTrap would steal focus
-  // to the first focusable element (the close button) instead of the input.
+  // NOTE: The category picker was removed (2026-07-14) — the template belongs
+  // to the task's current category > theme. The category NAME is resolved via
+  // the filter store because the task API returns theme without its category.
+  const filterThemes = useFilterDataStore((s) => s.themes);
+  const filterCategories = useFilterDataStore((s) => s.categories);
+  const initializeFilterData = useFilterDataStore((s) => s.initializeData);
+  // The store is only guaranteed to be primed on the home page — load it here
+  // so the resolved scope doesn't silently fall back to その他.
+  useEffect(() => {
+    if (isOpen) initializeFilterData();
+  }, [isOpen, initializeFilterData]);
+  const resolvedTheme = filterThemes.find((th) => th.id === task.themeId);
+  const resolvedCategory =
+    resolvedTheme?.categoryId != null
+      ? filterCategories.find((c) => c.id === resolvedTheme.categoryId)
+      : null;
+  const categoryName = resolvedCategory?.name ?? task.theme?.category?.name ?? 'その他';
+
   useFocusTrap(panelRef, isOpen);
 
   // Close on Escape key
@@ -70,42 +63,9 @@ export default function SaveAsTemplateDialog({ task, isOpen, onClose, onSuccess 
     }
   }, [isOpen, task]);
 
-  // Fetch existing categories
-  useEffect(() => {
-    const fetchCategories = async () => {
-      try {
-        const res = await fetch(`${API_BASE_URL}/templates/categories`);
-        if (res.ok) {
-          const data = await res.json();
-          // Merge default and existing categories
-          const merged = [...new Set([...DEFAULT_CATEGORIES, ...data])];
-          setCategories(merged);
-        }
-      } catch (err) {
-        logger.error('Failed to fetch categories:', err);
-      }
-    };
-    if (isOpen) {
-      fetchCategories();
-    }
-  }, [isOpen]);
-
-  // NOTE: Converted from native `autoFocus` to a ref-based effect declared
-  // after useFocusTrap above, so it runs last and wins the final focus when
-  // the custom-category input mounts (see focus-trap ordering note above).
-  useEffect(() => {
-    if (isCustomCategory) customCategoryRef.current?.focus();
-  }, [isCustomCategory]);
-
   const handleSubmit = async () => {
-    const finalCategory = isCustomCategory ? customCategory : category;
-
     if (!name.trim()) {
       setError(t('saveAsTemplateDialog.nameRequiredError'));
-      return;
-    }
-    if (!finalCategory.trim()) {
-      setError(t('saveAsTemplateDialog.categoryRequiredError'));
       return;
     }
 
@@ -119,7 +79,7 @@ export default function SaveAsTemplateDialog({ task, isOpen, onClose, onSuccess 
         body: JSON.stringify({
           name: name.trim(),
           description: description.trim() || undefined,
-          category: finalCategory.trim(),
+          category: categoryName,
         }),
       });
 
@@ -134,9 +94,6 @@ export default function SaveAsTemplateDialog({ task, isOpen, onClose, onSuccess 
 
       setName('');
       setDescription('');
-      setCategory('');
-      setCustomCategory('');
-      setIsCustomCategory(false);
     } catch (err) {
       setError(err instanceof Error ? err.message : t('saveAsTemplateDialog.genericError'));
     } finally {
@@ -165,14 +122,14 @@ export default function SaveAsTemplateDialog({ task, isOpen, onClose, onSuccess 
         className="bg-white dark:bg-zinc-900 rounded-2xl shadow-2xl border border-zinc-200 dark:border-zinc-800 w-full max-w-lg overflow-hidden"
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Header */}
+        {/* Header — LayoutTemplate: same glyph as the テンプレート設定 menu entry. */}
         <div className="flex items-center justify-between p-5 border-b border-zinc-200 dark:border-zinc-800">
           <h2
             id="save-as-template-dialog-title"
             className="text-lg font-bold text-zinc-900 dark:text-zinc-50 flex items-center gap-2"
           >
-            <FileStack className="w-5 h-5 text-violet-500" />
-            {t('saveAsTemplate')}
+            <LayoutTemplate className="w-5 h-5 text-violet-500" />
+            {t('templateSettings')}
           </h2>
           <button
             onClick={handleClose}
@@ -208,73 +165,15 @@ export default function SaveAsTemplateDialog({ task, isOpen, onClose, onSuccess 
             <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-2">
               {tCommon('descriptionOptional')}
             </label>
+            {/* rows=8: reclaim the vertical space freed by the removed category
+                picker so long descriptions stay readable. */}
             <textarea
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               placeholder={t('saveAsTemplateDialog.descriptionPlaceholder')}
-              rows={3}
+              rows={8}
               className="w-full bg-zinc-50 dark:bg-zinc-800 rounded-xl px-4 py-2.5 text-sm border border-zinc-200 dark:border-zinc-700 outline-none focus:border-indigo-400 transition-all resize-none"
             />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-2">
-              {t('category')} <span className="text-red-500">*</span>
-            </label>
-
-            {!isCustomCategory ? (
-              <div className="space-y-2">
-                <div className="flex flex-wrap gap-2">
-                  {categories.map((cat) => (
-                    <button
-                      key={cat}
-                      type="button"
-                      onClick={() => setCategory(cat)}
-                      className={`px-3 py-1.5 text-sm rounded-lg transition-all ${
-                        category === cat
-                          ? 'bg-violet-100 dark:bg-violet-900/50 text-violet-700 dark:text-violet-300 border border-violet-300 dark:border-violet-700'
-                          : 'bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 border border-zinc-200 dark:border-zinc-700 hover:border-zinc-300 dark:hover:border-zinc-600'
-                      }`}
-                    >
-                      {category === cat && <Check className="w-3.5 h-3.5 inline mr-1" />}
-                      {cat}
-                    </button>
-                  ))}
-                </div>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setIsCustomCategory(true);
-                    setCategory('');
-                  }}
-                  className="flex items-center gap-1.5 text-sm text-violet-600 dark:text-violet-400 hover:underline"
-                >
-                  <FolderPlus className="w-4 h-4" />
-                  {t('saveAsTemplateDialog.newCategoryButton')}
-                </button>
-              </div>
-            ) : (
-              <div className="space-y-2">
-                <input
-                  ref={customCategoryRef}
-                  type="text"
-                  value={customCategory}
-                  onChange={(e) => setCustomCategory(e.target.value)}
-                  placeholder={t('saveAsTemplateDialog.newCategoryPlaceholder')}
-                  className="w-full bg-zinc-50 dark:bg-zinc-800 rounded-xl px-4 py-2.5 text-sm border border-zinc-200 dark:border-zinc-700 outline-none focus:border-indigo-400 transition-all"
-                />
-                <button
-                  type="button"
-                  onClick={() => {
-                    setIsCustomCategory(false);
-                    setCustomCategory('');
-                  }}
-                  className="text-sm text-zinc-500 hover:underline"
-                >
-                  {t('saveAsTemplateDialog.existingCategoryButton')}
-                </button>
-              </div>
-            )}
           </div>
 
           <div className="bg-zinc-50 dark:bg-zinc-800/50 rounded-xl p-4">
@@ -282,6 +181,11 @@ export default function SaveAsTemplateDialog({ task, isOpen, onClose, onSuccess 
               {t('saveAsTemplateDialog.infoHeading')}
             </h4>
             <ul className="text-sm text-zinc-500 dark:text-zinc-400 space-y-1">
+              {/* Auto-assigned scope: current category > theme */}
+              <li>
+                • {categoryName}
+                {resolvedTheme ? ` > ${resolvedTheme.name}` : ''}
+              </li>
               <li>• {t('saveAsTemplateDialog.infoTitle', { title: task.title })}</li>
               <li>• {t('saveAsTemplateDialog.infoPriority', { priority: task.priority })}</li>
               {task.estimatedHours && (
