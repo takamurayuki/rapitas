@@ -89,15 +89,16 @@ export function useCompactTaskDetailActions({
   };
 
   /**
-   * Replaces the task's full label set (PUT /tasks/:id/labels — labels have
-   * their own association endpoint, not a PATCH field).
+   * Replaces the task's full label set. Uses PATCH /tasks/:id with labelIds —
+   * updateTask syncs the taskLabel rows. (PUT /tasks/:id/labels exists but was
+   * never mounted on the server; see register-routes.ts.)
    *
    * @param labelIds - Complete set of label IDs to keep / 設定するラベルIDの全量
    */
   const updateLabels = async (labelIds: number[]) => {
     try {
-      const res = await fetch(`${API_BASE_URL}/tasks/${task.id}/labels`, {
-        method: 'PUT',
+      const res = await fetch(`${API_BASE_URL}/tasks/${task.id}`, {
+        method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ labelIds }),
       });

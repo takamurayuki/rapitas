@@ -12,7 +12,8 @@ import {
 } from '@/components/ui/accordion/Accordion';
 import FileUploader from '@/feature/tasks/components/FileUploader';
 import NoteLinksSection from '@/app/tasks/[id]/components/NoteLinksSection';
-import { Clock, FileText, Paperclip, Repeat, NotebookPen } from 'lucide-react';
+import { Clock, FileText, Paperclip, Repeat, NotebookPen, Tag } from 'lucide-react';
+import LabelSelector from '@/feature/tasks/components/LabelSelector';
 import { useLocaleStore } from '@/stores/locale-store';
 import { useFilterDataStore } from '@/stores/filter-data-store';
 import { toDateLocale } from '@/lib/utils';
@@ -129,6 +130,24 @@ export default function CompactTaskDetailCard({
           </AccordionContent>
         </AccordionItem>
 
+        {/* Labels — flat (non-accordion) section right above the workload
+            accordion; editable in place, scoped to the task's category. */}
+        <div className="border-b border-zinc-100 dark:border-zinc-800 px-4 py-3">
+          <label className="block text-xs font-medium text-zinc-500 dark:text-zinc-400 mb-1.5">
+            <span className="flex items-center gap-1">
+              <Tag className="w-3.5 h-3.5" />
+              {t('labels')}
+            </span>
+          </label>
+          <LabelSelector
+            selectedLabelIds={(task.taskLabels ?? [])
+              .map((tl) => tl.labelId ?? tl.label?.id)
+              .filter((id): id is number => id != null)}
+            onChange={updateLabels}
+            categoryId={task.theme?.categoryId ?? null}
+          />
+        </div>
+
         {/* Workload & Deadline - always visible so users can set values */}
         <AccordionItem id="meta">
           <AccordionTrigger
@@ -165,7 +184,6 @@ export default function CompactTaskDetailCard({
               dueDateInput={dueDateInput}
               setDueDateInput={setDueDateInput}
               patchTask={patchTask}
-              onLabelsChange={updateLabels}
             />
           </AccordionContent>
         </AccordionItem>

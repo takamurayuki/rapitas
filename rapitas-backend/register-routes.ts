@@ -104,6 +104,8 @@ export function registerAllRoutes(app: Elysia): void {
   app.use(categoriesRoutes);
   app.use(themesRoutes);
   app.use(labelsRoutes);
+  // NOTE: Was imported but never mounted — PUT /tasks/:id/labels 404'd.
+  app.use(taskLabelsRoutes);
   app.use(projectsRoutes);
   app.use(milestonesRoutes);
 
