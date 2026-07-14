@@ -2,7 +2,7 @@
 // HomeToolbar
 import React from 'react';
 import { useRouter } from 'next/navigation';
-import { ListPlus, CopyCheck } from 'lucide-react';
+import { ListPlus, CopyCheck, CircleCheckBig, X } from 'lucide-react';
 import type { Task } from '@/types';
 import TodayTaskProgressBar from '@/components/widgets/TodayTaskProgressBar';
 import { getStatusDisplay, renderStatusIcon } from '@/feature/tasks/config/StatusConfig';
@@ -166,23 +166,10 @@ export function HomeToolbar({
                   hover:bg-zinc-200 dark:hover:bg-zinc-700
                 "
                 >
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    {allSelected ? (
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M6 18L18 6M6 6l12 12"
-                      />
-                    ) : (
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M9 12l2 2 4-4m5 2a9 9 0 11-18 0 9 9 0 0118 0z"
-                      />
-                    )}
-                  </svg>
+                  {/* CircleCheckBig — properly centred check; the hand-rolled
+                      check-circle path drifted at small sizes. Same glyph as the
+                      subtask header's select-all. */}
+                  {allSelected ? <X className="w-4 h-4" /> : <CircleCheckBig className="w-4 h-4" />}
                   {allSelected ? t('deselectAll') : t('selectAll')}
                 </button>
 

@@ -8,7 +8,7 @@
  */
 
 import React from 'react';
-import { ListTodo, CopyCheck, Trash2 } from 'lucide-react';
+import { ListTodo, CopyCheck, Trash2, CircleCheckBig, X } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import type { Task } from '@/types';
 import { getStatusDisplay, renderStatusIcon } from '@/feature/tasks/config/StatusConfig';
@@ -66,8 +66,9 @@ export function SubtaskHeader({
               <>
                 {/* 一括ステータス変更セグメント — タスク一覧 (HomeToolbar) と同じ。
                     1件以上選択で各セグメントが色付きになりクリック可能。 */}
+                {/* h-8 on every control keeps the whole action row one height. */}
                 <div
-                  className={`flex items-stretch overflow-hidden rounded-lg border transition-colors ${
+                  className={`flex h-8 items-stretch overflow-hidden rounded-lg border transition-colors ${
                     selectedSubtaskIds.size > 0
                       ? 'border-slate-300 dark:border-slate-600 shadow-sm'
                       : 'border-slate-200 dark:border-slate-700'
@@ -102,7 +103,7 @@ export function SubtaskHeader({
                           title={
                             enabled ? tHome('changeToStatus', { status: config.label }) : undefined
                           }
-                          className={`flex items-center gap-1 px-2 py-1.5 text-xs font-medium transition-colors duration-100 ${
+                          className={`flex items-center gap-1 px-2 text-xs font-medium transition-colors duration-100 ${
                             enabled
                               ? `cursor-pointer ${enabledClasses}`
                               : 'cursor-not-allowed text-slate-300 dark:text-slate-600'
@@ -127,30 +128,15 @@ export function SubtaskHeader({
                     }
                   }}
                   title={allSelected ? tHome('deselectAll') : tHome('selectAll')}
-                  className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium rounded-lg select-none text-zinc-600 dark:text-zinc-400 bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-colors duration-150"
+                  className="flex h-8 items-center gap-1.5 px-2.5 text-xs font-medium rounded-lg select-none text-zinc-600 dark:text-zinc-400 bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-colors duration-150"
                 >
-                  <svg
-                    className="w-3.5 h-3.5"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    {allSelected ? (
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M6 18L18 6M6 6l12 12"
-                      />
-                    ) : (
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M9 12l2 2 4-4m5 2a9 9 0 11-18 0 9 9 0 0118 0z"
-                      />
-                    )}
-                  </svg>
+                  {/* CircleCheckBig — properly centred check (the hand-rolled
+                      check-circle path drifted at 14px). */}
+                  {allSelected ? (
+                    <X className="w-3.5 h-3.5" />
+                  ) : (
+                    <CircleCheckBig className="w-3.5 h-3.5" />
+                  )}
                   {allSelected ? tHome('deselectAll') : tHome('selectAll')}
                 </button>
                 {/* 削除 — ボトムリッジ (赤)。件数は「選択中 (n件)」側に出るので
@@ -161,7 +147,7 @@ export function SubtaskHeader({
                       e.stopPropagation();
                       onSetDeleteConfirm('selected');
                     }}
-                    className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium rounded-lg border border-red-200 dark:border-red-800 bg-white dark:bg-zinc-900 text-red-600 dark:text-red-400 shadow-[0_2px_0_0_#fca5a5] dark:shadow-[0_2px_0_0_#7f1d1d] hover:bg-red-50 dark:hover:bg-red-900/30 active:translate-y-[1px] active:shadow-none transition-all duration-75"
+                    className="flex h-8 items-center gap-1 px-2.5 text-xs font-medium rounded-lg border border-red-200 dark:border-red-800 bg-white dark:bg-zinc-900 text-red-600 dark:text-red-400 shadow-[0_2px_0_0_#fca5a5] dark:shadow-[0_2px_0_0_#7f1d1d] hover:bg-red-50 dark:hover:bg-red-900/30 active:translate-y-[1px] active:shadow-none transition-all duration-75"
                   >
                     <Trash2 className="w-3.5 h-3.5" />
                     {tc('delete')}
@@ -178,7 +164,7 @@ export function SubtaskHeader({
                 onToggleSelectionMode();
               }}
               title={t('bulkSelect')}
-              className={`flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium rounded-lg select-none text-purple-700 dark:text-purple-300 border transition-all duration-75 ${
+              className={`flex h-8 items-center gap-1.5 px-2.5 text-xs font-medium rounded-lg select-none text-purple-700 dark:text-purple-300 border transition-all duration-75 ${
                 isSubtaskSelectionMode
                   ? 'bg-purple-50 dark:bg-purple-900/20 border-purple-300 dark:border-purple-700 translate-y-[1px] shadow-none'
                   : 'bg-white dark:bg-zinc-900 border-purple-200 dark:border-purple-800 shadow-[0_2px_0_0_#d8b4fe] dark:shadow-[0_2px_0_0_#4c1d95] hover:bg-purple-50 dark:hover:bg-purple-900/20 hover:border-purple-300 dark:hover:border-purple-700 active:translate-y-[1px] active:shadow-none'
