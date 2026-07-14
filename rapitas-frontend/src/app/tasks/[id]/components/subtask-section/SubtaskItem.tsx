@@ -112,6 +112,9 @@ export function SubtaskItem({
     >
       {isEditing ? (
         <SubtaskEditForm
+          subtask={subtask}
+          themeName={themeName}
+          categoryName={categoryName}
           editingSubtaskTitle={editingSubtaskTitle}
           editingSubtaskDescription={editingSubtaskDescription}
           editingSubtaskPriority={editingSubtaskPriority}

@@ -7,12 +7,17 @@
  * Rendered in place of the subtask row when editing is active.
  */
 
-import { Save, X, Clock, Timer, AlertTriangle } from 'lucide-react';
+import { useRef } from 'react';
+import { Save, X, Clock, Timer, AlertTriangle, NotebookPen } from 'lucide-react';
 import { useTranslations } from 'next-intl';
-import type { Priority } from '@/types';
+import type { Task, Priority } from '@/types';
+import { useAutosizeTextarea } from '@/hooks/ui/useAutosizeTextarea';
 import { priorityOptions } from './types';
+import NoteLinksSection from '../NoteLinksSection';
 
 interface SubtaskEditFormProps {
+  /** The subtask being edited — needed so notes can be linked to its ID. */
+  subtask: NonNullable<Task['subtasks']>[number];
   editingSubtaskTitle: string;
   editingSubtaskDescription: string;
   editingSubtaskPriority: Priority;
@@ -25,14 +30,20 @@ interface SubtaskEditFormProps {
   onSetEditingActualHours: (v: string) => void;
   onSaveEdit: () => void;
   onCancelEdit: () => void;
+  /** Parent task's theme name — note-link hierarchy metadata. */
+  themeName?: string;
+  /** Parent task's category name — note-link hierarchy metadata. */
+  categoryName?: string;
 }
 
 /**
- * Form panel for editing an existing subtask's title, description, priority, labels, and hours.
+ * Form panel for editing an existing subtask's title, description, priority,
+ * hours, and linked notes.
  *
  * @param props - SubtaskEditFormProps
  */
 export function SubtaskEditForm({
+  subtask,
   editingSubtaskTitle,
   editingSubtaskDescription,
   editingSubtaskPriority,
@@ -45,9 +56,24 @@ export function SubtaskEditForm({
   onSetEditingActualHours,
   onSaveEdit,
   onCancelEdit,
+  themeName,
+  categoryName,
 }: SubtaskEditFormProps) {
   const t = useTranslations('task');
   const tc = useTranslations('common');
+
+  // Grow the description field with its content — including when a note link
+  // is inserted programmatically below (state change, not a keystroke).
+  const descriptionRef = useRef<HTMLTextAreaElement>(null);
+  useAutosizeTextarea(descriptionRef, editingSubtaskDescription);
+
+  // Mirrors the parent card's insert behavior: append on a new line, but here
+  // into the DRAFT description — persisted only when the user saves.
+  const insertLinkToDescription = (link: string) => {
+    onSetEditingDescription(
+      editingSubtaskDescription.trim() ? `${editingSubtaskDescription}\n${link}` : link,
+    );
+  };
 
   return (
     <div className="p-4 bg-zinc-50/50 dark:bg-zinc-800/20">
@@ -63,7 +89,8 @@ export function SubtaskEditForm({
         />
 
         <textarea
-          className="w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-indigo-dark-900 px-3 py-2 text-sm shadow-sm focus:outline-none focus:border-indigo-400"
+          ref={descriptionRef}
+          className="w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-indigo-dark-900 px-3 py-2 text-sm shadow-sm focus:outline-none focus:border-indigo-400 resize-none overflow-hidden"
           value={editingSubtaskDescription}
           onChange={(e) => onSetEditingDescription(e.target.value)}
           placeholder={t('descriptionMarkdown')}
@@ -140,6 +167,20 @@ export function SubtaskEditForm({
               aria-label={t('subtaskActualHours')}
             />
           </div>
+        </div>
+
+        <div>
+          <label className="flex items-center gap-1.5 text-xs font-medium text-zinc-500 dark:text-zinc-400 mb-1.5">
+            <NotebookPen className="w-3.5 h-3.5" />
+            {t('compactTaskDetailCard.notesHeading')}
+          </label>
+          <NoteLinksSection
+            taskId={subtask.id}
+            taskTitle={editingSubtaskTitle || subtask.title}
+            themeName={themeName}
+            categoryName={categoryName}
+            onInsertToDescription={insertLinkToDescription}
+          />
         </div>
 
         {/* NOTE: Buttons mirror AddSubtaskForm's raised-shadow style so the edit
