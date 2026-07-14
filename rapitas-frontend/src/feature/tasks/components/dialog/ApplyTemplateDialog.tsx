@@ -67,7 +67,24 @@ export default function ApplyTemplateDialog({ isOpen, onClose, selectedTheme, on
         if (!res.ok) {
           throw new Error(t('fetchFailed'));
         }
-        const data = await res.json();
+        const raw = (await res.json()) as Array<
+          Omit<TaskTemplate, 'templateData'> & {
+            templateData: TaskTemplate['templateData'] | string;
+          }
+        >;
+        // NOTE: The API stored templateData as a JSON string and (before the
+        // 2026-07-14 server fix) returned it unparsed — apply/preview silently
+        // read undefined fields. Parse defensively so both server versions work.
+        const data: TaskTemplate[] = raw.map((tpl) => {
+          if (typeof tpl.templateData !== 'string') {
+            return { ...tpl, templateData: tpl.templateData ?? {} } as TaskTemplate;
+          }
+          try {
+            return { ...tpl, templateData: JSON.parse(tpl.templateData) } as TaskTemplate;
+          } catch {
+            return { ...tpl, templateData: {} } as TaskTemplate;
+          }
+        });
         setTemplates(data);
 
         const uniqueCategories = [

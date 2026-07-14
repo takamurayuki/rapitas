@@ -5,6 +5,23 @@ import { Elysia, t } from 'elysia';
 import { prisma } from '../../config/database';
 import { toJsonString, fromJsonString } from '../../utils/database/db-helpers';
 
+/**
+ * Returns the template row with templateData parsed into an object.
+ *
+ * The column persists a JSON string, but the API contract (frontend
+ * TaskTemplate type) is an object — returning it unparsed silently broke
+ * template apply/preview on the new-task page.
+ *
+ * @param row - Template row as stored / DB上のテンプレート行
+ * @returns Row with templateData parsed / templateDataをパース済みの行
+ */
+function withParsedTemplateData<T extends { templateData: string }>(row: T) {
+  return {
+    ...row,
+    templateData: fromJsonString<Record<string, unknown>>(row.templateData) ?? {},
+  };
+}
+
 export const templatesRoutes = new Elysia({ prefix: '/templates' })
   .get('/', async (context) => {
     const { query } = context;
@@ -28,7 +45,7 @@ export const templatesRoutes = new Elysia({ prefix: '/templates' })
       where.themeId = parseInt(themeId);
     }
 
-    return await prisma.taskTemplate.findMany({
+    const templates = await prisma.taskTemplate.findMany({
       where,
       include: {
         theme: {
@@ -42,6 +59,7 @@ export const templatesRoutes = new Elysia({ prefix: '/templates' })
       },
       orderBy: [{ useCount: 'desc' }, { createdAt: 'desc' }],
     });
+    return templates.map(withParsedTemplateData);
   })
 
   // Get distinct template categories
@@ -57,7 +75,7 @@ export const templatesRoutes = new Elysia({ prefix: '/templates' })
   .get('/:id', async (context) => {
     const { params } = context;
     const id = parseInt(params.id);
-    return await prisma.taskTemplate.findUnique({
+    const template = await prisma.taskTemplate.findUnique({
       where: { id },
       include: {
         theme: {
@@ -70,6 +88,7 @@ export const templatesRoutes = new Elysia({ prefix: '/templates' })
         },
       },
     });
+    return template ? withParsedTemplateData(template) : template;
   })
 
   .post(
@@ -80,14 +99,16 @@ export const templatesRoutes = new Elysia({ prefix: '/templates' })
         name: string;
         description?: string;
         category: string;
-        templateData: string;
+        templateData: unknown;
         themeId?: number;
       };
-      return await prisma.taskTemplate.create({
+      const created = await prisma.taskTemplate.create({
         data: {
           name,
           category,
-          templateData,
+          // Accept either a pre-stringified payload or an object (t.Any()).
+          templateData:
+            typeof templateData === 'string' ? templateData : (toJsonString(templateData) ?? '{}'),
           ...(description && { description }),
           ...(themeId && { themeId }),
         },
@@ -102,6 +123,7 @@ export const templatesRoutes = new Elysia({ prefix: '/templates' })
           },
         },
       });
+      return withParsedTemplateData(created);
     },
     {
       body: t.Object({
@@ -192,7 +214,7 @@ export const templatesRoutes = new Elysia({ prefix: '/templates' })
         },
       });
 
-      return template;
+      return withParsedTemplateData(template);
     },
     {
       params: t.Object({ taskId: t.String() }),

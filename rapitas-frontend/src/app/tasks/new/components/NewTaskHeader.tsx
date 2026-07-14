@@ -1,6 +1,6 @@
 'use client';
 // NewTaskHeader
-import { ArrowLeft, FileStack, ListPlus } from 'lucide-react';
+import { ArrowLeft, LayoutTemplate, ListPlus } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import type { TaskTemplate } from '@/types';
@@ -39,7 +39,8 @@ export function NewTaskHeader({
   const t = useTranslations('task');
 
   const canCreate = hasTitle && !isSubmitting;
-  // Say WHY the button is disabled — a dimmed button alone doesn't explain itself.
+  // WHY-disabled lives in the tooltip only — the inline hint text was removed
+  // by request (2026-07-14).
   const disabledHint = !hasTitle && !isSubmitting ? t('titleRequiredHint') : undefined;
 
   return (
@@ -68,7 +69,8 @@ export function NewTaskHeader({
               }
             `}
           >
-            <FileStack className="w-4 h-4" />
+            {/* LayoutTemplate — タスク詳細の「テンプレート設定」と同じグリフ。 */}
+            <LayoutTemplate className="w-4 h-4" />
             <span className="font-mono text-xs font-black tracking-tight">
               {appliedTemplate ? appliedTemplate.name : t('template')}
             </span>
@@ -99,11 +101,6 @@ export function NewTaskHeader({
           </button>
         </div>
       </div>
-      {disabledHint && (
-        <p className="mt-1.5 text-right text-xs text-zinc-500 dark:text-zinc-400" role="status">
-          {disabledHint}
-        </p>
-      )}
     </div>
   );
 }
