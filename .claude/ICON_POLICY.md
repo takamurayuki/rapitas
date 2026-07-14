@@ -54,7 +54,8 @@ Keep this list accurate. If you assign a glyph a new meaning, add it here.
 | `FlaskConical`            | ワークフローの「検証」フェーズ           |
 | `ListTodo`                | サブタスク                               |
 | `ListPlus`                | タスク作成 / タスク起票 (task_created)   |
-| `ListChecks`              | 一括選択モード（複数タスクの一括操作）   |
+| `CopyCheck`               | 一括選択モード（複数タスク/サブタスクの一括操作。旧 `ListChecks` — `ListTodo`＝サブタスクと視覚的に紛らわしいため 2026-07 に移行） |
+| `ListChecks`              | 提案タスクの完了条件バレット（`TaskSuggestionDetail`） |
 | `CheckCircle2`            | 完了したワークフロータブ                 |
 | `PriorityIcon` (chevrons) | タスク/アイデアの優先度                  |
 | `Globe`                   | スコープ「グローバル」                   |
@@ -89,8 +90,9 @@ _None outstanding._ Both previously-tracked collisions are resolved:
 - `Gauge` — 複雑度「標準」 moved to `ArrowRight` (`WorkflowModeSelector`); `Gauge`
   now uniquely means 懸念の種別「パフォーマンス」.
 - `ListChecks` — dev-mode `TaskAnalysisPanel`「提案されたサブタスク」 header moved
-  to `ListTodo` (the established subtask glyph); `ListChecks` now uniquely means
-  一括選択モード.
+  to `ListTodo` (the established subtask glyph). 一括選択モード later moved from
+  `ListChecks` to `CopyCheck` (2026-07, too similar to `ListTodo`); `ListChecks`
+  now uniquely means 提案タスクの完了条件バレット.
 
 ---
 

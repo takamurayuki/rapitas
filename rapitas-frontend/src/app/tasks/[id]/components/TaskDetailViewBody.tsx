@@ -33,6 +33,7 @@ interface TaskActionsViewSlice {
   toggleSubtaskSelection: (id: number) => void;
   handleDeleteAllSubtasks: () => Promise<void>;
   handleDeleteSelectedSubtasks: () => Promise<void>;
+  bulkUpdateSubtaskStatus: (status: string) => Promise<void>;
   startEditingSubtask: (subtask: NonNullable<Task['subtasks']>[number]) => void;
   setEditingSubtaskTitle: (v: string) => void;
   setEditingSubtaskDescription: (v: string) => void;
@@ -43,10 +44,12 @@ interface TaskActionsViewSlice {
   cancelEditingSubtask: () => void;
   newSubtaskTitle: string;
   newSubtaskDescription: string;
+  newSubtaskPriority: Priority;
   newSubtaskEstimatedHours: string;
   newSubtaskActualHours: string;
   setNewSubtaskTitle: (v: string) => void;
   setNewSubtaskDescription: (v: string) => void;
+  setNewSubtaskPriority: (v: Priority) => void;
   setNewSubtaskEstimatedHours: (v: string) => void;
   setNewSubtaskActualHours: (v: string) => void;
   addSubtask: () => Promise<void>;
@@ -226,6 +229,7 @@ export default function TaskDetailViewBody({
           onSetDeleteConfirm={taskActions.setShowSubtaskDeleteConfirm}
           onDeleteAll={taskActions.handleDeleteAllSubtasks}
           onDeleteSelected={taskActions.handleDeleteSelectedSubtasks}
+          onBulkUpdateStatus={taskActions.bulkUpdateSubtaskStatus}
           onStartEditingSubtask={taskActions.startEditingSubtask}
           onSetEditingSubtaskTitle={taskActions.setEditingSubtaskTitle}
           onSetEditingSubtaskDescription={taskActions.setEditingSubtaskDescription}
@@ -237,10 +241,12 @@ export default function TaskDetailViewBody({
           onUpdateStatus={taskActions.updateStatus}
           newSubtaskTitle={taskActions.newSubtaskTitle}
           newSubtaskDescription={taskActions.newSubtaskDescription}
+          newSubtaskPriority={taskActions.newSubtaskPriority}
           newSubtaskEstimatedHours={taskActions.newSubtaskEstimatedHours}
           newSubtaskActualHours={taskActions.newSubtaskActualHours}
           onSetNewSubtaskTitle={taskActions.setNewSubtaskTitle}
           onSetNewSubtaskDescription={taskActions.setNewSubtaskDescription}
+          onSetNewSubtaskPriority={taskActions.setNewSubtaskPriority}
           onSetNewSubtaskEstimatedHours={taskActions.setNewSubtaskEstimatedHours}
           onSetNewSubtaskActualHours={taskActions.setNewSubtaskActualHours}
           onAddSubtask={taskActions.addSubtask}

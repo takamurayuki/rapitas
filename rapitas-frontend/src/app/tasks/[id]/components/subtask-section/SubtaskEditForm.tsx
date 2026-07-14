@@ -8,7 +8,7 @@
  */
 
 import { useRef } from 'react';
-import { Save, X, Clock, Timer, AlertTriangle, NotebookPen } from 'lucide-react';
+import { Save, X, Clock, Timer, Flag, NotebookPen } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import type { Task, Priority } from '@/types';
 import { useAutosizeTextarea } from '@/hooks/ui/useAutosizeTextarea';
@@ -117,7 +117,7 @@ export function SubtaskEditForm({
         <div className="flex flex-col sm:flex-row gap-3">
           <div className="flex-1">
             <label className="flex items-center gap-1.5 text-xs font-medium text-zinc-500 dark:text-zinc-400 mb-1.5">
-              <AlertTriangle className="w-3.5 h-3.5" />
+              <Flag className="w-3.5 h-3.5" />
               {t('subtaskPriority')}
             </label>
             {/* Shared selector — same design as the new-task page (§7 reuse). */}
@@ -161,8 +161,16 @@ export function SubtaskEditForm({
         </div>
 
         {/* NOTE: Buttons mirror AddSubtaskForm's raised-shadow style so the edit
-            and add forms read as the same control family. */}
-        <div className="flex items-center justify-end gap-2 pt-1">
+            and add forms read as the same control family. Divider separates the
+            action row from the fields; cancel precedes save (dialog convention). */}
+        <div className="flex items-center justify-end gap-2 pt-3 border-t border-zinc-200 dark:border-zinc-700">
+          <button
+            onClick={onCancelEdit}
+            className="flex items-center gap-2 px-3 py-2 text-xs font-medium rounded-lg border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-zinc-600 dark:text-zinc-400 shadow-[0_2px_0_0_#d4d4d8] dark:shadow-[0_2px_0_0_#27272a] hover:bg-zinc-50 dark:hover:bg-zinc-800/40 active:translate-y-[1px] active:shadow-none transition-all duration-75"
+          >
+            <X className="w-4 h-4" />
+            <span className="font-mono font-black tracking-tight">{tc('cancel')}</span>
+          </button>
           <button
             onClick={onSaveEdit}
             disabled={!editingSubtaskTitle.trim()}
@@ -170,13 +178,6 @@ export function SubtaskEditForm({
           >
             <Save className="w-4 h-4" />
             <span className="font-mono font-black tracking-tight">{tc('save')}</span>
-          </button>
-          <button
-            onClick={onCancelEdit}
-            className="flex items-center gap-2 px-3 py-2 text-xs font-medium rounded-lg border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-zinc-600 dark:text-zinc-400 shadow-[0_2px_0_0_#d4d4d8] dark:shadow-[0_2px_0_0_#27272a] hover:bg-zinc-50 dark:hover:bg-zinc-800/40 active:translate-y-[1px] active:shadow-none transition-all duration-75"
-          >
-            <X className="w-4 h-4" />
-            <span className="font-mono font-black tracking-tight">{tc('cancel')}</span>
           </button>
         </div>
       </div>

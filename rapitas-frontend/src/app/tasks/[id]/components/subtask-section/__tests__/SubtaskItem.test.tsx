@@ -1,9 +1,8 @@
 /**
  * SubtaskItem.test
  *
- * Verifies the view-mode details panel: hidden by default, toggle expands
- * description + note links, and note links are reachable even without a
- * description.
+ * Verifies the view-mode description panel: hidden by default, toggle
+ * expands/collapses it, and no toggle renders without a description.
  */
 
 import { describe, it, expect, vi } from 'vitest';
@@ -78,24 +77,20 @@ describe('SubtaskItem details panel', () => {
     expect(screen.getByRole('button', { name: 'expand', expanded: false })).toBeInTheDocument();
   });
 
-  it('トグルクリックで説明とノートリンクが展開/折りたたみされる', () => {
+  it('トグルクリックで説明が展開/折りたたみされる', () => {
     render(
       <SubtaskItem {...baseProps} subtask={makeSubtask({ description: 'API仕様を確認する' })} />,
     );
     const toggle = screen.getByRole('button', { name: 'expand' });
     fireEvent.click(toggle);
     expect(screen.getByText('API仕様を確認する')).toBeInTheDocument();
-    expect(screen.getByTestId('note-links-1')).toBeInTheDocument();
     expect(toggle).toHaveAttribute('aria-expanded', 'true');
     fireEvent.click(toggle);
     expect(screen.queryByText('API仕様を確認する')).not.toBeInTheDocument();
-    expect(screen.queryByTestId('note-links-1')).not.toBeInTheDocument();
   });
 
-  it('説明が無くてもトグルからノートリンクに到達できる', () => {
+  it('説明が無い場合はトグルボタンを描画しない', () => {
     render(<SubtaskItem {...baseProps} subtask={makeSubtask()} />);
-    const toggle = screen.getByRole('button', { name: 'expand' });
-    fireEvent.click(toggle);
-    expect(screen.getByTestId('note-links-1')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /expand|collapse/ })).not.toBeInTheDocument();
   });
 });

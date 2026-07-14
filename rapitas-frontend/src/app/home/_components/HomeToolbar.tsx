@@ -2,7 +2,7 @@
 // HomeToolbar
 import React from 'react';
 import { useRouter } from 'next/navigation';
-import { ListPlus, ListChecks } from 'lucide-react';
+import { ListPlus, CopyCheck } from 'lucide-react';
 import type { Task } from '@/types';
 import TodayTaskProgressBar from '@/components/widgets/TodayTaskProgressBar';
 import { getStatusDisplay, renderStatusIcon } from '@/feature/tasks/config/StatusConfig';
@@ -217,7 +217,8 @@ export function HomeToolbar({
             )}
 
             {/* 一括選択 — ボトムリッジ (紫)。選択モード中は押し込んだまま。
-              ListChecks = 複数のリスト項目を選択して一括操作する意図を直感的に表す。 */}
+              CopyCheck = 複数項目の選択を直感的に表す (旧 ListChecks は ListTodo=
+              サブタスクと似ていて紛らわしかったため全アプリで移行)。 */}
             <button
               onClick={onToggleSelectionMode}
               title={t('bulkSelectionMode')}
@@ -232,7 +233,7 @@ export function HomeToolbar({
               }
             `}
             >
-              <ListChecks className="w-4 h-4" />
+              <CopyCheck className="w-4 h-4" />
               {isSelectionMode ? t('selecting', { count: selectedTasksSize }) : t('bulk')}
             </button>
           </div>

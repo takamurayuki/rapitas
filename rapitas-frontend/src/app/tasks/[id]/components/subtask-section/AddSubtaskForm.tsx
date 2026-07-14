@@ -8,17 +8,21 @@
  */
 
 import { useRef } from 'react';
-import { Save, Clock, Timer } from 'lucide-react';
+import { Save, Clock, Timer, Flag } from 'lucide-react';
 import { useTranslations } from 'next-intl';
+import type { Priority } from '@/types';
 import { useAutosizeTextarea } from '@/hooks/ui/useAutosizeTextarea';
+import { PrioritySelector } from '@/app/tasks/new/components/PrioritySelector';
 
 interface AddSubtaskFormProps {
   newSubtaskTitle: string;
   newSubtaskDescription: string;
+  newSubtaskPriority: Priority;
   newSubtaskEstimatedHours: string;
   newSubtaskActualHours: string;
   onSetNewSubtaskTitle: (v: string) => void;
   onSetNewSubtaskDescription: (v: string) => void;
+  onSetNewSubtaskPriority: (v: Priority) => void;
   onSetNewSubtaskEstimatedHours: (v: string) => void;
   onSetNewSubtaskActualHours: (v: string) => void;
   onAddSubtask: () => void;
@@ -32,10 +36,12 @@ interface AddSubtaskFormProps {
 export function AddSubtaskForm({
   newSubtaskTitle,
   newSubtaskDescription,
+  newSubtaskPriority,
   newSubtaskEstimatedHours,
   newSubtaskActualHours,
   onSetNewSubtaskTitle,
   onSetNewSubtaskDescription,
+  onSetNewSubtaskPriority,
   onSetNewSubtaskEstimatedHours,
   onSetNewSubtaskActualHours,
   onAddSubtask,
@@ -82,6 +88,15 @@ export function AddSubtaskForm({
 
         {/* NOTE: No label input — subtask labels are configured on the parent task. */}
         <div className="flex flex-col sm:flex-row gap-3">
+          <div className="flex-1">
+            <label className="flex items-center gap-1.5 text-xs font-medium text-zinc-500 dark:text-zinc-400 mb-1.5">
+              <Flag className="w-3.5 h-3.5" />
+              {t('subtaskPriority')}
+            </label>
+            {/* Shared selector — same design as the new-task page (§7 reuse). */}
+            <PrioritySelector value={newSubtaskPriority} onChange={onSetNewSubtaskPriority} />
+          </div>
+
           <div className="w-full sm:w-36">
             <label className="flex items-center gap-1.5 text-xs font-medium text-zinc-500 dark:text-zinc-400 mb-1.5">
               <Clock className="w-3.5 h-3.5" />
@@ -117,7 +132,8 @@ export function AddSubtaskForm({
           </div>
         </div>
 
-        <div className="flex items-center justify-end gap-2 pt-1">
+        {/* Divider separates the action row from the fields (matches the edit form). */}
+        <div className="flex items-center justify-end gap-2 pt-3 border-t border-zinc-200 dark:border-zinc-700">
           <button
             onClick={onAddSubtask}
             disabled={!newSubtaskTitle.trim()}

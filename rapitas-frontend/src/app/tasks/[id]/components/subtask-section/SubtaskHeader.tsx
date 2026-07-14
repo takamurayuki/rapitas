@@ -7,9 +7,11 @@
  * Owns no state — all callbacks are passed from the parent.
  */
 
-import { ListTodo, ListChecks, Trash2 } from 'lucide-react';
+import React from 'react';
+import { ListTodo, CopyCheck, Trash2 } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import type { Task } from '@/types';
+import { getStatusDisplay, renderStatusIcon } from '@/feature/tasks/config/StatusConfig';
 
 interface SubtaskHeaderProps {
   subtasks: NonNullable<Task['subtasks']>;
@@ -20,6 +22,8 @@ interface SubtaskHeaderProps {
   onDeselectAll: () => void;
   /** @param v - confirmation mode / 確認モード */
   onSetDeleteConfirm: (v: 'all' | 'selected' | null) => void;
+  /** @param status - target status for all selected subtasks / 選択中サブタスクの変更先ステータス */
+  onBulkUpdateStatus: (status: string) => void;
 }
 
 /**
@@ -35,8 +39,11 @@ export function SubtaskHeader({
   onSelectAll,
   onDeselectAll,
   onSetDeleteConfirm,
+  onBulkUpdateStatus,
 }: SubtaskHeaderProps) {
   const t = useTranslations('task');
+  // Bulk status tooltip reuses the task list's existing key (home namespace).
+  const tHome = useTranslations('home');
 
   return (
     <div className="p-4 border-b border-zinc-100 dark:border-zinc-800">
@@ -53,6 +60,57 @@ export function SubtaskHeader({
           <div className="flex items-center gap-2">
             {isSubtaskSelectionMode && (
               <>
+                {/* 一括ステータス変更セグメント — タスク一覧 (HomeToolbar) と同じ。
+                    1件以上選択で各セグメントが色付きになりクリック可能。 */}
+                <div
+                  className={`flex items-stretch overflow-hidden rounded-lg border transition-colors ${
+                    selectedSubtaskIds.size > 0
+                      ? 'border-slate-300 dark:border-slate-600 shadow-sm'
+                      : 'border-slate-200 dark:border-slate-700'
+                  } bg-white dark:bg-slate-900/50`}
+                >
+                  {(['todo', 'in-progress', 'done'] as const).map((status, idx) => {
+                    const config = getStatusDisplay(t, status);
+                    const enabled = selectedSubtaskIds.size > 0;
+                    const enabledClasses =
+                      status === 'todo'
+                        ? 'bg-zinc-50 text-zinc-600 dark:bg-zinc-800/60 dark:text-zinc-300 hover:bg-zinc-200 hover:text-zinc-800 dark:hover:bg-zinc-700 dark:hover:text-zinc-100 active:bg-zinc-300 dark:active:bg-zinc-600'
+                        : status === 'in-progress'
+                          ? 'bg-blue-50 text-blue-600 dark:bg-blue-900/20 dark:text-blue-300 hover:bg-blue-100 hover:text-blue-800 dark:hover:bg-blue-900/40 dark:hover:text-blue-200 active:bg-blue-200 dark:active:bg-blue-900/60'
+                          : 'bg-green-50 text-green-600 dark:bg-green-900/20 dark:text-green-300 hover:bg-green-100 hover:text-green-800 dark:hover:bg-green-900/40 dark:hover:text-green-200 active:bg-green-200 dark:active:bg-green-900/60';
+                    return (
+                      <React.Fragment key={status}>
+                        {idx > 0 && (
+                          <div
+                            className={`w-px shrink-0 ${
+                              enabled
+                                ? 'bg-slate-300 dark:bg-slate-600'
+                                : 'bg-slate-200 dark:bg-slate-700'
+                            }`}
+                          />
+                        )}
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (enabled) onBulkUpdateStatus(status);
+                          }}
+                          disabled={!enabled}
+                          title={
+                            enabled ? tHome('changeToStatus', { status: config.label }) : undefined
+                          }
+                          className={`flex items-center gap-1 px-2 py-1.5 text-xs font-medium transition-colors duration-100 ${
+                            enabled
+                              ? `cursor-pointer ${enabledClasses}`
+                              : 'cursor-not-allowed text-slate-300 dark:text-slate-600'
+                          }`}
+                        >
+                          <span className="h-3.5 w-3.5">{renderStatusIcon(status)}</span>
+                          <span>{config.label}</span>
+                        </button>
+                      </React.Fragment>
+                    );
+                  })}
+                </div>
                 {/* 全選択 — フラット。タスク一覧の HomeToolbar と同じ視覚言語。 */}
                 <button
                   onClick={(e) => {
@@ -83,7 +141,8 @@ export function SubtaskHeader({
               </>
             )}
             {/* 一括選択 — ボトムリッジ (紫)。選択モード中は押し込んだまま。
-                タスク一覧 (HomeToolbar) の一括ボタンと同じデザイン・同じ ListChecks。 */}
+                タスク一覧 (HomeToolbar) と同じデザイン。CopyCheck = 一括選択モード
+                (ListTodo=サブタスクと紛らわしかった ListChecks から全アプリで移行)。 */}
             <button
               onClick={(e) => {
                 e.stopPropagation();
@@ -96,7 +155,7 @@ export function SubtaskHeader({
                   : 'bg-white dark:bg-zinc-900 border-purple-200 dark:border-purple-800 shadow-[0_2px_0_0_#d8b4fe] dark:shadow-[0_2px_0_0_#4c1d95] hover:bg-purple-50 dark:hover:bg-purple-900/20 hover:border-purple-300 dark:hover:border-purple-700 active:translate-y-[1px] active:shadow-none'
               }`}
             >
-              <ListChecks className="w-3.5 h-3.5" />
+              <CopyCheck className="w-3.5 h-3.5" />
               {isSubtaskSelectionMode
                 ? t('selecting', { count: selectedSubtaskIds.size })
                 : t('bulkSelect')}

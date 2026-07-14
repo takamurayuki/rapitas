@@ -38,6 +38,7 @@ interface SubtaskSectionProps {
   onSetDeleteConfirm: (v: 'all' | 'selected' | null) => void;
   onDeleteAll: () => void;
   onDeleteSelected: () => void;
+  onBulkUpdateStatus: (status: string) => void;
   onStartEditingSubtask: (subtask: NonNullable<Task['subtasks']>[number]) => void;
   onSetEditingSubtaskTitle: (v: string) => void;
   onSetEditingSubtaskDescription: (v: string) => void;
@@ -49,10 +50,12 @@ interface SubtaskSectionProps {
   onUpdateStatus: (id: number, status: string) => void;
   newSubtaskTitle: string;
   newSubtaskDescription: string;
+  newSubtaskPriority: Priority;
   newSubtaskEstimatedHours: string;
   newSubtaskActualHours: string;
   onSetNewSubtaskTitle: (v: string) => void;
   onSetNewSubtaskDescription: (v: string) => void;
+  onSetNewSubtaskPriority: (v: Priority) => void;
   onSetNewSubtaskEstimatedHours: (v: string) => void;
   onSetNewSubtaskActualHours: (v: string) => void;
   onAddSubtask: () => void;
@@ -80,6 +83,7 @@ export default function SubtaskSection({
   onSetDeleteConfirm,
   onDeleteAll,
   onDeleteSelected,
+  onBulkUpdateStatus,
   onStartEditingSubtask,
   onSetEditingSubtaskTitle,
   onSetEditingSubtaskDescription,
@@ -91,10 +95,12 @@ export default function SubtaskSection({
   onUpdateStatus,
   newSubtaskTitle,
   newSubtaskDescription,
+  newSubtaskPriority,
   newSubtaskEstimatedHours,
   newSubtaskActualHours,
   onSetNewSubtaskTitle,
   onSetNewSubtaskDescription,
+  onSetNewSubtaskPriority,
   onSetNewSubtaskEstimatedHours,
   onSetNewSubtaskActualHours,
   onAddSubtask,
@@ -116,6 +122,7 @@ export default function SubtaskSection({
         onSelectAll={onSelectAll}
         onDeselectAll={onDeselectAll}
         onSetDeleteConfirm={onSetDeleteConfirm}
+        onBulkUpdateStatus={onBulkUpdateStatus}
       />
 
       {showSubtaskDeleteConfirm && (
@@ -163,10 +170,12 @@ export default function SubtaskSection({
         <AddSubtaskForm
           newSubtaskTitle={newSubtaskTitle}
           newSubtaskDescription={newSubtaskDescription}
+          newSubtaskPriority={newSubtaskPriority}
           newSubtaskEstimatedHours={newSubtaskEstimatedHours}
           newSubtaskActualHours={newSubtaskActualHours}
           onSetNewSubtaskTitle={onSetNewSubtaskTitle}
           onSetNewSubtaskDescription={onSetNewSubtaskDescription}
+          onSetNewSubtaskPriority={onSetNewSubtaskPriority}
           onSetNewSubtaskEstimatedHours={onSetNewSubtaskEstimatedHours}
           onSetNewSubtaskActualHours={onSetNewSubtaskActualHours}
           onAddSubtask={onAddSubtask}

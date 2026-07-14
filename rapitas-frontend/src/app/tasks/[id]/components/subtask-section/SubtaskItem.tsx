@@ -20,7 +20,6 @@ import { getStatusDisplay, renderStatusIcon } from '@/feature/tasks/config/Statu
 import { useTranslations } from 'next-intl';
 import { ModernCheckbox } from '@/components/ui/ModernCheckbox';
 import { SubtaskEditForm } from './SubtaskEditForm';
-import NoteLinksSection from '../NoteLinksSection';
 import type { Task, Priority } from '@/types';
 
 type Subtask = NonNullable<Task['subtasks']>[number];
@@ -229,21 +228,22 @@ export function SubtaskItem({
             {/* Action cluster hidden while selecting — the row itself is the
                 selection target, mirroring the task list. */}
             <div className={`flex items-center gap-1 shrink-0 ${isSelectionMode ? 'hidden' : ''}`}>
-              {/* Always shown (not only when a description exists) — the panel
-                  is also the entry point for linking notes to the subtask. */}
-              <button
-                type="button"
-                onClick={() => setIsDetailsExpanded((v) => !v)}
-                title={isDetailsExpanded ? tc('collapse') : tc('expand')}
-                aria-expanded={isDetailsExpanded}
-                className={`flex items-center justify-center rounded-lg p-1.5 transition-colors ${
-                  isDetailsExpanded
-                    ? 'bg-indigo-50 text-indigo-600 dark:bg-indigo-900/30 dark:text-indigo-400'
-                    : 'text-zinc-500 dark:text-zinc-500 hover:bg-indigo-50 hover:text-indigo-600 dark:hover:bg-indigo-900/30 dark:hover:text-indigo-400'
-                }`}
-              >
-                <AlignLeft className="w-3.5 h-3.5" />
-              </button>
+              {/* Description-only panel — note links live in the edit form. */}
+              {description && (
+                <button
+                  type="button"
+                  onClick={() => setIsDetailsExpanded((v) => !v)}
+                  title={isDetailsExpanded ? tc('collapse') : tc('expand')}
+                  aria-expanded={isDetailsExpanded}
+                  className={`flex items-center justify-center rounded-lg p-1.5 transition-colors ${
+                    isDetailsExpanded
+                      ? 'bg-indigo-50 text-indigo-600 dark:bg-indigo-900/30 dark:text-indigo-400'
+                      : 'text-zinc-500 dark:text-zinc-500 hover:bg-indigo-50 hover:text-indigo-600 dark:hover:bg-indigo-900/30 dark:hover:text-indigo-400'
+                  }`}
+                >
+                  <AlignLeft className="w-3.5 h-3.5" />
+                </button>
+              )}
               {(['todo', 'in-progress', 'done'] as const).map((status) => {
                 const config = getStatusDisplay(t, status);
                 return (
@@ -268,21 +268,9 @@ export function SubtaskItem({
             </div>
           </div>
           {/* pl-8 aligns the panel with the title (w-6 icon/checkbox + gap-2). */}
-          {isDetailsExpanded && (
-            <div className="mt-2 pl-8 space-y-3">
-              {description && (
-                <div className="prose prose-sm prose-zinc dark:prose-invert max-w-none text-xs">
-                  <ReactMarkdown remarkPlugins={[remarkGfm, remarkBreaks]}>
-                    {description}
-                  </ReactMarkdown>
-                </div>
-              )}
-              <NoteLinksSection
-                taskId={subtask.id}
-                taskTitle={subtask.title}
-                themeName={themeName}
-                categoryName={categoryName}
-              />
+          {isDetailsExpanded && description && (
+            <div className="mt-2 pl-8 prose prose-sm prose-zinc dark:prose-invert max-w-none text-xs">
+              <ReactMarkdown remarkPlugins={[remarkGfm, remarkBreaks]}>{description}</ReactMarkdown>
             </div>
           )}
         </div>

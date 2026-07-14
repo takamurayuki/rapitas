@@ -1,9 +1,9 @@
 /**
  * useSubtaskDeletion
  *
- * Handles subtask deletion: single, selected-batch, and all-at-once.
- * Also owns the multi-select UI state (selection mode, selected IDs,
- * delete-confirm dialog).
+ * Handles subtask bulk actions: deletion (single, selected-batch, all-at-once)
+ * and selected-batch status updates. Also owns the multi-select UI state
+ * (selection mode, selected IDs, delete-confirm dialog).
  */
 
 import { useState, useCallback } from 'react';
@@ -30,6 +30,8 @@ interface UseSubtaskDeletionParams {
  */
 export function useSubtaskDeletion({ task, onRefetch, onTaskUpdated }: UseSubtaskDeletionParams) {
   const t = useTranslations('task');
+  // Bulk-update toasts reuse the task list's existing keys (home namespace).
+  const tHome = useTranslations('home');
   const { showToast } = useToast();
   const [isSubtaskSelectionMode, setIsSubtaskSelectionMode] = useState(false);
   const [selectedSubtaskIds, setSelectedSubtaskIds] = useState<Set<number>>(new Set());
@@ -95,6 +97,39 @@ export function useSubtaskDeletion({ task, onRefetch, onTaskUpdated }: UseSubtas
     [task, onRefetch, onTaskUpdated, showToast, t],
   );
 
+  /**
+   * Sets the given status on all currently selected subtasks, then exits
+   * selection mode. Mirrors the task list's bulkUpdateStatus behaviour.
+   *
+   * @param status - Target status string / 変更先ステータス
+   */
+  const bulkUpdateSubtaskStatus = useCallback(
+    async (status: string) => {
+      const ids = Array.from(selectedSubtaskIds);
+      if (ids.length === 0) return;
+      try {
+        await Promise.all(
+          ids.map((id) =>
+            fetch(`${API_BASE}/tasks/${id}`, {
+              method: 'PATCH',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ status }),
+            }),
+          ),
+        );
+        await onRefetch();
+        onTaskUpdated?.();
+        showToast(`${ids.length}${tHome('bulkUpdated')}`, 'success');
+        setSelectedSubtaskIds(new Set());
+        setIsSubtaskSelectionMode(false);
+      } catch (err) {
+        logger.error(err);
+        showToast(tHome('bulkUpdateFailed'), 'error');
+      }
+    },
+    [selectedSubtaskIds, onRefetch, onTaskUpdated, showToast, tHome],
+  );
+
   const toggleSubtaskSelectionMode = useCallback(() => {
     if (isSubtaskSelectionMode) {
       setSelectedSubtaskIds(new Set());
@@ -144,6 +179,7 @@ export function useSubtaskDeletion({ task, onRefetch, onTaskUpdated }: UseSubtas
     showSubtaskDeleteConfirm,
     setShowSubtaskDeleteConfirm,
     deleteSubtask,
+    bulkUpdateSubtaskStatus,
     toggleSubtaskSelectionMode,
     toggleSubtaskSelection,
     selectAllSubtasks,

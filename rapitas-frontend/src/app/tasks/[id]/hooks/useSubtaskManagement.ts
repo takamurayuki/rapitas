@@ -44,6 +44,7 @@ export function useSubtaskManagement({
   // labels are configured on the parent task only.
   const [newSubtaskTitle, setNewSubtaskTitle] = useState('');
   const [newSubtaskDescription, setNewSubtaskDescription] = useState('');
+  const [newSubtaskPriority, setNewSubtaskPriority] = useState<Priority>('medium');
   const [newSubtaskEstimatedHours, setNewSubtaskEstimatedHours] = useState('');
   const [newSubtaskActualHours, setNewSubtaskActualHours] = useState('');
 
@@ -98,7 +99,7 @@ export function useSubtaskManagement({
           title: newSubtaskTitle.trim(),
           parentId: task.id,
           status: 'todo',
-          priority: 'medium',
+          priority: newSubtaskPriority,
           ...(newSubtaskDescription.trim() && {
             description: newSubtaskDescription.trim(),
           }),
@@ -112,6 +113,7 @@ export function useSubtaskManagement({
       await refetchTask();
       setNewSubtaskTitle('');
       setNewSubtaskDescription('');
+      setNewSubtaskPriority('medium');
       setNewSubtaskEstimatedHours('');
       setNewSubtaskActualHours('');
       onTaskUpdated?.();
@@ -123,6 +125,7 @@ export function useSubtaskManagement({
     task,
     newSubtaskTitle,
     newSubtaskDescription,
+    newSubtaskPriority,
     newSubtaskEstimatedHours,
     newSubtaskActualHours,
     refetchTask,
@@ -208,6 +211,8 @@ export function useSubtaskManagement({
     setNewSubtaskTitle,
     newSubtaskDescription,
     setNewSubtaskDescription,
+    newSubtaskPriority,
+    setNewSubtaskPriority,
     newSubtaskEstimatedHours,
     setNewSubtaskEstimatedHours,
     newSubtaskActualHours,
