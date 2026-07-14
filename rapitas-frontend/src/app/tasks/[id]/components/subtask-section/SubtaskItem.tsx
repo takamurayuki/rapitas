@@ -8,7 +8,7 @@
  */
 
 import { useState } from 'react';
-import { Pencil, CheckSquare, Square, Bot, Clock, AlignLeft } from 'lucide-react';
+import { Pencil, CheckSquare, Square, Bot, Clock, Timer, AlignLeft } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import remarkBreaks from 'remark-breaks';
@@ -18,7 +18,6 @@ import TaskStatusChange from '@/feature/tasks/components/status/TaskStatusChange
 import { useExecutionStateStore } from '@/stores/execution-state-store';
 import { getStatusDisplay, renderStatusIcon } from '@/feature/tasks/config/StatusConfig';
 import { useTranslations } from 'next-intl';
-import { getLabelsArray, hasLabels } from '@/utils/labels';
 import { SubtaskEditForm } from './SubtaskEditForm';
 import type { Task, Priority } from '@/types';
 
@@ -34,15 +33,15 @@ interface SubtaskItemProps {
   editingSubtaskTitle: string;
   editingSubtaskDescription: string;
   editingSubtaskPriority: Priority;
-  editingSubtaskLabels: string;
   editingSubtaskEstimatedHours: string;
+  editingSubtaskActualHours: string;
   onToggleSelection: () => void;
   onStartEditing: (subtask: Subtask) => void;
   onSetEditingTitle: (v: string) => void;
   onSetEditingDescription: (v: string) => void;
   onSetEditingPriority: (v: Priority) => void;
-  onSetEditingLabels: (v: string) => void;
   onSetEditingEstimatedHours: (v: string) => void;
+  onSetEditingActualHours: (v: string) => void;
   onSaveEdit: () => void;
   onCancelEdit: () => void;
   /** @param id - subtask id / サブタスクID */
@@ -64,15 +63,15 @@ export function SubtaskItem({
   editingSubtaskTitle,
   editingSubtaskDescription,
   editingSubtaskPriority,
-  editingSubtaskLabels,
   editingSubtaskEstimatedHours,
+  editingSubtaskActualHours,
   onToggleSelection,
   onStartEditing,
   onSetEditingTitle,
   onSetEditingDescription,
   onSetEditingPriority,
-  onSetEditingLabels,
   onSetEditingEstimatedHours,
+  onSetEditingActualHours,
   onSaveEdit,
   onCancelEdit,
   onUpdateStatus,
@@ -109,13 +108,13 @@ export function SubtaskItem({
           editingSubtaskTitle={editingSubtaskTitle}
           editingSubtaskDescription={editingSubtaskDescription}
           editingSubtaskPriority={editingSubtaskPriority}
-          editingSubtaskLabels={editingSubtaskLabels}
           editingSubtaskEstimatedHours={editingSubtaskEstimatedHours}
+          editingSubtaskActualHours={editingSubtaskActualHours}
           onSetEditingTitle={onSetEditingTitle}
           onSetEditingDescription={onSetEditingDescription}
           onSetEditingPriority={onSetEditingPriority}
-          onSetEditingLabels={onSetEditingLabels}
           onSetEditingEstimatedHours={onSetEditingEstimatedHours}
+          onSetEditingActualHours={onSetEditingActualHours}
           onSaveEdit={onSaveEdit}
           onCancelEdit={onCancelEdit}
         />
@@ -196,29 +195,23 @@ export function SubtaskItem({
                   AI
                 </span>
               )}
-              {hasLabels(subtask.labels) && (
-                <div className="hidden sm:flex gap-1 shrink-0">
-                  {getLabelsArray(subtask.labels)
-                    .slice(0, 2)
-                    .map((label, idx) => (
-                      <span
-                        key={idx}
-                        className="text-[10px] px-1.5 py-0.5 rounded-full bg-purple-100 text-purple-700 dark:bg-purple-900/50 dark:text-purple-300"
-                      >
-                        {label}
-                      </span>
-                    ))}
-                  {getLabelsArray(subtask.labels).length > 2 && (
-                    <span className="text-[10px] px-1 py-0.5 text-zinc-500">
-                      +{getLabelsArray(subtask.labels).length - 2}
-                    </span>
-                  )}
-                </div>
-              )}
-              {subtask.estimatedHours && (
-                <span className="hidden sm:inline-flex items-center gap-0.5 text-[10px] px-1.5 py-0.5 rounded-full bg-orange-100 text-orange-700 dark:bg-orange-900/50 dark:text-orange-300 shrink-0">
+              {/* NOTE: No label chips — subtask labels are a parent-task concern. */}
+              {subtask.estimatedHours != null && (
+                <span
+                  className="hidden sm:inline-flex items-center gap-0.5 text-[10px] px-1.5 py-0.5 rounded-full bg-orange-100 text-orange-700 dark:bg-orange-900/50 dark:text-orange-300 shrink-0"
+                  title={t('subtaskEstimatedHours')}
+                >
                   <Clock className="w-2.5 h-2.5" />
                   {subtask.estimatedHours}h
+                </span>
+              )}
+              {subtask.actualHours != null && (
+                <span
+                  className="hidden sm:inline-flex items-center gap-0.5 text-[10px] px-1.5 py-0.5 rounded-full bg-emerald-100 text-emerald-700 dark:bg-emerald-900/50 dark:text-emerald-300 shrink-0"
+                  title={t('subtaskActualHours')}
+                >
+                  <Timer className="w-2.5 h-2.5" />
+                  {subtask.actualHours}h
                 </span>
               )}
             </div>

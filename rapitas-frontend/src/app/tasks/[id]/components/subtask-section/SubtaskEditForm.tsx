@@ -7,7 +7,7 @@
  * Rendered in place of the subtask row when editing is active.
  */
 
-import { Check, X, Clock, Tag, AlertTriangle } from 'lucide-react';
+import { Check, X, Clock, Timer, AlertTriangle } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import type { Priority } from '@/types';
 import { priorityOptions } from './types';
@@ -16,13 +16,13 @@ interface SubtaskEditFormProps {
   editingSubtaskTitle: string;
   editingSubtaskDescription: string;
   editingSubtaskPriority: Priority;
-  editingSubtaskLabels: string;
   editingSubtaskEstimatedHours: string;
+  editingSubtaskActualHours: string;
   onSetEditingTitle: (v: string) => void;
   onSetEditingDescription: (v: string) => void;
   onSetEditingPriority: (v: Priority) => void;
-  onSetEditingLabels: (v: string) => void;
   onSetEditingEstimatedHours: (v: string) => void;
+  onSetEditingActualHours: (v: string) => void;
   onSaveEdit: () => void;
   onCancelEdit: () => void;
 }
@@ -36,13 +36,13 @@ export function SubtaskEditForm({
   editingSubtaskTitle,
   editingSubtaskDescription,
   editingSubtaskPriority,
-  editingSubtaskLabels,
   editingSubtaskEstimatedHours,
+  editingSubtaskActualHours,
   onSetEditingTitle,
   onSetEditingDescription,
   onSetEditingPriority,
-  onSetEditingLabels,
   onSetEditingEstimatedHours,
+  onSetEditingActualHours,
   onSaveEdit,
   onCancelEdit,
 }: SubtaskEditFormProps) {
@@ -106,6 +106,7 @@ export function SubtaskEditForm({
             </div>
           </div>
 
+          {/* NOTE: No label input — subtask labels are configured on the parent task. */}
           <div className="w-full sm:w-36">
             <label className="flex items-center gap-1.5 text-xs font-medium text-zinc-500 dark:text-zinc-400 mb-1.5">
               <Clock className="w-3.5 h-3.5" />
@@ -122,21 +123,23 @@ export function SubtaskEditForm({
               aria-label={t('subtaskEstimatedHours')}
             />
           </div>
-        </div>
 
-        <div>
-          <label className="flex items-center gap-1.5 text-xs font-medium text-zinc-500 dark:text-zinc-400 mb-1.5">
-            <Tag className="w-3.5 h-3.5" />
-            {t('subtaskLabels')}
-          </label>
-          <input
-            type="text"
-            className="w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-indigo-dark-900 px-3 py-1.5 text-sm shadow-sm focus:outline-none focus:border-indigo-400"
-            placeholder={t('labelsCommaSeparated')}
-            value={editingSubtaskLabels}
-            onChange={(e) => onSetEditingLabels(e.target.value)}
-            aria-label={t('subtaskLabels')}
-          />
+          <div className="w-full sm:w-36">
+            <label className="flex items-center gap-1.5 text-xs font-medium text-zinc-500 dark:text-zinc-400 mb-1.5">
+              <Timer className="w-3.5 h-3.5" />
+              {t('subtaskActualHours')}
+            </label>
+            <input
+              type="number"
+              step="0.1"
+              min="0"
+              className="w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-indigo-dark-900 px-3 py-1.5 text-sm shadow-sm focus:outline-none focus:border-indigo-400"
+              placeholder="0"
+              value={editingSubtaskActualHours}
+              onChange={(e) => onSetEditingActualHours(e.target.value)}
+              aria-label={t('subtaskActualHours')}
+            />
+          </div>
         </div>
 
         {/* NOTE: Buttons mirror AddSubtaskForm's raised-shadow style so the edit

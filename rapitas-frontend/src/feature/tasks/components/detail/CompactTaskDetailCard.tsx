@@ -22,6 +22,7 @@ import {
   toDateTimeLocal,
 } from './CompactTaskDetailCard.helpers';
 import { useCompactTaskDetailActions } from './useCompactTaskDetailActions';
+import { sumSubtaskActualHours } from '@/utils/subtask-hours';
 import CompactTaskDetailHeader from './CompactTaskDetailHeader';
 import CompactTaskDetailWorkloadSection from './CompactTaskDetailWorkloadSection';
 
@@ -83,6 +84,10 @@ export default function CompactTaskDetailCard({
   const { patchTask, saveField, toggleProtected, insertLinkToDescription } =
     useCompactTaskDetailActions({ task, onTaskUpdated });
 
+  // Parent work time shows the subtask total whenever subtasks have hours
+  // registered (falls back to the task's own actualHours otherwise).
+  const displayActualHours = sumSubtaskActualHours(task.subtasks) ?? task.actualHours;
+
   return (
     <div className="bg-white dark:bg-zinc-900 rounded-lg border border-zinc-200 dark:border-zinc-800 overflow-hidden">
       {/* Header: Title & Status in one compact row */}
@@ -135,9 +140,9 @@ export default function CompactTaskDetailCard({
                   task.estimatedHours
                     ? t('compactTaskDetailCard.estimateBadge', { hours: task.estimatedHours })
                     : null,
-                  task.actualHours != null
+                  displayActualHours != null
                     ? t('compactTaskDetailCard.actualBadge', {
-                        hours: task.actualHours.toFixed(1),
+                        hours: displayActualHours.toFixed(1),
                       })
                     : null,
                   task.dueDate ? new Date(task.dueDate).toLocaleDateString(dateLocale) : null,

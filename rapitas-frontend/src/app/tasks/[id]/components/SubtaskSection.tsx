@@ -23,8 +23,8 @@ interface SubtaskSectionProps {
   editingSubtaskTitle: string;
   editingSubtaskDescription: string;
   editingSubtaskPriority: Priority;
-  editingSubtaskLabels: string;
   editingSubtaskEstimatedHours: string;
+  editingSubtaskActualHours: string;
   isParallelExecutionRunning: boolean;
   getSubtaskStatus: (subtaskId: number) => ParallelExecutionStatus | undefined;
   onToggleSelectionMode: () => void;
@@ -38,19 +38,19 @@ interface SubtaskSectionProps {
   onSetEditingSubtaskTitle: (v: string) => void;
   onSetEditingSubtaskDescription: (v: string) => void;
   onSetEditingSubtaskPriority: (v: Priority) => void;
-  onSetEditingSubtaskLabels: (v: string) => void;
   onSetEditingSubtaskEstimatedHours: (v: string) => void;
+  onSetEditingSubtaskActualHours: (v: string) => void;
   onSaveSubtaskEdit: () => void;
   onCancelEditingSubtask: () => void;
   onUpdateStatus: (id: number, status: string) => void;
   newSubtaskTitle: string;
   newSubtaskDescription: string;
-  newSubtaskLabels: string;
   newSubtaskEstimatedHours: string;
+  newSubtaskActualHours: string;
   onSetNewSubtaskTitle: (v: string) => void;
   onSetNewSubtaskDescription: (v: string) => void;
-  onSetNewSubtaskLabels: (v: string) => void;
   onSetNewSubtaskEstimatedHours: (v: string) => void;
+  onSetNewSubtaskActualHours: (v: string) => void;
   onAddSubtask: () => void;
 }
 
@@ -63,8 +63,8 @@ export default function SubtaskSection({
   editingSubtaskTitle,
   editingSubtaskDescription,
   editingSubtaskPriority,
-  editingSubtaskLabels,
   editingSubtaskEstimatedHours,
+  editingSubtaskActualHours,
   isParallelExecutionRunning,
   getSubtaskStatus,
   onToggleSelectionMode,
@@ -78,19 +78,19 @@ export default function SubtaskSection({
   onSetEditingSubtaskTitle,
   onSetEditingSubtaskDescription,
   onSetEditingSubtaskPriority,
-  onSetEditingSubtaskLabels,
   onSetEditingSubtaskEstimatedHours,
+  onSetEditingSubtaskActualHours,
   onSaveSubtaskEdit,
   onCancelEditingSubtask,
   onUpdateStatus,
   newSubtaskTitle,
   newSubtaskDescription,
-  newSubtaskLabels,
   newSubtaskEstimatedHours,
+  newSubtaskActualHours,
   onSetNewSubtaskTitle,
   onSetNewSubtaskDescription,
-  onSetNewSubtaskLabels,
   onSetNewSubtaskEstimatedHours,
+  onSetNewSubtaskActualHours,
   onAddSubtask,
 }: SubtaskSectionProps) {
   // While a subtask is being edited, collapse the card to just that item so the
@@ -135,15 +135,15 @@ export default function SubtaskSection({
             editingSubtaskTitle={editingSubtaskTitle}
             editingSubtaskDescription={editingSubtaskDescription}
             editingSubtaskPriority={editingSubtaskPriority}
-            editingSubtaskLabels={editingSubtaskLabels}
             editingSubtaskEstimatedHours={editingSubtaskEstimatedHours}
+            editingSubtaskActualHours={editingSubtaskActualHours}
             onToggleSelection={() => onToggleSubtaskSelection(subtask.id)}
             onStartEditing={onStartEditingSubtask}
             onSetEditingTitle={onSetEditingSubtaskTitle}
             onSetEditingDescription={onSetEditingSubtaskDescription}
             onSetEditingPriority={onSetEditingSubtaskPriority}
-            onSetEditingLabels={onSetEditingSubtaskLabels}
             onSetEditingEstimatedHours={onSetEditingSubtaskEstimatedHours}
+            onSetEditingActualHours={onSetEditingSubtaskActualHours}
             onSaveEdit={onSaveSubtaskEdit}
             onCancelEdit={onCancelEditingSubtask}
             onUpdateStatus={onUpdateStatus}
@@ -155,12 +155,12 @@ export default function SubtaskSection({
         <AddSubtaskForm
           newSubtaskTitle={newSubtaskTitle}
           newSubtaskDescription={newSubtaskDescription}
-          newSubtaskLabels={newSubtaskLabels}
           newSubtaskEstimatedHours={newSubtaskEstimatedHours}
+          newSubtaskActualHours={newSubtaskActualHours}
           onSetNewSubtaskTitle={onSetNewSubtaskTitle}
           onSetNewSubtaskDescription={onSetNewSubtaskDescription}
-          onSetNewSubtaskLabels={onSetNewSubtaskLabels}
           onSetNewSubtaskEstimatedHours={onSetNewSubtaskEstimatedHours}
+          onSetNewSubtaskActualHours={onSetNewSubtaskActualHours}
           onAddSubtask={onAddSubtask}
         />
       )}

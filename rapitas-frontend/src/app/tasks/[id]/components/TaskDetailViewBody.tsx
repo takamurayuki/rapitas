@@ -25,8 +25,8 @@ interface TaskActionsViewSlice {
   editingSubtaskTitle: string;
   editingSubtaskDescription: string;
   editingSubtaskPriority: Priority;
-  editingSubtaskLabels: string;
   editingSubtaskEstimatedHours: string;
+  editingSubtaskActualHours: string;
   toggleSubtaskSelectionMode: () => void;
   selectAllSubtasks: () => void;
   deselectAllSubtasks: () => void;
@@ -37,18 +37,18 @@ interface TaskActionsViewSlice {
   setEditingSubtaskTitle: (v: string) => void;
   setEditingSubtaskDescription: (v: string) => void;
   setEditingSubtaskPriority: (v: Priority) => void;
-  setEditingSubtaskLabels: (v: string) => void;
   setEditingSubtaskEstimatedHours: (v: string) => void;
+  setEditingSubtaskActualHours: (v: string) => void;
   saveSubtaskEdit: () => void;
   cancelEditingSubtask: () => void;
   newSubtaskTitle: string;
   newSubtaskDescription: string;
-  newSubtaskLabels: string;
   newSubtaskEstimatedHours: string;
+  newSubtaskActualHours: string;
   setNewSubtaskTitle: (v: string) => void;
   setNewSubtaskDescription: (v: string) => void;
-  setNewSubtaskLabels: (v: string) => void;
   setNewSubtaskEstimatedHours: (v: string) => void;
+  setNewSubtaskActualHours: (v: string) => void;
   addSubtask: () => Promise<void>;
 }
 
@@ -213,8 +213,8 @@ export default function TaskDetailViewBody({
           editingSubtaskTitle={taskActions.editingSubtaskTitle}
           editingSubtaskDescription={taskActions.editingSubtaskDescription}
           editingSubtaskPriority={taskActions.editingSubtaskPriority}
-          editingSubtaskLabels={taskActions.editingSubtaskLabels}
           editingSubtaskEstimatedHours={taskActions.editingSubtaskEstimatedHours}
+          editingSubtaskActualHours={taskActions.editingSubtaskActualHours}
           isParallelExecutionRunning={isParallelExecutionRunning}
           getSubtaskStatus={getSubtaskStatus}
           onToggleSelectionMode={taskActions.toggleSubtaskSelectionMode}
@@ -228,19 +228,19 @@ export default function TaskDetailViewBody({
           onSetEditingSubtaskTitle={taskActions.setEditingSubtaskTitle}
           onSetEditingSubtaskDescription={taskActions.setEditingSubtaskDescription}
           onSetEditingSubtaskPriority={taskActions.setEditingSubtaskPriority}
-          onSetEditingSubtaskLabels={taskActions.setEditingSubtaskLabels}
           onSetEditingSubtaskEstimatedHours={taskActions.setEditingSubtaskEstimatedHours}
+          onSetEditingSubtaskActualHours={taskActions.setEditingSubtaskActualHours}
           onSaveSubtaskEdit={taskActions.saveSubtaskEdit}
           onCancelEditingSubtask={taskActions.cancelEditingSubtask}
           onUpdateStatus={taskActions.updateStatus}
           newSubtaskTitle={taskActions.newSubtaskTitle}
           newSubtaskDescription={taskActions.newSubtaskDescription}
-          newSubtaskLabels={taskActions.newSubtaskLabels}
           newSubtaskEstimatedHours={taskActions.newSubtaskEstimatedHours}
+          newSubtaskActualHours={taskActions.newSubtaskActualHours}
           onSetNewSubtaskTitle={taskActions.setNewSubtaskTitle}
           onSetNewSubtaskDescription={taskActions.setNewSubtaskDescription}
-          onSetNewSubtaskLabels={taskActions.setNewSubtaskLabels}
           onSetNewSubtaskEstimatedHours={taskActions.setNewSubtaskEstimatedHours}
+          onSetNewSubtaskActualHours={taskActions.setNewSubtaskActualHours}
           onAddSubtask={taskActions.addSubtask}
         />
       </div>

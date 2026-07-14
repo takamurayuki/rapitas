@@ -10,6 +10,7 @@
 import { type useTranslations } from 'next-intl';
 import { type Task, type Label } from '@/types';
 import { SelectedLabelsDisplay } from '@/feature/tasks/components/LabelSelector';
+import { sumSubtaskActualHours } from '@/utils/subtask-hours';
 import { Calendar, Clock, Timer, Tag } from 'lucide-react';
 
 export interface CompactTaskDetailWorkloadSectionProps {
@@ -37,10 +38,20 @@ export default function CompactTaskDetailWorkloadSection({
   setDueDateInput,
   patchTask,
 }: CompactTaskDetailWorkloadSectionProps) {
+  // When any subtask has work time registered, the parent's work time is the
+  // subtask total (read-only) — manual input would be overwritten by the
+  // backend rollup on the next subtask update anyway.
+  const subtaskActualSum = sumSubtaskActualHours(task.subtasks);
+  const actualFromSubtasks = subtaskActualSum !== null;
+
   // NOTE: Use local input state for the progress bar so it updates on keystroke,
   // not only after the parent re-fetches the task on blur.
   const displayedEst = estHoursInput ? parseFloat(estHoursInput) : null;
-  const displayedAct = actHoursInput ? parseFloat(actHoursInput) : 0;
+  const displayedAct = actualFromSubtasks
+    ? subtaskActualSum
+    : actHoursInput
+      ? parseFloat(actHoursInput)
+      : 0;
   const hasEst = displayedEst != null && displayedEst > 0;
   const pct = hasEst ? Math.min(100, (displayedAct / displayedEst) * 100) : 0;
   const barColor = !hasEst
@@ -87,24 +98,39 @@ export default function CompactTaskDetailWorkloadSection({
             <span className="flex items-center gap-1">
               <Timer className="w-3.5 h-3.5" />
               {t('compactTaskDetailCard.actualWorkTimeLabel')}
+              {actualFromSubtasks && (
+                <span className="px-1 py-0.5 text-[10px] font-medium rounded bg-emerald-100 text-emerald-700 dark:bg-emerald-900/50 dark:text-emerald-300">
+                  {t('compactTaskDetailCard.subtaskHoursSumHint')}
+                </span>
+              )}
             </span>
           </label>
           <div className="flex items-center gap-1">
-            <input
-              type="number"
-              step="0.1"
-              min="0"
-              value={actHoursInput}
-              onChange={(e) => setActHoursInput(e.target.value)}
-              onBlur={() =>
-                patchTask({
-                  actualHours: actHoursInput ? parseFloat(actHoursInput) : null,
-                })
-              }
-              placeholder="0"
-              aria-label={t('compactTaskDetailCard.actualWorkTimeLabel')}
-              className="w-full bg-zinc-100 dark:bg-zinc-800 rounded-lg px-2 py-1.5 text-sm border-none outline-none focus:ring-2 focus:ring-emerald-500/20 transition-all"
-            />
+            {actualFromSubtasks ? (
+              <div
+                className="w-full bg-zinc-100 dark:bg-zinc-800 rounded-lg px-2 py-1.5 text-sm text-zinc-700 dark:text-zinc-300"
+                title={t('compactTaskDetailCard.subtaskHoursSumHint')}
+                aria-label={t('compactTaskDetailCard.actualWorkTimeLabel')}
+              >
+                {subtaskActualSum.toFixed(1)}
+              </div>
+            ) : (
+              <input
+                type="number"
+                step="0.1"
+                min="0"
+                value={actHoursInput}
+                onChange={(e) => setActHoursInput(e.target.value)}
+                onBlur={() =>
+                  patchTask({
+                    actualHours: actHoursInput ? parseFloat(actHoursInput) : null,
+                  })
+                }
+                placeholder="0"
+                aria-label={t('compactTaskDetailCard.actualWorkTimeLabel')}
+                className="w-full bg-zinc-100 dark:bg-zinc-800 rounded-lg px-2 py-1.5 text-sm border-none outline-none focus:ring-2 focus:ring-emerald-500/20 transition-all"
+              />
+            )}
             <span className="text-xs text-zinc-500 dark:text-zinc-400 shrink-0">h</span>
           </div>
         </div>

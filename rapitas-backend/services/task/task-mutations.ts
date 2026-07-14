@@ -48,6 +48,7 @@ export interface CreateTaskInput {
   labels?: string;
   labelIds?: number[];
   estimatedHours?: number;
+  actualHours?: number;
   dueDate?: string;
   subject?: string;
   parentId?: number;
@@ -66,6 +67,27 @@ export interface CreateTaskInput {
 }
 
 /**
+ * Recalculates a parent's actualHours as the sum of its subtasks' actualHours.
+ *
+ * The parent's stored work time must always reflect the subtask total once
+ * subtasks carry their own hours, so both the create and update paths call this.
+ *
+ * @param prisma - Prisma client instance / Prismaクライアント
+ * @param parentId - Parent task ID / 親タスクID
+ */
+async function recalcParentActualHours(prisma: PrismaInstance, parentId: number) {
+  const siblings = await prisma.task.findMany({
+    where: { parentId },
+    select: { actualHours: true },
+  });
+  const parentActual = siblings.reduce((sum, s) => sum + (s.actualHours ?? 0), 0);
+  await prisma.task.update({
+    where: { id: parentId },
+    data: { actualHours: parentActual > 0 ? parentActual : null },
+  });
+}
+
+/**
  * Creates a task (parent or subtask) based on whether parentId is provided.
  *
  * @param prisma - Prisma client instance / Prismaクライアント
@@ -78,6 +100,12 @@ export async function createTask(prisma: PrismaInstance, input: CreateTaskInput)
   const task = parentId
     ? await createSubtask(prisma, parentId, title, labelIds, rest)
     : await createParentTask(prisma, title, labelIds, rest);
+
+  // NOTE: A subtask created with actualHours must roll into the parent's
+  // total immediately — the update-path rollup never fires for creates.
+  if (task && parentId && rest.actualHours) {
+    await recalcParentActualHours(prisma, parentId);
+  }
 
   // NOTE: Broadcast task creation via SSE for real-time list updates.
   if (task) {
@@ -295,15 +323,7 @@ export async function updateTask(prisma: PrismaInstance, taskId: number, input: 
   // actualHours as the sum of all sibling actualHours so the parent always
   // reflects total time spent across its subtasks.
   if (fields.actualHours !== undefined && currentTask.parentId) {
-    const siblings = await prisma.task.findMany({
-      where: { parentId: currentTask.parentId },
-      select: { actualHours: true },
-    });
-    const parentActual = siblings.reduce((sum, s) => sum + (s.actualHours ?? 0), 0);
-    await prisma.task.update({
-      where: { id: currentTask.parentId },
-      data: { actualHours: parentActual > 0 ? parentActual : null },
-    });
+    await recalcParentActualHours(prisma, currentTask.parentId);
   }
 
   // NOTE: When a subtask's status changes, recompute the parent's status from

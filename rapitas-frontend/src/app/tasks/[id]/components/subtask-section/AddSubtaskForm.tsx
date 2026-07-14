@@ -7,18 +7,18 @@
  * Does not persist data — delegates to parent via callbacks.
  */
 
-import { Check, Clock, Tag } from 'lucide-react';
+import { Check, Clock, Timer } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 
 interface AddSubtaskFormProps {
   newSubtaskTitle: string;
   newSubtaskDescription: string;
-  newSubtaskLabels: string;
   newSubtaskEstimatedHours: string;
+  newSubtaskActualHours: string;
   onSetNewSubtaskTitle: (v: string) => void;
   onSetNewSubtaskDescription: (v: string) => void;
-  onSetNewSubtaskLabels: (v: string) => void;
   onSetNewSubtaskEstimatedHours: (v: string) => void;
+  onSetNewSubtaskActualHours: (v: string) => void;
   onAddSubtask: () => void;
 }
 
@@ -30,12 +30,12 @@ interface AddSubtaskFormProps {
 export function AddSubtaskForm({
   newSubtaskTitle,
   newSubtaskDescription,
-  newSubtaskLabels,
   newSubtaskEstimatedHours,
+  newSubtaskActualHours,
   onSetNewSubtaskTitle,
   onSetNewSubtaskDescription,
-  onSetNewSubtaskLabels,
   onSetNewSubtaskEstimatedHours,
+  onSetNewSubtaskActualHours,
   onAddSubtask,
 }: AddSubtaskFormProps) {
   const t = useTranslations('task');
@@ -72,6 +72,7 @@ export function AddSubtaskForm({
           />
         </div>
 
+        {/* NOTE: No label input — subtask labels are configured on the parent task. */}
         <div className="flex flex-col sm:flex-row gap-3">
           <div className="w-full sm:w-36">
             <label className="flex items-center gap-1.5 text-xs font-medium text-zinc-500 dark:text-zinc-400 mb-1.5">
@@ -90,18 +91,20 @@ export function AddSubtaskForm({
             />
           </div>
 
-          <div className="flex-1">
+          <div className="w-full sm:w-36">
             <label className="flex items-center gap-1.5 text-xs font-medium text-zinc-500 dark:text-zinc-400 mb-1.5">
-              <Tag className="w-3.5 h-3.5" />
-              {t('subtaskLabels')}
+              <Timer className="w-3.5 h-3.5" />
+              {t('subtaskActualHours')}
             </label>
             <input
-              type="text"
+              type="number"
+              step="0.1"
+              min="0"
               className="w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-indigo-dark-900 px-3 py-1.5 text-sm shadow-sm focus:outline-none focus:border-indigo-400"
-              placeholder={t('labelsCommaSeparated')}
-              value={newSubtaskLabels}
-              onChange={(e) => onSetNewSubtaskLabels(e.target.value)}
-              aria-label={t('subtaskLabels')}
+              placeholder="0"
+              value={newSubtaskActualHours}
+              onChange={(e) => onSetNewSubtaskActualHours(e.target.value)}
+              aria-label={t('subtaskActualHours')}
             />
           </div>
         </div>
