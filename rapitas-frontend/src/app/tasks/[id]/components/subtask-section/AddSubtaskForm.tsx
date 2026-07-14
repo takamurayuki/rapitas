@@ -55,8 +55,8 @@ export function AddSubtaskForm({
   useAutosizeTextarea(descriptionRef, newSubtaskDescription);
 
   return (
-    <div className="p-4 border-t border-zinc-100 dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-900/30">
-      <div className="space-y-4">
+    <div className="border-t border-zinc-100 dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-900/30">
+      <div className="p-4 space-y-4">
         <div>
           <input
             type="text"
@@ -131,18 +131,19 @@ export function AddSubtaskForm({
             />
           </div>
         </div>
+      </div>
 
-        {/* Divider separates the action row from the fields (matches the edit form). */}
-        <div className="flex items-center justify-end gap-2 pt-3 border-t border-zinc-200 dark:border-zinc-700">
-          <button
-            onClick={onAddSubtask}
-            disabled={!newSubtaskTitle.trim()}
-            className="flex items-center gap-2 px-3 py-2 text-xs font-medium rounded-lg border border-indigo-200 dark:border-indigo-800 bg-white dark:bg-zinc-900 text-indigo-700 dark:text-indigo-300 shadow-[0_2px_0_0_#a5b4fc] dark:shadow-[0_2px_0_0_#1e1b4b] hover:bg-indigo-50 dark:hover:bg-indigo-900/20 active:translate-y-[1px] active:shadow-none transition-all duration-75 disabled:opacity-40 disabled:cursor-not-allowed disabled:active:translate-y-0 disabled:active:shadow-[0_2px_0_0_#a5b4fc]"
-          >
-            <Save className="w-4 h-4" />
-            <span className="font-mono font-black tracking-tight">{tc('save')}</span>
-          </button>
-        </div>
+      {/* Full-bleed footer — edge-to-edge divider + tinted band so the action
+          row reads as a distinct section (matches the edit form). */}
+      <div className="flex items-center justify-end gap-2 px-4 py-3 border-t border-zinc-200 dark:border-zinc-700 bg-zinc-100/70 dark:bg-zinc-900/60">
+        <button
+          onClick={onAddSubtask}
+          disabled={!newSubtaskTitle.trim()}
+          className="flex items-center gap-2 px-3 py-2 text-xs font-medium rounded-lg border border-indigo-200 dark:border-indigo-800 bg-white dark:bg-zinc-900 text-indigo-700 dark:text-indigo-300 shadow-[0_2px_0_0_#a5b4fc] dark:shadow-[0_2px_0_0_#1e1b4b] hover:bg-indigo-50 dark:hover:bg-indigo-900/20 active:translate-y-[1px] active:shadow-none transition-all duration-75 disabled:opacity-40 disabled:cursor-not-allowed disabled:active:translate-y-0 disabled:active:shadow-[0_2px_0_0_#a5b4fc]"
+        >
+          <Save className="w-4 h-4" />
+          <span className="font-mono font-black tracking-tight">{tc('save')}</span>
+        </button>
       </div>
     </div>
   );

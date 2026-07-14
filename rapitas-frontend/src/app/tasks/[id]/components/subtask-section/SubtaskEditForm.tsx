@@ -76,8 +76,10 @@ export function SubtaskEditForm({
   };
 
   return (
-    <div className="p-4 bg-zinc-50/50 dark:bg-zinc-800/20">
-      <div className="space-y-4">
+    // NOTE: border-b mirrors the header's border-t so the edit panel is framed
+    // top AND bottom while it is displayed alone in the card.
+    <div className="bg-zinc-50/50 dark:bg-zinc-800/20 border-b border-zinc-100 dark:border-zinc-800">
+      <div className="p-4 space-y-4">
         <input
           type="text"
           className="w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-indigo-dark-900 px-3 py-2 text-sm font-medium shadow-sm focus:outline-none focus:border-indigo-400"
@@ -159,27 +161,27 @@ export function SubtaskEditForm({
             />
           </div>
         </div>
+      </div>
 
-        {/* NOTE: Buttons mirror AddSubtaskForm's raised-shadow style so the edit
-            and add forms read as the same control family. Divider separates the
-            action row from the fields; cancel precedes save (dialog convention). */}
-        <div className="flex items-center justify-end gap-2 pt-3 border-t border-zinc-200 dark:border-zinc-700">
-          <button
-            onClick={onCancelEdit}
-            className="flex items-center gap-2 px-3 py-2 text-xs font-medium rounded-lg border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-zinc-600 dark:text-zinc-400 shadow-[0_2px_0_0_#d4d4d8] dark:shadow-[0_2px_0_0_#27272a] hover:bg-zinc-50 dark:hover:bg-zinc-800/40 active:translate-y-[1px] active:shadow-none transition-all duration-75"
-          >
-            <X className="w-4 h-4" />
-            <span className="font-mono font-black tracking-tight">{tc('cancel')}</span>
-          </button>
-          <button
-            onClick={onSaveEdit}
-            disabled={!editingSubtaskTitle.trim()}
-            className="flex items-center gap-2 px-3 py-2 text-xs font-medium rounded-lg border border-indigo-200 dark:border-indigo-800 bg-white dark:bg-zinc-900 text-indigo-700 dark:text-indigo-300 shadow-[0_2px_0_0_#a5b4fc] dark:shadow-[0_2px_0_0_#1e1b4b] hover:bg-indigo-50 dark:hover:bg-indigo-900/20 active:translate-y-[1px] active:shadow-none transition-all duration-75 disabled:opacity-40 disabled:cursor-not-allowed disabled:active:translate-y-0 disabled:active:shadow-[0_2px_0_0_#a5b4fc]"
-          >
-            <Save className="w-4 h-4" />
-            <span className="font-mono font-black tracking-tight">{tc('save')}</span>
-          </button>
-        </div>
+      {/* Full-bleed footer — edge-to-edge divider + tinted band so the action
+          row reads as a distinct section. Buttons mirror AddSubtaskForm's
+          raised-shadow style; cancel precedes save (dialog convention). */}
+      <div className="flex items-center justify-end gap-2 px-4 py-3 border-t border-zinc-200 dark:border-zinc-700 bg-zinc-100/70 dark:bg-zinc-900/60">
+        <button
+          onClick={onCancelEdit}
+          className="flex items-center gap-2 px-3 py-2 text-xs font-medium rounded-lg border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-zinc-600 dark:text-zinc-400 shadow-[0_2px_0_0_#d4d4d8] dark:shadow-[0_2px_0_0_#27272a] hover:bg-zinc-50 dark:hover:bg-zinc-800/40 active:translate-y-[1px] active:shadow-none transition-all duration-75"
+        >
+          <X className="w-4 h-4" />
+          <span className="font-mono font-black tracking-tight">{tc('cancel')}</span>
+        </button>
+        <button
+          onClick={onSaveEdit}
+          disabled={!editingSubtaskTitle.trim()}
+          className="flex items-center gap-2 px-3 py-2 text-xs font-medium rounded-lg border border-indigo-200 dark:border-indigo-800 bg-white dark:bg-zinc-900 text-indigo-700 dark:text-indigo-300 shadow-[0_2px_0_0_#a5b4fc] dark:shadow-[0_2px_0_0_#1e1b4b] hover:bg-indigo-50 dark:hover:bg-indigo-900/20 active:translate-y-[1px] active:shadow-none transition-all duration-75 disabled:opacity-40 disabled:cursor-not-allowed disabled:active:translate-y-0 disabled:active:shadow-[0_2px_0_0_#a5b4fc]"
+        >
+          <Save className="w-4 h-4" />
+          <span className="font-mono font-black tracking-tight">{tc('save')}</span>
+        </button>
       </div>
     </div>
   );
