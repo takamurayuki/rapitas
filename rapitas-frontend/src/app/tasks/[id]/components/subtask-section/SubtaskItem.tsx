@@ -8,7 +8,10 @@
  */
 
 import { useState } from 'react';
-import { Pencil, CheckSquare, Square, Bot, Clock } from 'lucide-react';
+import { Pencil, CheckSquare, Square, Bot, Clock, AlignLeft } from 'lucide-react';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
+import remarkBreaks from 'remark-breaks';
 import type { ParallelExecutionStatus } from '@/feature/tasks/components/status/SubtaskExecutionStatus';
 import PriorityIcon from '@/feature/tasks/components/priority/PriorityIcon';
 import TaskStatusChange from '@/feature/tasks/components/status/TaskStatusChange';
@@ -77,8 +80,8 @@ export function SubtaskItem({
   const t = useTranslations('task');
   const tc = useTranslations('common');
 
-  // Long agent-generated descriptions would dominate the list, so clamp to two
-  // lines by default and let the user toggle the full text in place.
+  // Descriptions stay fully hidden by default so rows keep their compact
+  // height; an AlignLeft toggle appears only when there is content to show.
   const [isDescriptionExpanded, setIsDescriptionExpanded] = useState(false);
   const description = subtask.description?.trim();
 
@@ -220,6 +223,21 @@ export function SubtaskItem({
               )}
             </div>
             <div className="flex items-center gap-1 shrink-0">
+              {description && (
+                <button
+                  type="button"
+                  onClick={() => setIsDescriptionExpanded((v) => !v)}
+                  title={isDescriptionExpanded ? tc('collapse') : tc('expand')}
+                  aria-expanded={isDescriptionExpanded}
+                  className={`flex items-center justify-center rounded-lg p-1.5 transition-colors ${
+                    isDescriptionExpanded
+                      ? 'bg-indigo-50 text-indigo-600 dark:bg-indigo-900/30 dark:text-indigo-400'
+                      : 'text-zinc-500 dark:text-zinc-500 hover:bg-indigo-50 hover:text-indigo-600 dark:hover:bg-indigo-900/30 dark:hover:text-indigo-400'
+                  }`}
+                >
+                  <AlignLeft className="w-3.5 h-3.5" />
+                </button>
+              )}
               {(['todo', 'in-progress', 'done'] as const).map((status) => {
                 const config = getStatusDisplay(t, status);
                 return (
@@ -243,18 +261,12 @@ export function SubtaskItem({
               </button>
             </div>
           </div>
-          {description && (
-            <button
-              type="button"
-              onClick={() => setIsDescriptionExpanded((v) => !v)}
-              title={isDescriptionExpanded ? tc('collapse') : tc('expand')}
-              aria-expanded={isDescriptionExpanded}
-              className={`mt-1.5 block w-full cursor-pointer text-left text-xs text-zinc-500 dark:text-zinc-400 whitespace-pre-wrap break-words ${
-                isSelectionMode ? 'pl-7' : 'pl-8'
-              } ${isDescriptionExpanded ? '' : 'line-clamp-2'}`}
+          {description && isDescriptionExpanded && (
+            <div
+              className={`mt-2 ${isSelectionMode ? 'pl-7' : 'pl-8'} prose prose-sm prose-zinc dark:prose-invert max-w-none text-xs`}
             >
-              {description}
-            </button>
+              <ReactMarkdown remarkPlugins={[remarkGfm, remarkBreaks]}>{description}</ReactMarkdown>
+            </div>
           )}
         </div>
       )}

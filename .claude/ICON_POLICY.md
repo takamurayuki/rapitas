@@ -80,6 +80,7 @@ Keep this list accurate. If you assign a glyph a new meaning, add it here.
 | `Sparkles`                | AI生成/おすすめ操作（分析実行・プロンプト最適化・イノベーションジョブ種別など、AIが生成/提案する操作全般） |
 | `Gauge`                   | 懸念の種別「パフォーマンス」（旧・複雑度「標準」との衝突は解消済み — 下記 Known collisions 参照） |
 | `Gavel`                   | 敵対的レビュー判定（adversarial diff-review judge eval）カードタイトル |
+| `AlignLeft`               | サブタスク説明の展開/折りたたみトグル（タスク詳細のサブタスク行） |
 
 ### Known collisions
 
