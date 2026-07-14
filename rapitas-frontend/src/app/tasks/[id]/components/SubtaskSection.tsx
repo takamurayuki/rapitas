@@ -39,7 +39,6 @@ interface SubtaskSectionProps {
   onSetDeleteConfirm: (v: 'all' | 'selected' | null) => void;
   onDeleteAll: () => void;
   onDeleteSelected: () => void;
-  onBulkUpdateStatus: (status: string) => void;
   onStartEditingSubtask: (subtask: NonNullable<Task['subtasks']>[number]) => void;
   onSetEditingSubtaskTitle: (v: string) => void;
   onSetEditingSubtaskDescription: (v: string) => void;
@@ -84,7 +83,6 @@ export default function SubtaskSection({
   onSetDeleteConfirm,
   onDeleteAll,
   onDeleteSelected,
-  onBulkUpdateStatus,
   onStartEditingSubtask,
   onSetEditingSubtaskTitle,
   onSetEditingSubtaskDescription,
@@ -127,7 +125,6 @@ export default function SubtaskSection({
         onSelectAll={onSelectAll}
         onDeselectAll={onDeselectAll}
         onSetDeleteConfirm={onSetDeleteConfirm}
-        onBulkUpdateStatus={onBulkUpdateStatus}
         isAddFormVisible={isAddFormVisible}
         onToggleAddForm={() => setIsAddFormVisible((v) => !v)}
       />

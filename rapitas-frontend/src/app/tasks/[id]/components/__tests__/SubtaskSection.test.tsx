@@ -57,7 +57,6 @@ const baseProps = {
   onSetDeleteConfirm: vi.fn(),
   onDeleteAll: vi.fn(),
   onDeleteSelected: vi.fn(),
-  onBulkUpdateStatus: vi.fn(),
   onStartEditingSubtask: vi.fn(),
   onSetEditingSubtaskTitle: vi.fn(),
   onSetEditingSubtaskDescription: vi.fn(),

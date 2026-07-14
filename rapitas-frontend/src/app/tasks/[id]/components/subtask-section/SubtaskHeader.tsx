@@ -9,11 +9,9 @@
  * Owns no state — all callbacks are passed from the parent.
  */
 
-import React from 'react';
 import { ListTodo, ListPlus, CopyCheck, Trash2, CircleCheckBig, X } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import type { Task } from '@/types';
-import { getStatusDisplay, renderStatusIcon } from '@/feature/tasks/config/StatusConfig';
 
 interface SubtaskHeaderProps {
   subtasks: NonNullable<Task['subtasks']>;
@@ -24,8 +22,6 @@ interface SubtaskHeaderProps {
   onDeselectAll: () => void;
   /** @param v - confirmation mode / 確認モード */
   onSetDeleteConfirm: (v: 'all' | 'selected' | null) => void;
-  /** @param status - target status for all selected subtasks / 選択中サブタスクの変更先ステータス */
-  onBulkUpdateStatus: (status: string) => void;
   /** Whether the add-subtask form below the list is currently shown. */
   isAddFormVisible: boolean;
   onToggleAddForm: () => void;
@@ -45,7 +41,6 @@ export function SubtaskHeader({
   onSelectAll,
   onDeselectAll,
   onSetDeleteConfirm,
-  onBulkUpdateStatus,
   isAddFormVisible,
   onToggleAddForm,
 }: SubtaskHeaderProps) {
@@ -119,8 +114,11 @@ export function SubtaskHeader({
           the mode). Delete sits apart on the right because it is destructive. */}
       {isSubtaskSelectionMode && subtasks.length > 0 && (
         <div className="flex items-center gap-2 px-4 py-2 border-t border-zinc-100 dark:border-zinc-800 bg-zinc-50/80 dark:bg-zinc-900/40">
-          {/* すべて選択/すべて解除 — フラット。文言・アイコンとも
-              タスク一覧の HomeToolbar と同一。 */}
+          {/* NOTE: 一括ステータス変更は撤去 — サブタスクで使うケースが稀なため
+              (要望 2026-07-14)。復活させる場合は HomeToolbar のセグメントを流用。 */}
+
+          {/* すべて選択⇄すべて解除 — 単一トグル (削除の左隣に固定)。
+              文言・アイコンともタスク一覧の HomeToolbar と同一。 */}
           <button
             onClick={(e) => {
               e.stopPropagation();
@@ -131,7 +129,7 @@ export function SubtaskHeader({
               }
             }}
             title={allSelected ? tHome('deselectAll') : tHome('selectAll')}
-            className="flex h-8 items-center gap-1.5 px-2.5 text-xs font-medium rounded-lg select-none text-zinc-600 dark:text-zinc-400 bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-colors duration-150"
+            className="ml-auto flex h-8 items-center gap-1.5 px-2.5 text-xs font-medium rounded-lg select-none text-zinc-600 dark:text-zinc-400 bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-colors duration-150"
           >
             {allSelected ? (
               <X className="w-3.5 h-3.5" />
@@ -141,57 +139,7 @@ export function SubtaskHeader({
             {allSelected ? tHome('deselectAll') : tHome('selectAll')}
           </button>
 
-          {/* 一括ステータス変更セグメント — タスク一覧 (HomeToolbar) と同じ。
-              1件以上選択で各セグメントが色付きになりクリック可能。 */}
-          <div
-            className={`flex h-8 items-stretch overflow-hidden rounded-lg border transition-colors ${
-              selectedSubtaskIds.size > 0
-                ? 'border-slate-300 dark:border-slate-600 shadow-sm'
-                : 'border-slate-200 dark:border-slate-700'
-            } bg-white dark:bg-slate-900/50`}
-          >
-            {(['todo', 'in-progress', 'done'] as const).map((status, idx) => {
-              const config = getStatusDisplay(t, status);
-              const enabled = selectedSubtaskIds.size > 0;
-              const enabledClasses =
-                status === 'todo'
-                  ? 'bg-zinc-50 text-zinc-600 dark:bg-zinc-800/60 dark:text-zinc-300 hover:bg-zinc-200 hover:text-zinc-800 dark:hover:bg-zinc-700 dark:hover:text-zinc-100 active:bg-zinc-300 dark:active:bg-zinc-600'
-                  : status === 'in-progress'
-                    ? 'bg-blue-50 text-blue-600 dark:bg-blue-900/20 dark:text-blue-300 hover:bg-blue-100 hover:text-blue-800 dark:hover:bg-blue-900/40 dark:hover:text-blue-200 active:bg-blue-200 dark:active:bg-blue-900/60'
-                    : 'bg-green-50 text-green-600 dark:bg-green-900/20 dark:text-green-300 hover:bg-green-100 hover:text-green-800 dark:hover:bg-green-900/40 dark:hover:text-green-200 active:bg-green-200 dark:active:bg-green-900/60';
-              return (
-                <React.Fragment key={status}>
-                  {idx > 0 && (
-                    <div
-                      className={`w-px shrink-0 ${
-                        enabled
-                          ? 'bg-slate-300 dark:bg-slate-600'
-                          : 'bg-slate-200 dark:bg-slate-700'
-                      }`}
-                    />
-                  )}
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      if (enabled) onBulkUpdateStatus(status);
-                    }}
-                    disabled={!enabled}
-                    title={enabled ? tHome('changeToStatus', { status: config.label }) : undefined}
-                    className={`flex items-center gap-1 px-2 text-xs font-medium transition-colors duration-100 ${
-                      enabled
-                        ? `cursor-pointer ${enabledClasses}`
-                        : 'cursor-not-allowed text-slate-300 dark:text-slate-600'
-                    }`}
-                  >
-                    <span className="h-3.5 w-3.5">{renderStatusIcon(status)}</span>
-                    <span>{config.label}</span>
-                  </button>
-                </React.Fragment>
-              );
-            })}
-          </div>
-
-          {/* 削除 — ボトムリッジ (赤)。破壊的操作なので右端に分離。件数は
+          {/* 削除 — ボトムリッジ (赤)。破壊的操作なので右端。件数は
               「選択中 (n件)」側に出るのでラベルは「削除」のみ。 */}
           {selectedSubtaskIds.size > 0 && (
             <button
@@ -199,7 +147,7 @@ export function SubtaskHeader({
                 e.stopPropagation();
                 onSetDeleteConfirm('selected');
               }}
-              className="ml-auto flex h-8 items-center gap-1 px-2.5 text-xs font-medium rounded-lg border border-red-200 dark:border-red-800 bg-white dark:bg-zinc-900 text-red-600 dark:text-red-400 shadow-[0_2px_0_0_#fca5a5] dark:shadow-[0_2px_0_0_#7f1d1d] hover:bg-red-50 dark:hover:bg-red-900/30 active:translate-y-[1px] active:shadow-none transition-all duration-75"
+              className="flex h-8 items-center gap-1 px-2.5 text-xs font-medium rounded-lg border border-red-200 dark:border-red-800 bg-white dark:bg-zinc-900 text-red-600 dark:text-red-400 shadow-[0_2px_0_0_#fca5a5] dark:shadow-[0_2px_0_0_#7f1d1d] hover:bg-red-50 dark:hover:bg-red-900/30 active:translate-y-[1px] active:shadow-none transition-all duration-75"
             >
               <Trash2 className="w-3.5 h-3.5" />
               {tc('delete')}

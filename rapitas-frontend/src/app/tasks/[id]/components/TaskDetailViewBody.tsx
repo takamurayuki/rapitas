@@ -33,7 +33,6 @@ interface TaskActionsViewSlice {
   toggleSubtaskSelection: (id: number) => void;
   handleDeleteAllSubtasks: () => Promise<void>;
   handleDeleteSelectedSubtasks: () => Promise<void>;
-  bulkUpdateSubtaskStatus: (status: string) => Promise<void>;
   startEditingSubtask: (subtask: NonNullable<Task['subtasks']>[number]) => void;
   setEditingSubtaskTitle: (v: string) => void;
   setEditingSubtaskDescription: (v: string) => void;
@@ -229,7 +228,6 @@ export default function TaskDetailViewBody({
           onSetDeleteConfirm={taskActions.setShowSubtaskDeleteConfirm}
           onDeleteAll={taskActions.handleDeleteAllSubtasks}
           onDeleteSelected={taskActions.handleDeleteSelectedSubtasks}
-          onBulkUpdateStatus={taskActions.bulkUpdateSubtaskStatus}
           onStartEditingSubtask={taskActions.startEditingSubtask}
           onSetEditingSubtaskTitle={taskActions.setEditingSubtaskTitle}
           onSetEditingSubtaskDescription={taskActions.setEditingSubtaskDescription}
