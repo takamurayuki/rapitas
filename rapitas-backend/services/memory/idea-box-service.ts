@@ -244,9 +244,38 @@ export async function submitIdea(input: SubmitIdeaInput): Promise<number> {
     if (themeId == null) themeId = await resolveDefaultThemeId();
   }
 
+  // Quality-Diversity gate (R5): the lexical filters above catch re-files, not
+  // semantic monoculture. An independent judge compares the candidate against
+  // its nearest open neighbors and assigns a QD grid cell; occupied cells only
+  // admit a candidate that beats the incumbents. Fail-open (judge unavailable
+  // → accepted as before). A rejection returns the duplicate/incumbent id so
+  // callers see a no-op dedup, matching the lexical gates' contract.
+  const { evaluateIdeaQd } = await import('./idea-qd-gate');
+  const qd = await evaluateIdeaQd({ title, content, themeId });
+  if (!qd.accept) {
+    log.info(
+      { title: input.title, duplicateOfId: qd.duplicateOfId, reason: qd.reason },
+      '[idea-box] Rejected idea by QD gate',
+    );
+    if (qd.duplicateOfId != null) return qd.duplicateOfId;
+    // No concrete incumbent to point at — anchor on the most recent open idea,
+    // mirroring the saturation gate's anchor behavior.
+    const fallback = await prisma.knowledgeEntry.findFirst({
+      where: { sourceType: 'idea_box' },
+      orderBy: { createdAt: 'desc' },
+      select: { id: true },
+    });
+    if (fallback) return fallback.id;
+  }
+
   const scope = input.scope ?? (themeId ? 'project' : 'global');
   const priority = normalizeIdeaPriority(input.priority);
-  const allTags = [...(input.tags ?? []), `scope:${scope}`, `priority:${priority}`];
+  const allTags = [
+    ...(input.tags ?? []),
+    `scope:${scope}`,
+    `priority:${priority}`,
+    ...(qd.cell ? [`cell:${qd.cell}`] : []),
+  ];
 
   const entry = await prisma.knowledgeEntry.create({
     data: {

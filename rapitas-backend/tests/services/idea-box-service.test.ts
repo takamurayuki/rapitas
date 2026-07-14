@@ -38,6 +38,14 @@ mock.module('../../config/logger', () => ({
 mock.module('../../services/memory/utils', () => ({
   createContentHash: mock(() => 'test-hash'),
 }));
+// QD gate (R5) is judged by an external LLM — pass everything through here so
+// submitIdea's own storage logic is what's under test (gate has its own tests).
+mock.module('../../services/memory/idea-qd-gate', () => ({
+  evaluateIdeaQd: mock(() =>
+    Promise.resolve({ accept: true, reason: 'test-passthrough', judged: false }),
+  ),
+  isQdIdeaGateEnabled: () => false,
+}));
 
 const service = await import('../../services/memory/idea-box-service');
 const { submitIdea, listIdeas, markIdeaAsUsed, getIdeaStats } = service;

@@ -30,6 +30,13 @@ mock.module('../../config/database', () => ({
   },
 }));
 
+// QD gate (R5) needs an external LLM judge — pass through so the lexical
+// saturation gate under test is what decides.
+mock.module('./idea-qd-gate', () => ({
+  evaluateIdeaQd: () => Promise.resolve({ accept: true, reason: 'test', judged: false }),
+  isQdIdeaGateEnabled: () => false,
+}));
+
 const { submitIdea } = await import('./idea-box-service');
 
 describe('submitIdea — theme-saturation gate (anti-monoculture)', () => {
