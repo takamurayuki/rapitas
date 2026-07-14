@@ -102,21 +102,19 @@ function NewTaskClient() {
                   onSelect={form.handleThemeSelect}
                 />
               </FieldItem>
-
-              {/* ラベル — 旧「詳細設定」アコーディオンから昇格 (2026-07-14 要望)。
-                  選択テーマのカテゴリにスコープ。 */}
-              <FieldItem
-                label={t('labels')}
-                icon={<Tag className="w-3.5 h-3.5" />}
-                className="flex-1"
-              >
-                <LabelSelector
-                  selectedLabelIds={form.selectedLabelIds}
-                  onChange={form.setSelectedLabelIds}
-                  categoryId={form.selectedTheme?.categoryId ?? null}
-                />
-              </FieldItem>
             </InlineFieldGroup>
+          </div>
+
+          {/* ラベル — 独立行 (優先度・テーマ行に同居させるとセレクタが潰れる)。
+              選択テーマのカテゴリにスコープ。 */}
+          <div className="px-4 py-3 border-b border-zinc-100 dark:border-zinc-800">
+            <FieldItem label={t('labels')} icon={<Tag className="w-3.5 h-3.5" />} fullWidth>
+              <LabelSelector
+                selectedLabelIds={form.selectedLabelIds}
+                onChange={form.setSelectedLabelIds}
+                categoryId={form.selectedTheme?.categoryId ?? null}
+              />
+            </FieldItem>
           </div>
 
           {/* Workload + Due Date — always-visible row (工数が先) */}
