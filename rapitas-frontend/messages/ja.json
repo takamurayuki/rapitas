@@ -2175,6 +2175,7 @@
       "modeTooltipManual": "ワークフロー: {mode}（手動指定）",
       "modeTooltipAuto": "ワークフロー: {mode}（複雑度から自動選択）",
       "complexitySuffix": " · 複雑度 {score}",
+      "complexityPendingSuffix": " · 複雑度 -",
       "manualSuffix": "（手動）",
       "autoApproveTooltipOn": "計画自動承認: ON（plan.md 保存で自動進行）",
       "autoApproveTooltipOff": "計画自動承認: OFF（手動承認が必要）",

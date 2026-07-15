@@ -185,7 +185,10 @@ describe('createParentTask', () => {
     expect(prisma.task.update).not.toHaveBeenCalled();
   });
 
-  test('複雑度分析が成功した場合 → workflowMode と complexityScore を更新すること', async () => {
+  test('複雑度分析が成功した場合 → workflowMode のみ更新し、ヒューリスティックscoreは永続化しないこと', async () => {
+    // NOTE: complexityScore is reserved for the research agent's code-grounded
+    // assessment (applyResearchAssessedComplexity) — the creation-time metadata
+    // heuristic only picks the initial mode and must NOT be persisted.
     prisma.task.findUnique.mockResolvedValueOnce({ id: 100, taskLabels: [] });
     mockAnalyzeTaskComplexityWithLearning.mockResolvedValueOnce({ complexityScore: 42 });
     mockGetAllModeSettings.mockResolvedValueOnce({ lightweight: {} });
@@ -196,7 +199,7 @@ describe('createParentTask', () => {
     expect(mockRecommendModeFromSettings).toHaveBeenCalledWith(42, { lightweight: {} });
     expect(prisma.task.update).toHaveBeenCalledWith({
       where: { id: 100 },
-      data: { workflowMode: 'comprehensive', complexityScore: 42 },
+      data: { workflowMode: 'comprehensive' },
     });
   });
 

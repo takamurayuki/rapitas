@@ -188,7 +188,10 @@ export default function TaskWorkflowSection({
                 {modeLabel ?? t('title')}
                 {complexity != null
                   ? t('taskWorkflowSection.complexitySuffix', { score: Math.round(complexity) })
-                  : ''}
+                  : // Not yet assessed: the score now comes exclusively from the
+                    // research agent's code-grounded evaluation — show a pending
+                    // "-" instead of hiding the field (or a heuristic guess).
+                    t('taskWorkflowSection.complexityPendingSuffix')}
                 {task?.workflowModeOverride ? t('taskWorkflowSection.manualSuffix') : ''}
               </span>
             )}

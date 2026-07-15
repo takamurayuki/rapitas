@@ -251,20 +251,18 @@ export class WorkflowOrchestrator {
             },
           })
           .catch(() => null);
+        // The metadata heuristic is computed IN-MEMORY for this provisional
+        // mode pick only — it is not persisted. task.complexityScore holds
+        // exclusively the research agent's code-grounded assessment
+        // (applyResearchAssessedComplexity); the UI shows 複雑度"-" until then.
         let score = fresh?.complexityScore ?? null;
         if (score == null) {
-          await scoreTaskComplexity(taskId, {
+          score = await computeMetadataComplexity({
             ...task,
             goals: fresh?.goals ?? task.goals,
             constraints: fresh?.constraints ?? task.constraints,
             acceptanceCriteria: fresh?.acceptanceCriteria ?? task.acceptanceCriteria,
-          }).catch(() => {});
-          score =
-            (
-              await prisma.task
-                .findUnique({ where: { id: taskId }, select: { complexityScore: true } })
-                .catch(() => null)
-            )?.complexityScore ?? null;
+          }).catch(() => null);
         }
         if (score != null) {
           const { selectProvisionalMode } = await import('./workflow-mode-config');
@@ -569,17 +567,13 @@ export class WorkflowOrchestrator {
     // roles, to mitigate self-evaluation bias).
     if (!effectiveModelId || effectiveModelId === 'auto') {
       try {
-        // Ensure the task has a complexity score BEFORE routing. Only the manual
-        // execute-route scored it; the auto-run path never did, so every
-        // auto-run phase fell back to SmartRouter's complexity=50 default
-        // ('standard'). NOTE: this score is a metadata heuristic (title /
-        // description / structured-spec counts), NOT a scan of the actual repo
-        // code — an a-priori estimate, refined by history elsewhere.
-        if (task.complexityScore == null) {
-          await scoreTaskComplexity(taskId, task).catch((err) =>
-            log.warn({ err, taskId }, '[WorkflowOrchestrator] Complexity scoring failed'),
-          );
-        }
+        // NOTE: No pre-routing heuristic scoring here anymore. Before research
+        // runs, task.complexityScore is intentionally null and SmartRouter
+        // falls back to its neutral 50 ('standard') — a weak title/description
+        // guess must not masquerade as a measured value and steer model tiers.
+        // After research, the agent's code-grounded score (persisted by
+        // applyResearchAssessedComplexity) drives routing for the remaining
+        // phases (plan / implement / verify).
 
         const [
           { getStableSmartRoute },
@@ -855,20 +849,26 @@ export class WorkflowOrchestrator {
  * @param taskId - Task to score. / 対象タスクID
  * @param task - Already-loaded task row (scalar fields). / 取得済みタスク行
  */
-async function scoreTaskComplexity(
-  taskId: number,
-  task: {
-    title: string;
-    description: string | null;
-    estimatedHours: number | null;
-    priority: string | null;
-    themeId: number | null;
-    labels?: unknown;
-    goals?: unknown;
-    constraints?: unknown;
-    acceptanceCriteria?: unknown;
-  },
-): Promise<void> {
+/**
+ * Compute the METADATA-heuristic complexity (title / description /
+ * structured-spec counts) IN MEMORY — never persisted. task.complexityScore is
+ * reserved for the research agent's code-grounded assessment; this transient
+ * estimate only seeds the provisional workflow-mode pick before research.
+ *
+ * @param task - Task metadata fields. / タスクのメタデータ
+ * @returns Heuristic 0-100 score. / ヒューリスティックスコア
+ */
+async function computeMetadataComplexity(task: {
+  title: string;
+  description: string | null;
+  estimatedHours: number | null;
+  priority: string | null;
+  themeId: number | null;
+  labels?: unknown;
+  goals?: unknown;
+  constraints?: unknown;
+  acceptanceCriteria?: unknown;
+}): Promise<number> {
   const { analyzeTaskComplexity } = await import('./complexity-analyzer');
   // labels/goals/constraints/acceptanceCriteria are persisted as JSON strings
   // (or already arrays). Parse tolerantly — never throw on malformed data.
@@ -895,14 +895,7 @@ async function scoreTaskComplexity(
     constraints: parseArr(task.constraints),
     acceptanceCriteria: parseArr(task.acceptanceCriteria),
   });
-  await prisma.task.update({
-    where: { id: taskId },
-    data: { complexityScore: scored.complexityScore },
-  });
-  log.info(
-    { taskId, complexityScore: scored.complexityScore },
-    '[WorkflowOrchestrator] Scored task complexity for routing',
-  );
+  return scored.complexityScore;
 }
 
 async function resolveExecutableAgentConfig<

@@ -194,15 +194,19 @@ export async function createParentTask(
         await getAllModeSettings(),
       );
 
+      // NOTE: The metadata heuristic score is used ONLY to pick the initial
+      // workflow mode — it is deliberately NOT persisted to complexityScore.
+      // That column now holds exclusively the code-grounded value the research
+      // agent assesses after inspecting the repo (applyResearchAssessedComplexity);
+      // the UI shows 複雑度"-" until then. Persisting the title/description
+      // heuristic here made a weak a-priori guess look like a measured value
+      // and fed model routing before research ever ran.
       await prisma.task.update({
         where: { id: createdTask.id },
-        data: {
-          workflowMode: recommendedMode,
-          complexityScore: analysis.complexityScore,
-        },
+        data: { workflowMode: recommendedMode },
       });
       logger.info(
-        `[task-create-helpers] Auto-assigned workflow mode: ${recommendedMode} (score: ${analysis.complexityScore}) for task ${createdTask.id}`,
+        `[task-create-helpers] Auto-assigned workflow mode: ${recommendedMode} (heuristic score: ${analysis.complexityScore}, not persisted) for task ${createdTask.id}`,
       );
     } catch (err) {
       // NOTE: Complexity analysis failure should not block task creation

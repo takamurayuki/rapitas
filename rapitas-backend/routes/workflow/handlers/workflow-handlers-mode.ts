@@ -131,10 +131,14 @@ export async function handleAnalyzeComplexity({
 
     const analysisResult = await analyzeTaskComplexityWithLearning(complexityInput);
 
+    // NOTE: Apply the recommended MODE only. The heuristic score is NOT
+    // persisted — task.complexityScore is reserved for the research agent's
+    // code-grounded assessment (applyResearchAssessedComplexity); the UI shows
+    // 複雑度"-" until that lands. The full analysis is still returned to the
+    // caller for transient display.
     const updatedTask = await prisma.task.update({
       where: { id: taskId },
       data: {
-        complexityScore: analysisResult.complexityScore,
         workflowMode: task.workflowModeOverride
           ? task.workflowMode
           : analysisResult.recommendedMode,

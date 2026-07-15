@@ -2175,6 +2175,7 @@
       "modeTooltipManual": "Workflow: {mode} (manually set)",
       "modeTooltipAuto": "Workflow: {mode} (auto-selected from complexity)",
       "complexitySuffix": " · Complexity {score}",
+      "complexityPendingSuffix": " · Complexity -",
       "manualSuffix": " (manual)",
       "autoApproveTooltipOn": "Auto-approve plan: ON (advances automatically when plan.md is saved)",
       "autoApproveTooltipOff": "Auto-approve plan: OFF (manual approval required)",
