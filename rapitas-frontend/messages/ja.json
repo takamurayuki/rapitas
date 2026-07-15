@@ -2255,6 +2255,7 @@
     "themeNamePlaceholder": "テーマ名を入力",
     "themeNameRequired": "テーマ名を入力してください",
     "categoryRequired": "カテゴリを選択してください",
+    "repositoryUrlRequired": "開発プロジェクトにはGitHubリポジトリURLを入力してください",
     "selectCategory": "カテゴリを選択してください",
     "belongsToCategory": "所属カテゴリ",
     "newTheme": "新規テーマ",

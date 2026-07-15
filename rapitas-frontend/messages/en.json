@@ -2255,6 +2255,7 @@
     "themeNamePlaceholder": "Enter theme name",
     "themeNameRequired": "Please enter a theme name",
     "categoryRequired": "Please select a category",
+    "repositoryUrlRequired": "Please enter a GitHub repository URL for the development project",
     "selectCategory": "Please select a category",
     "belongsToCategory": "Category",
     "newTheme": "New Theme",

@@ -76,6 +76,10 @@ export function useThemeCrud({ getFormData, fetchItems }: Options) {
       showToast(t('categoryRequired'), 'error');
       return;
     }
+    if (formData.isDevelopment && !formData.repositoryUrl.trim()) {
+      showToast(t('repositoryUrlRequired'), 'error');
+      return;
+    }
 
     try {
       const res = await fetch(`${API_BASE_URL}/themes`, {
@@ -116,6 +120,10 @@ export function useThemeCrud({ getFormData, fetchItems }: Options) {
     }
     if (!formData.categoryId) {
       showToast(t('categoryRequired'), 'error');
+      return;
+    }
+    if (formData.isDevelopment && !formData.repositoryUrl.trim()) {
+      showToast(t('repositoryUrlRequired'), 'error');
       return;
     }
 
