@@ -10,6 +10,7 @@ import { readWorkflowFile } from './workflow-file-utils';
 import { buildMemoryContext } from './workflow-memory-context';
 import { buildHypothesisContext } from './workflow-hypothesis-context';
 import { buildRejectedPlanContext } from './workflow-rejected-plan-context';
+import { buildCaseContext } from './workflow-case-context';
 import { buildCriticFeedback } from './phase-critic';
 import type { WorkflowRole } from './workflow-types';
 
@@ -271,6 +272,12 @@ export async function buildRoleContext(
       if (rejected) {
         ctx += `\n\n${rejected}`;
       }
+      // CBR (R9): the nearest SOLVED similar task's plan-that-worked — concrete
+      // file layout / step ordering to adapt, stronger than abstract lessons.
+      const plannerCase = await buildCaseContext(taskId, task, language);
+      if (plannerCase) {
+        ctx += `\n\n${plannerCase}`;
+      }
       if (research) {
         ctx += `\n\n${t.planner.researchHeader}\n\n${research}`;
       }
@@ -318,6 +325,15 @@ export async function buildRoleContext(
       const hypothesis = await buildHypothesisContext(taskId, language);
       if (hypothesis) {
         ctx += `\n\n${hypothesis}`;
+      }
+      // CBR (R9): only when there is NO plan (lightweight) — with a plan the
+      // planner already consumed the solved case, and re-injecting it here
+      // would bloat the largest context and could conflict with the plan.
+      if (!plan) {
+        const implementerCase = await buildCaseContext(taskId, task, language);
+        if (implementerCase) {
+          ctx += `\n\n${implementerCase}`;
+        }
       }
       if (research) {
         ctx += `\n\n${t.implementer.researchHeader}\n\n${research}`;
