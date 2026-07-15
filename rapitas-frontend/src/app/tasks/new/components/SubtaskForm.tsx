@@ -1,7 +1,7 @@
 'use client';
 // SubtaskForm — mirrors the task detail page's AddSubtaskForm design.
 import { useRef } from 'react';
-import { Flag, Clock, Save, X } from 'lucide-react';
+import { Flag, Clock, Save } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import type { Priority } from '@/types';
 import { useAutosizeTextarea } from '@/hooks/ui/useAutosizeTextarea';
@@ -113,17 +113,8 @@ export function SubtaskForm({
         </div>
       </div>
 
-      {/* Divider + right-aligned actions — same control family as the detail
-          page's subtask forms (cancel precedes save). */}
+      {/* Divider + right-aligned actions */}
       <div className="flex items-center justify-end gap-2 pt-3 border-t border-zinc-200 dark:border-zinc-700">
-        <button
-          type="button"
-          onClick={onReset}
-          className="flex items-center gap-2 px-3 py-2 text-xs font-medium rounded-lg border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-zinc-600 dark:text-zinc-400 shadow-[0_2px_0_0_#d4d4d8] dark:shadow-[0_2px_0_0_#27272a] hover:bg-zinc-50 dark:hover:bg-zinc-800/40 active:translate-y-[1px] active:shadow-none transition-all duration-75"
-        >
-          <X className="w-4 h-4" />
-          <span className="font-mono font-black tracking-tight">{tc('cancel')}</span>
-        </button>
         <button
           type="button"
           onClick={onAdd}
