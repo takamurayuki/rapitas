@@ -227,6 +227,7 @@ const TaskCard = memo(function TaskCard({
                 stuck for 30s or 30min. */}
             {tc.executionElapsed && (
               <>
+                <span className="text-zinc-300 dark:text-zinc-700">•</span>
                 <span
                   className={`inline-flex items-center gap-0.5 shrink-0 font-medium ${
                     tc.isWaitingForInput
@@ -238,7 +239,6 @@ const TaskCard = memo(function TaskCard({
                   <Clock className="w-3 h-3" aria-hidden="true" />
                   {tc.executionElapsed}
                 </span>
-                <span className="text-zinc-300 dark:text-zinc-700">•</span>
               </>
             )}
             {tc.localSubtasks.length > 0 && (
