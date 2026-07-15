@@ -5,7 +5,7 @@
  * WorkflowOrchestrator.runAdvanceWorkflow:
  *   - the Smart Router auto-select block, entered when the resolved
  *     modelId is unset/'auto' (success routes to the recommended model;
- *     failure falls back to a hardcoded Haiku default)
+ *     failure falls back to the evergreen sonnet alias)
  *   - resolveExecutableAgentConfig, which runs on EVERY phase (auto-selected
  *     or not) to keep the agent type consistent with whatever model ends up
  *     selected — same-provider passthrough, cross-provider agent swap, and
@@ -239,7 +239,7 @@ describe('WorkflowOrchestrator — Smart Router auto-select', () => {
     expect(cfg.modelId).toBe('claude-sonnet-4-5-20250101');
   });
 
-  test('Smart Router failure falls back to the hardcoded Haiku default', async () => {
+  test('Smart Router failure falls back to the evergreen sonnet alias', async () => {
     roleConfigFindUniqueMock.mockImplementation(() =>
       Promise.resolve(makeRoleConfig({ agentConfig: { modelId: 'auto' } })),
     );
@@ -249,7 +249,9 @@ describe('WorkflowOrchestrator — Smart Router auto-select', () => {
     await orchestrator.advanceWorkflow(1);
 
     const cfg = executeCLIAgentMock.mock.calls[0]?.[2] as { modelId: string };
-    expect(cfg.modelId).toBe('claude-haiku-4-5-20251001');
+    // Alias fallback: the CLI resolves 'sonnet' to the current release, so
+    // the fallback cannot go stale (the old pinned date-suffixed Haiku could).
+    expect(cfg.modelId).toBe('sonnet');
   });
 });
 

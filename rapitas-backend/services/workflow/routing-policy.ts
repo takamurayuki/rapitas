@@ -16,8 +16,20 @@ import type { ModelTier } from '../ai/model-discovery';
 /** Highest → lowest capability. Index 0 is the strongest tier. */
 const TIER_ORDER: ModelTier[] = ['premium', 'standard', 'economy', 'free'];
 
-/** Phases that produce or judge code and therefore need real capability. */
-const CAPABILITY_ROLES = new Set(['implementer', 'reviewer', 'verifier', 'auto_verifier']);
+/**
+ * Phases that produce or judge code — or produce the PLAN all code follows —
+ * and therefore need real capability. Planner is included: a defective plan is
+ * the most expensive failure mode (every implementation step inherits it, and
+ * it passes a human approval gate that anchors on it), so it must not run on
+ * an economy model just because the task metadata scored low complexity.
+ */
+const CAPABILITY_ROLES = new Set([
+  'implementer',
+  'planner',
+  'reviewer',
+  'verifier',
+  'auto_verifier',
+]);
 
 /**
  * Presence of any of these in the task text OR plan marks the work high-risk:

@@ -106,11 +106,18 @@ describe('getSmartRoute — 複雑度による tier 選定', () => {
     expect(route.recommendedTier).toBe('premium');
   });
 
-  test('複雑度>70 + 非緊急 → standard（premiumへ昇格しない）', async () => {
+  test('複雑度71-85 + 非緊急 → standard（premiumへ昇格しない）', async () => {
     taskRow = { complexityScore: 85, title: 'T', priority: 'medium' };
     selectBestModelImpl = (ctx) => ({ model: model('m', ctx.desiredTier), tier: ctx.desiredTier });
     const route = await getSmartRoute(1);
     expect(route.recommendedTier).toBe('standard');
+  });
+
+  test('複雑度>85 は非緊急でも premium（修復ループより初回premiumが安い）', async () => {
+    taskRow = { complexityScore: 90, title: 'T', priority: 'medium' };
+    selectBestModelImpl = (ctx) => ({ model: model('m', ctx.desiredTier), tier: ctx.desiredTier });
+    const route = await getSmartRoute(1);
+    expect(route.recommendedTier).toBe('premium');
   });
 
   test('taskが見つからない場合は複雑度50として扱う（デフォルト分岐）', async () => {
@@ -214,12 +221,12 @@ describe('getSmartRoute — cooldown プロバイダーの自動除外（フォ�
 });
 
 describe('getSmartRoute — selectBestModel が null のときの最終フォールバック', () => {
-  test('discovery にもモデルが無ければ既定の sonnet id にフォールバックする', async () => {
+  test('discovery にもモデルが無ければ sonnet エイリアスにフォールバックする（版指定IDは廃止済みで拒否され得る）', async () => {
     discoveryModels = [];
     selectBestModelResult = null;
     selectBestModelImpl = null;
     const route = await getSmartRoute(1, {});
-    expect(route.recommendedModel).toBe('claude-sonnet-4-6');
+    expect(route.recommendedModel).toBe('sonnet');
   });
 
   test('selectBestModel が null でも discovery.models[0] があればそれを使う', async () => {

@@ -18,14 +18,15 @@ describe('highestTier', () => {
 });
 
 describe('isCapabilityRole', () => {
-  test('実装/レビュー/検証は capability ロール', () => {
-    for (const r of ['implementer', 'reviewer', 'verifier', 'auto_verifier']) {
+  test('実装/計画/レビュー/検証は capability ロール', () => {
+    // NOTE: planner added — a defective plan is the most expensive failure
+    // mode (all implementation follows it), so it gets the standard floor too.
+    for (const r of ['implementer', 'planner', 'reviewer', 'verifier', 'auto_verifier']) {
       expect(isCapabilityRole(r)).toBe(true);
     }
   });
-  test('調査/計画は capability ロールではない', () => {
+  test('調査は capability ロールではない', () => {
     expect(isCapabilityRole('researcher')).toBe(false);
-    expect(isCapabilityRole('planner')).toBe(false);
   });
 });
 

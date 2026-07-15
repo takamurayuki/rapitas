@@ -681,8 +681,11 @@ export class WorkflowOrchestrator {
           'Auto-selected model via Smart Router',
         );
       } catch {
-        effectiveModelId = 'claude-haiku-4-5-20251001';
-        log.warn({ taskId }, 'Smart Router failed, falling back to Haiku');
+        // Bare alias, not a pinned date-suffixed id: the CLI resolves 'sonnet'
+        // to the current release, so this fallback cannot go stale/be rejected
+        // at spawn the way 'claude-haiku-4-5-20251001' could after retirement.
+        effectiveModelId = 'sonnet';
+        log.warn({ taskId }, 'Smart Router failed, falling back to the sonnet alias');
       }
     }
 

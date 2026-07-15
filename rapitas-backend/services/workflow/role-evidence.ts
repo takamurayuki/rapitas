@@ -36,7 +36,25 @@ interface OutcomeRow {
   status: string;
   errorMessage: string | null;
   modelName: string | null;
+  session?: { config?: { taskId?: number | null } | null } | null;
 }
+
+/**
+ * Workflow-transition causes that indict a ROLE's output quality, per role.
+ * An execution can end status='completed' while its work was REJECTED by the
+ * verify/adversarial gates (the bounce re-runs as a NEW execution; only repair
+ * exhaustion marks an execution failed) — counting those as successes let a
+ * cheap model look "proven" while it was actually bouncing constantly, which
+ * would lower the role floor and degrade quality. Verify-phase bounces indict
+ * the IMPLEMENTER (its diff was rejected); a self-contradicting verify.md
+ * indicts the VERIFIER. Roles not listed keep process-level success (their
+ * output has no downstream gate that attributes failure to them).
+ */
+const ROLE_TROUBLE_CAUSES: Record<string, string[]> = {
+  implementer: ['verify_repair', 'adversarial_review_failed', 'ci_repair', 'verify_no_changes'],
+  verifier: ['verify_validation_failed', 'log_polluted_rejected'],
+  auto_verifier: ['verify_validation_failed', 'log_polluted_rejected'],
+};
 
 /** Minimum samples before a model's record counts as evidence. */
 function minSamples(): number {
@@ -60,6 +78,9 @@ function evidenceRoutingEnabled(): boolean {
  *
  * Executions with a null modelName are excluded — those are runs that died
  * before the CLI reported usage, so they cannot be attributed to a model.
+ * For gated roles (see ROLE_TROUBLE_CAUSES) a success additionally requires
+ * that the task recorded NO role-indicting rejection — "the process exited 0"
+ * is not evidence that the WORK was acceptable.
  *
  * @param role - Workflow role (e.g. "implementer") / ワークフローロール
  * @param windowDays - Trailing window in days (default 45) / 集計対象日数
@@ -78,15 +99,49 @@ export async function getRoleModelOutcomes(
       modelName: { not: null },
       session: { mode: `workflow-${role}` },
     },
-    select: { status: true, errorMessage: true, modelName: true },
+    select: {
+      status: true,
+      errorMessage: true,
+      modelName: true,
+      session: { select: { config: { select: { taskId: true } } } },
+    },
   })) as OutcomeRow[];
+
+  // Gate-rejection lookup: tasks whose verify/adversarial transitions indict
+  // this role's output. Best-effort — a query failure yields an empty set,
+  // i.e. the (legacy, more permissive) process-level success definition.
+  const troubleCauses = ROLE_TROUBLE_CAUSES[role] ?? [];
+  const taskIds = [
+    ...new Set(
+      rows
+        .map((r) => r.session?.config?.taskId)
+        .filter((id): id is number => typeof id === 'number'),
+    ),
+  ];
+  let troubledTasks = new Set<number>();
+  if (troubleCauses.length > 0 && taskIds.length > 0) {
+    const troubleRows = await prisma.workflowTransition
+      .findMany({
+        where: {
+          taskId: { in: taskIds },
+          cause: { in: troubleCauses },
+          createdAt: { gte: cutoff },
+        },
+        select: { taskId: true },
+        distinct: ['taskId'],
+      })
+      .catch(() => [] as Array<{ taskId: number }>);
+    troubledTasks = new Set(troubleRows.map((t) => t.taskId));
+  }
 
   const byModel = new Map<string, { samples: number; successes: number }>();
   for (const r of rows) {
     if (!r.modelName) continue;
     const acc = byModel.get(r.modelName) ?? { samples: 0, successes: 0 };
     acc.samples += 1;
-    if (r.status === 'completed' && !r.errorMessage) acc.successes += 1;
+    const taskId = r.session?.config?.taskId;
+    const gateRejected = typeof taskId === 'number' && troubledTasks.has(taskId);
+    if (r.status === 'completed' && !r.errorMessage && !gateRejected) acc.successes += 1;
     byModel.set(r.modelName, acc);
   }
 

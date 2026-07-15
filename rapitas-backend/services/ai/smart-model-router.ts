@@ -235,6 +235,12 @@ export async function getSmartRoute(
     recommendedTier = 'economy';
   } else if (complexity <= 70) {
     recommendedTier = 'standard';
+  } else if (complexity > 85) {
+    // Very high complexity forces premium regardless of urgency: a standard
+    // model failing here re-runs through the verify/adversarial repair loop,
+    // which costs MORE tokens than a premium first attempt (escalation would
+    // force premium on the retry anyway — pay once, not twice).
+    recommendedTier = 'premium';
   } else {
     recommendedTier = isUrgent ? 'premium' : 'standard';
   }
@@ -322,9 +328,10 @@ export async function getSmartRoute(
   }
 
   // Last-resort fallback: nothing was discovered. Prefer any discovered model;
-  // else a valid current Sonnet id (NOT a date-suffixed one, which can be
-  // rejected at spawn) so the orchestrator never gets an empty/invalid id.
-  const finalModel = recommendedModel ?? discovery.models[0]?.id ?? 'claude-sonnet-4-6';
+  // else the bare 'sonnet' ALIAS — the CLI resolves it to the current Sonnet
+  // release, so this never goes stale the way a pinned versioned id
+  // ('claude-sonnet-4-6') did once that release was retired.
+  const finalModel = recommendedModel ?? discovery.models[0]?.id ?? 'sonnet';
   const costEstimate = await estimateCost(complexity, finalModel);
 
   const reason = evidenceApplied

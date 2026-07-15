@@ -21,9 +21,11 @@ mock.module('../../config/logger', () => ({
 }));
 
 const findMany = mock(() => Promise.resolve([] as unknown[]));
+const transitionFindMany = mock(() => Promise.resolve([] as Array<{ taskId: number }>));
 mock.module('../../config/database', () => ({
   prisma: {
     agentExecution: { findMany },
+    workflowTransition: { findMany: transitionFindMany },
   },
 }));
 
@@ -42,6 +44,8 @@ beforeEach(() => {
   _resetProvenTierCache();
   findMany.mockReset();
   findMany.mockImplementation(() => Promise.resolve([]));
+  transitionFindMany.mockReset();
+  transitionFindMany.mockImplementation(() => Promise.resolve([]));
   delete process.env.RAPITAS_EVIDENCE_ROUTING;
   delete process.env.RAPITAS_EVIDENCE_MIN_SAMPLES;
   delete process.env.RAPITAS_EVIDENCE_MIN_SUCCESS;
@@ -129,5 +133,51 @@ describe('resolveProvenTier', () => {
     _resetProvenTierCache();
     await resolveProvenTier('implementer');
     expect(findMany).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe('getRoleModelOutcomes — gate-rejection aware success (実装の差し戻し反映)', () => {
+  /** Rows carrying a taskId via the session relation. */
+  function rowsWithTask(modelName: string, taskIds: number[]): unknown[] {
+    return taskIds.map((taskId) => ({
+      status: 'completed',
+      errorMessage: null,
+      modelName,
+      session: { config: { taskId } },
+    }));
+  }
+
+  test('implementer: verify差し戻しのあったタスクの実行は成功に数えない', async () => {
+    findMany.mockImplementation(() =>
+      Promise.resolve(rowsWithTask('claude-haiku-4-5-20251001', [1, 2, 3, 4])),
+    );
+    // tasks 1 and 2 had verify_repair / adversarial bounces
+    transitionFindMany.mockImplementation(() => Promise.resolve([{ taskId: 1 }, { taskId: 2 }]));
+
+    const outcomes = await getRoleModelOutcomes('implementer');
+    expect(outcomes[0].samples).toBe(4);
+    expect(outcomes[0].successes).toBe(2); // process-completed but gate-rejected ≠ success
+    // The trouble query is scoped to implementer-indicting causes.
+    const [args] = transitionFindMany.mock.calls[0] as [{ where: { cause: { in: string[] } } }];
+    expect(args.where.cause.in).toContain('verify_repair');
+    expect(args.where.cause.in).toContain('adversarial_review_failed');
+  });
+
+  test('researcher: 差し戻し原因の帰属が無いロールはプロセス完了ベースのまま', async () => {
+    findMany.mockImplementation(() =>
+      Promise.resolve(rowsWithTask('claude-haiku-4-5-20251001', [1, 2])),
+    );
+    const outcomes = await getRoleModelOutcomes('researcher');
+    expect(outcomes[0].successes).toBe(2);
+    expect(transitionFindMany).not.toHaveBeenCalled();
+  });
+
+  test('差し戻し照会が失敗しても集計は落ちない（レガシー定義に縮退）', async () => {
+    findMany.mockImplementation(() =>
+      Promise.resolve(rowsWithTask('claude-haiku-4-5-20251001', [1])),
+    );
+    transitionFindMany.mockImplementation(() => Promise.reject(new Error('db down')));
+    const outcomes = await getRoleModelOutcomes('implementer');
+    expect(outcomes[0].successes).toBe(1);
   });
 });
