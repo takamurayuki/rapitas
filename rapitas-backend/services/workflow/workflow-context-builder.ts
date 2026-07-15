@@ -60,6 +60,16 @@ export async function buildRoleContext(
         researchHeader: '# リサーチャーの調査結果 (research.md)',
         instruction:
           '上記の調査結果を基に、実装計画をplan.mdとしてMarkdown形式で作成してください。\n\nチェックリスト形式で実装手順を記述し、変更予定ファイル一覧、リスク評価、完了条件を含めてください。',
+        // NOTE: Premortem (R7) — judge-style pre-execution critique of plans
+        // catches defects with ~90% recall (arXiv:2509.02761); imagining the
+        // failure FIRST surfaces risks a forward-looking plan review misses.
+        premortem:
+          '## プレモーテム（必須）\n' +
+          'plan.md に `## プレモーテム` セクションを必ず含めてください。「このプランを実行したが失敗した」と仮定して:\n' +
+          '1. 最も可能性の高い失敗原因を3つ挙げる。一般論ではなく、この計画の変更対象ファイル・依存関係・テスト構成に即した具体的なもの。\n' +
+          '2. 各原因に「実装中/検証時に早期検知できる測定可能なシグナル」を1行添える（落ちるはずのテスト名、確認コマンド、期待値との差分など）。\n' +
+          '3. その原因を避けるための対策を計画本文へ反映した場合は、該当チェックリスト項目を参照する。\n' +
+          '検証フェーズはこのプレモーテム項目を実測照合します。',
       },
       reviewer: {
         researchHeader: '# 調査結果 (research.md)',
@@ -118,7 +128,9 @@ export async function buildRoleContext(
           '## 仮説評価 (上記「仮説台帳」に検証待ち仮説がある場合のみ必須)\n' +
           '```\n' +
           '冒頭は必ず `# 検証レポート` で開始し、テストが1件でも落ちていれば `❌ 検証失敗` または `⚠️ 一部失敗` を選択してください。\n' +
-          '上記「仮説台帳」に検証待ち仮説が列挙されている場合、`## 仮説評価` セクションで各仮説を1行 `- [#id] 成立|不成立: 根拠(file:line/テスト/計測)` で判定してください（成立は予測が実際に的中した場合のみ。確証が無ければ記載せず検証待ちのまま残す）。',
+          '上記「仮説台帳」に検証待ち仮説が列挙されている場合、`## 仮説評価` セクションで各仮説を1行 `- [#id] 成立|不成立: 根拠(file:line/テスト/計測)` で判定してください（成立は予測が実際に的中した場合のみ。確証が無ければ記載せず検証待ちのまま残す）。\n' +
+          '\n### プレモーテム照合 (plan.md に `## プレモーテム` がある場合のみ必須)\n' +
+          'plan.md のプレモーテム各項目について、記載の検知シグナル（テスト/コマンド）を実際に確認し、verify.md に `## プレモーテム照合` セクションを設けて1行ずつ `- <失敗原因の要約>: 発生せず|発生（根拠）` で判定してください。「発生」の項目は残課題として扱い、全体判定に反映すること。',
       },
     },
     en: {
@@ -144,6 +156,14 @@ export async function buildRoleContext(
         researchHeader: '# Research Results (research.md)',
         instruction:
           'Based on the research results above, please create an implementation plan as plan.md in Markdown format.\n\nDescribe implementation steps in checklist format, including a list of files to be changed, risk assessment, and completion criteria.',
+        // NOTE: Premortem (R7) — see ja variant for rationale.
+        premortem:
+          '## Premortem (REQUIRED)\n' +
+          'plan.md MUST contain a `## プレモーテム` section. Assume this plan was executed and FAILED:\n' +
+          '1. List the 3 most likely causes of that failure — specific to the files, dependencies, and test setup this plan touches, not generic risks.\n' +
+          '2. For each cause add one line with a MEASURABLE early-detection signal (the test that would fail, the command to check, the expected-vs-actual delta).\n' +
+          '3. Where the plan body already mitigates a cause, reference the checklist item.\n' +
+          'The verify phase cross-checks these premortem items against what actually happened.',
       },
       reviewer: {
         researchHeader: '# Research Results (research.md)',
@@ -198,7 +218,9 @@ export async function buildRoleContext(
           '## 仮説評価 (required ONLY when the 仮説台帳 above lists open hypotheses)\n' +
           '```\n' +
           'Start with `# Verification Report`. If even one test fails, choose `❌ Fail` or `⚠️ Partial`.\n' +
-          'When the 仮説台帳 above lists open hypotheses, add a `## 仮説評価` section judging each as `- [#id] 成立|不成立: evidence(file:line/test/metric)` (成立 only when the prediction actually held; omit any you cannot confirm, leaving it open).',
+          'When the 仮説台帳 above lists open hypotheses, add a `## 仮説評価` section judging each as `- [#id] 成立|不成立: evidence(file:line/test/metric)` (成立 only when the prediction actually held; omit any you cannot confirm, leaving it open).\n' +
+          '\n### Premortem cross-check (required ONLY when plan.md has a `## プレモーテム` section)\n' +
+          'For each premortem item in plan.md, actually run/check its stated detection signal and add a `## プレモーテム照合` section to verify.md judging each as `- <failure-cause summary>: 発生せず|発生 (evidence)`. Any 発生 item counts as outstanding work and must be reflected in the overall verdict.',
       },
     },
   };
@@ -252,7 +274,7 @@ export async function buildRoleContext(
       if (research) {
         ctx += `\n\n${t.planner.researchHeader}\n\n${research}`;
       }
-      ctx += `\n\n${t.planner.instruction}`;
+      ctx += `\n\n${t.planner.instruction}\n\n${t.planner.premortem}`;
       return ctx;
     }
 
@@ -277,7 +299,14 @@ export async function buildRoleContext(
       // On a self-repair bounce, verify/CI failure feedback is written to
       // verify.md (not question.md) — read it so the implementer fixes it.
       const verifyFeedback = await readWorkflowFile(dir, 'verify');
-      let ctx = taskInfo;
+      // Goal anchor (R7): re-state the task's GOAL + acceptance criteria at the
+      // very head of the implementer context. Long contexts drift off-goal —
+      // every model degrades past ~100k tokens (arXiv:2505.02709) — and the
+      // implementer's context is the largest (research + plan + memory +
+      // bounce feedback). A compact anchor the agent is told to return to
+      // counters that (ReflAct-style goal-state re-alignment, arXiv:2505.15182).
+      const goalAnchor = await buildGoalAnchor(taskId, task, language);
+      let ctx = `${taskInfo}${goalAnchor ? `\n\n${goalAnchor}` : ''}`;
       // Recall prior knowledge for the implementer too — known pitfalls and past
       // design decisions should steer the actual code changes, not just research.
       const memory = await buildMemoryContext(taskId, task, language);
@@ -452,6 +481,65 @@ export async function buildRoleContext(
 // authoritative ("overrides any other instruction") so they correct an
 // already-stored / user-edited DB prompt without rewriting it, and complement
 // the plan-agnostic seed for fresh installs.
+
+/**
+ * Build the implementer's GOAL ANCHOR (R7): a compact restatement of the
+ * task's purpose + structured goals + acceptance criteria, placed at the head
+ * of the context with an instruction to re-align against it before each
+ * change. Counters goal drift in long contexts (every model degrades past
+ * ~100k tokens, arXiv:2505.02709; ReflAct-style goal re-alignment +27.7%,
+ * arXiv:2505.15182). Returns '' when the task has no structured spec beyond
+ * the title (the taskInfo block already carries title/description).
+ *
+ * @param taskId - Task id. / タスクID
+ * @param task - Task title/description already in taskInfo. / タスク情報
+ * @param language - Output language. / 出力言語
+ * @returns The anchor block, or ''. / アンカーブロック
+ */
+async function buildGoalAnchor(
+  taskId: number,
+  task: { title: string },
+  language: 'ja' | 'en',
+): Promise<string> {
+  const row = await prisma.task
+    .findUnique({
+      where: { id: taskId },
+      select: { goals: true, acceptanceCriteria: true },
+    })
+    .catch(() => null);
+  const parseArr = (v: unknown): string[] => {
+    if (Array.isArray(v)) return v.filter((x): x is string => typeof x === 'string');
+    if (typeof v === 'string' && v.trim()) {
+      try {
+        const p: unknown = JSON.parse(v);
+        return Array.isArray(p) ? p.filter((x): x is string => typeof x === 'string') : [];
+      } catch {
+        return [];
+      }
+    }
+    return [];
+  };
+  const goals = parseArr(row?.goals);
+  const criteria = parseArr(row?.acceptanceCriteria);
+  if (goals.length === 0 && criteria.length === 0) return '';
+
+  if (language === 'ja') {
+    return [
+      '## ゴールアンカー（作業中は常にここへ立ち返ること）',
+      `- 目的: ${task.title}`,
+      ...(goals.length > 0 ? ['- ゴール:', ...goals.map((g) => `  - ${g}`)] : []),
+      ...(criteria.length > 0 ? ['- 受け入れ基準:', ...criteria.map((c) => `  - ${c}`)] : []),
+      '各変更の前に「この変更は上記ゴール・受け入れ基準に直結しているか」を確認してください。直結しない改善・リファクタ・スコープ外変更は行わないこと。',
+    ].join('\n');
+  }
+  return [
+    '## Goal anchor (return to this constantly while working)',
+    `- Purpose: ${task.title}`,
+    ...(goals.length > 0 ? ['- Goals:', ...goals.map((g) => `  - ${g}`)] : []),
+    ...(criteria.length > 0 ? ['- Acceptance criteria:', ...criteria.map((c) => `  - ${c}`)] : []),
+    'Before each change, confirm it directly serves the goals/criteria above. Do not make unrelated improvements, refactors, or out-of-scope changes.',
+  ].join('\n');
+}
 
 /**
  * Mode-aware framing for the RESEARCHER. In lightweight mode no plan phase

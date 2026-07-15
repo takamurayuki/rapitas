@@ -42,10 +42,17 @@ const LENSES: Record<CriticPhase, Lens[]> = {
   ],
 };
 
-/** Whether the research/plan critic gate is enabled (default OFF — opt-in). */
+/**
+ * Whether the research/plan critic gate is enabled (default ON — R7).
+ * Iterative judge-critique of plans detects defects PRE-execution with ~90%
+ * recall (arXiv:2509.02761), and a caught plan defect is far cheaper than the
+ * implement→verify→bounce loop it would otherwise cause. Set
+ * RAPITAS_PHASE_CRITIC=0/false/off to opt out. Callers additionally skip the
+ * gate for lightweight-mode tasks (no plan phase; trivial work stays cheap).
+ */
 export function isPhaseCriticEnabled(): boolean {
   const v = (process.env.RAPITAS_PHASE_CRITIC || '').trim().toLowerCase();
-  return v === '1' || v === 'true' || v === 'yes' || v === 'on';
+  return v !== '0' && v !== 'false' && v !== 'off';
 }
 
 /** Build the system prompt for a lens. */

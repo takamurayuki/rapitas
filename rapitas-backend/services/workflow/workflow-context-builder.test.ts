@@ -46,6 +46,24 @@ describe('buildRoleContext', () => {
       expect(autoCtx).toBe(verifierCtx);
     });
   });
+
+  describe('premortem (R7)', () => {
+    test('planner context mandates a プレモーテム section', async () => {
+      const ctx = await buildRoleContext(1, 'planner', NO_DIR, TASK);
+      expect(ctx).toContain('## プレモーテム');
+      expect(ctx).toContain('失敗原因を3つ');
+    });
+
+    test('verifier context mandates the premortem cross-check', async () => {
+      const ctx = await buildRoleContext(1, 'verifier', NO_DIR, TASK);
+      expect(ctx).toContain('プレモーテム照合');
+    });
+
+    test('english planner variant carries the premortem too', async () => {
+      const ctx = await buildRoleContext(1, 'planner', NO_DIR, TASK, 'en');
+      expect(ctx).toContain('Premortem (REQUIRED)');
+    });
+  });
 });
 
 describe('researchModeDirective', () => {

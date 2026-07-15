@@ -662,11 +662,14 @@ export async function handleSaveFile({
     // its status persisted, run independent critic lenses; on a FAIL verdict the
     // artifact is archived and the workflow rolled back to regenerate it (bounded
     // self-repair, mirroring the verify gate). Changing newStatus to the rollback
-    // target naturally skips the auto-split / auto-approve blocks below. env-gated
-    // (RAPITAS_PHASE_CRITIC); fail-open when critics are unavailable.
+    // target naturally skips the auto-split / auto-approve blocks below. Default
+    // ON (R7 — plan-defect critique has ~90% recall pre-execution); opt out via
+    // RAPITAS_PHASE_CRITIC=0. Lightweight-mode tasks skip it: they have no plan
+    // phase, and trivial work must stay cheap. Fail-open when critics are down.
     if (
-      (fileType === 'research' && newStatus === 'research_done') ||
-      (fileType === 'plan' && newStatus === 'plan_created')
+      resolved.task.workflowMode !== 'lightweight' &&
+      ((fileType === 'research' && newStatus === 'research_done') ||
+        (fileType === 'plan' && newStatus === 'plan_created'))
     ) {
       const { applyPhaseCriticGate } = await import('../../../services/workflow/phase-critic');
       const gate = await applyPhaseCriticGate({

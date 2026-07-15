@@ -92,15 +92,22 @@ describe('isPhaseCriticEnabled', () => {
     else process.env.RAPITAS_PHASE_CRITIC = original;
   });
 
-  it('is off by default', () => {
+  it('is ON by default (R7 — premortem/critic gate is standing)', () => {
     delete process.env.RAPITAS_PHASE_CRITIC;
-    expect(isPhaseCriticEnabled()).toBe(false);
+    expect(isPhaseCriticEnabled()).toBe(true);
   });
 
-  it('is on for truthy values', () => {
+  it('stays on for truthy values', () => {
     for (const val of ['1', 'true', 'on', 'yes']) {
       process.env.RAPITAS_PHASE_CRITIC = val;
       expect(isPhaseCriticEnabled()).toBe(true);
+    }
+  });
+
+  it('opts out for 0 / false / off', () => {
+    for (const val of ['0', 'false', 'off']) {
+      process.env.RAPITAS_PHASE_CRITIC = val;
+      expect(isPhaseCriticEnabled()).toBe(false);
     }
   });
 });
