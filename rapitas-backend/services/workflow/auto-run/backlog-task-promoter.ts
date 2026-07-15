@@ -21,6 +21,7 @@ import {
   getBacklogArmStats,
   CRITICAL_CONCERN_SEVERITIES,
 } from './backlog-bandit';
+import { pickDiverseIdeas, getRecentIdeaTaskTitles } from './idea-promotion-diversity';
 
 const log = createLogger('auto-run:backlog-promoter');
 
@@ -178,19 +179,40 @@ export async function promoteBacklogForTheme(themeId: number): Promise<number> {
   let remaining = limit - outstanding;
   if (remaining <= 0) return 0;
 
-  const [concernList, ideaList, armStats] = await Promise.all([
+  // Over-fetch ideas so the diversity pick has a real pool to choose from —
+  // the open list is newest-first, and the newest ideas are typically the
+  // ones extracted from the task JUST executed (the monoculture source).
+  const ideaPool = Math.min(30, Math.max(remaining * 5, 15));
+  const [concernList, ideaList, armStats, recentIdeaTitles] = await Promise.all([
     listConcerns({ status: 'open', themeId, limit: remaining }).catch(() => ({
       concerns: [],
       total: 0,
     })),
-    listIdeas({ status: 'open', themeId, limit: remaining }).catch(() => ({
+    listIdeas({ status: 'open', themeId, limit: ideaPool }).catch(() => ({
       ideas: [],
       total: 0,
     })),
     getBacklogArmStats(prisma, themeId),
+    getRecentIdeaTaskTitles(prisma, themeId),
   ]);
   const concerns = [...concernList.concerns];
-  const ideas = [...ideaList.ideas];
+  // Diversity pick (anti-monoculture at the promotion gate): space the batch
+  // away from recently promoted idea-tasks, from each other, and across QD
+  // cells — otherwise one task's flavor becomes the next several tasks.
+  const diverse = pickDiverseIdeas(ideaList.ideas, recentIdeaTitles, remaining);
+  if (diverse.skippedAsSimilar > 0) {
+    log.info(
+      {
+        themeId,
+        pool: ideaList.ideas.length,
+        picked: diverse.picked.length,
+        skippedAsSimilar: diverse.skippedAsSimilar,
+        fallbackUsed: diverse.fallbackUsed,
+      },
+      '[backlog-promoter] Idea diversity pick applied',
+    );
+  }
+  const ideas = [...diverse.picked];
 
   let created = 0;
   while (remaining > 0) {
