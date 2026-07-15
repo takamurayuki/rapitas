@@ -604,14 +604,19 @@ export class WorkflowOrchestrator {
           .catch(() => null);
         const { recentThemeEscalation } = await import('./outcome-telemetry');
         // NOT a fail-closed candidate: this is a soft routing SIGNAL, not a
-        // cap that bounds a loop. It only feeds Math.max(...) below to decide
-        // between a stronger/weaker MODEL TIER — recentThemeEscalation already
-        // fails open internally (returns 0, "no escalation") because a lost
-        // signal just means "start at the base tier" (a quality nudge), never
-        // an unbounded retry/repair loop. The outer .catch(() => 0) here is
-        // pure defense-in-depth for the (already-caught) call itself throwing.
+        // cap that bounds a loop. recentThemeEscalation already fails open
+        // internally (returns 0, "no escalation") because a lost signal just
+        // means "start at the base tier" (a quality nudge), never an unbounded
+        // retry/repair loop. The outer .catch(() => 0) here is pure
+        // defense-in-depth for the (already-caught) call itself throwing.
+        // NOTE: kept SEPARATE from the per-task retry count — collapsing them
+        // via Math.max meant theme level 1 (>=25% of recent tasks had a
+        // routine self-repair bounce — the common case) forced premium on
+        // every phase of every task indefinitely (observed: 122/122 recent
+        // executions on the top model). computeMinTier now weighs them
+        // differently (task retry → premium; theme 1 → standard, 2 → premium).
         const themeEscalation = await recentThemeEscalation(task.themeId).catch(() => 0);
-        const escalation = Math.max(queueItem?.retryCount ?? 0, themeEscalation);
+        const taskRetries = queueItem?.retryCount ?? 0;
 
         // Risk override: schema / auth / payment / security work forces premium
         // regardless of complexity. For code phases, also scan plan.md for risky
@@ -634,20 +639,25 @@ export class WorkflowOrchestrator {
 
         // Evidence layer: the cheapest tier with a PROVEN success record for
         // this role (recorded outcomes, role-evidence.ts). Only consulted on
-        // the safe path — escalation and high-risk work keep their premium
-        // floors and never downgrade on history.
+        // the safe path — a task that already failed and high-risk work keep
+        // their premium floors and never downgrade on history. Theme-level
+        // escalation no longer disables evidence: its floor is applied AFTER
+        // the cap in SmartRouter, so a proven-cheap tier can still lower the
+        // heuristic tier down to that floor (previously any theme churn froze
+        // evidence collection entirely, locking routing at premium).
         const { resolveProvenTier } = await import('./role-evidence');
         const provenTier =
-          escalation === 0 && !riskHigh
+          taskRetries === 0 && !riskHigh
             ? await resolveProvenTier(transition.role).catch(() => undefined)
             : undefined;
 
-        // Role floor + escalation + risk → the minimum tier SmartRouter may not
-        // go below (it still RAISES further when complexity is high). The
-        // evidence-proven tier relaxes the static role floor only.
+        // Role floor + failure signals + risk → the minimum tier SmartRouter
+        // may not go below (it still RAISES further when complexity is high).
+        // The evidence-proven tier relaxes the static role floor only.
         const minTier = computeMinTier({
           role: transition.role,
-          escalation,
+          taskRetries,
+          themeEscalation,
           riskHigh,
           provenTier,
         });
@@ -672,7 +682,8 @@ export class WorkflowOrchestrator {
             tier: route.recommendedTier,
             minTier: minTier ?? null,
             provenTier: provenTier ?? null,
-            escalation,
+            taskRetries,
+            themeEscalation,
             riskHigh,
             riskReason: riskReason ?? null,
             preferredProvider: prefs.preferredProvider ?? null,

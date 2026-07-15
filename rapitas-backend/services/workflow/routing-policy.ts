@@ -95,25 +95,36 @@ export function detectHighRisk(opts: { text?: string | null; planContent?: strin
 
 /**
  * Compute the minimum model tier for a phase from the role floor, the failure
- * escalation level, and the risk override. Returned to SmartRouter as
- * `minTier`, which only ever RAISES the complexity/budget tier.
+ * signals, and the risk override. Returned to SmartRouter as `minTier`, which
+ * only ever RAISES the complexity/budget tier.
  *
  * The static role floor exists because, absent evidence, capability phases
  * are unsafe on economy models. When the caller supplies `provenTier` —
  * a cheaper tier with a measured ≥90% success record for THIS role (see
- * role-evidence.ts) — the role floor relaxes to it. Escalation and risk
- * floors are never relaxed: a model that just failed, or high-risk work,
- * still forces premium regardless of history.
+ * role-evidence.ts) — the role floor relaxes to it.
+ *
+ * Failure signals are deliberately SPLIT by specificity:
+ *  - `taskRetries` (this exact task already failed) is a HARD signal → premium.
+ *  - `themeEscalation` (aggregate trouble rate of the theme's recent tasks) is
+ *    a SOFT signal. Self-repair bounces are ROUTINE — ≥25% of recent tasks
+ *    having one is the common case, and treating that as premium put EVERY
+ *    phase of EVERY task (researcher included) on the top model indefinitely
+ *    (observed: 122/122 recent executions on opus). Level 1 (≥25%) now only
+ *    raises the floor to 'standard'; level 2 (≥50% — the theme is genuinely
+ *    struggling) still forces premium.
+ * Risk floors are never relaxed by history.
  *
  * @param opts.role - Workflow role being executed. / 実行中のロール
- * @param opts.escalation - Prior failed attempts for this task (queue retryCount). / 失敗回数
+ * @param opts.taskRetries - Prior failed attempts of THIS task (queue retryCount). / このタスクの失敗回数
+ * @param opts.themeEscalation - Theme-level trouble signal 0-2 (recentThemeEscalation). / テーマ困難度
  * @param opts.riskHigh - Whether detectHighRisk flagged the work. / 高リスクか
  * @param opts.provenTier - Evidence-proven cheaper tier for this role, if any. / 実証済みティア
  * @returns The floor tier, or undefined for no floor. / 下限ティア（無ければ undefined）
  */
 export function computeMinTier(opts: {
   role: string;
-  escalation: number;
+  taskRetries: number;
+  themeEscalation?: number;
   riskHigh: boolean;
   provenTier?: ModelTier;
 }): ModelTier | undefined {
@@ -126,7 +137,10 @@ export function computeMinTier(opts: {
     roleFloor = opts.provenTier;
   }
   // A weak model already failed this task — go strong on the retry.
-  const escalationFloor: ModelTier | undefined = opts.escalation >= 1 ? 'premium' : undefined;
+  const retryFloor: ModelTier | undefined = opts.taskRetries >= 1 ? 'premium' : undefined;
+  const theme = opts.themeEscalation ?? 0;
+  const themeFloor: ModelTier | undefined =
+    theme >= 2 ? 'premium' : theme >= 1 ? 'standard' : undefined;
   const riskFloor: ModelTier | undefined = opts.riskHigh ? 'premium' : undefined;
-  return highestTier(roleFloor, escalationFloor, riskFloor);
+  return highestTier(roleFloor, retryFloor, themeFloor, riskFloor);
 }

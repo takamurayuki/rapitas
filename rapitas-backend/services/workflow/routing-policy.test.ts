@@ -50,25 +50,41 @@ describe('detectHighRisk', () => {
 
 describe('computeMinTier', () => {
   test('capability ロールは既定で standard 下限', () => {
-    expect(computeMinTier({ role: 'implementer', escalation: 0, riskHigh: false })).toBe(
+    expect(computeMinTier({ role: 'implementer', taskRetries: 0, riskHigh: false })).toBe(
       'standard',
     );
   });
-  test('調査/計画は下限なし', () => {
-    expect(computeMinTier({ role: 'researcher', escalation: 0, riskHigh: false })).toBeUndefined();
+  test('調査は下限なし', () => {
+    expect(computeMinTier({ role: 'researcher', taskRetries: 0, riskHigh: false })).toBeUndefined();
   });
-  test('失敗エスカレーション(>=1)は premium に引き上げ', () => {
-    expect(computeMinTier({ role: 'researcher', escalation: 1, riskHigh: false })).toBe('premium');
-    expect(computeMinTier({ role: 'implementer', escalation: 2, riskHigh: false })).toBe('premium');
+  test('タスク自身のリトライ(>=1)は premium に引き上げ（ハードシグナル）', () => {
+    expect(computeMinTier({ role: 'researcher', taskRetries: 1, riskHigh: false })).toBe('premium');
+    expect(computeMinTier({ role: 'implementer', taskRetries: 2, riskHigh: false })).toBe(
+      'premium',
+    );
+  });
+  test('テーマエスカレーションはソフト: レベル1は standard、レベル2で premium', () => {
+    // Level 1 (>=25% troubled — routine self-repair churn) must NOT force
+    // premium: that put every phase of every task on the top model (122/122
+    // observed). It only raises floorless roles to standard.
+    expect(
+      computeMinTier({ role: 'researcher', taskRetries: 0, themeEscalation: 1, riskHigh: false }),
+    ).toBe('standard');
+    expect(
+      computeMinTier({ role: 'implementer', taskRetries: 0, themeEscalation: 1, riskHigh: false }),
+    ).toBe('standard');
+    expect(
+      computeMinTier({ role: 'researcher', taskRetries: 0, themeEscalation: 2, riskHigh: false }),
+    ).toBe('premium');
   });
   test('高リスクは premium に引き上げ', () => {
-    expect(computeMinTier({ role: 'planner', escalation: 0, riskHigh: true })).toBe('premium');
+    expect(computeMinTier({ role: 'planner', taskRetries: 0, riskHigh: true })).toBe('premium');
   });
   test('実証済みティアは capability ロールの床を緩和する', () => {
     expect(
       computeMinTier({
         role: 'implementer',
-        escalation: 0,
+        taskRetries: 0,
         riskHigh: false,
         provenTier: 'economy',
       }),
@@ -78,28 +94,49 @@ describe('computeMinTier', () => {
     expect(
       computeMinTier({
         role: 'implementer',
-        escalation: 0,
+        taskRetries: 0,
         riskHigh: false,
         provenTier: 'premium',
       }),
     ).toBe('standard');
   });
-  test('高リスク/エスカレーション時は実証済みでも premium を維持', () => {
+  test('高リスク/タスクリトライ時は実証済みでも premium を維持', () => {
     expect(
-      computeMinTier({ role: 'implementer', escalation: 0, riskHigh: true, provenTier: 'economy' }),
+      computeMinTier({
+        role: 'implementer',
+        taskRetries: 0,
+        riskHigh: true,
+        provenTier: 'economy',
+      }),
     ).toBe('premium');
     expect(
       computeMinTier({
         role: 'implementer',
-        escalation: 1,
+        taskRetries: 1,
         riskHigh: false,
         provenTier: 'economy',
       }),
     ).toBe('premium');
   });
+  test('テーマレベル1では実証済みティアが standard 床まで下げられる（実績収集が凍結しない）', () => {
+    expect(
+      computeMinTier({
+        role: 'implementer',
+        taskRetries: 0,
+        themeEscalation: 1,
+        riskHigh: false,
+        provenTier: 'economy',
+      }),
+    ).toBe('standard');
+  });
   test('非 capability ロールは provenTier があっても床なしのまま', () => {
     expect(
-      computeMinTier({ role: 'researcher', escalation: 0, riskHigh: false, provenTier: 'economy' }),
+      computeMinTier({
+        role: 'researcher',
+        taskRetries: 0,
+        riskHigh: false,
+        provenTier: 'economy',
+      }),
     ).toBeUndefined();
   });
 });
