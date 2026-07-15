@@ -158,8 +158,13 @@ export default function ApplyTemplateDialog({ isOpen, onClose, selectedTheme, on
   if (!isOpen) return null;
 
   return (
+    // NOTE: No backdrop-blur — this page keeps animating behind the overlay
+    // (subtask spinners, polling), and blur forces a full-viewport recomposite
+    // every frame that animates, causing visible stutter. Solid scrim per
+    // docs/design/ui-design-language.md (glassmorphism/backdrop-blur is a
+    // rejected pattern there too).
     <div
-      className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4"
+      className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4"
       onClick={handleClose}
     >
       <div
