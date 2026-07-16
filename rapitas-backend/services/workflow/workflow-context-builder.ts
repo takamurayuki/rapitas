@@ -288,7 +288,18 @@ export async function buildRoleContext(
     case 'reviewer': {
       const plan = await readWorkflowFile(dir, 'plan');
       const research = await readWorkflowFile(dir, 'research');
+      // The reviewer was the only role with ZERO memory context — it judged
+      // plans blind to the lessons/pitfalls the KB already holds and to how
+      // similar plans were previously rejected. Same sources as the planner.
+      const reviewerMemory = await buildMemoryContext(taskId, task, language);
+      const priorRejections = await buildRejectedPlanContext(taskId, language);
       let ctx = taskInfo;
+      if (reviewerMemory) {
+        ctx += `\n\n${reviewerMemory}`;
+      }
+      if (priorRejections) {
+        ctx += `\n\n${priorRejections}`;
+      }
       if (research) {
         ctx += `\n\n${t.reviewer.researchHeader}\n\n${research}`;
       }

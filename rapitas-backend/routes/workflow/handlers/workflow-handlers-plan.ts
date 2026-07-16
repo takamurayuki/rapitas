@@ -68,6 +68,23 @@ export async function handleApprovePlan({
       metadata: { reason: parsedBody.reason ?? null },
     });
 
+    // Decision journal: every human gate call becomes a calibratable
+    // prediction (correct/wrong once the task reaches a terminal outcome), so
+    // human approval accuracy is measurable against the auto-approve policy.
+    // Fire-and-forget — journaling never blocks the approval.
+    void import('../../../services/memory/decision-journal')
+      .then(({ recordPlanDecision }) =>
+        recordPlanDecision({
+          taskId,
+          approved: parsedBody.approved,
+          decidedBy: 'user',
+          reason: parsedBody.reason ?? null,
+          taskTitle: updatedTask.title,
+          themeId: updatedTask.themeId,
+        }),
+      )
+      .catch(() => {});
+
     await prisma.activityLog.create({
       data: {
         taskId,

@@ -13,6 +13,7 @@ import { memoryTaskQueue } from '../../services/memory';
 import { runForgettingSweep } from '../../services/memory/forgetting';
 import { buildRAGContext } from '../../services/memory/rag/context-builder';
 import { getEmbeddingCount } from '../../services/memory/rag/vector-index';
+import { getDecisionCalibrationStats } from '../../services/memory/decision-journal';
 import type {
   ContradictionResolution,
   TimelineEventType,
@@ -102,6 +103,12 @@ export const memorySystemRoutes = new Elysia({ prefix: '/memory' })
       }),
     },
   )
+
+  // GET /memory/decisions/stats - Plan-gate decision calibration
+  // (human approvals vs auto-approvals: whose judgment is more accurate)
+  .get('/decisions/stats', async () => {
+    return getDecisionCalibrationStats();
+  })
 
   // GET /memory/queue/status - Queue status
   .get('/queue/status', async () => {

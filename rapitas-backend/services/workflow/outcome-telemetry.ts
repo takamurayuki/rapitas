@@ -106,6 +106,15 @@ export async function recordTaskOutcome(taskId: number, finalStatus: string): Pr
       })
       .catch((err) => log.warn({ err, taskId }, '[telemetry] Outcome reinforcement failed'));
 
+    // Calibrate the plan-gate decisions (human approvals AND auto-approvals)
+    // recorded for this task against its real outcome — closes the decision
+    // journal loop so gate accuracy per decider becomes measurable. Best-effort.
+    await import('../memory/decision-journal')
+      .then(({ calibratePlanDecisionsForTask }) =>
+        calibratePlanDecisionsForTask(taskId, finalStatus),
+      )
+      .catch((err) => log.warn({ err, taskId }, '[telemetry] Decision calibration failed'));
+
     // Validate the hypotheses this task formed: completion → "for" evidence, a
     // block → "against". Closes the create→inject→VALIDATE loop so good
     // conjectures graduate and bad ones get refuted. Best-effort.

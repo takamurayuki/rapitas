@@ -131,6 +131,25 @@ export async function maybeAutoApprovePlan(
     },
   });
 
+  // Decision journal: the auto-approval is a prediction too — recording it
+  // with decidedBy:'auto' lets calibration stats compare the policy's accuracy
+  // against human gate calls. Fire-and-forget.
+  void import('../memory/decision-journal')
+    .then(async ({ recordPlanDecision }) => {
+      const t = await prisma.task
+        .findUnique({ where: { id: taskId }, select: { title: true, themeId: true } })
+        .catch(() => null);
+      return recordPlanDecision({
+        taskId,
+        approved: true,
+        decidedBy: 'auto',
+        reason,
+        taskTitle: t?.title ?? null,
+        themeId: t?.themeId ?? null,
+      });
+    })
+    .catch(() => {});
+
   await prisma.activityLog
     .create({
       data: {

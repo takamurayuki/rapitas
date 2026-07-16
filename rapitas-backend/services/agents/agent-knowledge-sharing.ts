@@ -117,6 +117,21 @@ export function formatKnowledgeContext(knowledge: SharedKnowledge): string {
     );
   }
 
+  // NOTE: promptEvolutions were fetched by gatherSharedKnowledge but never
+  // rendered — a silent fetch-and-drop. Only measured improvements
+  // (performanceDelta > 0) reach here, so surfacing them is safe.
+  if (knowledge.promptEvolutions.length > 0) {
+    sections.push(
+      '🧬 効果が実証されたプロンプト改善:\n' +
+        knowledge.promptEvolutions
+          .map(
+            (e) =>
+              `- [${e.category}] ${e.improvement.slice(0, 200)} (改善幅: +${Math.round(e.performanceDelta * 100)}%)`,
+          )
+          .join('\n'),
+    );
+  }
+
   if (sections.length === 0) return '';
 
   return (
