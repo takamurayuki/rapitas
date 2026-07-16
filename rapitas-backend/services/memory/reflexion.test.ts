@@ -44,7 +44,10 @@ mock.module('../../config/logger', () => ({
   createLogger: () => ({ info: () => {}, warn: () => {}, error: () => {}, debug: () => {} }),
 }));
 mock.module('../../utils/ai-client', () => ({ sendAIMessage }));
-mock.module('./dedup', () => ({ findSemanticDuplicate: async () => null }));
+mock.module('./dedup', () => ({
+  findSemanticDuplicate: async () => null,
+  findLexicalDuplicate: async () => null,
+}));
 mock.module('./forgetting', () => ({ boostDecayOnAccess: async () => {} }));
 mock.module('./index', () => ({ memoryTaskQueue: { enqueue } }));
 mock.module('./timeline', () => ({ appendEvent: async () => {} }));

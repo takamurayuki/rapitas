@@ -14,6 +14,7 @@
 import { prisma } from '../../config/database';
 import { createLogger } from '../../config/logger';
 import { addEvidence, listHypotheses } from './hypothesis-service';
+import { bigramSimilarity } from './text-similarity';
 
 const log = createLogger('memory:hypothesis-from-verify');
 
@@ -123,34 +124,9 @@ export function extractHypothesisVerdicts(content: string | null | undefined): H
   return out;
 }
 
-/** Normalize for fuzzy matching: drop markdown/backticks/whitespace, lowercase. */
-function normalizeForMatch(s: string): string {
-  return s
-    .toLowerCase()
-    .replace(/[`*_#>~\s、。,.:：()「」『』【】\[\]]/g, '')
-    .trim();
-}
-
-/** Character-bigram set of a normalized string. */
-function bigrams(s: string): Set<string> {
-  const out = new Set<string>();
-  for (let i = 0; i < s.length - 1; i++) out.add(s.slice(i, i + 2));
-  return out;
-}
-
-/**
- * Bigram-Jaccard similarity between two strings (0..1). Robust to the verifier's
- * paraphrasing of a hypothesis (reordering, dropped backticks, inserted particles)
- * which would defeat a longest-common-substring match.
- */
-function bigramSimilarity(a: string, b: string): number {
-  const A = bigrams(normalizeForMatch(a));
-  const B = bigrams(normalizeForMatch(b));
-  if (A.size === 0 || B.size === 0) return 0;
-  let inter = 0;
-  for (const g of A) if (B.has(g)) inter += 1;
-  return inter / (A.size + B.size - inter);
-}
+// NOTE: normalizeForMatch / bigrams / bigramSimilarity moved to
+// ./text-similarity.ts — the contradiction near-dup gate and write-time dedup
+// need the same lexical similarity, so the trio became a shared util.
 
 /**
  * Apply explicit hypothesis verdicts parsed from a verify.md. Each verdict is a

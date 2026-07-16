@@ -50,7 +50,7 @@ import { detectContradictions } from './contradiction';
 import { runConsolidation } from './consolidation';
 import { runForgettingSweep, boostDecayOnAccess } from './forgetting';
 import { distillFromExecution } from './distillation';
-import { findSemanticDuplicate } from './dedup';
+import { findSemanticDuplicate, findLexicalDuplicate } from './dedup';
 import { getKnowledgeEffectiveness } from './effectiveness';
 import { createContentHash } from './utils';
 import { appendEvent } from './timeline';
@@ -165,7 +165,11 @@ export async function createKnowledgeEntry(input: CreateKnowledgeEntryInput) {
     const existing = await prisma.knowledgeEntry.findUnique({ where: { id: exact.id } });
     if (existing) return existing;
   }
-  const dupId = await findSemanticDuplicate(input.content);
+  // Two-channel dedup: embedding cosine misses Japanese paraphrases, so the
+  // lexical bigram check backs it up (same lesson reworded = reinforce, not insert).
+  const dupId =
+    (await findSemanticDuplicate(input.content)) ??
+    (await findLexicalDuplicate(input.title, input.content));
   if (dupId != null) {
     await boostDecayOnAccess(dupId, 0.1).catch(() => {});
     const existing = await prisma.knowledgeEntry.findUnique({ where: { id: dupId } });

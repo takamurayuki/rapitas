@@ -8,10 +8,17 @@ import { prisma } from '../../config/database';
 import { createLogger } from '../../config/logger';
 import { sendAIMessage } from '../../utils/ai-client';
 import { vectorSearch } from './rag/search';
+import { isNearDuplicatePair } from './text-similarity';
 import { appendEvent } from './timeline';
 import type { ContradictionResolution } from './types';
 
 const log = createLogger('memory:contradiction');
+
+/** Max open contradictions one entry may accumulate before we stop adding more. */
+const MAX_OPEN_PER_ENTRY = (() => {
+  const v = parseInt(process.env.RAPITAS_KB_MAX_OPEN_CONTRADICTIONS ?? '', 10);
+  return Number.isFinite(v) && v > 0 ? v : 3;
+})();
 
 /**
  * Detect contradictions for a new or updated entry.
@@ -39,7 +46,25 @@ export async function detectContradictions(entryId: number): Promise<number> {
     // Exclude self
     const candidates = searchResults.filter((r) => r.knowledgeEntryId !== entryId);
 
+    // Cap: an entry buried under open contradictions gains nothing from more —
+    // each additional pair repeats the same "this cluster disagrees" signal
+    // while inflating the backlog the nightly drain must chew through.
+    let openCount = await prisma.knowledgeContradiction.count({
+      where: {
+        resolution: null,
+        OR: [{ entryAId: entryId }, { entryBId: entryId }],
+      },
+    });
+
     for (const candidate of candidates) {
+      if (openCount >= MAX_OPEN_PER_ENTRY) {
+        log.debug(
+          { entryId, openCount },
+          '[contradiction] Open-contradiction cap reached — skipping further pairs',
+        );
+        break;
+      }
+
       // Check for existing contradiction record
       const existing = await prisma.knowledgeContradiction.findFirst({
         where: {
@@ -55,6 +80,35 @@ export async function detectContradictions(entryId: number): Promise<number> {
         where: { id: candidate.knowledgeEntryId },
       });
       if (!candidateEntry) continue;
+
+      // Near-duplicate pair = same lesson reworded — dedup it here instead of
+      // asking the LLM, which reliably misreads paraphrase deltas as
+      // "contradictions". Keep the outcome-proven side (decayScore, then age).
+      if (isNearDuplicatePair(entry, candidateEntry)) {
+        const keepCandidate =
+          candidateEntry.decayScore > entry.decayScore ||
+          (candidateEntry.decayScore === entry.decayScore && candidateEntry.id < entry.id);
+        const loserId = keepCandidate ? entry.id : candidateEntry.id;
+        await prisma.knowledgeEntry.update({
+          where: { id: loserId },
+          data: { validationStatus: 'rejected', forgettingStage: 'archived' },
+        });
+        await appendEvent({
+          eventType: 'knowledge_archived',
+          payload: {
+            entryId: loserId,
+            keptEntryId: keepCandidate ? candidateEntry.id : entry.id,
+            reason: 'near_duplicate_dedup',
+          },
+        });
+        log.info(
+          { entryId: loserId, keptEntryId: keepCandidate ? candidateEntry.id : entry.id },
+          '[contradiction] Near-duplicate pair deduped instead of contradiction-flagged',
+        );
+        // The new entry lost the dedup — no point checking further candidates.
+        if (loserId === entryId) break;
+        continue;
+      }
 
       // Determine contradiction via LLM
       try {
@@ -116,6 +170,7 @@ export async function detectContradictions(entryId: number): Promise<number> {
           });
 
           detectCount++;
+          openCount++;
           log.info(
             {
               contradictionId: contradiction.id,

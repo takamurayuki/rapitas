@@ -13,7 +13,7 @@ import { createContentHash } from './utils';
 import { appendEvent } from './timeline';
 import { memoryTaskQueue } from './index';
 import { getInsensitiveMode } from '../../config/db-provider';
-import { findSemanticDuplicate } from './dedup';
+import { findSemanticDuplicate, findLexicalDuplicate } from './dedup';
 import { boostDecayOnAccess } from './forgetting';
 
 const log = createLogger('memory:task-knowledge');
@@ -70,16 +70,20 @@ export async function extractKnowledgeFromTask(taskId: number): Promise<number[]
         continue;
       }
 
-      // Semantic duplicate (same lesson, different wording) — reinforce the
+      // Near-duplicate (same lesson, different wording) — reinforce the
       // existing entry instead of storing a paraphrase. This is the main cure for
       // the ~11-near-duplicates-per-task bloat: corroboration strengthens one
-      // memory rather than spawning many. Best-effort (no embeddings → inserts).
-      const dupId = await findSemanticDuplicate(item.content);
+      // memory rather than spawning many. Two channels: embedding cosine plus
+      // the lexical bigram fallback (cosine misses Japanese paraphrases — the
+      // failure mode behind the contradiction-backlog explosion).
+      const dupId =
+        (await findSemanticDuplicate(item.content)) ??
+        (await findLexicalDuplicate(item.title, item.content));
       if (dupId != null) {
         await boostDecayOnAccess(dupId, 0.1).catch(() => {});
         log.debug(
           { taskId, title: item.title, dupId },
-          'Semantic duplicate knowledge — reinforced existing instead of inserting',
+          'Near-duplicate knowledge — reinforced existing instead of inserting',
         );
         continue;
       }
@@ -217,7 +221,9 @@ export async function reflectOnFailure(taskId: number, finalStatus: string): Pro
         where: { contentHash: hash, forgettingStage: { not: 'archived' } },
       });
       if (existing) continue;
-      const dupId = await findSemanticDuplicate(item.content);
+      const dupId =
+        (await findSemanticDuplicate(item.content)) ??
+        (await findLexicalDuplicate(item.title, item.content));
       if (dupId != null) {
         await boostDecayOnAccess(dupId, 0.15).catch(() => {});
         continue;
