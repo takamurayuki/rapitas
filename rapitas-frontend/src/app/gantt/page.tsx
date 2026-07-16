@@ -1,7 +1,7 @@
 'use client';
 // ガントチャートページ
 
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Layers } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { GanttView } from '@/feature/tasks/components/gantt';

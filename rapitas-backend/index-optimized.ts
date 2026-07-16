@@ -5,7 +5,7 @@ setupGlobalErrorHandlers();
 import { createLogger } from './config/logger';
 const log = createLogger('server-optimized');
 
-import { Elysia, type Context } from 'elysia';
+import { Elysia } from 'elysia';
 import { cors } from '@elysiajs/cors';
 import { swagger } from '@elysiajs/swagger';
 
@@ -188,8 +188,9 @@ app.use(batchRoutesV2);
 app.use(websocketRoutes);
 
 // Health check endpoint with performance metrics
-app.get('/health', (context: Context) => {
-  const { set } = context;
+// NOTE: Removed unused `context`/`set` destructure — the handler only returns
+// a JSON body and never touches the response context (noUnusedLocals).
+app.get('/health', () => {
   const cacheStats = cacheService.getStats();
   const wsStats = wsManager.getStats();
 

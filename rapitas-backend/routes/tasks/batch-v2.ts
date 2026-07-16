@@ -189,7 +189,8 @@ registerHandler('DELETE:/tasks/:id', async (context) => {
 
 class BatchProcessor {
   private concurrencyLimit: number;
-  private queue: Array<() => Promise<BatchResult>> = [];
+  // NOTE: Removed unused `queue` member — processRequests chunks its input
+  // directly and nothing ever enqueued to it (noUnusedLocals).
 
   constructor(concurrencyLimit = 10) {
     this.concurrencyLimit = concurrencyLimit;

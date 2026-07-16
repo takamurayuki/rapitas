@@ -1,4 +1,4 @@
-import { renderHook, waitFor, act } from '@testing-library/react';
+import { renderHook, act } from '@testing-library/react';
 import { useThemeAutoRun } from '../workflow/useThemeAutoRun';
 
 vi.mock('@/utils/api', () => ({ API_BASE_URL: 'http://test:3001' }));

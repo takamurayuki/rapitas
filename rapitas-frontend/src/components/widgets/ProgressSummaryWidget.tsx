@@ -6,7 +6,7 @@
  * Displays an AI-generated progress summary on the dashboard.
  * Fetches data from /progress/summary API and shows highlights.
  */
-import React, { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Sparkles, TrendingUp, RefreshCw, ChevronDown, ChevronUp } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { API_BASE_URL } from '@/utils/api';

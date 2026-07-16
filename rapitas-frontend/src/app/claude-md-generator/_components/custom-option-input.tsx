@@ -1,7 +1,7 @@
 'use client';
 // custom-option-input
 
-import React, { useState } from 'react';
+import { useState } from 'react';
 
 interface CustomOptionInputProps {
   /** Placeholder shown in the text field / 入力欄のプレースホルダ */

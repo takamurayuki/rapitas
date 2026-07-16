@@ -33,7 +33,9 @@
     // Step 1: enabled 2026-04-10 (both backend + frontend)
     "noImplicitOverride": true,
     "noFallthroughCasesInSwitch": true,
-    // "noUnusedLocals": true,
+    // Step 2: enabled 2026-07-16 — the 302-error backlog from the 2026-04-08
+    // survey had shrunk to 46 real sites, all fixed in the enabling commit.
+    "noUnusedLocals": true,
     // "noUnusedParameters": true,
     // "exactOptionalPropertyTypes": true,
     // "noUncheckedIndexedAccess": true,

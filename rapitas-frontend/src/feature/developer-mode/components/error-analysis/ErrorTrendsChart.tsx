@@ -1,7 +1,6 @@
 'use client';
 // ErrorTrendsChart
 
-import React from 'react';
 import { Card } from '@/components/ui/card';
 import { type ErrorSummary } from '../../services/error-analysis-service';
 

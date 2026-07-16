@@ -6,7 +6,7 @@
  * Displays execution cost breakdown by model with optimization suggestions.
  * Uses recharts for visualization.
  */
-import React, { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { DollarSign, Zap, Info } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 import { useTranslations } from 'next-intl';

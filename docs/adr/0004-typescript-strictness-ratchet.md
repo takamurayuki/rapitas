@@ -149,7 +149,7 @@ node scripts/check-todos.cjs --max-hack 14 --max-fixme 1
 | `isolatedModules` | ✓ (via base) | ✓ (via base) |
 | `noImplicitOverride` | ✓ (2026-04-10) | ✓ (2026-04-10) |
 | `noFallthroughCasesInSwitch` | ✓ (2026-04-10) | ✓ (2026-04-10) |
-| `noUnusedLocals` | — (302 errors, deferred) | — |
+| `noUnusedLocals` | ✓ (2026-07-16) | ✓ (2026-07-16) |
 | `noUnusedParameters` | — | — |
 | `noImplicitReturns` | — | — |
 | `noUncheckedIndexedAccess` | — | — |
@@ -159,8 +159,10 @@ node scripts/check-todos.cjs --max-hack 14 --max-fixme 1
 
 - [x] 2026-04-10: Land Step 0 (wire `extends: ../tsconfig.base.json`) — 12 days early
 - [x] 2026-04-10: Land Step 1 both (noImplicitOverride + noFallthroughCasesInSwitch) — 19 days early
-- [ ] Step 2 (noUnusedLocals + noUnusedParameters): dry-run showed 302 errors.
-      Needs a dedicated session with find-and-remove tooling. Target: 2026-05-13.
+- [x] Step 2a (noUnusedLocals): landed 2026-07-16 — the 302-error backlog from
+      the 2026-04-08 dry-run had shrunk to 46 real sites (13 backend, 33
+      frontend, mostly unused `import React`); all fixed in the enabling
+      commit. `noUnusedParameters` (Step 2b) remains open.
 - [ ] 2026-05-27: Land Step 2 frontend + Step 3 backend
 - [ ] 2026-06-10: Land Step 3 frontend + Step 4 backend
 - [ ] 2026-06-24: Land Step 4 frontend + Step 5 backend

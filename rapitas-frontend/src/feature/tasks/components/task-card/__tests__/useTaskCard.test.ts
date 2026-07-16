@@ -7,7 +7,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
 import { useTaskCard } from '../useTaskCard';
-import type { Task, Status } from '@/types';
+import type { Task } from '@/types';
 
 const { showToast, confirmDialog, prefetch, loggerError, mockStoreState } = vi.hoisted(() => ({
   showToast: vi.fn(),

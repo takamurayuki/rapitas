@@ -6,7 +6,6 @@
  * standard sizes and an accessible status role. Not responsible for full-page/
  * skeleton loaders (see `components/ui/skeleton/`).
  */
-import React from 'react';
 import { Loader2 } from 'lucide-react';
 
 /** Spinner size variants, in ascending order. */

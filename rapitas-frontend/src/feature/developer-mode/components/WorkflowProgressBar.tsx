@@ -44,7 +44,6 @@ export const WorkflowProgressBar: React.FC<WorkflowProgressBarProps> = ({
           const IconComponent = step.icon;
           const isActive = index === currentStepIndex;
           const isCompleted = index < currentStepIndex;
-          const _isPending = index > currentStepIndex;
 
           // ステップの状態に基づくスタイリング
           const getStepStyles = () => {

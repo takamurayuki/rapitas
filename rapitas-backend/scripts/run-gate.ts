@@ -266,7 +266,8 @@ export async function runGate(
   }
 
   // NOTE: Exhaustiveness guard — unreachable with the current GateEntry union.
-  const _exhaustive: never = gate;
+  // `satisfies never` keeps the compile-time check without an unused local.
+  gate satisfies never;
   console.error(`[run-gate] Unhandled gate kind for gate id: ${id}`);
   return 1;
 }

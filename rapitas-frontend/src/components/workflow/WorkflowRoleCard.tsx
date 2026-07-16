@@ -5,16 +5,7 @@
  *
  * Expandable card for configuring a single workflow role (agent, model, prompt).
  */
-import {
-  ChevronDown,
-  Loader2,
-  Save,
-  ArrowDown,
-  ShieldCheck,
-  Cpu,
-  Bot,
-  Shuffle,
-} from 'lucide-react';
+import { ChevronDown, Loader2, Save, ArrowDown, ShieldCheck, Cpu, Bot } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import type { AIAgentConfig, WorkflowRole, WorkflowRoleConfig } from '@/types';
 import { Toggle } from '@/components/ui/Toggle';

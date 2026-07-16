@@ -1,6 +1,5 @@
 'use client';
 // HomeExpandedFilters
-import React from 'react';
 import { useRouter } from 'next/navigation';
 import { Tag, Plus } from 'lucide-react';
 import type { Label, Priority } from '@/types';

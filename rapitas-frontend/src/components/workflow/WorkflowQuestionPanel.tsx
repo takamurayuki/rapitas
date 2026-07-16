@@ -9,7 +9,7 @@
  * (synthesized yes/no when the agent asked free-text); free-text entry stays
  * available for specific user-directed answers.
  */
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { HelpCircle, Send, Loader2, Clock } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import type { LiveQuestion } from '@/stores/execution-state-store';

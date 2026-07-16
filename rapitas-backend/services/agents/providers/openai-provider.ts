@@ -75,21 +75,16 @@ export const OPENAI_MODELS = {
 type OpenAIModelId = keyof typeof OPENAI_MODELS;
 
 /**
- * Conversation history message type
- */
-interface ConversationMessage {
-  role: 'system' | 'user' | 'assistant';
-  content: string;
-}
-
-/**
  * OpenAI Agent
  *
  * NOTE: Actual API calls require installing the openai package.
  */
 export class OpenAIAgent extends AbstractAgent {
   private config: OpenAIConfig;
-  private conversationHistory: ConversationMessage[] = [];
+  // NOTE: Removed unused conversationHistory / prompt-builder scaffolding —
+  // this provider is a stub (no openai package integration yet) and the
+  // members were never read (noUnusedLocals). Restore from git when the real
+  // API integration lands.
   private abortController: AbortController | null = null;
 
   constructor(config: OpenAIConfig) {
@@ -177,29 +172,6 @@ export class OpenAIAgent extends AbstractAgent {
 
   private getApiKey(): string | undefined {
     return this.config.apiKey || process.env.OPENAI_API_KEY;
-  }
-
-  private getDefaultSystemPrompt(context: AgentExecutionContext): string {
-    return `You are a helpful AI assistant specializing in software development.
-You are working in the directory: ${context.workingDirectory}
-
-Guidelines:
-- Provide clear, concise, and accurate responses
-- When writing code, follow best practices and include appropriate comments
-- If you need clarification, ask specific questions
-- Focus on practical solutions`;
-  }
-
-  private buildPrompt(task: AgentTaskDefinition): string {
-    if (task.optimizedPrompt) {
-      return task.optimizedPrompt;
-    }
-
-    if (task.prompt) {
-      return task.prompt;
-    }
-
-    return `# Task: ${task.title}\n\n${task.description || ''}`;
   }
 }
 

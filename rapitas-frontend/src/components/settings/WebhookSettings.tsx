@@ -6,7 +6,7 @@
  * Slack/Discord webhook URL configuration for external notifications.
  * Follows the same UI pattern as the Local LLM settings section.
  */
-import React, { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useTranslations } from 'next-intl';
 import { Bell, CheckCircle, AlertCircle, Loader2, Send } from 'lucide-react';
 import { API_BASE_URL } from '@/utils/api';

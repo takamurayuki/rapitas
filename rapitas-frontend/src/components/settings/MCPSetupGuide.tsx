@@ -6,7 +6,7 @@
  * Shows setup instructions for connecting IDEs to Rapitas via MCP.
  * Provides copy-paste config snippets for Cursor, Claude Code, etc.
  */
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { Plug, Copy, Check, ChevronDown, ChevronUp } from 'lucide-react';
 

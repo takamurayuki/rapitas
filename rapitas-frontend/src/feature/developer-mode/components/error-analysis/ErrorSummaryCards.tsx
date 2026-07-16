@@ -1,7 +1,6 @@
 'use client';
 // ErrorSummaryCards
 
-import React from 'react';
 import { Card } from '@/components/ui/card';
 import { AlertCircle, XCircle, TrendingUp, CheckCircle } from 'lucide-react';
 import { ErrorSeverity, type ErrorSummary } from '../../services/error-analysis-service';

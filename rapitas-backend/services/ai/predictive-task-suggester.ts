@@ -5,9 +5,7 @@
  * and suggests tasks to work on now, ranked by relevance.
  */
 import { prisma } from '../../config/database';
-import { createLogger } from '../../config/logger';
-
-const _log = createLogger('predictive-suggester');
+// NOTE: Removed unused logger — nothing in this module logs (noUnusedLocals).
 
 interface TaskSuggestion {
   taskId: number;

@@ -107,7 +107,8 @@ export class SSEStreamController {
   private encoder = new TextEncoder();
   private controller: ReadableStreamDefaultController<Uint8Array> | null = null;
   private isClosed = false;
-  private retryCount = 0;
+  // NOTE: Removed write-only `retryCount` member — the retry loop passes the
+  // attempt number explicitly and nothing ever read it back (noUnusedLocals).
   private retryConfig: RetryConfig;
   private rollbackState: unknown = null;
 
@@ -245,7 +246,6 @@ export class SSEStreamController {
     for (let attempt = 0; attempt <= this.retryConfig.maxRetries; attempt++) {
       try {
         if (attempt > 0) {
-          this.retryCount = attempt;
           const delayMs = calculateRetryDelay(attempt - 1, this.retryConfig);
           this.sendRetry(attempt, lastError?.message || '不明なエラーが発生しました');
           await delay(delayMs);

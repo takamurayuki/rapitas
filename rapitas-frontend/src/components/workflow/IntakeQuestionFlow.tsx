@@ -8,7 +8,7 @@
  * labelled answer and submits via onSubmitAll (the parent POSTs it). Reuses
  * WorkflowQuestionPanel for the per-question choices + free-text.
  */
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { ChevronLeft } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { WorkflowQuestionPanel } from './WorkflowQuestionPanel';
