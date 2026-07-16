@@ -105,6 +105,15 @@ export interface KnowledgeStats {
   recentlyAccessed: number;
   /** Open (unresolved) contradiction pairs — the nightly sweep's convergence signal. */
   unresolvedContradictions?: number;
+  /** Injected-knowledge → task-outcome causal aggregate (last 30 days). */
+  effectiveness?: {
+    sampledTasks: number;
+    successRate: number;
+    declarationRate: number;
+    usageRate: number;
+    wrongFlagged: number;
+    avgInjected: number;
+  };
 }
 
 export interface KnowledgeListResponse {
