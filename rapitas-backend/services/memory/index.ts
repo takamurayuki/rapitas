@@ -15,7 +15,8 @@ export { runConsolidation, getConsolidationRuns } from './consolidation';
 export { runForgettingSweep, boostDecayOnAccess } from './forgetting';
 export { distillFromExecution } from './distillation';
 export { triggerReconsolidation } from './reconsolidation';
-export { validateEntry } from './validation';
+export { validateEntry, revalidatePendingBacklog } from './validation';
+export { drainStaleConflicts, revalidateStaleConflicts } from './contradiction-sweep';
 export {
   detectContradictions,
   resolveContradiction,
@@ -325,6 +326,7 @@ export async function getKnowledgeStats() {
     avgConfidence,
     avgDecay,
     recentlyAccessed,
+    unresolvedContradictions,
   ] = await Promise.all([
     prisma.knowledgeEntry.count(),
     prisma.knowledgeEntry.groupBy({ by: ['category'], _count: { id: true } }),
@@ -336,6 +338,10 @@ export async function getKnowledgeStats() {
     prisma.knowledgeEntry.count({
       where: { lastAccessedAt: { gte: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000) } },
     }),
+    // Convergence signal for the nightly sweeps: byValidation shows the mix,
+    // but only the open-contradiction count says whether the backlog is
+    // actually draining toward zero.
+    prisma.knowledgeContradiction.count({ where: { resolution: null } }),
   ]);
 
   const toRecord = (
@@ -352,5 +358,6 @@ export async function getKnowledgeStats() {
     averageConfidence: avgConfidence._avg.confidence ?? 0,
     averageDecayScore: avgDecay._avg.decayScore ?? 0,
     recentlyAccessed,
+    unresolvedContradictions,
   };
 }

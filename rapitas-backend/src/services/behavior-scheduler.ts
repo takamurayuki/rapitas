@@ -2,7 +2,8 @@ import { UserBehaviorService } from './user-behavior-service';
 import { createLogger } from '../../config/logger';
 import { memoryTaskQueue } from '../../services/memory';
 import { scanAndRemind } from '../../services/memory/knowledge-reminder';
-import { revalidateStaleConflicts } from '../../services/memory/contradiction';
+import { drainStaleConflicts } from '../../services/memory/contradiction-sweep';
+import { revalidatePendingBacklog } from '../../services/memory/validation';
 import { generateOptimizationRules } from '../../services/workflow/learning/workflow-learning-optimizer';
 import { processAllPendingRecurrences } from '../../services/scheduling/recurring-task-service';
 import { runScheduledTechDebtScan } from '../../services/misc/tech-debt-liquidator';
@@ -85,13 +86,26 @@ export class BehaviorScheduler {
         });
       }
 
-      // 5 AM: stale-conflict revalidation — 'conflict' knowledge must be able
-      // to recover (or die) without a human; otherwise recall trust-demotes a
-      // growing share of the KB forever.
+      // 5 AM: stale-conflict drain — 'conflict' knowledge must be able to
+      // recover (or die) without a human; otherwise recall trust-demotes a
+      // growing share of the KB forever. Drains up to
+      // RAPITAS_KB_CONFLICT_SWEEP_BUDGET (default 200) per night — the old
+      // fixed 10/night let the backlog grow faster than it resolved.
       if (h === 5 && m === 0) {
-        log.info('[BehaviorScheduler] Revalidating stale knowledge conflicts');
-        await revalidateStaleConflicts().catch((err: Error) => {
-          log.error({ err }, '[BehaviorScheduler] Conflict revalidation failed');
+        log.info('[BehaviorScheduler] Draining stale knowledge conflicts');
+        await drainStaleConflicts().catch((err: Error) => {
+          log.error({ err }, '[BehaviorScheduler] Conflict drain failed');
+        });
+      }
+
+      // 5:30 AM: pending-backlog validation — reconsolidation and orphan
+      // reversion return entries to 'pending' with nothing re-validating them,
+      // so without a retroactive sweep the unvalidated share only grows.
+      // Offset from the 5 AM drain so the two LLM-heavy sweeps don't overlap.
+      if (h === 5 && m === 30) {
+        log.info('[BehaviorScheduler] Validating pending knowledge backlog');
+        await revalidatePendingBacklog().catch((err: Error) => {
+          log.error({ err }, '[BehaviorScheduler] Pending-backlog validation failed');
         });
       }
 

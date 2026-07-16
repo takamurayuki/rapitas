@@ -173,3 +173,67 @@ export async function validateEntry(entryId: number): Promise<{
   log.debug({ entryId }, 'Entry validated');
   return { status: 'validated', reason: '検証通過' };
 }
+
+/**
+ * Retroactively validate the oldest 'pending' entries.
+ *
+ * Entries ARE validated at write time, but three paths return them to
+ * 'pending' with nothing scheduled to ever re-validate: entries created before
+ * the validate-on-write pipeline existed, reconsolidated entries
+ * (reconsolidation.ts resets validationStatus after a content rewrite), and
+ * orphaned conflicts reverted by the conflict sweep. Without this sweep the
+ * pending share of the KB only grows — at audit time 56% of entries sat
+ * unvalidated, so recall could never trust-boost them.
+ *
+ * validateEntry always terminates a pending status (validated / rejected /
+ * conflict — LLM or vector failure falls through to 'validated'), so a plain
+ * oldest-first fetch drains the backlog without a cursor; entries that throw
+ * are retried on a later sweep.
+ *
+ * @param limit - Max entries to validate in this sweep; defaults to
+ *   RAPITAS_KB_PENDING_SWEEP_BUDGET or 100. / 1回の検証上限
+ * @returns Outcome counts for the sweep. / 検証結果の内訳
+ */
+export async function revalidatePendingBacklog(limit?: number): Promise<{
+  examined: number;
+  validated: number;
+  rejected: number;
+  conflict: number;
+  failed: number;
+}> {
+  const rawBudget = Number(process.env.RAPITAS_KB_PENDING_SWEEP_BUDGET);
+  const budget =
+    limit ?? (Number.isFinite(rawBudget) && rawBudget > 0 ? Math.floor(rawBudget) : 100);
+
+  const entries = await prisma.knowledgeEntry.findMany({
+    // Archived knowledge is excluded — it is already out of recall, so
+    // validating it spends LLM budget on entries no prompt will ever see.
+    where: { validationStatus: 'pending', forgettingStage: { not: 'archived' } },
+    select: { id: true },
+    orderBy: { id: 'asc' },
+    take: budget,
+  });
+
+  const counts = {
+    examined: entries.length,
+    validated: 0,
+    rejected: 0,
+    conflict: 0,
+    failed: 0,
+  };
+
+  for (const e of entries) {
+    try {
+      const result = await validateEntry(e.id);
+      counts[result.status]++;
+    } catch (error) {
+      counts.failed++;
+      log.warn({ err: error, entryId: e.id }, 'Pending-backlog validation failed for entry');
+    }
+  }
+
+  if (counts.examined > 0) {
+    log.info(counts, 'Pending-backlog validation sweep finished');
+  }
+  return counts;
+}

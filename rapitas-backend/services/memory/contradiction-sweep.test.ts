@@ -1,11 +1,11 @@
 /**
- * contradiction.revalidate.test
+ * contradiction-sweep.test
  *
- * Verifies revalidateStaleConflicts' resolution policy: dead-side keeps the
- * survivor, a decayScore gap decides by outcome evidence, an LLM
- * NO_CONTRADICTION re-check dismisses, a still-contested pair stays open, and
- * orphaned conflict entries revert to 'pending'. Own file — mock.module is
- * process-global.
+ * Verifies the stale-conflict sweep: the batch primitive's resolution policy
+ * (dead-side keeps the survivor, decayScore gap decides by outcome evidence,
+ * LLM NO_CONTRADICTION dismisses, still-contested stays open), the afterId
+ * cursor, and the drain loop's budget/termination/orphan-reversion behavior.
+ * Own file — mock.module is process-global.
  */
 import { describe, test, expect, mock, beforeEach } from 'bun:test';
 
@@ -54,21 +54,47 @@ interface ContradictionLike {
   resolution: string | null;
 }
 
+function contested(id: number): ContradictionLike {
+  return {
+    id,
+    entryAId: id * 10,
+    entryBId: id * 10 + 1,
+    entryA: entry(id * 10),
+    entryB: entry(id * 10 + 1),
+    resolution: null,
+  };
+}
+
 let contradictions: ContradictionLike[] = [];
 const contradictionUpdates: Array<{ id: number; resolution: string }> = [];
 const entryUpdateManyCalls: Array<Record<string, unknown>> = [];
 const entryUpdateCalls: Array<Record<string, unknown>> = [];
+const findManyCalls: Array<{ afterId: number; take: number }> = [];
 let orphanRevertCount = 0;
 
 mock.module('../../config/database', () => ({
   prisma: {
     knowledgeContradiction: {
-      findMany: mock(() => Promise.resolve(contradictions)),
+      // Mirrors the real query shape so cursor tests are meaningful: filters
+      // on resolution=null and id > afterId, honors take, sorts by id asc.
+      findMany: mock((args: { where?: { id?: { gt?: number } }; take?: number }) => {
+        const afterId = args?.where?.id?.gt ?? 0;
+        const open = contradictions
+          .filter((c) => c.resolution === null && c.id > afterId)
+          .sort((a, b) => a.id - b.id);
+        const take = args?.take ?? open.length;
+        findManyCalls.push({ afterId, take });
+        return Promise.resolve(open.slice(0, take));
+      }),
       findUnique: mock((args: { where: { id: number } }) =>
         Promise.resolve(contradictions.find((c) => c.id === args.where.id) ?? null),
       ),
       update: mock((args: { where: { id: number }; data: { resolution: string } }) => {
         contradictionUpdates.push({ id: args.where.id, resolution: args.data.resolution });
+        // Persist into the in-memory store so a drain loop's later batches
+        // no longer see this contradiction as open.
+        const c = contradictions.find((x) => x.id === args.where.id);
+        if (c && args.data.resolution) c.resolution = args.data.resolution;
         return Promise.resolve({});
       }),
     },
@@ -89,13 +115,15 @@ mock.module('../../config/database', () => ({
   },
 }));
 
-const { revalidateStaleConflicts } = await import('./contradiction');
+const { revalidateStaleConflicts, drainStaleConflicts, revertOrphanedConflicts } =
+  await import('./contradiction-sweep');
 
 beforeEach(() => {
   contradictions = [];
   contradictionUpdates.length = 0;
   entryUpdateManyCalls.length = 0;
   entryUpdateCalls.length = 0;
+  findManyCalls.length = 0;
   orphanRevertCount = 0;
   aiResponse = '判定: NO_CONTRADICTION';
   sendAIMessage.mockClear();
@@ -139,16 +167,7 @@ describe('revalidateStaleConflicts', () => {
   });
 
   test('LLM NO_CONTRADICTION re-check dismisses (both recover)', async () => {
-    contradictions = [
-      {
-        id: 3,
-        entryAId: 30,
-        entryBId: 31,
-        entryA: entry(30),
-        entryB: entry(31),
-        resolution: null,
-      },
-    ];
+    contradictions = [contested(3)];
 
     const result = await revalidateStaleConflicts();
     expect(result.resolved).toBe(1);
@@ -157,29 +176,77 @@ describe('revalidateStaleConflicts', () => {
 
   test('still-contested pair stays unresolved', async () => {
     aiResponse = '判定: CONTRADICTION';
-    contradictions = [
-      {
-        id: 4,
-        entryAId: 40,
-        entryBId: 41,
-        entryA: entry(40),
-        entryB: entry(41),
-        resolution: null,
-      },
-    ];
+    contradictions = [contested(4)];
 
     const result = await revalidateStaleConflicts();
     expect(result.resolved).toBe(0);
     expect(contradictionUpdates).toHaveLength(0);
   });
 
-  test('orphaned conflict entries are reverted to pending', async () => {
+  test('afterId cursor skips already-examined contradictions', async () => {
+    aiResponse = '判定: CONTRADICTION';
+    contradictions = [contested(1), contested(2), contested(3)];
+
+    const first = await revalidateStaleConflicts(2, 0);
+    expect(first.examined).toBe(2);
+    expect(first.lastId).toBe(2);
+
+    const second = await revalidateStaleConflicts(2, first.lastId!);
+    expect(second.examined).toBe(1);
+    expect(second.lastId).toBe(3);
+
+    const third = await revalidateStaleConflicts(2, second.lastId!);
+    expect(third.examined).toBe(0);
+    expect(third.lastId).toBeNull();
+  });
+});
+
+describe('drainStaleConflicts', () => {
+  test('drains the whole backlog across multiple batches', async () => {
+    contradictions = [contested(1), contested(2), contested(3)];
+
+    const result = await drainStaleConflicts({ batchSize: 1 });
+    expect(result.examined).toBe(3);
+    expect(result.resolved).toBe(3);
+    expect(contradictionUpdates.map((u) => u.id).sort()).toEqual([1, 2, 3]);
+  });
+
+  test('terminates on a fully-contested backlog without re-examining pairs', async () => {
+    aiResponse = '判定: CONTRADICTION';
+    contradictions = [contested(1), contested(2)];
+
+    const result = await drainStaleConflicts({ batchSize: 1 });
+    expect(result.examined).toBe(2);
+    expect(result.resolved).toBe(0);
+    // Each stubborn pair gets exactly one LLM re-check per night, not a loop.
+    expect(sendAIMessage).toHaveBeenCalledTimes(2);
+  });
+
+  test('respects the maxExamined budget', async () => {
+    contradictions = [contested(1), contested(2), contested(3), contested(4), contested(5)];
+
+    const result = await drainStaleConflicts({ batchSize: 2, maxExamined: 3 });
+    expect(result.examined).toBe(3);
+    // Batch sizing never overshoots the remaining budget (2 + 1, not 2 + 2).
+    expect(findManyCalls.map((c) => c.take)).toEqual([2, 1]);
+  });
+
+  test('reverts orphaned conflict entries after draining', async () => {
     orphanRevertCount = 5;
-    await revalidateStaleConflicts();
+
+    const result = await drainStaleConflicts({ batchSize: 5 });
+    expect(result.orphansReverted).toBe(5);
     const orphanSweep = entryUpdateManyCalls.find((c) =>
       Object.hasOwn((c as { where: Record<string, unknown> }).where, 'contradictions'),
     ) as { where: Record<string, unknown>; data: Record<string, unknown> } | undefined;
     expect(orphanSweep).toBeDefined();
     expect(orphanSweep!.data).toEqual({ validationStatus: 'pending' });
+  });
+});
+
+describe('revertOrphanedConflicts', () => {
+  test('returns the reverted count', async () => {
+    orphanRevertCount = 7;
+    expect(await revertOrphanedConflicts()).toBe(7);
   });
 });

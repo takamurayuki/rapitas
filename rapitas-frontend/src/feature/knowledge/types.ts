@@ -103,6 +103,8 @@ export interface KnowledgeStats {
   averageConfidence: number;
   averageDecayScore: number;
   recentlyAccessed: number;
+  /** Open (unresolved) contradiction pairs — the nightly sweep's convergence signal. */
+  unresolvedContradictions?: number;
 }
 
 export interface KnowledgeListResponse {
