@@ -152,7 +152,7 @@ mock.module('../../task/task-resolver', () => ({
   resolveTaskForLearning: mockResolveTaskForLearning,
 }));
 
-const { generateOptimizationRules, getWorkflowRecommendation } =
+const { generateOptimizationRules, getWorkflowRecommendation, applyModeRules } =
   await import('./workflow-learning-optimizer');
 
 function mkTask(overrides: Partial<TaskFixture> = {}): TaskFixture {
@@ -430,5 +430,90 @@ describe('getWorkflowRecommendation — rule matching', () => {
 
     expect(rec?.confidence).toBeCloseTo(0.7);
     expect(rec?.reasons).toEqual(['a', 'b']);
+  });
+});
+
+describe('applyModeRules — 生成ルールのモード適用（作成時）', () => {
+  test('高confidenceのset_modeルールが基準モードを上書きする', async () => {
+    mockOptimizationRuleFindMany.mockResolvedValue([
+      mkRule({
+        id: 21,
+        condition: JSON.stringify({ themeId: 7 }),
+        recommendation: JSON.stringify({
+          action: 'set_mode',
+          targetMode: 'lightweight',
+          reason: 'テーマ7の低複雑度は軽量で十分',
+        }),
+        confidence: 0.85,
+      }),
+    ]);
+
+    const d = await applyModeRules({ themeId: 7 }, 30, 'standard');
+    expect(d.mode).toBe('lightweight');
+    expect(d.ruleIds).toEqual([21]);
+    expect(d.reasons).toEqual(['テーマ7の低複雑度は軽量で十分']);
+    expect(mockOptimizationRuleUpdateMany).toHaveBeenCalledTimes(1);
+  });
+
+  test('confidence 0.7以下のモードルールは適用されない', async () => {
+    mockOptimizationRuleFindMany.mockResolvedValue([
+      mkRule({
+        id: 22,
+        recommendation: JSON.stringify({
+          action: 'downgrade_mode',
+          targetMode: 'lightweight',
+          reason: 'low-conf',
+        }),
+        confidence: 0.65,
+      }),
+    ]);
+
+    const d = await applyModeRules({ themeId: null }, 30, 'standard');
+    expect(d.mode).toBe('standard');
+    expect(d.ruleIds).toHaveLength(0);
+  });
+
+  test('adjust_threshold / skip_phase はモード適用に影響しない', async () => {
+    mockOptimizationRuleFindMany.mockResolvedValue([
+      mkRule({
+        id: 23,
+        recommendation: JSON.stringify({ action: 'adjust_threshold', reason: 'x' }),
+        confidence: 0.9,
+      }),
+      mkRule({
+        id: 24,
+        recommendation: JSON.stringify({ action: 'skip_phase', phase: 'plan', reason: 'y' }),
+        confidence: 0.9,
+      }),
+    ]);
+
+    const d = await applyModeRules({ themeId: null }, 30, 'comprehensive');
+    expect(d.mode).toBe('comprehensive');
+    expect(d.ruleIds).toHaveLength(0);
+  });
+
+  test('条件が合わないルールはスキップされる（themeId不一致）', async () => {
+    mockOptimizationRuleFindMany.mockResolvedValue([
+      mkRule({
+        id: 25,
+        condition: JSON.stringify({ themeId: 99 }),
+        recommendation: JSON.stringify({
+          action: 'set_mode',
+          targetMode: 'lightweight',
+          reason: 'other theme',
+        }),
+        confidence: 0.9,
+      }),
+    ]);
+
+    const d = await applyModeRules({ themeId: 7 }, 30, 'standard');
+    expect(d.mode).toBe('standard');
+  });
+
+  test('DB失敗時は基準モードのまま（best-effort）', async () => {
+    mockOptimizationRuleFindMany.mockRejectedValueOnce(new Error('db down'));
+    const d = await applyModeRules({ themeId: 1 }, 50, 'standard');
+    expect(d.mode).toBe('standard');
+    expect(d.ruleIds).toHaveLength(0);
   });
 });

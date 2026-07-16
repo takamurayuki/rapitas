@@ -189,10 +189,39 @@ export async function createParentTask(
       // (UI-editable) instead of the hardcoded 35/70 split.
       const { getAllModeSettings, recommendModeFromSettings } =
         await import('../workflow/workflow-mode-config');
-      const recommendedMode = recommendModeFromSettings(
+      const settingsMode = recommendModeFromSettings(
         analysis.complexityScore,
         await getAllModeSettings(),
       );
+
+      // Learned mode rules (nightly-generated from real outcomes) refine the
+      // settings-based default. Creation-time only — a user changing the mode
+      // later in the UI is the override and is never touched by rules.
+      const { applyModeRules } = await import('../workflow/learning/workflow-learning-optimizer');
+      const ruleDecision = await applyModeRules(
+        { themeId: data.themeId ?? null },
+        analysis.complexityScore,
+        settingsMode,
+      );
+      const recommendedMode = ruleDecision.mode;
+      if (ruleDecision.ruleIds.length > 0) {
+        // Surface the rule application in the task's activity log so the user
+        // can see WHY the mode differs from the complexity-range default.
+        await prisma.activityLog
+          .create({
+            data: {
+              taskId: createdTask.id,
+              action: 'workflow_mode_rule_applied',
+              metadata: JSON.stringify({
+                baseMode: settingsMode,
+                appliedMode: ruleDecision.mode,
+                ruleIds: ruleDecision.ruleIds,
+                reasons: ruleDecision.reasons,
+              }),
+            },
+          })
+          .catch(() => {});
+      }
 
       // NOTE: The metadata heuristic score is used ONLY to pick the initial
       // workflow mode — it is deliberately NOT persisted to complexityScore.

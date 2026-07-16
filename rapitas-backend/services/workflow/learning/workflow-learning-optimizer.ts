@@ -80,6 +80,90 @@ export async function generateOptimizationRules(): Promise<RuleGenerationResult>
 }
 
 // ───────────────────────────────────────────────
+// Rule application at mode-assignment time
+// ───────────────────────────────────────────────
+
+/** Result of applying learned mode rules to a base mode decision. */
+export interface RuleModeDecision {
+  mode: 'lightweight' | 'standard' | 'comprehensive';
+  ruleIds: number[];
+  reasons: string[];
+}
+
+/**
+ * Apply active high-confidence MODE rules to a base mode decision.
+ *
+ * The nightly generateOptimizationRules cron has produced rules for months,
+ * but their only consumer was the read-only learning panel — recommendations
+ * were rendered, never applied. This is the application path, called when a
+ * task's workflow mode is auto-assigned at creation. The human override is
+ * structural: users change the mode any time via the task UI, and rules never
+ * touch a task after creation.
+ *
+ * Only set_mode / downgrade_mode actions with confidence > 0.7 apply;
+ * skip_phase / adjust_threshold stay advisory (panel-only) for now.
+ *
+ * @param task - Fields the rule conditions match on. / 条件マッチ用フィールド
+ * @param complexityScore - The task's computed complexity score. / 複雑度スコア
+ * @param baseMode - Mode recommended by the settings-based ranges. / 基準モード
+ * @returns The (possibly rule-adjusted) mode plus applied rules. / 適用結果
+ */
+export async function applyModeRules(
+  task: { themeId: number | null },
+  complexityScore: number,
+  baseMode: 'lightweight' | 'standard' | 'comprehensive',
+): Promise<RuleModeDecision> {
+  try {
+    const rules = await prisma.workflowOptimizationRule.findMany({
+      where: { isActive: true, confidence: { gte: CONFIDENCE_THRESHOLD } },
+      orderBy: { confidence: 'desc' },
+    });
+
+    let mode = baseMode;
+    const ruleIds: number[] = [];
+    const reasons: string[] = [];
+
+    for (const rule of rules) {
+      const condition = JSON.parse(rule.condition) as Record<string, unknown>;
+      const recommendation = JSON.parse(rule.recommendation) as {
+        action?: string;
+        targetMode?: 'lightweight' | 'standard' | 'comprehensive';
+        reason?: string;
+      };
+
+      // `workflowMode: mode` — a rule conditioned on originalMode matches the
+      // CURRENT decision, so a chain of rules evaluates against the running result.
+      if (
+        !matchesCondition(condition, { themeId: task.themeId, workflowMode: mode }, complexityScore)
+      ) {
+        continue;
+      }
+      if (
+        (recommendation.action === 'set_mode' || recommendation.action === 'downgrade_mode') &&
+        rule.confidence > 0.7 &&
+        recommendation.targetMode
+      ) {
+        mode = recommendation.targetMode;
+        ruleIds.push(rule.id);
+        if (recommendation.reason) reasons.push(recommendation.reason);
+      }
+    }
+
+    if (ruleIds.length > 0) {
+      await prisma.workflowOptimizationRule.updateMany({
+        where: { id: { in: ruleIds } },
+        data: { lastEvaluated: new Date() },
+      });
+    }
+    return { mode, ruleIds, reasons };
+  } catch (err) {
+    // Rule application must never block mode assignment.
+    log.warn({ err }, 'applyModeRules failed; keeping base mode');
+    return { mode: baseMode, ruleIds: [], reasons: [] };
+  }
+}
+
+// ───────────────────────────────────────────────
 // Task Optimization Recommendations
 // ───────────────────────────────────────────────
 
