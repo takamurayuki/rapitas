@@ -5,6 +5,7 @@ import { AlertTriangle, Sprout } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { useMemoryData } from './useMemoryData';
 import { MemoryStrengthCard } from './components/MemoryStrengthCard';
+import { DecisionCalibrationCard } from './components/DecisionCalibrationCard';
 import { OverviewCards } from './components/OverviewCards';
 import { GrowthTrendChart } from './components/GrowthTrendChart';
 import { ConfidenceTrendChart } from './components/ConfidenceTrendChart';
@@ -87,6 +88,8 @@ export default function AgentMemoryPage() {
         {growthTimeline && growthTimeline.timeline.length > 0 && (
           <ConfidenceTrendChart growthTimeline={growthTimeline} formatChartDate={formatChartDate} />
         )}
+
+        <DecisionCalibrationCard />
 
         {memoryOverview && (
           <RecentLearnings memoryOverview={memoryOverview} formatDate={formatDate} />

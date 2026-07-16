@@ -1849,6 +1849,20 @@
         "technology": "テクノロジー",
         "pattern": "パターン"
       },
+      "decisionCalibration": {
+        "title": "plan承認の判断精度",
+        "subtitle": "あなたの承認/差し戻しと自動承認ポリシーを、タスクの実結果で採点した較正値です。",
+        "empty": "まだ較正済みの判断がありません。plan承認とタスク完了が重なると蓄積されます。",
+        "precisionLabel": "的中率",
+        "decider": {
+          "user": "あなた",
+          "auto": "自動承認"
+        },
+        "correctCount": "的中 {count}",
+        "wrongCount": "外れ {count}",
+        "partialCount": "判定保留 {count}",
+        "pendingCount": "結果待ち {count}"
+      },
       "levelLabels": {
         "expert": "エキスパート",
         "advanced": "アドバンスド",

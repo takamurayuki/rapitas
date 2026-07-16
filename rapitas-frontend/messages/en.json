@@ -1849,6 +1849,20 @@
         "technology": "Technology",
         "pattern": "Pattern"
       },
+      "decisionCalibration": {
+        "title": "Plan-gate decision accuracy",
+        "subtitle": "Your approvals/rejections and the auto-approve policy, scored against real task outcomes.",
+        "empty": "No calibrated decisions yet. Data accumulates as plan approvals meet task completions.",
+        "precisionLabel": "precision",
+        "decider": {
+          "user": "You",
+          "auto": "Auto-approve"
+        },
+        "correctCount": "Correct {count}",
+        "wrongCount": "Wrong {count}",
+        "partialCount": "Undetermined {count}",
+        "pendingCount": "Awaiting outcome {count}"
+      },
       "levelLabels": {
         "expert": "Expert",
         "advanced": "Advanced",
