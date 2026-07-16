@@ -51,6 +51,7 @@ import { runConsolidation } from './consolidation';
 import { runForgettingSweep, boostDecayOnAccess } from './forgetting';
 import { distillFromExecution } from './distillation';
 import { findSemanticDuplicate } from './dedup';
+import { getKnowledgeEffectiveness } from './effectiveness';
 import { createContentHash } from './utils';
 import { appendEvent } from './timeline';
 import { getInsensitiveMode } from '../../config/db-provider';
@@ -327,6 +328,7 @@ export async function getKnowledgeStats() {
     avgDecay,
     recentlyAccessed,
     unresolvedContradictions,
+    effectiveness,
   ] = await Promise.all([
     prisma.knowledgeEntry.count(),
     prisma.knowledgeEntry.groupBy({ by: ['category'], _count: { id: true } }),
@@ -342,6 +344,7 @@ export async function getKnowledgeStats() {
     // but only the open-contradiction count says whether the backlog is
     // actually draining toward zero.
     prisma.knowledgeContradiction.count({ where: { resolution: null } }),
+    getKnowledgeEffectiveness(),
   ]);
 
   const toRecord = (
@@ -359,5 +362,6 @@ export async function getKnowledgeStats() {
     averageDecayScore: avgDecay._avg.decayScore ?? 0,
     recentlyAccessed,
     unresolvedContradictions,
+    effectiveness,
   };
 }

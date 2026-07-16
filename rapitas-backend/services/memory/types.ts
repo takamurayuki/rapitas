@@ -45,6 +45,7 @@ export type TimelineEventType =
   | 'knowledge_reviewed'
   | 'task_outcome'
   | 'memory_retrieval'
+  | 'knowledge_effectiveness'
   | 'adversarial_review'
   | 'ideation_calibration';
 

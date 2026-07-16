@@ -259,6 +259,26 @@ export async function applyOutcomeReinforcement(
     },
     `[kb-reinforce] ${success ? 'Reinforced' : 'Penalized'} ${applied}/${merged.size} knowledge entries from task outcome${fineGrained ? ' (per-entry declaration)' : ''}`,
   );
+
+  // Durable effectiveness sample: the log line above scrolls away, so without
+  // this the "did injected knowledge actually help?" question stays
+  // unanswerable. Aggregated by effectiveness.ts into /knowledge/stats.
+  // Fire-and-forget — measurement must never block the outcome path.
+  appendEvent({
+    eventType: 'knowledge_effectiveness',
+    actorType: 'system',
+    payload: {
+      taskId,
+      success,
+      injected: merged.size,
+      applied,
+      fineGrained,
+      used: fineGrained ? usedSet.size : null,
+      wrong: fineGrained ? wrongSet.size : null,
+    },
+    correlationId: `task_${taskId}`,
+  }).catch((err) => log.debug({ err, taskId }, '[kb-reinforce] effectiveness sample write failed'));
+
   return applied;
 }
 
