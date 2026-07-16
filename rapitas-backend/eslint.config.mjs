@@ -51,6 +51,16 @@ export default [
       ...stagedSeverity("scripts"),
     },
   },
+  // Ambient declaration files (global.d.ts, @types/**) mirror external APIs
+  // (bun:test matchers, process-global mocks) whose shapes are outside our
+  // control — `any` is the honest type there, so the prod-stage error would
+  // only breed noise disables.
+  {
+    files: ["**/*.d.ts"],
+    rules: {
+      "@typescript-eslint/no-explicit-any": "off",
+    },
+  },
   // Disable in test files — tests may assert PostgreSQL/SQLite behaviour differences
   // using raw mode literals and must not be flagged as violations.
   {

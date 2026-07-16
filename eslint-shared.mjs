@@ -24,7 +24,12 @@ export function stagedSeverity(stage) {
     case 'prod':
       return {
         'no-console': 'error',
-        '@typescript-eslint/no-explicit-any': 'warn',
+        // NOTE: 'error', not 'warn' — CLAUDE.md §3's "No any" rule was only a
+        // warning until 2026-07-16, so violations passed CI silently. An
+        // unavoidable `any` (e.g. cross-provider Prisma StringFilter casts)
+        // requires an eslint-disable directive WITH the adjacent
+        // `// HACK(agent): reason` comment the policy already mandates.
+        '@typescript-eslint/no-explicit-any': 'error',
         '@typescript-eslint/no-unused-vars': [
           'warn',
           { argsIgnorePattern: '^_', varsIgnorePattern: '^_' },

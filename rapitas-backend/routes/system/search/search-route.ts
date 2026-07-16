@@ -57,13 +57,19 @@ export const searchMainRoute = new Elysia().get('/', async ({ query: q, set }) =
     const insensitive = getInsensitiveMode();
 
     if (types.includes('task')) {
-      // HACK(agent): `any` used for dynamic Prisma where clause construction — no typed builder available.
-      const taskWhere: any = {
+      // HACK(agent): `mode` exists only on the Postgres StringFilter; the
+      // SQLite-generated client's StringFilter omits it, so the two contains
+      // filters need an `any` cast to type-check against both generated
+      // clients (same pattern as routes/tasks/task-suggestions.ts). The where
+      // clause itself is fully typed so later .AND.push() calls are checked.
+      const taskWhere: { AND: Prisma.TaskWhereInput[] } = {
         AND: [
           ...words.map((word) => ({
             OR: [
-              { title: { contains: word, ...insensitive } },
-              { description: { contains: word, ...insensitive } },
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              { title: { contains: word, ...insensitive } as any },
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              { description: { contains: word, ...insensitive } as any },
             ],
           })),
         ],

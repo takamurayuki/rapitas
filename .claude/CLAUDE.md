@@ -56,7 +56,7 @@ Automatically handles on each start:
 
 ### Hard rules
 
-- No `any` type in TypeScript. If unavoidable, add `// HACK(agent): reason`.
+- No `any` type in TypeScript — machine-enforced: `@typescript-eslint/no-explicit-any` is an **error** in prod code (eslint-shared.mjs; `.d.ts` and test files exempt). If unavoidable, add `// HACK(agent): reason` AND the matching `// eslint-disable-next-line @typescript-eslint/no-explicit-any` directive.
 - File size limit: 300–500 lines. Split before adding to an oversized file.
 - Test coverage: new code should ship with tests. **≥ 80% is the long-term target, not an immediate gate** — coverage is raised via the staged ratchet in [ADR-0002](../docs/adr/0002-coverage-gate-staging.md); the enforced floor lives in `rapitas-frontend/vitest.config.ts`. Do not claim 80% is met today; it is not.
 - All public functions require JSDoc/rustdoc. (See COMMENT_POLICY.md)
