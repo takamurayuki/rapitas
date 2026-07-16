@@ -4,6 +4,7 @@ import type { Elysia } from 'elysia';
 import {
   categoriesRoutes,
   themesRoutes,
+  themeRepoInitRoutes,
   labelsRoutes,
   taskLabelsRoutes,
   projectsRoutes,
@@ -103,6 +104,7 @@ export function registerAllRoutes(app: Elysia): void {
   // Organization
   app.use(categoriesRoutes);
   app.use(themesRoutes);
+  app.use(themeRepoInitRoutes);
   app.use(labelsRoutes);
   // NOTE: Was imported but never mounted — PUT /tasks/:id/labels 404'd.
   app.use(taskLabelsRoutes);

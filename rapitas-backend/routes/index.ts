@@ -6,6 +6,7 @@
 // Organization
 export { categoriesRoutes } from './organization/categories';
 export { themesRoutes } from './organization/themes';
+export { themeRepoInitRoutes } from './organization/theme-repo-init';
 export { labelsRoutes, taskLabelsRoutes } from './organization/labels';
 export { projectsRoutes } from './organization/projects';
 export { milestonesRoutes } from './organization/milestones';
