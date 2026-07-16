@@ -264,6 +264,7 @@ export async function reconcileOnce(): Promise<{
   requeuedOrphans: number;
   retriedBlocked: number;
   undispatchableTodos: number;
+  autoApproveStalls: number;
 }> {
   const empty = {
     zombieSessions: 0,
@@ -273,6 +274,7 @@ export async function reconcileOnce(): Promise<{
     requeuedOrphans: 0,
     retriedBlocked: 0,
     undispatchableTodos: 0,
+    autoApproveStalls: 0,
   };
   if (inFlight) return empty;
   inFlight = true;
@@ -309,6 +311,13 @@ export async function reconcileOnce(): Promise<{
       healUndispatchableTodo(nowMs),
     );
     const orphanTasks = await runHealPass('flagOrphanTasks', () => flagOrphanTasks(nowMs));
+    // Re-run auto-approval lost by a save request that died mid-flight
+    // (critic-gate wall time > client timeout) — plan_created + active
+    // auto-approve policy must never sit forever.
+    const autoApproveStalls = await runHealPass('healAutoApproveStalls', async () => {
+      const { healAutoApproveStalls } = await import('./workflow-reconciler-autoapprove');
+      return healAutoApproveStalls(nowMs);
+    });
     const counts = {
       zombieSessions,
       phantomWorktrees,
@@ -317,6 +326,7 @@ export async function reconcileOnce(): Promise<{
       requeuedOrphans,
       retriedBlocked,
       undispatchableTodos,
+      autoApproveStalls,
     };
     if (Object.values(counts).some((n) => n > 0)) {
       log.info(counts, '[reconciler] repaired divergences');

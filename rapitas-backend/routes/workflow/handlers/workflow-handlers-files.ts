@@ -672,12 +672,34 @@ export async function handleSaveFile({
         (fileType === 'plan' && newStatus === 'plan_created'))
     ) {
       const { applyPhaseCriticGate } = await import('../../../services/workflow/phase-critic');
-      const gate = await applyPhaseCriticGate({
-        taskId,
-        phase: fileType === 'research' ? 'research' : 'plan',
-        content: savedContent,
-        currentStatus: newStatus,
-      }).catch(() => ({ bounced: false }) as { bounced: boolean; newStatus?: string });
+      // NOTE: The critic runs LLM judges SYNCHRONOUSLY inside this request.
+      // Unbounded, its wall time (observed 80-150s) exceeds the saving agent's
+      // 120s curl timeout: the client resends, races itself, and if the dying
+      // request carried the auto-approve tail the task stalls at plan_created
+      // forever (task 492). Cap it below the client timeout and fail open —
+      // matching this gate's stated fail-open philosophy; the reconciler's
+      // healAutoApproveStalls pass is the backstop for anything still lost.
+      const criticTimeoutMs = (() => {
+        const v = parseInt(process.env.RAPITAS_PHASE_CRITIC_TIMEOUT_MS ?? '', 10);
+        return Number.isFinite(v) && v > 0 ? v : 90_000;
+      })();
+      const gate = await Promise.race([
+        applyPhaseCriticGate({
+          taskId,
+          phase: fileType === 'research' ? 'research' : 'plan',
+          content: savedContent,
+          currentStatus: newStatus,
+        }),
+        new Promise<{ bounced: boolean; newStatus?: string }>((resolve) =>
+          setTimeout(() => {
+            log.warn(
+              { taskId, fileType, criticTimeoutMs },
+              '[Workflow] Phase critic gate timed out — failing open',
+            );
+            resolve({ bounced: false });
+          }, criticTimeoutMs),
+        ),
+      ]).catch(() => ({ bounced: false }) as { bounced: boolean; newStatus?: string });
       if (gate.bounced && gate.newStatus) {
         newStatus = gate.newStatus;
       }
