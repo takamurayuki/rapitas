@@ -161,6 +161,28 @@ export function parseKnowledgeUsage(md: string | null | undefined): KnowledgeUsa
   return { declared: true, used: [...used], wrong: [...wrong] };
 }
 
+/**
+ * Merge usage declarations from multiple workflow artifacts (research.md /
+ * plan.md / verify.md) into one. Each role is instructed to declare the
+ * knowledge it used in ITS phase artifact, but historically only verify.md was
+ * parsed — researcher/planner declarations were dead letters and their
+ * entry-level credit was silently dropped. A wrong-flag from ANY phase wins
+ * over a used-flag (an entry that misled one phase is bad knowledge even if
+ * another phase found it agreeable).
+ *
+ * @param parts - Parsed declarations, one per artifact. / 各成果物の使用申告
+ * @returns The merged declaration. / 統合済み申告
+ */
+export function mergeKnowledgeUsage(parts: KnowledgeUsageDeclaration[]): KnowledgeUsageDeclaration {
+  const declared = parts.some((p) => p.declared);
+  if (!declared) return { declared: false, used: [], wrong: [] };
+  const wrong = new Set<number>();
+  for (const p of parts) for (const id of p.wrong) wrong.add(id);
+  const used = new Set<number>();
+  for (const p of parts) for (const id of p.used) if (!wrong.has(id)) used.add(id);
+  return { declared: true, used: [...used], wrong: [...wrong] };
+}
+
 /** Extra penalty multiplier for entries the agent flagged as wrong. */
 const WRONG_FLAG_MULTIPLIER = 2;
 

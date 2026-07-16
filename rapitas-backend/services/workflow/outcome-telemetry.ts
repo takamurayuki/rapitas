@@ -91,13 +91,16 @@ export async function recordTaskOutcome(taskId: number, finalStatus: string): Pr
 
     // Outcome-gated reinforcement: reward the knowledge entries this task used
     // when it completed, decay them when it was blocked — so what survives the
-    // forgetting curve is what actually helped. Fine-grained when the agent
-    // declared per-entry usage in verify.md (R8: entry-level credit assignment
-    // instead of uniform set-level ±). Best-effort, never blocks.
+    // forgetting curve is what actually helped. Fine-grained when agents
+    // declared per-entry usage (R8: entry-level credit assignment instead of
+    // uniform set-level ±). Declarations from ALL phase artifacts are merged —
+    // each role declares in its own .md (research/plan/verify), and parsing
+    // only verify.md silently dropped the researcher's and planner's credit.
+    // Best-effort, never blocks.
     await import('../memory/outcome-reinforcement')
-      .then(async ({ applyOutcomeReinforcement, parseKnowledgeUsage }) => {
-        const usage = await readVerifyForUsage(taskId)
-          .then(parseKnowledgeUsage)
+      .then(async ({ applyOutcomeReinforcement, parseKnowledgeUsage, mergeKnowledgeUsage }) => {
+        const usage = await readWorkflowArtifacts(taskId)
+          .then((bodies) => mergeKnowledgeUsage(bodies.map(parseKnowledgeUsage)))
           .catch(() => undefined);
         return applyOutcomeReinforcement(taskId, finalStatus === 'completed', usage);
       })
@@ -142,19 +145,24 @@ export async function recordTaskOutcome(taskId: number, finalStatus: string): Pr
 }
 
 /**
- * Read the task's saved verify.md (fall back to research.md for research-only
- * completions) so the knowledge usage declaration can be parsed from it.
+ * Read every saved workflow artifact that can carry a `## 使用知識` usage
+ * declaration (research.md / plan.md / verify.md). Missing/empty files are
+ * skipped — a research-only completion still yields its research.md.
  *
  * @param taskId - Task whose artifacts to read. / 対象タスク
- * @returns Artifact body or null. / 成果物本文
+ * @returns Non-empty artifact bodies. / 成果物本文の配列
  */
-async function readVerifyForUsage(taskId: number): Promise<string | null> {
+async function readWorkflowArtifacts(taskId: number): Promise<string[]> {
   const { resolveWorkflowDir, readWorkflowFile } = await import('./workflow-file-utils');
   const resolved = await resolveWorkflowDir(taskId);
-  if (!resolved) return null;
-  const verify = await readWorkflowFile(resolved.dir, 'verify').catch(() => null);
-  if (verify?.trim()) return verify;
-  return readWorkflowFile(resolved.dir, 'research').catch(() => null);
+  if (!resolved) return [];
+  const bodies = await Promise.all(
+    // Every artifact a role can declare knowledge usage in.
+    (['research', 'plan', 'verify'] as const).map((fileType) =>
+      readWorkflowFile(resolved.dir, fileType).catch(() => null),
+    ),
+  );
+  return bodies.filter((b): b is string => !!b?.trim());
 }
 
 /**

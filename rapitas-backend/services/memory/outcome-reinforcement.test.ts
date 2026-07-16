@@ -8,7 +8,12 @@
  * found — so no module mock (which would leak process-globally) is needed.
  */
 import { describe, test, expect, beforeEach } from 'bun:test';
-import { recordRetrieval, applyOutcomeReinforcement, _resetTraces } from './outcome-reinforcement';
+import {
+  recordRetrieval,
+  applyOutcomeReinforcement,
+  mergeKnowledgeUsage,
+  _resetTraces,
+} from './outcome-reinforcement';
 
 describe('outcome-reinforcement', () => {
   beforeEach(() => {
@@ -120,5 +125,39 @@ describe('applyOutcomeReinforcement — 細粒度クレジット割当 (R8)', ()
       wrong: [],
     });
     expect(applied).toBe(2);
+  });
+});
+
+describe('mergeKnowledgeUsage — 複数成果物の申告統合', () => {
+  test('research/plan/verify の申告を union する', () => {
+    const merged = mergeKnowledgeUsage([
+      { declared: true, used: [1, 2], wrong: [] }, // research.md
+      { declared: false, used: [], wrong: [] }, // plan.md (no section)
+      { declared: true, used: [2, 3], wrong: [4] }, // verify.md
+    ]);
+    expect(merged.declared).toBe(true);
+    expect(merged.used.sort()).toEqual([1, 2, 3]);
+    expect(merged.wrong).toEqual([4]);
+  });
+
+  test('どのフェーズかで wrong と used が割れたら wrong が勝つ', () => {
+    const merged = mergeKnowledgeUsage([
+      { declared: true, used: [5], wrong: [] },
+      { declared: true, used: [], wrong: [5] },
+    ]);
+    expect(merged.used).toEqual([]);
+    expect(merged.wrong).toEqual([5]);
+  });
+
+  test('全成果物が未申告なら declared:false（レガシー一律反映へ）', () => {
+    const merged = mergeKnowledgeUsage([
+      { declared: false, used: [], wrong: [] },
+      { declared: false, used: [], wrong: [] },
+    ]);
+    expect(merged.declared).toBe(false);
+  });
+
+  test('空配列は declared:false', () => {
+    expect(mergeKnowledgeUsage([]).declared).toBe(false);
   });
 });

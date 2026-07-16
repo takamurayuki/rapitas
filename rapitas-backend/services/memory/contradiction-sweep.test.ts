@@ -24,6 +24,9 @@ let aiResponse = '判定: NO_CONTRADICTION';
 const sendAIMessage = mock(() => Promise.resolve({ content: aiResponse }));
 mock.module('../../utils/ai-client', () => ({ sendAIMessage }));
 
+const submitHypothesis = mock(() => Promise.resolve({ ok: true, id: 900 }));
+mock.module('./hypothesis-service', () => ({ submitHypothesis }));
+
 interface EntryLike {
   id: number;
   title: string;
@@ -127,6 +130,8 @@ beforeEach(() => {
   orphanRevertCount = 0;
   aiResponse = '判定: NO_CONTRADICTION';
   sendAIMessage.mockClear();
+  submitHypothesis.mockClear();
+  submitHypothesis.mockResolvedValue({ ok: true, id: 900 } as never);
 });
 
 describe('revalidateStaleConflicts', () => {
@@ -174,13 +179,28 @@ describe('revalidateStaleConflicts', () => {
     expect(contradictionUpdates[0]).toEqual({ id: 3, resolution: 'dismiss' });
   });
 
-  test('still-contested pair stays unresolved', async () => {
+  test('LLM-confirmed contradiction escalates to the hypothesis ledger and closes', async () => {
     aiResponse = '判定: CONTRADICTION';
     contradictions = [contested(4)];
 
     const result = await revalidateStaleConflicts();
-    expect(result.resolved).toBe(0);
-    expect(contradictionUpdates).toHaveLength(0);
+    expect(result.resolved).toBe(1);
+    expect(submitHypothesis).toHaveBeenCalledTimes(1);
+    const statement = (submitHypothesis.mock.calls[0] as unknown as [{ statement: string }])[0]
+      .statement;
+    expect(statement).toContain('K-40'); // both entry ids traceable from the statement
+    expect(statement).toContain('K-41');
+    expect(contradictionUpdates[0]).toEqual({ id: 4, resolution: 'escalated_to_hypothesis' });
+  });
+
+  test('hypothesis rejection (not falsifiable) still closes the row', async () => {
+    aiResponse = '判定: CONTRADICTION';
+    submitHypothesis.mockResolvedValueOnce({ ok: false, reason: 'too short' } as never);
+    contradictions = [contested(4)];
+
+    const result = await revalidateStaleConflicts();
+    expect(result.resolved).toBe(1);
+    expect(contradictionUpdates[0]).toEqual({ id: 4, resolution: 'escalated_to_hypothesis' });
   });
 
   test('afterId cursor skips already-examined contradictions', async () => {
@@ -211,15 +231,15 @@ describe('drainStaleConflicts', () => {
     expect(contradictionUpdates.map((u) => u.id).sort()).toEqual([1, 2, 3]);
   });
 
-  test('terminates on a fully-contested backlog without re-examining pairs', async () => {
+  test('a fully-contested backlog drains via hypothesis escalation (one LLM check per pair)', async () => {
     aiResponse = '判定: CONTRADICTION';
     contradictions = [contested(1), contested(2)];
 
     const result = await drainStaleConflicts({ batchSize: 1 });
     expect(result.examined).toBe(2);
-    expect(result.resolved).toBe(0);
-    // Each stubborn pair gets exactly one LLM re-check per night, not a loop.
+    expect(result.resolved).toBe(2); // escalated_to_hypothesis counts as resolved
     expect(sendAIMessage).toHaveBeenCalledTimes(2);
+    expect(submitHypothesis).toHaveBeenCalledTimes(2);
   });
 
   test('respects the maxExamined budget', async () => {

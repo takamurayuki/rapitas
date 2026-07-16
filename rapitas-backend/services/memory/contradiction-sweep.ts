@@ -126,6 +126,15 @@ export async function revalidateStaleConflicts(
       if (response.content.includes('NO_CONTRADICTION')) {
         await resolveContradiction(c.id, 'dismiss');
         resolved++;
+      } else if (response.content.includes('CONTRADICTION')) {
+        // A CONFIRMED contradiction is a testable claim, and the contradiction
+        // ledger is the wrong venue for it: nothing here gets injected into
+        // agent prompts, so the question would sit unanswered forever. The
+        // hypothesis ledger IS the healthy loop (prompt injection → evidence →
+        // graduation, human-reviewable on /hypotheses) — escalate there and
+        // close this row so agents actively work the question instead.
+        await escalateToHypothesis(c);
+        resolved++;
       }
     } catch (error) {
       log.warn({ err: error, contradictionId: c.id }, 'Conflict revalidation failed for entry');
@@ -134,6 +143,55 @@ export async function revalidateStaleConflicts(
 
   const lastId = contradictions.length > 0 ? contradictions[contradictions.length - 1].id : null;
   return { examined: contradictions.length, resolved, lastId };
+}
+
+/** Contradiction row with both entries, as loaded by the sweep. */
+interface SweepRow {
+  id: number;
+  entryAId: number;
+  entryBId: number;
+  entryA: { id: number; title: string; content: string };
+  entryB: { id: number; title: string; content: string };
+}
+
+/**
+ * Escalate a CONFIRMED contradiction into the hypothesis ledger and close the
+ * contradiction row. The hypothesis statement embeds both K-ids so an agent
+ * (or the user on /hypotheses) can trace and test the disagreement; its
+ * verdict — not this ledger — becomes the authoritative resolution.
+ *
+ * @param c - The contested contradiction with both entries. / 係争中の矛盾
+ */
+async function escalateToHypothesis(c: SweepRow): Promise<void> {
+  const { submitHypothesis } = await import('./hypothesis-service');
+  const result = await submitHypothesis({
+    statement:
+      `K-${c.entryA.id}「${c.entryA.title}」とK-${c.entryB.id}「${c.entryB.title}」は矛盾しており、` +
+      `K-${c.entryA.id}の主張の方が実際のコード/運用と整合している`,
+    rationale:
+      `矛盾検出LLMが2回の判定で矛盾を確認したペア。A:「${c.entryA.content.slice(0, 200)}」 ` +
+      `B:「${c.entryB.content.slice(0, 200)}」。検証時はどちらの主張が実態と一致するかを ` +
+      `file:line か実測で確認し、支持/反証の証拠を記録すること。`,
+    source: 'contradiction_escalation',
+  });
+
+  if (!result.ok) {
+    // Not falsifiable / duplicate hypothesis — still close the row (the claim
+    // is already tracked); log so a pattern of rejections stays visible.
+    log.warn(
+      { contradictionId: c.id, reason: result.reason },
+      '[contradiction-sweep] Hypothesis escalation rejected; closing row anyway',
+    );
+  }
+
+  await prisma.knowledgeContradiction.update({
+    where: { id: c.id },
+    data: { resolution: 'escalated_to_hypothesis', resolvedAt: new Date() },
+  });
+  log.info(
+    { contradictionId: c.id, entryAId: c.entryAId, entryBId: c.entryBId, filed: result.ok },
+    '[contradiction-sweep] Contested contradiction escalated to the hypothesis ledger',
+  );
 }
 
 /**
