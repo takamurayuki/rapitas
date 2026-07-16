@@ -7,7 +7,7 @@
  */
 import { prisma } from '../../config/database';
 import { createLogger } from '../../config/logger';
-import type { LearningStats, GrowthTimeline, GrowthTimelineEntry, MemoryOverview } from './types';
+import type { LearningStats, MemoryOverview } from './types';
 
 const log = createLogger('self-learning:learning');
 
@@ -62,89 +62,52 @@ export async function getLearningStats(): Promise<LearningStats> {
   };
 }
 
+// NOTE: getGrowthTimeline moved to ./growth-timeline.ts — rewritten from a
+// 7-queries-per-day loop to bulk fetch + pure bucketing, and the confidence
+// series changed from a cumulative successes-only mean (constant by
+// construction) to a 7-day trailing window over terminal experiments.
+
+/** Memory strength score plus its display level. */
+export interface MemoryStrength {
+  score: number;
+  level: 'beginner' | 'intermediate' | 'advanced' | 'expert';
+}
+
 /**
- * Calculates a day-by-day growth timeline for the specified period.
+ * Compute the memory-strength score from asymptotic (half-saturation) curves.
+ * Pure function exported for unit tests.
  *
- * @param period - Time window: '7d', '30d', or 'all' / 集計期間
- * @returns GrowthTimeline with per-day entries / 日次エントリを含むGrowthTimeline
+ * NOTE: The previous linear formula (`nodes*0.3 + patterns*0.4 + …`) pinned
+ * the score at 100/"expert" permanently once ~250 patterns existed — the card
+ * could never move again in either direction. Each x/(x+k) term approaches
+ * its weight asymptotically instead, so growth keeps registering and the
+ * success-rate term (30%) can still pull the score down after a bad streak.
+ *
+ * @param counts - Current memory sizes. / 現在の記憶量
+ * @param successRate - Completed / total experiments (0-1). / 実験成功率
+ * @returns Score (0-100) and level band. / スコアとレベル
  */
-export async function getGrowthTimeline(
-  period: '7d' | '30d' | 'all' = '30d',
-): Promise<GrowthTimeline> {
-  const now = new Date();
-  let startDate: Date;
+export function computeMemoryStrength(
+  counts: { nodes: number; patterns: number; episodes: number },
+  successRate: number,
+): MemoryStrength {
+  const half = (x: number, k: number) => x / (x + k);
+  const score = Math.min(
+    100,
+    Math.floor(
+      25 * half(counts.nodes, 50) +
+        25 * half(counts.patterns, 300) +
+        30 * Math.max(0, Math.min(1, successRate)) +
+        20 * half(counts.episodes, 200),
+    ),
+  );
 
-  switch (period) {
-    case '7d':
-      startDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-      break;
-    case '30d':
-      startDate = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
-      break;
-    case 'all': {
-      const firstExperiment = await prisma.experiment.findFirst({
-        orderBy: { createdAt: 'asc' },
-        select: { createdAt: true },
-      });
-      startDate = firstExperiment?.createdAt ?? now;
-      break;
-    }
-  }
-
-  const dates: string[] = [];
-  const currentDate = new Date(startDate);
-  while (currentDate <= now) {
-    dates.push(currentDate.toISOString().split('T')[0]);
-    currentDate.setDate(currentDate.getDate() + 1);
-  }
-
-  const timeline: GrowthTimelineEntry[] = [];
-
-  for (const date of dates) {
-    const endOfDay = new Date(`${date}T23:59:59.999Z`);
-
-    const [
-      nodeCount,
-      edgeCount,
-      patternCount,
-      completedExpCount,
-      totalExpCount,
-      avgConfidenceResult,
-      promptCount,
-    ] = await Promise.all([
-      prisma.knowledgeGraphNode.count({ where: { createdAt: { lte: endOfDay } } }),
-      prisma.knowledgeGraphEdge.count({ where: { createdAt: { lte: endOfDay } } }),
-      prisma.learningPattern.count({ where: { createdAt: { lte: endOfDay } } }),
-      prisma.experiment.count({
-        where: { status: 'completed', completedAt: { lte: endOfDay } },
-      }),
-      prisma.experiment.count({ where: { createdAt: { lte: endOfDay } } }),
-      prisma.experiment.aggregate({
-        where: { status: 'completed', completedAt: { lte: endOfDay } },
-        _avg: { confidence: true },
-      }),
-      prisma.promptEvolution.count({ where: { createdAt: { lte: endOfDay } } }),
-    ]);
-
-    timeline.push({
-      date,
-      knowledgeNodes: nodeCount,
-      knowledgeEdges: edgeCount,
-      learningPatterns: patternCount,
-      experimentsCompleted: completedExpCount,
-      successRate: totalExpCount > 0 ? completedExpCount / totalExpCount : 0,
-      avgConfidence: avgConfidenceResult._avg?.confidence ?? 0,
-      promptImprovements: promptCount,
-    });
-  }
-
-  log.info({ period, totalDays: dates.length }, 'Growth timeline calculated');
-
-  return {
-    timeline,
-    period,
-    totalDays: dates.length,
-  };
+  let level: MemoryStrength['level'];
+  if (score < 25) level = 'beginner';
+  else if (score < 50) level = 'intermediate';
+  else if (score < 75) level = 'advanced';
+  else level = 'expert';
+  return { score, level };
 }
 
 /**
@@ -189,21 +152,10 @@ export async function getMemoryOverview(): Promise<MemoryOverview> {
   ]);
   const currentSuccessRate = totalExperiments > 0 ? completedExperiments / totalExperiments : 0;
 
-  const memoryScore = Math.min(
-    100,
-    Math.floor(
-      nodeCount * 0.3 +
-        patternCount * 0.4 +
-        currentSuccessRate * 30 +
-        Math.min(1, episodeCount / 100) * 10,
-    ),
+  const { score: memoryScore, level: memoryLevel } = computeMemoryStrength(
+    { nodes: nodeCount, patterns: patternCount, episodes: episodeCount },
+    currentSuccessRate,
   );
-
-  let memoryLevel: 'beginner' | 'intermediate' | 'advanced' | 'expert';
-  if (memoryScore < 25) memoryLevel = 'beginner';
-  else if (memoryScore < 50) memoryLevel = 'intermediate';
-  else if (memoryScore < 75) memoryLevel = 'advanced';
-  else memoryLevel = 'expert';
 
   const [recentPatterns, recentNodes] = await Promise.all([
     prisma.learningPattern.findMany({

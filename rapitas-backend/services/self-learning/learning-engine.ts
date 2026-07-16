@@ -21,4 +21,5 @@ export {
   type PromptEvolutionGroupSummary,
 } from './prompt-ops';
 
-export { getLearningStats, getGrowthTimeline, getMemoryOverview } from './stats-ops';
+export { getLearningStats, getMemoryOverview } from './stats-ops';
+export { getGrowthTimeline } from './growth-timeline';
