@@ -7,6 +7,7 @@
  * is delegated to FolderCreator, repo/branch actions to RepoInitializer and
  * BranchCreator.
  */
+import { useEffect, useRef } from 'react';
 import { Code, FolderGit2, FolderOpen, GitBranch, AlertCircle } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { DirectoryPicker } from '@/components/ui/DirectoryPicker';
@@ -48,6 +49,13 @@ type Props = {
 const inputClass =
   'w-full h-9 rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 px-3 text-sm focus:outline-none focus:border-indigo-400 transition-colors';
 
+// A URL is worth querying only once it names owner AND repository — firing on
+// every keystroke queried partial URLs whose failures raced the real one.
+const COMPLETE_REPO_URL = /github\.com[/:][\w.-]+\/[\w.-]+/;
+
+/** Debounce (ms) between typing pauses and the automatic branch fetch. */
+const BRANCH_FETCH_DEBOUNCE_MS = 500;
+
 /**
  * Development-project sub-section of the theme form.
  *
@@ -76,6 +84,19 @@ export function DevProjectFields({
   onCreateNewFolder,
 }: Props) {
   const t = useTranslations('themes');
+
+  // Debounced branch fetch for typed URLs (programmatic fetches stay immediate).
+  const branchFetchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => {
+    return () => {
+      if (branchFetchTimer.current) clearTimeout(branchFetchTimer.current);
+    };
+  }, []);
+  const scheduleBranchFetch = (url: string) => {
+    if (branchFetchTimer.current) clearTimeout(branchFetchTimer.current);
+    if (!COMPLETE_REPO_URL.test(url)) return; // partial URL — wait for more input
+    branchFetchTimer.current = setTimeout(() => onFetchBranches(url), BRANCH_FETCH_DEBOUNCE_MS);
+  };
 
   const dirState: StepState = dirStatus.checking
     ? 'checking'
@@ -194,7 +215,7 @@ export function DevProjectFields({
                   const newUrl = e.target.value;
                   setFormData({ ...formData, repositoryUrl: newUrl });
                   if (newUrl.trim()) {
-                    onFetchBranches(newUrl);
+                    scheduleBranchFetch(newUrl);
                   } else {
                     setBranches([]);
                     setBranchError(null);

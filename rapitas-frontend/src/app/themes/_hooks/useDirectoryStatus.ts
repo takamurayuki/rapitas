@@ -5,7 +5,7 @@
  * for the theme development-project fields. Extracted from useThemesPage to
  * keep each hook under the 300-line file-size limit.
  */
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { useToast } from '@/components/ui/toast/ToastContainer';
 import { API_BASE_URL } from '@/utils/api';
@@ -48,12 +48,23 @@ export function useDirectoryStatus(
   const [loadingBranches, setLoadingBranches] = useState(false);
   const [branchError, setBranchError] = useState<string | null>(null);
 
+  // NOTE: Monotonic sequence for branch fetches. The URL input fires a fetch
+  // per keystroke, and responses resolve OUT OF ORDER — a slow failure for a
+  // partial URL used to land after the full URL's success and clobber it with
+  // 「ブランチの取得に失敗しました」. Only the latest request may write state.
+  const branchFetchSeq = useRef(0);
+
   /**
-   * Fetches available branches for a Git repository URL.
+   * Fetches available branches for a Git repository URL. Stale responses are
+   * discarded (sequence guard) and a transient failure is retried once —
+   * a repository created seconds ago can need a moment before listing works.
    *
    * @param repoUrl - Remote Git repository URL to query.
    */
   const fetchBranches = async (repoUrl: string) => {
+    const seq = ++branchFetchSeq.current;
+    const isLatest = () => seq === branchFetchSeq.current;
+
     if (!repoUrl.trim()) {
       setBranches([]);
       setBranchError(null);
@@ -63,28 +74,43 @@ export function useDirectoryStatus(
     setLoadingBranches(true);
     setBranchError(null);
 
-    try {
+    const attemptFetch = async (): Promise<{ ok: boolean; branches?: string[]; msg?: string }> => {
       const res = await fetch(
         `${API_BASE_URL}/themes/branches?repositoryUrl=${encodeURIComponent(repoUrl)}`,
       );
       const data = await res.json();
+      if (res.ok && data.success) return { ok: true, branches: data.branches || [] };
+      return { ok: false, msg: data.message };
+    };
 
-      if (res.ok && data.success) {
-        setBranches(data.branches || []);
+    try {
+      let result = await attemptFetch();
+      if (!result.ok && isLatest()) {
+        // Single retry after a short pause before surfacing the error.
+        await new Promise((r) => setTimeout(r, 700));
+        if (!isLatest()) return;
+        result = await attemptFetch();
+      }
+      if (!isLatest()) return;
+
+      if (result.ok) {
+        const list = result.branches ?? [];
+        setBranches(list);
         // Auto-select first branch if current defaultBranch is not in the list
-        if (data.branches.length > 0 && !data.branches.includes(getFormData().defaultBranch)) {
-          setFormData((prev) => ({ ...prev, defaultBranch: data.branches[0] }));
+        if (list.length > 0 && !list.includes(getFormData().defaultBranch)) {
+          setFormData((prev) => ({ ...prev, defaultBranch: list[0] }));
         }
       } else {
-        setBranchError(data.message || t('branchFetchFailed'));
+        setBranchError(result.msg || t('branchFetchFailed'));
         setBranches([]);
       }
     } catch (error) {
+      if (!isLatest()) return;
       logger.error('Failed to fetch branches:', error);
       setBranchError(t('branchFetchError'));
       setBranches([]);
     } finally {
-      setLoadingBranches(false);
+      if (isLatest()) setLoadingBranches(false);
     }
   };
 
