@@ -108,12 +108,13 @@ Track each screen/component as it is brought in line, so coverage is visible.
 |------|------|--------|-------------|
 | 2026-05-29 | Header / side nav | Nav moved below header; removed duplicated app name/icon; slim "メニュー" bar + pin; backdrop dim; softened shadow (`shadow-2xl`→`shadow-lg`); logo gradient-text → solid; dropped logo chip shadow. **Kept** the expand draw-in animation (signature — see §7) | #1, #2, #3, #10 |
 | 2026-05-29 | Task detail | Flatten the primary cards (task meta, subtasks, workflow) onto the surface system: `rounded-2xl shadow-xl` → `rounded-lg`, no shadow, unified border; one content radius. Hid the internal workflow file path (`tasks/1/17`). Focus rings → indigo (earlier). | #1, #3, #6 |
+| 2026-07-16 | Dashboard | Hierarchy: KPI strip → suggested-tasks as the single primary zone → study/exams → analytics. Dropped the oversized accent page icon; KPI/widget icons muted to zinc; card chrome unified to `rounded-lg` + border (no shadow, `dark:bg-zinc-900`); heatmap tabs & burnup period buttons now use the indigo active state (was white+`shadow-sm` / `bg-green-500`); burnup summary de-rainbowed (green kept for completed only); `font-bold`→`font-semibold`; page split per COMPONENT_SPLITTING_POLICY (`_components/`, `widgets/burnup-chart/`). | #1, #3, #6, #8, #10 |
+| 2026-07-16 | Ideas | Removed the "eureka" flash animation (glow + 600-800ms flash lines) from the header; amber ambient accent retired (active filters, primary actions → indigo; Lightbulb glyphs muted to zinc); add/save buttons' hard offset shadows → solid indigo primary + neutral secondary; inputs `border-0 shadow-sm` → bordered; `rounded-xl`/`rounded` → `rounded-lg`; `focus:border-blue-400` → `focus-visible:ring-indigo-500`; modal `shadow-xl` → `shadow-lg`. | #1, #3, #4, #6 |
 
 ### Candidate next steps (not yet done — pick one at a time)
 
-- **Dashboard** (`app/dashboard`): 7+ equally-loud widgets, no hierarchy → lead with one focal area, group the rest (tell #6, #8).
-- **Ideas** (`app/ideas/_components/IdeasClient.tsx`): sparkle icons, dense controls → simplify, reserve accent (tell #5, #1).
 - **Empty states** across list pages → concrete next-action copy (tell #9).
+- **ExamCountdown** (`components/exam-countdown`): `shadow-sm/md` on the mini calendar chip, `font-extrabold` — normalize when next touched (tell #3, #8).
 
 ---
 

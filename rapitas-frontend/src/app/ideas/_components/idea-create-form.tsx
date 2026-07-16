@@ -70,7 +70,7 @@ export function IdeaCreateForm({
     <Modal
       open={showQuickAdd}
       onClose={onCancel}
-      icon={<Lightbulb className="h-4 w-4 text-amber-500" />}
+      icon={<Lightbulb className="h-4 w-4 text-zinc-400 dark:text-zinc-500" />}
       maxWidthClass="max-w-2xl"
       title={editingId !== null ? t('createForm.titleEdit') : t('createForm.titleAdd')}
       footer={
@@ -84,7 +84,7 @@ export function IdeaCreateForm({
           <button
             onClick={onSubmit}
             disabled={!newTitle.trim() || isSubmitting}
-            className="flex items-center gap-1 rounded-lg px-4 py-1.5 text-xs font-medium text-amber-700 dark:text-amber-300 bg-white dark:bg-zinc-900 border border-amber-200 dark:border-amber-800 shadow-[0_2px_0_0_#fcd34d] dark:shadow-[0_2px_0_0_#78350f] transition-all duration-75 hover:bg-amber-50 dark:hover:bg-amber-900/20 active:translate-y-[1px] active:shadow-none disabled:opacity-50"
+            className="flex items-center gap-1 rounded-lg bg-indigo-600 px-4 py-1.5 text-xs font-medium text-white transition-colors hover:bg-indigo-700 focus-visible:ring-2 focus-visible:ring-indigo-500 disabled:opacity-50"
           >
             {isSubmitting ? (
               <Loader2 className="h-3 w-3 animate-spin" />
@@ -106,7 +106,7 @@ export function IdeaCreateForm({
                   ? t('createForm.saveAndConvertNeedsTheme')
                   : t('createForm.saveAndConvertTitle')
               }
-              className="flex items-center gap-1 rounded-lg px-4 py-1.5 text-xs font-medium text-indigo-700 dark:text-indigo-300 bg-white dark:bg-zinc-900 border border-indigo-200 dark:border-indigo-800 shadow-[0_2px_0_0_#93c5fd] dark:shadow-[0_2px_0_0_#1e3a8a] transition-all duration-75 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 active:translate-y-[1px] active:shadow-none disabled:opacity-50"
+              className="flex items-center gap-1 rounded-lg border border-zinc-200 bg-white px-4 py-1.5 text-xs font-medium text-zinc-700 transition-colors hover:bg-zinc-50 focus-visible:ring-2 focus-visible:ring-indigo-500 disabled:opacity-50 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-300 dark:hover:bg-zinc-800"
             >
               {isSubmitting ? (
                 <Loader2 className="h-3 w-3 animate-spin" />
@@ -130,14 +130,14 @@ export function IdeaCreateForm({
             if (e.key === 'Escape') onCancel();
           }}
           placeholder={t('createForm.titlePlaceholder')}
-          className="w-full rounded-lg border-0 bg-white px-4 py-3 text-sm shadow-sm placeholder:text-zinc-400 focus:outline-none focus:ring-1 focus:ring-indigo-400 dark:bg-zinc-800 dark:placeholder:text-zinc-500"
+          className="w-full rounded-lg border border-zinc-200 bg-white px-4 py-3 text-sm placeholder:text-zinc-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 dark:border-zinc-700 dark:bg-zinc-800 dark:placeholder:text-zinc-500"
         />
         <textarea
           ref={contentTextareaRef}
           value={newContent}
           onChange={(e) => setNewContent(e.target.value)}
           placeholder={t('createForm.detailPlaceholder')}
-          className="w-full rounded-lg border-0 bg-white px-4 py-2.5 text-xs shadow-sm placeholder:text-zinc-400 focus:outline-none focus:ring-1 focus:ring-indigo-400 dark:bg-zinc-800 dark:placeholder:text-zinc-500 resize-none overflow-hidden min-h-[3rem] max-h-[60vh]"
+          className="w-full rounded-lg border border-zinc-200 bg-white px-4 py-2.5 text-xs placeholder:text-zinc-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 dark:border-zinc-700 dark:bg-zinc-800 dark:placeholder:text-zinc-500 resize-none overflow-hidden min-h-[3rem] max-h-[60vh]"
           style={{ overflowY: 'auto' }}
         />
         <div className="flex flex-wrap items-center gap-2">
@@ -171,7 +171,7 @@ export function IdeaCreateForm({
           <select
             value={newCategoryId ?? ''}
             onChange={(e) => onNewCategoryChange(e.target.value ? parseInt(e.target.value) : null)}
-            className="rounded-lg border border-zinc-200 bg-white px-2 py-1 text-[11px] outline-none focus:border-indigo-400 dark:border-zinc-700 dark:bg-zinc-800"
+            className="rounded-lg border border-zinc-200 bg-white px-2 py-1 text-[11px] outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 dark:border-zinc-700 dark:bg-zinc-800"
           >
             <option value="">{t('createForm.categoryOption')}</option>
             {categories.map((cat) => (
@@ -183,7 +183,7 @@ export function IdeaCreateForm({
           <select
             value={newThemeId ?? ''}
             onChange={(e) => setNewThemeId(e.target.value ? parseInt(e.target.value) : null)}
-            className="rounded-lg border border-zinc-200 bg-white px-2 py-1 text-[11px] outline-none focus:border-indigo-400 dark:border-zinc-700 dark:bg-zinc-800"
+            className="rounded-lg border border-zinc-200 bg-white px-2 py-1 text-[11px] outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 dark:border-zinc-700 dark:bg-zinc-800"
           >
             <option value="">{t('createForm.themeOption')}</option>
             {filteredThemes.map((th) => (

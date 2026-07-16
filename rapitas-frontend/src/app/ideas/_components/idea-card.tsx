@@ -48,14 +48,14 @@ export function IdeaCard({
   // task_created items (see ConcernCard).
   return (
     <div
-      className={`group rounded-xl border px-4 py-3 transition-colors ${
+      className={`group rounded-lg border px-4 py-3 transition-colors ${
         idea.usedInTaskId
-          ? 'border-zinc-200 bg-white dark:border-zinc-700 dark:bg-zinc-800/50'
-          : 'border-zinc-200 bg-white hover:border-amber-300 dark:border-zinc-700 dark:bg-zinc-800/50 dark:hover:border-amber-700'
+          ? 'border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900'
+          : 'border-zinc-200 bg-white hover:border-zinc-300 dark:border-zinc-800 dark:bg-zinc-900 dark:hover:border-zinc-700'
       }`}
     >
       <div className="flex items-start gap-3">
-        <Lightbulb className="mt-0.5 h-4 w-4 text-amber-400 shrink-0" />
+        <Lightbulb className="mt-0.5 h-4 w-4 text-zinc-400 dark:text-zinc-500 shrink-0" />
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2">
             {/* Title, then theme + priority icon right beside it */}
@@ -119,7 +119,7 @@ export function IdeaCard({
       </div>
       {/* Actions — grouped at the bottom (always visible), like the concern
           card. タスク化 files immediately (no AI). */}
-      <div className="mt-2 flex items-center justify-end gap-1.5 border-t border-zinc-100 pt-2 dark:border-zinc-700/50">
+      <div className="mt-2 flex items-center justify-end gap-1.5 border-t border-zinc-100 pt-2 dark:border-zinc-800">
         {!idea.usedInTaskId && (
           <button
             onClick={() => onConvert(idea)}
@@ -137,7 +137,7 @@ export function IdeaCard({
         )}
         <button
           onClick={() => onEdit(idea)}
-          className="rounded-lg p-1 text-zinc-400 hover:bg-zinc-100 hover:text-amber-600 dark:hover:bg-zinc-800 dark:hover:text-amber-400 transition-colors"
+          className="rounded-lg p-1 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-600 dark:hover:bg-zinc-800 dark:hover:text-zinc-300 transition-colors"
           aria-label={t('card.editAriaLabel')}
           title={t('card.editAriaLabel')}
         >

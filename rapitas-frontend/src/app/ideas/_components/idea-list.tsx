@@ -47,7 +47,7 @@ export function IdeaList({
   if (isLoading) {
     return (
       <div className="flex items-center justify-center py-16">
-        <Spinner size="lg" className="text-amber-500 dark:text-amber-500" />
+        <Spinner size="lg" className="text-zinc-400 dark:text-zinc-500" />
       </div>
     );
   }

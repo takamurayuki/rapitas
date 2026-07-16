@@ -78,7 +78,7 @@ export function ProductivityHeatmap() {
 
   if (loading) {
     return (
-      <div className="bg-white dark:bg-zinc-800 rounded-xl border border-zinc-200 dark:border-zinc-700 p-4">
+      <div className="bg-white dark:bg-zinc-900 rounded-lg border border-zinc-200 dark:border-zinc-800 p-4">
         <div className="animate-pulse space-y-3">
           <div className="h-5 bg-zinc-200 dark:bg-zinc-700 rounded w-48" />
           <div className="h-48 bg-zinc-200 dark:bg-zinc-700 rounded-lg" />
@@ -90,23 +90,23 @@ export function ProductivityHeatmap() {
   if (!data) return null;
 
   return (
-    <div className="bg-white dark:bg-zinc-800 rounded-xl border border-zinc-200 dark:border-zinc-700 p-4 relative">
+    <div className="bg-white dark:bg-zinc-900 rounded-lg border border-zinc-200 dark:border-zinc-800 p-4 relative">
       <div className="flex items-center justify-between mb-4">
-        <h2 className="text-lg font-semibold text-zinc-800 dark:text-zinc-200 flex items-center gap-2">
-          <Activity className="w-5 h-5 text-indigo-500" />
+        <h2 className="text-sm font-semibold text-zinc-600 dark:text-zinc-300 flex items-center gap-2">
+          <Activity className="w-4 h-4 text-zinc-400 dark:text-zinc-500" />
           {t('title')}
         </h2>
 
-        {/* Period Filter Tabs */}
-        <div className="flex items-center gap-1 bg-zinc-100 dark:bg-zinc-700 rounded-lg p-1">
+        {/* Period Filter Tabs — indigo marks the selected period (accent = active state) */}
+        <div className="flex overflow-hidden rounded-md border border-zinc-200 dark:border-zinc-700">
           {[30, 60, 90].map((days) => (
             <button
               key={days}
               onClick={() => setSelectedDays(days)}
-              className={`px-3 py-1 text-xs font-medium rounded-md transition-colors ${
+              className={`px-2.5 py-1 text-xs font-medium transition-colors ${
                 selectedDays === days
-                  ? 'bg-white dark:bg-zinc-600 text-zinc-800 dark:text-zinc-200 shadow-sm'
-                  : 'text-zinc-600 dark:text-zinc-400 hover:text-zinc-800 dark:hover:text-zinc-200'
+                  ? 'bg-indigo-50 text-indigo-600 dark:bg-indigo-900/30 dark:text-indigo-400'
+                  : 'text-zinc-600 dark:text-zinc-400 hover:bg-zinc-50 dark:hover:bg-zinc-800'
               }`}
             >
               {t('daysLabel', { days })}

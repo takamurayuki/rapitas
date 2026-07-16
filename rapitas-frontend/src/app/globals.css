@@ -1219,17 +1219,5 @@ iframe:not([src='']) + .iframe-loading {
   scrollbar-width: none; /* Firefox */
 }
 
-@keyframes flash-line {
-  0% {
-    opacity: 0;
-    transform: scaleY(0) translateY(4px);
-  }
-  30% {
-    opacity: 1;
-    transform: scaleY(1) translateY(0);
-  }
-  100% {
-    opacity: 0;
-    transform: scaleY(0.5) translateY(-4px);
-  }
-}
+/* NOTE: Removed @keyframes flash-line — its only consumer (IdeaBoxHeader's
+   "eureka" flash) was dropped as decorative motion per the UI design language. */

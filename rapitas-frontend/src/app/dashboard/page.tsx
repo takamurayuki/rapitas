@@ -1,298 +1,67 @@
+/**
+ * DashboardPage
+ *
+ * Learning dashboard: KPI strip, suggested next tasks (primary zone), study
+ * activity + upcoming exams (secondary), and analytics widgets (tertiary).
+ * Data fetching lives in useDashboardData; each zone is an _components module.
+ */
 'use client';
-import { useCallback, useEffect, useState } from 'react';
 import { useTranslations } from 'next-intl';
-import type { ExamGoal, StudyStreak } from '@/types';
-import { BarChart3, CheckCircle2, Clock, Flame, Target, TrendingUp } from 'lucide-react';
-import { API_BASE_URL } from '@/utils/api';
-import BurnupChart from '@/components/widgets/BurnupChart';
-import { ExamCountdown } from '@/components/exam-countdown/ExamCountdown';
+import BurnupChart from '@/components/widgets/burnup-chart';
 import { SuggestedTasksWidget } from '@/feature/intelligence/components/SuggestedTasksWidget';
 import { ProductivityHeatmap } from '@/feature/intelligence/components/ProductivityHeatmap';
-import { createLogger } from '@/lib/logger';
-import { useLocaleStore } from '@/stores/locale-store';
-import { toDateLocale } from '@/lib/utils';
-
-const logger = createLogger('DashboardPage');
-
-type OverviewStats = {
-  tasks: {
-    total: number;
-    completed: number;
-    todayCompleted: number;
-    weekCompleted: number;
-    completionRate: number;
-  };
-  studyTime: {
-    weekHours: number;
-    monthHours: number;
-  };
-  upcomingExams: ExamGoal[];
-  streakData: StudyStreak[];
-};
-
-type DailyStudy = {
-  date: string;
-  hours: number;
-};
-
-type StreakInfo = {
-  currentStreak: number;
-  longestStreak: number;
-  today: string;
-};
+import { DashboardKpiStrip } from './_components/kpi-strip';
+import { StudyActivityChart } from './_components/study-activity-chart';
+import { UpcomingExamsCard } from './_components/upcoming-exams-card';
+import { useDashboardData } from './_components/use-dashboard-data';
 
 export default function DashboardPage() {
   const t = useTranslations('dashboard');
-  const tc = useTranslations('common');
-  const locale = useLocaleStore((s) => s.locale);
-  const dateLocale = toDateLocale(locale);
-  const [overview, setOverview] = useState<OverviewStats | null>(null);
-  const [dailyStudy, setDailyStudy] = useState<DailyStudy[]>([]);
-  const [streakInfo, setStreakInfo] = useState<StreakInfo | null>(null);
-  const [loading, setLoading] = useState(true);
-
-  const fetchOverview = useCallback(async () => {
-    try {
-      const res = await fetch(`${API_BASE_URL}/statistics/overview`);
-      if (res.ok) {
-        setOverview(await res.json());
-      }
-    } catch (e) {
-      logger.transientError('Failed to fetch overview:', e);
-    }
-  }, []);
-
-  const fetchDailyStudy = useCallback(async () => {
-    try {
-      const res = await fetch(`${API_BASE_URL}/statistics/daily-study?days=14`);
-      if (res.ok) {
-        const data = await res.json();
-        setDailyStudy(Array.isArray(data) ? data : []);
-      }
-    } catch (e) {
-      logger.transientError('Failed to fetch daily study:', e);
-    }
-  }, []);
-
-  const fetchStreakInfo = useCallback(async () => {
-    try {
-      const res = await fetch(`${API_BASE_URL}/study-streaks/current`);
-      if (res.ok) {
-        setStreakInfo(await res.json());
-      }
-    } catch (e) {
-      logger.transientError('Failed to fetch streak info:', e);
-    }
-  }, []);
-
-  useEffect(() => {
-    const loadData = async () => {
-      await Promise.all([fetchOverview(), fetchDailyStudy(), fetchStreakInfo()]);
-      setLoading(false);
-    };
-
-    loadData();
-  }, [fetchOverview, fetchDailyStudy, fetchStreakInfo]);
-
-  const formatDate = (dateStr: string) => {
-    const date = new Date(dateStr);
-    return date.toLocaleDateString(dateLocale, {
-      month: 'short',
-      day: 'numeric',
-    });
-  };
-
-  const maxHours = Math.max(...dailyStudy.map((d) => d.hours), 1);
+  const { overview, dailyStudy, streakInfo, loading } = useDashboardData();
 
   if (loading) {
     return (
-      <div className="max-w-6xl mx-auto p-6">
+      <div className="mx-auto max-w-6xl p-6">
         <div className="animate-pulse space-y-6">
-          <div className="h-8 bg-zinc-200 dark:bg-zinc-700 rounded w-48" />
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <div className="h-8 w-48 rounded bg-zinc-200 dark:bg-zinc-800" />
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
             {[1, 2, 3, 4].map((i) => (
-              <div key={i} className="h-32 bg-zinc-200 dark:bg-zinc-700 rounded-xl" />
+              <div key={i} className="h-16 rounded-lg bg-zinc-200 dark:bg-zinc-800" />
             ))}
           </div>
-          <div className="h-64 bg-zinc-200 dark:bg-zinc-700 rounded-xl" />
+          <div className="h-64 rounded-lg bg-zinc-200 dark:bg-zinc-800" />
         </div>
       </div>
     );
   }
 
   return (
-    <div className="max-w-6xl mx-auto p-6">
-      <div className="flex items-center gap-3 mb-6">
-        <BarChart3 className="w-8 h-8 text-indigo-500" />
-        <div>
-          <h1 className="text-2xl font-bold text-zinc-900 dark:text-zinc-50">{t('title')}</h1>
-          <p className="text-sm text-zinc-500 dark:text-zinc-400">{t('subtitle')}</p>
-        </div>
+    <div className="mx-auto max-w-6xl p-6">
+      {/* Page header — text only; the previous oversized accent icon was
+          redundant chrome (design-language tells #1/#10). */}
+      <div className="mb-6">
+        <h1 className="text-2xl font-semibold text-zinc-900 dark:text-zinc-50">{t('title')}</h1>
+        <p className="text-sm text-zinc-500 dark:text-zinc-400">{t('subtitle')}</p>
       </div>
 
-      {/* Compact KPI bar: keeps all four glanceable metrics but reclaims the
-          vertical space the previous full-height gradient cards consumed. */}
-      <div className="mb-6 grid grid-cols-2 divide-x divide-y divide-zinc-100 rounded-xl border border-zinc-200 bg-white md:grid-cols-4 md:divide-y-0 dark:divide-zinc-700 dark:border-zinc-700 dark:bg-zinc-800">
-        <div className="flex items-center gap-3 px-4 py-3">
-          <Flame className="h-5 w-5 shrink-0 text-orange-500" />
-          <div className="min-w-0">
-            <div className="text-xl font-bold leading-tight text-zinc-900 dark:text-zinc-50">
-              {streakInfo?.currentStreak || 0}
-              {t('consecutiveDays')}
-            </div>
-            <p className="truncate text-xs text-zinc-500 dark:text-zinc-400">{t('streak')}</p>
-          </div>
-        </div>
+      <DashboardKpiStrip overview={overview} streakInfo={streakInfo} />
 
-        <div className="flex items-center gap-3 px-4 py-3">
-          <CheckCircle2 className="h-5 w-5 shrink-0 text-green-500" />
-          <div className="min-w-0">
-            <div className="text-xl font-bold leading-tight text-zinc-900 dark:text-zinc-50">
-              {overview?.tasks.todayCompleted || 0}
-            </div>
-            <p className="truncate text-xs text-zinc-500 dark:text-zinc-400">
-              {tc('today')}
-              {t('taskComplete')}
-            </p>
-          </div>
-        </div>
-
-        <div className="flex items-center gap-3 px-4 py-3">
-          <Clock className="h-5 w-5 shrink-0 text-indigo-500" />
-          <div className="min-w-0">
-            <div className="text-xl font-bold leading-tight text-zinc-900 dark:text-zinc-50">
-              {overview?.studyTime.weekHours || 0}h
-            </div>
-            <p className="truncate text-xs text-zinc-500 dark:text-zinc-400">
-              {t('thisWeek')}
-              {t('studyHours')}
-            </p>
-          </div>
-        </div>
-
-        <div className="flex items-center gap-3 px-4 py-3">
-          <TrendingUp className="h-5 w-5 shrink-0 text-violet-500" />
-          <div className="min-w-0">
-            <div className="text-xl font-bold leading-tight text-zinc-900 dark:text-zinc-50">
-              {overview?.tasks.completionRate || 0}%
-            </div>
-            <p className="truncate text-xs text-zinc-500 dark:text-zinc-400">
-              {overview?.tasks.completed || 0}/{overview?.tasks.total || 0}
-            </p>
-          </div>
-        </div>
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-2 bg-white dark:bg-zinc-800 rounded-xl border border-zinc-200 dark:border-zinc-700 p-4">
-          <h2 className="text-lg font-semibold text-zinc-800 dark:text-zinc-200 mb-4 flex items-center gap-2">
-            <Clock className="w-5 h-5" />
-            {t('pastTwoWeeks')}
-          </h2>
-
-          {dailyStudy.length > 0 ? (
-            <div className="space-y-2">
-              <div className="flex items-end justify-between h-40 gap-1">
-                {dailyStudy.map((day, index) => {
-                  const height = day.hours > 0 ? (day.hours / maxHours) * 100 : 2;
-                  const isToday = index === dailyStudy.length - 1;
-                  return (
-                    <div key={day.date} className="flex-1 flex flex-col items-center">
-                      <div
-                        className={`w-full rounded-t-md transition-all ${
-                          isToday
-                            ? 'bg-indigo-500'
-                            : day.hours > 0
-                              ? 'bg-indigo-300 dark:bg-indigo-600'
-                              : 'bg-zinc-200 dark:bg-zinc-700'
-                        }`}
-                        style={{ height: `${height}%` }}
-                        title={`${day.hours}${tc('hours')}`}
-                      />
-                    </div>
-                  );
-                })}
-              </div>
-
-              <div className="flex justify-between text-xs text-zinc-500 dark:text-zinc-400 pt-2 border-t border-zinc-100 dark:border-zinc-700">
-                {dailyStudy.map((day, index) => (
-                  <div key={day.date} className="flex-1 text-center">
-                    {index % 2 === 0 && formatDate(day.date)}
-                  </div>
-                ))}
-              </div>
-
-              <div className="flex items-center justify-between text-sm text-zinc-600 dark:text-zinc-400 mt-2">
-                <span>
-                  {dailyStudy.reduce((sum, d) => sum + d.hours, 0).toFixed(1)}
-                  {tc('hours')}
-                </span>
-                <span>
-                  {(dailyStudy.reduce((sum, d) => sum + d.hours, 0) / dailyStudy.length).toFixed(1)}
-                  {tc('hoursPerDay')}
-                </span>
-              </div>
-            </div>
-          ) : (
-            <div className="h-40 flex items-center justify-center text-zinc-500 dark:text-zinc-400">
-              {t('noRecords')}
-            </div>
-          )}
-        </div>
-
-        <div className="bg-white dark:bg-zinc-800 rounded-xl border border-zinc-200 dark:border-zinc-700 p-4">
-          <h2 className="text-lg font-semibold text-zinc-800 dark:text-zinc-200 mb-4 flex items-center gap-2">
-            <Target className="w-5 h-5" />
-            {t('upcomingExams')}
-          </h2>
-
-          {overview?.upcomingExams && overview.upcomingExams.length > 0 ? (
-            <div className="space-y-3">
-              {overview.upcomingExams.slice(0, 3).map((exam) => (
-                <div key={exam.id} className="p-3 rounded-lg bg-zinc-50 dark:bg-zinc-700/50">
-                  <div className="flex items-center justify-between mb-1">
-                    <span className="font-medium text-zinc-800 dark:text-zinc-200 text-sm">
-                      {exam.name}
-                    </span>
-                    {exam.targetScore && (
-                      <span className="text-xs text-zinc-500 dark:text-zinc-400">
-                        {t('target')}: {exam.targetScore}
-                      </span>
-                    )}
-                  </div>
-                  <ExamCountdown examDate={exam.examDate} color={exam.color} compact />
-                </div>
-              ))}
-
-              {overview.upcomingExams.length > 3 && (
-                <a
-                  href="/exam-goals"
-                  className="block text-center text-sm text-indigo-600 dark:text-indigo-400 hover:underline"
-                >
-                  {tc('other')} {overview.upcomingExams.length - 3} {tc('items')}
-                </a>
-              )}
-            </div>
-          ) : (
-            <div className="h-32 flex flex-col items-center justify-center text-zinc-500 dark:text-zinc-400">
-              <Target className="w-8 h-8 mb-2 opacity-50" />
-              <p className="text-sm">{t('noExamGoals')}</p>
-              <a
-                href="/exam-goals"
-                className="mt-2 text-sm text-indigo-600 dark:text-indigo-400 hover:underline"
-              >
-                {t('addExamGoal')}
-              </a>
-            </div>
-          )}
-        </div>
-      </div>
-
-      <div className="mt-6 grid grid-cols-1 lg:grid-cols-2 gap-6">
+      {/* Primary zone — the actionable "what to do next" list leads the page
+          (task-first hierarchy; fixes the "equally loud widgets" tell #6). */}
+      <div className="mt-6">
         <SuggestedTasksWidget />
+      </div>
+
+      {/* Secondary — recent study activity and exam deadlines. */}
+      <div className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-3">
+        <StudyActivityChart dailyStudy={dailyStudy} />
+        <UpcomingExamsCard upcomingExams={overview?.upcomingExams ?? []} />
+      </div>
+
+      {/* Tertiary — analytics, quieter and below the fold. */}
+      <div className="mt-6">
         <ProductivityHeatmap />
       </div>
-
       <div className="mt-6">
         <BurnupChart days={14} />
       </div>

@@ -53,7 +53,7 @@ export function IdeaFilterBar({
             onClick={() => setStatusFilter(value)}
             className={`px-3 py-1.5 text-xs font-medium transition-colors ${
               statusFilter === value
-                ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300'
+                ? 'bg-indigo-50 text-indigo-600 dark:bg-indigo-900/30 dark:text-indigo-400'
                 : 'text-zinc-500 hover:bg-zinc-50 dark:hover:bg-zinc-800'
             }`}
           >
@@ -65,7 +65,7 @@ export function IdeaFilterBar({
       <select
         value={priorityFilter}
         onChange={(e) => setPriorityFilter(e.target.value as 'all' | IdeaPriority)}
-        className="rounded-lg border border-zinc-200 bg-white px-2 py-1.5 text-xs outline-none focus:border-blue-400 dark:border-zinc-700 dark:bg-zinc-800"
+        className="rounded-lg border border-zinc-200 bg-white px-2 py-1.5 text-xs outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 dark:border-zinc-700 dark:bg-zinc-800"
       >
         <option value="all">{t('filterBar.allPriorities')}</option>
         <option value="urgent">{t('filterBar.priority.urgent')}</option>
@@ -76,7 +76,7 @@ export function IdeaFilterBar({
       <select
         value={filterCategoryId ?? ''}
         onChange={(e) => onFilterCategoryChange(e.target.value ? parseInt(e.target.value) : null)}
-        className="rounded-lg border border-zinc-200 bg-white px-2 py-1.5 text-xs outline-none focus:border-blue-400 dark:border-zinc-700 dark:bg-zinc-800"
+        className="rounded-lg border border-zinc-200 bg-white px-2 py-1.5 text-xs outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 dark:border-zinc-700 dark:bg-zinc-800"
       >
         <option value="">{t('filterBar.allCategories')}</option>
         {categories.map((cat) => (
@@ -88,7 +88,7 @@ export function IdeaFilterBar({
       <select
         value={filterThemeId ?? ''}
         onChange={(e) => setFilterThemeId(e.target.value ? parseInt(e.target.value) : null)}
-        className="rounded-lg border border-zinc-200 bg-white px-2 py-1.5 text-xs outline-none focus:border-blue-400 dark:border-zinc-700 dark:bg-zinc-800"
+        className="rounded-lg border border-zinc-200 bg-white px-2 py-1.5 text-xs outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 dark:border-zinc-700 dark:bg-zinc-800"
       >
         <option value="">{t('filterBar.allThemes')}</option>
         {filterThemes.map((th) => (
