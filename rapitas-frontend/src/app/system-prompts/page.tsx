@@ -17,6 +17,7 @@ import { CATEGORY_LABELS, type SystemPrompt } from './components/types';
 import { PromptCard } from './components/PromptCard';
 import { AddPromptModal } from './components/AddPromptModal';
 import { PromptEvolutionSummary } from './components/PromptEvolutionSummary';
+import { PromptEvolutionProposals } from './components/PromptEvolutionProposals';
 import { useToast } from '@/components/ui/toast/ToastContainer';
 import { useConfirmDialog } from '@/components/ui/dialog/ConfirmDialogProvider';
 import { EmptyState } from '@/components/ui/empty-state';
@@ -177,6 +178,7 @@ export default function SystemPromptsPage() {
           </button>
         </div>
 
+        <PromptEvolutionProposals />
         <PromptEvolutionSummary />
 
         <div className="flex flex-col sm:flex-row gap-3 mb-6">

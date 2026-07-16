@@ -547,7 +547,7 @@ export class WorkflowOrchestrator {
       }
     }
 
-    const context = await buildRoleContext(
+    let context = await buildRoleContext(
       taskId,
       transition.role,
       workflowInfo.dir,
@@ -555,6 +555,20 @@ export class WorkflowOrchestrator {
       language,
       workflowMode,
     );
+
+    // Human-approved prompt-evolution addendum for this role (proposed by the
+    // weekly evolution pipeline, approved on /system-prompts). Appended at the
+    // single orchestration call site so every workflow role gets it without
+    // touching each buildRoleContext case. Best-effort.
+    try {
+      const { getApprovedRoleAddendum } = await import('../self-learning/prompt-evolution-worker');
+      const addendum = await getApprovedRoleAddendum(transition.role);
+      if (addendum) {
+        context += `\n\n## 承認済みの改善ガイダンス(プロンプト進化)\n\n${addendum}`;
+      }
+    } catch {
+      // Addendum injection must never block the run.
+    }
 
     // agentConfig is resolved above (role assignment or capability fallback).
     // Model resolution: role override → agent default → smart auto-select

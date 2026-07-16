@@ -117,6 +117,24 @@ export class BehaviorScheduler {
         });
       }
 
+      // Monday 7 AM: prompt evolution — detect underperforming workflow roles
+      // (runner) and generate improvement proposals for human review on
+      // /system-prompts (worker). Weekly cadence matches the runner's
+      // min-sample window; nothing is applied without explicit approval.
+      if (h === 7 && m === 0 && dow === 1) {
+        log.info('[BehaviorScheduler] Running prompt evolution detection + proposal generation');
+        await import('../../services/self-learning/prompt-evolution-runner')
+          .then(({ runPromptEvolution }) => runPromptEvolution(prisma as never))
+          .catch((err: Error) => {
+            log.error({ err }, '[BehaviorScheduler] Prompt evolution detection failed');
+          });
+        await import('../../services/self-learning/prompt-evolution-worker')
+          .then(({ generateProposalsForPending }) => generateProposalsForPending())
+          .catch((err: Error) => {
+            log.error({ err }, '[BehaviorScheduler] Prompt evolution proposal generation failed');
+          });
+      }
+
       // 9 AM: knowledge reminders + Monday weekly review
       if (h === 9 && m === 0) {
         log.info('[BehaviorScheduler] Triggering knowledge reminder scan');

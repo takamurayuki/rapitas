@@ -2679,6 +2679,14 @@
     "keyValidation": "Key can only contain lowercase letters, numbers, and underscores",
     "addFailed": "Failed to add prompt",
     "promptEvolution": {
+      "proposals": {
+        "title": "Prompt improvement proposals awaiting approval",
+        "hint": "AI-generated addenda for underperforming roles. Approving injects the addendum into that role's prompt; rejecting discards it.",
+        "roleLabel": "Addendum for the {role} role",
+        "reasonLabel": "Detected because",
+        "approve": "Approve & apply",
+        "reject": "Reject"
+      },
       "title": "Prompt evolution history",
       "entries": "{count} entries",
       "pendingOfCompleted": "{pending} pending / {completed} completed",

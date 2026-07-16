@@ -91,6 +91,29 @@ export const learningRoutes = new Elysia({ prefix: '/learning' })
     return getPromptEvolutionHistory(category);
   })
 
+  /** Proposals awaiting human review (approve/reject on /system-prompts). */
+  .get('/prompt-evolution/proposals', async () => {
+    const { listProposals } = await import('../../services/self-learning/prompt-evolution-worker');
+    return { proposals: await listProposals() };
+  })
+
+  /** Approve or reject a proposed role-prompt addendum. */
+  .post('/prompt-evolution/:id/review', async ({ params, body, set }) => {
+    const id = parseInt((params as { id: string }).id, 10);
+    const approved = (body as { approved?: boolean } | null)?.approved;
+    if (!Number.isInteger(id) || typeof approved !== 'boolean') {
+      set.status = 400;
+      return { error: 'id and approved (boolean) are required' };
+    }
+    const { reviewProposal } = await import('../../services/self-learning/prompt-evolution-worker');
+    const ok = await reviewProposal(id, approved);
+    if (!ok) {
+      set.status = 404;
+      return { error: 'Proposal not found or not in proposed state' };
+    }
+    return { success: true, approved };
+  })
+
   /**
    * Read-only summary of the PromptEvolution table, grouped by
    * basePromptKey/category: entry/pending/completed counts and performance

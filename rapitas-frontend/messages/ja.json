@@ -2679,6 +2679,14 @@
     "keyValidation": "キーは英小文字、数字、アンダースコアのみ使用できます",
     "addFailed": "プロンプトの追加に失敗しました",
     "promptEvolution": {
+      "proposals": {
+        "title": "承認待ちのプロンプト改善提案",
+        "hint": "成績が低下したロールに対してAIが生成した改善追記です。承認すると該当ロールのプロンプトに注入され、却下すると破棄されます。",
+        "roleLabel": "{role} ロールへの追記",
+        "reasonLabel": "検出理由",
+        "approve": "承認して適用",
+        "reject": "却下"
+      },
       "title": "プロンプト進化の履歴",
       "entries": "{count}件",
       "pendingOfCompleted": "未処理{pending}件 / 完了{completed}件",
