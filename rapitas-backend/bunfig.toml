@@ -1,7 +1,13 @@
 [test]
-coverage = false
+# NOTE: Do NOT set `coverage = false` here — in bun 1.3.13 it silently overrides
+# the CLI `--coverage` flag, which left the CI gate's coverage measurement dead
+# for months (ADR-0002 Phase A regression). Coverage stays off by default for
+# plain `bun test`; the backend-tests gate opts in via its `--coverage` arg.
 coverageReporter = ["text", "lcov"]
 coverageDir = "coverage"
+# Exclude test files themselves from the coverage denominator — counting them
+# inflates the percentage with self-covering code.
+coverageSkipTestFiles = true
 # Exclude integration tests from default run (they don't use mock.module)
 # Run them separately with: bun test --path-ignore-patterns="" ./tests/integration/
 pathIgnorePatterns = ["tests/integration/**"]

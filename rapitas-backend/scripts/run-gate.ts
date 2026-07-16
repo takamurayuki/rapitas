@@ -17,6 +17,7 @@
 import { existsSync, readFileSync } from 'fs';
 import { resolve } from 'path';
 import { type TestSuiteGate, GATES, getGate } from './ci-gates';
+import { enforceCoverageFloor } from './coverage-floor';
 import { parseGateManifest, validateManifestFiles } from './gate-manifest-parser';
 import { parseFilesArg } from './parse-files-arg';
 
@@ -212,7 +213,16 @@ async function runTestSuiteGate(
     env: buildEnv(gate.env),
   });
 
-  return await proc.exited;
+  const exitCode = await proc.exited;
+  if (exitCode !== 0) return exitCode;
+
+  // Coverage floor applies only to FULL manifest runs — a --files-filtered
+  // subset loads fewer modules, so its percentage cannot be compared to the
+  // floor calibrated against the whole gate suite.
+  if (gate.coverageFloor && filteredFiles.length === files.length) {
+    return enforceCoverageFloor(gate, BACKEND_DIR);
+  }
+  return 0;
 }
 
 /**

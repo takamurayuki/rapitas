@@ -24,6 +24,13 @@ export type TestSuiteGate = {
   readonly args?: readonly string[];
   /** Environment variables merged over process.env when spawning the test subprocess */
   readonly env?: Record<string, string>;
+  /**
+   * Minimum aggregate coverage (percent) enforced after a FULL manifest run
+   * (ADR-0002 Phase B). Requires '--coverage' in args. Skipped on --files
+   * filtered runs — a subset loads fewer modules, so its percentage is not
+   * comparable to the full-suite floor.
+   */
+  readonly coverageFloor?: { readonly linesPct: number; readonly functionsPct: number };
 };
 
 /**
@@ -57,6 +64,11 @@ export const GATES: readonly GateEntry[] = [
       'Backend CI gate — runs all test files listed in scripts/ci-gate-tests.txt with coverage',
     manifest: 'ci-gate-tests.txt',
     args: ['--coverage', '--isolate'],
+    // ADR-0002 Phase B: observed 41.08% lines / 52.83% functions (lcov
+    // aggregate, coverageSkipTestFiles on) on 2026-07-16, rounded down to the
+    // nearest 5%. Raise via the ADR's ratchet; if this fails, add tests for
+    // the affected module — do not lower the floor.
+    coverageFloor: { linesPct: 40, functionsPct: 50 },
   },
   {
     kind: 'test-suite',

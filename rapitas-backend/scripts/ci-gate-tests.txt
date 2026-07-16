@@ -27,5 +27,6 @@ scripts/gen-resolver-boundary-tests.test.ts
 scripts/gen-boundary-guide.test.ts
 scripts/gen-type-guards.test.ts
 scripts/codemods/__tests__/codemod-runner.test.ts
+scripts/coverage-floor.test.ts
 eslint-rules/no-raw-prisma-insensitive.test.mjs
 eslint-rules/no-icon-collision.test.mjs
