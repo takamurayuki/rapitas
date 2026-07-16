@@ -12,7 +12,7 @@
 import { prisma } from '../../config/database';
 import { createLogger } from '../../config/logger';
 import { saveEpisode } from './episode-memory';
-import { addNode } from './knowledge-graph';
+import { addNode, addEdge } from './knowledge-graph';
 
 const log = createLogger('self-learning:task-recorder');
 
@@ -182,20 +182,23 @@ export async function recordTaskLearningArtifacts(
     // written on purpose: a concept-only writer made the memory page's
     // knowledge-distribution chart read "concept 100%" permanently.
     // concept: what kind of task this was.
-    await addNode({
+    const conceptNode = await addNode({
       label: taskTypeLabel(title),
       nodeType: 'concept',
       description: `タスク種別「${taskTypeLabel(title)}」`,
       weight: success ? 0.2 : 0.1,
     });
     // technology: what the task touched (dictionary match on the title).
+    const techNodes = [];
     for (const tech of extractTechLabels(title)) {
-      await addNode({
-        label: tech,
-        nodeType: 'technology',
-        description: `技術要素「${tech}」`,
-        weight: success ? 0.15 : 0.05,
-      });
+      techNodes.push(
+        await addNode({
+          label: tech,
+          nodeType: 'technology',
+          description: `技術要素「${tech}」`,
+          weight: success ? 0.15 : 0.05,
+        }),
+      );
     }
     // pattern: which workflow mode handled it.
     if (task.workflowMode) {
@@ -207,30 +210,62 @@ export async function recordTaskLearningArtifacts(
       });
     }
     // problem: which verification gates bounced the work (stable cause codes).
+    const problemNodes = [];
     for (const cause of troubleCauses.slice(0, 3)) {
-      await addNode({
-        label: cause,
-        nodeType: 'problem',
-        description: `検証ゲート却下要因「${cause}」`,
-        weight: 0.15,
-      });
+      problemNodes.push(
+        await addNode({
+          label: cause,
+          nodeType: 'problem',
+          description: `検証ゲート却下要因「${cause}」`,
+          weight: 0.15,
+        }),
+      );
     }
     if (!success) {
-      await addNode({
-        label: `failed:${finalStatus}`,
-        nodeType: 'problem',
-        description: `終端ステータス「${finalStatus}」での失敗`,
-        weight: 0.15,
+      problemNodes.push(
+        await addNode({
+          label: `failed:${finalStatus}`,
+          nodeType: 'problem',
+          description: `終端ステータス「${finalStatus}」での失敗`,
+          weight: 0.15,
+        }),
+      );
+    }
+    // Edges make the graph QUERYABLE: "which problems does this task type /
+    // technology run into" is what the implementer's pitfall warning reads.
+    // Nodes alone (global counters) can't answer that correlation.
+    for (const problem of problemNodes) {
+      await addEdge({
+        fromNodeId: conceptNode.id,
+        toNodeId: problem.id,
+        edgeType: 'causes',
+        weight: 0.2,
       });
+      for (const tech of techNodes) {
+        await addEdge({
+          fromNodeId: tech.id,
+          toNodeId: problem.id,
+          edgeType: 'causes',
+          weight: 0.15,
+        });
+      }
     }
     // solution: the self-repair loop recovered a troubled task to success.
     if (success && troubleCauses.length > 0) {
-      await addNode({
+      const solutionNode = await addNode({
         label: 'self_repair_recovery',
         nodeType: 'solution',
         description: '検証ゲート却下から自己修復して完了',
         weight: 0.2,
       });
+      for (const problem of problemNodes) {
+        await addEdge({
+          fromNodeId: solutionNode.id,
+          toNodeId: problem.id,
+          edgeType: 'solves',
+          weight: 0.2,
+        });
+      }
     }
 
     log.info(

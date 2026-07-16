@@ -8,6 +8,7 @@
 import { prisma } from '../../config/database';
 import { readWorkflowFile } from './workflow-file-utils';
 import { buildMemoryContext } from './workflow-memory-context';
+import { buildKnownPitfallsSection } from './workflow-pitfall-context';
 import { buildHypothesisContext } from './workflow-hypothesis-context';
 import { buildRejectedPlanContext } from './workflow-rejected-plan-context';
 import { buildCaseContext } from './workflow-case-context';
@@ -330,6 +331,12 @@ export async function buildRoleContext(
       const memory = await buildMemoryContext(taskId, task, language);
       if (memory) {
         ctx += `\n\n${memory}`;
+      }
+      // Known pitfalls from the knowledge graph: gate rejections this task's
+      // type/technologies have historically hit, with cause-specific advice.
+      const pitfalls = await buildKnownPitfallsSection(task, language);
+      if (pitfalls) {
+        ctx += `\n\n${pitfalls}`;
       }
       // Hypothesis ledger: the implementer's concrete changes + test results are
       // prime evidence — surface open/proven hypotheses and how to record it.

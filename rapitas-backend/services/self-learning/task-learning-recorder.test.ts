@@ -13,7 +13,9 @@ const experimentCreate = mock(async () => ({ id: 101 }));
 const experimentUpdate = mock(async () => ({ id: 101 }));
 const transitionFindMany = mock(async () => [] as Array<{ cause: string }>);
 const saveEpisode = mock(async () => ({ id: 1 }));
-const addNode = mock(async () => ({ id: 1 }));
+let nodeId = 0;
+const addNode = mock(async () => ({ id: ++nodeId }));
+const addEdge = mock(async () => ({ id: 1 }));
 
 mock.module('../../config/database', () => ({
   ensureDatabaseConnection: () => Promise.resolve(),
@@ -32,7 +34,7 @@ mock.module('../../config/logger', () => ({
   createLogger: () => ({ info: () => {}, warn: () => {}, error: () => {}, debug: () => {} }),
 }));
 mock.module('./episode-memory', () => ({ saveEpisode }));
-mock.module('./knowledge-graph', () => ({ addNode }));
+mock.module('./knowledge-graph', () => ({ addNode, addEdge }));
 
 const { recordTaskLearningArtifacts } = await import('./task-learning-recorder');
 
@@ -51,6 +53,8 @@ describe('recordTaskLearningArtifacts', () => {
     transitionFindMany.mockClear();
     saveEpisode.mockClear();
     addNode.mockClear();
+    addEdge.mockClear();
+    nodeId = 0;
     experimentFindFirst.mockResolvedValue(null);
     transitionFindMany.mockResolvedValue([]);
   });
@@ -89,6 +93,13 @@ describe('recordTaskLearningArtifacts', () => {
         .sort(),
     ).toEqual(['adversarial_review_failed', 'verify_repair']);
     expect(nodesOfType('solution').map((n) => n.label)).toEqual(['self_repair_recovery']);
+    // Edges wire the correlation the pitfall warning reads: concept —causes→
+    // each problem, and the solution —solves→ each problem.
+    const edgeTypes = addEdge.mock.calls.map(
+      (c) => (c[0] as unknown as { edgeType: string }).edgeType,
+    );
+    expect(edgeTypes.filter((t) => t === 'causes')).toHaveLength(2);
+    expect(edgeTypes.filter((t) => t === 'solves')).toHaveLength(2);
   });
 
   test('blocked task → experiment status=failed + failure episode + failed problem node', async () => {
