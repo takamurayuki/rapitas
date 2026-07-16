@@ -30,6 +30,8 @@ import {
   GraduationCap,
   Bot,
   Settings,
+  UserCog,
+  Archive,
   GitPullRequest,
   CircleDot,
   GitMerge,
@@ -173,7 +175,9 @@ export default function Header() {
           label: t('agent'),
           icon: Bot,
           children: [
-            { href: '/agents', label: t('agentManagement'), icon: Settings },
+            // NOTE: UserCog, not Settings — the gear glyph is owned by 設定
+            // (ICON_POLICY: one glyph, one meaning app-wide).
+            { href: '/agents', label: t('agentManagement'), icon: UserCog },
             { href: '/agents/metrics', label: t('metrics'), icon: BarChart3 },
             {
               href: '/agents/memory',
@@ -198,7 +202,10 @@ export default function Header() {
                 {
                   href: '/knowledge/admin',
                   label: t('memoryAdmin'),
-                  icon: Settings,
+                  // NOTE: Archive, not Settings — the page administers the KB's
+                  // validation/forgetting (archival) lifecycle, and the gear
+                  // glyph is owned by 設定.
+                  icon: Archive,
                 },
               ],
             },

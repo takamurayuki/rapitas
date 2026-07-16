@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { useTranslations } from 'next-intl';
-import { Settings, Loader2 } from 'lucide-react';
+import { Archive, Loader2 } from 'lucide-react';
 import { useMemoryStats } from '@/feature/knowledge/hooks/useMemoryStats';
 import { MemoryQueueStatus } from '@/feature/knowledge/components/MemoryQueueStatus';
 import { KnowledgeTimeline } from '@/feature/knowledge/components/KnowledgeTimeline';
@@ -56,7 +56,7 @@ export default function MemoryAdminPage() {
   return (
     <div className="mx-auto max-w-6xl p-6">
       <div className="mb-6 flex items-center gap-3">
-        <Settings className="h-8 w-8 text-indigo-500" />
+        <Archive className="h-8 w-8 text-indigo-500" />
         <div>
           <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-50">{t('title')}</h1>
           <p className="text-sm text-gray-500 dark:text-gray-400">{t('description')}</p>

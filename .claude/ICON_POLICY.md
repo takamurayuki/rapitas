@@ -84,6 +84,9 @@ Keep this list accurate. If you assign a glyph a new meaning, add it here.
 | `AlignLeft`               | サブタスク説明の展開/折りたたみトグル（タスク詳細のサブタスク行） |
 | `CircleCheckBig`          | 一括選択モードの「すべて選択」（全解除時は汎用 `X`。タスク一覧 HomeToolbar とサブタスクヘッダー共通） |
 | `LayoutTemplate`          | テンプレート設定（タスク詳細メニュー。テンプレート実体は `FileStack`） |
+| `Settings`                | 設定（設定ハブのみ。旧・エージェント管理/メモリ管理との3重使用は 2026-07-17 に解消） |
+| `UserCog`                 | エージェント管理 (nav: /agents)          |
+| `Archive`                 | メモリ管理 / KB管理（検証・忘却アーカイブのライフサイクル管理。nav: /knowledge/admin） |
 
 ### Known collisions
 
