@@ -45,18 +45,18 @@ export function FolderCreator({
         {t('folderNotFound')}
       </div>
 
-      <div className="p-2 bg-amber-50 dark:bg-amber-900/10 rounded border border-amber-200 dark:border-amber-800">
+      <div className="p-3 bg-amber-50 dark:bg-amber-900/10 rounded-lg border border-amber-200 dark:border-amber-800">
         <div className="flex items-center gap-2">
           <button
             type="button"
             onClick={onCreateDirectory}
             disabled={isCreatingDir}
-            className="flex items-center gap-1 px-2 py-1 text-xs font-medium text-white bg-amber-600 hover:bg-amber-700 rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            className="flex items-center gap-1.5 h-9 px-3 text-sm font-medium text-white bg-amber-600 hover:bg-amber-700 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {isCreatingDir ? (
-              <Loader2 className="w-3 h-3 animate-spin" />
+              <Loader2 className="w-4 h-4 animate-spin" />
             ) : (
-              <FolderPlus className="w-3 h-3" />
+              <FolderPlus className="w-4 h-4" />
             )}
             {t('createFolder')}
           </button>
@@ -70,7 +70,7 @@ export function FolderCreator({
             <p className="text-xs text-amber-700 dark:text-amber-300 mb-1">
               {t('differentFolderName')}
             </p>
-            <div className="flex items-center gap-1">
+            <div className="flex items-center gap-2">
               <input
                 type="text"
                 value={newFolderName}
@@ -79,19 +79,19 @@ export function FolderCreator({
                   if (e.key === 'Enter') onCreateNewFolder();
                 }}
                 placeholder={t('folderNamePlaceholder')}
-                className="flex-1 px-2 py-1 text-xs bg-white dark:bg-zinc-900 border border-zinc-300 dark:border-zinc-600 rounded focus:outline-none focus:border-indigo-400"
+                className="flex-1 h-9 px-3 text-sm bg-white dark:bg-zinc-900 border border-zinc-300 dark:border-zinc-600 rounded-lg focus:outline-none focus:border-indigo-400"
                 disabled={isCreatingDir}
               />
               <button
                 type="button"
                 onClick={onCreateNewFolder}
                 disabled={!newFolderName.trim() || isCreatingDir}
-                className="flex items-center gap-1 px-2 py-1 text-xs font-medium text-white bg-green-600 hover:bg-green-700 rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                className="flex items-center gap-1.5 h-9 px-3 text-sm font-medium text-white bg-green-600 hover:bg-green-700 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {isCreatingDir ? (
-                  <Loader2 className="w-3 h-3 animate-spin" />
+                  <Loader2 className="w-4 h-4 animate-spin" />
                 ) : (
-                  <FolderPlus className="w-3 h-3" />
+                  <FolderPlus className="w-4 h-4" />
                 )}
                 {t('createFolder')}
               </button>

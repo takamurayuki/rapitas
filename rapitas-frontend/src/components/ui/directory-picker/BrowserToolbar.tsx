@@ -12,6 +12,7 @@
 import { FolderPlus, ArrowUp, Monitor, HardDrive, GitBranch, Star, StarOff } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import type { FavoriteDirectory } from './types';
+import { PathBreadcrumbs } from './PathBreadcrumbs';
 
 type BrowserToolbarProps = {
   currentPath: string;
@@ -25,6 +26,7 @@ type BrowserToolbarProps = {
   getFavoriteId: (path: string) => number | undefined;
   onGoUp: () => void;
   onGoToDrives: () => void;
+  onNavigate: (path: string) => void;
   onStartCreateFolder: () => void;
   onToggleFavorites: () => void;
   onAddFavorite: (path: string) => void;
@@ -45,6 +47,7 @@ type BrowserToolbarProps = {
  * @param getFavoriteId - Returns the favorite id for the given path / お気に入りID取得関数
  * @param onGoUp - Navigate to the parent directory / 上のフォルダへ移動
  * @param onGoToDrives - Navigate to the drive list / ドライブ一覧へ移動
+ * @param onNavigate - Navigate to an arbitrary path (breadcrumb clicks) / 任意パスへの移動
  * @param onStartCreateFolder - Open the new-folder creation form / フォルダ作成開始
  * @param onToggleFavorites - Toggle the favorites sidebar / お気に入りサイドバー切替
  * @param onAddFavorite - Add the current path to favorites / お気に入りに追加
@@ -62,6 +65,7 @@ export function BrowserToolbar({
   getFavoriteId,
   onGoUp,
   onGoToDrives,
+  onNavigate,
   onStartCreateFolder,
   onToggleFavorites,
   onAddFavorite,
@@ -92,9 +96,17 @@ export function BrowserToolbar({
 
       <div className="flex-1 flex items-center gap-2 px-3 py-1.5 bg-zinc-100 dark:bg-zinc-800 rounded-lg overflow-x-auto min-w-0">
         <HardDrive className="w-4 h-4 text-zinc-400 shrink-0" />
-        <span className="text-sm font-mono text-zinc-700 dark:text-zinc-300 truncate">
-          {currentPath || t('directoryPicker.driveList')}
-        </span>
+        {currentPath ? (
+          <PathBreadcrumbs
+            currentPath={currentPath}
+            isLoading={isLoading}
+            onNavigate={onNavigate}
+          />
+        ) : (
+          <span className="text-sm font-mono text-zinc-700 dark:text-zinc-300 truncate">
+            {t('directoryPicker.driveList')}
+          </span>
+        )}
         {isGitRepo && (
           <span className="flex items-center gap-1 px-2 py-0.5 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 rounded text-xs font-medium shrink-0">
             <GitBranch className="w-3 h-3" />

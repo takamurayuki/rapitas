@@ -56,7 +56,7 @@ export function DirectoryPicker({
                     picker.handleEditCancel();
                   }
                 }}
-                className="flex-1 rounded-lg border-2 border-purple-500 dark:border-purple-400 bg-white dark:bg-zinc-800 px-4 py-2.5 pr-24 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 transition-all font-mono"
+                className="flex-1 h-9 rounded-lg border border-indigo-500 dark:border-indigo-400 bg-white dark:bg-zinc-800 px-3 pr-20 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 transition-colors font-mono"
                 placeholder={t('directoryPicker.pathInputPlaceholder')}
               />
               <div className="absolute right-2 flex items-center gap-1">
@@ -79,8 +79,8 @@ export function DirectoryPicker({
               </div>
             </div>
           ) : (
-            <div className="flex items-center rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 overflow-hidden">
-              <div className="flex-1 flex items-center px-4 py-2.5 min-w-0">
+            <div className="flex items-center h-9 rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 overflow-hidden">
+              <div className="flex-1 flex items-center px-3 min-w-0 h-full">
                 {value ? (
                   <>
                     <Folder className="w-4 h-4 text-amber-500 shrink-0 mr-2" />
@@ -97,7 +97,7 @@ export function DirectoryPicker({
               <button
                 type="button"
                 onClick={picker.handleStartEdit}
-                className="px-3 py-2.5 text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-700 border-l border-zinc-300 dark:border-zinc-700 transition-colors"
+                className="flex items-center h-full px-3 text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-700 border-l border-zinc-300 dark:border-zinc-700 transition-colors"
                 title={t('directoryPicker.manualEntryTitle')}
               >
                 <svg
@@ -121,7 +121,7 @@ export function DirectoryPicker({
         <button
           type="button"
           onClick={picker.handleOpen}
-          className="flex items-center gap-2 px-4 py-2.5 rounded-lg bg-purple-600 hover:bg-purple-700 text-white transition-all text-sm font-medium shrink-0"
+          className="flex items-center gap-2 h-9 px-3 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white transition-colors text-sm font-medium shrink-0"
           title={t('directoryPicker.browseTitle')}
         >
           <FolderOpen className="w-4 h-4" />
@@ -144,7 +144,7 @@ export function DirectoryPicker({
           onGoToDrives={picker.handleGoToDrives}
           onGoToPath={picker.handleGoToPath}
           onNavigate={picker.handleNavigate}
-          onSelect={picker.handleSelect}
+          onSelectPath={picker.handleSelectPath}
           onClose={picker.handleClose}
           favorites={picker.favorites}
           currentValue={value}

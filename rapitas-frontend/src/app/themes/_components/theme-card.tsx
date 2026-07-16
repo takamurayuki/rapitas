@@ -100,8 +100,8 @@ export function ThemeCard({ item, provided, renderIcon, onEdit, onDelete, onSetD
           onClick={() => onSetDefault(item.id)}
           className={`p-2 rounded-lg transition-colors ${
             item.isDefault
-              ? 'text-purple-600 dark:text-purple-400 bg-purple-50 dark:bg-purple-900/20'
-              : 'text-zinc-400 hover:text-purple-600 dark:hover:text-purple-400 hover:bg-purple-50 dark:hover:bg-purple-900/20'
+              ? 'text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-900/30'
+              : 'text-zinc-400 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-900/30'
           }`}
           title={item.isDefault ? t('default') : t('setAsDefault')}
         >

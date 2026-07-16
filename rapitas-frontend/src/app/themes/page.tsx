@@ -56,7 +56,7 @@ export default function ThemesPage() {
         <div className="mb-6 flex items-center justify-between">
           <div>
             <h1 className="text-2xl font-bold text-zinc-900 dark:text-zinc-50 flex items-center gap-2">
-              <SwatchBook className="w-6 h-6 text-purple-600 dark:text-purple-400" />
+              <SwatchBook className="w-6 h-6 text-indigo-600 dark:text-indigo-400" />
               {t('title')}
             </h1>
             <p className="mt-1 text-xs text-zinc-600 dark:text-zinc-400">{t('subtitle')}</p>
@@ -71,7 +71,7 @@ export default function ThemesPage() {
                 });
                 setIsAdding(true);
               }}
-              className="flex items-center gap-1.5 rounded-lg bg-purple-600 hover:bg-purple-700 px-4 py-2 text-sm text-white transition-all shadow-lg hover:shadow-xl font-medium"
+              className="flex items-center gap-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 px-4 py-2 text-sm text-white transition-colors font-medium"
             >
               <Plus className="w-4 h-4" />
               {t('newTheme')}
@@ -93,7 +93,7 @@ export default function ThemesPage() {
 
         {/* Add form */}
         {isAdding && (
-          <div className="mb-4 rounded-xl border-2 border-purple-500 bg-white dark:bg-indigo-dark-900 p-4">
+          <div className="mb-4 rounded-lg border-2 border-indigo-500 bg-white dark:bg-zinc-900 p-4">
             <ThemeForm
               isEdit={false}
               formData={formData}

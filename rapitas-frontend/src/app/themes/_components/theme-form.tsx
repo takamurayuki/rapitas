@@ -195,7 +195,7 @@ export function ThemeForm({
                 selectedIcon={formData.icon}
                 onIconSelect={(iconName) => setFormData({ ...formData, icon: iconName })}
                 renderIcon={renderIcon}
-                accentClass="bg-purple-500"
+                accentClass="bg-indigo-500"
               />
             </div>
           </div>
@@ -286,7 +286,7 @@ export function ThemeForm({
         </button>
         <button
           onClick={() => onSave(isEdit ? itemId : undefined)}
-          className="flex items-center gap-1.5 rounded-lg bg-purple-600 hover:bg-purple-700 px-3 py-2 text-sm text-white transition-all shadow-lg hover:shadow-xl font-medium"
+          className="flex items-center gap-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 px-3 py-2 text-sm text-white transition-colors font-medium"
         >
           <Save className="w-3.5 h-3.5" />
           {isEdit ? tc('save') : tc('create')}

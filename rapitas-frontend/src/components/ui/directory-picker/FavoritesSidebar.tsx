@@ -67,7 +67,7 @@ export function FavoritesSidebar({
               key={fav.id}
               className={`flex items-center gap-2 px-4 py-2 transition-colors group ${
                 isCurrentValue
-                  ? 'bg-purple-50 dark:bg-purple-900/20 border-l-4 border-purple-500'
+                  ? 'bg-indigo-50 dark:bg-indigo-900/30 border-l-4 border-indigo-500'
                   : 'hover:bg-zinc-50 dark:hover:bg-zinc-800/50'
               }`}
             >
@@ -76,15 +76,15 @@ export function FavoritesSidebar({
                 className="flex-1 flex items-center gap-3 text-left min-w-0"
               >
                 <Folder
-                  className={`w-4 h-4 shrink-0 ${isCurrentValue ? 'text-purple-500' : 'text-yellow-500'}`}
+                  className={`w-4 h-4 shrink-0 ${isCurrentValue ? 'text-indigo-500' : 'text-yellow-500'}`}
                 />
                 <div className="flex-1 min-w-0">
                   <div
-                    className={`text-sm font-medium truncate ${isCurrentValue ? 'text-purple-700 dark:text-purple-300' : 'text-zinc-700 dark:text-zinc-300'}`}
+                    className={`text-sm font-medium truncate ${isCurrentValue ? 'text-indigo-700 dark:text-indigo-300' : 'text-zinc-700 dark:text-zinc-300'}`}
                   >
                     {fav.name || fav.path.split(/[\\/]/).pop()}
                     {isCurrentValue && (
-                      <span className="ml-2 text-xs font-normal text-purple-500 dark:text-purple-400">
+                      <span className="ml-2 text-xs font-normal text-indigo-500 dark:text-indigo-400">
                         {t('directoryPicker.currentlySelectedInline')}
                       </span>
                     )}

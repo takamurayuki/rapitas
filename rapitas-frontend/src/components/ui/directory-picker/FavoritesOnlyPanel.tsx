@@ -55,7 +55,7 @@ export function FavoritesOnlyPanel({
         </div>
         <button
           onClick={onStartBrowsing}
-          className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-purple-600 dark:text-purple-400 hover:text-purple-700 dark:hover:text-purple-300 bg-white dark:bg-zinc-800 hover:bg-purple-50 dark:hover:bg-purple-900/20 rounded-md transition-colors border border-purple-200 dark:border-purple-800"
+          className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 dark:hover:text-indigo-300 bg-white dark:bg-zinc-800 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 rounded-md transition-colors border border-indigo-200 dark:border-indigo-800"
         >
           <FolderOpen className="w-3.5 h-3.5" />
           {t('directoryPicker.selectAnotherFolder')}
@@ -70,7 +70,7 @@ export function FavoritesOnlyPanel({
               key={fav.id}
               className={`flex items-center gap-2 px-4 py-3 transition-colors group ${
                 isCurrentValue
-                  ? 'bg-purple-50 dark:bg-purple-900/20 border-l-4 border-purple-500'
+                  ? 'bg-indigo-50 dark:bg-indigo-900/30 border-l-4 border-indigo-500'
                   : 'hover:bg-zinc-50 dark:hover:bg-zinc-800/50'
               }`}
             >
@@ -79,15 +79,15 @@ export function FavoritesOnlyPanel({
                 className="flex-1 flex items-center gap-3 text-left min-w-0"
               >
                 <Folder
-                  className={`w-5 h-5 shrink-0 ${isCurrentValue ? 'text-purple-500' : 'text-yellow-500'}`}
+                  className={`w-5 h-5 shrink-0 ${isCurrentValue ? 'text-indigo-500' : 'text-yellow-500'}`}
                 />
                 <div className="flex-1 min-w-0">
                   <div
-                    className={`text-sm font-medium truncate ${isCurrentValue ? 'text-purple-700 dark:text-purple-300' : 'text-zinc-700 dark:text-zinc-300'}`}
+                    className={`text-sm font-medium truncate ${isCurrentValue ? 'text-indigo-700 dark:text-indigo-300' : 'text-zinc-700 dark:text-zinc-300'}`}
                   >
                     {fav.name || fav.path.split(/[\\/]/).pop()}
                     {isCurrentValue && (
-                      <span className="ml-2 text-xs font-normal text-purple-500 dark:text-purple-400">
+                      <span className="ml-2 text-xs font-normal text-indigo-500 dark:text-indigo-400">
                         {t('directoryPicker.currentlySelectedInline')}
                       </span>
                     )}

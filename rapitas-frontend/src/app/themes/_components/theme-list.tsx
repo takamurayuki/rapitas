@@ -137,13 +137,13 @@ export function ThemeList({
                     ref={draggableProvided.innerRef}
                     {...draggableProvided.draggableProps}
                     className={`rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-indigo-dark-900 hover:shadow-lg transition-all overflow-hidden ${
-                      snapshot.isDragging ? 'shadow-lg ring-2 ring-purple-500/50' : ''
+                      snapshot.isDragging ? 'shadow-lg ring-2 ring-indigo-500/50' : ''
                     }`}
                   >
                     {editingId === item.id ? (
                       <div className="p-4">
                         <h2 className="mb-3 text-base font-bold text-zinc-900 dark:text-zinc-50 flex items-center gap-2">
-                          <Edit2 className="w-4 h-4 text-purple-600 dark:text-purple-400" />
+                          <Edit2 className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
                           {t('editTheme')}
                         </h2>
                         <ThemeForm
