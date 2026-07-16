@@ -20,13 +20,14 @@ export default defineConfig({
       // prior 30/25/28/30 values were never met (actual ≈ 11%) and CI did not
       // run --coverage, so the gate was fiction; a true floor is more defensible
       // than an unenforced target.
-      // Raised 2026-07-03 after a coverage push (measured ≈ 17.7/13.2/15.6/17.6);
+      // Raised 2026-07-16 after further test additions (measured ≈
+      // statements 21.7 / branches 16.78 / functions 19.83 / lines 21.78);
       // floor kept ~0.5-1pt below measured for margin.
       thresholds: {
-        lines: 17,
-        branches: 12.5,
-        functions: 15,
-        statements: 17,
+        lines: 21,
+        branches: 16,
+        functions: 19,
+        statements: 21,
       },
     },
   },
