@@ -62,11 +62,22 @@ if (apiTokenGuard) {
 }
 
 // Apply middleware
+const corsOrigins = process.env.CORS_ORIGIN
+  ? process.env.CORS_ORIGIN.split(',')
+      .map((o) => o.trim())
+      .filter(Boolean)
+  : ['http://localhost:3000', 'http://127.0.0.1:3000', 'tauri://localhost'];
+// NOTE: credentials:true + wildcard origin would let ANY site read
+// authenticated responses (cookies/tokens attach cross-origin). A
+// misconfigured CORS_ORIGIN must fail at startup, not ship silently.
+if (corsOrigins.some((o) => o === '*' || o === 'null')) {
+  throw new Error(
+    'CORS_ORIGIN must not contain "*" or "null" while credentials are enabled — list explicit origins.',
+  );
+}
 app.use(
   cors({
-    origin: process.env.CORS_ORIGIN
-      ? process.env.CORS_ORIGIN.split(',')
-      : ['http://localhost:3000', 'http://127.0.0.1:3000', 'tauri://localhost'],
+    origin: corsOrigins,
     credentials: true,
     allowedHeaders: ['Content-Type', 'Authorization', 'Cookie'],
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
