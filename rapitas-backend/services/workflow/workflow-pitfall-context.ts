@@ -105,6 +105,12 @@ export async function buildKnownPitfallsSection(
         ? 'These gate rejections have actually happened on similar tasks — avoid repeating them.'
         : '上記は類似タスクで実際に発生した検証ゲート却下です。同じ轍を踏まないこと。';
 
+    // Observability: which warnings fired lets the effect be verified later —
+    // "did tasks that received a verify_repair warning bounce less often?"
+    log.info(
+      { pitfalls: top.map((p) => ({ label: p.label, weight: +p.weight.toFixed(2) })) },
+      '[pitfall-context] Known-pitfalls warning injected into implementer context',
+    );
     return `${header}\n\n${lines.join('\n')}\n\n${footer}`;
   } catch (err) {
     log.debug({ err }, '[pitfall-context] Failed to build known-pitfalls section');

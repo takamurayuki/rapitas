@@ -565,6 +565,12 @@ export class WorkflowOrchestrator {
       const addendum = await getApprovedRoleAddendum(transition.role);
       if (addendum) {
         context += `\n\n## 承認済みの改善ガイダンス(プロンプト進化)\n\n${addendum}`;
+        // Observability: role-evidence success rates before/after this line
+        // starts appearing are the evolution's measured effect.
+        log.info(
+          { taskId, role: transition.role },
+          '[prompt-evolution] Approved addendum injected into role context',
+        );
       }
     } catch {
       // Addendum injection must never block the run.

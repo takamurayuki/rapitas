@@ -19,7 +19,7 @@
  * correct client on startup, and this script needs that client to connect.
  */
 import { prisma } from '../config/database';
-import { addNode } from '../services/self-learning/knowledge-graph';
+import { addNode, addEdge } from '../services/self-learning/knowledge-graph';
 import {
   deriveOutcomeConfidence,
   extractTechLabels,
@@ -104,9 +104,38 @@ async function main(): Promise<void> {
         : []),
     ];
 
-    for (const node of nodes) {
-      nodesWritten++;
-      if (!dryRun) await addNode(node);
+    if (!dryRun) {
+      // Mirror the recorder's edge writing so historical correlations arm the
+      // implementer's pitfall warning immediately instead of weeks from now.
+      const created = [] as Array<{ id: number; nodeType: string }>;
+      for (const node of nodes) {
+        nodesWritten++;
+        created.push({ id: (await addNode(node)).id, nodeType: node.nodeType });
+      }
+      const concepts = created.filter((n) => n.nodeType === 'concept');
+      const techs = created.filter((n) => n.nodeType === 'technology');
+      const problems = created.filter((n) => n.nodeType === 'problem');
+      const solutions = created.filter((n) => n.nodeType === 'solution');
+      for (const problem of problems) {
+        for (const src of [...concepts, ...techs]) {
+          await addEdge({
+            fromNodeId: src.id,
+            toNodeId: problem.id,
+            edgeType: 'causes',
+            weight: src.nodeType === 'concept' ? 0.2 : 0.15,
+          });
+        }
+        for (const sol of solutions) {
+          await addEdge({
+            fromNodeId: sol.id,
+            toNodeId: problem.id,
+            edgeType: 'solves',
+            weight: 0.2,
+          });
+        }
+      }
+    } else {
+      nodesWritten += nodes.length;
     }
   }
 
