@@ -17,8 +17,9 @@
 'use client';
 
 import { useEffect, useState, useCallback } from 'react';
-import { Settings, CheckCircle, Cloud, Cpu, AlertTriangle, RefreshCw } from 'lucide-react';
+import { Settings, CheckCircle, Cpu, AlertTriangle, RefreshCw } from 'lucide-react';
 import { useTranslations } from 'next-intl';
+import { ClaudeIcon, ChatGPTIcon, GeminiIcon } from '@/components/icons/ProviderIcons';
 import type { UserSettings, ApiProvider } from '@/types';
 import { API_BASE_URL } from '@/utils/api';
 import { createLogger } from '@/lib/logger';
@@ -35,7 +36,7 @@ interface ProviderEntry {
   probeKey: ProbeProvider;
   label: string;
   description: string;
-  icon: typeof Cloud;
+  icon: React.ComponentType<{ className?: string }>;
   iconColor: string;
 }
 
@@ -45,7 +46,7 @@ const PROVIDERS: ProviderEntry[] = [
     probeKey: 'claude',
     label: 'Claude',
     description: 'Claude Code CLI',
-    icon: Cloud,
+    icon: ClaudeIcon,
     iconColor: 'text-orange-500',
   },
   {
@@ -53,7 +54,7 @@ const PROVIDERS: ProviderEntry[] = [
     probeKey: 'openai',
     label: 'OpenAI / Codex',
     description: 'Codex CLI',
-    icon: Cloud,
+    icon: ChatGPTIcon,
     iconColor: 'text-emerald-500',
   },
   {
@@ -61,7 +62,7 @@ const PROVIDERS: ProviderEntry[] = [
     probeKey: 'gemini',
     label: 'Gemini',
     description: 'Gemini CLI',
-    icon: Cloud,
+    icon: GeminiIcon,
     iconColor: 'text-indigo-500',
   },
 ];
