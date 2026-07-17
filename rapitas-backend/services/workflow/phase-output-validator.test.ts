@@ -399,4 +399,69 @@ summary here
     expect(result.ok).toBe(false);
     expect(result.severity).toBe(80);
   });
+
+  // Round 7: repair-feedback blocks and ```text fences are excluded from the
+  // contradiction scan so quoted/deliberate-RED failure counts cannot poison
+  // the honesty gate (task 494's permanent self-contradiction loop).
+  describe('non-evidence region stripping', () => {
+    test('failure counts inside a repair-feedback block do NOT self-contradict', () => {
+      const content = `# 検証レポート
+## 検証結果サマリ
+✅ 検証成功 — 12/12 passed
+## テスト結果
+bun test: 12 passed, 0 failed
+## チェックリスト消化状況
+- [x] done
+
+---
+
+<!-- repair-feedback:start -->
+# 検証フェーズからの差し戻し（自己修復 1 回目）
+直前の検証 (verify.md) が不合格でした: claims all tests pass while body contains failure signals (1 failed | Tests 3 failed)
+<!-- repair-feedback:end -->`;
+      const result = validateVerify(content);
+      expect(result.ok).toBe(true);
+    });
+
+    test('deliberate-RED counts inside a ```text fence do NOT self-contradict', () => {
+      const content = `# 検証レポート
+## 検証結果サマリ
+✅ 検証成功 — 修正を除去するとRED、復元するとGREENを確認。
+## テスト結果
+bun test: 12 passed, 0 failed
+\`\`\`text
+(偽陽性検証の抜粋) Tests 3 failed (3)
+\`\`\`
+## チェックリスト消化状況
+- [x] done`;
+      const result = validateVerify(content);
+      expect(result.ok).toBe(true);
+    });
+
+    test('a genuine contradiction in the plain body is still detected', () => {
+      const content = `# 検証レポート
+## 検証結果サマリ
+✅ 検証成功
+## テスト結果
+Tests 3 failed (3)
+## チェックリスト消化状況
+- [x] done`;
+      const result = validateVerify(content);
+      expect(result.ok).toBe(false);
+      expect(result.severity).toBe(80);
+    });
+
+    test('a genuine failure count in a BARE ``` fence is still detected', () => {
+      const content = `# 検証レポート
+## 検証結果サマリ
+✅ 検証成功
+## テスト結果
+\`\`\`
+Tests 2 passed | 4 failed
+\`\`\`
+## チェックリスト消化状況
+- [x] done`;
+      expect(validateVerify(content).ok).toBe(false);
+    });
+  });
 });

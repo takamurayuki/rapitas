@@ -108,6 +108,7 @@ export const LUCIDE_USED_ICONS = [
   'CircleAlert',
   'CircleCheckBig',
   'CircleDot',
+  'CircleHelp',
   'CircleSmall',
   'CircuitBoard',
   'Citrus',

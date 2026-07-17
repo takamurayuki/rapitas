@@ -1,6 +1,8 @@
 {
   "common": {
     "loading": "Loading...",
+    "mermaidRenderError": "Diagram rendering failed — showing the source instead",
+    "mermaidRendering": "Rendering diagram...",
     "saving": "Saving...",
     "save": "Save",
     "cancel": "Cancel",

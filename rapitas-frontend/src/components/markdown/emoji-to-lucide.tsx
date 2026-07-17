@@ -10,8 +10,22 @@
  * the stored markdown, so the machine-parsed verdict vocabulary stays intact.
  */
 
-import { Fragment, type ReactNode } from 'react';
-import { Check, Clock, FileText, Info, TriangleAlert, X, type LucideIcon } from 'lucide-react';
+import { Fragment, isValidElement, type ReactNode } from 'react';
+import {
+  Check,
+  CircleHelp,
+  Clock,
+  FilePlus,
+  FileText,
+  Info,
+  Pencil,
+  SkipForward,
+  Star,
+  Trash2,
+  TriangleAlert,
+  X,
+  type LucideIcon,
+} from 'lucide-react';
 
 interface EmojiIconEntry {
   /** lucide component that replaces the emoji. */
@@ -82,6 +96,14 @@ const EMOJI_ICON_MAP: Record<string, EmojiIconEntry> = {
   '💡': { Icon: Info, className: 'text-sky-500', label: 'hint' },
   '📝': { Icon: FileText, className: 'text-zinc-400', label: 'note' },
   '⏳': { Icon: Clock, className: 'text-zinc-400', label: 'pending' },
+  // Legacy seed-vocabulary set: removed from the seed prompts, but stored docs
+  // and DB-persisted role prompts still emit these.
+  '⏭': { Icon: SkipForward, className: 'text-zinc-400', label: 'skipped' },
+  '✏': { Icon: Pencil, className: 'text-zinc-400', label: 'modified' },
+  '🗑': { Icon: Trash2, className: 'text-zinc-400', label: 'deleted' },
+  '🆕': { Icon: FilePlus, className: 'text-green-500', label: 'new' },
+  '⭐': { Icon: Star, className: 'text-amber-500', label: 'important' },
+  '❓': { Icon: CircleHelp, className: 'text-zinc-400', label: 'question' },
 };
 
 const EMOJI_ALTERNATION = Object.keys(EMOJI_ICON_MAP).join('|');
@@ -165,4 +187,60 @@ export function renderTextWithEmojiIcons(node: ReactNode): ReactNode {
     ));
   }
   return node;
+}
+
+/**
+ * Flattens a ReactNode tree to its plain text (spans nested inline elements).
+ *
+ * @param node - Node to flatten. / 平坦化するノード
+ * @returns Concatenated text content. / 連結テキスト
+ */
+export function flattenNodeText(node: ReactNode): string {
+  if (node === null || node === undefined || typeof node === 'boolean') return '';
+  if (typeof node === 'string') return node;
+  if (typeof node === 'number') return String(node);
+  if (Array.isArray(node)) return node.map(flattenNodeText).join('');
+  if (isValidElement(node)) {
+    return flattenNodeText((node.props as { children?: ReactNode }).children);
+  }
+  return '';
+}
+
+/**
+ * Whether a table cell's content is visually just an icon (or a tiny marker):
+ * after removing mapped emoji, variation selectors, and whitespace, at most 3
+ * characters remain. Such cells read better centered — a lone status icon
+ * sitting left-aligned between the column dividers looks off-center. Longer
+ * content (counts like "22 / 22", prose columns) must stay left-aligned.
+ *
+ * @param node - Cell children from a td/th override. / セルの子ノード
+ * @returns True when the cell should be center-aligned. / 中央寄せすべきなら true
+ */
+export function isIconOnlyCellContent(node: ReactNode): boolean {
+  const stripped = flattenNodeText(node)
+    .replace(EMOJI_SPLIT_RE, '')
+    .replace(/️/g, '')
+    .replace(/\s+/g, '');
+  return Array.from(stripped).length <= 3;
+}
+
+/**
+ * Removes decorative straight double quotes when they wrap a cell's or
+ * heading's ENTIRE content (`"foo"` → `foo`). Conservative by design: only a
+ * single string child fully enclosed in exactly one quote pair is unwrapped —
+ * quotes mid-sentence or genuine quotations in prose are left untouched.
+ *
+ * @param node - Children of a td/th/heading override. / セル・見出しの子ノード
+ * @returns Children with the full wrap removed, or unchanged. / 引用符を外した子ノード
+ */
+export function unwrapFullQuotes(node: ReactNode): ReactNode {
+  const single =
+    typeof node === 'string'
+      ? node
+      : Array.isArray(node) && node.length === 1 && typeof node[0] === 'string'
+        ? node[0]
+        : null;
+  if (single === null) return node;
+  const m = /^\s*"([^"]+)"\s*$/.exec(single);
+  return m ? m[1] : node;
 }

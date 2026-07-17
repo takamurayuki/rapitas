@@ -9,9 +9,9 @@
  * markdown and its machine-parsed vocabulary are never modified.
  */
 
-import { isValidElement, type ReactNode } from 'react';
+import type { ReactNode } from 'react';
 import { Check, TriangleAlert, X, type LucideIcon } from 'lucide-react';
-import { renderTextWithEmojiIcons } from './emoji-to-lucide';
+import { flattenNodeText, renderTextWithEmojiIcons } from './emoji-to-lucide';
 
 type VerdictTone = 'pass' | 'fail' | 'partial';
 
@@ -47,23 +47,6 @@ const TONE_BY_EMOJI: Record<string, VerdictTone> = {
   '❌': 'fail',
   '⚠': 'partial',
 };
-
-/**
- * Flattens a ReactNode tree to its plain text (spans bold-wrapped verdicts).
- *
- * @param node - Node to flatten. / 平坦化するノード
- * @returns Concatenated text content. / 連結テキスト
- */
-function flattenNodeText(node: ReactNode): string {
-  if (node === null || node === undefined || typeof node === 'boolean') return '';
-  if (typeof node === 'string') return node;
-  if (typeof node === 'number') return String(node);
-  if (Array.isArray(node)) return node.map(flattenNodeText).join('');
-  if (isValidElement(node)) {
-    return flattenNodeText((node.props as { children?: ReactNode }).children);
-  }
-  return '';
-}
 
 interface VerdictChipProps {
   /** Verdict tone driving colour and icon. / 判定トーン */

@@ -8,7 +8,12 @@
 
 import { describe, it, expect } from 'vitest';
 import { render } from '@testing-library/react';
-import { renderTextWithEmojiIcons } from './emoji-to-lucide';
+import {
+  isIconOnlyCellContent,
+  renderTextWithEmojiIcons,
+  unwrapFullQuotes,
+} from './emoji-to-lucide';
+import { MarkdownView } from './MarkdownView';
 
 const renderText = (text: string) => render(<div>{renderTextWithEmojiIcons(text)}</div>);
 
@@ -27,6 +32,26 @@ describe('renderTextWithEmojiIcons', () => {
       { emoji: '💡', label: 'hint', iconClass: 'lucide-info', colorClass: 'text-sky-500' },
       { emoji: '📝', label: 'note', iconClass: 'lucide-file-text', colorClass: 'text-zinc-400' },
       { emoji: '⏳', label: 'pending', iconClass: 'lucide-clock', colorClass: 'text-zinc-400' },
+      // Legacy seed-vocabulary set (round 8) — with and without U+FE0F.
+      {
+        emoji: '⏭️',
+        label: 'skipped',
+        iconClass: 'lucide-skip-forward',
+        colorClass: 'text-zinc-400',
+      },
+      {
+        emoji: '⏭',
+        label: 'skipped',
+        iconClass: 'lucide-skip-forward',
+        colorClass: 'text-zinc-400',
+      },
+      { emoji: '✏️', label: 'modified', iconClass: 'lucide-pencil', colorClass: 'text-zinc-400' },
+      { emoji: '✏', label: 'modified', iconClass: 'lucide-pencil', colorClass: 'text-zinc-400' },
+      { emoji: '🗑️', label: 'deleted', iconClass: 'lucide-trash', colorClass: 'text-zinc-400' },
+      { emoji: '🗑', label: 'deleted', iconClass: 'lucide-trash', colorClass: 'text-zinc-400' },
+      { emoji: '🆕', label: 'new', iconClass: 'lucide-file-plus', colorClass: 'text-green-500' },
+      { emoji: '⭐', label: 'important', iconClass: 'lucide-star', colorClass: 'text-amber-500' },
+      { emoji: '❓', label: 'question', iconClass: 'lucide-circle', colorClass: 'text-zinc-400' },
     ])('$emoji renders $iconClass with $colorClass', ({ emoji, label, iconClass, colorClass }) => {
       const { getByRole } = renderText(emoji);
       const icon = getByRole('img', { name: label });
@@ -143,5 +168,58 @@ describe('renderTextWithEmojiIcons', () => {
       expect(getByRole('img', { name: 'success' })).toBeInTheDocument();
       expect(container.querySelector('strong')?.textContent).toBe('bold');
     });
+  });
+});
+
+describe('isIconOnlyCellContent', () => {
+  it.each([
+    { input: '✅', expected: true },
+    { input: '⚠️ ', expected: true },
+    // Collapsed redundant word: renders icon-only, so it centers too.
+    { input: '✅ 完了', expected: true },
+    { input: '高', expected: true },
+    { input: '', expected: true },
+    { input: '22 / 22', expected: false },
+    { input: '説明テキストの長いセルです', expected: false },
+    { input: '✅ 12/12 passed', expected: false },
+  ])('"$input" → $expected', ({ input, expected }) => {
+    expect(isIconOnlyCellContent(input)).toBe(expected);
+  });
+});
+
+describe('unwrapFullQuotes', () => {
+  it('unwraps a cell whose entire content is one quoted string', () => {
+    expect(unwrapFullQuotes('"notes.findMany"')).toBe('notes.findMany');
+    expect(unwrapFullQuotes([' "foo" '])).toBe('foo');
+  });
+
+  it.each(['say "foo" now', '"a" and "b"', 'no quotes at all'])(
+    'leaves partial/multiple quotes untouched: %j',
+    (input) => {
+      expect(unwrapFullQuotes(input)).toBe(input);
+    },
+  );
+});
+
+describe('table cell rendering via MarkdownView', () => {
+  const md = [
+    '| A | B | C |',
+    '| --- | --- | --- |',
+    '| ✅ | 長い説明のテキスト列です | "quoted" |',
+  ].join('\n');
+
+  it('centers icon-only cells, keeps prose cells left, and unwraps full-cell quotes', () => {
+    const { container } = render(<MarkdownView content={md} />);
+    const cells = Array.from(container.querySelectorAll('tbody td'));
+    expect(cells).toHaveLength(3);
+    expect(cells[0].className).toContain('text-center');
+    expect(cells[1].className).not.toContain('text-center');
+    expect(cells[2].textContent).toBe('quoted');
+  });
+
+  it('tints the header row and applies vertical dividers', () => {
+    const { container } = render(<MarkdownView content={md} />);
+    expect(container.querySelector('thead')?.className).toContain('bg-zinc-100');
+    expect(container.querySelector('tr')?.className).toContain('divide-x');
   });
 });

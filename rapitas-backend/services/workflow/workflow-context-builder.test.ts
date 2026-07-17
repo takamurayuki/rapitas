@@ -82,6 +82,11 @@ describe('report style rule (emoji-free professional markdown)', () => {
       // Changed-files reporting is qualitative: table of file/kind/summary,
       // never +N/-N line deltas.
       expect(ctx).toContain('行数・差分数値（+N/-N）は記載しない');
+      // Machine-first priority clause + figure-first presentation layer.
+      expect(ctx).toContain('正確性と機械可読性が最優先');
+      expect(ctx).toContain('図表ファースト');
+      expect(ctx).toContain('図と表が矛盾する場合は表が正');
+      expect(ctx).toContain('```mermaid');
     },
   );
 
@@ -89,6 +94,8 @@ describe('report style rule (emoji-free professional markdown)', () => {
     const ctx = await buildRoleContext(1, 'verifier', NO_DIR, TASK, 'en');
     expect(ctx).toContain('## Style rules');
     expect(ctx).toContain('Emoji are forbidden');
+    expect(ctx).toContain('prioritize AI comprehension');
+    expect(ctx).toContain('Figure-first');
   });
 
   test('verifier verdict-marker vocabulary is unchanged by the style rule', async () => {
@@ -96,6 +103,53 @@ describe('report style rule (emoji-free professional markdown)', () => {
     // The machine-parsed phrases must still be present verbatim.
     expect(ctx).toContain('✅ 検証成功 / ❌ 検証失敗 / ⚠️ 一部失敗');
     expect(ctx).toContain('`**❌ 検証失敗**`');
+  });
+});
+
+describe('report hygiene rules (round 7 audit fixes)', () => {
+  test('verifier carries the machine-gate output discipline', async () => {
+    const ctx = await buildRoleContext(1, 'verifier', NO_DIR, TASK);
+    expect(ctx).toContain('### 出力規律（機械ゲート互換 — 厳守）');
+    expect(ctx).toContain('タスク種別（軽量・マージ・競合解消・サブタスク）を問わず');
+    expect(ctx).toContain('言い換えは禁止');
+    expect(ctx).toContain('偽陽性検証');
+    expect(ctx).toContain('数値集計行を本文に書かない');
+    expect(ctx).toContain('`| +追加 | -削除 |`');
+  });
+
+  test('en verifier carries the output discipline too', async () => {
+    const ctx = await buildRoleContext(1, 'verifier', NO_DIR, TASK, 'en');
+    expect(ctx).toContain('### Output discipline (machine-gate compatibility — strict)');
+    expect(ctx).toContain('deliberate-RED');
+  });
+
+  test('lightweight verifier keeps the machine-parsed チェックリスト消化状況 heading', async () => {
+    // NO_DIR has no plan.md → the no-plan replacement applies. The heading must
+    // keep the チェックリスト substring the section validator scans for.
+    const ctx = await buildRoleContext(1, 'verifier', NO_DIR, TASK);
+    expect(ctx).toContain('## チェックリスト消化状況 (計画なしタスク:');
+    expect(ctx).not.toContain('## 要件の充足状況');
+  });
+
+  test('planner carries the self-containment rule and the fact-form premortem note', async () => {
+    const ctx = await buildRoleContext(1, 'planner', NO_DIR, TASK);
+    expect(ctx).toContain('## 自己完結ルール');
+    expect(ctx).toContain('「research.md の選択肢A」');
+    expect(ctx).toContain('修正除去でRED→復元でGREENを確認');
+  });
+
+  test('researcher forbids template placeholder residue and uses 類似機能', async () => {
+    const ctx = await buildRoleContext(1, 'researcher', NO_DIR, TASK);
+    expect(ctx).toContain('プレースホルダ説明を見出しや本文に残さない');
+    expect(ctx).toContain('類似機能の有無');
+    expect(ctx).not.toContain('類似実装の有無');
+  });
+
+  test('style rule carries negative examples, verdict vocabulary lock, and deixis ban', async () => {
+    const ctx = await buildRoleContext(1, 'implementer', NO_DIR, TASK);
+    expect(ctx).toContain('負例（書いてはならない形）');
+    expect(ctx).toContain('「合格」「条件付き合格」「不合格」等への言い換えは禁止');
+    expect(ctx).toContain('指示語（「上記」「前述」「これ」）で他セクションを参照しない');
   });
 });
 

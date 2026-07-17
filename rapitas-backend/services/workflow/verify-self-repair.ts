@@ -109,14 +109,80 @@ async function resolveImplementEntryStatus(
   return plan ? 'plan_approved' : 'research_done';
 }
 
+/** Markers delimiting the appended feedback so the validator can skip it. */
+export const REPAIR_FEEDBACK_START = '<!-- repair-feedback:start -->';
+export const REPAIR_FEEDBACK_END = '<!-- repair-feedback:end -->';
+
+/** Matches a whole marker-delimited repair-feedback block (for replace/strip). */
+const REPAIR_FEEDBACK_BLOCK_RE =
+  /<!--\s*repair-feedback:start\s*-->[\s\S]*?<!--\s*repair-feedback:end\s*-->/gi;
+
 /**
- * Write the verify failure back to question.md so the re-run implementer reads
- * it as feedback (the implementer context surfaces question.md). Preserves any
- * existing content by appending a clearly-marked section. Best-effort.
+ * Sanitize numeric failure tallies out of a validator reason before it is
+ * appended to verify.md. The raw reason quotes failure evidence like
+ * "(1 failed | Tests 3 failed)"; the next validateVerify pass would re-detect
+ * those counts and make the self-contradiction PERMANENT (task 494's loop).
+ *
+ * @param reason - Raw validator summary. / バリデータの生の要約
+ * @returns Reason with count phrases replaced by a neutral marker. / 数値集計を除去した要約
+ */
+export function sanitizeRepairReason(reason: string): string {
+  return (
+    reason
+      // ja count phrases first (they may embed digits the en pattern misses)
+      .replace(/失敗\s*(?:した)?テスト\s*(?:数|件数)?\s*[:：]?\s*\d+/g, 'テスト失敗あり')
+      .replace(/テスト[^。\n]{0,20}?\d+\s*(?:件|個)\s*(?:が)?\s*失敗/g, 'テスト失敗あり')
+      .replace(
+        /(?:❌|失敗|不合格|不適合|fail(?:ed|ure)?)\s*[:：]?\s*[×x]\s*\d+/gi,
+        'テスト失敗あり',
+      )
+      .replace(/(?:tests?\s+)?\d+\s+failed/gi, 'テスト失敗あり')
+  );
+}
+
+/**
+ * Build the marker-wrapped feedback block appended to verify.md. One short
+ * paragraph — never the full rejected file nor a long quote, both of which
+ * re-fed the failure counts into the next validation cycle.
+ *
+ * @param reason - Validator summary (will be sanitized). / バリデータ要約（内部で無害化）
+ * @param attempt - 1-based repair attempt. / 試行回数
+ * @returns The block including start/end markers. / マーカー付きブロック
+ */
+export function buildRepairFeedbackBlock(reason: string, attempt: number): string {
+  return [
+    REPAIR_FEEDBACK_START,
+    `# 検証フェーズからの差し戻し（自己修復 ${attempt} 回目）`,
+    '',
+    `直前の検証 (verify.md) が不合格でした。判定要約: ${sanitizeRepairReason(reason)}`,
+    '',
+    '上の verify.md 本文に記載された失敗（失敗テスト・型/lint エラー・未達の受け入れ基準）を確認し、以下を厳守して **実装を修正** してください:',
+    '- 失敗を実際に解消する。「成功した」と書くだけ・テスト結果を偽るのは禁止。テストを実際に通すこと。',
+    '- スコープ厳守（plan.md 記載外のファイルは変更しない）。',
+    REPAIR_FEEDBACK_END,
+  ].join('\n');
+}
+
+/**
+ * Merge a feedback block into the current verify.md: any PREVIOUS feedback
+ * block is replaced (not stacked), keeping the file bounded across attempts.
+ *
+ * @param prior - Current verify.md content. / 現在のverify.md
+ * @param block - New marker-wrapped block. / 新しいブロック
+ * @returns Merged content. / マージ後の内容
+ */
+export function mergeRepairFeedback(prior: string, block: string): string {
+  const base = prior.replace(REPAIR_FEEDBACK_BLOCK_RE, '').trim();
+  return base ? `${base}\n\n---\n\n${block}` : block;
+}
+
+/**
+ * Write the verify failure back to verify.md so the re-run implementer reads
+ * it as feedback (the implementer context surfaces verify.md). Best-effort.
  *
  * @param taskId - Task id / タスクID
  * @param reason - Validator summary / バリデータの要約
- * @param verifyContent - The rejected verify.md (for the agent's reference) / 却下されたverify.md
+ * @param verifyContent - The rejected verify.md (fallback when the file is unreadable) / 却下されたverify.md
  * @param attempt - 1-based attempt number / 試行回数
  */
 async function writeRepairFeedback(
@@ -130,23 +196,8 @@ async function writeRepairFeedback(
     if (!info) return;
     // Verification feedback belongs to the verify artifact, not question.md
     // (Q&A). The implementer context reads verify.md for this on re-run.
-    const prior = (await readWorkflowFile(info.dir, 'verify')) ?? '';
-    const block = [
-      `# 検証フェーズからの差し戻し（自己修復 ${attempt} 回目）`,
-      '',
-      `直前の検証 (verify.md) が不合格でした: ${reason}`,
-      '',
-      '以下を厳守して **実装を修正** してください:',
-      '- verify.md に出ている失敗（失敗テスト・型/lint エラー・未達の受け入れ基準）を実際に解消する。',
-      '- 「成功した」と書くだけ・テスト結果を偽るのは禁止。テストを実際に通すこと。',
-      '- スコープ厳守（plan.md 記載外のファイルは変更しない）。',
-      '',
-      '## 参考: 不合格となった verify.md の冒頭',
-      '```md',
-      verifyContent.slice(0, 1500),
-      '```',
-    ].join('\n');
-    const next = prior.trim() ? `${prior.trim()}\n\n---\n\n${block}` : block;
+    const prior = (await readWorkflowFile(info.dir, 'verify')) ?? verifyContent ?? '';
+    const next = mergeRepairFeedback(prior, buildRepairFeedbackBlock(reason, attempt));
     await writeWorkflowFile(info.dir, 'verify', next, taskId);
   } catch (err) {
     log.warn({ err, taskId }, '[verify-repair] Failed to write repair feedback to verify.md');

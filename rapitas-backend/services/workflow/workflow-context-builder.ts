@@ -57,9 +57,10 @@ export async function buildRoleContext(
           '4. **中核的な仮定が不成立**の場合（例: 報告された不具合が再現しない、依頼が前提とする機能・状態が存在しない、既に別の形で解決済み）、plan/実装に進まず `## 結論: 修正不要` で終了し、根拠に「前提誤り: どの仮定がなぜ不成立か」を明記する。\n' +
           '5. 前提は崩れたが調査中に**実在する別の問題**を発見した場合は、その事実を前提監査に記録した上で、実在する問題の調査として続行する。',
         items:
-          '調査項目:\n- 既存コードの構造と依存関係\n- 変更が必要なファイルの特定\n- 類似実装の有無\n- リスクと影響範囲の評価',
+          '調査項目:\n- 既存コードの構造と依存関係\n- 変更が必要なファイルの特定\n- 類似機能の有無\n- リスクと影響範囲の評価',
         output:
           '調査結果をresearch.mdとしてMarkdown形式でまとめてください。\n\n' +
+          '出力整形: 見出しはテンプレートの形（例: `## 影響範囲分析`）のまま書き、`[...]` のプレースホルダ説明を見出しや本文に残さない（`## 影響範囲: [変更が及ぶファイル一覧]` のような見出しは不可）。類似コードのセクション見出しは「類似機能」を使う（「類似実装」ではなく）。\n\n' +
           '**重要**: 調査の結果、タスクの要件が既存コードで**既に満たされており修正が不要**だと判断した場合は、research.md の最後に必ずこの見出し行を入れてください: `## 結論: 修正不要`（直後に1〜2行で根拠を記載）。これにより plan/実装フェーズに進まず research 段階で完了でき、不要な再計画ループ（plan_invalid_replan）や重複PRを避けられます。本当に変更が必要な場合はこの行を書かないでください。',
       },
       planner: {
@@ -75,7 +76,11 @@ export async function buildRoleContext(
           '1. 最も可能性の高い失敗原因を3つ挙げる。一般論ではなく、この計画の変更対象ファイル・依存関係・テスト構成に即した具体的なもの。\n' +
           '2. 各原因に「実装中/検証時に早期検知できる測定可能なシグナル」を1行添える（落ちるはずのテスト名、確認コマンド、期待値との差分など）。\n' +
           '3. その原因を避けるための対策を計画本文へ反映した場合は、該当チェックリスト項目を参照する。\n' +
-          '検証フェーズはこのプレモーテム項目を実測照合します。',
+          '検証フェーズはこのプレモーテム項目を実測照合します。\n' +
+          '※ シグナルが「修正を外すと意図的にテストが赤くなる」型の場合、検証者が結果を数値集計（`N failed` 等）ではなく「修正除去でRED→復元でGREENを確認」という事実1行で記録できるよう、シグナル自体を事実確認型（何が起きればよいか）で書くこと。',
+        selfContainment:
+          '## 自己完結ルール\n' +
+          'plan.md は research.md を読めない後続フェーズ（検証者・再実行の実装者）でも単体で理解できるように書く。「research.md の選択肢A」「research.md の◯◯を参照」のような参照は禁止。必要な事実（根本原因・選択肢の却下理由・再現手順の要点）は plan.md 内に1〜2行で再掲する（原文の全文コピーは不可）。',
       },
       reviewer: {
         researchHeader: '# 調査結果 (research.md)',
@@ -136,7 +141,12 @@ export async function buildRoleContext(
           '冒頭は必ず `# 検証レポート` で開始し、テストが1件でも落ちていれば `❌ 検証失敗` または `⚠️ 一部失敗` を選択してください。\n' +
           '上記「仮説台帳」に検証待ち仮説が列挙されている場合、`## 仮説評価` セクションで各仮説を1行 `- [#id] 成立|不成立: 根拠(file:line/テスト/計測)` で判定してください（成立は予測が実際に的中した場合のみ。確証が無ければ記載せず検証待ちのまま残す）。\n' +
           '\n### プレモーテム照合 (plan.md に `## プレモーテム` がある場合のみ必須)\n' +
-          'plan.md のプレモーテム各項目について、記載の検知シグナル（テスト/コマンド）を実際に確認し、verify.md に `## プレモーテム照合` セクションを設けて1行ずつ `- <失敗原因の要約>: 発生せず|発生（根拠）` で判定してください。「発生」の項目は残課題として扱い、全体判定に反映すること。',
+          'plan.md のプレモーテム各項目について、記載の検知シグナル（テスト/コマンド）を実際に確認し、verify.md に `## プレモーテム照合` セクションを設けて1行ずつ `- <失敗原因の要約>: 発生せず|発生（根拠）` で判定してください。「発生」の項目は残課題として扱い、全体判定に反映すること。\n' +
+          '\n### 出力規律（機械ゲート互換 — 厳守）\n' +
+          '- タスク種別（軽量・マージ・競合解消・サブタスク）を問わず、冒頭は必ず `# 検証レポート` で開始し、`## 検証結果サマリ` `## テスト結果` `## チェックリスト消化状況` の3見出しを必ず含める。`# 検証結果` や `# Verify: PR#...` などの見出しで始めてはならない。\n' +
+          '- 全体判定は冒頭サマリと表の「全体判定」セルの両方で `✅ 検証成功` / `❌ 検証失敗` / `⚠️ 一部失敗` をこの表記のまま使用する。「合格」「条件付き合格」「不合格」等への言い換えは禁止（機械判定はこの語彙のみを認識する）。\n' +
+          '- 変更ファイル一覧は「ファイル | 種別（新規/変更） | 変更内容の要約」の表で書く。`| +追加 | -削除 |` 列・`(+120/-45)` などの行数差分数値・✏️/⏭️/🆕 の絵文字は書かない。\n' +
+          '- 偽陽性検証（修正を一時的に外して意図的にREDを確認する検証）を記録する場合、`Tests N failed` / `N failed` のような数値集計行を本文に書かない（機械ゲートが実失敗と誤認し差し戻しループになる）。「修正を除去するとRED、復元するとGREENを確認」と1行で要約する。生ログを貼る場合は ```text フェンス内に限り、集計行は含めない。',
       },
     },
     en: {
@@ -153,9 +163,10 @@ export async function buildRoleContext(
           '4. If a CORE assumption does not hold (the reported bug does not reproduce; the feature/state the request presumes does not exist; it is already solved another way), do NOT proceed to plan/implementation — finish with `## Conclusion: No change needed` and state "false premise: which assumption failed and why".\n' +
           '5. If the premise fails but you discover a REAL different problem, record that in the audit and continue investigating the real problem.',
         items:
-          'Investigation items:\n- Existing code structure and dependencies\n- Identification of files that need changes\n- Presence of similar implementations\n- Risk assessment and impact analysis',
+          'Investigation items:\n- Existing code structure and dependencies\n- Identification of files that need changes\n- Presence of similar existing features\n- Risk assessment and impact analysis',
         output:
           'Please summarize the research results as research.md in Markdown format.\n\n' +
+          'Formatting: keep headings in their template form (e.g. `## 影響範囲分析`) — never leave `[...]` placeholder notes in headings or body (a heading like `## 影響範囲: [list of affected files]` is invalid). Use 「類似機能」 as the similar-code section heading (not 「類似実装」).\n\n' +
           '**Important**: If your investigation concludes the task requirement is ALREADY satisfied by existing code and no change is needed, you MUST end research.md with this exact heading line: `## Conclusion: No change needed` (followed by 1-2 lines of justification). This lets the task complete at the research phase instead of proceeding to plan/implementation — avoiding a wasted re-plan loop (plan_invalid_replan) and a duplicate PR. Do NOT write this line if any change is actually required.',
       },
       planner: {
@@ -169,7 +180,11 @@ export async function buildRoleContext(
           '1. List the 3 most likely causes of that failure — specific to the files, dependencies, and test setup this plan touches, not generic risks.\n' +
           '2. For each cause add one line with a MEASURABLE early-detection signal (the test that would fail, the command to check, the expected-vs-actual delta).\n' +
           '3. Where the plan body already mitigates a cause, reference the checklist item.\n' +
-          'The verify phase cross-checks these premortem items against what actually happened.',
+          'The verify phase cross-checks these premortem items against what actually happened.\n' +
+          'Note: when a signal is of the "removing the fix intentionally turns tests RED" kind, phrase it as a FACT to confirm so the verifier can record it in one line ("fix removed → RED, restored → GREEN") instead of numeric tallies (`N failed`).',
+        selfContainment:
+          '## Self-containment rule\n' +
+          'Write plan.md so later phases that CANNOT read research.md (the verifier; a re-run implementer) understand it standalone. References like "option A from research.md" are forbidden. Restate the needed facts (root cause, why alternatives were rejected, key repro steps) in 1-2 lines inside plan.md — never copy the original text wholesale.',
       },
       reviewer: {
         researchHeader: '# Research Results (research.md)',
@@ -226,7 +241,12 @@ export async function buildRoleContext(
           'Start with `# Verification Report`. If even one test fails, choose `❌ Fail` or `⚠️ Partial`.\n' +
           'When the 仮説台帳 above lists open hypotheses, add a `## 仮説評価` section judging each as `- [#id] 成立|不成立: evidence(file:line/test/metric)` (成立 only when the prediction actually held; omit any you cannot confirm, leaving it open).\n' +
           '\n### Premortem cross-check (required ONLY when plan.md has a `## プレモーテム` section)\n' +
-          'For each premortem item in plan.md, actually run/check its stated detection signal and add a `## プレモーテム照合` section to verify.md judging each as `- <failure-cause summary>: 発生せず|発生 (evidence)`. Any 発生 item counts as outstanding work and must be reflected in the overall verdict.',
+          'For each premortem item in plan.md, actually run/check its stated detection signal and add a `## プレモーテム照合` section to verify.md judging each as `- <failure-cause summary>: 発生せず|発生 (evidence)`. Any 発生 item counts as outstanding work and must be reflected in the overall verdict.\n' +
+          '\n### Output discipline (machine-gate compatibility — strict)\n' +
+          '- Regardless of task kind (lightweight / merge / conflict-resolution / subtask), start with `# Verification Report` and always include the required section headings listed above. Never start with `# Verify: PR#...` or other ad-hoc titles.\n' +
+          '- Use the verdict vocabulary `✅ Pass` / `❌ Fail` / `⚠️ Partial` verbatim in BOTH the opening summary and the overall-verdict table cell; paraphrases such as "passed with conditions" are forbidden (the machine gates only recognize this vocabulary).\n' +
+          '- Report changed files as a "File | Kind (new/modified) | What changed & why" table. Never emit `| +added | -removed |` columns, `(+120/-45)` line deltas, or ✏️/⏭️/🆕 emoji.\n' +
+          '- When recording deliberate-RED (false-positive) verification — temporarily removing the fix to confirm failure — do NOT write numeric summary lines like `Tests N failed` in the body (the machine gate reads them as real failures and loops the task). Summarize in one line: "fix removed → RED, restored → GREEN". Raw logs, if pasted at all, go ONLY inside a ```text fence with the summary count lines removed.',
       },
     },
   };
@@ -287,7 +307,7 @@ export async function buildRoleContext(
       if (research) {
         ctx += `\n\n${t.planner.researchHeader}\n\n${research}`;
       }
-      ctx += `\n\n${t.planner.instruction}\n\n${t.planner.premortem}\n\n${styleRule}`;
+      ctx += `\n\n${t.planner.instruction}\n\n${t.planner.premortem}\n\n${t.planner.selfContainment}\n\n${styleRule}`;
       return ctx;
     }
 
@@ -490,11 +510,15 @@ export async function buildRoleContext(
       // requirements instead of a plan checklist that doesn't exist.
       let verifierInstruction = t.verifier.instruction;
       if (!plan) {
+        // NOTE: the machine-parsed heading text (チェックリスト消化状況 / Checklist
+        // status) must survive in no-plan mode — only its CONTENT description
+        // changes. Renaming it (the old 要件の充足状況 replacement) produced
+        // verify.md files the section validator rejected on lightweight tasks.
         verifierInstruction = verifierInstruction
           .replace('上記の計画と実装結果を検証し', '上記の実装結果を検証し')
           .replace(
             '## チェックリスト消化状況 (plan.md の各項目に ✅/❌)',
-            '## 要件の充足状況 (タスク要件・調査内容に対して ✅/❌)',
+            '## チェックリスト消化状況 (計画なしタスク: タスク要件・調査内容に対する充足状況を ✅/❌ で記載)',
           )
           .replace(
             'Please verify the implementation plan and results above',
@@ -502,7 +526,7 @@ export async function buildRoleContext(
           )
           .replace(
             '## Checklist status (each plan item ✅/❌)',
-            '## Requirement coverage (each task requirement ✅/❌)',
+            '## Checklist status (no plan: cover each task requirement with ✅/❌)',
           );
       }
       ctx += `\n\n${verifierInstruction}\n\n${styleRule}`;
@@ -626,7 +650,7 @@ const VERIFIER_NO_PLAN_DIRECTIVE = `## 実行モード: 調査→実装→検証
 
 このタスクには **plan.md がありません**。以下のロール説明に「plan.md」「計画チェックリスト消化状況」等があれば読み替えてください:
 - 検証の基準は **タスク要件と research.md** です。plan.md との照合ではなく、タスク要件・調査内容に対する充足状況を評価してください。
-- 「計画チェックリスト消化状況」は「**要件の充足状況（タスク要件・調査内容に対して ✅/❌）**」として報告してください。
+- 見出しは \`## チェックリスト消化状況\` のまま維持し、その内容として**タスク要件・調査内容に対する充足状況（✅/❌）**を記載してください（見出しを「要件の充足状況」等へ改名しない — 機械ゲートが見出し文字列を解析します）。
 - それ以外（変更ファイル列挙・テスト結果・セキュリティ/品質チェック・未解決懸念）は通常どおり報告します。`;
 
 const VERIFIER_WITH_PLAN_DIRECTIVE = `## 実行モード: 計画あり（plan.md） — 他のどの指示よりも優先

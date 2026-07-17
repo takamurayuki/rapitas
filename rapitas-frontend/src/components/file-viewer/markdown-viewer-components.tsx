@@ -13,8 +13,13 @@ import type { Components } from 'react-markdown';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { oneDark, oneLight } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import { Copy, Check, ExternalLink } from 'lucide-react';
-import { renderTextWithEmojiIcons } from '@/components/markdown/emoji-to-lucide';
+import {
+  isIconOnlyCellContent,
+  renderTextWithEmojiIcons,
+  unwrapFullQuotes,
+} from '@/components/markdown/emoji-to-lucide';
 import { renderBlockWithEmojiIcons } from '@/components/markdown/verdict-chip';
+import { MermaidBlock, extractMermaidSource } from '@/components/markdown/mermaid-block';
 
 export interface MarkdownViewerComponentDeps {
   /** Returns the next sequential heading id (ToC anchor). / 次の見出しID */
@@ -45,7 +50,7 @@ export function createMarkdownViewerComponents(deps: MarkdownViewerComponentDeps
         className="text-3xl font-bold mb-6 text-zinc-900 dark:text-zinc-100 scroll-mt-20"
         {...props}
       >
-        {renderTextWithEmojiIcons(children)}
+        {renderTextWithEmojiIcons(unwrapFullQuotes(children))}
       </h1>
     ),
     h2: ({ children, ...props }) => (
@@ -54,7 +59,7 @@ export function createMarkdownViewerComponents(deps: MarkdownViewerComponentDeps
         className="text-2xl font-semibold mb-4 mt-8 text-zinc-800 dark:text-zinc-200 scroll-mt-20"
         {...props}
       >
-        {renderTextWithEmojiIcons(children)}
+        {renderTextWithEmojiIcons(unwrapFullQuotes(children))}
       </h2>
     ),
     h3: ({ children, ...props }) => (
@@ -63,7 +68,7 @@ export function createMarkdownViewerComponents(deps: MarkdownViewerComponentDeps
         className="text-xl font-semibold mb-3 mt-6 text-zinc-800 dark:text-zinc-200 scroll-mt-20"
         {...props}
       >
-        {renderTextWithEmojiIcons(children)}
+        {renderTextWithEmojiIcons(unwrapFullQuotes(children))}
       </h3>
     ),
     h4: ({ children, ...props }) => (
@@ -72,11 +77,15 @@ export function createMarkdownViewerComponents(deps: MarkdownViewerComponentDeps
         className="text-lg font-semibold mb-2 mt-4 text-zinc-800 dark:text-zinc-200 scroll-mt-20"
         {...props}
       >
-        {renderTextWithEmojiIcons(children)}
+        {renderTextWithEmojiIcons(unwrapFullQuotes(children))}
       </h4>
     ),
-    h5: ({ children, ...props }) => <h5 {...props}>{renderTextWithEmojiIcons(children)}</h5>,
-    h6: ({ children, ...props }) => <h6 {...props}>{renderTextWithEmojiIcons(children)}</h6>,
+    h5: ({ children, ...props }) => (
+      <h5 {...props}>{renderTextWithEmojiIcons(unwrapFullQuotes(children))}</h5>
+    ),
+    h6: ({ children, ...props }) => (
+      <h6 {...props}>{renderTextWithEmojiIcons(unwrapFullQuotes(children))}</h6>
+    ),
     p: ({ children, ...props }) => (
       <p className="mb-4 text-zinc-700 dark:text-zinc-300 leading-relaxed" {...props}>
         {renderBlockWithEmojiIcons(children)}
@@ -171,7 +180,10 @@ export function createMarkdownViewerComponents(deps: MarkdownViewerComponentDeps
         </div>
       );
     },
-    pre: ({ children, ...props }: { children?: React.ReactNode }) => {
+    pre: ({ children, node, ...props }) => {
+      // ```mermaid fences render as diagrams instead of code blocks.
+      const mermaidSource = extractMermaidSource(node);
+      if (mermaidSource !== null) return <MermaidBlock source={mermaidSource} />;
       return <pre {...props}>{children}</pre>;
     },
     // NOTE: table-auto sizes columns by content (numbers stay narrow, paths get
@@ -193,22 +205,28 @@ export function createMarkdownViewerComponents(deps: MarkdownViewerComponentDeps
         {children}
       </tr>
     ),
-    th: ({ children, ...props }) => (
-      <th
-        className="border-b border-zinc-200 dark:border-zinc-700 px-2 py-1 text-left align-top text-xs font-medium text-zinc-500 dark:text-zinc-400 whitespace-normal [overflow-wrap:anywhere]"
-        {...props}
-      >
-        {renderTextWithEmojiIcons(children)}
-      </th>
-    ),
-    td: ({ children, ...props }) => (
-      <td
-        className="border-b border-zinc-100 dark:border-zinc-800 px-2 py-1 align-top text-zinc-700 dark:text-zinc-300 whitespace-normal [overflow-wrap:anywhere]"
-        {...props}
-      >
-        {renderTextWithEmojiIcons(children)}
-      </td>
-    ),
+    th: ({ children, ...props }) => {
+      const content = unwrapFullQuotes(children);
+      return (
+        <th
+          className={`bg-zinc-100 dark:bg-zinc-800/80 border-b border-zinc-200 dark:border-zinc-700 px-2 py-1 align-top text-xs font-medium text-zinc-600 dark:text-zinc-300 whitespace-normal [overflow-wrap:anywhere] ${isIconOnlyCellContent(content) ? 'text-center' : 'text-left'}`}
+          {...props}
+        >
+          {renderTextWithEmojiIcons(content)}
+        </th>
+      );
+    },
+    td: ({ children, ...props }) => {
+      const content = unwrapFullQuotes(children);
+      return (
+        <td
+          className={`border-b border-zinc-100 dark:border-zinc-800 px-2 py-1 align-top text-zinc-700 dark:text-zinc-300 whitespace-normal [overflow-wrap:anywhere] ${isIconOnlyCellContent(content) ? 'text-center' : ''}`}
+          {...props}
+        >
+          {renderTextWithEmojiIcons(content)}
+        </td>
+      );
+    },
     hr: () => <hr className="border-t border-zinc-200 dark:border-zinc-700 my-8" />,
     img: ({ src, alt, ...props }) => (
       // NOTE: renders arbitrary image URLs embedded in user-authored markdown —

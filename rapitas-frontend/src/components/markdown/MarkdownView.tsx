@@ -14,8 +14,13 @@
 import { isValidElement, type ReactNode } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import { renderTextWithEmojiIcons } from './emoji-to-lucide';
+import {
+  isIconOnlyCellContent,
+  renderTextWithEmojiIcons,
+  unwrapFullQuotes,
+} from './emoji-to-lucide';
 import { renderBlockWithEmojiIcons } from './verdict-chip';
+import { MermaidBlock, extractMermaidSource } from './mermaid-block';
 
 /** Flattens a ReactMarkdown heading's children into plain text. / 子要素を素テキスト化。 */
 export function nodeToText(node: ReactNode): string {
@@ -78,7 +83,7 @@ export function MarkdownView({
               className="!mt-0 !mb-4 pb-2 border-b-2 border-indigo-200 dark:border-indigo-800/60 text-xl !font-bold"
               {...props}
             >
-              {renderTextWithEmojiIcons(children)}
+              {renderTextWithEmojiIcons(unwrapFullQuotes(children))}
             </h1>
           ),
           h2: ({ children, ...props }) => (
@@ -92,7 +97,7 @@ export function MarkdownView({
               className="!mt-8 !mb-3 pb-1.5 border-b border-zinc-200 dark:border-zinc-700 text-lg flex items-center gap-2 before:content-[''] before:block before:w-1 before:h-5 before:rounded-sm before:bg-indigo-500 dark:before:bg-indigo-400"
               {...props}
             >
-              {renderTextWithEmojiIcons(children)}
+              {renderTextWithEmojiIcons(unwrapFullQuotes(children))}
             </h2>
           ),
           h3: ({ children, ...props }) => (
@@ -100,7 +105,7 @@ export function MarkdownView({
               className="!mt-5 !mb-2 text-base !font-semibold text-indigo-700 dark:text-indigo-300"
               {...props}
             >
-              {renderTextWithEmojiIcons(children)}
+              {renderTextWithEmojiIcons(unwrapFullQuotes(children))}
             </h3>
           ),
           h4: ({ children, ...props }) => (
@@ -108,11 +113,15 @@ export function MarkdownView({
               className="!mt-4 !mb-2 text-sm !font-semibold text-zinc-800 dark:text-zinc-200"
               {...props}
             >
-              {renderTextWithEmojiIcons(children)}
+              {renderTextWithEmojiIcons(unwrapFullQuotes(children))}
             </h4>
           ),
-          h5: ({ children, ...props }) => <h5 {...props}>{renderTextWithEmojiIcons(children)}</h5>,
-          h6: ({ children, ...props }) => <h6 {...props}>{renderTextWithEmojiIcons(children)}</h6>,
+          h5: ({ children, ...props }) => (
+            <h5 {...props}>{renderTextWithEmojiIcons(unwrapFullQuotes(children))}</h5>
+          ),
+          h6: ({ children, ...props }) => (
+            <h6 {...props}>{renderTextWithEmojiIcons(unwrapFullQuotes(children))}</h6>
+          ),
           p: ({ children, ...props }) => <p {...props}>{renderBlockWithEmojiIcons(children)}</p>,
           li: ({ children, ...props }) => <li {...props}>{renderBlockWithEmojiIcons(children)}</li>,
           strong: ({ children, ...props }) => (
@@ -137,7 +146,10 @@ export function MarkdownView({
             </div>
           ),
           thead: ({ children, ...props }) => (
-            <thead className="border-b border-zinc-200 dark:border-zinc-700" {...props}>
+            <thead
+              className="bg-zinc-100 dark:bg-zinc-800/80 border-b border-zinc-200 dark:border-zinc-700"
+              {...props}
+            >
               {children}
             </thead>
           ),
@@ -154,25 +166,33 @@ export function MarkdownView({
               {children}
             </tr>
           ),
-          th: ({ children, ...props }) => (
-            <th
-              className="px-2 py-1 text-left align-top text-xs font-medium text-zinc-500 dark:text-zinc-400 whitespace-normal [overflow-wrap:anywhere]"
-              {...props}
-            >
-              {renderTextWithEmojiIcons(children)}
-            </th>
-          ),
-          td: ({ children, ...props }) => (
-            <td
-              className="px-2 py-1 align-top text-zinc-700 dark:text-zinc-300 whitespace-normal [overflow-wrap:anywhere] [&_code]:text-[0.8em] [&_code]:break-all"
-              {...props}
-            >
-              {renderTextWithEmojiIcons(children)}
-            </td>
-          ),
+          th: ({ children, ...props }) => {
+            const content = unwrapFullQuotes(children);
+            return (
+              <th
+                className={`px-2 py-1 align-top text-xs font-medium text-zinc-600 dark:text-zinc-300 whitespace-normal [overflow-wrap:anywhere] ${isIconOnlyCellContent(content) ? 'text-center' : 'text-left'}`}
+                {...props}
+              >
+                {renderTextWithEmojiIcons(content)}
+              </th>
+            );
+          },
+          td: ({ children, ...props }) => {
+            const content = unwrapFullQuotes(children);
+            return (
+              <td
+                className={`px-2 py-1 align-top text-zinc-700 dark:text-zinc-300 whitespace-normal [overflow-wrap:anywhere] [&_code]:text-[0.8em] [&_code]:break-all ${isIconOnlyCellContent(content) ? 'text-center' : ''}`}
+                {...props}
+              >
+                {renderTextWithEmojiIcons(content)}
+              </td>
+            );
+          },
+          // NOTE: amber stays only as the border/bg ACCENT — body text is neutral
+          // zinc. The old amber-900/amber-200 text read poorly ("orange sections").
           blockquote: ({ children, ...props }) => (
             <blockquote
-              className="!my-4 !pl-4 !pr-3 !py-2 border-l-4 border-amber-400 dark:border-amber-500 bg-amber-50/60 dark:bg-amber-900/15 rounded-r-md !not-italic [&>p]:!my-0 [&>p]:text-amber-900 dark:[&>p]:text-amber-200"
+              className="!my-4 !pl-4 !pr-3 !py-2 border-l-4 border-amber-500 dark:border-amber-500/70 bg-amber-50/60 dark:bg-amber-950/30 rounded-r-md !not-italic [&>p]:!my-0 [&>p]:text-zinc-700 dark:[&>p]:text-zinc-300"
               {...props}
             >
               {renderTextWithEmojiIcons(children)}
@@ -228,18 +248,23 @@ export function MarkdownView({
               </code>
             );
           },
-          pre: ({ children, ...props }) => (
+          pre: ({ children, node, ...props }) => {
+            // ```mermaid fences render as diagrams instead of code blocks.
+            const mermaidSource = extractMermaidSource(node);
+            if (mermaidSource !== null) return <MermaidBlock source={mermaidSource} />;
             // Light mode uses a LIGHT code block (dark text on soft gray) so a
             // fenced block — e.g. a pasted commit message — doesn't render as a
             // jarring hard-to-read black box on the light theme. Dark mode keeps
             // the near-black block (light text), which already reads fine.
-            <pre
-              className="!my-3 !p-3 rounded-lg border border-zinc-200 bg-zinc-100 text-zinc-800 text-xs overflow-x-auto dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-100"
-              {...props}
-            >
-              {children}
-            </pre>
-          ),
+            return (
+              <pre
+                className="!my-3 !p-3 rounded-lg border border-zinc-200 bg-zinc-100 text-zinc-800 text-xs overflow-x-auto dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-100"
+                {...props}
+              >
+                {children}
+              </pre>
+            );
+          },
         }}
       >
         {content}

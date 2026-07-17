@@ -123,6 +123,27 @@ export function validatePlan(content: string): ValidationResult {
 }
 
 /**
+ * Remove regions that must NOT feed the self-contradiction scan:
+ * (a) marker-delimited repair-feedback blocks appended by verify-self-repair —
+ *     they quote the PREVIOUS rejection (with failure wording), and re-scanning
+ *     them made a past contradiction permanent (task 494's repair loop);
+ * (b) ```text fenced blocks — the verifier is instructed to put deliberate-RED
+ *     (false-positive verification) log excerpts there, which legitimately
+ *     contain failure lines for a CORRECT implementation.
+ * Other fence types are intentionally kept scannable: genuine test output
+ * evidence is usually pasted in bare ``` fences and must stay detectable.
+ * Section requirements and verdict-phrase checks still see the full content.
+ *
+ * @param content - verify.md body / verify.md 本文
+ * @returns Content with non-evidence regions removed / 走査対象本文
+ */
+function stripNonEvidenceRegions(content: string): string {
+  return content
+    .replace(/<!--\s*repair-feedback:start\s*-->[\s\S]*?<!--\s*repair-feedback:end\s*-->/gi, '')
+    .replace(/```text[^\S\n]*\n[\s\S]*?\n[ \t]*```/gi, '');
+}
+
+/**
  * Validate verify.md content.
  *
  * In addition to the structural section check, look for the contradiction
@@ -143,10 +164,13 @@ export function validateVerify(content: string): ValidationResult {
   if (!sectionResult.ok) return sectionResult;
 
   const lower = content.toLowerCase();
+  // Contradiction scanning runs on the stripped text so repair-feedback quotes
+  // and ```text (deliberate-RED evidence) fences cannot fake a failure signal.
+  const scanText = stripNonEvidenceRegions(content);
   const claimsAllPass =
     /全[テt]?\d*\s*テスト[^❌]{0,30}通過|all\s+tests?\s+pass|all\s+\d+\s+tests?\s+passed|✅\s*検証成功|✅\s*pass/i.test(
-      content,
-    ) || /すべて(?:の)?テスト[^❌]{0,40}(成功|通過|パス)/.test(content);
+      scanText,
+    ) || /すべて(?:の)?テスト[^❌]{0,40}(成功|通過|パス)/.test(scanText);
   // Failure signals must indicate an ACTUAL non-zero failure. Earlier patterns
   // matched bare prose ("失敗テスト", "failing test") and the instructed
   // "失敗テスト数: 0" field, so any task that FIXES a failure (e.g. ENOENT/error
@@ -168,7 +192,7 @@ export function validateVerify(content: string): ValidationResult {
     /(?:❌|失敗|不合格|不適合|fail(?:ed|ure)?)\s*[:：]?\s*[×x]\s*[1-9]\d*/i,
   ];
   const failureHits = failureSignals
-    .map((re) => content.match(re))
+    .map((re) => scanText.match(re))
     .filter((m): m is RegExpMatchArray => !!m);
   // A bare ❌ is too noisy to treat as a failure signal directly: a PASSING
   // verify.md routinely contains the PR-gate legend "全体判定が ❌ の場合のみ PR
@@ -177,7 +201,7 @@ export function validateVerify(content: string): ValidationResult {
   // every such passing report self-contradict and block. Only count a ❌ that
   // is an actual verdict — skip conditional/legend lines, parenthetical
   // references, and any line that simultaneously asserts a pass.
-  const crossMarkFailure = content.split(/\r?\n/).some((line) => {
+  const crossMarkFailure = scanText.split(/\r?\n/).some((line) => {
     if (!line.includes('❌')) return false;
     if (/❌\s*(?:の)?\s*(?:場合|とき|時|なら|ならば|であれば|if\b)/i.test(line)) return false;
     if (/[(（]\s*❌\s*[)）]/.test(line)) return false;
@@ -193,7 +217,7 @@ export function validateVerify(content: string): ValidationResult {
   // を返す"); reading those as the task's own failure looped them in verify_repair
   // (task 272/304/373/376). Skip a match that is parenthesised, immediately
   // followed by a Japanese character, or on a line that also asserts pass.
-  const exitFailure = content.split(/\r?\n/).some((line) => {
+  const exitFailure = scanText.split(/\r?\n/).some((line) => {
     const m = line.match(/\bexit(?:\s+code)?\s+1\b/i);
     if (!m) return false;
     if (/✅|合格|通過|成功|pass/i.test(line)) return false; // pass-asserting line

@@ -10,8 +10,13 @@ import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import type { ReactNode, HTMLAttributes, CSSProperties } from 'react';
 import { NoteChipLink } from '../NoteChipLink';
-import { renderTextWithEmojiIcons } from '@/components/markdown/emoji-to-lucide';
+import {
+  isIconOnlyCellContent,
+  renderTextWithEmojiIcons,
+  unwrapFullQuotes,
+} from '@/components/markdown/emoji-to-lucide';
 import { renderBlockWithEmojiIcons } from '@/components/markdown/verdict-chip';
+import { MermaidBlock, extractMermaidSource } from '@/components/markdown/mermaid-block';
 
 // vscDarkPlus style type
 type SyntaxHighlighterStyle = { [key: string]: CSSProperties };
@@ -104,22 +109,24 @@ export const createMarkdownComponents = () => ({
     );
   },
   td({ children, ...props }: HTMLAttributes<HTMLTableCellElement> & { children?: ReactNode }) {
+    const content = unwrapFullQuotes(children);
     return (
       <td
-        className="border-b border-zinc-100 dark:border-zinc-800 px-2 py-1 align-top text-zinc-700 dark:text-zinc-300 whitespace-normal [overflow-wrap:anywhere]"
+        className={`border-b border-zinc-100 dark:border-zinc-800 px-2 py-1 align-top text-zinc-700 dark:text-zinc-300 whitespace-normal [overflow-wrap:anywhere] ${isIconOnlyCellContent(content) ? 'text-center' : ''}`}
         {...props}
       >
-        {renderTextWithEmojiIcons(children)}
+        {renderTextWithEmojiIcons(content)}
       </td>
     );
   },
   th({ children, ...props }: HTMLAttributes<HTMLTableCellElement> & { children?: ReactNode }) {
+    const content = unwrapFullQuotes(children);
     return (
       <th
-        className="border-b border-zinc-200 dark:border-zinc-700 px-2 py-1 text-left align-top font-medium text-zinc-500 dark:text-zinc-400 whitespace-normal [overflow-wrap:anywhere]"
+        className={`bg-zinc-100 dark:bg-zinc-800/80 border-b border-zinc-200 dark:border-zinc-700 px-2 py-1 align-top font-medium text-zinc-600 dark:text-zinc-300 whitespace-normal [overflow-wrap:anywhere] ${isIconOnlyCellContent(content) ? 'text-center' : 'text-left'}`}
         {...props}
       >
-        {renderTextWithEmojiIcons(children)}
+        {renderTextWithEmojiIcons(content)}
       </th>
     );
   },
@@ -184,6 +191,16 @@ export const createMarkdownComponents = () => ({
         </code>
       </div>
     );
+  },
+  // ```mermaid fences render as diagrams; other fences keep the default <pre>.
+  pre({
+    node,
+    children,
+    ...props
+  }: HTMLAttributes<HTMLPreElement> & { node?: MarkdownNode; children?: ReactNode }) {
+    const mermaidSource = extractMermaidSource(node);
+    if (mermaidSource !== null) return <MermaidBlock source={mermaidSource} />;
+    return <pre {...props}>{children}</pre>;
   },
   // NOTE: Customize link handling — rapitas-note links render a Confluence-style chip.
   // New format: /rapitas-note/{taskId}/{noteId} (relative URL, not filtered by react-markdown).
