@@ -124,7 +124,7 @@ export const createMarkdownComponents = () => ({
     const content = unwrapFullQuotes(children);
     return (
       <th
-        className={`bg-zinc-100 dark:bg-zinc-800/80 border-b border-zinc-200 dark:border-zinc-700 px-2 py-1 align-top font-medium text-zinc-600 dark:text-zinc-300 whitespace-normal [overflow-wrap:anywhere] ${isIconOnlyCellContent(content) ? 'text-center' : 'text-left'}`}
+        className="bg-zinc-100 dark:bg-zinc-800/80 border-b border-zinc-200 dark:border-zinc-700 px-2 py-1 text-left align-top font-medium text-zinc-600 dark:text-zinc-300 whitespace-normal [overflow-wrap:anywhere]"
         {...props}
       >
         {renderTableCellContent(content)}
