@@ -1,7 +1,17 @@
+/**
+ * MarkdownComponents
+ *
+ * react-markdown component overrides for task text (descriptions, notes):
+ * syntax-highlighted code blocks, rapitas-note chip links, and status-emoji →
+ * lucide icon substitution (shared module — see components/markdown).
+ */
+
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import type { ReactNode, HTMLAttributes, CSSProperties } from 'react';
 import { NoteChipLink } from '../NoteChipLink';
+import { renderTextWithEmojiIcons } from '@/components/markdown/emoji-to-lucide';
+import { renderBlockWithEmojiIcons } from '@/components/markdown/verdict-chip';
 
 // vscDarkPlus style type
 type SyntaxHighlighterStyle = { [key: string]: CSSProperties };
@@ -42,7 +52,79 @@ export const createMarkdownComponents = () => ({
     if (hasCodeBlock) {
       return <div {...props}>{children}</div>;
     }
-    return <p {...props}>{children}</p>;
+    return <p {...props}>{renderBlockWithEmojiIcons(children)}</p>;
+  },
+  // NOTE: Pass-through overrides exist only to run the shared emoji→icon
+  // substitution on text children; default styling is unchanged.
+  li({ children, ...props }: HTMLAttributes<HTMLLIElement> & { children?: ReactNode }) {
+    return <li {...props}>{renderBlockWithEmojiIcons(children)}</li>;
+  },
+  h1({ children, ...props }: HTMLAttributes<HTMLHeadingElement> & { children?: ReactNode }) {
+    return <h1 {...props}>{renderTextWithEmojiIcons(children)}</h1>;
+  },
+  h2({ children, ...props }: HTMLAttributes<HTMLHeadingElement> & { children?: ReactNode }) {
+    return <h2 {...props}>{renderTextWithEmojiIcons(children)}</h2>;
+  },
+  h3({ children, ...props }: HTMLAttributes<HTMLHeadingElement> & { children?: ReactNode }) {
+    return <h3 {...props}>{renderTextWithEmojiIcons(children)}</h3>;
+  },
+  h4({ children, ...props }: HTMLAttributes<HTMLHeadingElement> & { children?: ReactNode }) {
+    return <h4 {...props}>{renderTextWithEmojiIcons(children)}</h4>;
+  },
+  h5({ children, ...props }: HTMLAttributes<HTMLHeadingElement> & { children?: ReactNode }) {
+    return <h5 {...props}>{renderTextWithEmojiIcons(children)}</h5>;
+  },
+  h6({ children, ...props }: HTMLAttributes<HTMLHeadingElement> & { children?: ReactNode }) {
+    return <h6 {...props}>{renderTextWithEmojiIcons(children)}</h6>;
+  },
+  strong({ children, ...props }: HTMLAttributes<HTMLElement> & { children?: ReactNode }) {
+    return <strong {...props}>{renderTextWithEmojiIcons(children)}</strong>;
+  },
+  em({ children, ...props }: HTMLAttributes<HTMLElement> & { children?: ReactNode }) {
+    return <em {...props}>{renderTextWithEmojiIcons(children)}</em>;
+  },
+  // NOTE: table-auto sizes columns by content (numbers stay narrow, paths get
+  // the width) while wrapping cells keep every column visible without
+  // horizontal scrolling; overflow-x-auto remains only as a last-resort guard.
+  table({ children, ...props }: HTMLAttributes<HTMLTableElement> & { children?: ReactNode }) {
+    return (
+      <div className="overflow-x-auto my-4">
+        <table className="w-full table-auto text-xs border-collapse" {...props}>
+          {children}
+        </table>
+      </div>
+    );
+  },
+  // Subtle vertical column separators, same tone as the horizontal borders.
+  tr({ children, ...props }: HTMLAttributes<HTMLTableRowElement> & { children?: ReactNode }) {
+    return (
+      <tr className="divide-x divide-zinc-200 dark:divide-zinc-700/60" {...props}>
+        {children}
+      </tr>
+    );
+  },
+  td({ children, ...props }: HTMLAttributes<HTMLTableCellElement> & { children?: ReactNode }) {
+    return (
+      <td
+        className="border-b border-zinc-100 dark:border-zinc-800 px-2 py-1 align-top text-zinc-700 dark:text-zinc-300 whitespace-normal [overflow-wrap:anywhere]"
+        {...props}
+      >
+        {renderTextWithEmojiIcons(children)}
+      </td>
+    );
+  },
+  th({ children, ...props }: HTMLAttributes<HTMLTableCellElement> & { children?: ReactNode }) {
+    return (
+      <th
+        className="border-b border-zinc-200 dark:border-zinc-700 px-2 py-1 text-left align-top font-medium text-zinc-500 dark:text-zinc-400 whitespace-normal [overflow-wrap:anywhere]"
+        {...props}
+      >
+        {renderTextWithEmojiIcons(children)}
+      </th>
+    );
+  },
+  blockquote({ children, ...props }: HTMLAttributes<HTMLQuoteElement> & { children?: ReactNode }) {
+    return <blockquote {...props}>{renderTextWithEmojiIcons(children)}</blockquote>;
   },
   code({ inline, className, children, style: _style, ...props }: CodeProps) {
     const match = /language-(\w+)/.exec(className || '');

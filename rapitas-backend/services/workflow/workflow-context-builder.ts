@@ -14,6 +14,10 @@ import { buildRejectedPlanContext } from './workflow-rejected-plan-context';
 import { buildCaseContext } from './workflow-case-context';
 import { buildCriticFeedback } from './phase-critic';
 import type { WorkflowRole } from './workflow-types';
+// NOTE: Style rules live in their own module (this file is over the size
+// limit); they only ADD constraints — the machine-parsed verdict vocabulary in
+// the role instructions below stays byte-identical.
+import { REPORT_STYLE_RULE } from './workflow-style-rule';
 
 /**
  * Build the prompt context string appropriate for the given workflow role.
@@ -229,6 +233,7 @@ export async function buildRoleContext(
 
   const t = texts[language];
   const taskInfo = t.taskInfo;
+  const styleRule = REPORT_STYLE_RULE[language];
 
   switch (role) {
     case 'researcher': {
@@ -248,7 +253,7 @@ export async function buildRoleContext(
       // steps to the planner. Without this, research.md was always written
       // assuming a plan would follow — wrong for lightweight tasks.
       const modeBlock = `\n\n${researchModeDirective(mode, language)}`;
-      return `${taskInfo}${criticBlock}${modeBlock}${memoryBlock}${hypothesisBlock}\n\n${t.researcher.instruction}\n\n${t.researcher.premiseAudit}\n\n${t.researcher.items}\n\n${t.researcher.output}`;
+      return `${taskInfo}${criticBlock}${modeBlock}${memoryBlock}${hypothesisBlock}\n\n${t.researcher.instruction}\n\n${t.researcher.premiseAudit}\n\n${t.researcher.items}\n\n${t.researcher.output}\n\n${styleRule}`;
     }
 
     case 'planner': {
@@ -282,7 +287,7 @@ export async function buildRoleContext(
       if (research) {
         ctx += `\n\n${t.planner.researchHeader}\n\n${research}`;
       }
-      ctx += `\n\n${t.planner.instruction}\n\n${t.planner.premortem}`;
+      ctx += `\n\n${t.planner.instruction}\n\n${t.planner.premortem}\n\n${styleRule}`;
       return ctx;
     }
 
@@ -307,7 +312,7 @@ export async function buildRoleContext(
       if (plan) {
         ctx += `\n\n${t.reviewer.planHeader}\n\n${plan}`;
       }
-      ctx += `\n\n${t.reviewer.instruction}`;
+      ctx += `\n\n${t.reviewer.instruction}\n\n${styleRule}`;
       return ctx;
     }
 
@@ -370,7 +375,7 @@ export async function buildRoleContext(
         ctx += `\n\n${header}\n\n${verifyFeedback}`;
       }
       const implementerLead = plan ? t.implementer.leadWithPlan : t.implementer.leadNoPlan;
-      ctx += `\n\n${implementerLead}\n\n${t.implementer.constraints}`;
+      ctx += `\n\n${implementerLead}\n\n${t.implementer.constraints}\n\n${styleRule}`;
       // Bug-fix tasks: require a reproducing test BEFORE the fix (R4). The
       // verification gate enforces "a test file changed" for these tasks, so
       // tell the implementer up front instead of bouncing it later.
@@ -500,7 +505,7 @@ export async function buildRoleContext(
             '## Requirement coverage (each task requirement ✅/❌)',
           );
       }
-      ctx += `\n\n${verifierInstruction}`;
+      ctx += `\n\n${verifierInstruction}\n\n${styleRule}`;
       return ctx;
     }
 

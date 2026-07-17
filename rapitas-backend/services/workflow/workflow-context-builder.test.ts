@@ -66,6 +66,39 @@ describe('buildRoleContext', () => {
   });
 });
 
+describe('report style rule (emoji-free professional markdown)', () => {
+  test.each(['researcher', 'planner', 'reviewer', 'implementer', 'verifier', 'auto_verifier'])(
+    '%s context carries the ja style rule',
+    async (role) => {
+      const ctx = await buildRoleContext(
+        1,
+        role as Parameters<typeof buildRoleContext>[1],
+        NO_DIR,
+        TASK,
+      );
+      expect(ctx).toContain('## 文体ルール');
+      expect(ctx).toContain('絵文字は使用禁止');
+      expect(ctx).toContain('横スクロールなしで全列が見える');
+      // Changed-files reporting is qualitative: table of file/kind/summary,
+      // never +N/-N line deltas.
+      expect(ctx).toContain('行数・差分数値（+N/-N）は記載しない');
+    },
+  );
+
+  test('en variant carries the en style rule', async () => {
+    const ctx = await buildRoleContext(1, 'verifier', NO_DIR, TASK, 'en');
+    expect(ctx).toContain('## Style rules');
+    expect(ctx).toContain('Emoji are forbidden');
+  });
+
+  test('verifier verdict-marker vocabulary is unchanged by the style rule', async () => {
+    const ctx = await buildRoleContext(1, 'verifier', NO_DIR, TASK);
+    // The machine-parsed phrases must still be present verbatim.
+    expect(ctx).toContain('✅ 検証成功 / ❌ 検証失敗 / ⚠️ 一部失敗');
+    expect(ctx).toContain('`**❌ 検証失敗**`');
+  });
+});
+
 describe('researchModeDirective', () => {
   test('lightweight declares no plan phase and demands implementation-ready research', () => {
     const d = researchModeDirective('lightweight', 'ja');

@@ -299,7 +299,7 @@ Commit in logical units. Run tests after each unit.
 
 Save after implementation is complete. Required sections:
 
-- Changed files (new / modified, with line delta)
+- Changed files table: File | Kind (new/modified) | What changed & why, one line (no line counts / diff deltas)
 - Test results (unit / integration / E2E pass/fail counts)
 - Plan checklist completion status and percentage
 - Unresolved concerns (or "None")

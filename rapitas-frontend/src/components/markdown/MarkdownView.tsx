@@ -5,7 +5,8 @@
  *
  * Shared Markdown renderer used by the workflow file viewer and the AI copilot
  * so both display Markdown identically — heading rhythm (indigo H2 bar), black
- * list markers, Jira-style inline code, bordered tables, callout blockquotes.
+ * list markers, Jira-style inline code, bordered tables, callout blockquotes,
+ * and status-emoji → lucide icon substitution (see ./emoji-to-lucide).
  * Optional heading-id / scroll-margin hooks support the workflow viewer's
  * in-file table of contents; other callers omit them.
  */
@@ -13,6 +14,8 @@
 import { isValidElement, type ReactNode } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import { renderTextWithEmojiIcons } from './emoji-to-lucide';
+import { renderBlockWithEmojiIcons } from './verdict-chip';
 
 /** Flattens a ReactMarkdown heading's children into plain text. / 子要素を素テキスト化。 */
 export function nodeToText(node: ReactNode): string {
@@ -75,7 +78,7 @@ export function MarkdownView({
               className="!mt-0 !mb-4 pb-2 border-b-2 border-indigo-200 dark:border-indigo-800/60 text-xl !font-bold"
               {...props}
             >
-              {children}
+              {renderTextWithEmojiIcons(children)}
             </h1>
           ),
           h2: ({ children, ...props }) => (
@@ -89,7 +92,7 @@ export function MarkdownView({
               className="!mt-8 !mb-3 pb-1.5 border-b border-zinc-200 dark:border-zinc-700 text-lg flex items-center gap-2 before:content-[''] before:block before:w-1 before:h-5 before:rounded-sm before:bg-indigo-500 dark:before:bg-indigo-400"
               {...props}
             >
-              {children}
+              {renderTextWithEmojiIcons(children)}
             </h2>
           ),
           h3: ({ children, ...props }) => (
@@ -97,7 +100,7 @@ export function MarkdownView({
               className="!mt-5 !mb-2 text-base !font-semibold text-indigo-700 dark:text-indigo-300"
               {...props}
             >
-              {children}
+              {renderTextWithEmojiIcons(children)}
             </h3>
           ),
           h4: ({ children, ...props }) => (
@@ -105,27 +108,36 @@ export function MarkdownView({
               className="!mt-4 !mb-2 text-sm !font-semibold text-zinc-800 dark:text-zinc-200"
               {...props}
             >
-              {children}
+              {renderTextWithEmojiIcons(children)}
             </h4>
           ),
+          h5: ({ children, ...props }) => <h5 {...props}>{renderTextWithEmojiIcons(children)}</h5>,
+          h6: ({ children, ...props }) => <h6 {...props}>{renderTextWithEmojiIcons(children)}</h6>,
+          p: ({ children, ...props }) => <p {...props}>{renderBlockWithEmojiIcons(children)}</p>,
+          li: ({ children, ...props }) => <li {...props}>{renderBlockWithEmojiIcons(children)}</li>,
+          strong: ({ children, ...props }) => (
+            <strong {...props}>{renderTextWithEmojiIcons(children)}</strong>
+          ),
+          em: ({ children, ...props }) => <em {...props}>{renderTextWithEmojiIcons(children)}</em>,
           hr: (props) => (
             <hr
               className="!my-6 border-0 h-px bg-gradient-to-r from-transparent via-zinc-300 dark:via-zinc-600 to-transparent"
               {...props}
             />
           ),
+          // NOTE: table-auto sizes columns by content (numbers stay narrow,
+          // paths get the width) while wrapping cells keep every column visible
+          // without horizontal scrolling; the overflow-x-auto wrapper remains
+          // only as a last-resort guard for pathological content.
           table: ({ children, ...props }) => (
-            <div className="!my-4 overflow-x-auto rounded-lg border border-zinc-200 dark:border-zinc-700 shadow-sm">
-              <table className="!my-0 w-full text-sm border-collapse" {...props}>
+            <div className="!my-4 overflow-x-auto rounded-lg border border-zinc-200 dark:border-zinc-700">
+              <table className="!my-0 w-full table-auto text-xs border-collapse" {...props}>
                 {children}
               </table>
             </div>
           ),
           thead: ({ children, ...props }) => (
-            <thead
-              className="bg-zinc-50 dark:bg-zinc-800/80 border-b border-zinc-200 dark:border-zinc-700"
-              {...props}
-            >
+            <thead className="border-b border-zinc-200 dark:border-zinc-700" {...props}>
               {children}
             </thead>
           ),
@@ -136,7 +148,7 @@ export function MarkdownView({
           ),
           tr: ({ children, ...props }) => (
             <tr
-              className="transition-colors hover:bg-indigo-50/40 dark:hover:bg-indigo-900/10"
+              className="divide-x divide-zinc-200 dark:divide-zinc-700/60 transition-colors hover:bg-indigo-50/40 dark:hover:bg-indigo-900/10"
               {...props}
             >
               {children}
@@ -144,18 +156,18 @@ export function MarkdownView({
           ),
           th: ({ children, ...props }) => (
             <th
-              className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-zinc-600 dark:text-zinc-300 whitespace-nowrap"
+              className="px-2 py-1 text-left align-top text-xs font-medium text-zinc-500 dark:text-zinc-400 whitespace-normal [overflow-wrap:anywhere]"
               {...props}
             >
-              {children}
+              {renderTextWithEmojiIcons(children)}
             </th>
           ),
           td: ({ children, ...props }) => (
             <td
-              className="px-3 py-2 align-top text-zinc-700 dark:text-zinc-300 [&_code]:text-[0.8em]"
+              className="px-2 py-1 align-top text-zinc-700 dark:text-zinc-300 whitespace-normal [overflow-wrap:anywhere] [&_code]:text-[0.8em] [&_code]:break-all"
               {...props}
             >
-              {children}
+              {renderTextWithEmojiIcons(children)}
             </td>
           ),
           blockquote: ({ children, ...props }) => (
@@ -163,7 +175,7 @@ export function MarkdownView({
               className="!my-4 !pl-4 !pr-3 !py-2 border-l-4 border-amber-400 dark:border-amber-500 bg-amber-50/60 dark:bg-amber-900/15 rounded-r-md !not-italic [&>p]:!my-0 [&>p]:text-amber-900 dark:[&>p]:text-amber-200"
               {...props}
             >
-              {children}
+              {renderTextWithEmojiIcons(children)}
             </blockquote>
           ),
           ul: ({ children, ...props }) => (
