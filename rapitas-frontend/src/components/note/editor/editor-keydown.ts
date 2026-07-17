@@ -9,6 +9,7 @@ import type React from 'react';
 import type { EditorRefs } from './editor-keydown.types';
 import { handleBackspace, handleColorSpanAfterDelete } from './editor-keydown-backspace';
 import { handleEnter } from './editor-keydown-enter';
+import { handleHeadingEnter } from './block-format';
 import {
   isCursorInCodeBlock,
   selectionCoversCodeBlock,
@@ -72,6 +73,9 @@ export function handleEditorKeyDown(
   }
 
   if (e.key === 'Enter' && !e.shiftKey) {
+    // Heading exit takes precedence: Enter at the end of an h1-h3 starts a
+    // normal paragraph (JIRA convention) before span-continuation logic runs.
+    if (handleHeadingEnter(e, contentRef, onContentChange)) return;
     handleEnter(e, refs, onContentChange);
   }
 }

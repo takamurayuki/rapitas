@@ -2,19 +2,23 @@
 // EditorToolbar
 import { useTranslations } from 'next-intl';
 import { Bold, Italic, Underline, List, ListOrdered } from 'lucide-react';
+import { BlockStyleSection } from './toolbar/BlockStyleSection';
 import { FontPickerSection } from './toolbar/FontPickerSection';
 import { TextColorSection } from './toolbar/TextColorSection';
 import { HighlightSection } from './toolbar/HighlightSection';
 import { InsertSection } from './toolbar/InsertSection';
+import type { BlockType } from './block-format';
 
 export interface EditorToolbarProps {
   // Format state
+  currentBlockType: BlockType;
   currentFont: string;
   currentFontSize: string;
   currentTextColor: string;
   highlightStyleIndex: number;
 
   // Popup visibility
+  showBlockPicker: boolean;
   showFontPicker: boolean;
   showFontSizePicker: boolean;
   showTextColorPicker: boolean;
@@ -33,6 +37,7 @@ export interface EditorToolbarProps {
   setCurrentFontSize: (v: string) => void;
   setCurrentTextColor: (v: string) => void;
   setHighlightStyleIndex: (v: number) => void;
+  setShowBlockPicker: (v: boolean) => void;
   setShowFontPicker: (v: boolean) => void;
   setShowFontSizePicker: (v: boolean) => void;
   setShowTextColorPicker: (v: boolean) => void;
@@ -44,6 +49,7 @@ export interface EditorToolbarProps {
   setCodeLanguage: (v: string) => void;
 
   // Action callbacks
+  onApplyBlockType: (type: BlockType) => void;
   onApplyFormat: (command: string, value?: string) => void;
   onApplyHighlight: (color: string) => void;
   onApplyBorderLine: (color: string) => void;
@@ -75,6 +81,7 @@ function makeToggle(
   props: EditorToolbarProps,
   field: keyof Pick<
     EditorToolbarProps,
+    | 'showBlockPicker'
     | 'showFontPicker'
     | 'showFontSizePicker'
     | 'showTextColorPicker'
@@ -85,6 +92,7 @@ function makeToggle(
   >,
 ): () => void {
   const setters: Record<string, (v: boolean) => void> = {
+    showBlockPicker: props.setShowBlockPicker,
     showFontPicker: props.setShowFontPicker,
     showFontSizePicker: props.setShowFontSizePicker,
     showTextColorPicker: props.setShowTextColorPicker,
@@ -110,6 +118,9 @@ function makeToggle(
 export default function EditorToolbar(props: EditorToolbarProps) {
   const t = useTranslations('notes');
   const {
+    currentBlockType,
+    showBlockPicker,
+    onApplyBlockType,
     currentFont,
     currentFontSize,
     currentTextColor,
@@ -151,6 +162,7 @@ export default function EditorToolbar(props: EditorToolbarProps) {
 
   const toggleColorPicker = makeToggle(props, 'showColorPicker');
   const toggleBorderPicker = makeToggle(props, 'showBorderPicker');
+  const toggleBlockPicker = makeToggle(props, 'showBlockPicker');
 
   // NOTE: Formatting buttons must not steal focus from the contentEditable —
   // losing focus collapses/loses the selection the command should apply to.
@@ -158,6 +170,16 @@ export default function EditorToolbar(props: EditorToolbarProps) {
 
   return (
     <div className="flex items-center gap-0.5 px-4 pb-1.5 border-b border-zinc-200 dark:border-zinc-700">
+      {/* Block style first — JIRA convention places the paragraph-style selector leftmost. */}
+      <BlockStyleSection
+        currentBlockType={currentBlockType}
+        showBlockPicker={showBlockPicker}
+        onToggleBlockPicker={toggleBlockPicker}
+        onApplyBlockType={onApplyBlockType}
+      />
+
+      <div className="w-px h-4 bg-zinc-200 dark:bg-zinc-700 mx-1" />
+
       <FontPickerSection
         currentFont={currentFont}
         currentFontSize={currentFontSize}

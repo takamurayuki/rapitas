@@ -13,7 +13,7 @@ import { fonts } from './constants';
  * @param contentEl - The contentEditable editor element / エディタ要素
  * @param range - Selection range to restore after focusing / フォーカス後に復元する選択範囲
  */
-function focusEditorPreservingRange(contentEl: HTMLDivElement, range: Range): void {
+export function focusEditorPreservingRange(contentEl: HTMLDivElement, range: Range): void {
   if (contentEl.contains(document.activeElement)) return;
   contentEl.focus();
   // focus() may reset the selection — re-apply the captured range explicitly.

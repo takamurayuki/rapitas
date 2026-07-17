@@ -32,88 +32,12 @@ import {
   renderMermaidBlock,
   getContentWithoutDiagramSvg,
 } from './diagram-block';
+import { useBlockStyle } from './useBlockStyle';
+import type { NoteEditorState } from './editor-state.types';
 
-/**
- * All values and handlers returned by useNoteEditor.
- */
-export interface NoteEditorState {
-  // Store
-  updateNote: (id: string, data: Partial<Note>) => void;
-  locale: string;
-  dateLocale: string;
-
-  // Refs
-  contentRef: React.RefObject<HTMLDivElement | null>;
-  titleRef: React.RefObject<HTMLInputElement | null>;
-
-  // Title state
-  draftTitle: string;
-  isDirty: boolean;
-  handleTitleChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
-  handleTitlePaste: (e: React.ClipboardEvent<HTMLInputElement>) => void;
-  handleSave: () => void;
-
-  // Popup visibility
-  showColorPicker: boolean;
-  showBorderPicker: boolean;
-  showLinkInput: boolean;
-  showCodeInput: boolean;
-  showFontSizePicker: boolean;
-  showFontPicker: boolean;
-  showTextColorPicker: boolean;
-  setShowColorPicker: React.Dispatch<React.SetStateAction<boolean>>;
-  setShowBorderPicker: React.Dispatch<React.SetStateAction<boolean>>;
-  setShowLinkInput: React.Dispatch<React.SetStateAction<boolean>>;
-  setShowCodeInput: React.Dispatch<React.SetStateAction<boolean>>;
-  setShowFontSizePicker: React.Dispatch<React.SetStateAction<boolean>>;
-  setShowFontPicker: React.Dispatch<React.SetStateAction<boolean>>;
-  setShowTextColorPicker: React.Dispatch<React.SetStateAction<boolean>>;
-  closeAllPopups: () => void;
-
-  // Link
-  linkUrl: string;
-  isLinkLoading: boolean;
-  setLinkUrl: React.Dispatch<React.SetStateAction<string>>;
-  openLinkInput: () => void;
-  insertLink: () => Promise<void>;
-
-  // Code
-  codeLanguage: string;
-  setCodeLanguage: React.Dispatch<React.SetStateAction<string>>;
-  openCodeInput: () => void;
-  insertCodeBlock: () => void;
-
-  // Highlight / border / font
-  highlightStyleIndex: number;
-  setHighlightStyleIndex: React.Dispatch<React.SetStateAction<number>>;
-  currentFontSize: string;
-  currentFont: string;
-  currentTextColor: string;
-  setCurrentFont: React.Dispatch<React.SetStateAction<string>>;
-  setCurrentFontSize: React.Dispatch<React.SetStateAction<string>>;
-  setCurrentTextColor: React.Dispatch<React.SetStateAction<string>>;
-  onApplyFormat: (command: string, value?: string) => void;
-  onApplyHighlight: (color: string) => void;
-  onApplyBorderLine: (color: string) => void;
-  onApplyFontSize: (size: string) => void;
-  onApplyFont: (font: string) => void;
-  applyTextColor: (color: string) => void;
-  handleTextColorButtonClick: () => void;
-  handleResetTextColor: () => void;
-
-  // Table
-  insertTable: () => void;
-
-  // Diagram
-  insertDiagramBlock: () => void;
-  /** Re-renders a single diagram block's Mermaid SVG (labels bound). / 図ブロックの再描画（ラベル束縛済み） */
-  renderDiagramBlock: (block: HTMLElement) => Promise<void>;
-  markDirty: () => void;
-
-  // Editor events
-  onEditorInput: (e: React.FormEvent<HTMLDivElement>) => void;
-  onEditorKeyDown: (e: React.KeyboardEvent<HTMLDivElement>) => void;
-}
+// NOTE: Re-exported for backward compatibility — the interface moved to
+// editor-state.types.ts when this file exceeded the size policy.
+export type { NoteEditorState } from './editor-state.types';
 
 /**
  * Composition hook providing all state, logic, and handlers for the NoteEditor.
@@ -173,6 +97,7 @@ export function useNoteEditor(note: Note): NoteEditorState {
   const popups = useNotePopups();
   const {
     showTextColorPicker,
+    setShowBlockPicker,
     setShowColorPicker,
     setShowBorderPicker,
     setShowLinkInput,
@@ -197,6 +122,9 @@ export function useNoteEditor(note: Note): NoteEditorState {
   const handleContentChange = useCallback(() => {
     setIsDirty(true);
   }, []);
+
+  // JIRA-style block style state (current type, conversion, shortcuts)
+  const blockStyle = useBlockStyle(contentRef, handleContentChange, setShowBlockPicker);
 
   // Reset editor content when note changes
   useEffect(() => {
@@ -245,7 +173,9 @@ export function useNoteEditor(note: Note): NoteEditorState {
       setCurrentFont(format.fontFamily);
       setCurrentTextColor(format.textColor);
     }
-  }, []);
+    blockStyle.detectBlockType();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [blockStyle.detectBlockType]);
 
   useEffect(() => {
     const handleSelectionChange = () => {
@@ -419,6 +349,7 @@ export function useNoteEditor(note: Note): NoteEditorState {
   };
 
   const onEditorKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    if (blockStyle.handleBlockShortcut(e)) return;
     handleEditorKeyDown(e, editorRefs, handleContentChange);
     if ((e.key === 'Backspace' || e.key === 'Delete') && selectedTextColorRef.current) {
       const selection = window.getSelection();
@@ -440,6 +371,7 @@ export function useNoteEditor(note: Note): NoteEditorState {
     handleTitleChange,
     handleTitlePaste,
     handleSave,
+    showBlockPicker: popups.showBlockPicker,
     showColorPicker: popups.showColorPicker,
     showBorderPicker: popups.showBorderPicker,
     showLinkInput: popups.showLinkInput,
@@ -447,6 +379,7 @@ export function useNoteEditor(note: Note): NoteEditorState {
     showFontSizePicker: popups.showFontSizePicker,
     showFontPicker: popups.showFontPicker,
     showTextColorPicker,
+    setShowBlockPicker,
     setShowColorPicker,
     setShowBorderPicker,
     setShowLinkInput,
@@ -455,6 +388,8 @@ export function useNoteEditor(note: Note): NoteEditorState {
     setShowFontPicker,
     setShowTextColorPicker,
     closeAllPopups: popups.closeAllPopups,
+    currentBlockType: blockStyle.currentBlockType,
+    onApplyBlockType: blockStyle.onApplyBlockType,
     linkUrl,
     isLinkLoading,
     setLinkUrl,

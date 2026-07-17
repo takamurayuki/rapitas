@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from 'react';
 
 /** All values and helpers returned by useNotePopups. */
 export interface NotePopupsState {
+  showBlockPicker: boolean;
   showColorPicker: boolean;
   showBorderPicker: boolean;
   showLinkInput: boolean;
@@ -11,6 +12,7 @@ export interface NotePopupsState {
   showFontSizePicker: boolean;
   showFontPicker: boolean;
   showTextColorPicker: boolean;
+  setShowBlockPicker: React.Dispatch<React.SetStateAction<boolean>>;
   setShowColorPicker: React.Dispatch<React.SetStateAction<boolean>>;
   setShowBorderPicker: React.Dispatch<React.SetStateAction<boolean>>;
   setShowLinkInput: React.Dispatch<React.SetStateAction<boolean>>;
@@ -28,6 +30,7 @@ export interface NotePopupsState {
  * @returns A flat NotePopupsState consumed by useNoteEditor and the toolbar.
  */
 export function useNotePopups(): NotePopupsState {
+  const [showBlockPicker, setShowBlockPicker] = useState(false);
   const [showColorPicker, setShowColorPicker] = useState(false);
   const [showBorderPicker, setShowBorderPicker] = useState(false);
   const [showLinkInput, setShowLinkInput] = useState(false);
@@ -37,6 +40,7 @@ export function useNotePopups(): NotePopupsState {
   const [showTextColorPicker, setShowTextColorPicker] = useState(false);
 
   const closeAllPopups = useCallback(() => {
+    setShowBlockPicker(false);
     setShowColorPicker(false);
     setShowBorderPicker(false);
     setShowLinkInput(false);
@@ -49,6 +53,7 @@ export function useNotePopups(): NotePopupsState {
   // NOTE: "except" lets the caller open one popup (link or code) without
   // immediately closing it on the next render.
   const closeOtherPopups = useCallback((except: 'link' | 'code') => {
+    setShowBlockPicker(false);
     setShowColorPicker(false);
     setShowBorderPicker(false);
     setShowFontSizePicker(false);
@@ -61,6 +66,7 @@ export function useNotePopups(): NotePopupsState {
   // Close popups on outside click or Escape
   useEffect(() => {
     const anyOpen =
+      showBlockPicker ||
       showColorPicker ||
       showBorderPicker ||
       showLinkInput ||
@@ -91,6 +97,7 @@ export function useNotePopups(): NotePopupsState {
       document.removeEventListener('keydown', handleEscKey);
     };
   }, [
+    showBlockPicker,
     showColorPicker,
     showBorderPicker,
     showLinkInput,
@@ -102,6 +109,7 @@ export function useNotePopups(): NotePopupsState {
   ]);
 
   return {
+    showBlockPicker,
     showColorPicker,
     showBorderPicker,
     showLinkInput,
@@ -109,6 +117,7 @@ export function useNotePopups(): NotePopupsState {
     showFontSizePicker,
     showFontPicker,
     showTextColorPicker,
+    setShowBlockPicker,
     setShowColorPicker,
     setShowBorderPicker,
     setShowLinkInput,

@@ -1,6 +1,7 @@
 'use client';
 // NoteEditor
 import { useState, useCallback, type ReactNode } from 'react';
+import { useTranslations } from 'next-intl';
 import { type Note, useNoteStore } from '@/stores/note-store';
 import { useNoteEditor } from './editor/useNoteEditor';
 import NoteEditorHeader from './editor/NoteEditorHeader';
@@ -21,6 +22,7 @@ interface NoteEditorProps {
 }
 
 export default function NoteEditor({ note, children }: NoteEditorProps) {
+  const t = useTranslations('notes');
   const editor = useNoteEditor(note);
   const deleteNote = useNoteStore((s) => s.deleteNote);
   const updateNote = useNoteStore((s) => s.updateNote);
@@ -79,6 +81,10 @@ export default function NoteEditor({ note, children }: NoteEditorProps) {
       />
 
       <EditorToolbar
+        currentBlockType={editor.currentBlockType}
+        showBlockPicker={editor.showBlockPicker}
+        setShowBlockPicker={editor.setShowBlockPicker}
+        onApplyBlockType={editor.onApplyBlockType}
         currentFont={editor.currentFont}
         currentFontSize={editor.currentFontSize}
         currentTextColor={editor.currentTextColor}
@@ -129,6 +135,10 @@ export default function NoteEditor({ note, children }: NoteEditorProps) {
             ref={editor.contentRef}
             contentEditable
             suppressContentEditableWarning
+            role="textbox"
+            aria-multiline="true"
+            aria-label={t('editorContentLabel')}
+            tabIndex={0}
             className="p-4 min-h-full outline-none prose prose-zinc dark:prose-invert max-w-none note-editor"
             onInput={editor.onEditorInput}
             onKeyDown={editor.onEditorKeyDown}
