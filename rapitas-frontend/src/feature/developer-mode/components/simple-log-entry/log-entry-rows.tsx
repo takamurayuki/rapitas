@@ -8,7 +8,7 @@
  * The standard mechanical row lives in simple-log-entry.tsx.
  */
 
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { Bot, Check, ChevronDown, ChevronUp, Copy } from 'lucide-react';
 import type { UserFriendlyLogEntry } from '../../utils/log-pattern-rules';
@@ -110,9 +110,22 @@ export const NarrativeRow: React.FC<
   const t = useTranslations('devMode.simpleLogEntry');
   const [open, setOpen] = useState(false);
   const fullText = entry.detail && entry.detail !== entry.message ? entry.detail : undefined;
-  // Expand also when the preview itself likely clamps past three lines.
-  const canExpand =
-    !!fullText || entry.message.length > 220 || (entry.message.match(/\n/g)?.length ?? 0) >= 3;
+  // MEASURE the clamp instead of guessing from character counts — a length
+  // heuristic showed 全文 on text that fully fits (user feedback). The button
+  // appears only when the 3-line clamp actually cuts something off (or a
+  // longer detail text exists), and stays while open so it can close.
+  const textRef = useRef<HTMLParagraphElement>(null);
+  const [clamped, setClamped] = useState(false);
+  useEffect(() => {
+    const el = textRef.current;
+    if (!el || open) return;
+    const check = () => setClamped(el.scrollHeight > el.clientHeight + 1);
+    check();
+    const ro = new ResizeObserver(check);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [open, entry.message]);
+  const canExpand = open || clamped || !!fullText;
 
   return (
     <div
@@ -132,6 +145,7 @@ export const NarrativeRow: React.FC<
             className="absolute -left-[5px] top-2 h-2.5 w-2.5 rotate-45 border-b border-l border-zinc-700 bg-zinc-800"
           />
           <p
+            ref={textRef}
             className={`whitespace-pre-line break-words text-xs leading-relaxed text-zinc-200 ${
               open ? '' : 'line-clamp-3'
             }`}
