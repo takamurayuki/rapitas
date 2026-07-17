@@ -142,6 +142,8 @@ export default function NoteEditor({ note, children }: NoteEditorProps) {
             className="p-4 min-h-full outline-none prose prose-zinc dark:prose-invert max-w-none note-editor"
             onInput={editor.onEditorInput}
             onKeyDown={editor.onEditorKeyDown}
+            onCompositionStart={editor.onEditorCompositionStart}
+            onCompositionEnd={editor.onEditorCompositionEnd}
             onClick={handleEditorClick}
             style={{ lineHeight: '1.8', fontSize: '16px' }}
           />

@@ -22,6 +22,7 @@ import { handleEditorKeyDown } from './editor-keydown';
 import {
   handleEditorInput as handleEditorInputUtil,
   handleDeleteColorPersistence,
+  runEditorCleanup,
 } from './color-persistence';
 import { applyTextColor as applyTextColorUtil } from './text-color';
 import { normalizeCodeBlocks } from './code-block';
@@ -80,6 +81,9 @@ export function useNoteEditor(note: Note): NoteEditorState {
   const savedSelectionRef = useRef<Range | null>(null);
   const activeColorSpanRef = useRef<HTMLSpanElement | null>(null);
   const selectedTextColorRef = useRef<string | null>(null);
+  // NOTE: Ref (not state) — input handlers must read the composition flag
+  // synchronously in the same event loop tick the IME mutates the DOM.
+  const isComposingRef = useRef(false);
 
   // NOTE: Empty title indicates a freshly created note that has not been edited.
   const [draftTitle, setDraftTitle] = useState(note.title.trim() === '' ? '' : note.title);
@@ -255,7 +259,7 @@ export function useNoteEditor(note: Note): NoteEditorState {
     [handleContentChange, setShowFontPicker],
   );
 
-  const editorRefs = { contentRef, activeColorSpanRef, selectedTextColorRef };
+  const editorRefs = { contentRef, activeColorSpanRef, selectedTextColorRef, isComposingRef };
 
   const applyTextColor = useCallback(
     (color: string) => {
@@ -348,7 +352,22 @@ export function useNoteEditor(note: Note): NoteEditorState {
     handleEditorInputUtil(e, editorRefs, handleContentChange);
   };
 
+  const onEditorCompositionStart = () => {
+    isComposingRef.current = true;
+  };
+
+  const onEditorCompositionEnd = () => {
+    isComposingRef.current = false;
+    // Single deferred cleanup pass — every input event during the composition
+    // skipped DOM mutation so the IME's internal state stayed consistent.
+    runEditorCleanup(editorRefs);
+    handleContentChange();
+  };
+
   const onEditorKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    // Keys pressed while the IME is composing belong to the IME — shortcuts,
+    // heading Enter, and color-span Backspace handling must all stand down.
+    if (e.nativeEvent.isComposing || e.keyCode === 229) return;
     if (blockStyle.handleBlockShortcut(e)) return;
     handleEditorKeyDown(e, editorRefs, handleContentChange);
     if ((e.key === 'Backspace' || e.key === 'Delete') && selectedTextColorRef.current) {
@@ -420,5 +439,7 @@ export function useNoteEditor(note: Note): NoteEditorState {
     renderDiagramBlock,
     onEditorInput,
     onEditorKeyDown,
+    onEditorCompositionStart,
+    onEditorCompositionEnd,
   };
 }

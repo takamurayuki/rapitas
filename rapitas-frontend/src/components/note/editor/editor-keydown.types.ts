@@ -11,4 +11,6 @@ export interface EditorRefs {
   contentRef: React.RefObject<HTMLDivElement | null>;
   activeColorSpanRef: React.MutableRefObject<HTMLSpanElement | null>;
   selectedTextColorRef: React.MutableRefObject<string | null>;
+  /** True while an IME composition session is active. */
+  isComposingRef?: React.MutableRefObject<boolean>;
 }

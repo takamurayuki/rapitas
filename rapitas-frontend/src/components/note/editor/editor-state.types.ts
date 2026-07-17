@@ -94,4 +94,8 @@ export interface NoteEditorState {
   // Editor events
   onEditorInput: (e: React.FormEvent<HTMLDivElement>) => void;
   onEditorKeyDown: (e: React.KeyboardEvent<HTMLDivElement>) => void;
+  /** Marks the IME composition session active. / IME変換セッション開始 */
+  onEditorCompositionStart: () => void;
+  /** Ends the session and runs the deferred anchor cleanup once. / セッション終了と遅延クリーンアップ */
+  onEditorCompositionEnd: () => void;
 }

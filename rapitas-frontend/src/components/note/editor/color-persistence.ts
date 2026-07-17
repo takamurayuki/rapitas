@@ -1,9 +1,21 @@
+/**
+ * color-persistence
+ *
+ * Input-event handling for the note editor: text-color span persistence and
+ * the cleanup of zero-width-space caret anchors (font/size/color spans).
+ * IME-safe: while a composition is active every DOM mutation is deferred to
+ * a single cleanup pass on compositionend.
+ */
 import type React from 'react';
+
+const ZWSP = '​';
 
 interface ColorRefs {
   contentRef: React.RefObject<HTMLDivElement | null>;
   activeColorSpanRef: React.MutableRefObject<HTMLSpanElement | null>;
   selectedTextColorRef: React.MutableRefObject<string | null>;
+  /** True while an IME composition session is active (optional for tests). */
+  isComposingRef?: React.MutableRefObject<boolean>;
 }
 
 /**
@@ -40,18 +52,12 @@ function moveLastCharToColorSpan(container: Node, refs: ColorRefs): void {
 }
 
 /**
- * Handles the onInput event for the contentEditable editor.
- * Manages color span tracking and auto-wrapping of newly typed characters
- * in a color span when a persistent text color is selected.
+ * Tracks whether typing stayed inside the active color span and re-wraps the
+ * last typed character when a persistent text color is selected. Direct
+ * (non-IME) input only — char-based logic cannot apply to composed strings.
  */
-export function handleEditorInput(
-  e: React.FormEvent<HTMLDivElement>,
-  refs: ColorRefs,
-  onContentChange: () => void,
-): void {
+function trackColorSpan(e: React.FormEvent<HTMLDivElement>, refs: ColorRefs): void {
   const { contentRef, activeColorSpanRef, selectedTextColorRef } = refs;
-
-  onContentChange();
 
   const selection = window.getSelection();
   if (!selection || selection.rangeCount === 0) return;
@@ -62,7 +68,6 @@ export function handleEditorInput(
   // Check if cursor is inside a color span
   let node: Node | null = container;
   let isInColorSpan = false;
-
   while (node && node !== contentRef.current) {
     if (
       node.nodeType === Node.ELEMENT_NODE &&
@@ -76,17 +81,6 @@ export function handleEditorInput(
   }
 
   if (activeColorSpanRef.current) {
-    const activeSpan = activeColorSpanRef.current;
-
-    // Remove leading zero-width space once real content is typed
-    if (
-      activeSpan.textContent &&
-      activeSpan.textContent.length > 1 &&
-      activeSpan.textContent.startsWith('\u200B')
-    ) {
-      activeSpan.textContent = activeSpan.textContent.substring(1);
-    }
-
     // Check if cursor is still inside the active span
     let checkNode: Node | null = container;
     let isInsideActiveSpan = false;
@@ -117,52 +111,108 @@ export function handleEditorInput(
       moveLastCharToColorSpan(container, refs);
     }
   }
+}
 
-  // NOTE: Re-fetch selection here because moveLastCharToColorSpan above may have moved the cursor.
-  const curSel = window.getSelection();
-  if (curSel && curSel.rangeCount > 0) {
-    const curRange = curSel.getRangeAt(0);
-    const curContainer = curRange.startContainer;
+/**
+ * Removes zero-width-space caret anchors once real content exists: strips the
+ * leading ZWSP from the anchor span under the caret (restoring the caret) and
+ * deletes orphaned ZWSP-only text nodes the cursor has left. Idempotent — a
+ * second pass (e.g. Safari fires one more input event after compositionend)
+ * is a no-op.
+ *
+ * @param refs - Editor refs (content element + span tracking) / エディタ参照群
+ */
+export function runEditorCleanup(refs: ColorRefs): void {
+  const { contentRef, activeColorSpanRef } = refs;
 
-    // Strip leading ​ from font/size anchor spans once real content has been typed.
+  const sel = window.getSelection();
+  const range = sel && sel.rangeCount > 0 ? sel.getRangeAt(0) : null;
+  const caretNode = range ? range.startContainer : null;
+
+  // Strip the leading ZWSP from the caret's anchor span (font/size/color all
+  // share the anchor pattern) once a real character has been committed.
+  if (
+    sel &&
+    range &&
+    caretNode &&
+    caretNode.nodeType === Node.TEXT_NODE &&
+    caretNode.textContent &&
+    caretNode.textContent.length > 1 &&
+    caretNode.textContent.startsWith(ZWSP)
+  ) {
+    const parentEl = (caretNode as Text).parentElement;
     if (
-      curContainer.nodeType === Node.TEXT_NODE &&
-      curContainer.textContent &&
-      curContainer.textContent.length > 1 &&
-      curContainer.textContent.startsWith('​')
+      parentEl?.tagName === 'SPAN' &&
+      (parentEl.style.fontFamily || parentEl.style.fontSize || parentEl.style.color)
     ) {
-      const parentEl = (curContainer as Text).parentElement;
-      if (
-        parentEl?.tagName === 'SPAN' &&
-        !parentEl.style.color &&
-        (parentEl.style.fontFamily || parentEl.style.fontSize)
-      ) {
-        curContainer.textContent = curContainer.textContent.substring(1);
-        const restoredRange = document.createRange();
-        restoredRange.setStart(curContainer, Math.max(0, curRange.startOffset - 1));
-        restoredRange.collapse(true);
-        curSel.removeAllRanges();
-        curSel.addRange(restoredRange);
-      }
-    }
-
-    // Remove orphaned ​-only text nodes from font/size spans that the cursor has left.
-    // Color spans (​ anchor pattern) are excluded — those are managed by activeColorSpanRef.
-    if (contentRef.current) {
-      contentRef.current.querySelectorAll('span[style]').forEach((span) => {
-        if ((span as HTMLElement).style.color) return;
-        Array.from(span.childNodes).forEach((child) => {
-          if (
-            child.nodeType === Node.TEXT_NODE &&
-            child.textContent === '​' &&
-            child !== curContainer
-          ) {
-            child.remove();
-          }
-        });
-      });
+      // NOTE: Read the offset BEFORE mutating — `range` is a live Range and
+      // replacing the text node's data clamps its offset to 0.
+      const offsetBefore = range.startOffset;
+      caretNode.textContent = caretNode.textContent.substring(1);
+      const restored = document.createRange();
+      restored.setStart(
+        caretNode,
+        Math.min(Math.max(0, offsetBefore - 1), caretNode.textContent.length),
+      );
+      restored.collapse(true);
+      sel.removeAllRanges();
+      sel.addRange(restored);
     }
   }
+
+  // Fallback: active color span holding a stale ZWSP while the caret is
+  // elsewhere (kept from the pre-split implementation).
+  const activeSpan = activeColorSpanRef.current;
+  if (
+    activeSpan &&
+    activeSpan.firstChild !== caretNode &&
+    activeSpan.textContent &&
+    activeSpan.textContent.length > 1 &&
+    activeSpan.textContent.startsWith(ZWSP)
+  ) {
+    activeSpan.textContent = activeSpan.textContent.substring(1);
+  }
+
+  // Remove orphaned ZWSP-only text nodes from font/size spans that the cursor
+  // has left. Color spans are excluded — those are managed by activeColorSpanRef.
+  if (contentRef.current) {
+    contentRef.current.querySelectorAll('span[style]').forEach((span) => {
+      if ((span as HTMLElement).style.color) return;
+      Array.from(span.childNodes).forEach((child) => {
+        if (
+          child.nodeType === Node.TEXT_NODE &&
+          child.textContent === ZWSP &&
+          child !== caretNode
+        ) {
+          child.remove();
+        }
+      });
+    });
+  }
+}
+
+/**
+ * Handles the onInput event for the contentEditable editor.
+ * Manages color span tracking and ZWSP anchor cleanup for direct input.
+ *
+ * NOTE: While the IME is composing, the DOM under the caret belongs to the
+ * IME — rewriting text nodes here desyncs its internal state and leaks
+ * pending romaji into the document (e.g. typing テスト yielding 「テストt」).
+ * Every mutation is therefore skipped until the compositionend cleanup pass.
+ */
+export function handleEditorInput(
+  e: React.FormEvent<HTMLDivElement>,
+  refs: ColorRefs,
+  onContentChange: () => void,
+): void {
+  onContentChange();
+
+  if (refs.isComposingRef?.current) return;
+
+  trackColorSpan(e, refs);
+  // NOTE: Runs after trackColorSpan because moveLastCharToColorSpan may have
+  // moved the cursor; cleanup re-reads the selection itself.
+  runEditorCleanup(refs);
 }
 
 /**
@@ -201,7 +251,7 @@ export function handleDeleteColorPersistence(refs: ColorRefs): void {
     if (!isInColorSpan && selectedTextColorRef.current) {
       const newSpan = document.createElement('span');
       newSpan.style.color = selectedTextColorRef.current;
-      newSpan.textContent = '\u200B';
+      newSpan.textContent = ZWSP;
       activeColorSpanRef.current = newSpan;
 
       newRange.insertNode(newSpan);

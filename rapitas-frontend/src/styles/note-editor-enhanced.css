@@ -35,6 +35,36 @@
   }
 }
 
+/* Block heading hierarchy (JIRA-style block styles).
+   Overrides the prose defaults — typography's :where() selectors have zero
+   specificity, so these compact note-tuned sizes win in light and dark. */
+.note-editor h1 {
+  font-size: 1.5em;
+  font-weight: 700;
+  line-height: 1.3;
+  margin: 0.8em 0 0.4em;
+}
+
+.note-editor h2 {
+  font-size: 1.3em;
+  font-weight: 700;
+  line-height: 1.35;
+  margin: 0.7em 0 0.35em;
+}
+
+.note-editor h3 {
+  font-size: 1.15em;
+  font-weight: 600;
+  line-height: 1.4;
+  margin: 0.6em 0 0.3em;
+}
+
+.note-editor h1:first-child,
+.note-editor h2:first-child,
+.note-editor h3:first-child {
+  margin-top: 0;
+}
+
 /* Editor focus styles */
 .note-editor:focus-within {
   box-shadow: 0 0 0 1px rgba(99, 102, 241, 0.2);

@@ -30,6 +30,11 @@ export function handleEditorKeyDown(
 ): void {
   const { contentRef } = refs;
 
+  // NOTE: During IME composition every key event belongs to the IME (legacy
+  // keyCode 229). Intercepting Enter/Backspace here — e.g. the heading-exit
+  // or span-continuation handlers — would commit or corrupt the composition.
+  if (e.nativeEvent.isComposing || e.keyCode === 229) return;
+
   // When the caret is inside a code block, let the code element's own onkeydown
   // handle Enter / Tab / Backspace / Delete.  The outer editor must not interfere.
   if (isCursorInCodeBlock(contentRef)) return;
