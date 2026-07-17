@@ -17,36 +17,48 @@ const getChip = (container: HTMLElement) => container.querySelector('span.rounde
 
 describe('renderBlockWithEmojiIcons', () => {
   describe('whole-line verdict phrases render as chips', () => {
+    // The chip DISPLAYS a short label; the full canonical phrase moves to title.
     it.each([
-      { input: '✅ 検証成功', text: '検証成功', tone: 'green' },
-      { input: '❌ 検証失敗', text: '検証失敗', tone: 'red' },
-      { input: '⚠️ 一部失敗', text: '一部失敗', tone: 'amber' },
-      { input: '✅ Pass', text: 'Pass', tone: 'green' },
-      { input: '❌ Fail', text: 'Fail', tone: 'red' },
-      { input: '⚠️ Partial', text: 'Partial', tone: 'amber' },
-    ])('"$input" → $tone chip "$text"', ({ input, text, tone }) => {
+      { input: '✅ 検証成功', text: '合格', title: '検証成功', tone: 'green' },
+      { input: '❌ 検証失敗', text: '不合格', title: '検証失敗', tone: 'red' },
+      { input: '⚠️ 一部失敗', text: '一部失敗', title: '一部失敗', tone: 'amber' },
+      { input: '✅ Pass', text: 'Pass', title: 'Pass', tone: 'green' },
+      { input: '❌ Fail', text: 'Fail', title: 'Fail', tone: 'red' },
+      { input: '⚠️ Partial', text: 'Partial', title: 'Partial', tone: 'amber' },
+    ])('"$input" → $tone chip "$text" (title: $title)', ({ input, text, title, tone }) => {
       const { container } = renderBlock(input);
       const chip = getChip(container);
       expect(chip).not.toBeNull();
       expect(chip?.textContent).toBe(text);
+      expect(chip?.getAttribute('title')).toBe(title);
       expect(chip?.getAttribute('class')).toContain(`border-${tone}-300`);
       // Icon lives inside the chip.
       expect(chip?.querySelector('svg')).not.toBeNull();
     });
 
     it.each([
-      { input: '✅ 検証成功（修正不要）', expected: '検証成功（修正不要）' },
-      { input: '✅ Pass (no change needed)', expected: 'Pass (no change needed)' },
-    ])('keeps the qualifier: "$input"', ({ input, expected }) => {
+      {
+        input: '✅ 検証成功（修正不要）',
+        expected: '合格（修正不要）',
+        title: '検証成功（修正不要）',
+      },
+      {
+        input: '✅ Pass (no change needed)',
+        expected: 'Pass (no change needed)',
+        title: 'Pass (no change needed)',
+      },
+    ])('keeps the qualifier: "$input"', ({ input, expected, title }) => {
       const { container } = renderBlock(input);
-      expect(getChip(container)?.textContent).toBe(expected);
+      const chip = getChip(container);
+      expect(chip?.textContent).toBe(expected);
+      expect(chip?.getAttribute('title')).toBe(title);
     });
 
     it('renders a chip for a bold-wrapped verdict', () => {
       const { container } = renderBlock(<strong>❌ 検証失敗</strong>);
       const chip = getChip(container);
       expect(chip).not.toBeNull();
-      expect(chip?.textContent).toBe('検証失敗');
+      expect(chip?.textContent).toBe('不合格');
       expect(chip?.getAttribute('class')).toContain('border-red-300');
     });
 

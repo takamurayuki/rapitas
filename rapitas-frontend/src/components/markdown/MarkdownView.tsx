@@ -16,6 +16,7 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import {
   isIconOnlyCellContent,
+  renderTableCellContent,
   renderTextWithEmojiIcons,
   unwrapFullQuotes,
 } from './emoji-to-lucide';
@@ -173,7 +174,7 @@ export function MarkdownView({
                 className={`px-2 py-1 align-top text-xs font-medium text-zinc-600 dark:text-zinc-300 whitespace-normal [overflow-wrap:anywhere] ${isIconOnlyCellContent(content) ? 'text-center' : 'text-left'}`}
                 {...props}
               >
-                {renderTextWithEmojiIcons(content)}
+                {renderTableCellContent(content)}
               </th>
             );
           },
@@ -184,7 +185,7 @@ export function MarkdownView({
                 className={`px-2 py-1 align-top text-zinc-700 dark:text-zinc-300 whitespace-normal [overflow-wrap:anywhere] [&_code]:text-[0.8em] [&_code]:break-all ${isIconOnlyCellContent(content) ? 'text-center' : ''}`}
                 {...props}
               >
-                {renderTextWithEmojiIcons(content)}
+                {renderTableCellContent(content)}
               </td>
             );
           },

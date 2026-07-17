@@ -12,6 +12,7 @@ import type { ReactNode, HTMLAttributes, CSSProperties } from 'react';
 import { NoteChipLink } from '../NoteChipLink';
 import {
   isIconOnlyCellContent,
+  renderTableCellContent,
   renderTextWithEmojiIcons,
   unwrapFullQuotes,
 } from '@/components/markdown/emoji-to-lucide';
@@ -112,10 +113,10 @@ export const createMarkdownComponents = () => ({
     const content = unwrapFullQuotes(children);
     return (
       <td
-        className={`border-b border-zinc-100 dark:border-zinc-800 px-2 py-1 align-top text-zinc-700 dark:text-zinc-300 whitespace-normal [overflow-wrap:anywhere] ${isIconOnlyCellContent(content) ? 'text-center' : ''}`}
+        className={`border-b border-zinc-100 dark:border-zinc-800 px-2 py-1 align-top text-zinc-700 dark:text-zinc-300 whitespace-normal [overflow-wrap:anywhere] [&_code]:text-[0.85em] [&_code]:break-all ${isIconOnlyCellContent(content) ? 'text-center' : ''}`}
         {...props}
       >
-        {renderTextWithEmojiIcons(content)}
+        {renderTableCellContent(content)}
       </td>
     );
   },
@@ -126,7 +127,7 @@ export const createMarkdownComponents = () => ({
         className={`bg-zinc-100 dark:bg-zinc-800/80 border-b border-zinc-200 dark:border-zinc-700 px-2 py-1 align-top font-medium text-zinc-600 dark:text-zinc-300 whitespace-normal [overflow-wrap:anywhere] ${isIconOnlyCellContent(content) ? 'text-center' : 'text-left'}`}
         {...props}
       >
-        {renderTextWithEmojiIcons(content)}
+        {renderTableCellContent(content)}
       </th>
     );
   },

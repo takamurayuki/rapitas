@@ -48,24 +48,40 @@ const TONE_BY_EMOJI: Record<string, VerdictTone> = {
   '⚠': 'partial',
 };
 
+// NOTE: the chip DISPLAYS a short label; the full machine-parsed canonical
+// phrase stays available on the chip's title (hover) — the stored markdown is
+// of course untouched.
+const SHORT_LABELS: Record<string, string> = {
+  検証成功: '合格',
+  検証失敗: '不合格',
+  一部失敗: '一部失敗',
+  Pass: 'Pass',
+  Fail: 'Fail',
+  Partial: 'Partial',
+};
+
 interface VerdictChipProps {
   /** Verdict tone driving colour and icon. / 判定トーン */
   tone: VerdictTone;
-  /** Verdict phrase without the emoji. / 絵文字を除いた判定文言 */
+  /** Short label displayed inside the pill. / ピル内に表示する短い文言 */
   text: string;
+  /** Full canonical phrase, shown as the hover title. / ホバー表示用の正式文言 */
+  fullText?: string;
 }
 
 /**
  * Compact status pill for a whole-line verdict phrase.
  *
  * @param tone - Verdict tone (pass/fail/partial). / 判定トーン
- * @param text - Phrase displayed inside the pill. / ピル内に表示する文言
+ * @param text - Short label displayed inside the pill. / ピル内の短い表示文言
+ * @param fullText - Full canonical phrase for the title attribute. / title用の正式文言
  * @returns The pill element. / ピル要素
  */
-export function VerdictChip({ tone, text }: VerdictChipProps) {
+export function VerdictChip({ tone, text, fullText }: VerdictChipProps) {
   const { Icon, className } = TONE_STYLES[tone];
   return (
     <span
+      title={fullText}
       className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-xs font-medium ${className}`}
     >
       <Icon aria-hidden="true" className="h-3.5 w-3.5 shrink-0" />
@@ -87,7 +103,12 @@ export function renderBlockWithEmojiIcons(node: ReactNode): ReactNode {
   if (m) {
     const tone = TONE_BY_EMOJI[m[1]];
     if (tone) {
-      return <VerdictChip tone={tone} text={`${m[2]}${m[3] ?? ''}`.trim()} />;
+      const qualifier = (m[3] ?? '').trim();
+      // Full-width parens need no separating space; ASCII parens keep one.
+      const sep = qualifier && !qualifier.startsWith('（') ? ' ' : '';
+      const full = `${m[2]}${sep}${qualifier}`;
+      const display = `${SHORT_LABELS[m[2]] ?? m[2]}${sep}${qualifier}`;
+      return <VerdictChip tone={tone} text={display} fullText={full} />;
     }
   }
   return renderTextWithEmojiIcons(node);

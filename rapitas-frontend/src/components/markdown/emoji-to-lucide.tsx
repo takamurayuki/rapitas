@@ -98,7 +98,9 @@ const EMOJI_ICON_MAP: Record<string, EmojiIconEntry> = {
   '⏳': { Icon: Clock, className: 'text-zinc-400', label: 'pending' },
   // Legacy seed-vocabulary set: removed from the seed prompts, but stored docs
   // and DB-persisted role prompts still emit these.
-  '⏭': { Icon: SkipForward, className: 'text-zinc-400', label: 'skipped' },
+  // Skip is a deliberate decision, not an absence — blue (the app's info
+  // family, same token as ℹ), not muted zinc.
+  '⏭': { Icon: SkipForward, className: 'text-sky-500', label: 'skipped' },
   '✏': { Icon: Pencil, className: 'text-zinc-400', label: 'modified' },
   '🗑': { Icon: Trash2, className: 'text-zinc-400', label: 'deleted' },
   '🆕': { Icon: FilePlus, className: 'text-green-500', label: 'new' },
@@ -161,9 +163,15 @@ function substituteString(text: string): ReactNode {
     const next = parts[i + 1];
     if (collapseRe && typeof next === 'string') {
       const m = collapseRe.exec(next);
-      if (m) {
+      // NOTE: collapse ONLY when other content follows the status word
+      // ("✅ 完了: タイトル" → icon + タイトル). When the word IS the entire
+      // remaining content ("✅ 合格" alone in a verdict cell) keep icon + word —
+      // a lone centered icon made the cell read as an outlier in its row.
+      const remainder = m ? next.slice(m[0].length) : '';
+      const hasFollowingContent = remainder.trim().length > 0 || i + 2 < parts.length;
+      if (m && hasFollowingContent) {
         collapsedLabel = m[1];
-        parts[i + 1] = next.slice(m[0].length);
+        parts[i + 1] = remainder;
       }
     }
     out.push(<EmojiIcon key={i} emoji={emoji} collapsedLabel={collapsedLabel} />);
@@ -206,22 +214,53 @@ export function flattenNodeText(node: ReactNode): string {
   return '';
 }
 
+// A cell whose ENTIRE content is an N/A dash placeholder (em/horizontal-bar
+// dashes or `--`). A single `-` is left alone — it can be a literal minus.
+const DASH_PLACEHOLDER_RE = /^\s*(?:—+|―+|-{2,})\s*$/;
+
 /**
- * Whether a table cell's content is visually just an icon (or a tiny marker):
- * after removing mapped emoji, variation selectors, and whitespace, at most 3
- * characters remain. Such cells read better centered — a lone status icon
- * sitting left-aligned between the column dividers looks off-center. Longer
- * content (counts like "22 / 22", prose columns) must stay left-aligned.
+ * Whether a table cell's entire content is a dash "N/A" placeholder.
+ *
+ * @param node - Cell children from a td/th override. / セルの子ノード
+ * @returns True for placeholder-only cells. / プレースホルダのみのセルなら true
+ */
+export function isDashPlaceholderCell(node: ReactNode): boolean {
+  const text = flattenNodeText(node);
+  return text.trim().length > 0 && DASH_PLACEHOLDER_RE.test(text);
+}
+
+/**
+ * Whether a table cell's content is visually just an icon or a tiny marker:
+ * nothing but mapped emoji / whitespace remains after stripping, or the cell is
+ * a dash placeholder. Such cells read better centered — a lone status icon
+ * sitting left-aligned between the column dividers looks off-center. Anything
+ * with visible text (icon + word verdicts, counts, prose) stays left-aligned.
  *
  * @param node - Cell children from a td/th override. / セルの子ノード
  * @returns True when the cell should be center-aligned. / 中央寄せすべきなら true
  */
 export function isIconOnlyCellContent(node: ReactNode): boolean {
+  if (isDashPlaceholderCell(node)) return true;
   const stripped = flattenNodeText(node)
     .replace(EMOJI_SPLIT_RE, '')
     .replace(/️/g, '')
     .replace(/\s+/g, '');
-  return Array.from(stripped).length <= 3;
+  return stripped.length === 0;
+}
+
+/**
+ * Renders a table cell's (already quote-unwrapped) content: dash placeholders
+ * become a short muted en dash; everything else goes through the emoji→icon
+ * substitution. Dashes inside prose are untouched (whole-cell match only).
+ *
+ * @param node - Cell children after unwrapFullQuotes. / 引用符処理後のセル子ノード
+ * @returns Cell content ready to render. / 描画用セル内容
+ */
+export function renderTableCellContent(node: ReactNode): ReactNode {
+  if (isDashPlaceholderCell(node)) {
+    return <span className="text-zinc-500">–</span>;
+  }
+  return renderTextWithEmojiIcons(node);
 }
 
 /**

@@ -9,7 +9,9 @@
 import { describe, it, expect } from 'vitest';
 import { render } from '@testing-library/react';
 import {
+  isDashPlaceholderCell,
   isIconOnlyCellContent,
+  renderTableCellContent,
   renderTextWithEmojiIcons,
   unwrapFullQuotes,
 } from './emoji-to-lucide';
@@ -37,13 +39,13 @@ describe('renderTextWithEmojiIcons', () => {
         emoji: '⏭️',
         label: 'skipped',
         iconClass: 'lucide-skip-forward',
-        colorClass: 'text-zinc-400',
+        colorClass: 'text-sky-500',
       },
       {
         emoji: '⏭',
         label: 'skipped',
         iconClass: 'lucide-skip-forward',
-        colorClass: 'text-zinc-400',
+        colorClass: 'text-sky-500',
       },
       { emoji: '✏️', label: 'modified', iconClass: 'lucide-pencil', colorClass: 'text-zinc-400' },
       { emoji: '✏', label: 'modified', iconClass: 'lucide-pencil', colorClass: 'text-zinc-400' },
@@ -126,20 +128,25 @@ describe('renderTextWithEmojiIcons', () => {
     });
 
     it.each([
-      { input: '✅ 完了', label: '完了' },
-      { input: '✅ 合格', label: '合格' },
-      { input: '✅ OK', label: 'OK' },
-      { input: '✅ Passed', label: 'Passed' },
-      { input: '❌ 未実施', label: '未実施' },
-      { input: '❌ NG', label: 'NG' },
-      { input: '❌ Failed', label: 'Failed' },
-      { input: '⚠️ 注意', label: '注意' },
-      { input: '⚠️ Warning', label: 'Warning' },
-    ])('bare "$input" (no colon) collapses fully', ({ input, label }) => {
-      const { container, getByRole } = renderText(input);
-      expect(getByRole('img', { name: label })).toBeInTheDocument();
-      expect(container.textContent?.trim()).toBe('');
-    });
+      { input: '✅ 完了', word: '完了' },
+      { input: '✅ 合格', word: '合格' },
+      { input: '✅ OK', word: 'OK' },
+      { input: '✅ Passed', word: 'Passed' },
+      { input: '❌ 未実施', word: '未実施' },
+      { input: '❌ NG', word: 'NG' },
+      { input: '❌ Failed', word: 'Failed' },
+      { input: '⚠️ 注意', word: '注意' },
+      { input: '⚠️ Warning', word: 'Warning' },
+    ])(
+      'keeps icon + word when the status word IS the entire content: "$input"',
+      ({ input, word }) => {
+        // A lone centered icon in a verdict cell read as an outlier — when
+        // nothing follows the word, it stays visible next to the icon.
+        const { container, getByRole } = renderText(input);
+        expect(getByRole('img')).toBeInTheDocument();
+        expect(container.textContent).toContain(word);
+      },
+    );
 
     it('collapses "✅ 完了 サブタスク" keeping the item name', () => {
       const { container, getByRole } = renderText('✅ 完了 サブタスク');
@@ -175,15 +182,40 @@ describe('isIconOnlyCellContent', () => {
   it.each([
     { input: '✅', expected: true },
     { input: '⚠️ ', expected: true },
-    // Collapsed redundant word: renders icon-only, so it centers too.
-    { input: '✅ 完了', expected: true },
-    { input: '高', expected: true },
     { input: '', expected: true },
+    // Dash placeholders center like lone icons.
+    { input: '—', expected: true },
+    { input: '--', expected: true },
+    // Icon + kept status word has visible text → left-aligned.
+    { input: '✅ 完了', expected: false },
+    { input: '高', expected: false },
     { input: '22 / 22', expected: false },
     { input: '説明テキストの長いセルです', expected: false },
     { input: '✅ 12/12 passed', expected: false },
   ])('"$input" → $expected', ({ input, expected }) => {
     expect(isIconOnlyCellContent(input)).toBe(expected);
+  });
+});
+
+describe('dash placeholder cells', () => {
+  it.each(['—', ' ― ', '--', '———'])('detects placeholder %j', (input) => {
+    expect(isDashPlaceholderCell(input)).toBe(true);
+  });
+
+  it.each(['a — b', '-', '5-3', ''])('does not treat %j as a placeholder', (input) => {
+    expect(isDashPlaceholderCell(input)).toBe(false);
+  });
+
+  it('renders a short muted en dash for a placeholder-only cell', () => {
+    const { container } = render(<div>{renderTableCellContent('—')}</div>);
+    const span = container.querySelector('span');
+    expect(span?.textContent).toBe('–');
+    expect(span?.className).toContain('text-zinc-500');
+  });
+
+  it('leaves dashes inside prose untouched', () => {
+    const { container } = render(<div>{renderTableCellContent('before — after')}</div>);
+    expect(container.textContent).toBe('before — after');
   });
 });
 
@@ -221,5 +253,26 @@ describe('table cell rendering via MarkdownView', () => {
     const { container } = render(<MarkdownView content={md} />);
     expect(container.querySelector('thead')?.className).toContain('bg-zinc-100');
     expect(container.querySelector('tr')?.className).toContain('divide-x');
+  });
+
+  it('renders verdict cells as icon + word (left) and dash placeholders as muted en dash (centered)', () => {
+    const verdictMd = [
+      '| 判定 | 補足 | 状態 |',
+      '| --- | --- | --- |',
+      '| ✅ 合格 | — | ✅ |',
+    ].join('\n');
+    const { container } = render(<MarkdownView content={verdictMd} />);
+    const cells = Array.from(container.querySelectorAll('tbody td'));
+    expect(cells).toHaveLength(3);
+    // Icon + word verdict: word stays visible, cell left-aligned.
+    expect(cells[0].textContent).toContain('合格');
+    expect(cells[0].querySelector('svg')).not.toBeNull();
+    expect(cells[0].className).not.toContain('text-center');
+    // Dash placeholder: short muted en dash, centered.
+    expect(cells[1].textContent).toBe('–');
+    expect(cells[1].querySelector('span')?.className).toContain('text-zinc-500');
+    expect(cells[1].className).toContain('text-center');
+    // Lone icon still centers.
+    expect(cells[2].className).toContain('text-center');
   });
 });
