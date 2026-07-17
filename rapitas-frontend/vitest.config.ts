@@ -20,14 +20,17 @@ export default defineConfig({
       // prior 30/25/28/30 values were never met (actual ≈ 11%) and CI did not
       // run --coverage, so the gate was fiction; a true floor is more defensible
       // than an unenforced target.
-      // Raised 2026-07-16 after further test additions (measured ≈
-      // statements 21.7 / branches 16.78 / functions 19.83 / lines 21.78);
-      // floor kept ~0.5-1pt below measured for margin.
+      // Recalibrated 2026-07-17 to the CI gate's curated 54-file list (the set
+      // that actually runs with --coverage in test-lint.yml) — measured ≈
+      // statements 9.12 / branches 7.42 / functions 8.02 / lines 9.27. The
+      // earlier 21% figures came from the full suite, which cannot be the CI
+      // gate because several non-gate test files hang indefinitely. Raising
+      // this floor = adding test files to the CI list, not editing numbers.
       thresholds: {
-        lines: 21,
-        branches: 16,
-        functions: 19,
-        statements: 21,
+        lines: 9,
+        branches: 7,
+        functions: 7.5,
+        statements: 8.5,
       },
     },
   },

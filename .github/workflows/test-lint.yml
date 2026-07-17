@@ -250,8 +250,11 @@ jobs:
 
       - name: Run frontend gate tests
         working-directory: rapitas-frontend
+        # NOTE: --coverage makes the vitest.config.ts threshold floor a real,
+        # enforced gate (it was previously aspirational — coverage never ran in
+        # CI). The floor is calibrated to THIS file list; keep them in sync.
         run: >
-          bunx vitest run
+          bunx vitest run --coverage
           src/components/__tests__/AppIcon.test.tsx
           src/components/__tests__/ErrorBoundary.test.tsx
           src/components/__tests__/LanguageSwitcher.test.tsx
