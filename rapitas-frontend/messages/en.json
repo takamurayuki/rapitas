@@ -4748,9 +4748,9 @@
       "syntaxError": "⚠ Syntax error — check your Mermaid syntax"
     },
     "editorToolbar": {
-      "boldTitle": "Bold",
-      "italicTitle": "Italic",
-      "underlineTitle": "Underline",
+      "boldTitle": "Bold (Ctrl+B)",
+      "italicTitle": "Italic (Ctrl+I)",
+      "underlineTitle": "Underline (Ctrl+U)",
       "bulletListTitle": "Bullet list",
       "numberedListTitle": "Numbered list"
     },

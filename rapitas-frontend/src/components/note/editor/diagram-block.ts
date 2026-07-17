@@ -153,7 +153,8 @@ export function createDiagramBlockNode(
 }
 
 /**
- * Returns the editor innerHTML with Mermaid SVGs stripped from diagram blocks.
+ * Returns the editor innerHTML with Mermaid SVGs stripped from diagram blocks
+ * and transient editing artifacts removed.
  * The .diagram-source pre is preserved so diagrams survive the save/load cycle.
  *
  * @param container - The editor's contentEditable div
@@ -164,6 +165,14 @@ export function getContentWithoutDiagramSvg(container: HTMLElement): string {
   clone.querySelectorAll('.diagram-block').forEach((block) => {
     const render = block.querySelector('.diagram-render');
     if (render) render.innerHTML = '';
+  });
+  // NOTE: Caret-anchor spans (zero-width space only) are editing aids for
+  // font/size/color persistence — they must not leak into stored content,
+  // where they would surface as invisible styled characters on reload.
+  clone.querySelectorAll('span[style]').forEach((span) => {
+    const isAnchorOnly =
+      span.childElementCount === 0 && (span.textContent === '​' || span.textContent === '');
+    if (isAnchorOnly) span.remove();
   });
   return clone.innerHTML;
 }

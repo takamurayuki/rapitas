@@ -1,6 +1,30 @@
 import { fonts } from './constants';
 
 /**
+ * Ensure the content editor owns focus without losing the given selection range.
+ *
+ * NOTE: Toolbar buttons can steal focus (keyboard activation always does, and
+ * mouse clicks did before the pickers suppressed mousedown). If the editor is
+ * left unfocused after applying a style, the user's next keystroke goes nowhere
+ * and the click needed to refocus re-places the caret OUTSIDE the zero-width
+ * anchor span — silently dropping the style. Refocusing here keeps the caret
+ * inside the anchor so typing continues styled.
+ *
+ * @param contentEl - The contentEditable editor element / エディタ要素
+ * @param range - Selection range to restore after focusing / フォーカス後に復元する選択範囲
+ */
+function focusEditorPreservingRange(contentEl: HTMLDivElement, range: Range): void {
+  if (contentEl.contains(document.activeElement)) return;
+  contentEl.focus();
+  // focus() may reset the selection — re-apply the captured range explicitly.
+  const selection = window.getSelection();
+  if (selection) {
+    selection.removeAllRanges();
+    selection.addRange(range);
+  }
+}
+
+/**
  * Check whether the active element is the title input; if so, the caller
  * should skip formatting operations.
  */
@@ -112,6 +136,7 @@ export function applyFontSize(contentEl: HTMLDivElement | null, size: string): b
 
   const range = selection.getRangeAt(0);
   if (!contentEl?.contains(range.commonAncestorContainer)) return false;
+  focusEditorPreservingRange(contentEl, range);
 
   const span = document.createElement('span');
   span.style.fontSize = size;
@@ -153,6 +178,7 @@ export function applyFont(contentEl: HTMLDivElement | null, font: string): boole
 
   const range = selection.getRangeAt(0);
   if (!contentEl?.contains(range.commonAncestorContainer)) return false;
+  focusEditorPreservingRange(contentEl, range);
 
   const span = document.createElement('span');
   span.style.fontFamily = font;
@@ -185,10 +211,37 @@ export interface DetectedFormat {
   textColor: string;
 }
 
+/** Normalizes a CSS font-family list to its first family for comparison. */
+function firstFamily(value: string): string {
+  return value.split(',')[0].replace(/['"]/g, '').trim().toLowerCase();
+}
+
+/**
+ * Walks up from a node to `root` looking for an explicit inline font-family.
+ *
+ * NOTE: Computed style cannot be used here — default note text falls back to
+ * the body font (Arial per globals.css), so the picker would misreport
+ * unstyled text as "Arial" instead of "default".
+ */
+function findInlineFontFamily(start: Node, root: HTMLElement | null): string | null {
+  let node: Node | null = start;
+  while (node && node !== root && node !== document.body) {
+    if (node.nodeType === Node.ELEMENT_NODE) {
+      const inline = (node as HTMLElement).style.fontFamily;
+      if (inline) return inline;
+    }
+    node = node.parentNode;
+  }
+  return null;
+}
+
 /**
  * Detect font size, font family, and text color at the current selection.
+ *
+ * @param root - Editor root bounding the inline-style walk (usually the contentEditable div) / インライン走査の境界要素
+ * @returns Detected format, or null when there is no selection / 選択が無い場合はnull
  */
-export function detectCurrentFormat(): DetectedFormat | null {
+export function detectCurrentFormat(root?: HTMLElement | null): DetectedFormat | null {
   const selection = window.getSelection();
   if (!selection || selection.rangeCount === 0) return null;
 
@@ -199,13 +252,13 @@ export function detectCurrentFormat(): DetectedFormat | null {
   }
 
   const computedStyle = window.getComputedStyle(node as Element);
-  const fontSize = parseInt(computedStyle.fontSize);
+  const parsedSize = parseInt(computedStyle.fontSize);
+  const fontSize = Number.isNaN(parsedSize) ? 16 : parsedSize;
 
-  const fontFamily = computedStyle.fontFamily;
-  const matchingFont = fonts.find((f) => {
-    if (f.value === 'inherit') return false;
-    return fontFamily.includes(f.value.split(',')[0].replace(/['"]/g, ''));
-  });
+  const inlineFont = findInlineFontFamily(range.commonAncestorContainer, root ?? null);
+  const matchingFont = inlineFont
+    ? fonts.find((f) => f.value !== 'inherit' && firstFamily(f.value) === firstFamily(inlineFont))
+    : undefined;
 
   const color = computedStyle.color;
   const rgb = color.match(/\d+/g);
@@ -214,6 +267,8 @@ export function detectCurrentFormat(): DetectedFormat | null {
     textColor =
       '#' +
       rgb
+        // NOTE: rgba() yields extra alpha digits — only the first 3 channels form the hex.
+        .slice(0, 3)
         .map((x) => {
           const hex = parseInt(x).toString(16);
           return hex.length === 1 ? '0' + hex : hex;

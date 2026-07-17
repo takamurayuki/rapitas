@@ -4748,9 +4748,9 @@
       "syntaxError": "⚠ 構文エラー — Mermaidの記法を確認してください"
     },
     "editorToolbar": {
-      "boldTitle": "太字",
-      "italicTitle": "斜体",
-      "underlineTitle": "下線",
+      "boldTitle": "太字 (Ctrl+B)",
+      "italicTitle": "斜体 (Ctrl+I)",
+      "underlineTitle": "下線 (Ctrl+U)",
       "bulletListTitle": "箇条書き",
       "numberedListTitle": "番号付きリスト"
     },

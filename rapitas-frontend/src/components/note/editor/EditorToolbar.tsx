@@ -152,6 +152,10 @@ export default function EditorToolbar(props: EditorToolbarProps) {
   const toggleColorPicker = makeToggle(props, 'showColorPicker');
   const toggleBorderPicker = makeToggle(props, 'showBorderPicker');
 
+  // NOTE: Formatting buttons must not steal focus from the contentEditable —
+  // losing focus collapses/loses the selection the command should apply to.
+  const keepEditorFocus = (e: React.MouseEvent) => e.preventDefault();
+
   return (
     <div className="flex items-center gap-0.5 px-4 pb-1.5 border-b border-zinc-200 dark:border-zinc-700">
       <FontPickerSection
@@ -171,6 +175,7 @@ export default function EditorToolbar(props: EditorToolbarProps) {
 
       {/* Basic formatting */}
       <button
+        onMouseDown={keepEditorFocus}
         onClick={() => onApplyFormat('bold')}
         className="px-1 py-0.5 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded transition-colors h-6 flex items-center justify-center"
         title={t('editorToolbar.boldTitle')}
@@ -178,6 +183,7 @@ export default function EditorToolbar(props: EditorToolbarProps) {
         <Bold className="w-3.5 h-3.5" />
       </button>
       <button
+        onMouseDown={keepEditorFocus}
         onClick={() => onApplyFormat('italic')}
         className="px-1 py-0.5 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded transition-colors h-6 flex items-center justify-center"
         title={t('editorToolbar.italicTitle')}
@@ -185,6 +191,7 @@ export default function EditorToolbar(props: EditorToolbarProps) {
         <Italic className="w-3.5 h-3.5" />
       </button>
       <button
+        onMouseDown={keepEditorFocus}
         onClick={() => onApplyFormat('underline')}
         className="px-1 py-0.5 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded transition-colors h-6 flex items-center justify-center"
         title={t('editorToolbar.underlineTitle')}
@@ -215,6 +222,7 @@ export default function EditorToolbar(props: EditorToolbarProps) {
 
       {/* Lists */}
       <button
+        onMouseDown={keepEditorFocus}
         onClick={() => onApplyFormat('insertUnorderedList')}
         className="px-1 py-0.5 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded transition-colors h-6 flex items-center justify-center"
         title={t('editorToolbar.bulletListTitle')}
@@ -222,6 +230,7 @@ export default function EditorToolbar(props: EditorToolbarProps) {
         <List className="w-3.5 h-3.5" />
       </button>
       <button
+        onMouseDown={keepEditorFocus}
         onClick={() => onApplyFormat('insertOrderedList')}
         className="px-1 py-0.5 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded transition-colors h-6 flex items-center justify-center"
         title={t('editorToolbar.numberedListTitle')}

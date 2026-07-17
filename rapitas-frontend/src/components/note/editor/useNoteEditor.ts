@@ -237,7 +237,9 @@ export function useNoteEditor(note: Note): NoteEditorState {
 
   // Detect formatting at current cursor position
   const handleDetectFormat = useCallback(() => {
-    const format = detectCurrentFormat();
+    // NOTE: contentRef bounds the inline-style walk so the body's Arial fallback
+    // is never misreported as an explicitly chosen font.
+    const format = detectCurrentFormat(contentRef.current);
     if (format) {
       setCurrentFontSize(format.fontSize);
       setCurrentFont(format.fontFamily);

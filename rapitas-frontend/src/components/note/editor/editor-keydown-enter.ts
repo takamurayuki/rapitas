@@ -2,14 +2,15 @@
  * editor-keydown-enter
  *
  * Enter key handling for the note editor: escapes highlight/border spans but
- * continues text-color spans onto the new line, preserving trailing content.
- * Does NOT handle Backspace, Delete, or code-block guards.
+ * continues text-color and font/size spans onto the new line, preserving
+ * trailing content. Does NOT handle Backspace, Delete, or code-block guards.
  */
 import type React from 'react';
 import type { EditorRefs } from './editor-keydown.types';
 
 /**
- * Handles Enter key: escapes highlight/border spans, but continues text color spans.
+ * Handles Enter key: escapes highlight/border spans, but continues text color
+ * and font-family/font-size spans onto the new line.
  */
 export function handleEnter(
   e: React.KeyboardEvent<HTMLDivElement>,
@@ -26,6 +27,7 @@ export function handleEnter(
 
   let styledSpan: HTMLElement | null = null;
   let isTextColorSpan = false;
+  let isFontSpan = false;
   while (node && node !== contentRef.current) {
     if (node.nodeType === Node.ELEMENT_NODE && (node as HTMLElement).tagName === 'SPAN') {
       const el = node as HTMLElement;
@@ -36,6 +38,14 @@ export function handleEnter(
       if (el.style.color) {
         styledSpan = el;
         isTextColorSpan = true;
+        break;
+      }
+      // NOTE: Without this, Enter inside a font span fell through to the
+      // browser default, which starts the new line OUTSIDE the span — the
+      // chosen font silently reverted to the body default (Arial).
+      if (el.style.fontFamily || el.style.fontSize) {
+        styledSpan = el;
+        isFontSpan = true;
         break;
       }
     }
@@ -93,7 +103,7 @@ export function handleEnter(
   }
 
   const newRange = document.createRange();
-  if (isTextColorSpan || selectedTextColorRef.current) {
+  if (isTextColorSpan || isFontSpan || selectedTextColorRef.current) {
     const newColorSpan = styledSpan.cloneNode(false) as HTMLElement;
 
     if (selectedTextColorRef.current && !isTextColorSpan) {
@@ -101,7 +111,12 @@ export function handleEnter(
     }
 
     newColorSpan.textContent = '\u200B';
-    activeColorSpanRef.current = newColorSpan;
+    // NOTE: Only color-carrying spans register as the active color anchor \u2014
+    // pure font/size spans are cleaned up by handleEditorInput's ZWSP logic
+    // and must not enter the color-persistence tracking.
+    if (isTextColorSpan || selectedTextColorRef.current) {
+      activeColorSpanRef.current = newColorSpan;
+    }
 
     if (trailingSpan) {
       br.parentNode!.insertBefore(newColorSpan, trailingSpan);
