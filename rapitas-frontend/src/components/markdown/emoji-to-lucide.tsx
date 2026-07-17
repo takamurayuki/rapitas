@@ -172,6 +172,17 @@ function substituteString(text: string): ReactNode {
       if (m && hasFollowingContent) {
         collapsedLabel = m[1];
         parts[i + 1] = remainder;
+      } else if (m) {
+        // Icon + visible status word ("✅ 合格"): keep the pair on one line —
+        // narrow cells otherwise break between the icon and its word.
+        parts[i + 1] = '';
+        out.push(
+          <span key={i} className="whitespace-nowrap">
+            <EmojiIcon emoji={emoji} />
+            {next}
+          </span>,
+        );
+        continue;
       }
     }
     out.push(<EmojiIcon key={i} emoji={emoji} collapsedLabel={collapsedLabel} />);

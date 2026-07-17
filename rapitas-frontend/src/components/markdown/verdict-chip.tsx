@@ -82,7 +82,7 @@ export function VerdictChip({ tone, text, fullText }: VerdictChipProps) {
   return (
     <span
       title={fullText}
-      className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-xs font-medium ${className}`}
+      className={`inline-flex items-center gap-1.5 whitespace-nowrap rounded-full border px-2.5 py-0.5 text-xs font-medium ${className}`}
     >
       <Icon aria-hidden="true" className="h-3.5 w-3.5 shrink-0" />
       {text}
