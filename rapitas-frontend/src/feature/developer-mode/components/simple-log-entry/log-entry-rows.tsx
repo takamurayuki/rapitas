@@ -148,7 +148,8 @@ export const NarrativeRow: React.FC<
             </button>
           )}
         </div>
-        {(entry.count ?? 1) > 1 && <CountBadge count={entry.count!} />}
+        {/* NOTE: No ×N badge on speech bubbles (user decision) — narrative
+            lines are unique prose anyway; the counter is for mechanical rows. */}
       </div>
     </div>
   );
