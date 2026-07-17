@@ -4142,7 +4142,8 @@
       "executionLog": "Execution log",
       "noMatchForQuery": "No logs match \"{query}\"",
       "noMatchingLogs": "No matching logs",
-      "fetchingLogs": "Fetching execution log..."
+      "fetchingLogs": "Fetching execution log...",
+      "resizeLog": "Resize log height"
     },
     "executionFailedPanel": {
       "title": "Execution failed",
@@ -4161,6 +4162,9 @@
     "simpleLogEntry": {
       "close": "Close",
       "fullText": "Full text",
+      "repeatCount": "×{count}",
+      "copyPath": "Copy path",
+      "copied": "Copied",
       "waitingForLogs": "Waiting for execution log..."
     },
     "agentExecutionPanel": {
@@ -4190,29 +4194,32 @@
     },
     "logTransformer": {
       "phaseStart": {
-        "research": "📊 Starting research phase",
-        "plan": "📋 Starting planning phase",
-        "implement": "💻 Starting implementation phase",
-        "verify": "🧪 Starting verification phase"
+        "research": "Starting research phase",
+        "plan": "Starting planning phase",
+        "implement": "Starting implementation phase",
+        "verify": "Starting verification phase"
       },
-      "fileEdited": "📝 Edited {basename}",
-      "fileCreated": "✨ Created new file {name}",
-      "errorOccurred": "❌ An error occurred",
-      "testsCompleted": "✅ Tests completed successfully",
-      "committed": "💾 Committed changes",
-      "processing": "⏳ Processing...",
+      "fileEdited": "Edited {basename}",
+      "fileCreated": "Created new file {name}",
+      "errorOccurred": "An error occurred",
+      "testsCompleted": "Tests completed successfully",
+      "committed": "Committed changes",
+      "processing": "Processing...",
       "agentPrefix": "Agent: {text}",
       "continuationResumed": "Resuming execution with additional instructions",
       "agentInitializing": "Initializing agent...",
+      "thinking": "Thinking…",
+      "systemEvent": "System: {name}",
       "systemError": "System error: {detail}",
       "providerStarting": "Starting {provider} execution",
       "workingDirectory": "Working directory: {dir}",
       "processStarted": "Process started (PID {pid})",
       "timeoutSetting": "Timeout setting: {timeout}",
-      "instructionPrefix": "Instruction: {text}",
+      "agentInstruction": "Instruction to agent: {summary}",
       "providerTimedOut": "{provider} execution timed out",
       "providerError": "{provider} error: {detail}",
       "executionCompleted": "Execution complete",
+      "executionFailed": "Execution failed ({status})",
       "toolRead": "Read {path}",
       "toolEdit": "Edit {path}",
       "toolWrite": "Create {path}",
@@ -4239,6 +4246,8 @@
       "pushCompleted": "Pushed to remote",
       "waitingForAnswer": "Waiting for an answer...",
       "timedOut": "Timed out",
+      "mdContent": "Markdown content ({chars} chars)",
+      "mdContentNamed": "Contents of {name} ({chars} chars)",
       "jsonStatus": "Status: {status}",
       "jsonStatusTranslated": "Status: {status} ({translated})",
       "jsonTaskId": "Task: {taskId}",

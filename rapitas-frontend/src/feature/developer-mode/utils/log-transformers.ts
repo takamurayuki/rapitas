@@ -1,92 +1,32 @@
 /**
  * log-transformers
  *
- * Converts raw log lines into UserFriendlyLogEntry objects and deduplicates
- * / groups consecutive agent-text entries. Depends on log-pattern-rules for
- * the pattern table.
+ * Converts raw log lines into UserFriendlyLogEntry objects: collapses raw
+ * markdown-file dumps, classifies lines (narrative prose vs mechanical
+ * events), groups consecutive agent narrative, and merges consecutive
+ * duplicates into ×N counters. Depends on log-pattern-rules for the pattern
+ * table and log-display-utils for the pure render-prep helpers.
  */
 
 import { getLogPatterns, HIDDEN_PATTERNS, type UserFriendlyLogEntry } from './log-pattern-rules';
 import type { LogTranslate } from './log-pattern-rules';
+import { defaultT } from './log-default-translations';
+import {
+  collapseMarkdownBlocks,
+  dedupeConsecutiveEntries,
+  isNarrativeProse,
+  stripMarkdownDecorations,
+  type MarkdownBlockToken,
+} from './log-display-utils';
 
-// NOTE: `t` is optional throughout this module so existing callers without
-// i18n context — including the pre-existing test suite — keep getting the
-// original Japanese strings unchanged. Callers with a next-intl translator
-// (scoped to `devMode.logTransformer`) get localized messages instead.
-const JA_TEMPLATES: Record<string, string> = {
-  'phaseStart.research': '調査フェーズを開始しました',
-  'phaseStart.plan': '計画フェーズを開始しました',
-  'phaseStart.implement': '実装フェーズを開始しました',
-  'phaseStart.verify': '検証フェーズを開始しました',
-  fileEdited: '{basename} を編集しました',
-  fileCreated: '新しいファイル {name} を作成しました',
-  errorOccurred: 'エラーが発生しました',
-  testsCompleted: 'テストが正常に完了しました',
-  committed: '変更をコミットしました',
-  processing: '処理中です',
-  agentPrefix: 'エージェント: {text}',
-  continuationResumed: '追加指示の実行を再開',
-  agentInitializing: 'エージェントを初期化中...',
-  systemError: 'システムエラー: {detail}',
-  providerStarting: '{provider} の実行を開始',
-  workingDirectory: '作業ディレクトリ: {dir}',
-  processStarted: 'プロセス起動 PID {pid}',
-  timeoutSetting: 'タイムアウト設定: {timeout}',
-  instructionPrefix: '指示: {text}',
-  providerTimedOut: '{provider} の実行がタイムアウトしました',
-  providerError: '{provider} エラー: {detail}',
-  executionCompleted: '実行完了',
-  toolRead: '読込 {path}',
-  toolEdit: '編集 {path}',
-  toolWrite: '作成 {path}',
-  testRunning: 'テストを実行中...',
-  verifyRunning: '検証コマンドを実行中...',
-  committing: 'コミット中...',
-  pushing: 'リモートにプッシュ中...',
-  gitCommand: 'Git: {cmd}',
-  searchCommand: '調査: {cmd}',
-  shellCommand: '$ {cmd}',
-  toolSearch: '検索 {query}',
-  webSearch: 'Web検索: {query}',
-  webFetch: 'Web取得: {url}',
-  subAgent: 'サブエージェント: {text}',
-  subAgentStarting: '起動中...',
-  itemCount: '{count}件',
-  objectDataPlaceholder: '(データ)',
-  toolErrorSuffix: '{name} でエラー',
-  questionPrefix: '質問: {text}',
-  testsPassedCount: 'テスト {count}件成功',
-  testsFailedCount: 'テスト {count}件失敗',
-  typecheckRunning: '型チェックを実行中...',
-  commitMessage: 'コミット: {message}',
-  pushCompleted: 'リモートにプッシュ完了',
-  waitingForAnswer: '回答を待っています...',
-  timedOut: 'タイムアウトしました',
-  jsonStatus: '状態: {status}',
-  jsonStatusTranslated: '状態: {status} ({translated})',
-  jsonTaskId: 'タスク: {taskId}',
-  'statusLabels.running': '実行中',
-  'statusLabels.completed': '完了',
-  'statusLabels.failed': '失敗',
-  'statusLabels.pending': '待機中',
-  'statusLabels.cancelled': '中止',
-  'statusLabels.waitingForInput': '回答待ち',
-  'statusLabels.inProgress': '進行中',
-  'statusLabels.todo': '未着手',
-  'statusLabels.waiting': '待機中',
-  'statusLabels.success': '成功',
-};
+// Narrative preview cap — roughly three wrapped lines in the viewer; the full
+// passage stays available via `detail` (click-to-expand).
+const NARRATIVE_PREVIEW_CHARS = 280;
 
-/** Resolves `{param}` placeholders in a template string. */
-function interpolate(template: string, params?: Record<string, string | number>): string {
-  if (!params) return template;
-  return template.replace(/\{(\w+)\}/g, (match, key) =>
-    key in params ? String(params[key]) : match,
-  );
-}
-
-/** Default translator: returns the original Japanese source strings. */
-const defaultT: LogTranslate = (key, params) => interpolate(JA_TEMPLATES[key] ?? key, params);
+// NOTE: duplicates are not always adjacent — the same event (e.g. "verify.md
+// saved") can be emitted by two log sources a few entries apart, so dedup
+// searches a small window rather than only the previous entry.
+const DEDUP_LOOKBACK_ENTRIES = 6;
 
 /**
  * Translate a status string to a localized label.
@@ -177,17 +117,22 @@ export function transformLogToUserFriendly(
   }
 
   if (trimmed.length <= 3) return { category: 'hidden', message: '' };
-  if (/^(I will|Let me|First I will|Then I will)\b/i.test(trimmed)) {
+  // Unmatched prose is the agent's own reasoning — the narrative a human
+  // follows through the log — so it is promoted, not treated as noise.
+  if (isNarrativeProse(trimmed)) {
     return {
       category: 'agent-text',
-      message: trimmed,
-      iconName: 'MessageSquare',
+      message: stripMarkdownDecorations(trimmed),
+      // NOTE: Bot = the agent speaking (its own narrative); MessageSquare is
+      // reserved for instructions sent TO the agent.
+      iconName: 'Bot',
     };
   }
+  const cleaned = stripMarkdownDecorations(trimmed);
   return {
     category: 'info',
-    message: trimmed.length > 80 ? `${trimmed.substring(0, 80)}...` : trimmed,
-    detail: trimmed.length > 80 ? trimmed : undefined,
+    message: cleaned.length > 80 ? `${cleaned.substring(0, 80)}...` : cleaned,
+    detail: cleaned.length > 80 ? trimmed : undefined,
   };
 }
 
@@ -214,6 +159,10 @@ export function splitLogsIntoLines(logs: string[]): string[] {
 /**
  * Collapse consecutive agent-text entries into a single grouped entry.
  *
+ * The joined passage is kept readable: up to {@link NARRATIVE_PREVIEW_CHARS}
+ * chars go into `message` (the viewer clamps it to ~3 lines); the full text is
+ * kept in `detail` whenever lines were merged or the preview was truncated.
+ *
  * @param entries - classified entries / 分類済みエントリ配列
  * @returns entries with consecutive agent-text grouped / エージェントテキストをまとめた配列
  */
@@ -224,13 +173,12 @@ export function groupAgentText(entries: UserFriendlyLogEntry[]): UserFriendlyLog
   const flushText = () => {
     if (textBuffer.length === 0) return;
     const joined = textBuffer.join('\n');
-    const first = textBuffer[0];
-    const preview = first.length > 120 ? first.substring(0, 120) + '...' : first;
+    const truncated = joined.length > NARRATIVE_PREVIEW_CHARS;
     result.push({
       category: 'agent-text',
-      message: preview,
-      detail: textBuffer.length > 1 ? joined : first.length > 120 ? joined : undefined,
-      iconName: 'MessageSquare',
+      message: truncated ? `${joined.substring(0, NARRATIVE_PREVIEW_CHARS)}...` : joined,
+      detail: truncated || textBuffer.length > 1 ? joined : undefined,
+      iconName: 'Bot', // the agent speaking — see icon note in transformLogToUserFriendly
     });
     textBuffer = [];
   };
@@ -247,8 +195,26 @@ export function groupAgentText(entries: UserFriendlyLogEntry[]): UserFriendlyLog
   return result;
 }
 
+/** Build the single summary entry for a collapsed markdown dump. */
+function markdownBlockEntry(token: MarkdownBlockToken, t: LogTranslate): UserFriendlyLogEntry {
+  // NOTE: en-US grouping (1,234) is used in both locales for the char count.
+  const chars = token.charCount.toLocaleString('en-US');
+  return {
+    category: 'info',
+    message: token.fileName
+      ? t('mdContentNamed', { name: token.fileName, chars })
+      : t('mdContent', { chars }),
+    detail: token.content,
+    detailFormat: 'markdown',
+    iconName: 'FileText',
+  };
+}
+
 /**
  * Convert an array of raw log strings into deduplicated user-friendly entries.
+ *
+ * Pipeline: split lines → collapse raw markdown dumps → classify → drop hidden
+ * → group consecutive narrative → merge consecutive duplicates into ×N counts.
  *
  * @param logs - raw log lines / 生ログ配列
  * @param t - Optional translator (scoped to `devMode.logTransformer`) forwarded to
@@ -259,21 +225,15 @@ export function transformLogsToSimple(
   logs: string[],
   t: LogTranslate = defaultT,
 ): UserFriendlyLogEntry[] {
-  const lines = splitLogsIntoLines(logs);
-  const entries = lines
-    .map((line) => transformLogToUserFriendly(line, t))
-    .filter((e) => e.category !== 'hidden');
-  const grouped = groupAgentText(entries);
-  return grouped.reduce((acc: UserFriendlyLogEntry[], current) => {
-    const last = acc[acc.length - 1];
-    if (
-      last &&
-      last.message === current.message &&
-      last.category === current.category &&
-      last.detail === current.detail
-    )
-      return acc;
-    acc.push(current);
-    return acc;
-  }, []);
+  const tokens = collapseMarkdownBlocks(splitLogsIntoLines(logs));
+  const entries: UserFriendlyLogEntry[] = [];
+  for (const token of tokens) {
+    if (typeof token !== 'string') {
+      entries.push(markdownBlockEntry(token, t));
+      continue;
+    }
+    const entry = transformLogToUserFriendly(token, t);
+    if (entry.category !== 'hidden') entries.push(entry);
+  }
+  return dedupeConsecutiveEntries(groupAgentText(entries), DEDUP_LOOKBACK_ENTRIES);
 }

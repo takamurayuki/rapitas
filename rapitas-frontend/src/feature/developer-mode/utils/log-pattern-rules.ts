@@ -22,6 +22,21 @@ export interface UserFriendlyLogEntry {
   detail?: string;
   iconName?: string;
   phase?: 'research' | 'plan' | 'implement' | 'verify';
+  /**
+   * Number of consecutive identical raw entries merged into this one
+   * (rendered as a ×N badge). Absent means 1.
+   */
+  count?: number;
+  /**
+   * How `detail` should render when expanded: 'markdown' gets the shared
+   * formatted markdown preview; absent renders as plain preformatted text.
+   */
+  detailFormat?: 'markdown';
+  /**
+   * When set, the row shows a copy-to-clipboard button (right edge) that
+   * copies this text (e.g. the working-directory path).
+   */
+  copyText?: string;
 }
 
 /** Translator function shape accepted by the log-classification pipeline. */
@@ -41,4 +56,4 @@ export interface ExecutionSummary {
 }
 
 // Re-export patterns so log-transformers can import from one place
-export { getLogPatterns, HIDDEN_PATTERNS } from './log-patterns-table';
+export { getLogPatterns, HIDDEN_PATTERNS } from './log-patterns';

@@ -69,9 +69,13 @@ describe('getLogPatterns', () => {
       category: 'phase-transition',
       iconName: 'Play',
     });
+    // NOTE: working directory shows the FULL path inline and exposes it via
+    // copyText for the row's copy-to-clipboard button (no expand menu).
     const wd = classify('[Gemini] Working directory: C:\\Projects\\rapitas\\backend');
+    // (the stub translator JSON-encodes params, so match the tail segment)
     expect(wd!.message).toContain('backend');
-    expect(wd!.detail).toBe('C:\\Projects\\rapitas\\backend');
+    expect(wd!.copyText).toBe('C:\\Projects\\rapitas\\backend');
+    expect(wd!.detail).toBeUndefined();
 
     const pid = classify('[Claude Code] Process PID: 12345');
     expect(pid!.message).toContain('12345');
@@ -79,9 +83,18 @@ describe('getLogPatterns', () => {
     const timeout = classify('[Codex] Timeout: 30 minutes');
     expect(timeout!.message).toContain('30 minutes');
 
+    // NOTE: prompts render as a labelled instruction entry with a one-line
+    // summary; the full prompt is available via detail (click-to-expand).
     const shortPrompt = classify('[Claude] Prompt: do the thing');
-    expect(shortPrompt!.category).toBe('agent-text');
+    expect(shortPrompt!.category).toBe('info');
+    expect(shortPrompt!.message).toContain('agentInstruction');
+    expect(shortPrompt!.message).toContain('do the thing');
     expect(shortPrompt!.detail).toBeUndefined();
+
+    const mdPrompt = classify('[Claude] Prompt: ## システム指示');
+    expect(mdPrompt!.message).toContain('システム指示');
+    expect(mdPrompt!.message).not.toContain('##');
+    expect(mdPrompt!.detail).toBe('## システム指示');
 
     const longText = 'x'.repeat(150);
     const longPrompt = classify(`[Claude] Prompt: ${longText}`);
@@ -151,9 +164,11 @@ describe('getLogPatterns', () => {
     const generic = classify('[Command] node scripts/setup.js');
     expect(generic).toMatchObject({ category: 'info', iconName: 'Terminal' });
 
+    // NOTE: commands are never hard-sliced — the full text goes into message
+    // and CSS `truncate` handles real overflow in the viewer.
     const longCmd = classify(`[Command] ${'a'.repeat(90)}`);
-    expect(longCmd!.detail).toBeDefined();
-    expect(longCmd!.message).toContain('...');
+    expect(longCmd!.message).toContain('a'.repeat(90));
+    expect(longCmd!.detail).toBeUndefined();
   });
 
   test('[Tool: Bash] $ sub-cases', () => {
@@ -167,7 +182,8 @@ describe('getLogPatterns', () => {
     expect(classify('[Tool: Bash] $ git push')).toMatchObject({ iconName: 'Upload' });
     expect(classify('[Tool: Bash] $ git log')).toMatchObject({ iconName: 'GitBranch' });
     const longCmd = classify(`[Tool: Bash] $ ${'b'.repeat(80)}`);
-    expect(longCmd!.detail).toBeDefined();
+    expect(longCmd!.message).toContain('b'.repeat(80));
+    expect(longCmd!.detail).toBeUndefined();
   });
 
   test('Glob/Grep, WebSearch, WebFetch, sub-Agent tool calls', () => {

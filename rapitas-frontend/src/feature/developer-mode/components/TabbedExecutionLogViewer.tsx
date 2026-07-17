@@ -181,6 +181,7 @@ export const TabbedExecutionLogViewer: React.FC<TabbedExecutionLogViewerProps> =
         isRunning={isRunning}
         maxHeight={maxHeight}
         collapsible={false}
+        resizable
         className={className}
       />
     );
@@ -233,6 +234,7 @@ export const TabbedExecutionLogViewer: React.FC<TabbedExecutionLogViewerProps> =
           maxHeight={maxHeight}
           collapsible={false}
           showHeader={false}
+          resizable
         />
       </div>
     </div>

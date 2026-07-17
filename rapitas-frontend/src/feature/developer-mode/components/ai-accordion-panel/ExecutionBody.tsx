@@ -165,6 +165,7 @@ export function ExecutionBody({
               isRunning={isRunning}
               collapsible={false}
               maxHeight={300}
+              resizable
             />
           ) : null}
         </div>
@@ -193,6 +194,7 @@ export function ExecutionBody({
             isRunning={false}
             collapsible={false}
             maxHeight={300}
+            resizable
           />
         ) : null}
         <ContinuationForm
@@ -215,6 +217,7 @@ export function ExecutionBody({
         isRunning={false}
         collapsible={false}
         maxHeight={300}
+        resizable
       />
     ) : null;
   }
@@ -229,6 +232,7 @@ export function ExecutionBody({
         isRunning={false}
         collapsible={false}
         maxHeight={300}
+        resizable
       />
     ) : null;
   }
@@ -250,6 +254,7 @@ export function ExecutionBody({
             isRunning={false}
             collapsible={false}
             maxHeight={300}
+            resizable
           />
         )}
       </div>

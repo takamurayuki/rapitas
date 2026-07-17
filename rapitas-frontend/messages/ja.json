@@ -4142,7 +4142,8 @@
       "executionLog": "実行ログ",
       "noMatchForQuery": "「{query}」に一致するログはありません",
       "noMatchingLogs": "該当するログはありません",
-      "fetchingLogs": "実行ログを取得中..."
+      "fetchingLogs": "実行ログを取得中...",
+      "resizeLog": "ログの高さを変更"
     },
     "executionFailedPanel": {
       "title": "実行に失敗しました",
@@ -4161,6 +4162,9 @@
     "simpleLogEntry": {
       "close": "閉じる",
       "fullText": "全文",
+      "repeatCount": "×{count}",
+      "copyPath": "パスをコピー",
+      "copied": "コピーしました",
       "waitingForLogs": "実行ログを待機中..."
     },
     "agentExecutionPanel": {
@@ -4190,29 +4194,32 @@
     },
     "logTransformer": {
       "phaseStart": {
-        "research": "📊 調査フェーズを開始しました",
-        "plan": "📋 計画フェーズを開始しました",
-        "implement": "💻 実装フェーズを開始しました",
-        "verify": "🧪 検証フェーズを開始しました"
+        "research": "調査フェーズを開始しました",
+        "plan": "計画フェーズを開始しました",
+        "implement": "実装フェーズを開始しました",
+        "verify": "検証フェーズを開始しました"
       },
-      "fileEdited": "📝 {basename} を編集しました",
-      "fileCreated": "✨ 新しいファイル {name} を作成しました",
-      "errorOccurred": "❌ エラーが発生しました",
-      "testsCompleted": "✅ テストが正常に完了しました",
-      "committed": "💾 変更をコミットしました",
-      "processing": "⏳ 処理中です",
+      "fileEdited": "{basename} を編集しました",
+      "fileCreated": "新しいファイル {name} を作成しました",
+      "errorOccurred": "エラーが発生しました",
+      "testsCompleted": "テストが正常に完了しました",
+      "committed": "変更をコミットしました",
+      "processing": "処理中です",
       "agentPrefix": "エージェント: {text}",
       "continuationResumed": "追加指示の実行を再開",
       "agentInitializing": "エージェントを初期化中...",
+      "thinking": "思考中…",
+      "systemEvent": "システム: {name}",
       "systemError": "システムエラー: {detail}",
       "providerStarting": "{provider} の実行を開始",
       "workingDirectory": "作業ディレクトリ: {dir}",
       "processStarted": "プロセス起動 PID {pid}",
       "timeoutSetting": "タイムアウト設定: {timeout}",
-      "instructionPrefix": "指示: {text}",
+      "agentInstruction": "エージェントへの指示: {summary}",
       "providerTimedOut": "{provider} の実行がタイムアウトしました",
       "providerError": "{provider} エラー: {detail}",
       "executionCompleted": "実行完了",
+      "executionFailed": "実行失敗 ({status})",
       "toolRead": "読込 {path}",
       "toolEdit": "編集 {path}",
       "toolWrite": "作成 {path}",
@@ -4239,6 +4246,8 @@
       "pushCompleted": "リモートにプッシュ完了",
       "waitingForAnswer": "回答を待っています...",
       "timedOut": "タイムアウトしました",
+      "mdContent": "Markdownコンテンツ ({chars}文字)",
+      "mdContentNamed": "{name} の内容 ({chars}文字)",
       "jsonStatus": "状態: {status}",
       "jsonStatusTranslated": "状態: {status} ({translated})",
       "jsonTaskId": "タスク: {taskId}",

@@ -18,6 +18,7 @@ export { LiveStatsBar } from './LiveStatsBar';
 export { LogViewerHeader } from './LogViewerHeader';
 export { useLogViewer } from './useLogViewer';
 export { useLogSearch } from './useLogSearch';
+export { useResizableLogHeight } from './useResizableLogHeight';
 
 // Utility functions exposed for reuse in other log-related components
 export { formatLogLine, formatNestedValue, isFilePath } from './log-format-utils';

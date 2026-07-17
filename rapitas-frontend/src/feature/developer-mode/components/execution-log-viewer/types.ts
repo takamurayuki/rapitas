@@ -38,6 +38,12 @@ export type ExecutionLogViewerProps = {
   showHeader?: boolean;
   /** Max log height in pixels */
   maxHeight?: number;
+  /**
+   * When true, a drag handle at the bottom edge lets the user resize the log
+   * height (persisted to localStorage, keyboard-accessible). `maxHeight` then
+   * only serves as the initial height before a preference is stored.
+   */
+  resizable?: boolean;
   /** Task id — shown in the header as `Task #<id>` so it's easy to reference/share. */
   taskId?: number;
 };

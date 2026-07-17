@@ -22,6 +22,7 @@ import { SimpleLogEntryList } from '../SimpleLogEntry';
 import { LogViewerHeader } from './LogViewerHeader';
 import { ExecutionSummaryCard } from './ExecutionSummaryCard';
 import { useLogViewer } from './useLogViewer';
+import { useResizableLogHeight, MIN_LOG_HEIGHT } from './useResizableLogHeight';
 import type { ExecutionLogViewerProps } from './types';
 
 export type { ExecutionLogStatus, ExecutionLogViewMode, ExecutionLogViewerProps } from './types';
@@ -51,6 +52,7 @@ export const ExecutionLogViewer: React.FC<ExecutionLogViewerProps> = ({
   collapsible = true,
   showHeader = true,
   maxHeight = 256,
+  resizable = false,
   taskId,
 }) => {
   const t = useTranslations('devMode.executionLogViewer');
@@ -88,6 +90,10 @@ export const ExecutionLogViewer: React.FC<ExecutionLogViewerProps> = ({
     defaultFullscreen,
     t: tLog,
   });
+
+  // User-adjustable height (drag handle / arrow keys), persisted across mounts.
+  const resize = useResizableLogHeight(maxHeight);
+  const bodyHeight = isFullscreen ? undefined : resizable ? resize.height : maxHeight;
 
   // Formatted log entries (filtered by search / errors-only). New-entry animation
   // is suppressed while filtering since the list isn't tracking the live tail.
@@ -181,7 +187,7 @@ export const ExecutionLogViewer: React.FC<ExecutionLogViewerProps> = ({
         className={`bg-zinc-900 overflow-auto execution-log-container break-words text-xs sm:text-sm ${
           isFullscreen ? 'flex-1' : ''
         } ${showHeader ? 'rounded-b-lg' : 'rounded-lg'}`}
-        style={{ height: isFullscreen ? undefined : maxHeight }}
+        style={{ height: bodyHeight }}
       >
         <div className="p-4">
           {showNoMatches ? (
@@ -208,6 +214,25 @@ export const ExecutionLogViewer: React.FC<ExecutionLogViewerProps> = ({
           )}
         </div>
       </div>
+
+      {resizable && !isFullscreen && (
+        // Bottom resize handle: drag (pointer capture) or ArrowUp/ArrowDown.
+        <div
+          role="separator"
+          aria-orientation="horizontal"
+          aria-label={t('resizeLog')}
+          aria-valuenow={resize.height}
+          aria-valuemin={MIN_LOG_HEIGHT}
+          tabIndex={0}
+          onPointerDown={resize.onPointerDown}
+          onPointerMove={resize.onPointerMove}
+          onPointerUp={resize.onPointerUp}
+          onKeyDown={resize.onKeyDown}
+          className="group flex h-2.5 w-full cursor-ns-resize touch-none items-center justify-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
+        >
+          <div className="h-0.5 w-12 rounded-full bg-zinc-500 opacity-0 transition-opacity duration-150 group-hover:opacity-100 group-focus-visible:opacity-100" />
+        </div>
+      )}
     </div>
   );
 };

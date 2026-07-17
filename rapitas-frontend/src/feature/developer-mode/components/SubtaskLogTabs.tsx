@@ -322,6 +322,7 @@ export function SubtaskLogTabs({
             }
             collapsible={false}
             maxHeight={maxHeight}
+            resizable
           />
         ) : (
           <div className="flex flex-col items-center justify-center py-8 text-zinc-500 dark:text-zinc-500">

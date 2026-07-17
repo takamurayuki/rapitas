@@ -80,7 +80,9 @@ describe('groupAgentText', () => {
     const result = groupAgentText(entries);
     expect(result).toHaveLength(2);
     expect(result[0].category).toBe('agent-text');
-    expect(result[0].message).toBe('line1');
+    // NOTE: the full joined passage now goes into message (the viewer clamps
+    // it to ~3 lines visually); detail keeps the merged text for expansion.
+    expect(result[0].message).toBe('line1\nline2');
     expect(result[0].detail).toBe('line1\nline2');
     expect(result[1]).toEqual(infoEntry('other'));
   });
@@ -91,11 +93,11 @@ describe('groupAgentText', () => {
     expect(result[0].detail).toBeUndefined();
   });
 
-  test('a lone long agent-text entry (>120 chars) truncates message but keeps full detail', () => {
-    const long = 'x'.repeat(150);
+  test('a lone long agent-text entry (>280 chars) truncates message but keeps full detail', () => {
+    const long = 'x'.repeat(300);
     const result = groupAgentText([textEntry(long)]);
     expect(result).toHaveLength(1);
-    expect(result[0].message).toBe(`${'x'.repeat(120)}...`);
+    expect(result[0].message).toBe(`${'x'.repeat(280)}...`);
     expect(result[0].detail).toBe(long);
   });
 
