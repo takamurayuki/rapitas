@@ -490,10 +490,11 @@ export class AgentOrchestrator {
    * Clean up stale worktrees from previous crashes.
    *
    * @param baseDir - Main repository root / メインリポジトリルート
+   * @param keepPaths - Live worktrees that must NOT be removed / 保護対象worktree
    * @returns Count of cleaned worktrees / クリーンアップ数
    */
-  async cleanupStaleWorktrees(baseDir: string): Promise<number> {
-    return this.gitOps.cleanupStaleWorktrees(baseDir);
+  async cleanupStaleWorktrees(baseDir: string, keepPaths: string[] = []): Promise<number> {
+    return this.gitOps.cleanupStaleWorktrees(baseDir, keepPaths);
   }
 
   async createCommit(

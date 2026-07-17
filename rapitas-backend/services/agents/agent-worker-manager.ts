@@ -217,7 +217,18 @@ export class AgentWorkerManager {
    * @returns Count of cleaned worktrees / クリーンアップ数
    */
   async cleanupStaleWorktrees(baseDir: string): Promise<number> {
-    return git.cleanupStaleWorktrees(this.ipc.bind(this), baseDir);
+    // Liveness filter: worktrees of non-terminal tasks must survive worker
+    // (re)initialization — see worktree-keep-list.ts for the incident behind this.
+    let keepPaths: string[];
+    try {
+      const { computeWorktreeKeepPaths } = await import('./worktree-keep-list');
+      keepPaths = await computeWorktreeKeepPaths(baseDir);
+    } catch {
+      // Fail-safe: with no liveness verdict, DELETING is the dangerous action —
+      // skip this cleanup cycle entirely rather than wipe live work.
+      return 0;
+    }
+    return git.cleanupStaleWorktrees(this.ipc.bind(this), baseDir, keepPaths);
   }
 
   async commitChanges(

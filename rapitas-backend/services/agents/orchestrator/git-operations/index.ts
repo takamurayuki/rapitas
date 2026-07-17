@@ -163,7 +163,7 @@ export class GitOperations {
   }
 
   /** @see cleanupStaleWorktrees */
-  async cleanupStaleWorktrees(baseDir: string): Promise<number> {
-    return cleanupStaleWorktrees(baseDir);
+  async cleanupStaleWorktrees(baseDir: string, keepPaths: string[] = []): Promise<number> {
+    return cleanupStaleWorktrees(baseDir, keepPaths);
   }
 }

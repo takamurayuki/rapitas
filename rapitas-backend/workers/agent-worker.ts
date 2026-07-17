@@ -216,7 +216,10 @@ class AgentWorker {
           break;
 
         case 'cleanup-stale-worktrees':
-          result = await this.orchestrator.cleanupStaleWorktrees(data.baseDir as string);
+          result = await this.orchestrator.cleanupStaleWorktrees(
+            data.baseDir as string,
+            (data.keepPaths as string[] | undefined) ?? [],
+          );
           break;
 
         case 'revert-changes':

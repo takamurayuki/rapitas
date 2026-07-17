@@ -124,7 +124,19 @@ describe('cleanupStaleWorktrees', () => {
     expect(result).toBe(3);
     expect(ipcMock).toHaveBeenCalledWith(
       'cleanup-stale-worktrees',
-      { baseDir: '/repo' },
+      { baseDir: '/repo', keepPaths: [] },
+      10 * 60 * 1000,
+    );
+  });
+
+  test('live-task keep paths travel to the worker in the ipc payload', async () => {
+    ipcMock.mockResolvedValue(0);
+
+    await cleanupStaleWorktrees(ipc, '/repo', ['/repo/.worktrees/task-494-aaaa']);
+
+    expect(ipcMock).toHaveBeenCalledWith(
+      'cleanup-stale-worktrees',
+      { baseDir: '/repo', keepPaths: ['/repo/.worktrees/task-494-aaaa'] },
       10 * 60 * 1000,
     );
   });

@@ -477,7 +477,10 @@ export async function removeWorktree(
  * @param baseDir - The main repository root / メインリポジトリのルート
  * @returns Number of worktrees cleaned up / クリーンアップしたworktreeの数
  */
-export async function cleanupStaleWorktrees(baseDir: string): Promise<number> {
+export async function cleanupStaleWorktrees(
+  baseDir: string,
+  keepPaths: string[] = [],
+): Promise<number> {
   let cleanedCount = 0;
 
   try {
@@ -491,6 +494,14 @@ export async function cleanupStaleWorktrees(baseDir: string): Promise<number> {
     const worktreeDir = join(baseDir, WORKTREE_DIR);
     const normalizedWorktreeDir = normalizePath(worktreeDir);
     const entries = stdout.split('\n\n').filter(Boolean);
+    // NOTE: keepPaths is the LIVENESS filter this function historically lacked:
+    // despite its name it removed EVERY worktree under .worktrees/, and since
+    // it runs on every worker (re)initialization — workers respawn routinely —
+    // it wiped the uncommitted work of in-flight tasks (task 494: implementer
+    // finished, worker recycled, verifier then saw an empty tree and bounced
+    // the task into a repair loop). The caller with DB access supplies the
+    // worktrees of non-terminal tasks; those must never be deleted here.
+    const keepSet = new Set(keepPaths.map((p) => normalizePath(p)));
 
     for (const entry of entries) {
       const pathMatch = entry.match(/^worktree\s+(.+)$/m);
@@ -500,6 +511,10 @@ export async function cleanupStaleWorktrees(baseDir: string): Promise<number> {
       // NOTE: Use normalized path comparison to handle Windows path separator differences
       const normalizedWtPath = normalizePath(wtPath);
       if (!normalizedWtPath.startsWith(normalizedWorktreeDir + '/')) continue;
+      if (keepSet.has(normalizedWtPath)) {
+        logger.info(`[cleanupStaleWorktrees] Keeping live worktree: ${wtPath}`);
+        continue;
+      }
 
       logger.info(`[cleanupStaleWorktrees] Removing stale worktree: ${wtPath}`);
       try {
