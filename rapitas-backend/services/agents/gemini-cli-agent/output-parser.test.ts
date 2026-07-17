@@ -144,8 +144,8 @@ describe('formatToolInfo', () => {
     expect(formatToolInfo('Glob', { pattern: '**/*.ts' })).toBe('pattern: **/*.ts');
   });
 
-  test('formats Bash, truncating long commands at 50 chars', () => {
-    const longCmd = 'echo ' + 'x'.repeat(60);
+  test('formats Bash, truncating very long commands at 500 chars', () => {
+    const longCmd = 'echo ' + 'x'.repeat(600);
     const result = formatToolInfo('Bash', { command: longCmd });
     expect(result.startsWith('$ ')).toBe(true);
     expect(result).toContain('...');

@@ -125,7 +125,11 @@ export function formatToolInfo(
         return input.pattern ? `pattern: ${input.pattern}` : '';
       case 'Bash': {
         const cmd = String(input.command || '');
-        return cmd.length > 50 ? `$ ${cmd.substring(0, 50)}...` : `$ ${cmd}`;
+        // NOTE: 500, not 50 — the old cap truncated commands AT THE SOURCE, so
+        // the log viewer could never show the full command no matter how wide
+        // the screen. Visual overflow is the display layer's job (CSS
+        // truncate); this cap only guards against multi-KB heredocs.
+        return cmd.length > 500 ? `$ ${cmd.substring(0, 500)}...` : `$ ${cmd}`;
       }
       case 'Task':
         return input.description ? String(input.description) : '';

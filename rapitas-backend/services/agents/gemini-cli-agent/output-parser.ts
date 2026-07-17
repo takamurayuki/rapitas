@@ -142,7 +142,9 @@ export function formatToolInfo(
       case 'Shell':
       case 'Bash': {
         const cmd = String(input.command || '');
-        return cmd.length > 50 ? `$ ${cmd.substring(0, 50)}...` : `$ ${cmd}`;
+        // NOTE: 500, not 50 — source-side truncation made full commands
+        // unrecoverable in the log viewer; overflow is the display layer's job.
+        return cmd.length > 500 ? `$ ${cmd.substring(0, 500)}...` : `$ ${cmd}`;
       }
       case 'GoogleSearch':
         return input.query ? `"${input.query}"` : '';
