@@ -104,13 +104,29 @@ export async function applyPhaseCriticGate(args: {
     }
 
     const newStatus = ROLLBACK[phase];
+
+    // Compare-and-swap: only roll back if the workflow is STILL at the status
+    // this critic evaluated. The LLM critique takes 60-90s, and a concurrent
+    // path can legitimately advance the task meanwhile — observed on task 494:
+    // auto-approve flipped plan_created → plan_approved at 00:52:03, then this
+    // unguarded rollback stomped it back to research_done at 00:52:12 while
+    // the implementer was already being dispatched. A late verdict must not
+    // clobber a live state (and must not archive the artifact in use).
+    const rolled = await prisma.task.updateMany({
+      where: { id: taskId, workflowStatus: currentStatus },
+      data: { workflowStatus: newStatus, updatedAt: new Date() },
+    });
+    if (rolled.count === 0) {
+      log.warn(
+        { taskId, phase, evaluatedStatus: currentStatus },
+        '[phase-critic-gate] FAIL verdict arrived after the workflow moved on — skipping rollback',
+      );
+      return { bounced: false };
+    }
+
     const resolved = await resolveWorkflowDir(taskId);
     if (resolved) await archiveArtifact(resolved.dir, phase);
 
-    await prisma.task.update({
-      where: { id: taskId },
-      data: { workflowStatus: newStatus, updatedAt: new Date() },
-    });
     await recordTransition({
       taskId,
       fromStatus: currentStatus,
