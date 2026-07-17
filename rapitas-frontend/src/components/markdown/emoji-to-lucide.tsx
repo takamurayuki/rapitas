@@ -242,21 +242,24 @@ export function isDashPlaceholderCell(node: ReactNode): boolean {
 
 /**
  * Whether a table cell's content is visually just an icon or a tiny marker:
- * nothing but mapped emoji / whitespace remains after stripping, or the cell is
- * a dash placeholder. Such cells read better centered — a lone status icon
- * sitting left-aligned between the column dividers looks off-center. Anything
- * with visible text (icon + word verdicts, counts, prose) stays left-aligned.
+ * nothing but mapped emoji / whitespace remains after stripping, the cell is a
+ * dash placeholder, or the cell is a 1-2 character text-only marker (低/中/高
+ * grade cells — user request). Such cells read better centered — a lone glyph
+ * sitting left-aligned between the column dividers looks off-center. Icon+word
+ * verdicts, counts, and prose stay left-aligned.
  *
  * @param node - Cell children from a td/th override. / セルの子ノード
  * @returns True when the cell should be center-aligned. / 中央寄せすべきなら true
  */
 export function isIconOnlyCellContent(node: ReactNode): boolean {
   if (isDashPlaceholderCell(node)) return true;
-  const stripped = flattenNodeText(node)
-    .replace(EMOJI_SPLIT_RE, '')
-    .replace(/️/g, '')
-    .replace(/\s+/g, '');
-  return stripped.length === 0;
+  const text = flattenNodeText(node);
+  const hasIcon = EMOJI_TEST_RE.test(text);
+  const stripped = text.replace(EMOJI_SPLIT_RE, '').replace(/️/g, '').replace(/\s+/g, '');
+  if (hasIcon) return stripped.length === 0;
+  // NOTE: ≤2 not ≤3 — icon+word pairs are excluded above, and 2 covers ja
+  // grade markers (低/中/高) and 2-digit counts without catching real words.
+  return stripped.length <= 2;
 }
 
 /**

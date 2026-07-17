@@ -188,7 +188,10 @@ describe('isIconOnlyCellContent', () => {
     { input: '--', expected: true },
     // Icon + kept status word has visible text → left-aligned.
     { input: '✅ 完了', expected: false },
-    { input: '高', expected: false },
+    // Text-only tiny markers (grade cells) center; 3+ chars stay left.
+    { input: '高', expected: true },
+    { input: '低', expected: true },
+    { input: '100', expected: false },
     { input: '22 / 22', expected: false },
     { input: '説明テキストの長いセルです', expected: false },
     { input: '✅ 12/12 passed', expected: false },
