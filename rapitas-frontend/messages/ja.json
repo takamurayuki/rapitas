@@ -2200,7 +2200,14 @@
       "manualSuffix": "（手動）",
       "autoApproveTooltipOn": "計画自動承認: ON（plan.md 保存で自動進行）",
       "autoApproveTooltipOff": "計画自動承認: OFF（手動承認が必要）",
-      "autoApproveBadge": "自動承認 {state}"
+      "autoApproveBadge": "自動承認 {state}",
+      "criticRejection": {
+        "title": "{phase}の内容が品質チェックで却下されました。再生成中です。",
+        "phase": {
+          "research": "研究内容(research.md)",
+          "plan": "計画内容(plan.md)"
+        }
+      }
     }
   },
   "categories": {

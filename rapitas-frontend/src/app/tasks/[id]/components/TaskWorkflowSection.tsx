@@ -79,6 +79,67 @@ export default function TaskWorkflowSection({
     };
   }, [isBlocked, taskId, t]);
 
+  // The phase-critic gate can silently archive a freshly-saved research.md /
+  // plan.md and roll workflowStatus back a step (research_done → draft,
+  // plan_created → research_done) when it fails quality review — a bounded
+  // self-repair loop (see phase-critic-gate.ts). Without this, the file just
+  // vanishes from the viewer and the status regresses with no visible
+  // explanation, reading as "why did my saved file disappear?". Surface the
+  // rejection reason whenever the CURRENT status is exactly the rollback
+  // target of the latest such transition (i.e. nothing has superseded it yet
+  // — a fresh research.md/plan.md save moves the status forward again and
+  // this banner naturally stops matching).
+  const [criticRejection, setCriticRejection] = useState<{
+    phase: 'research' | 'plan';
+    reasons: string[];
+  } | null>(null);
+
+  useEffect(() => {
+    if (
+      !taskId ||
+      (currentWorkflowStatus !== 'draft' && currentWorkflowStatus !== 'research_done')
+    ) {
+      setCriticRejection(null);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch(`${API_BASE_URL}/workflow/tasks/${taskId}/transitions`);
+        if (!res.ok) return;
+        const data = (await res.json()) as {
+          success?: boolean;
+          transitions?: Array<{
+            cause?: string | null;
+            toStatus?: string | null;
+            metadata?: { reasons?: unknown };
+          }>;
+        };
+        if (cancelled || !data.success || !data.transitions?.length) return;
+        const latest = data.transitions[data.transitions.length - 1];
+        const phase =
+          latest?.cause === 'research_critic_failed'
+            ? 'research'
+            : latest?.cause === 'plan_critic_failed'
+              ? 'plan'
+              : null;
+        if (!phase || latest?.toStatus !== currentWorkflowStatus) {
+          setCriticRejection(null);
+          return;
+        }
+        const reasons = Array.isArray(latest.metadata?.reasons)
+          ? latest.metadata!.reasons.filter((r): r is string => typeof r === 'string')
+          : [];
+        setCriticRejection({ phase, reasons });
+      } catch {
+        // Non-fatal — the banner simply doesn't show.
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [taskId, currentWorkflowStatus]);
+
   // Compute the *effective* auto-approve state by OR-ing the task-level flag
   // with the global UserSettings entries — matches the backend rule in
   // `_handlePlanAutoApprove`. Without this the indicator showed OFF when only
@@ -249,6 +310,25 @@ export default function TaskWorkflowSection({
         // page so the UX matches the "状態表示だけ" policy.
         showWorkflowMode={true}
       />
+
+      {criticRejection && (
+        <div className="px-4 pb-4">
+          <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg p-3">
+            <p className="text-sm text-amber-700 dark:text-amber-300 font-medium">
+              {t('taskWorkflowSection.criticRejection.title', {
+                phase: t(`taskWorkflowSection.criticRejection.phase.${criticRejection.phase}`),
+              })}
+            </p>
+            {criticRejection.reasons.length > 0 && (
+              <ul className="mt-1 list-disc list-inside text-sm text-amber-700 dark:text-amber-300">
+                {criticRejection.reasons.map((reason, i) => (
+                  <li key={i}>{reason}</li>
+                ))}
+              </ul>
+            )}
+          </div>
+        </div>
+      )}
 
       {workflowError && (
         <div className="px-4 pb-4">

@@ -2200,7 +2200,14 @@
       "manualSuffix": " (manual)",
       "autoApproveTooltipOn": "Auto-approve plan: ON (advances automatically when plan.md is saved)",
       "autoApproveTooltipOff": "Auto-approve plan: OFF (manual approval required)",
-      "autoApproveBadge": "Auto-approve {state}"
+      "autoApproveBadge": "Auto-approve {state}",
+      "criticRejection": {
+        "title": "The {phase} was rejected by the quality critic and is being regenerated.",
+        "phase": {
+          "research": "research (research.md)",
+          "plan": "plan (plan.md)"
+        }
+      }
     }
   },
   "categories": {
