@@ -25,9 +25,8 @@ import { REPORT_STYLE_RULE } from './workflow-style-rule';
  * Each role receives a tailored prompt that includes task metadata and any
  * previously generated workflow artifacts (research.md, plan.md, etc.).
  *
- * @param taskId - The task ID for context references. / コンテキスト参照用タスクID
+ * @param taskId - The task ID; also used to read prior workflow artifacts. / コンテキスト参照用タスクID（既存成果物の取得にも使用）
  * @param role - The workflow role about to execute. / 実行するワークフロールール
- * @param dir - Absolute path to the workflow directory containing prior artifacts. / 既存成果物を含むワークフローディレクトリの絶対パス
  * @param task - Task title and description. / タスクのタイトルと説明
  * @param language - Output language for instructions. / 指示の出力言語
  * @returns Assembled context string ready to be appended to the agent prompt. / エージェントプロンプトに付加するコンテキスト文字列
@@ -35,7 +34,6 @@ import { REPORT_STYLE_RULE } from './workflow-style-rule';
 export async function buildRoleContext(
   taskId: number,
   role: WorkflowRole,
-  dir: string,
   task: { title: string; description: string | null },
   language: 'ja' | 'en' = 'ja',
   mode: 'lightweight' | 'standard' | 'comprehensive' = 'comprehensive',
@@ -277,7 +275,7 @@ export async function buildRoleContext(
     }
 
     case 'planner': {
-      const research = await readWorkflowFile(dir, 'research');
+      const research = await readWorkflowFile(taskId, 'research');
       let ctx = taskInfo;
       // On a critic-gate bounce, lead with the issues the prior plan missed.
       const planCritic = await buildCriticFeedback(taskId, 'plan', language);
@@ -312,8 +310,8 @@ export async function buildRoleContext(
     }
 
     case 'reviewer': {
-      const plan = await readWorkflowFile(dir, 'plan');
-      const research = await readWorkflowFile(dir, 'research');
+      const plan = await readWorkflowFile(taskId, 'plan');
+      const research = await readWorkflowFile(taskId, 'research');
       // The reviewer was the only role with ZERO memory context — it judged
       // plans blind to the lessons/pitfalls the KB already holds and to how
       // similar plans were previously rejected. Same sources as the planner.
@@ -337,12 +335,12 @@ export async function buildRoleContext(
     }
 
     case 'implementer': {
-      const plan = await readWorkflowFile(dir, 'plan');
-      const question = await readWorkflowFile(dir, 'question');
-      const research = await readWorkflowFile(dir, 'research');
+      const plan = await readWorkflowFile(taskId, 'plan');
+      const question = await readWorkflowFile(taskId, 'question');
+      const research = await readWorkflowFile(taskId, 'research');
       // On a self-repair bounce, verify/CI failure feedback is written to
       // verify.md (not question.md) — read it so the implementer fixes it.
-      const verifyFeedback = await readWorkflowFile(dir, 'verify');
+      const verifyFeedback = await readWorkflowFile(taskId, 'verify');
       // Goal anchor (R7): re-state the task's GOAL + acceptance criteria at the
       // very head of the implementer context. Long contexts drift off-goal —
       // every model degrades past ~100k tokens (arXiv:2505.02709) — and the
@@ -418,7 +416,7 @@ export async function buildRoleContext(
     // NOTE: auto_verifier shares the verifier context — both must emit the validator-required headings
     case 'auto_verifier':
     case 'verifier': {
-      const plan = await readWorkflowFile(dir, 'plan');
+      const plan = await readWorkflowFile(taskId, 'plan');
       let ctx = taskInfo;
       // Recall prior knowledge for the verifier too — failure lessons from
       // similar tasks tell it exactly which regressions to probe for.
@@ -486,7 +484,7 @@ export async function buildRoleContext(
           const [{ runAutomatedVerification, renderVerificationMarkdown }, planForGate] =
             await Promise.all([
               import('../agents/verification/automated-verifier'),
-              readWorkflowFile(dir, 'plan'),
+              readWorkflowFile(taskId, 'plan'),
             ]);
           const measured = await runAutomatedVerification(diffSession.worktreePath, {
             planContent: planForGate ?? undefined,

@@ -216,10 +216,8 @@ export async function reviewAndCommitWorktree(params: ReviewParams): Promise<voi
   // Shared with the verify.md auto-PR path. See verification-gate.ts.
   const planContentForScope = await (async () => {
     try {
-      const { resolveWorkflowDir, readWorkflowFile } =
-        await import('../../../services/workflow/workflow-file-utils');
-      const info = await resolveWorkflowDir(taskId);
-      return info ? (await readWorkflowFile(info.dir, 'plan')) || null : null;
+      const { readWorkflowFile } = await import('../../../services/workflow/workflow-file-utils');
+      return (await readWorkflowFile(taskId, 'plan')) || null;
     } catch {
       return null;
     }

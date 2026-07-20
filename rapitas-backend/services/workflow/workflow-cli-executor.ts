@@ -5,10 +5,8 @@
  * AgentOrchestrator. Builds the agent prompt, delegates execution, reads
  * back the output file, and applies the Markdown extraction fallback.
  */
-import { mkdir } from 'fs/promises';
 import { exec } from 'child_process';
 import { promisify } from 'util';
-import { join } from 'path';
 import { prisma } from '../../config';
 import { AgentOrchestrator } from '../agents/agent-orchestrator';
 import {
@@ -105,16 +103,16 @@ const WF_STATUS_RANK: Record<string, number> = {
  * Execute a CLI agent (claude-code, codex, gemini) via AgentOrchestrator.
  *
  * The agent is given a prompt that includes language instructions and a curl
- * command to save its output via the workflow API. If the agent writes the
- * file directly, that is also detected as a success.
+ * command to save its output via the workflow API. When the agent's own final
+ * message is a clean report instead, extractMarkdownFromOutput recovers it as
+ * a fallback (still saved via writeWorkflowFile, not a direct filesystem write).
  *
- * @param taskId - Task being processed. / 処理中のタスクID
+ * @param taskId - Task being processed; also the key for reading/writing its workflow artifacts. / 処理中のタスクID（成果物の読み書きキーも兼ねる）
  * @param task - Task title and description. / タスクのタイトルと説明
  * @param agentConfig - Agent configuration record. / エージェント設定レコード
  * @param systemPrompt - System prompt content. / システムプロンプト内容
  * @param context - Role context assembled by buildRoleContext. / buildRoleContextで組み立てられたロールコンテキスト
  * @param transition - Current role transition definition. / 現在のロール遷移定義
- * @param workflowDir - Absolute path to the workflow directory. / ワークフローディレクトリの絶対パス
  * @param language - Output language. / 出力言語
  * @param advanceWorkflow - Callback to start the next phase (for auto-advance). / 次フェーズを開始するコールバック
  * @param getOrCreateDevConfig - Callback to resolve the dev config record. / devConfigレコードを解決するコールバック
@@ -127,7 +125,6 @@ export async function executeCLIAgent(
   systemPrompt: string,
   context: string,
   transition: RoleTransition,
-  workflowDir: string,
   language: 'ja' | 'en',
   advanceWorkflow: (taskId: number, language: 'ja' | 'en') => Promise<WorkflowAdvanceResult>,
   getOrCreateDevConfig: (taskId: number) => Promise<{ id: number }>,
@@ -307,12 +304,6 @@ export async function executeCLIAgent(
       branchName: resolvedBranchName ?? undefined,
     },
   });
-
-  await mkdir(workflowDir, { recursive: true });
-
-  const outputFilePath = transition.outputFile
-    ? join(workflowDir, `${transition.outputFile}.md`).replace(/\\/g, '/')
-    : null;
 
   const cliTexts = {
     ja: {
@@ -525,7 +516,7 @@ ${
 ### OUTPUT
 **Return ONLY the markdown ${transition.outputFile === 'plan' ? 'implementation plan' : transition.outputFile === 'research' ? 'investigation report' : 'review report'} as your final assistant message.** Rapitas will capture your final message externally and save it as ${transition.outputFile}.md. You do NOT need to create the file yourself.
 `;
-  } else if (outputFilePath) {
+  } else if (transition.outputFile) {
     // Non-investigation phase OR non-codex agent fallback: keep the legacy
     // "save via curl" instructions so other CLIs (claude-code, gemini) can
     // also produce md files.
@@ -671,7 +662,7 @@ curl -X POST http://127.0.0.1:${port}/idea-box \\
       );
     } else {
       try {
-        await writeWorkflowFile(workflowDir, transition.outputFile, cleaned, taskId);
+        await writeWorkflowFile(taskId, transition.outputFile, cleaned);
         log.info(
           {
             taskId,
@@ -698,7 +689,7 @@ curl -X POST http://127.0.0.1:${port}/idea-box \\
   let phaseError = effectiveSuccess ? undefined : result.errorMessage;
 
   if (transition.outputFile) {
-    let fileContent = await readWorkflowFile(workflowDir, transition.outputFile);
+    let fileContent = await readWorkflowFile(taskId, transition.outputFile);
 
     // Fallback: extract Markdown from raw output when agent did not save via API
     if (!fileContent && result.output && result.output.trim().length > 100) {
@@ -707,7 +698,7 @@ curl -X POST http://127.0.0.1:${port}/idea-box \\
       );
       const extractedContent = extractMarkdownFromOutput(result.output, transition.outputFile);
       if (extractedContent) {
-        await writeWorkflowFile(workflowDir, transition.outputFile, extractedContent, taskId);
+        await writeWorkflowFile(taskId, transition.outputFile, extractedContent);
         fileContent = extractedContent;
         log.info(
           `[WorkflowCLIExecutor] Saved extracted content (${extractedContent.length} chars)`,

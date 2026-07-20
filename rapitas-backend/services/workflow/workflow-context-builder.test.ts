@@ -13,8 +13,6 @@ import {
 } from './workflow-context-builder';
 
 const TASK = { title: 'Test task', description: 'A test description' };
-// Use a path that does not exist so readWorkflowFile returns null for all files.
-const NO_DIR = '/nonexistent/workflow/dir';
 
 describe('buildRoleContext', () => {
   describe('auto_verifier role', () => {
@@ -24,14 +22,14 @@ describe('buildRoleContext', () => {
       { name: 'チェックリスト heading in instruction', expected: 'チェックリスト' },
       { name: 'task title in context', expected: TASK.title },
     ])('includes $name', async ({ expected }) => {
-      const ctx = await buildRoleContext(1, 'auto_verifier', NO_DIR, TASK);
+      const ctx = await buildRoleContext(1, 'auto_verifier', TASK);
       expect(ctx).toContain(expected);
     });
   });
 
   describe('verifier role', () => {
     test('includes the same 3 required section headings', async () => {
-      const ctx = await buildRoleContext(1, 'verifier', NO_DIR, TASK);
+      const ctx = await buildRoleContext(1, 'verifier', TASK);
       expect(ctx).toContain('検証結果サマリ');
       expect(ctx).toContain('テスト結果');
       expect(ctx).toContain('チェックリスト');
@@ -40,8 +38,8 @@ describe('buildRoleContext', () => {
 
   describe('auto_verifier and verifier produce equivalent instructions', () => {
     test('auto_verifier instruction text equals verifier instruction text', async () => {
-      const autoCtx = await buildRoleContext(1, 'auto_verifier', NO_DIR, TASK);
-      const verifierCtx = await buildRoleContext(1, 'verifier', NO_DIR, TASK);
+      const autoCtx = await buildRoleContext(1, 'auto_verifier', TASK);
+      const verifierCtx = await buildRoleContext(1, 'verifier', TASK);
       // Both roles fall through to the same code block, so their outputs must be identical.
       expect(autoCtx).toBe(verifierCtx);
     });
@@ -49,18 +47,18 @@ describe('buildRoleContext', () => {
 
   describe('premortem (R7)', () => {
     test('planner context mandates a プレモーテム section', async () => {
-      const ctx = await buildRoleContext(1, 'planner', NO_DIR, TASK);
+      const ctx = await buildRoleContext(1, 'planner', TASK);
       expect(ctx).toContain('## プレモーテム');
       expect(ctx).toContain('失敗原因を3つ');
     });
 
     test('verifier context mandates the premortem cross-check', async () => {
-      const ctx = await buildRoleContext(1, 'verifier', NO_DIR, TASK);
+      const ctx = await buildRoleContext(1, 'verifier', TASK);
       expect(ctx).toContain('プレモーテム照合');
     });
 
     test('english planner variant carries the premortem too', async () => {
-      const ctx = await buildRoleContext(1, 'planner', NO_DIR, TASK, 'en');
+      const ctx = await buildRoleContext(1, 'planner', TASK, 'en');
       expect(ctx).toContain('Premortem (REQUIRED)');
     });
   });
@@ -70,12 +68,7 @@ describe('report style rule (emoji-free professional markdown)', () => {
   test.each(['researcher', 'planner', 'reviewer', 'implementer', 'verifier', 'auto_verifier'])(
     '%s context carries the ja style rule',
     async (role) => {
-      const ctx = await buildRoleContext(
-        1,
-        role as Parameters<typeof buildRoleContext>[1],
-        NO_DIR,
-        TASK,
-      );
+      const ctx = await buildRoleContext(1, role as Parameters<typeof buildRoleContext>[1], TASK);
       expect(ctx).toContain('## 文体ルール');
       expect(ctx).toContain('絵文字は使用禁止');
       expect(ctx).toContain('横スクロールなしで全列が見える');
@@ -91,7 +84,7 @@ describe('report style rule (emoji-free professional markdown)', () => {
   );
 
   test('en variant carries the en style rule', async () => {
-    const ctx = await buildRoleContext(1, 'verifier', NO_DIR, TASK, 'en');
+    const ctx = await buildRoleContext(1, 'verifier', TASK, 'en');
     expect(ctx).toContain('## Style rules');
     expect(ctx).toContain('Emoji are forbidden');
     expect(ctx).toContain('prioritize AI comprehension');
@@ -99,7 +92,7 @@ describe('report style rule (emoji-free professional markdown)', () => {
   });
 
   test('verifier verdict-marker vocabulary is unchanged by the style rule', async () => {
-    const ctx = await buildRoleContext(1, 'verifier', NO_DIR, TASK);
+    const ctx = await buildRoleContext(1, 'verifier', TASK);
     // The machine-parsed phrases must still be present verbatim.
     expect(ctx).toContain('✅ 検証成功 / ❌ 検証失敗 / ⚠️ 一部失敗');
     expect(ctx).toContain('`**❌ 検証失敗**`');
@@ -108,7 +101,7 @@ describe('report style rule (emoji-free professional markdown)', () => {
 
 describe('report hygiene rules (round 7 audit fixes)', () => {
   test('verifier carries the machine-gate output discipline', async () => {
-    const ctx = await buildRoleContext(1, 'verifier', NO_DIR, TASK);
+    const ctx = await buildRoleContext(1, 'verifier', TASK);
     expect(ctx).toContain('### 出力規律（機械ゲート互換 — 厳守）');
     expect(ctx).toContain('タスク種別（軽量・マージ・競合解消・サブタスク）を問わず');
     expect(ctx).toContain('言い換えは禁止');
@@ -118,35 +111,35 @@ describe('report hygiene rules (round 7 audit fixes)', () => {
   });
 
   test('en verifier carries the output discipline too', async () => {
-    const ctx = await buildRoleContext(1, 'verifier', NO_DIR, TASK, 'en');
+    const ctx = await buildRoleContext(1, 'verifier', TASK, 'en');
     expect(ctx).toContain('### Output discipline (machine-gate compatibility — strict)');
     expect(ctx).toContain('deliberate-RED');
   });
 
   test('lightweight verifier keeps the machine-parsed チェックリスト消化状況 heading', async () => {
-    // NO_DIR has no plan.md → the no-plan replacement applies. The heading must
+    // taskId 1 has no plan.md → the no-plan replacement applies. The heading must
     // keep the チェックリスト substring the section validator scans for.
-    const ctx = await buildRoleContext(1, 'verifier', NO_DIR, TASK);
+    const ctx = await buildRoleContext(1, 'verifier', TASK);
     expect(ctx).toContain('## チェックリスト消化状況 (計画なしタスク:');
     expect(ctx).not.toContain('## 要件の充足状況');
   });
 
   test('planner carries the self-containment rule and the fact-form premortem note', async () => {
-    const ctx = await buildRoleContext(1, 'planner', NO_DIR, TASK);
+    const ctx = await buildRoleContext(1, 'planner', TASK);
     expect(ctx).toContain('## 自己完結ルール');
     expect(ctx).toContain('「research.md の選択肢A」');
     expect(ctx).toContain('修正除去でRED→復元でGREENを確認');
   });
 
   test('researcher forbids template placeholder residue and uses 類似機能', async () => {
-    const ctx = await buildRoleContext(1, 'researcher', NO_DIR, TASK);
+    const ctx = await buildRoleContext(1, 'researcher', TASK);
     expect(ctx).toContain('プレースホルダ説明を見出しや本文に残さない');
     expect(ctx).toContain('類似機能の有無');
     expect(ctx).not.toContain('類似実装の有無');
   });
 
   test('style rule carries negative examples, verdict vocabulary lock, and deixis ban', async () => {
-    const ctx = await buildRoleContext(1, 'implementer', NO_DIR, TASK);
+    const ctx = await buildRoleContext(1, 'implementer', TASK);
     expect(ctx).toContain('負例（書いてはならない形）');
     expect(ctx).toContain('「合格」「条件付き合格」「不合格」等への言い換えは禁止');
     expect(ctx).toContain('指示語（「上記」「前述」「これ」）で他セクションを参照しない');

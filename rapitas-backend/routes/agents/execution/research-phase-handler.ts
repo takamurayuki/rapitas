@@ -148,7 +148,7 @@ export async function handleResearchResult(params: HandleResearchResultParams): 
         await import('../../../services/workflow/workflow-file-utils');
       const resolved = await resolveWorkflowDir(taskIdNum);
       if (resolved) {
-        await writeWorkflowFile(resolved.dir, 'research', researchMarkdown, taskIdNum);
+        await writeWorkflowFile(taskIdNum, 'research', researchMarkdown);
         log.info({ taskId: taskIdNum }, '[API] research.md saved via workflow API');
         // NOTE: Refine complexityScore/workflowMode from the code-grounded assessment
         // in research.md. Auto-run does this in workflow-cli-executor; without this

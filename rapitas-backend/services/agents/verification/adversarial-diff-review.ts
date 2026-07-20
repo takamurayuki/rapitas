@@ -26,7 +26,7 @@ import { sendAIMessage } from '../../../utils/ai-client';
 import type { AIProvider } from '../../../utils/ai-client/types';
 import { DEFAULT_MODELS } from '../../../utils/ai-client/types';
 import { inferProviderFromModelId } from '../../workflow/role-provider-resolver';
-import { resolveWorkflowDir, readWorkflowFile } from '../../workflow/workflow-file-utils';
+import { readWorkflowFile } from '../../workflow/workflow-file-utils';
 import { detectHighRisk } from '../../workflow/routing-policy';
 import { appendEvent } from '../../memory/timeline';
 import { prisma } from '../../../config/database';
@@ -329,8 +329,7 @@ export async function reviewDiffAdversarially(params: {
       return { verdict: 'unknown', severity: 0, reasons: [], judged: false };
     }
 
-    const resolved = await resolveWorkflowDir(taskId);
-    const planContent = resolved ? ((await readWorkflowFile(resolved.dir, 'plan')) ?? '') : '';
+    const planContent = (await readWorkflowFile(taskId, 'plan')) ?? '';
     const task = await prisma.task
       .findUnique({
         where: { id: taskId },

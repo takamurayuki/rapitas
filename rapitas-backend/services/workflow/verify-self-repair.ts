@@ -12,7 +12,7 @@
  */
 import { prisma } from '../../config/database';
 import { createLogger } from '../../config/logger';
-import { resolveWorkflowDir, readWorkflowFile, writeWorkflowFile } from './workflow-file-utils';
+import { readWorkflowFile, writeWorkflowFile } from './workflow-file-utils';
 import { recordTransition } from './transition-recorder';
 
 const log = createLogger('workflow:verify-self-repair');
@@ -192,13 +192,11 @@ async function writeRepairFeedback(
   attempt: number,
 ): Promise<void> {
   try {
-    const info = await resolveWorkflowDir(taskId);
-    if (!info) return;
     // Verification feedback belongs to the verify artifact, not question.md
     // (Q&A). The implementer context reads verify.md for this on re-run.
-    const prior = (await readWorkflowFile(info.dir, 'verify')) ?? verifyContent ?? '';
+    const prior = (await readWorkflowFile(taskId, 'verify')) ?? verifyContent ?? '';
     const next = mergeRepairFeedback(prior, buildRepairFeedbackBlock(reason, attempt));
-    await writeWorkflowFile(info.dir, 'verify', next, taskId);
+    await writeWorkflowFile(taskId, 'verify', next);
   } catch (err) {
     log.warn({ err, taskId }, '[verify-repair] Failed to write repair feedback to verify.md');
   }

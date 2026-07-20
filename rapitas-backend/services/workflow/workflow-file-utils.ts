@@ -1,16 +1,19 @@
 /**
  * Workflow File Utils
  *
- * Low-level filesystem helpers for reading, writing, and cleaning up workflow
- * Markdown files. Does not contain any business logic or DB access.
+ * DB-backed helpers for reading, writing, and versioning workflow Markdown
+ * artifacts (research/plan/question/verify). The `WorkflowFile` row IS the
+ * content — there is no on-disk mirror for anything written through this
+ * module. Superseded versions live in `WorkflowFileVersion` instead of the
+ * old `_archive/<timestamp>/` folder convention.
  */
-import { readFile, writeFile, mkdir, rename, stat, rm } from 'fs/promises';
+import { readFile } from 'fs/promises';
 import { createHash } from 'crypto';
 import { join } from 'path';
 import { prisma } from '../../config';
 import { sanitizeMarkdownContent } from '../../utils/common/mojibake-detector';
 import { createLogger } from '../../config/logger';
-import { getTaskWorkflowDir, getArchiveDir } from './workflow-paths';
+import { getTaskWorkflowDir } from './workflow-paths';
 import { resolveTaskWithThemeAndCategory } from '../task/task-resolver';
 import { fileHypothesesFromResearch } from '../memory/hypothesis-from-research';
 import { applyHypothesisVerdictsFromVerify } from '../memory/hypothesis-from-verify';
@@ -21,10 +24,11 @@ import type { WorkflowFileType } from './workflow-types';
 export type { WorkflowFileType };
 
 /**
- * Resolve the workflow directory path from a task ID.
+ * Resolve a task's identity (task row + category/theme ids) for workflow-file
+ * operations.
  *
  * @param taskId - The task ID to resolve. / 解決するタスクID
- * @returns Directory info or null if the task does not exist. / タスクが存在しない場合はnull
+ * @returns Task identity or null if the task does not exist. / タスクが存在しない場合はnull
  */
 export async function resolveWorkflowDir(taskId: number) {
   const task = await resolveTaskWithThemeAndCategory(taskId);
@@ -32,83 +36,77 @@ export async function resolveWorkflowDir(taskId: number) {
 
   const categoryId = task.theme?.categoryId ?? null;
   const themeId = task.themeId ?? null;
-  const categoryDir = categoryId !== null ? String(categoryId) : '0';
-  const themeDir = themeId !== null ? String(themeId) : '0';
-
-  // Suppress unused-variable lint while keeping the previously-computed
-  // legacy `<cwd>/tasks/...` constants available for read-time fallback.
-  void categoryDir;
-  void themeDir;
-  return {
-    task,
-    dir: getTaskWorkflowDir(categoryId, themeId, taskId),
-    categoryId,
-    themeId,
-  };
+  return { task, categoryId, themeId };
 }
 
 /**
- * Delete a task's workflow directory (research/plan/verify/question + archived
- * versions) from disk. Best-effort and recursive; a missing task/dir is a no-op.
- * MUST be called while the task still exists (resolveWorkflowDir reads it to
- * derive the category/theme path), i.e. before `prisma.task.delete`.
- *
- * @param taskId - Task whose workflow md files to remove. / 対象タスクID
- * @returns true when a directory removal was attempted. / 削除を試みたか
+ * Reads a legacy on-disk workflow file, if present. ONLY used as a transient
+ * fallback for the window between server startup and
+ * `workflow-db-backfill.ts` completing — once every task's file has been
+ * backfilled into `WorkflowFile`, this never matches anything.
  */
-export async function deleteWorkflowDir(taskId: number): Promise<boolean> {
-  try {
-    const resolved = await resolveWorkflowDir(taskId);
-    if (!resolved) return false;
-    await rm(resolved.dir, { recursive: true, force: true });
-    log.info({ taskId, dir: resolved.dir }, '[workflow-file-utils] Deleted workflow dir');
-    return true;
-  } catch (err) {
-    log.warn({ err, taskId }, '[workflow-file-utils] Failed to delete workflow dir');
-    return false;
-  }
-}
-
-/**
- * Read the content of a workflow file.
- *
- * @param dir - Absolute path to the workflow directory. / ワークフローディレクトリの絶対パス
- * @param fileType - The workflow file type to read. / 読み込むワークフローファイルの種類
- * @returns File content string or null if not found. / ファイル内容またはnull
- */
-export async function readWorkflowFile(
-  dir: string,
+async function readLegacyFileFallback(
+  taskId: number,
   fileType: WorkflowFileType,
 ): Promise<string | null> {
+  const resolved = await resolveWorkflowDir(taskId).catch(() => null);
+  if (!resolved) return null;
+  const dir = getTaskWorkflowDir(resolved.categoryId, resolved.themeId, taskId);
   try {
-    const filePath = join(dir, `${fileType}.md`);
-    return await readFile(filePath, 'utf-8');
+    return await readFile(join(dir, `${fileType}.md`), 'utf-8');
   } catch {
     return null;
   }
 }
 
 /**
- * Write to a workflow file, applying mojibake correction before saving.
- * Existing content (if any) is archived under `_archive/<timestamp>/` so a
- * regenerated plan never silently destroys the previous version, and a
- * matching `WorkflowFile` metadata row is upserted for DB-level queries.
+ * Read the content of a workflow file.
  *
- * @param dir - Absolute path to the workflow directory. / ワークフローディレクトリの絶対パス
+ * @param taskId - Task the artifact belongs to. / 対象タスクID
+ * @param fileType - The workflow file type to read. / 読み込むワークフローファイルの種類
+ * @returns File content string or null if not found. / ファイル内容またはnull
+ */
+export async function readWorkflowFile(
+  taskId: number,
+  fileType: WorkflowFileType,
+): Promise<string | null> {
+  const row = await prisma.workflowFile
+    .findUnique({
+      where: { taskId_fileType: { taskId, fileType } },
+      select: { content: true },
+    })
+    .catch(() => null);
+  if (row) return row.content;
+
+  // Transient backfill-race fallback (see readLegacyFileFallback doc comment).
+  const legacyContent = await readLegacyFileFallback(taskId, fileType);
+  if (legacyContent != null) {
+    await writeWorkflowFile(taskId, fileType, legacyContent).catch((err) => {
+      log.warn(
+        { err, taskId, fileType },
+        '[WorkflowFileUtils] Failed to write through legacy fallback',
+      );
+    });
+    return legacyContent;
+  }
+  return null;
+}
+
+/**
+ * Write a workflow file, applying mojibake correction before saving. Any
+ * existing content is archived into `WorkflowFileVersion` first so a
+ * regenerated plan never silently destroys the previous version.
+ *
+ * @param taskId - Task the artifact belongs to. / 対象タスクID
  * @param fileType - The workflow file type to write. / 書き込むワークフローファイルの種類
  * @param content - Markdown content to write. / 書き込むMarkdownコンテンツ
- * @param taskId - Optional task id; when provided, metadata is recorded in the
- *                 `WorkflowFile` table for indexing. / タスクID（メタ記録用）
+ * @returns The sanitized content actually saved. / 実際に保存したサニタイズ済みコンテンツ
  */
 export async function writeWorkflowFile(
-  dir: string,
+  taskId: number,
   fileType: WorkflowFileType,
   content: string,
-  taskId?: number,
 ): Promise<string> {
-  await mkdir(dir, { recursive: true });
-
-  // Mojibake detection and correction
   const sanitizeResult = sanitizeMarkdownContent(content);
   if (sanitizeResult.wasFixed) {
     log.info(
@@ -117,150 +115,94 @@ export async function writeWorkflowFile(
     );
   }
 
-  const filePath = join(dir, `${fileType}.md`);
+  const sha256 = createHash('sha256').update(sanitizeResult.content).digest('hex');
+  const sizeBytes = Buffer.byteLength(sanitizeResult.content, 'utf-8');
 
-  // Archive the previous version when present so users can compare iterations
-  // (and so a regenerated plan never silently destroys the previous one).
-  // NOTE: `stat` failing with ENOENT ("no prior file") is the only case that's
-  // safe to skip silently. A bare `catch { }` around the WHOLE block used to
-  // also swallow a real `mkdir`/`rename` failure (e.g. EBUSY/EPERM on a locked
-  // file) identically — in that case the prior version was never actually
-  // moved out of the way, yet the code fell straight through to `writeFile`
-  // below and overwrote it anyway, permanently losing it. Only the "no prior
-  // file" case is treated as a no-op; any other archiving failure aborts the
-  // write instead of risking that data loss.
-  const priorExists = await stat(filePath)
-    .then(() => true)
-    .catch((err: unknown) => {
-      if ((err as NodeJS.ErrnoException)?.code !== 'ENOENT') {
-        log.warn(
-          { err, filePath },
-          '[WorkflowFileUtils] stat failed before archiving (not "file missing") — treating as no prior file',
-        );
-      }
-      return false;
+  await prisma.$transaction(async (tx) => {
+    const existing = await tx.workflowFile.findUnique({
+      where: { taskId_fileType: { taskId, fileType } },
     });
-
-  if (priorExists) {
-    try {
-      const archiveDir = getArchiveDir(dir, new Date().toISOString());
-      await mkdir(archiveDir, { recursive: true });
-      await rename(filePath, join(archiveDir, `${fileType}.md`));
-    } catch (err) {
-      log.error(
-        { err, filePath },
-        '[WorkflowFileUtils] Failed to archive prior version — aborting write to avoid destroying it',
-      );
-      throw new Error(`Failed to archive prior ${fileType}.md before overwrite: ${String(err)}`);
+    if (existing) {
+      await tx.workflowFileVersion.create({
+        data: {
+          taskId,
+          fileType,
+          content: existing.content,
+          sha256: existing.sha256,
+          sizeBytes: existing.sizeBytes,
+        },
+      });
     }
-  }
+    await tx.workflowFile.upsert({
+      where: { taskId_fileType: { taskId, fileType } },
+      create: { taskId, fileType, content: sanitizeResult.content, sha256, sizeBytes },
+      update: { content: sanitizeResult.content, sha256, sizeBytes },
+    });
+  });
 
-  await writeFile(filePath, sanitizeResult.content, 'utf-8');
-
-  if (taskId !== undefined) {
-    await recordWorkflowFileMetadata(taskId, fileType, sanitizeResult.content, filePath);
-
-    // Seed the agent-memory ledgers from the file's structured sections. This is
-    // the UNIVERSAL save choke point — the auto-run path (workflow-cli-executor)
-    // writes research/plan via this function directly, NOT through the
-    // handleSaveFile API route, so hooks placed only in that route never fired
-    // for auto-run tasks (the ledger stayed empty all day despite research
-    // writing a valid `## 仮説` section). Fire-and-forget; submitHypothesis
-    // dedupes (content hash), so the API path calling this in addition is safe.
-    if (fileType === 'research') {
-      void fileHypothesesFromResearch(taskId, sanitizeResult.content).catch(() => {});
-    } else if (fileType === 'verify') {
-      // Explicit verification closes the loop: graduate/refute hypotheses from the
-      // verifier's `## 仮説評価` verdicts (real prediction-held judgement), not the
-      // weak completion proxy that never crossed the graduation bar.
-      void applyHypothesisVerdictsFromVerify(taskId, sanitizeResult.content).catch(() => {});
-    }
+  // Seed the agent-memory ledgers from the file's structured sections. This is
+  // the UNIVERSAL save choke point — the auto-run path (workflow-cli-executor)
+  // writes research/plan via this function directly, NOT through the
+  // handleSaveFile API route, so hooks placed only in that route never fired
+  // for auto-run tasks (the ledger stayed empty all day despite research
+  // writing a valid `## 仮説` section). Fire-and-forget; submitHypothesis
+  // dedupes (content hash), so the API path calling this in addition is safe.
+  if (fileType === 'research') {
+    void fileHypothesesFromResearch(taskId, sanitizeResult.content).catch(() => {});
+  } else if (fileType === 'verify') {
+    // Explicit verification closes the loop: graduate/refute hypotheses from the
+    // verifier's `## 仮説評価` verdicts (real prediction-held judgement), not the
+    // weak completion proxy that never crossed the graduation bar.
+    void applyHypothesisVerdictsFromVerify(taskId, sanitizeResult.content).catch(() => {});
   }
 
   return sanitizeResult.content;
 }
 
 /**
- * Move a workflow file into `_archive/<ts>/` so a later phase cannot reuse it.
- * Used when an artifact is rejected (e.g. a log-polluted plan.md on replan): the
- * producing phase then regenerates from scratch instead of re-reading the bad
- * file and looping. Best-effort; a missing file is a no-op.
+ * Move a workflow file's content into `WorkflowFileVersion` and clear the
+ * live row, so a later phase cannot reuse it. Used when an artifact is
+ * rejected (e.g. a log-polluted plan.md on replan): the producing phase then
+ * regenerates from scratch instead of re-reading the bad content and looping.
+ * Best-effort; a missing row is a no-op.
  *
- * @param dir - Workflow directory. / ワークフローディレクトリ
+ * @param taskId - Task the artifact belongs to. / 対象タスクID
  * @param fileType - Artifact to archive. / 退避するファイル種別
- * @returns true when a file was archived. / 退避した場合 true
+ * @returns true when a row was archived. / 退避した場合 true
  */
 export async function archiveWorkflowFile(
-  dir: string,
+  taskId: number,
   fileType: WorkflowFileType,
 ): Promise<boolean> {
-  const filePath = join(dir, `${fileType}.md`);
   try {
-    await stat(filePath);
-    const archiveDir = getArchiveDir(dir, new Date().toISOString());
-    await mkdir(archiveDir, { recursive: true });
-    await rename(filePath, join(archiveDir, `${fileType}.md`));
-    return true;
-  } catch {
+    return await prisma.$transaction(async (tx) => {
+      const existing = await tx.workflowFile.findUnique({
+        where: { taskId_fileType: { taskId, fileType } },
+      });
+      if (!existing) return false;
+      await tx.workflowFileVersion.create({
+        data: {
+          taskId,
+          fileType,
+          content: existing.content,
+          sha256: existing.sha256,
+          sizeBytes: existing.sizeBytes,
+        },
+      });
+      await tx.workflowFile.delete({ where: { taskId_fileType: { taskId, fileType } } });
+      return true;
+    });
+  } catch (err) {
+    log.warn({ err, taskId, fileType }, '[WorkflowFileUtils] Failed to archive workflow file');
     return false;
   }
 }
 
 /**
- * Upsert a row in the `WorkflowFile` metadata table so consumers can query
- * "which tasks have a stale plan?" without touching the filesystem.
- * Best-effort — failures are logged and swallowed.
- */
-async function recordWorkflowFileMetadata(
-  taskId: number,
-  fileType: WorkflowFileType,
-  content: string,
-  absolutePath: string,
-): Promise<void> {
-  try {
-    const sha256 = createHash('sha256').update(content).digest('hex');
-    const sizeBytes = Buffer.byteLength(content, 'utf-8');
-    // Use a dynamic accessor so older builds without the `workflowFile` model
-    // (pre-migration) do not crash here — the metadata is best-effort.
-    const wf = (prisma as unknown as { workflowFile?: WorkflowFileDelegate }).workflowFile;
-    if (!wf) return;
-    await wf.upsert({
-      where: { taskId_fileType: { taskId, fileType } },
-      create: { taskId, fileType, sha256, sizeBytes, absolutePath },
-      update: { sha256, sizeBytes, absolutePath, updatedAt: new Date() },
-    });
-  } catch (err) {
-    log.warn(
-      { err: err instanceof Error ? err.message : err },
-      'WorkflowFile metadata write failed',
-    );
-  }
-}
-
-interface WorkflowFileDelegate {
-  upsert(args: {
-    where: { taskId_fileType: { taskId: number; fileType: string } };
-    create: {
-      taskId: number;
-      fileType: string;
-      sha256: string;
-      sizeBytes: number;
-      absolutePath: string;
-    };
-    update: {
-      sha256: string;
-      sizeBytes: number;
-      absolutePath: string;
-      updatedAt: Date;
-    };
-  }): Promise<unknown>;
-}
-
-/**
  * Remove leftover workflow-related files from the project root.
  *
- * CLI agents sometimes write files to the project root instead of the proper
- * workflow directory. This cleanup runs after each CLI agent execution.
+ * CLI agents sometimes write files to the project root instead of saving via
+ * the workflow API. This cleanup runs after each CLI agent execution.
  *
  * @param taskId - The task ID (currently unused but retained for future logging). / タスクID
  */

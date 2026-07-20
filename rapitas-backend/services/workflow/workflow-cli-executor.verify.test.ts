@@ -10,8 +10,6 @@
  * the sibling split files.
  */
 import { describe, test, expect, beforeEach } from 'bun:test';
-import { tmpdir } from 'os';
-import { join } from 'path';
 import {
   wf,
   spies,
@@ -23,7 +21,6 @@ import type { RoleTransition, WorkflowAdvanceResult } from './workflow-types';
 installWorkflowCliExecutorMocks();
 const { executeCLIAgent } = await import('./workflow-cli-executor');
 
-const workflowDir = join(tmpdir(), 'rapitas-wf-cli-executor-test', 'verify');
 const advanceWorkflow = (): Promise<WorkflowAdvanceResult> =>
   Promise.resolve({ success: true, role: 'implementer', status: 'verify_done' });
 const getOrCreateDevConfig = (): Promise<{ id: number }> => Promise.resolve({ id: 42 });
@@ -42,7 +39,6 @@ async function run(): Promise<WorkflowAdvanceResult> {
     'system prompt',
     'context',
     verifyTransition(),
-    workflowDir,
     'ja',
     advanceWorkflow,
     getOrCreateDevConfig,

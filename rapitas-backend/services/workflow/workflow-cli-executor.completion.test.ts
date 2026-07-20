@@ -11,8 +11,6 @@
  * verify-phase completion gate are covered in the sibling split files.
  */
 import { describe, test, expect, beforeEach, mock } from 'bun:test';
-import { tmpdir } from 'os';
-import { join } from 'path';
 import {
   wf,
   spies,
@@ -24,7 +22,6 @@ import type { RoleTransition, WorkflowAdvanceResult } from './workflow-types';
 installWorkflowCliExecutorMocks();
 const { executeCLIAgent } = await import('./workflow-cli-executor');
 
-const workflowDir = join(tmpdir(), 'rapitas-wf-cli-executor-test', 'completion');
 const getOrCreateDevConfig = (): Promise<{ id: number }> => Promise.resolve({ id: 42 });
 const task = { title: 'Finish the thing', description: 'desc' };
 const agentConfig = { id: 1, agentType: 'claude-code', name: 'Agent', modelId: null };
@@ -47,7 +44,6 @@ async function run(
     'system prompt',
     'context',
     transition,
-    workflowDir,
     'ja',
     advanceWorkflow,
     getOrCreateDevConfig,

@@ -17,7 +17,7 @@ import {
   looksLikeBugFixTask,
   type VerificationResult,
 } from './automated-verifier';
-import { resolveWorkflowDir, readWorkflowFile } from '../../workflow/workflow-file-utils';
+import { readWorkflowFile } from '../../workflow/workflow-file-utils';
 import { submitConcern } from '../../memory/concern-backlog-service';
 import { writeBlockedStatusDurable } from '../../workflow/durable-blocked-write';
 
@@ -33,9 +33,7 @@ const log = createLogger('agents:verification-gate');
  */
 async function loadPlanContent(taskId: number): Promise<string | null> {
   try {
-    const info = await resolveWorkflowDir(taskId);
-    if (!info) return null;
-    return (await readWorkflowFile(info.dir, 'plan')) || null;
+    return (await readWorkflowFile(taskId, 'plan')) || null;
   } catch {
     return null;
   }

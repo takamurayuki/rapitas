@@ -1244,12 +1244,25 @@ CREATE TABLE "WorkflowFile" (
     "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
     "taskId" INTEGER NOT NULL,
     "fileType" TEXT NOT NULL,
+    "content" TEXT NOT NULL,
     "sha256" TEXT NOT NULL,
     "sizeBytes" INTEGER NOT NULL,
-    "absolutePath" TEXT NOT NULL,
+    "absolutePath" TEXT,
     "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" DATETIME NOT NULL,
     CONSTRAINT "WorkflowFile_taskId_fkey" FOREIGN KEY ("taskId") REFERENCES "Task" ("id") ON DELETE CASCADE ON UPDATE CASCADE
+);
+
+-- CreateTable
+CREATE TABLE "WorkflowFileVersion" (
+    "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    "taskId" INTEGER NOT NULL,
+    "fileType" TEXT NOT NULL,
+    "content" TEXT NOT NULL,
+    "sha256" TEXT NOT NULL,
+    "sizeBytes" INTEGER NOT NULL,
+    "archivedAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT "WorkflowFileVersion_taskId_fkey" FOREIGN KEY ("taskId") REFERENCES "Task" ("id") ON DELETE CASCADE ON UPDATE CASCADE
 );
 
 -- CreateTable
@@ -1726,6 +1739,9 @@ CREATE INDEX "WorkflowFile_fileType_updatedAt_idx" ON "WorkflowFile"("fileType",
 
 -- CreateIndex
 CREATE UNIQUE INDEX "WorkflowFile_taskId_fileType_key" ON "WorkflowFile"("taskId", "fileType");
+
+-- CreateIndex
+CREATE INDEX "WorkflowFileVersion_taskId_fileType_archivedAt_idx" ON "WorkflowFileVersion"("taskId", "fileType", "archivedAt");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "WorkflowRoleConfig_role_key" ON "WorkflowRoleConfig"("role");

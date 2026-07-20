@@ -152,8 +152,10 @@ model Task {
   @@index([dueDate])
   @@index([isRecurring, nextOccurrence])
 
-  // Workflow markdown file index (research/plan/question/verify metadata).
+  // Workflow markdown artifacts (research/plan/question/verify), DB-backed.
   workflowFiles        WorkflowFile[]
+  // Superseded WorkflowFile versions (overwrite/archive history).
+  workflowFileVersions WorkflowFileVersion[]
   // Append-only audit trail of workflow status transitions.
   workflowTransitions  WorkflowTransition[]
 }

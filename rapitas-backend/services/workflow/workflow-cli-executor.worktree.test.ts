@@ -16,8 +16,6 @@
  * auto-advance `setTimeout`.
  */
 import { describe, test, expect, beforeEach } from 'bun:test';
-import { tmpdir } from 'os';
-import { join } from 'path';
 import {
   wf,
   spies,
@@ -31,7 +29,6 @@ import type { RoleTransition, WorkflowAdvanceResult } from './workflow-types';
 // executeCLIAgent unconditionally `mkdir`s the workflow dir — fs/promises is
 // intentionally left un-mocked (see mock-state helper), so this must be a
 // real, writable path.
-const workflowDir = join(tmpdir(), 'rapitas-wf-cli-executor-test', 'worktree');
 
 installWorkflowCliExecutorMocks();
 const { executeCLIAgent } = await import('./workflow-cli-executor');
@@ -61,7 +58,6 @@ async function run(transition: RoleTransition, taskId = 1): Promise<WorkflowAdva
     'system prompt',
     'context',
     transition,
-    workflowDir,
     'ja',
     advanceWorkflow,
     getOrCreateDevConfig,

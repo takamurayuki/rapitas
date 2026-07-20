@@ -167,7 +167,7 @@ export const wf = {
   }) as () => Promise<{ stdout: string; stderr: string }>,
 
   readWorkflowFileImpl: (async () => null) as (
-    dir: string,
+    taskId: number,
     fileType: string,
   ) => Promise<string | null>,
   extractMarkdownFromOutputImpl: ((_output: string, _fileType: string) => null) as (
@@ -232,7 +232,9 @@ export const spies = {
   executeTask: mock((task: AgentTaskLike, options: ExecutionOptionsLike) =>
     wf.executeTaskImpl(task, options),
   ),
-  readWorkflowFile: mock((dir: string, fileType: string) => wf.readWorkflowFileImpl(dir, fileType)),
+  readWorkflowFile: mock((taskId: number, fileType: string) =>
+    wf.readWorkflowFileImpl(taskId, fileType),
+  ),
   writeWorkflowFile: mock(() => Promise.resolve()),
   cleanupRootWorkflowFiles: mock(() => Promise.resolve()),
   extractMarkdownFromOutput: mock((output: string, fileType: string) =>
@@ -333,14 +335,6 @@ export function installWorkflowCliExecutorMocks(): void {
     getProjectRoot: () => '/fake/rapitas',
   }));
 
-  // fs/promises is intentionally left REAL (not mocked): executeCLIAgent only
-  // calls `mkdir(workflowDir, { recursive: true })`, a harmless idempotent
-  // call against the real filesystem. Mocking this specifier turned out to
-  // intercept unrelated transitive imports of fs/promises elsewhere in the
-  // process (e.g. `readdir`), causing "export not found" crashes — not worth
-  // it for a single side-effect-free call. Tests pass a real OS temp dir as
-  // `workflowDir`.
-
   const childProcessModule = () => ({
     exec: (cmd: string, optsOrCb: unknown, cb?: (err: Error | null, r?: unknown) => void) => {
       const callback = (typeof optsOrCb === 'function' ? optsOrCb : cb) as (
@@ -397,10 +391,7 @@ export function installWorkflowCliExecutorMocks(): void {
   }));
 
   mock.module(p('services/workflow/workflow-file-utils'), () => ({
-    resolveWorkflowDir: mock(() =>
-      Promise.resolve({ dir: '/fake/wf/1', taskId: 1, categoryId: 0, themeId: 1 }),
-    ),
-    deleteWorkflowDir: mock(() => Promise.resolve(true)),
+    resolveWorkflowDir: mock(() => Promise.resolve({ task: { id: 1 }, categoryId: 0, themeId: 1 })),
     readWorkflowFile: spies.readWorkflowFile,
     writeWorkflowFile: spies.writeWorkflowFile,
     archiveWorkflowFile: mock(() => Promise.resolve(false)),

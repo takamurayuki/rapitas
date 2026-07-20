@@ -109,20 +109,14 @@ Language: English only. Use imperative mood ("Add", not "Added").
 > below documents the FULL (comprehensive) workflow; skip the steps your phase or
 > mode does not include.
 
-### File structure
+### Artifact storage
 
-```
-rapitas-backend/tasks/
-└── [categoryId]/
-    └── [themeId]/
-        └── [taskId]/
-            ├── research.md
-            ├── question.md   (optional)
-            ├── plan.md
-            └── verify.md
-```
-
-If categoryId or themeId is unset, use `0`.
+research.md / question.md (optional) / plan.md / verify.md are **not files on
+disk** — each is one row in the `WorkflowFile` table (`taskId` + `fileType` +
+`content`), written and read exclusively through the Workflow API below.
+Overwriting or archiving one moves its prior content into `WorkflowFileVersion`
+instead of a `_archive/<timestamp>/` folder. Never assume or construct a
+filesystem path for these artifacts.
 
 ### Workflow API (use exclusively — never write files directly)
 
@@ -231,19 +225,19 @@ curl -X POST http://127.0.0.1:3001/tasks \
   -d '{"title":"<subtask title>","parentId":<parentTaskId>,"description":"<scope>"}'
 ```
 
-**Subtask workflow directory:**
+**Subtask layout** (research.md/plan.md/verify.md are `WorkflowFile` DB rows —
+see "Artifact storage" above, not real paths; `subtasks/{n}/instruction.md`
+below is illustrative of the per-subtask instruction content, not a literal
+directory):
 
 ```
-tasks/{categoryId}/{themeId}/{taskId}/
-├── research.md
-├── plan.md
-├── subtasks/
-│   ├── 1/
-│   │   └── instruction.md   # Execution instruction for agent
-│   ├── 2/
-│   │   └── instruction.md
-│   └── ...
-└── verify.md                # Final integration verification (covers ALL subtasks)
+[parent task]
+├── research.md               (DB)
+├── plan.md                   (DB)
+├── subtask 1 → instruction.md   # Execution instruction for agent
+├── subtask 2 → instruction.md
+├── ...
+└── verify.md                 (DB) — final integration verification (covers ALL subtasks)
 ```
 
 **instruction.md format (for each subtask):**

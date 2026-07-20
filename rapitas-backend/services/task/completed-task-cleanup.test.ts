@@ -6,7 +6,7 @@
  * および内部の deleteTaskWithArtifacts の副作用（worktree除去・workflow dir削除・
  * タスク削除）を検証する。
  *
- * prisma / getProjectRoot / removeWorktree / deleteWorkflowDir /
+ * prisma / getProjectRoot / removeWorktree /
  * extractKnowledgeFromTask はすべてモジュール直import（引数注入ではない）ため、
  * mock.module が必須。
  *
@@ -77,11 +77,8 @@ mock.module('../agents/orchestrator/git-operations/worktree-ops', () => ({
   cleanupOrphanedWorktrees: () => Promise.resolve(0),
 }));
 
-const deleteWorkflowDirMock = mock(() => Promise.resolve(true)) as ReturnType<typeof mock>;
-
 mock.module('../workflow/workflow-file-utils', () => ({
   resolveWorkflowDir: () => Promise.resolve(null),
-  deleteWorkflowDir: deleteWorkflowDirMock,
   readWorkflowFile: () => Promise.resolve(null),
   writeWorkflowFile: () => Promise.resolve(),
   archiveWorkflowFile: () => Promise.resolve(),
@@ -125,8 +122,6 @@ beforeEach(() => {
   getProjectRootMock.mockReturnValue('/tmp/project-root');
   removeWorktreeMock.mockReset();
   removeWorktreeMock.mockResolvedValue(undefined);
-  deleteWorkflowDirMock.mockReset();
-  deleteWorkflowDirMock.mockResolvedValue(true);
   extractKnowledgeFromTaskMock.mockReset();
   extractKnowledgeFromTaskMock.mockResolvedValue([]);
 });
@@ -380,7 +375,7 @@ describe('cleanupCompletedTasks — deleteTaskWithArtifacts の副作用', () =>
     expect(taskDelete).toHaveBeenCalledWith({ where: { id: 23 } });
   });
 
-  test('task.findUniqueが例外を投げても、workflowDir削除とtask削除は継続すること', async () => {
+  test('task.findUniqueが例外を投げても、task削除は継続すること', async () => {
     taskFindMany.mockResolvedValueOnce([completedTask(24)]);
     knowledgeEntryCount.mockResolvedValueOnce(1);
     taskFindUnique.mockRejectedValueOnce(new Error('DB error'));
@@ -388,18 +383,6 @@ describe('cleanupCompletedTasks — deleteTaskWithArtifacts の副作用', () =>
     const result = await cleanupCompletedTasks({ keepRecent: 0 });
 
     expect(result.deletedCount).toBe(1);
-    expect(deleteWorkflowDirMock).toHaveBeenCalledWith(24);
     expect(taskDelete).toHaveBeenCalledWith({ where: { id: 24 } });
-  });
-
-  test('deleteWorkflowDirが失敗(false)を返しても削除処理は継続すること', async () => {
-    taskFindMany.mockResolvedValueOnce([completedTask(25)]);
-    knowledgeEntryCount.mockResolvedValueOnce(1);
-    deleteWorkflowDirMock.mockResolvedValueOnce(false);
-
-    const result = await cleanupCompletedTasks({ keepRecent: 0 });
-
-    expect(result.deletedCount).toBe(1);
-    expect(taskDelete).toHaveBeenCalledWith({ where: { id: 25 } });
   });
 });

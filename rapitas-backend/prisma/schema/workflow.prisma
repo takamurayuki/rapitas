@@ -5,28 +5,56 @@
 // ============================================================================
 
 /**
- * Index row mirroring an on-disk workflow markdown file. Lets the API answer
- * questions like "which tasks have a stale plan.md" without scanning the
- * filesystem. The actual content stays on disk under
- * `~/.rapitas/workflows/...` — this table only tracks metadata.
+ * A workflow markdown artifact (research/plan/question/verify), content and
+ * all — the DB row IS the source of truth, not a mirror of an on-disk file.
+ * `workflowStatus` (on Task) and this row's `content` now update together via
+ * the same code path, eliminating the DB/file drift bugs the old
+ * file-on-disk-plus-metadata-row design repeatedly produced (see
+ * artifact-reuse-reconciler.ts, phase-critic-gate.ts).
  */
 model WorkflowFile {
-  id           Int      @id @default(autoincrement())
-  taskId       Int
-  task         Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  id        Int      @id @default(autoincrement())
+  taskId    Int
+  task      Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
   /** "research" | "plan" | "question" | "verify" */
-  fileType     String
-  /** SHA-256 of the current content for cheap change detection. */
-  sha256       String
-  /** Size in bytes of the current content. */
-  sizeBytes    Int
-  /** Absolute path of the file on disk (debugging convenience). */
-  absolutePath String
+  fileType  String
+  /** The artifact's Markdown content. */
+  content   String
+  /** SHA-256 of `content` for cheap change detection. */
+  sha256    String
+  /** Size in bytes of `content`. */
+  sizeBytes Int
+  /**
+   * Absolute path of the legacy on-disk file this row was backfilled from, if
+   * any (see workflow-db-backfill.ts). Null for anything written after the
+   * DB-storage migration — there is no on-disk file to point to.
+   */
+  absolutePath String?
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
   @@unique([taskId, fileType])
   @@index([fileType, updatedAt])
+}
+
+/**
+ * A superseded WorkflowFile version, captured immediately before an
+ * overwrite or an explicit archive (phase-critic rejection, replan). Replaces
+ * the old `_archive/<timestamp>/` folder-per-version convention with a
+ * queryable table.
+ */
+model WorkflowFileVersion {
+  id         Int      @id @default(autoincrement())
+  taskId     Int
+  task       Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  /** "research" | "plan" | "question" | "verify" */
+  fileType   String
+  content    String
+  sha256     String
+  sizeBytes  Int
+  archivedAt DateTime @default(now())
+
+  @@index([taskId, fileType, archivedAt])
 }
 
 model WorkflowRoleConfig {

@@ -56,14 +56,14 @@ export async function reconcileStatusFromExistingArtifacts(
   let target: WorkflowStatus = currentStatus;
 
   if (target === 'draft') {
-    const research = await readWorkflowFile(resolved.dir, 'research').catch(() => null);
+    const research = await readWorkflowFile(taskId, 'research').catch(() => null);
     const researchReusable = !!research && isReusableArtifact('research', research);
     if (!researchReusable) return { status: currentStatus, advanced: false };
     target = 'research_done';
   }
 
   if (includePlan && target === 'research_done') {
-    const plan = await readWorkflowFile(resolved.dir, 'plan').catch(() => null);
+    const plan = await readWorkflowFile(taskId, 'plan').catch(() => null);
     const planReusable = !!plan && isReusableArtifact('plan', plan);
     if (planReusable) target = 'plan_created';
   }

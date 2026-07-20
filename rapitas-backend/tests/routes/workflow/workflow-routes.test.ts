@@ -10,6 +10,9 @@ const mockPrisma = {
     findUnique: mock(() => Promise.resolve(null)),
     update: mock(() => Promise.resolve({})),
   },
+  workflowFile: {
+    findUnique: mock(() => Promise.resolve(null)),
+  },
   activityLog: {
     create: mock(() => Promise.resolve({})),
   },
@@ -22,6 +25,16 @@ const mockPrisma = {
   notification: {
     create: mock(() => Promise.resolve({})),
   },
+  $transaction: mock((fn: (tx: unknown) => Promise<unknown>) =>
+    fn({
+      workflowFile: {
+        findUnique: () => Promise.resolve(null),
+        upsert: () => Promise.resolve({}),
+        delete: () => Promise.resolve({}),
+      },
+      workflowFileVersion: { create: () => Promise.resolve({}) },
+    }),
+  ),
 };
 
 mock.module('../../../config', () => ({
@@ -111,6 +124,10 @@ function resetAllMocks() {
       }
     }
   }
+  // getFileInfo() always queries this — mockReset() clears the implementation
+  // (making the mock return undefined, not a Promise), so re-prime the
+  // "no row" default every test relies on unless it overrides it explicitly.
+  mockPrisma.workflowFile.findUnique.mockResolvedValue(null);
 }
 
 function createApp() {

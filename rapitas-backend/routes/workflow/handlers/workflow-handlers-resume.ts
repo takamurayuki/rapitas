@@ -12,10 +12,7 @@ import { ValidationError, NotFoundError } from '../../../middleware/error-handle
 import { createLogger } from '../../../config';
 import type { WorkflowStatus } from '../../../services/workflow/workflow-types';
 import { resolveTaskWorkflowState } from '../../../services/task/task-resolver';
-import {
-  resolveWorkflowDir,
-  archiveWorkflowFile,
-} from '../../../services/workflow/workflow-file-utils';
+import { archiveWorkflowFile } from '../../../services/workflow/workflow-file-utils';
 
 const log = createLogger('routes:workflow:resume');
 
@@ -100,8 +97,7 @@ export async function handleAnswerWorkflowQuestion({ params, body, set }: Answer
   });
 
   // Archive question.md so it is no longer a pending question.
-  const dir = await resolveWorkflowDir(taskId).catch(() => null);
-  if (dir) await archiveWorkflowFile(dir.dir, 'question').catch(() => {});
+  await archiveWorkflowFile(taskId, 'question').catch(() => {});
 
   await recordTransition({
     taskId,

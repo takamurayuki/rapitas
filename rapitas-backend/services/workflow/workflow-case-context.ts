@@ -121,11 +121,11 @@ export async function buildCaseContext(
       if (cases.length >= MAX_CASES) break;
       const resolved = await resolveWorkflowDir(cand.id).catch(() => null);
       if (!resolved) continue;
-      // Completed-task cleanup deletes md files — a case without its plan
+      // Completed-task cleanup deletes workflow rows — a case without its plan
       // carries nothing concrete to adapt, so skip it.
-      const plan = await readWorkflowFile(resolved.dir, 'plan').catch(() => null);
+      const plan = await readWorkflowFile(cand.id, 'plan').catch(() => null);
       if (!plan?.trim()) continue;
-      const verify = await readWorkflowFile(resolved.dir, 'verify').catch(() => null);
+      const verify = await readWorkflowFile(cand.id, 'verify').catch(() => null);
       cases.push({
         taskId: cand.id,
         title: cand.title,

@@ -4,15 +4,16 @@
  * Prunes old COMPLETED tasks to keep the task list manageable. Before deleting a
  * task it makes sure its lessons are captured in the knowledge base: if the task
  * has no KnowledgeEntry yet, it extracts knowledge first; if it already does, it
- * just deletes. Deletion also removes the task's workflow md files (disk) and any
- * git worktrees. Manual trigger only (see the /tasks/cleanup-completed route).
- * Not responsible for scheduling or for duplicate-subtask cleanup (task-cleanup.ts).
+ * just deletes. Deletion also removes any git worktrees; the task's workflow
+ * artifacts cascade-delete with the Task row (WorkflowFile/WorkflowFileVersion
+ * both have onDelete: Cascade). Manual trigger only (see the
+ * /tasks/cleanup-completed route). Not responsible for scheduling or for
+ * duplicate-subtask cleanup (task-cleanup.ts).
  */
 import { prisma } from '../../config/database';
 import { getProjectRoot } from '../../config';
 import { createLogger } from '../../config/logger';
 import { removeWorktree } from '../agents/orchestrator/git-operations/worktree-ops';
-import { deleteWorkflowDir } from '../workflow/workflow-file-utils';
 import { extractKnowledgeFromTask } from '../memory/task-knowledge-extractor';
 
 const log = createLogger('completed-task-cleanup');
@@ -89,11 +90,9 @@ async function deleteTaskWithArtifacts(taskId: number): Promise<void> {
     log.warn({ err, taskId }, '[cleanup] worktree cleanup failed — proceeding');
   }
 
-  // 2. Remove the workflow md files on disk (research/plan/verify/question).
-  await deleteWorkflowDir(taskId).catch(() => false);
-
-  // 3. Delete the task row (cascades WorkflowFile / WorkflowTransition / sessions
-  //    etc.). KnowledgeEntry.taskId is NOT a FK, so recorded knowledge survives.
+  // 2. Delete the task row (cascades WorkflowFile / WorkflowFileVersion /
+  //    WorkflowTransition / sessions etc.). KnowledgeEntry.taskId is NOT a FK,
+  //    so recorded knowledge survives.
   await prisma.task.delete({ where: { id: taskId } });
 }
 

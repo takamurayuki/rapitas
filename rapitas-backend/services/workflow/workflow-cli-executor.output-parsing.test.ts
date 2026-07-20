@@ -10,8 +10,6 @@
  * covered separately in workflow-cli-executor.verify.test.ts.
  */
 import { describe, test, expect, beforeEach } from 'bun:test';
-import { tmpdir } from 'os';
-import { join } from 'path';
 import {
   wf,
   spies,
@@ -23,7 +21,6 @@ import type { RoleTransition, WorkflowAdvanceResult } from './workflow-types';
 installWorkflowCliExecutorMocks();
 const { executeCLIAgent } = await import('./workflow-cli-executor');
 
-const workflowDir = join(tmpdir(), 'rapitas-wf-cli-executor-test', 'output-parsing');
 const advanceWorkflow = (): Promise<WorkflowAdvanceResult> =>
   Promise.resolve({ success: true, role: 'implementer', status: 'verify_done' });
 const getOrCreateDevConfig = (): Promise<{ id: number }> => Promise.resolve({ id: 42 });
@@ -45,7 +42,6 @@ async function run(transition: RoleTransition): Promise<WorkflowAdvanceResult> {
     'system prompt',
     'context',
     transition,
-    workflowDir,
     'ja',
     advanceWorkflow,
     getOrCreateDevConfig,
@@ -69,10 +65,10 @@ describe('executeCLIAgent — investigation-phase report harvesting', () => {
 
     await run(researchTransition());
 
-    const call = spies.writeWorkflowFile.mock.calls[0] as [string, string, string, number];
+    const call = spies.writeWorkflowFile.mock.calls[0] as [number, string, string];
+    expect(call[0]).toBe(1);
     expect(call[1]).toBe('research');
     expect(call[2]).toBe('# Research\ncleaned');
-    expect(call[3]).toBe(1);
   });
 
   test('falls back to raw output when finalMessage is empty', async () => {
@@ -87,7 +83,7 @@ describe('executeCLIAgent — investigation-phase report harvesting', () => {
 
     await run(researchTransition());
 
-    const call = spies.writeWorkflowFile.mock.calls[0] as [string, string, string, number];
+    const call = spies.writeWorkflowFile.mock.calls[0] as [number, string, string];
     expect(call[2]).toBe('# Research\nfrom output');
   });
 

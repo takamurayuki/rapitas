@@ -23,7 +23,7 @@ const critiquePhase = mock(() =>
   Promise.resolve({ verdict: 'fail' as const, severity: 'high' as const, reasons: ['issue A'] }),
 );
 const isPhaseCriticEnabled = mock(() => true);
-const resolveWorkflowDir = mock(() => Promise.resolve({ dir: '/tmp/wf/1' }));
+const archiveWorkflowFile = mock(() => Promise.resolve(true));
 
 mock.module('../../../config/logger', () => ({ createLogger: () => noopLogger }));
 mock.module('../../../config/database', () => ({
@@ -31,10 +31,7 @@ mock.module('../../../config/database', () => ({
   ensureDatabaseConnection: () => Promise.resolve(),
 }));
 mock.module('../transition-recorder', () => ({ recordTransition }));
-mock.module('../workflow-file-utils', () => ({ resolveWorkflowDir }));
-mock.module('../workflow-paths', () => ({
-  getArchiveDir: (dir: string, stamp: string) => `${dir}/.archive/${stamp}`,
-}));
+mock.module('../workflow-file-utils', () => ({ archiveWorkflowFile }));
 mock.module('./phase-critic', () => ({ critiquePhase, isPhaseCriticEnabled }));
 
 const { applyPhaseCriticGate } = await import('./phase-critic-gate');
@@ -90,7 +87,7 @@ describe('applyPhaseCriticGate — 遅延verdictのCASガード', () => {
     mockPrisma.workflowTransition.count.mockReset().mockResolvedValue(0);
     mockPrisma.task.updateMany.mockReset().mockResolvedValue({ count: 1 });
     recordTransition.mockReset().mockResolvedValue(undefined);
-    resolveWorkflowDir.mockReset().mockResolvedValue({ dir: '/tmp/wf/1' });
+    archiveWorkflowFile.mockReset().mockResolvedValue(true);
     critiquePhase
       .mockReset()
       .mockResolvedValue({ verdict: 'fail', severity: 'high', reasons: ['issue A'] });
@@ -115,7 +112,7 @@ describe('applyPhaseCriticGate — 遅延verdictのCASガード', () => {
     expect(result.newStatus).toBeUndefined();
     // ロールバック遷移もアーティファクトのarchiveも発生しない。
     expect(recordTransition).not.toHaveBeenCalled();
-    expect(resolveWorkflowDir).not.toHaveBeenCalled();
+    expect(archiveWorkflowFile).not.toHaveBeenCalled();
   });
 
   test('CASが1件更新できたら通常どおり bounce する', async () => {

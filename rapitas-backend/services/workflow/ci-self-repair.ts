@@ -12,7 +12,7 @@
  */
 import { prisma } from '../../config/database';
 import { createLogger } from '../../config/logger';
-import { resolveWorkflowDir, readWorkflowFile, writeWorkflowFile } from './workflow-file-utils';
+import { readWorkflowFile, writeWorkflowFile } from './workflow-file-utils';
 import { recordTransition } from './transition-recorder';
 import { WorkflowQueueService } from './workflow-queue';
 import { countWithFailClosed } from '../../utils/database/fail-closed-count';
@@ -73,9 +73,7 @@ async function writeCiFeedback(
   attempt: number,
 ): Promise<void> {
   try {
-    const info = await resolveWorkflowDir(taskId);
-    if (!info) return;
-    const prior = (await readWorkflowFile(info.dir, 'verify')) ?? '';
+    const prior = (await readWorkflowFile(taskId, 'verify')) ?? '';
     const block = [
       `# CIからの差し戻し（自己修復 ${attempt} 回目）`,
       '',
@@ -91,7 +89,7 @@ async function writeCiFeedback(
       .filter(Boolean)
       .join('\n');
     const next = prior.trim() ? `${prior.trim()}\n\n---\n\n${block}` : block;
-    await writeWorkflowFile(info.dir, 'verify', next, taskId);
+    await writeWorkflowFile(taskId, 'verify', next);
   } catch (err) {
     log.warn({ err, taskId }, '[ci-repair] Failed to write CI feedback to verify.md');
   }

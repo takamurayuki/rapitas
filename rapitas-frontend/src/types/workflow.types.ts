@@ -33,7 +33,6 @@ export type WorkflowPathInfo = {
   taskId: number;
   categoryId: number | null;
   themeId: number | null;
-  dir: string;
 };
 
 export type WorkflowRole =

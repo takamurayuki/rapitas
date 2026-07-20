@@ -162,13 +162,11 @@ export async function recordTaskOutcome(taskId: number, finalStatus: string): Pr
  * @returns Non-empty artifact bodies. / 成果物本文の配列
  */
 async function readWorkflowArtifacts(taskId: number): Promise<string[]> {
-  const { resolveWorkflowDir, readWorkflowFile } = await import('./workflow-file-utils');
-  const resolved = await resolveWorkflowDir(taskId);
-  if (!resolved) return [];
+  const { readWorkflowFile } = await import('./workflow-file-utils');
   const bodies = await Promise.all(
     // Every artifact a role can declare knowledge usage in.
     (['research', 'plan', 'verify'] as const).map((fileType) =>
-      readWorkflowFile(resolved.dir, fileType).catch(() => null),
+      readWorkflowFile(taskId, fileType).catch(() => null),
     ),
   );
   return bodies.filter((b): b is string => !!b?.trim());

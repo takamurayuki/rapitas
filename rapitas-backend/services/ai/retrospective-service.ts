@@ -145,12 +145,12 @@ async function persistLessons(
 export async function generateTaskRetrospective(taskId: number): Promise<RetrospectiveResult> {
   const resolved = await resolveWorkflowDir(taskId);
   if (!resolved) throw new Error(TASK_NOT_FOUND);
-  const { task, dir, themeId } = resolved;
+  const { task, themeId } = resolved;
 
   const [research, plan, verify] = await Promise.all([
-    readWorkflowFile(dir, 'research'),
-    readWorkflowFile(dir, 'plan'),
-    readWorkflowFile(dir, 'verify'),
+    readWorkflowFile(taskId, 'research'),
+    readWorkflowFile(taskId, 'plan'),
+    readWorkflowFile(taskId, 'verify'),
   ]);
   const usedArtifacts = [
     research ? 'research.md' : null,

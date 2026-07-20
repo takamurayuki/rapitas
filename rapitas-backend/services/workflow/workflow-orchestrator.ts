@@ -430,7 +430,7 @@ export class WorkflowOrchestrator {
     // followed CLAUDE.md's generic plan step and created a plan.md (task 229).
     // applyPlanModeDirective handles an empty base prompt (returns just the directive).
     {
-      const planContent = await readWorkflowFile(workflowInfo.dir, 'plan');
+      const planContent = await readWorkflowFile(taskId, 'plan');
       systemPromptContent = applyPlanModeDirective(
         transition.role,
         systemPromptContent || '',
@@ -446,7 +446,7 @@ export class WorkflowOrchestrator {
     //   - research.md / plan.md are reused only when they still pass their
     //     validator (no serious problem); a thin/broken artifact is regenerated.
     if (transition.outputFile && transition.outputFile !== 'verify') {
-      const existingContent = await readWorkflowFile(workflowInfo.dir, transition.outputFile);
+      const existingContent = await readWorkflowFile(taskId, transition.outputFile);
       if (existingContent && isReusableArtifact(transition.outputFile, existingContent)) {
         log.info(
           `[WorkflowOrchestrator] ${transition.outputFile}.md already exists and is valid for task ${taskId}, skipping regeneration`,
@@ -479,7 +479,7 @@ export class WorkflowOrchestrator {
     // forever (task 229's plan_invalid_replan loop, and why the lightweight
     // research→implement handoff stalled at research_done).
     if (transition.role === 'implementer' && workflowMode !== 'lightweight') {
-      const planMd = await readWorkflowFile(workflowInfo.dir, 'plan').catch(() => null);
+      const planMd = await readWorkflowFile(taskId, 'plan').catch(() => null);
       if (!planMd || !isReusableArtifact('plan', planMd)) {
         // BOUND the replan loop. Previously this rolled back to draft every time
         // an invalid plan.md was seen, with no limit and WITHOUT removing the bad
@@ -559,7 +559,7 @@ export class WorkflowOrchestrator {
         );
         // Archive the bad plan so the planner MUST regenerate it (it can no
         // longer be reused by the reuse-check), breaking the reuse↔reject loop.
-        await archiveWorkflowFile(workflowInfo.dir, 'plan').catch(() => {});
+        await archiveWorkflowFile(taskId, 'plan').catch(() => {});
         await prisma.task.update({
           where: { id: taskId },
           data: { workflowStatus: 'draft' },
@@ -584,14 +584,7 @@ export class WorkflowOrchestrator {
       }
     }
 
-    let context = await buildRoleContext(
-      taskId,
-      transition.role,
-      workflowInfo.dir,
-      task,
-      language,
-      workflowMode,
-    );
+    let context = await buildRoleContext(taskId, transition.role, task, language, workflowMode);
 
     // Human-approved prompt-evolution addendum for this role (proposed by the
     // weekly evolution pipeline, approved on /system-prompts). Appended at the
@@ -677,7 +670,7 @@ export class WorkflowOrchestrator {
           transition.role === 'reviewer' ||
           transition.role === 'verifier' ||
           transition.role === 'auto_verifier'
-            ? await readWorkflowFile(workflowInfo.dir, 'plan').catch(() => null)
+            ? await readWorkflowFile(taskId, 'plan').catch(() => null)
             : null;
         const labelsText =
           typeof (task as { labels?: unknown }).labels === 'string'
@@ -816,7 +809,6 @@ export class WorkflowOrchestrator {
           systemPromptContent,
           context,
           transition,
-          workflowInfo.dir,
           language,
           advanceFn,
           devConfigFn,
@@ -829,7 +821,6 @@ export class WorkflowOrchestrator {
         systemPromptContent,
         context,
         transition,
-        workflowInfo.dir,
         language,
         advanceFn,
         devConfigFn,

@@ -8,13 +8,10 @@
  * fixes the cited issues. Fail-open and bounded: any error, an 'unknown' verdict,
  * or an exhausted bounce budget proceeds without blocking.
  */
-import { join } from 'path';
-import { mkdir, rename, stat } from 'fs/promises';
 import { prisma } from '../../../config/database';
 import { createLogger } from '../../../config/logger';
 import { recordTransition } from '../transition-recorder';
-import { resolveWorkflowDir } from '../workflow-file-utils';
-import { getArchiveDir } from '../workflow-paths';
+import { archiveWorkflowFile } from '../workflow-file-utils';
 import { critiquePhase, isPhaseCriticEnabled } from './phase-critic';
 import type { CriticPhase } from './phase-critic-types';
 import { countWithFailClosed } from '../../../utils/database/fail-closed-count';
@@ -35,19 +32,6 @@ export interface PhaseCriticGateResult {
   bounced: boolean;
   /** New workflowStatus when bounced (the rollback target). */
   newStatus?: string;
-}
-
-/** Archive `<file>.md` out of the workflow dir so the reuse-check regenerates it. */
-async function archiveArtifact(dir: string, phase: CriticPhase): Promise<void> {
-  const src = join(dir, `${phase}.md`);
-  try {
-    await stat(src);
-    const adir = getArchiveDir(dir, new Date().toISOString());
-    await mkdir(adir, { recursive: true });
-    await rename(src, join(adir, `${phase}.md`));
-  } catch {
-    // No file to archive — nothing to do.
-  }
 }
 
 /**
@@ -124,8 +108,7 @@ export async function applyPhaseCriticGate(args: {
       return { bounced: false };
     }
 
-    const resolved = await resolveWorkflowDir(taskId);
-    if (resolved) await archiveArtifact(resolved.dir, phase);
+    await archiveWorkflowFile(taskId, phase);
 
     await recordTransition({
       taskId,

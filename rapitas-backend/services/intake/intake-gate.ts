@@ -117,8 +117,7 @@ export async function ensureIntakeReady(taskId: number): Promise<IntakeOutcome> 
  * items. Returns the post-merge spec view, or null when nothing was added.
  */
 async function enrichSpec(taskId: number, task: IntakeTaskRow): Promise<SpecQualityInput | null> {
-  const resolved = await resolveWorkflowDir(taskId);
-  const priorAnswer = resolved ? await readWorkflowFile(resolved.dir, 'question') : null;
+  const priorAnswer = await readWorkflowFile(taskId, 'question');
   const basis = [task.description ?? '', priorAnswer ?? ''].join('\n\n').trim();
   if (!basis) return null;
 
@@ -197,7 +196,7 @@ async function raiseIntakeQuestion(task: IntakeTaskRow, quality: SpecQualityResu
     reasons: quality.reasons,
     questions: aiQuestions,
   });
-  await writeWorkflowFile(resolved.dir, 'question', body, task.id);
+  await writeWorkflowFile(task.id, 'question', body);
 
   const fromStatus = task.workflowStatus ?? 'draft';
   await prisma.task.update({

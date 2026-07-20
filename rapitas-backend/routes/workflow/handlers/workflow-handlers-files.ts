@@ -6,7 +6,6 @@
  * Not responsible for route registration, status updates, or complexity analysis.
  */
 
-import { join } from 'path';
 import { prisma } from '../../../config';
 import { NotFoundError, ValidationError, parseId } from '../../../middleware/error-handler';
 import { createLogger } from '../../../config/logger';
@@ -126,11 +125,11 @@ export async function handleGetFiles({
       throw new NotFoundError('Task not found');
     }
 
-    const { task, dir, categoryId, themeId } = resolved;
+    const { task, categoryId, themeId } = resolved;
 
     // Parallel retrieval of 4 file information
     const [research, question, plan, verify] = await Promise.all(
-      VALID_FILE_TYPES.map((type) => getFileInfo(join(dir, `${type}.md`), type)),
+      VALID_FILE_TYPES.map((type) => getFileInfo(taskId, type)),
     );
 
     return {
@@ -139,12 +138,7 @@ export async function handleGetFiles({
       plan,
       verify,
       workflowStatus: task.workflowStatus || null,
-      path: {
-        taskId,
-        categoryId,
-        themeId,
-        dir: `tasks/${categoryId ?? 0}/${themeId ?? 0}/${taskId}`,
-      },
+      path: { taskId, categoryId, themeId },
     };
   } catch (err) {
     if (err instanceof ValidationError || err instanceof NotFoundError) throw err;
@@ -233,7 +227,7 @@ export async function handleSaveFile({
     // Forward-only, one hop; the plan-approval gate is never skipped, and the
     // completion/verification gates still govern verify.md itself.
     if (currentStatusForGuard === 'draft' && !ALLOWED_FILE_TYPES_BY_STATUS.draft.has(fileType)) {
-      const existingResearch = await readWorkflowFile(resolved.dir, 'research').catch(() => null);
+      const existingResearch = await readWorkflowFile(taskId, 'research').catch(() => null);
       if (existingResearch && isReusableArtifact('research', existingResearch)) {
         await prisma.task
           .update({ where: { id: taskId }, data: { workflowStatus: 'research_done' } })
@@ -336,8 +330,6 @@ export async function handleSaveFile({
       }
     }
 
-    const { dir } = resolved;
-
     // Accept either a JSON body { content, language } OR a raw text/markdown body.
     // NOTE: agents on Windows used to inline the content into a PowerShell pipeline,
     // where $OutputEncoding defaults to US-ASCII — collapsing every Japanese
@@ -425,9 +417,8 @@ export async function handleSaveFile({
     }
 
     // Delegate to writeWorkflowFile so the previous version is archived to
-    // `_archive/<ts>/` and a `WorkflowFile` metadata row is upserted. Mojibake
-    // sanitisation runs inside writeWorkflowFile.
-    const savedContent = await writeWorkflowFile(dir, fileType, content, taskId);
+    // WorkflowFileVersion. Mojibake sanitisation runs inside writeWorkflowFile.
+    const savedContent = await writeWorkflowFile(taskId, fileType, content);
 
     // Code-grounded complexity: when research.md is saved, apply the score the
     // research agent embedded and re-select the workflow mode (both directions).
@@ -646,7 +637,6 @@ export async function handleSaveFile({
           {
             taskId,
             violations,
-            workflowDir: dir,
             missingFiles,
             hint:
               missingFiles.length > 0
@@ -716,14 +706,8 @@ export async function handleSaveFile({
         if (analysis.shouldSplit) {
           log.info(`[Workflow] Task ${taskId} plan triggers split: ${analysis.reason}`);
           // Load research.md for context inheritance
-          let researchContent: string | undefined;
-          try {
-            const researchPath = join(dir, 'research.md');
-            const { readFile: rf } = await import('fs/promises');
-            researchContent = await rf(researchPath, 'utf-8');
-          } catch {
-            /* no research.md — non-fatal */
-          }
+          const researchContent =
+            (await readWorkflowFile(taskId, 'research').catch(() => null)) ?? undefined;
 
           const result = await createSubtasksFromPlan(taskId, analysis, researchContent, content);
           if (result.success) {
@@ -1239,7 +1223,6 @@ export async function handleSaveFile({
     const response: Record<string, unknown> = {
       success: true,
       fileType,
-      path: join(dir, `${fileType}.md`),
       workflowStatus: newStatus || currentStatus,
       autoApproved,
     };

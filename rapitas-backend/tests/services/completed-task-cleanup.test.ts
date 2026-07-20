@@ -44,8 +44,6 @@ const removeWorktree = mock(() => Promise.resolve()) as any;
 mock.module('../../services/agents/orchestrator/git-operations/worktree-ops', () => ({
   removeWorktree,
 }));
-const deleteWorkflowDir = mock(() => Promise.resolve(true)) as any;
-mock.module('../../services/workflow/workflow-file-utils', () => ({ deleteWorkflowDir }));
 const extractKnowledgeFromTask = mock(() => Promise.resolve([101])) as any;
 mock.module('../../services/memory/task-knowledge-extractor', () => ({ extractKnowledgeFromTask }));
 
@@ -61,7 +59,6 @@ beforeEach(() => {
     sessionFindMany,
     sessionUpdate,
     removeWorktree,
-    deleteWorkflowDir,
     extractKnowledgeFromTask,
   ]) {
     m.mockReset();
@@ -70,7 +67,6 @@ beforeEach(() => {
   taskDelete.mockResolvedValue({});
   taskFindUnique.mockResolvedValue({ workingDirectory: null });
   sessionFindMany.mockResolvedValue([]);
-  deleteWorkflowDir.mockResolvedValue(true);
   extractKnowledgeFromTask.mockResolvedValue([101]);
 });
 
@@ -89,8 +85,6 @@ describe('cleanupCompletedTasks', () => {
     expect(taskDelete).toHaveBeenCalledTimes(3);
     // 記録済みなので抽出は呼ばれない
     expect(extractKnowledgeFromTask).not.toHaveBeenCalled();
-    // md ファイルも削除
-    expect(deleteWorkflowDir).toHaveBeenCalledTimes(3);
   });
 
   test('ナレッジ未記録なら抽出してから削除すること', async () => {
@@ -116,7 +110,6 @@ describe('cleanupCompletedTasks', () => {
     expect(r.deletedCount).toBe(2); // would-delete count
     expect(taskDelete).not.toHaveBeenCalled();
     expect(extractKnowledgeFromTask).not.toHaveBeenCalled();
-    expect(deleteWorkflowDir).not.toHaveBeenCalled();
   });
 
   test('themeId 指定時はそのテーマに絞って取得すること', async () => {

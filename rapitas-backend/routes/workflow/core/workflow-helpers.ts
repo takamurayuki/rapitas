@@ -5,7 +5,7 @@
  * Not responsible for route definitions or business logic orchestration.
  */
 
-import { readFile, stat } from 'fs/promises';
+import { prisma } from '../../../config';
 import { WORKFLOW_STATUSES, WORKFLOW_FILE_TYPES } from '../../../services/workflow/workflow-types';
 import type { WorkflowFileType } from '../../../services/workflow/workflow-types';
 
@@ -19,27 +19,28 @@ export const VALID_FILE_TYPES = WORKFLOW_FILE_TYPES;
 export { resolveWorkflowDir } from '../../../services/workflow/workflow-file-utils';
 
 /**
- * Get metadata and content for a single workflow file.
+ * Get metadata and content for a single workflow file (DB-backed — see
+ * WorkflowFile in prisma/schema/workflow.prisma).
  *
- * @param filePath - Absolute path to the markdown file / ファイルパス
+ * @param taskId - Task the artifact belongs to. / 対象タスクID
  * @param fileType - The workflow file type label / ファイル種別
  * @returns File info object including existence, content, and timestamps
  */
-export async function getFileInfo(filePath: string, fileType: WorkflowFileType) {
-  try {
-    const content = await readFile(filePath, 'utf-8');
-    const stats = await stat(filePath);
-    return {
-      type: fileType,
-      exists: true,
-      content,
-      lastModified: stats.mtime.toISOString(),
-      size: stats.size,
-    };
-  } catch {
-    return {
-      type: fileType,
-      exists: false,
-    };
+export async function getFileInfo(taskId: number, fileType: WorkflowFileType) {
+  const row = await prisma.workflowFile
+    .findUnique({
+      where: { taskId_fileType: { taskId, fileType } },
+      select: { content: true, sizeBytes: true, updatedAt: true },
+    })
+    .catch(() => null);
+  if (!row) {
+    return { type: fileType, exists: false };
   }
+  return {
+    type: fileType,
+    exists: true,
+    content: row.content,
+    lastModified: row.updatedAt.toISOString(),
+    size: row.sizeBytes,
+  };
 }

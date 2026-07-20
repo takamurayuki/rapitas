@@ -26,7 +26,6 @@ const log = createLogger('workflow-api-executor');
  * @param systemPrompt - System prompt content. / システムプロンプト内容
  * @param context - Role context assembled by buildRoleContext. / buildRoleContextで組み立てられたロールコンテキスト
  * @param transition - Current role transition definition. / 現在のロール遷移定義
- * @param workflowDir - Absolute path to the workflow directory. / ワークフローディレクトリの絶対パス
  * @param language - Output language. / 出力言語
  * @param advanceWorkflow - Callback to start the next phase (for auto-advance). / 次フェーズを開始するコールバック
  * @param getOrCreateDevConfig - Callback to resolve the dev config record. / devConfigレコードを解決するコールバック
@@ -47,7 +46,6 @@ export async function executeAPIAgent(
   systemPrompt: string,
   context: string,
   transition: RoleTransition,
-  workflowDir: string,
   language: 'ja' | 'en',
   advanceWorkflow: (taskId: number, language: 'ja' | 'en') => Promise<WorkflowAdvanceResult>,
   getOrCreateDevConfig: (taskId: number) => Promise<{ id: number }>,
@@ -156,7 +154,7 @@ export async function executeAPIAgent(
       // response. The CLI path (the real contamination source) is stricter.
       const { extractMarkdownFromOutput } = await import('./workflow-file-utils');
       const cleaned = extractMarkdownFromOutput(output, transition.outputFile) ?? output;
-      await writeWorkflowFile(workflowDir, transition.outputFile, cleaned, taskId);
+      await writeWorkflowFile(taskId, transition.outputFile, cleaned);
 
       // verify.md honesty gate + self-repair — API agents save directly here
       // (bypassing the workflow file HTTP handler), so without this they could

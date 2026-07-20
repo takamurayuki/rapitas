@@ -10,7 +10,6 @@ import { prisma } from '../../config/database';
 import { createLogger } from '../../config/logger';
 import { realtimeService } from '../communication/realtime-service';
 import { writeWorkflowFile } from './workflow-file-utils';
-import { getTaskWorkflowDir } from './workflow-paths';
 import { recordTransition } from './transition-recorder';
 import { resolveTaskSubtaskInfo, resolveTaskWithThemeAndCategory } from '../task/task-resolver';
 
@@ -144,14 +143,9 @@ export async function onSubtaskCompleted(completedSubtaskId: number): Promise<vo
     const allPassed = siblings.every(isSubtaskPassed);
     const verifyContent = buildIntegrationVerify(parentTask, siblings);
 
-    // Write verify.md straight to the parent's workflow dir (no HTTP round-trip).
+    // Write verify.md straight to the parent's workflow artifact (no HTTP round-trip).
     try {
-      const dir = getTaskWorkflowDir(
-        parentTask.theme?.categoryId ?? null,
-        parentTask.themeId ?? null,
-        parentTask.id,
-      );
-      await writeWorkflowFile(dir, 'verify', verifyContent, parentTask.id);
+      await writeWorkflowFile(parentTask.id, 'verify', verifyContent);
     } catch (err) {
       log.warn(
         { err, parentId: subtask.parentId },

@@ -189,7 +189,6 @@ async function run(
     'system prompt',
     overrides.context ?? 'context',
     makeTransition(overrides.transition),
-    '/tmp/wf/1',
     'ja',
     mockAdvanceWorkflow,
     mockGetOrCreateDevConfig,
@@ -204,12 +203,7 @@ describe('executeAPIAgent — happy path dispatch', () => {
 
     expect(mockCallAnthropicAPI).toHaveBeenCalledTimes(1);
     expect(mockCallOpenAIAPI).not.toHaveBeenCalled();
-    expect(mockWriteWorkflowFile).toHaveBeenCalledWith(
-      '/tmp/wf/1',
-      'research',
-      'anthropic output',
-      1,
-    );
+    expect(mockWriteWorkflowFile).toHaveBeenCalledWith(1, 'research', 'anthropic output');
     expect(mockTaskUpdate).toHaveBeenCalledWith({
       where: { id: 1 },
       data: { workflowStatus: 'research_done' },
@@ -358,12 +352,7 @@ describe('executeAPIAgent — output persistence edge cases', () => {
 
     await run();
 
-    expect(mockWriteWorkflowFile).toHaveBeenCalledWith(
-      '/tmp/wf/1',
-      'research',
-      'raw unwrapped output',
-      1,
-    );
+    expect(mockWriteWorkflowFile).toHaveBeenCalledWith(1, 'research', 'raw unwrapped output');
   });
 
   test('truncates the persisted execution output to 10000 characters', async () => {
