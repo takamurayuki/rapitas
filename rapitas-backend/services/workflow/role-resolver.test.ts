@@ -21,14 +21,62 @@ let roleConfigRow: {
   modelId: string | null;
 } | null = null;
 
+const taskUpdateMock = mock(() => Promise.resolve({}));
 mock.module('../../config/database', () => ({
   prisma: {
     workflowRoleConfig: { findUnique: () => Promise.resolve(roleConfigRow) },
+    task: { update: taskUpdateMock },
   },
 }));
 
+// Bun's mock.module is process-global — when this file runs alongside
+// workflow-orchestrator.transitions.test.ts (both mock '../task/task-resolver'
+// for the same underlying module path), whichever mock registers must mirror
+// every export the real module has, or the OTHER file's real (unmocked)
+// import of a missing export throws "Export named '...' not found".
 mock.module('../task/task-resolver', () => ({
+  resolveTaskWithTheme: () => Promise.resolve(null),
+  resolveTaskWithThemeAndCategory: () => Promise.resolve(null),
+  resolveTaskForExecution: () => Promise.resolve(null),
+  resolveTaskWorkingDirectory: () => Promise.resolve(null),
   resolveTaskWorkflowState: () => Promise.resolve(taskState),
+  resolveTaskTitle: () => Promise.resolve(null),
+  resolveTaskThemeId: () => Promise.resolve(null),
+  resolveTaskForComplexityAnalysis: () => Promise.resolve(null),
+  resolveTaskSubtaskInfo: () => Promise.resolve(null),
+  resolveTaskForPlanApproval: () => Promise.resolve(null),
+  resolveTaskForAutoMerge: () => Promise.resolve(null),
+  resolveTaskForLearning: () => Promise.resolve(null),
+}));
+
+// reconcileStatusFromExistingArtifacts (called by resolveAgentForTask before
+// picking a role) resolves the workflow dir and reads research.md/plan.md.
+// Defaults to a no-op (no directory) for the existing tests below, which
+// don't exercise artifact reuse; the dedicated describe block further down
+// overrides these to verify the reconciliation actually engages.
+let workflowDir: { dir: string } | null = null;
+let artifactContent: Record<string, string | null> = {};
+mock.module('./workflow-file-utils', () => ({
+  resolveWorkflowDir: () => Promise.resolve(workflowDir),
+  deleteWorkflowDir: () => Promise.resolve(true),
+  readWorkflowFile: (_dir: string, fileType: string) =>
+    Promise.resolve(artifactContent[fileType] ?? null),
+  writeWorkflowFile: () => Promise.resolve(),
+  archiveWorkflowFile: () => Promise.resolve(false),
+  cleanupRootWorkflowFiles: () => Promise.resolve(),
+  looksLikeAgentLog: () => false,
+  sliceFromReportHeading: (text: string) => text,
+  extractMarkdownFromOutput: () => null,
+}));
+mock.module('./phase-output-validator', () => ({
+  looksLogPolluted: () => false,
+  validateResearch: () => ({ ok: true }),
+  validatePlan: () => ({ ok: true }),
+  validateVerify: () => ({ ok: true }),
+  isReusableArtifact: (_fileType: string, content: string) => !!content,
+}));
+mock.module('./transition-recorder', () => ({
+  recordTransition: () => Promise.resolve(),
 }));
 
 // role → status map fixed to a small, deterministic table for this test.
@@ -59,6 +107,9 @@ beforeEach(() => {
   taskState = null;
   roleConfigRow = null;
   recommended = null;
+  workflowDir = null;
+  artifactContent = {};
+  taskUpdateMock.mockClear();
 });
 
 describe('resolveAgentForTask — bail-out paths', () => {
@@ -181,5 +232,29 @@ describe('resolveAgentForTask — capability-recommender fallback', () => {
       modelId: null,
       shouldAutoSelectModel: true,
     });
+  });
+});
+
+describe('resolveAgentForTask — artifact-reuse reconciliation (manual execute path)', () => {
+  beforeEach(() => {
+    workflowDir = { dir: '/fake/tasks/1' };
+    artifactContent = {};
+  });
+
+  test('a reusable research.md already on disk fast-forwards draft -> research_done, so the planner (not researcher) is picked', async () => {
+    taskState = { workflowStatus: 'draft', workflowMode: 'standard' };
+    artifactContent.research = 'a non-empty research report body';
+    roleConfigRow = { agentConfigId: 7, isEnabled: true, modelId: 'claude-sonnet-4-5' };
+    const r = await resolveAgentForTask(1);
+    expect(r?.role).toBe('planner');
+  });
+
+  test('no workflow directory resolvable leaves the status (and role) unchanged', async () => {
+    taskState = { workflowStatus: 'draft', workflowMode: 'standard' };
+    workflowDir = null;
+    artifactContent.research = 'a non-empty research report body';
+    roleConfigRow = { agentConfigId: 7, isEnabled: true, modelId: 'claude-sonnet-4-5' };
+    const r = await resolveAgentForTask(1);
+    expect(r?.role).toBe('researcher');
   });
 });

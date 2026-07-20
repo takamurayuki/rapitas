@@ -64,6 +64,10 @@ const taskFindUniqueMock = mock(() => Promise.resolve(makeTask()));
 const taskUpdateMock = mock(() => Promise.resolve({}));
 const roleConfigFindUniqueMock = mock(() => Promise.resolve(makeRoleConfig()));
 
+// Backs the LATE, DB-existence-only reconciliation backstop near the end of
+// runAdvanceWorkflow (distinct from reconcileStatusFromExistingArtifacts,
+// which runs earlier and validates actual file CONTENT quality via
+// artifactContent/isReusableArtifactImpl below).
 let planFileExists = false;
 let researchFileExists = false;
 const workflowFileFindFirstMock = mock(
@@ -102,9 +106,17 @@ mock.module('../../config/database', () => ({
   ensureDatabaseConnection: () => Promise.resolve(),
 }));
 
-let existingArtifactContent: string | null = null;
+// NOTE: keyed by fileType ('research' | 'plan' | 'verify' | 'question') so a
+// test can simulate ONE artifact existing without accidentally also making
+// every OTHER file type look present — a single shared value previously let
+// the artifact-reuse-reconciler's plan.md check silently reuse the SAME
+// string set for research.md, masking bugs in tests that only intended to
+// set up one file (see git history for the incident this caused).
+let artifactContent: Record<string, string | null> = {};
 let isReusableArtifactImpl: (outputFile: string) => boolean = () => false;
-const readWorkflowFileMock = mock(() => Promise.resolve(existingArtifactContent));
+const readWorkflowFileMock = mock((_dir: string, fileType: string) =>
+  Promise.resolve(artifactContent[fileType] ?? null),
+);
 mock.module('./workflow-file-utils', () => ({
   resolveWorkflowDir: mock(() =>
     Promise.resolve({ dir: '/tmp/wf/1', taskId: 1, categoryId: 0, themeId: 1 }),
@@ -156,7 +168,7 @@ mock.module('./transition-recorder', () => ({
 }));
 mock.module('./workflow-mode-config', () => ({
   getModeSettings: mock(() =>
-    Promise.resolve({ hasPlanPhase: true, hasReviewPhase: false, hasAutoVerify: false }),
+    Promise.resolve({ includePlan: true, includeReview: false, autoVerify: false }),
   ),
   buildTransitions: mock(() => ({
     draft: { role: 'researcher', nextStatus: 'research_done', outputFile: 'research' },
@@ -201,12 +213,12 @@ describe('WorkflowOrchestrator — draft status reconciliation', () => {
     roleConfigFindUniqueMock.mockImplementation(() => Promise.resolve(makeRoleConfig()));
     executeCLIAgentMock.mockClear();
     isReusableArtifactImpl = () => false;
-    existingArtifactContent = null;
+    artifactContent = {};
     planFileExists = false;
     researchFileExists = false;
   });
 
-  test('plan.md already exists -> reconciles straight to plan_approved', async () => {
+  test('plan.md already exists -> reconciles straight to plan_created (never auto-skips approval)', async () => {
     planFileExists = true;
     researchFileExists = true;
 
@@ -218,7 +230,7 @@ describe('WorkflowOrchestrator — draft status reconciliation', () => {
     );
     expect(reconcileCall).toBeDefined();
     const data = (reconcileCall?.[0] as { data: { workflowStatus: string; status: string } }).data;
-    expect(data.workflowStatus).toBe('plan_approved');
+    expect(data.workflowStatus).toBe('plan_created');
     expect(data.status).toBe('in-progress');
   });
 
@@ -261,7 +273,7 @@ describe('WorkflowOrchestrator — resumed todo task', () => {
     );
     executeCLIAgentMock.mockClear();
     isReusableArtifactImpl = () => false;
-    existingArtifactContent = null;
+    artifactContent = {};
   });
 
   test("status='todo' at a non-draft phase flips to in-progress without touching workflowStatus", async () => {
@@ -301,43 +313,48 @@ describe('WorkflowOrchestrator — artifact reuse', () => {
     taskFindUniqueMock.mockClear();
     taskUpdateMock.mockClear();
     executeCLIAgentMock.mockClear();
-    existingArtifactContent = null;
+    artifactContent = {};
     isReusableArtifactImpl = () => false;
   });
 
-  test('a valid existing research.md skips regeneration and advances the status', async () => {
+  test('a valid existing research.md skips research and dispatches the planner in the same call', async () => {
     taskFindUniqueMock.mockImplementation(() =>
       Promise.resolve(makeTask({ workflowStatus: 'draft' })),
     );
-    roleConfigFindUniqueMock.mockImplementation(() =>
-      Promise.resolve(makeRoleConfig({ role: 'researcher' })),
+    roleConfigFindUniqueMock.mockImplementation((args: unknown) =>
+      Promise.resolve(makeRoleConfig({ role: (args as { where: { role: string } }).where.role })),
     );
-    existingArtifactContent = '# Research\n\nSubstantive content.';
-    isReusableArtifactImpl = () => true;
+    artifactContent.research = '# Research\n\nSubstantive content.';
+    isReusableArtifactImpl = (outputFile) => outputFile === 'research';
 
     const orchestrator = WorkflowOrchestrator.getInstance();
-    const result = await orchestrator.advanceWorkflow(1);
+    await orchestrator.advanceWorkflow(1);
 
-    expect(result.success).toBe(true);
-    expect(result.status).toBe('research_done');
-    expect(result.output).toContain('スキップ');
-    expect(executeCLIAgentMock).not.toHaveBeenCalled();
+    // reconcileStatusFromExistingArtifacts (runs before role/model resolution)
+    // fast-forwards draft -> research_done since research.md is reusable; with
+    // no plan.md yet, the planner is dispatched immediately in this SAME call
+    // instead of requiring a second poll to notice research_done.
+    expect(executeCLIAgentMock).toHaveBeenCalledTimes(1);
+    const [, , , , , dispatchedTransition] = executeCLIAgentMock.mock.calls[0];
+    expect((dispatchedTransition as { role: string }).role).toBe('planner');
   });
 
-  test('a log-polluted research.md is NOT reused — the agent still runs', async () => {
+  test('a log-polluted research.md is NOT reused — the researcher still runs', async () => {
     taskFindUniqueMock.mockImplementation(() =>
       Promise.resolve(makeTask({ workflowStatus: 'draft' })),
     );
     roleConfigFindUniqueMock.mockImplementation(() =>
       Promise.resolve(makeRoleConfig({ role: 'researcher' })),
     );
-    existingArtifactContent = '[System: thinking_tokens]';
+    artifactContent.research = '[System: thinking_tokens]';
     isReusableArtifactImpl = () => false;
 
     const orchestrator = WorkflowOrchestrator.getInstance();
     await orchestrator.advanceWorkflow(1);
 
     expect(executeCLIAgentMock).toHaveBeenCalledTimes(1);
+    const [, , , , , dispatchedTransition] = executeCLIAgentMock.mock.calls[0];
+    expect((dispatchedTransition as { role: string }).role).toBe('researcher');
   });
 
   test('verify.md is never reused even when isReusableArtifact would approve it', async () => {
@@ -348,7 +365,8 @@ describe('WorkflowOrchestrator — artifact reuse', () => {
       Promise.resolve(makeRoleConfig({ role: 'implementer' })),
     );
     // plan.md must look valid too, or the implementer plan-validity guard would fire first.
-    existingArtifactContent = '# Plan\n\nvalid plan';
+    artifactContent.plan = '# Plan\n\nvalid plan';
+    artifactContent.verify = '# Verify\n\nlooks valid';
     isReusableArtifactImpl = () => true;
 
     const orchestrator = WorkflowOrchestrator.getInstance();

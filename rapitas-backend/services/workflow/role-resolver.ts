@@ -31,6 +31,7 @@ const log = createLogger('role-resolver');
 
 import { narrowWorkflowStatus, narrowWorkflowMode } from './workflow-types.guards.generated';
 import type { WorkflowRole } from './workflow-types';
+import { reconcileStatusFromExistingArtifacts } from './artifact-reuse-reconciler';
 
 // NOTE: The status→role map is now derived from the DB-backed, UI-editable
 // mode config (workflow-mode-config.ts) — the single source of truth shared
@@ -61,13 +62,32 @@ export async function resolveAgentForTask(taskId: number): Promise<ResolvedRoleA
   const task = await resolveTaskWorkflowState(taskId);
   if (!task) return null;
 
-  const status = narrowWorkflowStatus(task.workflowStatus);
+  let status = narrowWorkflowStatus(task.workflowStatus);
   // Terminal statuses have no next role.
   if (status === 'verify_done' || status === 'completed') return null;
 
   const mode = narrowWorkflowMode(task.workflowMode);
   const { getModeSettings, buildRoleByStatus } = await import('./workflow-mode-config');
-  const role = buildRoleByStatus(await getModeSettings(mode))[status];
+  const modeSettings = await getModeSettings(mode);
+
+  // Fast-forward past research/plan phases whose artifacts already exist and
+  // are good enough to reuse — this is the SAME check runAdvanceWorkflow does
+  // before dispatching, but this function is the SEPARATE path the manual
+  // "実行" button (execute-route.ts) uses, which never goes through
+  // runAdvanceWorkflow at all. Without this, clicking Execute on a
+  // re-dispatched task with existing research.md/plan.md would still pick the
+  // researcher role from the stale status instead of the actually-needed one.
+  const reconciled = await reconcileStatusFromExistingArtifacts(
+    taskId,
+    status,
+    modeSettings.includePlan,
+  ).catch((err) => {
+    log.warn({ err, taskId }, 'Artifact-reuse reconciliation failed');
+    return { status, advanced: false };
+  });
+  status = reconciled.status;
+
+  const role = buildRoleByStatus(modeSettings)[status];
   if (!role) {
     log.debug({ taskId, status, mode }, 'No role mapped for current workflow status');
     return null;

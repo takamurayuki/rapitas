@@ -23,6 +23,7 @@ import {
 import { DEFAULT_SYSTEM_PROMPTS } from '../../routes/ai/system-prompts/default-prompts';
 import { isReusableArtifact } from './phase-output-validator';
 import { recordTransition } from './transition-recorder';
+import { reconcileStatusFromExistingArtifacts } from './artifact-reuse-reconciler';
 import { isShutdownError } from '../agents/orchestrator/shutdown-error';
 import { narrowWorkflowStatus, narrowWorkflowMode } from './workflow-types.guards.generated';
 import type { WorkflowRole, WorkflowStatus } from './workflow-types';
@@ -187,8 +188,8 @@ export class WorkflowOrchestrator {
     const modeSettings = await getModeSettings(workflowMode);
     const modeTransitions = buildTransitions(modeSettings);
 
-    const currentStatus = narrowWorkflowStatus(task.workflowStatus);
-    const transition = modeTransitions[currentStatus];
+    let currentStatus = narrowWorkflowStatus(task.workflowStatus);
+    let transition = modeTransitions[currentStatus];
     if (!transition) {
       return {
         success: false,
@@ -284,6 +285,42 @@ export class WorkflowOrchestrator {
           { err, taskId },
           '[WorkflowOrchestrator] Pre-research mode selection failed — keeping current mode',
         );
+      }
+    }
+
+    // Artifact-reuse fast-forward: a re-run (or a workflowStatus reset) can
+    // leave the task at `draft`/`research_done` while research.md and/or
+    // plan.md ALREADY exist on disk and are good enough quality to reuse —
+    // dispatching the researcher/planner again would just redo work the
+    // agent would otherwise notice and skip on its own (observed: task 491's
+    // researcher explicitly reasoning "research.md already matches this task,
+    // reusing it" instead of the status already reflecting that). Re-fetch
+    // mode settings first: the pre-research mode-selection step above may
+    // have just changed workflowMode, and `includePlan` must match the FINAL
+    // mode for this reconciliation to target the right status.
+    {
+      const finalModeSettings = await getModeSettings(workflowMode);
+      const finalModeTransitions = buildTransitions(finalModeSettings);
+      const reconciled = await reconcileStatusFromExistingArtifacts(
+        taskId,
+        currentStatus,
+        finalModeSettings.includePlan,
+      ).catch((err) => {
+        log.warn({ err, taskId }, '[WorkflowOrchestrator] Artifact-reuse reconciliation failed');
+        return { status: currentStatus, advanced: false };
+      });
+      if (reconciled.advanced) {
+        currentStatus = reconciled.status;
+        const advancedTransition = finalModeTransitions[currentStatus];
+        if (!advancedTransition) {
+          return {
+            success: false,
+            role: transition.role,
+            status: currentStatus,
+            error: `ステータス "${currentStatus}" では次のフェーズを実行できません`,
+          };
+        }
+        transition = advancedTransition;
       }
     }
 
@@ -721,7 +758,19 @@ export class WorkflowOrchestrator {
       // agent would have to RE-SAVE research.md just to escape draft before it can
       // save verify.md (the "verify.md already written but won't advance without a
       // re-save" the user observed on task 267). Mirror resolveImplementEntryStatus:
-      // plan.md present → plan_approved, else research.md present → research_done.
+      // plan.md present → plan_created, else research.md present → research_done.
+      //
+      // NOTE: stops at `plan_created` (never `plan_approved`) even when plan.md
+      // is present — reusing an existing plan must go through the SAME
+      // approval gate a freshly-produced plan.md would (manual approval or the
+      // auto-approve setting), never silently skip it just because a
+      // WorkflowFile row happens to exist. This is a DB-existence-only
+      // backstop; reconcileStatusFromExistingArtifacts (called earlier in
+      // runAdvanceWorkflow, before role/model resolution) already handles the
+      // common case with actual content-quality validation and in time to
+      // affect which role THIS dispatch runs — this block only still fires
+      // when that earlier check found nothing usable but a WorkflowFile row
+      // exists anyway (e.g. a stale row pointing at deleted/invalid content).
       const [hasPlan, hasResearch] = await Promise.all([
         prisma.workflowFile
           .findFirst({ where: { taskId, fileType: 'plan' }, select: { id: true } })
@@ -730,7 +779,7 @@ export class WorkflowOrchestrator {
           .findFirst({ where: { taskId, fileType: 'research' }, select: { id: true } })
           .catch(() => null),
       ]);
-      const reconciled = hasPlan ? 'plan_approved' : hasResearch ? 'research_done' : 'draft';
+      const reconciled = hasPlan ? 'plan_created' : hasResearch ? 'research_done' : 'draft';
       await prisma.task.update({
         where: { id: taskId },
         data: { workflowStatus: reconciled, status: 'in-progress' },
