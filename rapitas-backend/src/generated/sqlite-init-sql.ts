@@ -1244,7 +1244,7 @@ CREATE TABLE "WorkflowFile" (
     "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
     "taskId" INTEGER NOT NULL,
     "fileType" TEXT NOT NULL,
-    "content" TEXT NOT NULL,
+    "content" TEXT NOT NULL DEFAULT '',
     "sha256" TEXT NOT NULL,
     "sizeBytes" INTEGER NOT NULL,
     "absolutePath" TEXT,

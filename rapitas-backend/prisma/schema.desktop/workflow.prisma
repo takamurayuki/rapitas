@@ -19,7 +19,7 @@ model WorkflowFile {
   /** "research" | "plan" | "question" | "verify" */
   fileType  String
   /** The artifact's Markdown content. */
-  content   String
+  content   String   @default("")
   /** SHA-256 of `content` for cheap change detection. */
   sha256    String
   /** Size in bytes of `content`. */
