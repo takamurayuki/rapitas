@@ -241,7 +241,7 @@ export type TaskForAutoMerge = Prisma.TaskGetPayload<{
     workflowStatus: true;
     completedAt: true;
     workingDirectory: true;
-    theme: { select: { workingDirectory: true } };
+    theme: { select: { workingDirectory: true; defaultBranch: true } };
   };
 }>;
 
@@ -308,7 +308,7 @@ export async function resolveTaskForAutoMerge(taskId: number): Promise<TaskForAu
         workflowStatus: true,
         completedAt: true,
         workingDirectory: true,
-        theme: { select: { workingDirectory: true } },
+        theme: { select: { workingDirectory: true, defaultBranch: true } },
       },
     })
     .catch(() => null);

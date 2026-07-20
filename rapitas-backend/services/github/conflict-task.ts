@@ -9,8 +9,30 @@
  */
 import { prisma } from '../../config/database';
 import { createLogger } from '../../config/logger';
+import { runGitCommand } from './git-exec';
 
 const log = createLogger('github:conflict-task');
+
+/**
+ * Confirms a branch actually exists on `origin` before it's handed to an agent
+ * as a literal `git checkout`/`git merge` target. Guards against authoring a
+ * conflict-resolution task from stale or cross-repo-mismatched PR data (a
+ * branch name that looked plausible but belongs to a different project, or no
+ * longer exists) — better to fail closed than file a task doomed to fail on
+ * step 1.
+ *
+ * @param branch - Branch name to check. / 確認するブランチ名
+ * @param workingDirectory - Local checkout whose `origin` remote to query. / 確認元の作業ディレクトリ
+ * @returns True when `origin/<branch>` exists. / originに存在すればtrue
+ */
+async function remoteBranchExists(branch: string, workingDirectory: string): Promise<boolean> {
+  return runGitCommand(['ls-remote', '--heads', 'origin', branch], workingDirectory, {
+    skipLog: true,
+    timeoutMs: 15_000,
+  })
+    .then((out) => out.trim().length > 0)
+    .catch(() => false);
+}
 
 /** Minimal PR shape needed to author the resolution instructions. */
 export interface ConflictPrInfo {
@@ -50,6 +72,29 @@ export async function fileConflictResolutionTask(
   workingDirectory: string,
   themeId: number | null,
 ): Promise<FileConflictTaskResult> {
+  // Verify both branches actually exist on origin before handing them to an
+  // agent as literal git command targets — a mismatched integrationId lookup
+  // or a stale synced row would otherwise author instructions for a branch
+  // that belongs to a different repo (or was deleted), which cannot succeed.
+  const [headExists, baseExists] = await Promise.all([
+    remoteBranchExists(pr.headBranch, workingDirectory),
+    remoteBranchExists(pr.baseBranch, workingDirectory),
+  ]);
+  if (!headExists || !baseExists) {
+    log.warn(
+      {
+        prNumber: pr.prNumber,
+        headBranch: pr.headBranch,
+        baseBranch: pr.baseBranch,
+        headExists,
+        baseExists,
+        workingDirectory,
+      },
+      '[conflict-task] Refusing to file a conflict-resolution task — head or base branch not found on origin (stale or cross-repo-mismatched PR data)',
+    );
+    return { taskId: null, created: false };
+  }
+
   const instruction = [
     `PR #${pr.prNumber}「${pr.title}」のマージ競合を解消してください。`,
     `- マージ先(base): ${pr.baseBranch}`,

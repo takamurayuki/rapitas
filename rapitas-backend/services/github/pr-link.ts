@@ -35,13 +35,16 @@ export interface LinkAutoCreatedPrParams {
 }
 
 /**
- * Resolve the GitHubIntegration that owns the repo behind an auto-created PR.
+ * Resolve the GitHubIntegration that owns the repo behind a PR or task.
  * Prefers an owner/repo match (from the theme URL, else the git remote); falls
- * back to the sole integration when exactly one exists.
+ * back to the sole integration when exactly one exists. Exported so any call
+ * site scoping a `GitHubPullRequest` lookup by `prNumber` can also scope it by
+ * repo — RAPITAS tracks multiple projects, and `prNumber` alone collides
+ * across them (e.g. two different repos each having their own PR #8).
  *
  * @returns Matching integration id, or null when none can be resolved / 一致する統合ID
  */
-async function resolveIntegrationId(
+export async function resolveIntegrationId(
   prisma: PrismaClientInstance,
   repositoryUrl: string | null | undefined,
   workingDirectory: string | null | undefined,

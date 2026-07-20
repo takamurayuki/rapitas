@@ -17,6 +17,7 @@ import { mergePullRequest } from '../agents/orchestrator/git-operations/branch-p
 import { recordTransition } from './transition-recorder';
 import { attemptCiRepair } from './ci-self-repair';
 import { fileConflictResolutionTask } from '../github/conflict-task';
+import { resolveIntegrationId } from '../github/pr-link';
 import {
   blockingChecks,
   evaluateAutoMergeChecks,
@@ -166,9 +167,22 @@ export class AutoMergeWatcher {
     }
 
     // Need the PR's head branch + title to author the resolution instructions.
+    // MUST scope by the repo behind c.cwd, not prNumber alone — RAPITAS tracks
+    // multiple projects' PRs in one table, and prNumber collides across repos
+    // (e.g. two different projects each having their own PR #8). An unscoped
+    // findFirst previously picked whichever repo's row happened to match,
+    // authoring instructions with a completely unrelated branch/title.
+    const integrationId = await resolveIntegrationId(prisma, null, c.cwd);
+    if (integrationId == null) {
+      log.warn(
+        { taskId: c.taskId, prNumber: c.prNumber, cwd: c.cwd },
+        "[auto-merge] Could not resolve the GitHub integration for this candidate's repo — refusing to author conflict-resolution instructions from an unscoped PR lookup",
+      );
+      return false;
+    }
     const prRow = await prisma.gitHubPullRequest
       .findFirst({
-        where: { prNumber: c.prNumber },
+        where: { prNumber: c.prNumber, integrationId },
         select: { title: true, headBranch: true, baseBranch: true },
       })
       .catch(() => null);

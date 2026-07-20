@@ -19,7 +19,7 @@ interface TaskFixture {
   workflowStatus: string;
   completedAt: Date | null;
   workingDirectory: string | null;
-  theme: { workingDirectory: string | null } | null;
+  theme: { workingDirectory: string | null; defaultBranch?: string | null } | null;
   autoCommit?: boolean | null;
   autoCreatePR?: boolean | null;
   autoMergePR?: boolean | null;
@@ -324,9 +324,27 @@ describe('findCandidates — threshold and baseBranch defaults', () => {
     expect(result[0].threshold).toBe(8);
   });
 
-  it('defaults baseBranch to "develop" when the PR row has none', async () => {
+  it('defaults baseBranch to "develop" when the PR row has none and the task has no theme', async () => {
     addTask({ id: 17 });
     addOpenPr({ prNumber: 116, baseBranch: null, linkedTaskId: 17 });
+
+    const result = await findCandidates();
+
+    expect(result[0].baseBranch).toBe('develop');
+  });
+
+  it('falls back to the THEME default branch (not a hardcoded "develop") when the PR row has none', async () => {
+    addTask({ id: 23, theme: { workingDirectory: CWD, defaultBranch: 'main' } });
+    addOpenPr({ prNumber: 117, baseBranch: null, linkedTaskId: 23 });
+
+    const result = await findCandidates();
+
+    expect(result[0].baseBranch).toBe('main');
+  });
+
+  it('prefers the PR row baseBranch over the theme default when both are present', async () => {
+    addTask({ id: 24, theme: { workingDirectory: CWD, defaultBranch: 'main' } });
+    addOpenPr({ prNumber: 118, baseBranch: 'develop', linkedTaskId: 24 });
 
     const result = await findCandidates();
 

@@ -22,6 +22,18 @@ mock.module('../../config/logger', () => ({
   createLogger: () => ({ info: () => {}, warn: () => {}, error: () => {}, debug: () => {} }),
 }));
 
+// fileConflictResolutionTask verifies both branches exist on origin before
+// filing — default to "found" (a non-empty ls-remote line) so the existing
+// dedup/re-queue scenarios below aren't blocked by this unrelated guard.
+// remoteBranchCheckResult lets the dedicated describe block below override it.
+let remoteBranchCheckResult: string | Error = 'abc123\trefs/heads/feat/x-t1';
+mock.module('./git-exec', () => ({
+  runGitCommand: () =>
+    remoteBranchCheckResult instanceof Error
+      ? Promise.reject(remoteBranchCheckResult)
+      : Promise.resolve(remoteBranchCheckResult),
+}));
+
 mock.module('../../config/database', () => ({
   prisma: {
     task: {
@@ -52,6 +64,7 @@ function reset(prior: PriorTask | null) {
   calls.update = 0;
   calls.create = 0;
   lastUpdateData = null;
+  remoteBranchCheckResult = 'abc123\trefs/heads/feat/x-t1';
 }
 
 describe('fileConflictResolutionTask — 1 PR = 1 タスク収束', () => {
@@ -92,5 +105,31 @@ describe('fileConflictResolutionTask — 1 PR = 1 タスク収束', () => {
     expect(calls.create).toBe(0);
     expect(calls.update).toBe(0);
     expect(r).toEqual({ taskId: 335, created: false });
+  });
+});
+
+describe('fileConflictResolutionTask — ブランチ存在確認ガード', () => {
+  test('head/base どちらもorigin上に存在: 通常通りタスクを起票する', async () => {
+    reset(null);
+    const r = await fileConflictResolutionTask(PR, '/cwd', 1);
+    expect(calls.create).toBe(1);
+    expect(r.created).toBe(true);
+  });
+
+  test('originにブランチが1件も無い(ls-remoteが空): 起票せずnullを返す', async () => {
+    reset(null);
+    remoteBranchCheckResult = '';
+    const r = await fileConflictResolutionTask(PR, '/cwd', 1);
+    expect(calls.create).toBe(0);
+    expect(calls.update).toBe(0);
+    expect(r).toEqual({ taskId: null, created: false });
+  });
+
+  test('ls-remoteがエラー(ネットワーク/認証等): 起票せずnullを返す(fail closed)', async () => {
+    reset(null);
+    remoteBranchCheckResult = new Error('network error');
+    const r = await fileConflictResolutionTask(PR, '/cwd', 1);
+    expect(calls.create).toBe(0);
+    expect(r).toEqual({ taskId: null, created: false });
   });
 });

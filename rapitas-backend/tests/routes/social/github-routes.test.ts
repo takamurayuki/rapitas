@@ -150,6 +150,13 @@ mock.module('../../../services/github/concern-bridge', () => ({
 mock.module('../../../services/github/conflict-resolver', () => ({
   resolvePrConflicts: mockResolvePrConflicts,
 }));
+// NOTE: conflict-task.ts (invoked via fileConflictResolutionTask on a real
+// conflict) verifies both branches exist on origin via runGitCommand before
+// filing — mock it to report "found" so that guard doesn't block these route
+// tests on a real (and here, nonexistent) git remote.
+mock.module('../../../services/github/git-exec', () => ({
+  runGitCommand: () => Promise.resolve('abc123\trefs/heads/mock-branch'),
+}));
 // Re-export the real schemas - they use elysia's t() which needs to be real
 // No mock needed for schemas as they are just type definitions
 

@@ -190,7 +190,13 @@ export async function findCandidates(): Promise<Candidate[]> {
       taskId,
       taskTitle: task.title,
       prNumber: link.prNumber,
-      baseBranch: link.baseBranch || 'develop',
+      // Prefer the PR's OWN synced base branch (real GitHub data); when that's
+      // unavailable, fall back to the THEME's configured default branch rather
+      // than a hardcoded 'develop' — themes on a different default (e.g. main)
+      // would otherwise get a conflict-resolution instruction merging the wrong
+      // branch. 'develop' is only the last-resort default, matching Theme's own
+      // schema default so this never invents an assumption the schema doesn't.
+      baseBranch: link.baseBranch || task.theme?.defaultBranch || 'develop',
       cwd,
       threshold: cfg?.mergeCommitThreshold ?? 5,
       completedAt: task.completedAt,
