@@ -7,7 +7,7 @@
  * Not responsible for any direct gh CLI calls or database access.
  */
 
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient } from '../../generated/prisma-postgres';
 import { isGhAvailable, isAuthenticated, listRepositories } from '../github/gh-client';
 import type { OwnerRepoString } from '../github/owner-repo';
 import {

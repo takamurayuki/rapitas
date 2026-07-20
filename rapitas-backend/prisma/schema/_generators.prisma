@@ -5,6 +5,16 @@ generator client {
   // NOTE: prismaSchemaFolder graduated to GA in Prisma 6 — listing it under
   // previewFeatures emits a deprecation warning on every CLI invocation.
   // The folder layout under prisma/schema/ works without any flag.
+  // NOTE: custom `output` so this postgres client and the sqlite desktop
+  // client (schema.desktop/_generators.prisma) generate to SEPARATE folders
+  // instead of both overwriting the shared default `node_modules/.prisma/client`.
+  // Without this, running the postgres dev backend and the desktop (SQLite)
+  // dev/build at the same time makes whichever regenerates last clobber the
+  // other's client — the other process then throws
+  // PrismaClientInitializationError on every query and crashes (see
+  // docs — "Prisma provider drift crash"). See config/database.ts for the
+  // runtime selection between the two.
+  output = "../../generated/prisma-postgres"
 }
 
 datasource db {

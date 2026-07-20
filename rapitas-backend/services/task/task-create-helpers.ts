@@ -4,7 +4,7 @@
  * Internal helpers for creating subtasks and parent tasks.
  * Called exclusively by task-mutations.ts — not part of the public API.
  */
-import { PrismaClient, Prisma } from '@prisma/client';
+import { PrismaClient, Prisma } from '../../generated/prisma-postgres';
 import { createLogger } from '../../config/logger';
 import { getInsensitiveMode } from '../../config/db-provider';
 import { UserBehaviorService } from '../../src/services/user-behavior-service';

@@ -5,7 +5,7 @@
  * its commonly-needed relations. Not responsible for HTTP handling, business
  * logic, or task mutations.
  */
-import type { Prisma } from '@prisma/client';
+import type { Prisma } from '../../generated/prisma-postgres';
 import { prisma } from '../../config/database';
 
 /** Task with its Theme (workingDirectory / name / defaultBranch etc.) */

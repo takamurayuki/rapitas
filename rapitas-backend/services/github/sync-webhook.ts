@@ -7,7 +7,7 @@
  * Not responsible for gh CLI calls — delegates to pr-operations and issue-operations.
  */
 
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient } from '../../generated/prisma-postgres';
 import { createLogger } from '../../config/logger';
 import { realtimeService } from '../communication/realtime-service';
 import { getPullRequests } from './pr-operations';

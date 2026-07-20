@@ -11,7 +11,7 @@
  */
 
 import { createLogger } from '../../config/logger';
-import type { PrismaClient } from '@prisma/client';
+import type { PrismaClient } from '../../generated/prisma-postgres';
 
 const log = createLogger('self-learning:prompt-evolution-runner');
 

@@ -6,7 +6,7 @@
  * プロセスグローバルなため、全エクスポートをミラーしてスタブ化する。
  */
 import { describe, test, expect, mock, beforeEach } from 'bun:test';
-import type { PrismaClient } from '@prisma/client';
+import type { PrismaClient } from '../../generated/prisma-postgres';
 
 mock.module('../../config/logger', () => {
   const noopLogger = {

@@ -5,7 +5,7 @@
  * throw NotFoundError (→ HTTP 404) when it does not exist.  Acts as the
  * standard precondition layer for GitHub route handlers.
  */
-import type { Prisma } from '@prisma/client';
+import type { Prisma } from '../../generated/prisma-postgres';
 import { prisma } from '../../config/database';
 import { NotFoundError, parseId } from '../../middleware/error-handler';
 

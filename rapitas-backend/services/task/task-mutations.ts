@@ -6,7 +6,7 @@
  * Private create helpers live in task-create-helpers.ts.
  * Does NOT handle suggestions, cleanup utilities, or query-only operations.
  */
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient } from '../../generated/prisma-postgres';
 import { createLogger } from '../../config/logger';
 import { UserBehaviorService } from '../../src/services/user-behavior-service';
 import { notifyTaskCompleted, createNotification } from '../communication/notification-service';

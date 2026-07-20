@@ -3,7 +3,7 @@
  * attachBlockedCauses (batched WorkflowTransition.cause lookup) のユニットテスト
  */
 import { describe, test, expect, mock, beforeEach } from 'bun:test';
-import type { PrismaClient } from '@prisma/client';
+import type { PrismaClient } from '../../generated/prisma-postgres';
 import { attachBlockedCauses } from '../../services/task/blocked-cause';
 
 describe('attachBlockedCauses', () => {

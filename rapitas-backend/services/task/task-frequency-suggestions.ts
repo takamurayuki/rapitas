@@ -4,7 +4,7 @@
  * Suggests tasks based on repetition frequency in a theme's completed task history.
  * Does NOT use AI or interact with external APIs.
  */
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient } from '../../generated/prisma-postgres';
 
 type PrismaInstance = InstanceType<typeof PrismaClient>;
 

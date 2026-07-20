@@ -10,7 +10,7 @@
  * Tier S #3 — see docs/adr/ if a future change deserves an ADR.
  */
 import Anthropic from '@anthropic-ai/sdk';
-import type { PrismaClient } from '@prisma/client';
+import type { PrismaClient } from '../../generated/prisma-postgres';
 import { prisma as defaultPrisma } from '../../config/database';
 import { createLogger } from '../../config/logger';
 import { getApiKeyForProvider, getAuxAiMode, callClaudeCli } from '../../utils/ai-client';

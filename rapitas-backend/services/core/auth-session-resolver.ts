@@ -5,7 +5,7 @@
  * UserSession row (with its associated user). Not responsible for HTTP
  * handling, auth-rate-limiting, or session creation/deletion.
  */
-import type { Prisma } from '@prisma/client';
+import type { Prisma } from '../../generated/prisma-postgres';
 import { prisma } from '../../config/database';
 
 /** Full UserSession row joined with its User — the payload callers need. / セッション行とユーザーを結合したペイロード */

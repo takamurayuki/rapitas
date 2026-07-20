@@ -8,7 +8,7 @@
  * automation-policy.landing-mode.test.ts.
  */
 import { describe, it, expect, mock, beforeEach, afterEach } from 'bun:test';
-import type { PrismaClient } from '@prisma/client';
+import type { PrismaClient } from '../../generated/prisma-postgres';
 
 mock.module('../../config/logger', () => ({
   createLogger: () => ({

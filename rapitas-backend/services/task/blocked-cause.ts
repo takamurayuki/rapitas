@@ -9,7 +9,7 @@
  * latest WorkflowTransition.cause as `blockedCause`. Read-only; never
  * mutates the database.
  */
-import type { PrismaClient } from '@prisma/client';
+import type { PrismaClient } from '../../generated/prisma-postgres';
 
 /** Minimal shape this module needs from a task-list row. */
 export interface TaskLikeForBlockedCause {

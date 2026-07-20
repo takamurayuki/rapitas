@@ -6,7 +6,7 @@
  * ため mock.module は不要 — プレーンなモックオブジェクトを直接渡す。
  */
 import { describe, test, expect, mock, beforeEach } from 'bun:test';
-import type { PrismaClient } from '@prisma/client';
+import type { PrismaClient } from '../../generated/prisma-postgres';
 import { attachBlockedCauses, type TaskLikeForBlockedCause } from './blocked-cause';
 
 type FindManyArgs = {

@@ -6,7 +6,7 @@
  * Not responsible for route registration, PR/Issue API calls, or sync logic.
  */
 
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient } from '../../generated/prisma-postgres';
 import { realtimeService } from '../communication/realtime-service';
 import { makeOwnerRepoString } from './owner-repo';
 import type { GitHubWebhookPayload } from './types';

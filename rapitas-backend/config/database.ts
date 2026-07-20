@@ -4,7 +4,7 @@
  * Prisma client initialization. Supports PostgreSQL (web) and SQLite (desktop)
  * selected by DATABASE_URL.
  */
-import { PrismaClient } from '@prisma/client';
+import type { PrismaClient as PrismaClientType } from '../generated/prisma-postgres';
 import { resolve } from 'path';
 import { createLogger } from './logger';
 
@@ -37,8 +37,21 @@ function normalizeSqliteDatabaseUrl(): void {
 
 normalizeSqliteDatabaseUrl();
 
-const dbProvider = process.env.DATABASE_URL?.startsWith('file:') ? 'SQLite' : 'PostgreSQL';
+const isSqlite = process.env.DATABASE_URL?.startsWith('file:') ?? false;
+const dbProvider = isSqlite ? 'SQLite' : 'PostgreSQL';
 log.info(`Connecting to ${dbProvider}`);
+
+// NOTE: The postgres and sqlite schemas each generate to their OWN folder
+// (see prisma/schema/_generators.prisma's `output`) instead of the shared
+// default `node_modules/.prisma/client` — running the postgres dev backend
+// and the desktop (SQLite) dev/build at the same time no longer makes one
+// overwrite the other's client. Pick the matching one for THIS process at
+// runtime; the type import above (postgres) is structurally identical
+// between the two schemas, so it's safe to use for both at compile time.
+// eslint-disable-next-line @typescript-eslint/no-require-imports -- runtime provider selection can't be a static import
+const { PrismaClient } = (
+  isSqlite ? require('../generated/prisma-sqlite') : require('../generated/prisma-postgres')
+) as { PrismaClient: typeof PrismaClientType };
 
 export const prisma = new PrismaClient();
 

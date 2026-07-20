@@ -92,7 +92,12 @@ try {
   // release.rs が exe と一緒に app data へコピーし PRISMA_QUERY_ENGINE_LIBRARY で
   // 明示パスを渡す。
   console.log('\nStep 3: Bundling Prisma query engine...');
-  const prismaClientDir = path.join(BACKEND_DIR, 'node_modules', '.prisma', 'client');
+  // NOTE: the sqlite schema generates to its own `generated/prisma-sqlite`
+  // folder (prisma/schema.desktop/_generators.prisma's custom `output`) rather
+  // than the shared default `node_modules/.prisma/client` — so a postgres dev
+  // backend running at the same time as this build can no longer clobber the
+  // engine binary being bundled here.
+  const prismaClientDir = path.join(BACKEND_DIR, 'generated', 'prisma-sqlite');
   const engineFiles = fs.existsSync(prismaClientDir)
     ? fs.readdirSync(prismaClientDir).filter(
         (f) => f.includes('query_engine') && f.endsWith('.node') && !f.includes('.tmp')
@@ -100,7 +105,7 @@ try {
     : [];
   if (engineFiles.length === 0) {
     console.error(
-      'No Prisma query engine found in node_modules/.prisma/client — ' +
+      'No Prisma query engine found in generated/prisma-sqlite — ' +
       'the packaged backend would crash on startup. Run db:prepare:sqlite first.'
     );
     process.exit(1);

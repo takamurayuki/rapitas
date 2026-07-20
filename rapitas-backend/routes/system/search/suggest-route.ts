@@ -5,7 +5,7 @@
  * matching a partial search query. Capped at 8 results for low-latency UI use.
  */
 import { Elysia } from 'elysia';
-import type { Prisma } from '@prisma/client';
+import type { Prisma } from '../../../generated/prisma-postgres';
 import { prisma } from '../../../config/database';
 import { createLogger } from '../../../config/logger';
 import { getInsensitiveMode } from '../../../config/db-provider';

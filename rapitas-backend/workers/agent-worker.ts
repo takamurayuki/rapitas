@@ -7,7 +7,7 @@
 
 import { createLogger } from '../config/logger';
 import { exec } from 'child_process';
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient } from '../generated/prisma-postgres';
 import { AgentOrchestrator } from '../services/agents/agent-orchestrator';
 import type { ExecutionOptions, OrchestratorEvent } from '../services/agents/orchestrator/types';
 import type { AgentTask, AgentExecutionResult } from '../services/agents/base-agent';

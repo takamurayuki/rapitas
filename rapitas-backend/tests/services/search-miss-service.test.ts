@@ -5,7 +5,7 @@
  * 通知失敗時の log.error 出力（fire-and-forget エラーハンドリング）を検証する。
  */
 import { describe, test, expect, mock, afterEach } from 'bun:test';
-import type { PrismaClient } from '@prisma/client';
+import type { PrismaClient } from '../../generated/prisma-postgres';
 
 // Stable logger mock instances — module-scope so call-count assertions work across tests.
 // NOTE: createLogger must return the SAME object every call; otherwise the ref captured by

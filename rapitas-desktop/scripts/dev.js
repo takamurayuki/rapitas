@@ -755,7 +755,7 @@ const AGENT_PID_DIR = path.join(BACKEND_DIR, ".agent-pids");
  * 残留 bun プロセスを安全に kill する。
  *
  * 必要性: dev サーバの異常終了や Tauri restart で bun.exe が orphan として残ると、
- * `node_modules/.prisma/client/query_engine-windows.dll.node` を握ったままになり、
+ * `generated/prisma-sqlite/query_engine-windows.dll.node` を握ったままになり、
  * 次回の `prisma generate` が EPERM (rename failed) で落ちる。
  *
  * 安全策:
@@ -984,22 +984,15 @@ const SQLITE_INIT_SQL_OUTPUT = path.join(
   "generated",
   "sqlite-init-sql.ts",
 );
-// Default Prisma client output (no custom `output` in _generators.prisma).
+// The sqlite schema's custom `output` (prisma/schema.desktop/_generators.prisma)
+// — separate from the postgres schema's own `generated/prisma-postgres` folder,
+// so a concurrently-running postgres dev backend can no longer clobber this
+// desktop client (or vice versa). See prisma/schema/_generators.prisma for why.
 const PRISMA_CLIENT_OUTPUT = path.join(
   BACKEND_DIR,
-  "node_modules",
-  ".prisma",
-  "client",
+  "generated",
+  "prisma-sqlite",
   "index.js",
-);
-// The generated client's bundled schema — used to detect PROVIDER DRIFT
-// (a postgres client left behind by a web-dev launch / stray `prisma generate`).
-const PRISMA_CLIENT_SCHEMA = path.join(
-  BACKEND_DIR,
-  "node_modules",
-  ".prisma",
-  "client",
-  "schema.prisma",
 );
 
 /**
@@ -1044,6 +1037,16 @@ function computePrismaPrepareHash() {
  * True when the previous prepare output is still valid for the current inputs:
  * the stamp matches the current hash AND both generated artifacts exist
  * (a stamp without artifacts is stale and must not short-circuit generation).
+ *
+ * NOTE: this used to also guard against PROVIDER DRIFT (a postgres client left
+ * behind in the shared `node_modules/.prisma/client` by a web-dev launch, which
+ * would boot against the desktop's sqlite `file:` URL and throw
+ * PrismaClientInitializationError). That's now structurally impossible — the
+ * sqlite schema generates to its OWN `generated/prisma-sqlite` folder (see
+ * prisma/schema.desktop/_generators.prisma), separate from the postgres
+ * backend's `generated/prisma-postgres` — so a concurrently-running postgres
+ * dev backend can no longer clobber this client. Only the existence checks
+ * remain.
  * @param {string} currentHash
  * @returns {boolean}
  */
@@ -1056,21 +1059,6 @@ function isPrismaPrepareCacheValid(currentHash) {
     }
     if (!fs.existsSync(PRISMA_CLIENT_OUTPUT)) return false;
     if (fs.statSync(SQLITE_INIT_SQL_OUTPUT).size === 0) return false;
-    // Guard against PROVIDER DRIFT: the schema hash only covers SOURCE files, so
-    // a web-dev launch or a stray `prisma generate` can leave a POSTGRES client
-    // in node_modules with the hash still matching. Booting that client against
-    // the desktop's sqlite `file:` URL throws PrismaClientInitializationError
-    // ("URL must start with postgresql://"). Only treat the cache as valid when
-    // the generated client is actually the sqlite one; otherwise force regen.
-    const clientSchema = fs.readFileSync(PRISMA_CLIENT_SCHEMA, "utf8");
-    if (!/provider\s*=\s*"sqlite"/.test(clientSchema)) return false;
-    // NOTE: schema.prisma and index.js can DIVERGE — a postgres `prisma generate`
-    // (e.g. a pre-commit hook) overwrites the runtime index.js to postgres while
-    // leaving the client's schema.prisma copy on the previous sqlite generate, so
-    // a schema.prisma-only guard is fooled. The runtime loads index.js, which
-    // bakes the datasource as `provider = \"postgresql\"`; treat that as drift.
-    const clientJs = fs.readFileSync(PRISMA_CLIENT_OUTPUT, "utf8");
-    if (/provider\s*=\s*\\?"postgresql\\?"/.test(clientJs)) return false;
   } catch {
     return false;
   }

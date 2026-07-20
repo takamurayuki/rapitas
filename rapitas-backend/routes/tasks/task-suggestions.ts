@@ -6,7 +6,7 @@
  * under the 500-line per-file limit.
  */
 import { Elysia, t } from 'elysia';
-import { Prisma } from '@prisma/client';
+import { Prisma } from '../../generated/prisma-postgres';
 import { prisma } from '../../config/database';
 import { createLogger } from '../../config/logger';
 import { getInsensitiveMode } from '../../config/db-provider';

@@ -1,5 +1,5 @@
-import { Prisma } from '@prisma/client';
-import type { PrismaClient } from '@prisma/client';
+import { Prisma } from '../../generated/prisma-postgres';
+import type { PrismaClient } from '../../generated/prisma-postgres';
 import { getInsensitiveMode } from '../../config/db-provider';
 import { createLogger } from '../../config/logger';
 

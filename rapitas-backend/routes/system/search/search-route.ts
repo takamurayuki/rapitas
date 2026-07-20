@@ -5,7 +5,7 @@
  * Scoring and excerpt logic delegated to helpers.ts.
  */
 import { Elysia } from 'elysia';
-import { Prisma } from '@prisma/client';
+import { Prisma } from '../../../generated/prisma-postgres';
 import { prisma } from '../../../config/database';
 // NOTE: PrismaClientKnownRequestError is not exported from '@prisma/client' directly;
 // it lives in the runtime library. P2021 = "The table does not exist".

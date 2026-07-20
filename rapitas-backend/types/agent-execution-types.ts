@@ -7,7 +7,7 @@ import type {
   AIAgentConfig,
   AgentExecutionLog,
   GitCommit,
-} from '@prisma/client';
+} from '../generated/prisma-postgres';
 
 /**
  * Agent実行ステータス

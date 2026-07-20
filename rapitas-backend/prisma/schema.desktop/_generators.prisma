@@ -5,6 +5,12 @@ generator client {
   // NOTE: prismaSchemaFolder graduated to GA in Prisma 6 — listing it under
   // previewFeatures emits a deprecation warning on every CLI invocation.
   // The folder layout under prisma/schema/ works without any flag.
+  // NOTE: this file is regenerated from prisma/schema/_generators.prisma by
+  // scripts/generate-sqlite-prisma-schema.cjs — edit the source, not this
+  // copy. Custom `output` keeps this sqlite client separate from the
+  // postgres client's folder so running both dev flows at once doesn't
+  // clobber either one's generated client.
+  output = "../../generated/prisma-sqlite"
 }
 
 datasource db {

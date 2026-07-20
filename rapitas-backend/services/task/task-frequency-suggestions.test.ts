@@ -5,7 +5,7 @@
  * ロジックを検証する。prisma は関数引数として渡されるため mock.module は不要。
  */
 import { describe, test, expect, mock, beforeEach } from 'bun:test';
-import type { PrismaClient } from '@prisma/client';
+import type { PrismaClient } from '../../generated/prisma-postgres';
 import { getFrequencyBasedSuggestions } from './task-frequency-suggestions';
 
 interface FakeCompletedTask {

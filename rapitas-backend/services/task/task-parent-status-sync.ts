@@ -6,7 +6,7 @@
  * Not responsible for finalizing workflow-managed parents (verify.md,
  * auto-commit/PR) — that stays owned by subtask-completion-handler.ts.
  */
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient } from '../../generated/prisma-postgres';
 import { realtimeService } from '../communication/realtime-service';
 
 type PrismaInstance = InstanceType<typeof PrismaClient>;

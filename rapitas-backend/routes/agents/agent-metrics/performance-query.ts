@@ -6,7 +6,7 @@
  * token totals. Separated from queries.ts to keep file sizes manageable.
  */
 
-import { Prisma } from '@prisma/client';
+import { Prisma } from '../../../generated/prisma-postgres';
 import { prisma } from '../../../config/database';
 import type { AgentPerformanceComparison, DateRange } from './types';
 

@@ -5,7 +5,7 @@
  * routes and workflow CLI executor. Not responsible for HTTP handling, business
  * logic, or session mutations.
  */
-import type { Prisma } from '@prisma/client';
+import type { Prisma } from '../../generated/prisma-postgres';
 import { prisma } from '../../config/database';
 
 /**

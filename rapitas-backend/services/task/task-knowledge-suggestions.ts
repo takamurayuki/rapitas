@@ -7,7 +7,7 @@
  *
  * Connects: KnowledgeEntry → Task suggestions (the missing feedback loop).
  */
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient } from '../../generated/prisma-postgres';
 import { sendAIMessage } from '../../utils/ai-client';
 import { parseJsonArray } from '../../utils/common/json-extractor';
 import { createLogger } from '../../config';

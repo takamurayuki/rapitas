@@ -17,7 +17,7 @@ import {
 } from '../../utils/common/secret-store';
 import { validateApiKeyFormat } from '../../utils/agent/agent-config-schema';
 import { logAgentConfigChange } from '../../utils/agent/agent-audit-log';
-import type { AIAgentConfig } from '@prisma/client';
+import type { AIAgentConfig } from '../../generated/prisma-postgres';
 import { getAgentById } from './crud';
 
 const log = createLogger('agent-config-api-key');

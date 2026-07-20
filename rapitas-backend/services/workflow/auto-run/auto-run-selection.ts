@@ -5,7 +5,7 @@
  * Selects the next eligible task for a given theme without side effects,
  * making the logic unit-testable without a live DB connection.
  */
-import type { PrismaClient } from '@prisma/client';
+import type { PrismaClient } from '../../../generated/prisma-postgres';
 
 /** Minimum fields from Task used in selection logic. */
 export interface SelectableTask {

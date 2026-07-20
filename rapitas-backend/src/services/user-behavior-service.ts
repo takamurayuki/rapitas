@@ -1,4 +1,4 @@
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient } from '../../generated/prisma-postgres';
 import { createLogger } from '../../config/logger';
 
 const log = createLogger('user-behavior-service');

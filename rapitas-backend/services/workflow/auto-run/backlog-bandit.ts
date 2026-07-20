@@ -10,7 +10,7 @@
  * on measured gain beat fixed curricula (SEC, arXiv:2505.14970). Not
  * responsible for creating tasks — backlog-task-promoter consumes the arm choice.
  */
-import type { PrismaClient } from '@prisma/client';
+import type { PrismaClient } from '../../../generated/prisma-postgres';
 import { createLogger } from '../../../config/logger';
 
 const log = createLogger('auto-run:backlog-bandit');

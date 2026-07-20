@@ -7,7 +7,7 @@
  * Not responsible for creating the PR on GitHub — that lives in branch-pr-ops.ts.
  */
 
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient } from '../../generated/prisma-postgres';
 import { createLogger } from '../../config/logger';
 import { parseOwnerRepo, ownerRepoFromGitRemote } from './git-exec';
 

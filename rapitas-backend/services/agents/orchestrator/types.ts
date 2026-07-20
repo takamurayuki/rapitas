@@ -4,7 +4,7 @@
  * All types used across orchestrator modules are centralized here
  * to prevent circular dependencies.
  */
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient } from '../../../generated/prisma-postgres';
 export type PrismaClientInstance = InstanceType<typeof PrismaClient>;
 
 import type { AgentOutputHandler, AgentStatus, TaskAnalysisInfo, BaseAgent } from '../base-agent';

@@ -5,7 +5,7 @@
  * content gaps and support task-suggestion workflows.
  */
 
-import type { PrismaClient, SearchMiss } from '@prisma/client';
+import type { PrismaClient, SearchMiss } from '../../generated/prisma-postgres';
 import { prisma } from '../../config/database';
 import { createLogger } from '../../config/logger';
 import { getInsensitiveMode } from '../../config/db-provider';

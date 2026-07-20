@@ -5,7 +5,7 @@
  * external API call. Throws on missing PR or integration so callers never reach
  * the external API unnecessarily.
  */
-import { Prisma } from '@prisma/client';
+import { Prisma } from '../../generated/prisma-postgres';
 import { prisma } from '../../config/database';
 import { NotFoundError, parseId } from '../../middleware/error-handler';
 import { makeOwnerRepoString, type OwnerRepoString } from '../../services/github/owner-repo';

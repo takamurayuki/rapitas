@@ -7,7 +7,7 @@
  * 全エクスポートをミラーする必要がある — 両モジュールとも対象関数のみをエクスポート）。
  */
 import { describe, test, expect, mock, beforeEach } from 'bun:test';
-import type { PrismaClient } from '@prisma/client';
+import type { PrismaClient } from '../../generated/prisma-postgres';
 
 const mockGetFrequencyBasedSuggestions = mock(() => Promise.resolve([])) as ReturnType<typeof mock>;
 const mockGetKnowledgeBasedSuggestions = mock(() => Promise.resolve([])) as ReturnType<typeof mock>;

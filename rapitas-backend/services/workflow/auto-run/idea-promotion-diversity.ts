@@ -12,7 +12,7 @@
  * (k-DPP-style selection, arXiv:2509.04784). Pure selection only; the
  * promoter does the actual task creation.
  */
-import type { PrismaClient } from '@prisma/client';
+import type { PrismaClient } from '../../../generated/prisma-postgres';
 import { bigramJaccard } from '../../memory/theme-saturation';
 
 /** Similarity at/above this to any anchor disqualifies a candidate (strict pass). */

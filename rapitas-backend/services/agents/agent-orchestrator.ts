@@ -11,7 +11,7 @@
  * - orchestrator/question-timeout-manager.ts: Question timeout and lock management
  * - orchestrator/execution-helpers.ts: Shared output/question-detection handlers
  */
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient } from '../../generated/prisma-postgres';
 type PrismaClientInstance = InstanceType<typeof PrismaClient>;
 
 import type { AgentTask, AgentExecutionResult } from './base-agent';

@@ -11,7 +11,7 @@
  * 自動化判断は `routes/workflow/workflow-auto-commit.ts` がここを呼ぶことで一元化される。
  */
 
-import type { PrismaClient } from '@prisma/client';
+import type { PrismaClient } from '../../generated/prisma-postgres';
 import { createLogger } from '../../config/logger';
 
 const log = createLogger('workflow:automation-policy');

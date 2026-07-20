@@ -14,7 +14,7 @@ import {
   isTaskBlocked,
   priorityRank,
 } from './auto-run-selection';
-import type { PrismaClient } from '@prisma/client';
+import type { PrismaClient } from '../../../generated/prisma-postgres';
 
 // ---------------------------------------------------------------------------
 // Minimal Prisma mock

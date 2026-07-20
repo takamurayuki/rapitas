@@ -11,7 +11,7 @@ import { toJsonString } from '../../utils/database/db-helpers';
 import { isEncryptionKeyConfigured } from '../../utils/common/encryption';
 import { deleteStoredSecret, saveAgentApiKey } from '../../utils/common/secret-store';
 import { logAgentConfigChange, calculateChanges } from '../../utils/agent/agent-audit-log';
-import type { AIAgentConfig } from '@prisma/client';
+import type { AIAgentConfig } from '../../generated/prisma-postgres';
 import type { CreateAgentConfigRequest, UpdateAgentConfigRequest } from './types';
 import { validateConfig } from './validation';
 

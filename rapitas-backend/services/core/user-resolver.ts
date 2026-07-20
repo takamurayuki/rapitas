@@ -4,7 +4,7 @@
  * Single source of truth for resolving User lookups by email or username.
  * Not responsible for HTTP handling, authentication, or user mutations.
  */
-import type { Prisma } from '@prisma/client';
+import type { Prisma } from '../../generated/prisma-postgres';
 import { prisma } from '../../config/database';
 
 /** Full User row — returned by all resolver functions in this module. */

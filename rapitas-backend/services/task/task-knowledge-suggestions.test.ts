@@ -12,7 +12,7 @@
  * （他ファイルが同一プロセス内で本物のエクスポートを要求しても壊れないように）。
  */
 import { describe, test, expect, mock, beforeEach } from 'bun:test';
-import type { PrismaClient } from '@prisma/client';
+import type { PrismaClient } from '../../generated/prisma-postgres';
 
 const mockSendAIMessage = mock(() => Promise.resolve({ content: '[]' })) as ReturnType<typeof mock>;
 
