@@ -30,6 +30,8 @@ interface SimpleLogEntryProps extends HighlightProps {
   entry: UserFriendlyLogEntry;
   index: number;
   isNewEntry?: boolean;
+  /** Whether this is the last entry in the current log. / 現在ログの最後のエントリか */
+  isLastEntry?: boolean;
 }
 
 // Compact scale for the shared MarkdownView inside the terminal-style log:
@@ -56,6 +58,7 @@ const COMPACT_MD_CLASS = [
  * @param entry - Classified log entry. / 分類済みログエントリ
  * @param index - Row index. / 行インデックス
  * @param isNewEntry - Whether to play the appear animation. / 出現アニメーションを再生するか
+ * @param isLastEntry - Whether this is the last entry in the log. / 最後のエントリか
  * @param searchQuery - Active search query. / 検索クエリ
  * @param highlightText - Match highlighter from the viewer. / 検索ハイライト関数
  */
@@ -63,6 +66,7 @@ export const SimpleLogEntry: React.FC<SimpleLogEntryProps> = ({
   entry,
   index,
   isNewEntry = false,
+  isLastEntry = false,
   searchQuery,
   highlightText,
 }) => {
@@ -105,7 +109,10 @@ export const SimpleLogEntry: React.FC<SimpleLogEntryProps> = ({
             {showDetail ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
           </span>
         )}
-        {entry.category === 'progress' && (
+        {/* NOTE: gated on isLastEntry — this entry (e.g. "思考中…") signals why
+            NOTHING is showing right now. Once any later entry appears, showing
+            the pulse here forever would misrepresent stale history as active. */}
+        {entry.category === 'progress' && isLastEntry && (
           <div className="h-1.5 w-1.5 shrink-0 animate-pulse rounded-full bg-blue-400" />
         )}
       </div>
@@ -156,6 +163,7 @@ export const SimpleLogEntryList: React.FC<
           entry={entry}
           index={i}
           isNewEntry={i >= entries.length - newEntriesCount}
+          isLastEntry={i === entries.length - 1}
           searchQuery={searchQuery}
           highlightText={highlightText}
         />

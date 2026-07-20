@@ -100,6 +100,20 @@ export function handleWorkerMessage(ctx: WorkerMessageContext, msg: WorkerOutput
       if (msg.subtype === 'error') {
         logger.error(`${ctx.logPrefix} System error event: ${msg.errorMessage}`);
       }
+      // NOTE: thinking_tokens fires once per internal "thinking" chunk and
+      // carries no text of its own (see lifecycle-patterns.ts) — during a long
+      // thinking burst this repeated the SAME line dozens of times into the
+      // persisted output/execution log with zero added information. Collapse
+      // consecutive repeats into a single line at the source (not just at
+      // display time) so the raw log, DB record, and live stream all shrink;
+      // the FIRST occurrence of a burst still gets through unchanged.
+      if (
+        msg.subtype === 'thinking_tokens' &&
+        msg.displayOutput &&
+        ctx.outputBuffer.endsWith(msg.displayOutput)
+      ) {
+        break;
+      }
       if (msg.displayOutput) {
         ctx.outputBuffer += msg.displayOutput;
         ctx.emitOutputInternal(msg.displayOutput);
