@@ -1,8 +1,7 @@
-import { PrismaClient } from '../../generated/prisma-postgres';
+import { prisma } from '../../config/database';
 import { createLogger } from '../../config/logger';
 
 const log = createLogger('user-behavior-service');
-const prisma = new PrismaClient();
 
 /**
  * Task type containing task-related data

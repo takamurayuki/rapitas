@@ -7,7 +7,8 @@
 
 import { createLogger } from '../config/logger';
 import { exec } from 'child_process';
-import { PrismaClient } from '../generated/prisma-postgres';
+import type { PrismaClient } from '../generated/prisma-postgres';
+import { resolvePrismaClientCtor } from '../config/prisma-client-resolver';
 import { AgentOrchestrator } from '../services/agents/agent-orchestrator';
 import type { ExecutionOptions, OrchestratorEvent } from '../services/agents/orchestrator/types';
 import type { AgentTask, AgentExecutionResult } from '../services/agents/base-agent';
@@ -48,7 +49,8 @@ class AgentWorker {
   private parentLivenessInterval: ReturnType<typeof setInterval> | null = null;
 
   constructor() {
-    this.prisma = new PrismaClient({
+    const PrismaClientCtor = resolvePrismaClientCtor();
+    this.prisma = new PrismaClientCtor({
       log: [
         { emit: 'event', level: 'error' },
         { emit: 'event', level: 'warn' },
