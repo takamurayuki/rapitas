@@ -126,6 +126,37 @@ export function useTaskDetailData({
     wasExecutingRef.current = isAgentExecuting;
   }, [isAgentExecuting, refetchCliAvailability]);
 
+  // Keep `task` (status/workflowStatus shown in the page header, badges, etc.)
+  // live while the workflow is active. useWorkflowFiles polls its OWN copy of
+  // workflowStatus independently, but this top-level `task` object previously
+  // only refreshed on explicit triggers fired from THIS browser tab's own
+  // execute/approve actions (see handleExecutionComplete in TaskAISection).
+  // When the workflow advances via any other path — an external agent hitting
+  // the workflow API directly, another tab, auto-run — `task` here went stale
+  // until a manual page reload. Poll it directly, mirroring the same
+  // active/terminal distinction useWorkflowViewer already uses for files.
+  useEffect(() => {
+    if (!resolvedTaskId || !task) return;
+    const ACTIVE_WORKFLOW_STATUSES = new Set([
+      'draft',
+      'research_done',
+      'plan_created',
+      'plan_approved',
+      'in_progress',
+      'awaiting_question',
+    ]);
+    const status = task.workflowStatus;
+    const isTerminal = status === 'completed' || status === 'verify_done';
+    const shouldPoll =
+      !isTerminal && (isAgentExecuting || (!!status && ACTIVE_WORKFLOW_STATUSES.has(status)));
+    if (!shouldPoll) return;
+    const interval = setInterval(() => {
+      void refreshTask();
+    }, 5000);
+    return () => clearInterval(interval);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- refreshTask is a stable closure over resolvedTaskId
+  }, [resolvedTaskId, task?.workflowStatus, isAgentExecuting]);
+
   useEffect(() => {
     const isInitialLoad = !taskLoadedRef.current;
 
