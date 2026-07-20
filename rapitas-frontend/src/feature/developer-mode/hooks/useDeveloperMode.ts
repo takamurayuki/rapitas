@@ -98,6 +98,25 @@ export function useDeveloperMode(taskId: number) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [taskId]);
 
+  // The auto-restore effect above is a ONE-SHOT check on mount. If the task
+  // detail page stays open and a NEW execution starts afterward through any
+  // path other than this tab's own execute button (an external agent hitting
+  // the workflow/execution API directly, another tab, auto-run), nothing here
+  // ever learns about it — the panel stays frozen showing whatever state was
+  // last known (e.g. a stale "completed" green panel from the PREVIOUS run)
+  // until the page is manually reloaded. Periodically re-check while not
+  // already tracking a live execution so a fresh run is picked up promptly;
+  // once isExecuting flips true, useAgentExecution's own SSE/polling takes
+  // over live tracking of that session.
+  useEffect(() => {
+    if (!taskId || isRestoringState || isExecuting) return;
+    const interval = setInterval(() => {
+      restoreExecutionState().catch(() => {});
+    }, 5000);
+    return () => clearInterval(interval);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- restoreExecutionState is a stable closure over taskId
+  }, [taskId, isRestoringState, isExecuting]);
+
   /**
    * Restore in-progress execution state on mount.
    * Fetches persisted log output from DB so execution history survives app restarts.
