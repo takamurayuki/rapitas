@@ -163,19 +163,33 @@ export function isTaskBlocked(taskStatus: string): boolean {
 }
 
 /**
- * Whether a task is parked WAITING FOR A USER'S ANSWER (an AskUserQuestion),
- * which execute-post-handler stores as status 'blocked' — indistinguishable from
- * a real failure by status alone. Its most recent agent execution carries an
- * unanswered question; once answered, a fresh execution (no question) supersedes
- * it. The scheduler uses this to HOLD (not advance) such a task, so it doesn't
+ * Whether a task is parked WAITING FOR A USER'S ANSWER, which
+ * execute-post-handler stores as status 'blocked' — indistinguishable from a
+ * real failure by status alone. Covers TWO distinct pause mechanisms:
+ *  - a LIVE AskUserQuestion during an active session (most recent
+ *    AgentExecution carries an unanswered `question`; once answered, a fresh
+ *    execution with no question supersedes it), and
+ *  - an intake/spec-clarification question.md saved via the Workflow API,
+ *    which has no live session at all — its pause is recorded purely as
+ *    `task.workflowStatus === 'awaiting_question'`. Missing this second case
+ *    made the scheduler treat such a pause as a genuine failure, permanently
+ *    parking the task at status 'blocked' even after the user answered (the
+ *    answer only resets workflowStatus, not the stale 'blocked' status).
+ * The scheduler uses this to HOLD (not advance) such a task, so it doesn't
  * treat the pause as a failure and spawn a second agent for the next task while
  * the answer-resume continues this one.
  *
  * @param prisma - Prisma client instance
  * @param taskId - Task to check / 確認対象タスク
- * @returns true when the latest execution has a pending question / 未応答の質問があればtrue
+ * @returns true when a live question or an intake question.md is pending / 未応答の質問（ライブまたはインテイク）があればtrue
  */
 export async function isAwaitingUserAnswer(prisma: PrismaClient, taskId: number): Promise<boolean> {
+  const task = await prisma.task.findUnique({
+    where: { id: taskId },
+    select: { workflowStatus: true },
+  });
+  if (task?.workflowStatus === 'awaiting_question') return true;
+
   const latest = await prisma.agentExecution.findFirst({
     where: { session: { config: { taskId } } },
     orderBy: { createdAt: 'desc' },

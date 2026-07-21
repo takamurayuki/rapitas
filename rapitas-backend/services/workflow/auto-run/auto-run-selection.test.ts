@@ -10,6 +10,7 @@ import {
   getGlobalAutoRunActiveCount,
   getThemeActiveQueueItems,
   hasItemAwaitingApproval,
+  isAwaitingUserAnswer,
   selectNextTask,
   isTaskBlocked,
   priorityRank,
@@ -74,6 +75,35 @@ describe('isTaskBlocked', () => {
     expect(isTaskBlocked('todo')).toBe(false);
     expect(isTaskBlocked('in-progress')).toBe(false);
     expect(isTaskBlocked('done')).toBe(false);
+  });
+});
+
+describe('isAwaitingUserAnswer', () => {
+  it.each([
+    {
+      name: 'workflowStatus is awaiting_question, even with no live AgentExecution question',
+      workflowStatus: 'awaiting_question',
+      liveQuestion: null,
+      expected: true,
+    },
+    {
+      name: 'the latest AgentExecution carries a live pending question',
+      workflowStatus: 'in_progress',
+      liveQuestion: '選択肢Aと選択肢B、どちらですか？',
+      expected: true,
+    },
+    {
+      name: 'neither an intake question.md pause nor a live question is pending',
+      workflowStatus: 'in_progress',
+      liveQuestion: null,
+      expected: false,
+    },
+  ])('returns $expected when $name', async ({ workflowStatus, liveQuestion, expected }) => {
+    const prisma = makePrisma({
+      task: { findUnique: mock().mockResolvedValue({ workflowStatus }) },
+      agentExecution: { findFirst: mock().mockResolvedValue({ question: liveQuestion }) },
+    });
+    expect(await isAwaitingUserAnswer(prisma, 1)).toBe(expected);
   });
 });
 

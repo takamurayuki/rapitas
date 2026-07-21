@@ -91,6 +91,11 @@ async function taskHasLinkedPr(taskId: number): Promise<boolean> {
  */
 const WF_STATUS_RANK: Record<string, number> = {
   draft: 0,
+  // Same rank as draft (not a missing/fallback value): a paused intake
+  // question isn't further along than draft, and must never be treated as
+  // "behind" some later status in a way that lets a forward-advance check
+  // skip over the pause and jump straight to a later phase.
+  awaiting_question: 0,
   research_done: 1,
   plan_created: 2,
   plan_approved: 3,
@@ -987,6 +992,20 @@ curl -X POST http://127.0.0.1:${port}/idea-box \\
         );
         effectiveSuccess = true;
       }
+    } else if (currentWfStatus === 'awaiting_question') {
+      // Not a failure: the agent found the request ambiguous and legitimately
+      // saved question.md instead of transition.outputFile, pausing for the
+      // user's answer. Without this branch, every such intake-question pause
+      // was misreported as "file was not saved", which fed into the auto-run
+      // scheduler's genuine-failure path (task.status -> 'blocked') even
+      // though the task was only waiting on the user, not actually stuck.
+      effectiveSuccess = true;
+      phaseStatus = 'awaiting_question';
+      phaseError = undefined;
+      log.info(
+        { taskId, role: transition.role, outputFile: transition.outputFile },
+        '[WorkflowCLIExecutor] Agent paused for an intake question instead of saving the phase file — treating as a legitimate pause, not a failure',
+      );
     } else {
       effectiveSuccess = false;
       phaseStatus = currentWfStatus as WorkflowAdvanceResult['status'];

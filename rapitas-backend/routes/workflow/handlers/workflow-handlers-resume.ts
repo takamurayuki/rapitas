@@ -66,7 +66,7 @@ export async function handleAnswerWorkflowQuestion({ params, body, set }: Answer
 
   const task = await prisma.task.findUnique({
     where: { id: taskId },
-    select: { id: true, description: true, goals: true, workflowStatus: true },
+    select: { id: true, description: true, goals: true, workflowStatus: true, status: true },
   });
   if (!task) {
     set.status = 404;
@@ -86,6 +86,17 @@ export async function handleAnswerWorkflowQuestion({ params, body, set }: Answer
 
   const clarified = `${task.description ?? ''}\n\n## 仕様補足（ユーザー回答）\n${answer}`.trim();
 
+  // This intake pause never had a live agent session (question.md was saved
+  // then the process exited) — the researcher's own execution loop
+  // misreported that pause as a phase failure, which left task.status
+  // stuck at 'blocked' (see workflow-cli-executor.ts's awaiting_question
+  // handling). Answering only resets workflowStatus; without also clearing
+  // a stale 'blocked' here, the task stays permanently unschedulable even
+  // after the user answers (WorkflowOrchestrator refuses to advance any
+  // 'blocked' task). Only touch it when 'blocked' — never override a
+  // status set for an unrelated reason.
+  const statusUpdate = task.status === 'blocked' ? { status: 'todo' as const } : {};
+
   await prisma.task.update({
     where: { id: taskId },
     data: {
@@ -93,6 +104,7 @@ export async function handleAnswerWorkflowQuestion({ params, body, set }: Answer
       goals: JSON.stringify(goals),
       workflowStatus: 'draft',
       updatedAt: new Date(),
+      ...statusUpdate,
     },
   });
 
