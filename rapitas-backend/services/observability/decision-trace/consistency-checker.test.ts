@@ -42,12 +42,21 @@ mock.module('../../../config/logger', () => {
 const { judgeConsistency, runConsistencyCheckBatch } = await import('./consistency-checker');
 
 /** Minimal pending-row factory — only the fields the checker reads. */
-function pendingRow(id: number, executionId: number | null, adoptedReason = '理由'): Record<string, unknown> {
+function pendingRow(
+  id: number,
+  executionId: number | null,
+  adoptedReason = '理由',
+): Record<string, unknown> {
   return { id, executionId, adoptedReason, rejectedReasons: '{}', consistency: 'pending' };
 }
 
 beforeEach(() => {
-  for (const m of [mockTraceFindMany, mockTraceUpdate, mockTraceUpdateMany, mockExecutionFindMany]) {
+  for (const m of [
+    mockTraceFindMany,
+    mockTraceUpdate,
+    mockTraceUpdateMany,
+    mockExecutionFindMany,
+  ]) {
     m.mockReset();
   }
   mockTraceFindMany.mockResolvedValue([]);
@@ -115,7 +124,11 @@ describe('runConsistencyCheckBatch', () => {
   });
 
   it('applies the verdict for terminal executions and keeps non-terminal pending', async () => {
-    mockTraceFindMany.mockResolvedValueOnce([pendingRow(1, 10), pendingRow(2, 11), pendingRow(3, 12)]);
+    mockTraceFindMany.mockResolvedValueOnce([
+      pendingRow(1, 10),
+      pendingRow(2, 11),
+      pendingRow(3, 12),
+    ]);
     mockExecutionFindMany.mockResolvedValueOnce([
       { id: 10, status: 'completed', errorMessage: null },
       { id: 11, status: 'running', errorMessage: null },

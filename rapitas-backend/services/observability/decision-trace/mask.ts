@@ -8,7 +8,8 @@
  */
 
 /** Object keys whose values are replaced wholesale with "[REDACTED]". */
-const SENSITIVE_KEY_RE = /api[_-]?key|token|secret|password|passwd|authorization|credential|private[_-]?key/i;
+const SENSITIVE_KEY_RE =
+  /api[_-]?key|token|secret|password|passwd|authorization|credential|private[_-]?key/i;
 
 /**
  * Secret-shaped substrings replaced inside string values regardless of key.

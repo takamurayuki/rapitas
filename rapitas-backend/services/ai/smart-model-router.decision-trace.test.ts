@@ -36,7 +36,13 @@ mock.module('../../config/database', () => ({
 }));
 
 mock.module('../../config/logger', () => {
-  const noopLogger = { info: () => {}, error: () => {}, warn: () => {}, debug: () => {}, fatal: () => {} };
+  const noopLogger = {
+    info: () => {},
+    error: () => {},
+    warn: () => {},
+    debug: () => {},
+    fatal: () => {},
+  };
   return {
     createLogger: () => noopLogger,
     logger: noopLogger,

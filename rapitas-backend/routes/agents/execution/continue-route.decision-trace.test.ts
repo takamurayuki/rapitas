@@ -34,7 +34,13 @@ mock.module('../../../config/database', () => ({
   ensureDatabaseConnection: () => Promise.resolve(),
 }));
 
-const noopLogger = { info: () => {}, error: () => {}, warn: () => {}, debug: () => {}, fatal: () => {} };
+const noopLogger = {
+  info: () => {},
+  error: () => {},
+  warn: () => {},
+  debug: () => {},
+  fatal: () => {},
+};
 mock.module('../../../config/logger', () => ({
   createLogger: () => noopLogger,
   logger: noopLogger,

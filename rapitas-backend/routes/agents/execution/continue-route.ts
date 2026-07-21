@@ -155,7 +155,9 @@ export const continueRoute = new Elysia().post(
           ...(decision !== 'recreate'
             ? {
                 recreate:
-                  decision === 'reuse' ? '再利用可能なため再生成は不要' : 'ブランチ名が無く再生成できない',
+                  decision === 'reuse'
+                    ? '再利用可能なため再生成は不要'
+                    : 'ブランチ名が無く再生成できない',
               }
             : {}),
           ...(decision !== 'fallback' ? { fallback: 'より隔離された選択肢が利用可能' } : {}),

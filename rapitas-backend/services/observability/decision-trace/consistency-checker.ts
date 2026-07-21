@@ -81,7 +81,9 @@ export async function runConsistencyCheckBatch(): Promise<{ checked: number; upd
     let updated = 0;
     const now = new Date();
 
-    const noExecution = pending.filter((row: { executionId: number | null }) => row.executionId === null);
+    const noExecution = pending.filter(
+      (row: { executionId: number | null }) => row.executionId === null,
+    );
     if (noExecution.length > 0) {
       await prisma.agentDecisionTrace.updateMany({
         where: { id: { in: noExecution.map((row: { id: number }) => row.id) } },
@@ -99,7 +101,9 @@ export async function runConsistencyCheckBatch(): Promise<{ checked: number; upd
     );
     if (withExecution.length > 0) {
       const executionIds = [
-        ...new Set(withExecution.map((row: { executionId: number | null }) => row.executionId as number)),
+        ...new Set(
+          withExecution.map((row: { executionId: number | null }) => row.executionId as number),
+        ),
       ];
       const executions = await prisma.agentExecution.findMany({
         where: { id: { in: executionIds } },

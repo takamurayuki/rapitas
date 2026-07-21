@@ -67,7 +67,11 @@ describe('getDecisionDag', () => {
   });
 
   it('reconstructs nodes and parent→child edges', async () => {
-    mockFindMany.mockResolvedValueOnce([row(1, 'A', []), row(2, 'B', ['A']), row(3, 'C', ['A', 'B'])]);
+    mockFindMany.mockResolvedValueOnce([
+      row(1, 'A', []),
+      row(2, 'B', ['A']),
+      row(3, 'C', ['A', 'B']),
+    ]);
     const dag = await getDecisionDag({ taskId: 1 });
     expect(dag.nodes).toHaveLength(3);
     expect(dag.edges).toEqual([

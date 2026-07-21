@@ -8,9 +8,9 @@
  */
 import { describe, it, expect, mock, beforeEach } from 'bun:test';
 
-const mockGetDecisionDag = mock(() =>
-  Promise.resolve({ nodes: [], edges: [] }),
-) as ReturnType<typeof mock>;
+const mockGetDecisionDag = mock(() => Promise.resolve({ nodes: [], edges: [] })) as ReturnType<
+  typeof mock
+>;
 
 // HACK(agent): bun の mock.module はプロセスグローバルなため、バレルの全エクスポートを
 // ミラーしないと他 import が "export not found" をスローする。

@@ -9,9 +9,9 @@
  */
 import { describe, it, expect, mock, beforeEach } from 'bun:test';
 
-const mockRunBatch = mock(() =>
-  Promise.resolve({ checked: 0, updated: 0 }),
-) as ReturnType<typeof mock>;
+const mockRunBatch = mock(() => Promise.resolve({ checked: 0, updated: 0 })) as ReturnType<
+  typeof mock
+>;
 
 // HACK(agent): bun の mock.module はプロセスグローバルなため、バレルの全エクスポートを
 // ミラーしないと他 import が "export not found" をスローする。
@@ -39,9 +39,8 @@ mock.module('../../config/logger', () => {
   };
 });
 
-const { DecisionTraceConsistencyScheduler } = await import(
-  './decision-trace-consistency-scheduler'
-);
+const { DecisionTraceConsistencyScheduler } =
+  await import('./decision-trace-consistency-scheduler');
 
 const sleep = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));
 
