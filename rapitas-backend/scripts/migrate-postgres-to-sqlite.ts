@@ -223,7 +223,13 @@ async function createPostgresClient(postgresUrl: string): Promise<PrismaLike> {
   process.env.RAPITAS_DB_PROVIDER = 'postgresql';
   process.env.DATABASE_URL = postgresUrl;
 
-  const { PrismaClient } = await import('@prisma/client');
+  // Always the postgres client, not resolvePrismaClientCtor()'s DATABASE_URL-
+  // sniffing pick — this script sets DATABASE_URL at runtime (above), after
+  // that resolver's module-load-time isSqlite check would already have run,
+  // so it can't be trusted here. The postgres/sqlite clients generate to
+  // separate folders (see prisma-client-resolver.ts); this migration always
+  // reads FROM postgres, so import that folder directly.
+  const { PrismaClient } = await import('../generated/prisma-postgres');
   return new PrismaClient() as PrismaLike;
 }
 
