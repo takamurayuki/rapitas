@@ -7,3 +7,4 @@ export { agentMetricsRouter } from './agent-metrics';
 export { agentAuditRouter, taskExecutionLogsRouter } from './agent-audit-router';
 export { agentTestRouter } from './agent-test-router';
 export { executionLogsRoutes } from './execution-logs';
+export { decisionTraceRouter } from './decision-trace-router';

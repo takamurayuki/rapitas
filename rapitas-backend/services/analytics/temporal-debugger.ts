@@ -4,6 +4,12 @@
  * Records agent reasoning traces tied to code changes and provides
  * a queryable timeline of "why this code was written."
  * Enables developers to understand past decisions months later.
+ *
+ * NOTE: This is a per-EXECUTION best-effort extraction (regex over the run's
+ * output text, after the fact). Structured per-DECISION audit records written
+ * at the moment each decision happens live in
+ * `services/observability/decision-trace/` — the two mechanisms are separate
+ * and never call each other.
  */
 import { prisma } from '../../config/database';
 import { createLogger } from '../../config/logger';
@@ -74,7 +80,10 @@ export async function recordReasoningTrace(executionId: number): Promise<void> {
     const alternatives = extractAlternatives(output);
     const constraints = extractConstraints(output);
 
-    const filesChanged = execution.gitCommits.map((c) => ({
+    // NOTE: Explicit param type — worktrees without the generated Prisma
+    // client (linked only in the main checkout) otherwise report TS7006 here.
+    const filesChanged = execution.gitCommits.map(
+      (c: { message: string; additions: number; deletions: number; commitHash: string }) => ({
       path: c.message,
       additions: c.additions || 0,
       deletions: c.deletions || 0,

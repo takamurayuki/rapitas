@@ -14,6 +14,7 @@ import { createLogger } from '../../../config/logger';
 import { getProjectRoot } from '../../../config';
 import { AgentWorkerManager } from '../../../services/agents/agent-worker-manager';
 import { decideWorktree } from '../../../services/agents/orchestrator/git-operations/worktree-usable';
+import { recordDecision } from '../../../services/observability/decision-trace';
 import { isPrimaryWorkTree } from '../../../services/agents/orchestrator/git-operations/worktree-guard';
 import { toJsonString } from '../../../utils/database/db-helpers';
 import { acquireTaskExecutionLock, releaseTaskExecutionLock } from './execution-lock';
@@ -127,6 +128,39 @@ export const continueRoute = new Elysia().post(
       // known, recreate the worktree; otherwise fall back to the project dir.
       const recordedWorktree = (session as Record<string, unknown>).worktreePath as string | null;
       const decision = decideWorktree(recordedWorktree, session.branchName);
+      // Audit trail: record the worktree decision (resource_access). Fire-and-forget;
+      // decideWorktree itself stays pure — recording is the caller's concern.
+      void recordDecision({
+        taskId,
+        sessionId: targetSessionId,
+        executionId: previousExecution?.id ?? null,
+        nodeKey: `task${taskId}:worktree-decision:${Date.now()}`,
+        kind: 'resource_access',
+        summary: `worktree判断: ${decision}`,
+        input: { recordedWorktree, branchName: session.branchName },
+        candidates: [
+          { id: 'reuse', label: '既存worktreeを再利用' },
+          { id: 'recreate', label: 'ブランチから再生成' },
+          { id: 'fallback', label: 'プロジェクト直下にフォールバック' },
+        ],
+        adoptedId: decision,
+        adoptedReason:
+          decision === 'reuse'
+            ? '記録済みworktreeがディスク上に存在するため再利用'
+            : decision === 'recreate'
+              ? '記録済みworktreeが存在しないがブランチが既知のため再生成'
+              : '再利用可能なworktreeも再生成用ブランチも無いため作業ディレクトリへフォールバック',
+        rejectedReasons: {
+          ...(decision !== 'reuse' ? { reuse: '再利用可能な記録済みworktreeが無い' } : {}),
+          ...(decision !== 'recreate'
+            ? {
+                recreate:
+                  decision === 'reuse' ? '再利用可能なため再生成は不要' : 'ブランチ名が無く再生成できない',
+              }
+            : {}),
+          ...(decision !== 'fallback' ? { fallback: 'より隔離された選択肢が利用可能' } : {}),
+        },
+      }).catch(() => {});
       // 'reuse' implies canReuseWorktree(recordedWorktree) === true, so it is
       // non-null here; the other branches assign a concrete directory below.
       let executionDir: string = workingDirectory;
