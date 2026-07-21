@@ -648,6 +648,17 @@ export async function handleSaveFile({
       }
     }
 
+    // Populated below when the critic gate rejects this save — surfaced in the
+    // HTTP response so the saving agent's own output (and thus the execution
+    // log a user watches) explains the rollback instead of the agent reporting
+    // a plain "saved" while the status quietly reverts underneath it.
+    let criticRejection: {
+      phase: 'research' | 'plan';
+      rolledBackTo: string;
+      reasons: string[];
+      severity?: number;
+    } | null = null;
+
     // Research/plan critic gate (judge panel). After the artifact is saved and
     // its status persisted, run independent critic lenses; on a FAIL verdict the
     // artifact is archived and the workflow rolled back to regenerate it (bounded
@@ -680,7 +691,12 @@ export async function handleSaveFile({
           content: savedContent,
           currentStatus: newStatus,
         }),
-        new Promise<{ bounced: boolean; newStatus?: string }>((resolve) =>
+        new Promise<{
+          bounced: boolean;
+          newStatus?: string;
+          reasons?: string[];
+          severity?: number;
+        }>((resolve) =>
           setTimeout(() => {
             log.warn(
               { taskId, fileType, criticTimeoutMs },
@@ -689,9 +705,23 @@ export async function handleSaveFile({
             resolve({ bounced: false });
           }, criticTimeoutMs),
         ),
-      ]).catch(() => ({ bounced: false }) as { bounced: boolean; newStatus?: string });
+      ]).catch(
+        () =>
+          ({ bounced: false }) as {
+            bounced: boolean;
+            newStatus?: string;
+            reasons?: string[];
+            severity?: number;
+          },
+      );
       if (gate.bounced && gate.newStatus) {
         newStatus = gate.newStatus;
+        criticRejection = {
+          phase: fileType as 'research' | 'plan',
+          rolledBackTo: gate.newStatus,
+          reasons: gate.reasons ?? [],
+          severity: gate.severity,
+        };
       }
     }
 
@@ -765,6 +795,13 @@ export async function handleSaveFile({
     // Otherwise it's the silent-skip pattern (agent claimed work it never did —
     // empty diff, no commit) and we block for inspection instead of completing.
     let verifyGateBlocked = false;
+    // Set when a slow, synchronous check below (adversarial diff review) finishes
+    // only after this task has already moved past the verify_done status it was
+    // evaluated against — e.g. a second, faster verify/repair round already
+    // completed and merged it. Skips any further mutation this request would
+    // otherwise make (rollback AND completion), since acting on a stale read
+    // here would just corrupt an already-resolved task.
+    let staleVerifyRequest = false;
 
     // Conflict-resolution tasks (system-generated "PR #N の競合を解消", githubPrId
     // set at CREATION) deliver their result by PUSHING to the EXISTING PR branch —
@@ -882,7 +919,6 @@ export async function handleSaveFile({
       }).catch(() => null);
 
       if (review && review.verdict === 'fail') {
-        verifyGateBlocked = true;
         const reason = `差分レビュー不合格: ${
           review.reasons.slice(0, 5).join(' / ') || '受入基準を満たしていません'
         }`;
@@ -891,33 +927,68 @@ export async function handleSaveFile({
         const repair = await attemptVerifyRepair(taskId, 'verify_done', reason, savedContent).catch(
           () => ({ bounced: false }) as Awaited<ReturnType<typeof attemptVerifyRepair>>,
         );
-        if (repair.bounced && repair.newStatus) {
-          await prisma.task
-            .update({ where: { id: taskId }, data: { workflowStatus: repair.newStatus } })
-            .catch(() => {});
-          newStatus = repair.newStatus;
+        // Compare-and-swap: this review runs an LLM jury synchronously and can
+        // take a while — a second, faster verify attempt (self-repair round, or
+        // a race) can legitimately complete and even merge the task before this
+        // verdict comes back. Applying it unconditionally would then stomp an
+        // already-completed/merged task back to plan_approved (observed: task
+        // 503 was rolled back ~40s after its PR had already merged). Skip the
+        // entire rollback — including verifyGateBlocked and the transition log —
+        // when the task has already moved off the status this review evaluated.
+        const liveTask = await prisma.task
+          .findUnique({ where: { id: taskId }, select: { workflowStatus: true } })
+          .catch(() => null);
+        if (liveTask?.workflowStatus !== 'verify_done') {
+          staleVerifyRequest = true;
+          // Report what the task ACTUALLY is now (e.g. 'completed'), not the
+          // 'verify_done' this stale evaluation was based on — the response
+          // reaches the saving agent, and it must not be told a status that
+          // isn't true in the DB.
+          if (liveTask?.workflowStatus) newStatus = liveTask.workflowStatus;
           log.warn(
-            { taskId, attempt: repair.attempt, severity: review.severity },
-            '[Workflow] Adversarial diff review FAILED — bounced to implementer for self-repair',
+            { taskId, severity: review.severity, actualStatus: liveTask?.workflowStatus },
+            '[Workflow] Adversarial review FAIL arrived after the workflow moved on — skipping rollback entirely',
           );
         } else {
-          await markLatestExecutionFailed(taskId, reason);
-          log.warn(
-            { taskId, severity: review.severity },
-            '[Workflow] Adversarial diff review FAILED and repairs exhausted — task stays blocked',
-          );
+          verifyGateBlocked = true;
+          if (repair.bounced && repair.newStatus) {
+            const rolled = await prisma.task
+              .updateMany({
+                where: { id: taskId, workflowStatus: 'verify_done' },
+                data: { workflowStatus: repair.newStatus },
+              })
+              .catch(() => ({ count: 0 }));
+            if (rolled.count === 0) {
+              log.warn(
+                { taskId, attempt: repair.attempt, severity: review.severity },
+                '[Workflow] Adversarial review FAIL lost the compare-and-swap race — skipping rollback',
+              );
+            } else {
+              newStatus = repair.newStatus;
+              log.warn(
+                { taskId, attempt: repair.attempt, severity: review.severity },
+                '[Workflow] Adversarial diff review FAILED — bounced to implementer for self-repair',
+              );
+            }
+          } else {
+            await markLatestExecutionFailed(taskId, reason);
+            log.warn(
+              { taskId, severity: review.severity },
+              '[Workflow] Adversarial diff review FAILED and repairs exhausted — task stays blocked',
+            );
+          }
+          await recordTransition({
+            taskId,
+            fromStatus: 'verify_done',
+            toStatus: newStatus,
+            actor: 'system',
+            cause: 'adversarial_review_failed',
+            phase: 'verify',
+            metadata: { severity: review.severity, reasons: review.reasons.slice(0, 5) },
+            invariantViolation: true,
+            invariantMessage: reason,
+          }).catch(() => {});
         }
-        await recordTransition({
-          taskId,
-          fromStatus: 'verify_done',
-          toStatus: newStatus,
-          actor: 'system',
-          cause: 'adversarial_review_failed',
-          phase: 'verify',
-          metadata: { severity: review.severity, reasons: review.reasons.slice(0, 5) },
-          invariantViolation: true,
-          invariantMessage: reason,
-        }).catch(() => {});
       }
     }
 
@@ -927,6 +998,7 @@ export async function handleSaveFile({
       fileType === 'verify' &&
       newStatus === 'verify_done' &&
       !verifyGateBlocked &&
+      !staleVerifyRequest &&
       isConflictResolutionTask
     ) {
       // Conflict-resolution task: the fix was already pushed to the existing PR
@@ -952,7 +1024,12 @@ export async function handleSaveFile({
         { taskId, prNumber: conflictTask?.githubPrId },
         '[Workflow] Conflict-resolution task completed (work pushed to PR branch; commit/PR/scope gates skipped).',
       );
-    } else if (fileType === 'verify' && newStatus === 'verify_done' && !verifyGateBlocked) {
+    } else if (
+      fileType === 'verify' &&
+      newStatus === 'verify_done' &&
+      !verifyGateBlocked &&
+      !staleVerifyRequest
+    ) {
       // Run commit/PR/merge. Completion is GATED on its outcome: the task only
       // completes when a PR was created (or already exists), or when no PR was
       // requested. See the gate in the success branch below.
@@ -983,17 +1060,30 @@ export async function handleSaveFile({
         ).catch(() => ({ bounced: false }) as Awaited<ReturnType<typeof attemptVerifyRepair>>);
 
         if (repair.bounced && repair.newStatus) {
-          // Roll workflowStatus back to the implementer entry so the runner
-          // re-runs implement → verify. attemptVerifyRepair already set
-          // task.status='in-progress' and wrote the failure into question.md.
-          await prisma.task
-            .update({ where: { id: taskId }, data: { workflowStatus: repair.newStatus } })
-            .catch(() => {});
-          newStatus = repair.newStatus;
-          log.warn(
-            { taskId, attempt: repair.attempt, reason: gateReason },
-            '[Workflow] Verification gate failed — bounced to implementer for self-repair',
-          );
+          // Compare-and-swap: performAutoCommitAndPR ran real git/lint/test
+          // subprocesses above and can take a while — if a concurrent request
+          // for this same task (e.g. a duplicate/retried save) already moved
+          // the task past verify_done in the meantime, an unconditional update
+          // here would stomp that newer state back to the implementer entry.
+          // Mirrors the same guard on the adversarial-review bounce above.
+          const rolled = await prisma.task
+            .updateMany({
+              where: { id: taskId, workflowStatus: 'verify_done' },
+              data: { workflowStatus: repair.newStatus },
+            })
+            .catch(() => ({ count: 0 }));
+          if (rolled.count === 0) {
+            log.warn(
+              { taskId, attempt: repair.attempt, reason: gateReason },
+              '[Workflow] Verification gate failed but the workflow already moved on — skipping rollback',
+            );
+          } else {
+            newStatus = repair.newStatus;
+            log.warn(
+              { taskId, attempt: repair.attempt, reason: gateReason },
+              '[Workflow] Verification gate failed — bounced to implementer for self-repair',
+            );
+          }
         } else {
           await markLatestExecutionFailed(taskId, gateReason);
           log.warn(
@@ -1229,6 +1319,32 @@ export async function handleSaveFile({
 
     if (splitResult) {
       response.subtaskSplit = splitResult;
+    }
+
+    if (criticRejection) {
+      // Deliberately verbose and unambiguous: the saving agent reads this
+      // response directly, and its own narration of it is what the user sees
+      // in the execution log. A terse flag risks being paraphrased away as
+      // "saved successfully" — spell out that this is expected self-repair
+      // behavior, not a failure or a bug, so the agent reports it as such.
+      response.criticGateRejected = true;
+      response.message =
+        `${criticRejection.phase}.md の内容は保存されましたが、自動品質レビュー（批評ゲート）が不合格と判定したためアーカイブされ、` +
+        `workflowStatus は ${criticRejection.rolledBackTo} に巻き戻されました。これはバグではなく、内容を改善して再生成するための想定内の自己修復動作です。` +
+        `再開後は次の指摘事項に対応した内容で ${criticRejection.phase}.md を再保存してください。`;
+      response.criticReasons = criticRejection.reasons;
+      if (criticRejection.severity !== undefined)
+        response.criticSeverity = criticRejection.severity;
+      log.info(
+        {
+          taskId,
+          phase: criticRejection.phase,
+          rolledBackTo: criticRejection.rolledBackTo,
+          severity: criticRejection.severity,
+          reasons: criticRejection.reasons,
+        },
+        '[Workflow] Save response includes critic-gate rejection details for the saving agent',
+      );
     }
 
     if (fileType === 'verify' && newStatus === 'verify_done') {

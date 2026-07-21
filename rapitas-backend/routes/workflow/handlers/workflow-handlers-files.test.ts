@@ -24,6 +24,7 @@ mock.module('../../../config/logger', () => ({
 const mockFindUnique = mock(() => Promise.resolve(null));
 const mockFindMany = mock(() => Promise.resolve([]));
 const mockUpdate = mock(() => Promise.resolve({}));
+const mockUpdateMany = mock(() => Promise.resolve({ count: 1 }));
 const mockFindFirst = mock(() => Promise.resolve(null));
 const mockCreate = mock(() => Promise.resolve({}));
 const mockPrisma = {
@@ -31,6 +32,7 @@ const mockPrisma = {
     findUnique: mockFindUnique,
     findMany: mockFindMany,
     update: mockUpdate,
+    updateMany: mockUpdateMany,
   },
   agentSession: { findFirst: mockFindFirst },
   agentExecution: { update: mockUpdate },
@@ -108,6 +110,18 @@ mock.module('../../../services/workflow/verify-self-repair', () => ({
   attemptVerifyRepair: mockAttemptVerifyRepair,
 }));
 
+// ---- phase-critic mock (research/plan critic gate) ----
+const mockApplyPhaseCriticGate = mock(() => Promise.resolve({ bounced: false })) as any;
+mock.module('../../../services/workflow/phase-critic', () => ({
+  applyPhaseCriticGate: mockApplyPhaseCriticGate,
+}));
+
+// ---- adversarial-diff-review mock ----
+const mockReviewDiffAdversarially = mock(() => Promise.resolve(null)) as any;
+mock.module('../../../services/agents/verification/adversarial-diff-review', () => ({
+  reviewDiffAdversarially: mockReviewDiffAdversarially,
+}));
+
 // ---- completion-gate mock ----
 mock.module('../../../services/workflow/completion-gate', () => ({
   evaluateCompletionGate: mock(() => Promise.resolve({ allow: true })),
@@ -172,11 +186,17 @@ beforeEach(() => {
   mockFindUnique.mockReset();
   mockPerformAutoCommitAndPR.mockReset();
   mockAttemptVerifyRepair.mockReset();
+  mockApplyPhaseCriticGate.mockReset();
+  mockReviewDiffAdversarially.mockReset();
+  mockUpdateMany.mockReset();
   warnCalls.length = 0;
   mockUpdate.mockResolvedValue({});
+  mockUpdateMany.mockResolvedValue({ count: 1 });
   mockCheckInvariants.mockResolvedValue([]);
   mockPerformAutoCommitAndPR.mockResolvedValue({});
   mockAttemptVerifyRepair.mockResolvedValue({ bounced: false });
+  mockApplyPhaseCriticGate.mockResolvedValue({ bounced: false });
+  mockReviewDiffAdversarially.mockResolvedValue(null);
   // NOTE: mockReset() removes the original factory, so restore the default return.
   // The verify path calls prisma.task.findUnique() to detect conflict-resolution tasks;
   // returning null means "not a conflict task" — the normal code path continues.
@@ -403,6 +423,71 @@ describe('handleSaveFile — research が修正不要結論ならタスクを完
 });
 
 // -------------------------------------------------------------------------
+describe('handleSaveFile — 批評ゲートに不合格となった場合、その旨をレスポンスで明示すること', () => {
+  test('research.md が批評ゲートで rollback された場合、criticGateRejected/message/criticReasons を含むこと', async () => {
+    mockResolveWorkflowDir.mockResolvedValueOnce({
+      task: { workflowStatus: 'draft', id: 1 },
+      dir: '/fake/dir/1',
+      categoryId: null,
+      themeId: null,
+    });
+    mockCheckInvariants.mockResolvedValueOnce([]);
+    mockApplyPhaseCriticGate.mockResolvedValueOnce({
+      bounced: true,
+      newStatus: 'draft',
+      reasons: ['[completeness] テスト対象ファイルの言及がない', '[completeness] 依存関係が不明確'],
+      severity: 75,
+    });
+
+    const result = (await handleSaveFile({
+      params: { taskId: '1', fileType: 'research' },
+      body: '# 調査結果\n## 影響範囲\n変更が必要',
+      set: makeSet(),
+    })) as {
+      success?: boolean;
+      workflowStatus?: string;
+      criticGateRejected?: boolean;
+      criticReasons?: string[];
+      criticSeverity?: number;
+      message?: string;
+    };
+
+    // workflowStatus reflects the rollback (not research_done) — this alone was
+    // already correct before the fix; the bug was that nothing ELSE in the
+    // response told the saving agent WHY, so it kept reporting plain success.
+    expect(result.workflowStatus).toBe('draft');
+    expect(result.criticGateRejected).toBe(true);
+    expect(result.criticReasons).toEqual([
+      '[completeness] テスト対象ファイルの言及がない',
+      '[completeness] 依存関係が不明確',
+    ]);
+    expect(result.criticSeverity).toBe(75);
+    expect(result.message).toContain('批評ゲート');
+    expect(result.message).toContain('バグではなく');
+  });
+
+  test('批評ゲートを通過した場合は criticGateRejected を含まないこと', async () => {
+    mockResolveWorkflowDir.mockResolvedValueOnce({
+      task: { workflowStatus: 'draft', id: 1 },
+      dir: '/fake/dir/1',
+      categoryId: null,
+      themeId: null,
+    });
+    mockCheckInvariants.mockResolvedValueOnce([]);
+    mockApplyPhaseCriticGate.mockResolvedValueOnce({ bounced: false });
+
+    const result = (await handleSaveFile({
+      params: { taskId: '1', fileType: 'research' },
+      body: '# 調査結果\n## 影響範囲\n変更が必要',
+      set: makeSet(),
+    })) as { workflowStatus?: string; criticGateRejected?: boolean };
+
+    expect(result.workflowStatus).toBe('research_done');
+    expect(result.criticGateRejected).toBeUndefined();
+  });
+});
+
+// -------------------------------------------------------------------------
 describe('handleSaveFile — ログ混入で壊れた md は保存を拒否すること', () => {
   test('plan.md にログが混入していたら 422 で拒否し、保存・遷移しない', async () => {
     mockResolveWorkflowDir.mockResolvedValueOnce({
@@ -578,6 +663,88 @@ describe('handleSaveFile — 検証ゲート失敗時に自己修復ループへ
     });
 
     expect((result as { workflowStatus?: string }).workflowStatus).not.toBe('completed');
+  });
+});
+
+// -------------------------------------------------------------------------
+describe('handleSaveFile — 敵対的差分レビューの遅延判定が完了済みタスクを巻き戻さないこと', () => {
+  test('レビュー実行中にタスクが verify_done から動いていなければ通常通り差し戻すこと', async () => {
+    mockResolveWorkflowDir.mockResolvedValueOnce({
+      task: { workflowStatus: 'in_progress', id: 1 },
+      dir: '/fake/dir/1',
+      categoryId: null,
+      themeId: null,
+    });
+    mockFindMany.mockResolvedValueOnce([]);
+    mockCheckInvariants.mockResolvedValueOnce([]);
+    // 1st findUnique = conflict-task check (not a conflict task); 2nd = the
+    // CAS live-status check inside the adversarial-review block (still verify_done).
+    mockFindUnique.mockResolvedValueOnce(null);
+    mockFindUnique.mockResolvedValueOnce({ workflowStatus: 'verify_done' });
+    mockReviewDiffAdversarially.mockResolvedValueOnce({
+      verdict: 'fail',
+      severity: 80,
+      reasons: ['受入基準を満たしていません'],
+    });
+    mockAttemptVerifyRepair.mockResolvedValueOnce({
+      bounced: true,
+      newStatus: 'plan_approved',
+      attempt: 1,
+    });
+
+    const result = await handleSaveFile({
+      params: { taskId: '1', fileType: 'verify' },
+      body: 'verify content',
+      set: makeSet(),
+    });
+
+    expect((result as { workflowStatus?: string }).workflowStatus).toBe('plan_approved');
+    expect(mockUpdateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: 1, workflowStatus: 'verify_done' },
+        data: { workflowStatus: 'plan_approved' },
+      }),
+    );
+  });
+
+  test('レビュー完了時点でタスクが既に verify_done から進んでいれば巻き戻さず、実際の状態を返すこと', async () => {
+    mockResolveWorkflowDir.mockResolvedValueOnce({
+      task: { workflowStatus: 'in_progress', id: 1 },
+      dir: '/fake/dir/1',
+      categoryId: null,
+      themeId: null,
+    });
+    mockFindMany.mockResolvedValueOnce([]);
+    mockCheckInvariants.mockResolvedValueOnce([]);
+    // 1st findUnique = conflict-task check; 2nd = the CAS live-status check —
+    // a second, faster verify/repair round already completed (and merged) the
+    // task while this review was still running (task 503's actual incident).
+    mockFindUnique.mockResolvedValueOnce(null);
+    mockFindUnique.mockResolvedValueOnce({ workflowStatus: 'completed' });
+    mockReviewDiffAdversarially.mockResolvedValueOnce({
+      verdict: 'fail',
+      severity: 75,
+      reasons: ['受入基準を満たしていません'],
+    });
+    mockAttemptVerifyRepair.mockResolvedValueOnce({
+      bounced: true,
+      newStatus: 'plan_approved',
+      attempt: 1,
+    });
+
+    const result = (await handleSaveFile({
+      params: { taskId: '1', fileType: 'verify' },
+      body: 'verify content',
+      set: makeSet(),
+    })) as { workflowStatus?: string };
+
+    // Must report the task's ACTUAL current status, never the stale
+    // 'plan_approved' rollback target this late verdict wanted to apply.
+    expect(result.workflowStatus).toBe('completed');
+    // The rollback update must never have been attempted with stale data.
+    expect(mockUpdateMany).not.toHaveBeenCalledWith(
+      expect.objectContaining({ data: { workflowStatus: 'plan_approved' } }),
+    );
   });
 });
 

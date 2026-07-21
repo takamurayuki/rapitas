@@ -32,6 +32,14 @@ export interface PhaseCriticGateResult {
   bounced: boolean;
   /** New workflowStatus when bounced (the rollback target). */
   newStatus?: string;
+  /**
+   * Why the artifact was rejected, when bounced — surfaced in the save API's
+   * HTTP response so the saving agent's own narration (and thus the execution
+   * log the user watches) reflects the rollback instead of silently reporting
+   * a plain "saved" while the content quietly reverts underneath it.
+   */
+  reasons?: string[];
+  severity?: number;
 }
 
 /**
@@ -125,7 +133,7 @@ export async function applyPhaseCriticGate(args: {
       { taskId, phase, severity: result.severity, reasons: result.reasons.slice(0, 3) },
       '[phase-critic-gate] FAIL — archived artifact and rolled back for regeneration',
     );
-    return { bounced: true, newStatus };
+    return { bounced: true, newStatus, reasons: result.reasons, severity: result.severity };
   } catch (err) {
     log.warn({ err, taskId, phase }, '[phase-critic-gate] gate errored — proceeding (fail-open)');
     return { bounced: false };
