@@ -80,16 +80,12 @@ export async function recordReasoningTrace(executionId: number): Promise<void> {
     const alternatives = extractAlternatives(output);
     const constraints = extractConstraints(output);
 
-    // NOTE: Explicit param type — worktrees without the generated Prisma
-    // client (linked only in the main checkout) otherwise report TS7006 here.
-    const filesChanged = execution.gitCommits.map(
-      (c: { message: string; additions: number; deletions: number; commitHash: string }) => ({
-        path: c.message,
-        additions: c.additions || 0,
-        deletions: c.deletions || 0,
-        commitHash: c.commitHash,
-      }),
-    );
+    const filesChanged = execution.gitCommits.map((c) => ({
+      path: c.message,
+      additions: c.additions || 0,
+      deletions: c.deletions || 0,
+      commitHash: c.commitHash,
+    }));
 
     // Store as TimelineEvent for temporal queries
     // NOTE: Use 'agent_execution_completed' as event type since TimelineEventType is a closed union.

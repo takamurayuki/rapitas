@@ -14,14 +14,19 @@ const SENSITIVE_KEY_RE =
 /**
  * Secret-shaped substrings replaced inside string values regardless of key.
  * NOTE: Patterns are provider-specific formats (Anthropic/OpenAI `sk-`,
- * GitHub PAT `ghp_`, HTTP `Bearer`, AWS `AKIA`) — extend here when a new
- * credential format appears in decision inputs.
+ * GitHub PAT `ghp_`, HTTP `Bearer`, AWS `AKIA`) plus URL-embedded
+ * credentials (`scheme://user:pass@` — covers DB connection strings such as
+ * `postgres://`) — extend here when a new credential format appears in
+ * decision inputs.
  */
 const SENSITIVE_VALUE_RES: RegExp[] = [
   /sk-[A-Za-z0-9]{20,}/g,
   /ghp_[A-Za-z0-9]{36}/g,
   /Bearer\s+[A-Za-z0-9._-]+/g,
   /AKIA[0-9A-Z]{16}/g,
+  // userinfo portion of any URL (postgres://user:pass@host, https://u:p@host, …).
+  // Requires the ":pass@" part so plain credential-free URLs stay untouched.
+  /\b[a-z][a-z0-9+.-]*:\/\/[^\s/:@]+:[^\s@]+@/gi,
 ];
 
 const REDACTED = '[REDACTED]';

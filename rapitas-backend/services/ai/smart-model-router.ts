@@ -139,10 +139,7 @@ export async function estimateCost(taskComplexity: number, modelId: string): Pro
   if (similarExecutions.length >= 3) {
     // Use historical average
     const avgTokens =
-      // NOTE: Explicit param types — worktrees without the generated Prisma
-      // client (linked only in the main checkout) otherwise report TS7006 here.
-      similarExecutions.reduce((sum: number, e: { tokensUsed: number }) => sum + e.tokensUsed, 0) /
-      similarExecutions.length;
+      similarExecutions.reduce((sum, e) => sum + e.tokensUsed, 0) / similarExecutions.length;
     estimatedTokens = Math.round(avgTokens);
     confidence = Math.min(0.9, 0.5 + similarExecutions.length * 0.04);
   } else {

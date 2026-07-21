@@ -8,9 +8,13 @@
  */
 import { prisma } from '../../../config/database';
 import { createLogger } from '../../../config/logger';
-import type { AgentDecisionTraceRow } from './types';
+import type { AgentDecisionTraceRow, DecisionTraceClient } from './types';
 
 const log = createLogger('decision-trace');
+
+// Structural cast — see the AgentDecisionTraceDelegate NOTE in types.ts
+// (delegate may be missing from a stale worktree-generated client).
+const db = prisma as unknown as DecisionTraceClient;
 
 /** One parent→child dependency edge in the decision DAG. */
 export interface DecisionDagEdge {
@@ -106,13 +110,13 @@ export async function getDecisionDag(params: {
     throw new Error('getDecisionDag requires taskId or executionId');
   }
 
-  const nodes = (await prisma.agentDecisionTrace.findMany({
+  const nodes = await db.agentDecisionTrace.findMany({
     where: {
       ...(params.taskId !== undefined ? { taskId: params.taskId } : {}),
       ...(params.executionId !== undefined ? { executionId: params.executionId } : {}),
     },
     orderBy: { id: 'asc' },
-  })) as AgentDecisionTraceRow[];
+  });
 
   const knownKeys = new Set(nodes.map((n) => n.nodeKey));
   const adjacency = new Map<string, string[]>();

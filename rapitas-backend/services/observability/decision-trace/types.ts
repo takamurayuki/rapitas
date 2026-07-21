@@ -46,6 +46,29 @@ export interface RecordDecisionInput {
 /** Consistency verdict states persisted on AgentDecisionTrace.consistency. */
 export type ConsistencyState = 'pending' | 'consistent' | 'inconsistent' | 'skipped';
 
+/**
+ * Structural subset of the generated `agentDecisionTrace` Prisma delegate
+ * that this module uses.
+ *
+ * NOTE: Worktrees symlink `generated/` to the MAIN checkout, whose Prisma
+ * client is regenerated from whatever schema that checkout currently has.
+ * Until this branch's schema lands there, the delegate is absent from the
+ * generated types (and undefined at runtime — callers already tolerate that
+ * via try/catch). Typing the access structurally keeps `tsc` green in both
+ * client generations instead of failing TS2339 in stale worktrees.
+ */
+export interface AgentDecisionTraceDelegate {
+  create(args: { data: Record<string, unknown> }): Promise<unknown>;
+  findMany(args: Record<string, unknown>): Promise<AgentDecisionTraceRow[]>;
+  update(args: Record<string, unknown>): Promise<unknown>;
+  updateMany(args: Record<string, unknown>): Promise<unknown>;
+}
+
+/** Prisma-client shape exposing the delegate (cast target for consumers). */
+export interface DecisionTraceClient {
+  agentDecisionTrace: AgentDecisionTraceDelegate;
+}
+
 /** One persisted AgentDecisionTrace row as returned by dag-query. */
 export interface AgentDecisionTraceRow {
   id: number;

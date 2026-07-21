@@ -15,9 +15,13 @@
 import { prisma } from '../../../config/database';
 import { createLogger } from '../../../config/logger';
 import { maskSensitive } from './mask';
-import type { DecisionCandidate, RecordDecisionInput } from './types';
+import type { DecisionCandidate, DecisionTraceClient, RecordDecisionInput } from './types';
 
 const log = createLogger('decision-trace');
+
+// Structural cast — see the AgentDecisionTraceDelegate NOTE in types.ts
+// (delegate may be missing from a stale worktree-generated client).
+const db = prisma as unknown as DecisionTraceClient;
 
 /** Max candidates persisted per decision (staging strategy — cost cap). */
 const MAX_CANDIDATES = 5;
@@ -96,7 +100,7 @@ export async function recordDecision(input: RecordDecisionInput): Promise<void> 
 
     const inputMasked = serializeCapped(maskSensitive(input.input ?? {}).masked, '{}');
 
-    await prisma.agentDecisionTrace.create({
+    await db.agentDecisionTrace.create({
       data: {
         taskId: input.taskId ?? null,
         executionId: input.executionId ?? null,

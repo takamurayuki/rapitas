@@ -29,6 +29,22 @@ describe('maskStringValue', () => {
     expect(masked).not.toContain(FAKE_AWS_KEY);
   });
 
+  it('masks credentials embedded in connection-string URLs', () => {
+    const { masked, count } = maskStringValue(
+      'db=postgres://rapitas:s3cr3t@localhost:5432/rapitas fallback=mysql://root:pw@db/x',
+    );
+    expect(masked).not.toContain('s3cr3t');
+    expect(masked).not.toContain('root:pw');
+    expect(masked).toContain('localhost:5432/rapitas');
+    expect(count).toBe(2);
+  });
+
+  it('leaves credential-free URLs untouched', () => {
+    const { masked, count } = maskStringValue('see https://github.com/takamurayuki/rapitas');
+    expect(masked).toBe('see https://github.com/takamurayuki/rapitas');
+    expect(count).toBe(0);
+  });
+
   it('leaves ordinary strings untouched', () => {
     const { masked, count } = maskStringValue('複雑度70のためstandardモデルを推奨');
     expect(masked).toBe('複雑度70のためstandardモデルを推奨');

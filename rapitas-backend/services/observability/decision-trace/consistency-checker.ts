@@ -9,9 +9,13 @@
  */
 import { prisma } from '../../../config/database';
 import { createLogger } from '../../../config/logger';
-import type { ConsistencyState } from './types';
+import type { ConsistencyState, DecisionTraceClient } from './types';
 
 const log = createLogger('decision-trace');
+
+// Structural cast — see the AgentDecisionTraceDelegate NOTE in types.ts
+// (delegate may be missing from a stale worktree-generated client).
+const db = prisma as unknown as DecisionTraceClient;
 
 /** Rows examined per batch run (cost cap — leftovers wait for the next run). */
 const BATCH_SIZE = 50;
@@ -71,7 +75,7 @@ export function judgeConsistency(
  */
 export async function runConsistencyCheckBatch(): Promise<{ checked: number; updated: number }> {
   try {
-    const pending = await prisma.agentDecisionTrace.findMany({
+    const pending = await db.agentDecisionTrace.findMany({
       where: { consistency: 'pending' },
       orderBy: { id: 'asc' },
       take: BATCH_SIZE,
@@ -85,7 +89,7 @@ export async function runConsistencyCheckBatch(): Promise<{ checked: number; upd
       (row: { executionId: number | null }) => row.executionId === null,
     );
     if (noExecution.length > 0) {
-      await prisma.agentDecisionTrace.updateMany({
+      await db.agentDecisionTrace.updateMany({
         where: { id: { in: noExecution.map((row: { id: number }) => row.id) } },
         data: {
           consistency: 'skipped',
@@ -127,7 +131,7 @@ export async function runConsistencyCheckBatch(): Promise<{ checked: number; upd
           adoptedReason: row.adoptedReason,
           rejectedReasons: row.rejectedReasons,
         });
-        await prisma.agentDecisionTrace.update({
+        await db.agentDecisionTrace.update({
           where: { id: row.id },
           data: {
             consistency: verdict.consistency,
