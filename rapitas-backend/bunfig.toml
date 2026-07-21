@@ -8,6 +8,12 @@ coverageDir = "coverage"
 # Exclude test files themselves from the coverage denominator — counting them
 # inflates the percentage with self-covering code.
 coverageSkipTestFiles = true
+# Exclude the generated Prisma client bundles from the coverage denominator.
+# generated/prisma-postgres/runtime/library.js alone contributes ~1067
+# functions (883 uncovered) — third-party generated code nobody writes tests
+# for, but it was silently dragging the backend-tests gate's function-coverage
+# floor down from ~88% to ~48% (discovered 2026-07-22; see ADR-0002).
+coveragePathIgnorePatterns = ["generated/**"]
 # Exclude integration tests from default run (they don't use mock.module)
 # Run them separately with: bun test --path-ignore-patterns="" ./tests/integration/
 pathIgnorePatterns = ["tests/integration/**"]
