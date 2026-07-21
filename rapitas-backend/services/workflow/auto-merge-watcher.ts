@@ -341,6 +341,18 @@ export class AutoMergeWatcher {
     }
 
     if (state === 'fail') {
+      // A branch can be BOTH conflicting (DIRTY) AND CI-red at the same time —
+      // typically because it forked from a base tip that has since moved on,
+      // so it's both missing upstream fixes (real CI failures unrelated to the
+      // task's own changes) and can't fast-forward merge. Attempting CI
+      // self-repair alone in that case is often futile (the implementer can't
+      // fix a "generated/prisma-postgres not found" build error that's a
+      // stale-branch artifact, not a real defect in the diff) and burns the
+      // bounded repair budget before ever surfacing the conflict. Check for a
+      // real conflict FIRST — same handling as the no-CI DIRTY branch above —
+      // before falling through to CI self-repair.
+      if (await this.handleMergeConflict(c, 'CI failed and merge state is DIRTY')) return;
+
       // CI failed — try to self-repair: bounce the task back to the implementer
       // with the failing checks as feedback so it fixes them, pushes to the same
       // PR branch, and CI re-runs. The watcher merges once CI goes green. Only
