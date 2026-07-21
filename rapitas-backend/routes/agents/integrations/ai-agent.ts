@@ -12,6 +12,7 @@
  *   - agent-test-router       — connection test endpoints (legacy + new)
  *   - agent-discovery-router  — agent types, models, and preset setup
  *   - agent-resume-router     — interrupted execution resumption + executing-tasks list
+ *   - decision-trace-router   — decision-trace audit DAG viewer
  */
 import { Elysia } from 'elysia';
 
@@ -26,6 +27,7 @@ import { agentApiKeyRouter } from '../config/agent-api-key-router';
 import { agentTestRouter } from '../monitoring/agent-test-router';
 import { agentDiscoveryRouter } from '../crud/agent-discovery-router';
 import { agentResumeRouter } from '../execution-management/agent-resume-router';
+import { decisionTraceRouter } from '../monitoring/decision-trace-router';
 
 export const aiAgentRoutes = new Elysia()
   .use(agentConfigRouter)
@@ -39,4 +41,5 @@ export const aiAgentRoutes = new Elysia()
   .use(agentApiKeyRouter)
   .use(agentTestRouter)
   .use(agentDiscoveryRouter)
-  .use(agentResumeRouter);
+  .use(agentResumeRouter)
+  .use(decisionTraceRouter);

@@ -4,6 +4,12 @@
  * Records agent reasoning traces tied to code changes and provides
  * a queryable timeline of "why this code was written."
  * Enables developers to understand past decisions months later.
+ *
+ * NOTE: This is a per-EXECUTION best-effort extraction (regex over the run's
+ * output text, after the fact). Structured per-DECISION audit records written
+ * at the moment each decision happens live in
+ * `services/observability/decision-trace/` — the two mechanisms are separate
+ * and never call each other.
  */
 import { prisma } from '../../config/database';
 import { createLogger } from '../../config/logger';

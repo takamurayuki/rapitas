@@ -20,6 +20,7 @@ import {
 } from './model-discovery';
 import { classifyTier, inferCostPer1k } from './model-discovery/tier-classifier';
 import { listActiveCooldowns } from './provider-cooldown';
+import { recordDecision } from '../observability/decision-trace';
 
 const log = createLogger('smart-model-router');
 
@@ -350,6 +351,31 @@ export async function getSmartRoute(
       `provider=${selected?.model.provider ?? 'fallback'}, model=${finalModel}, cost=$${costEstimate.estimatedCost}, ` +
       `available=[${availableProviders.join(',')}], discovered=${discovery.models.length}`,
   );
+
+  // Audit trail: record this routing decision (param_select). Fire-and-forget —
+  // masking/staging happen inside the recorder; the route result is unchanged.
+  void recordDecision({
+    taskId,
+    nodeKey: `task${taskId}:model-route:${Date.now()}`,
+    kind: 'param_select',
+    summary: `モデル選択: ${finalModel}`,
+    input: { complexity, budgetPressure, isUrgent, weeklyBudget },
+    candidates: [
+      {
+        id: finalModel,
+        label: recommendedTier,
+        meta: { estimatedCost: costEstimate.estimatedCost },
+      },
+      ...alternatives.map((a) => ({
+        id: a.modelId,
+        label: a.tradeoff,
+        meta: { estimatedCost: a.estimatedCost },
+      })),
+    ],
+    adoptedId: finalModel,
+    adoptedReason: reason,
+    rejectedReasons: Object.fromEntries(alternatives.map((a) => [a.modelId, a.tradeoff])),
+  }).catch(() => {});
 
   return {
     recommendedModel: finalModel,

@@ -215,6 +215,20 @@ mock.module('../ai/model-route-stability', () => ({
   _resetStableRouteCache: mock(() => {}),
 }));
 
+// Decision-audit spy: tryProviderFallback records the re-route (kind=api_call)
+// via a dynamic import of this barrel.
+// HACK(agent): bun の mock.module はプロセスグローバルなため、バレルの全エクスポートを
+// ミラーしないと他 import が "export not found" をスローする。
+const recordDecisionMock = mock(() => Promise.resolve());
+mock.module('../observability/decision-trace', () => ({
+  recordDecision: recordDecisionMock,
+  getDecisionDag: mock(() => Promise.resolve({ nodes: [], edges: [] })),
+  runConsistencyCheckBatch: mock(() => Promise.resolve({ checked: 0, updated: 0 })),
+  judgeConsistency: mock(() => ({ consistency: 'skipped', note: '' })),
+  maskSensitive: mock((v: unknown) => ({ masked: v, maskedFieldCount: 0 })),
+  maskStringValue: mock((v: string) => ({ masked: v, count: 0 })),
+}));
+
 // Import AFTER all mock.module calls.
 const { WorkflowOrchestrator } = await import('./workflow-orchestrator');
 
@@ -228,6 +242,7 @@ describe('WorkflowOrchestrator — provider fallback on success-with-implicit-er
     taskFindUniqueMock.mockClear();
     executeCLIAgentMock.mockClear();
     markProviderCooldownMock.mockClear();
+    recordDecisionMock.mockClear();
     classifyStrictResult = null;
     classifyLooseResult = null;
     executeCLIAgentImpl = () =>
@@ -285,6 +300,18 @@ describe('WorkflowOrchestrator — provider fallback on success-with-implicit-er
     expect(markProviderCooldownMock).toHaveBeenCalledTimes(1);
     const secondCallCfg = executeCLIAgentMock.mock.calls[1]?.[2] as { agentType: string };
     expect(secondCallCfg.agentType).toBe('codex');
+
+    // The fire-and-forget audit record settles on a later tick — give it one.
+    await new Promise((resolve) => setTimeout(resolve, 10));
+    expect(recordDecisionMock).toHaveBeenCalledTimes(1);
+    const audit = (recordDecisionMock.mock.calls[0] as unknown[])[0] as {
+      kind: string;
+      adoptedId: string;
+      nodeKey: string;
+    };
+    expect(audit.kind).toBe('api_call');
+    expect(audit.adoptedId).toBe('gpt-5-fallback');
+    expect(audit.nodeKey).toContain('provider-fallback');
   });
 
   test('model_unavailable retries the same provider without a --model override', async () => {
