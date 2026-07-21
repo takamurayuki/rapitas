@@ -8,7 +8,10 @@ import {
   AppError,
   NotFoundError,
   ValidationError,
+  ConflictError,
+  AuthenticationError,
   errorHandler,
+  parseId,
 } from '../../middleware/error-handler';
 
 interface ErrorResponseBody {
@@ -65,6 +68,71 @@ describe('ValidationError', () => {
     const error = new ValidationError('無効なメールアドレス', 'INVALID_EMAIL');
     expect(error.message).toBe('無効なメールアドレス');
     expect(error.code).toBe('INVALID_EMAIL');
+  });
+});
+
+describe('ConflictError', () => {
+  test('デフォルトメッセージでステータス409を設定すること', () => {
+    const error = new ConflictError();
+    expect(error.statusCode).toBe(409);
+    expect(error.message).toBe('Resource already exists');
+    expect(error.name).toBe('ConflictError');
+    expect(error instanceof AppError).toBe(true);
+  });
+
+  test('カスタムメッセージを受け入れること', () => {
+    const error = new ConflictError('既に存在します', 'DUPLICATE');
+    expect(error.message).toBe('既に存在します');
+    expect(error.code).toBe('DUPLICATE');
+  });
+});
+
+describe('AuthenticationError', () => {
+  test('デフォルトメッセージでステータス401を設定すること', () => {
+    const error = new AuthenticationError();
+    expect(error.statusCode).toBe(401);
+    expect(error.message).toBe('Authentication required');
+    expect(error.name).toBe('AuthenticationError');
+    expect(error instanceof AppError).toBe(true);
+  });
+
+  test('カスタムメッセージを受け入れること', () => {
+    const error = new AuthenticationError('要認証', 'AUTH_REQUIRED');
+    expect(error.message).toBe('要認証');
+    expect(error.code).toBe('AUTH_REQUIRED');
+  });
+});
+
+describe('parseId', () => {
+  test('数値文字列をパースすること', () => {
+    expect(parseId('42')).toBe(42);
+  });
+
+  test('数値をそのまま受け入れること', () => {
+    expect(parseId(42)).toBe(42);
+  });
+
+  test('デフォルトlabelでValidationErrorを投げること', () => {
+    expect(() => parseId('abc')).toThrow(ValidationError);
+    try {
+      parseId('abc');
+    } catch (e) {
+      expect((e as ValidationError).message).toContain('Invalid ID');
+      expect((e as ValidationError).code).toBe('INVALID_ID');
+    }
+  });
+
+  test('カスタムlabelをエラーメッセージに含めること', () => {
+    try {
+      parseId('xyz', 'taskId');
+    } catch (e) {
+      expect((e as ValidationError).message).toContain('Invalid taskId');
+    }
+  });
+
+  test('0以下の値を拒否すること', () => {
+    expect(() => parseId('0')).toThrow(ValidationError);
+    expect(() => parseId('-5')).toThrow(ValidationError);
   });
 });
 
@@ -189,5 +257,69 @@ describe('errorHandler plugin propagation (as: global)', () => {
     });
     const res = await app.handle(new Request('http://localhost/test'));
     expect(res.status).toBe(404);
+  });
+
+  test('ConflictError が 409 になること', async () => {
+    const app = appUsingPlugin(() => {
+      throw new ConflictError('重複しています');
+    });
+    const res = await app.handle(new Request('http://localhost/test'));
+    expect(res.status).toBe(409);
+  });
+
+  test('AuthenticationError が 401 になること', async () => {
+    const app = appUsingPlugin(() => {
+      throw new AuthenticationError();
+    });
+    const res = await app.handle(new Request('http://localhost/test'));
+    expect(res.status).toBe(401);
+  });
+
+  test('Prismaクラス名を持つエラーが400 "Database query error" になること', async () => {
+    const app = appUsingPlugin(() => {
+      const error = new Error('some prisma failure');
+      error.name = 'PrismaClientKnownRequestError';
+      throw error;
+    });
+    const res = await app.handle(new Request('http://localhost/test'));
+    expect(res.status).toBe(400);
+    const body = (await res.json()) as ErrorResponseBody;
+    expect(body.error).toBe('Database query error');
+  });
+
+  test('Prismaメッセージパターン（Invalid `prisma）を持つエラーが400になること', async () => {
+    const app = appUsingPlugin(() => {
+      throw new Error('Invalid `prisma.task.findMany()` invocation:');
+    });
+    const res = await app.handle(new Request('http://localhost/test'));
+    expect(res.status).toBe(400);
+  });
+
+  test('Prismaエラーコード（P2002等）を持つエラーが400になること', async () => {
+    const app = appUsingPlugin(() => {
+      const error = new Error('Unique constraint failed');
+      (error as unknown as { code: string }).code = 'P2002';
+      throw error;
+    });
+    const res = await app.handle(new Request('http://localhost/test'));
+    expect(res.status).toBe(400);
+  });
+
+  test('未知のErrorはPrisma扱いされず500 "Server error occurred" になること', async () => {
+    const app = appUsingPlugin(() => {
+      throw new Error('something totally unrelated broke');
+    });
+    const res = await app.handle(new Request('http://localhost/test'));
+    expect(res.status).toBe(500);
+    const body = (await res.json()) as ErrorResponseBody;
+    expect(body.error).toBe('Server error occurred');
+  });
+
+  test('レスポンスのContent-Typeが常にJSONであること', async () => {
+    const app = appUsingPlugin(() => {
+      throw new NotFoundError();
+    });
+    const res = await app.handle(new Request('http://localhost/test'));
+    expect(res.headers.get('content-type')).toContain('application/json');
   });
 });

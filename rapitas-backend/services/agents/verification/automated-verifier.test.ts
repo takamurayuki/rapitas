@@ -5,11 +5,14 @@
  * tsc error file extraction) and the markdown renderer. Command execution and
  * git/file I/O are integration concerns covered elsewhere.
  */
-import { describe, it, expect } from 'bun:test';
+import { describe, it, expect, afterEach } from 'bun:test';
 import {
   parseEslintErrorCount,
   parseTscErrorFiles,
   renderVerificationMarkdown,
+  looksLikeBugFixTask,
+  tamperCheck,
+  coverageCheck,
   type VerificationResult,
 } from './automated-verifier';
 
@@ -187,5 +190,148 @@ describe('renderVerificationMarkdown', () => {
     expect(md).toContain('❌ 失敗');
     expect(md).toContain('既存失敗（本変更とは無関係）');
     expect(md).toContain('idea-box-service.test.ts');
+  });
+});
+
+describe('looksLikeBugFixTask', () => {
+  it('returns false for null/undefined/empty text', () => {
+    expect(looksLikeBugFixTask(null)).toBe(false);
+    expect(looksLikeBugFixTask(undefined)).toBe(false);
+    expect(looksLikeBugFixTask('')).toBe(false);
+  });
+
+  it('returns false for text with no bug-related keywords', () => {
+    expect(looksLikeBugFixTask('新しいダッシュボード widget を追加する')).toBe(false);
+  });
+
+  it.each([
+    'ログイン画面でバグが発生',
+    '保存時に不具合がある',
+    '起動時にクラッシュする',
+    '例外が発生する',
+    '入力するとエラーになる',
+    'アプリが落ちる',
+    'アイコンが表示されない',
+    'ボタンが動かない',
+    'fix a bug in the parser',
+    'app crash on startup',
+    'this is a regression',
+    'the sort order is broken',
+  ])('returns true for %j', (text) => {
+    expect(looksLikeBugFixTask(text)).toBe(true);
+  });
+
+  it('is case-insensitive for English keywords', () => {
+    expect(looksLikeBugFixTask('BUG in the retry logic')).toBe(true);
+  });
+});
+
+describe('tamperCheck', () => {
+  it('returns null when no protected path is changed', () => {
+    expect(tamperCheck(['src/foo.ts', 'src/bar.test.ts'], null)).toBeNull();
+  });
+
+  it('returns ok when the protected file is listed in the plan', () => {
+    const result = tamperCheck(
+      ['services/workflow/completion-gate.ts'],
+      ['services/workflow/completion-gate.ts'],
+    );
+    expect(result).toEqual({
+      name: 'tamper',
+      ran: true,
+      ok: true,
+      errorCount: 0,
+      details: 'tamper: 1 protected file(s) changed — all listed in the approved plan',
+    });
+  });
+
+  it('fails when a protected file is changed but not listed in the plan', () => {
+    const result = tamperCheck(['services/workflow/completion-gate.ts'], ['src/foo.ts']);
+    expect(result?.ok).toBe(false);
+    expect(result?.errorCount).toBe(1);
+    expect(result?.details).toContain('services/workflow/completion-gate.ts');
+    expect(result?.details).toContain('計画外の変更');
+  });
+
+  it('treats a null planFiles (plan-less mode) as an empty plan — always unplanned', () => {
+    const result = tamperCheck(['.github/workflows/test-lint.yml'], null);
+    expect(result?.ok).toBe(false);
+    expect(result?.errorCount).toBe(1);
+  });
+
+  it('matches protected paths regardless of path separator and case', () => {
+    const result = tamperCheck(['SERVICES\\AGENTS\\VERIFICATION\\foo.ts'], []);
+    expect(result?.ok).toBe(false);
+  });
+
+  it('matches a plan entry via suffix containment (relative vs. absolute-ish paths)', () => {
+    const result = tamperCheck(['.husky/pre-commit'], ['rapitas-backend/.husky/pre-commit']);
+    expect(result?.ok).toBe(true);
+  });
+
+  it('only counts unplanned protected files toward errorCount when some are planned', () => {
+    const result = tamperCheck(
+      ['.husky/pre-commit', 'scripts/pre-commit-check.ts'],
+      ['.husky/pre-commit'],
+    );
+    expect(result?.ok).toBe(false);
+    expect(result?.errorCount).toBe(1);
+    expect(result?.details).toContain('scripts/pre-commit-check.ts');
+    expect(result?.details).not.toContain('.husky/pre-commit');
+  });
+});
+
+describe('coverageCheck', () => {
+  const ORIGINAL_ENV = process.env.RAPITAS_REQUIRE_TESTS;
+  afterEach(() => {
+    if (ORIGINAL_ENV === undefined) delete process.env.RAPITAS_REQUIRE_TESTS;
+    else process.env.RAPITAS_REQUIRE_TESTS = ORIGINAL_ENV;
+  });
+
+  it('returns null when not forced and the env opt-in is unset', () => {
+    delete process.env.RAPITAS_REQUIRE_TESTS;
+    expect(coverageCheck(['src/foo.ts'])).toBeNull();
+  });
+
+  it.each(['1', 'true', 'on', 'TRUE', 'On'])('is enabled via RAPITAS_REQUIRE_TESTS=%s', (val) => {
+    process.env.RAPITAS_REQUIRE_TESTS = val;
+    const result = coverageCheck(['src/foo.ts']);
+    expect(result?.ok).toBe(false);
+  });
+
+  it('is disabled for other env values', () => {
+    process.env.RAPITAS_REQUIRE_TESTS = '0';
+    expect(coverageCheck(['src/foo.ts'])).toBeNull();
+  });
+
+  it('returns null when forced but no source files changed (only exempt/test files)', () => {
+    delete process.env.RAPITAS_REQUIRE_TESTS;
+    expect(
+      coverageCheck(['src/foo.d.ts', 'src/bar.config.ts', 'src/baz.stories.tsx'], true),
+    ).toBeNull();
+  });
+
+  it('fails when forced and a source file changed without a paired test', () => {
+    delete process.env.RAPITAS_REQUIRE_TESTS;
+    const result = coverageCheck(['src/foo.ts'], true);
+    expect(result).toEqual({
+      name: 'coverage',
+      ran: true,
+      ok: false,
+      errorCount: 1,
+      details: 'ソース変更にテストが伴っていません（テストの追加/更新が必要）:\nsrc/foo.ts',
+    });
+  });
+
+  it('passes when forced and a test file was changed alongside the source', () => {
+    delete process.env.RAPITAS_REQUIRE_TESTS;
+    const result = coverageCheck(['src/foo.ts', 'src/foo.test.ts'], true);
+    expect(result).toEqual({
+      name: 'coverage',
+      ran: true,
+      ok: true,
+      errorCount: 0,
+      details: 'coverage: 1 test file(s) changed alongside source',
+    });
   });
 });

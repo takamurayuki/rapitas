@@ -5,9 +5,14 @@
  * policy argument priority, and the upperBound hard cap.
  */
 import { describe, it, expect, afterEach } from 'bun:test';
-import { evaluateRetry } from './agent-retry';
+import { evaluateRetry, sleep, executeWithRetry, continueWithRetry } from './agent-retry';
 import { AgentError } from './interfaces';
-import type { AgentExecutionContext } from './types';
+import type {
+  AgentExecutionContext,
+  AgentExecutionResult,
+  AgentTaskDefinition,
+  ContinuationContext,
+} from './types';
 import type { AgentLifecycleHooks } from './types';
 import type { RetryPolicy } from './retry-policy';
 
@@ -190,5 +195,203 @@ describe('evaluateRetry — onError hook takes precedence', () => {
     };
     const result = await evaluateRetry(makeError(), makeCtx(), 0, hooks, noLog);
     expect(result.shouldRetry).toBe(false);
+  });
+});
+
+describe('sleep', () => {
+  it('resolves after roughly the given delay', async () => {
+    const start = performance.now();
+    await sleep(10);
+    expect(performance.now() - start).toBeGreaterThanOrEqual(5);
+  });
+
+  it('resolves immediately for a 0ms delay', async () => {
+    await expect(sleep(0)).resolves.toBeUndefined();
+  });
+});
+
+describe('executeWithRetry', () => {
+  afterEach(restoreEnv);
+
+  const transitionFn = async () => {};
+  const isDisposedFn = () => false;
+  const getStateFn = () => 'running';
+
+  it('returns the result immediately on success (no retry needed)', async () => {
+    const doExecute = async () => ({ success: true }) as unknown as AgentExecutionResult;
+    const result = await executeWithRetry(
+      doExecute,
+      {} as AgentTaskDefinition,
+      makeCtx(),
+      noHooks,
+      transitionFn,
+      isDisposedFn,
+      getStateFn,
+      noLog,
+    );
+    expect(result).toEqual({ success: true });
+  });
+
+  it('retries a recoverable AgentError and eventually succeeds', async () => {
+    saveEnv();
+    process.env['RAPITAS_RETRY_DELAY_MS'] = '1';
+    let attempts = 0;
+    const doExecute = async () => {
+      attempts++;
+      if (attempts < 2) throw new AgentError('transient', 'network', true);
+      return { success: true } as unknown as AgentExecutionResult;
+    };
+    const result = await executeWithRetry(
+      doExecute,
+      {} as AgentTaskDefinition,
+      makeCtx(),
+      noHooks,
+      transitionFn,
+      isDisposedFn,
+      getStateFn,
+      noLog,
+    );
+    expect(result).toEqual({ success: true });
+    expect(attempts).toBe(2);
+  });
+
+  it('throws the AgentError immediately for a non-recoverable error (no retry)', async () => {
+    const doExecute = async (): Promise<AgentExecutionResult> => {
+      throw new AgentError('fatal', 'internal', false);
+    };
+    await expect(
+      executeWithRetry(
+        doExecute,
+        {} as AgentTaskDefinition,
+        makeCtx(),
+        noHooks,
+        transitionFn,
+        isDisposedFn,
+        getStateFn,
+        noLog,
+      ),
+    ).rejects.toThrow('fatal');
+  });
+
+  it('wraps a plain (non-AgentError) thrown error before evaluating retry', async () => {
+    const doExecute = async (): Promise<AgentExecutionResult> => {
+      throw new Error('plain error');
+    };
+    await expect(
+      executeWithRetry(
+        doExecute,
+        {} as AgentTaskDefinition,
+        makeCtx(),
+        noHooks,
+        transitionFn,
+        isDisposedFn,
+        getStateFn,
+        noLog,
+      ),
+    ).rejects.toThrow('plain error');
+  });
+
+  it('stops retrying and throws when the agent becomes disposed during the delay', async () => {
+    saveEnv();
+    process.env['RAPITAS_RETRY_DELAY_MS'] = '1';
+    const doExecute = async (): Promise<AgentExecutionResult> => {
+      throw new AgentError('transient', 'network', true);
+    };
+    await expect(
+      executeWithRetry(
+        doExecute,
+        {} as AgentTaskDefinition,
+        makeCtx(),
+        noHooks,
+        transitionFn,
+        () => true, // isDisposedFn -> disposed
+        getStateFn,
+        noLog,
+      ),
+    ).rejects.toThrow('Agent was disposed or cancelled during retry delay');
+  });
+});
+
+describe('continueWithRetry', () => {
+  afterEach(restoreEnv);
+
+  const transitionFn = async () => {};
+  const isDisposedFn = () => false;
+  const getStateFn = () => 'running';
+
+  it('returns the result immediately on success (no retry needed)', async () => {
+    const doContinue = async () => ({ success: true }) as unknown as AgentExecutionResult;
+    const result = await continueWithRetry(
+      doContinue,
+      {} as ContinuationContext,
+      makeCtx(),
+      noHooks,
+      transitionFn,
+      isDisposedFn,
+      getStateFn,
+      noLog,
+    );
+    expect(result).toEqual({ success: true });
+  });
+
+  it('retries a recoverable AgentError and eventually succeeds', async () => {
+    saveEnv();
+    process.env['RAPITAS_RETRY_DELAY_MS'] = '1';
+    let attempts = 0;
+    const doContinue = async () => {
+      attempts++;
+      if (attempts < 2) throw new AgentError('transient', 'network', true);
+      return { success: true } as unknown as AgentExecutionResult;
+    };
+    const result = await continueWithRetry(
+      doContinue,
+      {} as ContinuationContext,
+      makeCtx(),
+      noHooks,
+      transitionFn,
+      isDisposedFn,
+      getStateFn,
+      noLog,
+    );
+    expect(result).toEqual({ success: true });
+    expect(attempts).toBe(2);
+  });
+
+  it('throws immediately for a non-recoverable error', async () => {
+    const doContinue = async (): Promise<AgentExecutionResult> => {
+      throw new AgentError('fatal', 'internal', false);
+    };
+    await expect(
+      continueWithRetry(
+        doContinue,
+        {} as ContinuationContext,
+        makeCtx(),
+        noHooks,
+        transitionFn,
+        isDisposedFn,
+        getStateFn,
+        noLog,
+      ),
+    ).rejects.toThrow('fatal');
+  });
+
+  it('stops retrying and throws when the state becomes cancelled during the delay', async () => {
+    saveEnv();
+    process.env['RAPITAS_RETRY_DELAY_MS'] = '1';
+    const doContinue = async (): Promise<AgentExecutionResult> => {
+      throw new AgentError('transient', 'network', true);
+    };
+    await expect(
+      continueWithRetry(
+        doContinue,
+        {} as ContinuationContext,
+        makeCtx(),
+        noHooks,
+        transitionFn,
+        isDisposedFn,
+        () => 'cancelled',
+        noLog,
+      ),
+    ).rejects.toThrow('Agent was disposed or cancelled during retry delay');
   });
 });
