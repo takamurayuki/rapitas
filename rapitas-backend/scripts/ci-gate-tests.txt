@@ -30,3 +30,44 @@ scripts/codemods/__tests__/codemod-runner.test.ts
 scripts/coverage-floor.test.ts
 eslint-rules/no-raw-prisma-insensitive.test.mjs
 eslint-rules/no-icon-collision.test.mjs
+services/observability/decision-trace/consistency-checker.test.ts
+services/observability/decision-trace/dag-query.test.ts
+services/observability/decision-trace/mask.test.ts
+services/observability/decision-trace/recorder.test.ts
+routes/agents/execution/continue-route.decision-trace.test.ts
+routes/agents/monitoring/decision-trace-router.test.ts
+services/ai/smart-model-router.decision-trace.test.ts
+services/scheduling/decision-trace-consistency-scheduler.test.ts
+
+# ===== Coverage-floor drift closure (2026-07-22): existing test files for
+# production modules the gate was already measuring coverage against, but
+# never ran — see TESTING_POLICY.md §6 for the promotion path this follows. =====
+config/cache-ttl.test.ts
+config/db-provider.test.ts
+services/agents/abstraction/agent-retry.test.ts
+services/agents/abstraction/retry-policy.test.ts
+services/agents/orchestrator/git-operations/dependency-installer.test.ts
+services/agents/orchestrator/git-operations/git-exec.test.ts
+services/agents/orchestrator/git-operations/repository-setup.test.ts
+services/agents/orchestrator/git-operations/safety.test.ts
+services/agents/orchestrator/git-operations/worktree-ops.test.ts
+services/agents/orchestrator/git-operations/worktree-preflight.test.ts
+services/agents/verification/scope-check.test.ts
+services/github/gh-retry.test.ts
+services/github/git-exec.test.ts
+services/github/git-retry-policy-registry.test.ts
+services/github/git-retry-telemetry.test.ts
+tests/helpers/boundary-values.test.ts
+tests/setup/global-state-guard.test.ts
+utils/ai-client/chatgpt-provider.test.ts
+utils/ai-client/claude-cli-provider.test.ts
+utils/ai-client/claude-provider.test.ts
+utils/ai-client/credentials.test.ts
+utils/ai-client/error-handler.test.ts
+utils/ai-client/gemini-provider.test.ts
+utils/ai-client/ollama-provider.test.ts
+utils/llm-call-context.test.ts
+utils/log-parsers/custom-log-parsers.test.ts
+utils/log-parsers/http-log-parsers.test.ts
+utils/log-parsers/system-log-parsers.test.ts
+services/agents/worktree-keep-list.test.ts
