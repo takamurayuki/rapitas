@@ -1,7 +1,7 @@
 /**
  * workflow-invariants
  *
- * Pure invariants the task + workflow_status + on-disk artifacts must satisfy
+ * Pure invariants the task + workflow_status + saved artifacts must satisfy
  * after any status mutation. Returns a list of violations rather than
  * throwing so the caller can record them in the transition log and still
  * decide whether to surface as a hard failure.
@@ -11,12 +11,14 @@
  *   - workflowStatus='verify_done' but research.md is missing
  *   - workflowStatus='completed' but task.status is not 'done'
  */
-import { existsSync } from 'fs';
-import { join } from 'path';
 import { prisma } from '../../config/database';
-import { getTaskWorkflowDir } from './workflow-paths';
 import { WORKFLOW_STATUSES, type WorkflowStatus } from './workflow-types';
 import { narrowEnum } from '../../utils/common/type-guards';
+
+/** Maps a required-file display name (e.g. "research.md") to its WorkflowFile.fileType. */
+function fileTypeOf(fileName: string): string {
+  return fileName.replace(/\.md$/, '');
+}
 
 export interface Violation {
   /** Stable code so dashboards can group: missing_file / status_mismatch / regression. */
@@ -65,9 +67,9 @@ export function requiredWorkflowFiles(status: string): string[] {
 }
 
 /**
- * Preview which required files are missing on disk for a given status without
- * mutating any state. Used by the manual status update API to pre-check before
- * applying the change.
+ * Preview which required artifacts are missing (no WorkflowFile DB row) for a
+ * given status without mutating any state. Used by the manual status update
+ * API to pre-check before applying the change.
  *
  * @param taskId - Task to inspect. / 検査対象タスクID
  * @param status - Target workflowStatus to check requirements for. / 対象ステータス
@@ -77,17 +79,17 @@ export async function previewMissingFilesForStatus(
   taskId: number,
   status: string,
 ): Promise<string[]> {
-  const task = await prisma.task
-    .findUnique({
-      where: { id: taskId },
-      select: { themeId: true, theme: { select: { categoryId: true } } },
-    })
-    .catch(() => null);
-  if (!task) return [];
-
-  const dir = getTaskWorkflowDir(task.theme?.categoryId ?? null, task.themeId ?? null, taskId);
   const required = requiredWorkflowFiles(normalizeWorkflowStatus(status));
-  return required.filter((file) => !existsSync(join(dir, file)));
+  if (required.length === 0) return [];
+
+  const present = await prisma.workflowFile
+    .findMany({
+      where: { taskId, fileType: { in: required.map(fileTypeOf) } },
+      select: { fileType: true },
+    })
+    .catch(() => []);
+  const presentTypes = new Set(present.map((f) => f.fileType));
+  return required.filter((file) => !presentTypes.has(fileTypeOf(file)));
 }
 
 /**
@@ -101,30 +103,32 @@ export async function checkWorkflowInvariants(taskId: number): Promise<Violation
   const task = await prisma.task
     .findUnique({
       where: { id: taskId },
-      select: {
-        id: true,
-        status: true,
-        workflowStatus: true,
-        themeId: true,
-        theme: { select: { categoryId: true } },
-      },
+      select: { id: true, status: true, workflowStatus: true },
     })
     .catch(() => null);
   if (!task) {
     return [{ code: 'task_not_found', message: `Task ${taskId} not found` }];
   }
-  const dir = getTaskWorkflowDir(task.theme?.categoryId ?? null, task.themeId ?? null, taskId);
-  const has = (file: string) => existsSync(join(dir, file));
 
   const wf = normalizeWorkflowStatus(task.workflowStatus);
+  const required = requiredWorkflowFiles(wf);
 
-  // Forward expectations: status implies certain files are on disk.
-  for (const file of requiredWorkflowFiles(wf)) {
-    if (!has(file)) {
-      violations.push({
-        code: 'missing_file',
-        message: `workflowStatus="${wf}" but ${file} is missing on disk`,
-      });
+  // Forward expectations: status implies certain artifacts are saved (DB rows).
+  if (required.length > 0) {
+    const present = await prisma.workflowFile
+      .findMany({
+        where: { taskId, fileType: { in: required.map(fileTypeOf) } },
+        select: { fileType: true },
+      })
+      .catch(() => []);
+    const presentTypes = new Set(present.map((f) => f.fileType));
+    for (const file of required) {
+      if (!presentTypes.has(fileTypeOf(file))) {
+        violations.push({
+          code: 'missing_file',
+          message: `workflowStatus="${wf}" but ${file} is missing`,
+        });
+      }
     }
   }
 

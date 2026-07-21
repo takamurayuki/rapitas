@@ -6,30 +6,22 @@
  */
 import { describe, expect, test, mock, beforeEach } from 'bun:test';
 
-// ---- fs mock ----
-const mockExistsSync = mock((_path: string) => true);
-mock.module('fs', () => ({
-  existsSync: mockExistsSync,
-}));
-
 // ---- prisma mock ----
 const mockFindUnique = mock(() => Promise.resolve(null));
 const mockCount = mock(() => Promise.resolve(0));
+const mockWorkflowFileFindMany = mock(() => Promise.resolve([] as { fileType: string }[]));
 const mockPrisma = {
   task: {
     findUnique: mockFindUnique,
     count: mockCount,
   },
+  workflowFile: {
+    findMany: mockWorkflowFileFindMany,
+  },
 };
 mock.module('../../config/database', () => ({
   ensureDatabaseConnection: () => Promise.resolve(),
   prisma: mockPrisma,
-}));
-
-// ---- workflow-paths mock ----
-mock.module('./workflow-paths', () => ({
-  getTaskWorkflowDir: (_cat: unknown, _theme: unknown, taskId: number) =>
-    `/fake/workflows/0/0/${taskId}`,
 }));
 
 import {
@@ -91,52 +83,36 @@ describe('requiredWorkflowFiles', () => {
 // -------------------------------------------------------------------------
 describe('previewMissingFilesForStatus', () => {
   beforeEach(() => {
-    mockFindUnique.mockReset();
-    mockExistsSync.mockReset();
+    mockWorkflowFileFindMany.mockReset();
+    mockWorkflowFileFindMany.mockResolvedValue([]);
   });
 
-  test.each([
-    {
-      desc: 'returns empty array when task is not found',
-      findUniqueValue: null as {
-        themeId: number | null;
-        theme: { categoryId: number } | null;
-      } | null,
-      existsImpl: () => true,
-      taskId: 99,
-      status: 'plan_created',
-      expected: [] as string[],
-    },
-    {
-      desc: 'returns empty array when all required files exist',
-      findUniqueValue: { themeId: 1, theme: { categoryId: 2 } },
-      existsImpl: () => true,
-      taskId: 1,
-      status: 'plan_created',
-      expected: [],
-    },
-    {
-      desc: 'returns missing files when some are absent',
-      findUniqueValue: { themeId: 1, theme: { categoryId: 2 } },
-      // research.md absent, plan.md present
-      existsImpl: (p: string) => !p.includes('research.md'),
-      taskId: 1,
-      status: 'plan_created',
-      expected: ['research.md'],
-    },
-    {
-      desc: 'returns empty array for draft (no required files)',
-      findUniqueValue: { themeId: null, theme: null },
-      existsImpl: () => false,
-      taskId: 1,
-      status: 'draft',
-      expected: [],
-    },
-  ])('$desc', async ({ findUniqueValue, existsImpl, taskId, status, expected }) => {
-    mockFindUnique.mockResolvedValueOnce(findUniqueValue);
-    mockExistsSync.mockImplementation(existsImpl);
-    const result = await previewMissingFilesForStatus(taskId, status);
-    expect(result).toEqual(expected);
+  test('returns empty array for draft (no required files, no DB query needed)', async () => {
+    const result = await previewMissingFilesForStatus(1, 'draft');
+    expect(result).toEqual([]);
+    expect(mockWorkflowFileFindMany).not.toHaveBeenCalled();
+  });
+
+  test('returns empty array when all required WorkflowFile rows exist', async () => {
+    mockWorkflowFileFindMany.mockResolvedValueOnce([
+      { fileType: 'research' },
+      { fileType: 'plan' },
+    ]);
+    const result = await previewMissingFilesForStatus(1, 'plan_created');
+    expect(result).toEqual([]);
+  });
+
+  test('returns missing files when some WorkflowFile rows are absent', async () => {
+    // plan.md exists, research.md does not.
+    mockWorkflowFileFindMany.mockResolvedValueOnce([{ fileType: 'plan' }]);
+    const result = await previewMissingFilesForStatus(1, 'plan_created');
+    expect(result).toEqual(['research.md']);
+  });
+
+  test('returns all required files as missing when no WorkflowFile rows exist', async () => {
+    mockWorkflowFileFindMany.mockResolvedValueOnce([]);
+    const result = await previewMissingFilesForStatus(1, 'verify_done');
+    expect(result).toEqual(['research.md', 'plan.md', 'verify.md']);
   });
 });
 
@@ -145,7 +121,8 @@ describe('checkWorkflowInvariants', () => {
   beforeEach(() => {
     mockFindUnique.mockReset();
     mockCount.mockReset();
-    mockExistsSync.mockReset();
+    mockWorkflowFileFindMany.mockReset();
+    mockWorkflowFileFindMany.mockResolvedValue([]);
   });
 
   test('returns task_not_found when task is missing', async () => {
@@ -155,15 +132,13 @@ describe('checkWorkflowInvariants', () => {
     expect(result[0].code).toBe('task_not_found');
   });
 
-  test('returns no violations when research_done and research.md exists', async () => {
+  test('returns no violations when research_done and the research WorkflowFile row exists', async () => {
     mockFindUnique.mockResolvedValueOnce({
       id: 1,
       status: 'todo',
       workflowStatus: 'research_done',
-      themeId: null,
-      theme: null,
     });
-    mockExistsSync.mockImplementation(() => true);
+    mockWorkflowFileFindMany.mockResolvedValueOnce([{ fileType: 'research' }]);
     mockCount.mockResolvedValueOnce(0);
     const result = await checkWorkflowInvariants(1);
     expect(result).toHaveLength(0);
@@ -171,50 +146,48 @@ describe('checkWorkflowInvariants', () => {
 
   test.each([
     {
-      desc: 'detects missing_file for plan_created without plan.md',
-      task: { id: 1, status: 'todo', workflowStatus: 'plan_created', themeId: null, theme: null },
-      // research.md exists but plan.md does not
-      existsImpl: (p: string) => !p.includes('plan.md'),
+      desc: 'detects missing_file for plan_created without the plan WorkflowFile row',
+      task: { id: 1, status: 'todo', workflowStatus: 'plan_created' },
+      present: [{ fileType: 'research' }],
       count: 0,
       expectedCode: 'missing_file',
       expectedMessageContains: 'plan.md',
     },
     {
-      desc: 'detects missing_file for plan_created without research.md',
-      task: { id: 1, status: 'todo', workflowStatus: 'plan_created', themeId: null, theme: null },
-      existsImpl: (p: string) => !p.includes('research.md'),
+      desc: 'detects missing_file for plan_created without the research WorkflowFile row',
+      task: { id: 1, status: 'todo', workflowStatus: 'plan_created' },
+      present: [{ fileType: 'plan' }],
       count: 0,
       expectedCode: 'missing_file',
       expectedMessageContains: 'research.md',
     },
     {
-      desc: 'detects missing_file for verify_done when verify.md is absent',
-      task: { id: 1, status: 'done', workflowStatus: 'verify_done', themeId: null, theme: null },
-      // research.md and plan.md exist but verify.md does not
-      existsImpl: (p: string) => !p.includes('verify.md'),
+      desc: 'detects missing_file for verify_done when the verify WorkflowFile row is absent',
+      task: { id: 1, status: 'done', workflowStatus: 'verify_done' },
+      present: [{ fileType: 'research' }, { fileType: 'plan' }],
       count: 0,
       expectedCode: 'missing_file',
       expectedMessageContains: 'verify.md',
     },
     {
       desc: 'detects status_mismatch for completed task with status != done',
-      task: { id: 1, status: 'todo', workflowStatus: 'completed', themeId: null, theme: null },
-      existsImpl: () => true,
+      task: { id: 1, status: 'todo', workflowStatus: 'completed' },
+      present: [{ fileType: 'research' }, { fileType: 'plan' }, { fileType: 'verify' }],
       count: 0,
       expectedCode: 'status_mismatch',
       expectedMessageContains: undefined as string | undefined,
     },
     {
       desc: 'detects incomplete_subtasks for verify_done with open subtasks',
-      task: { id: 1, status: 'done', workflowStatus: 'verify_done', themeId: null, theme: null },
-      existsImpl: () => true,
+      task: { id: 1, status: 'done', workflowStatus: 'verify_done' },
+      present: [{ fileType: 'research' }, { fileType: 'plan' }, { fileType: 'verify' }],
       count: 2,
       expectedCode: 'incomplete_subtasks',
       expectedMessageContains: undefined as string | undefined,
     },
-  ])('$desc', async ({ task, existsImpl, count, expectedCode, expectedMessageContains }) => {
+  ])('$desc', async ({ task, present, count, expectedCode, expectedMessageContains }) => {
     mockFindUnique.mockResolvedValueOnce(task);
-    mockExistsSync.mockImplementation(existsImpl);
+    mockWorkflowFileFindMany.mockResolvedValueOnce(present);
     mockCount.mockResolvedValueOnce(count);
     const result = await checkWorkflowInvariants(1);
     const codes = result.map((v) => v.code);
@@ -225,31 +198,21 @@ describe('checkWorkflowInvariants', () => {
     }
   });
 
-  test('treats empty workflowStatus as draft (no violations)', async () => {
-    mockFindUnique.mockResolvedValueOnce({
-      id: 1,
-      status: 'todo',
-      workflowStatus: '',
-      themeId: null,
-      theme: null,
-    });
-    // draft requires no files, so existsSync result doesn't matter
-    mockExistsSync.mockImplementation(() => false);
+  test('treats empty workflowStatus as draft (no violations, no WorkflowFile query)', async () => {
+    mockFindUnique.mockResolvedValueOnce({ id: 1, status: 'todo', workflowStatus: '' });
     mockCount.mockResolvedValueOnce(0);
     const result = await checkWorkflowInvariants(1);
     // draft has no file requirements and no status_mismatch (not 'completed')
     expect(result.filter((v) => v.code === 'missing_file')).toHaveLength(0);
+    expect(mockWorkflowFileFindMany).not.toHaveBeenCalled();
   });
 
-  test('returns no violations for in_progress with all files present', async () => {
-    mockFindUnique.mockResolvedValueOnce({
-      id: 1,
-      status: 'todo',
-      workflowStatus: 'in_progress',
-      themeId: null,
-      theme: null,
-    });
-    mockExistsSync.mockImplementation(() => true);
+  test('returns no violations for in_progress with both WorkflowFile rows present', async () => {
+    mockFindUnique.mockResolvedValueOnce({ id: 1, status: 'todo', workflowStatus: 'in_progress' });
+    mockWorkflowFileFindMany.mockResolvedValueOnce([
+      { fileType: 'research' },
+      { fileType: 'plan' },
+    ]);
     mockCount.mockResolvedValueOnce(0);
     const result = await checkWorkflowInvariants(1);
     expect(result).toHaveLength(0);
