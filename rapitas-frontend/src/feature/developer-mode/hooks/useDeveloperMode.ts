@@ -173,6 +173,7 @@ export function useDeveloperMode(taskId: number) {
           sessionId: statusData.sessionId,
           status:
             statusData.executionStatus === 'waiting_for_input' ? 'waiting_for_input' : 'running',
+          startedAt: statusData.startedAt ?? null,
         });
       } else if (statusData.executionStatus === 'interrupted') {
         // Display interrupted state as idle (treat as non-running after server restart)
