@@ -9,6 +9,12 @@ const mockPrisma = {
     findMany: mock(() => Promise.resolve([])),
     update: mock(() => Promise.resolve({})),
   },
+  // computeWorktreeKeepPaths (used by cleanupOrphanedWorktrees's new liveness
+  // guard) queries this — empty means "no live task owns any worktree here",
+  // matching these tests' genuinely-orphaned fixtures.
+  task: {
+    findMany: mock(() => Promise.resolve([])),
+  },
 };
 
 let worktreeListStdout = `worktree /test/repo
@@ -318,6 +324,7 @@ describe('cleanupOrphanedWorktrees', () => {
   beforeEach(() => {
     mockPrisma.agentSession.findMany.mockReset();
     mockPrisma.agentSession.update.mockReset();
+    mockPrisma.task.findMany.mockReset();
     mockExecFile.mockReset();
     mockExistsSync.mockReset();
     mockFsRm.mockReset();
@@ -326,6 +333,7 @@ describe('cleanupOrphanedWorktrees', () => {
 
     mockPrisma.agentSession.findMany.mockResolvedValue([]);
     mockPrisma.agentSession.update.mockResolvedValue({});
+    mockPrisma.task.findMany.mockResolvedValue([]);
     mockExistsSync.mockImplementation(() => false);
     mockFsRm.mockResolvedValue(undefined);
     mockReaddir.mockResolvedValue([]);
@@ -381,6 +389,30 @@ branch refs/heads/feature/task-123
     expect(mockPrisma.agentSession.update).toHaveBeenCalledTimes(2);
   });
 
+  test('skips a worktree whose AgentSession is terminal but the owning Task is still live', async () => {
+    // Reproduces the task-501 incident: a self-repair bounce leaves the OLD
+    // session marked 'failed' while the same worktree keeps being used by the
+    // task's current (non-terminal) run. Deleting on the stale session alone
+    // would wipe a real in-progress implementation.
+    mockPrisma.agentSession.findMany.mockResolvedValue([
+      { id: 3, worktreePath: '/test/repo/.worktrees/task-789-live123', status: 'failed' },
+    ] as never);
+    // computeWorktreeKeepPaths's bare readdir(worktreeRoot) call (no options) —
+    // must list the directory name so it can parse the owning task id.
+    mockReaddir.mockImplementation((..._args: unknown[]) => {
+      const opts = _args[1] as { withFileTypes?: boolean } | undefined;
+      return Promise.resolve(opts?.withFileTypes ? [] : ['task-789-live123']);
+    });
+    // Task 789 is still non-terminal (e.g. 'in_progress') — the keep-list
+    // query matches it.
+    mockPrisma.task.findMany.mockResolvedValue([{ id: 789 }] as never);
+
+    const cleanedCount = await cleanupOrphanedWorktrees(mockBaseDir);
+
+    expect(cleanedCount).toBe(0);
+    expect(mockPrisma.agentSession.update).not.toHaveBeenCalled();
+  });
+
   test('continues processing multiple database-tracked worktrees', async () => {
     mockPrisma.agentSession.findMany.mockResolvedValue([
       {
@@ -433,12 +465,21 @@ branch refs/heads/feature/task-123
     mockPrisma.agentSession.findMany.mockImplementation(() => Promise.resolve([]));
     mockFsRm.mockImplementation(() => Promise.reject(ebusyErr));
     mockExistsSync.mockImplementation(() => true);
-    mockReaddir.mockImplementation(() =>
-      Promise.resolve([
-        { name: 'task-orphan-aaa', isDirectory: () => true },
-        { name: 'task-orphan-bbb', isDirectory: () => true },
-      ]),
-    );
+    // Shape depends on the caller: worktree-ops.ts asks for Dirent objects
+    // (withFileTypes: true) to sweep the filesystem; computeWorktreeKeepPaths
+    // (the new liveness guard) does a bare readdir expecting plain name
+    // strings. Both hit this same mocked module, so return the shape the
+    // caller actually asked for instead of always Dirent-like objects.
+    mockReaddir.mockImplementation((..._args: unknown[]) => {
+      const opts = _args[1] as { withFileTypes?: boolean } | undefined;
+      if (opts?.withFileTypes) {
+        return Promise.resolve([
+          { name: 'task-9001-aaa', isDirectory: () => true },
+          { name: 'task-9002-bbb', isDirectory: () => true },
+        ]);
+      }
+      return Promise.resolve(['task-9001-aaa', 'task-9002-bbb']);
+    });
     // Both orphan paths are NOT in the git tracked list (worktreeListStdout only has task-123-abc123)
 
     let thrownError: unknown;
@@ -464,15 +505,20 @@ branch refs/heads/feature/task-123
     mockPrisma.agentSession.findMany.mockImplementation(() => Promise.resolve([]));
     mockFsRm.mockImplementation(() => Promise.resolve(undefined));
     mockExistsSync.mockImplementation(() => true);
-    mockReaddir.mockImplementation(() =>
-      Promise.resolve([{ name: 'task-orphan-xyz', isDirectory: () => true }]),
-    );
-    // git list does NOT include task-orphan-xyz → it's an orphan
+    // See the shape note in the EBUSY test above — same dual-caller mock.
+    mockReaddir.mockImplementation((..._args: unknown[]) => {
+      const opts = _args[1] as { withFileTypes?: boolean } | undefined;
+      if (opts?.withFileTypes) {
+        return Promise.resolve([{ name: 'task-9003-xyz', isDirectory: () => true }]);
+      }
+      return Promise.resolve(['task-9003-xyz']);
+    });
+    // git list does NOT include task-9003-xyz → it's an orphan
 
     const result = await cleanupOrphanedWorktrees(mockBaseDir, { sleepFn: noopSleep });
 
     expect(result).toBe(1);
-    expect(mockFsRm).toHaveBeenCalledWith(expect.stringContaining('task-orphan-xyz'), {
+    expect(mockFsRm).toHaveBeenCalledWith(expect.stringContaining('task-9003-xyz'), {
       recursive: true,
       force: true,
     });

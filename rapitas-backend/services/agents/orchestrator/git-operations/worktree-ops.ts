@@ -549,6 +549,32 @@ export async function cleanupOrphanedWorktrees(
 ): Promise<number> {
   let cleanedCount = 0;
 
+  // Liveness filter: a worktree whose OWNING TASK is not terminal must survive
+  // this cleanup, even if the particular AgentSession row that created it was
+  // separately marked completed/failed/cancelled (a self-repair bounce, for
+  // instance, leaves a stale session behind while the task keeps running in
+  // the same worktree) — see worktree-keep-list.ts. Without this, running
+  // this cleanup on every backend startup/restart (any trigger — including an
+  // unrelated prisma schema edit — see worktree-cleanup-scheduler.ts /
+  // index.ts warmup) could delete a worktree an active verifier was using
+  // mid-execution (observed: task 501's implementation directory vanished and
+  // was replaced by a `develop` checkout, corrupting the empty-diff check
+  // into a false "no changes needed" verdict). Fail-safe: if liveness can't
+  // be determined, skip this cleanup cycle entirely rather than risk deleting
+  // live work.
+  let keepPaths: string[];
+  try {
+    const { computeWorktreeKeepPaths } = await import('../../worktree-keep-list');
+    keepPaths = await computeWorktreeKeepPaths(baseDir);
+  } catch (err) {
+    logger.warn(
+      { err },
+      '[cleanupOrphanedWorktrees] Keep-list computation failed — skipping this cleanup cycle',
+    );
+    return 0;
+  }
+  const keepSet = new Set(keepPaths.map((p) => normalizePath(p)));
+
   try {
     // Clean up database-tracked orphaned worktrees
     const orphanedSessions = await prisma.agentSession.findMany({
@@ -569,6 +595,12 @@ export async function cleanupOrphanedWorktrees(
 
     for (const session of orphanedSessions) {
       if (!session.worktreePath) continue;
+      if (keepSet.has(normalizePath(session.worktreePath))) {
+        logger.info(
+          `[cleanupOrphanedWorktrees] Skipping session ${session.id} worktree — owning task is still live: ${session.worktreePath}`,
+        );
+        continue;
+      }
 
       try {
         // Remove the worktree if it exists
@@ -624,8 +656,13 @@ export async function cleanupOrphanedWorktrees(
           const dirPath = join(worktreeDir, dirEntry.name);
           const normalizedDirPath = normalizePath(dirPath);
 
-          // If directory exists but is not tracked by git, it's an orphan
-          if (!gitTrackedPaths.has(normalizedDirPath)) {
+          // If directory exists but is not tracked by git, it's an orphan —
+          // UNLESS it belongs to a still-live task. `git worktree list` can
+          // transiently omit a genuinely-live worktree (e.g. mid-operation on
+          // the shared .git metadata from a concurrent commit elsewhere in
+          // the same repo); trusting that gap alone would delete an in-use
+          // directory outright, with no DB check at all.
+          if (!gitTrackedPaths.has(normalizedDirPath) && !keepSet.has(normalizedDirPath)) {
             if (isPathSafeForWorktreeOperation(dirPath, baseDir)) {
               const removed = await rmDirWithRetry(dirPath, rmOpts);
               if (removed) {
@@ -643,6 +680,10 @@ export async function cleanupOrphanedWorktrees(
             } else {
               logger.warn(`[cleanupOrphanedWorktrees] Skipped unsafe path: ${dirPath}`);
             }
+          } else if (keepSet.has(normalizedDirPath)) {
+            logger.info(
+              `[cleanupOrphanedWorktrees] Skipping filesystem orphan — owning task is still live: ${dirPath}`,
+            );
           }
         }
       } catch (error) {
