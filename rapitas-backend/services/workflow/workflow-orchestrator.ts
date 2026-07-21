@@ -1134,6 +1134,28 @@ async function tryProviderFallback(args: {
       excludeProviders: [classified.provider],
     });
     alternativeModel = route.recommendedModel;
+    // Audit trail: record the failure-driven re-route (api_call). Fire-and-forget;
+    // dynamic import mirrors this function's other lazy service imports.
+    const rerouteModel = alternativeModel;
+    void import('../observability/decision-trace')
+      .then(({ recordDecision }) =>
+        recordDecision({
+          taskId: args.taskId,
+          nodeKey: `task${args.taskId}:provider-fallback:${Date.now()}`,
+          kind: 'api_call',
+          summary: `プロバイダフォールバック: ${rerouteModel}`,
+          input: {
+            role: args.role,
+            failedProvider: classified.provider,
+            failureReason: classified.reason,
+            previousModel: args.currentConfig.modelId,
+          },
+          candidates: [{ id: rerouteModel, label: 'フォールバック候補' }],
+          adoptedId: rerouteModel,
+          adoptedReason: `プロバイダ ${classified.provider} が ${classified.reason} で cooldown に入ったための再ルーティング`,
+        }),
+      )
+      .catch(() => {});
   } catch (err) {
     log.warn({ err, taskId: args.taskId }, 'Smart Router fallback failed');
     return null;
