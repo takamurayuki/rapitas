@@ -28,6 +28,8 @@ export const REPORT_STYLE_RULE = {
     '- 1セクションの目安: 概要3行以内、各セクション10行以内（テスト失敗の詳細ログのみ例外）。\n' +
     '- 定量データ（件数、実行時間、pass/fail数、カバレッジ%など）を必ず根拠として添え、形容詞だけの評価（「問題ない」「良好」）をしない。\n' +
     '- 比較・列挙・チェック結果は必ず表形式。プロセスや依存関係の説明は番号付きステップまたは階層リスト。\n' +
+    '- ファイルパスやファイル名を2件以上まとめて挙げる場合（research.md の依存関係マップ・対象ファイル、plan.md の変更予定ファイル、verify.md の変更ファイルを問わず全成果物共通）、文中に読点・カンマ区切りで詰め込んではならない。必ず表（列例: ファイル | 役割・変更内容）にするか、詰め込めない場合は1行1ファイルの箇条書きにする。「`a.ts`, `b.ts`, `c.ts` を変更」のように1行へ詰め込む書き方は禁止。\n' +
+    '- 「**見出し**: 説明」の形式で書く場合、説明が短い値（数値・ステータス・1〜2語）ならコロンの後に同じ行で続けてよいが、1文を超える、または全角40字（半角80字）を超える長さになるときはコロンの後に詰め込まず、見出しの直後で改行し、説明は次の行から書く。\n' +
     '- 表は列を最小限（2〜4列）にし、セル内は簡潔に（長文をセルに入れない）— レビュー画面は横スクロールなしで全列が見える必要がある。\n' +
     '- 変更ファイルの報告は表形式で、列は「ファイル | 種別（新規/変更） | 変更内容の要約（1行、何をなぜ変えたか）」。**行数・差分数値（+N/-N）は記載しない** — 数値からは何を変更したか読み取れない。\n' +
     '- 負例（書いてはならない形）: `| +追加 | -削除 |` 列、`(+120/-45)`、`行数: +N`、`✏️`/`⏭️`/`🆕` などの絵文字ステータス列挙。\n' +
@@ -51,6 +53,8 @@ export const REPORT_STYLE_RULE = {
     '- Section size guide: overview ≤ 3 lines, each section ≤ 10 lines (failing-test logs are the only exception).\n' +
     '- Always back statements with quantitative data (counts, run time, pass/fail numbers, coverage %); never give adjective-only judgements ("fine", "looks good").\n' +
     '- Comparisons, enumerations, and check results MUST be tables. Explain processes or dependencies as numbered steps or nested lists.\n' +
+    "- When listing 2+ file paths/names together — in ANY artifact (research.md's dependency map/affected files, plan.md's files-to-change, verify.md's changed files) — never cram them into one comma-separated inline sentence. Use a table (e.g. columns: File | Role/Change) or, if a table doesn't fit, one bullet per file. Writing \"changed `a.ts`, `b.ts`, `c.ts`\" crammed into a single line is forbidden.\n" +
+    '- When writing "**Label**: description", a short value (a number, a status, one or two words) may follow the colon on the same line — but once the description exceeds one short clause (roughly 60+ characters), do not cram it after the colon. Break immediately after the label and start the description on the next line.\n' +
     '- Keep tables to few columns (2-4) with terse cells (no long prose in a cell) — the review screen must show every column without horizontal scrolling.\n' +
     '- Report changed files as a table with columns "File | Kind (new/modified) | What changed & why (one line)". **Do NOT include line counts or diff deltas (+N/-N)** — numbers do not convey what was modified.\n' +
     '- Negative examples (never write these): `| +追加 | -削除 |` columns, `(+120/-45)`, `lines: +N`, or emoji status columns such as ✏️/⏭️/🆕.\n' +
