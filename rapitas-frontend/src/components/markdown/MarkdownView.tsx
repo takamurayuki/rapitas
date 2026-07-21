@@ -47,7 +47,7 @@ interface MarkdownViewProps {
 }
 
 const PROSE_CLASS = [
-  'prose dark:prose-invert max-w-none prose-sm',
+  'prose dark:prose-invert max-w-none prose-sm [overflow-wrap:anywhere]',
   'prose-headings:text-zinc-900 dark:prose-headings:text-zinc-100',
   'prose-headings:font-semibold prose-headings:tracking-tight',
   'prose-p:text-zinc-700 dark:prose-p:text-zinc-300 prose-p:leading-relaxed',
@@ -242,7 +242,7 @@ export function MarkdownView({
             }
             return (
               <code
-                className="rounded border border-zinc-200 bg-zinc-100 px-1.5 py-0.5 font-mono text-[0.85em] text-zinc-800 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-200"
+                className="rounded border border-zinc-200 bg-zinc-100 px-1.5 py-0.5 font-mono text-[0.85em] text-zinc-800 [overflow-wrap:anywhere] dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-200"
                 {...props}
               >
                 {children}
