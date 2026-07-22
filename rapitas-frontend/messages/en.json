@@ -2206,7 +2206,13 @@
         "phase": {
           "research": "research (research.md)",
           "plan": "plan (plan.md)"
-        }
+        },
+        "severity": {
+          "high": "High",
+          "medium": "Medium",
+          "low": "Low"
+        },
+        "reasonsCount": "{count} issue(s)"
       }
     }
   },

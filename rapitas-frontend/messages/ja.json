@@ -2206,7 +2206,13 @@
         "phase": {
           "research": "研究内容(research.md)",
           "plan": "計画内容(plan.md)"
-        }
+        },
+        "severity": {
+          "high": "重大",
+          "medium": "中程度",
+          "low": "軽微"
+        },
+        "reasonsCount": "指摘 {count}件"
       }
     }
   },
