@@ -971,6 +971,15 @@ export async function handleSaveFile({
               );
             }
           } else {
+            // NOTE: this update was previously missing — the log claimed "task
+            // stays blocked" but task.status was never actually set, leaving
+            // the task looking untouched (status stuck at whatever it already
+            // was, e.g. 'todo') instead of clearly flagged for attention
+            // (task 504: workflowStatus stayed 'verify_done' with no PR/commit
+            // and status='todo', indistinguishable from a never-started task).
+            await prisma.task
+              .update({ where: { id: taskId }, data: { status: 'blocked', updatedAt: new Date() } })
+              .catch(() => {});
             await markLatestExecutionFailed(taskId, reason);
             log.warn(
               { taskId, severity: review.severity },

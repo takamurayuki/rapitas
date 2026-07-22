@@ -749,6 +749,47 @@ describe('handleSaveFile — 敵対的差分レビューの遅延判定が完了
 });
 
 // -------------------------------------------------------------------------
+describe('handleSaveFile — adversarial review FAIL with repairs exhausted', () => {
+  // Regression (task 504): repairs-exhausted only logged "task stays blocked"
+  // and called markLatestExecutionFailed (which touches AgentExecution/
+  // AgentSession, not Task) — task.status was never actually set to 'blocked',
+  // leaving it however it already was (e.g. 'todo'), indistinguishable from a
+  // never-started task despite workflowStatus sitting at 'verify_done'.
+  test('sets task.status to blocked when the repair budget is exhausted', async () => {
+    mockResolveWorkflowDir.mockResolvedValueOnce({
+      task: { workflowStatus: 'in_progress', id: 1 },
+      dir: '/fake/dir/1',
+      categoryId: null,
+      themeId: null,
+    });
+    mockFindMany.mockResolvedValueOnce([]);
+    mockCheckInvariants.mockResolvedValueOnce([]);
+    // 1st findUnique = conflict-task check; 2nd = the CAS live-status check.
+    mockFindUnique.mockResolvedValueOnce(null);
+    mockFindUnique.mockResolvedValueOnce({ workflowStatus: 'verify_done' });
+    mockReviewDiffAdversarially.mockResolvedValueOnce({
+      verdict: 'fail',
+      severity: 92,
+      reasons: ['実装が空'],
+    });
+    mockAttemptVerifyRepair.mockResolvedValueOnce({ bounced: false });
+
+    await handleSaveFile({
+      params: { taskId: '1', fileType: 'verify' },
+      body: 'verify content',
+      set: makeSet(),
+    });
+
+    expect(mockUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: 1 },
+        data: expect.objectContaining({ status: 'blocked' }),
+      }),
+    );
+  });
+});
+
+// -------------------------------------------------------------------------
 describe('handleSaveFile — invariant check is triggered after status update', () => {
   test('checkWorkflowInvariants is called when newStatus is set', async () => {
     mockResolveWorkflowDir.mockResolvedValueOnce({
