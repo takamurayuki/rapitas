@@ -6,7 +6,11 @@
  * 存在しない cwd を渡した場合、cmd.exe を spawn せず即 [] を返し、
  * logger.warn のみ出力すること（logger.error は出さない）を保証する。
  */
-import { mock, describe, test, expect, beforeEach } from 'bun:test';
+import { mock, describe, test, expect, beforeEach, afterEach } from 'bun:test';
+import { execSync } from 'child_process';
+import { mkdtempSync, rmSync, writeFileSync } from 'fs';
+import { tmpdir } from 'os';
+import { join } from 'path';
 
 // ---------------------------------------------------------------------------
 // Logger 呼び出しキャプチャ用コンテナ — mock.module の factory がクロージャで参照する
@@ -78,5 +82,58 @@ describe('getDiff — phantom directory guard', () => {
   test('empty string → returns []', async () => {
     const result = await getDiff('', () => false);
     expect(result).toEqual([]);
+  });
+});
+
+// Real git repo fixtures (no mocking) — getDiff has no injection point for the
+// git commands themselves, only for the pathExists check, so these exercise
+// the real `exec` calls end to end.
+describe('getDiff — untracked files (real git repo)', () => {
+  let repoDir: string;
+
+  beforeEach(() => {
+    repoDir = mkdtempSync(join(tmpdir(), 'getdiff-test-'));
+    execSync('git init -q', { cwd: repoDir });
+    execSync('git config user.email "test@example.com"', { cwd: repoDir });
+    execSync('git config user.name "Test"', { cwd: repoDir });
+    writeFileSync(join(repoDir, 'README.md'), 'initial\n');
+    execSync('git add README.md', { cwd: repoDir });
+    execSync('git commit -q -m "initial"', { cwd: repoDir });
+  });
+
+  afterEach(() => {
+    rmSync(repoDir, { recursive: true, force: true });
+  });
+
+  // Regression (task 504): a genuinely new, substantial untracked file was
+  // reported as additions=0/deletions=0 with an empty patch — indistinguishable
+  // from a truly empty file — because `git diff <ref> -- <file>` yields nothing
+  // for a file git has never tracked. The adversarial diff-review judge read
+  // this as "the implementation is empty" and blocked a fully working PR.
+  test('reports real line counts and a synthetic patch for an untracked file, not 0/0/empty', async () => {
+    writeFileSync(join(repoDir, 'newfile.go'), 'package main\n\nfunc main() {}\n');
+    const result = await getDiff(repoDir);
+    const entry = result.find((f) => f.filename === 'newfile.go');
+    expect(entry).toBeDefined();
+    expect(entry?.status).toBe('added');
+    expect(entry?.additions).toBe(3);
+    expect(entry?.deletions).toBe(0);
+    expect(entry?.patch).toContain('+package main');
+    expect(entry?.patch).toContain('+func main() {}');
+    expect(entry?.patch).toContain('new file mode');
+  });
+
+  test('does not count a phantom extra line for a file with a trailing newline', async () => {
+    writeFileSync(join(repoDir, 'a.txt'), 'line1\nline2\n');
+    const result = await getDiff(repoDir);
+    const entry = result.find((f) => f.filename === 'a.txt');
+    expect(entry?.additions).toBe(2);
+  });
+
+  test('counts the final line correctly when the file has no trailing newline', async () => {
+    writeFileSync(join(repoDir, 'b.txt'), 'line1\nline2');
+    const result = await getDiff(repoDir);
+    const entry = result.find((f) => f.filename === 'b.txt');
+    expect(entry?.additions).toBe(2);
   });
 });

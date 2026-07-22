@@ -8,6 +8,8 @@
 
 import { exec } from 'child_process';
 import { existsSync } from 'fs';
+import { readFile } from 'fs/promises';
+import { join } from 'path';
 import { promisify } from 'util';
 import { createLogger } from '../../../../config/logger';
 
@@ -174,12 +176,14 @@ export async function getDiff(
       cwd: workingDirectory,
       encoding: 'utf8',
     });
+    const untrackedFiles = new Set<string>();
     untracked
       .split('\n')
       .filter(Boolean)
       .forEach((filename) => {
         if (!fileMap.has(filename)) {
           fileMap.set(filename, { additions: 0, deletions: 0, status: 'added' });
+          untrackedFiles.add(filename);
         }
       });
 
@@ -194,20 +198,51 @@ export async function getDiff(
     }
 
     // Patch against the same ref used for the file list. For an untracked file
-    // `git diff` yields nothing (it's not tracked yet), so the patch stays empty
-    // — same as before; committed additions now get their patch too.
+    // `git diff <ref> -- <file>` yields nothing (it's not tracked yet, so git
+    // has no base to compare against) — additions/deletions stayed hardcoded at
+    // 0 and the patch stayed empty, making a genuinely large new file look
+    // completely empty ("+0/-0") to the verifier and adversarial diff-review.
+    // This blocked real, substantial work (task 504: internal/correlate,
+    // change_points.go, cmd/event — all real, non-empty files reported as
+    // "+0/-0, tabula rasa" by the reviewer) purely because the implementer
+    // never ran `git add` before verify.md. Read the file directly and
+    // synthesize a standard "new file" unified-diff patch instead.
     const diffRef = baseRef || 'HEAD';
     for (const [filename, info] of fileMap) {
       let patch = '';
-      try {
-        const { stdout: filePatch } = await execAsync(`git diff ${diffRef} -- "${filename}"`, {
-          cwd: workingDirectory,
-          encoding: 'utf8',
-          maxBuffer: 5 * 1024 * 1024,
-        });
-        patch = filePatch;
-      } catch {
-        // intentionally ignore - proceed with empty patch if diff fails
+      if (untrackedFiles.has(filename)) {
+        try {
+          const raw = await readFile(join(workingDirectory, filename), 'utf8');
+          const lines = raw.length === 0 ? [] : raw.split('\n');
+          // A trailing newline produces one empty trailing element from split —
+          // that's the file's final line terminator, not an extra line of content.
+          const lineCount = raw.endsWith('\n') ? lines.length - 1 : lines.length;
+          info.additions = lineCount;
+          info.deletions = 0;
+          patch = [
+            `diff --git a/${filename} b/${filename}`,
+            'new file mode 100644',
+            '--- /dev/null',
+            `+++ b/${filename}`,
+            `@@ -0,0 +1,${lineCount} @@`,
+            ...lines.slice(0, raw.endsWith('\n') ? -1 : undefined).map((l) => `+${l}`),
+          ].join('\n');
+        } catch {
+          // Binary file, permission error, or already-deleted — leave the
+          // additions/deletions/patch at their pre-existing (zero) values
+          // rather than fail the whole diff.
+        }
+      } else {
+        try {
+          const { stdout: filePatch } = await execAsync(`git diff ${diffRef} -- "${filename}"`, {
+            cwd: workingDirectory,
+            encoding: 'utf8',
+            maxBuffer: 5 * 1024 * 1024,
+          });
+          patch = filePatch;
+        } catch {
+          // intentionally ignore - proceed with empty patch if diff fails
+        }
       }
 
       files.push({
