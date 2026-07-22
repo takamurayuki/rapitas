@@ -358,8 +358,15 @@ export function useExecutionManager({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ response: savedResponse }),
       });
+      // Check the body's own success/error, not just the HTTP status — the
+      // backend used to return 200 even for rejected requests (no active
+      // session, execution not waiting for input, lock contention, etc.),
+      // which this code treated as "resumed" regardless. The backend now sets
+      // real status codes for those cases too, but a body-level check is the
+      // correct source of truth either way.
+      const body = (await res.json().catch(() => null)) as { success?: boolean } | null;
 
-      if (res.ok) {
+      if (res.ok && body?.success) {
         // Clear question UI after API confirms receipt
         clearPollingQuestion();
       } else {

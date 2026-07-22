@@ -288,13 +288,23 @@ export async function executePoll(
         refs.lastProcessedStatusRef.current = 'running';
         // NOTE: Don't clear grace period — session resume fallback may still be in progress
       }
+      // Also clear waitingForInput/question here (not just via the client's
+      // own optimistic clearQuestion() call on answer submission) — a genuine
+      // 'running' poll result is unconditional proof the backend has already
+      // moved past the question, regardless of whether the answer-submission
+      // response has come back yet. Without this, a slow /agent-respond
+      // response left the UI showing the stale question (or falling through
+      // to idle) for as long as the resumed turn took, even though independent
+      // polling already saw 'running'.
       setState((prev) =>
-        prev.isRunning && prev.status === 'running'
+        prev.isRunning && prev.status === 'running' && !prev.waitingForInput
           ? prev
           : {
               ...prev,
               isRunning: true,
               status: 'running',
+              waitingForInput: false,
+              question: undefined,
             },
       );
     }
