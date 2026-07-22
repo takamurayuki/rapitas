@@ -255,7 +255,7 @@ export async function attemptVerifyRepair(
     actor: 'system',
     cause: REPAIR_CAUSE,
     phase: 'verify',
-    metadata: { attempt, max: DEFAULT_MAX_VERIFY_REPAIRS, reason },
+    metadata: { attempt, max, reason },
   });
 
   // Self-drive the re-run. The WorkflowRunner only polls while an AIOrchestra
@@ -268,7 +268,7 @@ export async function attemptVerifyRepair(
   );
 
   log.info(
-    { taskId, attempt, max: DEFAULT_MAX_VERIFY_REPAIRS, newStatus },
+    { taskId, attempt, max, newStatus },
     '[verify-repair] Bounced verify failure back to implementer',
   );
   return { bounced: true, newStatus, attempt };
