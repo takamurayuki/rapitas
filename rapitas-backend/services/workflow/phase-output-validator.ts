@@ -200,12 +200,17 @@ export function validateVerify(content: string): ValidationResult {
   // self-repair feedback quotes the validator's own "(❌)" summary. Both made
   // every such passing report self-contradict and block. Only count a ❌ that
   // is an actual verdict — skip conditional/legend lines, parenthetical
-  // references, and any line that simultaneously asserts a pass.
+  // references, and any line that simultaneously asserts a pass OR explicitly
+  // dismisses the ❌ as a known false positive (task 504: an honest verify
+  // reported "自動検証の scope ❌ 4件は…の偽陽性" — a sub-check's ❌ result the
+  // verifier itself already identified as not a real defect — and was still
+  // blocked as a hallucinated pass after the repair budget ran out).
   const crossMarkFailure = scanText.split(/\r?\n/).some((line) => {
     if (!line.includes('❌')) return false;
     if (/❌\s*(?:の)?\s*(?:場合|とき|時|なら|ならば|であれば|if\b)/i.test(line)) return false;
     if (/[(（]\s*❌\s*[)）]/.test(line)) return false;
     if (/✅|合格|通過|成功|pass/i.test(line)) return false;
+    if (/偽陽性|false[\s-]?positive|誤検知|誤検出|実装欠陥ではない/i.test(line)) return false;
     return true;
   });
   if (crossMarkFailure) failureHits.push(['❌'] as unknown as RegExpMatchArray);

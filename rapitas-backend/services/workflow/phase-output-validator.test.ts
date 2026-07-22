@@ -242,6 +242,24 @@ exit=1
 ## チェックリスト消化状況
 - [x] done`,
     },
+    {
+      // Regression (task 504): an honest verify reports 37/37 passing but also
+      // discusses a KNOWN false positive from an unrelated automated sub-check
+      // ("自動検証の scope ❌ 4件は…の偽陽性" — a scope-diff tool flagging pre-existing
+      // files from a prior task, not this task's implementation). The bare ❌
+      // matched this dismissal line and, with the pass claim, blocked the task
+      // after the repair budget was exhausted despite build/test/vet all green.
+      desc: 'does NOT flag a passing verify that dismisses a sub-check ❌ as a known 偽陽性 (false positive)',
+      content: `# 検証レポート
+## 検証結果サマリ
+✅ 検証成功 — 37/37 passed
+## テスト結果
+bun test: 37 passed, 0 failed
+## 残課題
+1. 自動検証の scope ❌ 4件は Task-503 由来ファイルを広いベースと比較した偽陽性。
+## チェックリスト消化状況
+- [x] done`,
+    },
   ])('$desc', ({ content }) => {
     expect(validateVerify(content).ok).toBe(true);
   });
