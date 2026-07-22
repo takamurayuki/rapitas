@@ -260,6 +260,30 @@ bun test: 37 passed, 0 failed
 ## チェックリスト消化状況
 - [x] done`,
     },
+    {
+      // Regression (task 504, exact production shape): the ❌ is mentioned TWICE —
+      // once as a forward-reference in the テスト結果 section with no dismissal
+      // word on that line ("scope ❌ 4件は §残課題 で扱う"), and once inside the
+      // 残課題 / フォローアップ section table with the actual "…偽陽性" dismissal.
+      // Both must be exempted: the pointer line via the 残課題-reference
+      // exemption, the table row via the 残課題-section strip.
+      desc: 'does NOT flag a passing verify with a 残課題-forward-reference AND its detail table both mentioning ❌',
+      content: `# 検証レポート
+## 検証結果サマリ
+✅ 検証成功 — 37/37 passed
+## テスト結果
+> 自動検証(GROUND TRUTH)の scope ❌ 4件は §残課題 で扱う。
+bun test: 37 passed, 0 failed
+## 残課題 / フォローアップ
+いずれも実装欠陥ではなく、運用・整合上の確認事項。
+| # | 内容 | 重要度 |
+| - | --- | --- |
+| 1 | 自動検証(scope)が計画外変更として ❌ 4件検出。ただし広いベースと比較したことによる偽陽性。 | 低 |
+## 仮説評価
+省略
+## チェックリスト消化状況
+- [x] done`,
+    },
   ])('$desc', ({ content }) => {
     expect(validateVerify(content).ok).toBe(true);
   });

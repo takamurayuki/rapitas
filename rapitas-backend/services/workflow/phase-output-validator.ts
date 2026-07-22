@@ -129,10 +129,20 @@ export function validatePlan(content: string): ValidationResult {
  *     them made a past contradiction permanent (task 494's repair loop);
  * (b) ```text fenced blocks — the verifier is instructed to put deliberate-RED
  *     (false-positive verification) log excerpts there, which legitimately
- *     contain failure lines for a CORRECT implementation.
+ *     contain failure lines for a CORRECT implementation;
+ * (c) the "残課題 / フォローアップ" (unresolved concerns) section — by design
+ *     (see workflow-context-builder.ts's prompt) this section documents ALREADY
+ *     -explained caveats and pre-existing/false-positive findings from OTHER
+ *     tools (e.g. an automated scope-checker's own ❌ markers), not the
+ *     verifier's own pass/fail verdict on THIS task. Task 504: an honest,
+ *     fully-passing verify.md was blocked because this section discussed a
+ *     scope-check's ❌ result across two lines, one of which forward-referenced
+ *     the other ("scope ❌ 4件は §残課題 で扱う") without itself containing a
+ *     dismissal word on the same line.
  * Other fence types are intentionally kept scannable: genuine test output
  * evidence is usually pasted in bare ``` fences and must stay detectable.
- * Section requirements and verdict-phrase checks still see the full content.
+ * Section requirements and verdict-phrase checks still see the full
+ * (un-stripped) `content` — only the contradiction scan uses this output.
  *
  * @param content - verify.md body / verify.md 本文
  * @returns Content with non-evidence regions removed / 走査対象本文
@@ -140,7 +150,8 @@ export function validatePlan(content: string): ValidationResult {
 function stripNonEvidenceRegions(content: string): string {
   return content
     .replace(/<!--\s*repair-feedback:start\s*-->[\s\S]*?<!--\s*repair-feedback:end\s*-->/gi, '')
-    .replace(/```text[^\S\n]*\n[\s\S]*?\n[ \t]*```/gi, '');
+    .replace(/```text[^\S\n]*\n[\s\S]*?\n[ \t]*```/gi, '')
+    .replace(/(^|\n)#{1,4}\s*残課題[^\n]*\n[\s\S]*?(?=\n#{1,4}\s|$)/i, '$1');
 }
 
 /**
@@ -200,10 +211,12 @@ export function validateVerify(content: string): ValidationResult {
   // self-repair feedback quotes the validator's own "(❌)" summary. Both made
   // every such passing report self-contradict and block. Only count a ❌ that
   // is an actual verdict — skip conditional/legend lines, parenthetical
-  // references, and any line that simultaneously asserts a pass OR explicitly
-  // dismisses the ❌ as a known false positive (task 504: an honest verify
-  // reported "自動検証の scope ❌ 4件は…の偽陽性" — a sub-check's ❌ result the
-  // verifier itself already identified as not a real defect — and was still
+  // references, any line that simultaneously asserts a pass, any line that
+  // explicitly dismisses the ❌ as a known false positive, and any line that
+  // merely forward-references the 残課題 section for detail (task 504: an
+  // honest, fully-passing verify.md discussed a sub-check's ❌ result twice —
+  // once as "自動検証の scope ❌ 4件は §残課題 で扱う" [a pointer, no dismissal word
+  // on that line] and once in the 残課題 table itself with "…偽陽性" — and was
   // blocked as a hallucinated pass after the repair budget ran out).
   const crossMarkFailure = scanText.split(/\r?\n/).some((line) => {
     if (!line.includes('❌')) return false;
@@ -211,6 +224,10 @@ export function validateVerify(content: string): ValidationResult {
     if (/[(（]\s*❌\s*[)）]/.test(line)) return false;
     if (/✅|合格|通過|成功|pass/i.test(line)) return false;
     if (/偽陽性|false[\s-]?positive|誤検知|誤検出|実装欠陥ではない/i.test(line)) return false;
+    // A line that merely POINTS to the 残課題/フォローアップ section for detail
+    // (e.g. "scope ❌ 4件は §残課題 で扱う") is a forward-reference, not itself a
+    // failure verdict — the referenced section is scanned/exempted separately.
+    if (/残課題|フォローアップ/.test(line)) return false;
     return true;
   });
   if (crossMarkFailure) failureHits.push(['❌'] as unknown as RegExpMatchArray);
