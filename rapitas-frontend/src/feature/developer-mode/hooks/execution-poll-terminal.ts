@@ -149,19 +149,35 @@ export function handleInterrupted(
     refs.hasAddedFinalLogRef.current = true;
   }
 
-  const interruptedMessage = t('interruptedLog');
+  // The backend's errorMessage is a multi-line dump ("プロセスが中断されました。\n\n
+  // 【最後の出力】\n<last 1000 chars>") — too long/detailed for the panel's
+  // single-line error banner, and squished unreadable there (no whitespace
+  // preservation). Show a short generic banner and push the real cause + last
+  // output into the log stream as separate lines instead, one array entry per
+  // line (the log viewer has no per-entry newline support, only one-line-per-
+  // entry). The backend message's own first line duplicates `interruptedLog`'s
+  // meaning, so it's dropped in favor of the translated tag line.
+  const rawMessage = data.errorMessage as string | undefined;
+  const tagLine = t('interruptedLog');
+  const detailLines = rawMessage
+    ? rawMessage
+        .split('\n')
+        .slice(1)
+        .filter((line) => line.trim().length > 0)
+    : [];
+  const newLogEntries = [tagLine, ...detailLines];
 
   return (prev) => ({
     ...prev,
     isRunning: false,
     status: 'failed',
     waitingForInput: false,
-    error: (data.errorMessage as string) || t('interruptedDefaultError'),
+    error: t('interruptedDefaultError'),
     logs:
       shouldAddLog && prev.logs.length > 0
-        ? trimLogs([...prev.logs, `\n${interruptedMessage}\n`])
+        ? trimLogs([...prev.logs, '', ...newLogEntries])
         : shouldAddLog
-          ? [`${interruptedMessage}\n`]
+          ? newLogEntries
           : prev.logs,
   });
 }
