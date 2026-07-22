@@ -21,7 +21,12 @@ const mockPrisma = {
   },
   developerModeConfig: {
     findFirst: mock(() => Promise.resolve({ id: 1, autoApprove: false })),
-    findUnique: mock(() => Promise.resolve({ id: 1, autoApprove: false })),
+    // agentSessions: [] (not omitted) — respond-route.ts's `!config.agentSessions[0]`
+    // check indexes into this unconditionally; omitting the field entirely made
+    // that throw a TypeError that only "passed" the test below by accident (the
+    // pre-fix route swallowed it into a default HTTP 200, not now that error
+    // responses get correct status codes).
+    findUnique: mock(() => Promise.resolve({ id: 1, autoApprove: false, agentSessions: [] })),
     create: mock(() => Promise.resolve({ id: 1, autoApprove: false })),
     upsert: mock(() => Promise.resolve({ id: 1, autoApprove: false })),
   },
@@ -57,6 +62,9 @@ mock.module('../../../config/logger', () => ({
 mock.module('../../../utils/common/branch-name-generator', () => ({
   generateBranchName: mock(() => Promise.resolve('feature/test-branch')),
   generateFallbackBranchName: mock(() => 'feature/test-branch'),
+  // execute-route.ts also imports assertSafeGitRef — full export surface must
+  // be mirrored or the real module's other importers fail to resolve it.
+  assertSafeGitRef: mock(() => {}),
 }));
 
 mock.module('../../../utils/ai-client', () => ({
