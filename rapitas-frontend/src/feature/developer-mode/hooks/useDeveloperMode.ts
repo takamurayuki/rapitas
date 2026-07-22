@@ -187,8 +187,22 @@ export function useDeveloperMode(taskId: number) {
         setExecutionStatus('failed');
       }
 
+      // Regression: this used to be `statusData.executionStatus !== 'failed'`,
+      // which evaluates to `true` for 'interrupted' too — an execution that
+      // was killed mid-run (server restart, crash, SIGTERM) then read as a
+      // SUCCESSFUL completion on the next task-detail load. Only 'completed'
+      // and 'failed' are actual terminal verdicts; 'running'/'waiting_for_input'/
+      // 'interrupted' must stay `undefined` so isRestoredTerminal (which checks
+      // `success !== undefined`) doesn't fire for them.
+      const success =
+        statusData.executionStatus === 'completed'
+          ? true
+          : statusData.executionStatus === 'failed'
+            ? false
+            : undefined;
+
       setExecutionResult({
-        success: statusData.executionStatus !== 'failed',
+        success,
         sessionId: statusData.sessionId,
         executionId: statusData.executionId,
         message: t('stateRestored'),

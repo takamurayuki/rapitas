@@ -18,7 +18,13 @@ export type AgentStatus = 'pending' | 'running' | 'paused' | 'completed' | 'fail
 
 /** Common result envelope returned after initiating an agent execution. */
 export type ExecutionResult = {
-  success: boolean;
+  // Optional: a RESTORED execution (page reload / task-detail reopen) that is
+  // still running, waiting for input, or was interrupted has no definite
+  // success/failure verdict yet — `undefined` means "not a terminal result",
+  // distinct from `false` (failed). Consumers already relied on this
+  // three-state distinction (`=== true` / `=== false` / `!== undefined`)
+  // before the type declared it, via restoreExecutionState in useDeveloperMode.ts.
+  success?: boolean;
   sessionId?: number;
   executionId?: number;
   approvalRequestId?: number;

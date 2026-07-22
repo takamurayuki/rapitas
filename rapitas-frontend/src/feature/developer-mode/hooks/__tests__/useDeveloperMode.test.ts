@@ -91,3 +91,40 @@ describe('useDeveloperMode - restoreExecutionState startedAt propagation', () =>
     });
   });
 });
+
+describe('useDeveloperMode - restoreExecutionState executionResult.success', () => {
+  beforeEach(() => {
+    useExecutionStateStore.setState({ executingTasks: new Map() });
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  // Regression: an interrupted execution (server restart / crash mid-run) used
+  // to compute `success: statusData.executionStatus !== 'failed'`, which is
+  // `true` for 'interrupted' — reopening the task detail page then showed it
+  // as a completed run. Only 'completed'/'failed' are real terminal verdicts;
+  // 'interrupted' (and 'running'/'waiting_for_input') must leave `success`
+  // undefined so downstream `isRestoredTerminal` checks don't fire.
+  it.each([
+    { executionStatus: 'interrupted', expected: undefined },
+    { executionStatus: 'running', expected: undefined },
+    { executionStatus: 'waiting_for_input', expected: undefined },
+    { executionStatus: 'completed', expected: true },
+    { executionStatus: 'failed', expected: false },
+  ])(
+    'sets executionResult.success to $expected for executionStatus=$executionStatus',
+    async ({ executionStatus, expected }) => {
+      vi.stubGlobal('fetch', vi.fn().mockResolvedValue(mockStatusResponse({ executionStatus })));
+
+      const { result } = renderHook(() => useDeveloperMode(100));
+
+      await waitFor(() => {
+        expect(result.current.isRestoringState).toBe(false);
+      });
+
+      expect(result.current.executionResult?.success).toBe(expected);
+    },
+  );
+});
