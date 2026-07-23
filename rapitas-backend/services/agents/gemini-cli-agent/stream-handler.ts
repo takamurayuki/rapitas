@@ -18,6 +18,7 @@ import type { QuestionWaitingState } from '../question-detection';
 import { parseStreamEvent, isNoiseLine } from './output-parser';
 import { createLogger } from '../../../config/logger';
 import { filterCliDiagnosticOutput, shouldHideRawCliLine } from '../cli-output-filter';
+import { unregisterProcess, killProcessTreeSafely } from '../agent-process-tracker';
 
 const logger = createLogger('gemini-cli-agent:stream-handler');
 
@@ -301,6 +302,16 @@ export function attachStreamHandlers(
   proc.on('close', (code: number | null) => {
     cleanupTimeoutCheck();
     cleanupIdleCheck();
+
+    if (proc.pid) {
+      const closedPid = proc.pid;
+      unregisterProcess(closedPid);
+      // On Windows, 'close' (stdio closed) does NOT guarantee the process
+      // exited — mirrors claude-execution-runner.ts's same reap-after-grace.
+      // killProcessTreeSafely refuses to touch a port-3001 (backend) process.
+      const reap = setTimeout(() => killProcessTreeSafely(closedPid), 3000);
+      (reap as { unref?: () => void }).unref?.();
+    }
 
     // Flush any remaining line buffer content
     const remaining = (proc as NodeJS.EventEmitter & { _lineBuffer?: string })._lineBuffer || '';

@@ -5,6 +5,8 @@
   "scripts": {
     "dev": "node scripts/dev.js",
     "dev:watch": "node scripts/dev.js --watch",
+    "dev:force": "node scripts/dev.js --force",
+    "stop": "node scripts/dev.js --stop",
     "tauri": "tauri dev",
     "tauri:watch": "tauri dev -c src-tauri/tauri.watch.conf.json",
     "tauri:only": "tauri dev --no-dev-server",

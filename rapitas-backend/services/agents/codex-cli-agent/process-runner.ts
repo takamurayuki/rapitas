@@ -18,6 +18,11 @@ import { resolveCliPath } from './types';
 import { processJsonEvent } from './json-event-handler';
 import { filterCliDiagnosticOutput, shouldHideRawCliLine } from '../cli-output-filter';
 import { buildSanitizedSpawnEnv } from '../../../utils/agent';
+import {
+  registerProcess,
+  unregisterProcess,
+  killProcessTreeSafely,
+} from '../agent-process-tracker';
 
 const logger = createLogger('codex-cli-agent/process-runner');
 
@@ -474,6 +479,21 @@ export async function spawnCodexProcess(
       logger.info(`${logPrefix} Process spawned with PID: ${state.process.pid}`);
       callbacks.emitOutput(`${logPrefix} Process PID: ${state.process.pid}\n`);
 
+      // Track the PID so a crash of the parent backend (or a hung codex
+      // process outliving its own timeout) can still be found and reaped by
+      // dev.js's startup cleanup / cleanupZombieProcesses — previously ONLY
+      // claude-execution-runner.ts's spawn registered here, so codex CLI
+      // processes were invisible to the zombie sweep (and not `bun.exe`, so
+      // killStrayBunProcesses' name-based scan misses them too).
+      if (state.process.pid) {
+        registerProcess({
+          pid: state.process.pid,
+          role: 'cli-agent',
+          startedAt: new Date().toISOString(),
+          parentPid: process.pid,
+        });
+      }
+
       // Write prompt to stdin for investigation mode
       if (state.process.stdin) {
         if (promptForStdin) {
@@ -529,6 +549,16 @@ export async function spawnCodexProcess(
         timers.cleanupTimeout();
         timers.cleanupIdle();
         const executionTimeMs = Date.now() - startTime;
+
+        if (state.process?.pid) {
+          const closedPid = state.process.pid;
+          unregisterProcess(closedPid);
+          // On Windows, 'close' (stdio closed) does NOT guarantee the process
+          // exited — mirrors claude-execution-runner.ts's same reap-after-grace.
+          // killProcessTreeSafely refuses to touch a port-3001 (backend) process.
+          const reap = setTimeout(() => killProcessTreeSafely(closedPid), 3000);
+          (reap as { unref?: () => void }).unref?.();
+        }
 
         // Process any remaining buffered line
         if (state.lineBuffer.trim()) {

@@ -7,16 +7,32 @@
  * ポート管理:
  *   - 起動前にポート 3001/3000 の競合を自動検出・解消
  *   - グレースフルシャットダウン → ツリーkill → 直接PID kill の三段構え
- *   - バックエンドは reusePort: true でTIME_WAITソケットを無視してバインド可能
+ *   - バックエンドの reusePort は意図的にOFF（index.ts参照）— 有効にすると
+ *     force-killされた前任プロセスの上に新プロセスがソケットをbindしてしまい、
+ *     Windowsが着信接続を生きているソケットと死んでいるソケットに分散させ、
+ *     死んでいる方に回された接続がハングする(HTTP 000)問題があったため。
+ *     このスクリプトの役目は「起動前にダーティなポートを確実に片付ける」こと。
+ *   - バックエンドPID(シェルラッパー)を .data/backend.pid に永続化し、次回
+ *     起動時に前回の異常終了(ターミナルを閉じた/クラッシュ)分を確実に検出する
+ *   - 起動後にヘルスチェックで実際の疎通を検証し、失敗時はcleanupの徹底度を
+ *     上げながら最大3回まで再試行する（黙って続行しない）
  *   - 終了時にプロセスツリーごとクリーンアップ（孤児プロセス防止）
  *
  * オプション:
  *   --watch    バックエンドのホットリロードを有効化（デフォルト: 無効）
  *              ※ AIエージェント実行中にファイル変更すると再起動で中断される
+ *   --force    エージェント実行中でも確認なしで全プロセスを強制停止してから
+ *              起動する（デフォルト: エージェント実行中は安全側に倒して起動を
+ *              中断する — npm run dev:force 参照）
+ *   --stop     起動は行わず、rapitas関連の全プロセス(バックエンド/フロントエンド/
+ *              ローカルLLMサイドカー/エージェントCLIプロセス)を強制停止して終了する
+ *              （npm run stop 参照。タスクマネージャーで手動検索・終了する手間を省く）
  *
  * 使用例:
  *   node scripts/dev.js          # 安定モード（AIエージェント実行向け）
  *   node scripts/dev.js --watch  # ホットリロードモード（バックエンド開発向け）
+ *   node scripts/dev.js --force  # エージェント実行中でも強制停止して再起動
+ *   node scripts/dev.js --stop   # 起動せず全プロセスを強制停止するのみ
  */
 const { spawn, execSync, execFileSync } = require("child_process");
 const path = require("path");
@@ -28,6 +44,21 @@ const FRONTEND_PORT = 3000;
 // Local LLM sidecar (llama-server). Reclaimed on every (re)start so orphaned
 // instances from a previous run don't accumulate and peg the CPU.
 const LLAMA_SERVER_PORT = 8922;
+
+// ─── 軽量ロガー ───
+// dev.js はバックエンドのpinoロガー(prisma等の重い依存)を起動前に使えない
+// スタンドアロンスクリプトのため、タイムスタンプ+レベル付きの薄い自作
+// wrapperを用意する。既存の大量の console.log 呼び出しはそのまま残し、
+// PIDファイル管理・起動ヘルスチェック再試行まわりの新規ログだけをこちらに
+// 統一する（ファイル全体の置き換えは別スコープ）。
+function logTimestamp() {
+  return new Date().toISOString().replace("T", " ").replace("Z", "");
+}
+const log = {
+  info: (msg) => console.log(`[${logTimestamp()}] INFO  ${msg}`),
+  warn: (msg) => console.warn(`[${logTimestamp()}] WARN  ${msg}`),
+  error: (msg) => console.error(`[${logTimestamp()}] ERROR ${msg}`),
+};
 
 // ─── ユーティリティ ───
 
@@ -381,14 +412,20 @@ async function ensurePortAvailable(port) {
   if (port === BACKEND_PORT && isPortListening(port)) {
     console.log(`  Checking if agent is active on port ${port}...`);
     const agentActive = await isAgentExecutionActive();
-    if (agentActive) {
+    if (agentActive && !forceStop) {
       console.log(`  ⚠️  Agent execution detected on port ${port}!`);
       console.log(`  → Cannot shutdown active agent session. Exiting to prevent disruption.`);
-      console.log(`  → Please wait for agent to complete or restart after agent finishes.`);
+      console.log(`  → Please wait for agent to complete, or run "npm run dev:force" to`);
+      console.log(`    force-stop everything (including the in-progress agent) and restart.`);
       process.exit(1);
     }
-
-    console.log(`  No active agent detected. Attempting graceful shutdown on port ${port}...`);
+    if (agentActive && forceStop) {
+      console.log(
+        `  ⚠️  Agent execution detected on port ${port}, but --force was passed — stopping anyway.`,
+      );
+    } else {
+      console.log(`  No active agent detected. Attempting graceful shutdown on port ${port}...`);
+    }
     const shutdownRequested = await tryGracefulShutdownViaHttp(port);
     if (shutdownRequested) {
       // シャットダウンAPIはリスニングソケットを即座に閉じるので、短時間で解放されるはず
@@ -740,6 +777,10 @@ function waitForProcessExit(childProcess, timeoutMs = 15000) {
 
 const args = process.argv.slice(2);
 const useWatch = args.includes("--watch");
+// --stop implies --force (an explicit stop-only invocation is unambiguous
+// intent — no reason to also require --force alongside it).
+const stopOnly = args.includes("--stop");
+const forceStop = args.includes("--force") || stopOnly;
 
 const FRONTEND_DIR = path.resolve(__dirname, "../../rapitas-frontend");
 const BACKEND_DIR = path.resolve(__dirname, "../../rapitas-backend");
@@ -750,6 +791,14 @@ const DESKTOP_DATA_DIR = path.resolve(__dirname, "..", ".data");
 const DESKTOP_DB_PATH = path.join(DESKTOP_DATA_DIR, "rapitas-dev.db");
 const BINARIES_DIR = path.resolve(__dirname, "../src-tauri/binaries");
 const AGENT_PID_DIR = path.join(BACKEND_DIR, ".agent-pids");
+// Persists the backend shell-wrapper PID (spawn uses shell:true, so this is
+// cmd.exe's PID, not bun.exe's — killProcessTree already tree-kills through
+// that layer) across dev.js invocations. Lets the NEXT startup find and
+// clean up a backend left running by a PREVIOUS dev.js that exited without
+// running its shutdown handlers (terminal closed, crash, Task Manager kill),
+// instead of relying purely on port/netstat heuristics that can't tell a
+// live backend apart from a truly ownerless ghost socket.
+const BACKEND_PID_FILE = path.join(DESKTOP_DATA_DIR, "backend.pid");
 
 /**
  * 残留 bun プロセスを安全に kill する。
@@ -913,6 +962,67 @@ function cleanupAgentPidFiles() {
       try { fs.unlinkSync(filepath); } catch {}
     }
   }
+}
+
+/**
+ * バックエンドプロセス(シェルラッパーのPID)をファイルに永続化する。
+ * @param {number} pid
+ */
+function writeBackendPidFile(pid) {
+  try {
+    fs.mkdirSync(DESKTOP_DATA_DIR, { recursive: true });
+    fs.writeFileSync(
+      BACKEND_PID_FILE,
+      JSON.stringify({ pid, startedAt: new Date().toISOString() }),
+    );
+  } catch {
+    // ベストエフォート — 書き込めなくても次回起動時はポートスキャンにフォールバックする
+  }
+}
+
+/**
+ * バックエンドPIDファイルを削除する（正常停止時に呼ぶ）。
+ */
+function removeBackendPidFile() {
+  try {
+    fs.unlinkSync(BACKEND_PID_FILE);
+  } catch {}
+}
+
+/**
+ * 前回の dev.js 実行が終了ハンドラを通らずに終わった場合（ターミナルを閉じた、
+ * クラッシュ、タスクマネージャーからの強制終了など）に残ったバックエンドプロセスを
+ * 起動前にクリーンアップする。ポート/netstat ベースのヒューリスティックより先に、
+ * 記録済みPIDへの直接的なツリーkillを試みることで、生存プロセスとオーナー不明の
+ * ゴーストソケットを確実に区別する。
+ */
+function cleanupPreviousBackendPidFile() {
+  if (!fs.existsSync(BACKEND_PID_FILE)) return;
+  let info;
+  try {
+    info = JSON.parse(fs.readFileSync(BACKEND_PID_FILE, "utf-8"));
+  } catch {
+    removeBackendPidFile();
+    return;
+  }
+  const pid = info && info.pid;
+  if (pid && isProcessRunning(pid)) {
+    if (isRapitasOwnedProcess(pid)) {
+      log.info(
+        `Found backend PID file from a previous run (PID ${pid}, still running) — cleaning up...`,
+      );
+      try {
+        execSync(`taskkill /F /T /PID ${pid}`, { stdio: "pipe" });
+        log.info(`Killed leftover backend PID ${pid}`);
+        sleepSync(1000);
+      } catch {}
+    } else {
+      log.warn(
+        `Backend PID file points at PID ${pid}, which no longer looks rapitas-related — leaving it alone.`,
+      );
+    }
+  }
+  removeBackendPidFile();
 }
 
 if (useWatch) {
@@ -1157,6 +1267,10 @@ function startBackend(retryCount = 0) {
     },
   });
 
+  if (backend.pid) {
+    writeBackendPidFile(backend.pid);
+  }
+
   backend.on("error", (err) => console.error("Backend error:", err));
 
   // 再起動要求の終了コードとクラッシュリカバリを監視
@@ -1318,6 +1432,7 @@ async function stopBackendCompletely(skipShutdownApi = false) {
   }
 
   backend = null;
+  removeBackendPidFile();
 }
 
 /**
@@ -1666,6 +1781,11 @@ async function main() {
   // ブランチに固定してから起動する（古いブランチで動く事故を防ぐ）。
   ensurePrimaryBranch();
 
+  // 前回実行が終了ハンドラを通らずに終わった場合の、記録済みバックエンドPIDの
+  // ターゲットkill。ポート/netstatヒューリスティックより先に、確実な情報から
+  // クリーンアップする。
+  cleanupPreviousBackendPidFile();
+
   // エージェントゾンビプロセスのクリーンアップ（ポート解放前に実行）
   console.log("\nCleaning up agent zombie processes...");
   cleanupAgentPidFiles();
@@ -1707,19 +1827,50 @@ async function main() {
   }
   startBackend();
 
-  // バックエンドのヘルスチェック（ゾンビソケットへの接続を検出）
-  const backendReady = await waitForBackendReady(actualBackendPort);
-  if (!backendReady) {
-    console.log("  ⚠️  Backend not responding. Attempting zombie socket cleanup and restart...");
+  // バックエンドのヘルスチェック（ゾンビソケットへの接続を検出）。1回失敗した
+  // だけで諦めて黙って続行すると、「プロセスは生きているが外部から一切到達
+  // できない」壊れた状態にユーザーが気づけないまま取り残される事故になる
+  // （実際に発生し、ユーザーが手動で全プロセスを終了するまで復旧しなかった）。
+  // ここでは cleanup の徹底度を上げながら最大3回まで試行し、それでもダメなら
+  // 正直に状況を報告する。
+  const MAX_STARTUP_HEALTH_RETRIES = 2; // 初回 + 最大2回リトライ = 最大3回試行
+  let backendReady = await waitForBackendReady(actualBackendPort);
+  for (
+    let retryAttempt = 1;
+    !backendReady && retryAttempt <= MAX_STARTUP_HEALTH_RETRIES;
+    retryAttempt++
+  ) {
+    log.warn(
+      `Backend not responding (cleanup attempt ${retryAttempt}/${MAX_STARTUP_HEALTH_RETRIES})...`,
+    );
+    // 徹底度を毎回上げる: 1回目は対象を絞ったゾンビkillのみ、2回目以降は
+    // ポート上の全プロセス＋rapitas関連の残留bunプロセスまで広く一掃する
+    // （狭いkillだけでは、LISTENING状態のまま残るゴーストソケットを取り
+    // こぼす — killZombieSocketOwners は CLOSE_WAIT/FIN_WAIT2/TIME_WAIT の
+    // ソケットしか対象にしないため）。
     killZombieSocketOwners(actualBackendPort);
-    // ポートを再確保してリスタート
+    if (retryAttempt >= 2) {
+      forceKillAllOnPort(actualBackendPort);
+      killStrayBunProcesses();
+    }
     await stopBackendCompletely();
     actualBackendPort = await ensurePortAvailable(BACKEND_PORT);
     startBackend();
-    const retryReady = await waitForBackendReady(actualBackendPort, 15000);
-    if (!retryReady) {
-      console.log("  ❌ Backend still not responding after retry. Continuing anyway...");
-    }
+    backendReady = await waitForBackendReady(
+      actualBackendPort,
+      retryAttempt >= 2 ? 20000 : 15000,
+    );
+  }
+  if (!backendReady) {
+    log.error(
+      "Backend is still not reachable after multiple cleanup attempts. " +
+        "This usually means a Windows-level ghost/orphaned socket is still routing " +
+        "connections to a dead process (a known OS TCP-stack quirk). Closing ALL " +
+        "node/bun processes (Task Manager) and restarting this command usually " +
+        "resolves it; a full Windows restart is the last resort. Continuing to " +
+        "start the frontend, but it will show connection errors until the backend " +
+        "is actually reachable.",
+    );
   }
 
   // フロントエンドを起動。直前に、ブランチ切替/マージで不整合になった .next を
@@ -2038,6 +2189,13 @@ function cleanupSync() {
 
   console.log("\nStopping development servers...");
 
+  // Step -1: エージェントCLIプロセス(claude/codex/gemini)・残留bunプロセスの
+  // クリーンアップ。以前は起動時(main())にしか呼ばれておらず、停止時にはPIDファイル
+  // 追跡済みのゾンビが残ったまま次回起動を待つ形になっていた — 停止のたびに
+  // 片付けることで、次回起動前にタスクマネージャーで手動検索する必要をなくす。
+  cleanupAgentPidFiles();
+  killStrayBunProcesses();
+
   // Step 0: バックエンドにグレースフルシャットダウンを要求
   // これによりリスニングソケットが正しく閉じられ、次回起動時のポート競合を防止
   if (isPortListening(actualBackendPort)) {
@@ -2052,6 +2210,7 @@ function cleanupSync() {
         console.log("  Backend shut down gracefully, port released.");
         // フロントエンドも停止
         killProcessTree(frontend);
+        removeBackendPidFile();
         console.log("  Cleanup completed.");
         return;
       }
@@ -2124,6 +2283,7 @@ function cleanupSync() {
     console.log("  All ports released successfully.");
   }
 
+  removeBackendPidFile();
   console.log("  Cleanup completed.");
 }
 
@@ -2147,7 +2307,18 @@ process.on("unhandledRejection", (reason) => {
   // クラッシュせずにログのみ出力
 });
 
-main().catch((err) => {
-  console.error("Failed to start development servers:", err);
-  process.exit(1);
-});
+if (stopOnly) {
+  // `npm run stop`: 起動は一切行わず、rapitas関連の全プロセスを強制停止するのみ。
+  // cleanupSync() は port ベースの kill を含むため、このプロセス自身が何も
+  // spawn していなくても、別ターミナルで動いている前回の dev.js インスタンスの
+  // バックエンド/フロントエンドを正しく発見して停止できる。
+  console.log("🛑 Stopping all rapitas dev processes (--stop)...");
+  cleanupSync();
+  console.log("✅ Done. All rapitas dev processes should now be stopped.");
+  process.exit(0);
+} else {
+  main().catch((err) => {
+    console.error("Failed to start development servers:", err);
+    process.exit(1);
+  });
+}

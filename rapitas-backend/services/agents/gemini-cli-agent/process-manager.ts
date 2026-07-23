@@ -10,6 +10,7 @@ import { existsSync } from 'fs';
 import type { GeminiCliAgentConfig } from './types';
 import { createLogger } from '../../../config/logger';
 import { buildSanitizedSpawnEnv } from '../../../utils/agent';
+import { registerProcess } from '../agent-process-tracker';
 
 const logger = createLogger('gemini-cli-agent:process-manager');
 
@@ -229,6 +230,22 @@ export function spawnGeminiProcess(
   }
   if (proc.stderr) {
     proc.stderr.setEncoding('utf8');
+  }
+
+  // Track the PID so a crash of the parent backend (or a hung gemini process
+  // outliving its own timeout) can still be found and reaped by dev.js's
+  // startup cleanup / cleanupZombieProcesses — previously ONLY
+  // claude-execution-runner.ts's spawn registered here, so gemini CLI
+  // processes were invisible to the zombie sweep (and not `bun.exe`, so
+  // killStrayBunProcesses' name-based scan misses them too). Unregistered in
+  // stream-handler.ts's 'close' handler, where this process's lifecycle ends.
+  if (proc.pid) {
+    registerProcess({
+      pid: proc.pid,
+      role: 'cli-agent',
+      startedAt: new Date().toISOString(),
+      parentPid: process.pid,
+    });
   }
 
   // Feed the prompt via stdin then close it so Gemini knows the prompt
