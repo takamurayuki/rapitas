@@ -113,7 +113,7 @@ export function AutoExecutionMode({ theme }: AutoExecutionModeProps) {
         {/* REST — flat icon + label. Parent never mutates on hover (overlay
             handles the visual swap), so the Orbit spin stays artifact-free. */}
         {paused ? (
-          <Pause className="w-4 h-4 shrink-0 fill-current" />
+          <Pause className="w-4 h-4 shrink-0" />
         ) : (
           // NOTE: Orbit spins inside a fixed-size box (not the <svg> itself) and
           // stays mounted at all times — see docs/design/ui-design-language.md §9.
