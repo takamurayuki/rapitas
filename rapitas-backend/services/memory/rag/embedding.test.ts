@@ -111,7 +111,9 @@ describe('subprocess circuit breaker', () => {
       resetEmbeddingPipeline();
       // Force the direct-import path to fail once so initPipeline falls back to
       // the subprocess route (require.resolve of the real package succeeds).
-      mockCreatePipeline.mockImplementationOnce(() => Promise.reject(new Error('direct init fail')));
+      mockCreatePipeline.mockImplementationOnce(() =>
+        Promise.reject(new Error('direct init fail')),
+      );
 
       for (let i = 0; i < 3; i++) {
         await expect(generateEmbedding('x')).rejects.toThrow('Embedding worker failed');
@@ -122,7 +124,9 @@ describe('subprocess circuit breaker', () => {
 
       // resetEmbeddingPipeline() closes the breaker: spawning resumes.
       resetEmbeddingPipeline();
-      mockCreatePipeline.mockImplementationOnce(() => Promise.reject(new Error('direct init fail')));
+      mockCreatePipeline.mockImplementationOnce(() =>
+        Promise.reject(new Error('direct init fail')),
+      );
       await expect(generateEmbedding('x')).rejects.toThrow('Embedding worker failed');
       expect(spawnSpy).toHaveBeenCalledTimes(4);
     } finally {
