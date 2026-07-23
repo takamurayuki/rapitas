@@ -137,3 +137,76 @@ describe('getDiff — untracked files (real git repo)', () => {
     expect(entry?.additions).toBe(2);
   });
 });
+
+// Regression (task 506): a stale/divergent 'develop' branch made the
+// develop→main→master GUESS land on an ancient common ancestor, pulling
+// unrelated commits merged into the real base branch since into "this task's
+// diff" — misread as scope creep / tampering by downstream reviewers.
+// preferredBaseBranch (the worktree's ACTUAL fork point, e.g.
+// AgentExecutionConfig.targetBranch) must be tried BEFORE the guess.
+describe('getDiff — preferredBaseBranch overrides the develop/main/master guess', () => {
+  let repoDir: string;
+
+  beforeEach(() => {
+    repoDir = mkdtempSync(join(tmpdir(), 'getdiff-basebranch-test-'));
+    const run = (cmd) => execSync(cmd, { cwd: repoDir });
+    run('git init -q');
+    run('git config user.email "test@example.com"');
+    run('git config user.name "Test"');
+
+    // Root commit — shared ancestor of every branch below.
+    writeFileSync(join(repoDir, 'README.md'), 'initial\n');
+    run('git add README.md');
+    run('git commit -q -m "root"');
+
+    // 'develop' branches off HERE and is never updated again (stale/frozen).
+    run('git branch develop');
+
+    // 'main' keeps moving: two unrelated commits land on it AFTER develop
+    // diverged — simulating other features merged while develop went stale.
+    writeFileSync(join(repoDir, 'unrelated-feature-b.txt'), 'feature B\n');
+    run('git add unrelated-feature-b.txt');
+    run('git commit -q -m "unrelated feature B"');
+    writeFileSync(join(repoDir, 'unrelated-feature-c.txt'), 'feature C\n');
+    run('git add unrelated-feature-c.txt');
+    run('git commit -q -m "unrelated feature C"');
+    run('git branch main-track'); // capture "main"'s tip without renaming HEAD
+
+    // The task's own branch is cut from main-track (i.e. real 'main'), then
+    // gets ONE real change.
+    run('git checkout -q -b feature/task');
+    writeFileSync(join(repoDir, 'task-change.txt'), 'the actual task change\n');
+    run('git add task-change.txt');
+    run('git commit -q -m "task change"');
+  });
+
+  afterEach(() => {
+    rmSync(repoDir, { recursive: true, force: true });
+  });
+
+  test('without preferredBaseBranch, the develop guess pulls in unrelated pre-existing commits', async () => {
+    const result = await getDiff(repoDir);
+    const filenames = result.map((f) => f.filename);
+    // The bug: merge-base against stale 'develop' lands at the root, so both
+    // "unrelated" commits (never touched by this task) leak into the diff.
+    expect(filenames).toContain('unrelated-feature-b.txt');
+    expect(filenames).toContain('unrelated-feature-c.txt');
+    expect(filenames).toContain('task-change.txt');
+  });
+
+  test('with preferredBaseBranch="main-track", only the task\'s own change is in the diff', async () => {
+    const result = await getDiff(repoDir, undefined, 'main-track');
+    const filenames = result.map((f) => f.filename);
+    expect(filenames).toEqual(['task-change.txt']);
+    expect(filenames).not.toContain('unrelated-feature-b.txt');
+    expect(filenames).not.toContain('unrelated-feature-c.txt');
+  });
+
+  test('an unsafe/malformed preferredBaseBranch is ignored, falling back to the guess', async () => {
+    const result = await getDiff(repoDir, undefined, '; rm -rf /');
+    const filenames = result.map((f) => f.filename);
+    // Falls through to the develop guess (same as the no-preference case) —
+    // proves the malformed value never reached the shell-interpolated git call.
+    expect(filenames).toContain('unrelated-feature-b.txt');
+  });
+});

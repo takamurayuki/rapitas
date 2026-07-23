@@ -22,6 +22,7 @@ import { createLogger } from '../../../config/logger';
 import { buildScopedTestCommands, findRelatedTestFiles, TEST_FILE_RE } from './related-tests';
 import { triageTestFailures } from './test-triage';
 import { parsePlanFiles, evaluateScopeCheck } from './scope-check';
+import { assertSafeGitRef } from '../../../utils/common/branch-name-generator';
 
 const log = createLogger('agents:automated-verifier');
 
@@ -149,14 +150,58 @@ function resolveBin(projectRoot: string, workdir: string, name: string): string 
  * include commits the agent made mid-run. A plain `git diff HEAD` only shows
  * UNCOMMITTED work, so once the agent commits (workflow verify phase commits
  * before this gate runs) the change set reads as empty — the scope check sees
- * nothing and lint runs on nothing, a silent false pass. Mirrors getDiff's
- * base order (develop → main → master); falls back to HEAD when none exists.
+ * nothing and lint runs on nothing, a silent false pass.
+ *
+ * Tries `preferredBaseBranch` FIRST — the branch this task's worktree was
+ * actually cut from (`task.theme.defaultBranch`, see
+ * task-resolver.ts's `resolvePreferredBaseBranch`) — before falling back to
+ * the develop → main → master guess (mirrors diff-structured.ts's
+ * `resolveBaseRef`, which is where this same bug was first found and fixed:
+ * task 506, a stale/divergent `develop` branch made merge-base land on an
+ * ancient common ancestor, pulling every commit merged into the real base
+ * since into "this task's diff" — unrelated pre-existing files misread as
+ * scope creep / tampering, causing false lint/typecheck/tamper-gate failures
+ * on files the agent never touched). Falls back to HEAD when no base branch
+ * exists.
+ *
+ * The guess-only fallback tries `origin/<branch>` before the bare local
+ * branch name (task 511: the bare local `develop` in a worktree's shared
+ * `.git` only advances via unrelated event paths — e.g. post-merge sync — and
+ * can sit stale for days, while `origin/<branch>` is refreshed by any fetch
+ * anywhere against the same remote).
  *
  * @param workdir - Worktree directory. / ワークツリーのディレクトリ
+ * @param preferredBaseBranch - The branch this task's worktree was cut from, when known. / このタスクの分岐元ブランチ（既知の場合）
  * @returns A diffable base ref (merge-base commit or 'HEAD'). / 差分基準のref
  */
-export async function diffBaseRef(workdir: string): Promise<string> {
-  for (const candidate of ['develop', 'main', 'master']) {
+export async function diffBaseRef(
+  workdir: string,
+  preferredBaseBranch?: string | null,
+): Promise<string> {
+  // preferredBaseBranch is persisted DB data (theme.defaultBranch /
+  // AgentExecutionConfig.targetBranch), not necessarily re-validated at read
+  // time — re-check before it reaches a shell-interpolated git command
+  // (defense-in-depth; the write path already runs assertSafeGitRef, but this
+  // function must not trust that blindly).
+  let safePreferred: string | null = null;
+  if (preferredBaseBranch) {
+    try {
+      assertSafeGitRef(preferredBaseBranch, 'preferredBaseBranch');
+      safePreferred = preferredBaseBranch;
+    } catch {
+      // Unsafe/malformed value — ignore it and fall through to the heuristic.
+    }
+  }
+  const candidates = [
+    ...(safePreferred ? [`origin/${safePreferred}`, safePreferred] : []),
+    'origin/develop',
+    'develop',
+    'origin/main',
+    'main',
+    'origin/master',
+    'master',
+  ];
+  for (const candidate of candidates) {
     const base = (await git(workdir, `merge-base HEAD ${candidate}`)).trim();
     if (base) return base;
   }
@@ -168,8 +213,11 @@ export async function diffBaseRef(workdir: string): Promise<string> {
  * deletions) for the plan-scope check — out-of-plan deletions and non-code
  * edits are scope violations too.
  */
-async function getAllChangedFiles(workdir: string): Promise<string[]> {
-  const base = await diffBaseRef(workdir);
+async function getAllChangedFiles(
+  workdir: string,
+  preferredBaseBranch?: string | null,
+): Promise<string[]> {
+  const base = await diffBaseRef(workdir, preferredBaseBranch);
   const tracked = await git(workdir, `diff ${base} --name-only --diff-filter=ACMRD`);
   const untracked = await git(workdir, 'ls-files --others --exclude-standard');
   const seen = new Set<string>();
@@ -187,10 +235,13 @@ async function getAllChangedFiles(workdir: string): Promise<string[]> {
  * Lists the agent's added/modified code files (repo-relative), excluding
  * deletions and non-code files.
  */
-async function getChangedCodeFiles(workdir: string): Promise<string[]> {
+async function getChangedCodeFiles(
+  workdir: string,
+  preferredBaseBranch?: string | null,
+): Promise<string[]> {
   // ACMR = added/copied/modified/renamed — excludes deletions (nothing to lint).
   // Base = fork-point (not HEAD) so files in the agent's mid-run commits are linted.
-  const base = await diffBaseRef(workdir);
+  const base = await diffBaseRef(workdir, preferredBaseBranch);
   const tracked = await git(workdir, `diff ${base} --name-only --diff-filter=ACMR`);
   const untracked = await git(workdir, 'ls-files --others --exclude-standard');
   const seen = new Set<string>();
@@ -685,6 +736,12 @@ export interface VerificationOptions {
    * reproducing test) regardless of the RAPITAS_REQUIRE_TESTS env opt-in.
    */
   requireTests?: boolean;
+  /**
+   * The branch this task's worktree was actually cut from (e.g.
+   * `AgentExecutionConfig.targetBranch`), tried before the develop/main/master
+   * guess when resolving the diff base. See diffBaseRef's doc comment.
+   */
+  preferredBaseBranch?: string | null;
 }
 
 /**
@@ -699,11 +756,11 @@ export async function runAutomatedVerification(
   workdir: string,
   options: VerificationOptions = {},
 ): Promise<VerificationResult> {
-  const changedFiles = await getChangedCodeFiles(workdir);
+  const changedFiles = await getChangedCodeFiles(workdir, options.preferredBaseBranch);
 
   // Full-diff views (not just code files): scope violations and gate tampering
   // can live in docs/config/CI files too.
-  const allChanged = await getAllChangedFiles(workdir);
+  const allChanged = await getAllChangedFiles(workdir, options.preferredBaseBranch);
   const planFiles = options.planContent ? parsePlanFiles(options.planContent) : null;
 
   // Plan-scope check (advisory) — only meaningful when a plan exists.

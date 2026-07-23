@@ -90,11 +90,13 @@ export interface CompletionGateResult {
  *
  * @param worktreePath - The task's git worktree, or null when none exists. / タスクのworktree（無ければnull）
  * @param verifyContent - The saved verify.md content. / 保存済みverify.mdの内容
+ * @param preferredBaseBranch - The branch this task's worktree was cut from, when known (e.g. `task.theme.defaultBranch` via task-resolver.ts's `resolvePreferredBaseBranch`) — see automated-verifier.ts's diffBaseRef doc comment. / このタスクの分岐元ブランチ（既知の場合）
  * @returns Whether completion is allowed, with a reason. / 完了可否と理由
  */
 export async function evaluateCompletionGate(
   worktreePath: string | null | undefined,
   verifyContent: string | null | undefined,
+  preferredBaseBranch?: string | null,
 ): Promise<CompletionGateResult> {
   if (!worktreePath) {
     return { allow: true, reason: 'no_worktree_failopen' };
@@ -102,7 +104,7 @@ export async function evaluateCompletionGate(
 
   let diffCount: number;
   try {
-    const diff = await getDiff(worktreePath);
+    const diff = await getDiff(worktreePath, undefined, preferredBaseBranch);
     diffCount = diff.length;
   } catch (err) {
     log.warn({ err, worktreePath }, '[CompletionGate] diff check failed — failing open');

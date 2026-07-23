@@ -20,6 +20,7 @@ import {
 import { readWorkflowFile } from '../../workflow/workflow-file-utils';
 import { submitConcern } from '../../memory/concern-backlog-service';
 import { writeBlockedStatusDurable } from '../../workflow/durable-blocked-write';
+import { resolvePreferredBaseBranch } from '../../task/task-resolver';
 
 const log = createLogger('agents:verification-gate');
 
@@ -98,12 +99,22 @@ export async function runVerificationGate(
     .findUnique({ where: { id: taskId }, select: { title: true, description: true } })
     .catch(() => null);
   const requireTests = looksLikeBugFixTask(`${task?.title ?? ''}\n${task?.description ?? ''}`);
-  const result = await runAutomatedVerification(worktreePath, { planContent, requireTests }).catch(
-    (err) => {
-      log.warn({ err, taskId }, 'Automated verification crashed — skipping gate');
-      return null;
-    },
-  );
+  // The worktree's ACTUAL fork point, not a guess — see automated-verifier.ts's
+  // diffBaseRef doc comment (task 506: a guess-only base can land on a stale
+  // branch and misread unrelated pre-existing commits as this task's own
+  // out-of-scope/tampering changes, false-failing this HARD gate).
+  // NOTE: theme.defaultBranch, not AgentExecutionConfig.targetBranch alone
+  // (task 511: that table is empty for the autonomous pipeline) — see
+  // resolvePreferredBaseBranch's doc comment.
+  const preferredBaseBranch = await resolvePreferredBaseBranch(taskId);
+  const result = await runAutomatedVerification(worktreePath, {
+    planContent,
+    requireTests,
+    preferredBaseBranch,
+  }).catch((err) => {
+    log.warn({ err, taskId }, 'Automated verification crashed — skipping gate');
+    return null;
+  });
   if (!result) return { ok: true, result: null };
 
   // Report pre-existing failures as concerns before the gate verdict is applied.

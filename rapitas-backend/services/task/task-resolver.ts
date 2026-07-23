@@ -315,6 +315,34 @@ export async function resolveTaskForAutoMerge(taskId: number): Promise<TaskForAu
 }
 
 /**
+ * Resolve a Task ID's preferred base branch for git diff/merge-base scoping.
+ *
+ * Prefers `theme.defaultBranch` — populated for every task via its theme and
+ * kept fresh by the same code paths that decide worktree creation, PR base
+ * branch, and auto-merge (execute-route.ts, post-execution-review.ts,
+ * auto-merge-candidates.ts). Falls back to `AgentExecutionConfig.targetBranch`
+ * (manual-settings-only, and empty for autonomous-pipeline tasks) only when
+ * the theme has no default branch set.
+ *
+ * @param taskId - Task primary key. / タスクの主キー
+ * @returns Preferred base branch name, or null if neither source has one. / 優先ベースブランチ名、なければnull
+ */
+export async function resolvePreferredBaseBranch(taskId: number): Promise<string | null> {
+  const task = await prisma.task
+    .findUnique({
+      where: { id: taskId },
+      select: { theme: { select: { defaultBranch: true } } },
+    })
+    .catch(() => null);
+  if (task?.theme?.defaultBranch) return task.theme.defaultBranch;
+
+  const execConfig = await prisma.agentExecutionConfig
+    .findUnique({ where: { taskId }, select: { targetBranch: true } })
+    .catch(() => null);
+  return execConfig?.targetBranch ?? null;
+}
+
+/**
  * Resolve a Task ID to the shape required for workflow learning record creation and optimization.
  * Includes theme with category and task labels with label details.
  * Does NOT include activityLogs — callers fetch those via a separate activityLog query.

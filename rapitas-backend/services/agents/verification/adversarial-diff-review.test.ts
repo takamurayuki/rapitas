@@ -21,6 +21,7 @@ const resolveWorkflowDir = mock(() => Promise.resolve({ dir: '/wf/1' }));
 const readWorkflowFile = mock(() => Promise.resolve('plan content'));
 const agentExecutionFindFirst = mock(() => Promise.resolve(null));
 const taskFindUnique = mock(() => Promise.resolve({ title: 'Task', acceptanceCriteria: null }));
+const agentExecutionConfigFindUnique = mock(() => Promise.resolve(null));
 
 mock.module('../orchestrator/git-operations/diff-structured', () => ({ getDiff }));
 mock.module('../../../utils/ai-client', () => ({ sendAIMessage }));
@@ -28,6 +29,7 @@ mock.module('../../workflow/workflow-file-utils', () => ({ resolveWorkflowDir, r
 mock.module('../../../config/database', () => ({
   prisma: {
     agentExecution: { findFirst: agentExecutionFindFirst },
+    agentExecutionConfig: { findUnique: agentExecutionConfigFindUnique },
     task: { findUnique: taskFindUnique },
   },
 }));
@@ -223,6 +225,8 @@ describe('reviewDiffAdversarially', () => {
     readWorkflowFile.mockReset();
     agentExecutionFindFirst.mockReset();
     taskFindUnique.mockReset();
+    agentExecutionConfigFindUnique.mockReset();
+    getDiff.mockReset();
     getDiff.mockResolvedValue([
       { filename: 'a.ts', status: 'M', additions: 1, deletions: 0, patch: '+line' },
     ]);
@@ -231,6 +235,7 @@ describe('reviewDiffAdversarially', () => {
     readWorkflowFile.mockResolvedValue('plan content');
     agentExecutionFindFirst.mockResolvedValue(null);
     taskFindUnique.mockResolvedValue({ title: 'Task', acceptanceCriteria: null });
+    agentExecutionConfigFindUnique.mockResolvedValue(null);
     delete process.env.RAPITAS_ADVERSARIAL_REVIEW;
   });
 
@@ -258,14 +263,17 @@ describe('reviewDiffAdversarially', () => {
 
   it('returns a judged pass verdict on a normal successful call', async () => {
     const r = await reviewDiffAdversarially({ taskId: 1, worktreePath: '/wt' });
-    expect(r).toEqual({ verdict: 'pass', severity: 0, reasons: [], judged: true });
-    expect(sendAIMessage).toHaveBeenCalledTimes(1);
+    // Every juror is queried independently in parallel (no early exit) — use
+    // toMatchObject rather than toEqual so this doesn't hardcode the jurors[]
+    // array's exact contents/order.
+    expect(r).toMatchObject({ verdict: 'pass', severity: 0, reasons: [], judged: true });
+    expect(sendAIMessage).toHaveBeenCalledTimes(3);
   });
 
   it('fails open when every judge provider throws', async () => {
     sendAIMessage.mockRejectedValue(new Error('provider down'));
     const r = await reviewDiffAdversarially({ taskId: 1, worktreePath: '/wt' });
-    expect(r).toEqual({ verdict: 'unknown', severity: 0, reasons: [], judged: false });
+    expect(r).toMatchObject({ verdict: 'unknown', severity: 0, reasons: [], judged: false });
     // All 3 configured judge providers were attempted.
     expect(sendAIMessage).toHaveBeenCalledTimes(3);
   });
@@ -276,13 +284,44 @@ describe('reviewDiffAdversarially', () => {
       .mockResolvedValueOnce({ content: '{"verdict":"fail","severity":90,"reasons":["bad"]}' });
     const r = await reviewDiffAdversarially({ taskId: 1, worktreePath: '/wt' });
     expect(r.verdict).toBe('fail');
-    expect(sendAIMessage).toHaveBeenCalledTimes(2);
+    // All 3 jurors are queried in parallel regardless (2 explicit mocks + the
+    // 3rd falls back to the default 'pass' set in beforeEach).
+    expect(sendAIMessage).toHaveBeenCalledTimes(3);
   });
 
   it('fails open when the diff-review pipeline throws unexpectedly', async () => {
     getDiff.mockRejectedValue(new Error('git blew up'));
     const r = await reviewDiffAdversarially({ taskId: 1, worktreePath: '/wt' });
     expect(r).toEqual({ verdict: 'unknown', severity: 0, reasons: [], judged: false });
+  });
+
+  it('prefers task.theme.defaultBranch over AgentExecutionConfig.targetBranch as preferredBaseBranch', async () => {
+    // Regression test for task 506/511: resolveBaseRef's develop→main→master
+    // GUESS can land on a stale/divergent branch and pull unrelated
+    // pre-existing commits into "this task's diff" — misread as scope creep
+    // by the jury. task 511 additionally found AgentExecutionConfig is empty
+    // for the entire autonomous pipeline, so theme.defaultBranch (populated
+    // for every task) must be tried FIRST, not the config-only source.
+    taskFindUnique.mockResolvedValue({ theme: { defaultBranch: 'release/1.2' } });
+    await reviewDiffAdversarially({ taskId: 1, worktreePath: '/wt' });
+    expect(getDiff).toHaveBeenCalledWith('/wt', undefined, 'release/1.2');
+    // Short-circuits — AgentExecutionConfig is never even queried when the
+    // theme already supplies a default branch.
+    expect(agentExecutionConfigFindUnique).not.toHaveBeenCalled();
+  });
+
+  it('falls back to AgentExecutionConfig.targetBranch when the theme has no default branch', async () => {
+    taskFindUnique.mockResolvedValue({ theme: null });
+    agentExecutionConfigFindUnique.mockResolvedValue({ targetBranch: 'release/1.2' });
+    await reviewDiffAdversarially({ taskId: 1, worktreePath: '/wt' });
+    expect(getDiff).toHaveBeenCalledWith('/wt', undefined, 'release/1.2');
+  });
+
+  it('passes undefined preferredBaseBranch when neither theme nor AgentExecutionConfig provide one', async () => {
+    taskFindUnique.mockResolvedValue({ theme: null });
+    agentExecutionConfigFindUnique.mockResolvedValue(null);
+    await reviewDiffAdversarially({ taskId: 1, worktreePath: '/wt' });
+    expect(getDiff).toHaveBeenCalledWith('/wt', undefined, undefined);
   });
 
   it("orders the implementer's own provider LAST among judge candidates", async () => {

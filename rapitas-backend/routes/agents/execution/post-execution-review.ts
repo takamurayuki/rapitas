@@ -8,6 +8,8 @@
  *
  * If review finds issues, the worktree is preserved for manual inspection.
  */
+import { exec } from 'node:child_process';
+import { promisify } from 'node:util';
 import { prisma } from '../../../config/database';
 import { createLogger } from '../../../config/logger';
 import { sendAIMessage } from '../../../utils/ai-client';
@@ -18,9 +20,22 @@ import { createPullRequest } from '../../../services/agents/orchestrator/git-ope
 import { runAutomatedVerification } from '../../../services/agents/verification/automated-verifier';
 import { retryOrBlock } from '../../../services/agents/verification/verification-retry';
 import { linkAutoCreatedPr } from '../../../services/github/pr-link';
+import {
+  findOpenPrForTask,
+  claimPrCreationLock,
+  releasePrCreationLock,
+} from '../../../services/github/pr-duplicate-guard';
+import { resolvePreferredBaseBranch } from '../../../services/task/task-resolver';
 
 const log = createLogger('routes:post-execution-review');
 const agentWorkerManager = AgentWorkerManager.getInstance();
+// Async git so worktree revert/diff here never blocks the single-threaded
+// event loop. Synchronous execSync('git ...') would freeze ALL HTTP requests
+// (e.g. the UI's GET /tasks/:id) for up to the given timeout when a git op is
+// slow/locked — the "Request timeout after 30001ms" this bug class produces
+// (already fixed for execute-post-handler.ts's own copy of this logic; this
+// file's copy was missed at the time).
+const execAsync = promisify(exec);
 
 const REVIEW_PROMPT = `あなたはシニアコードレビュアーです。以下のgit diffをレビューしてください。
 
@@ -157,9 +172,8 @@ export async function reviewAndCommitWorktree(params: ReviewParams): Promise<voi
     // to retry from. The branch + worktree are preserved (just the working
     // tree is reset to HEAD).
     try {
-      const { execSync } = await import('node:child_process');
-      execSync('git reset --hard HEAD', { cwd: executionDir, timeout: 30000 });
-      execSync('git clean -fd', { cwd: executionDir, timeout: 30000 });
+      await execAsync('git reset --hard HEAD', { cwd: executionDir, timeout: 30000 });
+      await execAsync('git clean -fd', { cwd: executionDir, timeout: 30000 });
       log.info({ taskId, executionDir }, 'Reverted unauthorized agent changes');
     } catch (revertErr) {
       log.warn(
@@ -222,8 +236,17 @@ export async function reviewAndCommitWorktree(params: ReviewParams): Promise<voi
       return null;
     }
   })();
+  // The worktree's ACTUAL fork point, not a guess — see automated-verifier.ts's
+  // diffBaseRef doc comment (task 506: a guess-only base can misread unrelated
+  // pre-existing commits as this task's own out-of-scope/tampering changes).
+  // NOTE: theme.defaultBranch, not AgentExecutionConfig.targetBranch alone
+  // (task 511: that table is empty for the autonomous pipeline) — this file
+  // already resolves theme.defaultBranch separately below for the PR base
+  // branch; resolvePreferredBaseBranch centralizes the same lookup here too.
+  const preferredBaseBranchForVerify = await resolvePreferredBaseBranch(taskId);
   const verification = await runAutomatedVerification(executionDir, {
     planContent: planContentForScope,
+    preferredBaseBranch: preferredBaseBranchForVerify,
   }).catch((err) => {
     log.warn({ err, taskId }, 'Automated verification crashed — skipping gate');
     return null;
@@ -289,37 +312,68 @@ export async function reviewAndCommitWorktree(params: ReviewParams): Promise<voi
   // origin/develop was not resolvable in the worktree) fell back to main, opening
   // every auto-PR against main and making them conflict with develop.
   const baseBranch = await resolveBaseBranch(taskId);
-  const prResult = await createPullRequest(executionDir, prTitle, prBody, baseBranch);
-  if (!prResult.success) {
-    log.warn({ taskId, error: prResult.error }, 'PR creation failed, worktree preserved');
+
+  // One-open-PR-per-task guard: createPullRequest's own reuse check is
+  // branch-scoped (gh pr list --head <branch>) and misses a task's real open
+  // PR whenever this run lands on a DIFFERENT branch (recreated worktree,
+  // diverged push renamed to <branch>-<sha>). Claim the lock first so two
+  // concurrent auto-PR attempts for this task can't both pass the check and
+  // each create one.
+  const lockClaimed = await claimPrCreationLock(prisma, taskId);
+  if (!lockClaimed) {
+    log.info(
+      { taskId },
+      'Another PR-creation attempt is already in flight — preserving worktree, skipping',
+    );
     return;
   }
 
-  log.info({ taskId, prUrl: prResult.prUrl, prNumber: prResult.prNumber }, 'PR created');
+  let prResult: { success: boolean; prUrl?: string; prNumber?: number; error?: string };
+  try {
+    const existingOpenPr = await findOpenPrForTask(prisma, taskId);
+    if (existingOpenPr) {
+      log.info(
+        { taskId, prNumber: existingOpenPr.prNumber },
+        'Task already has an open PR — reusing instead of creating a new one',
+      );
+      prResult = { success: true, prUrl: existingOpenPr.url, prNumber: existingOpenPr.prNumber };
+    } else {
+      prResult = await createPullRequest(executionDir, prTitle, prBody, baseBranch);
+      if (!prResult.success) {
+        log.warn({ taskId, error: prResult.error }, 'PR creation failed, worktree preserved');
+        return;
+      }
 
-  // Persist + link the PR locally so the task's "PRを開く" button can resolve
-  // task → local PR id (otherwise the by-task lookup 404s and nothing happens).
-  // The worktree's current branch is the PR head; baseBranch (resolved above) is
-  // the theme's default branch the PR targets.
-  if (prResult.prNumber != null && prResult.prUrl) {
-    let headBranch = 'unknown';
-    try {
-      const { execSync } = await import('node:child_process');
-      headBranch =
-        execSync('git branch --show-current', { cwd: executionDir, encoding: 'utf-8' }).trim() ||
-        headBranch;
-    } catch {
-      /* display-only field — a later sync corrects it */
+      log.info({ taskId, prUrl: prResult.prUrl, prNumber: prResult.prNumber }, 'PR created');
+
+      // Persist + link the PR locally so the task's "PRを開く" button can resolve
+      // task → local PR id (otherwise the by-task lookup 404s and nothing happens).
+      // The worktree's current branch is the PR head; baseBranch (resolved above) is
+      // the theme's default branch the PR targets.
+      if (prResult.prNumber != null && prResult.prUrl) {
+        let headBranch = 'unknown';
+        try {
+          const { stdout } = await execAsync('git branch --show-current', {
+            cwd: executionDir,
+            encoding: 'utf-8',
+          });
+          headBranch = stdout.trim() || headBranch;
+        } catch {
+          /* display-only field — a later sync corrects it */
+        }
+        await linkAutoCreatedPr(prisma, {
+          taskId,
+          prNumber: prResult.prNumber,
+          prUrl: prResult.prUrl,
+          title: prTitle,
+          headBranch,
+          baseBranch,
+          workingDirectory: executionDir,
+        });
+      }
     }
-    await linkAutoCreatedPr(prisma, {
-      taskId,
-      prNumber: prResult.prNumber,
-      prUrl: prResult.prUrl,
-      title: prTitle,
-      headBranch,
-      baseBranch,
-      workingDirectory: executionDir,
-    });
+  } finally {
+    await releasePrCreationLock(prisma, taskId);
   }
 
   // 5. Cleanup worktree only after PR is confirmed
@@ -352,22 +406,25 @@ async function resolveBaseBranch(taskId: number): Promise<string> {
 /** Get git diff from worktree. */
 async function getDiff(dir: string): Promise<string> {
   try {
-    const { execSync } = await import('child_process');
     // Staged + unstaged changes
-    const staged = execSync('git diff --cached --stat', {
+    const { stdout: staged } = await execAsync('git diff --cached --stat', {
       cwd: dir,
       encoding: 'utf-8',
       timeout: 10000,
     });
-    const unstaged = execSync('git diff --stat', { cwd: dir, encoding: 'utf-8', timeout: 10000 });
-    const untracked = execSync('git ls-files --others --exclude-standard', {
+    const { stdout: unstaged } = await execAsync('git diff --stat', {
+      cwd: dir,
+      encoding: 'utf-8',
+      timeout: 10000,
+    });
+    const { stdout: untracked } = await execAsync('git ls-files --others --exclude-standard', {
       cwd: dir,
       encoding: 'utf-8',
       timeout: 10000,
     });
 
     // Get actual diff content (limited to prevent token overflow)
-    const diffContent = execSync('git diff HEAD --no-color -U3', {
+    const { stdout: diffContent } = await execAsync('git diff HEAD --no-color -U3', {
       cwd: dir,
       encoding: 'utf-8',
       timeout: 15000,

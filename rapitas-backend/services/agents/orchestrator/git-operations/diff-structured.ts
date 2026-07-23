@@ -12,6 +12,7 @@ import { readFile } from 'fs/promises';
 import { join } from 'path';
 import { promisify } from 'util';
 import { createLogger } from '../../../../config/logger';
+import { assertSafeGitRef } from '../../../../utils/common/branch-name-generator';
 
 const execAsync = promisify(exec);
 const logger = createLogger('git-operations/diff-structured');
@@ -31,14 +32,56 @@ export type FileDiffRecord = {
  * the uncommitted working-tree changes. The agent commits its work mid-run
  * (workflow verify phase / post-exec pipeline); after that a working-tree-only
  * diff is empty and the real source files vanish from the review, leaving just
- * the stray `.wf-tmp.md`. Tries the repo's base branches in the same order as
- * worktree creation (develop → main → master).
+ * the stray `.wf-tmp.md`.
+ *
+ * Tries `preferredBaseBranch` FIRST — the branch the worktree was actually cut
+ * from (`task.theme.defaultBranch`, see task-resolver.ts's
+ * `resolvePreferredBaseBranch`) — before falling back to the develop → main →
+ * master guess. The guess-only order previously caused false "scope creep"
+ * verdicts: if a repo has a stale/divergent `develop` branch while the task
+ * branch was really cut from `main`, merge-base against `develop` lands on an
+ * ancient common ancestor and the diff then includes every commit merged into
+ * `main` since — unrelated features that have nothing to do with this task
+ * (task 506).
+ *
+ * The guess-only fallback tries `origin/<branch>` before the bare local
+ * branch name (task 511: the bare local `develop` in a worktree's shared
+ * `.git` only advances via unrelated event paths — e.g. post-merge sync — and
+ * can sit stale for days, while `origin/<branch>` is refreshed by any fetch
+ * anywhere against the same remote).
  *
  * @param cwd - Worktree directory / ワークツリーのディレクトリ
+ * @param preferredBaseBranch - The branch this task's worktree was cut from, when known / このタスクの分岐元ブランチ（既知の場合）
  * @returns Merge-base commit hash, or null when no base branch exists / マージベース、無ければnull
  */
-async function resolveBaseRef(cwd: string): Promise<string | null> {
-  for (const candidate of ['develop', 'main', 'master']) {
+async function resolveBaseRef(
+  cwd: string,
+  preferredBaseBranch?: string | null,
+): Promise<string | null> {
+  // preferredBaseBranch is persisted DB data (theme.defaultBranch /
+  // AgentExecutionConfig.targetBranch), not necessarily re-validated at read
+  // time — re-check before it reaches a shell-interpolated git command
+  // (defense-in-depth; the write path already runs assertSafeGitRef, but this
+  // function must not trust that blindly).
+  let safePreferred: string | null = null;
+  if (preferredBaseBranch) {
+    try {
+      assertSafeGitRef(preferredBaseBranch, 'preferredBaseBranch');
+      safePreferred = preferredBaseBranch;
+    } catch {
+      // Unsafe/malformed value — ignore it and fall through to the heuristic.
+    }
+  }
+  const candidates = [
+    ...(safePreferred ? [`origin/${safePreferred}`, safePreferred] : []),
+    'origin/develop',
+    'develop',
+    'origin/main',
+    'main',
+    'origin/master',
+    'master',
+  ];
+  for (const candidate of candidates) {
     try {
       const { stdout } = await execAsync(`git merge-base HEAD ${candidate}`, {
         cwd,
@@ -59,11 +102,13 @@ async function resolveBaseRef(cwd: string): Promise<string | null> {
  *
  * @param workingDirectory - Directory to diff / diffを取得するディレクトリ
  * @param pathExists - Predicate to check directory existence; injected in tests to avoid real fs / テストで実fsを回避するための存在チェック関数
+ * @param preferredBaseBranch - The branch this task's worktree was actually cut from, when known (e.g. `AgentExecutionConfig.targetBranch`); tried before the develop/main/master guess / このタスクの実際の分岐元ブランチ（既知の場合、推測より優先）
  * @returns Array of file change records / ファイル変更レコードの配列
  */
 export async function getDiff(
   workingDirectory: string,
   pathExists: (p: string) => boolean = existsSync,
+  preferredBaseBranch?: string | null,
 ): Promise<FileDiffRecord[]> {
   if (!workingDirectory || !pathExists(workingDirectory)) {
     logger.warn({ workingDirectory }, 'Working directory does not exist — skipping diff');
@@ -73,7 +118,7 @@ export async function getDiff(
   const files: FileDiffRecord[] = [];
 
   try {
-    const baseRef = await resolveBaseRef(workingDirectory);
+    const baseRef = await resolveBaseRef(workingDirectory, preferredBaseBranch);
 
     const fileMap = new Map<string, { additions: number; deletions: number; status: string }>();
 

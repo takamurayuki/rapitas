@@ -13,6 +13,7 @@ import { buildHypothesisContext } from './workflow-hypothesis-context';
 import { buildRejectedPlanContext } from './workflow-rejected-plan-context';
 import { buildCaseContext } from './workflow-case-context';
 import { buildCriticFeedback } from './phase-critic';
+import { resolvePreferredBaseBranch } from '../task/task-resolver';
 import type { WorkflowRole } from './workflow-types';
 // NOTE: Style rules live in their own module (this file is over the size
 // limit); they only ADD constraints — the machine-parsed verdict vocabulary in
@@ -454,9 +455,20 @@ export async function buildRoleContext(
         })
         .catch(() => null);
       if (diffSession?.worktreePath) {
+        // The worktree's ACTUAL fork point, not a guess — see automated-verifier
+        // .ts's diffBaseRef doc comment (task 506: a guess-only base can pull
+        // unrelated pre-existing commits into "this task's diff", confusing both
+        // the verifier's own review and the measured lint/typecheck gate below).
+        // NOTE: theme.defaultBranch, not AgentExecutionConfig.targetBranch alone
+        // (task 511: that table is empty for the autonomous pipeline).
+        const preferredBaseBranchForContext = await resolvePreferredBaseBranch(taskId);
         try {
           const { getDiff } = await import('../agents/orchestrator/git-operations/diff-structured');
-          const records = await getDiff(diffSession.worktreePath).catch(() => []);
+          const records = await getDiff(
+            diffSession.worktreePath,
+            undefined,
+            preferredBaseBranchForContext,
+          ).catch(() => []);
           const patches = records
             .map((r) => r.patch)
             .filter((p): p is string => !!p && p.trim().length > 0)
@@ -488,6 +500,7 @@ export async function buildRoleContext(
             ]);
           const measured = await runAutomatedVerification(diffSession.worktreePath, {
             planContent: planForGate ?? undefined,
+            preferredBaseBranch: preferredBaseBranchForContext,
           }).catch(() => null);
           if (measured) {
             const header =

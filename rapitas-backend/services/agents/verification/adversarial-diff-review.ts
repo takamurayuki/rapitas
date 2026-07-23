@@ -31,6 +31,7 @@ import { detectHighRisk } from '../../workflow/routing-policy';
 import { appendEvent } from '../../memory/timeline';
 import { prisma } from '../../../config/database';
 import { createLogger } from '../../../config/logger';
+import { resolvePreferredBaseBranch } from '../../task/task-resolver';
 
 const log = createLogger('verification:adversarial-diff-review');
 
@@ -322,7 +323,17 @@ export async function reviewDiffAdversarially(params: {
   }
 
   try {
-    const diff = await getDiff(worktreePath);
+    // The worktree's ACTUAL fork point, not a guess — resolveBaseRef otherwise
+    // tries develop→main→master and takes the first that resolves, which can
+    // land on a stale/divergent branch in the target repo (not rapitas itself)
+    // and pull in every commit merged into the real base since, misreading
+    // pre-existing unrelated features as this task's own scope creep.
+    // NOTE: theme.defaultBranch, not AgentExecutionConfig.targetBranch (task
+    // 511: that table is only ever populated by the manual settings route and
+    // is empty for the entire autonomous pipeline) — resolvePreferredBaseBranch
+    // falls back to it only when the theme itself has no default branch set.
+    const preferredBaseBranch = await resolvePreferredBaseBranch(taskId);
+    const diff = await getDiff(worktreePath, undefined, preferredBaseBranch ?? undefined);
     const diffText = buildJuryDiffText(diff);
     if (!diffText.trim()) {
       // No code change to review — the completion gate already governs no-op.
