@@ -55,7 +55,7 @@ export function AutoExecutionMode({ theme }: AutoExecutionModeProps) {
           onClick={() => start('priority')}
           disabled={actionLoading}
           title={t('autoExecutionMode.startTitle')}
-          className="inline-flex items-center gap-2 rounded-lg border border-indigo-300 bg-white px-3.5 py-2 text-sm font-medium text-indigo-600 shadow-[0_2px_0_0_#a5b4fc] select-none transition-all duration-75 hover:border-indigo-400 hover:bg-indigo-50 active:translate-y-[2px] active:shadow-none active:bg-indigo-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-indigo-700 dark:bg-zinc-900 dark:text-indigo-400 dark:shadow-[0_2px_0_0_#312e81] dark:hover:border-indigo-600 dark:hover:bg-indigo-950/40 dark:active:bg-indigo-900/20"
+          className="inline-flex items-center gap-2 rounded-lg border border-indigo-200 bg-white px-3.5 py-2 text-sm font-medium text-indigo-700 shadow-[0_2px_0_0_#a5b4fc] select-none transition-all duration-75 hover:border-indigo-300 hover:bg-indigo-50 active:translate-y-[2px] active:shadow-none active:bg-indigo-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-indigo-800 dark:bg-zinc-900 dark:text-indigo-300 dark:shadow-[0_2px_0_0_#312e81] dark:hover:border-indigo-700 dark:hover:bg-indigo-950/40 dark:active:bg-indigo-900/20"
         >
           {actionLoading ? (
             <Spinner size="sm" className="text-indigo-400 dark:text-indigo-400" />
@@ -108,7 +108,7 @@ export function AutoExecutionMode({ theme }: AutoExecutionModeProps) {
         onClick={() => stop()}
         disabled={actionLoading}
         title={t('autoExecutionMode.stopTitle')}
-        className={`group relative inline-flex items-center gap-2 rounded-lg border bg-white px-3.5 py-2 text-sm font-medium select-none transition-all duration-75 hover:shadow-none disabled:cursor-not-allowed disabled:opacity-50 dark:bg-zinc-900 ${restBorder} ${restShadow} ${restText}`}
+        className={`group relative inline-flex items-center gap-2 rounded-lg border bg-white px-3.5 py-2 text-sm font-medium select-none transition-all duration-75 hover:shadow-none active:translate-y-[2px] active:shadow-none disabled:cursor-not-allowed disabled:opacity-50 dark:bg-zinc-900 ${restBorder} ${restShadow} ${restText}`}
       >
         {/* REST — flat icon + label. Parent never mutates on hover (overlay
             handles the visual swap), so the Orbit spin stays artifact-free. */}
