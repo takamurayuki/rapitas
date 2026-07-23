@@ -243,34 +243,3 @@ model CopilotMessage {
   @@index([taskId, createdAt])
   @@index([claudeSessionId])
 }
-
-// Structured audit log of critical decision points (API call / parameter
-// selection / resource access) recorded DURING agent execution as a DAG.
-// NOTE: taskId/executionId/sessionId are deliberately loose references
-// (Int?, no @relation) — audit rows must survive deletion of the source
-// Task/AgentExecution/AgentSession records, so no cascade may reach them.
-model AgentDecisionTrace {
-  id               Int       @id @default(autoincrement())
-  taskId           Int?
-  executionId      Int?
-  sessionId        Int?
-  nodeKey          String    // Unique node id within a task. e.g. "exec42:model-route"
-  parentKeys       String    @default("[]") // JSON array of predecessor nodeKeys (DAG parent edges)
-  kind             String    // "api_call" | "param_select" | "resource_access"
-  summary          String    // Short human-readable label. e.g. "モデル選択: sonnet"
-  stage            String    @default("full") // "lite" (single trivial candidate) | "full" (2+ candidates)
-  inputMasked      String    @default("{}") // Masked compact JSON
-  candidatesMasked String    @default("[]") // Masked compact JSON array (top N, default N=5)
-  adoptedId        String    // Id of the adopted candidate
-  adoptedReason    String    // Why it was adopted
-  rejectedReasons  String    @default("{}") // JSON map: candidate id -> rejection reason
-  consistency      String    @default("pending") // "pending" | "consistent" | "inconsistent" | "skipped"
-  consistencyNote  String?
-  createdAt        DateTime  @default(now())
-  verifiedAt       DateTime?
-
-  @@index([taskId, nodeKey])
-  @@index([executionId])
-  @@index([kind])
-  @@index([consistency])
-}

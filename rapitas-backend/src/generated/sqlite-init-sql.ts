@@ -208,28 +208,6 @@ CREATE TABLE "CopilotMessage" (
 );
 
 -- CreateTable
-CREATE TABLE "AgentDecisionTrace" (
-    "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
-    "taskId" INTEGER,
-    "executionId" INTEGER,
-    "sessionId" INTEGER,
-    "nodeKey" TEXT NOT NULL,
-    "parentKeys" TEXT NOT NULL DEFAULT '[]',
-    "kind" TEXT NOT NULL,
-    "summary" TEXT NOT NULL,
-    "stage" TEXT NOT NULL DEFAULT 'full',
-    "inputMasked" TEXT NOT NULL DEFAULT '{}',
-    "candidatesMasked" TEXT NOT NULL DEFAULT '[]',
-    "adoptedId" TEXT NOT NULL,
-    "adoptedReason" TEXT NOT NULL,
-    "rejectedReasons" TEXT NOT NULL DEFAULT '{}',
-    "consistency" TEXT NOT NULL DEFAULT 'pending',
-    "consistencyNote" TEXT,
-    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "verifiedAt" DATETIME
-);
-
--- CreateTable
 CREATE TABLE "UserBehavior" (
     "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
     "userId" INTEGER NOT NULL DEFAULT 1,
@@ -1422,18 +1400,6 @@ CREATE INDEX "CopilotMessage_taskId_createdAt_idx" ON "CopilotMessage"("taskId",
 
 -- CreateIndex
 CREATE INDEX "CopilotMessage_claudeSessionId_idx" ON "CopilotMessage"("claudeSessionId");
-
--- CreateIndex
-CREATE INDEX "AgentDecisionTrace_taskId_nodeKey_idx" ON "AgentDecisionTrace"("taskId", "nodeKey");
-
--- CreateIndex
-CREATE INDEX "AgentDecisionTrace_executionId_idx" ON "AgentDecisionTrace"("executionId");
-
--- CreateIndex
-CREATE INDEX "AgentDecisionTrace_kind_idx" ON "AgentDecisionTrace"("kind");
-
--- CreateIndex
-CREATE INDEX "AgentDecisionTrace_consistency_idx" ON "AgentDecisionTrace"("consistency");
 
 -- CreateIndex
 CREATE INDEX "UserBehavior_userId_actionType_idx" ON "UserBehavior"("userId", "actionType");
