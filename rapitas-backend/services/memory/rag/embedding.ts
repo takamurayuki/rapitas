@@ -30,6 +30,19 @@ let embeddingDisabled = false;
 let initAttempted = false;
 
 /**
+ * Circuit-breaker threshold for the subprocess fallback.
+ *
+ * NOTE: When the worker's native deps are broken (e.g. sharp binary missing) every
+ * embedding call spawns a process that is doomed to crash at require time — 130
+ * doomed spawns were observed over 5 days. 3 consecutive failures is the minimum
+ * that separates a transient failure from a persistently broken install. Recovery
+ * without a server restart: resetEmbeddingPipeline() (reachable via the existing
+ * re-init route in routes/memory/knowledge.ts).
+ */
+const MAX_SUBPROCESS_FAILURES = 3;
+let subprocessFailureCount = 0;
+
+/**
  * Reset the embedding pipeline for re-initialization.
  */
 export function resetEmbeddingPipeline(): void {
@@ -37,7 +50,41 @@ export function resetEmbeddingPipeline(): void {
   useSubprocess = false;
   embeddingDisabled = false;
   initAttempted = false;
+  subprocessFailureCount = 0;
   log.info('Embedding pipeline reset - ready for re-initialization');
+}
+
+/**
+ * Minimal structural view of a worker's stdin sink.
+ * Kept structural (not Bun's FileSink) so tests can pass fakes.
+ */
+interface WorkerStdinSink {
+  write(chunk: string): unknown;
+  end(): unknown;
+}
+
+/**
+ * Write a request payload to the worker's stdin, tolerating a dead pipe.
+ *
+ * NOTE: If the worker exits before consuming stdin (e.g. crash at require time),
+ * write/end fail with EOF (errno -136). Left uncaught, that surfaced as a
+ * process-level unhandledRejection logged as FATAL (task #507). Failures are
+ * swallowed at debug level only: the caller's `exit !== 0` check already reports
+ * the worker failure, so logging at warn+ here would duplicate one incident into
+ * two log-health concerns.
+ *
+ * @param sink - Worker stdin (Bun FileSink or structural fake) / ワーカー標準入力
+ * @param payload - Serialized request to send / 送信するシリアライズ済みリクエスト
+ */
+export async function writeWorkerRequest(sink: WorkerStdinSink, payload: string): Promise<void> {
+  try {
+    // Promise.resolve + await funnels both sync throws and returned rejections
+    // (Bun's FileSink can produce either) into this single catch.
+    await Promise.resolve(sink.write(payload));
+    await Promise.resolve(sink.end());
+  } catch (err) {
+    log.debug({ err }, 'Embedding worker stdin write failed (worker likely exited early)');
+  }
 }
 
 /**
@@ -82,23 +129,31 @@ async function generateEmbeddingSubprocess(text: string): Promise<number[]> {
     throw new Error(`Embedding worker not found: ${workerPath}`);
   }
 
+  if (subprocessFailureCount >= MAX_SUBPROCESS_FAILURES) {
+    throw new Error(
+      `Embedding worker unavailable after ${MAX_SUBPROCESS_FAILURES} consecutive failures ` +
+        '(call resetEmbeddingPipeline() to retry)',
+    );
+  }
+
   const proc = Bun.spawn(['node', workerPath], {
     stdin: 'pipe',
     stdout: 'pipe',
     stderr: 'pipe',
   });
 
-  proc.stdin.write(JSON.stringify({ text, model: MODEL_NAME }));
-  proc.stdin.end();
+  await writeWorkerRequest(proc.stdin, JSON.stringify({ text, model: MODEL_NAME }));
 
   const output = await new Response(proc.stdout).text();
   const exitCode = await proc.exited;
 
   if (exitCode !== 0) {
+    subprocessFailureCount++;
     const stderr = await new Response(proc.stderr).text();
     throw new Error(`Embedding worker failed (exit ${exitCode}): ${stderr}`);
   }
 
+  subprocessFailureCount = 0;
   const result = JSON.parse(output);
   return result.embedding;
 }
