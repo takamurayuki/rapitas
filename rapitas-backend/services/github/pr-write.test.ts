@@ -103,6 +103,35 @@ describe('mergePullRequest', () => {
       expect(args).toContain('--squash');
     });
 
+    it('merge conflict: does not run update-branch and throws a conflict-specific message', async () => {
+      // Actual gh stderr from the task-508 incident (backend-2026-07-21.log):
+      // conflict stderr also contains "not mergeable", which used to match
+      // HEAD_BEHIND_RE and trigger a pointless update-branch.
+      mockRunGhCommand.mockRejectedValueOnce(
+        new Error(
+          'X Pull request takamurayuki/trendline#2 is not mergeable: the merge commit cannot be cleanly created.',
+        ),
+      );
+
+      await expect(mergePullRequest('owner/repo', 2)).rejects.toThrow(/マージ競合/);
+      expect(mockRunGhCommand).toHaveBeenCalledTimes(1);
+    });
+
+    it('passes skipLog: true on the direct merge attempt to avoid false bug-task filing', async () => {
+      // log-health-check turns ERROR logs into bug/high tasks; an expected
+      // merge failure must not be logged at ERROR by gh-client (task 508).
+      mockRunGhCommand.mockResolvedValueOnce('');
+
+      await mergePullRequest('owner/repo', 1);
+
+      const [, , opts] = mockRunGhCommand.mock.calls[0] as [
+        string[],
+        string | undefined,
+        { skipLog?: boolean } | undefined,
+      ];
+      expect(opts?.skipLog).toBe(true);
+    });
+
     it('runs update-branch then retries merge on head-behind error, returns autoQueued: false', async () => {
       // First call: merge fails with head-behind error.
       mockRunGhCommand.mockRejectedValueOnce(
@@ -212,17 +241,33 @@ describe('mergePullRequest', () => {
       expect(mockRunGhCommand).toHaveBeenCalledTimes(1);
     });
 
-    it('propagates the error when fallback direct merge also fails', async () => {
+    it('maps a conflict on the fallback direct merge to the conflict-specific message', async () => {
       mockRunGhCommand.mockRejectedValueOnce(
         new Error('Auto-merge is not allowed for this repository'),
       );
-      // NOTE: This error does not match HEAD_BEHIND_RE, so no update-branch retry
-      // is attempted and the error propagates directly to the caller.
-      const directMergeError = new Error('Pull request has unresolved merge conflicts');
-      mockRunGhCommand.mockRejectedValueOnce(directMergeError);
+      // NOTE: Conflict error — no update-branch retry is attempted; the caller
+      // receives the conflict-specific guidance instead of raw gh stderr.
+      mockRunGhCommand.mockRejectedValueOnce(
+        new Error('Pull request has unresolved merge conflicts'),
+      );
+
+      await expect(mergePullRequest('owner/repo', 7, { auto: true })).rejects.toThrow(
+        /マージ競合/,
+      );
+      expect(mockRunGhCommand).toHaveBeenCalledTimes(2);
+    });
+
+    it('propagates non-conflict, non-head-behind errors from the fallback direct merge', async () => {
+      mockRunGhCommand.mockRejectedValueOnce(
+        new Error('Auto-merge is not allowed for this repository'),
+      );
+      // NOTE: This error matches neither MERGE_CONFLICT_RE nor HEAD_BEHIND_RE,
+      // so it propagates directly to the caller.
+      const protectionError = new Error('At least 1 approving review is required');
+      mockRunGhCommand.mockRejectedValueOnce(protectionError);
 
       await expect(mergePullRequest('owner/repo', 7, { auto: true })).rejects.toBe(
-        directMergeError,
+        protectionError,
       );
       expect(mockRunGhCommand).toHaveBeenCalledTimes(2);
     });

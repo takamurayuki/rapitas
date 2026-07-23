@@ -23,6 +23,14 @@ const AUTO_MERGE_UNSUPPORTED_RE =
 const HEAD_BEHIND_RE =
   /not up.?to.?date with the base branch|not mergeable|base branch was modified/i;
 
+// gh stderr when the PR has real merge conflicts, e.g. "PR owner/repo#2 is not
+// mergeable: the merge commit cannot be cleanly created." (task 508 incident).
+// NOTE: Must be tested BEFORE HEAD_BEHIND_RE — conflict stderr also contains
+// "not mergeable", which would otherwise trigger a pointless `gh pr
+// update-branch` (update-branch cannot fix conflicts) and surface an
+// update-branch error instead of the conflict to the caller.
+const MERGE_CONFLICT_RE = /merge commit cannot be cleanly created|merge conflict/i;
+
 // gh pr update-branch exits non-zero with this message when the head is already
 // caught up to base (race condition). Rethrow the original merge error in this case.
 const UPDATE_BRANCH_NOOP_RE = /already up.?to.?date|no new commits|not behind/i;
@@ -119,10 +127,14 @@ export async function requestChanges(
  * gh returns an error; in that case, falls back to a direct merge and logs a
  * warning so operators know to enable "Allow auto-merge" in the repo settings.
  *
- * For direct merges (both explicit and auto fallback): if the head branch is
+ * For direct merges (both explicit and auto fallback): if the PR has merge
+ * conflicts, throws a conflict-specific message directing the caller to resolve
+ * conflicts (update-branch cannot fix conflicts). If the head branch is merely
  * behind base, automatically runs `gh pr update-branch` and retries the merge
  * once. If the retry still fails, throws an actionable message directing the
- * caller to wait for CI to complete before retrying.
+ * caller to wait for CI to complete before retrying. Expected failures
+ * (conflict, post-update-branch CI wait) are logged at warn level so
+ * log-health-check does not auto-file them as bug tasks.
  *
  * @param repo - Repository in owner/name format / リポジトリ名
  * @param prNumber - PR number (must be a positive integer) / PR番号（正の整数）
@@ -130,6 +142,7 @@ export async function requestChanges(
  * @returns Whether the merge was queued via auto-merge or completed immediately / 自動マージキューに入ったか即時マージかを返す
  * @throws {Error} When prNumber is not a positive integer / PR番号が正の整数でない場合
  * @throws {Error} When the merge fails and cannot be recovered by update-branch / マージ失敗かつ回復不能な場合
+ * @throws {Error} 'PR #N はマージ競合のため...' when the PR has merge conflicts / マージ競合の場合
  * @throws {Error} 'ブランチを最新化しました...' when update-branch succeeded but CI re-run is needed / ブランチ更新後CI待ちが必要な場合
  */
 export async function mergePullRequest(
@@ -152,11 +165,30 @@ export async function mergePullRequest(
    */
   async function runDirectMerge(mergeArgs: string[]): Promise<void> {
     try {
-      await runGhCommand(mergeArgs);
+      // NOTE: skipLog — merge failures here are classified below; an ERROR from
+      // gh-client would be picked up by log-health-check and auto-filed as a
+      // bug/high task even for expected operational failures (task 508).
+      await runGhCommand(mergeArgs, undefined, { skipLog: true });
     } catch (mergeErr) {
       const mergeMsg = mergeErr instanceof Error ? mergeErr.message : String(mergeErr);
 
+      if (MERGE_CONFLICT_RE.test(mergeMsg)) {
+        // Merge conflict — expected operational failure caused by the PR's
+        // content, not by rapitas; update-branch cannot fix it. Warn (not
+        // ERROR) and direct the caller to conflict resolution.
+        log.warn(
+          { repo, prNumber, ghError: mergeMsg },
+          'gh pr merge failed: PR has merge conflicts',
+        );
+        throw new Error(
+          `PR #${prNumber} はマージ競合のためマージできません。競合を解消してから再度マージしてください`,
+        );
+      }
+
       if (!HEAD_BEHIND_RE.test(mergeMsg)) {
+        // Unexpected failure (auth, gh missing, branch protection, ...) —
+        // keep ERROR level so real anomalies stay visible to log-health-check.
+        log.error({ repo, prNumber, ghError: mergeMsg }, 'gh pr merge failed');
         throw mergeErr;
       }
 
@@ -178,8 +210,15 @@ export async function mergePullRequest(
 
       // Retry merge once after the branch has been updated.
       try {
-        await runGhCommand(mergeArgs);
-      } catch {
+        await runGhCommand(mergeArgs, undefined, { skipLog: true });
+      } catch (retryErr) {
+        // Expected while required checks re-run on the refreshed head — warn,
+        // not ERROR, for the same log-health-check reason as above.
+        const retryMsg = retryErr instanceof Error ? retryErr.message : String(retryErr);
+        log.warn(
+          { repo, prNumber, ghError: retryMsg },
+          'gh pr merge retry after update-branch failed',
+        );
         throw new Error('ブランチを最新化しました。CI 完了後に再度マージしてください');
       }
     }
