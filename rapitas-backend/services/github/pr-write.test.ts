@@ -251,9 +251,7 @@ describe('mergePullRequest', () => {
         new Error('Pull request has unresolved merge conflicts'),
       );
 
-      await expect(mergePullRequest('owner/repo', 7, { auto: true })).rejects.toThrow(
-        /マージ競合/,
-      );
+      await expect(mergePullRequest('owner/repo', 7, { auto: true })).rejects.toThrow(/マージ競合/);
       expect(mockRunGhCommand).toHaveBeenCalledTimes(2);
     });
 
@@ -266,9 +264,7 @@ describe('mergePullRequest', () => {
       const protectionError = new Error('At least 1 approving review is required');
       mockRunGhCommand.mockRejectedValueOnce(protectionError);
 
-      await expect(mergePullRequest('owner/repo', 7, { auto: true })).rejects.toBe(
-        protectionError,
-      );
+      await expect(mergePullRequest('owner/repo', 7, { auto: true })).rejects.toBe(protectionError);
       expect(mockRunGhCommand).toHaveBeenCalledTimes(2);
     });
 
