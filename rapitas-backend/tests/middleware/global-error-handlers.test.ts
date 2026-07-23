@@ -55,7 +55,10 @@ function registerAndCapture(): {
     .filter((l) => !exceptionBefore.includes(l));
   const cleanup = () => {
     for (const l of rejectionListeners) {
-      process.removeListener('unhandledRejection', l as unknown as NodeJS.UnhandledRejectionListener);
+      process.removeListener(
+        'unhandledRejection',
+        l as unknown as NodeJS.UnhandledRejectionListener,
+      );
     }
     for (const l of exceptionListeners) {
       process.removeListener('uncaughtException', l);

@@ -115,7 +115,9 @@ describe('writeWorkerRequest', () => {
 describe('subprocess circuit breaker', () => {
   test('stops spawning after 3 consecutive failures and re-arms via resetEmbeddingPipeline', async () => {
     // Force the direct-init path to fail so the subprocess fallback is taken.
-    mockCreatePipeline.mockImplementation(() => Promise.reject(new Error('forced direct-init failure')));
+    mockCreatePipeline.mockImplementation(() =>
+      Promise.reject(new Error('forced direct-init failure')),
+    );
     const makeFakeProc = () =>
       ({
         stdin: {
@@ -136,7 +138,9 @@ describe('subprocess circuit breaker', () => {
       }
       // 4th call must not spawn: the breaker is open after 3 consecutive failures.
       expect(spawnSpy).toHaveBeenCalledTimes(3);
-      await expect(generateEmbedding('x')).rejects.toThrow(/unavailable after 3 consecutive failures/);
+      await expect(generateEmbedding('x')).rejects.toThrow(
+        /unavailable after 3 consecutive failures/,
+      );
       expect(spawnSpy).toHaveBeenCalledTimes(3);
 
       // Reset re-arms the breaker: the next call spawns again.
