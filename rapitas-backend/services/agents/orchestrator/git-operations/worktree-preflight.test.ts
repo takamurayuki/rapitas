@@ -14,7 +14,8 @@ let execShouldFail: Error | null = null;
 const execMock = mock(
   (command: string, options: unknown, callback?: (e: Error | null, r?: unknown) => void) => {
     const cb = (typeof options === 'function' ? options : callback) as
-      ((e: Error | null, r?: unknown) => void) | undefined;
+      | ((e: Error | null, r?: unknown) => void)
+      | undefined;
     cb?.(execShouldFail, { stdout: '', stderr: '' });
     return { kill: mock(() => undefined) };
   },

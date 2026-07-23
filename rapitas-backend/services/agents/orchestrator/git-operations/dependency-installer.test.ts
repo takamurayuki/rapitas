@@ -16,7 +16,8 @@ const mockExec = mock(
     callback?: (error: Error | null, stdout: string, stderr: string) => void,
   ) => {
     const cb = (typeof options === 'function' ? options : callback) as
-      ((error: Error | null, stdout: string, stderr: string) => void) | undefined;
+      | ((error: Error | null, stdout: string, stderr: string) => void)
+      | undefined;
     cb?.(null, '', '');
     return { kill: mock(() => undefined) };
   },
@@ -63,7 +64,8 @@ function resetMockOk(): void {
       callback?: (error: Error | null, stdout: string, stderr: string) => void,
     ) => {
       const cb = (typeof options === 'function' ? options : callback) as
-        ((error: Error | null, stdout: string, stderr: string) => void) | undefined;
+        | ((error: Error | null, stdout: string, stderr: string) => void)
+        | undefined;
       cb?.(null, '', '');
       return { kill: mock(() => undefined) };
     },
@@ -119,7 +121,8 @@ describe('installWorktreeDependencies', () => {
         callback?: (error: Error | null, stdout: string, stderr: string) => void,
       ) => {
         const cb = (typeof options === 'function' ? options : callback) as
-          ((error: Error | null, stdout: string, stderr: string) => void) | undefined;
+          | ((error: Error | null, stdout: string, stderr: string) => void)
+          | undefined;
         cb?.(new Error('link failed'), '', '');
         return { kill: mock(() => undefined) };
       },

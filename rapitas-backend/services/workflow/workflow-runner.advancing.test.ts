@@ -37,8 +37,9 @@ mock.module('../../config', () => ({
 }));
 
 let resolveWorkflowStateSequence: (TaskWorkflowState | null)[] = [];
-const resolveTaskWorkflowStateMock = mock((): Promise<TaskWorkflowState | null> =>
-  Promise.resolve(resolveWorkflowStateSequence.shift() ?? null),
+const resolveTaskWorkflowStateMock = mock(
+  (): Promise<TaskWorkflowState | null> =>
+    Promise.resolve(resolveWorkflowStateSequence.shift() ?? null),
 );
 
 mock.module('../task/task-resolver', () => ({

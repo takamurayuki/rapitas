@@ -41,7 +41,8 @@ let discoveryModels: DiscoveredModel[] = [];
 let selectBestModelResult: { model: DiscoveredModel; tier: ModelTier } | null = null;
 let selectBestModelCalls: SelectionContext[] = [];
 let selectBestModelImpl:
-  ((ctx: SelectionContext) => { model: DiscoveredModel; tier: ModelTier } | null) | null = null;
+  | ((ctx: SelectionContext) => { model: DiscoveredModel; tier: ModelTier } | null)
+  | null = null;
 
 mock.module('../../services/ai/model-discovery', () => ({
   discoverModels: () =>

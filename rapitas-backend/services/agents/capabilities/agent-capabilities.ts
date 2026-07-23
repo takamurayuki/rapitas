@@ -14,7 +14,12 @@ import type { WorkflowRole } from '../../workflow/workflow-types';
 export type { WorkflowRole } from '../../workflow/workflow-types';
 
 export type AgentType =
-  'codex' | 'claude-code' | 'gemini' | 'anthropic-api' | 'openai-api' | 'ollama';
+  | 'codex'
+  | 'claude-code'
+  | 'gemini'
+  | 'anthropic-api'
+  | 'openai-api'
+  | 'ollama';
 
 export interface AgentCapability {
   /** Agent type identifier (matches `AIAgentConfig.agentType`). / エージェント種別 */

@@ -259,7 +259,8 @@ export const developerModePromptRoutes = new Elysia({ prefix: '/developer-mode' 
       try {
         const settings = await prisma.userSettings.findFirst();
         const titleProviderRaw = (settings as Record<string, unknown>)?.titleGenerationProvider as
-          string | undefined;
+          | string
+          | undefined;
         // 'default' uses paid API; others fall back to ollama (local free AI)
         const titleProvider: import('../../../utils/ai-client').AIProvider =
           titleProviderRaw === 'default' ? await getDefaultProvider() : 'ollama';

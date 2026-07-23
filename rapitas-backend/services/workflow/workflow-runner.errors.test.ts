@@ -45,8 +45,8 @@ let taskRow: TaskWorkflowState = {
   workflowMode: null,
   parentId: 77,
 };
-const resolveTaskWorkflowStateMock = mock((): Promise<TaskWorkflowState | null> =>
-  Promise.resolve(taskRow),
+const resolveTaskWorkflowStateMock = mock(
+  (): Promise<TaskWorkflowState | null> => Promise.resolve(taskRow),
 );
 
 mock.module('../task/task-resolver', () => ({

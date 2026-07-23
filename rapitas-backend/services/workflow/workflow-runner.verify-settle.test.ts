@@ -110,8 +110,9 @@ mock.module('./workflow-queue', () => ({
   WorkflowQueueService: { getInstance: () => queueMock },
 }));
 
-const advanceWorkflowMock = mock((): Promise<WorkflowAdvanceResult> =>
-  Promise.resolve({ success: true, role: 'verifier', status: 'verify_done', skipped: false }),
+const advanceWorkflowMock = mock(
+  (): Promise<WorkflowAdvanceResult> =>
+    Promise.resolve({ success: true, role: 'verifier', status: 'verify_done', skipped: false }),
 );
 
 mock.module('./workflow-orchestrator', () => ({

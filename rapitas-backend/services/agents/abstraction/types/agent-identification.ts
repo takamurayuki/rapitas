@@ -6,7 +6,12 @@
  * Agent provider identifier.
  */
 export type AgentProviderId =
-  'claude-code' | 'openai-codex' | 'gemini' | 'google-gemini' | 'anthropic-api' | 'custom';
+  | 'claude-code'
+  | 'openai-codex'
+  | 'gemini'
+  | 'google-gemini'
+  | 'anthropic-api'
+  | 'custom';
 
 /**
  * Agent execution state.

@@ -29,9 +29,14 @@ export type AIResponse = {
 };
 
 export type ProviderKeyColumn =
-  'claudeApiKeyEncrypted' | 'chatgptApiKeyEncrypted' | 'geminiApiKeyEncrypted';
+  | 'claudeApiKeyEncrypted'
+  | 'chatgptApiKeyEncrypted'
+  | 'geminiApiKeyEncrypted';
 export type ProviderModelColumn =
-  'claudeDefaultModel' | 'chatgptDefaultModel' | 'geminiDefaultModel' | 'ollamaDefaultModel';
+  | 'claudeDefaultModel'
+  | 'chatgptDefaultModel'
+  | 'geminiDefaultModel'
+  | 'ollamaDefaultModel';
 
 export const PROVIDER_KEY_COLUMNS: Record<Exclude<AIProvider, 'ollama'>, ProviderKeyColumn> = {
   claude: 'claudeApiKeyEncrypted',

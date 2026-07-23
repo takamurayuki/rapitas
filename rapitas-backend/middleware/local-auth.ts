@@ -70,7 +70,8 @@ function tokenMatches(provided: string, expected: string): boolean {
  * @returns onRequest handler or null / onRequestハンドラ（未設定ならnull）
  */
 export function createApiTokenGuard():
-  ((ctx: { request: Request }) => Response | undefined) | null {
+  | ((ctx: { request: Request }) => Response | undefined)
+  | null {
   const token = process.env.RAPITAS_API_TOKEN;
   if (!token) return null;
 

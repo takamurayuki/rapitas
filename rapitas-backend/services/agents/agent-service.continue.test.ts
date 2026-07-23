@@ -124,11 +124,13 @@ function makeMutableAgent(
 ) {
   let state: AgentState = opts.initialState ?? 'idle';
   const events = new AgentEventEmitter(opts.id ?? 'agent-1');
-  const executeMock = mock((): Promise<AgentExecutionResult> =>
-    Promise.resolve({ success: true, state: 'completed', output: 'ok' }),
+  const executeMock = mock(
+    (): Promise<AgentExecutionResult> =>
+      Promise.resolve({ success: true, state: 'completed', output: 'ok' }),
   );
-  const continueMock = mock((): Promise<AgentExecutionResult> =>
-    Promise.resolve({ success: true, state: 'completed', output: 'ok' }),
+  const continueMock = mock(
+    (): Promise<AgentExecutionResult> =>
+      Promise.resolve({ success: true, state: 'completed', output: 'ok' }),
   );
   const stopMock = mock(() => Promise.resolve());
   const disposeMock = mock(() => Promise.resolve());

@@ -4,10 +4,19 @@
 
 // --- KnowledgeEntry ---
 export type KnowledgeSourceType =
-  'agent_execution' | 'user_learning' | 'task_pattern' | 'distilled_procedure' | 'consolidated';
+  | 'agent_execution'
+  | 'user_learning'
+  | 'task_pattern'
+  | 'distilled_procedure'
+  | 'consolidated';
 
 export type KnowledgeCategory =
-  'procedure' | 'fact' | 'pattern' | 'preference' | 'insight' | 'general';
+  | 'procedure'
+  | 'fact'
+  | 'pattern'
+  | 'preference'
+  | 'insight'
+  | 'general';
 
 export type ForgettingStage = 'active' | 'dormant' | 'archived';
 
@@ -44,7 +53,12 @@ export type ActorType = 'user' | 'agent' | 'system';
 
 // --- MemoryTaskQueue ---
 export type MemoryTaskType =
-  'embed' | 'consolidate' | 'validate' | 'forget_sweep' | 'distill' | 'detect_contradiction';
+  | 'embed'
+  | 'consolidate'
+  | 'validate'
+  | 'forget_sweep'
+  | 'distill'
+  | 'detect_contradiction';
 
 export type QueueTaskStatus = 'pending' | 'processing' | 'completed' | 'failed' | 'dead_letter';
 

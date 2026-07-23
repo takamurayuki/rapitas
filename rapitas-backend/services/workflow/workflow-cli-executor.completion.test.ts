@@ -180,8 +180,9 @@ describe('executeCLIAgent — 1s-delayed auto-advance chains', () => {
   });
 
   test('implementer success schedules an auto-advance to the next phase', async () => {
-    const advanceWorkflow = mock((): Promise<WorkflowAdvanceResult> =>
-      Promise.resolve({ success: true, role: 'verifier', status: 'verify_done' }),
+    const advanceWorkflow = mock(
+      (): Promise<WorkflowAdvanceResult> =>
+        Promise.resolve({ success: true, role: 'verifier', status: 'verify_done' }),
     );
 
     await run(implementerTransition(), advanceWorkflow);

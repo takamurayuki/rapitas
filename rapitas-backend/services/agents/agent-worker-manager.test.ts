@@ -69,22 +69,30 @@ mock.module('./agent-worker/worker-shutdown', () => ({
   gracefulShutdown: gracefulShutdownMock,
 }));
 
-const mockExecuteTask = mock(async (): Promise<AgentExecutionResult> => ({
-  success: true,
-  output: '',
-}));
-const mockExecuteContinuation = mock(async (): Promise<AgentExecutionResult> => ({
-  success: true,
-  output: '',
-}));
-const mockExecuteContinuationWithLock = mock(async (): Promise<AgentExecutionResult> => ({
-  success: true,
-  output: '',
-}));
-const mockResumeInterruptedExecution = mock(async (): Promise<AgentExecutionResult> => ({
-  success: true,
-  output: '',
-}));
+const mockExecuteTask = mock(
+  async (): Promise<AgentExecutionResult> => ({
+    success: true,
+    output: '',
+  }),
+);
+const mockExecuteContinuation = mock(
+  async (): Promise<AgentExecutionResult> => ({
+    success: true,
+    output: '',
+  }),
+);
+const mockExecuteContinuationWithLock = mock(
+  async (): Promise<AgentExecutionResult> => ({
+    success: true,
+    output: '',
+  }),
+);
+const mockResumeInterruptedExecution = mock(
+  async (): Promise<AgentExecutionResult> => ({
+    success: true,
+    output: '',
+  }),
+);
 const mockGetSessionExecutionsAsync = mock(async () => [] as unknown[]);
 const mockGetQuestionTimeoutInfoAsync = mock(async () => null);
 const mockGetActiveExecutionIdsAsync = mock(async () => [] as number[]);

@@ -107,7 +107,8 @@ export function childProcessModuleFactory(
           .slice()
           .reverse()
           .find((a) => typeof a === 'function') as
-          ((err: Error | null, result: ExecResult) => void) | undefined;
+          | ((err: Error | null, result: ExecResult) => void)
+          | undefined;
         if (callback) {
           execAsync()
             .then((r) => callback(null, r))

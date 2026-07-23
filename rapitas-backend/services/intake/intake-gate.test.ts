@@ -91,10 +91,12 @@ describe('ensureIntakeReady', () => {
     readWorkflowFile.mockReset().mockResolvedValue(null);
     writeWorkflowFile.mockReset().mockResolvedValue('/wf/1/question.md');
     recordTransition.mockReset().mockResolvedValue(undefined);
-    deriveTaskSpec.mockReset().mockResolvedValue({
-      spec: { goals: [], constraints: [], acceptanceCriteria: [] },
-      source: 'empty',
-    });
+    deriveTaskSpec
+      .mockReset()
+      .mockResolvedValue({
+        spec: { goals: [], constraints: [], acceptanceCriteria: [] },
+        source: 'empty',
+      });
     generateIntakeQuestions.mockReset().mockResolvedValue([]);
     createNotification.mockReset().mockResolvedValue(undefined);
     delete process.env.RAPITAS_INTAKE_ASK_WHEN_AMBIGUOUS;

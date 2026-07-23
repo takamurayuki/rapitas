@@ -556,7 +556,8 @@ export class AgentOrchestrator {
     });
     const skipPrompts =
       ((settings as Record<string, unknown> | null)?.skipAgentPermissionPrompts as
-        boolean | undefined) ?? true;
+        | boolean
+        | undefined) ?? true;
 
     return {
       type: narrowAgentType(dbConfig.agentType),

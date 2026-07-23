@@ -118,7 +118,12 @@ export interface CriticReviewResult {
 export type KnowledgeNodeType = 'concept' | 'problem' | 'solution' | 'technology' | 'pattern';
 
 export type KnowledgeEdgeType =
-  'related' | 'causes' | 'solves' | 'requires' | 'part_of' | 'similar_to';
+  | 'related'
+  | 'causes'
+  | 'solves'
+  | 'requires'
+  | 'part_of'
+  | 'similar_to';
 
 export interface CreateNodeInput {
   label: string;
@@ -167,10 +172,17 @@ export interface Subgraph {
 
 // --- Learning Engine ---
 export type LearningPatternType =
-  'success_strategy' | 'failure_pattern' | 'optimization' | 'anti_pattern';
+  | 'success_strategy'
+  | 'failure_pattern'
+  | 'optimization'
+  | 'anti_pattern';
 
 export type LearningCategory =
-  'bug_fix' | 'feature_implementation' | 'refactoring' | 'debugging' | 'testing';
+  | 'bug_fix'
+  | 'feature_implementation'
+  | 'refactoring'
+  | 'debugging'
+  | 'testing';
 
 export interface PatternCondition {
   field: string;

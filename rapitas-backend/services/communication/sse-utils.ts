@@ -10,7 +10,13 @@ const log = createLogger('sse-utils');
 
 // SSE event type definitions
 export type SSEEventType =
-  'start' | 'progress' | 'data' | 'error' | 'retry' | 'rollback' | 'complete';
+  | 'start'
+  | 'progress'
+  | 'data'
+  | 'error'
+  | 'retry'
+  | 'rollback'
+  | 'complete';
 
 export interface SSEEvent {
   type: SSEEventType;

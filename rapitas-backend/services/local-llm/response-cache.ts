@@ -129,7 +129,8 @@ export function getCachedResponse(hash: string): { content: string; tokensUsed: 
   try {
     const database = getDb();
     const row = database.prepare('SELECT * FROM llm_cache WHERE hash = ?').get(hash) as
-      CacheEntry | undefined;
+      | CacheEntry
+      | undefined;
 
     if (!row) {
       missCount++;
