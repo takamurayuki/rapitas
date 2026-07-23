@@ -40,9 +40,8 @@ mock.module('../../config', () => ({
 }));
 
 let resolveWorkflowStateSequence: (TaskWorkflowState | null)[] = [];
-const resolveTaskWorkflowStateMock = mock(
-  (): Promise<TaskWorkflowState | null> =>
-    Promise.resolve(resolveWorkflowStateSequence.shift() ?? null),
+const resolveTaskWorkflowStateMock = mock((): Promise<TaskWorkflowState | null> =>
+  Promise.resolve(resolveWorkflowStateSequence.shift() ?? null),
 );
 let planApprovalRow: TaskForPlanApproval | null = null;
 const resolveTaskForPlanApprovalMock = mock(() => Promise.resolve(planApprovalRow));
@@ -100,9 +99,8 @@ mock.module('./workflow-queue', () => ({
   WorkflowQueueService: { getInstance: () => queueMock },
 }));
 
-const advanceWorkflowMock = mock(
-  (): Promise<WorkflowAdvanceResult> =>
-    Promise.resolve({ success: true, role: 'researcher', status: 'in_progress', skipped: false }),
+const advanceWorkflowMock = mock((): Promise<WorkflowAdvanceResult> =>
+  Promise.resolve({ success: true, role: 'researcher', status: 'in_progress', skipped: false }),
 );
 
 mock.module('./workflow-orchestrator', () => ({

@@ -21,8 +21,7 @@ export interface SelectableTask {
 export type NoTaskReason = 'all_done' | 'concurrency_limit' | 'awaiting_approval';
 
 export type SelectionResult =
-  | { found: true; taskId: number }
-  | { found: false; reason: NoTaskReason };
+  { found: true; taskId: number } | { found: false; reason: NoTaskReason };
 
 /** Auto-run concurrency constants (overridable via env). */
 export const AUTO_RUN_GLOBAL_MAX_CONCURRENCY = Math.max(

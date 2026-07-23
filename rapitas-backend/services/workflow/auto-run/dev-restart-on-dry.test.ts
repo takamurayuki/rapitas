@@ -77,8 +77,7 @@ const execFileMock = (
   callback?: (err: Error | null, stdout: string) => void,
 ) => {
   const cb = (typeof _opts === 'function' ? _opts : callback) as
-    | ((err: Error | null, stdout: string) => void)
-    | undefined;
+    ((err: Error | null, stdout: string) => void) | undefined;
   if (cb) cb(null, 'abc123fakehash\n');
 };
 mock.module('child_process', () => ({ execFile: execFileMock }));

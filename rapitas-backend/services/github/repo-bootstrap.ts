@@ -308,11 +308,7 @@ export async function initRepository(req: InitRepositoryRequest): Promise<InitRe
 
 /** Machine-readable failure category for the create-branch API contract. */
 export type CreateBranchErrorCode =
-  | 'path_not_found'
-  | 'not_a_repo'
-  | 'invalid_branch_name'
-  | 'no_remote'
-  | 'git_failed';
+  'path_not_found' | 'not_a_repo' | 'invalid_branch_name' | 'no_remote' | 'git_failed';
 
 /** Which branch-creation steps were performed now (true) vs already done/skipped (false). */
 export interface CreateBranchSteps {

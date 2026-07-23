@@ -64,12 +64,7 @@ export const knowledgeRoutes = new Elysia({ prefix: '/knowledge' })
         themeId: query.themeId ? parseInt(query.themeId) : undefined,
         search: query.search,
         sortBy: query.sortBy as
-          | 'createdAt'
-          | 'updatedAt'
-          | 'confidence'
-          | 'accessCount'
-          | 'decayScore'
-          | undefined,
+          'createdAt' | 'updatedAt' | 'confidence' | 'accessCount' | 'decayScore' | undefined,
         sortOrder: query.sortOrder as 'asc' | 'desc' | undefined,
       });
       return result;

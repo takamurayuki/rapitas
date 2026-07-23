@@ -45,9 +45,7 @@ export async function resolveRoleProviderPreferences(
   ]);
 
   const override = (roleConfig as Record<string, unknown> | null)?.preferredProviderOverride as
-    | string
-    | null
-    | undefined;
+    string | null | undefined;
   const globalDefault = settings?.defaultAiProvider as string | null | undefined;
 
   // `cross-provider` is a sentinel meaning "exclude upstream provider"; it is

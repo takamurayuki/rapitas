@@ -16,12 +16,7 @@ const log = createLogger('tech-debt-liquidator');
 export type TechDebtItem = {
   id: string;
   type:
-    | 'dead_code'
-    | 'type_safety'
-    | 'missing_test'
-    | 'complexity'
-    | 'deprecated_api'
-    | 'large_file';
+    'dead_code' | 'type_safety' | 'missing_test' | 'complexity' | 'deprecated_api' | 'large_file';
   severity: 'low' | 'medium' | 'high';
   file: string;
   line?: number;

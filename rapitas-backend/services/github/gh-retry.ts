@@ -14,12 +14,7 @@ import { sleep } from '../agents/abstraction/agent-retry';
  * `unrecoverable` is the conservative default for unrecognized errors.
  */
 export type GitHubErrorCategory =
-  | 'rate_limit'
-  | 'transient'
-  | 'head_behind'
-  | 'auth'
-  | 'not_found'
-  | 'unrecoverable';
+  'rate_limit' | 'transient' | 'head_behind' | 'auth' | 'not_found' | 'unrecoverable';
 
 interface ClassificationRule {
   pattern: RegExp;

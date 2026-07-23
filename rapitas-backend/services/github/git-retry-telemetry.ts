@@ -69,8 +69,7 @@ export function recordGitRetryMetric(input: GitRetryMetricInput): void {
   // HACK(agent): gitRetryMetric is not yet in PrismaClient typings until `prisma generate`
   // runs after server restart. Access via record cast to avoid a compile error before restart.
   const metricClient = (prisma as unknown as Record<string, unknown>)['gitRetryMetric'] as
-    | GitRetryMetricClient
-    | undefined;
+    GitRetryMetricClient | undefined;
 
   if (!metricClient) {
     log.debug('gitRetryMetric model not yet available (pending prisma generate)');

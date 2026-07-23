@@ -39,8 +39,7 @@ const makeExecResult = (command: string) => ({
 const mockExecFile = mock((file: string, args: unknown, options: unknown, callback?: unknown) => {
   const argv = Array.isArray(args) ? (args as string[]) : [];
   const cb = (typeof options === 'function' ? options : callback) as
-    | ((error: Error | null, result: unknown) => void)
-    | undefined;
+    ((error: Error | null, result: unknown) => void) | undefined;
   const command = [file, ...argv].join(' ');
   cb?.(null, makeExecResult(command));
   return { kill: mock(() => undefined) };
@@ -52,8 +51,7 @@ const mockExecFile = mock((file: string, args: unknown, options: unknown, callba
 // stub, their `import { exec } from 'child_process'` would fail to resolve.
 const mockExec = mock((command: string, options: unknown, callback?: unknown) => {
   const cb = (typeof options === 'function' ? options : callback) as
-    | ((error: Error | null, result: unknown) => void)
-    | undefined;
+    ((error: Error | null, result: unknown) => void) | undefined;
   cb?.(null, { stdout: '', stderr: '' });
   return { kill: mock(() => undefined) };
 });
@@ -195,8 +193,7 @@ describe('removeWorktree', () => {
       (file: string, args: unknown, options: unknown, callback?: unknown) => {
         const argv = Array.isArray(args) ? (args as string[]) : [];
         const cb = (typeof options === 'function' ? options : callback) as
-          | ((error: Error | null, result: unknown) => void)
-          | undefined;
+          ((error: Error | null, result: unknown) => void) | undefined;
         const command = [file, ...argv].join(' ');
         cb?.(null, makeExecResult(command));
         return { kill: mock(() => undefined) };
@@ -215,8 +212,7 @@ describe('removeWorktree', () => {
       (file: string, args: unknown, options: unknown, callback?: unknown) => {
         const argv = Array.isArray(args) ? (args as string[]) : [];
         const cb = (typeof options === 'function' ? options : callback) as
-          | ((error: Error | null, result: unknown) => void)
-          | undefined;
+          ((error: Error | null, result: unknown) => void) | undefined;
         const command = [file, ...argv].join(' ');
         if (command.includes('git worktree remove')) {
           callOrder.push('gitWorktreeRemove');
@@ -245,8 +241,7 @@ describe('removeWorktree', () => {
       (file: string, args: unknown, options: unknown, callback?: unknown) => {
         const argv = Array.isArray(args) ? (args as string[]) : [];
         const cb = (typeof options === 'function' ? options : callback) as
-          | ((error: Error | null, result: unknown) => void)
-          | undefined;
+          ((error: Error | null, result: unknown) => void) | undefined;
         const command = [file, ...argv].join(' ');
         if (command.includes('git worktree remove')) {
           cb?.(new Error('git error'), undefined);
@@ -292,8 +287,7 @@ describe('removeWorktree', () => {
       (file: string, args: unknown, options: unknown, callback?: unknown) => {
         const argv = Array.isArray(args) ? (args as string[]) : [];
         const cb = (typeof options === 'function' ? options : callback) as
-          | ((error: Error | null, result: unknown) => void)
-          | undefined;
+          ((error: Error | null, result: unknown) => void) | undefined;
         const command = [file, ...argv].join(' ');
         if (command.includes('git worktree remove')) {
           cb?.(new Error('git error'), undefined);
@@ -349,8 +343,7 @@ branch refs/heads/feature/task-123
       (file: string, args: unknown, options: unknown, callback?: unknown) => {
         const argv = Array.isArray(args) ? (args as string[]) : [];
         const cb = (typeof options === 'function' ? options : callback) as
-          | ((error: Error | null, result: unknown) => void)
-          | undefined;
+          ((error: Error | null, result: unknown) => void) | undefined;
         const command = [file, ...argv].join(' ');
         cb?.(null, makeExecResult(command));
         return { kill: mock(() => undefined) };

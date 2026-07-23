@@ -57,22 +57,20 @@ mock.module('../../../config/logger', () => ({
 // complexity-analyzer barrel
 // ───────────────────────────────────────────────
 
-const mockAnalyzeTaskComplexity = mock(
-  (): ComplexityAnalysisResult => ({
-    complexityScore: 40,
-    recommendedMode: 'comprehensive',
-    confidence: 0.8,
-    analysisBreakdown: {
-      keywordScore: 0,
-      timeScore: 0,
-      priorityScore: 0,
-      labelScore: 0,
-      scopeScore: 0,
-      reasons: [],
-    },
-    estimatedExecutionTime: 90,
-  }),
-);
+const mockAnalyzeTaskComplexity = mock((): ComplexityAnalysisResult => ({
+  complexityScore: 40,
+  recommendedMode: 'comprehensive',
+  confidence: 0.8,
+  analysisBreakdown: {
+    keywordScore: 0,
+    timeScore: 0,
+    priorityScore: 0,
+    labelScore: 0,
+    scopeScore: 0,
+    reasons: [],
+  },
+  estimatedExecutionTime: 90,
+}));
 
 // NOTE: mirrors every runtime export of the complexity-analyzer barrel
 // (services/workflow/complexity-analyzer.ts) so other suites importing the
