@@ -182,7 +182,11 @@ export function setupGlobalErrorHandlers(): void {
     log.fatal({ err: error }, 'Uncaught Exception');
   });
 
-  process.on('unhandledRejection', (reason, promise) => {
-    log.fatal({ reason, promise }, 'Unhandled Rejection');
+  process.on('unhandledRejection', (reason) => {
+    // NOTE: error, not fatal — unhandled rejections are non-fatal by design
+    // (index.ts keeps the server up). The `err` key routes reason through
+    // pino's err serializer so message/stack survive; the old { reason, promise }
+    // shape serialized the promise as {} and dropped the stack.
+    log.error({ err: reason }, 'Unhandled Rejection');
   });
 }
