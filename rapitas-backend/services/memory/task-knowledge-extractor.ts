@@ -15,6 +15,7 @@ import { memoryTaskQueue } from './index';
 import { getInsensitiveMode } from '../../config/db-provider';
 import { findSemanticDuplicate, findLexicalDuplicate } from './dedup';
 import { boostDecayOnAccess } from './forgetting';
+import { bigramCoverage, RELATED_KNOWLEDGE_MIN_COVERAGE } from './text-similarity';
 
 const log = createLogger('memory:task-knowledge');
 
@@ -313,6 +314,13 @@ ${context}
   }
 }
 
+// Hiragana / Katakana / CJK ideographs — scripts written without spaces, so
+// delimiter splitting leaves the whole phrase as one giant token.
+const CJK_CHAR_RE = /[぀-ヿ㐀-䶿一-鿿]/;
+
+/** Max 3-char n-grams appended per CJK token (bounds the SQL OR clause). */
+const CJK_NGRAM_PER_TOKEN = 4;
+
 /**
  * Search and return related knowledge when creating/editing a task.
  */
@@ -334,10 +342,21 @@ export async function findRelatedKnowledge(
   try {
     // Keyword-based search (fallback when vector search is unavailable)
     const searchText = `${title} ${description || ''}`.toLowerCase();
-    const keywords = searchText
-      .split(/[\s\-_\/\\:;,.\(\)\[\]{}]+/)
-      .filter((w) => w.length >= 2)
-      .slice(0, 8);
+    const tokens = searchText.split(/[\s\-_\/\\:;,.\(\)\[\]{}]+/).filter((w) => w.length >= 2);
+    const expanded: string[] = [];
+    for (const token of tokens) {
+      expanded.push(token);
+      // A Japanese title arrives as ONE spaceless token, so `contains` only
+      // hits entries embedding the full string. Non-overlapping 3-char
+      // n-grams give CJK queries usable candidates; ASCII tokens are left
+      // untouched to preserve the existing English-identifier behavior.
+      if (CJK_CHAR_RE.test(token) && token.length >= 4) {
+        for (let i = 0, n = 0; i + 3 <= token.length && n < CJK_NGRAM_PER_TOKEN; i += 3, n++) {
+          expanded.push(token.slice(i, i + 3));
+        }
+      }
+    }
+    const keywords = expanded.slice(0, 8); // cap the OR clause like before
 
     if (keywords.length === 0) return [];
 
@@ -377,17 +396,19 @@ export async function findRelatedKnowledge(
       // match — otherwise which entries survive the take/slice boundary
       // (and their relative order) could vary run to run.
       orderBy: [{ decayScore: 'desc' }, { confidence: 'desc' }, { id: 'asc' }],
-      take: limit * 3, // Fetch extra for post-scoring
+      take: limit * 6, // Fetch extra: the coverage cutoff below prunes candidates
     });
 
     // Relevance scoring
-    const scored = entries.map((entry) => {
-      let relevanceScore = 0;
+    const scored = entries.flatMap((entry) => {
+      // Coverage of the query's bigrams in the entry. Scored against the same
+      // 500-char content slice that is returned, so the score matches what
+      // the user sees. NOTE: directional coverage, not Jaccard — Jaccard
+      // collapses on long entry bodies (see bigramCoverage docs).
+      const coverage = bigramCoverage(searchText, `${entry.title} ${entry.content.slice(0, 500)}`);
+      if (coverage < RELATED_KNOWLEDGE_MIN_COVERAGE) return []; // unrelated noise
 
-      // Keyword match count
-      const entryText = `${entry.title} ${entry.content}`.toLowerCase();
-      const matchCount = keywords.filter((kw) => entryText.includes(kw)).length;
-      relevanceScore += (matchCount / keywords.length) * 50;
+      let relevanceScore = coverage * 50;
 
       // Theme match bonus
       if (themeId && entry.themeId === themeId) {
@@ -401,17 +422,19 @@ export async function findRelatedKnowledge(
       // Prefer human/automatically VALIDATED knowledge over still-pending entries.
       if (entry.validationStatus === 'validated') relevanceScore += 15;
 
-      return {
-        id: entry.id,
-        title: entry.title,
-        content: entry.content.slice(0, 500),
-        category: entry.category,
-        confidence: entry.confidence,
-        relevanceScore: Math.round(relevanceScore * 100) / 100,
-        /** True when this knowledge came from a different project/theme. */
-        isCrossProject: themeId ? entry.themeId !== themeId : false,
-        sourceThemeId: entry.themeId,
-      };
+      return [
+        {
+          id: entry.id,
+          title: entry.title,
+          content: entry.content.slice(0, 500),
+          category: entry.category,
+          confidence: entry.confidence,
+          relevanceScore: Math.round(relevanceScore * 100) / 100,
+          /** True when this knowledge came from a different project/theme. */
+          isCrossProject: themeId ? entry.themeId !== themeId : false,
+          sourceThemeId: entry.themeId,
+        },
+      ];
     });
 
     // Secondary `id` key breaks ties on identical relevanceScore — this list

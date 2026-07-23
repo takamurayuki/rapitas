@@ -25,7 +25,12 @@ mock.module('../../services/memory/timeline', () => ({ appendEvent: () => Promis
 mock.module('../../services/memory/index', () => ({
   memoryTaskQueue: { enqueue: () => Promise.resolve() },
 }));
-mock.module('../../services/memory/utils', () => ({ createContentHash: (s: string) => s }));
+// NOTE: bun mock.module replaces the module for ALL importers, so the mock
+// must mirror every export — rag/vector-index imports cosineSimilarity too.
+mock.module('../../services/memory/utils', () => ({
+  createContentHash: (s: string) => s,
+  cosineSimilarity: () => 0,
+}));
 
 const { findRelatedKnowledge } = await import('../../services/memory/task-knowledge-extractor');
 

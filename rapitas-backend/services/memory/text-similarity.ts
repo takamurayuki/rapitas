@@ -42,6 +42,36 @@ export function bigramSimilarity(a: string, b: string): number {
 }
 
 /**
+ * Directional bigram coverage: the fraction of the QUERY's bigrams found in
+ * the target (0..1). Unlike Jaccard, the denominator excludes the target's
+ * own bigrams, so a short query fully contained in a long knowledge entry
+ * still scores near 1 (Jaccard collapses to ~0.03 there) — this is the
+ * "how much of what the user typed appears in this entry" signal used for
+ * related-knowledge relevance.
+ *
+ * @param query - User-typed search text. / 検索クエリ
+ * @param target - Knowledge entry text to match against. / 照合対象テキスト
+ * @returns Fraction of query bigrams present in target (0..1). / 被覆率
+ */
+export function bigramCoverage(query: string, target: string): number {
+  const Q = bigrams(normalizeForMatch(query));
+  if (Q.size === 0) return 0;
+  const T = bigrams(normalizeForMatch(target));
+  let inter = 0;
+  for (const g of Q) if (T.has(g)) inter += 1;
+  return inter / Q.size;
+}
+
+/**
+ * Minimum bigramCoverage for a knowledge entry to count as "related" to a
+ * draft task. Deliberately far below NEARDUP_TITLE_SIM (0.6): this gates
+ * relatedness, not sameness — a short Japanese title (~9 bigrams) passes
+ * when its subject words appear in the entry but not on 2-3 accidental
+ * bigram hits.
+ */
+export const RELATED_KNOWLEDGE_MIN_COVERAGE = 0.25;
+
+/**
  * Bigram-Jaccard thresholds above which a knowledge-entry PAIR is a
  * near-duplicate (same lesson, different wording) — dedup territory, never a
  * contradiction. Without this gate, N paraphrases of one lesson produced

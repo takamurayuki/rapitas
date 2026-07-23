@@ -6,7 +6,12 @@
  * 重複と判定されないこと。
  */
 import { describe, test, expect } from 'bun:test';
-import { bigramSimilarity, isNearDuplicatePair } from './text-similarity';
+import {
+  bigramSimilarity,
+  bigramCoverage,
+  isNearDuplicatePair,
+  RELATED_KNOWLEDGE_MIN_COVERAGE,
+} from './text-similarity';
 
 describe('bigramSimilarity', () => {
   test('identical strings → 1', () => {
@@ -21,6 +26,43 @@ describe('bigramSimilarity', () => {
     expect(
       bigramSimilarity('PR ブランチ更新は push で完結させる', 'PRブランチ更新はpushで完結させる'),
     ).toBe(1);
+  });
+});
+
+describe('bigramCoverage', () => {
+  test('query fully contained in target → 1', () => {
+    expect(bigramCoverage('マージ競合解消', 'マージ競合解消の原則と手順')).toBe(1);
+  });
+
+  test('unrelated query vs target → below 0.1', () => {
+    expect(bigramCoverage('タスク作成画面の修正', 'SQLiteの接続プール設定')).toBeLessThan(0.1);
+  });
+
+  test('long target does not collapse coverage (unlike Jaccard)', () => {
+    const query = 'タスク作成画面のちらつき';
+    const target =
+      'タスク作成画面のちらつきは表示条件の変更で解消する。' +
+      '関連ナレッジパネルは検索開始と同時に空の箱を描画し、0件応答で消滅するため、' +
+      'レイアウトシフトが入力のたびに発生していた。debounce の延長だけでは主因が残る。' +
+      'そのため描画条件を結果が存在するときのみに変更し、更新中は前回の結果を維持する。';
+    // Jaccard collapses on long targets; coverage must stay near 1.
+    expect(bigramCoverage(query, target)).toBeGreaterThan(0.9);
+    expect(bigramSimilarity(query, target)).toBeLessThan(0.2);
+  });
+
+  test('empty query → 0', () => {
+    expect(bigramCoverage('', 'なにかの本文')).toBe(0);
+  });
+
+  test('subject-word match passes the related-knowledge threshold, accidental overlap does not', () => {
+    // Short Japanese title whose subject word appears in the entry.
+    expect(
+      bigramCoverage('タスク作成画面の修正', 'タスク作成画面でのバリデーション追加手順'),
+    ).toBeGreaterThanOrEqual(RELATED_KNOWLEDGE_MIN_COVERAGE);
+    // Overlap of a single common particle-ish bigram must stay below it.
+    expect(bigramCoverage('タスク作成画面の修正', 'デプロイの曜日ルール')).toBeLessThan(
+      RELATED_KNOWLEDGE_MIN_COVERAGE,
+    );
   });
 });
 
