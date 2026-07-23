@@ -1,10 +1,19 @@
 'use client';
 
-import { useEffect, useRef } from 'react';
+import { useEffect, useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { Library, BookOpen, ExternalLink } from 'lucide-react';
 import Link from 'next/link';
 import { useRelatedKnowledge } from '../hooks/useIntelligence';
+import { useDebounce } from '@/hooks/common/useDebounce';
+
+/**
+ * Shared quiet-period before the related panels treat typing as "stopped".
+ * 500ms interleaved with Japanese IME conversion pauses and refetched
+ * mid-sentence; 1200ms clears one conversion pause without feeling stalled.
+ * Shared with RelatedSearchMissPanel so both panels settle together.
+ */
+export const RELATED_PANEL_DEBOUNCE_MS = 1200;
 
 interface RelatedKnowledgePanelProps {
   title: string;
@@ -23,19 +32,29 @@ export function RelatedKnowledgePanel({ title, description, themeId }: RelatedKn
     general: t('categoryGeneral'),
   };
   const { entries, loading, search } = useRelatedKnowledge();
-  const debounceRef = useRef<ReturnType<typeof setTimeout>>(undefined);
+  const debouncedTitle = useDebounce(title, RELATED_PANEL_DEBOUNCE_MS);
+  const debouncedDescription = useDebounce(description, RELATED_PANEL_DEBOUNCE_MS);
+  // useDebounce returns the CURRENT value on the first render, and this panel
+  // mounts mid-typing (at the wrapper's 3-char gate) — without this flag the
+  // mount render would fire an immediate search while the user is still typing.
+  const [mountQuietElapsed, setMountQuietElapsed] = useState(false);
 
   useEffect(() => {
-    if (debounceRef.current) clearTimeout(debounceRef.current);
-    debounceRef.current = setTimeout(() => {
-      search(title, description, themeId);
-    }, 500);
-    return () => {
-      if (debounceRef.current) clearTimeout(debounceRef.current);
-    };
-  }, [title, description, themeId, search]);
+    const timer = setTimeout(() => setMountQuietElapsed(true), RELATED_PANEL_DEBOUNCE_MS);
+    return () => clearTimeout(timer);
+  }, []);
 
-  if (!loading && entries.length === 0) return null;
+  useEffect(() => {
+    // Search only when typing has stopped: one full quiet period since mount
+    // AND the debounced values have caught up with the live props.
+    if (!mountQuietElapsed) return;
+    if (debouncedTitle !== title || debouncedDescription !== description) return;
+    search(debouncedTitle, debouncedDescription, themeId);
+  }, [mountQuietElapsed, debouncedTitle, debouncedDescription, title, description, themeId, search]);
+
+  // Render only settled results: no results → no DOM. A loading-only box that
+  // appears then vanishes on an empty response was the flicker being fixed.
+  if (entries.length === 0) return null;
 
   return (
     <div className="rounded-lg border border-indigo-200 dark:border-indigo-800/50 bg-indigo-50/50 dark:bg-indigo-900/10 p-3">

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef } from 'react';
 import { API_BASE_URL } from '@/utils/api';
 import { createLogger } from '@/lib/logger';
 
@@ -261,13 +261,21 @@ export function useKnowledgeReminders() {
 export function useRelatedKnowledge() {
   const [entries, setEntries] = useState<RelatedKnowledge[]>([]);
   const [loading, setLoading] = useState(false);
+  // Monotonic request id: responses are unordered, so only the LATEST request
+  // may write state — a slow stale response must never clobber newer results.
+  const requestIdRef = useRef(0);
 
   const search = useCallback(
     async (title: string, description?: string | null, themeId?: number | null) => {
+      const requestId = ++requestIdRef.current;
       if (!title || title.length < 3) {
+        // Meaningless query: clear immediately (the only case that clears).
         setEntries([]);
+        setLoading(false);
         return;
       }
+      // NOTE: entries are intentionally NOT cleared here — the previous
+      // results stay visible while the refresh is in flight (anti-flicker).
       setLoading(true);
       try {
         const params = new URLSearchParams({ title });
@@ -277,14 +285,18 @@ export function useRelatedKnowledge() {
         const res = await globalThis.fetch(
           `${API_BASE_URL}/intelligence/tasks/related-knowledge?${params}`,
         );
-        if (res.ok) {
+        if (res.ok && requestId === requestIdRef.current) {
           const data = await res.json();
-          setEntries(data.entries || []);
+          if (requestId === requestIdRef.current) {
+            setEntries(data.entries || []);
+          }
         }
       } catch (e) {
         logger.warn('Failed to fetch related knowledge:', e);
       } finally {
-        setLoading(false);
+        if (requestId === requestIdRef.current) {
+          setLoading(false);
+        }
       }
     },
     [],

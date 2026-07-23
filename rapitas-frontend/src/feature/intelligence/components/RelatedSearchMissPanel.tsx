@@ -5,6 +5,8 @@ import { useTranslations } from 'next-intl';
 import { SearchX } from 'lucide-react';
 import { API_BASE_URL } from '@/utils/api';
 import { createLogger } from '@/lib/logger';
+import { useDebounce } from '@/hooks/common/useDebounce';
+import { RELATED_PANEL_DEBOUNCE_MS } from './RelatedKnowledgePanel';
 
 const log = createLogger('RelatedSearchMissPanel');
 
@@ -31,36 +33,55 @@ export function RelatedSearchMissPanel({ title, description }: RelatedSearchMiss
   const t = useTranslations('intelligence.relatedSearchMissPanel');
   const [items, setItems] = useState<SearchMissItem[]>([]);
   const [loading, setLoading] = useState(false);
-  const debounceRef = useRef<ReturnType<typeof setTimeout>>(undefined);
+  const text = [title, description ?? ''].join(' ').trim();
+  const debouncedText = useDebounce(text, RELATED_PANEL_DEBOUNCE_MS);
+  // useDebounce returns the CURRENT value on the first render, and this panel
+  // mounts mid-typing (at the wrapper's 3-char gate) — without this flag the
+  // mount render would fire an immediate fetch while the user is still typing.
+  const [mountQuietElapsed, setMountQuietElapsed] = useState(false);
+  // Responses are unordered; only the latest request may write state.
+  const requestIdRef = useRef(0);
 
   useEffect(() => {
-    const text = [title, description ?? ''].join(' ').trim();
-    if (text.length < 3) {
+    const timer = setTimeout(() => setMountQuietElapsed(true), RELATED_PANEL_DEBOUNCE_MS);
+    return () => clearTimeout(timer);
+  }, []);
+
+  useEffect(() => {
+    // Fetch only when typing has stopped: one full quiet period since mount
+    // AND the debounced text has caught up with the live props.
+    if (!mountQuietElapsed || debouncedText !== text) return;
+    const requestId = ++requestIdRef.current;
+    if (debouncedText.length < 3) {
       setItems([]);
+      setLoading(false);
       return;
     }
-    if (debounceRef.current) clearTimeout(debounceRef.current);
-    debounceRef.current = setTimeout(async () => {
-      setLoading(true);
+    // NOTE: items are intentionally NOT cleared here — previous results stay
+    // visible while the refresh is in flight (anti-flicker).
+    setLoading(true);
+    (async () => {
       try {
         const res = await fetch(
-          `${API_BASE_URL}/search/miss/related?q=${encodeURIComponent(text)}&limit=5`,
+          `${API_BASE_URL}/search/miss/related?q=${encodeURIComponent(debouncedText)}&limit=5`,
         );
         const data = await res.json();
-        setItems(data?.success && Array.isArray(data.items) ? data.items : []);
+        if (requestId === requestIdRef.current) {
+          setItems(data?.success && Array.isArray(data.items) ? data.items : []);
+        }
       } catch (err) {
+        // Auxiliary panel: keep the previous items on failure, log only.
         log.error('Failed to load related search misses', err);
-        setItems([]);
       } finally {
-        setLoading(false);
+        if (requestId === requestIdRef.current) {
+          setLoading(false);
+        }
       }
-    }, 500);
-    return () => {
-      if (debounceRef.current) clearTimeout(debounceRef.current);
-    };
-  }, [title, description]);
+    })();
+  }, [mountQuietElapsed, debouncedText, text]);
 
-  if (!loading && items.length === 0) return null;
+  // Render only settled results: no results → no DOM (anti-flicker).
+  if (items.length === 0) return null;
 
   return (
     <div className="rounded-lg border border-amber-200 dark:border-amber-800/50 bg-amber-50/50 dark:bg-amber-900/10 p-3">

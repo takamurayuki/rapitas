@@ -207,9 +207,11 @@ function NewTaskClient() {
             />
           </CompactAccordionGroup>
 
-          {/* Related knowledge + past search-miss panels (shown when title is meaningful) */}
+          {/* Related knowledge + past search-miss panels (shown when title is meaningful).
+              empty:hidden — when both panels render null the wrapper keeps no
+              padding/border height, so no layout shift at the 3-char gate */}
           {form.title.length >= 3 && (
-            <div className="px-4 py-3 space-y-3 border-b border-zinc-100 dark:border-zinc-800">
+            <div className="empty:hidden px-4 py-3 space-y-3 border-b border-zinc-100 dark:border-zinc-800">
               <RelatedKnowledgePanel
                 title={form.title}
                 description={form.description || null}
