@@ -148,8 +148,40 @@ describe('setupWorker', () => {
     lastSpawnedChild?.stdout.emit('data', Buffer.from('hello from worker'));
     lastSpawnedChild?.stderr.emit('data', Buffer.from('warn from worker'));
 
-    expect(loggerInstance.debug).toHaveBeenCalledWith(expect.stringContaining('hello from worker'));
+    // .info(), not .debug() — the worker's own logger already filters itself
+    // to info+, so the forwarded chunk is already the worker's meaningful
+    // output; wrapping it at .debug() would hide it once the parent's
+    // console default moves away from debug (see lifecycle.ts).
+    expect(loggerInstance.info).toHaveBeenCalledWith(expect.stringContaining('hello from worker'));
     expect(loggerInstance.warn).toHaveBeenCalledWith(expect.stringContaining('warn from worker'));
+  });
+
+  test("strips the worker's own pino-pretty timestamp so lines are not double-stamped", async () => {
+    // Regression: the worker runs its own pino-pretty instance, so its
+    // stdout/stderr already carries a full `[time] LEVEL (name): ` prefix.
+    // Forwarding it as-is through this logger's own .info()/.warn() stamped
+    // every line twice: "[T1] INFO (parent): [AgentWorker stdout] [T2] INFO
+    // (child): message".
+    const state = createState();
+    await setupWorker(state);
+
+    lastSpawnedChild?.stdout.emit(
+      'data',
+      Buffer.from('[2026-07-24 20:57:20.577] INFO (claude-code-agent): hello from worker'),
+    );
+    lastSpawnedChild?.stderr.emit(
+      'data',
+      Buffer.from('[2026-07-24 20:57:20.577] WARN (claude-code-agent): warn from worker'),
+    );
+
+    expect(loggerInstance.info).toHaveBeenCalledWith(
+      expect.stringContaining('[AgentWorker stdout] hello from worker'),
+    );
+    expect(loggerInstance.info).not.toHaveBeenCalledWith(expect.stringContaining('INFO ('));
+    expect(loggerInstance.warn).toHaveBeenCalledWith(
+      expect.stringContaining('[AgentWorker stderr] warn from worker'),
+    );
+    expect(loggerInstance.warn).not.toHaveBeenCalledWith(expect.stringContaining('WARN ('));
   });
 
   test('ignores blank stdout/stderr chunks', async () => {

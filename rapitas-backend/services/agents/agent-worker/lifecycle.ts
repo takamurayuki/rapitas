@@ -15,6 +15,25 @@ import { handleWorkerMessage } from './event-bridge';
 
 const logger = createLogger('agent-worker-manager:lifecycle');
 
+// Matches this same logger's own pino-pretty prefix (config/logger.ts:
+// `[yyyy-mm-dd HH:MM:ss.l] LEVEL (name): `). The worker subprocess runs its
+// own pino instance with an identical pretty transport, so its stdout/stderr
+// chunks already carry a full timestamp+level+name prefix; forwarding them
+// as-is through THIS logger's own .info()/.warn() stamped every line twice
+// (`[T1] INFO (parent): [AgentWorker stdout] [T2] INFO (child): message`).
+// Strip the child's own prefix per-line before forwarding so only the
+// parent's timestamp remains.
+const PINO_PRETTY_PREFIX =
+  /^\[\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}:\d{2}(?:\.\d+)?\]\s+\S+\s+\([^)]*\):\s*/;
+
+/** Strip a nested pino-pretty timestamp+level+name prefix from each line, if present. */
+function stripChildLogPrefix(raw: string): string {
+  return raw
+    .split('\n')
+    .map((line) => line.replace(PINO_PRETTY_PREFIX, ''))
+    .join('\n');
+}
+
 export interface WorkerState {
   workerProcess: ChildProcess | null;
   isWorkerReady: boolean;
@@ -107,8 +126,13 @@ export async function setupWorker(state: WorkerState): Promise<void> {
     if (state.workerProcess.stdout) {
       state.workerProcess.stdout.on('data', (data: Buffer) => {
         const lines = data.toString().trim();
+        // NOTE: .info(), not .debug() — the worker's own pino instance already
+        // filters itself to info+ by default (config/logger.ts), so what
+        // arrives here is already the worker's meaningful output. Wrapping it
+        // at .debug() would hide ALL of it (including the worker's own
+        // warnings/errors) once the parent's console defaults away from debug.
         if (lines) {
-          logger.debug(`[AgentWorker stdout] ${lines}`);
+          logger.info(`[AgentWorker stdout] ${stripChildLogPrefix(lines)}`);
         }
       });
     }
@@ -117,7 +141,7 @@ export async function setupWorker(state: WorkerState): Promise<void> {
       state.workerProcess.stderr.on('data', (data: Buffer) => {
         const lines = data.toString().trim();
         if (lines) {
-          logger.warn(`[AgentWorker stderr] ${lines}`);
+          logger.warn(`[AgentWorker stderr] ${stripChildLogPrefix(lines)}`);
         }
       });
     }

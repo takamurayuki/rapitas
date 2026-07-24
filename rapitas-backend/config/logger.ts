@@ -86,8 +86,19 @@ const consoleStream: DestinationStream = isDev
     })
   : pino.destination({ dest: 1, sync: false });
 
+// NOTE: default console verbosity is 'info', not 'debug' — per-item routine
+// logs (per-task automation-policy resolution, per-worktree "keeping live"
+// bookkeeping, per-handler registration, etc.) are logged at .debug() and
+// were drowning out the milestone-level signal (startup steps, warm-up
+// readiness, real errors) in the dev terminal. Set LOG_LEVEL=debug to restore
+// full verbosity when actually debugging one of those subsystems.
+// NOTE: cast — LOG_LEVEL is unchecked env input; pino validates it at
+// construction time (throws on a genuinely invalid level), same trust level
+// the previous inline ternary already extended to this env var.
+const resolvedLogLevel = (process.env.LOG_LEVEL ?? 'info') as pino.Level;
+
 const streams: StreamEntry[] = [
-  { level: isDev ? 'debug' : 'info', stream: consoleStream },
+  { level: resolvedLogLevel, stream: consoleStream },
   // Persist warn/error/fatal to the daily file for the health-check job.
   // Disabled in test environments (isTest) to prevent test throws from
   // contaminating the shared daily log file.
@@ -97,10 +108,7 @@ const streams: StreamEntry[] = [
 /**
  * Root logger instance
  */
-export const logger = pino(
-  { level: process.env.LOG_LEVEL ?? (isDev ? 'debug' : 'info') },
-  pino.multistream(streams),
-);
+export const logger = pino({ level: resolvedLogLevel }, pino.multistream(streams));
 
 /**
  * Generate named child logger

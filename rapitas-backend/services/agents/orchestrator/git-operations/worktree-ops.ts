@@ -502,6 +502,7 @@ export async function cleanupStaleWorktrees(
     // the task into a repair loop). The caller with DB access supplies the
     // worktrees of non-terminal tasks; those must never be deleted here.
     const keepSet = new Set(keepPaths.map((p) => normalizePath(p)));
+    let keptCount = 0;
 
     for (const entry of entries) {
       const pathMatch = entry.match(/^worktree\s+(.+)$/m);
@@ -512,7 +513,11 @@ export async function cleanupStaleWorktrees(
       const normalizedWtPath = normalizePath(wtPath);
       if (!normalizedWtPath.startsWith(normalizedWorktreeDir + '/')) continue;
       if (keepSet.has(normalizedWtPath)) {
-        logger.info(`[cleanupStaleWorktrees] Keeping live worktree: ${wtPath}`);
+        // Per-item "nothing to do" noise — this runs on every worker (re)init
+        // and floods the console with one line per live task. Debug-only; see
+        // the keptCount summary below for the at-a-glance signal.
+        logger.debug(`[cleanupStaleWorktrees] Keeping live worktree: ${wtPath}`);
+        keptCount++;
         continue;
       }
 
@@ -527,6 +532,9 @@ export async function cleanupStaleWorktrees(
 
     if (cleanedCount > 0) {
       logger.info(`[cleanupStaleWorktrees] Cleaned up ${cleanedCount} stale worktrees`);
+    }
+    if (keptCount > 0) {
+      logger.info(`[cleanupStaleWorktrees] Kept ${keptCount} live worktree(s)`);
     }
   } catch (error) {
     logger.error({ err: error }, '[cleanupStaleWorktrees] Failed to clean up stale worktrees');
@@ -589,16 +597,23 @@ export async function cleanupOrphanedWorktrees(
       },
     });
 
-    logger.info(
+    // Routine bookkeeping, not a signal by itself — the "Cleaned up N" summary
+    // below is the line worth seeing; this only helps when actually debugging
+    // the reconciliation logic.
+    logger.debug(
       `[cleanupOrphanedWorktrees] Found ${orphanedSessions.length} orphaned sessions with worktree paths`,
     );
+    let keptSessionCount = 0;
 
     for (const session of orphanedSessions) {
       if (!session.worktreePath) continue;
       if (keepSet.has(normalizePath(session.worktreePath))) {
-        logger.info(
+        // Per-item "nothing to do" noise — one line per still-live task on
+        // every cleanup cycle. Debug-only; see the summary after the loop.
+        logger.debug(
           `[cleanupOrphanedWorktrees] Skipping session ${session.id} worktree — owning task is still live: ${session.worktreePath}`,
         );
+        keptSessionCount++;
         continue;
       }
 
@@ -622,6 +637,11 @@ export async function cleanupOrphanedWorktrees(
           `[cleanupOrphanedWorktrees] Failed to clean up session ${session.id} worktree: ${session.worktreePath}`,
         );
       }
+    }
+    if (keptSessionCount > 0) {
+      logger.info(
+        `[cleanupOrphanedWorktrees] Kept ${keptSessionCount} session worktree(s) (owning tasks still live)`,
+      );
     }
 
     // Also check for filesystem orphans (directories that git no longer tracks)
@@ -649,6 +669,7 @@ export async function cleanupOrphanedWorktrees(
 
         // Check filesystem directories against git-tracked worktrees
         const dirEntries = await fsPromises.readdir(worktreeDir, { withFileTypes: true });
+        let keptDirCount = 0;
 
         for (const dirEntry of dirEntries) {
           if (!dirEntry.isDirectory()) continue;
@@ -681,10 +702,18 @@ export async function cleanupOrphanedWorktrees(
               logger.warn(`[cleanupOrphanedWorktrees] Skipped unsafe path: ${dirPath}`);
             }
           } else if (keepSet.has(normalizedDirPath)) {
-            logger.info(
+            // Per-item "nothing to do" noise — one line per still-live task on
+            // every cleanup cycle. Debug-only; see the summary below.
+            logger.debug(
               `[cleanupOrphanedWorktrees] Skipping filesystem orphan — owning task is still live: ${dirPath}`,
             );
+            keptDirCount++;
           }
+        }
+        if (keptDirCount > 0) {
+          logger.info(
+            `[cleanupOrphanedWorktrees] Kept ${keptDirCount} filesystem-orphan dir(s) (owning tasks still live)`,
+          );
         }
       } catch (error) {
         logger.warn(
