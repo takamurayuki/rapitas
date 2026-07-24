@@ -127,4 +127,81 @@ describe('useDeveloperMode - restoreExecutionState executionResult.success', () 
       expect(result.current.executionResult?.success).toBe(expected);
     },
   );
+
+  // Regression: a 'completed' execution row only means THIS PHASE finished —
+  // research→plan→implement→verify are separate rows in the same session.
+  // Reloading the task detail page right after a phase's row flipped to
+  // 'completed' (but before the next phase's row exists, or during a verify
+  // self-repair bounce) previously read as the task's real completion:
+  // executionResult.success became true, showing the completed badge, Reset
+  // button, and "PRを開く" button before the task had actually finished.
+  it('does NOT treat a "completed" row as terminal when the phase auto-advances (sessionMode is workflow-researcher)', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(
+        mockStatusResponse({
+          executionStatus: 'completed',
+          sessionMode: 'workflow-researcher',
+          taskStatus: 'in-progress',
+          workflowStatus: 'research_done',
+        }),
+      ),
+    );
+
+    const { result } = renderHook(() => useDeveloperMode(200));
+
+    await waitFor(() => {
+      expect(result.current.isRestoringState).toBe(false);
+    });
+
+    expect(result.current.executionResult?.success).toBeUndefined();
+    expect(result.current.executionStatus).toBe('running');
+    expect(result.current.isExecuting).toBe(true);
+  });
+
+  it('does NOT treat a "completed" verify row as terminal while the task is still actively self-repairing', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(
+        mockStatusResponse({
+          executionStatus: 'completed',
+          sessionMode: 'workflow-verifier',
+          taskStatus: 'in-progress',
+          workflowStatus: 'plan_approved',
+        }),
+      ),
+    );
+
+    const { result } = renderHook(() => useDeveloperMode(201));
+
+    await waitFor(() => {
+      expect(result.current.isRestoringState).toBe(false);
+    });
+
+    expect(result.current.executionResult?.success).toBeUndefined();
+    expect(result.current.executionStatus).toBe('running');
+  });
+
+  it('DOES treat a "completed" row as terminal once the task itself is genuinely done', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(
+        mockStatusResponse({
+          executionStatus: 'completed',
+          sessionMode: 'workflow-verifier',
+          taskStatus: 'done',
+          workflowStatus: 'completed',
+        }),
+      ),
+    );
+
+    const { result } = renderHook(() => useDeveloperMode(202));
+
+    await waitFor(() => {
+      expect(result.current.isRestoringState).toBe(false);
+    });
+
+    expect(result.current.executionResult?.success).toBe(true);
+    expect(result.current.executionStatus).toBe('completed');
+  });
 });

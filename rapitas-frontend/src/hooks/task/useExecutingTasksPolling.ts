@@ -103,6 +103,8 @@ export function useExecutingTasksPolling(options?: {
         parentId?: number | null;
         executionStatus: string;
         startedAt?: string | null;
+        /** The whole (multi-phase) session's start — see agent-resume-router.ts. */
+        sessionStartedAt?: string | null;
       }> = await res.json();
 
       const currentExecutingIds = new Set<number>();
@@ -110,24 +112,28 @@ export function useExecutingTasksPolling(options?: {
       for (const item of data) {
         if (item.executionStatus === 'running' || item.executionStatus === 'waiting_for_input') {
           currentExecutingIds.add(item.taskId);
+          // Prefer the session's start over this row's own — a new AgentExecution
+          // row (and thus a new startedAt) is created for every workflow phase,
+          // which previously reset the card's elapsed-time display each phase.
+          const elapsedAnchor = item.sessionStartedAt ?? item.startedAt ?? null;
           setExecutingTask({
             taskId: item.taskId,
             sessionId: item.sessionId,
             status: item.executionStatus as 'running' | 'waiting_for_input',
-            startedAt: item.startedAt ?? null,
+            startedAt: elapsedAnchor,
           });
 
           // Reflect a running subtask on its PARENT card too: the home list does
           // not render subtasks as their own cards, so the parent shows the
           // spinner while one of its subtasks is executing. The parent's elapsed
-          // timer reflects the subtask's own startedAt, since the parent has no
-          // execution row of its own.
+          // timer reflects the subtask's own session start, since the parent has
+          // no execution row of its own.
           if (item.parentId != null) {
             currentExecutingIds.add(item.parentId);
             setExecutingTask({
               taskId: item.parentId,
               status: 'running',
-              startedAt: item.startedAt ?? null,
+              startedAt: elapsedAnchor,
             });
           }
 

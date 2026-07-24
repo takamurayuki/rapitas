@@ -222,6 +222,7 @@ export const agentResumeRouter = new Elysia()
           session: {
             select: {
               id: true,
+              createdAt: true,
               config: { select: { taskId: true } },
             },
           },
@@ -255,6 +256,10 @@ export const agentResumeRouter = new Elysia()
         parentId: parentById.get(execution.session.config.taskId) ?? null,
         executionStatus: execution.status,
         startedAt: execution.startedAt,
+        // The whole session's start (spans every phase) — see status-route.ts's
+        // identical field for why the elapsed-time display must anchor here,
+        // not on this row's own startedAt (which resets every new phase).
+        sessionStartedAt: execution.session.createdAt,
       }));
     } catch (error) {
       const errObj = error as { code?: string; message?: string };

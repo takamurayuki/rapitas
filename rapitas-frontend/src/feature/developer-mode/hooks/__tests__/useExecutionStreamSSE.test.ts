@@ -91,13 +91,17 @@ describe('useExecutionStream (shared SSE)', () => {
     expect(result.current.logs).toEqual(['hello\n']);
   });
 
-  it('execution_startedでログをリセットし実行中状態にすること', () => {
+  it('execution_startedで実行中状態にし、直前フェーズのログは維持すること', () => {
+    // Regression: research/plan/implement/verify are separate AgentExecution
+    // rows sharing one sessionId, so execution_started fires once per PHASE —
+    // wiping the log here discarded every prior phase's output at each
+    // boundary instead of accumulating the whole task's run.
     const { result } = renderHook(() => useExecutionStream(42));
     act(() => emit('execution_output', { sessionId: 42, output: 'before\n' }));
     act(() => emit('execution_started', { sessionId: 42 }));
     expect(result.current.status).toBe('running');
     expect(result.current.isRunning).toBe(true);
-    expect(result.current.logs.join('')).not.toContain('before');
+    expect(result.current.logs.join('')).toContain('before');
   });
 
   it('execution_completedで完了状態とresultを反映すること', () => {

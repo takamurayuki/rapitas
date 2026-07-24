@@ -68,6 +68,10 @@ function buildConfig(totalCostUsd: unknown) {
         mode: 'workflow-implementer',
         totalTokensUsed: 12345,
         totalCostUsd,
+        // Distinct from the execution row's own startedAt below — this is the
+        // whole multi-phase run's start, which the "implementer" phase (a
+        // later row in the same session) did not begin at.
+        createdAt: new Date('2025-12-31T22:00:00Z'),
         agentExecutions: [
           {
             id: 777,
@@ -111,5 +115,20 @@ describe('GET /tasks/:id/execution-status — totalSessionCostUsd', () => {
     const response = await app.handle(new Request('http://localhost/tasks/999/execution-status'));
     const body = (await response.json()) as { totalSessionCostUsd: number };
     expect(body.totalSessionCostUsd).toBe(0);
+  });
+});
+
+describe('GET /tasks/:id/execution-status — sessionStartedAt', () => {
+  it('returns the SESSION start (not the current phase execution row start), for cumulative elapsed-time display', async () => {
+    // Regression: the elapsed-time display reset every workflow phase because
+    // it anchored on the current AgentExecution row's own startedAt, which is
+    // a new value every phase. sessionStartedAt must reflect the whole run's
+    // start (AgentSession.createdAt) instead.
+    mockConfig = buildConfig(0);
+    const app = new Elysia().use(statusRoute);
+    const response = await app.handle(new Request('http://localhost/tasks/999/execution-status'));
+    const body = (await response.json()) as { sessionStartedAt: string; startedAt: string };
+    expect(new Date(body.sessionStartedAt).toISOString()).toBe('2025-12-31T22:00:00.000Z');
+    expect(new Date(body.startedAt).toISOString()).toBe('2026-01-01T00:00:00.000Z');
   });
 });

@@ -191,6 +191,13 @@ export const statusRoute = new Elysia().get(
         outputLength: fullOutput.length,
         errorMessage: latestExecution?.errorMessage,
         startedAt: latestExecution?.startedAt,
+        // The whole multi-phase run's start (AgentSession spans every phase;
+        // AgentExecution is one row PER phase, so its own startedAt resets
+        // every time a new phase's row is created). Elapsed-time displays
+        // should anchor on this, not the current phase's startedAt, so the
+        // timer accumulates across research/plan/implement/verify instead of
+        // restarting at each phase boundary.
+        sessionStartedAt: latestSession.createdAt,
         completedAt: latestExecution?.completedAt,
         tokensUsed: latestExecution?.tokensUsed || 0,
         totalSessionTokens: latestSession.totalTokensUsed || 0,

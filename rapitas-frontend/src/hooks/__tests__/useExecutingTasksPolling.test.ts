@@ -41,6 +41,37 @@ describe('useExecutingTasksPolling', () => {
     expect(useExecutionStateStore.getState().isTaskExecuting(1)).toBe(true);
   });
 
+  it("prefers sessionStartedAt over the execution row's own startedAt for the elapsed-time anchor", async () => {
+    // Regression: a new AgentExecution row (and thus a new startedAt) is
+    // created for every workflow phase, resetting the card's elapsed-time
+    // display each phase. sessionStartedAt (the whole run's start) must win.
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: true,
+        json: () =>
+          Promise.resolve([
+            {
+              taskId: 5,
+              sessionId: 10,
+              executionStatus: 'running',
+              startedAt: '2026-01-02T00:00:00.000Z',
+              sessionStartedAt: '2026-01-01T00:00:00.000Z',
+            },
+          ]),
+      }),
+    );
+
+    renderHook(() => useExecutingTasksPolling());
+    await act(async () => {
+      await vi.runOnlyPendingTimersAsync();
+    });
+
+    expect(useExecutionStateStore.getState().getExecutingTaskStartedAt(5)).toBe(
+      '2026-01-01T00:00:00.000Z',
+    );
+  });
+
   it('propagates a running subtask to its parent', async () => {
     vi.stubGlobal(
       'fetch',

@@ -92,7 +92,13 @@ export function useExecutionStream(sessionId: number | null) {
     const unsubscribers = [
       sharedEventSource.subscribe('execution_started', (event) => {
         if (!forThisSession(event)) return;
-        logsRef.current = [`${tRef.current('startedLog')}\n`];
+        // Append, don't replace: this event fires once per workflow PHASE
+        // (research/plan/implement/verify are separate AgentExecution rows
+        // sharing the same sessionId), so replacing logsRef.current here wiped
+        // every prior phase's accumulated output at each phase boundary.
+        // useExecutionPolling's equivalent phase-rollover handling already
+        // keeps the accumulated log array — this mirrors that.
+        logsRef.current = trimLogs([...logsRef.current, `\n${tRef.current('startedLog')}\n`]);
         setState((prev) => ({
           ...prev,
           isRunning: true,

@@ -9,6 +9,7 @@ import { useExecutionStateStore } from '@/stores/execution-state-store';
 import { createLogger } from '@/lib/logger';
 import { useDeveloperModeConfig } from './useDeveloperModeConfig';
 import { useAgentExecutionActions } from './useAgentExecutionActions';
+import { isPhaseAutoAdvancing } from './execution-poll-completion';
 
 const logger = createLogger('useDeveloperMode');
 
@@ -162,9 +163,20 @@ export function useDeveloperMode(taskId: number) {
         }
       }
 
+      // A 'completed' execution row does not mean the whole task is done —
+      // it may just be a phase boundary (research→plan→…) with more phases
+      // still to come, or the task still actively self-repairing (verify
+      // bounce). Without this check, opening/reloading the task detail page
+      // between two phases read the single just-finished row as a genuine
+      // completion: the completed badge, Reset button, and "PRを開く" button
+      // all appeared before the task had actually finished.
+      const isStillAdvancing =
+        statusData.executionStatus === 'completed' && isPhaseAutoAdvancing(statusData);
+
       if (
         statusData.executionStatus === 'running' ||
-        statusData.executionStatus === 'waiting_for_input'
+        statusData.executionStatus === 'waiting_for_input' ||
+        isStillAdvancing
       ) {
         setIsExecuting(true);
         setExecutionStatus('running');
@@ -173,7 +185,10 @@ export function useDeveloperMode(taskId: number) {
           sessionId: statusData.sessionId,
           status:
             statusData.executionStatus === 'waiting_for_input' ? 'waiting_for_input' : 'running',
-          startedAt: statusData.startedAt ?? null,
+          // The whole run's start, not this phase's — see status-route.ts's
+          // sessionStartedAt doc comment (elapsed time must accumulate across
+          // phases, not reset at each one).
+          startedAt: statusData.sessionStartedAt ?? statusData.startedAt ?? null,
         });
       } else if (statusData.executionStatus === 'interrupted') {
         // Display interrupted state as idle (treat as non-running after server restart)
@@ -192,10 +207,12 @@ export function useDeveloperMode(taskId: number) {
       // was killed mid-run (server restart, crash, SIGTERM) then read as a
       // SUCCESSFUL completion on the next task-detail load. Only 'completed'
       // and 'failed' are actual terminal verdicts; 'running'/'waiting_for_input'/
-      // 'interrupted' must stay `undefined` so isRestoredTerminal (which checks
-      // `success !== undefined`) doesn't fire for them.
-      const success =
-        statusData.executionStatus === 'completed'
+      // 'interrupted'/a still-advancing 'completed' row must stay `undefined`
+      // so isRestoredTerminal (which checks `success !== undefined`) doesn't
+      // fire for them.
+      const success = isStillAdvancing
+        ? undefined
+        : statusData.executionStatus === 'completed'
           ? true
           : statusData.executionStatus === 'failed'
             ? false
