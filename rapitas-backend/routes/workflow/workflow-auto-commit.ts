@@ -14,6 +14,11 @@ import { logAutoCommit, logAutoPR } from './workflow-activity-logger';
 import { runVerificationGate } from '../../services/agents/verification/verification-gate';
 import { resolveAutomationPolicy } from '../../services/workflow/automation-policy';
 import { linkAutoCreatedPr } from '../../services/github/pr-link';
+import {
+  findOpenPrForTask,
+  claimPrCreationLock,
+  releasePrCreationLock,
+} from '../../services/github/pr-duplicate-guard';
 
 const log = createLogger('routes:workflow:auto-commit');
 
@@ -238,47 +243,78 @@ export async function performAutoCommitAndPR(
       };
     }
     if (autoCreatePR && result.autoCommitResult?.success) {
-      try {
-        const prTitle = `[Task-${taskId}] ${task.title}`;
-        const prBody = `## Summary\n\nAuto-generated PR for Task #${taskId}: ${task.title}\n\n## Verification Report\n\n${verifyContent}\n\n---\n🤖 Generated automatically by Rapitas AI Agent`;
-        const prResult = await orchestrator.createPullRequest(
-          gitCwd,
-          prTitle,
-          prBody,
-          targetBranch,
+      // One-open-PR-per-task guard: createPullRequest's own reuse check is
+      // branch-scoped (gh pr list --head <branch>) and misses a task's real
+      // open PR whenever this run lands on a DIFFERENT branch than the PR was
+      // opened from (recreated worktree, diverged push renamed to
+      // <branch>-<sha>). Claim the lock first so two concurrent auto-PR
+      // attempts for this task can't both pass the check and each create one.
+      const lockClaimed = await claimPrCreationLock(prisma, taskId);
+      if (!lockClaimed) {
+        log.info(
+          `[Workflow] Task ${taskId}: another PR-creation attempt is already in flight — skipping`,
         );
-        result.autoPRResult = prResult;
-
-        if (prResult.success) {
-          log.info(`[Workflow] Auto-PR created for task ${taskId}: ${prResult.prUrl}`);
-          await logAutoPR(taskId, task.title, prResult.prUrl, prResult.prNumber);
-          // Persist + link the PR locally so the task's "PRを開く" button can
-          // resolve task → local PR id. Without this the by-task lookup 404s and
-          // the button silently does nothing.
-          if (prResult.prNumber != null && prResult.prUrl) {
-            await linkAutoCreatedPr(prisma, {
-              taskId,
-              prNumber: prResult.prNumber,
-              prUrl: prResult.prUrl,
-              title: prTitle,
-              headBranch: result.autoCommitResult?.branch ?? branchName ?? 'unknown',
-              baseBranch: targetBranch,
-              repositoryUrl: task.theme?.repositoryUrl,
-              workingDirectory: gitCwd,
-            });
-          }
-        } else {
-          log.error(
-            { error: prResult.error },
-            `[Workflow] Auto-PR creation failed for task ${taskId}`,
-          );
-        }
-      } catch (prError) {
-        log.error({ err: prError }, `[Workflow] Auto-PR failed for task ${taskId}`);
         result.autoPRResult = {
           success: false,
-          error: prError instanceof Error ? prError.message : String(prError),
+          error: 'PR作成が別プロセスで進行中のためスキップしました',
         };
+      } else {
+        try {
+          const existingOpenPr = await findOpenPrForTask(prisma, taskId);
+          if (existingOpenPr) {
+            log.info(
+              `[Workflow] Task ${taskId} already has open PR #${existingOpenPr.prNumber} — reusing instead of creating a new one`,
+            );
+            result.autoPRResult = {
+              success: true,
+              prUrl: existingOpenPr.url,
+              prNumber: existingOpenPr.prNumber,
+            };
+          } else {
+            const prTitle = `[Task-${taskId}] ${task.title}`;
+            const prBody = `## Summary\n\nAuto-generated PR for Task #${taskId}: ${task.title}\n\n## Verification Report\n\n${verifyContent}\n\n---\n🤖 Generated automatically by Rapitas AI Agent`;
+            const prResult = await orchestrator.createPullRequest(
+              gitCwd,
+              prTitle,
+              prBody,
+              targetBranch,
+            );
+            result.autoPRResult = prResult;
+
+            if (prResult.success) {
+              log.info(`[Workflow] Auto-PR created for task ${taskId}: ${prResult.prUrl}`);
+              await logAutoPR(taskId, task.title, prResult.prUrl, prResult.prNumber);
+              // Persist + link the PR locally so the task's "PRを開く" button can
+              // resolve task → local PR id. Without this the by-task lookup 404s and
+              // the button silently does nothing.
+              if (prResult.prNumber != null && prResult.prUrl) {
+                await linkAutoCreatedPr(prisma, {
+                  taskId,
+                  prNumber: prResult.prNumber,
+                  prUrl: prResult.prUrl,
+                  title: prTitle,
+                  headBranch: result.autoCommitResult?.branch ?? branchName ?? 'unknown',
+                  baseBranch: targetBranch,
+                  repositoryUrl: task.theme?.repositoryUrl,
+                  workingDirectory: gitCwd,
+                });
+              }
+            } else {
+              log.error(
+                { error: prResult.error },
+                `[Workflow] Auto-PR creation failed for task ${taskId}`,
+              );
+            }
+          }
+        } catch (prError) {
+          log.error({ err: prError }, `[Workflow] Auto-PR failed for task ${taskId}`);
+          result.autoPRResult = {
+            success: false,
+            error: prError instanceof Error ? prError.message : String(prError),
+          };
+        } finally {
+          await releasePrCreationLock(prisma, taskId);
+        }
       }
     }
 
