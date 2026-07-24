@@ -36,6 +36,19 @@ export async function backfillWorkflowFilesToDatabase(): Promise<number> {
   if (!existsSync(baseDir)) return 0;
 
   let backfilled = 0;
+  let orphanedDirs = 0;
+
+  // Pre-fetch every live task id ONCE instead of discovering per-directory that
+  // a task is gone (an FK violation on .create()). A directory whose task was
+  // since deleted will NEVER succeed and this walk runs on every boot — without
+  // this check it silently re-attempted (and re-logged, at warn level, a full
+  // stack trace) the SAME doomed insert for every orphaned dir × tracked file
+  // type on every single startup, adding real wall-clock time and log noise
+  // proportional to how many tasks had ever been deleted (observed: 100+
+  // orphaned directories turning a ~2s restart into several minutes).
+  const liveTaskIds = new Set(
+    (await prisma.task.findMany({ select: { id: true } }).catch(() => [])).map((t) => t.id),
+  );
 
   let categoryDirs: string[];
   try {
@@ -65,6 +78,10 @@ export async function backfillWorkflowFilesToDatabase(): Promise<number> {
       for (const taskDirName of taskDirs) {
         const taskId = Number.parseInt(taskDirName, 10);
         if (!Number.isFinite(taskId)) continue;
+        if (!liveTaskIds.has(taskId)) {
+          orphanedDirs++;
+          continue; // Task no longer exists — every insert here would FK-violate.
+        }
         const taskPath = join(themePath, taskDirName);
         try {
           if (!(await stat(taskPath)).isDirectory()) continue;
@@ -104,6 +121,11 @@ export async function backfillWorkflowFilesToDatabase(): Promise<number> {
 
   if (backfilled > 0) {
     log.info(`Backfilled ${backfilled} workflow file(s) from ${baseDir} into the database.`);
+  }
+  if (orphanedDirs > 0) {
+    log.info(
+      `Skipped ${orphanedDirs} orphaned workflow director(y/ies) with no matching Task row.`,
+    );
   }
   return backfilled;
 }

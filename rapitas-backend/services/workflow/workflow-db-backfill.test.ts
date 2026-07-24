@@ -29,14 +29,26 @@ const createMock = mock((args: { data: FileRow }) => {
   createdRows.push(args.data);
   return Promise.resolve({ id: createdRows.length, ...args.data });
 });
+const findUniqueMock = mock(
+  (args: { where: { taskId_fileType: { taskId: number; fileType: string } } }) => {
+    const key = `${args.where.taskId_fileType.taskId}:${args.where.taskId_fileType.fileType}`;
+    return Promise.resolve(existingRows.has(key) ? { id: 1 } : null);
+  },
+);
+// Every task id used across this suite's fixtures — the default "live" set so
+// existing tests (which don't care about the orphan-skip path) keep working
+// unchanged. Individual tests override `liveTaskIds` to exercise that path.
+const ALL_TEST_TASK_IDS = [10, 11, 20, 42];
+let liveTaskIds: number[] | null = null;
+const taskFindManyMock = mock(() =>
+  Promise.resolve((liveTaskIds === null ? ALL_TEST_TASK_IDS : liveTaskIds).map((id) => ({ id }))),
+);
 
 mock.module('../../config/database', () => ({
   prisma: {
+    task: { findMany: taskFindManyMock },
     workflowFile: {
-      findUnique: (args: { where: { taskId_fileType: { taskId: number; fileType: string } } }) => {
-        const key = `${args.where.taskId_fileType.taskId}:${args.where.taskId_fileType.fileType}`;
-        return Promise.resolve(existingRows.has(key) ? { id: 1 } : null);
-      },
+      findUnique: findUniqueMock,
       create: createMock,
     },
   },
@@ -57,7 +69,10 @@ beforeEach(() => {
   process.env.RAPITAS_DATA_DIR = dataDir;
   existingRows = new Set();
   createdRows = [];
+  liveTaskIds = null;
   createMock.mockClear();
+  findUniqueMock.mockClear();
+  taskFindManyMock.mockClear();
 });
 
 afterEach(() => {
@@ -138,5 +153,30 @@ describe('backfillWorkflowFilesToDatabase — happy path', () => {
     expect(copied).toBe(1);
     expect(createdRows).toHaveLength(1);
     expect(createdRows[0].taskId).toBe(11);
+  });
+
+  // Regression: a task directory whose Task row was since deleted made every
+  // create() FK-violate, forever, on EVERY boot — the walk never learned the
+  // directory was permanently doomed. Skip it up front via a single
+  // task.findMany() instead of re-attempting (and re-logging) a doomed insert
+  // per orphaned dir × tracked file type on every single startup.
+  test('skips a task directory whose Task row no longer exists, without touching workflowFile at all', async () => {
+    mkdirSync(join(workflowsRoot(), '1', '2', '10'), { recursive: true });
+    mkdirSync(join(workflowsRoot(), '1', '2', '999'), { recursive: true }); // orphan: not in liveTaskIds
+    writeFileSync(join(workflowsRoot(), '1', '2', '10', 'research.md'), 'lives');
+    writeFileSync(join(workflowsRoot(), '1', '2', '999', 'research.md'), 'orphaned');
+    liveTaskIds = [10];
+
+    const copied = await backfillWorkflowFilesToDatabase();
+
+    expect(copied).toBe(1);
+    expect(createdRows.map((r) => r.taskId)).toEqual([10]);
+    // Only the live task's 4 tracked file types are checked — the orphaned
+    // dir (999) never reaches a single workflowFile lookup.
+    expect(findUniqueMock).toHaveBeenCalledTimes(4);
+    expect(
+      findUniqueMock.mock.calls.every((c: any) => c[0].where.taskId_fileType.taskId === 10),
+    ).toBe(true);
+    expect(taskFindManyMock).toHaveBeenCalledTimes(1);
   });
 });
