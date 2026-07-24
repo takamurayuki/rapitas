@@ -5,12 +5,13 @@
  * draft, plus clearing a stale task.status='blocked') and handleResumeFromQuestion
  * (awaiting_question -> recorded previousStatus).
  */
-import { describe, expect, test, mock, beforeEach } from 'bun:test';
+import { describe, expect, test, mock, beforeEach, afterAll } from 'bun:test';
 
 // ---- prisma mock ----
 const mockFindUnique = mock(() => Promise.resolve<Record<string, unknown> | null>(null));
 const mockUpdate = mock(() => Promise.resolve({}));
 const mockFindFirstTransition = mock(() => Promise.resolve<Record<string, unknown> | null>(null));
+const mockFindFirstExecution = mock(() => Promise.resolve<Record<string, unknown> | null>(null));
 const mockPrisma = {
   task: {
     findUnique: mockFindUnique,
@@ -19,11 +20,18 @@ const mockPrisma = {
   workflowTransition: {
     findFirst: mockFindFirstTransition,
   },
+  agentExecution: {
+    findFirst: mockFindFirstExecution,
+  },
 };
 mock.module('../../../config', () => ({
   prisma: mockPrisma,
   createLogger: () => ({ info: () => {}, error: () => {}, warn: () => {}, debug: () => {} }),
 }));
+
+// ---- fetch mock (the auto re-run's internal loopback call) ----
+const mockFetch = mock(() => Promise.resolve(new Response(null, { status: 200 })));
+const originalFetch = global.fetch;
 
 // ---- recordTransition mock ----
 const mockRecordTransition = mock(() => Promise.resolve());
@@ -68,9 +76,16 @@ beforeEach(() => {
   mockFindUnique.mockReset();
   mockUpdate.mockReset().mockResolvedValue({});
   mockFindFirstTransition.mockReset();
+  mockFindFirstExecution.mockReset().mockResolvedValue(null);
   mockRecordTransition.mockReset().mockResolvedValue(undefined);
   mockArchiveWorkflowFile.mockReset().mockResolvedValue(undefined);
   mockResolveTaskWorkflowState.mockReset();
+  mockFetch.mockReset().mockResolvedValue(new Response(null, { status: 200 }));
+  global.fetch = mockFetch as unknown as typeof fetch;
+});
+
+afterAll(() => {
+  global.fetch = originalFetch;
 });
 
 describe('handleAnswerWorkflowQuestion', () => {
@@ -134,6 +149,96 @@ describe('handleAnswerWorkflowQuestion', () => {
     expect(mockRecordTransition).toHaveBeenCalledWith(
       expect.objectContaining({ taskId: 7, toStatus: 'draft', cause: 'intake_question_answered' }),
     );
+  });
+
+  test('auto re-triggers execution with the last-used agentConfigId after answering', async () => {
+    // Regression test: this pause never has a live agent process to resume,
+    // so without the auto re-trigger the task just sat at workflowStatus=
+    // 'draft' forever (task 512 report — user answered, nothing continued).
+    mockFindUnique.mockResolvedValue({
+      id: 512,
+      description: '既存の説明',
+      goals: '[]',
+      workflowStatus: 'awaiting_question',
+      status: 'blocked',
+    });
+    mockFindFirstExecution.mockResolvedValue({ agentConfigId: 1 });
+
+    await handleAnswerWorkflowQuestion({
+      params: { taskId: '512' },
+      body: { answer: 'A: 本格ログインを必須にする' },
+      set: {},
+    });
+
+    expect(mockFindFirstExecution).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { session: { config: { taskId: 512 } } } }),
+    );
+    expect(mockFetch).toHaveBeenCalledTimes(1);
+    const [url, init] = mockFetch.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe('http://127.0.0.1:3001/tasks/512/execute');
+    expect(init.method).toBe('POST');
+    expect(JSON.parse(init.body as string)).toEqual({ agentConfigId: 1 });
+  });
+
+  test('skips the auto re-trigger when the task has no prior execution', async () => {
+    mockFindUnique.mockResolvedValue({
+      id: 999,
+      description: null,
+      goals: null,
+      workflowStatus: 'awaiting_question',
+      status: 'todo',
+    });
+    mockFindFirstExecution.mockResolvedValue(null);
+
+    await handleAnswerWorkflowQuestion({
+      params: { taskId: '999' },
+      body: { answer: '回答' },
+      set: {},
+    });
+
+    expect(mockFetch).not.toHaveBeenCalled();
+  });
+
+  test('does not throw when the auto re-trigger request fails', async () => {
+    mockFindUnique.mockResolvedValue({
+      id: 512,
+      description: null,
+      goals: null,
+      workflowStatus: 'awaiting_question',
+      status: 'blocked',
+    });
+    mockFindFirstExecution.mockResolvedValue({ agentConfigId: 1 });
+    mockFetch.mockResolvedValue(
+      new Response(JSON.stringify({ error: 'AUTO_RUN_ACTIVE' }), { status: 409 }),
+    );
+
+    const result = await handleAnswerWorkflowQuestion({
+      params: { taskId: '512' },
+      body: { answer: '回答' },
+      set: {},
+    });
+
+    expect(result).toEqual({ taskId: 512, ok: true, toStatus: 'draft' });
+  });
+
+  test('does not throw when the auto re-trigger fetch itself rejects', async () => {
+    mockFindUnique.mockResolvedValue({
+      id: 512,
+      description: null,
+      goals: null,
+      workflowStatus: 'awaiting_question',
+      status: 'blocked',
+    });
+    mockFindFirstExecution.mockResolvedValue({ agentConfigId: 1 });
+    mockFetch.mockRejectedValue(new Error('ECONNREFUSED'));
+
+    const result = await handleAnswerWorkflowQuestion({
+      params: { taskId: '512' },
+      body: { answer: '回答' },
+      set: {},
+    });
+
+    expect(result).toEqual({ taskId: 512, ok: true, toStatus: 'draft' });
   });
 
   test('rejects an invalid taskId', async () => {
