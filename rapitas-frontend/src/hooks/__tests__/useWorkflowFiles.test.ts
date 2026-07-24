@@ -145,6 +145,52 @@ describe('useWorkflowFiles', () => {
     expect(result.current.error).toBe('Network error');
   });
 
+  it('keeps the same files object reference across refetch when content is unchanged', async () => {
+    const { result } = renderHook(() => useWorkflowFiles(1));
+
+    await waitFor(() => {
+      expect(result.current.isLoading).toBe(false);
+    });
+
+    const firstFiles = result.current.files;
+
+    // A second poll returning byte-identical content must not produce a new
+    // object reference — otherwise every consumer (MarkdownView, Mermaid
+    // diagrams) re-renders on every 3s poll tick even though nothing changed.
+    await result.current.refetch();
+
+    expect(result.current.files).toBe(firstFiles);
+  });
+
+  it('replaces the files object reference when content actually changes', async () => {
+    const { result } = renderHook(() => useWorkflowFiles(1));
+
+    await waitFor(() => {
+      expect(result.current.isLoading).toBe(false);
+    });
+
+    const firstFiles = result.current.files;
+
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            ...mockFilesResponse,
+            research: { ...mockFilesResponse.research, content: '# Research (updated)' },
+          }),
+      }),
+    );
+
+    await result.current.refetch();
+
+    await waitFor(() => {
+      expect(result.current.files?.research.content).toBe('# Research (updated)');
+    });
+    expect(result.current.files).not.toBe(firstFiles);
+  });
+
   it('should reset state when taskId changes', async () => {
     const { result, rerender } = renderHook(({ taskId }) => useWorkflowFiles(taskId), {
       initialProps: { taskId: 1 as number | null },

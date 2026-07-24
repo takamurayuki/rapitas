@@ -10,7 +10,7 @@
  * when the diagram fails to parse — a broken fence must never crash the page.
  */
 
-import { useEffect, useState } from 'react';
+import { memo, useEffect, useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { useDarkMode } from '@/hooks/ui/useDarkMode';
 
@@ -46,7 +46,7 @@ interface MermaidBlockProps {
  * @param source - Mermaid source to render. / 描画するMermaidソース
  * @returns Centered SVG container, or the raw source on failure. / SVGコンテナ（失敗時は原文）
  */
-export function MermaidBlock({ source }: MermaidBlockProps) {
+function MermaidBlockImpl({ source }: MermaidBlockProps) {
   const t = useTranslations('common');
   const { isDarkMode } = useDarkMode();
   const [svg, setSvg] = useState<string | null>(null);
@@ -117,6 +117,14 @@ export function MermaidBlock({ source }: MermaidBlockProps) {
     </div>
   );
 }
+
+// NOTE: The 3s workflow-file poll re-fetches the whole document; when content
+// is byte-identical (the common case) useWorkflowFiles reuses the previous
+// object reference, but without memo here this component would still
+// re-render on every parent re-render and re-run mermaid.render for no
+// reason. `source`/`isDarkMode` are primitives, so the default shallow
+// comparison is exactly right.
+export const MermaidBlock = memo(MermaidBlockImpl);
 
 interface HastNodeLike {
   type?: string;

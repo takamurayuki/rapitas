@@ -12,6 +12,30 @@ export type WorkflowFilesData = {
   verify: WorkflowFile;
 };
 
+function fileContentEqual(a: WorkflowFile, b: WorkflowFile): boolean {
+  return (
+    a.exists === b.exists &&
+    a.content === b.content &&
+    a.lastModified === b.lastModified &&
+    a.size === b.size
+  );
+}
+
+/**
+ * True when every file type is byte-identical between two poll results.
+ * Lets the 3s poll skip `setFiles` entirely when nothing changed, so
+ * downstream consumers (MarkdownView, mermaid diagrams) don't re-render on a
+ * new-but-equal object reference every tick.
+ */
+function filesDataEqual(a: WorkflowFilesData, b: WorkflowFilesData): boolean {
+  return (
+    fileContentEqual(a.research, b.research) &&
+    fileContentEqual(a.question, b.question) &&
+    fileContentEqual(a.plan, b.plan) &&
+    fileContentEqual(a.verify, b.verify)
+  );
+}
+
 export function useWorkflowFiles(taskId: number | null) {
   const t = useTranslations('common');
   const [files, setFiles] = useState<WorkflowFilesData | null>(null);
@@ -40,12 +64,13 @@ export function useWorkflowFiles(taskId: number | null) {
         throw new Error(`HTTP ${res.status}`);
       }
       const data = await res.json();
-      setFiles({
+      const nextFiles: WorkflowFilesData = {
         research: data.research,
         question: data.question,
         plan: data.plan,
         verify: data.verify,
-      });
+      };
+      setFiles((prev) => (prev && filesDataEqual(prev, nextFiles) ? prev : nextFiles));
       setWorkflowStatus(data.workflowStatus || null);
       setWorkflowPath(data.path || null);
     } catch (err) {
