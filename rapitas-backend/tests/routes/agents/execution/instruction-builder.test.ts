@@ -177,6 +177,70 @@ describe('buildFullInstruction — workflowDisabled（ワークフロー無効�
   });
 });
 
+describe('buildFullInstruction — 仮説台帳コンテキストの注入', () => {
+  // Regression: hypotheses stopped being filed entirely once the auto-run
+  // orchestrator (the only path that called buildHypothesisContext, via
+  // workflow-orchestrator.ts's buildRoleContext) was disabled. This manual
+  // "実行" button path builds its own separate prompt and never included the
+  // hypothesis-ledger instruction at all — so filing depended entirely on
+  // auto-run being active. The caller (execute-route.ts) now pre-computes the
+  // context and passes it in as hypothesisContext.
+  const FAKE_HYPOTHESIS_CONTEXT =
+    '# 仮説台帳 (Hypothesis Ledger)\n\n## 仮説思考の指示（深い推論の核 — 必須）\n- research.md の末尾に必ず `## 仮説` セクションを設けよ。';
+
+  test('standard モードで research.md 手順の後に仮説台帳コンテキストが注入される', () => {
+    const out = buildFullInstruction({
+      taskTitle: 'T',
+      taskId: 701,
+      enforceWorkflow: true,
+      workflowMode: 'standard',
+      hypothesisContext: FAKE_HYPOTHESIS_CONTEXT,
+    });
+    expect(out).toContain('# 仮説台帳 (Hypothesis Ledger)');
+    expect(out).toContain('research.md の末尾に必ず `## 仮説` セクションを設けよ');
+    // Comes after the research.md template, before plan.md instructions.
+    expect(out.indexOf('research.md テンプレート')).toBeLessThan(
+      out.indexOf('# 仮説台帳 (Hypothesis Ledger)'),
+    );
+    expect(out.indexOf('# 仮説台帳 (Hypothesis Ledger)')).toBeLessThan(
+      out.indexOf('### Step 2: 計画 (plan.md の作成)'),
+    );
+  });
+
+  test('lightweight モードでも仮説台帳コンテキストが注入される', () => {
+    const out = buildFullInstruction({
+      taskTitle: 'T',
+      taskId: 702,
+      enforceWorkflow: true,
+      workflowMode: 'lightweight',
+      hypothesisContext: FAKE_HYPOTHESIS_CONTEXT,
+    });
+    expect(out).toContain('# 仮説台帳 (Hypothesis Ledger)');
+  });
+
+  test('hypothesisContext 未指定なら何も注入しない', () => {
+    const out = buildFullInstruction({
+      taskTitle: 'T',
+      taskId: 703,
+      enforceWorkflow: true,
+      workflowMode: 'standard',
+    });
+    expect(out).not.toContain('仮説台帳');
+  });
+
+  test('workflowDisabled=true では仮説台帳コンテキストを渡しても注入されない（research.md 自体を作らないモードのため）', () => {
+    const out = buildFullInstruction({
+      taskTitle: 'T',
+      taskId: 704,
+      enforceWorkflow: true,
+      workflowMode: 'standard',
+      workflowDisabled: true,
+      hypothesisContext: FAKE_HYPOTHESIS_CONTEXT,
+    });
+    expect(out).not.toContain('仮説台帳');
+  });
+});
+
 describe('buildFullInstruction — taskSpec（goals/constraints/acceptanceCriteria）の注入', () => {
   test('goals/constraints/acceptanceCriteria が全て指定されると強調セクションを構築する', () => {
     const out = buildFullInstruction({

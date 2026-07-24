@@ -30,6 +30,7 @@ import { narrowWorkflowMode } from '../../../services/workflow/workflow-types.gu
 import { resolveAgentForTask } from '../../../services/workflow/role-resolver';
 import { resolveEffectiveAutoApprovePlan } from '../../../services/workflow/plan-auto-approve';
 import { resolveEffectiveWorkflowDisabled } from '../../../services/workflow/workflow-disabled';
+import { buildHypothesisContext } from '../../../services/workflow/workflow-hypothesis-context';
 import {
   startWorktreeDependenciesInstall,
   taskNeedsDependencies,
@@ -576,6 +577,19 @@ export const executeRoute = new Elysia().post(
       acceptanceCriteria: parseSpecArray(task.acceptanceCriteria),
     };
 
+    // The hypothesis ledger (仮説台帳) — buildRoleContext already injects this
+    // for the auto-run orchestrator's per-phase dispatch (workflow-orchestrator.ts),
+    // but THIS manual "実行" button path builds its own separate prompt below and
+    // never included it, so hypotheses were only ever filed while a theme's
+    // auto-run was active. Skipped in research mode (buildResearchPrompt is a
+    // completely separate template) and when the workflow is disabled (no
+    // research.md is ever saved in that mode, so there's nothing to attach a
+    // `## 仮説` section to).
+    const hypothesisContext =
+      enforceWorkflow && !effectiveWorkflowDisabled
+        ? await buildHypothesisContext(taskIdNum, 'ja').catch(() => '')
+        : '';
+
     const fullInstruction = effectiveResearchMode
       ? buildResearchPrompt(task.title, task.description ?? '', worktreePath)
       : buildFullInstruction({
@@ -594,6 +608,7 @@ export const executeRoute = new Elysia().post(
           // research → implement (no plan.md) instead of research → plan → stop.
           workflowMode: narrowWorkflowMode(task.workflowMode, 'standard'),
           workflowDisabled: effectiveWorkflowDisabled,
+          hypothesisContext,
         });
 
     const analysisInfo =

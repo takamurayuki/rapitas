@@ -123,6 +123,14 @@ export function buildFullInstruction(params: {
    * workflow API.
    */
   workflowDisabled?: boolean;
+  /**
+   * Pre-built 仮説台帳 (hypothesis ledger) context block — see
+   * workflow-hypothesis-context.ts's buildHypothesisContext. Computed by the
+   * caller (async DB reads) and spliced into the research.md instructions
+   * below so hypotheses get filed from manually-executed tasks too, not only
+   * from the auto-run orchestrator's per-phase dispatch.
+   */
+  hypothesisContext?: string;
 }): string {
   const {
     taskTitle,
@@ -138,7 +146,9 @@ export function buildFullInstruction(params: {
     hasPlan = false,
     workflowMode = 'standard',
     workflowDisabled = false,
+    hypothesisContext = '',
   } = params;
+  const hypothesisBlock = hypothesisContext ? `\n\n${hypothesisContext}` : '';
 
   let fullInstruction: string;
   if (optimizedPrompt) {
@@ -243,6 +253,7 @@ verify.md テンプレート(見出しは省略不可):
 ### Step 1: 調査 (research.md の作成)
 - 既存の research.md があれば取得（\`curl -s http://127.0.0.1:3001/workflow/tasks/${taskId}/files\`）して妥当性を評価。**妥当でも、軽量モードでは下記の "次フェーズ起動" のために必ず一度 PUT で再保存**してください（内容は同等で可）。不足なら補って保存。無ければ調査して保存。
 - 軽量モードは後続に計画フェーズが無いため、research.md は**実装に直接使える具体度**（変更対象ファイル・具体的な修正方針・テスト方針）まで書くこと。判断を後続へ先送りしない。
+${hypothesisBlock}
 
 ### Step 1.4: 既に要件を満たしている場合（修正不要での完了）
 調査の結果、既存実装で要件が全て満たされ**コード変更が一切不要**なら、research.md 末尾に \`## 結論: 修正不要\` を書いて保存し終了（タスクは自動完了）。少しでも変更余地があればこの結論は書かない。
@@ -298,7 +309,9 @@ research.md テンプレート:
 ## リスク評価: [破壊的変更の可能性とその対策]
 ## テスト戦略: [単体/統合テストの観点]
 ## 未確定事項: [プランナー (=あなたの次フェーズ) が解決すべき項目。空ならその旨明記]
+## 仮説: [下記の仮説思考の指示に従って1〜3件。該当なければ「なし」]
 \`\`\`
+${hypothesisBlock}
 
 ### Step 1.4: 既に要件を満たしている場合（修正不要での完了）
 
