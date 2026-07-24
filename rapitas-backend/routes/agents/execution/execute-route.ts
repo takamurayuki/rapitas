@@ -29,6 +29,7 @@ import { resolveTaskForExecution } from '../../../services/task/task-resolver';
 import { narrowWorkflowMode } from '../../../services/workflow/workflow-types.guards.generated';
 import { resolveAgentForTask } from '../../../services/workflow/role-resolver';
 import { resolveEffectiveAutoApprovePlan } from '../../../services/workflow/plan-auto-approve';
+import { resolveEffectiveWorkflowDisabled } from '../../../services/workflow/workflow-disabled';
 import {
   startWorktreeDependenciesInstall,
   taskNeedsDependencies,
@@ -104,6 +105,13 @@ export const executeRoute = new Elysia().post(
       return { error: 'Task not found' };
     }
 
+    // Task-level Task.workflowDisabled OR the global
+    // UserSettings.workflowDisabledGlobally — see workflow-disabled.ts. Skips
+    // complexity analysis (no mode to pick) and tells buildFullInstruction to
+    // inject direct-implementation instructions instead of the phase-gated
+    // research/plan workflow.
+    const effectiveWorkflowDisabled = await resolveEffectiveWorkflowDisabled(taskIdNum);
+
     // Block manual execution while the theme's auto-run mode is active.
     // The scheduler owns exclusive control; allow only when no auto-run is running/paused.
     if (task.themeId) {
@@ -132,8 +140,9 @@ export const executeRoute = new Elysia().post(
       return response;
     };
 
-    // Auto-analyze complexity if not yet scored
-    if (task.complexityScore === null && !task.workflowModeOverride) {
+    // Auto-analyze complexity if not yet scored (skipped when the workflow is
+    // disabled — there's no phase-based mode to pick for a direct-implementation run).
+    if (!effectiveWorkflowDisabled && task.complexityScore === null && !task.workflowModeOverride) {
       try {
         const complexityInput = {
           title: task.title,
@@ -270,6 +279,7 @@ export const executeRoute = new Elysia().post(
         baseBranch: resolvedBaseBranch,
         workDir,
         currentWorkflowStatus: task.workflowStatus,
+        workflowDisabled: effectiveWorkflowDisabled,
       });
     } catch (setupError) {
       const prismaCode = (setupError as Record<string, unknown>)?.code;
@@ -583,6 +593,7 @@ export const executeRoute = new Elysia().post(
           // Lightweight tasks skip the plan phase: the workflow injection becomes
           // research → implement (no plan.md) instead of research → plan → stop.
           workflowMode: narrowWorkflowMode(task.workflowMode, 'standard'),
+          workflowDisabled: effectiveWorkflowDisabled,
         });
 
     const analysisInfo =

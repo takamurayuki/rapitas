@@ -124,6 +124,12 @@ export type Task = {
   complexityScore?: number | null;
   workflowModeOverride?: boolean | null;
   autoApprovePlan?: boolean;
+  /**
+   * Per-task off-switch for the multi-phase workflow — see
+   * UserSettings.workflowDisabledGlobally for the global equivalent (effective
+   * state is the OR of both). Server-locked once status leaves 'todo'.
+   */
+  workflowDisabled?: boolean | null;
   // Recurring task fields
   isRecurring?: boolean;
   recurrenceRule?: string | null;

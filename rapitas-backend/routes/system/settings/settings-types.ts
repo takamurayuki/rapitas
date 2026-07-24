@@ -29,6 +29,8 @@ export interface UserSettingsUpdateBody {
   defaultAiProvider?: string;
   defaultCategoryId?: number | null;
   activeMode?: string;
+  /** Global off-switch for the multi-phase workflow (see Task.workflowDisabled for the per-task equivalent). */
+  workflowDisabledGlobally?: boolean;
 }
 
 /** Body for POST /settings/api-key */

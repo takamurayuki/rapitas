@@ -6,7 +6,12 @@
  */
 
 import { prisma } from '../../../config';
-import { NotFoundError, ValidationError, parseId } from '../../../middleware/error-handler';
+import {
+  ConflictError,
+  NotFoundError,
+  ValidationError,
+  parseId,
+} from '../../../middleware/error-handler';
 import { WORKFLOW_MODES } from '../../../services/workflow/workflow-types';
 import { isWorkflowMode } from '../../../services/workflow/workflow-types.guards.generated';
 import {
@@ -91,6 +96,82 @@ export async function handleSetMode({
   } catch (err) {
     if (err instanceof ValidationError || err instanceof NotFoundError) throw err;
     log.error({ err }, 'Error setting workflow mode');
+    throw err;
+  }
+}
+
+/**
+ * Handler for POST /tasks/:taskId/set-workflow-disabled
+ * Toggles the per-task "workflow disabled" (direct-implementation) flag. See
+ * UserSettings.workflowDisabledGlobally for the global equivalent — effective
+ * state is the OR of both. Locked once the task has left 'todo' so the toggle
+ * can't change mid-execution or after completion (enforced server-side, not
+ * just hidden in the UI).
+ *
+ * @param params - Route params with taskId / ルートパラメータ
+ * @param body - Request body with the desired disabled flag / リクエストボディ
+ * @param set - Elysia response set / Elysiaレスポンス
+ * @returns Updated task's workflowDisabled state
+ * @throws {ValidationError} When `disabled` is missing/not a boolean
+ * @throws {ConflictError} When the task has already left 'todo' status
+ * @throws {NotFoundError} When task does not exist
+ */
+export async function handleSetWorkflowDisabled({
+  params,
+  body,
+  set: _set,
+}: {
+  params: { taskId: string };
+  body: unknown;
+  set: { status: number };
+}) {
+  try {
+    const taskId = parseId(params.taskId, 'task ID');
+
+    const parsedBody = body as { disabled?: unknown };
+    if (typeof parsedBody?.disabled !== 'boolean') {
+      throw new ValidationError('disabled must be a boolean');
+    }
+    const disabled = parsedBody.disabled;
+
+    const task = await resolveTaskWorkflowState(taskId);
+    if (!task) throw new NotFoundError('Task not found');
+
+    if (task.status !== 'todo') {
+      throw new ConflictError('タスクの実行が開始されているため、この設定は変更できません');
+    }
+
+    const updatedTask = await prisma.task.update({
+      where: { id: taskId },
+      data: { workflowDisabled: disabled, updatedAt: new Date() } as unknown as Parameters<
+        typeof prisma.task.update
+      >[0]['data'],
+    });
+
+    await prisma.activityLog.create({
+      data: {
+        taskId,
+        action: 'workflow_disabled_changed',
+        metadata: JSON.stringify({ disabled }),
+        createdAt: new Date(),
+      },
+    });
+
+    return {
+      success: true,
+      taskId,
+      workflowDisabled: disabled,
+      task: updatedTask,
+    };
+  } catch (err) {
+    if (
+      err instanceof ValidationError ||
+      err instanceof NotFoundError ||
+      err instanceof ConflictError
+    ) {
+      throw err;
+    }
+    log.error({ err }, 'Error setting workflow-disabled flag');
     throw err;
   }
 }

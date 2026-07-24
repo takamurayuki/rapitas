@@ -36,6 +36,22 @@ export interface WorkflowViewerProps {
   onWorkflowModeChange?: (mode: WorkflowMode, isOverride: boolean) => void;
   showWorkflowMode?: boolean;
   className?: string;
+  /**
+   * Set when the phase-critic gate just archived research.md/plan.md and
+   * rolled the status back a step (see TaskWorkflowSection's criticRejection
+   * state). Lets the tab bar and empty-state read "regenerating" instead of
+   * "not produced yet" for the affected tab, so the file's disappearance
+   * doesn't look like data loss.
+   */
+  criticRejectionPhase?: 'research' | 'plan' | null;
+  /**
+   * Effective "skip the multi-phase workflow" state (task-level OR global —
+   * see TaskWorkflowSection's effectiveWorkflowDisabled). The single-run agent
+   * never produces research.md/plan.md/question.md in this mode (see
+   * instruction-builder.ts's workflowDisabled branch), so those tabs are
+   * hidden rather than showing a permanently-empty state.
+   */
+  workflowDisabled?: boolean;
 }
 
 export default function WorkflowViewer({
@@ -48,6 +64,8 @@ export default function WorkflowViewer({
   onWorkflowModeChange,
   autoApprovePlan = false,
   className = '',
+  criticRejectionPhase = null,
+  workflowDisabled = false,
 }: WorkflowViewerProps) {
   const {
     activeTab,
@@ -76,7 +94,12 @@ export default function WorkflowViewer({
 
   const resolvedMode = workflowMode || 'comprehensive';
   const tWorkflow = useTranslations('workflow');
-  const allWorkflowTabs = getWorkflowTabs(resolvedMode, tWorkflow);
+  // Workflow-disabled tasks never produce research.md/plan.md/question.md
+  // (the single-run agent implements directly — see instruction-builder.ts) —
+  // only the verify tab is meaningful.
+  const allWorkflowTabs = workflowDisabled
+    ? getWorkflowTabs(resolvedMode, tWorkflow).filter((t) => t.id === 'verify')
+    : getWorkflowTabs(resolvedMode, tWorkflow);
 
   // Live agent question (published by the execution layer). Rendered in the Q&A
   // tab; the interactive prompt was relocated here from the execution log.
@@ -238,6 +261,7 @@ export default function WorkflowViewer({
         lastModified={activeFile?.exists ? activeFile.lastModified : undefined}
         onRefetch={refetch}
         isRefetching={isLoading}
+        regeneratingTab={criticRejectionPhase}
       />
 
       {/* Content area */}
@@ -306,6 +330,7 @@ export default function WorkflowViewer({
                   onPlanApprovalRequest={onPlanApprovalRequest}
                   taskId={taskId}
                   onSaved={refetch}
+                  isRegenerating={criticRejectionPhase === validActiveTab}
                 />
               )}
             </>

@@ -56,6 +56,14 @@ export type UserSettings = {
    * Gemini) so they never stop mid-execution to ask the user. Default true.
    */
   skipAgentPermissionPrompts?: boolean;
+  /**
+   * Global off-switch for the multi-phase workflow (research/plan/verify as
+   * separately-saved artifacts + phase-critic gate). When true, new task
+   * executions skip straight to a single direct-implementation pass — lint/
+   * test verification, adversarial diff review, and the completion gate still
+   * apply. See Task.workflowDisabled for the per-task equivalent.
+   */
+  workflowDisabledGlobally?: boolean;
   createdAt: string;
   updatedAt: string;
 };

@@ -41,6 +41,13 @@ model UserSettings {
   autoApprovePlan             Boolean   @default(false) // Whether to auto-approve when saving plan.md
   autoApproveSubtaskPlan      Boolean   @default(true)  // Auto-approve subtask plan.md (default ON)
   autoComplexityAnalysis      Boolean   @default(false) // Whether to enable automatic complexity analysis
+  // Global off-switch for the multi-phase workflow (research/plan/verify as
+  // separate saved artifacts + phase-critic gate). When true, new task
+  // executions skip straight to a single direct-implementation pass (still
+  // gated by lint/test verification, adversarial diff review, and the
+  // completion gate — only the phase ceremony is skipped). A per-task
+  // Task.workflowDisabled flag can additionally opt a single task in/out.
+  workflowDisabledGlobally    Boolean   @default(false)
   // Max concurrent auto-created backlog tasks PER THEME. 0 = disabled (opt-in).
   // When a theme's auto-run runs out of work it promotes open concerns (then
   // ideas once concerns are clear) into tasks up to this cap. See backlog-task-promoter.

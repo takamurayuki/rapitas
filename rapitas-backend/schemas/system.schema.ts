@@ -33,6 +33,7 @@ export const systemSchemas = {
     ollamaDefaultModel: t.Optional(t.String({ maxLength: 200 })),
     titleGenerationProvider: t.Optional(t.Union([t.String(), t.Null()])),
     skipAgentPermissionPrompts: t.Optional(t.Boolean()),
+    workflowDisabledGlobally: t.Optional(t.Boolean()),
   }),
 
   aiProviderConfig: t.Object({

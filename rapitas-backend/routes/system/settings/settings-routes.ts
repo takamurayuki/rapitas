@@ -77,6 +77,7 @@ export const settingsRoutes = new Elysia({ prefix: '/settings' })
         ollamaDefaultModel,
         titleGenerationProvider,
         skipAgentPermissionPrompts,
+        workflowDisabledGlobally,
       } = body as {
         developerModeDefault?: boolean;
         aiTaskAnalysisDefault?: boolean;
@@ -101,6 +102,7 @@ export const settingsRoutes = new Elysia({ prefix: '/settings' })
         ollamaDefaultModel?: string;
         titleGenerationProvider?: string | null;
         skipAgentPermissionPrompts?: boolean;
+        workflowDisabledGlobally?: boolean;
       };
 
       // NOTE: ollamaUrl is fetched server-side (see services/local-llm,
@@ -201,6 +203,20 @@ export const settingsRoutes = new Elysia({ prefix: '/settings' })
             })
             .catch((err) => log.warn({ err }, 'verifyRepairLimit persist failed'));
           (settings as Record<string, unknown>).verifyRepairLimit = clamped;
+        }
+
+        // Persist workflowDisabledGlobally via cast for the same reason (column
+        // pending client regen on the next restart).
+        if (workflowDisabledGlobally !== undefined) {
+          await prisma.userSettings
+            .update({
+              where: { id: settings.id },
+              data: { workflowDisabledGlobally } as unknown as Parameters<
+                typeof prisma.userSettings.update
+              >[0]['data'],
+            })
+            .catch((err) => log.warn({ err }, 'workflowDisabledGlobally persist failed'));
+          (settings as Record<string, unknown>).workflowDisabledGlobally = workflowDisabledGlobally;
         }
 
         return settings;

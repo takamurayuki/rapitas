@@ -1145,6 +1145,8 @@
     "autoApproveSubtaskPlanDesc": "サブタスク実行時にplan.mdを自動承認します（OFFにすると各サブタスクの計画を手動で確認できます）",
     "autoComplexityAnalysis": "複雑度の自動分析",
     "autoComplexityDescription": "タスクの複雑度を自動的に分析し、ワークフローモードを設定します。ONの場合、手動でのモード変更はできません",
+    "workflowDisabledGlobally": "ワークフローを無効化(全タスク)",
+    "workflowDisabledGloballyDescription": "新規タスクの実行で、研究/計画/検証を分けた多段ワークフローをスキップし、1回の実行で直接実装します。lint/testの検証・敵対的diffレビュー・完了ゲートは引き続き適用されます。タスクが未実行の間はタスク毎に上書きできます。",
     "workflowPhaseResearch": "調査フェーズ",
     "workflowPhasePlan": "計画フェーズ",
     "workflowPhaseImplement": "実装フェーズ",
@@ -2164,7 +2166,8 @@
     "tabBar": {
       "answerNeeded": "要回答",
       "updated": "更新:",
-      "reload": "再読み込み"
+      "reload": "再読み込み",
+      "regenerating": "再生成中"
     },
     "modeSelector": {
       "lightweightName": "簡単モード",
@@ -2184,7 +2187,8 @@
       "editPlan": "計画を編集",
       "tableOfContents": "目次",
       "approveToImplementHint": "内容を確認して承認すると実装フェーズに移行します",
-      "approveAndImplement": "承認して実装開始"
+      "approveAndImplement": "承認して実装開始",
+      "regenerating": "品質チェックにより再生成中です（内容が失われたわけではありません）"
     },
     "fileEditor": {
       "planSaved": "計画を保存しました",
@@ -2201,6 +2205,13 @@
       "autoApproveTooltipOn": "計画自動承認: ON（plan.md 保存で自動進行）",
       "autoApproveTooltipOff": "計画自動承認: OFF（手動承認が必要）",
       "autoApproveBadge": "自動承認 {state}",
+      "workflowDisabledToggle": {
+        "badge": "ワークフロー無効 {state}",
+        "onTooltip": "ワークフロー無効: ON（research.md/plan.mdを作らず直接実装します）",
+        "offTooltip": "ワークフロー無効: OFF（通常通り研究/計画/検証のフェーズを実行します）",
+        "lockedTooltip": "タスクの実行が開始されているため、この設定は変更できません",
+        "globallyForcedTooltip": "全体設定でワークフローが無効化されています（このタスクだけを個別に有効化することはできません）"
+      },
       "criticRejection": {
         "title": "{phase}の内容が品質チェックで却下されました。再生成中です。",
         "phase": {

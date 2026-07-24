@@ -114,6 +114,15 @@ export function buildFullInstruction(params: {
    * enforced workflow is research → implement (the agent must NOT create plan.md).
    */
   workflowMode?: 'lightweight' | 'standard' | 'comprehensive';
+  /**
+   * When true, this task has the multi-phase workflow disabled (globally or
+   * per-task — see UserSettings.workflowDisabledGlobally / Task.workflowDisabled).
+   * The agent implements directly in this single run with no research.md/plan.md
+   * — safety gates (lint/test verification, adversarial diff review, completion
+   * gate) still apply because it ends by saving verify.md through the normal
+   * workflow API.
+   */
+  workflowDisabled?: boolean;
 }): string {
   const {
     taskTitle,
@@ -128,6 +137,7 @@ export function buildFullInstruction(params: {
     hasResearch = false,
     hasPlan = false,
     workflowMode = 'standard',
+    workflowDisabled = false,
   } = params;
 
   let fullInstruction: string;
@@ -185,12 +195,42 @@ curl -s http://127.0.0.1:3001/workflow/tasks/${taskId}/files
 ⚠️ 既に十分な内容を同等内容で上書きするだけの再生成は禁止です。妥当な既存ファイルはそのまま活かしてください。`;
   }
 
-  // NOTE: Force the agent through research → plan → approval gate. Without this
-  // injection, codex/claude CLIs jump straight to implementation regardless of
-  // CLAUDE.md (which they do not auto-load). The agent saves research.md and
-  // plan.md via the workflow API, then exits — the user approves the plan in
-  // the UI, and a subsequent execution handles implementation.
-  if (enforceWorkflow && taskId !== undefined && workflowMode === 'lightweight') {
+  // NOTE: Workflow-disabled tasks skip research.md/plan.md entirely — the
+  // agent implements directly in this one run. Safety gates are NOT skipped:
+  // execute-setup.ts fast-forwards workflowStatus to 'plan_approved' before
+  // this run starts, so a verify.md PUT is accepted by
+  // ALLOWED_FILE_TYPES_BY_STATUS and goes through the normal verify-save gate
+  // chain (content validation, completion gate, adversarial diff review, PR
+  // requirement) with zero code duplication.
+  if (taskId !== undefined && workflowDisabled) {
+    fullInstruction += `\n\n## 必須ワークフロー (ワークフロー無効モード — research.md/plan.md は作りません)
+
+このタスクは**ワークフロー無効モード**です。research.md・plan.md は作成せず、この1回の実行で調査から実装・検証まで完結させてください。
+
+### 手順
+1. 必要な調査(関連コード/依存関係の把握)は行いますが、research.md としては保存しません。
+2. 実装方針が複数考えられる場合も、計画書(plan.md)は作らず、そのままコードを実装してください。
+3. 実装後、**自分でlintとテストを実行**してください。
+4. 検証結果を以下のAPIで verify.md として保存してから終了してください:
+
+\`\`\`bash
+curl -X PUT http://127.0.0.1:3001/workflow/tasks/${taskId}/files/verify \\
+  -H 'Content-Type: application/json' \\
+  -d '{"content":"<下記テンプレートで埋める>"}'
+\`\`\`
+
+verify.md テンプレート(見出しは省略不可):
+\`\`\`markdown
+# 検証結果
+## テスト結果: [実行したlint/testコマンドと結果。件数を具体的に]
+## チェックリスト: [タスクの要求事項ごとに満たしているかを列挙]
+## 検証結果サマリ: [✅合格 / ❌不合格 と、その根拠]
+\`\`\`
+
+⚠️ 実際に実行していないテスト結果を書かないでください(検証の捏造は完了ゲートで検出されブロックされます)。
+⚠️ verify.md の保存は敵対的diffレビュー・完了ゲート・PR必須チェックなど既存の安全機構を通過します。通常のワークフローと同じ基準で判定されます。
+`;
+  } else if (enforceWorkflow && taskId !== undefined && workflowMode === 'lightweight') {
     // Lightweight mode has NO plan phase: research → implement IN THIS SAME run.
     // Without this branch the agent got the standard research→plan→stop workflow
     // (16 plan.md mentions) and created a plan.md for a lightweight task (task 229).

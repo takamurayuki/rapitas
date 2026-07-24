@@ -1145,6 +1145,8 @@
     "autoApproveSubtaskPlanDesc": "Automatically approve plan.md for subtask execution (turn OFF to manually review each subtask plan)",
     "autoComplexityAnalysis": "Auto complexity analysis",
     "autoComplexityDescription": "Automatically analyze task complexity and set workflow mode. When ON, manual mode changes are not possible",
+    "workflowDisabledGlobally": "Disable workflow (all tasks)",
+    "workflowDisabledGloballyDescription": "Skip the multi-phase workflow (research/plan/verify as separate steps) for new task executions — the agent implements directly in a single run. Lint/test verification, adversarial diff review, and the completion gate still apply. Can be overridden per task while it hasn't started yet.",
     "workflowPhaseResearch": "Research Phase",
     "workflowPhasePlan": "Plan Phase",
     "workflowPhaseImplement": "Implement Phase",
@@ -2164,7 +2166,8 @@
     "tabBar": {
       "answerNeeded": "Answer needed",
       "updated": "Updated:",
-      "reload": "Reload"
+      "reload": "Reload",
+      "regenerating": "Regenerating"
     },
     "modeSelector": {
       "lightweightName": "Lightweight mode",
@@ -2184,7 +2187,8 @@
       "editPlan": "Edit plan",
       "tableOfContents": "Contents",
       "approveToImplementHint": "Review the content and approve to move to the implementation phase",
-      "approveAndImplement": "Approve & start implementation"
+      "approveAndImplement": "Approve & start implementation",
+      "regenerating": "Regenerating after a quality check — nothing was lost."
     },
     "fileEditor": {
       "planSaved": "Plan saved",
@@ -2201,6 +2205,13 @@
       "autoApproveTooltipOn": "Auto-approve plan: ON (advances automatically when plan.md is saved)",
       "autoApproveTooltipOff": "Auto-approve plan: OFF (manual approval required)",
       "autoApproveBadge": "Auto-approve {state}",
+      "workflowDisabledToggle": {
+        "badge": "Workflow disabled {state}",
+        "onTooltip": "Workflow disabled: ON (implements directly, no research.md/plan.md)",
+        "offTooltip": "Workflow disabled: OFF (runs the normal research/plan/verify phases)",
+        "lockedTooltip": "This can't be changed once the task's execution has started",
+        "globallyForcedTooltip": "The workflow is disabled globally — this task can't be individually re-enabled"
+      },
       "criticRejection": {
         "title": "The {phase} was rejected by the quality critic and is being regenerated.",
         "phase": {

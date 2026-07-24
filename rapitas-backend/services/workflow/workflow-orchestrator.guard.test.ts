@@ -278,6 +278,19 @@ describe('WorkflowOrchestrator.runAdvanceWorkflow — entry guards', () => {
     expect(roleConfigFindUniqueMock).not.toHaveBeenCalled();
   });
 
+  test('workflow-disabled task is skipped without building the transition table', async () => {
+    taskFindUniqueMock.mockImplementation(() =>
+      Promise.resolve(makeTask({ workflowDisabled: true })),
+    );
+
+    const orchestrator = WorkflowOrchestrator.getInstance();
+    const result = await orchestrator.advanceWorkflow(1);
+
+    expect(result.success).toBe(false);
+    expect(result.error).toContain('ワークフロー無効モード');
+    expect(roleConfigFindUniqueMock).not.toHaveBeenCalled();
+  });
+
   test('no transition defined for the current status', async () => {
     taskFindUniqueMock.mockImplementation(() =>
       Promise.resolve(makeTask({ workflowStatus: 'completed' })),

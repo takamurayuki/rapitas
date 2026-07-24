@@ -3,11 +3,12 @@ import type { Task } from '@/types';
 import type { WorkflowStatus } from '@/types';
 import WorkflowViewer from '@/components/workflow/WorkflowViewer';
 import WorkflowStatusIndicator from '@/components/workflow/WorkflowStatusIndicator';
-import { CircleSmall, Diamond, Pyramid, type LucideIcon } from 'lucide-react';
+import { CircleSmall, Diamond, Pyramid, Zap, type LucideIcon } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { API_BASE_URL } from '@/utils/api';
 import { Spinner } from '@/components/ui/spinner';
 import { resolveBlockedCauseLabel } from '@/components/workflow/workflow-blocked-cause';
+import { useWorkflowDisabledToggle } from '../hooks/useWorkflowDisabledToggle';
 
 export interface TaskWorkflowSectionProps {
   task: Task;
@@ -173,6 +174,14 @@ export default function TaskWorkflowSection({
     };
   }, []);
 
+  const {
+    effectiveWorkflowDisabled,
+    globallyForced: workflowDisabledGloballyForced,
+    isLocked: workflowToggleLocked,
+    isToggling: isTogglingWorkflowDisabled,
+    toggle: handleToggleWorkflowDisabled,
+  } = useWorkflowDisabledToggle(taskId, task, setTask);
+
   const isSubtask = !!task?.parentId;
   const taskFlag = !!task?.autoApprovePlan;
   const globalFlag = !!globalAutoApprove?.autoApprovePlan;
@@ -300,6 +309,35 @@ export default function TaskWorkflowSection({
                 state: effectiveAutoApprove ? 'ON' : 'OFF',
               })}
             </span>
+            {/* Per-task "skip the multi-phase workflow" toggle — locked once
+                the task has left 'todo' (server-enforced too, see
+                handleSetWorkflowDisabled). Reflects task.workflowDisabled;
+                the global setting can independently force this on regardless
+                of the task-level value (see effectiveWorkflowDisabled). */}
+            <button
+              type="button"
+              onClick={handleToggleWorkflowDisabled}
+              disabled={workflowToggleLocked || isTogglingWorkflowDisabled}
+              className={`flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-60 ${
+                effectiveWorkflowDisabled
+                  ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400'
+                  : 'bg-zinc-100 text-zinc-500 dark:bg-zinc-800 dark:text-zinc-400'
+              }`}
+              title={
+                workflowToggleLocked
+                  ? t('taskWorkflowSection.workflowDisabledToggle.lockedTooltip')
+                  : workflowDisabledGloballyForced
+                    ? t('taskWorkflowSection.workflowDisabledToggle.globallyForcedTooltip')
+                    : effectiveWorkflowDisabled
+                      ? t('taskWorkflowSection.workflowDisabledToggle.onTooltip')
+                      : t('taskWorkflowSection.workflowDisabledToggle.offTooltip')
+              }
+            >
+              <Zap className="h-3 w-3" />
+              {t('taskWorkflowSection.workflowDisabledToggle.badge', {
+                state: effectiveWorkflowDisabled ? 'ON' : 'OFF',
+              })}
+            </button>
           </div>
         </div>
       </div>
@@ -334,6 +372,8 @@ export default function TaskWorkflowSection({
         // displays the current value. Editing happens via the task settings
         // page so the UX matches the "状態表示だけ" policy.
         showWorkflowMode={true}
+        criticRejectionPhase={criticRejection?.phase ?? null}
+        workflowDisabled={effectiveWorkflowDisabled}
       />
 
       {criticRejection &&

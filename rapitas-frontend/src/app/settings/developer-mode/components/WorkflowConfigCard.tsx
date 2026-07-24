@@ -87,6 +87,31 @@ export function WorkflowConfigCard({
             <span className={thumbClass(settings?.autoComplexityAnalysis)} />
           </button>
         </div>
+
+        {/* Disable workflow globally */}
+        <div className="flex items-center justify-between">
+          <div>
+            <h3 className="font-medium text-zinc-900 dark:text-zinc-50">
+              {t('workflowDisabledGlobally')}
+            </h3>
+            <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-1">
+              {t('workflowDisabledGloballyDescription')}
+            </p>
+          </div>
+          <button
+            onClick={() =>
+              onUpdateSettings({
+                workflowDisabledGlobally: !settings?.workflowDisabledGlobally,
+              })
+            }
+            disabled={isSaving}
+            className={toggleClass(settings?.workflowDisabledGlobally)}
+            role="switch"
+            aria-checked={settings?.workflowDisabledGlobally ?? false}
+          >
+            <span className={thumbClass(settings?.workflowDisabledGlobally)} />
+          </button>
+        </div>
       </div>
     </div>
   );

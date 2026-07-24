@@ -15,6 +15,7 @@ import {
   handleUpdateStatus,
   handleAdvanceWorkflow,
   handleSetMode,
+  handleSetWorkflowDisabled,
   handleAnalyzeComplexity,
   handleGetModes,
   handleResumeFromQuestion,
@@ -92,6 +93,10 @@ export const workflowRoutes = new Elysia({ prefix: '/workflow' })
 
   .post('/tasks/:taskId/set-mode', (ctx) =>
     handleSetMode(ctx as Parameters<typeof handleSetMode>[0]),
+  )
+
+  .post('/tasks/:taskId/set-workflow-disabled', (ctx) =>
+    handleSetWorkflowDisabled(ctx as Parameters<typeof handleSetWorkflowDisabled>[0]),
   )
 
   .get('/tasks/:taskId/analyze-complexity', (ctx) =>

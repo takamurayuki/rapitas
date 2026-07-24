@@ -46,6 +46,30 @@ export interface ExecuteSetupParams {
    * so the frontend can display "調査中" during the research phase.
    */
   currentWorkflowStatus?: string | null;
+  /**
+   * Task/global "workflow disabled" (direct-implementation) flag — see
+   * services/workflow/workflow-disabled.ts. When true and the task hasn't
+   * reached a status that already allows a `verify` save (see
+   * ALLOWED_FILE_TYPES_BY_STATUS in workflow-handlers-files.ts), the initial
+   * workflowStatus is fast-forwarded to 'plan_approved' so the single-run
+   * agent can PUT verify.md directly without ever saving research.md/plan.md.
+   */
+  workflowDisabled?: boolean;
+}
+
+/**
+ * True when `status` does NOT already allow a `verify` save (see
+ * ALLOWED_FILE_TYPES_BY_STATUS in workflow-handlers-files.ts) — a
+ * workflow-disabled task starting from one of these (or with no status yet)
+ * needs fast-forwarding to 'plan_approved'; starting from
+ * 'in_progress'/'awaiting_question'/etc. already permits verify, so those are
+ * left untouched.
+ *
+ * @param status - Task's current workflowStatus, or null/undefined if unset. / 現在のworkflowStatus
+ * @returns Whether the status needs fast-forwarding. / フォワード要否
+ */
+export function needsDisabledFastForward(status: string | null | undefined): boolean {
+  return status == null || status === 'draft' || status === 'plan_created';
 }
 
 /**
@@ -68,6 +92,7 @@ export async function executeSetup(params: ExecuteSetupParams): Promise<SetupRes
     baseBranch,
     workDir,
     currentWorkflowStatus,
+    workflowDisabled,
   } = params;
 
   // Ensure DeveloperModeConfig exists
@@ -149,6 +174,17 @@ export async function executeSetup(params: ExecuteSetupParams): Promise<SetupRes
   // bypass-permissions agent on the parent PRIMARY checkout with no backstop.
   await ensureNotPrimaryWorkTree(worktreePath, 'spawn an agent');
 
+  // Workflow-disabled tasks skip research.md/plan.md and PUT verify.md
+  // directly (see instruction-builder.ts's workflowDisabled branch) — that
+  // save is only accepted from a status already in
+  // ALLOWED_FILE_TYPES_BY_STATUS's verify-permitting set, so fast-forward past
+  // 'draft'/'plan_created' here rather than leaving the task stuck where a
+  // direct verify PUT would be rejected.
+  const initialWorkflowStatus =
+    workflowDisabled && needsDisabledFastForward(currentWorkflowStatus)
+      ? 'plan_approved'
+      : (currentWorkflowStatus ?? 'draft');
+
   // NOTE: Three writes below are independent (no FK ordering between them) —
   // run them concurrently to shave ~30-90ms off the response path.
   const currentSessionId = session.id;
@@ -174,7 +210,7 @@ export async function executeSetup(params: ExecuteSetupParams): Promise<SetupRes
         // NOTE: Ensure workflowStatus is set so the frontend can display the
         // correct phase label (e.g. '調査中'). Auto-run sets this in the
         // orchestrator; manual execution must do the same here.
-        workflowStatus: currentWorkflowStatus ?? 'draft',
+        workflowStatus: initialWorkflowStatus,
       },
     }),
   ]);

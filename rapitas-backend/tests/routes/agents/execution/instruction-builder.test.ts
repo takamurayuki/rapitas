@@ -133,6 +133,50 @@ describe('buildFullInstruction — workflowMode による research-vs-implement 
   });
 });
 
+describe('buildFullInstruction — workflowDisabled（ワークフロー無効モード）', () => {
+  test('research.md/plan.md を作らず、verify.md のみを保存する直接実装の指示を注入する', () => {
+    const out = buildFullInstruction({
+      taskTitle: 'T',
+      taskId: 601,
+      enforceWorkflow: true,
+      workflowMode: 'comprehensive',
+      workflowDisabled: true,
+    });
+    expect(out).toContain('ワークフロー無効モード');
+    expect(out).toContain('research.md・plan.md は作成せず');
+    expect(out).toContain('/workflow/tasks/601/files/verify');
+    // Required verify.md sections (must match phase-output-validator's
+    // VERIFY_REQUIRED_SECTIONS so the agent's report actually passes the gate).
+    expect(out).toContain('## テスト結果');
+    expect(out).toContain('## チェックリスト');
+    expect(out).toContain('## 検証結果サマリ');
+    // The lightweight/standard/comprehensive branches must not ALSO fire.
+    expect(out).not.toContain('軽量モード — plan フェーズなし');
+    expect(out).not.toContain('### Step 2: 計画 (plan.md の作成)');
+  });
+
+  test('workflowDisabled=true が enforceWorkflow=false や workflowMode を上書きする（分岐の優先順位）', () => {
+    const out = buildFullInstruction({
+      taskTitle: 'T',
+      taskId: 602,
+      enforceWorkflow: false,
+      workflowMode: 'lightweight',
+      workflowDisabled: true,
+    });
+    expect(out).toContain('ワークフロー無効モード');
+  });
+
+  test('workflowDisabled=false（デフォルト）では注入されない', () => {
+    const out = buildFullInstruction({
+      taskTitle: 'T',
+      taskId: 603,
+      enforceWorkflow: true,
+      workflowMode: 'standard',
+    });
+    expect(out).not.toContain('ワークフロー無効モード');
+  });
+});
+
 describe('buildFullInstruction — taskSpec（goals/constraints/acceptanceCriteria）の注入', () => {
   test('goals/constraints/acceptanceCriteria が全て指定されると強調セクションを構築する', () => {
     const out = buildFullInstruction({

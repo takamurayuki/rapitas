@@ -111,6 +111,14 @@ model Task {
   prompts               TaskPrompt[]
   githubIssueId         Int?
   githubPrId            Int?
+  // Short-lived compare-and-swap claim guarding the "does this task already
+  // have an open PR" check + `gh pr create` call as one atomic section, so two
+  // concurrent auto-PR attempts for the same task (e.g. a duplicate/retried
+  // verify.md save) can't both pass the check and each create a PR. Cleared
+  // right after the section finishes (success or failure); a stale value
+  // (crash mid-section) self-expires after PR_CREATION_LOCK_STALE_MS — see
+  // services/github/pr-duplicate-guard.ts.
+  prCreationLockedAt    DateTime?
   autoExecutable        Boolean       @default(false)
   requireApproval       String        @default("always")
   createdAt             DateTime      @default(now())
@@ -123,6 +131,11 @@ model Task {
   complexityScore       Float?    // Auto-determined complexity score (0-100)
   workflowModeOverride  Boolean   @default(false) // Whether mode was manually changed
   autoApprovePlan       Boolean   @default(false) // Whether to auto-approve plan.md at task level
+  // Per-task off-switch for the multi-phase workflow (see UserSettings.workflowDisabledGlobally
+  // for the global equivalent — effective state is the OR of both). Locked
+  // (server-enforced) once status leaves 'todo'; a reset back to 'todo'
+  // re-unlocks it.
+  workflowDisabled      Boolean   @default(false)
   workflowLearningRecords WorkflowLearningRecord[]
 
   // Recurring task fields

@@ -30,6 +30,7 @@ import type { WorkflowRole, WorkflowStatus } from './workflow-types';
 import { TASK_NOT_FOUND } from '../../utils/common/error-messages';
 import { countWithFailClosed } from '../../utils/database/fail-closed-count';
 import { writeBlockedStatusDurable } from './durable-blocked-write';
+import { resolveEffectiveWorkflowDisabled } from './workflow-disabled';
 
 // Re-export sub-module helpers so existing imports from this path keep working.
 export { resolveWorkflowDir, readWorkflowFile, writeWorkflowFile } from './workflow-file-utils';
@@ -178,6 +179,21 @@ export class WorkflowOrchestrator {
         role: 'researcher',
         status: narrowWorkflowStatus(task.workflowStatus),
         error: 'タスクはブロック中のため自動実行をスキップしました',
+      };
+    }
+
+    // Workflow-disabled tasks (see workflow-disabled.ts — task-level or global
+    // off-switch) run as a single direct-implementation pass via the manual
+    // "実行" execute-route path, not this per-phase orchestrator dispatch —
+    // there is no transition-table entry for a "disabled" pseudo-mode here.
+    // Skip rather than mis-dispatch a researcher/planner role.
+    if (await resolveEffectiveWorkflowDisabled(taskId)) {
+      return {
+        success: false,
+        role: 'researcher',
+        status: narrowWorkflowStatus(task.workflowStatus),
+        error:
+          'このタスクはワークフロー無効モードのため自動実行(フェーズ進行)の対象外です。手動実行してください。',
       };
     }
 
