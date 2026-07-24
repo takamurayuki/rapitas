@@ -6,8 +6,11 @@
  * development theme's auto-run. Not AI task generation — runs existing todo
  * tasks in priority order. Rendered only when a development theme is active.
  *
- * Shape: rounded-xl pill (gentle arc left/right, straight top/bottom).
- * Icon:  rounded-full circle containing the state symbol.
+ * Shape/spacing match the toolbar's "タスクを作成"/"一括" buttons (HomeToolbar.tsx):
+ * rounded-lg, px-3.5 py-2, gap-2. Icon stays this control's own rounded-full
+ * badge (deliberately kept distinct — do not simplify to a plain icon). Only
+ * the accent color (indigo/emerald/amber) and the hover-swap-to-stop behavior
+ * below are otherwise unique to this control.
  * Hover: opaque absolute overlay swaps to red "停止" without touching the
  *        spinning ancestor (prevents rasterization glitch on the Orbit icon).
  */
@@ -54,7 +57,7 @@ export function AutoExecutionMode({ theme }: AutoExecutionModeProps) {
           onClick={() => start('priority')}
           disabled={actionLoading}
           title={t('autoExecutionMode.startTitle')}
-          className="inline-flex items-center gap-3 rounded-xl border border-indigo-300 bg-white pl-3 pr-4 py-2 text-sm font-medium text-indigo-600 shadow-[0_2px_0_0_#a5b4fc] select-none transition-all duration-75 hover:border-indigo-400 hover:bg-indigo-50 active:translate-y-[2px] active:shadow-none disabled:cursor-not-allowed disabled:opacity-50 dark:border-indigo-700 dark:bg-zinc-900 dark:text-indigo-400 dark:shadow-[0_2px_0_0_#312e81] dark:hover:border-indigo-600 dark:hover:bg-indigo-950/40"
+          className="inline-flex items-center gap-2 rounded-lg border border-indigo-300 bg-white px-3.5 py-2 text-sm font-medium text-indigo-600 shadow-[0_2px_0_0_#a5b4fc] select-none transition-all duration-75 hover:border-indigo-400 hover:bg-indigo-50 active:translate-y-[2px] active:shadow-none disabled:cursor-not-allowed disabled:opacity-50 dark:border-indigo-700 dark:bg-zinc-900 dark:text-indigo-400 dark:shadow-[0_2px_0_0_#312e81] dark:hover:border-indigo-600 dark:hover:bg-indigo-950/40"
         >
           {actionLoading ? (
             <Spinner size="sm" className="text-indigo-400 dark:text-indigo-400" />
@@ -76,7 +79,7 @@ export function AutoExecutionMode({ theme }: AutoExecutionModeProps) {
       <div className="flex items-center gap-2">
         <button
           disabled
-          className="inline-flex cursor-not-allowed items-center gap-3 rounded-xl border border-zinc-200 bg-white pl-3 pr-4 py-2 text-sm font-medium text-zinc-500 opacity-70 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-500"
+          className="inline-flex cursor-not-allowed items-center gap-2 rounded-lg border border-zinc-200 bg-white px-3.5 py-2 text-sm font-medium text-zinc-500 opacity-70 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-500"
         >
           <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-zinc-200 dark:bg-transparent">
             <Loader2 className="h-3 w-3 dark:h-4 dark:w-4 animate-spin text-zinc-500 dark:text-zinc-400" />
@@ -112,7 +115,7 @@ export function AutoExecutionMode({ theme }: AutoExecutionModeProps) {
         onClick={() => stop()}
         disabled={actionLoading}
         title={t('autoExecutionMode.stopTitle')}
-        className={`group relative inline-flex items-center gap-3 rounded-xl border bg-white pl-3 pr-4 py-2 text-sm font-medium select-none transition-all duration-75 hover:shadow-none disabled:cursor-not-allowed disabled:opacity-50 dark:bg-zinc-900 ${restBorder} ${restShadow} ${restText}`}
+        className={`group relative inline-flex items-center gap-2 rounded-lg border bg-white px-3.5 py-2 text-sm font-medium select-none transition-all duration-75 hover:shadow-none disabled:cursor-not-allowed disabled:opacity-50 dark:bg-zinc-900 ${restBorder} ${restShadow} ${restText}`}
       >
         {/* REST — icon circle + label. Parent never mutates on hover (overlay
             handles the visual swap), so the Orbit spin stays artifact-free. */}
@@ -133,7 +136,7 @@ export function AutoExecutionMode({ theme }: AutoExecutionModeProps) {
 
         {/* HOVER OVERLAY — fully opaque; instant opacity swap (no transition)
             so the spinner's parent never sees a mid-fade partial repaint. */}
-        <span className="absolute -inset-px flex items-center rounded-xl border border-red-300 bg-white pl-3 text-red-600 opacity-0 shadow-[0_2px_0_0_#fca5a5] group-hover:opacity-100 dark:border-red-700 dark:bg-zinc-900 dark:text-red-400 dark:shadow-[0_2px_0_0_#991b1b]">
+        <span className="absolute -inset-px flex items-center gap-2 rounded-lg border border-red-300 bg-white px-3.5 text-red-600 opacity-0 shadow-[0_2px_0_0_#fca5a5] group-hover:opacity-100 dark:border-red-700 dark:bg-zinc-900 dark:text-red-400 dark:shadow-[0_2px_0_0_#991b1b]">
           <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-red-500 dark:bg-transparent">
             <Square className="h-2.5 w-2.5 dark:h-4 dark:w-4 fill-white text-white dark:fill-red-400 dark:text-red-400" />
           </span>
