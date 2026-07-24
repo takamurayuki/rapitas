@@ -211,6 +211,13 @@ export function makePrisma(overrides: Record<string, unknown> = {}) {
     agentExecutionLog: {
       findMany: mock(async () => []),
     },
+    // applyTaskStatusFromWorkflow (post-continuation epilogue) reads/writes
+    // this — default workflowStatus:'completed' so it resolves to a harmless
+    // status:'done' write for tests that don't care about task status.
+    task: {
+      findUnique: mock(async () => ({ workflowStatus: 'completed' })),
+      update: mock(async () => ({})),
+    },
     ...overrides,
   };
 }

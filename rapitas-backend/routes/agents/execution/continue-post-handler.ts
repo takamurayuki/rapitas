@@ -13,7 +13,7 @@ import { AgentWorkerManager } from '../../../services/agents/agent-worker-manage
 import { updateSessionStatusWithRetry } from './session-helpers';
 import { releaseTaskExecutionLock } from './execution-lock';
 import { isShutdownError } from '../../../services/agents/agent-worker/shutdown-error';
-import { resolveTaskWorkflowState } from '../../../services/task/task-resolver';
+import { applyTaskStatusFromWorkflow } from '../../../services/workflow/apply-task-status-from-workflow';
 
 const log = createLogger('routes:agent-execution:continue-post');
 const agentWorkerManager = AgentWorkerManager.getInstance();
@@ -48,37 +48,7 @@ export async function handleContinueResult(params: HandleContinueResultParams): 
   const { result, taskId, targetSessionId, workingDirectory, executionDir } = params;
 
   if (result.success) {
-    try {
-      const currentTask = await resolveTaskWorkflowState(taskId);
-      const wfStatus = currentTask?.workflowStatus;
-      const inProgressStatuses = ['plan_created', 'research_done', 'verify_done'];
-      const doneStatuses = ['in_progress', 'plan_approved', 'completed'];
-
-      if (wfStatus && inProgressStatuses.includes(wfStatus)) {
-        await prisma.task
-          .update({ where: { id: taskId }, data: { status: 'in-progress' } })
-          .catch((e: unknown) =>
-            log.error(
-              { err: e },
-              `[continue-execution] Failed to update task ${taskId} to in-progress`,
-            ),
-          );
-      } else if (wfStatus && doneStatuses.includes(wfStatus)) {
-        await prisma.task
-          .update({ where: { id: taskId }, data: { status: 'done', completedAt: new Date() } })
-          .catch((e: unknown) =>
-            log.error({ err: e }, `[continue-execution] Failed to update task ${taskId} to done`),
-          );
-      } else if (!wfStatus || wfStatus === 'draft') {
-        await prisma.task
-          .update({ where: { id: taskId }, data: { status: 'done', completedAt: new Date() } })
-          .catch((e: unknown) =>
-            log.error({ err: e }, `[continue-execution] Failed to update task ${taskId} to done`),
-          );
-      }
-    } catch (taskError) {
-      log.error({ err: taskError }, `[continue-execution] Failed to update task ${taskId}`);
-    }
+    await applyTaskStatusFromWorkflow(prisma, taskId, '[continue-execution]');
 
     await updateSessionStatusWithRetry(targetSessionId, 'completed', '[continue-execution]', 3);
 

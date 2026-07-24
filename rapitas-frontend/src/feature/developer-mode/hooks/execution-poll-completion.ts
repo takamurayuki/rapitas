@@ -80,8 +80,21 @@ function isAutoAdvancingPhase(sessionMode: string | null | undefined): boolean {
   return !!sessionMode && AUTO_ADVANCING_PHASES.has(sessionMode);
 }
 
+// NOTE: 'blocked' was missing here — a completion-gate rejection (e.g. verify
+// content contradicts itself, adversarial diff review FAILs) sets
+// task.status='blocked' with no further phase queued, but this set not
+// recognizing it as terminal left isWorkflowTerminal()/
+// shouldKeepPollingAfterCompleted() treating it the same as a task that might
+// still auto-advance.
 /** Terminal task/workflow states — no further phase will run. */
-const TERMINAL_TASK_STATUSES = new Set(['done', 'completed', 'failed', 'cancelled', 'archived']);
+const TERMINAL_TASK_STATUSES = new Set([
+  'done',
+  'completed',
+  'failed',
+  'cancelled',
+  'archived',
+  'blocked',
+]);
 
 /**
  * True when the TASK itself has reached a terminal state. A single dev-mode

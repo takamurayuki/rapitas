@@ -25,6 +25,7 @@ import {
   handleExecutionError,
 } from './execution-helpers';
 import { isSessionResumeFailure } from '../session-resume-detector';
+import { applyTaskStatusFromWorkflow } from '../../workflow/apply-task-status-from-workflow';
 import { handleResumeFailureFallbacks } from './fallback-handler';
 import { buildContinuationAgentConfig } from './continuation-agent-config';
 import { buildShutdownErrorMessage } from './shutdown-error';
@@ -332,6 +333,18 @@ export async function executeContinuationInternal(
       ctx.emitEvent(event),
     );
 
+    // NOTE: This is the gap that let a task's execution log read "completed"
+    // while Task.status/workflowStatus silently sat stale — every OTHER
+    // launch path (execute-route → execute-post-handler, continue-route →
+    // continue-post-handler) runs an equivalent epilogue after the CLI exits;
+    // this question-answer continuation path previously only called
+    // saveExecutionResult (AgentExecution row only) and returned. Skip when
+    // the agent asked ANOTHER question — the workflow is still paused, not
+    // finished.
+    if (!result.waitingForInput) {
+      await applyTaskStatusFromWorkflow(ctx.prisma, taskId, '[ContinuationExecutor]');
+    }
+
     return result;
   } catch (error) {
     await handleExecutionError(
@@ -345,6 +358,17 @@ export async function executeContinuationInternal(
       (event) => ctx.emitEvent(event),
       'Continuation',
     );
+    // Mirrors continue-post-handler.ts's handleContinueError: an uncaught
+    // continuation failure must not leave the task stuck showing
+    // 'in-progress' with no execution actually running.
+    await ctx.prisma.task
+      .update({ where: { id: taskId }, data: { status: 'todo' } })
+      .catch((e: unknown) =>
+        logger.error(
+          { err: e },
+          `[ContinuationExecutor] Failed to reset task ${taskId} to todo after error`,
+        ),
+      );
     throw error;
   } finally {
     await logManager.cleanup();

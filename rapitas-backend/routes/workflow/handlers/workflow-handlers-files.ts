@@ -41,6 +41,7 @@ import {
 import type { WorkflowStatus } from '../../../services/workflow/workflow-types';
 import { maybeAutoApprovePlan } from '../../../services/workflow/plan-auto-approve';
 import { HTTP_STATUS } from '../../../utils/common/http-status';
+import { resolvePreferredBaseBranch } from '../../../services/task/task-resolver';
 
 const log = createLogger('routes:workflow:handlers:files');
 
@@ -454,6 +455,21 @@ export async function handleSaveFile({
     // work that was ALREADY validated + PR'd — a false negative we complete instead
     // of looping. Marks the task done like researchCompleted does.
     let verifyRerunAlreadyDone = false;
+    // True when attemptVerifyRepair() already bounced the workflow (and recorded
+    // its OWN `verify_repair`-caused transition + task.update). Without this
+    // flag the generic `if (newStatus)` block below unconditionally re-runs
+    // BOTH the task.update and a SECOND `file_saved:verify` transition for the
+    // same save — recorded milliseconds after the real `verify_repair` one.
+    // That redundant transition becomes the newest row, so
+    // verify-self-repair.hasFreshVerifyRejection() (which only looks at the
+    // single most recent transition) no longer sees the bounce as fresh. The
+    // CLI executor's completion epilogue then fails to skip, re-validates the
+    // same verify.md on its own stale copy, hard-blocks the task, and a
+    // downstream watchdog resets it all the way to `draft` — silently
+    // discarding the research/plan/implementation work already done (observed
+    // live on task 415: verify_repair bounce → redundant file_saved:verify →
+    // epilogue hard-block → blocked_auto_retry → reset to draft).
+    let verifyRepairBounced = false;
     if (
       fileType === 'research' &&
       (!currentStatus || currentStatus === 'draft' || currentStatus === 'research_done') &&
@@ -535,7 +551,12 @@ export async function handleSaveFile({
                 '[Workflow] verify.md failed validation — re-running implement→verify (self-repair)',
               );
               // Bounce: the runner re-runs the implementer from this status.
+              // attemptVerifyRepair() already persisted task.status/workflowStatus
+              // and recorded its own `verify_repair` transition — newStatus is set
+              // only so the HTTP response reports the real status; the generic
+              // save-transition block below must NOT repeat that work.
               newStatus = repair.newStatus;
+              verifyRepairBounced = true;
             } else {
               log.warn(
                 { taskId, summary: verifyValidation.summary },
@@ -582,7 +603,7 @@ export async function handleSaveFile({
       }
     }
 
-    if (newStatus) {
+    if (newStatus && !verifyRepairBounced) {
       await prisma.task.update({
         where: { id: taskId },
         // Research-no-change completion (and the verify re-run already-done
@@ -831,9 +852,16 @@ export async function handleSaveFile({
           select: { worktreePath: true },
         })
         .catch(() => null);
+      // The worktree's ACTUAL fork point, not a guess — see automated-verifier
+      // .ts's diffBaseRef doc comment (task 506). NOTE: theme.defaultBranch,
+      // not AgentExecutionConfig.targetBranch alone (task 511: that table is
+      // empty for the autonomous pipeline) — see resolvePreferredBaseBranch's
+      // doc comment. This call site was missed when the other five were fixed.
+      const preferredBaseBranchForCompletion = await resolvePreferredBaseBranch(taskId);
       const completionGate = await evaluateCompletionGate(
         gateSession?.worktreePath ?? null,
         savedContent,
+        preferredBaseBranchForCompletion,
       );
       if (!completionGate.allow) {
         verifyGateBlocked = true;
@@ -965,6 +993,13 @@ export async function handleSaveFile({
               );
             } else {
               newStatus = repair.newStatus;
+              // Bounced ≠ this execution succeeded: the diff it produced was
+              // rejected, even though the workflow itself lives on for a retry
+              // (a fresh AgentExecution row is created for that). Without this,
+              // markLatestExecutionFailed only ran once repairs were exhausted,
+              // so a bounced-for-retry run kept showing 完了/success in the
+              // execution log while the task had just been rolled back.
+              await markLatestExecutionFailed(taskId, reason);
               log.warn(
                 { taskId, attempt: repair.attempt, severity: review.severity },
                 '[Workflow] Adversarial diff review FAILED — bounced to implementer for self-repair',

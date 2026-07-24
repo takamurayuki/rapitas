@@ -34,11 +34,17 @@ const mockPrisma = {
     update: mockUpdate,
     updateMany: mockUpdateMany,
   },
-  agentSession: { findFirst: mockFindFirst },
+  agentSession: { findFirst: mockFindFirst, update: mockUpdate },
   agentExecution: { update: mockUpdate },
   activityLog: { create: mockCreate },
   // Used by the verify→complete PR gate to detect an already-existing PR.
   gitHubPullRequest: { findFirst: mock(() => Promise.resolve(null)) },
+  // Used by the validateVerify false-negative guard (priorVerifyPass check).
+  workflowTransition: { findFirst: mock(() => Promise.resolve(null)) },
+  // Fallback source in resolvePreferredBaseBranch (task-resolver.ts) when the
+  // task's theme has no defaultBranch — reached whenever mockFindUnique
+  // resolves a task without a `theme` field for this test.
+  agentExecutionConfig: { findUnique: mock(() => Promise.resolve(null)) },
 };
 mock.module('../../../config', () => ({ prisma: mockPrisma }));
 mock.module('../../../config/database', () => ({
@@ -71,8 +77,9 @@ mock.module('../../../services/workflow/workflow-file-utils', () => ({
 }));
 
 // ---- recordTransition mock ----
+const mockRecordTransition = mock(() => Promise.resolve()) as any;
 mock.module('../../../services/workflow/transition-recorder', () => ({
-  recordTransition: mock(() => Promise.resolve()),
+  recordTransition: mockRecordTransition,
 }));
 
 // ---- checkWorkflowInvariants mock ----
@@ -131,8 +138,14 @@ mock.module('../../../services/workflow/completion-gate', () => ({
 }));
 
 // ---- phase-output-validator mock (verify path + pollution guard) ----
+const mockValidateVerify = mock(() => ({
+  ok: true,
+  missingSections: [],
+  severity: 0,
+  summary: 'ok',
+})) as any;
 mock.module('../../../services/workflow/phase-output-validator', () => ({
-  validateVerify: () => ({ ok: true, missingSections: [], severity: 0, summary: 'ok' }),
+  validateVerify: mockValidateVerify,
   // Fast-forward reuse check: any non-trivial body counts as reusable here;
   // the real validator's thresholds are covered by phase-output-reuse.test.ts.
   isReusableArtifact: (_ft: string, c: string) => !!c && c.trim().length >= 10,
@@ -184,6 +197,7 @@ beforeEach(() => {
   mockCheckInvariants.mockReset();
   mockUpdate.mockReset();
   mockFindUnique.mockReset();
+  mockFindFirst.mockReset();
   mockPerformAutoCommitAndPR.mockReset();
   mockAttemptVerifyRepair.mockReset();
   mockApplyPhaseCriticGate.mockReset();
@@ -201,7 +215,11 @@ beforeEach(() => {
   // The verify path calls prisma.task.findUnique() to detect conflict-resolution tasks;
   // returning null means "not a conflict task" — the normal code path continues.
   mockFindUnique.mockResolvedValue(null);
+  mockFindFirst.mockResolvedValue(null);
   existingResearchContent = null;
+  mockValidateVerify.mockReset();
+  mockValidateVerify.mockReturnValue({ ok: true, missingSections: [], severity: 0, summary: 'ok' });
+  mockRecordTransition.mockClear();
 });
 
 // -------------------------------------------------------------------------
@@ -667,6 +685,56 @@ describe('handleSaveFile — 検証ゲート失敗時に自己修復ループへ
 });
 
 // -------------------------------------------------------------------------
+// Regression (task 415 live incident): validateVerify() failing (self-contradicting
+// verify.md) triggers attemptVerifyRepair() near the TOP of the verify handling —
+// a separate call site from the auto-commit pipeline's own verificationBlocked
+// gate above. Before the fix, the generic `if (newStatus)` block below ALSO ran
+// for this bounce, recording a SECOND `file_saved:verify` transition milliseconds
+// after the real `verify_repair` one. That redundant transition became the
+// "most recent" row, so verify-self-repair.hasFreshVerifyRejection() (which only
+// looks at the single latest transition) no longer recognized the bounce as
+// fresh — letting the CLI executor's completion epilogue redundantly re-validate
+// and hard-block the task, which a downstream watchdog then reset all the way to
+// `draft`, discarding the research/plan/implementation already done.
+describe('handleSaveFile — validateVerify 失敗によるバウンスは冗長な file_saved 遷移を記録しないこと', () => {
+  test('repair バウンス時、generic な transition/task.update を再実行しないこと', async () => {
+    mockResolveWorkflowDir.mockResolvedValueOnce({
+      task: { workflowStatus: 'in_progress', id: 1 },
+      dir: '/fake/dir/1',
+      categoryId: null,
+      themeId: null,
+    });
+    mockFindMany.mockResolvedValueOnce([]);
+    mockCheckInvariants.mockResolvedValueOnce([]);
+    mockValidateVerify.mockReturnValueOnce({
+      ok: false,
+      missingSections: [],
+      severity: 80,
+      summary:
+        'verify.md self-contradicts: claims all tests pass while body contains failure signals',
+    });
+    mockAttemptVerifyRepair.mockResolvedValueOnce({
+      bounced: true,
+      newStatus: 'plan_approved',
+      attempt: 1,
+    });
+
+    const result = await handleSaveFile({
+      params: { taskId: '1', fileType: 'verify' },
+      body: 'verify content',
+      set: makeSet(),
+    });
+
+    expect(mockAttemptVerifyRepair).toHaveBeenCalledTimes(1);
+    // Response still reports the real (bounced-to) status...
+    expect((result as { workflowStatus?: string }).workflowStatus).toBe('plan_approved');
+    // ...but the handler must not ALSO record its own generic transition/update —
+    // attemptVerifyRepair() (mocked here) already owns that for this bounce.
+    expect(mockRecordTransition).not.toHaveBeenCalled();
+  });
+});
+
+// -------------------------------------------------------------------------
 describe('handleSaveFile — 敵対的差分レビューの遅延判定が完了済みタスクを巻き戻さないこと', () => {
   test('レビュー実行中にタスクが verify_done から動いていなければ通常通り差し戻すこと', async () => {
     mockResolveWorkflowDir.mockResolvedValueOnce({
@@ -677,9 +745,12 @@ describe('handleSaveFile — 敵対的差分レビューの遅延判定が完了
     });
     mockFindMany.mockResolvedValueOnce([]);
     mockCheckInvariants.mockResolvedValueOnce([]);
-    // 1st findUnique = conflict-task check (not a conflict task); 2nd = the
-    // CAS live-status check inside the adversarial-review block (still verify_done).
+    // 1st findUnique = conflict-task check (not a conflict task); 2nd =
+    // resolvePreferredBaseBranch's theme lookup (no defaultBranch here, falls
+    // through to the agentExecutionConfig mock); 3rd = the CAS live-status
+    // check inside the adversarial-review block (still verify_done).
     mockFindUnique.mockResolvedValueOnce(null);
+    mockFindUnique.mockResolvedValueOnce({ theme: null });
     mockFindUnique.mockResolvedValueOnce({ workflowStatus: 'verify_done' });
     mockReviewDiffAdversarially.mockResolvedValueOnce({
       verdict: 'fail',
@@ -707,6 +778,63 @@ describe('handleSaveFile — 敵対的差分レビューの遅延判定が完了
     );
   });
 
+  // Regression: a successful bounce (repair budget remaining) rolled the task
+  // back to plan_approved for a retry, but left the just-finished
+  // AgentExecution row untouched — the execution log kept showing 完了/success
+  // even though the diff it produced had just been rejected. Only the
+  // repairs-EXHAUSTED branch called markLatestExecutionFailed; the bounce
+  // branch (this one) must too, since a new AgentExecution is created for the
+  // retry and this row is done being "successful".
+  test('レビュー不合格でバウンスした場合も直前の実行を failed としてマークすること', async () => {
+    mockResolveWorkflowDir.mockResolvedValueOnce({
+      task: { workflowStatus: 'in_progress', id: 1 },
+      dir: '/fake/dir/1',
+      categoryId: null,
+      themeId: null,
+    });
+    mockFindMany.mockResolvedValueOnce([]);
+    mockCheckInvariants.mockResolvedValueOnce([]);
+    // 1st = conflict-task check; 2nd = resolvePreferredBaseBranch's theme
+    // lookup; 3rd = the CAS live-status check.
+    mockFindUnique.mockResolvedValueOnce(null);
+    mockFindUnique.mockResolvedValueOnce({ theme: null });
+    mockFindUnique.mockResolvedValueOnce({ workflowStatus: 'verify_done' });
+    mockReviewDiffAdversarially.mockResolvedValueOnce({
+      verdict: 'fail',
+      severity: 80,
+      reasons: ['範囲外の変更が含まれる'],
+    });
+    mockAttemptVerifyRepair.mockResolvedValueOnce({
+      bounced: true,
+      newStatus: 'plan_approved',
+      attempt: 1,
+    });
+    // agentSession.findFirst is called 3x before markLatestExecutionFailed's own
+    // lookup, all through the same mock — queue them in call order: 1st the
+    // completion-gate's gateSession, 2nd the adversarial-review's reviewSession,
+    // 3rd markLatestExecutionFailed's session (the one that matters here).
+    mockFindFirst.mockResolvedValueOnce({ worktreePath: '/fake/worktree' });
+    mockFindFirst.mockResolvedValueOnce({ worktreePath: '/fake/worktree' });
+    mockFindFirst.mockResolvedValueOnce({
+      id: 10,
+      status: 'running',
+      agentExecutions: [{ id: 99, status: 'running' }],
+    });
+
+    await handleSaveFile({
+      params: { taskId: '1', fileType: 'verify' },
+      body: 'verify content',
+      set: makeSet(),
+    });
+
+    expect(mockUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: 99 },
+        data: expect.objectContaining({ status: 'failed' }),
+      }),
+    );
+  });
+
   test('レビュー完了時点でタスクが既に verify_done から進んでいれば巻き戻さず、実際の状態を返すこと', async () => {
     mockResolveWorkflowDir.mockResolvedValueOnce({
       task: { workflowStatus: 'in_progress', id: 1 },
@@ -716,10 +844,12 @@ describe('handleSaveFile — 敵対的差分レビューの遅延判定が完了
     });
     mockFindMany.mockResolvedValueOnce([]);
     mockCheckInvariants.mockResolvedValueOnce([]);
-    // 1st findUnique = conflict-task check; 2nd = the CAS live-status check —
-    // a second, faster verify/repair round already completed (and merged) the
-    // task while this review was still running (task 503's actual incident).
+    // 1st findUnique = conflict-task check; 2nd = resolvePreferredBaseBranch's
+    // theme lookup; 3rd = the CAS live-status check — a second, faster
+    // verify/repair round already completed (and merged) the task while this
+    // review was still running (task 503's actual incident).
     mockFindUnique.mockResolvedValueOnce(null);
+    mockFindUnique.mockResolvedValueOnce({ theme: null });
     mockFindUnique.mockResolvedValueOnce({ workflowStatus: 'completed' });
     mockReviewDiffAdversarially.mockResolvedValueOnce({
       verdict: 'fail',
@@ -764,8 +894,10 @@ describe('handleSaveFile — adversarial review FAIL with repairs exhausted', ()
     });
     mockFindMany.mockResolvedValueOnce([]);
     mockCheckInvariants.mockResolvedValueOnce([]);
-    // 1st findUnique = conflict-task check; 2nd = the CAS live-status check.
+    // 1st findUnique = conflict-task check; 2nd = resolvePreferredBaseBranch's
+    // theme lookup; 3rd = the CAS live-status check.
     mockFindUnique.mockResolvedValueOnce(null);
+    mockFindUnique.mockResolvedValueOnce({ theme: null });
     mockFindUnique.mockResolvedValueOnce({ workflowStatus: 'verify_done' });
     mockReviewDiffAdversarially.mockResolvedValueOnce({
       verdict: 'fail',
