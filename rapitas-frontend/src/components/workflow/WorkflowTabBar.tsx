@@ -27,6 +27,13 @@ interface WorkflowTabBarProps {
   onRefetch?: () => void;
   /** Whether a reload is in flight. */
   isRefetching?: boolean;
+  /**
+   * Tab currently being regenerated after a phase-critic rejection (see
+   * WorkflowViewer's criticRejectionPhase). While its file is absent this
+   * tab shows a "regenerating" indicator instead of nothing, so the empty
+   * state doesn't read as "the file was lost".
+   */
+  regeneratingTab?: 'research' | 'plan' | null;
 }
 
 /**
@@ -48,6 +55,7 @@ export function WorkflowTabBar({
   lastModified,
   onRefetch,
   isRefetching,
+  regeneratingTab = null,
 }: WorkflowTabBarProps) {
   const t = useTranslations('workflow');
   const tAutoRun = useTranslations('autoRun');
@@ -73,6 +81,11 @@ export function WorkflowTabBar({
           // The "done" check and the question count are mutually exclusive: once
           // answered (check shown) the count is stale noise, so suppress it.
           const showDoneCheck = hasContent && !needsAttention;
+          // The phase-critic gate archives a rejected research.md/plan.md, so
+          // the file briefly reports !hasContent while it regenerates. Without
+          // this the tab would look identical to "never produced" (see the
+          // final `null` branch below).
+          const isRegenerating = !hasContent && tab.id === regeneratingTab;
 
           return (
             <button
@@ -108,9 +121,14 @@ export function WorkflowTabBar({
                   // A filled check reads as "this phase is done" — the previous
                   // solid green dot looked like a live/active status light.
                   <CheckCircle2 className="h-4 w-4 text-green-500 dark:text-green-400" />
+                ) : isRegenerating ? (
+                  <span className="flex items-center gap-1 px-1.5 py-0.5 bg-amber-100 dark:bg-amber-800/50 text-amber-700 dark:text-amber-300 text-[10px] font-medium rounded-full">
+                    <RefreshCw className="h-2.5 w-2.5 animate-spin" />
+                    {t('tabBar.regenerating')}
+                  </span>
                 ) : null
-                // Not produced yet: show nothing — an in-progress phase surfaces
-                // its own loading indicator elsewhere.
+                // Not produced yet (and not regenerating): show nothing — an
+                // in-progress phase surfaces its own loading indicator elsewhere.
               }
             </button>
           );

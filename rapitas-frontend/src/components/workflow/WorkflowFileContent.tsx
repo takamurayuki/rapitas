@@ -2,7 +2,7 @@
 // WorkflowFileContent
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { List, ChevronDown, Pencil } from 'lucide-react';
+import { List, ChevronDown, Pencil, RefreshCw } from 'lucide-react';
 import { Spinner } from '@/components/ui/spinner';
 import { useTranslations } from 'next-intl';
 import type { WorkflowTab } from './workflow-viewer-utils';
@@ -103,6 +103,14 @@ interface WorkflowFileContentProps {
   taskId?: number;
   /** Called after a successful inline save so the parent refetches. / 保存後の再取得 */
   onSaved?: () => void;
+  /**
+   * True when this tab's file was just archived by the phase-critic gate and
+   * is being regenerated (see WorkflowViewer's criticRejectionPhase). Swaps
+   * the generic "not yet generated" empty state for one that makes clear
+   * nothing was lost — the plain empty state is indistinguishable from a
+   * task that never ran this phase at all.
+   */
+  isRegenerating?: boolean;
 }
 
 /**
@@ -122,6 +130,7 @@ export function WorkflowFileContent({
   onPlanApprovalRequest,
   taskId,
   onSaved,
+  isRegenerating = false,
 }: WorkflowFileContentProps) {
   const t = useTranslations('workflow');
   const tc = useTranslations('common');
@@ -181,6 +190,18 @@ export function WorkflowFileContent({
   }
 
   if (!activeFile?.exists) {
+    if (isRegenerating) {
+      return (
+        <div className="text-center py-10">
+          <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-amber-100 dark:bg-amber-900/30 mb-3">
+            <RefreshCw className="h-6 w-6 text-amber-600 dark:text-amber-400 animate-spin" />
+          </div>
+          <p className="text-sm text-amber-700 dark:text-amber-300">
+            {t('fileContent.regenerating')}
+          </p>
+        </div>
+      );
+    }
     return (
       <div className="text-center py-10">
         <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-zinc-100 dark:bg-zinc-800 mb-3">

@@ -96,3 +96,38 @@ describe('WorkflowFileContent TOC', () => {
     expect(container.querySelector('[id="wf-h-受け入れ基準"]')?.tagName).toBe('H2');
   });
 });
+
+/**
+ * When the phase-critic gate archives a rejected research.md/plan.md, the
+ * file briefly reports !exists while it regenerates. Without a distinct
+ * empty state this is indistinguishable from "this phase never ran" —
+ * these tests pin the two states apart.
+ */
+describe('WorkflowFileContent regenerating empty state', () => {
+  it('shows the generic empty state when the file does not exist and is not regenerating', () => {
+    const { getByText, queryByText } = render(
+      <WorkflowFileContent
+        isLoading={false}
+        activeFile={{ exists: false }}
+        activeTabConfig={TAB}
+        showApprovalButton={false}
+      />,
+    );
+    expect(getByText('empty')).toBeTruthy();
+    expect(queryByText('fileContent.regenerating')).toBeNull();
+  });
+
+  it('shows the regenerating empty state when isRegenerating is true', () => {
+    const { getByText, queryByText } = render(
+      <WorkflowFileContent
+        isLoading={false}
+        activeFile={{ exists: false }}
+        activeTabConfig={TAB}
+        showApprovalButton={false}
+        isRegenerating
+      />,
+    );
+    expect(getByText('fileContent.regenerating')).toBeTruthy();
+    expect(queryByText('empty')).toBeNull();
+  });
+});
