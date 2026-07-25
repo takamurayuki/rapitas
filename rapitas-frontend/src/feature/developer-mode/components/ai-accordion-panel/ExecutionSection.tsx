@@ -1,7 +1,15 @@
 'use client';
 // ExecutionSection
 
-import { Rocket, AlertCircle, Play, Square, RefreshCw, ExternalLink } from 'lucide-react';
+import {
+  Rocket,
+  AlertCircle,
+  Play,
+  Square,
+  RefreshCw,
+  RotateCcw,
+  GitPullRequest,
+} from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { useState } from 'react';
@@ -209,7 +217,7 @@ export function ExecutionSection({
           {isCompleted && (
             <>
               <PillButton
-                icon={RefreshCw}
+                icon={RotateCcw}
                 color="zinc"
                 onClick={(e) => {
                   e.stopPropagation();
@@ -219,7 +227,7 @@ export function ExecutionSection({
                 {t('reset')}
               </PillButton>
               <PillButton
-                icon={ExternalLink}
+                icon={GitPullRequest}
                 color="emerald"
                 onClick={(e) => {
                   e.stopPropagation();
@@ -245,7 +253,7 @@ export function ExecutionSection({
           {isInterrupted && (
             <>
               <PillButton
-                icon={RefreshCw}
+                icon={RotateCcw}
                 color="zinc"
                 onClick={(e) => {
                   e.stopPropagation();
@@ -269,7 +277,7 @@ export function ExecutionSection({
           {isFailed && !isRunning && !isCompleted && (
             <>
               <PillButton
-                icon={RefreshCw}
+                icon={RotateCcw}
                 color="zinc"
                 onClick={(e) => {
                   e.stopPropagation();
