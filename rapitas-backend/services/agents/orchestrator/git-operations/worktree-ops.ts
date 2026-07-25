@@ -114,6 +114,47 @@ export async function createWorktree(
     await execFileAsync('git', ['worktree', 'prune'], { cwd: baseDir, encoding: 'utf8' }).catch(
       () => {},
     );
+
+    // Ground-truth reuse: if THIS task already has a live worktree registered
+    // in git, reuse it directly instead of going through branch-name
+    // generation at all. This does NOT rely on the app database recording a
+    // prior session — callers (e.g. execute-setup.ts) already look up a
+    // reusable worktree from their own session history, but that lookup can
+    // come up empty for reasons unrelated to whether the worktree is still
+    // genuinely alive (task 513 regression, round 3: the backend was
+    // restarted from Postgres mode into SQLite desktop mode between retries,
+    // and the fresh SQLite database had no memory of the session that
+    // created this worktree — the physical worktree and its git branch were
+    // completely unaffected by that switch). Checking git's own bookkeeping
+    // is the one source of truth neither database swap nor a lost/failed
+    // session row can desync from.
+    if (taskId) {
+      try {
+        const { stdout: worktreeList } = await execFileAsync(
+          'git',
+          ['worktree', 'list', '--porcelain'],
+          { cwd: baseDir, encoding: 'utf8' },
+        );
+        const taskDirPattern = new RegExp(`[\\\\/]task-${taskId}-[^\\\\/]+$`);
+        for (const line of worktreeList.split('\n')) {
+          if (!line.startsWith('worktree ')) continue;
+          const existingPath = line.slice('worktree '.length).trim();
+          if (
+            taskDirPattern.test(existingPath) &&
+            existsSync(existingPath) &&
+            existsSync(join(existingPath, '.git'))
+          ) {
+            logger.info(
+              `[createWorktree] Found existing live worktree for task ${taskId} at ${existingPath} — reusing instead of creating a new one`,
+            );
+            return existingPath;
+          }
+        }
+      } catch (probeError) {
+        logger.debug(`[createWorktree] Existing-worktree probe failed, proceeding: ${probeError}`);
+      }
+    }
+
     let branchInUse = false;
     try {
       const { stdout: worktreeList } = await execFileAsync(

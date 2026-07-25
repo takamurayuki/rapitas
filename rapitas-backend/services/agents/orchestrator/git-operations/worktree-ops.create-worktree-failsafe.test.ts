@@ -47,7 +47,8 @@ mock.module('./safety', () => ({
   isPathSafeForWorktreeOperation: mock(() => true),
   normalizePath: mock((path: string) => path.replace(/\\/g, '/')),
 }));
-mock.module('node:fs', () => ({ existsSync: mock(() => false) }));
+const mockExistsSync = mock((_path: string) => false);
+mock.module('node:fs', () => ({ existsSync: mockExistsSync }));
 mock.module('node:fs/promises', () => ({
   rm: mock(() => Promise.resolve()),
   readdir: mock(() => Promise.resolve([])),
@@ -106,6 +107,7 @@ const { createWorktree } = await import('./worktree-ops');
 beforeEach(() => {
   execFileCalls.length = 0;
   worktreeListBehavior = 'free';
+  mockExistsSync.mockReset().mockReturnValue(false);
 });
 
 describe('createWorktree — branch-in-use detection', () => {
@@ -138,5 +140,55 @@ describe('createWorktree — branch-in-use detection', () => {
 
     const addCall = execFileCalls.find((c) => c.includes('git worktree add'));
     expect(addCall).toContain(`${BRANCH}-task-513`);
+  });
+});
+
+describe('createWorktree — ground-truth reuse of an existing live worktree', () => {
+  // Regression (task 513, round 3): the app database can be reset/swapped
+  // (e.g. Postgres web mode <-> SQLite desktop mode) independently of what's
+  // on disk. A DB-only "does a prior session have a worktree for this task"
+  // check then comes up empty even though the worktree is still genuinely
+  // alive — this must be caught by asking git itself, not the app DB.
+  test('returns the existing path directly and never calls git worktree add', async () => {
+    worktreeListBehavior = 'in-use'; // EXISTING_WORKTREE is registered on BRANCH
+    // path.join normalizes to platform separators; compare with slashes
+    // unified so this doesn't depend on Windows vs POSIX join behavior.
+    mockExistsSync.mockImplementation((p: string) => {
+      const normalized = p.replace(/\\/g, '/');
+      return normalized === EXISTING_WORKTREE || normalized === `${EXISTING_WORKTREE}/.git`;
+    });
+
+    const result = await createWorktree('/test/repo', BRANCH, 513);
+
+    expect(result).toBe(EXISTING_WORKTREE);
+    expect(execFileCalls.some((c) => c.includes('git worktree add'))).toBe(false);
+  });
+
+  test('does not reuse a worktree that exists in git but is gone from disk (phantom)', async () => {
+    worktreeListBehavior = 'in-use';
+    mockExistsSync.mockReturnValue(false); // nothing on disk — phantom
+
+    await createWorktree('/test/repo', BRANCH, 513);
+
+    // Falls through to the normal branch-in-use suffixing/creation path.
+    const addCall = execFileCalls.find((c) => c.includes('git worktree add'));
+    expect(addCall).toContain(`${BRANCH}-task-513`);
+  });
+
+  test('does not reuse a worktree belonging to a DIFFERENT task', async () => {
+    // EXISTING_WORKTREE's dir name is task-513-*; asking for task 999 must
+    // not match it, even though it's listed and exists on disk.
+    worktreeListBehavior = 'in-use';
+    // path.join normalizes to platform separators; compare with slashes
+    // unified so this doesn't depend on Windows vs POSIX join behavior.
+    mockExistsSync.mockImplementation((p: string) => {
+      const normalized = p.replace(/\\/g, '/');
+      return normalized === EXISTING_WORKTREE || normalized === `${EXISTING_WORKTREE}/.git`;
+    });
+
+    const result = await createWorktree('/test/repo', BRANCH, 999);
+
+    expect(result).not.toBe(EXISTING_WORKTREE);
+    expect(execFileCalls.some((c) => c.includes('git worktree add'))).toBe(true);
   });
 });
