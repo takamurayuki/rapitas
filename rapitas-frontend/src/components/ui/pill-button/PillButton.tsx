@@ -86,7 +86,12 @@ export function PillButton({
       <span
         className={`flex h-4 w-4 shrink-0 items-center justify-center rounded-full ${classes.badge}`}
       >
-        <Icon className={`h-2 w-2 ${iconClassName ?? classes.icon}`} />
+        {/* h-3 w-3 (12px), not the badge's own h-4 w-4 (16px) — but big enough
+            that Lucide's ~2px stroke still renders at a full physical pixel.
+            At the previous h-2 w-2 (8px) the stroke scaled to well under 1px,
+            so detailed glyphs (RotateCcw, RefreshCw, GitPullRequest) blurred
+            into illegibility while simple ones (Square, Play) stayed fine. */}
+        <Icon className={`h-3 w-3 ${iconClassName ?? classes.icon}`} />
       </span>
       {children}
     </button>
