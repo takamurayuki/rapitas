@@ -8,8 +8,13 @@ import { Elysia } from 'elysia';
 import { prisma } from '../../../config/database';
 import { GitHubService } from '../../../services/core/github-service';
 import { resolvePrOrThrow } from '../../../services/github/resource-guard';
-import { findPrViaGh } from '../../../services/github/pr-task-resolver';
+import { findPrViaGh, resolvePrWorkingDirectory } from '../../../services/github/pr-task-resolver';
 import { makeOwnerRepoString } from '../../../services/github/owner-repo';
+import {
+  readPrChecks,
+  evaluateAutoMergeChecks,
+  blockingChecks,
+} from '../../../services/workflow/auto-merge-checks';
 
 const githubService = new GitHubService(prisma);
 
@@ -176,6 +181,56 @@ export const pullRequestReadRoutes = new Elysia()
       return { reason: 'not_created', error: 'このタスクのPRはまだ作成されていません。' };
     }
     return pr;
+  })
+
+  // CI status for a task's linked PR — same source of truth as the auto-merge
+  // watcher (readPrChecks/evaluateAutoMergeChecks via `gh`), exposed on demand
+  // so the task detail page can show it without waiting for the watcher's own
+  // 60s tick or making the user click through to GitHub. Simplified resolution
+  // (linkedTaskId → Task.githubPrId only, no title-match/self-heal) — a badge
+  // with no PR yet just renders nothing rather than needing the diagnostic
+  // reasons the by-task/:taskId 404 branch returns.
+  .get('/pull-requests/by-task/:taskId/ci-status', async (context) => {
+    const { taskId } = context.params as { taskId: string };
+    const tid = parseInt(taskId);
+    const select = { prNumber: true, state: true } as const;
+
+    let pr = await prisma.gitHubPullRequest.findFirst({
+      where: { linkedTaskId: tid },
+      orderBy: { createdAt: 'desc' },
+      select,
+    });
+    if (!pr) {
+      const task = await prisma.task.findUnique({
+        where: { id: tid },
+        select: { githubPrId: true },
+      });
+      if (task?.githubPrId != null) {
+        pr = await prisma.gitHubPullRequest.findFirst({
+          where: { prNumber: task.githubPrId },
+          orderBy: { createdAt: 'desc' },
+          select,
+        });
+      }
+    }
+    if (!pr) {
+      return { status: 'no_pr' as const };
+    }
+
+    const cwd = await resolvePrWorkingDirectory(tid);
+    if (!cwd) {
+      return { status: 'unknown' as const, prNumber: pr.prNumber, prState: pr.state };
+    }
+
+    const checks = await readPrChecks(cwd, pr.prNumber);
+    if (checks === null) {
+      return { status: 'unknown' as const, prNumber: pr.prNumber, prState: pr.state };
+    }
+    const status =
+      checks.length === 0
+        ? ('no_checks' as const)
+        : evaluateAutoMergeChecks(checks, blockingChecks());
+    return { status, prNumber: pr.prNumber, prState: pr.state, checks };
   })
 
   // Get PR diff

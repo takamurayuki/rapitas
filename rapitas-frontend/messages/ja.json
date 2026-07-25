@@ -709,6 +709,14 @@
       "dockRight": "タスク詳細を右側に表示",
       "swapDockSideAria": "左右を入れ替える"
     },
+    "ciStatus": {
+      "passing": "CI: 成功",
+      "failing": "CI: 失敗",
+      "pending": "CI: 実行中",
+      "noChecks": "CI: 設定なし",
+      "unknown": "CI: 不明",
+      "viewPrTooltip": "PR #{number} を開く"
+    },
     "labelSelector": {
       "empty": "ラベルがありません。",
       "createLabel": "ラベルを作成"

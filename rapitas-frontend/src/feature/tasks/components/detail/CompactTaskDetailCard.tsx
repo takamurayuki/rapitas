@@ -27,6 +27,7 @@ import { useCompactTaskDetailActions } from './useCompactTaskDetailActions';
 import { sumSubtaskActualHours } from '@/utils/subtask-hours';
 import CompactTaskDetailHeader from './CompactTaskDetailHeader';
 import CompactTaskDetailWorkloadSection from './CompactTaskDetailWorkloadSection';
+import CiStatusBadge from './CiStatusBadge';
 
 interface CompactTaskDetailCardProps {
   task: Task;
@@ -124,6 +125,7 @@ export default function CompactTaskDetailCard({
           saveField={saveField}
           toggleProtected={toggleProtected}
         />
+        <CiStatusBadge taskId={task.id} />
       </div>
 
       {/* Accordion sections */}

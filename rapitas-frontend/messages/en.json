@@ -709,6 +709,14 @@
       "dockRight": "Dock task details on the right",
       "swapDockSideAria": "Swap left/right"
     },
+    "ciStatus": {
+      "passing": "CI: passing",
+      "failing": "CI: failing",
+      "pending": "CI: running",
+      "noChecks": "CI: none configured",
+      "unknown": "CI: unknown",
+      "viewPrTooltip": "Open PR #{number}"
+    },
     "labelSelector": {
       "empty": "No labels.",
       "createLabel": "Create a label"

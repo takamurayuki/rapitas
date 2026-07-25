@@ -978,6 +978,59 @@ describe('GET /github/pull-requests/by-task/:taskId', () => {
   });
 });
 
+describe('GET /github/pull-requests/by-task/:taskId/ci-status', () => {
+  let app: ReturnType<typeof createApp>;
+
+  beforeEach(() => {
+    resetAllMocks();
+    app = createApp();
+  });
+
+  test('紐づくPRが無ければ status=no_pr を返し、gh呼び出しに進まないこと', async () => {
+    mockPrisma.gitHubPullRequest.findFirst.mockResolvedValue(null);
+    mockPrisma.task.findUnique.mockResolvedValue({ githubPrId: null });
+
+    const res = await app.handle(
+      new Request('http://localhost/github/pull-requests/by-task/42/ci-status'),
+    );
+    const body = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(body.status).toBe('no_pr');
+  });
+
+  // NOTE: readPrChecks/evaluateAutoMergeChecks are NOT mocked here on purpose —
+  // auto-merge-checks.ts is a process-wide-shared module (bun's mock.module is
+  // process-global; see project convention notes elsewhere in this file) with
+  // its own dedicated unit tests (auto-merge-checks.test.ts) covering the
+  // pass/fail/pending/no_checks aggregation directly. This test only exercises
+  // the route's OWN branch — cwd resolution failing — by returning task/theme
+  // rows with no workingDirectory anywhere, which makes the real (unmocked)
+  // resolvePrWorkingDirectory() naturally return null.
+  test('作業ディレクトリを解決できない場合 status=unknown を返すこと', async () => {
+    mockPrisma.gitHubPullRequest.findFirst.mockResolvedValueOnce({
+      prNumber: 9,
+      state: 'open',
+    });
+    mockPrisma.task.findUnique.mockResolvedValue({
+      githubPrId: null,
+      workingDirectory: null,
+      themeId: null,
+      theme: null,
+    });
+
+    const res = await app.handle(
+      new Request('http://localhost/github/pull-requests/by-task/42/ci-status'),
+    );
+    const body = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(body.status).toBe('unknown');
+    expect(body.prNumber).toBe(9);
+    expect(body.prState).toBe('open');
+  });
+});
+
 // Helper: build a minimal PR record shared across guard tests.
 function makeOpenPr(overrides: Partial<{ prNumber: number; state: string }> = {}) {
   return {
