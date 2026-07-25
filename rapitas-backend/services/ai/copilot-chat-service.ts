@@ -26,6 +26,7 @@ import {
 import { sendAIMessage, sendAIMessageStream } from '../../utils/ai-client';
 import type { AIMessage } from '../../utils/ai-client';
 import { gatherSharedKnowledge, formatKnowledgeContext } from '../agents/agent-knowledge-sharing';
+import { matchCopilotIntent, respondToIntent } from './copilot-intent-responder';
 
 const log = createLogger('copilot-chat');
 
@@ -80,8 +81,11 @@ async function buildTaskContext(taskId: number): Promise<string> {
   return parts.join('\n');
 }
 
+/** Message length cap for the free local-LLM tier — see selectModelTier. */
+const LOCAL_LLM_MAX_MESSAGE_LENGTH = 400;
+
 /** Determine which model tier to use based on message complexity. */
-function selectModelTier(
+export function selectModelTier(
   message: string,
   localAvailable: boolean,
 ): { provider: 'ollama' | 'claude'; model: string; tier: string } {
@@ -91,8 +95,30 @@ function selectModelTier(
     message.length,
   );
 
-  // Tier 1: Local LLM for simple queries
-  if (localAvailable && assessment.canUseLocalLLM && message.length < 200) {
+  // Tier 1: Local LLM for simple-to-medium conversational queries. Was
+  // gated on assessment.canUseLocalLLM, which requires level==='low' AND a
+  // role check — but assessComplexity was built to score task descriptions,
+  // not chat messages, and a short conversational question only earns a
+  // -10 "short description" adjustment off the level-50 baseline, landing
+  // at 'medium' (score 40) rather than the 'low' (<=35) canUseLocalLLM
+  // needs. That combination meant this tier almost never actually fired.
+  //
+  // Widened to level!=='high' plus a wider 400-char cap so most everyday
+  // questions go to the free local model — but a single high-complexity
+  // keyword match (e.g. "セキュリティ") only adds +15 to the score, which a
+  // short message's automatic -10 "short description" penalty can pull back
+  // under the 'high' cutoff (>65) even though it's a real signal. Checking
+  // the keyword reason directly, instead of only the aggregate level,
+  // ensures any such match still routes to Claude regardless of score math.
+  const hasHighComplexityKeyword = assessment.reasons.some((r) =>
+    r.startsWith('High-complexity keywords'),
+  );
+  if (
+    localAvailable &&
+    assessment.level !== 'high' &&
+    !hasHighComplexityKeyword &&
+    message.length < LOCAL_LLM_MAX_MESSAGE_LENGTH
+  ) {
     return { provider: 'ollama', model: 'llama3.2', tier: 'free' };
   }
 
@@ -144,6 +170,23 @@ export interface CopilotChatResult {
  */
 export async function sendCopilotMessage(options: CopilotChatOptions): Promise<CopilotChatResult> {
   const { message, taskId, conversationHistory = [] } = options;
+
+  // 0. Deterministic template answer for common factual questions (subtask
+  // progress, blocked reason, due/estimate, status/priority) — skips the
+  // LLM entirely, so it costs neither local-model inference nor Claude Code
+  // CLI subscription usage. Falls through to the normal cascade below when
+  // the message isn't a recognized intent, or the DB has nothing to say.
+  if (taskId) {
+    const intent = matchCopilotIntent(message);
+    if (intent) {
+      const templated = await respondToIntent(intent, taskId);
+      if (templated) {
+        await saveCopilotMessage('user', message, taskId);
+        await saveCopilotMessage('assistant', templated, taskId);
+        return { content: templated, model: 'template', tier: 'free', cached: false };
+      }
+    }
+  }
 
   // Build context
   let contextPrompt = message;

@@ -25,14 +25,31 @@ import type { AnalysisData } from './copilot-chat-types';
 import { MarkdownView } from '../markdown/MarkdownView';
 
 /**
- * Badge showing the AI tier used (local, haiku, sonnet) or cache indicator.
+ * Badge showing the AI tier used (local, haiku, sonnet), the cache
+ * indicator, or — for `model === 'template'` — that the answer was a
+ * deterministic DB lookup that never called any model at all.
  */
-export function TierBadge({ tier, cached }: { tier?: string; cached?: boolean }) {
+export function TierBadge({
+  tier,
+  cached,
+  model,
+}: {
+  tier?: string;
+  cached?: boolean;
+  model?: string;
+}) {
   if (cached)
     return (
       <span className="text-[10px] text-emerald-500 flex items-center gap-0.5">
         <Database className="w-2.5 h-2.5" />
         cache
+      </span>
+    );
+  if (model === 'template')
+    return (
+      <span className="text-[10px] text-teal-500 flex items-center gap-0.5">
+        <Database className="w-2.5 h-2.5" />
+        instant
       </span>
     );
   if (tier === 'free')
@@ -284,7 +301,7 @@ export function MessageBubble({
                 ))}
               </div>
             )}
-            <TierBadge tier={msg.tier} cached={msg.cached} />
+            <TierBadge tier={msg.tier} cached={msg.cached} model={msg.model} />
           </div>
         )}
       </div>
