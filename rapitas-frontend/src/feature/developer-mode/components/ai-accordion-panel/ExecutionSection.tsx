@@ -219,6 +219,7 @@ export function ExecutionSection({
               <PillButton
                 icon={RotateCcw}
                 color="zinc"
+                iconVariant="plain"
                 onClick={(e) => {
                   e.stopPropagation();
                   onReset();
@@ -229,6 +230,7 @@ export function ExecutionSection({
               <PillButton
                 icon={GitPullRequest}
                 color="emerald"
+                iconVariant="plain"
                 onClick={(e) => {
                   e.stopPropagation();
                   openTaskPr();
@@ -242,6 +244,7 @@ export function ExecutionSection({
             <PillButton
               icon={RefreshCw}
               color="amber"
+              iconVariant="plain"
               onClick={(e) => {
                 e.stopPropagation();
                 onRerun();
@@ -255,6 +258,7 @@ export function ExecutionSection({
               <PillButton
                 icon={RotateCcw}
                 color="zinc"
+                iconVariant="plain"
                 onClick={(e) => {
                   e.stopPropagation();
                   onReset();
@@ -265,6 +269,7 @@ export function ExecutionSection({
               <PillButton
                 icon={RefreshCw}
                 color="amber"
+                iconVariant="plain"
                 onClick={(e) => {
                   e.stopPropagation();
                   onRerun();
@@ -279,6 +284,7 @@ export function ExecutionSection({
               <PillButton
                 icon={RotateCcw}
                 color="zinc"
+                iconVariant="plain"
                 onClick={(e) => {
                   e.stopPropagation();
                   onReset();
@@ -289,6 +295,7 @@ export function ExecutionSection({
               <PillButton
                 icon={RefreshCw}
                 color="red"
+                iconVariant="plain"
                 onClick={(e) => {
                   e.stopPropagation();
                   onRerun();
