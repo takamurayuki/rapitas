@@ -16,6 +16,7 @@ import { useCallback, useEffect, useRef } from 'react';
 import { useTranslations } from 'next-intl';
 import { useTerminalStore } from './terminal-store';
 import { isTauri } from './terminal-ipc';
+import { useNavStore } from '@/stores/nav-store';
 import TerminalTabBar from './TerminalTabBar';
 import TerminalPaneGroup from './TerminalPaneGroup';
 
@@ -31,6 +32,7 @@ export default function TerminalPanel() {
   const setSplitWidthPercent = useTerminalStore((s) => s.setSplitWidthPercent);
   const tabs = useTerminalStore((s) => s.tabs);
   const activeTabId = useTerminalStore((s) => s.activeTabId);
+  const isMenuPinned = useNavStore((s) => s.isMenuPinned);
   const dragging = useRef(false);
   const panelRef = useRef<HTMLDivElement | null>(null);
   const isSplit = displayMode === 'split';
@@ -111,7 +113,16 @@ export default function TerminalPanel() {
       ref={panelRef}
       className={`fixed z-60 flex flex-col border-zinc-700 bg-zinc-900 shadow-2xl transition-transform duration-200 ease-out ${
         isSplit
-          ? `inset-y-0 ${dockSide === 'right' ? 'right-0 border-l' : 'left-0 border-r'}`
+          ? // top-16 matches the sticky header's h-16 (see TaskSlidePanel) — the
+            // header is z-110, above this panel's z-60, so starting at inset-y-0
+            // (the viewport top) would render the header over the tab bar and
+            // top of the terminal, hiding both. Same reasoning for lg:left-72
+            // when docked left with the nav pinned (nav is z-100, w-72).
+            `top-16 bottom-0 ${
+              dockSide === 'right'
+                ? 'right-0 border-l'
+                : `left-0 border-r ${isMenuPinned ? 'lg:left-72' : ''}`
+            }`
           : 'inset-x-0 bottom-0 border-t'
       } ${isOpen ? 'translate-x-0 translate-y-0' : `${closedTransform} pointer-events-none`}`}
       style={isSplit ? { width: `${splitWidthPercent}vw` } : { height }}
