@@ -39,6 +39,56 @@ interface PreviewSession {
 
 const sessions = new Map<number, PreviewSession>();
 
+/**
+ * Resources for an in-progress (not yet fully established) startPreview
+ * call, keyed by taskId. The dev-server process and headless browser are
+ * genuinely slow to spin up (launch, health-poll, navigate — tens of
+ * seconds), and the HTTP handler keeps running to completion even after the
+ * calling client gives up waiting (a timed-out fetch on the frontend does
+ * NOT cancel the in-flight request on the server). Without tracking these
+ * as soon as they're created, a client that gives up (navigates away, hits
+ * its own timeout) leaves the dev server + browser running forever — never
+ * reachable via `sessions` because the attempt never got that far. Every
+ * stopPreview/new startPreview call for the task kills whatever's here, so
+ * retries self-heal instead of piling up orphaned processes (confirmed live:
+ * three abandoned `next dev` instances all fighting over the same `.next`
+ * build cache, which is almost certainly why every one of them then hung).
+ */
+const pending = new Map<
+  number,
+  { app?: LaunchedApp; browser?: import('playwright-core').Browser }
+>();
+
+/** Stop and forget an in-progress launch for a task, if one is tracked. */
+async function killPending(taskId: number): Promise<void> {
+  const p = pending.get(taskId);
+  if (!p) return;
+  pending.delete(taskId);
+  if (p.browser) await p.browser.close().catch(() => {});
+  if (p.app) p.app.stop();
+}
+
+/**
+ * Stop THIS invocation's own app/browser directly (not via a `pending` map
+ * lookup) and remove the map entry only if it still points at these exact
+ * resources. Guards against a slow, failing startPreview call for taskId
+ * accidentally killing a DIFFERENT, newer startPreview call's already-
+ * further-along resources — which a plain `killPending(taskId)` could do if
+ * two calls for the same task ever overlap (each call always kills whatever
+ * it finds pending/established for the task before starting its own, so
+ * this is an edge case, not the common path, but still worth not getting
+ * wrong).
+ */
+async function cleanupOwnAttempt(
+  taskId: number,
+  app: LaunchedApp,
+  browser?: import('playwright-core').Browser,
+): Promise<void> {
+  if (browser) await browser.close().catch(() => {});
+  app.stop();
+  if (pending.get(taskId)?.app === app) pending.delete(taskId);
+}
+
 /** Reasons startPreview can fail — mapped to a Japanese message by the route layer's caller. */
 export type StartPreviewFailureReason =
   | 'no_worktree'
@@ -64,7 +114,8 @@ export type StartPreviewResult =
  * @returns The base URL on success, or a typed failure reason + message. / 起動結果
  */
 export async function startPreview(taskId: number): Promise<StartPreviewResult> {
-  await stopPreview(taskId); // clean restart if one is already running
+  await stopPreview(taskId); // clean up an established session, if any
+  await killPending(taskId); // clean up an in-flight attempt, if any (see `pending`)
 
   const session = await resolveLatestSessionWorktree(taskId);
   let workdir =
@@ -116,10 +167,11 @@ export async function startPreview(taskId: number): Promise<StartPreviewResult> 
   const port = await allocateFreePort();
   const baseUrl = substitutePort(cfg.url, port);
   const app = launchApp(substitutePort(cfg.start, port), workdir, port);
+  pending.set(taskId, { app }); // trackable/killable from here on, however this call ends
 
   const healthy = await waitForHealthy(`${baseUrl}${cfg.healthPath}`, cfg.readyTimeoutMs);
   if (!healthy) {
-    app.stop();
+    await cleanupOwnAttempt(taskId, app);
     return {
       ok: false,
       reason: 'unhealthy',
@@ -131,7 +183,7 @@ export async function startPreview(taskId: number): Promise<StartPreviewResult> 
   try {
     ({ chromium } = await import('playwright-core'));
   } catch (e) {
-    app.stop();
+    await cleanupOwnAttempt(taskId, app);
     return {
       ok: false,
       reason: 'no_browser',
@@ -152,19 +204,29 @@ export async function startPreview(taskId: number): Promise<StartPreviewResult> 
     }
   }
   if (!browser) {
-    app.stop();
+    await cleanupOwnAttempt(taskId, app);
     return {
       ok: false,
       reason: 'no_browser',
       message: `システムのEdge/Chromeが見つかりません: ${lastErr.slice(0, 200)}`,
     };
   }
+  pending.set(taskId, { app, browser });
 
   try {
     const context = await browser.newContext({ viewport: { width: 1280, height: 800 } });
     const page = await context.newPage();
     await page.goto(baseUrl, { waitUntil: 'load', timeout: 25_000 });
 
+    // Ownership check mirrors cleanupOwnAttempt's — only claim the `pending`
+    // slot (and hand off to `sessions`) if a newer call hasn't already
+    // replaced it out from under this one.
+    if (pending.get(taskId)?.app !== app) {
+      await browser.close().catch(() => {});
+      app.stop();
+      return { ok: false, reason: 'error', message: 'superseded by a newer preview request' };
+    }
+    pending.delete(taskId);
     sessions.set(taskId, {
       app,
       browser,
@@ -176,24 +238,28 @@ export async function startPreview(taskId: number): Promise<StartPreviewResult> 
     log.info({ taskId, baseUrl, port }, '[preview] session started');
     return { ok: true, url: baseUrl };
   } catch (e) {
-    await browser.close().catch(() => {});
-    app.stop();
+    await cleanupOwnAttempt(taskId, app, browser);
     return { ok: false, reason: 'error', message: e instanceof Error ? e.message : String(e) };
   }
 }
 
 /**
- * Stop a task's preview session (dev server + headless browser). No-op if none is active.
+ * Stop a task's preview session (dev server + headless browser), AND cancel
+ * an in-progress start attempt for the same task if one is still launching
+ * (see `pending`) — e.g. the user clicks Stop while the UI is showing
+ * "starting...". No-op if neither is present.
  *
  * @param taskId - Task whose preview to stop. / 対象タスクID
  */
 export async function stopPreview(taskId: number): Promise<void> {
   const s = sessions.get(taskId);
-  if (!s) return;
-  sessions.delete(taskId);
-  await s.browser.close().catch(() => {});
-  s.app.stop();
-  log.info({ taskId }, '[preview] session stopped');
+  if (s) {
+    sessions.delete(taskId);
+    await s.browser.close().catch(() => {});
+    s.app.stop();
+    log.info({ taskId }, '[preview] session stopped');
+  }
+  await killPending(taskId);
 }
 
 export interface PreviewStatus {

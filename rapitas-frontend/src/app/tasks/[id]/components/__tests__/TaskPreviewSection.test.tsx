@@ -118,6 +118,53 @@ describe('TaskPreviewSection', () => {
     expect(screen.getByText('start')).toBeInTheDocument();
   });
 
+  it('shows a Stop button while starting (not just once active) and stopping mid-start returns to idle', async () => {
+    // The start request never resolves in this test — starting a real dev
+    // server + browser takes tens of seconds, and the user must be able to
+    // cancel a slow/stuck attempt instead of waiting it out.
+    let resolveStart: (v: unknown) => void = () => {};
+    const startPromise = new Promise((res) => {
+      resolveStart = res;
+    });
+    const fetchMock = vi.fn().mockImplementation((url: string, init?: RequestInit) => {
+      if (url.includes('/status')) return Promise.resolve(jsonResponse({ active: false }));
+      if (url.includes('/start') && init?.method === 'POST') return startPromise;
+      if (url.includes('/stop')) return Promise.resolve(jsonResponse({ success: true }));
+      return Promise.resolve(jsonResponse({}));
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    render(<TaskPreviewSection taskId={1} />);
+    await flush();
+
+    await act(async () => {
+      fireEvent.click(screen.getByText('start'));
+      for (let i = 0; i < 5; i++) await Promise.resolve();
+    });
+    // Still "starting" (the start fetch hasn't resolved) — Stop must already
+    // be clickable, not just once the session becomes active.
+    expect(screen.getByText('stop')).toBeInTheDocument();
+
+    await act(async () => {
+      fireEvent.click(screen.getByText('stop'));
+      for (let i = 0; i < 5; i++) await Promise.resolve();
+    });
+    expect(screen.getByText('start')).toBeInTheDocument();
+    expect(fetchMock).toHaveBeenCalledWith(
+      'http://test:3001/tasks/1/preview/stop',
+      expect.objectContaining({ method: 'POST' }),
+    );
+
+    // The abandoned start request finally resolves — its stale success must
+    // NOT resurrect the active view after the user already stopped it.
+    await act(async () => {
+      resolveStart(jsonResponse({ success: true, url: 'http://localhost:5173' }));
+      for (let i = 0; i < 5; i++) await Promise.resolve();
+    });
+    expect(screen.getByText('start')).toBeInTheDocument();
+    expect(screen.queryByText('http://localhost:5173')).not.toBeInTheDocument();
+  });
+
   it('stopping an active preview calls the stop endpoint and returns to idle', async () => {
     const fetchMock = vi.fn().mockImplementation((url: string) => {
       if (url.includes('/status')) {

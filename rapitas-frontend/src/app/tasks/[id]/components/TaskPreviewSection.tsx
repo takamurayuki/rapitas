@@ -11,7 +11,7 @@
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslations } from 'next-intl';
-import { AppWindow, Play, Square, RefreshCw, AlertCircle, Loader2 } from 'lucide-react';
+import { AppWindow, Play, Square, RefreshCw, AlertCircle } from 'lucide-react';
 import { API_BASE_URL } from '@/utils/api';
 import { Spinner } from '@/components/ui/spinner';
 import { PillButton } from '@/components/ui/pill-button';
@@ -40,6 +40,11 @@ export default function TaskPreviewSection({ taskId }: TaskPreviewSectionProps) 
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const stateRef = useRef(state);
   stateRef.current = state;
+  // Bumped by handleStart/handleStop — lets a still-in-flight handleStart
+  // notice it's been superseded (the user clicked Stop, or clicked Start
+  // again) and skip applying its now-stale response, instead of reviving a
+  // session the user already asked to stop.
+  const requestIdRef = useRef(0);
 
   const clearPoll = useCallback(() => {
     if (pollRef.current) {
@@ -95,34 +100,44 @@ export default function TaskPreviewSection({ taskId }: TaskPreviewSectionProps) 
     };
   }, []);
 
-  // Best-effort stop on unmount — navigating away shouldn't leave the dev
-  // server running until the backend's own idle sweep eventually catches it.
+  // Best-effort stop on unmount — navigating away (even mid-"starting")
+  // shouldn't leave the dev server running until the backend's own idle
+  // sweep eventually catches it.
   useEffect(() => {
     return () => {
-      if (stateRef.current.phase === 'active') {
+      if (stateRef.current.phase === 'active' || stateRef.current.phase === 'starting') {
         fetch(`${API_BASE_URL}/tasks/${taskId}/preview/stop`, { method: 'POST' }).catch(() => {});
       }
     };
   }, [taskId]);
 
   const handleStart = async () => {
+    const myRequestId = ++requestIdRef.current;
     setState({ phase: 'starting' });
     try {
       const res = await fetch(`${API_BASE_URL}/tasks/${taskId}/preview/start`, {
         method: 'POST',
       });
       const body = (await res.json()) as { success: boolean; url?: string; error?: string };
+      // The user may have clicked Stop (or Start again) while this request
+      // was in flight — starting a dev server + browser genuinely takes
+      // tens of seconds, and the backend keeps working even after a client
+      // gives up. Applying a stale response here would silently resurrect
+      // a session the user already asked to stop.
+      if (myRequestId !== requestIdRef.current) return;
       if (body.success && body.url) {
         setState({ phase: 'active', url: body.url });
       } else {
         setState({ phase: 'error', message: body.error ?? t('startFailed') });
       }
     } catch {
+      if (myRequestId !== requestIdRef.current) return;
       setState({ phase: 'error', message: t('startFailed') });
     }
   };
 
   const handleStop = async () => {
+    requestIdRef.current++; // invalidate any in-flight handleStart's response
     clearPoll();
     setState({ phase: 'idle' });
     setImgSrc(null);
@@ -145,19 +160,18 @@ export default function TaskPreviewSection({ taskId }: TaskPreviewSectionProps) 
             </span>
           )}
         </div>
-        {state.phase === 'active' ? (
+        {state.phase === 'active' || state.phase === 'starting' ? (
+          // Stop is offered during 'starting' too — the dev server + browser
+          // launch genuinely takes tens of seconds, and previously there was
+          // no way to cancel a stuck/slow attempt short of navigating away
+          // (which didn't even stop it server-side; see preview-session-
+          // manager.ts's `pending` tracking for the backend half of this).
           <PillButton icon={Square} color="zinc" onClick={handleStop}>
             {t('stop')}
           </PillButton>
         ) : (
-          <PillButton
-            icon={state.phase === 'starting' ? Loader2 : Play}
-            iconClassName={state.phase === 'starting' ? 'animate-spin' : undefined}
-            color="indigo"
-            onClick={handleStart}
-            disabled={state.phase === 'starting'}
-          >
-            {state.phase === 'starting' ? t('starting') : t('start')}
+          <PillButton icon={Play} color="indigo" onClick={handleStart}>
+            {t('start')}
           </PillButton>
         )}
       </div>
