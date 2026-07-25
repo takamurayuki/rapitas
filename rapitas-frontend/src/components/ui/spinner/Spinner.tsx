@@ -37,7 +37,14 @@ export interface SpinnerProps {
  */
 export function Spinner({ size = 'md', className = '', label = 'Loading...' }: SpinnerProps) {
   return (
-    <span role="status" className="inline-flex items-center justify-center">
+    // shrink-0: without it, this span is a flex ITEM wherever it's dropped
+    // into a `flex` row (its most common use — icon + status text), and
+    // flexbox's default flex-shrink:1 can squeeze it narrower than its
+    // sibling text demands room. A squeezed non-square box distorts the
+    // (otherwise perfectly round, per the file header) icon into an oval,
+    // which reads as the spin visibly wobbling/misaligned rather than
+    // rotating cleanly in place.
+    <span role="status" className="inline-flex shrink-0 items-center justify-center">
       <Loader2
         className={`${sizeStyles[size]} animate-spin text-zinc-400 dark:text-zinc-500 ${className}`}
       />
