@@ -104,8 +104,25 @@ export function computeStatusFlags(params: {
     sseError,
   } = params;
 
+  // finalStatus prefers sseStatus over pollingStatus (see useAgentExecution.ts),
+  // but useExecutionStreamSSE's execution_completed handler sets status:
+  // 'completed' unconditionally on EVERY workflow phase boundary (research/
+  // plan/implement each end their own AgentExecution row) — it has no way to
+  // know a phase is auto-advancing, unlike execution-poll-completion.ts's
+  // handleCompleted, which keeps pollingStatus at 'running' across those
+  // boundaries specifically so the UI doesn't flash "completed" between
+  // phases. Trusting finalStatus alone here re-introduced that exact flash
+  // via the SSE path: reported as the Reset/PR-open buttons appearing right
+  // after research/plan/implement finished, self-correcting on reload once
+  // the next phase's genuinely-fresh state took over. Requiring
+  // pollingStatus !== 'running' means the moment EITHER source knows the
+  // task isn't really done yet, that wins over the other's stale signal.
   const isCompleted =
-    (finalStatus === 'completed' && !isPollingRunning && !isSseRunning && !isWaitingForInput) ||
+    (finalStatus === 'completed' &&
+      pollingStatus !== 'running' &&
+      !isPollingRunning &&
+      !isSseRunning &&
+      !isWaitingForInput) ||
     (isRestoredTerminal && executionResult?.success === true);
 
   const isCancelled = finalStatus === 'cancelled';

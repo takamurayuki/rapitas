@@ -106,6 +106,31 @@ describe('computeStatusFlags', () => {
     expect(flags.isCompleted).toBe(false);
   });
 
+  test('is not completed when SSE reports the phase boundary as completed but polling still says running', () => {
+    // Regression: useExecutionStreamSSE's execution_completed handler sets
+    // status:'completed' unconditionally on every workflow phase boundary
+    // (research/plan/implement each end their own AgentExecution row), with
+    // no way to know the orchestrator is about to auto-advance to the next
+    // phase. finalStatus prefers sseStatus over pollingStatus, so without
+    // this guard the Reset/PR-open buttons flashed on every phase boundary
+    // (self-correcting once the next phase's real state took over — hence
+    // "reload fixes it"). pollingStatus is set to 'running' by
+    // execution-poll-completion.ts's handleCompleted specifically to signal
+    // "this completed row is a phase boundary, not the real end" — isRunning
+    // flags (isPollingRunning/isSseRunning) can both already be false by
+    // this point, since neither poller/stream has picked up the NEXT
+    // phase's execution yet.
+    const flags = computeStatusFlags({
+      ...baseParams(),
+      finalStatus: 'completed', // from sseStatus, per finalStatus's priority
+      sseStatus: 'completed',
+      pollingStatus: 'running', // execution-poll-completion.ts's auto-advance signal
+      isPollingRunning: false,
+      isSseRunning: false,
+    });
+    expect(flags.isCompleted).toBe(false);
+  });
+
   test('a restored terminal session with success=true counts as completed', () => {
     const flags = computeStatusFlags({
       ...baseParams(),
