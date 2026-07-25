@@ -4614,6 +4614,18 @@
         "estimate": {
           "label": "Estimate effort",
           "reason": "No estimate yet — adding one makes planning easier"
+        },
+        "blocked": {
+          "label": "Check why it's blocked",
+          "reason": "This task is blocked — find out why before doing anything else"
+        },
+        "retry": {
+          "label": "Retry with the agent",
+          "reason": "The last run failed — let the agent try again"
+        },
+        "failedManual": {
+          "label": "Check why it failed",
+          "reason": "The last run failed — find out why"
         }
       }
     },

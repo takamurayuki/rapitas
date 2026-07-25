@@ -17,7 +17,12 @@ export type NextActionType =
 
 /** Task state the recommender reasons over. */
 export interface NextActionContext {
-  /** Task status in frontend form: 'todo' | 'in-progress' | 'done'. */
+  /**
+   * Task status. The `Status` type only names 'todo' | 'in-progress' |
+   * 'done', but the backend also sends 'blocked' and 'failed' (see
+   * TaskWorkflowSection's isBlocked cast) — both are handled explicitly
+   * below, not left to fall through the 'todo'/'in-progress' branches.
+   */
   status: string;
   /** Total subtasks. */
   subtaskTotal: number;
@@ -32,7 +37,14 @@ export interface NextActionContext {
 }
 
 /** Icon key resolved to a concrete lucide icon by the view. */
-export type NextActionIcon = 'analyze' | 'split' | 'play' | 'check' | 'estimate' | 'reflect';
+export type NextActionIcon =
+  | 'analyze'
+  | 'split'
+  | 'play'
+  | 'check'
+  | 'estimate'
+  | 'reflect'
+  | 'alert';
 
 /**
  * A single recommended next action. Carries EITHER `actionType` (one-click
@@ -96,7 +108,44 @@ export function getNextActions(ctx: NextActionContext): RecommendedAction[] {
   let primaryCoversSubtasks = false;
 
   // --- Primary action by status -------------------------------------------
-  if (ctx.status === 'in-progress' && allSubtasksDone) {
+  // blocked/failed fell through every branch below (none of them matched
+  // 'blocked'/'failed'), so a stuck task silently got the generic secondary
+  // suggestions (split/estimate) as if it were healthy — exactly the
+  // "next action doesn't match reality" mismatch this recommender exists to
+  // avoid. Both now surface what's actually going on instead.
+  if (ctx.status === 'blocked') {
+    out.push({
+      id: 'blocked',
+      labelKey: 'actions.blocked.label',
+      reasonKey: 'actions.blocked.reason',
+      // Matches copilot-intent-responder's blocked_reason pattern
+      // (/なぜ.*ブロック/), so this answers instantly from the DB instead of
+      // costing an LLM call.
+      prompt: 'なぜブロックされているか教えて',
+      icon: 'alert',
+      tone: 'primary',
+    });
+  } else if (ctx.status === 'failed') {
+    if (ctx.canRunAgent) {
+      out.push({
+        id: 'retry',
+        labelKey: 'actions.retry.label',
+        reasonKey: 'actions.retry.reason',
+        actionType: 'execute',
+        icon: 'alert',
+        tone: 'primary',
+      });
+    } else {
+      out.push({
+        id: 'failed-manual',
+        labelKey: 'actions.failedManual.label',
+        reasonKey: 'actions.failedManual.reason',
+        prompt: '失敗の原因を教えて',
+        icon: 'alert',
+        tone: 'primary',
+      });
+    }
+  } else if (ctx.status === 'in-progress' && allSubtasksDone) {
     out.push({
       id: 'complete',
       labelKey: 'actions.complete.label',
@@ -162,8 +211,14 @@ export function getNextActions(ctx: NextActionContext): RecommendedAction[] {
   }
 
   // --- Secondary suggestions ----------------------------------------------
+  // Only for a task actually moving forward normally — a blocked/failed task
+  // needs its primary action addressed first; housekeeping nudges like
+  // "add an estimate" alongside "why is this blocked?" read as the
+  // recommender not noticing the task is stuck.
+  const isMovingForward = ctx.status === 'todo' || ctx.status === 'in-progress';
+
   // Split a complex, not-yet-broken-down task (unless the primary already does).
-  if (!primaryCoversSubtasks && ctx.subtaskTotal === 0 && isComplex) {
+  if (isMovingForward && !primaryCoversSubtasks && ctx.subtaskTotal === 0 && isComplex) {
     out.push({
       id: 'split',
       labelKey: 'actions.split.label',
@@ -175,8 +230,8 @@ export function getNextActions(ctx: NextActionContext): RecommendedAction[] {
     });
   }
 
-  // Estimate is always useful when missing.
-  if (ctx.estimatedHours === null) {
+  // Estimate is useful when missing, for a task still actively moving.
+  if (isMovingForward && ctx.estimatedHours === null) {
     out.push({
       id: 'estimate',
       labelKey: 'actions.estimate.label',

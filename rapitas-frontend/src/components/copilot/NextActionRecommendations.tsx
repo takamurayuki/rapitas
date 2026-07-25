@@ -17,6 +17,7 @@ import {
   CheckCircle2,
   Clock,
   NotebookPen,
+  AlertCircle,
   Loader2,
 } from 'lucide-react';
 import type { RecommendedAction, NextActionIcon } from './next-action-recommender';
@@ -28,6 +29,7 @@ const ICONS: Record<NextActionIcon, typeof Sparkles> = {
   check: CheckCircle2,
   estimate: Clock,
   reflect: NotebookPen,
+  alert: AlertCircle,
 };
 
 interface NextActionRecommendationsProps {
