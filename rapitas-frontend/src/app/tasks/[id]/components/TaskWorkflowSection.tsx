@@ -3,7 +3,7 @@ import type { Task } from '@/types';
 import type { WorkflowStatus } from '@/types';
 import WorkflowViewer from '@/components/workflow/WorkflowViewer';
 import WorkflowStatusIndicator from '@/components/workflow/WorkflowStatusIndicator';
-import { CircleSmall, Diamond, Pyramid, Zap, type LucideIcon } from 'lucide-react';
+import { CircleSmall, Diamond, GitBranch, Pyramid, Zap, type LucideIcon } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { API_BASE_URL } from '@/utils/api';
 import { Spinner } from '@/components/ui/spinner';
@@ -254,6 +254,7 @@ export default function TaskWorkflowSection({
       <div className="p-4 border-b border-zinc-100 dark:border-zinc-800">
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-3">
+            <GitBranch className="h-4 w-4 text-indigo-600 dark:text-indigo-400" />
             <h3 className="text-lg font-semibold text-zinc-900 dark:text-zinc-50">{t('title')}</h3>
             <WorkflowStatusIndicator
               status={isBlocked ? 'blocked' : currentWorkflowStatus}
