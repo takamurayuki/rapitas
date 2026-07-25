@@ -102,10 +102,14 @@ export function PillButton({
       className={`flex h-8 select-none items-center gap-1.5 rounded-lg border bg-white px-2.5 text-xs font-medium transition-colors active:translate-y-[2px] active:shadow-none disabled:cursor-not-allowed disabled:opacity-50 dark:bg-zinc-900 ${classes.button}`}
     >
       {iconVariant === 'badge' ? (
+        // Original size (h-2 w-2) — 'badge' is now only used by Execute/Stop/
+        // preview-start's Play/Square, which were confirmed fine at this size
+        // (the legibility issue was specific to the detailed 'plain' icons,
+        // not these simple ones — no reason to change what wasn't broken).
         <span
           className={`flex h-4 w-4 shrink-0 items-center justify-center rounded-full ${classes.badge}`}
         >
-          <Icon className={`h-3 w-3 ${iconClassName ?? classes.icon}`} />
+          <Icon className={`h-2 w-2 ${iconClassName ?? classes.icon}`} />
         </span>
       ) : (
         <Icon className={`h-3.5 w-3.5 shrink-0 ${iconClassName ?? classes.plainIcon}`} />
