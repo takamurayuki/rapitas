@@ -1,10 +1,11 @@
 /**
  * terminal-store
  *
- * UI state for the integrated terminal: panel open/height plus the in-memory
- * tab/pane layout. Only the panel preferences (open, height) are persisted —
- * PTYs cannot survive a reload, so tabs/panes are intentionally session-scoped
- * and recreated fresh after a full reload.
+ * UI state for the integrated terminal: panel open/height/display-mode plus
+ * the in-memory tab/pane layout. Only the panel preferences (open, height,
+ * displayMode, dockSide, splitWidthPercent) are persisted — PTYs cannot
+ * survive a reload, so tabs/panes are intentionally session-scoped and
+ * recreated fresh after a full reload.
  */
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
@@ -15,6 +16,14 @@ import { getTerminalContext } from './terminal-context-store';
 const MIN_HEIGHT = 120;
 const MAX_HEIGHT = 900;
 const DEFAULT_HEIGHT = 300;
+
+/** How the panel is docked when `displayMode` is `'split'`. */
+export type TerminalDisplayMode = 'overlay' | 'split';
+export type TerminalDockSide = 'left' | 'right';
+
+const MIN_SPLIT_WIDTH_PERCENT = 20;
+const MAX_SPLIT_WIDTH_PERCENT = 80;
+const DEFAULT_SPLIT_WIDTH_PERCENT = 50;
 
 const newId = (): string =>
   typeof crypto !== 'undefined' && crypto.randomUUID
@@ -39,6 +48,12 @@ function makeTab(
 interface TerminalStore {
   isOpen: boolean;
   height: number;
+  /** 'overlay' (default): bottom dock over the page. 'split': docked beside the page content. */
+  displayMode: TerminalDisplayMode;
+  /** Which edge the panel docks to when `displayMode === 'split'`. Default 'right'. */
+  dockSide: TerminalDockSide;
+  /** Panel width as a percentage of viewport width when split. */
+  splitWidthPercent: number;
   tabs: TabState[];
   activeTabId: string | null;
 
@@ -46,6 +61,10 @@ interface TerminalStore {
   open: () => void;
   close: () => void;
   setHeight: (height: number) => void;
+  setDisplayMode: (mode: TerminalDisplayMode) => void;
+  setDockSide: (side: TerminalDockSide) => void;
+  toggleDockSide: () => void;
+  setSplitWidthPercent: (percent: number) => void;
 
   addTab: () => void;
   openTerminalForTask: (opts: { cwd?: string; title?: string; command?: string }) => void;
@@ -71,6 +90,9 @@ export const useTerminalStore = create<TerminalStore>()(
     (set, get) => ({
       isOpen: false,
       height: DEFAULT_HEIGHT,
+      displayMode: 'overlay',
+      dockSide: 'right',
+      splitWidthPercent: DEFAULT_SPLIT_WIDTH_PERCENT,
       tabs: [],
       activeTabId: null,
 
@@ -98,6 +120,21 @@ export const useTerminalStore = create<TerminalStore>()(
       close: () => set({ isOpen: false }),
 
       setHeight: (height) => set({ height: Math.max(MIN_HEIGHT, Math.min(MAX_HEIGHT, height)) }),
+
+      setDisplayMode: (mode) => set({ displayMode: mode }),
+
+      setDockSide: (side) => set({ dockSide: side }),
+
+      toggleDockSide: () =>
+        set((state) => ({ dockSide: state.dockSide === 'right' ? 'left' : 'right' })),
+
+      setSplitWidthPercent: (percent) =>
+        set({
+          splitWidthPercent: Math.max(
+            MIN_SPLIT_WIDTH_PERCENT,
+            Math.min(MAX_SPLIT_WIDTH_PERCENT, percent),
+          ),
+        }),
 
       // A new tab (+ button) also opens in the current view's working
       // directory; unlike open() it never reuses an existing tab.
@@ -174,7 +211,12 @@ export const useTerminalStore = create<TerminalStore>()(
     {
       name: 'rapitas-terminal',
       // Persist only panel prefs; tabs/panes are session-scoped (PTYs die on reload).
-      partialize: (state) => ({ height: state.height }),
+      partialize: (state) => ({
+        height: state.height,
+        displayMode: state.displayMode,
+        dockSide: state.dockSide,
+        splitWidthPercent: state.splitWidthPercent,
+      }),
     },
   ),
 );

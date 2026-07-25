@@ -1,9 +1,15 @@
 /**
  * TerminalPanel
  *
- * Bottom dock holding the tab bar and the active tab's panes. Slides up/down
- * (transform) so toggling preserves each terminal's scrollback and live PTY.
- * Clicking outside the dock, or toggling with Ctrl+J, slides it back down.
+ * Holds the tab bar and the active tab's panes, in one of two layouts:
+ *  - 'overlay' (default): a bottom dock that slides up/down over the page.
+ *  - 'split': docked to the left or right edge, full height, sliding in/out
+ *    horizontally. AppContent reserves matching space so the page content
+ *    is genuinely side-by-side rather than covered.
+ * Either way the panel stays mounted while tabs exist (only its transform
+ * changes) so each terminal's scrollback and live PTY survive toggling.
+ * Clicking outside closes it in overlay mode only — split mode behaves like
+ * a persistent side panel, not a transient one.
  */
 'use client';
 import { useCallback, useEffect, useRef } from 'react';
@@ -19,12 +25,17 @@ export default function TerminalPanel() {
   const close = useTerminalStore((s) => s.close);
   const height = useTerminalStore((s) => s.height);
   const setHeight = useTerminalStore((s) => s.setHeight);
+  const displayMode = useTerminalStore((s) => s.displayMode);
+  const dockSide = useTerminalStore((s) => s.dockSide);
+  const splitWidthPercent = useTerminalStore((s) => s.splitWidthPercent);
+  const setSplitWidthPercent = useTerminalStore((s) => s.setSplitWidthPercent);
   const tabs = useTerminalStore((s) => s.tabs);
   const activeTabId = useTerminalStore((s) => s.activeTabId);
   const dragging = useRef(false);
   const panelRef = useRef<HTMLDivElement | null>(null);
+  const isSplit = displayMode === 'split';
 
-  const onDragStart = useCallback(
+  const onDragStartHeight = useCallback(
     (e: React.MouseEvent) => {
       e.preventDefault();
       dragging.current = true;
@@ -44,10 +55,35 @@ export default function TerminalPanel() {
     [setHeight],
   );
 
-  // Click outside the dock slides it away. Attach on the next tick so the
-  // click that opened the panel doesn't immediately close it.
+  const onDragStartWidth = useCallback(
+    (e: React.MouseEvent) => {
+      e.preventDefault();
+      dragging.current = true;
+      const onMove = (ev: MouseEvent) => {
+        if (!dragging.current) return;
+        const vw = window.innerWidth;
+        // Right-docked: width grows as the cursor moves left (away from the
+        // right edge). Left-docked: width grows as the cursor moves right.
+        const percent =
+          dockSide === 'right' ? ((vw - ev.clientX) / vw) * 100 : (ev.clientX / vw) * 100;
+        setSplitWidthPercent(percent);
+      };
+      const onUp = () => {
+        dragging.current = false;
+        window.removeEventListener('mousemove', onMove);
+        window.removeEventListener('mouseup', onUp);
+      };
+      window.addEventListener('mousemove', onMove);
+      window.addEventListener('mouseup', onUp);
+    },
+    [dockSide, setSplitWidthPercent],
+  );
+
+  // Click outside the dock slides it away — overlay mode only. Split mode is
+  // a persistent side panel (like a pinned nav), so it stays open regardless
+  // of where the user clicks; Ctrl+J or the close button are how you close it.
   useEffect(() => {
-    if (!isOpen) return;
+    if (!isOpen || isSplit) return;
     const onMouseDown = (e: MouseEvent) => {
       if (panelRef.current && !panelRef.current.contains(e.target as Node)) {
         close();
@@ -58,27 +94,47 @@ export default function TerminalPanel() {
       window.clearTimeout(timer);
       document.removeEventListener('mousedown', onMouseDown);
     };
-  }, [isOpen, close]);
+  }, [isOpen, isSplit, close]);
 
   // Keep the panel mounted while tabs exist (slides off-screen when closed) so
   // scrollback and live PTYs survive a toggle. Fully unmount only with no tabs.
   if (tabs.length === 0) return null;
 
+  const closedTransform = isSplit
+    ? dockSide === 'right'
+      ? 'translate-x-full'
+      : '-translate-x-full'
+    : 'translate-y-full';
+
   return (
     <div
       ref={panelRef}
-      className={`fixed inset-x-0 bottom-0 z-60 flex flex-col border-t border-zinc-700 bg-zinc-900 shadow-2xl transition-transform duration-200 ease-out ${
-        isOpen ? 'translate-y-0' : 'translate-y-full pointer-events-none'
-      }`}
-      style={{ height }}
+      className={`fixed z-60 flex flex-col border-zinc-700 bg-zinc-900 shadow-2xl transition-transform duration-200 ease-out ${
+        isSplit
+          ? `inset-y-0 ${dockSide === 'right' ? 'right-0 border-l' : 'left-0 border-r'}`
+          : 'inset-x-0 bottom-0 border-t'
+      } ${isOpen ? 'translate-x-0 translate-y-0' : `${closedTransform} pointer-events-none`}`}
+      style={isSplit ? { width: `${splitWidthPercent}vw` } : { height }}
     >
-      {/* Top edge: drag to resize the dock. */}
-      <div
-        onMouseDown={onDragStart}
-        className="h-1 w-full cursor-row-resize bg-transparent hover:bg-indigo-500/50"
-        role="separator"
-        aria-orientation="horizontal"
-      />
+      {isSplit ? (
+        // Inner edge: drag to resize the dock's width.
+        <div
+          onMouseDown={onDragStartWidth}
+          className={`absolute inset-y-0 w-1 cursor-col-resize bg-transparent hover:bg-indigo-500/50 ${
+            dockSide === 'right' ? 'left-0' : 'right-0'
+          }`}
+          role="separator"
+          aria-orientation="vertical"
+        />
+      ) : (
+        // Top edge: drag to resize the dock's height.
+        <div
+          onMouseDown={onDragStartHeight}
+          className="h-1 w-full cursor-row-resize bg-transparent hover:bg-indigo-500/50"
+          role="separator"
+          aria-orientation="horizontal"
+        />
+      )}
       <TerminalTabBar />
 
       <div className="flex min-h-0 flex-1">

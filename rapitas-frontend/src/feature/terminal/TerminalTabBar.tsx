@@ -5,7 +5,16 @@
  * vertically, close panel). Pure UI over the terminal store.
  */
 'use client';
-import { Plus, X, SplitSquareHorizontal, SplitSquareVertical, SquareTerminal } from 'lucide-react';
+import {
+  Plus,
+  X,
+  SplitSquareHorizontal,
+  SplitSquareVertical,
+  SquareTerminal,
+  Columns2,
+  PanelBottom,
+  ArrowLeftRight,
+} from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { useTerminalStore } from './terminal-store';
 
@@ -18,6 +27,11 @@ export default function TerminalTabBar() {
   const addTab = useTerminalStore((s) => s.addTab);
   const splitActivePane = useTerminalStore((s) => s.splitActivePane);
   const close = useTerminalStore((s) => s.close);
+  const displayMode = useTerminalStore((s) => s.displayMode);
+  const setDisplayMode = useTerminalStore((s) => s.setDisplayMode);
+  const dockSide = useTerminalStore((s) => s.dockSide);
+  const toggleDockSide = useTerminalStore((s) => s.toggleDockSide);
+  const isSplit = displayMode === 'split';
 
   return (
     <div className="flex h-9 items-center justify-between border-b border-zinc-700 bg-zinc-900 px-2">
@@ -69,6 +83,30 @@ export default function TerminalTabBar() {
           title={t('splitVertical')}
         >
           <SplitSquareVertical className="h-4 w-4" aria-hidden="true" />
+        </button>
+        {isSplit && (
+          <button
+            type="button"
+            onClick={() => toggleDockSide()}
+            className="rounded p-1 hover:bg-zinc-700 hover:text-zinc-100"
+            aria-label={t('swapDockSideAria')}
+            title={dockSide === 'right' ? t('dockLeft') : t('dockRight')}
+          >
+            <ArrowLeftRight className="h-4 w-4" aria-hidden="true" />
+          </button>
+        )}
+        <button
+          type="button"
+          onClick={() => setDisplayMode(isSplit ? 'overlay' : 'split')}
+          className="rounded p-1 hover:bg-zinc-700 hover:text-zinc-100"
+          aria-label={isSplit ? t('switchToOverlayMode') : t('switchToSplitMode')}
+          title={isSplit ? t('switchToOverlayMode') : t('switchToSplitMode')}
+        >
+          {isSplit ? (
+            <PanelBottom className="h-4 w-4" aria-hidden="true" />
+          ) : (
+            <Columns2 className="h-4 w-4" aria-hidden="true" />
+          )}
         </button>
         <button
           type="button"

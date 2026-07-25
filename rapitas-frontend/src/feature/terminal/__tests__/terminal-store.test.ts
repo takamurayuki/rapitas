@@ -12,7 +12,15 @@ import { useTerminalContextStore } from '../terminal-context-store';
 import { closeTerminal } from '../terminal-ipc';
 
 function resetStores() {
-  useTerminalStore.setState({ isOpen: false, height: 300, tabs: [], activeTabId: null });
+  useTerminalStore.setState({
+    isOpen: false,
+    height: 300,
+    displayMode: 'overlay',
+    dockSide: 'right',
+    splitWidthPercent: 50,
+    tabs: [],
+    activeTabId: null,
+  });
   useTerminalContextStore.setState({ cwd: null, title: null });
   vi.clearAllMocks();
 }
@@ -149,5 +157,44 @@ describe('terminalStore', () => {
     store().setActivePane(tabA.id, refreshedA.panes[0].id);
     expect(store().tabs.find((t) => t.id === tabA.id)!.activePaneId).toBe(refreshedA.panes[0].id);
     expect(tabB).toBeDefined();
+  });
+
+  describe('split display mode', () => {
+    it('defaults to overlay, docked right, at 50% width', () => {
+      expect(store().displayMode).toBe('overlay');
+      expect(store().dockSide).toBe('right');
+      expect(store().splitWidthPercent).toBe(50);
+    });
+
+    it('setDisplayMode() switches between overlay and split', () => {
+      store().setDisplayMode('split');
+      expect(store().displayMode).toBe('split');
+      store().setDisplayMode('overlay');
+      expect(store().displayMode).toBe('overlay');
+    });
+
+    it('setDockSide() sets an explicit side', () => {
+      store().setDockSide('left');
+      expect(store().dockSide).toBe('left');
+      store().setDockSide('right');
+      expect(store().dockSide).toBe('right');
+    });
+
+    it('toggleDockSide() flips right <-> left', () => {
+      expect(store().dockSide).toBe('right');
+      store().toggleDockSide();
+      expect(store().dockSide).toBe('left');
+      store().toggleDockSide();
+      expect(store().dockSide).toBe('right');
+    });
+
+    it('setSplitWidthPercent() clamps to the [20, 80] range', () => {
+      store().setSplitWidthPercent(5);
+      expect(store().splitWidthPercent).toBe(20);
+      store().setSplitWidthPercent(95);
+      expect(store().splitWidthPercent).toBe(80);
+      store().setSplitWidthPercent(35);
+      expect(store().splitWidthPercent).toBe(35);
+    });
   });
 });
