@@ -14,6 +14,11 @@ import { createTask } from '../task/task-mutations';
 import { sanitizeMarkdownContent } from '../../utils/common/mojibake-detector';
 import { narrowEnum } from '../../utils/common/type-guards';
 import { findSaturatedTheme, findNearDuplicate } from './theme-saturation';
+import { resolveTaskThemeId, resolveDefaultThemeId } from './theme-resolution';
+
+// Re-exported for backward compatibility — log-health-check.ts imports
+// resolveDefaultThemeId from this module.
+export { resolveDefaultThemeId };
 
 // Near-duplicate gate threshold (character-bigram Jaccard). Mirrors the idea box:
 // rejects an almost-identical OPEN concern re-file (e.g. the gen/Prettier-drift
@@ -192,6 +197,19 @@ export async function submitConcern(input: SubmitConcernInput): Promise<number> 
   const tags = [`severity:${severity}`];
   if (input.location?.trim()) tags.push(`loc:${input.location.trim()}`);
 
+  // Always attribute a concern to a real theme, mirroring submitIdea's same
+  // invariant (idea-box-service.ts): use the caller's themeId, else the
+  // origin task's theme, else the default theme. Without this, any caller
+  // that omitted themeId (whether or not it passed originTaskId) left the
+  // concern permanently theme-less — invisible in theme-filtered UI, AND
+  // invisible to per-theme backlog auto-promotion (listConcerns' `where.
+  // themeId = themeId` never matches a null row), silently stalling forever.
+  let themeId = input.themeId ?? null;
+  if (themeId == null) {
+    if (input.originTaskId != null) themeId = await resolveTaskThemeId(input.originTaskId);
+    if (themeId == null) themeId = await resolveDefaultThemeId();
+  }
+
   const entry = await prisma.knowledgeEntry.create({
     data: {
       sourceType: 'concern',
@@ -204,7 +222,7 @@ export async function submitConcern(input: SubmitConcernInput): Promise<number> 
       category: type,
       tags: JSON.stringify(tags),
       confidence: SEVERITY_WEIGHT[severity],
-      themeId: input.themeId ?? null,
+      themeId,
       taskId: input.originTaskId ?? null,
       forgettingStage: 'active',
       decayScore: 1.0,
@@ -213,7 +231,14 @@ export async function submitConcern(input: SubmitConcernInput): Promise<number> 
   });
 
   log.info(
-    { id: entry.id, type, severity, originTaskId: input.originTaskId, source: input.source },
+    {
+      id: entry.id,
+      type,
+      severity,
+      themeId,
+      originTaskId: input.originTaskId,
+      source: input.source,
+    },
     'Concern filed',
   );
   return entry.id;
@@ -425,25 +450,6 @@ const SEVERITY_TO_PRIORITY: Record<ConcernSeverity, 'urgent' | 'high' | 'medium'
   medium: 'medium',
   low: 'low',
 };
-
-/**
- * Resolves the fallback theme for concerns with no explicit theme (rapitas's own
- * backend-log health check, or a user filing without picking a theme).
- *
- * NOTE: the home task list filters tasks by the selected category via their
- * theme, so a theme-less task is silently invisible there. Attributing such
- * concerns to the user's default theme keeps the resulting task category-scoped
- * and therefore visible.
- *
- * @returns Default theme id, or null when none is marked default / 既定テーマID
- */
-export async function resolveDefaultThemeId(): Promise<number | null> {
-  const theme = await prisma.theme.findFirst({
-    where: { isDefault: true },
-    select: { id: true },
-  });
-  return theme?.id ?? null;
-}
 
 /** Type → task title prefix. */
 const TYPE_PREFIX: Record<ConcernType, string> = {

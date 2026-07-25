@@ -11,6 +11,13 @@ import { createContentHash } from './utils';
 import { sanitizeMarkdownContent } from '../../utils/common/mojibake-detector';
 import { narrowEnum } from '../../utils/common/type-guards';
 import { findSaturatedTheme, findNearDuplicate } from './theme-saturation';
+import { resolveTaskThemeId, resolveDefaultThemeId } from './theme-resolution';
+
+// Re-exported for backward compatibility — these lived here before being
+// shared with concern-backlog-service.ts (see theme-resolution.ts). Existing
+// dynamic imports (idea-extractor.ts) and direct imports of this module keep
+// working unchanged.
+export { resolveTaskThemeId, resolveDefaultThemeId };
 
 // Theme-saturation gate (anti-monoculture). Embedding cosine (all-MiniLM-L6-v2)
 // proved USELESS for Japanese idea similarity (novel ideas scored HIGHER than
@@ -113,67 +120,6 @@ export interface SubmitIdeaInput {
  * @param input - Idea details / アイデアの詳細
  * @returns Created KnowledgeEntry ID, or existing ID if duplicate / 作成されたID
  */
-/**
- * Resolve the most appropriate theme for ideas filed against a task, so they
- * don't fall into the "global" bucket just because the task itself has no theme.
- * Order: the task's own theme → a theme whose working directory matches the
- * task's → the default theme. Returns null only when none can be found (then the
- * idea is genuinely global).
- *
- * @param taskId - Task the idea came from / アイデアの発生元タスクID
- * @returns The best theme id, or null. / 最適なテーマID、無ければnull
- */
-export async function resolveTaskThemeId(taskId: number): Promise<number | null> {
-  try {
-    const task = await prisma.task.findUnique({
-      where: { id: taskId },
-      select: { themeId: true, workingDirectory: true },
-    });
-    if (task?.themeId != null) return task.themeId;
-    if (task?.workingDirectory) {
-      const byDir = await prisma.theme.findFirst({
-        where: { workingDirectory: task.workingDirectory },
-        select: { id: true },
-      });
-      if (byDir) return byDir.id;
-    }
-    // Fall back to a theme that actually has a working directory — ideas become
-    // tasks that run in a repo, so a working-dir theme is the meaningful home (and
-    // a null/empty workingDirectory would otherwise show as a generic project/
-    // global icon). Prefer a default working-dir theme, then any. Treat empty
-    // string as no working dir, matching the UI's truthy filter. Only when no
-    // working-dir theme exists at all do we fall back to a default / null.
-    return await resolveDefaultThemeId();
-  } catch {
-    return null;
-  }
-}
-
-/**
- * Resolve the home theme to use when an idea has no task/theme of its own.
- * Prefers a default theme with a working directory, then any theme with one,
- * then the default theme, then ANY theme — so an idea is tied to a real theme
- * (and shows that theme's icon) instead of falling into the global/地球儀 bucket.
- * Returns null only when no theme exists at all.
- *
- * @returns A theme id to attribute the idea to, or null if there are no themes.
- */
-export async function resolveDefaultThemeId(): Promise<number | null> {
-  const candidates = await prisma.theme
-    .findMany({
-      select: { id: true, isDefault: true, workingDirectory: true },
-      orderBy: { id: 'asc' },
-    })
-    .catch(() => [] as { id: number; isDefault: boolean; workingDirectory: string | null }[]);
-  const hasWd = (wd: string | null): boolean => !!wd && wd.trim() !== '';
-  const defaultWithWd = candidates.find((t) => t.isDefault && hasWd(t.workingDirectory));
-  if (defaultWithWd) return defaultWithWd.id;
-  const anyWithWd = candidates.find((t) => hasWd(t.workingDirectory));
-  if (anyWithWd) return anyWithWd.id;
-  // Last resort: the default theme, else ANY theme — never null while a theme exists.
-  return candidates.find((t) => t.isDefault)?.id ?? candidates[0]?.id ?? null;
-}
-
 export async function submitIdea(input: SubmitIdeaInput): Promise<number> {
   // 文字化けチェック＆修正: agent submissions (via curl / files on Windows) can
   // arrive mojibake'd; repair title/content BEFORE storing so a garbled idea never

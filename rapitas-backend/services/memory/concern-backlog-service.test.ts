@@ -18,6 +18,11 @@ const mockKnowledgeEntryCreate = mock(() => Promise.resolve({ id: 1 }));
 
 const mockGitHubIssueFindMany = mock(() => Promise.resolve([]));
 const mockThemeFindFirst = mock(() => Promise.resolve(null));
+// theme-resolution.ts's resolveDefaultThemeId reads ALL themes via findMany
+// (working-dir-aware ranking), not the single-row findFirst the old local
+// concern-backlog-service implementation used.
+const mockThemeFindMany = mock(() => Promise.resolve([] as Record<string, unknown>[]));
+const mockTaskFindUnique = mock(() => Promise.resolve(null as Record<string, unknown> | null));
 
 mock.module('../../config/database', () => ({
   ensureDatabaseConnection: () => Promise.resolve(),
@@ -35,6 +40,10 @@ mock.module('../../config/database', () => ({
     },
     theme: {
       findFirst: mockThemeFindFirst,
+      findMany: mockThemeFindMany,
+    },
+    task: {
+      findUnique: mockTaskFindUnique,
     },
   },
 }));
@@ -61,6 +70,7 @@ const {
   getConcern,
   listConcerns,
   getConcernStats,
+  submitConcern,
 } = await import('./concern-backlog-service');
 
 const { isConcernType, isConcernSeverity } =
@@ -77,6 +87,8 @@ function resetMocks() {
   mockKnowledgeEntryCreate.mockReset().mockResolvedValue({ id: 1 });
   mockGitHubIssueFindMany.mockReset().mockResolvedValue([]);
   mockThemeFindFirst.mockReset().mockResolvedValue(null);
+  mockThemeFindMany.mockReset().mockResolvedValue([]);
+  mockTaskFindUnique.mockReset().mockResolvedValue(null);
 }
 
 // ─── Pure helper tests ────────────────────────────────────────────────────────
@@ -172,6 +184,68 @@ describe('markConcernResolved', () => {
 
     expect(result).toBe(false);
     expect(mockKnowledgeEntryUpdate).not.toHaveBeenCalled();
+  });
+});
+
+// ─── submitConcern — theme attribution ─────────────────────────────────────────
+
+describe('submitConcern — theme attribution', () => {
+  beforeEach(resetMocks);
+
+  // Regression: submitConcern used to store `input.themeId ?? null` verbatim —
+  // any caller that omitted themeId (verification-gate.ts's pre-existing-
+  // failure filing, the public POST /concerns route, GitHub issue import) left
+  // the concern permanently theme-less, even when originTaskId was present and
+  // resolvable. Mirrors submitIdea's same invariant (idea-box-service.ts).
+
+  it('uses the explicit themeId when provided, without looking up the task', async () => {
+    await submitConcern({ title: 'タイトルが十分な長さの懸念', detail: '詳細', themeId: 7 });
+
+    expect(mockKnowledgeEntryCreate).toHaveBeenCalledTimes(1);
+    const call = mockKnowledgeEntryCreate.mock.calls[0][0] as { data: { themeId: number | null } };
+    expect(call.data.themeId).toBe(7);
+    expect(mockTaskFindUnique).not.toHaveBeenCalled();
+  });
+
+  it('resolves themeId from originTaskId when themeId is omitted', async () => {
+    mockTaskFindUnique.mockResolvedValue({ themeId: 12, workingDirectory: null });
+
+    await submitConcern({ title: 'タイトルが十分な長さの懸念', detail: '詳細', originTaskId: 511 });
+
+    expect(mockTaskFindUnique).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: 511 } }),
+    );
+    const call = mockKnowledgeEntryCreate.mock.calls[0][0] as { data: { themeId: number | null } };
+    expect(call.data.themeId).toBe(12);
+  });
+
+  it('falls back to the default theme when originTaskId has no theme of its own', async () => {
+    mockTaskFindUnique.mockResolvedValue({ themeId: null, workingDirectory: null });
+    mockThemeFindMany.mockResolvedValue([{ id: 3, isDefault: true, workingDirectory: null }]);
+
+    await submitConcern({ title: 'タイトルが十分な長さの懸念', detail: '詳細', originTaskId: 511 });
+
+    const call = mockKnowledgeEntryCreate.mock.calls[0][0] as { data: { themeId: number | null } };
+    expect(call.data.themeId).toBe(3);
+  });
+
+  it('falls back to the default theme when neither themeId nor originTaskId is given', async () => {
+    mockThemeFindMany.mockResolvedValue([{ id: 9, isDefault: true, workingDirectory: null }]);
+
+    await submitConcern({ title: 'タイトルが十分な長さの懸念', detail: '詳細' });
+
+    expect(mockTaskFindUnique).not.toHaveBeenCalled();
+    const call = mockKnowledgeEntryCreate.mock.calls[0][0] as { data: { themeId: number | null } };
+    expect(call.data.themeId).toBe(9);
+  });
+
+  it('stores themeId: null only when genuinely no theme exists at all', async () => {
+    mockThemeFindMany.mockResolvedValue([]);
+
+    await submitConcern({ title: 'タイトルが十分な長さの懸念', detail: '詳細' });
+
+    const call = mockKnowledgeEntryCreate.mock.calls[0][0] as { data: { themeId: number | null } };
+    expect(call.data.themeId).toBeNull();
   });
 });
 
