@@ -704,7 +704,10 @@
     },
     "taskSlidePanel": {
       "title": "タスク詳細",
-      "closeTooltip": "閉じる (Esc)"
+      "closeTooltip": "閉じる (Esc)",
+      "dockLeft": "タスク詳細を左側に表示",
+      "dockRight": "タスク詳細を右側に表示",
+      "swapDockSideAria": "左右を入れ替える"
     },
     "labelSelector": {
       "empty": "ラベルがありません。",

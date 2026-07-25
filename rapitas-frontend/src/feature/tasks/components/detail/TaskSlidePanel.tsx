@@ -1,6 +1,7 @@
 'use client';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslations } from 'next-intl';
+import { ArrowLeftRight } from 'lucide-react';
 import TaskDetailClient from '@/app/tasks/[id]/TaskDetailClient';
 import { useTaskDetailVisibilityStore } from '@/stores/task-detail-visibility-store';
 
@@ -27,7 +28,8 @@ export default function TaskSlidePanel({
   const contentRef = useRef<HTMLDivElement>(null);
 
   // Task detail visibility store
-  const { showTaskDetail, hideTaskDetail } = useTaskDetailVisibilityStore();
+  const { showTaskDetail, hideTaskDetail, dockSide, toggleDockSide } =
+    useTaskDetailVisibilityStore();
 
   // When opening: set isVisible to true & reset scroll position
   useEffect(() => {
@@ -116,12 +118,17 @@ export default function TaskSlidePanel({
 
   const isClosing = isAnimatingOut;
 
+  const slideInAnim = dockSide === 'right' ? 'taskPanelSlideInRight' : 'taskPanelSlideInLeft';
+  const slideOutAnim = dockSide === 'right' ? 'taskPanelSlideOutRight' : 'taskPanelSlideOutLeft';
+
   return (
     <>
       {/* Overlay — sits below the header (top-16) so the header stays visible
-          and interactive, matching the side nav's backdrop. */}
+          and interactive, matching the side nav's backdrop. z-65 (above the
+          split-mode terminal panel's z-60) so the terminal dims along with
+          the rest of the page instead of poking out on top of the overlay. */}
       <div
-        className="fixed inset-x-0 top-16 bottom-0 z-40"
+        className="fixed inset-x-0 top-16 bottom-0 z-65"
         onClick={handleClose}
         style={{
           animation: isClosing
@@ -131,32 +138,44 @@ export default function TaskSlidePanel({
       />
 
       {/* Slide panel — positioned below the header (top-16) like the side nav,
-          so it no longer overlaps the sticky header. */}
+          so it no longer overlaps the sticky header. z-70 (above the overlay
+          and the terminal panel's z-60) so the terminal's split mode can
+          never hide it — the task panel always wins that stacking fight. */}
       <div
-        className="fixed top-16 right-0 bottom-0 w-full md:w-3/4 lg:w-2/3 xl:w-1/2 flex flex-col bg-white dark:bg-zinc-950 shadow-2xl z-50 overflow-hidden"
+        className={`fixed top-16 bottom-0 ${dockSide === 'right' ? 'right-0' : 'left-0'} w-full md:w-3/4 lg:w-2/3 xl:w-1/2 flex flex-col bg-white dark:bg-zinc-950 shadow-2xl z-70 overflow-hidden`}
         style={{
           animation: isClosing
-            ? `slideOut ${ANIMATION_DURATION}ms ease-in forwards`
-            : `slideIn ${ANIMATION_DURATION}ms ease-out forwards`,
+            ? `${slideOutAnim} ${ANIMATION_DURATION}ms ease-in forwards`
+            : `${slideInAnim} ${ANIMATION_DURATION}ms ease-out forwards`,
         }}
       >
         {/* Header (compact) */}
         <div className="shrink-0 flex items-center justify-between border-b border-zinc-200 dark:border-zinc-800 bg-white dark:bg-indigo-dark-900 px-4 py-2.5">
           <h2 className="text-base font-semibold text-zinc-900 dark:text-zinc-50">{t('title')}</h2>
-          <button
-            onClick={handleClose}
-            className="p-1.5 text-zinc-600 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-100 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-lg transition-colors"
-            title={t('closeTooltip')}
-          >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M6 18L18 6M6 6l12 12"
-              />
-            </svg>
-          </button>
+          <div className="flex items-center gap-1">
+            <button
+              onClick={() => toggleDockSide()}
+              className="p-1.5 text-zinc-600 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-100 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-lg transition-colors"
+              title={dockSide === 'right' ? t('dockLeft') : t('dockRight')}
+              aria-label={t('swapDockSideAria')}
+            >
+              <ArrowLeftRight className="w-4 h-4" aria-hidden="true" />
+            </button>
+            <button
+              onClick={handleClose}
+              className="p-1.5 text-zinc-600 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-100 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-lg transition-colors"
+              title={t('closeTooltip')}
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M6 18L18 6M6 6l12 12"
+                />
+              </svg>
+            </button>
+          </div>
         </div>
 
         {/* Content — single scroll container (TaskDetailContent flows inside).
@@ -173,7 +192,13 @@ export default function TaskSlidePanel({
       </div>
 
       <style>{`
-        @keyframes slideIn {
+        /* NOTE: named taskPanel* (not slideIn/slideOut) — globals.css already
+           defines global @keyframes slideIn/slideOut for NoteHoverSidebar with
+           different values (a left-only slide + opacity fade); CSS keyframes
+           are global by name regardless of being declared in a component
+           <style> tag, so reusing those names here would silently pick up
+           whichever declaration the browser resolves last. */
+        @keyframes taskPanelSlideInRight {
           from {
             transform: translateX(100%);
           }
@@ -181,12 +206,28 @@ export default function TaskSlidePanel({
             transform: translateX(0);
           }
         }
-        @keyframes slideOut {
+        @keyframes taskPanelSlideOutRight {
           from {
             transform: translateX(0);
           }
           to {
             transform: translateX(100%);
+          }
+        }
+        @keyframes taskPanelSlideInLeft {
+          from {
+            transform: translateX(-100%);
+          }
+          to {
+            transform: translateX(0);
+          }
+        }
+        @keyframes taskPanelSlideOutLeft {
+          from {
+            transform: translateX(0);
+          }
+          to {
+            transform: translateX(-100%);
           }
         }
         @keyframes fadeIn {
