@@ -1,6 +1,5 @@
 'use client';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { CSSProperties } from 'react';
 import { useTranslations } from 'next-intl';
 import { ArrowLeftRight } from 'lucide-react';
 import TaskDetailClient from '@/app/tasks/[id]/TaskDetailClient';
@@ -118,10 +117,12 @@ export default function TaskSlidePanel({
   if (!isVisible || !taskId) return null;
 
   const isClosing = isAnimatingOut;
-  // Read by the two @keyframes below (transform: translateX(var(...))) so a
-  // single slide-in/slide-out pair covers both dock sides — only the offset
-  // it animates from/to changes, not the animation name itself.
-  const slideOffset = dockSide === 'right' ? '100%' : '-100%';
+  // Explicit per-direction keyframes (not a --custom-property read inside a
+  // shared pair) — browsers can't reliably tween `transform` through an
+  // unregistered CSS custom property, which flickered/jumped instead of
+  // sliding smoothly. Literal from/to percentages animate correctly.
+  const slideInAnim = dockSide === 'right' ? 'taskPanelSlideInRight' : 'taskPanelSlideInLeft';
+  const slideOutAnim = dockSide === 'right' ? 'taskPanelSlideOutRight' : 'taskPanelSlideOutLeft';
 
   return (
     <>
@@ -145,14 +146,11 @@ export default function TaskSlidePanel({
           never hide it — the task panel always wins that stacking fight. */}
       <div
         className={`fixed top-16 bottom-0 ${dockSide === 'right' ? 'right-0' : 'left-0'} w-full md:w-3/4 lg:w-2/3 xl:w-1/2 flex flex-col bg-white dark:bg-zinc-950 shadow-2xl z-[70] overflow-hidden`}
-        style={
-          {
-            '--task-panel-slide-offset': slideOffset,
-            animation: isClosing
-              ? `taskPanelSlideOut ${ANIMATION_DURATION}ms ease-in forwards`
-              : `taskPanelSlideIn ${ANIMATION_DURATION}ms ease-out forwards`,
-          } as CSSProperties
-        }
+        style={{
+          animation: isClosing
+            ? `${slideOutAnim} ${ANIMATION_DURATION}ms ease-in forwards`
+            : `${slideInAnim} ${ANIMATION_DURATION}ms ease-out forwards`,
+        }}
       >
         {/* Header (compact) */}
         <div className="shrink-0 flex items-center justify-between border-b border-zinc-200 dark:border-zinc-800 bg-white dark:bg-indigo-dark-900 px-4 py-2.5">
@@ -203,25 +201,41 @@ export default function TaskSlidePanel({
            are global by name regardless of being declared in a component
            <style> tag, so reusing those names here would silently pick up
            whichever declaration the browser resolves last.
-           One pair covers both dock sides via the --task-panel-slide-offset
-           custom property set inline on the panel (100% right-docked, -100%
-           left-docked) — the animation NAME itself never changes with
-           dockSide, only the value it reads, which keeps the inline
-           style.animation string constant per open/close state. */
-        @keyframes taskPanelSlideIn {
+           Four explicit keyframes (not two parameterized by a CSS custom
+           property) — a translateX(var(--x)) keyframe flickered/jumped
+           instead of tweening smoothly, since browsers can't reliably
+           interpolate transform through an unregistered custom property.
+           Literal from/to percentages per direction animate correctly. */
+        @keyframes taskPanelSlideInRight {
           from {
-            transform: translateX(var(--task-panel-slide-offset));
+            transform: translateX(100%);
           }
           to {
             transform: translateX(0);
           }
         }
-        @keyframes taskPanelSlideOut {
+        @keyframes taskPanelSlideOutRight {
           from {
             transform: translateX(0);
           }
           to {
-            transform: translateX(var(--task-panel-slide-offset));
+            transform: translateX(100%);
+          }
+        }
+        @keyframes taskPanelSlideInLeft {
+          from {
+            transform: translateX(-100%);
+          }
+          to {
+            transform: translateX(0);
+          }
+        }
+        @keyframes taskPanelSlideOutLeft {
+          from {
+            transform: translateX(0);
+          }
+          to {
+            transform: translateX(-100%);
           }
         }
         @keyframes fadeIn {
