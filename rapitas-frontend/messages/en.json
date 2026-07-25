@@ -717,6 +717,18 @@
       "unknown": "CI: unknown",
       "viewPrTooltip": "Open PR #{number}"
     },
+    "preview": {
+      "title": "Live Preview",
+      "liveBadge": "LIVE",
+      "start": "Start preview",
+      "starting": "Starting...",
+      "stop": "Stop",
+      "startFailed": "Failed to start the preview",
+      "idleHint": "Shows a live preview of the app running in this task's worktree. \"Start preview\" launches the dev server using the rapitas.runtime.json config.",
+      "startingHint": "Starting the dev server...",
+      "loadingScreenshot": "Loading screenshot...",
+      "screenshotAlt": "Preview screenshot"
+    },
     "labelSelector": {
       "empty": "No labels.",
       "createLabel": "Create a label"

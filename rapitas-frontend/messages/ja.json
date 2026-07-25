@@ -717,6 +717,18 @@
       "unknown": "CI: 不明",
       "viewPrTooltip": "PR #{number} を開く"
     },
+    "preview": {
+      "title": "ライブプレビュー",
+      "liveBadge": "LIVE",
+      "start": "プレビュー開始",
+      "starting": "起動中...",
+      "stop": "停止",
+      "startFailed": "プレビューの起動に失敗しました",
+      "idleHint": "このタスクのworktreeで動いているアプリのプレビューを表示します。「プレビュー開始」を押すと、rapitas.runtime.json の設定でdevサーバーを起動します。",
+      "startingHint": "devサーバーを起動しています...",
+      "loadingScreenshot": "スクリーンショットを取得中...",
+      "screenshotAlt": "プレビューのスクリーンショット"
+    },
     "labelSelector": {
       "empty": "ラベルがありません。",
       "createLabel": "ラベルを作成"

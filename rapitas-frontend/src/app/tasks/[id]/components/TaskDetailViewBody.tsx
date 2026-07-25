@@ -5,6 +5,7 @@ import CompactTaskDetailCard from '@/feature/tasks/components/detail/CompactTask
 import { API_BASE_URL } from '@/utils/api';
 import TaskAISection, { type TaskAISectionProps } from './TaskAISection';
 import TaskWorkflowSection from './TaskWorkflowSection';
+import TaskPreviewSection from './TaskPreviewSection';
 import SubtaskSection from './SubtaskSection';
 import type { ParallelExecutionStatus } from '@/feature/tasks/components/status/SubtaskExecutionStatus';
 import { useExecutionStateStore } from '@/stores/execution-state-store';
@@ -199,6 +200,12 @@ export default function TaskDetailViewBody({
             onTaskUpdated={onTaskUpdated}
             setTask={setTask}
           />
+        </div>
+      )}
+
+      {task.theme?.isDevelopment === true && (
+        <div id="td-preview" className="scroll-mt-16">
+          <TaskPreviewSection taskId={taskId} />
         </div>
       )}
 

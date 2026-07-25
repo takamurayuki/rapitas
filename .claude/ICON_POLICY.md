@@ -90,6 +90,7 @@ Keep this list accurate. If you assign a glyph a new meaning, add it here.
 | `PanelBottom`             | 統合ターミナルを下部パネル表示（overlay）に戻す操作（TerminalTabBar。split表示への切替は `Columns2`） |
 | `Columns2`                | 画面分割表示への切替（ノートモーダルの分割タブ、統合ターミナルのsplit表示切替 — 「サイドバイサイド分割」という共通概念の再利用） |
 | `ArrowLeftRight`          | 左右の位置を入れ替える操作（ノート分割のノート/AI入れ替え、統合ターミナルとタスク詳細スライドパネルのドック位置(左右)入れ替え） |
+| `AppWindow`               | タスク詳細のライブプレビュー（worktreeのdevサーバーをPlaywrightでスクリーンショット表示）セクションの見出しアイコン |
 
 ### Known collisions
 

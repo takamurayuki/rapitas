@@ -30,6 +30,7 @@ import {
   cliToolsManagementRoutes,
   executionForkRoutes,
   smartRouterRoutes,
+  previewRoutes,
   timeEntriesRoutes,
   pomodoroRoutes,
   commentsRoutes,
@@ -134,6 +135,7 @@ export function registerAllRoutes(app: Elysia): void {
   app.use(cliToolsManagementRoutes);
   app.use(executionForkRoutes);
   app.use(smartRouterRoutes);
+  app.use(previewRoutes);
 
   // Time tracking
   app.use(timeEntriesRoutes);

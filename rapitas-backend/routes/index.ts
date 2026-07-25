@@ -36,6 +36,7 @@ export { agentVersionManagementRoutes } from './agents/system/agent-version-mana
 export { cliToolsManagementRoutes } from './agents/integrations/cli-tools-management';
 export { executionForkRoutes } from './agents/execution-management/execution-fork-routes';
 export { smartRouterRoutes } from './agents/system/smart-router-routes';
+export { previewRoutes } from './agents/preview/preview-routes';
 
 // AI
 export { aiChatRoutes } from './ai/ai-chat';
