@@ -48,12 +48,24 @@ export async function getAgentSystemSnapshot(): Promise<{
 }> {
   // NOTE: Sync getActiveExecutionCount() returns a cached value (0 right after startup).
   // Use the async version when available to get the accurate count from the worker.
+  // The worker subprocess isn't ready for the first few seconds after every
+  // restart — sendIPCRequest throws 'Worker not ready' during that window, which
+  // is an expected, transient condition (this snapshot is polled by the frontend
+  // on a timer, so it always lands in that window right after a restart), not a
+  // real failure. Fall back to the cached sync count instead of letting it
+  // surface as an ERROR-level "Unhandled error" on every single restart.
   const workerMgr = orchestrator as unknown as {
     getActiveExecutionCountAsync?: () => Promise<number>;
   };
-  const activeExecutions = workerMgr.getActiveExecutionCountAsync
-    ? await workerMgr.getActiveExecutionCountAsync()
-    : orchestrator.getActiveExecutionCount?.() || 0;
+  let activeExecutions: number;
+  try {
+    activeExecutions = workerMgr.getActiveExecutionCountAsync
+      ? await workerMgr.getActiveExecutionCountAsync()
+      : orchestrator.getActiveExecutionCount?.() || 0;
+  } catch (err) {
+    log.debug({ err }, '[agent-system] Active count unavailable (worker likely still starting)');
+    activeExecutions = orchestrator.getActiveExecutionCount?.() || 0;
+  }
   const isShuttingDown = orchestrator.isInShutdown();
 
   // Count running/pending executions, but EXCLUDE orphaned rows whose task is

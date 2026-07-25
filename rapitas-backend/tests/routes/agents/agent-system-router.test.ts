@@ -69,6 +69,7 @@ mock.module('../../../config/logger', () => ({
     info: mock(() => {}),
     error: mock(() => {}),
     warn: mock(() => {}),
+    debug: mock(() => {}),
   })),
 }));
 
@@ -254,6 +255,25 @@ describe('Agent System Router', () => {
         const response = await app.handle(new Request('http://localhost/agents/system-status'));
         const data = (await response.json()) as SystemStatusResponse;
         expect(data.queueDepth).toBe(7);
+      });
+
+      // Regression: right after every restart, the worker subprocess isn't
+      // ready yet — sendIPCRequest throws 'Worker not ready' for the first
+      // few seconds. This endpoint is polled by the frontend on a timer, so
+      // it always lands in that window at least once per restart. Without a
+      // fallback, that expected transient condition propagated as an
+      // "Unhandled error" logged at ERROR level on every single restart.
+      it('falls back to the cached sync count (200, not 500) when the worker is not ready yet', async () => {
+        mockOrchestrator.getActiveExecutionCountAsync = mock(() =>
+          Promise.reject(new Error('Worker not ready')),
+        );
+        mockOrchestrator.getActiveExecutionCount = mock(() => 0);
+
+        const response = await app.handle(new Request('http://localhost/agents/system-status'));
+        expect(response.status).toBe(200);
+        const data = (await response.json()) as SystemStatusResponse;
+        expect(data.activeExecutions).toBe(0);
+        expect(data.status).toBe('healthy');
       });
     });
   });
