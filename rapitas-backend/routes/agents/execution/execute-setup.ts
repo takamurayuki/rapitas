@@ -17,6 +17,7 @@ import { AgentWorkerManager } from '../../../services/agents/agent-worker-manage
 import { toJsonString } from '../../../utils/database/db-helpers';
 import { generateFallbackBranchName } from '../../../utils/common/branch-name-generator';
 import { ensureNotPrimaryWorkTree } from '../../../services/agents/orchestrator/git-operations/worktree-guard';
+import { decideWorktree } from '../../../services/agents/orchestrator/git-operations/worktree-usable';
 
 const log = createLogger('routes:agent-execution:setup');
 const agentWorkerManager = AgentWorkerManager.getInstance();
@@ -138,11 +139,35 @@ export async function executeSetup(params: ExecuteSetupParams): Promise<SetupRes
     log.info(`[setup] Created new session ${session.id}`);
   }
 
+  // A prior session for this SAME task may already have a live worktree+branch
+  // — e.g. the retry/rerun button after a failed/interrupted run, which always
+  // takes this "new execution" path (it never sends a sessionId). Branch names
+  // are deterministic (generateFallbackBranchName(taskTitle) below), so
+  // blindly creating a brand-new worktree directory recomputes the SAME branch
+  // name every time; `git worktree add` then refuses it with "already used by
+  // worktree at ...", since a branch can only be checked out in one worktree
+  // at once (task 513 regression). Skip this lookup when the caller passed an
+  // explicit branchName override — that's a deliberate choice to diverge from
+  // whatever a prior session used, not a retry of the same run.
+  const recordedSession = branchName
+    ? null
+    : sessionId
+      ? session
+      : await prisma.agentSession.findFirst({
+          where: { configId: developerModeConfig.id, id: { not: session.id } },
+          orderBy: { id: 'desc' },
+          select: { worktreePath: true, branchName: true },
+        });
+  const worktreeDecision = decideWorktree(
+    recordedSession?.worktreePath,
+    recordedSession?.branchName,
+  );
+
   // NOTE: Branch names are an internal identifier; AI generation added 1-15s of
   // Ollama latency for negligible UX value. Use the deterministic heuristic
   // (generateFallbackBranchName) instead — it inspects keywords for
   // feature/bugfix/chore prefix selection and runs in microseconds.
-  let finalBranchName = branchName;
+  let finalBranchName = branchName || recordedSession?.branchName || undefined;
   if (!finalBranchName) {
     finalBranchName = generateFallbackBranchName(taskTitle);
     if (!finalBranchName || finalBranchName.length === 0) {
@@ -151,21 +176,29 @@ export async function executeSetup(params: ExecuteSetupParams): Promise<SetupRes
     log.info(`[setup] Generated branch name (deterministic): ${finalBranchName}`);
   }
 
-  // NOTE: Use git worktree for isolation — each task gets its own working directory
+  // NOTE: Use git worktree for isolation — each task gets its own working
+  // directory. Reuse the recorded one outright when it's still usable (see
+  // decideWorktree above) instead of creating a second worktree on the same
+  // branch.
   let worktreePath: string;
-  try {
-    worktreePath = await agentWorkerManager.createWorktree(
-      workDir,
-      finalBranchName,
-      taskIdNum,
-      taskThemeRepositoryUrl || null,
-      baseBranch || null,
-    );
-    log.info(`[setup] Created worktree at ${worktreePath}`);
-  } catch (worktreeError) {
-    log.error({ err: worktreeError }, `[setup] Failed to create worktree`);
-    // NOTE: Re-throw — caller will return an error response and release the lock.
-    throw worktreeError;
+  if (worktreeDecision === 'reuse' && recordedSession?.worktreePath) {
+    worktreePath = recordedSession.worktreePath;
+    log.info(`[setup] Reusing existing worktree at ${worktreePath} for task ${taskIdNum}`);
+  } else {
+    try {
+      worktreePath = await agentWorkerManager.createWorktree(
+        workDir,
+        finalBranchName,
+        taskIdNum,
+        taskThemeRepositoryUrl || null,
+        baseBranch || null,
+      );
+      log.info(`[setup] Created worktree at ${worktreePath}`);
+    } catch (worktreeError) {
+      log.error({ err: worktreeError }, `[setup] Failed to create worktree`);
+      // NOTE: Re-throw — caller will return an error response and release the lock.
+      throw worktreeError;
+    }
   }
 
   // SAFETY (defense-in-depth): assert the path createWorktree returned really is

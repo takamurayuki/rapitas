@@ -114,6 +114,7 @@ export async function createWorktree(
     await execFileAsync('git', ['worktree', 'prune'], { cwd: baseDir, encoding: 'utf8' }).catch(
       () => {},
     );
+    let branchInUse = false;
     try {
       const { stdout: worktreeList } = await execFileAsync(
         'git',
@@ -124,18 +125,26 @@ export async function createWorktree(
         },
       );
 
-      const branchInUse = worktreeList.includes(`branch refs/heads/${branchName}`);
-
-      if (branchInUse) {
-        // Branch is already checked out in another worktree — create unique branch name
-        const uniqueSuffix = taskId ? `task-${taskId}` : `wt-${shortId}`;
-        effectiveBranchName = `${branchName}-${uniqueSuffix}`;
-        logger.warn(
-          `[createWorktree] Branch ${branchName} is already in use, using ${effectiveBranchName} instead`,
-        );
-      }
+      branchInUse = worktreeList.includes(`branch refs/heads/${branchName}`);
     } catch (listError) {
-      logger.debug(`[createWorktree] Could not check worktree list: ${listError}`);
+      // Fail SAFE, not silently: this probe existing is what stops two
+      // worktrees fighting over the same branch. Swallowing the failure and
+      // proceeding as "branch is free" let a real collision through as an
+      // unhandled `git worktree add` fatal error (task 513 regression) —
+      // treat "couldn't check" the same as "assume in use" instead.
+      logger.warn(
+        `[createWorktree] Could not check worktree list, assuming branch may be in use: ${listError}`,
+      );
+      branchInUse = true;
+    }
+
+    if (branchInUse) {
+      // Branch is already checked out in another worktree — create unique branch name
+      const uniqueSuffix = taskId ? `task-${taskId}` : `wt-${shortId}`;
+      effectiveBranchName = `${branchName}-${uniqueSuffix}`;
+      logger.warn(
+        `[createWorktree] Branch ${branchName} is already in use, using ${effectiveBranchName} instead`,
+      );
     }
 
     const { stdout: existingBranch } = await execFileAsync(
