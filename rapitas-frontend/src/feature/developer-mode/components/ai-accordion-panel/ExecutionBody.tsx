@@ -1,6 +1,8 @@
 'use client';
 // ExecutionBody
 
+import { useTranslations } from 'next-intl';
+import { Spinner } from '@/components/ui/spinner';
 import { ExecutionLogViewer, type ExecutionLogStatus } from '../ExecutionLogViewer';
 import { SubtaskLogTabs } from '../SubtaskLogTabs';
 import type { Task } from '@/types';
@@ -65,26 +67,6 @@ export type ExecutionBodyProps = {
   onGenerateBranchName: () => Promise<void>;
 };
 
-/** Maps a workflow session mode to its phase-label translation key. */
-const WORKFLOW_PHASE_LABEL_KEYS: Record<string, string> = {
-  'workflow-researcher': 'phase.researcher',
-  'workflow-planner': 'phase.planner',
-  'workflow-reviewer': 'phase.reviewer',
-  'workflow-implementer': 'phase.implementer',
-  'workflow-verifier': 'phase.verifier',
-};
-
-/**
- * Returns a translated phase label for workflow session modes.
- *
- * @param mode - Session mode string starting with "workflow-".
- * @param t - Translator scoped to `devMode.executionSection`. / `devMode.executionSection` にスコープした翻訳関数
- * @returns Human-readable phase label / 人間が読めるフェーズラベル
- */
-export function workflowPhaseLabel(mode: string, t: (key: string) => string): string {
-  return t(WORKFLOW_PHASE_LABEL_KEYS[mode] || 'phase.default');
-}
-
 /**
  * Renders the appropriate execution body based on current status.
  * The parent (ExecutionSection) is responsible for mounting this inside the expanded panel.
@@ -131,6 +113,7 @@ export function ExecutionBody({
   onSetBaseBranch,
   onGenerateBranchName: _onGenerateBranchName,
 }: ExecutionBodyProps) {
+  const t = useTranslations('devMode.executionSection');
   const hasSubtaskLogs = !!(hasSubtasks && subtaskLogs && parallelSessionId);
 
   // Running state
@@ -167,7 +150,19 @@ export function ExecutionBody({
               maxHeight={300}
               resizable
             />
-          ) : null}
+          ) : (
+            // NOTE: Before the first log line streams in (or when there's no
+            // log viewer to show at all — e.g. a non-subtask run whose
+            // stream hasn't connected yet), this body was previously blank
+            // with zero indication anything was happening. A running task
+            // with no visible feedback reads as broken/stuck to the user.
+            !hasQuestion && (
+              <div className="flex items-center gap-2 rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-2.5 text-sm text-zinc-500 dark:border-zinc-800 dark:bg-zinc-900/40 dark:text-zinc-400">
+                <Spinner size="sm" />
+                {t('runningNoLogsYet')}
+              </div>
+            )
+          )}
         </div>
       </div>
     );

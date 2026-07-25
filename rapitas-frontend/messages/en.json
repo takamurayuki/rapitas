@@ -3791,11 +3791,7 @@
       "prNotCreated": "No PR has been created for this task yet.",
       "prFetchFailed": "Failed to fetch PR information. Please try again later.",
       "title": "Agent execution",
-      "statusRunning": "Running",
-      "statusCompleted": "Completed",
-      "statusError": "Error",
-      "statusStopped": "Stopped",
-      "statusInterrupted": "Interrupted",
+      "runningNoLogsYet": "Running — preparing logs...",
       "stopAria": "Stop execution",
       "stop": "Stop",
       "reset": "Reset",
@@ -3805,15 +3801,7 @@
       "runDisabledTaskDone": "Can't run — this task is already complete",
       "runDisabledSetupIncomplete": "The agent can run once task setup is complete",
       "startExecution": "Start execution",
-      "run": "Run",
-      "phase": {
-        "researcher": "Research phase complete",
-        "planner": "Planning phase complete",
-        "reviewer": "Review phase complete",
-        "implementer": "Implementation phase complete",
-        "verifier": "Verification phase complete",
-        "default": "Phase complete"
-      }
+      "run": "Run"
     },
     "taskAnalysisPanel": {
       "complexitySimple": "Simple",

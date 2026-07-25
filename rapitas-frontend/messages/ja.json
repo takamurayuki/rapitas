@@ -3791,11 +3791,7 @@
       "prNotCreated": "このタスクのPRはまだ作成されていません。",
       "prFetchFailed": "PR情報の取得に失敗しました。時間をおいて再度お試しください。",
       "title": "エージェント実行",
-      "statusRunning": "実行中",
-      "statusCompleted": "実行完了",
-      "statusError": "エラー",
-      "statusStopped": "停止",
-      "statusInterrupted": "中断",
+      "runningNoLogsYet": "実行中です。ログを準備しています...",
       "stopAria": "実行を停止",
       "stop": "停止",
       "reset": "リセット",
@@ -3805,15 +3801,7 @@
       "runDisabledTaskDone": "タスクが完了しているため実行できません",
       "runDisabledSetupIncomplete": "タスクの設定が完了するとエージェントを実行できます",
       "startExecution": "実行開始",
-      "run": "実行",
-      "phase": {
-        "researcher": "調査フェーズ完了",
-        "planner": "計画フェーズ完了",
-        "reviewer": "レビューフェーズ完了",
-        "implementer": "実装フェーズ完了",
-        "verifier": "検証フェーズ完了",
-        "default": "フェーズ完了"
-      }
+      "run": "実行"
     },
     "taskAnalysisPanel": {
       "complexitySimple": "シンプル",

@@ -1,46 +1,17 @@
 'use client';
 // ExecutionSection
 
-import {
-  Rocket,
-  CheckCircle2,
-  AlertCircle,
-  Loader2,
-  Play,
-  Square,
-  RefreshCw,
-  ExternalLink,
-  Search,
-  FileText,
-  MessageSquare,
-  Code,
-  FlaskConical,
-  type LucideIcon,
-} from 'lucide-react';
+import { Rocket, AlertCircle, Play, Square, RefreshCw, ExternalLink } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { useState } from 'react';
 import type { Task } from '@/types';
 import { API_BASE_URL } from '@/utils/api';
+import { PillButton } from '@/components/ui/pill-button';
 import type { ExecutionLogStatus } from '../ExecutionLogViewer';
 import type { ParallelExecutionStatus } from '@/feature/tasks/components/status/SubtaskExecutionStatus';
-import { ExecutionBody, workflowPhaseLabel } from './ExecutionBody';
+import { ExecutionBody } from './ExecutionBody';
 import { ExecutionCapabilityGuide, type ExecutionCapability } from './ExecutionCapabilityGuide';
-
-/**
- * Phase-completion badge icon, keyed by sessionMode — matches
- * workflow-viewer-utils.ts's tab/next-role icons exactly (Search=research,
- * FileText=plan, MessageSquare=review, Code=implement, FlaskConical=verify)
- * so the same phase always shows the same glyph across the workflow tabs,
- * the "next phase" action button, and this status badge.
- */
-const WORKFLOW_PHASE_ICONS: Record<string, LucideIcon> = {
-  'workflow-researcher': Search,
-  'workflow-planner': FileText,
-  'workflow-reviewer': MessageSquare,
-  'workflow-implementer': Code,
-  'workflow-verifier': FlaskConical,
-};
 
 export type ExecutionSectionProps = {
   /**
@@ -62,7 +33,6 @@ export type ExecutionSectionProps = {
   isExecuting: boolean;
   isParallelExecutionRunning?: boolean;
   hasSubtasks: boolean;
-  execStatusIcon: 'loading' | 'success' | 'error' | 'cancelled' | 'interrupted' | 'idle';
   // Logs
   logs: string[];
   showLogs: boolean;
@@ -133,7 +103,6 @@ export function ExecutionSection({
   isExecuting,
   isParallelExecutionRunning: _isParallelExecutionRunning,
   hasSubtasks,
-  execStatusIcon,
   logs,
   showLogs,
   logViewerStatus,
@@ -210,159 +179,121 @@ export function ExecutionSection({
     }
   };
 
-  const PhaseStatusIcon =
-    (pollingSessionMode && WORKFLOW_PHASE_ICONS[pollingSessionMode]) || CheckCircle2;
-
   return (
     <div>
-      {/* Header with status badges and action buttons — always visible, no
-          accordion. Matches TaskPreviewSection's header exactly (p-4 +
-          border-b + text-lg title) so the two split-out cards read as the
-          same kind of section. */}
+      {/* Header — always visible, no accordion. Matches TaskPreviewSection's
+          header exactly (p-4 + border-b + text-lg title). No status label
+          next to the title: the running/completed/error state is already
+          conveyed by the body content and the action buttons below, and a
+          duplicate text badge here was redundant. */}
       <div className="p-4 border-b border-zinc-100 dark:border-zinc-800 flex items-center justify-between">
         <div className="flex items-center gap-2">
           <Rocket className="h-4 w-4 text-indigo-600 dark:text-indigo-400" />
           <h3 className="text-lg font-semibold text-zinc-900 dark:text-zinc-50">{t('title')}</h3>
-          {execStatusIcon === 'loading' && (
-            <span className="flex items-center gap-1 px-1.5 py-0.5 bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-300 text-[10px] rounded">
-              <Loader2 className="w-2.5 h-2.5 animate-spin" />
-              {t('statusRunning')}
-            </span>
-          )}
-          {execStatusIcon === 'success' && (
-            <span className="flex items-center gap-1 px-1.5 py-0.5 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 text-[10px] rounded">
-              <PhaseStatusIcon className="w-2.5 h-2.5" />
-              {pollingSessionMode?.startsWith('workflow-')
-                ? workflowPhaseLabel(pollingSessionMode, t)
-                : t('statusCompleted')}
-            </span>
-          )}
-          {execStatusIcon === 'idle' && isTaskDone && (
-            <span className="flex items-center gap-1 px-1.5 py-0.5 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 text-[10px] rounded">
-              <CheckCircle2 className="w-2.5 h-2.5" />
-              {t('statusCompleted')}
-            </span>
-          )}
-          {execStatusIcon === 'error' && (
-            <span className="flex items-center gap-1 px-1.5 py-0.5 bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 text-[10px] rounded">
-              <AlertCircle className="w-2.5 h-2.5" />
-              {t('statusError')}
-            </span>
-          )}
-          {execStatusIcon === 'cancelled' && (
-            <span className="flex items-center gap-1 px-1.5 py-0.5 bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-300 text-[10px] rounded">
-              <Square className="w-2.5 h-2.5" />
-              {t('statusStopped')}
-            </span>
-          )}
-          {execStatusIcon === 'interrupted' && (
-            <span className="flex items-center gap-1 px-1.5 py-0.5 bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 text-[10px] rounded">
-              <AlertCircle className="w-2.5 h-2.5" />
-              {t('statusInterrupted')}
-            </span>
-          )}
         </div>
 
         <div className="flex items-center gap-1.5">
           {isRunning && (
-            <button
+            <PillButton
+              icon={Square}
+              color="zinc"
               onClick={(e) => {
                 e.stopPropagation();
                 onStop();
               }}
-              className="flex items-center gap-1 px-2 py-1 bg-zinc-200 dark:bg-zinc-700 hover:bg-zinc-300 dark:hover:bg-zinc-600 text-zinc-700 dark:text-zinc-300 text-[10px] font-medium rounded transition-colors"
-              aria-label={t('stopAria')}
+              ariaLabel={t('stopAria')}
             >
-              <Square className="w-2.5 h-2.5" />
               {t('stop')}
-            </button>
+            </PillButton>
           )}
           {isCompleted && (
             <>
-              <button
+              <PillButton
+                icon={RefreshCw}
+                color="zinc"
                 onClick={(e) => {
                   e.stopPropagation();
                   onReset();
                 }}
-                className="flex items-center gap-1 px-2 py-1 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 text-[10px] rounded transition-colors"
               >
-                <RefreshCw className="w-2.5 h-2.5" />
                 {t('reset')}
-              </button>
-              <button
+              </PillButton>
+              <PillButton
+                icon={ExternalLink}
+                color="emerald"
                 onClick={(e) => {
                   e.stopPropagation();
                   openTaskPr();
                 }}
-                className="flex items-center gap-1 px-2 py-1 bg-green-600 hover:bg-green-700 text-white text-[10px] font-medium rounded transition-colors"
               >
-                <ExternalLink className="w-2.5 h-2.5" />
                 {t('openPr')}
-              </button>
+              </PillButton>
             </>
           )}
           {isCancelled && (
-            <button
+            <PillButton
+              icon={RefreshCw}
+              color="amber"
               onClick={(e) => {
                 e.stopPropagation();
                 onRerun();
               }}
-              className="flex items-center gap-1 px-2 py-1 bg-yellow-600 hover:bg-yellow-700 text-white text-[10px] font-medium rounded transition-colors"
             >
-              <RefreshCw className="w-2.5 h-2.5" />
               {t('rerun')}
-            </button>
+            </PillButton>
           )}
           {isInterrupted && (
             <>
-              <button
+              <PillButton
+                icon={RefreshCw}
+                color="zinc"
                 onClick={(e) => {
                   e.stopPropagation();
                   onReset();
                 }}
-                className="flex items-center gap-1 px-2 py-1 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 text-[10px] rounded transition-colors"
               >
-                <RefreshCw className="w-2.5 h-2.5" />
                 {t('reset')}
-              </button>
-              <button
+              </PillButton>
+              <PillButton
+                icon={RefreshCw}
+                color="amber"
                 onClick={(e) => {
                   e.stopPropagation();
                   onRerun();
                 }}
-                className="flex items-center gap-1 px-2 py-1 bg-amber-600 hover:bg-amber-700 text-white text-[10px] font-medium rounded transition-colors"
               >
-                <RefreshCw className="w-2.5 h-2.5" />
                 {t('rerun')}
-              </button>
+              </PillButton>
             </>
           )}
           {isFailed && !isRunning && !isCompleted && (
             <>
-              <button
+              <PillButton
+                icon={RefreshCw}
+                color="zinc"
                 onClick={(e) => {
                   e.stopPropagation();
                   onReset();
                 }}
-                className="flex items-center gap-1 px-2 py-1 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 text-[10px] rounded transition-colors"
               >
-                <RefreshCw className="w-2.5 h-2.5" />
                 {t('reset')}
-              </button>
-              <button
+              </PillButton>
+              <PillButton
+                icon={RefreshCw}
+                color="red"
                 onClick={(e) => {
                   e.stopPropagation();
                   onRerun();
                 }}
-                className="flex items-center gap-1 px-2 py-1 bg-red-600 hover:bg-red-700 text-white text-[10px] font-medium rounded transition-colors"
               >
-                <RefreshCw className="w-2.5 h-2.5" />
                 {t('retry')}
-              </button>
+              </PillButton>
             </>
           )}
           {!isRunning && !isCompleted && !isCancelled && !isFailed && !isInterrupted && (
-            <button
+            <PillButton
+              icon={Play}
+              color="indigo"
               onClick={(e) => {
                 e.stopPropagation();
                 if (capability === 'ready' && !isTaskDone) onExecute();
@@ -375,14 +306,10 @@ export function ExecutionSection({
                     ? t('runDisabledSetupIncomplete')
                     : t('startExecution')
               }
-              className="flex h-8 items-center gap-1.5 rounded-lg border border-indigo-300 bg-white px-2.5 text-xs font-medium text-indigo-600 shadow-[0_2px_0_0_#a5b4fc] transition-colors hover:border-indigo-400 hover:bg-indigo-50 active:translate-y-[2px] active:shadow-none disabled:opacity-50 disabled:cursor-not-allowed dark:border-indigo-700 dark:bg-zinc-900 dark:text-indigo-400 dark:shadow-[0_2px_0_0_#312e81] dark:hover:border-indigo-600 dark:hover:bg-indigo-950/40"
-              aria-label={t('startExecution')}
+              ariaLabel={t('startExecution')}
             >
-              <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-indigo-500 dark:bg-transparent">
-                <Play className="w-2 h-2 fill-white text-white dark:fill-indigo-400 dark:text-indigo-400" />
-              </span>
               {t('run')}
-            </button>
+            </PillButton>
           )}
         </div>
       </div>

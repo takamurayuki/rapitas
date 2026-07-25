@@ -107,26 +107,6 @@ export function AIAccordionPanelInner({
     setExpandedSection,
   });
 
-  // Derived execution status icon
-  const getExecStatusIcon = ():
-    | 'loading'
-    | 'success'
-    | 'error'
-    | 'cancelled'
-    | 'interrupted'
-    | 'idle' => {
-    // NOTE: Show idle during state restoration to prevent flash of "running" spinner
-    if (exec.isRestoring) return 'idle';
-    if (exec.isRunning) return 'loading';
-    if (exec.isFailed) return 'error';
-    if (exec.isCompleted) return 'success';
-    if (exec.isCancelled) return 'cancelled';
-    if (exec.isInterrupted) return 'interrupted';
-    // NOTE: When the task itself is marked done (not via workflow polling), reflect it as success.
-    if (taskStatus === 'done' || taskStatus === 'completed') return 'success';
-    return 'idle';
-  };
-
   const hasSubtasks = !!(subtasks && subtasks.length > 0);
 
   return (
@@ -152,7 +132,6 @@ export function AIAccordionPanelInner({
           isExecuting={isExecuting}
           isParallelExecutionRunning={isParallelExecutionRunning}
           hasSubtasks={hasSubtasks}
-          execStatusIcon={getExecStatusIcon()}
           logs={exec.logs}
           showLogs={exec.showLogs}
           logViewerStatus={exec.logViewerStatus}
