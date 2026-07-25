@@ -180,7 +180,14 @@ describe('handleAnswerWorkflowQuestion', () => {
     expect(JSON.parse(init.body as string)).toEqual({ agentConfigId: 1 });
   });
 
-  test('skips the auto re-trigger when the task has no prior execution', async () => {
+  test('still auto re-triggers execution (default agent config) when the task has no prior execution', async () => {
+    // Regression test (task 513): a task run through the workflow CLI
+    // executor never gets an AgentExecution row via this session→config
+    // chain — that relation is populated by a different execution path.
+    // lastExecution is null here for that same reason, and the fix is to
+    // still call /execute (with agentConfigId omitted, letting the route's
+    // own default-agent resolution apply) rather than skip re-running
+    // entirely, which previously left such tasks stuck at draft forever.
     mockFindUnique.mockResolvedValue({
       id: 999,
       description: null,
@@ -196,7 +203,10 @@ describe('handleAnswerWorkflowQuestion', () => {
       set: {},
     });
 
-    expect(mockFetch).not.toHaveBeenCalled();
+    expect(mockFetch).toHaveBeenCalledTimes(1);
+    const [url, init] = mockFetch.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe('http://127.0.0.1:3001/tasks/999/execute');
+    expect(JSON.parse(init.body as string)).toEqual({ agentConfigId: undefined });
   });
 
   test('does not throw when the auto re-trigger request fails', async () => {

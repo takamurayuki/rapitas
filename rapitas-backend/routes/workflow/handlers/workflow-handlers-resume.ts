@@ -38,6 +38,17 @@ const log = createLogger('routes:workflow:resume');
  */
 async function triggerReExecutionAfterAnswer(taskId: number): Promise<void> {
   try {
+    // NOTE: A task run through the workflow CLI executor (research/plan/verify
+    // phases) never gets an AgentExecution row via this session→config chain —
+    // that relation is populated by a different execution path. Task 513
+    // (research already ran, a mid-research question paused it, answered,
+    // never resumed) had zero AgentExecution rows despite research.md
+    // existing, proving lastExecution is null for exactly the common case
+    // this function exists to handle. Previously this returned early here,
+    // silently skipping the re-run entirely — contradicting this function's
+    // own doc comment, which already promised execute-route's default-agent
+    // resolution as the fallback. Proceed with agentConfigId left undefined
+    // instead so that fallback actually runs.
     const lastExecution = await prisma.agentExecution.findFirst({
       where: { session: { config: { taskId } } },
       orderBy: { createdAt: 'desc' },
@@ -46,9 +57,8 @@ async function triggerReExecutionAfterAnswer(taskId: number): Promise<void> {
     if (!lastExecution) {
       log.info(
         { taskId },
-        '[Workflow:Answer] No prior execution found for this task — skipping auto re-run',
+        '[Workflow:Answer] No prior execution found for this task — re-running with the default agent config',
       );
-      return;
     }
 
     const port = process.env.PORT || '3001';
@@ -59,7 +69,7 @@ async function triggerReExecutionAfterAnswer(taskId: number): Promise<void> {
         'Content-Type': 'application/json',
         ...(apiToken ? { Authorization: `Bearer ${apiToken}` } : {}),
       },
-      body: JSON.stringify({ agentConfigId: lastExecution.agentConfigId ?? undefined }),
+      body: JSON.stringify({ agentConfigId: lastExecution?.agentConfigId ?? undefined }),
     });
     if (!res.ok) {
       const body = await res.text().catch(() => '');
