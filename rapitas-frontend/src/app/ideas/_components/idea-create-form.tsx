@@ -28,6 +28,8 @@ interface IdeaCreateFormProps {
   newThemeId: number | null;
   setNewThemeId: Dispatch<SetStateAction<number | null>>;
   isSubmitting: boolean;
+  /** Bumped on each successful new-idea submission — see useIdeaForm. Replays the lamp flash. */
+  flashKey: number;
   categories: Category[];
   filteredThemes: Theme[];
   titleRef: RefObject<HTMLInputElement | null>;
@@ -56,6 +58,7 @@ export function IdeaCreateForm({
   newThemeId,
   setNewThemeId,
   isSubmitting,
+  flashKey,
   categories,
   filteredThemes,
   titleRef,
@@ -70,7 +73,20 @@ export function IdeaCreateForm({
     <Modal
       open={showQuickAdd}
       onClose={onCancel}
-      icon={<Lightbulb className="h-4 w-4 text-zinc-400 dark:text-zinc-500" />}
+      icon={
+        // key={flashKey} remounts this icon on every successful add, restarting
+        // the one-shot CSS animation from 0% each time (flashKey===0 is the
+        // initial/pre-submit state, so it never plays on modal open — only on
+        // an actual successful POST). Scoped to just this icon, not the modal
+        // chrome, per ui-design-language.md's "one accent, with a job" rule —
+        // see docs/design/ui-design-language.md §5 change log for why the
+        // idea box's prior ambient amber theme was removed and what makes
+        // this one different (a one-shot flash tied to a real state change).
+        <Lightbulb
+          key={flashKey}
+          className={`h-4 w-4 text-zinc-400 dark:text-zinc-500 ${flashKey > 0 ? 'animate-idea-lamp-flash' : ''}`}
+        />
+      }
       maxWidthClass="max-w-2xl"
       title={editingId !== null ? t('createForm.titleEdit') : t('createForm.titleAdd')}
       footer={

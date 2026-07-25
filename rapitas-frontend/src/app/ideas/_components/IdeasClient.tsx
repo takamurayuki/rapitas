@@ -36,6 +36,7 @@ export default function IdeasClient() {
           newThemeId={vm.newThemeId}
           setNewThemeId={vm.setNewThemeId}
           isSubmitting={vm.isSubmitting}
+          flashKey={vm.flashKey}
           categories={vm.categories}
           filteredThemes={vm.filteredThemes}
           titleRef={vm.titleRef}

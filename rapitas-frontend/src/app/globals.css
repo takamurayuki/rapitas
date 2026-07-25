@@ -946,6 +946,33 @@ iframe:not([src='']) + .iframe-loading {
   animation: task-complete-pop 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
 }
 
+/* Idea Box: one-shot "lamp lights up" flash on a successful idea submission
+   (idea-create-form.tsx). Reuses exec-glow-amber's warm glow colour
+   (rgba(245,158,11,…)) but as a SHORT, SINGLE-ITERATION animation triggered by
+   a real state change (POST success) — not the ambient/looping "eureka" flash
+   removed from this feature on 2026-07-16 (see docs/design/ui-design-language.md
+   §5 change log). Scoped to just the modal's lamp icon, not the surface, so it
+   doesn't reintroduce amber as a second ambient accent alongside indigo. */
+@keyframes idea-lamp-flash {
+  0% {
+    transform: scale(1);
+    filter: drop-shadow(0 0 0 rgba(245, 158, 11, 0));
+  }
+  35% {
+    transform: scale(1.25);
+    color: rgb(245 158 11); /* amber-500 */
+    filter: drop-shadow(0 0 6px rgba(245, 158, 11, 0.7));
+  }
+  100% {
+    transform: scale(1);
+    filter: drop-shadow(0 0 0 rgba(245, 158, 11, 0));
+  }
+}
+
+.animate-idea-lamp-flash {
+  animation: idea-lamp-flash 0.45s cubic-bezier(0.34, 1.56, 0.64, 1) 1;
+}
+
 /* Task completion transitions */
 .transition-all {
   transition-property: all;
@@ -1220,4 +1247,8 @@ iframe:not([src='']) + .iframe-loading {
 }
 
 /* NOTE: Removed @keyframes flash-line — its only consumer (IdeaBoxHeader's
-   "eureka" flash) was dropped as decorative motion per the UI design language. */
+   "eureka" flash) was dropped as decorative motion per the UI design language.
+   A DIFFERENT, deliberately narrower one-shot flash was reintroduced later on
+   the add-idea modal's icon only (see .animate-idea-lamp-flash, triggered by
+   an actual POST success — not this ambient header flash). Not a revert of
+   this removal — see ui-design-language.md §5, 2026-07-25. */

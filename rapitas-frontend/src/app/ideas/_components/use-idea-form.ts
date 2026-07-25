@@ -36,6 +36,12 @@ export function useIdeaForm({ fetchIdeas, setIdeas }: UseIdeaFormArgs) {
   const [newCategoryId, setNewCategoryId] = useState<number | null>(null);
   const [newThemeId, setNewThemeId] = useState<number | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  // Bumped on every successful NEW-idea submission (not edit) so the modal's
+  // lamp icon can play a one-shot "lit up" flash — see idea-create-form.tsx.
+  // A counter (rather than a boolean) so back-to-back adds each get their own
+  // flash: changing the value gives the icon wrapper a new React `key`,
+  // forcing a remount that restarts the CSS animation from 0%.
+  const [flashKey, setFlashKey] = useState(0);
   const titleRef = useRef<HTMLInputElement>(null);
   const contentTextareaRef = useRef<HTMLTextAreaElement>(null);
   const { categories, themes } = useFilterDataStore();
@@ -132,6 +138,7 @@ export function useIdeaForm({ fetchIdeas, setIdeas }: UseIdeaFormArgs) {
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       await fetchIdeas();
+      setFlashKey((k) => k + 1);
     } catch {
       // Roll back the optimistic entry if the submission failed.
       setIdeas((prev) => prev.filter((i) => i.id !== tempId));
@@ -255,6 +262,7 @@ export function useIdeaForm({ fetchIdeas, setIdeas }: UseIdeaFormArgs) {
     newThemeId,
     setNewThemeId,
     isSubmitting,
+    flashKey,
     filteredThemes,
     titleRef,
     contentTextareaRef,
