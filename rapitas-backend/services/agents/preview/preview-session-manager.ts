@@ -11,6 +11,7 @@
  */
 import { existsSync } from 'fs';
 import { createLogger } from '../../../config/logger';
+import { prisma } from '../../../config/database';
 import { resolveLatestSessionWorktree } from '../agent-session-resolver';
 import {
   allocateFreePort,
@@ -54,6 +55,10 @@ export type StartPreviewResult =
 /**
  * Start (or restart) a preview session for a task: launch its worktree's dev
  * server on a free port and open a persistent headless-browser tab on it.
+ * Falls back to the theme's primary working directory when the task has no
+ * (or no longer usable) worktree, so a task that hasn't been agent-executed
+ * yet can still be previewed — same rapitas.runtime.json mechanism, just
+ * pointed at the shared checkout instead of an isolated worktree.
  *
  * @param taskId - Task whose latest worktree to preview. / 対象タスクID
  * @returns The base URL on success, or a typed failure reason + message. / 起動結果
@@ -62,13 +67,32 @@ export async function startPreview(taskId: number): Promise<StartPreviewResult> 
   await stopPreview(taskId); // clean restart if one is already running
 
   const session = await resolveLatestSessionWorktree(taskId);
-  const workdir = session?.worktreePath;
-  if (!workdir || !existsSync(workdir)) {
+  let workdir =
+    session?.worktreePath && existsSync(session.worktreePath) ? session.worktreePath : null;
+
+  if (!workdir) {
+    const task = await prisma.task
+      .findUnique({
+        where: { id: taskId },
+        select: { theme: { select: { workingDirectory: true } } },
+      })
+      .catch(() => null);
+    const themeDir = task?.theme?.workingDirectory;
+    if (themeDir && existsSync(themeDir)) {
+      log.info(
+        { taskId, themeDir },
+        '[preview] no worktree for task — falling back to theme working directory',
+      );
+      workdir = themeDir;
+    }
+  }
+
+  if (!workdir) {
     return {
       ok: false,
       reason: 'no_worktree',
       message:
-        'このタスクのworktreeが見つかりません。エージェントの実行済みタスクである必要があります。',
+        'このタスクのworktreeもテーマの作業ディレクトリも見つかりません。テーマに作業ディレクトリを設定するか、エージェントを一度実行してください。',
     };
   }
 
