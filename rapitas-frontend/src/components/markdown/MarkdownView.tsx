@@ -137,9 +137,12 @@ function MarkdownViewImpl({
         />
       ),
       // NOTE: table-auto sizes columns by content (numbers stay narrow,
-      // paths get the width) while wrapping cells keep every column visible
-      // without horizontal scrolling; the overflow-x-auto wrapper remains
-      // only as a last-resort guard for pathological content.
+      // paths get the width) while wrapping body cells keep every column
+      // visible without horizontal scrolling. Header cells (th, below) are
+      // forced to one line instead — a wrapped 2-3 word header burns much
+      // more vertical space than the single data row it labels — so a
+      // column with a long header can force horizontal scrolling; the
+      // overflow-x-auto wrapper is what handles that.
       table: ({ children, ...props }) => (
         <div className="!my-4 overflow-x-auto rounded-lg border border-zinc-200 dark:border-zinc-700">
           <table className="!my-0 w-full table-auto text-xs border-collapse" {...props}>
@@ -172,7 +175,7 @@ function MarkdownViewImpl({
         const content = unwrapFullQuotes(children);
         return (
           <th
-            className="px-2 py-1 text-left align-top text-xs font-medium text-zinc-600 dark:text-zinc-300 whitespace-normal [overflow-wrap:anywhere]"
+            className="px-2 py-1 text-left align-top text-xs font-medium text-zinc-600 dark:text-zinc-300 whitespace-nowrap"
             {...props}
           >
             {renderTableCellContent(content)}
