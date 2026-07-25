@@ -1,0 +1,7 @@
+{
+  "start": "cd rapitas-frontend && npm run dev:no-check -- -p {port}",
+  "url": "http://localhost:{port}",
+  "healthPath": "/",
+  "readyTimeoutMs": 120000,
+  "checkPaths": ["/"]
+}
