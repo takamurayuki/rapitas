@@ -3296,7 +3296,6 @@
       "detailPlaceholder": "詳細（任意）",
       "priorityLabel": "優先度",
       "priorityTitle": "優先度（アプリへの革新性・価値の底上げ度合い）",
-      "categoryOption": "カテゴリ",
       "themeOption": "テーマ"
     },
     "filterBar": {
@@ -3312,14 +3311,12 @@
         "medium": "中",
         "low": "低"
       },
-      "allCategories": "すべてのカテゴリ",
       "allThemes": "すべてのテーマ",
       "searchLabel": "検索: 「{query}」"
     },
     "themePicker": {
       "title": "テーマを選択",
       "description": "このアイデアにはテーマが設定されていません。タスクとして登録するにはテーマを選択してください。",
-      "categoryLabel": "カテゴリ",
       "themeLabel": "テーマ",
       "themeSelectPlaceholder": "テーマを選択してください",
       "noThemesWarning": "選択したカテゴリにテーマがありません。先にテーマを作成してください。"

@@ -10,7 +10,7 @@ import { useTranslations } from 'next-intl';
 import { Lightbulb, ListPlus, Loader2, Pencil } from 'lucide-react';
 import { Modal } from '@/components/ui/modal/Modal';
 import PriorityIcon from '@/feature/tasks/components/priority/PriorityIcon';
-import type { Category, Theme } from '@/types';
+import type { Theme } from '@/types';
 import type { IdeaPriority } from './idea-box.types';
 import { PRIORITY_HINT_KEY, PRIORITY_ORDER } from './idea-box.utils';
 
@@ -23,14 +23,11 @@ interface IdeaCreateFormProps {
   setNewContent: Dispatch<SetStateAction<string>>;
   newPriority: IdeaPriority;
   setNewPriority: Dispatch<SetStateAction<IdeaPriority>>;
-  newCategoryId: number | null;
-  onNewCategoryChange: (id: number | null) => void;
   newThemeId: number | null;
   setNewThemeId: Dispatch<SetStateAction<number | null>>;
   isSubmitting: boolean;
   /** Bumped on each successful new-idea submission — see useIdeaForm. Replays the lamp flash. */
   flashKey: number;
-  categories: Category[];
   filteredThemes: Theme[];
   titleRef: RefObject<HTMLInputElement | null>;
   contentTextareaRef: RefObject<HTMLTextAreaElement | null>;
@@ -53,13 +50,10 @@ export function IdeaCreateForm({
   setNewContent,
   newPriority,
   setNewPriority,
-  newCategoryId,
-  onNewCategoryChange,
   newThemeId,
   setNewThemeId,
   isSubmitting,
   flashKey,
-  categories,
   filteredThemes,
   titleRef,
   contentTextareaRef,
@@ -84,7 +78,7 @@ export function IdeaCreateForm({
         // this one different (a one-shot flash tied to a real state change).
         <Lightbulb
           key={flashKey}
-          className={`h-4 w-4 text-zinc-400 dark:text-zinc-500 ${flashKey > 0 ? 'animate-idea-lamp-flash' : ''}`}
+          className={`h-4 w-4 text-amber-500 ${flashKey > 0 ? 'animate-idea-lamp-flash' : ''}`}
         />
       }
       maxWidthClass="max-w-2xl"
@@ -100,7 +94,7 @@ export function IdeaCreateForm({
           <button
             onClick={onSubmit}
             disabled={!newTitle.trim() || isSubmitting}
-            className="flex items-center gap-1 rounded-lg bg-indigo-600 px-4 py-1.5 text-xs font-medium text-white transition-colors hover:bg-indigo-700 focus-visible:ring-2 focus-visible:ring-indigo-500 disabled:opacity-50"
+            className="flex items-center gap-1 rounded-lg bg-amber-600 px-4 py-1.5 text-xs font-medium text-white transition-colors hover:bg-amber-700 focus-visible:ring-2 focus-visible:ring-amber-500 disabled:opacity-50"
           >
             {isSubmitting ? (
               <Loader2 className="h-3 w-3 animate-spin" />
@@ -183,19 +177,7 @@ export function IdeaCreateForm({
               ))}
             </span>
           </span>
-          {/* Category → Theme — ideas are always project-scoped */}
-          <select
-            value={newCategoryId ?? ''}
-            onChange={(e) => onNewCategoryChange(e.target.value ? parseInt(e.target.value) : null)}
-            className="rounded-lg border border-zinc-200 bg-white px-2 py-1 text-[11px] outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 dark:border-zinc-700 dark:bg-zinc-800"
-          >
-            <option value="">{t('createForm.categoryOption')}</option>
-            {categories.map((cat) => (
-              <option key={cat.id} value={cat.id}>
-                {cat.name}
-              </option>
-            ))}
-          </select>
+          {/* Theme — leave unselected to keep the idea theme-less/global. */}
           <select
             value={newThemeId ?? ''}
             onChange={(e) => setNewThemeId(e.target.value ? parseInt(e.target.value) : null)}

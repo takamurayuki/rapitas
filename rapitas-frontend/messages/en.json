@@ -3296,7 +3296,6 @@
       "detailPlaceholder": "Details (optional)",
       "priorityLabel": "Priority",
       "priorityTitle": "Priority (how much it innovates / raises app value)",
-      "categoryOption": "Category",
       "themeOption": "Theme"
     },
     "filterBar": {
@@ -3312,14 +3311,12 @@
         "medium": "Medium",
         "low": "Low"
       },
-      "allCategories": "All categories",
       "allThemes": "All themes",
       "searchLabel": "Search: \"{query}\""
     },
     "themePicker": {
       "title": "Select a theme",
       "description": "This idea has no theme set. Select a theme to register it as a task.",
-      "categoryLabel": "Category",
       "themeLabel": "Theme",
       "themeSelectPlaceholder": "Select a theme",
       "noThemesWarning": "The selected category has no themes. Create a theme first."

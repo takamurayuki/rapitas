@@ -31,13 +31,10 @@ export default function IdeasClient() {
           setNewContent={vm.setNewContent}
           newPriority={vm.newPriority}
           setNewPriority={vm.setNewPriority}
-          newCategoryId={vm.newCategoryId}
-          onNewCategoryChange={vm.handleNewCategoryChange}
           newThemeId={vm.newThemeId}
           setNewThemeId={vm.setNewThemeId}
           isSubmitting={vm.isSubmitting}
           flashKey={vm.flashKey}
-          categories={vm.categories}
           filteredThemes={vm.filteredThemes}
           titleRef={vm.titleRef}
           contentTextareaRef={vm.contentTextareaRef}
@@ -52,11 +49,8 @@ export default function IdeasClient() {
           setStatusFilter={vm.setStatusFilter}
           priorityFilter={vm.priorityFilter}
           setPriorityFilter={vm.setPriorityFilter}
-          filterCategoryId={vm.filterCategoryId}
-          onFilterCategoryChange={vm.handleFilterCategoryChange}
           filterThemeId={vm.filterThemeId}
           setFilterThemeId={vm.setFilterThemeId}
-          categories={vm.categories}
           filterThemes={vm.filterThemes}
           searchQuery={vm.searchQuery}
         />
@@ -92,10 +86,7 @@ export default function IdeasClient() {
       {vm.themePickerIdea && (
         <ThemePickerModal
           idea={vm.themePickerIdea}
-          categories={vm.categories}
           themePickerThemes={vm.themePickerThemes}
-          themePickerCategoryId={vm.themePickerCategoryId}
-          onCategoryChange={vm.handleThemePickerCategoryChange}
           themePickerThemeId={vm.themePickerThemeId}
           setThemePickerThemeId={vm.setThemePickerThemeId}
           onClose={vm.closeThemePicker}

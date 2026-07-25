@@ -9,16 +9,13 @@ import { useEffect, useRef } from 'react';
 import type { Dispatch, SetStateAction } from 'react';
 import { useTranslations } from 'next-intl';
 import { ArrowRight, X } from 'lucide-react';
-import type { Category, Theme } from '@/types';
+import type { Theme } from '@/types';
 import type { Idea } from './idea-box.types';
 import { useFocusTrap } from '@/components/ui/modal/use-focus-trap';
 
 interface ThemePickerModalProps {
   idea: Idea;
-  categories: Category[];
   themePickerThemes: Theme[];
-  themePickerCategoryId: number | null;
-  onCategoryChange: (id: number | null) => void;
   themePickerThemeId: number | null;
   setThemePickerThemeId: Dispatch<SetStateAction<number | null>>;
   onClose: () => void;
@@ -32,10 +29,7 @@ interface ThemePickerModalProps {
  */
 export function ThemePickerModal({
   idea,
-  categories,
   themePickerThemes,
-  themePickerCategoryId,
-  onCategoryChange,
   themePickerThemeId,
   setThemePickerThemeId,
   onClose,
@@ -90,23 +84,6 @@ export function ThemePickerModal({
             <p className="text-xs font-medium text-zinc-700 dark:text-zinc-300 truncate">
               {idea.title}
             </p>
-          </div>
-          <div>
-            <label className="block text-xs font-medium text-zinc-700 dark:text-zinc-300 mb-1">
-              {t('themePicker.categoryLabel')}
-            </label>
-            <select
-              value={themePickerCategoryId ?? ''}
-              onChange={(e) => onCategoryChange(e.target.value ? parseInt(e.target.value) : null)}
-              className="w-full rounded-lg border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 px-3 py-2 text-sm text-zinc-900 dark:text-zinc-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
-            >
-              <option value="">{tCommon('all')}</option>
-              {categories.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.name}
-                </option>
-              ))}
-            </select>
           </div>
           <div>
             <label className="block text-xs font-medium text-zinc-700 dark:text-zinc-300 mb-1">

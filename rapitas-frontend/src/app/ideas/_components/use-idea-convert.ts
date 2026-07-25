@@ -25,7 +25,7 @@ interface UseIdeaConvertArgs {
  * @returns Conversion state, the theme-picker state, and their handlers. / 変換状態・テーマ選択状態とそのハンドラ。
  */
 export function useIdeaConvert({ fetchIdeas }: UseIdeaConvertArgs) {
-  const { categories, themes } = useFilterDataStore();
+  const { themes } = useFilterDataStore();
 
   // タスク変換関連のstate
   const [convertingIdeaId, setConvertingIdeaId] = useState<number | null>(null);
@@ -34,11 +34,8 @@ export function useIdeaConvert({ fetchIdeas }: UseIdeaConvertArgs) {
   // テーマ未設定アイデアのタスク化前テーマ選択モーダル状態
   // NOTE: グローバルアイデア（テーマ未設定）はそのままタスク化するとワークフローで起票できないため、必ずテーマを選ばせる。
   const [themePickerIdea, setThemePickerIdea] = useState<Idea | null>(null);
-  const [themePickerCategoryId, setThemePickerCategoryId] = useState<number | null>(null);
   const [themePickerThemeId, setThemePickerThemeId] = useState<number | null>(null);
-  const themePickerThemes = themePickerCategoryId
-    ? themes.filter((t) => t.workingDirectory && t.categoryId === themePickerCategoryId)
-    : themes.filter((t) => t.workingDirectory);
+  const themePickerThemes = themes.filter((t) => t.workingDirectory);
 
   /**
    * Convert an idea straight to a task WITHOUT AI, using the idea's own
@@ -83,7 +80,6 @@ export function useIdeaConvert({ fetchIdeas }: UseIdeaConvertArgs) {
       // still need one, so pick it first — but the conversion stays non-AI.
       if (idea.themeId === null) {
         setThemePickerIdea(idea);
-        setThemePickerCategoryId(null);
         setThemePickerThemeId(null);
         return;
       }
@@ -94,13 +90,6 @@ export function useIdeaConvert({ fetchIdeas }: UseIdeaConvertArgs) {
 
   const closeThemePicker = useCallback(() => {
     setThemePickerIdea(null);
-    setThemePickerCategoryId(null);
-    setThemePickerThemeId(null);
-  }, []);
-
-  /** Pick a category in the theme-picker modal and clear the dependent theme selection. */
-  const handleThemePickerCategoryChange = useCallback((id: number | null) => {
-    setThemePickerCategoryId(id);
     setThemePickerThemeId(null);
   }, []);
 
@@ -113,13 +102,10 @@ export function useIdeaConvert({ fetchIdeas }: UseIdeaConvertArgs) {
   }, [themePickerIdea, themePickerThemeId, executeQuickConvert, closeThemePicker]);
 
   return {
-    categories,
     isConverting,
     convertingIdeaId,
     handleConvertToTask,
     themePickerIdea,
-    themePickerCategoryId,
-    handleThemePickerCategoryChange,
     themePickerThemeId,
     setThemePickerThemeId,
     themePickerThemes,

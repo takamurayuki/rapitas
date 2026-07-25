@@ -1,13 +1,13 @@
 /**
  * IdeaFilterBar
  *
- * Status / priority / category / theme filter controls for the idea list.
+ * Status / priority / theme filter controls for the idea list.
  * Pure presentational — all state lives in useIdeaBox.
  */
 'use client';
 import type { Dispatch, SetStateAction } from 'react';
 import { useTranslations } from 'next-intl';
-import type { Category, Theme } from '@/types';
+import type { Theme } from '@/types';
 import type { IdeaPriority } from './idea-box.types';
 
 interface IdeaFilterBarProps {
@@ -15,11 +15,8 @@ interface IdeaFilterBarProps {
   setStatusFilter: Dispatch<SetStateAction<'open' | 'used' | 'all'>>;
   priorityFilter: 'all' | IdeaPriority;
   setPriorityFilter: Dispatch<SetStateAction<'all' | IdeaPriority>>;
-  filterCategoryId: number | null;
-  onFilterCategoryChange: (id: number | null) => void;
   filterThemeId: number | null;
   setFilterThemeId: Dispatch<SetStateAction<number | null>>;
-  categories: Category[];
   filterThemes: Theme[];
   searchQuery: string;
 }
@@ -34,18 +31,15 @@ export function IdeaFilterBar({
   setStatusFilter,
   priorityFilter,
   setPriorityFilter,
-  filterCategoryId,
-  onFilterCategoryChange,
   filterThemeId,
   setFilterThemeId,
-  categories,
   filterThemes,
   searchQuery,
 }: IdeaFilterBarProps) {
   const t = useTranslations('ideaBox');
   return (
     <div className="mb-4 flex flex-wrap items-center gap-3">
-      {/* Status */}
+      {/* Status — amber, matching the idea icon/add-button palette (see idea-card.tsx). */}
       <div className="flex overflow-hidden rounded-lg border border-zinc-200 dark:border-zinc-700">
         {(['open', 'used', 'all'] as const).map((value) => (
           <button
@@ -53,7 +47,7 @@ export function IdeaFilterBar({
             onClick={() => setStatusFilter(value)}
             className={`px-3 py-1.5 text-xs font-medium transition-colors ${
               statusFilter === value
-                ? 'bg-indigo-50 text-indigo-600 dark:bg-indigo-900/30 dark:text-indigo-400'
+                ? 'bg-amber-50 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400'
                 : 'text-zinc-500 hover:bg-zinc-50 dark:hover:bg-zinc-800'
             }`}
           >
@@ -72,18 +66,6 @@ export function IdeaFilterBar({
         <option value="high">{t('filterBar.priority.high')}</option>
         <option value="medium">{t('filterBar.priority.medium')}</option>
         <option value="low">{t('filterBar.priority.low')}</option>
-      </select>
-      <select
-        value={filterCategoryId ?? ''}
-        onChange={(e) => onFilterCategoryChange(e.target.value ? parseInt(e.target.value) : null)}
-        className="rounded-lg border border-zinc-200 bg-white px-2 py-1.5 text-xs outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 dark:border-zinc-700 dark:bg-zinc-800"
-      >
-        <option value="">{t('filterBar.allCategories')}</option>
-        {categories.map((cat) => (
-          <option key={cat.id} value={cat.id}>
-            {cat.name}
-          </option>
-        ))}
       </select>
       <select
         value={filterThemeId ?? ''}

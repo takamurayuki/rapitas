@@ -32,21 +32,18 @@ export function useIdeaData() {
   const [totalPages, setTotalPages] = useState(0);
   const [totalIdeas, setTotalIdeas] = useState(0);
 
-  const [filterCategoryId, setFilterCategoryId] = useState<number | null>(null);
   const [filterThemeId, setFilterThemeId] = useState<number | null>(null);
   const [statusFilter, setStatusFilter] = useState<'open' | 'used' | 'all'>('all');
   const [priorityFilter, setPriorityFilter] = useState<'all' | IdeaPriority>('all');
   const searchParams = useSearchParams();
   const searchQuery = searchParams?.get('search')?.trim() ?? '';
 
-  const { categories, themes } = useFilterDataStore();
+  const { themes } = useFilterDataStore();
   const { showToast } = useToast();
   // Ideas are turned into tasks that run in a theme's repo, so theme pulldowns
   // only offer themes that have a working directory set. (Shared rule with the
   // concern backlog.) Theme-name display still uses the full `themes` list.
-  const filterThemes = filterCategoryId
-    ? themes.filter((t) => t.workingDirectory && t.categoryId === filterCategoryId)
-    : themes.filter((t) => t.workingDirectory);
+  const filterThemes = themes.filter((t) => t.workingDirectory);
 
   const fetchIdeas = useCallback(async () => {
     setIsLoading(true);
@@ -55,7 +52,6 @@ export function useIdeaData() {
         limit: String(itemsPerPage),
         offset: String((currentPage - 1) * itemsPerPage),
       });
-      if (filterCategoryId) params.set('categoryId', String(filterCategoryId));
       // NOTE: themeIdフィルタリングもサーバーサイドで処理するため追加
       if (filterThemeId) params.set('themeId', String(filterThemeId));
       if (statusFilter !== 'all') params.set('status', statusFilter);
@@ -78,7 +74,7 @@ export function useIdeaData() {
     } finally {
       setIsLoading(false);
     }
-  }, [filterCategoryId, filterThemeId, statusFilter, priorityFilter, currentPage, itemsPerPage]);
+  }, [filterThemeId, statusFilter, priorityFilter, currentPage, itemsPerPage]);
 
   useEffect(() => {
     fetchIdeas();
@@ -87,7 +83,7 @@ export function useIdeaData() {
   // フィルタ変更時のページリセット
   useEffect(() => {
     setCurrentPage(1);
-  }, [filterCategoryId, filterThemeId, statusFilter, priorityFilter, searchQuery]);
+  }, [filterThemeId, statusFilter, priorityFilter, searchQuery]);
 
   const handlePageChange = useCallback((page: number) => {
     setCurrentPage(page);
@@ -101,12 +97,6 @@ export function useIdeaData() {
     },
     [setItemsPerPage],
   );
-
-  /** Pick a category in the filter bar and clear the dependent theme filter. */
-  const handleFilterCategoryChange = useCallback((id: number | null) => {
-    setFilterCategoryId(id);
-    setFilterThemeId(null);
-  }, []);
 
   const handleDelete = useCallback(
     async (id: number) => {
@@ -158,7 +148,6 @@ export function useIdeaData() {
     stats,
     isLoading,
     themes,
-    categories,
     filtered,
     paginatedFiltered,
     displayTotalIdeas,
@@ -172,8 +161,6 @@ export function useIdeaData() {
     setStatusFilter,
     priorityFilter,
     setPriorityFilter,
-    filterCategoryId,
-    handleFilterCategoryChange,
     filterThemeId,
     setFilterThemeId,
     filterThemes,

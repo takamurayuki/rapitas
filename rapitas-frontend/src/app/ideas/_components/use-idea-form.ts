@@ -33,7 +33,6 @@ export function useIdeaForm({ fetchIdeas, setIdeas }: UseIdeaFormArgs) {
   const [newTitle, setNewTitle] = useState('');
   const [newContent, setNewContent] = useState('');
   const [newPriority, setNewPriority] = useState<IdeaPriority>('medium');
-  const [newCategoryId, setNewCategoryId] = useState<number | null>(null);
   const [newThemeId, setNewThemeId] = useState<number | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   // Bumped on every successful NEW-idea submission (not edit) so the modal's
@@ -44,12 +43,10 @@ export function useIdeaForm({ fetchIdeas, setIdeas }: UseIdeaFormArgs) {
   const [flashKey, setFlashKey] = useState(0);
   const titleRef = useRef<HTMLInputElement>(null);
   const contentTextareaRef = useRef<HTMLTextAreaElement>(null);
-  const { categories, themes } = useFilterDataStore();
+  const { themes } = useFilterDataStore();
   const { showToast } = useToast();
 
-  const filteredThemes = newCategoryId
-    ? themes.filter((t) => t.workingDirectory && t.categoryId === newCategoryId)
-    : themes.filter((t) => t.workingDirectory);
+  const filteredThemes = themes.filter((t) => t.workingDirectory);
 
   // 詳細テキストエリアの高さを内容に合わせて自動調整。
   // showQuickAdd / editingId 切替時にも再計測する（編集時にプリセット内容の高さに合わせるため）。
@@ -69,7 +66,6 @@ export function useIdeaForm({ fetchIdeas, setIdeas }: UseIdeaFormArgs) {
     setNewTitle('');
     setNewContent('');
     setNewPriority('medium');
-    setNewCategoryId(null);
     setNewThemeId(null);
   }, []);
 
@@ -79,9 +75,11 @@ export function useIdeaForm({ fetchIdeas, setIdeas }: UseIdeaFormArgs) {
     const payload = {
       title: newTitle.trim(),
       content: newContent.trim() || newTitle.trim(),
-      scope: 'project' as IdeaScope,
+      // 'global' skips submitIdea's default-theme fallback cascade (see
+      // idea-box-service.ts) — a manual add with no theme picked must stay
+      // themeless, not silently fall back to the default project theme.
+      scope: (newThemeId !== null ? 'project' : 'global') as IdeaScope,
       priority: newPriority,
-      // Ideas are always project-scoped now; null themeId = unassigned project.
       themeId: newThemeId ?? null,
     };
 
@@ -114,7 +112,7 @@ export function useIdeaForm({ fetchIdeas, setIdeas }: UseIdeaFormArgs) {
       title: payload.title,
       content: payload.content,
       category: 'improvement',
-      scope: 'project',
+      scope: payload.scope,
       priority: newPriority,
       tags: [],
       themeId: payload.themeId,
@@ -157,19 +155,14 @@ export function useIdeaForm({ fetchIdeas, setIdeas }: UseIdeaFormArgs) {
     t,
   ]);
 
-  const handleEdit = useCallback(
-    (idea: Idea) => {
-      setEditingId(idea.id);
-      setNewTitle(idea.title);
-      setNewContent(idea.content === idea.title ? '' : idea.content);
-      setNewPriority(idea.priority);
-      const theme = themes.find((t) => t.id === idea.themeId);
-      setNewCategoryId(theme?.categoryId ?? null);
-      setNewThemeId(idea.themeId);
-      setShowQuickAdd(true);
-    },
-    [themes],
-  );
+  const handleEdit = useCallback((idea: Idea) => {
+    setEditingId(idea.id);
+    setNewTitle(idea.title);
+    setNewContent(idea.content === idea.title ? '' : idea.content);
+    setNewPriority(idea.priority);
+    setNewThemeId(idea.themeId);
+    setShowQuickAdd(true);
+  }, []);
 
   const handleCancel = useCallback(() => {
     resetForm();
@@ -185,12 +178,6 @@ export function useIdeaForm({ fetchIdeas, setIdeas }: UseIdeaFormArgs) {
       setShowQuickAdd(true);
     }
   }, [showQuickAdd, handleCancel, resetForm]);
-
-  /** Pick a category in the add/edit form and clear the dependent theme selection. */
-  const handleNewCategoryChange = useCallback((id: number | null) => {
-    setNewCategoryId(id);
-    setNewThemeId(null);
-  }, []);
 
   /**
    * Save the open edit form AND immediately file it as a task (non-AI), so the
@@ -248,7 +235,6 @@ export function useIdeaForm({ fetchIdeas, setIdeas }: UseIdeaFormArgs) {
   ]);
 
   return {
-    categories,
     showQuickAdd,
     editingId,
     newTitle,
@@ -257,8 +243,6 @@ export function useIdeaForm({ fetchIdeas, setIdeas }: UseIdeaFormArgs) {
     setNewContent,
     newPriority,
     setNewPriority,
-    newCategoryId,
-    handleNewCategoryChange,
     newThemeId,
     setNewThemeId,
     isSubmitting,

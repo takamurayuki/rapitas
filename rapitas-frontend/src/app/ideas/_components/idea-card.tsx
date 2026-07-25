@@ -55,7 +55,7 @@ export function IdeaCard({
       }`}
     >
       <div className="flex items-start gap-3">
-        <Lightbulb className="mt-0.5 h-4 w-4 text-zinc-400 dark:text-zinc-500 shrink-0" />
+        <Lightbulb className="mt-0.5 h-4 w-4 text-amber-500 shrink-0" />
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2">
             {/* Title, then theme + priority icon right beside it */}
@@ -90,7 +90,7 @@ export function IdeaCard({
             {idea.usedInTaskId && (
               <a
                 href={`/tasks/${idea.usedInTaskId}`}
-                className="shrink-0 rounded-full bg-green-50 px-1.5 py-0.5 text-[10px] font-medium text-green-600 hover:underline dark:bg-green-900/30 dark:text-green-300"
+                className="shrink-0 rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] font-medium text-amber-700 hover:underline dark:bg-amber-900/40 dark:text-amber-300"
               >
                 {t('card.taskCreatedBadge', { id: idea.usedInTaskId })}
               </a>

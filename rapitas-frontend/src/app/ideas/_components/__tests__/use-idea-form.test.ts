@@ -109,3 +109,42 @@ describe('useIdeaForm — flashKey (lamp flash trigger)', () => {
     expect(result.current.flashKey).toBe(0);
   });
 });
+
+describe('useIdeaForm — scope on manual add (no silent default-theme fallback)', () => {
+  it('sends scope "global" and omits themeId when no theme is picked', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true });
+    vi.stubGlobal('fetch', fetchMock);
+    const { result } = setup();
+
+    act(() => result.current.setNewTitle('テーマなしアイデア'));
+    await act(async () => {
+      await result.current.handleSubmit();
+    });
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalled());
+    const [, options] = fetchMock.mock.calls[0];
+    const body = JSON.parse(options.body as string);
+    expect(body.scope).toBe('global');
+    expect(body).not.toHaveProperty('themeId');
+  });
+
+  it('sends scope "project" and the themeId when a theme is picked', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true });
+    vi.stubGlobal('fetch', fetchMock);
+    const { result } = setup();
+
+    act(() => {
+      result.current.setNewTitle('テーマありアイデア');
+      result.current.setNewThemeId(7);
+    });
+    await act(async () => {
+      await result.current.handleSubmit();
+    });
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalled());
+    const [, options] = fetchMock.mock.calls[0];
+    const body = JSON.parse(options.body as string);
+    expect(body.scope).toBe('project');
+    expect(body.themeId).toBe(7);
+  });
+});
