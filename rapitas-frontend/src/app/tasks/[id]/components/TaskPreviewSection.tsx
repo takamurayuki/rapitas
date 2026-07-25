@@ -156,9 +156,15 @@ export default function TaskPreviewSection({ taskId }: TaskPreviewSectionProps) 
           <button
             onClick={handleStart}
             disabled={state.phase === 'starting'}
-            className="flex items-center gap-1.5 rounded-lg bg-indigo-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
+            className="flex h-8 items-center gap-1.5 rounded-lg border border-indigo-300 bg-white px-2.5 text-xs font-medium text-indigo-600 shadow-[0_2px_0_0_#a5b4fc] transition-colors hover:border-indigo-400 hover:bg-indigo-50 active:translate-y-[2px] active:shadow-none disabled:opacity-50 dark:border-indigo-700 dark:bg-zinc-900 dark:text-indigo-400 dark:shadow-[0_2px_0_0_#312e81] dark:hover:border-indigo-600 dark:hover:bg-indigo-950/40"
           >
-            {state.phase === 'starting' ? <Spinner size="sm" /> : <Play className="h-3.5 w-3.5" />}
+            <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-indigo-500 dark:bg-transparent">
+              {state.phase === 'starting' ? (
+                <Spinner size="sm" className="text-white dark:text-indigo-400" />
+              ) : (
+                <Play className="h-2 w-2 fill-white text-white dark:fill-indigo-400 dark:text-indigo-400" />
+              )}
+            </span>
             {state.phase === 'starting' ? t('starting') : t('start')}
           </button>
         )}

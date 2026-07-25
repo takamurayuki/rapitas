@@ -3,8 +3,6 @@
 
 import {
   Rocket,
-  ChevronDown,
-  ChevronUp,
   CheckCircle2,
   AlertCircle,
   Loader2,
@@ -12,6 +10,12 @@ import {
   Square,
   RefreshCw,
   ExternalLink,
+  Search,
+  FileText,
+  MessageSquare,
+  Code,
+  FlaskConical,
+  type LucideIcon,
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
@@ -22,6 +26,21 @@ import type { ExecutionLogStatus } from '../ExecutionLogViewer';
 import type { ParallelExecutionStatus } from '@/feature/tasks/components/status/SubtaskExecutionStatus';
 import { ExecutionBody, workflowPhaseLabel } from './ExecutionBody';
 import { ExecutionCapabilityGuide, type ExecutionCapability } from './ExecutionCapabilityGuide';
+
+/**
+ * Phase-completion badge icon, keyed by sessionMode — matches
+ * workflow-viewer-utils.ts's tab/next-role icons exactly (Search=research,
+ * FileText=plan, MessageSquare=review, Code=implement, FlaskConical=verify)
+ * so the same phase always shows the same glyph across the workflow tabs,
+ * the "next phase" action button, and this status badge.
+ */
+const WORKFLOW_PHASE_ICONS: Record<string, LucideIcon> = {
+  'workflow-researcher': Search,
+  'workflow-planner': FileText,
+  'workflow-reviewer': MessageSquare,
+  'workflow-implementer': Code,
+  'workflow-verifier': FlaskConical,
+};
 
 export type ExecutionSectionProps = {
   /**
@@ -34,8 +53,6 @@ export type ExecutionSectionProps = {
   themeId?: number | null;
   /** Task ID — used to open this task's PR detail page after completion. */
   taskId: number;
-  isExpanded: boolean;
-  onToggle: () => void;
   // Status flags
   isRunning: boolean;
   isCompleted: boolean;
@@ -96,8 +113,11 @@ export type ExecutionSectionProps = {
 };
 
 /**
- * Collapsible execution accordion section with a context-aware action bar.
- * Mounts ExecutionBody inside the expanded area.
+ * Always-visible execution section with a context-aware action bar. Mounts
+ * ExecutionBody directly beneath the header — this used to be a collapsible
+ * accordion, but that hid the run form/logs by default and made this section
+ * look sparse next to the task detail page's other always-shown cards
+ * (research/plan/verify, preview); always rendering it fixed both.
  *
  * @param props - All derived state and event handlers from the parent component.
  */
@@ -105,8 +125,6 @@ export function ExecutionSection({
   capability = 'ready',
   themeId,
   taskId,
-  isExpanded,
-  onToggle,
   isRunning,
   isCompleted,
   isCancelled,
@@ -192,60 +210,52 @@ export function ExecutionSection({
     }
   };
 
+  const PhaseStatusIcon =
+    (pollingSessionMode && WORKFLOW_PHASE_ICONS[pollingSessionMode]) || CheckCircle2;
+
   return (
     <div>
-      {/* Accordion header with action buttons */}
-      <div
-        role="button"
-        tabIndex={0}
-        onClick={onToggle}
-        onKeyDown={(e) => {
-          if (e.key === 'Enter' || e.key === ' ') {
-            e.preventDefault();
-            onToggle();
-          }
-        }}
-        className="w-full px-4 py-2.5 flex items-center justify-between hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-colors cursor-pointer"
-        aria-expanded={isExpanded}
-        aria-controls="execution-section-content"
-      >
+      {/* Header with status badges and action buttons — always visible, no
+          accordion. Matches TaskPreviewSection's header exactly (p-4 +
+          border-b + text-lg title) so the two split-out cards read as the
+          same kind of section. */}
+      <div className="p-4 border-b border-zinc-100 dark:border-zinc-800 flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <Rocket className="w-4 h-4 text-indigo-500" />
-          <span className="text-sm font-medium text-zinc-700 dark:text-zinc-300">{t('title')}</span>
-          {/* NOTE: Status badge shown only when collapsed — expanded view has its own status in logs */}
-          {!isExpanded && execStatusIcon === 'loading' && (
+          <Rocket className="h-4 w-4 text-indigo-600 dark:text-indigo-400" />
+          <h3 className="text-lg font-semibold text-zinc-900 dark:text-zinc-50">{t('title')}</h3>
+          {execStatusIcon === 'loading' && (
             <span className="flex items-center gap-1 px-1.5 py-0.5 bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-300 text-[10px] rounded">
               <Loader2 className="w-2.5 h-2.5 animate-spin" />
               {t('statusRunning')}
             </span>
           )}
-          {!isExpanded && execStatusIcon === 'success' && (
+          {execStatusIcon === 'success' && (
             <span className="flex items-center gap-1 px-1.5 py-0.5 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 text-[10px] rounded">
-              <CheckCircle2 className="w-2.5 h-2.5" />
+              <PhaseStatusIcon className="w-2.5 h-2.5" />
               {pollingSessionMode?.startsWith('workflow-')
                 ? workflowPhaseLabel(pollingSessionMode, t)
                 : t('statusCompleted')}
             </span>
           )}
-          {!isExpanded && execStatusIcon === 'idle' && isTaskDone && (
+          {execStatusIcon === 'idle' && isTaskDone && (
             <span className="flex items-center gap-1 px-1.5 py-0.5 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 text-[10px] rounded">
               <CheckCircle2 className="w-2.5 h-2.5" />
               {t('statusCompleted')}
             </span>
           )}
-          {!isExpanded && execStatusIcon === 'error' && (
+          {execStatusIcon === 'error' && (
             <span className="flex items-center gap-1 px-1.5 py-0.5 bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 text-[10px] rounded">
               <AlertCircle className="w-2.5 h-2.5" />
               {t('statusError')}
             </span>
           )}
-          {!isExpanded && execStatusIcon === 'cancelled' && (
+          {execStatusIcon === 'cancelled' && (
             <span className="flex items-center gap-1 px-1.5 py-0.5 bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-300 text-[10px] rounded">
               <Square className="w-2.5 h-2.5" />
               {t('statusStopped')}
             </span>
           )}
-          {!isExpanded && execStatusIcon === 'interrupted' && (
+          {execStatusIcon === 'interrupted' && (
             <span className="flex items-center gap-1 px-1.5 py-0.5 bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 text-[10px] rounded">
               <AlertCircle className="w-2.5 h-2.5" />
               {t('statusInterrupted')}
@@ -365,36 +375,33 @@ export function ExecutionSection({
                     ? t('runDisabledSetupIncomplete')
                     : t('startExecution')
               }
-              className="flex items-center gap-1 px-2 py-1 bg-indigo-600 hover:bg-indigo-700 text-white text-[10px] font-medium rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              className="flex h-8 items-center gap-1.5 rounded-lg border border-indigo-300 bg-white px-2.5 text-xs font-medium text-indigo-600 shadow-[0_2px_0_0_#a5b4fc] transition-colors hover:border-indigo-400 hover:bg-indigo-50 active:translate-y-[2px] active:shadow-none disabled:opacity-50 disabled:cursor-not-allowed dark:border-indigo-700 dark:bg-zinc-900 dark:text-indigo-400 dark:shadow-[0_2px_0_0_#312e81] dark:hover:border-indigo-600 dark:hover:bg-indigo-950/40"
               aria-label={t('startExecution')}
             >
-              <Play className="w-2.5 h-2.5" />
+              <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-indigo-500 dark:bg-transparent">
+                <Play className="w-2 h-2 fill-white text-white dark:fill-indigo-400 dark:text-indigo-400" />
+              </span>
               {t('run')}
             </button>
-          )}
-          {isExpanded ? (
-            <ChevronUp className="w-4 h-4 text-zinc-400" />
-          ) : (
-            <ChevronDown className="w-4 h-4 text-zinc-400" />
           )}
         </div>
       </div>
 
       {prError && (
-        <div className="px-4 pb-2 -mt-1 flex items-start gap-1.5 text-[11px] text-amber-600 dark:text-amber-400">
+        <div className="px-4 pt-3 flex items-start gap-1.5 text-[11px] text-amber-600 dark:text-amber-400">
           <AlertCircle className="w-3.5 h-3.5 shrink-0 mt-px" />
           <span>{prError}</span>
         </div>
       )}
 
-      {isExpanded && capability !== 'ready' && (
-        <div id="execution-section-content" className="px-4 pb-3 space-y-3">
+      {capability !== 'ready' && (
+        <div id="execution-section-content" className="p-4 space-y-3">
           <ExecutionCapabilityGuide capability={capability} themeId={themeId} />
         </div>
       )}
 
-      {isExpanded && capability === 'ready' && (
-        <div id="execution-section-content" className="px-4 pb-3 space-y-3">
+      {capability === 'ready' && (
+        <div id="execution-section-content" className="p-4 space-y-3">
           <ExecutionBody
             isRunning={isRunning}
             isCompleted={isCompleted}

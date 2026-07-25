@@ -182,7 +182,7 @@ export default function TaskAISection({
         className={
           embedded
             ? 'animate-pulse border-t border-zinc-200 dark:border-zinc-700'
-            : 'rounded-xl border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 overflow-hidden animate-pulse'
+            : 'bg-white dark:bg-indigo-dark-900 rounded-lg border border-zinc-200 dark:border-zinc-800 overflow-hidden animate-pulse'
         }
       >
         <div className="px-4 py-2.5 flex items-center gap-2 border-b border-zinc-100 dark:border-zinc-800">

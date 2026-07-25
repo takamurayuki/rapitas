@@ -110,13 +110,17 @@ export function CopilotChatPanel({
       className={
         embedded
           ? `flex flex-col ${className}`
-          : `flex flex-col rounded-xl border border-zinc-200 bg-white dark:border-zinc-700 dark:bg-zinc-900 ${className}`
+          : `flex flex-col rounded-lg border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-indigo-dark-900 ${className}`
       }
     >
-      <div className="flex items-center justify-between border-b border-zinc-200 px-4 py-2.5 dark:border-zinc-700">
+      {/* Matches ExecutionSection's/TaskPreviewSection's header exactly
+          (p-4 + border-b + text-lg title) so all task-detail cards read as
+          the same kind of section, not just the ones that happen to share a
+          component. */}
+      <div className="flex items-center justify-between border-b border-zinc-100 p-4 dark:border-zinc-800">
         <div className="flex items-center gap-2">
-          <Bot className="h-4 w-4 text-indigo-500" />
-          <h3 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">{t('title')}</h3>
+          <Bot className="h-4 w-4 text-indigo-600 dark:text-indigo-400" />
+          <h3 className="text-lg font-semibold text-zinc-900 dark:text-zinc-50">{t('title')}</h3>
         </div>
         <div className="flex items-center gap-1">
           {messages.length > 0 && (

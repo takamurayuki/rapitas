@@ -160,7 +160,7 @@ export default function TaskDetailViewBody({
         />
       </div>
 
-      {/* Unified AI panel — copilot with execution inside */}
+      {/* AI Assistant — proactive next-action chat, on its own. */}
       <div id="td-ai" className="mb-6 scroll-mt-16">
         <CopilotChatPanel
           taskId={taskId}
@@ -169,23 +169,26 @@ export default function TaskDetailViewBody({
           taskDescription={task.description}
           onTaskUpdated={onTaskUpdated}
           nextActionContext={nextActionContext}
-        >
-          {/* NOTE: Always render the agent execution accordion. The component
-              itself shows a capability-aware body when the task lacks a theme,
-              workingDirectory, or API key. The legacy showAIPanel gate is
-              kept as a kill-switch but defaults to true. */}
-          {showAIPanel && (
-            <ErrorBoundary section={tDev('executionSection.title')}>
-              <TaskAISection
-                task={task}
-                taskId={taskId}
-                resolvedTaskId={resolvedTaskId}
-                {...aiSectionProps}
-              />
-            </ErrorBoundary>
-          )}
-        </CopilotChatPanel>
+        />
       </div>
+
+      {/* Agent Execution — split out from the AI assistant chat into its own
+          always-visible card. Nesting it inside the chat panel made it
+          compete for space with an unrelated conversational feature, which
+          both mismatched this card's height against its siblings and hid
+          the run controls behind an accordion; standing alone fixes both. */}
+      {showAIPanel && (
+        <div id="td-execution" className="scroll-mt-16">
+          <ErrorBoundary section={tDev('executionSection.title')}>
+            <TaskAISection
+              task={task}
+              taskId={taskId}
+              resolvedTaskId={resolvedTaskId}
+              {...aiSectionProps}
+            />
+          </ErrorBoundary>
+        </div>
+      )}
 
       {task.theme?.isDevelopment === true && (
         <div id="td-workflow" className="scroll-mt-16">

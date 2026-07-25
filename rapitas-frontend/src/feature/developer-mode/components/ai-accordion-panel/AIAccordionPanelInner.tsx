@@ -70,7 +70,7 @@ export function AIAccordionPanelInner({
   const [, setSubtaskCreationSuccess] = useState(false);
 
   // Accordion / tab state
-  const { expandedSection, setExpandedSection, toggleSection } = useAccordionState({
+  const { setExpandedSection } = useAccordionState({
     taskId,
     onTaskChange: () => {
       setSelectedSubtasks([]);
@@ -134,7 +134,7 @@ export function AIAccordionPanelInner({
       className={
         embedded
           ? 'border-t border-zinc-200 dark:border-zinc-700'
-          : 'border-t border-zinc-200 dark:border-zinc-700 overflow-hidden'
+          : 'bg-white dark:bg-indigo-dark-900 rounded-lg border border-zinc-200 dark:border-zinc-800 mb-6 overflow-hidden'
       }
       role="region"
       aria-label={t('panelAriaLabel')}
@@ -144,8 +144,6 @@ export function AIAccordionPanelInner({
           capability={executionCapability}
           themeId={themeId}
           taskId={taskId}
-          isExpanded={expandedSection === 'execution'}
-          onToggle={() => toggleSection('execution')}
           isRunning={exec.isRunning}
           isCompleted={exec.isCompleted}
           isCancelled={exec.isCancelled}
