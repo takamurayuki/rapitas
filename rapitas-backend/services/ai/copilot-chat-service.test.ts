@@ -1,10 +1,11 @@
 /**
  * copilot-chat-service.test
  *
- * Unit test for the widened local-LLM routing threshold (selectModelTier),
- * plus an integration-style test locking that sendCopilotMessage's
- * deterministic intent shortcut (Step 0) returns without ever calling the
- * LLM cascade, and that non-matching messages still fall through to it.
+ * Unit tests for selectModelTier's Haiku/Sonnet complexity split (no local
+ * LLM — Ollama was dropped for unreliable summarization quality), plus an
+ * integration-style test locking that sendCopilotMessage's deterministic
+ * intent shortcut (Step 0) returns without ever calling the LLM, and that
+ * non-matching messages still fall through to Claude.
  */
 import { describe, it, expect, mock, beforeEach } from 'bun:test';
 
@@ -16,13 +17,6 @@ mock.module('../../config/database', () => ({
     copilotMessage: { create: mockPrismaCreate },
     task: { findUnique: mockTaskFindUnique },
   },
-}));
-
-const mockGetLocalLLMStatus = mock(() => Promise.resolve({ available: false }));
-mock.module('../local-llm', () => ({ getLocalLLMStatus: mockGetLocalLLMStatus }));
-
-mock.module('../local-llm/local-model-selector', () => ({
-  pickBestLocalModel: () => 'llama3.2',
 }));
 
 const mockGetCachedResponse = mock(() => null as { content: string; tokensUsed: number } | null);
@@ -56,37 +50,30 @@ const { selectModelTier, sendCopilotMessage } = await import('./copilot-chat-ser
 beforeEach(() => {
   mockPrismaCreate.mockReset().mockResolvedValue({});
   mockTaskFindUnique.mockReset().mockResolvedValue(null);
-  mockGetLocalLLMStatus.mockReset().mockResolvedValue({ available: false });
   mockGetCachedResponse.mockReset().mockReturnValue(null);
   mockSendAIMessage.mockReset().mockResolvedValue({ content: 'llm answer', tokensUsed: 10 });
   mockMatchCopilotIntent.mockReset().mockReturnValue(null);
   mockRespondToIntent.mockReset().mockResolvedValue(null);
 });
 
-describe('selectModelTier — widened local-LLM eligibility', () => {
-  it('routes an ordinary short conversational question to the free local tier', () => {
-    // Regression: previously gated on assessComplexity's canUseLocalLLM,
-    // which requires level==='low' — an ordinary short chat message only
-    // ever reached 'medium' (score 40), so this branch almost never fired.
-    const result = selectModelTier('このタスクの状況を教えて', true);
-    expect(result).toEqual({ provider: 'ollama', model: 'llama3.2', tier: 'free' });
+describe('selectModelTier — Claude-only complexity split (no local LLM)', () => {
+  it('routes an ordinary short conversational question to Haiku', () => {
+    const result = selectModelTier('このタスクの状況を教えて');
+    expect(result).toEqual({ model: 'claude-haiku-4-5-20251001', tier: 'economy' });
   });
 
-  it.each([
-    [
-      'a message containing a high-complexity keyword, even when short',
-      'このセキュリティの実装は大丈夫？',
-      true,
-    ],
-    ['a message at/over the 400-char cap, even when otherwise simple', 'あ'.repeat(400), true],
-    [
-      'an ordinary short message when the local LLM is unavailable',
-      'このタスクの状況を教えて',
-      false,
-    ],
-  ])('routes %s to Claude', (_label, message, localAvailable) => {
-    const result = selectModelTier(message, localAvailable);
-    expect(result.provider).toBe('claude');
+  it('routes a message with multiple high-complexity keywords to Sonnet', () => {
+    // Two matches are needed to actually cross the 'high' score cutoff (a
+    // single match plus the short-message penalty nets to 'medium') — see
+    // assessComplexity's scoring.
+    const result = selectModelTier('このセキュリティとアーキテクチャの設計は大丈夫？');
+    expect(result).toEqual({ model: 'claude-sonnet-4-6', tier: 'standard' });
+  });
+
+  it('never returns a non-Claude provider or a "free"/local tier', () => {
+    const result = selectModelTier('あ'.repeat(500));
+    expect(result.tier).not.toBe('free');
+    expect(['economy', 'standard']).toContain(result.tier);
   });
 });
 
@@ -107,16 +94,17 @@ describe('sendCopilotMessage — Step 0 deterministic intent shortcut', () => {
     expect(mockGetCachedResponse).not.toHaveBeenCalled();
   });
 
-  it('falls through to the normal cascade when the message matches no intent', async () => {
+  it('falls through to Claude when the message matches no intent', async () => {
     mockMatchCopilotIntent.mockReturnValue(null);
 
     const result = await sendCopilotMessage({ message: '実装方針についてどう思う？', taskId: 1 });
 
     expect(result.model).not.toBe('template');
     expect(mockSendAIMessage).toHaveBeenCalledTimes(1);
+    expect(mockSendAIMessage.mock.calls[0][0]).toMatchObject({ provider: 'claude' });
   });
 
-  it('falls through to the normal cascade when an intent matches but the DB has nothing to say', async () => {
+  it('falls through to Claude when an intent matches but the DB has nothing to say', async () => {
     mockMatchCopilotIntent.mockReturnValue('due_estimate');
     mockRespondToIntent.mockResolvedValue(null);
 

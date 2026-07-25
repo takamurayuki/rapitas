@@ -10,7 +10,6 @@ import { useState, useCallback, useMemo } from 'react';
 import { useTranslations } from 'next-intl';
 import {
   Loader2,
-  Cpu,
   Cloud,
   Database,
   ArrowRight,
@@ -25,9 +24,10 @@ import type { AnalysisData } from './copilot-chat-types';
 import { MarkdownView } from '../markdown/MarkdownView';
 
 /**
- * Badge showing the AI tier used (local, haiku, sonnet), the cache
- * indicator, or — for `model === 'template'` — that the answer was a
- * deterministic DB lookup that never called any model at all.
+ * Badge showing the AI tier used (haiku, sonnet), the cache indicator, or —
+ * for `model === 'template'` — that the answer was a deterministic DB lookup
+ * that never called any model at all. No "local" tier: Ollama was dropped
+ * for unreliable summarization quality (see copilot-chat-service.ts).
  */
 export function TierBadge({
   tier,
@@ -50,13 +50,6 @@ export function TierBadge({
       <span className="text-[10px] text-teal-500 flex items-center gap-0.5">
         <Database className="w-2.5 h-2.5" />
         instant
-      </span>
-    );
-  if (tier === 'free')
-    return (
-      <span className="text-[10px] text-green-500 flex items-center gap-0.5">
-        <Cpu className="w-2.5 h-2.5" />
-        local
       </span>
     );
   if (tier === 'economy')

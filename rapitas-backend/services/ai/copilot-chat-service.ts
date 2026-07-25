@@ -1,23 +1,24 @@
 'use strict';
 // copilot-chat-service
 //
-// AI copilot chat with cost-optimized model routing:
-//   1. Response cache check (SQLite, 7-day TTL) → instant, free
-//   2. Local LLM (Ollama) for simple queries → free
-//   3. Claude API (Haiku) for medium complexity → low cost
-//   4. Claude API (Sonnet) for high complexity → higher cost
+// AI copilot chat, routed to make the most of the subscription:
+//   1. Deterministic template answer for common factual questions → instant, free
+//   2. Response cache check (SQLite, 7-day TTL) → instant, free
+//   3. Claude via the Claude Code CLI subscription (RAPITAS_AUX_AI=cli,
+//      utils/ai-client's default) — Haiku for ordinary questions, Sonnet for
+//      complex ones. No local LLM: Ollama's summarization quality was found
+//      too unreliable for this feature and was dropped in favor of leaning
+//      on the subscription, which already avoids per-token API billing.
 //
-// The complexity assessor + smart router decide which tier to use.
-// Task context (description, comments, subtasks) PLUS knowledge-OS context
-// (past success/failure patterns and related knowledge — the same context
-// agents receive) is automatically injected so the copilot grounds answers in
-// what the project has already learned, not just the current task in isolation.
+// The complexity assessor decides Haiku vs Sonnet. Task context (description,
+// comments, subtasks) PLUS knowledge-OS context (past success/failure
+// patterns and related knowledge — the same context agents receive) is
+// automatically injected so the copilot grounds answers in what the project
+// has already learned, not just the current task in isolation.
 
 import { prisma } from '../../config/database';
 import { createLogger } from '../../config/logger';
 import { assessComplexity } from '../local-llm/complexity-assessor';
-import { getLocalLLMStatus } from '../local-llm';
-import { pickBestLocalModel } from '../local-llm/local-model-selector';
 import {
   getCachedResponse,
   setCachedResponse,
@@ -81,62 +82,29 @@ async function buildTaskContext(taskId: number): Promise<string> {
   return parts.join('\n');
 }
 
-/** Message length cap for the free local-LLM tier — see selectModelTier. */
-const LOCAL_LLM_MAX_MESSAGE_LENGTH = 400;
-
-/** Determine which model tier to use based on message complexity. */
-export function selectModelTier(
-  message: string,
-  localAvailable: boolean,
-): { provider: 'ollama' | 'claude'; model: string; tier: string } {
+/**
+ * Determine which Claude model to use based on message complexity. Always
+ * routes to Claude (via the CLI subscription, see utils/ai-client) — no
+ * local-LLM tier. Ollama was tried here previously but its summarization
+ * quality wasn't reliable enough for a task-support feature, and since the
+ * subscription already avoids per-token billing there's no cost reason to
+ * fall back to a weaker model.
+ */
+export function selectModelTier(message: string): { model: string; tier: string } {
   const assessment = assessComplexity(
     { title: message.slice(0, 100), description: message },
     'researcher',
     message.length,
   );
 
-  // Tier 1: Local LLM for simple-to-medium conversational queries. Was
-  // gated on assessment.canUseLocalLLM, which requires level==='low' AND a
-  // role check — but assessComplexity was built to score task descriptions,
-  // not chat messages, and a short conversational question only earns a
-  // -10 "short description" adjustment off the level-50 baseline, landing
-  // at 'medium' (score 40) rather than the 'low' (<=35) canUseLocalLLM
-  // needs. That combination meant this tier almost never actually fired.
-  //
-  // Widened to level!=='high' plus a wider 400-char cap so most everyday
-  // questions go to the free local model — but a single high-complexity
-  // keyword match (e.g. "セキュリティ") only adds +15 to the score, which a
-  // short message's automatic -10 "short description" penalty can pull back
-  // under the 'high' cutoff (>65) even though it's a real signal. Checking
-  // the keyword reason directly, instead of only the aggregate level,
-  // ensures any such match still routes to Claude regardless of score math.
-  const hasHighComplexityKeyword = assessment.reasons.some((r) =>
-    r.startsWith('High-complexity keywords'),
-  );
-  if (
-    localAvailable &&
-    assessment.level !== 'high' &&
-    !hasHighComplexityKeyword &&
-    message.length < LOCAL_LLM_MAX_MESSAGE_LENGTH
-  ) {
-    return { provider: 'ollama', model: 'llama3.2', tier: 'free' };
-  }
-
-  // Tier 2: Haiku for most conversational queries
+  // Haiku for most conversational queries — faster, and plenty capable for
+  // everyday questions.
   if (assessment.level !== 'high') {
-    return {
-      provider: 'claude',
-      model: 'claude-haiku-4-5-20251001',
-      tier: 'economy',
-    };
+    return { model: 'claude-haiku-4-5-20251001', tier: 'economy' };
   }
 
-  // Tier 3: Sonnet for complex analysis
-  return {
-    provider: 'claude',
-    model: 'claude-sonnet-4-6',
-    tier: 'standard',
-  };
+  // Sonnet for complex analysis.
+  return { model: 'claude-sonnet-4-6', tier: 'standard' };
 }
 
 const SYSTEM_PROMPT = `あなたはrapitasタスク管理アプリのAIコパイロットです。
@@ -165,8 +133,8 @@ export interface CopilotChatResult {
 }
 
 /**
- * Send a copilot chat message with cost-optimized routing.
- * Checks cache → local LLM → API in order of cost.
+ * Send a copilot chat message. Checks the template-intent shortcut, then the
+ * response cache, before calling Claude via the CLI subscription.
  */
 export async function sendCopilotMessage(options: CopilotChatOptions): Promise<CopilotChatResult> {
   const { message, taskId, conversationHistory = [] } = options;
@@ -209,22 +177,9 @@ export async function sendCopilotMessage(options: CopilotChatOptions): Promise<C
   }
 
   // 2. Select model
-  const localStatus = await getLocalLLMStatus().catch(() => ({
-    available: false,
-  }));
-  const {
-    provider,
-    model: routedModel,
-    tier,
-  } = selectModelTier(message, (localStatus as { available: boolean }).available);
-  // Use the most capable installed local model (e.g. a 3B) instead of a fixed
-  // name, so quality improves automatically when the user pulls a bigger model.
-  const model =
-    provider === 'ollama'
-      ? pickBestLocalModel((localStatus as { models?: string[] }).models ?? [])
-      : routedModel;
+  const { model, tier } = selectModelTier(message);
 
-  log.info({ provider, model, tier, messageLength: message.length }, 'Copilot routing');
+  log.info({ model, tier, messageLength: message.length }, 'Copilot routing');
 
   // 3. Build messages
   const messages: AIMessage[] = [
@@ -237,17 +192,17 @@ export async function sendCopilotMessage(options: CopilotChatOptions): Promise<C
 
   // 4. Call LLM
   const response = await sendAIMessage({
-    provider: provider === 'ollama' ? 'ollama' : 'claude',
+    provider: 'claude',
     model,
     messages,
     systemPrompt: SYSTEM_PROMPT,
-    maxTokens: tier === 'free' ? 500 : tier === 'economy' ? 800 : 2000,
+    maxTokens: tier === 'economy' ? 800 : 2000,
   });
 
   const content = response.content;
 
   // 5. Cache the response
-  setCachedResponse(cacheKey, content, response.tokensUsed || 0, provider, model);
+  setCachedResponse(cacheKey, content, response.tokensUsed || 0, 'claude', model);
 
   // 6. Save to DB
   await saveCopilotMessage('user', message, taskId);
@@ -287,20 +242,7 @@ export async function streamCopilotMessage(
     }
   }
 
-  const localStatus = await getLocalLLMStatus().catch(() => ({
-    available: false,
-  }));
-  const {
-    provider,
-    model: routedModel,
-    tier,
-  } = selectModelTier(message, (localStatus as { available: boolean }).available);
-  // Use the most capable installed local model (e.g. a 3B) instead of a fixed
-  // name, so quality improves automatically when the user pulls a bigger model.
-  const model =
-    provider === 'ollama'
-      ? pickBestLocalModel((localStatus as { models?: string[] }).models ?? [])
-      : routedModel;
+  const { model, tier } = selectModelTier(message);
 
   const messages: AIMessage[] = [
     ...conversationHistory.map((m) => ({
@@ -313,11 +255,11 @@ export async function streamCopilotMessage(
   await saveCopilotMessage('user', message, taskId);
 
   const stream = await sendAIMessageStream({
-    provider: provider === 'ollama' ? 'ollama' : 'claude',
+    provider: 'claude',
     model,
     messages,
     systemPrompt: SYSTEM_PROMPT,
-    maxTokens: tier === 'free' ? 500 : tier === 'economy' ? 800 : 2000,
+    maxTokens: tier === 'economy' ? 800 : 2000,
   });
 
   return { stream, model, tier };
