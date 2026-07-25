@@ -669,7 +669,8 @@
       "retryTooltip": "再実行（todo に戻して自動実行の対象に戻します）",
       "retryAriaLabel": "タスクを再実行",
       "protectedDeleteError": "保護されたタスクは削除できません",
-      "elapsedTimeTooltip": "エージェントの実行開始からの経過時間"
+      "elapsedTimeTooltip": "エージェントの実行開始からの経過時間",
+      "executingCannotSelect": "自動実行中のため一括ステータス変更の対象から除外されています"
     },
     "suggestionCard": {
       "category": {

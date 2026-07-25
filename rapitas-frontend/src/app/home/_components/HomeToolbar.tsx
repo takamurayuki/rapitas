@@ -7,6 +7,7 @@ import type { Task } from '@/types';
 import TodayTaskProgressBar from '@/components/widgets/TodayTaskProgressBar';
 import { getStatusDisplay, renderStatusIcon } from '@/feature/tasks/config/StatusConfig';
 import { useTranslations } from 'next-intl';
+import { useExecutionStateStore } from '@/stores/execution-state-store';
 import { AutoExecutionMode } from './AutoExecutionMode';
 
 interface HomeToolbarProps {
@@ -54,7 +55,12 @@ export function HomeToolbar({
   const tc = useTranslations('common');
   const tt = useTranslations('task');
 
-  const allSelected = selectedTasksSize === paginatedTasks.length && paginatedTasks.length > 0;
+  // Auto-executing tasks are excluded from bulk selection (see TaskCard's
+  // disabled checkbox), so "all selected" must compare against the
+  // selectable count, not the raw visible-task count.
+  const isTaskExecuting = useExecutionStateStore((s) => s.isTaskExecuting);
+  const selectableTaskCount = paginatedTasks.filter((task) => !isTaskExecuting(task.id)).length;
+  const allSelected = selectedTasksSize === selectableTaskCount && selectableTaskCount > 0;
 
   return (
     <div className="mb-4 flex items-center justify-between">

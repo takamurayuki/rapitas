@@ -14,16 +14,19 @@ vi.mock('@/components/ui/dialog/ConfirmDialogProvider', () => ({
   useConfirmDialog: () => vi.fn().mockResolvedValue(false),
 }));
 
+// Mutable so individual tests can simulate a task mid auto-execution — see
+// mockExecutingStatus below and the 選択モード/自動実行中 describe block.
+let mockExecutingStatus: 'running' | 'waiting_for_input' | null = null;
 vi.mock('@/stores/execution-state-store', () => ({
   useExecutionStateStore: (
     selector: (state: {
-      getExecutingTaskStatus: (id: number) => null;
+      getExecutingTaskStatus: (id: number) => 'running' | 'waiting_for_input' | null;
       getExecutingTaskStartedAt: (id: number) => null;
       executingTasks: Map<number, unknown>;
     }) => unknown,
   ) =>
     selector({
-      getExecutingTaskStatus: () => null,
+      getExecutingTaskStatus: () => mockExecutingStatus,
       getExecutingTaskStartedAt: () => null,
       executingTasks: new Map(),
     }),
@@ -169,15 +172,19 @@ vi.mock('@/components/ui/ModernCheckbox', () => ({
     checked,
     onChange,
     onClick,
+    disabled,
   }: {
     checked: boolean;
     onChange: () => void;
     onClick?: (e: React.MouseEvent) => void;
+    disabled?: boolean;
   }) => (
     <button
       role="checkbox"
       aria-checked={checked}
+      aria-disabled={disabled}
       onClick={(e) => {
+        if (disabled) return;
         if (onClick) onClick(e);
         onChange();
       }}
@@ -229,6 +236,7 @@ const mockProps = {
 describe('TaskCard', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockExecutingStatus = null;
   });
 
   describe('基本レンダリング', () => {
@@ -367,6 +375,23 @@ describe('TaskCard', () => {
       const checkbox = screen.getByRole('checkbox');
       fireEvent.click(checkbox);
       expect(mockProps.onToggleSelect).toHaveBeenCalledWith(1);
+    });
+
+    it('自動実行中のタスクはチェックボックスが無効化され選択できない', () => {
+      mockExecutingStatus = 'running';
+      render(<TaskCard {...mockProps} isSelectionMode={true} />);
+      const checkbox = screen.getByRole('checkbox');
+      expect(checkbox).toHaveAttribute('aria-disabled', 'true');
+      fireEvent.click(checkbox);
+      expect(mockProps.onToggleSelect).not.toHaveBeenCalled();
+    });
+
+    it('自動実行中のタスクは行クリックでも選択状態が切り替わらない', () => {
+      mockExecutingStatus = 'waiting_for_input';
+      render(<TaskCard {...mockProps} isSelectionMode={true} />);
+      // The row itself (not the checkbox) also toggles selection on click.
+      fireEvent.click(screen.getByText('Test Task'));
+      expect(mockProps.onToggleSelect).not.toHaveBeenCalled();
     });
   });
 

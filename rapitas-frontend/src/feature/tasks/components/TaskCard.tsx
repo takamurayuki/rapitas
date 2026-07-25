@@ -108,6 +108,10 @@ const TaskCard = memo(function TaskCard({
         className="relative z-10 flex items-center gap-3 px-3 py-2.5 min-w-0 cursor-pointer transition-all duration-300 ease-out hover:bg-zinc-50/50 dark:hover:bg-zinc-800/20 rounded-t-lg"
         onClick={() => {
           if (isSelectionMode && onToggleSelect) {
+            // Auto-executing tasks are excluded from bulk selection — an
+            // unintended bulk status change mid-execution could cause the
+            // agent to misbehave (see ModernCheckbox's disabled state below).
+            if (tc.executionStatus) return;
             onToggleSelect(task.id);
           } else {
             onTaskClick(task.id);
@@ -129,6 +133,8 @@ const TaskCard = memo(function TaskCard({
             onClick={(e) => e.stopPropagation()}
             className="mr-1"
             aria-label={`${t('select')} ${task.title}`}
+            disabled={Boolean(tc.executionStatus)}
+            title={t('taskCard.executingCannotSelect')}
           />
         ) : (
           <div

@@ -253,7 +253,7 @@ function HomeClientPage() {
     setSelectedTasks,
   });
 
-  const { setTaskLoading } = useExecutionStateStore();
+  const { setTaskLoading, isTaskExecuting } = useExecutionStateStore();
   const openTaskPanel = useCallback(
     (taskId: number) => {
       setTaskLoading(taskId);
@@ -297,11 +297,14 @@ function HomeClientPage() {
   useExecutingTasksPolling({ interval: 5000 });
 
   const handleSelectAll = () => {
-    const allSelected = selectedTasks.size === paginatedTasks.length && paginatedTasks.length > 0;
+    // Auto-executing tasks are excluded — bulk status change mid-execution
+    // could cause the agent to misbehave (see TaskCard's disabled checkbox).
+    const selectableTasks = paginatedTasks.filter((t) => !isTaskExecuting(t.id));
+    const allSelected = selectedTasks.size === selectableTasks.length && selectableTasks.length > 0;
     if (allSelected) {
       setSelectedTasks(new Set());
       setIsSelectionMode(false);
-    } else setSelectedTasks(new Set(paginatedTasks.map((t) => t.id)));
+    } else setSelectedTasks(new Set(selectableTasks.map((t) => t.id)));
   };
 
   // The toolbar auto-execution toggle controls the ACTIVE development theme's

@@ -669,7 +669,8 @@
       "retryTooltip": "Retry (moves back to todo so auto-run can pick it up again)",
       "retryAriaLabel": "Retry task",
       "protectedDeleteError": "Protected tasks cannot be deleted",
-      "elapsedTimeTooltip": "Elapsed time since the agent started executing"
+      "elapsedTimeTooltip": "Elapsed time since the agent started executing",
+      "executingCannotSelect": "Excluded from bulk status change while auto-executing"
     },
     "suggestionCard": {
       "category": {

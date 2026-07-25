@@ -5,6 +5,7 @@ import type { Status, Task, Theme } from '@/types';
 import { useToast } from '@/components/ui/toast/ToastContainer';
 import { useConfirmDialog } from '@/components/ui/dialog/ConfirmDialogProvider';
 import { useTaskCacheStore } from '@/stores/task-cache-store';
+import { useExecutionStateStore } from '@/stores/execution-state-store';
 import { API_BASE_URL } from '@/utils/api';
 import { useTranslations } from 'next-intl';
 import { createLogger } from '@/lib/logger';
@@ -49,6 +50,7 @@ export function useHomeActions({
   const tc = useTranslations('common');
   const updateTaskLocally = useTaskCacheStore((s) => s.updateTaskLocally);
   const removeTaskLocally = useTaskCacheStore((s) => s.removeTaskLocally);
+  const isTaskExecuting = useExecutionStateStore((s) => s.isTaskExecuting);
 
   /**
    * Updates a single task's status with optimistic update and rollback.
@@ -102,11 +104,16 @@ export function useHomeActions({
       if (newSelection.has(taskId)) {
         newSelection.delete(taskId);
       } else {
+        // Auto-executing tasks must stay out of the bulk selection — an
+        // unintended bulk status change mid-execution could cause the agent
+        // to misbehave. TaskCard's checkbox is already disabled for these;
+        // this guards any other caller of onToggleSelect.
+        if (isTaskExecuting(taskId)) return;
         newSelection.add(taskId);
       }
       setSelectedTasks(newSelection);
     },
-    [selectedTasks, setSelectedTasks],
+    [selectedTasks, setSelectedTasks, isTaskExecuting],
   );
 
   /**

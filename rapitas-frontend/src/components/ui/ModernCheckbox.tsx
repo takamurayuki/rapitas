@@ -8,6 +8,10 @@ interface ModernCheckboxProps {
   onClick?: (e: React.MouseEvent) => void;
   className?: string;
   'aria-label'?: string;
+  /** Renders muted and non-interactive — e.g. a task mid auto-execution that must not be bulk-selected. */
+  disabled?: boolean;
+  /** Tooltip shown while disabled, explaining why it can't be checked. */
+  title?: string;
 }
 
 export const ModernCheckbox: React.FC<ModernCheckboxProps> = ({
@@ -16,6 +20,8 @@ export const ModernCheckbox: React.FC<ModernCheckboxProps> = ({
   onClick,
   className = '',
   'aria-label': ariaLabel,
+  disabled = false,
+  title,
 }) => {
   return (
     <button
@@ -23,7 +29,10 @@ export const ModernCheckbox: React.FC<ModernCheckboxProps> = ({
       role="checkbox"
       aria-checked={checked}
       aria-label={ariaLabel}
+      aria-disabled={disabled}
+      title={disabled ? title : undefined}
       onClick={(e) => {
+        if (disabled) return;
         if (onClick) onClick(e);
         onChange();
       }}
@@ -31,10 +40,13 @@ export const ModernCheckbox: React.FC<ModernCheckboxProps> = ({
         relative w-6 h-6 rounded-lg
         border-2
         transition-all duration-300 ease-out
-        hover:border-indigo-400 dark:hover:border-indigo-500
+        focus:outline-none focus:ring-2 focus:ring-indigo-500/50 focus:ring-offset-0
+        ${
+          disabled
+            ? 'cursor-not-allowed border-slate-200 bg-slate-100 opacity-60 dark:border-slate-700 dark:bg-slate-800'
+            : `hover:border-indigo-400 dark:hover:border-indigo-500
         hover:shadow-[0_0_0_3px_rgba(99,102,241,0.15)] dark:hover:shadow-[0_0_0_3px_rgba(99,102,241,0.2)]
         hover:scale-110
-        focus:outline-none focus:ring-2 focus:ring-indigo-500/50 focus:ring-offset-0
         ${
           checked
             ? // Light indigo fill + indigo border. The check itself is indigo
@@ -43,6 +55,7 @@ export const ModernCheckbox: React.FC<ModernCheckboxProps> = ({
               // Tailwind conflict that previously left the box white.
               'border-indigo-500 dark:border-indigo-400 bg-indigo-50 dark:bg-indigo-950/40'
             : 'border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900'
+        }`
         }
         ${className}
       `}
