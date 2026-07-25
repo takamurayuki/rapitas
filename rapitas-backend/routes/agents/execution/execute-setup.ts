@@ -149,12 +149,24 @@ export async function executeSetup(params: ExecuteSetupParams): Promise<SetupRes
   // at once (task 513 regression). Skip this lookup when the caller passed an
   // explicit branchName override — that's a deliberate choice to diverge from
   // whatever a prior session used, not a retry of the same run.
+  //
+  // MUST filter to worktreePath: { not: null } — a session from a FAILED
+  // worktree creation attempt (this exact code path re-throws without ever
+  // writing branchName/worktreePath) is still the most recent row by id, so
+  // an unfiltered "most recent session" lookup kept finding that null-
+  // worktree dead session instead of the last one that actually succeeded,
+  // and fell through to "create fresh" (=> the same collision) every retry
+  // after the first (task 513 regression, round 2).
   const recordedSession = branchName
     ? null
     : sessionId
       ? session
       : await prisma.agentSession.findFirst({
-          where: { configId: developerModeConfig.id, id: { not: session.id } },
+          where: {
+            configId: developerModeConfig.id,
+            id: { not: session.id },
+            worktreePath: { not: null },
+          },
           orderBy: { id: 'desc' },
           select: { worktreePath: true, branchName: true },
         });

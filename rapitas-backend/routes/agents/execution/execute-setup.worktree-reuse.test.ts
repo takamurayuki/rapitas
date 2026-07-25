@@ -118,10 +118,35 @@ describe('executeSetup — worktree reuse on retry (task 513 regression)', () =>
 
     expect(mockSessionFindFirst).toHaveBeenCalledWith(
       expect.objectContaining({
-        where: { configId: 1, id: { not: 777 } },
+        where: { configId: 1, id: { not: 777 }, worktreePath: { not: null } },
         orderBy: { id: 'desc' },
       }),
     );
+  });
+
+  test('regression: a dead session from a failed retry (null worktreePath) must not shadow the last successful one', async () => {
+    // Reproduces the round-2 task-513 failure: findFirst's own `where` filter
+    // is what excludes the dead session, so this test locks that the filter
+    // is actually present rather than re-deriving the SQL-level behavior.
+    mockSessionFindFirst.mockImplementation((args: unknown) => {
+      const where = (args as { where?: { worktreePath?: { not: null } } })?.where;
+      // Only "return" a row when the caller filtered out null-worktreePath
+      // sessions — mirrors what a real `worktreePath: { not: null }` clause
+      // would do against a table containing both a dead and a live session.
+      if (where?.worktreePath?.not === null) {
+        return Promise.resolve({
+          worktreePath: '/test/repo/.worktrees/task-513-83e6b1c6',
+          branchName: 'feature/implement-task-task-513',
+        });
+      }
+      return Promise.resolve(null);
+    });
+    mockDecideWorktree.mockReturnValue('reuse');
+
+    const result = await executeSetup(baseParams());
+
+    expect(result.worktreePath).toBe('/test/repo/.worktrees/task-513-83e6b1c6');
+    expect(mockCreateWorktree).not.toHaveBeenCalled();
   });
 
   test('recreates on the recorded branch name (not a fresh regeneration) when the worktree is a phantom', async () => {
