@@ -1,5 +1,6 @@
 'use client';
 import { useCallback, useEffect, useRef, useState } from 'react';
+import type { CSSProperties } from 'react';
 import { useTranslations } from 'next-intl';
 import { ArrowLeftRight } from 'lucide-react';
 import TaskDetailClient from '@/app/tasks/[id]/TaskDetailClient';
@@ -117,18 +118,19 @@ export default function TaskSlidePanel({
   if (!isVisible || !taskId) return null;
 
   const isClosing = isAnimatingOut;
-
-  const slideInAnim = dockSide === 'right' ? 'taskPanelSlideInRight' : 'taskPanelSlideInLeft';
-  const slideOutAnim = dockSide === 'right' ? 'taskPanelSlideOutRight' : 'taskPanelSlideOutLeft';
+  // Read by the two @keyframes below (transform: translateX(var(...))) so a
+  // single slide-in/slide-out pair covers both dock sides — only the offset
+  // it animates from/to changes, not the animation name itself.
+  const slideOffset = dockSide === 'right' ? '100%' : '-100%';
 
   return (
     <>
       {/* Overlay — sits below the header (top-16) so the header stays visible
-          and interactive, matching the side nav's backdrop. z-65 (above the
+          and interactive, matching the side nav's backdrop. z-[65] (above the
           split-mode terminal panel's z-60) so the terminal dims along with
           the rest of the page instead of poking out on top of the overlay. */}
       <div
-        className="fixed inset-x-0 top-16 bottom-0 z-65"
+        className="fixed inset-x-0 top-16 bottom-0 z-[65]"
         onClick={handleClose}
         style={{
           animation: isClosing
@@ -138,16 +140,19 @@ export default function TaskSlidePanel({
       />
 
       {/* Slide panel — positioned below the header (top-16) like the side nav,
-          so it no longer overlaps the sticky header. z-70 (above the overlay
+          so it no longer overlaps the sticky header. z-[70] (above the overlay
           and the terminal panel's z-60) so the terminal's split mode can
           never hide it — the task panel always wins that stacking fight. */}
       <div
-        className={`fixed top-16 bottom-0 ${dockSide === 'right' ? 'right-0' : 'left-0'} w-full md:w-3/4 lg:w-2/3 xl:w-1/2 flex flex-col bg-white dark:bg-zinc-950 shadow-2xl z-70 overflow-hidden`}
-        style={{
-          animation: isClosing
-            ? `${slideOutAnim} ${ANIMATION_DURATION}ms ease-in forwards`
-            : `${slideInAnim} ${ANIMATION_DURATION}ms ease-out forwards`,
-        }}
+        className={`fixed top-16 bottom-0 ${dockSide === 'right' ? 'right-0' : 'left-0'} w-full md:w-3/4 lg:w-2/3 xl:w-1/2 flex flex-col bg-white dark:bg-zinc-950 shadow-2xl z-[70] overflow-hidden`}
+        style={
+          {
+            '--task-panel-slide-offset': slideOffset,
+            animation: isClosing
+              ? `taskPanelSlideOut ${ANIMATION_DURATION}ms ease-in forwards`
+              : `taskPanelSlideIn ${ANIMATION_DURATION}ms ease-out forwards`,
+          } as CSSProperties
+        }
       >
         {/* Header (compact) */}
         <div className="shrink-0 flex items-center justify-between border-b border-zinc-200 dark:border-zinc-800 bg-white dark:bg-indigo-dark-900 px-4 py-2.5">
@@ -197,37 +202,26 @@ export default function TaskSlidePanel({
            different values (a left-only slide + opacity fade); CSS keyframes
            are global by name regardless of being declared in a component
            <style> tag, so reusing those names here would silently pick up
-           whichever declaration the browser resolves last. */
-        @keyframes taskPanelSlideInRight {
+           whichever declaration the browser resolves last.
+           One pair covers both dock sides via the --task-panel-slide-offset
+           custom property set inline on the panel (100% right-docked, -100%
+           left-docked) — the animation NAME itself never changes with
+           dockSide, only the value it reads, which keeps the inline
+           style.animation string constant per open/close state. */
+        @keyframes taskPanelSlideIn {
           from {
-            transform: translateX(100%);
+            transform: translateX(var(--task-panel-slide-offset));
           }
           to {
             transform: translateX(0);
           }
         }
-        @keyframes taskPanelSlideOutRight {
+        @keyframes taskPanelSlideOut {
           from {
             transform: translateX(0);
           }
           to {
-            transform: translateX(100%);
-          }
-        }
-        @keyframes taskPanelSlideInLeft {
-          from {
-            transform: translateX(-100%);
-          }
-          to {
-            transform: translateX(0);
-          }
-        }
-        @keyframes taskPanelSlideOutLeft {
-          from {
-            transform: translateX(0);
-          }
-          to {
-            transform: translateX(-100%);
+            transform: translateX(var(--task-panel-slide-offset));
           }
         }
         @keyframes fadeIn {
