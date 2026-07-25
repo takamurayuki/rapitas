@@ -2729,6 +2729,7 @@
     "categoryOptimization": "Optimization",
     "categoryAgent": "Agent",
     "categoryChat": "Chat",
+    "categoryWorkflow": "Workflow",
     "noSearchResults": "No prompts match the search criteria",
     "defaultLabel": "Default",
     "toggleActive": "Toggle active",

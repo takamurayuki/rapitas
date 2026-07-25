@@ -2729,6 +2729,7 @@
     "categoryOptimization": "最適化",
     "categoryAgent": "エージェント",
     "categoryChat": "チャット",
+    "categoryWorkflow": "ワークフロー",
     "noSearchResults": "検索条件に一致するプロンプトがありません",
     "defaultLabel": "デフォルト",
     "toggleActive": "有効/無効を切り替え",
