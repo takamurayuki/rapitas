@@ -4362,6 +4362,7 @@
     "deleteConfirm": "この仮説を削除しますか？",
     "card": {
       "taskRef": "#task {id}",
+      "themeTitle": "テーマ: {name}",
       "confidenceLabel": "確信 {pct}%",
       "artifactWrap": "（{artifact}）",
       "moveTo": "→ {label}"

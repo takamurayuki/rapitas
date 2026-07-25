@@ -4362,6 +4362,7 @@
     "deleteConfirm": "Delete this hypothesis?",
     "card": {
       "taskRef": "#task {id}",
+      "themeTitle": "Theme: {name}",
       "confidenceLabel": "Confidence {pct}%",
       "artifactWrap": "({artifact})",
       "moveTo": "→ {label}"

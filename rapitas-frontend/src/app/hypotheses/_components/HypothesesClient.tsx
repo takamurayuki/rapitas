@@ -9,10 +9,21 @@
  */
 import { useCallback, useEffect, useState } from 'react';
 import { useTranslations } from 'next-intl';
-import { Beaker, Trash2, FlaskConical, CheckCircle2, XCircle, HelpCircle } from 'lucide-react';
+import {
+  Beaker,
+  Trash2,
+  FlaskConical,
+  CheckCircle2,
+  XCircle,
+  HelpCircle,
+  FolderOpen,
+} from 'lucide-react';
 import { API_BASE_URL } from '@/utils/api';
 import { useConfirmDialog } from '@/components/ui/dialog/ConfirmDialogProvider';
 import Pagination from '@/components/ui/pagination/Pagination';
+import { getIconComponent } from '@/components/category/icon-data';
+import { useFilterDataStore } from '@/stores/filter-data-store';
+import type { Theme } from '@/types';
 
 type HypothesisStatus = 'open' | 'supported' | 'refuted' | 'inconclusive';
 
@@ -67,6 +78,7 @@ export default function HypothesesClient() {
   const t = useTranslations('hypotheses');
   const tCommon = useTranslations('common');
   const confirm = useConfirmDialog();
+  const { themes } = useFilterDataStore();
   const [hypotheses, setHypotheses] = useState<HypothesisEntry[]>([]);
   const [stats, setStats] = useState<Stats | null>(null);
   const [statusFilter, setStatusFilter] = useState<HypothesisStatus | 'all'>('open');
@@ -121,16 +133,10 @@ export default function HypothesesClient() {
 
   return (
     <div className="mx-auto max-w-5xl p-6">
-      <div className="mb-3 flex items-center gap-3">
-        <div className="flex h-12 w-12 items-center justify-center rounded-xl border-2 border-indigo-300 bg-indigo-50 dark:border-indigo-700 dark:bg-indigo-950/30">
-          <Beaker className="h-5 w-5 text-indigo-600 dark:text-indigo-400" />
-        </div>
-        <div>
-          <h1 className="text-lg font-bold text-zinc-900 dark:text-zinc-100">
-            {t('header.title')}
-          </h1>
-          <p className="text-xs text-zinc-500 dark:text-zinc-400">{t('header.subtitle')}</p>
-        </div>
+      <div className="mb-3 flex items-center gap-2">
+        <Beaker className="h-5 w-5 text-indigo-500" />
+        <h1 className="text-lg font-bold text-zinc-900 dark:text-zinc-100">{t('header.title')}</h1>
+        <span className="text-xs text-zinc-500 dark:text-zinc-400">{t('header.subtitle')}</span>
       </div>
 
       {stats && (
@@ -178,6 +184,7 @@ export default function HypothesesClient() {
             <HypothesisCard
               key={h.id}
               h={h}
+              themes={themes}
               onSetStatus={setStatus}
               onRemove={remove}
               t={t}
@@ -207,12 +214,14 @@ export default function HypothesesClient() {
 
 function HypothesisCard({
   h,
+  themes,
   onSetStatus,
   onRemove,
   t,
   tCommon,
 }: {
   h: HypothesisEntry;
+  themes: Theme[];
   onSetStatus: (id: number, s: HypothesisStatus) => void;
   onRemove: (id: number) => void;
   t: ReturnType<typeof useTranslations>;
@@ -220,6 +229,8 @@ function HypothesisCard({
 }) {
   const meta = STATUS_META[h.status];
   const pct = Math.round((h.confidence ?? 0) * 100);
+  const theme = h.themeId != null ? themes.find((th) => th.id === h.themeId) : undefined;
+  const ThemeIcon = getIconComponent(theme?.icon || '') || FolderOpen;
   return (
     <li className="rounded-lg border border-zinc-200 bg-white p-4 shadow-sm dark:border-zinc-700 dark:bg-zinc-900">
       <div className="flex items-start justify-between gap-3">
@@ -234,6 +245,16 @@ function HypothesisCard({
             <span className="rounded bg-zinc-100 px-2 py-0.5 text-xs text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300">
               {h.domain}
             </span>
+            {theme && (
+              <span
+                className="flex items-center gap-0.5 text-xs font-medium"
+                style={{ color: theme.color || '#059669' }}
+                title={t('card.themeTitle', { name: theme.name })}
+              >
+                <ThemeIcon className="h-3 w-3" />
+                {theme.name}
+              </span>
+            )}
             {h.originTaskId != null && (
               <span className="text-xs text-zinc-500 dark:text-zinc-500">
                 {t('card.taskRef', { id: h.originTaskId })}
