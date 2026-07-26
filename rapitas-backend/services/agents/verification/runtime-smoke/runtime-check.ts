@@ -84,7 +84,9 @@ export async function runRuntimeSmokeCheck(
   const baseUrl = substitutePort(cfg.url, port);
   const app = launchApp(substitutePort(cfg.start, port), workdir, port);
   try {
-    const healthy = await waitForHealthy(`${baseUrl}${cfg.healthPath}`, cfg.readyTimeoutMs);
+    const healthy = await waitForHealthy(`${baseUrl}${cfg.healthPath}`, cfg.readyTimeoutMs, {
+      label,
+    });
     if (!healthy) {
       const tail = app.logs().slice(-25).join('\n');
       return {

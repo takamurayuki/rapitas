@@ -169,13 +169,24 @@ export async function startPreview(taskId: number): Promise<StartPreviewResult> 
   const app = launchApp(substitutePort(cfg.start, port), workdir, port);
   pending.set(taskId, { app }); // trackable/killable from here on, however this call ends
 
-  const healthy = await waitForHealthy(`${baseUrl}${cfg.healthPath}`, cfg.readyTimeoutMs);
+  log.info({ taskId, baseUrl, port }, '[preview] waiting for dev server to become healthy');
+  const healthy = await waitForHealthy(`${baseUrl}${cfg.healthPath}`, cfg.readyTimeoutMs, {
+    taskId,
+  });
   if (!healthy) {
+    // Surface the app's own stdout/stderr tail — the generic "no response"
+    // message alone can't distinguish "still compiling", "crashed on start",
+    // and "wrong port/health path" from each other. runtime-check.ts already
+    // does this for the verify-repair loop; this path used to discard it.
+    const tail = app.logs().slice(-25).join('\n');
+    log.warn({ taskId, baseUrl, tail }, '[preview] dev server did not become healthy in time');
     await cleanupOwnAttempt(taskId, app);
     return {
       ok: false,
       reason: 'unhealthy',
-      message: `アプリが起動しませんでした (${baseUrl}${cfg.healthPath} が無応答)。`,
+      message:
+        `アプリが起動しませんでした (${baseUrl}${cfg.healthPath} が無応答)。` +
+        (tail ? `\n--- 起動ログ末尾 ---\n${tail}` : ''),
     };
   }
 
@@ -183,6 +194,10 @@ export async function startPreview(taskId: number): Promise<StartPreviewResult> 
   try {
     ({ chromium } = await import('playwright-core'));
   } catch (e) {
+    log.warn(
+      { taskId, err: e instanceof Error ? e.message : e },
+      '[preview] playwright-core unavailable',
+    );
     await cleanupOwnAttempt(taskId, app);
     return {
       ok: false,
@@ -196,14 +211,17 @@ export async function startPreview(taskId: number): Promise<StartPreviewResult> 
   let browser: import('playwright-core').Browser | null = null;
   let lastErr = '';
   for (const channel of ['msedge', 'chrome'] as const) {
+    log.info({ taskId, channel }, '[preview] launching headless browser');
     try {
       browser = await chromium.launch({ channel, headless: true });
       break;
     } catch (e) {
       lastErr = e instanceof Error ? e.message : String(e);
+      log.warn({ taskId, channel, err: lastErr }, '[preview] browser channel launch failed');
     }
   }
   if (!browser) {
+    log.warn({ taskId, lastErr }, '[preview] no system browser available');
     await cleanupOwnAttempt(taskId, app);
     return {
       ok: false,
@@ -216,12 +234,14 @@ export async function startPreview(taskId: number): Promise<StartPreviewResult> 
   try {
     const context = await browser.newContext({ viewport: { width: 1280, height: 800 } });
     const page = await context.newPage();
+    log.info({ taskId, baseUrl }, '[preview] navigating headless tab to app');
     await page.goto(baseUrl, { waitUntil: 'load', timeout: 25_000 });
 
     // Ownership check mirrors cleanupOwnAttempt's — only claim the `pending`
     // slot (and hand off to `sessions`) if a newer call hasn't already
     // replaced it out from under this one.
     if (pending.get(taskId)?.app !== app) {
+      log.info({ taskId }, '[preview] superseded by a newer preview request — discarding');
       await browser.close().catch(() => {});
       app.stop();
       return { ok: false, reason: 'error', message: 'superseded by a newer preview request' };
@@ -238,6 +258,10 @@ export async function startPreview(taskId: number): Promise<StartPreviewResult> 
     log.info({ taskId, baseUrl, port }, '[preview] session started');
     return { ok: true, url: baseUrl };
   } catch (e) {
+    log.warn(
+      { taskId, baseUrl, err: e instanceof Error ? e.message : e },
+      '[preview] navigation to app failed',
+    );
     await cleanupOwnAttempt(taskId, app, browser);
     return { ok: false, reason: 'error', message: e instanceof Error ? e.message : String(e) };
   }

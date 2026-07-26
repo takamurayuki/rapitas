@@ -87,24 +87,78 @@ export function launchApp(command: string, cwd: string, port: number): LaunchedA
   };
 }
 
+/** Emit a heartbeat log line every this many poll attempts (~7.5s at the 1.5s poll interval). */
+const HEALTH_LOG_EVERY_N_ATTEMPTS = 5;
+
 /**
  * Poll a URL until the app responds (any HTTP status < 500 counts as "up" —
  * a dev server 404 on the health path still proves the process is serving).
  *
+ * The poll loop used to be silent end-to-end — a stuck launch produced no
+ * server-side signal beyond the initial spawn log until the overall timeout
+ * fired, making it impossible to tell whether the app was still compiling,
+ * refusing every connection, or the health check itself had hung. Logs a
+ * heartbeat every few attempts plus a final success/timeout summary so the
+ * stall point is visible in the running server's logs, not just inferred
+ * after the fact from `app.logs()`.
+ *
  * @param url - Health URL / ヘルスチェックURL
  * @param timeoutMs - Overall deadline / 全体タイムアウト
+ * @param logContext - Extra fields (e.g. taskId) merged into every log line for correlation. / ログ相関用の追加フィールド
  * @returns true when responsive within the deadline / 応答すれば true
  */
-export async function waitForHealthy(url: string, timeoutMs: number): Promise<boolean> {
+export async function waitForHealthy(
+  url: string,
+  timeoutMs: number,
+  logContext: Record<string, unknown> = {},
+): Promise<boolean> {
   const deadline = Date.now() + timeoutMs;
+  const startedAt = Date.now();
+  let attempt = 0;
+  let lastStatus: number | undefined;
+  let lastError = '';
+  log.info({ url, timeoutMs, ...logContext }, '[runtime-smoke] polling health endpoint');
   while (Date.now() < deadline) {
+    attempt++;
     try {
       const res = await fetch(url, { signal: AbortSignal.timeout(4_000) });
-      if (res.status < 500) return true;
-    } catch {
-      // Not up yet — keep polling.
+      lastStatus = res.status;
+      if (res.status < 500) {
+        log.info(
+          { url, attempt, elapsedMs: Date.now() - startedAt, status: res.status, ...logContext },
+          '[runtime-smoke] health check succeeded',
+        );
+        return true;
+      }
+    } catch (e) {
+      lastError = e instanceof Error ? e.message : String(e);
+    }
+    if (attempt % HEALTH_LOG_EVERY_N_ATTEMPTS === 0) {
+      log.info(
+        {
+          url,
+          attempt,
+          elapsedMs: Date.now() - startedAt,
+          remainingMs: Math.max(0, deadline - Date.now()),
+          lastStatus,
+          lastError,
+          ...logContext,
+        },
+        '[runtime-smoke] still waiting for health check',
+      );
     }
     await new Promise((r) => setTimeout(r, 1_500));
   }
+  log.warn(
+    {
+      url,
+      attempts: attempt,
+      elapsedMs: Date.now() - startedAt,
+      lastStatus,
+      lastError,
+      ...logContext,
+    },
+    '[runtime-smoke] health check timed out',
+  );
   return false;
 }
