@@ -12,6 +12,7 @@
  * logic itself.
  */
 import { describe, it, expect, mock, beforeEach } from 'bun:test';
+import * as realFs from 'fs';
 
 mock.module('../../../config/logger', () => ({
   createLogger: () => ({ info: () => {}, error: () => {}, warn: () => {}, debug: () => {} }),
@@ -31,7 +32,11 @@ mock.module('../../../config/database', () => ({
 }));
 
 const mockExistsSync = mock((_p: string) => false);
-mock.module('fs', () => ({ existsSync: mockExistsSync }));
+// mock.module is process-global in bun:test — spread the real module so any
+// OTHER export a transitive import needs (e.g. agent-process-tracker's
+// readFileSync, pulled in via preview-session-manager's killProcessTreeSafely
+// import) stays intact, and only override what this file actually needs.
+mock.module('fs', () => ({ ...realFs, existsSync: mockExistsSync }));
 
 const mockLoadRuntimeConfig = mock(() => Promise.resolve<null>(null));
 mock.module('../verification/runtime-smoke/runtime-config', () => ({

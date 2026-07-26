@@ -16,6 +16,7 @@
  * kill the launched app before the attempt ever reaches `sessions`.
  */
 import { describe, it, expect, mock, beforeEach } from 'bun:test';
+import * as realFs from 'fs';
 
 mock.module('../../../config/logger', () => ({
   createLogger: () => ({ info: () => {}, error: () => {}, warn: () => {}, debug: () => {} }),
@@ -28,7 +29,11 @@ mock.module('../agent-session-resolver', () => ({
   resolveLatestSessionWorktree: () =>
     Promise.resolve({ worktreePath: '/repo', branchName: 'feature/x' }),
 }));
-mock.module('fs', () => ({ existsSync: () => true }));
+// mock.module is process-global in bun:test — spread the real module so any
+// OTHER export a transitive import needs (e.g. agent-process-tracker's
+// readFileSync, pulled in via preview-session-manager's killProcessTreeSafely
+// import) stays intact, and only override what this file actually needs.
+mock.module('fs', () => ({ ...realFs, existsSync: () => true }));
 mock.module('../verification/runtime-smoke/runtime-config', () => ({
   loadRuntimeConfig: () =>
     Promise.resolve({

@@ -13,6 +13,7 @@ import { existsSync } from 'fs';
 import { createLogger } from '../../../config/logger';
 import { prisma } from '../../../config/database';
 import { resolveLatestSessionWorktree } from '../agent-session-resolver';
+import { killProcessTreeSafely } from '../agent-process-tracker';
 import {
   allocateFreePort,
   launchApp,
@@ -22,6 +23,18 @@ import {
 import { loadRuntimeConfig, substitutePort } from '../verification/runtime-smoke/runtime-config';
 
 const log = createLogger('preview-session');
+
+// Playwright's own launch timeout defaults to several minutes — observed
+// live as a headless msedge process spawning fine (an OS process exists) but
+// its CDP handshake over --remote-debugging-pipe never completing, so
+// chromium.launch() sat for a full 3 minutes before rejecting and falling
+// back to chrome. The user's whole preview panel just shows "starting..."
+// for that entire time. Fail fast instead so a hung channel gets skipped in
+// seconds, not minutes.
+const BROWSER_LAUNCH_TIMEOUT_MS = 20_000;
+
+/** Playwright's launch-failure error embeds the underlying OS PID it spawned, e.g. "<launched> pid=23588". */
+const LAUNCHED_PID_PATTERN = /<launched>\s*pid=(\d+)/;
 
 /** Stop a session after this long without a screenshot request. */
 const IDLE_TIMEOUT_MS = 15 * 60_000;
@@ -213,11 +226,25 @@ export async function startPreview(taskId: number): Promise<StartPreviewResult> 
   for (const channel of ['msedge', 'chrome'] as const) {
     log.info({ taskId, channel }, '[preview] launching headless browser');
     try {
-      browser = await chromium.launch({ channel, headless: true });
+      browser = await chromium.launch({
+        channel,
+        headless: true,
+        timeout: BROWSER_LAUNCH_TIMEOUT_MS,
+      });
       break;
     } catch (e) {
       lastErr = e instanceof Error ? e.message : String(e);
       log.warn({ taskId, channel, err: lastErr }, '[preview] browser channel launch failed');
+      // A timed-out launch can still have a real OS process running (the CDP
+      // handshake hung, not the process spawn) — Playwright doesn't always
+      // reap it itself. Parse the PID it reports and reclaim it so a string
+      // of failed attempts doesn't accumulate orphaned browser processes.
+      const pidMatch = LAUNCHED_PID_PATTERN.exec(lastErr);
+      if (pidMatch) {
+        const orphanPid = Number(pidMatch[1]);
+        log.info({ taskId, channel, orphanPid }, '[preview] reaping orphaned browser process');
+        killProcessTreeSafely(orphanPid);
+      }
     }
   }
   if (!browser) {

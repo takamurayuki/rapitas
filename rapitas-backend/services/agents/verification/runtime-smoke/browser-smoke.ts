@@ -12,8 +12,20 @@ import { mkdir } from 'fs/promises';
 import { join } from 'path';
 import { tmpdir } from 'os';
 import { createLogger } from '../../../../config/logger';
+import { killProcessTreeSafely } from '../../agent-process-tracker';
 
 const log = createLogger('runtime-smoke:browser');
+
+// Playwright's own launch timeout defaults to several minutes — a headless
+// msedge process can spawn fine (an OS process exists) while its CDP
+// handshake over --remote-debugging-pipe never completes, leaving
+// chromium.launch() hanging that whole time before falling back to chrome.
+// Fail fast so a hung channel is skipped in seconds, not minutes (see the
+// identical fix in preview-session-manager.ts, where this was confirmed live).
+const BROWSER_LAUNCH_TIMEOUT_MS = 20_000;
+
+/** Playwright's launch-failure error embeds the underlying OS PID it spawned, e.g. "<launched> pid=23588". */
+const LAUNCHED_PID_PATTERN = /<launched>\s*pid=(\d+)/;
 
 /** Findings for one checked path. */
 export interface PathFinding {
@@ -69,10 +81,19 @@ export async function runBrowserSmoke(
   let lastErr = '';
   for (const channel of ['msedge', 'chrome'] as const) {
     try {
-      browser = await chromium.launch({ channel, headless: true });
+      browser = await chromium.launch({
+        channel,
+        headless: true,
+        timeout: BROWSER_LAUNCH_TIMEOUT_MS,
+      });
       break;
     } catch (e) {
       lastErr = e instanceof Error ? e.message : String(e);
+      // A timed-out launch can still have a real OS process running (the CDP
+      // handshake hung, not the process spawn) — reclaim it so a string of
+      // failed attempts doesn't accumulate orphaned browser processes.
+      const pidMatch = LAUNCHED_PID_PATTERN.exec(lastErr);
+      if (pidMatch) killProcessTreeSafely(Number(pidMatch[1]));
     }
   }
   if (!browser) {
