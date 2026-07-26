@@ -181,7 +181,18 @@ export function useHeader(): UseHeaderReturn {
       for (let i = 0; i < maxAttempts; i++) {
         await new Promise((r) => setTimeout(r, 2000));
         try {
-          const res = await fetch(`${API_BASE_URL}/agents/system-status`);
+          // A hung TCP connection (ghost socket, IPv6/loopback mismatch — see
+          // useBackendHealth.checkHealth's same pattern) can block this fetch
+          // indefinitely with no AbortController. Without a per-attempt
+          // timeout, one stuck iteration stalls the whole loop forever and the
+          // "restarting" modal never reaches either its success or timeout
+          // branch — it just hangs.
+          const controller = new AbortController();
+          const timeoutId = setTimeout(() => controller.abort(), 3000);
+          const res = await fetch(`${API_BASE_URL}/agents/system-status`, {
+            signal: controller.signal,
+          });
+          clearTimeout(timeoutId);
           if (res.ok) {
             window.location.reload();
             return;
