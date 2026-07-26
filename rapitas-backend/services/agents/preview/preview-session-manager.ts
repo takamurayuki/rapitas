@@ -200,11 +200,12 @@ export async function startPreview(taskId: number): Promise<StartPreviewResult> 
 
   try {
     log.info({ taskId }, '[preview] launching headless browser');
-    await worker.launch({
+    const { channel } = await worker.launch({
       channels: ['msedge', 'chrome'],
       timeoutMs: BROWSER_LAUNCH_TIMEOUT_MS,
       viewport: { width: 1280, height: 800 },
     });
+    log.info({ taskId, channel }, '[preview] headless browser launched');
   } catch (e) {
     log.warn(
       { taskId, err: e instanceof Error ? e.message : e },
