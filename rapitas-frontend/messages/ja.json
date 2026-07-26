@@ -728,7 +728,8 @@
       "idleHint": "このタスクのworktreeで動いているアプリのプレビューを表示します。「プレビュー開始」を押すと、rapitas.runtime.json の設定でdevサーバーを起動します。",
       "startingHint": "devサーバーを起動しています...",
       "loadingScreenshot": "スクリーンショットを取得中...",
-      "screenshotAlt": "プレビューのスクリーンショット"
+      "screenshotAlt": "プレビューのスクリーンショット",
+      "interactHint": "クリックして操作 / キーボード入力可"
     },
     "labelSelector": {
       "empty": "ラベルがありません。",
@@ -1733,6 +1734,7 @@
       "active": "アクティブなexecution数",
       "interrupted": "中断したexecution数",
       "queueDepth": "キュー滞留数",
+      "activePreviews": "起動中のプレビュー数",
       "uptime": "稼働時間"
     },
     "repairConvergence": {

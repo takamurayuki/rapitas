@@ -16,12 +16,16 @@ const mockGetPreviewStatus = mock(() => ({ active: false })) as ReturnType<typeo
 const mockScreenshotPreview = mock(() =>
   Promise.resolve({ ok: true, buffer: Buffer.from([1, 2, 3]) }),
 ) as ReturnType<typeof mock>;
+const mockInteractWithPreview = mock(() => Promise.resolve({ ok: true })) as ReturnType<
+  typeof mock
+>;
 
 mock.module('../../../services/agents/preview/preview-session-manager', () => ({
   startPreview: mockStartPreview,
   stopPreview: mockStopPreview,
   getPreviewStatus: mockGetPreviewStatus,
   screenshotPreview: mockScreenshotPreview,
+  interactWithPreview: mockInteractWithPreview,
 }));
 
 const { previewRoutes } = await import('./preview-routes');
@@ -33,10 +37,12 @@ function resetMocks() {
   mockStopPreview.mockReset();
   mockGetPreviewStatus.mockReset();
   mockScreenshotPreview.mockReset();
+  mockInteractWithPreview.mockReset();
   mockStartPreview.mockResolvedValue({ ok: true, url: 'http://localhost:1' });
   mockStopPreview.mockResolvedValue(undefined);
   mockGetPreviewStatus.mockReturnValue({ active: false });
   mockScreenshotPreview.mockResolvedValue({ ok: true, buffer: Buffer.from([1, 2, 3]) });
+  mockInteractWithPreview.mockResolvedValue({ ok: true });
 }
 
 describe('POST /tasks/:id/preview/start', () => {
@@ -148,5 +154,65 @@ describe('GET /tasks/:id/preview/screenshot', () => {
 
     expect(res.status).toBe(404);
     expect(body.error).toBeDefined();
+  });
+});
+
+describe('POST /tasks/:id/preview/interact', () => {
+  beforeEach(resetMocks);
+
+  it('クリック操作を interactWithPreview に委譲すること', async () => {
+    const res = await previewRoutes.handle(
+      new Request(`${BASE}/42/preview/interact`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'click', x: 100, y: 200 }),
+      }),
+    );
+    const body = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(body.success).toBe(true);
+    expect(mockInteractWithPreview).toHaveBeenCalledWith(42, { action: 'click', x: 100, y: 200 });
+  });
+
+  it('type操作を委譲すること', async () => {
+    const res = await previewRoutes.handle(
+      new Request(`${BASE}/42/preview/interact`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'type', text: 'hello' }),
+      }),
+    );
+    expect(res.status).toBe(200);
+    expect(mockInteractWithPreview).toHaveBeenCalledWith(42, { action: 'type', text: 'hello' });
+  });
+
+  it('未起動時は 404 を返すこと', async () => {
+    mockInteractWithPreview.mockResolvedValue({ ok: false, reason: 'not_active' });
+
+    const res = await previewRoutes.handle(
+      new Request(`${BASE}/42/preview/interact`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'key', key: 'Enter' }),
+      }),
+    );
+    const body = await res.json();
+
+    expect(res.status).toBe(404);
+    expect(body.success).toBe(false);
+  });
+
+  it('不正な body は 422 (バリデーションエラー) を返し interactWithPreview を呼ばないこと', async () => {
+    const res = await previewRoutes.handle(
+      new Request(`${BASE}/42/preview/interact`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'unknown-action' }),
+      }),
+    );
+
+    expect(res.status).toBe(422);
+    expect(mockInteractWithPreview).not.toHaveBeenCalled();
   });
 });

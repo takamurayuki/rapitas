@@ -303,6 +303,19 @@ export function getPreviewStatus(taskId: number): PreviewStatus {
   return { active: true, url: s.url, startedAt: s.startedAt.toISOString() };
 }
 
+/**
+ * Count of fully-established preview sessions right now — each one holds a
+ * live playwright-worker.mjs process + browser + dev server. Surfaced in the
+ * system status panel so this normally-invisible resource usage (the whole
+ * reason this session spent effort on stray-process cleanup) is visible to
+ * the user instead of only discoverable via manual process inspection.
+ *
+ * @returns Number of active sessions (does not include in-progress `pending` launches). / 起動中セッション数
+ */
+export function getActivePreviewCount(): number {
+  return sessions.size;
+}
+
 export type ScreenshotResult =
   | { ok: true; buffer: Buffer }
   | { ok: false; reason: 'not_active' | 'error'; message?: string };
@@ -322,6 +335,54 @@ export async function screenshotPreview(taskId: number): Promise<ScreenshotResul
   try {
     const buffer = await s.worker.screenshot();
     return { ok: true, buffer };
+  } catch (e) {
+    return { ok: false, reason: 'error', message: e instanceof Error ? e.message : String(e) };
+  }
+}
+
+/** A single interaction the preview panel can relay to the live page. */
+export type PreviewInteraction =
+  | { action: 'click'; x: number; y: number }
+  | { action: 'type'; text: string }
+  | { action: 'key'; key: string }
+  | { action: 'scroll'; deltaX?: number; deltaY?: number };
+
+export type InteractResult =
+  | { ok: true }
+  | { ok: false; reason: 'not_active' | 'error'; message?: string };
+
+/**
+ * Relay a user interaction (click/type/key/scroll) to the task's live preview
+ * page — makes the embedded panel a real remote control, not just a read-only
+ * screenshot viewer.
+ *
+ * @param taskId - Task whose preview to interact with. / 対象タスクID
+ * @param interaction - The action to perform. / 実行する操作
+ * @returns Whether the interaction was applied. / 実行結果
+ */
+export async function interactWithPreview(
+  taskId: number,
+  interaction: PreviewInteraction,
+): Promise<InteractResult> {
+  const s = sessions.get(taskId);
+  if (!s) return { ok: false, reason: 'not_active' };
+  s.lastAccessedAt = new Date();
+  try {
+    switch (interaction.action) {
+      case 'click':
+        await s.worker.click({ x: interaction.x, y: interaction.y });
+        break;
+      case 'type':
+        await s.worker.type({ text: interaction.text });
+        break;
+      case 'key':
+        await s.worker.pressKey({ key: interaction.key });
+        break;
+      case 'scroll':
+        await s.worker.scroll({ deltaX: interaction.deltaX, deltaY: interaction.deltaY });
+        break;
+    }
+    return { ok: true };
   } catch (e) {
     return { ok: false, reason: 'error', message: e instanceof Error ? e.message : String(e) };
   }

@@ -79,6 +79,34 @@ async function cmdScreenshot() {
   return { buffer: buf.toString('base64') };
 }
 
+/** Click at page-space coordinates (already scaled from displayed image size by the caller). */
+async function cmdClick(args) {
+  if (!page) throw new Error('no page open');
+  await page.mouse.click(args.x, args.y);
+  return { ok: true };
+}
+
+/** Type literal text at the current focus (caller should click a field first). */
+async function cmdType(args) {
+  if (!page) throw new Error('no page open');
+  await page.keyboard.type(String(args.text));
+  return { ok: true };
+}
+
+/** Press a single named key — Playwright key names (e.g. "Enter", "Backspace", "ArrowLeft"). */
+async function cmdPressKey(args) {
+  if (!page) throw new Error('no page open');
+  await page.keyboard.press(args.key);
+  return { ok: true };
+}
+
+/** Scroll the page by a pixel delta. */
+async function cmdScroll(args) {
+  if (!page) throw new Error('no page open');
+  await page.mouse.wheel(args.deltaX || 0, args.deltaY || 0);
+  return { ok: true };
+}
+
 /** One-shot navigate + settle + collect + screenshot + close, mirroring browser-smoke.ts's per-path check. */
 async function cmdCheckPath(args) {
   if (!context) throw new Error('not launched');
@@ -129,6 +157,10 @@ const HANDLERS = {
   launch: cmdLaunch,
   openAndNavigate: cmdOpenAndNavigate,
   screenshot: cmdScreenshot,
+  click: cmdClick,
+  type: cmdType,
+  pressKey: cmdPressKey,
+  scroll: cmdScroll,
   checkPath: cmdCheckPath,
   close: cmdClose,
 };

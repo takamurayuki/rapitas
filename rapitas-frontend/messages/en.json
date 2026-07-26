@@ -728,7 +728,8 @@
       "idleHint": "Shows a live preview of the app running in this task's worktree. \"Start preview\" launches the dev server using the rapitas.runtime.json config.",
       "startingHint": "Starting the dev server...",
       "loadingScreenshot": "Loading screenshot...",
-      "screenshotAlt": "Preview screenshot"
+      "screenshotAlt": "Preview screenshot",
+      "interactHint": "Click to interact / keyboard input supported"
     },
     "labelSelector": {
       "empty": "No labels.",
@@ -1733,6 +1734,7 @@
       "active": "Active executions",
       "interrupted": "Interrupted executions",
       "queueDepth": "Queue depth",
+      "activePreviews": "Active previews",
       "uptime": "Uptime"
     },
     "repairConvergence": {

@@ -42,6 +42,14 @@ export interface PlaywrightWorker {
   }): Promise<{ ok: boolean; error?: string }>;
   /** Screenshot the currently-open page (from openAndNavigate). */
   screenshot(): Promise<Buffer>;
+  /** Click at page-space coordinates (already scaled from displayed image size by the caller). */
+  click(opts: { x: number; y: number }): Promise<void>;
+  /** Type literal text at the current focus (click a field first). */
+  type(opts: { text: string }): Promise<void>;
+  /** Press a single named key — Playwright key names (e.g. "Enter", "Backspace", "ArrowLeft"). */
+  pressKey(opts: { key: string }): Promise<void>;
+  /** Scroll the page by a pixel delta. */
+  scroll(opts: { deltaX?: number; deltaY?: number }): Promise<void>;
   /** One-shot navigate + settle + collect + screenshot + close for a single path. */
   checkPath(opts: {
     url: string;
@@ -176,6 +184,18 @@ export function spawnPlaywrightWorker(): PlaywrightWorker {
     async screenshot() {
       const { buffer } = await call<{ buffer: string }>('screenshot');
       return Buffer.from(buffer, 'base64');
+    },
+    async click(opts) {
+      await call('click', { x: opts.x, y: opts.y });
+    },
+    async type(opts) {
+      await call('type', { text: opts.text });
+    },
+    async pressKey(opts) {
+      await call('pressKey', { key: opts.key });
+    },
+    async scroll(opts) {
+      await call('scroll', { deltaX: opts.deltaX, deltaY: opts.deltaY });
     },
     async checkPath(opts) {
       return call(

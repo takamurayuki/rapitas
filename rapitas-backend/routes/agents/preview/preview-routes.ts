@@ -4,12 +4,13 @@
  * Start/stop/status/screenshot for a task's embedded live-preview panel.
  * Thin HTTP layer only — session lifecycle lives in preview-session-manager.
  */
-import { Elysia } from 'elysia';
+import { Elysia, t } from 'elysia';
 import {
   startPreview,
   stopPreview,
   getPreviewStatus,
   screenshotPreview,
+  interactWithPreview,
 } from '../../../services/agents/preview/preview-session-manager';
 import { HTTP_STATUS } from '../../../utils/common/http-status';
 
@@ -70,4 +71,38 @@ export const previewRoutes = new Elysia()
     set.headers['Content-Type'] = 'image/png';
     set.headers['Cache-Control'] = 'no-store';
     return result.buffer;
-  });
+  })
+
+  /** Relay a click/type/key/scroll interaction to the running preview page. */
+  .post(
+    '/tasks/:id/preview/interact',
+    async (context) => {
+      const { params, body, set } = context;
+      const taskId = parseInt(params.id);
+      if (isNaN(taskId)) {
+        set.status = HTTP_STATUS.BAD_REQUEST;
+        return { error: 'Invalid task id' };
+      }
+      const result = await interactWithPreview(taskId, body);
+      if (!result.ok) {
+        set.status =
+          result.reason === 'not_active'
+            ? HTTP_STATUS.NOT_FOUND
+            : HTTP_STATUS.INTERNAL_SERVER_ERROR;
+        return { success: false, error: result.message ?? result.reason };
+      }
+      return { success: true };
+    },
+    {
+      body: t.Union([
+        t.Object({ action: t.Literal('click'), x: t.Number(), y: t.Number() }),
+        t.Object({ action: t.Literal('type'), text: t.String() }),
+        t.Object({ action: t.Literal('key'), key: t.String() }),
+        t.Object({
+          action: t.Literal('scroll'),
+          deltaX: t.Optional(t.Number()),
+          deltaY: t.Optional(t.Number()),
+        }),
+      ]),
+    },
+  );

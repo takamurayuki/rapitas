@@ -10,6 +10,7 @@ import { isEncryptionKeyConfigured } from '../../../utils/common/encryption';
 import { realtimeService } from '../../../services/communication/realtime-service';
 import { createLogger } from '../../../config/logger';
 import { AuthenticationError } from '../../../middleware/error-handler';
+import { getActivePreviewCount } from '../../../services/agents/preview/preview-session-manager';
 
 const log = createLogger('routes:agent-system');
 
@@ -44,6 +45,7 @@ export async function getAgentSystemSnapshot(): Promise<{
   runningExecutions: number;
   interruptedExecutions: number;
   queueDepth: number;
+  activePreviewCount: number;
   serverTime: string;
 }> {
   // NOTE: Sync getActiveExecutionCount() returns a cached value (0 right after startup).
@@ -102,6 +104,7 @@ export async function getAgentSystemSnapshot(): Promise<{
     runningExecutions,
     interruptedExecutions,
     queueDepth,
+    activePreviewCount: getActivePreviewCount(),
     serverTime: new Date().toISOString(),
   };
 }

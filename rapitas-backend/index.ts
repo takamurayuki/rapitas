@@ -158,6 +158,7 @@ app.get('/health', async () => {
       runningExecutions: snapshot.runningExecutions,
       interruptedExecutions: snapshot.interruptedExecutions,
       queueDepth: snapshot.queueDepth,
+      activePreviewCount: snapshot.activePreviewCount,
       checkMs: Date.now() - startedAt,
       timestamp: new Date().toISOString(),
     };

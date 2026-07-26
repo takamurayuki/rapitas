@@ -187,6 +187,7 @@ describe('Agent System Router', () => {
       expect(Object.keys(data).sort()).toEqual(
         [
           'activeExecutions',
+          'activePreviewCount',
           'interruptedExecutions',
           'isShuttingDown',
           'queueDepth',
@@ -201,6 +202,7 @@ describe('Agent System Router', () => {
       expect(typeof data.runningExecutions).toBe('number');
       expect(typeof data.interruptedExecutions).toBe('number');
       expect(typeof data.queueDepth).toBe('number');
+      expect(typeof data.activePreviewCount).toBe('number');
       expect(typeof data.serverTime).toBe('string');
       expect(Number.isNaN(Date.parse(data.serverTime as string))).toBe(false);
     });

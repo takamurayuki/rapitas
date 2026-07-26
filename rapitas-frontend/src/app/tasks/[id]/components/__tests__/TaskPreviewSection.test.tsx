@@ -247,4 +247,85 @@ describe('TaskPreviewSection', () => {
 
     expect(screen.getByText('stopFailed')).toBeInTheDocument();
   });
+
+  it('clicking the screenshot relays a scaled click and refetches the screenshot', async () => {
+    const fetchMock = vi.fn().mockImplementation((url: string) => {
+      if (url.includes('/status')) {
+        return Promise.resolve(jsonResponse({ active: true, url: 'http://localhost:5173' }));
+      }
+      if (url.includes('/interact')) return Promise.resolve(jsonResponse({ success: true }));
+      if (url.includes('/screenshot')) return Promise.resolve(blobResponse([1, 2, 3]));
+      return Promise.resolve(jsonResponse({}));
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    render(<TaskPreviewSection taskId={1} />);
+    await flush();
+
+    const img = screen.getByAltText('screenshotAlt');
+    // 640x400 displayed size against the fixed 1280x800 remote viewport is a
+    // clean 2x scale, so a click at (100,50) on-screen should relay (200,100).
+    vi.spyOn(img, 'getBoundingClientRect').mockReturnValue({
+      x: 0,
+      y: 0,
+      top: 0,
+      left: 0,
+      width: 640,
+      height: 400,
+      right: 640,
+      bottom: 400,
+      toJSON: () => ({}),
+    });
+
+    fetchMock.mockClear();
+    await act(async () => {
+      fireEvent.click(img, { clientX: 100, clientY: 50 });
+      for (let i = 0; i < 5; i++) await Promise.resolve();
+    });
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      'http://test:3001/tasks/1/preview/interact',
+      expect.objectContaining({
+        method: 'POST',
+        body: JSON.stringify({ action: 'click', x: 200, y: 100 }),
+      }),
+    );
+    expect(fetchMock).toHaveBeenCalledWith('http://test:3001/tasks/1/preview/screenshot');
+  });
+
+  it('typing a printable key relays a "type" action; Enter relays a "key" action', async () => {
+    const fetchMock = vi.fn().mockImplementation((url: string) => {
+      if (url.includes('/status')) {
+        return Promise.resolve(jsonResponse({ active: true, url: 'http://localhost:5173' }));
+      }
+      if (url.includes('/interact')) return Promise.resolve(jsonResponse({ success: true }));
+      if (url.includes('/screenshot')) return Promise.resolve(blobResponse([1, 2, 3]));
+      return Promise.resolve(jsonResponse({}));
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    render(<TaskPreviewSection taskId={1} />);
+    await flush();
+
+    const container = screen.getByRole('application');
+    fetchMock.mockClear();
+    await act(async () => {
+      fireEvent.keyDown(container, { key: 'a' });
+      for (let i = 0; i < 5; i++) await Promise.resolve();
+    });
+    expect(fetchMock).toHaveBeenCalledWith(
+      'http://test:3001/tasks/1/preview/interact',
+      expect.objectContaining({ body: JSON.stringify({ action: 'type', text: 'a' }) }),
+    );
+
+    fetchMock.mockClear();
+    await act(async () => {
+      fireEvent.keyDown(container, { key: 'Enter' });
+      for (let i = 0; i < 5; i++) await Promise.resolve();
+    });
+    expect(fetchMock).toHaveBeenCalledWith(
+      'http://test:3001/tasks/1/preview/interact',
+      expect.objectContaining({ body: JSON.stringify({ action: 'key', key: 'Enter' }) }),
+    );
+  });
 });

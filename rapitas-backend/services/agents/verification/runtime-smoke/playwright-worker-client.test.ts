@@ -38,6 +38,31 @@ describe('spawnPlaywrightWorker', () => {
     }
   }, 30_000);
 
+  test('relays click/type/pressKey/scroll to the live page without error', async () => {
+    // Verifies the IPC bridge itself (protocol round-trip for each command) —
+    // Playwright's own input-simulation correctness is out of scope here.
+    // NOTE: plain `await`, not `expect(promise).resolves...` — the latter
+    // reproducibly hung on these specific calls under bun:test (confirmed:
+    // the identical call succeeds in under 100ms both standalone and via a
+    // bare `await` in this exact file/position; only wrapping it in
+    // `expect().resolves` triggered the hang, isolated down to that one
+    // matcher). If a call actually rejects, `await` surfaces it as a normal
+    // thrown error and fails the test — no assertion wrapper needed.
+    const worker = spawnPlaywrightWorker();
+    try {
+      await worker.launch({ channels: ['msedge', 'chrome'], timeoutMs: 20_000 });
+      const nav = await worker.openAndNavigate({ url: 'https://example.com', timeoutMs: 15_000 });
+      expect(nav.ok).toBe(true);
+
+      await worker.click({ x: 20, y: 30 });
+      await worker.type({ text: 'hello' });
+      await worker.pressKey({ key: 'Enter' });
+      await worker.scroll({ deltaY: 500 });
+    } finally {
+      await worker.close();
+    }
+  }, 30_000);
+
   test('checkPath returns a finding without needing openAndNavigate first', async () => {
     const worker = spawnPlaywrightWorker();
     try {

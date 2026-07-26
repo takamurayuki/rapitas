@@ -11,7 +11,15 @@
  * Not responsible for fetching per-agent metrics (see MetricsOverviewCards).
  */
 import { useCallback, useEffect, useState } from 'react';
-import { Server, Activity, PlayCircle, AlertTriangle, Layers3, Clock } from 'lucide-react';
+import {
+  Server,
+  Activity,
+  PlayCircle,
+  AlertTriangle,
+  Layers3,
+  Clock,
+  AppWindow,
+} from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { API_BASE_URL } from '@/utils/api';
 import { useOnVisible } from '@/hooks/common/useOnVisible';
@@ -26,6 +34,7 @@ interface HealthSnapshot {
   runningExecutions?: number;
   interruptedExecutions?: number;
   queueDepth?: number;
+  activePreviewCount?: number;
 }
 
 type PillStatus = 'healthy' | 'busy' | 'shutting_down' | 'interrupted' | 'unhealthy';
@@ -126,7 +135,7 @@ export function SystemStatusPanel() {
           {t(`systemStatus.pill.${pill}`)}
         </span>
       </div>
-      <div className="grid grid-cols-2 divide-x divide-y divide-zinc-100 rounded-xl border border-zinc-200 bg-white md:grid-cols-5 md:divide-y-0 dark:divide-zinc-700 dark:border-zinc-700 dark:bg-zinc-800">
+      <div className="grid grid-cols-2 divide-x divide-y divide-zinc-100 rounded-xl border border-zinc-200 bg-white md:grid-cols-6 md:divide-y-0 dark:divide-zinc-700 dark:border-zinc-700 dark:bg-zinc-800">
         <div className="flex items-center gap-3 px-4 py-3">
           <Activity className="h-5 w-5 shrink-0 text-indigo-500" />
           <div className="min-w-0">
@@ -171,6 +180,18 @@ export function SystemStatusPanel() {
             </div>
             <p className="truncate text-xs text-zinc-500 dark:text-zinc-400">
               {t('systemStatus.queueDepth')}
+            </p>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-3 px-4 py-3">
+          <AppWindow className="h-5 w-5 shrink-0 text-teal-500" />
+          <div className="min-w-0">
+            <div className="text-xl font-bold leading-tight text-zinc-900 dark:text-zinc-50">
+              {data?.activePreviewCount ?? '—'}
+            </div>
+            <p className="truncate text-xs text-zinc-500 dark:text-zinc-400">
+              {t('systemStatus.activePreviews')}
             </p>
           </div>
         </div>

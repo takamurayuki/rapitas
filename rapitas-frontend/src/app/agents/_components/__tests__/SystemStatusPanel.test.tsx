@@ -44,6 +44,7 @@ describe('SystemStatusPanel', () => {
         runningExecutions: 2,
         interruptedExecutions: 0,
         queueDepth: 3,
+        activePreviewCount: 1,
       }),
     });
 
@@ -56,6 +57,7 @@ describe('SystemStatusPanel', () => {
     expect(screen.getByText('systemStatus.pill.healthy')).toBeInTheDocument();
     expect(screen.getByText('2')).toBeInTheDocument(); // running
     expect(screen.getByText('3')).toBeInTheDocument(); // queue depth
+    expect(screen.getByText('1')).toBeInTheDocument(); // active preview sessions
     expect(screen.getByText('1h 2m')).toBeInTheDocument(); // uptime
   });
 
