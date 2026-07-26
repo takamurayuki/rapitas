@@ -723,10 +723,12 @@
       "start": "Start preview",
       "starting": "Starting...",
       "stop": "Stop",
+      "stopping": "Stopping...",
       "startFailed": "Failed to start the preview",
       "stopFailed": "Failed to stop the preview. Please try again.",
       "idleHint": "Shows a live preview of the app running in this task's worktree. \"Start preview\" launches the dev server using the rapitas.runtime.json config.",
       "startingHint": "Starting the dev server...",
+      "stoppingHint": "Stopping the preview...",
       "loadingScreenshot": "Loading screenshot...",
       "screenshotAlt": "Preview screenshot",
       "interactHint": "Click to interact / keyboard input supported"

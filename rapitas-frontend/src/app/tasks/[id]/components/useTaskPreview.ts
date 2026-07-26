@@ -24,6 +24,7 @@ export type PreviewState =
   | { phase: 'idle' }
   | { phase: 'starting' }
   | { phase: 'active'; url: string }
+  | { phase: 'stopping'; url: string }
   | { phase: 'error'; message: string };
 
 type PreviewInteraction =
@@ -198,6 +199,16 @@ export function useTaskPreview(taskId: number) {
   const handleStop = async () => {
     requestIdRef.current++; // invalidate any in-flight handleStart's response
     clearPoll();
+    // Transition through a "stopping" state that keeps showing the last
+    // screenshot (dimmed, with a spinner) instead of jumping straight to the
+    // idle placeholder — an instant cut felt to the user like the screen had
+    // "reverted on its own" rather than a deliberate stop they just asked
+    // for. Only applies when there's actually a screenshot to fade (i.e. was
+    // 'active'); cancelling mid-'starting' has nothing to show and goes
+    // straight to idle as before.
+    if (state.phase === 'active') {
+      setState({ phase: 'stopping', url: state.url });
+    }
     // Previously set phase: 'idle' immediately, before the request even
     // fired, and swallowed any failure — a CSRF block, timeout, or any other
     // network error left the backend session running while the UI silently

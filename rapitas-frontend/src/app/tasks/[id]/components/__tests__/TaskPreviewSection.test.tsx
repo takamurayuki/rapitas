@@ -220,6 +220,51 @@ describe('TaskPreviewSection', () => {
     );
   });
 
+  it('shows a transitional "stopping" state with the last frame still visible, not an abrupt cut to idle', async () => {
+    // Regression: stopping used to jump straight from the live screenshot to
+    // the idle placeholder the instant the request resolved — the user
+    // reported this reads as the screen having "reverted on its own" rather
+    // than a deliberate stop they just triggered.
+    let resolveStop: (v: unknown) => void = () => {};
+    const stopPromise = new Promise((res) => {
+      resolveStop = res;
+    });
+    const fetchMock = vi.fn().mockImplementation((url: string) => {
+      if (url.includes('/status')) {
+        return Promise.resolve(jsonResponse({ active: true, url: 'http://localhost:5173' }));
+      }
+      if (url.includes('/screenshot')) return Promise.resolve(blobResponse([1, 2, 3]));
+      if (url.includes('/stop')) return stopPromise;
+      return Promise.resolve(jsonResponse({}));
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    render(<TaskPreviewSection taskId={1} />);
+    await flush();
+    expect(screen.getByText('stop')).toBeInTheDocument();
+
+    await act(async () => {
+      fireEvent.click(screen.getByText('stop'));
+      for (let i = 0; i < 5; i++) await Promise.resolve();
+    });
+
+    // Mid-stop: still showing the last screenshot's URL caption (not gone),
+    // the Stop button is now disabled/relabeled, and the idle placeholder
+    // has NOT appeared yet.
+    expect(screen.getByText('stopping')).toBeInTheDocument();
+    expect(screen.getByText('stoppingHint')).toBeInTheDocument();
+    expect(screen.getByText('http://localhost:5173')).toBeInTheDocument();
+    expect(screen.queryByText('idleHint')).not.toBeInTheDocument();
+
+    await act(async () => {
+      resolveStop(jsonResponse({ success: true }));
+      for (let i = 0; i < 5; i++) await Promise.resolve();
+    });
+
+    expect(screen.getByText('start')).toBeInTheDocument();
+    expect(screen.queryByText('http://localhost:5173')).not.toBeInTheDocument();
+  });
+
   it('a failed stop request shows an error instead of silently claiming success', async () => {
     // Regression: handleStop used to set phase: 'idle' unconditionally
     // BEFORE the request even fired, and swallow any failure in a bare

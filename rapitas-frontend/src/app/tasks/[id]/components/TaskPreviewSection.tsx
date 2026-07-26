@@ -57,6 +57,12 @@ export default function TaskPreviewSection({ taskId }: TaskPreviewSectionProps) 
           <PillButton icon={Square} color="zinc" onClick={handleStop}>
             {t('stop')}
           </PillButton>
+        ) : state.phase === 'stopping' ? (
+          // Disabled during the transitional stop — nothing to cancel back
+          // into, and a second click would just race the in-flight request.
+          <PillButton icon={Square} color="zinc" onClick={() => {}} disabled>
+            {t('stopping')}
+          </PillButton>
         ) : (
           <PillButton icon={Play} color="indigo" onClick={handleStart}>
             {t('start')}
@@ -80,7 +86,7 @@ export default function TaskPreviewSection({ taskId }: TaskPreviewSectionProps) 
             <span>{state.message}</span>
           </div>
         )}
-        {state.phase === 'active' && (
+        {(state.phase === 'active' || state.phase === 'stopping') && (
           /* eslint-disable jsx-a11y/no-noninteractive-tabindex, jsx-a11y/no-noninteractive-element-interactions, jsx-a11y/click-events-have-key-events --
              This is a remote-control surface for a real headless browser tab, not a
              standard page widget: the div's keydown/focus captures keyboard input FOR
@@ -93,7 +99,7 @@ export default function TaskPreviewSection({ taskId }: TaskPreviewSectionProps) 
             role="application"
             aria-label={t('interactHint')}
             onKeyDown={handlePreviewKeyDown}
-            className="rounded-lg border border-zinc-200 dark:border-zinc-800 overflow-hidden bg-zinc-50 dark:bg-zinc-900 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            className="relative rounded-lg border border-zinc-200 dark:border-zinc-800 overflow-hidden bg-zinc-50 dark:bg-zinc-900 focus:outline-none focus:ring-2 focus:ring-indigo-500"
           >
             {imgSrc ? (
               // eslint-disable-next-line @next/next/no-img-element -- refreshing local blob URL, not a static/remote asset next/image can optimize
@@ -101,7 +107,7 @@ export default function TaskPreviewSection({ taskId }: TaskPreviewSectionProps) 
                 src={imgSrc}
                 alt={t('screenshotAlt')}
                 onClick={handlePreviewClick}
-                className="w-full h-auto block cursor-pointer"
+                className={`w-full h-auto block ${state.phase === 'active' ? 'cursor-pointer' : 'cursor-default opacity-40 transition-opacity duration-300'}`}
               />
             ) : (
               <div className="flex h-48 items-center justify-center text-sm text-zinc-500 dark:text-zinc-400">
@@ -109,9 +115,22 @@ export default function TaskPreviewSection({ taskId }: TaskPreviewSectionProps) 
                 {t('loadingScreenshot')}
               </div>
             )}
+            {state.phase === 'stopping' && (
+              // Overlaid on the dimmed last frame instead of replacing it —
+              // makes clear this is a deliberate, in-progress stop rather
+              // than the preview having abruptly vanished on its own.
+              <div className="absolute inset-0 flex items-center justify-center">
+                <div className="flex items-center gap-2 rounded-full bg-white/90 dark:bg-zinc-900/90 px-3 py-1.5 text-xs text-zinc-700 dark:text-zinc-300 shadow">
+                  <Spinner size="sm" />
+                  {t('stoppingHint')}
+                </div>
+              </div>
+            )}
             <div className="px-3 py-1.5 text-[11px] text-zinc-500 dark:text-zinc-500 border-t border-zinc-200 dark:border-zinc-800 flex items-center justify-between gap-2">
               <span>{state.url}</span>
-              <span className="text-zinc-400 dark:text-zinc-600">{t('interactHint')}</span>
+              {state.phase === 'active' && (
+                <span className="text-zinc-400 dark:text-zinc-600">{t('interactHint')}</span>
+              )}
             </div>
           </div>
           /* eslint-enable jsx-a11y/no-noninteractive-tabindex, jsx-a11y/no-noninteractive-element-interactions, jsx-a11y/click-events-have-key-events */
