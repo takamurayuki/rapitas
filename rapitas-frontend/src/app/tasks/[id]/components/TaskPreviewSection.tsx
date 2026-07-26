@@ -38,8 +38,6 @@ export default function TaskPreviewSection({ taskId }: TaskPreviewSectionProps) 
   const [imgSrc, setImgSrc] = useState<string | null>(null);
   const objectUrlRef = useRef<string | null>(null);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const stateRef = useRef(state);
-  stateRef.current = state;
   // Bumped by handleStart/handleStop — lets a still-in-flight handleStart
   // notice it's been superseded (the user clicked Stop, or clicked Start
   // again) and skip applying its now-stale response, instead of reviving a
@@ -67,7 +65,14 @@ export default function TaskPreviewSection({ taskId }: TaskPreviewSectionProps) 
     }
   }, [taskId]);
 
-  // Restore state if a preview is already running (e.g. navigated back to this task).
+  // Restore state if a preview is already running (e.g. navigated back to
+  // this task, or a hard page reload). NOTE: deliberately no "stop on
+  // unmount" effect — one used to fire a stop request whenever this
+  // component unmounted (reload, navigating away), which killed the very
+  // session this restore logic is trying to find on the next mount. The
+  // backend's own 15-minute idle sweep (preview-session-manager.ts's
+  // IDLE_TIMEOUT_MS) is the safety net for a truly-abandoned preview;
+  // don't reintroduce an unmount-triggered stop here.
   useEffect(() => {
     let cancelled = false;
     (async () => {
@@ -99,17 +104,6 @@ export default function TaskPreviewSection({ taskId }: TaskPreviewSectionProps) 
       if (objectUrlRef.current) URL.revokeObjectURL(objectUrlRef.current);
     };
   }, []);
-
-  // Best-effort stop on unmount — navigating away (even mid-"starting")
-  // shouldn't leave the dev server running until the backend's own idle
-  // sweep eventually catches it.
-  useEffect(() => {
-    return () => {
-      if (stateRef.current.phase === 'active' || stateRef.current.phase === 'starting') {
-        fetch(`${API_BASE_URL}/tasks/${taskId}/preview/stop`, { method: 'POST' }).catch(() => {});
-      }
-    };
-  }, [taskId]);
 
   const handleStart = async () => {
     const myRequestId = ++requestIdRef.current;

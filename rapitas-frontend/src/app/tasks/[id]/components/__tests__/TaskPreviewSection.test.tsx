@@ -66,6 +66,34 @@ describe('TaskPreviewSection', () => {
     expect(screen.getByText('http://localhost:5173')).toBeInTheDocument();
   });
 
+  it('unmounting an active preview does NOT stop it — the session must survive reload/navigation', async () => {
+    // Regression: an earlier "stop on unmount" effect fired on every
+    // unmount (including a page reload's remount), which killed the very
+    // session the restore-on-mount effect above is meant to find again —
+    // so returning to the task always showed the idle Start button instead
+    // of Stop, even though the preview was still genuinely running.
+    const fetchMock = vi.fn().mockImplementation((url: string) => {
+      if (url.includes('/status')) {
+        return Promise.resolve(jsonResponse({ active: true, url: 'http://localhost:5173' }));
+      }
+      if (url.includes('/screenshot')) return Promise.resolve(blobResponse([1, 2, 3]));
+      return Promise.resolve(jsonResponse({}));
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const { unmount } = render(<TaskPreviewSection taskId={1} />);
+    await flush();
+    expect(screen.getByText('stop')).toBeInTheDocument();
+
+    fetchMock.mockClear();
+    unmount();
+
+    expect(fetchMock).not.toHaveBeenCalledWith(
+      'http://test:3001/tasks/1/preview/stop',
+      expect.anything(),
+    );
+  });
+
   it('starting a preview transitions to the active view and fetches a screenshot', async () => {
     const fetchMock = vi.fn().mockImplementation((url: string, init?: RequestInit) => {
       if (url.includes('/status')) return Promise.resolve(jsonResponse({ active: false }));
