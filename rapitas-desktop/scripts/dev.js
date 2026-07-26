@@ -2020,15 +2020,17 @@ function startFrontendProcess() {
     env: {
       ...process.env,
       PORT: String(actualFrontendPort),
-      // IPv4 loopback, not "localhost" — the backend binds strictly to
-      // 127.0.0.1 (resolveBindHost() in middleware/local-auth.ts) and does
-      // NOT listen on ::1. On a machine where "localhost" resolves to ::1
-      // first (common on Windows), every frontend fetch to this URL fails/
-      // times out even though the backend is healthy — see the historical
-      // "Port 3001 IPv6 takeover" incident, whose fix was to unify all
-      // clients on 127.0.0.1. This site used "localhost" from the start and
-      // was missed by that fix.
-      NEXT_PUBLIC_API_BASE_URL: `http://127.0.0.1:${actualBackendPort}`,
+      // Must be "localhost", NOT "127.0.0.1" — the Tauri webview's devUrl is
+      // http://localhost:3000 (src-tauri/tauri.conf.json). If this pointed at
+      // an IP literal instead, the browser's same-site algorithm treats a
+      // hostname and an IP address as different "sites", so EVERY
+      // state-changing request (POST/PUT/PATCH/DELETE) would get
+      // Sec-Fetch-Site: cross-site and be unconditionally rejected by
+      // createCrossSiteGuard() in middleware/local-auth.ts — regardless of
+      // Origin allowlisting. (Tried switching this to 127.0.0.1 to dodge a
+      // hypothetical localhost→::1 IPv6 resolution issue; it isn't worth the
+      // tradeoff since it breaks every POST outright — reverted.)
+      NEXT_PUBLIC_API_BASE_URL: `http://localhost:${actualBackendPort}`,
     },
   });
   frontend.on("error", (err) => console.error("Frontend error:", err));
