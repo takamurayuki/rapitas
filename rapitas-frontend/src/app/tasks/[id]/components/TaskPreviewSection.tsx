@@ -133,12 +133,23 @@ export default function TaskPreviewSection({ taskId }: TaskPreviewSectionProps) 
   const handleStop = async () => {
     requestIdRef.current++; // invalidate any in-flight handleStart's response
     clearPoll();
-    setState({ phase: 'idle' });
-    setImgSrc(null);
+    // Previously set phase: 'idle' immediately, before the request even
+    // fired, and swallowed any failure — a CSRF block, timeout, or any other
+    // network error left the backend session running while the UI silently
+    // reported "stopped." Only clear to idle once the backend confirms the
+    // stop actually happened; surface a failure instead of hiding it.
     try {
-      await fetch(`${API_BASE_URL}/tasks/${taskId}/preview/stop`, { method: 'POST' });
+      const res = await fetch(`${API_BASE_URL}/tasks/${taskId}/preview/stop`, {
+        method: 'POST',
+      });
+      if (!res.ok) {
+        setState({ phase: 'error', message: t('stopFailed') });
+        return;
+      }
+      setState({ phase: 'idle' });
+      setImgSrc(null);
     } catch {
-      /* best-effort */
+      setState({ phase: 'error', message: t('stopFailed') });
     }
   };
 

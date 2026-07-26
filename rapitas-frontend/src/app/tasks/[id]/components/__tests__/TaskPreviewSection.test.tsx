@@ -219,4 +219,32 @@ describe('TaskPreviewSection', () => {
       expect.objectContaining({ method: 'POST' }),
     );
   });
+
+  it('a failed stop request shows an error instead of silently claiming success', async () => {
+    // Regression: handleStop used to set phase: 'idle' unconditionally
+    // BEFORE the request even fired, and swallow any failure in a bare
+    // catch — a blocked/failed stop (e.g. a CSRF guard rejection, or any
+    // network error) left the backend session running while the UI
+    // reported "stopped" with no indication anything went wrong.
+    const fetchMock = vi.fn().mockImplementation((url: string) => {
+      if (url.includes('/status')) {
+        return Promise.resolve(jsonResponse({ active: true, url: 'http://localhost:5173' }));
+      }
+      if (url.includes('/screenshot')) return Promise.resolve(blobResponse([1, 2, 3]));
+      if (url.includes('/stop')) return Promise.resolve(jsonResponse({ error: 'blocked' }, false));
+      return Promise.resolve(jsonResponse({}));
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    render(<TaskPreviewSection taskId={1} />);
+    await flush();
+    expect(screen.getByText('stop')).toBeInTheDocument();
+
+    await act(async () => {
+      fireEvent.click(screen.getByText('stop'));
+      for (let i = 0; i < 5; i++) await Promise.resolve();
+    });
+
+    expect(screen.getByText('stopFailed')).toBeInTheDocument();
+  });
 });
