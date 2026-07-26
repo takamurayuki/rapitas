@@ -7,15 +7,40 @@ export type KnowledgeSourceType =
   | 'user_learning'
   | 'task_pattern'
   | 'distilled_procedure'
-  | 'consolidated';
+  | 'consolidated'
+  | 'concern'
+  | 'hypothesis'
+  | 'idea_box'
+  | 'retrospective'
+  | 'failure_lesson';
 
+// `category` is a plain string column shared by several unrelated producers
+// (distilled-knowledge categories, concern-backlog types, hypothesis domains,
+// idea-box categories — see services/memory/{distillation,concern-backlog-service,
+// hypothesis-service,idea-box-service}.ts on the backend) rather than one closed
+// enum, so this union must track all of them or KnowledgeEntryCard's
+// `t(`categories.${entry.category}`)` throws MISSING_MESSAGE for real rows.
 export type KnowledgeCategory =
   | 'procedure'
   | 'fact'
   | 'pattern'
   | 'preference'
   | 'insight'
-  | 'general';
+  | 'general'
+  | 'bug'
+  | 'refactor'
+  | 'security'
+  | 'perf'
+  | 'other'
+  | 'codebase'
+  | 'agent-behavior'
+  | 'architecture'
+  | 'improvement'
+  | 'bug_noticed'
+  | 'tech_debt'
+  | 'ux'
+  | 'feature'
+  | 'performance';
 
 export type ForgettingStage = 'active' | 'dormant' | 'archived';
 export type ValidationStatus = 'pending' | 'validated' | 'rejected' | 'conflict';

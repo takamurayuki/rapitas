@@ -3115,7 +3115,12 @@
       "user_learning": "User Learning",
       "task_pattern": "Task Pattern",
       "distilled_procedure": "Distilled Procedure",
-      "consolidated": "Consolidated"
+      "consolidated": "Consolidated",
+      "concern": "Concern",
+      "hypothesis": "Hypothesis",
+      "idea_box": "Idea Box",
+      "retrospective": "Retrospective",
+      "failure_lesson": "Failure Lesson"
     },
     "categories": {
       "procedure": "Procedure",
@@ -3123,7 +3128,21 @@
       "pattern": "Pattern",
       "preference": "Preference",
       "insight": "Insight",
-      "general": "General"
+      "general": "General",
+      "bug": "Bug",
+      "refactor": "Refactor",
+      "security": "Security",
+      "perf": "Performance",
+      "other": "Other",
+      "codebase": "Codebase",
+      "agent-behavior": "Agent Behavior",
+      "architecture": "Architecture",
+      "improvement": "Improvement",
+      "bug_noticed": "Bug Noticed",
+      "tech_debt": "Tech Debt",
+      "ux": "UX",
+      "feature": "Feature",
+      "performance": "Performance"
     },
     "stages": {
       "active": "Active",

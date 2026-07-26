@@ -3115,7 +3115,12 @@
       "user_learning": "ユーザー学習",
       "task_pattern": "タスクパターン",
       "distilled_procedure": "蒸留された手順",
-      "consolidated": "統合済み"
+      "consolidated": "統合済み",
+      "concern": "懸念",
+      "hypothesis": "仮説",
+      "idea_box": "アイデアボックス",
+      "retrospective": "振り返り",
+      "failure_lesson": "失敗からの学び"
     },
     "categories": {
       "procedure": "手順",
@@ -3123,7 +3128,21 @@
       "pattern": "パターン",
       "preference": "設定・好み",
       "insight": "洞察",
-      "general": "一般"
+      "general": "一般",
+      "bug": "バグ",
+      "refactor": "リファクタ",
+      "security": "セキュリティ",
+      "perf": "パフォーマンス",
+      "other": "その他",
+      "codebase": "コードベース",
+      "agent-behavior": "エージェント挙動",
+      "architecture": "アーキテクチャ",
+      "improvement": "改善",
+      "bug_noticed": "気づいたバグ",
+      "tech_debt": "技術的負債",
+      "ux": "UX",
+      "feature": "機能",
+      "performance": "パフォーマンス"
     },
     "stages": {
       "active": "アクティブ",
