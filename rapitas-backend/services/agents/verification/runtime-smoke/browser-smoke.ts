@@ -1,31 +1,23 @@
 /**
  * runtime-smoke/browser-smoke
  *
- * Drives the app-under-test in a real browser (playwright-core over the
- * system Edge/Chrome — no browser download) and collects hard failure
- * signals: uncaught page errors, console errors, 5xx responses, and a
- * screenshot per checked path (saved to the OS temp dir so worktree diffs
- * stay clean). Fails open when no browser is available — tooling absence
- * must not block every task.
+ * Drives the app-under-test in a real browser (via playwright-worker-client,
+ * a Node.js child process — see that file's header for why Bun can't do this
+ * directly) and collects hard failure signals: uncaught page errors, console
+ * errors, 5xx responses, and a screenshot per checked path (saved to the OS
+ * temp dir so worktree diffs stay clean). Fails open when no browser is
+ * available — tooling absence must not block every task.
  */
 import { mkdir } from 'fs/promises';
 import { join } from 'path';
 import { tmpdir } from 'os';
 import { createLogger } from '../../../../config/logger';
-import { killProcessTreeSafely } from '../../agent-process-tracker';
+import { spawnPlaywrightWorker } from './playwright-worker-client';
 
 const log = createLogger('runtime-smoke:browser');
 
-// Playwright's own launch timeout defaults to several minutes — a headless
-// msedge process can spawn fine (an OS process exists) while its CDP
-// handshake over --remote-debugging-pipe never completes, leaving
-// chromium.launch() hanging that whole time before falling back to chrome.
-// Fail fast so a hung channel is skipped in seconds, not minutes (see the
-// identical fix in preview-session-manager.ts, where this was confirmed live).
+/** Bounds the launch step — a hung/missing browser channel fails in seconds, not minutes. */
 const BROWSER_LAUNCH_TIMEOUT_MS = 20_000;
-
-/** Playwright's launch-failure error embeds the underlying OS PID it spawned, e.g. "<launched> pid=23588". */
-const LAUNCHED_PID_PATTERN = /<launched>\s*pid=(\d+)/;
 
 /** Findings for one checked path. */
 export interface PathFinding {
@@ -65,41 +57,19 @@ export async function runBrowserSmoke(
   paths: string[],
   label: string,
 ): Promise<SmokeRunResult> {
-  let chromium: typeof import('playwright-core').chromium;
-  try {
-    ({ chromium } = await import('playwright-core'));
-  } catch (e) {
-    return {
-      browserAvailable: false,
-      unavailableReason: `playwright-core not installed: ${e instanceof Error ? e.message : e}`,
-      findings: [],
-    };
-  }
+  const worker = spawnPlaywrightWorker();
 
-  // System browsers first — no browser download needed on this machine.
-  let browser: import('playwright-core').Browser | null = null;
-  let lastErr = '';
-  for (const channel of ['msedge', 'chrome'] as const) {
-    try {
-      browser = await chromium.launch({
-        channel,
-        headless: true,
-        timeout: BROWSER_LAUNCH_TIMEOUT_MS,
-      });
-      break;
-    } catch (e) {
-      lastErr = e instanceof Error ? e.message : String(e);
-      // A timed-out launch can still have a real OS process running (the CDP
-      // handshake hung, not the process spawn) — reclaim it so a string of
-      // failed attempts doesn't accumulate orphaned browser processes.
-      const pidMatch = LAUNCHED_PID_PATTERN.exec(lastErr);
-      if (pidMatch) killProcessTreeSafely(Number(pidMatch[1]));
-    }
-  }
-  if (!browser) {
+  try {
+    await worker.launch({
+      channels: ['msedge', 'chrome'],
+      timeoutMs: BROWSER_LAUNCH_TIMEOUT_MS,
+      viewport: { width: 1280, height: 800 },
+    });
+  } catch (e) {
+    await worker.close();
     return {
       browserAvailable: false,
-      unavailableReason: `no system Edge/Chrome available: ${lastErr.slice(0, 200)}`,
+      unavailableReason: `no system Edge/Chrome available: ${(e instanceof Error ? e.message : String(e)).slice(0, 200)}`,
       findings: [],
     };
   }
@@ -109,44 +79,37 @@ export async function runBrowserSmoke(
 
   const findings: PathFinding[] = [];
   try {
-    const context = await browser.newContext({ viewport: { width: 1280, height: 800 } });
     for (const path of paths) {
-      const page = await context.newPage();
-      const finding: PathFinding = {
-        path,
-        httpStatus: 0,
-        navigationError: null,
-        pageErrors: [],
-        consoleErrors: [],
-        serverErrors: [],
-        screenshotPath: null,
-      };
-      page.on('pageerror', (err) => finding.pageErrors.push(String(err.message).slice(0, 300)));
-      page.on('console', (msg) => {
-        if (msg.type() === 'error') finding.consoleErrors.push(msg.text().slice(0, 300));
-      });
-      page.on('response', (res) => {
-        if (res.status() >= 500) finding.serverErrors.push(`${res.status()} ${res.url()}`);
-      });
-
+      const screenshotPath = join(
+        artifactDir,
+        `${path.replace(/[^a-zA-Z0-9]+/g, '_') || 'root'}.png`,
+      );
       try {
-        const res = await page.goto(`${baseUrl}${path}`, {
-          waitUntil: 'load',
-          timeout: NAV_TIMEOUT_MS,
+        const result = await worker.checkPath({
+          url: `${baseUrl}${path}`,
+          timeoutMs: NAV_TIMEOUT_MS,
+          settleMs: SETTLE_MS,
+          screenshotPath,
         });
-        finding.httpStatus = res?.status() ?? 0;
-        await page.waitForTimeout(SETTLE_MS);
-        const shot = join(artifactDir, `${path.replace(/[^a-zA-Z0-9]+/g, '_') || 'root'}.png`);
-        await page.screenshot({ path: shot, fullPage: false }).catch(() => {});
-        finding.screenshotPath = shot;
+        findings.push({ path, ...result });
       } catch (e) {
-        finding.navigationError = (e instanceof Error ? e.message : String(e)).slice(0, 300);
+        // A worker-level failure (e.g. the command timed out and the worker
+        // was killed) — record it as a navigation error for this path rather
+        // than losing the whole run; the worker is gone, so stop looping.
+        findings.push({
+          path,
+          httpStatus: 0,
+          navigationError: (e instanceof Error ? e.message : String(e)).slice(0, 300),
+          pageErrors: [],
+          consoleErrors: [],
+          serverErrors: [],
+          screenshotPath: null,
+        });
+        break;
       }
-      findings.push(finding);
-      await page.close().catch(() => {});
     }
   } finally {
-    await browser.close().catch(() => {});
+    await worker.close();
   }
 
   log.info(

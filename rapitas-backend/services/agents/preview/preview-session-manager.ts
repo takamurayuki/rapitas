@@ -4,16 +4,17 @@
  * Live-preview feature: for a task's latest git worktree, start its dev
  * server (via the same rapitas.runtime.json + app-launcher.ts machinery
  * runtime-smoke verification already uses) and keep a persistent headless
- * browser tab open so the embedded preview panel can repeatedly screenshot
- * it. Unlike runtime-smoke's one-shot verification run, sessions here are
- * long-lived (until explicitly stopped or idle) and held in-process — this
- * module is NOT responsible for verification pass/fail judgement.
+ * browser tab open (via playwright-worker-client, a Node.js child process —
+ * see that file's header for why Bun can't drive Playwright directly) so the
+ * embedded preview panel can repeatedly screenshot it. Unlike runtime-smoke's
+ * one-shot verification run, sessions here are long-lived (until explicitly
+ * stopped or idle) and held in-process — this module is NOT responsible for
+ * verification pass/fail judgement.
  */
 import { existsSync } from 'fs';
 import { createLogger } from '../../../config/logger';
 import { prisma } from '../../../config/database';
 import { resolveLatestSessionWorktree } from '../agent-session-resolver';
-import { killProcessTreeSafely } from '../agent-process-tracker';
 import {
   allocateFreePort,
   launchApp,
@@ -21,20 +22,15 @@ import {
   type LaunchedApp,
 } from '../verification/runtime-smoke/app-launcher';
 import { loadRuntimeConfig, substitutePort } from '../verification/runtime-smoke/runtime-config';
+import {
+  spawnPlaywrightWorker,
+  type PlaywrightWorker,
+} from '../verification/runtime-smoke/playwright-worker-client';
 
 const log = createLogger('preview-session');
 
-// Playwright's own launch timeout defaults to several minutes — observed
-// live as a headless msedge process spawning fine (an OS process exists) but
-// its CDP handshake over --remote-debugging-pipe never completing, so
-// chromium.launch() sat for a full 3 minutes before rejecting and falling
-// back to chrome. The user's whole preview panel just shows "starting..."
-// for that entire time. Fail fast instead so a hung channel gets skipped in
-// seconds, not minutes.
+/** Bounds the browser-launch step — a hung/missing channel fails in seconds, not minutes. */
 const BROWSER_LAUNCH_TIMEOUT_MS = 20_000;
-
-/** Playwright's launch-failure error embeds the underlying OS PID it spawned, e.g. "<launched> pid=23588". */
-const LAUNCHED_PID_PATTERN = /<launched>\s*pid=(\d+)/;
 
 /** Stop a session after this long without a screenshot request. */
 const IDLE_TIMEOUT_MS = 15 * 60_000;
@@ -43,8 +39,7 @@ const SWEEP_INTERVAL_MS = 60_000;
 
 interface PreviewSession {
   app: LaunchedApp;
-  browser: import('playwright-core').Browser;
-  page: import('playwright-core').Page;
+  worker: PlaywrightWorker;
   url: string;
   startedAt: Date;
   lastAccessedAt: Date;
@@ -67,22 +62,19 @@ const sessions = new Map<number, PreviewSession>();
  * three abandoned `next dev` instances all fighting over the same `.next`
  * build cache, which is almost certainly why every one of them then hung).
  */
-const pending = new Map<
-  number,
-  { app?: LaunchedApp; browser?: import('playwright-core').Browser }
->();
+const pending = new Map<number, { app?: LaunchedApp; worker?: PlaywrightWorker }>();
 
 /** Stop and forget an in-progress launch for a task, if one is tracked. */
 async function killPending(taskId: number): Promise<void> {
   const p = pending.get(taskId);
   if (!p) return;
   pending.delete(taskId);
-  if (p.browser) await p.browser.close().catch(() => {});
+  if (p.worker) await p.worker.close().catch(() => {});
   if (p.app) p.app.stop();
 }
 
 /**
- * Stop THIS invocation's own app/browser directly (not via a `pending` map
+ * Stop THIS invocation's own app/worker directly (not via a `pending` map
  * lookup) and remove the map entry only if it still points at these exact
  * resources. Guards against a slow, failing startPreview call for taskId
  * accidentally killing a DIFFERENT, newer startPreview call's already-
@@ -95,9 +87,9 @@ async function killPending(taskId: number): Promise<void> {
 async function cleanupOwnAttempt(
   taskId: number,
   app: LaunchedApp,
-  browser?: import('playwright-core').Browser,
+  worker?: PlaywrightWorker,
 ): Promise<void> {
-  if (browser) await browser.close().catch(() => {});
+  if (worker) await worker.close().catch(() => {});
   app.stop();
   if (pending.get(taskId)?.app === app) pending.delete(taskId);
 }
@@ -203,81 +195,47 @@ export async function startPreview(taskId: number): Promise<StartPreviewResult> 
     };
   }
 
-  let chromium: typeof import('playwright-core').chromium;
+  const worker = spawnPlaywrightWorker();
+  pending.set(taskId, { app, worker });
+
   try {
-    ({ chromium } = await import('playwright-core'));
+    log.info({ taskId }, '[preview] launching headless browser');
+    await worker.launch({
+      channels: ['msedge', 'chrome'],
+      timeoutMs: BROWSER_LAUNCH_TIMEOUT_MS,
+      viewport: { width: 1280, height: 800 },
+    });
   } catch (e) {
     log.warn(
       { taskId, err: e instanceof Error ? e.message : e },
-      '[preview] playwright-core unavailable',
+      '[preview] no system browser available',
     );
-    await cleanupOwnAttempt(taskId, app);
+    await cleanupOwnAttempt(taskId, app, worker);
     return {
       ok: false,
       reason: 'no_browser',
-      message: `playwright-core が利用できません: ${e instanceof Error ? e.message : e}`,
+      message: `システムのEdge/Chromeが見つかりません: ${(e instanceof Error ? e.message : String(e)).slice(0, 200)}`,
     };
   }
-
-  // System browsers first — no browser download needed on this machine
-  // (mirrors browser-smoke.ts).
-  let browser: import('playwright-core').Browser | null = null;
-  let lastErr = '';
-  for (const channel of ['msedge', 'chrome'] as const) {
-    log.info({ taskId, channel }, '[preview] launching headless browser');
-    try {
-      browser = await chromium.launch({
-        channel,
-        headless: true,
-        timeout: BROWSER_LAUNCH_TIMEOUT_MS,
-      });
-      break;
-    } catch (e) {
-      lastErr = e instanceof Error ? e.message : String(e);
-      log.warn({ taskId, channel, err: lastErr }, '[preview] browser channel launch failed');
-      // A timed-out launch can still have a real OS process running (the CDP
-      // handshake hung, not the process spawn) — Playwright doesn't always
-      // reap it itself. Parse the PID it reports and reclaim it so a string
-      // of failed attempts doesn't accumulate orphaned browser processes.
-      const pidMatch = LAUNCHED_PID_PATTERN.exec(lastErr);
-      if (pidMatch) {
-        const orphanPid = Number(pidMatch[1]);
-        log.info({ taskId, channel, orphanPid }, '[preview] reaping orphaned browser process');
-        killProcessTreeSafely(orphanPid);
-      }
-    }
-  }
-  if (!browser) {
-    log.warn({ taskId, lastErr }, '[preview] no system browser available');
-    await cleanupOwnAttempt(taskId, app);
-    return {
-      ok: false,
-      reason: 'no_browser',
-      message: `システムのEdge/Chromeが見つかりません: ${lastErr.slice(0, 200)}`,
-    };
-  }
-  pending.set(taskId, { app, browser });
 
   try {
-    const context = await browser.newContext({ viewport: { width: 1280, height: 800 } });
-    const page = await context.newPage();
     log.info({ taskId, baseUrl }, '[preview] navigating headless tab to app');
-    await page.goto(baseUrl, { waitUntil: 'load', timeout: 25_000 });
+    const nav = await worker.openAndNavigate({ url: baseUrl, timeoutMs: 25_000 });
+    if (!nav.ok) throw new Error(nav.error || 'navigation failed');
 
     // Ownership check mirrors cleanupOwnAttempt's — only claim the `pending`
     // slot (and hand off to `sessions`) if a newer call hasn't already
     // replaced it out from under this one.
     if (pending.get(taskId)?.app !== app) {
       log.info({ taskId }, '[preview] superseded by a newer preview request — discarding');
-      await browser.close().catch(() => {});
+      await worker.close().catch(() => {});
       app.stop();
       return { ok: false, reason: 'error', message: 'superseded by a newer preview request' };
     }
     pending.delete(taskId);
     sessions.set(taskId, {
       app,
-      browser,
-      page,
+      worker,
       url: baseUrl,
       startedAt: new Date(),
       lastAccessedAt: new Date(),
@@ -289,7 +247,7 @@ export async function startPreview(taskId: number): Promise<StartPreviewResult> 
       { taskId, baseUrl, err: e instanceof Error ? e.message : e },
       '[preview] navigation to app failed',
     );
-    await cleanupOwnAttempt(taskId, app, browser);
+    await cleanupOwnAttempt(taskId, app, worker);
     return { ok: false, reason: 'error', message: e instanceof Error ? e.message : String(e) };
   }
 }
@@ -306,7 +264,7 @@ export async function stopPreview(taskId: number): Promise<void> {
   const s = sessions.get(taskId);
   if (s) {
     sessions.delete(taskId);
-    await s.browser.close().catch(() => {});
+    await s.worker.close().catch(() => {});
     s.app.stop();
     log.info({ taskId }, '[preview] session stopped');
   }
@@ -346,7 +304,7 @@ export async function screenshotPreview(taskId: number): Promise<ScreenshotResul
   if (!s) return { ok: false, reason: 'not_active' };
   s.lastAccessedAt = new Date();
   try {
-    const buffer = await s.page.screenshot({ type: 'png' });
+    const buffer = await s.worker.screenshot();
     return { ok: true, buffer };
   } catch (e) {
     return { ok: false, reason: 'error', message: e instanceof Error ? e.message : String(e) };
