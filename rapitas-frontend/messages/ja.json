@@ -731,7 +731,8 @@
       "stoppingHint": "プレビューを停止しています...",
       "loadingScreenshot": "スクリーンショットを取得中...",
       "screenshotAlt": "プレビューのスクリーンショット",
-      "interactHint": "クリックして操作 / キーボード入力可"
+      "interactHint": "クリックして操作 / キーボード入力可",
+      "closeSelectOverlay": "選択肢を閉じる"
     },
     "labelSelector": {
       "empty": "ラベルがありません。",

@@ -28,6 +28,13 @@ export interface WorkerCheckPathResult {
   screenshotPath: string | null;
 }
 
+/** Result of inspecting a page-space point for a native <select>. */
+export interface SelectInspection {
+  isSelect: boolean;
+  value?: string;
+  options?: Array<{ value: string; label: string; selected: boolean }>;
+}
+
 export interface PlaywrightWorker {
   /** Launch a browser, trying each channel in order; resolves with the channel that succeeded. */
   launch(opts: {
@@ -50,6 +57,10 @@ export interface PlaywrightWorker {
   pressKey(opts: { key: string }): Promise<void>;
   /** Scroll the page by a pixel delta. */
   scroll(opts: { deltaX?: number; deltaY?: number }): Promise<void>;
+  /** Check whether a page-space point is inside a <select> — its native dropdown never appears in a screenshot, so the caller must detect this BEFORE clicking. */
+  inspectSelect(opts: { x: number; y: number }): Promise<SelectInspection>;
+  /** Set a <select>'s value directly (bypasses the native dropdown), firing input/change. */
+  selectOption(opts: { x: number; y: number; value: string }): Promise<void>;
   /** One-shot navigate + settle + collect + screenshot + close for a single path. */
   checkPath(opts: {
     url: string;
@@ -196,6 +207,12 @@ export function spawnPlaywrightWorker(): PlaywrightWorker {
     },
     async scroll(opts) {
       await call('scroll', { deltaX: opts.deltaX, deltaY: opts.deltaY });
+    },
+    async inspectSelect(opts) {
+      return call('inspectSelect', { x: opts.x, y: opts.y });
+    },
+    async selectOption(opts) {
+      await call('selectOption', { x: opts.x, y: opts.y, value: opts.value });
     },
     async checkPath(opts) {
       return call(

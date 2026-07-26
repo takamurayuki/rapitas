@@ -19,13 +19,19 @@ const mockScreenshotPreview = mock(() =>
 const mockInteractWithPreview = mock(() => Promise.resolve({ ok: true })) as ReturnType<
   typeof mock
 >;
+const mockInspectPreviewElement = mock(() =>
+  Promise.resolve({ ok: true, isSelect: false }),
+) as ReturnType<typeof mock>;
 
 mock.module('../../../services/agents/preview/preview-session-manager', () => ({
   startPreview: mockStartPreview,
   stopPreview: mockStopPreview,
   getPreviewStatus: mockGetPreviewStatus,
   screenshotPreview: mockScreenshotPreview,
+}));
+mock.module('../../../services/agents/preview/preview-interaction', () => ({
   interactWithPreview: mockInteractWithPreview,
+  inspectPreviewElement: mockInspectPreviewElement,
 }));
 
 const { previewRoutes } = await import('./preview-routes');
@@ -38,11 +44,13 @@ function resetMocks() {
   mockGetPreviewStatus.mockReset();
   mockScreenshotPreview.mockReset();
   mockInteractWithPreview.mockReset();
+  mockInspectPreviewElement.mockReset();
   mockStartPreview.mockResolvedValue({ ok: true, url: 'http://localhost:1' });
   mockStopPreview.mockResolvedValue(undefined);
   mockGetPreviewStatus.mockReturnValue({ active: false });
   mockScreenshotPreview.mockResolvedValue({ ok: true, buffer: Buffer.from([1, 2, 3]) });
   mockInteractWithPreview.mockResolvedValue({ ok: true });
+  mockInspectPreviewElement.mockResolvedValue({ ok: true, isSelect: false });
 }
 
 describe('POST /tasks/:id/preview/start', () => {
@@ -214,5 +222,82 @@ describe('POST /tasks/:id/preview/interact', () => {
 
     expect(res.status).toBe(422);
     expect(mockInteractWithPreview).not.toHaveBeenCalled();
+  });
+
+  it('select操作を委譲すること', async () => {
+    const res = await previewRoutes.handle(
+      new Request(`${BASE}/42/preview/interact`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'select', x: 10, y: 20, value: 'opt2' }),
+      }),
+    );
+    expect(res.status).toBe(200);
+    expect(mockInteractWithPreview).toHaveBeenCalledWith(42, {
+      action: 'select',
+      x: 10,
+      y: 20,
+      value: 'opt2',
+    });
+  });
+});
+
+describe('POST /tasks/:id/preview/inspect', () => {
+  beforeEach(resetMocks);
+
+  it('選択肢を持つselectの場合、isSelect:true と options を返すこと', async () => {
+    mockInspectPreviewElement.mockResolvedValue({
+      ok: true,
+      isSelect: true,
+      value: 'a',
+      options: [
+        { value: 'a', label: 'A', selected: true },
+        { value: 'b', label: 'B', selected: false },
+      ],
+    });
+
+    const res = await previewRoutes.handle(
+      new Request(`${BASE}/42/preview/inspect`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ x: 10, y: 20 }),
+      }),
+    );
+    const body = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(body.isSelect).toBe(true);
+    expect(body.options).toHaveLength(2);
+    expect(mockInspectPreviewElement).toHaveBeenCalledWith(42, 10, 20);
+  });
+
+  it('selectではない場合、isSelect:false を返すこと', async () => {
+    mockInspectPreviewElement.mockResolvedValue({ ok: true, isSelect: false });
+
+    const res = await previewRoutes.handle(
+      new Request(`${BASE}/42/preview/inspect`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ x: 10, y: 20 }),
+      }),
+    );
+    const body = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(body.isSelect).toBe(false);
+  });
+
+  it('未起動時は 404 を返すこと', async () => {
+    mockInspectPreviewElement.mockResolvedValue({ ok: false, reason: 'not_active' });
+
+    const res = await previewRoutes.handle(
+      new Request(`${BASE}/42/preview/inspect`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ x: 10, y: 20 }),
+      }),
+    );
+
+    expect(res.status).toBe(404);
   });
 });

@@ -731,7 +731,8 @@
       "stoppingHint": "Stopping the preview...",
       "loadingScreenshot": "Loading screenshot...",
       "screenshotAlt": "Preview screenshot",
-      "interactHint": "Click to interact / keyboard input supported"
+      "interactHint": "Click to interact / keyboard input supported",
+      "closeSelectOverlay": "Close options"
     },
     "labelSelector": {
       "empty": "No labels.",

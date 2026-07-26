@@ -338,6 +338,85 @@ describe('TaskPreviewSection', () => {
     expect(fetchMock).toHaveBeenCalledWith('http://test:3001/tasks/1/preview/screenshot');
   });
 
+  it('clicking a native <select> shows our own dropdown instead of relaying a click', async () => {
+    // Regression: a native <select>'s dropdown is drawn by the OS/browser
+    // chrome, not the page, so it never appears in the screenshot and a raw
+    // click can't pick an option in it — clicking one used to silently do
+    // nothing useful.
+    const fetchMock = vi.fn().mockImplementation((url: string) => {
+      if (url.includes('/status')) {
+        return Promise.resolve(jsonResponse({ active: true, url: 'http://localhost:5173' }));
+      }
+      if (url.includes('/inspect')) {
+        return Promise.resolve(
+          jsonResponse({
+            success: true,
+            isSelect: true,
+            value: 'a',
+            options: [
+              { value: 'a', label: 'Option A', selected: true },
+              { value: 'b', label: 'Option B', selected: false },
+            ],
+          }),
+        );
+      }
+      if (url.includes('/interact')) return Promise.resolve(jsonResponse({ success: true }));
+      if (url.includes('/screenshot')) return Promise.resolve(blobResponse([1, 2, 3]));
+      return Promise.resolve(jsonResponse({}));
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    render(<TaskPreviewSection taskId={1} />);
+    await flush();
+
+    const img = screen.getByAltText('screenshotAlt');
+    vi.spyOn(img, 'getBoundingClientRect').mockReturnValue({
+      x: 0,
+      y: 0,
+      top: 0,
+      left: 0,
+      width: 640,
+      height: 400,
+      right: 640,
+      bottom: 400,
+      toJSON: () => ({}),
+    });
+
+    fetchMock.mockClear();
+    await act(async () => {
+      fireEvent.click(img, { clientX: 100, clientY: 50 });
+      for (let i = 0; i < 5; i++) await Promise.resolve();
+    });
+
+    // The overlay is shown with both options, and NO click interaction was
+    // relayed (only the inspect call happened).
+    expect(screen.getByText('Option A')).toBeInTheDocument();
+    expect(screen.getByText('Option B')).toBeInTheDocument();
+    expect(fetchMock).toHaveBeenCalledWith(
+      'http://test:3001/tasks/1/preview/inspect',
+      expect.objectContaining({ method: 'POST', body: JSON.stringify({ x: 200, y: 100 }) }),
+    );
+    expect(fetchMock).not.toHaveBeenCalledWith(
+      'http://test:3001/tasks/1/preview/interact',
+      expect.anything(),
+    );
+
+    // Choosing an option relays a 'select' action and closes the overlay.
+    fetchMock.mockClear();
+    await act(async () => {
+      fireEvent.click(screen.getByText('Option B'));
+      for (let i = 0; i < 5; i++) await Promise.resolve();
+    });
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      'http://test:3001/tasks/1/preview/interact',
+      expect.objectContaining({
+        body: JSON.stringify({ action: 'select', x: 200, y: 100, value: 'b' }),
+      }),
+    );
+    expect(screen.queryByText('Option B')).not.toBeInTheDocument();
+  });
+
   it('typing a printable key relays a "type" action; Enter relays a "key" action', async () => {
     const fetchMock = vi.fn().mockImplementation((url: string) => {
       if (url.includes('/status')) {

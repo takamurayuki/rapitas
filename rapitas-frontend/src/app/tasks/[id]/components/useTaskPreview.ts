@@ -1,24 +1,20 @@
 /**
  * useTaskPreview
  *
- * State and network logic for TaskPreviewSection: start/stop the backend
- * preview session, poll screenshots while active, and relay click/keyboard/
- * scroll interactions to the live page. Split out of the component so the
- * view stays focused on rendering (COMPONENT_SPLITTING_POLICY.md — extract a
- * hook once state logic exceeds ~30 lines; this is well past that).
+ * Session lifecycle and network logic for TaskPreviewSection: start/stop the
+ * backend preview session, restore an already-running session on mount, and
+ * poll screenshots while active. Interaction relaying (click/keyboard/scroll/
+ * select) lives in usePreviewInteraction.ts, composed in here so the view
+ * only needs one hook call (COMPONENT_SPLITTING_POLICY.md — extract a hook
+ * once state logic exceeds ~30 lines; the combined logic exceeded 300 lines).
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { API_BASE_URL } from '@/utils/api';
+import { usePreviewInteraction } from './usePreviewInteraction';
 
 /** How often to re-fetch the screenshot while the preview is active. */
 const SCREENSHOT_INTERVAL_MS = 3_000;
-
-/** Fixed headless-browser viewport the backend launches (preview-session-manager.ts) — click coordinates are scaled against this, not the displayed <img> size. */
-const PREVIEW_VIEWPORT = { width: 1280, height: 800 };
-
-/** DOM KeyboardEvent.key values that don't match Playwright's key names 1:1. */
-const KEY_NAME_OVERRIDES: Record<string, string> = { ' ': 'Space' };
 
 export type PreviewState =
   | { phase: 'idle' }
@@ -26,12 +22,6 @@ export type PreviewState =
   | { phase: 'active'; url: string }
   | { phase: 'stopping'; url: string }
   | { phase: 'error'; message: string };
-
-type PreviewInteraction =
-  | { action: 'click'; x: number; y: number }
-  | { action: 'type'; text: string }
-  | { action: 'key'; key: string }
-  | { action: 'scroll'; deltaX?: number; deltaY?: number };
 
 /**
  * @param taskId - Task whose worktree to preview. / プレビュー対象タスクID
@@ -43,11 +33,6 @@ export function useTaskPreview(taskId: number) {
   const objectUrlRef = useRef<string | null>(null);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
-  // Drops overlapping interactions (mainly rapid-fire wheel events) instead
-  // of queuing them — each interaction round-trips to the backend AND
-  // triggers an immediate screenshot refetch, so flooding it would just pile
-  // up latency with no visible benefit.
-  const interactionBusyRef = useRef(false);
   // Bumped by handleStart/handleStop — lets a still-in-flight handleStart
   // notice it's been superseded (the user clicked Stop, or clicked Start
   // again) and skip applying its now-stale response, instead of reviving a
@@ -75,61 +60,12 @@ export function useTaskPreview(taskId: number) {
     }
   }, [taskId]);
 
-  /** Relay one interaction to the live page, then refetch the screenshot so its effect shows up immediately (not on the next 3s poll tick). */
-  const sendInteraction = useCallback(
-    async (interaction: PreviewInteraction) => {
-      if (interactionBusyRef.current) return;
-      interactionBusyRef.current = true;
-      try {
-        await fetch(`${API_BASE_URL}/tasks/${taskId}/preview/interact`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(interaction),
-        });
-        await fetchScreenshot();
-      } catch {
-        /* best-effort — a dropped interaction just means this frame stays stale a beat longer */
-      } finally {
-        interactionBusyRef.current = false;
-      }
-    },
-    [taskId, fetchScreenshot],
+  const interaction = usePreviewInteraction(
+    taskId,
+    state.phase === 'active',
+    containerRef,
+    fetchScreenshot,
   );
-
-  /** Click on the screenshot — scales displayed-image coordinates to the fixed headless-browser viewport before relaying. */
-  const handlePreviewClick = (e: React.MouseEvent<HTMLImageElement>) => {
-    if (state.phase !== 'active') return;
-    const rect = e.currentTarget.getBoundingClientRect();
-    const x = Math.round(((e.clientX - rect.left) / rect.width) * PREVIEW_VIEWPORT.width);
-    const y = Math.round(((e.clientY - rect.top) / rect.height) * PREVIEW_VIEWPORT.height);
-    void sendInteraction({ action: 'click', x, y });
-  };
-
-  /** Keyboard capture while the preview panel has focus — printable characters type, everything else relays as a named key press. */
-  const handlePreviewKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
-    if (state.phase !== 'active') return;
-    e.preventDefault();
-    if (e.key.length === 1 && e.key !== ' ') {
-      void sendInteraction({ action: 'type', text: e.key });
-    } else {
-      void sendInteraction({ action: 'key', key: KEY_NAME_OVERRIDES[e.key] ?? e.key });
-    }
-  };
-
-  // Native (non-passive) wheel listener — React's synthetic onWheel is
-  // passive by default, so e.preventDefault() there silently no-ops and the
-  // HOST page scrolls along with the remote one. Attaching manually lets us
-  // actually stop that and relay only the remote scroll.
-  useEffect(() => {
-    const el = containerRef.current;
-    if (!el || state.phase !== 'active') return;
-    const onWheel = (e: WheelEvent) => {
-      e.preventDefault();
-      void sendInteraction({ action: 'scroll', deltaX: e.deltaX, deltaY: e.deltaY });
-    };
-    el.addEventListener('wheel', onWheel, { passive: false });
-    return () => el.removeEventListener('wheel', onWheel);
-  }, [state.phase, sendInteraction]);
 
   // Restore state if a preview is already running (e.g. navigated back to
   // this task, or a hard page reload). NOTE: deliberately no "stop on
@@ -235,7 +171,6 @@ export function useTaskPreview(taskId: number) {
     containerRef,
     handleStart,
     handleStop,
-    handlePreviewClick,
-    handlePreviewKeyDown,
+    ...interaction,
   };
 }

@@ -10,8 +10,11 @@ import {
   stopPreview,
   getPreviewStatus,
   screenshotPreview,
-  interactWithPreview,
 } from '../../../services/agents/preview/preview-session-manager';
+import {
+  interactWithPreview,
+  inspectPreviewElement,
+} from '../../../services/agents/preview/preview-interaction';
 import { HTTP_STATUS } from '../../../utils/common/http-status';
 
 export const previewRoutes = new Elysia()
@@ -103,6 +106,37 @@ export const previewRoutes = new Elysia()
           deltaX: t.Optional(t.Number()),
           deltaY: t.Optional(t.Number()),
         }),
+        t.Object({ action: t.Literal('select'), x: t.Number(), y: t.Number(), value: t.String() }),
       ]),
+    },
+  )
+
+  /** Check whether a page-space point is a native <select> before the frontend decides how to handle a click on it. */
+  .post(
+    '/tasks/:id/preview/inspect',
+    async (context) => {
+      const { params, body, set } = context;
+      const taskId = parseInt(params.id);
+      if (isNaN(taskId)) {
+        set.status = HTTP_STATUS.BAD_REQUEST;
+        return { error: 'Invalid task id' };
+      }
+      const result = await inspectPreviewElement(taskId, body.x, body.y);
+      if (!result.ok) {
+        set.status =
+          result.reason === 'not_active'
+            ? HTTP_STATUS.NOT_FOUND
+            : HTTP_STATUS.INTERNAL_SERVER_ERROR;
+        return { success: false, error: result.message ?? result.reason };
+      }
+      return {
+        success: true,
+        isSelect: result.isSelect,
+        value: result.value,
+        options: result.options,
+      };
+    },
+    {
+      body: t.Object({ x: t.Number(), y: t.Number() }),
     },
   );

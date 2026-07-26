@@ -9,7 +9,9 @@
  * embedded preview panel can repeatedly screenshot it. Unlike runtime-smoke's
  * one-shot verification run, sessions here are long-lived (until explicitly
  * stopped or idle) and held in-process — this module is NOT responsible for
- * verification pass/fail judgement.
+ * verification pass/fail judgement. Relaying user interactions (click/type/
+ * scroll/select) to a live session lives in preview-interaction.ts, which
+ * reads the `sessions` map this module owns.
  */
 import { existsSync } from 'fs';
 import { createLogger } from '../../../config/logger';
@@ -37,7 +39,7 @@ const IDLE_TIMEOUT_MS = 15 * 60_000;
 /** How often the sweep checks for idle sessions. */
 const SWEEP_INTERVAL_MS = 60_000;
 
-interface PreviewSession {
+export interface PreviewSession {
   app: LaunchedApp;
   worker: PlaywrightWorker;
   url: string;
@@ -45,7 +47,11 @@ interface PreviewSession {
   lastAccessedAt: Date;
 }
 
-const sessions = new Map<number, PreviewSession>();
+// Exported for preview-interaction.ts (interact/inspect need the same live
+// session map) — kept in this file since startPreview/stopPreview own its
+// lifecycle; interact/inspect only ever read an existing entry or touch
+// lastAccessedAt, never create/delete one.
+export const sessions = new Map<number, PreviewSession>();
 
 /**
  * Resources for an in-progress (not yet fully established) startPreview
@@ -335,54 +341,6 @@ export async function screenshotPreview(taskId: number): Promise<ScreenshotResul
   try {
     const buffer = await s.worker.screenshot();
     return { ok: true, buffer };
-  } catch (e) {
-    return { ok: false, reason: 'error', message: e instanceof Error ? e.message : String(e) };
-  }
-}
-
-/** A single interaction the preview panel can relay to the live page. */
-export type PreviewInteraction =
-  | { action: 'click'; x: number; y: number }
-  | { action: 'type'; text: string }
-  | { action: 'key'; key: string }
-  | { action: 'scroll'; deltaX?: number; deltaY?: number };
-
-export type InteractResult =
-  | { ok: true }
-  | { ok: false; reason: 'not_active' | 'error'; message?: string };
-
-/**
- * Relay a user interaction (click/type/key/scroll) to the task's live preview
- * page — makes the embedded panel a real remote control, not just a read-only
- * screenshot viewer.
- *
- * @param taskId - Task whose preview to interact with. / 対象タスクID
- * @param interaction - The action to perform. / 実行する操作
- * @returns Whether the interaction was applied. / 実行結果
- */
-export async function interactWithPreview(
-  taskId: number,
-  interaction: PreviewInteraction,
-): Promise<InteractResult> {
-  const s = sessions.get(taskId);
-  if (!s) return { ok: false, reason: 'not_active' };
-  s.lastAccessedAt = new Date();
-  try {
-    switch (interaction.action) {
-      case 'click':
-        await s.worker.click({ x: interaction.x, y: interaction.y });
-        break;
-      case 'type':
-        await s.worker.type({ text: interaction.text });
-        break;
-      case 'key':
-        await s.worker.pressKey({ key: interaction.key });
-        break;
-      case 'scroll':
-        await s.worker.scroll({ deltaX: interaction.deltaX, deltaY: interaction.deltaY });
-        break;
-    }
-    return { ok: true };
   } catch (e) {
     return { ok: false, reason: 'error', message: e instanceof Error ? e.message : String(e) };
   }

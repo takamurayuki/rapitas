@@ -107,6 +107,54 @@ async function cmdScroll(args) {
   return { ok: true };
 }
 
+/**
+ * Check whether a page-space point is (inside) a <select> and, if so, list
+ * its options. A native <select>'s dropdown is drawn by the OS/browser
+ * chrome, not the page — it never appears in a CDP screenshot, so a raw
+ * mouse.click() "opens" something the user can't see and can't click an
+ * option in. The frontend uses this to detect a select BEFORE clicking and
+ * render its own dropdown UI instead.
+ */
+async function cmdInspectSelect(args) {
+  if (!page) throw new Error('no page open');
+  return page.evaluate(
+    ({ x, y }) => {
+      const el = document.elementFromPoint(x, y);
+      const select = el && el.closest ? el.closest('select') : null;
+      if (!select) return { isSelect: false };
+      return {
+        isSelect: true,
+        value: select.value,
+        options: Array.from(select.options).map((o) => ({
+          value: o.value,
+          label: o.text,
+          selected: o.selected,
+        })),
+      };
+    },
+    { x: args.x, y: args.y },
+  );
+}
+
+/** Set a <select>'s value directly (bypasses the native dropdown entirely) and fire input/change so the page's own listeners react normally. */
+async function cmdSelectOption(args) {
+  if (!page) throw new Error('no page open');
+  const ok = await page.evaluate(
+    ({ x, y, value }) => {
+      const el = document.elementFromPoint(x, y);
+      const select = el && el.closest ? el.closest('select') : null;
+      if (!select) return false;
+      select.value = value;
+      select.dispatchEvent(new Event('input', { bubbles: true }));
+      select.dispatchEvent(new Event('change', { bubbles: true }));
+      return true;
+    },
+    { x: args.x, y: args.y, value: args.value },
+  );
+  if (!ok) throw new Error('no <select> element at that position');
+  return { ok: true };
+}
+
 /** One-shot navigate + settle + collect + screenshot + close, mirroring browser-smoke.ts's per-path check. */
 async function cmdCheckPath(args) {
   if (!context) throw new Error('not launched');
@@ -161,6 +209,8 @@ const HANDLERS = {
   type: cmdType,
   pressKey: cmdPressKey,
   scroll: cmdScroll,
+  inspectSelect: cmdInspectSelect,
+  selectOption: cmdSelectOption,
   checkPath: cmdCheckPath,
   close: cmdClose,
 };
