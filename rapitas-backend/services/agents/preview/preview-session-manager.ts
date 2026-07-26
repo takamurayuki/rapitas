@@ -271,6 +271,21 @@ export async function stopPreview(taskId: number): Promise<void> {
   await killPending(taskId);
 }
 
+/**
+ * Stop every active/in-progress preview session. Called from the backend's
+ * graceful shutdown path so a `playwright-worker.mjs` process (and the
+ * browser it launched) never outlives the backend process that started it —
+ * previously nothing closed these on shutdown, so restarting the server
+ * while a preview was open/starting left the worker + browser running as
+ * orphans, accumulating across repeated restarts.
+ */
+export async function stopAllPreviewSessions(): Promise<void> {
+  const taskIds = new Set<number>([...sessions.keys(), ...pending.keys()]);
+  if (taskIds.size === 0) return;
+  log.info({ count: taskIds.size }, '[preview] stopping all sessions for shutdown');
+  await Promise.all([...taskIds].map((taskId) => stopPreview(taskId)));
+}
+
 export interface PreviewStatus {
   active: boolean;
   url?: string;

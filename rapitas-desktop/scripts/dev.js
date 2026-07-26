@@ -894,6 +894,86 @@ function killStrayBunPosix() {
 }
 
 /**
+ * 残留 playwright-worker.mjs プロセス（+ その配下のブラウザ）を安全に kill する。
+ *
+ * 必要性: プレビュー機能はBunからPlaywrightのCDPハンドシェイクが完了しない
+ * 問題を回避するため、実ブラウザ操作を node で spawn する
+ * playwright-worker.mjs の子プロセスに切り出している(services/agents/
+ * verification/runtime-smoke/playwright-worker.mjs)。バックエンドの
+ * gracefulShutdown はプレビューセッションを閉じてからこのワーカーを終了する
+ * ようになったが、クラッシュ終了や強制kill時はそのフックを経由しないため
+ * ワーカー(と配下のヘッドレスブラウザ)が孤児化しうる。restartBackend の
+ * たびにこれを一掃し、再起動後に古いワーカー/ブラウザへ迷い込む余地を無くす。
+ *
+ * "playwright-worker.mjs" というコマンドライン文字列は他のどのrapitas
+ * プロセス(frontend/backend/dev.js自身)にも現れないため、frontend/backendを
+ * 誤って巻き込む心配がない、極めて狭い一致条件。
+ *
+ * @returns 強制終了したプロセス数
+ */
+function killStrayPlaywrightWorkers() {
+  console.log("\nKilling stray playwright-worker processes...");
+  const killed =
+    process.platform === "win32"
+      ? killStrayPlaywrightWorkersWindows()
+      : killStrayPlaywrightWorkersPosix();
+  if (killed === 0) console.log("  No stray playwright-worker processes found.");
+  return killed;
+}
+
+function killStrayPlaywrightWorkersWindows() {
+  const procs = queryWin32Processes("Name='node.exe'");
+  let killed = 0;
+  for (const proc of procs) {
+    const pid = Number(proc.ProcessId);
+    if (!Number.isInteger(pid)) continue;
+    const inspectable = `${proc.CommandLine || ""} ${proc.ExecutablePath || ""}`;
+    if (!/playwright-worker\.mjs/i.test(inspectable)) continue;
+    try {
+      execSync(`taskkill /F /T /PID ${pid}`, { stdio: "pipe" });
+      console.log(`  Killed playwright-worker PID ${pid}`);
+      killed++;
+    } catch (err) {
+      const msg = err.stderr ? err.stderr.toString() : err.message || "";
+      if (!/not found|見つかりません/i.test(msg)) {
+        console.warn(`  Failed to kill PID ${pid}: ${msg.trim()}`);
+      }
+    }
+  }
+  return killed;
+}
+
+function killStrayPlaywrightWorkersPosix() {
+  let stdout = "";
+  try {
+    stdout = execSync("ps -eo pid,args", {
+      encoding: "utf8",
+      stdio: ["pipe", "pipe", "ignore"],
+    });
+  } catch (err) {
+    console.warn(`  Could not list processes: ${err.message}`);
+    return 0;
+  }
+  const targets = stdout.split("\n").filter((l) => /playwright-worker\.mjs/i.test(l));
+  let killed = 0;
+  for (const line of targets) {
+    const m = line.trim().match(/^(\d+)\s+/);
+    if (!m) continue;
+    const pid = parseInt(m[1], 10);
+    try {
+      process.kill(pid, "SIGKILL");
+      console.log(`  Killed playwright-worker PID ${pid}`);
+      killed++;
+    } catch (err) {
+      if (err.code !== "ESRCH") {
+        console.warn(`  Failed to kill PID ${pid}: ${err.message}`);
+      }
+    }
+  }
+  return killed;
+}
+
+/**
  * .agent-pids/ ディレクトリを走査し、前回クラッシュ時の残存エージェントプロセスをkillする。
  * ポート3001をLISTENしているプロセスは保護（CLAUDE.md制約遵守）。
  */
@@ -1449,14 +1529,28 @@ async function stopBackendCompletely(skipShutdownApi = false) {
  * 引き続き手動でのフルプロセス再起動を必要とする。restartFrontend() 自体は
  * メモリwatchdogからの呼び出し用に残す。
  *
+ * NOTE: 過去に「再起動しても前のプロセスに接続されたままになり、画面が
+ * 読み込み中のまま固まる」という報告があった。stopBackendCompletely は
+ * dev.js が spawn した`backend`変数(シェルラッパー)のツリーkillだけを行う
+ * ため、それとは別に生き残った残留プロセス — 特に、バックエンドが自分の
+ * graceful shutdown フックを経由せず終了した場合(クラッシュ・強制kill)に
+ * 残る stray な bun.exe や、プレビュー機能が node で spawn する
+ * playwright-worker.mjs (+配下のヘッドレスブラウザ) — は対象外だった。
+ * 新しいバックエンドの起動前にこれらを一掃することで、再起動後に古い
+ * プロセスへ迷い込む余地を無くす。
+ *
  * @param {boolean} processAlreadyExited - trueの場合、プロセスが既に終了済み（シャットダウンAPIスキップ）
  */
 async function restartBackend(processAlreadyExited = false) {
   console.log("\n🔄 Restarting backend server...");
-  console.log("  Step 1/3: Stopping backend completely...");
+  console.log("  Step 1/4: Stopping backend completely...");
   await stopBackendCompletely(processAlreadyExited);
 
-  console.log("  Step 2/3: Syncing database and generating Prisma Client...");
+  console.log("  Step 2/4: Cleaning up stray processes...");
+  killStrayBunProcesses();
+  killStrayPlaywrightWorkers();
+
+  console.log("  Step 3/4: Syncing database and generating Prisma Client...");
   try {
     syncDatabaseAndGenerateClient();
   } catch (err) {
@@ -1464,7 +1558,7 @@ async function restartBackend(processAlreadyExited = false) {
     console.log("  Attempting to start backend without DB sync...");
   }
 
-  console.log("  Step 3/3: Starting backend...");
+  console.log("  Step 4/4: Starting backend...");
   crashTimestamps = []; // フルリスタート時はクラッシュカウンターをリセット
   startBackend();
   console.log("✅ Backend restart completed.");
@@ -1806,6 +1900,7 @@ async function main() {
   // ※ ポート kill 後に行うと LISTEN してない bun (テスト・スクリプト orphan) を取り逃すため、
   //   ポート確保より先に実行する。
   killStrayBunProcesses();
+  killStrayPlaywrightWorkers();
 
   // ポートのクリーンアップ（前回クラッシュ時のゾンビプロセス対策）
   console.log("\nChecking ports...");
@@ -1830,6 +1925,7 @@ async function main() {
         "\n⚠️  Prisma generate hit EPERM (DLL locked). Retrying after extra bun kill...",
       );
       killStrayBunProcesses();
+      killStrayPlaywrightWorkers();
       // ポートを再確保（リトライ前に何かが立ち上がった可能性）
       actualBackendPort = await ensurePortAvailable(BACKEND_PORT);
       syncDatabaseAndGenerateClient();
@@ -1864,6 +1960,7 @@ async function main() {
     if (retryAttempt >= 2) {
       forceKillAllOnPort(actualBackendPort);
       killStrayBunProcesses();
+      killStrayPlaywrightWorkers();
     }
     await stopBackendCompletely();
     actualBackendPort = await ensurePortAvailable(BACKEND_PORT);
@@ -2217,6 +2314,7 @@ function cleanupSync() {
   // 片付けることで、次回起動前にタスクマネージャーで手動検索する必要をなくす。
   cleanupAgentPidFiles();
   killStrayBunProcesses();
+  killStrayPlaywrightWorkers();
 
   // Step 0: バックエンドにグレースフルシャットダウンを要求
   // これによりリスニングソケットが正しく閉じられ、次回起動時のポート競合を防止

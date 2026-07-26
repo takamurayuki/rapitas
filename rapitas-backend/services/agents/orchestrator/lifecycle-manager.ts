@@ -6,6 +6,7 @@
 import { createLogger } from '../../../config/logger';
 import type { PrismaClientInstance, ActiveAgentInfo, ExecutionState } from './types';
 import type { QuestionTimeoutManager } from './question-timeout-manager';
+import { stopAllPreviewSessions } from '../preview/preview-session-manager';
 
 const logger = createLogger('lifecycle-manager');
 
@@ -122,6 +123,14 @@ export async function gracefulShutdown(
   try {
     ctx.questionTimeoutManager.cancelAllTimeouts();
     ctx.questionTimeoutManager.clearAllLocks();
+
+    // Live-preview sessions spawn a playwright-worker.mjs Node child process
+    // (plus the browser it launched) that nothing else kills on shutdown —
+    // stop them here so a restart while a preview is open/starting can't
+    // leave that process tree orphaned.
+    await stopAllPreviewSessions().catch((err) => {
+      logger.error({ err }, '[LifecycleManager] Failed to stop preview sessions during shutdown');
+    });
 
     const stopPromises = Array.from(ctx.activeAgents.entries()).map(async ([executionId, info]) => {
       try {

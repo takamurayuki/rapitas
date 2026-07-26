@@ -5,7 +5,7 @@
  * process.on / process.exit are stubbed for setupSignalHandlers so no real
  * signal listener is attached and no test-process-wide exit can be triggered.
  */
-import { describe, test, expect, mock, spyOn } from 'bun:test';
+import { describe, test, expect, mock, spyOn, beforeEach } from 'bun:test';
 
 // ── Module-level mocks (before dynamic import) ─────────────────────────────
 
@@ -13,6 +13,11 @@ mock.module('../../../config/logger', () => ({
   logger: { info: () => {}, warn: () => {}, error: () => {}, debug: () => {} },
   createLogger: () => ({ info: () => {}, warn: () => {}, error: () => {}, debug: () => {} }),
   getBackendLogFilePath: () => '/tmp/fake.log',
+}));
+
+const mockStopAllPreviewSessions = mock(() => Promise.resolve());
+mock.module('../preview/preview-session-manager', () => ({
+  stopAllPreviewSessions: mockStopAllPreviewSessions,
 }));
 
 const { saveAgentState, saveAllAgentStates, gracefulShutdown, setupSignalHandlers } =
@@ -222,6 +227,29 @@ describe('saveAllAgentStates', () => {
 // ── gracefulShutdown ──────────────────────────────────────────────────────
 
 describe('gracefulShutdown', () => {
+  beforeEach(() => {
+    mockStopAllPreviewSessions.mockClear();
+  });
+
+  test('stops all live-preview sessions (playwright-worker.mjs processes) before stopping agents', async () => {
+    const ctx = makeCtx();
+
+    await gracefulShutdown(ctx);
+
+    expect(mockStopAllPreviewSessions).toHaveBeenCalledTimes(1);
+  });
+
+  test('a rejecting preview-session cleanup does not block the rest of shutdown', async () => {
+    mockStopAllPreviewSessions.mockImplementationOnce(() =>
+      Promise.reject(new Error('worker close failed')),
+    );
+    const serverStopCallback = mock(() => Promise.resolve());
+    const ctx = makeCtx({ serverStopCallback });
+
+    await expect(gracefulShutdown(ctx)).resolves.toBeUndefined();
+    expect(serverStopCallback).toHaveBeenCalledTimes(1);
+  });
+
   test('is a no-op re-entry guard when shutdown is already in progress', async () => {
     const setIsShuttingDown = mock((_v: boolean) => {});
     const ctx = makeCtx({ getIsShuttingDown: () => true, setIsShuttingDown });
