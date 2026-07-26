@@ -8,7 +8,7 @@ import { prisma } from '../../config/database';
 import { createLogger } from '../../config/logger';
 import { sendAIMessage } from '../../utils/ai-client';
 import { appendEvent } from './timeline';
-import { createContentHash } from './utils';
+import { createContentHash, parseTagsAsStrings } from './utils';
 
 const log = createLogger('memory:consolidation');
 
@@ -37,12 +37,20 @@ export async function runConsolidation(): Promise<{
   try {
     const since = new Date(Date.now() - 24 * 60 * 60 * 1000);
 
-    // Fetch active entries from the last 24 hours
+    // Fetch active entries from the last 24 hours. Excludes 'hypothesis' as
+    // well as 'consolidated': the hypothesis ledger overloads this same
+    // KnowledgeEntry.tags column to store `{evidence:[...]}` (see
+    // hypothesis-service.ts's file header — a deliberate storage hack, no
+    // schema change), not a string[] like every other sourceType. Mixing a
+    // hypothesis entry into a consolidation group fed that object straight
+    // into the flatMap below, corrupting the merged tags array with a raw
+    // object element that later crashed the frontend
+    // ("Objects are not valid as a React child... {evidence}").
     const entries = await prisma.knowledgeEntry.findMany({
       where: {
         createdAt: { gte: since },
         forgettingStage: 'active',
-        sourceType: { not: 'consolidated' },
+        sourceType: { notIn: ['consolidated', 'hypothesis'] },
       },
       orderBy: { createdAt: 'asc' },
     });
@@ -112,7 +120,7 @@ ${entrySummaries}
             category,
             tags: JSON.stringify([
               'consolidated',
-              ...new Set(groupEntries.flatMap((e) => JSON.parse(e.tags))),
+              ...new Set(groupEntries.flatMap((e) => parseTagsAsStrings(e.tags))),
             ]),
             confidence:
               groupEntries.reduce((sum, e) => sum + e.confidence, 0) / groupEntries.length,

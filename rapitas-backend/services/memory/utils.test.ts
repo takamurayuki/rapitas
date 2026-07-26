@@ -1,6 +1,6 @@
 import { describe, test, expect } from 'bun:test';
 import { createHash } from 'crypto';
-import { createContentHash, cosineSimilarity } from './utils';
+import { createContentHash, cosineSimilarity, parseTagsAsStrings } from './utils';
 
 describe('createContentHash', () => {
   test('returns the sha256 hex digest of the content', () => {
@@ -47,5 +47,34 @@ describe('cosineSimilarity', () => {
   test('computes a known non-trivial similarity', () => {
     // a=(1,1), b=(1,0): dot=1, |a|=sqrt(2), |b|=1 -> 1/sqrt(2)
     expect(cosineSimilarity([1, 1], [1, 0])).toBeCloseTo(1 / Math.sqrt(2), 10);
+  });
+});
+
+describe('parseTagsAsStrings', () => {
+  test('parses a well-formed string array', () => {
+    expect(parseTagsAsStrings('["a","b","c"]')).toEqual(['a', 'b', 'c']);
+  });
+
+  test('returns [] for the hypothesis ledger overloaded {evidence:[...]} shape', () => {
+    // Regression: hypothesis-service.ts stores tags as JSON.stringify({evidence:[...]})
+    // instead of a string[] (a deliberate storage hack, see its file header) — a bare
+    // JSON.parse would return that raw object, which later crashed the frontend when
+    // spliced into a merged tags array by consolidation.ts's flatMap.
+    expect(parseTagsAsStrings('{"evidence":[{"stance":"for","detail":"x"}]}')).toEqual([]);
+  });
+
+  test('filters out non-string elements from an otherwise-valid array', () => {
+    expect(parseTagsAsStrings('["ok",{"evidence":[]},42,null,"also-ok"]')).toEqual([
+      'ok',
+      'also-ok',
+    ]);
+  });
+
+  test('returns [] for invalid JSON', () => {
+    expect(parseTagsAsStrings('not json')).toEqual([]);
+  });
+
+  test('returns [] for an empty array', () => {
+    expect(parseTagsAsStrings('[]')).toEqual([]);
   });
 });

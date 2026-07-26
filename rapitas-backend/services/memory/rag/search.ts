@@ -6,6 +6,7 @@
 import { prisma } from '../../../config/database';
 import { generateEmbedding } from './embedding';
 import { searchSimilar } from './vector-index';
+import { parseTagsAsStrings } from '../utils';
 import type { VectorSearchResult, KnowledgeSearchOptions } from '../types';
 
 /**
@@ -103,7 +104,7 @@ export async function searchKnowledge(options: KnowledgeSearchOptions): Promise<
         ...e,
         similarity,
         rankScore: similarity * (TRUST_WEIGHT[e.validationStatus] ?? 1.0),
-        tags: JSON.parse(e.tags) as string[],
+        tags: parseTagsAsStrings(e.tags),
       };
     })
     // Tie-break on id: two entries can land on the exact same rankScore (e.g.

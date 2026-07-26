@@ -33,6 +33,13 @@ export function KnowledgeEntryCard({
 
   const confidencePercent = Math.round(entry.confidence * 100);
   const decayPercent = Math.round(entry.decayScore * 100);
+  // Defense in depth: `entry.tags` is typed string[], but a legacy
+  // consolidated entry created before the backend fix (services/memory/
+  // consolidation.ts) can still hold a stray non-string element — the
+  // hypothesis ledger overloads the same tags column with `{evidence:...}`,
+  // which used to leak into merged tag arrays and crash this render
+  // ("Objects are not valid as a React child... {evidence}").
+  const stringTags = entry.tags.filter((tag): tag is string => typeof tag === 'string');
 
   return (
     <div
@@ -98,9 +105,9 @@ export function KnowledgeEntryCard({
         <span className="text-xs text-gray-400 dark:text-gray-500">
           {t(`sourceTypes.${entry.sourceType}`)}
         </span>
-        {entry.tags.length > 0 && (
+        {stringTags.length > 0 && (
           <div className="flex gap-1">
-            {entry.tags.slice(0, 3).map((tag) => (
+            {stringTags.slice(0, 3).map((tag) => (
               <span
                 key={tag}
                 className="text-xs px-1.5 py-0.5 rounded bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300"
@@ -108,8 +115,8 @@ export function KnowledgeEntryCard({
                 {tag}
               </span>
             ))}
-            {entry.tags.length > 3 && (
-              <span className="text-xs text-gray-400">+{entry.tags.length - 3}</span>
+            {stringTags.length > 3 && (
+              <span className="text-xs text-gray-400">+{stringTags.length - 3}</span>
             )}
           </div>
         )}

@@ -14,6 +14,7 @@ import {
 import { searchKnowledge } from '../../services/memory/rag/search';
 import { resetEmbeddingPipeline } from '../../services/memory/rag/embedding';
 import { boostDecayOnAccess } from '../../services/memory/forgetting';
+import { parseTagsAsStrings } from '../../services/memory/utils';
 import { prisma } from '../../config/database';
 import type {
   KnowledgeSourceType,
@@ -155,7 +156,7 @@ export const knowledgeRoutes = new Elysia({ prefix: '/knowledge' })
       // Update access count to slow forgetting decay
       await boostDecayOnAccess(id);
 
-      return { ...entry, tags: JSON.parse(entry.tags) };
+      return { ...entry, tags: parseTagsAsStrings(entry.tags) };
     },
     { params: t.Object({ id: t.String() }) },
   )

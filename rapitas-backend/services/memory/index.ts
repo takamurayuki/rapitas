@@ -52,7 +52,7 @@ import { runForgettingSweep, boostDecayOnAccess } from './forgetting';
 import { distillFromExecution } from './distillation';
 import { findSemanticDuplicate, findLexicalDuplicate } from './dedup';
 import { getKnowledgeEffectiveness } from './effectiveness';
-import { createContentHash } from './utils';
+import { createContentHash, parseTagsAsStrings } from './utils';
 import { appendEvent } from './timeline';
 import { getInsensitiveMode } from '../../config/db-provider';
 import type {
@@ -310,7 +310,12 @@ export async function listKnowledgeEntries(options: KnowledgeListOptions = {}) {
   ]);
 
   return {
-    entries: entries.map((e) => ({ ...e, tags: JSON.parse(e.tags) })),
+    // NOTE: JSON.parse(e.tags) alone would return a raw object for a
+    // hypothesis-sourced or corrupted-consolidation entry (see utils.ts's
+    // parseTagsAsStrings doc) instead of the string[] every consumer
+    // expects — that object then reaching the frontend as an array element
+    // is what crashed KnowledgeEntryCard.tsx's tag pills.
+    entries: entries.map((e) => ({ ...e, tags: parseTagsAsStrings(e.tags) })),
     total,
     page,
     limit,
