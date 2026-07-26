@@ -1436,24 +1436,27 @@ async function stopBackendCompletely(skipShutdownApi = false) {
 }
 
 /**
- * バックエンドを再起動する（完全停止 → DB同期 → 起動 → フロントエンド再起動）
+ * バックエンドを再起動する（完全停止 → DB同期 → 起動）
  *
- * フロントエンドも毎回リサイクルする理由: NEXT_PUBLIC_* 環境変数はフロントエンドの
- * ビルド時に焼き込まれるため、バックエンドだけを再起動してもフロントエンドが古い値
- * (例: NEXT_PUBLIC_API_BASE_URL)を握ったまま動き続けてしまう。UIの「サーバーを
- * 再起動」操作は利用者から見て「サーバー」全体を指すはずで、バックエンドだけを
- * 再起動してフロントエンドが古いままというのは直感に反する。restartFrontend()は
- * 既にフロントエンドのプロセスツリーkill→ポート解放確認→再起動を安全に行う実装が
- * あるため、それをここから呼ぶだけで済む。
+ * NOTE: 一時期このステップの後にフロントエンドも毎回リサイクルしていたが
+ * (bdaa4e5e)、日常の大半を占める「バックエンドのコードだけ変えた」ケースでも
+ * 毎回フロントエンドを数秒間道連れで落とすことになり、その間 useBackendHealth /
+ * useExecutingTasksPolling 等のポーリングが軒並みタイムアウトで騒がしくなる
+ * (実際にユーザー環境で確認、AbortError の連続ログ)。フロントエンドの再起動が
+ * 本当に必要なのは NEXT_PUBLIC_* のようなビルド時env変数を変えた時だけで、
+ * それは既に発生源(この変数の値そのもの)で修正済み・レア。バックエンドのみの
+ * 再起動に戻し(a7d4bc36以前の挙動)、env変数変更のような例外的なケースは
+ * 引き続き手動でのフルプロセス再起動を必要とする。restartFrontend() 自体は
+ * メモリwatchdogからの呼び出し用に残す。
  *
  * @param {boolean} processAlreadyExited - trueの場合、プロセスが既に終了済み（シャットダウンAPIスキップ）
  */
 async function restartBackend(processAlreadyExited = false) {
   console.log("\n🔄 Restarting backend server...");
-  console.log("  Step 1/4: Stopping backend completely...");
+  console.log("  Step 1/3: Stopping backend completely...");
   await stopBackendCompletely(processAlreadyExited);
 
-  console.log("  Step 2/4: Syncing database and generating Prisma Client...");
+  console.log("  Step 2/3: Syncing database and generating Prisma Client...");
   try {
     syncDatabaseAndGenerateClient();
   } catch (err) {
@@ -1461,21 +1464,9 @@ async function restartBackend(processAlreadyExited = false) {
     console.log("  Attempting to start backend without DB sync...");
   }
 
-  console.log("  Step 3/4: Starting backend...");
+  console.log("  Step 3/3: Starting backend...");
   crashTimestamps = []; // フルリスタート時はクラッシュカウンターをリセット
   startBackend();
-
-  console.log("  Step 4/4: Recycling frontend dev server...");
-  try {
-    await restartFrontend("backend-restart");
-  } catch (err) {
-    // フロントエンド再起動の失敗でバックエンド再起動自体を失敗扱いにはしない —
-    // バックエンドは既に起動済みなので、利用者は手動でフロントエンドを再起動すれば済む。
-    console.error(
-      "⚠️  Frontend recycle failed during backend restart (backend itself is up):",
-      err.message || err,
-    );
-  }
   console.log("✅ Backend restart completed.");
 }
 
