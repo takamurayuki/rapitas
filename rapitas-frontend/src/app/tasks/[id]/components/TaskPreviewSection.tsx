@@ -62,7 +62,7 @@ export default function TaskPreviewSection({ taskId }: TaskPreviewSectionProps) 
           )}
         </div>
         <div className="flex items-center gap-2">
-          <PillButton icon={Settings2} color="zinc" onClick={openSettings}>
+          <PillButton icon={Settings2} color="zinc" iconVariant="plain" onClick={openSettings}>
             {t('settings')}
           </PillButton>
           {state.phase === 'active' || state.phase === 'starting' ? (

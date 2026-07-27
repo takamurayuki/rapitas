@@ -55,15 +55,16 @@ export function PreviewSettingsModal({
           {t('stop')}
         </PillButton>
       )}
-      <PillButton
-        icon={Save}
-        color="blue"
-        iconVariant="plain"
+      {/* Same look as ThemeForm's own save button (theme-form.tsx) — same action, same glyph, same style. */}
+      <button
+        type="button"
         onClick={onSave}
         disabled={configEditor?.saving}
+        className="flex items-center gap-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 px-3 py-2 text-sm text-white transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed"
       >
+        <Save className="w-3.5 h-3.5" />
         {configEditor?.saving ? t('starting') : t('save')}
-      </PillButton>
+      </button>
     </>
   );
 
