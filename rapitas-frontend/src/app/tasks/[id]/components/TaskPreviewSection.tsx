@@ -12,7 +12,7 @@
  * TaskWorkflowSection. State/network logic lives in useTaskPreview.ts.
  */
 import { useTranslations } from 'next-intl';
-import { AppWindow, Play, Square, RefreshCw, AlertCircle, Settings2 } from 'lucide-react';
+import { AppWindow, Play, Square, RefreshCw, AlertCircle, Cog } from 'lucide-react';
 import { Spinner } from '@/components/ui/spinner';
 import { PillButton } from '@/components/ui/pill-button';
 import { useTaskPreview } from './useTaskPreview';
@@ -62,7 +62,7 @@ export default function TaskPreviewSection({ taskId }: TaskPreviewSectionProps) 
           )}
         </div>
         <div className="flex items-center gap-2">
-          <PillButton icon={Settings2} color="zinc" iconVariant="plain" onClick={openSettings}>
+          <PillButton icon={Cog} color="zinc" iconVariant="plain" onClick={openSettings}>
             {t('settings')}
           </PillButton>
           {state.phase === 'active' || state.phase === 'starting' ? (
@@ -126,7 +126,7 @@ export default function TaskPreviewSection({ taskId }: TaskPreviewSectionProps) 
             </div>
 
             {isConfigurable && (
-              <PillButton icon={Settings2} color="indigo" onClick={openSettings}>
+              <PillButton icon={Cog} color="indigo" onClick={openSettings}>
                 {t('configureRuntime')}
               </PillButton>
             )}

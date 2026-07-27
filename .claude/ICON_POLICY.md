@@ -92,6 +92,7 @@ Keep this list accurate. If you assign a glyph a new meaning, add it here.
 | `Columns2`                | 画面分割表示への切替（ノートモーダルの分割タブ、統合ターミナルのsplit表示切替 — 「サイドバイサイド分割」という共通概念の再利用） |
 | `ArrowLeftRight`          | 左右の位置を入れ替える操作（ノート分割のノート/AI入れ替え、統合ターミナルとタスク詳細スライドパネルのドック位置(左右)入れ替え） |
 | `AppWindow`               | ライブプレビュー概念全般（タスク詳細のライブプレビューセクション見出し、および `SystemStatusPanel` の起動中プレビュー数タイル — 同一概念の正当な再利用） |
+| `Cog`                     | 歯車アイコンでの「設定」操作全般（`claude-md-generator` ウィザードの「自動化」カテゴリアイコン、および `TaskPreviewSection` のプレビュー設定モーダルを開くボタン — 画面が完全に別なため実際の混同リスクは低いと判断し再利用。`Settings` は設定ハブnav専用に予約済みのため使用不可） |
 
 ### Known collisions
 
