@@ -12,7 +12,7 @@
  * view, for visually confirming the app actually renders correctly.
  */
 import { useTranslations } from 'next-intl';
-import { Square, File } from 'lucide-react';
+import { Square, Save } from 'lucide-react';
 import { Modal } from '@/components/ui/modal/Modal';
 import { Spinner } from '@/components/ui/spinner';
 import { PillButton } from '@/components/ui/pill-button';
@@ -56,7 +56,7 @@ export function PreviewSettingsModal({
         </PillButton>
       )}
       <PillButton
-        icon={File}
+        icon={Save}
         color="blue"
         iconVariant="plain"
         onClick={onSave}
