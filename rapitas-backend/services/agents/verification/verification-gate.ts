@@ -111,6 +111,7 @@ export async function runVerificationGate(
     planContent,
     requireTests,
     preferredBaseBranch,
+    taskId,
   }).catch((err) => {
     log.warn({ err, taskId }, 'Automated verification crashed — skipping gate');
     return null;

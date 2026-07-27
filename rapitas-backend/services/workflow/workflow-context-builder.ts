@@ -501,6 +501,7 @@ export async function buildRoleContext(
           const measured = await runAutomatedVerification(diffSession.worktreePath, {
             planContent: planForGate ?? undefined,
             preferredBaseBranch: preferredBaseBranchForContext,
+            taskId,
           }).catch(() => null);
           if (measured) {
             const header =

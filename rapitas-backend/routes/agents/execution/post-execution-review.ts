@@ -247,6 +247,7 @@ export async function reviewAndCommitWorktree(params: ReviewParams): Promise<voi
   const verification = await runAutomatedVerification(executionDir, {
     planContent: planContentForScope,
     preferredBaseBranch: preferredBaseBranchForVerify,
+    taskId,
   }).catch((err) => {
     log.warn({ err, taskId }, 'Automated verification crashed — skipping gate');
     return null;

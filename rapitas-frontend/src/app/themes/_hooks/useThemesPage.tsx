@@ -29,6 +29,7 @@ export type FormData = {
   repositoryUrl: string;
   workingDirectory: string;
   defaultBranch: string;
+  runtimeConfigJson: string;
   categoryId: number | null;
 };
 
@@ -41,6 +42,7 @@ export const defaultFormData: FormData = {
   repositoryUrl: '',
   workingDirectory: '',
   defaultBranch: 'develop',
+  runtimeConfigJson: '',
   categoryId: null,
 };
 
@@ -153,6 +155,7 @@ export function useThemesPage() {
       repositoryUrl: item.repositoryUrl || '',
       workingDirectory: item.workingDirectory || '',
       defaultBranch: item.defaultBranch || 'develop',
+      runtimeConfigJson: item.runtimeConfigJson || '',
       categoryId: item.categoryId ?? null,
     });
     setIconSearchQuery('');

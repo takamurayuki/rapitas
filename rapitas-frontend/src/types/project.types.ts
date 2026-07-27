@@ -36,6 +36,8 @@ export type Theme = {
   repositoryUrl?: string | null;
   workingDirectory?: string | null;
   defaultBranch?: string | null;
+  /** JSON: {start,url,healthPath,readyTimeoutMs,checkPaths} — see rapitas-backend's runtime-config.ts. Powers live preview + runtime verification for this project. */
+  runtimeConfigJson?: string | null;
   sortOrder: number;
   categoryId?: number | null;
   category?: Category | null;

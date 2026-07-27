@@ -10,7 +10,7 @@
  */
 import { createLogger } from '../../../../config/logger';
 import type { VerificationCheck } from '../automated-verifier';
-import { loadRuntimeConfig, substitutePort } from './runtime-config';
+import { resolveRuntimeConfig, substitutePort } from './runtime-config';
 import { allocateFreePort, launchApp, waitForHealthy } from './app-launcher';
 import { runBrowserSmoke, type SmokeRunResult } from './browser-smoke';
 
@@ -57,16 +57,19 @@ export function evaluateSmokeFindings(smoke: SmokeRunResult): {
  *
  * @param workdir - Agent worktree root / worktree ルート
  * @param label - Artifact label, e.g. `task-123` / 成果物ラベル
+ * @param taskId - Task whose Theme's runtimeConfigJson to prefer over a
+ *   rapitas.runtime.json file, if set. / 対象タスクID
  * @returns A 'runtime' VerificationCheck, or null when the project has no
  *          runtime config or the feature is disabled / 対象外なら null
  */
 export async function runRuntimeSmokeCheck(
   workdir: string,
   label = 'adhoc',
+  taskId?: number,
 ): Promise<VerificationCheck | null> {
   if (process.env.RAPITAS_RUNTIME_VERIFY === '0') return null;
 
-  const loaded = await loadRuntimeConfig(workdir);
+  const loaded = await resolveRuntimeConfig({ workdir, taskId });
   if (loaded === null) return null; // not opted in
   if (loaded.error || !loaded.config) {
     // A broken config is a REAL failure the implementer can fix.
@@ -75,7 +78,7 @@ export async function runRuntimeSmokeCheck(
       ran: true,
       ok: false,
       errorCount: 1,
-      details: `rapitas.runtime.json が不正です: ${loaded.error}`,
+      details: `runtime設定が不正です: ${loaded.error}`,
     };
   }
   const cfg = loaded.config;

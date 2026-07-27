@@ -23,7 +23,7 @@ import {
   waitForHealthy,
   type LaunchedApp,
 } from '../verification/runtime-smoke/app-launcher';
-import { loadRuntimeConfig, substitutePort } from '../verification/runtime-smoke/runtime-config';
+import { resolveRuntimeConfig, substitutePort } from '../verification/runtime-smoke/runtime-config';
 import {
   spawnPlaywrightWorker,
   type PlaywrightWorker,
@@ -158,19 +158,20 @@ export async function startPreview(taskId: number): Promise<StartPreviewResult> 
     };
   }
 
-  const loaded = await loadRuntimeConfig(workdir);
+  const loaded = await resolveRuntimeConfig({ workdir, taskId });
   if (loaded === null) {
     return {
       ok: false,
       reason: 'not_configured',
-      message: 'このプロジェクトには rapitas.runtime.json が設定されていません。',
+      message:
+        'このプロジェクトのruntime設定がありません。テーマ設定でruntime設定(JSON)を登録するか、rapitas.runtime.json を配置してください。',
     };
   }
   if (loaded.error || !loaded.config) {
     return {
       ok: false,
       reason: 'config_error',
-      message: `rapitas.runtime.json が不正です: ${loaded.error}`,
+      message: `runtime設定が不正です: ${loaded.error}`,
     };
   }
   const cfg = loaded.config;

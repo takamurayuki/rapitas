@@ -742,6 +742,12 @@ export interface VerificationOptions {
    * guess when resolving the diff base. See diffBaseRef's doc comment.
    */
   preferredBaseBranch?: string | null;
+  /**
+   * Task whose Theme's runtimeConfigJson the runtime-smoke stage should
+   * prefer over a rapitas.runtime.json file, if set. See
+   * runtime-config.ts's resolveRuntimeConfig.
+   */
+  taskId?: number;
 }
 
 /**
@@ -816,13 +822,14 @@ export async function runAutomatedVerification(
   const staticOk = checks.filter((c) => c.name !== 'scope').every((c) => c.ok);
 
   // Runtime smoke (Evaluator "actually run it" stage): only for projects that
-  // opt in via rapitas.runtime.json, and only once the static checks pass —
-  // launching the app costs ~a minute and a static failure bounces anyway.
-  // A runtime failure joins the same verify-repair loop as any other check.
+  // opt in (Theme runtimeConfigJson or a rapitas.runtime.json file), and only
+  // once the static checks pass — launching the app costs ~a minute and a
+  // static failure bounces anyway. A runtime failure joins the same
+  // verify-repair loop as any other check.
   if (staticOk) {
     try {
       const { runRuntimeSmokeCheck } = await import('./runtime-smoke');
-      const runtime = await runRuntimeSmokeCheck(workdir);
+      const runtime = await runRuntimeSmokeCheck(workdir, 'adhoc', options.taskId);
       if (runtime) checks.push(runtime);
     } catch (e) {
       log.warn({ err: e, workdir }, '[verify] runtime smoke stage crashed — skipping (fail-open)');

@@ -6,9 +6,26 @@ import { Elysia, t } from 'elysia';
 import { prisma } from '../../config/database';
 import { themeSchema } from '../../schemas/theme.schema';
 import { NotFoundError, ValidationError } from '../../middleware/error-handler';
+import { parseRuntimeConfig } from '../../services/agents/verification/runtime-smoke/runtime-config';
 import * as fs from 'fs';
 import * as path from 'path';
 import { execSync, execFileSync } from 'child_process';
+
+/**
+ * Validate a runtimeConfigJson value before it's persisted — a broken value
+ * would otherwise silently fail later, at preview/verify time, far from
+ * where the mistake was made.
+ *
+ * @param runtimeConfigJson - Raw JSON string from the request body, or undefined/empty to skip. / リクエストの生JSON文字列
+ * @throws {ValidationError} When the JSON is malformed or fails shape validation. / 不正な場合
+ */
+function validateRuntimeConfigJsonOrThrow(runtimeConfigJson: string | null | undefined): void {
+  if (!runtimeConfigJson || !runtimeConfigJson.trim()) return; // absent/empty = not opted in (or clearing it)
+  const { error } = parseRuntimeConfig(runtimeConfigJson);
+  if (error) {
+    throw new ValidationError(`runtimeConfigJson が不正です: ${error}`);
+  }
+}
 
 export const themesRoutes = new Elysia({ prefix: '/themes' })
   // Get all themes
@@ -72,6 +89,7 @@ export const themesRoutes = new Elysia({ prefix: '/themes' })
         repositoryUrl,
         workingDirectory,
         defaultBranch,
+        runtimeConfigJson,
         categoryId,
       } = body as {
         name: string;
@@ -82,8 +100,11 @@ export const themesRoutes = new Elysia({ prefix: '/themes' })
         repositoryUrl?: string;
         workingDirectory?: string;
         defaultBranch?: string;
+        runtimeConfigJson?: string;
         categoryId: number;
       };
+
+      validateRuntimeConfigJsonOrThrow(runtimeConfigJson);
 
       return await prisma.theme.create({
         data: {
@@ -96,6 +117,7 @@ export const themesRoutes = new Elysia({ prefix: '/themes' })
           ...(repositoryUrl && { repositoryUrl }),
           ...(workingDirectory && { workingDirectory }),
           ...(defaultBranch && { defaultBranch }),
+          ...(runtimeConfigJson && { runtimeConfigJson }),
         },
         include: { category: true },
       });
@@ -133,6 +155,7 @@ export const themesRoutes = new Elysia({ prefix: '/themes' })
         repositoryUrl,
         workingDirectory,
         defaultBranch,
+        runtimeConfigJson,
         categoryId,
       } = body as {
         name?: string;
@@ -143,9 +166,12 @@ export const themesRoutes = new Elysia({ prefix: '/themes' })
         repositoryUrl?: string;
         workingDirectory?: string;
         defaultBranch?: string;
+        runtimeConfigJson?: string | null;
         categoryId?: number | null;
         sortOrder?: number;
       };
+
+      validateRuntimeConfigJsonOrThrow(runtimeConfigJson);
 
       const updateData: Record<string, unknown> = {};
       if (name !== undefined) updateData.name = name;
@@ -156,6 +182,7 @@ export const themesRoutes = new Elysia({ prefix: '/themes' })
       if (repositoryUrl !== undefined) updateData.repositoryUrl = repositoryUrl;
       if (workingDirectory !== undefined) updateData.workingDirectory = workingDirectory;
       if (defaultBranch !== undefined) updateData.defaultBranch = defaultBranch;
+      if (runtimeConfigJson !== undefined) updateData.runtimeConfigJson = runtimeConfigJson;
       if (categoryId !== undefined) updateData.categoryId = categoryId;
 
       // Auto-link to Development category when isDevelopment is being set to true and no categoryId specified

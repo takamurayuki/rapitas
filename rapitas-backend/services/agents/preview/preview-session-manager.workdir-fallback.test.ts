@@ -6,10 +6,10 @@
  * directory when there's no (or no longer usable) worktree — so a task
  * that has never been agent-executed can still be previewed — and fail
  * with 'no_worktree' only when neither is available. Stops short of
- * exercising the actual dev-server launch / Playwright chain (loadRuntimeConfig
- * is mocked to return null, short-circuiting to 'not_configured' right after
- * workdir resolution) so this stays a focused unit test of the resolution
- * logic itself.
+ * exercising the actual dev-server launch / Playwright chain
+ * (resolveRuntimeConfig is mocked to return null, short-circuiting to
+ * 'not_configured' right after workdir resolution) so this stays a focused
+ * unit test of the resolution logic itself.
  */
 import { describe, it, expect, mock, beforeEach } from 'bun:test';
 import * as realFs from 'fs';
@@ -38,9 +38,9 @@ const mockExistsSync = mock((_p: string) => false);
 // import) stays intact, and only override what this file actually needs.
 mock.module('fs', () => ({ ...realFs, existsSync: mockExistsSync }));
 
-const mockLoadRuntimeConfig = mock(() => Promise.resolve<null>(null));
+const mockResolveRuntimeConfig = mock(() => Promise.resolve<null>(null));
 mock.module('../verification/runtime-smoke/runtime-config', () => ({
-  loadRuntimeConfig: mockLoadRuntimeConfig,
+  resolveRuntimeConfig: mockResolveRuntimeConfig,
   substitutePort: (template: string, port: number) => template.split('{port}').join(String(port)),
 }));
 
@@ -56,7 +56,7 @@ beforeEach(() => {
   mockResolveLatestSessionWorktree.mockReset().mockResolvedValue(null);
   mockTaskFindUnique.mockReset().mockResolvedValue(null);
   mockExistsSync.mockReset().mockReturnValue(false);
-  mockLoadRuntimeConfig.mockReset().mockResolvedValue(null);
+  mockResolveRuntimeConfig.mockReset().mockResolvedValue(null);
 });
 
 describe('startPreview — workdir resolution', () => {
@@ -69,12 +69,16 @@ describe('startPreview — workdir resolution', () => {
 
     const result = await startPreview(513);
 
-    expect(mockLoadRuntimeConfig).toHaveBeenCalledWith('/repo/.worktrees/task-513-83e6b1c6');
+    expect(mockResolveRuntimeConfig).toHaveBeenCalledWith({
+      workdir: '/repo/.worktrees/task-513-83e6b1c6',
+      taskId: 513,
+    });
     expect(mockTaskFindUnique).not.toHaveBeenCalled();
     expect(result).toEqual({
       ok: false,
       reason: 'not_configured',
-      message: 'このプロジェクトには rapitas.runtime.json が設定されていません。',
+      message:
+        'このプロジェクトのruntime設定がありません。テーマ設定でruntime設定(JSON)を登録するか、rapitas.runtime.json を配置してください。',
     });
   });
 
@@ -89,7 +93,7 @@ describe('startPreview — workdir resolution', () => {
 
     await startPreview(513);
 
-    expect(mockLoadRuntimeConfig).toHaveBeenCalledWith('/repo');
+    expect(mockResolveRuntimeConfig).toHaveBeenCalledWith({ workdir: '/repo', taskId: 513 });
   });
 
   it('falls back to the theme working directory when the task has no session at all', async () => {
@@ -102,7 +106,7 @@ describe('startPreview — workdir resolution', () => {
     expect(mockTaskFindUnique).toHaveBeenCalledWith(
       expect.objectContaining({ where: { id: 513 } }),
     );
-    expect(mockLoadRuntimeConfig).toHaveBeenCalledWith('/repo');
+    expect(mockResolveRuntimeConfig).toHaveBeenCalledWith({ workdir: '/repo', taskId: 513 });
   });
 
   it('fails with no_worktree when neither a usable worktree nor a theme working directory exists', async () => {
@@ -117,6 +121,6 @@ describe('startPreview — workdir resolution', () => {
       message:
         'このタスクのworktreeもテーマの作業ディレクトリも見つかりません。テーマに作業ディレクトリを設定するか、エージェントを一度実行してください。',
     });
-    expect(mockLoadRuntimeConfig).not.toHaveBeenCalled();
+    expect(mockResolveRuntimeConfig).not.toHaveBeenCalled();
   });
 });

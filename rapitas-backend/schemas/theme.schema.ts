@@ -13,6 +13,7 @@ export const themeSchema = {
     repositoryUrl: t.Optional(t.String()),
     workingDirectory: t.Optional(t.String()),
     defaultBranch: t.Optional(t.String()),
+    runtimeConfigJson: t.Optional(t.String()),
     categoryId: t.Number(),
   }),
 
@@ -25,6 +26,7 @@ export const themeSchema = {
     repositoryUrl: t.Optional(t.String()),
     workingDirectory: t.Optional(t.String()),
     defaultBranch: t.Optional(t.String()),
+    runtimeConfigJson: t.Optional(t.Nullable(t.String())),
     categoryId: t.Optional(t.Nullable(t.Number())),
     sortOrder: t.Optional(t.Number()),
   }),

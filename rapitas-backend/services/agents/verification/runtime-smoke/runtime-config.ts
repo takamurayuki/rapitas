@@ -1,15 +1,18 @@
 /**
  * runtime-smoke/runtime-config
  *
- * Loads and validates the per-project runtime verification config
- * (`rapitas.runtime.json` at the repo root). The file lives IN the project
- * repo — versioned with the code, present in every worktree checkout — so
- * launch instructions are explicit and deterministic instead of inferred
- * from a README. Its presence is what opts a project into runtime smoke
- * verification.
+ * Loads and validates the per-project runtime verification config. Two
+ * sources, tried in order: the Theme's `runtimeConfigJson` column (managed
+ * from rapitas's own theme settings UI — the preferred source, since a file
+ * per external project repo doesn't scale as a management surface), falling
+ * back to a `rapitas.runtime.json` file at the worktree root (the original
+ * mechanism — still supported for a project that hasn't migrated, or has no
+ * associated Theme). Either source's absence means the project simply isn't
+ * opted into runtime smoke verification/live preview.
  */
 import { readFile } from 'fs/promises';
 import { join } from 'path';
+import { prisma } from '../../../../config/database';
 
 /** File name looked up at the worktree root. */
 export const RUNTIME_CONFIG_FILENAME = 'rapitas.runtime.json';
@@ -104,4 +107,34 @@ export async function loadRuntimeConfig(
     return null; // absent = project not opted in
   }
   return parseRuntimeConfig(raw);
+}
+
+/**
+ * Resolve the runtime config for a task: prefer its Theme's
+ * `runtimeConfigJson` (managed in rapitas's own theme settings, not
+ * scattered across every project repo), falling back to a
+ * `rapitas.runtime.json` file at `workdir` when the task has no theme, the
+ * theme has nothing set, or no `taskId` is given at all (e.g. an ad hoc
+ * runtime-smoke run with no task context).
+ *
+ * @param opts.workdir - Worktree/working directory to fall back to. / フォールバック先ディレクトリ
+ * @param opts.taskId - Task whose theme to check first, if any. / 対象タスクID
+ * @returns Config, a config error, or null when neither source is set. / 設定・エラー・無ければnull
+ */
+export async function resolveRuntimeConfig(opts: {
+  workdir: string;
+  taskId?: number | null;
+}): Promise<{ config?: RuntimeConfig; error?: string } | null> {
+  if (opts.taskId != null) {
+    const task = await prisma.task
+      .findUnique({
+        where: { id: opts.taskId },
+        select: { theme: { select: { runtimeConfigJson: true } } },
+      })
+      .catch(() => null);
+    if (task?.theme?.runtimeConfigJson) {
+      return parseRuntimeConfig(task.theme.runtimeConfigJson);
+    }
+  }
+  return loadRuntimeConfig(opts.workdir);
 }

@@ -8,7 +8,7 @@
  * BranchCreator.
  */
 import { useEffect, useRef } from 'react';
-import { Code, FolderGit2, FolderOpen, GitBranch, AlertCircle } from 'lucide-react';
+import { Code, FolderGit2, FolderOpen, GitBranch, AlertCircle, AppWindow } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { DirectoryPicker } from '@/components/ui/DirectoryPicker';
 import type { FormData } from '../_hooks/useThemesPage';
@@ -55,6 +55,14 @@ const COMPLETE_REPO_URL = /github\.com[/:][\w.-]+\/[\w.-]+/;
 
 /** Debounce (ms) between typing pauses and the automatic branch fetch. */
 const BRANCH_FETCH_DEBOUNCE_MS = 500;
+
+const RUNTIME_CONFIG_PLACEHOLDER = `{
+  "start": "npm run dev -- -p {port}",
+  "url": "http://localhost:{port}",
+  "healthPath": "/",
+  "readyTimeoutMs": 60000,
+  "checkPaths": ["/"]
+}`;
 
 /**
  * Development-project sub-section of the theme form.
@@ -121,6 +129,21 @@ export function DevProjectFields({
       : branches.length > 0
         ? 'done'
         : 'pending';
+
+  // Lightweight client-side sanity check only (valid JSON + the two required
+  // keys) — full shape validation (URL format, timeout clamping, etc.) is the
+  // backend's job at save time (parseRuntimeConfig), not duplicated here.
+  const runtimeConfigState: StepState = (() => {
+    const raw = formData.runtimeConfigJson.trim();
+    if (!raw) return 'pending';
+    try {
+      const parsed: unknown = JSON.parse(raw);
+      const o = parsed as Record<string, unknown>;
+      return typeof o?.start === 'string' && typeof o?.url === 'string' ? 'done' : 'attention';
+    } catch {
+      return 'attention';
+    }
+  })();
 
   return (
     <div className="border-t border-zinc-200 dark:border-zinc-800 pt-4 space-y-3">
@@ -241,7 +264,6 @@ export function DevProjectFields({
             state={branchState}
             label={t('stepBranch')}
             labelIcon={<GitBranch className="w-3.5 h-3.5" />}
-            isLast
           >
             {branches.length > 0 ? (
               <select
@@ -292,6 +314,33 @@ export function DevProjectFields({
                 }
               }}
             />
+          </SetupStep>
+
+          {/* Step 4 — runtime config (live preview + runtime verification) */}
+          <SetupStep
+            state={runtimeConfigState}
+            label={t('stepRuntimeConfig')}
+            labelIcon={<AppWindow className="w-3.5 h-3.5" />}
+            isLast
+          >
+            <textarea
+              value={formData.runtimeConfigJson}
+              onChange={(e) => setFormData({ ...formData, runtimeConfigJson: e.target.value })}
+              aria-label={t('runtimeConfigLabel')}
+              placeholder={RUNTIME_CONFIG_PLACEHOLDER}
+              rows={5}
+              spellCheck={false}
+              className={`${inputClass} h-auto font-mono text-xs leading-relaxed py-2`}
+            />
+            <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
+              {t('runtimeConfigHelp')}
+            </p>
+            {runtimeConfigState === 'attention' && (
+              <p className="mt-1 text-xs text-amber-600 dark:text-amber-400 flex items-center gap-1">
+                <AlertCircle className="w-3 h-3" />
+                {t('runtimeConfigInvalid')}
+              </p>
+            )}
           </SetupStep>
         </div>
       )}

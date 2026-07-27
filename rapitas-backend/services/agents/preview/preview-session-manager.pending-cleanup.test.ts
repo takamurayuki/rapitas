@@ -35,7 +35,7 @@ mock.module('../agent-session-resolver', () => ({
 // import) stays intact, and only override what this file actually needs.
 mock.module('fs', () => ({ ...realFs, existsSync: () => true }));
 mock.module('../verification/runtime-smoke/runtime-config', () => ({
-  loadRuntimeConfig: () =>
+  resolveRuntimeConfig: () =>
     Promise.resolve({
       config: {
         start: 'npm run dev -- -p {port}',
