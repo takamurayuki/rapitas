@@ -21,7 +21,17 @@ export type PreviewState =
   | { phase: 'starting' }
   | { phase: 'active'; url: string }
   | { phase: 'stopping'; url: string }
-  | { phase: 'error'; message: string };
+  | { phase: 'error'; message: string; reason?: string };
+
+/** Failure reasons fixable from the task-detail panel itself, without leaving the page. */
+const CONFIGURABLE_REASONS = new Set(['not_configured', 'config_error']);
+
+export interface RuntimeConfigEditorState {
+  hasTheme: boolean;
+  value: string;
+  saving: boolean;
+  saveError: string | null;
+}
 
 /**
  * @param taskId - Task whose worktree to preview. / プレビュー対象タスクID
@@ -30,6 +40,7 @@ export function useTaskPreview(taskId: number) {
   const t = useTranslations('task.preview');
   const [state, setState] = useState<PreviewState>({ phase: 'idle' });
   const [imgSrc, setImgSrc] = useState<string | null>(null);
+  const [configEditor, setConfigEditor] = useState<RuntimeConfigEditorState | null>(null);
   const objectUrlRef = useRef<string | null>(null);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -114,7 +125,12 @@ export function useTaskPreview(taskId: number) {
       const res = await fetch(`${API_BASE_URL}/tasks/${taskId}/preview/start`, {
         method: 'POST',
       });
-      const body = (await res.json()) as { success: boolean; url?: string; error?: string };
+      const body = (await res.json()) as {
+        success: boolean;
+        url?: string;
+        error?: string;
+        reason?: string;
+      };
       // The user may have clicked Stop (or Start again) while this request
       // was in flight — starting a dev server + browser genuinely takes
       // tens of seconds, and the backend keeps working even after a client
@@ -122,13 +138,63 @@ export function useTaskPreview(taskId: number) {
       // a session the user already asked to stop.
       if (myRequestId !== requestIdRef.current) return;
       if (body.success && body.url) {
+        setConfigEditor(null);
         setState({ phase: 'active', url: body.url });
       } else {
-        setState({ phase: 'error', message: body.error ?? t('startFailed') });
+        setState({ phase: 'error', message: body.error ?? t('startFailed'), reason: body.reason });
       }
     } catch {
       if (myRequestId !== requestIdRef.current) return;
       setState({ phase: 'error', message: t('startFailed') });
+    }
+  };
+
+  // Lets the user fix a missing/broken runtime config (the two
+  // CONFIGURABLE_REASONS) inline instead of leaving the task detail page for
+  // the theme settings form — pre-fills from the theme's current value (if
+  // any) via the same GET the theme form itself doesn't need, since it reads
+  // from its own already-loaded Theme object.
+  const openConfigEditor = async () => {
+    try {
+      const res = await fetch(`${API_BASE_URL}/tasks/${taskId}/preview/runtime-config`);
+      const body = (await res.json()) as { hasTheme: boolean; runtimeConfigJson: string | null };
+      setConfigEditor({
+        hasTheme: body.hasTheme,
+        value: body.runtimeConfigJson ?? '',
+        saving: false,
+        saveError: null,
+      });
+    } catch {
+      setConfigEditor({ hasTheme: false, value: '', saving: false, saveError: null });
+    }
+  };
+
+  const setConfigValue = (value: string) => {
+    setConfigEditor((prev) => (prev ? { ...prev, value } : prev));
+  };
+
+  const saveConfigAndRetry = async () => {
+    if (!configEditor) return;
+    setConfigEditor({ ...configEditor, saving: true, saveError: null });
+    try {
+      const res = await fetch(`${API_BASE_URL}/tasks/${taskId}/preview/runtime-config`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ runtimeConfigJson: configEditor.value }),
+      });
+      const body = (await res.json()) as { success: boolean; error?: string };
+      if (!body.success) {
+        setConfigEditor((prev) =>
+          prev ? { ...prev, saving: false, saveError: body.error ?? t('saveFailed') } : prev,
+        );
+        return;
+      }
+      setConfigEditor((prev) => (prev ? { ...prev, saving: false } : prev));
+      await handleStart();
+    } catch {
+      setConfigEditor((prev) =>
+        prev ? { ...prev, saving: false, saveError: t('saveFailed') } : prev,
+      );
     }
   };
 
@@ -165,10 +231,18 @@ export function useTaskPreview(taskId: number) {
     }
   };
 
+  const isConfigurable = state.phase === 'error' && CONFIGURABLE_REASONS.has(state.reason ?? '');
+
   return {
     state,
     imgSrc,
     containerRef,
+    isConfigurable,
+    configEditor,
+    openConfigEditor,
+    closeConfigEditor: () => setConfigEditor(null),
+    setConfigValue,
+    saveConfigAndRetry,
     handleStart,
     handleStop,
     ...interaction,

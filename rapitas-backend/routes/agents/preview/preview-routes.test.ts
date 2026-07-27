@@ -22,6 +22,12 @@ const mockInteractWithPreview = mock(() => Promise.resolve({ ok: true })) as Ret
 const mockInspectPreviewElement = mock(() =>
   Promise.resolve({ ok: true, isSelect: false }),
 ) as ReturnType<typeof mock>;
+const mockGetTaskThemeRuntimeConfigJson = mock(() =>
+  Promise.resolve({ themeId: null }),
+) as ReturnType<typeof mock>;
+const mockSetTaskThemeRuntimeConfigJson = mock(() => Promise.resolve({ ok: true })) as ReturnType<
+  typeof mock
+>;
 
 mock.module('../../../services/agents/preview/preview-session-manager', () => ({
   startPreview: mockStartPreview,
@@ -32,6 +38,10 @@ mock.module('../../../services/agents/preview/preview-session-manager', () => ({
 mock.module('../../../services/agents/preview/preview-interaction', () => ({
   interactWithPreview: mockInteractWithPreview,
   inspectPreviewElement: mockInspectPreviewElement,
+}));
+mock.module('../../../services/agents/verification/runtime-smoke/runtime-config', () => ({
+  getTaskThemeRuntimeConfigJson: mockGetTaskThemeRuntimeConfigJson,
+  setTaskThemeRuntimeConfigJson: mockSetTaskThemeRuntimeConfigJson,
 }));
 
 const { previewRoutes } = await import('./preview-routes');
@@ -45,12 +55,16 @@ function resetMocks() {
   mockScreenshotPreview.mockReset();
   mockInteractWithPreview.mockReset();
   mockInspectPreviewElement.mockReset();
+  mockGetTaskThemeRuntimeConfigJson.mockReset();
+  mockSetTaskThemeRuntimeConfigJson.mockReset();
   mockStartPreview.mockResolvedValue({ ok: true, url: 'http://localhost:1' });
   mockStopPreview.mockResolvedValue(undefined);
   mockGetPreviewStatus.mockReturnValue({ active: false });
   mockScreenshotPreview.mockResolvedValue({ ok: true, buffer: Buffer.from([1, 2, 3]) });
   mockInteractWithPreview.mockResolvedValue({ ok: true });
   mockInspectPreviewElement.mockResolvedValue({ ok: true, isSelect: false });
+  mockGetTaskThemeRuntimeConfigJson.mockResolvedValue({ themeId: null });
+  mockSetTaskThemeRuntimeConfigJson.mockResolvedValue({ ok: true });
 }
 
 describe('POST /tasks/:id/preview/start', () => {
@@ -299,5 +313,76 @@ describe('POST /tasks/:id/preview/inspect', () => {
     );
 
     expect(res.status).toBe(404);
+  });
+});
+
+describe('GET /tasks/:id/preview/runtime-config', () => {
+  beforeEach(resetMocks);
+
+  it('テーマが無い場合 hasTheme:false を返すこと', async () => {
+    mockGetTaskThemeRuntimeConfigJson.mockResolvedValue({ themeId: null });
+
+    const res = await previewRoutes.handle(new Request(`${BASE}/42/preview/runtime-config`));
+    const body = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(body).toEqual({ hasTheme: false, runtimeConfigJson: null });
+  });
+
+  it('テーマの現在値を返すこと', async () => {
+    mockGetTaskThemeRuntimeConfigJson.mockResolvedValue({
+      themeId: 7,
+      runtimeConfigJson: '{"start":"npm run dev","url":"http://localhost:{port}"}',
+    });
+
+    const res = await previewRoutes.handle(new Request(`${BASE}/42/preview/runtime-config`));
+    const body = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(body).toEqual({
+      hasTheme: true,
+      runtimeConfigJson: '{"start":"npm run dev","url":"http://localhost:{port}"}',
+    });
+  });
+});
+
+describe('PUT /tasks/:id/preview/runtime-config', () => {
+  beforeEach(resetMocks);
+
+  it('有効な設定を保存すること', async () => {
+    const res = await previewRoutes.handle(
+      new Request(`${BASE}/42/preview/runtime-config`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ runtimeConfigJson: '{"start":"npm run dev","url":"http://x"}' }),
+      }),
+    );
+    const body = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(body.success).toBe(true);
+    expect(mockSetTaskThemeRuntimeConfigJson).toHaveBeenCalledWith(
+      42,
+      '{"start":"npm run dev","url":"http://x"}',
+    );
+  });
+
+  it('検証エラー時は 400 を返すこと', async () => {
+    mockSetTaskThemeRuntimeConfigJson.mockResolvedValue({
+      ok: false,
+      error: 'invalid JSON: ...',
+    });
+
+    const res = await previewRoutes.handle(
+      new Request(`${BASE}/42/preview/runtime-config`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ runtimeConfigJson: 'not json' }),
+      }),
+    );
+    const body = await res.json();
+
+    expect(res.status).toBe(400);
+    expect(body.success).toBe(false);
   });
 });

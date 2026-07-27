@@ -15,6 +15,10 @@ import {
   interactWithPreview,
   inspectPreviewElement,
 } from '../../../services/agents/preview/preview-interaction';
+import {
+  getTaskThemeRuntimeConfigJson,
+  setTaskThemeRuntimeConfigJson,
+} from '../../../services/agents/verification/runtime-smoke/runtime-config';
 import { HTTP_STATUS } from '../../../utils/common/http-status';
 
 export const previewRoutes = new Elysia()
@@ -138,5 +142,42 @@ export const previewRoutes = new Elysia()
     },
     {
       body: t.Object({ x: t.Number(), y: t.Number() }),
+    },
+  )
+
+  /** Current runtime config (if any) set on the task's theme — for pre-filling the inline task-detail editor. */
+  .get('/tasks/:id/preview/runtime-config', async (context) => {
+    const { params, set } = context;
+    const taskId = parseInt(params.id);
+    if (isNaN(taskId)) {
+      set.status = HTTP_STATUS.BAD_REQUEST;
+      return { error: 'Invalid task id' };
+    }
+    const result = await getTaskThemeRuntimeConfigJson(taskId);
+    if (result.themeId === null) {
+      return { hasTheme: false, runtimeConfigJson: null };
+    }
+    return { hasTheme: true, runtimeConfigJson: result.runtimeConfigJson };
+  })
+
+  /** Save the task's theme runtime config directly from the task detail page — lets a "not configured" preview failure be fixed on the spot. */
+  .put(
+    '/tasks/:id/preview/runtime-config',
+    async (context) => {
+      const { params, body, set } = context;
+      const taskId = parseInt(params.id);
+      if (isNaN(taskId)) {
+        set.status = HTTP_STATUS.BAD_REQUEST;
+        return { error: 'Invalid task id' };
+      }
+      const result = await setTaskThemeRuntimeConfigJson(taskId, body.runtimeConfigJson);
+      if (!result.ok) {
+        set.status = HTTP_STATUS.BAD_REQUEST;
+        return { success: false, error: result.error };
+      }
+      return { success: true };
+    },
+    {
+      body: t.Object({ runtimeConfigJson: t.String() }),
     },
   );

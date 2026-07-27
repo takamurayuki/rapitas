@@ -1,14 +1,17 @@
 /**
  * runtime-smoke/runtime-config
  *
- * Loads and validates the per-project runtime verification config. Two
- * sources, tried in order: the Theme's `runtimeConfigJson` column (managed
- * from rapitas's own theme settings UI — the preferred source, since a file
- * per external project repo doesn't scale as a management surface), falling
- * back to a `rapitas.runtime.json` file at the worktree root (the original
- * mechanism — still supported for a project that hasn't migrated, or has no
- * associated Theme). Either source's absence means the project simply isn't
- * opted into runtime smoke verification/live preview.
+ * Loads and validates the per-project runtime verification config. Three
+ * sources, tried in order, all DB-first: (1) the task's Theme's
+ * `runtimeConfigJson` column when a taskId is given, (2) a Theme whose
+ * `workingDirectory` matches `workdir` when no taskId is given (or its task
+ * has no theme) — covers ad hoc runs (e.g. a manual runtime-smoke check)
+ * against a directory rapitas already has a Theme for, (3) a
+ * `rapitas.runtime.json` file at the worktree root, kept only as a read-only
+ * legacy fallback for a project with neither of the above — nothing in this
+ * module ever writes that file; saves always go to the Theme row. Absence of
+ * all three means the project simply isn't opted into runtime smoke
+ * verification/live preview.
  */
 import { readFile } from 'fs/promises';
 import { join } from 'path';
@@ -112,14 +115,16 @@ export async function loadRuntimeConfig(
 /**
  * Resolve the runtime config for a task: prefer its Theme's
  * `runtimeConfigJson` (managed in rapitas's own theme settings, not
- * scattered across every project repo), falling back to a
- * `rapitas.runtime.json` file at `workdir` when the task has no theme, the
- * theme has nothing set, or no `taskId` is given at all (e.g. an ad hoc
- * runtime-smoke run with no task context).
+ * scattered across every project repo); if that's unavailable (no taskId, or
+ * the task's theme has nothing set), look for a Theme whose
+ * `workingDirectory` matches `workdir` — so a directory rapitas already
+ * tracks resolves from the DB even without a taskId; only then fall back to
+ * a `rapitas.runtime.json` file at `workdir` (read-only legacy path).
  *
- * @param opts.workdir - Worktree/working directory to fall back to. / フォールバック先ディレクトリ
+ * @param opts.workdir - Worktree/working directory; also used to match a
+ *   Theme by `workingDirectory` and as the legacy file's fallback location. / 対象ディレクトリ
  * @param opts.taskId - Task whose theme to check first, if any. / 対象タスクID
- * @returns Config, a config error, or null when neither source is set. / 設定・エラー・無ければnull
+ * @returns Config, a config error, or null when no source is set. / 設定・エラー・無ければnull
  */
 export async function resolveRuntimeConfig(opts: {
   workdir: string;
@@ -136,5 +141,72 @@ export async function resolveRuntimeConfig(opts: {
       return parseRuntimeConfig(task.theme.runtimeConfigJson);
     }
   }
+  const theme = await prisma.theme
+    .findFirst({
+      where: { workingDirectory: opts.workdir },
+      select: { runtimeConfigJson: true },
+    })
+    .catch(() => null);
+  if (theme?.runtimeConfigJson) {
+    return parseRuntimeConfig(theme.runtimeConfigJson);
+  }
   return loadRuntimeConfig(opts.workdir);
+}
+
+export type TaskThemeRuntimeConfig =
+  | { themeId: number; runtimeConfigJson: string | null }
+  | { themeId: null };
+
+/**
+ * Fetch the raw runtimeConfigJson currently set on a task's theme (or
+ * confirmation that the task has no theme at all), for pre-filling an inline
+ * edit form on the task detail page — the raw string, unvalidated; a
+ * previously-saved value is trusted (it was validated on write).
+ *
+ * @param taskId - Task whose theme to look up. / 対象タスクID
+ * @returns The theme id + its current value, or `{themeId: null}` when the
+ *   task has no theme to store a config on. / テーマのruntime設定
+ */
+export async function getTaskThemeRuntimeConfigJson(
+  taskId: number,
+): Promise<TaskThemeRuntimeConfig> {
+  const task = await prisma.task
+    .findUnique({
+      where: { id: taskId },
+      select: { theme: { select: { id: true, runtimeConfigJson: true } } },
+    })
+    .catch(() => null);
+  if (!task?.theme) return { themeId: null };
+  return { themeId: task.theme.id, runtimeConfigJson: task.theme.runtimeConfigJson };
+}
+
+/**
+ * Validate and persist a runtimeConfigJson string onto a task's theme — the
+ * write side of the task-detail inline editor, so a user hitting
+ * "not_configured" while starting a preview can fix it right there instead
+ * of navigating to theme settings.
+ *
+ * @param taskId - Task whose theme to update. / 対象タスクID
+ * @param runtimeConfigJson - Raw JSON string to validate and save. / 保存するJSON文字列
+ * @returns Success, or a validation/lookup error. / 実行結果
+ */
+export async function setTaskThemeRuntimeConfigJson(
+  taskId: number,
+  runtimeConfigJson: string,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const { error } = parseRuntimeConfig(runtimeConfigJson);
+  if (error) return { ok: false, error };
+
+  const task = await prisma.task
+    .findUnique({ where: { id: taskId }, select: { themeId: true } })
+    .catch(() => null);
+  if (!task?.themeId) {
+    return {
+      ok: false,
+      error: 'このタスクにはテーマが設定されていないため、ここでは保存できません。',
+    };
+  }
+
+  await prisma.theme.update({ where: { id: task.themeId }, data: { runtimeConfigJson } });
+  return { ok: true };
 }

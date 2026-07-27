@@ -12,9 +12,10 @@
  * TaskWorkflowSection. State/network logic lives in useTaskPreview.ts.
  */
 import { useTranslations } from 'next-intl';
-import { AppWindow, Play, Square, RefreshCw, AlertCircle } from 'lucide-react';
+import { AppWindow, Play, Square, RefreshCw, AlertCircle, Settings2 } from 'lucide-react';
 import { Spinner } from '@/components/ui/spinner';
 import { PillButton } from '@/components/ui/pill-button';
+import { RuntimeConfigEditor } from '@/components/runtime-config/RuntimeConfigEditor';
 import { useTaskPreview } from './useTaskPreview';
 
 interface TaskPreviewSectionProps {
@@ -31,6 +32,12 @@ export default function TaskPreviewSection({ taskId }: TaskPreviewSectionProps) 
     imgSrc,
     containerRef,
     selectOverlay,
+    isConfigurable,
+    configEditor,
+    openConfigEditor,
+    closeConfigEditor,
+    setConfigValue,
+    saveConfigAndRetry,
     handleStart,
     handleStop,
     handlePreviewClick,
@@ -84,9 +91,52 @@ export default function TaskPreviewSection({ taskId }: TaskPreviewSectionProps) 
           </div>
         )}
         {state.phase === 'error' && (
-          <div className="flex items-start gap-2 rounded-lg bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800 p-3 text-sm text-red-600 dark:text-red-400">
-            <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
-            <span>{state.message}</span>
+          <div className="space-y-3">
+            <div className="flex items-start gap-2 rounded-lg bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800 p-3 text-sm text-red-600 dark:text-red-400">
+              <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
+              <span>{state.message}</span>
+            </div>
+
+            {isConfigurable && !configEditor && (
+              <PillButton icon={Settings2} color="indigo" onClick={openConfigEditor}>
+                {t('configureRuntime')}
+              </PillButton>
+            )}
+
+            {configEditor && (
+              <div className="rounded-lg border border-zinc-200 dark:border-zinc-800 p-3 space-y-3">
+                {configEditor.hasTheme ? (
+                  <>
+                    <p className="text-xs text-zinc-500 dark:text-zinc-400">
+                      {t('configureRuntimeHint')}
+                    </p>
+                    <RuntimeConfigEditor value={configEditor.value} onChange={setConfigValue} />
+                    {configEditor.saveError && (
+                      <p className="text-xs text-red-600 dark:text-red-400">
+                        {configEditor.saveError}
+                      </p>
+                    )}
+                    <div className="flex items-center gap-2">
+                      <PillButton
+                        icon={Play}
+                        color="indigo"
+                        onClick={saveConfigAndRetry}
+                        disabled={configEditor.saving}
+                      >
+                        {configEditor.saving ? t('starting') : t('saveAndRetry')}
+                      </PillButton>
+                      <PillButton icon={Square} color="zinc" onClick={closeConfigEditor}>
+                        {t('cancelConfigure')}
+                      </PillButton>
+                    </div>
+                  </>
+                ) : (
+                  <p className="text-xs text-red-600 dark:text-red-400">
+                    {t('configureRuntimeNoTheme')}
+                  </p>
+                )}
+              </div>
+            )}
           </div>
         )}
         {(state.phase === 'active' || state.phase === 'stopping') && (

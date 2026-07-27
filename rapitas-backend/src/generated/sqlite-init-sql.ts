@@ -355,6 +355,7 @@ CREATE TABLE "Theme" (
     "repositoryUrl" TEXT,
     "workingDirectory" TEXT,
     "defaultBranch" TEXT DEFAULT 'develop',
+    "runtimeConfigJson" TEXT,
     "sortOrder" INTEGER NOT NULL DEFAULT 0,
     "categoryId" INTEGER,
     "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,

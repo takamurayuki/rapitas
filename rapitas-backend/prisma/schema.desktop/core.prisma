@@ -30,6 +30,12 @@ model Theme {
   repositoryUrl    String?
   workingDirectory String?
   defaultBranch    String?        @default("develop")
+  // JSON: rapitas.runtime.json's shape ({start,url,healthPath,readyTimeoutMs,
+  // checkPaths}) — centralizes runtime-verification config in rapitas instead
+  // of a file each project repo must carry separately. See runtime-config.ts's
+  // parseRuntimeConfig/resolveRuntimeConfig. A project without this set (and
+  // without the file) is simply not opted into runtime verification/preview.
+  runtimeConfigJson String?
   sortOrder        Int            @default(0)
   categoryId       Int?
   category         Category?      @relation(fields: [categoryId], references: [id], onDelete: SetNull)

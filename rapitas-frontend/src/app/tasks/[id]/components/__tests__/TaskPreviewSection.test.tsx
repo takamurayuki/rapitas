@@ -146,6 +146,63 @@ describe('TaskPreviewSection', () => {
     expect(screen.getByText('start')).toBeInTheDocument();
   });
 
+  it('lets the user fix a missing runtime config inline and retries the preview', async () => {
+    const fetchMock = vi.fn().mockImplementation((url: string, init?: RequestInit) => {
+      if (url.includes('/status')) return Promise.resolve(jsonResponse({ active: false }));
+      if (url.endsWith('/preview/start') && init?.method === 'POST') {
+        // First attempt fails as unconfigured; after the user saves a config,
+        // the retry succeeds.
+        return fetchMock.mock.calls.filter((c) => c[0] === url).length === 1
+          ? Promise.resolve(
+              jsonResponse({ success: false, reason: 'not_configured', error: 'not configured' }),
+            )
+          : Promise.resolve(jsonResponse({ success: true, url: 'http://localhost:5173' }));
+      }
+      if (url.endsWith('/preview/runtime-config') && (!init || init.method === undefined)) {
+        return Promise.resolve(jsonResponse({ hasTheme: true, runtimeConfigJson: null }));
+      }
+      if (url.endsWith('/preview/runtime-config') && init?.method === 'PUT') {
+        return Promise.resolve(jsonResponse({ success: true }));
+      }
+      if (url.includes('/screenshot')) return Promise.resolve(blobResponse([1, 2, 3]));
+      return Promise.resolve(jsonResponse({}));
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    render(<TaskPreviewSection taskId={1} />);
+    await flush();
+
+    await act(async () => {
+      fireEvent.click(screen.getByText('start'));
+      for (let i = 0; i < 5; i++) await Promise.resolve();
+    });
+    expect(screen.getByText('not configured')).toBeInTheDocument();
+
+    await act(async () => {
+      fireEvent.click(screen.getByText('configureRuntime'));
+      for (let i = 0; i < 5; i++) await Promise.resolve();
+    });
+
+    fireEvent.change(screen.getByLabelText('start'), {
+      target: { value: 'npm run dev -- -p {port}' },
+    });
+    fireEvent.change(screen.getByLabelText('url'), {
+      target: { value: 'http://localhost:{port}' },
+    });
+
+    await act(async () => {
+      fireEvent.click(screen.getByText('saveAndRetry'));
+      for (let i = 0; i < 5; i++) await Promise.resolve();
+    });
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      'http://test:3001/tasks/1/preview/runtime-config',
+      expect.objectContaining({ method: 'PUT' }),
+    );
+    expect(screen.getByText('stop')).toBeInTheDocument();
+    expect(screen.getByText('http://localhost:5173')).toBeInTheDocument();
+  });
+
   it('shows a Stop button while starting (not just once active) and stopping mid-start returns to idle', async () => {
     // The start request never resolves in this test — starting a real dev
     // server + browser takes tens of seconds, and the user must be able to

@@ -732,7 +732,13 @@
       "loadingScreenshot": "Loading screenshot...",
       "screenshotAlt": "Preview screenshot",
       "interactHint": "Click to interact / keyboard input supported",
-      "closeSelectOverlay": "Close options"
+      "closeSelectOverlay": "Close options",
+      "configureRuntime": "Configure runtime settings",
+      "configureRuntimeHint": "This project's runtime settings are missing or invalid. Fill them in below and save to retry the preview.",
+      "configureRuntimeNoTheme": "This task has no theme set, so settings can't be saved here. Set a working directory in the theme settings instead.",
+      "saveAndRetry": "Save and retry",
+      "cancelConfigure": "Cancel",
+      "saveFailed": "Failed to save"
     },
     "labelSelector": {
       "empty": "No labels.",
@@ -2323,6 +2329,15 @@
     "tasks": "Tasks",
     "iconNotSelectedDefault": "(Default: {icon})"
   },
+  "runtimeConfig": {
+    "start": "Start command",
+    "url": "URL",
+    "healthPath": "Health check path",
+    "readyTimeoutMs": "Ready timeout (ms)",
+    "checkPaths": "Paths to verify",
+    "addPath": "Add path",
+    "removePath": "Remove this path"
+  },
   "themes": {
     "title": "Themes",
     "subtitle": "Manage themes. You can also configure development project settings here.",
@@ -2346,9 +2361,7 @@
     "stepRepository": "Repository",
     "stepBranch": "Branch",
     "stepRuntimeConfig": "Runtime config",
-    "runtimeConfigLabel": "Runtime config (JSON)",
     "runtimeConfigHelp": "Dev-server launch config that powers live preview and runtime verification. Leave blank to disable this feature (a rapitas.runtime.json file at the project root also works as an alternative).",
-    "runtimeConfigInvalid": "Invalid JSON, or missing \"start\"/\"url\"",
     "stepStatusDone": "Set",
     "stepStatusPending": "Not set",
     "stepStatusChecking": "Checking",

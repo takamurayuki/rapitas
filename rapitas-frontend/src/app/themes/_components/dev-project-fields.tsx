@@ -11,6 +11,7 @@ import { useEffect, useRef } from 'react';
 import { Code, FolderGit2, FolderOpen, GitBranch, AlertCircle, AppWindow } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { DirectoryPicker } from '@/components/ui/DirectoryPicker';
+import { RuntimeConfigEditor } from '@/components/runtime-config/RuntimeConfigEditor';
 import type { FormData } from '../_hooks/useThemesPage';
 import type { Category } from '@/types';
 import { FolderCreator } from './folder-creator';
@@ -56,21 +57,14 @@ const COMPLETE_REPO_URL = /github\.com[/:][\w.-]+\/[\w.-]+/;
 /** Debounce (ms) between typing pauses and the automatic branch fetch. */
 const BRANCH_FETCH_DEBOUNCE_MS = 500;
 
-const RUNTIME_CONFIG_PLACEHOLDER = `{
-  "start": "npm run dev -- -p {port}",
-  "url": "http://localhost:{port}",
-  "healthPath": "/",
-  "readyTimeoutMs": 60000,
-  "checkPaths": ["/"]
-}`;
-
 /**
  * Development-project sub-section of the theme form.
  *
  * @param props.formData - Current form values.
  * @param props.setFormData - Setter for form values.
- * @param props.editingId - Non-null when editing an existing theme (unused since the
- *   auto-detect banner was replaced by the step-state chip; kept for prop parity).
+ * @param props.editingId - Non-null when editing an existing theme; used as the
+ *   RuntimeConfigEditor's remount key so switching between themes (or to "new")
+ *   re-parses its value instead of fighting the previous target's typed state.
  */
 export function DevProjectFields({
   formData,
@@ -86,6 +80,7 @@ export function DevProjectFields({
   branchError,
   setBranches,
   setBranchError,
+  editingId,
   onCheckDirectory,
   onFetchBranches,
   onCreateDirectory,
@@ -130,16 +125,22 @@ export function DevProjectFields({
         ? 'done'
         : 'pending';
 
-  // Lightweight client-side sanity check only (valid JSON + the two required
-  // keys) — full shape validation (URL format, timeout clamping, etc.) is the
+  // Lightweight client-side sanity check only (non-empty required fields) —
+  // full shape validation (URL format, timeout clamping, etc.) is the
   // backend's job at save time (parseRuntimeConfig), not duplicated here.
+  // RuntimeConfigEditor always serializes well-formed JSON with start/url as
+  // strings, so checking `typeof` alone would read "done" the instant any
+  // field is touched even with start/url still blank — trim().length is the
+  // actual signal that those two required fields are filled in.
   const runtimeConfigState: StepState = (() => {
     const raw = formData.runtimeConfigJson.trim();
     if (!raw) return 'pending';
     try {
       const parsed: unknown = JSON.parse(raw);
       const o = parsed as Record<string, unknown>;
-      return typeof o?.start === 'string' && typeof o?.url === 'string' ? 'done' : 'attention';
+      const start = typeof o?.start === 'string' ? o.start.trim() : '';
+      const url = typeof o?.url === 'string' ? o.url.trim() : '';
+      return start && url ? 'done' : 'attention';
     } catch {
       return 'attention';
     }
@@ -323,24 +324,14 @@ export function DevProjectFields({
             labelIcon={<AppWindow className="w-3.5 h-3.5" />}
             isLast
           >
-            <textarea
+            <RuntimeConfigEditor
+              key={editingId ?? 'new'}
               value={formData.runtimeConfigJson}
-              onChange={(e) => setFormData({ ...formData, runtimeConfigJson: e.target.value })}
-              aria-label={t('runtimeConfigLabel')}
-              placeholder={RUNTIME_CONFIG_PLACEHOLDER}
-              rows={5}
-              spellCheck={false}
-              className={`${inputClass} h-auto font-mono text-xs leading-relaxed py-2`}
+              onChange={(json) => setFormData({ ...formData, runtimeConfigJson: json })}
             />
-            <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
+            <p className="mt-1.5 text-xs text-zinc-500 dark:text-zinc-400">
               {t('runtimeConfigHelp')}
             </p>
-            {runtimeConfigState === 'attention' && (
-              <p className="mt-1 text-xs text-amber-600 dark:text-amber-400 flex items-center gap-1">
-                <AlertCircle className="w-3 h-3" />
-                {t('runtimeConfigInvalid')}
-              </p>
-            )}
           </SetupStep>
         </div>
       )}

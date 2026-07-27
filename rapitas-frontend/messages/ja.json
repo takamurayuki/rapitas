@@ -732,7 +732,13 @@
       "loadingScreenshot": "スクリーンショットを取得中...",
       "screenshotAlt": "プレビューのスクリーンショット",
       "interactHint": "クリックして操作 / キーボード入力可",
-      "closeSelectOverlay": "選択肢を閉じる"
+      "closeSelectOverlay": "選択肢を閉じる",
+      "configureRuntime": "runtime設定を行う",
+      "configureRuntimeHint": "このプロジェクトのruntime設定が未設定か不正です。以下で設定して保存すると、プレビューを再試行します。",
+      "configureRuntimeNoTheme": "このタスクにはテーマが設定されていないため、ここでは保存できません。テーマ設定から作業ディレクトリを登録してください。",
+      "saveAndRetry": "保存して再試行",
+      "cancelConfigure": "キャンセル",
+      "saveFailed": "保存に失敗しました"
     },
     "labelSelector": {
       "empty": "ラベルがありません。",
@@ -2323,6 +2329,15 @@
     "tasks": "タスク",
     "iconNotSelectedDefault": "(未選択時: {icon})"
   },
+  "runtimeConfig": {
+    "start": "起動コマンド",
+    "url": "URL",
+    "healthPath": "ヘルスチェックパス",
+    "readyTimeoutMs": "起動待機タイムアウト (ミリ秒)",
+    "checkPaths": "検証するパス",
+    "addPath": "パスを追加",
+    "removePath": "このパスを削除"
+  },
   "themes": {
     "title": "テーマ一覧",
     "subtitle": "テーマを管理します。開発プロジェクトの設定もここで行えます。",
@@ -2346,9 +2361,7 @@
     "stepRepository": "リポジトリ",
     "stepBranch": "ブランチ",
     "stepRuntimeConfig": "Runtime設定",
-    "runtimeConfigLabel": "Runtime設定 (JSON)",
     "runtimeConfigHelp": "ライブプレビュー・runtime検証を有効にするdevサーバー起動設定。省略するとこの機能は無効になります(プロジェクト直下の rapitas.runtime.json でも代替可)。",
-    "runtimeConfigInvalid": "JSON形式が不正、または \"start\"/\"url\" が不足しています",
     "stepStatusDone": "設定済み",
     "stepStatusPending": "未設定",
     "stepStatusChecking": "確認中",
