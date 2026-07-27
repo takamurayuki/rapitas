@@ -84,7 +84,7 @@ Keep this list accurate. If you assign a glyph a new meaning, add it here.
 | `AlignLeft`               | サブタスク説明の展開/折りたたみトグル（タスク詳細のサブタスク行） |
 | `CircleCheckBig`          | 一括選択モードの「すべて選択」（全解除時は汎用 `X`。タスク一覧 HomeToolbar とサブタスクヘッダー共通） |
 | `LayoutTemplate`          | テンプレート設定（タスク詳細メニュー。テンプレート実体は `FileStack`） |
-| `Settings`                | 設定（設定ハブのみ。旧・エージェント管理/メモリ管理との3重使用は 2026-07-17 に解消） |
+| `Settings`                | 設定を開く操作全般（設定ハブnavに加え、`TaskPreviewSection` のプレビュー設定モーダルを開くボタンでの再利用をユーザー承認済み — 同一概念「設定を開く」の正当な拡張。旧・エージェント管理/メモリ管理との3重使用は 2026-07-17 に解消） |
 | `UserCog`                 | エージェント管理 (nav: /agents)          |
 | `Archive`                 | メモリ管理 / KB管理（検証・忘却アーカイブのライフサイクル管理。nav: /knowledge/admin） |
 | `GitBranch`               | タスク詳細の「ワークフロー」セクション（`TaskWorkflowSection` カードヘッダー + quick-nav `td-workflow`。注: 同一glyphは実際のGitブランチ名フィールド/ピッカー(テーマ設定・ディレクトリピッカー等)でも多用されており、そちらは別の慣用（ブランチそのもの）として許容 — カード見出し文脈とフィールド文脈は視覚的に紛れないため） |
@@ -92,7 +92,6 @@ Keep this list accurate. If you assign a glyph a new meaning, add it here.
 | `Columns2`                | 画面分割表示への切替（ノートモーダルの分割タブ、統合ターミナルのsplit表示切替 — 「サイドバイサイド分割」という共通概念の再利用） |
 | `ArrowLeftRight`          | 左右の位置を入れ替える操作（ノート分割のノート/AI入れ替え、統合ターミナルとタスク詳細スライドパネルのドック位置(左右)入れ替え） |
 | `AppWindow`               | ライブプレビュー概念全般（タスク詳細のライブプレビューセクション見出し、および `SystemStatusPanel` の起動中プレビュー数タイル — 同一概念の正当な再利用） |
-| `Cog`                     | 歯車アイコンでの「設定」操作全般（`claude-md-generator` ウィザードの「自動化」カテゴリアイコン、および `TaskPreviewSection` のプレビュー設定モーダルを開くボタン — 画面が完全に別なため実際の混同リスクは低いと判断し再利用。`Settings` は設定ハブnav専用に予約済みのため使用不可） |
 
 ### Known collisions
 
