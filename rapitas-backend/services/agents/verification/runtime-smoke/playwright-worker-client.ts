@@ -36,11 +36,16 @@ export interface SelectInspection {
 }
 
 export interface PlaywrightWorker {
-  /** Launch a browser, trying each channel in order; resolves with the channel that succeeded. */
+  /**
+   * Launch a browser, trying each channel in order; resolves with the
+   * channel that succeeded.
+   */
   launch(opts: {
     channels: readonly string[];
     timeoutMs?: number;
     viewport?: { width: number; height: number };
+    /** Explicit `false` opens a real, visible OS browser window instead of the default headless mode. */
+    headless?: boolean;
   }): Promise<{ channel: string }>;
   /** Open a fresh page and navigate it — the page stays open for subsequent screenshot() calls. */
   openAndNavigate(opts: {
@@ -185,6 +190,7 @@ export function spawnPlaywrightWorker(): PlaywrightWorker {
           channels: opts.channels,
           timeoutMs: opts.timeoutMs,
           viewport: opts.viewport,
+          headless: opts.headless,
         },
         (opts.timeoutMs ?? 20_000) + 5_000,
       );

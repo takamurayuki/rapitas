@@ -45,10 +45,14 @@ async function cmdLaunch(args) {
   const { chromium } = await import('playwright-core');
   const channels = args.channels || ['msedge', 'chrome'];
   const timeoutMs = args.timeoutMs || 20_000;
+  // Only an explicit `false` opts into a real, visible OS window — every
+  // existing caller (embedded screenshot preview, runtime smoke checks) omits
+  // this and must keep getting the original headless behavior.
+  const headless = args.headless !== false;
   let lastErr = '';
   for (const channel of channels) {
     try {
-      browser = await chromium.launch({ channel, headless: true, timeout: timeoutMs });
+      browser = await chromium.launch({ channel, headless, timeout: timeoutMs });
       context = await browser.newContext({
         viewport: args.viewport || { width: 1280, height: 800 },
       });

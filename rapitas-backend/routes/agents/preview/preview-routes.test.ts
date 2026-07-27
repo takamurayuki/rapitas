@@ -81,7 +81,22 @@ describe('POST /tasks/:id/preview/start', () => {
     expect(res.status).toBe(200);
     expect(body.success).toBe(true);
     expect(body.url).toBe('http://localhost:5173');
-    expect(mockStartPreview).toHaveBeenCalledWith(42);
+    expect(mockStartPreview).toHaveBeenCalledWith(42, { headless: undefined });
+  });
+
+  it('body で headless:false を渡すと startPreview に転送されること', async () => {
+    mockStartPreview.mockResolvedValue({ ok: true, url: 'http://localhost:5173' });
+
+    const res = await previewRoutes.handle(
+      new Request(`${BASE}/42/preview/start`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ headless: false }),
+      }),
+    );
+
+    expect(res.status).toBe(200);
+    expect(mockStartPreview).toHaveBeenCalledWith(42, { headless: false });
   });
 
   it('rapitas.runtime.json 未設定時は 422 + reason を返すこと', async () => {

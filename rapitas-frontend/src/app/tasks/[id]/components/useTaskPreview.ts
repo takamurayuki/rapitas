@@ -41,6 +41,12 @@ export function useTaskPreview(taskId: number) {
   const [state, setState] = useState<PreviewState>({ phase: 'idle' });
   const [imgSrc, setImgSrc] = useState<string | null>(null);
   const [configEditor, setConfigEditor] = useState<RuntimeConfigEditorState | null>(null);
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  // Display mode for the settings modal's test Start button — headless
+  // (default, embedded screenshot view) or a real, visible OS browser
+  // window. Purely a modal concern: the main Start button never sets this,
+  // so it always keeps the original headless behavior.
+  const [headlessMode, setHeadlessMode] = useState(true);
   const objectUrlRef = useRef<string | null>(null);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -118,12 +124,19 @@ export function useTaskPreview(taskId: number) {
     };
   }, []);
 
-  const handleStart = async () => {
+  /**
+   * @param opts.headless - Explicit `false` opens a real, visible browser
+   *   window (the settings modal's "normal display" test mode) instead of
+   *   the default embedded/headless view. / 通常表示モード
+   */
+  const handleStart = async (opts?: { headless?: boolean }) => {
     const myRequestId = ++requestIdRef.current;
     setState({ phase: 'starting' });
     try {
       const res = await fetch(`${API_BASE_URL}/tasks/${taskId}/preview/start`, {
         method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ headless: opts?.headless }),
       });
       const body = (await res.json()) as {
         success: boolean;
@@ -138,7 +151,6 @@ export function useTaskPreview(taskId: number) {
       // a session the user already asked to stop.
       if (myRequestId !== requestIdRef.current) return;
       if (body.success && body.url) {
-        setConfigEditor(null);
         setState({ phase: 'active', url: body.url });
       } else {
         setState({ phase: 'error', message: body.error ?? t('startFailed'), reason: body.reason });
@@ -149,12 +161,14 @@ export function useTaskPreview(taskId: number) {
     }
   };
 
-  // Lets the user fix a missing/broken runtime config (the two
-  // CONFIGURABLE_REASONS) inline instead of leaving the task detail page for
-  // the theme settings form — pre-fills from the theme's current value (if
-  // any) via the same GET the theme form itself doesn't need, since it reads
-  // from its own already-loaded Theme object.
-  const openConfigEditor = async () => {
+  // Lets the user fix a missing/broken preview config (the two
+  // CONFIGURABLE_REASONS) — or just tweak it and test — inline instead of
+  // leaving the task detail page for the theme settings form. Pre-fills from
+  // the theme's current value (if any) via the same GET the theme form
+  // itself doesn't need, since it reads from its own already-loaded Theme
+  // object. Callable any time, not just after a failed start.
+  const openSettings = async () => {
+    setIsSettingsOpen(true);
     try {
       const res = await fetch(`${API_BASE_URL}/tasks/${taskId}/preview/runtime-config`);
       const body = (await res.json()) as { hasTheme: boolean; runtimeConfigJson: string | null };
@@ -169,11 +183,17 @@ export function useTaskPreview(taskId: number) {
     }
   };
 
+  const closeSettings = () => {
+    setIsSettingsOpen(false);
+    setConfigEditor(null);
+  };
+
   const setConfigValue = (value: string) => {
     setConfigEditor((prev) => (prev ? { ...prev, value } : prev));
   };
 
-  const saveConfigAndRetry = async () => {
+  /** Save only — starting/stopping the test session is a separate, explicit action in the modal. */
+  const saveConfig = async () => {
     if (!configEditor) return;
     setConfigEditor({ ...configEditor, saving: true, saveError: null });
     try {
@@ -183,14 +203,15 @@ export function useTaskPreview(taskId: number) {
         body: JSON.stringify({ runtimeConfigJson: configEditor.value }),
       });
       const body = (await res.json()) as { success: boolean; error?: string };
-      if (!body.success) {
-        setConfigEditor((prev) =>
-          prev ? { ...prev, saving: false, saveError: body.error ?? t('saveFailed') } : prev,
-        );
-        return;
-      }
-      setConfigEditor((prev) => (prev ? { ...prev, saving: false } : prev));
-      await handleStart();
+      setConfigEditor((prev) =>
+        prev
+          ? {
+              ...prev,
+              saving: false,
+              saveError: body.success ? null : (body.error ?? t('saveFailed')),
+            }
+          : prev,
+      );
     } catch {
       setConfigEditor((prev) =>
         prev ? { ...prev, saving: false, saveError: t('saveFailed') } : prev,
@@ -238,11 +259,14 @@ export function useTaskPreview(taskId: number) {
     imgSrc,
     containerRef,
     isConfigurable,
+    isSettingsOpen,
     configEditor,
-    openConfigEditor,
-    closeConfigEditor: () => setConfigEditor(null),
+    headlessMode,
+    setHeadlessMode,
+    openSettings,
+    closeSettings,
     setConfigValue,
-    saveConfigAndRetry,
+    saveConfig,
     handleStart,
     handleStop,
     ...interaction,

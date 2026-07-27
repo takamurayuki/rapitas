@@ -122,9 +122,15 @@ export type StartPreviewResult =
  * pointed at the shared checkout instead of an isolated worktree.
  *
  * @param taskId - Task whose latest worktree to preview. / 対象タスクID
+ * @param opts.headless - Explicit `false` opens a real, visible OS browser
+ *   window instead of the default headless tab — used by the task-detail
+ *   preview-settings modal's "test in a normal window" mode. / 通常表示モード
  * @returns The base URL on success, or a typed failure reason + message. / 起動結果
  */
-export async function startPreview(taskId: number): Promise<StartPreviewResult> {
+export async function startPreview(
+  taskId: number,
+  opts?: { headless?: boolean },
+): Promise<StartPreviewResult> {
   await stopPreview(taskId); // clean up an established session, if any
   await killPending(taskId); // clean up an in-flight attempt, if any (see `pending`)
 
@@ -164,14 +170,14 @@ export async function startPreview(taskId: number): Promise<StartPreviewResult> 
       ok: false,
       reason: 'not_configured',
       message:
-        'このプロジェクトのruntime設定がありません。テーマ設定でruntime設定(JSON)を登録するか、rapitas.runtime.json を配置してください。',
+        'このプロジェクトのプレビュー設定がありません。テーマ設定でプレビュー設定(JSON)を登録するか、rapitas.runtime.json を配置してください。',
     };
   }
   if (loaded.error || !loaded.config) {
     return {
       ok: false,
       reason: 'config_error',
-      message: `runtime設定が不正です: ${loaded.error}`,
+      message: `プレビュー設定が不正です: ${loaded.error}`,
     };
   }
   const cfg = loaded.config;
@@ -206,13 +212,14 @@ export async function startPreview(taskId: number): Promise<StartPreviewResult> 
   pending.set(taskId, { app, worker });
 
   try {
-    log.info({ taskId }, '[preview] launching headless browser');
+    log.info({ taskId, headless: opts?.headless ?? true }, '[preview] launching browser');
     const { channel } = await worker.launch({
       channels: ['msedge', 'chrome'],
       timeoutMs: BROWSER_LAUNCH_TIMEOUT_MS,
       viewport: { width: 1280, height: 800 },
+      headless: opts?.headless,
     });
-    log.info({ taskId, channel }, '[preview] headless browser launched');
+    log.info({ taskId, channel }, '[preview] browser launched');
   } catch (e) {
     log.warn(
       { taskId, err: e instanceof Error ? e.message : e },

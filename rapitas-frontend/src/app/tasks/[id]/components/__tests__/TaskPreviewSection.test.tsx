@@ -5,7 +5,7 @@
  * transitions to a polling screenshot view; a failed start shows the error;
  * stop tears the session down and returns to idle.
  */
-import { render, screen, fireEvent, act } from '@testing-library/react';
+import { render, screen, fireEvent, act, within } from '@testing-library/react';
 import TaskPreviewSection from '../TaskPreviewSection';
 
 vi.mock('next-intl', () => ({
@@ -146,12 +146,12 @@ describe('TaskPreviewSection', () => {
     expect(screen.getByText('start')).toBeInTheDocument();
   });
 
-  it('lets the user fix a missing runtime config inline and retries the preview', async () => {
+  it('lets the user fix a missing preview config from the settings modal and test it', async () => {
     const fetchMock = vi.fn().mockImplementation((url: string, init?: RequestInit) => {
       if (url.includes('/status')) return Promise.resolve(jsonResponse({ active: false }));
       if (url.endsWith('/preview/start') && init?.method === 'POST') {
-        // First attempt fails as unconfigured; after the user saves a config,
-        // the retry succeeds.
+        // First attempt (header button) fails as unconfigured; after the
+        // user saves a config from the modal, the modal's own retry succeeds.
         return fetchMock.mock.calls.filter((c) => c[0] === url).length === 1
           ? Promise.resolve(
               jsonResponse({ success: false, reason: 'not_configured', error: 'not configured' }),
@@ -183,24 +183,105 @@ describe('TaskPreviewSection', () => {
       for (let i = 0; i < 5; i++) await Promise.resolve();
     });
 
-    fireEvent.change(screen.getByLabelText('start'), {
+    const dialog = screen.getByRole('dialog');
+    fireEvent.change(within(dialog).getByLabelText('start'), {
       target: { value: 'npm run dev -- -p {port}' },
     });
-    fireEvent.change(screen.getByLabelText('url'), {
+    fireEvent.change(within(dialog).getByLabelText('url'), {
       target: { value: 'http://localhost:{port}' },
     });
 
     await act(async () => {
-      fireEvent.click(screen.getByText('saveAndRetry'));
+      fireEvent.click(within(dialog).getByText('save'));
       for (let i = 0; i < 5; i++) await Promise.resolve();
     });
-
     expect(fetchMock).toHaveBeenCalledWith(
       'http://test:3001/tasks/1/preview/runtime-config',
       expect.objectContaining({ method: 'PUT' }),
     );
-    expect(screen.getByText('stop')).toBeInTheDocument();
+
+    await act(async () => {
+      fireEvent.click(within(dialog).getByRole('button', { name: 'start' }));
+      for (let i = 0; i < 5; i++) await Promise.resolve();
+    });
+
     expect(screen.getByText('http://localhost:5173')).toBeInTheDocument();
+  });
+
+  it('opens the settings modal from the persistent header button even when idle (no error)', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockImplementation((url: string) => {
+        if (url.includes('/status')) return Promise.resolve(jsonResponse({ active: false }));
+        if (url.endsWith('/preview/runtime-config')) {
+          return Promise.resolve(
+            jsonResponse({
+              hasTheme: true,
+              runtimeConfigJson: JSON.stringify({
+                start: 'npm run dev',
+                url: 'http://localhost:{port}',
+              }),
+            }),
+          );
+        }
+        return Promise.resolve(jsonResponse({}));
+      }),
+    );
+
+    render(<TaskPreviewSection taskId={1} />);
+    await flush();
+
+    await act(async () => {
+      fireEvent.click(screen.getByText('settings'));
+      for (let i = 0; i < 5; i++) await Promise.resolve();
+    });
+
+    const dialog = screen.getByRole('dialog');
+    expect(within(dialog).getByLabelText('start')).toHaveValue('npm run dev');
+  });
+
+  it('starting from the settings modal in "normal display" mode sends headless:false', async () => {
+    const fetchMock = vi.fn().mockImplementation((url: string, init?: RequestInit) => {
+      if (url.includes('/status')) return Promise.resolve(jsonResponse({ active: false }));
+      if (url.endsWith('/preview/runtime-config')) {
+        return Promise.resolve(
+          jsonResponse({
+            hasTheme: true,
+            runtimeConfigJson: JSON.stringify({
+              start: 'npm run dev',
+              url: 'http://localhost:{port}',
+            }),
+          }),
+        );
+      }
+      if (url.endsWith('/preview/start') && init?.method === 'POST') {
+        return Promise.resolve(jsonResponse({ success: true, url: 'http://localhost:5173' }));
+      }
+      if (url.includes('/screenshot')) return Promise.resolve(blobResponse([1, 2, 3]));
+      return Promise.resolve(jsonResponse({}));
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    render(<TaskPreviewSection taskId={1} />);
+    await flush();
+
+    await act(async () => {
+      fireEvent.click(screen.getByText('settings'));
+      for (let i = 0; i < 5; i++) await Promise.resolve();
+    });
+
+    const dialog = screen.getByRole('dialog');
+    fireEvent.click(within(dialog).getByText('displayModeNormal'));
+
+    await act(async () => {
+      fireEvent.click(within(dialog).getByRole('button', { name: 'start' }));
+      for (let i = 0; i < 5; i++) await Promise.resolve();
+    });
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      'http://test:3001/tasks/1/preview/start',
+      expect.objectContaining({ body: JSON.stringify({ headless: false }) }),
+    );
   });
 
   it('shows a Stop button while starting (not just once active) and stopping mid-start returns to idle', async () => {

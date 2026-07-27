@@ -15,8 +15,8 @@ import { useTranslations } from 'next-intl';
 import { AppWindow, Play, Square, RefreshCw, AlertCircle, Settings2 } from 'lucide-react';
 import { Spinner } from '@/components/ui/spinner';
 import { PillButton } from '@/components/ui/pill-button';
-import { RuntimeConfigEditor } from '@/components/runtime-config/RuntimeConfigEditor';
 import { useTaskPreview } from './useTaskPreview';
+import { PreviewSettingsModal } from './PreviewSettingsModal';
 
 interface TaskPreviewSectionProps {
   taskId: number;
@@ -33,11 +33,14 @@ export default function TaskPreviewSection({ taskId }: TaskPreviewSectionProps) 
     containerRef,
     selectOverlay,
     isConfigurable,
+    isSettingsOpen,
     configEditor,
-    openConfigEditor,
-    closeConfigEditor,
+    headlessMode,
+    setHeadlessMode,
+    openSettings,
+    closeSettings,
     setConfigValue,
-    saveConfigAndRetry,
+    saveConfig,
     handleStart,
     handleStop,
     handlePreviewClick,
@@ -58,27 +61,45 @@ export default function TaskPreviewSection({ taskId }: TaskPreviewSectionProps) 
             </span>
           )}
         </div>
-        {state.phase === 'active' || state.phase === 'starting' ? (
-          // Stop is offered during 'starting' too — the dev server + browser
-          // launch genuinely takes tens of seconds, and previously there was
-          // no way to cancel a stuck/slow attempt short of navigating away
-          // (which didn't even stop it server-side; see preview-session-
-          // manager.ts's `pending` tracking for the backend half of this).
-          <PillButton icon={Square} color="zinc" onClick={handleStop}>
-            {t('stop')}
+        <div className="flex items-center gap-2">
+          <PillButton icon={Settings2} color="zinc" onClick={openSettings}>
+            {t('settings')}
           </PillButton>
-        ) : state.phase === 'stopping' ? (
-          // Disabled during the transitional stop — nothing to cancel back
-          // into, and a second click would just race the in-flight request.
-          <PillButton icon={Square} color="zinc" onClick={() => {}} disabled>
-            {t('stopping')}
-          </PillButton>
-        ) : (
-          <PillButton icon={Play} color="indigo" onClick={handleStart}>
-            {t('start')}
-          </PillButton>
-        )}
+          {state.phase === 'active' || state.phase === 'starting' ? (
+            // Stop is offered during 'starting' too — the dev server + browser
+            // launch genuinely takes tens of seconds, and previously there was
+            // no way to cancel a stuck/slow attempt short of navigating away
+            // (which didn't even stop it server-side; see preview-session-
+            // manager.ts's `pending` tracking for the backend half of this).
+            <PillButton icon={Square} color="zinc" onClick={handleStop}>
+              {t('stop')}
+            </PillButton>
+          ) : state.phase === 'stopping' ? (
+            // Disabled during the transitional stop — nothing to cancel back
+            // into, and a second click would just race the in-flight request.
+            <PillButton icon={Square} color="zinc" onClick={() => {}} disabled>
+              {t('stopping')}
+            </PillButton>
+          ) : (
+            <PillButton icon={Play} color="indigo" onClick={() => handleStart()}>
+              {t('start')}
+            </PillButton>
+          )}
+        </div>
       </div>
+
+      <PreviewSettingsModal
+        open={isSettingsOpen}
+        onClose={closeSettings}
+        state={state}
+        configEditor={configEditor}
+        headlessMode={headlessMode}
+        onHeadlessModeChange={setHeadlessMode}
+        onConfigValueChange={setConfigValue}
+        onSave={saveConfig}
+        onStart={handleStart}
+        onStop={handleStop}
+      />
 
       <div className="p-4">
         {state.phase === 'idle' && (
@@ -97,45 +118,10 @@ export default function TaskPreviewSection({ taskId }: TaskPreviewSectionProps) 
               <span>{state.message}</span>
             </div>
 
-            {isConfigurable && !configEditor && (
-              <PillButton icon={Settings2} color="indigo" onClick={openConfigEditor}>
+            {isConfigurable && (
+              <PillButton icon={Settings2} color="indigo" onClick={openSettings}>
                 {t('configureRuntime')}
               </PillButton>
-            )}
-
-            {configEditor && (
-              <div className="rounded-lg border border-zinc-200 dark:border-zinc-800 p-3 space-y-3">
-                {configEditor.hasTheme ? (
-                  <>
-                    <p className="text-xs text-zinc-500 dark:text-zinc-400">
-                      {t('configureRuntimeHint')}
-                    </p>
-                    <RuntimeConfigEditor value={configEditor.value} onChange={setConfigValue} />
-                    {configEditor.saveError && (
-                      <p className="text-xs text-red-600 dark:text-red-400">
-                        {configEditor.saveError}
-                      </p>
-                    )}
-                    <div className="flex items-center gap-2">
-                      <PillButton
-                        icon={Play}
-                        color="indigo"
-                        onClick={saveConfigAndRetry}
-                        disabled={configEditor.saving}
-                      >
-                        {configEditor.saving ? t('starting') : t('saveAndRetry')}
-                      </PillButton>
-                      <PillButton icon={Square} color="zinc" onClick={closeConfigEditor}>
-                        {t('cancelConfigure')}
-                      </PillButton>
-                    </div>
-                  </>
-                ) : (
-                  <p className="text-xs text-red-600 dark:text-red-400">
-                    {t('configureRuntimeNoTheme')}
-                  </p>
-                )}
-              </div>
             )}
           </div>
         )}

@@ -22,21 +22,32 @@ import {
 import { HTTP_STATUS } from '../../../utils/common/http-status';
 
 export const previewRoutes = new Elysia()
-  /** Start (or restart) the task's preview: launches its worktree's dev server + a headless browser tab. */
-  .post('/tasks/:id/preview/start', async (context) => {
-    const { params, set } = context;
-    const taskId = parseInt(params.id);
-    if (isNaN(taskId)) {
-      set.status = HTTP_STATUS.BAD_REQUEST;
-      return { error: 'Invalid task id' };
-    }
-    const result = await startPreview(taskId);
-    if (!result.ok) {
-      set.status = HTTP_STATUS.UNPROCESSABLE_ENTITY;
-      return { success: false, reason: result.reason, error: result.message };
-    }
-    return { success: true, url: result.url };
-  })
+  /**
+   * Start (or restart) the task's preview: launches its worktree's dev server
+   * + a browser tab. Headless (embedded screenshot view) unless the caller
+   * explicitly opts into a real, visible window (the preview-settings
+   * modal's "normal display" test mode).
+   */
+  .post(
+    '/tasks/:id/preview/start',
+    async (context) => {
+      const { params, body, set } = context;
+      const taskId = parseInt(params.id);
+      if (isNaN(taskId)) {
+        set.status = HTTP_STATUS.BAD_REQUEST;
+        return { error: 'Invalid task id' };
+      }
+      const result = await startPreview(taskId, { headless: body?.headless });
+      if (!result.ok) {
+        set.status = HTTP_STATUS.UNPROCESSABLE_ENTITY;
+        return { success: false, reason: result.reason, error: result.message };
+      }
+      return { success: true, url: result.url };
+    },
+    {
+      body: t.Optional(t.Object({ headless: t.Optional(t.Boolean()) })),
+    },
+  )
 
   /** Stop the task's preview session, if one is running. */
   .post('/tasks/:id/preview/stop', async (context) => {

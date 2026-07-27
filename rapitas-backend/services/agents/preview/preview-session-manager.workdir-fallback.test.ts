@@ -78,7 +78,7 @@ describe('startPreview — workdir resolution', () => {
       ok: false,
       reason: 'not_configured',
       message:
-        'このプロジェクトのruntime設定がありません。テーマ設定でruntime設定(JSON)を登録するか、rapitas.runtime.json を配置してください。',
+        'このプロジェクトのプレビュー設定がありません。テーマ設定でプレビュー設定(JSON)を登録するか、rapitas.runtime.json を配置してください。',
     });
   });
 
