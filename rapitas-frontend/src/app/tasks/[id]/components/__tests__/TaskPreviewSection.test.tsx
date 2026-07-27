@@ -146,12 +146,13 @@ describe('TaskPreviewSection', () => {
     expect(screen.getByText('start')).toBeInTheDocument();
   });
 
-  it('lets the user fix a missing preview config from the settings modal and test it', async () => {
+  it('lets the user fix a missing preview config from the settings modal, then retry from the header', async () => {
     const fetchMock = vi.fn().mockImplementation((url: string, init?: RequestInit) => {
       if (url.includes('/status')) return Promise.resolve(jsonResponse({ active: false }));
       if (url.endsWith('/preview/start') && init?.method === 'POST') {
         // First attempt (header button) fails as unconfigured; after the
-        // user saves a config from the modal, the modal's own retry succeeds.
+        // user saves a config from the modal, retrying from the header (the
+        // only Start control — the modal itself has none) succeeds.
         return fetchMock.mock.calls.filter((c) => c[0] === url).length === 1
           ? Promise.resolve(
               jsonResponse({ success: false, reason: 'not_configured', error: 'not configured' }),
@@ -201,14 +202,14 @@ describe('TaskPreviewSection', () => {
     );
 
     await act(async () => {
-      fireEvent.click(within(dialog).getByRole('button', { name: 'start' }));
+      fireEvent.click(screen.getByRole('button', { name: 'start' }));
       for (let i = 0; i < 5; i++) await Promise.resolve();
     });
 
     expect(screen.getByText('http://localhost:5173')).toBeInTheDocument();
   });
 
-  it('opens the settings modal from the persistent header button even when idle (no error)', async () => {
+  it('opens the settings modal from the persistent header gear icon even when idle (no error)', async () => {
     vi.stubGlobal(
       'fetch',
       vi.fn().mockImplementation((url: string) => {
@@ -232,7 +233,7 @@ describe('TaskPreviewSection', () => {
     await flush();
 
     await act(async () => {
-      fireEvent.click(screen.getByText('settings'));
+      fireEvent.click(screen.getByLabelText('settings'));
       for (let i = 0; i < 5; i++) await Promise.resolve();
     });
 
@@ -240,7 +241,7 @@ describe('TaskPreviewSection', () => {
     expect(within(dialog).getByLabelText('start')).toHaveValue('npm run dev');
   });
 
-  it('starting from the settings modal in "normal display" mode sends headless:false', async () => {
+  it('picking "normal display" in the settings modal makes the header Start button send headless:false', async () => {
     const fetchMock = vi.fn().mockImplementation((url: string, init?: RequestInit) => {
       if (url.includes('/status')) return Promise.resolve(jsonResponse({ active: false }));
       if (url.endsWith('/preview/runtime-config')) {
@@ -266,7 +267,7 @@ describe('TaskPreviewSection', () => {
     await flush();
 
     await act(async () => {
-      fireEvent.click(screen.getByText('settings'));
+      fireEvent.click(screen.getByLabelText('settings'));
       for (let i = 0; i < 5; i++) await Promise.resolve();
     });
 
@@ -274,7 +275,7 @@ describe('TaskPreviewSection', () => {
     fireEvent.click(within(dialog).getByText('displayModeNormal'));
 
     await act(async () => {
-      fireEvent.click(within(dialog).getByRole('button', { name: 'start' }));
+      fireEvent.click(screen.getByRole('button', { name: 'start' }));
       for (let i = 0; i < 5; i++) await Promise.resolve();
     });
 

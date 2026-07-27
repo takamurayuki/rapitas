@@ -62,9 +62,15 @@ export default function TaskPreviewSection({ taskId }: TaskPreviewSectionProps) 
           )}
         </div>
         <div className="flex items-center gap-2">
-          <PillButton icon={Settings2} color="zinc" onClick={openSettings}>
-            {t('settings')}
-          </PillButton>
+          <button
+            type="button"
+            onClick={openSettings}
+            aria-label={t('settings')}
+            title={t('settings')}
+            className="rounded-lg p-1.5 text-zinc-500 transition-colors hover:bg-zinc-100 hover:text-zinc-700 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-200"
+          >
+            <Settings2 className="h-4 w-4" />
+          </button>
           {state.phase === 'active' || state.phase === 'starting' ? (
             // Stop is offered during 'starting' too — the dev server + browser
             // launch genuinely takes tens of seconds, and previously there was
@@ -81,7 +87,15 @@ export default function TaskPreviewSection({ taskId }: TaskPreviewSectionProps) 
               {t('stopping')}
             </PillButton>
           ) : (
-            <PillButton icon={Play} color="indigo" onClick={() => handleStart()}>
+            // headlessMode comes from the settings modal's display-mode
+            // toggle — Start lives only here (not duplicated in the modal),
+            // so it must read that value to actually launch in "normal
+            // display" mode when the user picked it.
+            <PillButton
+              icon={Play}
+              color="indigo"
+              onClick={() => handleStart({ headless: headlessMode })}
+            >
               {t('start')}
             </PillButton>
           )}
@@ -97,7 +111,6 @@ export default function TaskPreviewSection({ taskId }: TaskPreviewSectionProps) 
         onHeadlessModeChange={setHeadlessMode}
         onConfigValueChange={setConfigValue}
         onSave={saveConfig}
-        onStart={handleStart}
         onStop={handleStop}
       />
 

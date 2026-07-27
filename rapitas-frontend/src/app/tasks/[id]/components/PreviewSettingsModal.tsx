@@ -2,16 +2,17 @@
 /**
  * PreviewSettingsModal
  *
- * Lets the user edit a task's theme's preview settings and test them without
- * leaving the task detail page — Save persists to the theme, Start/Stop
- * drive the SAME preview session the main panel shows (not a separate test
- * session), so the transition from idle through starting/active/stopping is
- * visible right in the modal. "Normal display" launches a real, visible
- * browser window instead of the default embedded/headless view, for
- * visually confirming the app actually renders correctly.
+ * Lets the user edit a task's theme's preview settings without leaving the
+ * task detail page — Save persists to the theme. Starting the preview stays
+ * on the main panel's own Start button (which reads the same `headlessMode`
+ * this modal's display-mode toggle sets), so there's no duplicate Start
+ * control; Stop is offered here too since a test session may already be
+ * running while settings are being tweaked. "Normal display" launches a
+ * real, visible browser window instead of the default embedded/headless
+ * view, for visually confirming the app actually renders correctly.
  */
 import { useTranslations } from 'next-intl';
-import { Play, Square, Save } from 'lucide-react';
+import { Square, File } from 'lucide-react';
 import { Modal } from '@/components/ui/modal/Modal';
 import { Spinner } from '@/components/ui/spinner';
 import { PillButton } from '@/components/ui/pill-button';
@@ -27,7 +28,6 @@ export interface PreviewSettingsModalProps {
   onHeadlessModeChange: (headless: boolean) => void;
   onConfigValueChange: (value: string) => void;
   onSave: () => void;
-  onStart: (opts?: { headless?: boolean }) => void;
   onStop: () => void;
 }
 
@@ -43,14 +43,32 @@ export function PreviewSettingsModal({
   onHeadlessModeChange,
   onConfigValueChange,
   onSave,
-  onStart,
   onStop,
 }: PreviewSettingsModalProps) {
   const t = useTranslations('task.preview');
   const isRunning = state.phase === 'active' || state.phase === 'starting';
 
+  const footer = (
+    <>
+      {isRunning && (
+        <PillButton icon={Square} color="zinc" onClick={onStop}>
+          {t('stop')}
+        </PillButton>
+      )}
+      <PillButton icon={File} color="indigo" onClick={onSave} disabled={configEditor?.saving}>
+        {configEditor?.saving ? t('starting') : t('save')}
+      </PillButton>
+    </>
+  );
+
   return (
-    <Modal open={open} onClose={onClose} title={t('settingsModalTitle')} maxWidthClass="max-w-xl">
+    <Modal
+      open={open}
+      onClose={onClose}
+      title={t('settingsModalTitle')}
+      maxWidthClass="max-w-xl"
+      footer={configEditor?.hasTheme ? footer : undefined}
+    >
       {!configEditor ? (
         <div className="flex items-center justify-center py-6">
           <Spinner size="sm" />
@@ -117,25 +135,6 @@ export function PreviewSettingsModal({
           {state.phase === 'error' && (
             <p className="text-xs text-red-600 dark:text-red-400">{state.message}</p>
           )}
-
-          <div className="flex items-center gap-2 pt-1">
-            <PillButton icon={Save} color="zinc" onClick={onSave} disabled={configEditor.saving}>
-              {configEditor.saving ? t('starting') : t('save')}
-            </PillButton>
-            {isRunning ? (
-              <PillButton icon={Square} color="zinc" onClick={onStop}>
-                {t('stop')}
-              </PillButton>
-            ) : (
-              <PillButton
-                icon={Play}
-                color="indigo"
-                onClick={() => onStart({ headless: headlessMode })}
-              >
-                {t('start')}
-              </PillButton>
-            )}
-          </div>
         </div>
       )}
     </Modal>

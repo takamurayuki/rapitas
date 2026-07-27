@@ -740,7 +740,7 @@
       "displayMode": "Display mode",
       "displayModeHeadless": "Embedded (headless)",
       "displayModeNormal": "Normal (browser window)",
-      "testHint": "Save your settings, then click \"Start preview\" to test. Choosing Normal opens a real browser window.",
+      "testHint": "Save your settings, then use the \"Start preview\" button above to test. Choosing Normal opens a real browser window.",
       "save": "Save",
       "saveFailed": "Failed to save"
     },
