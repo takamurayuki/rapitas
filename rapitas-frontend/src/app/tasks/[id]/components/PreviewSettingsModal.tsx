@@ -55,7 +55,13 @@ export function PreviewSettingsModal({
           {t('stop')}
         </PillButton>
       )}
-      <PillButton icon={File} color="indigo" onClick={onSave} disabled={configEditor?.saving}>
+      <PillButton
+        icon={File}
+        color="blue"
+        iconVariant="plain"
+        onClick={onSave}
+        disabled={configEditor?.saving}
+      >
         {configEditor?.saving ? t('starting') : t('save')}
       </PillButton>
     </>

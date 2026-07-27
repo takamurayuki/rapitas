@@ -13,7 +13,7 @@
  */
 import type { ComponentType, ReactNode, MouseEvent } from 'react';
 
-export type PillButtonColor = 'indigo' | 'zinc' | 'emerald' | 'amber' | 'red';
+export type PillButtonColor = 'indigo' | 'zinc' | 'emerald' | 'amber' | 'red' | 'blue';
 
 const COLOR_CLASSES: Record<
   PillButtonColor,
@@ -53,6 +53,13 @@ const COLOR_CLASSES: Record<
     badge: 'bg-red-500 dark:bg-transparent',
     icon: 'fill-white text-white dark:fill-red-400 dark:text-red-400',
     plainIcon: 'text-red-600 dark:text-red-400',
+  },
+  blue: {
+    button:
+      'border-blue-300 text-blue-600 shadow-[0_2px_0_0_#93c5fd] hover:border-blue-400 hover:bg-blue-50 dark:border-blue-700 dark:text-blue-400 dark:shadow-[0_2px_0_0_#1e3a8a] dark:hover:border-blue-600 dark:hover:bg-blue-950/40',
+    badge: 'bg-blue-500 dark:bg-transparent',
+    icon: 'fill-white text-white dark:fill-blue-400 dark:text-blue-400',
+    plainIcon: 'text-blue-600 dark:text-blue-400',
   },
 };
 

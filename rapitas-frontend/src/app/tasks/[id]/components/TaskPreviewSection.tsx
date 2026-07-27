@@ -62,15 +62,9 @@ export default function TaskPreviewSection({ taskId }: TaskPreviewSectionProps) 
           )}
         </div>
         <div className="flex items-center gap-2">
-          <button
-            type="button"
-            onClick={openSettings}
-            aria-label={t('settings')}
-            title={t('settings')}
-            className="rounded-lg p-1.5 text-zinc-500 transition-colors hover:bg-zinc-100 hover:text-zinc-700 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-200"
-          >
-            <Settings2 className="h-4 w-4" />
-          </button>
+          <PillButton icon={Settings2} color="zinc" onClick={openSettings}>
+            {t('settings')}
+          </PillButton>
           {state.phase === 'active' || state.phase === 'starting' ? (
             // Stop is offered during 'starting' too — the dev server + browser
             // launch genuinely takes tens of seconds, and previously there was

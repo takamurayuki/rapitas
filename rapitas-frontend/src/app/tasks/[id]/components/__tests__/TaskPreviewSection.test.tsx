@@ -233,7 +233,7 @@ describe('TaskPreviewSection', () => {
     await flush();
 
     await act(async () => {
-      fireEvent.click(screen.getByLabelText('settings'));
+      fireEvent.click(screen.getByText('settings'));
       for (let i = 0; i < 5; i++) await Promise.resolve();
     });
 
@@ -267,7 +267,7 @@ describe('TaskPreviewSection', () => {
     await flush();
 
     await act(async () => {
-      fireEvent.click(screen.getByLabelText('settings'));
+      fireEvent.click(screen.getByText('settings'));
       for (let i = 0; i < 5; i++) await Promise.resolve();
     });
 
