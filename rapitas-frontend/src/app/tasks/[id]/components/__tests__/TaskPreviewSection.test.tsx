@@ -241,6 +241,70 @@ describe('TaskPreviewSection', () => {
     expect(within(dialog).getByLabelText('start')).toHaveValue('npm run dev');
   });
 
+  it('closes the settings modal after a successful save', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockImplementation((url: string, init?: RequestInit) => {
+        if (url.includes('/status')) return Promise.resolve(jsonResponse({ active: false }));
+        if (url.endsWith('/preview/runtime-config') && (!init || init.method === undefined)) {
+          return Promise.resolve(jsonResponse({ hasTheme: true, runtimeConfigJson: null }));
+        }
+        if (url.endsWith('/preview/runtime-config') && init?.method === 'PUT') {
+          return Promise.resolve(jsonResponse({ success: true }));
+        }
+        return Promise.resolve(jsonResponse({}));
+      }),
+    );
+
+    render(<TaskPreviewSection taskId={1} />);
+    await flush();
+
+    await act(async () => {
+      fireEvent.click(screen.getByText('settings'));
+      for (let i = 0; i < 5; i++) await Promise.resolve();
+    });
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
+
+    await act(async () => {
+      fireEvent.click(within(screen.getByRole('dialog')).getByText('save'));
+      for (let i = 0; i < 5; i++) await Promise.resolve();
+    });
+
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+  });
+
+  it('keeps the settings modal open with an error when saving fails', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockImplementation((url: string, init?: RequestInit) => {
+        if (url.includes('/status')) return Promise.resolve(jsonResponse({ active: false }));
+        if (url.endsWith('/preview/runtime-config') && (!init || init.method === undefined)) {
+          return Promise.resolve(jsonResponse({ hasTheme: true, runtimeConfigJson: null }));
+        }
+        if (url.endsWith('/preview/runtime-config') && init?.method === 'PUT') {
+          return Promise.resolve(jsonResponse({ success: false, error: 'invalid JSON' }));
+        }
+        return Promise.resolve(jsonResponse({}));
+      }),
+    );
+
+    render(<TaskPreviewSection taskId={1} />);
+    await flush();
+
+    await act(async () => {
+      fireEvent.click(screen.getByText('settings'));
+      for (let i = 0; i < 5; i++) await Promise.resolve();
+    });
+
+    await act(async () => {
+      fireEvent.click(within(screen.getByRole('dialog')).getByText('save'));
+      for (let i = 0; i < 5; i++) await Promise.resolve();
+    });
+
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
+    expect(within(screen.getByRole('dialog')).getByText('invalid JSON')).toBeInTheDocument();
+  });
+
   it('picking "normal display" in the settings modal makes the header Start button send headless:false', async () => {
     const fetchMock = vi.fn().mockImplementation((url: string, init?: RequestInit) => {
       if (url.includes('/status')) return Promise.resolve(jsonResponse({ active: false }));

@@ -55,7 +55,14 @@ export function PreviewSettingsModal({
           {t('stop')}
         </PillButton>
       )}
-      {/* Same look as ThemeForm's own save button (theme-form.tsx) — same action, same glyph, same style. */}
+      {/*
+        Same look as ThemeForm's own save button (theme-form.tsx) — same
+        action, same glyph, same style. Label stays fixed ("save") instead of
+        swapping to a "saving..." variant — the save round-trip is a local
+        PUT that resolves in well under 100ms, so a text swap only flashed in
+        and back out, reading as a jittery flicker rather than useful
+        feedback; disabled+dimmed opacity is enough of a busy indicator.
+      */}
       <button
         type="button"
         onClick={onSave}
@@ -63,7 +70,7 @@ export function PreviewSettingsModal({
         className="flex items-center gap-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 px-3 py-2 text-sm text-white transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed"
       >
         <Save className="w-3.5 h-3.5" />
-        {configEditor?.saving ? t('starting') : t('save')}
+        {t('save')}
       </button>
     </>
   );

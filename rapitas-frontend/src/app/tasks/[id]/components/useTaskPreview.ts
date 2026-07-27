@@ -192,7 +192,11 @@ export function useTaskPreview(taskId: number) {
     setConfigEditor((prev) => (prev ? { ...prev, value } : prev));
   };
 
-  /** Save only — starting/stopping the test session is a separate, explicit action in the modal. */
+  /**
+   * Save only — starting/stopping the test session is a separate, explicit
+   * action in the modal. Closes the modal on success (nothing left to do);
+   * on failure, stays open with the error shown so the user can retry.
+   */
   const saveConfig = async () => {
     if (!configEditor) return;
     setConfigEditor({ ...configEditor, saving: true, saveError: null });
@@ -203,14 +207,12 @@ export function useTaskPreview(taskId: number) {
         body: JSON.stringify({ runtimeConfigJson: configEditor.value }),
       });
       const body = (await res.json()) as { success: boolean; error?: string };
+      if (body.success) {
+        closeSettings();
+        return;
+      }
       setConfigEditor((prev) =>
-        prev
-          ? {
-              ...prev,
-              saving: false,
-              saveError: body.success ? null : (body.error ?? t('saveFailed')),
-            }
-          : prev,
+        prev ? { ...prev, saving: false, saveError: body.error ?? t('saveFailed') } : prev,
       );
     } catch {
       setConfigEditor((prev) =>
