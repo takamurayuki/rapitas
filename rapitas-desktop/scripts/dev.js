@@ -21,7 +21,14 @@
  *   - 起動後にヘルスチェックで実際の疎通を検証し、失敗時はcleanupの徹底度を
  *     上げながら最大3回まで再試行する（黙って続行しない）
  *   - 終了時にプロセスツリーごとクリーンアップ（孤児プロセス防止）
+ *   - 「ゴーストソケット」（LISTEN中だが所有プロセスが既に存在しない状態）を
+ *     検出した際は、そのプロセスをkillしようがない以上アプリ側では発生を防げない
+ *     ため、代わりに調査用の診断スナップショット（OS稼働時間・Docker/WSL2の
+ *     状態・生のnetstat出力など）を .data/logs/ghost-socket-diagnostics.ndjson
+ *     に記録する（captureGhostSocketDiagnostics参照）。発生時点でプロセスは
+ *     既に消えているため、後から手動で調査しようとしても手がかりが残らない。
  *
+
  * オプション:
  *   --watch    バックエンドのホットリロードを有効化（デフォルト: 無効）
  *              ※ AIエージェント実行中にファイル変更すると再起動で中断される
@@ -179,6 +186,7 @@ function killZombieSocketOwners(port) {
     for (const pid of pids) {
       if (!isProcessRunning(pid)) {
         console.log(`  PID ${pid} is already dead (orphaned socket).`);
+        captureGhostSocketDiagnostics(port, pid);
         continue;
       }
       // Identity guard: only force-kill node/bun processes that look
@@ -468,6 +476,8 @@ async function ensurePortAvailable(port) {
     console.log(
       `  No active processes found on port ${port} (may be zombie sockets).`,
     );
+    const reportedPid = [...getProcessesOnPort(port)][0] ?? null;
+    if (reportedPid !== null) captureGhostSocketDiagnostics(port, reportedPid);
   }
   for (const pid of pids) {
     // Same identity guard as forceKillAllOnPort — this fallback path must not
@@ -518,6 +528,8 @@ async function ensurePortAvailable(port) {
       console.log(
         `  → Proceeding anyway (backend uses reusePort for TIME_WAIT handling).`,
       );
+      const reportedPid = [...getProcessesOnPort(port)][0] ?? null;
+      if (reportedPid !== null) captureGhostSocketDiagnostics(port, reportedPid);
       return port;
     }
 
@@ -603,6 +615,83 @@ function queryWin32Processes(filter) {
   }
   // ConvertTo-Json は要素 1 件だと配列ではなくオブジェクトを返す。
   return Array.isArray(parsed) ? parsed : [parsed];
+}
+
+// Ports a ghost-socket diagnostic snapshot has already been captured for in
+// THIS dev.js run — avoids writing a near-duplicate entry every time a retry
+// loop re-detects the same still-unresolved ghost.
+const ghostSocketCapturedPorts = new Set();
+
+/**
+ * Best-effort, read-only diagnostic snapshot for a confirmed "ghost socket"
+ * (a LISTEN entry whose owning PID no longer exists — `isPortListening()`
+ * true but `getListeningPids()` empty). No app-level fix can make this go
+ * away (the owning process is already gone; there's nothing left to kill),
+ * and it has previously only cleared via a full OS restart. Rather than
+ * lose the chance to investigate WHY once the incident is over, this
+ * captures everything that's plausibly relevant — OS uptime (does it
+ * correlate with how long the machine has been up without a reboot?),
+ * whether Docker Desktop/WSL2/Hyper-V networking is active (their virtual
+ * switches/NAT layers are a common source of exactly this kind of socket
+ * confusion), antivirus presence, and the raw netstat/Get-NetTCPConnection
+ * state — to a log file that survives the process dying, so a later
+ * investigation isn't limited to whatever happened to still be on screen.
+ *
+ * @param {number} port
+ * @param {number} deadPid - The PID netstat/Get-NetTCPConnection still reports as the (no-longer-existing) owner.
+ */
+function captureGhostSocketDiagnostics(port, deadPid) {
+  if (ghostSocketCapturedPorts.has(port)) return;
+  ghostSocketCapturedPorts.add(port);
+
+  // One PowerShell script gathering every signal in a single process spawn
+  // (each of these individually is cheap, but this only runs on a rare,
+  // already-broken-startup path, so a few extra hundred ms here is a
+  // reasonable trade for not needing a second round-trip). Every step is
+  // individually try/catch'd so one missing module (e.g. Hyper-V not
+  // installed) doesn't blank out the rest of the snapshot.
+  const script = `
+$result = [ordered]@{}
+try { $result.netTcpConnections = Get-NetTCPConnection -LocalPort ${port} -ErrorAction Stop | Select-Object LocalPort,State,OwningProcess,CreationTime } catch { $result.netTcpConnectionsError = "$_" }
+try { $result.rawNetstat = (netstat -ano | Select-String ":${port} ") -join "\`n" } catch { $result.rawNetstatError = "$_" }
+try { $os = Get-CimInstance Win32_OperatingSystem; $result.lastBootUpTime = $os.LastBootUpTime; $result.uptimeHours = [math]::Round(((Get-Date) - $os.LastBootUpTime).TotalHours, 1) } catch { $result.osInfoError = "$_" }
+try { $result.dockerProcesses = Get-Process -Name 'Docker Desktop','com.docker.backend','com.docker.service','vpnkit' -ErrorAction SilentlyContinue | Select-Object Name,Id } catch { $result.dockerProcessesError = "$_" }
+try { $result.wslVmProcesses = Get-Process -Name 'vmmem','vmmemWSL' -ErrorAction SilentlyContinue | Select-Object Name,Id } catch { $result.wslVmProcessesError = "$_" }
+try { $result.hyperVSwitches = Get-VMSwitch -ErrorAction Stop | Select-Object Name,SwitchType } catch { $result.hyperVSwitchesError = "$_" }
+try { $result.antivirus = Get-CimInstance -Namespace 'root/SecurityCenter2' -ClassName AntivirusProduct -ErrorAction Stop | Select-Object displayName } catch { $result.antivirusError = "$_" }
+try { $result.totalTcpConnections = (Get-NetTCPConnection -ErrorAction Stop | Measure-Object).Count } catch { $result.totalTcpConnectionsError = "$_" }
+$result | ConvertTo-Json -Compress -Depth 4
+`.trim();
+
+  let snapshot = null;
+  try {
+    const encoded = Buffer.from(script, "utf16le").toString("base64");
+    const out = execFileSync(
+      "powershell.exe",
+      ["-NoProfile", "-NonInteractive", "-EncodedCommand", encoded],
+      { encoding: "utf8", stdio: ["pipe", "pipe", "ignore"], timeout: 15000 },
+    );
+    snapshot = JSON.parse((out || "{}").trim() || "{}");
+  } catch (err) {
+    snapshot = { captureError: err && err.message ? err.message : String(err) };
+  }
+
+  const entry = {
+    timestamp: new Date().toISOString(),
+    port,
+    deadPid,
+    ...snapshot,
+  };
+
+  try {
+    fs.mkdirSync(path.dirname(GHOST_SOCKET_LOG_FILE), { recursive: true });
+    fs.appendFileSync(GHOST_SOCKET_LOG_FILE, `${JSON.stringify(entry)}\n`);
+    log.warn(
+      `Ghost socket on port ${port} (dead PID ${deadPid}) — diagnostic snapshot appended to ${GHOST_SOCKET_LOG_FILE}`,
+    );
+  } catch (err) {
+    log.warn(`Ghost socket diagnostics captured but could not be written to disk: ${err.message}`);
+  }
 }
 
 /**
@@ -745,6 +834,8 @@ function forceKillAllOnPort(port, maxRetries = 5) {
       console.log(
         `  Port ${port} shows in netstat but no active process (zombie socket).`,
       );
+      const reportedPid = [...getProcessesOnPort(port)][0] ?? null;
+      if (reportedPid !== null) captureGhostSocketDiagnostics(port, reportedPid);
       return true;
     }
 
@@ -842,6 +933,11 @@ const DESKTOP_DATA_DIR = path.resolve(__dirname, "..", ".data");
 const DESKTOP_DB_PATH = path.join(DESKTOP_DATA_DIR, "rapitas-dev.db");
 const BINARIES_DIR = path.resolve(__dirname, "../src-tauri/binaries");
 const AGENT_PID_DIR = path.join(BACKEND_DIR, ".agent-pids");
+// One JSON line per confirmed "ghost socket" incident (a LISTEN entry with no
+// living owning process) — captured for later root-cause investigation,
+// since the live process is already gone by the time a human looks at it.
+// See captureGhostSocketDiagnostics().
+const GHOST_SOCKET_LOG_FILE = path.join(DESKTOP_DATA_DIR, "logs", "ghost-socket-diagnostics.ndjson");
 // Persists the backend shell-wrapper PID (spawn uses shell:true, so this is
 // cmd.exe's PID, not bun.exe's — killProcessTree already tree-kills through
 // that layer) across dev.js invocations. Lets the NEXT startup find and
