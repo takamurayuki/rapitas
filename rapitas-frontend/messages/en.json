@@ -735,7 +735,6 @@
       "screenshotAlt": "Preview screenshot",
       "interactHint": "Click to interact / keyboard input supported",
       "closeSelectOverlay": "Close options",
-      "configureRuntime": "Configure preview settings",
       "settings": "Settings",
       "settingsModalTitle": "Preview settings",
       "configureRuntimeNoTheme": "This task has no theme set, so settings can't be saved here. Set a working directory in the theme settings instead.",

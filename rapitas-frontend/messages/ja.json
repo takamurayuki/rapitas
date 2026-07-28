@@ -735,7 +735,6 @@
       "screenshotAlt": "プレビューのスクリーンショット",
       "interactHint": "クリックして操作 / キーボード入力可",
       "closeSelectOverlay": "選択肢を閉じる",
-      "configureRuntime": "プレビュー設定を行う",
       "settings": "設定",
       "settingsModalTitle": "プレビュー設定",
       "configureRuntimeNoTheme": "このタスクにはテーマが設定されていないため、ここでは保存できません。テーマ設定から作業ディレクトリを登録してください。",

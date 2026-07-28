@@ -32,7 +32,6 @@ export default function TaskPreviewSection({ taskId }: TaskPreviewSectionProps) 
     imgSrc,
     containerRef,
     selectOverlay,
-    isConfigurable,
     isSettingsOpen,
     configEditor,
     headlessMode,
@@ -132,17 +131,9 @@ export default function TaskPreviewSection({ taskId }: TaskPreviewSectionProps) 
           </div>
         )}
         {state.phase === 'error' && (
-          <div className="space-y-3">
-            <div className="flex items-start gap-2 rounded-lg bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800 p-3 text-sm text-red-600 dark:text-red-400">
-              <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
-              <span>{state.message}</span>
-            </div>
-
-            {isConfigurable && (
-              <PillButton icon={Settings} color="indigo" onClick={openSettings}>
-                {t('configureRuntime')}
-              </PillButton>
-            )}
+          <div className="flex items-start gap-2 rounded-lg bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800 p-3 text-sm text-red-600 dark:text-red-400">
+            <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
+            <span>{state.message}</span>
           </div>
         )}
         {(state.phase === 'active' || state.phase === 'stopping') && (

@@ -24,10 +24,7 @@ export type PreviewState =
   | { phase: 'starting' }
   | { phase: 'active'; url: string }
   | { phase: 'stopping'; url: string }
-  | { phase: 'error'; message: string; reason?: string };
-
-/** Failure reasons fixable from the task-detail panel itself, without leaving the page. */
-const CONFIGURABLE_REASONS = new Set(['not_configured', 'config_error']);
+  | { phase: 'error'; message: string };
 
 export interface RuntimeConfigEditorState {
   hasTheme: boolean;
@@ -193,12 +190,7 @@ export function useTaskPreview(taskId: number) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ headless: opts?.headless }),
       });
-      const body = (await res.json()) as {
-        success: boolean;
-        url?: string;
-        error?: string;
-        reason?: string;
-      };
+      const body = (await res.json()) as { success: boolean; url?: string; error?: string };
       // The user may have clicked Stop (or Start again) while this request
       // was in flight — starting a dev server + browser genuinely takes
       // tens of seconds, and the backend keeps working even after a client
@@ -208,7 +200,7 @@ export function useTaskPreview(taskId: number) {
       if (body.success && body.url) {
         setState({ phase: 'active', url: body.url });
       } else {
-        setState({ phase: 'error', message: body.error ?? t('startFailed'), reason: body.reason });
+        setState({ phase: 'error', message: body.error ?? t('startFailed') });
       }
     } catch {
       if (myRequestId !== requestIdRef.current) return;
@@ -216,12 +208,12 @@ export function useTaskPreview(taskId: number) {
     }
   };
 
-  // Lets the user fix a missing/broken preview config (the two
-  // CONFIGURABLE_REASONS) — or just tweak it and test — inline instead of
-  // leaving the task detail page for the theme settings form. Pre-fills from
-  // the theme's current value (if any) via the same GET the theme form
-  // itself doesn't need, since it reads from its own already-loaded Theme
-  // object. Callable any time, not just after a failed start.
+  // Lets the user fix or tweak the preview config inline instead of leaving
+  // the task detail page for the theme settings form. Pre-fills from the
+  // theme's current value (if any) via the same GET the theme form itself
+  // doesn't need, since it reads from its own already-loaded Theme object.
+  // Callable any time via the persistent settings button, not just after a
+  // failed start.
   const openSettings = async () => {
     setIsSettingsOpen(true);
     try {
@@ -309,13 +301,10 @@ export function useTaskPreview(taskId: number) {
     }
   };
 
-  const isConfigurable = state.phase === 'error' && CONFIGURABLE_REASONS.has(state.reason ?? '');
-
   return {
     state,
     imgSrc,
     containerRef,
-    isConfigurable,
     isSettingsOpen,
     configEditor,
     headlessMode,

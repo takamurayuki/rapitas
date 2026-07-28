@@ -251,8 +251,10 @@ describe('TaskPreviewSection', () => {
     });
     expect(screen.getByText('not configured')).toBeInTheDocument();
 
+    // The persistent header settings button is the only way into the modal now
+    // (the error-state's own "configure" button was removed as redundant).
     await act(async () => {
-      fireEvent.click(screen.getByText('configureRuntime'));
+      fireEvent.click(screen.getByText('settings'));
       for (let i = 0; i < 5; i++) await Promise.resolve();
     });
 
