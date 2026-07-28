@@ -81,6 +81,46 @@ describe('TaskPreviewSection', () => {
     expect(screen.queryByText('checking')).not.toBeInTheDocument();
   });
 
+  it('restores into "starting" (not idle) when a start was already in flight on reload, then settles once active', async () => {
+    // Regression: a reload moments after clicking Start used to show the
+    // idle Start button (the launch wasn't in `sessions` yet, only
+    // in-flight) — indistinguishable from nothing running at all, even
+    // though a start was genuinely underway server-side. The fresh page
+    // load has no connection to the original request, so it must poll to
+    // find out when that in-flight attempt finishes.
+    const fetchMock = vi.fn().mockImplementation((url: string) => {
+      if (url.includes('/status')) {
+        // 1st call: the restore-on-mount check (still starting). 2nd call:
+        // the settle-poll, now active.
+        const statusCalls = fetchMock.mock.calls.filter((c) =>
+          (c[0] as string).includes('/status'),
+        );
+        return Promise.resolve(
+          statusCalls.length === 1
+            ? jsonResponse({ active: false, pending: true })
+            : jsonResponse({ active: true, url: 'http://localhost:5173' }),
+        );
+      }
+      if (url.includes('/screenshot')) return Promise.resolve(blobResponse([1, 2, 3]));
+      return Promise.resolve(jsonResponse({}));
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    render(<TaskPreviewSection taskId={1} />);
+    await flush();
+
+    // Restored as 'starting' — Stop is offered, Start is not.
+    expect(screen.getByText('stop')).toBeInTheDocument();
+    expect(screen.queryByText('start')).not.toBeInTheDocument();
+
+    // Advance past the settle-poll interval — picks up the now-active session.
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(2_000);
+    });
+
+    expect(screen.getByText('http://localhost:5173')).toBeInTheDocument();
+  });
+
   it('restores the active view when a session is already running', async () => {
     vi.stubGlobal(
       'fetch',

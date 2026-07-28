@@ -15,6 +15,8 @@ import { usePreviewInteraction } from './usePreviewInteraction';
 
 /** How often to re-fetch the screenshot while the preview is active. */
 const SCREENSHOT_INTERVAL_MS = 3_000;
+/** How often to re-check status while 'starting', to settle a start attempt this page has no direct connection to (see the poll effect below). */
+const STATUS_POLL_MS = 2_000;
 
 export type PreviewState =
   | { phase: 'checking' }
@@ -85,13 +87,14 @@ export function useTaskPreview(taskId: number) {
     fetchScreenshot,
   );
 
-  // Restore state if a preview is already running (e.g. navigated back to
-  // this task, or a hard page reload) — starts from 'checking' (not 'idle')
-  // so the idle Start button never flashes on screen first, only to be
-  // replaced by the active view a moment later once this resolves. Always
-  // resolves to either 'active' or 'idle', even on failure — 'checking'
-  // must never be a dead end. NOTE: deliberately no "stop on unmount" effect
-  // — one used to fire a stop request whenever this component unmounted
+  // Restore state if a preview is already running OR already starting (e.g.
+  // navigated back to this task, or a hard page reload moments after
+  // clicking Start) — starts from 'checking' (not 'idle') so the idle Start
+  // button never flashes on screen first, only to be replaced by the
+  // active/starting view a moment later once this resolves. Always resolves
+  // to 'active', 'starting', or 'idle', even on failure — 'checking' must
+  // never be a dead end. NOTE: deliberately no "stop on unmount" effect —
+  // one used to fire a stop request whenever this component unmounted
   // (reload, navigating away), which killed the very session this restore
   // logic is trying to find on the next mount. The backend's own 15-minute
   // idle sweep (preview-session-manager.ts's IDLE_TIMEOUT_MS) is the safety
@@ -107,8 +110,14 @@ export function useTaskPreview(taskId: number) {
           setState({ phase: 'idle' });
           return;
         }
-        const body = (await res.json()) as { active: boolean; url?: string };
-        setState(body.active && body.url ? { phase: 'active', url: body.url } : { phase: 'idle' });
+        const body = (await res.json()) as { active: boolean; url?: string; pending?: boolean };
+        if (body.active && body.url) {
+          setState({ phase: 'active', url: body.url });
+        } else if (body.pending) {
+          setState({ phase: 'starting' });
+        } else {
+          setState({ phase: 'idle' });
+        }
       } catch {
         if (!cancelled) setState({ phase: 'idle' });
       }
@@ -117,6 +126,43 @@ export function useTaskPreview(taskId: number) {
       cancelled = true;
     };
   }, [taskId]);
+
+  // While 'starting', poll status until it settles — covers both the normal
+  // handleStart flow (its own long-held POST /preview/start response
+  // usually gets there first; this is a harmless backstop) AND, critically,
+  // a page reload that landed mid-start (the restore effect above set
+  // 'starting' from `pending`): that reload's fresh JS context has no
+  // connection to the original request, so without this poll the UI would
+  // stay on "starting" forever even once the backend finishes. Guarded by
+  // requestIdRef so a Stop clicked during this window (which bumps it) isn't
+  // clobbered by a stale poll response arriving after; the functional
+  // setState additionally checks `prev.phase === 'starting'` so a poll tick
+  // already in flight when handleStart's own response lands (with a more
+  // specific error message) can't overwrite it with a bare 'idle' a moment
+  // later.
+  useEffect(() => {
+    if (state.phase !== 'starting') return;
+    const myRequestId = requestIdRef.current;
+    const poll = setInterval(async () => {
+      try {
+        const res = await fetch(`${API_BASE_URL}/tasks/${taskId}/preview/status`);
+        if (!res.ok || myRequestId !== requestIdRef.current) return;
+        const body = (await res.json()) as { active: boolean; url?: string; pending?: boolean };
+        if (body.active && body.url) {
+          const { url } = body;
+          setState((prev) => (prev.phase === 'starting' ? { phase: 'active', url } : prev));
+        } else if (!body.pending) {
+          // The in-flight attempt finished (failed) while this page wasn't
+          // watching it directly — no error detail to show, just stop
+          // showing a "starting" spinner for an attempt that's over.
+          setState((prev) => (prev.phase === 'starting' ? { phase: 'idle' } : prev));
+        }
+      } catch {
+        /* transient — keep polling */
+      }
+    }, STATUS_POLL_MS);
+    return () => clearInterval(poll);
+  }, [state.phase, taskId]);
 
   // Poll screenshots while active.
   useEffect(() => {

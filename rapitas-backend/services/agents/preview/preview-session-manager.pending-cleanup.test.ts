@@ -64,7 +64,7 @@ mock.module('../verification/runtime-smoke/app-launcher', () => ({
   waitForHealthy: mockWaitForHealthy,
 }));
 
-const { startPreview, stopPreview } = await import('./preview-session-manager');
+const { startPreview, stopPreview, getPreviewStatus } = await import('./preview-session-manager');
 
 beforeEach(() => {
   mockStop.mockClear();
@@ -101,5 +101,22 @@ describe('stopPreview cancels an in-progress launch', () => {
   it('is a no-op when nothing is pending or active for the task', async () => {
     await expect(stopPreview(999_999)).resolves.toBeUndefined();
     expect(mockStop).not.toHaveBeenCalled();
+  });
+});
+
+describe('getPreviewStatus reflects an in-progress launch', () => {
+  it('reports pending:true while a launch is stalled before `sessions`, then settles', async () => {
+    // Confirms a page reload mid-start (before the original request's own
+    // response ever arrives) can tell "already starting" apart from "not
+    // running at all" instead of the two looking identical.
+    expect(getPreviewStatus(42)).toEqual({ active: false });
+
+    const startResult = startPreview(42);
+    await new Promise((r) => setTimeout(r, 10));
+    expect(getPreviewStatus(42)).toEqual({ active: false, pending: true });
+
+    resolveHealthy(false); // fail fast — this test only cares about the pending window
+    await startResult;
+    expect(getPreviewStatus(42)).toEqual({ active: false });
   });
 });

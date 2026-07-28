@@ -305,16 +305,25 @@ export interface PreviewStatus {
   active: boolean;
   url?: string;
   startedAt?: string;
+  /**
+   * A start attempt is in flight (dev server booting / health-check polling
+   * / browser launching) but not yet in `sessions`. Distinguishes "nothing
+   * running, show Start" from "already starting elsewhere, don't offer
+   * Start again" — e.g. the page was reloaded moments after clicking Start,
+   * before the original (now-gone) request had a chance to resolve.
+   */
+  pending?: boolean;
 }
 
 /**
  * @param taskId - Task to check. / 対象タスクID
- * @returns Whether a preview is running, and since when. / 起動状態
+ * @returns Whether a preview is running (or starting), and since when. / 起動状態
  */
 export function getPreviewStatus(taskId: number): PreviewStatus {
   const s = sessions.get(taskId);
-  if (!s) return { active: false };
-  return { active: true, url: s.url, startedAt: s.startedAt.toISOString() };
+  if (s) return { active: true, url: s.url, startedAt: s.startedAt.toISOString() };
+  if (pending.has(taskId)) return { active: false, pending: true };
+  return { active: false };
 }
 
 /**
