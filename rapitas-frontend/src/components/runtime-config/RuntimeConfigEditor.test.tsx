@@ -18,7 +18,7 @@ describe('RuntimeConfigEditor', () => {
     render(<RuntimeConfigEditor value="" onChange={vi.fn()} />);
     expect(screen.getByLabelText('start')).toHaveValue('');
     expect(screen.getByLabelText('healthPath')).toHaveValue('/');
-    expect(screen.getByLabelText('readyTimeoutMs')).toHaveValue(90_000);
+    expect(screen.getByLabelText('readyTimeoutMs')).toHaveValue(90);
   });
 
   it('parses an existing JSON value into its fields', () => {
@@ -33,7 +33,7 @@ describe('RuntimeConfigEditor', () => {
     expect(screen.getByLabelText('start')).toHaveValue('npm run dev -- -p {port}');
     expect(screen.getByLabelText('url')).toHaveValue('http://localhost:{port}');
     expect(screen.getByLabelText('healthPath')).toHaveValue('/health');
-    expect(screen.getByLabelText('readyTimeoutMs')).toHaveValue(30_000);
+    expect(screen.getByLabelText('readyTimeoutMs')).toHaveValue(30);
     expect(screen.getByDisplayValue('/about')).toBeInTheDocument();
   });
 
@@ -60,6 +60,15 @@ describe('RuntimeConfigEditor', () => {
       readyTimeoutMs: 90_000,
       checkPaths: ['/'],
     });
+  });
+
+  it('accepts the ready timeout in seconds and serializes it as milliseconds', () => {
+    const onChange = vi.fn();
+    render(<RuntimeConfigEditor value="" onChange={onChange} />);
+    fireEvent.change(screen.getByLabelText('readyTimeoutMs'), { target: { value: '45' } });
+    const lastCall = onChange.mock.calls[onChange.mock.calls.length - 1][0];
+    expect(JSON.parse(lastCall).readyTimeoutMs).toBe(45_000);
+    expect(screen.getByLabelText('readyTimeoutMs')).toHaveValue(45);
   });
 
   it('adds and removes check-path rows', () => {

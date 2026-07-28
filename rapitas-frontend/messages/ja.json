@@ -2337,7 +2337,7 @@
     "start": "起動コマンド",
     "url": "URL",
     "healthPath": "ヘルスチェックパス",
-    "readyTimeoutMs": "起動待機タイムアウト (ミリ秒)",
+    "readyTimeoutMs": "起動待機タイムアウト (秒)",
     "checkPaths": "検証するパス",
     "addPath": "パスを追加",
     "removePath": "このパスを削除"

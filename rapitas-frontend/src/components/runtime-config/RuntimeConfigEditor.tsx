@@ -160,10 +160,14 @@ export function RuntimeConfigEditor({ value, onChange }: RuntimeConfigEditorProp
           <input
             id="rce-ready-timeout"
             type="number"
-            min={5_000}
-            step={1_000}
-            value={fields.readyTimeoutMs}
-            onChange={(e) => update({ readyTimeoutMs: Number(e.target.value) || 90_000 })}
+            min={5}
+            max={300}
+            step={1}
+            // Displayed/edited in seconds — friendlier than raw milliseconds —
+            // but stored as readyTimeoutMs (ms) to match the backend's wire
+            // format (parseRuntimeConfig), which clamps to [5_000, 300_000]ms.
+            value={Math.round(fields.readyTimeoutMs / 1000)}
+            onChange={(e) => update({ readyTimeoutMs: (Number(e.target.value) || 90) * 1_000 })}
             aria-label={t('readyTimeoutMs')}
             className={inputClass}
           />
