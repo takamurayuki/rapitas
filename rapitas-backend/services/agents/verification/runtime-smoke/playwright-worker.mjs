@@ -113,11 +113,14 @@ async function cmdScroll(args) {
 
 /**
  * Check whether a page-space point is (inside) a <select> and, if so, list
- * its options. A native <select>'s dropdown is drawn by the OS/browser
- * chrome, not the page — it never appears in a CDP screenshot, so a raw
- * mouse.click() "opens" something the user can't see and can't click an
- * option in. The frontend uses this to detect a select BEFORE clicking and
- * render its own dropdown UI instead.
+ * its options plus its on-page bounding box. A native <select>'s dropdown is
+ * drawn by the OS/browser chrome, not the page — it never appears in a CDP
+ * screenshot, so a raw mouse.click() "opens" something the user can't see
+ * and can't click an option in. The frontend uses this to detect a select
+ * BEFORE clicking and render its own dropdown UI instead, positioned/sized
+ * from `rect` (previously placed at the raw click point with a fixed
+ * min-width, which visibly drifted from the real select whenever the click
+ * landed anywhere but its top-left corner).
  */
 async function cmdInspectSelect(args) {
   if (!page) throw new Error('no page open');
@@ -126,13 +129,16 @@ async function cmdInspectSelect(args) {
       const el = document.elementFromPoint(x, y);
       const select = el && el.closest ? el.closest('select') : null;
       if (!select) return { isSelect: false };
+      const r = select.getBoundingClientRect();
       return {
         isSelect: true,
         value: select.value,
+        rect: { x: r.x, y: r.y, width: r.width, height: r.height },
         options: Array.from(select.options).map((o) => ({
           value: o.value,
           label: o.text,
           selected: o.selected,
+          disabled: o.disabled,
         })),
       };
     },

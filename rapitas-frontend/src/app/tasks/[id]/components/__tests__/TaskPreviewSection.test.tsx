@@ -620,6 +620,75 @@ describe('TaskPreviewSection', () => {
     expect(screen.queryByText('Option B')).not.toBeInTheDocument();
   });
 
+  it("positions the select overlay from the select's own rect, not the click point, and disables disabled options", async () => {
+    // Regression: the overlay used to render at the raw click coordinates
+    // with a fixed min-width, drifting from where a real native dropdown
+    // would actually appear (flush under the select's own box) the instant
+    // the click landed anywhere but its exact top-left corner.
+    const fetchMock = vi.fn().mockImplementation((url: string) => {
+      if (url.includes('/status')) {
+        return Promise.resolve(jsonResponse({ active: true, url: 'http://localhost:5173' }));
+      }
+      if (url.includes('/inspect')) {
+        return Promise.resolve(
+          jsonResponse({
+            success: true,
+            isSelect: true,
+            value: 'a',
+            // Page-space rect (1280x800 viewport) — with the 640x400 display
+            // size mocked below, that's an exact 2x scale.
+            rect: { x: 200, y: 80, width: 300, height: 40 },
+            options: [
+              { value: 'a', label: 'Option A', selected: true, disabled: false },
+              { value: 'b', label: 'Option B', selected: false, disabled: true },
+            ],
+          }),
+        );
+      }
+      if (url.includes('/interact')) return Promise.resolve(jsonResponse({ success: true }));
+      if (url.includes('/screenshot')) return Promise.resolve(blobResponse([1, 2, 3]));
+      return Promise.resolve(jsonResponse({}));
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    render(<TaskPreviewSection taskId={1} />);
+    await flush();
+
+    const img = screen.getByAltText('screenshotAlt');
+    vi.spyOn(img, 'getBoundingClientRect').mockReturnValue({
+      x: 0,
+      y: 0,
+      top: 0,
+      left: 0,
+      width: 640,
+      height: 400,
+      right: 640,
+      bottom: 400,
+      toJSON: () => ({}),
+    });
+
+    await act(async () => {
+      // Clicks somewhere well inside the select, NOT its top-left corner.
+      fireEvent.click(img, { clientX: 250, clientY: 90 });
+      for (let i = 0; i < 5; i++) await Promise.resolve();
+    });
+
+    const overlay = screen.getByRole('listbox');
+    // rect.x/width scaled by 0.5 (640/1280), rect bottom edge (y+height) scaled the same way.
+    expect(overlay.style.left).toBe('100px');
+    expect(overlay.style.top).toBe('60px');
+    expect(overlay.style.width).toBe('150px');
+
+    const disabledOption = screen.getByText('Option B');
+    expect(disabledOption).toBeDisabled();
+    fetchMock.mockClear();
+    fireEvent.click(disabledOption);
+    expect(fetchMock).not.toHaveBeenCalledWith(
+      'http://test:3001/tasks/1/preview/interact',
+      expect.anything(),
+    );
+  });
+
   it('typing a printable key relays a "type" action; Enter relays a "key" action', async () => {
     const fetchMock = vi.fn().mockImplementation((url: string) => {
       if (url.includes('/status')) {

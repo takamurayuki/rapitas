@@ -274,14 +274,15 @@ describe('POST /tasks/:id/preview/interact', () => {
 describe('POST /tasks/:id/preview/inspect', () => {
   beforeEach(resetMocks);
 
-  it('選択肢を持つselectの場合、isSelect:true と options を返すこと', async () => {
+  it('選択肢を持つselectの場合、isSelect:true と rect・options を返すこと', async () => {
     mockInspectPreviewElement.mockResolvedValue({
       ok: true,
       isSelect: true,
       value: 'a',
+      rect: { x: 254, y: 101, width: 179, height: 23 },
       options: [
-        { value: 'a', label: 'A', selected: true },
-        { value: 'b', label: 'B', selected: false },
+        { value: 'a', label: 'A', selected: true, disabled: false },
+        { value: 'b', label: 'B', selected: false, disabled: true },
       ],
     });
 
@@ -296,7 +297,9 @@ describe('POST /tasks/:id/preview/inspect', () => {
 
     expect(res.status).toBe(200);
     expect(body.isSelect).toBe(true);
+    expect(body.rect).toEqual({ x: 254, y: 101, width: 179, height: 23 });
     expect(body.options).toHaveLength(2);
+    expect(body.options[1].disabled).toBe(true);
     expect(mockInspectPreviewElement).toHaveBeenCalledWith(42, 10, 20);
   });
 

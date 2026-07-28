@@ -176,7 +176,9 @@ export default function TaskPreviewSection({ taskId }: TaskPreviewSectionProps) 
               // A native <select>'s own dropdown is drawn by the OS/browser
               // chrome, not the page, so it never appears in the screenshot
               // and can't be operated by clicking on it. This is our own
-              // stand-in, positioned at the click that triggered it.
+              // stand-in — flush under the select's own box (scaled to
+              // display pixels) instead of the click point, so it lines up
+              // with where a real dropdown would actually open.
               <>
                 <button
                   type="button"
@@ -187,7 +189,11 @@ export default function TaskPreviewSection({ taskId }: TaskPreviewSectionProps) 
                 <div
                   role="listbox"
                   className="absolute z-20 max-h-48 min-w-[8rem] overflow-y-auto rounded-md border border-zinc-200 bg-white py-1 text-sm shadow-lg dark:border-zinc-700 dark:bg-zinc-800"
-                  style={{ left: selectOverlay.displayX, top: selectOverlay.displayY }}
+                  style={{
+                    left: selectOverlay.left,
+                    top: selectOverlay.top,
+                    width: selectOverlay.width || undefined,
+                  }}
                 >
                   {selectOverlay.options.map((opt) => (
                     <button
@@ -195,11 +201,15 @@ export default function TaskPreviewSection({ taskId }: TaskPreviewSectionProps) 
                       type="button"
                       role="option"
                       aria-selected={opt.selected}
+                      aria-disabled={opt.disabled}
+                      disabled={opt.disabled}
                       onClick={() => handleSelectOption(opt.value)}
-                      className={`block w-full truncate px-3 py-1.5 text-left hover:bg-zinc-100 dark:hover:bg-zinc-700 ${
-                        opt.selected
-                          ? 'font-medium text-indigo-600 dark:text-indigo-400'
-                          : 'text-zinc-700 dark:text-zinc-200'
+                      className={`block w-full truncate px-3 py-1.5 text-left ${
+                        opt.disabled
+                          ? 'cursor-not-allowed text-zinc-400 dark:text-zinc-600'
+                          : opt.selected
+                            ? 'font-medium text-indigo-600 hover:bg-zinc-100 dark:text-indigo-400 dark:hover:bg-zinc-700'
+                            : 'text-zinc-700 hover:bg-zinc-100 dark:text-zinc-200 dark:hover:bg-zinc-700'
                       }`}
                     >
                       {opt.label}

@@ -28,14 +28,22 @@ export interface SelectOption {
   value: string;
   label: string;
   selected: boolean;
+  disabled: boolean;
 }
 
-/** A native <select> was clicked — its dropdown can't be screenshotted, so we render our own instead of relaying the click. */
+/**
+ * A native <select> was clicked — its dropdown can't be screenshotted, so we
+ * render our own instead of relaying the click. Positioned/sized from the
+ * select's own on-page bounding box (scaled to display pixels), not the raw
+ * click point — anchoring to the click alone drifted from the real select
+ * the instant the click landed anywhere but its exact top-left corner.
+ */
 export interface SelectOverlayState {
-  /** Position within the container (CSS pixels), for placing the overlay near the click. */
-  displayX: number;
-  displayY: number;
-  /** Page-space coordinates (fixed 1280x800 viewport), for the eventual select relay. */
+  /** Left/top/width of the select itself in display (CSS) pixels — the overlay renders flush under this box, matching where a real dropdown would appear. */
+  left: number;
+  top: number;
+  width: number;
+  /** Page-space coordinates (fixed 1280x800 viewport) of the original click, for the eventual select relay (re-locates the same <select> via elementFromPoint). */
   pageX: number;
   pageY: number;
   options: SelectOption[];
@@ -106,10 +114,26 @@ export function usePreviewInteraction(
       const body = (await res.json()) as {
         success: boolean;
         isSelect?: boolean;
+        rect?: { x: number; y: number; width: number; height: number };
         options?: SelectOption[];
       };
       if (body.success && body.isSelect && body.options) {
-        setSelectOverlay({ displayX, displayY, pageX, pageY, options: body.options });
+        const scaleX = rect.width / PREVIEW_VIEWPORT.width;
+        const scaleY = rect.height / PREVIEW_VIEWPORT.height;
+        // Anchor the overlay to the select's own box (scaled to display
+        // pixels), flush under its bottom edge — falls back to the click
+        // point only if an older backend didn't send `rect`.
+        const overlayLeft = body.rect ? body.rect.x * scaleX : displayX;
+        const overlayTop = body.rect ? (body.rect.y + body.rect.height) * scaleY : displayY;
+        const overlayWidth = body.rect ? body.rect.width * scaleX : 0;
+        setSelectOverlay({
+          left: overlayLeft,
+          top: overlayTop,
+          width: overlayWidth,
+          pageX,
+          pageY,
+          options: body.options,
+        });
         return;
       }
     } catch {

@@ -32,7 +32,9 @@ export interface WorkerCheckPathResult {
 export interface SelectInspection {
   isSelect: boolean;
   value?: string;
-  options?: Array<{ value: string; label: string; selected: boolean }>;
+  /** The select's own on-page bounding box (page-space, same coordinate system as click x/y) — lets the overlay align to it instead of the raw click point. */
+  rect?: { x: number; y: number; width: number; height: number };
+  options?: Array<{ value: string; label: string; selected: boolean; disabled: boolean }>;
 }
 
 export interface PlaywrightWorker {

@@ -148,6 +148,7 @@ export const previewRoutes = new Elysia()
         success: true,
         isSelect: result.isSelect,
         value: result.value,
+        rect: result.rect,
         options: result.options,
       };
     },
