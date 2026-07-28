@@ -71,18 +71,29 @@ export const tasksRoutes = new Elysia({ prefix: '/tasks' })
   // Get task statistics
   .get('/statistics', async ({ set }) => {
     try {
-      const stats = await QueryOptimizers.getTaskStatistics(prisma, { parentId: null });
+      // byCategory used to be computed by loading every top-level task's
+      // theme relation into JS (`findMany` with no `take`) — an O(task count)
+      // query that got slower as the table grew and was the single heaviest
+      // request this endpoint made (holding a connection open long enough to
+      // trip the frontend's 15s api-client timeout under load). themeId is
+      // indexed (see schema/core.prisma's @@index([themeId])), so grouping by
+      // it is a proper DB-side aggregate; themes themselves are few enough
+      // (tens, not thousands) to load in full and join in JS.
+      const [stats, themeCounts, themes] = await Promise.all([
+        QueryOptimizers.getTaskStatistics(prisma, { parentId: null }),
+        prisma.task.groupBy({
+          by: ['themeId'],
+          where: { parentId: null },
+          _count: { _all: true },
+        }),
+        prisma.theme.findMany({ select: { id: true, categoryId: true } }),
+      ]);
 
-      // Get category statistics via Theme relation (Task has no direct categoryId)
-      const tasksWithTheme = await prisma.task.findMany({
-        where: { parentId: null },
-        select: { theme: { select: { categoryId: true } } },
-      });
-
+      const themeIdToCategoryId = new Map(themes.map((t) => [t.id, t.categoryId ?? 0]));
       const byCategory: Record<number, number> = {};
-      for (const t of tasksWithTheme) {
-        const catId = t.theme?.categoryId ?? 0;
-        byCategory[catId] = (byCategory[catId] || 0) + 1;
+      for (const tc of themeCounts) {
+        const catId = tc.themeId != null ? (themeIdToCategoryId.get(tc.themeId) ?? 0) : 0;
+        byCategory[catId] = (byCategory[catId] || 0) + tc._count._all;
       }
 
       return {

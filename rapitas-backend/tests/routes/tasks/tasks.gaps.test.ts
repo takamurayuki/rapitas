@@ -16,6 +16,9 @@ const mockPrisma = {
     count: mock(() => Promise.resolve(0)),
     groupBy: mock(() => Promise.resolve([])),
   },
+  theme: {
+    findMany: mock(() => Promise.resolve([])),
+  },
   agentSession: {
     findFirst: mock(() => Promise.resolve(null)),
   },
@@ -188,16 +191,19 @@ describe('GET /tasks/statistics', () => {
   test('ステータス別・カテゴリ別の集計を返すこと', async () => {
     mockPrisma.task.count.mockResolvedValue(10);
     mockPrisma.task.groupBy
+      // Call order matches the route: status/priority groupBy run inside
+      // QueryOptimizers.getTaskStatistics, then the themeId groupBy this
+      // route added (replacing an unbounded findMany over every task).
       .mockResolvedValueOnce([
         { status: 'todo', _count: { status: 4 } },
         { status: 'done', _count: { status: 6 } },
       ])
-      .mockResolvedValueOnce([{ priority: 'medium', _count: { priority: 10 } }]);
-    mockPrisma.task.findMany.mockResolvedValue([
-      { theme: { categoryId: 1 } },
-      { theme: { categoryId: 1 } },
-      { theme: null },
-    ]);
+      .mockResolvedValueOnce([{ priority: 'medium', _count: { priority: 10 } }])
+      .mockResolvedValueOnce([
+        { themeId: 1, _count: { _all: 2 } },
+        { themeId: null, _count: { _all: 1 } },
+      ]);
+    mockPrisma.theme.findMany.mockResolvedValue([{ id: 1, categoryId: 1 }]);
 
     const res = await app.handle(new Request('http://localhost/tasks/statistics'));
     const body = await res.json();
