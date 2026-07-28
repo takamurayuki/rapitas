@@ -3,19 +3,17 @@
  * PreviewSettingsModal
  *
  * Lets the user edit a task's theme's preview settings without leaving the
- * task detail page — Save persists to the theme. Starting the preview stays
- * on the main panel's own Start button (which reads the same `headlessMode`
- * this modal's display-mode toggle sets), so there's no duplicate Start
- * control; Stop is offered here too since a test session may already be
- * running while settings are being tweaked. "Normal display" launches a
- * real, visible browser window instead of the default embedded/headless
- * view, for visually confirming the app actually renders correctly.
+ * task detail page — Save persists to the theme. Starting/stopping the
+ * preview stays on the main panel's own Start/Stop button (which reads the
+ * same `headlessMode` this modal's display-mode toggle sets), so there's no
+ * duplicate control here. "Normal display" launches a real, visible browser
+ * window instead of the default embedded/headless view, for visually
+ * confirming the app actually renders correctly.
  */
 import { useTranslations } from 'next-intl';
-import { Square, Save } from 'lucide-react';
+import { Save } from 'lucide-react';
 import { Modal } from '@/components/ui/modal/Modal';
 import { Spinner } from '@/components/ui/spinner';
-import { PillButton } from '@/components/ui/pill-button';
 import { RuntimeConfigEditor } from '@/components/runtime-config/RuntimeConfigEditor';
 import type { PreviewState, RuntimeConfigEditorState } from './useTaskPreview';
 
@@ -28,7 +26,6 @@ export interface PreviewSettingsModalProps {
   onHeadlessModeChange: (headless: boolean) => void;
   onConfigValueChange: (value: string) => void;
   onSave: () => void;
-  onStop: () => void;
 }
 
 /**
@@ -43,18 +40,11 @@ export function PreviewSettingsModal({
   onHeadlessModeChange,
   onConfigValueChange,
   onSave,
-  onStop,
 }: PreviewSettingsModalProps) {
   const t = useTranslations('task.preview');
-  const isRunning = state.phase === 'active' || state.phase === 'starting';
 
   const footer = (
     <>
-      {isRunning && (
-        <PillButton icon={Square} color="zinc" onClick={onStop}>
-          {t('stop')}
-        </PillButton>
-      )}
       {/*
         Same look as ThemeForm's own save button (theme-form.tsx) — same
         action, same glyph, same style. Label stays fixed ("save") instead of
@@ -134,11 +124,6 @@ export function PreviewSettingsModal({
               <Spinner size="sm" />
               {t('startingHint')}
             </div>
-          )}
-          {state.phase === 'active' && (
-            <p className="text-xs text-green-700 dark:text-green-400">
-              {t('liveBadge')} — {state.url}
-            </p>
           )}
           {state.phase === 'stopping' && (
             <div className="flex items-center gap-2 text-xs text-zinc-500 dark:text-zinc-400">

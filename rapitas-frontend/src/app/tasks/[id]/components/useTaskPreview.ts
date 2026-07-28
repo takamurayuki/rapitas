@@ -17,6 +17,7 @@ import { usePreviewInteraction } from './usePreviewInteraction';
 const SCREENSHOT_INTERVAL_MS = 3_000;
 
 export type PreviewState =
+  | { phase: 'checking' }
   | { phase: 'idle' }
   | { phase: 'starting' }
   | { phase: 'active'; url: string }
@@ -38,7 +39,7 @@ export interface RuntimeConfigEditorState {
  */
 export function useTaskPreview(taskId: number) {
   const t = useTranslations('task.preview');
-  const [state, setState] = useState<PreviewState>({ phase: 'idle' });
+  const [state, setState] = useState<PreviewState>({ phase: 'checking' });
   const [imgSrc, setImgSrc] = useState<string | null>(null);
   const [configEditor, setConfigEditor] = useState<RuntimeConfigEditorState | null>(null);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
@@ -85,23 +86,31 @@ export function useTaskPreview(taskId: number) {
   );
 
   // Restore state if a preview is already running (e.g. navigated back to
-  // this task, or a hard page reload). NOTE: deliberately no "stop on
-  // unmount" effect — one used to fire a stop request whenever this
-  // component unmounted (reload, navigating away), which killed the very
-  // session this restore logic is trying to find on the next mount. The
-  // backend's own 15-minute idle sweep (preview-session-manager.ts's
-  // IDLE_TIMEOUT_MS) is the safety net for a truly-abandoned preview;
-  // don't reintroduce an unmount-triggered stop here.
+  // this task, or a hard page reload) — starts from 'checking' (not 'idle')
+  // so the idle Start button never flashes on screen first, only to be
+  // replaced by the active view a moment later once this resolves. Always
+  // resolves to either 'active' or 'idle', even on failure — 'checking'
+  // must never be a dead end. NOTE: deliberately no "stop on unmount" effect
+  // — one used to fire a stop request whenever this component unmounted
+  // (reload, navigating away), which killed the very session this restore
+  // logic is trying to find on the next mount. The backend's own 15-minute
+  // idle sweep (preview-session-manager.ts's IDLE_TIMEOUT_MS) is the safety
+  // net for a truly-abandoned preview; don't reintroduce an
+  // unmount-triggered stop here.
   useEffect(() => {
     let cancelled = false;
     (async () => {
       try {
         const res = await fetch(`${API_BASE_URL}/tasks/${taskId}/preview/status`);
-        if (!res.ok || cancelled) return;
+        if (cancelled) return;
+        if (!res.ok) {
+          setState({ phase: 'idle' });
+          return;
+        }
         const body = (await res.json()) as { active: boolean; url?: string };
-        if (body.active && body.url) setState({ phase: 'active', url: body.url });
+        setState(body.active && body.url ? { phase: 'active', url: body.url } : { phase: 'idle' });
       } catch {
-        /* best-effort restore */
+        if (!cancelled) setState({ phase: 'idle' });
       }
     })();
     return () => {

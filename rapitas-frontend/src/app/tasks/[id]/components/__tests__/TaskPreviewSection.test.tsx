@@ -49,6 +49,38 @@ describe('TaskPreviewSection', () => {
     expect(screen.getByText('start')).toBeInTheDocument();
   });
 
+  it('shows a "checking" placeholder before the restore-on-mount status check resolves, never the idle Start button', async () => {
+    // Regression: the initial state used to be 'idle', so on a page reload
+    // of an already-running preview, the Start button flashed on screen
+    // first and only got replaced by the active view once the async status
+    // check resolved a moment later.
+    let resolveStatus: (v: unknown) => void = () => {};
+    const statusPromise = new Promise((res) => {
+      resolveStatus = res;
+    });
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockImplementation((url: string) => {
+        if (url.includes('/status')) return statusPromise;
+        return Promise.resolve(jsonResponse({}));
+      }),
+    );
+
+    render(<TaskPreviewSection taskId={1} />);
+
+    // Status check hasn't resolved yet — must show "checking", not "start".
+    expect(screen.getByText('checking')).toBeInTheDocument();
+    expect(screen.queryByText('start')).not.toBeInTheDocument();
+
+    await act(async () => {
+      resolveStatus(jsonResponse({ active: false }));
+      for (let i = 0; i < 5; i++) await Promise.resolve();
+    });
+
+    expect(screen.getByText('start')).toBeInTheDocument();
+    expect(screen.queryByText('checking')).not.toBeInTheDocument();
+  });
+
   it('restores the active view when a session is already running', async () => {
     vi.stubGlobal(
       'fetch',
@@ -239,6 +271,37 @@ describe('TaskPreviewSection', () => {
 
     const dialog = screen.getByRole('dialog');
     expect(within(dialog).getByLabelText('start')).toHaveValue('npm run dev');
+  });
+
+  it('does not show a LIVE/URL status line or a Stop button inside the settings modal while active', async () => {
+    // The modal used to duplicate the header's LIVE badge/URL and offer its
+    // own Stop button — both removed as redundant with the main panel.
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockImplementation((url: string) => {
+        if (url.includes('/status')) {
+          return Promise.resolve(jsonResponse({ active: true, url: 'http://localhost:5173' }));
+        }
+        if (url.endsWith('/preview/runtime-config')) {
+          return Promise.resolve(jsonResponse({ hasTheme: true, runtimeConfigJson: null }));
+        }
+        if (url.includes('/screenshot')) return Promise.resolve(blobResponse([1, 2, 3]));
+        return Promise.resolve(jsonResponse({}));
+      }),
+    );
+
+    render(<TaskPreviewSection taskId={1} />);
+    await flush();
+
+    await act(async () => {
+      fireEvent.click(screen.getByText('settings'));
+      for (let i = 0; i < 5; i++) await Promise.resolve();
+    });
+
+    const dialog = screen.getByRole('dialog');
+    expect(within(dialog).queryByText('liveBadge')).not.toBeInTheDocument();
+    expect(within(dialog).queryByText(/http:\/\/localhost:5173/)).not.toBeInTheDocument();
+    expect(within(dialog).queryByText('stop')).not.toBeInTheDocument();
   });
 
   it('closes the settings modal after a successful save', async () => {

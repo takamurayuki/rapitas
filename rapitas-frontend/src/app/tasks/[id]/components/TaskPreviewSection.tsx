@@ -80,6 +80,14 @@ export default function TaskPreviewSection({ taskId }: TaskPreviewSectionProps) 
             <PillButton icon={Square} color="zinc" onClick={() => {}} disabled>
               {t('stopping')}
             </PillButton>
+          ) : state.phase === 'checking' ? (
+            // Disabled placeholder while the on-mount restore check is in
+            // flight — prevents a flash of the idle Start button (which used
+            // to show immediately, then get replaced by Stop a moment later
+            // whenever a session was already running, e.g. on page reload).
+            <PillButton icon={Play} color="zinc" onClick={() => {}} disabled>
+              {t('checking')}
+            </PillButton>
           ) : (
             // headlessMode comes from the settings modal's display-mode
             // toggle — Start lives only here (not duplicated in the modal),
@@ -105,10 +113,15 @@ export default function TaskPreviewSection({ taskId }: TaskPreviewSectionProps) 
         onHeadlessModeChange={setHeadlessMode}
         onConfigValueChange={setConfigValue}
         onSave={saveConfig}
-        onStop={handleStop}
       />
 
       <div className="p-4">
+        {state.phase === 'checking' && (
+          <div className="flex items-center gap-2 text-sm text-zinc-500 dark:text-zinc-400">
+            <Spinner size="sm" />
+            {t('checkingHint')}
+          </div>
+        )}
         {state.phase === 'idle' && (
           <p className="text-sm text-zinc-500 dark:text-zinc-400">{t('idleHint')}</p>
         )}
