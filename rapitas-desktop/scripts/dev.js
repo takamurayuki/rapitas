@@ -627,10 +627,57 @@ function queryWin32Processes(filter) {
  * @param {number} pid
  * @returns {boolean} 既知のrapitas管理プロセスかつ rapitas 関連と判定できれば true
  */
+/**
+ * Walk up the parent-process chain from `pid` (inclusive), checking whether
+ * it or any ancestor (up to `maxDepth` hops) matches a PID in `rootPids`.
+ *
+ * Needed because `backend`/`frontend` are spawned with `shell: true` and a
+ * bare relative command (`bun run dev:stable`, `pnpm run dev`), so the
+ * actual long-lived bun.exe/node.exe descendant sits several process-tree
+ * levels below the immediately-tracked PID (cmd.exe → bun.exe(run) →
+ * bun.exe(index.ts), or pnpm → cmd.exe → node(next) → node(next-server)).
+ *
+ * @param {number} pid
+ * @param {number[]} rootPids
+ * @param {number} maxDepth
+ * @returns {boolean}
+ */
+function isDescendantOfAny(pid, rootPids, maxDepth = 8) {
+  let current = pid;
+  for (let i = 0; i < maxDepth; i++) {
+    if (rootPids.includes(current)) return true;
+    const procs = queryWin32Processes(`ProcessId=${current}`);
+    if (procs.length === 0) return false;
+    const parentPid = Number(procs[0].ParentProcessId);
+    if (!Number.isInteger(parentPid) || parentPid <= 0 || parentPid === current) return false;
+    current = parentPid;
+  }
+  return false;
+}
+
 function isRapitasOwnedProcess(pid) {
   if (process.platform !== "win32") {
     // POSIX 経路 (killStrayBunPosix 等) は ps + grep で既に rapitas スコープ
     // 済みのコマンドラインしか対象にしていないため、ここでは常に true でよい。
+    return true;
+  }
+  // Fast, reliable path first: a descendant of THIS dev.js instance's own
+  // currently-tracked backend/frontend is unambiguously rapitas-owned,
+  // regardless of what its own CommandLine looks like. Without this, the
+  // CommandLine/ExecutablePath heuristic below produces a false negative on
+  // exactly the process a health-check retry most needs to be able to kill
+  // — the backend it JUST started itself: bun.exe resolves to
+  // `C:\Users\<user>\.bun\bin\bun.exe` (no "rapitas" in the path) and is
+  // invoked as the bare command `bun index.ts` (no "rapitas" in the visible
+  // CommandLine either), so the string match below always misses it. This
+  // false negative made `forceKillAllOnPort` refuse to kill a stuck-but-
+  // unresponsive backend during retry, permanently wedging the startup
+  // (confirmed live: retry attempt 2/2 logged "does not look rapitas-
+  // related... refusing to force-kill" for the backend's own bun.exe PID).
+  const knownRootPids = [backend && backend.pid, frontend && frontend.pid].filter(
+    (p) => typeof p === "number",
+  );
+  if (knownRootPids.length > 0 && isDescendantOfAny(pid, knownRootPids)) {
     return true;
   }
   const procs = queryWin32Processes(`ProcessId=${pid}`);
