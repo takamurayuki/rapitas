@@ -12,8 +12,12 @@
  *     Windowsが着信接続を生きているソケットと死んでいるソケットに分散させ、
  *     死んでいる方に回された接続がハングする(HTTP 000)問題があったため。
  *     このスクリプトの役目は「起動前にダーティなポートを確実に片付ける」こと。
- *   - バックエンドPID(シェルラッパー)を .data/backend.pid に永続化し、次回
- *     起動時に前回の異常終了(ターミナルを閉じた/クラッシュ)分を確実に検出する
+ *   - バックエンド/フロントエンド双方のPID(シェルラッパー)を .data/backend.pid・
+ *     .data/frontend.pid に永続化し、次回起動時に前回の異常終了(ターミナルを閉じた/
+ *     クラッシュ/タスクマネージャーからの強制終了)分をポート未LISTEN状態でも
+ *     確実に検出・ツリーkillする（フロントエンドはNext.js/Turbopackの子プロセスが
+ *     ポートにbindしないまま生き残ることがあり、ポートベースの検出だけでは
+ *     見逃していた — これが「再起動後に画面が読み込み中のまま」の実態だった）
  *   - 起動後にヘルスチェックで実際の疎通を検証し、失敗時はcleanupの徹底度を
  *     上げながら最大3回まで再試行する（黙って続行しない）
  *   - 終了時にプロセスツリーごとクリーンアップ（孤児プロセス防止）
@@ -799,6 +803,15 @@ const AGENT_PID_DIR = path.join(BACKEND_DIR, ".agent-pids");
 // instead of relying purely on port/netstat heuristics that can't tell a
 // live backend apart from a truly ownerless ghost socket.
 const BACKEND_PID_FILE = path.join(DESKTOP_DATA_DIR, "backend.pid");
+// Same idea for the frontend (pnpm → node → Next.js/Turbopack tree). Without
+// this, a frontend left running by a previous dev.js that didn't go through
+// its shutdown handlers is only found if it's still LISTENING on port 3000 —
+// a Turbopack/webpack compiler child that outlives its parent without ever
+// binding to the port itself was invisible to every port-based check, so it
+// silently survived every restart, piling up and fighting the new frontend
+// over the same `.next` build cache (the exact class of hang already known
+// from preview-session-manager.ts's abandoned `next dev` processes).
+const FRONTEND_PID_FILE = path.join(DESKTOP_DATA_DIR, "frontend.pid");
 
 /**
  * 残留 bun プロセスを安全に kill する。
@@ -1103,6 +1116,68 @@ function cleanupPreviousBackendPidFile() {
     }
   }
   removeBackendPidFile();
+}
+
+/**
+ * フロントエンドプロセス(pnpmラッパーのPID)をファイルに永続化する。
+ * @param {number} pid
+ */
+function writeFrontendPidFile(pid) {
+  try {
+    fs.mkdirSync(DESKTOP_DATA_DIR, { recursive: true });
+    fs.writeFileSync(
+      FRONTEND_PID_FILE,
+      JSON.stringify({ pid, startedAt: new Date().toISOString() }),
+    );
+  } catch {
+    // ベストエフォート — 書き込めなくても次回起動時はポートスキャンにフォールバックする
+  }
+}
+
+/**
+ * フロントエンドPIDファイルを削除する（正常停止時に呼ぶ）。
+ */
+function removeFrontendPidFile() {
+  try {
+    fs.unlinkSync(FRONTEND_PID_FILE);
+  } catch {}
+}
+
+/**
+ * 前回の dev.js 実行が終了ハンドラを通らずに終わった場合に残ったフロントエンド
+ * プロセスツリーを起動前にクリーンアップする。cleanupPreviousBackendPidFile と同じ
+ * 理由付け: ポート/netstat ベースのヒューリスティックだけでは、ポートに直接bind
+ * していないTurbopack/webpackのコンパイラ子プロセスが生き残ったまま次回起動を
+ * 待ってしまい、新しいフロントエンドと同じ `.next` ビルドキャッシュを奪い合って
+ * 両方ハングする(「画面が読み込み中のまま」の実際の原因)。
+ */
+function cleanupPreviousFrontendPidFile() {
+  if (!fs.existsSync(FRONTEND_PID_FILE)) return;
+  let info;
+  try {
+    info = JSON.parse(fs.readFileSync(FRONTEND_PID_FILE, "utf-8"));
+  } catch {
+    removeFrontendPidFile();
+    return;
+  }
+  const pid = info && info.pid;
+  if (pid && isProcessRunning(pid)) {
+    if (isRapitasOwnedProcess(pid)) {
+      log.info(
+        `Found frontend PID file from a previous run (PID ${pid}, still running) — cleaning up...`,
+      );
+      try {
+        execSync(`taskkill /F /T /PID ${pid}`, { stdio: "pipe" });
+        log.info(`Killed leftover frontend PID ${pid}`);
+        sleepSync(1000);
+      } catch {}
+    } else {
+      log.warn(
+        `Frontend PID file points at PID ${pid}, which no longer looks rapitas-related — leaving it alone.`,
+      );
+    }
+  }
+  removeFrontendPidFile();
 }
 
 if (useWatch) {
@@ -1887,10 +1962,11 @@ async function main() {
   // ブランチに固定してから起動する（古いブランチで動く事故を防ぐ）。
   ensurePrimaryBranch();
 
-  // 前回実行が終了ハンドラを通らずに終わった場合の、記録済みバックエンドPIDの
-  // ターゲットkill。ポート/netstatヒューリスティックより先に、確実な情報から
-  // クリーンアップする。
+  // 前回実行が終了ハンドラを通らずに終わった場合の、記録済みバックエンド/
+  // フロントエンドPIDのターゲットkill。ポート/netstatヒューリスティックより先に、
+  // 確実な情報からクリーンアップする。
   cleanupPreviousBackendPidFile();
+  cleanupPreviousFrontendPidFile();
 
   // エージェントゾンビプロセスのクリーンアップ（ポート解放前に実行）
   console.log("\nCleaning up agent zombie processes...");
@@ -2144,6 +2220,7 @@ function startFrontendProcess() {
   });
   frontend.on("error", (err) => console.error("Frontend error:", err));
   frontendStartedAt = Date.now();
+  if (frontend.pid) writeFrontendPidFile(frontend.pid);
 }
 
 /**
@@ -2331,6 +2408,7 @@ function cleanupSync() {
         // フロントエンドも停止
         killProcessTree(frontend);
         removeBackendPidFile();
+        removeFrontendPidFile();
         console.log("  Cleanup completed.");
         return;
       }
@@ -2404,6 +2482,7 @@ function cleanupSync() {
   }
 
   removeBackendPidFile();
+  removeFrontendPidFile();
   console.log("  Cleanup completed.");
 }
 
