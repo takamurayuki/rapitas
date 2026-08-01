@@ -3364,6 +3364,14 @@
     }
   },
   "quickCapture": {
+    "modeIdea": "アイデア",
+    "modeVocab": "単語",
+    "modeSwitchHint": "Ctrl+Tab で切替",
+    "deckAria": "登録先デッキ",
+    "vocabNoDecks": "デッキがありません — 単語帳ページで作成してください",
+    "vocabFrontPlaceholder": "表（単語）...",
+    "vocabBackPlaceholder": "裏（意味）...",
+    "vocabHint": "表で Enter → 裏へ / 裏で Enter 保存 / Esc 閉じる",
     "placeholder": "アイデアのタイトル...",
     "titleAria": "アイデアのタイトル",
     "bodyPlaceholder": "詳細メモ（任意）...",

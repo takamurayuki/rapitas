@@ -92,7 +92,7 @@ Keep this list accurate. If you assign a glyph a new meaning, add it here.
 | `Columns2`                | 画面分割表示への切替（ノートモーダルの分割タブ、統合ターミナルのsplit表示切替、タスク詳細スライドパネルの分割表示トグル — 「サイドバイサイド分割」という共通概念の再利用） |
 | `ArrowLeftRight`          | 左右の位置を入れ替える操作（ノート分割のノート/AI入れ替え、統合ターミナルとタスク詳細スライドパネルのドック位置(左右)入れ替え） |
 | `AppWindow`               | ライブプレビュー概念全般（タスク詳細のライブプレビューセクション見出し、および `SystemStatusPanel` の起動中プレビュー数タイル — 同一概念の正当な再利用） |
-| `WalletCards`             | 単語帳 (nav: /vocabulary、単語帳ページヘッダー・空状態) |
+| `WalletCards`             | 単語帳 (nav: /vocabulary、単語帳ページヘッダー・空状態、quick-capture の単語モードタブ — 同一概念の再利用) |
 
 ### Known collisions
 

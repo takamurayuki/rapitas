@@ -3364,6 +3364,14 @@
     }
   },
   "quickCapture": {
+    "modeIdea": "Idea",
+    "modeVocab": "Word",
+    "modeSwitchHint": "Ctrl+Tab to switch",
+    "deckAria": "Target deck",
+    "vocabNoDecks": "No decks yet — create one on the Vocabulary page",
+    "vocabFrontPlaceholder": "Front (term)...",
+    "vocabBackPlaceholder": "Back (meaning)...",
+    "vocabHint": "Enter on front → back / Enter on back saves / Esc closes",
     "placeholder": "Idea title...",
     "titleAria": "Idea title",
     "bodyPlaceholder": "Details (optional)...",
