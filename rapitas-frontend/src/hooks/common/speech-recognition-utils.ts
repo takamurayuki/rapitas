@@ -9,6 +9,7 @@
  * component.
  */
 import { encodeWav, resamplePcm } from '@/lib/audio/wav-codec';
+import { API_BASE_URL } from '@/utils/api';
 
 /**
  * Translator shape accepted by these helpers. Structurally matches next-intl's
@@ -17,8 +18,12 @@ import { encodeWav, resamplePcm } from '@/lib/audio/wav-codec';
  */
 export type SpeechTranslator = (key: string, params?: Record<string, string | number>) => string;
 
+// NOTE: Must be the same host the rest of the app uses (NEXT_PUBLIC_API_BASE_URL,
+// localhost in dev). The old NEXT_PUBLIC_BACKEND_URL fallback resolved to
+// 127.0.0.1 while the page ran on localhost — the browser labels that pair
+// cross-site, so the CSRF guard blocked every transcription POST.
 /** Backend base URL for transcription endpoints. */
-export const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://127.0.0.1:3001';
+export const BACKEND_URL = API_BASE_URL;
 
 // ────────────────────────────────────────────────────────────────────────────
 // Silence Detection Configuration

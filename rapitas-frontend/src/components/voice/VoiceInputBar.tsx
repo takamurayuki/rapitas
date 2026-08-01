@@ -19,8 +19,9 @@ import { Mic, MicOff, X, Send, Wand2, Navigation, ListPlus, Search } from 'lucid
 import AudioWaveform from '../smart-command-bar/AudioWaveform';
 import { encodeWav, resamplePcm } from '@/lib/audio/wav-codec';
 import { Spinner } from '@/components/ui/spinner';
-
-const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://127.0.0.1:3001';
+// NOTE: Use the app-wide API base — a host differing from the page's (127.0.0.1
+// vs localhost) is cross-site to the browser and the CSRF guard rejects POSTs.
+import { API_BASE_URL as BACKEND_URL } from '@/utils/api';
 
 /** Voice command from backend. */
 interface VoiceCommandResponse {

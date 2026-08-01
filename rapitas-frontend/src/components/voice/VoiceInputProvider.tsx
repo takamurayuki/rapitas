@@ -10,6 +10,7 @@
 import { createContext, useContext, useState, useCallback, useEffect } from 'react';
 import VoiceInputBar, { type VoiceTarget } from './VoiceInputBar';
 import WakeWordDetector from './WakeWordDetector';
+import { API_BASE_URL } from '@/utils/api';
 
 interface VoiceInputContextType {
   /** Open the voice input bar. */
@@ -60,9 +61,10 @@ export default function VoiceInputProvider({ children }: { children: React.React
   }, []);
 
   // NOTE: Pre-warm Whisper daemon on app load so first voice input is fast.
+  // Uses the app-wide API base — a host differing from the page's (127.0.0.1 vs
+  // localhost) is cross-site to the browser and the CSRF guard rejects the POST.
   useEffect(() => {
-    const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://127.0.0.1:3001';
-    fetch(`${BACKEND}/transcribe/warm`, { method: 'POST' }).catch(() => {});
+    fetch(`${API_BASE_URL}/transcribe/warm`, { method: 'POST' }).catch(() => {});
   }, []);
 
   const handleSetWakeWord = useCallback((enabled: boolean) => {
