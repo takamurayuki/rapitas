@@ -152,7 +152,8 @@ export default function QuickCapturePage() {
     // split-mode paddings persisted in shared localStorage) can't leak into
     // this tiny popup window.
     <div className="fixed inset-0 z-[300] flex flex-col gap-2 bg-white dark:bg-indigo-dark-900 border border-zinc-200 dark:border-zinc-700 p-3">
-      <div className="flex items-center gap-2.5">
+      {/* Title row — flat, separated from the body block by a hairline divider. */}
+      <div className="flex items-center gap-2.5 border-b border-zinc-200 dark:border-zinc-700 pb-2">
         <Lightbulb className="w-5 h-5 shrink-0 text-amber-500" aria-hidden="true" />
         <input
           ref={titleRef}
@@ -165,13 +166,15 @@ export default function QuickCapturePage() {
           className="flex-1 bg-transparent text-base font-medium text-zinc-900 dark:text-zinc-100 placeholder:text-zinc-400 dark:placeholder:text-zinc-500 focus:outline-none"
         />
       </div>
+      {/* Body — subtle-fill interactive block (surface system §8-2) so the
+          optional details area reads as its own input, distinct from the title. */}
       <textarea
         value={body}
         onChange={(e) => setBody(e.target.value)}
         onKeyDown={handleBodyKeyDown}
         placeholder={t('bodyPlaceholder')}
         aria-label={t('bodyAria')}
-        className="flex-1 min-h-0 resize-none bg-transparent pl-8 text-sm text-zinc-700 dark:text-zinc-300 placeholder:text-zinc-400 dark:placeholder:text-zinc-500 focus:outline-none"
+        className="flex-1 min-h-0 resize-none rounded-lg bg-zinc-50 dark:bg-zinc-800/60 ml-8 px-2.5 py-2 text-sm text-zinc-700 dark:text-zinc-300 placeholder:text-zinc-400 dark:placeholder:text-zinc-500 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
       />
       <div className="shrink-0 flex items-center justify-between pl-8 text-xs text-zinc-500 dark:text-zinc-400">
         <span>{t('hint')}</span>
