@@ -6,9 +6,10 @@
  * Content of the frameless always-on-top idea-capture popup window opened by
  * the desktop global shortcut (default Ctrl+Alt+I) or the tray menu. A title
  * field plus an optional body: Enter on the title saves immediately (Tab moves
- * to the body), Ctrl+Enter saves from the body, Esc hides the window.
- * Not responsible for classification/enrichment — ideas land as 'global'
- * scope, verbatim, and are triaged later in /ideas.
+ * to the body), Ctrl+Enter saves from the body. Saving clears the fields but
+ * keeps the window open so ideas can be captured back-to-back; Esc (or focus
+ * loss) hides it. Not responsible for classification/enrichment — ideas land
+ * as 'global' scope, verbatim, and are triaged later in /ideas.
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslations } from 'next-intl';
@@ -103,15 +104,16 @@ export default function QuickCapturePage() {
         }),
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      // Stay open for rapid consecutive captures — clear the fields and refocus
+      // the title instead of hiding; the user dismisses with Esc (or by
+      // switching away) when the burst is over.
+      savingRef.current = false;
       setStatus('saved');
       setTitle('');
       setBody('');
-      // Let the checkmark register visually before the window disappears.
-      setTimeout(() => {
-        savingRef.current = false;
-        void hideWindow();
-        setStatus('idle');
-      }, 450);
+      titleRef.current?.focus();
+      // Fade the checkmark after a beat so the next save reads as fresh.
+      setTimeout(() => setStatus((s) => (s === 'saved' ? 'idle' : s)), 1500);
     } catch {
       // Keep the text so the thought is never lost on a failed save.
       savingRef.current = false;
