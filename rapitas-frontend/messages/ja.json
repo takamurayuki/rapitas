@@ -3317,8 +3317,11 @@
     "statusStopping": "停止中"
   },
   "quickCapture": {
-    "placeholder": "アイデアを書いて Enter で保存...",
-    "hint": "Enter 保存 / Shift+Enter 改行 / Esc 閉じる",
+    "placeholder": "アイデアのタイトル...",
+    "titleAria": "アイデアのタイトル",
+    "bodyPlaceholder": "詳細メモ（任意）...",
+    "bodyAria": "アイデアの詳細",
+    "hint": "タイトルで Enter 保存 / 本文は Ctrl+Enter 保存 / Esc 閉じる",
     "saving": "保存中...",
     "saved": "保存しました",
     "failed": "保存に失敗しました — 内容は保持されています"

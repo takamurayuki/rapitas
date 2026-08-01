@@ -3317,8 +3317,11 @@
     "statusStopping": "Stopping"
   },
   "quickCapture": {
-    "placeholder": "Write an idea and press Enter to save...",
-    "hint": "Enter to save / Shift+Enter for newline / Esc to close",
+    "placeholder": "Idea title...",
+    "titleAria": "Idea title",
+    "bodyPlaceholder": "Details (optional)...",
+    "bodyAria": "Idea details",
+    "hint": "Enter on title saves / Ctrl+Enter in body saves / Esc closes",
     "saving": "Saving...",
     "saved": "Saved",
     "failed": "Save failed — your text is kept"

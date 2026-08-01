@@ -4,10 +4,11 @@
  * QuickCapturePage
  *
  * Content of the frameless always-on-top idea-capture popup window opened by
- * the desktop global shortcut (default Ctrl+Alt+I) or the tray menu. One
- * textarea: Enter saves straight into the idea box, Esc hides the window.
+ * the desktop global shortcut (default Ctrl+Alt+I) or the tray menu. A title
+ * field plus an optional body: Enter on the title saves immediately (Tab moves
+ * to the body), Ctrl+Enter saves from the body, Esc hides the window.
  * Not responsible for classification/enrichment — ideas land as 'global'
- * scope and are triaged later in /ideas.
+ * scope, verbatim, and are triaged later in /ideas.
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslations } from 'next-intl';
@@ -15,6 +16,12 @@ import { Lightbulb, Check } from 'lucide-react';
 import { API_BASE_URL } from '@/utils/api';
 
 const isTauri = (): boolean => typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
+
+// NOTE: must match the Rust-side WebviewWindowBuilder inner_size for fresh
+// windows; enforced from here too so an already-built binary (created at the
+// old 180px height) still gets the room the body field needs.
+const WINDOW_WIDTH = 640;
+const WINDOW_HEIGHT = 240;
 
 /** Hide this popup window (no-op outside Tauri, e.g. opened in a browser tab). */
 async function hideWindow(): Promise<void> {
@@ -25,14 +32,28 @@ async function hideWindow(): Promise<void> {
 
 export default function QuickCapturePage() {
   const t = useTranslations('quickCapture');
-  const [text, setText] = useState('');
+  const [title, setTitle] = useState('');
+  const [body, setBody] = useState('');
   const [status, setStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const titleRef = useRef<HTMLInputElement>(null);
   // Suppress the blur-to-hide while the async save is in flight.
   const savingRef = useRef(false);
 
   useEffect(() => {
-    textareaRef.current?.focus();
+    titleRef.current?.focus();
+  }, []);
+
+  // The popup may exist from before the two-field layout (window size is fixed
+  // at creation) — resize so the body field is actually visible.
+  useEffect(() => {
+    if (!isTauri()) return;
+    import('@tauri-apps/api/window').then(({ getCurrentWindow }) => {
+      import('@tauri-apps/api/dpi').then(({ LogicalSize }) => {
+        getCurrentWindow()
+          .setSize(new LogicalSize(WINDOW_WIDTH, WINDOW_HEIGHT))
+          .catch(() => {});
+      });
+    });
   }, []);
 
   // Re-shown via the global shortcut: reset for a fresh capture.
@@ -41,9 +62,10 @@ export default function QuickCapturePage() {
     let unlisten: (() => void) | undefined;
     import('@tauri-apps/api/event').then(({ listen }) => {
       listen('quick-capture:show', () => {
-        setText('');
+        setTitle('');
+        setBody('');
         setStatus('idle');
-        setTimeout(() => textareaRef.current?.focus(), 0);
+        setTimeout(() => titleRef.current?.focus(), 0);
       }).then((fn) => {
         unlisten = fn;
       });
@@ -63,25 +85,27 @@ export default function QuickCapturePage() {
   }, []);
 
   const submit = useCallback(async () => {
-    const trimmed = text.trim();
-    if (!trimmed || savingRef.current) return;
+    const trimmedTitle = title.trim();
+    if (!trimmedTitle || savingRef.current) return;
     savingRef.current = true;
     setStatus('saving');
     try {
-      const [firstLine] = trimmed.split('\n');
       const res = await fetch(`${API_BASE_URL}/idea-box`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          title: firstLine.trim(),
-          content: trimmed,
+          title: trimmedTitle,
+          // Body is optional — the API requires non-empty content, so fall back
+          // to the title (same convention as the /ideas add form).
+          content: body.trim() || trimmedTitle,
           scope: 'global',
           priority: 'medium',
         }),
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       setStatus('saved');
-      setText('');
+      setTitle('');
+      setBody('');
       // Let the checkmark register visually before the window disappears.
       setTimeout(() => {
         savingRef.current = false;
@@ -93,11 +117,24 @@ export default function QuickCapturePage() {
       savingRef.current = false;
       setStatus('error');
     }
-  }, [text]);
+  }, [title, body]);
 
-  const handleKeyDown = useCallback(
+  const handleTitleKeyDown = useCallback(
+    (e: React.KeyboardEvent<HTMLInputElement>) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        void submit();
+      } else if (e.key === 'Escape') {
+        e.preventDefault();
+        void hideWindow();
+      }
+    },
+    [submit],
+  );
+
+  const handleBodyKeyDown = useCallback(
     (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-      if (e.key === 'Enter' && !e.shiftKey) {
+      if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
         e.preventDefault();
         void submit();
       } else if (e.key === 'Escape') {
@@ -112,19 +149,28 @@ export default function QuickCapturePage() {
     // fixed inset-0 with its own surface so global layout offsets (nav pin,
     // split-mode paddings persisted in shared localStorage) can't leak into
     // this tiny popup window.
-    <div className="fixed inset-0 z-[300] flex flex-col bg-white dark:bg-indigo-dark-900 border border-zinc-200 dark:border-zinc-700 p-3">
-      <div className="flex items-start gap-2.5 flex-1 min-h-0">
-        <Lightbulb className="w-5 h-5 shrink-0 mt-1.5 text-amber-500" aria-hidden="true" />
-        <textarea
-          ref={textareaRef}
-          value={text}
-          onChange={(e) => setText(e.target.value)}
-          onKeyDown={handleKeyDown}
+    <div className="fixed inset-0 z-[300] flex flex-col gap-2 bg-white dark:bg-indigo-dark-900 border border-zinc-200 dark:border-zinc-700 p-3">
+      <div className="flex items-center gap-2.5">
+        <Lightbulb className="w-5 h-5 shrink-0 text-amber-500" aria-hidden="true" />
+        <input
+          ref={titleRef}
+          type="text"
+          value={title}
+          onChange={(e) => setTitle(e.target.value)}
+          onKeyDown={handleTitleKeyDown}
           placeholder={t('placeholder')}
-          rows={3}
-          className="flex-1 h-full resize-none bg-transparent text-base text-zinc-900 dark:text-zinc-100 placeholder:text-zinc-400 dark:placeholder:text-zinc-500 focus:outline-none"
+          aria-label={t('titleAria')}
+          className="flex-1 bg-transparent text-base font-medium text-zinc-900 dark:text-zinc-100 placeholder:text-zinc-400 dark:placeholder:text-zinc-500 focus:outline-none"
         />
       </div>
+      <textarea
+        value={body}
+        onChange={(e) => setBody(e.target.value)}
+        onKeyDown={handleBodyKeyDown}
+        placeholder={t('bodyPlaceholder')}
+        aria-label={t('bodyAria')}
+        className="flex-1 min-h-0 resize-none bg-transparent pl-8 text-sm text-zinc-700 dark:text-zinc-300 placeholder:text-zinc-400 dark:placeholder:text-zinc-500 focus:outline-none"
+      />
       <div className="shrink-0 flex items-center justify-between pl-8 text-xs text-zinc-500 dark:text-zinc-400">
         <span>{t('hint')}</span>
         {status === 'saving' && <span>{t('saving')}</span>}
