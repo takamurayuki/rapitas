@@ -148,6 +148,15 @@ export async function submitIdea(input: SubmitIdeaInput): Promise<number> {
     return existing.id;
   }
 
+  // NOTE: Human-typed submissions (explicit source === 'user': the /ideas add
+  // form and the quick-capture popup) BYPASS the anti-monoculture gates below.
+  // Those gates exist to stop the AI flood (idea-extractor / innovation session)
+  // from re-filing near-duplicates — not to discard a human's deliberate input.
+  // A human idea silently swallowed (route replies success, list shows nothing)
+  // destroys capture trust; merging happens later at triage in /ideas instead.
+  // Exact-hash dedup above still applies (identical text IS the same idea).
+  const isHumanSubmission = input.source === 'user';
+
   // Theme-saturation gate (anti-monoculture): reject when the idea box already holds
   // SATURATION_CAP+ open ideas about the same theme (lexical, see findSaturatedTheme-
   // Anchor). Breaks the self-reinforcing loop — the agent works on theme X →
@@ -158,26 +167,28 @@ export async function submitIdea(input: SubmitIdeaInput): Promise<number> {
   // Near-duplicate gate first (cheaper signal, catches exact re-files even when
   // the theme is not yet saturated). Reinforce the existing idea by returning its
   // id so the caller treats the submission as a no-op dedup.
-  const dupId = await findNearDuplicate(title, { sourceType: 'idea_box' }, NEARDUP_JACCARD);
-  if (dupId != null) {
-    log.info(
-      { dupId, title: input.title, threshold: NEARDUP_JACCARD },
-      '[idea-box] Rejected idea: near-duplicate of an existing idea (anti-monoculture)',
-    );
-    return dupId;
-  }
+  if (!isHumanSubmission) {
+    const dupId = await findNearDuplicate(title, { sourceType: 'idea_box' }, NEARDUP_JACCARD);
+    if (dupId != null) {
+      log.info(
+        { dupId, title: input.title, threshold: NEARDUP_JACCARD },
+        '[idea-box] Rejected idea: near-duplicate of an existing idea (anti-monoculture)',
+      );
+      return dupId;
+    }
 
-  const anchorId = await findSaturatedTheme(title, {
-    sourceType: 'idea_box',
-    cap: SATURATION_CAP,
-    salient: SALIENT_LEN,
-  });
-  if (anchorId != null) {
-    log.info(
-      { anchorId, title: input.title },
-      '[idea-box] Rejected idea: theme over-represented (anti-monoculture)',
-    );
-    return anchorId;
+    const anchorId = await findSaturatedTheme(title, {
+      sourceType: 'idea_box',
+      cap: SATURATION_CAP,
+      salient: SALIENT_LEN,
+    });
+    if (anchorId != null) {
+      log.info(
+        { anchorId, title: input.title },
+        '[idea-box] Rejected idea: theme over-represented (anti-monoculture)',
+      );
+      return anchorId;
+    }
   }
 
   // Always attribute an idea to a real theme so it never falls into the global
@@ -196,22 +207,27 @@ export async function submitIdea(input: SubmitIdeaInput): Promise<number> {
   // admit a candidate that beats the incumbents. Fail-open (judge unavailable
   // → accepted as before). A rejection returns the duplicate/incumbent id so
   // callers see a no-op dedup, matching the lexical gates' contract.
-  const { evaluateIdeaQd } = await import('./idea-qd-gate');
-  const qd = await evaluateIdeaQd({ title, content, themeId });
-  if (!qd.accept) {
-    log.info(
-      { title: input.title, duplicateOfId: qd.duplicateOfId, reason: qd.reason },
-      '[idea-box] Rejected idea by QD gate',
-    );
-    if (qd.duplicateOfId != null) return qd.duplicateOfId;
-    // No concrete incumbent to point at — anchor on the most recent open idea,
-    // mirroring the saturation gate's anchor behavior.
-    const fallback = await prisma.knowledgeEntry.findFirst({
-      where: { sourceType: 'idea_box' },
-      orderBy: { createdAt: 'desc' },
-      select: { id: true },
-    });
-    if (fallback) return fallback.id;
+  // Skipped for human submissions (see isHumanSubmission above).
+  let qdCell: string | null = null;
+  if (!isHumanSubmission) {
+    const { evaluateIdeaQd } = await import('./idea-qd-gate');
+    const qd = await evaluateIdeaQd({ title, content, themeId });
+    if (!qd.accept) {
+      log.info(
+        { title: input.title, duplicateOfId: qd.duplicateOfId, reason: qd.reason },
+        '[idea-box] Rejected idea by QD gate',
+      );
+      if (qd.duplicateOfId != null) return qd.duplicateOfId;
+      // No concrete incumbent to point at — anchor on the most recent open idea,
+      // mirroring the saturation gate's anchor behavior.
+      const fallback = await prisma.knowledgeEntry.findFirst({
+        where: { sourceType: 'idea_box' },
+        orderBy: { createdAt: 'desc' },
+        select: { id: true },
+      });
+      if (fallback) return fallback.id;
+    }
+    qdCell = qd.cell ?? null;
   }
 
   const scope = input.scope ?? (themeId ? 'project' : 'global');
@@ -220,7 +236,7 @@ export async function submitIdea(input: SubmitIdeaInput): Promise<number> {
     ...(input.tags ?? []),
     `scope:${scope}`,
     `priority:${priority}`,
-    ...(qd.cell ? [`cell:${qd.cell}`] : []),
+    ...(qdCell ? [`cell:${qdCell}`] : []),
   ];
 
   const entry = await prisma.knowledgeEntry.create({

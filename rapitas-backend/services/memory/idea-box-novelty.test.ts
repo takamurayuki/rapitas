@@ -76,6 +76,29 @@ describe('submitIdea — theme-saturation gate (anti-monoculture)', () => {
     expect(created).toBe(1);
   });
 
+  test('人間の手入力(source: user)は飽和テーマでもゲートを迂回して必ず作成される', async () => {
+    created = 0;
+    // Same saturated pool as the first test — an AI submission would be rejected.
+    openIdeas = [
+      '標準化',
+      '汎用化',
+      '自動生成',
+      '中央集約',
+      'SSOT化',
+      'テンプレート化',
+      '再利用',
+      'ライブラリ化',
+      '横展開',
+    ].map((s, i) => ({ id: 100 + i, title: `型ガード関数の${s}` }));
+    const id = await submitIdea({
+      title: '型ガード関数の一括リファクタリング',
+      content: 'また型ガードの話',
+      source: 'user',
+    });
+    expect(id).toBe(500); // created, not deduped to an anchor
+    expect(created).toBe(1);
+  });
+
   test('同テーマでも件数が少なければ(CAP未満)作成される', async () => {
     created = 0;
     openIdeas = [
