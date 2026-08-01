@@ -3339,7 +3339,7 @@
     "startReview": "復習を開始（{count}件）",
     "noDueCards": "復習するカードはありません",
     "frontPlaceholder": "表（単語・問い）",
-    "backPlaceholder": "裏（意味・答え）",
+    "backPlaceholder": "裏（意味・答え、複数は改行で）",
     "notePlaceholder": "メモ・例文（任意）",
     "addCard": "追加",
     "noCards": "カードがまだありません。上のフォームから登録しましょう",
@@ -3350,6 +3350,52 @@
       "updateFailed": "更新に失敗しました",
       "deleteFailed": "削除に失敗しました",
       "reviewFailed": "復習の記録に失敗しました"
+    },
+    "analyticsLink": "学習分析",
+    "analytics": {
+      "title": "学習分析",
+      "subtitle": "エビングハウスの忘却曲線と比較しながら、自分の学習スタイルを分析",
+      "backToList": "単語帳一覧へ",
+      "tiles": {
+        "totalReviews": "総復習回数",
+        "retention": "定着率",
+        "stability": "推定記憶強度",
+        "stabilityDays": "{days}日",
+        "retentionReviews": "定着測定の対象回数"
+      },
+      "recommendationsTitle": "あなたへの学習アドバイス",
+      "recommendations": {
+        "notEnoughData": "分析にはあと少しデータが必要です（定着測定の対象となる復習が{needed}回以上で分析が始まります）。まずは復習を続けましょう",
+        "lowRetention": "定着率が{rate}%と低めです。1回のセッションの単語数を減らし、復習間隔を詰めることから始めましょう",
+        "strongRetention": "定着率{rate}% — 素晴らしい定着です。復習間隔をもっと伸ばしても維持できる可能性があります（「簡単」を積極的に使いましょう）",
+        "reviewBefore": "「{bucket}」の間隔帯で忘却が進んでいます。この期間が来る前に復習するのが効果的です",
+        "bestTime": "{period}の復習が最も定着しています（{rate}%）。重要な単語は{period}に復習するのがおすすめです",
+        "onTrack": "定着率{rate}%で順調です。このペースを維持しましょう"
+      },
+      "curveTitle": "忘却曲線 — あなた vs エビングハウス",
+      "curveEmpty": "まだ十分な復習データがありません。復習を重ねると、ここにあなた自身の忘却曲線が描かれます",
+      "seriesPersonal": "あなたの定着率",
+      "seriesEbbinghaus": "エビングハウス参照曲線（復習なしの場合）",
+      "buckets": {
+        "d1": "〜1日",
+        "d3": "1〜3日",
+        "d7": "3〜7日",
+        "d14": "7〜14日",
+        "d30": "14〜30日",
+        "d30plus": "30日〜"
+      },
+      "hoursTitle": "時間帯別の定着率",
+      "periods": {
+        "morning": "朝（5-11時）",
+        "daytime": "昼（11-17時）",
+        "evening": "夜（17-23時）",
+        "night": "深夜（23-5時）"
+      },
+      "recallRate": "定着率",
+      "sampleCount": "{count}回",
+      "noData": "データなし",
+      "hardestTitle": "苦手な単語トップ5",
+      "lapseCount": "忘却{count}回"
     },
     "review": {
       "progress": "復習済み {done} / 残り {remaining}",
@@ -3369,9 +3415,9 @@
     "modeSwitchHint": "Ctrl+Tab で切替",
     "deckAria": "登録先デッキ",
     "vocabNoDecks": "デッキがありません — 単語帳ページで作成してください",
-    "vocabFrontPlaceholder": "表（単語）...",
-    "vocabBackPlaceholder": "裏（意味）...",
-    "vocabHint": "表で Enter → 裏へ / 裏で Enter 保存 / Esc 閉じる",
+    "vocabFrontPlaceholder": "単語...",
+    "vocabBackPlaceholder": "意味（複数は改行で）...",
+    "vocabHint": "表で Enter → 裏へ / 裏で Enter 保存・Shift+Enter で意味を追加 / Esc 閉じる",
     "placeholder": "アイデアのタイトル...",
     "titleAria": "アイデアのタイトル",
     "bodyPlaceholder": "詳細メモ（任意）...",

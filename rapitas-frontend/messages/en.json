@@ -3339,7 +3339,7 @@
     "startReview": "Start review ({count})",
     "noDueCards": "No cards due",
     "frontPlaceholder": "Front (term / question)",
-    "backPlaceholder": "Back (meaning / answer)",
+    "backPlaceholder": "Back (meanings, one per line)",
     "notePlaceholder": "Note / example (optional)",
     "addCard": "Add",
     "noCards": "No cards yet. Add one with the form above",
@@ -3350,6 +3350,52 @@
       "updateFailed": "Failed to update",
       "deleteFailed": "Failed to delete",
       "reviewFailed": "Failed to record the review"
+    },
+    "analyticsLink": "Analytics",
+    "analytics": {
+      "title": "Learning Analytics",
+      "subtitle": "Analyze your learning style against the Ebbinghaus forgetting curve",
+      "backToList": "Back to decks",
+      "tiles": {
+        "totalReviews": "Total reviews",
+        "retention": "Retention",
+        "stability": "Est. memory stability",
+        "stabilityDays": "{days} days",
+        "retentionReviews": "Retention-eligible reviews"
+      },
+      "recommendationsTitle": "Study advice for you",
+      "recommendations": {
+        "notEnoughData": "A little more data is needed ({needed}+ retention-eligible reviews unlocks the analysis). Keep reviewing!",
+        "lowRetention": "Retention is low at {rate}%. Try smaller sessions and shorter review intervals",
+        "strongRetention": "Retention {rate}% — excellent. You can likely stretch intervals further (use \"Easy\" more)",
+        "reviewBefore": "Forgetting sets in within the \"{bucket}\" window. Reviewing before that point works best",
+        "bestTime": "Reviews in the {period} stick best ({rate}%). Schedule important words then",
+        "onTrack": "Retention {rate}% — right on track. Keep the pace"
+      },
+      "curveTitle": "Forgetting curve — you vs Ebbinghaus",
+      "curveEmpty": "Not enough review data yet. Keep reviewing and your own forgetting curve will appear here",
+      "seriesPersonal": "Your retention",
+      "seriesEbbinghaus": "Ebbinghaus reference (no review)",
+      "buckets": {
+        "d1": "<1d",
+        "d3": "1-3d",
+        "d7": "3-7d",
+        "d14": "7-14d",
+        "d30": "14-30d",
+        "d30plus": "30d+"
+      },
+      "hoursTitle": "Retention by time of day",
+      "periods": {
+        "morning": "Morning (5-11)",
+        "daytime": "Daytime (11-17)",
+        "evening": "Evening (17-23)",
+        "night": "Night (23-5)"
+      },
+      "recallRate": "Recall rate",
+      "sampleCount": "{count} reviews",
+      "noData": "No data",
+      "hardestTitle": "Top 5 hardest words",
+      "lapseCount": "Forgotten {count}x"
     },
     "review": {
       "progress": "Reviewed {done} / {remaining} left",
@@ -3369,9 +3415,9 @@
     "modeSwitchHint": "Ctrl+Tab to switch",
     "deckAria": "Target deck",
     "vocabNoDecks": "No decks yet — create one on the Vocabulary page",
-    "vocabFrontPlaceholder": "Front (term)...",
-    "vocabBackPlaceholder": "Back (meaning)...",
-    "vocabHint": "Enter on front → back / Enter on back saves / Esc closes",
+    "vocabFrontPlaceholder": "Word...",
+    "vocabBackPlaceholder": "Meanings (one per line)...",
+    "vocabHint": "Enter on front → back / Enter saves, Shift+Enter adds a meaning / Esc closes",
     "placeholder": "Idea title...",
     "titleAria": "Idea title",
     "bodyPlaceholder": "Details (optional)...",

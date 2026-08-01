@@ -41,3 +41,31 @@ export interface VocabDeckDetail {
 
 /** Self-assessment grades for a review. */
 export type VocabGrade = 'again' | 'good' | 'easy';
+
+/** One point of the personal retention curve (GET /vocab/analytics). */
+export interface RetentionPoint {
+  key: string;
+  midDays: number;
+  rate: number | null;
+  reference: number;
+  samples: number;
+}
+
+/** Recall rate for one time-of-day period. */
+export interface HourPoint {
+  key: 'morning' | 'daytime' | 'evening' | 'night';
+  rate: number | null;
+  samples: number;
+}
+
+/** Learning analytics payload from GET /vocab/analytics. */
+export interface VocabAnalytics {
+  totalReviews: number;
+  retentionReviews: number;
+  overallRetention: number | null;
+  stability: number | null;
+  curve: RetentionPoint[];
+  hours: HourPoint[];
+  hardest: Array<{ id: number; front: string; back: string; lapses: number }>;
+  recommendations: Array<{ key: string; params?: Record<string, string | number> }>;
+}

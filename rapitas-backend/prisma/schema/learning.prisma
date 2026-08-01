@@ -103,6 +103,22 @@ model VocabCard {
   @@index([deckId, dueAt])
 }
 
+// One row per graded review — raw data for the forgetting-curve analytics.
+// Deliberately no FK: logs must survive card/deck deletion so the learner's
+// history (and the personal retention curve) never silently shrinks.
+model VocabReviewLog {
+  id           Int      @id @default(autoincrement())
+  cardId       Int
+  deckId       Int
+  grade        String // again | good | easy
+  elapsedDays  Float // time since the previous review (or card creation)
+  intervalDays Float // the scheduled interval that was being tested
+  repetitions  Int // successful repetitions BEFORE this review
+  reviewedAt   DateTime @default(now())
+
+  @@index([deckId, reviewedAt])
+}
+
 model Resource {
   id          Int      @id @default(autoincrement())
   taskId      Int?

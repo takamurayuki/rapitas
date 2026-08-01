@@ -8,6 +8,12 @@ import { Elysia, t } from 'elysia';
 import { prisma } from '../../config/database';
 import { ValidationError } from '../../middleware/error-handler';
 import { computeNextReview, type VocabGrade } from '../../services/learning/vocab-srs';
+import {
+  buildRecommendations,
+  computeHourBuckets,
+  computeRetentionCurve,
+  estimateStability,
+} from '../../services/learning/vocab-analytics';
 
 /** Parse a numeric path id or throw a 400. */
 function parseId(raw: string): number {
@@ -17,6 +23,64 @@ function parseId(raw: string): number {
 }
 
 export const vocabDecksRoutes = new Elysia({ prefix: '/vocab' })
+  // Learning analytics: personal forgetting curve vs the Ebbinghaus reference,
+  // time-of-day performance, hardest cards, and rule-based study advice.
+  .get(
+    '/analytics',
+    async ({ query }) => {
+      const deckId = query.deckId ? parseInt(query.deckId) : undefined;
+      const logs = await prisma.vocabReviewLog.findMany({
+        where: deckId ? { deckId } : {},
+        orderBy: { reviewedAt: 'asc' },
+        select: {
+          cardId: true,
+          grade: true,
+          elapsedDays: true,
+          repetitions: true,
+          reviewedAt: true,
+        },
+      });
+      const curve = computeRetentionCurve(logs);
+      const hours = computeHourBuckets(logs);
+      const eligible = logs.filter((l) => l.repetitions > 0);
+      const overallRetention =
+        eligible.length > 0
+          ? Math.round((eligible.filter((l) => l.grade !== 'again').length / eligible.length) * 100)
+          : null;
+
+      // Hardest cards = most 'again' grades; join fronts for display (cards
+      // deleted since keep their logs but drop off this list).
+      const againCounts = new Map<number, number>();
+      for (const l of logs) {
+        if (l.grade === 'again') againCounts.set(l.cardId, (againCounts.get(l.cardId) ?? 0) + 1);
+      }
+      const hardestIds = [...againCounts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 5);
+      const hardCards =
+        hardestIds.length > 0
+          ? await prisma.vocabCard.findMany({
+              where: { id: { in: hardestIds.map(([id]) => id) } },
+              select: { id: true, front: true, back: true },
+            })
+          : [];
+      const hardest = hardestIds.flatMap(([id, count]) => {
+        const c = hardCards.find((x) => x.id === id);
+        return c ? [{ id, front: c.front, back: c.back, lapses: count }] : [];
+      });
+
+      return {
+        totalReviews: logs.length,
+        retentionReviews: eligible.length,
+        overallRetention,
+        stability: estimateStability(curve),
+        curve,
+        hours,
+        hardest,
+        recommendations: buildRecommendations(logs, curve, hours),
+      };
+    },
+    { query: t.Object({ deckId: t.Optional(t.String()) }) },
+  )
+
   // Deck list with card counts and how many are due for review now.
   .get('/decks', async () => {
     const [decks, dueCounts] = await Promise.all([
@@ -171,7 +235,8 @@ export const vocabDecksRoutes = new Elysia({ prefix: '/vocab' })
       const card = await prisma.vocabCard.findUnique({ where: { id } });
       if (!card) throw new ValidationError('カードが見つかりません');
 
-      const next = computeNextReview(card, body.grade as VocabGrade);
+      const now = new Date();
+      const next = computeNextReview(card, body.grade as VocabGrade, now);
       const updated = await prisma.vocabCard.update({
         where: { id },
         data: {
@@ -180,9 +245,25 @@ export const vocabDecksRoutes = new Elysia({ prefix: '/vocab' })
           repetitions: next.repetitions,
           lapses: next.lapses,
           dueAt: next.dueAt,
-          reviewedAt: new Date(),
+          reviewedAt: now,
         },
       });
+      // Log the review for the forgetting-curve analytics (best-effort — a
+      // failed log must never fail the review itself).
+      const since = card.reviewedAt ?? card.createdAt;
+      await prisma.vocabReviewLog
+        .create({
+          data: {
+            cardId: card.id,
+            deckId: card.deckId,
+            grade: body.grade,
+            elapsedDays: Math.max(0, (now.getTime() - since.getTime()) / 86_400_000),
+            intervalDays: card.intervalDays,
+            repetitions: card.repetitions,
+            reviewedAt: now,
+          },
+        })
+        .catch(() => {});
       return updated;
     },
     {

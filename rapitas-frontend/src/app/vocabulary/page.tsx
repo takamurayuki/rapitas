@@ -10,7 +10,7 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { useTranslations } from 'next-intl';
-import { WalletCards, Plus, Pencil, Trash2, Check, X } from 'lucide-react';
+import { WalletCards, Plus, Pencil, Trash2, Check, X, ChartSpline } from 'lucide-react';
 import { Spinner } from '@/components/ui/spinner';
 import { useConfirmDialog } from '@/components/ui/dialog/ConfirmDialogProvider';
 import { useVocabDecks } from './_components/use-vocab-decks';
@@ -51,13 +51,22 @@ export default function VocabularyPage() {
               <p className="text-sm text-zinc-500 dark:text-zinc-400">{t('subtitle')}</p>
             </div>
           </div>
-          <button
-            onClick={() => setShowCreate((v) => !v)}
-            className="flex items-center gap-1.5 rounded-lg bg-indigo-600 px-3.5 py-2 text-sm font-medium text-white transition-colors hover:bg-indigo-500"
-          >
-            <Plus className="h-4 w-4" />
-            {t('addDeck')}
-          </button>
+          <div className="flex items-center gap-2">
+            <Link
+              href="/vocabulary/analytics"
+              className="flex items-center gap-1.5 rounded-lg border border-zinc-200 px-3.5 py-2 text-sm font-medium text-zinc-700 transition-colors hover:bg-zinc-50 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-800"
+            >
+              <ChartSpline className="h-4 w-4" />
+              {t('analyticsLink')}
+            </Link>
+            <button
+              onClick={() => setShowCreate((v) => !v)}
+              className="flex items-center gap-1.5 rounded-lg bg-indigo-600 px-3.5 py-2 text-sm font-medium text-white transition-colors hover:bg-indigo-500"
+            >
+              <Plus className="h-4 w-4" />
+              {t('addDeck')}
+            </button>
+          </div>
         </div>
 
         {showCreate && (
