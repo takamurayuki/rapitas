@@ -474,9 +474,15 @@ export async function reviewIdea(ideaId: number, runId?: string): Promise<void> 
       tags: JSON.stringify(tags),
     };
 
-    // Apply refined title/content if reviewer suggested improvements
-    if (review.refinedTitle) updateData.title = review.refinedTitle;
-    if (review.refinedContent) updateData.content = review.refinedContent;
+    // Apply refined title/content if reviewer suggested improvements — but
+    // NEVER on a user-authored entry: the human's own words stay verbatim
+    // (observed: a captured fragment got replaced by plausible-but-hollow AI
+    // text). Defense in depth — submitIdea already skips this whole pipeline
+    // for source 'user'; this guards any other path into reviewIdea.
+    if (entry.sourceId !== 'user') {
+      if (review.refinedTitle) updateData.title = review.refinedTitle;
+      if (review.refinedContent) updateData.content = review.refinedContent;
+    }
 
     await prisma.knowledgeEntry.update({
       where: { id: ideaId },

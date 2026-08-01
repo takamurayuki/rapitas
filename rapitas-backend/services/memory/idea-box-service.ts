@@ -262,9 +262,16 @@ export async function submitIdea(input: SubmitIdeaInput): Promise<number> {
   // Pipeline: enrich (Ollama) → review (Haiku) asynchronously, serialised via
   // the shared enrichment queue so bursts of submissions don't fire concurrent
   // local-LLM calls (which can spike CPU and starve foreground requests).
-  import('./idea-extractor')
-    .then(({ runEnrichAndReview }) => runEnrichAndReview(entry.id, input.title, input.content))
-    .catch(() => {});
+  // NOTE: Skipped entirely for human-typed submissions — a manually captured
+  // idea is a fragment ("egg" stage, not requirements-ready); machine
+  // refinement used to overwrite the human's own words with plausible-but-
+  // hollow text and burned two LLM calls per idea for nothing. Human ideas
+  // stay verbatim until the human triages them.
+  if (!isHumanSubmission) {
+    import('./idea-extractor')
+      .then(({ runEnrichAndReview }) => runEnrichAndReview(entry.id, input.title, input.content))
+      .catch(() => {});
+  }
 
   return entry.id;
 }
