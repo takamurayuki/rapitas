@@ -92,23 +92,30 @@ export default function VocabDeckDetailPage({ params }: { params: Promise<{ id: 
           </button>
         </div>
 
-        {/* Add card — front / back / optional note */}
+        {/* Add card — narrow front (a word) beside a multiline back (a word
+            often has several meanings — one per line, Shift+Enter). */}
         <div className="mb-4 flex flex-col gap-2 rounded-lg bg-zinc-50 p-3 dark:bg-zinc-900/40">
-          <div className="grid grid-cols-2 gap-2">
+          <div className="flex items-stretch gap-2">
             <input
               value={front}
               onChange={(e) => setFront(e.target.value)}
               aria-label={t('frontPlaceholder')}
               placeholder={t('frontPlaceholder')}
-              className={inputCls}
+              className={`${inputCls} w-2/5 self-start`}
             />
-            <input
+            <textarea
               value={back}
               onChange={(e) => setBack(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && handleAdd()}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                  e.preventDefault();
+                  handleAdd();
+                }
+              }}
+              rows={2}
               aria-label={t('backPlaceholder')}
               placeholder={t('backPlaceholder')}
-              className={inputCls}
+              className={`${inputCls} flex-1 resize-none`}
             />
           </div>
           <div className="flex gap-2">

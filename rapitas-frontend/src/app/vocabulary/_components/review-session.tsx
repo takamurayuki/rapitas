@@ -86,7 +86,7 @@ export function ReviewSession({ queue, reviewedCount, onGrade, onEnd }: ReviewSe
             </div>
             {isFlipped && (
               <>
-                <div className="mt-6 border-t border-zinc-200 pt-6 text-xl text-zinc-800 dark:border-zinc-700 dark:text-zinc-200">
+                <div className="mt-6 whitespace-pre-line border-t border-zinc-200 pt-6 text-xl text-zinc-800 dark:border-zinc-700 dark:text-zinc-200">
                   {card.back}
                 </div>
                 {card.note && (

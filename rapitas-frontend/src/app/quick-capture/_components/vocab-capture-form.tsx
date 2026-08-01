@@ -40,7 +40,7 @@ export function VocabCaptureForm({ savingRef }: VocabCaptureFormProps) {
   const [back, setBack] = useState('');
   const [status, setStatus] = useState<CaptureStatus>('idle');
   const frontRef = useRef<HTMLInputElement>(null);
-  const backRef = useRef<HTMLInputElement>(null);
+  const backRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
     (async () => {
@@ -123,7 +123,9 @@ export function VocabCaptureForm({ savingRef }: VocabCaptureFormProps) {
           ))}
         </select>
       </div>
-      <div className="flex flex-1 items-center gap-2 ml-8">
+      {/* Front is a single word — keep it narrow; the back gets the room since
+          one word often carries several meanings (one per line, Shift+Enter). */}
+      <div className="flex flex-1 items-stretch gap-2 ml-8 min-h-0">
         <input
           ref={frontRef}
           type="text"
@@ -137,22 +139,21 @@ export function VocabCaptureForm({ savingRef }: VocabCaptureFormProps) {
           }}
           placeholder={t('vocabFrontPlaceholder')}
           aria-label={t('vocabFrontPlaceholder')}
-          className={inputCls}
+          className={`${inputCls} w-2/5 flex-none self-start`}
         />
-        <input
+        <textarea
           ref={backRef}
-          type="text"
           value={back}
           onChange={(e) => setBack(e.target.value)}
           onKeyDown={(e) => {
-            if (e.key === 'Enter') {
+            if (e.key === 'Enter' && !e.shiftKey) {
               e.preventDefault();
               void submit();
             }
           }}
           placeholder={t('vocabBackPlaceholder')}
           aria-label={t('vocabBackPlaceholder')}
-          className={inputCls}
+          className={`${inputCls} h-full resize-none`}
         />
       </div>
       <CaptureStatusBar hint={t('vocabHint')} status={status} />

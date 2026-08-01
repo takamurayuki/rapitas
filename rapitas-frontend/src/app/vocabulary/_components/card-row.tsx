@@ -41,18 +41,19 @@ export function VocabCardRow({ card, onUpdate, onDelete }: CardRowProps) {
   if (isEditing) {
     return (
       <div className="flex flex-col gap-1.5 rounded-lg bg-zinc-50 p-3 dark:bg-zinc-900/40">
-        <div className="grid grid-cols-2 gap-1.5">
+        <div className="flex items-stretch gap-1.5">
           <input
             value={front}
             onChange={(e) => setFront(e.target.value)}
             aria-label={t('frontPlaceholder')}
-            className={inputCls}
+            className={`${inputCls} w-2/5 self-start`}
           />
-          <input
+          <textarea
             value={back}
             onChange={(e) => setBack(e.target.value)}
+            rows={2}
             aria-label={t('backPlaceholder')}
-            className={inputCls}
+            className={`${inputCls} flex-1 resize-none`}
           />
         </div>
         <input
@@ -88,7 +89,10 @@ export function VocabCardRow({ card, onUpdate, onDelete }: CardRowProps) {
       <div className="min-w-0 flex-1">
         <div className="flex flex-wrap items-baseline gap-x-3">
           <span className="font-medium text-zinc-900 dark:text-zinc-100">{card.front}</span>
-          <span className="text-sm text-zinc-600 dark:text-zinc-400">{card.back}</span>
+          {/* Meanings are one-per-line — keep the line breaks visible. */}
+          <span className="whitespace-pre-line text-sm text-zinc-600 dark:text-zinc-400">
+            {card.back}
+          </span>
         </div>
         {card.note && (
           <p className="mt-0.5 text-xs text-zinc-500 dark:text-zinc-500">{card.note}</p>
