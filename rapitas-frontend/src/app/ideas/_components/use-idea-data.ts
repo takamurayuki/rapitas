@@ -5,7 +5,7 @@
  * views, and list mutations (delete). Holds no form or conversion state.
  */
 'use client';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { useLocalStorageState } from '@/hooks/common/useLocalStorageState';
@@ -13,6 +13,36 @@ import { API_BASE_URL } from '@/utils/api';
 import { useFilterDataStore } from '@/stores/filter-data-store';
 import { useToast } from '@/components/ui/toast/ToastContainer';
 import type { Idea, IdeaPriority, IdeaStats, IdeaStatusFilter } from './idea-box.types';
+
+// Stale-while-revalidate cache for the list. The page previously always
+// started from a skeleton and only fetched after hydration (~0.5-2s perceived
+// on every visit); with this, a revisit paints the previous result instantly
+// and reconciles with the server in the background.
+const LIST_CACHE_KEY = 'ideaBox.list-cache.v1';
+
+interface IdeaListCache {
+  signature: string;
+  ideas: Idea[];
+  total: number;
+  stats: IdeaStats | null;
+}
+
+function readListCache(): IdeaListCache | null {
+  try {
+    const raw = sessionStorage.getItem(LIST_CACHE_KEY);
+    return raw ? (JSON.parse(raw) as IdeaListCache) : null;
+  } catch {
+    return null;
+  }
+}
+
+function writeListCache(cache: IdeaListCache): void {
+  try {
+    sessionStorage.setItem(LIST_CACHE_KEY, JSON.stringify(cache));
+  } catch {
+    /* quota/priv mode — cache is best-effort */
+  }
+}
 
 /**
  * Provide the idea list view model.
@@ -24,6 +54,9 @@ export function useIdeaData() {
   const [ideas, setIdeas] = useState<Idea[]>([]);
   const [stats, setStats] = useState<IdeaStats | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  // Mirrors `ideas.length > 0` for callbacks that must not re-create on data
+  // changes (fetchIdeas reads it to decide whether a skeleton is needed).
+  const hasDataRef = useRef(false);
 
   // ページネーション状態
   const [currentPage, setCurrentPage] = useState(1);
@@ -45,8 +78,20 @@ export function useIdeaData() {
   // concern backlog.) Theme-name display still uses the full `themes` list.
   const filterThemes = themes.filter((t) => t.workingDirectory);
 
+  // Everything that changes what the server returns, in one string — the cache
+  // is only replayed when the view it was captured for is the view requested.
+  const querySignature = JSON.stringify({
+    filterThemeId,
+    statusFilter,
+    priorityFilter,
+    currentPage,
+    itemsPerPage,
+  });
+
   const fetchIdeas = useCallback(async () => {
-    setIsLoading(true);
+    // Stale-while-revalidate: keep showing what we have while refreshing.
+    // The skeleton only appears when there is genuinely nothing to show.
+    if (!hasDataRef.current) setIsLoading(true);
     try {
       const params = new URLSearchParams({
         limit: String(itemsPerPage),
@@ -65,28 +110,77 @@ export function useIdeaData() {
         fetch(`${API_BASE_URL}/idea-box/stats`),
       ]);
 
+      let nextIdeas: Idea[] | null = null;
+      let nextTotal = 0;
       if (ideasRes.ok) {
         const data = (await ideasRes.json()) as { ideas: Idea[]; total: number };
+        nextIdeas = data.ideas;
+        nextTotal = data.total;
         setIdeas(data.ideas);
         setTotalIdeas(data.total);
         setTotalPages(Math.ceil(data.total / itemsPerPage));
+        hasDataRef.current = data.ideas.length > 0;
       }
-      if (statsRes.ok) setStats((await statsRes.json()) as IdeaStats);
+      let nextStats: IdeaStats | null = null;
+      if (statsRes.ok) {
+        nextStats = (await statsRes.json()) as IdeaStats;
+        setStats(nextStats);
+      }
+      if (nextIdeas) {
+        writeListCache({
+          signature: querySignature,
+          ideas: nextIdeas,
+          total: nextTotal,
+          stats: nextStats,
+        });
+      }
     } catch {
       /* non-critical */
     } finally {
       setIsLoading(false);
     }
-  }, [filterThemeId, statusFilter, priorityFilter, currentPage, itemsPerPage]);
+  }, [filterThemeId, statusFilter, priorityFilter, currentPage, itemsPerPage, querySignature]);
+
+  // Replay the cached list before the first fetch resolves so a revisit paints
+  // instantly. Runs once on mount; the in-flight fetch then reconciles.
+  useEffect(() => {
+    const cached = readListCache();
+    if (cached && cached.signature === querySignature && cached.ideas.length > 0) {
+      setIdeas(cached.ideas);
+      setTotalIdeas(cached.total);
+      setTotalPages(Math.ceil(cached.total / itemsPerPage));
+      if (cached.stats) setStats(cached.stats);
+      hasDataRef.current = true;
+      setIsLoading(false);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- mount-only replay
+  }, []);
 
   useEffect(() => {
     fetchIdeas();
   }, [fetchIdeas]);
 
-  // フィルタ変更時のページリセット
+  // 検索語変更時のページリセット。フィルタ変更は下のラップ済みセッターが同一
+  // バッチでリセットするため、ここで購読すると「旧ページ×新フィルタ」の無駄な
+  // フェッチが1回挟まる — searchQuery(外部由来)のみを見る。
   useEffect(() => {
     setCurrentPage(1);
-  }, [filterThemeId, statusFilter, priorityFilter, searchQuery]);
+  }, [searchQuery]);
+
+  // Reset to page 1 in the SAME render batch as the filter change — one fetch,
+  // not a wasted "old page with new filter" round-trip first.
+  const setStatusFilterAndReset = useCallback<typeof setStatusFilter>((v) => {
+    setStatusFilter(v);
+    setCurrentPage(1);
+  }, []);
+  const setPriorityFilterAndReset = useCallback<typeof setPriorityFilter>((v) => {
+    setPriorityFilter(v);
+    setCurrentPage(1);
+  }, []);
+  const setFilterThemeIdAndReset = useCallback<typeof setFilterThemeId>((v) => {
+    setFilterThemeId(v);
+    setCurrentPage(1);
+  }, []);
 
   const handlePageChange = useCallback((page: number) => {
     setCurrentPage(page);
@@ -161,11 +255,11 @@ export function useIdeaData() {
     handlePageChange,
     handleItemsPerPageChange,
     statusFilter,
-    setStatusFilter,
+    setStatusFilter: setStatusFilterAndReset,
     priorityFilter,
-    setPriorityFilter,
+    setPriorityFilter: setPriorityFilterAndReset,
     filterThemeId,
-    setFilterThemeId,
+    setFilterThemeId: setFilterThemeIdAndReset,
     filterThemes,
     handleDelete,
   };
