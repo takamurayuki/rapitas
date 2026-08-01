@@ -88,8 +88,16 @@ model VocabCard {
   deckId       Int
   deck         VocabDeck @relation(fields: [deckId], references: [id], onDelete: Cascade)
   front        String // term / prompt side
-  back         String // meaning / answer side
+  back         String // meaning / answer side (summary, one meaning per line)
   note         String? // example sentence, mnemonic, etc.
+  // Dictionary-style enrichment (all optional; the simple front/back flow works without them)
+  syllables    String? // e.g. "con・found"
+  pronunciation String? // e.g. "/kənˈfaʊnd/"
+  partOfSpeech String? // e.g. 他動詞
+  // JSON: VocabSense[] — per-sense meaning/example plus synonyms & antonyms
+  // (see rapitas-frontend vocab.types.ts). Stored as a string for provider
+  // portability (SQLite has no JSON column type).
+  details      String?
   // SRS state (SM-2-lite)
   intervalDays Float     @default(0) // current review interval
   easeFactor   Float     @default(2.5) // growth multiplier, floored at 1.3

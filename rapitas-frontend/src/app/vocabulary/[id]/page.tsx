@@ -149,6 +149,7 @@ export default function VocabDeckDetailPage({ params }: { params: Promise<{ id: 
                 key={card.id}
                 card={card}
                 onUpdate={vm.updateCard}
+                onUpdateFields={vm.updateCardFields}
                 onDelete={handleDeleteCard}
               />
             ))}

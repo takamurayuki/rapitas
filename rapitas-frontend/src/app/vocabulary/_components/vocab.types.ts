@@ -14,13 +14,36 @@ export interface VocabDeckSummary {
   updatedAt: string;
 }
 
-/** A flashcard with its SRS state. */
+/** A related word (synonym or antonym) attached to one sense. */
+export interface VocabRelatedWord {
+  word: string;
+  /** Nuance note — how this synonym differs. / ニュアンスの違い。 */
+  nuance?: string;
+  example?: string;
+  exampleJa?: string;
+}
+
+/** One sense (語義) of a word: meaning + example + related words. */
+export interface VocabSense {
+  meaning: string;
+  example?: string;
+  exampleJa?: string;
+  synonyms: VocabRelatedWord[];
+  antonyms: VocabRelatedWord[];
+}
+
+/** A flashcard with its SRS state and optional dictionary enrichment. */
 export interface VocabCard {
   id: number;
   deckId: number;
   front: string;
   back: string;
   note: string | null;
+  syllables: string | null;
+  pronunciation: string | null;
+  partOfSpeech: string | null;
+  /** JSON-serialized VocabSense[] — use parseSenses() to read. */
+  details: string | null;
   intervalDays: number;
   easeFactor: number;
   repetitions: number;
@@ -28,6 +51,31 @@ export interface VocabCard {
   dueAt: string;
   reviewedAt: string | null;
   createdAt: string;
+}
+
+/**
+ * Parse a card's details JSON into senses, tolerating malformed data.
+ *
+ * @param details - Raw JSON string from the card / カードのdetails文字列
+ * @returns Parsed senses, [] when absent or invalid / 解析済み語義リスト
+ */
+export function parseSenses(details: string | null | undefined): VocabSense[] {
+  if (!details) return [];
+  try {
+    const parsed = JSON.parse(details) as unknown;
+    if (!Array.isArray(parsed)) return [];
+    return parsed
+      .filter((s): s is VocabSense => typeof s === 'object' && s !== null && 'meaning' in s)
+      .map((s) => ({
+        meaning: String(s.meaning ?? ''),
+        example: s.example ? String(s.example) : undefined,
+        exampleJa: s.exampleJa ? String(s.exampleJa) : undefined,
+        synonyms: Array.isArray(s.synonyms) ? s.synonyms : [],
+        antonyms: Array.isArray(s.antonyms) ? s.antonyms : [],
+      }));
+  } catch {
+    return [];
+  }
 }
 
 /** Deck detail as returned by GET /vocab/decks/:id. */

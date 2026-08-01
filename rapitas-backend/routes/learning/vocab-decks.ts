@@ -171,6 +171,10 @@ export const vocabDecksRoutes = new Elysia({ prefix: '/vocab' })
           front: body.front.trim(),
           back: body.back.trim(),
           note: body.note?.trim() || null,
+          syllables: body.syllables?.trim() || null,
+          pronunciation: body.pronunciation?.trim() || null,
+          partOfSpeech: body.partOfSpeech?.trim() || null,
+          details: body.details || null,
         },
       });
     },
@@ -179,6 +183,11 @@ export const vocabDecksRoutes = new Elysia({ prefix: '/vocab' })
         front: t.String({ minLength: 1 }),
         back: t.String({ minLength: 1 }),
         note: t.Optional(t.Nullable(t.String())),
+        syllables: t.Optional(t.Nullable(t.String())),
+        pronunciation: t.Optional(t.Nullable(t.String())),
+        partOfSpeech: t.Optional(t.Nullable(t.String())),
+        // JSON-serialized VocabSense[] (senses with synonyms/antonyms)
+        details: t.Optional(t.Nullable(t.String())),
       }),
     },
   )
@@ -193,6 +202,14 @@ export const vocabDecksRoutes = new Elysia({ prefix: '/vocab' })
           ...(body.front !== undefined && { front: body.front.trim() }),
           ...(body.back !== undefined && { back: body.back.trim() }),
           ...(body.note !== undefined && { note: body.note?.trim() || null }),
+          ...(body.syllables !== undefined && { syllables: body.syllables?.trim() || null }),
+          ...(body.pronunciation !== undefined && {
+            pronunciation: body.pronunciation?.trim() || null,
+          }),
+          ...(body.partOfSpeech !== undefined && {
+            partOfSpeech: body.partOfSpeech?.trim() || null,
+          }),
+          ...(body.details !== undefined && { details: body.details || null }),
         },
       });
     },
@@ -201,6 +218,10 @@ export const vocabDecksRoutes = new Elysia({ prefix: '/vocab' })
         front: t.Optional(t.String({ minLength: 1 })),
         back: t.Optional(t.String({ minLength: 1 })),
         note: t.Optional(t.Nullable(t.String())),
+        syllables: t.Optional(t.Nullable(t.String())),
+        pronunciation: t.Optional(t.Nullable(t.String())),
+        partOfSpeech: t.Optional(t.Nullable(t.String())),
+        details: t.Optional(t.Nullable(t.String())),
       }),
     },
   )

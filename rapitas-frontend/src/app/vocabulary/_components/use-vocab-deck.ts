@@ -64,17 +64,14 @@ export function useVocabDeck(deckId: number) {
     [deckId, fetchDeck, showToast, t],
   );
 
-  const updateCard = useCallback(
-    async (id: number, front: string, back: string, note: string) => {
+  /** Generic PATCH of any card fields (used by the dictionary detail editor). */
+  const updateCardFields = useCallback(
+    async (id: number, payload: Record<string, string | null>) => {
       try {
         const res = await fetch(`${API_BASE_URL}/vocab/cards/${id}`, {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            front: front.trim(),
-            back: back.trim(),
-            note: note.trim() || null,
-          }),
+          body: JSON.stringify(payload),
         });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         await fetchDeck();
@@ -85,6 +82,12 @@ export function useVocabDeck(deckId: number) {
       }
     },
     [fetchDeck, showToast, t],
+  );
+
+  const updateCard = useCallback(
+    (id: number, front: string, back: string, note: string) =>
+      updateCardFields(id, { front: front.trim(), back: back.trim(), note: note.trim() || null }),
+    [updateCardFields],
   );
 
   const deleteCard = useCallback(
@@ -150,6 +153,7 @@ export function useVocabDeck(deckId: number) {
     isLoading,
     addCard,
     updateCard,
+    updateCardFields,
     deleteCard,
     reviewQueue,
     reviewedCount,
