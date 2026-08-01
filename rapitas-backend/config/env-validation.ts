@@ -59,7 +59,9 @@ export function validateEnvironment(): void {
 
   if (warnings.length > 0) {
     for (const warning of warnings) {
-      log.warn(warning);
+      // Falling back to a documented default is normal operation, not a
+      // warning — keep startup logs clean so real WARNs stay visible.
+      log.debug(warning);
     }
   }
 
