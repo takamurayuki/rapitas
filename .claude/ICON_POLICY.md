@@ -43,7 +43,7 @@ Keep this list accurate. If you assign a glyph a new meaning, add it here.
 
 | Glyph (lucide)            | Meaning                                  |
 | ------------------------- | ---------------------------------------- |
-| `Lightbulb`               | アイデア (idea box / an idea) — 許可パスは `/ideas` に加え、同一概念の正当な再利用として `IdeaBoxPanel`（ホームのアイデアボックス起動ウィジェット）、`memo-section`（メモ種別「アイデア」バッジ）、`category/icons`（アイコンピッカー登録）、`header/header.tsx`（/ideas へのnavリンク）を明示許可（`eslint-rules/icon-policy-map.mjs`） |
+| `Lightbulb`               | アイデア (idea box / an idea) — 許可パスは `/ideas` に加え、同一概念の正当な再利用として `IdeaBoxPanel`（ホームのアイデアボックス起動ウィジェット）、`memo-section`（メモ種別「アイデア」バッジ）、`category/icons`（アイコンピッカー登録）、`header/header.tsx`（/ideas へのnavリンク）、`quick-capture`（グローバルショートカットのアイデア即時投入ポップアップ）を明示許可（`eslint-rules/icon-policy-map.mjs`） |
 | `Beaker`                  | 仮説台帳 / 仮説 (hypothesis ledger)      |
 | `Inbox`                   | 「バックログ」ナビ群                     |
 | `Bug`                     | 懸念バックログ / 懸念の種別「バグ」      |

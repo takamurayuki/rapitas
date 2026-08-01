@@ -1,15 +1,18 @@
 //! shortcut_config
 //!
-//! Persistence and parsing for the global keyboard shortcut that brings
-//! the Rapitas window to the foreground. The shortcut string is stored as
-//! JSON in `<app_config_dir>/shortcut.json` (e.g.
-//! `Ctrl+Alt+R`) and parsed into a `tauri_plugin_global_shortcut::Shortcut`
-//! when the app starts or when the user changes it from the UI.
+//! Persistence and parsing for the global keyboard shortcuts: the one that
+//! brings the Rapitas window to the foreground and the one that opens the
+//! quick idea-capture popup. Both strings are stored in the same JSON file
+//! `<app_config_dir>/shortcut.json` (keys `shortcut` / `captureShortcut`,
+//! e.g. `Ctrl+Alt+R`) and parsed into
+//! `tauri_plugin_global_shortcut::Shortcut` when the app starts or when the
+//! user changes one from the UI.
 
 use std::path::PathBuf;
 use tauri::Manager;
 
 const DEFAULT_SHORTCUT: &str = "Ctrl+Alt+R";
+const DEFAULT_CAPTURE_SHORTCUT: &str = "Ctrl+Alt+I";
 
 /// Get the path to the shortcut configuration file.
 pub fn shortcut_config_path(app: &tauri::AppHandle) -> PathBuf {
@@ -21,17 +24,46 @@ pub fn shortcut_config_path(app: &tauri::AppHandle) -> PathBuf {
     app_dir.join("shortcut.json")
 }
 
-/// Load the shortcut string from saved configuration.
-pub fn load_shortcut_config(app: &tauri::AppHandle) -> String {
+/// Read one string key from shortcut.json, falling back to a default.
+fn load_config_key(app: &tauri::AppHandle, key: &str, default: &str) -> String {
     let path = shortcut_config_path(app);
     if let Ok(content) = std::fs::read_to_string(&path) {
         if let Ok(val) = serde_json::from_str::<serde_json::Value>(&content) {
-            if let Some(s) = val["shortcut"].as_str() {
+            if let Some(s) = val[key].as_str() {
                 return s.to_string();
             }
         }
     }
-    DEFAULT_SHORTCUT.to_string()
+    default.to_string()
+}
+
+/// Load the main (bring-to-foreground) shortcut string from saved configuration.
+pub fn load_shortcut_config(app: &tauri::AppHandle) -> String {
+    load_config_key(app, "shortcut", DEFAULT_SHORTCUT)
+}
+
+/// Load the quick idea-capture shortcut string from saved configuration.
+pub fn load_capture_shortcut_config(app: &tauri::AppHandle) -> String {
+    load_config_key(app, "captureShortcut", DEFAULT_CAPTURE_SHORTCUT)
+}
+
+/// Merge-write one shortcut key into shortcut.json, preserving the other keys.
+///
+/// # Arguments
+/// * `key` - JSON key to set (`shortcut` / `captureShortcut`) / 設定するJSONキー
+/// * `value` - Shortcut string to store / 保存するショートカット文字列
+///
+/// # Errors
+/// Returns a message when the config file cannot be written. / 書込失敗時に返す。
+pub fn save_shortcut_key(app: &tauri::AppHandle, key: &str, value: &str) -> Result<(), String> {
+    let path = shortcut_config_path(app);
+    let mut val = std::fs::read_to_string(&path)
+        .ok()
+        .and_then(|c| serde_json::from_str::<serde_json::Value>(&c).ok())
+        .unwrap_or_else(|| serde_json::json!({}));
+    val[key] = serde_json::Value::String(value.to_string());
+    std::fs::write(&path, serde_json::to_string_pretty(&val).unwrap())
+        .map_err(|e| format!("Failed to save config: {e}"))
 }
 
 /// Parse a shortcut string and convert it to a Shortcut instance.

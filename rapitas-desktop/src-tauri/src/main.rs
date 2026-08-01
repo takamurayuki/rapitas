@@ -24,7 +24,10 @@ mod terminal;
 mod release;
 
 mod shortcut_config;
-use shortcut_config::{load_shortcut_config, parse_shortcut_from_config, shortcut_config_path};
+use shortcut_config::{
+    load_capture_shortcut_config, load_shortcut_config, parse_shortcut_from_config,
+    save_shortcut_key,
+};
 
 /// Tauri command: get window decoration info.
 #[tauri::command]
@@ -57,29 +60,93 @@ fn get_global_shortcut(app: tauri::AppHandle) -> String {
     load_shortcut_config(&app)
 }
 
-/// Tauri command: change the global shortcut and persist it.
-#[tauri::command]
-fn set_global_shortcut(app: tauri::AppHandle, shortcut: String) -> Result<String, String> {
+/// Re-register both global shortcuts (main + quick capture) from config.
+/// unregister_all first so a stale registration never lingers; when both keys
+/// are configured to the same combo it only registers once (main wins).
+fn reregister_all_shortcuts(app: &tauri::AppHandle) -> Result<(), String> {
     use tauri_plugin_global_shortcut::GlobalShortcutExt;
-
-    let new_shortcut = parse_shortcut_from_config(&shortcut)
-        .ok_or_else(|| format!("Invalid shortcut: {shortcut}"))?;
 
     app.global_shortcut()
         .unregister_all()
         .map_err(|e| format!("Failed to unregister shortcuts: {e}"))?;
 
-    app.global_shortcut()
-        .register(new_shortcut)
-        .map_err(|e| format!("Failed to register shortcut: {e}"))?;
+    let main_sc = parse_shortcut_from_config(&load_shortcut_config(app));
+    if let Some(sc) = main_sc {
+        app.global_shortcut()
+            .register(sc)
+            .map_err(|e| format!("Failed to register shortcut: {e}"))?;
+    }
+    if let Some(sc) = parse_shortcut_from_config(&load_capture_shortcut_config(app)) {
+        if main_sc != Some(sc) {
+            app.global_shortcut()
+                .register(sc)
+                .map_err(|e| format!("Failed to register capture shortcut: {e}"))?;
+        }
+    }
+    Ok(())
+}
 
-    let path = shortcut_config_path(&app);
-    let json = serde_json::json!({ "shortcut": shortcut });
-    std::fs::write(&path, serde_json::to_string_pretty(&json).unwrap())
-        .map_err(|e| format!("Failed to save config: {e}"))?;
-
+/// Tauri command: change the global (bring-to-foreground) shortcut and persist it.
+#[tauri::command]
+fn set_global_shortcut(app: tauri::AppHandle, shortcut: String) -> Result<String, String> {
+    parse_shortcut_from_config(&shortcut).ok_or_else(|| format!("Invalid shortcut: {shortcut}"))?;
+    save_shortcut_key(&app, "shortcut", &shortcut)?;
+    reregister_all_shortcuts(&app)?;
     println!("[Shortcut] Global shortcut changed to: {shortcut}");
     Ok(shortcut)
+}
+
+/// Tauri command: get the current quick-capture shortcut configuration.
+#[tauri::command]
+fn get_capture_shortcut(app: tauri::AppHandle) -> String {
+    load_capture_shortcut_config(&app)
+}
+
+/// Tauri command: change the quick-capture shortcut and persist it.
+#[tauri::command]
+fn set_capture_shortcut(app: tauri::AppHandle, shortcut: String) -> Result<String, String> {
+    parse_shortcut_from_config(&shortcut).ok_or_else(|| format!("Invalid shortcut: {shortcut}"))?;
+    save_shortcut_key(&app, "captureShortcut", &shortcut)?;
+    reregister_all_shortcuts(&app)?;
+    println!("[Shortcut] Capture shortcut changed to: {shortcut}");
+    Ok(shortcut)
+}
+
+/// Show (or lazily create) the always-on-top quick idea-capture popup window.
+///
+/// # Errors
+/// Returns a message when the webview window cannot be created.
+fn show_quick_capture_window(app: &tauri::AppHandle) -> Result<(), String> {
+    if let Some(win) = app.get_webview_window("quick-capture") {
+        let _ = win.show();
+        let _ = win.center();
+        let _ = win.set_focus();
+        // Tell the page to clear its input for a fresh capture.
+        let _ = win.emit("quick-capture:show", ());
+        return Ok(());
+    }
+    let win = tauri::WebviewWindowBuilder::new(
+        app,
+        "quick-capture",
+        tauri::WebviewUrl::App("quick-capture".into()),
+    )
+    .title("Rapitas Quick Capture")
+    .inner_size(640.0, 180.0)
+    .decorations(false)
+    .always_on_top(true)
+    .skip_taskbar(true)
+    .resizable(false)
+    .center()
+    .build()
+    .map_err(|e| format!("Failed to create quick-capture window: {e}"))?;
+    let _ = win.set_focus();
+    Ok(())
+}
+
+/// Tauri command: open the quick idea-capture popup (also used by the tray menu).
+#[tauri::command]
+fn open_quick_capture(app: tauri::AppHandle) -> Result<(), String> {
+    show_quick_capture_window(&app)
 }
 
 /// Tauri command: open a URL in split-screen view using the chosen (App
@@ -286,8 +353,9 @@ fn show_main_window(app: &tauri::AppHandle) {
 /// Set up the system tray icon and menu.
 fn setup_tray(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
     let show_item = MenuItem::with_id(app, "show", "Show Window", true, None::<&str>)?;
+    let capture_item = MenuItem::with_id(app, "capture", "Quick Capture", true, None::<&str>)?;
     let quit_item = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
-    let menu = Menu::with_items(app, &[&show_item, &quit_item])?;
+    let menu = Menu::with_items(app, &[&show_item, &capture_item, &quit_item])?;
 
     let tray_icon_bytes = include_bytes!("../icons/32x32.png");
     let tray_icon_image =
@@ -301,6 +369,11 @@ fn setup_tray(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
         .on_menu_event(|app, event| match event.id.as_ref() {
             "show" => {
                 show_main_window(app);
+            }
+            "capture" => {
+                if let Err(e) = show_quick_capture_window(app) {
+                    eprintln!("[Tray] {e}");
+                }
             }
             "quit" => {
                 // Kill all integrated-terminal PTYs so no shell (and its
@@ -327,32 +400,39 @@ fn setup_tray(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
-/// Set up the global shortcut (default: Ctrl+Alt+R to bring window to foreground).
+/// Set up the global shortcuts (defaults: Ctrl+Alt+R to bring the window to
+/// the foreground, Ctrl+Alt+I to open the quick idea-capture popup).
 fn setup_global_shortcut(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
-    use tauri_plugin_global_shortcut::{
-        Code, GlobalShortcutExt, Modifiers, Shortcut, ShortcutState,
-    };
-
-    // Load saved shortcut config, falling back to default (Ctrl+Alt+R)
-    let shortcut_config = load_shortcut_config(app.handle());
-    let shortcut = parse_shortcut_from_config(&shortcut_config)
-        .unwrap_or_else(|| Shortcut::new(Some(Modifiers::CONTROL | Modifiers::ALT), Code::KeyR));
+    use tauri_plugin_global_shortcut::ShortcutState;
 
     app.handle().plugin(
         tauri_plugin_global_shortcut::Builder::new()
-            .with_handler(move |app, _sc, event| {
+            .with_handler(move |app, sc, event| {
                 if event.state() == ShortcutState::Pressed {
-                    println!("[Shortcut] Global shortcut pressed - showing main window");
-                    show_main_window(app);
+                    // Re-read config on each press so runtime shortcut changes
+                    // dispatch correctly without rebuilding this handler.
+                    let capture = parse_shortcut_from_config(&load_capture_shortcut_config(app));
+                    if capture == Some(*sc) {
+                        println!("[Shortcut] Capture shortcut pressed - opening quick capture");
+                        if let Err(e) = show_quick_capture_window(app) {
+                            eprintln!("[Shortcut] {e}");
+                        }
+                    } else {
+                        println!("[Shortcut] Global shortcut pressed - showing main window");
+                        show_main_window(app);
+                    }
                 }
             })
             .build(),
     )?;
 
-    // Unregister first in case the OS still holds a stale registration from a previous crash
-    let _ = app.global_shortcut().unregister(shortcut);
-    app.global_shortcut().register(shortcut)?;
-    println!("Global shortcut registered: {shortcut_config}");
+    // unregister_all inside also clears any stale registration from a previous crash
+    reregister_all_shortcuts(app.handle()).map_err(std::io::Error::other)?;
+    println!(
+        "Global shortcuts registered: {} (main), {} (capture)",
+        load_shortcut_config(app.handle()),
+        load_capture_shortcut_config(app.handle())
+    );
 
     Ok(())
 }
@@ -393,6 +473,9 @@ fn main() {
             .invoke_handler(tauri::generate_handler![
                 get_global_shortcut,
                 set_global_shortcut,
+                get_capture_shortcut,
+                set_capture_shortcut,
+                open_quick_capture,
                 open_split_view,
                 open_url_in_browser,
                 get_window_decorations,
@@ -437,6 +520,9 @@ fn main() {
             .invoke_handler(tauri::generate_handler![
                 get_global_shortcut,
                 set_global_shortcut,
+                get_capture_shortcut,
+                set_capture_shortcut,
+                open_quick_capture,
                 open_split_view,
                 open_url_in_browser,
                 get_window_decorations,

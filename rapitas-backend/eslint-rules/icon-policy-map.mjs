@@ -29,7 +29,8 @@ export const OWNED_ICONS = [
     //   - header/header.tsx: /ideas ページへのナビゲーションリンクアイコン
     // ICON_POLICY §3: 「Lightbulb — アイデア (idea box / an idea)」
     glyph: 'Lightbulb',
-    allowedPathPatterns: ['/ideas', 'IdeaBoxPanel', 'memo-section', 'category/icons', 'header/header.tsx'],
+    //   - quick-capture: グローバルショートカットのアイデア即時投入ポップアップ（アイデアそのもの）
+    allowedPathPatterns: ['/ideas', 'IdeaBoxPanel', 'memo-section', 'category/icons', 'header/header.tsx', 'quick-capture'],
   },
 ];
 

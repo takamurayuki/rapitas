@@ -1,7 +1,7 @@
 {
   "identifier": "default",
   "description": "Capability for the main window",
-  "windows": ["main", "external-view"],
+  "windows": ["main", "external-view", "quick-capture"],
   "permissions": [
     "core:default",
     "shell:allow-open",

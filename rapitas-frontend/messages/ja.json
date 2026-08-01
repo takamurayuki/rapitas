@@ -3316,6 +3316,13 @@
     "statusPaused": "一時停止",
     "statusStopping": "停止中"
   },
+  "quickCapture": {
+    "placeholder": "アイデアを書いて Enter で保存...",
+    "hint": "Enter 保存 / Shift+Enter 改行 / Esc 閉じる",
+    "saving": "保存中...",
+    "saved": "保存しました",
+    "failed": "保存に失敗しました — 内容は保持されています"
+  },
   "ideaBox": {
     "title": "アイデアボックス",
     "openLabel": "アイデアボックスを開く",

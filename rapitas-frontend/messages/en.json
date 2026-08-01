@@ -3316,6 +3316,13 @@
     "statusPaused": "Paused",
     "statusStopping": "Stopping"
   },
+  "quickCapture": {
+    "placeholder": "Write an idea and press Enter to save...",
+    "hint": "Enter to save / Shift+Enter for newline / Esc to close",
+    "saving": "Saving...",
+    "saved": "Saved",
+    "failed": "Save failed — your text is kept"
+  },
   "ideaBox": {
     "title": "Idea Box",
     "openLabel": "Open Idea Box",
