@@ -47,6 +47,7 @@ import {
   Sprout,
   Library,
   Search,
+  WalletCards,
 } from 'lucide-react';
 import Link from 'next/link';
 import AppIcon from '@/components/common/app-icon';
@@ -128,6 +129,7 @@ export default function Header() {
           icon: BookMarked,
         },
         { href: '/exam-goals', label: t('examGoals'), icon: Target },
+        { href: '/vocabulary', label: t('vocabulary'), icon: WalletCards },
       ],
     },
     {

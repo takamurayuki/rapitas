@@ -1,0 +1,130 @@
+'use client';
+
+/**
+ * VocabCardRow
+ *
+ * One card in the deck detail list, with inline editing of front/back/note.
+ */
+import { useState } from 'react';
+import { useTranslations, useFormatter } from 'next-intl';
+import { Pencil, Trash2, Check, X } from 'lucide-react';
+import type { VocabCard } from './vocab.types';
+
+interface CardRowProps {
+  card: VocabCard;
+  onUpdate: (id: number, front: string, back: string, note: string) => Promise<boolean>;
+  onDelete: (id: number) => void;
+}
+
+/**
+ * Render a single card row.
+ *
+ * @param props - Card data and CRUD callbacks. / カードと操作コールバック。
+ */
+export function VocabCardRow({ card, onUpdate, onDelete }: CardRowProps) {
+  const t = useTranslations('vocabulary');
+  const format = useFormatter();
+  const [isEditing, setIsEditing] = useState(false);
+  const [front, setFront] = useState(card.front);
+  const [back, setBack] = useState(card.back);
+  const [note, setNote] = useState(card.note ?? '');
+
+  const isDue = new Date(card.dueAt).getTime() <= Date.now();
+
+  const save = async () => {
+    if (await onUpdate(card.id, front, back, note)) setIsEditing(false);
+  };
+
+  const inputCls =
+    'w-full rounded border border-zinc-200 bg-white px-2 py-1 text-sm outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100';
+
+  if (isEditing) {
+    return (
+      <div className="flex flex-col gap-1.5 rounded-lg bg-zinc-50 p-3 dark:bg-zinc-900/40">
+        <div className="grid grid-cols-2 gap-1.5">
+          <input
+            value={front}
+            onChange={(e) => setFront(e.target.value)}
+            aria-label={t('frontPlaceholder')}
+            className={inputCls}
+          />
+          <input
+            value={back}
+            onChange={(e) => setBack(e.target.value)}
+            aria-label={t('backPlaceholder')}
+            className={inputCls}
+          />
+        </div>
+        <input
+          value={note}
+          onChange={(e) => setNote(e.target.value)}
+          aria-label={t('notePlaceholder')}
+          placeholder={t('notePlaceholder')}
+          className={inputCls}
+        />
+        <div className="flex justify-end gap-1.5">
+          <button
+            onClick={() => setIsEditing(false)}
+            aria-label={t('cancel')}
+            className="rounded p-1.5 text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800"
+          >
+            <X className="h-4 w-4" />
+          </button>
+          <button
+            onClick={save}
+            disabled={!front.trim() || !back.trim()}
+            aria-label={t('save')}
+            className="rounded p-1.5 text-green-600 hover:bg-zinc-100 disabled:opacity-40 dark:hover:bg-zinc-800"
+          >
+            <Check className="h-4 w-4" />
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="group flex items-start justify-between gap-3 border-b border-zinc-100 py-2.5 last:border-b-0 dark:border-zinc-800/60">
+      <div className="min-w-0 flex-1">
+        <div className="flex flex-wrap items-baseline gap-x-3">
+          <span className="font-medium text-zinc-900 dark:text-zinc-100">{card.front}</span>
+          <span className="text-sm text-zinc-600 dark:text-zinc-400">{card.back}</span>
+        </div>
+        {card.note && (
+          <p className="mt-0.5 text-xs text-zinc-500 dark:text-zinc-500">{card.note}</p>
+        )}
+      </div>
+      <div className="flex shrink-0 items-center gap-2">
+        <span
+          className={`text-[11px] ${
+            isDue
+              ? 'rounded-full bg-amber-50 px-2 py-0.5 font-medium text-amber-700 dark:bg-amber-900/30 dark:text-amber-400'
+              : 'text-zinc-400 dark:text-zinc-500'
+          }`}
+        >
+          {isDue
+            ? t('dueNow')
+            : t('nextReview', {
+                date: format.dateTime(new Date(card.dueAt), { dateStyle: 'medium' }),
+              })}
+        </span>
+        <div className="flex gap-0.5 opacity-0 transition-opacity group-hover:opacity-100">
+          <button
+            onClick={() => setIsEditing(true)}
+            aria-label={t('edit')}
+            className="rounded p-1.5 text-zinc-500 hover:bg-zinc-100 hover:text-zinc-800 dark:hover:bg-zinc-800 dark:hover:text-zinc-200"
+          >
+            <Pencil className="h-3.5 w-3.5" />
+          </button>
+          <button
+            onClick={() => onDelete(card.id)}
+            aria-label={t('delete')}
+            className="rounded p-1.5 text-zinc-500 hover:bg-zinc-100 hover:text-red-600 dark:hover:bg-zinc-800"
+          >
+            <Trash2 className="h-3.5 w-3.5" />
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}

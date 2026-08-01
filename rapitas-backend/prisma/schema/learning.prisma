@@ -72,6 +72,37 @@ model HabitLog {
   @@unique([habitId, date])
 }
 
+// Vocabulary book (単語帳): decks of flashcards with per-card spaced-repetition
+// state (SM-2-lite — see services/learning/vocab-srs.ts for the scheduler).
+model VocabDeck {
+  id          Int         @id @default(autoincrement())
+  name        String
+  description String?
+  cards       VocabCard[]
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+}
+
+model VocabCard {
+  id           Int       @id @default(autoincrement())
+  deckId       Int
+  deck         VocabDeck @relation(fields: [deckId], references: [id], onDelete: Cascade)
+  front        String // term / prompt side
+  back         String // meaning / answer side
+  note         String? // example sentence, mnemonic, etc.
+  // SRS state (SM-2-lite)
+  intervalDays Float     @default(0) // current review interval
+  easeFactor   Float     @default(2.5) // growth multiplier, floored at 1.3
+  repetitions  Int       @default(0) // consecutive successful reviews
+  lapses       Int       @default(0) // times forgotten after being learned
+  dueAt        DateTime  @default(now()) // next review due
+  reviewedAt   DateTime? // last review timestamp
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  @@index([deckId, dueAt])
+}
+
 model Resource {
   id          Int      @id @default(autoincrement())
   taskId      Int?
