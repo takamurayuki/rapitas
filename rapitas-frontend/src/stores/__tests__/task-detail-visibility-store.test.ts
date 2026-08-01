@@ -2,7 +2,11 @@ import { useTaskDetailVisibilityStore } from '../task-detail-visibility-store';
 
 describe('taskDetailVisibilityStore', () => {
   beforeEach(() => {
-    useTaskDetailVisibilityStore.setState({ isTaskDetailVisible: false, dockSide: 'right' });
+    useTaskDetailVisibilityStore.setState({
+      isTaskDetailVisible: false,
+      dockSide: 'right',
+      displayMode: 'overlay',
+    });
   });
 
   it('should have isTaskDetailVisible as false initially', () => {
@@ -38,6 +42,27 @@ describe('taskDetailVisibilityStore', () => {
       expect(useTaskDetailVisibilityStore.getState().dockSide).toBe('left');
       useTaskDetailVisibilityStore.getState().toggleDockSide();
       expect(useTaskDetailVisibilityStore.getState().dockSide).toBe('right');
+    });
+  });
+
+  describe('displayMode', () => {
+    it('defaults to overlay', () => {
+      expect(useTaskDetailVisibilityStore.getState().displayMode).toBe('overlay');
+    });
+
+    it('setDisplayMode sets an explicit mode', () => {
+      useTaskDetailVisibilityStore.getState().setDisplayMode('split');
+      expect(useTaskDetailVisibilityStore.getState().displayMode).toBe('split');
+      useTaskDetailVisibilityStore.getState().setDisplayMode('overlay');
+      expect(useTaskDetailVisibilityStore.getState().displayMode).toBe('overlay');
+    });
+
+    it('toggleDisplayMode flips overlay <-> split', () => {
+      expect(useTaskDetailVisibilityStore.getState().displayMode).toBe('overlay');
+      useTaskDetailVisibilityStore.getState().toggleDisplayMode();
+      expect(useTaskDetailVisibilityStore.getState().displayMode).toBe('split');
+      useTaskDetailVisibilityStore.getState().toggleDisplayMode();
+      expect(useTaskDetailVisibilityStore.getState().displayMode).toBe('overlay');
     });
   });
 });

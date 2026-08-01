@@ -10,6 +10,7 @@ import { render } from '@testing-library/react';
 import AppContent from '../AppContent';
 import { useNavStore } from '@/stores/nav-store';
 import { useTerminalStore } from '@/feature/terminal/terminal-store';
+import { useTaskDetailVisibilityStore } from '@/stores/task-detail-visibility-store';
 
 function makeTab() {
   return {
@@ -31,6 +32,11 @@ describe('AppContent', () => {
       splitWidthPercent: 50,
       tabs: [],
       activeTabId: null,
+    });
+    useTaskDetailVisibilityStore.setState({
+      isTaskDetailVisible: false,
+      displayMode: 'overlay',
+      dockSide: 'right',
     });
   });
 
@@ -91,6 +97,59 @@ describe('AppContent', () => {
     const outer = container.firstChild as HTMLElement;
     expect(outer.style.paddingLeft).toBe('60vw');
     expect(outer.style.paddingRight).toBe('');
+  });
+
+  it('reserves right padding for the task detail panel in split mode', () => {
+    useTaskDetailVisibilityStore.setState({
+      isTaskDetailVisible: true,
+      displayMode: 'split',
+      dockSide: 'right',
+    });
+    const { container } = render(
+      <AppContent>
+        <div>content</div>
+      </AppContent>,
+    );
+    const outer = container.firstChild as HTMLElement;
+    expect(outer.style.paddingRight).toBe('50vw');
+    expect(outer.style.paddingLeft).toBe('');
+  });
+
+  it('applies no padding for the task detail panel in overlay mode', () => {
+    useTaskDetailVisibilityStore.setState({
+      isTaskDetailVisible: true,
+      displayMode: 'overlay',
+      dockSide: 'right',
+    });
+    const { container } = render(
+      <AppContent>
+        <div>content</div>
+      </AppContent>,
+    );
+    const outer = container.firstChild as HTMLElement;
+    expect(outer.style.paddingRight).toBe('');
+  });
+
+  it('sums terminal and task detail widths when both split-dock the same edge', () => {
+    useTerminalStore.setState({
+      isOpen: true,
+      tabs: [makeTab()],
+      displayMode: 'split',
+      dockSide: 'right',
+      splitWidthPercent: 30,
+    });
+    useTaskDetailVisibilityStore.setState({
+      isTaskDetailVisible: true,
+      displayMode: 'split',
+      dockSide: 'right',
+    });
+    const { container } = render(
+      <AppContent>
+        <div>content</div>
+      </AppContent>,
+    );
+    const outer = container.firstChild as HTMLElement;
+    expect(outer.style.paddingRight).toBe('80vw');
   });
 
   it('applies no padding in split mode when closed', () => {

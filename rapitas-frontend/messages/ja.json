@@ -707,7 +707,10 @@
       "closeTooltip": "閉じる (Esc)",
       "dockLeft": "タスク詳細を左側に表示",
       "dockRight": "タスク詳細を右側に表示",
-      "swapDockSideAria": "左右を入れ替える"
+      "swapDockSideAria": "左右を入れ替える",
+      "splitView": "ページを分割して表示",
+      "overlayView": "オーバーレイ表示に戻す",
+      "toggleSplitAria": "分割表示を切り替える"
     },
     "ciStatus": {
       "passing": "CI: 成功",

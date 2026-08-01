@@ -1,9 +1,10 @@
 'use client';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslations } from 'next-intl';
-import { ArrowLeftRight } from 'lucide-react';
+import { ArrowLeftRight, Columns2 } from 'lucide-react';
 import TaskDetailClient from '@/app/tasks/[id]/TaskDetailClient';
 import { useTaskDetailVisibilityStore } from '@/stores/task-detail-visibility-store';
+import { useTerminalStore } from '@/feature/terminal/terminal-store';
 
 interface TaskSlidePanelProps {
   taskId: number | null;
@@ -28,8 +29,31 @@ export default function TaskSlidePanel({
   const contentRef = useRef<HTMLDivElement>(null);
 
   // Task detail visibility store
-  const { showTaskDetail, hideTaskDetail, dockSide, toggleDockSide } =
-    useTaskDetailVisibilityStore();
+  const {
+    showTaskDetail,
+    hideTaskDetail,
+    dockSide,
+    toggleDockSide,
+    displayMode,
+    toggleDisplayMode,
+  } = useTaskDetailVisibilityStore();
+  const isSplit = displayMode === 'split';
+
+  // When the integrated terminal is split-docked on the same edge, tile beside
+  // it instead of covering it (mirrors AppContent, which sums both widths).
+  const terminalIsOpen = useTerminalStore((s) => s.isOpen);
+  const terminalDisplayMode = useTerminalStore((s) => s.displayMode);
+  const terminalDockSide = useTerminalStore((s) => s.dockSide);
+  const terminalSplitWidthPercent = useTerminalStore((s) => s.splitWidthPercent);
+  const terminalHasTabs = useTerminalStore((s) => s.tabs.length > 0);
+  const sameSideTerminalVw =
+    isSplit &&
+    terminalIsOpen &&
+    terminalDisplayMode === 'split' &&
+    terminalHasTabs &&
+    terminalDockSide === dockSide
+      ? terminalSplitWidthPercent
+      : 0;
 
   // When opening: set isVisible to true & reset scroll position
   useEffect(() => {
@@ -102,9 +126,10 @@ export default function TaskSlidePanel({
     return () => window.removeEventListener('keydown', handleEsc);
   }, [isVisible, handleClose]);
 
-  // Disable body scroll while panel is visible
+  // Disable body scroll while the panel floats as an overlay. Split mode must
+  // NOT lock it — the whole point is that the page stays usable alongside.
   useEffect(() => {
-    if (isVisible) {
+    if (isVisible && !isSplit) {
       document.body.style.overflow = 'hidden';
     } else {
       document.body.style.overflow = 'unset';
@@ -112,7 +137,7 @@ export default function TaskSlidePanel({
     return () => {
       document.body.style.overflow = 'unset';
     };
-  }, [isVisible]);
+  }, [isVisible, isSplit]);
 
   if (!isVisible || !taskId) return null;
 
@@ -129,33 +154,55 @@ export default function TaskSlidePanel({
       {/* Overlay — sits below the header (top-16) so the header stays visible
           and interactive, matching the side nav's backdrop. z-[65] (above the
           split-mode terminal panel's z-60) so the terminal dims along with
-          the rest of the page instead of poking out on top of the overlay. */}
-      <div
-        className="fixed inset-x-0 top-16 bottom-0 z-[65]"
-        onClick={handleClose}
-        style={{
-          animation: isClosing
-            ? `fadeOut ${ANIMATION_DURATION}ms ease-in forwards`
-            : `fadeIn ${ANIMATION_DURATION}ms ease-out forwards`,
-        }}
-      />
+          the rest of the page instead of poking out on top of the overlay.
+          Split mode renders no overlay at all — the page must stay clickable. */}
+      {!isSplit && (
+        <div
+          className="fixed inset-x-0 top-16 bottom-0 z-[65]"
+          onClick={handleClose}
+          style={{
+            animation: isClosing
+              ? `fadeOut ${ANIMATION_DURATION}ms ease-in forwards`
+              : `fadeIn ${ANIMATION_DURATION}ms ease-out forwards`,
+          }}
+        />
+      )}
 
       {/* Slide panel — positioned below the header (top-16) like the side nav,
           so it no longer overlaps the sticky header. z-[70] (above the overlay
           and the terminal panel's z-60) so the terminal's split mode can
-          never hide it — the task panel always wins that stacking fight. */}
+          never hide it — the task panel always wins that stacking fight.
+          Split mode: fixed 50vw wide (must match TASK_DETAIL_SPLIT_WIDTH_VW —
+          AppContent reserves the same as page padding). */}
       <div
-        className={`fixed top-16 bottom-0 ${dockSide === 'right' ? 'right-0' : 'left-0'} w-full md:w-3/4 lg:w-2/3 xl:w-1/2 flex flex-col bg-white dark:bg-zinc-950 shadow-2xl z-[70] overflow-hidden`}
+        className={`fixed top-16 bottom-0 ${dockSide === 'right' ? 'right-0' : 'left-0'} ${
+          isSplit ? 'w-full md:w-[50vw]' : 'w-full md:w-3/4 lg:w-2/3 xl:w-1/2'
+        } flex flex-col bg-white dark:bg-zinc-950 shadow-2xl z-[70] overflow-hidden`}
         style={{
           animation: isClosing
             ? `${slideOutAnim} ${ANIMATION_DURATION}ms ease-in forwards`
             : `${slideInAnim} ${ANIMATION_DURATION}ms ease-out forwards`,
+          // Slide over past the same-side split terminal instead of under it.
+          ...(sameSideTerminalVw ? { [dockSide]: `${sameSideTerminalVw}vw` } : {}),
         }}
       >
         {/* Header (compact) */}
         <div className="shrink-0 flex items-center justify-between border-b border-zinc-200 dark:border-zinc-800 bg-white dark:bg-indigo-dark-900 px-4 py-2.5">
           <h2 className="text-base font-semibold text-zinc-900 dark:text-zinc-50">{t('title')}</h2>
           <div className="flex items-center gap-1">
+            <button
+              onClick={() => toggleDisplayMode()}
+              className={`p-1.5 rounded-lg transition-colors ${
+                isSplit
+                  ? 'text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-900/30'
+                  : 'text-zinc-600 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-100 hover:bg-zinc-100 dark:hover:bg-zinc-800'
+              }`}
+              title={isSplit ? t('overlayView') : t('splitView')}
+              aria-label={t('toggleSplitAria')}
+              aria-pressed={isSplit}
+            >
+              <Columns2 className="w-4 h-4" aria-hidden="true" />
+            </button>
             <button
               onClick={() => toggleDockSide()}
               className="p-1.5 text-zinc-600 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-100 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-lg transition-colors"

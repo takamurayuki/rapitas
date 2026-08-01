@@ -89,7 +89,7 @@ Keep this list accurate. If you assign a glyph a new meaning, add it here.
 | `Archive`                 | メモリ管理 / KB管理（検証・忘却アーカイブのライフサイクル管理。nav: /knowledge/admin） |
 | `GitBranch`               | タスク詳細の「ワークフロー」セクション（`TaskWorkflowSection` カードヘッダー + quick-nav `td-workflow`。注: 同一glyphは実際のGitブランチ名フィールド/ピッカー(テーマ設定・ディレクトリピッカー等)でも多用されており、そちらは別の慣用（ブランチそのもの）として許容 — カード見出し文脈とフィールド文脈は視覚的に紛れないため） |
 | `PanelBottom`             | 統合ターミナルを下部パネル表示（overlay）に戻す操作（TerminalTabBar。split表示への切替は `Columns2`） |
-| `Columns2`                | 画面分割表示への切替（ノートモーダルの分割タブ、統合ターミナルのsplit表示切替 — 「サイドバイサイド分割」という共通概念の再利用） |
+| `Columns2`                | 画面分割表示への切替（ノートモーダルの分割タブ、統合ターミナルのsplit表示切替、タスク詳細スライドパネルの分割表示トグル — 「サイドバイサイド分割」という共通概念の再利用） |
 | `ArrowLeftRight`          | 左右の位置を入れ替える操作（ノート分割のノート/AI入れ替え、統合ターミナルとタスク詳細スライドパネルのドック位置(左右)入れ替え） |
 | `AppWindow`               | ライブプレビュー概念全般（タスク詳細のライブプレビューセクション見出し、および `SystemStatusPanel` の起動中プレビュー数タイル — 同一概念の正当な再利用） |
 

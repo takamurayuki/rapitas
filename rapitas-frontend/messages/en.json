@@ -707,7 +707,10 @@
       "closeTooltip": "Close (Esc)",
       "dockLeft": "Dock task details on the left",
       "dockRight": "Dock task details on the right",
-      "swapDockSideAria": "Swap left/right"
+      "swapDockSideAria": "Swap left/right",
+      "splitView": "Split with the page",
+      "overlayView": "Back to overlay",
+      "toggleSplitAria": "Toggle split view"
     },
     "ciStatus": {
       "passing": "CI: passing",
