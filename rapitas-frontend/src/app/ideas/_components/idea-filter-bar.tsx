@@ -8,11 +8,11 @@
 import type { Dispatch, SetStateAction } from 'react';
 import { useTranslations } from 'next-intl';
 import type { Theme } from '@/types';
-import type { IdeaPriority } from './idea-box.types';
+import type { IdeaPriority, IdeaStatusFilter } from './idea-box.types';
 
 interface IdeaFilterBarProps {
-  statusFilter: 'open' | 'used' | 'all';
-  setStatusFilter: Dispatch<SetStateAction<'open' | 'used' | 'all'>>;
+  statusFilter: IdeaStatusFilter;
+  setStatusFilter: Dispatch<SetStateAction<IdeaStatusFilter>>;
   priorityFilter: 'all' | IdeaPriority;
   setPriorityFilter: Dispatch<SetStateAction<'all' | IdeaPriority>>;
   filterThemeId: number | null;
@@ -41,7 +41,7 @@ export function IdeaFilterBar({
     <div className="mb-4 flex flex-wrap items-center gap-3">
       {/* Status — amber, matching the idea icon/add-button palette (see idea-card.tsx). */}
       <div className="flex overflow-hidden rounded-lg border border-zinc-200 dark:border-zinc-700">
-        {(['open', 'used', 'all'] as const).map((value) => (
+        {(['open', 'used', 'all', 'uncategorized'] as const).map((value) => (
           <button
             key={value}
             onClick={() => setStatusFilter(value)}

@@ -12,7 +12,7 @@ import { useLocalStorageState } from '@/hooks/common/useLocalStorageState';
 import { API_BASE_URL } from '@/utils/api';
 import { useFilterDataStore } from '@/stores/filter-data-store';
 import { useToast } from '@/components/ui/toast/ToastContainer';
-import type { Idea, IdeaPriority, IdeaStats } from './idea-box.types';
+import type { Idea, IdeaPriority, IdeaStats, IdeaStatusFilter } from './idea-box.types';
 
 /**
  * Provide the idea list view model.
@@ -33,7 +33,7 @@ export function useIdeaData() {
   const [totalIdeas, setTotalIdeas] = useState(0);
 
   const [filterThemeId, setFilterThemeId] = useState<number | null>(null);
-  const [statusFilter, setStatusFilter] = useState<'open' | 'used' | 'all'>('all');
+  const [statusFilter, setStatusFilter] = useState<IdeaStatusFilter>('all');
   const [priorityFilter, setPriorityFilter] = useState<'all' | IdeaPriority>('all');
   const searchParams = useSearchParams();
   const searchQuery = searchParams?.get('search')?.trim() ?? '';
@@ -54,7 +54,10 @@ export function useIdeaData() {
       });
       // NOTE: themeIdフィルタリングもサーバーサイドで処理するため追加
       if (filterThemeId) params.set('themeId', String(filterThemeId));
-      if (statusFilter !== 'all') params.set('status', statusFilter);
+      // 未分類タブ = テーマ未設定 (scope: global) のアイデア。ライフサイクル状態では
+      // ないので status ではなく scope フィルタとしてサーバーへ渡す。
+      if (statusFilter === 'uncategorized') params.set('scope', 'global');
+      else if (statusFilter !== 'all') params.set('status', statusFilter);
       if (priorityFilter !== 'all') params.set('priority', priorityFilter);
 
       const [ideasRes, statsRes] = await Promise.all([

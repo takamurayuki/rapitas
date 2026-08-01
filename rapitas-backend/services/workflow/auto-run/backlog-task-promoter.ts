@@ -127,6 +127,15 @@ async function promoteIdea(
   themeId: number,
   idea: { id: number; title: string; content: string; priority: string; themeId: number | null },
 ): Promise<boolean> {
+  // NOTE: Uncategorized (themeless) ideas must never be auto-promoted — a human
+  // hasn't decided which repo they belong to yet. The per-theme listIdeas query
+  // already excludes them; this guard replaces the old `?? themeId` fallback
+  // that would have silently adopted one into the current theme if any future
+  // caller passed it through.
+  if (idea.themeId == null) {
+    log.info({ themeId, ideaId: idea.id }, '[backlog-promoter] Skipped uncategorized idea');
+    return false;
+  }
   try {
     const description = [idea.content, '', `アイデアボックスから自動起票 (idea #${idea.id})`].join(
       '\n',
@@ -136,7 +145,7 @@ async function promoteIdea(
       description,
       priority: idea.priority,
       status: 'todo',
-      themeId: idea.themeId ?? themeId,
+      themeId: idea.themeId,
     });
     if (!task) return false;
     await markAutoCreated(task.id);

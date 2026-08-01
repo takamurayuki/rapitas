@@ -3384,7 +3384,8 @@
       "status": {
         "open": "未対応",
         "used": "タスク化済み",
-        "all": "すべて"
+        "all": "すべて",
+        "uncategorized": "未分類"
       },
       "allPriorities": "すべての優先度",
       "priority": {

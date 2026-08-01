@@ -265,7 +265,7 @@ describe('promoteBacklogForTheme — idea promotion', () => {
     mockTaskCount.mockResolvedValue(0);
     mockListConcerns.mockResolvedValue({ concerns: [], total: 0 });
     mockListIdeas.mockResolvedValue({
-      ideas: [{ id: 60, title: 'Idea title', content: 'body', priority: 'medium', themeId: null }],
+      ideas: [{ id: 60, title: 'Idea title', content: 'body', priority: 'medium', themeId: 3 }],
       total: 1,
     });
     mockCreateTask.mockResolvedValue({ id: 801 });
@@ -279,7 +279,6 @@ describe('promoteBacklogForTheme — idea promotion', () => {
         title: '[Idea] Idea title',
         priority: 'medium',
         status: 'todo',
-        // idea.themeId is null, so it must fall back to the requesting theme.
         themeId: 3,
       }),
     );
@@ -288,6 +287,25 @@ describe('promoteBacklogForTheme — idea promotion', () => {
       where: { id: 801 },
       data: { autoCreatedFromBacklog: true },
     });
+  });
+
+  test('uncategorized (themeless) ideas are never auto-promoted', async () => {
+    // NOTE: the old behavior adopted a themeless idea into the requesting theme
+    // (themeId fallback). Now a human must assign a theme first — auto-run may
+    // not decide which repo an uncategorized idea belongs to.
+    mockUserSettingsFindFirst.mockResolvedValue({ autoCreateFromBacklogLimit: 5 });
+    mockTaskCount.mockResolvedValue(0);
+    mockListConcerns.mockResolvedValue({ concerns: [], total: 0 });
+    mockListIdeas.mockResolvedValue({
+      ideas: [{ id: 61, title: 'Themeless', content: 'body', priority: 'medium', themeId: null }],
+      total: 1,
+    });
+
+    const created = await promoteBacklogForTheme(3);
+
+    expect(created).toBe(0);
+    expect(mockCreateTask).not.toHaveBeenCalled();
+    expect(mockMarkIdeaAsUsed).not.toHaveBeenCalled();
   });
 
   test('urgent 懸念があるとバンディットに関係なく concern が先に起票されること（安全側優先）', async () => {

@@ -3384,7 +3384,8 @@
       "status": {
         "open": "Open",
         "used": "Task created",
-        "all": "All"
+        "all": "All",
+        "uncategorized": "Uncategorized"
       },
       "allPriorities": "All priorities",
       "priority": {
