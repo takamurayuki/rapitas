@@ -29,6 +29,48 @@ function requireAdmin(headers: Record<string, string | undefined>): void {
   }
 }
 
+// Upper bound for the whole SSE-close → socket-close → agent-shutdown sequence.
+// Generous enough for gracefulShutdown to stop agents and save state.
+const SHUTDOWN_WATCHDOG_MS = 30_000;
+
+/**
+ * Schedule the common shutdown sequence (close SSE → close listening socket →
+ * stop agents) and exit with the given code. Shared by /shutdown and /restart.
+ *
+ * A watchdog forces the exit if any step never settles — a hung await here
+ * previously left the process alive with no listener, so the restart the user
+ * requested silently never happened.
+ *
+ * @param prefix - Log prefix, e.g. '[restart]' / ログ接頭辞
+ * @param exitCode - Process exit code (75 tells dev.js to restart) / 終了コード
+ */
+function scheduleShutdownSequence(prefix: string, exitCode: number): void {
+  setTimeout(async () => {
+    const watchdog = setTimeout(() => {
+      log.error({ exitCode }, `${prefix} Shutdown watchdog fired — forcing process exit`);
+      process.exit(exitCode);
+    }, SHUTDOWN_WATCHDOG_MS);
+    try {
+      log.info(`${prefix} Closing all SSE connections...`);
+      realtimeService.shutdown();
+
+      log.info(`${prefix} Closing listening socket first for quick port release...`);
+      await stopServer();
+      log.info(`${prefix} Listening socket closed, port released.`);
+
+      log.info(`${prefix} Stopping agents and saving state...`);
+      await orchestrator.gracefulShutdown({ skipServerStop: true });
+      log.info(`${prefix} Agent shutdown completed.`);
+    } catch (error) {
+      log.error({ err: error }, `${prefix} Graceful shutdown error`);
+    } finally {
+      clearTimeout(watchdog);
+      log.info({ exitCode }, `${prefix} Exiting process...`);
+      setTimeout(() => process.exit(exitCode), 200);
+    }
+  }, 300);
+}
+
 /**
  * Snapshot of live agent activity: how many executions are actually running,
  * how many DB rows claim to be running/pending, how many are stranded
@@ -346,25 +388,7 @@ export const agentSystemRouter = new Elysia({ prefix: '/agents' })
 
       const activeCount = orchestrator.getActiveExecutionCount();
 
-      setTimeout(async () => {
-        try {
-          log.info('[shutdown] Closing all SSE connections...');
-          realtimeService.shutdown();
-
-          log.info('[shutdown] Closing listening socket first for quick port release...');
-          await stopServer();
-          log.info('[shutdown] Listening socket closed, port released.');
-
-          log.info('[shutdown] Stopping agents and saving state...');
-          await orchestrator.gracefulShutdown({ skipServerStop: true });
-          log.info('[shutdown] Agent shutdown completed.');
-        } catch (error) {
-          log.error({ err: error }, '[shutdown] Graceful shutdown error');
-        } finally {
-          log.info('[shutdown] Exiting process...');
-          setTimeout(() => process.exit(0), 200);
-        }
-      }, 300);
+      scheduleShutdownSequence('[shutdown]', 0);
 
       return {
         success: true,
@@ -389,25 +413,7 @@ export const agentSystemRouter = new Elysia({ prefix: '/agents' })
 
       const activeCount = orchestrator.getActiveExecutionCount();
 
-      setTimeout(async () => {
-        try {
-          log.info('[restart] Closing all SSE connections...');
-          realtimeService.shutdown();
-
-          log.info('[restart] Closing listening socket first for quick port release...');
-          await stopServer();
-          log.info('[restart] Listening socket closed, port released.');
-
-          log.info('[restart] Stopping agents and saving state...');
-          await orchestrator.gracefulShutdown({ skipServerStop: true });
-          log.info('[restart] Agent shutdown completed.');
-        } catch (error) {
-          log.error({ err: error }, '[restart] Graceful shutdown error');
-        } finally {
-          log.info('[restart] Exiting with restart code...');
-          setTimeout(() => process.exit(75), 200);
-        }
-      }, 300);
+      scheduleShutdownSequence('[restart]', 75);
 
       return {
         success: true,
