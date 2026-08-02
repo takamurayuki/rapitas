@@ -114,8 +114,10 @@ export default function CompactTaskDetailCard({
     };
   }, [labelCategoryId]);
 
+  // NOTE: indigo-dark-900, matching every sibling section card (AI /
+  // workflow / subtasks) — this was the lone zinc-gray card on the page.
   return (
-    <div className="bg-white dark:bg-zinc-900 rounded-lg border border-zinc-200 dark:border-zinc-800 overflow-hidden">
+    <div className="bg-white dark:bg-indigo-dark-900 rounded-lg border border-zinc-200 dark:border-zinc-800 overflow-hidden">
       {/* Header: Title & Status in one compact row */}
       <div className="p-4">
         <CompactTaskDetailHeader
@@ -140,7 +142,10 @@ export default function CompactTaskDetailCard({
             {t('description')}
           </AccordionTrigger>
           <AccordionContent id="description">
-            <div className="bg-zinc-50 dark:bg-zinc-800/50 rounded-lg p-4">
+            {/* NOTE: indigo-dark-800 (not zinc) — the description block must
+                stay in the same surface family as the sibling sections, or it
+                reads as an odd gray island inside the indigo card. */}
+            <div className="bg-zinc-50 dark:bg-indigo-dark-800/50 rounded-lg p-4">
               <InlineEditableText
                 value={task.description ?? ''}
                 onSave={(v) => saveField('description', v)}
