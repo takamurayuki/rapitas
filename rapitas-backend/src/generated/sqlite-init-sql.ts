@@ -843,6 +843,49 @@ CREATE TABLE "HabitLog" (
 );
 
 -- CreateTable
+CREATE TABLE "VocabDeck" (
+    "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    "name" TEXT NOT NULL,
+    "description" TEXT,
+    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" DATETIME NOT NULL
+);
+
+-- CreateTable
+CREATE TABLE "VocabCard" (
+    "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    "deckId" INTEGER NOT NULL,
+    "front" TEXT NOT NULL,
+    "back" TEXT NOT NULL,
+    "note" TEXT,
+    "syllables" TEXT,
+    "pronunciation" TEXT,
+    "partOfSpeech" TEXT,
+    "details" TEXT,
+    "intervalDays" REAL NOT NULL DEFAULT 0,
+    "easeFactor" REAL NOT NULL DEFAULT 2.5,
+    "repetitions" INTEGER NOT NULL DEFAULT 0,
+    "lapses" INTEGER NOT NULL DEFAULT 0,
+    "dueAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "reviewedAt" DATETIME,
+    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" DATETIME NOT NULL,
+    CONSTRAINT "VocabCard_deckId_fkey" FOREIGN KEY ("deckId") REFERENCES "VocabDeck" ("id") ON DELETE CASCADE ON UPDATE CASCADE
+);
+
+-- CreateTable
+CREATE TABLE "VocabReviewLog" (
+    "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    "cardId" INTEGER NOT NULL,
+    "deckId" INTEGER NOT NULL,
+    "grade" TEXT NOT NULL,
+    "elapsedDays" REAL NOT NULL,
+    "intervalDays" REAL NOT NULL,
+    "repetitions" INTEGER NOT NULL,
+    "reviewedAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+-- CreateTable
 CREATE TABLE "Resource" (
     "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
     "taskId" INTEGER,
@@ -1585,6 +1628,12 @@ CREATE UNIQUE INDEX "StudyStreak_date_key" ON "StudyStreak"("date");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "HabitLog_habitId_date_key" ON "HabitLog"("habitId", "date");
+
+-- CreateIndex
+CREATE INDEX "VocabCard_deckId_dueAt_idx" ON "VocabCard"("deckId", "dueAt");
+
+-- CreateIndex
+CREATE INDEX "VocabReviewLog_deckId_reviewedAt_idx" ON "VocabReviewLog"("deckId", "reviewedAt");
 
 -- CreateIndex
 CREATE INDEX "KnowledgeEntry_sourceType_sourceId_idx" ON "KnowledgeEntry"("sourceType", "sourceId");

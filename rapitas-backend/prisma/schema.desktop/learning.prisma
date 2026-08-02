@@ -72,6 +72,61 @@ model HabitLog {
   @@unique([habitId, date])
 }
 
+// Vocabulary book (単語帳): decks of flashcards with per-card spaced-repetition
+// state (SM-2-lite — see services/learning/vocab-srs.ts for the scheduler).
+model VocabDeck {
+  id          Int         @id @default(autoincrement())
+  name        String
+  description String?
+  cards       VocabCard[]
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+}
+
+model VocabCard {
+  id           Int       @id @default(autoincrement())
+  deckId       Int
+  deck         VocabDeck @relation(fields: [deckId], references: [id], onDelete: Cascade)
+  front        String // term / prompt side
+  back         String // meaning / answer side (summary, one meaning per line)
+  note         String? // example sentence, mnemonic, etc.
+  // Dictionary-style enrichment (all optional; the simple front/back flow works without them)
+  syllables    String? // e.g. "con・found"
+  pronunciation String? // e.g. "/kənˈfaʊnd/"
+  partOfSpeech String? // e.g. 他動詞
+  // JSON: VocabSense[] — per-sense meaning/example plus synonyms & antonyms
+  // (see rapitas-frontend vocab.types.ts). Stored as a string for provider
+  // portability (SQLite has no JSON column type).
+  details      String?
+  // SRS state (SM-2-lite)
+  intervalDays Float     @default(0) // current review interval
+  easeFactor   Float     @default(2.5) // growth multiplier, floored at 1.3
+  repetitions  Int       @default(0) // consecutive successful reviews
+  lapses       Int       @default(0) // times forgotten after being learned
+  dueAt        DateTime  @default(now()) // next review due
+  reviewedAt   DateTime? // last review timestamp
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  @@index([deckId, dueAt])
+}
+
+// One row per graded review — raw data for the forgetting-curve analytics.
+// Deliberately no FK: logs must survive card/deck deletion so the learner's
+// history (and the personal retention curve) never silently shrinks.
+model VocabReviewLog {
+  id           Int      @id @default(autoincrement())
+  cardId       Int
+  deckId       Int
+  grade        String // again | good | easy
+  elapsedDays  Float // time since the previous review (or card creation)
+  intervalDays Float // the scheduled interval that was being tested
+  repetitions  Int // successful repetitions BEFORE this review
+  reviewedAt   DateTime @default(now())
+
+  @@index([deckId, reviewedAt])
+}
+
 model Resource {
   id          Int      @id @default(autoincrement())
   taskId      Int?
