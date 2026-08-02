@@ -9,7 +9,8 @@
 
 /** One day of recorded study (from StudyStreak). */
 export interface DailyStudy {
-  /** ISO date (yyyy-mm-dd or full ISO). */
+  /** LOCAL day key (yyyy-mm-dd, or a longer string starting with it) — build
+   * it with localDayKey, not toISOString (see localDayKey's doc). */
   date: string;
   minutes: number;
 }
@@ -22,6 +23,23 @@ export interface PaceGoal {
   deadline: Date | null;
   dailyMinutes: number;
   status: string;
+}
+
+/** One recorded study block (from StudySession). */
+export interface SessionSlice {
+  goalId: number | null;
+  minutes: number;
+  studiedAt: Date;
+}
+
+/** Extra signals for recommendation rules beyond the daily aggregates. */
+export interface StudySignals {
+  /** Vocabulary cards currently due for review. */
+  vocabDueCount: number;
+  /** Recent study blocks (last 14 days is enough for every rule). */
+  sessions: SessionSlice[];
+  /** In-progress tasks linked to any study goal (the Zeigarnik hook). */
+  inProgressTaskCount: number;
 }
 
 /** Aggregate pacing metrics for the active goals. */
@@ -37,6 +55,8 @@ export interface StudyPace {
   /** Share (0-100) of the last 14 days' minutes packed into the top 2 days —
    * high = massed practice (cramming), the opposite of distributed practice. */
   crammingIndex: number | null;
+  /** Minutes already recorded today. */
+  todayMinutes: number;
   /** Total minutes over the last 7 / 30 days. */
   total7d: number;
   total30d: number;
@@ -45,13 +65,34 @@ export interface StudyPace {
 /** A rule-based recommendation; `technique` names the underlying science. */
 export interface StudyRecommendation {
   key: string;
-  technique: 'spacing' | 'retrieval' | 'consistency' | 'pacing' | 'none';
+  technique:
+    | 'spacing'
+    | 'retrieval'
+    | 'consistency'
+    | 'pacing'
+    | 'zeigarnik'
+    | 'interleaving'
+    | 'chunking'
+    | 'none';
   params?: Record<string, string | number>;
 }
 
 const DAY_MS = 86_400_000;
 
-const dayKey = (d: Date) => d.toISOString().slice(0, 10);
+/**
+ * Local-timezone day key (yyyy-mm-dd). StudyStreak rows are stored at LOCAL
+ * midnight, so keying by toISOString (UTC) would shift every day by the UTC
+ * offset (in JST, today's minutes would land on yesterday's bar).
+ *
+ * @param d - Timestamp / 対象日時
+ * @returns yyyy-mm-dd in local time / ローカル日付キー
+ */
+export const localDayKey = (d: Date): string => {
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+};
+
+const dayKey = localDayKey;
 
 /** Sum minutes for the N days ending at `now` (inclusive). */
 function windowMinutes(days: DailyStudy[], now: Date, n: number): number[] {
@@ -106,6 +147,7 @@ export function computeStudyPace(goals: PaceGoal[], days: DailyStudy[], now: Dat
     adherence7d,
     streakDays,
     crammingIndex,
+    todayMinutes: last7[last7.length - 1] ?? 0,
     total7d,
     total30d,
   };
@@ -116,20 +158,24 @@ const CRAMMING_THRESHOLD = 60; // % of 14d minutes in top-2 days
 const LOW_ADHERENCE = 40; // %
 const DEADLINE_SOON_DAYS = 14;
 const MIN_DUE_FOR_RETRIEVAL = 10;
+const INTERLEAVE_DOMINANCE = 85; // % of goal-attributed 7d minutes on one goal
+const INTERLEAVE_MIN_MINUTES = 120; // evidence floor before the rule may fire
+const LONG_SESSION_AVG = 90; // minutes per recorded block
+const MIN_SESSIONS_FOR_LENGTH = 3;
 
 /**
  * Build evidence-based study recommendations.
  *
  * @param goals - All goals / 目標一覧
  * @param pace - Output of computeStudyPace / ペース指標
- * @param vocabDueCount - Vocabulary cards currently due / 復習期限超過カード数
+ * @param signals - Session-level signals (vocab backlog, recent blocks, in-progress tasks) / セッション粒度のシグナル
  * @param now - Reference time / 基準時刻
  * @returns Recommendations tagged with their technique / 提案リスト
  */
 export function buildStudyRecommendations(
   goals: PaceGoal[],
   pace: StudyPace,
-  vocabDueCount: number,
+  signals: StudySignals,
   now: Date,
 ): StudyRecommendation[] {
   const recs: StudyRecommendation[] = [];
@@ -137,6 +183,17 @@ export function buildStudyRecommendations(
 
   if (active.length === 0) {
     return [{ key: 'noActiveGoals', technique: 'none' }];
+  }
+
+  // Zeigarnik effect: interrupted work stays mentally active and pulls you
+  // back (Zeigarnik, 1927) — an in-progress task is the cheapest possible
+  // session starter. Fires only while today is still blank.
+  if (signals.inProgressTaskCount > 0 && pace.todayMinutes === 0) {
+    recs.push({
+      key: 'zeigarnikResume',
+      technique: 'zeigarnik',
+      params: { count: signals.inProgressTaskCount },
+    });
   }
 
   // Spacing effect: the same total time distributed over more days beats
@@ -147,12 +204,54 @@ export function buildStudyRecommendations(
 
   // Testing effect: retrieval beats re-reading (Roediger & Karpicke, 2006) —
   // an overdue vocab queue is unused retrieval practice waiting to happen.
-  if (vocabDueCount >= MIN_DUE_FOR_RETRIEVAL) {
+  if (signals.vocabDueCount >= MIN_DUE_FOR_RETRIEVAL) {
     recs.push({
       key: 'retrievalBacklog',
       technique: 'retrieval',
-      params: { count: vocabDueCount },
+      params: { count: signals.vocabDueCount },
     });
+  }
+
+  // Interleaving: alternating between related goals beats blocking one topic
+  // (Rohrer & Taylor, 2007). Only meaningful with 2+ active goals and enough
+  // goal-attributed time to call the pattern "blocked".
+  if (active.length >= 2) {
+    const recent = signals.sessions.filter(
+      (s) => s.goalId != null && now.getTime() - s.studiedAt.getTime() <= 7 * DAY_MS,
+    );
+    const byGoal = new Map<number, number>();
+    for (const s of recent) {
+      byGoal.set(s.goalId!, (byGoal.get(s.goalId!) ?? 0) + s.minutes);
+    }
+    const total = [...byGoal.values()].reduce((a, b) => a + b, 0);
+    if (total >= INTERLEAVE_MIN_MINUTES) {
+      const [topGoalId, topMinutes] = [...byGoal.entries()].sort((a, b) => b[1] - a[1])[0]!;
+      const share = Math.round((topMinutes / total) * 100);
+      if (share >= INTERLEAVE_DOMINANCE) {
+        recs.push({
+          key: 'blockedPractice',
+          technique: 'interleaving',
+          params: {
+            title: goals.find((g) => g.id === topGoalId)?.title ?? '',
+            pct: share,
+          },
+        });
+      }
+    }
+  }
+
+  // Attention limits: one long block underperforms the same minutes split
+  // into shorter chunks with breaks (distributed sessions, pomodoro-style).
+  const recentBlocks = signals.sessions.filter(
+    (s) => now.getTime() - s.studiedAt.getTime() <= 14 * DAY_MS,
+  );
+  if (recentBlocks.length >= MIN_SESSIONS_FOR_LENGTH) {
+    const avgLen = Math.round(
+      recentBlocks.reduce((a, s) => a + s.minutes, 0) / recentBlocks.length,
+    );
+    if (avgLen >= LONG_SESSION_AVG) {
+      recs.push({ key: 'longSessions', technique: 'chunking', params: { avg: avgLen } });
+    }
   }
 
   // Consistency: streaks + quota adherence proxy habitual distributed practice.

@@ -10,6 +10,7 @@ import { ValidationError } from '../../middleware/error-handler';
 import {
   buildStudyRecommendations,
   computeStudyPace,
+  localDayKey,
 } from '../../services/learning/study-plan-analytics';
 
 /** Parse a numeric path id or throw a 400. */
@@ -122,7 +123,8 @@ export const studyGoalsRoutes = new Elysia({ prefix: '/study-goals' })
   .get('/analytics', async () => {
     const now = new Date();
     const since = new Date(now.getTime() - 60 * 86_400_000);
-    const [goals, streaks, vocabDueCount] = await Promise.all([
+    const since14 = new Date(now.getTime() - 14 * 86_400_000);
+    const [goals, streaks, vocabDueCount, sessions, inProgressTaskCount] = await Promise.all([
       prisma.studyGoal.findMany({
         select: {
           id: true,
@@ -139,15 +141,29 @@ export const studyGoalsRoutes = new Elysia({ prefix: '/study-goals' })
         orderBy: { date: 'asc' },
       }),
       prisma.vocabCard.count({ where: { dueAt: { lte: now } } }),
+      prisma.studySession.findMany({
+        where: { studiedAt: { gte: since14 } },
+        select: { goalId: true, minutes: true, studiedAt: true },
+      }),
+      // Zeigarnik hook: study-goal-linked tasks already started but unfinished.
+      prisma.task.count({
+        where: { studyGoalId: { not: null }, status: 'in-progress' },
+      }),
     ]);
-    const days = streaks.map((s) => ({ date: s.date.toISOString(), minutes: s.studyMinutes }));
+    // NOTE: localDayKey, not toISOString — streak rows live at LOCAL midnight,
+    // so UTC keys would shift every day by the timezone offset (JST: -1 day).
+    const days = streaks.map((s) => ({ date: localDayKey(s.date), minutes: s.studyMinutes }));
     const pace = computeStudyPace(goals, days, now);
-    const recommendations = buildStudyRecommendations(goals, pace, vocabDueCount, now);
+    const recommendations = buildStudyRecommendations(
+      goals,
+      pace,
+      { vocabDueCount, sessions, inProgressTaskCount },
+      now,
+    );
     // Last 30 days as a chartable series (oldest first, gaps filled with 0).
-    const byDay = new Map(days.map((d) => [d.date.slice(0, 10), d.minutes]));
+    const byDay = new Map(days.map((d) => [d.date, d.minutes]));
     const series = Array.from({ length: 30 }, (_, i) => {
-      const d = new Date(now.getTime() - (29 - i) * 86_400_000);
-      const key = d.toISOString().slice(0, 10);
+      const key = localDayKey(new Date(now.getTime() - (29 - i) * 86_400_000));
       return { date: key, minutes: byDay.get(key) ?? 0 };
     });
     return { pace, recommendations, series, vocabDueCount };

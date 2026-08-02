@@ -63,6 +63,25 @@ model StudyStreak {
   updatedAt       DateTime @updatedAt
 }
 
+// One recorded block of study time (manual log, completed pomodoro on a
+// study-goal task, or a vocab review session). Feeds the StudyStreak daily
+// aggregate and gives the roadmap analytics per-goal attribution
+// (interleaving / Zeigarnik-resume rules need to know WHICH goal was studied).
+// Deliberately no FK to StudyGoal: history must survive goal deletion, same
+// rationale as VocabReviewLog.
+model StudySession {
+  id        Int      @id @default(autoincrement())
+  goalId    Int? // StudyGoal.id at recording time (no FK by design)
+  minutes   Int
+  source    String   @default("manual") // manual | pomodoro | vocab
+  note      String?
+  studiedAt DateTime @default(now())
+  createdAt DateTime @default(now())
+
+  @@index([studiedAt])
+  @@index([goalId, studiedAt])
+}
+
 // Learning goals (flexible goal setting → automatic task generation)
 model LearningGoal {
   id              Int       @id @default(autoincrement())

@@ -58,6 +58,7 @@ export { resourcesRoutes } from './learning/resources';
 export { learningDashboardRouter } from './learning/learning-dashboard';
 export { vocabDecksRoutes } from './learning/vocab-decks';
 export { studyGoalsRoutes } from './learning/study-goals';
+export { studySessionsRoutes } from './learning/study-sessions';
 
 // System
 export { settingsRoutes } from './system/settings';

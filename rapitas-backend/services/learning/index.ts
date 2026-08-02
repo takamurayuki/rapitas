@@ -19,5 +19,13 @@ export type {
   StudyRecommendation,
 } from './vocab-analytics';
 export { migrateStudyGoals } from './study-goal-migration';
-export { buildStudyRecommendations, computeStudyPace } from './study-plan-analytics';
-export type { DailyStudy, PaceGoal, StudyPace } from './study-plan-analytics';
+export { buildStudyRecommendations, computeStudyPace, localDayKey } from './study-plan-analytics';
+export type {
+  DailyStudy,
+  PaceGoal,
+  SessionSlice,
+  StudyPace,
+  StudySignals,
+} from './study-plan-analytics';
+export { deleteStudySession, recordStudySession } from './study-time';
+export type { RecordStudySessionInput, StudySource } from './study-time';

@@ -83,6 +83,7 @@ import {
   learningDashboardRouter,
   vocabDecksRoutes,
   studyGoalsRoutes,
+  studySessionsRoutes,
   directoriesRoutes,
   experimentsRoutes,
   learningRoutes,
@@ -225,6 +226,7 @@ export function registerAllRoutes(app: Elysia): void {
   app.use(learningDashboardRouter);
   app.use(vocabDecksRoutes);
   app.use(studyGoalsRoutes);
+  app.use(studySessionsRoutes);
   app.use(templatesRoutes);
   app.use(experimentsRoutes);
   app.use(learningRoutes);
