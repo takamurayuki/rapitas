@@ -18,3 +18,6 @@ export type {
   ReviewLogRow,
   StudyRecommendation,
 } from './vocab-analytics';
+export { migrateStudyGoals } from './study-goal-migration';
+export { buildStudyRecommendations, computeStudyPace } from './study-plan-analytics';
+export type { DailyStudy, PaceGoal, StudyPace } from './study-plan-analytics';

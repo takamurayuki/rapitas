@@ -187,6 +187,7 @@ import { initializeMemorySystem, shutdownMemorySystem } from './services/memory'
 import { AIOrchestra } from './services/workflow/ai-orchestra';
 import { migrateLegacyWorkflowFiles } from './services/workflow/workflow-legacy-migrator';
 import { backfillWorkflowFilesToDatabase } from './services/workflow/workflow-db-backfill';
+import { migrateStudyGoals } from './services/learning/study-goal-migration';
 import { startBacklogScheduler } from './services/scheduling/backlog-scheduler';
 import { startBackupScheduler } from './services/system/backup-scheduler';
 import { startWorktreeCleanupScheduler } from './services/scheduling/worktree-cleanup-scheduler';
@@ -260,6 +261,8 @@ const runStartupWarmup = async (): Promise<void> => {
   await timed('legacy-workflow-migration', () => migrateLegacyWorkflowFiles());
   await yieldToLoop();
   await timed('workflow-db-backfill', () => backfillWorkflowFilesToDatabase());
+  await yieldToLoop();
+  await timed('study-goal-migration', () => migrateStudyGoals());
   await yieldToLoop();
   await timed('agent-worker-manager', () => workerManager.initialize());
   await yieldToLoop();

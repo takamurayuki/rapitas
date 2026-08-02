@@ -57,18 +57,23 @@ export const learningDashboardRouter = new Elysia({ prefix: '/learning' }).get(
       const weekAgo = new Date(now);
       weekAgo.setDate(weekAgo.getDate() - 7);
 
-      // Parallel data fetching for all learning features
+      // Parallel data fetching for all learning features.
+      // NOTE: reads the unified StudyGoal model (post-merge); the response
+      // keeps the legacy examGoals/learningGoals field shapes so the
+      // dashboard frontend needs no change.
       const [examGoals, learningGoals, studyStreaks, todayStreak] = await Promise.all([
-        // Exam Goals with task counts
-        prisma.examGoal.findMany({
+        // Exam-type goals with task counts
+        prisma.studyGoal.findMany({
+          where: { type: 'exam' },
           include: {
             tasks: { select: { id: true, status: true } },
           },
-          orderBy: { examDate: 'asc' },
+          orderBy: { deadline: 'asc' },
         }),
 
-        // Learning Goals
-        prisma.learningGoal.findMany({
+        // Skill-type goals (旧 学習目標)
+        prisma.studyGoal.findMany({
+          where: { type: 'skill' },
           orderBy: { createdAt: 'desc' },
         }),
 
@@ -90,17 +95,19 @@ export const learningDashboardRouter = new Elysia({ prefix: '/learning' }).get(
         const completedTaskCount = goal.tasks.filter((t) => t.status === 'done').length;
         const progressPercent =
           taskCount > 0 ? Math.round((completedTaskCount / taskCount) * 100) : 0;
-        const daysRemaining = Math.max(
-          0,
-          Math.ceil((goal.examDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)),
-        );
+        const daysRemaining = goal.deadline
+          ? Math.max(
+              0,
+              Math.ceil((goal.deadline.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)),
+            )
+          : 0;
 
         return {
           id: goal.id,
-          name: goal.name,
-          examDate: goal.examDate.toISOString(),
+          name: goal.title,
+          examDate: (goal.deadline ?? goal.createdAt).toISOString(),
           targetScore: goal.targetScore,
-          isCompleted: goal.isCompleted,
+          isCompleted: goal.status === 'completed',
           actualScore: goal.actualScore,
           color: goal.color,
           daysRemaining,
@@ -128,7 +135,7 @@ export const learningDashboardRouter = new Elysia({ prefix: '/learning' }).get(
           currentLevel: goal.currentLevel,
           targetLevel: goal.targetLevel,
           deadline: goal.deadline?.toISOString() ?? null,
-          dailyHours: goal.dailyHours,
+          dailyHours: Math.round((goal.dailyMinutes / 60) * 10) / 10,
           status: goal.status,
           isApplied: goal.isApplied,
           progressPercent,

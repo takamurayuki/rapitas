@@ -95,8 +95,12 @@ model Task {
   project               Project?      @relation(fields: [projectId], references: [id], onDelete: SetNull)
   milestoneId           Int?
   milestone             Milestone?    @relation(fields: [milestoneId], references: [id], onDelete: SetNull)
+  // DEPRECATED: superseded by studyGoalId (unified StudyGoal). Kept so legacy
+  // imports/exports keep working; startup migration copies values over.
   examGoalId            Int?
   examGoal              ExamGoal?     @relation(fields: [examGoalId], references: [id], onDelete: SetNull)
+  studyGoalId           Int?
+  studyGoal             StudyGoal?    @relation(fields: [studyGoalId], references: [id], onDelete: SetNull)
   timeEntries           TimeEntry[]
   pomodoroSessions      PomodoroSession[]
   comments              Comment[]
