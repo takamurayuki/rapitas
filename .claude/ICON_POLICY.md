@@ -53,7 +53,7 @@ Keep this list accurate. If you assign a glyph a new meaning, add it here.
 | `Layers`                  | 複雑度「詳細」                           |
 | `FlaskConical`            | ワークフローの「検証」フェーズ           |
 | `ListTodo`                | サブタスク                               |
-| `ListPlus`                | タスク作成 / タスク起票 (task_created)   |
+| `ListPlus`                | タスク作成 / タスク起票 (task_created、quick-capture のタスクモードタブ — 同一概念の再利用) |
 | `CopyCheck`               | 一括選択モード（複数タスク/サブタスクの一括操作。旧 `ListChecks` — `ListTodo`＝サブタスクと視覚的に紛らわしいため 2026-07 に移行） |
 | `ListChecks`              | 提案タスクの完了条件バレット（`TaskSuggestionDetail`） |
 | `CheckCircle2`            | 完了したワークフロータブ                 |

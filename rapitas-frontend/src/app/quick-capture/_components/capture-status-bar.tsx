@@ -21,7 +21,8 @@ interface CaptureStatusBarProps {
 export function CaptureStatusBar({ status }: CaptureStatusBarProps) {
   const t = useTranslations('quickCapture');
   return (
-    <div className="flex h-4 shrink-0 items-center justify-end text-xs text-zinc-500 dark:text-zinc-400">
+    // pr-7 keeps the status clear of the page's bottom-right info icon.
+    <div className="flex h-4 shrink-0 items-center justify-end pr-7 text-xs text-zinc-500 dark:text-zinc-400">
       {status === 'saving' && <span>{t('saving')}</span>}
       {status === 'saved' && (
         <span className="flex items-center gap-1 text-green-600 dark:text-green-400">

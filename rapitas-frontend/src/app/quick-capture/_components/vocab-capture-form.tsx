@@ -87,7 +87,7 @@ export function VocabCaptureForm({ savingRef }: VocabCaptureFormProps) {
   }, [deckId, front, back, savingRef]);
 
   const inputCls =
-    'flex-1 min-w-0 rounded-lg bg-zinc-50 dark:bg-zinc-800/60 px-2.5 py-2 text-sm text-zinc-900 dark:text-zinc-100 placeholder:text-zinc-400 dark:placeholder:text-zinc-500 focus:outline-none focus-visible:ring-1 focus-visible:ring-sky-500';
+    'flex-1 min-w-0 rounded-lg bg-zinc-50 dark:bg-zinc-800/60 px-2.5 py-2 text-sm text-zinc-900 dark:text-zinc-100 placeholder:text-zinc-400 dark:placeholder:text-zinc-500 focus:outline-none';
 
   if (decks && decks.length === 0) {
     return (

@@ -11,12 +11,14 @@
  */
 import { useEffect, useRef, useState } from 'react';
 import { useTranslations } from 'next-intl';
-import { Lightbulb, WalletCards, Info, Pin, PinOff } from 'lucide-react';
+import { Lightbulb, WalletCards, ListPlus, Info, Pin, PinOff } from 'lucide-react';
 import { hideCaptureWindow, isTauri } from './_components/capture-window';
 import { IdeaCaptureForm } from './_components/idea-capture-form';
 import { VocabCaptureForm } from './_components/vocab-capture-form';
+import { TaskCaptureForm } from './_components/task-capture-form';
 
-type CaptureMode = 'idea' | 'vocab';
+type CaptureMode = 'idea' | 'vocab' | 'task';
+const MODE_ORDER: CaptureMode[] = ['idea', 'vocab', 'task'];
 const MODE_KEY = 'rapitas-quick-capture-mode';
 const PIN_KEY = 'rapitas-quick-capture-pinned';
 
@@ -44,7 +46,7 @@ export default function QuickCapturePage() {
 
   useEffect(() => {
     const stored = localStorage.getItem(MODE_KEY);
-    if (stored === 'vocab' || stored === 'idea') setMode(stored);
+    if (stored && (MODE_ORDER as string[]).includes(stored)) setMode(stored as CaptureMode);
     const pinned = localStorage.getItem(PIN_KEY) === 'true';
     setIsPinned(pinned);
     pinnedRef.current = pinned;
@@ -153,7 +155,7 @@ export default function QuickCapturePage() {
         void hideCaptureWindow();
       } else if (e.key === 'Tab' && e.ctrlKey) {
         e.preventDefault();
-        switchMode(mode === 'idea' ? 'vocab' : 'idea');
+        switchMode(MODE_ORDER[(MODE_ORDER.indexOf(mode) + 1) % MODE_ORDER.length]);
       }
     };
     window.addEventListener('keydown', onKey);
@@ -194,6 +196,10 @@ export default function QuickCapturePage() {
           <WalletCards className="h-3.5 w-3.5" aria-hidden="true" />
           {t('modeVocab')}
         </button>
+        <button onClick={() => switchMode('task')} className={tabCls(mode === 'task')}>
+          <ListPlus className="h-3.5 w-3.5" aria-hidden="true" />
+          {t('modeTask')}
+        </button>
         <div data-tauri-drag-region className="h-8 flex-1 cursor-move" />
         {/* Pin: keep the popup open on focus loss (Esc still closes). */}
         <button
@@ -201,7 +207,7 @@ export default function QuickCapturePage() {
           aria-pressed={isPinned}
           aria-label={t(isPinned ? 'unpinAria' : 'pinAria')}
           title={t(isPinned ? 'unpinAria' : 'pinAria')}
-          className={`mr-1.5 self-center pb-1 transition-colors ${
+          className={`self-center pb-1 transition-colors ${
             isPinned
               ? 'text-indigo-500 dark:text-indigo-400'
               : 'text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300'
@@ -209,23 +215,25 @@ export default function QuickCapturePage() {
         >
           {isPinned ? <PinOff className="h-4 w-4" /> : <Pin className="h-4 w-4" />}
         </button>
-        {/* Hints live behind a hover tooltip instead of a permanent caption. */}
-        <div className="group relative flex items-center self-center pb-1">
-          <Info
-            className="h-4 w-4 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300"
-            aria-label={t('hintAria')}
-          />
-          <div className="pointer-events-none absolute right-0 top-full z-10 mt-1.5 hidden w-72 rounded-lg border border-zinc-200 bg-white p-2.5 text-xs text-zinc-600 shadow-lg group-hover:block dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300">
-            <p>{mode === 'idea' ? t('hint') : t('vocabHint')}</p>
-            <p className="mt-1 text-zinc-400 dark:text-zinc-500">{t('modeSwitchHint')}</p>
-          </div>
-        </div>
       </div>
       {mode === 'idea' ? (
         <IdeaCaptureForm key={`idea-${sessionKey}`} savingRef={savingRef} />
-      ) : (
+      ) : mode === 'vocab' ? (
         <VocabCaptureForm key={`vocab-${sessionKey}`} savingRef={savingRef} />
+      ) : (
+        <TaskCaptureForm key={`task-${sessionKey}`} savingRef={savingRef} />
       )}
+      {/* Hints — hover tooltip anchored to the bottom-right corner. */}
+      <div className="group absolute bottom-2.5 right-3">
+        <Info
+          className="h-4 w-4 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300"
+          aria-label={t('hintAria')}
+        />
+        <div className="pointer-events-none absolute bottom-full right-0 z-10 mb-1.5 hidden w-72 rounded-lg border border-zinc-200 bg-white p-2.5 text-xs text-zinc-600 shadow-lg group-hover:block dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300">
+          <p>{mode === 'idea' ? t('hint') : mode === 'vocab' ? t('vocabHint') : t('taskHint')}</p>
+          <p className="mt-1 text-zinc-400 dark:text-zinc-500">{t('modeSwitchHint')}</p>
+        </div>
+      </div>
     </div>
   );
 }

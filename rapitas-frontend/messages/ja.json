@@ -3438,6 +3438,12 @@
   "quickCapture": {
     "modeIdea": "アイデア",
     "modeVocab": "単語",
+    "modeTask": "タスク",
+    "themeAria": "登録先テーマ",
+    "noTheme": "テーマなし",
+    "taskTitlePlaceholder": "タスクのタイトル...",
+    "taskDescPlaceholder": "説明（任意）...",
+    "taskHint": "タイトルで Enter 保存 / 説明は Ctrl+Enter 保存 / Esc 閉じる",
     "modeSwitchHint": "Ctrl+Tab でモード切替",
     "hintAria": "操作ヒント",
     "pinAria": "ピン留め（フォーカスを失っても閉じない）",

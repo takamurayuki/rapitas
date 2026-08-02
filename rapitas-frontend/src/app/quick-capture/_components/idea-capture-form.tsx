@@ -96,7 +96,7 @@ export function IdeaCaptureForm({ savingRef }: IdeaCaptureFormProps) {
         }}
         placeholder={t('bodyPlaceholder')}
         aria-label={t('bodyAria')}
-        className="flex-1 min-h-0 resize-none rounded-lg bg-zinc-50 dark:bg-zinc-800/60 px-2.5 py-2 text-sm text-zinc-700 dark:text-zinc-300 placeholder:text-zinc-400 dark:placeholder:text-zinc-500 focus:outline-none focus-visible:ring-1 focus-visible:ring-sky-500"
+        className="flex-1 min-h-0 resize-none rounded-lg bg-zinc-50 dark:bg-zinc-800/60 px-2.5 py-2 text-sm text-zinc-700 dark:text-zinc-300 placeholder:text-zinc-400 dark:placeholder:text-zinc-500 focus:outline-none"
       />
       <CaptureStatusBar status={status} />
     </>
