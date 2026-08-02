@@ -17,7 +17,7 @@
     "@resvg/resvg-js": "^2.6.2",
     "@tauri-apps/cli": "^2.10.0",
     "jimp": "^1.6.0",
-    "sharp": "^0.34.5"
+    "sharp": "^0.35.0"
   },
   "dependencies": {
     "@tauri-apps/api": "^2.10.1"
