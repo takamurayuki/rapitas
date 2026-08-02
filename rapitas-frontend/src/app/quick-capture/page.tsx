@@ -11,13 +11,14 @@
  */
 import { useEffect, useRef, useState } from 'react';
 import { useTranslations } from 'next-intl';
-import { Lightbulb, WalletCards, Info } from 'lucide-react';
+import { Lightbulb, WalletCards, Info, Pin, PinOff } from 'lucide-react';
 import { hideCaptureWindow, isTauri } from './_components/capture-window';
 import { IdeaCaptureForm } from './_components/idea-capture-form';
 import { VocabCaptureForm } from './_components/vocab-capture-form';
 
 type CaptureMode = 'idea' | 'vocab';
 const MODE_KEY = 'rapitas-quick-capture-mode';
+const PIN_KEY = 'rapitas-quick-capture-pinned';
 
 // NOTE: must match the Rust-side WebviewWindowBuilder inner_size for fresh
 // windows; enforced from here too so an already-built binary (created at an
@@ -32,11 +33,29 @@ export default function QuickCapturePage() {
   const [sessionKey, setSessionKey] = useState(0);
   // Shared with forms: suppresses blur-to-hide while a save is in flight.
   const savingRef = useRef(false);
+  // True from mousedown on the drag region until the drag resolves — starting
+  // a native window drag blurs the webview, which must NOT hide the popup.
+  const draggingRef = useRef(false);
+  // Pinned: never auto-hide on focus loss (Esc still closes). Persisted.
+  const [isPinned, setIsPinned] = useState(false);
+  const pinnedRef = useRef(false);
 
   useEffect(() => {
     const stored = localStorage.getItem(MODE_KEY);
     if (stored === 'vocab' || stored === 'idea') setMode(stored);
+    const pinned = localStorage.getItem(PIN_KEY) === 'true';
+    setIsPinned(pinned);
+    pinnedRef.current = pinned;
   }, []);
+
+  const togglePin = () => {
+    setIsPinned((v) => {
+      const next = !v;
+      pinnedRef.current = next;
+      localStorage.setItem(PIN_KEY, String(next));
+      return next;
+    });
+  };
 
   const switchMode = (next: CaptureMode) => {
     setMode(next);
@@ -68,14 +87,30 @@ export default function QuickCapturePage() {
     return () => unlisten?.();
   }, []);
 
-  // Spotlight-like behavior: losing focus dismisses the popup (Tauri only).
+  // Spotlight-like behavior: losing focus dismisses the popup (Tauri only) —
+  // unless a save is in flight, the window is pinned, or the blur was caused
+  // by starting a native window drag (one-shot suppression; a plain click on
+  // the drag area is cleared by mouseup before any blur).
   useEffect(() => {
     if (!isTauri()) return;
     const onBlur = () => {
-      if (!savingRef.current) void hideCaptureWindow();
+      if (draggingRef.current) {
+        draggingRef.current = false;
+        return;
+      }
+      if (!savingRef.current && !pinnedRef.current) void hideCaptureWindow();
+    };
+    const clearDrag = () => {
+      draggingRef.current = false;
     };
     window.addEventListener('blur', onBlur);
-    return () => window.removeEventListener('blur', onBlur);
+    window.addEventListener('mouseup', clearDrag);
+    window.addEventListener('focus', clearDrag);
+    return () => {
+      window.removeEventListener('blur', onBlur);
+      window.removeEventListener('mouseup', clearDrag);
+      window.removeEventListener('focus', clearDrag);
+    };
   }, []);
 
   // Esc hides; Ctrl+Tab flips between the two modes.
@@ -110,6 +145,13 @@ export default function QuickCapturePage() {
           the tab/info buttons inside stay clickable. */}
       <div
         data-tauri-drag-region
+        onMouseDown={(e) => {
+          // Only a press on the drag surface itself (not tabs/buttons inside)
+          // arms the blur suppression for the imminent native window drag.
+          if ((e.target as HTMLElement).dataset?.tauriDragRegion !== undefined) {
+            draggingRef.current = true;
+          }
+        }}
         className="flex shrink-0 select-none items-end border-b border-zinc-200 dark:border-zinc-700"
       >
         <button onClick={() => switchMode('idea')} className={tabCls(mode === 'idea')}>
@@ -121,6 +163,20 @@ export default function QuickCapturePage() {
           {t('modeVocab')}
         </button>
         <div data-tauri-drag-region className="h-8 flex-1 cursor-move" />
+        {/* Pin: keep the popup open on focus loss (Esc still closes). */}
+        <button
+          onClick={togglePin}
+          aria-pressed={isPinned}
+          aria-label={t(isPinned ? 'unpinAria' : 'pinAria')}
+          title={t(isPinned ? 'unpinAria' : 'pinAria')}
+          className={`mr-1.5 self-center pb-1 transition-colors ${
+            isPinned
+              ? 'text-indigo-500 dark:text-indigo-400'
+              : 'text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300'
+          }`}
+        >
+          {isPinned ? <PinOff className="h-4 w-4" /> : <Pin className="h-4 w-4" />}
+        </button>
         {/* Hints live behind a hover tooltip instead of a permanent caption. */}
         <div className="group relative flex items-center self-center pb-1">
           <Info

@@ -97,6 +97,7 @@ Keep this list accurate. If you assign a glyph a new meaning, add it here.
 | `BookOpenText`            | 単語カードの辞書情報編集（カード行の編集ボタン・エディタモーダルタイトル） |
 | `Equal`                   | 類義語ラベル（単語帳の関係ビジュアル） |
 | `ArrowRightLeft`          | 対義語ラベル（単語帳の関係ビジュアル。注: `ArrowLeftRight`＝ドック左右入れ替えとは別グリフ） |
+| `Pin` / `PinOff`          | ピン留め＝開いたまま維持（サイドナビの固定、quick-capture のフォーカス喪失時も閉じない — 同一概念の再利用） |
 
 ### Known collisions
 

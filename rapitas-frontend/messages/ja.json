@@ -3440,6 +3440,8 @@
     "modeVocab": "単語",
     "modeSwitchHint": "Ctrl+Tab でモード切替",
     "hintAria": "操作ヒント",
+    "pinAria": "ピン留め（フォーカスを失っても閉じない）",
+    "unpinAria": "ピン留めを解除",
     "deckAria": "登録先デッキ",
     "vocabNoDecks": "デッキがありません — 単語帳ページで作成してください",
     "vocabFrontPlaceholder": "単語...",

@@ -3440,6 +3440,8 @@
     "modeVocab": "Word",
     "modeSwitchHint": "Ctrl+Tab switches modes",
     "hintAria": "Shortcuts",
+    "pinAria": "Pin (stay open on focus loss)",
+    "unpinAria": "Unpin",
     "deckAria": "Target deck",
     "vocabNoDecks": "No decks yet — create one on the Vocabulary page",
     "vocabFrontPlaceholder": "Word...",
