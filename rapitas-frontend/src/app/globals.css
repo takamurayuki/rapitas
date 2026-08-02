@@ -68,11 +68,13 @@
 }
 
 html.dark {
-  /* NOTE: The canvas must stay in the indigo-dark family the header (#111827)
-     and surfaces (#141b2d) belong to. A stray change to pure #000000 made the
-     area below the header read as a harsh black band framing every page. */
-  --background: #0b1020;
-  --background-secondary: #11182a;
+  /* NOTE: The canvas needs BOTH properties at once: stay in the indigo-dark
+     hue family (pure #000000 read as a harsh black band below the #111827
+     header), AND sit clearly darker than the surfaces (#111827/#141b2d) —
+     the first fix's #0b1020 was so close to the card color that task cards
+     blended into the page. Near-black with a subtle indigo cast does both. */
+  --background: #050810;
+  --background-secondary: #0b101d;
   --surface: #141b2d;
   --surface-muted: #1b2438;
   --border: #27324a;
@@ -96,8 +98,11 @@ html.dark {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-header-bg: var(--header-bg);
-  --color-indigo-dark-800: #1a2236;
-  --color-indigo-dark-900: #111827;
+  /* NOTE: dark elevation ladder — canvas (#050810) < header (#111827) <
+     card 900 (#151d31) < inner block 800 (#202a44). 900 was #111827 (same as
+     the header), leaving task cards nearly invisible on the near-black canvas. */
+  --color-indigo-dark-800: #202a44;
+  --color-indigo-dark-900: #151d31;
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 }
