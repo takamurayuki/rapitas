@@ -73,8 +73,14 @@ export function CardDetailEditor({ card, onSave, onClose }: CardDetailEditorProp
       .filter((s) => s.meaning.trim());
     const conj: VocabConjugations = {};
     for (const key of CONJUGATION_KEYS) {
-      const v = conjugations[key]?.trim();
-      if (v) conj[key] = v;
+      const e = conjugations[key];
+      if (e?.form?.trim()) {
+        conj[key] = {
+          form: e.form.trim(),
+          ...(e.example?.trim() && { example: e.example.trim() }),
+          ...(e.note?.trim() && { note: e.note.trim() }),
+        };
+      }
     }
     const hasConj = Object.keys(conj).length > 0;
     const ok = await onSave(card.id, {
@@ -246,24 +252,51 @@ export function CardDetailEditor({ card, onSave, onClose }: CardDetailEditorProp
           <input value={note} onChange={(e) => setNote(e.target.value)} className={inputCls} />
         </label>
 
-        {/* Conjugations (語形変化) — optional labeled inflection fields */}
+        {/* Conjugations (語形変化) — each form with its own example / note */}
         <div className="flex flex-col gap-1.5">
           <span className={sectionLabel}>{t('conjugations')}</span>
-          <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-3">
-            {CONJUGATION_KEYS.map((key) => (
-              <label key={key} className="flex flex-col gap-0.5">
-                <span className="text-[11px] text-zinc-500 dark:text-zinc-400">
-                  {t(`conjugationLabels.${key}`)}
-                </span>
-                <input
-                  value={conjugations[key] ?? ''}
-                  onChange={(e) => setConjugations((prev) => ({ ...prev, [key]: e.target.value }))}
-                  aria-label={t(`conjugationLabels.${key}`)}
-                  className={inputCls}
-                />
-              </label>
-            ))}
-          </div>
+          {CONJUGATION_KEYS.map((key) => (
+            <div key={key} className="grid grid-cols-[5.5rem_1fr_1.4fr_1.4fr] items-center gap-1.5">
+              <span className="text-[11px] text-zinc-500 dark:text-zinc-400">
+                {t(`conjugationLabels.${key}`)}
+              </span>
+              <input
+                value={conjugations[key]?.form ?? ''}
+                onChange={(e) =>
+                  setConjugations((prev) => ({
+                    ...prev,
+                    [key]: { ...prev[key], form: e.target.value },
+                  }))
+                }
+                aria-label={t(`conjugationLabels.${key}`)}
+                className={inputCls}
+              />
+              <input
+                value={conjugations[key]?.example ?? ''}
+                onChange={(e) =>
+                  setConjugations((prev) => ({
+                    ...prev,
+                    [key]: { form: prev[key]?.form ?? '', ...prev[key], example: e.target.value },
+                  }))
+                }
+                placeholder={t('conjExample')}
+                aria-label={t('conjExample')}
+                className={inputCls}
+              />
+              <input
+                value={conjugations[key]?.note ?? ''}
+                onChange={(e) =>
+                  setConjugations((prev) => ({
+                    ...prev,
+                    [key]: { form: prev[key]?.form ?? '', ...prev[key], note: e.target.value },
+                  }))
+                }
+                placeholder={t('conjNote')}
+                aria-label={t('conjNote')}
+                className={inputCls}
+              />
+            </div>
+          ))}
         </div>
 
         {/* Senses */}

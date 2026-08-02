@@ -20,19 +20,37 @@ interface ConjugationLineProps {
  */
 export function ConjugationLine({ conjugations }: ConjugationLineProps) {
   const t = useTranslations('vocabulary.details');
-  const entries = CONJUGATION_KEYS.filter((k) => conjugations[k]);
-  if (entries.length === 0) return null;
+  const keys = CONJUGATION_KEYS.filter((k) => conjugations[k]);
+  if (keys.length === 0) return null;
+  const hasBodies = keys.some((k) => conjugations[k]?.example || conjugations[k]?.note);
 
   return (
-    <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-      {entries.map((key) => (
-        <span key={key} className="inline-flex items-baseline gap-1 text-sm">
-          <span className="text-[10px] text-zinc-500 dark:text-zinc-400">
-            {t(`conjugationLabels.${key}`)}
-          </span>
-          <span className="font-medium text-zinc-800 dark:text-zinc-200">{conjugations[key]}</span>
-        </span>
-      ))}
+    <div
+      className={
+        hasBodies ? 'flex flex-col gap-1.5' : 'flex flex-wrap items-baseline gap-x-3 gap-y-1'
+      }
+    >
+      {keys.map((key) => {
+        const entry = conjugations[key]!;
+        return (
+          <div key={key} className={hasBodies ? '' : 'inline-flex items-baseline gap-1'}>
+            <span className="inline-flex items-baseline gap-1 text-sm">
+              <span className="text-[10px] text-zinc-500 dark:text-zinc-400">
+                {t(`conjugationLabels.${key}`)}
+              </span>
+              <span className="font-medium text-zinc-800 dark:text-zinc-200">{entry.form}</span>
+            </span>
+            {entry.example && (
+              <p className="pl-4 text-xs italic text-zinc-600 dark:text-zinc-400">
+                {entry.example}
+              </p>
+            )}
+            {entry.note && (
+              <p className="pl-4 text-xs text-zinc-500 dark:text-zinc-500">{entry.note}</p>
+            )}
+          </div>
+        );
+      })}
     </div>
   );
 }

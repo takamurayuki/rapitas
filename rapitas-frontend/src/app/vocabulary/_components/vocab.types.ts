@@ -53,17 +53,27 @@ export interface VocabCard {
   createdAt: string;
 }
 
+/** One inflected form (語形変化の1項目) with its own example / explanation. */
+export interface VocabConjugationEntry {
+  form: string;
+  example?: string;
+  note?: string;
+}
+
 /** Inflection table (語形変化) — all fields optional. */
 export interface VocabConjugations {
-  base?: string;
-  third?: string;
-  ing?: string;
-  past?: string;
-  pastParticiple?: string;
+  base?: VocabConjugationEntry;
+  third?: VocabConjugationEntry;
+  ing?: VocabConjugationEntry;
+  past?: VocabConjugationEntry;
+  pastParticiple?: VocabConjugationEntry;
 }
 
 /** Ordered keys for rendering/editing the conjugation table. */
 export const CONJUGATION_KEYS = ['base', 'third', 'ing', 'past', 'pastParticiple'] as const;
+
+/** Key union for the conjugation table. */
+export type ConjugationKey = (typeof CONJUGATION_KEYS)[number];
 
 /** Parsed shape of a card's details JSON. */
 export interface VocabCardDetails {
@@ -100,7 +110,20 @@ export function parseCardDetails(details: string | null | undefined): VocabCardD
       const conj: VocabConjugations = {};
       for (const key of CONJUGATION_KEYS) {
         const v = obj.conjugations?.[key];
-        if (typeof v === 'string' && v.trim()) conj[key] = v;
+        // Legacy format stored a bare string; current format stores an entry
+        // object with its own example / explanation.
+        if (typeof v === 'string' && v.trim()) {
+          conj[key] = { form: v };
+        } else if (typeof v === 'object' && v !== null) {
+          const e = v as Record<string, unknown>;
+          if (typeof e.form === 'string' && e.form.trim()) {
+            conj[key] = {
+              form: e.form,
+              ...(typeof e.example === 'string' && e.example.trim() && { example: e.example }),
+              ...(typeof e.note === 'string' && e.note.trim() && { note: e.note }),
+            };
+          }
+        }
       }
       return {
         senses: sanitizeSenses(obj.senses),

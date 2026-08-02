@@ -3363,6 +3363,8 @@
       "partOfSpeech": "品詞",
       "partOfSpeechPlaceholder": "他動詞",
       "conjugations": "語形変化",
+      "conjExample": "例文（任意）",
+      "conjNote": "説明（任意）",
       "conjugationLabels": {
         "base": "原形",
         "third": "三単現",

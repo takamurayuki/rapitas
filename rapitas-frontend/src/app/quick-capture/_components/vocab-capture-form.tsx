@@ -12,6 +12,11 @@ import { useCallback, useEffect, useRef, useState, type MutableRefObject } from 
 import { useTranslations } from 'next-intl';
 import { Plus, Pencil } from 'lucide-react';
 import { API_BASE_URL } from '@/utils/api';
+import {
+  CONJUGATION_KEYS,
+  type ConjugationKey,
+  type VocabConjugationEntry,
+} from '@/app/vocabulary/_components/vocab.types';
 import { CaptureStatusBar } from './capture-status-bar';
 import type { CaptureStatus } from './capture-window';
 
@@ -39,8 +44,14 @@ export function VocabCaptureForm({ savingRef }: VocabCaptureFormProps) {
   const [deckId, setDeckId] = useState<number | null>(null);
   const [front, setFront] = useState('');
   const [back, setBack] = useState('');
-  // Optional inflections (語形変化); the front doubles as the base form.
-  const [conj, setConj] = useState({ third: '', ing: '', past: '', pastParticiple: '' });
+  // Optional inflections (語形変化): committed per-form entries, plus the
+  // draft for the form currently being edited (chip-selected).
+  const [conjEntries, setConjEntries] = useState<
+    Partial<Record<ConjugationKey, VocabConjugationEntry>>
+  >({});
+  const [activeConj, setActiveConj] = useState<ConjugationKey | null>(null);
+  const [conjDraft, setConjDraft] = useState({ form: '', example: '', note: '' });
+  const conjFormRef = useRef<HTMLInputElement>(null);
   const [status, setStatus] = useState<CaptureStatus>('idle');
   // Inline deck management (create / rename) without leaving the popup.
   const [deckDraft, setDeckDraft] = useState<{ mode: 'add' | 'rename'; value: string } | null>(
@@ -69,22 +80,66 @@ export function VocabCaptureForm({ savingRef }: VocabCaptureFormProps) {
     frontRef.current?.focus();
   }, [decks]);
 
+  /** Open one form's entry fields, prefilled from a committed entry if any. */
+  const openConj = useCallback(
+    (key: ConjugationKey) => {
+      setActiveConj(key);
+      const existing = conjEntries[key];
+      setConjDraft({
+        form: existing?.form ?? (key === 'base' ? front.trim() : ''),
+        example: existing?.example ?? '',
+        note: existing?.note ?? '',
+      });
+      setTimeout(() => conjFormRef.current?.focus(), 0);
+    },
+    [conjEntries, front],
+  );
+
+  /** Commit the draft into its chip, then advance to the next form. */
+  const commitConj = useCallback(() => {
+    if (!activeConj) return;
+    setConjEntries((prev) => {
+      const next = { ...prev };
+      if (conjDraft.form.trim()) {
+        next[activeConj] = {
+          form: conjDraft.form.trim(),
+          ...(conjDraft.example.trim() && { example: conjDraft.example.trim() }),
+          ...(conjDraft.note.trim() && { note: conjDraft.note.trim() }),
+        };
+      } else {
+        delete next[activeConj];
+      }
+      return next;
+    });
+    const nextKey = CONJUGATION_KEYS[CONJUGATION_KEYS.indexOf(activeConj) + 1];
+    if (nextKey) openConj(nextKey);
+    else {
+      setActiveConj(null);
+      frontRef.current?.focus();
+    }
+  }, [activeConj, conjDraft, openConj]);
+
   const submit = useCallback(async () => {
     if (!deckId || !front.trim() || !back.trim() || savingRef.current) return;
     savingRef.current = true;
     setStatus('saving');
     try {
-      // Any filled inflection ships the table, with the front as its base form.
-      const filled = Object.entries(conj).filter(([, v]) => v.trim());
+      // Merge the still-open draft, then ship the table with the front as the
+      // default base form when any inflection was registered.
+      const merged = { ...conjEntries };
+      if (activeConj && conjDraft.form.trim()) {
+        merged[activeConj] = {
+          form: conjDraft.form.trim(),
+          ...(conjDraft.example.trim() && { example: conjDraft.example.trim() }),
+          ...(conjDraft.note.trim() && { note: conjDraft.note.trim() }),
+        };
+      }
+      if (Object.keys(merged).length > 0 && !merged.base) {
+        merged.base = { form: front.trim() };
+      }
       const details =
-        filled.length > 0
-          ? JSON.stringify({
-              senses: [],
-              conjugations: {
-                base: front.trim(),
-                ...Object.fromEntries(filled.map(([k, v]) => [k, v.trim()])),
-              },
-            })
+        Object.keys(merged).length > 0
+          ? JSON.stringify({ senses: [], conjugations: merged })
           : undefined;
       const res = await fetch(`${API_BASE_URL}/vocab/decks/${deckId}/cards`, {
         method: 'POST',
@@ -101,7 +156,9 @@ export function VocabCaptureForm({ savingRef }: VocabCaptureFormProps) {
       setStatus('saved');
       setFront('');
       setBack('');
-      setConj({ third: '', ing: '', past: '', pastParticiple: '' });
+      setConjEntries({});
+      setActiveConj(null);
+      setConjDraft({ form: '', example: '', note: '' });
       frontRef.current?.focus();
       setTimeout(() => setStatus((s) => (s === 'saved' ? 'idle' : s)), 1500);
     } catch {
@@ -109,7 +166,7 @@ export function VocabCaptureForm({ savingRef }: VocabCaptureFormProps) {
       savingRef.current = false;
       setStatus('error');
     }
-  }, [deckId, front, back, conj, savingRef]);
+  }, [deckId, front, back, conjEntries, activeConj, conjDraft, savingRef]);
 
   const inputCls =
     'flex-1 min-w-0 rounded-lg bg-zinc-50 dark:bg-zinc-800/60 px-2.5 py-2 text-sm text-zinc-900 dark:text-zinc-100 placeholder:text-zinc-400 dark:placeholder:text-zinc-500 focus:outline-none';
@@ -285,26 +342,98 @@ export function VocabCaptureForm({ savingRef }: VocabCaptureFormProps) {
           className={`${inputCls} h-full resize-none`}
         />
       </div>
-      {/* Optional inflections in one compact row (Enter saves from any). */}
-      <div className="flex items-center gap-1.5">
-        {(['third', 'ing', 'past', 'pastParticiple'] as const).map((key) => (
+      {/* Inflections — form chips stay visible above (label + committed form);
+          clicking one opens a reset entry row below (form / example / note),
+          and Enter commits then advances to the next form. */}
+      <div className="flex flex-wrap items-center gap-1">
+        {CONJUGATION_KEYS.map((key) => {
+          const entry = conjEntries[key];
+          const active = activeConj === key;
+          return (
+            <button
+              key={key}
+              type="button"
+              onClick={() => openConj(key)}
+              aria-pressed={active}
+              className={`flex items-baseline gap-1 rounded-md px-2 py-1 text-xs transition-colors ${
+                active
+                  ? 'bg-indigo-50 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300'
+                  : entry
+                    ? 'bg-zinc-100 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300'
+                    : 'text-zinc-500 hover:text-zinc-800 dark:text-zinc-400 dark:hover:text-zinc-200'
+              }`}
+            >
+              <span className="text-[10px] opacity-70">{tDetails(`conjugationLabels.${key}`)}</span>
+              {entry && <span className="font-medium">{entry.form}</span>}
+            </button>
+          );
+        })}
+      </div>
+      {activeConj && (
+        <div className="flex items-center gap-1.5">
           <input
-            key={key}
+            ref={conjFormRef}
             type="text"
-            value={conj[key]}
-            onChange={(e) => setConj((prev) => ({ ...prev, [key]: e.target.value }))}
+            value={conjDraft.form}
+            onChange={(e) => setConjDraft((prev) => ({ ...prev, form: e.target.value }))}
             onKeyDown={(e) => {
-              if (e.key === 'Enter') {
+              if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
                 e.preventDefault();
                 void submit();
+              } else if (e.key === 'Enter') {
+                e.preventDefault();
+                commitConj();
+              } else if (e.key === 'Escape') {
+                e.stopPropagation();
+                setActiveConj(null);
               }
             }}
-            placeholder={tDetails(`conjugationLabels.${key}`)}
-            aria-label={tDetails(`conjugationLabels.${key}`)}
+            placeholder={tDetails(`conjugationLabels.${activeConj}`)}
+            aria-label={tDetails(`conjugationLabels.${activeConj}`)}
+            className={`${inputCls} w-1/4 flex-none px-2 py-1.5 text-xs`}
+          />
+          <input
+            type="text"
+            value={conjDraft.example}
+            onChange={(e) => setConjDraft((prev) => ({ ...prev, example: e.target.value }))}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+                e.preventDefault();
+                void submit();
+              } else if (e.key === 'Enter') {
+                e.preventDefault();
+                commitConj();
+              } else if (e.key === 'Escape') {
+                e.stopPropagation();
+                setActiveConj(null);
+              }
+            }}
+            placeholder={tDetails('conjExample')}
+            aria-label={tDetails('conjExample')}
             className={`${inputCls} px-2 py-1.5 text-xs`}
           />
-        ))}
-      </div>
+          <input
+            type="text"
+            value={conjDraft.note}
+            onChange={(e) => setConjDraft((prev) => ({ ...prev, note: e.target.value }))}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+                e.preventDefault();
+                void submit();
+              } else if (e.key === 'Enter') {
+                e.preventDefault();
+                commitConj();
+              } else if (e.key === 'Escape') {
+                e.stopPropagation();
+                setActiveConj(null);
+              }
+            }}
+            placeholder={tDetails('conjNote')}
+            aria-label={tDetails('conjNote')}
+            className={`${inputCls} px-2 py-1.5 text-xs`}
+          />
+        </div>
+      )}
       <CaptureStatusBar status={status} />
     </>
   );

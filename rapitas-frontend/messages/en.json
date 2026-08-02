@@ -3363,6 +3363,8 @@
       "partOfSpeech": "Part of speech",
       "partOfSpeechPlaceholder": "transitive verb",
       "conjugations": "Conjugations",
+      "conjExample": "Example (optional)",
+      "conjNote": "Note (optional)",
       "conjugationLabels": {
         "base": "Base",
         "third": "3rd person",
