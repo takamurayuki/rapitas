@@ -33,9 +33,11 @@ export default function QuickCapturePage() {
   const [sessionKey, setSessionKey] = useState(0);
   // Shared with forms: suppresses blur-to-hide while a save is in flight.
   const savingRef = useRef(false);
-  // True from mousedown on the drag region until the drag resolves — starting
-  // a native window drag blurs the webview, which must NOT hide the popup.
-  const draggingRef = useRef(false);
+  // Timestamp of the last press on the drag surface. Starting a native window
+  // drag blurs the webview, which must NOT hide the popup — and WebView2 also
+  // synthesizes a mouseup when the native drag takes over, so a boolean flag
+  // cleared on mouseup loses the race. A time window is order-independent.
+  const dragArmedAtRef = useRef(0);
   // Pinned: never auto-hide on focus loss (Esc still closes). Persisted.
   const [isPinned, setIsPinned] = useState(false);
   const pinnedRef = useRef(false);
@@ -61,6 +63,34 @@ export default function QuickCapturePage() {
     setMode(next);
     localStorage.setItem(MODE_KEY, next);
   };
+
+  // Theme sync: this window loads once and then only hides/shows, so the
+  // load-time theme script goes stale when the user flips the theme in the
+  // MAIN window. Re-apply from localStorage on mount, on every re-show, and
+  // live via the cross-window 'storage' event.
+  useEffect(() => {
+    const applyTheme = () => {
+      const stored = localStorage.getItem('theme');
+      const dark =
+        stored === 'dark' ||
+        (stored !== 'light' && window.matchMedia('(prefers-color-scheme: dark)').matches);
+      document.documentElement.classList.toggle('dark', dark);
+    };
+    applyTheme();
+    window.addEventListener('storage', applyTheme);
+    let unlisten: (() => void) | undefined;
+    if (isTauri()) {
+      import('@tauri-apps/api/event').then(({ listen }) => {
+        listen('quick-capture:show', applyTheme).then((fn) => {
+          unlisten = fn;
+        });
+      });
+    }
+    return () => {
+      window.removeEventListener('storage', applyTheme);
+      unlisten?.();
+    };
+  }, []);
 
   // The popup window's size is fixed at creation — resize so layout changes
   // reach binaries built before them.
@@ -88,28 +118,30 @@ export default function QuickCapturePage() {
   }, []);
 
   // Spotlight-like behavior: losing focus dismisses the popup (Tauri only) —
-  // unless a save is in flight, the window is pinned, or the blur was caused
-  // by starting a native window drag (one-shot suppression; a plain click on
-  // the drag area is cleared by mouseup before any blur).
+  // unless a save is in flight, the window is pinned, or the blur belongs to a
+  // window drag. Two guards cover the drag: any blur within a few seconds of a
+  // press on the drag surface is ignored, and the hide itself is delayed a
+  // beat so a transient blur→focus flicker (e.g. at drag end) cancels it.
   useEffect(() => {
     if (!isTauri()) return;
+    let hideTimer: ReturnType<typeof setTimeout> | undefined;
+    const DRAG_GRACE_MS = 5000;
     const onBlur = () => {
-      if (draggingRef.current) {
-        draggingRef.current = false;
+      if (savingRef.current || pinnedRef.current) return;
+      if (Date.now() - dragArmedAtRef.current < DRAG_GRACE_MS) {
+        dragArmedAtRef.current = 0;
         return;
       }
-      if (!savingRef.current && !pinnedRef.current) void hideCaptureWindow();
+      clearTimeout(hideTimer);
+      hideTimer = setTimeout(() => void hideCaptureWindow(), 250);
     };
-    const clearDrag = () => {
-      draggingRef.current = false;
-    };
+    const onFocus = () => clearTimeout(hideTimer);
     window.addEventListener('blur', onBlur);
-    window.addEventListener('mouseup', clearDrag);
-    window.addEventListener('focus', clearDrag);
+    window.addEventListener('focus', onFocus);
     return () => {
+      clearTimeout(hideTimer);
       window.removeEventListener('blur', onBlur);
-      window.removeEventListener('mouseup', clearDrag);
-      window.removeEventListener('focus', clearDrag);
+      window.removeEventListener('focus', onFocus);
     };
   }, []);
 
@@ -149,7 +181,7 @@ export default function QuickCapturePage() {
           // Only a press on the drag surface itself (not tabs/buttons inside)
           // arms the blur suppression for the imminent native window drag.
           if ((e.target as HTMLElement).dataset?.tauriDragRegion !== undefined) {
-            draggingRef.current = true;
+            dragArmedAtRef.current = Date.now();
           }
         }}
         className="flex shrink-0 select-none items-end border-b border-zinc-200 dark:border-zinc-700"
