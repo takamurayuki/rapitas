@@ -62,8 +62,11 @@ export function AutoExecutionMode({ theme }: AutoExecutionModeProps) {
           {actionLoading ? (
             <Spinner size="sm" className="text-indigo-400 dark:text-indigo-400" />
           ) : (
-            <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-indigo-500 dark:bg-transparent">
-              <Play className="h-2.5 w-2.5 dark:h-4 dark:w-4 fill-white text-white dark:fill-indigo-400 dark:text-indigo-400" />
+            // NOTE: dark keeps the light structure (colored circle badge); the
+            // glyph is zinc-900 = the button's dark bg (user request — a white
+            // or bare accent triangle stood out too much). Same rule as PillButton.
+            <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-indigo-500 dark:bg-indigo-400">
+              <Play className="h-2.5 w-2.5 fill-white text-white dark:fill-zinc-900 dark:text-zinc-900" />
             </span>
           )}
           {tSettings('devModeTitle')}
@@ -81,8 +84,8 @@ export function AutoExecutionMode({ theme }: AutoExecutionModeProps) {
           disabled
           className="inline-flex cursor-not-allowed items-center gap-2 rounded-lg border border-zinc-200 bg-white px-3.5 py-2 text-sm font-medium text-zinc-500 opacity-70 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-500"
         >
-          <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-zinc-200 dark:bg-transparent">
-            <Loader2 className="h-3 w-3 dark:h-4 dark:w-4 animate-spin text-zinc-500 dark:text-zinc-400" />
+          <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-zinc-200 dark:bg-zinc-500">
+            <Loader2 className="h-3 w-3 animate-spin text-zinc-500 dark:text-zinc-900" />
           </span>
           {tAutoRun('statusStopping')}
         </button>
@@ -107,7 +110,7 @@ export function AutoExecutionMode({ theme }: AutoExecutionModeProps) {
   const restText = paused
     ? 'text-amber-700 dark:text-amber-400'
     : 'text-emerald-700 dark:text-emerald-400';
-  const iconBg = paused ? 'bg-amber-400 dark:bg-transparent' : 'bg-emerald-500 dark:bg-transparent';
+  const iconBg = paused ? 'bg-amber-400 dark:bg-amber-400' : 'bg-emerald-500 dark:bg-emerald-400';
 
   return (
     <div className="flex items-center gap-2">
@@ -123,12 +126,12 @@ export function AutoExecutionMode({ theme }: AutoExecutionModeProps) {
           className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full ${iconBg}`}
         >
           {paused ? (
-            <Pause className="h-3 w-3 dark:h-4 dark:w-4 fill-white text-white dark:fill-amber-400 dark:text-amber-400" />
+            <Pause className="h-3 w-3 fill-white text-white dark:fill-zinc-900 dark:text-zinc-900" />
           ) : (
             // NOTE: Fixed color on Orbit so ancestor color changes can't
             // trigger a mid-frame repaint that warps the spinning raster.
-            <span className="inline-flex h-3 w-3 dark:h-4 dark:w-4 animate-spin items-center justify-center [transform-origin:center]">
-              <Orbit className="h-3 w-3 dark:h-4 dark:w-4 text-white dark:text-emerald-400" />
+            <span className="inline-flex h-3 w-3 animate-spin items-center justify-center [transform-origin:center]">
+              <Orbit className="h-3 w-3 text-white dark:text-zinc-900" />
             </span>
           )}
         </span>
@@ -137,8 +140,8 @@ export function AutoExecutionMode({ theme }: AutoExecutionModeProps) {
         {/* HOVER OVERLAY — fully opaque; instant opacity swap (no transition)
             so the spinner's parent never sees a mid-fade partial repaint. */}
         <span className="absolute -inset-px flex items-center gap-2 rounded-lg border border-red-300 bg-white px-3.5 text-red-600 opacity-0 shadow-[0_2px_0_0_#fca5a5] group-hover:opacity-100 dark:border-red-700 dark:bg-zinc-900 dark:text-red-400 dark:shadow-[0_2px_0_0_#991b1b]">
-          <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-red-500 dark:bg-transparent">
-            <Square className="h-2.5 w-2.5 dark:h-4 dark:w-4 fill-white text-white dark:fill-red-400 dark:text-red-400" />
+          <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-red-500 dark:bg-red-400">
+            <Square className="h-2.5 w-2.5 fill-white text-white dark:fill-zinc-900 dark:text-zinc-900" />
           </span>
           <span className="absolute inset-0 flex translate-x-2 items-center justify-center pointer-events-none">
             {tAutoRun('stop')}

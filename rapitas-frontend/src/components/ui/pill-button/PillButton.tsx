@@ -19,46 +19,50 @@ const COLOR_CLASSES: Record<
   PillButtonColor,
   { button: string; badge: string; icon: string; plainIcon: string }
 > = {
+  // NOTE(dark badges): dark mode keeps the SAME colored-circle badge structure
+  // as light (user request — the old transparent badge left a bare filled
+  // triangle). The glyph inside is zinc-900, matching the button's dark
+  // background, so it reads as a cut-out instead of glaring white.
   indigo: {
     button:
       'border-indigo-300 text-indigo-600 shadow-[0_2px_0_0_#a5b4fc] hover:border-indigo-400 hover:bg-indigo-50 dark:border-indigo-700 dark:text-indigo-400 dark:shadow-[0_2px_0_0_#312e81] dark:hover:border-indigo-600 dark:hover:bg-indigo-950/40',
-    badge: 'bg-indigo-500 dark:bg-transparent',
-    icon: 'fill-white text-white dark:fill-indigo-400 dark:text-indigo-400',
+    badge: 'bg-indigo-500 dark:bg-indigo-400',
+    icon: 'fill-white text-white dark:fill-zinc-900 dark:text-zinc-900',
     plainIcon: 'text-indigo-600 dark:text-indigo-400',
   },
   zinc: {
     button:
       'border-zinc-300 text-zinc-700 shadow-[0_2px_0_0_#d4d4d8] hover:border-zinc-400 hover:bg-zinc-50 dark:border-zinc-600 dark:text-zinc-300 dark:shadow-[0_2px_0_0_#3f3f46] dark:hover:border-zinc-500 dark:hover:bg-zinc-800/60',
-    badge: 'bg-zinc-500 dark:bg-transparent',
-    icon: 'fill-white text-white dark:fill-zinc-400 dark:text-zinc-400',
+    badge: 'bg-zinc-500 dark:bg-zinc-400',
+    icon: 'fill-white text-white dark:fill-zinc-900 dark:text-zinc-900',
     plainIcon: 'text-zinc-700 dark:text-zinc-300',
   },
   emerald: {
     button:
       'border-emerald-300 text-emerald-700 shadow-[0_2px_0_0_#a7f3d0] hover:border-emerald-400 hover:bg-emerald-50 dark:border-emerald-700 dark:text-emerald-400 dark:shadow-[0_2px_0_0_#065f46] dark:hover:border-emerald-600 dark:hover:bg-emerald-950/40',
-    badge: 'bg-emerald-500 dark:bg-transparent',
-    icon: 'fill-white text-white dark:fill-emerald-400 dark:text-emerald-400',
+    badge: 'bg-emerald-500 dark:bg-emerald-400',
+    icon: 'fill-white text-white dark:fill-zinc-900 dark:text-zinc-900',
     plainIcon: 'text-emerald-700 dark:text-emerald-400',
   },
   amber: {
     button:
       'border-amber-300 text-amber-700 shadow-[0_2px_0_0_#fcd34d] hover:border-amber-400 hover:bg-amber-50 dark:border-amber-700 dark:text-amber-400 dark:shadow-[0_2px_0_0_#78350f] dark:hover:border-amber-600 dark:hover:bg-amber-950/40',
-    badge: 'bg-amber-500 dark:bg-transparent',
-    icon: 'fill-white text-white dark:fill-amber-400 dark:text-amber-400',
+    badge: 'bg-amber-500 dark:bg-amber-400',
+    icon: 'fill-white text-white dark:fill-zinc-900 dark:text-zinc-900',
     plainIcon: 'text-amber-700 dark:text-amber-400',
   },
   red: {
     button:
       'border-red-300 text-red-600 shadow-[0_2px_0_0_#fca5a5] hover:border-red-400 hover:bg-red-50 dark:border-red-700 dark:text-red-400 dark:shadow-[0_2px_0_0_#991b1b] dark:hover:border-red-600 dark:hover:bg-red-950/40',
-    badge: 'bg-red-500 dark:bg-transparent',
-    icon: 'fill-white text-white dark:fill-red-400 dark:text-red-400',
+    badge: 'bg-red-500 dark:bg-red-400',
+    icon: 'fill-white text-white dark:fill-zinc-900 dark:text-zinc-900',
     plainIcon: 'text-red-600 dark:text-red-400',
   },
   blue: {
     button:
       'border-blue-300 text-blue-600 shadow-[0_2px_0_0_#93c5fd] hover:border-blue-400 hover:bg-blue-50 dark:border-blue-700 dark:text-blue-400 dark:shadow-[0_2px_0_0_#1e3a8a] dark:hover:border-blue-600 dark:hover:bg-blue-950/40',
-    badge: 'bg-blue-500 dark:bg-transparent',
-    icon: 'fill-white text-white dark:fill-blue-400 dark:text-blue-400',
+    badge: 'bg-blue-500 dark:bg-blue-400',
+    icon: 'fill-white text-white dark:fill-zinc-900 dark:text-zinc-900',
     plainIcon: 'text-blue-600 dark:text-blue-400',
   },
 };
