@@ -134,7 +134,7 @@ fn show_quick_capture_window(app: &tauri::AppHandle) -> Result<(), String> {
     .title("Rapitas Quick Capture")
     // NOTE: keep in sync with WINDOW_WIDTH/HEIGHT in app/quick-capture/page.tsx
     // (the page also self-resizes so older binaries pick up layout changes).
-    .inner_size(640.0, 260.0)
+    .inner_size(640.0, 290.0)
     .decorations(false)
     .always_on_top(true)
     .skip_taskbar(true)

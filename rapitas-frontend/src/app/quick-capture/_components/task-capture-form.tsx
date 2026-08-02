@@ -3,14 +3,17 @@
 /**
  * TaskCaptureForm
  *
- * Task mode of the quick-capture popup: pick a theme (chips, last used
- * remembered, none allowed), then title (Enter saves) + optional description
- * (Ctrl+Enter saves). Saving keeps the window open for back-to-back entry.
- * Created tasks land as plain 'todo' — full planning happens in the app.
+ * Task mode of the quick-capture popup. Two-row target picker — categories on
+ * top, that category's themes below, each chip showing its own icon + color +
+ * name — then title (Enter saves) + optional description (Ctrl+Enter saves).
+ * A theme is required (tasks always belong to one); the last-used theme is
+ * remembered. Saving keeps the window open for back-to-back entry.
  */
 import { useCallback, useEffect, useRef, useState, type MutableRefObject } from 'react';
 import { useTranslations } from 'next-intl';
+import { FolderKanban } from 'lucide-react';
 import { API_BASE_URL } from '@/utils/api';
+import { getIconComponent } from '@/components/category/icon-data';
 import { CaptureStatusBar } from './capture-status-bar';
 import type { CaptureStatus } from './capture-window';
 
@@ -19,11 +22,50 @@ const LAST_THEME_KEY = 'rapitas-quick-capture-theme';
 interface ThemeOption {
   id: number;
   name: string;
+  color: string | null;
+  icon: string | null;
+}
+
+interface CategoryOption extends ThemeOption {
+  themes: ThemeOption[];
 }
 
 interface TaskCaptureFormProps {
   /** Shared with the page's blur-to-hide guard. / blur時非表示の抑止フラグ。 */
   savingRef: MutableRefObject<boolean>;
+}
+
+/** One category/theme chip: its own icon + color + name; tinted when active. */
+function TargetChip({
+  item,
+  active,
+  onClick,
+}: {
+  item: ThemeOption;
+  active: boolean;
+  onClick: () => void;
+}) {
+  const Icon = getIconComponent(item.icon || '') || FolderKanban;
+  const color = item.color || '#71717a';
+  return (
+    <button
+      type="button"
+      role="radio"
+      aria-checked={active}
+      onClick={onClick}
+      className={`flex items-center gap-1.5 rounded-md px-2 py-1 text-xs font-medium transition-colors ${
+        active
+          ? ''
+          : 'text-zinc-500 hover:text-zinc-800 dark:text-zinc-400 dark:hover:text-zinc-200'
+      }`}
+      // Identity color: the icon always wears it; the active chip adds a
+      // low-alpha tint of the same color so the selection reads instantly.
+      style={active ? { backgroundColor: `${color}2b`, color } : undefined}
+    >
+      <Icon className="h-3.5 w-3.5 shrink-0" style={{ color }} />
+      {item.name}
+    </button>
+  );
 }
 
 /**
@@ -33,7 +75,8 @@ interface TaskCaptureFormProps {
  */
 export function TaskCaptureForm({ savingRef }: TaskCaptureFormProps) {
   const t = useTranslations('quickCapture');
-  const [themes, setThemes] = useState<ThemeOption[] | null>(null);
+  const [categories, setCategories] = useState<CategoryOption[] | null>(null);
+  const [categoryId, setCategoryId] = useState<number | null>(null);
   const [themeId, setThemeId] = useState<number | null>(null);
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
@@ -43,34 +86,54 @@ export function TaskCaptureForm({ savingRef }: TaskCaptureFormProps) {
   useEffect(() => {
     (async () => {
       try {
-        const res = await fetch(`${API_BASE_URL}/themes`);
+        const res = await fetch(`${API_BASE_URL}/categories`);
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const list = (await res.json()) as ThemeOption[];
-        setThemes(list);
-        const stored = localStorage.getItem(LAST_THEME_KEY);
-        if (stored && stored !== 'none') {
-          const id = Number(stored);
-          setThemeId(list.some((th) => th.id === id) ? id : null);
+        const list = ((await res.json()) as CategoryOption[]).filter(
+          (c) => (c.themes ?? []).length > 0,
+        );
+        setCategories(list);
+        // Restore the last-used theme (and its category), else the first pair.
+        const stored = Number(localStorage.getItem(LAST_THEME_KEY));
+        const owner = list.find((c) => c.themes.some((th) => th.id === stored));
+        if (owner) {
+          setCategoryId(owner.id);
+          setThemeId(stored);
+        } else if (list.length > 0) {
+          setCategoryId(list[0].id);
+          setThemeId(list[0].themes[0]?.id ?? null);
         }
       } catch {
-        setThemes([]);
+        setCategories([]);
       }
     })();
   }, []);
 
   useEffect(() => {
     titleRef.current?.focus();
-  }, [themes]);
+  }, [categories]);
 
-  const pickTheme = (id: number | null) => {
+  const activeCategory = (categories ?? []).find((c) => c.id === categoryId);
+
+  const pickCategory = (cat: CategoryOption) => {
+    setCategoryId(cat.id);
+    // Keep the theme when it belongs to the new category; else its first.
+    if (!cat.themes.some((th) => th.id === themeId)) {
+      const first = cat.themes[0]?.id ?? null;
+      setThemeId(first);
+      if (first != null) localStorage.setItem(LAST_THEME_KEY, String(first));
+    }
+    titleRef.current?.focus();
+  };
+
+  const pickTheme = (id: number) => {
     setThemeId(id);
-    localStorage.setItem(LAST_THEME_KEY, id == null ? 'none' : String(id));
+    localStorage.setItem(LAST_THEME_KEY, String(id));
     titleRef.current?.focus();
   };
 
   const submit = useCallback(async () => {
     const trimmed = title.trim();
-    if (!trimmed || savingRef.current) return;
+    if (!trimmed || themeId == null || savingRef.current) return;
     savingRef.current = true;
     setStatus('saving');
     try {
@@ -80,7 +143,7 @@ export function TaskCaptureForm({ savingRef }: TaskCaptureFormProps) {
         body: JSON.stringify({
           title: trimmed,
           ...(description.trim() && { description: description.trim() }),
-          ...(themeId != null && { themeId }),
+          themeId,
           status: 'todo',
         }),
       });
@@ -99,42 +162,38 @@ export function TaskCaptureForm({ savingRef }: TaskCaptureFormProps) {
     }
   }, [title, description, themeId, savingRef]);
 
-  const chipCls = (active: boolean) =>
-    `rounded-md px-2.5 py-1 text-xs font-medium transition-colors ${
-      active
-        ? 'bg-indigo-50 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300'
-        : 'text-zinc-500 hover:text-zinc-800 dark:text-zinc-400 dark:hover:text-zinc-200'
-    }`;
+  if (categories && categories.length === 0) {
+    return (
+      <div className="flex flex-1 items-center justify-center text-sm text-zinc-500 dark:text-zinc-400">
+        {t('taskNoThemes')}
+      </div>
+    );
+  }
 
   return (
     <>
-      {/* Theme picker — chips like the vocab deck picker; none = uncategorized. */}
-      <div
-        role="radiogroup"
-        aria-label={t('themeAria')}
-        className="flex flex-wrap items-center gap-1 border-b border-zinc-200 dark:border-zinc-700 pb-2"
-      >
-        <button
-          type="button"
-          role="radio"
-          aria-checked={themeId == null}
-          onClick={() => pickTheme(null)}
-          className={chipCls(themeId == null)}
-        >
-          {t('noTheme')}
-        </button>
-        {(themes ?? []).map((th) => (
-          <button
-            key={th.id}
-            type="button"
-            role="radio"
-            aria-checked={themeId === th.id}
-            onClick={() => pickTheme(th.id)}
-            className={chipCls(themeId === th.id)}
-          >
-            {th.name}
-          </button>
-        ))}
+      {/* Target picker — categories on top, that category's themes below. */}
+      <div className="flex flex-col gap-1 border-b border-zinc-200 dark:border-zinc-700 pb-2">
+        <div role="radiogroup" aria-label={t('categoryAria')} className="flex flex-wrap gap-1">
+          {(categories ?? []).map((cat) => (
+            <TargetChip
+              key={cat.id}
+              item={cat}
+              active={cat.id === categoryId}
+              onClick={() => pickCategory(cat)}
+            />
+          ))}
+        </div>
+        <div role="radiogroup" aria-label={t('themeAria')} className="flex flex-wrap gap-1">
+          {(activeCategory?.themes ?? []).map((th) => (
+            <TargetChip
+              key={th.id}
+              item={th}
+              active={th.id === themeId}
+              onClick={() => pickTheme(th.id)}
+            />
+          ))}
+        </div>
       </div>
       <input
         ref={titleRef}
