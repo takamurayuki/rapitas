@@ -313,6 +313,7 @@ export const LUCIDE_USED_ICONS = [
   'Mic',
   'MicOff',
   'Microscope',
+  'Milestone',
   'Minimize',
   'Minimize2',
   'Minus',

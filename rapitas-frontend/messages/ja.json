@@ -254,6 +254,7 @@
     "learning": "学習",
     "learningGoals": "学習目標",
     "examGoals": "試験目標",
+    "learningRoadmap": "学習ロードマップ",
     "vocabulary": "単語帳",
     "habitsAchievements": "スケジュール",
     "dailySchedule": "一日のスケジュール",
@@ -3316,6 +3317,88 @@
     "statusRunning": "実行中",
     "statusPaused": "一時停止",
     "statusStopping": "停止中"
+  },
+  "learningRoadmap": {
+    "title": "学習ロードマップ",
+    "subtitle": "スキル習得と試験を1つの地図で管理し、科学的な学習法でペースを作る",
+    "addGoal": "目標を追加",
+    "activeGoals": "進行中の目標",
+    "finishedGoals": "完了・アーカイブ",
+    "emptyState": "目標がまだありません。「目標を追加」からスキル習得や試験の目標を登録しましょう",
+    "types": {
+      "skill": "スキル",
+      "exam": "試験"
+    },
+    "statusCompleted": "達成",
+    "daysLeft": "（あと{days}日）",
+    "overdue": "（期限超過）",
+    "dailyQuota": "1日{min}分",
+    "targetScore": "目標 {score}",
+    "actualScore": "実績 {score}",
+    "taskProgress": "タスク {done}/{total}",
+    "complete": "達成にする",
+    "edit": "編集",
+    "delete": "削除",
+    "deleteConfirm": "「{title}」を削除しますか？",
+    "messages": {
+      "saveFailed": "保存に失敗しました",
+      "deleteFailed": "削除に失敗しました"
+    },
+    "form": {
+      "createTitle": "目標を追加",
+      "editTitle": "目標を編集",
+      "typeLabel": "目標の種類",
+      "type": {
+        "skill": "スキル習得",
+        "exam": "試験"
+      },
+      "title": "タイトル",
+      "titleSkillPlaceholder": "例: 競プロで赤コーダーになる",
+      "titleExamPlaceholder": "例: TOEIC 900点",
+      "description": "説明",
+      "deadline": "達成期限",
+      "examDate": "試験日",
+      "dailyMinutes": "1日の学習時間（分）",
+      "currentLevel": "現在のレベル",
+      "currentLevelPlaceholder": "例: 茶コーダー",
+      "targetLevel": "目標レベル",
+      "targetLevelPlaceholder": "例: 赤コーダー",
+      "targetScore": "目標スコア",
+      "targetScorePlaceholder": "例: 900",
+      "actualScore": "実績スコア",
+      "color": "カラー",
+      "cancel": "キャンセル",
+      "save": "保存"
+    },
+    "analytics": {
+      "empty": "学習データがまだありません",
+      "tiles": {
+        "streak": "連続学習",
+        "streakDays": "{days}日",
+        "avg7d": "直近7日の平均",
+        "minutes": "{min}分",
+        "adherence": "クォータ達成率（7日）",
+        "cramming": "詰め込み指数（14日）"
+      },
+      "recsTitle": "科学的学習法に基づくアドバイス",
+      "techniques": {
+        "spacing": "分散学習",
+        "retrieval": "想起練習",
+        "consistency": "習慣化",
+        "pacing": "ペース配分"
+      },
+      "recs": {
+        "noActiveGoals": "進行中の目標がありません。目標を登録するとペース分析が始まります",
+        "massedPractice": "直近2週間の学習の{pct}%が2日に集中しています。同じ合計時間でも複数日に分散した方が長期記憶に残ります（分散効果）",
+        "retrievalBacklog": "復習期限を過ぎた単語カードが{count}枚あります。読み返しより思い出す練習の方が定着します（テスト効果）",
+        "lowAdherence": "直近7日で1日{quota}分の目標を達成できた日は{adherence}%でした。短時間でも毎日続ける方が効果的です",
+        "deadlineAtRisk": "「{title}」まであと{daysLeft}日ですが、直近の学習は平均{avg}分/日（目標{quota}分）です。今のうちに分散して積み上げましょう",
+        "onTrack": "順調です！連続{streak}日学習を継続中。このペースを維持しましょう"
+      },
+      "chartTitle": "学習時間（直近30日）",
+      "chartSeries": "学習時間",
+      "goReview": "復習する →"
+    }
   },
   "vocabulary": {
     "title": "単語帳",

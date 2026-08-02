@@ -254,6 +254,7 @@
     "learning": "Learning",
     "learningGoals": "Learning Goals",
     "examGoals": "Exam Goals",
+    "learningRoadmap": "Learning Roadmap",
     "vocabulary": "Vocabulary Book",
     "habitsAchievements": "Schedule",
     "dailySchedule": "Daily Schedule",
@@ -3316,6 +3317,88 @@
     "statusRunning": "Running",
     "statusPaused": "Paused",
     "statusStopping": "Stopping"
+  },
+  "learningRoadmap": {
+    "title": "Learning Roadmap",
+    "subtitle": "Skills and exams on one map, paced by evidence-based study science",
+    "addGoal": "Add goal",
+    "activeGoals": "Active goals",
+    "finishedGoals": "Completed / archived",
+    "emptyState": "No goals yet. Add a skill or exam goal to get started",
+    "types": {
+      "skill": "Skill",
+      "exam": "Exam"
+    },
+    "statusCompleted": "Done",
+    "daysLeft": "({days} days left)",
+    "overdue": "(overdue)",
+    "dailyQuota": "{min} min/day",
+    "targetScore": "Target {score}",
+    "actualScore": "Actual {score}",
+    "taskProgress": "Tasks {done}/{total}",
+    "complete": "Mark completed",
+    "edit": "Edit",
+    "delete": "Delete",
+    "deleteConfirm": "Delete \"{title}\"?",
+    "messages": {
+      "saveFailed": "Failed to save",
+      "deleteFailed": "Failed to delete"
+    },
+    "form": {
+      "createTitle": "Add goal",
+      "editTitle": "Edit goal",
+      "typeLabel": "Goal type",
+      "type": {
+        "skill": "Skill",
+        "exam": "Exam"
+      },
+      "title": "Title",
+      "titleSkillPlaceholder": "e.g. Reach red coder",
+      "titleExamPlaceholder": "e.g. TOEIC 900",
+      "description": "Description",
+      "deadline": "Deadline",
+      "examDate": "Exam date",
+      "dailyMinutes": "Daily study minutes",
+      "currentLevel": "Current level",
+      "currentLevelPlaceholder": "e.g. brown coder",
+      "targetLevel": "Target level",
+      "targetLevelPlaceholder": "e.g. red coder",
+      "targetScore": "Target score",
+      "targetScorePlaceholder": "e.g. 900",
+      "actualScore": "Actual score",
+      "color": "Color",
+      "cancel": "Cancel",
+      "save": "Save"
+    },
+    "analytics": {
+      "empty": "No study data yet",
+      "tiles": {
+        "streak": "Streak",
+        "streakDays": "{days} days",
+        "avg7d": "7-day average",
+        "minutes": "{min} min",
+        "adherence": "Quota adherence (7d)",
+        "cramming": "Cramming index (14d)"
+      },
+      "recsTitle": "Evidence-based study advice",
+      "techniques": {
+        "spacing": "Spaced practice",
+        "retrieval": "Retrieval practice",
+        "consistency": "Consistency",
+        "pacing": "Pacing"
+      },
+      "recs": {
+        "noActiveGoals": "No active goals. Add one to start pace analysis",
+        "massedPractice": "{pct}% of the last two weeks' study landed on just two days. The same total time spread over more days sticks far better (spacing effect)",
+        "retrievalBacklog": "{count} vocabulary cards are past due. Recalling beats re-reading (testing effect)",
+        "lowAdherence": "You met the {quota}-minute daily quota on only {adherence}% of the last 7 days. Short daily sessions beat rare long ones",
+        "deadlineAtRisk": "\"{title}\" is {daysLeft} days away but you averaged {avg} min/day (target {quota}). Distribute the work now, before cramming is the only option",
+        "onTrack": "On track — {streak}-day streak going. Keep the rhythm"
+      },
+      "chartTitle": "Study minutes (last 30 days)",
+      "chartSeries": "Study time",
+      "goReview": "Review now →"
+    }
   },
   "vocabulary": {
     "title": "Vocabulary Book",
