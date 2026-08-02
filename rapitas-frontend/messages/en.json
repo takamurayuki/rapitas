@@ -3438,7 +3438,8 @@
   "quickCapture": {
     "modeIdea": "Idea",
     "modeVocab": "Word",
-    "modeSwitchHint": "Ctrl+Tab to switch",
+    "modeSwitchHint": "Ctrl+Tab switches modes",
+    "hintAria": "Shortcuts",
     "deckAria": "Target deck",
     "vocabNoDecks": "No decks yet — create one on the Vocabulary page",
     "vocabFrontPlaceholder": "Word...",

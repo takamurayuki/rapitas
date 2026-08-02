@@ -118,8 +118,9 @@ fn set_capture_shortcut(app: tauri::AppHandle, shortcut: String) -> Result<Strin
 /// Returns a message when the webview window cannot be created.
 fn show_quick_capture_window(app: &tauri::AppHandle) -> Result<(), String> {
     if let Some(win) = app.get_webview_window("quick-capture") {
+        // NOTE: no re-center on reuse — the user can drag the popup where they
+        // want it, and it must reappear there, not snap back to the middle.
         let _ = win.show();
-        let _ = win.center();
         let _ = win.set_focus();
         // Tell the page to clear its input for a fresh capture.
         let _ = win.emit("quick-capture:show", ());

@@ -10,7 +10,6 @@
  */
 import { useCallback, useEffect, useRef, useState, type MutableRefObject } from 'react';
 import { useTranslations } from 'next-intl';
-import { WalletCards } from 'lucide-react';
 import { API_BASE_URL } from '@/utils/api';
 import { CaptureStatusBar } from './capture-status-bar';
 import type { CaptureStatus } from './capture-window';
@@ -88,7 +87,7 @@ export function VocabCaptureForm({ savingRef }: VocabCaptureFormProps) {
   }, [deckId, front, back, savingRef]);
 
   const inputCls =
-    'flex-1 min-w-0 rounded-lg bg-zinc-50 dark:bg-zinc-800/60 px-2.5 py-2 text-sm text-zinc-900 dark:text-zinc-100 placeholder:text-zinc-400 dark:placeholder:text-zinc-500 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500';
+    'flex-1 min-w-0 rounded-lg bg-zinc-50 dark:bg-zinc-800/60 px-2.5 py-2 text-sm text-zinc-900 dark:text-zinc-100 placeholder:text-zinc-400 dark:placeholder:text-zinc-500 focus:outline-none focus-visible:ring-1 focus-visible:ring-sky-500';
 
   if (decks && decks.length === 0) {
     return (
@@ -100,32 +99,36 @@ export function VocabCaptureForm({ savingRef }: VocabCaptureFormProps) {
 
   return (
     <>
-      <div className="flex items-center gap-2.5 border-b border-zinc-200 dark:border-zinc-700 pb-2">
-        <WalletCards
-          className="w-5 h-5 shrink-0 text-indigo-500 dark:text-indigo-400"
-          aria-hidden="true"
-        />
-        <select
-          value={deckId ?? ''}
-          onChange={(e) => {
-            const id = Number(e.target.value);
-            setDeckId(id);
-            localStorage.setItem(LAST_DECK_KEY, String(id));
-            frontRef.current?.focus();
-          }}
-          aria-label={t('deckAria')}
-          className="flex-1 bg-transparent text-sm font-medium text-zinc-900 dark:text-zinc-100 focus:outline-none"
-        >
-          {(decks ?? []).map((d) => (
-            <option key={d.id} value={d.id}>
-              {d.name}
-            </option>
-          ))}
-        </select>
+      {/* Deck picker — pill chips like the mode switcher, not a pulldown. */}
+      <div
+        role="radiogroup"
+        aria-label={t('deckAria')}
+        className="flex flex-wrap items-center gap-1 border-b border-zinc-200 dark:border-zinc-700 pb-2"
+      >
+        {(decks ?? []).map((d) => (
+          <button
+            key={d.id}
+            type="button"
+            role="radio"
+            aria-checked={deckId === d.id}
+            onClick={() => {
+              setDeckId(d.id);
+              localStorage.setItem(LAST_DECK_KEY, String(d.id));
+              frontRef.current?.focus();
+            }}
+            className={`rounded-md px-2.5 py-1 text-xs font-medium transition-colors ${
+              deckId === d.id
+                ? 'bg-indigo-50 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300'
+                : 'text-zinc-500 hover:text-zinc-800 dark:text-zinc-400 dark:hover:text-zinc-200'
+            }`}
+          >
+            {d.name}
+          </button>
+        ))}
       </div>
       {/* Front is a single word — keep it narrow; the back gets the room since
           one word often carries several meanings (one per line, Shift+Enter). */}
-      <div className="flex flex-1 items-stretch gap-2 ml-8 min-h-0">
+      <div className="flex flex-1 items-stretch gap-2 min-h-0">
         <input
           ref={frontRef}
           type="text"
@@ -156,7 +159,7 @@ export function VocabCaptureForm({ savingRef }: VocabCaptureFormProps) {
           className={`${inputCls} h-full resize-none`}
         />
       </div>
-      <CaptureStatusBar hint={t('vocabHint')} status={status} />
+      <CaptureStatusBar status={status} />
     </>
   );
 }

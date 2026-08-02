@@ -9,7 +9,6 @@
  */
 import { useCallback, useRef, useState, type MutableRefObject } from 'react';
 import { useTranslations } from 'next-intl';
-import { Lightbulb } from 'lucide-react';
 import { API_BASE_URL } from '@/utils/api';
 import { CaptureStatusBar } from './capture-status-bar';
 import type { CaptureStatus } from './capture-window';
@@ -66,9 +65,8 @@ export function IdeaCaptureForm({ savingRef }: IdeaCaptureFormProps) {
 
   return (
     <>
-      {/* Title row — flat, separated from the body block by a hairline divider. */}
-      <div className="flex items-center gap-2.5 border-b border-zinc-200 dark:border-zinc-700 pb-2">
-        <Lightbulb className="w-5 h-5 shrink-0 text-amber-500" aria-hidden="true" />
+      {/* Title row — flat and flush-left, divided from the body by a hairline. */}
+      <div className="border-b border-zinc-200 dark:border-zinc-700 pb-2">
         <input
           ref={titleRef}
           autoFocus
@@ -83,7 +81,7 @@ export function IdeaCaptureForm({ savingRef }: IdeaCaptureFormProps) {
           }}
           placeholder={t('placeholder')}
           aria-label={t('titleAria')}
-          className="flex-1 bg-transparent text-base font-medium text-zinc-900 dark:text-zinc-100 placeholder:text-zinc-400 dark:placeholder:text-zinc-500 focus:outline-none"
+          className="w-full bg-transparent text-base font-medium text-zinc-900 dark:text-zinc-100 placeholder:text-zinc-400 dark:placeholder:text-zinc-500 focus:outline-none"
         />
       </div>
       {/* Body — subtle-fill interactive block so it reads as its own input. */}
@@ -98,9 +96,9 @@ export function IdeaCaptureForm({ savingRef }: IdeaCaptureFormProps) {
         }}
         placeholder={t('bodyPlaceholder')}
         aria-label={t('bodyAria')}
-        className="flex-1 min-h-0 resize-none rounded-lg bg-zinc-50 dark:bg-zinc-800/60 ml-8 px-2.5 py-2 text-sm text-zinc-700 dark:text-zinc-300 placeholder:text-zinc-400 dark:placeholder:text-zinc-500 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
+        className="flex-1 min-h-0 resize-none rounded-lg bg-zinc-50 dark:bg-zinc-800/60 px-2.5 py-2 text-sm text-zinc-700 dark:text-zinc-300 placeholder:text-zinc-400 dark:placeholder:text-zinc-500 focus:outline-none focus-visible:ring-1 focus-visible:ring-sky-500"
       />
-      <CaptureStatusBar hint={t('hint')} status={status} />
+      <CaptureStatusBar status={status} />
     </>
   );
 }

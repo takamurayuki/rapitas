@@ -3438,7 +3438,8 @@
   "quickCapture": {
     "modeIdea": "アイデア",
     "modeVocab": "単語",
-    "modeSwitchHint": "Ctrl+Tab で切替",
+    "modeSwitchHint": "Ctrl+Tab でモード切替",
+    "hintAria": "操作ヒント",
     "deckAria": "登録先デッキ",
     "vocabNoDecks": "デッキがありません — 単語帳ページで作成してください",
     "vocabFrontPlaceholder": "単語...",

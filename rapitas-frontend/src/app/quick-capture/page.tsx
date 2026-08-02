@@ -11,7 +11,7 @@
  */
 import { useEffect, useRef, useState } from 'react';
 import { useTranslations } from 'next-intl';
-import { Lightbulb, WalletCards } from 'lucide-react';
+import { Lightbulb, WalletCards, Info } from 'lucide-react';
 import { hideCaptureWindow, isTauri } from './_components/capture-window';
 import { IdeaCaptureForm } from './_components/idea-capture-form';
 import { VocabCaptureForm } from './_components/vocab-capture-form';
@@ -93,18 +93,25 @@ export default function QuickCapturePage() {
     return () => window.removeEventListener('keydown', onKey);
   }, [mode]);
 
+  // Tab-menu look: bottom-border tabs sitting on a shared hairline.
   const tabCls = (active: boolean) =>
-    `flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-medium transition-colors ${
+    `-mb-px flex items-center gap-1.5 border-b-2 px-3 py-2 text-xs font-medium transition-colors ${
       active
-        ? 'bg-indigo-50 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300'
-        : 'text-zinc-500 hover:text-zinc-800 dark:text-zinc-400 dark:hover:text-zinc-200'
+        ? 'border-indigo-500 text-indigo-600 dark:text-indigo-400'
+        : 'border-transparent text-zinc-500 hover:text-zinc-800 dark:text-zinc-400 dark:hover:text-zinc-200'
     }`;
 
   return (
     // fixed inset-0 with its own surface so global layout offsets persisted in
     // shared localStorage can't leak into this tiny popup window.
-    <div className="fixed inset-0 z-[300] flex flex-col gap-2 bg-white dark:bg-indigo-dark-900 border border-zinc-200 dark:border-zinc-700 p-3">
-      <div className="flex shrink-0 items-center gap-1">
+    <div className="fixed inset-0 z-[300] flex flex-col gap-2 bg-white dark:bg-indigo-dark-900 border border-zinc-200 dark:border-zinc-700 px-3 pb-3">
+      {/* Tab bar doubles as the window's drag handle (frameless window) —
+          data-tauri-drag-region only fires on the elements carrying it, so
+          the tab/info buttons inside stay clickable. */}
+      <div
+        data-tauri-drag-region
+        className="flex shrink-0 select-none items-end border-b border-zinc-200 dark:border-zinc-700"
+      >
         <button onClick={() => switchMode('idea')} className={tabCls(mode === 'idea')}>
           <Lightbulb className="h-3.5 w-3.5" aria-hidden="true" />
           {t('modeIdea')}
@@ -113,9 +120,18 @@ export default function QuickCapturePage() {
           <WalletCards className="h-3.5 w-3.5" aria-hidden="true" />
           {t('modeVocab')}
         </button>
-        <span className="ml-auto text-[10px] text-zinc-400 dark:text-zinc-500">
-          {t('modeSwitchHint')}
-        </span>
+        <div data-tauri-drag-region className="h-8 flex-1 cursor-move" />
+        {/* Hints live behind a hover tooltip instead of a permanent caption. */}
+        <div className="group relative flex items-center self-center pb-1">
+          <Info
+            className="h-4 w-4 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300"
+            aria-label={t('hintAria')}
+          />
+          <div className="pointer-events-none absolute right-0 top-full z-10 mt-1.5 hidden w-72 rounded-lg border border-zinc-200 bg-white p-2.5 text-xs text-zinc-600 shadow-lg group-hover:block dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300">
+            <p>{mode === 'idea' ? t('hint') : t('vocabHint')}</p>
+            <p className="mt-1 text-zinc-400 dark:text-zinc-500">{t('modeSwitchHint')}</p>
+          </div>
+        </div>
       </div>
       {mode === 'idea' ? (
         <IdeaCaptureForm key={`idea-${sessionKey}`} savingRef={savingRef} />

@@ -10,20 +10,18 @@ import { Check } from 'lucide-react';
 import type { CaptureStatus } from './capture-window';
 
 interface CaptureStatusBarProps {
-  hint: string;
   status: CaptureStatus;
 }
 
 /**
- * Render the hint text and the transient save status.
+ * Render the transient save status (hints moved to the header info tooltip).
  *
- * @param props - Hint string and current status. / ヒントと保存状態。
+ * @param props - Current status. / 保存状態。
  */
-export function CaptureStatusBar({ hint, status }: CaptureStatusBarProps) {
+export function CaptureStatusBar({ status }: CaptureStatusBarProps) {
   const t = useTranslations('quickCapture');
   return (
-    <div className="shrink-0 flex items-center justify-between pl-8 text-xs text-zinc-500 dark:text-zinc-400">
-      <span>{hint}</span>
+    <div className="flex h-4 shrink-0 items-center justify-end text-xs text-zinc-500 dark:text-zinc-400">
       {status === 'saving' && <span>{t('saving')}</span>}
       {status === 'saved' && (
         <span className="flex items-center gap-1 text-green-600 dark:text-green-400">
