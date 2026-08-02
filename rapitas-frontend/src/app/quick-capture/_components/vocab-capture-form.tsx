@@ -10,6 +10,7 @@
  */
 import { useCallback, useEffect, useRef, useState, type MutableRefObject } from 'react';
 import { useTranslations } from 'next-intl';
+import { Plus, Pencil } from 'lucide-react';
 import { API_BASE_URL } from '@/utils/api';
 import { CaptureStatusBar } from './capture-status-bar';
 import type { CaptureStatus } from './capture-window';
@@ -38,6 +39,10 @@ export function VocabCaptureForm({ savingRef }: VocabCaptureFormProps) {
   const [front, setFront] = useState('');
   const [back, setBack] = useState('');
   const [status, setStatus] = useState<CaptureStatus>('idle');
+  // Inline deck management (create / rename) without leaving the popup.
+  const [deckDraft, setDeckDraft] = useState<{ mode: 'add' | 'rename'; value: string } | null>(
+    null,
+  );
   const frontRef = useRef<HTMLInputElement>(null);
   const backRef = useRef<HTMLTextAreaElement>(null);
 
@@ -89,42 +94,143 @@ export function VocabCaptureForm({ savingRef }: VocabCaptureFormProps) {
   const inputCls =
     'flex-1 min-w-0 rounded-lg bg-zinc-50 dark:bg-zinc-800/60 px-2.5 py-2 text-sm text-zinc-900 dark:text-zinc-100 placeholder:text-zinc-400 dark:placeholder:text-zinc-500 focus:outline-none';
 
-  if (decks && decks.length === 0) {
+  /** Create or rename a deck straight from the popup, then refresh the list. */
+  const commitDeckDraft = async () => {
+    if (!deckDraft || !deckDraft.value.trim() || savingRef.current) return;
+    savingRef.current = true;
+    try {
+      const isAdd = deckDraft.mode === 'add';
+      const res = await fetch(
+        isAdd ? `${API_BASE_URL}/vocab/decks` : `${API_BASE_URL}/vocab/decks/${deckId}`,
+        {
+          method: isAdd ? 'POST' : 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name: deckDraft.value.trim() }),
+        },
+      );
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const saved = (await res.json()) as DeckOption;
+      const listRes = await fetch(`${API_BASE_URL}/vocab/decks`);
+      if (listRes.ok) setDecks((await listRes.json()) as DeckOption[]);
+      if (isAdd) {
+        setDeckId(saved.id);
+        localStorage.setItem(LAST_DECK_KEY, String(saved.id));
+      }
+      setDeckDraft(null);
+      frontRef.current?.focus();
+    } catch {
+      setStatus('error');
+    } finally {
+      savingRef.current = false;
+    }
+  };
+
+  if (decks && decks.length === 0 && deckDraft?.mode !== 'add') {
     return (
-      <div className="flex flex-1 items-center justify-center text-sm text-zinc-500 dark:text-zinc-400">
+      <div className="flex flex-1 flex-col items-center justify-center gap-2 text-sm text-zinc-500 dark:text-zinc-400">
         {t('vocabNoDecks')}
+        <button
+          type="button"
+          onClick={() => setDeckDraft({ mode: 'add', value: '' })}
+          className="flex items-center gap-1 rounded-md bg-indigo-50 px-2.5 py-1 text-xs font-medium text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300"
+        >
+          <Plus className="h-3.5 w-3.5" />
+          {t('addDeck')}
+        </button>
       </div>
     );
   }
 
   return (
     <>
-      {/* Deck picker — pill chips like the mode switcher, not a pulldown. */}
+      {/* Deck picker — pill chips like the mode switcher, not a pulldown.
+          The active chip carries a rename pencil; + appends a new deck. */}
       <div
         role="radiogroup"
         aria-label={t('deckAria')}
         className="flex flex-wrap items-center gap-1 border-b border-zinc-200 dark:border-zinc-700 pb-2"
       >
-        {(decks ?? []).map((d) => (
-          <button
-            key={d.id}
-            type="button"
-            role="radio"
-            aria-checked={deckId === d.id}
-            onClick={() => {
-              setDeckId(d.id);
-              localStorage.setItem(LAST_DECK_KEY, String(d.id));
-              frontRef.current?.focus();
+        {(decks ?? []).map((d) =>
+          deckDraft?.mode === 'rename' && deckId === d.id ? (
+            <input
+              key={d.id}
+              autoFocus
+              value={deckDraft.value}
+              onChange={(e) => setDeckDraft({ mode: 'rename', value: e.target.value })}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault();
+                  void commitDeckDraft();
+                } else if (e.key === 'Escape') {
+                  e.stopPropagation();
+                  setDeckDraft(null);
+                }
+              }}
+              aria-label={t('renameDeckAria')}
+              className="w-32 rounded-md bg-zinc-50 px-2 py-1 text-xs font-medium text-zinc-900 focus:outline-none dark:bg-zinc-800/60 dark:text-zinc-100"
+            />
+          ) : (
+            <span key={d.id} className="group/deck relative inline-flex items-center">
+              <button
+                type="button"
+                role="radio"
+                aria-checked={deckId === d.id}
+                onClick={() => {
+                  setDeckId(d.id);
+                  localStorage.setItem(LAST_DECK_KEY, String(d.id));
+                  frontRef.current?.focus();
+                }}
+                className={`rounded-md px-2.5 py-1 text-xs font-medium transition-colors ${
+                  deckId === d.id
+                    ? 'bg-indigo-50 pr-6 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300'
+                    : 'text-zinc-500 hover:text-zinc-800 dark:text-zinc-400 dark:hover:text-zinc-200'
+                }`}
+              >
+                {d.name}
+              </button>
+              {deckId === d.id && (
+                <button
+                  type="button"
+                  onClick={() => setDeckDraft({ mode: 'rename', value: d.name })}
+                  aria-label={t('renameDeckAria')}
+                  title={t('renameDeckAria')}
+                  className="absolute right-1.5 text-indigo-400 hover:text-indigo-600 dark:text-indigo-500 dark:hover:text-indigo-300"
+                >
+                  <Pencil className="h-3 w-3" />
+                </button>
+              )}
+            </span>
+          ),
+        )}
+        {deckDraft?.mode === 'add' ? (
+          <input
+            autoFocus
+            value={deckDraft.value}
+            onChange={(e) => setDeckDraft({ mode: 'add', value: e.target.value })}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                e.preventDefault();
+                void commitDeckDraft();
+              } else if (e.key === 'Escape') {
+                e.stopPropagation();
+                setDeckDraft(null);
+              }
             }}
-            className={`rounded-md px-2.5 py-1 text-xs font-medium transition-colors ${
-              deckId === d.id
-                ? 'bg-indigo-50 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300'
-                : 'text-zinc-500 hover:text-zinc-800 dark:text-zinc-400 dark:hover:text-zinc-200'
-            }`}
+            placeholder={t('newDeckPlaceholder')}
+            aria-label={t('newDeckPlaceholder')}
+            className="w-32 rounded-md bg-zinc-50 px-2 py-1 text-xs text-zinc-900 focus:outline-none dark:bg-zinc-800/60 dark:text-zinc-100"
+          />
+        ) : (
+          <button
+            type="button"
+            onClick={() => setDeckDraft({ mode: 'add', value: '' })}
+            aria-label={t('addDeck')}
+            title={t('addDeck')}
+            className="rounded-md p-1 text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200"
           >
-            {d.name}
+            <Plus className="h-3.5 w-3.5" />
           </button>
-        ))}
+        )}
       </div>
       {/* Front is a single word — keep it narrow; the back gets the room since
           one word often carries several meanings (one per line, Shift+Enter). */}

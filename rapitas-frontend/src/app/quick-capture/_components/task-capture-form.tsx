@@ -184,6 +184,8 @@ export function TaskCaptureForm({ savingRef }: TaskCaptureFormProps) {
             />
           ))}
         </div>
+        {/* Hairline between the category row and its themes. */}
+        <div className="h-px bg-zinc-200 dark:bg-zinc-700/60" />
         <div role="radiogroup" aria-label={t('themeAria')} className="flex flex-wrap gap-1">
           {(activeCategory?.themes ?? []).map((th) => (
             <TargetChip
