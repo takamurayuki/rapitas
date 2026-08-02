@@ -142,10 +142,10 @@ export default function CompactTaskDetailCard({
             {t('description')}
           </AccordionTrigger>
           <AccordionContent id="description">
-            {/* NOTE: indigo-dark-800 (not zinc) — the description block must
-                stay in the same surface family as the sibling sections, or it
-                reads as an odd gray island inside the indigo card. */}
-            <div className="bg-zinc-50 dark:bg-indigo-dark-800/50 rounded-lg p-4">
+            {/* NOTE: same colors as the AccordionTrigger hover state
+                (hover:bg-zinc-50 dark:hover:bg-zinc-800/50) — user-requested
+                pairing so the block reads as part of the accordion system. */}
+            <div className="bg-zinc-50 dark:bg-zinc-800/50 rounded-lg p-4">
               <InlineEditableText
                 value={task.description ?? ''}
                 onSave={(v) => saveField('description', v)}
