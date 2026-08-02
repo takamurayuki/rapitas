@@ -32,13 +32,23 @@ const TECHNIQUE_STYLE: Record<RoadmapRecommendation['technique'], string> = {
   retrieval: 'bg-violet-50 text-violet-700 dark:bg-violet-950/40 dark:text-violet-300',
   consistency: 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300',
   pacing: 'bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300',
+  zeigarnik: 'bg-rose-50 text-rose-700 dark:bg-rose-950/40 dark:text-rose-300',
+  interleaving: 'bg-teal-50 text-teal-700 dark:bg-teal-950/40 dark:text-teal-300',
+  chunking: 'bg-orange-50 text-orange-700 dark:bg-orange-950/40 dark:text-orange-300',
   none: 'bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400',
 };
 
+interface RoadmapAnalyticsProps {
+  /** Bump to force a refetch (e.g. after logging study time). */
+  refreshToken?: number;
+}
+
 /**
  * Render the analytics block (self-fetching).
+ *
+ * @param props - Optional refresh token. / 再取得トリガー。
  */
-export function RoadmapAnalytics() {
+export function RoadmapAnalytics({ refreshToken = 0 }: RoadmapAnalyticsProps) {
   const t = useTranslations('learningRoadmap.analytics');
   const [data, setData] = useState<Payload | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -54,7 +64,7 @@ export function RoadmapAnalytics() {
         setIsLoading(false);
       }
     })();
-  }, []);
+  }, [refreshToken]);
 
   if (isLoading || !data) {
     return (
@@ -132,6 +142,14 @@ export function RoadmapAnalytics() {
                     className="ml-1.5 text-indigo-600 hover:underline dark:text-indigo-400"
                   >
                     {t('goReview')}
+                  </Link>
+                )}
+                {rec.key === 'zeigarnikResume' && (
+                  <Link
+                    href="/"
+                    className="ml-1.5 text-indigo-600 hover:underline dark:text-indigo-400"
+                  >
+                    {t('goTasks')}
                   </Link>
                 )}
               </span>

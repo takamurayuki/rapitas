@@ -52,6 +52,7 @@ export interface StudyPace {
   adherence7d: number;
   streakDays: number;
   crammingIndex: number | null;
+  todayMinutes: number;
   total7d: number;
   total30d: number;
 }
@@ -59,8 +60,25 @@ export interface StudyPace {
 /** Technique-tagged recommendation. */
 export interface RoadmapRecommendation {
   key: string;
-  technique: 'spacing' | 'retrieval' | 'consistency' | 'pacing' | 'none';
+  technique:
+    | 'spacing'
+    | 'retrieval'
+    | 'consistency'
+    | 'pacing'
+    | 'zeigarnik'
+    | 'interleaving'
+    | 'chunking'
+    | 'none';
   params?: Record<string, string | number>;
+}
+
+/** Draft for POST /study-sessions (manual time log). */
+export interface StudySessionDraft {
+  minutes: number;
+  goalId: number | null;
+  /** yyyy-mm-dd (local). */
+  date: string;
+  note: string;
 }
 
 /** Analytics payload. */

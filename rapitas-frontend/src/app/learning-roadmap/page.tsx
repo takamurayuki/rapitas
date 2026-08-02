@@ -9,12 +9,13 @@
  */
 import { useState } from 'react';
 import { useTranslations } from 'next-intl';
-import { Milestone, Plus } from 'lucide-react';
+import { AlarmClockPlus, Milestone, Plus } from 'lucide-react';
 import { Spinner } from '@/components/ui/spinner';
 import { useConfirmDialog } from '@/components/ui/dialog/ConfirmDialogProvider';
 import { useStudyGoals } from './_components/use-study-goals';
 import { StudyGoalCard } from './_components/goal-card';
 import { GoalFormModal } from './_components/goal-form-modal';
+import { LogSessionModal } from './_components/log-session-modal';
 import { RoadmapAnalytics } from './_components/roadmap-analytics';
 import type { StudyGoal, StudyGoalDraft } from './_components/roadmap.types';
 
@@ -26,6 +27,9 @@ export default function LearningRoadmapPage() {
     open: false,
     goal: null,
   });
+  const [isLogOpen, setIsLogOpen] = useState(false);
+  // Bumped after each time log so the self-fetching analytics refetches.
+  const [analyticsRefresh, setAnalyticsRefresh] = useState(0);
 
   const handleSave = async (draft: StudyGoalDraft, id: number | null) =>
     id == null ? createGoal(draft) : updateGoal(id, draft);
@@ -54,17 +58,26 @@ export default function LearningRoadmapPage() {
               <p className="text-sm text-zinc-500 dark:text-zinc-400">{t('subtitle')}</p>
             </div>
           </div>
-          <button
-            onClick={() => setEditorState({ open: true, goal: null })}
-            className="flex items-center gap-1.5 rounded-lg bg-indigo-600 px-3.5 py-2 text-sm font-medium text-white transition-colors hover:bg-indigo-500"
-          >
-            <Plus className="h-4 w-4" />
-            {t('addGoal')}
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setIsLogOpen(true)}
+              className="flex items-center gap-1.5 rounded-lg border border-zinc-200 bg-white px-3.5 py-2 text-sm font-medium text-zinc-700 transition-colors hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-200 dark:hover:bg-zinc-700"
+            >
+              <AlarmClockPlus className="h-4 w-4" />
+              {t('logTime')}
+            </button>
+            <button
+              onClick={() => setEditorState({ open: true, goal: null })}
+              className="flex items-center gap-1.5 rounded-lg bg-indigo-600 px-3.5 py-2 text-sm font-medium text-white transition-colors hover:bg-indigo-500"
+            >
+              <Plus className="h-4 w-4" />
+              {t('addGoal')}
+            </button>
+          </div>
         </div>
 
         {/* Science-based analytics */}
-        <RoadmapAnalytics />
+        <RoadmapAnalytics refreshToken={analyticsRefresh} />
 
         {/* Goals */}
         <h2 className="mb-2 mt-6 text-sm font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
@@ -117,6 +130,14 @@ export default function LearningRoadmapPage() {
           goal={editorState.goal}
           onSave={handleSave}
           onClose={() => setEditorState({ open: false, goal: null })}
+        />
+      )}
+
+      {isLogOpen && (
+        <LogSessionModal
+          goals={active}
+          onClose={() => setIsLogOpen(false)}
+          onLogged={() => setAnalyticsRefresh((n) => n + 1)}
         />
       )}
     </div>

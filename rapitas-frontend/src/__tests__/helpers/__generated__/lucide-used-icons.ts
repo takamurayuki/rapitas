@@ -5,6 +5,7 @@
 export const LUCIDE_USED_ICONS = [
   'Activity',
   'AlarmClock',
+  'AlarmClockPlus',
   'AlertCircle',
   'AlertTriangle',
   'AlignLeft',

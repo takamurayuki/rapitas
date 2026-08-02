@@ -3322,6 +3322,7 @@
     "title": "Learning Roadmap",
     "subtitle": "Skills and exams on one map, paced by evidence-based study science",
     "addGoal": "Add goal",
+    "logTime": "Log study time",
     "activeGoals": "Active goals",
     "finishedGoals": "Completed / archived",
     "emptyState": "No goals yet. Add a skill or exam goal to get started",
@@ -3385,7 +3386,10 @@
         "spacing": "Spaced practice",
         "retrieval": "Retrieval practice",
         "consistency": "Consistency",
-        "pacing": "Pacing"
+        "pacing": "Pacing",
+        "zeigarnik": "Zeigarnik effect",
+        "interleaving": "Interleaving",
+        "chunking": "Session chunking"
       },
       "recs": {
         "noActiveGoals": "No active goals. Add one to start pace analysis",
@@ -3393,11 +3397,29 @@
         "retrievalBacklog": "{count} vocabulary cards are past due. Recalling beats re-reading (testing effect)",
         "lowAdherence": "You met the {quota}-minute daily quota on only {adherence}% of the last 7 days. Short daily sessions beat rare long ones",
         "deadlineAtRisk": "\"{title}\" is {daysLeft} days away but you averaged {avg} min/day (target {quota}). Distribute the work now, before cramming is the only option",
+        "zeigarnikResume": "{count} tasks are in progress. Unfinished work stays vivid in memory — picking up where you left off is the lowest-willpower way to start today",
+        "blockedPractice": "{pct}% of the last 7 days' study went to \"{title}\". Alternating between goals builds stronger, more transferable retention",
+        "longSessions": "Your study blocks average {avg} minutes. Splitting into 25-50 minute chunks with breaks keeps focus and retention high",
         "onTrack": "On track — {streak}-day streak going. Keep the rhythm"
       },
       "chartTitle": "Study minutes (last 30 days)",
       "chartSeries": "Study time",
-      "goReview": "Review now →"
+      "goReview": "Review now →",
+      "goTasks": "View tasks →"
+    },
+    "logSession": {
+      "title": "Log study time",
+      "minutes": "Minutes",
+      "minutesChip": "{min} min",
+      "goal": "Goal (optional)",
+      "noGoal": "None",
+      "date": "Date",
+      "note": "Note (optional)",
+      "notePlaceholder": "e.g. grammar review",
+      "cancel": "Cancel",
+      "save": "Log",
+      "saved": "Study time logged",
+      "failed": "Failed to log"
     }
   },
   "vocabulary": {

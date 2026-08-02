@@ -99,6 +99,7 @@ Keep this list accurate. If you assign a glyph a new meaning, add it here.
 | `ArrowRightLeft`          | 対義語ラベル（単語帳の関係ビジュアル。注: `ArrowLeftRight`＝ドック左右入れ替えとは別グリフ） |
 | `Pin` / `PinOff`          | ピン留め＝開いたまま維持（サイドナビの固定、quick-capture のフォーカス喪失時も閉じない — 同一概念の再利用） |
 | `Milestone`               | 学習ロードマップ (nav: /learning-roadmap、ページヘッダー・目標フォームモーダル。旧 学習目標=BookMarked / 試験目標=Target は統合により nav から退役) |
+| `AlarmClockPlus`          | 学習時間の記録（学習ロードマップの「学習を記録」ボタン・記録モーダル。注: `Timer`＝ポモドーロ/見積時間とは別概念） |
 
 ### Known collisions
 

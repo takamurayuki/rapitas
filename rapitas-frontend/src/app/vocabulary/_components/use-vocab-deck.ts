@@ -5,7 +5,7 @@
  * (due queue fetch + grading round-trip).
  */
 'use client';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { API_BASE_URL } from '@/utils/api';
 import { useToast } from '@/components/ui/toast/ToastContainer';
@@ -105,6 +105,10 @@ export function useVocabDeck(deckId: number) {
     [showToast, t],
   );
 
+  // Wall-clock start of the running review session — used to auto-record the
+  // session's minutes as roadmap study time (retrieval practice counts).
+  const reviewStartRef = useRef<number | null>(null);
+
   /** Fetch the due queue and enter review mode (null queue = not reviewing). */
   const startReview = useCallback(async () => {
     try {
@@ -113,6 +117,7 @@ export function useVocabDeck(deckId: number) {
       const data = (await res.json()) as { cards: VocabCard[] };
       setReviewQueue(data.cards);
       setReviewedCount(0);
+      reviewStartRef.current = Date.now();
     } catch {
       showToast(t('messages.reviewFailed'), 'error');
     }
@@ -144,9 +149,23 @@ export function useVocabDeck(deckId: number) {
   );
 
   const endReview = useCallback(() => {
+    // Retrieval practice is study time — auto-log the session's real length
+    // (fire-and-forget; capped so an abandoned overlay can't inflate it).
+    const start = reviewStartRef.current;
+    reviewStartRef.current = null;
+    if (start != null && reviewedCount > 0) {
+      const minutes = Math.min(90, Math.max(1, Math.round((Date.now() - start) / 60_000)));
+      fetch(`${API_BASE_URL}/study-sessions`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ minutes, source: 'vocab' }),
+      }).catch(() => {
+        /* non-critical */
+      });
+    }
     setReviewQueue(null);
     fetchDeck();
-  }, [fetchDeck]);
+  }, [fetchDeck, reviewedCount]);
 
   return {
     deck,

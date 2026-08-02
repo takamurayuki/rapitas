@@ -3322,6 +3322,7 @@
     "title": "学習ロードマップ",
     "subtitle": "スキル習得と試験を1つの地図で管理し、科学的な学習法でペースを作る",
     "addGoal": "目標を追加",
+    "logTime": "学習を記録",
     "activeGoals": "進行中の目標",
     "finishedGoals": "完了・アーカイブ",
     "emptyState": "目標がまだありません。「目標を追加」からスキル習得や試験の目標を登録しましょう",
@@ -3385,7 +3386,10 @@
         "spacing": "分散学習",
         "retrieval": "想起練習",
         "consistency": "習慣化",
-        "pacing": "ペース配分"
+        "pacing": "ペース配分",
+        "zeigarnik": "ツァイガルニク効果",
+        "interleaving": "交互学習",
+        "chunking": "セッション分割"
       },
       "recs": {
         "noActiveGoals": "進行中の目標がありません。目標を登録するとペース分析が始まります",
@@ -3393,11 +3397,29 @@
         "retrievalBacklog": "復習期限を過ぎた単語カードが{count}枚あります。読み返しより思い出す練習の方が定着します（テスト効果）",
         "lowAdherence": "直近7日で1日{quota}分の目標を達成できた日は{adherence}%でした。短時間でも毎日続ける方が効果的です",
         "deadlineAtRisk": "「{title}」まであと{daysLeft}日ですが、直近の学習は平均{avg}分/日（目標{quota}分）です。今のうちに分散して積み上げましょう",
+        "zeigarnikResume": "進行中のタスクが{count}件あります。人はやりかけの作業をよく覚えているので、「続きから」始めると最小の意志力で今日の学習を開始できます",
+        "blockedPractice": "直近7日の学習が「{title}」に{pct}%集中しています。複数の目標を交互に学ぶ方が応用力と長期定着が高まります",
+        "longSessions": "1回あたりの学習が平均{avg}分と長めです。25〜50分に区切って休憩を挟む方が集中と記憶の定着が保たれます",
         "onTrack": "順調です！連続{streak}日学習を継続中。このペースを維持しましょう"
       },
       "chartTitle": "学習時間（直近30日）",
       "chartSeries": "学習時間",
-      "goReview": "復習する →"
+      "goReview": "復習する →",
+      "goTasks": "タスクを見る →"
+    },
+    "logSession": {
+      "title": "学習時間を記録",
+      "minutes": "学習時間（分）",
+      "minutesChip": "{min}分",
+      "goal": "目標（任意）",
+      "noGoal": "指定なし",
+      "date": "日付",
+      "note": "メモ（任意）",
+      "notePlaceholder": "例: 文法の復習",
+      "cancel": "キャンセル",
+      "save": "記録する",
+      "saved": "学習時間を記録しました",
+      "failed": "記録に失敗しました"
     }
   },
   "vocabulary": {
