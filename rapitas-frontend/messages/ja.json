@@ -3362,6 +3362,14 @@
       "pronunciation": "発音記号",
       "partOfSpeech": "品詞",
       "partOfSpeechPlaceholder": "他動詞",
+      "conjugations": "語形変化",
+      "conjugationLabels": {
+        "base": "原形",
+        "third": "三単現",
+        "ing": "現在分詞",
+        "past": "過去形",
+        "pastParticiple": "過去分詞"
+      },
       "senses": "語義（意味ごとの例文・類義語・対義語）",
       "addSense": "語義を追加",
       "meaningPlaceholder": "意味（例: 混乱させる、困惑させる）",

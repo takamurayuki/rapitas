@@ -3362,6 +3362,14 @@
       "pronunciation": "Pronunciation",
       "partOfSpeech": "Part of speech",
       "partOfSpeechPlaceholder": "transitive verb",
+      "conjugations": "Conjugations",
+      "conjugationLabels": {
+        "base": "Base",
+        "third": "3rd person",
+        "ing": "Present participle",
+        "past": "Past",
+        "pastParticiple": "Past participle"
+      },
       "senses": "Senses (meaning, example, synonyms & antonyms)",
       "addSense": "Add sense",
       "meaningPlaceholder": "Meaning (e.g. to confuse, to bewilder)",

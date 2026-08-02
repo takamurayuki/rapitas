@@ -12,8 +12,8 @@ import { useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { Plus, Trash2, BookOpenText } from 'lucide-react';
 import { Modal } from '@/components/ui/modal/Modal';
-import type { VocabCard, VocabRelatedWord, VocabSense } from './vocab.types';
-import { parseSenses } from './vocab.types';
+import type { VocabCard, VocabConjugations, VocabRelatedWord, VocabSense } from './vocab.types';
+import { CONJUGATION_KEYS, parseCardDetails } from './vocab.types';
 
 interface CardDetailEditorProps {
   card: VocabCard;
@@ -43,7 +43,9 @@ export function CardDetailEditor({ card, onSave, onClose }: CardDetailEditorProp
   const [pronunciation, setPronunciation] = useState(card.pronunciation ?? '');
   const [partOfSpeech, setPartOfSpeech] = useState(card.partOfSpeech ?? '');
   const [note, setNote] = useState(card.note ?? '');
-  const [senses, setSenses] = useState<VocabSense[]>(parseSenses(card.details));
+  const parsed = parseCardDetails(card.details);
+  const [senses, setSenses] = useState<VocabSense[]>(parsed.senses);
+  const [conjugations, setConjugations] = useState<VocabConjugations>(parsed.conjugations ?? {});
   const [isSaving, setIsSaving] = useState(false);
 
   const patchSense = (i: number, patch: Partial<VocabSense>) =>
@@ -69,6 +71,12 @@ export function CardDetailEditor({ card, onSave, onClose }: CardDetailEditorProp
         antonyms: s.antonyms.filter((r) => r.word.trim()),
       }))
       .filter((s) => s.meaning.trim());
+    const conj: VocabConjugations = {};
+    for (const key of CONJUGATION_KEYS) {
+      const v = conjugations[key]?.trim();
+      if (v) conj[key] = v;
+    }
+    const hasConj = Object.keys(conj).length > 0;
     const ok = await onSave(card.id, {
       front: front.trim(),
       back: back.trim(),
@@ -76,7 +84,10 @@ export function CardDetailEditor({ card, onSave, onClose }: CardDetailEditorProp
       syllables: syllables.trim() || null,
       pronunciation: pronunciation.trim() || null,
       partOfSpeech: partOfSpeech.trim() || null,
-      details: cleaned.length > 0 ? JSON.stringify(cleaned) : null,
+      details:
+        cleaned.length > 0 || hasConj
+          ? JSON.stringify({ senses: cleaned, ...(hasConj && { conjugations: conj }) })
+          : null,
     });
     setIsSaving(false);
     if (ok) onClose();
@@ -234,6 +245,26 @@ export function CardDetailEditor({ card, onSave, onClose }: CardDetailEditorProp
           <span className={sectionLabel}>{t('note')}</span>
           <input value={note} onChange={(e) => setNote(e.target.value)} className={inputCls} />
         </label>
+
+        {/* Conjugations (語形変化) — optional labeled inflection fields */}
+        <div className="flex flex-col gap-1.5">
+          <span className={sectionLabel}>{t('conjugations')}</span>
+          <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-3">
+            {CONJUGATION_KEYS.map((key) => (
+              <label key={key} className="flex flex-col gap-0.5">
+                <span className="text-[11px] text-zinc-500 dark:text-zinc-400">
+                  {t(`conjugationLabels.${key}`)}
+                </span>
+                <input
+                  value={conjugations[key] ?? ''}
+                  onChange={(e) => setConjugations((prev) => ({ ...prev, [key]: e.target.value }))}
+                  aria-label={t(`conjugationLabels.${key}`)}
+                  className={inputCls}
+                />
+              </label>
+            ))}
+          </div>
+        </div>
 
         {/* Senses */}
         <div className="flex items-center justify-between">

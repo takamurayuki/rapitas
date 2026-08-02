@@ -26,7 +26,7 @@ const PIN_KEY = 'rapitas-quick-capture-pinned';
 // windows; enforced from here too so an already-built binary (created at an
 // older height) still gets the room the fields need.
 const WINDOW_WIDTH = 640;
-const WINDOW_HEIGHT = 290;
+const WINDOW_HEIGHT = 320;
 
 export default function QuickCapturePage() {
   const t = useTranslations('quickCapture');

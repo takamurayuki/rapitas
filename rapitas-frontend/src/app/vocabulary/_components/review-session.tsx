@@ -11,8 +11,9 @@ import { useCallback, useEffect, useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { X, Check } from 'lucide-react';
 import type { VocabCard, VocabGrade } from './vocab.types';
-import { parseSenses } from './vocab.types';
+import { parseCardDetails } from './vocab.types';
 import { SenseRelations } from './sense-relations';
+import { ConjugationLine } from './conjugation-line';
 
 interface ReviewSessionProps {
   queue: VocabCard[];
@@ -110,8 +111,13 @@ export function ReviewSession({ queue, reviewedCount, onGrade, onEnd }: ReviewSe
                 {card.note && (
                   <div className="mt-3 text-sm text-zinc-500 dark:text-zinc-400">{card.note}</div>
                 )}
+                {parseCardDetails(card.details).conjugations && (
+                  <div className="mt-4 flex justify-center">
+                    <ConjugationLine conjugations={parseCardDetails(card.details).conjugations!} />
+                  </div>
+                )}
                 {/* Dictionary detail: per-sense examples + the relation axis */}
-                {parseSenses(card.details).map((sense, i) => (
+                {parseCardDetails(card.details).senses.map((sense, i) => (
                   <div key={i} className="mt-4 text-left">
                     <p className="text-sm font-medium text-zinc-900 dark:text-zinc-100">
                       {i + 1}. {sense.meaning}

@@ -9,9 +9,10 @@ import { useState } from 'react';
 import { useTranslations, useFormatter } from 'next-intl';
 import { Pencil, Trash2, Check, X, BookOpenText, ChevronDown, ChevronUp } from 'lucide-react';
 import type { VocabCard } from './vocab.types';
-import { parseSenses } from './vocab.types';
+import { parseCardDetails } from './vocab.types';
 import { CardDetailEditor } from './card-detail-editor';
 import { SenseRelations } from './sense-relations';
+import { ConjugationLine } from './conjugation-line';
 
 interface CardRowProps {
   card: VocabCard;
@@ -35,7 +36,8 @@ export function VocabCardRow({ card, onUpdate, onUpdateFields, onDelete }: CardR
   const [back, setBack] = useState(card.back);
   const [note, setNote] = useState(card.note ?? '');
 
-  const senses = parseSenses(card.details);
+  const { senses, conjugations } = parseCardDetails(card.details);
+  const hasDetail = senses.length > 0 || conjugations != null;
   const isDue = new Date(card.dueAt).getTime() <= Date.now();
 
   const save = async () => {
@@ -152,7 +154,7 @@ export function VocabCardRow({ card, onUpdate, onUpdateFields, onDelete }: CardR
               <Trash2 className="h-3.5 w-3.5" />
             </button>
           </div>
-          {senses.length > 0 && (
+          {hasDetail && (
             <button
               onClick={() => setIsExpanded((v) => !v)}
               aria-label={t('details.toggleAria')}
@@ -165,12 +167,13 @@ export function VocabCardRow({ card, onUpdate, onUpdateFields, onDelete }: CardR
         </div>
       </div>
 
-      {/* Dictionary detail — senses with examples and the relation axis */}
-      {isExpanded && senses.length > 0 && (
+      {/* Dictionary detail — inflections, senses with examples, relation axis */}
+      {isExpanded && hasDetail && (
         <div className="mt-2 flex flex-col gap-3 rounded-lg bg-zinc-50 p-3 dark:bg-zinc-900/40">
           {card.syllables && (
             <p className="text-xs text-zinc-500 dark:text-zinc-400">{card.syllables}</p>
           )}
+          {conjugations && <ConjugationLine conjugations={conjugations} />}
           {senses.map((sense, i) => (
             <div key={i}>
               <p className="text-sm font-medium text-zinc-900 dark:text-zinc-100">

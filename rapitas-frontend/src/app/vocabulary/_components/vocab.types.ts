@@ -53,29 +53,74 @@ export interface VocabCard {
   createdAt: string;
 }
 
+/** Inflection table (語形変化) — all fields optional. */
+export interface VocabConjugations {
+  base?: string;
+  third?: string;
+  ing?: string;
+  past?: string;
+  pastParticiple?: string;
+}
+
+/** Ordered keys for rendering/editing the conjugation table. */
+export const CONJUGATION_KEYS = ['base', 'third', 'ing', 'past', 'pastParticiple'] as const;
+
+/** Parsed shape of a card's details JSON. */
+export interface VocabCardDetails {
+  senses: VocabSense[];
+  conjugations: VocabConjugations | null;
+}
+
+const sanitizeSenses = (raw: unknown): VocabSense[] =>
+  (Array.isArray(raw) ? raw : [])
+    .filter((s): s is VocabSense => typeof s === 'object' && s !== null && 'meaning' in s)
+    .map((s) => ({
+      meaning: String(s.meaning ?? ''),
+      example: s.example ? String(s.example) : undefined,
+      exampleJa: s.exampleJa ? String(s.exampleJa) : undefined,
+      synonyms: Array.isArray(s.synonyms) ? s.synonyms : [],
+      antonyms: Array.isArray(s.antonyms) ? s.antonyms : [],
+    }));
+
 /**
- * Parse a card's details JSON into senses, tolerating malformed data.
+ * Parse a card's details JSON, tolerating malformed data and both formats:
+ * the legacy bare `VocabSense[]` array and the current
+ * `{ senses, conjugations }` object.
+ *
+ * @param details - Raw JSON string from the card / カードのdetails文字列
+ * @returns Senses plus the optional conjugation table / 語義と語形変化
+ */
+export function parseCardDetails(details: string | null | undefined): VocabCardDetails {
+  if (!details) return { senses: [], conjugations: null };
+  try {
+    const parsed = JSON.parse(details) as unknown;
+    if (Array.isArray(parsed)) return { senses: sanitizeSenses(parsed), conjugations: null };
+    if (typeof parsed === 'object' && parsed !== null) {
+      const obj = parsed as { senses?: unknown; conjugations?: Record<string, unknown> };
+      const conj: VocabConjugations = {};
+      for (const key of CONJUGATION_KEYS) {
+        const v = obj.conjugations?.[key];
+        if (typeof v === 'string' && v.trim()) conj[key] = v;
+      }
+      return {
+        senses: sanitizeSenses(obj.senses),
+        conjugations: Object.keys(conj).length > 0 ? conj : null,
+      };
+    }
+    return { senses: [], conjugations: null };
+  } catch {
+    return { senses: [], conjugations: null };
+  }
+}
+
+/**
+ * Parse just the senses from a card's details JSON.
  *
  * @param details - Raw JSON string from the card / カードのdetails文字列
  * @returns Parsed senses, [] when absent or invalid / 解析済み語義リスト
  */
 export function parseSenses(details: string | null | undefined): VocabSense[] {
-  if (!details) return [];
-  try {
-    const parsed = JSON.parse(details) as unknown;
-    if (!Array.isArray(parsed)) return [];
-    return parsed
-      .filter((s): s is VocabSense => typeof s === 'object' && s !== null && 'meaning' in s)
-      .map((s) => ({
-        meaning: String(s.meaning ?? ''),
-        example: s.example ? String(s.example) : undefined,
-        exampleJa: s.exampleJa ? String(s.exampleJa) : undefined,
-        synonyms: Array.isArray(s.synonyms) ? s.synonyms : [],
-        antonyms: Array.isArray(s.antonyms) ? s.antonyms : [],
-      }));
-  } catch {
-    return [];
-  }
+  return parseCardDetails(details).senses;
 }
 
 /** Deck detail as returned by GET /vocab/decks/:id. */
