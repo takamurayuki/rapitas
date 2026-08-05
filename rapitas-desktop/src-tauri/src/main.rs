@@ -440,6 +440,27 @@ fn setup_global_shortcut(app: &tauri::App) -> Result<(), Box<dyn std::error::Err
     Ok(())
 }
 
+/// Register the app's AppUserModelID for toast notifications.
+///
+/// Windows silently drops WinRT toasts whose AUMID is not registered.
+/// Installed builds get the registration from the installer's Start-menu
+/// shortcut, but dev/portable runs have no installer — without this HKCU
+/// entry, tauri-plugin-notification's sendNotification resolves successfully
+/// yet nothing ever appears on screen.
+#[cfg(target_os = "windows")]
+fn register_aumid_for_toasts(app: &tauri::App) {
+    use winreg::{enums::HKEY_CURRENT_USER, RegKey};
+    let identifier = app.config().identifier.clone();
+    let path = format!("Software\\Classes\\AppUserModelId\\{identifier}");
+    match RegKey::predef(HKEY_CURRENT_USER).create_subkey(&path) {
+        Ok((key, _)) => {
+            let _ = key.set_value("DisplayName", &"Rapitas");
+            println!("[Notifications] AppUserModelID registered: {identifier}");
+        }
+        Err(e) => eprintln!("[Notifications] AUMID registration failed: {e}"),
+    }
+}
+
 fn main() {
     // Keep WebView2 painting and responsive when the window is occluded or
     // backgrounded (e.g. split-screen layout with another app on top).
@@ -496,6 +517,8 @@ fn main() {
             ])
             .setup(|app| {
                 release::setup_sidecar(app);
+                #[cfg(target_os = "windows")]
+                register_aumid_for_toasts(app);
                 setup_tray(app)?;
                 setup_global_shortcut(app)?;
                 Ok(())
@@ -543,6 +566,8 @@ fn main() {
                 terminal::terminal_close
             ])
             .setup(|app| {
+                #[cfg(target_os = "windows")]
+                register_aumid_for_toasts(app);
                 setup_tray(app)?;
                 setup_global_shortcut(app)?;
                 Ok(())

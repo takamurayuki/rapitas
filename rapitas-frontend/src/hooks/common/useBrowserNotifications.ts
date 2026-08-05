@@ -19,6 +19,22 @@ const logger = createLogger('useBrowserNotifications');
 /** Reminder types alert even while the window is focused — that is their job. */
 const REMINDER_TYPES = new Set(['memo_reminder', 'habit_reminder', 'schedule_reminder']);
 
+/**
+ * Ship a native-notification failure to the backend error buffer — the desktop
+ * webview's console is invisible, so this is the only diagnosable trail.
+ */
+const reportNotificationError = (message: string) => {
+  void import('@/utils/api')
+    .then(({ API_BASE_URL }) =>
+      fetch(`${API_BASE_URL}/system/errors`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message: `tauri-notification: ${message}`.slice(0, 2000) }),
+      }),
+    )
+    .catch(() => {});
+};
+
 /** Notification event payload from SSE. */
 export interface SSENotificationPayload {
   notification: {
@@ -98,11 +114,16 @@ export function useBrowserNotifications(options: UseBrowserNotificationsOptions 
           let granted = await isPermissionGranted();
           if (!granted) granted = (await requestPermission()) === 'granted';
           if (granted) {
-            sendNotification({ title: notification.title, body: notification.message });
+            await sendNotification({ title: notification.title, body: notification.message });
+          } else {
+            reportNotificationError('permission not granted');
           }
         } catch (e) {
           // Older desktop binaries lack the plugin — the in-app toast still shows.
           logger.errorThrottled('Tauri notification failed:', e);
+          reportNotificationError(
+            e instanceof Error ? `${e.message}\n${e.stack ?? ''}` : String(e),
+          );
         }
       })();
       return;
