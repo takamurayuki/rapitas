@@ -17,15 +17,37 @@ export const REMINDER_PRESET_ORDER: ReminderPreset[] = [
   'custom',
 ];
 
+/** Day choice inside the custom (日時指定) picker. */
+export type ReminderDay = 'today' | 'tomorrow' | 'date';
+
+/** Full reminder selection state (presets + the custom day/time picker). */
+export interface ReminderValue {
+  preset: ReminderPreset;
+  /** Custom picker: which day. */
+  day: ReminderDay;
+  /** Custom picker: yyyy-mm-dd, used when day === 'date'. */
+  date: string;
+  /** Custom picker: HH:MM. */
+  time: string;
+}
+
+/** Fresh default selection (no reminder). */
+export const emptyReminder = (): ReminderValue => ({
+  preset: 'none',
+  day: 'today',
+  date: '',
+  time: '',
+});
+
 /**
- * Resolve a preset to a concrete timestamp.
+ * Resolve the selection to a concrete timestamp.
  *
- * @param preset - Chosen preset key / 選択されたプリセット
- * @param custom - datetime-local value used when preset is 'custom' / カスタム日時
- * @returns Reminder timestamp, or null for no reminder / リマインダー日時（なしは null）
+ * @param value - Current picker state / ピッカーの選択状態
+ * @returns Timestamp, null for no reminder, or 'invalid' when the custom
+ *   fields are incomplete or in the past / 日時・なし(null)・不正('invalid')
  */
-export const presetToDate = (preset: ReminderPreset, custom: string): Date | null => {
-  switch (preset) {
+export const resolveReminder = (value: ReminderValue): Date | null | 'invalid' => {
+  switch (value.preset) {
     case '30m':
       return new Date(Date.now() + 30 * 60_000);
     case '1h':
@@ -38,8 +60,23 @@ export const presetToDate = (preset: ReminderPreset, custom: string): Date | nul
       d.setHours(9, 0, 0, 0);
       return d;
     }
-    case 'custom':
-      return custom ? new Date(custom) : null;
+    case 'custom': {
+      if (!value.time) return 'invalid';
+      const [h, m] = value.time.split(':').map(Number);
+      if (!Number.isFinite(h) || !Number.isFinite(m)) return 'invalid';
+      const d = new Date();
+      if (value.day === 'tomorrow') d.setDate(d.getDate() + 1);
+      else if (value.day === 'date') {
+        if (!value.date) return 'invalid';
+        const [y, mo, da] = value.date.split('-').map(Number);
+        if (!y || !mo || !da) return 'invalid';
+        d.setFullYear(y, mo - 1, da);
+      }
+      d.setHours(h!, m!, 0, 0);
+      // A reminder in the past would fire instantly — treat as input error.
+      if (d.getTime() <= Date.now()) return 'invalid';
+      return d;
+    }
     default:
       return null;
   }

@@ -3,16 +3,16 @@
 /**
  * MemoCaptureForm
  *
- * Memo mode of the quick-capture popup: one free-text field (Enter saves,
- * Shift+Enter for a newline) plus an optional reminder picked from quick
- * chips or a custom datetime. Saving keeps the window open with cleared
- * fields for back-to-back capture.
+ * Memo mode of the quick-capture popup: reminder row (presets + easy custom
+ * day/time picker) above one free-text field (Enter saves, Shift+Enter for a
+ * newline). Saving keeps the window open with cleared fields for
+ * back-to-back capture.
  */
 import { useCallback, useRef, useState, type MutableRefObject } from 'react';
 import { useTranslations } from 'next-intl';
-import { AlarmClock } from 'lucide-react';
 import { API_BASE_URL } from '@/utils/api';
-import { presetToDate, REMINDER_PRESET_ORDER, type ReminderPreset } from '@/utils/reminder-presets';
+import { emptyReminder, resolveReminder, type ReminderValue } from '@/utils/reminder-presets';
+import { ReminderPicker } from '@/components/ui/reminder/reminder-picker';
 import { CaptureStatusBar } from './capture-status-bar';
 import type { CaptureStatus } from './capture-window';
 
@@ -29,16 +29,15 @@ interface MemoCaptureFormProps {
 export function MemoCaptureForm({ savingRef }: MemoCaptureFormProps) {
   const t = useTranslations('quickCapture.memo');
   const [content, setContent] = useState('');
-  const [preset, setPreset] = useState<ReminderPreset>('none');
-  const [custom, setCustom] = useState('');
+  const [reminder, setReminder] = useState<ReminderValue>(emptyReminder());
   const [status, setStatus] = useState<CaptureStatus>('idle');
   const contentRef = useRef<HTMLTextAreaElement>(null);
 
   const submit = useCallback(async () => {
     const trimmed = content.trim();
     if (!trimmed || savingRef.current) return;
-    const remindAt = presetToDate(preset, custom);
-    if (preset === 'custom' && (!remindAt || isNaN(remindAt.getTime()))) return;
+    const remindAt = resolveReminder(reminder);
+    if (remindAt === 'invalid') return;
     savingRef.current = true;
     setStatus('saving');
     try {
@@ -55,8 +54,7 @@ export function MemoCaptureForm({ savingRef }: MemoCaptureFormProps) {
       savingRef.current = false;
       setStatus('saved');
       setContent('');
-      setPreset('none');
-      setCustom('');
+      setReminder(emptyReminder());
       contentRef.current?.focus();
       setTimeout(() => setStatus((s) => (s === 'saved' ? 'idle' : s)), 1500);
     } catch {
@@ -64,44 +62,12 @@ export function MemoCaptureForm({ savingRef }: MemoCaptureFormProps) {
       savingRef.current = false;
       setStatus('error');
     }
-  }, [content, preset, custom, savingRef]);
-
-  const chipCls = (selected: boolean) =>
-    `whitespace-nowrap rounded-md px-2 py-1 text-xs font-medium transition-colors ${
-      selected
-        ? 'bg-indigo-50 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300'
-        : 'text-zinc-500 hover:text-zinc-800 dark:text-zinc-400 dark:hover:text-zinc-200'
-    }`;
+  }, [content, reminder, savingRef]);
 
   return (
     <>
-      {/* Reminder row — presets as chips, custom reveals a datetime input.
-          Sits ABOVE the text field so 通知の有無 is decided before typing. */}
-      <div className="flex shrink-0 items-center gap-1.5">
-        <AlarmClock
-          className="h-3.5 w-3.5 shrink-0 text-zinc-400 dark:text-zinc-500"
-          aria-label={t('reminderAria')}
-        />
-        {REMINDER_PRESET_ORDER.map((p) => (
-          <button
-            key={p}
-            type="button"
-            onClick={() => setPreset(p)}
-            className={chipCls(preset === p)}
-          >
-            {t(`presets.${p}`)}
-          </button>
-        ))}
-        {preset === 'custom' && (
-          <input
-            type="datetime-local"
-            value={custom}
-            onChange={(e) => setCustom(e.target.value)}
-            aria-label={t('customAria')}
-            className="rounded-md border border-zinc-200 bg-white px-1.5 py-0.5 text-xs text-zinc-700 outline-none focus-visible:ring-1 focus-visible:ring-sky-500 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-200"
-          />
-        )}
-      </div>
+      {/* Reminder row ABOVE the text field — 通知の有無 is decided before typing. */}
+      <ReminderPicker value={reminder} onChange={setReminder} />
       <textarea
         ref={contentRef}
         autoFocus

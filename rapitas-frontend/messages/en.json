@@ -313,7 +313,6 @@
     "hypotheses": "Hypotheses",
     "notes": "Notes",
     "memos": "Memos",
-    "notesMemos": "Notes & Memos",
     "logAnalysis": "Log Analysis"
   },
   "home": {
@@ -3598,6 +3597,13 @@
         "3h": "In 3 hours",
         "tomorrow": "Tomorrow 9am",
         "custom": "Pick time"
+      },
+      "custom": {
+        "today": "Today",
+        "tomorrow": "Tomorrow",
+        "date": "Date...",
+        "dateAria": "Reminder date",
+        "timeAria": "Reminder time"
       }
     },
     "categoryAria": "Select category",

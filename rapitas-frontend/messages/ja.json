@@ -313,7 +313,6 @@
     "hypotheses": "仮説",
     "notes": "ノート",
     "memos": "メモ",
-    "notesMemos": "ノート・メモ",
     "logAnalysis": "ログ分析"
   },
   "home": {
@@ -3598,6 +3597,13 @@
         "3h": "3時間後",
         "tomorrow": "明日9時",
         "custom": "日時指定"
+      },
+      "custom": {
+        "today": "今日",
+        "tomorrow": "明日",
+        "date": "日付...",
+        "dateAria": "リマインダーの日付",
+        "timeAria": "リマインダーの時刻"
       }
     },
     "categoryAria": "カテゴリを選択",
