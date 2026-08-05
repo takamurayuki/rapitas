@@ -339,6 +339,7 @@ export const LUCIDE_USED_ICONS = [
   'Notebook',
   'NotebookPen',
   'NotebookTabs',
+  'NotepadText',
   'Octagon',
   'Orbit',
   'Package',

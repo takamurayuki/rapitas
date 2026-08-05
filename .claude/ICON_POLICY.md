@@ -100,6 +100,8 @@ Keep this list accurate. If you assign a glyph a new meaning, add it here.
 | `Pin` / `PinOff`          | ピン留め＝開いたまま維持（サイドナビの固定、quick-capture のフォーカス喪失時も閉じない — 同一概念の再利用） |
 | `Milestone`               | 学習ロードマップ (nav: /learning-roadmap、ページヘッダー・目標フォームモーダル。旧 学習目標=BookMarked / 試験目標=Target は統合により nav から退役) |
 | `AlarmClockPlus`          | 学習時間の記録（学習ロードマップの「学習を記録」ボタン・記録モーダル。注: `Timer`＝ポモドーロ/見積時間とは別概念） |
+| `NotepadText`             | メモ（軽量メモ機能。nav: /memos、ページヘッダー、quick-capture のメモモードタブ。注: `NotebookTabs`＝ノート、`StickyNote`＝検索結果のノート種別と混同しないこと） |
+| `AlarmClock`              | メモのリマインダー（quick-capture / /memos のリマインダー行アイコン・一覧のリマインダーバッジ。注: `AlarmClockPlus`＝学習時間の記録とは別概念） |
 
 ### Known collisions
 

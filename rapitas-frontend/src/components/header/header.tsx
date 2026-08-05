@@ -41,6 +41,7 @@ import {
   Bug,
   Inbox,
   NotebookTabs,
+  NotepadText,
   Package,
   Beaker,
   Sprout,
@@ -116,6 +117,11 @@ export default function Header() {
       href: '/notes',
       label: t('notes'),
       icon: NotebookTabs,
+    },
+    {
+      href: '/memos',
+      label: t('memos'),
+      icon: NotepadText,
     },
     {
       href: '#',

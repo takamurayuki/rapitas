@@ -312,6 +312,7 @@
     "concerns": "Concerns",
     "hypotheses": "Hypotheses",
     "notes": "Notes",
+    "memos": "Memos",
     "logAnalysis": "Log Analysis"
   },
   "home": {
@@ -3550,10 +3551,54 @@
       "backToDeck": "Back to deck"
     }
   },
+  "memos": {
+    "title": "Memos",
+    "subtitle": "Things to remember and tiny records — with optional reminders",
+    "emptyState": "No memos yet. Add one above or via quick capture (Ctrl+Alt+I)",
+    "deleteConfirm": "Delete this memo?",
+    "filters": {
+      "open": "Open",
+      "reminder": "Reminders",
+      "done": "Done"
+    },
+    "add": {
+      "placeholder": "Something to remember...",
+      "contentAria": "Memo content",
+      "reminderAria": "Reminder",
+      "customAria": "Reminder date and time",
+      "save": "Add"
+    },
+    "row": {
+      "markDone": "Mark done",
+      "markOpen": "Reopen",
+      "reminded": "(notified)",
+      "delete": "Delete"
+    },
+    "messages": {
+      "saveFailed": "Failed to save",
+      "deleteFailed": "Failed to delete"
+    }
+  },
   "quickCapture": {
     "modeIdea": "Idea",
     "modeVocab": "Word",
     "modeTask": "Task",
+    "modeMemo": "Memo",
+    "memoHint": "Enter saves (Shift+Enter for newline) / Esc closes. Add a reminder to get notified",
+    "memo": {
+      "placeholder": "Something to remember...",
+      "contentAria": "Memo content",
+      "reminderAria": "Reminder",
+      "customAria": "Reminder date and time",
+      "presets": {
+        "none": "No alert",
+        "30m": "In 30 min",
+        "1h": "In 1 hour",
+        "3h": "In 3 hours",
+        "tomorrow": "Tomorrow 9am",
+        "custom": "Pick time"
+      }
+    },
     "categoryAria": "Select category",
     "themeAria": "Target theme",
     "taskNoThemes": "No themes yet — create one in theme settings",

@@ -312,6 +312,7 @@
     "concerns": "懸念",
     "hypotheses": "仮説",
     "notes": "ノート",
+    "memos": "メモ",
     "logAnalysis": "ログ分析"
   },
   "home": {
@@ -3550,10 +3551,54 @@
       "backToDeck": "デッキに戻る"
     }
   },
+  "memos": {
+    "title": "メモ",
+    "subtitle": "覚えておきたいこと・簡単な記録。リマインダーで通知もできます",
+    "emptyState": "メモがまだありません。上の入力欄かクイックキャプチャ（Ctrl+Alt+I）から追加できます",
+    "deleteConfirm": "このメモを削除しますか？",
+    "filters": {
+      "open": "未完了",
+      "reminder": "リマインダー",
+      "done": "完了"
+    },
+    "add": {
+      "placeholder": "覚えておきたいこと・簡単な記録...",
+      "contentAria": "メモの内容",
+      "reminderAria": "リマインダー",
+      "customAria": "リマインダー日時",
+      "save": "追加"
+    },
+    "row": {
+      "markDone": "完了にする",
+      "markOpen": "未完了に戻す",
+      "reminded": "（通知済み）",
+      "delete": "削除"
+    },
+    "messages": {
+      "saveFailed": "保存に失敗しました",
+      "deleteFailed": "削除に失敗しました"
+    }
+  },
   "quickCapture": {
     "modeIdea": "アイデア",
     "modeVocab": "単語",
     "modeTask": "タスク",
+    "modeMemo": "メモ",
+    "memoHint": "Enter 保存（Shift+Enter で改行）/ Esc 閉じる。リマインダーを付けると通知されます",
+    "memo": {
+      "placeholder": "覚えておきたいこと・簡単な記録...",
+      "contentAria": "メモの内容",
+      "reminderAria": "リマインダー",
+      "customAria": "リマインダー日時",
+      "presets": {
+        "none": "通知なし",
+        "30m": "30分後",
+        "1h": "1時間後",
+        "3h": "3時間後",
+        "tomorrow": "明日9時",
+        "custom": "日時指定"
+      }
+    },
     "categoryAria": "カテゴリを選択",
     "themeAria": "登録先テーマ",
     "taskNoThemes": "テーマがありません — テーマ設定から作成してください",
