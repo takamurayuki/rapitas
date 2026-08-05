@@ -7,6 +7,7 @@
 import { Elysia, t } from 'elysia';
 import { prisma } from '../../config/database';
 import { ValidationError } from '../../middleware/error-handler';
+import { rearmMemoReminders } from '../../services/scheduling/memo-reminder-scheduler';
 
 /** Parse a numeric path id or throw a 400. */
 function parseId(raw: string): number {
@@ -49,7 +50,10 @@ export const memosRoutes = new Elysia({ prefix: '/memos' })
       if (remindAt && isNaN(remindAt.getTime())) {
         throw new ValidationError('リマインダー日時が不正です');
       }
-      return prisma.memo.create({ data: { content, remindAt } });
+      const memo = await prisma.memo.create({ data: { content, remindAt } });
+      // Re-arm the precise timer so this reminder fires at its exact time.
+      if (remindAt) void rearmMemoReminders();
+      return memo;
     },
     { body: memoBody },
   )
@@ -62,7 +66,7 @@ export const memosRoutes = new Elysia({ prefix: '/memos' })
       if (remindAt && isNaN(remindAt.getTime())) {
         throw new ValidationError('リマインダー日時が不正です');
       }
-      return prisma.memo.update({
+      const memo = await prisma.memo.update({
         where: { id },
         data: {
           ...(body.content !== undefined && { content: body.content.trim() }),
@@ -71,6 +75,9 @@ export const memosRoutes = new Elysia({ prefix: '/memos' })
           ...(body.isDone !== undefined && { isDone: body.isDone }),
         },
       });
+      // Reminder timing may have changed — re-aim the precise timer.
+      if (remindAt !== undefined || body.isDone !== undefined) void rearmMemoReminders();
+      return memo;
     },
     { body: memoBody },
   )
@@ -78,5 +85,7 @@ export const memosRoutes = new Elysia({ prefix: '/memos' })
   .delete('/:id', async ({ params }) => {
     const id = parseId(params.id);
     await prisma.memo.delete({ where: { id } });
+    // The deleted memo may have been the next-armed reminder.
+    void rearmMemoReminders();
     return { success: true };
   });
