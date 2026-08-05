@@ -170,6 +170,11 @@ struct PendingToast {
 
 /// Position the toast at the bottom-right of the primary monitor.
 fn position_toast(win: &tauri::WebviewWindow) {
+    // Re-assert the size on every show: external actors (Windows snap, the
+    // split-view arranger before it learned to skip this window) can resize
+    // the long-lived toast window, and a corrupted size otherwise persists
+    // for the rest of the session.
+    let _ = win.set_size(tauri::LogicalSize::new(TOAST_WIDTH, TOAST_HEIGHT));
     if let Ok(Some(monitor)) = win.primary_monitor() {
         let scale = monitor.scale_factor();
         let size = monitor.size().to_logical::<f64>(scale);

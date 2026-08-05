@@ -118,7 +118,15 @@ pub fn find_rapitas_window() -> Option<HWND> {
     let windows = get_all_windows();
 
     for window in windows {
-        if window.title.contains("Rapitas") {
+        // NOTE: MAIN window only. The always-on-top notification toast
+        // ("Rapitas Notification") and the quick-capture popup also contain
+        // "Rapitas" and, being topmost, enumerate FIRST in Z-order — a bare
+        // contains() match made the split-view arranger grab the tiny toast
+        // window and snap it to half the screen (2026-08-05).
+        if window.title.contains("Rapitas")
+            && !window.title.contains("Notification")
+            && !window.title.contains("Quick Capture")
+        {
             return Some(window.hwnd);
         }
     }
