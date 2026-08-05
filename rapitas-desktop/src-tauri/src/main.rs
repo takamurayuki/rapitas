@@ -297,8 +297,11 @@ fn toast_navigate(app: tauri::AppHandle, link: Option<String>) {
         park_toast(&win);
     }
     show_main_window(&app);
-    if let (Some(main), Some(l)) = (app.get_webview_window("main"), link) {
-        let _ = main.emit("rapitas:toast-navigate", l);
+    if let Some(l) = link {
+        // emit_to, NOT a broadcast emit — the toast window itself also mounts
+        // the app layout, and a broadcast would make ITS router navigate,
+        // turning the tiny toast into a miniature copy of the app.
+        let _ = app.emit_to("main", "rapitas:toast-navigate", l);
     }
 }
 
