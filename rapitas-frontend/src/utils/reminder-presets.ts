@@ -17,24 +17,24 @@ export const REMINDER_PRESET_ORDER: ReminderPreset[] = [
   'custom',
 ];
 
-/** Day choice inside the custom (日時指定) picker. */
-export type ReminderDay = 'today' | 'tomorrow' | 'date';
-
-/** Full reminder selection state (presets + the custom day/time picker). */
+/** Full reminder selection state (presets + the custom date/time fields). */
 export interface ReminderValue {
   preset: ReminderPreset;
-  /** Custom picker: which day. */
-  day: ReminderDay;
-  /** Custom picker: yyyy-mm-dd, used when day === 'date'. */
+  /** Custom picker: yyyy-mm-dd (prefilled with today on entering custom). */
   date: string;
   /** Custom picker: HH:MM. */
   time: string;
 }
 
+/** Local yyyy-mm-dd for date-input defaults. */
+export const localDateKey = (d: Date = new Date()): string => {
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+};
+
 /** Fresh default selection (no reminder). */
 export const emptyReminder = (): ReminderValue => ({
   preset: 'none',
-  day: 'today',
   date: '',
   time: '',
 });
@@ -61,17 +61,12 @@ export const resolveReminder = (value: ReminderValue): Date | null | 'invalid' =
       return d;
     }
     case 'custom': {
-      if (!value.time) return 'invalid';
+      if (!value.time || !value.date) return 'invalid';
       const [h, m] = value.time.split(':').map(Number);
-      if (!Number.isFinite(h) || !Number.isFinite(m)) return 'invalid';
+      const [y, mo, da] = value.date.split('-').map(Number);
+      if (!Number.isFinite(h) || !Number.isFinite(m) || !y || !mo || !da) return 'invalid';
       const d = new Date();
-      if (value.day === 'tomorrow') d.setDate(d.getDate() + 1);
-      else if (value.day === 'date') {
-        if (!value.date) return 'invalid';
-        const [y, mo, da] = value.date.split('-').map(Number);
-        if (!y || !mo || !da) return 'invalid';
-        d.setFullYear(y, mo - 1, da);
-      }
+      d.setFullYear(y, mo - 1, da);
       d.setHours(h!, m!, 0, 0);
       // A reminder in the past would fire instantly — treat as input error.
       if (d.getTime() <= Date.now()) return 'invalid';

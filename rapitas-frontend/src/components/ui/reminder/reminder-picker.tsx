@@ -4,17 +4,16 @@
  * ReminderPicker
  *
  * Shared reminder selection row for memo forms: preset chips (30分後 etc.)
- * plus a chip-based custom picker — 今日/明日/日付 + a plain time field —
- * so setting an exact time never requires the clunky datetime-local widget.
- * Controlled: the caller owns the ReminderValue and resolves it on save via
- * resolveReminder().
+ * plus a custom picker that opens with today's date already filled — the
+ * user normally only types the time. Controlled: the caller owns the
+ * ReminderValue and resolves it on save via resolveReminder().
  */
 import { useTranslations } from 'next-intl';
 import { AlarmClock } from 'lucide-react';
 import {
+  localDateKey,
   REMINDER_PRESET_ORDER,
   resolveReminder,
-  type ReminderDay,
   type ReminderValue,
 } from '@/utils/reminder-presets';
 
@@ -22,8 +21,6 @@ interface ReminderPickerProps {
   value: ReminderValue;
   onChange: (value: ReminderValue) => void;
 }
-
-const DAY_ORDER: ReminderDay[] = ['today', 'tomorrow', 'date'];
 
 /**
  * Render the reminder row (presets + custom day/time chips).
@@ -46,12 +43,17 @@ export function ReminderPicker({ value, onChange }: ReminderPickerProps) {
   const isInvalid = value.preset === 'custom' && resolveReminder(value) === 'invalid';
 
   const pickPreset = (preset: ReminderValue['preset']) => {
-    // Entering custom mode pre-fills the time with the next full hour so a
-    // single tap on save already means something sensible.
-    if (preset === 'custom' && !value.time) {
+    // Entering custom mode pre-fills today's date and the next full hour so
+    // the user normally only adjusts the time before saving.
+    if (preset === 'custom' && (!value.time || !value.date)) {
       const next = new Date(Date.now() + 60 * 60_000);
       const hh = String(next.getHours()).padStart(2, '0');
-      onChange({ ...value, preset, time: `${hh}:00` });
+      onChange({
+        ...value,
+        preset,
+        date: value.date || localDateKey(),
+        time: value.time || `${hh}:00`,
+      });
     } else {
       onChange({ ...value, preset });
     }
@@ -75,25 +77,14 @@ export function ReminderPicker({ value, onChange }: ReminderPickerProps) {
       ))}
       {value.preset === 'custom' && (
         <span className="flex items-center gap-1 rounded-md bg-zinc-100 px-1.5 py-0.5 dark:bg-zinc-800/80">
-          {DAY_ORDER.map((d) => (
-            <button
-              key={d}
-              type="button"
-              onClick={() => onChange({ ...value, day: d })}
-              className={chipCls(value.day === d)}
-            >
-              {t(`custom.${d}`)}
-            </button>
-          ))}
-          {value.day === 'date' && (
-            <input
-              type="date"
-              value={value.date}
-              onChange={(e) => onChange({ ...value, date: e.target.value })}
-              aria-label={t('custom.dateAria')}
-              className={inputCls}
-            />
-          )}
+          <input
+            type="date"
+            value={value.date}
+            min={localDateKey()}
+            onChange={(e) => onChange({ ...value, date: e.target.value })}
+            aria-label={t('custom.dateAria')}
+            className={inputCls}
+          />
           <input
             type="time"
             value={value.time}

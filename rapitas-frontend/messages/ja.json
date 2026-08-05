@@ -3599,9 +3599,6 @@
         "custom": "日時指定"
       },
       "custom": {
-        "today": "今日",
-        "tomorrow": "明日",
-        "date": "日付...",
         "dateAria": "リマインダーの日付",
         "timeAria": "リマインダーの時刻"
       }
