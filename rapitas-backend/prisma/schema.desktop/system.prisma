@@ -16,6 +16,22 @@ model Notification {
   createdAt         DateTime  @default(now())
 }
 
+// Lightweight memo (quick-capture メモモード): a thing to remember or a tiny
+// record — deliberately smaller than the Notes feature (documents, tags, AI).
+// An optional one-shot reminder is delivered through the Notification pipeline
+// by services/scheduling/memo-reminder-scheduler.ts.
+model Memo {
+  id         Int       @id @default(autoincrement())
+  content    String
+  remindAt   DateTime? // when to notify; null = plain memo
+  remindedAt DateTime? // set once the reminder notification fired (one-shot)
+  isDone     Boolean   @default(false)
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  @@index([remindAt])
+}
+
 model UserSettings {
   id                          Int       @id @default(autoincrement())
   developerModeDefault        Boolean   @default(false)
