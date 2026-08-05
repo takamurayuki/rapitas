@@ -2677,6 +2677,7 @@
   },
   "notification": {
     "open": "開く",
+    "close": "閉じる",
     "justNow": "たった今",
     "minutesAgo": "{count}分前",
     "hoursAgo": "{count}時間前",

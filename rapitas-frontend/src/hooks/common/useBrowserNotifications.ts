@@ -105,25 +105,30 @@ export function useBrowserNotifications(options: UseBrowserNotificationsOptions 
     if (!REMINDER_TYPES.has(notification.type) && document.hasFocus()) return;
 
     if (isTauri()) {
-      // Real Windows toast via the Tauri plugin — WebView2's Notification API
-      // is not functional, so the browser path below never fires in-app.
+      // The app's OWN always-on-top toast window — not a Windows toast, which
+      // the OS can silently drop (unregistered AUMID, focus assist, per-app
+      // settings) and which WebView2's Notification API can't produce anyway.
       void (async () => {
         try {
-          const { isPermissionGranted, requestPermission, sendNotification } =
-            await import('@tauri-apps/plugin-notification');
-          let granted = await isPermissionGranted();
-          if (!granted) granted = (await requestPermission()) === 'granted';
-          if (granted) {
-            await sendNotification({ title: notification.title, body: notification.message });
-          } else {
-            reportNotificationError('permission not granted');
-          }
+          const { invoke } = await import('@tauri-apps/api/core');
+          await invoke('show_toast_window', {
+            title: notification.title,
+            body: notification.message,
+            link: notification.link ?? null,
+          });
         } catch (e) {
-          // Older desktop binaries lack the plugin — the in-app toast still shows.
-          logger.errorThrottled('Tauri notification failed:', e);
-          reportNotificationError(
-            e instanceof Error ? `${e.message}\n${e.stack ?? ''}` : String(e),
-          );
+          // Older desktop binaries lack the command — fall back to the Windows
+          // toast plugin (registered AUMID makes it displayable there too).
+          try {
+            const { sendNotification } = await import('@tauri-apps/plugin-notification');
+            await sendNotification({ title: notification.title, body: notification.message });
+          } catch (e2) {
+            logger.errorThrottled('Tauri notification failed:', e2);
+            reportNotificationError(
+              e2 instanceof Error ? `${e2.message}\n${e2.stack ?? ''}` : String(e2),
+            );
+          }
+          reportNotificationError(e instanceof Error ? e.message : String(e));
         }
       })();
       return;

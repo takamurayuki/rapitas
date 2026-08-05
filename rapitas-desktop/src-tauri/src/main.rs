@@ -152,6 +152,100 @@ fn open_quick_capture(app: tauri::AppHandle) -> Result<(), String> {
     show_quick_capture_window(&app)
 }
 
+// Keep in sync with the layout in app/notification-toast/page.tsx.
+const TOAST_WIDTH: f64 = 380.0;
+const TOAST_HEIGHT: f64 = 116.0;
+const TOAST_MARGIN: f64 = 16.0;
+const TOAST_TASKBAR_ALLOWANCE: f64 = 48.0; // approximate Windows taskbar height
+
+/// Tauri command: show the app's own global toast window (bottom-right,
+/// always-on-top, never takes focus). Used instead of Windows toast
+/// notifications, which are silently droppable by OS settings/focus assist.
+///
+/// The first call builds the window with the payload in the URL (an emit would
+/// race the page's listener registration); later calls reuse the hidden window
+/// and hand the payload over by event.
+#[tauri::command]
+fn show_toast_window(
+    app: tauri::AppHandle,
+    title: String,
+    body: String,
+    link: Option<String>,
+) -> Result<(), String> {
+    let payload = serde_json::json!({ "title": title, "body": body, "link": link });
+
+    let position_toast = |win: &tauri::WebviewWindow| {
+        if let Ok(Some(monitor)) = win.primary_monitor() {
+            let scale = monitor.scale_factor();
+            let size = monitor.size().to_logical::<f64>(scale);
+            let _ = win.set_position(tauri::LogicalPosition::new(
+                size.width - TOAST_WIDTH - TOAST_MARGIN,
+                size.height - TOAST_HEIGHT - TOAST_TASKBAR_ALLOWANCE - TOAST_MARGIN,
+            ));
+        }
+    };
+
+    if let Some(win) = app.get_webview_window("notification-toast") {
+        position_toast(&win);
+        let _ = win.show();
+        let _ = win.emit("rapitas:toast", payload);
+        return Ok(());
+    }
+
+    let query = format!(
+        "notification-toast?title={}&body={}&link={}",
+        urlencoding(&title),
+        urlencoding(&body),
+        urlencoding(link.as_deref().unwrap_or(""))
+    );
+    let win = tauri::WebviewWindowBuilder::new(
+        &app,
+        "notification-toast",
+        tauri::WebviewUrl::App(query.into()),
+    )
+    .title("Rapitas Notification")
+    .inner_size(TOAST_WIDTH, TOAST_HEIGHT)
+    .decorations(false)
+    .always_on_top(true)
+    .skip_taskbar(true)
+    .resizable(false)
+    // Never steal focus — a toast must not interrupt typing elsewhere.
+    .focused(false)
+    .focusable(false)
+    .build()
+    .map_err(|e| format!("Failed to create toast window: {e}"))?;
+    position_toast(&win);
+    Ok(())
+}
+
+/// Minimal percent-encoding for the toast URL query (std-only; the `url` crate
+/// is already a dependency but its form encoding differs per component).
+fn urlencoding(s: &str) -> String {
+    let mut out = String::with_capacity(s.len() * 3);
+    for b in s.as_bytes() {
+        match b {
+            b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'_' | b'.' | b'~' => {
+                out.push(*b as char)
+            }
+            _ => out.push_str(&format!("%{b:02X}")),
+        }
+    }
+    out
+}
+
+/// Tauri command: the toast body was clicked — hide the toast, bring the main
+/// window forward, and let its router navigate to the notification's link.
+#[tauri::command]
+fn toast_navigate(app: tauri::AppHandle, link: Option<String>) {
+    if let Some(win) = app.get_webview_window("notification-toast") {
+        let _ = win.hide();
+    }
+    show_main_window(&app);
+    if let (Some(main), Some(l)) = (app.get_webview_window("main"), link) {
+        let _ = main.emit("rapitas:toast-navigate", l);
+    }
+}
+
 /// Tauri command: open a URL in split-screen view using the chosen (App
 /// Settings) or native browser. `browser` is a preset key (chrome/msedge/firefox).
 #[tauri::command]
@@ -501,6 +595,8 @@ fn main() {
                 get_capture_shortcut,
                 set_capture_shortcut,
                 open_quick_capture,
+                show_toast_window,
+                toast_navigate,
                 open_split_view,
                 open_url_in_browser,
                 get_window_decorations,
@@ -551,6 +647,8 @@ fn main() {
                 get_capture_shortcut,
                 set_capture_shortcut,
                 open_quick_capture,
+                show_toast_window,
+                toast_navigate,
                 open_split_view,
                 open_url_in_browser,
                 get_window_decorations,

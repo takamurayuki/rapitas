@@ -2677,6 +2677,7 @@
   },
   "notification": {
     "open": "Open",
+    "close": "Close",
     "justNow": "Just now",
     "minutesAgo": "{count} minutes ago",
     "hoursAgo": "{count} hours ago",
