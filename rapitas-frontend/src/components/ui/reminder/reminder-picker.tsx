@@ -43,16 +43,18 @@ export function ReminderPicker({ value, onChange }: ReminderPickerProps) {
   const isInvalid = value.preset === 'custom' && resolveReminder(value) === 'invalid';
 
   const pickPreset = (preset: ReminderValue['preset']) => {
-    // Entering custom mode pre-fills today's date and the next full hour so
-    // the user normally only adjusts the time before saving.
+    // Entering custom mode pre-fills today's date and the current time
+    // (nudged one minute ahead so the prefilled value isn't already "past"),
+    // so the user normally only adjusts the time before saving.
     if (preset === 'custom' && (!value.time || !value.date)) {
-      const next = new Date(Date.now() + 60 * 60_000);
-      const hh = String(next.getHours()).padStart(2, '0');
+      const now = new Date(Date.now() + 60_000);
+      const hh = String(now.getHours()).padStart(2, '0');
+      const mm = String(now.getMinutes()).padStart(2, '0');
       onChange({
         ...value,
         preset,
         date: value.date || localDateKey(),
-        time: value.time || `${hh}:00`,
+        time: value.time || `${hh}:${mm}`,
       });
     } else {
       onChange({ ...value, preset });
