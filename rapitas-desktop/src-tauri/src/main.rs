@@ -248,6 +248,26 @@ fn show_toast_window(
     }
 
     if let Some(win) = app.get_webview_window("notification-toast") {
+        // Self-heal: if anything navigated the toast window into the app
+        // (stray click before the popup chrome was gated, etc.), send it back
+        // to the toast route and let toast_ready deliver the buffered payload.
+        let strayed = win
+            .url()
+            .map(|u| !u.path().starts_with("/notification-toast"))
+            .unwrap_or(false);
+        if strayed {
+            if let Some(state) = app.try_state::<PendingToast>() {
+                state.ready.store(false, std::sync::atomic::Ordering::SeqCst);
+                *state.pending.lock().unwrap() = Some(payload);
+            }
+            if let Ok(mut u) = win.url() {
+                u.set_path("/notification-toast");
+                u.set_query(None);
+                let _ = win.navigate(u);
+            }
+            park_toast(&win);
+            return Ok(());
+        }
         if ready {
             // Moving into place never activates the window — no focus steal.
             position_toast(&win);
@@ -635,8 +655,11 @@ fn main() {
         "--disable-features=CalculateNativeWinOcclusion \
          --disable-renderer-backgrounding \
          --disable-background-timer-throttling \
-         --disable-backgrounding-occluded-windows",
+         --disable-backgrounding-occluded-windows \
+         --autoplay-policy=no-user-gesture-required",
     );
+    // NOTE: autoplay-policy is required for the notification toast's chime —
+    // the toast window plays it without any user gesture.
 
     #[cfg(not(debug_assertions))]
     {

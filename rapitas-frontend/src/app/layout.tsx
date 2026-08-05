@@ -5,6 +5,7 @@ import KeyboardShortcuts from '@/components/common/KeyboardShortcuts';
 import { ResumableExecutionsBanner } from '@/components/common/ResumableExecutionsBanner';
 import ScheduleReminderProvider from '@/components/providers/ScheduleReminderProvider';
 import { NotificationToaster } from '@/components/notifications/notification-toaster';
+import { MainWindowOnly } from '@/components/common/main-window-only';
 import { Suspense } from 'react';
 import { ToastProvider } from '@/components/ui/toast/ToastContainer';
 import { ConfirmDialogProvider } from '@/components/ui/dialog/ConfirmDialogProvider';
@@ -155,29 +156,34 @@ export default function RootLayout({
                         </Suspense>
                         {/* <WindowResizeOptimizer /> */}
                         <AppContent>{children}</AppContent>
-                        <Suspense fallback={null}>
-                          <KeyboardShortcuts />
-                        </Suspense>
-                        <Suspense fallback={null}>
-                          <OfflineIndicatorLoader />
-                        </Suspense>
-                        <Suspense fallback={null}>
-                          <ResumableExecutionsBanner />
-                        </Suspense>
-                        <Suspense fallback={null}>
-                          <UpdateBanner />
-                        </Suspense>
-                        <GlobalErrorReporter />
-                        <Suspense fallback={null}>
-                          <SetupGate />
-                        </Suspense>
-                        <ScheduleReminderProvider />
-                        <NotificationToaster />
-                        <CacheWarmupInitializer />
-                        <Suspense fallback={null}>
-                          <SmartCommandBar />
-                        </Suspense>
-                        <TerminalProvider />
+                        {/* Global chrome is main-window-only: mounting it in the
+                            popup windows (toast, quick capture) lets shortcuts
+                            and banners hijack the popup's router. */}
+                        <MainWindowOnly>
+                          <Suspense fallback={null}>
+                            <KeyboardShortcuts />
+                          </Suspense>
+                          <Suspense fallback={null}>
+                            <OfflineIndicatorLoader />
+                          </Suspense>
+                          <Suspense fallback={null}>
+                            <ResumableExecutionsBanner />
+                          </Suspense>
+                          <Suspense fallback={null}>
+                            <UpdateBanner />
+                          </Suspense>
+                          <GlobalErrorReporter />
+                          <Suspense fallback={null}>
+                            <SetupGate />
+                          </Suspense>
+                          <ScheduleReminderProvider />
+                          <NotificationToaster />
+                          <CacheWarmupInitializer />
+                          <Suspense fallback={null}>
+                            <SmartCommandBar />
+                          </Suspense>
+                          <TerminalProvider />
+                        </MainWindowOnly>
                       </Suspense>
                     </ExternalLinksProvider>
                   </VoiceInputProvider>

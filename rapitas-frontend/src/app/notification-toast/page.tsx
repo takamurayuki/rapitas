@@ -23,6 +23,38 @@ const AUTO_HIDE_MS = 8000;
 
 const inTauri = () => typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
 
+/**
+ * Play a short two-tone chime via WebAudio — no asset file, and the window's
+ * autoplay policy allows it without a user gesture (see main.rs browser args).
+ */
+const playChime = () => {
+  try {
+    const Ctor =
+      window.AudioContext ??
+      (window as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+    if (!Ctor) return;
+    const ctx = new Ctor();
+    const play = (freq: number, at: number, dur: number) => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.value = freq;
+      gain.gain.setValueAtTime(0.0001, ctx.currentTime + at);
+      gain.gain.exponentialRampToValueAtTime(0.18, ctx.currentTime + at + 0.02);
+      gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + at + dur);
+      osc.connect(gain).connect(ctx.destination);
+      osc.start(ctx.currentTime + at);
+      osc.stop(ctx.currentTime + at + dur + 0.05);
+    };
+    // Gentle ascending fifth — audible but not alarming.
+    play(659.25, 0, 0.28); // E5
+    play(987.77, 0.16, 0.4); // B5
+    setTimeout(() => void ctx.close(), 1200);
+  } catch {
+    /* sound is best-effort */
+  }
+};
+
 /** Dismiss this toast window (no-op outside Tauri). */
 const hideToastWindow = async () => {
   if (!inTauri()) return;
@@ -52,6 +84,7 @@ export default function NotificationToastPage() {
     import('@tauri-apps/api/event').then(({ listen }) => {
       listen<ToastPayload>('rapitas:toast', (e) => {
         setPayload({ ...e.payload, link: e.payload.link || null });
+        playChime();
         armAutoHide();
       }).then((fn) => {
         unlisten = fn;
@@ -62,13 +95,20 @@ export default function NotificationToastPage() {
         .then((initial) => {
           if (initial) {
             setPayload({ ...initial, link: initial.link || null });
+            playChime();
             armAutoHide();
           }
         })
         .catch(() => {});
     });
+    // Esc dismisses, same as the × button.
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') void hideToastWindow();
+    };
+    window.addEventListener('keydown', onKey);
     return () => {
       clearTimeout(hideTimerRef.current);
+      window.removeEventListener('keydown', onKey);
       unlisten?.();
     };
   }, [armAutoHide]);
