@@ -158,13 +158,77 @@ const TOAST_HEIGHT: f64 = 116.0;
 const TOAST_MARGIN: f64 = 16.0;
 const TOAST_TASKBAR_ALLOWANCE: f64 = 48.0; // approximate Windows taskbar height
 
-/// Tauri command: show the app's own global toast window (bottom-right,
-/// always-on-top, never takes focus). Used instead of Windows toast
-/// notifications, which are silently droppable by OS settings/focus assist.
+/// Toast handoff state. `pending` buffers the latest payload while the toast
+/// page is still loading (an emit would be lost before its listener exists);
+/// `ready` flips once the page called toast_ready, after which payloads are
+/// delivered by emit alone (buffering then would replay stale toasts if the
+/// window were ever recreated).
+struct PendingToast {
+    pending: std::sync::Mutex<Option<serde_json::Value>>,
+    ready: std::sync::atomic::AtomicBool,
+}
+
+/// Position the toast at the bottom-right of the primary monitor.
+fn position_toast(win: &tauri::WebviewWindow) {
+    if let Ok(Some(monitor)) = win.primary_monitor() {
+        let scale = monitor.scale_factor();
+        let size = monitor.size().to_logical::<f64>(scale);
+        let _ = win.set_position(tauri::LogicalPosition::new(
+            size.width - TOAST_WIDTH - TOAST_MARGIN,
+            size.height - TOAST_HEIGHT - TOAST_TASKBAR_ALLOWANCE - TOAST_MARGIN,
+        ));
+    }
+}
+
+/// "Dismiss" = move the toast far off-screen, keeping it visible to Windows.
+/// hide()/show() cycles are unusable here: tao's show maps to SW_SHOW, which
+/// ACTIVATES the window (stealing focus on every notification), and a
+/// visible(false) WebView2 never finishes navigating in the first place.
+fn park_toast(win: &tauri::WebviewWindow) {
+    let _ = win.set_position(tauri::LogicalPosition::new(0.0, -10000.0));
+}
+
+/// Create the toast window parked far off-screen so its page can load out of
+/// sight. Called once during app setup (pre-warm) — creating it lazily at
+/// notification time would steal focus mid-typing, but at boot the app owns
+/// focus anyway. The page calls toast_ready when mounted; with no pending
+/// payload the window simply hides until the first notification.
 ///
-/// The first call builds the window with the payload in the URL (an emit would
-/// race the page's listener registration); later calls reuse the hidden window
-/// and hand the payload over by event.
+/// NOTE: build flags are deliberately minimal. focused(false) — with or
+/// without focusable(false)/visible(false) — leaves the WebView2 permanently
+/// stuck at about:blank (navigation never starts), so the window is created
+/// plain and focus avoidance comes from pre-warming + show()-without-set_focus.
+fn create_toast_window(app: &tauri::AppHandle) -> Result<(), String> {
+    if app.get_webview_window("notification-toast").is_some() {
+        return Ok(());
+    }
+    tauri::WebviewWindowBuilder::new(
+        app,
+        "notification-toast",
+        tauri::WebviewUrl::App("notification-toast".into()),
+    )
+    .title("Rapitas Notification")
+    .inner_size(TOAST_WIDTH, TOAST_HEIGHT)
+    .decorations(false)
+    .always_on_top(true)
+    .skip_taskbar(true)
+    .resizable(false)
+    .position(0.0, -10000.0)
+    .build()
+    .map_err(|e| format!("Failed to create toast window: {e}"))?;
+    Ok(())
+}
+
+/// Tauri command: show the app's own global toast window (bottom-right,
+/// always-on-top). Used instead of Windows toast notifications, which are
+/// silently droppable by OS settings/focus assist.
+///
+/// The payload goes through the PendingToast slot AND an emit — the slot
+/// covers a page still loading (it pulls via toast_ready), the emit covers the
+/// common case of the pre-warmed page already listening.
+/// NOTE: the payload must NOT travel in the URL — WebviewUrl::App takes a
+/// PathBuf, and a query string is an invalid Windows path (the window then
+/// sticks at about:blank).
 #[tauri::command]
 fn show_toast_window(
     app: tauri::AppHandle,
@@ -173,64 +237,56 @@ fn show_toast_window(
     link: Option<String>,
 ) -> Result<(), String> {
     let payload = serde_json::json!({ "title": title, "body": body, "link": link });
-
-    let position_toast = |win: &tauri::WebviewWindow| {
-        if let Ok(Some(monitor)) = win.primary_monitor() {
-            let scale = monitor.scale_factor();
-            let size = monitor.size().to_logical::<f64>(scale);
-            let _ = win.set_position(tauri::LogicalPosition::new(
-                size.width - TOAST_WIDTH - TOAST_MARGIN,
-                size.height - TOAST_HEIGHT - TOAST_TASKBAR_ALLOWANCE - TOAST_MARGIN,
-            ));
+    let ready = app
+        .try_state::<PendingToast>()
+        .map(|s| s.ready.load(std::sync::atomic::Ordering::SeqCst))
+        .unwrap_or(false);
+    if !ready {
+        if let Some(state) = app.try_state::<PendingToast>() {
+            *state.pending.lock().unwrap() = Some(payload.clone());
         }
-    };
+    }
 
     if let Some(win) = app.get_webview_window("notification-toast") {
-        position_toast(&win);
-        let _ = win.show();
-        let _ = win.emit("rapitas:toast", payload);
+        if ready {
+            // Moving into place never activates the window — no focus steal.
+            position_toast(&win);
+            let _ = win.emit("rapitas:toast", payload);
+        }
+        // Not ready: the page is still loading and will pull the pending
+        // payload (and move into place) via toast_ready.
         return Ok(());
     }
-
-    let query = format!(
-        "notification-toast?title={}&body={}&link={}",
-        urlencoding(&title),
-        urlencoding(&body),
-        urlencoding(link.as_deref().unwrap_or(""))
-    );
-    let win = tauri::WebviewWindowBuilder::new(
-        &app,
-        "notification-toast",
-        tauri::WebviewUrl::App(query.into()),
-    )
-    .title("Rapitas Notification")
-    .inner_size(TOAST_WIDTH, TOAST_HEIGHT)
-    .decorations(false)
-    .always_on_top(true)
-    .skip_taskbar(true)
-    .resizable(false)
-    // Never steal focus — a toast must not interrupt typing elsewhere.
-    .focused(false)
-    .focusable(false)
-    .build()
-    .map_err(|e| format!("Failed to create toast window: {e}"))?;
-    position_toast(&win);
-    Ok(())
+    // Pre-warm missing (e.g. it failed at boot) — recreate; the page will pull
+    // the pending payload via toast_ready when it finishes loading.
+    create_toast_window(&app)
 }
 
-/// Minimal percent-encoding for the toast URL query (std-only; the `url` crate
-/// is already a dependency but its form encoding differs per component).
-fn urlencoding(s: &str) -> String {
-    let mut out = String::with_capacity(s.len() * 3);
-    for b in s.as_bytes() {
-        match b {
-            b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'_' | b'.' | b'~' => {
-                out.push(*b as char)
-            }
-            _ => out.push_str(&format!("%{b:02X}")),
+/// Tauri command: the toast page finished mounting. With a pending payload,
+/// move the window into place and show it; without one (boot pre-warm) just
+/// park it hidden until the first notification.
+#[tauri::command]
+fn toast_ready(app: tauri::AppHandle) -> Option<serde_json::Value> {
+    let payload = app.try_state::<PendingToast>().and_then(|s| {
+        s.ready.store(true, std::sync::atomic::Ordering::SeqCst);
+        s.pending.lock().unwrap().take()
+    });
+    if let Some(win) = app.get_webview_window("notification-toast") {
+        if payload.is_some() {
+            position_toast(&win);
+        } else {
+            park_toast(&win);
         }
     }
-    out
+    payload
+}
+
+/// Tauri command: dismiss the toast (auto-hide timer or the × button).
+#[tauri::command]
+fn toast_dismiss(app: tauri::AppHandle) {
+    if let Some(win) = app.get_webview_window("notification-toast") {
+        park_toast(&win);
+    }
 }
 
 /// Tauri command: the toast body was clicked — hide the toast, bring the main
@@ -238,7 +294,7 @@ fn urlencoding(s: &str) -> String {
 #[tauri::command]
 fn toast_navigate(app: tauri::AppHandle, link: Option<String>) {
     if let Some(win) = app.get_webview_window("notification-toast") {
-        let _ = win.hide();
+        park_toast(&win);
     }
     show_main_window(&app);
     if let (Some(main), Some(l)) = (app.get_webview_window("main"), link) {
@@ -589,6 +645,10 @@ fn main() {
             .plugin(tauri_plugin_notification::init())
             .manage(Mutex::new(release::BackendState { child: None }))
             .manage(terminal::TerminalManager::new())
+            .manage(PendingToast {
+                pending: std::sync::Mutex::new(None),
+                ready: std::sync::atomic::AtomicBool::new(false),
+            })
             .invoke_handler(tauri::generate_handler![
                 get_global_shortcut,
                 set_global_shortcut,
@@ -596,6 +656,8 @@ fn main() {
                 set_capture_shortcut,
                 open_quick_capture,
                 show_toast_window,
+                toast_ready,
+                toast_dismiss,
                 toast_navigate,
                 open_split_view,
                 open_url_in_browser,
@@ -617,6 +679,10 @@ fn main() {
                 register_aumid_for_toasts(app);
                 setup_tray(app)?;
                 setup_global_shortcut(app)?;
+                // Pre-warm the toast window while boot owns the focus anyway.
+                if let Err(e) = create_toast_window(app.handle()) {
+                    eprintln!("[Toast] pre-warm failed: {e}");
+                }
                 Ok(())
             })
             .on_window_event(|window, event| {
@@ -641,6 +707,10 @@ fn main() {
             .plugin(tauri_plugin_process::init())
             .plugin(tauri_plugin_notification::init())
             .manage(terminal::TerminalManager::new())
+            .manage(PendingToast {
+                pending: std::sync::Mutex::new(None),
+                ready: std::sync::atomic::AtomicBool::new(false),
+            })
             .invoke_handler(tauri::generate_handler![
                 get_global_shortcut,
                 set_global_shortcut,
@@ -648,6 +718,8 @@ fn main() {
                 set_capture_shortcut,
                 open_quick_capture,
                 show_toast_window,
+                toast_ready,
+                toast_dismiss,
                 toast_navigate,
                 open_split_view,
                 open_url_in_browser,
@@ -668,6 +740,10 @@ fn main() {
                 register_aumid_for_toasts(app);
                 setup_tray(app)?;
                 setup_global_shortcut(app)?;
+                // Pre-warm the toast window while boot owns the focus anyway.
+                if let Err(e) = create_toast_window(app.handle()) {
+                    eprintln!("[Toast] pre-warm failed: {e}");
+                }
                 Ok(())
             })
             .on_window_event(|window, event| {

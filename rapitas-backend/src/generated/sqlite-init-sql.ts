@@ -1171,6 +1171,17 @@ CREATE TABLE "Notification" (
 );
 
 -- CreateTable
+CREATE TABLE "Memo" (
+    "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    "content" TEXT NOT NULL,
+    "remindAt" DATETIME,
+    "remindedAt" DATETIME,
+    "isDone" BOOLEAN NOT NULL DEFAULT false,
+    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" DATETIME NOT NULL
+);
+
+-- CreateTable
 CREATE TABLE "UserSettings" (
     "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
     "developerModeDefault" BOOLEAN NOT NULL DEFAULT false,
@@ -1810,6 +1821,9 @@ CREATE INDEX "PaidLeaveBalance_fiscalYear_idx" ON "PaidLeaveBalance"("fiscalYear
 
 -- CreateIndex
 CREATE UNIQUE INDEX "PaidLeaveBalance_userId_fiscalYear_key" ON "PaidLeaveBalance"("userId", "fiscalYear");
+
+-- CreateIndex
+CREATE INDEX "Memo_remindAt_idx" ON "Memo"("remindAt");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "BacklogSchedule_kind_key" ON "BacklogSchedule"("kind");

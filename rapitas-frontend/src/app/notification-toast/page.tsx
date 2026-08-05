@@ -23,13 +23,13 @@ const AUTO_HIDE_MS = 8000;
 
 const inTauri = () => typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
 
-/** Hide this toast window (no-op outside Tauri). */
+/** Dismiss this toast window (no-op outside Tauri). */
 const hideToastWindow = async () => {
   if (!inTauri()) return;
-  const { getCurrentWindow } = await import('@tauri-apps/api/window');
-  await getCurrentWindow()
-    .hide()
-    .catch(() => {});
+  // Parks the window off-screen instead of hide(): tao's show() would steal
+  // focus on the next notification, and hidden WebView2s stop navigating.
+  const { invoke } = await import('@tauri-apps/api/core');
+  await invoke('toast_dismiss').catch(() => {});
 };
 
 export default function NotificationToastPage() {
@@ -42,25 +42,31 @@ export default function NotificationToastPage() {
     hideTimerRef.current = setTimeout(() => void hideToastWindow(), AUTO_HIDE_MS);
   }, []);
 
-  // Initial payload from the creation URL; later payloads via event.
+  // Initial payload is PULLED via toast_ready once mounted (the window is
+  // created hidden; the command reveals it) — a URL query can't carry it
+  // (WebviewUrl::App treats the path as a PathBuf) and an emit at creation
+  // time races this listener's registration. Later payloads arrive by event.
   useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const title = params.get('title');
-    if (title) {
-      setPayload({ title, body: params.get('body') ?? '', link: params.get('link') || null });
-      armAutoHide();
-    }
+    if (!inTauri()) return;
     let unlisten: (() => void) | undefined;
-    if (inTauri()) {
-      import('@tauri-apps/api/event').then(({ listen }) => {
-        listen<ToastPayload>('rapitas:toast', (e) => {
-          setPayload({ ...e.payload, link: e.payload.link || null });
-          armAutoHide();
-        }).then((fn) => {
-          unlisten = fn;
-        });
+    import('@tauri-apps/api/event').then(({ listen }) => {
+      listen<ToastPayload>('rapitas:toast', (e) => {
+        setPayload({ ...e.payload, link: e.payload.link || null });
+        armAutoHide();
+      }).then((fn) => {
+        unlisten = fn;
       });
-    }
+    });
+    import('@tauri-apps/api/core').then(({ invoke }) => {
+      invoke<ToastPayload | null>('toast_ready')
+        .then((initial) => {
+          if (initial) {
+            setPayload({ ...initial, link: initial.link || null });
+            armAutoHide();
+          }
+        })
+        .catch(() => {});
+    });
     return () => {
       clearTimeout(hideTimerRef.current);
       unlisten?.();

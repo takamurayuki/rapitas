@@ -105,9 +105,10 @@ export function useBrowserNotifications(options: UseBrowserNotificationsOptions 
     if (!REMINDER_TYPES.has(notification.type) && document.hasFocus()) return;
 
     if (isTauri()) {
-      // The app's OWN always-on-top toast window — not a Windows toast, which
-      // the OS can silently drop (unregistered AUMID, focus assist, per-app
-      // settings) and which WebView2's Notification API can't produce anyway.
+      // The app's OWN always-on-top toast window — per user decision, Windows
+      // toasts are not used at all: the OS can silently drop them (AUMID,
+      // focus assist, per-app settings) and WebView2's Notification API is
+      // non-functional anyway.
       void (async () => {
         try {
           const { invoke } = await import('@tauri-apps/api/core');
@@ -117,17 +118,7 @@ export function useBrowserNotifications(options: UseBrowserNotificationsOptions 
             link: notification.link ?? null,
           });
         } catch (e) {
-          // Older desktop binaries lack the command — fall back to the Windows
-          // toast plugin (registered AUMID makes it displayable there too).
-          try {
-            const { sendNotification } = await import('@tauri-apps/plugin-notification');
-            await sendNotification({ title: notification.title, body: notification.message });
-          } catch (e2) {
-            logger.errorThrottled('Tauri notification failed:', e2);
-            reportNotificationError(
-              e2 instanceof Error ? `${e2.message}\n${e2.stack ?? ''}` : String(e2),
-            );
-          }
+          logger.errorThrottled('Toast window failed:', e);
           reportNotificationError(e instanceof Error ? e.message : String(e));
         }
       })();

@@ -26,6 +26,12 @@ type EventHandler = (event: MessageEvent) => void;
 type ConnectionListener = (connected: boolean) => void;
 
 const RECONNECT_DELAY_MS = 5000;
+const WATCHDOG_INTERVAL_MS = 30_000;
+// The server pings every 60s — two missed pings means the link is dead even
+// if the EventSource object still claims to be OPEN (observed after backend
+// restarts: the force-closed socket never surfaces an error to the client,
+// leaving a zombie connection that silently drops every notification).
+const STALL_THRESHOLD_MS = 150_000;
 
 class SharedEventSourceManager {
   private es: EventSource | null = null;
@@ -37,8 +43,14 @@ class SharedEventSourceManager {
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
   /** True while the page is hidden; prevents auto-reconnect until visible again. */
   private paused = false;
+  /** Timestamp of the last received SSE event (any type, including pings). */
+  private lastEventAt = 0;
+  private watchdogTimer: ReturnType<typeof setInterval> | null = null;
 
   constructor() {
+    // Always listen for server pings — they are the liveness signal the
+    // watchdog measures, independent of what the app subscribes to.
+    this.boundTypes.add('ping');
     if (typeof document !== 'undefined') {
       // Primary: browser visibilitychange (covers browser tabs + most Tauri cases).
       document.addEventListener('visibilitychange', () => {
@@ -93,6 +105,7 @@ class SharedEventSourceManager {
     set.add(handler);
 
     this.ensureConnected();
+    this.startWatchdog();
     this.bindType(eventType);
 
     return () => {
@@ -145,14 +158,41 @@ class SharedEventSourceManager {
     this.ensureConnected();
   }
 
+  /**
+   * Liveness watchdog: the pause/visibility machinery and EventSource's own
+   * retry logic both have silent failure modes (a backend restart can leave a
+   * zombie connection that never errors). Rebuild whenever the connection is
+   * missing or no event — pings included — has arrived within the threshold.
+   */
+  private startWatchdog(): void {
+    if (this.watchdogTimer || typeof window === 'undefined') return;
+    this.watchdogTimer = setInterval(() => {
+      if (this.paused) return;
+      const stalled = this.es !== null && Date.now() - this.lastEventAt > STALL_THRESHOLD_MS;
+      if (this.es === null || stalled) {
+        logger.warn(
+          stalled ? 'Shared SSE stalled — rebuilding' : 'Shared SSE missing — reconnecting',
+        );
+        this.es?.close();
+        this.es = null;
+        this.setConnected(false);
+        this.ensureConnected();
+      }
+    }, WATCHDOG_INTERVAL_MS);
+  }
+
   private ensureConnected(): void {
     if (this.paused || this.es || typeof window === 'undefined') return;
 
     // `*` subscribes to ALL channels (realtime-service checks subscriptions.has('*')).
     const es = new EventSource(`${API_BASE_URL}/events/subscribe/*`);
     this.es = es;
+    // A fresh connection gets a full stall window before the watchdog may
+    // judge it — otherwise a reconnect could be killed before its first ping.
+    this.lastEventAt = Date.now();
 
     es.onopen = () => {
+      this.lastEventAt = Date.now();
       this.setConnected(true);
     };
 
@@ -193,6 +233,7 @@ class SharedEventSourceManager {
     // One DOM listener per type per connection; handlers resolve at dispatch
     // time so late subscribers are included without re-attaching.
     es.addEventListener(eventType, (event) => {
+      this.lastEventAt = Date.now();
       const set = this.handlers.get(eventType);
       if (!set) return;
       for (const handler of set) {
