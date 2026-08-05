@@ -4,6 +4,41 @@
 // rather than recreating a monolithic schema.prisma.
 // ============================================================================
 
+// Unified study goal — merges the former LearningGoal (skill acquisition) and
+// ExamGoal (exam with a date and score). `type` selects which optional field
+// group applies. Legacy rows are copied in once at startup by
+// services/learning/study-goal-migration.ts; the old tables stay untouched as
+// a safety net and for legacy imports.
+model StudyGoal {
+  id            Int       @id @default(autoincrement())
+  type          String    @default("skill") // skill | exam
+  title         String
+  description   String?
+  deadline      DateTime? // exam: 試験日 / skill: 達成期限
+  status        String    @default("active") // active | completed | archived
+  color         String    @default("#10B981")
+  icon          String?
+  dailyMinutes  Int       @default(60) // daily study quota for pace tracking
+  categoryId    Int?
+  themeId       Int?
+  // Skill-type fields
+  currentLevel  String?
+  targetLevel   String?
+  generatedPlan String? // JSON of the generated learning plan
+  isApplied     Boolean   @default(false)
+  // Exam-type fields
+  targetScore   String?
+  actualScore   String?
+  // Migration provenance (idempotency + traceability)
+  legacySource  String? // 'learning_goal' | 'exam_goal'
+  legacyId      Int?
+  tasks         Task[]
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@unique([legacySource, legacyId])
+}
+
 model ExamGoal {
   id            Int       @id @default(autoincrement())
   name          String
@@ -26,6 +61,25 @@ model StudyStreak {
   tasksCompleted  Int      @default(0)
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
+}
+
+// One recorded block of study time (manual log, completed pomodoro on a
+// study-goal task, or a vocab review session). Feeds the StudyStreak daily
+// aggregate and gives the roadmap analytics per-goal attribution
+// (interleaving / Zeigarnik-resume rules need to know WHICH goal was studied).
+// Deliberately no FK to StudyGoal: history must survive goal deletion, same
+// rationale as VocabReviewLog.
+model StudySession {
+  id        Int      @id @default(autoincrement())
+  goalId    Int? // StudyGoal.id at recording time (no FK by design)
+  minutes   Int
+  source    String   @default("manual") // manual | pomodoro | vocab
+  note      String?
+  studiedAt DateTime @default(now())
+  createdAt DateTime @default(now())
+
+  @@index([studiedAt])
+  @@index([goalId, studiedAt])
 }
 
 // Learning goals (flexible goal setting → automatic task generation)

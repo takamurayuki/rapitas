@@ -405,6 +405,7 @@ CREATE TABLE "Task" (
     "projectId" INTEGER,
     "milestoneId" INTEGER,
     "examGoalId" INTEGER,
+    "studyGoalId" INTEGER,
     "isDeveloperMode" BOOLEAN NOT NULL DEFAULT false,
     "isAiTaskAnalysis" BOOLEAN NOT NULL DEFAULT false,
     "agentGenerated" BOOLEAN NOT NULL DEFAULT false,
@@ -443,6 +444,7 @@ CREATE TABLE "Task" (
     CONSTRAINT "Task_projectId_fkey" FOREIGN KEY ("projectId") REFERENCES "Project" ("id") ON DELETE SET NULL ON UPDATE CASCADE,
     CONSTRAINT "Task_milestoneId_fkey" FOREIGN KEY ("milestoneId") REFERENCES "Milestone" ("id") ON DELETE SET NULL ON UPDATE CASCADE,
     CONSTRAINT "Task_examGoalId_fkey" FOREIGN KEY ("examGoalId") REFERENCES "ExamGoal" ("id") ON DELETE SET NULL ON UPDATE CASCADE,
+    CONSTRAINT "Task_studyGoalId_fkey" FOREIGN KEY ("studyGoalId") REFERENCES "StudyGoal" ("id") ON DELETE SET NULL ON UPDATE CASCADE,
     CONSTRAINT "Task_sourceTaskId_fkey" FOREIGN KEY ("sourceTaskId") REFERENCES "Task" ("id") ON DELETE SET NULL ON UPDATE CASCADE
 );
 
@@ -775,6 +777,31 @@ CREATE TABLE "GitRetryMetric" (
 );
 
 -- CreateTable
+CREATE TABLE "StudyGoal" (
+    "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    "type" TEXT NOT NULL DEFAULT 'skill',
+    "title" TEXT NOT NULL,
+    "description" TEXT,
+    "deadline" DATETIME,
+    "status" TEXT NOT NULL DEFAULT 'active',
+    "color" TEXT NOT NULL DEFAULT '#10B981',
+    "icon" TEXT,
+    "dailyMinutes" INTEGER NOT NULL DEFAULT 60,
+    "categoryId" INTEGER,
+    "themeId" INTEGER,
+    "currentLevel" TEXT,
+    "targetLevel" TEXT,
+    "generatedPlan" TEXT,
+    "isApplied" BOOLEAN NOT NULL DEFAULT false,
+    "targetScore" TEXT,
+    "actualScore" TEXT,
+    "legacySource" TEXT,
+    "legacyId" INTEGER,
+    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" DATETIME NOT NULL
+);
+
+-- CreateTable
 CREATE TABLE "ExamGoal" (
     "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
     "name" TEXT NOT NULL,
@@ -797,6 +824,17 @@ CREATE TABLE "StudyStreak" (
     "tasksCompleted" INTEGER NOT NULL DEFAULT 0,
     "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" DATETIME NOT NULL
+);
+
+-- CreateTable
+CREATE TABLE "StudySession" (
+    "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    "goalId" INTEGER,
+    "minutes" INTEGER NOT NULL,
+    "source" TEXT NOT NULL DEFAULT 'manual',
+    "note" TEXT,
+    "studiedAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
 -- CreateTable
@@ -1624,7 +1662,16 @@ CREATE INDEX "GitRetryMetric_variant_idx" ON "GitRetryMetric"("variant");
 CREATE INDEX "GitRetryMetric_createdAt_idx" ON "GitRetryMetric"("createdAt");
 
 -- CreateIndex
+CREATE UNIQUE INDEX "StudyGoal_legacySource_legacyId_key" ON "StudyGoal"("legacySource", "legacyId");
+
+-- CreateIndex
 CREATE UNIQUE INDEX "StudyStreak_date_key" ON "StudyStreak"("date");
+
+-- CreateIndex
+CREATE INDEX "StudySession_studiedAt_idx" ON "StudySession"("studiedAt");
+
+-- CreateIndex
+CREATE INDEX "StudySession_goalId_studiedAt_idx" ON "StudySession"("goalId", "studiedAt");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "HabitLog_habitId_date_key" ON "HabitLog"("habitId", "date");
