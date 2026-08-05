@@ -75,22 +75,8 @@ export function MemoCaptureForm({ savingRef }: MemoCaptureFormProps) {
 
   return (
     <>
-      <textarea
-        ref={contentRef}
-        autoFocus
-        value={content}
-        onChange={(e) => setContent(e.target.value)}
-        onKeyDown={(e) => {
-          if (e.key === 'Enter' && !e.shiftKey) {
-            e.preventDefault();
-            void submit();
-          }
-        }}
-        placeholder={t('placeholder')}
-        aria-label={t('contentAria')}
-        className="flex-1 min-h-0 resize-none rounded-lg bg-zinc-50 dark:bg-zinc-800/60 px-2.5 py-2 text-sm text-zinc-700 dark:text-zinc-300 placeholder:text-zinc-400 dark:placeholder:text-zinc-500 focus:outline-none"
-      />
-      {/* Reminder row — presets as chips, custom reveals a datetime input. */}
+      {/* Reminder row — presets as chips, custom reveals a datetime input.
+          Sits ABOVE the text field so 通知の有無 is decided before typing. */}
       <div className="flex shrink-0 items-center gap-1.5">
         <AlarmClock
           className="h-3.5 w-3.5 shrink-0 text-zinc-400 dark:text-zinc-500"
@@ -116,6 +102,21 @@ export function MemoCaptureForm({ savingRef }: MemoCaptureFormProps) {
           />
         )}
       </div>
+      <textarea
+        ref={contentRef}
+        autoFocus
+        value={content}
+        onChange={(e) => setContent(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' && !e.shiftKey) {
+            e.preventDefault();
+            void submit();
+          }
+        }}
+        placeholder={t('placeholder')}
+        aria-label={t('contentAria')}
+        className="flex-1 min-h-0 resize-none rounded-lg bg-zinc-50 dark:bg-zinc-800/60 px-2.5 py-2 text-sm text-zinc-700 dark:text-zinc-300 placeholder:text-zinc-400 dark:placeholder:text-zinc-500 focus:outline-none"
+      />
       <CaptureStatusBar status={status} />
     </>
   );

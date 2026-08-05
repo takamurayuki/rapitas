@@ -40,6 +40,7 @@ import {
   Lightbulb,
   Bug,
   Inbox,
+  Notebook,
   NotebookTabs,
   NotepadText,
   Package,
@@ -114,14 +115,15 @@ export default function Header() {
       shortcut: h.getShortcutLabel('dashboard'),
     },
     {
-      href: '/notes',
-      label: t('notes'),
-      icon: NotebookTabs,
-    },
-    {
-      href: '/memos',
-      label: t('memos'),
-      icon: NotepadText,
+      // Notes (documents) and memos (tiny records w/ reminders) are sibling
+      // "writing things down" features — grouped under one umbrella.
+      href: '#',
+      label: t('notesMemos'),
+      icon: Notebook,
+      children: [
+        { href: '/notes', label: t('notes'), icon: NotebookTabs },
+        { href: '/memos', label: t('memos'), icon: NotepadText },
+      ],
     },
     {
       href: '#',
