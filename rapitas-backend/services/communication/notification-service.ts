@@ -19,6 +19,7 @@ export type NotificationType =
   | 'pomodoro_completed'
   | 'habit_reminder'
   | 'schedule_reminder'
+  | 'memo_reminder'
   | 'contradiction_detected'
   | 'consolidation_completed'
   | 'system';

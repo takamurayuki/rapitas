@@ -66,6 +66,7 @@ export { authRoutes } from './system/auth';
 export { sseRoutes } from './system/sse';
 export { developerModeRoutes } from './system/developer-mode';
 export { notificationsRoutes } from './system/notifications';
+export { memosRoutes } from './system/memos';
 export { searchRoutes } from './system/search';
 export { urlMetadataRoutes } from './system/url-metadata';
 export { directoriesRoutes } from './system/directories';

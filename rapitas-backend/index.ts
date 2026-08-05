@@ -192,6 +192,7 @@ import { startBacklogScheduler } from './services/scheduling/backlog-scheduler';
 import { startBackupScheduler } from './services/system/backup-scheduler';
 import { startWorktreeCleanupScheduler } from './services/scheduling/worktree-cleanup-scheduler';
 import { startDecisionTraceConsistencyScheduler } from './services/scheduling/decision-trace-consistency-scheduler';
+import { startMemoReminderScheduler } from './services/scheduling/memo-reminder-scheduler';
 import { AutoMergeWatcher } from './services/workflow/auto-merge-watcher';
 import { startWorkflowReconciler } from './services/workflow/workflow-reconciler';
 
@@ -273,6 +274,7 @@ const runStartupWarmup = async (): Promise<void> => {
   await timed('decision-trace-consistency-scheduler', () =>
     startDecisionTraceConsistencyScheduler(),
   );
+  await timed('memo-reminder-scheduler', () => startMemoReminderScheduler());
   await timed('auto-merge-watcher', () => AutoMergeWatcher.getInstance().start());
   await timed('workflow-reconciler', () => startWorkflowReconciler());
 

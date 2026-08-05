@@ -56,6 +56,7 @@ import {
   sseRoutes,
   developerModeRoutes,
   notificationsRoutes,
+  memosRoutes,
   searchRoutes,
   urlMetadataRoutes,
   smartActionRoutes,
@@ -185,6 +186,7 @@ export function registerAllRoutes(app: Elysia): void {
   app.use(sseRoutes);
   app.use(developerModeRoutes);
   app.use(notificationsRoutes);
+  app.use(memosRoutes);
   app.use(searchRoutes);
   app.use(urlMetadataRoutes);
   app.use(rateLimitRoutes);
