@@ -1780,6 +1780,39 @@ async function restartBackend(processAlreadyExited = false) {
   crashTimestamps = []; // フルリスタート時はクラッシュカウンターをリセット
   startBackend();
   console.log("✅ Backend restart completed.");
+
+  // バックエンド再起動はユーザーが「コード変更を反映したい」タイミング。
+  // フロントは長寿命プロセスで .next キャッシュだけが git HEAD から乖離していく
+  // (2026-08-05 の CPU スピンはこれ: 再起動ボタンでは backend しか再起動されず
+  // stale cache が生き残った)。乖離を検知したらフロントも道連れでリサイクルする。
+  if (frontendNextCacheIsStale()) {
+    console.log(
+      "🔄 git HEAD drifted from the frontend's .next build — recycling frontend too...",
+    );
+    restartFrontend("next-cache-drift-after-backend-restart").catch((err) =>
+      console.error("❌ Frontend recycle failed:", err.message || err),
+    );
+  }
+}
+
+/**
+ * フロントエンドの .next ビルド基準(NEXT_BUILD_REF_FILE)が現在の git HEAD から
+ * 乖離しているかを返す。判定不能時は false(誤リサイクルしない安全側)。
+ *
+ * @returns {boolean} 乖離していれば true / キャッシュが陳腐化していれば true
+ */
+function frontendNextCacheIsStale() {
+  try {
+    const head = execSync("git rev-parse HEAD", {
+      cwd: REPO_ROOT,
+      encoding: "utf8",
+    }).trim();
+    if (!head) return false;
+    const lastRef = fs.readFileSync(NEXT_BUILD_REF_FILE, "utf8").trim();
+    return Boolean(lastRef) && lastRef !== head;
+  } catch {
+    return false;
+  }
 }
 
 /**
@@ -2253,6 +2286,28 @@ let frontendBreachCount = 0;
 let frontendStartedAt = 0;
 let isFrontendRestarting = false;
 
+// ---- CPU スピン watchdog(既定 ON) ----
+// RSS watchdog と違い CPU スピンは「持続時間」で正当なコンパイルと確実に区別できる:
+// 初回コンパイルも大規模 HMR も数分で終わるが、stale .next 起因の GC スラッシングは
+// 何十分でも 1 コアを張り付かせ続ける(実測: 71-81% を 10 分以上)。誤検知時の
+// コストもリサイクル 1 回(再コンパイル 1-2 分)で安全なので、こちらは既定で有効。
+const FRONTEND_CPU_WATCHDOG_ENABLED =
+  process.env.RAPITAS_FRONTEND_CPU_WATCHDOG !== "0" &&
+  process.env.RAPITAS_FRONTEND_CPU_WATCHDOG !== "false";
+// 1 コア換算の使用率(%)。60 秒サンプル毎にこの値以上なら「スピンの疑い」1 回。
+const FRONTEND_CPU_SPIN_PCT = Number(
+  process.env.RAPITAS_FRONTEND_CPU_SPIN_PCT || 60,
+);
+// 連続超過サンプル数。60 秒 × 10 = 10 分持続で確定(コンパイルはここまで続かない)。
+const FRONTEND_CPU_SPIN_BREACHES = Number(
+  process.env.RAPITAS_FRONTEND_CPU_SPIN_BREACHES || 10,
+);
+// 起動直後の初回コンパイルを判定対象から外す uptime ガード。
+const FRONTEND_CPU_MIN_UPTIME_MS = 10 * 60 * 1000;
+let frontendCpuBreachCount = 0;
+// 前回サンプルの累積 CPU 秒(デルタ計算用)。リサイクル/取得失敗で null に戻す。
+let frontendCpuLastSample = null;
+
 // .next-build-ref: 最後に .next をビルドした git HEAD を記録するマーカー。
 // .next 自体ではなく gitignore 済みの .data 配下に置くことで、.next を削除しても残り、
 // 次回起動時の「HEAD が変わったか」の比較対象になる(PRISMA_PREPARE_STAMP と同じ方式)。
@@ -2267,11 +2322,15 @@ const NEXT_BUILD_REF_FILE = path.join(DESKTOP_DATA_DIR, ".next-build-ref");
  * 再起動」を自動化する: git HEAD が前回ビルドから変化していたら .next と node_modules/.cache
  * を削除する。HEAD 不変(=通常のファイル編集や HMR では HEAD は動かない)なら消さないので、
  * 通常の再起動は従来どおり高速。RAPITAS_NEXT_AUTOCLEAN=0 で無効化できる。
+ *
+ * @param {boolean} force HEAD 比較を省略して無条件に削除する(CPU スピン検知時 —
+ *   HEAD が動いていなくてもキャッシュ破損の実績があるため) / 強制削除フラグ
  */
-function maybeClearStaleNextCache() {
+function maybeClearStaleNextCache(force = false) {
   if (
-    process.env.RAPITAS_NEXT_AUTOCLEAN === "0" ||
-    process.env.RAPITAS_NEXT_AUTOCLEAN === "false"
+    !force &&
+    (process.env.RAPITAS_NEXT_AUTOCLEAN === "0" ||
+      process.env.RAPITAS_NEXT_AUTOCLEAN === "false")
   ) {
     return;
   }
@@ -2284,11 +2343,13 @@ function maybeClearStaleNextCache() {
     }).trim();
   } catch {
     // git が使えない(非 git/CI 環境など) → fail-open。誤って毎回 .next を消さない。
-    return;
+    // ただし force(スピン確定)時は git 有無に関係なく削除に進む。
+    if (!force) return;
   }
-  if (!head) return;
+  if (!head && !force) return;
 
   const writeRef = () => {
+    if (!head) return; // 基準が取れない時はマーカーを触らない
     try {
       fs.mkdirSync(DESKTOP_DATA_DIR, { recursive: true });
       fs.writeFileSync(NEXT_BUILD_REF_FILE, head);
@@ -2312,10 +2373,12 @@ function maybeClearStaleNextCache() {
   }
 
   // HEAD が前回ビルドと一致 → キャッシュは整合。消さずに高速起動。
-  if (lastRef && lastRef === head) return;
+  if (!force && lastRef && lastRef === head) return;
 
   console.log(
-    `🧹 git HEAD changed since last frontend build (${lastRef.slice(0, 7) || "none"} → ${head.slice(0, 7)}); clearing stale .next cache to prevent CPU spin...`,
+    force
+      ? "🧹 Force-clearing .next cache (frontend CPU spin detected)..."
+      : `🧹 git HEAD changed since last frontend build (${lastRef.slice(0, 7) || "none"} → ${head.slice(0, 7)}); clearing stale .next cache to prevent CPU spin...`,
   );
   try {
     fs.rmSync(nextDir, { recursive: true, force: true });
@@ -2390,6 +2453,30 @@ function getRssMbForPids(pids) {
 }
 
 /**
+ * 指定 PID 群の累積 CPU 時間(カーネル+ユーザー)の合計を秒で返す (Windows 専用)。
+ *
+ * @param {number[]} pids 対象 PID 配列 / 対象プロセスID
+ * @returns {number} 累積 CPU 秒。取得失敗時は -1。/ 合計CPU時間(秒)。失敗時は -1。
+ */
+function getCpuSecondsForPids(pids) {
+  if (!pids.length) return -1;
+  const filter = pids.map((p) => `ProcessId=${p}`).join(" OR ");
+  // KernelModeTime/UserModeTime は 100ns 単位 → 1e7 で秒に換算。
+  const script = `((Get-CimInstance Win32_Process -Filter "${filter}" | ForEach-Object { $_.KernelModeTime + $_.UserModeTime }) | Measure-Object -Sum).Sum`;
+  try {
+    const out = execFileSync(
+      "powershell.exe",
+      ["-NoProfile", "-NonInteractive", "-Command", script],
+      { encoding: "utf8", stdio: ["pipe", "pipe", "ignore"] },
+    );
+    const hundredNs = Number((out || "").trim());
+    return Number.isFinite(hundredNs) ? hundredNs / 1e7 : -1;
+  } catch {
+    return -1;
+  }
+}
+
+/**
  * 指定プロセスの全子孫 PID(自身を含む)を列挙する。
  *
  * @param {number} rootPid 起点プロセスID / 起点となる PID
@@ -2428,8 +2515,10 @@ function getFrontendTreeRssMb() {
  * フロントエンド dev サーバーのみを再起動する。バックエンド(:3001)には一切触れない。
  *
  * @param {string} reason リサイクル理由(ログ用) / リサイクルのトリガー理由
+ * @param {{ forceClearCache?: boolean }} [opts] forceClearCache: HEAD 不変でも
+ *   .next を無条件削除する(スピン検知時) / キャッシュ強制削除オプション
  */
-async function restartFrontend(reason) {
+async function restartFrontend(reason, opts = {}) {
   if (isFrontendRestarting) return;
   isFrontendRestarting = true;
   try {
@@ -2440,8 +2529,14 @@ async function restartFrontend(reason) {
     if (isPortListening(actualFrontendPort)) {
       forceKillAllOnPort(actualFrontendPort);
     }
+    // リサイクルは常にキャッシュ整合性を確認してから起動する。放置すると
+    // 「プロセスは新しいがキャッシュは腐ったまま」でスピンが再発する
+    // (2026-08-05 の実例: 再起動しても 70%+ が続き .next 手動削除で解消)。
+    maybeClearStaleNextCache(opts.forceClearCache === true);
     startFrontendProcess();
     frontendBreachCount = 0;
+    frontendCpuBreachCount = 0;
+    frontendCpuLastSample = null;
     console.log(
       `✅ Frontend dev server recycled on :${actualFrontendPort} (backend untouched).`,
     );
@@ -2451,46 +2546,106 @@ async function restartFrontend(reason) {
 }
 
 /**
- * フロントエンドの RSS を定期監視し、閾値を連続超過したら自動リサイクルする。
- * RAPITAS_FRONTEND_RSS_LIMIT_MB=0 で無効化できる。
+ * RSS watchdog の 1 サンプル分の判定(有効時のみ呼ばれる)。
+ */
+function checkFrontendRss() {
+  // uptime ガード: 起動直後の初回コンパイル(高 RSS だが一過性)を絶対に kill しない。
+  // これが無いと閾値を下回れない大規模コンパイルで永久リサイクルループに陥る。
+  if (Date.now() - frontendStartedAt < FRONTEND_MIN_UPTIME_MS) {
+    return;
+  }
+  const rss = getFrontendTreeRssMb();
+  if (rss <= 0) return; // 取得失敗時は判定をスキップ
+  if (rss >= FRONTEND_RSS_LIMIT_MB) {
+    frontendBreachCount += 1;
+    console.log(
+      `⚠️  Frontend RSS ${rss}MB ≥ ${FRONTEND_RSS_LIMIT_MB}MB (breach ${frontendBreachCount}/${FRONTEND_WATCHDOG_BREACH_LIMIT}).`,
+    );
+    if (frontendBreachCount >= FRONTEND_WATCHDOG_BREACH_LIMIT) {
+      restartFrontend("memory-threshold").catch((err) =>
+        console.error("❌ Frontend auto-recycle failed:", err.message || err),
+      );
+    }
+  } else if (frontendBreachCount > 0) {
+    frontendBreachCount = 0; // 閾値を下回ったらカウンタをリセット
+  }
+}
+
+/**
+ * CPU スピン watchdog の 1 サンプル分の判定(有効時のみ呼ばれる)。
+ * ツリー累積 CPU 秒のデルタから 1 コア換算使用率を計算し、閾値以上が
+ * 規定回数「連続」したらキャッシュ強制削除つきでリサイクルする。
+ */
+function checkFrontendCpuSpin() {
+  if (Date.now() - frontendStartedAt < FRONTEND_CPU_MIN_UPTIME_MS) {
+    frontendCpuLastSample = null; // 起動直後はベースラインも捨てる
+    return;
+  }
+  const pids = collectDescendantPids(frontend.pid);
+  const cpuSeconds = getCpuSecondsForPids(pids);
+  if (cpuSeconds < 0) {
+    frontendCpuLastSample = null; // 取得失敗 → デルタ計算をリセット
+    return;
+  }
+  const prev = frontendCpuLastSample;
+  frontendCpuLastSample = { cpuSeconds, at: Date.now() };
+  if (!prev) return; // 初回サンプルはベースラインのみ
+
+  const elapsedSec = (Date.now() - prev.at) / 1000;
+  if (elapsedSec <= 0) return;
+  // プロセス入れ替わりで累積値が下がった場合はベースラインを取り直す。
+  const deltaSec = cpuSeconds - prev.cpuSeconds;
+  if (deltaSec < 0) return;
+  const pctOfOneCore = (deltaSec / elapsedSec) * 100;
+
+  if (pctOfOneCore >= FRONTEND_CPU_SPIN_PCT) {
+    frontendCpuBreachCount += 1;
+    console.log(
+      `⚠️  Frontend CPU ${Math.round(pctOfOneCore)}% of one core sustained (breach ${frontendCpuBreachCount}/${FRONTEND_CPU_SPIN_BREACHES}).`,
+    );
+    if (frontendCpuBreachCount >= FRONTEND_CPU_SPIN_BREACHES) {
+      // スピン確定 = キャッシュ破損の実績あり。HEAD が動いていなくても強制削除。
+      restartFrontend("cpu-spin", { forceClearCache: true }).catch((err) =>
+        console.error("❌ Frontend auto-recycle failed:", err.message || err),
+      );
+    }
+  } else if (frontendCpuBreachCount > 0) {
+    frontendCpuBreachCount = 0; // 一度でも平常値に戻ったら「持続」ではない
+  }
+}
+
+/**
+ * フロントエンドの健全性を定期監視し、異常時に自動リサイクルする。
+ * - CPU スピン監視(既定 ON、RAPITAS_FRONTEND_CPU_WATCHDOG=0 で無効化)
+ * - RSS 監視(既定 OFF、RAPITAS_FRONTEND_RSS_LIMIT_MB ≥ 6144 で有効化)
  */
 function startFrontendWatchdog() {
   if (frontendWatchdogTimer) return;
-  if (!(FRONTEND_RSS_LIMIT_MB > 0)) {
+  const rssEnabled = FRONTEND_RSS_LIMIT_MB > 0;
+  if (!rssEnabled) {
     console.log(
       "ℹ️  Frontend memory watchdog disabled (set RAPITAS_FRONTEND_RSS_LIMIT_MB ≥ 6144 to enable).",
     );
-    return;
+  } else {
+    console.log(
+      `🩺 Frontend memory watchdog active (limit ${FRONTEND_RSS_LIMIT_MB}MB after ${Math.round(
+        FRONTEND_MIN_UPTIME_MS / 3_600_000,
+      )}h uptime, ${FRONTEND_WATCHDOG_BREACH_LIMIT} consecutive breaches → recycle).`,
+    );
   }
-  console.log(
-    `🩺 Frontend memory watchdog active (limit ${FRONTEND_RSS_LIMIT_MB}MB after ${Math.round(
-      FRONTEND_MIN_UPTIME_MS / 3_600_000,
-    )}h uptime, ${FRONTEND_WATCHDOG_BREACH_LIMIT} consecutive breaches → recycle).`,
-  );
+  if (FRONTEND_CPU_WATCHDOG_ENABLED) {
+    console.log(
+      `🩺 Frontend CPU-spin watchdog active (≥${FRONTEND_CPU_SPIN_PCT}% of one core for ${FRONTEND_CPU_SPIN_BREACHES} consecutive minutes → clear .next + recycle).`,
+    );
+  }
+  if (!rssEnabled && !FRONTEND_CPU_WATCHDOG_ENABLED) return;
+
   frontendWatchdogTimer = setInterval(() => {
     if (isCleaningUp || isFrontendRestarting || !frontend || !frontend.pid) {
       return;
     }
-    // uptime ガード: 起動直後の初回コンパイル(高 RSS だが一過性)を絶対に kill しない。
-    // これが無いと閾値を下回れない大規模コンパイルで永久リサイクルループに陥る。
-    if (Date.now() - frontendStartedAt < FRONTEND_MIN_UPTIME_MS) {
-      return;
-    }
-    const rss = getFrontendTreeRssMb();
-    if (rss <= 0) return; // 取得失敗時は判定をスキップ
-    if (rss >= FRONTEND_RSS_LIMIT_MB) {
-      frontendBreachCount += 1;
-      console.log(
-        `⚠️  Frontend RSS ${rss}MB ≥ ${FRONTEND_RSS_LIMIT_MB}MB (breach ${frontendBreachCount}/${FRONTEND_WATCHDOG_BREACH_LIMIT}).`,
-      );
-      if (frontendBreachCount >= FRONTEND_WATCHDOG_BREACH_LIMIT) {
-        restartFrontend("memory-threshold").catch((err) =>
-          console.error("❌ Frontend auto-recycle failed:", err.message || err),
-        );
-      }
-    } else if (frontendBreachCount > 0) {
-      frontendBreachCount = 0; // 閾値を下回ったらカウンタをリセット
-    }
+    if (rssEnabled) checkFrontendRss();
+    if (FRONTEND_CPU_WATCHDOG_ENABLED) checkFrontendCpuSpin();
   }, FRONTEND_WATCHDOG_INTERVAL_MS);
 }
 
