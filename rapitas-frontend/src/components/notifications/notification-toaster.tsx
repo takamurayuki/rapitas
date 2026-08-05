@@ -26,6 +26,35 @@ const TOASTED_TYPES = new Set(['memo_reminder', 'habit_reminder', 'schedule_remi
 /** How far back a missed reminder may be replayed after (re)connecting. */
 const REPLAY_WINDOW_MS = 10 * 60_000;
 
+/**
+ * Persisted high-water mark of the newest reminder already surfaced.
+ * MUST survive page loads: full-page navigations remount this component, and
+ * an in-memory-only mark made every reload replay the latest unread reminder
+ * again (observed: clicking a hard link on the task detail page popped the
+ * memo toast each time).
+ */
+const LAST_SEEN_KEY = 'rapitas-reminder-last-seen';
+
+const readLastSeen = (): number => {
+  try {
+    const raw = Number(localStorage.getItem(LAST_SEEN_KEY));
+    if (Number.isFinite(raw) && raw > 0) return raw;
+  } catch {
+    /* storage unavailable → fall through */
+  }
+  // No stored mark (first run): start at "now" — never replay history the
+  // user has not provably missed. The bell keeps the full backlog anyway.
+  return Date.now();
+};
+
+const writeLastSeen = (at: number) => {
+  try {
+    localStorage.setItem(LAST_SEEN_KEY, String(at));
+  } catch {
+    /* best-effort */
+  }
+};
+
 interface StoredNotification {
   id: number;
   type: string;
@@ -51,9 +80,12 @@ export function NotificationToaster() {
   const isPopupWindow =
     pathname.startsWith('/notification-toast') || pathname.startsWith('/quick-capture');
   // Newest reminder timestamp already surfaced (live or replayed) — replay
-  // only shows what arrived after this. Starts one window back so reminders
-  // fired during an app restart are recovered on boot.
-  const lastSeenAtRef = useRef(Date.now() - REPLAY_WINDOW_MS);
+  // only shows what arrived after this. Persisted across page loads (see
+  // LAST_SEEN_KEY) so remounts never re-toast already-seen reminders.
+  const lastSeenAtRef = useRef(0);
+  if (lastSeenAtRef.current === 0 && typeof window !== 'undefined') {
+    lastSeenAtRef.current = readLastSeen();
+  }
 
   const displayReminder = (n: { title: string; message: string; link: string | null }) => {
     if (isTauri()) {
@@ -78,7 +110,10 @@ export function NotificationToaster() {
   useBrowserNotifications({
     enabled: !isPopupWindow,
     onNotification: ({ notification }) => {
-      if (TOASTED_TYPES.has(notification.type)) lastSeenAtRef.current = Date.now();
+      if (TOASTED_TYPES.has(notification.type)) {
+        lastSeenAtRef.current = Date.now();
+        writeLastSeen(lastSeenAtRef.current);
+      }
       // Desktop: the global toast window already covers focused AND unfocused
       // — an in-app toast on top of it would be a duplicate.
       if (isTauri()) return;
@@ -118,6 +153,7 @@ export function NotificationToaster() {
           );
           if (missed.length === 0) return;
           lastSeenAtRef.current = Date.now();
+          writeLastSeen(lastSeenAtRef.current);
           // Newest only — a burst of missed reminders would fight over the
           // single toast surface; the rest are one click away in the bell.
           const newest = missed[0];
