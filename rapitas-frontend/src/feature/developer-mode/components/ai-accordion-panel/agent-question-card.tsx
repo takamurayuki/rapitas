@@ -10,6 +10,7 @@
 import { useState, useRef } from 'react';
 import { useTranslations } from 'next-intl';
 import { Loader2, Send } from 'lucide-react';
+import { isImeComposing } from '@/utils/ime';
 
 /** Structured question payload from the agent (single- or multi-question). */
 export type AgentQuestionDetails = {
@@ -200,7 +201,7 @@ export function AgentQuestionCard({
           value={currentAnswer}
           onChange={(e) => setCurrentAnswer(e.target.value)}
           onKeyDown={(e) => {
-            if (e.key === 'Enter' && currentAnswer.trim()) handleNext();
+            if (e.key === 'Enter' && !isImeComposing(e) && currentAnswer.trim()) handleNext();
           }}
           placeholder={hasOptions ? t('freeTextPlaceholder') : t('answerPlaceholder')}
           className="flex-1 px-2 py-1 bg-white dark:bg-zinc-800 border border-amber-300 dark:border-amber-700 rounded text-[11px] focus:outline-none focus:ring-1 focus:ring-amber-500"

@@ -4,6 +4,7 @@
 import { useTranslations } from 'next-intl';
 import { Plus, Link2, ChevronDown, ChevronUp, MessageSquare } from 'lucide-react';
 import { Spinner } from '@/components/ui/spinner';
+import { isImeComposing } from '@/utils/ime';
 import type { Comment } from '@/types';
 import { Note } from './comments/Note';
 import { LinkModal } from './comments/LinkModal';
@@ -124,7 +125,7 @@ export default function CommentsSection({
               value={newComment}
               onChange={(e) => onNewCommentChange(e.target.value)}
               onKeyDown={(e) => {
-                if (e.key === 'Enter' && !e.shiftKey) {
+                if (e.key === 'Enter' && !e.shiftKey && !isImeComposing(e)) {
                   e.preventDefault();
                   handleSubmit();
                 }

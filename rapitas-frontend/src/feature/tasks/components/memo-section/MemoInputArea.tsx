@@ -4,6 +4,7 @@
 import { Plus, Zap } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { Spinner } from '@/components/ui/spinner';
+import { isImeComposing } from '@/utils/ime';
 import type { MemoType } from './types';
 import { MEMO_TYPE_CONFIG } from './types';
 
@@ -85,7 +86,7 @@ export function MemoInputArea({
             value={newComment}
             onChange={(e) => onNewCommentChange(e.target.value)}
             onKeyDown={(e) => {
-              if (e.key === 'Enter' && !e.shiftKey) {
+              if (e.key === 'Enter' && !e.shiftKey && !isImeComposing(e)) {
                 e.preventDefault();
                 onSubmit();
               }

@@ -6,6 +6,7 @@
  * behaviour onto an element supplied by the DOM builder.
  */
 
+import { isImeComposing } from '@/utils/ime';
 import { highlightCode } from './code-block-highlight';
 import {
   getCurrentLine,
@@ -57,7 +58,14 @@ export function attachKeyHandlers(codeElement: HTMLElement, language: string): v
     }
 
     // Enter key — insert newline with auto-indent
-    if (keyboardEvent.key === 'Enter' && !keyboardEvent.shiftKey) {
+    // NOTE: This handler is attached directly to the code element and does NOT
+    // pass through handleEditorKeyDown's IME guard (it returns early for code
+    // blocks) — so the conversion-confirm Enter must be filtered here too.
+    if (
+      keyboardEvent.key === 'Enter' &&
+      !keyboardEvent.shiftKey &&
+      !isImeComposing(keyboardEvent)
+    ) {
       e.preventDefault();
       const range = selection.getRangeAt(0);
       // Pass codeElement so getCurrentLine works inside highlighted spans

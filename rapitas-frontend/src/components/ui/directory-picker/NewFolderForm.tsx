@@ -10,6 +10,7 @@
 
 import { FolderPlus, Check, X, Loader2 } from 'lucide-react';
 import { useTranslations } from 'next-intl';
+import { isImeComposing } from '@/utils/ime';
 
 type NewFolderFormProps = {
   currentPath: string;
@@ -64,7 +65,7 @@ export function NewFolderForm({
           value={newFolderName}
           onChange={(e) => onNameChange(e.target.value)}
           onKeyDown={(e) => {
-            if (e.key === 'Enter') {
+            if (e.key === 'Enter' && !isImeComposing(e)) {
               onConfirm();
             } else if (e.key === 'Escape') {
               onCancel();

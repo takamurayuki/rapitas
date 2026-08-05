@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import { useAIChat } from '../note/useAIChat';
 import { Spinner } from '@/components/ui/spinner';
+import { isImeComposing } from '@/utils/ime';
 import { fetchConfiguredProviders, fetchAvailableModels } from '../note/ai-service';
 import Link from 'next/link';
 import type { AIChatMessage, ApiProvider } from '@/types';
@@ -129,7 +130,7 @@ export default function AIAssistantPanel() {
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-      if (e.key === 'Enter' && !e.shiftKey) {
+      if (e.key === 'Enter' && !e.shiftKey && !isImeComposing(e)) {
         e.preventDefault();
         handleSendMessage();
       }

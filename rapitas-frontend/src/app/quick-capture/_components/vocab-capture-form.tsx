@@ -12,6 +12,7 @@ import { useCallback, useEffect, useRef, useState, type MutableRefObject } from 
 import { useTranslations } from 'next-intl';
 import { Plus, Pencil } from 'lucide-react';
 import { API_BASE_URL } from '@/utils/api';
+import { isImeComposing } from '@/utils/ime';
 import {
   CONJUGATION_KEYS,
   type ConjugationKey,
@@ -242,7 +243,7 @@ export function VocabCaptureForm({ savingRef }: VocabCaptureFormProps) {
               value={deckDraft.value}
               onChange={(e) => setDeckDraft({ mode: 'rename', value: e.target.value })}
               onKeyDown={(e) => {
-                if (e.key === 'Enter') {
+                if (e.key === 'Enter' && !isImeComposing(e)) {
                   e.preventDefault();
                   void commitDeckDraft();
                 } else if (e.key === 'Escape') {
@@ -292,7 +293,7 @@ export function VocabCaptureForm({ savingRef }: VocabCaptureFormProps) {
             value={deckDraft.value}
             onChange={(e) => setDeckDraft({ mode: 'add', value: e.target.value })}
             onKeyDown={(e) => {
-              if (e.key === 'Enter') {
+              if (e.key === 'Enter' && !isImeComposing(e)) {
                 e.preventDefault();
                 void commitDeckDraft();
               } else if (e.key === 'Escape') {
@@ -361,10 +362,10 @@ export function VocabCaptureForm({ savingRef }: VocabCaptureFormProps) {
               : setConjDraft((prev) => ({ ...prev, form: e.target.value }))
           }
           onKeyDown={(e) => {
-            if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+            if (e.key === 'Enter' && (e.ctrlKey || e.metaKey) && !isImeComposing(e)) {
               e.preventDefault();
               void submit();
-            } else if (e.key === 'Enter') {
+            } else if (e.key === 'Enter' && !isImeComposing(e)) {
               e.preventDefault();
               backRef.current?.focus();
             } else if (e.key === 'Escape' && activeConj !== 'base') {
@@ -393,10 +394,10 @@ export function VocabCaptureForm({ savingRef }: VocabCaptureFormProps) {
               : setConjDraft((prev) => ({ ...prev, body: e.target.value }))
           }
           onKeyDown={(e) => {
-            if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+            if (e.key === 'Enter' && (e.ctrlKey || e.metaKey) && !isImeComposing(e)) {
               e.preventDefault();
               void submit();
-            } else if (e.key === 'Enter' && !e.shiftKey) {
+            } else if (e.key === 'Enter' && !e.shiftKey && !isImeComposing(e)) {
               e.preventDefault();
               if (activeConj === 'base') void submit();
               else advanceConj();

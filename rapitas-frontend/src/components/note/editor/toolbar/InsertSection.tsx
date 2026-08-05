@@ -3,6 +3,7 @@
 import { useTranslations } from 'next-intl';
 import { TextQuote, Table, Link2, Code2, Loader2, GitBranch } from 'lucide-react';
 import { borderLineColors, programmingLanguages } from '../constants';
+import { isImeComposing } from '@/utils/ime';
 
 interface InsertSectionProps {
   showLinkInput: boolean;
@@ -77,7 +78,7 @@ export function InsertSection({
                 value={linkUrl}
                 onChange={(e) => setLinkUrl(e.target.value)}
                 onKeyDown={(e) => {
-                  if (e.key === 'Enter') {
+                  if (e.key === 'Enter' && !isImeComposing(e)) {
                     e.preventDefault();
                     onInsertLink();
                   }

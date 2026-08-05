@@ -13,6 +13,7 @@ import { useTranslations } from 'next-intl';
 import { WalletCards, Plus, Pencil, Trash2, Check, X, ChartSpline } from 'lucide-react';
 import { Spinner } from '@/components/ui/spinner';
 import { useConfirmDialog } from '@/components/ui/dialog/ConfirmDialogProvider';
+import { isImeComposing } from '@/utils/ime';
 import { useVocabDecks } from './_components/use-vocab-decks';
 
 export default function VocabularyPage() {
@@ -75,7 +76,7 @@ export default function VocabularyPage() {
               autoFocus
               value={newName}
               onChange={(e) => setNewName(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && handleCreate()}
+              onKeyDown={(e) => e.key === 'Enter' && !isImeComposing(e) && handleCreate()}
               aria-label={t('deckNamePlaceholder')}
               placeholder={t('deckNamePlaceholder')}
               className="rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100"
@@ -83,7 +84,7 @@ export default function VocabularyPage() {
             <input
               value={newDescription}
               onChange={(e) => setNewDescription(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && handleCreate()}
+              onKeyDown={(e) => e.key === 'Enter' && !isImeComposing(e) && handleCreate()}
               aria-label={t('deckDescriptionPlaceholder')}
               placeholder={t('deckDescriptionPlaceholder')}
               className="rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100"
@@ -131,7 +132,7 @@ export default function VocabularyPage() {
                         aria-label={t('rename')}
                         onChange={(e) => setRenameValue(e.target.value)}
                         onKeyDown={async (e) => {
-                          if (e.key === 'Enter') {
+                          if (e.key === 'Enter' && !isImeComposing(e)) {
                             await renameDeck(deck.id, renameValue);
                             setRenamingId(null);
                           } else if (e.key === 'Escape') setRenamingId(null);

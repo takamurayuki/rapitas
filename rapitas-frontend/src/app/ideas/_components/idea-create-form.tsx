@@ -10,6 +10,7 @@ import { useTranslations } from 'next-intl';
 import { Lightbulb, ListPlus, Loader2, Pencil } from 'lucide-react';
 import { Modal } from '@/components/ui/modal/Modal';
 import PriorityIcon from '@/feature/tasks/components/priority/PriorityIcon';
+import { isImeComposing } from '@/utils/ime';
 import type { Theme } from '@/types';
 import type { IdeaPriority } from './idea-box.types';
 import { PRIORITY_HINT_KEY, PRIORITY_ORDER } from './idea-box.utils';
@@ -136,7 +137,7 @@ export function IdeaCreateForm({
           value={newTitle}
           onChange={(e) => setNewTitle(e.target.value)}
           onKeyDown={(e) => {
-            if (e.key === 'Enter' && newTitle.trim()) onSubmit();
+            if (e.key === 'Enter' && newTitle.trim() && !isImeComposing(e)) onSubmit();
             if (e.key === 'Escape') onCancel();
           }}
           placeholder={t('createForm.titlePlaceholder')}

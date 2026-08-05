@@ -13,6 +13,7 @@ import { useCallback, useEffect, useRef, useState, type MutableRefObject } from 
 import { useTranslations } from 'next-intl';
 import { FolderKanban } from 'lucide-react';
 import { API_BASE_URL } from '@/utils/api';
+import { isImeComposing } from '@/utils/ime';
 import { getIconComponent } from '@/components/category/icon-data';
 import { CaptureStatusBar } from './capture-status-bar';
 import type { CaptureStatus } from './capture-window';
@@ -203,7 +204,7 @@ export function TaskCaptureForm({ savingRef }: TaskCaptureFormProps) {
         value={title}
         onChange={(e) => setTitle(e.target.value)}
         onKeyDown={(e) => {
-          if (e.key === 'Enter') {
+          if (e.key === 'Enter' && !isImeComposing(e)) {
             e.preventDefault();
             void submit();
           }
@@ -216,7 +217,7 @@ export function TaskCaptureForm({ savingRef }: TaskCaptureFormProps) {
         value={description}
         onChange={(e) => setDescription(e.target.value)}
         onKeyDown={(e) => {
-          if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+          if (e.key === 'Enter' && (e.ctrlKey || e.metaKey) && !isImeComposing(e)) {
             e.preventDefault();
             void submit();
           }

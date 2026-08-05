@@ -7,6 +7,7 @@
  */
 import { FolderPlus, AlertCircle, Loader2 } from 'lucide-react';
 import { useTranslations } from 'next-intl';
+import { isImeComposing } from '@/utils/ime';
 
 type Props = {
   newFolderName: string;
@@ -76,7 +77,7 @@ export function FolderCreator({
                 value={newFolderName}
                 onChange={(e) => setNewFolderName(e.target.value)}
                 onKeyDown={(e) => {
-                  if (e.key === 'Enter') onCreateNewFolder();
+                  if (e.key === 'Enter' && !isImeComposing(e)) onCreateNewFolder();
                 }}
                 placeholder={t('folderNamePlaceholder')}
                 className="flex-1 h-9 px-3 text-sm bg-white dark:bg-zinc-900 border border-zinc-300 dark:border-zinc-600 rounded-lg focus:outline-none focus:border-indigo-400"

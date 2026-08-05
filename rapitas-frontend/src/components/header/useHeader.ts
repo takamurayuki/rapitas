@@ -21,6 +21,7 @@ import { useTranslations } from 'next-intl';
 import { checkIsTaskDetailPage } from './types';
 import { useClickOutside } from './useClickOutside';
 import { useToast } from '@/components/ui/toast/ToastContainer';
+import { isImeComposing } from '@/utils/ime';
 import type { AppMode } from '@/stores/app-mode-store';
 
 /** All state and callbacks surfaced to Header sub-components. */
@@ -248,7 +249,7 @@ export function useHeader(): UseHeaderReturn {
   };
 
   const handleSearchKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'Enter' && searchQuery.trim()) {
+    if (e.key === 'Enter' && !isImeComposing(e) && searchQuery.trim()) {
       if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
       isUpdatingSearchRef.current = true;
       router.push(`/search?q=${encodeURIComponent(searchQuery.trim())}`);

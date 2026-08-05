@@ -13,6 +13,7 @@ import { useState, useRef, useEffect, useCallback, memo, useMemo } from 'react';
 import { Square, RotateCcw } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import type { AIAgentConfig, ExecutionStatus, ExecutionResult } from '@/types';
+import { isImeComposing } from '@/utils/ime';
 import { ModelSelector } from './ModelSelector';
 import { useExecutionPolling } from '../hooks/useExecutionStream';
 import { StatusDot } from './terminal/TerminalLine';
@@ -172,7 +173,7 @@ export const TerminalPanel = memo(function TerminalPanel({
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-      if (e.key === 'Enter' && !e.shiftKey) {
+      if (e.key === 'Enter' && !e.shiftKey && !isImeComposing(e)) {
         e.preventDefault();
         handleSubmit();
       }

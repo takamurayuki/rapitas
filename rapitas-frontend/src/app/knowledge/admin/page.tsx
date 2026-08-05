@@ -7,6 +7,7 @@ import { useMemoryStats } from '@/feature/knowledge/hooks/useMemoryStats';
 import { MemoryQueueStatus } from '@/feature/knowledge/components/MemoryQueueStatus';
 import { KnowledgeTimeline } from '@/feature/knowledge/components/KnowledgeTimeline';
 import { API_BASE_URL } from '@/utils/api';
+import { isImeComposing } from '@/utils/ime';
 
 export default function MemoryAdminPage() {
   const t = useTranslations('knowledge.admin');
@@ -172,7 +173,7 @@ export default function MemoryAdminPage() {
             onChange={(e) => setRagQuery(e.target.value)}
             placeholder={t('testQuery')}
             className="flex-1 rounded-lg border border-gray-300 px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100"
-            onKeyDown={(e) => e.key === 'Enter' && handleRagTest()}
+            onKeyDown={(e) => e.key === 'Enter' && !isImeComposing(e) && handleRagTest()}
           />
           <button
             onClick={handleRagTest}

@@ -15,6 +15,7 @@ import {
   ArrowLeft,
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
+import { isImeComposing } from '@/utils/ime';
 import remarkGfm from 'remark-gfm';
 import remarkBreaks from 'remark-breaks';
 import type { NoteData } from './comment-types';
@@ -237,7 +238,11 @@ export const Note = memo(function Note({
                       aria-label={t('note.replyPlaceholder')}
                       className="flex-1 px-2 py-1 text-xs bg-transparent outline-none placeholder:text-zinc-500"
                       autoFocus
-                      onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), onReplySubmit())}
+                      onKeyDown={(e) =>
+                        e.key === 'Enter' &&
+                        !isImeComposing(e) &&
+                        (e.preventDefault(), onReplySubmit())
+                      }
                     />
                     <button
                       onClick={onReplyCancel}

@@ -10,6 +10,7 @@
 import { useCallback, useRef, useState, type MutableRefObject } from 'react';
 import { useTranslations } from 'next-intl';
 import { API_BASE_URL } from '@/utils/api';
+import { isImeComposing } from '@/utils/ime';
 import { CaptureStatusBar } from './capture-status-bar';
 import type { CaptureStatus } from './capture-window';
 
@@ -74,7 +75,7 @@ export function IdeaCaptureForm({ savingRef }: IdeaCaptureFormProps) {
           value={title}
           onChange={(e) => setTitle(e.target.value)}
           onKeyDown={(e) => {
-            if (e.key === 'Enter') {
+            if (e.key === 'Enter' && !isImeComposing(e)) {
               e.preventDefault();
               void submit();
             }
@@ -89,7 +90,7 @@ export function IdeaCaptureForm({ savingRef }: IdeaCaptureFormProps) {
         value={body}
         onChange={(e) => setBody(e.target.value)}
         onKeyDown={(e) => {
-          if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+          if (e.key === 'Enter' && (e.ctrlKey || e.metaKey) && !isImeComposing(e)) {
             e.preventDefault();
             void submit();
           }

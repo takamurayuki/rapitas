@@ -11,6 +11,7 @@
 import { useCallback, useRef, useState, type MutableRefObject } from 'react';
 import { useTranslations } from 'next-intl';
 import { API_BASE_URL } from '@/utils/api';
+import { isImeComposing } from '@/utils/ime';
 import { emptyReminder, resolveReminder, type ReminderValue } from '@/utils/reminder-presets';
 import { ReminderPicker } from '@/components/ui/reminder/reminder-picker';
 import { CaptureStatusBar } from './capture-status-bar';
@@ -74,7 +75,7 @@ export function MemoCaptureForm({ savingRef }: MemoCaptureFormProps) {
         value={content}
         onChange={(e) => setContent(e.target.value)}
         onKeyDown={(e) => {
-          if (e.key === 'Enter' && !e.shiftKey) {
+          if (e.key === 'Enter' && !e.shiftKey && !isImeComposing(e)) {
             e.preventDefault();
             void submit();
           }

@@ -15,6 +15,7 @@ import {
   MicOff,
 } from 'lucide-react';
 import { API_BASE_URL } from '@/utils/api';
+import { isImeComposing } from '@/utils/ime';
 import { useTranslations } from 'next-intl';
 import { useShortcutStore } from '@/stores/shortcut-store';
 import { useSpeechRecognition } from '@/hooks/common/useSpeechRecognition';
@@ -237,7 +238,7 @@ export default function SmartCommandBar() {
               } else if (e.key === 'ArrowUp' && suggestions.length > 0) {
                 e.preventDefault();
                 setSelectedIndex((prev) => (prev > 0 ? prev - 1 : suggestions.length - 1));
-              } else if (e.key === 'Enter') {
+              } else if (e.key === 'Enter' && !isImeComposing(e)) {
                 e.preventDefault();
                 if (selectedIndex >= 0 && suggestions[selectedIndex]) {
                   const s = suggestions[selectedIndex];

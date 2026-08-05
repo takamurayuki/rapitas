@@ -3,6 +3,7 @@
 
 import { X } from 'lucide-react';
 import { useTranslations } from 'next-intl';
+import { isImeComposing } from '@/utils/ime';
 
 type NoteReplyInputProps = {
   replyText: string;
@@ -35,7 +36,9 @@ export function NoteReplyInput({
         placeholder={t('placeholder')}
         className="flex-1 px-2 py-1 text-xs bg-transparent outline-none placeholder:text-zinc-500"
         autoFocus
-        onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), onReplySubmit())}
+        onKeyDown={(e) =>
+          e.key === 'Enter' && !isImeComposing(e) && (e.preventDefault(), onReplySubmit())
+        }
       />
       <button
         onClick={onReplyCancel}

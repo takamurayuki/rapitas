@@ -20,6 +20,7 @@ import { FavoritesOnlyPanel } from './FavoritesOnlyPanel';
 import { FavoritesSidebar } from './FavoritesSidebar';
 import { DirectoryList } from './DirectoryList';
 import { useFocusTrap } from '@/components/ui/modal/use-focus-trap';
+import { isImeComposing } from '@/utils/ime';
 
 type BrowserModalProps = {
   currentPath: string;
@@ -206,7 +207,7 @@ export function BrowserModal({
                 value={manualPath}
                 onChange={(e) => onManualPathChange(e.target.value)}
                 onKeyDown={(e) => {
-                  if (e.key === 'Enter') onGoToPath();
+                  if (e.key === 'Enter' && !isImeComposing(e)) onGoToPath();
                 }}
                 placeholder={t('directoryPicker.manualPathPlaceholder')}
                 className="flex-1 px-3 py-1.5 text-sm font-mono bg-white dark:bg-zinc-900 border border-zinc-300 dark:border-zinc-600 rounded-md focus:outline-none focus:border-indigo-400"

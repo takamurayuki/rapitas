@@ -5,6 +5,7 @@ import { Flag, Clock, Save } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import type { Priority } from '@/types';
 import { useAutosizeTextarea } from '@/hooks/ui/useAutosizeTextarea';
+import { isImeComposing } from '@/utils/ime';
 import { PrioritySelector } from './PrioritySelector';
 import { usePriorityOptions } from './PrioritySelector';
 
@@ -59,7 +60,7 @@ export function SubtaskForm({
         value={title}
         onChange={(e) => onTitleChange(e.target.value)}
         onKeyDown={(e) => {
-          if (e.key === 'Enter' && title.trim()) {
+          if (e.key === 'Enter' && title.trim() && !isImeComposing(e)) {
             e.preventDefault();
             onAdd();
           } else if (e.key === 'Escape') {

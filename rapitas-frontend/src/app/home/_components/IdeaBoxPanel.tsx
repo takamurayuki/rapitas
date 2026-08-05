@@ -6,6 +6,7 @@ import { useTranslations } from 'next-intl';
 import { useIdeaBox } from '@/hooks/feature/useIdeaBox';
 import { useFocusTrap } from '@/components/ui/modal/use-focus-trap';
 import { Spinner } from '@/components/ui/spinner';
+import { isImeComposing } from '@/utils/ime';
 
 interface IdeaBoxPanelProps {
   categoryId: number | null;
@@ -207,7 +208,7 @@ export function IdeaBoxPanel({ categoryId }: IdeaBoxPanelProps) {
                       value={newContent}
                       onChange={(e) => setNewContent(e.target.value)}
                       onKeyDown={(e) => {
-                        if (e.key === 'Enter') handleSubmit();
+                        if (e.key === 'Enter' && !isImeComposing(e)) handleSubmit();
                       }}
                       placeholder={t('contentPlaceholder')}
                       className="flex-1 rounded border border-zinc-300 bg-transparent px-2.5 py-1.5 text-xs focus:border-indigo-400 focus:outline-none dark:border-zinc-600"

@@ -8,6 +8,7 @@
  */
 import { useEffect, useRef, useState } from 'react';
 import { useTranslations } from 'next-intl';
+import { isImeComposing } from '@/utils/ime';
 
 interface InlineEditableTextProps {
   /** Current value. */
@@ -98,7 +99,7 @@ export default function InlineEditableText({
     if (e.key === 'Escape') {
       e.preventDefault();
       cancel();
-    } else if (e.key === 'Enter' && (!multiline || e.metaKey || e.ctrlKey)) {
+    } else if (e.key === 'Enter' && !isImeComposing(e) && (!multiline || e.metaKey || e.ctrlKey)) {
       e.preventDefault();
       e.currentTarget.blur(); // commits via onBlur
     }

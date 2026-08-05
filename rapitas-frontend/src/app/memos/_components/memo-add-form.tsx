@@ -9,6 +9,7 @@
 import { useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { Plus } from 'lucide-react';
+import { isImeComposing } from '@/utils/ime';
 import { emptyReminder, resolveReminder, type ReminderValue } from '@/utils/reminder-presets';
 import { ReminderPicker } from '@/components/ui/reminder/reminder-picker';
 
@@ -49,7 +50,7 @@ export function MemoAddForm({ onAdd }: MemoAddFormProps) {
         value={content}
         onChange={(e) => setContent(e.target.value)}
         onKeyDown={(e) => {
-          if (e.key === 'Enter' && !e.shiftKey) {
+          if (e.key === 'Enter' && !e.shiftKey && !isImeComposing(e)) {
             e.preventDefault();
             void save();
           }

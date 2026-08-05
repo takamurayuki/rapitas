@@ -13,6 +13,7 @@ import { AlarmClockPlus } from 'lucide-react';
 import { Modal } from '@/components/ui/modal/Modal';
 import { useToast } from '@/components/ui/toast/ToastContainer';
 import { API_BASE_URL } from '@/utils/api';
+import { isImeComposing } from '@/utils/ime';
 import type { StudyGoal } from './roadmap.types';
 
 interface LogSessionModalProps {
@@ -183,7 +184,7 @@ export function LogSessionModal({ goals, onClose, onLogged }: LogSessionModalPro
             <input
               value={note}
               onChange={(e) => setNote(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && save()}
+              onKeyDown={(e) => e.key === 'Enter' && !isImeComposing(e) && save()}
               placeholder={t('notePlaceholder')}
               className={inputCls}
             />

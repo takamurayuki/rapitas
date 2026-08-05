@@ -9,6 +9,7 @@ import { fetchConfiguredProviders, fetchAvailableModels } from './ai-service';
 import ChatMessage from './chat-message';
 import type { ApiProvider } from '@/types';
 import { Spinner } from '@/components/ui/spinner';
+import { isImeComposing } from '@/utils/ime';
 
 const PROVIDER_LABELS: Record<ApiProvider, string> = {
   claude: 'Claude',
@@ -88,7 +89,7 @@ export default function AITabContent() {
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-      if (e.key === 'Enter' && !e.shiftKey) {
+      if (e.key === 'Enter' && !e.shiftKey && !isImeComposing(e)) {
         e.preventDefault();
         handleSendMessage();
       }

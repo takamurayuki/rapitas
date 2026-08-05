@@ -14,6 +14,7 @@ import { HelpCircle, Send, Loader2, Clock } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import type { LiveQuestion } from '@/stores/execution-state-store';
 import { resolveQuestionOptions, secondsUntil } from './workflow-question-utils';
+import { isImeComposing } from '@/utils/ime';
 
 interface WorkflowQuestionPanelProps {
   /** The pending question to answer. */
@@ -192,7 +193,9 @@ export function WorkflowQuestionPanel({
               type="text"
               value={freeText}
               onChange={(e) => setFreeText(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && canSubmit && onAnswer(answer)}
+              onKeyDown={(e) =>
+                e.key === 'Enter' && !isImeComposing(e) && canSubmit && onAnswer(answer)
+              }
               placeholder={t('questionPanel.freeTextInputPlaceholder')}
               className="flex-1 rounded-lg border border-amber-300 bg-white px-3 py-2 text-sm focus:border-amber-500 focus:outline-none focus:ring-2 focus:ring-amber-500/30 dark:border-amber-700 dark:bg-zinc-800"
             />

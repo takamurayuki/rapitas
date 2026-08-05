@@ -2,6 +2,7 @@
 // ContinuationForm — inline follow-up execution input, shown only when completed.
 import { Loader2, Play, MessageSquarePlus } from 'lucide-react';
 import { useTranslations } from 'next-intl';
+import { isImeComposing } from '@/utils/ime';
 
 export type ContinuationFormProps = {
   continueInstruction: string;
@@ -32,7 +33,8 @@ export function ContinuationForm({
         value={continueInstruction}
         onChange={(e) => onSetContinueInstruction(e.target.value)}
         onKeyDown={(e) => {
-          if (e.key === 'Enter' && continueInstruction.trim()) onContinueExecution();
+          if (e.key === 'Enter' && !isImeComposing(e) && continueInstruction.trim())
+            onContinueExecution();
         }}
         placeholder={t('placeholder')}
         className="flex-1 px-2.5 py-1.5 bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded text-xs focus:outline-none focus:border-indigo-400"

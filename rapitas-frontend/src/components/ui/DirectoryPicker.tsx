@@ -11,6 +11,7 @@
 
 import { Folder, FolderOpen, Check, X } from 'lucide-react';
 import { useTranslations } from 'next-intl';
+import { isImeComposing } from '@/utils/ime';
 import { useDirectoryPicker } from './directory-picker/useDirectoryPicker';
 import { BrowserModal } from './directory-picker/BrowserModal';
 
@@ -50,7 +51,7 @@ export function DirectoryPicker({
                 value={picker.editValue}
                 onChange={(e) => picker.setEditValue(e.target.value)}
                 onKeyDown={(e) => {
-                  if (e.key === 'Enter') {
+                  if (e.key === 'Enter' && !isImeComposing(e)) {
                     picker.handleEditComplete();
                   } else if (e.key === 'Escape') {
                     picker.handleEditCancel();

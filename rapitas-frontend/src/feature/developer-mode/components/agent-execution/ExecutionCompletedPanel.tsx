@@ -14,6 +14,7 @@ import {
 import { useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { API_BASE_URL } from '@/utils/api';
+import { isImeComposing } from '@/utils/ime';
 import type { PrState } from './agent-execution-types';
 import { formatTokenCount, formatCostUsd } from './agent-execution-utils';
 import { PrMergeSection } from './PrMergeSection';
@@ -205,7 +206,8 @@ export function ExecutionCompletedPanel({
               value={followUpInstruction}
               onChange={(e) => setFollowUpInstruction(e.target.value)}
               onKeyDown={(e) => {
-                if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) onFollowUpExecute();
+                if (e.key === 'Enter' && (e.ctrlKey || e.metaKey) && !isImeComposing(e))
+                  onFollowUpExecute();
               }}
               placeholder={t('followUpPlaceholder')}
               rows={2}

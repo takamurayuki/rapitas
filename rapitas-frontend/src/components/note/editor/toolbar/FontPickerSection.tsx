@@ -3,6 +3,7 @@
 import { useTranslations } from 'next-intl';
 import { ChevronDown } from 'lucide-react';
 import { fonts, fontSizePresets } from '../constants';
+import { isImeComposing } from '@/utils/ime';
 
 interface FontPickerSectionProps {
   currentFont: string;
@@ -115,7 +116,7 @@ export function FontPickerSection({
           }}
           onBlur={() => commitFontSize(currentFontSize)}
           onKeyDown={(e) => {
-            if (e.key === 'Enter') {
+            if (e.key === 'Enter' && !isImeComposing(e)) {
               e.preventDefault();
               commitFontSize(currentFontSize);
               (e.target as HTMLInputElement).blur();

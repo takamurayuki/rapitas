@@ -9,6 +9,7 @@ import { useEffect, useState } from 'react';
 import { Plus, Loader2, CheckCircle, AlertCircle, X } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { API_BASE_URL } from '@/utils/api';
+import { isImeComposing } from '@/utils/ime';
 import { createLogger } from '@/lib/logger';
 
 const logger = createLogger('BranchCreator');
@@ -134,7 +135,7 @@ export function BranchCreator({
             value={branchName}
             onChange={(e) => setBranchName(e.target.value)}
             onKeyDown={(e) => {
-              if (e.key === 'Enter') {
+              if (e.key === 'Enter' && !isImeComposing(e)) {
                 e.preventDefault();
                 handleCreate();
               }
