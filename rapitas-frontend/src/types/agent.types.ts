@@ -182,7 +182,8 @@ export type Notification = {
     | 'pr_review_requested'
     | 'agent_execution_started'
     | 'knowledge_extracted'
-    | 'knowledge_reminder';
+    | 'knowledge_reminder'
+    | 'memo_reminder';
   title: string;
   message: string;
   link?: string | null;

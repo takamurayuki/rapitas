@@ -14,12 +14,13 @@ import { sharedEventSource } from '@/lib/sse/shared-event-source';
 const logger = createLogger('useBrowserNotifications');
 
 /** Notification event payload from SSE. */
-interface SSENotificationPayload {
+export interface SSENotificationPayload {
   notification: {
     id: number;
     type: string;
     title: string;
     message: string;
+    link?: string | null;
     metadata?: Record<string, unknown>;
   };
   unreadCount: number;

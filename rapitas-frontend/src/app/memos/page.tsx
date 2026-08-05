@@ -13,7 +13,6 @@ import { useTranslations } from 'next-intl';
 import { NotepadText } from 'lucide-react';
 import { Spinner } from '@/components/ui/spinner';
 import Pagination from '@/components/ui/pagination/Pagination';
-import { useConfirmDialog } from '@/components/ui/dialog/ConfirmDialogProvider';
 import { useMemos } from './_components/use-memos';
 import { MemoAddForm } from './_components/memo-add-form';
 import { MemoRow } from './_components/memo-row';
@@ -23,7 +22,6 @@ const FILTERS: MemoFilter[] = ['open', 'reminder', 'done'];
 
 export default function MemosPage() {
   const t = useTranslations('memos');
-  const confirm = useConfirmDialog();
   const vm = useMemos();
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
@@ -34,8 +32,9 @@ export default function MemosPage() {
     [vm.memos, currentPage, itemsPerPage],
   );
 
+  // No confirm dialog by request — memos are tiny, low-stakes records.
   const handleDelete = async (memo: Memo) => {
-    if (await confirm(t('deleteConfirm'))) await vm.deleteMemo(memo.id);
+    await vm.deleteMemo(memo.id);
   };
 
   const switchFilter = (f: MemoFilter) => {

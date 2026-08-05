@@ -2676,6 +2676,7 @@
     "startTimer": "Start timer"
   },
   "notification": {
+    "open": "Open",
     "justNow": "Just now",
     "minutesAgo": "{count} minutes ago",
     "hoursAgo": "{count} hours ago",
@@ -3555,7 +3556,6 @@
     "title": "Memos",
     "subtitle": "Things to remember and tiny records — with optional reminders",
     "emptyState": "No memos yet. Add one above or via quick capture (Ctrl+Alt+I)",
-    "deleteConfirm": "Delete this memo?",
     "filters": {
       "open": "Open",
       "reminder": "Reminders",

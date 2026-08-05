@@ -2676,6 +2676,7 @@
     "startTimer": "タイマーを開始"
   },
   "notification": {
+    "open": "開く",
     "justNow": "たった今",
     "minutesAgo": "{count}分前",
     "hoursAgo": "{count}時間前",
@@ -3555,7 +3556,6 @@
     "title": "メモ",
     "subtitle": "覚えておきたいこと・簡単な記録。リマインダーで通知もできます",
     "emptyState": "メモがまだありません。上の入力欄かクイックキャプチャ（Ctrl+Alt+I）から追加できます",
-    "deleteConfirm": "このメモを削除しますか？",
     "filters": {
       "open": "未完了",
       "reminder": "リマインダー",

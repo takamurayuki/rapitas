@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
-import { Bell, BookOpen, Check, CheckCheck, Library, ListPlus, X } from 'lucide-react';
+import { AlarmClock, Bell, BookOpen, Check, CheckCheck, Library, ListPlus, X } from 'lucide-react';
 import Link from 'next/link';
 import { useTranslations } from 'next-intl';
 import { useNotifications } from '@/feature/developer-mode/hooks/useNotifications';
@@ -24,6 +24,7 @@ const typeIcons: Record<string, string> = {
   github_sync_complete: 'bg-gray-100 dark:bg-gray-900/30 text-gray-600 dark:text-gray-400',
   knowledge_extracted: 'bg-indigo-100 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400',
   knowledge_reminder: 'bg-amber-100 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400',
+  memo_reminder: 'bg-indigo-100 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400',
 };
 
 export default function NotificationBell() {
@@ -283,6 +284,7 @@ function NotificationContent({
         )}
         {notification.type === 'knowledge_extracted' && <Library className="w-4 h-4" />}
         {notification.type === 'knowledge_reminder' && <BookOpen className="w-4 h-4" />}
+        {notification.type === 'memo_reminder' && <AlarmClock className="w-4 h-4" />}
         {notification.type === 'agent_execution_started' && (
           <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path

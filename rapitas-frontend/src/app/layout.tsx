@@ -4,6 +4,7 @@ import './globals.css';
 import KeyboardShortcuts from '@/components/common/KeyboardShortcuts';
 import { ResumableExecutionsBanner } from '@/components/common/ResumableExecutionsBanner';
 import ScheduleReminderProvider from '@/components/providers/ScheduleReminderProvider';
+import { NotificationToaster } from '@/components/notifications/notification-toaster';
 import { Suspense } from 'react';
 import { ToastProvider } from '@/components/ui/toast/ToastContainer';
 import { ConfirmDialogProvider } from '@/components/ui/dialog/ConfirmDialogProvider';
@@ -171,6 +172,7 @@ export default function RootLayout({
                           <SetupGate />
                         </Suspense>
                         <ScheduleReminderProvider />
+                        <NotificationToaster />
                         <CacheWarmupInitializer />
                         <Suspense fallback={null}>
                           <SmartCommandBar />
