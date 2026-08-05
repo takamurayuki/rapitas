@@ -471,6 +471,7 @@ fn main() {
             .plugin(tauri_plugin_shell::init())
             .plugin(tauri_plugin_updater::Builder::new().build())
             .plugin(tauri_plugin_process::init())
+            .plugin(tauri_plugin_notification::init())
             .manage(Mutex::new(release::BackendState { child: None }))
             .manage(terminal::TerminalManager::new())
             .invoke_handler(tauri::generate_handler![
@@ -519,6 +520,7 @@ fn main() {
             .plugin(tauri_plugin_shell::init())
             .plugin(tauri_plugin_updater::Builder::new().build())
             .plugin(tauri_plugin_process::init())
+            .plugin(tauri_plugin_notification::init())
             .manage(terminal::TerminalManager::new())
             .invoke_handler(tauri::generate_handler![
                 get_global_shortcut,

@@ -3,15 +3,21 @@
 /**
  * Browser Notification Hook
  *
- * Connects to the SSE notifications channel and displays native browser
- * notifications using the Notification API. Handles permission requests,
+ * Connects to the SSE notifications channel and displays native OS
+ * notifications: the Tauri notification plugin inside the desktop app
+ * (real Windows toasts — WebView2 has no working Notification API), the
+ * browser Notification API otherwise. Handles permission requests,
  * reconnection, and event parsing.
  */
 import { useEffect, useRef, useCallback, useState } from 'react';
 import { createLogger } from '@/lib/logger';
 import { sharedEventSource } from '@/lib/sse/shared-event-source';
+import { isTauri } from '@/utils/tauri';
 
 const logger = createLogger('useBrowserNotifications');
+
+/** Reminder types alert even while the window is focused — that is their job. */
+const REMINDER_TYPES = new Set(['memo_reminder', 'habit_reminder', 'schedule_reminder']);
 
 /** Notification event payload from SSE. */
 export interface SSENotificationPayload {
@@ -54,9 +60,10 @@ export function useBrowserNotifications(options: UseBrowserNotificationsOptions 
     onNotificationRef.current = onNotification;
   }, [onNotification]);
 
-  // Request notification permission
+  // Request notification permission (browser only — the Tauri plugin path
+  // requests its own permission lazily on first send)
   const requestPermission = useCallback(async () => {
-    if (typeof window === 'undefined' || !('Notification' in window)) return;
+    if (typeof window === 'undefined' || isTauri() || !('Notification' in window)) return;
 
     if (Notification.permission === 'granted') {
       setPermission('granted');
@@ -71,15 +78,37 @@ export function useBrowserNotifications(options: UseBrowserNotificationsOptions 
     }
   }, []);
 
-  // Show native browser notification
+  // Show a native OS notification (Tauri plugin in the desktop app, browser
+  // Notification API elsewhere).
   const showNotification = useCallback((payload: SSENotificationPayload) => {
-    if (typeof window === 'undefined' || !('Notification' in window)) return;
-    if (Notification.permission !== 'granted') return;
-
-    // NOTE: Don't show notification if the window is focused — avoid duplicating in-app notifications.
-    if (document.hasFocus()) return;
-
+    if (typeof window === 'undefined') return;
     const { notification } = payload;
+    // Reminders alert even while focused (the user asked for OS-level
+    // visibility); everything else stays quiet unless the window is in the
+    // background, to avoid double-alerting on top of the in-app UI.
+    if (!REMINDER_TYPES.has(notification.type) && document.hasFocus()) return;
+
+    if (isTauri()) {
+      // Real Windows toast via the Tauri plugin — WebView2's Notification API
+      // is not functional, so the browser path below never fires in-app.
+      void (async () => {
+        try {
+          const { isPermissionGranted, requestPermission, sendNotification } =
+            await import('@tauri-apps/plugin-notification');
+          let granted = await isPermissionGranted();
+          if (!granted) granted = (await requestPermission()) === 'granted';
+          if (granted) {
+            sendNotification({ title: notification.title, body: notification.message });
+          }
+        } catch (e) {
+          // Older desktop binaries lack the plugin — the in-app toast still shows.
+          logger.errorThrottled('Tauri notification failed:', e);
+        }
+      })();
+      return;
+    }
+
+    if (!('Notification' in window) || Notification.permission !== 'granted') return;
     const icon = '/icon-192x192.png';
 
     const n = new Notification(notification.title, {
