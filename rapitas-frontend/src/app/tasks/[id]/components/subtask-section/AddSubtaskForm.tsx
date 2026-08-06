@@ -12,6 +12,7 @@ import { Save, Clock, Timer, Flag } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import type { Priority } from '@/types';
 import { useAutosizeTextarea } from '@/hooks/ui/useAutosizeTextarea';
+import { isImeComposing } from '@/utils/ime';
 import { PrioritySelector } from '@/app/tasks/new/components/PrioritySelector';
 
 interface AddSubtaskFormProps {
@@ -65,7 +66,7 @@ export function AddSubtaskForm({
             value={newSubtaskTitle}
             onChange={(e) => onSetNewSubtaskTitle(e.target.value)}
             onKeyDown={(e) => {
-              if (e.key === 'Enter' && newSubtaskTitle.trim()) {
+              if (e.key === 'Enter' && newSubtaskTitle.trim() && !isImeComposing(e)) {
                 onAddSubtask();
               }
             }}

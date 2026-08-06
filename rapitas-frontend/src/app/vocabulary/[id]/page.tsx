@@ -12,6 +12,7 @@ import { useTranslations } from 'next-intl';
 import { ArrowLeft, Play, Plus } from 'lucide-react';
 import { Spinner } from '@/components/ui/spinner';
 import { useConfirmDialog } from '@/components/ui/dialog/ConfirmDialogProvider';
+import { isImeComposing } from '@/utils/ime';
 import { useVocabDeck } from '../_components/use-vocab-deck';
 import { VocabCardRow } from '../_components/card-row';
 import { ReviewSession } from '../_components/review-session';
@@ -107,7 +108,7 @@ export default function VocabDeckDetailPage({ params }: { params: Promise<{ id: 
               value={back}
               onChange={(e) => setBack(e.target.value)}
               onKeyDown={(e) => {
-                if (e.key === 'Enter' && !e.shiftKey) {
+                if (e.key === 'Enter' && !e.shiftKey && !isImeComposing(e)) {
                   e.preventDefault();
                   handleAdd();
                 }
@@ -122,7 +123,7 @@ export default function VocabDeckDetailPage({ params }: { params: Promise<{ id: 
             <input
               value={note}
               onChange={(e) => setNote(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && handleAdd()}
+              onKeyDown={(e) => e.key === 'Enter' && !isImeComposing(e) && handleAdd()}
               aria-label={t('notePlaceholder')}
               placeholder={t('notePlaceholder')}
               className={`${inputCls} flex-1`}
