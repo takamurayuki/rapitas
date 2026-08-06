@@ -72,25 +72,47 @@ async function resolveBaseRef(
       // Unsafe/malformed value — ignore it and fall through to the heuristic.
     }
   }
-  const candidates = [
-    ...(safePreferred ? [`origin/${safePreferred}`, safePreferred] : []),
-    'origin/develop',
-    'develop',
-    'origin/main',
-    'main',
-    'origin/master',
-    'master',
+  // Per branch NAME, try origin/<name> AND local <name>, then keep the NEWER
+  // of the two merge-bases — that is the true fork point. Preferring origin
+  // unconditionally (the task-511 fix for a stale local branch) breaks the
+  // mirrored case: a local-first repo accumulates UNPUSHED commits on the base
+  // branch, merge-base against origin lands BEFORE them, and every unpushed
+  // commit bleeds into "this task's diff" (observed as "36/37 files are
+  // unrelated" adversarial-review rejections). Mirrors automated-verifier.ts's
+  // diffBaseRef.
+  const groups = [
+    ...(safePreferred ? [[`origin/${safePreferred}`, safePreferred]] : []),
+    ['origin/develop', 'develop'],
+    ['origin/main', 'main'],
+    ['origin/master', 'master'],
   ];
-  for (const candidate of candidates) {
-    try {
-      const { stdout } = await execAsync(`git merge-base HEAD ${candidate}`, {
-        cwd,
-        encoding: 'utf8',
-      });
-      const base = stdout.trim();
-      if (base) return base;
-    } catch {
-      // candidate branch doesn't exist in this repo — try the next one.
+  for (const group of groups) {
+    const bases: string[] = [];
+    for (const candidate of group) {
+      try {
+        const { stdout } = await execAsync(`git merge-base HEAD ${candidate}`, {
+          cwd,
+          encoding: 'utf8',
+        });
+        const base = stdout.trim();
+        if (base && !bases.includes(base)) bases.push(base);
+      } catch {
+        // candidate branch doesn't exist in this repo — try the next one.
+      }
+    }
+    if (bases.length === 1) return bases[0]!;
+    if (bases.length === 2) {
+      // Exit 0 = bases[0] is an ancestor of bases[1] → bases[1] is newer.
+      // On divergence (neither is an ancestor) keep origin's base (task 511).
+      try {
+        await execAsync(`git merge-base --is-ancestor ${bases[0]} ${bases[1]}`, {
+          cwd,
+          encoding: 'utf8',
+        });
+        return bases[1]!;
+      } catch {
+        return bases[0]!;
+      }
     }
   }
   return null;

@@ -13,8 +13,47 @@ import {
   looksLikeBugFixTask,
   tamperCheck,
   coverageCheck,
+  generatedSyncCheck,
   type VerificationResult,
 } from './automated-verifier';
+
+describe('generatedSyncCheck', () => {
+  it('returns null when no prisma schema file changed', () => {
+    expect(generatedSyncCheck(['rapitas-backend/services/foo.ts'])).toBeNull();
+    // schema.desktop is a generated OUTPUT, not a source schema — no trigger.
+    expect(generatedSyncCheck(['rapitas-backend/prisma/schema.desktop/agents.prisma'])).toBeNull();
+  });
+
+  it('fails when a schema changes without both regenerated artifacts', () => {
+    const onlySchema = generatedSyncCheck(['rapitas-backend/prisma/schema/agents.prisma']);
+    expect(onlySchema?.ok).toBe(false);
+    expect(onlySchema?.details).toContain('db:prepare:sqlite');
+
+    const missingInitSql = generatedSyncCheck([
+      'rapitas-backend/prisma/schema/agents.prisma',
+      'rapitas-backend/prisma/schema.desktop/agents.prisma',
+    ]);
+    expect(missingInitSql?.ok).toBe(false);
+  });
+
+  it('passes when the schema change ships with both regenerated artifacts', () => {
+    const check = generatedSyncCheck([
+      'rapitas-backend/prisma/schema/agents.prisma',
+      'rapitas-backend/prisma/schema.desktop/agents.prisma',
+      'rapitas-backend/src/generated/sqlite-init-sql.ts',
+    ]);
+    expect(check?.ok).toBe(true);
+  });
+
+  it('normalizes Windows path separators before matching', () => {
+    const check = generatedSyncCheck([
+      'rapitas-backend\\prisma\\schema\\agents.prisma',
+      'rapitas-backend\\prisma\\schema.desktop\\agents.prisma',
+      'rapitas-backend\\src\\generated\\sqlite-init-sql.ts',
+    ]);
+    expect(check?.ok).toBe(true);
+  });
+});
 
 describe('parseEslintErrorCount', () => {
   it('sums errorCount across files, ignoring warnings', () => {

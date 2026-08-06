@@ -38,7 +38,16 @@ const MAX_OUTPUT_CHARS = 16 * 1024 * 1024;
 const MAX_DETAIL_CHARS = 2_000;
 
 export interface VerificationCheck {
-  name: 'lint' | 'typecheck' | 'test' | 'scope' | 'coverage' | 'runtime' | 'tamper';
+  name:
+    | 'lint'
+    | 'typecheck'
+    | 'test'
+    | 'format'
+    | 'generated-sync'
+    | 'scope'
+    | 'coverage'
+    | 'runtime'
+    | 'tamper';
   /** Whether the check was applicable and actually executed. */
   ran: boolean;
   /** True when the check passed (no new failures in the changed files). */
@@ -192,18 +201,32 @@ export async function diffBaseRef(
       // Unsafe/malformed value — ignore it and fall through to the heuristic.
     }
   }
-  const candidates = [
-    ...(safePreferred ? [`origin/${safePreferred}`, safePreferred] : []),
-    'origin/develop',
-    'develop',
-    'origin/main',
-    'main',
-    'origin/master',
-    'master',
+  // Per branch NAME, try origin/<name> AND local <name>, then keep the NEWER
+  // of the two merge-bases — that is the true fork point. Preferring origin
+  // unconditionally (the task-511 fix for a stale local branch) breaks the
+  // mirrored case: a local-first repo accumulates UNPUSHED commits on the base
+  // branch, merge-base against origin lands BEFORE them, and every unpushed
+  // commit bleeds into "this task's diff" (observed as "36/37 files are
+  // unrelated" adversarial-review rejections). Mirrors diff-structured.ts.
+  const groups = [
+    ...(safePreferred ? [[`origin/${safePreferred}`, safePreferred]] : []),
+    ['origin/develop', 'develop'],
+    ['origin/main', 'main'],
+    ['origin/master', 'master'],
   ];
-  for (const candidate of candidates) {
-    const base = (await git(workdir, `merge-base HEAD ${candidate}`)).trim();
-    if (base) return base;
+  for (const group of groups) {
+    const bases: string[] = [];
+    for (const candidate of group) {
+      const base = (await git(workdir, `merge-base HEAD ${candidate}`)).trim();
+      if (base && !bases.includes(base)) bases.push(base);
+    }
+    if (bases.length === 1) return bases[0]!;
+    if (bases.length === 2) {
+      // Exit 0 = bases[0] is an ancestor of bases[1] → bases[1] is newer.
+      // On divergence (neither is an ancestor) keep origin's base (task 511).
+      const rel = await runCmd(`git merge-base --is-ancestor ${bases[0]} ${bases[1]}`, workdir);
+      return rel.code === 0 ? bases[1]! : bases[0]!;
+    }
   }
   return 'HEAD';
 }
@@ -395,6 +418,73 @@ async function lintProject(
       parsed.errorCount === 0
         ? 'eslint: 0 errors'
         : (res.stderr || res.stdout).slice(0, MAX_DETAIL_CHARS),
+  };
+}
+
+/** Extensions the CI prettier steps check (backend *.ts / frontend src globs). */
+const FORMAT_EXTENSIONS = new Set(['.ts', '.tsx', '.js', '.jsx', '.css', '.md']);
+
+/**
+ * Prettier-checks a project's changed files — CI's "Check formatting" steps
+ * run `prettier --check`, so an unformatted file passes the local eslint gate
+ * yet still bounces the PR at CI (a whole ci_repair round for whitespace).
+ * Skips silently when the project has no prettier binary (not every repo
+ * formats with prettier); prettier itself respects .prettierignore.
+ */
+async function formatProject(
+  projectRoot: string,
+  workdir: string,
+  relFiles: string[],
+): Promise<VerificationCheck | null> {
+  const files = relFiles.filter((f) => FORMAT_EXTENSIONS.has(extname(f).toLowerCase()));
+  if (files.length === 0) return null;
+  const bin = resolveBin(projectRoot, workdir, 'prettier');
+  if (!bin) return null;
+  const args = files
+    .map((f) => `"${relative(projectRoot, join(workdir, f)).replace(/\\/g, '/')}"`)
+    .join(' ');
+  const res = await runCmd(`"${bin}" --check --ignore-unknown ${args}`, projectRoot);
+  const ok = res.code === 0;
+  return {
+    name: 'format',
+    ran: true,
+    ok,
+    errorCount: ok ? 0 : Math.max(1, (res.stderr.match(/^\[warn\]/gm) ?? []).length),
+    details: ok
+      ? 'prettier: all changed files formatted'
+      : `prettier --check に失敗（CI の formatting チェックで落ちます）。\`prettier --write\` で整形してください:\n${(res.stderr || res.stdout).slice(0, MAX_DETAIL_CHARS)}`,
+  };
+}
+
+/**
+ * Prisma generated-artifact parity check (rapitas repo only). CI hard-fails
+ * when `prisma/schema/*.prisma` changes without the regenerated
+ * `prisma/schema.desktop/` + `src/generated/sqlite-init-sql.ts` committed —
+ * the single biggest "local verify green → CI Lint Code red" cause. Pure
+ * file-list logic: it checks that the generated artifacts changed ALONGSIDE
+ * the schema, not that their content matches (CI still does that), so it
+ * needs no prisma invocation in the worktree.
+ *
+ * @param allChanged - Every changed path in the worktree diff. / 全変更パス
+ * @returns A 'generated-sync' check, or null when no schema changed. / チェック結果
+ */
+export function generatedSyncCheck(allChanged: string[]): VerificationCheck | null {
+  const norm = allChanged.map((f) => f.replace(/\\/g, '/'));
+  const schemaChanged = norm.filter((f) => /(^|\/)prisma\/schema\/[^/]+\.prisma$/.test(f));
+  if (schemaChanged.length === 0) return null;
+  const desktopChanged = norm.some((f) => f.includes('prisma/schema.desktop/'));
+  const initSqlChanged = norm.some((f) => f.endsWith('src/generated/sqlite-init-sql.ts'));
+  const ok = desktopChanged && initSqlChanged;
+  return {
+    name: 'generated-sync',
+    ran: true,
+    ok,
+    errorCount: ok ? 0 : 1,
+    details: ok
+      ? 'generated-sync: schema change ships with regenerated sqlite artifacts'
+      : `Prisma スキーマ変更 (${schemaChanged.join(', ')}) に SQLite 生成物の再生成が伴っていません。` +
+        ` rapitas-backend で \`bun run db:prepare:sqlite\` を実行し、` +
+        `prisma/schema.desktop/ と src/generated/sqlite-init-sql.ts を同じコミットに含めてください（CI がこの同期を hard-fail します）。`,
   };
 }
 
@@ -594,7 +684,7 @@ async function testProject(
 
 /** Merges per-project checks of the same kind into one aggregate check. */
 function mergeChecks(
-  name: 'lint' | 'typecheck' | 'test',
+  name: 'lint' | 'typecheck' | 'test' | 'format',
   parts: VerificationCheck[],
 ): VerificationCheck {
   const unverifiable = parts.filter((p) => p.unverifiable);
@@ -791,22 +881,31 @@ export async function runAutomatedVerification(
   const lintParts: VerificationCheck[] = [];
   const typeParts: VerificationCheck[] = [];
   const testParts: VerificationCheck[] = [];
+  const formatParts: VerificationCheck[] = [];
   for (const [projectRoot, relFiles] of groups) {
-    const [lint, type, test] = await Promise.all([
+    const [lint, type, test, format] = await Promise.all([
       lintProject(projectRoot, workdir, relFiles),
       typecheckProject(projectRoot, workdir, relFiles),
       testProject(projectRoot, workdir, relFiles),
+      formatProject(projectRoot, workdir, relFiles),
     ]);
     if (lint) lintParts.push(lint);
     if (type) typeParts.push(type);
     if (test) testParts.push(test);
+    if (format) formatParts.push(format);
   }
 
   const coverage = coverageCheck(changedFiles, options.requireTests === true);
+  // CI-parity checks: prettier formatting and Prisma generated-artifact sync
+  // both hard-fail CI's Lint Code job, so catching them here turns a full
+  // ci_repair round into an in-phase fix.
+  const generatedSync = generatedSyncCheck(allChanged);
   const checks = [
     mergeChecks('lint', lintParts),
     mergeChecks('typecheck', typeParts),
     mergeChecks('test', testParts),
+    ...(formatParts.length > 0 ? [mergeChecks('format', formatParts)] : []),
+    ...(generatedSync ? [generatedSync] : []),
     ...(scopeCheck ? [scopeCheck] : []),
     ...(tamper ? [tamper] : []),
     ...(coverage ? [coverage] : []),
