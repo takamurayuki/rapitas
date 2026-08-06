@@ -2678,6 +2678,7 @@
   "notification": {
     "open": "開く",
     "close": "閉じる",
+    "markMemoDone": "完了にする",
     "justNow": "たった今",
     "minutesAgo": "{count}分前",
     "hoursAgo": "{count}時間前",

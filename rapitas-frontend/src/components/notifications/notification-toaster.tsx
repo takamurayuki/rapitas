@@ -14,7 +14,7 @@
 import { useEffect, useRef } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
-import { useBrowserNotifications } from '@/hooks/common/useBrowserNotifications';
+import { extractMemoId, useBrowserNotifications } from '@/hooks/common/useBrowserNotifications';
 import { useToast } from '@/components/ui/toast/ToastContainer';
 import { sharedEventSource } from '@/lib/sse/shared-event-source';
 import { API_BASE_URL } from '@/utils/api';
@@ -61,6 +61,7 @@ interface StoredNotification {
   title: string;
   message: string;
   link: string | null;
+  metadata?: string | null;
   isRead: boolean;
   createdAt: string;
 }
@@ -87,13 +88,19 @@ export function NotificationToaster() {
     lastSeenAtRef.current = readLastSeen();
   }
 
-  const displayReminder = (n: { title: string; message: string; link: string | null }) => {
+  const displayReminder = (n: {
+    title: string;
+    message: string;
+    link: string | null;
+    metadata?: string | null;
+  }) => {
     if (isTauri()) {
       void import('@tauri-apps/api/core').then(({ invoke }) =>
         invoke('show_toast_window', {
           title: n.title,
           body: n.message,
           link: n.link,
+          memoId: extractMemoId(n.metadata),
         }).catch(() => {}),
       );
       return;

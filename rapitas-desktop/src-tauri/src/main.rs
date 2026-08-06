@@ -234,14 +234,20 @@ fn create_toast_window(app: &tauri::AppHandle) -> Result<(), String> {
 /// NOTE: the payload must NOT travel in the URL — WebviewUrl::App takes a
 /// PathBuf, and a query string is an invalid Windows path (the window then
 /// sticks at about:blank).
+// NOTE: async so the handler runs on the thread pool — non-async commands run
+// ON the main thread, where the win.url() getter below (a blocking round-trip
+// into WebView2) can deadlock: the command then never completes, the toast
+// never moves on-screen, and no error surfaces anywhere.
 #[tauri::command]
-fn show_toast_window(
+async fn show_toast_window(
     app: tauri::AppHandle,
     title: String,
     body: String,
     link: Option<String>,
+    memo_id: Option<i64>,
 ) -> Result<(), String> {
-    let payload = serde_json::json!({ "title": title, "body": body, "link": link });
+    let payload =
+        serde_json::json!({ "title": title, "body": body, "link": link, "memoId": memo_id });
     let ready = app
         .try_state::<PendingToast>()
         .map(|s| s.ready.load(std::sync::atomic::Ordering::SeqCst))

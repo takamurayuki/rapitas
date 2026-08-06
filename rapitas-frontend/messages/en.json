@@ -2678,6 +2678,7 @@
   "notification": {
     "open": "Open",
     "close": "Close",
+    "markMemoDone": "Mark done",
     "justNow": "Just now",
     "minutesAgo": "{count} minutes ago",
     "hoursAgo": "{count} hours ago",

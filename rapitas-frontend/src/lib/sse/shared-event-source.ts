@@ -27,13 +27,14 @@ type ConnectionListener = (connected: boolean) => void;
 
 const RECONNECT_DELAY_MS = 5000;
 const WATCHDOG_INTERVAL_MS = 15_000;
-// The server pings every 60s — one missed ping plus grace means the link is
-// dead even if the EventSource object still claims to be OPEN (observed after
-// backend restarts: the force-closed socket never surfaces an error to the
-// client, leaving a zombie connection that silently drops every notification).
-// Kept tight because reminders ride this link — the blind window after a
-// restart is roughly this threshold.
-const STALL_THRESHOLD_MS = 75_000;
+// The server pings every 60s. The threshold MUST comfortably exceed one ping
+// interval: a 75s value left only 15s of slack, and ordinary timer/event-loop
+// jitter pushed ping gaps past it — the watchdog then rebuilt a HEALTHY
+// connection roughly once a minute, all day (server logs showed client-187
+// within hours). Two missed pings + slack is the reliable dead-link signal;
+// the reconnect blind window this allows is covered by the toaster's
+// replay-on-reconnect.
+const STALL_THRESHOLD_MS = 150_000;
 
 class SharedEventSourceManager {
   private es: EventSource | null = null;

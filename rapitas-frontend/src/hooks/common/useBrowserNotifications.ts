@@ -43,9 +43,29 @@ export interface SSENotificationPayload {
     title: string;
     message: string;
     link?: string | null;
-    metadata?: Record<string, unknown>;
+    /** JSON string in the DB row; may arrive parsed depending on the sender. */
+    metadata?: string | Record<string, unknown> | null;
   };
   unreadCount: number;
+}
+
+/**
+ * Extract the memo id from a notification's metadata (memo reminders carry
+ * `{"memoId": n}`), tolerating both the raw DB string and a parsed object.
+ *
+ * @param metadata - Notification metadata / 通知メタデータ
+ * @returns The memo id, or null / メモID(無ければnull)
+ */
+export function extractMemoId(
+  metadata: string | Record<string, unknown> | null | undefined,
+): number | null {
+  try {
+    const obj = typeof metadata === 'string' ? (JSON.parse(metadata) as unknown) : metadata;
+    const id = (obj as { memoId?: unknown } | null | undefined)?.memoId;
+    return typeof id === 'number' && Number.isFinite(id) ? id : null;
+  } catch {
+    return null;
+  }
 }
 
 /** Hook options. */
@@ -116,6 +136,7 @@ export function useBrowserNotifications(options: UseBrowserNotificationsOptions 
             title: notification.title,
             body: notification.message,
             link: notification.link ?? null,
+            memoId: extractMemoId(notification.metadata),
           });
         } catch (e) {
           logger.errorThrottled('Toast window failed:', e);

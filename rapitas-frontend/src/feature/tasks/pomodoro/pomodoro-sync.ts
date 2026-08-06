@@ -9,6 +9,18 @@
 import { API_BASE_URL } from '@/utils/api';
 
 /**
+ * Whether this window may talk to the backend about pomodoro state.
+ * The pomodoro store (and its 1s tick) runs in EVERY window — the root layout
+ * wraps the popup windows too — so without this gate, the main window, the
+ * notification toast, and quick capture ALL fired start/complete/cancel for
+ * the same session (server log: 「完了可能なセッションが見つかりません」races
+ * on completion). Only the main window owns backend sync.
+ */
+const isSyncOwner = (): boolean =>
+  typeof window === 'undefined' ||
+  !['/notification-toast', '/quick-capture'].some((p) => window.location.pathname.startsWith(p));
+
+/**
  * Sync object with methods to notify the backend about Pomodoro session events.
  * Each method fires an async request without blocking the caller.
  */
@@ -25,6 +37,7 @@ export const syncPomodoroToBackend = {
     duration: number,
     type: 'work' | 'short_break' | 'long_break' = 'work',
   ): void => {
+    if (!isSyncOwner()) return;
     fetch(`${API_BASE_URL}/pomodoro/start`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -38,6 +51,7 @@ export const syncPomodoroToBackend = {
    * @param completedPomodoros - Total completed pomodoros so far (unused server-side, kept for context) / 完了ポモドーロ数
    */
   complete: (completedPomodoros: number): void => {
+    if (!isSyncOwner()) return;
     fetch(`${API_BASE_URL}/pomodoro/active`)
       .then((res) => res.json())
       .then((data: { session?: { id: number } }) => {
@@ -56,6 +70,7 @@ export const syncPomodoroToBackend = {
    * Cancels the currently active backend session.
    */
   cancel: (): void => {
+    if (!isSyncOwner()) return;
     fetch(`${API_BASE_URL}/pomodoro/active`)
       .then((res) => res.json())
       .then((data: { session?: { id: number } }) => {
