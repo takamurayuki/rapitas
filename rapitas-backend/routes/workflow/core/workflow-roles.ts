@@ -1,6 +1,6 @@
 /**
  * Workflow Roles Routes
- * AI agent role configuration for each workflow phase (research, plan, review, implement, verify)
+ * AI agent role configuration for each workflow phase (research, plan, implement, verify)
  */
 import { Elysia, t } from 'elysia';
 import { prisma } from '../../../config';
@@ -16,7 +16,6 @@ const VALID_ROLES = WORKFLOW_ROLES;
 const DEFAULT_PROMPT_KEYS: Record<WorkflowRole, string> = {
   researcher: 'workflow_role_researcher',
   planner: 'workflow_role_planner',
-  reviewer: 'workflow_role_reviewer',
   implementer: 'workflow_role_implementer',
   verifier: 'workflow_role_verifier',
   auto_verifier: 'workflow_role_auto_verifier',
@@ -24,6 +23,9 @@ const DEFAULT_PROMPT_KEYS: Record<WorkflowRole, string> = {
 
 /**
  * Initialize missing roles with default values.
+ * NOTE: Stale rows for retired roles (e.g. 'reviewer', retired 2026-08) are
+ * simply not in VALID_ROLES — they are left untouched in the DB and never
+ * surfaced, so existing databases keep working without a migration.
  */
 async function ensureRolesExist() {
   const existing = await prisma.workflowRoleConfig.findMany({
@@ -68,7 +70,6 @@ export const workflowRolesRoutes = new Elysia()
     const roleOrder: WorkflowRole[] = [
       'researcher',
       'planner',
-      'reviewer',
       'implementer',
       'verifier',
       'auto_verifier',
@@ -265,7 +266,7 @@ export const workflowRolesRoutes = new Elysia()
     return {
       modes: Object.values(all).map((s) => ({
         ...s,
-        // Ordered phase keys for UI preview (research/plan/review/implement/verify).
+        // Ordered phase keys for UI preview (research/plan/implement/verify).
         phases: Object.values(buildTransitions(s)).map((t) => t.role),
       })),
     };
@@ -273,7 +274,7 @@ export const workflowRolesRoutes = new Elysia()
 
   /**
    * PUT /workflow-modes/:mode — update one tier's phase toggles and complexity
-   * range. Body: { includePlan?, includeReview?, autoVerify?, complexityMin?,
+   * range. Body: { includePlan?, autoVerify?, complexityMin?,
    * complexityMax?, isEnabled? }.
    */
   .put(
@@ -286,7 +287,7 @@ export const workflowRolesRoutes = new Elysia()
       }
       const b = (body ?? {}) as Record<string, unknown>;
       const patch: Record<string, unknown> = {};
-      for (const k of ['includePlan', 'includeReview', 'autoVerify', 'isEnabled'] as const) {
+      for (const k of ['includePlan', 'autoVerify', 'isEnabled'] as const) {
         if (typeof b[k] === 'boolean') patch[k] = b[k];
       }
       for (const k of ['complexityMin', 'complexityMax'] as const) {
@@ -303,7 +304,6 @@ export const workflowRolesRoutes = new Elysia()
         t.Object(
           {
             includePlan: t.Optional(t.Boolean()),
-            includeReview: t.Optional(t.Boolean()),
             autoVerify: t.Optional(t.Boolean()),
             complexityMin: t.Optional(t.Number()),
             complexityMax: t.Optional(t.Number()),

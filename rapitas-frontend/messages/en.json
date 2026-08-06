@@ -2048,7 +2048,6 @@
     "startImplementation": "Start implementation",
     "runAutoVerification": "Run auto verification",
     "createPlan": "Create plan",
-    "runReview": "Run review",
     "runResearch": "Run research",
     "runVerification": "Run verification",
     "approvePlan": "Approve plan",
@@ -2073,7 +2072,6 @@
     "stepImplement": "Implement",
     "stepVerify": "Verify",
     "stepVerifyFull": "Verification",
-    "stepReview": "Review",
     "complexityLow": "Low Complexity",
     "complexityMedium": "Medium Complexity",
     "complexityHigh": "High Complexity",
@@ -2141,9 +2139,6 @@
       "planner": {
         "label": "Plan",
         "description": "Create a checklist-based implementation plan from the research"
-      },
-      "reviewer": {
-        "description": "Point out risks, open questions, and improvements in the plan"
       },
       "implementer": {
         "outputFile": "Code",
@@ -3794,11 +3789,6 @@
           "message": "The planner has finished drafting the plan.",
           "nextAction": "Review the plan in the workflow tab and approve it."
         },
-        "reviewer": {
-          "title": "Review phase complete",
-          "message": "The reviewer has finished the review.",
-          "nextAction": "Review the plan in the workflow tab and approve it."
-        },
         "implementer": {
           "title": "Implementation phase complete",
           "message": "The implementer has finished the implementation.",
@@ -4360,7 +4350,6 @@
       "workflowPhase": {
         "researcher": "[Research Complete] The research phase is complete. Automatically advancing to the next phase...",
         "planner": "[Planning Complete] The planning phase is complete. If auto-approval is enabled, implementation will start automatically (otherwise, approve it in the Plan tab).",
-        "reviewer": "[Review Complete] The review phase is complete. If auto-approval is enabled, implementation will start automatically (otherwise, approve it in the Plan tab).",
         "implementer": "[Implementation Complete] The implementation phase is complete. Automatically running the verification phase...",
         "verifier": "[Verification Complete] The verification phase is complete. If there are no issues, the status will automatically become \"Completed.\"",
         "default": "[Phase Complete] {mode} is complete."

@@ -50,7 +50,9 @@ interface OutcomeRow {
  * indicts the VERIFIER. Roles not listed keep process-level success (their
  * output has no downstream gate that attributes failure to them).
  */
-const ROLE_TROUBLE_CAUSES: Record<string, string[]> = {
+// NOTE: exported so prompt-evolution-runner shares the SAME success definition
+// (gate-bounce detection) instead of duplicating the cause list.
+export const ROLE_TROUBLE_CAUSES: Record<string, string[]> = {
   implementer: ['verify_repair', 'adversarial_review_failed', 'ci_repair', 'verify_no_changes'],
   verifier: ['verify_validation_failed', 'log_polluted_rejected'],
   auto_verifier: ['verify_validation_failed', 'log_polluted_rejected'],

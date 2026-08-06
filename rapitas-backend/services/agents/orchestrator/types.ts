@@ -35,7 +35,7 @@ export type ExecutionOptions = {
    */
   disableFallback?: boolean;
   /**
-   * Investigation mode: agent runs as read-only researcher/planner/reviewer.
+   * Investigation mode: agent runs as read-only researcher/planner.
    * For codex specifically this means `--sandbox=read-only
    * --ask-for-approval=never -o <file>` so the agent CANNOT modify code at
    * the OS level — perfect for the safe research → plan → review chain.
@@ -45,7 +45,7 @@ export type ExecutionOptions = {
   /**
    * Output artifact type for investigation mode. Drives codex's
    * positional headline (`# 調査レポート` / `# 実装計画` / …) so the
-   * planner/reviewer phases produce documents with the correct shape
+   * planner phase produces documents with the correct shape
    * instead of being force-shaped as research reports.
    */
   investigationOutputType?: 'research' | 'plan' | 'review' | 'verify';

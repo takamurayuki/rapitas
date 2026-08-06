@@ -65,7 +65,7 @@ export type AgentTask = {
   /** Whether plan.md should be auto-approved (skips waiting for user approval). */
   autoApprovePlan?: boolean;
   /**
-   * Investigation mode: agent runs as read-only researcher/planner/reviewer.
+   * Investigation mode: agent runs as read-only researcher/planner.
    * For codex this triggers `--sandbox=read-only --ask-for-approval=never`
    * so code modifications are physically impossible.
    */

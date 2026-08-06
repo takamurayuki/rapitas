@@ -6,15 +6,14 @@ import { describe, expect, test } from 'bun:test';
 import { AGENT_CAPABILITIES, getCapability, scoreAgentForRole } from './agent-capabilities';
 
 describe('AGENT_CAPABILITIES registry', () => {
-  test('codex is suitable for impl, and for research/plan/review only via investigationMode', () => {
+  test('codex is suitable for impl, and for research/plan only via investigationMode', () => {
     const codex = AGENT_CAPABILITIES.codex;
     expect(codex.bestForRoles).toContain('implementer');
-    // Codex can do research/plan/review safely WHEN wrapped in
+    // Codex can do research/plan safely WHEN wrapped in
     // investigationMode (--sandbox=read-only --ask-for-approval=never -o).
     // workflow-cli-executor toggles this automatically for non-impl phases.
     expect(codex.bestForRoles).toContain('researcher');
     expect(codex.bestForRoles).toContain('planner');
-    expect(codex.bestForRoles).toContain('reviewer');
     expect(codex.followsStrictInstructions).toBe(false);
     expect(codex.notes).toContain('investigationMode');
   });
@@ -52,7 +51,7 @@ describe('scoreAgentForRole', () => {
     expect(scoreAgentForRole('codex', 'implementer')).toBeGreaterThan(70);
   });
 
-  test('codex scores positive but lower than claude-code for research/plan/review', () => {
+  test('codex scores positive but lower than claude-code for research/plan', () => {
     const codexResearch = scoreAgentForRole('codex', 'researcher');
     const claudeResearch = scoreAgentForRole('claude-code', 'researcher');
     expect(codexResearch).toBeGreaterThan(0); // usable via investigationMode
@@ -65,7 +64,6 @@ describe('scoreAgentForRole', () => {
   test('claude-code scores well across all roles', () => {
     expect(scoreAgentForRole('claude-code', 'researcher')).toBeGreaterThan(70);
     expect(scoreAgentForRole('claude-code', 'planner')).toBeGreaterThan(70);
-    expect(scoreAgentForRole('claude-code', 'reviewer')).toBeGreaterThan(70);
     expect(scoreAgentForRole('claude-code', 'implementer')).toBeGreaterThan(70);
   });
 
@@ -89,7 +87,7 @@ describe('scoreAgentForRole', () => {
 
   test('ollama scores badly for serious roles', () => {
     expect(scoreAgentForRole('ollama', 'planner')).toBe(-100);
-    expect(scoreAgentForRole('ollama', 'reviewer')).toBe(-100);
+    expect(scoreAgentForRole('ollama', 'implementer')).toBe(-100);
   });
 
   test('unknown types score 0 or below', () => {

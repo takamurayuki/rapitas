@@ -397,15 +397,12 @@ Always include an "Existing-feature check" section in the research / plan output
   fullPrompt += existingFeatureGate;
   fullPrompt += context;
 
-  // Investigation phases (research/plan/review) MUST run with read-only
+  // Investigation phases (research/plan) MUST run with read-only
   // sandbox so codex (and any other CLI agent) cannot modify code. The
   // agent's final message is captured via codex `-o <file>` (a temp file
   // we then upload to the workflow API server-side). This is the official
   // safe pattern: codex CANNOT save the md itself, the OS guarantees it.
-  const isInvestigationPhase =
-    transition.role === 'researcher' ||
-    transition.role === 'planner' ||
-    transition.role === 'reviewer';
+  const isInvestigationPhase = transition.role === 'researcher' || transition.role === 'planner';
 
   // Investigation phases save the agent's CLEAN final message: for claude-code
   // that comes from the stream-json `result` event (result.finalMessage); the
@@ -420,18 +417,10 @@ Always include an "Existing-feature check" section in the research / plan output
     // Strict research-only contract. No curl, no implementation, no test exec.
     // The agent simply produces the markdown report as its final message —
     // the CLI captures it via -o, we save it server-side.
-    const phaseLabelJa =
-      transition.outputFile === 'plan'
-        ? '計画専用モード'
-        : transition.outputFile === 'question'
-          ? 'レビュー専用モード'
-          : '調査専用モード';
-    const phaseRoleJa =
-      transition.outputFile === 'plan'
-        ? '計画専用'
-        : transition.outputFile === 'question'
-          ? 'レビュー専用'
-          : '調査専用';
+    // NOTE: Investigation phases only emit research/plan now — the reviewer
+    // role (question.md output) was retired 2026-08.
+    const phaseLabelJa = transition.outputFile === 'plan' ? '計画専用モード' : '調査専用モード';
+    const phaseRoleJa = transition.outputFile === 'plan' ? '計画専用' : '調査専用';
     fullPrompt +=
       language === 'ja'
         ? `\n\n## 厳守事項 (${phaseLabelJa})
@@ -624,9 +613,7 @@ curl -X POST http://127.0.0.1:${port}/idea-box \\
           ? 'plan'
           : transition.outputFile === 'verify'
             ? 'verify'
-            : transition.outputFile === 'question'
-              ? 'review'
-              : 'research',
+            : 'research',
       // For investigation phases, codex writes its final message to a TEMP
       // file via -o. We read that temp file after the run and upload it to
       // the workflow API ourselves — codex never gets to touch the
@@ -1051,7 +1038,7 @@ curl -X POST http://127.0.0.1:${port}/idea-box \\
   // output file has been validated and saved. Without this, downstream
   // jobs like the distillation worker skip the execution because they
   // refuse to act on a non-completed row, and the FE's "完了" badge
-  // never lights up for planner / reviewer / verifier phases.
+  // never lights up for planner / verifier phases.
   if (effectiveSuccess && isInvestigationPhase) {
     try {
       await prisma.agentExecution.updateMany({

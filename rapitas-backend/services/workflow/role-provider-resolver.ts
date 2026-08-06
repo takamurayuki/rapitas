@@ -4,8 +4,8 @@
  * Computes the SmartRouter inputs for a given workflow role:
  *  - `preferredProvider`: per-role override > global UserSettings default
  *    > default AIAgentConfig provider (isDefault=true) > undefined
- *  - `excludeProviders`: cross-provider review exclusions for reviewer /
- *    verifier roles, derived from previous AgentExecutions on the same task
+ *  - `excludeProviders`: cross-provider review exclusions for verifier
+ *    roles, derived from previous AgentExecutions on the same task
  *
  * The cross-provider rule mitigates LLM self-evaluation bias documented in
  * LLM-as-judge research: a Claude-written implementation gets a stricter
@@ -19,7 +19,9 @@ import { agentTypeToProvider } from '../ai/agent-fallback';
 const VALID_PROVIDERS: ReadonlySet<Provider> = new Set(['claude', 'openai', 'gemini', 'ollama']);
 
 /** Roles whose default behaviour is "use a different provider than upstream". */
-const REVIEW_ROLES: ReadonlySet<string> = new Set(['reviewer', 'verifier', 'auto_verifier']);
+// NOTE: 'reviewer' removed 2026-08 (role retired); verifier/auto_verifier keep
+// the cross-provider default.
+const REVIEW_ROLES: ReadonlySet<string> = new Set(['verifier', 'auto_verifier']);
 
 /**
  * Resolve provider preferences for the given role + task.
@@ -85,7 +87,7 @@ export async function resolveRoleProviderPreferences(
   // Auto-exclude upstream provider when:
   //  - User explicitly chose `cross-provider`, OR
   //  - Role is a review-style phase AND the user did NOT pin a specific
-  //    provider. Pinning Claude to reviewer should honor that choice — the
+  //    provider. Pinning Claude to the verifier should honor that choice — the
   //    user clearly knows what they want.
   let excludeProviders: Provider[] | undefined;
   if (isCrossProvider || (!isExplicitProvider && REVIEW_ROLES.has(role))) {

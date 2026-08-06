@@ -181,10 +181,12 @@ const STAGES: WorkflowStatus[] = [
 ];
 
 // Stage-to-role mapping
+// NOTE: plan_created maps to no role — it is the approval gate (the reviewer
+// role that used to sit there was retired 2026-08).
 const STAGE_ROLES: Record<string, string> = {
   draft: 'researcher',
   research_done: 'planner',
-  plan_created: 'reviewer',
+  plan_created: '',
   plan_approved: 'implementer',
   in_progress: 'verifier',
   verify_done: '',

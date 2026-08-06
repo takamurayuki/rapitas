@@ -23,13 +23,7 @@ const TIER_ORDER: ModelTier[] = ['premium', 'standard', 'economy', 'free'];
  * it passes a human approval gate that anchors on it), so it must not run on
  * an economy model just because the task metadata scored low complexity.
  */
-const CAPABILITY_ROLES = new Set([
-  'implementer',
-  'planner',
-  'reviewer',
-  'verifier',
-  'auto_verifier',
-]);
+const CAPABILITY_ROLES = new Set(['implementer', 'planner', 'verifier', 'auto_verifier']);
 
 /**
  * Presence of any of these in the task text OR plan marks the work high-risk:
@@ -59,7 +53,7 @@ export function highestTier(...tiers: Array<ModelTier | undefined>): ModelTier |
  * Whether a role produces or judges code (and so needs a capability floor).
  *
  * @param role - Workflow role. / ワークフローロール
- * @returns true for implementer / reviewer / verifier. / 該当ロールなら true
+ * @returns true for implementer / planner / verifier. / 該当ロールなら true
  */
 export function isCapabilityRole(role: string): boolean {
   return CAPABILITY_ROLES.has(role);

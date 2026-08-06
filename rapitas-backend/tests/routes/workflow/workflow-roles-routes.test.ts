@@ -83,7 +83,6 @@ describe('GET /workflow-roles', () => {
     const roles = [
       { id: 1, role: 'researcher', isEnabled: true, agentConfig: null },
       { id: 2, role: 'planner', isEnabled: true, agentConfig: null },
-      { id: 3, role: 'reviewer', isEnabled: true, agentConfig: null },
       { id: 4, role: 'implementer', isEnabled: true, agentConfig: null },
       { id: 5, role: 'verifier', isEnabled: true, agentConfig: null },
       { id: 6, role: 'auto_verifier', isEnabled: true, agentConfig: null },
@@ -98,7 +97,32 @@ describe('GET /workflow-roles', () => {
 
     expect(res.status).toBe(200);
     expect(Array.isArray(body)).toBe(true);
-    expect(body.length).toBe(6);
+    expect(body.length).toBe(5);
+  });
+
+  test('退役した reviewer 行が DB に残っていても無視される（クラッシュしない）', async () => {
+    // Legacy DB still contains a 'reviewer' row (role retired 2026-08). The
+    // route must neither crash nor surface it.
+    const roles = [
+      { id: 1, role: 'researcher', isEnabled: true, agentConfig: null },
+      { id: 2, role: 'planner', isEnabled: true, agentConfig: null },
+      { id: 3, role: 'reviewer', isEnabled: true, agentConfig: null },
+      { id: 4, role: 'implementer', isEnabled: true, agentConfig: null },
+      { id: 5, role: 'verifier', isEnabled: true, agentConfig: null },
+      { id: 6, role: 'auto_verifier', isEnabled: true, agentConfig: null },
+    ];
+    mockPrisma.workflowRoleConfig.findMany
+      .mockResolvedValueOnce(roles.map((r) => ({ role: r.role })))
+      .mockResolvedValueOnce(roles);
+
+    const res = await app.handle(new Request('http://localhost/workflow-roles'));
+    const body = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(body.length).toBe(5);
+    expect(body.map((r: { role: string }) => r.role)).not.toContain('reviewer');
+    // No re-seed attempted — all current roles already exist.
+    expect(mockPrisma.workflowRoleConfig.createMany).not.toHaveBeenCalled();
   });
 
   test('欠落ロールの自動初期化が行われること', async () => {

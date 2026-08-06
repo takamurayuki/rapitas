@@ -23,7 +23,6 @@ import { PrMergeSection } from './PrMergeSection';
 const WORKFLOW_PHASE_KEYS: Record<string, string> = {
   'workflow-researcher': 'researcher',
   'workflow-planner': 'planner',
-  'workflow-reviewer': 'reviewer',
   'workflow-implementer': 'implementer',
   'workflow-verifier': 'verifier',
 };

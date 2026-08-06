@@ -81,12 +81,6 @@ export async function buildRoleContext(
           '## 自己完結ルール\n' +
           'plan.md は research.md を読めない後続フェーズ（検証者・再実行の実装者）でも単体で理解できるように書く。「research.md の選択肢A」「research.md の◯◯を参照」のような参照は禁止。必要な事実（根本原因・選択肢の却下理由・再現手順の要点）は plan.md 内に1〜2行で再掲する（原文の全文コピーは不可）。',
       },
-      reviewer: {
-        researchHeader: '# 調査結果 (research.md)',
-        planHeader: '# 実装計画 (plan.md)',
-        instruction:
-          '上記の計画をレビューし、リスク・不明点・改善提案をquestion.mdとしてMarkdown形式で作成してください。5つ以上の指摘事項を含めてください。',
-      },
       implementer: {
         researchHeader: '# 調査結果 (research.md)',
         planHeader: '# 承認済み実装計画 (plan.md)',
@@ -184,12 +178,6 @@ export async function buildRoleContext(
         selfContainment:
           '## Self-containment rule\n' +
           'Write plan.md so later phases that CANNOT read research.md (the verifier; a re-run implementer) understand it standalone. References like "option A from research.md" are forbidden. Restate the needed facts (root cause, why alternatives were rejected, key repro steps) in 1-2 lines inside plan.md — never copy the original text wholesale.',
-      },
-      reviewer: {
-        researchHeader: '# Research Results (research.md)',
-        planHeader: '# Implementation Plan (plan.md)',
-        instruction:
-          'Please review the plan above and create risks, unclear points, and improvement suggestions as question.md in Markdown format. Include at least 5 points of feedback.',
       },
       implementer: {
         researchHeader: '# Research Results (research.md)',
@@ -307,31 +295,6 @@ export async function buildRoleContext(
         ctx += `\n\n${t.planner.researchHeader}\n\n${research}`;
       }
       ctx += `\n\n${t.planner.instruction}\n\n${t.planner.premortem}\n\n${t.planner.selfContainment}\n\n${styleRule}`;
-      return ctx;
-    }
-
-    case 'reviewer': {
-      const plan = await readWorkflowFile(taskId, 'plan');
-      const research = await readWorkflowFile(taskId, 'research');
-      // The reviewer was the only role with ZERO memory context — it judged
-      // plans blind to the lessons/pitfalls the KB already holds and to how
-      // similar plans were previously rejected. Same sources as the planner.
-      const reviewerMemory = await buildMemoryContext(taskId, task, language);
-      const priorRejections = await buildRejectedPlanContext(taskId, language);
-      let ctx = taskInfo;
-      if (reviewerMemory) {
-        ctx += `\n\n${reviewerMemory}`;
-      }
-      if (priorRejections) {
-        ctx += `\n\n${priorRejections}`;
-      }
-      if (research) {
-        ctx += `\n\n${t.reviewer.researchHeader}\n\n${research}`;
-      }
-      if (plan) {
-        ctx += `\n\n${t.reviewer.planHeader}\n\n${plan}`;
-      }
-      ctx += `\n\n${t.reviewer.instruction}\n\n${styleRule}`;
       return ctx;
     }
 
@@ -651,7 +614,7 @@ const IMPLEMENTER_NO_PLAN_DIRECTIVE = `## 実行モード: 調査→実装→検
 以下のロール説明に「plan.md」「承認された計画」「計画のチェックリスト」「プランナーへの質問」等があっても、次のとおり読み替えてください:
 - 実装の根拠は **research.md とタスク要件** です。「計画に従う」ではなく、調査結果とタスク内容に基づいて実装してください。
 - plan.md のチェックリストは存在しません。**タスク要件を満たすこと**を完了基準にしてください。
-- **プランナーは存在しません**。判断できない点は推測せず question.md に記録して停止してください（回答するのはユーザーです）。
+- **プランナーは存在しません**。既存コード・型・慣例から合理的に導ける判断は自分で行い、根拠を記録してください。**複数の妥当な選択肢があり、選択がタスクの目的自体を左右する場合のみ**、question.md に記録して停止してください（回答するのはユーザーです）。
 - スコープ厳守・スコープ外変更の禁止・品質基準・セーフガード（テスト/型/ESLint）は通常どおり適用します。`;
 
 const IMPLEMENTER_WITH_PLAN_DIRECTIVE = `## 実行モード: 計画あり（plan.md） — 他のどの指示よりも優先
@@ -672,7 +635,7 @@ const VERIFIER_WITH_PLAN_DIRECTIVE = `## 実行モード: 計画あり（plan.md
 /**
  * Prepend a plan-mode directive to the implementer/verifier system prompt.
  *
- * No-ops for other roles (planner/reviewer only run in plan-producing modes,
+ * No-ops for other roles (the planner only runs in plan-producing modes,
  * researcher has no plan dependency). The directive is authoritative so it fixes
  * the behaviour regardless of what the stored DB prompt says.
  *

@@ -181,13 +181,13 @@ export interface SmartRouteOptions {
   /**
    * Providers to drop from the candidate pool before selection. Used by the
    * orchestrator to realise cross-provider review (exclude the upstream phase
-   * provider when picking for reviewer/verifier).
+   * provider when picking for verifier).
    */
   excludeProviders?: Provider[];
   /**
    * Minimum capability tier (a role floor). The complexity/budget tier is
    * RAISED up to this — never below it — so capability-critical phases
-   * (implementer writing code, reviewer/verifier judging it) are not run on an
+   * (implementer writing code, verifier judging it) are not run on an
    * economy model just because the task scored low complexity.
    */
   minTier?: ModelTier;

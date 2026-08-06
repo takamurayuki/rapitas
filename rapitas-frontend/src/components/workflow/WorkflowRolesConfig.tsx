@@ -31,7 +31,6 @@ type ModeKey = 'lightweight' | 'standard' | 'comprehensive';
 interface ModeSettings {
   mode: ModeKey;
   includePlan: boolean;
-  includeReview: boolean;
   autoVerify: boolean;
   complexityMin: number;
   complexityMax: number;
@@ -74,7 +73,6 @@ function rolesForMode(s: ModeSettings): WorkflowRole[] {
   const r: WorkflowRole[] = ['researcher'];
   if (s.includePlan) {
     r.push('planner');
-    if (s.includeReview) r.push('reviewer');
   }
   r.push('implementer');
   r.push(s.autoVerify ? 'auto_verifier' : 'verifier');
@@ -108,10 +106,7 @@ function roleConfigForMode(
         description: t('rolesConfig.implementerNoPlanDescription'),
       };
     }
-    if (!s.includeReview) {
-      return { ...base, inputLabel: 'plan.md', description: t('roles.implementer.description') };
-    }
-    return base; // plan + review → default input 'plan.md + question.md'
+    return { ...base, inputLabel: 'plan.md', description: t('roles.implementer.description') };
   }
   if ((roleKey === 'verifier' || roleKey === 'auto_verifier') && !s.includePlan) {
     return { ...base, inputLabel: 'research.md + diff' };

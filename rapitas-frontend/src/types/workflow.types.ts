@@ -35,13 +35,9 @@ export type WorkflowPathInfo = {
   themeId: number | null;
 };
 
-export type WorkflowRole =
-  | 'researcher'
-  | 'planner'
-  | 'reviewer'
-  | 'implementer'
-  | 'verifier'
-  | 'auto_verifier';
+// NOTE: 'reviewer' removed 2026-08 — the role was retired (plan-review is
+// covered by the backend's phase-critic + adversarial diff-review gates).
+export type WorkflowRole = 'researcher' | 'planner' | 'implementer' | 'verifier' | 'auto_verifier';
 
 export type WorkflowRoleConfig = {
   id: number;
@@ -62,7 +58,7 @@ export type WorkflowRoleConfig = {
    * Auto-select provider preference for this role:
    * - `claude` / `openai` / `gemini` / `ollama`: prefer that provider on tier ties.
    * - `cross-provider`: pick a provider different from the previous phase
-   *   (mitigates self-evaluation bias for reviewer/verifier roles).
+   *   (mitigates self-evaluation bias for verifier roles).
    * - `null`: fall back to UserSettings.defaultAiProvider.
    */
   preferredProviderOverride?: 'claude' | 'openai' | 'gemini' | 'ollama' | 'cross-provider' | null;

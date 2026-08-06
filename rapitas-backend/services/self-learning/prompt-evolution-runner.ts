@@ -8,10 +8,16 @@
  * このランナーは GitHub Actions の cron ワークフロー
  * `.github/workflows/prompt-evolution-weekly.yml` から bun で起動される想定。
  * 失敗してもエージェント実行に影響しないよう、すべての例外は内部で握りつぶす。
+ *
+ * NOTE: 成功判定は AgentSession.status='completed' 単独では不十分 — verify /
+ * adversarial ゲートに差し戻されたセッションも 'completed' のまま残るため、
+ * gate 差し戻しが成功例として学習されていた。role-evidence と同じ
+ * ROLE_TROUBLE_CAUSES（WorkflowTransition.cause）で差し戻しを失敗側に補正する。
  */
 
 import { createLogger } from '../../config/logger';
 import type { PrismaClient } from '../../generated/prisma-postgres';
+import { ROLE_TROUBLE_CAUSES } from '../workflow/role-evidence';
 
 const log = createLogger('self-learning:prompt-evolution-runner');
 
@@ -43,12 +49,14 @@ export async function runPromptEvolution(prisma: PrismaClient): Promise<RoleEval
   const since = new Date(Date.now() - WINDOW_DAYS * 24 * 60 * 60 * 1000);
   const evaluations: RoleEvaluation[] = [];
 
+  // NOTE: reviewer is retired (removal in progress elsewhere); auto_verifier is
+  // the lightweight-mode verify role and has its own prompt to evolve.
   const roles: ReadonlyArray<string> = [
     'researcher',
     'planner',
-    'reviewer',
     'implementer',
     'verifier',
+    'auto_verifier',
   ];
 
   for (const role of roles) {
@@ -80,6 +88,10 @@ export async function runPromptEvolution(prisma: PrismaClient): Promise<RoleEval
 
 /**
  * 直近 since 以降の AgentSession で mode=workflow-{role} のものを集計し、成功率を出す。
+ *
+ * ゲート対象ロール（ROLE_TROUBLE_CAUSES 参照）は status='completed' に加えて、
+ * そのタスクにロールの成果物を差し戻す WorkflowTransition（verify_repair 等）が
+ * 記録されていないことを成功の条件とする — role-evidence と同じ定義。
  */
 async function evaluateRole(
   prisma: PrismaClient,
@@ -91,10 +103,39 @@ async function evaluateRole(
       mode: `workflow-${role}`,
       createdAt: { gte: since },
     },
-    select: { status: true },
+    select: { status: true, config: { select: { taskId: true } } },
   });
+
+  // Gate-rejection lookup: tasks whose transitions indict this role's output.
+  // Best-effort — a query failure falls back to process-level success only.
+  const troubleCauses = ROLE_TROUBLE_CAUSES[role] ?? [];
+  const taskIds = [
+    ...new Set(
+      sessions.map((s) => s.config?.taskId).filter((id): id is number => typeof id === 'number'),
+    ),
+  ];
+  let troubledTasks = new Set<number>();
+  if (troubleCauses.length > 0 && taskIds.length > 0) {
+    const troubleRows = await prisma.workflowTransition
+      .findMany({
+        where: {
+          taskId: { in: taskIds },
+          cause: { in: troubleCauses },
+          createdAt: { gte: since },
+        },
+        select: { taskId: true },
+        distinct: ['taskId'],
+      })
+      .catch(() => [] as Array<{ taskId: number }>);
+    troubledTasks = new Set(troubleRows.map((t) => t.taskId));
+  }
+
   const total = sessions.length;
-  const success = sessions.filter((s) => s.status === 'completed').length;
+  const success = sessions.filter((s) => {
+    if (s.status !== 'completed') return false;
+    const taskId = s.config?.taskId;
+    return !(typeof taskId === 'number' && troubledTasks.has(taskId));
+  }).length;
   const rate = total === 0 ? 1 : success / total;
   const enoughSamples = total >= MIN_SAMPLE_SIZE;
   const shouldEvolve = enoughSamples && rate < SUCCESS_RATE_THRESHOLD;

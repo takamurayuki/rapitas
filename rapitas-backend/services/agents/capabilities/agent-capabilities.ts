@@ -80,10 +80,10 @@ export const AGENT_CAPABILITIES: Readonly<Record<AgentType, AgentCapability>> = 
     goodForPlanning: true, // safe via investigationMode (read-only + -o)
     goodForReview: true, // safe via investigationMode
     supportsReadOnlySandbox: true,
-    // Codex can run as researcher/planner/reviewer ONLY when wrapped in
+    // Codex can run as researcher/planner ONLY when wrapped in
     // investigationMode (--sandbox=read-only --ask-for-approval=never -o).
     // workflow-cli-executor enables this automatically for non-impl phases.
-    bestForRoles: ['implementer', 'researcher', 'planner', 'reviewer', 'verifier', 'auto_verifier'],
+    bestForRoles: ['implementer', 'researcher', 'planner', 'verifier', 'auto_verifier'],
     avoidForRoles: [],
     notes:
       'Optimized for direct code implementation. For research/plan/review phases, MUST be wrapped in investigationMode (--sandbox=read-only --ask-for-approval=never -o file.md) so it cannot modify code at the OS level. Otherwise prefers claude-code or API agents.',
@@ -96,7 +96,7 @@ export const AGENT_CAPABILITIES: Readonly<Record<AgentType, AgentCapability>> = 
     goodForPlanning: true,
     goodForReview: true,
     supportsReadOnlySandbox: true,
-    bestForRoles: ['researcher', 'planner', 'reviewer', 'implementer', 'verifier', 'auto_verifier'],
+    bestForRoles: ['researcher', 'planner', 'implementer', 'verifier', 'auto_verifier'],
     avoidForRoles: [],
     notes:
       'Generalist agent. Respects role-scoped prompts and produces clean markdown artifacts. Good fit for any phase.',
@@ -109,7 +109,7 @@ export const AGENT_CAPABILITIES: Readonly<Record<AgentType, AgentCapability>> = 
     goodForPlanning: true,
     goodForReview: true,
     supportsReadOnlySandbox: true,
-    bestForRoles: ['researcher', 'planner', 'reviewer', 'verifier', 'auto_verifier'],
+    bestForRoles: ['researcher', 'planner', 'verifier', 'auto_verifier'],
     avoidForRoles: [],
     notes:
       'Strong at analytical tasks (research, planning, review). Good markdown output. Slightly less consistent for raw code implementation than codex.',
@@ -122,7 +122,7 @@ export const AGENT_CAPABILITIES: Readonly<Record<AgentType, AgentCapability>> = 
     goodForPlanning: true,
     goodForReview: true,
     supportsReadOnlySandbox: true,
-    bestForRoles: ['researcher', 'planner', 'reviewer'],
+    bestForRoles: ['researcher', 'planner'],
     avoidForRoles: ['implementer', 'verifier'],
     notes:
       'Direct API call from server, no CLI. Cannot edit files / run commands. Best for non-impl phases where we want pure markdown output.',
@@ -135,7 +135,7 @@ export const AGENT_CAPABILITIES: Readonly<Record<AgentType, AgentCapability>> = 
     goodForPlanning: true,
     goodForReview: true,
     supportsReadOnlySandbox: true,
-    bestForRoles: ['researcher', 'planner', 'reviewer'],
+    bestForRoles: ['researcher', 'planner'],
     avoidForRoles: ['implementer', 'verifier'],
     notes:
       'Direct API call from server, no CLI. Cannot edit files. Best for research/plan/review phases.',
@@ -149,7 +149,7 @@ export const AGENT_CAPABILITIES: Readonly<Record<AgentType, AgentCapability>> = 
     goodForReview: false,
     supportsReadOnlySandbox: true,
     bestForRoles: [],
-    avoidForRoles: ['implementer', 'planner', 'reviewer'],
+    avoidForRoles: ['implementer', 'planner'],
     notes:
       'Local LLM, fast but lower quality output for complex reasoning. Suitable for short-form classification tasks (branch-name generation, complexity scoring), NOT for full role responsibilities.',
   },
@@ -173,7 +173,7 @@ export function getCapability(agentType: string): AgentCapability {
       goodForReview: false,
       supportsReadOnlySandbox: false,
       bestForRoles: [],
-      avoidForRoles: ['researcher', 'planner', 'reviewer', 'implementer', 'verifier'],
+      avoidForRoles: ['researcher', 'planner', 'implementer', 'verifier'],
       notes: 'Unknown agent type — capabilities undefined.',
     }
   );
@@ -201,10 +201,6 @@ export function scoreAgentForRole(agentType: string, role: WorkflowRole): number
     // do it natively.
     if (!cap.followsStrictInstructions) score -= 25;
     if (!cap.reliableMarkdownOutput) score -= 15;
-  } else if (role === 'reviewer') {
-    if (cap.goodForReview) score += 25;
-    if (cap.followsStrictInstructions) score += 10;
-    if (!cap.followsStrictInstructions) score -= 25;
   } else if (role === 'verifier' || role === 'auto_verifier') {
     if (cap.goodForImplementation) score += 15; // verifiers run tests
     if (cap.followsStrictInstructions) score += 10;

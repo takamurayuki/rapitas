@@ -167,9 +167,7 @@ mock.module('./transition-recorder', () => ({
   recordTransition: mock(() => Promise.resolve()),
 }));
 mock.module('./workflow-mode-config', () => ({
-  getModeSettings: mock(() =>
-    Promise.resolve({ includePlan: true, includeReview: false, autoVerify: false }),
-  ),
+  getModeSettings: mock(() => Promise.resolve({ includePlan: true, autoVerify: false })),
   buildTransitions: mock(() => ({
     draft: { role: 'researcher', nextStatus: 'research_done', outputFile: 'research' },
     research_done: { role: 'planner', nextStatus: 'plan_created', outputFile: 'plan' },

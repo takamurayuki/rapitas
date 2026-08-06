@@ -2,7 +2,7 @@
  * role-provider-resolver テスト
  *
  * resolveRoleProviderPreferences の解決優先順位（role override > global default >
- * default agent > undefined）、cross-provider センチネル、reviewer/verifier の
+ * default agent > undefined）、cross-provider センチネル、verifier 系の
  * 自動 upstream 除外、非レビューロールの upstream provider 追従を検証する。
  * inferProviderFromModelId は純粋関数として境界値（codex- プレフィックス修正の
  * 回帰確認を含む）を直接検証する。
@@ -73,10 +73,10 @@ describe('inferProviderFromModelId — 純粋関数の境界値', () => {
 });
 
 describe('resolveRoleProviderPreferences — 解決優先順位', () => {
-  test('明示的な role override が最優先される（reviewer でも exclude は付かない）', async () => {
+  test('明示的な role override が最優先される（verifier でも exclude は付かない）', async () => {
     roleConfig = { preferredProviderOverride: 'gemini' };
     userSettings = { defaultAiProvider: 'openai' };
-    const result = await resolveRoleProviderPreferences('reviewer', 1);
+    const result = await resolveRoleProviderPreferences('verifier', 1);
     expect(result.preferredProvider).toBe('gemini');
     expect(result.excludeProviders).toBeUndefined();
   });
@@ -124,14 +124,14 @@ describe('resolveRoleProviderPreferences — cross-provider センチネル', ()
 });
 
 describe('resolveRoleProviderPreferences — レビュー系ロールの自動 upstream 除外', () => {
-  test('reviewer + override無し → upstream provider を自動除外する', async () => {
+  test('verifier + override無し → upstream provider を自動除外する', async () => {
     roleConfig = { preferredProviderOverride: null };
     recentExecution = { modelName: 'gpt-4o' };
-    const result = await resolveRoleProviderPreferences('reviewer', 1);
+    const result = await resolveRoleProviderPreferences('verifier', 1);
     expect(result.excludeProviders).toEqual(['openai']);
   });
 
-  test('verifier / auto_verifier も同様に自動除外される', async () => {
+  test('auto_verifier も同様に自動除外される', async () => {
     recentExecution = { modelName: 'gemini-1.5-pro' };
     const verifier = await resolveRoleProviderPreferences('verifier', 1);
     expect(verifier.excludeProviders).toEqual(['gemini']);

@@ -4,7 +4,7 @@
  * @module workflow-role-constants
  */
 import type { LucideIcon } from 'lucide-react';
-import { Search, FileText, MessageSquare, Code, FlaskConical } from 'lucide-react';
+import { Search, FileText, Code, FlaskConical } from 'lucide-react';
 import type { useTranslations } from 'next-intl';
 import type { WorkflowRole } from '@/types';
 
@@ -38,11 +38,7 @@ export type RoleConfigItem = {
  * implementer have no review semantics so they only see the regular
  * provider preferences.
  */
-export const ROLES_SUPPORTING_CROSS_PROVIDER = new Set<WorkflowRole>([
-  'reviewer',
-  'verifier',
-  'auto_verifier',
-]);
+export const ROLES_SUPPORTING_CROSS_PROVIDER = new Set<WorkflowRole>(['verifier', 'auto_verifier']);
 
 /**
  * Builds the per-role display config. A function (not a module-level constant)
@@ -77,17 +73,6 @@ export function getRoleConfig(
       outputFile: 'plan.md',
       description: t('roles.planner.description'),
       inputLabel: 'research.md',
-    },
-    reviewer: {
-      label: t('stepReview'),
-      icon: MessageSquare,
-      color: 'text-purple-600 dark:text-purple-400',
-      bgColor: 'bg-purple-50 dark:bg-purple-900/20',
-      borderColor: 'border-purple-200 dark:border-purple-800',
-      accentColor: 'bg-purple-600',
-      outputFile: 'question.md',
-      description: t('roles.reviewer.description'),
-      inputLabel: 'plan.md',
     },
     implementer: {
       label: t('stepImplement'),
@@ -125,10 +110,4 @@ export function getRoleConfig(
   };
 }
 
-export const ROLE_ORDER: WorkflowRole[] = [
-  'researcher',
-  'planner',
-  'reviewer',
-  'implementer',
-  'verifier',
-];
+export const ROLE_ORDER: WorkflowRole[] = ['researcher', 'planner', 'implementer', 'verifier'];

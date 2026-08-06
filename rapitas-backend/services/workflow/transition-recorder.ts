@@ -22,10 +22,12 @@ import { createLogger } from '../../config/logger';
 
 const log = createLogger('workflow:transition-recorder');
 
+// NOTE: 'reviewer' removed 2026-08 (role retired). Historical WorkflowTransition
+// rows written with actor='reviewer' remain valid data — this type only
+// constrains NEW writes.
 export type TransitionActor =
   | 'researcher'
   | 'planner'
-  | 'reviewer'
   | 'implementer'
   | 'verifier'
   | 'auto_verifier'

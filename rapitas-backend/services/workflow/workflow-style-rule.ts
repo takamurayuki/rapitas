@@ -2,7 +2,7 @@
  * Workflow Style Rule
  *
  * Shared emoji-free, report-register style rules appended to every workflow
- * role's prompt context (researcher/planner/reviewer/implementer/verifier).
+ * role's prompt context (researcher/planner/implementer/verifier).
  * Machine-first: the unambiguous parseable skeleton comes first, human-friendly
  * presentation (figure-first sections, eye-flow) is layered on top of it.
  * Not responsible for the verdict-marker vocabulary itself — the machine-parsed

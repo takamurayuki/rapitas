@@ -126,7 +126,7 @@ export function buildClaudeArgs(agent: ClaudeCodeAgent): { args: string[]; logEx
     'PowerShell(git switch:*)',
   ];
   if (cfg.investigationMode) {
-    // Investigation mode (research / planner / reviewer): additionally block
+    // Investigation mode (research / planner): additionally block
     // ALL mutating tools so the agent can't bypass the parent-only workflow
     // contract by writing files directly, running shell commands (curl /
     // git / pnpm), or invoking the workflow API itself. Read-only tools

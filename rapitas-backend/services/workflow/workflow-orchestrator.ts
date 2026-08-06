@@ -629,7 +629,7 @@ export class WorkflowOrchestrator {
 
     // Auto-select: when modelId is 'auto' or unset, use Smart Model Router.
     // The resolver computes `preferredProvider` (role override > global default)
-    // and `excludeProviders` (upstream phase's provider for reviewer/verifier
+    // and `excludeProviders` (upstream phase's provider for verifier
     // roles, to mitigate self-evaluation bias).
     if (!effectiveModelId || effectiveModelId === 'auto') {
       try {
@@ -683,7 +683,6 @@ export class WorkflowOrchestrator {
         // planned file paths.
         const planContent =
           transition.role === 'implementer' ||
-          transition.role === 'reviewer' ||
           transition.role === 'verifier' ||
           transition.role === 'auto_verifier'
             ? await readWorkflowFile(taskId, 'plan').catch(() => null)

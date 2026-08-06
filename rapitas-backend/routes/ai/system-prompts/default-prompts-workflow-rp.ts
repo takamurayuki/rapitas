@@ -2,7 +2,7 @@
  * SystemPrompts / DefaultPromptsWorkflow — Researcher & Planner
  *
  * Default system prompt seed records for the researcher and planner roles.
- * Not responsible for reviewer, implementer, or verifier prompts
+ * Not responsible for implementer or verifier prompts
  * (see default-prompts-workflow-riv.ts).
  */
 

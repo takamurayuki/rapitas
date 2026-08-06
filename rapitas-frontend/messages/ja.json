@@ -2048,7 +2048,6 @@
     "startImplementation": "実装開始",
     "runAutoVerification": "自動検証実行",
     "createPlan": "計画作成",
-    "runReview": "レビュー実行",
     "runResearch": "リサーチ実行",
     "runVerification": "検証実行",
     "approvePlan": "計画を承認",
@@ -2073,7 +2072,6 @@
     "stepImplement": "実装",
     "stepVerify": "自動検証",
     "stepVerifyFull": "検証",
-    "stepReview": "レビュー",
     "complexityLow": "低複雑度",
     "complexityMedium": "中複雑度",
     "complexityHigh": "高複雑度",
@@ -2141,9 +2139,6 @@
       "planner": {
         "label": "計画",
         "description": "調査結果を基にチェックリスト形式の実装計画を作成"
-      },
-      "reviewer": {
-        "description": "計画のリスク・不明点・改善提案を指摘"
       },
       "implementer": {
         "outputFile": "コード",
@@ -3794,11 +3789,6 @@
           "message": "プランナーによる計画作成が完了しました。",
           "nextAction": "ワークフロータブで計画内容を確認し、承認してください。"
         },
-        "reviewer": {
-          "title": "レビューフェーズ完了",
-          "message": "レビュアーによるレビューが完了しました。",
-          "nextAction": "ワークフロータブで計画内容を確認し、承認してください。"
-        },
         "implementer": {
           "title": "実装フェーズ完了",
           "message": "実装者による実装が完了しました。",
@@ -4360,7 +4350,6 @@
       "workflowPhase": {
         "researcher": "[調査完了] 調査フェーズが完了しました。次のフェーズへ自動で進みます...",
         "planner": "[計画作成完了] 計画フェーズが完了しました。自動承認が有効な場合はそのまま実装へ進みます（無効の場合のみ計画タブで承認してください）。",
-        "reviewer": "[レビュー完了] レビューフェーズが完了しました。自動承認が有効な場合はそのまま実装へ進みます（無効の場合のみ計画タブで承認してください）。",
         "implementer": "[実装完了] 実装フェーズが完了しました。検証フェーズを自動実行中...",
         "verifier": "[検証完了] 検証フェーズが完了しました。問題がなければステータスは自動で「完了」になります。",
         "default": "[フェーズ完了] {mode}が完了しました。"

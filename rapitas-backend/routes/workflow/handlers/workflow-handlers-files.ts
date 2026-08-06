@@ -924,7 +924,7 @@ export async function handleSaveFile({
     // criteria, catching wrong/incomplete implementations that the
     // self-reported verify.md misses. On a FAIL verdict, bounce the workflow
     // back to the implementer (self-repair loop). Availability is risk-gated
-    // inside the reviewer: low-risk 'unknown' fails open; high-risk changes
+    // inside the diff-review gate: low-risk 'unknown' fails open; high-risk changes
     // fail closed when no juror is reachable.
     if (
       fileType === 'verify' &&

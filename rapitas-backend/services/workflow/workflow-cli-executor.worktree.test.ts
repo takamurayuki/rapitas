@@ -7,7 +7,7 @@
  * the worktree-or-hard-fail invariant: a mutating role NEVER runs in any
  * repo's PRIMARY checkout — worktree creation failure is fatal, and the
  * repo-agnostic isPrimaryWorkTree pre-spawn guard refuses the leftovers.
- * Non-mutating roles (researcher / planner / reviewer) must never touch any
+ * Non-mutating roles (researcher / planner) must never touch any
  * of this machinery.
  *
  * Uses `role: 'verifier'` with `outputFile: null` as a synthetic "mutating

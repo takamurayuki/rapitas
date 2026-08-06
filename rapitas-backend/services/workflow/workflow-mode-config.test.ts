@@ -71,7 +71,7 @@ describe('buildTransitions', () => {
     expect(t.plan_approved).toBeUndefined();
   });
 
-  it('standard (plan, no review): research_done goes to planner; plan_approved to implementer', () => {
+  it('standard (plan): research_done goes to planner; plan_approved to implementer', () => {
     const t = buildTransitions(DEFAULT_MODE_SETTINGS.standard);
     expect(t.research_done).toEqual({
       role: 'planner',
@@ -83,16 +83,17 @@ describe('buildTransitions', () => {
       outputFile: null,
       nextStatus: 'in_progress',
     });
-    // Review phase disabled — plan_created has no reviewer entry.
+    // plan_created is the approval gate, never an agent phase.
     expect(t.plan_created).toBeUndefined();
   });
 
-  it('comprehensive (plan + review): plan_created routes to reviewer and stays at plan_created', () => {
+  it('comprehensive: plan_created is the approval gate — no agent phase entry (reviewer retired)', () => {
     const t = buildTransitions(DEFAULT_MODE_SETTINGS.comprehensive);
-    expect(t.plan_created).toEqual({
-      role: 'reviewer',
-      outputFile: 'question',
-      nextStatus: 'plan_created',
+    expect(t.plan_created).toBeUndefined();
+    expect(t.plan_approved).toEqual({
+      role: 'implementer',
+      outputFile: null,
+      nextStatus: 'in_progress',
     });
   });
 
@@ -128,15 +129,14 @@ describe('buildRoleByStatus', () => {
     const roleMap = buildRoleByStatus(DEFAULT_MODE_SETTINGS.comprehensive);
     expect(roleMap.draft).toBe('researcher');
     expect(roleMap.research_done).toBe('planner');
-    expect(roleMap.plan_created).toBe('reviewer');
+    expect(roleMap.plan_created).toBeUndefined();
     expect(roleMap.plan_approved).toBe('implementer');
     expect(roleMap.in_progress).toBe('verifier');
   });
 
-  it('lightweight role map has no planner/reviewer entries', () => {
+  it('lightweight role map has no planner entry', () => {
     const roleMap = buildRoleByStatus(DEFAULT_MODE_SETTINGS.lightweight);
     expect(Object.values(roleMap)).not.toContain('planner');
-    expect(Object.values(roleMap)).not.toContain('reviewer');
   });
 });
 

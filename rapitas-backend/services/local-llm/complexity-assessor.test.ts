@@ -4,10 +4,11 @@ import { assessComplexity } from './complexity-assessor';
 describe('assessComplexity', () => {
   test('starts at medium (score 50) for a neutral task with no modifiers', () => {
     // description length must be in [100, 1000] and contextLength <= 5000 to
-    // avoid any length-based modifier; role must not be implementer/planner.
+    // avoid any length-based modifier; role must not be implementer/planner
+    // (auto_verifier is the neutral, local-LLM-ineligible role used here).
     const result = assessComplexity(
       { title: 'Do a normal task', description: 'y'.repeat(150) },
-      'reviewer',
+      'auto_verifier',
     );
     expect(result.score).toBe(50);
     expect(result.level).toBe('medium');
@@ -17,7 +18,7 @@ describe('assessComplexity', () => {
   test('raises score and adds a reason for high-complexity keywords', () => {
     const result = assessComplexity(
       { title: 'Add authentication and security migration', description: null },
-      'reviewer',
+      'auto_verifier',
     );
     expect(result.score).toBeGreaterThan(50);
     expect(result.reasons.some((r) => r.includes('High-complexity keywords'))).toBe(true);
@@ -29,7 +30,7 @@ describe('assessComplexity', () => {
         title: 'Fix a typo and rename a variable',
         description: 'x'.repeat(200), // avoid also triggering the short-description modifier
       },
-      'reviewer',
+      'auto_verifier',
     );
     expect(result.score).toBeLessThan(50);
     expect(result.reasons.some((r) => r.includes('Low-complexity keywords'))).toBe(true);
@@ -38,25 +39,28 @@ describe('assessComplexity', () => {
   test('matches Japanese high-complexity keywords too', () => {
     const result = assessComplexity(
       { title: 'セキュリティ認証の実装', description: null },
-      'reviewer',
+      'auto_verifier',
     );
     expect(result.reasons.some((r) => r.includes('High-complexity keywords'))).toBe(true);
   });
 
   test('adds a reason for a long description (>1000 chars)', () => {
-    const result = assessComplexity({ title: 'Task', description: 'x'.repeat(1001) }, 'reviewer');
+    const result = assessComplexity(
+      { title: 'Task', description: 'x'.repeat(1001) },
+      'auto_verifier',
+    );
     expect(result.reasons.some((r) => r.includes('Long description'))).toBe(true);
   });
 
   test('adds a reason for a short description (<100 chars)', () => {
-    const result = assessComplexity({ title: 'Task', description: 'short' }, 'reviewer');
+    const result = assessComplexity({ title: 'Task', description: 'short' }, 'auto_verifier');
     expect(result.reasons.some((r) => r.includes('Short description'))).toBe(true);
   });
 
   test('adds a reason for large context (>5000 chars)', () => {
     const result = assessComplexity(
       { title: 'Task', description: 'x'.repeat(200) },
-      'reviewer',
+      'auto_verifier',
       5001,
     );
     expect(result.reasons.some((r) => r.includes('Large context'))).toBe(true);
@@ -89,7 +93,7 @@ describe('assessComplexity', () => {
   test('clamps score to 0 when many low-complexity signals stack', () => {
     const result = assessComplexity(
       { title: 'typo rename comment documentation style format label color', description: '' },
-      'reviewer',
+      'auto_verifier',
     );
     expect(result.score).toBe(0);
     expect(result.level).toBe('low');
@@ -115,7 +119,7 @@ describe('assessComplexity', () => {
   test('canUseLocalLLM is false for low complexity but an ineligible role', () => {
     const result = assessComplexity(
       { title: 'typo rename comment documentation', description: '' },
-      'reviewer',
+      'auto_verifier',
     );
     expect(result.level).toBe('low');
     expect(result.canUseLocalLLM).toBe(false);
@@ -131,12 +135,15 @@ describe('assessComplexity', () => {
   });
 
   test('defaults contextLength to 0 when omitted', () => {
-    const result = assessComplexity({ title: 'Task', description: 'x'.repeat(200) }, 'reviewer');
+    const result = assessComplexity(
+      { title: 'Task', description: 'x'.repeat(200) },
+      'auto_verifier',
+    );
     expect(result.reasons.some((r) => r.includes('Large context'))).toBe(false);
   });
 
   test('treats a null description as an empty string for text matching', () => {
-    const result = assessComplexity({ title: 'security', description: null }, 'reviewer');
+    const result = assessComplexity({ title: 'security', description: null }, 'auto_verifier');
     expect(result.reasons.some((r) => r.includes('High-complexity keywords'))).toBe(true);
   });
 });

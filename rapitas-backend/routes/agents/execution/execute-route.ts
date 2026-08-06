@@ -312,7 +312,7 @@ export const executeRoute = new Elysia().post(
     // not tell it was an auto-advancing phase: it showed "[完了] 実行が完了
     // しました" and stopped polling the moment this phase finished — even though
     // the orchestrator auto-advances to implement → verify (the agent keeps
-    // running). With the mode set, the FE treats researcher/planner/reviewer/
+    // running). With the mode set, the FE treats researcher/planner/
     // implementer as auto-advancing and keeps following the workflow until it
     // actually completes (verify → PR → done).
     if (roleAgent?.role) {
@@ -500,17 +500,17 @@ export const executeRoute = new Elysia().post(
     const isCodexAgent = resolvedAgentConfig?.agentType === 'codex';
 
     // CRITICAL: When the resolved role is investigation-class
-    // (researcher / planner / reviewer) AND the agent is codex, downgrade
+    // (researcher / planner) AND the agent is codex, downgrade
     // automatically to RESEARCH MODE. Without this, codex's
     // workflow-enforcement bypass would let it run implementation despite
     // being assigned the planner role — exactly the failure the user
     // reported. The downgrade applies even if the caller didn't pass
     // `mode: 'research'` explicitly.
-    const investigationRoles = new Set(['researcher', 'planner', 'reviewer']);
+    const investigationRoles = new Set(['researcher', 'planner']);
     const isInvestigationRole = !!roleAgent?.role && investigationRoles.has(roleAgent.role);
 
     // ALSO downgrade to research-only when the researcher's configured agent
-    // differs from the planner's (or reviewer's) — otherwise the
+    // differs from the planner's — otherwise the
     // workflow-enforcement injection tells the SAME researcher CLI to do
     // research + plan in one shot, silently bypassing the planner role's
     // configured agent. Splitting the phases lets each role run with its
@@ -519,7 +519,7 @@ export const executeRoute = new Elysia().post(
     if (roleAgent?.role === 'researcher' && resolvedAgentConfigId) {
       try {
         const downstream = await prisma.workflowRoleConfig.findMany({
-          where: { role: { in: ['planner', 'reviewer'] } },
+          where: { role: { in: ['planner'] } },
           select: { role: true, agentConfigId: true, isEnabled: true },
         });
         researcherPlannerSplit = downstream.some(
@@ -540,7 +540,7 @@ export const executeRoute = new Elysia().post(
     if (shouldForceResearch) {
       const reason = isCodexAgent
         ? 'codex CLI does not honor "plan and stop"'
-        : 'downstream phase (planner/reviewer) is configured with a different agent — splitting researcher from planner so each role uses its own agent';
+        : 'downstream phase (planner) is configured with a different agent — splitting researcher from planner so each role uses its own agent';
       log.warn(
         `[API] Task ${taskIdNum}: role=${roleAgent?.role} → research-only mode (${reason}).`,
       );

@@ -9,7 +9,7 @@
  * drift-prone) transition tables.
  *
  * The status state machine is fixed, so a mode is configured by toggling the
- * OPTIONAL phases (plan / review / auto-verify) rather than by arbitrary
+ * OPTIONAL phases (plan / auto-verify) rather than by arbitrary
  * reordering — this keeps every generated transition table valid.
  */
 import { prisma } from '../../config/database';
@@ -24,8 +24,6 @@ export interface WorkflowModeSettings {
   mode: WorkflowMode;
   /** Include the planner phase (research → plan). */
   includePlan: boolean;
-  /** Include the plan-review phase (only meaningful when includePlan). */
-  includeReview: boolean;
   /** Use auto_verifier instead of verifier for the verify phase. */
   autoVerify: boolean;
   /** Inclusive complexity-score range that auto-selects this mode. */
@@ -39,7 +37,6 @@ export const DEFAULT_MODE_SETTINGS: Record<WorkflowMode, WorkflowModeSettings> =
   lightweight: {
     mode: 'lightweight',
     includePlan: false,
-    includeReview: false,
     autoVerify: true,
     complexityMin: 0,
     complexityMax: 35,
@@ -48,7 +45,6 @@ export const DEFAULT_MODE_SETTINGS: Record<WorkflowMode, WorkflowModeSettings> =
   standard: {
     mode: 'standard',
     includePlan: true,
-    includeReview: false,
     autoVerify: false,
     complexityMin: 36,
     complexityMax: 70,
@@ -57,7 +53,6 @@ export const DEFAULT_MODE_SETTINGS: Record<WorkflowMode, WorkflowModeSettings> =
   comprehensive: {
     mode: 'comprehensive',
     includePlan: true,
-    includeReview: true,
     autoVerify: false,
     complexityMin: 71,
     complexityMax: 100,
@@ -92,7 +87,10 @@ function parseRow(row: {
 }): WorkflowModeSettings {
   const mode = row.mode as WorkflowMode;
   const fallback = DEFAULT_MODE_SETTINGS[mode] ?? DEFAULT_MODE_SETTINGS.standard;
-  let toggles: { includePlan?: boolean; includeReview?: boolean; autoVerify?: boolean } = {};
+  // NOTE: Legacy rows may still carry `includeReview` (reviewer role retired
+  // 2026-08) — unknown keys in stepDefinitions are safely ignored here because
+  // only the fields below are ever read.
+  let toggles: { includePlan?: boolean; autoVerify?: boolean } = {};
   try {
     const parsed = JSON.parse(row.stepDefinitions || '{}');
     toggles = parsed?.phases ?? parsed ?? {};
@@ -102,7 +100,6 @@ function parseRow(row: {
   return {
     mode,
     includePlan: toggles.includePlan ?? fallback.includePlan,
-    includeReview: toggles.includeReview ?? fallback.includeReview,
     autoVerify: toggles.autoVerify ?? fallback.autoVerify,
     complexityMin: row.complexityMin ?? fallback.complexityMin,
     complexityMax: row.complexityMax ?? fallback.complexityMax,
@@ -111,11 +108,10 @@ function parseRow(row: {
 }
 
 /** Serialize toggle settings into the row's `stepDefinitions` JSON shape. */
-function toggleJson(s: Pick<WorkflowModeSettings, 'includePlan' | 'includeReview' | 'autoVerify'>) {
+function toggleJson(s: Pick<WorkflowModeSettings, 'includePlan' | 'autoVerify'>) {
   return JSON.stringify({
     phases: {
       includePlan: s.includePlan,
-      includeReview: s.includeReview,
       autoVerify: s.autoVerify,
     },
   });
@@ -315,11 +311,10 @@ export function buildTransitions(s: WorkflowModeSettings): Record<string, RoleTr
     draft: { role: 'researcher', outputFile: 'research', nextStatus: 'research_done' },
   };
   if (s.includePlan) {
+    // NOTE: No plan_created entry — the reviewer role was retired 2026-08
+    // (plan-review is covered by phase-critic + adversarial diff-review);
+    // plan_created is the human/auto approval gate, not an agent phase.
     t.research_done = { role: 'planner', outputFile: 'plan', nextStatus: 'plan_created' };
-    if (s.includeReview) {
-      // Review keeps the status at plan_created (it annotates the plan).
-      t.plan_created = { role: 'reviewer', outputFile: 'question', nextStatus: 'plan_created' };
-    }
     t.plan_approved = { role: 'implementer', outputFile: null, nextStatus: 'in_progress' };
   } else {
     // No plan phase — implement straight after research.

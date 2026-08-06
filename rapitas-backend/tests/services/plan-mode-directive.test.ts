@@ -18,6 +18,12 @@ mock.module('../../services/workflow/workflow-file-utils', () => ({
   resolveWorkflowDir: () => Promise.resolve(null),
   cleanupRootWorkflowFiles: () => Promise.resolve(),
   extractMarkdownFromOutput: () => null,
+  // NOTE: archiveWorkflowFile is imported by phase-critic (pulled in via
+  // workflow-context-builder) — omitting it from the mirror fails the import
+  // with "Export named 'archiveWorkflowFile' not found".
+  archiveWorkflowFile: () => Promise.resolve(),
+  looksLikeAgentLog: () => false,
+  sliceFromReportHeading: (text: string) => text,
 }));
 
 const { applyPlanModeDirective } = await import('../../services/workflow/workflow-context-builder');
@@ -53,8 +59,8 @@ describe('applyPlanModeDirective', () => {
     expect(out).toContain('plan.md のチェックリストと実装結果を照合');
   });
 
-  test('対象外ロール (researcher/planner/reviewer/auto_verifier) は素通し', () => {
-    for (const role of ['researcher', 'planner', 'reviewer', 'auto_verifier']) {
+  test('対象外ロール (researcher/planner/auto_verifier) は素通し', () => {
+    for (const role of ['researcher', 'planner', 'auto_verifier']) {
       expect(applyPlanModeDirective(role, BASE, false)).toBe(BASE);
       expect(applyPlanModeDirective(role, BASE, true)).toBe(BASE);
     }

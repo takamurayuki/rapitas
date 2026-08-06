@@ -66,7 +66,7 @@ describe('getStableSmartRoute — キャッシュヒット', () => {
 describe('getStableSmartRoute — キャッシュミス（別キー）', () => {
   test('role が異なれば別キーとして再ルートされる', async () => {
     await getStableSmartRoute(1, 'implementer', {});
-    await getStableSmartRoute(1, 'reviewer', {});
+    await getStableSmartRoute(1, 'verifier', {});
     expect(getSmartRouteCallCount).toBe(2);
   });
 
@@ -122,12 +122,12 @@ describe('invalidateStableRoute — 指定 taskId:role の全 minTier バリア�
   });
 
   test('他の taskId/role のピンには影響しない', async () => {
-    const other = await getStableSmartRoute(2, 'reviewer', {});
+    const other = await getStableSmartRoute(2, 'verifier', {});
     await getStableSmartRoute(1, 'implementer', {});
 
     invalidateStableRoute(1, 'implementer');
 
-    const otherAgain = await getStableSmartRoute(2, 'reviewer', {});
+    const otherAgain = await getStableSmartRoute(2, 'verifier', {});
     expect(otherAgain).toBe(other); // untouched — still cached
     expect(getSmartRouteCallCount).toBe(2); // only the two initial computations
   });
@@ -140,13 +140,13 @@ describe('invalidateStableRoute — 指定 taskId:role の全 minTier バリア�
 describe('_resetStableRouteCache — 全消去', () => {
   test('リセット後は全キーが再ルートされる', async () => {
     await getStableSmartRoute(1, 'implementer', {});
-    await getStableSmartRoute(2, 'reviewer', {});
+    await getStableSmartRoute(2, 'verifier', {});
     expect(getSmartRouteCallCount).toBe(2);
 
     _resetStableRouteCache();
 
     await getStableSmartRoute(1, 'implementer', {});
-    await getStableSmartRoute(2, 'reviewer', {});
+    await getStableSmartRoute(2, 'verifier', {});
     expect(getSmartRouteCallCount).toBe(4);
   });
 });

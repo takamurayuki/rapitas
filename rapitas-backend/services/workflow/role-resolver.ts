@@ -116,7 +116,7 @@ export async function resolveAgentForTask(taskId: number): Promise<ResolvedRoleA
   // assignment exists. This ensures every role gets the BEST-FIT agent
   // available even when the user hasn't manually configured WorkflowRoleConfig.
   // codex (which ignores planning instructions) is automatically excluded
-  // from researcher/planner/reviewer roles by the capability registry.
+  // from researcher/planner roles by the capability registry.
   log.info(
     { taskId, role, reason: roleConfig ? 'role disabled' : 'no role config' },
     'Falling back to capability-based agent recommendation',

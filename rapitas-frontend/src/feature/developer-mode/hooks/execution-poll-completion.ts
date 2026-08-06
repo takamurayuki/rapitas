@@ -26,8 +26,6 @@ const JA_TEMPLATES: Record<string, string> = {
     '[調査完了] 調査フェーズが完了しました。次のフェーズへ自動で進みます...',
   'workflowPhase.planner':
     '[計画作成完了] 計画フェーズが完了しました。自動承認が有効な場合はそのまま実装へ進みます（無効の場合のみ計画タブで承認してください）。',
-  'workflowPhase.reviewer':
-    '[レビュー完了] レビューフェーズが完了しました。自動承認が有効な場合はそのまま実装へ進みます（無効の場合のみ計画タブで承認してください）。',
   'workflowPhase.implementer': '[実装完了] 実装フェーズが完了しました。検証フェーズを自動実行中...',
   'workflowPhase.verifier':
     '[検証完了] 検証フェーズが完了しました。問題がなければステータスは自動で「完了」になります。',
@@ -49,17 +47,17 @@ export const defaultPollT: PollTranslate = (key, params) =>
 
 // Workflow phase completion messages keyed by sessionMode, resolved via `t`
 // (scoped to `devMode.executionPolling.workflowPhase`).
-// NOTE: researcher/planner/reviewer are auto-advancing phases — the orchestrator
-// proceeds to the next phase automatically (planner/reviewer also auto-approve
+// NOTE: researcher/planner are auto-advancing phases — the orchestrator
+// proceeds to the next phase automatically (the planner also auto-approves
 // when the setting is on). The messages must NOT imply a hard manual stop, which
 // previously contradicted the actual auto-run ("自動承認なのに実装実行をお願いします").
 // NOTE: The researcher run sometimes also produces & auto-approves the plan in
 // the same pass, so don't claim "→ plan phase" (which read as a contradiction
 // right after "プランは自動承認されました"). Stay neutral about which phase is next.
+// NOTE: 'workflow-reviewer' removed 2026-08 (reviewer role retired).
 const WORKFLOW_PHASE_LABEL_KEYS: Record<string, string> = {
   'workflow-researcher': 'workflowPhase.researcher',
   'workflow-planner': 'workflowPhase.planner',
-  'workflow-reviewer': 'workflowPhase.reviewer',
   'workflow-implementer': 'workflowPhase.implementer',
   'workflow-verifier': 'workflowPhase.verifier',
 };
@@ -72,7 +70,6 @@ const WORKFLOW_PHASE_LABEL_KEYS: Record<string, string> = {
 const AUTO_ADVANCING_PHASES = new Set<string>([
   'workflow-researcher',
   'workflow-planner',
-  'workflow-reviewer',
   'workflow-implementer',
 ]);
 

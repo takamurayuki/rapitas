@@ -11,10 +11,14 @@
  * Runtime array of all valid workflow roles. Derive WorkflowRole from this
  * so the type and the runtime list can never drift apart.
  */
+// NOTE: 'reviewer' retired 2026-08 — plan-review is covered by phase-critic +
+// adversarial diff-review (independent gates). The role was structurally
+// unreachable on the auto-run path (the queue runner always branches away at
+// plan_created), and its self-referential nextStatus (plan_created →
+// plan_created) was a loop hazard on manual runs.
 export const WORKFLOW_ROLES = [
   'researcher',
   'planner',
-  'reviewer',
   'implementer',
   'verifier',
   'auto_verifier',

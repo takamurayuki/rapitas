@@ -72,7 +72,8 @@ export const getWorkflowTabs = (workflowMode: string, t: WorkflowT): WorkflowTab
       return allTabs.filter((tab) => ['research', 'question', 'plan', 'verify'].includes(tab.id));
     case 'comprehensive':
     default:
-      // Comprehensive: all tabs + the plan-review pass (see getStatusToNextRole).
+      // Comprehensive: all tabs (Q&A holds clarifying questions; the reviewer
+      // role that once produced question.md was retired 2026-08).
       return allTabs;
   }
 };
@@ -96,9 +97,11 @@ export const getStatusToNextRole = (
 ): Record<string, NextRoleInfo> => {
   // NOTE: All modes start with the researcher role (research.md is mandatory).
   // The tiers then diverge by ceremony, matching the backend mode tables:
-  //   - lightweight (低): research → implement → auto-verify (no plan, no review)
-  //   - standard    (中): research → plan → implement → verify (NO review phase)
-  //   - comprehensive(高): research → plan → review → implement → verify (full)
+  //   - lightweight (低): research → implement → auto-verify (no plan)
+  //   - standard    (中): research → plan → implement → verify
+  //   - comprehensive(高): research → plan → implement → verify
+  // (The reviewer role at plan_created was retired 2026-08 — plan_created is
+  // now purely the approval gate in every mode.)
   const lightweightMode: Record<string, NextRoleInfo> = {
     draft: { role: 'researcher', label: t('runResearch'), icon: Search },
     research_done: { role: 'implementer', label: t('startImplementation'), icon: Code },
@@ -109,7 +112,6 @@ export const getStatusToNextRole = (
     },
   };
 
-  // Standard skips the plan-review pass — plan goes straight to implementation.
   const standardMode: Record<string, NextRoleInfo> = {
     draft: { role: 'researcher', label: t('runResearch'), icon: Search },
     research_done: { role: 'planner', label: t('createPlan'), icon: FileText },
@@ -117,16 +119,10 @@ export const getStatusToNextRole = (
     in_progress: { role: 'verifier', label: t('runVerification'), icon: FlaskConical },
   };
 
+  // Same phase chain as standard — comprehensive differs in ceremony elsewhere
+  // (complexity range), not in the status→role chain.
   const comprehensiveMode: Record<string, NextRoleInfo> = {
-    draft: { role: 'researcher', label: t('runResearch'), icon: Search },
-    research_done: { role: 'planner', label: t('createPlan'), icon: FileText },
-    plan_created: {
-      role: 'reviewer',
-      label: t('runReview'),
-      icon: MessageSquare,
-    },
-    plan_approved: { role: 'implementer', label: t('startImplementation'), icon: Code },
-    in_progress: { role: 'verifier', label: t('runVerification'), icon: FlaskConical },
+    ...standardMode,
   };
 
   switch (workflowMode) {

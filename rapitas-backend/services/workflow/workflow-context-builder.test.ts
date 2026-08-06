@@ -65,7 +65,7 @@ describe('buildRoleContext', () => {
 });
 
 describe('report style rule (emoji-free professional markdown)', () => {
-  test.each(['researcher', 'planner', 'reviewer', 'implementer', 'verifier', 'auto_verifier'])(
+  test.each(['researcher', 'planner', 'implementer', 'verifier', 'auto_verifier'])(
     '%s context carries the ja style rule',
     async (role) => {
       const ctx = await buildRoleContext(1, role as Parameters<typeof buildRoleContext>[1], TASK);
@@ -189,8 +189,8 @@ describe('applyPlanModeDirective', () => {
     expect(out).toContain('plan.md のチェックリストと実装結果を照合して検証');
   });
 
-  test('every other role (researcher/planner/reviewer/auto_verifier) is left unchanged', () => {
-    for (const role of ['researcher', 'planner', 'reviewer', 'auto_verifier']) {
+  test('every other role (researcher/planner/auto_verifier) is left unchanged', () => {
+    for (const role of ['researcher', 'planner', 'auto_verifier']) {
       expect(applyPlanModeDirective(role, 'BASE PROMPT', true)).toBe('BASE PROMPT');
       expect(applyPlanModeDirective(role, 'BASE PROMPT', false)).toBe('BASE PROMPT');
     }
