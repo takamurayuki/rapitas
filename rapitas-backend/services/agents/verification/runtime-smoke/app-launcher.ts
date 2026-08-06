@@ -80,8 +80,10 @@ export function launchApp(command: string, cwd: string, port: number): LaunchedA
       stopped = true;
       if (proc.pid) {
         // killProcessTreeSafely refuses the port-3001 backend, so a
-        // misconfigured start command can never take rapitas down.
-        killProcessTreeSafely(proc.pid);
+        // misconfigured start command can never take rapitas down. Passing
+        // cwd lets it sweep subtrees orphaned by a dead intermediate parent
+        // (tauri-cli's BeforeDevCommand leak) that `taskkill /T` cannot reach.
+        killProcessTreeSafely(proc.pid, { workdir: cwd });
       }
     },
   };

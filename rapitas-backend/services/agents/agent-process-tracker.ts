@@ -10,6 +10,7 @@ import { existsSync, mkdirSync, writeFileSync, unlinkSync, readdirSync, readFile
 import { join } from 'path';
 import { execSync } from 'child_process';
 import { createLogger } from '../../config/logger';
+import { listWindowsProcessSnapshot, collectKillTargets } from './process-tree-kill';
 
 const logger = createLogger('agent-process-tracker');
 
@@ -208,32 +209,55 @@ export function cleanupZombieProcesses(): number {
 }
 
 /**
- * Force-kill a single process tree, enforcing the port-3001 protection.
+ * Force-kill a process tree, enforcing the port-3001 protection.
  *
  * Used to reap an agent CLI process that lingered after its run completed
  * (on Windows, stdio 'close' does not guarantee the process exited, so a done
- * `claude --print` can stay resident as a zombie). No-op when the process is
- * already gone, and NEVER kills a process listening on port 3001 (the backend).
+ * `claude --print` can stay resident as a zombie), and to tear down launched
+ * app-under-test trees. On Windows the target set comes from a full process
+ * snapshot, not just `taskkill /T` — a dead intermediate parent (e.g.
+ * tauri-cli exiting while its BeforeDevCommand `pnpm dev` subtree keeps
+ * running) breaks /T's live-link traversal and used to leak CPU-spinning dev
+ * servers. Passing `workdir` (a `.worktrees` path) additionally sweeps
+ * orphans reachable only by command-line match. NEVER kills a process
+ * listening on port 3001 (the backend).
  *
- * @param pid - Process ID whose tree should be terminated / 終了対象のプロセスID
+ * @param pid - Root process ID of the tree / 終了対象ツリーのルートPID
+ * @param opts.workdir - Launch cwd for orphan matching / 起動時の作業ディレクトリ
  * @returns true if a kill was issued / killを実行したら true
  */
-export function killProcessTreeSafely(pid: number): boolean {
+export function killProcessTreeSafely(pid: number, opts: { workdir?: string } = {}): boolean {
   try {
-    if (!isProcessAlive(pid)) return false;
-    if (isListeningOnBackendPort(pid)) {
-      logger.warn(
-        { pid },
-        '[ProcessTracker] Refusing to kill — listening on port 3001 (backend protection)',
-      );
-      return false;
-    }
+    const targets = new Set<number>();
+    if (isProcessAlive(pid)) targets.add(pid);
     if (process.platform === 'win32') {
-      execSync(`taskkill /F /T /PID ${pid}`, { stdio: 'pipe', timeout: 5000 });
-    } else {
-      process.kill(pid, 'SIGKILL');
+      // Snapshot-based enumeration also catches subtrees whose live parent
+      // link is gone; [] on enumeration failure degrades to plain /T below.
+      const snapshot = listWindowsProcessSnapshot();
+      for (const t of collectKillTargets(snapshot, pid, opts.workdir)) targets.add(t);
     }
-    logger.info({ pid }, '[ProcessTracker] Reaped lingering process tree');
+    if (targets.size === 0) return false;
+
+    for (const t of [...targets]) {
+      if (isListeningOnBackendPort(t)) {
+        logger.warn(
+          { pid: t },
+          '[ProcessTracker] Refusing to kill — listening on port 3001 (backend protection)',
+        );
+        targets.delete(t);
+      }
+    }
+    if (targets.size === 0) return false;
+
+    if (process.platform === 'win32') {
+      // /T still covers children spawned after the snapshot; the explicit
+      // /PID list covers members /T cannot reach through dead parents.
+      const pidArgs = [...targets].map((t) => `/PID ${t}`).join(' ');
+      execSync(`taskkill /F /T ${pidArgs}`, { stdio: 'pipe', timeout: 15_000 });
+    } else {
+      for (const t of targets) process.kill(t, 'SIGKILL');
+    }
+    logger.info({ pid, killed: [...targets] }, '[ProcessTracker] Reaped lingering process tree');
     return true;
   } catch (err) {
     // Most failures mean the process already exited between the check and kill.

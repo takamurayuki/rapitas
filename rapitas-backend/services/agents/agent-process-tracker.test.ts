@@ -38,6 +38,9 @@ type ExecOutcome = string | Error;
 let tasklistOutcome: ExecOutcome = 'INFO: No tasks are running which match the specified criteria.';
 let netstatOutcome: ExecOutcome = new Error('findstr: no match (exit 1)');
 let taskkillOutcome: ExecOutcome = '';
+// Empty JSON array = "snapshot enumeration returned nothing" — descendants/orphan
+// sweep finds no extra targets, keeping the legacy single-pid expectations valid.
+let snapshotOutcome: ExecOutcome = '[]';
 
 function resolveExecOutcome(outcome: ExecOutcome): string {
   if (outcome instanceof Error) throw outcome;
@@ -48,6 +51,7 @@ const execSyncMock = mock((command: string, _opts?: unknown): string => {
   if (command.startsWith('tasklist')) return resolveExecOutcome(tasklistOutcome);
   if (command.startsWith('netstat')) return resolveExecOutcome(netstatOutcome);
   if (command.startsWith('taskkill')) return resolveExecOutcome(taskkillOutcome);
+  if (command.startsWith('powershell')) return resolveExecOutcome(snapshotOutcome);
   throw new Error(`unexpected exec command in test: ${command}`);
 });
 
@@ -115,6 +119,7 @@ beforeEach(() => {
   tasklistOutcome = 'INFO: No tasks are running which match the specified criteria.';
   netstatOutcome = new Error('findstr: no match (exit 1)');
   taskkillOutcome = '';
+  snapshotOutcome = '[]';
 });
 
 describe('registerProcess', () => {
@@ -302,7 +307,12 @@ describe('killProcessTreeSafely', () => {
   test('returns false without attempting a kill when the process is already gone', () => {
     makePidDead();
     expect(killProcessTreeSafely(1000)).toBe(false);
-    expect(execSyncMock).toHaveBeenCalledTimes(1); // tasklist check only
+    // tasklist check + snapshot enumeration, but no taskkill
+    expect(execSyncMock).toHaveBeenCalledTimes(2);
+    expect(execSyncMock).not.toHaveBeenCalledWith(
+      expect.stringContaining('taskkill'),
+      expect.anything(),
+    );
   });
 
   test('refuses to kill a process listening on port 3001', () => {
@@ -326,6 +336,70 @@ describe('killProcessTreeSafely', () => {
     taskkillOutcome = new Error('process vanished mid-kill');
     expect(killProcessTreeSafely(1003)).toBe(false);
     expect(debugMock).toHaveBeenCalledTimes(1);
+  });
+
+  test('kills snapshot descendants even when an intermediate parent is dead', () => {
+    makePidAliveNotListening(2000);
+    // 2000 → 2001 (alive child); 2002's parent 9999 is NOT in the snapshot
+    // (dead tauri-cli shape) but its command line references the worktree.
+    snapshotOutcome = JSON.stringify([
+      { ProcessId: 2001, ParentProcessId: 2000, CommandLine: 'pnpm dev' },
+      {
+        ProcessId: 2002,
+        ParentProcessId: 9999,
+        CommandLine:
+          'node C:\\Projects\\fusen\\.worktrees\\task-533\\node_modules\\vite\\bin\\vite.js',
+      },
+    ]);
+    expect(
+      killProcessTreeSafely(2000, { workdir: 'C:\\Projects\\fusen\\.worktrees\\task-533' }),
+    ).toBe(true);
+    const killCall = execSyncMock.mock.calls.find(([cmd]) => String(cmd).startsWith('taskkill'));
+    expect(String(killCall?.[0])).toContain('/PID 2000');
+    expect(String(killCall?.[0])).toContain('/PID 2001');
+    expect(String(killCall?.[0])).toContain('/PID 2002');
+  });
+
+  test('does not sweep by command line for a non-worktree workdir', () => {
+    makePidAliveNotListening(2100);
+    snapshotOutcome = JSON.stringify([
+      { ProcessId: 2101, ParentProcessId: 9999, CommandLine: 'node C:\\Projects\\fusen\\vite.js' },
+    ]);
+    expect(killProcessTreeSafely(2100, { workdir: 'C:\\Projects\\fusen' })).toBe(true);
+    const killCall = execSyncMock.mock.calls.find(([cmd]) => String(cmd).startsWith('taskkill'));
+    expect(String(killCall?.[0])).toContain('/PID 2100');
+    expect(String(killCall?.[0])).not.toContain('/PID 2101');
+  });
+
+  test('sweeps worktree orphans even when the root process is already gone', () => {
+    makePidDead();
+    snapshotOutcome = JSON.stringify([
+      {
+        ProcessId: 2201,
+        ParentProcessId: 9999,
+        CommandLine: 'node C:\\Projects\\fusen\\.worktrees\\task-533\\vite.js',
+      },
+    ]);
+    expect(
+      killProcessTreeSafely(2200, { workdir: 'C:\\Projects\\fusen\\.worktrees\\task-533' }),
+    ).toBe(true);
+    const killCall = execSyncMock.mock.calls.find(([cmd]) => String(cmd).startsWith('taskkill'));
+    expect(String(killCall?.[0])).toContain('/PID 2201');
+    expect(String(killCall?.[0])).not.toContain('/PID 2200');
+  });
+
+  test('drops a port-3001 listener from the target set but kills the rest', () => {
+    tasklistOutcome = 'node.exe 2300 Console';
+    // netstat marks descendant 2301 as the backend listener; 2300 must die alone.
+    netstatOutcome = `  TCP    127.0.0.1:3001   0.0.0.0:0   LISTENING   2301`;
+    snapshotOutcome = JSON.stringify([
+      { ProcessId: 2301, ParentProcessId: 2300, CommandLine: 'bun index.ts' },
+    ]);
+    expect(killProcessTreeSafely(2300)).toBe(true);
+    expect(warnMock).toHaveBeenCalledTimes(1);
+    const killCall = execSyncMock.mock.calls.find(([cmd]) => String(cmd).startsWith('taskkill'));
+    expect(String(killCall?.[0])).toContain('/PID 2300');
+    expect(String(killCall?.[0])).not.toContain('/PID 2301');
   });
 });
 
