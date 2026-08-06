@@ -262,6 +262,7 @@ export const LUCIDE_USED_ICONS = [
   'Infinity',
   'Info',
   'Italic',
+  'IterationCw',
   'Key',
   'KeyRound',
   'Keyboard',

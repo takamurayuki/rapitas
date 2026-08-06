@@ -4674,6 +4674,10 @@
         "health_check": {
           "label": "Log health check",
           "desc": "Extracts warnings/errors from that day's backend logs and files them to the concern backlog, grouped by type."
+        },
+        "loop_review": {
+          "label": "Quality loop review",
+          "desc": "Compares weekly workflow bounce metrics (critic gate, verify repair, CI repair) and auto-files a concern for every bucket that is not improving."
         }
       },
       "frequency": {

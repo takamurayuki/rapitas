@@ -10,7 +10,7 @@ import { prisma } from '../../config/database';
 import { narrowEnumOrNull } from '../../utils/common/type-guards';
 
 /** Periodic backlog jobs that can be scheduled. */
-export type BacklogJobKind = 'innovation' | 'vuln_scan' | 'health_check';
+export type BacklogJobKind = 'innovation' | 'vuln_scan' | 'health_check' | 'loop_review';
 /** How often a job runs. */
 export type BacklogFrequency = 'daily' | 'weekly';
 
@@ -30,6 +30,7 @@ export const BACKLOG_JOB_KINDS: readonly BacklogJobKind[] = [
   'innovation',
   'vuln_scan',
   'health_check',
+  'loop_review',
 ];
 
 /**
@@ -44,6 +45,9 @@ const DEFAULTS: Record<
   innovation: { enabled: true, frequency: 'daily', hour: 3, weekday: 1 },
   vuln_scan: { enabled: false, frequency: 'weekly', hour: 4, weekday: 1 },
   health_check: { enabled: true, frequency: 'daily', hour: 5, weekday: 1 },
+  // Weekly Monday morning: compares the two most recent 7-day windows, so a
+  // weekly cadence matches the metric granularity exactly.
+  loop_review: { enabled: true, frequency: 'weekly', hour: 6, weekday: 1 },
 };
 
 /** Coerces an arbitrary value to a valid job kind, or null if unknown. */
