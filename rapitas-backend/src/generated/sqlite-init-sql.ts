@@ -119,6 +119,8 @@ CREATE TABLE "AgentExecution" (
     "questionDetails" TEXT,
     "claudeSessionId" TEXT,
     "llmCallCount" INTEGER NOT NULL DEFAULT 0,
+    "ownerId" TEXT,
+    "heartbeatAt" DATETIME,
     "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT "AgentExecution_sessionId_fkey" FOREIGN KEY ("sessionId") REFERENCES "AgentSession" ("id") ON DELETE CASCADE ON UPDATE CASCADE,
     CONSTRAINT "AgentExecution_agentConfigId_fkey" FOREIGN KEY ("agentConfigId") REFERENCES "AIAgentConfig" ("id") ON DELETE SET NULL ON UPDATE CASCADE
@@ -1488,6 +1490,9 @@ CREATE TABLE "ThemeAutoRun" (
 
 -- CreateIndex
 CREATE UNIQUE INDEX "DeveloperModeConfig_taskId_key" ON "DeveloperModeConfig"("taskId");
+
+-- CreateIndex
+CREATE INDEX "AgentExecution_status_heartbeatAt_idx" ON "AgentExecution"("status", "heartbeatAt");
 
 -- CreateIndex
 CREATE INDEX "AgentExecutionLog_executionId_sequenceNumber_idx" ON "AgentExecutionLog"("executionId", "sequenceNumber");
