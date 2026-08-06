@@ -201,6 +201,43 @@ export class RealtimeService {
   }
 
   /**
+   * Send one event to every client subscribed to ANY of the given channels —
+   * delivered at most ONCE per client.
+   *
+   * Exists because broadcasting the same payload to N channels with
+   * broadcast() delivers N copies to a '*' subscriber (the app's shared
+   * EventSource subscribes '*', so every execution_output chunk arrived
+   * twice: once via execution:{id} and once via session:{id}).
+   *
+   * @param channels - Channels this event belongs to / 対象チャンネル群
+   * @param eventType - SSE event name / イベント種別
+   * @param data - Payload / ペイロード
+   */
+  broadcastMulti(channels: Array<EventChannel | string>, eventType: string, data: unknown): void {
+    const event: SSEEvent = {
+      type: eventType,
+      data,
+      id: `${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
+      timestamp: new Date(),
+    };
+
+    // History is per-channel — record under each named channel so future
+    // lastEventId replay per channel stays possible.
+    for (const channel of channels) {
+      this.addToHistory(channel, event);
+    }
+
+    for (const client of this.clients.values()) {
+      const matches =
+        client.subscriptions.has('*') ||
+        channels.some((channel) => client.subscriptions.has(channel));
+      if (matches) {
+        this.sendToClient(client.id, event);
+      }
+    }
+  }
+
+  /**
    * Send an event to all clients.
    */
   broadcastAll(eventType: string, data: unknown): void {
