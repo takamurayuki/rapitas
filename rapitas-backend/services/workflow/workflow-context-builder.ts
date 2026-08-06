@@ -337,6 +337,13 @@ export async function buildRoleContext(
       if (pitfalls) {
         ctx += `\n\n${pitfalls}`;
       }
+      // Cross-task learning loop: recurring adversarial diff-review rejections
+      // (scope drift, missing planned files, acceptance-criteria misreads)
+      // injected BEFORE coding so known bounce causes are prevented in-phase.
+      const implementLessons = await buildCriticLessonsSection('implement', language);
+      if (implementLessons) {
+        ctx += `\n\n${implementLessons}`;
+      }
       // Hypothesis ledger: the implementer's concrete changes + test results are
       // prime evidence — surface open/proven hypotheses and how to record it.
       const hypothesis = await buildHypothesisContext(taskId, language);
@@ -399,6 +406,13 @@ export async function buildRoleContext(
       const verifierMemory = await buildMemoryContext(taskId, task, language);
       if (verifierMemory) {
         ctx += `\n\n${verifierMemory}`;
+      }
+      // Cross-task learning loop: recurring verify.md rejections (measured-vs-
+      // claimed contradictions, output-discipline violations) injected BEFORE
+      // the report is written — the largest single bounce bucket historically.
+      const verifyLessons = await buildCriticLessonsSection('verify', language);
+      if (verifyLessons) {
+        ctx += `\n\n${verifyLessons}`;
       }
       // Hypothesis ledger: the verifier is the ONLY phase that explicitly JUDGES
       // whether each open hypothesis's prediction held — its `## 仮説評価` verdicts

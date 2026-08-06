@@ -11,6 +11,7 @@ export {
   isCriticLessonsEnabled,
   parseLessonsResponse,
   renderLessonsSection,
+  type LessonStream,
 } from './critic-lessons';
 export {
   applyPhaseCriticGate,

@@ -168,3 +168,57 @@ describe('buildCriticLessonsSection', () => {
     expect(sendAIMessageMock).not.toHaveBeenCalled();
   });
 });
+
+/** A verify_repair transition row with a single reason string. */
+function repairRow(id: number, taskId: number, reason: string) {
+  return { id, taskId, metadata: JSON.stringify({ attempt: 1, max: 3, reason }) };
+}
+
+describe('buildCriticLessonsSection — verify / implement streams', () => {
+  it('verify stream keeps verify.md-discipline rejections and drops honest failures', async () => {
+    findManyMock.mockImplementation(async () => [
+      repairRow(301, 30, 'verify.md self-contradicts: claims all tests pass while body fails'),
+      repairRow(302, 31, 'verify.md self-contradicts: verdict vocabulary paraphrased'),
+      repairRow(303, 32, 'verify.md explicitly marks the verification as failed.'),
+      repairRow(304, 33, 'verify.md self-contradicts: measured NG but reported pass'),
+      repairRow(305, 34, 'verify.md self-contradicts: summary line missing'),
+    ]);
+    sendAIMessageMock.mockImplementation(async () => ({
+      content: '["実測結果と矛盾する判定を書かない"]',
+    }));
+    const s = await buildCriticLessonsSection('verify', 'ja');
+    expect(s).toContain('verify.md の差し戻し観点');
+    expect(s).toContain('- [ ] 実測結果と矛盾する判定を書かない');
+    // The honest-failure row must not have reached the distiller.
+    const sent = String(sendAIMessageMock.mock.calls[0]?.[0]?.messages?.[0]?.content ?? '');
+    expect(sent).not.toContain('explicitly marks');
+  });
+
+  it('implement stream keeps only adversarial diff-review rejections', async () => {
+    findManyMock.mockImplementation(async () => [
+      repairRow(401, 40, '差分レビュー不合格: 計画外の無関係な変更が混入している'),
+      repairRow(402, 41, '差分レビュー不合格: 計画で必須とされた回帰テストが未追加'),
+      repairRow(403, 42, 'verify.md self-contradicts: not an implement lesson'),
+      repairRow(404, 43, '差分レビュー不合格: 受入基準の読み違い'),
+      repairRow(405, 44, '差分レビュー不合格: 実装ファイルが diff に含まれない'),
+    ]);
+    sendAIMessageMock.mockImplementation(async () => ({
+      content: '["計画に列挙されたファイル以外の変更を混入させない"]',
+    }));
+    const s = await buildCriticLessonsSection('implement', 'ja');
+    expect(s).toContain('実装が差し戻された頻出観点');
+    const sent = String(sendAIMessageMock.mock.calls[0]?.[0]?.messages?.[0]?.content ?? '');
+    expect(sent).not.toContain('self-contradicts');
+  });
+
+  it('verify stream returns "" when only honest failures exist (nothing to learn)', async () => {
+    findManyMock.mockImplementation(async () => [
+      repairRow(501, 50, 'verify.md explicitly marks the verification as failed.'),
+      repairRow(502, 51, 'verify.md explicitly marks the verification as failed.'),
+      repairRow(503, 52, 'verify.md explicitly marks the verification as failed.'),
+      repairRow(504, 53, 'verify.md explicitly marks the verification as failed.'),
+    ]);
+    expect(await buildCriticLessonsSection('verify')).toBe('');
+    expect(sendAIMessageMock).not.toHaveBeenCalled();
+  });
+});
