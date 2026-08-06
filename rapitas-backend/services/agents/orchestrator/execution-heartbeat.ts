@@ -7,8 +7,8 @@
  * origin comparisons, no cross-process IPC (see execution-owner.ts).
  * Not responsible for sweeping dead leases — see stale-execution-recovery.ts.
  */
-import type { PrismaClient } from '@prisma/client';
 import { createLogger } from '../../../config';
+import type { PrismaClientInstance } from './types';
 import { EXECUTION_OWNER_ID } from '../execution-owner';
 
 const logger = createLogger('execution-heartbeat');
@@ -29,7 +29,7 @@ const timers = new Map<number, NodeJS.Timeout>();
  * @param prisma - Prisma client / Prismaクライアント
  * @param executionId - Execution row to keep alive / 対象実行ID
  */
-export function startExecutionHeartbeat(prisma: PrismaClient, executionId: number): void {
+export function startExecutionHeartbeat(prisma: PrismaClientInstance, executionId: number): void {
   if (timers.has(executionId)) return;
   const beat = async () => {
     try {
