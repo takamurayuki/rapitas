@@ -129,9 +129,18 @@ model AgentExecution {
   questionDetails   String?   // JSON stored as string
   claudeSessionId   String?   // Claude Code CLI session ID for --resume
   llmCallCount      Int       @default(0)
+  // Execution lease: which process instance owns this run, and when it last
+  // proved it is alive. Replaces timestamp-origin comparisons (createdAt vs
+  // serverStartedAt) for dead-run detection — origin comparisons leak whenever
+  // the process topology changes (e.g. an in-process worker restart), whereas
+  // "heartbeat older than N seconds" is topology-independent.
+  ownerId           String?   // e.g. "worker-12345-a1b2c3" / "main-67890-d4e5f6"
+  heartbeatAt       DateTime?
   createdAt         DateTime  @default(now())
   gitCommits        GitCommit[]
   executionLogs     AgentExecutionLog[]
+
+  @@index([status, heartbeatAt])
 }
 
 model AgentExecutionLog {

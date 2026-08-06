@@ -46,6 +46,7 @@ import {
   getInterruptedExecutions as doGetInterruptedExecutions,
   recoverStaleExecutions as doRecoverStaleExecutions,
   resumeInterruptedExecution as doResumeInterruptedExecution,
+  startExecutionLeaseSweep,
 } from './orchestrator/recovery-manager';
 import { EventManager } from './orchestrator/event-manager';
 
@@ -399,7 +400,12 @@ export class AgentOrchestrator {
   }
 
   async recoverStaleExecutions() {
-    return doRecoverStaleExecutions(this.getContext());
+    const result = await doRecoverStaleExecutions(this.getContext());
+    // After the one-shot startup pass, keep a periodic dead-lease sweep
+    // running — it catches deaths the startup pass structurally cannot see
+    // (in-process worker restarts leave rows newer than serverStartedAt).
+    startExecutionLeaseSweep(this.getContext());
+    return result;
   }
 
   async resumeInterruptedExecution(

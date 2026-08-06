@@ -24,6 +24,8 @@ import {
   type LogChunkManager,
 } from './execution-helpers';
 import { buildShutdownErrorMessage } from './shutdown-error';
+import { startExecutionHeartbeat, stopExecutionHeartbeat } from './execution-heartbeat';
+import { EXECUTION_OWNER_ID } from '../execution-owner';
 
 import { appendEvent } from '../../memory/timeline';
 import { memoryTaskQueue } from '../../memory';
@@ -135,8 +137,13 @@ async function createExecutionResources(
       agentConfigId: resolvedAgentConfigId,
       command: task.description || task.title,
       status: 'pending',
+      // Lease from birth: a row is never observable without an owner and a
+      // fresh heartbeat, so the dead-lease sweeper needs no createdAt grace.
+      ownerId: EXECUTION_OWNER_ID,
+      heartbeatAt: new Date(),
     },
   });
+  startExecutionHeartbeat(ctx.prisma, execution.id);
 
   const state: ExecutionState = {
     executionId: execution.id,
@@ -783,6 +790,7 @@ export async function executeTask(
     );
     throw error;
   } finally {
+    stopExecutionHeartbeat(execution.id);
     await cleanupLogHandler();
     await fileLogger.flush();
     ctx.activeExecutions.delete(execution.id);

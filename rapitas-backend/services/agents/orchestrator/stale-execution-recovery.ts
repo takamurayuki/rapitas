@@ -1,7 +1,12 @@
 /**
  * Stale Execution Recovery
  *
- * Handles detection and cleanup of executions that were interrupted by a server restart.
+ * Handles detection and cleanup of executions whose owning process died:
+ * a one-shot startup pass (server restart) plus a periodic lease sweep that
+ * catches deaths the startup pass structurally cannot see — an in-process
+ * worker restart leaves rows with createdAt AFTER serverStartedAt, which the
+ * timestamp-origin comparison silently skips (the leak the 2026-08
+ * architecture review identified). The sweep judges by heartbeat age alone.
  * Not responsible for actually resuming execution — see execution-resume.ts.
  */
 
@@ -11,8 +16,12 @@ import {
   reconcileOrphanedBlockedSessions,
   pruneStaleWorktreePointers,
 } from './stale-blocked-session-reconciliation';
+import { LEASE_STALE_MS } from './execution-heartbeat';
 
 const logger = createLogger('stale-execution-recovery');
+
+const LEASE_SWEEP_INTERVAL_MS = 60_000;
+let leaseSweepTimer: NodeJS.Timeout | null = null;
 
 /**
  * Marks stale running/pending executions as interrupted and updates related sessions and tasks.
@@ -169,6 +178,88 @@ export async function recoverStaleExecutions(ctx: OrchestratorContext): Promise<
     reconciledBlockedSessions,
     prunedWorktreePointers,
   };
+}
+
+/**
+ * One sweep pass: interrupt running/pending executions whose lease has gone
+ * stale. waiting_for_input is deliberately excluded — a question-wait can sit
+ * idle for hours with no live agent process, and killing it would destroy the
+ * user's chance to answer (the reconciler handles that state separately).
+ *
+ * @param ctx - Orchestrator context / オーケストレーターコンテキスト
+ * @returns Number of executions interrupted / 中断にした実行数
+ */
+export async function sweepDeadLeaseExecutions(ctx: OrchestratorContext): Promise<number> {
+  const staleBefore = new Date(Date.now() - LEASE_STALE_MS);
+  const activeExecutionIds = Array.from(ctx.activeExecutions.values()).map((e) => e.executionId);
+
+  const dead = await ctx.prisma.agentExecution.findMany({
+    where: {
+      status: { in: ['running', 'pending'] },
+      // Locally-active rows are alive by definition even if a heartbeat write
+      // is momentarily failing — never sweep our own live executions.
+      id: { notIn: activeExecutionIds },
+      OR: [
+        { heartbeatAt: { lt: staleBefore } },
+        // Pre-lease rows (written by code before the ownerId/heartbeatAt
+        // columns existed) have no heartbeat at all; give them the same
+        // stale window measured from creation so they can't linger forever.
+        { heartbeatAt: null, createdAt: { lt: staleBefore } },
+      ],
+    },
+    include: {
+      session: {
+        include: { config: { include: { task: { select: { id: true, status: true } } } } },
+      },
+    },
+  });
+  if (dead.length === 0) return 0;
+
+  const affectedSessionIds = new Set<number>();
+  const affectedTaskIds = new Set<number>();
+  for (const exec of dead) {
+    try {
+      await ctx.prisma.agentExecution.update({
+        where: { id: exec.id },
+        data: {
+          status: 'interrupted',
+          completedAt: new Date(),
+          errorMessage:
+            `実行プロセスの停止を検知したため中断されました(lease失効: owner=${exec.ownerId ?? 'unknown'})。` +
+            `\n\n【最後の出力】\n${(exec.output || '').slice(-1000)}`,
+        },
+      });
+      affectedSessionIds.add(exec.sessionId);
+      const taskId = exec.session?.config?.task?.id;
+      if (taskId) affectedTaskIds.add(taskId);
+      logger.warn(
+        { executionId: exec.id, ownerId: exec.ownerId, heartbeatAt: exec.heartbeatAt },
+        '[LeaseSweep] Interrupted execution with dead lease',
+      );
+    } catch (error) {
+      logger.error({ err: error, executionId: exec.id }, '[LeaseSweep] Failed to interrupt');
+    }
+  }
+
+  await updateAffectedSessions(ctx, affectedSessionIds);
+  await updateAffectedTasks(ctx, affectedTaskIds);
+  return dead.length;
+}
+
+/**
+ * Start the periodic dead-lease sweep (idempotent). Run in the MAIN process
+ * only — leases make process topology irrelevant, so one sweeper suffices.
+ *
+ * @param ctx - Orchestrator context / オーケストレーターコンテキスト
+ */
+export function startExecutionLeaseSweep(ctx: OrchestratorContext): void {
+  if (leaseSweepTimer) return;
+  leaseSweepTimer = setInterval(() => {
+    sweepDeadLeaseExecutions(ctx).catch((error) => {
+      logger.error({ err: error }, '[LeaseSweep] Sweep tick failed');
+    });
+  }, LEASE_SWEEP_INTERVAL_MS);
+  logger.info('[LeaseSweep] Dead-lease execution sweep started');
 }
 
 /**
