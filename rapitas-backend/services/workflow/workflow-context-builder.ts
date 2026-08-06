@@ -12,7 +12,7 @@ import { buildKnownPitfallsSection } from './workflow-pitfall-context';
 import { buildHypothesisContext } from './workflow-hypothesis-context';
 import { buildRejectedPlanContext } from './workflow-rejected-plan-context';
 import { buildCaseContext } from './workflow-case-context';
-import { buildCriticFeedback } from './phase-critic';
+import { buildCriticFeedback, buildCriticLessonsSection } from './phase-critic';
 import { resolvePreferredBaseBranch } from '../task/task-resolver';
 import type { WorkflowRole } from './workflow-types';
 // NOTE: Style rules live in their own module (this file is over the size
@@ -94,9 +94,10 @@ export async function buildRoleContext(
         constraints:
           '## 実装者の責務 (厳守)\n' +
           '- あなたの仕事はコード変更だけです。**verify.md / research.md / plan.md は絶対に保存しないでください。**\n' +
-          '- `curl` / `Invoke-RestMethod` / `wget` を使って `http://127.0.0.1:3001/workflow/...` を叩くことを禁じます。検証は次フェーズの verifier ロールが行います。\n' +
+          '- `curl` / `Invoke-RestMethod` / `wget` によるワークフロー API の呼び出しは、下記の**自己検証 API**（と、ユーザー判断が必要な場合の question.md 保存）を除き禁じます。最終検証は次フェーズの verifier ロールが行います。\n' +
           '- 同様に `PUT /tasks/:id/status` などタスクステータスを変更する API も呼ばないでください。状態遷移は Rapitas 側が自動で行います。\n' +
-          '- ワークフロー API を叩いても **400 で拒否されます** (status guard)。回避策の探索はせず、コード変更が終わったらそこで終了してください。\n' +
+          '- ワークフロー API の保存系を叩いても **400 で拒否されます** (status guard)。回避策の探索はせず、コード変更が終わったらそこで終了してください。\n' +
+          `- **完了前の自己検証（必須）**: コード変更が完了したと判断したら、終了する前に \`curl -s --max-time 900 -X POST http://127.0.0.1:3001/workflow/tasks/${taskId}/run-verification\` を実行してください。検証フェーズと同一の lint/型/テストゲートが worktree に対して実測されます。\`"ok":false\` なら応答 \`markdown\` の失敗内容を修正して再実行（最大3回）。3回で解消しない場合は、残る失敗と理由を最終サマリに明記して終了してください。\n` +
           '- 実装が完了したら、変更内容のサマリ (どのファイルを何のために変えたか) を最後のメッセージに残して終了してください。Rapitas が後段で verify.md を自動生成します。\n' +
           '- **テスト検証はファイル単位** (`bun test <1ファイル>`) で行ってください。bun の `mock.module` は**プロセスグローバル**なので、同じモジュールを mock する複数のテストファイルを**同時実行すると mock が衝突して偽の失敗**になります。これは bun の制約でありコードのバグではありません。**各ファイルが単体で通れば十分**です。複数テストファイルを「同時に通す」ためにモックの順序変更や beforeAll 化を延々と試みないでください（解決不能であり、時間を浪費します）。',
       },
@@ -192,9 +193,10 @@ export async function buildRoleContext(
         constraints:
           '## Implementer Constraints (strict)\n' +
           '- Your job is code changes ONLY. **DO NOT save verify.md / research.md / plan.md.**\n' +
-          '- DO NOT call `http://127.0.0.1:3001/workflow/...` via `curl` / `Invoke-RestMethod` / `wget`. Verification is performed by the verifier role in the next phase.\n' +
+          '- Calling the workflow API via `curl` / `Invoke-RestMethod` / `wget` is forbidden except for the self-verification API below (and saving question.md when a user decision is required). Final verification is performed by the verifier role in the next phase.\n' +
           '- DO NOT call `PUT /tasks/:id/status` or any task-status mutation API. State transitions are managed by Rapitas.\n' +
-          '- The workflow API will return 400 if you try (status guard). Do not search for workarounds — finish when code changes are done.\n' +
+          '- Save-type workflow API calls will return 400 if you try (status guard). Do not search for workarounds — finish when code changes are done.\n' +
+          `- **Self-verification before finishing (REQUIRED)**: once you judge the code changes complete, run \`curl -s --max-time 900 -X POST http://127.0.0.1:3001/workflow/tasks/${taskId}/run-verification\` before exiting. It measures the SAME lint/type/test gate the verify phase enforces, on your worktree. If \`"ok":false\`, fix the failures reported in \`markdown\` and re-run (up to 3 times). If still failing after 3 attempts, state the remaining failures and why in your final summary and exit.\n` +
           '- Once implementation is done, leave a short summary (which files changed and why) as your final message and exit. Rapitas auto-generates verify.md downstream.\n' +
           "- **Verify tests PER FILE** (`bun test <one-file>`). Bun's `mock.module` is PROCESS-GLOBAL, so two test files that mock the same module conflict and produce FALSE failures when run together. That is a bun limitation, not a code bug. **Each file passing in isolation is sufficient.** Do NOT keep reordering mocks or moving imports into beforeAll trying to make multiple test files pass together — it is unsolvable and wastes time.",
       },
@@ -255,12 +257,17 @@ export async function buildRoleContext(
       // On a critic-gate bounce, lead with the issues the prior research missed.
       const critic = await buildCriticFeedback(taskId, 'research', language);
       const criticBlock = critic ? `\n\n${critic}` : '';
+      // Cross-task learning loop: recurring critic findings from PAST tasks,
+      // injected BEFORE generation so known misses are prevented instead of
+      // bounced (the gate stays for novel misses).
+      const lessons = await buildCriticLessonsSection('research', language);
+      const lessonsBlock = lessons ? `\n\n${lessons}` : '';
       // Mode-aware framing: in lightweight mode NO plan phase follows, so research
       // must be implementation-ready; in plan modes research can defer detailed
       // steps to the planner. Without this, research.md was always written
       // assuming a plan would follow — wrong for lightweight tasks.
       const modeBlock = `\n\n${researchModeDirective(mode, language)}`;
-      return `${taskInfo}${criticBlock}${modeBlock}${memoryBlock}${hypothesisBlock}\n\n${t.researcher.instruction}\n\n${t.researcher.premiseAudit}\n\n${t.researcher.items}\n\n${t.researcher.output}\n\n${styleRule}`;
+      return `${taskInfo}${criticBlock}${lessonsBlock}${modeBlock}${memoryBlock}${hypothesisBlock}\n\n${t.researcher.instruction}\n\n${t.researcher.premiseAudit}\n\n${t.researcher.items}\n\n${t.researcher.output}\n\n${styleRule}`;
     }
 
     case 'planner': {
@@ -270,6 +277,11 @@ export async function buildRoleContext(
       const planCritic = await buildCriticFeedback(taskId, 'plan', language);
       if (planCritic) {
         ctx += `\n\n${planCritic}`;
+      }
+      // Cross-task learning loop — see the researcher case for rationale.
+      const planLessons = await buildCriticLessonsSection('plan', language);
+      if (planLessons) {
+        ctx += `\n\n${planLessons}`;
       }
       // Recall prior knowledge for the planner too — recorded design decisions
       // and blocked-task lessons should shape the plan, not be re-discovered

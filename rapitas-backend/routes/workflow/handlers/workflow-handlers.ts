@@ -19,3 +19,4 @@ export {
   handleGetModes,
 } from './workflow-handlers-mode';
 export { handleResumeFromQuestion, handleAnswerWorkflowQuestion } from './workflow-handlers-resume';
+export { handleRunVerification } from './workflow-handlers-verification';

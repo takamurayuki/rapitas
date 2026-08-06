@@ -20,6 +20,7 @@ import {
   handleGetModes,
   handleResumeFromQuestion,
   handleAnswerWorkflowQuestion,
+  handleRunVerification,
 } from '../handlers/workflow-handlers';
 
 // Re-export helpers and types for consumers that import from this path
@@ -85,6 +86,16 @@ export const workflowRoutes = new Elysia({ prefix: '/workflow' })
 
   .put('/tasks/:taskId/status', (ctx) =>
     handleUpdateStatus(ctx as Parameters<typeof handleUpdateStatus>[0]),
+  )
+
+  /**
+   * Implementer self-verification: run the SAME deterministic gate the verify
+   * phase enforces (lint/typecheck/scoped tests/plan-scope) on the task's
+   * worktree, without any state transition. The only workflow endpoint the
+   * implementer role is ALLOWED (and instructed) to call before finishing.
+   */
+  .post('/tasks/:taskId/run-verification', (ctx) =>
+    handleRunVerification(ctx as Parameters<typeof handleRunVerification>[0]),
   )
 
   .post('/workflow/tasks/:taskId/advance', (ctx) =>

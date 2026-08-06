@@ -7,6 +7,12 @@
  */
 export { critiquePhase, isPhaseCriticEnabled, parseCriticResponse } from './phase-critic';
 export {
+  buildCriticLessonsSection,
+  isCriticLessonsEnabled,
+  parseLessonsResponse,
+  renderLessonsSection,
+} from './critic-lessons';
+export {
   applyPhaseCriticGate,
   buildCriticFeedback,
   type PhaseCriticGateResult,
