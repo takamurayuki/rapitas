@@ -103,6 +103,7 @@ Keep this list accurate. If you assign a glyph a new meaning, add it here.
 | `NotepadText`             | メモ（軽量メモ機能。nav: /memos、ページヘッダー、quick-capture のメモモードタブ。注: `NotebookTabs`＝ノート、`StickyNote`＝検索結果のノート種別と混同しないこと） |
 | `AlarmClock`              | メモのリマインダー（quick-capture / /memos のリマインダー行アイコン・一覧のリマインダーバッジ。注: `AlarmClockPlus`＝学習時間の記録とは別概念） |
 | `IterationCw`             | 品質ループレビュー（バックログ定期ジョブ loop_review — 差し戻し指標の週次自己観測と停滞の自動起票。カテゴリアイコンピッカー登録は中立的な再掲で対象外） |
+| `MonitorCheck`            | 本線 CI 監視（バックログ定期ジョブ ci_watch — 本線ブランチの赤ワークフローを懸念に自動起票） |
 
 ### Known collisions
 

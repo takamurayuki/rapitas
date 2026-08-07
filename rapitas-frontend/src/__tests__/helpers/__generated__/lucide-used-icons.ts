@@ -321,6 +321,7 @@ export const LUCIDE_USED_ICONS = [
   'Minus',
   'MinusCircle',
   'Monitor',
+  'MonitorCheck',
   'MonitorSmartphone',
   'Moon',
   'MoonStar',

@@ -4678,6 +4678,10 @@
         "loop_review": {
           "label": "Quality loop review",
           "desc": "Compares weekly workflow bounce metrics (critic gate, verify repair, CI repair) and auto-files a concern for every bucket that is not improving."
+        },
+        "ci_watch": {
+          "label": "CI watch (mainline)",
+          "desc": "Checks each project's latest mainline CI runs and auto-files a concern (with failing job/step names) for every red workflow - the guardian that keeps mainline CI from rotting, separate from the PR-level CI repair loop."
         }
       },
       "frequency": {

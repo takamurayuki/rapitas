@@ -11,13 +11,22 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { useTranslations } from 'next-intl';
-import { Sparkles, Bug, Activity, IterationCw, Play, Loader2, CalendarClock } from 'lucide-react';
+import {
+  Sparkles,
+  Bug,
+  Activity,
+  IterationCw,
+  MonitorCheck,
+  Play,
+  Loader2,
+  CalendarClock,
+} from 'lucide-react';
 import { API_BASE_URL } from '@/utils/api';
 import { useToast } from '@/components/ui/toast/ToastContainer';
 import ProjectOverridesSection from './ProjectOverridesSection';
 import { Spinner } from '@/components/ui/spinner';
 
-type JobKind = 'innovation' | 'vuln_scan' | 'health_check' | 'loop_review';
+type JobKind = 'innovation' | 'vuln_scan' | 'health_check' | 'loop_review' | 'ci_watch';
 type Frequency = 'daily' | 'weekly';
 
 interface Schedule {
@@ -36,6 +45,7 @@ const JOB_META: Record<JobKind, { icon: typeof Sparkles; color: string }> = {
   vuln_scan: { icon: Bug, color: 'text-rose-500' },
   health_check: { icon: Activity, color: 'text-sky-500' },
   loop_review: { icon: IterationCw, color: 'text-emerald-500' },
+  ci_watch: { icon: MonitorCheck, color: 'text-violet-500' },
 };
 
 const FREQUENCIES: Frequency[] = ['daily', 'weekly'];

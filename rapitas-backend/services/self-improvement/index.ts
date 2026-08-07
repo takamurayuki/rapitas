@@ -14,3 +14,4 @@ export {
   type RepairCategory,
 } from './loop-metrics';
 export { runLoopReview, evaluateRules, type RuleFinding } from './loop-watcher';
+export { runCiWatch, pickFailingWorkflows, type CiRun } from './ci-green-keeper';

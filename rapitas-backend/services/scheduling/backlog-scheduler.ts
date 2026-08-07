@@ -21,6 +21,7 @@ import { runInnovationSession } from '../memory/innovation-session';
 import { runVulnerabilityScan } from '../memory/vulnerability-scan';
 import { runLogHealthCheck } from '../system/log-health-check';
 import { runLoopReview } from '../self-improvement/loop-watcher';
+import { runCiWatch } from '../self-improvement/ci-green-keeper';
 
 const log = createLogger('scheduling:backlog');
 
@@ -33,6 +34,7 @@ const HANDLERS: Record<BacklogJobKind, () => Promise<number>> = {
   vuln_scan: runVulnerabilityScan,
   health_check: runLogHealthCheck,
   loop_review: runLoopReview,
+  ci_watch: runCiWatch,
 };
 
 // In-memory guard so a slow job (LLM calls take tens of seconds) is never
