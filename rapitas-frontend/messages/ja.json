@@ -2266,6 +2266,25 @@
           "low": "軽微"
         },
         "reasonsCount": "指摘 {count}件"
+      },
+      "criticHistory": {
+        "title": "品質ゲートの指摘履歴",
+        "entryLabel": "{phase} ・ {date}",
+        "phase": {
+          "research": "調査",
+          "plan": "計画"
+        },
+        "type": {
+          "bounced": "差し戻し",
+          "exhausted": "予算切れ素通し"
+        },
+        "severity": {
+          "high": "重大",
+          "medium": "中程度",
+          "low": "軽微"
+        },
+        "reasonsCount": "指摘 {count}件",
+        "noReasons": "詳細情報が記録されていません"
       }
     }
   },
