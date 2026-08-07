@@ -120,6 +120,17 @@ jobs:
         env:
           DATABASE_URL: "postgresql://dummy:dummy@localhost:5432/dummy"
 
+      # NOTE: `bun build --compile` statically resolves BOTH branches of the
+      # provider ternary in config/prisma-client-resolver.ts, so the sqlite
+      # client must exist too or the build fails with
+      # `Could not resolve: "../generated/prisma-sqlite"` (same as tauri-build.yml).
+      - name: Generate SQLite Prisma Client
+        working-directory: rapitas-backend
+        run: bun run db:prepare:sqlite
+        env:
+          RAPITAS_DB_PROVIDER: sqlite
+          DATABASE_URL: "file:./rapitas-ci.db"
+
       - name: Install frontend dependencies
         working-directory: rapitas-frontend
         run: pnpm install --no-frozen-lockfile
