@@ -148,6 +148,40 @@ export async function executeAPIAgent(
     const executionTimeMs = Date.now() - startTime;
 
     if (transition.outputFile && output.trim()) {
+      // Critic-rejection guard: mirror the CLI executor — if the phase critic
+      // already bounced this phase's artifact while the API call was running,
+      // saving the output would resurrect the rejected content.
+      const { criticRejectedSince } = await import('./phase-critic/critic-rejection-guard');
+      if (await criticRejectedSince(taskId, transition.outputFile, new Date(startTime))) {
+        log.warn(
+          { taskId, role: transition.role, outputFile: transition.outputFile },
+          '[WorkflowAPIExecutor] Critic rejected this artifact mid-run — skipping save (would resurrect the rejected content)',
+        );
+        await prisma.agentExecution
+          .update({
+            where: { id: execution.id },
+            data: { status: 'completed', output: output.substring(0, 10000), executionTimeMs },
+          })
+          .catch(() => {});
+        await prisma.agentSession
+          .update({
+            where: { id: session.id },
+            data: {
+              status: 'completed',
+              completedAt: new Date(),
+              errorMessage:
+                '品質批評ゲートが成果物を差し戻したため、この実行の保存はスキップされました。',
+            },
+          })
+          .catch(() => {});
+        return {
+          success: false,
+          role: transition.role,
+          status: transition.nextStatus,
+          error: 'Phase critic rejected the artifact; a regeneration run will replace it.',
+          executionId: execution.id,
+        };
+      }
       // Strip any stray ANSI/log noise before persisting. API agents return text
       // directly (not stdout), so contamination is rare — fall back to the raw
       // output when the sanitiser finds no report rather than dropping a valid

@@ -663,20 +663,8 @@ curl -X POST http://127.0.0.1:${port}/idea-box \\
       // artifact byte-for-byte and flip the status forward again — exactly
       // how task 536's bounce loop never regenerated anything. Skip; the
       // bounced re-run produces the replacement.
-      const rejectedSince =
-        transition.outputFile === 'research' || transition.outputFile === 'plan'
-          ? await prisma.workflowTransition
-              .findFirst({
-                where: {
-                  taskId,
-                  cause: `${transition.outputFile}_critic_failed`,
-                  createdAt: { gt: phaseStartedAt },
-                },
-                select: { id: true },
-              })
-              .catch(() => null)
-          : null;
-      if (rejectedSince) {
+      const { criticRejectedSince } = await import('./phase-critic/critic-rejection-guard');
+      if (await criticRejectedSince(taskId, transition.outputFile, phaseStartedAt)) {
         log.warn(
           { taskId, role: transition.role, outputFile: transition.outputFile },
           '[WorkflowCLIExecutor] Critic rejected this artifact mid-phase — skipping harvest re-save (would resurrect the rejected content)',
@@ -715,16 +703,28 @@ curl -X POST http://127.0.0.1:${port}/idea-box \\
 
     // Fallback: extract Markdown from raw output when agent did not save via API
     if (!fileContent && result.output && result.output.trim().length > 100) {
-      log.info(
-        `[WorkflowCLIExecutor] ${transition.outputFile}.md not found, extracting from output (${result.output.length} chars)`,
-      );
-      const extractedContent = extractMarkdownFromOutput(result.output, transition.outputFile);
-      if (extractedContent) {
-        await writeWorkflowFile(taskId, transition.outputFile, extractedContent);
-        fileContent = extractedContent;
-        log.info(
-          `[WorkflowCLIExecutor] Saved extracted content (${extractedContent.length} chars)`,
+      // NOTE: A critic rejection archives the artifact, which makes
+      // readWorkflowFile return null — without this guard the fallback would
+      // re-extract the SAME rejected report from stdout and resurrect it,
+      // defeating the harvest guard above through the back door.
+      const { criticRejectedSince } = await import('./phase-critic/critic-rejection-guard');
+      if (await criticRejectedSince(taskId, transition.outputFile, phaseStartedAt)) {
+        log.warn(
+          { taskId, role: transition.role, outputFile: transition.outputFile },
+          '[WorkflowCLIExecutor] Critic rejected this artifact — skipping stdout-extraction fallback (would resurrect the rejected content)',
         );
+      } else {
+        log.info(
+          `[WorkflowCLIExecutor] ${transition.outputFile}.md not found, extracting from output (${result.output.length} chars)`,
+        );
+        const extractedContent = extractMarkdownFromOutput(result.output, transition.outputFile);
+        if (extractedContent) {
+          await writeWorkflowFile(taskId, transition.outputFile, extractedContent);
+          fileContent = extractedContent;
+          log.info(
+            `[WorkflowCLIExecutor] Saved extracted content (${extractedContent.length} chars)`,
+          );
+        }
       }
     }
 
