@@ -52,9 +52,9 @@ export type TaskWorkflowState = Prisma.TaskGetPayload<{
   };
 }>;
 
-/** Minimal shape for branch-name generation: task title only. */
+/** Minimal shape for branch-name generation: task title and description. */
 export type TaskTitle = Prisma.TaskGetPayload<{
-  select: { id: true; title: true };
+  select: { id: true; title: true; description: true };
 }>;
 
 /** Minimal shape for resolving a task's theme association. */
@@ -172,17 +172,18 @@ export async function resolveTaskWorkflowState(taskId: number): Promise<TaskWork
 }
 
 /**
- * Resolve a Task ID to its title — used for branch-name generation.
+ * Resolve a Task ID to its title and description — used for branch-name
+ * generation (description feeds the AI prompt for better English slugs).
  * Returns null when the task is absent or a DB error occurs.
  *
  * @param taskId - Task primary key. / タスクの主キー
- * @returns Task title row, or null. / タイトル行、なければnull
+ * @returns Task title/description row, or null. / タイトル・説明行、なければnull
  */
 export async function resolveTaskTitle(taskId: number): Promise<TaskTitle | null> {
   return prisma.task
     .findUnique({
       where: { id: taskId },
-      select: { id: true, title: true },
+      select: { id: true, title: true, description: true },
     })
     .catch(() => null);
 }

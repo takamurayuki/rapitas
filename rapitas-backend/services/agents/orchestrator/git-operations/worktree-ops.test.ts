@@ -104,6 +104,14 @@ mock.module('./dependency-installer', () => ({
 mock.module('../../../github/git-exec', () => ({
   clearGitRemoteCache: mockClearGitRemoteCache,
 }));
+// NOTE: worktree-ops imports hasTaskIdMarker from branch-name-generator, whose
+// real module pulls in the ai-client dependency chain — far beyond this test's
+// minimal node-primitive mocks. hasTaskIdMarker is a pure function covered by
+// branch-name-generator.test.ts; mirror its logic to keep the module graph small.
+mock.module('../../../../utils/common/branch-name-generator', () => ({
+  hasTaskIdMarker: (branchName: string, taskId: number) =>
+    new RegExp(`(?:^|[/-])t${taskId}(?:[/-]|$)`).test(branchName),
+}));
 
 const { cleanupOrphanedWorktrees, removeWorktree, rmDirWithRetry } = await import('./worktree-ops');
 

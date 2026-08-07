@@ -17,13 +17,17 @@ mock.module('../../../../config/database', () => ({
   ensureDatabaseConnection: () => Promise.resolve(),
   prisma: mockPrisma,
 }));
+const noopLogger = {
+  info: () => {},
+  error: () => {},
+  warn: () => {},
+  debug: () => {},
+  fatal: () => {},
+};
 mock.module('../../../../config/logger', () => ({
-  createLogger: () => ({
-    info: () => {},
-    error: () => {},
-    warn: () => {},
-    debug: () => {},
-  }),
+  createLogger: () => noopLogger,
+  logger: noopLogger,
+  getBackendLogFilePath: () => '/tmp/backend.log',
 }));
 mock.module('./repository-setup', () => ({
   ensureGitRepository: mock(() => Promise.resolve(true)),
@@ -47,6 +51,17 @@ mock.module('./safety', () => ({
   isPathSafeForWorktreeOperation: mock(() => true),
   normalizePath: mock((path: string) => path.replace(/\\/g, '/')),
 }));
+// NOTE: worktree-ops imports hasTaskIdMarker from branch-name-generator, whose
+// real module pulls in the whole ai-client dependency chain (fs/child_process/
+// config) — far beyond what this test's minimal node-primitive mocks provide.
+// hasTaskIdMarker is a pure function covered directly by
+// branch-name-generator.test.ts; mirror its logic here to keep this module
+// graph small.
+mock.module('../../../../utils/common/branch-name-generator', () => ({
+  hasTaskIdMarker: (branchName: string, taskId: number) =>
+    new RegExp(`(?:^|[/-])t${taskId}(?:[/-]|$)`).test(branchName),
+}));
+
 const mockExistsSync = mock((_path: string) => false);
 mock.module('node:fs', () => ({ existsSync: mockExistsSync }));
 mock.module('node:fs/promises', () => ({
@@ -60,10 +75,28 @@ mock.module('node:fs/promises', () => ({
 /** Per-test override: how the mocked `git worktree list --porcelain` behaves. */
 let worktreeListBehavior: 'in-use' | 'free' | 'probe-fails' = 'free';
 
-const BRANCH = 'feature/implement-task-task-513';
+/** Per-test override: which branch the mocked worktree list reports as in use. */
+let inUseBranch: string;
+
+// Canonical branch-name format from branch-name-generator: `<prefix>/t<taskId>-<slug>`.
+const BRANCH = 'feature/t513-implement-task';
+// Legacy format without the `t<taskId>` marker (pre-task-539 branches,
+// naming-service suggestions) — must keep the old `-task-<id>` suffixing.
+const LEGACY_BRANCH = 'feature/legacy-name';
 const EXISTING_WORKTREE = 'C:/Projects/trendline/.worktrees/task-513-83e6b1c6';
 
 const execFileCalls: string[] = [];
+
+/**
+ * Extract the branch argument of the recorded `git worktree add` call.
+ * The mocked `git branch --list` always reports the branch as existing, so the
+ * add is invoked WITHOUT `-b`: `git worktree add <path> <branch>` — the branch
+ * is the last token (paths in these tests contain no spaces).
+ */
+function addedBranchArg(): string | undefined {
+  const addCall = execFileCalls.find((c) => c.includes('git worktree add'));
+  return addCall?.split(' ').pop();
+}
 
 const mockExecFile = mock((file: string, args: unknown, options: unknown, callback?: unknown) => {
   const argv = Array.isArray(args) ? (args as string[]) : [];
@@ -80,7 +113,7 @@ const mockExecFile = mock((file: string, args: unknown, options: unknown, callba
     }
     const stdout =
       worktreeListBehavior === 'in-use'
-        ? `worktree /test/repo\nHEAD abcd1234\n\nworktree ${EXISTING_WORKTREE}\nbranch refs/heads/${BRANCH}\n\n`
+        ? `worktree /test/repo\nHEAD abcd1234\n\nworktree ${EXISTING_WORKTREE}\nbranch refs/heads/${inUseBranch}\n\n`
         : `worktree /test/repo\nHEAD abcd1234\n\n`;
     cb?.(null, { stdout, stderr: '' });
     return { kill: mock(() => undefined) };
@@ -107,6 +140,7 @@ const { createWorktree } = await import('./worktree-ops');
 beforeEach(() => {
   execFileCalls.length = 0;
   worktreeListBehavior = 'free';
+  inUseBranch = BRANCH;
   mockExistsSync.mockReset().mockReturnValue(false);
 });
 
@@ -116,9 +150,35 @@ describe('createWorktree — branch-in-use detection', () => {
 
     await createWorktree('/test/repo', BRANCH, 513);
 
-    const addCall = execFileCalls.find((c) => c.includes('git worktree add'));
-    expect(addCall).toContain(`${BRANCH}-task-513`);
-    expect(addCall).not.toContain(`add C:`); // sanity: didn't add the un-suffixed branch
+    const branchArg = addedBranchArg();
+    expect(branchArg).toMatch(new RegExp(`^${BRANCH}-[0-9a-f]{8}$`));
+    expect(execFileCalls.find((c) => c.includes('git worktree add'))).not.toContain(`add C:`); // sanity: didn't add the un-suffixed branch
+  });
+
+  test('does NOT embed the task id twice when a canonical (t<id>-marked) name collides', async () => {
+    // Regression: the old suffixing appended `-task-513` unconditionally, so a
+    // name already carrying `t513` became `feature/...-t513-...-task-513`
+    // (the double-suffix bug, e.g. `feature/implement-perf-t319-task-319`).
+    worktreeListBehavior = 'in-use';
+
+    await createWorktree('/test/repo', BRANCH, 513);
+
+    const branchArg = addedBranchArg();
+    expect(branchArg).toBeDefined();
+    expect(branchArg).not.toContain('task-513');
+    // Exactly one occurrence of the task id in the BRANCH NAME itself
+    // (the worktree PATH also contains task-513 — inspect only the branch arg).
+    expect(branchArg!.match(/513/g)).toHaveLength(1);
+  });
+
+  test('keeps the legacy -task-<id> suffix for names WITHOUT the t<id> marker (backward compat)', async () => {
+    worktreeListBehavior = 'in-use';
+    inUseBranch = LEGACY_BRANCH;
+
+    await createWorktree('/test/repo', LEGACY_BRANCH, 513);
+
+    const branchArg = addedBranchArg();
+    expect(branchArg).toBe(`${LEGACY_BRANCH}-task-513`);
   });
 
   test('uses the branch name as-is when the probe succeeds and reports it free', async () => {
@@ -126,9 +186,8 @@ describe('createWorktree — branch-in-use detection', () => {
 
     await createWorktree('/test/repo', BRANCH, 513);
 
-    const addCall = execFileCalls.find((c) => c.includes('git worktree add'));
-    expect(addCall).toContain(BRANCH);
-    expect(addCall).not.toContain(`${BRANCH}-task-513`);
+    const branchArg = addedBranchArg();
+    expect(branchArg).toBe(BRANCH);
   });
 
   test('fails SAFE (suffixes the branch) when the list probe itself throws', async () => {
@@ -138,8 +197,17 @@ describe('createWorktree — branch-in-use detection', () => {
 
     await createWorktree('/test/repo', BRANCH, 513);
 
-    const addCall = execFileCalls.find((c) => c.includes('git worktree add'));
-    expect(addCall).toContain(`${BRANCH}-task-513`);
+    const branchArg = addedBranchArg();
+    expect(branchArg).toMatch(new RegExp(`^${BRANCH}-[0-9a-f]{8}$`));
+  });
+
+  test('fails SAFE with the legacy -task-<id> suffix for unmarked names when the probe throws', async () => {
+    worktreeListBehavior = 'probe-fails';
+
+    await createWorktree('/test/repo', LEGACY_BRANCH, 513);
+
+    const branchArg = addedBranchArg();
+    expect(branchArg).toBe(`${LEGACY_BRANCH}-task-513`);
   });
 });
 
@@ -170,9 +238,9 @@ describe('createWorktree — ground-truth reuse of an existing live worktree', (
 
     await createWorktree('/test/repo', BRANCH, 513);
 
-    // Falls through to the normal branch-in-use suffixing/creation path.
-    const addCall = execFileCalls.find((c) => c.includes('git worktree add'));
-    expect(addCall).toContain(`${BRANCH}-task-513`);
+    // Falls through to the normal branch-in-use suffixing/creation path
+    // (shortId suffix — BRANCH already carries the t513 marker).
+    expect(addedBranchArg()).toMatch(new RegExp(`^${BRANCH}-[0-9a-f]{8}$`));
   });
 
   test('does not reuse a worktree belonging to a DIFFERENT task', async () => {

@@ -180,8 +180,18 @@ export async function createWorktree(
     }
 
     if (branchInUse) {
-      // Branch is already checked out in another worktree — create unique branch name
-      const uniqueSuffix = taskId ? `task-${taskId}` : `wt-${shortId}`;
+      // Branch is already checked out in another worktree — create unique branch name.
+      // NOTE: When the name already carries this task's `t<taskId>` marker
+      // (canonical names from branch-name-generator), appending `task-<id>`
+      // again would embed the id twice (the `...-t319-task-319` bug) — use the
+      // random shortId instead. Legacy names without the marker keep the old
+      // `task-<id>` suffix for backward compatibility.
+      // NOTE: Lazy import — a static one would pull branch-name-generator's
+      // ai-client dependency chain into every module that loads worktree-ops,
+      // breaking unrelated tests whose node-primitive mocks don't cover it.
+      const { hasTaskIdMarker } = await import('../../../../utils/common/branch-name-generator');
+      const alreadyTagged = taskId != null && hasTaskIdMarker(branchName, taskId);
+      const uniqueSuffix = alreadyTagged ? shortId : taskId ? `task-${taskId}` : `wt-${shortId}`;
       effectiveBranchName = `${branchName}-${uniqueSuffix}`;
       logger.warn(
         `[createWorktree] Branch ${branchName} is already in use, using ${effectiveBranchName} instead`,

@@ -280,7 +280,15 @@ describe('resolveTaskTitle', () => {
     expect(result).toBeNull();
   });
 
-  test('select に id と title のみが含まれること', async () => {
+  test('description も返すこと（ブランチ名AI生成のプロンプト用）', async () => {
+    const fakeTask = { id: 6, title: 'テストタスク', description: 'ブランチ名生成用の説明' };
+    mockTaskFindUnique.mockResolvedValueOnce(fakeTask);
+
+    const result = await resolveTaskTitle(6);
+    expect(result?.description).toBe('ブランチ名生成用の説明');
+  });
+
+  test('select に id / title / description が含まれること', async () => {
     await resolveTaskTitle(7);
 
     const callArgs = mockTaskFindUnique.mock.calls[0][0] as {
@@ -290,6 +298,7 @@ describe('resolveTaskTitle', () => {
     expect(callArgs.where.id).toBe(7);
     expect(callArgs.select.id).toBe(true);
     expect(callArgs.select.title).toBe(true);
+    expect(callArgs.select.description).toBe(true);
   });
 });
 

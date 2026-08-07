@@ -272,6 +272,7 @@ export const executeRoute = new Elysia().post(
       setupResult = await executeSetup({
         taskIdNum,
         taskTitle: task.title,
+        taskDescription: task.description,
         taskThemeRepositoryUrl: task.theme?.repositoryUrl,
         taskStartedAt: task.startedAt,
         existingConfig: task.developerModeConfig,

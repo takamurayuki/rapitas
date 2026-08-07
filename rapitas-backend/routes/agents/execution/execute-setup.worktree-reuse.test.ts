@@ -46,9 +46,11 @@ mock.module('../../../services/agents/agent-worker-manager', () => ({
   },
 }));
 
-const mockGenerateFallbackBranchName = mock(() => 'feature/implement-task-task-513');
+// execute-setup now calls the async generateBranchName (AI + internal
+// fallback, taskId embedded inside) instead of generateFallbackBranchName.
+const mockGenerateBranchName = mock(() => Promise.resolve('feature/t513-implement-task'));
 mock.module('../../../utils/common/branch-name-generator', () => ({
-  generateFallbackBranchName: mockGenerateFallbackBranchName,
+  generateBranchName: mockGenerateBranchName,
 }));
 
 mock.module('../../../utils/database/db-helpers', () => ({
@@ -80,7 +82,7 @@ beforeEach(() => {
   mockNotificationCreate.mockReset().mockResolvedValue({});
   mockTaskUpdate.mockReset().mockResolvedValue({});
   mockCreateWorktree.mockReset().mockResolvedValue('/fresh/worktree/path');
-  mockGenerateFallbackBranchName.mockReset().mockReturnValue('feature/implement-task-task-513');
+  mockGenerateBranchName.mockReset().mockResolvedValue('feature/t513-implement-task');
   mockDecideWorktree.mockReset().mockReturnValue('fallback');
 });
 
@@ -165,9 +167,9 @@ describe('executeSetup — worktree reuse on retry (task 513 regression)', () =>
       null,
       null,
     );
-    // The deterministic generator is only a last resort — it must not run
+    // The generator is only a last resort — it must not run
     // when a recorded branch name is already known.
-    expect(mockGenerateFallbackBranchName).not.toHaveBeenCalled();
+    expect(mockGenerateBranchName).not.toHaveBeenCalled();
   });
 
   test('creates a brand-new worktree when the task has no prior session at all', async () => {
@@ -177,7 +179,10 @@ describe('executeSetup — worktree reuse on retry (task 513 regression)', () =>
     const result = await executeSetup(baseParams());
 
     expect(mockCreateWorktree).toHaveBeenCalledTimes(1);
-    expect(result.finalBranchName).toBe('feature/implement-task-task-513');
+    expect(result.finalBranchName).toBe('feature/t513-implement-task');
+    // Generator receives title, description, and the numeric taskId (which it
+    // embeds as the t<taskId>- marker internally).
+    expect(mockGenerateBranchName).toHaveBeenCalledWith('implement task 513', undefined, 513);
   });
 
   test('skips the prior-session lookup entirely when the caller passes an explicit branchName', async () => {

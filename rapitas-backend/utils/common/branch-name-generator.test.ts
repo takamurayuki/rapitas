@@ -60,7 +60,14 @@ import {
   assertSafeGitRef,
   isValidBranchName,
   generateFallbackBranchName,
+  hasTaskIdMarker,
 } from './branch-name-generator';
+
+/** Count occurrences of the exact `t<taskId>` segment in a branch name. */
+function countTaskIdMarkers(name: string, taskId: number): number {
+  const matches = name.match(new RegExp(`(?:^|[/-])t${taskId}(?=[/-]|$)`, 'g'));
+  return matches ? matches.length : 0;
+}
 
 describe('extractBranchName', () => {
   test('passes through a clean branch name unchanged', () => {
@@ -231,6 +238,77 @@ describe('generateFallbackBranchName', () => {
   });
 });
 
+describe('hasTaskIdMarker', () => {
+  test('detects the marker right after the prefix', () => {
+    expect(hasTaskIdMarker('feature/t319-implement-perf', 319)).toBe(true);
+  });
+
+  test('detects the marker as a trailing segment', () => {
+    expect(hasTaskIdMarker('feature/fallback-branch-t1', 1)).toBe(true);
+  });
+
+  test('does not match a shorter taskId prefixing a longer number', () => {
+    expect(hasTaskIdMarker('feature/t319-implement-perf', 31)).toBe(false);
+  });
+
+  test('does not match a longer number for a shorter taskId', () => {
+    expect(hasTaskIdMarker('feature/t31-x', 3)).toBe(false);
+    expect(hasTaskIdMarker('feature/t319-implement-perf', 3190)).toBe(false);
+  });
+
+  test('does not match a plain word containing t<id> without boundaries', () => {
+    expect(hasTaskIdMarker('feature/at319x-work', 319)).toBe(false);
+  });
+});
+
+describe('generateFallbackBranchName with taskId', () => {
+  test('embeds the marker right after the prefix, exactly once', () => {
+    const name = generateFallbackBranchName('Add dashboard charts', 539);
+    expect(name).toMatch(/^feature\/t539-/);
+    expect(countTaskIdMarkers(name, 539)).toBe(1);
+    expect(isValidBranchName(name)).toBe(true);
+  });
+
+  test('keeps prefix detection (bugfix/chore) with the marker', () => {
+    expect(generateFallbackBranchName('Fix login button error', 12)).toMatch(/^bugfix\/t12-/);
+    expect(generateFallbackBranchName('Update dependencies', 12)).toMatch(/^chore\/t12-/);
+  });
+
+  test('makes Japanese-only titles unique via the marker instead of collapsing to a shared name', () => {
+    const a = generateFallbackBranchName('日本語のみのタスク', 100);
+    const b = generateFallbackBranchName('別の日本語タスク', 200);
+    expect(a).toBe('feature/t100-implement-task');
+    expect(b).toBe('feature/t200-implement-task');
+    expect(a).not.toBe(b);
+    expect(isValidBranchName(a)).toBe(true);
+    expect(isValidBranchName(b)).toBe(true);
+  });
+
+  test('never truncates the marker on long titles (50-char limit falls on the slug)', () => {
+    const name = generateFallbackBranchName(
+      'Refactor the entire authentication and authorization module now',
+      1234567,
+    );
+    expect(name.length).toBeLessThanOrEqual(50);
+    expect(name).toMatch(/^chore\/t1234567-/);
+    expect(countTaskIdMarkers(name, 1234567)).toBe(1);
+    expect(isValidBranchName(name)).toBe(true);
+  });
+
+  test('produces a minimal valid slug when the marker consumes nearly the whole budget', () => {
+    // 9-digit taskId: head = "feature/t123456789-" (19 chars) still leaves slug room;
+    // validity must hold regardless.
+    const name = generateFallbackBranchName('!!!', 123456789);
+    expect(name).toMatch(/^feature\/t123456789-/);
+    expect(name.length).toBeLessThanOrEqual(50);
+    expect(isValidBranchName(name)).toBe(true);
+  });
+
+  test('omitting taskId preserves the legacy output exactly', () => {
+    expect(generateFallbackBranchName('!!!')).toBe('feature/implement-task');
+  });
+});
+
 describe('generateBranchName', () => {
   test('returns the AI-generated branch name when the response is valid', async () => {
     mockSendAIMessage.mockImplementationOnce(() =>
@@ -251,6 +329,42 @@ describe('generateBranchName', () => {
     mockSendAIMessage.mockImplementationOnce(() => Promise.resolve({ content: '', tokensUsed: 0 }));
     const name = await generateBranchName('Update dependencies');
     expect(name).toMatch(/^chore\//);
+    expect(isValidBranchName(name)).toBe(true);
+  });
+
+  test('embeds the taskId marker exactly once into a valid AI response', async () => {
+    mockSendAIMessage.mockImplementationOnce(() =>
+      Promise.resolve({ content: 'feature/add-user-authentication', tokensUsed: 10 }),
+    );
+    const name = await generateBranchName('Add user authentication', undefined, 539);
+    expect(name).toBe('feature/t539-add-user-authentication');
+    expect(countTaskIdMarkers(name, 539)).toBe(1);
+    expect(isValidBranchName(name)).toBe(true);
+  });
+
+  test('keeps the taskId marker when falling back after an AI rejection', async () => {
+    mockSendAIMessage.mockImplementationOnce(() => Promise.reject(new Error('AI unavailable')));
+    const name = await generateBranchName('Fix login button error', undefined, 539);
+    expect(name).toMatch(/^bugfix\/t539-/);
+    expect(countTaskIdMarkers(name, 539)).toBe(1);
+    expect(isValidBranchName(name)).toBe(true);
+  });
+
+  test('keeps the taskId marker when falling back on an empty AI response', async () => {
+    mockSendAIMessage.mockImplementationOnce(() => Promise.resolve({ content: '', tokensUsed: 0 }));
+    const name = await generateBranchName('Update dependencies', undefined, 539);
+    expect(name).toMatch(/^chore\/t539-/);
+    expect(countTaskIdMarkers(name, 539)).toBe(1);
+    expect(isValidBranchName(name)).toBe(true);
+  });
+
+  test('caps a long AI-generated name at 50 chars without truncating the marker', async () => {
+    mockSendAIMessage.mockImplementationOnce(() =>
+      Promise.resolve({ content: 'feature/add-comprehensive-user-authentication', tokensUsed: 10 }),
+    );
+    const name = await generateBranchName('Add user authentication', undefined, 1234567);
+    expect(name.length).toBeLessThanOrEqual(50);
+    expect(name).toMatch(/^feature\/t1234567-/);
     expect(isValidBranchName(name)).toBe(true);
   });
 });
