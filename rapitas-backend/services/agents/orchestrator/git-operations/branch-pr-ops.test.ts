@@ -112,7 +112,8 @@ mock.module('../../../github/gh-client', () => ({
   },
 }));
 
-const { createPullRequest, createBranch, mergePullRequest } = await import('./branch-pr-ops');
+const { createPullRequest, createBranch, mergePullRequest, FOREIGN_PR_ERROR_PREFIX } =
+  await import('./branch-pr-ops');
 
 const rejected = () =>
   new Error(
@@ -177,15 +178,20 @@ describe('createPullRequest — push 分岐耐性', () => {
       { match: /git branch --list develop/, result: 'develop\n' },
       { match: /git branch --show-current/, result: 'chore/update-refactor\n' },
       { match: /git push -u origin chore\/update-refactor$/, result: '' },
-      // 既存PR #172 は base=main で開かれている
+      // 既存PR #172 は base=main で開かれている（タイトルマーカーは自タスクと一致）
       {
         match: /pr list --head chore\/update-refactor/,
-        result: JSON.stringify({ number: 172, url: 'https://x/pull/172', baseRefName: 'main' }),
+        result: JSON.stringify({
+          number: 172,
+          url: 'https://x/pull/172',
+          baseRefName: 'main',
+          title: '[Task-172] t',
+        }),
       },
       { match: /pr edit 172 --base develop/, result: '' },
     ];
 
-    const res = await createPullRequest('/repo', 't', 'b');
+    const res = await createPullRequest('/repo', '[Task-172] t', 'b');
 
     expect(res.success).toBe(true);
     expect(res.prNumber).toBe(172);
@@ -202,11 +208,16 @@ describe('createPullRequest — push 分岐耐性', () => {
       { match: /git push -u origin feature\/x-y$/, result: '' },
       {
         match: /pr list --head feature\/x-y/,
-        result: JSON.stringify({ number: 9, url: 'https://x/pull/9', baseRefName: 'develop' }),
+        result: JSON.stringify({
+          number: 9,
+          url: 'https://x/pull/9',
+          baseRefName: 'develop',
+          title: '[Task-9] t',
+        }),
       },
     ];
 
-    const res = await createPullRequest('/repo', 't', 'b');
+    const res = await createPullRequest('/repo', '[Task-9] t', 'b');
 
     expect(res.success).toBe(true);
     expect(res.prNumber).toBe(9);
@@ -236,6 +247,60 @@ describe('createPullRequest — push 分岐耐性', () => {
     expect(res.prNumber).toBe(99);
     // 0 は falsy のため再利用をスキップし、runGhCommandWithBody 経由で新規作成されること
     expect(ghWithBodyCalls.some((c) => c.baseArgs.includes('create'))).toBe(true);
+  });
+
+  test('既存PRのタイトルマーカーが自タスクと不一致なら再利用せず pr create も試みずエラーを返すこと (task 541)', async () => {
+    // 実インシデント再現: 停止済み旧セッションの同名ブランチに task 538 の PR #340 が
+    // 開いたまま残っており、task 539 がそれを自分の PR として誤採用した。
+    script = [
+      { match: /git branch --list develop/, result: 'develop\n' },
+      { match: /git branch --show-current/, result: 'feature/implement-task\n' },
+      { match: /git push -u origin feature\/implement-task$/, result: '' },
+      {
+        match: /pr list --head feature\/implement-task/,
+        result: JSON.stringify({
+          number: 340,
+          url: 'https://x/pull/340',
+          baseRefName: 'develop',
+          title: '[Task-538] 他タスクのPR',
+        }),
+      },
+    ];
+
+    const res = await createPullRequest('/repo', '[Task-539] 自タスクのタイトル', 'b');
+
+    expect(res.success).toBe(false);
+    expect(res.error?.startsWith(FOREIGN_PR_ERROR_PREFIX)).toBe(true);
+    expect(res.foreignPrDetected).toEqual({ prNumber: 340, prUrl: 'https://x/pull/340' });
+    // gh pr create を試みないこと（同一 head の重複 PR は GitHub 仕様上作れない）
+    expect(ghWithBodyCalls).toHaveLength(0);
+    // retarget も行わないこと（他タスクの PR に触らない）
+    expect(calls.some((c) => /pr edit/.test(c))).toBe(false);
+  });
+
+  test('既存PRのタイトルにマーカーが無い場合も再利用を拒否すること (task 541)', async () => {
+    // 手動で作られたマーカー無し PR をブランチ名一致だけで奪わない（安全側）。
+    script = [
+      { match: /git branch --list develop/, result: 'develop\n' },
+      { match: /git branch --show-current/, result: 'feature/manual-branch\n' },
+      { match: /git push -u origin feature\/manual-branch$/, result: '' },
+      {
+        match: /pr list --head feature\/manual-branch/,
+        result: JSON.stringify({
+          number: 77,
+          url: 'https://x/pull/77',
+          baseRefName: 'develop',
+          title: 'manual hotfix without marker',
+        }),
+      },
+    ];
+
+    const res = await createPullRequest('/repo', '[Task-541] mine', 'b');
+
+    expect(res.success).toBe(false);
+    expect(res.error?.startsWith(FOREIGN_PR_ERROR_PREFIX)).toBe(true);
+    expect(res.foreignPrDetected).toEqual({ prNumber: 77, prUrl: 'https://x/pull/77' });
+    expect(ghWithBodyCalls).toHaveLength(0);
   });
 
   test('指定された base がリポジトリに存在しなければ自動検出へフォールバックすること (task 485 回帰)', async () => {
@@ -358,11 +423,16 @@ describe('createPullRequest — runGhCommandWithBody 呼び出し内容の検証
       { match: /git push -u origin feature\/reuse$/, result: '' },
       {
         match: /pr list --head feature\/reuse/,
-        result: JSON.stringify({ number: 55, url: 'https://x/pull/55', baseRefName: 'develop' }),
+        result: JSON.stringify({
+          number: 55,
+          url: 'https://x/pull/55',
+          baseRefName: 'develop',
+          title: '[Task-55] t',
+        }),
       },
     ];
 
-    const res = await createPullRequest('/repo', 't', 'b');
+    const res = await createPullRequest('/repo', '[Task-55] t', 'b');
 
     expect(res.success).toBe(true);
     expect(res.prNumber).toBe(55);
