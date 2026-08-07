@@ -119,9 +119,8 @@ mock.module('./transition-recorder', () => ({
   recordTransition: recordTransitionMock,
 }));
 
-const { attemptWorktreeRebuildRecovery, tryRecoverFromHistoryContamination } = await import(
-  './worktree-rebuild-recovery'
-);
+const { attemptWorktreeRebuildRecovery, tryRecoverFromHistoryContamination } =
+  await import('./worktree-rebuild-recovery');
 
 // ---------------------------------------------------------------------------
 // Fixtures

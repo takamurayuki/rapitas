@@ -21,19 +21,13 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { prisma } from '../../config/database';
 import { createLogger } from '../../config/logger';
-import {
-  diffBaseRef,
-  getAllChangedFiles,
-} from '../agents/verification/automated-verifier';
+import { diffBaseRef, getAllChangedFiles } from '../agents/verification/automated-verifier';
 import { evaluateScopeCheck, parsePlanFiles } from '../agents/verification/scope-check';
 import {
   classifyScopeContamination,
   type FileTouchingCommit,
 } from '../agents/verification/scope-contamination';
-import {
-  createWorktree,
-  removeWorktree,
-} from '../agents/orchestrator/git-operations/worktree-ops';
+import { createWorktree, removeWorktree } from '../agents/orchestrator/git-operations/worktree-ops';
 import { assertSafeGitRef, sanitizeBranchName } from '../../utils/common/branch-name-generator';
 import { recordTransition } from './transition-recorder';
 import { readWorkflowFile } from './workflow-file-utils';
@@ -197,7 +191,10 @@ export async function attemptWorktreeRebuildRecovery(params: {
     mergeBase = await diffBaseRef(worktreePath, preferredBaseBranch);
     touchingCommits = await collectTouchingCommits(worktreePath, mergeBase, cappedOffending);
   } catch (err) {
-    log.warn({ err, taskId }, '[worktree-rebuild] git inspection failed — aborting (no changes made)');
+    log.warn(
+      { err, taskId },
+      '[worktree-rebuild] git inspection failed — aborting (no changes made)',
+    );
     return { recovered: false, reason: 'git_operation_failed' };
   }
 
@@ -238,7 +235,10 @@ export async function attemptWorktreeRebuildRecovery(params: {
     // can never be GC'd. The tag is intentionally never deleted (受入基準2a).
     await runGit(baseDir, ['tag', snapshotTag, snapshotSha]);
   } catch (err) {
-    log.warn({ err, taskId }, '[worktree-rebuild] Snapshot/tag failed — aborting (no changes made)');
+    log.warn(
+      { err, taskId },
+      '[worktree-rebuild] Snapshot/tag failed — aborting (no changes made)',
+    );
     return { recovered: false, reason: 'git_operation_failed' };
   }
 
@@ -290,7 +290,14 @@ export async function attemptWorktreeRebuildRecovery(params: {
     // Pathspec order matters: `.` first, then excludes — excludes alone would
     // exclude EVERYTHING (git pathspec semantics; plan.md 申し送り).
     const excludeSpecs = classification.contaminatedFiles.map((f) => `:(exclude)${f}`);
-    const patch = await runGit(baseDir, ['diff', mergeBase, snapshotSha, '--', '.', ...excludeSpecs]);
+    const patch = await runGit(baseDir, [
+      'diff',
+      mergeBase,
+      snapshotSha,
+      '--',
+      '.',
+      ...excludeSpecs,
+    ]);
     if (patch.trim()) {
       const patchFile = join(tmpdir(), `rapitas-recovery-task-${taskId}-${Date.now()}.patch`);
       await fsPromises.writeFile(patchFile, patch, 'utf8');
