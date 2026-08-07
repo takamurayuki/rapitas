@@ -169,6 +169,35 @@ export class WorkflowQueueService {
         // while any sibling is active, or while an earlier-created sibling is
         // still pending. Non-subtasks (no parentId) are unaffected.
         const candidateTask = await resolveTaskWorkflowState(candidate.taskId);
+
+        // Terminal-task guard: a queue item can outlive its task (a
+        // completion-era re-dispatch raced the task finishing — task 537 left
+        // one 'queued' forever, pinning queueDepth at 1 and dispatching a
+        // phantom implementer that failed with "no code changes"). Cancel the
+        // stale item instead of dispatching a phase for finished work.
+        // Requires POSITIVE terminal evidence — a null lookup can also be a
+        // transient DB error and must not destroy a valid queue item.
+        if (
+          candidateTask &&
+          (candidateTask.status === 'done' ||
+            candidateTask.status === 'cancelled' ||
+            candidateTask.workflowStatus === 'completed')
+        ) {
+          await prisma.workflowQueueItem
+            .update({
+              where: { id: candidate.id },
+              data: {
+                status: 'cancelled',
+                completedAt: new Date(),
+                errorMessage: 'タスクは既に終端状態のため、残留キュー項目を自動キャンセルしました',
+              },
+            })
+            .catch(() => {});
+          log.info(
+            `[WorkflowQueue] Cancelled stale queue item ${candidate.id} (task ${candidate.taskId} already terminal)`,
+          );
+          continue;
+        }
         if (candidateTask?.parentId != null) {
           const siblings = await prisma.task.findMany({
             where: { parentId: candidateTask.parentId, id: { not: candidate.taskId } },
