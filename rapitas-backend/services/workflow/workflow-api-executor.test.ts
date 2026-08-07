@@ -110,6 +110,14 @@ mock.module('./verify-self-repair', () => ({
   attemptVerifyRepair: mockAttemptVerifyRepair,
 }));
 
+// NOTE: The guard hits the real DB module (config/database) which this test
+// does not mock — without this the dynamic import issues a real prisma query
+// and the test hangs until timeout.
+const mockCriticRejectedSince = mock(() => Promise.resolve(false));
+mock.module('./phase-critic/critic-rejection-guard', () => ({
+  criticRejectedSince: mockCriticRejectedSince,
+}));
+
 const { executeAPIAgent } = await import('./workflow-api-executor');
 
 const baseTask = { title: 'Test task', description: 'A description' };
@@ -169,6 +177,8 @@ function resetMocks() {
   mockValidateVerify.mockReturnValue({ ok: true, missingSections: [], severity: 0, summary: '' });
   mockAttemptVerifyRepair.mockReset();
   mockAttemptVerifyRepair.mockResolvedValue({ bounced: false });
+  mockCriticRejectedSince.mockReset();
+  mockCriticRejectedSince.mockResolvedValue(false);
   mockAdvanceWorkflow.mockClear();
   mockGetOrCreateDevConfig.mockClear();
   noopLog.info.mockClear();
@@ -194,6 +204,23 @@ async function run(
     mockGetOrCreateDevConfig,
   );
 }
+
+describe('executeAPIAgent — critic-rejection guard', () => {
+  beforeEach(resetMocks);
+
+  test('critic 差し戻し後は保存もステータス前進もせず失敗として返す', async () => {
+    mockCriticRejectedSince.mockResolvedValue(true);
+    const result = await run();
+
+    expect(mockWriteWorkflowFile).not.toHaveBeenCalled();
+    expect(mockTaskUpdate).not.toHaveBeenCalled();
+    expect(result.success).toBe(false);
+    expect(result.executionId).toBe(10);
+    // Session/execution rows are still closed so nothing is left dangling.
+    expect(mockSessionUpdate).toHaveBeenCalled();
+    expect(mockExecutionUpdate).toHaveBeenCalled();
+  });
+});
 
 describe('executeAPIAgent — happy path dispatch', () => {
   beforeEach(resetMocks);

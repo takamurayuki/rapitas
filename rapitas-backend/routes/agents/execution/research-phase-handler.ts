@@ -141,8 +141,29 @@ export async function handleResearchResult(params: HandleResearchResultParams): 
   }
 
   // 2. Save research.md to the workflow API.
+  //
+  // NOTE: The agent already PUT research.md mid-run; if the phase critic
+  // rejected it while the agent was finishing, this harvest re-save would
+  // resurrect the rejected artifact byte-for-byte and flip the status forward
+  // again (observed on task 539 — the auto-run executor had this guard, the
+  // manual path did not). When rejected: skip the save AND the workflow
+  // advance below, but still revert code changes and close the session — the
+  // critic's rollback owns the workflow status and the bounce re-run
+  // regenerates the artifact.
   const savedOk = researchMarkdown.trim().length > 0;
+  let criticRejected = false;
   if (savedOk) {
+    const session = await prisma.agentSession
+      .findUnique({ where: { id: sessionId }, select: { startedAt: true, createdAt: true } })
+      .catch(() => null);
+    const phaseStartedAt = session?.startedAt ?? session?.createdAt ?? null;
+    if (phaseStartedAt) {
+      const { criticRejectedSince } =
+        await import('../../../services/workflow/phase-critic/critic-rejection-guard');
+      criticRejected = await criticRejectedSince(taskIdNum, 'research', phaseStartedAt);
+    }
+  }
+  if (savedOk && !criticRejected) {
     try {
       const { writeWorkflowFile, resolveWorkflowDir } =
         await import('../../../services/workflow/workflow-file-utils');
@@ -223,7 +244,7 @@ export async function handleResearchResult(params: HandleResearchResultParams): 
   // 4a. Research concluded the requirement is ALREADY satisfied (explicit
   // "## 結論: 修正不要" verdict): complete the task directly — no plan / impl /
   // verify — so already-done work doesn't get a duplicate PR.
-  if (savedOk && researchConcludesNoChange(researchMarkdown)) {
+  if (savedOk && !criticRejected && researchConcludesNoChange(researchMarkdown)) {
     await prisma.task
       .update({
         where: { id: taskIdNum },
@@ -253,7 +274,7 @@ export async function handleResearchResult(params: HandleResearchResultParams): 
   }
 
   // 4. Update task / session status AND advance workflow.
-  if (savedOk) {
+  if (savedOk && !criticRejected) {
     // Transition workflowStatus from 'draft' → 'research_done' so the next
     // phase (planner) is reachable. Without this, role-resolver still picks
     // 'researcher' for the next run because the workflow tracker thinks
@@ -421,6 +442,35 @@ export async function handleResearchResult(params: HandleResearchResultParams): 
         '[API] No next phase queued — workflow is in a non-advanceable state (waiting for user action or already terminal)',
       );
     }
+  } else if (criticRejected) {
+    // Critic rejected the artifact mid-run: the rollback transition already
+    // owns the workflow status (draft) and the bounce re-run regenerates the
+    // artifact. Close this session cleanly — do NOT advance, do NOT block.
+    await prisma.agentSession
+      .update({
+        where: { id: sessionId },
+        data: {
+          status: 'completed',
+          completedAt: new Date(),
+          errorMessage:
+            '品質批評ゲートが調査結果を差し戻したため、この実行の成果物は破棄されました。再生成が自動でキューされます。',
+        },
+      })
+      .catch((e) =>
+        log.warn({ err: e, sessionId }, '[API] Failed to close session (critic-rejected)'),
+      );
+    await prisma.agentExecution
+      .updateMany({
+        where: { sessionId, status: 'post_processing' },
+        data: { status: 'completed', completedAt: new Date() },
+      })
+      .catch((e) =>
+        log.warn({ err: e, sessionId }, '[API] Failed to flip execution status (critic-rejected)'),
+      );
+    log.info(
+      { taskId: taskIdNum, sessionId },
+      '[API] Research harvest skipped due to critic rejection — session closed without advancing',
+    );
   } else {
     await prisma.task
       .update({ where: { id: taskIdNum }, data: { status: 'blocked' } })
