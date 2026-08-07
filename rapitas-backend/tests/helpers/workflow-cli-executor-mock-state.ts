@@ -137,7 +137,11 @@ function defaultValidation(): ValidationResultLike {
 /** Mutable config knobs read live by the shared mock functions below. */
 export const wf = {
   taskWithTheme: defaultTaskWithTheme() as TaskWithThemeLike | null,
-  taskTitle: { id: 1, title: 'Test Task' } as { id: number; title: string } | null,
+  taskTitle: { id: 1, title: 'Test Task', description: null } as {
+    id: number;
+    title: string;
+    description: string | null;
+  } | null,
   taskWorkflowState: defaultTaskWorkflowState() as TaskWorkflowStateLike | null,
   latestSessionWorktree: null as LatestSessionWorktreeLike | null,
   canReuseWorktree: false,
@@ -194,6 +198,16 @@ export const wf = {
   generateFallbackBranchNameImpl: ((_title: string) => 'feature/fallback-branch') as (
     title: string,
   ) => string,
+
+  // NOTE: Default mirrors the executor's OLD manual `-t${taskId}` suffixing so
+  // workflow-cli-executor.worktree.test.ts's 'feature/fallback-branch-t1'
+  // assertion holds unchanged — the marker now comes from inside
+  // generateBranchName (task 539) rather than from the call site.
+  generateBranchNameImpl: (async () => 'feature/fallback-branch-t1') as (
+    title: string,
+    description?: string,
+    taskId?: number,
+  ) => Promise<string>,
 
   applyResearchAssessedComplexityImpl: (async () => {}) as (
     taskId: number,
@@ -253,6 +267,9 @@ export const spies = {
     wf.maybeAutoApprovePlanImpl(taskId, language),
   ),
   generateFallbackBranchName: mock((title: string) => wf.generateFallbackBranchNameImpl(title)),
+  generateBranchName: mock((title: string, description?: string, taskId?: number) =>
+    wf.generateBranchNameImpl(title, description, taskId),
+  ),
   applyResearchAssessedComplexity: mock((taskId: number, content: string) =>
     wf.applyResearchAssessedComplexityImpl(taskId, content),
   ),
@@ -277,7 +294,7 @@ export const spies = {
  */
 export function resetWfMockState(): void {
   wf.taskWithTheme = defaultTaskWithTheme();
-  wf.taskTitle = { id: 1, title: 'Test Task' };
+  wf.taskTitle = { id: 1, title: 'Test Task', description: null };
   wf.taskWorkflowState = defaultTaskWorkflowState();
   wf.latestSessionWorktree = null;
   wf.canReuseWorktree = false;
@@ -299,6 +316,7 @@ export function resetWfMockState(): void {
   wf.checkWorkflowInvariantsImpl = async () => [];
   wf.maybeAutoApprovePlanImpl = async () => ({ newStatus: 'plan_created', autoApproved: false });
   wf.generateFallbackBranchNameImpl = () => 'feature/fallback-branch';
+  wf.generateBranchNameImpl = async () => 'feature/fallback-branch-t1';
   wf.applyResearchAssessedComplexityImpl = async () => {};
   wf.performAutoCommitAndPRImpl = async () => ({
     requested: { autoCommit: true, autoCreatePR: true, autoMergePR: false },
@@ -448,11 +466,12 @@ export function installWorkflowCliExecutorMocks(): void {
   }));
 
   mock.module(p('utils/common/branch-name-generator'), () => ({
-    generateBranchName: mock(() => Promise.resolve('feature/generated')),
+    generateBranchName: spies.generateBranchName,
     extractBranchName: mock((s: string) => s),
     sanitizeBranchName: mock((s: string) => s),
     assertSafeGitRef: mock(() => {}),
     isValidBranchName: mock(() => true),
+    hasTaskIdMarker: mock(() => false),
     generateFallbackBranchName: spies.generateFallbackBranchName,
   }));
 

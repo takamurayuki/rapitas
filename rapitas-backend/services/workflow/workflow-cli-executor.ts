@@ -198,9 +198,10 @@ export async function executeCLIAgent(
       }
       if (worktreeBase) {
         try {
-          const { generateFallbackBranchName } =
-            await import('../../utils/common/branch-name-generator');
-          const taskTitle = (await resolveTaskTitle(taskId))?.title ?? `task-${taskId}`;
+          const { generateBranchName } = await import('../../utils/common/branch-name-generator');
+          const taskInfo = await resolveTaskTitle(taskId);
+          const taskTitle = taskInfo?.title ?? `task-${taskId}`;
+          const taskDescription = taskInfo?.description ?? undefined;
           // Reuse the EXISTING feature branch (it holds the prior implementation
           // and the commits already pushed to the PR) when a prior session
           // recorded one — e.g. a ci_repair re-run after the worktree was cleaned
@@ -209,17 +210,19 @@ export async function executeCLIAgent(
           // task 227 re-implement loop). createWorktree checks out an existing
           // branch as-is, keeping its commits.
           const priorBranch = sessionWithWorktree?.branchName?.trim();
-          // A NEW branch MUST be unique per task. generateFallbackBranchName
-          // derives the name from the (often generic) title, so unrelated tasks
-          // collide on names like "chore/update-refactor" (observed: 10 PRs sharing
-          // ONE branch) or "feature/implement-perf". When a later task reuses/resets
-          // a shared branch (force-push), GitHub auto-closes the earlier PR and
-          // orphans its work — that is why PR #253 (task 305) was closed unmerged.
-          // Suffix the task id so each task owns a distinct branch. A reused
-          // priorBranch keeps its EXACT name (it already maps 1:1 to an open PR).
-          const fallbackBase =
-            generateFallbackBranchName(taskTitle) || `feature/task-${taskId}-auto`;
-          const branchName = priorBranch || `${fallbackBase}-t${taskId}`;
+          // A NEW branch MUST be unique per task — unrelated tasks used to
+          // collide on generic title-derived names (observed: 10 PRs sharing
+          // ONE branch; PR #253 / task 305 closed unmerged by a force-push).
+          // generateBranchName embeds the `t<taskId>-` marker internally
+          // (exactly once — no manual suffixing here, which previously caused
+          // the `...-t319-task-319` double-embed) and falls back to the
+          // deterministic generator, still taskId-tagged, when AI is
+          // unavailable. A reused priorBranch keeps its EXACT name (it already
+          // maps 1:1 to an open PR).
+          const branchName =
+            priorBranch ||
+            (await generateBranchName(taskTitle, taskDescription, taskId)) ||
+            `feature/task-${taskId}-auto`;
           const wt = await orchestrator.createWorktree(worktreeBase, branchName, taskId, null);
           resolvedWorktreePath = wt;
           resolvedBranchName = branchName;
