@@ -178,8 +178,7 @@ export async function runBacklogJobNow(
   }
   running.add(kind);
   try {
-    const count =
-      kind === 'health_check' ? await runLogHealthCheck(since) : await HANDLERS[kind]();
+    const count = kind === 'health_check' ? await runLogHealthCheck(since) : await HANDLERS[kind]();
     if (source === 'manual') {
       await recordManualRunOutcome(kind, { kind: 'success', count });
     }
