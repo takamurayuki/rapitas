@@ -490,12 +490,35 @@ export async function removeWorktree(
         });
         logger.info(`[removeWorktree] Deleted merged branch: ${branchName}`);
       } else {
-        // Use -D for unmerged branches (force delete)
-        await execFileAsync('git', ['branch', '-D', branchName], {
-          cwd: baseDir,
-          encoding: 'utf8',
-        });
-        logger.info(`[removeWorktree] Force deleted unmerged branch: ${branchName}`);
+        // An unmerged branch is only safe to force-delete when every commit
+        // is reachable from some remote ref (i.e. the work was pushed).
+        // Commits that exist NOWHERE else would be destroyed with it — a
+        // stop-execution did exactly that to a branch holding verified,
+        // committed-but-unpushed work (task 536), recovered only via reflog.
+        const { stdout: uniqueCountRaw } = await execFileAsync(
+          'git',
+          ['rev-list', branchName, '--not', '--remotes', '--count'],
+          { cwd: baseDir, encoding: 'utf8' },
+        );
+        const uniqueCount = parseInt(uniqueCountRaw.trim(), 10);
+        if (Number.isFinite(uniqueCount) && uniqueCount > 0) {
+          const { stdout: tip } = await execFileAsync('git', ['rev-parse', '--short', branchName], {
+            cwd: baseDir,
+            encoding: 'utf8',
+          });
+          logger.warn(
+            `[removeWorktree] KEEPING unmerged branch ${branchName} — ${uniqueCount} commit(s) exist on no remote (tip ${tip.trim()}). Push or recover (git checkout -b <name> ${tip.trim()}) before deleting.`,
+          );
+        } else {
+          // All commits are on a remote — -D only drops the local ref.
+          await execFileAsync('git', ['branch', '-D', branchName], {
+            cwd: baseDir,
+            encoding: 'utf8',
+          });
+          logger.info(
+            `[removeWorktree] Force deleted unmerged branch (all commits pushed): ${branchName}`,
+          );
+        }
       }
     } catch (branchError) {
       logger.warn({ err: branchError }, `[removeWorktree] Failed to delete branch ${branchName}`);

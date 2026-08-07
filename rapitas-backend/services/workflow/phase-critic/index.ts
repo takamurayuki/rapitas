@@ -18,5 +18,6 @@ export {
   buildCriticFeedback,
   type PhaseCriticGateResult,
 } from './phase-critic-gate';
+export { awaitCriticSettled, registerCritique, hasCritiqueInFlight } from './critic-inflight';
 export { aggregateCritiques, SEVERE_THRESHOLD } from './critique-aggregator';
 export type { CriticPhase, CriticVerdict, PhaseCritiqueResult } from './phase-critic-types';

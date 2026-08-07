@@ -13,6 +13,7 @@ import { createLogger } from '../../../config/logger';
 import { recordTransition } from '../transition-recorder';
 import { archiveWorkflowFile } from '../workflow-file-utils';
 import { critiquePhase, isPhaseCriticEnabled } from './phase-critic';
+import { registerCritique } from './critic-inflight';
 import type { CriticPhase } from './phase-critic-types';
 import { countWithFailClosed } from '../../../utils/database/fail-closed-count';
 
@@ -57,8 +58,24 @@ export async function applyPhaseCriticGate(args: {
   content: string;
   currentStatus: string;
 }): Promise<PhaseCriticGateResult> {
-  const { taskId, phase, content, currentStatus } = args;
   if (!isPhaseCriticEnabled()) return { bounced: false };
+  // Register BEFORE any await so the advance path can observe the critique
+  // even when the save handler's 90s timeout race abandons this promise —
+  // the late verdict then lands before the next phase reads workflowStatus
+  // instead of after it dispatched (see critic-inflight.ts).
+  const critique = runPhaseCriticGate(args);
+  registerCritique(args.taskId, critique);
+  return critique;
+}
+
+/** The gate body — see {@link applyPhaseCriticGate}. */
+async function runPhaseCriticGate(args: {
+  taskId: number;
+  phase: CriticPhase;
+  content: string;
+  currentStatus: string;
+}): Promise<PhaseCriticGateResult> {
+  const { taskId, phase, content, currentStatus } = args;
 
   try {
     const result = await critiquePhase(phase, content);

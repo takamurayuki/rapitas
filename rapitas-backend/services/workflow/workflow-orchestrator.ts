@@ -139,6 +139,14 @@ export class WorkflowOrchestrator {
     }
 
     try {
+      // A phase-critic verdict may still be in flight for the artifact that
+      // triggered this advance (the save handler fails open past 90s while
+      // the critique keeps running). Wait for it so we read the POST-verdict
+      // workflowStatus — otherwise a late rejection rolls the workflow back
+      // AFTER the next phase already dispatched against the rejected artifact
+      // (task 536), which is what made critic bounces never regenerate.
+      const { awaitCriticSettled } = await import('./phase-critic');
+      await awaitCriticSettled(taskId);
       return await this.runAdvanceWorkflow(taskId, language);
     } finally {
       releaseTaskExecutionLock(taskId);

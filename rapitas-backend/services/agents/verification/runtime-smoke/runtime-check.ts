@@ -17,6 +17,28 @@ import { runBrowserSmoke, type SmokeRunResult } from './browser-smoke';
 const log = createLogger('runtime-smoke');
 
 /**
+ * Launch-log signatures that mean the WORKTREE ENVIRONMENT is broken — not
+ * the code under test. A backend-only change cannot fix "Turbopack rejects
+ * the frontend node_modules symlink", so failing the gate on it sends the
+ * implementer into an unfixable verify-repair loop (task 536: two wasted
+ * repair cycles on an identical environmental failure). These fail OPEN,
+ * matching the module's stated tooling-absence philosophy.
+ */
+export const ENV_FAILURE_RE =
+  /points out of the filesystem root|TurbopackInternalError|Cannot find module '.*node_modules|ENOENT.*node_modules|EPERM.*node_modules|command not found|は、内部コマンドまたは外部コマンド/i;
+
+/**
+ * Whether the launch logs show an environment/setup failure rather than an
+ * app defect. Pure — exported for tests.
+ *
+ * @param logs - Captured launch output lines. / 起動ログ
+ * @returns True when the failure is environmental. / 環境起因ならtrue
+ */
+export function looksLikeEnvironmentFailure(logs: string[]): boolean {
+  return ENV_FAILURE_RE.test(logs.join('\n'));
+}
+
+/**
  * Pure verdict over smoke findings — the testable core.
  *
  * @param smoke - Browser pass result / ブラウザ確認の結果
@@ -91,7 +113,26 @@ export async function runRuntimeSmokeCheck(
       label,
     });
     if (!healthy) {
-      const tail = app.logs().slice(-25).join('\n');
+      const logs = app.logs();
+      const tail = logs.slice(-25).join('\n');
+      // Environment failures (broken worktree symlinks, missing tooling) are
+      // not fixable by the implementer — fail OPEN with the evidence instead
+      // of bouncing the phase into an unfixable repair loop.
+      if (looksLikeEnvironmentFailure(logs)) {
+        log.warn(
+          { workdir, label },
+          '[runtime-smoke] launch failed with an ENVIRONMENT signature — skipping (fail-open)',
+        );
+        return {
+          name: 'runtime',
+          ran: false,
+          ok: true,
+          errorCount: 0,
+          details:
+            `runtime検証は環境起因の起動失敗のためスキップしました（worktreeセットアップ問題 — 実装の欠陥ではありません）。` +
+            `\n--- 起動ログ末尾 ---\n${tail}`,
+        };
+      }
       return {
         name: 'runtime',
         ran: true,

@@ -587,6 +587,10 @@ curl -X POST http://127.0.0.1:${port}/idea-box \\
 \`\`\`
 日本語が "?" に化ける場合は、内容を作業ディレクトリの .wf-idea.json に UTF-8 で書いてから --data-binary @.wf-idea.json で送る（.wf-* はコミットされません）。アイデアが無ければ何もしなくて構いません。`;
 
+  // For the harvest guard below: a critic rejection recorded AFTER this point
+  // means the artifact this phase produced was already judged and bounced.
+  const phaseStartedAt = new Date();
+
   const result = await orchestrator.executeTask(
     {
       id: taskId,
@@ -653,23 +657,49 @@ curl -X POST http://127.0.0.1:${port}/idea-box \\
         '[WorkflowCLIExecutor] Agent output had no clean report (log-only) — skipping md write',
       );
     } else {
-      try {
-        await writeWorkflowFile(taskId, transition.outputFile, cleaned);
-        log.info(
-          {
-            taskId,
-            role: transition.role,
-            outputFile: transition.outputFile,
-            chars: cleaned.length,
-            usedFinalMessage: !!result.finalMessage?.trim(),
-          },
-          '[WorkflowCLIExecutor] Captured clean report and saved to workflow API',
-        );
-      } catch (captureErr) {
+      // Critic-rejection guard: if the phase critic already REJECTED this
+      // phase's artifact (rollback + archive) while the agent was finishing,
+      // re-saving the agent's final message would RESURRECT the rejected
+      // artifact byte-for-byte and flip the status forward again — exactly
+      // how task 536's bounce loop never regenerated anything. Skip; the
+      // bounced re-run produces the replacement.
+      const rejectedSince =
+        transition.outputFile === 'research' || transition.outputFile === 'plan'
+          ? await prisma.workflowTransition
+              .findFirst({
+                where: {
+                  taskId,
+                  cause: `${transition.outputFile}_critic_failed`,
+                  createdAt: { gt: phaseStartedAt },
+                },
+                select: { id: true },
+              })
+              .catch(() => null)
+          : null;
+      if (rejectedSince) {
         log.warn(
-          { err: captureErr, taskId, role: transition.role },
-          '[WorkflowCLIExecutor] Failed to save report to workflow API',
+          { taskId, role: transition.role, outputFile: transition.outputFile },
+          '[WorkflowCLIExecutor] Critic rejected this artifact mid-phase — skipping harvest re-save (would resurrect the rejected content)',
         );
+      } else {
+        try {
+          await writeWorkflowFile(taskId, transition.outputFile, cleaned);
+          log.info(
+            {
+              taskId,
+              role: transition.role,
+              outputFile: transition.outputFile,
+              chars: cleaned.length,
+              usedFinalMessage: !!result.finalMessage?.trim(),
+            },
+            '[WorkflowCLIExecutor] Captured clean report and saved to workflow API',
+          );
+        } catch (captureErr) {
+          log.warn(
+            { err: captureErr, taskId, role: transition.role },
+            '[WorkflowCLIExecutor] Failed to save report to workflow API',
+          );
+        }
       }
     }
   }
