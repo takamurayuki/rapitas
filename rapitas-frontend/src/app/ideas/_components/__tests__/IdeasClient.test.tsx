@@ -101,7 +101,9 @@ describe('IdeasClient', () => {
     await waitFor(() => screen.getByText('テストアイデア'));
     // 総数40、itemsPerPage=10なので4ページ => ページネーション表示される
     // (4 はページサイズ候補[5,10,15]に無く一意に取れる)
-    expect(screen.getByText('4')).toBeInTheDocument(); // 最後のページ番号
+    // NOTE: ページ番号はリスト描画と別コミットで現れ得るため waitFor で待つ
+    // (即時 getByText は遅い CI ランナーでのみ落ちる flake だった)。
+    await waitFor(() => expect(screen.getByText('4')).toBeInTheDocument()); // 最後のページ番号
   });
 
   it('calls API with correct limit and offset parameters', async () => {
