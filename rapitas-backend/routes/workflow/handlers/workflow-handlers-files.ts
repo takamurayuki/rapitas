@@ -877,6 +877,10 @@ export async function handleSaveFile({
       conflictTask.githubPrId != null &&
       /^PR #\d+ の競合を解消/.test(conflictTask.title ?? '');
 
+    // Resolved once, shared by the completion gate and BOTH history-contamination
+    // recovery call sites below (adversarial review / verification gate) — see
+    // plan.md 申し送り: avoid recomputing resolvePreferredBaseBranch per branch.
+    let preferredBaseBranchForVerify: string | null = null;
     if (fileType === 'verify' && newStatus === 'verify_done' && !isConflictResolutionTask) {
       const gateSession = await prisma.agentSession
         .findFirst({
@@ -890,11 +894,11 @@ export async function handleSaveFile({
       // not AgentExecutionConfig.targetBranch alone (task 511: that table is
       // empty for the autonomous pipeline) — see resolvePreferredBaseBranch's
       // doc comment. This call site was missed when the other five were fixed.
-      const preferredBaseBranchForCompletion = await resolvePreferredBaseBranch(taskId);
+      preferredBaseBranchForVerify = await resolvePreferredBaseBranch(taskId);
       const completionGate = await evaluateCompletionGate(
         gateSession?.worktreePath ?? null,
         savedContent,
-        preferredBaseBranchForCompletion,
+        preferredBaseBranchForVerify,
       );
       if (!completionGate.allow) {
         verifyGateBlocked = true;
@@ -980,91 +984,219 @@ export async function handleSaveFile({
       }).catch(() => null);
 
       if (review && review.verdict === 'fail') {
-        const reason = `差分レビュー不合格: ${
-          review.reasons.slice(0, 5).join(' / ') || '受入基準を満たしていません'
-        }`;
-        const { attemptVerifyRepair } =
-          await import('../../../services/workflow/verify-self-repair');
-        const repair = await attemptVerifyRepair(taskId, 'verify_done', reason, savedContent).catch(
-          () => ({ bounced: false }) as Awaited<ReturnType<typeof attemptVerifyRepair>>,
+        // History-contamination recovery (task 539): when the out-of-plan files
+        // behind this FAIL came from BRANCH HISTORY (the worktree was cut on
+        // another task's unmerged branch), an implementer bounce can never fix
+        // it — editing the working tree cannot remove ancestor commits. Rebuild
+        // the worktree from the base branch instead, then re-review ONCE.
+        const { tryRecoverFromHistoryContamination, notifyRecoveryFallbackBlocked } =
+          await import('../../../services/workflow/worktree-rebuild-recovery');
+        const recovery = await tryRecoverFromHistoryContamination(
+          taskId,
+          reviewSession?.worktreePath,
+          preferredBaseBranchForVerify,
+        ).catch(
+          () =>
+            ({ recovered: false }) as Awaited<
+              ReturnType<typeof tryRecoverFromHistoryContamination>
+            >,
         );
-        // Compare-and-swap: this review runs an LLM jury synchronously and can
-        // take a while — a second, faster verify attempt (self-repair round, or
-        // a race) can legitimately complete and even merge the task before this
-        // verdict comes back. Applying it unconditionally would then stomp an
-        // already-completed/merged task back to plan_approved (observed: task
-        // 503 was rolled back ~40s after its PR had already merged). Skip the
-        // entire rollback — including verifyGateBlocked and the transition log —
-        // when the task has already moved off the status this review evaluated.
-        const liveTask = await prisma.task
-          .findUnique({ where: { id: taskId }, select: { workflowStatus: true } })
-          .catch(() => null);
-        if (liveTask?.workflowStatus !== 'verify_done') {
-          staleVerifyRequest = true;
-          // Report what the task ACTUALLY is now (e.g. 'completed'), not the
-          // 'verify_done' this stale evaluation was based on — the response
-          // reaches the saving agent, and it must not be told a status that
-          // isn't true in the DB.
-          if (liveTask?.workflowStatus) newStatus = liveTask.workflowStatus;
-          log.warn(
-            { taskId, severity: review.severity, actualStatus: liveTask?.workflowStatus },
-            '[Workflow] Adversarial review FAIL arrived after the workflow moved on — skipping rollback entirely',
-          );
-        } else {
-          verifyGateBlocked = true;
-          if (repair.bounced && repair.newStatus) {
-            const rolled = await prisma.task
-              .updateMany({
-                where: { id: taskId, workflowStatus: 'verify_done' },
-                data: { workflowStatus: repair.newStatus },
-              })
-              .catch(() => ({ count: 0 }));
-            if (rolled.count === 0) {
+
+        let activeReview = review;
+        let reviewStillFailing = true;
+        if (recovery.recovered) {
+          const retryReview = await reviewDiffAdversarially({
+            taskId,
+            worktreePath: recovery.newWorktreePath,
+          }).catch(() => null);
+          if (!retryReview || retryReview.verdict !== 'fail') {
+            reviewStillFailing = false;
+            // Same compare-and-swap guard as below: the rebuild + re-review took
+            // real time — only resume the normal completion flow when the task
+            // is still at the status this evaluation was based on.
+            const liveAfterRecovery = await prisma.task
+              .findUnique({ where: { id: taskId }, select: { workflowStatus: true } })
+              .catch(() => null);
+            if (liveAfterRecovery?.workflowStatus !== 'verify_done') {
+              staleVerifyRequest = true;
+              if (liveAfterRecovery?.workflowStatus) newStatus = liveAfterRecovery.workflowStatus;
               log.warn(
-                { taskId, attempt: repair.attempt, severity: review.severity },
-                '[Workflow] Adversarial review FAIL lost the compare-and-swap race — skipping rollback',
+                { taskId, actualStatus: liveAfterRecovery?.workflowStatus },
+                '[Workflow] Worktree rebuild recovery finished after the workflow moved on — skipping',
               );
             } else {
-              newStatus = repair.newStatus;
-              // Bounced ≠ this execution succeeded: the diff it produced was
-              // rejected, even though the workflow itself lives on for a retry
-              // (a fresh AgentExecution row is created for that). Without this,
-              // markLatestExecutionFailed only ran once repairs were exhausted,
-              // so a bounced-for-retry run kept showing 完了/success in the
-              // execution log while the task had just been rolled back.
-              await markLatestExecutionFailed(taskId, reason);
-              log.warn(
-                { taskId, attempt: repair.attempt, severity: review.severity },
-                '[Workflow] Adversarial diff review FAILED — bounced to implementer for self-repair',
+              log.info(
+                { taskId, newWorktreePath: recovery.newWorktreePath },
+                '[Workflow] Adversarial review passed after worktree rebuild recovery — resuming normal flow',
               );
             }
           } else {
-            // NOTE: this update was previously missing — the log claimed "task
-            // stays blocked" but task.status was never actually set, leaving
-            // the task looking untouched (status stuck at whatever it already
-            // was, e.g. 'todo') instead of clearly flagged for attention
-            // (task 504: workflowStatus stayed 'verify_done' with no PR/commit
-            // and status='todo', indistinguishable from a never-started task).
-            await prisma.task
-              .update({ where: { id: taskId }, data: { status: 'blocked', updatedAt: new Date() } })
-              .catch(() => {});
-            await markLatestExecutionFailed(taskId, reason);
+            // Report the RETRY's reasons — the pre-rebuild verdict is stale.
+            activeReview = retryReview;
+          }
+        }
+
+        const reason = `差分レビュー不合格: ${
+          activeReview.reasons.slice(0, 5).join(' / ') || '受入基準を満たしていません'
+        }`;
+
+        if (
+          reviewStillFailing &&
+          (recovery.reason === 'recovery_already_used' ||
+            recovery.reason === 'patch_apply_conflict')
+        ) {
+          // Contamination recovery exhausted (受入基準3) or failed after the old
+          // worktree was destroyed (受入基準2c): an implementer bounce is either
+          // futile (same contaminated history again) or impossible (no worktree)
+          // — block + notify directly, WITHOUT attemptVerifyRepair.
+          const liveTask = await prisma.task
+            .findUnique({ where: { id: taskId }, select: { workflowStatus: true } })
+            .catch(() => null);
+          if (liveTask?.workflowStatus !== 'verify_done') {
+            staleVerifyRequest = true;
+            if (liveTask?.workflowStatus) newStatus = liveTask.workflowStatus;
             log.warn(
-              { taskId, severity: review.severity },
-              '[Workflow] Adversarial diff review FAILED and repairs exhausted — task stays blocked',
+              { taskId, recoveryReason: recovery.reason, actualStatus: liveTask?.workflowStatus },
+              '[Workflow] Recovery-blocked verdict arrived after the workflow moved on — skipping',
+            );
+          } else {
+            verifyGateBlocked = true;
+            const blockedTitle =
+              recovery.reason === 'recovery_already_used'
+                ? '差分レビューが再び計画外混入で不合格（worktree再構築の上限到達）'
+                : 'worktree再構築リカバリが失敗しました';
+            const blockedMessage =
+              recovery.reason === 'recovery_already_used'
+                ? `タスク #${taskId} はブランチ履歴汚染による worktree 再構築を既に1回実施済みですが、再度計画外混入が検出されました。手動確認が必要です。`
+                : `タスク #${taskId} の worktree 再構築中にパッチ適用が失敗しました。退避タグ（recovery/task-${taskId}-*）から手動復旧してください。`;
+            // Dynamic import mirrors this handler's convention — keeps the
+            // static graph free of config/database for test isolation.
+            const { writeBlockedStatusDurable } =
+              await import('../../../services/workflow/durable-blocked-write');
+            await writeBlockedStatusDurable({
+              taskId,
+              log,
+              source: 'Workflow',
+              notification: { title: blockedTitle, message: blockedMessage },
+            });
+            await notifyRecoveryFallbackBlocked(taskId, blockedTitle, blockedMessage);
+            await markLatestExecutionFailed(taskId, reason);
+            await recordTransition({
+              taskId,
+              fromStatus: 'verify_done',
+              toStatus: 'verify_done',
+              actor: 'system',
+              cause: 'adversarial_review_failed',
+              phase: 'verify',
+              metadata: {
+                severity: activeReview.severity,
+                reasons: activeReview.reasons.slice(0, 5),
+                recoveryOutcome: recovery.reason,
+                recoveryExhausted: recovery.reason === 'recovery_already_used',
+              },
+              invariantViolation: true,
+              invariantMessage: reason,
+            }).catch(() => {});
+            log.warn(
+              { taskId, recoveryReason: recovery.reason, severity: activeReview.severity },
+              '[Workflow] History-contamination recovery unavailable — task blocked (no implementer bounce)',
             );
           }
-          await recordTransition({
+        } else if (reviewStillFailing) {
+          const { attemptVerifyRepair } =
+            await import('../../../services/workflow/verify-self-repair');
+          const repair = await attemptVerifyRepair(
             taskId,
-            fromStatus: 'verify_done',
-            toStatus: newStatus,
-            actor: 'system',
-            cause: 'adversarial_review_failed',
-            phase: 'verify',
-            metadata: { severity: review.severity, reasons: review.reasons.slice(0, 5) },
-            invariantViolation: true,
-            invariantMessage: reason,
-          }).catch(() => {});
+            'verify_done',
+            reason,
+            savedContent,
+          ).catch(() => ({ bounced: false }) as Awaited<ReturnType<typeof attemptVerifyRepair>>);
+          // Compare-and-swap: this review runs an LLM jury synchronously and can
+          // take a while — a second, faster verify attempt (self-repair round, or
+          // a race) can legitimately complete and even merge the task before this
+          // verdict comes back. Applying it unconditionally would then stomp an
+          // already-completed/merged task back to plan_approved (observed: task
+          // 503 was rolled back ~40s after its PR had already merged). Skip the
+          // entire rollback — including verifyGateBlocked and the transition log —
+          // when the task has already moved off the status this review evaluated.
+          const liveTask = await prisma.task
+            .findUnique({ where: { id: taskId }, select: { workflowStatus: true } })
+            .catch(() => null);
+          if (liveTask?.workflowStatus !== 'verify_done') {
+            staleVerifyRequest = true;
+            // Report what the task ACTUALLY is now (e.g. 'completed'), not the
+            // 'verify_done' this stale evaluation was based on — the response
+            // reaches the saving agent, and it must not be told a status that
+            // isn't true in the DB.
+            if (liveTask?.workflowStatus) newStatus = liveTask.workflowStatus;
+            log.warn(
+              { taskId, severity: activeReview.severity, actualStatus: liveTask?.workflowStatus },
+              '[Workflow] Adversarial review FAIL arrived after the workflow moved on — skipping rollback entirely',
+            );
+          } else {
+            verifyGateBlocked = true;
+            if (repair.bounced && repair.newStatus) {
+              const rolled = await prisma.task
+                .updateMany({
+                  where: { id: taskId, workflowStatus: 'verify_done' },
+                  data: { workflowStatus: repair.newStatus },
+                })
+                .catch(() => ({ count: 0 }));
+              if (rolled.count === 0) {
+                log.warn(
+                  { taskId, attempt: repair.attempt, severity: activeReview.severity },
+                  '[Workflow] Adversarial review FAIL lost the compare-and-swap race — skipping rollback',
+                );
+              } else {
+                newStatus = repair.newStatus;
+                // Bounced ≠ this execution succeeded: the diff it produced was
+                // rejected, even though the workflow itself lives on for a retry
+                // (a fresh AgentExecution row is created for that). Without this,
+                // markLatestExecutionFailed only ran once repairs were exhausted,
+                // so a bounced-for-retry run kept showing 完了/success in the
+                // execution log while the task had just been rolled back.
+                await markLatestExecutionFailed(taskId, reason);
+                log.warn(
+                  { taskId, attempt: repair.attempt, severity: activeReview.severity },
+                  '[Workflow] Adversarial diff review FAILED — bounced to implementer for self-repair',
+                );
+              }
+            } else {
+              // NOTE: this update was previously missing — the log claimed "task
+              // stays blocked" but task.status was never actually set, leaving
+              // the task looking untouched (status stuck at whatever it already
+              // was, e.g. 'todo') instead of clearly flagged for attention
+              // (task 504: workflowStatus stayed 'verify_done' with no PR/commit
+              // and status='todo', indistinguishable from a never-started task).
+              await prisma.task
+                .update({
+                  where: { id: taskId },
+                  data: { status: 'blocked', updatedAt: new Date() },
+                })
+                .catch(() => {});
+              await markLatestExecutionFailed(taskId, reason);
+              log.warn(
+                { taskId, severity: activeReview.severity },
+                '[Workflow] Adversarial diff review FAILED and repairs exhausted — task stays blocked',
+              );
+            }
+            await recordTransition({
+              taskId,
+              // newStatus is 'verify_done' here unless the bounce above rolled
+              // it back — the fallback only guards the (unreachable) undefined.
+              toStatus: newStatus ?? 'verify_done',
+              fromStatus: 'verify_done',
+              actor: 'system',
+              cause: 'adversarial_review_failed',
+              phase: 'verify',
+              metadata: {
+                severity: activeReview.severity,
+                reasons: activeReview.reasons.slice(0, 5),
+              },
+              invariantViolation: true,
+              invariantMessage: reason,
+            }).catch(() => {});
+          }
         }
       }
     }
@@ -1114,6 +1246,53 @@ export async function handleSaveFile({
         log.warn({ err, taskId }, '[Workflow] Auto-commit/PR threw');
         return {} as Awaited<ReturnType<typeof performAutoCommitAndPR>>;
       });
+
+      // History-contamination recovery (task 539), gate-side call site: when
+      // the automated gate withheld commit/PR and the out-of-plan files came
+      // from branch history, rebuild the worktree and retry the commit/PR
+      // pipeline ONCE. performAutoCommitAndPR re-reads the latest session's
+      // worktreePath, which the recovery updates — a plain re-call is enough.
+      let gateRecoveryBlocked: 'recovery_already_used' | 'patch_apply_conflict' | null = null;
+      if (autoCommitPRResult.verificationBlocked) {
+        const { tryRecoverFromHistoryContamination } =
+          await import('../../../services/workflow/worktree-rebuild-recovery');
+        const gateWorktreeSession = await prisma.agentSession
+          .findFirst({
+            where: { config: { taskId }, worktreePath: { not: null } },
+            orderBy: { createdAt: 'desc' },
+            select: { worktreePath: true },
+          })
+          .catch(() => null);
+        const recovery = await tryRecoverFromHistoryContamination(
+          taskId,
+          gateWorktreeSession?.worktreePath,
+          preferredBaseBranchForVerify,
+        ).catch(
+          () =>
+            ({ recovered: false }) as Awaited<
+              ReturnType<typeof tryRecoverFromHistoryContamination>
+            >,
+        );
+        if (recovery.recovered) {
+          autoCommitPRResult = await performAutoCommitAndPR(taskId, savedContent).catch((err) => {
+            log.warn(
+              { err, taskId },
+              '[Workflow] Auto-commit/PR retry after worktree rebuild threw',
+            );
+            return {} as Awaited<ReturnType<typeof performAutoCommitAndPR>>;
+          });
+          log.info(
+            { taskId, retryBlocked: autoCommitPRResult.verificationBlocked === true },
+            '[Workflow] Verification gate re-ran after worktree rebuild recovery',
+          );
+        } else if (
+          recovery.reason === 'recovery_already_used' ||
+          recovery.reason === 'patch_apply_conflict'
+        ) {
+          gateRecoveryBlocked = recovery.reason;
+        }
+      }
+
       const commit = autoCommitPRResult.autoCommitResult;
       const pr = autoCommitPRResult.autoPRResult;
       const merge = autoCommitPRResult.autoMergeResult;
@@ -1127,46 +1306,94 @@ export async function handleSaveFile({
         verifyGateBlocked = true; // either way, do not mark done/PR this pass
         const gateReason =
           autoCommitPRResult.error ?? '自動検証に失敗しました（lint/型/テスト/スコープ）。';
-        const { attemptVerifyRepair } =
-          await import('../../../services/workflow/verify-self-repair');
-        const repair = await attemptVerifyRepair(
-          taskId,
-          'verify_done',
-          gateReason,
-          savedContent,
-        ).catch(() => ({ bounced: false }) as Awaited<ReturnType<typeof attemptVerifyRepair>>);
 
-        if (repair.bounced && repair.newStatus) {
-          // Compare-and-swap: performAutoCommitAndPR ran real git/lint/test
-          // subprocesses above and can take a while — if a concurrent request
-          // for this same task (e.g. a duplicate/retried save) already moved
-          // the task past verify_done in the meantime, an unconditional update
-          // here would stomp that newer state back to the implementer entry.
-          // Mirrors the same guard on the adversarial-review bounce above.
-          const rolled = await prisma.task
-            .updateMany({
-              where: { id: taskId, workflowStatus: 'verify_done' },
-              data: { workflowStatus: repair.newStatus },
-            })
-            .catch(() => ({ count: 0 }));
-          if (rolled.count === 0) {
-            log.warn(
-              { taskId, attempt: repair.attempt, reason: gateReason },
-              '[Workflow] Verification gate failed but the workflow already moved on — skipping rollback',
-            );
+        if (gateRecoveryBlocked) {
+          // Contamination recovery exhausted (受入基準3) or failed after the old
+          // worktree was destroyed (受入基準2c) — an implementer bounce is
+          // futile/impossible; block + notify directly, skipping self-repair.
+          const blockedTitle =
+            gateRecoveryBlocked === 'recovery_already_used'
+              ? '自動検証ゲートが再び計画外混入で失敗（worktree再構築の上限到達）'
+              : 'worktree再構築リカバリが失敗しました';
+          const blockedMessage =
+            gateRecoveryBlocked === 'recovery_already_used'
+              ? `タスク #${taskId} はブランチ履歴汚染による worktree 再構築を既に1回実施済みですが、自動検証ゲートが再度失敗しました。手動確認が必要です。`
+              : `タスク #${taskId} の worktree 再構築中にパッチ適用が失敗しました。退避タグ（recovery/task-${taskId}-*）から手動復旧してください。`;
+          // Dynamic import mirrors this handler's convention — keeps the
+          // static graph free of config/database for test isolation.
+          const { writeBlockedStatusDurable } =
+            await import('../../../services/workflow/durable-blocked-write');
+          await writeBlockedStatusDurable({
+            taskId,
+            log,
+            source: 'Workflow',
+            notification: { title: blockedTitle, message: blockedMessage },
+          });
+          const { notifyRecoveryFallbackBlocked } =
+            await import('../../../services/workflow/worktree-rebuild-recovery');
+          await notifyRecoveryFallbackBlocked(taskId, blockedTitle, blockedMessage);
+          await markLatestExecutionFailed(taskId, gateReason);
+          await recordTransition({
+            taskId,
+            fromStatus: 'verify_done',
+            toStatus: 'verify_done',
+            actor: 'system',
+            cause: 'verification_gate_failed',
+            phase: 'verify',
+            metadata: {
+              reason: gateReason,
+              recoveryOutcome: gateRecoveryBlocked,
+              recoveryExhausted: gateRecoveryBlocked === 'recovery_already_used',
+            },
+            invariantViolation: true,
+            invariantMessage: gateReason,
+          }).catch(() => {});
+          log.warn(
+            { taskId, recoveryReason: gateRecoveryBlocked, reason: gateReason },
+            '[Workflow] History-contamination recovery unavailable — task blocked, no commit/PR',
+          );
+        } else {
+          const { attemptVerifyRepair } =
+            await import('../../../services/workflow/verify-self-repair');
+          const repair = await attemptVerifyRepair(
+            taskId,
+            'verify_done',
+            gateReason,
+            savedContent,
+          ).catch(() => ({ bounced: false }) as Awaited<ReturnType<typeof attemptVerifyRepair>>);
+
+          if (repair.bounced && repair.newStatus) {
+            // Compare-and-swap: performAutoCommitAndPR ran real git/lint/test
+            // subprocesses above and can take a while — if a concurrent request
+            // for this same task (e.g. a duplicate/retried save) already moved
+            // the task past verify_done in the meantime, an unconditional update
+            // here would stomp that newer state back to the implementer entry.
+            // Mirrors the same guard on the adversarial-review bounce above.
+            const rolled = await prisma.task
+              .updateMany({
+                where: { id: taskId, workflowStatus: 'verify_done' },
+                data: { workflowStatus: repair.newStatus },
+              })
+              .catch(() => ({ count: 0 }));
+            if (rolled.count === 0) {
+              log.warn(
+                { taskId, attempt: repair.attempt, reason: gateReason },
+                '[Workflow] Verification gate failed but the workflow already moved on — skipping rollback',
+              );
+            } else {
+              newStatus = repair.newStatus;
+              log.warn(
+                { taskId, attempt: repair.attempt, reason: gateReason },
+                '[Workflow] Verification gate failed — bounced to implementer for self-repair',
+              );
+            }
           } else {
-            newStatus = repair.newStatus;
+            await markLatestExecutionFailed(taskId, gateReason);
             log.warn(
-              { taskId, attempt: repair.attempt, reason: gateReason },
-              '[Workflow] Verification gate failed — bounced to implementer for self-repair',
+              { taskId, reason: gateReason },
+              '[Workflow] Verification gate failed and self-repairs exhausted — task stays blocked, no commit/PR.',
             );
           }
-        } else {
-          await markLatestExecutionFailed(taskId, gateReason);
-          log.warn(
-            { taskId, reason: gateReason },
-            '[Workflow] Verification gate failed and self-repairs exhausted — task stays blocked, no commit/PR.',
-          );
         }
       } else {
         // Completion REQUIRES a successfully created PR (user request): a passing
