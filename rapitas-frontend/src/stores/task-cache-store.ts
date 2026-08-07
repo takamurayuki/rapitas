@@ -60,26 +60,18 @@ function applyMaxCacheSize(merged: Task[]): Task[] {
   return [...active, ...done];
 }
 
-export const useTaskCacheStore = create<TaskCacheState>()((set, get) => ({
-  tasks: [],
-  lastFetchedAt: null,
-  loading: false,
-  initialized: false,
-  connectionStatus: 'online' as ConnectionStatus,
-  consecutiveFailures: 0,
-  lastError: null,
-
-  fetchAll: async () => {
-    // Delegate to the incremental path only when we have a baseline to diff
-    // against. NOTE: a failed fetchAll leaves `initialized=true` but
-    // `lastFetchedAt=null`; without the lastFetchedAt guard, fetchAll →
-    // fetchUpdates → fetchAll recurses infinitely (stack overflow) whenever
-    // GET /tasks keeps failing. Requiring lastFetchedAt breaks that loop.
-    if (get().initialized && get().lastFetchedAt) {
-      logger.debug('[taskCacheStore] fetchAll: Already initialized, calling fetchUpdates instead');
-      return get().fetchUpdates();
-    }
-
+export const useTaskCacheStore = create<TaskCacheState>()((set, get) => {
+  // The one real implementation of a full GET /tasks refetch — never
+  // delegates anywhere else. fetchAll() and fetchUpdates()'s own resync path
+  // both funnel through this directly instead of calling each other, so a
+  // full refetch can never bounce back into an incremental fetch. It used to:
+  // fetchUpdates saw its local task count exceed the server's total and
+  // called fetchAll(), which (since `lastFetchedAt` was already set) just
+  // called fetchUpdates() right back — the *same* `/tasks?since=...` request,
+  // which a still-mismatched server answers identically, so the pair looped
+  // forever instead of ever reaching a real `/tasks` fetch that could resolve
+  // the mismatch. Surfaced as a task list stuck on its loading skeleton.
+  const performFullFetch = async () => {
     logger.info('[taskCacheStore] fetchAll: Starting full fetch');
     set({ loading: true });
     try {
@@ -119,176 +111,203 @@ export const useTaskCacheStore = create<TaskCacheState>()((set, get) => ({
         lastError: errorMessage,
       });
     }
-  },
+  };
 
-  fetchUpdates: async (silent = false) => {
-    const { lastFetchedAt, tasks } = get();
-    if (!lastFetchedAt) {
-      // No previous fetch — do full fetch instead
-      logger.debug('[taskCacheStore] fetchUpdates: No lastFetchedAt, calling fetchAll');
-      return get().fetchAll();
-    }
+  return {
+    tasks: [],
+    lastFetchedAt: null,
+    loading: false,
+    initialized: false,
+    connectionStatus: 'online' as ConnectionStatus,
+    consecutiveFailures: 0,
+    lastError: null,
 
-    const wasOffline = get().connectionStatus !== 'online';
-    if (wasOffline) {
-      logger.debug('[taskCacheStore] fetchUpdates: Attempting reconnection');
-      set({ connectionStatus: 'reconnecting' });
-    } else {
-      logger.debug(`[taskCacheStore] fetchUpdates: Starting incremental fetch (silent: ${silent})`);
-    }
+    fetchAll: async () => {
+      // Delegate to the incremental path only when we have a baseline to diff
+      // against — fetchUpdates's own resync path calls performFullFetch
+      // directly (see above), so this can't ping-pong back here.
+      if (get().initialized && get().lastFetchedAt) {
+        logger.debug(
+          '[taskCacheStore] fetchAll: Already initialized, calling fetchUpdates instead',
+        );
+        return get().fetchUpdates();
+      }
+      return performFullFetch();
+    },
 
-    // Only show loading indicator if not silent
-    if (!silent) {
-      set({ loading: true });
-    }
-    try {
-      const res = await fetchWithRetry(
-        `${API_BASE_URL}/tasks?since=${encodeURIComponent(lastFetchedAt)}`,
-      );
-      if (!res.ok) {
-        const { consecutiveFailures } = get();
-        const newFailures = consecutiveFailures + 1;
-        if (newFailures <= MAX_LOGGED_FAILURES) {
-          logger.error('[taskCacheStore] fetchUpdates failed:', res.status);
-        }
-        set({
-          connectionStatus: 'offline',
-          consecutiveFailures: newFailures,
-          lastError: `HTTP ${res.status}`,
-        });
-        if (!silent) {
-          set({ loading: false });
-        }
-        return;
+    fetchUpdates: async (silent = false) => {
+      const { lastFetchedAt, tasks } = get();
+      if (!lastFetchedAt) {
+        // No previous fetch — do full fetch instead
+        logger.debug('[taskCacheStore] fetchUpdates: No lastFetchedAt, calling fetchAll');
+        return performFullFetch();
       }
 
-      // Success — handle recovery if we were offline
+      const wasOffline = get().connectionStatus !== 'online';
       if (wasOffline) {
-        logger.info('[taskCacheStore] fetchUpdates: Connection recovered');
+        logger.debug('[taskCacheStore] fetchUpdates: Attempting reconnection');
+        set({ connectionStatus: 'reconnecting' });
+      } else {
+        logger.debug(
+          `[taskCacheStore] fetchUpdates: Starting incremental fetch (silent: ${silent})`,
+        );
       }
-      set({
-        connectionStatus: 'online',
-        consecutiveFailures: 0,
-        lastError: null,
-      });
 
-      const data = await res.json();
-
-      // Incremental response: { tasks, totalCount, activeIds, since, incremental }
-      if (data.incremental) {
-        const updatedTasks: Task[] = data.tasks;
-        const serverTotalCount: number = data.totalCount;
-        const activeIds: number[] = data.activeIds || [];
-
-        // Merge updates into existing cache
-        const taskMap = new Map(tasks.map((t) => [t.id, t]));
-
-        // Apply updated tasks
-        for (const updated of updatedTasks) {
-          taskMap.set(updated.id, updated);
-        }
-
-        // If activeIds provided, detect deleted tasks
-        let deletedCount = 0;
-        if (activeIds.length > 0) {
-          const activeIdSet = new Set(activeIds);
-          const beforeCount = taskMap.size;
-
-          // Delete tasks that exist locally but not on server
-          for (const [id] of taskMap) {
-            if (!activeIdSet.has(id)) {
-              taskMap.delete(id);
-            }
+      // Only show loading indicator if not silent
+      if (!silent) {
+        set({ loading: true });
+      }
+      try {
+        const res = await fetchWithRetry(
+          `${API_BASE_URL}/tasks?since=${encodeURIComponent(lastFetchedAt)}`,
+        );
+        if (!res.ok) {
+          const { consecutiveFailures } = get();
+          const newFailures = consecutiveFailures + 1;
+          if (newFailures <= MAX_LOGGED_FAILURES) {
+            logger.error('[taskCacheStore] fetchUpdates failed:', res.status);
           }
-
-          deletedCount = beforeCount - taskMap.size;
-          if (deletedCount > 0) {
-            logger.info(`[taskCacheStore] fetchUpdates: Removed ${deletedCount} deleted tasks`);
-          }
-        } else if (taskMap.size > serverTotalCount) {
-          // If activeIds not available, use traditional method (refetch all)
-          logger.info(
-            `[taskCacheStore] fetchUpdates: Local count (${taskMap.size}) > server count (${serverTotalCount}), refetching all`,
-          );
-          if (!silent) {
-            set({ loading: false });
-          }
-          return get().fetchAll();
-        }
-
-        // NOTE: No updates and no deletions this cycle — skip rewriting `tasks`.
-        // A fresh Array.from() would change the array reference and force
-        // useFilteredTasks/useTaskSorting to recompute, flickering the list on
-        // every poll. Advance lastFetchedAt only so the next fetch stays incremental.
-        if (updatedTasks.length === 0 && deletedCount === 0) {
-          set({ lastFetchedAt: new Date().toISOString() });
+          set({
+            connectionStatus: 'offline',
+            consecutiveFailures: newFailures,
+            lastError: `HTTP ${res.status}`,
+          });
           if (!silent) {
             set({ loading: false });
           }
           return;
         }
 
-        const merged = applyMaxCacheSize(Array.from(taskMap.values()));
-        logger.debug(
-          `[taskCacheStore] fetchUpdates: Merged ${updatedTasks.length} updates, total: ${merged.length}`,
-        );
+        // Success — handle recovery if we were offline
+        if (wasOffline) {
+          logger.info('[taskCacheStore] fetchUpdates: Connection recovered');
+        }
         set({
-          tasks: merged,
-          lastFetchedAt: new Date().toISOString(),
+          connectionStatus: 'online',
+          consecutiveFailures: 0,
+          lastError: null,
         });
-      } else {
-        // Fallback: server returned plain array (shouldn't happen with since param, but handle gracefully)
-        logger.debug('[taskCacheStore] fetchUpdates: Received non-incremental response');
+
+        const data = await res.json();
+
+        // Incremental response: { tasks, totalCount, activeIds, since, incremental }
+        if (data.incremental) {
+          const updatedTasks: Task[] = data.tasks;
+          const serverTotalCount: number = data.totalCount;
+          const activeIds: number[] = data.activeIds || [];
+
+          // Merge updates into existing cache
+          const taskMap = new Map(tasks.map((t) => [t.id, t]));
+
+          // Apply updated tasks
+          for (const updated of updatedTasks) {
+            taskMap.set(updated.id, updated);
+          }
+
+          // If activeIds provided, detect deleted tasks
+          let deletedCount = 0;
+          if (activeIds.length > 0) {
+            const activeIdSet = new Set(activeIds);
+            const beforeCount = taskMap.size;
+
+            // Delete tasks that exist locally but not on server
+            for (const [id] of taskMap) {
+              if (!activeIdSet.has(id)) {
+                taskMap.delete(id);
+              }
+            }
+
+            deletedCount = beforeCount - taskMap.size;
+            if (deletedCount > 0) {
+              logger.info(`[taskCacheStore] fetchUpdates: Removed ${deletedCount} deleted tasks`);
+            }
+          } else if (taskMap.size > serverTotalCount) {
+            // If activeIds not available, use traditional method (refetch all)
+            logger.info(
+              `[taskCacheStore] fetchUpdates: Local count (${taskMap.size}) > server count (${serverTotalCount}), refetching all`,
+            );
+            if (!silent) {
+              set({ loading: false });
+            }
+            return performFullFetch();
+          }
+
+          // NOTE: No updates and no deletions this cycle — skip rewriting `tasks`.
+          // A fresh Array.from() would change the array reference and force
+          // useFilteredTasks/useTaskSorting to recompute, flickering the list on
+          // every poll. Advance lastFetchedAt only so the next fetch stays incremental.
+          if (updatedTasks.length === 0 && deletedCount === 0) {
+            set({ lastFetchedAt: new Date().toISOString() });
+            if (!silent) {
+              set({ loading: false });
+            }
+            return;
+          }
+
+          const merged = applyMaxCacheSize(Array.from(taskMap.values()));
+          logger.debug(
+            `[taskCacheStore] fetchUpdates: Merged ${updatedTasks.length} updates, total: ${merged.length}`,
+          );
+          set({
+            tasks: merged,
+            lastFetchedAt: new Date().toISOString(),
+          });
+        } else {
+          // Fallback: server returned plain array (shouldn't happen with since param, but handle gracefully)
+          logger.debug('[taskCacheStore] fetchUpdates: Received non-incremental response');
+          set({
+            tasks: data,
+            lastFetchedAt: new Date().toISOString(),
+          });
+        }
+      } catch (e) {
+        const { consecutiveFailures } = get();
+        const newFailures = consecutiveFailures + 1;
+        const errorMessage = e instanceof Error ? e.message : String(e);
+
+        // Suppress repeated error logs after MAX_LOGGED_FAILURES
+        if (newFailures <= MAX_LOGGED_FAILURES) {
+          logger.error('[taskCacheStore] fetchUpdates error:', e);
+        } else if (newFailures === MAX_LOGGED_FAILURES + 1) {
+          logger.warn(
+            '[taskCacheStore] fetchUpdates: Suppressing further error logs until recovery',
+          );
+        }
+
         set({
-          tasks: data,
-          lastFetchedAt: new Date().toISOString(),
+          connectionStatus: 'offline',
+          consecutiveFailures: newFailures,
+          lastError: errorMessage,
         });
+        // Tasks are preserved in cache — no data loss on failure
+      } finally {
+        if (!silent) {
+          logger.debug('[taskCacheStore] fetchUpdates: Setting loading to false');
+          set({ loading: false });
+        }
       }
-    } catch (e) {
-      const { consecutiveFailures } = get();
-      const newFailures = consecutiveFailures + 1;
-      const errorMessage = e instanceof Error ? e.message : String(e);
+    },
 
-      // Suppress repeated error logs after MAX_LOGGED_FAILURES
-      if (newFailures <= MAX_LOGGED_FAILURES) {
-        logger.error('[taskCacheStore] fetchUpdates error:', e);
-      } else if (newFailures === MAX_LOGGED_FAILURES + 1) {
-        logger.warn('[taskCacheStore] fetchUpdates: Suppressing further error logs until recovery');
-      }
+    updateTaskLocally: (id, patch) => {
+      set((state) => ({
+        tasks: state.tasks.map((t) => (t.id === id ? { ...t, ...patch } : t)),
+      }));
+    },
 
-      set({
-        connectionStatus: 'offline',
-        consecutiveFailures: newFailures,
-        lastError: errorMessage,
-      });
-      // Tasks are preserved in cache — no data loss on failure
-    } finally {
-      if (!silent) {
-        logger.debug('[taskCacheStore] fetchUpdates: Setting loading to false');
-        set({ loading: false });
-      }
-    }
-  },
+    removeTaskLocally: (id) => {
+      set((state) => ({
+        tasks: state.tasks.filter((t) => t.id !== id),
+      }));
+    },
 
-  updateTaskLocally: (id, patch) => {
-    set((state) => ({
-      tasks: state.tasks.map((t) => (t.id === id ? { ...t, ...patch } : t)),
-    }));
-  },
+    addTaskLocally: (task) => {
+      set((state) => ({
+        tasks: [task, ...state.tasks],
+      }));
+    },
 
-  removeTaskLocally: (id) => {
-    set((state) => ({
-      tasks: state.tasks.filter((t) => t.id !== id),
-    }));
-  },
-
-  addTaskLocally: (task) => {
-    set((state) => ({
-      tasks: [task, ...state.tasks],
-    }));
-  },
-
-  setTasks: (tasks) => {
-    set({ tasks });
-  },
-}));
+    setTasks: (tasks) => {
+      set({ tasks });
+    },
+  };
+});

@@ -53,64 +53,78 @@ export interface SelectOverlayState {
  * @param taskId - Task whose preview to interact with. / プレビュー対象タスクID
  * @param isActive - Whether a live session is running (interactions are no-ops otherwise). / セッションが起動中か
  * @param containerRef - The preview panel's container, for attaching the native wheel listener. / パネルのコンテナ
- * @param fetchScreenshot - Refetches the screenshot — called after every interaction so its effect shows up immediately. / スクリーンショット再取得
+ * @param applyScreenshotBlob - Renders a screenshot blob immediately — the backend now returns the post-interaction frame directly in the same response instead of requiring a separate GET, so there's no fetch left to do here. / スクリーンショット即時反映
  */
 export function usePreviewInteraction(
   taskId: number,
   isActive: boolean,
   containerRef: React.RefObject<HTMLDivElement | null>,
-  fetchScreenshot: () => Promise<void>,
+  applyScreenshotBlob: (blob: Blob) => void,
 ) {
   const [selectOverlay, setSelectOverlay] = useState<SelectOverlayState | null>(null);
   // Drops overlapping interactions (mainly rapid-fire wheel events) instead
-  // of queuing them — each interaction round-trips to the backend AND
-  // triggers an immediate screenshot refetch, so flooding it would just pile
-  // up latency with no visible benefit.
+  // of queuing them — each interaction round-trips to the backend, so
+  // flooding it would just pile up latency with no visible benefit.
   const interactionBusyRef = useRef(false);
 
-  /** Relay one interaction to the live page, then refetch the screenshot so its effect shows up immediately (not on the next 3s poll tick). */
+  /** Relay one interaction to the live page — the response IS the resulting frame (see preview-routes.ts's /interact), so its effect shows up immediately with no second request. */
   const sendInteraction = useCallback(
     async (interaction: PreviewInteraction) => {
       if (interactionBusyRef.current) return;
       interactionBusyRef.current = true;
       try {
-        await fetch(`${API_BASE_URL}/tasks/${taskId}/preview/interact`, {
+        const res = await fetch(`${API_BASE_URL}/tasks/${taskId}/preview/interact`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(interaction),
         });
-        await fetchScreenshot();
+        // A JSON body here means the interaction succeeded but the
+        // follow-up screenshot itself failed (rare) — nothing to render,
+        // the next poll tick picks up a fresh frame regardless.
+        if (res.ok && (res.headers.get('content-type') ?? '').startsWith('image/')) {
+          applyScreenshotBlob(await res.blob());
+        }
       } catch {
         /* best-effort — a dropped interaction just means this frame stays stale a beat longer */
       } finally {
         interactionBusyRef.current = false;
       }
     },
-    [taskId, fetchScreenshot],
+    [taskId, applyScreenshotBlob],
   );
 
   /**
    * Click on the screenshot — scales displayed-image coordinates to the
-   * fixed headless-browser viewport, then checks whether the point is a
-   * native <select> BEFORE relaying anything: a <select>'s dropdown is drawn
-   * by the OS/browser chrome, not the page, so it never appears in a
-   * screenshot and a raw click can't pick an option in it. If so, show our
-   * own dropdown overlay instead of relaying the click at all.
+   * fixed headless-browser viewport and relays the click in a single round
+   * trip to POST /preview/click, which inspects the point, relays the click,
+   * and takes the follow-up screenshot all server-side (see
+   * preview-interaction.ts's clickPreview). Previously this fired a separate
+   * inspect request first and, for a non-select click, two more (interact +
+   * screenshot) — three sequential round trips for every click instead of
+   * one. A native <select>'s dropdown is drawn by the OS/browser chrome, not
+   * the page, so it never appears in a screenshot and a raw click can't pick
+   * an option in it; the backend detects that case and returns its options
+   * instead of a frame, and we show our own dropdown overlay.
    */
   const handlePreviewClick = async (e: React.MouseEvent<HTMLImageElement>) => {
-    if (!isActive) return;
+    if (!isActive || interactionBusyRef.current) return;
     const rect = e.currentTarget.getBoundingClientRect();
     const displayX = e.clientX - rect.left;
     const displayY = e.clientY - rect.top;
     const pageX = Math.round((displayX / rect.width) * PREVIEW_VIEWPORT.width);
     const pageY = Math.round((displayY / rect.height) * PREVIEW_VIEWPORT.height);
 
+    interactionBusyRef.current = true;
     try {
-      const res = await fetch(`${API_BASE_URL}/tasks/${taskId}/preview/inspect`, {
+      const res = await fetch(`${API_BASE_URL}/tasks/${taskId}/preview/click`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ x: pageX, y: pageY }),
       });
+      if ((res.headers.get('content-type') ?? '').startsWith('image/')) {
+        applyScreenshotBlob(await res.blob());
+        return;
+      }
       const body = (await res.json()) as {
         success: boolean;
         isSelect?: boolean;
@@ -134,13 +148,14 @@ export function usePreviewInteraction(
           pageY,
           options: body.options,
         });
-        return;
       }
+      // Otherwise the click failed (not_active/error) — best-effort, same
+      // as any other dropped interaction.
     } catch {
-      // Inspect failed — fall through to a normal click. Missing the select
-      // special-case occasionally is better than the click doing nothing.
+      /* best-effort — a dropped click just means this frame stays stale a beat longer */
+    } finally {
+      interactionBusyRef.current = false;
     }
-    void sendInteraction({ action: 'click', x: pageX, y: pageY });
   };
 
   /** User picked an option from our own overlay — relay it as a direct value set, bypassing the native dropdown entirely. */

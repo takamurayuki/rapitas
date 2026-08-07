@@ -15,11 +15,15 @@ vi.mock('next-intl', () => ({
 vi.mock('@/utils/api', () => ({ API_BASE_URL: 'http://test:3001' }));
 
 function jsonResponse(body: unknown, ok = true) {
-  return { ok, json: () => Promise.resolve(body) };
+  return { ok, headers: { get: () => 'application/json' }, json: () => Promise.resolve(body) };
 }
 
 function blobResponse(bytes: number[]) {
-  return { ok: true, blob: () => Promise.resolve(new Blob([new Uint8Array(bytes)])) };
+  return {
+    ok: true,
+    headers: { get: () => 'image/png' },
+    blob: () => Promise.resolve(new Blob([new Uint8Array(bytes)])),
+  };
 }
 
 /** Flushes pending promise microtasks without touching fake timers. */
@@ -601,12 +605,12 @@ describe('TaskPreviewSection', () => {
     expect(screen.getByText('stopFailed')).toBeInTheDocument();
   });
 
-  it('clicking the screenshot relays a scaled click and refetches the screenshot', async () => {
+  it('clicking the screenshot relays a scaled click to /click and shows the returned frame in one round trip', async () => {
     const fetchMock = vi.fn().mockImplementation((url: string) => {
       if (url.includes('/status')) {
         return Promise.resolve(jsonResponse({ active: true, url: 'http://localhost:5173' }));
       }
-      if (url.includes('/interact')) return Promise.resolve(jsonResponse({ success: true }));
+      if (url.includes('/click')) return Promise.resolve(blobResponse([9, 9, 9]));
       if (url.includes('/screenshot')) return Promise.resolve(blobResponse([1, 2, 3]));
       return Promise.resolve(jsonResponse({}));
     });
@@ -636,14 +640,16 @@ describe('TaskPreviewSection', () => {
       for (let i = 0; i < 5; i++) await Promise.resolve();
     });
 
+    // A single request does the whole job now — no separate /screenshot
+    // refetch after it.
+    expect(fetchMock).toHaveBeenCalledTimes(1);
     expect(fetchMock).toHaveBeenCalledWith(
-      'http://test:3001/tasks/1/preview/interact',
+      'http://test:3001/tasks/1/preview/click',
       expect.objectContaining({
         method: 'POST',
-        body: JSON.stringify({ action: 'click', x: 200, y: 100 }),
+        body: JSON.stringify({ x: 200, y: 100 }),
       }),
     );
-    expect(fetchMock).toHaveBeenCalledWith('http://test:3001/tasks/1/preview/screenshot');
   });
 
   it('clicking a native <select> shows our own dropdown instead of relaying a click', async () => {
@@ -655,7 +661,7 @@ describe('TaskPreviewSection', () => {
       if (url.includes('/status')) {
         return Promise.resolve(jsonResponse({ active: true, url: 'http://localhost:5173' }));
       }
-      if (url.includes('/inspect')) {
+      if (url.includes('/click')) {
         return Promise.resolve(
           jsonResponse({
             success: true,
@@ -668,7 +674,7 @@ describe('TaskPreviewSection', () => {
           }),
         );
       }
-      if (url.includes('/interact')) return Promise.resolve(jsonResponse({ success: true }));
+      if (url.includes('/interact')) return Promise.resolve(blobResponse([1, 2, 3]));
       if (url.includes('/screenshot')) return Promise.resolve(blobResponse([1, 2, 3]));
       return Promise.resolve(jsonResponse({}));
     });
@@ -697,11 +703,12 @@ describe('TaskPreviewSection', () => {
     });
 
     // The overlay is shown with both options, and NO click interaction was
-    // relayed (only the inspect call happened).
+    // relayed (only the merged /click call happened, which itself decided
+    // not to click since it hit a <select>).
     expect(screen.getByText('Option A')).toBeInTheDocument();
     expect(screen.getByText('Option B')).toBeInTheDocument();
     expect(fetchMock).toHaveBeenCalledWith(
-      'http://test:3001/tasks/1/preview/inspect',
+      'http://test:3001/tasks/1/preview/click',
       expect.objectContaining({ method: 'POST', body: JSON.stringify({ x: 200, y: 100 }) }),
     );
     expect(fetchMock).not.toHaveBeenCalledWith(
@@ -734,7 +741,7 @@ describe('TaskPreviewSection', () => {
       if (url.includes('/status')) {
         return Promise.resolve(jsonResponse({ active: true, url: 'http://localhost:5173' }));
       }
-      if (url.includes('/inspect')) {
+      if (url.includes('/click')) {
         return Promise.resolve(
           jsonResponse({
             success: true,
@@ -750,7 +757,7 @@ describe('TaskPreviewSection', () => {
           }),
         );
       }
-      if (url.includes('/interact')) return Promise.resolve(jsonResponse({ success: true }));
+      if (url.includes('/interact')) return Promise.resolve(blobResponse([1, 2, 3]));
       if (url.includes('/screenshot')) return Promise.resolve(blobResponse([1, 2, 3]));
       return Promise.resolve(jsonResponse({}));
     });
@@ -799,7 +806,7 @@ describe('TaskPreviewSection', () => {
       if (url.includes('/status')) {
         return Promise.resolve(jsonResponse({ active: true, url: 'http://localhost:5173' }));
       }
-      if (url.includes('/interact')) return Promise.resolve(jsonResponse({ success: true }));
+      if (url.includes('/interact')) return Promise.resolve(blobResponse([1, 2, 3]));
       if (url.includes('/screenshot')) return Promise.resolve(blobResponse([1, 2, 3]));
       return Promise.resolve(jsonResponse({}));
     });

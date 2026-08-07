@@ -19,8 +19,8 @@ const mockScreenshotPreview = mock(() =>
 const mockInteractWithPreview = mock(() => Promise.resolve({ ok: true })) as ReturnType<
   typeof mock
 >;
-const mockInspectPreviewElement = mock(() =>
-  Promise.resolve({ ok: true, isSelect: false }),
+const mockClickPreview = mock(() =>
+  Promise.resolve({ ok: true, isSelect: false, buffer: Buffer.from([5, 6, 7]) }),
 ) as ReturnType<typeof mock>;
 const mockGetTaskThemeRuntimeConfigJson = mock(() =>
   Promise.resolve({ themeId: null }),
@@ -37,7 +37,7 @@ mock.module('../../../services/agents/preview/preview-session-manager', () => ({
 }));
 mock.module('../../../services/agents/preview/preview-interaction', () => ({
   interactWithPreview: mockInteractWithPreview,
-  inspectPreviewElement: mockInspectPreviewElement,
+  clickPreview: mockClickPreview,
 }));
 mock.module('../../../services/agents/verification/runtime-smoke/runtime-config', () => ({
   getTaskThemeRuntimeConfigJson: mockGetTaskThemeRuntimeConfigJson,
@@ -54,7 +54,7 @@ function resetMocks() {
   mockGetPreviewStatus.mockReset();
   mockScreenshotPreview.mockReset();
   mockInteractWithPreview.mockReset();
-  mockInspectPreviewElement.mockReset();
+  mockClickPreview.mockReset();
   mockGetTaskThemeRuntimeConfigJson.mockReset();
   mockSetTaskThemeRuntimeConfigJson.mockReset();
   mockStartPreview.mockResolvedValue({ ok: true, url: 'http://localhost:1' });
@@ -62,7 +62,7 @@ function resetMocks() {
   mockGetPreviewStatus.mockReturnValue({ active: false });
   mockScreenshotPreview.mockResolvedValue({ ok: true, buffer: Buffer.from([1, 2, 3]) });
   mockInteractWithPreview.mockResolvedValue({ ok: true });
-  mockInspectPreviewElement.mockResolvedValue({ ok: true, isSelect: false });
+  mockClickPreview.mockResolvedValue({ ok: true, isSelect: false, buffer: Buffer.from([5, 6, 7]) });
   mockGetTaskThemeRuntimeConfigJson.mockResolvedValue({ themeId: null });
   mockSetTaskThemeRuntimeConfigJson.mockResolvedValue({ ok: true });
 }
@@ -197,7 +197,7 @@ describe('GET /tasks/:id/preview/screenshot', () => {
 describe('POST /tasks/:id/preview/interact', () => {
   beforeEach(resetMocks);
 
-  it('クリック操作を interactWithPreview に委譲すること', async () => {
+  it('クリック操作を interactWithPreview に委譲し、直後のスクリーンショットを image/png で返すこと', async () => {
     const res = await previewRoutes.handle(
       new Request(`${BASE}/42/preview/interact`, {
         method: 'POST',
@@ -205,11 +205,13 @@ describe('POST /tasks/:id/preview/interact', () => {
         body: JSON.stringify({ action: 'click', x: 100, y: 200 }),
       }),
     );
-    const body = await res.json();
 
     expect(res.status).toBe(200);
-    expect(body.success).toBe(true);
+    expect(res.headers.get('content-type')).toBe('image/png');
+    const bytes = new Uint8Array(await res.arrayBuffer());
+    expect(Array.from(bytes)).toEqual([1, 2, 3]);
     expect(mockInteractWithPreview).toHaveBeenCalledWith(42, { action: 'click', x: 100, y: 200 });
+    expect(mockScreenshotPreview).toHaveBeenCalledWith(42);
   });
 
   it('type操作を委譲すること', async () => {
@@ -221,7 +223,24 @@ describe('POST /tasks/:id/preview/interact', () => {
       }),
     );
     expect(res.status).toBe(200);
+    expect(res.headers.get('content-type')).toBe('image/png');
     expect(mockInteractWithPreview).toHaveBeenCalledWith(42, { action: 'type', text: 'hello' });
+  });
+
+  it('操作後のスクリーンショット取得に失敗しても success:true の JSON を返すこと(操作自体は成功しているため)', async () => {
+    mockScreenshotPreview.mockResolvedValue({ ok: false, reason: 'error', message: 'gone' });
+
+    const res = await previewRoutes.handle(
+      new Request(`${BASE}/42/preview/interact`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'type', text: 'hello' }),
+      }),
+    );
+    const body = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(body).toEqual({ success: true });
   });
 
   it('未起動時は 404 を返すこと', async () => {
@@ -238,6 +257,7 @@ describe('POST /tasks/:id/preview/interact', () => {
 
     expect(res.status).toBe(404);
     expect(body.success).toBe(false);
+    expect(mockScreenshotPreview).not.toHaveBeenCalled();
   });
 
   it('不正な body は 422 (バリデーションエラー) を返し interactWithPreview を呼ばないこと', async () => {
@@ -271,11 +291,11 @@ describe('POST /tasks/:id/preview/interact', () => {
   });
 });
 
-describe('POST /tasks/:id/preview/inspect', () => {
+describe('POST /tasks/:id/preview/click', () => {
   beforeEach(resetMocks);
 
-  it('選択肢を持つselectの場合、isSelect:true と rect・options を返すこと', async () => {
-    mockInspectPreviewElement.mockResolvedValue({
+  it('選択肢を持つselectの場合、クリックを中継せず isSelect:true と rect・options を JSON で返すこと', async () => {
+    mockClickPreview.mockResolvedValue({
       ok: true,
       isSelect: true,
       value: 'a',
@@ -287,7 +307,7 @@ describe('POST /tasks/:id/preview/inspect', () => {
     });
 
     const res = await previewRoutes.handle(
-      new Request(`${BASE}/42/preview/inspect`, {
+      new Request(`${BASE}/42/preview/click`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ x: 10, y: 20 }),
@@ -300,30 +320,35 @@ describe('POST /tasks/:id/preview/inspect', () => {
     expect(body.rect).toEqual({ x: 254, y: 101, width: 179, height: 23 });
     expect(body.options).toHaveLength(2);
     expect(body.options[1].disabled).toBe(true);
-    expect(mockInspectPreviewElement).toHaveBeenCalledWith(42, 10, 20);
+    expect(mockClickPreview).toHaveBeenCalledWith(42, 10, 20);
   });
 
-  it('selectではない場合、isSelect:false を返すこと', async () => {
-    mockInspectPreviewElement.mockResolvedValue({ ok: true, isSelect: false });
+  it('selectではない場合、クリックを中継し image/png でスクリーンショットを返すこと', async () => {
+    mockClickPreview.mockResolvedValue({
+      ok: true,
+      isSelect: false,
+      buffer: Buffer.from([5, 6, 7, 8]),
+    });
 
     const res = await previewRoutes.handle(
-      new Request(`${BASE}/42/preview/inspect`, {
+      new Request(`${BASE}/42/preview/click`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ x: 10, y: 20 }),
       }),
     );
-    const body = await res.json();
 
     expect(res.status).toBe(200);
-    expect(body.isSelect).toBe(false);
+    expect(res.headers.get('content-type')).toBe('image/png');
+    const bytes = new Uint8Array(await res.arrayBuffer());
+    expect(Array.from(bytes)).toEqual([5, 6, 7, 8]);
   });
 
   it('未起動時は 404 を返すこと', async () => {
-    mockInspectPreviewElement.mockResolvedValue({ ok: false, reason: 'not_active' });
+    mockClickPreview.mockResolvedValue({ ok: false, reason: 'not_active' });
 
     const res = await previewRoutes.handle(
-      new Request(`${BASE}/42/preview/inspect`, {
+      new Request(`${BASE}/42/preview/click`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ x: 10, y: 20 }),

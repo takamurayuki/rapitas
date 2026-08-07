@@ -12,7 +12,7 @@
  * TaskWorkflowSection. State/network logic lives in useTaskPreview.ts.
  */
 import { useTranslations } from 'next-intl';
-import { AppWindow, Play, Square, RefreshCw, AlertCircle, Settings } from 'lucide-react';
+import { AppWindow, Play, Square, AlertCircle, Settings } from 'lucide-react';
 import { Spinner } from '@/components/ui/spinner';
 import { PillButton } from '@/components/ui/pill-button';
 import { useTaskPreview } from './useTaskPreview';
@@ -161,7 +161,7 @@ export default function TaskPreviewSection({ taskId }: TaskPreviewSectionProps) 
               />
             ) : (
               <div className="flex h-48 items-center justify-center text-sm text-zinc-500 dark:text-zinc-400">
-                <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
+                <Spinner size="sm" className="mr-2" />
                 {t('loadingScreenshot')}
               </div>
             )}

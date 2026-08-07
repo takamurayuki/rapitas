@@ -408,6 +408,56 @@ describe('taskCacheStore', () => {
       expect(fetchWithRetry).toHaveBeenCalledTimes(2);
     });
 
+    it('does not ping-pong between fetchUpdates and fetchAll forever when the server keeps reporting the same count mismatch', async () => {
+      // Regression: the resync path used to call fetchAll(), which — since
+      // lastFetchedAt was already set — just called fetchUpdates() right
+      // back with the SAME `/tasks?since=...` request. A server that still
+      // reports the same mismatch on that identical request (the realistic
+      // case: nothing changed between the two calls) made the pair loop
+      // forever instead of ever reaching a real, unconditional /tasks fetch.
+      useTaskCacheStore.setState({
+        tasks: [
+          { id: 1, title: 'Task 1' } as never,
+          { id: 2, title: 'Task 2' } as never,
+          { id: 3, title: 'Task 3' } as never,
+        ],
+        lastFetchedAt: new Date().toISOString(),
+        initialized: true,
+      });
+
+      vi.mocked(fetchWithRetry).mockImplementation((input) => {
+        // The real backend answers the same `since` query identically every
+        // time nothing has changed — only a plain, unconditional GET /tasks
+        // (no `since`) represents a genuine full refetch.
+        const url = String(input);
+        if (url.includes('since=')) {
+          return Promise.resolve({
+            ok: true,
+            json: () =>
+              Promise.resolve({ incremental: true, tasks: [], totalCount: 2, activeIds: [] }),
+          } as Response);
+        }
+        return Promise.resolve({
+          ok: true,
+          json: () =>
+            Promise.resolve([
+              { id: 1, title: 'Task 1' },
+              { id: 2, title: 'Task 2' },
+            ]),
+        } as Response);
+      });
+
+      await useTaskCacheStore.getState().fetchUpdates();
+
+      // Exactly one mismatch-detecting incremental call, then one real full
+      // fetch — never a second incremental call.
+      expect(fetchWithRetry).toHaveBeenCalledTimes(2);
+      const urls = vi.mocked(fetchWithRetry).mock.calls.map((c) => c[0]);
+      expect(urls.filter((u) => String(u).includes('since=')).length).toBe(1);
+      expect(useTaskCacheStore.getState().loading).toBe(false);
+      expect(useTaskCacheStore.getState().tasks).toHaveLength(2);
+    });
+
     it('should track consecutive failures across multiple fetch attempts', async () => {
       useTaskCacheStore.setState({
         tasks: [{ id: 1, title: 'Task' } as never],

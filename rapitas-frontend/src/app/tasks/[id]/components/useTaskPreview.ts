@@ -63,25 +63,29 @@ export function useTaskPreview(taskId: number) {
     }
   }, []);
 
+  /** Applies a screenshot blob (from either the polling fetch or an interaction's own response) as the displayed frame. */
+  const applyScreenshotBlob = useCallback((blob: Blob) => {
+    const url = URL.createObjectURL(blob);
+    if (objectUrlRef.current) URL.revokeObjectURL(objectUrlRef.current);
+    objectUrlRef.current = url;
+    setImgSrc(url);
+  }, []);
+
   const fetchScreenshot = useCallback(async () => {
     try {
       const res = await fetch(`${API_BASE_URL}/tasks/${taskId}/preview/screenshot`);
       if (!res.ok) return;
-      const blob = await res.blob();
-      const url = URL.createObjectURL(blob);
-      if (objectUrlRef.current) URL.revokeObjectURL(objectUrlRef.current);
-      objectUrlRef.current = url;
-      setImgSrc(url);
+      applyScreenshotBlob(await res.blob());
     } catch {
       /* transient — keep the last frame on screen, retry next tick */
     }
-  }, [taskId]);
+  }, [taskId, applyScreenshotBlob]);
 
   const interaction = usePreviewInteraction(
     taskId,
     state.phase === 'active',
     containerRef,
-    fetchScreenshot,
+    applyScreenshotBlob,
   );
 
   // Restore state if a preview is already running OR already starting (e.g.

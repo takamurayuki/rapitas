@@ -2,11 +2,11 @@
  * preview-interaction
  *
  * Relays user interactions (click/type/key/scroll/select) from the embedded
- * live-preview panel to a task's already-running session, and inspects a
- * page-space point before a click so the frontend can special-case a native
- * `<select>` (see inspectPreviewElement's doc comment for why). Reads the
- * `sessions` map preview-session-manager.ts owns; does not create, delete,
- * or otherwise manage session lifecycle itself.
+ * live-preview panel to a task's already-running session. clickPreview also
+ * inspects a page-space point before relaying a click so the frontend can
+ * special-case a native `<select>` (see its doc comment for why), all in one
+ * round trip. Reads the `sessions` map preview-session-manager.ts owns; does
+ * not create, delete, or otherwise manage session lifecycle itself.
  */
 import type { SelectInspection } from '../verification/runtime-smoke/playwright-worker-client';
 import { sessions } from './preview-session-manager';
@@ -67,34 +67,45 @@ export async function interactWithPreview(
   }
 }
 
-export type InspectResult =
-  | ({ ok: true } & SelectInspection)
+export type ClickResult =
+  | ({ ok: true; isSelect: true } & Omit<SelectInspection, 'isSelect'>)
+  | { ok: true; isSelect: false; buffer: Buffer }
   | { ok: false; reason: 'not_active' | 'error'; message?: string };
 
 /**
- * Check whether a page-space point is a `<select>` before the frontend
- * decides how to handle a click — a native select's dropdown is drawn by
- * the OS/browser chrome, never the page itself, so it can't appear in a
- * screenshot and a raw click can't pick an option in it. The frontend calls
- * this first and renders its own dropdown UI when `isSelect` is true instead
- * of relaying a plain click.
+ * Click at a page-space point and return the resulting frame in one round
+ * trip. Inspects the point first — a native `<select>`'s dropdown is drawn
+ * by the OS/browser chrome, never the page itself, so it can't appear in a
+ * screenshot and a raw click can't pick an option in it — and only when the
+ * point isn't a select does it relay the click and take a follow-up
+ * screenshot. Previously the frontend made this decision itself via a
+ * separate inspect call, paying for three sequential HTTP+worker round
+ * trips (inspect, click, screenshot) on every non-select click instead of
+ * one.
  *
- * @param taskId - Task whose preview to inspect. / 対象タスクID
+ * @param taskId - Task whose preview to click. / 対象タスクID
  * @param x - Page-space x coordinate. / X座標
  * @param y - Page-space y coordinate. / Y座標
- * @returns Select details, or a reason the preview isn't available. / 検査結果
+ * @returns Select details (no click relayed), the post-click screenshot, or a reason the preview isn't available. / クリック結果
  */
-export async function inspectPreviewElement(
-  taskId: number,
-  x: number,
-  y: number,
-): Promise<InspectResult> {
+export async function clickPreview(taskId: number, x: number, y: number): Promise<ClickResult> {
   const s = sessions.get(taskId);
   if (!s) return { ok: false, reason: 'not_active' };
   s.lastAccessedAt = new Date();
   try {
-    const result = await s.worker.inspectSelect({ x, y });
-    return { ok: true, ...result };
+    const inspection = await s.worker.inspectSelect({ x, y });
+    if (inspection.isSelect) {
+      return {
+        ok: true,
+        isSelect: true,
+        value: inspection.value,
+        rect: inspection.rect,
+        options: inspection.options,
+      };
+    }
+    await s.worker.click({ x, y });
+    const buffer = await s.worker.screenshot();
+    return { ok: true, isSelect: false, buffer };
   } catch (e) {
     return { ok: false, reason: 'error', message: e instanceof Error ? e.message : String(e) };
   }

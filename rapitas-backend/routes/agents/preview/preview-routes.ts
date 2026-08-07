@@ -13,7 +13,7 @@ import {
 } from '../../../services/agents/preview/preview-session-manager';
 import {
   interactWithPreview,
-  inspectPreviewElement,
+  clickPreview,
 } from '../../../services/agents/preview/preview-interaction';
 import {
   getTaskThemeRuntimeConfigJson,
@@ -91,7 +91,12 @@ export const previewRoutes = new Elysia()
     return result.buffer;
   })
 
-  /** Relay a click/type/key/scroll interaction to the running preview page. */
+  /**
+   * Relay a type/key/scroll/select interaction to the running preview page
+   * and return the resulting frame directly — the frontend used to fire a
+   * separate GET /screenshot right after this resolved, paying for a whole
+   * extra HTTP+worker+CDP round trip on every relayed interaction.
+   */
   .post(
     '/tasks/:id/preview/interact',
     async (context) => {
@@ -109,7 +114,16 @@ export const previewRoutes = new Elysia()
             : HTTP_STATUS.INTERNAL_SERVER_ERROR;
         return { success: false, error: result.message ?? result.reason };
       }
-      return { success: true };
+      const shot = await screenshotPreview(taskId);
+      if (!shot.ok) {
+        // Rare (e.g. the session died between the interaction and this
+        // screenshot) — the interaction itself still succeeded, so report
+        // that; the frontend just keeps showing the last frame.
+        return { success: true };
+      }
+      set.headers['Content-Type'] = 'image/png';
+      set.headers['Cache-Control'] = 'no-store';
+      return shot.buffer;
     },
     {
       body: t.Union([
@@ -126,9 +140,16 @@ export const previewRoutes = new Elysia()
     },
   )
 
-  /** Check whether a page-space point is a native <select> before the frontend decides how to handle a click on it. */
+  /**
+   * Click at a page-space point and return the resulting frame in one round
+   * trip, unless the point is a native <select> — its dropdown is
+   * OS/browser chrome and never appears in a screenshot, so no click is
+   * relayed and its options are returned instead for the frontend to render
+   * its own dropdown. Replaces the old separate inspect-then-interact-then-
+   * screenshot sequence (3 round trips) with 1 for the common case.
+   */
   .post(
-    '/tasks/:id/preview/inspect',
+    '/tasks/:id/preview/click',
     async (context) => {
       const { params, body, set } = context;
       const taskId = parseInt(params.id);
@@ -136,7 +157,7 @@ export const previewRoutes = new Elysia()
         set.status = HTTP_STATUS.BAD_REQUEST;
         return { error: 'Invalid task id' };
       }
-      const result = await inspectPreviewElement(taskId, body.x, body.y);
+      const result = await clickPreview(taskId, body.x, body.y);
       if (!result.ok) {
         set.status =
           result.reason === 'not_active'
@@ -144,13 +165,18 @@ export const previewRoutes = new Elysia()
             : HTTP_STATUS.INTERNAL_SERVER_ERROR;
         return { success: false, error: result.message ?? result.reason };
       }
-      return {
-        success: true,
-        isSelect: result.isSelect,
-        value: result.value,
-        rect: result.rect,
-        options: result.options,
-      };
+      if (result.isSelect) {
+        return {
+          success: true,
+          isSelect: true,
+          value: result.value,
+          rect: result.rect,
+          options: result.options,
+        };
+      }
+      set.headers['Content-Type'] = 'image/png';
+      set.headers['Cache-Control'] = 'no-store';
+      return result.buffer;
     },
     {
       body: t.Object({ x: t.Number(), y: t.Number() }),

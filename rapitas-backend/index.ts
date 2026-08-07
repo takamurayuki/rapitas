@@ -223,8 +223,13 @@ log.info(`Rapitas backend running on http://${BIND_HOST}:${PORT}`);
 // never finish on their own; a graceful stop() leaves them half-open and they
 // orphan as CLOSE_WAIT sockets under the dying PID — the root cause of the
 // port-3001 zombie-socket lockups that previously required a Windows reboot.
-setServerStopCallback(() => {
-  app.stop(true);
+// MUST be awaited: this callback's block body previously dropped app.stop(true)'s
+// promise (no `return`/`await`), so `await stopServer()` in the /restart route
+// resolved before the force-close actually finished — process.exit(75) could
+// then fire mid-teardown, which is exactly how the connections above got
+// orphaned under a PID that no longer exists.
+setServerStopCallback(async () => {
+  await app.stop(true);
 });
 
 /**
@@ -307,7 +312,11 @@ const handleProcessSignal = async (signal: string) => {
     // CLOSE_WAIT sockets when the process exits (zombie-socket port lockup).
     log.info('Step 1: Stopping listener + force-closing active connections...');
     try {
-      app.stop(true);
+      // Awaited — previously fire-and-forget, so the process could reach
+      // process.exit() below before the force-close actually completed (and
+      // a rejection here would have been an unhandled promise rejection
+      // instead of landing in this catch block).
+      await app.stop(true);
     } catch (error) {
       log.error({ err: error }, 'Error stopping listener');
     }
