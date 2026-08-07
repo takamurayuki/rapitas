@@ -40,28 +40,13 @@ import {
 } from '../../../services/workflow/workflow-invariants';
 import type { WorkflowStatus } from '../../../services/workflow/workflow-types';
 import { maybeAutoApprovePlan } from '../../../services/workflow/plan-auto-approve';
+// NOTE: Moved to the shared policy module so the planner instruction builders
+// and this auto-split trigger read the SAME flag logic (task 545).
+import { isSubtaskSplitEnabled } from '../../../services/workflow/subtask-split-policy';
 import { HTTP_STATUS } from '../../../utils/common/http-status';
 import { resolvePreferredBaseBranch } from '../../../services/task/task-resolver';
 
 const log = createLogger('routes:workflow:handlers:files');
-
-/**
- * Whether automatic subtask splitting on plan save is enabled (default: OFF).
- *
- * Disabled by default after it repeatedly broke runs: it created bogus subtasks
- * from plan section headings (no keyword list can cover them all), and a split
- * parent conflicts with the comprehensive single-agent flow (verify gets blocked
- * by "open" subtasks, auto-commit aborts). The single agent completes the work
- * in one session and commits reliably; progress visibility comes from the plan
- * checklist + live execution log + verify.md. Re-enable (for a future,
- * rebuilt subtask-execution chain) with RAPITAS_ENABLE_SUBTASK_SPLIT=1.
- *
- * @returns true when splitting is enabled / 分割が有効か
- */
-function isSubtaskSplitEnabled(): boolean {
-  const v = (process.env.RAPITAS_ENABLE_SUBTASK_SPLIT || '').trim().toLowerCase();
-  return v === '1' || v === 'true' || v === 'yes' || v === 'on';
-}
 
 /**
  * Marks a task's latest agent execution (and session) failed with a reason.
