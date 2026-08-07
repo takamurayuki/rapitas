@@ -1,7 +1,7 @@
 /**
  * ConcernFilterBar
  *
- * Status / type / severity / theme filter controls for the concern list.
+ * Status / type / severity / source / theme filter controls for the concern list.
  * Pure presentational — all state lives in useConcerns.
  */
 'use client';
@@ -14,6 +14,8 @@ import {
   TYPE_LABEL_KEY,
   SEVERITY_ORDER,
   SEVERITY_LABEL_KEY,
+  SOURCE_ORDER,
+  SOURCE_LABEL_KEY,
   type ConcernSeverity,
   type ConcernStatus,
   type ConcernType,
@@ -26,6 +28,8 @@ interface ConcernFilterBarProps {
   setTypeFilter: Dispatch<SetStateAction<ConcernType | 'all'>>;
   severityFilter: ConcernSeverity | 'all';
   setSeverityFilter: Dispatch<SetStateAction<ConcernSeverity | 'all'>>;
+  sourceFilter: string | 'all';
+  setSourceFilter: Dispatch<SetStateAction<string | 'all'>>;
   themeFilter: number | 'all';
   setThemeFilter: Dispatch<SetStateAction<number | 'all'>>;
   /** Themes with a working directory (the only valid publish targets). */
@@ -44,6 +48,8 @@ export function ConcernFilterBar({
   setTypeFilter,
   severityFilter,
   setSeverityFilter,
+  sourceFilter,
+  setSourceFilter,
   themeFilter,
   setThemeFilter,
   workingDirThemes,
@@ -87,6 +93,18 @@ export function ConcernFilterBar({
         {SEVERITY_ORDER.map((sv) => (
           <option key={sv} value={sv}>
             {t(SEVERITY_LABEL_KEY[sv])}
+          </option>
+        ))}
+      </select>
+      <select
+        value={sourceFilter}
+        onChange={(e) => setSourceFilter(e.target.value)}
+        className="rounded-lg border border-zinc-200 bg-white px-2 py-1 text-xs outline-none focus:border-blue-400 dark:border-zinc-700 dark:bg-zinc-800"
+      >
+        <option value="all">{t('filterBar.allSources')}</option>
+        {SOURCE_ORDER.map((sv) => (
+          <option key={sv} value={sv}>
+            {t(SOURCE_LABEL_KEY[sv])}
           </option>
         ))}
       </select>

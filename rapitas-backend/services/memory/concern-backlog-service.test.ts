@@ -249,6 +249,33 @@ describe('submitConcern — theme attribution', () => {
   });
 });
 
+// ─── submitConcern — source tag ────────────────────────────────────────────────
+
+describe('submitConcern — source tag', () => {
+  beforeEach(resetMocks);
+
+  it('stores the given source as a source:<value> tag', async () => {
+    await submitConcern({
+      title: 'タイトルが十分な長さの懸念',
+      detail: '詳細',
+      source: 'vuln_scan',
+    });
+
+    expect(mockKnowledgeEntryCreate).toHaveBeenCalledTimes(1);
+    const call = mockKnowledgeEntryCreate.mock.calls[0][0] as { data: { tags: string } };
+    const tags = JSON.parse(call.data.tags) as string[];
+    expect(tags).toContain('source:vuln_scan');
+  });
+
+  it('defaults to source:agent when source is omitted', async () => {
+    await submitConcern({ title: 'タイトルが十分な長さの懸念', detail: '詳細' });
+
+    const call = mockKnowledgeEntryCreate.mock.calls[0][0] as { data: { tags: string } };
+    const tags = JSON.parse(call.data.tags) as string[];
+    expect(tags).toContain('source:agent');
+  });
+});
+
 // ─── getConcern ───────────────────────────────────────────────────────────────
 
 describe('getConcern', () => {
@@ -315,6 +342,28 @@ describe('getConcern', () => {
     const concern = await getConcern(1);
 
     expect(concern!.status).toBe('resolved');
+  });
+
+  it('tags の source:<value> を ConcernEntry.source に読み出す', async () => {
+    mockKnowledgeEntryFindFirst.mockResolvedValue({
+      ...CONCERN_ROW,
+      tags: '["severity:high","source:vuln_scan"]',
+    });
+
+    const concern = await getConcern(1);
+
+    expect(concern!.source).toBe('vuln_scan');
+  });
+
+  it('source タグの無い既存データは source="unknown" にフォールバックする', async () => {
+    mockKnowledgeEntryFindFirst.mockResolvedValue({
+      ...CONCERN_ROW,
+      tags: '["severity:medium"]',
+    });
+
+    const concern = await getConcern(1);
+
+    expect(concern!.source).toBe('unknown');
   });
 });
 
@@ -383,6 +432,43 @@ describe('listConcerns', () => {
     const { concerns } = await listConcerns({ status: 'all' });
 
     expect(concerns[0].linkedIssue).toBeNull();
+  });
+
+  it('source フィルタはクォート込み contains で where に渡される (vuln_scan_audit 誤マッチ防止)', async () => {
+    await listConcerns({ source: 'vuln_scan' });
+
+    const call = mockKnowledgeEntryFindMany.mock.calls[0][0];
+    expect(call.where.tags).toEqual({ contains: '"source:vuln_scan"' });
+  });
+
+  it('severity と source の同時指定は AND で両方の条件が効く', async () => {
+    await listConcerns({ severity: 'high', source: 'ci_watch' });
+
+    const call = mockKnowledgeEntryFindMany.mock.calls[0][0];
+    expect(call.where.tags).toBeUndefined();
+    expect(call.where.AND).toEqual([
+      { tags: { contains: 'severity:high' } },
+      { tags: { contains: '"source:ci_watch"' } },
+    ]);
+  });
+
+  it('severity 単独指定は従来どおり where.tags 直下に入る', async () => {
+    await listConcerns({ severity: 'high' });
+
+    const call = mockKnowledgeEntryFindMany.mock.calls[0][0];
+    expect(call.where.tags).toEqual({ contains: 'severity:high' });
+    expect(call.where.AND).toBeUndefined();
+  });
+
+  it('結果の各 concern に tags 由来の source が付与される', async () => {
+    mockKnowledgeEntryFindMany.mockResolvedValue([
+      { ...CONCERN_ROW, tags: '["severity:medium","source:loop_review"]' },
+    ]);
+    mockKnowledgeEntryCount.mockResolvedValue(1);
+
+    const { concerns } = await listConcerns({ status: 'all' });
+
+    expect(concerns[0].source).toBe('loop_review');
   });
 });
 
