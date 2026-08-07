@@ -117,6 +117,27 @@ mock.module('../../../services/workflow/verify-self-repair', () => ({
   attemptVerifyRepair: mockAttemptVerifyRepair,
 }));
 
+// ---- worktree-rebuild-recovery mock (history-contamination recovery) ----
+// Default mirrors the real module's most common outcome in these fixtures
+// (no plan.md → no offending files), so pre-existing tests keep their exact
+// pre-recovery behavior: fall through to attemptVerifyRepair.
+const mockTryRecover = mock(() =>
+  Promise.resolve({ recovered: false, reason: 'no_offending_files' }),
+) as any;
+const mockNotifyRecoveryBlocked = mock(() => Promise.resolve()) as any;
+mock.module('../../../services/workflow/worktree-rebuild-recovery', () => ({
+  tryRecoverFromHistoryContamination: mockTryRecover,
+  notifyRecoveryFallbackBlocked: mockNotifyRecoveryBlocked,
+  attemptWorktreeRebuildRecovery: mock(() => Promise.resolve({ recovered: false })),
+  WORKTREE_REBUILD_CAUSE: 'worktree_rebuilt',
+}));
+
+// ---- durable-blocked-write mock (recovery-exhausted blocked fallback) ----
+const mockWriteBlockedStatusDurable = mock(() => Promise.resolve(true)) as any;
+mock.module('../../../services/workflow/durable-blocked-write', () => ({
+  writeBlockedStatusDurable: mockWriteBlockedStatusDurable,
+}));
+
 // ---- phase-critic mock (research/plan critic gate) ----
 const mockApplyPhaseCriticGate = mock(() => Promise.resolve({ bounced: false })) as any;
 mock.module('../../../services/workflow/phase-critic', () => ({
@@ -220,6 +241,11 @@ beforeEach(() => {
   mockValidateVerify.mockReset();
   mockValidateVerify.mockReturnValue({ ok: true, missingSections: [], severity: 0, summary: 'ok' });
   mockRecordTransition.mockClear();
+  mockTryRecover.mockReset();
+  mockTryRecover.mockResolvedValue({ recovered: false, reason: 'no_offending_files' });
+  mockNotifyRecoveryBlocked.mockClear();
+  mockWriteBlockedStatusDurable.mockClear();
+  mockWriteBlockedStatusDurable.mockResolvedValue(true);
 });
 
 // -------------------------------------------------------------------------
@@ -918,6 +944,205 @@ describe('handleSaveFile — adversarial review FAIL with repairs exhausted', ()
         data: expect.objectContaining({ status: 'blocked' }),
       }),
     );
+  });
+});
+
+// -------------------------------------------------------------------------
+// Task 540: history-contamination worktree-rebuild recovery. When the scope
+// violation behind a review FAIL / gate failure came from branch history
+// (worktree cut on another task's branch), the handler must NOT bounce to the
+// implementer (futile) — it rebuilds the worktree and retries ONCE, or blocks
+// directly when the recovery budget is exhausted / the patch did not apply.
+describe('handleSaveFile — 履歴汚染リカバリ（worktree再構築）', () => {
+  const verifyAtInProgress = () => {
+    mockResolveWorkflowDir.mockResolvedValueOnce({
+      task: { workflowStatus: 'in_progress', id: 1 },
+      dir: '/fake/dir/1',
+      categoryId: null,
+      themeId: null,
+    });
+    mockFindMany.mockResolvedValueOnce([]); // no subtasks
+    mockCheckInvariants.mockResolvedValueOnce([]);
+  };
+
+  test('レビュー不合格→リカバリ成功→再レビュー合格なら差し戻さず通常の完了フローへ進むこと', async () => {
+    verifyAtInProgress();
+    // 1st findUnique = conflict-task check; 2nd = resolvePreferredBaseBranch's
+    // theme lookup; 3rd = the CAS live-status check after the rebuilt retry.
+    mockFindUnique.mockResolvedValueOnce(null);
+    mockFindUnique.mockResolvedValueOnce({ theme: null });
+    mockFindUnique.mockResolvedValueOnce({ workflowStatus: 'verify_done' });
+    // gateSession (completion gate) → reviewSession (adversarial review).
+    mockFindFirst.mockResolvedValueOnce({ worktreePath: '/fake/worktree' });
+    mockFindFirst.mockResolvedValueOnce({ worktreePath: '/fake/worktree' });
+    mockReviewDiffAdversarially.mockResolvedValueOnce({
+      verdict: 'fail',
+      severity: 80,
+      reasons: ['計画外ファイルの混入'],
+    });
+    mockTryRecover.mockResolvedValueOnce({
+      recovered: true,
+      newWorktreePath: '/fake/new-worktree',
+      newBranchName: 'feature/x-recovered',
+    });
+    // Retry against the rebuilt worktree passes.
+    mockReviewDiffAdversarially.mockResolvedValueOnce({
+      verdict: 'pass',
+      severity: 0,
+      reasons: [],
+    });
+    mockPerformAutoCommitAndPR.mockResolvedValueOnce({
+      requested: { autoCommit: true, autoCreatePR: true, autoMergePR: false },
+      autoCommitResult: { success: true },
+      autoPRResult: { success: true, prNumber: 9 },
+    });
+
+    const result = await handleSaveFile({
+      params: { taskId: '1', fileType: 'verify' },
+      body: 'verify content',
+      set: makeSet(),
+    });
+
+    // Retry ran against the NEW worktree.
+    expect(mockReviewDiffAdversarially).toHaveBeenCalledTimes(2);
+    expect(mockReviewDiffAdversarially.mock.calls[1][0]).toMatchObject({
+      worktreePath: '/fake/new-worktree',
+    });
+    // No implementer bounce, no rollback — the normal completion flow resumed.
+    expect(mockAttemptVerifyRepair).not.toHaveBeenCalled();
+    expect((result as { workflowStatus?: string }).workflowStatus).toBe('completed');
+  });
+
+  test('レビュー不合格でリカバリ上限到達なら差し戻さず直接 blocked + 通知すること', async () => {
+    verifyAtInProgress();
+    // 1st = conflict-task check; 2nd = preferred-base theme lookup; 3rd = the
+    // CAS live-status check inside the recovery-blocked branch.
+    mockFindUnique.mockResolvedValueOnce(null);
+    mockFindUnique.mockResolvedValueOnce({ theme: null });
+    mockFindUnique.mockResolvedValueOnce({ workflowStatus: 'verify_done' });
+    mockFindFirst.mockResolvedValueOnce({ worktreePath: '/fake/worktree' });
+    mockFindFirst.mockResolvedValueOnce({ worktreePath: '/fake/worktree' });
+    mockReviewDiffAdversarially.mockResolvedValueOnce({
+      verdict: 'fail',
+      severity: 85,
+      reasons: ['計画外ファイルの混入'],
+    });
+    mockTryRecover.mockResolvedValueOnce({
+      recovered: false,
+      reason: 'recovery_already_used',
+    });
+
+    const result = await handleSaveFile({
+      params: { taskId: '1', fileType: 'verify' },
+      body: 'verify content',
+      set: makeSet(),
+    });
+
+    // No implementer bounce and no re-review (受入基準3: 2回目は blocked+通知).
+    expect(mockAttemptVerifyRepair).not.toHaveBeenCalled();
+    expect(mockReviewDiffAdversarially).toHaveBeenCalledTimes(1);
+    expect(mockWriteBlockedStatusDurable).toHaveBeenCalledTimes(1);
+    expect(mockNotifyRecoveryBlocked).toHaveBeenCalledTimes(1);
+    expect(mockRecordTransition).toHaveBeenCalledWith(
+      expect.objectContaining({
+        cause: 'adversarial_review_failed',
+        metadata: expect.objectContaining({
+          recoveryOutcome: 'recovery_already_used',
+          recoveryExhausted: true,
+        }),
+      }),
+    );
+    expect((result as { workflowStatus?: string }).workflowStatus).not.toBe('completed');
+  });
+
+  test('検証ゲート失敗→リカバリ成功→commit/PR再実行が成功すれば completed になること', async () => {
+    verifyAtInProgress();
+    mockPerformAutoCommitAndPR.mockResolvedValueOnce({
+      verificationBlocked: true,
+      error: '自動検証: scope=NG(1)',
+    });
+    mockTryRecover.mockResolvedValueOnce({
+      recovered: true,
+      newWorktreePath: '/fake/new-worktree',
+      newBranchName: 'feature/x-recovered',
+    });
+    // The retry re-reads the session's (updated) worktree and succeeds.
+    mockPerformAutoCommitAndPR.mockResolvedValueOnce({
+      requested: { autoCommit: true, autoCreatePR: true, autoMergePR: false },
+      autoCommitResult: { success: true },
+      autoPRResult: { success: true, prNumber: 12 },
+    });
+
+    const result = await handleSaveFile({
+      params: { taskId: '1', fileType: 'verify' },
+      body: 'verify content',
+      set: makeSet(),
+    });
+
+    expect(mockPerformAutoCommitAndPR).toHaveBeenCalledTimes(2);
+    expect(mockAttemptVerifyRepair).not.toHaveBeenCalled();
+    expect((result as { workflowStatus?: string }).workflowStatus).toBe('completed');
+  });
+
+  test('検証ゲート失敗でリカバリ上限到達なら差し戻さず blocked + 通知すること', async () => {
+    verifyAtInProgress();
+    mockPerformAutoCommitAndPR.mockResolvedValueOnce({
+      verificationBlocked: true,
+      error: '自動検証: scope=NG(1)',
+    });
+    mockTryRecover.mockResolvedValueOnce({
+      recovered: false,
+      reason: 'recovery_already_used',
+    });
+
+    const result = await handleSaveFile({
+      params: { taskId: '1', fileType: 'verify' },
+      body: 'verify content',
+      set: makeSet(),
+    });
+
+    expect(mockPerformAutoCommitAndPR).toHaveBeenCalledTimes(1);
+    expect(mockAttemptVerifyRepair).not.toHaveBeenCalled();
+    expect(mockWriteBlockedStatusDurable).toHaveBeenCalledTimes(1);
+    expect(mockNotifyRecoveryBlocked).toHaveBeenCalledTimes(1);
+    expect(mockRecordTransition).toHaveBeenCalledWith(
+      expect.objectContaining({
+        cause: 'verification_gate_failed',
+        metadata: expect.objectContaining({
+          recoveryOutcome: 'recovery_already_used',
+          recoveryExhausted: true,
+        }),
+      }),
+    );
+    expect((result as { workflowStatus?: string }).workflowStatus).not.toBe('completed');
+  });
+
+  test('リカバリ非該当（no_offending_files）なら従来どおり attemptVerifyRepair に差し戻すこと', async () => {
+    verifyAtInProgress();
+    mockFindUnique.mockResolvedValueOnce(null);
+    mockFindUnique.mockResolvedValueOnce({ theme: null });
+    mockFindUnique.mockResolvedValueOnce({ workflowStatus: 'verify_done' });
+    mockReviewDiffAdversarially.mockResolvedValueOnce({
+      verdict: 'fail',
+      severity: 70,
+      reasons: ['受入基準を満たしていません'],
+    });
+    // Default mockTryRecover: { recovered:false, reason:'no_offending_files' }.
+    mockAttemptVerifyRepair.mockResolvedValueOnce({
+      bounced: true,
+      newStatus: 'plan_approved',
+      attempt: 1,
+    });
+
+    const result = await handleSaveFile({
+      params: { taskId: '1', fileType: 'verify' },
+      body: 'verify content',
+      set: makeSet(),
+    });
+
+    expect(mockAttemptVerifyRepair).toHaveBeenCalledTimes(1);
+    expect(mockWriteBlockedStatusDurable).not.toHaveBeenCalled();
+    expect((result as { workflowStatus?: string }).workflowStatus).toBe('plan_approved');
   });
 });
 
