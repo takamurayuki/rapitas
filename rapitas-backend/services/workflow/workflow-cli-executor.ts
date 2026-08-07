@@ -722,11 +722,20 @@ curl -X POST http://127.0.0.1:${port}/idea-box \\
         );
         const extractedContent = extractMarkdownFromOutput(result.output, transition.outputFile);
         if (extractedContent) {
-          await writeWorkflowFile(taskId, transition.outputFile, extractedContent);
-          fileContent = extractedContent;
-          log.info(
-            `[WorkflowCLIExecutor] Saved extracted content (${extractedContent.length} chars)`,
-          );
+          try {
+            await writeWorkflowFile(taskId, transition.outputFile, extractedContent);
+            fileContent = extractedContent;
+            log.info(
+              `[WorkflowCLIExecutor] Saved extracted content (${extractedContent.length} chars)`,
+            );
+          } catch (fallbackErr) {
+            // e.g. OpenSubtasksError from the choke-point guard — the phase
+            // then reports no artifact instead of force-completing a parent.
+            log.warn(
+              { err: fallbackErr, taskId, outputFile: transition.outputFile },
+              '[WorkflowCLIExecutor] Fallback save rejected by workflow-file guard',
+            );
+          }
         }
       }
     }

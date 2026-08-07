@@ -102,11 +102,54 @@ export async function readWorkflowFile(
  * @param content - Markdown content to write. / 書き込むMarkdownコンテンツ
  * @returns The sanitized content actually saved. / 実際に保存したサニタイズ済みコンテンツ
  */
+/** Error thrown when a split parent's verify.md is saved with open subtasks. */
+export class OpenSubtasksError extends Error {
+  constructor(openIds: number[]) {
+    super(
+      `verify.md rejected: parent task has non-terminal subtasks (#${openIds.join(', #')}). ` +
+        `Parent completion is driven by subtask-completion-handler once every subtask is terminal.`,
+    );
+    this.name = 'OpenSubtasksError';
+  }
+}
+
 export async function writeWorkflowFile(
   taskId: number,
   fileType: WorkflowFileType,
   content: string,
 ): Promise<string> {
+  // Split-parent guard at the UNIVERSAL choke point. The HTTP save route has
+  // the same check (with a friendlier 400), but executor harvests and service
+  // paths call this function directly — task 541 completed as a parent with
+  // two 'todo' subtasks because the verifier's final message was harvested
+  // straight through here, bypassing the route guard.
+  if (fileType === 'verify') {
+    const TERMINAL = new Set(['done', 'failed', 'cancelled', 'archived']);
+    const subtasks = await prisma.task
+      .findMany({ where: { parentId: taskId }, select: { id: true, status: true } })
+      .catch(() => []);
+    const openIds = subtasks.filter((s) => !TERMINAL.has(s.status)).map((s) => s.id);
+    if (openIds.length > 0) {
+      log.warn(
+        { taskId, openIds },
+        '[WorkflowFileUtils] Rejected verify.md write: parent has non-terminal subtasks',
+      );
+      const { recordTransition } = await import('./transition-recorder');
+      await recordTransition({
+        taskId,
+        fromStatus: 'in_progress',
+        toStatus: 'in_progress',
+        actor: 'system',
+        cause: 'verify_blocked_incomplete_subtasks',
+        phase: 'verify',
+        metadata: { openSubtaskIds: openIds, source: 'writeWorkflowFile' },
+        invariantViolation: true,
+        invariantMessage: `verify.md rejected at choke point: ${openIds.length} subtasks not terminal`,
+      }).catch(() => {});
+      throw new OpenSubtasksError(openIds);
+    }
+  }
+
   const sanitizeResult = sanitizeMarkdownContent(content);
   if (sanitizeResult.wasFixed) {
     log.info(

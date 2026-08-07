@@ -69,9 +69,11 @@ mock.module('../../../services/workflow/phase-critic/critic-rejection-guard', ()
 
 const mockWriteWorkflowFile = mock(() => Promise.resolve());
 const mockResolveWorkflowDir = mock(() => Promise.resolve({ task: { id: 539 } }));
+const mockReadWorkflowFile = mock<() => Promise<string | null>>(() => Promise.resolve(null));
 mock.module('../../../services/workflow/workflow-file-utils', () => ({
   writeWorkflowFile: mockWriteWorkflowFile,
   resolveWorkflowDir: mockResolveWorkflowDir,
+  readWorkflowFile: mockReadWorkflowFile,
 }));
 mock.module('../../../services/workflow/research-complexity', () => ({
   applyResearchAssessedComplexity: () => Promise.resolve(),
@@ -101,6 +103,7 @@ describe('handleResearchResult — critic-rejection guard', () => {
     mockTaskFindUnique.mockClear();
     mockExecUpdateMany.mockClear();
     mockWriteWorkflowFile.mockClear();
+    mockReadWorkflowFile.mockReset().mockResolvedValue(null);
     mockCriticRejectedSince.mockReset().mockResolvedValue(false);
   });
 
@@ -124,6 +127,20 @@ describe('handleResearchResult — critic-rejection guard', () => {
     await handleResearchResult(baseParams());
 
     expect(mockCriticRejectedSince).toHaveBeenCalledWith(539, 'research', expect.any(Date));
+    expect(mockWriteWorkflowFile).toHaveBeenCalledWith(539, 'research', REPORT);
+    expect(mockTaskUpdate).toHaveBeenCalledWith({
+      where: { id: 539 },
+      data: { status: 'in-progress', workflowStatus: 'research_done' },
+    });
+  });
+
+  test('差し戻し後でも改訂済み live 行が存在すれば正常フローに戻る（セッション内回復）', async () => {
+    mockCriticRejectedSince.mockResolvedValue(true);
+    mockReadWorkflowFile.mockResolvedValue('# 調査結果(改訂版)\n\n本文');
+    await handleResearchResult(baseParams());
+
+    // Recovery: the revised artifact supersedes the rejection, so the harvest
+    // saves and the workflow advances exactly like the no-rejection path.
     expect(mockWriteWorkflowFile).toHaveBeenCalledWith(539, 'research', REPORT);
     expect(mockTaskUpdate).toHaveBeenCalledWith({
       where: { id: 539 },

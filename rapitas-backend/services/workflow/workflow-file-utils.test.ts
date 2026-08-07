@@ -64,13 +64,21 @@ const findUniqueTopLevel = mock(
     ),
 );
 
+const taskFindMany = mock<() => Promise<Array<{ id: number; status: string }>>>(() =>
+  Promise.resolve([]),
+);
+
 mock.module('../../config', () => ({
   prisma: {
     workflowFile: { findUnique: findUniqueTopLevel },
+    task: { findMany: taskFindMany },
     $transaction: (fn: (tx: unknown) => Promise<unknown>) =>
       fn({ workflowFile: txWorkflowFile, workflowFileVersion: txWorkflowFileVersion }),
   },
 }));
+
+const recordTransition = mock(() => Promise.resolve());
+mock.module('./transition-recorder', () => ({ recordTransition }));
 mock.module('../../config/logger', () => ({
   createLogger: () => ({ info: () => {}, warn: () => {}, error: () => {}, debug: () => {} }),
 }));
@@ -116,6 +124,8 @@ beforeEach(() => {
   ]) {
     m.mockClear();
   }
+  taskFindMany.mockReset().mockResolvedValue([]);
+  recordTransition.mockClear();
 });
 
 describe('writeWorkflowFile', () => {
@@ -139,6 +149,34 @@ describe('writeWorkflowFile', () => {
   test('returns the sanitized content actually saved', async () => {
     const saved = await writeWorkflowFile(1, 'research', 'content');
     expect(saved).toBe('content');
+  });
+
+  test('親に未終端サブタスクがある verify 書込は choke point で拒否する', async () => {
+    taskFindMany.mockResolvedValue([
+      { id: 542, status: 'todo' },
+      { id: 543, status: 'done' },
+    ]);
+    await expect(writeWorkflowFile(541, 'verify', '# 検証レポート')).rejects.toThrow(
+      /non-terminal subtasks \(#542\)/,
+    );
+    expect(store.has('541:verify')).toBe(false);
+    expect(recordTransition).toHaveBeenCalled();
+  });
+
+  test('全サブタスク終端なら verify 書込は通る', async () => {
+    taskFindMany.mockResolvedValue([
+      { id: 542, status: 'done' },
+      { id: 543, status: 'cancelled' },
+    ]);
+    await writeWorkflowFile(541, 'verify', '# 検証レポート');
+    expect(store.get('541:verify')?.content).toBe('# 検証レポート');
+  });
+
+  test('verify 以外はサブタスク状態を見ない', async () => {
+    taskFindMany.mockResolvedValue([{ id: 542, status: 'todo' }]);
+    await writeWorkflowFile(541, 'research', '# 調査結果');
+    expect(store.get('541:research')?.content).toBe('# 調査結果');
+    expect(taskFindMany).not.toHaveBeenCalled();
   });
 });
 

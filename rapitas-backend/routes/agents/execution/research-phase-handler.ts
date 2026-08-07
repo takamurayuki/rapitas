@@ -161,6 +161,22 @@ export async function handleResearchResult(params: HandleResearchResultParams): 
       const { criticRejectedSince } =
         await import('../../../services/workflow/phase-critic/critic-rejection-guard');
       criticRejected = await criticRejectedSince(taskIdNum, 'research', phaseStartedAt);
+      if (criticRejected) {
+        // In-session recovery (education #5b): the 422 resave-block hands the
+        // agent the critic's reasons and the agent saves a REVISED artifact.
+        // A live research row after the rejection means exactly that — the
+        // rejection was superseded, so run the normal completion path instead
+        // of discarding the session's (revised) work. Observed on task 541.
+        const { readWorkflowFile } = await import('../../../services/workflow/workflow-file-utils');
+        const liveRow = await readWorkflowFile(taskIdNum, 'research').catch(() => null);
+        if (liveRow && liveRow.trim().length > 0) {
+          log.info(
+            { taskId: taskIdNum, sessionId },
+            '[API] Critic rejection was superseded by a revised in-session save — proceeding normally',
+          );
+          criticRejected = false;
+        }
+      }
     }
   }
   if (savedOk && !criticRejected) {
