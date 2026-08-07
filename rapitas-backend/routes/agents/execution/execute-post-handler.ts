@@ -173,9 +173,8 @@ export async function reconcileHardFailure(params: {
     `${logPrefix} Execution reported failure but workflow artifacts advanced during this run — reconciling instead of hard-failing`,
   );
 
-  const { applyTaskStatusFromWorkflow } = await import(
-    '../../../services/workflow/apply-task-status-from-workflow'
-  );
+  const { applyTaskStatusFromWorkflow } =
+    await import('../../../services/workflow/apply-task-status-from-workflow');
   await applyTaskStatusFromWorkflow(prisma, taskId, logPrefix);
 
   // Keep the original error for auditability — do not swallow it.
@@ -192,16 +191,18 @@ export async function reconcileHardFailure(params: {
   // Close only executions whose heartbeat already went stale — a fresh
   // heartbeat means the worker is still alive and stale-execution-recovery's
   // periodic sweep will handle it if it later dies.
-  const { LEASE_STALE_MS } = await import(
-    '../../../services/agents/orchestrator/execution-heartbeat'
-  );
+  const { LEASE_STALE_MS } =
+    await import('../../../services/agents/orchestrator/execution-heartbeat');
   const staleBefore = new Date(Date.now() - LEASE_STALE_MS);
   await prisma.agentExecution
     .updateMany({
       where: {
         sessionId,
         status: { in: ['running', 'pending'] },
-        OR: [{ heartbeatAt: { lt: staleBefore } }, { heartbeatAt: null, createdAt: { lt: staleBefore } }],
+        OR: [
+          { heartbeatAt: { lt: staleBefore } },
+          { heartbeatAt: null, createdAt: { lt: staleBefore } },
+        ],
       },
       data: { status: 'interrupted', completedAt: new Date() },
     })
