@@ -46,7 +46,7 @@ export default function ConcernsClient() {
         onSubmit={vm.handleSubmit}
       />
 
-      {/* Filters — status / type / severity / theme */}
+      {/* Filters — status / type / severity / source / theme */}
       <ConcernFilterBar
         statusFilter={vm.statusFilter}
         setStatusFilter={vm.setStatusFilter}
@@ -54,6 +54,8 @@ export default function ConcernsClient() {
         setTypeFilter={vm.setTypeFilter}
         severityFilter={vm.severityFilter}
         setSeverityFilter={vm.setSeverityFilter}
+        sourceFilter={vm.sourceFilter}
+        setSourceFilter={vm.setSourceFilter}
         themeFilter={vm.themeFilter}
         setThemeFilter={vm.setThemeFilter}
         workingDirThemes={vm.workingDirThemes}

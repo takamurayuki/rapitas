@@ -23,7 +23,13 @@ import { getIconComponent } from '@/components/category/icon-data';
 import PriorityIcon from '@/feature/tasks/components/priority/PriorityIcon';
 import { useLocaleStore } from '@/stores/locale-store';
 import { toDateLocale } from '@/lib/utils';
-import { TYPE_META, TYPE_LABEL_KEY, SEVERITY_HINT_KEY, type Concern } from './concern-shared';
+import {
+  TYPE_META,
+  TYPE_LABEL_KEY,
+  SEVERITY_HINT_KEY,
+  SOURCE_LABEL_KEY,
+  type Concern,
+} from './concern-shared';
 
 interface ConcernCardProps {
   concern: Concern;
@@ -56,6 +62,9 @@ export function ConcernCard({
   const locale = useLocaleStore((s) => s.locale);
   const TyIcon = TYPE_META[c.type].icon;
   const ThemeIcon = getIconComponent(theme?.icon || '') || FolderOpen;
+  // Unknown source values fall back to the raw string — next-intl's t() throws on
+  // missing keys, so it must not be called with an unmapped source.
+  const sourceLabel = SOURCE_LABEL_KEY[c.source] ? t(SOURCE_LABEL_KEY[c.source]) : c.source;
 
   return (
     <div className="rounded-xl border border-zinc-200 bg-white px-4 py-3 dark:border-zinc-700 dark:bg-zinc-800/50">
@@ -67,6 +76,11 @@ export function ConcernCard({
             >
               <TyIcon className="h-2.5 w-2.5" />
               {t(TYPE_LABEL_KEY[c.type])}
+            </span>
+            {/* Source badge — text-only (no glyph; see ICON_POLICY: avoid minting
+                10+ new icon meanings for an open-ended source vocabulary). */}
+            <span className="rounded-full bg-zinc-100 px-1.5 py-0.5 text-[10px] font-medium text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300">
+              {sourceLabel}
             </span>
             {/* Theme, then priority icon to its right (matches the idea box). */}
             <span className="flex items-center gap-1">

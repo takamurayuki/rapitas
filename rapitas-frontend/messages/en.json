@@ -3751,6 +3751,18 @@
     "statusOpen": "Open",
     "statusTaskCreated": "Task created",
     "statusAll": "All",
+    "sourceAgent": "Agent",
+    "sourceUser": "User",
+    "sourceVulnScan": "Vulnerability scan",
+    "sourceVulnScanAudit": "Vulnerability audit",
+    "sourceCiWatch": "CI watch",
+    "sourceLoopReview": "Quality loop",
+    "sourceCodeReview": "Code review",
+    "sourceGithubIssue": "GitHub issue",
+    "sourceIdeaReclassified": "Idea reclassified",
+    "sourceVerificationTriage": "Verification triage",
+    "sourceLogHealth": "Log health",
+    "sourceUnknown": "Unknown",
     "severityHint": {
       "urgent": "Urgent — needs immediate attention",
       "high": "High — significant impact",
@@ -3765,6 +3777,7 @@
     "filterBar": {
       "allTypes": "All types",
       "allSeverities": "All priorities",
+      "allSources": "All sources",
       "allThemes": "All themes"
     },
     "createForm": {

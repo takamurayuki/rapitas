@@ -28,6 +28,8 @@ export interface Concern {
   severity: ConcernSeverity;
   location: string | null;
   status: ConcernStatus;
+  /** Origin label ("agent" | "user" | "vuln_scan" | ...). 'unknown' for pre-source rows. */
+  source: string;
   originTaskId: number | null;
   createdTaskId: number | null;
   themeId: number | null;
@@ -112,6 +114,38 @@ export const SEVERITY_HINT_KEY: Record<ConcernSeverity, string> = {
   high: 'severityHint.high',
   medium: 'severityHint.medium',
   low: 'severityHint.low',
+};
+
+// Known concern sources (filter options). The backend stores source as an
+// open-ended `source:<value>` tag, so values outside this list can still appear
+// on cards — they render as the raw string (no label key).
+export const SOURCE_ORDER: string[] = [
+  'agent',
+  'user',
+  'vuln_scan',
+  'vuln_scan_audit',
+  'ci_watch',
+  'loop_review',
+  'code_review',
+  'github_issue',
+  'idea_reclassified',
+  'verification-triage',
+  'log_health',
+  'unknown',
+];
+export const SOURCE_LABEL_KEY: Record<string, string> = {
+  agent: 'sourceAgent',
+  user: 'sourceUser',
+  vuln_scan: 'sourceVulnScan',
+  vuln_scan_audit: 'sourceVulnScanAudit',
+  ci_watch: 'sourceCiWatch',
+  loop_review: 'sourceLoopReview',
+  code_review: 'sourceCodeReview',
+  github_issue: 'sourceGithubIssue',
+  idea_reclassified: 'sourceIdeaReclassified',
+  'verification-triage': 'sourceVerificationTriage',
+  log_health: 'sourceLogHealth',
+  unknown: 'sourceUnknown',
 };
 
 export const STATUS_TABS: { value: ConcernStatus | 'all'; labelKey: string }[] = [
