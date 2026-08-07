@@ -1,14 +1,17 @@
 /**
- * Agent Resume Handlers
+ * Resume Completion
  *
  * Async post-resume completion logic: task status updates, approval requests,
- * and notification creation after orchestrator.resumeInterruptedExecution() settles.
- * Not responsible for route definitions or deciding whether to resume.
+ * and notification creation after orchestrator.resumeInterruptedExecution()
+ * settles. Shared by the manual resume route AND the automatic resume path
+ * (auto-resume.ts). Not responsible for route definitions or deciding
+ * whether to resume. (Moved from routes/agents/execution-management —
+ * this is service logic, not routing.)
  */
 
 import { prisma } from '../../../config';
 import { createLogger } from '../../../config/logger';
-import { orchestrator } from '../../../services/core/orchestrator-instance';
+import { orchestrator } from '../../core/orchestrator-instance';
 
 const log = createLogger('routes:agent-resume');
 

@@ -22,6 +22,10 @@ const getInterruptedExecutionsMock = mock(async () => []);
 mock.module('./stale-execution-recovery', () => ({
   recoverStaleExecutions: recoverStaleExecutionsMock,
   getInterruptedExecutions: getInterruptedExecutionsMock,
+  // NOTE: full mirror — the barrel (via agent-orchestrator importers) also
+  // pulls these exports; a partial mock breaks with "export not found".
+  sweepDeadLeaseExecutions: mock(async () => 0),
+  startExecutionLeaseSweep: mock(() => {}),
 }));
 
 const resumeInterruptedExecutionMock = mock(async () => ({
@@ -70,13 +74,17 @@ describe('recovery-manager barrel', () => {
     expect(result).toBe('resume prompt');
   });
 
-  test('barrel が想定する4シンボルのみを公開している', () => {
+  test('barrel が想定する6シンボルのみを公開している', () => {
     expect(Object.keys(recoveryManager).sort()).toEqual(
       [
         'buildResumePrompt',
         'getInterruptedExecutions',
         'recoverStaleExecutions',
         'resumeInterruptedExecution',
+        // Lease sweep (2026-08 architecture review): dead-run detection by
+        // heartbeat age, exported alongside the startup recovery pass.
+        'sweepDeadLeaseExecutions',
+        'startExecutionLeaseSweep',
       ].sort(),
     );
   });

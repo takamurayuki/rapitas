@@ -14,7 +14,7 @@ import { toJsonString } from '../../../utils/database/db-helpers';
 // NOTE: Parallel execution mechanism was removed. Sub-tasks now resume
 // through the same single-task path as the parent — they're picked up
 // by the regular workflow advance loop in workflow-orchestrator.
-import { handleResumeCompletion } from './agent-resume-handlers';
+import { handleResumeCompletion } from '../../../services/agents/orchestrator/resume-completion';
 
 const log = createLogger('routes:agent-resume');
 

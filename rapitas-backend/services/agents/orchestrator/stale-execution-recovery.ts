@@ -217,6 +217,7 @@ export async function sweepDeadLeaseExecutions(ctx: OrchestratorContext): Promis
 
   const affectedSessionIds = new Set<number>();
   const affectedTaskIds = new Set<number>();
+  const interruptedIds: number[] = [];
   for (const exec of dead) {
     try {
       await ctx.prisma.agentExecution.update({
@@ -229,6 +230,7 @@ export async function sweepDeadLeaseExecutions(ctx: OrchestratorContext): Promis
             `\n\n【最後の出力】\n${(exec.output || '').slice(-1000)}`,
         },
       });
+      interruptedIds.push(exec.id);
       affectedSessionIds.add(exec.sessionId);
       const taskId = exec.session?.config?.task?.id;
       if (taskId) affectedTaskIds.add(taskId);
@@ -243,6 +245,22 @@ export async function sweepDeadLeaseExecutions(ctx: OrchestratorContext): Promis
 
   await updateAffectedSessions(ctx, affectedSessionIds);
   await updateAffectedTasks(ctx, affectedTaskIds);
+
+  // Continue the work, don't just bury it: a dead lease usually means a
+  // worker/process died mid-phase. Auto-resume (guarded: settings toggle,
+  // attempt budget, freshness, supersession check) picks the run back up with
+  // --resume session continuity instead of waiting for a human banner click.
+  // Dynamic import breaks the static cycle via resume-completion →
+  // orchestrator-instance → agent-orchestrator → this module.
+  if (interruptedIds.length > 0) {
+    void import('./auto-resume')
+      .then(({ autoResumeInterruptedExecutions }) =>
+        autoResumeInterruptedExecutions(interruptedIds),
+      )
+      .catch((error) => {
+        logger.error({ err: error }, '[LeaseSweep] Auto-resume dispatch failed');
+      });
+  }
   return dead.length;
 }
 

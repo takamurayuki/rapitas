@@ -515,63 +515,23 @@ const startupRecovery = async () => {
     );
   }
 
-  // Check auto-resume setting and resume interrupted executions
+  // Automatically resume interrupted executions. The guarded module replaces
+  // the old unguarded per-execution fetch loop: it enforces the resume-attempt
+  // budget, a freshness window, and skips executions a newer run already
+  // superseded — an unguarded loop could re-launch a crashing run forever.
+  // Gating (UserSettings.autoResumeInterruptedTasks + env kill switch) lives
+  // inside the module so the lease-sweep path shares it.
   if (result.interruptedExecutionIds.length > 0) {
     try {
-      const settings = await prisma.userSettings.findFirst();
-      if (settings?.autoResumeInterruptedTasks) {
-        // Additional wait for server to stabilize before auto-resume
-        log.info(
-          { count: result.interruptedExecutionIds.length },
-          `Auto-resume enabled. Waiting for server to stabilize before resuming ${result.interruptedExecutionIds.length} executions...`,
-        );
-        await new Promise((resolve) => setTimeout(resolve, 3000));
-
-        for (const executionId of result.interruptedExecutionIds) {
-          try {
-            const res = await fetch(
-              `http://localhost:${PORT}/agents/executions/${executionId}/resume`,
-              {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-              },
-            );
-            const data = (await res.json()) as {
-              success: boolean;
-              taskTitle?: string;
-              message?: string;
-              error?: string;
-            };
-            if (data.success) {
-              log.info(
-                { executionId },
-                `Auto-resumed execution ${executionId}: ${data.taskTitle || data.message}`,
-              );
-            } else {
-              log.warn(
-                { executionId, error: data.error },
-                `Failed to auto-resume execution ${executionId}: ${data.error}`,
-              );
-            }
-          } catch (error) {
-            log.error({ err: error, executionId }, `Error auto-resuming execution ${executionId}`);
-          }
-        }
-
-        // Create notification about auto-resume
-        await prisma.notification
-          .create({
-            data: {
-              type: 'agent_execution_resumed',
-              title: 'Auto-resume completed',
-              message: `After server restart, ${result.interruptedExecutionIds.length} interrupted tasks were automatically resumed.`,
-              link: '/',
-            },
-          })
-          .catch((err: Error) => {
-            log.error({ err }, 'Failed to create auto-resume notification');
-          });
-      }
+      // Brief settle delay so the worker/agent infrastructure finishes booting.
+      await new Promise((resolve) => setTimeout(resolve, 3000));
+      const { autoResumeInterruptedExecutions } =
+        await import('./services/agents/orchestrator/auto-resume');
+      const startedCount = await autoResumeInterruptedExecutions(result.interruptedExecutionIds);
+      log.info(
+        { interrupted: result.interruptedExecutionIds.length, resumed: startedCount },
+        `Auto-resume: started ${startedCount}/${result.interruptedExecutionIds.length} interrupted executions`,
+      );
     } catch (error) {
       log.error({ err: error }, 'Auto-resume check failed');
     }
