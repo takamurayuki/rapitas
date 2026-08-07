@@ -16,7 +16,11 @@ import { sendAIMessage } from '../../../utils/ai-client';
 import { getLocalLLMStatus } from '../../../services/local-llm';
 import { AgentWorkerManager } from '../../../services/agents/agent-worker-manager';
 import { createCommit } from '../../../services/agents/orchestrator/git-operations/core-ops';
-import { createPullRequest } from '../../../services/agents/orchestrator/git-operations/branch-pr-ops';
+import {
+  createPullRequest,
+  type CreatePullRequestResult,
+} from '../../../services/agents/orchestrator/git-operations/branch-pr-ops';
+import { notify } from '../../../services/workflow/auto-merge-notify';
 import { runAutomatedVerification } from '../../../services/agents/verification/automated-verifier';
 import { retryOrBlock } from '../../../services/agents/verification/verification-retry';
 import { linkAutoCreatedPr } from '../../../services/github/pr-link';
@@ -329,7 +333,7 @@ export async function reviewAndCommitWorktree(params: ReviewParams): Promise<voi
     return;
   }
 
-  let prResult: { success: boolean; prUrl?: string; prNumber?: number; error?: string };
+  let prResult: CreatePullRequestResult;
   try {
     const existingOpenPr = await findOpenPrForTask(prisma, taskId);
     if (existingOpenPr) {
@@ -341,6 +345,17 @@ export async function reviewAndCommitWorktree(params: ReviewParams): Promise<voi
     } else {
       prResult = await createPullRequest(executionDir, prTitle, prBody, baseBranch);
       if (!prResult.success) {
+        // Task-identity mismatch (task 541): the branch's open PR belongs to
+        // another task — notify instead of failing silently so the user can
+        // resolve the stale branch/PR collision.
+        if (prResult.foreignPrDetected) {
+          await notify({
+            taskId,
+            type: 'auto_pr_identity_mismatch',
+            title: '自動PR作成を中止しました',
+            message: `タスク ${taskId} のブランチには他タスクの PR #${prResult.foreignPrDetected.prNumber} が開いたまま残っているため、誤リンクを避けてPR作成を中止しました。${prResult.foreignPrDetected.prUrl}`,
+          });
+        }
         log.warn({ taskId, error: prResult.error }, 'PR creation failed, worktree preserved');
         return;
       }

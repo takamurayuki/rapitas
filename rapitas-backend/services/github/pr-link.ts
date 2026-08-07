@@ -10,6 +10,8 @@
 import { PrismaClient } from '../../generated/prisma-postgres';
 import { createLogger } from '../../config/logger';
 import { parseOwnerRepo, ownerRepoFromGitRemote } from './git-exec';
+import { verifyPrOwnership } from './pr-ownership';
+import { notify } from '../workflow/auto-merge-notify';
 
 const log = createLogger('github-service:pr-link');
 type PrismaClientInstance = InstanceType<typeof PrismaClient>;
@@ -100,6 +102,43 @@ export async function linkAutoCreatedPr(
         '[linkAutoCreatedPr] No GitHub integration resolved — PR not persisted locally; "PRを開く" will not navigate.',
       );
       return null;
+    }
+
+    // Task-identity gate (last line of defense): when a row for this PR already
+    // exists — e.g. a webhook sync pulled in ANOTHER task's PR that happens to
+    // share the head branch — never steal its linkedTaskId, and never claim a
+    // row whose markers name a different task (or prove nothing).
+    const existingRow = await prisma.gitHubPullRequest.findUnique({
+      where: { integrationId_prNumber: { integrationId, prNumber } },
+      select: { linkedTaskId: true, title: true, body: true },
+    });
+    if (existingRow) {
+      const verdict = verifyPrOwnership(
+        {
+          linkedTaskId: existingRow.linkedTaskId,
+          title: existingRow.title,
+          body: existingRow.body,
+        },
+        taskId,
+      );
+      if (!verdict.canClaim) {
+        log.warn(
+          {
+            taskId,
+            prNumber,
+            reason: verdict.reason,
+            existingLinkedTaskId: existingRow.linkedTaskId,
+          },
+          '[linkAutoCreatedPr] Refusing to link PR — task identity could not be verified',
+        );
+        await notify({
+          taskId,
+          type: 'auto_pr_identity_mismatch',
+          title: 'PRリンクを拒否しました',
+          message: `PR #${prNumber} はタスク ${taskId} のPRと確認できないためリンクしませんでした（理由: ${verdict.reason}）。${prUrl}`,
+        });
+        return null;
+      }
     }
 
     const integration = await prisma.gitHubIntegration.findUnique({
