@@ -417,6 +417,39 @@ export async function handleSaveFile({
       };
     }
 
+    // Front-door resurrection guard: after the phase critic rejects an
+    // artifact (rollback + archive), the agent that produced it may PUT the
+    // same buffered report again — byte-identical — which would resurrect the
+    // rejected content and flip the status forward as if the critique never
+    // happened (observed on tasks 539/540). Bounce it with the critic's
+    // reasons so the agent revises instead of resubmitting.
+    {
+      const { checkRejectedResave } =
+        await import('../../../services/workflow/phase-critic/critic-rejection-guard');
+      const resave = await checkRejectedResave(taskId, fileType, content);
+      if (resave.isResave) {
+        await recordTransition({
+          taskId,
+          fromStatus: currentStatusForGuard,
+          toStatus: currentStatusForGuard,
+          actor: 'system',
+          cause: 'rejected_resave_blocked',
+          phase: fileType,
+          metadata: { severity: resave.severity, reasonCount: resave.reasons.length },
+          invariantViolation: true,
+          invariantMessage: `${fileType}.md rejected: byte-identical resubmission of a critic-rejected artifact`,
+        }).catch(() => {});
+        set.status = HTTP_STATUS.UNPROCESSABLE_ENTITY;
+        return {
+          error:
+            `${fileType}.md は品質批評ゲートに差し戻された内容と同一のため保存できません。` +
+            `以下の指摘を反映して修正した内容を保存してください。`,
+          criticReasons: resave.reasons,
+          severity: resave.severity,
+        };
+      }
+    }
+
     // Delegate to writeWorkflowFile so the previous version is archived to
     // WorkflowFileVersion. Mojibake sanitisation runs inside writeWorkflowFile.
     const savedContent = await writeWorkflowFile(taskId, fileType, content);
