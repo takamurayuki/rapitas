@@ -11,8 +11,33 @@ import {
   shuffleArray,
   filterExcluded,
   parseSeed,
+  chunkByArgLength,
   INTEGRATION_EXCLUDE_PATTERN,
 } from '../shuffle-test';
+
+describe('chunkByArgLength', () => {
+  test('keeps everything in one batch under the cap', () => {
+    expect(chunkByArgLength(['a.ts', 'b.ts'], 100)).toEqual([['a.ts', 'b.ts']]);
+  });
+
+  test('splits when the joined length would exceed the cap, preserving order', () => {
+    const files = ['aaaa', 'bbbb', 'cccc', 'dddd'];
+    // cap 10: "aaaa"+1+"bbbb"+1 = 10 fits; adding "cccc" would exceed.
+    expect(chunkByArgLength(files, 10)).toEqual([
+      ['aaaa', 'bbbb'],
+      ['cccc', 'dddd'],
+    ]);
+  });
+
+  test('a single oversized path still gets its own batch (never dropped)', () => {
+    const long = 'x'.repeat(50);
+    expect(chunkByArgLength([long, 'y.ts'], 10)).toEqual([[long], ['y.ts']]);
+  });
+
+  test('returns no batches for an empty list', () => {
+    expect(chunkByArgLength([], 10)).toEqual([]);
+  });
+});
 
 describe('createLcgPrng', () => {
   test('produces identical sequence for the same seed', () => {

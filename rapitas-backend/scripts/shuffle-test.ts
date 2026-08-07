@@ -16,7 +16,7 @@
  */
 
 import { Glob } from 'bun';
-import { resolve } from 'path';
+import { relative, resolve } from 'path';
 
 /** Fixed fallback seed used when TEST_SHUFFLE_SEED is not set. */
 const DEFAULT_SEED = 20250101;
@@ -121,14 +121,52 @@ async function main(): Promise<void> {
   console.log('[shuffle-test] (Pass TEST_SHUFFLE_SEED=' + seed + ' to reproduce this order)\n');
   console.log('[shuffle-test] Running bun test in shuffled order...\n');
 
-  const proc = Bun.spawn(['bun', 'test', '--isolate', ...shuffled], {
-    cwd: root,
-    stdio: ['inherit', 'inherit', 'inherit'],
-    env: { ...process.env },
-  });
+  // Relative paths keep argv small; on Windows the ~32k command-line limit
+  // still can't fit ~700 paths in one spawn (ENAMETOOLONG), so batch there.
+  // Linux/CI keeps the single spawn — maximum cross-file interaction surface.
+  const relFiles = shuffled.map((f) => relative(root, f));
+  const batches = process.platform === 'win32' ? chunkByArgLength(relFiles, 25_000) : [relFiles];
+  if (batches.length > 1) {
+    console.log(`[shuffle-test] Windows argv limit — running in ${batches.length} batches.\n`);
+  }
 
-  const exitCode = await proc.exited;
+  let exitCode = 0;
+  for (const batch of batches) {
+    const proc = Bun.spawn(['bun', 'test', '--isolate', ...batch], {
+      cwd: root,
+      stdio: ['inherit', 'inherit', 'inherit'],
+      env: { ...process.env },
+    });
+    const code = await proc.exited;
+    // Keep running the remaining batches — a full failure list beats a
+    // fail-fast partial one for an order-dependency hunt.
+    if (code !== 0) exitCode = code;
+  }
   process.exit(exitCode);
+}
+
+/**
+ * Splits paths into batches whose joined argv length stays under the cap.
+ *
+ * @param files - Paths to batch / 分割対象のパス
+ * @param maxChars - Max combined characters per batch / バッチあたりの上限文字数
+ * @returns Ordered batches preserving the input order
+ */
+export function chunkByArgLength(files: readonly string[], maxChars: number): string[][] {
+  const batches: string[][] = [];
+  let current: string[] = [];
+  let length = 0;
+  for (const f of files) {
+    if (current.length > 0 && length + f.length + 1 > maxChars) {
+      batches.push(current);
+      current = [];
+      length = 0;
+    }
+    current.push(f);
+    length += f.length + 1;
+  }
+  if (current.length > 0) batches.push(current);
+  return batches;
 }
 
 // NOTE: Guard prevents main() from running when this file is imported by unit tests.
