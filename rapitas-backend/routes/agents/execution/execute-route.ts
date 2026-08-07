@@ -22,7 +22,7 @@ import { analyzeTaskComplexity } from '../../../services/workflow/complexity-ana
 import { parseSpecArray } from '../../../utils/common';
 import { agentRateLimiter } from '../../../middleware/rate-limiter';
 import { acquireTaskExecutionLock, releaseTaskExecutionLock } from './execution-lock';
-import { handleExecuteResult } from './execute-post-handler';
+import { handleExecuteResult, reconcileHardFailure } from './execute-post-handler';
 import { buildFullInstruction, fetchAnalysisInfo } from './instruction-builder';
 import { executeSetup } from './execute-setup';
 import { resolveTaskForExecution } from '../../../services/task/task-resolver';
@@ -720,19 +720,16 @@ export const executeRoute = new Elysia().post(
           return;
         }
         log.error({ err: error }, `[API] Execution error for task ${taskIdNum}`);
-        await prisma.task
-          .update({ where: { id: taskIdNum }, data: { status: 'todo' } })
-          .catch(() => {});
-        await prisma.agentSession
-          .update({
-            where: { id: session.id },
-            data: {
-              status: 'failed',
-              completedAt: new Date(),
-              errorMessage: error.message || 'Execution error',
-            },
-          })
-          .catch(() => {});
+        // NOTE: A rejected worker promise (e.g. IPC timeout) does NOT mean the
+        // run failed — the worker keeps going and may save artifacts on its
+        // own (task 541 / session 2098). reconcileHardFailure only hard-fails
+        // when no workflow artifact was saved during this session.
+        await reconcileHardFailure({
+          taskId: taskIdNum,
+          sessionId: session.id,
+          errorMessage: error.message || 'Execution error',
+          logPrefix: '[API]',
+        });
       })
       .finally(() => {
         releaseTaskExecutionLock(taskIdNum);
