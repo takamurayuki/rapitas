@@ -58,9 +58,7 @@ describe('CriticHistorySection', () => {
   });
 
   it('renders nothing when no critic-gate transition exists', async () => {
-    mockTransitions([
-      { id: 1, cause: 'file_saved:research', createdAt: '2026-08-01T10:00:00Z' },
-    ]);
+    mockTransitions([{ id: 1, cause: 'file_saved:research', createdAt: '2026-08-01T10:00:00Z' }]);
 
     const { container } = render(<CriticHistorySection taskId={1} />);
 

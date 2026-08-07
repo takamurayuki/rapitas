@@ -34,9 +34,19 @@ describe('severityBucket', () => {
 describe('deriveCriticGateHistory', () => {
   it('maps the four critic causes to phase and type', () => {
     const transitions: RawWorkflowTransition[] = [
-      { id: 1, cause: 'research_critic_failed', phase: 'research', createdAt: '2026-08-01T00:00:00Z' },
+      {
+        id: 1,
+        cause: 'research_critic_failed',
+        phase: 'research',
+        createdAt: '2026-08-01T00:00:00Z',
+      },
       { id: 2, cause: 'plan_critic_failed', phase: 'plan', createdAt: '2026-08-02T00:00:00Z' },
-      { id: 3, cause: 'research_critic_exhausted', phase: 'research', createdAt: '2026-08-03T00:00:00Z' },
+      {
+        id: 3,
+        cause: 'research_critic_exhausted',
+        phase: 'research',
+        createdAt: '2026-08-03T00:00:00Z',
+      },
       { id: 4, cause: 'plan_critic_exhausted', phase: 'plan', createdAt: '2026-08-04T00:00:00Z' },
     ];
     const entries = deriveCriticGateHistory(transitions);
@@ -75,7 +85,12 @@ describe('deriveCriticGateHistory', () => {
 
   it('keeps numeric severity as-is', () => {
     const transitions: RawWorkflowTransition[] = [
-      { id: 7, cause: 'plan_critic_failed', phase: 'plan', metadata: { severity: 65, reasons: [] } },
+      {
+        id: 7,
+        cause: 'plan_critic_failed',
+        phase: 'plan',
+        metadata: { severity: 65, reasons: [] },
+      },
     ];
     expect(deriveCriticGateHistory(transitions)[0].severity).toBe(65);
   });
