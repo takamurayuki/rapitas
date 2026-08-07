@@ -18,6 +18,7 @@
  */
 
 import { readFileSync, writeFileSync, existsSync } from 'fs';
+import { format, resolveConfig } from 'prettier';
 import { join, dirname, basename, extname, resolve } from 'path';
 import { fileURLToPath } from 'url';
 import { walkTs } from './codemods/lib/codemod-runner';
@@ -221,24 +222,37 @@ export function scanForResolverFiles(opts?: ScanOptions): ResolverFile[] {
 // ---------------------------------------------------------------------------
 
 /**
+ * Format generated source with the project's prettier config so the emitted
+ * file is byte-identical to what the pre-commit hook (lint-staged prettier)
+ * rewrites staged files to. Without this, committing a generated file
+ * reformatted it and created PERMANENT drift against the raw generator
+ * output — locally green until the commit, red forever after.
+ *
+ * @param content - Raw generated source. / 生成直後のソース
+ * @param filepath - Target path (parser + config resolution). / 出力先パス
+ * @returns Prettier-formatted source. / 整形済みソース
+ */
+export async function formatGeneratedSource(content: string, filepath: string): Promise<string> {
+  const config = (await resolveConfig(filepath)) ?? {};
+  return format(content, { ...config, filepath });
+}
+
+/**
  * Compares the expected generated content against what is on disk.
  *
  * @param opts - Optional scan configuration / スキャン設定
  * @returns Array of DriftResult for each out-of-sync file (empty = no drift)
  */
-export function checkDrift(opts?: ScanOptions): DriftResult[] {
+export async function checkDrift(opts?: ScanOptions): Promise<DriftResult[]> {
   const resolverFiles = scanForResolverFiles(opts);
   const drifts: DriftResult[] = [];
 
   for (const { filePath, outputPath, functions, models, dbImportPath } of resolverFiles) {
     if (functions.length === 0) continue;
 
-    const expected = generateBoundaryTestSource(
-      filePath,
+    const expected = await formatGeneratedSource(
+      generateBoundaryTestSource(filePath, outputPath, functions, models, dbImportPath),
       outputPath,
-      functions,
-      models,
-      dbImportPath,
     );
 
     if (!existsSync(outputPath)) {
@@ -265,7 +279,7 @@ if (import.meta.main) {
   const scanOpts: ScanOptions = filesArg !== null ? { files: filesArg } : {};
 
   if (CHECK_MODE || WARN_ONLY) {
-    const drifts = checkDrift(scanOpts);
+    const drifts = await checkDrift(scanOpts);
     if (drifts.length === 0) {
       console.log('gen-resolver-boundary-tests: no drift detected.');
       process.exit(0);
@@ -295,12 +309,9 @@ if (import.meta.main) {
       allManualReview.push(...manualReview);
       if (functions.length === 0) continue;
 
-      const content = generateBoundaryTestSource(
-        filePath,
+      const content = await formatGeneratedSource(
+        generateBoundaryTestSource(filePath, outputPath, functions, models, dbImportPath),
         outputPath,
-        functions,
-        models,
-        dbImportPath,
       );
       writeFileSync(outputPath, content, 'utf-8');
       console.log(`Generated: ${outputPath}`);

@@ -88,6 +88,16 @@ const { callClaudeCli, callClaudeCliStream, isClaudeCliAvailable } =
 /** Flushes pending microtasks + one macrotask tick (enough for acquireSlot()). */
 const flush = () => new Promise<void>((resolve) => setImmediate(resolve));
 
+/**
+ * The spawned invocation as one string, regardless of platform: win32 packs
+ * everything into `command` (shell string), unix keeps a real argv array.
+ * Asserting on `.command` alone made these tests Windows-only (red on CI).
+ */
+function fullCommand(i: number): string {
+  const call = spawnCalls[i];
+  return [call.command, ...(call.args ?? [])].join(' ');
+}
+
 /** Emits a well-formed non-streaming success payload and closes the child. */
 function respondSuccess(
   child: MockChild,
@@ -159,7 +169,7 @@ describe('callClaudeCli — success', () => {
     await flush();
     respondSuccess(spawnedChildren[0]);
     await promise;
-    expect(spawnCalls[0].command).toContain(
+    expect(fullCommand(0)).toContain(
       '--disallowedTools Bash,Edit,Write,Read,Glob,Grep,WebFetch,WebSearch,Task,NotebookEdit,TodoWrite,MultiEdit',
     );
   });
@@ -197,7 +207,7 @@ describe('callClaudeCli — model alias mapping', () => {
     await flush();
     respondSuccess(spawnedChildren[0]);
     await promise;
-    expect(spawnCalls[0].command).toContain(`--model ${expected}`);
+    expect(fullCommand(0)).toContain(`--model ${expected}`);
   });
 });
 

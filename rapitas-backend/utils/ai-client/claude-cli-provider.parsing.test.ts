@@ -109,6 +109,17 @@ async function withPlatform<T>(platform: NodeJS.Platform, fn: () => Promise<T>):
   }
 }
 
+/**
+ * The spawned invocation as one string, regardless of platform: win32 packs
+ * everything into `command` (shell string), unix keeps a real argv array.
+ * Assertions against this stay green on both — asserting on `.command` alone
+ * made these tests Windows-only and permanently red on Linux CI.
+ */
+function fullCommand(i: number): string {
+  const call = spawnCalls[i];
+  return [call.command, ...(call.args ?? [])].join(' ');
+}
+
 beforeEach(() => {
   spawnCalls = [];
   spawnedChildren = [];
@@ -123,7 +134,10 @@ afterEach(() => {
   delete process.env.CLAUDE_CODE_PATH;
 });
 
-// ── resolveCliPath / getClaudePath (Windows — the real platform under test) ──
+// ── resolveCliPath / getClaudePath (win32 branch, forced via withPlatform) ──
+// NOTE: these exercise the win32-only `where` resolution; without the
+// withPlatform wrapper they only passed when the REAL platform was Windows
+// and sat permanently red on Linux CI.
 
 describe('resolveCliPath / getClaudePath — Windows', () => {
   test('resolves via `where` and caches the result across subsequent calls', async () => {
@@ -133,10 +147,12 @@ describe('resolveCliPath / getClaudePath — Windows', () => {
       throw new Error('unexpected command: ' + cmd);
     };
 
-    const p1 = callClaudeCli(undefined, [{ role: 'user', content: 'hi' }], undefined, 100);
-    await flush();
-    respondSuccess(spawnedChildren[0]);
-    await p1;
+    await withPlatform('win32', async () => {
+      const p1 = callClaudeCli(undefined, [{ role: 'user', content: 'hi' }], undefined, 100);
+      await flush();
+      respondSuccess(spawnedChildren[0]);
+      await p1;
+    });
     expect(spawnCalls[0].command).toContain(
       spawnCalls[0].command.includes(' ') && process.execPath.includes(' ')
         ? `"${process.execPath}"`
@@ -144,10 +160,12 @@ describe('resolveCliPath / getClaudePath — Windows', () => {
     );
     expect(mockExecSync).toHaveBeenCalledTimes(1);
 
-    const p2 = callClaudeCli(undefined, [{ role: 'user', content: 'hi again' }], undefined, 100);
-    await flush();
-    respondSuccess(spawnedChildren[1]);
-    await p2;
+    await withPlatform('win32', async () => {
+      const p2 = callClaudeCli(undefined, [{ role: 'user', content: 'hi again' }], undefined, 100);
+      await flush();
+      respondSuccess(spawnedChildren[1]);
+      await p2;
+    });
     expect(mockExecSync).toHaveBeenCalledTimes(1); // cached — no second `where`
   });
 
@@ -157,10 +175,12 @@ describe('resolveCliPath / getClaudePath — Windows', () => {
       throw new Error('not found');
     };
 
-    const p = callClaudeCli(undefined, [{ role: 'user', content: 'hi' }], undefined, 100);
-    await flush();
-    respondSuccess(spawnedChildren[0]);
-    await p;
+    await withPlatform('win32', async () => {
+      const p = callClaudeCli(undefined, [{ role: 'user', content: 'hi' }], undefined, 100);
+      await flush();
+      respondSuccess(spawnedChildren[0]);
+      await p;
+    });
 
     expect(spawnCalls[0].command).toContain('rc-notfound-test');
     expect(mockExecSync).toHaveBeenCalledTimes(2); // bare name + .cmd variant
@@ -173,10 +193,12 @@ describe('resolveCliPath / getClaudePath — Windows', () => {
       throw new Error('not found');
     };
 
-    const p = callClaudeCli(undefined, [{ role: 'user', content: 'hi' }], undefined, 100);
-    await flush();
-    respondSuccess(spawnedChildren[0]);
-    await p;
+    await withPlatform('win32', async () => {
+      const p = callClaudeCli(undefined, [{ role: 'user', content: 'hi' }], undefined, 100);
+      await flush();
+      respondSuccess(spawnedChildren[0]);
+      await p;
+    });
 
     expect(spawnCalls[0].command).toContain(process.execPath);
     expect(mockExecSync).toHaveBeenCalledTimes(2);
@@ -188,10 +210,12 @@ describe('resolveCliPath / getClaudePath — Windows', () => {
       throw new Error('not found');
     };
 
-    const p = callClaudeCli(undefined, [{ role: 'user', content: 'hi' }], undefined, 100);
-    await flush();
-    respondSuccess(spawnedChildren[0]);
-    await p;
+    await withPlatform('win32', async () => {
+      const p = callClaudeCli(undefined, [{ role: 'user', content: 'hi' }], undefined, 100);
+      await flush();
+      respondSuccess(spawnedChildren[0]);
+      await p;
+    });
 
     expect(spawnCalls[0].command).toContain('rc-alreadycmd-test.cmd');
     expect(mockExecSync).toHaveBeenCalledTimes(1); // no second attempt
@@ -201,10 +225,12 @@ describe('resolveCliPath / getClaudePath — Windows', () => {
     process.env.CLAUDE_CODE_PATH = 'rc-noexist-test';
     execSyncImpl = () => 'Z:\\definitely\\not\\a\\real\\path\\claude123.exe\n';
 
-    const p = callClaudeCli(undefined, [{ role: 'user', content: 'hi' }], undefined, 100);
-    await flush();
-    respondSuccess(spawnedChildren[0]);
-    await p;
+    await withPlatform('win32', async () => {
+      const p = callClaudeCli(undefined, [{ role: 'user', content: 'hi' }], undefined, 100);
+      await flush();
+      respondSuccess(spawnedChildren[0]);
+      await p;
+    });
 
     expect(spawnCalls[0].command).toContain('rc-noexist-test');
     expect(spawnCalls[0].command).not.toContain('claude123.exe');
@@ -216,10 +242,12 @@ describe('resolveCliPath / getClaudePath — Windows', () => {
       throw new Error('not found');
     };
 
-    const p = callClaudeCli(undefined, [{ role: 'user', content: 'hi' }], undefined, 100);
-    await flush();
-    respondSuccess(spawnedChildren[0]);
-    await p;
+    await withPlatform('win32', async () => {
+      const p = callClaudeCli(undefined, [{ role: 'user', content: 'hi' }], undefined, 100);
+      await flush();
+      respondSuccess(spawnedChildren[0]);
+      await p;
+    });
 
     expect(spawnCalls[0].command).toContain('"C:\\Program Files\\Claude\\claude.cmd"');
   });
@@ -228,11 +256,13 @@ describe('resolveCliPath / getClaudePath — Windows', () => {
 // ── buildCliEnv ───────────────────────────────────────────────────────────────
 
 describe('buildCliEnv', () => {
-  test('adds Windows UTF-8 env overrides on the real (win32) platform', async () => {
-    const p = callClaudeCli(undefined, [{ role: 'user', content: 'hi' }], undefined, 100);
-    await flush();
-    respondSuccess(spawnedChildren[0]);
-    await p;
+  test('adds Windows UTF-8 env overrides on the win32 platform', async () => {
+    await withPlatform('win32', async () => {
+      const p = callClaudeCli(undefined, [{ role: 'user', content: 'hi' }], undefined, 100);
+      await flush();
+      respondSuccess(spawnedChildren[0]);
+      await p;
+    });
     const env = spawnCalls[0].options.env as NodeJS.ProcessEnv;
     expect(env.LANG).toBe('en_US.UTF-8');
     expect(env.CHCP).toBe('65001');
@@ -415,9 +445,9 @@ describe('callClaudeCliStream — request shape', () => {
     child.emit('close', 0);
     await drainSSE(stream);
 
-    expect(spawnCalls[0].command).toContain('--verbose');
-    expect(spawnCalls[0].command).toContain('--output-format stream-json');
-    expect(spawnCalls[0].command).toContain('--model sonnet');
-    expect(spawnCalls[0].command).toContain('--disallowedTools Bash,Edit,Write');
+    expect(fullCommand(0)).toContain('--verbose');
+    expect(fullCommand(0)).toContain('--output-format stream-json');
+    expect(fullCommand(0)).toContain('--model sonnet');
+    expect(fullCommand(0)).toContain('--disallowedTools Bash,Edit,Write');
   });
 });

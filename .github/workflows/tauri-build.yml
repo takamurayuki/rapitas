@@ -191,7 +191,7 @@ jobs:
           # embed .node native libraries and user machines have no node_modules,
           # so without this the installed backend dies at startup (the
           # PrismaClientInitializationError incident).
-          Copy-Item node_modules/.prisma/client/*query_engine*.node ../rapitas-desktop/src-tauri/binaries/
+          Copy-Item generated/prisma-sqlite/*query_engine*.node ../rapitas-desktop/src-tauri/binaries/
           echo "Bundled Prisma engine(s):"
           Get-ChildItem ../rapitas-desktop/src-tauri/binaries/*query_engine* | Format-Table Name, Length
 
@@ -213,7 +213,7 @@ jobs:
           Copy-Item rapitas-backend.exe (Join-Path $smokeDir "rapitas-backend.exe")
           # Mirror the installed layout: engine beside the exe + explicit path
           # (release.rs does the same at runtime).
-          Copy-Item node_modules/.prisma/client/*query_engine*.node $smokeDir
+          Copy-Item generated/prisma-sqlite/*query_engine*.node $smokeDir
           $engine = Get-ChildItem (Join-Path $smokeDir "*query_engine*.node") | Select-Object -First 1
           $env:PRISMA_QUERY_ENGINE_LIBRARY = $engine.FullName
 
@@ -313,7 +313,7 @@ jobs:
           # Bundle the Prisma query engine — bun's single-file compile cannot
           # embed .node native libraries and user machines have no node_modules,
           # so without this the installed backend dies at startup.
-          cp node_modules/.prisma/client/*query_engine*.node ../rapitas-desktop/src-tauri/binaries/
+          cp generated/prisma-sqlite/*query_engine*.node ../rapitas-desktop/src-tauri/binaries/
           echo "Bundled Prisma engine(s):"
           ls -la ../rapitas-desktop/src-tauri/binaries/*query_engine*
 
@@ -368,7 +368,7 @@ jobs:
           cp rapitas-backend "$SMOKE_DIR/rapitas-backend"
           # Mirror the installed layout: engine beside the exe + explicit path
           # (release.rs does the same at runtime).
-          cp node_modules/.prisma/client/*query_engine*.node "$SMOKE_DIR/"
+          cp generated/prisma-sqlite/*query_engine*.node "$SMOKE_DIR/"
           ENGINE=$(ls "$SMOKE_DIR"/*query_engine*.node | head -1)
           cd "$SMOKE_DIR"
 

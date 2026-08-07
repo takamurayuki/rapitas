@@ -431,16 +431,16 @@ describe('scanForResolverFiles', () => {
 // checkDrift (integration: runs against real generated files)
 // ---------------------------------------------------------------------------
 describe('checkDrift', () => {
-  test('reports no drift after generator run', () => {
+  test('reports no drift after generator run', async () => {
     // All 4 generated files were just regenerated; drift must be zero.
-    const drifts = checkDrift();
+    const drifts = await checkDrift();
     const driftPaths = drifts.map((d) => d.file);
     expect(driftPaths).toEqual([]);
   });
 
-  test('returns empty array when passed an empty files list', () => {
+  test('returns empty array when passed an empty files list', async () => {
     // Empty changeset → no resolver files affected → no drift possible.
-    const drifts = checkDrift({ files: [] });
+    const drifts = await checkDrift({ files: [] });
     expect(drifts).toEqual([]);
   });
 });
