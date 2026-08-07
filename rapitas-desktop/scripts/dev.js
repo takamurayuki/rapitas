@@ -594,7 +594,7 @@ async function ensurePortAvailable(port) {
  * @returns {Array<{ProcessId:number, Name:string|null, CommandLine:string|null, ExecutablePath:string|null}>}
  */
 function queryWin32Processes(filter) {
-  const script = `Get-CimInstance Win32_Process -Filter "${filter}" | Select-Object ProcessId,Name,CommandLine,ExecutablePath | ConvertTo-Json -Compress`;
+  const script = `Get-CimInstance Win32_Process -Filter "${filter}" | Select-Object ProcessId,ParentProcessId,Name,CommandLine,ExecutablePath | ConvertTo-Json -Compress`;
   let out = "";
   try {
     out = execFileSync(
@@ -1123,6 +1123,111 @@ function killStrayPlaywrightWorkersPosix() {
     } catch (err) {
       if (err.code !== "ESRCH") {
         console.warn(`  Failed to kill PID ${pid}: ${err.message}`);
+      }
+    }
+  }
+  return killed;
+}
+
+/**
+ * バックエンドが spawn した補助プロセスのうち、既存スイープ(rapitas 一致の bun /
+ * playwright-worker.mjs)が拾えない3種の残骸を掃除する:
+ *   1. whisper-daemon.mjs — バックエンド専属の音声デーモン(node)。
+ *   2. 親ワーカー死亡後に孤児化した Playwright 管理ブラウザ(ms-playwright を
+ *      コマンドラインに含む) — 親チェーンが切れているため既存の taskkill /T
+ *      では構造的に到達できない(worktree の vite リークと同型)。
+ *   3. smoke/preview が worktree 内で起動した dev サーバーチェーンの残骸
+ *      (.worktrees をパスに含み、かつ親プロセスが既に死んでいるもの)。
+ *
+ * 重要性: これらは旧バックエンドの子孫として 3001 の LISTEN ハンドルを
+ * 継承している可能性があり、1つでも生き残ると「死んだPID名義のゴースト
+ * LISTEN」がカーネルに残存して新旧二重LISTENになり、新バックエンドへの
+ * 接続が確率的に死側へ吸われる(2026-08-06/07 に2例実測)。バックエンドを
+ * 止める/入れ替えるときは、その子孫ツリーを必ず全滅させるのが原則。
+ *
+ * 安全性: 2/3 は「親が死んでいる」ことを条件にするため、ユーザーが自分の
+ * シェルから worktree 内で起動した開発プロセス(親=シェルが生存)は対象外。
+ *
+ * @returns 強制終了したプロセス数
+ */
+function killStrayBackendHelpers() {
+  console.log("\nKilling stray backend helper processes (whisper / orphaned browsers / worktree chains)...");
+  const killed =
+    process.platform === "win32"
+      ? killStrayBackendHelpersWindows()
+      : killStrayBackendHelpersPosix();
+  if (killed === 0) console.log("  No stray backend helper processes found.");
+  return killed;
+}
+
+function killStrayBackendHelpersWindows() {
+  // 1回のスナップショットを対象抽出と親生死判定の両方に使う。
+  const all = queryWin32Processes("ProcessId > 4");
+  const alivePids = new Set(all.map((p) => Number(p.ProcessId)));
+  let killed = 0;
+  for (const proc of all) {
+    const pid = Number(proc.ProcessId);
+    if (!Number.isInteger(pid) || pid === process.pid) continue;
+    const cmd = `${proc.CommandLine || ""} ${proc.ExecutablePath || ""}`;
+    const parentDead = !alivePids.has(Number(proc.ParentProcessId));
+    const isWhisper = /whisper-daemon\.mjs/i.test(cmd);
+    const isOrphanPlaywrightBrowser = /ms-playwright/i.test(cmd) && parentDead;
+    const isOrphanWorktreeHelper = /[\\/]\.worktrees[\\/]/.test(cmd) && parentDead;
+    if (!isWhisper && !isOrphanPlaywrightBrowser && !isOrphanWorktreeHelper) continue;
+    const label = isWhisper
+      ? "whisper-daemon"
+      : isOrphanPlaywrightBrowser
+        ? "orphaned playwright browser"
+        : "orphaned worktree helper";
+    try {
+      execSync(`taskkill /F /T /PID ${pid}`, { stdio: "pipe" });
+      console.log(`  Killed ${label} PID ${pid}`);
+      killed++;
+    } catch (err) {
+      const msg = err.stderr ? err.stderr.toString() : err.message || "";
+      // 既に(先行のツリーkillで)死んでいるケースは正常。
+      if (!/not found|見つかりません/i.test(msg)) {
+        console.warn(`  Failed to kill ${label} PID ${pid}: ${msg.trim()}`);
+      }
+    }
+  }
+  return killed;
+}
+
+function killStrayBackendHelpersPosix() {
+  let stdout = "";
+  try {
+    stdout = execSync("ps -eo pid,ppid,args", {
+      encoding: "utf8",
+      stdio: ["pipe", "pipe", "ignore"],
+    });
+  } catch (err) {
+    console.warn(`  Could not list processes: ${err.message}`);
+    return 0;
+  }
+  const rows = stdout
+    .split("\n")
+    .slice(1)
+    .map((l) => l.trim().match(/^(\d+)\s+(\d+)\s+(.*)$/))
+    .filter(Boolean)
+    .map((m) => ({ pid: parseInt(m[1], 10), ppid: parseInt(m[2], 10), args: m[3] }));
+  const alivePids = new Set(rows.map((r) => r.pid));
+  let killed = 0;
+  for (const r of rows) {
+    if (r.pid === process.pid) continue;
+    // POSIX では孤児は init(1) に付け替えられる — ppid 1 も「親死亡」扱い。
+    const parentDead = r.ppid === 1 || !alivePids.has(r.ppid);
+    const isWhisper = /whisper-daemon\.mjs/i.test(r.args);
+    const isOrphanPlaywrightBrowser = /ms-playwright/i.test(r.args) && parentDead;
+    const isOrphanWorktreeHelper = /[\\/]\.worktrees[\\/]/.test(r.args) && parentDead;
+    if (!isWhisper && !isOrphanPlaywrightBrowser && !isOrphanWorktreeHelper) continue;
+    try {
+      process.kill(r.pid, "SIGKILL");
+      console.log(`  Killed stray backend helper PID ${r.pid}`);
+      killed++;
+    } catch (err) {
+      if (err.code !== "ESRCH") {
+        console.warn(`  Failed to kill PID ${r.pid}: ${err.message}`);
       }
     }
   }
@@ -1767,6 +1872,7 @@ async function restartBackend(processAlreadyExited = false) {
   console.log("  Step 2/4: Cleaning up stray processes...");
   killStrayBunProcesses();
   killStrayPlaywrightWorkers();
+  killStrayBackendHelpers();
 
   console.log("  Step 3/4: Syncing database and generating Prisma Client...");
   try {
@@ -2153,6 +2259,7 @@ async function main() {
   //   ポート確保より先に実行する。
   killStrayBunProcesses();
   killStrayPlaywrightWorkers();
+  killStrayBackendHelpers();
 
   // ポートのクリーンアップ（前回クラッシュ時のゾンビプロセス対策）
   console.log("\nChecking ports...");
@@ -2178,6 +2285,7 @@ async function main() {
       );
       killStrayBunProcesses();
       killStrayPlaywrightWorkers();
+  killStrayBackendHelpers();
       // ポートを再確保（リトライ前に何かが立ち上がった可能性）
       actualBackendPort = await ensurePortAvailable(BACKEND_PORT);
       syncDatabaseAndGenerateClient();
@@ -2213,6 +2321,7 @@ async function main() {
       forceKillAllOnPort(actualBackendPort);
       killStrayBunProcesses();
       killStrayPlaywrightWorkers();
+  killStrayBackendHelpers();
     }
     await stopBackendCompletely();
     actualBackendPort = await ensurePortAvailable(BACKEND_PORT);
@@ -2232,6 +2341,31 @@ async function main() {
         "start the frontend, but it will show connection errors until the backend " +
         "is actually reachable.",
     );
+  }
+
+  // 二重LISTEN検証: ヘルスチェックが通っても、死んだ旧PID名義のゴーストLISTENが
+  // 併存していると接続が確率的に死側へ吸われ「たまにタイムアウトする半死状態」に
+  // なる(2026-08-06/07 実測)。健康"そう"に見えるからこそ、ここで明示的に検出して
+  // 大声で知らせる — サイレントな半死が一番高くつく。
+  if (backendReady) {
+    try {
+      const listenPids = getListeningPids(actualBackendPort);
+      const alive = listenPids.filter((pid) => isProcessRunning(pid));
+      const dead = listenPids.filter((pid) => !isProcessRunning(pid));
+      if (dead.length > 0 || alive.length > 1) {
+        log.error(
+          `⚠️  DOUBLE-LISTEN DETECTED on port ${actualBackendPort}: ` +
+            `${listenPids.length} LISTEN owner(s) (alive: ${alive.join(",") || "none"} / dead: ${dead.join(",") || "none"}). ` +
+            "Connections will INTERMITTENTLY hang while the ghost entry survives. " +
+            "A full Windows restart is the only known reliable fix for the dead-owner case.",
+        );
+        if (dead.length > 0) {
+          captureGhostSocketDiagnostics(actualBackendPort, dead[0]);
+        }
+      }
+    } catch (dlErr) {
+      log.warn(`Double-LISTEN check failed (non-fatal): ${dlErr.message}`);
+    }
   }
 
   // フロントエンドを起動。直前に、ブランチ切替/マージで不整合になった .next を
@@ -2690,6 +2824,7 @@ function cleanupSync() {
   cleanupAgentPidFiles();
   killStrayBunProcesses();
   killStrayPlaywrightWorkers();
+  killStrayBackendHelpers();
 
   // Step 0: バックエンドにグレースフルシャットダウンを要求
   // これによりリスニングソケットが正しく閉じられ、次回起動時のポート競合を防止
