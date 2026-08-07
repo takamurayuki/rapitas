@@ -9,6 +9,10 @@
  */
 import { prisma } from '../../config/database';
 
+// boundary-tests: manual — this resolver is a fail-open boolean (returns
+// `false`, not `null`, when the row is missing), so the generated
+// null-contract template does not apply. See workflow-disabled.boundary.test.ts.
+
 /**
  * Resolves whether the multi-phase workflow (research.md/plan.md as
  * separately-saved artifacts, phase-critic gate, per-phase agent dispatch) is

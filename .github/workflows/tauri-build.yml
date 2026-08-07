@@ -134,7 +134,20 @@ jobs:
         working-directory: rapitas-desktop
         run: pnpm install --no-frozen-lockfile
 
-      - name: Generate Prisma Client
+      # NOTE: the dual-client layout (generated/prisma-postgres +
+      # generated/prisma-sqlite) means backend sources import the postgres
+      # client with STATIC value imports; `bun build --compile` must be able
+      # to resolve BOTH clients even though the desktop runtime picks sqlite
+      # via resolvePrismaClientCtor. A dummy URL suffices — generate never
+      # connects. Without this step the binary build fails on every platform
+      # with `Could not resolve: "../generated/prisma-postgres"`.
+      - name: Generate postgres Prisma Client (for static imports)
+        working-directory: rapitas-backend
+        run: bunx prisma generate
+        env:
+          DATABASE_URL: "postgresql://dummy:dummy@localhost:5432/dummy"
+
+      - name: Generate SQLite Prisma Client
         working-directory: rapitas-backend
         run: |
           echo "Generating SQLite Prisma Client for desktop build..."

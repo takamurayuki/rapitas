@@ -268,7 +268,9 @@ async fn show_toast_window(
             .unwrap_or(false);
         if strayed {
             if let Some(state) = app.try_state::<PendingToast>() {
-                state.ready.store(false, std::sync::atomic::Ordering::SeqCst);
+                state
+                    .ready
+                    .store(false, std::sync::atomic::Ordering::SeqCst);
                 *state.pending.lock().unwrap() = Some(payload);
             }
             if let Ok(mut u) = win.url() {

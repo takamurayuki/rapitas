@@ -13,10 +13,14 @@ import { ID_EDGES } from '../../tests/helpers/boundary-values';
 // HACK(agent): bun:test の mock.module はプロセスグローバルなため、
 // 全エクスポートをミラーしないとバレルが "export not found" をスローする。
 const mockTaskFindUnique = mock(() => Promise.resolve(null)) as ReturnType<typeof mock>;
+const mockAgentExecutionConfigFindUnique = mock(() => Promise.resolve(null)) as ReturnType<
+  typeof mock
+>;
 
 mock.module('../../config/database', () => ({
   prisma: {
     task: { findUnique: mockTaskFindUnique },
+    agentExecutionConfig: { findUnique: mockAgentExecutionConfigFindUnique },
   },
   ensureDatabaseConnection: () => Promise.resolve(),
 }));
@@ -48,12 +52,15 @@ const {
   resolveTaskSubtaskInfo,
   resolveTaskForPlanApproval,
   resolveTaskForAutoMerge,
+  resolvePreferredBaseBranch,
   resolveTaskForLearning,
 } = await import('./task-resolver');
 
 beforeEach(() => {
   mockTaskFindUnique.mockReset();
   mockTaskFindUnique.mockResolvedValue(null);
+  mockAgentExecutionConfigFindUnique.mockReset();
+  mockAgentExecutionConfigFindUnique.mockResolvedValue(null);
 });
 
 // ---------------------------------------------------------------------------
@@ -72,6 +79,7 @@ describe('resolveTaskWithTheme 境界値テスト', () => {
     'prisma が reject するとき %p でも null を返すこと',
     async (edge) => {
       mockTaskFindUnique.mockRejectedValueOnce(new Error('DB error'));
+      mockAgentExecutionConfigFindUnique.mockRejectedValueOnce(new Error('DB error'));
       const result = await resolveTaskWithTheme(edge);
       expect(result).toBeNull();
     },
@@ -94,6 +102,7 @@ describe('resolveTaskWithThemeAndCategory 境界値テスト', () => {
     'prisma が reject するとき %p でも null を返すこと',
     async (edge) => {
       mockTaskFindUnique.mockRejectedValueOnce(new Error('DB error'));
+      mockAgentExecutionConfigFindUnique.mockRejectedValueOnce(new Error('DB error'));
       const result = await resolveTaskWithThemeAndCategory(edge);
       expect(result).toBeNull();
     },
@@ -116,6 +125,7 @@ describe('resolveTaskForExecution 境界値テスト', () => {
     'prisma が reject するとき %p でも null を返すこと',
     async (edge) => {
       mockTaskFindUnique.mockRejectedValueOnce(new Error('DB error'));
+      mockAgentExecutionConfigFindUnique.mockRejectedValueOnce(new Error('DB error'));
       const result = await resolveTaskForExecution(edge);
       expect(result).toBeNull();
     },
@@ -138,6 +148,7 @@ describe('resolveTaskWorkingDirectory 境界値テスト', () => {
     'prisma が reject するとき %p でも null を返すこと',
     async (edge) => {
       mockTaskFindUnique.mockRejectedValueOnce(new Error('DB error'));
+      mockAgentExecutionConfigFindUnique.mockRejectedValueOnce(new Error('DB error'));
       const result = await resolveTaskWorkingDirectory(edge);
       expect(result).toBeNull();
     },
@@ -160,6 +171,7 @@ describe('resolveTaskWorkflowState 境界値テスト', () => {
     'prisma が reject するとき %p でも null を返すこと',
     async (edge) => {
       mockTaskFindUnique.mockRejectedValueOnce(new Error('DB error'));
+      mockAgentExecutionConfigFindUnique.mockRejectedValueOnce(new Error('DB error'));
       const result = await resolveTaskWorkflowState(edge);
       expect(result).toBeNull();
     },
@@ -182,6 +194,7 @@ describe('resolveTaskTitle 境界値テスト', () => {
     'prisma が reject するとき %p でも null を返すこと',
     async (edge) => {
       mockTaskFindUnique.mockRejectedValueOnce(new Error('DB error'));
+      mockAgentExecutionConfigFindUnique.mockRejectedValueOnce(new Error('DB error'));
       const result = await resolveTaskTitle(edge);
       expect(result).toBeNull();
     },
@@ -204,6 +217,7 @@ describe('resolveTaskThemeId 境界値テスト', () => {
     'prisma が reject するとき %p でも null を返すこと',
     async (edge) => {
       mockTaskFindUnique.mockRejectedValueOnce(new Error('DB error'));
+      mockAgentExecutionConfigFindUnique.mockRejectedValueOnce(new Error('DB error'));
       const result = await resolveTaskThemeId(edge);
       expect(result).toBeNull();
     },
@@ -226,6 +240,7 @@ describe('resolveTaskForComplexityAnalysis 境界値テスト', () => {
     'prisma が reject するとき %p でも null を返すこと',
     async (edge) => {
       mockTaskFindUnique.mockRejectedValueOnce(new Error('DB error'));
+      mockAgentExecutionConfigFindUnique.mockRejectedValueOnce(new Error('DB error'));
       const result = await resolveTaskForComplexityAnalysis(edge);
       expect(result).toBeNull();
     },
@@ -248,6 +263,7 @@ describe('resolveTaskSubtaskInfo 境界値テスト', () => {
     'prisma が reject するとき %p でも null を返すこと',
     async (edge) => {
       mockTaskFindUnique.mockRejectedValueOnce(new Error('DB error'));
+      mockAgentExecutionConfigFindUnique.mockRejectedValueOnce(new Error('DB error'));
       const result = await resolveTaskSubtaskInfo(edge);
       expect(result).toBeNull();
     },
@@ -270,6 +286,7 @@ describe('resolveTaskForPlanApproval 境界値テスト', () => {
     'prisma が reject するとき %p でも null を返すこと',
     async (edge) => {
       mockTaskFindUnique.mockRejectedValueOnce(new Error('DB error'));
+      mockAgentExecutionConfigFindUnique.mockRejectedValueOnce(new Error('DB error'));
       const result = await resolveTaskForPlanApproval(edge);
       expect(result).toBeNull();
     },
@@ -292,7 +309,31 @@ describe('resolveTaskForAutoMerge 境界値テスト', () => {
     'prisma が reject するとき %p でも null を返すこと',
     async (edge) => {
       mockTaskFindUnique.mockRejectedValueOnce(new Error('DB error'));
+      mockAgentExecutionConfigFindUnique.mockRejectedValueOnce(new Error('DB error'));
       const result = await resolveTaskForAutoMerge(edge);
+      expect(result).toBeNull();
+    },
+  );
+});
+
+// ---------------------------------------------------------------------------
+// resolvePreferredBaseBranch 境界値テスト
+// ---------------------------------------------------------------------------
+describe('resolvePreferredBaseBranch 境界値テスト', () => {
+  test.each(ID_EDGES.map((bc) => bc.value))(
+    'prisma が null を返すとき %p は null を返すこと',
+    async (edge) => {
+      const result = await resolvePreferredBaseBranch(edge);
+      expect(result).toBeNull();
+    },
+  );
+
+  test.each(ID_EDGES.map((bc) => bc.value))(
+    'prisma が reject するとき %p でも null を返すこと',
+    async (edge) => {
+      mockTaskFindUnique.mockRejectedValueOnce(new Error('DB error'));
+      mockAgentExecutionConfigFindUnique.mockRejectedValueOnce(new Error('DB error'));
+      const result = await resolvePreferredBaseBranch(edge);
       expect(result).toBeNull();
     },
   );
@@ -314,6 +355,7 @@ describe('resolveTaskForLearning 境界値テスト', () => {
     'prisma が reject するとき %p でも null を返すこと',
     async (edge) => {
       mockTaskFindUnique.mockRejectedValueOnce(new Error('DB error'));
+      mockAgentExecutionConfigFindUnique.mockRejectedValueOnce(new Error('DB error'));
       const result = await resolveTaskForLearning(edge);
       expect(result).toBeNull();
     },

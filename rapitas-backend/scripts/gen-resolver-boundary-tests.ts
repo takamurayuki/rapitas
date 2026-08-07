@@ -106,10 +106,20 @@ export function parseFilesArg(argv: string[]): string[] | null {
  *   - They lack the quick-candidate markers (no prisma import or no resolve* fn)
  *   - They have non-standard imports (too complex for automated mocking)
  *   - They have no qualifying single-arg resolve* functions
+ *   - They carry the explicit opt-out marker (see MANUAL_BOUNDARY_TESTS_MARKER)
  *
  * @param opts - Optional scan configuration / スキャン設定
  * @returns Array of ResolverFile descriptors / ResolverFileの配列
  */
+/**
+ * Explicit per-file opt-out. A resolver whose contract deviates from the
+ * generated template's assumptions (e.g. a fail-open boolean that returns
+ * `false` — not `null` — when the row is missing) places this marker in its
+ * source; its `.boundary.test.ts` is then hand-written and never generated
+ * or drift-checked.
+ */
+export const MANUAL_BOUNDARY_TESTS_MARKER = '// boundary-tests: manual';
+
 export function scanForResolverFiles(opts?: ScanOptions): ResolverFile[] {
   // Empty file list = no resolver files in the changeset → nothing to scan.
   if (opts?.files !== undefined && opts.files.length === 0) {
@@ -146,6 +156,9 @@ export function scanForResolverFiles(opts?: ScanOptions): ResolverFile[] {
 
     // Quick pre-filter.
     if (!hasResolverCandidate(content)) continue;
+
+    // Explicit opt-out — the file's boundary tests are hand-written.
+    if (content.includes(MANUAL_BOUNDARY_TESTS_MARKER)) continue;
 
     const dbImportPath = extractDbImportPath(content);
     if (!dbImportPath) continue;

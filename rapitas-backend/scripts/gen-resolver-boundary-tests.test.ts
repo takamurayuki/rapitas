@@ -416,6 +416,15 @@ describe('scanForResolverFiles', () => {
     expect(withUndefined.length).toBe(withNoOpts.length);
     expect(withUndefined.length).toBeGreaterThan(0);
   });
+
+  test('skips files carrying the manual opt-out marker', () => {
+    // workflow-disabled.ts is a fail-open boolean resolver that opts out via
+    // the marker; it must never appear in the scan (and thus never be
+    // generated or drift-checked).
+    const all = scanForResolverFiles();
+    const optedOut = all.filter((r) => r.filePath.includes('workflow-disabled'));
+    expect(optedOut).toEqual([]);
+  });
 });
 
 // ---------------------------------------------------------------------------
