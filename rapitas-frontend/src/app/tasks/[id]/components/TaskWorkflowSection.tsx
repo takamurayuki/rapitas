@@ -8,6 +8,7 @@ import { useTranslations } from 'next-intl';
 import { API_BASE_URL } from '@/utils/api';
 import { Spinner } from '@/components/ui/spinner';
 import { resolveBlockedCauseLabel } from '@/components/workflow/workflow-blocked-cause';
+import CriticHistorySection from '@/components/workflow/CriticHistorySection';
 import { useWorkflowDisabledToggle } from '../hooks/useWorkflowDisabledToggle';
 
 export interface TaskWorkflowSectionProps {
@@ -420,6 +421,8 @@ export default function TaskWorkflowSection({
             </div>
           );
         })()}
+
+      <CriticHistorySection taskId={taskId} />
 
       {workflowError && (
         <div className="px-4 pb-4">

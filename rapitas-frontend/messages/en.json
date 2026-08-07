@@ -2266,6 +2266,25 @@
           "low": "Low"
         },
         "reasonsCount": "{count} issue(s)"
+      },
+      "criticHistory": {
+        "title": "Quality gate history",
+        "entryLabel": "{phase} · {date}",
+        "phase": {
+          "research": "Research",
+          "plan": "Plan"
+        },
+        "type": {
+          "bounced": "Bounced",
+          "exhausted": "Budget exhausted (passed through)"
+        },
+        "severity": {
+          "high": "High",
+          "medium": "Medium",
+          "low": "Low"
+        },
+        "reasonsCount": "{count} issue(s)",
+        "noReasons": "No details were recorded"
       }
     }
   },
