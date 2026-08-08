@@ -11,6 +11,7 @@ import { join } from 'path';
 import { prisma } from '../../../config/database';
 import { createLogger } from '../../../config/logger';
 import { fromJsonString } from '../../../utils/database/db-helpers';
+import { buildSubtaskSplitDirective } from '../../../services/workflow/subtask-split-policy';
 
 const UPLOAD_DIR = process.env.UPLOAD_DIR || 'uploads';
 const log = createLogger('routes:agent-execution:instruction-builder');
@@ -265,6 +266,11 @@ ${hypothesisBlock}
 research.md を保存したら、**コードを一切変更せずにすぐ終了**してください。実装は次フェーズで自動実行されます。
 `;
   } else if (enforceWorkflow && taskId !== undefined) {
+    // Align the planner-role instructions with the subtask-split flag: '' when
+    // splitting is enabled (CLAUDE.md Step 2.5 applies as-is), an explicit
+    // prohibition when disabled (task 545 incident).
+    const subtaskSplitDirective = buildSubtaskSplitDirective();
+    const subtaskSplitBlock = subtaskSplitDirective ? `\n${subtaskSplitDirective}\n` : '';
     fullInstruction += `\n\n## 必須ワークフロー (絶対に守ってください)
 
 **この実行では実装を始めてはいけません。** 調査と計画を保存してから終了します。
@@ -387,7 +393,7 @@ plan.md テンプレート (重要セクションは省略不可):
 ## 実装順序
 ## 実装者への申し送り事項 ← ここで実装者の疑問を先回りして潰す
 \`\`\`
-
+${subtaskSplitBlock}
 ### Step 3: 終了
 
 **plan.md 保存後、コードを一切変更せずにすぐ終了してください。**

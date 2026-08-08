@@ -14,6 +14,7 @@ import { buildRejectedPlanContext } from './workflow-rejected-plan-context';
 import { buildCaseContext } from './workflow-case-context';
 import { buildCriticFeedback, buildCriticLessonsSection } from './phase-critic';
 import { resolvePreferredBaseBranch } from '../task/task-resolver';
+import { buildSubtaskSplitDirective } from './subtask-split-policy';
 import type { WorkflowRole } from './workflow-types';
 // NOTE: Style rules live in their own module (this file is over the size
 // limit); they only ADD constraints — the machine-parsed verdict vocabulary in
@@ -306,7 +307,15 @@ export async function buildRoleContext(
       if (research) {
         ctx += `\n\n${t.planner.researchHeader}\n\n${research}`;
       }
-      ctx += `\n\n${t.planner.instruction}\n\n${t.planner.premortem}\n\n${t.planner.selfContainment}\n\n${styleRule}`;
+      ctx += `\n\n${t.planner.instruction}\n\n${t.planner.premortem}\n\n${t.planner.selfContainment}`;
+      // Align the planner with the subtask-split flag: '' when splitting is
+      // enabled (CLAUDE.md Step 2.5 applies as-is), an explicit prohibition
+      // when disabled (task 545 incident) — never concatenate the empty string.
+      const splitDirective = buildSubtaskSplitDirective(language);
+      if (splitDirective) {
+        ctx += `\n\n${splitDirective}`;
+      }
+      ctx += `\n\n${styleRule}`;
       return ctx;
     }
 
