@@ -87,9 +87,6 @@
     },
     "rapitas-backend/services/agents/claude-code/claude-execution-runner.ts": {
       "lineCount": 505
-    },
-    "rapitas-backend/tests/helpers/workflow-cli-executor-mock-state.ts": {
-      "lineCount": 503
     }
   }
 }
