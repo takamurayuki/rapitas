@@ -265,6 +265,7 @@ export async function reconcileOnce(): Promise<{
   retriedBlocked: number;
   undispatchableTodos: number;
   autoApproveStalls: number;
+  staleQueueItemsCancelled: number;
 }> {
   const empty = {
     zombieSessions: 0,
@@ -275,17 +276,19 @@ export async function reconcileOnce(): Promise<{
     retriedBlocked: 0,
     undispatchableTodos: 0,
     autoApproveStalls: 0,
+    staleQueueItemsCancelled: 0,
   };
   if (inFlight) return empty;
   inFlight = true;
   const nowMs = Date.now();
   try {
     // NOTE: Each heal pass is isolated in its own try/catch (via `runHealPass`)
-    // rather than sharing one try/catch around the whole sequence. These 7
+    // rather than sharing one try/catch around the whole sequence. These 8
     // passes fix UNRELATED kinds of divergence (zombie sessions, phantom
     // worktrees, completed-status desync, orphan requeue, blocked-task retry,
-    // undispatchable todos, orphan flagging) — a non-DB throw in one (e.g. a
-    // bad row shape) must not starve the other 6 for this whole cycle. Without
+    // undispatchable todos, orphan flagging, stale queue items) — a non-DB
+    // throw in one (e.g. a bad row shape) must not starve the other 7 for
+    // this whole cycle. Without
     // this, a deterministically-throwing row in an EARLY pass would
     // permanently prevent every LATER pass from ever running again.
     const zombieSessions = await runHealPass('healZombieSessions', () => healZombieSessions(nowMs));
@@ -318,6 +321,14 @@ export async function reconcileOnce(): Promise<{
       const { healAutoApproveStalls } = await import('./workflow-reconciler-autoapprove');
       return healAutoApproveStalls(nowMs);
     });
+    // Cancel queued items for already-terminal tasks — the dequeue-time guard
+    // never fires while the runner is idle, so these otherwise sit forever
+    // polluting queueDepth (tasks 537/540/545). No nowMs: terminality is
+    // instant, not staleness-based.
+    const staleQueueItemsCancelled = await runHealPass('sweepStaleQueueItems', async () => {
+      const { sweepStaleQueueItems } = await import('./workflow-reconciler-queue-sweep');
+      return sweepStaleQueueItems();
+    });
     const counts = {
       zombieSessions,
       phantomWorktrees,
@@ -327,6 +338,7 @@ export async function reconcileOnce(): Promise<{
       retriedBlocked,
       undispatchableTodos,
       autoApproveStalls,
+      staleQueueItemsCancelled,
     };
     if (Object.values(counts).some((n) => n > 0)) {
       log.info(counts, '[reconciler] repaired divergences');
