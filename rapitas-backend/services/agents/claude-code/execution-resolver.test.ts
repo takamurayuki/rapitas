@@ -78,6 +78,7 @@ function createCtx(overrides: Partial<ResolverContext> = {}): ResolverContext {
     claudeSessionId: null,
     hasFileModifyingToolCalls: false,
     idleTimeoutForceKilled: false,
+    wallClockTimeoutForceKilled: false,
     workerResultUsage: null,
     status: 'running',
     emitOutputInternal: () => {},
@@ -405,6 +406,82 @@ describe('buildResolveAfterParse — investigation mode', () => {
     const result = await promise;
     expect(result.success).toBe(false);
     expect(result.errorMessage).toContain('API Overload');
+  });
+
+  test('wall-clock kill + git diff 変更あり → success:true かつ failureType=wall_clock_timeout', async () => {
+    mockGitDiffResult = true;
+    const ctx = createCtx({
+      idleTimeoutForceKilled: true, // wall-clock 分岐は両フラグをセットする（idle-monitor.ts）
+      wallClockTimeoutForceKilled: true,
+      outputBuffer: 'implemented a lot of code...',
+    });
+    const { resolve, promise } = createResolveTracker();
+
+    const callback = buildResolveAfterParse(
+      ctx,
+      1, // taskkill による非ゼロ終了
+      '/tmp/workdir',
+      Date.now(),
+      resolve,
+      () => [],
+      () => [],
+    );
+    callback();
+
+    const result = await promise;
+    expect(result.success).toBe(true);
+    expect(result.failureType).toBe('wall_clock_timeout');
+  });
+
+  test('wall-clock kill + git diff 変更なし → success:false かつ failureType=wall_clock_timeout', async () => {
+    mockGitDiffResult = false;
+    const ctx = createCtx({
+      idleTimeoutForceKilled: true,
+      wallClockTimeoutForceKilled: true,
+      outputBuffer: 'was still reading files...',
+    });
+    const { resolve, promise } = createResolveTracker();
+
+    const callback = buildResolveAfterParse(
+      ctx,
+      1,
+      '/tmp/workdir',
+      Date.now(),
+      resolve,
+      () => [],
+      () => [],
+      async () => false,
+    );
+    callback();
+
+    const result = await promise;
+    expect(result.success).toBe(false);
+    expect(result.failureType).toBe('wall_clock_timeout');
+  });
+
+  test('idle-hang kill のみ（wall-clock でない）→ failureType は付与されない', async () => {
+    mockGitDiffResult = true;
+    const ctx = createCtx({
+      idleTimeoutForceKilled: true,
+      wallClockTimeoutForceKilled: false,
+      outputBuffer: 'some output',
+    });
+    const { resolve, promise } = createResolveTracker();
+
+    const callback = buildResolveAfterParse(
+      ctx,
+      1,
+      '/tmp/workdir',
+      Date.now(),
+      resolve,
+      () => [],
+      () => [],
+    );
+    callback();
+
+    const result = await promise;
+    expect(result.success).toBe(true);
+    expect(result.failureType).toBeUndefined();
   });
 
   test('ケース4: investigationMode=false + exit0 → git diff 経路（短絡しない）', async () => {

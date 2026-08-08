@@ -24,6 +24,7 @@ import {
   type LogChunkManager,
 } from './execution-helpers';
 import { buildShutdownErrorMessage } from './shutdown-error';
+import { checkNeedsFallback } from './fallback-decision';
 import { startExecutionHeartbeat, stopExecutionHeartbeat } from './execution-heartbeat';
 import { EXECUTION_OWNER_ID } from '../execution-owner';
 
@@ -351,42 +352,6 @@ interface FallbackContext {
   logManager: LogChunkManager;
   options: ExecutionOptions;
   taskWithAnalysis: AgentTask;
-}
-
-/**
- * Check if execution needs fallback based on result and output.
- */
-async function checkNeedsFallback(
-  result: AgentExecutionResult,
-  agentType: string,
-  disableFallback?: boolean,
-  executionId?: number,
-): Promise<{ needsFallback: boolean; errorBlob: string }> {
-  const successOutput = typeof result.output === 'string' ? result.output : '';
-  const errorBlob = `${result.errorMessage ?? ''}\n${successOutput.slice(-4000)}`;
-  let needsFallback = !result.success;
-
-  if (!needsFallback && !disableFallback) {
-    const { classifyAgentError } = await import('../../ai/agent-error-classifier');
-    const { agentTypeToProvider } = await import('../../ai/agent-fallback');
-    const hint = agentTypeToProvider(agentType) ?? undefined;
-    const classified = classifyAgentError(errorBlob, { hint, strict: true });
-
-    if (classified?.retryWithFallback) {
-      needsFallback = true;
-      logger.warn(
-        {
-          executionId,
-          agentType,
-          classifiedAs: classified.reason,
-          providerImplicated: classified.provider,
-        },
-        '[TaskExecutor] Detected provider error in successful output — forcing fallback',
-      );
-    }
-  }
-
-  return { needsFallback, errorBlob };
 }
 
 /**

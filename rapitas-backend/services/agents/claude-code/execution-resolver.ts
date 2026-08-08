@@ -36,6 +36,7 @@ export interface ResolverContext {
   claudeSessionId: string | null;
   hasFileModifyingToolCalls: boolean;
   idleTimeoutForceKilled: boolean;
+  wallClockTimeoutForceKilled: boolean;
   workerResultUsage: WorkerResultUsageSnapshot | null;
 
   // Mutated by the resolver
@@ -106,6 +107,13 @@ export function buildResolveAfterParse(
         }
       : { finalMessage };
 
+    // Tags the fact of a wall-clock kill (regardless of success/failure below) so
+    // downstream fallback-decision logic can skip provider-error classification —
+    // a wall-clock kill is not evidence of a provider issue (task 546).
+    const forceKillFields: Partial<AgentExecutionResult> = ctx.wallClockTimeoutForceKilled
+      ? { failureType: 'wall_clock_timeout' }
+      : {};
+
     logger.info(`${ctx.logPrefix} Running question detection...`);
     logger.info(
       { detectedQuestion: ctx.detectedQuestion },
@@ -152,6 +160,7 @@ export function buildResolveAfterParse(
         errorMessage:
           'Claude Code rejected the selected model. The orchestrator picked a model from a different provider (likely codex-/gpt- family) and routed it to a claude-code agent. Re-run after the role-resolver agent-switch lands; if the issue persists check WorkflowRoleConfig.preferredProviderOverride for this role.',
         ...usageFields,
+        ...forceKillFields,
       });
       return;
     }
@@ -187,6 +196,7 @@ export function buildResolveAfterParse(
         errorMessage:
           'Claude CLI の認証に失敗しました（認証情報の期限切れ/無効）。統合ターミナルで `claude login`（またはこのセッションで /login）を実行して再認証してください。再認証後、ブロックされたタスクは自動で再試行されます。',
         ...usageFields,
+        ...forceKillFields,
       });
       return;
     }
@@ -215,6 +225,7 @@ export function buildResolveAfterParse(
         questionKey,
         claudeSessionId: ctx.claudeSessionId || undefined,
         ...usageFields,
+        ...forceKillFields,
       });
       return;
     }
@@ -272,6 +283,7 @@ export function buildResolveAfterParse(
         claudeSessionId: ctx.claudeSessionId || undefined,
         errorMessage,
         ...usageFields,
+        ...forceKillFields,
       });
       return;
     }
@@ -304,6 +316,7 @@ export function buildResolveAfterParse(
         claudeSessionId: ctx.claudeSessionId || undefined,
         errorMessage: `${errorMessage ?? `Process exited with code ${code}`}\n\n【API Overload】Provider returned 529 Overloaded and retries were exhausted; the run did not complete.`,
         ...usageFields,
+        ...forceKillFields,
       });
       return;
     }
@@ -336,6 +349,7 @@ export function buildResolveAfterParse(
           waitingForInput: false,
           claudeSessionId: ctx.claudeSessionId || undefined,
           ...usageFields,
+          ...forceKillFields,
         });
         return;
       }
@@ -365,6 +379,7 @@ export function buildResolveAfterParse(
             waitingForInput: false,
             claudeSessionId: ctx.claudeSessionId || undefined,
             ...usageFields,
+            ...forceKillFields,
           });
         } else if (ctx.hasFileModifyingToolCalls) {
           // NOTE: File-modifying tools were used but not reflected in git diff
@@ -382,6 +397,7 @@ export function buildResolveAfterParse(
             waitingForInput: false,
             claudeSessionId: ctx.claudeSessionId || undefined,
             ...usageFields,
+            ...forceKillFields,
           });
         } else if (checkPlanCreated && (await checkPlanCreated().catch(() => false))) {
           // A plan was saved and the task is awaiting approval. The agent
@@ -400,6 +416,7 @@ export function buildResolveAfterParse(
             waitingForInput: false,
             claudeSessionId: ctx.claudeSessionId || undefined,
             ...usageFields,
+            ...forceKillFields,
           });
         } else {
           // Only planning was done — no implementation
@@ -418,6 +435,7 @@ export function buildResolveAfterParse(
             errorMessage:
               'Agent output a plan but no actual code changes were made. Please review the prompt and re-execute.',
             ...usageFields,
+            ...forceKillFields,
           });
         }
       })
@@ -438,6 +456,7 @@ export function buildResolveAfterParse(
             waitingForInput: false,
             claudeSessionId: ctx.claudeSessionId || undefined,
             ...usageFields,
+            ...forceKillFields,
           });
         } else {
           // No file-modifying tools used — treat as failure
@@ -456,6 +475,7 @@ export function buildResolveAfterParse(
             errorMessage:
               'Could not verify agent execution results. Code changes cannot be confirmed.',
             ...usageFields,
+            ...forceKillFields,
           });
         }
       });
