@@ -31,6 +31,7 @@ import { TASK_NOT_FOUND } from '../../utils/common/error-messages';
 import { countWithFailClosed } from '../../utils/database/fail-closed-count';
 import { writeBlockedStatusDurable } from './durable-blocked-write';
 import { resolveEffectiveWorkflowDisabled } from './workflow-disabled';
+import { scheduleWorkflowRedispatch } from './workflow-redispatch';
 
 // Re-export sub-module helpers so existing imports from this path keep working.
 export { resolveWorkflowDir, readWorkflowFile, writeWorkflowFile } from './workflow-file-utils';
@@ -599,6 +600,12 @@ export class WorkflowOrchestrator {
             reason: 'plan.md is log-polluted or non-substantive; archived + regenerating',
           },
         }).catch(() => {});
+        // Re-dispatch the regeneration ourselves: when this rollback was reached
+        // via a one-shot advance (plan auto-approve / UI "進行"), nothing else
+        // will ever advance the task again (task 546 sat 40 min at draft).
+        // Duplicate-safe — a live queue loop's next advance just wins the
+        // per-task execution lock and this one returns skipped.
+        scheduleWorkflowRedispatch(taskId, 'plan_invalid_replan', language);
         return {
           success: true,
           role: transition.role,

@@ -14,6 +14,7 @@ import { recordTransition } from '../transition-recorder';
 import { archiveWorkflowFile } from '../workflow-file-utils';
 import { critiquePhase, isPhaseCriticEnabled } from './phase-critic';
 import { registerCritique } from './critic-inflight';
+import { scheduleWorkflowRedispatch } from '../workflow-redispatch';
 import type { CriticPhase } from './phase-critic-types';
 import { countWithFailClosed } from '../../../utils/database/fail-closed-count';
 
@@ -150,6 +151,12 @@ async function runPhaseCriticGate(args: {
       { taskId, phase, severity: result.severity, reasons: result.reasons.slice(0, 3) },
       '[phase-critic-gate] FAIL — archived artifact and rolled back for regeneration',
     );
+    // Re-dispatch the regeneration: a late (async) verdict lands after the
+    // producing agent already exited, so without this nothing re-runs the
+    // phase (this task's own research bounce sat stranded at draft). On the
+    // synchronous path the agent still holds the per-task execution lock and
+    // the one-shot advance harmlessly returns skipped.
+    scheduleWorkflowRedispatch(taskId, `${phase}_critic_failed`, 'ja');
     return { bounced: true, newStatus, reasons: result.reasons, severity: result.severity };
   } catch (err) {
     log.warn({ err, taskId, phase }, '[phase-critic-gate] gate errored — proceeding (fail-open)');

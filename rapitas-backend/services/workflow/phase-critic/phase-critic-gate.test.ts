@@ -33,6 +33,11 @@ mock.module('../../../config/database', () => ({
 mock.module('../transition-recorder', () => ({ recordTransition }));
 mock.module('../workflow-file-utils', () => ({ archiveWorkflowFile }));
 mock.module('./phase-critic', () => ({ critiquePhase, isPhaseCriticEnabled }));
+const scheduleWorkflowRedispatch = mock(() => {});
+mock.module('../workflow-redispatch', () => ({
+  REDISPATCH_DELAY_MS: 1000,
+  scheduleWorkflowRedispatch,
+}));
 
 const { applyPhaseCriticGate } = await import('./phase-critic-gate');
 
@@ -46,6 +51,7 @@ describe('applyPhaseCriticGate — priorBounces fails CLOSED on DB error', () =>
       .mockReset()
       .mockResolvedValue({ verdict: 'fail', severity: 'high', reasons: ['issue A'] });
     isPhaseCriticEnabled.mockReset().mockReturnValue(true);
+    scheduleWorkflowRedispatch.mockClear();
   });
 
   test('カウント成功・予算内 → bounce する（archiveせず rollback）', async () => {
@@ -58,6 +64,9 @@ describe('applyPhaseCriticGate — priorBounces fails CLOSED on DB error', () =>
     });
     expect(result.bounced).toBe(true);
     expect(result.newStatus).toBe('draft');
+    // bounce後は再生成の再ディスパッチが予約されること（task 547）。
+    expect(scheduleWorkflowRedispatch).toHaveBeenCalledTimes(1);
+    expect(scheduleWorkflowRedispatch).toHaveBeenCalledWith(1, 'research_critic_failed', 'ja');
   });
 
   test('FAIL CLOSED: カウントクエリが reject しても bounce を繰り返さず proceed（fail-open分岐）すること', async () => {
@@ -79,6 +88,8 @@ describe('applyPhaseCriticGate — priorBounces fails CLOSED on DB error', () =>
     expect(result.newStatus).toBeUndefined();
     const rt = recordTransition.mock.calls[0]?.[0] as { cause: string } | undefined;
     expect(rt?.cause).toBe('research_critic_exhausted');
+    // 予算枯渇(proceed)分岐では再ディスパッチしない。
+    expect(scheduleWorkflowRedispatch).not.toHaveBeenCalled();
   });
 });
 
@@ -92,6 +103,7 @@ describe('applyPhaseCriticGate — 遅延verdictのCASガード', () => {
       .mockReset()
       .mockResolvedValue({ verdict: 'fail', severity: 'high', reasons: ['issue A'] });
     isPhaseCriticEnabled.mockReset().mockReturnValue(true);
+    scheduleWorkflowRedispatch.mockClear();
   });
 
   test('評価中にステータスが進んでいたら(CAS 0件) ロールバックせず fail-open', async () => {
@@ -113,6 +125,8 @@ describe('applyPhaseCriticGate — 遅延verdictのCASガード', () => {
     // ロールバック遷移もアーティファクトのarchiveも発生しない。
     expect(recordTransition).not.toHaveBeenCalled();
     expect(archiveWorkflowFile).not.toHaveBeenCalled();
+    // ロールバックしていないので再ディスパッチも予約しない。
+    expect(scheduleWorkflowRedispatch).not.toHaveBeenCalled();
   });
 
   test('CASが1件更新できたら通常どおり bounce する', async () => {
@@ -133,5 +147,7 @@ describe('applyPhaseCriticGate — 遅延verdictのCASガード', () => {
     };
     // ガード条件が評価時点のステータスを固定していること。
     expect(call.where).toEqual({ id: 494, workflowStatus: 'plan_created' });
+    // bounce成立時は再ディスパッチが予約されること（task 547）。
+    expect(scheduleWorkflowRedispatch).toHaveBeenCalledWith(494, 'plan_critic_failed', 'ja');
   });
 });
