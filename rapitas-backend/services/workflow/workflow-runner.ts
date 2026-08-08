@@ -19,6 +19,12 @@ import type { WorkflowRole } from './workflow-types';
 
 const log = createLogger('workflow-runner');
 
+// Upper bound for the per-phase role lookup used to pick the timeout backstop
+// (task 546). This is NOT an agent/phase timeout value — it only caps how long
+// the runner waits for the (normally memory-cached) mode-config read before
+// falling back to the role-less default backstop.
+const ROLE_RESOLVE_BUDGET_MS = 1000;
+
 // Grace window for a `verify_done` task's async commit/PR/merge completion to
 // settle before the runner judges it failed — prevents a transient "blocked"
 // flash in the UI while the task is actually completing (observed: verify_done →
@@ -344,16 +350,27 @@ export class WorkflowRunner {
         // side-effect-free lookup advanceWorkflow itself uses (mode settings are
         // memory-cached); NOT resolveAgentForTask, which mutates task status.
         // Fail-open: role resolution is a timeout refinement only — if it throws
-        // (e.g. DB unavailable), fall back to the role-less default backstop
-        // instead of failing the phase. Resolved BEFORE advanceWorkflow so no
-        // await sits between the execution promise and the race below (an early
-        // rejection there would surface as an unhandled rejection).
+        // or is slow (cold DB read), fall back to the role-less default backstop
+        // instead of failing/stalling the phase. A slow first read still
+        // completes in the background and warms the mode-config cache, so the
+        // next iteration resolves instantly. Resolved BEFORE advanceWorkflow so
+        // no await sits between the execution promise and the race below (an
+        // early rejection there would surface as an unhandled rejection).
         let nextRole: WorkflowRole | undefined;
         try {
-          const { getModeSettings, buildRoleByStatus } = await import('./workflow-mode-config');
-          const { narrowWorkflowMode } = await import('./workflow-types.guards.generated');
-          const modeSettings = await getModeSettings(narrowWorkflowMode(task.workflowMode));
-          nextRole = buildRoleByStatus(modeSettings)[currentStatus];
+          const rolePromise = (async () => {
+            const { getModeSettings, buildRoleByStatus } = await import('./workflow-mode-config');
+            const { narrowWorkflowMode } = await import('./workflow-types.guards.generated');
+            const modeSettings = await getModeSettings(narrowWorkflowMode(task.workflowMode));
+            return buildRoleByStatus(modeSettings)[currentStatus];
+          })();
+          // Swallow a rejection that lands after the race is lost — the try/catch
+          // below only observes rejections that happen while racing.
+          rolePromise.catch(() => {});
+          nextRole = await Promise.race([
+            rolePromise,
+            new Promise<undefined>((res) => setTimeout(res, ROLE_RESOLVE_BUDGET_MS, undefined)),
+          ]);
         } catch (roleResolveErr) {
           log.warn(
             { err: roleResolveErr, taskId: item.taskId, currentStatus },
