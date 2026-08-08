@@ -8,10 +8,7 @@
  */
 import { mock } from 'bun:test';
 
-import type {
-  AgentTaskLike,
-  ExecutionOptionsLike,
-} from './workflow-cli-executor-mock-state-types';
+import type { AgentTaskLike, ExecutionOptionsLike } from './workflow-cli-executor-mock-state-types';
 import {
   defaultTaskWithTheme,
   defaultTaskWorkflowState,
