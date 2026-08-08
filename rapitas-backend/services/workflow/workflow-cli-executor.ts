@@ -15,6 +15,7 @@ import {
   resolveTaskWorkflowState,
 } from '../task/task-resolver';
 import { resolveLatestSessionWorktree } from '../agents/agent-session-resolver';
+import { getAgentTimeoutMs } from '../agents/execution-timeouts';
 import { createLogger } from '../../config/logger';
 import {
   readWorkflowFile,
@@ -607,6 +608,8 @@ curl -X POST http://127.0.0.1:${port}/idea-box \\
       agentConfigId: agentConfig.id,
       workingDirectory: effectiveWorkDir,
       modelIdOverride: agentConfig.modelId || undefined,
+      // Role-aware wall-clock cap: implementer gets 2x the base (task 546).
+      timeout: getAgentTimeoutMs(transition.role),
       autoCompleteTask: false,
       investigationMode: isInvestigationPhase,
       // Phase-specific output type. Drives codex's positional headline

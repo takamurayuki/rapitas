@@ -88,6 +88,8 @@ export class ClaudeCodeAgent extends BaseAgent {
   public hasFileModifyingToolCalls: boolean = false;
   /** @internal Flag indicating forced termination due to idle hang */
   public idleTimeoutForceKilled: boolean = false;
+  /** @internal Flag indicating forced termination due to the wall-clock cap (task 546) */
+  public wallClockTimeoutForceKilled: boolean = false;
   /** @internal Worker thread for output parsing */
   public parserWorker: Worker | null = null;
   /** @internal Artifacts parsed by the Worker */
@@ -240,6 +242,7 @@ export class ClaudeCodeAgent extends BaseAgent {
     this.claudeSessionId = null;
     this.hasFileModifyingToolCalls = false;
     this.idleTimeoutForceKilled = false;
+    this.wallClockTimeoutForceKilled = false;
     this.workerArtifacts = [];
     this.workerCommits = [];
     this.workerResultUsage = null;
