@@ -15,6 +15,7 @@ import {
   broadcastItemUpdate,
 } from './workflow-runner-events';
 import { isShutdownError } from '../agents/orchestrator/shutdown-error';
+import type { WorkflowRole } from './workflow-types';
 
 const log = createLogger('workflow-runner');
 
@@ -338,9 +339,31 @@ export class WorkflowRunner {
         // Execute next phase (with timeout)
         this.broadcastItemUpdate(item.id, item.taskId, 'phase_started', currentStatus);
 
-        const executionPromise = this.orchestrator.advanceWorkflow(item.taskId);
+        // Resolve the role the phase about to run dispatches as, so the backstop
+        // stays above the implementer's raised wall-clock cap (task 546). Same
+        // side-effect-free lookup advanceWorkflow itself uses (mode settings are
+        // memory-cached); NOT resolveAgentForTask, which mutates task status.
+        // Fail-open: role resolution is a timeout refinement only — if it throws
+        // (e.g. DB unavailable), fall back to the role-less default backstop
+        // instead of failing the phase. Resolved BEFORE advanceWorkflow so no
+        // await sits between the execution promise and the race below (an early
+        // rejection there would surface as an unhandled rejection).
+        let nextRole: WorkflowRole | undefined;
+        try {
+          const { getModeSettings, buildRoleByStatus } = await import('./workflow-mode-config');
+          const { narrowWorkflowMode } = await import('./workflow-types.guards.generated');
+          const modeSettings = await getModeSettings(narrowWorkflowMode(task.workflowMode));
+          nextRole = buildRoleByStatus(modeSettings)[currentStatus];
+        } catch (roleResolveErr) {
+          log.warn(
+            { err: roleResolveErr, taskId: item.taskId, currentStatus },
+            '[WorkflowRunner] Role resolution for phase timeout failed — using the default backstop',
+          );
+        }
         const { getPhaseTimeoutMs } = await import('../agents/execution-timeouts');
-        const phaseTimeoutMs = getPhaseTimeoutMs();
+        const phaseTimeoutMs = getPhaseTimeoutMs(nextRole);
+
+        const executionPromise = this.orchestrator.advanceWorkflow(item.taskId);
         const timeoutPromise = new Promise<never>((_, reject) => {
           setTimeout(() => {
             const mins = Math.round(phaseTimeoutMs / 60000);
