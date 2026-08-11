@@ -5,7 +5,13 @@
  * gate after an artifact is saved (applyPhaseCriticGate) and inject prior critic
  * feedback into the regenerating role's context (buildCriticFeedback).
  */
-export { critiquePhase, isPhaseCriticEnabled, parseCriticResponse } from './phase-critic';
+export {
+  critiquePhase,
+  isPhaseCriticEnabled,
+  parseCriticResponse,
+  buildCriticUserMessage,
+  type CriticContext,
+} from './phase-critic';
 export {
   buildCriticLessonsSection,
   isCriticLessonsEnabled,
