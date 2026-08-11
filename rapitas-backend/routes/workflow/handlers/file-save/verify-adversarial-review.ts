@@ -93,9 +93,7 @@ export async function runAdversarialDiffReview(params: {
         preferredBaseBranchForVerify,
       ).catch(
         () =>
-          ({ recovered: false }) as Awaited<
-            ReturnType<typeof tryRecoverFromHistoryContamination>
-          >,
+          ({ recovered: false }) as Awaited<ReturnType<typeof tryRecoverFromHistoryContamination>>,
       );
 
       let activeReview = review;
@@ -138,8 +136,7 @@ export async function runAdversarialDiffReview(params: {
 
       if (
         reviewStillFailing &&
-        (recovery.reason === 'recovery_already_used' ||
-          recovery.reason === 'patch_apply_conflict')
+        (recovery.reason === 'recovery_already_used' || recovery.reason === 'patch_apply_conflict')
       ) {
         // Contamination recovery exhausted (受入基準3) or failed after the old
         // worktree was destroyed (受入基準2c): an implementer bounce is either
@@ -201,12 +198,9 @@ export async function runAdversarialDiffReview(params: {
       } else if (reviewStillFailing) {
         const { attemptVerifyRepair } =
           await import('../../../../services/workflow/verify-self-repair');
-        const repair = await attemptVerifyRepair(
-          taskId,
-          'verify_done',
-          reason,
-          savedContent,
-        ).catch(() => ({ bounced: false }) as Awaited<ReturnType<typeof attemptVerifyRepair>>);
+        const repair = await attemptVerifyRepair(taskId, 'verify_done', reason, savedContent).catch(
+          () => ({ bounced: false }) as Awaited<ReturnType<typeof attemptVerifyRepair>>,
+        );
         // Compare-and-swap: this review runs an LLM jury synchronously and can
         // take a while — a second, faster verify attempt (self-repair round, or
         // a race) can legitimately complete and even merge the task before this

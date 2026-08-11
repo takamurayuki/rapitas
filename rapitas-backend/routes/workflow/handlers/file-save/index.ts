@@ -14,10 +14,7 @@ export {
   type ResolvedWorkflowTask,
 } from './guards';
 export { prepareAndPersistContent, type ContentPrepOutcome } from './content-prep';
-export {
-  computeAndApplyStatusTransition,
-  type StatusTransitionOutcome,
-} from './status-transition';
+export { computeAndApplyStatusTransition, type StatusTransitionOutcome } from './status-transition';
 export { runPhaseCriticGate, type CriticGateOutcome } from './critic-gate';
 export { runPlanPostProcessing, type PlanPostProcessingOutcome } from './plan-post-processing';
 export {

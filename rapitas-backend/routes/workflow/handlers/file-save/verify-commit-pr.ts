@@ -139,16 +139,11 @@ export async function runVerifyCommitPrCompletion(params: {
         preferredBaseBranchForVerify,
       ).catch(
         () =>
-          ({ recovered: false }) as Awaited<
-            ReturnType<typeof tryRecoverFromHistoryContamination>
-          >,
+          ({ recovered: false }) as Awaited<ReturnType<typeof tryRecoverFromHistoryContamination>>,
       );
       if (recovery.recovered) {
         autoCommitPRResult = await performAutoCommitAndPR(taskId, savedContent).catch((err) => {
-          log.warn(
-            { err, taskId },
-            '[Workflow] Auto-commit/PR retry after worktree rebuild threw',
-          );
+          log.warn({ err, taskId }, '[Workflow] Auto-commit/PR retry after worktree rebuild threw');
           return {} as Awaited<ReturnType<typeof performAutoCommitAndPR>>;
         });
         log.info(
@@ -363,8 +358,7 @@ export async function runVerifyCommitPrCompletion(params: {
             error: autoCommitPRResult.error,
           },
           invariantViolation: true,
-          invariantMessage:
-            '検証通過後にPRが作成されませんでした。PR作成成功まで完了にしません。',
+          invariantMessage: '検証通過後にPRが作成されませんでした。PR作成成功まで完了にしません。',
         });
         log.warn(
           {

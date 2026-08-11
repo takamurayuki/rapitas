@@ -147,5 +147,10 @@ export async function runVerifyCompletionGate(params: {
     }
   }
 
-  return { verifyGateBlocked, conflictTask, isConflictResolutionTask, preferredBaseBranchForVerify };
+  return {
+    verifyGateBlocked,
+    conflictTask,
+    isConflictResolutionTask,
+    preferredBaseBranchForVerify,
+  };
 }
