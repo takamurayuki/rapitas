@@ -16,6 +16,12 @@
  *  3. Orphan task (detect + notify) — an in-progress task with no live execution
  *     for a long time → surface it so the operator can re-run (no auto-mutation).
  *
+ * Detections (no auto-repair):
+ *  - Self-incident watch (self-incident-watcher, throttled to ~5m) — scans
+ *    recent tasks for stagnation / tri-state desync / repeat-loop signatures
+ *    and files evidence-backed concerns. It NEVER mutates state; repair flows
+ *    through the concern → task → workflow pipeline.
+ *
  * NOT responsible for selecting/advancing phases — only for clearing divergence.
  */
 import { existsSync } from 'fs';
@@ -266,6 +272,7 @@ export async function reconcileOnce(): Promise<{
   undispatchableTodos: number;
   autoApproveStalls: number;
   staleQueueItemsCancelled: number;
+  selfIncidentsFiled: number;
 }> {
   const empty = {
     zombieSessions: 0,
@@ -277,6 +284,7 @@ export async function reconcileOnce(): Promise<{
     undispatchableTodos: 0,
     autoApproveStalls: 0,
     staleQueueItemsCancelled: 0,
+    selfIncidentsFiled: 0,
   };
   if (inFlight) return empty;
   inFlight = true;
@@ -329,6 +337,13 @@ export async function reconcileOnce(): Promise<{
       const { sweepStaleQueueItems } = await import('./workflow-reconciler-queue-sweep');
       return sweepStaleQueueItems();
     });
+    // Detection-only self-incident watch, LAST on purpose: the repair passes
+    // above run first, so anything they just healed is no longer reported as
+    // an incident this cycle (fewer false positives). Self-throttled to ~5m.
+    const selfIncidentsFiled = await runHealPass('runSelfIncidentWatch', async () => {
+      const { runSelfIncidentWatch } = await import('./self-incident-watcher');
+      return runSelfIncidentWatch(nowMs);
+    });
     const counts = {
       zombieSessions,
       phantomWorktrees,
@@ -339,6 +354,7 @@ export async function reconcileOnce(): Promise<{
       undispatchableTodos,
       autoApproveStalls,
       staleQueueItemsCancelled,
+      selfIncidentsFiled,
     };
     if (Object.values(counts).some((n) => n > 0)) {
       log.info(counts, '[reconciler] repaired divergences');
