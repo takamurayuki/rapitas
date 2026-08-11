@@ -40,6 +40,8 @@ export interface GatheredTaskState {
   latestExecutionStatus: string | null;
   /** True when any ACTIVE_EXEC-status execution exists for the task. */
   hasLiveExecution: boolean;
+  /** True when any execution exists for the task, regardless of status. */
+  hasAnyExecution: boolean;
   /** True when a queued/running/waiting_approval queue item exists. */
   hasActiveQueueItem: boolean;
 }
@@ -91,9 +93,9 @@ export async function gatherTaskState(
   const windowed = await prisma.workflowTransition
     .findMany({
       where: { taskId: task.id, createdAt: { gte: new Date(nowMs - windowMs) } },
-      select: { cause: true, createdAt: true },
+      select: { cause: true, createdAt: true, actor: true },
     })
-    .catch(() => [] as { cause: string; createdAt: Date }[]);
+    .catch(() => [] as { cause: string; createdAt: Date; actor: string }[]);
 
   const latestSession = await prisma.agentSession
     .findFirst({
@@ -114,6 +116,15 @@ export async function gatherTaskState(
   const liveExec = await prisma.agentExecution
     .findFirst({
       where: { session: { config: { taskId: task.id } }, status: { in: ACTIVE_EXEC } },
+      select: { id: true },
+    })
+    .catch(() => null);
+
+  // Status-agnostic twin of liveExec: spans ALL sessions (latestSession only
+  // sees the newest one), so a reset task's old executions still count.
+  const anyExec = await prisma.agentExecution
+    .findFirst({
+      where: { session: { config: { taskId: task.id } } },
       select: { id: true },
     })
     .catch(() => null);
@@ -139,12 +150,17 @@ export async function gatherTaskState(
       phase: t.phase,
     })),
     latestTransitionAtMs: recentTransitions[0]?.createdAt.getTime() ?? null,
-    windowedCauses: windowed.map((t) => ({ cause: t.cause, createdAtMs: t.createdAt.getTime() })),
+    windowedCauses: windowed.map((t) => ({
+      cause: t.cause,
+      createdAtMs: t.createdAt.getTime(),
+      actor: t.actor,
+    })),
     latestSessionId: latestSession?.id ?? null,
     latestSessionStatus: latestSession?.status ?? null,
     latestExecutionId: latestSession?.agentExecutions[0]?.id ?? null,
     latestExecutionStatus: latestSession?.agentExecutions[0]?.status ?? null,
     hasLiveExecution: liveExec !== null,
+    hasAnyExecution: anyExec !== null,
     hasActiveQueueItem: activeQueueItem !== null,
   };
 }

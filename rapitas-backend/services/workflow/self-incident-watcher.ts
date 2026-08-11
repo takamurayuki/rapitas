@@ -119,6 +119,7 @@ async function inspectTask(task: CandidateTask, nowMs: number): Promise<number> 
     // one moving means the task is not idle.
     lastActivityAtMs: Math.max(state.taskUpdatedAtMs, state.latestTransitionAtMs ?? 0),
     hasLiveExecution: state.hasLiveExecution,
+    hasAnyExecution: state.hasAnyExecution,
     hasActiveQueueItem: state.hasActiveQueueItem,
     nowMs,
   });
