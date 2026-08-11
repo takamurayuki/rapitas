@@ -25,20 +25,26 @@ export interface ValidationResult {
 }
 
 // NOTE: '類似機能' is the current template heading; '類似実装' is accepted for backward compatibility.
+// NOTE: OR-groups absorb the heading vocabulary planners/researchers actually
+// produce. Task 551: an approved 9.5KB plan that answered every critic demand
+// was archived by this validator solely because it titled its sections
+// 「確定仕様」/「完了の定義」 instead of the exact template words. Synonym
+// tolerance here must err toward acceptance — substance is judged by the
+// phase critic, not by heading spelling.
 const RESEARCH_REQUIRED_SECTIONS: (string | string[])[] = [
-  '影響範囲',
+  ['影響範囲', '影響分析', '統合点'],
   '依存',
-  ['類似機能', '類似実装'],
+  ['類似機能', '類似実装', '重複チェック', '既存実装'],
   'リスク',
   'テスト戦略',
 ];
 
-const PLAN_REQUIRED_SECTIONS = [
-  '設計判断の根拠',
-  '実装チェックリスト',
-  '変更予定ファイル',
+const PLAN_REQUIRED_SECTIONS: (string | string[])[] = [
+  ['設計判断の根拠', '設計判断', '設計方針', '確定仕様', '技術選定'],
+  ['実装チェックリスト', 'チェックリスト'],
+  ['変更予定ファイル', '変更ファイル', '対象ファイル', '実装ファイル', 'ファイル計画'],
   'リスク',
-  '完了条件',
+  ['完了条件', '完了の定義', '完了基準', 'definition of done'],
 ];
 
 // OR-group: any of the listed headings satisfies the 検証結果サマリ requirement
