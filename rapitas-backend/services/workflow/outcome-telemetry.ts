@@ -148,6 +148,17 @@ export async function recordTaskOutcome(taskId: number, finalStatus: string): Pr
         .then(({ reflectOnFailure }) => reflectOnFailure(taskId, finalStatus))
         .catch((err) => log.warn({ err, taskId }, '[telemetry] Failure reflection failed'));
     }
+
+    // Process retrospective: review the completed task's PROCESS (transition
+    // timeline, bounce causes, phase dwell times) with one aux-AI call and file
+    // education-candidate concerns for systemic friction. Completed tasks only —
+    // failures already go through reflectOnFailure above. Best-effort, last in
+    // the chain (the AI call is the slowest step and must never delay the rest).
+    if (finalStatus === 'completed') {
+      await import('./process-retro/retro-review')
+        .then(({ runProcessRetro }) => runProcessRetro(taskId))
+        .catch((err) => log.warn({ err, taskId }, '[telemetry] Process retro failed'));
+    }
   } catch (err) {
     log.warn({ err, taskId }, '[telemetry] Failed to record task outcome');
   }

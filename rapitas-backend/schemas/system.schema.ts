@@ -20,6 +20,7 @@ export const systemSchemas = {
     restartOnAutoRunDry: t.Optional(t.Boolean()),
     verifyRepairLimit: t.Optional(t.Number()),
     autoRestartOnMergedCode: t.Optional(t.Boolean()),
+    retroReviewEnabled: t.Optional(t.Boolean()),
     autoCommitDefault: t.Optional(t.Boolean()),
     autoCreatePRDefault: t.Optional(t.Boolean()),
     autoMergePRDefault: t.Optional(t.Boolean()),

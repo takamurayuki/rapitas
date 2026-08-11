@@ -13,6 +13,10 @@ import {
   readAutoRestartEnabled,
   writeAutoRestartEnabled,
 } from '../../../services/scheduling/auto-restart-merged-code/settings-store';
+import {
+  readRetroReviewEnabled,
+  writeRetroReviewEnabled,
+} from '../../../services/workflow/process-retro/retro-settings-store';
 import type { UserSettingsUpdateBody } from './settings-types';
 
 const log = createLogger('routes:settings');
@@ -91,4 +95,22 @@ export function applyAutoRestartOnMergedCode(
     writeAutoRestartEnabled(body.autoRestartOnMergedCode);
   }
   settingsRef.autoRestartOnMergedCode = readAutoRestartEnabled();
+}
+
+/**
+ * Persist the file-backed retroReviewEnabled toggle (no Prisma column — the
+ * value lives in RAPITAS_DATA_DIR, default ON) and mirror the effective value
+ * onto `settingsRef` so GET/PATCH responses always carry the field.
+ *
+ * @param body - PATCH body (field written only when defined) / PATCHボディ
+ * @param settingsRef - Response object to mirror the value onto / 反映先レスポンスオブジェクト
+ */
+export function applyRetroReviewEnabled(
+  body: UserSettingsUpdateBody,
+  settingsRef: Record<string, unknown>,
+): void {
+  if (body.retroReviewEnabled !== undefined) {
+    writeRetroReviewEnabled(body.retroReviewEnabled);
+  }
+  settingsRef.retroReviewEnabled = readRetroReviewEnabled();
 }

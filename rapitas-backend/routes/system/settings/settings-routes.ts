@@ -15,8 +15,13 @@ import { createLogger } from '../../../config/logger';
 import { t } from 'elysia';
 import { PROVIDER_MODEL_COLUMNS, isValidProvider, validateOllamaUrl } from './settings-types';
 import type { UserSettingsUpdateBody } from './settings-types';
-import { applyPendingClientColumns, applyAutoRestartOnMergedCode } from './settings-extra-fields';
+import {
+  applyPendingClientColumns,
+  applyAutoRestartOnMergedCode,
+  applyRetroReviewEnabled,
+} from './settings-extra-fields';
 import { readAutoRestartEnabled } from '../../../services/scheduling/auto-restart-merged-code/settings-store';
+import { readRetroReviewEnabled } from '../../../services/workflow/process-retro/retro-settings-store';
 import { fetchAvailableModels } from './model-fetcher';
 
 const log = createLogger('routes:settings');
@@ -37,6 +42,7 @@ export const settingsRoutes = new Elysia({ prefix: '/settings' })
     return {
       ...settings,
       autoRestartOnMergedCode: readAutoRestartEnabled(),
+      retroReviewEnabled: readRetroReviewEnabled(),
       claudeApiKeyConfigured: apiKeyConfigured,
       chatgptApiKeyConfigured: chatgptConfigured,
       geminiApiKeyConfigured: geminiConfigured,
@@ -180,6 +186,7 @@ export const settingsRoutes = new Elysia({ prefix: '/settings' })
         const settingsRef = settings as Record<string, unknown>;
         await applyPendingClientColumns(settings.id, extraBody, settingsRef);
         applyAutoRestartOnMergedCode(extraBody, settingsRef);
+        applyRetroReviewEnabled(extraBody, settingsRef);
 
         return settings;
       } catch (error: unknown) {

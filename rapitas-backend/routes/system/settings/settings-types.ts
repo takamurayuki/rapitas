@@ -30,6 +30,8 @@ export interface UserSettingsUpdateBody {
   verifyRepairLimit?: number;
   /** Dev: auto-restart when merged-but-inactive commits are detected on origin (file-backed, no DB column). */
   autoRestartOnMergedCode?: boolean;
+  /** Process retrospective on task completion (file-backed, no DB column; default ON). */
+  retroReviewEnabled?: boolean;
   defaultAiProvider?: string;
   defaultCategoryId?: number | null;
   activeMode?: string;
