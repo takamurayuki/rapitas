@@ -971,7 +971,13 @@ curl -X POST http://127.0.0.1:${port}/idea-box \\
             }
           }
         }
-      } else if (currentWfStatus !== transition.nextStatus && nextRank > curRank) {
+      } else if (
+        currentWfStatus !== transition.nextStatus &&
+        nextRank > curRank &&
+        // A live question pause ranks 0, so the forward-only comparison alone
+        // would advance right over it (task 551) — protect it explicitly.
+        currentWfStatus !== 'awaiting_question'
+      ) {
         // Advance FORWARD only. Never regress a status the HTTP handler already
         // advanced (e.g. plan auto-approved → plan_approved).
         await prisma.task.update({
@@ -1055,7 +1061,20 @@ curl -X POST http://127.0.0.1:${port}/idea-box \\
         '[WorkflowCLIExecutor] Required workflow file was not saved; treating phase as failed',
       );
     }
-  } else if (effectiveSuccess && currentWfStatus !== transition.nextStatus) {
+  } else if (
+    effectiveSuccess &&
+    currentWfStatus !== transition.nextStatus &&
+    // NOTE: Same forward-only rule as the outputFile path above — but this
+    // no-outputFile (implementer) epilogue historically had NO guard at all
+    // and blindly stamped nextStatus. Observed twice on task 551: it clobbered
+    // a live question pause (awaiting_question → in_progress, orphaning
+    // question.md) and later un-did a legitimate completion (completed →
+    // in_progress on a stale re-run). awaiting_question must be checked
+    // explicitly because its rank is 0 — a rank comparison alone reads the
+    // pause as "behind" and advances straight over it.
+    currentWfStatus !== 'awaiting_question' &&
+    (WF_STATUS_RANK[transition.nextStatus] ?? 0) > (WF_STATUS_RANK[currentWfStatus] ?? 0)
+  ) {
     await prisma.task.update({
       where: { id: taskId },
       data: { workflowStatus: transition.nextStatus },
@@ -1070,6 +1089,11 @@ curl -X POST http://127.0.0.1:${port}/idea-box \\
       sessionId: session.id,
       metadata: { outputFile: transition.outputFile ?? null },
     });
+  } else if (effectiveSuccess && currentWfStatus !== transition.nextStatus) {
+    log.info(
+      { taskId, role: transition.role, currentWfStatus, nextStatus: transition.nextStatus },
+      '[WorkflowCLIExecutor] Skipping phase-completion status write — task is paused or already past this phase',
+    );
   }
 
   try {
