@@ -173,6 +173,35 @@ export function AutoRunSettingsCard({
             />
           </button>
         </div>
+
+        {/* Auto-restart when merged-but-inactive commits are detected on origin. */}
+        <div className="flex items-center justify-between">
+          <div>
+            <h3 className="font-medium text-zinc-900 dark:text-zinc-50">
+              {t('autoRestartMergedLabel')}
+            </h3>
+            <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
+              {t('autoRestartMergedDescription')}
+            </p>
+          </div>
+          <button
+            onClick={() =>
+              onUpdateSettings({ autoRestartOnMergedCode: !settings?.autoRestartOnMergedCode })
+            }
+            disabled={isSaving}
+            className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus-visible:ring-2 focus-visible:ring-violet-500 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 ${
+              settings?.autoRestartOnMergedCode ? 'bg-violet-500' : 'bg-zinc-300 dark:bg-zinc-600'
+            }`}
+            role="switch"
+            aria-checked={settings?.autoRestartOnMergedCode ?? false}
+          >
+            <span
+              className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-lg ring-0 transition duration-200 ease-in-out ${
+                settings?.autoRestartOnMergedCode ? 'translate-x-5' : 'translate-x-0'
+              }`}
+            />
+          </button>
+        </div>
       </div>
     </div>
   );
