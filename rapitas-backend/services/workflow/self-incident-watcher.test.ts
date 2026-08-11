@@ -129,9 +129,9 @@ describe('runSelfIncidentWatch', () => {
       const where = (args as { where: { createdAt?: unknown } }).where;
       if (!where.createdAt) return Promise.resolve([]);
       return Promise.resolve([
-        { cause: 'ci_repair', createdAt: new Date(now - 5 * 60 * 1000) },
-        { cause: 'ci_repair', createdAt: new Date(now - 10 * 60 * 1000) },
-        { cause: 'ci_repair', createdAt: new Date(now - 15 * 60 * 1000) },
+        { cause: 'ci_repair', createdAt: new Date(now - 5 * 60 * 1000), actor: 'system' },
+        { cause: 'ci_repair', createdAt: new Date(now - 10 * 60 * 1000), actor: 'system' },
+        { cause: 'ci_repair', createdAt: new Date(now - 15 * 60 * 1000), actor: 'system' },
       ]);
     });
 
@@ -141,6 +141,46 @@ describe('runSelfIncidentWatch', () => {
     const input = submitConcernMock.mock.calls[0]?.[0] as Record<string, unknown>;
     expect(input.dedupKey).toBe('self-incident:repeat-loop:ci_repair:99');
     expect(String(input.title)).toContain('反復ループ');
+  });
+
+  // 受入(a): a never-started todo backlog item files nothing however stale it is.
+  test('a stale never-started todo task (draft workflow, no history) files nothing', async () => {
+    const now = nextPassTime();
+    taskFindManyMock.mockResolvedValue([
+      stagnantTask(now, {
+        id: 553,
+        status: 'todo',
+        workflowStatus: 'draft',
+        updatedAt: new Date(now - 34 * 60 * 1000),
+      }),
+    ]);
+
+    const filed = await runSelfIncidentWatch(now);
+
+    expect(filed).toBe(0);
+    expect(submitConcernMock).not.toHaveBeenCalled();
+  });
+
+  // 受入(b): operator manual recovery (actor=user) is not a repeat loop.
+  test('a repeat made solely of actor=user manual transitions files nothing', async () => {
+    const now = nextPassTime();
+    taskFindManyMock.mockResolvedValue([
+      stagnantTask(now, { id: 551, updatedAt: new Date(now - 60_000) }), // fresh → no stagnation
+    ]);
+    transitionFindManyMock.mockImplementation((args: unknown) => {
+      const where = (args as { where: { createdAt?: unknown } }).where;
+      if (!where.createdAt) return Promise.resolve([]);
+      return Promise.resolve([
+        { cause: 'manual_status_change', createdAt: new Date(now - 5 * 60 * 1000), actor: 'user' },
+        { cause: 'manual_status_change', createdAt: new Date(now - 10 * 60 * 1000), actor: 'user' },
+        { cause: 'manual_status_change', createdAt: new Date(now - 15 * 60 * 1000), actor: 'user' },
+      ]);
+    });
+
+    const filed = await runSelfIncidentWatch(now);
+
+    expect(filed).toBe(0);
+    expect(submitConcernMock).not.toHaveBeenCalled();
   });
 
   test('a clean task files nothing', async () => {

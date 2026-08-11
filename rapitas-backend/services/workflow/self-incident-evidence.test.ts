@@ -60,7 +60,9 @@ describe('gatherTaskState', () => {
     // First findMany call = recent timeline (newest first); second = windowed causes.
     transitionFindManyMock
       .mockResolvedValueOnce([transitionRow(5, { toStatus: 'plan_created' }), transitionRow(30)])
-      .mockResolvedValueOnce([{ cause: 'ci_repair', createdAt: new Date(NOW - 10 * 60 * 1000) }]);
+      .mockResolvedValueOnce([
+        { cause: 'ci_repair', createdAt: new Date(NOW - 10 * 60 * 1000), actor: 'system' },
+      ]);
     sessionFindFirstMock.mockResolvedValue({
       id: 91,
       status: 'failed',
@@ -78,13 +80,14 @@ describe('gatherTaskState', () => {
     expect(state.timeline.map((t) => t.toStatus)).toEqual(['research_done', 'plan_created']);
     expect(state.latestTransitionAtMs).toBe(NOW - 5 * 60 * 1000);
     expect(state.windowedCauses).toEqual([
-      { cause: 'ci_repair', createdAtMs: NOW - 10 * 60 * 1000 },
+      { cause: 'ci_repair', createdAtMs: NOW - 10 * 60 * 1000, actor: 'system' },
     ]);
     expect(state.latestSessionId).toBe(91);
     expect(state.latestSessionStatus).toBe('failed');
     expect(state.latestExecutionId).toBe(402);
     expect(state.latestExecutionStatus).toBe('running');
     expect(state.hasLiveExecution).toBe(true);
+    expect(state.hasAnyExecution).toBe(true);
     expect(state.hasActiveQueueItem).toBe(true);
   });
 
@@ -99,6 +102,7 @@ describe('gatherTaskState', () => {
     expect(state.latestExecutionId).toBeNull();
     expect(state.latestExecutionStatus).toBeNull();
     expect(state.hasLiveExecution).toBe(false);
+    expect(state.hasAnyExecution).toBe(false);
     expect(state.hasActiveQueueItem).toBe(false);
   });
 
@@ -163,6 +167,7 @@ describe('formatIncidentDetail', () => {
     latestExecutionId: 402,
     latestExecutionStatus: 'running',
     hasLiveExecution: false,
+    hasAnyExecution: false,
     hasActiveQueueItem: false,
   };
 

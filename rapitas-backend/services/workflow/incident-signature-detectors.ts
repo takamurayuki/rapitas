@@ -56,6 +56,8 @@ export interface StagnationInput {
   lastActivityAtMs: number;
   /** True when an ACTIVE_EXEC-status AgentExecution exists for the task. */
   hasLiveExecution: boolean;
+  /** True when any AgentExecution exists for the task, regardless of status. */
+  hasAnyExecution: boolean;
   /** True when a queued/running/waiting_approval WorkflowQueueItem exists. */
   hasActiveQueueItem: boolean;
   nowMs: number;
@@ -65,6 +67,8 @@ export interface StagnationInput {
 /**
  * Detects a stagnant non-terminal task: no activity for the threshold while no
  * agent is running, nothing is queued, and no legitimate wait state applies.
+ * Only in-flight tasks qualify — a pure todo backlog item that never started
+ * (workflowStatus draft/null, no execution ever, not in-progress) is skipped.
  *
  * @param input - Task snapshot (see StagnationInput). / タスクの現在状態スナップショット
  * @returns Staleness in ms when stagnant, otherwise null. / 停滞時はstaleMs、非停滞はnull
@@ -74,6 +78,13 @@ export function detectStagnation(input: StagnationInput): { staleMs: number } | 
   if (input.workflowStatus === 'completed' || input.workflowStatus === 'awaiting_question') {
     return null;
   }
+  // NOTE: null must count as not-started — `null !== 'draft'` alone would
+  // misclassify a workflowStatus-less task as advanced.
+  const isInFlight =
+    (input.workflowStatus !== null && input.workflowStatus !== 'draft') ||
+    input.hasAnyExecution ||
+    input.taskStatus === 'in-progress';
+  if (!isInFlight) return null;
   if (input.hasLiveExecution || input.hasActiveQueueItem) return null;
   const staleMs = input.nowMs - input.lastActivityAtMs;
   if (staleMs < (input.thresholdMs ?? STAGNATION_THRESHOLD_MS)) return null;
@@ -137,12 +148,16 @@ export function detectTriStateDesync(
 export interface RepeatLoopTransition {
   cause: string;
   createdAtMs: number;
+  /** Who caused the transition (TransitionActor value, e.g. 'system'/'user'). */
+  actor: string;
 }
 
 /**
  * Detects a same-cause repeat loop: the same transition cause firing at least
  * `minCount` times within the trailing window. Ties between causes with equal
  * counts break deterministically by cause name (localeCompare ascending).
+ * Transitions with actor='user' are excluded — operator manual recovery is
+ * intervention, not a loop (actor-based, so any future manual cause is covered).
  *
  * @param input.transitions - Task transitions (any order). / 対象タスクの遷移一覧
  * @param input.nowMs - Current time (ms). / 現在時刻
@@ -162,6 +177,7 @@ export function detectRepeatLoop(input: {
 
   const counts = new Map<string, number>();
   for (const t of input.transitions) {
+    if (t.actor === 'user') continue;
     if (t.createdAtMs < windowStart || t.createdAtMs > input.nowMs) continue;
     counts.set(t.cause, (counts.get(t.cause) ?? 0) + 1);
   }

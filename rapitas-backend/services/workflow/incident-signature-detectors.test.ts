@@ -26,6 +26,7 @@ describe('detectStagnation', () => {
     workflowStatus: 'in_progress',
     lastActivityAtMs: NOW - STAGNATION_THRESHOLD_MS - 60_000,
     hasLiveExecution: false,
+    hasAnyExecution: false,
     hasActiveQueueItem: false,
     nowMs: NOW,
   };
@@ -66,6 +67,38 @@ describe('detectStagnation', () => {
 
   it('still detects a blocked task (blocked is not terminal)', () => {
     expect(detectStagnation({ ...base, taskStatus: 'blocked' })).not.toBeNull();
+  });
+
+  // 受入(a): a never-started todo backlog item is out of scope no matter how stale.
+  it('does NOT detect a pure todo backlog item (draft workflow, no execution ever)', () => {
+    expect(
+      detectStagnation({
+        ...base,
+        taskStatus: 'todo',
+        workflowStatus: 'draft',
+        lastActivityAtMs: NOW - STAGNATION_THRESHOLD_MS - 4 * 60_000, // 34m stale
+      }),
+    ).toBeNull();
+  });
+
+  it('does NOT detect a not-started task with workflowStatus=null (null guard)', () => {
+    expect(detectStagnation({ ...base, taskStatus: 'todo', workflowStatus: null })).toBeNull();
+  });
+
+  // Each in-flight branch alone re-enables detection.
+  it.each([
+    { name: 'the workflow ever advanced past draft', over: { workflowStatus: 'research_done' } },
+    { name: 'any execution ever existed', over: { hasAnyExecution: true } },
+    { name: 'the task status is in-progress', over: { taskStatus: 'in-progress' } },
+  ])('still detects when $name (single in-flight branch)', ({ over }) => {
+    expect(
+      detectStagnation({
+        ...base,
+        taskStatus: 'todo',
+        workflowStatus: 'draft',
+        ...over,
+      }),
+    ).not.toBeNull();
   });
 
   it('honors a custom thresholdMs override', () => {
@@ -180,9 +213,10 @@ describe('detectTriStateDesync', () => {
 });
 
 describe('detectRepeatLoop', () => {
-  const at = (msAgo: number, cause = 'ci_repair'): RepeatLoopTransition => ({
+  const at = (msAgo: number, cause = 'ci_repair', actor = 'system'): RepeatLoopTransition => ({
     cause,
     createdAtMs: NOW - msAgo,
+    actor,
   });
 
   it('detects exactly minCount same-cause transitions inside the window', () => {
@@ -259,6 +293,35 @@ describe('detectRepeatLoop', () => {
       minCount: 3,
     });
     expect(result).toEqual({ cause: 'ci_repair', count: 3 });
+  });
+
+  // 受入(b): operator manual recovery is intervention, not a loop.
+  it('does NOT detect a repeat made solely of actor=user transitions', () => {
+    expect(
+      detectRepeatLoop({
+        transitions: [
+          at(1_000, 'manual_status_change', 'user'),
+          at(2_000, 'manual_status_change', 'user'),
+          at(3_000, 'manual_status_change', 'user'),
+        ],
+        nowMs: NOW,
+        minCount: 3,
+      }),
+    ).toBeNull();
+  });
+
+  it('does NOT detect when user transitions pad a below-threshold system repeat', () => {
+    expect(
+      detectRepeatLoop({
+        transitions: [
+          at(1_000, 'ci_repair', 'system'),
+          at(2_000, 'ci_repair', 'system'),
+          at(3_000, 'ci_repair', 'user'),
+        ],
+        nowMs: NOW,
+        minCount: 3,
+      }),
+    ).toBeNull();
   });
 
   it('returns null for an empty transition list', () => {
