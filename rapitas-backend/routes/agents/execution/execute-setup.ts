@@ -15,7 +15,7 @@ import { prisma } from '../../../config/database';
 import { createLogger } from '../../../config/logger';
 import { AgentWorkerManager } from '../../../services/agents/agent-worker-manager';
 import { toJsonString } from '../../../utils/database/db-helpers';
-import { generateFallbackBranchName } from '../../../utils/common/branch-name-generator';
+import { generateBranchName } from '../../../utils/common/branch-name-generator';
 import { ensureNotPrimaryWorkTree } from '../../../services/agents/orchestrator/git-operations/worktree-guard';
 import { decideWorktree } from '../../../services/agents/orchestrator/git-operations/worktree-usable';
 
@@ -34,6 +34,8 @@ export interface SetupResult {
 export interface ExecuteSetupParams {
   taskIdNum: number;
   taskTitle: string;
+  /** Task description — feeds the AI branch-name prompt for better English slugs. */
+  taskDescription?: string | null;
   taskThemeRepositoryUrl?: string | null;
   taskStartedAt?: Date | null;
   existingConfig: { id: number } | null;
@@ -85,6 +87,7 @@ export async function executeSetup(params: ExecuteSetupParams): Promise<SetupRes
   const {
     taskIdNum,
     taskTitle,
+    taskDescription,
     taskThemeRepositoryUrl,
     taskStartedAt,
     existingConfig,
@@ -141,12 +144,12 @@ export async function executeSetup(params: ExecuteSetupParams): Promise<SetupRes
 
   // A prior session for this SAME task may already have a live worktree+branch
   // — e.g. the retry/rerun button after a failed/interrupted run, which always
-  // takes this "new execution" path (it never sends a sessionId). Branch names
-  // are deterministic (generateFallbackBranchName(taskTitle) below), so
-  // blindly creating a brand-new worktree directory recomputes the SAME branch
-  // name every time; `git worktree add` then refuses it with "already used by
-  // worktree at ...", since a branch can only be checked out in one worktree
-  // at once (task 513 regression). Skip this lookup when the caller passed an
+  // takes this "new execution" path (it never sends a sessionId). This lookup
+  // (not name determinism) is what guarantees same-task branch reuse: a retry
+  // must NOT regenerate a name at all — recomputing one (even a deterministic
+  // one) collides with `git worktree add` "already used by worktree at ..."
+  // since a branch can only be checked out in one worktree at once (task 513
+  // regression). Skip this lookup when the caller passed an
   // explicit branchName override — that's a deliberate choice to diverge from
   // whatever a prior session used, not a retry of the same run.
   //
@@ -175,17 +178,22 @@ export async function executeSetup(params: ExecuteSetupParams): Promise<SetupRes
     recordedSession?.branchName,
   );
 
-  // NOTE: Branch names are an internal identifier; AI generation added 1-15s of
-  // Ollama latency for negligible UX value. Use the deterministic heuristic
-  // (generateFallbackBranchName) instead — it inspects keywords for
-  // feature/bugfix/chore prefix selection and runs in microseconds.
+  // NOTE: Branch names must be readable AND unique per task (task 539):
+  // generateBranchName produces an English kebab-case slug via AI (Japanese
+  // titles previously collapsed to a shared "feature/implement-task") and
+  // embeds a `t<taskId>-` marker exactly once for uniqueness. On AI
+  // failure/timeout it falls back internally to the deterministic heuristic —
+  // still taskId-tagged — so branch creation never blocks on AI availability.
+  // This runs only for a genuinely NEW execution: retries reuse the recorded
+  // branch (recordedSession above), so non-deterministic AI output cannot
+  // break same-task branch reuse.
   let finalBranchName = branchName || recordedSession?.branchName || undefined;
   if (!finalBranchName) {
-    finalBranchName = generateFallbackBranchName(taskTitle);
+    finalBranchName = await generateBranchName(taskTitle, taskDescription ?? undefined, taskIdNum);
     if (!finalBranchName || finalBranchName.length === 0) {
       finalBranchName = `feature/task-${taskIdNum}-auto-generated`;
     }
-    log.info(`[setup] Generated branch name (deterministic): ${finalBranchName}`);
+    log.info(`[setup] Generated branch name: ${finalBranchName}`);
   }
 
   // NOTE: Use git worktree for isolation — each task gets its own working

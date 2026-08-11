@@ -28,6 +28,19 @@ export const ENV_FAILURE_RE =
   /points out of the filesystem root|TurbopackInternalError|Cannot find module '.*node_modules|ENOENT.*node_modules|EPERM.*node_modules|command not found|は、内部コマンドまたは外部コマンド/i;
 
 /**
+ * Recent environment failures per workdir. An environment failure is a
+ * property of the WORKTREE, not of the change under test — once observed, it
+ * will reproduce identically on every retry until someone repairs the
+ * worktree. Without this cache, every verification pass in the completion
+ * pipeline (implementer self-verify retries, verifier ground truth,
+ * completion gate) re-paid the full launch timeout (~2 min each) before
+ * reaching the same skip verdict — observed stretching task 537's completion
+ * pipeline by tens of minutes.
+ */
+const recentEnvFailures = new Map<string, number>();
+const ENV_FAILURE_CACHE_TTL_MS = 10 * 60 * 1000;
+
+/**
  * Whether the launch logs show an environment/setup failure rather than an
  * app defect. Pure — exported for tests.
  *
@@ -105,6 +118,25 @@ export async function runRuntimeSmokeCheck(
   }
   const cfg = loaded.config;
 
+  // Short-circuit: this worktree recently failed to launch for ENVIRONMENT
+  // reasons — relaunching within the TTL just burns the full ready-timeout to
+  // reach the identical skip verdict.
+  const envFailedAt = recentEnvFailures.get(workdir);
+  if (envFailedAt && Date.now() - envFailedAt < ENV_FAILURE_CACHE_TTL_MS) {
+    log.info(
+      { workdir, label, ageSec: Math.round((Date.now() - envFailedAt) / 1000) },
+      '[runtime-smoke] recent environment failure cached — skipping without relaunch',
+    );
+    return {
+      name: 'runtime',
+      ran: false,
+      ok: true,
+      errorCount: 0,
+      details:
+        'runtime検証はスキップしました（この worktree は直近で環境起因の起動失敗を記録済み — 再起動試行は同一結果になるため省略）。',
+    };
+  }
+
   const port = await allocateFreePort();
   const baseUrl = substitutePort(cfg.url, port);
   const app = launchApp(substitutePort(cfg.start, port), workdir, port);
@@ -119,6 +151,7 @@ export async function runRuntimeSmokeCheck(
       // not fixable by the implementer — fail OPEN with the evidence instead
       // of bouncing the phase into an unfixable repair loop.
       if (looksLikeEnvironmentFailure(logs)) {
+        recentEnvFailures.set(workdir, Date.now());
         log.warn(
           { workdir, label },
           '[runtime-smoke] launch failed with an ENVIRONMENT signature — skipping (fail-open)',

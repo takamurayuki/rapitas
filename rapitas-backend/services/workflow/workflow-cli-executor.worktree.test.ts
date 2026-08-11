@@ -119,8 +119,9 @@ describe('executeCLIAgent — worktree resolution', () => {
       string | null,
     ];
     expect(base).toBe('/fake/project');
-    // No prior branch recorded — falls back to `${fallbackBase}-t${taskId}` so
-    // unrelated tasks never collide on one shared branch name.
+    // No prior branch recorded — generateBranchName produces a taskId-tagged
+    // name (marker embedded internally) so unrelated tasks never collide on
+    // one shared branch name.
     expect(branch).toBe('feature/fallback-branch-t1');
     expect(taskId).toBe(1);
     expect(repo).toBeNull();

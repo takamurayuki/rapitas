@@ -1365,6 +1365,8 @@
       "repairLimitDescription": "When verification fails, the number of times the feedback is automatically sent back to the implementer to \"fix then re-verify.\" Repeats the self-repair loop up to this limit, then blocks. 0 disables retries.",
       "restartOnDryLabel": "Restart backend on auto-run dry-out to apply fixes (dev only)",
       "restartOnDryDescription": "At the quiet point when auto-run runs out of tasks (0 running agents), safely restarts only if there are new commits since startup, applying committed fixes before moving on to the next auto-created task (rate-limited to once per 10 minutes). Only active in dev startup.",
+      "autoRestartMergedLabel": "Auto-restart when merged code is detected (dev)",
+      "autoRestartMergedDescription": "Every 15 minutes, detects commits merged to origin's develop branch since startup that are not active yet, and only when the system is idle (0 running agents) safely pulls them in and restarts (rate-limited to once per 30 minutes). Only active in dev startup.",
       "savingSuffix": " (saving…)"
     },
     "ciTimingDashboard": {
@@ -2266,6 +2268,25 @@
           "low": "Low"
         },
         "reasonsCount": "{count} issue(s)"
+      },
+      "criticHistory": {
+        "title": "Quality gate history",
+        "entryLabel": "{phase} · {date}",
+        "phase": {
+          "research": "Research",
+          "plan": "Plan"
+        },
+        "type": {
+          "bounced": "Bounced",
+          "exhausted": "Budget exhausted (passed through)"
+        },
+        "severity": {
+          "high": "High",
+          "medium": "Medium",
+          "low": "Low"
+        },
+        "reasonsCount": "{count} issue(s)",
+        "noReasons": "No details were recorded"
       }
     }
   },

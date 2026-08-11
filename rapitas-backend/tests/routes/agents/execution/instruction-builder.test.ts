@@ -4,7 +4,7 @@
  * 再実行時に既存の research.md / plan.md があるとき、エージェントへ「まず取得・
  * 評価し、妥当なら再生成しない」よう指示する再利用セクションが注入されることを検証。
  */
-import { describe, test, expect, mock } from 'bun:test';
+import { describe, test, expect, mock, beforeEach, afterAll } from 'bun:test';
 
 mock.module('../../../../config/database', () => ({
   prisma: {},
@@ -238,6 +238,59 @@ describe('buildFullInstruction — 仮説台帳コンテキストの注入', () 
       hypothesisContext: FAKE_HYPOTHESIS_CONTEXT,
     });
     expect(out).not.toContain('仮説台帳');
+  });
+});
+
+describe('buildFullInstruction — サブタスク分割フラグ連動指示 (RAPITAS_ENABLE_SUBTASK_SPLIT)', () => {
+  const ORIGINAL_ENV = process.env.RAPITAS_ENABLE_SUBTASK_SPLIT;
+
+  beforeEach(() => {
+    delete process.env.RAPITAS_ENABLE_SUBTASK_SPLIT;
+  });
+
+  afterAll(() => {
+    if (ORIGINAL_ENV === undefined) {
+      delete process.env.RAPITAS_ENABLE_SUBTASK_SPLIT;
+    } else {
+      process.env.RAPITAS_ENABLE_SUBTASK_SPLIT = ORIGINAL_ENV;
+    }
+  });
+
+  test('フラグ未設定（既定=無効）なら standard ワークフローに分割禁止指示を注入する', () => {
+    const out = buildFullInstruction({
+      taskTitle: 'T',
+      taskId: 801,
+      enforceWorkflow: true,
+      workflowMode: 'standard',
+    });
+    expect(out).toContain('## サブタスク分割の禁止');
+    expect(out).toContain('POST /tasks による子タスク起票');
+    // plan.md テンプレートの後・Step 3 の前に位置すること
+    expect(out.indexOf('### Step 2: 計画 (plan.md の作成)')).toBeLessThan(
+      out.indexOf('## サブタスク分割の禁止'),
+    );
+    expect(out.indexOf('## サブタスク分割の禁止')).toBeLessThan(out.indexOf('### Step 3: 終了'));
+  });
+
+  test('フラグ有効時は禁止指示を注入しない（現行動作を維持）', () => {
+    process.env.RAPITAS_ENABLE_SUBTASK_SPLIT = '1';
+    const out = buildFullInstruction({
+      taskTitle: 'T',
+      taskId: 802,
+      enforceWorkflow: true,
+      workflowMode: 'standard',
+    });
+    expect(out).not.toContain('## サブタスク分割の禁止');
+  });
+
+  test('lightweight モード（plan フェーズ無し）には注入しない', () => {
+    const out = buildFullInstruction({
+      taskTitle: 'T',
+      taskId: 803,
+      enforceWorkflow: true,
+      workflowMode: 'lightweight',
+    });
+    expect(out).not.toContain('## サブタスク分割の禁止');
   });
 });
 

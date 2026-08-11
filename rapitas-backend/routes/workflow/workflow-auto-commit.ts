@@ -14,6 +14,8 @@ import { logAutoCommit, logAutoPR } from './workflow-activity-logger';
 import { runVerificationGate } from '../../services/agents/verification/verification-gate';
 import { resolveAutomationPolicy } from '../../services/workflow/automation-policy';
 import { linkAutoCreatedPr } from '../../services/github/pr-link';
+import { FOREIGN_PR_ERROR_PREFIX } from '../../services/agents/orchestrator/git-operations/branch-pr-ops';
+import { notify } from '../../services/workflow/auto-merge-notify';
 import {
   findOpenPrForTask,
   claimPrCreationLock,
@@ -304,6 +306,17 @@ export async function performAutoCommitAndPR(
                 { error: prResult.error },
                 `[Workflow] Auto-PR creation failed for task ${taskId}`,
               );
+              // Task-identity mismatch (task 541): the branch's open PR belongs to
+              // another task — surface it instead of a silent generic failure so
+              // the user can resolve the stale branch/PR collision.
+              if (prResult.error?.startsWith(FOREIGN_PR_ERROR_PREFIX)) {
+                await notify({
+                  taskId,
+                  type: 'auto_pr_identity_mismatch',
+                  title: '自動PR作成を中止しました',
+                  message: `タスク ${taskId} のブランチには他タスクのPRが開いたまま残っているため、誤リンクを避けてPR作成を中止しました。${prResult.error}`,
+                });
+              }
             }
           }
         } catch (prError) {

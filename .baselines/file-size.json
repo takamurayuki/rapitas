@@ -1,83 +1,92 @@
 {
-  "generated": "2026-07-03T11:19:51.101Z",
+  "generated": "2026-08-07T19:29:24.594Z",
   "hard_limit": 500,
   "soft_limit": 300,
   "_comment": "Files at or above the hard limit at snapshot time. Their listed lineCount becomes a per-file ceiling — they may shrink but not grow. Remove an entry by splitting the file.",
   "files": {
     "rapitas-backend/routes/workflow/handlers/workflow-handlers-files.ts": {
-      "lineCount": 1214
-    },
-    "rapitas-backend/services/workflow/workflow-cli-executor.ts": {
-      "lineCount": 1120
+      "lineCount": 1456
     },
     "rapitas-backend/services/workflow/workflow-orchestrator.ts": {
-      "lineCount": 1098
+      "lineCount": 1228
     },
-    "rapitas-backend/services/agents/orchestrator/task-executor.ts": {
-      "lineCount": 792
-    },
-    "rapitas-backend/routes/agents/execution/execute-route.ts": {
-      "lineCount": 748
+    "rapitas-backend/services/workflow/workflow-cli-executor.ts": {
+      "lineCount": 1189
     },
     "rapitas-backend/services/agents/verification/automated-verifier.ts": {
-      "lineCount": 701
+      "lineCount": 957
+    },
+    "rapitas-backend/services/agents/orchestrator/git-operations/worktree-ops.ts": {
+      "lineCount": 810
+    },
+    "rapitas-backend/services/agents/orchestrator/task-executor.ts": {
+      "lineCount": 800
+    },
+    "rapitas-desktop/src-tauri/src/main.rs": {
+      "lineCount": 800
+    },
+    "rapitas-backend/routes/agents/execution/execute-route.ts": {
+      "lineCount": 774
+    },
+    "rapitas-backend/services/workflow/auto-run/theme-auto-run-scheduler.ts": {
+      "lineCount": 688
+    },
+    "rapitas-backend/routes/tasks/tasks.ts": {
+      "lineCount": 685
+    },
+    "rapitas-backend/services/workflow/workflow-context-builder.ts": {
+      "lineCount": 685
     },
     "rapitas-backend/scripts/analyze-codebase/agent-report-generator.ts": {
       "lineCount": 684
     },
-    "rapitas-backend/services/workflow/auto-run/theme-auto-run-scheduler.ts": {
-      "lineCount": 684
-    },
-    "rapitas-backend/routes/tasks/tasks.ts": {
-      "lineCount": 668
+    "rapitas-backend/services/agents/codex-cli-agent/process-runner.ts": {
+      "lineCount": 670
     },
     "rapitas-backend/services/memory/idea-box-service.ts": {
-      "lineCount": 659
-    },
-    "rapitas-backend/services/agents/orchestrator/git-operations/worktree-ops.ts": {
-      "lineCount": 652
+      "lineCount": 657
     },
     "rapitas-backend/services/memory/task-knowledge-extractor.ts": {
-      "lineCount": 646
+      "lineCount": 652
     },
-    "rapitas-backend/services/agents/codex-cli-agent/process-runner.ts": {
-      "lineCount": 640
+    "rapitas-backend/services/memory/idea-extractor.ts": {
+      "lineCount": 587
+    },
+    "rapitas-backend/services/agents/agent-orchestrator.ts": {
+      "lineCount": 584
     },
     "rapitas-backend/services/workflow/subtask-splitter.ts": {
       "lineCount": 583
     },
-    "rapitas-backend/services/memory/idea-extractor.ts": {
-      "lineCount": 581
-    },
     "rapitas-backend/services/workflow/workflow-runner.ts": {
-      "lineCount": 573
-    },
-    "rapitas-frontend/src/feature/developer-mode/utils/log-patterns-table.ts": {
-      "lineCount": 568
-    },
-    "rapitas-backend/services/agents/agent-orchestrator.ts": {
-      "lineCount": 567
+      "lineCount": 581
     },
     "rapitas-backend/services/memory/hypothesis-service.ts": {
       "lineCount": 561
     },
-    "rapitas-backend/index.ts": {
-      "lineCount": 550
+    "rapitas-backend/routes/organization/themes.ts": {
+      "lineCount": 558
     },
     "rapitas-backend/scripts/gen-type-guards.ts": {
       "lineCount": 547
     },
     "rapitas-backend/services/memory/concern-backlog-service.ts": {
-      "lineCount": 538
+      "lineCount": 544
     },
-    "rapitas-backend/routes/organization/themes.ts": {
-      "lineCount": 531
+    "rapitas-backend/index.ts": {
+      "lineCount": 543
+    },
+    "rapitas-backend/services/agents/agent-knowledge-sharing.ts": {
+      "lineCount": 517
     },
     "rapitas-backend/routes/system/import.ts": {
       "lineCount": 508
     },
-    "rapitas-backend/services/agents/agent-knowledge-sharing.ts": {
-      "lineCount": 502
+    "rapitas-backend/routes/agents/execution/post-execution-review.ts": {
+      "lineCount": 506
+    },
+    "rapitas-backend/services/agents/claude-code/claude-execution-runner.ts": {
+      "lineCount": 505
     }
   }
 }

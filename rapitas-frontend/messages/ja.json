@@ -1365,6 +1365,8 @@
       "repairLimitDescription": "検証が失敗したとき、その指摘を実装者に差し戻して「実装を修正→再検証」を自動で繰り返す上限回数です。上限まで自己改善ループを回し、超えるとブロックします。0でリトライ無効。",
       "restartOnDryLabel": "枯渇時にバックエンドを再起動して修正を反映（開発用）",
       "restartOnDryDescription": "自動実行でタスクが無くなった静止点（実行中エージェント0）で、起動後に新しいコミットがある場合のみ安全に再起動し、コミット済みの修正を反映してから次の自動起票へ進みます（10分のレート制限つき）。dev 起動時のみ有効。",
+      "autoRestartMergedLabel": "マージ済みコードを検知したら自動再起動（開発用）",
+      "autoRestartMergedDescription": "起動後に origin の develop へマージされた未反映のコミットを15分ごとに検知し、実行中エージェントが0件のアイドル時のみ安全に取り込んで再起動します（30分のレート制限つき）。dev起動時のみ有効。",
       "savingSuffix": "（保存中…）"
     },
     "ciTimingDashboard": {
@@ -2266,6 +2268,25 @@
           "low": "軽微"
         },
         "reasonsCount": "指摘 {count}件"
+      },
+      "criticHistory": {
+        "title": "品質ゲートの指摘履歴",
+        "entryLabel": "{phase} ・ {date}",
+        "phase": {
+          "research": "調査",
+          "plan": "計画"
+        },
+        "type": {
+          "bounced": "差し戻し",
+          "exhausted": "予算切れ素通し"
+        },
+        "severity": {
+          "high": "重大",
+          "medium": "中程度",
+          "low": "軽微"
+        },
+        "reasonsCount": "指摘 {count}件",
+        "noReasons": "詳細情報が記録されていません"
       }
     }
   },

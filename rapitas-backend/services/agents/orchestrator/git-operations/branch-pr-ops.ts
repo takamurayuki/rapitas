@@ -15,6 +15,7 @@ import {
 } from './worktree-guard';
 import { isHeadBehindError, isAlreadyUpToDate } from '../../../github/gh-retry';
 import { runGhCommandWithBody } from '../../../github/gh-client';
+import { titleMarkersAgree } from '../../../github/pr-ownership';
 
 // NOTE: execFile (array-args, no shell) instead of exec (shell string) — branch
 // names, base branches, and other caller-controlled values are passed as
@@ -131,6 +132,30 @@ async function pushBranchForPr(cwd: string, branch: string): Promise<string> {
 }
 
 /**
+ * Prefix of the `error` string returned when the branch's existing open PR fails
+ * the task-identity check. Callers reached through re-declared narrow return
+ * types (`git-operations/index.ts` / `agent-orchestrator.ts` expose only
+ * `{success,prUrl,prNumber,error}`) detect the mismatch via
+ * `error?.startsWith(FOREIGN_PR_ERROR_PREFIX)` — a deliberate string channel so
+ * those type annotations need not widen.
+ */
+export const FOREIGN_PR_ERROR_PREFIX = 'PR_IDENTITY_MISMATCH:';
+
+/** Result of {@link createPullRequest}. */
+export interface CreatePullRequestResult {
+  success: boolean;
+  prUrl?: string;
+  prNumber?: number;
+  error?: string;
+  /**
+   * Set when the head branch's existing open PR belongs to ANOTHER task
+   * (task-identity marker mismatch) — the PR that was found but refused.
+   * / ブランチ上の既存PRが他タスクのものだった場合の検出情報
+   */
+  foreignPrDetected?: { prNumber: number; prUrl: string };
+}
+
+/**
  * Create a pull request targeting the best available base branch.
  * Automatically determines base branch (prefer develop, fallback to main/master) if not specified.
  *
@@ -145,12 +170,7 @@ export async function createPullRequest(
   title: string,
   body: string,
   baseBranch?: string,
-): Promise<{
-  success: boolean;
-  prUrl?: string;
-  prNumber?: number;
-  error?: string;
-}> {
+): Promise<CreatePullRequestResult> {
   try {
     // Check the REMOTE-tracking ref (origin/<b>) as well as a local branch:
     // `gh pr create --base` targets the remote, and in many checkouts `develop`
@@ -218,7 +238,7 @@ export async function createPullRequest(
           '--state',
           'open',
           '--json',
-          'number,url,baseRefName',
+          'number,url,baseRefName,title',
           '--jq',
           '.[0]',
         ],
@@ -226,8 +246,30 @@ export async function createPullRequest(
       );
       const trimmed = existing.trim();
       if (trimmed && trimmed !== 'null') {
-        const pr = JSON.parse(trimmed) as { number?: number; url?: string; baseRefName?: string };
+        const pr = JSON.parse(trimmed) as {
+          number?: number;
+          url?: string;
+          baseRefName?: string;
+          title?: string;
+        };
         if (pr.number && pr.url) {
+          // Task-identity gate: a branch-name match alone is NOT ownership — a
+          // stale same-named branch can carry ANOTHER task's open PR (the
+          // 2026-08-07 incident where task 539 adopted task 538's PR #340 and
+          // ci_repair then spun on the wrong task). Refuse to reuse unless the
+          // `[Task-{id}]`/`[#{id}]` markers agree. No `gh pr create` fallback:
+          // GitHub forbids a second open PR for the same head→base, so creating
+          // would just burn an API call and fail.
+          if (!titleMarkersAgree(title, pr.title)) {
+            logger.warn(
+              `[createPullRequest] Open PR #${pr.number} on ${currentBranch} (title: ${JSON.stringify(pr.title ?? null)}) does not carry this task's marker — refusing to adopt it`,
+            );
+            return {
+              success: false,
+              error: `${FOREIGN_PR_ERROR_PREFIX} branch ${currentBranch} already has open PR #${pr.number} that does not belong to this task`,
+              foreignPrDetected: { prNumber: pr.number, prUrl: pr.url },
+            };
+          }
           // A reused PR may have been opened against the WRONG base by an earlier
           // run (e.g. main instead of the theme's develop — the recurring #170/#172
           // mistarget). Retarget to the intended base so completion lands on the

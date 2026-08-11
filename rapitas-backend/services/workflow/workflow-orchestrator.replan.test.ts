@@ -164,6 +164,11 @@ const createNotificationMock = mock(() => Promise.resolve({}));
 mock.module('../communication/notification-service', () => ({
   createNotification: createNotificationMock,
 }));
+const scheduleWorkflowRedispatchMock = mock(() => {});
+mock.module('./workflow-redispatch', () => ({
+  REDISPATCH_DELAY_MS: 1000,
+  scheduleWorkflowRedispatch: scheduleWorkflowRedispatchMock,
+}));
 
 // Import AFTER all mock.module calls.
 const { WorkflowOrchestrator } = await import('./workflow-orchestrator');
@@ -183,6 +188,7 @@ describe('WorkflowOrchestrator — implementer plan-validity guard', () => {
     archiveWorkflowFileMock.mockClear();
     recordTransitionMock.mockClear();
     createNotificationMock.mockClear();
+    scheduleWorkflowRedispatchMock.mockClear();
     planFileContent = null;
     isPlanReusable = false;
   });
@@ -242,6 +248,20 @@ describe('WorkflowOrchestrator — implementer plan-validity guard', () => {
     expect(replanTransition).toBeDefined();
   });
 
+  test('missing plan.md below the replan cap schedules a redispatch to re-run the researcher', async () => {
+    taskFindUniqueMock.mockImplementation(() => Promise.resolve(makeTask()));
+    planFileContent = null;
+    isPlanReusable = false;
+    workflowTransitionCountMock.mockImplementation(() => Promise.resolve(1));
+
+    const orchestrator = WorkflowOrchestrator.getInstance();
+    const result = await orchestrator.advanceWorkflow(1);
+
+    expect(result.status).toBe('draft');
+    expect(scheduleWorkflowRedispatchMock).toHaveBeenCalledTimes(1);
+    expect(scheduleWorkflowRedispatchMock).toHaveBeenCalledWith(1, 'plan_invalid_replan', 'ja');
+  });
+
   test('a log-polluted plan.md (present but not reusable) also rolls back to draft', async () => {
     taskFindUniqueMock.mockImplementation(() => Promise.resolve(makeTask()));
     planFileContent = '[System: thinking_tokens]';
@@ -284,5 +304,8 @@ describe('WorkflowOrchestrator — implementer plan-validity guard', () => {
     // Notification is fired via a fire-and-forget dynamic import — flush microtasks.
     await new Promise((resolve) => setTimeout(resolve, 0));
     expect(createNotificationMock).toHaveBeenCalled();
+
+    // Acceptance criterion 2: at the cap the task stays blocked — no redispatch.
+    expect(scheduleWorkflowRedispatchMock).not.toHaveBeenCalled();
   });
 });

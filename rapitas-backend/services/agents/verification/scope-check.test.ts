@@ -131,6 +131,13 @@ describe('evaluateScopeCheck', () => {
     expect(result!.errorCount).toBe(1);
     expect(result!.details).toContain('services/unrelated.ts');
     expect(result!.name).toBe('scope');
+    expect(result!.offendingFiles).toEqual(['services/unrelated.ts']);
+  });
+
+  it('does not set offendingFiles on a passing check', () => {
+    const result = evaluateScopeCheck(['services/foo.ts'], ['services/foo.ts']);
+    expect(result!.ok).toBe(true);
+    expect(result!.offendingFiles).toBeUndefined();
   });
 
   it('never flags allowlisted lockfiles even when absent from the plan', () => {
@@ -155,6 +162,7 @@ describe('evaluateScopeCheck', () => {
     expect(result!.details.split('\n').filter((l) => l.startsWith('services/extra-'))).toHaveLength(
       40,
     );
+    expect(result!.offendingFiles).toHaveLength(40);
   });
 
   it('normalizes backslashes on the changed-file side too', () => {

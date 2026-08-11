@@ -15,6 +15,7 @@ import {
   attachBlockedCauses,
 } from '../../services/task/task-service';
 import { removeWorktree } from '../../services/agents/orchestrator/git-operations/worktree-ops';
+import { warnIfSubtaskCreatedDuringDisabledSplit } from '../../services/workflow/subtask-split-guard';
 import { getProjectRoot } from '../../config';
 import { cleanupCompletedTasks } from '../../services/task/completed-task-cleanup';
 import { TASK_NOT_FOUND, INVALID_ID } from '../../utils/common/error-messages';
@@ -270,7 +271,13 @@ export const tasksRoutes = new Elysia({ prefix: '/tasks' })
     async (context) => {
       const { body } = context;
       try {
-        return await createTask(prisma, body as Parameters<typeof createTask>[1]);
+        const created = await createTask(prisma, body as Parameters<typeof createTask>[1]);
+        // Detection net for the disabled subtask-split chain (task 545) —
+        // fire-and-forget so the guard can never delay or fail the creation.
+        if (created?.parentId) {
+          void warnIfSubtaskCreatedDuringDisabledSplit(created).catch(() => {});
+        }
+        return created;
       } catch (error) {
         if (error instanceof AppError) throw error;
         if (error instanceof Error && error.message.includes('見つかりません')) {

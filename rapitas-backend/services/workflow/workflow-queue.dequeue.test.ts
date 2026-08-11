@@ -179,6 +179,47 @@ describe('WorkflowQueueService.dequeue — concurrency gate', () => {
   });
 });
 
+describe('WorkflowQueueService.dequeue — terminal-task guard', () => {
+  test('タスクが完了済み(done)の場合 → キュー項目を cancelled にしてディスパッチしないこと', async () => {
+    const svc = new WorkflowQueueService();
+    prismaMock.workflowQueueItem.findMany.mockResolvedValueOnce([row({ id: 653, taskId: 537 })]);
+    prismaMock.workflowQueueItem.count.mockResolvedValueOnce(0); // running count gate
+    resolveTaskWorkflowStateMock.mockResolvedValueOnce({
+      id: 537,
+      status: 'done',
+      workflowStatus: 'completed',
+      workflowMode: 'standard',
+      parentId: null,
+    });
+
+    const result = await svc.dequeue();
+
+    expect(result).toBeNull();
+    expect(prismaMock.$transaction).not.toHaveBeenCalled();
+    expect(prismaMock.workflowQueueItem.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: 653 },
+        data: expect.objectContaining({ status: 'cancelled' }),
+      }),
+    );
+  });
+
+  test('タスク解決が null(一時的なDBエラーの可能性)の場合 → キャンセルせず従来どおり進むこと', async () => {
+    const svc = new WorkflowQueueService();
+    prismaMock.workflowQueueItem.findMany.mockResolvedValueOnce([row({ id: 2, taskId: 11 })]);
+    prismaMock.workflowQueueItem.count.mockResolvedValueOnce(0); // running count gate
+    // resolveTaskWorkflowState は beforeEach で null を返す設定のまま
+
+    await svc.dequeue();
+
+    // null では絶対にキャンセルしない(誤爆すると正当なキュー項目を破壊する)
+    const cancelCalls = prismaMock.workflowQueueItem.update.mock.calls.filter(
+      (c: unknown[]) => (c[0] as { data?: { status?: string } })?.data?.status === 'cancelled',
+    );
+    expect(cancelCalls.length).toBe(0);
+  });
+});
+
 describe('WorkflowQueueService.dequeue — dependency check', () => {
   test('未完了の依存タスクがある場合 → その候補をスキップし null を返すこと', async () => {
     const svc = new WorkflowQueueService();

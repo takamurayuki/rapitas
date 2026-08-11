@@ -67,6 +67,12 @@ export interface VerificationCheck {
    * These are excluded from errorCount/ok so they don't false-block the gate.
    */
   preExistingFailures?: string[];
+  /**
+   * Out-of-plan changed files (repo-relative). Only set on failing 'scope'
+   * checks — structured input for the history-contamination classifier
+   * (worktree-rebuild-recovery), which must not re-parse `details` text.
+   */
+  offendingFiles?: string[];
 }
 
 export interface VerificationResult {
@@ -236,7 +242,7 @@ export async function diffBaseRef(
  * deletions) for the plan-scope check — out-of-plan deletions and non-code
  * edits are scope violations too.
  */
-async function getAllChangedFiles(
+export async function getAllChangedFiles(
   workdir: string,
   preferredBaseBranch?: string | null,
 ): Promise<string[]> {

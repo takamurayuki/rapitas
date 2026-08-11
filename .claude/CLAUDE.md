@@ -199,6 +199,8 @@ Required sections:
 
 #### Step 2.5 — Subtask Splitting (automatic when plan is large)
 
+> **この手順は `RAPITAS_ENABLE_SUBTASK_SPLIT` が有効な場合のみ適用されます。無効時（既定）は分割せず、単一タスクとして計画してください。**
+
 When the plan meets **any** of the following thresholds, split into subtasks:
 
 | Condition | Threshold |

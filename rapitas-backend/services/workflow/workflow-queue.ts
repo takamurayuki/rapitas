@@ -26,6 +26,25 @@ export interface QueueItem {
   completedAt: Date | null;
 }
 
+/**
+ * Whether a task has reached a terminal state that makes any queued work for it
+ * stale. Shared by the dequeue-time guard and the reconciler's periodic sweep
+ * so the two can never drift apart on what "terminal" means (concern #4924).
+ * Requires POSITIVE terminal evidence — a null lookup can also be a transient
+ * DB error and must not read as terminal.
+ *
+ * @param task - Minimal task state (or null when lookup failed). / タスク状態
+ * @returns true when the task is done/cancelled/completed. / 終端なら true
+ */
+export function isTaskTerminalForQueue(
+  task: { status?: string | null; workflowStatus?: string | null } | null,
+): boolean {
+  if (!task) return false;
+  return (
+    task.status === 'done' || task.status === 'cancelled' || task.workflowStatus === 'completed'
+  );
+}
+
 export interface EnqueueOptions {
   taskId: number;
   priority?: number;
@@ -169,6 +188,30 @@ export class WorkflowQueueService {
         // while any sibling is active, or while an earlier-created sibling is
         // still pending. Non-subtasks (no parentId) are unaffected.
         const candidateTask = await resolveTaskWorkflowState(candidate.taskId);
+
+        // Terminal-task guard: a queue item can outlive its task (a
+        // completion-era re-dispatch raced the task finishing — task 537 left
+        // one 'queued' forever, pinning queueDepth at 1 and dispatching a
+        // phantom implementer that failed with "no code changes"). Cancel the
+        // stale item instead of dispatching a phase for finished work.
+        // Requires POSITIVE terminal evidence — a null lookup can also be a
+        // transient DB error and must not destroy a valid queue item.
+        if (isTaskTerminalForQueue(candidateTask)) {
+          await prisma.workflowQueueItem
+            .update({
+              where: { id: candidate.id },
+              data: {
+                status: 'cancelled',
+                completedAt: new Date(),
+                errorMessage: 'タスクは既に終端状態のため、残留キュー項目を自動キャンセルしました',
+              },
+            })
+            .catch(() => {});
+          log.info(
+            `[WorkflowQueue] Cancelled stale queue item ${candidate.id} (task ${candidate.taskId} already terminal)`,
+          );
+          continue;
+        }
         if (candidateTask?.parentId != null) {
           const siblings = await prisma.task.findMany({
             where: { parentId: candidateTask.parentId, id: { not: candidate.taskId } },

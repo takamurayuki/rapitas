@@ -4,11 +4,53 @@ import { createLogger } from '../../config/logger';
 const log = createLogger('branch-name-generator');
 
 /**
+ * Embed a task-id marker (`t<taskId>-`) right after the prefix of an
+ * already-valid `<prefix>/<slug>` branch name, keeping the result within the
+ * 50-character limit without ever truncating the marker itself.
+ *
+ * @param fullName - Valid `<prefix>/<slug>` branch name. / 妥当なブランチ名
+ * @param taskId - Task ID to embed exactly once. / 一度だけ埋め込むタスクID
+ * @returns Branch name in `<prefix>/t<taskId>-<slug>` form, ≤50 chars. / taskId込みのブランチ名
+ */
+function buildTaskBranchName(fullName: string, taskId: number): string {
+  const slashIdx = fullName.indexOf('/');
+  const prefix = fullName.substring(0, slashIdx);
+  const slug = fullName.substring(slashIdx + 1);
+  const head = `${prefix}/t${taskId}-`;
+  // NOTE: The marker is never truncated — only the slug shrinks to fit the
+  // 50-char limit. A minimum of 1 slug char keeps the "hyphen after prefix"
+  // rule of isValidBranchName satisfied via the marker's trailing hyphen.
+  const maxSlugLen = Math.max(1, 50 - head.length);
+  const trimmedSlug = slug.substring(0, maxSlugLen).replace(/-+$/, '') || 'x';
+  return `${head}${trimmedSlug}`;
+}
+
+/**
+ * Check whether a branch name already contains the `t<taskId>` marker for the
+ * given task. Used by worktree collision handling to avoid embedding the same
+ * task id twice (the `...-t319-task-319` double-suffix bug).
+ *
+ * @param branchName - Branch name to inspect. / 検査するブランチ名
+ * @param taskId - Task ID whose marker to look for. / 探すタスクIDマーカー
+ * @returns True when `t<taskId>` appears as a whole segment. / マーカーが含まれればtrue
+ */
+export function hasTaskIdMarker(branchName: string, taskId: number): boolean {
+  // Boundary chars prevent partial-number false positives (t31 vs t319).
+  return new RegExp(`(?:^|[/-])t${taskId}(?:[/-]|$)`).test(branchName);
+}
+
+/**
  * Generate a suitable branch name using AI based on task content.
+ *
+ * @param taskTitle - Task title used in the AI prompt. / AIプロンプト用タイトル
+ * @param taskDescription - Optional task description for prompt context. / プロンプト補足用の説明
+ * @param taskId - When given, embeds a `t<taskId>-` marker after the prefix (exactly once). / 指定時はprefix直後にtaskIdマーカーを一度だけ埋め込む
+ * @returns Valid branch name; falls back to the deterministic generator on AI failure. / 妥当なブランチ名（AI失敗時は決定的フォールバック）
  */
 export async function generateBranchName(
   taskTitle: string,
   taskDescription?: string,
+  taskId?: number,
 ): Promise<string> {
   try {
     const systemPrompt = `You are a Git branch name generator. Output ONLY a branch name, nothing else.
@@ -47,11 +89,22 @@ Examples:
       throw new Error(`Generated branch name is invalid: ${branchName}`);
     }
 
+    if (taskId != null) {
+      // NOTE: taskId embedding is post-processing, NOT part of the AI prompt —
+      // letting the LLM write the marker would risk it altering the id.
+      const withMarker = buildTaskBranchName(branchName, taskId);
+      if (!isValidBranchName(withMarker)) {
+        // Treated like an AI failure: the catch below falls back with taskId intact.
+        throw new Error(`Branch name with task-id marker is invalid: ${withMarker}`);
+      }
+      return withMarker;
+    }
+
     return branchName;
   } catch (error) {
     log.error({ err: error }, 'Error generating branch name with AI');
     // Fallback: generate name from task title
-    return generateFallbackBranchName(taskTitle);
+    return generateFallbackBranchName(taskTitle, taskId);
   }
 }
 
@@ -183,8 +236,12 @@ export function isValidBranchName(name: string): boolean {
 
 /**
  * Generate a fallback branch name when AI generation fails.
+ *
+ * @param taskTitle - Task title to derive prefix and slug from. / prefixとslugの導出元タイトル
+ * @param taskId - When given, embeds a `t<taskId>-` marker after the prefix (exactly once). / 指定時はprefix直後にtaskIdマーカーを一度だけ埋め込む
+ * @returns Deterministic valid branch name. / 決定的で妥当なブランチ名
  */
-export function generateFallbackBranchName(taskTitle: string): string {
+export function generateFallbackBranchName(taskTitle: string, taskId?: number): string {
   const sanitizedTitle = taskTitle
     .toLowerCase()
     .replace(/[^a-z0-9\s]/g, '') // Keep only alphanumeric and spaces
@@ -226,6 +283,9 @@ export function generateFallbackBranchName(taskTitle: string): string {
     slug = `${verbMap[prefix] || 'implement'}-${slug}`;
   }
 
-  const branchName = `${prefix}${slug}`;
-  return sanitizeBranchName(branchName);
+  const branchName = sanitizeBranchName(`${prefix}${slug}`);
+  if (taskId != null) {
+    return buildTaskBranchName(branchName, taskId);
+  }
+  return branchName;
 }

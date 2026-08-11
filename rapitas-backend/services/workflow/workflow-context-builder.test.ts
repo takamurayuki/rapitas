@@ -5,7 +5,7 @@
  * focus on auto_verifier sharing the verifier's section-headed instruction.
  */
 
-import { describe, expect, test } from 'bun:test';
+import { describe, expect, test, beforeEach, afterAll } from 'bun:test';
 import {
   buildRoleContext,
   researchModeDirective,
@@ -61,6 +61,52 @@ describe('buildRoleContext', () => {
       const ctx = await buildRoleContext(1, 'planner', TASK, 'en');
       expect(ctx).toContain('Premortem (REQUIRED)');
     });
+  });
+});
+
+describe('subtask-split flag alignment (RAPITAS_ENABLE_SUBTASK_SPLIT)', () => {
+  const ORIGINAL_ENV = process.env.RAPITAS_ENABLE_SUBTASK_SPLIT;
+
+  beforeEach(() => {
+    delete process.env.RAPITAS_ENABLE_SUBTASK_SPLIT;
+  });
+
+  afterAll(() => {
+    if (ORIGINAL_ENV === undefined) {
+      delete process.env.RAPITAS_ENABLE_SUBTASK_SPLIT;
+    } else {
+      process.env.RAPITAS_ENABLE_SUBTASK_SPLIT = ORIGINAL_ENV;
+    }
+  });
+
+  test('planner (ja) carries the split prohibition when the flag is unset (default off)', async () => {
+    const ctx = await buildRoleContext(1, 'planner', TASK);
+    expect(ctx).toContain('## サブタスク分割の禁止');
+    expect(ctx).toContain('POST /tasks による子タスク起票');
+    // Existing planner sections stay intact alongside the new directive.
+    expect(ctx).toContain('## プレモーテム');
+    expect(ctx).toContain('## 自己完結ルール');
+  });
+
+  test('planner (en) carries the English prohibition, without Japanese leakage', async () => {
+    const ctx = await buildRoleContext(1, 'planner', TASK, 'en');
+    expect(ctx).toContain('Subtask splitting is FORBIDDEN');
+    expect(ctx).not.toContain('サブタスク分割の禁止');
+  });
+
+  test('planner carries NO prohibition when the flag is enabled', async () => {
+    process.env.RAPITAS_ENABLE_SUBTASK_SPLIT = '1';
+    const jaCtx = await buildRoleContext(1, 'planner', TASK);
+    expect(jaCtx).not.toContain('## サブタスク分割の禁止');
+    const enCtx = await buildRoleContext(1, 'planner', TASK, 'en');
+    expect(enCtx).not.toContain('Subtask splitting is FORBIDDEN');
+  });
+
+  test('other roles are untouched by the directive', async () => {
+    for (const role of ['researcher', 'implementer', 'verifier'] as const) {
+      const ctx = await buildRoleContext(1, role, TASK);
+      expect(ctx).not.toContain('## サブタスク分割の禁止');
+    }
   });
 });
 

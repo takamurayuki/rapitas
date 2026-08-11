@@ -120,7 +120,13 @@ export type AgentExecutionResult = {
   /** Number of retry attempts before this result. */
   retryCount?: number;
   /** Classified failure reason (for retry decisions). */
-  failureType?: 'test_failed' | 'lint_error' | 'type_error' | 'timeout' | 'unknown';
+  failureType?:
+    | 'test_failed'
+    | 'lint_error'
+    | 'type_error'
+    | 'timeout'
+    | 'wall_clock_timeout'
+    | 'unknown';
   /** Real cost (USD) reported by Claude Code's stream-json `result` event. */
   costUsd?: number;
   /** Standard input tokens reported by `result.usage.input_tokens`. */

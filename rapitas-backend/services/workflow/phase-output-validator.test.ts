@@ -30,6 +30,27 @@ foo
     expect(result.severity).toBeGreaterThanOrEqual(80);
   });
 
+  test('accepts synonym headings — task 551 regression (確定仕様/完了の定義 plan was wrongly archived)', () => {
+    // Exact heading vocabulary of the approved-then-destroyed task 551 plan:
+    // it answered every critic demand but used 「確定仕様」/「完了の定義」 instead
+    // of the template words. Must be reusable (not severity>=80 invalid).
+    const task551Style = `# plan — 回顧エージェント
+## タスク概要
+abc
+## 確定仕様(実装者はこの通りに作る)
+spec
+## 実装チェックリスト
+- [ ] step
+## リスク評価
+- low
+## 完了の定義
+- done`;
+    const result = validatePlan(task551Style);
+    expect(result.severity).toBeLessThan(80);
+    expect(result.missingSections).not.toContain('設計判断の根拠');
+    expect(result.missingSections).not.toContain('完了条件');
+  });
+
   test('accepts well-formed plan with all sections', () => {
     const goodPlan = `# 実装計画
 ## タスク概要
@@ -88,6 +109,21 @@ c
 d
 ## テスト戦略
 e`;
+    const result = validateResearch(complete);
+    expect(result.ok).toBe(true);
+    expect(result.missingSections).toEqual([]);
+  });
+
+  test('accepts research using 重複チェック/統合点 vocabulary (task 551 researcher output)', () => {
+    const complete = `# research
+## 依存マップ・統合点
+a
+## 重複チェック
+b
+## 破壊的変更リスク
+c
+## テスト戦略
+d`;
     const result = validateResearch(complete);
     expect(result.ok).toBe(true);
     expect(result.missingSections).toEqual([]);
