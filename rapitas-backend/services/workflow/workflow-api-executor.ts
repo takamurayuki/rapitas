@@ -201,14 +201,40 @@ export async function executeAPIAgent(
         const verifyValidation = validateVerify(output);
         if (!verifyValidation.ok && verifyValidation.severity >= 80) {
           const { attemptVerifyRepair } = await import('./verify-self-repair');
+          // CAS snapshot: the repair's compare-and-swap needs the status the
+          // task is ACTUALLY at right now (the verifier's entry status —
+          // transition.nextStatus is not persisted yet at this point, so
+          // passing it would make every legitimate bounce read as stale).
+          const live = await prisma.task
+            .findUnique({ where: { id: taskId }, select: { workflowStatus: true } })
+            .catch(() => null);
           const repair = await attemptVerifyRepair(
             taskId,
-            transition.nextStatus,
+            live?.workflowStatus ?? null,
             verifyValidation.summary,
             output,
           );
           if (repair.bounced && repair.newStatus) {
             resolvedNextStatus = repair.newStatus;
+          } else if (repair.stale) {
+            // The workflow moved past the evaluated status while this verdict
+            // was computed — do not advance to verify_done AND do not block.
+            log.warn(
+              { taskId, summary: verifyValidation.summary },
+              '[WorkflowAPIExecutor] stale verify failure — workflow moved on; skipping block',
+            );
+            await prisma.agentExecution
+              .update({
+                where: { id: execution.id },
+                data: { status: 'completed', output: output.substring(0, 10000), executionTimeMs },
+              })
+              .catch(() => {});
+            return {
+              success: false,
+              role: transition.role,
+              status: transition.nextStatus,
+              error: '検証結果が古いため適用しませんでした（ワークフローは先へ進んでいます）',
+            };
           } else {
             // Exhausted — block; do NOT advance to verify_done. This write is
             // what actually STOPS the verify self-repair loop, so a swallowed

@@ -575,6 +575,15 @@ export async function handleSaveFile({
               // save-transition block below must NOT repeat that work.
               newStatus = repair.newStatus;
               verifyRepairBounced = true;
+            } else if (repair.stale) {
+              // The workflow advanced past the evaluated status while this
+              // verdict was in flight (e.g. a re-verify already passed) —
+              // blocking now would clobber a live/terminal state (task 551).
+              log.warn(
+                { taskId, summary: verifyValidation.summary },
+                '[Workflow] stale verify failure — workflow moved on; neither bouncing nor blocking',
+              );
+              verifyRepairBounced = true; // skip the generic save-transition below too
             } else {
               log.warn(
                 { taskId, summary: verifyValidation.summary },
@@ -1372,6 +1381,11 @@ export async function handleSaveFile({
                 '[Workflow] Verification gate failed — bounced to implementer for self-repair',
               );
             }
+          } else if (repair.stale) {
+            log.warn(
+              { taskId, reason: gateReason },
+              '[Workflow] stale verification-gate failure — workflow moved on; neither bouncing nor blocking',
+            );
           } else {
             await markLatestExecutionFailed(taskId, gateReason);
             log.warn(
