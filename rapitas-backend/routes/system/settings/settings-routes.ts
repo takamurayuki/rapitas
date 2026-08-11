@@ -14,6 +14,9 @@ import { systemSchemas } from '../../../schemas/system.schema';
 import { createLogger } from '../../../config/logger';
 import { t } from 'elysia';
 import { PROVIDER_MODEL_COLUMNS, isValidProvider, validateOllamaUrl } from './settings-types';
+import type { UserSettingsUpdateBody } from './settings-types';
+import { applyPendingClientColumns, applyAutoRestartOnMergedCode } from './settings-extra-fields';
+import { readAutoRestartEnabled } from '../../../services/scheduling/auto-restart-merged-code/settings-store';
 import { fetchAvailableModels } from './model-fetcher';
 
 const log = createLogger('routes:settings');
@@ -33,6 +36,7 @@ export const settingsRoutes = new Elysia({ prefix: '/settings' })
 
     return {
       ...settings,
+      autoRestartOnMergedCode: readAutoRestartEnabled(),
       claudeApiKeyConfigured: apiKeyConfigured,
       chatgptApiKeyConfigured: chatgptConfigured,
       geminiApiKeyConfigured: geminiConfigured,
@@ -64,8 +68,6 @@ export const settingsRoutes = new Elysia({ prefix: '/settings' })
         autoApprovePlan,
         autoComplexityAnalysis,
         autoCreateFromBacklogLimit,
-        restartOnAutoRunDry,
-        verifyRepairLimit,
         autoCommitDefault,
         autoCreatePRDefault,
         autoMergePRDefault,
@@ -77,7 +79,6 @@ export const settingsRoutes = new Elysia({ prefix: '/settings' })
         ollamaDefaultModel,
         titleGenerationProvider,
         skipAgentPermissionPrompts,
-        workflowDisabledGlobally,
       } = body as {
         developerModeDefault?: boolean;
         aiTaskAnalysisDefault?: boolean;
@@ -89,8 +90,6 @@ export const settingsRoutes = new Elysia({ prefix: '/settings' })
         autoApprovePlan?: boolean;
         autoComplexityAnalysis?: boolean;
         autoCreateFromBacklogLimit?: number;
-        restartOnAutoRunDry?: boolean;
-        verifyRepairLimit?: number;
         autoCommitDefault?: boolean;
         autoCreatePRDefault?: boolean;
         autoMergePRDefault?: boolean;
@@ -102,7 +101,6 @@ export const settingsRoutes = new Elysia({ prefix: '/settings' })
         ollamaDefaultModel?: string;
         titleGenerationProvider?: string | null;
         skipAgentPermissionPrompts?: boolean;
-        workflowDisabledGlobally?: boolean;
       };
 
       // NOTE: ollamaUrl is fetched server-side (see services/local-llm,
@@ -174,50 +172,14 @@ export const settingsRoutes = new Elysia({ prefix: '/settings' })
           });
         }
 
-        // Persist restartOnAutoRunDry separately: the Prisma client type does not
-        // include this column until it is regenerated (on the next backend
-        // restart), so write it through a cast to keep this compiling now. The
-        // value still lands in the row the same way once the column exists.
-        if (restartOnAutoRunDry !== undefined) {
-          await prisma.userSettings
-            .update({
-              where: { id: settings.id },
-              data: { restartOnAutoRunDry } as unknown as Parameters<
-                typeof prisma.userSettings.update
-              >[0]['data'],
-            })
-            .catch((err) => log.warn({ err }, 'restartOnAutoRunDry persist failed'));
-          (settings as Record<string, unknown>).restartOnAutoRunDry = restartOnAutoRunDry;
-        }
-
-        // Persist verifyRepairLimit via cast for the same reason (column pending
-        // client regen on the next restart). Clamp to a sane 0..10 range.
-        if (verifyRepairLimit !== undefined) {
-          const clamped = Math.max(0, Math.min(10, Math.floor(verifyRepairLimit)));
-          await prisma.userSettings
-            .update({
-              where: { id: settings.id },
-              data: { verifyRepairLimit: clamped } as unknown as Parameters<
-                typeof prisma.userSettings.update
-              >[0]['data'],
-            })
-            .catch((err) => log.warn({ err }, 'verifyRepairLimit persist failed'));
-          (settings as Record<string, unknown>).verifyRepairLimit = clamped;
-        }
-
-        // Persist workflowDisabledGlobally via cast for the same reason (column
-        // pending client regen on the next restart).
-        if (workflowDisabledGlobally !== undefined) {
-          await prisma.userSettings
-            .update({
-              where: { id: settings.id },
-              data: { workflowDisabledGlobally } as unknown as Parameters<
-                typeof prisma.userSettings.update
-              >[0]['data'],
-            })
-            .catch((err) => log.warn({ err }, 'workflowDisabledGlobally persist failed'));
-          (settings as Record<string, unknown>).workflowDisabledGlobally = workflowDisabledGlobally;
-        }
+        // NOTE: Moved to settings-extra-fields.ts — cast-written columns pending
+        // client regen (restartOnAutoRunDry / verifyRepairLimit /
+        // workflowDisabledGlobally) plus the file-backed autoRestartOnMergedCode
+        // toggle, which has no Prisma column at all.
+        const extraBody = body as UserSettingsUpdateBody;
+        const settingsRef = settings as Record<string, unknown>;
+        await applyPendingClientColumns(settings.id, extraBody, settingsRef);
+        applyAutoRestartOnMergedCode(extraBody, settingsRef);
 
         return settings;
       } catch (error: unknown) {

@@ -31,6 +31,8 @@ export type UserSettings = {
   restartOnAutoRunDry?: boolean;
   /** Max verify->implement self-repair cycles before a task is blocked (0 = off). */
   verifyRepairLimit?: number;
+  /** マージ済みだが未活性のコード検知時、アイドル時に安全に自動再起動する。 */
+  autoRestartOnMergedCode?: boolean;
   autoCommitDefault?: boolean;
   autoCreatePRDefault?: boolean;
   autoMergePRDefault?: boolean;

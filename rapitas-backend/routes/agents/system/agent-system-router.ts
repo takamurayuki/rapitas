@@ -5,10 +5,10 @@
  */
 import { Elysia } from 'elysia';
 import { prisma } from '../../../config/database';
-import { orchestrator, stopServer } from '../../../services/core/orchestrator-instance';
+import { orchestrator } from '../../../services/core/orchestrator-instance';
 import { isEncryptionKeyConfigured } from '../../../utils/common/encryption';
-import { realtimeService } from '../../../services/communication/realtime-service';
 import { createLogger } from '../../../config/logger';
+import { scheduleShutdownSequence } from '../../../services/system/shutdown-sequence';
 import { AuthenticationError } from '../../../middleware/error-handler';
 import { getActivePreviewCount } from '../../../services/agents/preview/preview-session-manager';
 
@@ -29,47 +29,9 @@ function requireAdmin(headers: Record<string, string | undefined>): void {
   }
 }
 
-// Upper bound for the whole SSE-close → socket-close → agent-shutdown sequence.
-// Generous enough for gracefulShutdown to stop agents and save state.
-const SHUTDOWN_WATCHDOG_MS = 30_000;
-
-/**
- * Schedule the common shutdown sequence (close SSE → close listening socket →
- * stop agents) and exit with the given code. Shared by /shutdown and /restart.
- *
- * A watchdog forces the exit if any step never settles — a hung await here
- * previously left the process alive with no listener, so the restart the user
- * requested silently never happened.
- *
- * @param prefix - Log prefix, e.g. '[restart]' / ログ接頭辞
- * @param exitCode - Process exit code (75 tells dev.js to restart) / 終了コード
- */
-function scheduleShutdownSequence(prefix: string, exitCode: number): void {
-  setTimeout(async () => {
-    const watchdog = setTimeout(() => {
-      log.error({ exitCode }, `${prefix} Shutdown watchdog fired — forcing process exit`);
-      process.exit(exitCode);
-    }, SHUTDOWN_WATCHDOG_MS);
-    try {
-      log.info(`${prefix} Closing all SSE connections...`);
-      realtimeService.shutdown();
-
-      log.info(`${prefix} Closing listening socket first for quick port release...`);
-      await stopServer();
-      log.info(`${prefix} Listening socket closed, port released.`);
-
-      log.info(`${prefix} Stopping agents and saving state...`);
-      await orchestrator.gracefulShutdown({ skipServerStop: true });
-      log.info(`${prefix} Agent shutdown completed.`);
-    } catch (error) {
-      log.error({ err: error }, `${prefix} Graceful shutdown error`);
-    } finally {
-      clearTimeout(watchdog);
-      log.info({ exitCode }, `${prefix} Exiting process...`);
-      setTimeout(() => process.exit(exitCode), 200);
-    }
-  }, 300);
-}
+// NOTE: scheduleShutdownSequence moved to services/system/shutdown-sequence.ts —
+// the auto-restart-merged-code scheduler became a second caller, and the exit
+// path belongs in the service layer, not a router.
 
 /**
  * Snapshot of live agent activity: how many executions are actually running,
