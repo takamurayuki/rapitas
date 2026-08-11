@@ -31,16 +31,18 @@ export const concernBacklogRoutes = new Elysia()
       const status = (query.status as ConcernStatus | 'all' | undefined) ?? 'open';
       const type = query.type ? normalizeConcernType(query.type) : undefined;
       const severity = query.severity ? normalizeConcernSeverity(query.severity) : undefined;
+      const source = query.source || undefined;
       const themeId = query.themeId ? parseInt(query.themeId) : undefined;
       const limit = query.limit ? parseInt(query.limit) : 20;
       const offset = query.offset ? parseInt(query.offset) : 0;
-      return listConcerns({ status, type, severity, themeId, limit, offset });
+      return listConcerns({ status, type, severity, source, themeId, limit, offset });
     },
     {
       query: t.Object({
         status: t.Optional(t.String()),
         type: t.Optional(t.String()),
         severity: t.Optional(t.String()),
+        source: t.Optional(t.String()),
         themeId: t.Optional(t.String()),
         limit: t.Optional(t.String()),
         offset: t.Optional(t.String()),

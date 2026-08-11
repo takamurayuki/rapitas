@@ -3751,6 +3751,18 @@
     "statusOpen": "未対応",
     "statusTaskCreated": "タスク化済",
     "statusAll": "すべて",
+    "sourceAgent": "エージェント",
+    "sourceUser": "ユーザー",
+    "sourceVulnScan": "脆弱性スキャン",
+    "sourceVulnScanAudit": "脆弱性監査",
+    "sourceCiWatch": "CI監視",
+    "sourceLoopReview": "品質ループ",
+    "sourceCodeReview": "コードレビュー",
+    "sourceGithubIssue": "GitHub Issue",
+    "sourceIdeaReclassified": "アイデア再分類",
+    "sourceVerificationTriage": "検証トリアージ",
+    "sourceLogHealth": "ログ健全性",
+    "sourceUnknown": "不明",
     "severityHint": {
       "urgent": "緊急 — 早急に対処すべき",
       "high": "高 — 影響が大きい",
@@ -3765,6 +3777,7 @@
     "filterBar": {
       "allTypes": "すべての種別",
       "allSeverities": "すべての優先度",
+      "allSources": "すべての発生源",
       "allThemes": "すべてのテーマ"
     },
     "createForm": {

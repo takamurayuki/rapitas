@@ -32,6 +32,7 @@ export function useConcernData() {
   const [statusFilter, setStatusFilter] = useState<ConcernStatus | 'all'>('open');
   const [typeFilter, setTypeFilter] = useState<ConcernType | 'all'>('all');
   const [severityFilter, setSeverityFilter] = useState<ConcernSeverity | 'all'>('all');
+  const [sourceFilter, setSourceFilter] = useState<string | 'all'>('all');
   const [themeFilter, setThemeFilter] = useState<number | 'all'>('all');
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
@@ -60,6 +61,7 @@ export function useConcernData() {
       });
       if (typeFilter !== 'all') params.set('type', typeFilter);
       if (severityFilter !== 'all') params.set('severity', severityFilter);
+      if (sourceFilter !== 'all') params.set('source', sourceFilter);
       if (themeFilter !== 'all') params.set('themeId', String(themeFilter));
       const res = await fetch(`${API_BASE_URL}/concerns?${params.toString()}`);
       if (res.ok) {
@@ -72,7 +74,15 @@ export function useConcernData() {
     } finally {
       setIsLoading(false);
     }
-  }, [statusFilter, typeFilter, severityFilter, themeFilter, currentPage, itemsPerPage]);
+  }, [
+    statusFilter,
+    typeFilter,
+    severityFilter,
+    sourceFilter,
+    themeFilter,
+    currentPage,
+    itemsPerPage,
+  ]);
 
   useEffect(() => {
     fetchConcerns();
@@ -88,7 +98,7 @@ export function useConcernData() {
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [statusFilter, typeFilter, severityFilter, themeFilter]);
+  }, [statusFilter, typeFilter, severityFilter, sourceFilter, themeFilter]);
 
   const handleConvert = useCallback(
     async (id: number) => {
@@ -173,6 +183,8 @@ export function useConcernData() {
     setTypeFilter,
     severityFilter,
     setSeverityFilter,
+    sourceFilter,
+    setSourceFilter,
     themeFilter,
     setThemeFilter,
     currentPage,
