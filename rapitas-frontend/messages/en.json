@@ -271,6 +271,7 @@
     "contradictions": "Contradictions",
     "memoryVisualization": "Memory Growth",
     "memoryAdmin": "Memory Admin",
+    "growthReport": "Daily Report",
     "settings": "Settings",
     "generalSettings": "App Settings",
     "apiKeySettings": "API Key Settings",
@@ -1729,6 +1730,22 @@
     "step3Description": "Approve plan, implement, verify, and complete task",
     "metricsTitle": "Agent Usage",
     "metricsDescription": "Real recorded usage and cost per agent (Claude Code / Codex / Gemini)",
+    "growthTitle": "Autonomous Activity Daily Report",
+    "growthDescription": "A daily archive consolidating what was done, learned, and decided overnight - one report every morning",
+    "growthEmpty": "No reports yet. One is generated automatically every morning at 7:00 (configurable in backlog settings).",
+    "growthSelectPrompt": "Select a date from the list",
+    "growthLoadFailed": "Failed to load the daily report",
+    "growthReportHeading": "Daily Report {date}",
+    "growthAiBadge": "AI-polished",
+    "growthPlainBadge": "Plain aggregate",
+    "growthSatiatedBadge": "Satiated",
+    "growthSatiatedReasonTitle": "Why the loop stood still",
+    "growthCount_completed": "Completed",
+    "growthCount_mergedPrs": "Merged PRs",
+    "growthCount_concerns": "Concerns",
+    "growthCount_decisions": "Decisions",
+    "growthCount_restarts": "Restarts",
+    "growthCount_interventions": "Interventions",
     "dataExport": "Export Data",
     "metricsFetchFailed": "Failed to fetch metrics data",
     "filterSettings": "Filter Settings",
@@ -4716,6 +4733,10 @@
         "ci_watch": {
           "label": "CI watch (mainline)",
           "desc": "Checks each project's latest mainline CI runs and auto-files a concern (with failing job/step names) for every red workflow - the guardian that keeps mainline CI from rotting, separate from the PR-level CI repair loop."
+        },
+        "daily_report": {
+          "label": "Daily report",
+          "desc": "Consolidates the last 24 hours of autonomous activity (completed tasks, merged PRs, concerns, learnings, decisions, self-restarts, human interventions, upcoming queue) into one morning notification, archived at /agents/growth."
         }
       },
       "frequency": {
