@@ -746,7 +746,11 @@ fn main() {
                 ) && window.label() == "main"
                 {
                     let hidden = window.is_minimized().unwrap_or(false);
-                    let _ = window.emit_to("main", "app://visibility", serde_json::json!({ "hidden": hidden }));
+                    let _ = window.emit_to(
+                        "main",
+                        "app://visibility",
+                        serde_json::json!({ "hidden": hidden }),
+                    );
                 }
             })
             .run(tauri::generate_context!())
@@ -823,7 +827,11 @@ fn main() {
                 ) && window.label() == "main"
                 {
                     let hidden = window.is_minimized().unwrap_or(false);
-                    let _ = window.emit_to("main", "app://visibility", serde_json::json!({ "hidden": hidden }));
+                    let _ = window.emit_to(
+                        "main",
+                        "app://visibility",
+                        serde_json::json!({ "hidden": hidden }),
+                    );
                 }
             })
             .run(tauri::generate_context!())
