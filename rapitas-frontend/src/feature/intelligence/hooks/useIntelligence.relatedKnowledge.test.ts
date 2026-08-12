@@ -89,10 +89,7 @@ describe('useRelatedKnowledge', () => {
   it('遅延した古い応答が新しい結果を上書きしない', async () => {
     const d1 = deferred<ReturnType<typeof okJson>>();
     const d2 = deferred<ReturnType<typeof okJson>>();
-    const fetchMock = vi
-      .fn()
-      .mockReturnValueOnce(d1.promise)
-      .mockReturnValueOnce(d2.promise);
+    const fetchMock = vi.fn().mockReturnValueOnce(d1.promise).mockReturnValueOnce(d2.promise);
     vi.stubGlobal('fetch', fetchMock);
     const { result } = renderHook(() => useRelatedKnowledge());
 

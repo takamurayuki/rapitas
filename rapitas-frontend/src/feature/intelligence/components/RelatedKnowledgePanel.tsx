@@ -50,7 +50,15 @@ export function RelatedKnowledgePanel({ title, description, themeId }: RelatedKn
     if (!mountQuietElapsed) return;
     if (debouncedTitle !== title || debouncedDescription !== description) return;
     search(debouncedTitle, debouncedDescription, themeId);
-  }, [mountQuietElapsed, debouncedTitle, debouncedDescription, title, description, themeId, search]);
+  }, [
+    mountQuietElapsed,
+    debouncedTitle,
+    debouncedDescription,
+    title,
+    description,
+    themeId,
+    search,
+  ]);
 
   // Render only settled results: no results → no DOM. A loading-only box that
   // appears then vanishes on an empty response was the flicker being fixed.
