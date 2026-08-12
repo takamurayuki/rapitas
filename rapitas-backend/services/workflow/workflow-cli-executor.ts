@@ -1110,9 +1110,12 @@ curl -X POST http://127.0.0.1:${port}/idea-box \\
   // never lights up for planner / verifier phases.
   if (effectiveSuccess && isInvestigationPhase) {
     try {
+      // NOTE: completedAt is NOT re-stamped here — saveExecutionResult already
+      // recorded the actual CLI exit time. Re-stamping would fold the epilogue
+      // (critic gate, artifact save) into the row's wall span (task #560).
       await prisma.agentExecution.updateMany({
         where: { sessionId: session.id, status: 'post_processing' },
-        data: { status: 'completed', completedAt: new Date() },
+        data: { status: 'completed' },
       });
       log.info(
         { taskId, role: transition.role, outputFile: transition.outputFile },

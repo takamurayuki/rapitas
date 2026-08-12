@@ -27,15 +27,23 @@ function formatElapsed(ms: number): string {
 }
 
 /**
- * Live-ticking elapsed-time string since `startedAt`.
+ * Live-ticking elapsed-time string since `startedAt`, plus an optional
+ * cumulative base offset.
+ *
+ * With `baseOffsetMs` the display renders `base + (now - startedAt)`: the base
+ * carries the task's finished active time across phase / re-run boundaries so
+ * the timer accumulates monotonically instead of resetting to 0 when a new
+ * execution row (= new startedAt) appears (task #560).
  *
  * @param startedAt - ISO timestamp the tracked process began, or null/undefined when unknown / 開始時刻
  * @param active - Whether to keep ticking; the interval is torn down when this is false / 計測を継続するか
- * @returns Compact elapsed string (e.g. "3:21"), or null when inactive or start time is unavailable / 経過時間 or null
+ * @param baseOffsetMs - Cumulative finished active time added to the live elapsed / 累積実働ms（省略時0）
+ * @returns Compact elapsed string (e.g. "3:21"); static base when not ticking but base > 0; null otherwise / 経過時間 or null
  */
 export function useElapsedTime(
   startedAt: string | null | undefined,
   active: boolean,
+  baseOffsetMs: number = 0,
 ): string | null {
   // Re-render tick — the displayed value is recomputed from Date.now() below,
   // this state only exists to force that recomputation once per second.
@@ -47,8 +55,14 @@ export function useElapsedTime(
     return () => clearInterval(id);
   }, [active, startedAt]);
 
-  if (!active || !startedAt) return null;
+  const base = Number.isFinite(baseOffsetMs) && baseOffsetMs > 0 ? baseOffsetMs : 0;
+  if (!active || !startedAt) {
+    // Not ticking, but the task has accumulated active time (e.g. between
+    // phases, or a waiting card) — show the static cumulative value instead of
+    // dropping to nothing and "resetting" on the next phase.
+    return base > 0 ? formatElapsed(base) : null;
+  }
   const start = new Date(startedAt).getTime();
-  if (Number.isNaN(start)) return null;
-  return formatElapsed(Date.now() - start);
+  if (Number.isNaN(start)) return base > 0 ? formatElapsed(base) : null;
+  return formatElapsed(base + Math.max(0, Date.now() - start));
 }

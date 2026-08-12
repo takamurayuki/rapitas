@@ -75,4 +75,55 @@ describe('useElapsedTime', () => {
     unmount();
     expect(clearSpy).toHaveBeenCalled();
   });
+
+  describe('baseOffsetMs（累積実働ベース、task #560）', () => {
+    it('base + 現在経過を表示する', () => {
+      const { result } = renderHook(() =>
+        useElapsedTime('2026-01-01T00:00:00.000Z', true, 10 * 60 * 1000),
+      );
+      act(() => {
+        vi.advanceTimersByTime(30_000);
+      });
+      // 10分（累積）+ 30秒（現在経過）
+      expect(result.current).toBe('10:30');
+    });
+
+    it('inactive でも base > 0 なら累積を静的表示する', () => {
+      const { result } = renderHook(() => useElapsedTime(null, false, 3 * 60 * 1000 + 21 * 1000));
+      expect(result.current).toBe('3:21');
+    });
+
+    it('受入3: フェーズ切替（新アンカー+累積繰上げ）で表示が単調増加し 0 に戻らない', () => {
+      // フェーズ1: base=0、00:00 開始
+      const { result, rerender } = renderHook(
+        ({ startedAt, base }) => useElapsedTime(startedAt, true, base),
+        {
+          initialProps: { startedAt: '2026-01-01T00:00:00.000Z', base: 0 },
+        },
+      );
+      act(() => {
+        vi.advanceTimersByTime(10 * 60 * 1000); // フェーズ1が10分経過
+      });
+      expect(result.current).toBe('10:00');
+
+      // フェーズ切替: 新実行行（アンカーが現在時刻へリセット）+ 完了10分が base へ
+      rerender({ startedAt: '2026-01-01T00:10:00.000Z', base: 10 * 60 * 1000 });
+      // 切替直後も 0 に戻らず累積 10 分から継続
+      expect(result.current).toBe('10:00');
+
+      act(() => {
+        vi.advanceTimersByTime(45_000);
+      });
+      // フェーズ2の経過が累積に上乗せされ単調増加
+      expect(result.current).toBe('10:45');
+    });
+
+    it('base 未指定は従来どおり経過のみ（後方互換）', () => {
+      const { result } = renderHook(() => useElapsedTime('2026-01-01T00:00:00.000Z', true));
+      act(() => {
+        vi.advanceTimersByTime(5000);
+      });
+      expect(result.current).toBe('0:05');
+    });
+  });
 });

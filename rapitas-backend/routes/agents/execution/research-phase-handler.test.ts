@@ -121,6 +121,12 @@ describe('handleResearchResult — critic-rejection guard', () => {
     )[0];
     expect(sessionArg.data.status).toBe('completed');
     expect(mockExecUpdateMany).toHaveBeenCalled();
+    // NOTE: completedAt は CLI 終了時に記録済み。フリップでの再スタンプは
+    // 批評ゲートの所要時間を wall へ混入させるため上書きしない（task #560）。
+    const flipArg = (
+      mockExecUpdateMany.mock.calls[0] as unknown as [{ data: { completedAt?: Date } }]
+    )[0];
+    expect(flipArg.data.completedAt).toBeUndefined();
   });
 
   test('差し戻しが無ければ保存してワークフローを前進させる', async () => {

@@ -49,6 +49,23 @@ describe('executionStateStore', () => {
       const mapAfter = useExecutionStateStore.getState().executingTasks;
       expect(mapBefore).toBe(mapAfter);
     });
+
+    it('cumulativeActiveMs の変化はデデュープをすり抜けず反映される（task #560）', () => {
+      const store = useExecutionStateStore.getState();
+      store.setExecutingTask({ taskId: 1, status: 'running', cumulativeActiveMs: 0 });
+      // フェーズ完了で累積が増えたポーリング結果
+      store.setExecutingTask({ taskId: 1, status: 'running', cumulativeActiveMs: 600_000 });
+      expect(useExecutionStateStore.getState().getExecutingTaskActiveMs(1)).toBe(600_000);
+    });
+  });
+
+  describe('getExecutingTaskActiveMs', () => {
+    it('未登録タスク・未設定フィールドは 0 を返す', () => {
+      const store = useExecutionStateStore.getState();
+      expect(store.getExecutingTaskActiveMs(999)).toBe(0);
+      store.setExecutingTask({ taskId: 1, status: 'running' });
+      expect(useExecutionStateStore.getState().getExecutingTaskActiveMs(1)).toBe(0);
+    });
   });
 
   describe('removeExecutingTask', () => {
