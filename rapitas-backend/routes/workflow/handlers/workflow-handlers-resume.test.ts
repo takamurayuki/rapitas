@@ -39,10 +39,14 @@ mock.module('../../../services/workflow/transition-recorder', () => ({
   recordTransition: mockRecordTransition,
 }));
 
-// ---- archiveWorkflowFile mock ----
+// ---- workflow-file-utils mock (archive/read/write) ----
 const mockArchiveWorkflowFile = mock(() => Promise.resolve());
+const mockReadWorkflowFile = mock(() => Promise.resolve<string | null>(null));
+const mockWriteWorkflowFile = mock(() => Promise.resolve(''));
 mock.module('../../../services/workflow/workflow-file-utils', () => ({
   archiveWorkflowFile: mockArchiveWorkflowFile,
+  readWorkflowFile: mockReadWorkflowFile,
+  writeWorkflowFile: mockWriteWorkflowFile,
 }));
 
 // ---- task-resolver mock ----
@@ -79,6 +83,8 @@ beforeEach(() => {
   mockFindFirstExecution.mockReset().mockResolvedValue(null);
   mockRecordTransition.mockReset().mockResolvedValue(undefined);
   mockArchiveWorkflowFile.mockReset().mockResolvedValue(undefined);
+  mockReadWorkflowFile.mockReset().mockResolvedValue(null);
+  mockWriteWorkflowFile.mockReset().mockResolvedValue('');
   mockResolveTaskWorkflowState.mockReset();
   mockFetch.mockReset().mockResolvedValue(new Response(null, { status: 200 }));
   global.fetch = mockFetch as unknown as typeof fetch;
@@ -148,6 +154,103 @@ describe('handleAnswerWorkflowQuestion', () => {
     expect(mockArchiveWorkflowFile).toHaveBeenCalledWith(7, 'question');
     expect(mockRecordTransition).toHaveBeenCalledWith(
       expect.objectContaining({ taskId: 7, toStatus: 'draft', cause: 'intake_question_answered' }),
+    );
+  });
+
+  test('appends the answer to question.md content BEFORE archiving (audit trail)', async () => {
+    mockFindUnique.mockResolvedValue({
+      id: 8,
+      description: null,
+      goals: null,
+      workflowStatus: 'awaiting_question',
+      status: 'todo',
+    });
+    mockReadWorkflowFile.mockResolvedValue('# 質問\n選択肢Aか選択肢Bか');
+
+    await handleAnswerWorkflowQuestion({
+      params: { taskId: '8' },
+      body: { answer: '選択: Aで進める' },
+      set: {},
+    });
+
+    expect(mockReadWorkflowFile).toHaveBeenCalledWith(8, 'question');
+    expect(mockWriteWorkflowFile).toHaveBeenCalledWith(
+      8,
+      'question',
+      expect.stringContaining('選択: Aで進める'),
+    );
+    const writtenContent = mockWriteWorkflowFile.mock.calls[0][2] as string;
+    expect(writtenContent).toContain('# 質問\n選択肢Aか選択肢Bか');
+    expect(writtenContent).toContain('## 回答（ユーザー選択）');
+    // write must happen before archive so the appended content is what gets versioned.
+    const writeOrder = mockWriteWorkflowFile.mock.invocationCallOrder[0];
+    const archiveOrder = mockArchiveWorkflowFile.mock.invocationCallOrder[0];
+    expect(writeOrder).toBeLessThan(archiveOrder);
+  });
+
+  test('skips the append when question.md content is missing (nothing to append to)', async () => {
+    mockFindUnique.mockResolvedValue({
+      id: 9,
+      description: null,
+      goals: null,
+      workflowStatus: 'awaiting_question',
+      status: 'todo',
+    });
+    mockReadWorkflowFile.mockResolvedValue(null);
+
+    await handleAnswerWorkflowQuestion({
+      params: { taskId: '9' },
+      body: { answer: '回答' },
+      set: {},
+    });
+
+    expect(mockWriteWorkflowFile).not.toHaveBeenCalled();
+    expect(mockArchiveWorkflowFile).toHaveBeenCalledWith(9, 'question');
+  });
+
+  test('records a structured-answer selections payload in transition metadata', async () => {
+    mockFindUnique.mockResolvedValue({
+      id: 10,
+      description: null,
+      goals: null,
+      workflowStatus: 'awaiting_question',
+      status: 'todo',
+    });
+
+    await handleAnswerWorkflowQuestion({
+      params: { taskId: '10' },
+      body: {
+        answer: '## Q1: ゴール\n選択: 品質を優先する（影響: テストを手厚くする）',
+        selections: [{ questionId: 'Q1', selectedKey: 'B' }],
+      },
+      set: {},
+    });
+
+    expect(mockRecordTransition).toHaveBeenCalledWith(
+      expect.objectContaining({
+        taskId: 10,
+        metadata: { selections: [{ questionId: 'Q1', selectedKey: 'B' }] },
+      }),
+    );
+  });
+
+  test('ignores a malformed selections payload without throwing (metadata stays empty)', async () => {
+    mockFindUnique.mockResolvedValue({
+      id: 11,
+      description: null,
+      goals: null,
+      workflowStatus: 'awaiting_question',
+      status: 'todo',
+    });
+
+    await handleAnswerWorkflowQuestion({
+      params: { taskId: '11' },
+      body: { answer: '回答', selections: 'not-an-array' },
+      set: {},
+    });
+
+    expect(mockRecordTransition).toHaveBeenCalledWith(
+      expect.objectContaining({ taskId: 11, metadata: {} }),
     );
   });
 

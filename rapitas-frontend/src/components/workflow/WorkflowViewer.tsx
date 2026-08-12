@@ -19,7 +19,13 @@ import { WorkflowTabBar } from './WorkflowTabBar';
 import { WorkflowFileContent } from './WorkflowFileContent';
 import { WorkflowQuestionPanel } from './WorkflowQuestionPanel';
 import { IntakeQuestionFlow } from './IntakeQuestionFlow';
-import { splitIntakeQuestion, parseIntakeQuestions } from './workflow-question-utils';
+import { StructuredQuestionFlow } from './StructuredQuestionFlow';
+import {
+  splitIntakeQuestion,
+  parseIntakeQuestions,
+  parseOptionsBlock,
+  type StructuredSelection,
+} from './workflow-question-utils';
 
 export interface WorkflowViewerProps {
   taskId: number;
@@ -117,11 +123,13 @@ export default function WorkflowViewer({
     ? allWorkflowTabs
     : allWorkflowTabs.filter((t) => t.id !== 'question');
 
-  // Number badged on the Q&A tab: parsed 質問N count for an intake question.md,
-  // else 1 for a live/legacy single question. Lets the user see at a glance how
-  // many questions await without opening the tab.
+  // Number badged on the Q&A tab: structured `json:options` question count when
+  // present, else parsed 質問N count for a legacy intake question.md, else 1 for
+  // a live/legacy single question. Lets the user see at a glance how many
+  // questions await without opening the tab.
   const parsedQuestionCount = files?.question?.content
-    ? parseIntakeQuestions(files.question.content).questions.length
+    ? (parseOptionsBlock(files.question.content)?.questions.length ??
+      parseIntakeQuestions(files.question.content).questions.length)
     : 0;
   const qaBadgeCount = liveQuestion
     ? 1
@@ -178,15 +186,18 @@ export default function WorkflowViewer({
    * POST an answer to a workflow QUESTION FILE (the intake gate's question.md),
    * which has no live session to respond to. The backend folds the answer into
    * the spec and re-runs from draft; refetch so the resolved question.md (now
-   * archived) disappears.
+   * archived) disappears. `selections` is the optional audit payload from a
+   * structured `json:options` question (see StructuredQuestionFlow) —
+   * omitted for legacy intake/free-text answers, which existing callers pass
+   * as a single string.
    */
-  const handleAnswerIntakeQuestion = async (answer: string) => {
+  const handleAnswerIntakeQuestion = async (answer: string, selections?: StructuredSelection[]) => {
     setSubmittingAnswer(true);
     try {
       const res = await fetch(`${API_BASE_URL}/workflow/tasks/${taskId}/answer-question`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ answer }),
+        body: JSON.stringify(selections ? { answer, selections } : { answer }),
       });
       if (res.ok) refetch();
     } catch {
@@ -293,10 +304,28 @@ export default function WorkflowViewer({
               )}
               {showingIntakeQuestion &&
                 (() => {
+                  const content = activeFile?.content ?? '';
+                  // Machine-readable `json:options` questions take priority — see
+                  // plan.md's "パーサのフォールバック契約". Only a successfully
+                  // parsed, non-empty block short-circuits to the new UI; a
+                  // missing or malformed block falls through to the legacy chain
+                  // below so a bad agent output never blanks the Q&A tab.
+                  const structuredBlock = parseOptionsBlock(content);
+                  if (structuredBlock) {
+                    return (
+                      <div className="mb-4">
+                        <StructuredQuestionFlow
+                          questions={structuredBlock.questions}
+                          submitting={submittingAnswer}
+                          onSubmitAll={handleAnswerIntakeQuestion}
+                        />
+                      </div>
+                    );
+                  }
                   // 1問1答: parse the `## 質問N` blocks and present them one at a
                   // time. Legacy single-question files (no 質問 blocks) fall back to
                   // the single panel with its `### 選択肢`.
-                  const { intro, questions } = parseIntakeQuestions(activeFile?.content ?? '');
+                  const { intro, questions } = parseIntakeQuestions(content);
                   if (questions.length > 0) {
                     return (
                       <div className="mb-4">
@@ -309,7 +338,7 @@ export default function WorkflowViewer({
                       </div>
                     );
                   }
-                  const { text, options } = splitIntakeQuestion(activeFile?.content ?? '');
+                  const { text, options } = splitIntakeQuestion(content);
                   return (
                     <div className="mb-4">
                       <WorkflowQuestionPanel

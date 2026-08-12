@@ -15,6 +15,7 @@ import { useTranslations } from 'next-intl';
 import type { LiveQuestion } from '@/stores/execution-state-store';
 import { resolveQuestionOptions, secondsUntil } from './workflow-question-utils';
 import { isImeComposing } from '@/utils/ime';
+import { MarkdownView } from '../markdown/MarkdownView';
 
 interface WorkflowQuestionPanelProps {
   /** The pending question to answer. */
@@ -32,6 +33,21 @@ interface WorkflowQuestionPanelProps {
   freeTextOnly?: boolean;
   /** Submit-button label (e.g. "次の質問へ" / "送信"). Defaults to 送信. / 送信ボタン文言 */
   submitLabel?: string;
+  /**
+   * Hide the always-on "その他（自由記述）" row entirely. Used by
+   * StructuredQuestionFlow for `json:options` questions whose
+   * `freeTextRequired` is false — per policy, free text is shown ONLY when the
+   * agent explicitly marked it required. Additive/optional: unset for every
+   * existing caller (live question, legacy intake), so their behavior is
+   * unchanged.
+   */
+  hideFreeText?: boolean;
+  /**
+   * Reason free text is required for this question (only meaningful together
+   * with `freeTextOnly`). When set, rendered as an explicit notice above the
+   * textarea instead of the free-text row being silently always-available.
+   */
+  freeTextReason?: string | null;
 }
 
 /**
@@ -45,6 +61,8 @@ export function WorkflowQuestionPanel({
   onAnswer,
   freeTextOnly = false,
   submitLabel,
+  hideFreeText = false,
+  freeTextReason = null,
 }: WorkflowQuestionPanelProps) {
   const t = useTranslations('workflow');
   const tc = useTranslations('common');
@@ -94,9 +112,9 @@ export function WorkflowQuestionPanel({
         )}
       </div>
 
-      <p className="mb-3 whitespace-pre-wrap rounded-lg bg-white/60 p-3 text-sm text-amber-900 dark:bg-zinc-800/60 dark:text-amber-100">
-        {question.text}
-      </p>
+      <div className="mb-3 rounded-lg bg-white/60 p-3 text-sm text-amber-900 dark:bg-zinc-800/60 dark:text-amber-100">
+        <MarkdownView content={question.text} />
+      </div>
 
       {options.length > 0 && (
         <p className="mb-2 text-xs font-medium text-amber-700 dark:text-amber-300">
@@ -158,6 +176,11 @@ export function WorkflowQuestionPanel({
 
       {freeTextOnly ? (
         <div className="mt-1">
+          {freeTextReason && (
+            <p className="mb-2 text-xs font-medium text-amber-700 dark:text-amber-300">
+              {t('questionPanel.freeTextRequiredNotice', { reason: freeTextReason })}
+            </p>
+          )}
           <textarea
             value={freeText}
             onChange={(e) => setFreeText(e.target.value)}
@@ -180,6 +203,22 @@ export function WorkflowQuestionPanel({
               {submitLabel ?? t('questionPanel.submitAndResume')}
             </button>
           </div>
+        </div>
+      ) : hideFreeText ? (
+        <div className="mt-3 flex justify-end">
+          <button
+            type="button"
+            onClick={() => canSubmit && onAnswer(answer)}
+            disabled={!canSubmit}
+            className="flex items-center gap-2 rounded-lg bg-amber-600 px-4 py-2 font-medium text-white transition-colors hover:bg-amber-700 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {submitting ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <Send className="h-4 w-4" />
+            )}
+            {submitLabel ?? t('questionPanel.submit')}
+          </button>
         </div>
       ) : (
         <div className="mt-3">

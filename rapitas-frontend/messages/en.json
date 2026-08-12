@@ -2104,6 +2104,11 @@
       "submitAll": "Answer all and resume",
       "nextQuestion": "Next question"
     },
+    "structuredQuestionFlow": {
+      "confirmTitle": "Confirm your answers?",
+      "confirmMessage": "The following will be sent to the agent as your answer.",
+      "confirmSubmit": "Submit as shown"
+    },
     "planApprovalModal": {
       "title": "Approve implementation plan",
       "lastUpdated": "Last updated:",
@@ -2131,7 +2136,8 @@
       "submitAndResume": "Answer and resume the workflow",
       "otherFreeText": "Other (free text)",
       "freeTextInputPlaceholder": "If none of the options fit, type here...",
-      "submit": "Submit"
+      "submit": "Submit",
+      "freeTextRequiredNotice": "This question requires free-text input: {reason}"
     },
     "roles": {
       "researcher": {

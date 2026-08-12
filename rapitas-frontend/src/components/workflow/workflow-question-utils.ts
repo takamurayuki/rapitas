@@ -136,6 +136,151 @@ export function splitIntakeQuestion(md: string): { text: string; options: string
   return { text: kept.join('\n').trim(), options };
 }
 
+/** One selectable option within a {@link StructuredQuestion}. */
+export interface StructuredQuestionOption {
+  /** Short key the user's selection is recorded under (e.g. "A"). / 選択キー */
+  key: string;
+  /** Button label / 選択肢の表示文 */
+  label: string;
+  /** One-line consequence of choosing this option, folded into the composed answer. / 選択時の影響 */
+  consequence: string;
+}
+
+/** One machine-readable question parsed from a `json:options` block. */
+export interface StructuredQuestion {
+  /** Stable id used to correlate the answer (audit trail). / 質問ID */
+  id: string;
+  /** One-line summary shown as the question heading. / 一行要約 */
+  summary: string;
+  /** Selectable options (may be empty when freeTextRequired). / 選択肢 */
+  options: StructuredQuestionOption[];
+  /** True when a free-text answer is required (options alone can't express it). / 自由入力必須か */
+  freeTextRequired: boolean;
+  /** Why free text is required; non-null only when freeTextRequired. / 自由入力が必要な理由 */
+  freeTextReason: string | null;
+}
+
+/** Parsed content of a `json:options` fenced block. */
+export interface StructuredQuestionsBlock {
+  questions: StructuredQuestion[];
+}
+
+const OPTIONS_BLOCK_RE = /```json:options\s*\n([\s\S]*?)```/;
+
+/**
+ * Parse the machine-readable `json:options` fenced block from a question.md
+ * body. Returns `null` for ANY non-viable input (missing block, malformed
+ * JSON, empty `questions`) so callers can fall back to the legacy
+ * `parseIntakeQuestions`/`splitIntakeQuestion` chain without special-casing
+ * exceptions — this never throws.
+ *
+ * @param md - The question.md body. / question.md 本文
+ * @returns The parsed block, or `null` when absent/invalid. / パース結果、無効時は null
+ */
+export function parseOptionsBlock(md: string): StructuredQuestionsBlock | null {
+  try {
+    const match = (md ?? '').match(OPTIONS_BLOCK_RE);
+    if (!match) return null;
+    const parsed: unknown = JSON.parse(match[1]);
+    if (!parsed || typeof parsed !== 'object') return null;
+    const questionsRaw = (parsed as { questions?: unknown }).questions;
+    if (!Array.isArray(questionsRaw) || questionsRaw.length === 0) return null;
+
+    const questions: StructuredQuestion[] = [];
+    for (const raw of questionsRaw) {
+      if (!raw || typeof raw !== 'object') return null;
+      const q = raw as Record<string, unknown>;
+      const id = q.id;
+      const summary = q.summary;
+      if (typeof id !== 'string' || !id.trim() || typeof summary !== 'string' || !summary.trim()) {
+        return null;
+      }
+      const options: StructuredQuestionOption[] = [];
+      if (Array.isArray(q.options)) {
+        for (const rawOption of q.options) {
+          if (!rawOption || typeof rawOption !== 'object') continue;
+          const o = rawOption as Record<string, unknown>;
+          if (typeof o.key !== 'string' || !o.key.trim() || typeof o.label !== 'string') continue;
+          options.push({
+            key: o.key,
+            label: o.label,
+            consequence: typeof o.consequence === 'string' ? o.consequence : '',
+          });
+        }
+      }
+      const freeTextRequired = q.freeTextRequired === true;
+      const freeTextReason = typeof q.freeTextReason === 'string' ? q.freeTextReason : null;
+      // Neither answerable path is available — this question can't be rendered.
+      if (!freeTextRequired && options.length === 0) return null;
+      questions.push({ id, summary, options, freeTextRequired, freeTextReason });
+    }
+    return { questions };
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Remove the `json:options` fenced block from a question.md body, leaving
+ * only the human-readable Markdown prose for display.
+ *
+ * @param md - The question.md body. / question.md 本文
+ * @returns The body with the block stripped and trimmed. / ブロック除去後の本文
+ */
+export function stripOptionsBlock(md: string): string {
+  return (md ?? '').replace(OPTIONS_BLOCK_RE, '').trim();
+}
+
+/** One user answer to a {@link StructuredQuestion}, aligned by array index. */
+export interface StructuredAnswerEntry {
+  /** Selected option key, or null when answered via free text. / 選択キー */
+  key: string | null;
+  /** Free-text content; used when key is null. / 自由記述内容 */
+  freeText: string;
+}
+
+/** Audit record of which option (if any) the user picked per question. */
+export interface StructuredSelection {
+  questionId: string;
+  selectedKey: string | null;
+}
+
+/**
+ * Compose the final answer text sent to the existing `{answer}` API by
+ * folding each question's selected option (label + consequence) or free-text
+ * entry under a `## <id>: <summary>` heading, plus the `selections` audit
+ * payload keyed by question id.
+ *
+ * @param questions - Parsed structured questions. / 構造化質問群
+ * @param answers - User answers, index-aligned with `questions`. / 質問と同順の回答
+ * @returns The composed answer text and the selections audit list. / 合成回答と選択監査
+ */
+export function composeStructuredAnswer(
+  questions: StructuredQuestion[],
+  answers: StructuredAnswerEntry[],
+): { answerText: string; selections: StructuredSelection[] } {
+  const parts: string[] = [];
+  const selections: StructuredSelection[] = [];
+  questions.forEach((q, i) => {
+    const a = answers[i];
+    let body = '';
+    if (a?.key) {
+      const opt = q.options.find((o) => o.key === a.key);
+      if (opt) {
+        body = opt.consequence
+          ? `選択: ${opt.label}（影響: ${opt.consequence}）`
+          : `選択: ${opt.label}`;
+      }
+    }
+    if (!body && a?.freeText?.trim()) {
+      body = `自由入力: ${a.freeText.trim()}`;
+    }
+    parts.push(`## ${q.id}: ${q.summary}\n${body}`);
+    selections.push({ questionId: q.id, selectedKey: a?.key ?? null });
+  });
+  return { answerText: parts.join('\n\n'), selections };
+}
+
 /**
  * Seconds remaining until an ISO deadline, or null when no deadline.
  *

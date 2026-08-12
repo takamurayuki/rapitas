@@ -13,6 +13,7 @@ import { ChevronLeft } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { WorkflowQuestionPanel } from './WorkflowQuestionPanel';
 import type { ParsedIntakeQuestion } from './workflow-question-utils';
+import { MarkdownView } from '../markdown/MarkdownView';
 
 interface IntakeQuestionFlowProps {
   /** Intro prose shown above the question (e.g. why the spec is thin). / 導入文 */
@@ -60,9 +61,9 @@ export function IntakeQuestionFlow({
   return (
     <div className="space-y-3">
       {intro && (
-        <p className="whitespace-pre-wrap rounded-lg bg-amber-50 p-3 text-xs text-amber-800 dark:bg-amber-900/20 dark:text-amber-200">
-          {intro}
-        </p>
+        <div className="rounded-lg bg-amber-50 p-3 text-xs text-amber-800 dark:bg-amber-900/20 dark:text-amber-200">
+          <MarkdownView content={intro} />
+        </div>
       )}
 
       <div className="flex items-center justify-between">
