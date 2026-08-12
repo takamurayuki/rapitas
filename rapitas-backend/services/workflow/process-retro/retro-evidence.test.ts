@@ -210,6 +210,19 @@ describe('buildEvidenceBundle', () => {
     expect(bundle.criticReasons).toEqual(['出典なし']);
     expect(bundle.phaseTimings).toEqual({ research_done: 60_000, plan_created: 60_000 });
   });
+
+  test('第3引数なし(既存呼び出し)では experiment フィールドを持たない', () => {
+    const bundle = buildEvidenceBundle([], { taskId: 1, title: 't' });
+    expect('experiment' in bundle).toBe(false);
+  });
+
+  test('実験情報を渡すと experiment に格納され、isCleanRound には影響しない', () => {
+    const experiment = { role: 'planner', hypothesisId: 7, statement: '検証中の仮説の主張文' };
+    const bundle = buildEvidenceBundle([], { taskId: 1, title: 't' }, experiment);
+    expect(bundle.experiment).toEqual(experiment);
+    // 実験中フラグは情報提供のみ — クリーンラウンド判定を変えない(AI呼び出しコスト防止)。
+    expect(isCleanRound(bundle)).toBe(true);
+  });
 });
 
 describe('fetchRetroRows', () => {
