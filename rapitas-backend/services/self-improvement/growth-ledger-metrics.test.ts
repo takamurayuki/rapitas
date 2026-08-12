@@ -9,6 +9,8 @@
 import { describe, it, expect } from 'bun:test';
 import {
   normalizeConcernKey,
+  extractLocation,
+  decodeConcernStatus,
   groupTaskEvents,
   computeGrowthLedger,
   type GrowthTransitionRow,
@@ -83,6 +85,43 @@ describe('normalizeConcernKey', () => {
     expect(normalizeConcernKey(undefined)).toBeNull();
     expect(normalizeConcernKey('   ')).toBeNull();
     expect(normalizeConcernKey(':42')).toBeNull();
+  });
+});
+
+describe('extractLocation (concern tags decoding)', () => {
+  it('reads the production loc: tag exactly as submitConcern writes it', () => {
+    // Mirrors concern-backlog-service.ts:201-202: ['severity:...', 'source:...', 'loc:<location>']
+    const tags = JSON.stringify(['severity:medium', 'source:agent', 'loc:src/App.tsx:42']);
+    expect(extractLocation(tags)).toBe('src/App.tsx:42');
+  });
+
+  it('tolerates the long-form location: prefix', () => {
+    expect(extractLocation(JSON.stringify(['location:src/a.ts']))).toBe('src/a.ts');
+  });
+
+  it('returns null when no location tag is present', () => {
+    expect(extractLocation(JSON.stringify(['severity:low', 'source:agent']))).toBeNull();
+  });
+
+  it('returns null on malformed tags (invalid JSON, non-array, non-string entries)', () => {
+    expect(extractLocation('not-json')).toBeNull();
+    expect(extractLocation(JSON.stringify({ loc: 'src/a.ts' }))).toBeNull();
+    expect(extractLocation(JSON.stringify([42, null]))).toBeNull();
+  });
+
+  it('composes with normalizeConcernKey over the production tag format', () => {
+    const tags = JSON.stringify(['severity:high', 'source:agent', 'loc:Src/App.tsx:42']);
+    expect(normalizeConcernKey(extractLocation(tags))).toBe('src/app.tsx');
+  });
+});
+
+describe('decodeConcernStatus (concern sourceId decoding)', () => {
+  it('maps sourceId values to lifecycle statuses per the listConcerns convention', () => {
+    expect(decodeConcernStatus('dismissed')).toBe('dismissed');
+    expect(decodeConcernStatus('resolved')).toBe('resolved');
+    expect(decodeConcernStatus('task_123')).toBe('task_created');
+    expect(decodeConcernStatus('open')).toBe('open');
+    expect(decodeConcernStatus(null)).toBe('open');
   });
 });
 

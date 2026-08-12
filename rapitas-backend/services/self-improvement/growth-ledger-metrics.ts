@@ -108,6 +108,13 @@ const TERMINAL_CONCERN_STATUSES: ReadonlySet<ConcernStatusLite> = new Set([
 /** Transition causes that anchor a task into the analysis range. */
 const SAVE_CAUSES = ['file_saved:research', 'file_saved:plan'] as const;
 
+// NOTE: `loc:` is the prefix the production writer emits (submitConcern,
+// concern-backlog-service.ts:202 `tags.push(`loc:${...}`)`). The long-form
+// `location:` is tolerated defensively so a future writer using the
+// documented long form still feeds metric 4. Order matters only for
+// readability — the two prefixes cannot match the same tag.
+const LOCATION_TAG_PREFIXES = ['loc:', 'location:'] as const;
+
 /**
  * Normalizes a concern location into a recurrence key: strips trailing
  * `:line(:col)` suffixes, trims, lowercases. Line-level differences must
@@ -320,21 +327,33 @@ export function computeGrowthLedger(
 /**
  * Decodes the concern lifecycle status encoded in KnowledgeEntry.sourceId
  * (same convention as listConcerns in concern-backlog-service.ts).
+ *
+ * @param sourceId - Raw KnowledgeEntry.sourceId value / 懸念行のsourceId生値
+ * @returns Concern lifecycle status; unknown values fall back to `open`. / 懸念の状態
  */
-function decodeConcernStatus(sourceId: string | null): ConcernStatusLite {
+export function decodeConcernStatus(sourceId: string | null): ConcernStatusLite {
   if (sourceId === 'dismissed') return 'dismissed';
   if (sourceId === 'resolved') return 'resolved';
   if (sourceId?.startsWith('task_')) return 'task_created';
   return 'open';
 }
 
-/** Extracts the raw location from a concern's `loc:`-prefixed tag, if any. */
-function extractLocation(tagsJson: string): string | null {
+/**
+ * Extracts the raw location from a concern's tags JSON (a stringified string
+ * array; the location entry is prefixed — see LOCATION_TAG_PREFIXES).
+ *
+ * @param tagsJson - Raw KnowledgeEntry.tags JSON string / 懸念行のtags生JSON
+ * @returns Raw location value, or null when absent or malformed. / location生値（無ければnull）
+ */
+export function extractLocation(tagsJson: string): string | null {
   try {
     const tags = JSON.parse(tagsJson) as unknown;
     if (!Array.isArray(tags)) return null;
-    const loc = tags.find((t): t is string => typeof t === 'string' && t.startsWith('loc:'));
-    return loc ? loc.slice('loc:'.length) : null;
+    for (const prefix of LOCATION_TAG_PREFIXES) {
+      const hit = tags.find((t): t is string => typeof t === 'string' && t.startsWith(prefix));
+      if (hit) return hit.slice(prefix.length);
+    }
+    return null;
   } catch {
     return null;
   }
