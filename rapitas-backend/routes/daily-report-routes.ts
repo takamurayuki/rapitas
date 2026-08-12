@@ -37,7 +37,8 @@ export const dailyReportRoutes = new Elysia({ prefix: '/growth' })
         const meta = parseMetadata(r.metadata);
         return {
           id: r.id,
-          date: typeof meta?.date === 'string' ? meta.date : r.title.replace(/^デイリーレポート /, ''),
+          date:
+            typeof meta?.date === 'string' ? meta.date : r.title.replace(/^デイリーレポート /, ''),
           summary: r.message,
           satiated: meta?.satiated === true,
           aiFormatted: meta?.aiFormatted === true,

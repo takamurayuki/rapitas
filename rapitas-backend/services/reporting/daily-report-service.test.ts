@@ -87,7 +87,13 @@ beforeEach(() => {
   notificationFindFirst.mockImplementation(() => Promise.resolve(null));
   notificationCount.mockReset();
   notificationCount.mockImplementation(() => Promise.resolve(0));
-  for (const m of [taskFindMany, prFindMany, knowledgeFindMany, decisionFindMany, themeAutoRunFindMany]) {
+  for (const m of [
+    taskFindMany,
+    prFindMany,
+    knowledgeFindMany,
+    decisionFindMany,
+    themeAutoRunFindMany,
+  ]) {
     m.mockReset();
     m.mockImplementation(() => Promise.resolve([]));
   }
@@ -183,7 +189,11 @@ describe('buildDailyReportData', () => {
         concerns: [
           { id: 1, title: '懸念1', tags: '["severity:medium","source:loop_review"]' },
           { id: 2, title: '回顧の学び', tags: '["severity:low","source:process_retro"]' },
-          { id: 3, title: 'インシデントの学び', tags: '["severity:high","source:self_incident_watch"]' },
+          {
+            id: 3,
+            title: 'インシデントの学び',
+            tags: '["severity:high","source:self_incident_watch"]',
+          },
           { id: 4, title: '壊れたタグ', tags: 'not-json' },
         ],
         restarts: { fromCycleLog: 1, fromNotifications: 2 },
@@ -234,7 +244,10 @@ describe('formatDailyReport', () => {
 
   it('includes the satiation reason section on satiated days', () => {
     const md = formatDailyReport(
-      buildDailyReportData(makeRaw({ themes: [{ themeId: 1, enabled: true, status: 'idle' }] }), NOW),
+      buildDailyReportData(
+        makeRaw({ themes: [{ themeId: 1, enabled: true, status: 'idle' }] }),
+        NOW,
+      ),
     );
     expect(md).toContain('## 静止していた理由');
     expect(md).toContain('armed-idle');
@@ -242,7 +255,10 @@ describe('formatDailyReport', () => {
 
   it('summary line carries the counts and the satiation flag', () => {
     const summary = formatDailyReportSummary(
-      buildDailyReportData(makeRaw({ themes: [{ themeId: 1, enabled: true, status: 'idle' }] }), NOW),
+      buildDailyReportData(
+        makeRaw({ themes: [{ themeId: 1, enabled: true, status: 'idle' }] }),
+        NOW,
+      ),
     );
     expect(summary).toContain('2026-08-13');
     expect(summary).toContain('完了0件');
