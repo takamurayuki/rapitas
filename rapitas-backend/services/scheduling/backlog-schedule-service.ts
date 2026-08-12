@@ -15,7 +15,8 @@ export type BacklogJobKind =
   | 'vuln_scan'
   | 'health_check'
   | 'loop_review'
-  | 'ci_watch';
+  | 'ci_watch'
+  | 'daily_report';
 /** How often a job runs. */
 export type BacklogFrequency = 'daily' | 'weekly';
 
@@ -37,6 +38,7 @@ export const BACKLOG_JOB_KINDS: readonly BacklogJobKind[] = [
   'health_check',
   'loop_review',
   'ci_watch',
+  'daily_report',
 ];
 
 /**
@@ -44,7 +46,7 @@ export const BACKLOG_JOB_KINDS: readonly BacklogJobKind[] = [
  * preserve the behaviour the app had before scheduling was configurable; the
  * vulnerability scan is opt-in (filing concerns is more intrusive).
  */
-const DEFAULTS: Record<
+export const DEFAULTS: Record<
   BacklogJobKind,
   { enabled: boolean; frequency: BacklogFrequency; hour: number; weekday: number }
 > = {
@@ -57,6 +59,9 @@ const DEFAULTS: Record<
   // Daily: red mainline CI must be noticed within a day, not a week. The
   // scheduler fires at most once per local day — "run now" covers ad hoc.
   ci_watch: { enabled: true, frequency: 'daily', hour: 7, weekday: 1 },
+  // Every morning at 7:00 (task #564 requirement): summarize the previous 24h
+  // of autonomous activity into one notification + /agents/growth archive.
+  daily_report: { enabled: true, frequency: 'daily', hour: 7, weekday: 1 },
 };
 
 /** Coerces an arbitrary value to a valid job kind, or null if unknown. */
