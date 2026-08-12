@@ -370,6 +370,20 @@ html {
   }
 }
 
+/* NOTE: WebView2 occlusion is disabled app-wide to work around a black-screen
+   bug (main.rs), which also disables Chromium's own background-render
+   throttling — decorative animations would otherwise run at full rate while
+   minimized/backgrounded. [data-app-hidden] is set by AppVisibilityBridge
+   from a Tauri-native visibility signal (see useAppVisibility) and pauses
+   animations in place rather than disabling them, so appearance is unchanged
+   on resume (unlike the reduced-motion rule above, which shortens duration). */
+[data-app-hidden='true'] *,
+[data-app-hidden='true'] *::before,
+[data-app-hidden='true'] *::after {
+  animation-play-state: paused !important;
+  transition: none !important;
+}
+
 /* Floating AI Menu animations */
 .floating-ai-menu-button {
   box-shadow: 0 4px 20px rgba(99, 102, 241, 0.3);

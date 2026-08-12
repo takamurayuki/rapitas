@@ -732,6 +732,22 @@ fn main() {
                     let _ = window.emit("rapitas:window-hide", ());
                     println!("[Tray] Window hidden to system tray");
                 }
+                // Native visibility signal for the frontend (useAppVisibility).
+                // WebView2 occlusion is disabled to avoid a black-screen bug, so
+                // document.visibilityState stays 'visible' even while minimized —
+                // this event is the only reliable hidden signal. Only main is
+                // relevant (quick-capture/notification-toast focus churn must not
+                // affect it); Focused re-emits on restore, Resized carries the
+                // is_minimized() transition since Tauri v2 has no Minimized/Restored
+                // variant.
+                if matches!(
+                    event,
+                    tauri::WindowEvent::Focused(_) | tauri::WindowEvent::Resized(_)
+                ) && window.label() == "main"
+                {
+                    let hidden = window.is_minimized().unwrap_or(false);
+                    let _ = window.emit_to("main", "app://visibility", serde_json::json!({ "hidden": hidden }));
+                }
             })
             .run(tauri::generate_context!())
             .expect("error while running tauri application");
@@ -792,6 +808,22 @@ fn main() {
                     let _ = window.hide();
                     let _ = window.emit("rapitas:window-hide", ());
                     println!("[Tray] Window hidden to system tray");
+                }
+                // Native visibility signal for the frontend (useAppVisibility).
+                // WebView2 occlusion is disabled to avoid a black-screen bug, so
+                // document.visibilityState stays 'visible' even while minimized —
+                // this event is the only reliable hidden signal. Only main is
+                // relevant (quick-capture/notification-toast focus churn must not
+                // affect it); Focused re-emits on restore, Resized carries the
+                // is_minimized() transition since Tauri v2 has no Minimized/Restored
+                // variant.
+                if matches!(
+                    event,
+                    tauri::WindowEvent::Focused(_) | tauri::WindowEvent::Resized(_)
+                ) && window.label() == "main"
+                {
+                    let hidden = window.is_minimized().unwrap_or(false);
+                    let _ = window.emit_to("main", "app://visibility", serde_json::json!({ "hidden": hidden }));
                 }
             })
             .run(tauri::generate_context!())

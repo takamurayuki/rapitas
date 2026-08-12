@@ -6,6 +6,7 @@ import { useTranslations } from 'next-intl';
 import { createLogger } from '@/lib/logger';
 import { type ExecutionStreamState, trimLogs } from './execution-stream-types';
 import { type PollRefs, executePoll } from './execution-poll-handlers';
+import { getAppHidden } from '@/hooks/common/app-visibility-store';
 
 const logger = createLogger('ExecutionStream');
 
@@ -164,7 +165,9 @@ export function useExecutionPolling(taskId: number | null) {
       // The interval keeps ticking and resumes within 1s once the tab is
       // visible again; the offset cursor means no log lines are missed.
       const poll = () => {
-        if (typeof document !== 'undefined' && document.hidden) return;
+        // getAppHidden() covers minimize, which occlusion-disabled WebView2
+        // doesn't report via document.hidden.
+        if ((typeof document !== 'undefined' && document.hidden) || getAppHidden()) return;
         // Skip if the previous poll is still in flight so overlapping fetches can
         // never pile up and exhaust the 6-connection/origin limit (which starves
         // the task-list GET → the stuck-skeleton jam). The interval keeps ticking;
