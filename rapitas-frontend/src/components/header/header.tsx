@@ -48,6 +48,7 @@ import {
   Library,
   Search,
   WalletCards,
+  ChartNoAxesCombined,
 } from 'lucide-react';
 import Link from 'next/link';
 import AppIcon from '@/components/common/app-icon';
@@ -189,6 +190,11 @@ export default function Header() {
               href: '/agents/memory',
               label: t('memoryVisualization'),
               icon: Sprout,
+            },
+            {
+              href: '/agents/growth',
+              label: t('growthLedger'),
+              icon: ChartNoAxesCombined,
             },
             {
               href: '#',

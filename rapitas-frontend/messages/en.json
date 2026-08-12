@@ -270,6 +270,7 @@
     "knowledgeBrowser": "Knowledge Browser",
     "contradictions": "Contradictions",
     "memoryVisualization": "Memory Growth",
+    "growthLedger": "Growth Ledger",
     "memoryAdmin": "Memory Admin",
     "settings": "Settings",
     "generalSettings": "App Settings",
@@ -1926,6 +1927,35 @@
         "advanced": "Advanced",
         "intermediate": "Intermediate",
         "beginner": "Beginner"
+      }
+    },
+    "growth": {
+      "pageTitle": "Self-Growth Ledger",
+      "pageSubtitle": "Weekly evidence that the system is getting smarter over time, from workflow transitions and concern history",
+      "emptyTitle": "No growth ledger data yet",
+      "emptyHint": "Weekly series will appear here once tasks complete and concerns are recorded",
+      "emptyChart": "No data for this period yet",
+      "noData": "No data",
+      "autonomy": {
+        "title": "Autonomous Completion Rate",
+        "seriesLabel": "Autonomous completion rate"
+      },
+      "criticFirstPass": {
+        "title": "Critic First-Pass Rate",
+        "researchLabel": "Research first-pass",
+        "planLabel": "Plan first-pass"
+      },
+      "repairEfficiency": {
+        "title": "Repair Efficiency",
+        "seriesLabel": "Repairs per completed task"
+      },
+      "defectRecurrence": {
+        "title": "Defect Recurrence Rate",
+        "seriesLabel": "Recurrence rate"
+      },
+      "kbQuality": {
+        "title": "Knowledge Quality",
+        "seriesLabel": "Validated ratio"
       }
     }
   },
