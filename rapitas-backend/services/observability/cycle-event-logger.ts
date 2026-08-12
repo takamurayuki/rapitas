@@ -46,7 +46,9 @@ export type CycleEventName =
   | 'pr.merged'
   | 'pr.merge_failed'
   // self-deploy
-  | 'restart.triggered';
+  | 'restart.triggered'
+  // satiation (飽和完了 — auto-run ran out of value-gate-passing work)
+  | 'satiation.entered';
 
 /**
  * Optional structured fields attached to a cycle event. Keep keys short and

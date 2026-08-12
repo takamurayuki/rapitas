@@ -21,6 +21,8 @@ interface NotifyParams {
   title: string;
   message: string;
   link?: string;
+  /** Extra fields merged into the metadata JSON (core fields always win). */
+  extraMetadata?: Record<string, unknown>;
 }
 
 /**
@@ -51,7 +53,9 @@ async function notifyOnce(params: NotifyParams): Promise<void> {
         link: params.link ?? (params.taskId ? `/tasks/${params.taskId}` : null),
         // metadata is a JSON string; embed the dedup key as a real field so the
         // contains-match above cannot collide with other metadata content.
+        // extraMetadata is spread FIRST so it can never clobber the core fields.
         metadata: JSON.stringify({
+          ...params.extraMetadata,
           dedupKey: `${params.type}:${params.taskId ?? `theme-${params.themeId}`}`,
           themeId: params.themeId,
           taskId: params.taskId ?? null,
@@ -133,5 +137,56 @@ export async function notifyAllDone(themeId: number): Promise<void> {
     themeId,
     title: '自動実行: すべてのタスクが完了',
     message: `テーマ「${theme?.name ?? themeId}」の対象タスクをすべて処理しました。自動実行を終了します。`,
+  });
+}
+
+/** One reason bucket of the value-gate exclusions shown in the satiated notification. */
+export interface SatiationBreakdownEntry {
+  reason: string;
+  count: number;
+  /** Representative excluded concern titles (a few, for human tuning). */
+  examples: string[];
+}
+
+// Human-facing labels for the value gate's rejection reason codes (要求B.4 —
+// the operator reads these to decide whether the gate is too strict).
+const REJECT_REASON_LABELS: Record<string, string> = {
+  no_evidence: '具体的証拠なし',
+  below_severity: 'severityが閾値未満',
+  saturated: '語彙的飽和（単一文化）',
+  source_quota: '同一sourceの日次上限超過',
+};
+
+/**
+ * The theme is satiated (飽和完了): two consecutive dry cycles with no
+ * value-gate-passing work. Includes the exclusion breakdown so a human can
+ * tell whether the gate is rejecting things it should not (要求B.4). The raw
+ * breakdown also lands in metadata JSON for machine consumption.
+ *
+ * @param themeId - Satiated theme. / 飽和したテーマID
+ * @param breakdown - Gate exclusions bucketed by reason. / 理由別の除外内訳
+ */
+export async function notifySatiated(
+  themeId: number,
+  breakdown: SatiationBreakdownEntry[],
+): Promise<void> {
+  const theme = await prisma.theme
+    .findUnique({ where: { id: themeId }, select: { name: true } })
+    .catch(() => null);
+  const lines = breakdown.map((b) => {
+    const label = REJECT_REASON_LABELS[b.reason] ?? b.reason;
+    const example = b.examples[0] ? `（例: ${b.examples[0]}）` : '';
+    return `・${label}: ${b.count}件${example}`;
+  });
+  const detail =
+    lines.length > 0
+      ? `\n価値ゲートで除外された候補:\n${lines.join('\n')}`
+      : '\n除外された候補はありません（バックログ自体が空です）。';
+  await notifyOnce({
+    type: 'auto_run_satiated',
+    themeId,
+    title: '自動実行: 飽和完了（価値ある仕事を消化）',
+    message: `テーマ「${theme?.name ?? themeId}」は価値ある仕事を消化しました。新しいシグナルで自動再開します。${detail}`,
+    extraMetadata: { satiationBreakdown: breakdown },
   });
 }

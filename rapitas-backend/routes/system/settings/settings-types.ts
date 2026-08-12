@@ -32,6 +32,8 @@ export interface UserSettingsUpdateBody {
   autoRestartOnMergedCode?: boolean;
   /** Process retrospective on task completion (file-backed, no DB column; default ON). */
   retroReviewEnabled?: boolean;
+  /** Concern value gate + auto-run satiation trigger (file-backed, no DB column; default ON). */
+  valueGateEnabled?: boolean;
   defaultAiProvider?: string;
   defaultCategoryId?: number | null;
   activeMode?: string;

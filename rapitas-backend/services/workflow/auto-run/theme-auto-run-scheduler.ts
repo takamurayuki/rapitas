@@ -60,8 +60,23 @@ import {
   notifyAllDone,
   notifyHangBackstop,
 } from './auto-run-notifications';
+import type { SatiationBreakdownEntry } from './auto-run-notifications';
 
 const log = createLogger('theme-auto-run-scheduler');
+
+/** Collapse per-concern value-gate rejections into reason buckets for the satiated notification. */
+function summarizeGateRejections(
+  rejected: Array<{ concern: { title: string }; reason: string }>,
+): SatiationBreakdownEntry[] {
+  const buckets = new Map<string, SatiationBreakdownEntry>();
+  for (const r of rejected) {
+    const bucket = buckets.get(r.reason) ?? { reason: r.reason, count: 0, examples: [] };
+    bucket.count += 1;
+    if (bucket.examples.length < 3) bucket.examples.push(r.concern.title);
+    buckets.set(r.reason, bucket);
+  }
+  return [...buckets.values()];
+}
 
 export class ThemeAutoRunScheduler {
   private static instance: ThemeAutoRunScheduler;
@@ -551,6 +566,8 @@ export class ThemeAutoRunScheduler {
             created,
             msg: 'refilled from backlog — staying active',
           });
+          // Promotion produced real work — the consecutive-dry chain is broken.
+          await this.resetSatiationState(themeId);
           this.broadcastAutoRunUpdate(themeId);
           return;
         }
@@ -569,13 +586,21 @@ export class ThemeAutoRunScheduler {
           cause: 'all_done_backlog_empty',
           msg: 'all tasks done, idle but armed (awaiting new work)',
         });
-        await notifyAllDone(themeId);
+        // 飽和完了 (要求B): a dry pass counts toward satiation; while satiated
+        // the dedicated notification (with the gate's exclusion breakdown)
+        // replaces the legacy all-done one. Falls back to notifyAllDone on any
+        // failure or when the value gate toggle is OFF.
+        const satiated = await this.evaluateSatiationOnDry(themeId);
+        if (!satiated) await notifyAllDone(themeId);
         this.broadcastAutoRunUpdate(themeId);
       }
       return;
     }
 
     const taskId = result.taskId;
+
+    // A real task was selected — the consecutive-dry chain is broken (要求B.1).
+    await this.resetSatiationState(themeId);
 
     // A re-run (a 'todo' task whose workflowStatus is a stale terminal state from
     // a prior run) has no forward transition from verify_done/completed — reset
@@ -615,6 +640,89 @@ export class ThemeAutoRunScheduler {
       } else {
         log.error({ err }, `[ThemeAutoRunScheduler] Failed to enqueue task ${taskId}`);
       }
+    }
+  }
+
+  /**
+   * Reset the theme's satiation dry-cycle chain (best-effort). Called whenever
+   * the chain breaks: a task was selected or a promotion created tasks.
+   * NOTE: dynamic import — test scaffolding replaces sibling modules wholesale
+   * (mock.module), so a static import of a new export would not link there.
+   *
+   * @param themeId - Theme whose chain broke / 鎖が切れたテーマID
+   */
+  private async resetSatiationState(themeId: number): Promise<void> {
+    try {
+      const tracker = await import('./satiation-tracker');
+      if (typeof tracker.resetSatiation === 'function') tracker.resetSatiation(themeId);
+    } catch (err) {
+      log.warn({ err, themeId }, '[ThemeAutoRunScheduler] satiation reset failed');
+    }
+  }
+
+  /**
+   * 飽和完了 (satiated) evaluation for a DRY all_done pass (要求B). Records the
+   * dry cycle unless an unmerged repair PR keeps the theme "busy"; on the 2nd
+   * consecutive dry cycle sends the satiated notification with the value-gate
+   * exclusion breakdown (要求B.4). Returns true while satiated so the caller
+   * suppresses the legacy notifyAllDone. Best-effort: toggle OFF, a partial
+   * module surface, or any error falls back to false (legacy behaviour).
+   *
+   * @param themeId - Theme whose pass ran dry / ドライだったテーマID
+   * @returns true while the theme is satiated / 飽和中は true
+   */
+  private async evaluateSatiationOnDry(themeId: number): Promise<boolean> {
+    try {
+      const settings = await import('./value-gate-settings-store');
+      if (!settings.readValueGateEnabled()) return false; // toggle OFF → 旧挙動
+
+      const promoter = await import('./backlog-task-promoter');
+      if (
+        typeof promoter.hasUnmergedRepairPr !== 'function' ||
+        typeof promoter.computePromotableConcerns !== 'function'
+      ) {
+        return false; // partial surface (legacy mock) — keep the legacy path
+      }
+      // An open repair PR means work is still in flight — the merge (or its CI
+      // failure) is the next signal, so the consecutive-dry chain resets.
+      if (await promoter.hasUnmergedRepairPr(themeId)) {
+        await this.resetSatiationState(themeId);
+        return false;
+      }
+
+      const tracker = await import('./satiation-tracker');
+      const { dryCycles, justSatiated } = tracker.recordDryCycle(themeId);
+      if (!justSatiated) {
+        // Either the 1st dry cycle (not yet satiated) or a later one (already
+        // satiated and notified — stay quiet, don't re-send).
+        return dryCycles >= tracker.SATIATION_DRY_CYCLE_THRESHOLD;
+      }
+
+      let breakdown: SatiationBreakdownEntry[] = [];
+      try {
+        const gated = await promoter.computePromotableConcerns(themeId);
+        breakdown = summarizeGateRejections(gated.rejected);
+      } catch {
+        breakdown = []; // breakdown is observability sugar — never block the notify
+      }
+      const notifications = await import('./auto-run-notifications');
+      if (typeof notifications.notifySatiated === 'function') {
+        await notifications.notifySatiated(themeId, breakdown);
+      }
+      log.info({ themeId, dryCycles }, '[ThemeAutoRunScheduler] theme satiated (飽和完了)');
+      logCycleEvent('satiation.entered', {
+        theme: themeId,
+        dryCycles,
+        rejectedByReason: Object.fromEntries(breakdown.map((b) => [b.reason, b.count])),
+        msg: 'auto-run satiated — no value work left (2 consecutive dry cycles)',
+      });
+      return true;
+    } catch (err) {
+      log.warn(
+        { err, themeId },
+        '[ThemeAutoRunScheduler] satiation evaluation failed — falling back to all-done notify',
+      );
+      return false;
     }
   }
 

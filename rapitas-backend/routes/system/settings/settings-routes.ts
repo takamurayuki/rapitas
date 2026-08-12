@@ -19,9 +19,11 @@ import {
   applyPendingClientColumns,
   applyAutoRestartOnMergedCode,
   applyRetroReviewEnabled,
+  applyValueGateEnabled,
 } from './settings-extra-fields';
 import { readAutoRestartEnabled } from '../../../services/scheduling/auto-restart-merged-code/settings-store';
 import { readRetroReviewEnabled } from '../../../services/workflow/process-retro/retro-settings-store';
+import { readValueGateEnabled } from '../../../services/workflow/auto-run/value-gate-settings-store';
 import { fetchAvailableModels } from './model-fetcher';
 
 const log = createLogger('routes:settings');
@@ -43,6 +45,7 @@ export const settingsRoutes = new Elysia({ prefix: '/settings' })
       ...settings,
       autoRestartOnMergedCode: readAutoRestartEnabled(),
       retroReviewEnabled: readRetroReviewEnabled(),
+      valueGateEnabled: readValueGateEnabled(),
       claudeApiKeyConfigured: apiKeyConfigured,
       chatgptApiKeyConfigured: chatgptConfigured,
       geminiApiKeyConfigured: geminiConfigured,
@@ -187,6 +190,7 @@ export const settingsRoutes = new Elysia({ prefix: '/settings' })
         await applyPendingClientColumns(settings.id, extraBody, settingsRef);
         applyAutoRestartOnMergedCode(extraBody, settingsRef);
         applyRetroReviewEnabled(extraBody, settingsRef);
+        applyValueGateEnabled(extraBody, settingsRef);
 
         return settings;
       } catch (error: unknown) {

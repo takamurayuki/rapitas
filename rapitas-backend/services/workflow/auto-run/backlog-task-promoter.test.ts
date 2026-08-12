@@ -1,8 +1,10 @@
 /**
  * backlog-task-promoter.test
  *
- * Covers hasPromotableBacklog (no-op preview) and promoteBacklogForTheme
- * (concern-first, idea-second promotion with the outstanding-count cap).
+ * Covers hasPromotableBacklog (no-op preview), promoteBacklogForTheme
+ * (concern-first, idea-second promotion with the outstanding-count cap), the
+ * concern value gate at the promotion boundary (computePromotableConcerns),
+ * and the unmerged-repair-PR check used by the satiation verdict.
  */
 import { describe, test, expect, mock, beforeEach } from 'bun:test';
 
@@ -11,12 +13,26 @@ const mockUserSettingsFindFirst = mock(() =>
 );
 const mockTaskCount = mock(() => Promise.resolve(0));
 const mockTaskUpdate = mock(() => Promise.resolve({}));
+// Quota aggregation + (real) theme-saturation pool queries; [] = no conversions
+// today and no saturated theme.
+const mockKnowledgeEntryFindMany = mock(() => Promise.resolve([] as Array<{ tags: string }>));
+const mockGitHubPrFindMany = mock(() =>
+  Promise.resolve([] as Array<{ prNumber: number; linkedTaskId: number | null }>),
+);
 
 mock.module('../../../config/database', () => ({
   prisma: {
     userSettings: { findFirst: mockUserSettingsFindFirst },
     task: { count: mockTaskCount, update: mockTaskUpdate },
+    knowledgeEntry: { findMany: mockKnowledgeEntryFindMany },
+    gitHubPullRequest: { findMany: mockGitHubPrFindMany },
   },
+}));
+
+const mockReadValueGateEnabled = mock(() => true);
+mock.module('./value-gate-settings-store', () => ({
+  readValueGateEnabled: mockReadValueGateEnabled,
+  writeValueGateEnabled: mock(() => {}),
 }));
 
 const noopLog = {
@@ -29,9 +45,34 @@ mock.module('../../../config/logger', () => ({
   createLogger: () => noopLog,
 }));
 
-const mockListConcerns = mock(() =>
-  Promise.resolve({ concerns: [] as Array<{ id: number; severity: string }>, total: 0 }),
-);
+/** Concern fixture with the fields the value gate reads (evidence via detail's #N). */
+interface TestConcern {
+  id: number;
+  title: string;
+  detail: string;
+  severity: string;
+  location: string | null;
+  originTaskId: number | null;
+  source: string;
+}
+
+function concern(id: number, severity: string, overrides: Partial<TestConcern> = {}): TestConcern {
+  return {
+    id,
+    severity,
+    // Distinct titles so the (real) saturation gate never trips on fixtures.
+    title: `フィクスチャ懸念その${id}`,
+    // '#<id>' matches the task-number evidence pattern — evidenced by default.
+    detail: `詳細 #${id}`,
+    location: null,
+    originTaskId: null,
+    // Unique per-id source so the daily quota never couples unrelated fixtures.
+    source: `src-${id}`,
+    ...overrides,
+  };
+}
+
+const mockListConcerns = mock(() => Promise.resolve({ concerns: [] as TestConcern[], total: 0 }));
 const mockConvertConcernToTask = mock((_id: number) => Promise.resolve<number | null>(null));
 mock.module('../../memory/concern-backlog-service', () => ({
   listConcerns: mockListConcerns,
@@ -68,7 +109,12 @@ mock.module('../../observability', () => ({
   logCycleEvent: mockLogCycleEvent,
 }));
 
-const { hasPromotableBacklog, promoteBacklogForTheme } = await import('./backlog-task-promoter');
+const {
+  hasPromotableBacklog,
+  promoteBacklogForTheme,
+  computePromotableConcerns,
+  hasUnmergedRepairPr,
+} = await import('./backlog-task-promoter');
 
 function resetMocks() {
   mockUserSettingsFindFirst.mockReset();
@@ -77,6 +123,12 @@ function resetMocks() {
   mockTaskCount.mockResolvedValue(0);
   mockTaskUpdate.mockReset();
   mockTaskUpdate.mockResolvedValue({});
+  mockKnowledgeEntryFindMany.mockReset();
+  mockKnowledgeEntryFindMany.mockResolvedValue([]);
+  mockGitHubPrFindMany.mockReset();
+  mockGitHubPrFindMany.mockResolvedValue([]);
+  mockReadValueGateEnabled.mockReset();
+  mockReadValueGateEnabled.mockReturnValue(true);
   mockListConcerns.mockReset();
   mockListConcerns.mockResolvedValue({ concerns: [], total: 0 });
   mockConvertConcernToTask.mockReset();
@@ -113,12 +165,22 @@ describe('hasPromotableBacklog', () => {
     expect(mockListConcerns).not.toHaveBeenCalled();
   });
 
-  test('returns true when an open concern exists', async () => {
+  test('returns true when a gate-passing open concern exists', async () => {
     mockUserSettingsFindFirst.mockResolvedValue({ autoCreateFromBacklogLimit: 2 });
     mockTaskCount.mockResolvedValue(0);
-    mockListConcerns.mockResolvedValue({ concerns: [{ id: 1, severity: 'high' }], total: 1 });
+    mockListConcerns.mockResolvedValue({ concerns: [concern(1, 'high')], total: 1 });
     expect(await hasPromotableBacklog(1)).toBe(true);
     expect(mockListIdeas).not.toHaveBeenCalled();
+  });
+
+  test('returns false when the only open concerns are gate-rejected (no flap resume)', async () => {
+    mockUserSettingsFindFirst.mockResolvedValue({ autoCreateFromBacklogLimit: 2 });
+    mockTaskCount.mockResolvedValue(0);
+    mockListConcerns.mockResolvedValue({
+      concerns: [concern(1, 'high', { detail: '証拠のない曖昧な内容' }), concern(2, 'low')],
+      total: 2,
+    });
+    expect(await hasPromotableBacklog(1)).toBe(false);
   });
 
   test('falls through to ideas when there are no open concerns', async () => {
@@ -180,10 +242,7 @@ describe('promoteBacklogForTheme — concern promotion', () => {
     mockUserSettingsFindFirst.mockResolvedValue({ autoCreateFromBacklogLimit: 5 });
     mockTaskCount.mockResolvedValue(0);
     mockListConcerns.mockResolvedValue({
-      concerns: [
-        { id: 10, severity: 'urgent' },
-        { id: 11, severity: 'high' },
-      ],
+      concerns: [concern(10, 'urgent'), concern(11, 'high')],
       total: 2,
     });
     mockConvertConcernToTask.mockResolvedValueOnce(501).mockResolvedValueOnce(502);
@@ -209,10 +268,7 @@ describe('promoteBacklogForTheme — concern promotion', () => {
     mockUserSettingsFindFirst.mockResolvedValue({ autoCreateFromBacklogLimit: 1 });
     mockTaskCount.mockResolvedValue(0);
     mockListConcerns.mockResolvedValue({
-      concerns: [
-        { id: 20, severity: 'high' },
-        { id: 21, severity: 'medium' },
-      ],
+      concerns: [concern(20, 'high'), concern(21, 'medium')],
       total: 2,
     });
     mockConvertConcernToTask.mockResolvedValue(601);
@@ -227,7 +283,7 @@ describe('promoteBacklogForTheme — concern promotion', () => {
   test('a null return from convertConcernToTask (dedup/no-op) does not count as created', async () => {
     mockUserSettingsFindFirst.mockResolvedValue({ autoCreateFromBacklogLimit: 5 });
     mockTaskCount.mockResolvedValue(0);
-    mockListConcerns.mockResolvedValue({ concerns: [{ id: 30, severity: 'low' }], total: 1 });
+    mockListConcerns.mockResolvedValue({ concerns: [concern(30, 'medium')], total: 1 });
     mockConvertConcernToTask.mockResolvedValue(null);
 
     const created = await promoteBacklogForTheme(3);
@@ -240,10 +296,7 @@ describe('promoteBacklogForTheme — concern promotion', () => {
     mockUserSettingsFindFirst.mockResolvedValue({ autoCreateFromBacklogLimit: 5 });
     mockTaskCount.mockResolvedValue(0);
     mockListConcerns.mockResolvedValue({
-      concerns: [
-        { id: 40, severity: 'high' },
-        { id: 41, severity: 'low' },
-      ],
+      concerns: [concern(40, 'high'), concern(41, 'medium')],
       total: 2,
     });
     mockConvertConcernToTask
@@ -314,7 +367,7 @@ describe('promoteBacklogForTheme — idea promotion', () => {
     // that a CRITICAL (urgent) concern always beats ideas.
     mockUserSettingsFindFirst.mockResolvedValue({ autoCreateFromBacklogLimit: 1 });
     mockTaskCount.mockResolvedValue(0);
-    mockListConcerns.mockResolvedValue({ concerns: [{ id: 90, severity: 'urgent' }], total: 1 });
+    mockListConcerns.mockResolvedValue({ concerns: [concern(90, 'urgent')], total: 1 });
     mockListIdeas.mockResolvedValue({
       ideas: [{ id: 91, title: 'i', content: 'c', priority: 'high', themeId: 3 }],
       total: 1,
@@ -396,6 +449,129 @@ describe('promoteBacklogForTheme — idea promotion', () => {
     const created = await promoteBacklogForTheme(3);
 
     expect(created).toBe(1);
+    expect(noopLog.warn).toHaveBeenCalled();
+  });
+});
+
+describe('computePromotableConcerns — value gate at the promotion boundary', () => {
+  beforeEach(resetMocks);
+
+  test('returns the pass/reject split with per-concern reasons', async () => {
+    const evidenced = concern(1, 'high');
+    const vague = concern(2, 'high', { detail: '証拠のない曖昧な内容' });
+    const low = concern(3, 'low');
+    mockListConcerns.mockResolvedValue({ concerns: [evidenced, vague, low], total: 3 });
+
+    const result = await computePromotableConcerns(1);
+
+    expect(result.gateEnabled).toBe(true);
+    expect(result.passed.map((c) => c.id)).toEqual([1]);
+    expect(result.rejected).toEqual([
+      { concern: vague, reason: 'no_evidence' },
+      { concern: low, reason: 'below_severity' },
+    ]);
+  });
+
+  test('gate-rejected concerns are never converted by promoteBacklogForTheme', async () => {
+    mockUserSettingsFindFirst.mockResolvedValue({ autoCreateFromBacklogLimit: 5 });
+    mockTaskCount.mockResolvedValue(0);
+    mockListConcerns.mockResolvedValue({
+      concerns: [concern(1, 'high'), concern(2, 'high', { detail: '証拠のない曖昧な内容' })],
+      total: 2,
+    });
+    mockConvertConcernToTask.mockResolvedValue(501);
+
+    const created = await promoteBacklogForTheme(1);
+
+    expect(created).toBe(1);
+    expect(mockConvertConcernToTask).toHaveBeenCalledTimes(1);
+    expect(mockConvertConcernToTask).toHaveBeenCalledWith(1);
+  });
+
+  test("the source daily quota counts today's conversions from KnowledgeEntry tags", async () => {
+    // 2 log_health conversions already today → a 3rd log_health concern is
+    // quota-rejected while a different source still passes.
+    mockKnowledgeEntryFindMany.mockResolvedValue([
+      { tags: JSON.stringify(['severity:high', 'source:log_health']) },
+      { tags: JSON.stringify(['severity:high', 'source:log_health']) },
+    ]);
+    mockListConcerns.mockResolvedValue({
+      concerns: [
+        concern(1, 'high', { source: 'log_health' }),
+        concern(2, 'high', { source: 'ci_watch' }),
+      ],
+      total: 2,
+    });
+
+    const result = await computePromotableConcerns(1);
+
+    expect(result.passed.map((c) => c.id)).toEqual([2]);
+    expect(result.rejected).toEqual([
+      { concern: expect.objectContaining({ id: 1 }), reason: 'source_quota' },
+    ]);
+  });
+
+  test('a failing quota aggregation is fail-open (concerns still pass)', async () => {
+    mockKnowledgeEntryFindMany.mockRejectedValue(new Error('db down'));
+    mockListConcerns.mockResolvedValue({ concerns: [concern(1, 'high')], total: 1 });
+
+    const result = await computePromotableConcerns(1);
+
+    expect(result.passed).toHaveLength(1);
+    expect(noopLog.warn).toHaveBeenCalled();
+  });
+
+  test('toggle OFF passes every concern through unchanged (旧挙動)', async () => {
+    mockReadValueGateEnabled.mockReturnValue(false);
+    mockListConcerns.mockResolvedValue({
+      concerns: [concern(1, 'low', { detail: '証拠のない曖昧な内容' })],
+      total: 1,
+    });
+
+    const result = await computePromotableConcerns(1);
+
+    expect(result.gateEnabled).toBe(false);
+    expect(result.passed).toHaveLength(1);
+    expect(result.rejected).toHaveLength(0);
+    // Quota aggregation is skipped entirely when the gate is off.
+    expect(mockKnowledgeEntryFindMany).not.toHaveBeenCalled();
+  });
+});
+
+describe('hasUnmergedRepairPr', () => {
+  beforeEach(resetMocks);
+
+  test('false when there are no open PR rows', async () => {
+    expect(await hasUnmergedRepairPr(1)).toBe(false);
+    expect(mockTaskCount).not.toHaveBeenCalled();
+  });
+
+  test('true when an open PR is linkedTaskId-linked to a theme task', async () => {
+    mockGitHubPrFindMany.mockResolvedValue([{ prNumber: 300, linkedTaskId: 55 }]);
+    mockTaskCount.mockResolvedValue(1);
+    expect(await hasUnmergedRepairPr(1)).toBe(true);
+  });
+
+  test('true via the Task.githubPrId (PR number) fallback when linkedTaskId is null', async () => {
+    mockGitHubPrFindMany.mockResolvedValue([{ prNumber: 301, linkedTaskId: null }]);
+    // First count call would be skipped (no linked ids); the fallback count hits.
+    mockTaskCount.mockResolvedValue(1);
+    expect(await hasUnmergedRepairPr(1)).toBe(true);
+    const [args] = mockTaskCount.mock.calls[0] as [
+      { where: { themeId: number; githubPrId: { in: number[] } } },
+    ];
+    expect(args.where.githubPrId.in).toEqual([301]);
+  });
+
+  test('false when open PRs belong to other themes', async () => {
+    mockGitHubPrFindMany.mockResolvedValue([{ prNumber: 302, linkedTaskId: 60 }]);
+    mockTaskCount.mockResolvedValue(0);
+    expect(await hasUnmergedRepairPr(1)).toBe(false);
+  });
+
+  test('a DB error is fail-open (reports no repair PR)', async () => {
+    mockGitHubPrFindMany.mockRejectedValue(new Error('db down'));
+    expect(await hasUnmergedRepairPr(1)).toBe(false);
     expect(noopLog.warn).toHaveBeenCalled();
   });
 });
