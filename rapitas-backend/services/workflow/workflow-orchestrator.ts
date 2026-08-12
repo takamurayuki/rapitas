@@ -643,9 +643,8 @@ export class WorkflowOrchestrator {
     // never touches getApprovedRoleAddendum's status='approved' semantics.
     // Best-effort.
     try {
-      const { getActiveExperimentAddendum } = await import(
-        '../self-learning/experiment-loop/experiment-store'
-      );
+      const { getActiveExperimentAddendum } =
+        await import('../self-learning/experiment-loop/experiment-store');
       const experimentAddendum = await getActiveExperimentAddendum(transition.role);
       if (experimentAddendum) {
         context += `\n\n## 実験中の改善ガイダンス(未承認・効果測定中)\n\n${experimentAddendum}`;

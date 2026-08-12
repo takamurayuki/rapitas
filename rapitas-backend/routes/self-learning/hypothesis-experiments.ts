@@ -55,7 +55,5 @@ export const hypothesisExperimentsRoutes = new Elysia({ prefix: '/hypothesis-exp
   .post('/abort', ({ set }) => {
     const aborted = abortExperiment();
     if (!aborted) set.status = 404;
-    return aborted
-      ? { ok: true }
-      : { ok: false, reason: 'アクティブな実験がありません' };
+    return aborted ? { ok: true } : { ok: false, reason: 'アクティブな実験がありません' };
   });

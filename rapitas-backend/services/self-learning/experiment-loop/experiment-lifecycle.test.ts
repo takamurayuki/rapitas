@@ -69,10 +69,7 @@ mock.module('../../../config/database', () => ({
     },
     workflowTransition: {
       findMany: mock(
-        (args: {
-          where: { taskId?: { in: number[] }; actor?: string };
-          distinct?: string[];
-        }) => {
+        (args: { where: { taskId?: { in: number[] }; actor?: string }; distinct?: string[] }) => {
           const ids = args.where.taskId?.in ?? [];
           let rows = transitionsDb.filter((r) => ids.includes(r.taskId));
           if (args.where.actor) rows = rows.filter((r) => r.actor === args.where.actor);
@@ -127,8 +124,12 @@ const {
   finalizeExperiment,
   abortExperiment,
 } = await import('./experiment-lifecycle');
-const { readActiveExperiment, clearActiveExperiment, listExperimentHistory, getActiveExperimentAddendum } =
-  await import('./experiment-store');
+const {
+  readActiveExperiment,
+  clearActiveExperiment,
+  listExperimentHistory,
+  getActiveExperimentAddendum,
+} = await import('./experiment-store');
 
 let nextTransitionId = 1;
 
@@ -167,7 +168,12 @@ beforeEach(() => {
   tasksDb = [];
   transitionsDb = [];
   nextTransitionId = 1;
-  hypothesis = { id: 7, statement: 'plannerに事前チェックを指示すると批評通過率が上がる', domain: 'agent-behavior', status: 'open' };
+  hypothesis = {
+    id: 7,
+    statement: 'plannerに事前チェックを指示すると批評通過率が上がる',
+    domain: 'agent-behavior',
+    status: 'open',
+  };
   promptEvolutionCreate.mockClear();
   addEvidence.mockClear();
   setHypothesisStatus.mockClear();
@@ -209,14 +215,24 @@ describe('createExperimentFromHypothesis (生成)', () => {
   });
 
   test('domain が agent-behavior 以外の仮説は拒否する', async () => {
-    hypothesis = { id: 7, statement: 'コードベースに関する仮説の主張文', domain: 'codebase', status: 'open' };
+    hypothesis = {
+      id: 7,
+      statement: 'コードベースに関する仮説の主張文',
+      domain: 'codebase',
+      status: 'open',
+    };
     const res = await createExperimentFromHypothesis(7, 'planner', '- 介入');
     expect(res.ok).toBe(false);
     expect(res.reason).toContain('agent-behavior');
   });
 
   test('open 以外の仮説は拒否する', async () => {
-    hypothesis = { id: 7, statement: '既に立証済みの仮説の主張文である', domain: 'agent-behavior', status: 'supported' };
+    hypothesis = {
+      id: 7,
+      statement: '既に立証済みの仮説の主張文である',
+      domain: 'agent-behavior',
+      status: 'supported',
+    };
     const res = await createExperimentFromHypothesis(7, 'planner', '- 介入');
     expect(res.ok).toBe(false);
     expect(res.reason).toContain('open');

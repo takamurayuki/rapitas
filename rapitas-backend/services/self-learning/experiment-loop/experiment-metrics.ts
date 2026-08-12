@@ -8,10 +8,7 @@
  * retro-evidence so the experiment measures the exact same signals the
  * self-growth ledger counts.
  */
-import {
-  computePhaseTimings,
-  countCauses,
-} from '../../workflow/process-retro/retro-evidence';
+import { computePhaseTimings, countCauses } from '../../workflow/process-retro/retro-evidence';
 import type { RetroTransitionRow } from '../../workflow/process-retro/retro-types';
 import type { ExperimentMetrics, ExperimentVerdict } from './experiment-types';
 

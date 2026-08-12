@@ -202,7 +202,11 @@ export async function updateExperimentProgress(taskId: number, finalStatus: stri
     experiment.treatmentTaskIds = [...experiment.treatmentTaskIds, taskId];
     writeActiveExperiment(experiment);
     log.info(
-      { id: experiment.id, taskId, progress: `${experiment.treatmentTaskIds.length}/${experiment.targetN}` },
+      {
+        id: experiment.id,
+        taskId,
+        progress: `${experiment.treatmentTaskIds.length}/${experiment.targetN}`,
+      },
       '[experiment] Treatment task recorded',
     );
     if (experiment.treatmentTaskIds.length >= experiment.targetN) {
