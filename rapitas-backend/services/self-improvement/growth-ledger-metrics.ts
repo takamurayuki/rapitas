@@ -298,7 +298,8 @@ export function computeGrowthLedger(
   }
 
   for (const w of windows) {
-    w.autonomy.rate = w.autonomy.completed > 0 ? w.autonomy.autonomous / w.autonomy.completed : null;
+    w.autonomy.rate =
+      w.autonomy.completed > 0 ? w.autonomy.autonomous / w.autonomy.completed : null;
     const r = w.criticFirstPass.research;
     r.rate = r.total > 0 ? r.firstPass / r.total : null;
     const p = w.criticFirstPass.plan;

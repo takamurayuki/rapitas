@@ -121,10 +121,7 @@ describe('groupTaskEvents', () => {
   });
 
   it('keeps the earliest completion when a task completes twice', () => {
-    const rows = [
-      trow(1, 1, { toStatus: 'completed' }),
-      trow(1, 5, { toStatus: 'completed' }),
-    ];
+    const rows = [trow(1, 1, { toStatus: 'completed' }), trow(1, 5, { toStatus: 'completed' })];
     const t1 = groupTaskEvents(rows)[0]!;
     expect(t1.completedAt).toEqual(at(5));
   });
