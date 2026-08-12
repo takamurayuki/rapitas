@@ -47,16 +47,19 @@ export function blockingChecks(): Set<string> {
   return new Set(names);
 }
 
-function ghPath(): string {
+/** Resolve the platform-specific `gh` CLI invocation path. / gh CLI のパス */
+export function ghPath(): string {
   return process.platform === 'win32' ? '"C:\\Program Files\\GitHub CLI\\gh.exe"' : 'gh';
 }
 
 export type CheckState = 'pass' | 'fail' | 'pending' | 'unknown';
 
-/** One CI check as returned by `gh pr checks --json name,bucket`. */
+/** One CI check as returned by `gh pr checks --json name,bucket,link`. */
 export interface PrCheck {
   name: string;
   bucket: string;
+  /** Details URL (e.g. .../actions/runs/<runId>/job/<jobId>) — used to fetch failed-job logs. */
+  link?: string;
 }
 
 /**
@@ -86,10 +89,13 @@ export function evaluateAutoMergeChecks(checks: PrCheck[], blocking: Set<string>
  */
 export async function readPrChecks(cwd: string, prNumber: number): Promise<PrCheck[] | null> {
   try {
-    const { stdout } = await execAsync(`${ghPath()} pr checks ${prNumber} --json name,bucket`, {
-      cwd,
-      encoding: 'utf8',
-    });
+    const { stdout } = await execAsync(
+      `${ghPath()} pr checks ${prNumber} --json name,bucket,link`,
+      {
+        cwd,
+        encoding: 'utf8',
+      },
+    );
     return JSON.parse(stdout) as PrCheck[];
   } catch (err) {
     // gh exits non-zero when checks are failing/pending but still prints JSON.
@@ -136,6 +142,27 @@ export async function readMergeState(cwd: string, prNumber: number): Promise<str
   } catch (err) {
     log.warn({ err, prNumber }, '[auto-merge] Failed to read PR merge state');
     return null;
+  }
+}
+
+/**
+ * Update the PR's head branch with the latest base via `gh pr update-branch`.
+ * Used as the cheap first response to a CI failure on a BEHIND branch: pulling
+ * in base often fixes drift-induced failures with zero implementation changes
+ * (observed: task 537 / PR #339, green right after a manual update-branch).
+ * Never throws — the caller only needs to know whether the call landed.
+ *
+ * @param cwd - Repo working directory / リポジトリ作業ディレクトリ
+ * @param prNumber - PR number / PR番号
+ * @returns true when gh accepted the update, false on any error. / 更新成否
+ */
+export async function updatePrBranch(cwd: string, prNumber: number): Promise<boolean> {
+  try {
+    await execAsync(`${ghPath()} pr update-branch ${prNumber}`, { cwd, encoding: 'utf8' });
+    return true;
+  } catch (err) {
+    log.warn({ err, prNumber }, '[auto-merge] Failed to update PR branch');
+    return false;
   }
 }
 
