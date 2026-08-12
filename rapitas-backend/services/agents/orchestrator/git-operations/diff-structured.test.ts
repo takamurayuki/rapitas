@@ -210,3 +210,152 @@ describe('getDiff — preferredBaseBranch overrides the develop/main/master gues
     expect(filenames).toContain('unrelated-feature-b.txt');
   });
 });
+
+// Regression (task 516): origin/<preferredBaseBranch> AHEAD of the bare local
+// branch of the same name — e.g. two PRs merge into the real base branch
+// (f6499a25/#323, 058cca2d/#333) while the worktree's shared .git carries a
+// stale local ref for it. resolveBaseRef must pick origin's newer merge-base
+// so those already-merged commits are excluded from "this task's diff" and
+// never misread as scope creep. Mirrors automated-verifier.ts's diffBaseRef
+// equivalent suite.
+describe('getDiff — origin AHEAD of local (task 516: previously-merged commits excluded)', () => {
+  let repoDir: string;
+  let originTipSha: string;
+
+  function run(cmd: string): string {
+    return execSync(cmd, { cwd: repoDir }).toString().trim();
+  }
+
+  beforeEach(() => {
+    repoDir = mkdtempSync(join(tmpdir(), 'getdiff-origin-ahead-'));
+    run('git init -q -b trunk');
+    run('git config user.email "test@example.com"');
+    run('git config user.name "Test"');
+
+    writeFileSync(join(repoDir, 'README.md'), 'initial\n');
+    run('git add README.md');
+    run('git commit -q -m "root"');
+    // The local 'develop' ref is frozen HERE — never fetched/updated again.
+    run('git branch develop');
+
+    // 'trunk' (standing in for the real remote-tracked history) keeps moving:
+    // two merged PRs land after the local 'develop' ref went stale (standing
+    // in for f6499a25/#323 and 058cca2d/#333).
+    writeFileSync(join(repoDir, 'pr-323-backend.txt'), 'pr 323\n');
+    run('git add pr-323-backend.txt');
+    run('git commit -q -m "PR #323"');
+    writeFileSync(join(repoDir, 'pr-333-button.txt'), 'pr 333\n');
+    run('git add pr-333-button.txt');
+    run('git commit -q -m "PR #333"');
+    originTipSha = run('git rev-parse HEAD');
+    // origin/develop is refreshed to the true, current tip — the local
+    // 'develop' branch above never advances past the root commit.
+    run('git update-ref refs/remotes/origin/develop HEAD');
+
+    run('git checkout -q -b feature/task516');
+    writeFileSync(join(repoDir, 'task-change.txt'), 'the actual task change\n');
+    run('git add task-change.txt');
+    run('git commit -q -m "task change"');
+  });
+
+  afterEach(() => {
+    rmSync(repoDir, { recursive: true, force: true });
+  });
+
+  test('resolves to the origin tip, excluding already-merged PRs from the diff', async () => {
+    const result = await getDiff(repoDir, undefined, 'develop');
+    const filenames = result.map((f) => f.filename);
+    expect(filenames).toEqual(['task-change.txt']);
+    expect(filenames).not.toContain('pr-323-backend.txt');
+    expect(filenames).not.toContain('pr-333-button.txt');
+  });
+
+  test('sanity: merge-base against origin/develop is indeed the origin tip', () => {
+    const base = run('git merge-base feature/task516 origin/develop');
+    expect(base).toBe(originTipSha);
+  });
+});
+
+// Regression (task 516, real staleness — not simulated via `update-ref`):
+// nothing in the verification pipeline ever runs `git fetch` against the
+// worktree (ci_repair reuses the SAME worktree call after call; `gh pr merge`
+// lands PRs via the GitHub API, never touching local remote-tracking refs).
+// resolveBaseRef must refresh `origin/<preferredBaseBranch>` itself before
+// comparing merge-bases, or a worktree that sat through PR #323/#333 merging
+// upstream keeps computing merge-base against the pre-merge tip forever, and
+// those already-merged commits bleed into "this task's diff" as false scope
+// creep — the exact task-511 self-repair-loop symptom this task reports.
+describe('getDiff — resolveBaseRef fetches origin/<branch> itself (task 516: no external fetch)', () => {
+  let remoteDir: string;
+  let repoDir: string;
+  let rootSha: string;
+
+  function runIn(dir: string, cmd: string): string {
+    return execSync(cmd, { cwd: dir }).toString().trim();
+  }
+
+  beforeEach(() => {
+    remoteDir = mkdtempSync(join(tmpdir(), 'getdiff-remote-'));
+    runIn(remoteDir, 'git init -q -b develop');
+    runIn(remoteDir, 'git config user.email "test@example.com"');
+    runIn(remoteDir, 'git config user.name "Test"');
+    writeFileSync(join(remoteDir, 'README.md'), 'initial\n');
+    runIn(remoteDir, 'git add README.md');
+    runIn(remoteDir, 'git commit -q -m "root"');
+    rootSha = runIn(remoteDir, 'git rev-parse HEAD');
+
+    // Clone — this worktree's origin/develop and local develop both start at
+    // the root commit, exactly as if the task's worktree was cut before any
+    // of the PRs below existed.
+    repoDir = mkdtempSync(join(tmpdir(), 'getdiff-clone-'));
+    rmSync(repoDir, { recursive: true, force: true });
+    execSync(`git clone -q "${remoteDir}" "${repoDir}"`);
+    runIn(repoDir, 'git config user.email "test@example.com"');
+    runIn(repoDir, 'git config user.name "Test"');
+
+    // The remote keeps moving: two PRs merge into the real develop
+    // (f6499a25/#323, 058cca2d/#333) AFTER this worktree was cloned.
+    writeFileSync(join(remoteDir, 'pr-323-backend.txt'), 'pr 323\n');
+    runIn(remoteDir, 'git add pr-323-backend.txt');
+    runIn(remoteDir, 'git commit -q -m "PR #323"');
+    writeFileSync(join(remoteDir, 'pr-333-button.txt'), 'pr 333\n');
+    runIn(remoteDir, 'git add pr-333-button.txt');
+    runIn(remoteDir, 'git commit -q -m "PR #333"');
+
+    // Build the task branch AS IF it had already been synced with develop's
+    // new tip (e.g. via `gh pr update-branch`, which merges on GitHub's side
+    // — a one-time raw fetch stands in for however that merge commit reached
+    // this worktree's own branch history).
+    runIn(repoDir, 'git fetch -q origin develop');
+    runIn(repoDir, 'git checkout -q -b feature/task516 origin/develop');
+    writeFileSync(join(repoDir, 'task-change.txt'), 'the actual task change\n');
+    runIn(repoDir, 'git add task-change.txt');
+    runIn(repoDir, 'git commit -q -m "task change"');
+
+    // Reset BOTH local refs back to stale (root) — simulating that nothing in
+    // the verification pipeline has independently refreshed origin/develop
+    // since the worktree was cloned. Only resolveBaseRef's own fetch (inside
+    // getDiff, called below) may bring it forward again.
+    runIn(repoDir, `git update-ref refs/remotes/origin/develop ${rootSha}`);
+  });
+
+  afterEach(() => {
+    rmSync(repoDir, { recursive: true, force: true });
+    rmSync(remoteDir, { recursive: true, force: true });
+  });
+
+  test('refreshes the stale origin/develop ref itself and excludes already-merged PRs', async () => {
+    const result = await getDiff(repoDir, undefined, 'develop');
+    const filenames = result.map((f) => f.filename);
+    expect(filenames).toEqual(['task-change.txt']);
+    expect(filenames).not.toContain('pr-323-backend.txt');
+    expect(filenames).not.toContain('pr-333-button.txt');
+  });
+
+  test('sanity: without a fresh fetch, local refs are still frozen at root', () => {
+    const originDevelop = runIn(repoDir, 'git rev-parse refs/remotes/origin/develop');
+    const localDevelop = runIn(repoDir, 'git rev-parse develop');
+    expect(originDevelop).toBe(rootSha);
+    expect(localDevelop).toBe(rootSha);
+  });
+});

@@ -72,6 +72,32 @@ async function resolveBaseRef(
       // Unsafe/malformed value — ignore it and fall through to the heuristic.
     }
   }
+  // Refresh origin/<preferredBaseBranch> before comparing merge-bases below.
+  // Nothing else in the verification pipeline runs `git fetch` for this
+  // worktree (PRs land on the base branch via `gh pr merge`/GitHub API, which
+  // never touches local remote-tracking refs; ci_repair reuses the SAME
+  // worktree call after call — see createWorktree's "reuse instead of
+  // creating a new one" path). Without this, "prefer origin's newer
+  // merge-base" (task 511) keeps comparing against a frozen, pre-merge
+  // `origin/<branch>` for the whole lifetime of a long self-repair loop, so
+  // already-merged commits (task 516: f6499a25/#323, 058cca2d/#333) still
+  // misread as this task's own scope creep. Best-effort: a transient
+  // network/offline failure must not hard-fail verification — it just falls
+  // back to whatever `origin/<branch>` already has locally.
+  if (safePreferred) {
+    try {
+      await execAsync(`git fetch origin ${safePreferred}`, {
+        cwd,
+        encoding: 'utf8',
+        timeout: 15_000,
+      });
+    } catch (err) {
+      logger.warn(
+        { err, cwd, branch: safePreferred },
+        '[resolveBaseRef] git fetch origin failed — comparing against local refs only',
+      );
+    }
+  }
   // Per branch NAME, try origin/<name> AND local <name>, then keep the NEWER
   // of the two merge-bases — that is the true fork point. Preferring origin
   // unconditionally (the task-511 fix for a stale local branch) breaks the
