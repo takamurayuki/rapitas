@@ -6,6 +6,12 @@ interface ExecutingTask {
   status: 'running' | 'waiting_for_input' | 'completed' | 'failed';
   /** ISO timestamp the underlying AgentExecution started, for elapsed-time display. */
   startedAt?: string | null;
+  /**
+   * Cumulative active time (ms) over the task's FINISHED executions across all
+   * phases / re-runs (task #560). The timer renders this base + the live
+   * elapsed since `startedAt`, so a new phase row no longer resets it to 0.
+   */
+  cumulativeActiveMs?: number;
 }
 
 /**
@@ -46,6 +52,8 @@ interface ExecutionStateStore {
   getExecutingTaskStatus: (taskId: number) => 'running' | 'waiting_for_input' | null;
   /** Get the ISO start timestamp of a task's running execution, or null if unknown. */
   getExecutingTaskStartedAt: (taskId: number) => string | null;
+  /** Get the cumulative finished active time (ms) of a task, 0 when unknown. */
+  getExecutingTaskActiveMs: (taskId: number) => number;
   /** Mark a task as loading execution status (skeleton should be shown) */
   setTaskLoading: (taskId: number) => void;
   /** Mark a task as done loading execution status */
@@ -177,7 +185,8 @@ export const useExecutionStateStore = create<ExecutionStateStore>()((set, get) =
         // Normalize BOTH sides: a stored task may hold `undefined` while the
         // incoming one is normalized to null — without this the dedup never
         // short-circuits and re-clones the Map every poll.
-        (existing.startedAt ?? null) === (task.startedAt ?? null)
+        (existing.startedAt ?? null) === (task.startedAt ?? null) &&
+        (existing.cumulativeActiveMs ?? 0) === (task.cumulativeActiveMs ?? 0)
       ) {
         return state;
       }
@@ -206,4 +215,5 @@ export const useExecutionStateStore = create<ExecutionStateStore>()((set, get) =
     return null;
   },
   getExecutingTaskStartedAt: (taskId) => get().executingTasks.get(taskId)?.startedAt ?? null,
+  getExecutingTaskActiveMs: (taskId) => get().executingTasks.get(taskId)?.cumulativeActiveMs ?? 0,
 }));
