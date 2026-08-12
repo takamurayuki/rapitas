@@ -54,8 +54,14 @@ mock.module('../../config/logger', () => ({
   }),
 }));
 
-const { blockingChecks, evaluateAutoMergeChecks, readPrChecks, readMergeState, readHeadSha } =
-  await import('./auto-merge-checks');
+const {
+  blockingChecks,
+  evaluateAutoMergeChecks,
+  readPrChecks,
+  readMergeState,
+  readHeadSha,
+  updatePrBranch,
+} = await import('./auto-merge-checks');
 
 beforeEach(() => {
   execMock.mockClear();
@@ -246,6 +252,27 @@ describe('readMergeState', () => {
     execBehavior = () => Object.assign(new Error('gh failed'), { stderr: 'boom' });
 
     expect(await readMergeState('/repo', 42)).toBeNull();
+    expect(logWarn).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('updatePrBranch', () => {
+  it('returns true and invokes gh pr update-branch on success', async () => {
+    execBehavior = () => ({ stdout: '', stderr: '' });
+
+    const result = await updatePrBranch('/repo', 42);
+
+    expect(result).toBe(true);
+    expect(execMock).toHaveBeenCalledTimes(1);
+    expect(execMock.mock.calls[0][0]).toContain('pr update-branch 42');
+  });
+
+  it('returns false and warns on a gh failure (never throws)', async () => {
+    execBehavior = () => Object.assign(new Error('gh failed'), { stderr: 'boom' });
+
+    const result = await updatePrBranch('/repo', 42);
+
+    expect(result).toBe(false);
     expect(logWarn).toHaveBeenCalledTimes(1);
   });
 });

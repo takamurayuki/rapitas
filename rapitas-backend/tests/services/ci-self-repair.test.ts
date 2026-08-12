@@ -7,6 +7,36 @@
  */
 import { describe, test, expect, mock, beforeEach } from 'bun:test';
 
+// Mutable behavior for the mocked exec (gh CLI). Branch on the command string:
+// 'pr checks' → check list with links, 'run view' → job log, 'headRefOid' →
+// head SHA. NOTE: follows the execBehavior pattern from auto-merge-checks.test —
+// the shared tests/helpers/mock-child-process cannot vary responses per call.
+type ExecCb = (
+  err: (Error & { stdout?: string; stderr?: string }) | null,
+  result?: { stdout: string; stderr: string },
+) => void;
+let execBehavior: (cmd: string) => { stdout: string; stderr: string } | Error = () => ({
+  stdout: '[]',
+  stderr: '',
+});
+
+const execMock = mock((cmd: string, _optsOrCb: unknown, cb?: ExecCb) => {
+  // promisify(exec) calls exec(cmd, options, callback).
+  const callback = (typeof _optsOrCb === 'function' ? _optsOrCb : cb) as ExecCb;
+  const result = execBehavior(cmd);
+  if (result instanceof Error) {
+    callback(result as Error & { stdout?: string; stderr?: string });
+  } else {
+    callback(null, result);
+  }
+});
+
+// NOTE: Mirror ALL child_process exports under both specifiers — bun
+// mock.module is process-global; any other file in this test run importing
+// child_process/node:child_process would break if exec/execFile is missing.
+mock.module('child_process', () => ({ exec: execMock, execFile: mock(() => {}) }));
+mock.module('node:child_process', () => ({ exec: execMock, execFile: mock(() => {}) }));
+
 const mockPrisma = {
   workflowTransition: { count: mock(() => Promise.resolve(0)) },
   workflowFile: { findFirst: mock(() => Promise.resolve(null)) },
@@ -47,21 +77,24 @@ mock.module('../../services/workflow/workflow-queue', () => ({
 
 const { attemptCiRepair } = await import('../../services/workflow/ci-self-repair');
 
-describe('attemptCiRepair', () => {
-  beforeEach(() => {
-    delete process.env.RAPITAS_MAX_CI_REPAIRS;
-    mockPrisma.workflowTransition.count.mockReset().mockResolvedValue(0);
-    mockPrisma.workflowFile.findFirst.mockReset().mockResolvedValue(null);
-    mockPrisma.task.update.mockReset().mockResolvedValue({});
-    // Default: no conflict-resolution task match (see ci-self-repair.ts:126) so
-    // existing tests keep exercising the normal bounce path.
-    mockPrisma.task.findUnique.mockReset().mockResolvedValue(null);
-    recordTransition.mockReset().mockResolvedValue(undefined);
-    writeWorkflowFile.mockReset().mockResolvedValue('/p/question.md');
-    readWorkflowFile.mockReset().mockResolvedValue('');
-    enqueue.mockReset().mockResolvedValue({});
-  });
+// NOTE: top-level so BOTH describe blocks (legacy + ciContext) get fresh mocks.
+beforeEach(() => {
+  delete process.env.RAPITAS_MAX_CI_REPAIRS;
+  mockPrisma.workflowTransition.count.mockReset().mockResolvedValue(0);
+  mockPrisma.workflowFile.findFirst.mockReset().mockResolvedValue(null);
+  mockPrisma.task.update.mockReset().mockResolvedValue({});
+  // Default: no conflict-resolution task match (see ci-self-repair.ts:126) so
+  // existing tests keep exercising the normal bounce path.
+  mockPrisma.task.findUnique.mockReset().mockResolvedValue(null);
+  recordTransition.mockReset().mockResolvedValue(undefined);
+  writeWorkflowFile.mockReset().mockResolvedValue('/p/question.md');
+  readWorkflowFile.mockReset().mockResolvedValue('');
+  enqueue.mockReset().mockResolvedValue({});
+  execMock.mockClear();
+  execBehavior = () => ({ stdout: '[]', stderr: '' });
+});
 
+describe('attemptCiRepair', () => {
   test('plan あり → in-progress + plan_approved へ差し戻し、再投入すること', async () => {
     mockPrisma.workflowFile.findFirst.mockResolvedValue({ id: 7 });
 
@@ -161,5 +194,102 @@ describe('attemptCiRepair', () => {
     mockPrisma.workflowFile.findFirst.mockResolvedValue({ id: 7 });
     const r = await attemptCiRepair(5, ['Test Backend']);
     expect(r.bounced).toBe(true);
+  });
+});
+
+describe('attemptCiRepair — CIログ抜粋 (ciContext)', () => {
+  const ciContext = { cwd: '/repo', prNumber: 9 };
+
+  /** gh 応答を組み立てる: pr checks / run view --job / headRefOid で分岐する。 */
+  function ghBehavior(logsByJobId: Record<string, string>, checksJson?: string) {
+    const checks = Object.keys(logsByJobId).map((jobId, i) => ({
+      name: `Check ${i + 1}`,
+      bucket: 'fail',
+      link: `https://github.com/o/r/actions/runs/1/job/${jobId}`,
+    }));
+    return (cmd: string): { stdout: string; stderr: string } | Error => {
+      if (cmd.includes('pr checks'))
+        return { stdout: checksJson ?? JSON.stringify(checks), stderr: '' };
+      if (cmd.includes('run view')) {
+        const jobId = cmd.match(/--job (\d+)/)?.[1] ?? '';
+        return { stdout: logsByJobId[jobId] ?? '', stderr: '' };
+      }
+      if (cmd.includes('headRefOid')) return { stdout: '{"headRefOid":"sha-abc"}', stderr: '' };
+      return { stdout: '{}', stderr: '' };
+    };
+  }
+
+  /** writeWorkflowFile に渡された verify.md 本文を取り出す。 */
+  function writtenFeedback(): string {
+    const args = writeWorkflowFile.mock.calls[0] as unknown[];
+    expect(args[1]).toBe('verify');
+    return args[2] as string;
+  }
+
+  test('ciContext ありでログ抜粋セクションと実ログ行がフィードバックに含まれること', async () => {
+    execBehavior = ghBehavior({ '111': 'error TS2345: type mismatch\nFAIL something' });
+    await attemptCiRepair(1, ['Check 1'], '', ciContext);
+
+    const content = writtenFeedback();
+    expect(content).toContain('## CI ログ抜粋');
+    expect(content).toContain('error TS2345: type mismatch');
+    expect(content).toContain('FAIL something');
+    // headSha が recordTransition の metadata に記録されること（no-diff 検出用）。
+    const rt = recordTransition.mock.calls[0][0] as { metadata: { headSha?: string } };
+    expect(rt.metadata.headSha).toBe('sha-abc');
+  });
+
+  test('60行のログはチェックごと末尾50行に切り詰められること', async () => {
+    const lines = Array.from({ length: 60 }, (_, i) => `log-line-${i + 1}`).join('\n');
+    execBehavior = ghBehavior({ '111': lines });
+    await attemptCiRepair(1, ['Check 1'], '', ciContext);
+
+    const content = writtenFeedback();
+    expect(content).toContain('log-line-60');
+    expect(content).toContain('log-line-11'); // tail の先頭
+    expect(content).not.toContain('log-line-10\n'); // tail 直前の行は含まれない
+  });
+
+  test('複数チェックの合計が8KB上限で切り詰められること', async () => {
+    // 1チェックあたり ~7.6KB (150文字 × 50行) — 2つ目は残予算に切り詰められる。
+    const bigLog = Array.from({ length: 60 }, () => 'x'.repeat(150)).join('\n');
+    execBehavior = ghBehavior({ '111': bigLog, '222': bigLog });
+    await attemptCiRepair(1, ['Check 1', 'Check 2'], '', ciContext);
+
+    const content = writtenFeedback();
+    const excerpt = content.slice(content.indexOf('## CI ログ抜粋'));
+    // 8KB 予算 + 切り詰めマーカー + セクション結合子ぶんの僅かな余裕のみ許容。
+    expect(Buffer.byteLength(excerpt, 'utf8')).toBeLessThanOrEqual(8 * 1024 + 120);
+    expect(excerpt).toContain('…(truncated)');
+  });
+
+  test('gh pr checks 失敗時はログ抜粋なしの従来形式に fail-open すること', async () => {
+    execBehavior = (cmd) => {
+      if (cmd.includes('pr checks')) return Object.assign(new Error('gh down'), { stderr: 'x' });
+      if (cmd.includes('headRefOid')) return { stdout: '{"headRefOid":"sha-abc"}', stderr: '' };
+      return { stdout: '{}', stderr: '' };
+    };
+    const r = await attemptCiRepair(1, ['Check Frontend'], '', ciContext);
+
+    expect(r.bounced).toBe(true);
+    const content = writtenFeedback();
+    expect(content).not.toContain('## CI ログ抜粋');
+    expect(content).toContain('CIからの差し戻し');
+    expect(content).toContain('Check Frontend');
+  });
+
+  test('link に GitHub Actions のジョブIDが無いチェックはスキップされ全体は成功すること', async () => {
+    execBehavior = ghBehavior(
+      {},
+      JSON.stringify([
+        { name: 'External CI', bucket: 'fail', link: 'https://external-ci.example.com/build/1' },
+      ]),
+    );
+    const r = await attemptCiRepair(1, ['External CI'], '', ciContext);
+
+    expect(r.bounced).toBe(true);
+    const content = writtenFeedback();
+    expect(content).not.toContain('## CI ログ抜粋');
+    expect(content).toContain('External CI');
   });
 });

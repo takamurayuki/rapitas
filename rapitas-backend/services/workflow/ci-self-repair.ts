@@ -10,17 +10,32 @@
  * verify-self-repair, but triggered by CI failure AFTER completion rather than a
  * self-contradicting verify.md DURING the workflow.
  */
+import { exec } from 'node:child_process';
+import { promisify } from 'node:util';
 import { prisma } from '../../config/database';
 import { createLogger } from '../../config/logger';
 import { readWorkflowFile, writeWorkflowFile } from './workflow-file-utils';
 import { recordTransition } from './transition-recorder';
 import { WorkflowQueueService } from './workflow-queue';
 import { countWithFailClosed } from '../../utils/database/fail-closed-count';
+import { ghPath, readPrChecks, readHeadSha } from './auto-merge-checks';
 
+const execAsync = promisify(exec);
 const log = createLogger('workflow:ci-self-repair');
 
 /** WorkflowTransition.cause used to count + identify CI-repair bounces. */
-const CI_REPAIR_CAUSE = 'ci_repair';
+export const CI_REPAIR_CAUSE = 'ci_repair';
+
+/** Per-check tail budget for CI log excerpts injected into the feedback. */
+const MAX_LOG_LINES_PER_CHECK = 50;
+/** Total byte budget (across all checks) for CI log excerpts. */
+const MAX_LOG_EXCERPT_BYTES = 8 * 1024;
+
+/** PR coordinates for reading CI logs. Optional — omitted by direct/test callers. */
+export interface CiRepairContext {
+  cwd: string;
+  prNumber: number;
+}
 
 /** Max CI-failure → fix cycles before giving up and flagging for review. */
 const DEFAULT_MAX_CI_REPAIRS = Math.max(
@@ -61,19 +76,93 @@ async function resolveImplementEntryStatus(
 }
 
 /**
+ * Fetch the failed-step log tails for the given failing checks via the gh CLI.
+ * Fully fail-open: any gh error (per check or for the whole listing) degrades to
+ * a smaller — possibly empty — excerpt, never an exception. The excerpt exists
+ * because a bounced implementer previously got only check NAMES, leaving it
+ * blind to CI-only failures it cannot reproduce locally (task 537 / PR #339).
+ *
+ * @param cwd - Repo working directory / リポジトリ作業ディレクトリ
+ * @param prNumber - PR number / PR番号
+ * @param failedChecks - Names of the failing checks. / 失敗チェック名
+ * @returns Markdown sections (max 50 lines/check, 8KB total), '' when nothing
+ *   could be fetched. / ログ抜粋（取得不能時は空文字列）
+ */
+async function fetchFailedCheckLogExcerpt(
+  cwd: string,
+  prNumber: number,
+  failedChecks: string[],
+): Promise<string> {
+  const checks = await readPrChecks(cwd, prNumber).catch(() => null);
+  if (!checks) return '';
+  const linkByName = new Map(checks.filter((c) => c.link).map((c) => [c.name, c.link as string]));
+
+  const sections: string[] = [];
+  let usedBytes = 0;
+  for (const name of failedChecks) {
+    const link = linkByName.get(name);
+    // Only GitHub Actions details URLs (.../actions/runs/<runId>/job/<jobId>)
+    // carry a job id we can feed to `gh run view --job` — skip external CI apps.
+    const jobId = link?.match(/\/job\/(\d+)/)?.[1];
+    if (!jobId) continue;
+
+    let stdout: string;
+    try {
+      ({ stdout } = await execAsync(`${ghPath()} run view --job ${jobId} --log-failed`, {
+        cwd,
+        encoding: 'utf8',
+      }));
+    } catch {
+      continue; // fail-open per check — one unreadable job must not drop the rest
+    }
+
+    const tail = stdout
+      .split('\n')
+      .map((l) => l.trimEnd())
+      .filter(Boolean)
+      .slice(-MAX_LOG_LINES_PER_CHECK)
+      .join('\n');
+    if (!tail) continue;
+    let section = `### ${name}\n\`\`\`\n${tail}\n\`\`\``;
+    const bytes = Buffer.byteLength(section, 'utf8');
+    if (usedBytes + bytes > MAX_LOG_EXCERPT_BYTES) {
+      // Trim the overflowing section into the remaining budget, then stop.
+      const remaining = MAX_LOG_EXCERPT_BYTES - usedBytes;
+      if (remaining > 0) {
+        section = `${Buffer.from(section, 'utf8').subarray(0, remaining).toString('utf8')}\n…(truncated)`;
+        sections.push(section);
+      }
+      break;
+    }
+    usedBytes += bytes;
+    sections.push(section);
+  }
+  return sections.join('\n\n');
+}
+
+/**
  * Append the CI failure to verify.md so the re-run implementer reads it as
  * verification feedback (the implementer context surfaces verify.md). This is a
  * verification/CI concern, not a user Q&A — keeping it out of question.md stops
  * it from polluting the Q&A tab. Best-effort.
+ *
+ * @param ciContext - PR coordinates for CI log excerpts (optional; when omitted
+ *   the feedback keeps the legacy names-only format). / ログ抜粋用のPR情報（任意）
  */
 async function writeCiFeedback(
   taskId: number,
   failedChecks: string[],
   detail: string,
   attempt: number,
+  ciContext?: CiRepairContext,
 ): Promise<void> {
   try {
     const prior = (await readWorkflowFile(taskId, 'verify')) ?? '';
+    const excerpt = ciContext
+      ? await fetchFailedCheckLogExcerpt(ciContext.cwd, ciContext.prNumber, failedChecks).catch(
+          () => '',
+        )
+      : '';
     const block = [
       `# CIからの差し戻し（自己修復 ${attempt} 回目）`,
       '',
@@ -85,6 +174,7 @@ async function writeCiFeedback(
       '- スコープ厳守（plan.md 記載外のファイルは変更しない）。テスト結果の改ざんは禁止。',
       '',
       detail ? `## CI 失敗の詳細\n${detail.slice(0, 1500)}` : '',
+      excerpt ? `## CI ログ抜粋（チェックごと最大50行、合計8KB上限）\n${excerpt}` : '',
     ]
       .filter(Boolean)
       .join('\n');
@@ -103,12 +193,15 @@ async function writeCiFeedback(
  * @param taskId - Task whose PR failed CI. / CI失敗したPRのタスク
  * @param failedChecks - Names of the failing CI checks. / 失敗したチェック名
  * @param detail - Optional truncated failure detail for the agent. / 失敗詳細（任意）
+ * @param ciContext - PR coordinates enabling CI log excerpts and head-SHA
+ *   bookkeeping (optional; direct callers without a PR omit it). / PR情報（任意）
  * @returns Whether the task was bounced for a fix. / 修復のため差し戻したか
  */
 export async function attemptCiRepair(
   taskId: number,
   failedChecks: string[],
   detail = '',
+  ciContext?: CiRepairContext,
 ): Promise<CiRepairResult> {
   if (DEFAULT_MAX_CI_REPAIRS === 0) return { bounced: false };
 
@@ -141,7 +234,11 @@ export async function attemptCiRepair(
   const attempt = prior + 1;
   const newStatus = await resolveImplementEntryStatus(taskId);
 
-  await writeCiFeedback(taskId, failedChecks, detail, attempt);
+  await writeCiFeedback(taskId, failedChecks, detail, attempt, ciContext);
+
+  // Record the head SHA being repaired so a later tick can detect a no-diff
+  // re-run (head unchanged since this bounce = the implementer never pushed).
+  const headSha = ciContext ? await readHeadSha(ciContext.cwd, ciContext.prNumber) : null;
 
   // Re-open the workflow: implementer entry status + non-terminal task status.
   await prisma.task
@@ -158,7 +255,12 @@ export async function attemptCiRepair(
     actor: 'system',
     cause: CI_REPAIR_CAUSE,
     phase: 'verify',
-    metadata: { attempt, max: DEFAULT_MAX_CI_REPAIRS, failedChecks },
+    metadata: {
+      attempt,
+      max: DEFAULT_MAX_CI_REPAIRS,
+      failedChecks,
+      ...(headSha ? { headSha } : {}),
+    },
   });
 
   // Re-enqueue so the status-driven WorkflowRunner re-runs implement → verify.

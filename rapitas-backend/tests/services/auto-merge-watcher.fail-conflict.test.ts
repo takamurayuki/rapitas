@@ -16,16 +16,24 @@ const mockReadPrChecks = mock(() => Promise.resolve([{ name: 'Lint Code', bucket
 const mockReadMergeState = mock(() =>
   Promise.resolve<'DIRTY' | 'CLEAN' | 'BLOCKED' | 'UNKNOWN'>('DIRTY'),
 );
+// NOTE: readHeadSha/updatePrBranch are required by auto-merge-ci-failure (the
+// extracted fail-state orchestrator) — this mock replaces the module wholesale,
+// so omitting them would crash with "undefined is not a function".
+const mockReadHeadSha = mock(() => Promise.resolve('sha-current'));
+const mockUpdatePrBranch = mock(() => Promise.resolve(true));
 mock.module('../../services/workflow/auto-merge-checks', () => ({
   blockingChecks: () => new Set(['Lint Code']),
   evaluateAutoMergeChecks: () => 'fail',
   readPrChecks: mockReadPrChecks,
   readMergeState: mockReadMergeState,
+  readHeadSha: mockReadHeadSha,
+  updatePrBranch: mockUpdatePrBranch,
 }));
 
 const mockAttemptCiRepair = mock(() => Promise.resolve({ bounced: false }));
 mock.module('../../services/workflow/ci-self-repair', () => ({
   attemptCiRepair: mockAttemptCiRepair,
+  CI_REPAIR_CAUSE: 'ci_repair',
 }));
 
 const mockFileConflictResolutionTask = mock(() => Promise.resolve({ created: true, taskId: 999 }));
@@ -62,7 +70,13 @@ mock.module('../../utils/database/fail-closed-count', () => ({
 }));
 
 const mockPrisma = {
-  workflowTransition: { count: mock(() => Promise.resolve(0)) },
+  workflowTransition: {
+    count: mock(() => Promise.resolve(0)),
+    // Defaults mean "no prior update-branch attempt / no prior ci_repair" so the
+    // pre-existing DIRTY/BLOCKED expectations below are unaffected.
+    findFirst: mock(() => Promise.resolve(null)),
+    findMany: mock(() => Promise.resolve([])),
+  },
   gitHubPullRequest: {
     findFirst: mock(() =>
       Promise.resolve({ title: 'PR title', headBranch: 'feature/x', baseBranch: 'develop' }),
@@ -122,6 +136,10 @@ beforeEach(() => {
   mockFileConflictResolutionTask.mockClear();
   mockReadMergeState.mockClear();
   mockMarkExhausted.mockClear();
+  mockReadHeadSha.mockClear();
+  mockUpdatePrBranch.mockClear();
+  mockPrisma.workflowTransition.findFirst.mockClear();
+  mockPrisma.workflowTransition.findMany.mockClear();
 });
 
 describe('AutoMergeWatcher — fail state with a real merge conflict', () => {
