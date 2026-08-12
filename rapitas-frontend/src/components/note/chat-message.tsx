@@ -5,9 +5,8 @@ import { useTranslations } from 'next-intl';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import remarkBreaks from 'remark-breaks';
-import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
-import { oneDark } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import { Copy, Check } from 'lucide-react';
+import { LazySyntaxHighlighter } from '@/components/markdown/lazy-syntax-highlighter';
 import { useLocaleStore } from '@/stores/locale-store';
 import { toDateLocale } from '@/lib/utils';
 import type { AIChatMessage } from '@/types';
@@ -100,10 +99,11 @@ export default function ChatMessage({ message }: { message: AIChatMessage }) {
                         </div>
                       )}
                       <div className="rounded-lg overflow-hidden border border-zinc-200 dark:border-zinc-700">
-                        <SyntaxHighlighter
-                          style={oneDark}
+                        <LazySyntaxHighlighter
+                          code={codeString}
                           language={lang}
-                          PreTag="div"
+                          theme="oneDark"
+                          preTag="div"
                           customStyle={{
                             margin: 0,
                             padding: '1rem',
@@ -118,9 +118,7 @@ export default function ChatMessage({ message }: { message: AIChatMessage }) {
                                 "ui-monospace, SFMono-Regular, 'SF Mono', Consolas, 'Liberation Mono', Menlo, monospace",
                             },
                           }}
-                        >
-                          {codeString}
-                        </SyntaxHighlighter>
+                        />
                       </div>
                       <button
                         onClick={() => {

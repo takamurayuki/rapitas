@@ -10,8 +10,6 @@
  */
 
 import type { Components } from 'react-markdown';
-import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
-import { oneDark, oneLight } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import { Copy, Check, ExternalLink } from 'lucide-react';
 import {
   isIconOnlyCellContent,
@@ -21,6 +19,7 @@ import {
 } from '@/components/markdown/emoji-to-lucide';
 import { renderBlockWithEmojiIcons } from '@/components/markdown/verdict-chip';
 import { MermaidBlock, extractMermaidSource } from '@/components/markdown/mermaid-block';
+import { LazySyntaxHighlighter } from '@/components/markdown/lazy-syntax-highlighter';
 
 export interface MarkdownViewerComponentDeps {
   /** Returns the next sequential heading id (ToC anchor). / 次の見出しID */
@@ -155,18 +154,17 @@ export function createMarkdownViewerComponents(deps: MarkdownViewerComponentDeps
 
       return (
         <div className="relative group mb-4">
-          <SyntaxHighlighter
-            style={isDarkMode ? oneDark : oneLight}
+          <LazySyntaxHighlighter
+            code={codeString}
             language={language || 'text'}
+            theme={isDarkMode ? 'oneDark' : 'oneLight'}
             customStyle={{
               margin: 0,
               borderRadius: '0.5rem',
               fontSize: '0.875rem',
             }}
             showLineNumbers={false}
-          >
-            {codeString}
-          </SyntaxHighlighter>
+          />
           <button
             onClick={() => onCopyCode(codeString, codeId)}
             className="absolute top-2 right-2 p-2 bg-zinc-800 dark:bg-zinc-700 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 hover:bg-zinc-700 dark:hover:bg-zinc-600"

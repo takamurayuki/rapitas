@@ -6,9 +6,7 @@
  * lucide icon substitution (shared module — see components/markdown).
  */
 
-import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
-import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
-import type { ReactNode, HTMLAttributes, CSSProperties } from 'react';
+import type { ReactNode, HTMLAttributes } from 'react';
 import { NoteChipLink } from '../NoteChipLink';
 import {
   isIconOnlyCellContent,
@@ -18,9 +16,7 @@ import {
 } from '@/components/markdown/emoji-to-lucide';
 import { renderBlockWithEmojiIcons } from '@/components/markdown/verdict-chip';
 import { MermaidBlock, extractMermaidSource } from '@/components/markdown/mermaid-block';
-
-// vscDarkPlus style type
-type SyntaxHighlighterStyle = { [key: string]: CSSProperties };
+import { LazySyntaxHighlighter } from '@/components/markdown/lazy-syntax-highlighter';
 
 type MarkdownNode = {
   children?: Array<{
@@ -162,10 +158,14 @@ export const createMarkdownComponents = () => ({
               {language.toUpperCase()}
             </span>
           </div>
-          <SyntaxHighlighter
-            style={vscDarkPlus as unknown as SyntaxHighlighterStyle}
+          {/* NOTE: react-markdown's inert {...props} are no longer forwarded to the
+              highlighter — it renders from the explicit props below (bundle-budget
+              lazy split; see lazy-syntax-highlighter). */}
+          <LazySyntaxHighlighter
+            code={codeString}
             language={language}
-            PreTag="div"
+            theme="vscDarkPlus"
+            preTag="div"
             className="mt-0! mb-0! rounded-lg! text-sm!"
             showLineNumbers={true}
             customStyle={{
@@ -173,10 +173,7 @@ export const createMarkdownComponents = () => ({
               borderRadius: '0.5rem',
               padding: '1rem',
             }}
-            {...props}
-          >
-            {codeString}
-          </SyntaxHighlighter>
+          />
         </div>
       );
     }
