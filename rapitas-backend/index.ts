@@ -98,6 +98,10 @@ app.use(
     // requests for the UI-quiet restart gate; without it the preflight strips it.
     allowedHeaders: ['Content-Type', 'Authorization', 'Cookie', 'X-Rapitas-Source'],
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+    // NOTE: @elysiajs/cors defaults maxAge to 5s, which would re-issue a
+    // preflight OPTIONS roughly every 5s for polling GETs once they carry the
+    // custom X-Rapitas-Source header. 7200s is Chrome's preflight-cache cap.
+    maxAge: 7200,
   }),
 );
 
