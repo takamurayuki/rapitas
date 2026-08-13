@@ -17,6 +17,7 @@ const { showToast, confirmDialog, prefetch, loggerError, mockStoreState } = vi.h
   mockStoreState: {
     status: null as string | null,
     startedAt: null as string | null,
+    activeMs: 0,
   },
 }));
 
@@ -54,11 +55,13 @@ vi.mock('@/stores/execution-state-store', () => ({
     selector: (state: {
       getExecutingTaskStatus: (id: number) => string | null;
       getExecutingTaskStartedAt: (id: number) => string | null;
+      getExecutingTaskActiveMs: (id: number) => number;
     }) => unknown,
   ) =>
     selector({
       getExecutingTaskStatus: () => mockStoreState.status,
       getExecutingTaskStartedAt: () => mockStoreState.startedAt,
+      getExecutingTaskActiveMs: () => mockStoreState.activeMs,
     }),
 }));
 
@@ -91,6 +94,7 @@ describe('useTaskCard', () => {
     vi.clearAllMocks();
     mockStoreState.status = null;
     mockStoreState.startedAt = null;
+    mockStoreState.activeMs = 0;
     vi.stubGlobal('fetch', vi.fn());
   });
 
@@ -183,6 +187,17 @@ describe('useTaskCard', () => {
       const { result } = renderHook(() => useTaskCard(task, onStatusChange, onTaskUpdated));
 
       expect(result.current.executionElapsed).toBeNull();
+    });
+
+    it('累積実働(activeMs)があると経過表示は base + 現在経過になる（task #560）', () => {
+      mockStoreState.status = 'running';
+      mockStoreState.startedAt = new Date(Date.now() - 30_000).toISOString();
+      mockStoreState.activeMs = 10 * 60_000; // 前フェーズまでの実働10分
+      const task = createMockTask();
+      const { result } = renderHook(() => useTaskCard(task, onStatusChange, onTaskUpdated));
+
+      // 10分（累積）+ 30秒（現在経過）≒ 10:30 — フェーズ切替で0に戻らない
+      expect(result.current.executionElapsed).toBe('10:30');
     });
   });
 

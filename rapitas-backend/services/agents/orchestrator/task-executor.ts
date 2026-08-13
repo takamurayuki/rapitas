@@ -486,6 +486,26 @@ async function executeWithFallbackAgent(
 }
 
 /**
+ * Merge the primary agent's CLI segment time into a fallback result.
+ *
+ * Adopting a fallback result wholesale used to discard the failed primary
+ * agent's executionTimeMs, under-recording active time (task #560). Time is
+ * the only field merged — every other field must reflect the fallback run.
+ *
+ * @param primary - Result of the failed primary agent run. / 失敗した一次実行の結果
+ * @param fallback - Result of the fallback agent run. / フォールバック実行の結果
+ * @returns Fallback result with both segments' executionTimeMs summed. / 両セグメント合算済みの結果
+ */
+export function mergeFallbackSegmentTime(
+  primary: AgentExecutionResult,
+  fallback: AgentExecutionResult,
+): AgentExecutionResult {
+  const primaryMs = primary.executionTimeMs ?? 0;
+  if (primaryMs <= 0) return fallback;
+  return { ...fallback, executionTimeMs: (fallback.executionTimeMs ?? 0) + primaryMs };
+}
+
+/**
  * Handle successful execution - memory system and auto-complete.
  */
 function handleExecutionSuccess(
@@ -692,7 +712,9 @@ export async function executeTask(
         );
 
         if (fallbackResult.newAgentConfig) {
-          r = fallbackResult.result;
+          // NOTE: keep the primary run's CLI segment time — replacing the
+          // result wholesale would discard it and under-record executionTimeMs.
+          r = mergeFallbackSegmentTime(r, fallbackResult.result);
           fallbackSucceeded = fallbackResult.fallbackSucceeded;
           agentConfig = fallbackResult.newAgentConfig;
           resolvedAgentConfigId = fallbackResult.newConfigId;

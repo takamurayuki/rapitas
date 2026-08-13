@@ -45,14 +45,20 @@ mock.module('../../../utils/llm-call-context', () => ({
   getLlmCallCount: mock(() => 0),
 }));
 
-mock.module('../../../config/logger', () => ({
-  createLogger: () => ({
+// NOTE: `logger` も必須 — config/index.ts が `export { logger }` で再エクスポート
+// しており、欠けると mock 適用下で import 連鎖全体が SyntaxError で落ちる。
+mock.module('../../../config/logger', () => {
+  const stub = {
     info: () => {},
     warn: () => {},
     error: () => {},
     debug: () => {},
-  }),
-}));
+  };
+  return {
+    logger: stub,
+    createLogger: () => stub,
+  };
+});
 
 mock.module('./execution-helpers', () => ({
   createLogChunkManager: mock(() => ({ cleanup: () => {} })),
@@ -85,7 +91,8 @@ mock.module('../../communication/notification-service', () => ({ createNotificat
 
 // ── 動的 import（全 mock.module 宣言後） ──────────────────────────────────────
 
-const { executeTask, autoCompleteTaskDurable } = await import('./task-executor');
+const { executeTask, autoCompleteTaskDurable, mergeFallbackSegmentTime } =
+  await import('./task-executor');
 
 // ── 型 import（ランタイムに影響なし） ─────────────────────────────────────────
 
@@ -160,6 +167,44 @@ describe('executeTask() — 早期シャットダウン guard', () => {
 
     // NOTE: 早期 guard で throw するため agentFactory.createAgent には到達しない
     expect(createAgentMock).not.toHaveBeenCalled();
+  });
+});
+
+describe('mergeFallbackSegmentTime() — フォールバック採用時のセグメント時間合算', () => {
+  test('元実行の executionTimeMs を fallback 結果へ合算する（両セグメント和）', () => {
+    const primary = { success: false, output: 'err', executionTimeMs: 30_000 };
+    const fallback = { success: true, output: 'ok', executionTimeMs: 45_000 };
+
+    const merged = mergeFallbackSegmentTime(primary as never, fallback as never);
+
+    expect(merged.executionTimeMs).toBe(75_000);
+    // 時間以外のフィールドは fallback 結果を維持する
+    expect(merged.success).toBe(true);
+    expect(merged.output).toBe('ok');
+  });
+
+  test('元実行の時間が未記録(undefined/0)なら fallback 結果をそのまま返す', () => {
+    const fallback = { success: true, output: 'ok', executionTimeMs: 45_000 };
+
+    expect(
+      mergeFallbackSegmentTime({ success: false, output: '' } as never, fallback as never)
+        .executionTimeMs,
+    ).toBe(45_000);
+    expect(
+      mergeFallbackSegmentTime(
+        { success: false, output: '', executionTimeMs: 0 } as never,
+        fallback as never,
+      ).executionTimeMs,
+    ).toBe(45_000);
+  });
+
+  test('fallback 側の時間が未記録でも元実行のセグメント時間は保持される', () => {
+    const primary = { success: false, output: '', executionTimeMs: 30_000 };
+    const fallback = { success: true, output: 'ok' };
+
+    const merged = mergeFallbackSegmentTime(primary as never, fallback as never);
+
+    expect(merged.executionTimeMs).toBe(30_000);
   });
 });
 

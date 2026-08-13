@@ -2340,6 +2340,18 @@
         },
         "reasonsCount": "指摘 {count}件",
         "noReasons": "詳細情報が記録されていません"
+      },
+      "phaseBreakdown": {
+        "title": "フェーズ別実行時間",
+        "totalActive": "実働合計 {time}",
+        "wallClock": "経過 {time}",
+        "execCount": "{count}回",
+        "role": {
+          "researcher": "調査",
+          "planner": "計画",
+          "implementer": "実装",
+          "verifier": "検証"
+        }
       }
     }
   },

@@ -103,6 +103,9 @@ export function useTaskCard(
   const storeExecutionStartedAt = useExecutionStateStore((state) =>
     state.getExecutingTaskStartedAt(task.id),
   );
+  const storeExecutionActiveMs = useExecutionStateStore((state) =>
+    state.getExecutingTaskActiveMs(task.id),
+  );
 
   // Sync localSubtasks when the prop changes
   useEffect(() => {
@@ -116,9 +119,13 @@ export function useTaskCard(
   // "any subtask has in-progress STATUS", which spun the loader even for tasks a
   // user had manually marked in-progress.)
   const executionStatus = storeExecutionStatus;
+  // Cumulative finished active time as the base + live tick of the current
+  // execution row — the display accumulates across phase / re-run boundaries
+  // instead of resetting to 0 on each new phase's row (task #560).
   const executionElapsed = useElapsedTime(
     storeExecutionStartedAt,
     executionStatus === 'running' || executionStatus === 'waiting_for_input',
+    storeExecutionActiveMs,
   );
 
   // Close context menu on outside click
