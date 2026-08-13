@@ -65,6 +65,22 @@ const execMockImpl = (
 mock.module('child_process', () => ({ execFile: execFileMockImpl, exec: execMockImpl }));
 mock.module('node:child_process', () => ({ execFile: execFileMockImpl, exec: execMockImpl }));
 
+// NOTE: diff-structured.ts imports assertSafeGitRef from branch-name-generator,
+// whose real module pulls in the ai-client dependency chain (claude-cli-provider
+// needs child_process exports this test's mock does not mirror). assertSafeGitRef
+// is a pure function covered by branch-name-generator.test.ts; mirror its logic
+// to keep the module graph small (same pattern as worktree-ops.test.ts).
+mock.module('../../../../../utils/common/branch-name-generator', () => ({
+  assertSafeGitRef: (ref: string, field = 'branchName') => {
+    if (typeof ref !== 'string' || ref.length === 0 || ref.length > 200) {
+      throw new Error(`Invalid ${field}: must be a non-empty string under 200 chars`);
+    }
+    if (!/^[A-Za-z0-9][A-Za-z0-9._/-]*$/.test(ref) || ref.includes('..')) {
+      throw new Error(`Invalid ${field}: contains characters not allowed in a branch name`);
+    }
+  },
+}));
+
 mock.module('../../../../../config/logger', () => ({
   createLogger: () => ({ info: () => {}, warn: () => {}, error: () => {}, debug: () => {} }),
 }));
