@@ -21,8 +21,28 @@ export interface SelectableTask {
 export type NoTaskReason = 'all_done' | 'concurrency_limit' | 'awaiting_approval';
 
 export type SelectionResult =
-  | { found: true; taskId: number }
+  | {
+      found: true;
+      taskId: number;
+      /**
+       * Task ids passed over because their plan files overlap an open auto-PR's
+       * changed files (task 573 B). Present only when a LATER candidate was
+       * selected instead; the all-overlap fallback picks the head without it.
+       */
+      deferred?: number[];
+    }
   | { found: false; reason: NoTaskReason };
+
+/**
+ * Scope-overlap context for {@link selectNextTask} (task 573 B). `openPrFiles`
+ * is the union of changed files across the theme's OPEN auto-created PRs;
+ * `getPlanFiles` loads a candidate's plan file list (empty = no plan =
+ * lightweight task, never deferred per spec).
+ */
+export interface ScopeOverlapContext {
+  openPrFiles: string[];
+  getPlanFiles: (taskId: number) => Promise<string[]>;
+}
 
 /** Auto-run concurrency constants (overridable via env). */
 export const AUTO_RUN_GLOBAL_MAX_CONCURRENCY = Math.max(
@@ -152,6 +172,51 @@ export async function getThemeActiveQueueItems(
 }
 
 /**
+ * Path-boundary-safe file match: equal, or one is the other's `/`-suffix.
+ * Suffix matching absorbs repo-relative vs package-relative depth differences
+ * (`rapitas-backend/services/a.ts` vs `services/a.ts`) without the false
+ * positive of a bare endsWith (`foo/ab.ts` must NOT match `b.ts`).
+ */
+function fileMatches(a: string, b: string): boolean {
+  if (a === b) return true;
+  return a.endsWith(`/${b}`) || b.endsWith(`/${a}`);
+}
+
+/**
+ * Open-PR files that overlap the plan's file list (task 573 B). Both sides are
+ * normalized to `/` separators; plan DIRECTORY tokens (trailing `/`) are
+ * excluded on purpose — directory-granularity matching on shared dirs like
+ * `services/` would defer every candidate and starve the theme. Pure.
+ *
+ * @param planFiles - parsePlanFiles output for a candidate's plan / 計画のファイル一覧
+ * @param openPrFiles - Union of open auto-PR changed files / オープンPRの変更ファイル
+ * @returns The overlapping open-PR file paths (deduped) / 重複ファイル一覧
+ */
+export function overlappingFiles(planFiles: string[], openPrFiles: string[]): string[] {
+  const plan = planFiles
+    .map((f) => f.replace(/\\/g, '/'))
+    .filter((f) => f.length > 0 && !f.endsWith('/'));
+  const out = new Set<string>();
+  for (const prFile of openPrFiles) {
+    const pr = prFile.replace(/\\/g, '/');
+    if (plan.some((p) => fileMatches(p, pr))) out.add(pr);
+  }
+  return [...out];
+}
+
+/**
+ * Whether a candidate's plan files overlap any open auto-PR's changed files.
+ * Pure wrapper over {@link overlappingFiles}.
+ *
+ * @param planFiles - parsePlanFiles output for a candidate's plan / 計画のファイル一覧
+ * @param openPrFiles - Union of open auto-PR changed files / オープンPRの変更ファイル
+ * @returns True when at least one file overlaps / 重複があればtrue
+ */
+export function hasScopeOverlap(planFiles: string[], openPrFiles: string[]): boolean {
+  return overlappingFiles(planFiles, openPrFiles).length > 0;
+}
+
+/**
  * Determine whether a task should be skipped (was blocked by a previous failure).
  * A task is blocked when its status was explicitly set to 'blocked' by the scheduler.
  *
@@ -243,6 +308,7 @@ export async function hasLiveExecution(prisma: PrismaClient, taskId: number): Pr
  * @param skipTaskIds - task IDs to skip (e.g. currently running) / スキップするタスクIDセット
  * @param globalActiveCount - current global auto-run active items count / グローバルアクティブ数
  * @param themeSuccessRate - Recent theme success rate for the learnable-band tiebreak (null = legacy ordering). / 直近成功率
+ * @param scopeOverlap - Open-PR file context for overlap deferral; omitted = legacy behavior (task 573 B). / スコープ重複コンテキスト
  * @returns SelectionResult with taskId or reason why none was found / 選択結果
  */
 export async function selectNextTask(
@@ -252,6 +318,7 @@ export async function selectNextTask(
   skipTaskIds: number[],
   globalActiveCount: number,
   themeSuccessRate: number | null = null,
+  scopeOverlap?: ScopeOverlapContext,
 ): Promise<SelectionResult> {
   if (globalActiveCount >= AUTO_RUN_GLOBAL_MAX_CONCURRENCY) {
     return { found: false, reason: 'concurrency_limit' };
@@ -315,6 +382,24 @@ export async function selectNextTask(
     });
   }
   // order === 'created' keeps the DB createdAt-asc order as-is.
+
+  // Scope-overlap deferral (task 573 B): pick the FIRST candidate whose plan
+  // files do not overlap an open auto-PR's changed files. A candidate without a
+  // plan (lightweight) is never deferred. When EVERY candidate overlaps, fall
+  // back to the head (starvation guard) and report no deferral.
+  if (scopeOverlap && scopeOverlap.openPrFiles.length > 0) {
+    const deferred: number[] = [];
+    for (const candidate of eligible) {
+      const planFiles = await scopeOverlap.getPlanFiles(candidate.id).catch(() => []);
+      if (planFiles.length === 0 || !hasScopeOverlap(planFiles, scopeOverlap.openPrFiles)) {
+        return deferred.length > 0
+          ? { found: true, taskId: candidate.id, deferred }
+          : { found: true, taskId: candidate.id };
+      }
+      deferred.push(candidate.id);
+    }
+    return { found: true, taskId: eligible[0]!.id };
+  }
 
   return { found: true, taskId: eligible[0]!.id };
 }

@@ -237,6 +237,50 @@ mock.module('./auto-run-selection', () => ({
   // Real (trivial) logic — no test needs to override "is any item waiting_approval".
   hasItemAwaitingApproval: (items: Array<{ status: string }>) =>
     items.some((i) => i.status === 'waiting_approval'),
+  // Scope-overlap helpers (task 573 B) — bun mock.module must mirror EVERY
+  // export. Defaults are "no overlap" so legacy scheduler tests are unaffected.
+  hasScopeOverlap: () => false,
+  overlappingFiles: () => [] as string[],
+}));
+
+// ---------------------------------------------------------------------------
+// open-pr-files-cache (task 573 B) — no open auto-PRs by default so the
+// scheduler's selection path stays on its legacy behavior in existing tests.
+// ---------------------------------------------------------------------------
+export const mockGetOpenAutoPrsForTheme = mock(() =>
+  Promise.resolve([] as Array<{ prNumber: number; linkedTaskId: number | null }>),
+);
+export const mockGetPrChangedFiles = mock(() => Promise.resolve([] as string[]));
+
+mock.module('./open-pr-files-cache', () => ({
+  PR_FILES_CACHE_TTL_MS: 60_000,
+  clearPrFilesCache: () => {},
+  getOpenAutoPrsForTheme: mockGetOpenAutoPrsForTheme,
+  getPrChangedFiles: mockGetPrChangedFiles,
+}));
+
+// ---------------------------------------------------------------------------
+// merge-barrier (task 573 C) — default OFF; barrier decision mirrors the real
+// pure logic so a test can flip the toggle mock and exercise the hold path.
+// ---------------------------------------------------------------------------
+export const mockReadMergeBarrierEnabled = mock(() => false);
+
+mock.module('../../scheduling/merge-barrier/merge-barrier', () => ({
+  MERGE_BARRIER_DEFAULT_MAX_HOLD_MS: 30 * 60 * 1000,
+  getMergeBarrierMaxHoldMs: () => 30 * 60 * 1000,
+  readMergeBarrierEnabled: mockReadMergeBarrierEnabled,
+  writeMergeBarrierEnabled: mock(() => {}),
+  shouldHoldForBarrier: (
+    enabled: boolean,
+    openPrExists: boolean,
+    holdSinceMs: number | null,
+    nowMs: number,
+    maxHoldMs: number,
+  ) => {
+    if (!enabled || !openPrExists) return false;
+    if (holdSinceMs === null) return true;
+    return nowMs - holdSinceMs < maxHoldMs;
+  },
 }));
 
 // ---------------------------------------------------------------------------

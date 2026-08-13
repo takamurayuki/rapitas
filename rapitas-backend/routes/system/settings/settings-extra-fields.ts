@@ -17,6 +17,10 @@ import {
   readRetroReviewEnabled,
   writeRetroReviewEnabled,
 } from '../../../services/workflow/process-retro/retro-settings-store';
+import {
+  readMergeBarrierEnabled,
+  writeMergeBarrierEnabled,
+} from '../../../services/scheduling/merge-barrier/merge-barrier';
 import type { UserSettingsUpdateBody } from './settings-types';
 
 const log = createLogger('routes:settings');
@@ -113,4 +117,23 @@ export function applyRetroReviewEnabled(
     writeRetroReviewEnabled(body.retroReviewEnabled);
   }
   settingsRef.retroReviewEnabled = readRetroReviewEnabled();
+}
+
+/**
+ * Persist the file-backed mergeBarrierEnabled toggle (no Prisma column — the
+ * value lives in RAPITAS_DATA_DIR, default OFF; task 573 C) and mirror the
+ * effective value onto `settingsRef` so GET/PATCH responses always carry the
+ * field.
+ *
+ * @param body - PATCH body (field written only when defined) / PATCHボディ
+ * @param settingsRef - Response object to mirror the value onto / 反映先レスポンスオブジェクト
+ */
+export function applyMergeBarrierEnabled(
+  body: UserSettingsUpdateBody,
+  settingsRef: Record<string, unknown>,
+): void {
+  if (body.mergeBarrierEnabled !== undefined) {
+    writeMergeBarrierEnabled(body.mergeBarrierEnabled);
+  }
+  settingsRef.mergeBarrierEnabled = readMergeBarrierEnabled();
 }

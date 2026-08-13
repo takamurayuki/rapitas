@@ -31,6 +31,11 @@ export type CycleEventName =
   // task scheduling
   | 'task.selected'
   | 'task.enqueued'
+  // scope-overlap deferral (task 573): a candidate was passed over because its
+  // plan files overlap an open auto-PR's changed files
+  | 'task.deferred'
+  // merge barrier (task 573): selection held while the theme's own PR is open
+  | 'task.barrier_hold'
   // workflow phase progression
   | 'phase.transition'
   // task terminal / hold states

@@ -182,6 +182,7 @@ describe('advanceTheme — selection: task found', () => {
       [50, 51],
       0,
       null, // R6: success-rate signal (mocked to null = legacy ordering)
+      undefined, // task 573 B: no open auto-PRs (mocked) → no scope-overlap context
     );
   });
 });
