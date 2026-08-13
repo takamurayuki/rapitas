@@ -24,6 +24,7 @@ import {
   splitIntakeQuestion,
   parseIntakeQuestions,
   parseOptionsBlock,
+  stripOptionsBlock,
   type StructuredSelection,
 } from './workflow-question-utils';
 
@@ -318,6 +319,9 @@ export default function WorkflowViewer({
                           questions={structuredBlock.questions}
                           submitting={submittingAnswer}
                           onSubmitAll={handleAnswerIntakeQuestion}
+                          // Prose context (headings/tables) around the options
+                          // block would otherwise be dropped entirely.
+                          body={stripOptionsBlock(content)}
                         />
                       </div>
                     );
