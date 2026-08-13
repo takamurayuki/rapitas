@@ -60,6 +60,32 @@ export async function fetchAndCountAhead(
 }
 
 /**
+ * List file paths changed between the startup commit and origin/<branch>
+ * (`git diff --name-only`). Input for the merge-urgency classification —
+ * compares already-fetched local refs only, so no network I/O happens here.
+ *
+ * @param startupCommit - Commit the process booted on / 起動時コミット
+ * @param branch - Branch name to compare against (e.g. develop) / 比較対象ブランチ名
+ * @returns Changed paths, or [] on failure (= unknown change set, classified as boundary) / 変更パス一覧（失敗時は空配列）
+ */
+export async function listChangedPaths(startupCommit: string, branch: string): Promise<string[]> {
+  try {
+    const out = await runGitCommand(
+      ['diff', '--name-only', `${startupCommit}..origin/${branch}`],
+      undefined,
+      { skipLog: true, timeoutMs: 60_000 },
+    );
+    return out
+      .split(/\r?\n/)
+      .map((line) => line.trim())
+      .filter((line) => line.length > 0);
+  } catch (err) {
+    log.warn({ err, branch }, '[auto-restart] diff --name-only failed — change set unknown');
+    return [];
+  }
+}
+
+/**
  * Whether the working tree has no uncommitted changes. A dirty tree blocks
  * the fast-forward pull (self-dev agents may be editing the primary checkout).
  *

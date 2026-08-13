@@ -11,6 +11,13 @@ import { spawn, execSync, type ChildProcess } from 'child_process';
 import { existsSync } from 'fs';
 import { tmpdir } from 'os';
 import { createLogger } from '../../config/logger';
+// NOTE: Deliberate utils→services exception (concern #1284): aux CLI children
+// must be visible to the shared process tracker so the task-boundary restart
+// can require "0 live aux CLI children" and post-crash cleanup can reap them.
+import {
+  registerProcess,
+  unregisterProcess,
+} from '../../services/agents/agent-process-tracker';
 import { type AIMessage, type AIResponse } from './types';
 
 const log = createLogger('ai-client:claude-cli');
@@ -215,6 +222,30 @@ function extractLastJsonObject(text: string): string | null {
   return null;
 }
 
+/**
+ * Track an aux CLI child in the shared process tracker (concern #1284) and
+ * return an idempotent untrack callback. With `shell: true` the tracked PID is
+ * the shell wrapper (cmd.exe on Windows) which lives as long as the CLI call —
+ * a correct liveness proxy for the "0 aux children" restart gate; killing the
+ * real CLI grandchild by PID is out of scope here.
+ */
+function trackAuxCliChild(child: ChildProcess): () => void {
+  const pid = child.pid;
+  if (typeof pid !== 'number') return () => {};
+  registerProcess({
+    pid,
+    role: 'cli-agent',
+    startedAt: new Date().toISOString(),
+    parentPid: process.pid,
+  });
+  let untracked = false;
+  return () => {
+    if (untracked) return;
+    untracked = true;
+    unregisterProcess(pid);
+  };
+}
+
 /** Spawn the CLI with the given args, feed `prompt` on stdin, resolve stdout. */
 function spawnCli(args: string[], prompt: string): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -227,6 +258,7 @@ function spawnCli(args: string[], prompt: string): Promise<string> {
       stdio: ['pipe', 'pipe', 'pipe'],
       env: buildCliEnv(),
     });
+    const untrack = trackAuxCliChild(child);
 
     let stdout = '';
     let stderr = '';
@@ -237,15 +269,20 @@ function spawnCli(args: string[], prompt: string): Promise<string> {
 
     const timer = setTimeout(() => {
       child.kill();
+      // Untrack promptly — on Windows the shell wrapper may linger after
+      // kill(); the tracker's liveness check self-heals if it survives.
+      untrack();
       reject(new ClaudeCliUnavailableError(`Claude CLI timed out after ${CLI_TIMEOUT_MS}ms`));
     }, CLI_TIMEOUT_MS);
 
     child.on('error', (err) => {
       clearTimeout(timer);
+      untrack();
       reject(new ClaudeCliUnavailableError(`Claude CLI spawn failed: ${err.message}`));
     });
     child.on('close', (code) => {
       clearTimeout(timer);
+      untrack();
       if (code === 0) {
         resolve(stdout);
       } else {
@@ -358,6 +395,7 @@ export async function callClaudeCliStream(
     stdio: ['pipe', 'pipe', 'pipe'],
     env: buildCliEnv(),
   });
+  const untrack = trackAuxCliChild(child);
   child.stdout?.setEncoding('utf8');
   child.stderr?.setEncoding('utf8');
 
@@ -376,6 +414,7 @@ export async function callClaudeCliStream(
         if (settled) return;
         settled = true;
         clearTimeout(timer);
+        untrack();
         if (!emittedAny && fallbackResult) emit(controller, { content: fallbackResult });
         controller.enqueue(encoder.encode('data: [DONE]\n\n'));
         controller.close();
@@ -389,6 +428,9 @@ export async function callClaudeCliStream(
         controller.close();
         releaseSlot();
         child.kill();
+        // Untrack after kill — the tracker's liveness check self-heals if the
+        // shell wrapper lingers past the kill on Windows.
+        untrack();
       };
 
       const timer = setTimeout(

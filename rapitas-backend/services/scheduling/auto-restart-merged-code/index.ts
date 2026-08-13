@@ -12,14 +12,31 @@ import { createLogger } from '../../../config/logger';
 import { createNotification } from '../../communication/notification-service';
 import { scheduleShutdownSequence } from '../../system/shutdown-sequence';
 import { getAgentSystemSnapshot } from '../../../routes/agents/system/agent-system-router';
+import { countLiveTrackedProcesses } from '../../agents/agent-process-tracker';
+import { AutoMergeWatcher } from '../../workflow/auto-merge-watcher';
 import { decideAutoRestart } from './decision';
+import {
+  classifyMergeUrgency,
+  decideBoundaryRestart,
+  resolveRestartMinIntervalMs,
+  resolveRestartUiQuietMs,
+  resolveRestartMaxDeferrals,
+} from './boundary-policy';
 import {
   captureStartupCommit,
   fetchAndCountAhead,
   isWorkingTreeClean,
   fastForwardToRemote,
+  listChangedPaths,
 } from './git-io';
-import { readAutoRestartEnabled, readLastRestartAt, writeLastRestartAt } from './settings-store';
+import {
+  readAutoRestartEnabled,
+  readLastRestartAt,
+  writeLastRestartAt,
+  readDeferCount,
+  writeDeferCount,
+} from './settings-store';
+import { getLastUiRequestAt } from './ui-activity-tracker';
 
 const logger = createLogger('auto-restart-merged-code-scheduler');
 
@@ -140,6 +157,20 @@ export class AutoRestartMergedCodeScheduler {
     const aheadCount = await fetchAndCountAhead(this.startupCommit, branch);
     if (aheadCount === null || aheadCount <= 0) return false;
 
+    // Restart-timing governance: only merges touching the loop machinery
+    // itself may restart from this poller. Everything else (UI-only, feature
+    // work) is batched until the next task boundary (evaluateBoundaryRestart),
+    // so per-merge restart churn — and each restart's aux-CLI orphaning
+    // exposure — is bounded by task boundaries, not merge frequency.
+    const changedPaths = await listChangedPaths(this.startupCommit, branch);
+    if (classifyMergeUrgency(changedPaths) !== 'immediate') {
+      logger.debug(
+        { aheadCount, changedFiles: changedPaths.length },
+        '[AutoRestartMergedCode] Non-machinery merge — batched until next task boundary',
+      );
+      return false;
+    }
+
     const snapshot = await getAgentSystemSnapshot();
     const lastRestartAt = readLastRestartAt();
     const decision = decideAutoRestart({
@@ -206,6 +237,104 @@ export class AutoRestartMergedCodeScheduler {
     scheduleShutdownSequence('[auto-restart]', 75);
     return true;
   }
+
+  // Serializes concurrent boundary evaluations (multiple theme ticks can hit
+  // a task boundary at once) so two evaluations can never double-fire.
+  private boundaryEvaluationInFlight = false;
+
+  /**
+   * Task-boundary restart evaluation. Called by the auto-run scheduler AFTER
+   * a task finished and BEFORE the next one is selected (a natural 0-agent
+   * quiescence point), and only after dev-restart-on-dry declined (the caller
+   * returns on its true, so the two paths never double-fire in one tick).
+   *
+   * Activates ANY pending merge (machinery or batched) once every quiescence
+   * gate passes: no executions, no queued work, no live aux CLI children, no
+   * merge mid-processing, rate limit satisfied, and the UI quiet — a UI-active
+   * boundary defers (bounded by RAPITAS_RESTART_MAX_DEFERRALS, then forced).
+   * Shares the poller's last-restart stamp so the two merged-code paths keep
+   * a single rate limit, but uses its own minimum interval env.
+   *
+   * @returns True when a restart was triggered (caller must stop its tick) / 再起動を発火したか
+   */
+  async evaluateBoundaryRestart(): Promise<boolean> {
+    if (this.boundaryEvaluationInFlight) return false;
+    this.boundaryEvaluationInFlight = true;
+    try {
+      // Same cheap gates as the poller: toggle first (no git I/O while off),
+      // and startupCommit doubles as the "scheduler actually started under
+      // the dev orchestrator" guard (start() is a no-op outside TAURI_BUILD).
+      if (!readAutoRestartEnabled()) return false;
+      if (!this.startupCommit) return false;
+
+      const branch = process.env.RAPITAS_PRIMARY_BRANCH || 'develop';
+      const aheadCount = await fetchAndCountAhead(this.startupCommit, branch);
+      if (aheadCount === null || aheadCount <= 0) return false;
+
+      const snapshot = await getAgentSystemSnapshot();
+      const lastRestartAt = readLastRestartAt();
+      const lastUiAt = getLastUiRequestAt();
+      const deferCount = readDeferCount();
+      const now = Date.now();
+      const decision = decideBoundaryRestart({
+        aheadCount,
+        isShuttingDown: snapshot.isShuttingDown,
+        activeExecutions: snapshot.activeExecutions,
+        runningExecutions: snapshot.runningExecutions,
+        queueDepth: snapshot.queueDepth,
+        auxChildren: countLiveTrackedProcesses('cli-agent'),
+        isMerging: AutoMergeWatcher.getInstance().isMerging(),
+        msSinceLastRestart: lastRestartAt === 0 ? null : now - lastRestartAt,
+        minRestartIntervalMs: resolveRestartMinIntervalMs(),
+        msSinceLastUiActivity: lastUiAt === 0 ? null : now - lastUiAt,
+        uiQuietMs: resolveRestartUiQuietMs(),
+        deferCount,
+        maxDeferrals: resolveRestartMaxDeferrals(),
+      });
+
+      if (decision.action === 'wait') {
+        logger.debug(
+          { reason: decision.reason, aheadCount },
+          '[AutoRestartMergedCode] Boundary restart gated — retrying at a later boundary',
+        );
+        return false;
+      }
+      if (decision.action === 'defer') {
+        writeDeferCount(decision.nextDeferCount);
+        logger.info(
+          { deferCount: decision.nextDeferCount, aheadCount },
+          '[AutoRestartMergedCode] UI active at task boundary — restart deferred',
+        );
+        return false;
+      }
+
+      // restart: clean-tree check → ff → notify → stamps → shutdown (exit 75).
+      if (!(await isWorkingTreeClean())) {
+        logger.warn('[AutoRestartMergedCode] Working tree dirty at boundary — restart skipped');
+        return false;
+      }
+      if (!(await fastForwardToRemote(branch))) {
+        return false;
+      }
+      await createNotification({
+        type: 'system',
+        title: '自動再起動',
+        message: `タスク境界で未活性コミット${aheadCount}件を活性化するため再起動します`,
+      }).catch((err) => {
+        logger.warn({ err }, '[AutoRestartMergedCode] Notification failed — restarting anyway');
+      });
+      writeLastRestartAt(Date.now());
+      writeDeferCount(0);
+      logger.warn(
+        { aheadCount, branch, reason: decision.reason, startupCommit: this.startupCommit },
+        '[AutoRestartMergedCode] Task-boundary restart to activate merged code',
+      );
+      scheduleShutdownSequence('[auto-restart-boundary]', 75);
+      return true;
+    } finally {
+      this.boundaryEvaluationInFlight = false;
+    }
+  }
 }
 
 // Singleton instance for global use
@@ -241,4 +370,11 @@ export function stopAutoRestartMergedCodeScheduler(): void {
 
 export { decideAutoRestart } from './decision';
 export type { AutoRestartDecisionInput, AutoRestartDecision } from './decision';
+export { classifyMergeUrgency, decideBoundaryRestart } from './boundary-policy';
+export type {
+  BoundaryRestartInput,
+  BoundaryRestartDecision,
+  MergeUrgency,
+  BoundaryRestartAction,
+} from './boundary-policy';
 export { readAutoRestartEnabled, writeAutoRestartEnabled } from './settings-store';

@@ -95,6 +95,19 @@ export class AutoMergeWatcher {
     this.timer = null;
   }
 
+  /**
+   * Whether a tick (candidate evaluation / merge processing) is in flight.
+   * The task-boundary restart governance consults this so a self-restart
+   * never fires while a merge is mid-processing (quiescence condition c).
+   * Ticks are short (12s-class), so a coinciding boundary is merely pushed
+   * to the next one.
+   *
+   * @returns True while a tick is being processed / tick処理中はtrue
+   */
+  isMerging(): boolean {
+    return this.ticking;
+  }
+
   /** One pass: evaluate every candidate's CI and merge / block / wait. */
   async tick(): Promise<void> {
     if (this.ticking) return; // never overlap ticks

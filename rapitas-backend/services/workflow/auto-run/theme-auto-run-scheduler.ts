@@ -536,6 +536,25 @@ export class ThemeAutoRunScheduler {
     // rate-limited; if it restarts, the process exits and dev.js relaunches.
     if (await maybeRestartForUpdate(themeId)) return;
 
+    // Merged-code boundary restart: merges NOT touching the loop machinery are
+    // batched by the 15-min poller and activated here, at the same task
+    // boundary, once every quiescence gate (executions, aux CLI children,
+    // auto-merge tick, rate limit, UI quiet) passes. Placed AFTER
+    // maybeRestartForUpdate (which returns above on fire) so the two restart
+    // paths can never double-fire in one tick. Lazily imported behind the
+    // TAURI gate: nothing but dev.js relaunches on exit 75, and test
+    // environments must not load the scheduling module graph.
+    if (process.env.TAURI_BUILD === 'true') {
+      try {
+        const { getAutoRestartMergedCodeScheduler } = await import(
+          '../../scheduling/auto-restart-merged-code'
+        );
+        if (await getAutoRestartMergedCodeScheduler().evaluateBoundaryRestart()) return;
+      } catch (err) {
+        log.warn({ err }, '[ThemeAutoRunScheduler] Boundary merged-code restart check failed');
+      }
+    }
+
     // Learnable-band tiebreak (R6): recent success rate positions the target
     // complexity band; ties within a priority pick the task closest to it.
     const successRate = await recentThemeSuccessRate(prisma, themeId).catch(() => null);
