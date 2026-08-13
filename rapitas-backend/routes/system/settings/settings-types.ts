@@ -32,6 +32,8 @@ export interface UserSettingsUpdateBody {
   autoRestartOnMergedCode?: boolean;
   /** Process retrospective on task completion (file-backed, no DB column; default ON). */
   retroReviewEnabled?: boolean;
+  /** Strict merge barrier: hold the next auto-run task until the theme's open auto-PR merges (file-backed, no DB column; default OFF). */
+  mergeBarrierEnabled?: boolean;
   defaultAiProvider?: string;
   defaultCategoryId?: number | null;
   activeMode?: string;

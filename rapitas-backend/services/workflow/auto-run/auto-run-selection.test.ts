@@ -12,7 +12,9 @@ import {
   getThemeActiveQueueItems,
   hasItemAwaitingApproval,
   hasLiveExecution,
+  hasScopeOverlap,
   isAwaitingUserAnswer,
+  overlappingFiles,
   selectNextTask,
   isTaskBlocked,
   priorityRank,
@@ -359,6 +361,131 @@ describe('selectNextTask', () => {
     await selectNextTask(prisma, 1, 'priority', [], 0);
     const arg = mockFindMany.mock.calls[0]![0] as { where: { OR?: unknown[] } };
     expect(arg.where.OR).toEqual(expect.arrayContaining([{ workflowStatus: null }]));
+  });
+});
+
+describe('hasScopeOverlap / overlappingFiles (task 573 B)', () => {
+  it('exact path match overlaps', () => {
+    expect(hasScopeOverlap(['services/workflow/a.ts'], ['services/workflow/a.ts'])).toBe(true);
+  });
+
+  it('depth-difference suffix match overlaps (repo-relative vs package-relative)', () => {
+    expect(hasScopeOverlap(['services/a.ts'], ['rapitas-backend/services/a.ts'])).toBe(true);
+    expect(hasScopeOverlap(['rapitas-backend/services/a.ts'], ['services/a.ts'])).toBe(true);
+  });
+
+  it('suffix match is path-boundary safe (foo/ab.ts must NOT match b.ts)', () => {
+    expect(hasScopeOverlap(['b.ts'], ['foo/ab.ts'])).toBe(false);
+    expect(hasScopeOverlap(['foo/ab.ts'], ['b.ts'])).toBe(false);
+  });
+
+  it('directory tokens (trailing /) from parsePlanFiles are excluded', () => {
+    // Shared-dir prefixes would defer every candidate → starvation (premortem #2).
+    expect(hasScopeOverlap(['services/workflow/'], ['services/workflow/a.ts'])).toBe(false);
+  });
+
+  it('disjoint files do not overlap', () => {
+    expect(hasScopeOverlap(['services/a.ts'], ['routes/b.ts'])).toBe(false);
+    expect(hasScopeOverlap([], ['routes/b.ts'])).toBe(false);
+  });
+
+  it('backslash paths are normalized before matching', () => {
+    expect(hasScopeOverlap(['services\\workflow\\a.ts'], ['services/workflow/a.ts'])).toBe(true);
+  });
+
+  it('overlappingFiles returns the deduped open-PR side of each overlap', () => {
+    expect(
+      overlappingFiles(
+        ['services/a.ts', 'services/b.ts', 'services/'],
+        ['rapitas-backend/services/a.ts', 'routes/x.ts'],
+      ),
+    ).toEqual(['rapitas-backend/services/a.ts']);
+  });
+});
+
+describe('selectNextTask with scopeOverlap (task 573 B)', () => {
+  const base = new Date('2026-01-01T00:00:00Z').getTime();
+  const mkTask = (id: number, offsetMs: number) => ({
+    id,
+    status: 'todo',
+    workflowStatus: null,
+    priority: 'medium',
+    createdAt: new Date(base + offsetMs),
+  });
+
+  it('defers an overlapping head candidate and selects the first non-overlapping one', async () => {
+    const prisma = makePrisma({
+      task: { findMany: mock().mockResolvedValue([mkTask(100, 0), mkTask(101, 1000)]) },
+    });
+    const planByTask: Record<number, string[]> = {
+      100: ['services/workflow/workflow-context-builder.ts'],
+      101: ['routes/other.ts'],
+    };
+    const result = await selectNextTask(prisma, 1, 'priority', [], 0, null, {
+      openPrFiles: ['rapitas-backend/services/workflow/workflow-context-builder.ts'],
+      getPlanFiles: async (id) => planByTask[id] ?? [],
+    });
+    expect(result).toEqual({ found: true, taskId: 101, deferred: [100] });
+  });
+
+  it('selects a non-overlapping head immediately without a deferred field', async () => {
+    const prisma = makePrisma({
+      task: { findMany: mock().mockResolvedValue([mkTask(100, 0), mkTask(101, 1000)]) },
+    });
+    const result = await selectNextTask(prisma, 1, 'priority', [], 0, null, {
+      openPrFiles: ['services/x.ts'],
+      getPlanFiles: async () => ['routes/unrelated.ts'],
+    });
+    expect(result).toEqual({ found: true, taskId: 100 });
+  });
+
+  it('falls back to the head when EVERY candidate overlaps (starvation guard)', async () => {
+    const prisma = makePrisma({
+      task: { findMany: mock().mockResolvedValue([mkTask(100, 0), mkTask(101, 1000)]) },
+    });
+    const result = await selectNextTask(prisma, 1, 'priority', [], 0, null, {
+      openPrFiles: ['services/x.ts'],
+      getPlanFiles: async () => ['services/x.ts'],
+    });
+    expect(result).toEqual({ found: true, taskId: 100 });
+    expect((result as { deferred?: number[] }).deferred).toBeUndefined();
+  });
+
+  it('a plan-less (lightweight) candidate is never deferred', async () => {
+    const prisma = makePrisma({
+      task: { findMany: mock().mockResolvedValue([mkTask(100, 0)]) },
+    });
+    const result = await selectNextTask(prisma, 1, 'priority', [], 0, null, {
+      openPrFiles: ['services/x.ts'],
+      getPlanFiles: async () => [], // no plan row → empty list
+    });
+    expect(result).toEqual({ found: true, taskId: 100 });
+  });
+
+  it('a throwing getPlanFiles is treated as no plan (fail-open)', async () => {
+    const prisma = makePrisma({
+      task: { findMany: mock().mockResolvedValue([mkTask(100, 0)]) },
+    });
+    const result = await selectNextTask(prisma, 1, 'priority', [], 0, null, {
+      openPrFiles: ['services/x.ts'],
+      getPlanFiles: async () => {
+        throw new Error('db down');
+      },
+    });
+    expect(result).toEqual({ found: true, taskId: 100 });
+  });
+
+  it('empty openPrFiles keeps legacy behavior (no getPlanFiles calls)', async () => {
+    const getPlanFiles = mock().mockResolvedValue(['services/x.ts']);
+    const prisma = makePrisma({
+      task: { findMany: mock().mockResolvedValue([mkTask(100, 0)]) },
+    });
+    const result = await selectNextTask(prisma, 1, 'priority', [], 0, null, {
+      openPrFiles: [],
+      getPlanFiles,
+    });
+    expect(result).toEqual({ found: true, taskId: 100 });
+    expect(getPlanFiles).not.toHaveBeenCalled();
   });
 });
 

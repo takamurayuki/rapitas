@@ -21,6 +21,7 @@ import {
   claimPrCreationLock,
   releasePrCreationLock,
 } from '../../services/github/pr-duplicate-guard';
+import { syncBaseIntoBranch, type BaseSyncResult } from '../../services/workflow/pre-pr-base-sync';
 
 const log = createLogger('routes:workflow:auto-commit');
 
@@ -38,6 +39,13 @@ export type AutoCommitPRResult = {
     error?: string;
   };
   autoPRResult?: { success: boolean; prUrl?: string; prNumber?: number; error?: string };
+  /**
+   * Pre-PR base-branch sync outcome (task 573 A). Kept as an INDEPENDENT field —
+   * its detail must never be concatenated into the commit/PR error blob, or
+   * merge wording could trip {@link isNoChangeCompletion} into a false
+   * "no change" completion.
+   */
+  baseSyncResult?: BaseSyncResult;
   autoMergeResult?: {
     success: boolean;
     mergeStrategy?: string;
@@ -234,6 +242,63 @@ export async function performAutoCommitAndPR(
           error: commitError instanceof Error ? commitError.message : String(commitError),
         };
       }
+    }
+
+    // Pre-PR base sync (task 573 A): pull origin/<base> into the task branch
+    // BEFORE the PR exists, so drift conflicts are found and resolved while the
+    // task context is at hand instead of surfacing as a post-merge conflict
+    // task. Infra failures are fail-open ('skipped' → PR proceeds); only a real
+    // unresolved conflict or a failed post-merge re-verification withholds the
+    // PR. Runs BEFORE the PR-creation lock — the aux resolution + re-verify can
+    // exceed the lock's 5-min staleness window.
+    if (autoCreatePR && result.autoCommitResult?.success) {
+      const baseSync = await syncBaseIntoBranch({
+        gitCwd,
+        baseBranch: targetBranch,
+        taskId,
+        sessionId: latestSession?.id,
+      }).catch((err): BaseSyncResult => {
+        log.warn({ err, taskId }, '[Workflow] base sync threw — treating as skipped (fail-open)');
+        return { status: 'skipped', changedFiles: 0, conflicts: [], detail: String(err) };
+      });
+      result.baseSyncResult = baseSync;
+
+      if (baseSync.status === 'conflict_unresolved' || baseSync.status === 'reverify_failed') {
+        // Withhold the PR; keep the worktree (NO cleanup) as the backstop for
+        // the existing conflict-task / AutoMergeWatcher defense line and for a
+        // re-run. NOTE: result.error stays a FIXED sentence (no raw git/merge
+        // output) so completion classification never misreads it.
+        if (baseSync.status === 'reverify_failed') {
+          result.verificationBlocked = true;
+          result.error = `base(${targetBranch})取り込み後の再検証に失敗したため、auto-PRを中止しました。`;
+        } else {
+          result.error = `base(${targetBranch})とのマージ競合を自動解消できなかったため、auto-PRを中止しました。`;
+        }
+        await notify({
+          taskId,
+          type:
+            baseSync.status === 'conflict_unresolved'
+              ? 'base_sync_conflict_unresolved'
+              : 'base_sync_reverify_failed',
+          title:
+            baseSync.status === 'conflict_unresolved'
+              ? 'PR作成前のbase取り込みで競合を解消できませんでした'
+              : 'base取り込み後の再検証に失敗しました',
+          message:
+            baseSync.status === 'conflict_unresolved'
+              ? `タスク ${taskId}: ${baseSync.detail}。対象: ${baseSync.conflicts.join(', ').slice(0, 500)}。PRは作成していません。手動確認または再実行してください。`
+              : `タスク ${taskId}: ${baseSync.detail}。PRは作成していません。`,
+        });
+        log.warn(
+          { taskId, baseSync },
+          '[Workflow] pre-PR base sync blocked PR creation (worktree preserved)',
+        );
+        return result;
+      }
+      log.info(
+        { taskId, baseSync: { ...baseSync, conflicts: baseSync.conflicts.length } },
+        '[Workflow] pre-PR base sync done',
+      );
     }
 
     // Process autoCreatePR (only if autoCommit succeeded)
