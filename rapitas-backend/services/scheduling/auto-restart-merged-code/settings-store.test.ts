@@ -13,6 +13,8 @@ import {
   writeAutoRestartEnabled,
   readLastRestartAt,
   writeLastRestartAt,
+  readDeferCount,
+  writeDeferCount,
 } from './settings-store';
 
 const originalDataDir = process.env.RAPITAS_DATA_DIR;
@@ -71,6 +73,24 @@ describe('last-restart stamp', () => {
   test('returns 0 on non-numeric content', () => {
     writeFileSync(join(tempDir, '.auto-restart-merged-code-last-at'), 'not-a-number');
     expect(readLastRestartAt()).toBe(0);
+  });
+
+  test('deferCount defaults to 0 when the file is absent', () => {
+    expect(readDeferCount()).toBe(0);
+  });
+
+  test('deferCount round-trips and clamps to a non-negative integer', () => {
+    writeDeferCount(3);
+    expect(readDeferCount()).toBe(3);
+    writeDeferCount(0);
+    expect(readDeferCount()).toBe(0);
+    writeDeferCount(-2);
+    expect(readDeferCount()).toBe(0);
+  });
+
+  test('deferCount returns 0 on non-numeric content', () => {
+    writeFileSync(join(tempDir, '.auto-restart-merged-code-defer-count'), 'many');
+    expect(readDeferCount()).toBe(0);
   });
 
   test('uses a file separate from the dev-restart-on-dry stamp', () => {

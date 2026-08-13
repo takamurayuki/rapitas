@@ -2,9 +2,10 @@
  * index.test (AutoRestartMergedCodeScheduler)
  *
  * Drives runOnce() with every dependency mocked and asserts the exact call
- * order on the success path (fetch → decide → clean-check → ff-merge →
- * final idle recheck → notification → rate-limit stamp → shutdown sequence),
- * plus every early-exit gate.
+ * order on the success path (fetch → classify → decide → clean-check →
+ * ff-merge → final idle recheck → notification → rate-limit stamp → shutdown
+ * sequence), plus every early-exit gate — and the task-boundary path
+ * (evaluateBoundaryRestart) with its wait / defer / forced-restart branches.
  */
 import { describe, test, expect, mock, beforeEach } from 'bun:test';
 
@@ -13,6 +14,8 @@ const callOrder: string[] = [];
 // ── Swappable behaviours ─────────────────────────────────────────────────────
 let enabled = true;
 let aheadCount: number | null = 3;
+// Machinery path by default so the legacy success-path expectations still fire.
+let changedPaths: string[] = ['rapitas-backend/services/workflow/workflow-runner.ts'];
 let clean = true;
 let ffOk = true;
 let snapshots: Array<{
@@ -23,6 +26,9 @@ let snapshots: Array<{
 }> = [];
 let snapshotIndex = 0;
 let lastRestartAt = 0;
+let deferCount = 0;
+let auxChildren = 0;
+let isMergingFlag = false;
 let notificationFails = false;
 
 const idleSnapshot = {
@@ -50,6 +56,10 @@ mock.module('./git-io', () => ({
     callOrder.push(`fastForwardToRemote:${branch}`);
     return Promise.resolve(ffOk);
   },
+  listChangedPaths: (startupCommit: string, branch: string) => {
+    callOrder.push(`listChangedPaths:${startupCommit}:${branch}`);
+    return Promise.resolve(changedPaths);
+  },
 }));
 
 mock.module('./settings-store', () => ({
@@ -61,6 +71,21 @@ mock.module('./settings-store', () => ({
   readLastRestartAt: () => lastRestartAt,
   writeLastRestartAt: (_ts: number) => {
     callOrder.push('writeLastRestartAt');
+  },
+  readDeferCount: () => deferCount,
+  writeDeferCount: (count: number) => {
+    callOrder.push(`writeDeferCount:${count}`);
+    deferCount = count;
+  },
+}));
+
+mock.module('../../agents/agent-process-tracker', () => ({
+  countLiveTrackedProcesses: (_role: string) => auxChildren,
+}));
+
+mock.module('../../workflow/auto-merge-watcher', () => ({
+  AutoMergeWatcher: {
+    getInstance: () => ({ isMerging: () => isMergingFlag }),
   },
 }));
 
@@ -99,10 +124,12 @@ mock.module('../../../config/logger', () => ({
 }));
 
 const { AutoRestartMergedCodeScheduler } = await import('./index');
+const { resetUiActivity, recordUiRequest } = await import('./ui-activity-tracker');
 
 /** Fresh scheduler with the private startupCommit primed (runOnce is driven directly). */
 function makeScheduler(startupCommit: string | null = 'startup123'): {
   runOnce(): Promise<boolean>;
+  evaluateBoundaryRestart(): Promise<boolean>;
 } {
   const scheduler = new AutoRestartMergedCodeScheduler();
   (scheduler as unknown as { startupCommit: string | null }).startupCommit = startupCommit;
@@ -113,12 +140,17 @@ beforeEach(() => {
   callOrder.length = 0;
   enabled = true;
   aheadCount = 3;
+  changedPaths = ['rapitas-backend/services/workflow/workflow-runner.ts'];
   clean = true;
   ffOk = true;
   snapshots = [idleSnapshot, idleSnapshot];
   snapshotIndex = 0;
   lastRestartAt = 0;
+  deferCount = 0;
+  auxChildren = 0;
+  isMergingFlag = false;
   notificationFails = false;
+  resetUiActivity();
   delete process.env.RAPITAS_PRIMARY_BRANCH;
 });
 
@@ -129,6 +161,7 @@ describe('runOnce — success path', () => {
     expect(callOrder).toEqual([
       'readAutoRestartEnabled',
       'fetchAndCountAhead:startup123:develop',
+      'listChangedPaths:startup123:develop',
       'getAgentSystemSnapshot',
       'isWorkingTreeClean',
       'fastForwardToRemote:develop',
@@ -169,6 +202,30 @@ describe('runOnce — early-exit gates', () => {
     aheadCount = 0;
     expect(await makeScheduler().runOnce()).toBe(false);
     expect(callOrder.some((c) => c === 'getAgentSystemSnapshot')).toBe(false);
+  });
+
+  test('UI-only merge: batched to the boundary — no snapshot, no pull, no restart', async () => {
+    changedPaths = [
+      'rapitas-frontend/src/components/task-card/task-card.tsx',
+      'rapitas-frontend/src/app/page.tsx',
+    ];
+    expect(await makeScheduler().runOnce()).toBe(false);
+    expect(callOrder.some((c) => c.startsWith('listChangedPaths'))).toBe(true);
+    expect(callOrder.some((c) => c === 'getAgentSystemSnapshot')).toBe(false);
+    expect(callOrder.some((c) => c.startsWith('fastForwardToRemote'))).toBe(false);
+    expect(callOrder.some((c) => c.startsWith('scheduleShutdownSequence'))).toBe(false);
+  });
+
+  test('unknown change set ([]): batched to the boundary (safe side)', async () => {
+    changedPaths = [];
+    expect(await makeScheduler().runOnce()).toBe(false);
+    expect(callOrder.some((c) => c.startsWith('scheduleShutdownSequence'))).toBe(false);
+  });
+
+  test('machinery merge: fires immediately (classification passes)', async () => {
+    changedPaths = ['rapitas-frontend/src/app/page.tsx', 'rapitas-desktop/scripts/dev.js'];
+    expect(await makeScheduler().runOnce()).toBe(true);
+    expect(callOrder).toContain('scheduleShutdownSequence:[auto-restart]:75');
   });
 
   test('busy system (decision gate): no pull, no restart', async () => {
@@ -217,6 +274,96 @@ describe('runOnce — early-exit gates', () => {
     notificationFails = true;
     expect(await makeScheduler().runOnce()).toBe(true);
     expect(callOrder.some((c) => c.startsWith('scheduleShutdownSequence'))).toBe(true);
+  });
+});
+
+describe('evaluateBoundaryRestart — task-boundary path', () => {
+  test('all quiet: clean → ff → notify → stamp → deferCount reset → boundary shutdown', async () => {
+    changedPaths = ['rapitas-frontend/src/app/page.tsx']; // batched merges DO fire at the boundary
+    expect(await makeScheduler().evaluateBoundaryRestart()).toBe(true);
+    expect(callOrder).toEqual([
+      'readAutoRestartEnabled',
+      'fetchAndCountAhead:startup123:develop',
+      'getAgentSystemSnapshot',
+      'isWorkingTreeClean',
+      'fastForwardToRemote:develop',
+      'createNotification:system',
+      'writeLastRestartAt',
+      'writeDeferCount:0',
+      'scheduleShutdownSequence:[auto-restart-boundary]:75',
+    ]);
+  });
+
+  test('toggle off: nothing but the toggle read', async () => {
+    enabled = false;
+    expect(await makeScheduler().evaluateBoundaryRestart()).toBe(false);
+    expect(callOrder).toEqual(['readAutoRestartEnabled']);
+  });
+
+  test('missing startup commit (scheduler never started): no-op', async () => {
+    expect(await makeScheduler(null).evaluateBoundaryRestart()).toBe(false);
+    expect(callOrder).toEqual(['readAutoRestartEnabled']);
+  });
+
+  test('no unactivated commits: stops before the snapshot', async () => {
+    aheadCount = 0;
+    expect(await makeScheduler().evaluateBoundaryRestart()).toBe(false);
+    expect(callOrder.some((c) => c === 'getAgentSystemSnapshot')).toBe(false);
+  });
+
+  test('live aux CLI children: wait — no defer increment, no shutdown', async () => {
+    auxChildren = 1;
+    expect(await makeScheduler().evaluateBoundaryRestart()).toBe(false);
+    expect(callOrder.some((c) => c.startsWith('writeDeferCount'))).toBe(false);
+    expect(callOrder.some((c) => c.startsWith('scheduleShutdownSequence'))).toBe(false);
+  });
+
+  test('auto-merge tick in flight: wait', async () => {
+    isMergingFlag = true;
+    expect(await makeScheduler().evaluateBoundaryRestart()).toBe(false);
+    expect(callOrder.some((c) => c.startsWith('scheduleShutdownSequence'))).toBe(false);
+  });
+
+  test('rate-limited (within the 10-min boundary floor): wait', async () => {
+    lastRestartAt = Date.now() - 60_000;
+    expect(await makeScheduler().evaluateBoundaryRestart()).toBe(false);
+    expect(callOrder.some((c) => c.startsWith('scheduleShutdownSequence'))).toBe(false);
+  });
+
+  test('UI active: defer — count persisted, no pull, no shutdown', async () => {
+    recordUiRequest(Date.now());
+    expect(await makeScheduler().evaluateBoundaryRestart()).toBe(false);
+    expect(callOrder).toContain('writeDeferCount:1');
+    expect(callOrder.some((c) => c === 'isWorkingTreeClean')).toBe(false);
+    expect(callOrder.some((c) => c.startsWith('scheduleShutdownSequence'))).toBe(false);
+  });
+
+  test('UI active at the deferral ceiling: forced restart with count reset', async () => {
+    recordUiRequest(Date.now());
+    deferCount = 5; // default RAPITAS_RESTART_MAX_DEFERRALS
+    expect(await makeScheduler().evaluateBoundaryRestart()).toBe(true);
+    expect(callOrder).toContain('writeDeferCount:0');
+    expect(callOrder).toContain('scheduleShutdownSequence:[auto-restart-boundary]:75');
+  });
+
+  test('dirty tree at restart: skipped — stamps and shutdown never happen', async () => {
+    clean = false;
+    expect(await makeScheduler().evaluateBoundaryRestart()).toBe(false);
+    expect(callOrder.some((c) => c === 'writeLastRestartAt')).toBe(false);
+    expect(callOrder.some((c) => c.startsWith('scheduleShutdownSequence'))).toBe(false);
+  });
+
+  test('ff failure at restart: no notification, no shutdown', async () => {
+    ffOk = false;
+    expect(await makeScheduler().evaluateBoundaryRestart()).toBe(false);
+    expect(callOrder.some((c) => c.startsWith('createNotification'))).toBe(false);
+    expect(callOrder.some((c) => c.startsWith('scheduleShutdownSequence'))).toBe(false);
+  });
+
+  test('busy snapshot (running executions): wait', async () => {
+    snapshots = [{ ...idleSnapshot, runningExecutions: 1 }];
+    expect(await makeScheduler().evaluateBoundaryRestart()).toBe(false);
+    expect(callOrder.some((c) => c.startsWith('scheduleShutdownSequence'))).toBe(false);
   });
 });
 

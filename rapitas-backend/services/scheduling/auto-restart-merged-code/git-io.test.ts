@@ -20,8 +20,13 @@ mock.module('../../../config/logger', () => ({
   createLogger: () => ({ info: () => {}, warn: () => {}, error: () => {}, debug: () => {} }),
 }));
 
-const { captureStartupCommit, fetchAndCountAhead, isWorkingTreeClean, fastForwardToRemote } =
-  await import('./git-io');
+const {
+  captureStartupCommit,
+  fetchAndCountAhead,
+  isWorkingTreeClean,
+  fastForwardToRemote,
+  listChangedPaths,
+} = await import('./git-io');
 
 beforeEach(() => {
   runGitCommandMock.mockClear();
@@ -82,6 +87,29 @@ describe('fetchAndCountAhead', () => {
   test('returns 0 when origin has no new commits', async () => {
     gitHandler = (args) => Promise.resolve(args[0] === 'rev-list' ? '0' : '');
     expect(await fetchAndCountAhead('abc123', 'develop')).toBe(0);
+  });
+});
+
+describe('listChangedPaths', () => {
+  test('runs diff --name-only startupCommit..origin/<branch> and splits lines', async () => {
+    gitHandler = (args) => {
+      expect(args).toEqual(['diff', '--name-only', 'abc123..origin/develop']);
+      return Promise.resolve('services/workflow/a.ts\r\nrapitas-frontend/src/b.tsx\n\n');
+    };
+    expect(await listChangedPaths('abc123', 'develop')).toEqual([
+      'services/workflow/a.ts',
+      'rapitas-frontend/src/b.tsx',
+    ]);
+  });
+
+  test('returns [] on empty diff output', async () => {
+    gitHandler = () => Promise.resolve('');
+    expect(await listChangedPaths('abc123', 'develop')).toEqual([]);
+  });
+
+  test('returns [] when git fails (unknown change set)', async () => {
+    gitHandler = () => Promise.reject(new Error('bad revision'));
+    expect(await listChangedPaths('abc123', 'develop')).toEqual([]);
   });
 });
 
