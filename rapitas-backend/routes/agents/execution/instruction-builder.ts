@@ -11,6 +11,7 @@ import { join } from 'path';
 import { prisma } from '../../../config/database';
 import { createLogger } from '../../../config/logger';
 import { fromJsonString } from '../../../utils/database/db-helpers';
+import { buildSubtaskSplitDirective } from '../../../services/workflow/subtask-split-policy';
 
 const UPLOAD_DIR = process.env.UPLOAD_DIR || 'uploads';
 const log = createLogger('routes:agent-execution:instruction-builder');
@@ -265,6 +266,11 @@ ${hypothesisBlock}
 research.md を保存したら、**コードを一切変更せずにすぐ終了**してください。実装は次フェーズで自動実行されます。
 `;
   } else if (enforceWorkflow && taskId !== undefined) {
+    // Align the planner-role instructions with the subtask-split flag: '' when
+    // splitting is enabled (CLAUDE.md Step 2.5 applies as-is), an explicit
+    // prohibition when disabled (task 545 incident).
+    const subtaskSplitDirective = buildSubtaskSplitDirective();
+    const subtaskSplitBlock = subtaskSplitDirective ? `\n${subtaskSplitDirective}\n` : '';
     fullInstruction += `\n\n## 必須ワークフロー (絶対に守ってください)
 
 **この実行では実装を始めてはいけません。** 調査と計画を保存してから終了します。
@@ -297,19 +303,33 @@ curl -X PUT http://127.0.0.1:3001/workflow/tasks/${taskId}/files/research \\
   -d '{"content":"<下記テンプレートで埋める>"}'
 \`\`\`
 
-research.md テンプレート:
+research.md テンプレート（見出しはこの形のまま使う。各見出し直下の括弧書きは
+「そこに書く内容の説明」なので、実際の内容に置き換えて括弧書き自体は残さない。
+エージェントはテンプレートの見た目を模倣するため、見出しに \`[...]\` を含む例を
+示すと成果物にもそのまま残ってしまう — 過去3タスク連続で実際に起きた):
 \`\`\`markdown
 # 調査結果
-## 影響範囲: [変更が及ぶファイル/モジュール一覧]
-## 依存関係: [前提となるコンポーネントや API]
-## 類似実装: [再利用可能な既存パターン]
+## 前提監査
+（タスク記述の暗黙の仮定3〜7個を中立的な疑問文に直し、コードベースの実物で
+「成立/不成立/未確認」を根拠 file:line 付きで判定する。コンテキストの
+「前提監査」指示に従う。中核仮定が不成立なら「## 結論: 修正不要」で終了）
+## 影響範囲分析
+（変更が及ぶファイル/モジュールの一覧）
+## 依存関係
+（前提となるコンポーネントや API）
+## 類似機能
+（再利用可能な既存パターン）
 ## 実装方針の選択肢
-- 選択肢A: [説明] / メリット / デメリット
-- 選択肢B: [説明] / メリット / デメリット
-## リスク評価: [破壊的変更の可能性とその対策]
-## テスト戦略: [単体/統合テストの観点]
-## 未確定事項: [プランナー (=あなたの次フェーズ) が解決すべき項目。空ならその旨明記]
-## 仮説: [下記の仮説思考の指示に従って1〜3件。該当なければ「なし」]
+- 選択肢A: 説明 / メリット / デメリット
+- 選択肢B: 説明 / メリット / デメリット
+## リスク評価
+（破壊的変更の可能性とその対策）
+## テスト戦略
+（単体/統合テストの観点）
+## 未確定事項
+（プランナー (=あなたの次フェーズ) が解決すべき項目。無ければ「なし」と明記）
+## 仮説
+（下記の仮説思考の指示に従って1〜3件。該当なければ「なし」）
 \`\`\`
 ${hypothesisBlock}
 
@@ -365,11 +385,15 @@ plan.md テンプレート (重要セクションは省略不可):
 ## 実装チェックリスト (各項目に「期待動作」「確認方法」を併記)
 ## 変更予定ファイル (新規 / 変更 ごとに目的と理由を併記)
 ## リスク評価と対策
+## プレモーテム
+（「この計画を実行したが失敗した」と仮定した最有力の失敗原因3つ + 各原因の
+早期検知シグナル。コンテキストの「プレモーテム」指示に従う。検証フェーズが
+この項目を実測照合する）
 ## 完了条件 (DoD)
 ## 実装順序
 ## 実装者への申し送り事項 ← ここで実装者の疑問を先回りして潰す
 \`\`\`
-
+${subtaskSplitBlock}
 ### Step 3: 終了
 
 **plan.md 保存後、コードを一切変更せずにすぐ終了してください。**

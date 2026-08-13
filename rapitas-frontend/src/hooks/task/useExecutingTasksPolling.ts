@@ -6,6 +6,7 @@ import { useExecutionStateStore } from '@/stores/execution-state-store';
 import { useTaskCacheStore } from '@/stores/task-cache-store';
 import { useOnVisible } from '@/hooks/common/useOnVisible';
 import { createLogger } from '@/lib/logger';
+import { getAppHidden, subscribeAppHidden } from '@/hooks/common/app-visibility-store';
 
 const logger = createLogger('useExecutingTasksPolling');
 
@@ -81,8 +82,10 @@ export function useExecutingTasksPolling(options?: {
 
   const checkExecutingTasks = useCallback(async () => {
     // Skip while backgrounded (this runs on Home/Kanban which are often left
-    // open behind other apps); useOnVisible re-checks on return.
-    if (typeof document !== 'undefined' && document.hidden) return;
+    // open behind other apps); useOnVisible re-checks on return. getAppHidden()
+    // covers minimize, which occlusion-disabled WebView2 doesn't report via
+    // document.hidden.
+    if ((typeof document !== 'undefined' && document.hidden) || getAppHidden()) return;
     try {
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 8000); // 8 second timeout
@@ -208,4 +211,14 @@ export function useExecutingTasksPolling(options?: {
 
   // Re-check immediately when the user returns to rapitas.
   useOnVisible(checkExecutingTasks);
+
+  // Re-check immediately on restore from minimize. visibilitychange (behind
+  // useOnVisible above) never fires for that transition because occlusion is
+  // intentionally disabled, so without this the poll interval (up to 15s)
+  // would be the only thing to pick it back up.
+  useEffect(() => {
+    return subscribeAppHidden(() => {
+      if (!getAppHidden()) checkExecutingTasks();
+    });
+  }, [checkExecutingTasks]);
 }

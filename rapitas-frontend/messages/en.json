@@ -270,7 +270,9 @@
     "knowledgeBrowser": "Knowledge Browser",
     "contradictions": "Contradictions",
     "memoryVisualization": "Memory Growth",
+    "growthLedger": "Growth Ledger",
     "memoryAdmin": "Memory Admin",
+    "growthReport": "Daily Report",
     "settings": "Settings",
     "generalSettings": "App Settings",
     "apiKeySettings": "API Key Settings",
@@ -294,17 +296,17 @@
     "switchToDark": "Switch to dark mode",
     "minimizeToTray": "Minimize to system tray",
     "restarting": "Restarting...",
-    "restartServer": "Restart Server",
+    "restartServer": "Restart",
     "unpinMenu": "Unpin menu",
     "pinMenu": "Pin menu",
     "keyboardShortcuts": "Keyboard Shortcuts",
-    "restartConfirm": "Restart the server?",
+    "restartConfirm": "Restart?",
     "tasksUnit": "",
     "restartWarning": " task(s) are running. Restarting will interrupt running tasks.",
     "restart": "Restart",
-    "restartingOverlay": "Restarting the server...",
+    "restartingOverlay": "Restarting...",
     "restartingMessage": "The page will automatically reload when complete",
-    "restartTimeout": "Server restart timed out. Please reload the page manually.",
+    "restartTimeout": "Restart timed out. Please reload the page manually.",
     "devDashboard": "Repositories",
     "packages": "Packages",
     "backlog": "Backlog",
@@ -1365,6 +1367,8 @@
       "repairLimitDescription": "When verification fails, the number of times the feedback is automatically sent back to the implementer to \"fix then re-verify.\" Repeats the self-repair loop up to this limit, then blocks. 0 disables retries.",
       "restartOnDryLabel": "Restart backend on auto-run dry-out to apply fixes (dev only)",
       "restartOnDryDescription": "At the quiet point when auto-run runs out of tasks (0 running agents), safely restarts only if there are new commits since startup, applying committed fixes before moving on to the next auto-created task (rate-limited to once per 10 minutes). Only active in dev startup.",
+      "autoRestartMergedLabel": "Auto-restart when merged code is detected (dev)",
+      "autoRestartMergedDescription": "Every 15 minutes, detects commits merged to origin's develop branch since startup that are not active yet, and only when the system is idle (0 running agents) safely pulls them in and restarts (rate-limited to once per 30 minutes). Only active in dev startup.",
       "savingSuffix": " (saving…)"
     },
     "ciTimingDashboard": {
@@ -1727,6 +1731,22 @@
     "step3Description": "Approve plan, implement, verify, and complete task",
     "metricsTitle": "Agent Usage",
     "metricsDescription": "Real recorded usage and cost per agent (Claude Code / Codex / Gemini)",
+    "growthTitle": "Autonomous Activity Daily Report",
+    "growthDescription": "A daily archive consolidating what was done, learned, and decided overnight - one report every morning",
+    "growthEmpty": "No reports yet. One is generated automatically every morning at 7:00 (configurable in backlog settings).",
+    "growthSelectPrompt": "Select a date from the list",
+    "growthLoadFailed": "Failed to load the daily report",
+    "growthReportHeading": "Daily Report {date}",
+    "growthAiBadge": "AI-polished",
+    "growthPlainBadge": "Plain aggregate",
+    "growthSatiatedBadge": "Satiated",
+    "growthSatiatedReasonTitle": "Why the loop stood still",
+    "growthCount_completed": "Completed",
+    "growthCount_mergedPrs": "Merged PRs",
+    "growthCount_concerns": "Concerns",
+    "growthCount_decisions": "Decisions",
+    "growthCount_restarts": "Restarts",
+    "growthCount_interventions": "Interventions",
     "dataExport": "Export Data",
     "metricsFetchFailed": "Failed to fetch metrics data",
     "filterSettings": "Filter Settings",
@@ -1924,6 +1944,35 @@
         "advanced": "Advanced",
         "intermediate": "Intermediate",
         "beginner": "Beginner"
+      }
+    },
+    "growth": {
+      "pageTitle": "Self-Growth Ledger",
+      "pageSubtitle": "Weekly evidence that the system is getting smarter over time, from workflow transitions and concern history",
+      "emptyTitle": "No growth ledger data yet",
+      "emptyHint": "Weekly series will appear here once tasks complete and concerns are recorded",
+      "emptyChart": "No data for this period yet",
+      "noData": "No data",
+      "autonomy": {
+        "title": "Autonomous Completion Rate",
+        "seriesLabel": "Autonomous completion rate"
+      },
+      "criticFirstPass": {
+        "title": "Critic First-Pass Rate",
+        "researchLabel": "Research first-pass",
+        "planLabel": "Plan first-pass"
+      },
+      "repairEfficiency": {
+        "title": "Repair Efficiency",
+        "seriesLabel": "Repairs per completed task"
+      },
+      "defectRecurrence": {
+        "title": "Defect Recurrence Rate",
+        "seriesLabel": "Recurrence rate"
+      },
+      "kbQuality": {
+        "title": "Knowledge Quality",
+        "seriesLabel": "Validated ratio"
       }
     }
   },
@@ -2266,6 +2315,25 @@
           "low": "Low"
         },
         "reasonsCount": "{count} issue(s)"
+      },
+      "criticHistory": {
+        "title": "Quality gate history",
+        "entryLabel": "{phase} · {date}",
+        "phase": {
+          "research": "Research",
+          "plan": "Plan"
+        },
+        "type": {
+          "bounced": "Bounced",
+          "exhausted": "Budget exhausted (passed through)"
+        },
+        "severity": {
+          "high": "High",
+          "medium": "Medium",
+          "low": "Low"
+        },
+        "reasonsCount": "{count} issue(s)",
+        "noReasons": "No details were recorded"
       }
     }
   },
@@ -3730,6 +3798,18 @@
     "statusOpen": "Open",
     "statusTaskCreated": "Task created",
     "statusAll": "All",
+    "sourceAgent": "Agent",
+    "sourceUser": "User",
+    "sourceVulnScan": "Vulnerability scan",
+    "sourceVulnScanAudit": "Vulnerability audit",
+    "sourceCiWatch": "CI watch",
+    "sourceLoopReview": "Quality loop",
+    "sourceCodeReview": "Code review",
+    "sourceGithubIssue": "GitHub issue",
+    "sourceIdeaReclassified": "Idea reclassified",
+    "sourceVerificationTriage": "Verification triage",
+    "sourceLogHealth": "Log health",
+    "sourceUnknown": "Unknown",
     "severityHint": {
       "urgent": "Urgent — needs immediate attention",
       "high": "High — significant impact",
@@ -3744,6 +3824,7 @@
     "filterBar": {
       "allTypes": "All types",
       "allSeverities": "All priorities",
+      "allSources": "All sources",
       "allThemes": "All themes"
     },
     "createForm": {
@@ -4682,6 +4763,10 @@
         "ci_watch": {
           "label": "CI watch (mainline)",
           "desc": "Checks each project's latest mainline CI runs and auto-files a concern (with failing job/step names) for every red workflow - the guardian that keeps mainline CI from rotting, separate from the PR-level CI repair loop."
+        },
+        "daily_report": {
+          "label": "Daily report",
+          "desc": "Consolidates the last 24 hours of autonomous activity (completed tasks, merged PRs, concerns, learnings, decisions, self-restarts, human interventions, upcoming queue) into one morning notification, archived at /agents/daily-report."
         }
       },
       "frequency": {

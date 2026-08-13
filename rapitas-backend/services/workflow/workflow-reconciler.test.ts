@@ -6,7 +6,7 @@
  * or a session legitimately waiting on the user.
  *
  * Also covers `runHealPass`'s fault-isolation contract: `reconcileOnce()` runs
- * 7 UNRELATED heal passes back to back, each wrapped in `runHealPass`. A throw
+ * 8 UNRELATED heal passes back to back, each wrapped in `runHealPass`. A throw
  * in one pass must not propagate and abort the rest of that cycle — otherwise
  * a single deterministically-throwing row (bad shape, JS bug) in an early pass
  * would permanently starve every later pass, every cycle, forever.

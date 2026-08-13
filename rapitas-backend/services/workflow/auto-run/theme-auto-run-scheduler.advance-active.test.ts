@@ -14,6 +14,7 @@ import {
   resetAllMocks,
   TEST_MAX_TASK_WALL_MS,
   mockIsAwaitingUserAnswer,
+  mockHasLiveExecution,
   mockNotifyAwaitingUserAnswer,
   mockNotifyHangBackstop,
   mockTaskUpdate,
@@ -76,6 +77,33 @@ describe('advanceTheme — hang backstop', () => {
     expect(mockOnTaskFailed).toHaveBeenCalledWith(1, expect.stringContaining('100'));
     // Recurses with currentTaskId=null and globalActive decremented by 1.
     expect(mockBroadcast).toHaveBeenCalled();
+  });
+
+  it('defers the backstop while a live (fresh-heartbeat) execution is running — slow ≠ wedged (task 563)', async () => {
+    mockIsAwaitingUserAnswer.mockResolvedValue(false);
+    mockHasLiveExecution.mockResolvedValue(true);
+    // In-flight queue item so the fall-through path waits instead of re-enqueuing.
+    mockGetThemeActiveQueueItems.mockResolvedValue([{ id: 1, taskId: 100, status: 'running' }]);
+
+    await internal(scheduler).advanceTheme(1, 100, 'priority', 1, staleLastRunAt());
+
+    expect(mockNotifyHangBackstop).not.toHaveBeenCalled();
+    expect(mockTaskUpdate).not.toHaveBeenCalled();
+    expect(mockOnTaskFailed).not.toHaveBeenCalled();
+  });
+
+  it('still force-stops past the 3x hard ceiling even with a live heartbeat (runaway-token guard)', async () => {
+    mockIsAwaitingUserAnswer.mockResolvedValue(false);
+    mockHasLiveExecution.mockResolvedValue(true);
+    const past3x = new Date(Date.now() - TEST_MAX_TASK_WALL_MS * 3 - 500).toISOString();
+
+    await internal(scheduler).advanceTheme(1, 100, 'priority', 1, past3x);
+
+    expect(mockNotifyHangBackstop).toHaveBeenCalled();
+    expect(mockTaskUpdate).toHaveBeenCalledWith({
+      where: { id: 100 },
+      data: { status: 'blocked' },
+    });
   });
 
   it('does not trigger the backstop for a task still within its wall budget', async () => {

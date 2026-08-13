@@ -82,6 +82,8 @@ export interface ConcernEntry {
   /** Code location (file / area) the concern refers to, if known. */
   location: string | null;
   status: ConcernStatus;
+  /** Origin label ("agent" | "user" | "vuln_scan" | ...). 'unknown' for pre-source rows. */
+  source: string;
   /** Task during whose execution the concern was found, if any. */
   originTaskId: number | null;
   /** Task created from this concern, if converted. */
@@ -194,7 +196,9 @@ export async function submitConcern(input: SubmitConcernInput): Promise<number> 
     }
   }
 
-  const tags = [`severity:${severity}`];
+  // 'agent' fallback mirrors hypothesis-service's `input.source ?? 'agent'`; every
+  // current caller passes source explicitly, so this only guards future direct calls.
+  const tags = [`severity:${severity}`, `source:${input.source ?? 'agent'}`];
   if (input.location?.trim()) tags.push(`loc:${input.location.trim()}`);
 
   // Always attribute a concern to a real theme, mirroring submitIdea's same
@@ -261,6 +265,7 @@ function toConcernEntry(entry: ConcernRow): ConcernEntry {
   const parsedTags = JSON.parse(entry.tags || '[]') as string[];
   const severityTag = parsedTags.find((t) => t.startsWith('severity:'));
   const locTag = parsedTags.find((t) => t.startsWith('loc:'));
+  const sourceTag = parsedTags.find((t) => t.startsWith('source:'));
   const sourceId = entry.sourceId ?? 'open';
   const taskMatch = sourceId.match(/^task_(\d+)$/);
   const status: ConcernStatus = taskMatch
@@ -278,6 +283,8 @@ function toConcernEntry(entry: ConcernRow): ConcernEntry {
     severity: normalizeConcernSeverity(severityTag?.slice('severity:'.length)),
     location: locTag ? locTag.slice('loc:'.length) : null,
     status,
+    // Pre-source rows can't be attributed after the fact — 'unknown', not 'agent'.
+    source: sourceTag ? sourceTag.slice('source:'.length) : 'unknown',
     originTaskId: entry.taskId,
     createdTaskId: taskMatch ? parseInt(taskMatch[1]) : null,
     themeId: entry.themeId,
@@ -333,16 +340,26 @@ export async function listConcerns(options: {
   status?: ConcernStatus | 'all';
   type?: ConcernType;
   severity?: ConcernSeverity;
+  source?: string;
   themeId?: number;
   limit?: number;
   offset?: number;
 }): Promise<{ concerns: ConcernEntry[]; total: number }> {
-  const { status = 'open', type, severity, themeId, limit = 20, offset = 0 } = options;
+  const { status = 'open', type, severity, source, themeId, limit = 20, offset = 0 } = options;
 
   const where: Record<string, unknown> = { sourceType: 'concern', forgettingStage: 'active' };
   if (type) where.category = type;
-  // Severity is stored as a `severity:<level>` tag (always set by submitConcern).
-  if (severity) where.tags = { contains: `severity:${severity}` };
+  // Severity/source live as `severity:<level>` / `source:<value>` tags. Both must
+  // survive simultaneous filtering, so they go through AND instead of two plain
+  // `where.tags` assignments (the second would silently clobber the first).
+  const tagConditions: { contains: string }[] = [];
+  if (severity) tagConditions.push({ contains: `severity:${severity}` });
+  // NOTE: source keeps the JSON-serialized quotes in the needle — real source values
+  // have prefix pairs (vuln_scan / vuln_scan_audit), so an unquoted contains would
+  // cross-match them; severity values have no such pairs and stay unquoted as-is.
+  if (source) tagConditions.push({ contains: `"source:${source}"` });
+  if (tagConditions.length === 1) where.tags = tagConditions[0];
+  else if (tagConditions.length > 1) where.AND = tagConditions.map((c) => ({ tags: c }));
   if (themeId) where.themeId = themeId;
   if (status === 'open') where.sourceId = 'open';
   else if (status === 'task_created') where.sourceId = { startsWith: 'task_' };

@@ -23,6 +23,7 @@ import { runLogHealthCheck } from '../system/log-health-check';
 import { runLoopReview } from '../self-improvement/loop-watcher';
 import { runCiWatch } from '../self-improvement/ci-green-keeper';
 import { createNotification } from '../communication/notification-service';
+import { runDailyReport } from '../reporting/daily-report-service';
 
 const log = createLogger('scheduling:backlog');
 
@@ -36,6 +37,7 @@ const HANDLERS: Record<BacklogJobKind, () => Promise<number>> = {
   health_check: runLogHealthCheck,
   loop_review: runLoopReview,
   ci_watch: runCiWatch,
+  daily_report: runDailyReport,
 };
 
 // NOTE: Must stay in sync with rapitas-frontend/messages/ja.json

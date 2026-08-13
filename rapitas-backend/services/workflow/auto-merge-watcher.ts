@@ -9,13 +9,15 @@
  *
  * Candidate discovery lives in auto-merge-candidates; check/merge-state reads in
  * auto-merge-checks; exhausted-budget parking (with head-change resume) in
- * auto-merge-exhaustion. This file owns the tick loop and the merge decisions.
+ * auto-merge-exhaustion; CI-failure handling (update-branch, no-diff parking,
+ * bounded self-repair) in auto-merge-ci-failure. This file owns the tick loop
+ * and the merge decisions.
  */
 import { prisma } from '../../config/database';
 import { createLogger } from '../../config/logger';
 import { mergePullRequest } from '../agents/orchestrator/git-operations/branch-pr-ops';
 import { recordTransition } from './transition-recorder';
-import { attemptCiRepair } from './ci-self-repair';
+import { handleCiFailure } from './auto-merge-ci-failure';
 import { fileConflictResolutionTask } from '../github/conflict-task';
 import { resolveIntegrationId } from '../github/pr-link';
 import {
@@ -91,6 +93,19 @@ export class AutoMergeWatcher {
   stop(): void {
     if (this.timer) clearInterval(this.timer);
     this.timer = null;
+  }
+
+  /**
+   * Whether a tick (candidate evaluation / merge processing) is in flight.
+   * The task-boundary restart governance consults this so a self-restart
+   * never fires while a merge is mid-processing (quiescence condition c).
+   * Ticks are short (12s-class), so a coinciding boundary is merely pushed
+   * to the next one.
+   *
+   * @returns True while a tick is being processed / tick処理中はtrue
+   */
+  isMerging(): boolean {
+    return this.ticking;
   }
 
   /** One pass: evaluate every candidate's CI and merge / block / wait. */
@@ -341,54 +356,15 @@ export class AutoMergeWatcher {
     }
 
     if (state === 'fail') {
-      // A branch can be BOTH conflicting (DIRTY) AND CI-red at the same time —
-      // typically because it forked from a base tip that has since moved on,
-      // so it's both missing upstream fixes (real CI failures unrelated to the
-      // task's own changes) and can't fast-forward merge. Attempting CI
-      // self-repair alone in that case is often futile (the implementer can't
-      // fix a "generated/prisma-postgres not found" build error that's a
-      // stale-branch artifact, not a real defect in the diff) and burns the
-      // bounded repair budget before ever surfacing the conflict. Check for a
-      // real conflict FIRST — same handling as the no-CI DIRTY branch above —
-      // before falling through to CI self-repair.
-      if (await this.handleMergeConflict(c, 'CI failed and merge state is DIRTY')) return;
-
-      // CI failed — try to self-repair: bounce the task back to the implementer
-      // with the failing checks as feedback so it fixes them, pushes to the same
-      // PR branch, and CI re-runs. The watcher merges once CI goes green. Only
-      // park the PR for review once the bounded repair budget is exhausted.
+      // Delegated: base update for BEHIND branches, DIRTY-conflict delegation
+      // (via the injected handleMergeConflict), no-diff parking, and the
+      // bounded CI self-repair bounce all live in auto-merge-ci-failure.
       const failedChecks = checks
         .filter((ch) => blocking.has(ch.name) && (ch.bucket === 'fail' || ch.bucket === 'cancel'))
         .map((ch) => ch.name);
-      const repair = await attemptCiRepair(c.taskId, failedChecks);
-      if (repair.bounced) {
-        await notify({
-          taskId: c.taskId,
-          type: 'auto_merge_ci_repair',
-          title: 'CI失敗を自動修正中',
-          message: `PR #${c.prNumber} のCI失敗（${failedChecks.join(', ') || '不明'}）を検出。実装を修正して再検証します（${repair.attempt}回目）。`,
-        });
-        log.info(
-          { taskId: c.taskId, prNumber: c.prNumber, attempt: repair.attempt },
-          '[auto-merge] CI failed — bounced for self-repair',
-        );
-      } else {
-        // Park as exhausted (terminal until the PR head changes). A windowed
-        // `auto_merge_blocked` mark here re-ran attemptCiRepair every retry
-        // window forever — 48 "repairs exhausted" warnings per day and a
-        // re-notification every cooldown (observed: task 322 / PR #260).
-        await markExhausted(c.taskId, c.prNumber, c.cwd, 'ci failed (repairs exhausted)');
-        await notify({
-          taskId: c.taskId,
-          type: 'auto_merge_ci_failed',
-          title: '自動マージ保留（CI失敗・修復上限）',
-          message: `PR #${c.prNumber} のCIが自動修正の上限まで失敗したため、自動マージせずレビュー待ちにしました。修正をpushすると自動マージを再開します。`,
-        });
-        log.info(
-          { taskId: c.taskId, prNumber: c.prNumber },
-          '[auto-merge] Parked — CI failed, repairs exhausted',
-        );
-      }
+      await handleCiFailure(c, failedChecks, (cand, reason) =>
+        this.handleMergeConflict(cand, reason),
+      );
       return;
     }
 

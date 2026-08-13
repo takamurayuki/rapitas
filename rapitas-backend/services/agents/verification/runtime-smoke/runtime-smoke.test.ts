@@ -8,7 +8,26 @@
 import { describe, test, expect } from 'bun:test';
 import { tmpdir } from 'os';
 import { parseRuntimeConfig, substitutePort } from './runtime-config';
-import { evaluateSmokeFindings } from './runtime-check';
+import { evaluateSmokeFindings, looksLikeEnvironmentFailure } from './runtime-check';
+
+describe('looksLikeEnvironmentFailure', () => {
+  it('matches worktree/tooling environment signatures', () => {
+    expect(
+      looksLikeEnvironmentFailure([
+        'Symlink [project]/rapitas-frontend/node_modules is invalid, it points out of the filesystem root',
+      ]),
+    ).toBe(true);
+    expect(looksLikeEnvironmentFailure(['Error [TurbopackInternalError]: boom'])).toBe(true);
+    expect(looksLikeEnvironmentFailure(["Cannot find module 'C:/x/node_modules/next'"])).toBe(true);
+    expect(looksLikeEnvironmentFailure(['sh: vite: command not found'])).toBe(true);
+  });
+
+  it('does not match ordinary app failures (those stay hard failures)', () => {
+    expect(looksLikeEnvironmentFailure(['TypeError: x is not a function'])).toBe(false);
+    expect(looksLikeEnvironmentFailure(['Error: listen EADDRINUSE :3000'])).toBe(false);
+    expect(looksLikeEnvironmentFailure([])).toBe(false);
+  });
+});
 import { allocateFreePort } from './app-launcher';
 import { runRuntimeSmokeCheck } from './runtime-check';
 import type { PathFinding } from './browser-smoke';

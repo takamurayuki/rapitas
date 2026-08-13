@@ -33,6 +33,12 @@ export interface VerifyRepairResult {
   newStatus?: string;
   /** 1-based attempt number for this bounce. */
   attempt?: number;
+  /**
+   * True when the bounce was skipped because the workflow already moved past
+   * the evaluated status (stale verdict — e.g. a re-verify passed meanwhile).
+   * Callers must treat this as "do nothing": neither bounce NOR block.
+   */
+  stale?: boolean;
 }
 
 /**
@@ -222,6 +228,17 @@ export async function attemptVerifyRepair(
   const max = await resolveMaxRepairs();
   if (max === 0) return { bounced: false };
 
+  // A completed task is never rolled back by a verify verdict, even when the
+  // caller's snapshot says so — completion means a newer verify already passed
+  // (and typically a PR exists); this verdict is stale by definition.
+  if (currentStatus === 'completed') {
+    log.warn(
+      { taskId },
+      '[verify-repair] Verdict targets an already-completed task — skipping stale bounce',
+    );
+    return { bounced: false, stale: true };
+  }
+
   const prior = await countPriorRepairs(taskId);
   if (prior >= max) {
     log.warn(
@@ -234,19 +251,37 @@ export async function attemptVerifyRepair(
   const attempt = prior + 1;
   const newStatus = await resolveImplementEntryStatus(taskId);
 
-  await writeRepairFeedback(taskId, reason, verifyContent, attempt);
-
-  // Keep the task non-terminal and roll the workflow back to the implementer
-  // entry so the runner re-runs implement → verify (rather than treating it as
-  // failed/blocked).
-  await prisma.task
-    .update({
-      where: { id: taskId },
+  // Compare-and-swap: only roll back if the workflow is STILL at the status
+  // this repair evaluated. A verify_repair verdict computed against a stale
+  // verify.md can land AFTER a legitimate completion — observed on task 551:
+  // an amended plan let a re-verify pass (verify_passed → completed, PR #351
+  // created at 20:45), then a late repair for the SUPERSEDED failing verify
+  // un-completed the task to plan_approved at 20:46. Same failure family and
+  // same guard as the phase-critic gate's task-494 CAS. With no snapshot to
+  // compare (currentStatus null), refuse to stomp terminal states instead.
+  const rolled = await prisma.task
+    .updateMany({
+      where: {
+        id: taskId,
+        workflowStatus: currentStatus ?? { notIn: ['completed', 'verify_done'] },
+      },
       data: { status: 'in-progress', workflowStatus: newStatus, updatedAt: new Date() },
     })
-    .catch((err) =>
-      log.warn({ err, taskId }, '[verify-repair] Failed to reset task to in-progress'),
+    .catch((err) => {
+      log.warn({ err, taskId }, '[verify-repair] Failed to reset task to in-progress');
+      return null;
+    });
+  if (!rolled || rolled.count === 0) {
+    log.warn(
+      { taskId, evaluatedStatus: currentStatus },
+      '[verify-repair] Verdict arrived after the workflow moved on — skipping stale bounce',
     );
+    return { bounced: false, stale: true };
+  }
+
+  // Feedback is written only AFTER the CAS succeeds — a stale bounce must not
+  // append its rejection block to a verify.md that already passed.
+  await writeRepairFeedback(taskId, reason, verifyContent, attempt);
 
   await recordTransition({
     taskId,

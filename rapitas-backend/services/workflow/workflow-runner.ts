@@ -15,8 +15,15 @@ import {
   broadcastItemUpdate,
 } from './workflow-runner-events';
 import { isShutdownError } from '../agents/orchestrator/shutdown-error';
+import type { WorkflowRole } from './workflow-types';
 
 const log = createLogger('workflow-runner');
+
+// Upper bound for the per-phase role lookup used to pick the timeout backstop
+// (task 546). This is NOT an agent/phase timeout value — it only caps how long
+// the runner waits for the (normally memory-cached) mode-config read before
+// falling back to the role-less default backstop.
+const ROLE_RESOLVE_BUDGET_MS = 1000;
 
 // Grace window for a `verify_done` task's async commit/PR/merge completion to
 // settle before the runner judges it failed — prevents a transient "blocked"
@@ -338,9 +345,42 @@ export class WorkflowRunner {
         // Execute next phase (with timeout)
         this.broadcastItemUpdate(item.id, item.taskId, 'phase_started', currentStatus);
 
-        const executionPromise = this.orchestrator.advanceWorkflow(item.taskId);
+        // Resolve the role the phase about to run dispatches as, so the backstop
+        // stays above the implementer's raised wall-clock cap (task 546). Same
+        // side-effect-free lookup advanceWorkflow itself uses (mode settings are
+        // memory-cached); NOT resolveAgentForTask, which mutates task status.
+        // Fail-open: role resolution is a timeout refinement only — if it throws
+        // or is slow (cold DB read), fall back to the role-less default backstop
+        // instead of failing/stalling the phase. A slow first read still
+        // completes in the background and warms the mode-config cache, so the
+        // next iteration resolves instantly. Resolved BEFORE advanceWorkflow so
+        // no await sits between the execution promise and the race below (an
+        // early rejection there would surface as an unhandled rejection).
+        let nextRole: WorkflowRole | undefined;
+        try {
+          const rolePromise = (async () => {
+            const { getModeSettings, buildRoleByStatus } = await import('./workflow-mode-config');
+            const { narrowWorkflowMode } = await import('./workflow-types.guards.generated');
+            const modeSettings = await getModeSettings(narrowWorkflowMode(task.workflowMode));
+            return buildRoleByStatus(modeSettings)[currentStatus];
+          })();
+          // Swallow a rejection that lands after the race is lost — the try/catch
+          // below only observes rejections that happen while racing.
+          rolePromise.catch(() => {});
+          nextRole = await Promise.race([
+            rolePromise,
+            new Promise<undefined>((res) => setTimeout(res, ROLE_RESOLVE_BUDGET_MS, undefined)),
+          ]);
+        } catch (roleResolveErr) {
+          log.warn(
+            { err: roleResolveErr, taskId: item.taskId, currentStatus },
+            '[WorkflowRunner] Role resolution for phase timeout failed — using the default backstop',
+          );
+        }
         const { getPhaseTimeoutMs } = await import('../agents/execution-timeouts');
-        const phaseTimeoutMs = getPhaseTimeoutMs();
+        const phaseTimeoutMs = getPhaseTimeoutMs(nextRole);
+
+        const executionPromise = this.orchestrator.advanceWorkflow(item.taskId);
         const timeoutPromise = new Promise<never>((_, reject) => {
           setTimeout(() => {
             const mins = Math.round(phaseTimeoutMs / 60000);

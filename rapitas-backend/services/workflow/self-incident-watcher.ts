@@ -1,0 +1,237 @@
+/**
+ * self-incident-watcher
+ *
+ * Detection-only incident pass riding the workflow-reconciler's 60s cycle,
+ * self-throttled to once per ~5 minutes: scans tasks updated within the last
+ * 24h, runs the three pure signature detectors over each one's gathered
+ * evidence, and files a dedup-keyed concern per finding. NEVER repairs state —
+ * the concern → task → workflow pipeline is the repair path (by design).
+ */
+import { prisma } from '../../config/database';
+import { createLogger } from '../../config/logger';
+import { submitConcern, type ConcernSeverity } from '../memory/concern-backlog-service';
+import {
+  detectStagnation,
+  detectTriStateDesync,
+  detectRepeatLoop,
+  STAGNATION_THRESHOLD_MS,
+  REPEAT_LOOP_WINDOW_MS,
+  REPEAT_LOOP_MIN_COUNT,
+} from './incident-signature-detectors';
+import { gatherTaskState, formatIncidentDetail } from './self-incident-evidence';
+import type { GatheredTaskState } from './self-incident-evidence';
+
+const log = createLogger('self-incident-watcher');
+
+/** Only tasks updated within this window are inspected (default 24h). */
+export const CANDIDATE_LOOKBACK_MS =
+  parseInt(process.env.RAPITAS_INCIDENT_LOOKBACK_MS ?? '', 10) || 24 * 60 * 60 * 1000;
+
+/** Minimum interval between two watch passes (default 5m). */
+export const WATCH_INTERVAL_MS =
+  parseInt(process.env.RAPITAS_INCIDENT_WATCH_INTERVAL_MS ?? '', 10) || 5 * 60 * 1000;
+
+/**
+ * Defensive per-pass scan cap. Combined with `orderBy updatedAt asc`, an
+ * overflow defers the FRESHEST tasks (least likely to be stagnant) to the
+ * next pass rather than dropping the stalest ones.
+ */
+const MAX_CANDIDATES = 200;
+
+/** Truncation limit for concern titles (long titles hurt task conversion). */
+const TITLE_MAX_CHARS = 120;
+
+// Process-local throttle (same pattern as the reconciler's `inFlight`): a
+// restart resets it, which merely allows one early pass — harmless, since the
+// watcher only detects (no state change) and dedupKey absorbs re-detections.
+let lastRunMs = 0;
+
+/**
+ * Pure throttle decision: has enough time passed since the last watch pass?
+ *
+ * @param lastRunMs - When the previous pass ran (ms; 0 = never). / 前回実行時刻
+ * @param nowMs - Current time (ms). / 現在時刻
+ * @param intervalMs - Minimum interval (default 5m). / 最小間隔
+ * @returns true when a new pass may run. / 実行してよいか
+ */
+export function shouldRunIncidentWatch(
+  lastRunMs: number,
+  nowMs: number,
+  intervalMs: number = WATCH_INTERVAL_MS,
+): boolean {
+  return nowMs - lastRunMs >= intervalMs;
+}
+
+/** A candidate task row as selected by the watch query. */
+interface CandidateTask {
+  id: number;
+  title: string;
+  status: string;
+  workflowStatus: string | null;
+  updatedAt: Date;
+}
+
+/** Formats + files one finding as a dedup-keyed concern. Never throws. */
+async function fileFinding(args: {
+  signature: string;
+  task: CandidateTask;
+  state: GatheredTaskState;
+  title: string;
+  explanation: string;
+  thresholdDescription: string;
+  severity: ConcernSeverity;
+  nowMs: number;
+}): Promise<boolean> {
+  try {
+    await submitConcern({
+      title: args.title.slice(0, TITLE_MAX_CHARS),
+      detail: formatIncidentDetail({
+        state: args.state,
+        explanation: args.explanation,
+        thresholdDescription: args.thresholdDescription,
+        detectedAtIso: new Date(args.nowMs).toISOString(),
+      }),
+      type: 'bug',
+      severity: args.severity,
+      originTaskId: args.task.id,
+      source: 'self_incident_watch',
+      dedupKey: `self-incident:${args.signature}:${args.task.id}`,
+    });
+    return true;
+  } catch (err) {
+    log.warn(
+      { err, taskId: args.task.id, signature: args.signature },
+      '[self-incident] concern filing failed — continuing',
+    );
+    return false;
+  }
+}
+
+/** Runs all three detectors over one task and files a concern per finding. */
+async function inspectTask(task: CandidateTask, nowMs: number): Promise<number> {
+  const state = await gatherTaskState(task, nowMs, REPEAT_LOOP_WINDOW_MS);
+  let filed = 0;
+
+  const stagnation = detectStagnation({
+    taskStatus: task.status,
+    workflowStatus: task.workflowStatus,
+    // The freshest of the task row itself and its newest transition — either
+    // one moving means the task is not idle.
+    lastActivityAtMs: Math.max(state.taskUpdatedAtMs, state.latestTransitionAtMs ?? 0),
+    hasLiveExecution: state.hasLiveExecution,
+    hasAnyExecution: state.hasAnyExecution,
+    hasActiveQueueItem: state.hasActiveQueueItem,
+    nowMs,
+  });
+  if (stagnation) {
+    const staleMin = Math.round(stagnation.staleMs / 60_000);
+    if (
+      await fileFinding({
+        signature: 'stagnation',
+        task,
+        state,
+        title: `[自己検出] 停滞: #${task.id}「${task.title}」が${staleMin}分間停滞`,
+        explanation:
+          `非終端タスク(status=${task.status}, workflowStatus=${task.workflowStatus ?? 'null'})が、` +
+          `実行中エージェントもアクティブなキュー項目も無いまま${staleMin}分間更新されていません。`,
+        thresholdDescription:
+          `停滞閾値 ${Math.round(STAGNATION_THRESHOLD_MS / 60_000)}分` +
+          `（実行なし・キューなし・正当な待機状態でない非終端タスクが対象）`,
+        severity: 'medium',
+        nowMs,
+      })
+    ) {
+      filed++;
+    }
+  }
+
+  const desync = detectTriStateDesync({
+    taskStatus: task.status,
+    workflowStatus: task.workflowStatus,
+    latestSessionStatus: state.latestSessionStatus,
+    latestExecutionStatus: state.latestExecutionStatus,
+  });
+  if (desync) {
+    const signature =
+      desync.kind === 'session_failed_execution_active'
+        ? 'tristate-desync:session-failed-exec-active'
+        : 'tristate-desync:todo-workflow-advanced';
+    if (
+      await fileFinding({
+        signature,
+        task,
+        state,
+        title: `[自己検出] 状態不整合: #${task.id}「${task.title}」— ${desync.detail}`,
+        explanation:
+          `Task/AgentSession/AgentExecution の状態が矛盾しています: ${desync.detail}。` +
+          `（task.status=${task.status}, workflowStatus=${task.workflowStatus ?? 'null'}）`,
+        thresholdDescription: '即時判定（閾値なし — 状態スナップショットの矛盾を直接検出）',
+        severity: 'high',
+        nowMs,
+      })
+    ) {
+      filed++;
+    }
+  }
+
+  const loop = detectRepeatLoop({ transitions: state.windowedCauses, nowMs });
+  if (loop) {
+    if (
+      await fileFinding({
+        signature: `repeat-loop:${loop.cause}`,
+        task,
+        state,
+        title: `[自己検出] 反復ループ: #${task.id}「${task.title}」で cause=${loop.cause} が${loop.count}回`,
+        explanation:
+          `直近${Math.round(REPEAT_LOOP_WINDOW_MS / 60_000)}分以内に同一cause(${loop.cause})の` +
+          `遷移が${loop.count}回発生しています。同じ失敗と再試行を繰り返すループの疑いがあります。`,
+        thresholdDescription:
+          `${Math.round(REPEAT_LOOP_WINDOW_MS / 60_000)}分以内に同一causeが` +
+          `${REPEAT_LOOP_MIN_COUNT}回以上`,
+        severity: 'high',
+        nowMs,
+      })
+    ) {
+      filed++;
+    }
+  }
+
+  return filed;
+}
+
+/**
+ * Runs one self-incident watch pass (throttled). Scans tasks updated within
+ * the lookback window, oldest first, and files evidence-backed concerns for
+ * every detected signature. Detection only — no state is repaired here.
+ *
+ * @param nowMs - Current time (ms); injectable for tests. / 現在時刻
+ * @returns Number of concerns filed (0 when throttled). / 起票件数
+ */
+export async function runSelfIncidentWatch(nowMs: number = Date.now()): Promise<number> {
+  if (!shouldRunIncidentWatch(lastRunMs, nowMs)) return 0;
+  lastRunMs = nowMs;
+
+  const candidates = await prisma.task
+    .findMany({
+      where: { parentId: null, updatedAt: { gte: new Date(nowMs - CANDIDATE_LOOKBACK_MS) } },
+      select: { id: true, title: true, status: true, workflowStatus: true, updatedAt: true },
+      orderBy: { updatedAt: 'asc' },
+      take: MAX_CANDIDATES,
+    })
+    .catch(() => [] as CandidateTask[]);
+
+  let filed = 0;
+  for (const task of candidates) {
+    try {
+      filed += await inspectTask(task, nowMs);
+    } catch (err) {
+      // One broken task must not starve the rest of the scan.
+      log.warn({ err, taskId: task.id }, '[self-incident] task inspection failed — continuing');
+    }
+  }
+
+  if (filed > 0) {
+    log.info({ filed, candidates: candidates.length }, '[self-incident] filed incident concerns');
+  }
+  return filed;
+}

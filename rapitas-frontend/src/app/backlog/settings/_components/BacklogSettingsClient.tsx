@@ -17,6 +17,7 @@ import {
   Activity,
   IterationCw,
   MonitorCheck,
+  Sunrise,
   Play,
   Loader2,
   CalendarClock,
@@ -26,7 +27,13 @@ import { useToast } from '@/components/ui/toast/ToastContainer';
 import ProjectOverridesSection from './ProjectOverridesSection';
 import { Spinner } from '@/components/ui/spinner';
 
-type JobKind = 'innovation' | 'vuln_scan' | 'health_check' | 'loop_review' | 'ci_watch';
+type JobKind =
+  | 'innovation'
+  | 'vuln_scan'
+  | 'health_check'
+  | 'loop_review'
+  | 'ci_watch'
+  | 'daily_report';
 type Frequency = 'daily' | 'weekly';
 
 interface Schedule {
@@ -46,6 +53,8 @@ const JOB_META: Record<JobKind, { icon: typeof Sparkles; color: string }> = {
   health_check: { icon: Activity, color: 'text-sky-500' },
   loop_review: { icon: IterationCw, color: 'text-emerald-500' },
   ci_watch: { icon: MonitorCheck, color: 'text-violet-500' },
+  // NOTE: Sunrise = 自律活動デイリーレポート (ICON_POLICY §3).
+  daily_report: { icon: Sunrise, color: 'text-amber-500' },
 };
 
 const FREQUENCIES: Frequency[] = ['daily', 'weekly'];

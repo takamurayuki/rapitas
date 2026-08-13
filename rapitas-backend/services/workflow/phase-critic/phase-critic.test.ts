@@ -5,7 +5,7 @@
  */
 import { describe, it, expect, afterEach } from 'bun:test';
 import { aggregateCritiques, SEVERE_THRESHOLD } from './critique-aggregator';
-import { parseCriticResponse, isPhaseCriticEnabled } from './phase-critic';
+import { parseCriticResponse, isPhaseCriticEnabled, buildCriticUserMessage } from './phase-critic';
 import type { CriticVerdict } from './phase-critic-types';
 
 const v = (over: Partial<CriticVerdict>): CriticVerdict => ({
@@ -82,6 +82,53 @@ describe('parseCriticResponse', () => {
     expect(parseCriticResponse('{"pass":false,"severity":999,"issues":["x"]}', 'x').severity).toBe(
       100,
     );
+  });
+});
+
+describe('buildCriticUserMessage', () => {
+  it('with no context, is the artifact alone', () => {
+    const msg = buildCriticUserMessage('plan body');
+    expect(msg).toBe('# 批評対象アーティファクト\nplan body');
+  });
+
+  it('orders grounding sections before the artifact and labels them as reference-only', () => {
+    const msg = buildCriticUserMessage('plan body', {
+      taskBrief: 'title\n\ndesc',
+      referenceArtifact: 'research body',
+      priorReasons: ['issue 1', 'issue 2'],
+    });
+    const iTask = msg.indexOf('# タスク要求');
+    const iRef = msg.indexOf('# 先行フェーズ文書');
+    const iPrior = msg.indexOf('# 前回の批評指摘');
+    const iArtifact = msg.indexOf('# 批評対象アーティファクト');
+    expect(iTask).toBeGreaterThanOrEqual(0);
+    expect(iRef).toBeGreaterThan(iTask);
+    expect(iPrior).toBeGreaterThan(iRef);
+    expect(iArtifact).toBeGreaterThan(iPrior);
+    expect(msg).toContain('- issue 1');
+    expect(msg).toContain('批評対象ではない');
+  });
+
+  it('skips empty/whitespace grounding fields', () => {
+    const msg = buildCriticUserMessage('x', {
+      taskBrief: '  ',
+      referenceArtifact: '',
+      priorReasons: [],
+    });
+    expect(msg).toBe('# 批評対象アーティファクト\nx');
+  });
+
+  it('bounds every section (taskBrief 3k / reference 8k / reasons 8 / artifact 16k)', () => {
+    const msg = buildCriticUserMessage('a'.repeat(20000), {
+      taskBrief: 'b'.repeat(5000),
+      referenceArtifact: 'c'.repeat(10000),
+      priorReasons: Array.from({ length: 12 }, (_, i) => `r${i}`),
+    });
+    expect(msg).not.toContain('b'.repeat(3001));
+    expect(msg).not.toContain('c'.repeat(8001));
+    expect(msg).not.toContain('a'.repeat(16001));
+    expect(msg).toContain('- r7');
+    expect(msg).not.toContain('- r8');
   });
 });
 

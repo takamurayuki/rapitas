@@ -148,6 +148,40 @@ export async function executeAPIAgent(
     const executionTimeMs = Date.now() - startTime;
 
     if (transition.outputFile && output.trim()) {
+      // Critic-rejection guard: mirror the CLI executor — if the phase critic
+      // already bounced this phase's artifact while the API call was running,
+      // saving the output would resurrect the rejected content.
+      const { criticRejectedSince } = await import('./phase-critic/critic-rejection-guard');
+      if (await criticRejectedSince(taskId, transition.outputFile, new Date(startTime))) {
+        log.warn(
+          { taskId, role: transition.role, outputFile: transition.outputFile },
+          '[WorkflowAPIExecutor] Critic rejected this artifact mid-run — skipping save (would resurrect the rejected content)',
+        );
+        await prisma.agentExecution
+          .update({
+            where: { id: execution.id },
+            data: { status: 'completed', output: output.substring(0, 10000), executionTimeMs },
+          })
+          .catch(() => {});
+        await prisma.agentSession
+          .update({
+            where: { id: session.id },
+            data: {
+              status: 'completed',
+              completedAt: new Date(),
+              errorMessage:
+                '品質批評ゲートが成果物を差し戻したため、この実行の保存はスキップされました。',
+            },
+          })
+          .catch(() => {});
+        return {
+          success: false,
+          role: transition.role,
+          status: transition.nextStatus,
+          error: 'Phase critic rejected the artifact; a regeneration run will replace it.',
+          executionId: execution.id,
+        };
+      }
       // Strip any stray ANSI/log noise before persisting. API agents return text
       // directly (not stdout), so contamination is rare — fall back to the raw
       // output when the sanitiser finds no report rather than dropping a valid
@@ -167,14 +201,40 @@ export async function executeAPIAgent(
         const verifyValidation = validateVerify(output);
         if (!verifyValidation.ok && verifyValidation.severity >= 80) {
           const { attemptVerifyRepair } = await import('./verify-self-repair');
+          // CAS snapshot: the repair's compare-and-swap needs the status the
+          // task is ACTUALLY at right now (the verifier's entry status —
+          // transition.nextStatus is not persisted yet at this point, so
+          // passing it would make every legitimate bounce read as stale).
+          const live = await prisma.task
+            .findUnique({ where: { id: taskId }, select: { workflowStatus: true } })
+            .catch(() => null);
           const repair = await attemptVerifyRepair(
             taskId,
-            transition.nextStatus,
+            live?.workflowStatus ?? null,
             verifyValidation.summary,
             output,
           );
           if (repair.bounced && repair.newStatus) {
             resolvedNextStatus = repair.newStatus;
+          } else if (repair.stale) {
+            // The workflow moved past the evaluated status while this verdict
+            // was computed — do not advance to verify_done AND do not block.
+            log.warn(
+              { taskId, summary: verifyValidation.summary },
+              '[WorkflowAPIExecutor] stale verify failure — workflow moved on; skipping block',
+            );
+            await prisma.agentExecution
+              .update({
+                where: { id: execution.id },
+                data: { status: 'completed', output: output.substring(0, 10000), executionTimeMs },
+              })
+              .catch(() => {});
+            return {
+              success: false,
+              role: transition.role,
+              status: transition.nextStatus,
+              error: '検証結果が古いため適用しませんでした（ワークフローは先へ進んでいます）',
+            };
           } else {
             // Exhausted — block; do NOT advance to verify_done. This write is
             // what actually STOPS the verify self-repair loop, so a swallowed

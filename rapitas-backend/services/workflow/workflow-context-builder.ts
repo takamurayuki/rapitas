@@ -12,8 +12,10 @@ import { buildKnownPitfallsSection } from './workflow-pitfall-context';
 import { buildHypothesisContext } from './workflow-hypothesis-context';
 import { buildRejectedPlanContext } from './workflow-rejected-plan-context';
 import { buildCaseContext } from './workflow-case-context';
+import { buildPlaybookContext } from '../memory/playbook/playbook-inject';
 import { buildCriticFeedback, buildCriticLessonsSection } from './phase-critic';
 import { resolvePreferredBaseBranch } from '../task/task-resolver';
+import { buildSubtaskSplitDirective } from './subtask-split-policy';
 import type { WorkflowRole } from './workflow-types';
 // NOTE: Style rules live in their own module (this file is over the size
 // limit); they only ADD constraints — the machine-parsed verdict vocabulary in
@@ -267,7 +269,11 @@ export async function buildRoleContext(
       // steps to the planner. Without this, research.md was always written
       // assuming a plan would follow — wrong for lightweight tasks.
       const modeBlock = `\n\n${researchModeDirective(mode, language)}`;
-      return `${taskInfo}${criticBlock}${lessonsBlock}${modeBlock}${memoryBlock}${hypothesisBlock}\n\n${t.researcher.instruction}\n\n${t.researcher.premiseAudit}\n\n${t.researcher.items}\n\n${t.researcher.output}\n\n${styleRule}`;
+      // Playbook: at most ONE freshness-verified procedure doc distilled from
+      // past same-shape completed tasks — research starts from experience.
+      const playbook = await buildPlaybookContext(taskId, task, language);
+      const playbookBlock = playbook ? `\n\n${playbook}` : '';
+      return `${taskInfo}${criticBlock}${lessonsBlock}${modeBlock}${memoryBlock}${playbookBlock}${hypothesisBlock}\n\n${t.researcher.instruction}\n\n${t.researcher.premiseAudit}\n\n${t.researcher.items}\n\n${t.researcher.output}\n\n${styleRule}`;
     }
 
     case 'planner': {
@@ -303,10 +309,24 @@ export async function buildRoleContext(
       if (plannerCase) {
         ctx += `\n\n${plannerCase}`;
       }
+      // Playbook: distilled procedure from same-shape completed tasks (at most
+      // one, freshness-verified) — complements the single raw CBR case above.
+      const plannerPlaybook = await buildPlaybookContext(taskId, task, language);
+      if (plannerPlaybook) {
+        ctx += `\n\n${plannerPlaybook}`;
+      }
       if (research) {
         ctx += `\n\n${t.planner.researchHeader}\n\n${research}`;
       }
-      ctx += `\n\n${t.planner.instruction}\n\n${t.planner.premortem}\n\n${t.planner.selfContainment}\n\n${styleRule}`;
+      ctx += `\n\n${t.planner.instruction}\n\n${t.planner.premortem}\n\n${t.planner.selfContainment}`;
+      // Align the planner with the subtask-split flag: '' when splitting is
+      // enabled (CLAUDE.md Step 2.5 applies as-is), an explicit prohibition
+      // when disabled (task 545 incident) — never concatenate the empty string.
+      const splitDirective = buildSubtaskSplitDirective(language);
+      if (splitDirective) {
+        ctx += `\n\n${splitDirective}`;
+      }
+      ctx += `\n\n${styleRule}`;
       return ctx;
     }
 

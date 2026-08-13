@@ -29,6 +29,8 @@ export type IdleMonitorCallbacks = {
   getProcess: () => ChildProcess | null;
   /** Setter for idleTimeoutForceKilled flag */
   setIdleTimeoutForceKilled: (value: boolean) => void;
+  /** Setter for wallClockTimeoutForceKilled flag (wall-clock cap only, not idle hangs) */
+  setWallClockTimeoutForceKilled: (value: boolean) => void;
   /** Getter for current outputBuffer content (for timeout error message) */
   getOutputBuffer: () => string;
   /** Getter for current errorBuffer content (for timeout error message) */
@@ -154,6 +156,10 @@ export function startIdleMonitor(
         `\n[Timeout] ${Math.floor(totalElapsed / 1000)} 秒経過（上限 ${Math.floor(timeout / 1000)} 秒）。実行を強制終了します。\n`,
       );
       callbacks.setIdleTimeoutForceKilled(true);
+      // NOTE: Also tag the wall-clock cause so downstream classification can tell
+      // this kill apart from an idle hang — a wall-clock kill is not a provider
+      // error and must not trigger a provider cooldown (task 546).
+      callbacks.setWallClockTimeoutForceKilled(true);
       clearInterval(idleCheckInterval);
       const pid = proc.pid;
       if (process.platform === 'win32') {

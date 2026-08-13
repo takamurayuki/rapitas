@@ -180,8 +180,18 @@ export async function createWorktree(
     }
 
     if (branchInUse) {
-      // Branch is already checked out in another worktree — create unique branch name
-      const uniqueSuffix = taskId ? `task-${taskId}` : `wt-${shortId}`;
+      // Branch is already checked out in another worktree — create unique branch name.
+      // NOTE: When the name already carries this task's `t<taskId>` marker
+      // (canonical names from branch-name-generator), appending `task-<id>`
+      // again would embed the id twice (the `...-t319-task-319` bug) — use the
+      // random shortId instead. Legacy names without the marker keep the old
+      // `task-<id>` suffix for backward compatibility.
+      // NOTE: Lazy import — a static one would pull branch-name-generator's
+      // ai-client dependency chain into every module that loads worktree-ops,
+      // breaking unrelated tests whose node-primitive mocks don't cover it.
+      const { hasTaskIdMarker } = await import('../../../../utils/common/branch-name-generator');
+      const alreadyTagged = taskId != null && hasTaskIdMarker(branchName, taskId);
+      const uniqueSuffix = alreadyTagged ? shortId : taskId ? `task-${taskId}` : `wt-${shortId}`;
       effectiveBranchName = `${branchName}-${uniqueSuffix}`;
       logger.warn(
         `[createWorktree] Branch ${branchName} is already in use, using ${effectiveBranchName} instead`,
@@ -490,12 +500,35 @@ export async function removeWorktree(
         });
         logger.info(`[removeWorktree] Deleted merged branch: ${branchName}`);
       } else {
-        // Use -D for unmerged branches (force delete)
-        await execFileAsync('git', ['branch', '-D', branchName], {
-          cwd: baseDir,
-          encoding: 'utf8',
-        });
-        logger.info(`[removeWorktree] Force deleted unmerged branch: ${branchName}`);
+        // An unmerged branch is only safe to force-delete when every commit
+        // is reachable from some remote ref (i.e. the work was pushed).
+        // Commits that exist NOWHERE else would be destroyed with it — a
+        // stop-execution did exactly that to a branch holding verified,
+        // committed-but-unpushed work (task 536), recovered only via reflog.
+        const { stdout: uniqueCountRaw } = await execFileAsync(
+          'git',
+          ['rev-list', branchName, '--not', '--remotes', '--count'],
+          { cwd: baseDir, encoding: 'utf8' },
+        );
+        const uniqueCount = parseInt(uniqueCountRaw.trim(), 10);
+        if (Number.isFinite(uniqueCount) && uniqueCount > 0) {
+          const { stdout: tip } = await execFileAsync('git', ['rev-parse', '--short', branchName], {
+            cwd: baseDir,
+            encoding: 'utf8',
+          });
+          logger.warn(
+            `[removeWorktree] KEEPING unmerged branch ${branchName} — ${uniqueCount} commit(s) exist on no remote (tip ${tip.trim()}). Push or recover (git checkout -b <name> ${tip.trim()}) before deleting.`,
+          );
+        } else {
+          // All commits are on a remote — -D only drops the local ref.
+          await execFileAsync('git', ['branch', '-D', branchName], {
+            cwd: baseDir,
+            encoding: 'utf8',
+          });
+          logger.info(
+            `[removeWorktree] Force deleted unmerged branch (all commits pushed): ${branchName}`,
+          );
+        }
       }
     } catch (branchError) {
       logger.warn({ err: branchError }, `[removeWorktree] Failed to delete branch ${branchName}`);

@@ -8,6 +8,8 @@ import {
   SEVERITY_ORDER,
   SEVERITY_LABEL_KEY,
   SEVERITY_HINT_KEY,
+  SOURCE_ORDER,
+  SOURCE_LABEL_KEY,
   STATUS_TABS,
   type ConcernType,
   type ConcernSeverity,
@@ -60,6 +62,35 @@ describe('SEVERITY_ORDER / SEVERITY_LABEL_KEY / SEVERITY_HINT_KEY', () => {
       expect(SEVERITY_LABEL_KEY[severity as ConcernSeverity]).toBeTruthy();
       expect(SEVERITY_HINT_KEY[severity as ConcernSeverity]).toBeTruthy();
     }
+  });
+});
+
+describe('SOURCE_ORDER / SOURCE_LABEL_KEY', () => {
+  it('lists all known sources including the unknown fallback', () => {
+    expect(SOURCE_ORDER).toEqual([
+      'agent',
+      'user',
+      'vuln_scan',
+      'vuln_scan_audit',
+      'ci_watch',
+      'loop_review',
+      'code_review',
+      'github_issue',
+      'idea_reclassified',
+      'verification-triage',
+      'log_health',
+      'unknown',
+    ]);
+  });
+
+  it('has a label key for every source in SOURCE_ORDER', () => {
+    for (const source of SOURCE_ORDER) {
+      expect(SOURCE_LABEL_KEY[source]).toBeTruthy();
+    }
+  });
+
+  it('has no orphan label keys outside SOURCE_ORDER', () => {
+    expect(Object.keys(SOURCE_LABEL_KEY).sort()).toEqual([...SOURCE_ORDER].sort());
   });
 });
 

@@ -338,6 +338,9 @@ export function runClaudeExecution(
       setIdleTimeoutForceKilled: (v) => {
         agent.idleTimeoutForceKilled = v;
       },
+      setWallClockTimeoutForceKilled: (v) => {
+        agent.wallClockTimeoutForceKilled = v;
+      },
     });
 
     // Spawn a Worker for output parsing

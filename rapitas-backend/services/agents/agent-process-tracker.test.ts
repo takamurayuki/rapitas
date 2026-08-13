@@ -74,6 +74,7 @@ mock.module('../../config/logger', () => ({
 const {
   registerProcess,
   unregisterProcess,
+  countLiveTrackedProcesses,
   cleanupZombieProcesses,
   killProcessTreeSafely,
   clearAllPidFiles,
@@ -120,6 +121,49 @@ beforeEach(() => {
   netstatOutcome = new Error('findstr: no match (exit 1)');
   taskkillOutcome = '';
   snapshotOutcome = '[]';
+});
+
+describe('countLiveTrackedProcesses', () => {
+  test('returns 0 when the PID directory does not exist', () => {
+    existsSyncMock.mockImplementation(() => false);
+    expect(countLiveTrackedProcesses('cli-agent')).toBe(0);
+  });
+
+  test('counts live PIDs of the requested role only and removes dead-PID files', () => {
+    existsSyncMock.mockImplementation(() => true);
+    readdirSyncMock.mockImplementation(() => [
+      'cli-agent-100.pid',
+      'cli-agent-300.pid',
+      'worker-200.pid',
+    ]);
+    readFileSyncMock.mockImplementation((path: string) =>
+      String(path).includes('cli-agent-100')
+        ? JSON.stringify({ pid: 100, role: 'cli-agent', startedAt: 't', parentPid: 1 })
+        : JSON.stringify({ pid: 300, role: 'cli-agent', startedAt: 't', parentPid: 1 }),
+    );
+    makePidAliveNotListening(100); // tasklist output names 100 only → 300 reads as dead
+    expect(countLiveTrackedProcesses('cli-agent')).toBe(1);
+    // The dead 300 file self-heals (removed) so it can never pin the count.
+    expect(unlinkSyncMock).toHaveBeenCalledWith(join(PID_DIR, 'cli-agent-300.pid'));
+    expect(unlinkSyncMock).toHaveBeenCalledTimes(1);
+  });
+
+  test('removes unparsable PID files without counting them', () => {
+    existsSyncMock.mockImplementation(() => true);
+    readdirSyncMock.mockImplementation(() => ['cli-agent-400.pid']);
+    readFileSyncMock.mockImplementation(() => 'not json at all');
+    expect(countLiveTrackedProcesses('cli-agent')).toBe(0);
+    expect(unlinkSyncMock).toHaveBeenCalledWith(join(PID_DIR, 'cli-agent-400.pid'));
+  });
+
+  test('returns 0 (fail-open) and warns when the directory scan fails', () => {
+    existsSyncMock.mockImplementation(() => true);
+    readdirSyncMock.mockImplementation(() => {
+      throw new Error('EACCES');
+    });
+    expect(countLiveTrackedProcesses('cli-agent')).toBe(0);
+    expect(warnMock).toHaveBeenCalledTimes(1);
+  });
 });
 
 describe('registerProcess', () => {

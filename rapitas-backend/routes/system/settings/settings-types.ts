@@ -26,6 +26,12 @@ export interface UserSettingsUpdateBody {
   autoCreateFromBacklogLimit?: number;
   /** Dev: restart backend when auto-run runs dry to apply committed fixes. */
   restartOnAutoRunDry?: boolean;
+  /** Max verify->implement self-repair cycles before a task is blocked (0 = off). */
+  verifyRepairLimit?: number;
+  /** Dev: auto-restart when merged-but-inactive commits are detected on origin (file-backed, no DB column). */
+  autoRestartOnMergedCode?: boolean;
+  /** Process retrospective on task completion (file-backed, no DB column; default ON). */
+  retroReviewEnabled?: boolean;
   defaultAiProvider?: string;
   defaultCategoryId?: number | null;
   activeMode?: string;

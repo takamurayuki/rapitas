@@ -123,6 +123,51 @@ export function unregisterProcess(pid: number): void {
 }
 
 /**
+ * Count tracked processes of a role whose PID is still alive. Consumed by the
+ * task-boundary restart governance (quiescence condition b: no live auxiliary
+ * CLI children). Stale PID files (dead process, unparsable content) are
+ * removed on the way, so a leaked file can never pin the count above zero
+ * forever and permanently block the boundary restart.
+ *
+ * @param role - Tracked role to count / 集計対象のロール
+ * @returns Number of live tracked processes for the role / 生存中の追跡プロセス数
+ */
+export function countLiveTrackedProcesses(role: ProcessInfo['role']): number {
+  try {
+    if (!existsSync(PID_DIR)) {
+      return 0;
+    }
+    const files = readdirSync(PID_DIR).filter(
+      (f) => f.startsWith(`${role}-`) && f.endsWith('.pid'),
+    );
+    let live = 0;
+    for (const file of files) {
+      const filepath = join(PID_DIR, file);
+      try {
+        const info: ProcessInfo = JSON.parse(readFileSync(filepath, 'utf-8'));
+        if (isProcessAlive(info.pid)) {
+          live++;
+        } else {
+          unlinkSync(filepath);
+        }
+      } catch {
+        // Unparsable = untrackable; remove so it cannot inflate future counts.
+        try {
+          unlinkSync(filepath);
+        } catch {
+          // ignore
+        }
+      }
+    }
+    return live;
+  } catch (error) {
+    // NOTE: Fail-open (0): an fs error must not wedge the boundary restart forever.
+    logger.warn({ err: error, role }, '[ProcessTracker] Failed to count live processes');
+    return 0;
+  }
+}
+
+/**
  * Scan all PID files, kill zombie processes, and remove their PID files.
  * Protects any process listening on port 3001.
  *

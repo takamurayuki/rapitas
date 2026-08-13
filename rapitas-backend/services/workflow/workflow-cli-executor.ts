@@ -15,6 +15,7 @@ import {
   resolveTaskWorkflowState,
 } from '../task/task-resolver';
 import { resolveLatestSessionWorktree } from '../agents/agent-session-resolver';
+import { getAgentTimeoutMs } from '../agents/execution-timeouts';
 import { createLogger } from '../../config/logger';
 import {
   readWorkflowFile,
@@ -198,9 +199,10 @@ export async function executeCLIAgent(
       }
       if (worktreeBase) {
         try {
-          const { generateFallbackBranchName } =
-            await import('../../utils/common/branch-name-generator');
-          const taskTitle = (await resolveTaskTitle(taskId))?.title ?? `task-${taskId}`;
+          const { generateBranchName } = await import('../../utils/common/branch-name-generator');
+          const taskInfo = await resolveTaskTitle(taskId);
+          const taskTitle = taskInfo?.title ?? `task-${taskId}`;
+          const taskDescription = taskInfo?.description ?? undefined;
           // Reuse the EXISTING feature branch (it holds the prior implementation
           // and the commits already pushed to the PR) when a prior session
           // recorded one — e.g. a ci_repair re-run after the worktree was cleaned
@@ -209,17 +211,19 @@ export async function executeCLIAgent(
           // task 227 re-implement loop). createWorktree checks out an existing
           // branch as-is, keeping its commits.
           const priorBranch = sessionWithWorktree?.branchName?.trim();
-          // A NEW branch MUST be unique per task. generateFallbackBranchName
-          // derives the name from the (often generic) title, so unrelated tasks
-          // collide on names like "chore/update-refactor" (observed: 10 PRs sharing
-          // ONE branch) or "feature/implement-perf". When a later task reuses/resets
-          // a shared branch (force-push), GitHub auto-closes the earlier PR and
-          // orphans its work — that is why PR #253 (task 305) was closed unmerged.
-          // Suffix the task id so each task owns a distinct branch. A reused
-          // priorBranch keeps its EXACT name (it already maps 1:1 to an open PR).
-          const fallbackBase =
-            generateFallbackBranchName(taskTitle) || `feature/task-${taskId}-auto`;
-          const branchName = priorBranch || `${fallbackBase}-t${taskId}`;
+          // A NEW branch MUST be unique per task — unrelated tasks used to
+          // collide on generic title-derived names (observed: 10 PRs sharing
+          // ONE branch; PR #253 / task 305 closed unmerged by a force-push).
+          // generateBranchName embeds the `t<taskId>-` marker internally
+          // (exactly once — no manual suffixing here, which previously caused
+          // the `...-t319-task-319` double-embed) and falls back to the
+          // deterministic generator, still taskId-tagged, when AI is
+          // unavailable. A reused priorBranch keeps its EXACT name (it already
+          // maps 1:1 to an open PR).
+          const branchName =
+            priorBranch ||
+            (await generateBranchName(taskTitle, taskDescription, taskId)) ||
+            `feature/task-${taskId}-auto`;
           const wt = await orchestrator.createWorktree(worktreeBase, branchName, taskId, null);
           resolvedWorktreePath = wt;
           resolvedBranchName = branchName;
@@ -587,6 +591,10 @@ curl -X POST http://127.0.0.1:${port}/idea-box \\
 \`\`\`
 日本語が "?" に化ける場合は、内容を作業ディレクトリの .wf-idea.json に UTF-8 で書いてから --data-binary @.wf-idea.json で送る（.wf-* はコミットされません）。アイデアが無ければ何もしなくて構いません。`;
 
+  // For the harvest guard below: a critic rejection recorded AFTER this point
+  // means the artifact this phase produced was already judged and bounced.
+  const phaseStartedAt = new Date();
+
   const result = await orchestrator.executeTask(
     {
       id: taskId,
@@ -600,6 +608,8 @@ curl -X POST http://127.0.0.1:${port}/idea-box \\
       agentConfigId: agentConfig.id,
       workingDirectory: effectiveWorkDir,
       modelIdOverride: agentConfig.modelId || undefined,
+      // Role-aware wall-clock cap: implementer gets 2x the base (task 546).
+      timeout: getAgentTimeoutMs(transition.role),
       autoCompleteTask: false,
       investigationMode: isInvestigationPhase,
       // Phase-specific output type. Drives codex's positional headline
@@ -653,23 +663,37 @@ curl -X POST http://127.0.0.1:${port}/idea-box \\
         '[WorkflowCLIExecutor] Agent output had no clean report (log-only) — skipping md write',
       );
     } else {
-      try {
-        await writeWorkflowFile(taskId, transition.outputFile, cleaned);
-        log.info(
-          {
-            taskId,
-            role: transition.role,
-            outputFile: transition.outputFile,
-            chars: cleaned.length,
-            usedFinalMessage: !!result.finalMessage?.trim(),
-          },
-          '[WorkflowCLIExecutor] Captured clean report and saved to workflow API',
-        );
-      } catch (captureErr) {
+      // Critic-rejection guard: if the phase critic already REJECTED this
+      // phase's artifact (rollback + archive) while the agent was finishing,
+      // re-saving the agent's final message would RESURRECT the rejected
+      // artifact byte-for-byte and flip the status forward again — exactly
+      // how task 536's bounce loop never regenerated anything. Skip; the
+      // bounced re-run produces the replacement.
+      const { criticRejectedSince } = await import('./phase-critic/critic-rejection-guard');
+      if (await criticRejectedSince(taskId, transition.outputFile, phaseStartedAt)) {
         log.warn(
-          { err: captureErr, taskId, role: transition.role },
-          '[WorkflowCLIExecutor] Failed to save report to workflow API',
+          { taskId, role: transition.role, outputFile: transition.outputFile },
+          '[WorkflowCLIExecutor] Critic rejected this artifact mid-phase — skipping harvest re-save (would resurrect the rejected content)',
         );
+      } else {
+        try {
+          await writeWorkflowFile(taskId, transition.outputFile, cleaned);
+          log.info(
+            {
+              taskId,
+              role: transition.role,
+              outputFile: transition.outputFile,
+              chars: cleaned.length,
+              usedFinalMessage: !!result.finalMessage?.trim(),
+            },
+            '[WorkflowCLIExecutor] Captured clean report and saved to workflow API',
+          );
+        } catch (captureErr) {
+          log.warn(
+            { err: captureErr, taskId, role: transition.role },
+            '[WorkflowCLIExecutor] Failed to save report to workflow API',
+          );
+        }
       }
     }
   }
@@ -685,16 +709,37 @@ curl -X POST http://127.0.0.1:${port}/idea-box \\
 
     // Fallback: extract Markdown from raw output when agent did not save via API
     if (!fileContent && result.output && result.output.trim().length > 100) {
-      log.info(
-        `[WorkflowCLIExecutor] ${transition.outputFile}.md not found, extracting from output (${result.output.length} chars)`,
-      );
-      const extractedContent = extractMarkdownFromOutput(result.output, transition.outputFile);
-      if (extractedContent) {
-        await writeWorkflowFile(taskId, transition.outputFile, extractedContent);
-        fileContent = extractedContent;
-        log.info(
-          `[WorkflowCLIExecutor] Saved extracted content (${extractedContent.length} chars)`,
+      // NOTE: A critic rejection archives the artifact, which makes
+      // readWorkflowFile return null — without this guard the fallback would
+      // re-extract the SAME rejected report from stdout and resurrect it,
+      // defeating the harvest guard above through the back door.
+      const { criticRejectedSince } = await import('./phase-critic/critic-rejection-guard');
+      if (await criticRejectedSince(taskId, transition.outputFile, phaseStartedAt)) {
+        log.warn(
+          { taskId, role: transition.role, outputFile: transition.outputFile },
+          '[WorkflowCLIExecutor] Critic rejected this artifact — skipping stdout-extraction fallback (would resurrect the rejected content)',
         );
+      } else {
+        log.info(
+          `[WorkflowCLIExecutor] ${transition.outputFile}.md not found, extracting from output (${result.output.length} chars)`,
+        );
+        const extractedContent = extractMarkdownFromOutput(result.output, transition.outputFile);
+        if (extractedContent) {
+          try {
+            await writeWorkflowFile(taskId, transition.outputFile, extractedContent);
+            fileContent = extractedContent;
+            log.info(
+              `[WorkflowCLIExecutor] Saved extracted content (${extractedContent.length} chars)`,
+            );
+          } catch (fallbackErr) {
+            // e.g. OpenSubtasksError from the choke-point guard — the phase
+            // then reports no artifact instead of force-completing a parent.
+            log.warn(
+              { err: fallbackErr, taskId, outputFile: transition.outputFile },
+              '[WorkflowCLIExecutor] Fallback save rejected by workflow-file guard',
+            );
+          }
+        }
       }
     }
 
@@ -926,7 +971,13 @@ curl -X POST http://127.0.0.1:${port}/idea-box \\
             }
           }
         }
-      } else if (currentWfStatus !== transition.nextStatus && nextRank > curRank) {
+      } else if (
+        currentWfStatus !== transition.nextStatus &&
+        nextRank > curRank &&
+        // A live question pause ranks 0, so the forward-only comparison alone
+        // would advance right over it (task 551) — protect it explicitly.
+        currentWfStatus !== 'awaiting_question'
+      ) {
         // Advance FORWARD only. Never regress a status the HTTP handler already
         // advanced (e.g. plan auto-approved → plan_approved).
         await prisma.task.update({
@@ -1010,7 +1061,20 @@ curl -X POST http://127.0.0.1:${port}/idea-box \\
         '[WorkflowCLIExecutor] Required workflow file was not saved; treating phase as failed',
       );
     }
-  } else if (effectiveSuccess && currentWfStatus !== transition.nextStatus) {
+  } else if (
+    effectiveSuccess &&
+    currentWfStatus !== transition.nextStatus &&
+    // NOTE: Same forward-only rule as the outputFile path above — but this
+    // no-outputFile (implementer) epilogue historically had NO guard at all
+    // and blindly stamped nextStatus. Observed twice on task 551: it clobbered
+    // a live question pause (awaiting_question → in_progress, orphaning
+    // question.md) and later un-did a legitimate completion (completed →
+    // in_progress on a stale re-run). awaiting_question must be checked
+    // explicitly because its rank is 0 — a rank comparison alone reads the
+    // pause as "behind" and advances straight over it.
+    currentWfStatus !== 'awaiting_question' &&
+    (WF_STATUS_RANK[transition.nextStatus] ?? 0) > (WF_STATUS_RANK[currentWfStatus] ?? 0)
+  ) {
     await prisma.task.update({
       where: { id: taskId },
       data: { workflowStatus: transition.nextStatus },
@@ -1025,6 +1089,11 @@ curl -X POST http://127.0.0.1:${port}/idea-box \\
       sessionId: session.id,
       metadata: { outputFile: transition.outputFile ?? null },
     });
+  } else if (effectiveSuccess && currentWfStatus !== transition.nextStatus) {
+    log.info(
+      { taskId, role: transition.role, currentWfStatus, nextStatus: transition.nextStatus },
+      '[WorkflowCLIExecutor] Skipping phase-completion status write — task is paused or already past this phase',
+    );
   }
 
   try {

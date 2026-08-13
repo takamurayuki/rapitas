@@ -2,6 +2,7 @@ import { renderHook, act } from '@testing-library/react';
 import { useTaskAutoSync } from '../task/useTaskAutoSync';
 import { useTaskCacheStore } from '@/stores/task-cache-store';
 import { useExecutionStateStore } from '@/stores/execution-state-store';
+import { setAppHidden } from '../common/app-visibility-store';
 
 vi.mock('@/lib/logger', () => ({
   createLogger: () => ({ debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() }),
@@ -20,6 +21,7 @@ describe('useTaskAutoSync', () => {
 
   afterEach(() => {
     vi.useRealTimers();
+    setAppHidden(false);
   });
 
   it('does nothing when disabled', () => {
@@ -96,6 +98,39 @@ describe('useTaskAutoSync', () => {
       document.dispatchEvent(new Event('visibilitychange'));
     });
     expect(fetchUpdates).toHaveBeenCalled();
+  });
+
+  it('syncs immediately when the app is restored from minimize', () => {
+    renderHook(() => useTaskAutoSync({ enabled: true, interval: 100_000 }));
+    act(() => {
+      setAppHidden(true);
+    });
+    fetchUpdates.mockClear();
+
+    act(() => {
+      setAppHidden(false);
+    });
+
+    expect(fetchUpdates).toHaveBeenCalled();
+  });
+
+  it('does not sync on restore when skipDuringExecution and a task is executing', () => {
+    useExecutionStateStore.setState({
+      executingTasks: new Map([[1, { taskId: 1, status: 'running' }]]),
+    });
+    renderHook(() =>
+      useTaskAutoSync({ enabled: true, interval: 100_000, skipDuringExecution: true }),
+    );
+    act(() => {
+      setAppHidden(true);
+    });
+    fetchUpdates.mockClear();
+
+    act(() => {
+      setAppHidden(false);
+    });
+
+    expect(fetchUpdates).not.toHaveBeenCalled();
   });
 
   it('clears the interval on unmount', () => {

@@ -137,5 +137,8 @@ export function evaluateScopeCheck(
       `plan.md に記載のないファイルが変更されています（計画外変更）。` +
       `該当ファイルを revert するか、計画の意図に含まれるなら plan.md に追記してください:\n` +
       offending.slice(0, 40).join('\n'),
+    // Structured list for the history-contamination classifier — capped like
+    // `details` so downstream `git log` fan-out stays bounded.
+    offendingFiles: offending.slice(0, 40),
   };
 }

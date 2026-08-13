@@ -1,5 +1,6 @@
 import { renderHook, act } from '@testing-library/react';
 import { useThemeAutoRun } from '../workflow/useThemeAutoRun';
+import { setAppHidden } from '../common/app-visibility-store';
 
 vi.mock('@/utils/api', () => ({ API_BASE_URL: 'http://test:3001' }));
 
@@ -33,6 +34,7 @@ describe('useThemeAutoRun', () => {
   afterEach(() => {
     vi.useRealTimers();
     vi.restoreAllMocks();
+    setAppHidden(false);
   });
 
   it('does not fetch when themeId is null', () => {
@@ -171,5 +173,40 @@ describe('useThemeAutoRun', () => {
     });
 
     expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('does not fetch while the app is hidden (minimized) even if document.hidden is false', async () => {
+    setAppHidden(true);
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue({ ok: true, json: () => Promise.resolve(mockAutoRunResponse()) });
+    vi.stubGlobal('fetch', fetchMock);
+
+    renderHook(() => useThemeAutoRun(5, true));
+    await act(async () => {
+      await vi.runOnlyPendingTimersAsync();
+    });
+
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('fetches immediately when restored from minimize', async () => {
+    setAppHidden(true);
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue({ ok: true, json: () => Promise.resolve(mockAutoRunResponse()) });
+    vi.stubGlobal('fetch', fetchMock);
+
+    renderHook(() => useThemeAutoRun(5, true));
+    await act(async () => {
+      await vi.runOnlyPendingTimersAsync();
+    });
+    expect(fetchMock).not.toHaveBeenCalled();
+
+    await act(async () => {
+      setAppHidden(false);
+    });
+
+    expect(fetchMock).toHaveBeenCalledWith('http://test:3001/themes/5/auto-run');
   });
 });

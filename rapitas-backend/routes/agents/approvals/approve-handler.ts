@@ -16,6 +16,8 @@ import type { SubtaskProposal } from '../../../services/claude-agent';
 import { createSubtasksInTransaction } from './bulk-approve-handler';
 import { resolveAgentForTask } from '../../../services/workflow/role-resolver';
 import { isShutdownError } from '../../../services/agents/agent-worker/shutdown-error';
+import { FOREIGN_PR_ERROR_PREFIX } from '../../../services/agents/orchestrator/git-operations/branch-pr-ops';
+import { notify } from '../../../services/workflow/auto-merge-notify';
 
 const log = createLogger('routes:approvals:approve');
 
@@ -206,9 +208,12 @@ export const approveRoutes = new Elysia()
             })
           : null;
         const baseBranch = themeForBase?.defaultBranch || 'develop';
+        // NOTE: `[Task-{id}]` marker aligns this legacy path with the other
+        // auto-PR routes so createPullRequest's task-identity check can verify
+        // (and legitimately reuse) PRs created here.
         const prResult = await orchestrator.createPullRequest(
           workDir,
-          task.title,
+          `[Task-${task.id}] ${task.title}`,
           prBody,
           baseBranch,
         );
@@ -238,6 +243,17 @@ export const approveRoutes = new Elysia()
             prNumber: prResult.prNumber,
           };
         } else {
+          // Task-identity mismatch (task 541): the branch's open PR belongs to
+          // another task — add the dedicated notification alongside the generic
+          // failure one so the collision is distinguishable.
+          if (prResult.error?.startsWith(FOREIGN_PR_ERROR_PREFIX)) {
+            await notify({
+              taskId: task.id,
+              type: 'auto_pr_identity_mismatch',
+              title: '自動PR作成を中止しました',
+              message: `タスク ${task.id} のブランチには他タスクのPRが開いたまま残っているため、誤リンクを避けてPR作成を中止しました。${prResult.error}`,
+            });
+          }
           await prisma.notification.create({
             data: {
               type: 'agent_error',

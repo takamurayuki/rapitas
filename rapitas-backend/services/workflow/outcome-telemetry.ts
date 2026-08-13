@@ -139,6 +139,14 @@ export async function recordTaskOutcome(taskId: number, finalStatus: string): Pr
       )
       .catch((err) => log.warn({ err, taskId }, '[telemetry] Learning-artifact recording failed'));
 
+    // Self-experiment loop: advance the single active experiment (if any) with
+    // this terminal task; reaching its target N triggers the control-vs-
+    // treatment judgement inside. Best-effort — same failure isolation as the
+    // rest of this chain.
+    await import('../self-learning/experiment-loop/experiment-lifecycle')
+      .then(({ updateExperimentProgress }) => updateExperimentProgress(taskId, finalStatus))
+      .catch((err) => log.warn({ err, taskId }, '[telemetry] Experiment progress update failed'));
+
     // Reflexion: when the task failed OR needed repair, distil a transferable
     // lesson from the failure and store it as knowledge (retrieved+injected into
     // similar future tasks). Failures are the richest learning signal — this is
@@ -147,6 +155,25 @@ export async function recordTaskOutcome(taskId: number, finalStatus: string): Pr
       await import('../memory/task-knowledge-extractor')
         .then(({ reflectOnFailure }) => reflectOnFailure(taskId, finalStatus))
         .catch((err) => log.warn({ err, taskId }, '[telemetry] Failure reflection failed'));
+    }
+
+    // Process retrospective: review the completed task's PROCESS (transition
+    // timeline, bounce causes, phase dwell times) with one aux-AI call and file
+    // education-candidate concerns for systemic friction. Completed tasks only —
+    // failures already go through reflectOnFailure above. Best-effort, last in
+    // the chain (the AI call is the slowest step and must never delay the rest).
+    if (finalStatus === 'completed') {
+      await import('./process-retro/retro-review')
+        .then(({ runProcessRetro }) => runProcessRetro(taskId))
+        .catch((err) => log.warn({ err, taskId }, '[telemetry] Process retro failed'));
+
+      // Playbook extraction: when this completion forms a same-shape cluster
+      // with recent completed tasks (similar title AND overlapping changed
+      // files), distil ONE reusable procedure doc so future same-shape tasks
+      // start from experience instead of a blank research. Best-effort.
+      await import('../memory/playbook/playbook-generate')
+        .then(({ maybeGeneratePlaybook }) => maybeGeneratePlaybook(taskId))
+        .catch((err) => log.warn({ err, taskId }, '[telemetry] Playbook generation failed'));
     }
   } catch (err) {
     log.warn({ err, taskId }, '[telemetry] Failed to record task outcome');
