@@ -30,6 +30,18 @@ const logger = createLogger('api-client');
 const REQUEST_TIMEOUT_MS = 30_000;
 
 /**
+ * Marks every request from this client as UI-originated so the backend's
+ * ui-activity-tracker can defer boundary self-restarts while the user is
+ * actively operating the UI (RAPITAS_RESTART_UI_QUIET_MS quiet gate).
+ *
+ * NOTE: Values must mirror UI_SOURCE_HEADER / UI_SOURCE_VALUE in
+ * rapitas-backend/services/scheduling/auto-restart-merged-code/ui-activity-tracker.ts
+ * — the backend constants cannot be imported across packages.
+ */
+export const UI_SOURCE_HEADER = 'X-Rapitas-Source';
+export const UI_SOURCE_VALUE = 'ui';
+
+/**
  * Per-attempt timeout for idempotent GETs. A healthy backend serves GETs in
  * well under a second (verified: GET /tasks/:id ≈ 0.2s), so a GET that stalls
  * this long is almost always a dead/stale keep-alive connection or a transient
@@ -358,6 +370,7 @@ export class APIClient {
       credentials: 'include',
       headers: {
         'Content-Type': 'application/json',
+        [UI_SOURCE_HEADER]: UI_SOURCE_VALUE,
         ...options.headers,
       },
     };
