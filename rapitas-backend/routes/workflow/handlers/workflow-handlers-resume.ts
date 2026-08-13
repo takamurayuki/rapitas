@@ -12,7 +12,11 @@ import { ValidationError, NotFoundError } from '../../../middleware/error-handle
 import { createLogger } from '../../../config';
 import type { WorkflowStatus } from '../../../services/workflow/workflow-types';
 import { resolveTaskWorkflowState } from '../../../services/task/task-resolver';
-import { archiveWorkflowFile } from '../../../services/workflow/workflow-file-utils';
+import {
+  archiveWorkflowFile,
+  readWorkflowFile,
+  writeWorkflowFile,
+} from '../../../services/workflow/workflow-file-utils';
 
 const log = createLogger('routes:workflow:resume');
 
@@ -93,8 +97,38 @@ interface ResumeContext {
 
 interface AnswerContext {
   params: { taskId: string };
-  body?: { answer?: string } | unknown;
+  body?: { answer?: string; selections?: unknown } | unknown;
   set: { status?: number };
+}
+
+/** One question's audit record: which option (if any) the user picked. */
+interface AnswerSelection {
+  questionId: string;
+  selectedKey: string | null;
+}
+
+/**
+ * Defensively parse the optional `selections` audit payload from a
+ * structured (`json:options`) answer. Malformed/absent input yields
+ * `undefined` rather than throwing — `selections` is an audit nicety, never
+ * required to apply the answer itself (the `answer` string is authoritative).
+ *
+ * @param raw - The `selections` field from the request body, unvalidated. / 未検証の selections
+ * @returns Parsed selections, or undefined when absent/empty/invalid. / パース結果
+ */
+function parseSelections(raw: unknown): AnswerSelection[] | undefined {
+  if (!Array.isArray(raw)) return undefined;
+  const out: AnswerSelection[] = [];
+  for (const item of raw) {
+    if (!item || typeof item !== 'object') continue;
+    const o = item as Record<string, unknown>;
+    if (typeof o.questionId !== 'string' || !o.questionId.trim()) continue;
+    out.push({
+      questionId: o.questionId,
+      selectedKey: typeof o.selectedKey === 'string' ? o.selectedKey : null,
+    });
+  }
+  return out.length > 0 ? out : undefined;
 }
 
 /**
@@ -109,7 +143,7 @@ interface AnswerContext {
  * answer path (the interactive panel only handled live mid-execution questions),
  * so the user could not actually answer the agent.
  *
- * @param ctx - Elysia handler context with { answer } body. / 回答ボディ
+ * @param ctx - Elysia handler context with { answer, selections? } body. / 回答ボディ
  * @returns The task id and the status it was reset to. / 反映後の状態
  * @throws {ValidationError} taskId 不正 / answer 未指定
  * @throws {NotFoundError} タスクが見つからない場合
@@ -132,6 +166,7 @@ export async function handleAnswerWorkflowQuestion({ params, body, set }: Answer
     set.status = 400;
     throw new ValidationError('answer is required');
   }
+  const selections = parseSelections((body as { selections?: unknown })?.selections);
 
   const task = await prisma.task.findUnique({
     where: { id: taskId },
@@ -177,6 +212,17 @@ export async function handleAnswerWorkflowQuestion({ params, body, set }: Answer
     },
   });
 
+  // Append the user's answer to question.md BEFORE archiving, so the archived
+  // WorkflowFileVersion keeps an audit trail of what was actually answered
+  // (writeWorkflowFile itself moves the pre-append content into
+  // WorkflowFileVersion, then archiveWorkflowFile moves the appended version
+  // there too — archiveWorkflowFile's own signature is unchanged).
+  const questionContent = await readWorkflowFile(taskId, 'question');
+  if (questionContent != null) {
+    const answerBlock = `\n\n## 回答（ユーザー選択）\n${answer}`;
+    await writeWorkflowFile(taskId, 'question', `${questionContent}${answerBlock}`).catch(() => {});
+  }
+
   // Archive question.md so it is no longer a pending question.
   await archiveWorkflowFile(taskId, 'question').catch(() => {});
 
@@ -186,7 +232,7 @@ export async function handleAnswerWorkflowQuestion({ params, body, set }: Answer
     toStatus: 'draft',
     actor: 'user',
     cause: 'intake_question_answered',
-    metadata: {},
+    metadata: selections ? { selections } : {},
   });
 
   log.info(

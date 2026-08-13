@@ -22,6 +22,32 @@ import type { WorkflowRole } from './workflow-types';
 // the role instructions below stays byte-identical.
 import { REPORT_STYLE_RULE } from './workflow-style-rule';
 
+// question.md の機械可読フォーマット規約（researcher/planner/implementer 共通）。
+// UI（StructuredQuestionFlow）がこの `json:options` フェンスブロックを解析して
+// 選択肢ボタンを描画する。無ければ旧形式（`## 質問N`/自由記述）にフォールバックする
+// ため必須ではないが、ユーザーの回答負担を選択のみに抑えるため既定で促す。
+const QUESTION_FORMAT_GUIDANCE_JA =
+  '## question.md 保存時の推奨フォーマット（機械可読ブロック・選択肢UI用）\n' +
+  'question.md を保存する場合、質問文（Markdownの表・見出し等は自由に使ってよい）に加えて、末尾に以下の `json:options` フェンスブロックを1個だけ付与してください（UIがこれを解析し、ユーザーは自由記述ではなくボタンで回答できます）。\n\n' +
+  '```json:options\n' +
+  '{ "questions": [ { "id": "Q1", "summary": "一行要約", "options": [ {"key":"A","label":"選択肢の文言","consequence":"選んだ場合の変更範囲を1行で"} ], "freeTextRequired": false, "freeTextReason": null } ] }\n' +
+  '```\n\n' +
+  '- 1論点 = 1つの `questions[]` 要素。各質問に **2〜4個の `options`** を付け、`key` は質問内で一意にする。\n' +
+  '- `freeTextRequired: true` は「選択肢で表現できない入力（APIキー・ファイルパス等の秘匿・可変情報）」の場合のみ使用し、理由を `freeTextReason` に1行で明記する。それ以外の論点は必ず選択肢で表現すること。\n' +
+  '- `consequence` にはその選択肢を選んだ場合の影響・変更範囲を1行で書く。\n' +
+  '- ブロックは1個のみ保存する（複数あるとUIは最初の1個のみ使用する）。';
+
+const QUESTION_FORMAT_GUIDANCE_EN =
+  '## Recommended format when saving question.md (machine-readable block for the choice UI)\n' +
+  'When saving question.md, in addition to the question prose (Markdown tables/headings are fine), append EXACTLY ONE `json:options` fenced block at the end (the UI parses it so the user can answer by clicking a button instead of typing).\n\n' +
+  '```json:options\n' +
+  '{ "questions": [ { "id": "Q1", "summary": "one-line summary", "options": [ {"key":"A","label":"option text","consequence":"one-line impact if chosen"} ], "freeTextRequired": false, "freeTextReason": null } ] }\n' +
+  '```\n\n' +
+  '- One issue = one `questions[]` entry. Give each question **2-4 `options`**, with a `key` unique within that question.\n' +
+  '- Use `freeTextRequired: true` ONLY when the answer genuinely cannot be expressed as options (secrets/variable input like an API key or file path); state why in `freeTextReason` (one line). Every other issue MUST be expressed as options.\n' +
+  '- `consequence` is a one-line description of the impact of choosing that option.\n' +
+  '- Include AT MOST ONE block (if multiple are present, the UI uses only the first).';
+
 /**
  * Build the prompt context string appropriate for the given workflow role.
  *
@@ -44,6 +70,7 @@ export async function buildRoleContext(
   const texts = {
     ja: {
       taskInfo: `# タスク情報\n- **タイトル**: ${task.title}\n- **説明**: ${task.description || '(なし)'}\n- **タスクID**: ${taskId}`,
+      questionFormat: QUESTION_FORMAT_GUIDANCE_JA,
       researcher: {
         instruction: '上記のタスクについてコードベースを調査してください。',
         // NOTE: Premise audit (R2, roadmap) — LLMs critique premises well when
@@ -147,6 +174,7 @@ export async function buildRoleContext(
     },
     en: {
       taskInfo: `# Task Information\n- **Title**: ${task.title}\n- **Description**: ${task.description || '(None)'}\n- **Task ID**: ${taskId}`,
+      questionFormat: QUESTION_FORMAT_GUIDANCE_EN,
       researcher: {
         instruction: 'Please investigate the codebase for the above task.',
         // NOTE: Premise audit (R2, roadmap) — see ja variant for rationale.
@@ -273,7 +301,7 @@ export async function buildRoleContext(
       // past same-shape completed tasks — research starts from experience.
       const playbook = await buildPlaybookContext(taskId, task, language);
       const playbookBlock = playbook ? `\n\n${playbook}` : '';
-      return `${taskInfo}${criticBlock}${lessonsBlock}${modeBlock}${memoryBlock}${playbookBlock}${hypothesisBlock}\n\n${t.researcher.instruction}\n\n${t.researcher.premiseAudit}\n\n${t.researcher.items}\n\n${t.researcher.output}\n\n${styleRule}`;
+      return `${taskInfo}${criticBlock}${lessonsBlock}${modeBlock}${memoryBlock}${playbookBlock}${hypothesisBlock}\n\n${t.researcher.instruction}\n\n${t.researcher.premiseAudit}\n\n${t.researcher.items}\n\n${t.researcher.output}\n\n${t.questionFormat}\n\n${styleRule}`;
     }
 
     case 'planner': {
@@ -318,7 +346,7 @@ export async function buildRoleContext(
       if (research) {
         ctx += `\n\n${t.planner.researchHeader}\n\n${research}`;
       }
-      ctx += `\n\n${t.planner.instruction}\n\n${t.planner.premortem}\n\n${t.planner.selfContainment}`;
+      ctx += `\n\n${t.planner.instruction}\n\n${t.planner.premortem}\n\n${t.planner.selfContainment}\n\n${t.questionFormat}`;
       // Align the planner with the subtask-split flag: '' when splitting is
       // enabled (CLAUDE.md Step 2.5 applies as-is), an explicit prohibition
       // when disabled (task 545 incident) — never concatenate the empty string.
@@ -396,7 +424,7 @@ export async function buildRoleContext(
         ctx += `\n\n${header}\n\n${verifyFeedback}`;
       }
       const implementerLead = plan ? t.implementer.leadWithPlan : t.implementer.leadNoPlan;
-      ctx += `\n\n${implementerLead}\n\n${t.implementer.constraints}\n\n${styleRule}`;
+      ctx += `\n\n${implementerLead}\n\n${t.implementer.constraints}\n\n${t.questionFormat}\n\n${styleRule}`;
       // Bug-fix tasks: require a reproducing test BEFORE the fix (R4). The
       // verification gate enforces "a test file changed" for these tasks, so
       // tell the implementer up front instead of bouncing it later.

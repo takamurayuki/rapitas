@@ -2151,6 +2151,11 @@
       "submitAll": "すべて回答して再開",
       "nextQuestion": "次の質問へ"
     },
+    "structuredQuestionFlow": {
+      "confirmTitle": "回答を確定しますか？",
+      "confirmMessage": "以下の内容でエージェントに回答を送信します。",
+      "confirmSubmit": "この内容で送信"
+    },
     "planApprovalModal": {
       "title": "実装計画の承認",
       "lastUpdated": "最終更新:",
@@ -2178,7 +2183,8 @@
       "submitAndResume": "回答してワークフローを再開",
       "otherFreeText": "その他（自由記述）",
       "freeTextInputPlaceholder": "選択肢に当てはまらない場合はこちらに入力...",
-      "submit": "送信"
+      "submit": "送信",
+      "freeTextRequiredNotice": "この質問は自由入力が必要です: {reason}"
     },
     "roles": {
       "researcher": {
