@@ -98,9 +98,13 @@ app.use(
     // requests for the UI-quiet restart gate; without it the preflight strips it.
     allowedHeaders: ['Content-Type', 'Authorization', 'Cookie', 'X-Rapitas-Source'],
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-    // NOTE: @elysiajs/cors defaults maxAge to 5s, which would re-issue a
-    // preflight OPTIONS roughly every 5s for polling GETs once they carry the
-    // custom X-Rapitas-Source header. 7200s is Chrome's preflight-cache cap.
+    // NOTE: Preflight impact assessment for the X-Rapitas-Source rollout (task #570):
+    // the apiClient path already sends Content-Type: application/json on every
+    // request, so it was preflighted before the header existed — zero new OPTIONS
+    // there. Net-new preflights come only from fetchWithRetry GETs that used to be
+    // simple requests. @elysiajs/cors defaults maxAge to 5s, which would re-issue
+    // OPTIONS roughly every 5s for polling GETs (~2x request volume); 7200s is
+    // Chrome's preflight-cache cap and bounds that churn to once per 2h per route.
     maxAge: 7200,
   }),
 );
