@@ -255,9 +255,7 @@ export async function resolveProvenTier(role: string): Promise<ModelTier | undef
     };
   });
 
-  const provenTiers = new Set<ModelTier>(
-    evaluations.filter((e) => e.proven).map((e) => e.tier),
-  );
+  const provenTiers = new Set<ModelTier>(evaluations.filter((e) => e.proven).map((e) => e.tier));
   const tier = TIER_CHEAP_FIRST.find((t) => provenTiers.has(t));
 
   if (evaluations.length > 0) {
