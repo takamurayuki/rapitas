@@ -45,6 +45,7 @@ import {
   Package,
   Beaker,
   Sprout,
+  Sunrise,
   Library,
   Search,
   WalletCards,
@@ -186,6 +187,14 @@ export default function Header() {
             // (ICON_POLICY: one glyph, one meaning app-wide).
             { href: '/agents', label: t('agentManagement'), icon: UserCog },
             { href: '/agents/metrics', label: t('metrics'), icon: BarChart3 },
+            // NOTE: Sunrise = 自律活動デイリーレポート (ICON_POLICY §3) — the
+            // same glyph is reused on the /agents/daily-report page (same
+            // concept). /agents/growth is owned by the growth ledger below.
+            {
+              href: '/agents/daily-report',
+              label: t('growthReport'),
+              icon: Sunrise,
+            },
             {
               href: '/agents/memory',
               label: t('memoryVisualization'),

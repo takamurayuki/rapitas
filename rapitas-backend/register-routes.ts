@@ -99,6 +99,7 @@ import {
   hypothesisRoutes,
   backlogScheduleRoutes,
   backlogThemeOverrideRoutes,
+  dailyReportRoutes,
   exportRoutes,
   importRoutes,
 } from './routes';
@@ -173,6 +174,7 @@ export function registerAllRoutes(app: Elysia): void {
   app.use(hypothesisRoutes);
   app.use(backlogScheduleRoutes);
   app.use(backlogThemeOverrideRoutes);
+  app.use(dailyReportRoutes);
 
   // Workflow
   app.use(workflowRoutes);

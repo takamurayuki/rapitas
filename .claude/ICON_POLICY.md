@@ -105,6 +105,7 @@ Keep this list accurate. If you assign a glyph a new meaning, add it here.
 | `IterationCw`             | 品質ループレビュー（バックログ定期ジョブ loop_review — 差し戻し指標の週次自己観測と停滞の自動起票。カテゴリアイコンピッカー登録は中立的な再掲で対象外） |
 | `MonitorCheck`            | 本線 CI 監視（バックログ定期ジョブ ci_watch — 本線ブランチの赤ワークフローを懸念に自動起票） |
 | `ChartNoAxesCombined`     | 自己成長台帳ダッシュボード（nav: /agents/growth。ページ見出し・5指標カードの共通アイコン — 同一ページ内の同一概念として再利用） |
+| `Sunrise`                 | 自律活動デイリーレポート（nav: /agents/daily-report。ページ見出し・バックログ定期ジョブ daily_report — 同一概念の再利用。注: /agents/growth＝成長台帳とはルート・グリフとも別） |
 
 ### Known collisions
 
