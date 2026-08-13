@@ -39,9 +39,17 @@ import {
   hasItemAwaitingApproval,
   isAwaitingUserAnswer,
   hasLiveExecution,
+  overlappingFiles,
   selectNextTask,
   recentThemeSuccessRate,
+  type ScopeOverlapContext,
 } from './auto-run-selection';
+import { getOpenAutoPrsForTheme, getPrChangedFiles } from './open-pr-files-cache';
+import {
+  getMergeBarrierMaxHoldMs,
+  readMergeBarrierEnabled,
+  shouldHoldForBarrier,
+} from '../../scheduling/merge-barrier/merge-barrier';
 import {
   findByStatuses,
   setCurrentTask,
@@ -70,6 +78,9 @@ export class ThemeAutoRunScheduler {
   private pollTimer: ReturnType<typeof setInterval> | null = null;
   private queue = WorkflowQueueService.getInstance();
   private agentWorkerManager = AgentWorkerManager.getInstance();
+  // Per-theme epoch ms when the merge-barrier hold began (task 573 C). Memory-
+  // only on purpose: a restart simply restarts the hold window.
+  private barrierHoldSince = new Map<number, number>();
 
   static getInstance(): ThemeAutoRunScheduler {
     if (!ThemeAutoRunScheduler.instance) {
@@ -518,6 +529,38 @@ export class ThemeAutoRunScheduler {
       return; // global limit reached
     }
 
+    // Merge barrier (task 573 C, default OFF): while the theme still has an
+    // OPEN auto-created PR, hold next-task selection until it merges/closes —
+    // or until the hold ceiling passes (deadlock release for a PR stuck open
+    // on red CI / manual review). Open-PR lookup failures fail open (no hold).
+    const openAutoPrs = await getOpenAutoPrsForTheme(prisma, themeId).catch(() => []);
+    if (readMergeBarrierEnabled()) {
+      const holdSince = this.barrierHoldSince.get(themeId) ?? null;
+      if (
+        shouldHoldForBarrier(
+          true,
+          openAutoPrs.length > 0,
+          holdSince,
+          Date.now(),
+          getMergeBarrierMaxHoldMs(),
+        )
+      ) {
+        if (holdSince === null) this.barrierHoldSince.set(themeId, Date.now());
+        logCycleEvent('task.barrier_hold', {
+          theme: themeId,
+          cause: 'open_pr_wait',
+          prNumbers: openAutoPrs.map((p) => p.prNumber),
+          holdMs: holdSince === null ? 0 : Date.now() - holdSince,
+          msg: 'merge barrier — holding next-task selection until the open auto-PR merges',
+        });
+        return;
+      }
+      // Released: PR set went empty (merged/closed) or the hold timed out.
+      this.barrierHoldSince.delete(themeId);
+    } else {
+      this.barrierHoldSince.delete(themeId);
+    }
+
     const skipIds: number[] = [];
     // Get blocked task IDs to skip
     const blockedTasks = await prisma.task.findMany({
@@ -557,7 +600,40 @@ export class ThemeAutoRunScheduler {
     // Learnable-band tiebreak (R6): recent success rate positions the target
     // complexity band; ties within a priority pick the task closest to it.
     const successRate = await recentThemeSuccessRate(prisma, themeId).catch(() => null);
-    const result = await selectNextTask(prisma, themeId, order, skipIds, globalActive, successRate);
+
+    // Scope-overlap context (task 573 B): the union of changed files across the
+    // theme's open auto-PRs, so selection can defer a candidate whose plan
+    // touches the same files. Every failure path degrades to "no context"
+    // (legacy selection) — a broken gh/DB must never stop the scheduler.
+    const scopeOverlap = await this.buildScopeOverlapContext(themeId, openAutoPrs).catch(
+      () => undefined,
+    );
+    const result = await selectNextTask(
+      prisma,
+      themeId,
+      order,
+      skipIds,
+      globalActive,
+      successRate,
+      scopeOverlap,
+    );
+
+    // Observability (task 573 B3): record WHY each passed-over candidate was
+    // deferred — the involved open PRs and the exact overlapping files.
+    if (result.found && result.deferred && result.deferred.length > 0 && scopeOverlap) {
+      for (const deferredId of result.deferred) {
+        const planFiles = await scopeOverlap.getPlanFiles(deferredId).catch(() => []);
+        logCycleEvent('task.deferred', {
+          theme: themeId,
+          task: deferredId,
+          cause: 'scope_overlap',
+          prNumbers: openAutoPrs.map((p) => p.prNumber),
+          files: overlappingFiles(planFiles, scopeOverlap.openPrFiles).slice(0, 20),
+          selected: result.taskId,
+          msg: 'candidate deferred — plan files overlap an open auto-PR',
+        });
+      }
+    }
 
     if (!result.found) {
       if (result.reason === 'all_done') {
@@ -649,6 +725,47 @@ export class ThemeAutoRunScheduler {
         log.error({ err }, `[ThemeAutoRunScheduler] Failed to enqueue task ${taskId}`);
       }
     }
+  }
+
+  /**
+   * Build the scope-overlap selection context (task 573 B): the union of
+   * changed files across the theme's open auto-PRs (gh, TTL-cached) plus a
+   * plan-file loader (WorkflowFile plan → parsePlanFiles). Returns undefined
+   * whenever there is nothing to compare (no open PRs, no cwd, no files) so
+   * selection keeps its legacy path.
+   *
+   * @param themeId - Theme being advanced / 対象テーマ
+   * @param openAutoPrs - The theme's open auto-created PRs / オープン自動PR一覧
+   */
+  private async buildScopeOverlapContext(
+    themeId: number,
+    openAutoPrs: Array<{ prNumber: number }>,
+  ): Promise<ScopeOverlapContext | undefined> {
+    if (openAutoPrs.length === 0) return undefined;
+    const theme = await prisma.theme
+      .findUnique({ where: { id: themeId }, select: { workingDirectory: true } })
+      .catch(() => null);
+    const cwd = theme?.workingDirectory;
+    if (!cwd) return undefined;
+
+    const fileSets = await Promise.all(
+      openAutoPrs.map((pr) => getPrChangedFiles(cwd, pr.prNumber)),
+    );
+    const openPrFiles = [...new Set(fileSets.flat())];
+    if (openPrFiles.length === 0) return undefined; // gh failed for all → fail-open
+
+    return {
+      openPrFiles,
+      getPlanFiles: async (taskId: number) => {
+        // Lazy import keeps the workflow-file module graph out of this
+        // scheduler's static test surface.
+        const { readWorkflowFile } = await import('../workflow-file-utils');
+        const { parsePlanFiles } = await import('../../agents/verification/scope-check');
+        const plan = await readWorkflowFile(taskId, 'plan').catch(() => null);
+        if (!plan) return []; // no plan (lightweight) → never deferred
+        return parsePlanFiles(plan);
+      },
+    };
   }
 
   /**

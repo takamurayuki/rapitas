@@ -2340,6 +2340,18 @@
         },
         "reasonsCount": "{count} issue(s)",
         "noReasons": "No details were recorded"
+      },
+      "phaseBreakdown": {
+        "title": "Execution time by phase",
+        "totalActive": "Active {time}",
+        "wallClock": "Elapsed {time}",
+        "execCount": "{count} run(s)",
+        "role": {
+          "researcher": "Research",
+          "planner": "Plan",
+          "implementer": "Implement",
+          "verifier": "Verify"
+        }
       }
     }
   },

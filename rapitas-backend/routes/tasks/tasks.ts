@@ -18,6 +18,7 @@ import { removeWorktree } from '../../services/agents/orchestrator/git-operation
 import { warnIfSubtaskCreatedDuringDisabledSplit } from '../../services/workflow/subtask-split-guard';
 import { getProjectRoot } from '../../config';
 import { cleanupCompletedTasks } from '../../services/task/completed-task-cleanup';
+import { computeTaskActiveTime } from '../../services/agent-execution/task-active-time';
 import { TASK_NOT_FOUND, INVALID_ID } from '../../utils/common/error-messages';
 
 import { QueryOptimizers } from '../../utils/database/prisma-optimization';
@@ -246,7 +247,7 @@ export const tasksRoutes = new Elysia({ prefix: '/tasks' })
       throw new ValidationError(INVALID_ID);
     }
 
-    return await prisma.task.findUnique({
+    const task = await prisma.task.findUnique({
       where: { id },
       include: {
         subtasks: {
@@ -263,6 +264,18 @@ export const tasksRoutes = new Elysia({ prefix: '/tasks' })
         },
       },
     });
+    if (!task) return task;
+
+    // Cumulative active time / current-cycle wall-clock / per-role breakdown
+    // (task #560). Additive fields only — existing consumers are unaffected.
+    // Best-effort: an aggregation failure must never break the task detail.
+    try {
+      const timing = await computeTaskActiveTime(prisma, id);
+      return { ...task, ...timing };
+    } catch (error) {
+      logger.warn({ err: error, taskId: id }, '[tasks] active-time aggregation failed');
+      return task;
+    }
   })
 
   // Create task

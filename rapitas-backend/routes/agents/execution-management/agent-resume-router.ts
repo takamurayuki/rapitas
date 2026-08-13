@@ -15,6 +15,7 @@ import { toJsonString } from '../../../utils/database/db-helpers';
 // through the same single-task path as the parent — they're picked up
 // by the regular workflow advance loop in workflow-orchestrator.
 import { handleResumeCompletion } from '../../../services/agents/orchestrator/resume-completion';
+import { selectExecutingRows } from './executing-tasks-filter';
 
 const log = createLogger('routes:agent-resume');
 
@@ -211,7 +212,22 @@ export const agentResumeRouter = new Elysia()
   // Get all currently executing tasks (for real-time panel display)
   .get('/tasks/executing', async () => {
     try {
-      const executingTasks = await prisma.agentExecution.findMany({
+      // Row shape of the findMany select below, spelled out so the filter's
+      // generic keeps the full shape even where the generated Prisma client
+      // types are unavailable (worktree checkouts resolve them to `any`).
+      type ExecutingCandidateRow = {
+        id: number;
+        status: string;
+        startedAt: Date | null;
+        heartbeatAt: Date | null;
+        session: {
+          id: number;
+          status: string;
+          createdAt: Date;
+          config: { taskId: number };
+        };
+      };
+      const candidateRows: ExecutingCandidateRow[] = await prisma.agentExecution.findMany({
         where: {
           status: { in: ['running', 'waiting_for_input'] },
         },
@@ -219,9 +235,11 @@ export const agentResumeRouter = new Elysia()
           id: true,
           status: true,
           startedAt: true,
+          heartbeatAt: true,
           session: {
             select: {
               id: true,
+              status: true,
               createdAt: true,
               config: { select: { taskId: true } },
             },
@@ -229,6 +247,10 @@ export const agentResumeRouter = new Elysia()
         },
         orderBy: { startedAt: 'desc' },
       });
+
+      // Display honesty: a dead process leaves running rows behind until the
+      // reconciler/lease sweep corrects them — never show those as executing.
+      const executingTasks = selectExecutingRows(candidateRows, new Date());
 
       // Resolve parentId so the UI can show a running spinner on the PARENT card
       // while one of its subtasks is the one actually executing (sequential
@@ -249,6 +271,33 @@ export const agentResumeRouter = new Elysia()
         for (const row of taskRows) parentById.set(row.id, row.parentId);
       }
 
+      // Cumulative finished active time per executing task (task #560). The FE
+      // timer renders this as a base offset + the live elapsed of the current
+      // row, so a new phase (= new execution row) no longer resets the display
+      // to 0. Scoped to the executing tasks only and 3 fields per row to keep
+      // this 5s-polled endpoint cheap.
+      const activeMsByTask = new Map<number, number>();
+      if (execTaskIds.length > 0) {
+        const finishedRows = await prisma.agentExecution.findMany({
+          where: {
+            session: { config: { taskId: { in: execTaskIds } } },
+            startedAt: { not: null },
+            completedAt: { not: null },
+          },
+          select: {
+            startedAt: true,
+            completedAt: true,
+            session: { select: { config: { select: { taskId: true } } } },
+          },
+        });
+        for (const row of finishedRows) {
+          const tid = row.session.config.taskId;
+          if (typeof tid !== 'number' || !row.startedAt || !row.completedAt) continue;
+          const ms = row.completedAt.getTime() - row.startedAt.getTime();
+          if (ms > 0) activeMsByTask.set(tid, (activeMsByTask.get(tid) ?? 0) + ms);
+        }
+      }
+
       return executingTasks.map((execution: (typeof executingTasks)[number]) => ({
         executionId: execution.id,
         sessionId: execution.session.id,
@@ -260,6 +309,10 @@ export const agentResumeRouter = new Elysia()
         // identical field for why the elapsed-time display must anchor here,
         // not on this row's own startedAt (which resets every new phase).
         sessionStartedAt: execution.session.createdAt,
+        // Sum of (completedAt - startedAt) over the task's FINISHED executions
+        // (phase / re-run / repair loops included; the live row is excluded —
+        // its share is the FE tick from startedAt).
+        activeTimeMs: activeMsByTask.get(execution.session.config.taskId) ?? 0,
       }));
     } catch (error) {
       const errObj = error as { code?: string; message?: string };

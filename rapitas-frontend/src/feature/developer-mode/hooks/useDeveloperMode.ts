@@ -180,15 +180,21 @@ export function useDeveloperMode(taskId: number) {
       ) {
         setIsExecuting(true);
         setExecutionStatus('running');
+        // With the cumulative base (activeTimeMs, task #560) the anchor is the
+        // CURRENT execution row — the base already carries every finished
+        // execution, so a session anchor would double-count them. Older
+        // backends without the field fall back to the session anchor (spans
+        // phases within one session at least).
+        const hasCumulative = typeof statusData.activeTimeMs === 'number';
         setExecutingTask({
           taskId,
           sessionId: statusData.sessionId,
           status:
             statusData.executionStatus === 'waiting_for_input' ? 'waiting_for_input' : 'running',
-          // The whole run's start, not this phase's — see status-route.ts's
-          // sessionStartedAt doc comment (elapsed time must accumulate across
-          // phases, not reset at each one).
-          startedAt: statusData.sessionStartedAt ?? statusData.startedAt ?? null,
+          startedAt: hasCumulative
+            ? (statusData.startedAt ?? statusData.sessionStartedAt ?? null)
+            : (statusData.sessionStartedAt ?? statusData.startedAt ?? null),
+          cumulativeActiveMs: hasCumulative ? statusData.activeTimeMs : 0,
         });
       } else if (statusData.executionStatus === 'interrupted') {
         // Display interrupted state as idle (treat as non-running after server restart)

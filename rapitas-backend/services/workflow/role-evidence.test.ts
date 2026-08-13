@@ -3,7 +3,9 @@
  *
  * Verifies proven-tier resolution from recorded outcomes: sample/success
  * thresholds, cheapest-tier-wins ordering, the RAPITAS_EVIDENCE_ROUTING kill
- * switch, null-model exclusion, and the per-role TTL cache.
+ * switch, null-model exclusion, the per-role TTL cache, gate-rejection
+ * attribution (incl. researcher/planner critic bounces), and the dual
+ * 45-day / recent-14-day window proven check.
  */
 import { describe, test, expect, mock, beforeEach, afterEach } from 'bun:test';
 
@@ -163,13 +165,42 @@ describe('getRoleModelOutcomes — gate-rejection aware success (実装の差し
     expect(args.where.cause.in).toContain('adversarial_review_failed');
   });
 
-  test('researcher: 差し戻し原因の帰属が無いロールはプロセス完了ベースのまま', async () => {
+  // NOTE: was `researcher` until #577 gave that role critic-bounce attribution;
+  // an unattributed role name keeps the "no-gate roles stay process-based" check.
+  test('帰責原因の無いロールはプロセス完了ベースのまま', async () => {
     findMany.mockImplementation(() =>
       Promise.resolve(rowsWithTask('claude-haiku-4-5-20251001', [1, 2])),
     );
-    const outcomes = await getRoleModelOutcomes('researcher');
+    const outcomes = await getRoleModelOutcomes('summarizer');
     expect(outcomes[0].successes).toBe(2);
     expect(transitionFindMany).not.toHaveBeenCalled();
+  });
+
+  test('researcher: 批評差し戻し(research_critic_failed)のあったタスクの実行は成功に数えない', async () => {
+    findMany.mockImplementation(() =>
+      Promise.resolve(rowsWithTask('claude-haiku-4-5-20251001', [1, 2, 3])),
+    );
+    // task 1 was bounced by the research critic gate (completed execution, rejected doc)
+    transitionFindMany.mockImplementation(() => Promise.resolve([{ taskId: 1 }]));
+
+    const outcomes = await getRoleModelOutcomes('researcher');
+    expect(outcomes[0].samples).toBe(3);
+    expect(outcomes[0].successes).toBe(2); // process-completed but critic-rejected ≠ success
+    const [args] = transitionFindMany.mock.calls[0] as [{ where: { cause: { in: string[] } } }];
+    expect(args.where.cause.in).toEqual(['research_critic_failed']);
+  });
+
+  test('planner: plan_critic_failed と plan_invalid_replan が帰責スコープに含まれる', async () => {
+    findMany.mockImplementation(() =>
+      Promise.resolve(rowsWithTask('claude-haiku-4-5-20251001', [7, 8])),
+    );
+    transitionFindMany.mockImplementation(() => Promise.resolve([{ taskId: 8 }]));
+
+    const outcomes = await getRoleModelOutcomes('planner');
+    expect(outcomes[0].successes).toBe(1);
+    const [args] = transitionFindMany.mock.calls[0] as [{ where: { cause: { in: string[] } } }];
+    expect(args.where.cause.in).toContain('plan_critic_failed');
+    expect(args.where.cause.in).toContain('plan_invalid_replan');
   });
 
   test('差し戻し照会が失敗しても集計は落ちない（レガシー定義に縮退）', async () => {
@@ -179,5 +210,66 @@ describe('getRoleModelOutcomes — gate-rejection aware success (実装の差し
     transitionFindMany.mockImplementation(() => Promise.reject(new Error('db down')));
     const outcomes = await getRoleModelOutcomes('implementer');
     expect(outcomes[0].successes).toBe(1);
+  });
+});
+
+describe('resolveProvenTier — 二重窓判定 (45日 + 直近14日の劣化早期検知)', () => {
+  /** Build n rows for a model created `daysAgo` days in the past, `fails` of which fail. */
+  function rowsAt(modelName: string, n: number, daysAgo: number, fails = 0): unknown[] {
+    const createdAt = new Date(Date.now() - daysAgo * 24 * 60 * 60 * 1000);
+    return Array.from({ length: n }, (_, i) => ({
+      status: i < fails ? 'failed' : 'completed',
+      errorMessage: null,
+      modelName,
+      createdAt,
+    }));
+  }
+
+  test('45日窓は合格でも直近14日窓が不合格なら proven にならない', async () => {
+    // Overall: 23/24 = 95.8% ≥ 90%. Recent (4 samples ≥ 4): 3/4 = 75% < 90%.
+    findMany.mockImplementation(() =>
+      Promise.resolve([
+        ...rowsAt('claude-haiku-4-5-20251001', 20, 30),
+        ...rowsAt('claude-haiku-4-5-20251001', 4, 1, 1),
+      ]),
+    );
+    expect(await resolveProvenTier('researcher')).toBeUndefined();
+  });
+
+  test('直近サンプル不足(<4)なら45日窓のみで判定し proven になる', async () => {
+    // Overall: 30/33 = 90.9% ≥ 90%. Recent: 3 samples < 4 → recent gate not applied.
+    findMany.mockImplementation(() =>
+      Promise.resolve([
+        ...rowsAt('claude-haiku-4-5-20251001', 30, 30),
+        ...rowsAt('claude-haiku-4-5-20251001', 3, 1, 3),
+      ]),
+    );
+    expect(await resolveProvenTier('researcher')).toBe('economy');
+  });
+
+  test('両窓とも合格なら proven のまま（直近窓は健全なモデルを落とさない）', async () => {
+    // Overall: 24/24 = 100%. Recent: 4/4 = 100%.
+    findMany.mockImplementation(() =>
+      Promise.resolve([
+        ...rowsAt('claude-haiku-4-5-20251001', 20, 30),
+        ...rowsAt('claude-haiku-4-5-20251001', 4, 1),
+      ]),
+    );
+    expect(await resolveProvenTier('researcher')).toBe('economy');
+  });
+
+  test('getRoleModelOutcomes は直近14日窓の統計を分離集計する', async () => {
+    findMany.mockImplementation(() =>
+      Promise.resolve([
+        ...rowsAt('claude-haiku-4-5-20251001', 6, 30),
+        ...rowsAt('claude-haiku-4-5-20251001', 4, 1, 2),
+      ]),
+    );
+    const [outcome] = await getRoleModelOutcomes('implementer');
+    expect(outcome.samples).toBe(10);
+    expect(outcome.successes).toBe(8);
+    expect(outcome.recentSamples).toBe(4);
+    expect(outcome.recentSuccesses).toBe(2);
+    expect(outcome.recentSuccessRate).toBeCloseTo(0.5);
   });
 });

@@ -339,13 +339,36 @@ export async function handleExecutionError(
     errorMessage,
   });
 
+  const completedAt = new Date();
+
+  // NOTE: Error terminations previously stamped completedAt but never wrote
+  // executionTimeMs, leaving failed rows with 0/null active time (task #560).
+  // Fill it from the wall span (completedAt - startedAt) ONLY when no CLI
+  // segment was recorded — an existing segment value (e.g. accumulated across
+  // a waiting_for_input resume) must not be clobbered with a larger wall span.
+  let executionTimeFill: { executionTimeMs: number } | Record<string, never> = {};
+  try {
+    const row = await prisma.agentExecution.findUnique({
+      where: { id: executionId },
+      select: { startedAt: true, executionTimeMs: true },
+    });
+    if (row?.startedAt && !row.executionTimeMs) {
+      executionTimeFill = {
+        executionTimeMs: Math.max(0, completedAt.getTime() - row.startedAt.getTime()),
+      };
+    }
+  } catch {
+    // Defensive: the lookup must never block persisting the failure itself.
+  }
+
   await prisma.agentExecution.update({
     where: { id: executionId },
     data: {
       status: 'failed',
       output: state.output,
-      completedAt: new Date(),
+      completedAt,
       errorMessage,
+      ...executionTimeFill,
     },
   });
 

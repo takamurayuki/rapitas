@@ -75,10 +75,14 @@ describe('executeCLIAgent — cleanup + AgentExecution completion flip', () => {
     await run(researchTransition(), noopAdvance);
     expect(spies.agentExecutionUpdateMany).toHaveBeenCalledTimes(1);
     const [call] = spies.agentExecutionUpdateMany.mock.calls[0] as [
-      { where: { status: string }; data: { status: string } },
+      { where: { status: string }; data: { status: string; completedAt?: Date } },
     ];
     expect(call.where.status).toBe('post_processing');
     expect(call.data.status).toBe('completed');
+    // NOTE: completedAt は CLI 終了時に saveExecutionResult が既に記録済み。
+    // フリップでの再スタンプはエピローグ（批評ゲート等）の時間を wall に
+    // 混入させ実行時間を歪めるため、上書きしないこと（task #560）。
+    expect(call.data.completedAt).toBeUndefined();
   });
 
   test('does NOT flip AgentExecution for a non-investigation role (implementer)', async () => {

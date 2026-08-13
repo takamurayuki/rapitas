@@ -11,6 +11,7 @@ import { prisma } from '../../../config/database';
 import { createLogger } from '../../../config/logger';
 import { AgentWorkerManager } from '../../../services/agents/agent-worker-manager';
 import type { AgentExecutionWithExtras } from '../../../types/agent-execution-types';
+import { computeTaskActiveTime } from '../../../services/agent-execution/task-active-time';
 
 const log = createLogger('routes:agent-execution:status');
 const agentWorkerManager = AgentWorkerManager.getInstance();
@@ -177,6 +178,14 @@ export const statusRoute = new Elysia().get(
         })
         .catch(() => null);
 
+      // Cumulative finished active time across ALL of the task's executions
+      // (task #560). Sessions are recreated per phase in auto-run, so even
+      // sessionStartedAt resets at phase boundaries — the FE timer anchors on
+      // this base + the live elapsed of the running row instead.
+      const activeTimeMs = await computeTaskActiveTime(prisma, taskId)
+        .then((timing) => timing.activeTimeMs)
+        .catch(() => 0);
+
       return {
         sessionId: latestSession.id,
         sessionStatus: latestSession.status,
@@ -198,6 +207,9 @@ export const statusRoute = new Elysia().get(
         // timer accumulates across research/plan/implement/verify instead of
         // restarting at each phase boundary.
         sessionStartedAt: latestSession.createdAt,
+        // Sum of (completedAt - startedAt) over the task's finished executions
+        // (all phases / re-runs). The running row's live share is added FE-side.
+        activeTimeMs,
         completedAt: latestExecution?.completedAt,
         tokensUsed: latestExecution?.tokensUsed || 0,
         totalSessionTokens: latestSession.totalTokensUsed || 0,

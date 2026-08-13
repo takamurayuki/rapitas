@@ -22,12 +22,16 @@ vi.mock('@/stores/execution-state-store', () => ({
     selector: (state: {
       getExecutingTaskStatus: (id: number) => 'running' | 'waiting_for_input' | null;
       getExecutingTaskStartedAt: (id: number) => null;
+      getExecutingTaskActiveMs: (id: number) => number;
       executingTasks: Map<number, unknown>;
     }) => unknown,
   ) =>
     selector({
       getExecutingTaskStatus: () => mockExecutingStatus,
       getExecutingTaskStartedAt: () => null,
+      // NOTE: useTaskCard now selects the cumulative active-time base (task #560);
+      // omitting this getter makes every render throw TypeError.
+      getExecutingTaskActiveMs: () => 0,
       executingTasks: new Map(),
     }),
 }));

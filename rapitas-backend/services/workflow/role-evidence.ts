@@ -18,6 +18,12 @@ const log = createLogger('role-evidence');
 /** Trailing window for outcome evidence. Long enough for sample size, short enough to track model churn. */
 const WINDOW_DAYS = 45;
 
+/** Recent trailing window that catches fresh degradation before the long window dilutes it. */
+const RECENT_WINDOW_DAYS = 14;
+
+/** The recent-window check applies only once a model has this many recent samples. */
+const RECENT_MIN_SAMPLES = 4;
+
 /** Evidence is re-queried at most once per role per TTL. */
 const CACHE_TTL_MS = 5 * 60 * 1000;
 
@@ -30,12 +36,16 @@ export interface RoleModelOutcome {
   samples: number;
   successes: number;
   successRate: number;
+  recentSamples: number;
+  recentSuccesses: number;
+  recentSuccessRate: number;
 }
 
 interface OutcomeRow {
   status: string;
   errorMessage: string | null;
   modelName: string | null;
+  createdAt?: Date | string | null;
   session?: { config?: { taskId?: number | null } | null } | null;
 }
 
@@ -47,12 +57,18 @@ interface OutcomeRow {
  * cheap model look "proven" while it was actually bouncing constantly, which
  * would lower the role floor and degrade quality. Verify-phase bounces indict
  * the IMPLEMENTER (its diff was rejected); a self-contradicting verify.md
- * indicts the VERIFIER. Roles not listed keep process-level success (their
- * output has no downstream gate that attributes failure to them).
+ * indicts the VERIFIER; critic-gate bounces indict the RESEARCHER/PLANNER
+ * whose document was rejected. Roles not listed keep process-level success
+ * (their output has no downstream gate that attributes failure to them).
  */
 // NOTE: exported so prompt-evolution-runner shares the SAME success definition
 // (gate-bounce detection) instead of duplicating the cause list.
+// NOTE: *_critic_exhausted (bounce cap reached, forced forward) is deliberately
+// NOT attributed — the doc that finally advanced was never accepted by the gate,
+// so exhaustion says more about the cap than about the last revision's quality.
 export const ROLE_TROUBLE_CAUSES: Record<string, string[]> = {
+  researcher: ['research_critic_failed'],
+  planner: ['plan_critic_failed', 'plan_invalid_replan'],
   implementer: ['verify_repair', 'adversarial_review_failed', 'ci_repair', 'verify_no_changes'],
   verifier: ['verify_validation_failed', 'log_polluted_rejected'],
   auto_verifier: ['verify_validation_failed', 'log_polluted_rejected'],
@@ -105,6 +121,7 @@ export async function getRoleModelOutcomes(
       status: true,
       errorMessage: true,
       modelName: true,
+      createdAt: true,
       session: { select: { config: { select: { taskId: true } } } },
     },
   })) as OutcomeRow[];
@@ -136,14 +153,33 @@ export async function getRoleModelOutcomes(
     troubledTasks = new Set(troubleRows.map((t) => t.taskId));
   }
 
-  const byModel = new Map<string, { samples: number; successes: number }>();
+  // Recent bucket boundary. Rows without a usable createdAt fall OUTSIDE the
+  // recent window, so legacy fixtures/rows degrade to long-window-only stats.
+  const recentCutoff = new Date();
+  recentCutoff.setUTCDate(recentCutoff.getUTCDate() - RECENT_WINDOW_DAYS);
+
+  const byModel = new Map<
+    string,
+    { samples: number; successes: number; recentSamples: number; recentSuccesses: number }
+  >();
   for (const r of rows) {
     if (!r.modelName) continue;
-    const acc = byModel.get(r.modelName) ?? { samples: 0, successes: 0 };
+    const acc = byModel.get(r.modelName) ?? {
+      samples: 0,
+      successes: 0,
+      recentSamples: 0,
+      recentSuccesses: 0,
+    };
     acc.samples += 1;
     const taskId = r.session?.config?.taskId;
     const gateRejected = typeof taskId === 'number' && troubledTasks.has(taskId);
-    if (r.status === 'completed' && !r.errorMessage && !gateRejected) acc.successes += 1;
+    const success = r.status === 'completed' && !r.errorMessage && !gateRejected;
+    if (success) acc.successes += 1;
+    const createdAt = r.createdAt ? new Date(r.createdAt) : null;
+    if (createdAt && !Number.isNaN(createdAt.getTime()) && createdAt >= recentCutoff) {
+      acc.recentSamples += 1;
+      if (success) acc.recentSuccesses += 1;
+    }
     byModel.set(r.modelName, acc);
   }
 
@@ -154,6 +190,9 @@ export async function getRoleModelOutcomes(
       samples: a.samples,
       successes: a.successes,
       successRate: a.samples > 0 ? a.successes / a.samples : 0,
+      recentSamples: a.recentSamples,
+      recentSuccesses: a.recentSuccesses,
+      recentSuccessRate: a.recentSamples > 0 ? a.recentSuccesses / a.recentSamples : 0,
     }))
     .sort((a, b) => b.samples - a.samples);
 }
@@ -165,10 +204,26 @@ interface CacheEntry {
 
 const provenTierCache = new Map<string, CacheEntry>();
 
+/** Per-model selection audit line for the resolveProvenTier log. */
+interface TierEvaluation {
+  modelName: string;
+  tier: ModelTier;
+  samples: number;
+  successRate: number;
+  recentSamples: number;
+  recentSuccessRate: number;
+  proven: boolean;
+  rejectedBy: 'window45' | 'recent14' | null;
+}
+
 /**
  * Resolve the cheapest model tier with a PROVEN track record for a role:
- * some model of that tier ran the role ≥ minSamples times in the window with
- * a success rate ≥ minSuccessRate.
+ * some model of that tier ran the role ≥ minSamples times in the 45-day window
+ * with a success rate ≥ minSuccessRate, AND — when the model has at least
+ * RECENT_MIN_SAMPLES runs in the last RECENT_WINDOW_DAYS days — the recent
+ * success rate also clears the same floor. The recent gate stops a freshly
+ * degrading model from staying "proven" on diluted long-window stats; with
+ * too few recent samples the long window alone decides.
  *
  * @param role - Workflow role / ワークフローロール
  * @returns The proven tier, or undefined when evidence is insufficient or
@@ -184,17 +239,36 @@ export async function resolveProvenTier(role: string): Promise<ModelTier | undef
   const samplesFloor = minSamples();
   const successFloor = minSuccessRate();
 
-  const provenTiers = new Set<ModelTier>(
-    outcomes
-      .filter((o) => o.samples >= samplesFloor && o.successRate >= successFloor)
-      .map((o) => o.tier),
-  );
+  const evaluations: TierEvaluation[] = outcomes.map((o) => {
+    const longOk = o.samples >= samplesFloor && o.successRate >= successFloor;
+    const recentApplies = o.recentSamples >= RECENT_MIN_SAMPLES;
+    const recentOk = !recentApplies || o.recentSuccessRate >= successFloor;
+    return {
+      modelName: o.modelName,
+      tier: o.tier,
+      samples: o.samples,
+      successRate: o.successRate,
+      recentSamples: o.recentSamples,
+      recentSuccessRate: o.recentSuccessRate,
+      proven: longOk && recentOk,
+      rejectedBy: longOk ? (recentOk ? null : 'recent14') : 'window45',
+    };
+  });
+
+  const provenTiers = new Set<ModelTier>(evaluations.filter((e) => e.proven).map((e) => e.tier));
   const tier = TIER_CHEAP_FIRST.find((t) => provenTiers.has(t));
 
-  if (tier) {
+  if (evaluations.length > 0) {
     log.info(
-      { role, tier, evidence: outcomes.filter((o) => provenTiers.has(o.tier)) },
-      'Evidence-proven tier resolved for role',
+      {
+        role,
+        tier: tier ?? null,
+        accepted: evaluations.filter((e) => e.proven),
+        rejected: evaluations.filter((e) => !e.proven),
+      },
+      tier
+        ? 'Evidence-proven tier resolved for role'
+        : 'No evidence-proven tier for role (all models rejected)',
     );
   }
 
