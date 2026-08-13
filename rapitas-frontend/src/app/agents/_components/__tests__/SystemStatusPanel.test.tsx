@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, act } from '@testing-library/react';
 import { SystemStatusPanel } from '../SystemStatusPanel';
+import { setAppHidden } from '@/hooks/common/app-visibility-store';
 
 vi.mock('next-intl', () => ({
   useTranslations: () => (key: string) => key,
@@ -27,6 +28,7 @@ describe('SystemStatusPanel', () => {
   afterEach(() => {
     vi.useRealTimers();
     vi.unstubAllGlobals();
+    setAppHidden(false);
   });
 
   it('renders nothing before the first /health response arrives', () => {
@@ -141,6 +143,32 @@ describe('SystemStatusPanel', () => {
       await vi.advanceTimersByTimeAsync(10000);
     });
     expect(mockFetch).toHaveBeenCalledTimes(2);
+  });
+
+  it('polls immediately when restored from minimize', async () => {
+    setAppHidden(true);
+    mockFetch.mockResolvedValue({
+      json: async () => ({
+        status: 'healthy',
+        uptimeSeconds: 10,
+        activeExecutions: 0,
+        runningExecutions: 0,
+        interruptedExecutions: 0,
+        queueDepth: 0,
+      }),
+    });
+
+    render(<SystemStatusPanel />);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    expect(mockFetch).not.toHaveBeenCalled();
+
+    await act(async () => {
+      setAppHidden(false);
+    });
+
+    expect(mockFetch).toHaveBeenCalledWith('http://test:3001/health');
   });
 
   it('cleans up the polling interval on unmount', async () => {

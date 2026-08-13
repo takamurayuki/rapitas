@@ -22,6 +22,8 @@ import { runVulnerabilityScan } from '../memory/vulnerability-scan';
 import { runLogHealthCheck } from '../system/log-health-check';
 import { runLoopReview } from '../self-improvement/loop-watcher';
 import { runCiWatch } from '../self-improvement/ci-green-keeper';
+import { createNotification } from '../communication/notification-service';
+import { runDailyReport } from '../reporting/daily-report-service';
 
 const log = createLogger('scheduling:backlog');
 
@@ -35,7 +37,30 @@ const HANDLERS: Record<BacklogJobKind, () => Promise<number>> = {
   health_check: runLogHealthCheck,
   loop_review: runLoopReview,
   ci_watch: runCiWatch,
+  daily_report: runDailyReport,
 };
+
+// NOTE: Must stay in sync with rapitas-frontend/messages/ja.json
+// backlog.settings.jobs.<kind>.label — the backend has no access to the
+// frontend i18n bundle, so the labels are duplicated here for notifications.
+const JOB_LABELS: Record<BacklogJobKind, string> = {
+  innovation: 'イノベーションセッション',
+  vuln_scan: '脆弱性・バグ調査',
+  health_check: 'ログヘルスチェック',
+  loop_review: '品質ループレビュー',
+  ci_watch: 'CI 監視（本線）',
+  daily_report: 'デイリーレポート',
+};
+
+// Caps notification body length — raw Error.message can carry stack-trace-like
+// noise that would clutter the notification list.
+const ERROR_SUMMARY_MAX_LEN = 300;
+
+/** Outcome of a manual (run-now) job execution, used for the completion notification. */
+type ManualRunOutcome =
+  | { kind: 'success'; count: number }
+  | { kind: 'failure'; error: unknown }
+  | { kind: 'skipped' };
 
 // In-memory guard so a slow job (LLM calls take tens of seconds) is never
 // started twice — neither by overlapping ticks nor by a manual "run now".
@@ -70,24 +95,102 @@ export function isJobDue(s: BacklogScheduleConfig, now: Date): boolean {
 }
 
 /**
+ * Summarizes an unknown thrown value into a bounded, single-string message.
+ *
+ * @param err - Thrown value / スローされた値
+ * @returns Message truncated to 300 chars / 300字に切り詰めた要約
+ */
+function errorSummary(err: unknown): string {
+  const message = err instanceof Error ? err.message : String(err);
+  return message.length > ERROR_SUMMARY_MAX_LEN
+    ? `${message.slice(0, ERROR_SUMMARY_MAX_LEN)}…`
+    : message;
+}
+
+/**
+ * Records the outcome of a manual (run-now) execution: persists lastRunAt
+ * (except when skipped — nothing actually ran) and creates a completion
+ * notification. Best-effort — failures here are logged and never affect the
+ * job's own result.
+ *
+ * @param kind - Job that ran / 実行したジョブ
+ * @param outcome - Success/failure/skip result / 実行結果
+ */
+async function recordManualRunOutcome(
+  kind: BacklogJobKind,
+  outcome: ManualRunOutcome,
+): Promise<void> {
+  const label = JOB_LABELS[kind];
+  if (outcome.kind !== 'skipped') {
+    // Also guards against a same-day duplicate scheduled fire: isJobDue checks
+    // lastRunAt against the current local day.
+    await markScheduleRun(kind, new Date()).catch((err) =>
+      log.warn({ err, kind }, 'Failed to record manual run in lastRunAt'),
+    );
+  }
+  let title: string;
+  let message: string;
+  let metadata: Record<string, unknown>;
+  if (outcome.kind === 'success') {
+    title = `${label}が完了しました`;
+    message = `生成件数: ${outcome.count} 件`;
+    metadata = { kind, source: 'run_now', outcome: 'success', count: outcome.count };
+  } else if (outcome.kind === 'failure') {
+    title = `${label}に失敗しました`;
+    message = errorSummary(outcome.error);
+    metadata = { kind, source: 'run_now', outcome: 'failure', error: errorSummary(outcome.error) };
+  } else {
+    title = `${label}はスキップされました`;
+    message = '既に実行中のため今回は開始されませんでした';
+    metadata = { kind, source: 'run_now', outcome: 'skipped' };
+  }
+  await createNotification({
+    type: 'system',
+    title,
+    message,
+    link: '/backlog/settings',
+    metadata,
+  }).catch((err) => log.warn({ err, kind }, 'Failed to create run-now completion notification'));
+}
+
+/**
  * Runs a backlog job immediately, ignoring its schedule. Used by the "run now"
  * button. No-op (returns 0) if the job is already running.
  *
+ * When called as a manual run (default), the completion (success / failure /
+ * skip) is recorded as a Notification and lastRunAt is updated; the scheduled
+ * path opts out via `opts.source` to avoid daily notification noise.
+ *
  * @param kind - Job to run / 実行するジョブ
  * @param since - For health_check only: process entries on or after this time
+ * @param opts - source: 'manual' (default, notifies) or 'scheduled' (silent)
  * @returns Number of items produced (ideas/concerns) / 生成件数
  */
-export async function runBacklogJobNow(kind: BacklogJobKind, since?: Date): Promise<number> {
+export async function runBacklogJobNow(
+  kind: BacklogJobKind,
+  since?: Date,
+  opts: { source?: 'manual' | 'scheduled' } = {},
+): Promise<number> {
+  const source = opts.source ?? 'manual';
   if (running.has(kind)) {
     log.info({ kind }, 'Job already running — skipping duplicate run');
+    if (source === 'manual') {
+      await recordManualRunOutcome(kind, { kind: 'skipped' });
+    }
     return 0;
   }
   running.add(kind);
   try {
-    if (kind === 'health_check') {
-      return await runLogHealthCheck(since);
+    const count = kind === 'health_check' ? await runLogHealthCheck(since) : await HANDLERS[kind]();
+    if (source === 'manual') {
+      await recordManualRunOutcome(kind, { kind: 'success', count });
     }
-    return await HANDLERS[kind]();
+    return count;
+  } catch (err) {
+    if (source === 'manual') {
+      await recordManualRunOutcome(kind, { kind: 'failure', error: err });
+    }
+    throw err;
   } finally {
     running.delete(kind);
   }
@@ -118,7 +221,7 @@ async function tick(): Promise<void> {
       log.warn({ err, kind: s.kind }, 'Failed to record run start'),
     );
     log.info({ kind: s.kind, hour: s.hour }, 'Backlog job due — starting');
-    void runBacklogJobNow(s.kind, prevLastRunAt).catch((err) =>
+    void runBacklogJobNow(s.kind, prevLastRunAt, { source: 'scheduled' }).catch((err) =>
       log.warn({ err, kind: s.kind }, 'Scheduled backlog job failed'),
     );
   }

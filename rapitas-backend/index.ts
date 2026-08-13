@@ -46,6 +46,11 @@ import {
   createApiTokenGuard,
   createCrossSiteGuard,
 } from './middleware/local-auth';
+import {
+  recordUiRequest,
+  UI_SOURCE_HEADER,
+  UI_SOURCE_VALUE,
+} from './services/scheduling/auto-restart-merged-code/ui-activity-tracker';
 
 const app = new Elysia();
 
@@ -60,6 +65,16 @@ const apiTokenGuard = createApiTokenGuard();
 if (apiTokenGuard) {
   app.onRequest(apiTokenGuard);
 }
+
+// UI-activity recorder: requests the frontend tags with `X-Rapitas-Source: ui`
+// mark the user as active so the task-boundary self-restart defers instead of
+// dropping their connection mid-use. Pure side effect — never blocks a request,
+// and requests without the header change nothing (fail-open).
+app.onRequest(({ request }) => {
+  if (request.headers.get(UI_SOURCE_HEADER) === UI_SOURCE_VALUE) {
+    recordUiRequest(Date.now());
+  }
+});
 
 // Apply middleware
 const corsOrigins = process.env.CORS_ORIGIN
@@ -79,7 +94,9 @@ app.use(
   cors({
     origin: corsOrigins,
     credentials: true,
-    allowedHeaders: ['Content-Type', 'Authorization', 'Cookie'],
+    // NOTE: X-Rapitas-Source lets the (cross-origin) frontend tag user-originated
+    // requests for the UI-quiet restart gate; without it the preflight strips it.
+    allowedHeaders: ['Content-Type', 'Authorization', 'Cookie', 'X-Rapitas-Source'],
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   }),
 );

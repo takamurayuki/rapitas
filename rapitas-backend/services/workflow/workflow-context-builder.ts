@@ -12,6 +12,7 @@ import { buildKnownPitfallsSection } from './workflow-pitfall-context';
 import { buildHypothesisContext } from './workflow-hypothesis-context';
 import { buildRejectedPlanContext } from './workflow-rejected-plan-context';
 import { buildCaseContext } from './workflow-case-context';
+import { buildPlaybookContext } from '../memory/playbook/playbook-inject';
 import { buildCriticFeedback, buildCriticLessonsSection } from './phase-critic';
 import { resolvePreferredBaseBranch } from '../task/task-resolver';
 import { buildSubtaskSplitDirective } from './subtask-split-policy';
@@ -296,7 +297,11 @@ export async function buildRoleContext(
       // steps to the planner. Without this, research.md was always written
       // assuming a plan would follow — wrong for lightweight tasks.
       const modeBlock = `\n\n${researchModeDirective(mode, language)}`;
-      return `${taskInfo}${criticBlock}${lessonsBlock}${modeBlock}${memoryBlock}${hypothesisBlock}\n\n${t.researcher.instruction}\n\n${t.researcher.premiseAudit}\n\n${t.researcher.items}\n\n${t.researcher.output}\n\n${t.questionFormat}\n\n${styleRule}`;
+      // Playbook: at most ONE freshness-verified procedure doc distilled from
+      // past same-shape completed tasks — research starts from experience.
+      const playbook = await buildPlaybookContext(taskId, task, language);
+      const playbookBlock = playbook ? `\n\n${playbook}` : '';
+      return `${taskInfo}${criticBlock}${lessonsBlock}${modeBlock}${memoryBlock}${playbookBlock}${hypothesisBlock}\n\n${t.researcher.instruction}\n\n${t.researcher.premiseAudit}\n\n${t.researcher.items}\n\n${t.researcher.output}\n\n${t.questionFormat}\n\n${styleRule}`;
     }
 
     case 'planner': {
@@ -331,6 +336,12 @@ export async function buildRoleContext(
       const plannerCase = await buildCaseContext(taskId, task, language);
       if (plannerCase) {
         ctx += `\n\n${plannerCase}`;
+      }
+      // Playbook: distilled procedure from same-shape completed tasks (at most
+      // one, freshness-verified) — complements the single raw CBR case above.
+      const plannerPlaybook = await buildPlaybookContext(taskId, task, language);
+      if (plannerPlaybook) {
+        ctx += `\n\n${plannerPlaybook}`;
       }
       if (research) {
         ctx += `\n\n${t.planner.researchHeader}\n\n${research}`;

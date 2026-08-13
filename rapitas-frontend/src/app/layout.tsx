@@ -12,6 +12,7 @@ import { ConfirmDialogProvider } from '@/components/ui/dialog/ConfirmDialogProvi
 import { PomodoroProvider } from '@/feature/tasks/pomodoro/PomodoroProvider';
 import ExternalLinksProvider from '@/components/providers/ExternalLinksProvider';
 import CacheWarmupInitializer from '@/components/common/CacheWarmupInitializer';
+import AppVisibilityBridge from '@/components/common/AppVisibilityBridge';
 import SmartCommandBar from '@/components/smart-command-bar/SmartCommandBar';
 import { TerminalProvider } from '@/feature/terminal';
 import { AuthProvider } from '@/contexts/AuthContext';
@@ -178,6 +179,7 @@ export default function RootLayout({
                           </Suspense>
                           <ScheduleReminderProvider />
                           <NotificationToaster />
+                          <AppVisibilityBridge />
                           <CacheWarmupInitializer />
                           <Suspense fallback={null}>
                             <SmartCommandBar />

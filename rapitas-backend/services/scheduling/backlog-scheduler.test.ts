@@ -6,7 +6,12 @@
  */
 import { describe, it, expect } from 'bun:test';
 import { isJobDue } from './backlog-scheduler';
-import { normalizeJobKind, type BacklogScheduleConfig } from './backlog-schedule-service';
+import {
+  BACKLOG_JOB_KINDS,
+  DEFAULTS,
+  normalizeJobKind,
+  type BacklogScheduleConfig,
+} from './backlog-schedule-service';
 
 /** Builds a schedule config with sensible defaults, overridable per-test. */
 function makeSchedule(over: Partial<BacklogScheduleConfig> = {}): BacklogScheduleConfig {
@@ -70,11 +75,42 @@ describe('normalizeJobKind', () => {
   it('accepts known kinds', () => {
     expect(normalizeJobKind('innovation')).toBe('innovation');
     expect(normalizeJobKind('vuln_scan')).toBe('vuln_scan');
+    expect(normalizeJobKind('daily_report')).toBe('daily_report');
   });
 
   it('rejects unknown values as null', () => {
     expect(normalizeJobKind('bogus')).toBeNull();
     expect(normalizeJobKind(undefined)).toBeNull();
     expect(normalizeJobKind(42)).toBeNull();
+  });
+});
+
+describe('daily_report registration', () => {
+  it('is a schedulable kind (seeded by ensureSchedulesSeeded)', () => {
+    expect(BACKLOG_JOB_KINDS).toContain('daily_report');
+  });
+
+  it('defaults to enabled, daily at 07:00 (task #564: 毎朝7:00)', () => {
+    expect(DEFAULTS.daily_report).toEqual({
+      enabled: true,
+      frequency: 'daily',
+      hour: 7,
+      weekday: 1,
+    });
+  });
+
+  it('is due at its default hour and only once per day', () => {
+    const schedule = makeSchedule({ kind: 'daily_report', ...DEFAULTS.daily_report });
+    const monday7am = new Date(2024, 0, 15, 7, 10, 0);
+    expect(isJobDue(schedule, monday7am)).toBe(true);
+    // Already ran this morning — not due again the same local day.
+    const ranToday = makeSchedule({
+      kind: 'daily_report',
+      ...DEFAULTS.daily_report,
+      lastRunAt: new Date(2024, 0, 15, 7, 1, 0),
+    });
+    expect(isJobDue(ranToday, monday7am)).toBe(false);
+    // Due again the next morning.
+    expect(isJobDue(ranToday, new Date(2024, 0, 16, 7, 10, 0))).toBe(true);
   });
 });

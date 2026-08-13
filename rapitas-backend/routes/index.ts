@@ -121,8 +121,10 @@ export { ideaBoxRoutes } from './memory/idea-box';
 export { concernBacklogRoutes } from './memory/concern-backlog';
 export { hypothesisRoutes } from './memory/hypothesis';
 export { backlogScheduleRoutes, backlogThemeOverrideRoutes } from './backlog';
+export { dailyReportRoutes } from './daily-report-routes';
 
 // Self-Learning
 export { experimentsRoutes } from './self-learning/experiments';
+export { hypothesisExperimentsRoutes } from './self-learning/hypothesis-experiments';
 export { knowledgeGraphRoutes } from './self-learning/knowledge-graph';
 export { learningRoutes } from './self-learning/learning';

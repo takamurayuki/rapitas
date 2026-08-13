@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react';
 import { useTaskCacheStore } from '@/stores/task-cache-store';
 import { useExecutionStateStore } from '@/stores/execution-state-store';
 import { createLogger } from '@/lib/logger';
+import { getAppHidden, subscribeAppHidden } from '@/hooks/common/app-visibility-store';
 
 const logger = createLogger('useTaskAutoSync');
 
@@ -64,8 +65,9 @@ export function useTaskAutoSync(options: UseTaskAutoSyncOptions = {}) {
     intervalRef.current = setInterval(() => {
       // Skip when hidden — saves a network round-trip and React re-render while
       // the window is in the tray or behind another app; visibilitychange fires
-      // a sync on return via the handler below.
-      if (typeof document !== 'undefined' && document.hidden) return;
+      // a sync on return via the handler below. getAppHidden() covers minimize,
+      // which occlusion-disabled WebView2 doesn't report via document.hidden.
+      if ((typeof document !== 'undefined' && document.hidden) || getAppHidden()) return;
       // Skip updates if AI agent is executing and skip is enabled
       if (skipDuringExecution && executingTasksSizeRef.current > 0) {
         logger.debug('Skipping sync due to executing tasks');
@@ -107,7 +109,7 @@ export function useTaskAutoSync(options: UseTaskAutoSyncOptions = {}) {
     if (!enabled || !initialized) return;
 
     const handleVisibilityChange = () => {
-      if (!document.hidden) {
+      if (!document.hidden && !getAppHidden()) {
         // Skip updates if AI agent is executing and skip is enabled
         if (skipDuringExecution && executingTasksSizeRef.current > 0) {
           logger.debug('Skipping visibility sync due to executing tasks');
@@ -120,5 +122,23 @@ export function useTaskAutoSync(options: UseTaskAutoSyncOptions = {}) {
 
     document.addEventListener('visibilitychange', handleVisibilityChange);
     return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
+  }, [enabled, initialized, silent, skipDuringExecution, fetchUpdates]);
+
+  // Sync immediately on restore from minimize. visibilitychange (handled
+  // above) never fires for that transition because occlusion is
+  // intentionally disabled, so without this the 30s interval would be the
+  // only thing to pick it back up — up to a 30s delay.
+  useEffect(() => {
+    if (!enabled || !initialized) return;
+
+    return subscribeAppHidden(() => {
+      if (getAppHidden()) return;
+      if (skipDuringExecution && executingTasksSizeRef.current > 0) {
+        logger.debug('Skipping restore sync due to executing tasks');
+        return;
+      }
+      logger.debug('App restored from minimize, syncing tasks');
+      fetchUpdates(silent);
+    });
   }, [enabled, initialized, silent, skipDuringExecution, fetchUpdates]);
 }

@@ -159,6 +159,16 @@ export function buildClaudeArgs(agent: ClaudeCodeAgent): { args: string[]; logEx
  */
 export function buildSpawnEnv(): NodeJS.ProcessEnv {
   const isWindows = process.platform === 'win32';
+  // NOTE: Heap cap for EVERY node process in the agent's tree (NODE_OPTIONS is
+  // inherited by child processes, so `next build` etc. get it too). Task 553:
+  // an agent-run webpack build with splitChunks.maxSize grew to 48 GB RSS and
+  // starved the host (1.9 GB free of 64 GB) — an explicit OOM failure the agent
+  // can see and self-repair beats a silent host-wide stall. 8192 MB is generous:
+  // CI runners build this frontend within ~7 GB total RAM.
+  const heapMb = Math.max(
+    1024,
+    parseInt(process.env.RAPITAS_AGENT_NODE_HEAP_MB ?? '8192', 10) || 8192,
+  );
   // NOTE: The spawned CLI is prompt-steerable (the task prompt itself can ask
   // it to print/exfiltrate its own env), so start from a sanitized base —
   // never the raw inherited env — to keep ENCRYPTION_KEY/DATABASE_URL/
@@ -169,7 +179,7 @@ export function buildSpawnEnv(): NodeJS.ProcessEnv {
     CI: '1',
     TERM: 'dumb',
     PYTHONUNBUFFERED: '1',
-    NODE_OPTIONS: '--no-warnings',
+    NODE_OPTIONS: `--no-warnings --max-old-space-size=${heapMb}`,
     ...(isWindows && {
       LANG: 'en_US.UTF-8',
       PYTHONIOENCODING: 'utf-8',

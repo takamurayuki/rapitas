@@ -38,6 +38,7 @@ import {
   getThemeActiveQueueItems,
   hasItemAwaitingApproval,
   isAwaitingUserAnswer,
+  hasLiveExecution,
   selectNextTask,
   recentThemeSuccessRate,
 } from './auto-run-selection';
@@ -336,38 +337,52 @@ export class ThemeAutoRunScheduler {
       // EXEMPT a task that is waiting for the USER'S ANSWER: it burns no tokens,
       // and force-stopping it runs revertChanges — destroying the agent's
       // uncommitted work just because the user was away for 45 min.
-      if (lastRunAt && Date.now() - new Date(lastRunAt).getTime() >= MAX_TASK_WALL_MS) {
+      const tenureMs = lastRunAt ? Date.now() - new Date(lastRunAt).getTime() : 0;
+      if (lastRunAt && tenureMs >= MAX_TASK_WALL_MS) {
         if (await isAwaitingUserAnswer(prisma, currentTaskId)) {
           await notifyAwaitingUserAnswer(themeId, currentTaskId);
           return;
         }
-        log.warn(
-          `[ThemeAutoRunScheduler] Task ${currentTaskId} exceeded wall budget (${Math.round(
-            MAX_TASK_WALL_MS / 60000,
-          )}min) — force-stopping (theme ${themeId})`,
-        );
-        logCycleEvent('task.hang_backstop', {
-          theme: themeId,
-          task: currentTaskId,
-          ok: false,
-          cause: 'wall_budget_exceeded',
-          wallMinutes: Math.round(MAX_TASK_WALL_MS / 60000),
-          msg: 'task force-stopped by hang backstop',
-        });
-        // NOTE: logCycleEvent only writes the NDJSON cycle log — invisible unless
-        // an operator is tailing it. Persist a Notification too so a stalled run
-        // surfaces in the NotificationBell (same pattern as the other auto-run
-        // lifecycle notifications above).
-        await notifyHangBackstop(themeId, currentTaskId, Math.round(MAX_TASK_WALL_MS / 60000));
-        await this.stopThemeExecution(themeId, currentTaskId);
-        await prisma.task
-          .update({ where: { id: currentTaskId }, data: { status: 'blocked' } })
-          .catch(() => {});
-        await onTaskFailed(themeId, `Task ${currentTaskId} timed out (auto-run hang guard)`);
-        this.broadcastAutoRunUpdate(themeId);
-        await new Promise((r) => setTimeout(r, COOLDOWN_MS));
-        await this.advanceTheme(themeId, null, order, Math.max(0, globalActive - 1), null);
-        return;
+        // Liveness exemption: a running execution with a fresh heartbeat is
+        // SLOW, not wedged — killing it destroys legitimate long work (task
+        // 563: healthy 31-min implementer force-stopped because multi-phase
+        // tenure crossed the 45-min wall). While live, the role wall-clock /
+        // phase timeouts govern; the tenure wall only fires once the task has
+        // no live execution. A hard ceiling (3x) still bounds runaway tokens
+        // even with a heartbeat, preserving the original guard's purpose.
+        if (tenureMs < MAX_TASK_WALL_MS * 3 && (await hasLiveExecution(prisma, currentTaskId))) {
+          log.info(
+            `[ThemeAutoRunScheduler] Task ${currentTaskId} over tenure wall but execution heartbeat is fresh — deferring hang backstop (theme ${themeId})`,
+          );
+        } else {
+          log.warn(
+            `[ThemeAutoRunScheduler] Task ${currentTaskId} exceeded wall budget (${Math.round(
+              MAX_TASK_WALL_MS / 60000,
+            )}min) — force-stopping (theme ${themeId})`,
+          );
+          logCycleEvent('task.hang_backstop', {
+            theme: themeId,
+            task: currentTaskId,
+            ok: false,
+            cause: 'wall_budget_exceeded',
+            wallMinutes: Math.round(MAX_TASK_WALL_MS / 60000),
+            msg: 'task force-stopped by hang backstop',
+          });
+          // NOTE: logCycleEvent only writes the NDJSON cycle log — invisible unless
+          // an operator is tailing it. Persist a Notification too so a stalled run
+          // surfaces in the NotificationBell (same pattern as the other auto-run
+          // lifecycle notifications above).
+          await notifyHangBackstop(themeId, currentTaskId, Math.round(MAX_TASK_WALL_MS / 60000));
+          await this.stopThemeExecution(themeId, currentTaskId);
+          await prisma.task
+            .update({ where: { id: currentTaskId }, data: { status: 'blocked' } })
+            .catch(() => {});
+          await onTaskFailed(themeId, `Task ${currentTaskId} timed out (auto-run hang guard)`);
+          this.broadcastAutoRunUpdate(themeId);
+          await new Promise((r) => setTimeout(r, COOLDOWN_MS));
+          await this.advanceTheme(themeId, null, order, Math.max(0, globalActive - 1), null);
+          return;
+        }
       }
 
       // Active queue items (queued / running / waiting_approval) for this task.
@@ -520,6 +535,24 @@ export class ThemeAutoRunScheduler {
     // catches every task boundary. No-op unless HEAD moved + no live agents + not
     // rate-limited; if it restarts, the process exits and dev.js relaunches.
     if (await maybeRestartForUpdate(themeId)) return;
+
+    // Merged-code boundary restart: merges NOT touching the loop machinery are
+    // batched by the 15-min poller and activated here, at the same task
+    // boundary, once every quiescence gate (executions, aux CLI children,
+    // auto-merge tick, rate limit, UI quiet) passes. Placed AFTER
+    // maybeRestartForUpdate (which returns above on fire) so the two restart
+    // paths can never double-fire in one tick. Lazily imported behind the
+    // TAURI gate: nothing but dev.js relaunches on exit 75, and test
+    // environments must not load the scheduling module graph.
+    if (process.env.TAURI_BUILD === 'true') {
+      try {
+        const { getAutoRestartMergedCodeScheduler } =
+          await import('../../scheduling/auto-restart-merged-code');
+        if (await getAutoRestartMergedCodeScheduler().evaluateBoundaryRestart()) return;
+      } catch (err) {
+        log.warn({ err }, '[ThemeAutoRunScheduler] Boundary merged-code restart check failed');
+      }
+    }
 
     // Learnable-band tiebreak (R6): recent success rate positions the target
     // complexity band; ties within a priority pick the task closest to it.

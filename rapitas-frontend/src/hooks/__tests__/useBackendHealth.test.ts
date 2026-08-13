@@ -1,5 +1,6 @@
 import { renderHook, act } from '@testing-library/react';
 import { useBackendHealth } from '../common/useBackendHealth';
+import { setAppHidden } from '../common/app-visibility-store';
 
 vi.mock('@/lib/logger', () => ({
   createLogger: () => ({
@@ -33,6 +34,7 @@ describe('useBackendHealth', () => {
   afterEach(() => {
     vi.useRealTimers();
     vi.unstubAllGlobals();
+    setAppHidden(false);
   });
 
   it('should have initial status of checking', () => {
@@ -175,5 +177,25 @@ describe('useBackendHealth', () => {
     });
 
     expect(mockFetch).toHaveBeenCalled();
+  });
+
+  it('checks health immediately when restored from minimize', async () => {
+    setAppHidden(true);
+    mockFetch.mockResolvedValue({ ok: true });
+
+    renderHook(() => useBackendHealth());
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    expect(mockFetch).not.toHaveBeenCalled();
+
+    await act(async () => {
+      setAppHidden(false);
+    });
+
+    expect(mockFetch).toHaveBeenCalledWith(
+      'http://test:3001/events/status',
+      expect.objectContaining({ signal: expect.any(AbortSignal) }),
+    );
   });
 });

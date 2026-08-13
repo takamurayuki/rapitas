@@ -26,6 +26,10 @@ function lastRestartFile(): string {
   return join(dataDir(), '.auto-restart-merged-code-last-at');
 }
 
+function deferCountFile(): string {
+  return join(dataDir(), '.auto-restart-merged-code-defer-count');
+}
+
 /** Best-effort write; a failed write only weakens the toggle/rate limit, never crashes. */
 function writeBestEffort(file: string, content: string): void {
   try {
@@ -79,4 +83,28 @@ export function readLastRestartAt(): number {
  */
 export function writeLastRestartAt(ts: number): void {
   writeBestEffort(lastRestartFile(), String(ts));
+}
+
+/**
+ * Read the boundary-restart UI-activity deferral count. File-backed so the
+ * deferral ceiling survives the very relaunch it throttles.
+ *
+ * @returns Non-negative deferral count, or 0 when absent/invalid / 先送りカウント（不在・不正時0）
+ */
+export function readDeferCount(): number {
+  try {
+    const n = Number.parseInt(readFileSync(deferCountFile(), 'utf8').trim(), 10);
+    return Number.isFinite(n) && n >= 0 ? n : 0;
+  } catch {
+    return 0;
+  }
+}
+
+/**
+ * Persist the boundary-restart UI-activity deferral count.
+ *
+ * @param count - New deferral count (clamped to a non-negative integer) / 新しい先送りカウント
+ */
+export function writeDeferCount(count: number): void {
+  writeBestEffort(deferCountFile(), String(Math.max(0, Math.trunc(count))));
 }

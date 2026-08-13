@@ -2,6 +2,7 @@ import { renderHook, act } from '@testing-library/react';
 import { useExecutingTasksPolling } from '../task/useExecutingTasksPolling';
 import { useExecutionStateStore } from '@/stores/execution-state-store';
 import { useTaskCacheStore } from '@/stores/task-cache-store';
+import { setAppHidden } from '../common/app-visibility-store';
 
 vi.mock('@/lib/logger', () => ({
   createLogger: () => ({ debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() }),
@@ -19,6 +20,7 @@ describe('useExecutingTasksPolling', () => {
   afterEach(() => {
     vi.useRealTimers();
     vi.restoreAllMocks();
+    setAppHidden(false);
   });
 
   it('marks running tasks as executing in the store', async () => {
@@ -155,6 +157,25 @@ describe('useExecutingTasksPolling', () => {
     });
 
     expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('polls immediately when restored from minimize', async () => {
+    setAppHidden(true);
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: () => Promise.resolve([]) });
+    vi.stubGlobal('fetch', fetchMock);
+
+    renderHook(() => useExecutingTasksPolling());
+    await act(async () => {
+      await vi.runOnlyPendingTimersAsync();
+    });
+    expect(fetchMock).not.toHaveBeenCalled();
+
+    await act(async () => {
+      setAppHidden(false);
+      await vi.runOnlyPendingTimersAsync();
+    });
+
+    expect(fetchMock).toHaveBeenCalled();
   });
 
   it('clears the interval on unmount', () => {

@@ -1131,13 +1131,21 @@ function killStrayPlaywrightWorkersPosix() {
 
 /**
  * バックエンドが spawn した補助プロセスのうち、既存スイープ(rapitas 一致の bun /
- * playwright-worker.mjs)が拾えない3種の残骸を掃除する:
+ * playwright-worker.mjs)が拾えない4種の残骸を掃除する:
  *   1. whisper-daemon.mjs — バックエンド専属の音声デーモン(node)。
  *   2. 親ワーカー死亡後に孤児化した Playwright 管理ブラウザ(ms-playwright を
  *      コマンドラインに含む) — 親チェーンが切れているため既存の taskkill /T
  *      では構造的に到達できない(worktree の vite リークと同型)。
  *   3. smoke/preview が worktree 内で起動した dev サーバーチェーンの残骸
  *      (.worktrees をパスに含み、かつ親プロセスが既に死んでいるもの)。
+ *   4. 孤児化した非対話 CLI エージェント呼び出し(claude/codex/gemini を
+ *      `--print` / `--output-format stream-json` 付きで起動したもの — 批評・
+ *       回顧・intake等の補助AI呼び出しと各フェーズのエージェント実行)。
+ *      2026-08-12 実測: バックエンド自己再起動のアイドル判定は AgentExecution
+ *      しか見ないため、補助AI呼び出し(claude --print)の実行中に再起動が発火
+ *      しうる。旧バックエンドの死後もこの子が生き残り、継承した 3001 の
+ *      LISTEN ハンドルを保持してゴースト化した(PID 4344)。対話セッション
+ *      (--print なし)は絶対に対象にしない。
  *
  * 重要性: これらは旧バックエンドの子孫として 3001 の LISTEN ハンドルを
  * 継承している可能性があり、1つでも生き残ると「死んだPID名義のゴースト
@@ -1173,12 +1181,22 @@ function killStrayBackendHelpersWindows() {
     const isWhisper = /whisper-daemon\.mjs/i.test(cmd);
     const isOrphanPlaywrightBrowser = /ms-playwright/i.test(cmd) && parentDead;
     const isOrphanWorktreeHelper = /[\\/]\.worktrees[\\/]/.test(cmd) && parentDead;
-    if (!isWhisper && !isOrphanPlaywrightBrowser && !isOrphanWorktreeHelper) continue;
+    // Class 4: non-interactive CLI agent left orphaned by a backend swap. The
+    // --print / stream-json signature distinguishes machine invocations from a
+    // user's interactive session, which must NEVER be killed (no --print).
+    const isOrphanCliAgent =
+      /\b(claude|codex|gemini)(\.exe)?\b/i.test(cmd) &&
+      /--print|--output-format[= ]stream-json/i.test(cmd) &&
+      parentDead;
+    if (!isWhisper && !isOrphanPlaywrightBrowser && !isOrphanWorktreeHelper && !isOrphanCliAgent)
+      continue;
     const label = isWhisper
       ? "whisper-daemon"
       : isOrphanPlaywrightBrowser
         ? "orphaned playwright browser"
-        : "orphaned worktree helper";
+        : isOrphanWorktreeHelper
+          ? "orphaned worktree helper"
+          : "orphaned CLI agent";
     try {
       execSync(`taskkill /F /T /PID ${pid}`, { stdio: "pipe" });
       console.log(`  Killed ${label} PID ${pid}`);
@@ -1220,7 +1238,13 @@ function killStrayBackendHelpersPosix() {
     const isWhisper = /whisper-daemon\.mjs/i.test(r.args);
     const isOrphanPlaywrightBrowser = /ms-playwright/i.test(r.args) && parentDead;
     const isOrphanWorktreeHelper = /[\\/]\.worktrees[\\/]/.test(r.args) && parentDead;
-    if (!isWhisper && !isOrphanPlaywrightBrowser && !isOrphanWorktreeHelper) continue;
+    // Class 4: orphaned non-interactive CLI agent (see Windows variant).
+    const isOrphanCliAgent =
+      /\b(claude|codex|gemini)\b/i.test(r.args) &&
+      /--print|--output-format[= ]stream-json/i.test(r.args) &&
+      parentDead;
+    if (!isWhisper && !isOrphanPlaywrightBrowser && !isOrphanWorktreeHelper && !isOrphanCliAgent)
+      continue;
     try {
       process.kill(r.pid, "SIGKILL");
       console.log(`  Killed stray backend helper PID ${r.pid}`);

@@ -87,6 +87,7 @@ import {
   studySessionsRoutes,
   directoriesRoutes,
   experimentsRoutes,
+  hypothesisExperimentsRoutes,
   learningRoutes,
   taskSpecRoutes,
   aiChatRoutes,
@@ -98,6 +99,7 @@ import {
   hypothesisRoutes,
   backlogScheduleRoutes,
   backlogThemeOverrideRoutes,
+  dailyReportRoutes,
   exportRoutes,
   importRoutes,
 } from './routes';
@@ -172,6 +174,7 @@ export function registerAllRoutes(app: Elysia): void {
   app.use(hypothesisRoutes);
   app.use(backlogScheduleRoutes);
   app.use(backlogThemeOverrideRoutes);
+  app.use(dailyReportRoutes);
 
   // Workflow
   app.use(workflowRoutes);
@@ -231,5 +234,6 @@ export function registerAllRoutes(app: Elysia): void {
   app.use(studySessionsRoutes);
   app.use(templatesRoutes);
   app.use(experimentsRoutes);
+  app.use(hypothesisExperimentsRoutes);
   app.use(learningRoutes);
 }
