@@ -87,6 +87,7 @@ import {
   studySessionsRoutes,
   directoriesRoutes,
   experimentsRoutes,
+  hypothesisExperimentsRoutes,
   learningRoutes,
   taskSpecRoutes,
   aiChatRoutes,
@@ -233,5 +234,6 @@ export function registerAllRoutes(app: Elysia): void {
   app.use(studySessionsRoutes);
   app.use(templatesRoutes);
   app.use(experimentsRoutes);
+  app.use(hypothesisExperimentsRoutes);
   app.use(learningRoutes);
 }

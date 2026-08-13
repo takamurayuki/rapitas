@@ -60,7 +60,7 @@ export const DEFAULTS: Record<
   // scheduler fires at most once per local day — "run now" covers ad hoc.
   ci_watch: { enabled: true, frequency: 'daily', hour: 7, weekday: 1 },
   // Every morning at 7:00 (task #564 requirement): summarize the previous 24h
-  // of autonomous activity into one notification + /agents/growth archive.
+  // of autonomous activity into one notification + /agents/daily-report archive.
   daily_report: { enabled: true, frequency: 'daily', hour: 7, weekday: 1 },
 };
 

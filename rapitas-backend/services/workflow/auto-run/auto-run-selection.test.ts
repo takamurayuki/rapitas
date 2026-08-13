@@ -7,9 +7,11 @@
 import { describe, it, expect, mock } from 'bun:test';
 import {
   AUTO_RUN_GLOBAL_MAX_CONCURRENCY,
+  HANG_BACKSTOP_HEARTBEAT_MS,
   getGlobalAutoRunActiveCount,
   getThemeActiveQueueItems,
   hasItemAwaitingApproval,
+  hasLiveExecution,
   isAwaitingUserAnswer,
   selectNextTask,
   isTaskBlocked,
@@ -104,6 +106,35 @@ describe('isAwaitingUserAnswer', () => {
       agentExecution: { findFirst: mock().mockResolvedValue({ question: liveQuestion }) },
     });
     expect(await isAwaitingUserAnswer(prisma, 1)).toBe(expected);
+  });
+});
+
+describe('hasLiveExecution (hang backstop liveness — task 563)', () => {
+  it('returns true when a running execution has a fresh heartbeat', async () => {
+    const findFirst = mock().mockResolvedValue({ id: 99 });
+    const prisma = makePrisma({ agentExecution: { findFirst } });
+    expect(await hasLiveExecution(prisma, 563)).toBe(true);
+    // The query must require status running AND heartbeat freshness.
+    const arg = findFirst.mock.calls[0]?.[0] as {
+      where: { status: string; heartbeatAt: { gte: Date } };
+    };
+    expect(arg.where.status).toBe('running');
+    const minGte = Date.now() - HANG_BACKSTOP_HEARTBEAT_MS - 2000;
+    expect(arg.where.heartbeatAt.gte.getTime()).toBeGreaterThan(minGte);
+  });
+
+  it('returns false when no fresh-heartbeat running execution exists (genuine hang)', async () => {
+    const prisma = makePrisma({
+      agentExecution: { findFirst: mock().mockResolvedValue(null) },
+    });
+    expect(await hasLiveExecution(prisma, 563)).toBe(false);
+  });
+
+  it('fails closed (not-live) on a DB error so the backstop still guards real hangs', async () => {
+    const prisma = makePrisma({
+      agentExecution: { findFirst: mock().mockRejectedValue(new Error('db down')) },
+    });
+    expect(await hasLiveExecution(prisma, 563)).toBe(false);
   });
 });
 

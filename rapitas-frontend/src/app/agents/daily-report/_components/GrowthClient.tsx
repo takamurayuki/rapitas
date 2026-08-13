@@ -3,7 +3,7 @@
 /**
  * GrowthClient
  *
- * /agents/growth orchestrator: loads the daily-report archive list, keeps the
+ * /agents/daily-report orchestrator: loads the daily-report archive list, keeps the
  * selected date, fetches that day's detail, and lays out list + detail panes.
  * Missing days are simply absent from the list (no catch-up generation).
  */

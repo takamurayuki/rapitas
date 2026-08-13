@@ -4,7 +4,7 @@
  * Persistence layer + job runner of the autonomous-activity daily report
  * (task #564): fetches the last-24h raw rows (read-only DB + cycle NDJSON),
  * runs the pure aggregation core, applies the fail-open AI polish, and writes
- * ONE notification (type='daily_report') that doubles as the /agents/growth
+ * ONE notification (type='daily_report') that doubles as the /agents/daily-report
  * archive entry. Aggregation lives in daily-report-core, rendering in
  * daily-report-format; this module re-exports both as the public entry point.
  */
@@ -171,7 +171,7 @@ export async function collectDailyReportData(
 /**
  * Run one daily report: idempotency check → collect → aggregate → AI format
  * (fail-open to plain tables) → notification. The notification IS the archive
- * row read by /agents/growth (plan decision: single write, always consistent).
+ * row read by /agents/daily-report (plan decision: single write, always consistent).
  *
  * @returns 1 when a report was created, 0 when today's already exists / 作成件数
  */
@@ -214,7 +214,7 @@ export async function runDailyReport(): Promise<number> {
     type: 'daily_report',
     title,
     message: formatDailyReportSummary(data),
-    link: '/agents/growth',
+    link: '/agents/daily-report',
     metadata: {
       date,
       windowStart: data.windowStart,

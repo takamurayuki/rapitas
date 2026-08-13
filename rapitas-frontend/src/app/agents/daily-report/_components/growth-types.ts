@@ -1,7 +1,7 @@
 /**
  * growth-types
  *
- * Shared types for the /agents/growth daily-report archive page: API response
+ * Shared types for the /agents/daily-report archive page: API response
  * shapes of GET /growth/daily-reports and GET /growth/daily-reports/:date.
  */
 

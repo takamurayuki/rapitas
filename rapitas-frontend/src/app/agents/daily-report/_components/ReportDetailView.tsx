@@ -3,7 +3,7 @@
 /**
  * ReportDetailView
  *
- * Detail pane of the /agents/growth archive: counts strip, satiation banner,
+ * Detail pane of the /agents/daily-report archive: counts strip, satiation banner,
  * and the report markdown (AI-polished or plain aggregate). Fetching is done
  * by the parent GrowthClient — this component only renders.
  */

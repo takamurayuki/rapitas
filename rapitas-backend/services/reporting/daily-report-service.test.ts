@@ -298,7 +298,7 @@ describe('runDailyReport', () => {
     };
     expect(params.type).toBe('daily_report');
     expect(params.title).toBe(dailyReportTitle(localDateStamp(new Date())));
-    expect(params.link).toBe('/agents/growth');
+    expect(params.link).toBe('/agents/daily-report');
     expect(params.metadata.aiFormatted).toBe(false);
     expect(params.metadata.reportMarkdown).toContain('## 完了タスク (1件)');
     expect(params.metadata.counts.completed).toBe(1);

@@ -86,7 +86,20 @@ export async function runProcessRetro(taskId: number): Promise<void> {
     const task = await prisma.task
       .findUnique({ where: { id: taskId }, select: { title: true } })
       .catch(() => null);
-    const bundle = buildEvidenceBundle(rows, { taskId, title: task?.title ?? '' });
+
+    // Active self-experiment context (task 562): informational only — the AI
+    // must know an intervention is running so it does not misattribute its
+    // effect as systemic friction. Never enters isCleanRound. Best-effort.
+    const experimentInfo = await import('../../self-learning/experiment-loop/experiment-store')
+      .then(({ readActiveExperiment }) => {
+        const active = readActiveExperiment();
+        return active
+          ? { role: active.role, hypothesisId: active.hypothesisId, statement: active.statement }
+          : undefined;
+      })
+      .catch(() => undefined);
+
+    const bundle = buildEvidenceBundle(rows, { taskId, title: task?.title ?? '' }, experimentInfo);
 
     if (isCleanRound(bundle)) {
       log.debug({ taskId }, '[process-retro] clean round — AI call skipped');

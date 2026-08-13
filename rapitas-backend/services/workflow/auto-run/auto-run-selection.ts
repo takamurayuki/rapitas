@@ -198,6 +198,37 @@ export async function isAwaitingUserAnswer(prisma: PrismaClient, taskId: number)
   return latest?.question != null && latest.question !== '';
 }
 
+/** Heartbeat freshness window for the hang backstop's liveness check. */
+export const HANG_BACKSTOP_HEARTBEAT_MS = 5 * 60_000;
+
+/**
+ * Whether the task has a LIVE agent execution — running with a heartbeat fresh
+ * within {@link HANG_BACKSTOP_HEARTBEAT_MS}. Used by the hang backstop to tell
+ * "slow but progressing" apart from "wedged": task 563's healthy 31-minute
+ * implementer (heartbeat updating every minute) was force-stopped at the
+ * 45-minute whole-task wall because tenure was the ONLY signal. A stale-
+ * heartbeat running row (zombie) still reads as not-live so the backstop
+ * keeps catching genuine hangs.
+ *
+ * @param prisma - Prisma client instance
+ * @param taskId - Task to check / 確認対象タスク
+ * @returns true when a fresh-heartbeat running execution exists / 生きた実行があればtrue
+ */
+export async function hasLiveExecution(prisma: PrismaClient, taskId: number): Promise<boolean> {
+  const fresh = new Date(Date.now() - HANG_BACKSTOP_HEARTBEAT_MS);
+  const live = await prisma.agentExecution
+    .findFirst({
+      where: {
+        session: { config: { taskId } },
+        status: 'running',
+        heartbeatAt: { gte: fresh },
+      },
+      select: { id: true },
+    })
+    .catch(() => null);
+  return live != null;
+}
+
 /**
  * Select the next task to execute for a given theme.
  *

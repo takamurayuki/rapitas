@@ -1,7 +1,7 @@
 /**
  * daily-report-routes
  *
- * Read-only HTTP API for the /agents/growth daily-report archive. The archive
+ * Read-only HTTP API for the /agents/daily-report archive. The archive
  * rows ARE the daily_report notifications (plan decision: single write keeps
  * notification and archive consistent) — this layer only lists and parses
  * them. Report generation lives in daily-report-service.

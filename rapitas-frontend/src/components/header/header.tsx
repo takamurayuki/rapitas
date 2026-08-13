@@ -49,6 +49,7 @@ import {
   Library,
   Search,
   WalletCards,
+  ChartNoAxesCombined,
 } from 'lucide-react';
 import Link from 'next/link';
 import AppIcon from '@/components/common/app-icon';
@@ -187,12 +188,22 @@ export default function Header() {
             { href: '/agents', label: t('agentManagement'), icon: UserCog },
             { href: '/agents/metrics', label: t('metrics'), icon: BarChart3 },
             // NOTE: Sunrise = 自律活動デイリーレポート (ICON_POLICY §3) — the
-            // same glyph is reused on the /agents/growth page (same concept).
-            { href: '/agents/growth', label: t('growthReport'), icon: Sunrise },
+            // same glyph is reused on the /agents/daily-report page (same
+            // concept). /agents/growth is owned by the growth ledger below.
+            {
+              href: '/agents/daily-report',
+              label: t('growthReport'),
+              icon: Sunrise,
+            },
             {
               href: '/agents/memory',
               label: t('memoryVisualization'),
               icon: Sprout,
+            },
+            {
+              href: '/agents/growth',
+              label: t('growthLedger'),
+              icon: ChartNoAxesCombined,
             },
             {
               href: '#',
