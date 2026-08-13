@@ -91,7 +91,8 @@ export async function handleResearchResult(params: HandleResearchResultParams): 
         // A live research row after the rejection means exactly that — the
         // rejection was superseded, so run the normal completion path instead
         // of discarding the session's (revised) work. Observed on task 541.
-        const { readWorkflowFile } = await import('../../../../services/workflow/workflow-file-utils');
+        const { readWorkflowFile } =
+          await import('../../../../services/workflow/workflow-file-utils');
         const liveRow = await readWorkflowFile(taskIdNum, 'research').catch(() => null);
         if (liveRow && liveRow.trim().length > 0) {
           log.info(

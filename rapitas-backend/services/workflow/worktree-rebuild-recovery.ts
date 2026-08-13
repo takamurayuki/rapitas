@@ -27,7 +27,10 @@ import {
   classifyScopeContamination,
   type FileTouchingCommit,
 } from '../agents/verification/scope-contamination';
-import { createWorktree, removeWorktree } from '../agents/orchestrator/git-operations/worktree/worktree-ops';
+import {
+  createWorktree,
+  removeWorktree,
+} from '../agents/orchestrator/git-operations/worktree/worktree-ops';
 import { assertSafeGitRef, sanitizeBranchName } from '../../utils/common/branch-name-generator';
 import { recordTransition } from './transition-recorder';
 import { readWorkflowFile } from './workflow-file-utils';

@@ -9,7 +9,10 @@
 import { execFile } from 'child_process';
 import { promisify } from 'util';
 import { createLogger } from '../../../../../config/logger';
-import { ensureNotPrimaryWorkTree, findConflictingWorktreeForBranch } from '../worktree/worktree-guard';
+import {
+  ensureNotPrimaryWorkTree,
+  findConflictingWorktreeForBranch,
+} from '../worktree/worktree-guard';
 
 // NOTE: execFile (array-args, no shell) instead of exec (shell string) — branch
 // names, base branches, and other caller-controlled values are passed as

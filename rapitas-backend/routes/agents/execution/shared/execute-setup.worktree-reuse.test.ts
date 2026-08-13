@@ -57,17 +57,23 @@ mock.module('../../../../utils/database/db-helpers', () => ({
   toJsonString: (v: unknown) => JSON.stringify(v),
 }));
 
-mock.module('../../../../services/agents/orchestrator/git-operations/worktree/worktree-guard', () => ({
-  ensureNotPrimaryWorkTree: mock(() => Promise.resolve()),
-}));
+mock.module(
+  '../../../../services/agents/orchestrator/git-operations/worktree/worktree-guard',
+  () => ({
+    ensureNotPrimaryWorkTree: mock(() => Promise.resolve()),
+  }),
+);
 
 // decideWorktree is pure and already unit-tested (worktree-usable.test.ts) —
 // mock it here so this test controls the decision directly instead of also
 // needing to fake filesystem existence.
 const mockDecideWorktree = mock(() => 'fallback' as 'reuse' | 'recreate' | 'fallback');
-mock.module('../../../../services/agents/orchestrator/git-operations/worktree/worktree-usable', () => ({
-  decideWorktree: mockDecideWorktree,
-}));
+mock.module(
+  '../../../../services/agents/orchestrator/git-operations/worktree/worktree-usable',
+  () => ({
+    decideWorktree: mockDecideWorktree,
+  }),
+);
 
 const { executeSetup } = await import('./execute-setup');
 

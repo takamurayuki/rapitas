@@ -66,9 +66,12 @@ mock.module('../../../../services/agents/agent-worker-manager', () => ({
   },
 }));
 
-mock.module('../../../../services/agents/orchestrator/git-operations/worktree/worktree-guard', () => ({
-  isPrimaryWorkTree: mock(() => Promise.resolve(false)),
-}));
+mock.module(
+  '../../../../services/agents/orchestrator/git-operations/worktree/worktree-guard',
+  () => ({
+    isPrimaryWorkTree: mock(() => Promise.resolve(false)),
+  }),
+);
 
 mock.module('../../../../middleware/rate-limiter', () => ({
   agentRateLimiter: mock(() => true),

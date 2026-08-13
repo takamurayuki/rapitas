@@ -78,14 +78,17 @@ mock.module('../shared/execution-lock', () => ({
 }));
 
 // NOTE: All exports provided to prevent named-export resolution errors from index.ts re-exports.
-mock.module('../../../../services/agents/orchestrator/git-operations/worktree/worktree-ops', () => ({
-  removeWorktree: mockRemoveWorktreeFn,
-  cleanupStaleWorktrees: mock(() => Promise.resolve(0)),
-  cleanupOrphanedWorktrees: mock(() => Promise.resolve(0)),
-  createWorktree: mock(() => Promise.resolve('')),
-  ensureGitRepository: mock(() => Promise.resolve()),
-  validateAndSetupRemote: mock(() => Promise.resolve()),
-}));
+mock.module(
+  '../../../../services/agents/orchestrator/git-operations/worktree/worktree-ops',
+  () => ({
+    removeWorktree: mockRemoveWorktreeFn,
+    cleanupStaleWorktrees: mock(() => Promise.resolve(0)),
+    cleanupOrphanedWorktrees: mock(() => Promise.resolve(0)),
+    createWorktree: mock(() => Promise.resolve('')),
+    ensureGitRepository: mock(() => Promise.resolve()),
+    validateAndSetupRemote: mock(() => Promise.resolve()),
+  }),
+);
 
 // NOTE: Mock stop-task-agents to prevent loading agent-orchestrator and its deep dependency chain.
 mock.module('../../../../services/agents/stop-task-agents', () => ({
