@@ -90,7 +90,12 @@ describe('useSettingsData UI source header coverage', () => {
   it('tags all mount GETs (settings/api-keys/models/local-llm status) with the UI header', async () => {
     await mount();
 
-    for (const urlPart of ['/settings', '/settings/api-keys', '/settings/models', '/local-llm/status']) {
+    for (const urlPart of [
+      '/settings',
+      '/settings/api-keys',
+      '/settings/models',
+      '/local-llm/status',
+    ]) {
       const calls = callsFor(fetchMock, urlPart);
       expect(calls.length, `expected a fetch for ${urlPart}`).toBeGreaterThanOrEqual(1);
       for (const call of calls) {
@@ -151,7 +156,11 @@ describe('useSettingsData UI source header coverage', () => {
     fetchMock.mockClear();
 
     await act(async () => {
-      await result.current.saveModel('claude', 'claudeModel' as keyof UserSettings, 'claude-fable-5');
+      await result.current.saveModel(
+        'claude',
+        'claudeModel' as keyof UserSettings,
+        'claude-fable-5',
+      );
     });
 
     const [call] = callsFor(fetchMock, '/settings/model');
