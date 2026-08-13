@@ -49,6 +49,7 @@ const JOB_LABELS: Record<BacklogJobKind, string> = {
   health_check: 'ログヘルスチェック',
   loop_review: '品質ループレビュー',
   ci_watch: 'CI 監視（本線）',
+  daily_report: 'デイリーレポート',
 };
 
 // Caps notification body length — raw Error.message can carry stack-trace-like
