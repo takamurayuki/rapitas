@@ -70,13 +70,29 @@ export function formatEvidenceSummary(bundle: EvidenceBundle): string {
       : ['- (所要時間データなし)'];
 
   // Rendered only when non-zero so zero-wait summaries (the common case, and
-  // all previously-filed concern details) keep their existing shape.
+  // all previously-filed concern details) keep their existing shape. The cause
+  // facts (interval / causes during the wait / dispatch trigger) RECORD why
+  // the wait happened; this summary is persisted into filed concerns.
+  const detail = bundle.queueWaitDetail;
   const queueWaitLines =
     bundle.queueWaitMs > 0
       ? [
           '',
           '## キュー待機(初回ディスパッチ前)',
-          `- ${(bundle.queueWaitMs / 60_000).toFixed(1)}分 — auto-run停止・サーバー停止等の非稼働期間を含む待機。フェーズ別所要時間からは除外済みで、phase_wallclock 異常の根拠にしないこと。`,
+          `- 待機時間: ${(bundle.queueWaitMs / 60_000).toFixed(1)}分${
+            detail ? ` (${detail.waitStartAt} → ${detail.dispatchAt})` : ''
+          }`,
+          ...(detail
+            ? [
+                `- 待機中の遷移cause: ${Object.entries(detail.preDispatchCauses)
+                  .map(([cause, n]) => `${cause} ×${n}`)
+                  .join(', ')}`,
+                `- 待機を解消したディスパッチcause: ${detail.dispatchCause}`,
+              ]
+            : []),
+          // NOTE: 102ms は task#516 調査の実測値(cycle-2026-08-12.ndjson:
+          // theme.started 01:08:52.579Z → task.enqueued 01:08:52.681Z)。
+          '- 原因: ディスパッチ主体(テーマauto-run)が当該タスクを起動しない非実行期間(auto-run停止・サーバー停止・先行タスク処理中)の滞留であり、スケジューラ/キューのトリガー遅延ではない(task#516調査の実測: auto-run開始→タスクenqueueは102ms)。フェーズ別所要時間からは除外済みで、phase_wallclock 異常の根拠にしないこと。',
         ]
       : [];
 

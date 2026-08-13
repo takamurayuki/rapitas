@@ -21,6 +21,7 @@ const bundle = (over: Partial<EvidenceBundle> = {}): EvidenceBundle => ({
   criticReasons: [],
   phaseTimings: { draft: 7 * 60_000 },
   queueWaitMs: 0,
+  queueWaitDetail: null,
   ...over,
 });
 
@@ -31,6 +32,28 @@ describe('formatEvidenceSummary', () => {
     expect(md).toContain('14400.0分');
     // フェーズ所要時間には待機が混入しない(draft は実行分のみ)。
     expect(md).toContain('- draft: 7.0分');
+  });
+
+  test('queueWaitDetail があれば待機区間・待機中cause・解消トリガー・原因帰属を記録する', () => {
+    const md = formatEvidenceSummary(
+      bundle({
+        queueWaitMs: 864_000_000,
+        queueWaitDetail: {
+          waitMs: 864_000_000,
+          waitStartAt: '2026-08-02T02:36:18.760Z',
+          dispatchAt: '2026-08-12T01:09:24.604Z',
+          dispatchCause: 'intake_enriched',
+          preDispatchCauses: { reconciler_requeue: 2 },
+        },
+      }),
+    );
+    // 受入基準: 初期トリガー遅延の原因が特定・記録されること。
+    expect(md).toContain('2026-08-02T02:36:18.760Z → 2026-08-12T01:09:24.604Z');
+    expect(md).toContain('reconciler_requeue ×2');
+    expect(md).toContain('intake_enriched');
+    // 調査で確定した原因帰属(実測102ms=スケジューラ遅延ではない)が明記される。
+    expect(md).toContain('トリガー遅延ではない');
+    expect(md).toContain('102ms');
   });
 
   test('queueWaitMs=0 ならキュー待機セクションを出力しない(既存形状の維持)', () => {

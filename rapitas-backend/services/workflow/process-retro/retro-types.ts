@@ -39,6 +39,27 @@ export interface CauseCounts {
   invariantCount: number;
 }
 
+/**
+ * Machine-derived cause record for a pre-dispatch queue wait, built solely
+ * from the task's own transitions so the retro (and any filed concern) records
+ * the observed facts of WHY the task waited — interval, what happened during
+ * the wait, and which cause finally dispatched it — instead of a hypothesis.
+ * Root-cause background for the task#516 incident lives on
+ * computeQueueWaitDetail (retro-evidence.ts).
+ */
+export interface QueueWaitDetail {
+  /** Total pre-dispatch wait ms (always equals EvidenceBundle.queueWaitMs). */
+  waitMs: number;
+  /** ISO-8601 timestamp of the earliest transition (wait start). */
+  waitStartAt: string;
+  /** ISO-8601 timestamp of the first phase-bearing (dispatch) transition. */
+  dispatchAt: string;
+  /** Cause of the transition that ended the wait (e.g. intake_enriched). */
+  dispatchCause: string;
+  /** cause → occurrence count of transitions recorded during the wait. */
+  preDispatchCauses: Record<string, number>;
+}
+
 /** Active self-experiment context shown to the retro AI (informational only). */
 export interface RetroExperimentInfo {
   /** Workflow role under intervention. */
@@ -61,10 +82,18 @@ export interface EvidenceBundle extends CauseCounts {
   phaseTimings: Record<string, number>;
   /**
    * Pre-dispatch queue wait ms: dwell before the first phase-bearing
-   * transition (auto-run stopped / server down). Excluded from phaseTimings so
-   * non-running periods cannot masquerade as phase_wallclock anomalies (task 567).
+   * transition, i.e. time the dispatcher (theme auto-run) was not executing
+   * this task. Excluded from phaseTimings so non-running periods cannot
+   * masquerade as phase_wallclock anomalies (task 567; incident task#516).
    */
   queueWaitMs: number;
+  /**
+   * Cause record for the queue wait (null when there was none). Satisfies the
+   * acceptance criterion that an initial-trigger delay's cause is identified
+   * AND recorded: the facts are persisted into the rendered evidence summary,
+   * which is reused as the filed concern's bundle-summary section.
+   */
+  queueWaitDetail: QueueWaitDetail | null;
   /**
    * Set while a self-experiment is running (task 562). Informational for the
    * retro AI — MUST NOT enter isCleanRound, so experiments never force AI calls.

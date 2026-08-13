@@ -25,6 +25,7 @@ const {
   countCauses,
   computePhaseTimings,
   computeQueueWaitMs,
+  computeQueueWaitDetail,
   extractCriticReasons,
   isCleanRound,
   buildEvidenceBundle,
@@ -238,6 +239,42 @@ describe('キュー待機の分離(初回ディスパッチ前)', () => {
   });
 });
 
+describe('computeQueueWaitDetail(待機原因の記録)', () => {
+  test('task516再現: 待機区間・待機中の遷移cause・解消したディスパッチcauseが記録される', () => {
+    const detail = computeQueueWaitDetail(task516Rows());
+    // 原因の機械的記録: reconciler_requeue×2 の間ディスパッチ主体が動かず、
+    // intake_enriched(auto-run開始起点)で初めて待機が解消した事実そのもの。
+    expect(detail).toEqual({
+      waitMs: 10 * DAY,
+      waitStartAt: new Date(0).toISOString(),
+      dispatchAt: new Date(10 * DAY).toISOString(),
+      dispatchCause: 'intake_enriched',
+      preDispatchCauses: { reconciler_requeue: 2 },
+    });
+  });
+
+  test('phase付き遷移が無い(旧データ)場合は null', () => {
+    const rows = [
+      row({ phase: null, createdAt: new Date(0) }),
+      row({ phase: null, createdAt: new Date(MIN) }),
+    ];
+    expect(computeQueueWaitDetail(rows)).toBeNull();
+  });
+
+  test('先頭行が即時ディスパッチ(待機なし)の場合は null', () => {
+    const rows = [
+      row({ cause: 'intake_enriched', phase: 'research', createdAt: new Date(0) }),
+      row({ toStatus: 'completed', phase: 'verify', createdAt: new Date(MIN) }),
+    ];
+    expect(computeQueueWaitDetail(rows)).toBeNull();
+  });
+
+  test('空入力・1件入力は null', () => {
+    expect(computeQueueWaitDetail([])).toBeNull();
+    expect(computeQueueWaitDetail([row()])).toBeNull();
+  });
+});
+
 describe('extractCriticReasons', () => {
   test('critic causeのmetadata.reasons配列を平坦化する', () => {
     const rows = [
@@ -325,6 +362,18 @@ describe('buildEvidenceBundle', () => {
     const bundle = buildEvidenceBundle(task516Rows(), { taskId: 516, title: 't516' });
     expect(bundle.queueWaitMs).toBe(10 * DAY);
     expect(bundle.phaseTimings.draft).toBe(7 * MIN);
+  });
+
+  test('task516相当のタイムラインでは queueWaitDetail に待機原因の事実が記録される', () => {
+    const bundle = buildEvidenceBundle(task516Rows(), { taskId: 516, title: 't516' });
+    expect(bundle.queueWaitDetail?.dispatchCause).toBe('intake_enriched');
+    expect(bundle.queueWaitDetail?.preDispatchCauses).toEqual({ reconciler_requeue: 2 });
+    expect(bundle.queueWaitDetail?.waitMs).toBe(10 * DAY);
+  });
+
+  test('待機が無いタイムラインでは queueWaitDetail は null', () => {
+    const bundle = buildEvidenceBundle([], { taskId: 1, title: 't' });
+    expect(bundle.queueWaitDetail).toBeNull();
   });
 
   test('第3引数なし(既存呼び出し)では experiment フィールドを持たない', () => {
