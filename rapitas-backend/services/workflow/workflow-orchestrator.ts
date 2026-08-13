@@ -637,6 +637,26 @@ export class WorkflowOrchestrator {
       // Addendum injection must never block the run.
     }
 
+    // Active-experiment intervention (hypothesis-driven self-experiment loop).
+    // Deliberately a SEPARATE path from the approved addendum above: the text
+    // is unapproved and under measurement, so it carries its own heading and
+    // never touches getApprovedRoleAddendum's status='approved' semantics.
+    // Best-effort.
+    try {
+      const { getActiveExperimentAddendum } =
+        await import('../self-learning/experiment-loop/experiment-store');
+      const experimentAddendum = await getActiveExperimentAddendum(transition.role);
+      if (experimentAddendum) {
+        context += `\n\n## 実験中の改善ガイダンス(未承認・効果測定中)\n\n${experimentAddendum}`;
+        log.info(
+          { taskId, role: transition.role },
+          '[experiment] Active-experiment addendum injected into role context',
+        );
+      }
+    } catch {
+      // Experiment injection must never block the run.
+    }
+
     // agentConfig is resolved above (role assignment or capability fallback).
     // Model resolution: role override → agent default → smart auto-select
     const roleModelId = (roleConfig as { modelId?: string | null } | null)?.modelId ?? null;

@@ -16,6 +16,7 @@ import { getAgentUsageBreakdown } from './usage-breakdown-query';
 import { getUsdJpyRate } from './currency-config';
 import { getCostOptimizationInsights } from './cost-optimization-query';
 import { getRepairConvergenceStats } from './repair-convergence-query';
+import { computeGrowthLedgerMetrics } from '../../../services/self-improvement/growth-ledger-metrics';
 import { readJudgeEvalResult } from '../../../services/observability/eval-judge-results';
 import type { DateRange } from './types';
 
@@ -241,6 +242,23 @@ export const agentMetricsRouter = new Elysia({ prefix: '/agent-metrics' })
     } catch (error) {
       log.error({ err: error }, 'Error computing repair convergence stats');
       return { error: 'Failed to compute repair convergence stats' };
+    }
+  })
+
+  /**
+   * Weekly self-growth ledger for the /agents/growth dashboard: autonomous
+   * completion rate, critic first-pass rate, repair efficiency, defect
+   * recurrence rate and KB validated ratio, bucketed into rolling windows.
+   */
+  .get('/growth-ledger', async ({ query }) => {
+    try {
+      const windowDays = Math.min(30, Math.max(1, parseInt(query.windowDays as string) || 7));
+      const windowCount = Math.min(26, Math.max(1, parseInt(query.windowCount as string) || 12));
+      const data = await computeGrowthLedgerMetrics({ windowDays, windowCount });
+      return { success: true, data };
+    } catch (error) {
+      log.error({ err: error }, 'Error computing growth ledger metrics');
+      return { error: 'Failed to compute growth ledger metrics' };
     }
   })
 

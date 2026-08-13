@@ -39,6 +39,16 @@ export interface CauseCounts {
   invariantCount: number;
 }
 
+/** Active self-experiment context shown to the retro AI (informational only). */
+export interface RetroExperimentInfo {
+  /** Workflow role under intervention. */
+  role: string;
+  /** Hypothesis-ledger entry the experiment tests. */
+  hypothesisId: number;
+  /** The hypothesis statement. */
+  statement: string;
+}
+
 /** The machine-readable process-evidence bundle for one completed task. */
 export interface EvidenceBundle extends CauseCounts {
   taskId: number;
@@ -49,6 +59,11 @@ export interface EvidenceBundle extends CauseCounts {
   criticReasons: string[];
   /** Total dwell time per workflow state (toStatus → ms); terminal state excluded. */
   phaseTimings: Record<string, number>;
+  /**
+   * Set while a self-experiment is running (task 562). Informational for the
+   * retro AI — MUST NOT enter isCleanRound, so experiments never force AI calls.
+   */
+  experiment?: RetroExperimentInfo;
 }
 
 /** Categories a retro finding may carry (fixed vocabulary, AI-validated). */
