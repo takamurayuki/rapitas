@@ -4,9 +4,11 @@
  * Handles detection and cleanup of executions whose owning process died:
  * a one-shot startup pass (server restart) plus a periodic lease sweep that
  * catches deaths the startup pass structurally cannot see — an in-process
- * worker restart leaves rows with createdAt AFTER serverStartedAt, which the
- * timestamp-origin comparison silently skips (the leak the 2026-08
- * architecture review identified). The sweep judges by heartbeat age alone.
+ * worker restart leaves rows whose heartbeat stays AFTER serverStartedAt,
+ * which the startup boundary comparison silently skips. The startup pass
+ * judges by heartbeatAt < serverStartedAt (createdAt fallback for pre-lease
+ * rows) and splits corrections: superseded rows become cancelled, resumable
+ * ones interrupted. The sweep judges by heartbeat age alone.
  * Not responsible for actually resuming execution — see execution-resume.ts.
  */
 
@@ -24,8 +26,10 @@ const LEASE_SWEEP_INTERVAL_MS = 60_000;
 let leaseSweepTimer: NodeJS.Timeout | null = null;
 
 /**
- * Marks stale running/pending executions as interrupted and updates related sessions and tasks.
- * Called once on server startup.
+ * Corrects stale running/pending/waiting_for_input executions on startup:
+ * rows with a newer successor execution become cancelled (terminal duplicate),
+ * the rest become interrupted (auto-resume candidates). Related sessions and
+ * tasks are rolled back accordingly. Called once on server startup.
  *
  * @param ctx - Orchestrator context with prisma client and server metadata / オーケストレーターコンテキスト
  * @returns Summary of what was updated / 更新サマリー
@@ -54,7 +58,16 @@ export async function recoverStaleExecutions(ctx: OrchestratorContext): Promise<
       where: {
         status: { in: ['running', 'pending', 'waiting_for_input'] },
         id: { notIn: activeExecutionIds },
-        createdAt: { lt: ctx.serverStartedAt },
+        // Judge death by heartbeat, not row age: a dead previous process can
+        // never beat after serverStartedAt, while a row STARTED after this
+        // boot always has a fresh heartbeat (startExecutionHeartbeat beats
+        // immediately) and must stay untouched. Pre-lease rows (heartbeatAt
+        // null, written before the column existed) fall back to createdAt —
+        // same shape as the lease sweep below.
+        OR: [
+          { heartbeatAt: { lt: ctx.serverStartedAt } },
+          { heartbeatAt: null, createdAt: { lt: ctx.serverStartedAt } },
+        ],
       },
       include: {
         session: {
@@ -76,12 +89,16 @@ export async function recoverStaleExecutions(ctx: OrchestratorContext): Promise<
       // Even with no stale EXECUTIONS, a task can still be left in a blocked/
       // verify-exhausted limbo from before this restart (e.g. its session was
       // never flipped off 'active' because it never had an execution row to
-      // begin with) — always run the broader reconciliation pass.
+      // begin with) — always run the broader reconciliation pass. Orphaned
+      // active sessions (all executions already terminal — the task-570 fake
+      // spinner) by definition have no stale execution row either, so this
+      // path must reconcile them too.
+      const orphanedSessions = await reconcileOrphanedActiveSessions(ctx);
       const blockedResult = await reconcileOrphanedBlockedSessions(ctx);
       return {
         recoveredExecutions: 0,
         updatedTasks: 0,
-        updatedSessions: 0,
+        updatedSessions: orphanedSessions,
         interruptedExecutionIds: [],
         reconciledBlockedSessions: blockedResult.reconciledSessionIds.length,
         prunedWorktreePointers: await pruneStaleWorktreePointers(
@@ -98,25 +115,53 @@ export async function recoverStaleExecutions(ctx: OrchestratorContext): Promise<
 
     for (const exec of staleExecutions) {
       try {
+        const taskId = exec.session?.config?.task?.id;
+
+        // Cancelled vs interrupted: a newer execution for the same task means
+        // the task already moved on — resuming this row would duplicate work.
+        // The status set matches auto-resume's supersession check exactly so
+        // the two never disagree about what counts as a successor. If taskId
+        // is unresolvable the successor is unknowable — fail safe to
+        // interrupted (resumable).
+        let hasSuccessor = false;
+        if (taskId) {
+          const successor = await ctx.prisma.agentExecution.findFirst({
+            where: {
+              id: { gt: exec.id },
+              status: { in: ['running', 'pending', 'waiting_for_input', 'completed'] },
+              session: { config: { taskId } },
+            },
+            select: { id: true },
+          });
+          hasSuccessor = !!successor;
+        }
+
         await ctx.prisma.agentExecution.update({
           where: { id: exec.id },
           data: {
-            status: 'interrupted',
+            status: hasSuccessor ? 'cancelled' : 'interrupted',
             completedAt: new Date(),
-            errorMessage: `サーバー再起動により中断されました。\n\n【最後の出力】\n${(exec.output || '').slice(-1000)}`,
+            errorMessage: hasSuccessor
+              ? `後継実行が存在するため、サーバー再起動時に取消されました。\n\n【最後の出力】\n${(exec.output || '').slice(-1000)}`
+              : `サーバー再起動により中断されました。\n\n【最後の出力】\n${(exec.output || '').slice(-1000)}`,
           },
         });
         recoveredExecutions++;
-        interruptedExecutionIds.push(exec.id);
+        // Cancelled rows are terminal duplicates — they must NOT enter the
+        // auto-resume pipeline that consumes this list.
+        if (!hasSuccessor) {
+          interruptedExecutionIds.push(exec.id);
+        }
 
         affectedSessionIds.add(exec.sessionId);
 
-        const taskId = exec.session?.config?.task?.id;
         if (taskId) {
           affectedTaskIds.add(taskId);
         }
 
-        logger.info(`[RecoveryManager] Execution ${exec.id} marked as interrupted`);
+        logger.info(
+          `[RecoveryManager] Execution ${exec.id} marked as ${hasSuccessor ? 'cancelled (successor exists)' : 'interrupted'}`,
+        );
       } catch (error) {
         logger.error(
           { err: error, executionId: exec.id },
@@ -130,6 +175,11 @@ export async function recoverStaleExecutions(ctx: OrchestratorContext): Promise<
     // a failed update) is intentionally skipped inside updateAffectedSessions,
     // so counting the input set overstated this in the returned summary.
     updatedSessions = await updateAffectedSessions(ctx, affectedSessionIds);
+
+    // Orphaned active/running sessions whose executions are ALL terminal never
+    // appear in the execution-keyed scan above (they have no stale execution
+    // row) — the task-570 fake-spinner shape. Finalize them independently.
+    updatedSessions += await reconcileOrphanedActiveSessions(ctx);
 
     const tasksUpdated = await updateAffectedTasks(ctx, affectedTaskIds);
     updatedTasks = tasksUpdated;
@@ -315,6 +365,53 @@ async function updateAffectedSessions(
     } catch (error) {
       logger.error({ err: error, sessionId }, `[RecoveryManager] Failed to update session`);
     }
+  }
+  return updated;
+}
+
+/**
+ * Marks orphaned active/running sessions as interrupted when every one of
+ * their executions is already terminal (no running/pending/waiting_for_input
+ * row left). These sessions are invisible to the execution-keyed startup scan
+ * and previously lingered forever as fake "active" state.
+ *
+ * @param ctx - Orchestrator context / オーケストレーターコンテキスト
+ * @returns Number of sessions marked interrupted / 中断済みにしたセッション数
+ */
+async function reconcileOrphanedActiveSessions(ctx: OrchestratorContext): Promise<number> {
+  let updated = 0;
+  try {
+    const candidates = await ctx.prisma.agentSession.findMany({
+      where: { status: { in: ['active', 'running'] } },
+      select: { id: true },
+    });
+    for (const session of candidates) {
+      try {
+        const liveCount = await ctx.prisma.agentExecution.count({
+          where: {
+            sessionId: session.id,
+            status: { in: ['running', 'pending', 'waiting_for_input'] },
+          },
+        });
+        if (liveCount === 0) {
+          await ctx.prisma.agentSession.update({
+            where: { id: session.id },
+            data: { status: 'interrupted', lastActivityAt: new Date() },
+          });
+          updated++;
+          logger.info(
+            `[RecoveryManager] Orphaned session ${session.id} (no live executions) marked as interrupted`,
+          );
+        }
+      } catch (error) {
+        logger.error(
+          { err: error, sessionId: session.id },
+          '[RecoveryManager] Failed to reconcile orphaned session',
+        );
+      }
+    }
+  } catch (error) {
+    logger.error({ err: error }, '[RecoveryManager] Orphaned session scan failed');
   }
   return updated;
 }

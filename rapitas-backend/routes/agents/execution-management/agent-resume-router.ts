@@ -15,6 +15,7 @@ import { toJsonString } from '../../../utils/database/db-helpers';
 // through the same single-task path as the parent — they're picked up
 // by the regular workflow advance loop in workflow-orchestrator.
 import { handleResumeCompletion } from '../../../services/agents/orchestrator/resume-completion';
+import { selectExecutingRows } from './executing-tasks-filter';
 
 const log = createLogger('routes:agent-resume');
 
@@ -211,7 +212,22 @@ export const agentResumeRouter = new Elysia()
   // Get all currently executing tasks (for real-time panel display)
   .get('/tasks/executing', async () => {
     try {
-      const executingTasks = await prisma.agentExecution.findMany({
+      // Row shape of the findMany select below, spelled out so the filter's
+      // generic keeps the full shape even where the generated Prisma client
+      // types are unavailable (worktree checkouts resolve them to `any`).
+      type ExecutingCandidateRow = {
+        id: number;
+        status: string;
+        startedAt: Date | null;
+        heartbeatAt: Date | null;
+        session: {
+          id: number;
+          status: string;
+          createdAt: Date;
+          config: { taskId: number };
+        };
+      };
+      const candidateRows: ExecutingCandidateRow[] = await prisma.agentExecution.findMany({
         where: {
           status: { in: ['running', 'waiting_for_input'] },
         },
@@ -219,9 +235,11 @@ export const agentResumeRouter = new Elysia()
           id: true,
           status: true,
           startedAt: true,
+          heartbeatAt: true,
           session: {
             select: {
               id: true,
+              status: true,
               createdAt: true,
               config: { select: { taskId: true } },
             },
@@ -229,6 +247,10 @@ export const agentResumeRouter = new Elysia()
         },
         orderBy: { startedAt: 'desc' },
       });
+
+      // Display honesty: a dead process leaves running rows behind until the
+      // reconciler/lease sweep corrects them — never show those as executing.
+      const executingTasks = selectExecutingRows(candidateRows, new Date());
 
       // Resolve parentId so the UI can show a running spinner on the PARENT card
       // while one of its subtasks is the one actually executing (sequential

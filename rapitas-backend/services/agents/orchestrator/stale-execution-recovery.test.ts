@@ -53,10 +53,12 @@ import type { OrchestratorContext } from './types';
 type MockPrisma = {
   agentExecution: {
     findMany: ReturnType<typeof mock>;
+    findFirst: ReturnType<typeof mock>;
     update: ReturnType<typeof mock>;
     count: ReturnType<typeof mock>;
   };
   agentSession: {
+    findMany: ReturnType<typeof mock>;
     update: ReturnType<typeof mock>;
   };
   task: {
@@ -85,13 +87,17 @@ function makeStaleExecution(overrides: Record<string, unknown> = {}) {
 
 /** デフォルトで空配列・成功応答を返す最小 Prisma スタブを生成する。 */
 function makeMockPrisma(overrides: Partial<MockPrisma> = {}): MockPrisma {
-  return {
+  // NOTE: モデル単位で deep-merge する — 呼び出し側が一部メソッドだけ
+  // 差し替えても、残り（findFirst 等）はデフォルト実装が生きる。
+  const base: MockPrisma = {
     agentExecution: {
       findMany: mock(async () => []),
+      findFirst: mock(async () => null),
       update: mock(async () => ({})),
       count: mock(async () => 0),
     },
     agentSession: {
+      findMany: mock(async () => []),
       update: mock(async () => ({})),
     },
     task: {
@@ -101,7 +107,12 @@ function makeMockPrisma(overrides: Partial<MockPrisma> = {}): MockPrisma {
     notification: {
       create: mock(async () => ({})),
     },
-    ...overrides,
+  } as MockPrisma;
+  return {
+    agentExecution: { ...base.agentExecution, ...overrides.agentExecution },
+    agentSession: { ...base.agentSession, ...overrides.agentSession },
+    task: { ...base.task, ...overrides.task },
+    notification: { ...base.notification, ...overrides.notification },
   } as MockPrisma;
 }
 
@@ -182,10 +193,26 @@ describe('recoverStaleExecutions() — stale なし', () => {
     await recoverStaleExecutions(ctx);
 
     const queryArg = prisma.agentExecution.findMany.mock.calls[0][0] as {
-      where: { id: { notIn: number[] }; createdAt: { lt: Date } };
+      where: { id: { notIn: number[] } };
     };
     expect(queryArg.where.id.notIn).toEqual([999]);
-    expect(queryArg.where.createdAt.lt).toBe(ctx.serverStartedAt);
+  });
+
+  test('起動時判定は heartbeat 基準 + null フォールバックで、起動後開始の行はどちらの条件にも該当しない', async () => {
+    const prisma = makeMockPrisma();
+    const ctx = makeCtx(prisma);
+
+    await recoverStaleExecutions(ctx);
+
+    const queryArg = prisma.agentExecution.findMany.mock.calls[0][0] as {
+      where: { OR: Array<Record<string, unknown>> };
+    };
+    // heartbeatAt >= serverStartedAt の行（起動後に生きたプロセスが beat した行）は
+    // 両 OR 条件に不該当 = 是正対象外であることを where 形で固定する
+    expect(queryArg.where.OR).toEqual([
+      { heartbeatAt: { lt: ctx.serverStartedAt } },
+      { heartbeatAt: null, createdAt: { lt: ctx.serverStartedAt } },
+    ]);
   });
 });
 
@@ -352,6 +379,185 @@ describe('recoverStaleExecutions() — stale 実行あり', () => {
     await recoverStaleExecutions(ctx);
 
     expect(pruneStaleWorktreePointersMock).toHaveBeenCalledWith(ctx, new Set([800, 900]));
+  });
+});
+
+describe('recoverStaleExecutions() — 後継実行による cancelled/interrupted 分岐', () => {
+  test('後継実行があれば cancelled 化され、auto-resume 対象リストに入らない', async () => {
+    const exec = makeStaleExecution({ id: 20, sessionId: 2000 });
+    const prisma = makeMockPrisma({
+      agentExecution: {
+        findMany: mock(async () => [exec]),
+        findFirst: mock(async () => ({ id: 21 })),
+        update: mock(async () => ({})),
+        count: mock(async () => 0),
+      },
+    });
+    const ctx = makeCtx(prisma);
+
+    const result = await recoverStaleExecutions(ctx);
+
+    expect(result.recoveredExecutions).toBe(1);
+    expect(result.interruptedExecutionIds).toEqual([]);
+    expect(prisma.agentExecution.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: 20 },
+        data: expect.objectContaining({ status: 'cancelled' }),
+      }),
+    );
+  });
+
+  test('後継判定クエリは auto-resume と同一の status 集合・同一タスクスコープで問い合わせる', async () => {
+    const exec = makeStaleExecution({ id: 20, sessionId: 2000 });
+    const prisma = makeMockPrisma({
+      agentExecution: {
+        findMany: mock(async () => [exec]),
+        findFirst: mock(async () => ({ id: 21 })),
+        update: mock(async () => ({})),
+        count: mock(async () => 0),
+      },
+    });
+    const ctx = makeCtx(prisma);
+
+    await recoverStaleExecutions(ctx);
+
+    // NOTE: 'completed' を含む集合は auto-resume.ts の後継判定と完全一致させる —
+    // ずれると A と auto-resume が後継の解釈で矛盾する
+    expect(prisma.agentExecution.findFirst).toHaveBeenCalledWith({
+      where: {
+        id: { gt: 20 },
+        status: { in: ['running', 'pending', 'waiting_for_input', 'completed'] },
+        session: { config: { taskId: 1000 } },
+      },
+      select: { id: true },
+    });
+  });
+
+  test('後継が無ければ従来どおり interrupted 化され auto-resume 対象リストに入る', async () => {
+    const exec = makeStaleExecution({ id: 22, sessionId: 2200 });
+    const prisma = makeMockPrisma({
+      agentExecution: {
+        findMany: mock(async () => [exec]),
+        findFirst: mock(async () => null),
+        update: mock(async () => ({})),
+        count: mock(async () => 0),
+      },
+    });
+    const ctx = makeCtx(prisma);
+
+    const result = await recoverStaleExecutions(ctx);
+
+    expect(result.interruptedExecutionIds).toEqual([22]);
+    expect(prisma.agentExecution.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: 22 },
+        data: expect.objectContaining({ status: 'interrupted' }),
+      }),
+    );
+  });
+
+  test('taskId が取得できない場合は後継判定せず安全側で interrupted 化する', async () => {
+    const exec = makeStaleExecution({
+      id: 23,
+      sessionId: 2300,
+      session: { config: { task: null } },
+    });
+    const prisma = makeMockPrisma({
+      agentExecution: {
+        findMany: mock(async () => [exec]),
+        findFirst: mock(async () => ({ id: 99 })),
+        update: mock(async () => ({})),
+        count: mock(async () => 0),
+      },
+    });
+    const ctx = makeCtx(prisma);
+
+    const result = await recoverStaleExecutions(ctx);
+
+    expect(prisma.agentExecution.findFirst).not.toHaveBeenCalled();
+    expect(result.interruptedExecutionIds).toEqual([23]);
+    expect(prisma.agentExecution.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: 23 },
+        data: expect.objectContaining({ status: 'interrupted' }),
+      }),
+    );
+  });
+});
+
+describe('recoverStaleExecutions() — 孤児セッションの終端整合', () => {
+  test('stale 実行0件の経路でも live 実行を持たない active セッションは interrupted 化される', async () => {
+    // 570事例: stale な実行行が無いのにセッションだけ active のまま残るケース
+    const prisma = makeMockPrisma({
+      agentSession: {
+        findMany: mock(async () => [{ id: 42 }]),
+        update: mock(async () => ({})),
+      },
+    });
+    const ctx = makeCtx(prisma);
+
+    const result = await recoverStaleExecutions(ctx);
+
+    expect(prisma.agentSession.findMany).toHaveBeenCalledWith({
+      where: { status: { in: ['active', 'running'] } },
+      select: { id: true },
+    });
+    expect(prisma.agentSession.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: 42 },
+        data: expect.objectContaining({ status: 'interrupted' }),
+      }),
+    );
+    expect(result.updatedSessions).toBe(1);
+  });
+
+  test('live 実行が残る active セッションは是正しない', async () => {
+    const prisma = makeMockPrisma({
+      agentExecution: {
+        findMany: mock(async () => []),
+        findFirst: mock(async () => null),
+        update: mock(async () => ({})),
+        count: mock(async () => 1), // NOTE: セッション配下にまだ稼働中の実行がある
+      },
+      agentSession: {
+        findMany: mock(async () => [{ id: 43 }]),
+        update: mock(async () => ({})),
+      },
+    });
+    const ctx = makeCtx(prisma);
+
+    const result = await recoverStaleExecutions(ctx);
+
+    expect(prisma.agentSession.update).not.toHaveBeenCalled();
+    expect(result.updatedSessions).toBe(0);
+  });
+
+  test('stale 実行ありの経路でも孤児セッション是正が実行され updatedSessions に合算される', async () => {
+    const exec = makeStaleExecution({ id: 24, sessionId: 600 });
+    const prisma = makeMockPrisma({
+      agentExecution: {
+        findMany: mock(async () => [exec]),
+        findFirst: mock(async () => null),
+        update: mock(async () => ({})),
+        count: mock(async () => 0),
+      },
+      agentSession: {
+        findMany: mock(async () => [{ id: 42 }]),
+        update: mock(async () => ({})),
+      },
+    });
+    const ctx = makeCtx(prisma);
+
+    const result = await recoverStaleExecutions(ctx);
+
+    // 本流の session 巻き戻し(600) + 孤児是正(42) の合算
+    expect(result.updatedSessions).toBe(2);
+    expect(prisma.agentSession.update).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: 600 } }),
+    );
+    expect(prisma.agentSession.update).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: 42 } }),
+    );
   });
 });
 
