@@ -60,6 +60,12 @@ export interface EvidenceBundle extends CauseCounts {
   /** Total dwell time per workflow state (toStatus → ms); terminal state excluded. */
   phaseTimings: Record<string, number>;
   /**
+   * Pre-dispatch queue wait ms: dwell before the first phase-bearing
+   * transition (auto-run stopped / server down). Excluded from phaseTimings so
+   * non-running periods cannot masquerade as phase_wallclock anomalies (task 567).
+   */
+  queueWaitMs: number;
+  /**
    * Set while a self-experiment is running (task 562). Informational for the
    * retro AI — MUST NOT enter isCleanRound, so experiments never force AI calls.
    */

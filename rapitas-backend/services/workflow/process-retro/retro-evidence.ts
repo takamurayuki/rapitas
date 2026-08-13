@@ -85,28 +85,70 @@ export function countCauses(rows: RetroTransitionRow[]): CauseCounts {
   return counts;
 }
 
+function sortRows(rows: RetroTransitionRow[]): RetroTransitionRow[] {
+  return [...rows].sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime() || a.id - b.id);
+}
+
+/**
+ * Index of the first dispatch transition: the earliest row carrying a non-null
+ * `phase`. Transitions recorded before any execution phase (task creation,
+ * reconciler_requeue) have phase=null; the first phase-bearing row (e.g.
+ * intake_enriched with phase:'research', intake-gate.ts) marks the moment the
+ * workflow actually started executing. Returns -1 when no row has a phase.
+ */
+function firstDispatchIndex(sorted: RetroTransitionRow[]): number {
+  return sorted.findIndex((r) => r.phase !== null);
+}
+
 /**
  * Compute total dwell time per workflow state from a transition list. Rows are
  * sorted by createdAt (id as tie-breaker — auto-advance chains share a
  * millisecond); each adjacent gap is attributed to the state the task was IN
  * during it (`rows[i].toStatus`), negative gaps clamp to 0, same-named states
  * accumulate, and the terminal state (no closing transition) is excluded.
+ * Gaps BEFORE the first dispatch transition (see firstDispatchIndex) are
+ * excluded — they are pre-dispatch queue wait (auto-run stopped, server down),
+ * not execution time; computeQueueWaitMs accounts for them separately.
  * Pure — no dependence on wall time.
  *
  * @param rows - Transition rows (any order). / 遷移行(順不同可)
  * @returns Dwell ms per state. / 状態別滞在時間(ms)
  */
 export function computePhaseTimings(rows: RetroTransitionRow[]): Record<string, number> {
-  const sorted = [...rows].sort(
-    (a, b) => a.createdAt.getTime() - b.createdAt.getTime() || a.id - b.id,
-  );
+  const sorted = sortRows(rows);
+  const dispatchIdx = firstDispatchIndex(sorted);
   const timings: Record<string, number> = {};
   for (let i = 0; i < sorted.length - 1; i++) {
+    // NOTE: dispatchIdx === -1 (no phase-bearing row) keeps legacy behavior —
+    // every gap is attributed, because no dispatch boundary can be identified.
+    if (dispatchIdx !== -1 && i < dispatchIdx) continue;
     const gap = Math.max(0, sorted[i + 1].createdAt.getTime() - sorted[i].createdAt.getTime());
     const state = sorted[i].toStatus;
     timings[state] = (timings[state] ?? 0) + gap;
   }
   return timings;
+}
+
+/**
+ * Total pre-dispatch queue wait: the sum of adjacent gaps strictly before the
+ * first dispatch transition (firstDispatchIndex). This is the time a task sat
+ * enqueued while nothing executed it — auto-run disabled by the user, server
+ * downtime, reconciler requeues — and must NOT be read as a phase duration
+ * (task 567: 10 days of auto-run downtime were misfiled as draft dwell and
+ * spawned a false-positive urgent phase_wallclock concern). Pure.
+ *
+ * @param rows - Transition rows (any order). / 遷移行(順不同可)
+ * @returns Pre-dispatch wait ms (0 when dispatch is first or absent). / 初回ディスパッチ前の待機(ms)
+ */
+export function computeQueueWaitMs(rows: RetroTransitionRow[]): number {
+  const sorted = sortRows(rows);
+  const dispatchIdx = firstDispatchIndex(sorted);
+  if (dispatchIdx <= 0) return 0;
+  let wait = 0;
+  for (let i = 0; i < dispatchIdx; i++) {
+    wait += Math.max(0, sorted[i + 1].createdAt.getTime() - sorted[i].createdAt.getTime());
+  }
+  return wait;
 }
 
 /**
@@ -180,6 +222,7 @@ export function buildEvidenceBundle(
     ...countCauses(rows),
     criticReasons: extractCriticReasons(rows),
     phaseTimings: computePhaseTimings(rows),
+    queueWaitMs: computeQueueWaitMs(rows),
     ...(experiment ? { experiment } : {}),
   };
 }

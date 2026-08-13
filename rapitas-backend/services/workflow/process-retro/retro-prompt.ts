@@ -19,6 +19,10 @@ export const RETRO_SYSTEM_PROMPT = `あなたはソフトウェア開発プロ�
 - 判定基準: 同一causeの反復(2回以上)・批評差し戻しの反復・フェーズ所要時間の
  極端な偏り(過短/過長)・異常causeの存在は systemic=true を示唆する。1タスク限りの
  偶発は systemic=false とする。
+- キュー待機(初回ディスパッチ前の滞在)は auto-run停止・サーバー停止などの非稼働
+ 期間を含む待機時間であり、実行系の遅延ではない。phase_wallclock 異常の根拠に
+ しないこと。フェーズ所要時間の判定は「フェーズ別所要時間」に示された実行中の
+ 滞在のみで行う。
 - 該当が無ければ findings を空配列にすること。無理に起票しない。
 
 出力は次のJSONのみ(前置き・コードフェンス不要):
@@ -65,6 +69,17 @@ export function formatEvidenceSummary(bundle: EvidenceBundle): string {
       ? phaseEntries.map(([state, ms]) => `- ${state}: ${(ms / 60_000).toFixed(1)}分`)
       : ['- (所要時間データなし)'];
 
+  // Rendered only when non-zero so zero-wait summaries (the common case, and
+  // all previously-filed concern details) keep their existing shape.
+  const queueWaitLines =
+    bundle.queueWaitMs > 0
+      ? [
+          '',
+          '## キュー待機(初回ディスパッチ前)',
+          `- ${(bundle.queueWaitMs / 60_000).toFixed(1)}分 — auto-run停止・サーバー停止等の非稼働期間を含む待機。フェーズ別所要時間からは除外済みで、phase_wallclock 異常の根拠にしないこと。`,
+        ]
+      : [];
+
   // Informational: an intervention is under measurement, so the retro AI must
   // not attribute its (positive or negative) effect to systemic process change.
   const experimentLines = bundle.experiment
@@ -94,6 +109,7 @@ export function formatEvidenceSummary(bundle: EvidenceBundle): string {
     '',
     '## フェーズ別所要時間(状態滞在時間)',
     ...phaseLines,
+    ...queueWaitLines,
     '',
     '## 遷移タイムライン(全件)',
     ...timelineLines,

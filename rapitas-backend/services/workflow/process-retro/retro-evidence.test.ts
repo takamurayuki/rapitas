@@ -24,6 +24,7 @@ mock.module('../../../config/database', () => ({
 const {
   countCauses,
   computePhaseTimings,
+  computeQueueWaitMs,
   extractCriticReasons,
   isCleanRound,
   buildEvidenceBundle,
@@ -130,6 +131,113 @@ describe('computePhaseTimings', () => {
   });
 });
 
+// task#516 実データ相当: reconciler_requeue×2 の後、auto-run 非稼働の10日間を経て
+// intake_enriched(初回の phase 付き遷移)で起動したタイムライン。
+const DAY = 86_400_000;
+const MIN = 60_000;
+const task516Rows = (): RetroTransitionRow[] => [
+  row({ toStatus: 'draft', cause: 'reconciler_requeue', phase: null, createdAt: new Date(0) }),
+  row({
+    toStatus: 'draft',
+    cause: 'reconciler_requeue',
+    phase: null,
+    createdAt: new Date(2 * DAY),
+  }),
+  row({
+    toStatus: 'draft',
+    cause: 'intake_enriched',
+    phase: 'research',
+    createdAt: new Date(10 * DAY),
+  }),
+  row({
+    toStatus: 'research_done',
+    cause: 'phase_completed:researcher',
+    phase: 'research',
+    createdAt: new Date(10 * DAY + 7 * MIN),
+  }),
+  row({
+    toStatus: 'in_progress',
+    cause: 'phase_completed:implementer',
+    phase: 'implementer',
+    createdAt: new Date(10 * DAY + 17 * MIN),
+  }),
+  row({
+    toStatus: 'completed',
+    cause: 'verify_passed',
+    phase: 'verify',
+    createdAt: new Date(10 * DAY + 20 * MIN),
+  }),
+];
+
+describe('キュー待機の分離(初回ディスパッチ前)', () => {
+  test('task516再現: 初回ディスパッチ前の10日間は待機に分離され、全実行フェーズは120分未満', () => {
+    const timings = computePhaseTimings(task516Rows());
+    // draft 滞在は intake_enriched→research_done の実行時間(7分)のみに縮む。
+    expect(timings.draft).toBe(7 * MIN);
+    expect(timings.research_done).toBe(10 * MIN);
+    expect(timings.in_progress).toBe(3 * MIN);
+    for (const ms of Object.values(timings)) {
+      expect(ms).toBeLessThan(120 * MIN);
+    }
+    expect(computeQueueWaitMs(task516Rows())).toBe(10 * DAY);
+  });
+
+  test('phase付き遷移が存在しない場合は分離せず従来どおり全ギャップを帰属する', () => {
+    const rows = [
+      row({ toStatus: 'draft', phase: null, createdAt: new Date(0) }),
+      row({ toStatus: 'research_done', phase: null, createdAt: new Date(2 * DAY) }),
+      row({ toStatus: 'completed', phase: null, createdAt: new Date(2 * DAY + 5 * MIN) }),
+    ];
+    expect(computePhaseTimings(rows)).toEqual({ draft: 2 * DAY, research_done: 5 * MIN });
+    expect(computeQueueWaitMs(rows)).toBe(0);
+  });
+
+  test('先頭行からphase付き(即時ディスパッチ)なら待機は0', () => {
+    const rows = [
+      row({
+        toStatus: 'draft',
+        cause: 'intake_enriched',
+        phase: 'research',
+        createdAt: new Date(0),
+      }),
+      row({ toStatus: 'research_done', phase: 'research', createdAt: new Date(30 * MIN) }),
+      row({ toStatus: 'completed', phase: 'verify', createdAt: new Date(40 * MIN) }),
+    ];
+    expect(computeQueueWaitMs(rows)).toBe(0);
+    expect(computePhaseTimings(rows)).toEqual({ draft: 30 * MIN, research_done: 10 * MIN });
+  });
+
+  test('ディスパッチ後のdraft戻り(blocked_auto_retry)はdraft滞在として残る', () => {
+    const rows = [
+      row({
+        toStatus: 'draft',
+        cause: 'intake_enriched',
+        phase: 'research',
+        createdAt: new Date(0),
+      }),
+      row({ toStatus: 'in_progress', phase: 'implementer', createdAt: new Date(10 * MIN) }),
+      row({
+        toStatus: 'draft',
+        cause: 'blocked_auto_retry',
+        phase: null,
+        createdAt: new Date(15 * MIN),
+      }),
+      row({ toStatus: 'completed', phase: 'verify', createdAt: new Date(55 * MIN) }),
+    ];
+    // 中盤の draft 40分は実行中の再キュー待ちであり、待機ではなくdraft滞在に帰属する。
+    expect(computeQueueWaitMs(rows)).toBe(0);
+    expect(computePhaseTimings(rows)).toEqual({
+      draft: 10 * MIN + 40 * MIN,
+      in_progress: 5 * MIN,
+    });
+  });
+
+  test('空入力・1件入力は待機0', () => {
+    expect(computeQueueWaitMs([])).toBe(0);
+    expect(computeQueueWaitMs([row()])).toBe(0);
+  });
+});
+
 describe('extractCriticReasons', () => {
   test('critic causeのmetadata.reasons配列を平坦化する', () => {
     const rows = [
@@ -209,6 +317,14 @@ describe('buildEvidenceBundle', () => {
     expect(bundle.invariantCount).toBe(1);
     expect(bundle.criticReasons).toEqual(['出典なし']);
     expect(bundle.phaseTimings).toEqual({ research_done: 60_000, plan_created: 60_000 });
+    // phase 付き遷移が無いデータでは待機は分離されない。
+    expect(bundle.queueWaitMs).toBe(0);
+  });
+
+  test('task516相当のタイムラインでは queueWaitMs に待機が集計される', () => {
+    const bundle = buildEvidenceBundle(task516Rows(), { taskId: 516, title: 't516' });
+    expect(bundle.queueWaitMs).toBe(10 * DAY);
+    expect(bundle.phaseTimings.draft).toBe(7 * MIN);
   });
 
   test('第3引数なし(既存呼び出し)では experiment フィールドを持たない', () => {
