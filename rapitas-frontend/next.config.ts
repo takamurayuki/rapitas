@@ -5,6 +5,9 @@ const isTauriBuild = process.env.TAURI_BUILD === 'true';
 const disableTurbopack = process.env.NEXT_TURBO === '0';
 const isCI = process.env.CI === 'true';
 
+// NOTE: この config に webpack キー(splitChunks 等)を追加しないこと。Next 16 の Turbopack ビルドは
+// 「webpack 設定あり・turbopack 設定なし」を validateTurboNextConfig が検出すると process.exit(1) で
+// 強制失敗する(task #553 で実測)。バンドル予算は scripts/check-bundle-size.cjs の eager 限定判定で担保する。
 const nextConfig: NextConfig = {
   // ビルド出力ディレクトリを環境で分離
   // CI環境では標準の.nextを使用（静的エクスポートは常にoutディレクトリに出力される）
