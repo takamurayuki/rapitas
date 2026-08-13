@@ -65,7 +65,20 @@ export function formatEvidenceSummary(bundle: EvidenceBundle): string {
       ? phaseEntries.map(([state, ms]) => `- ${state}: ${(ms / 60_000).toFixed(1)}分`)
       : ['- (所要時間データなし)'];
 
+  // Informational: an intervention is under measurement, so the retro AI must
+  // not attribute its (positive or negative) effect to systemic process change.
+  const experimentLines = bundle.experiment
+    ? [
+        '## 実験中(効果測定対象)',
+        `- 対象ロール: ${bundle.experiment.role} のプロンプトに検証中の介入が注入されています (仮説#${bundle.experiment.hypothesisId})`,
+        `- 仮説: ${bundle.experiment.statement}`,
+        '- このタスクの摩擦/改善は実験介入の影響を受けている可能性があるため、systemic 判定は慎重に行うこと。',
+        '',
+      ]
+    : [];
+
   return [
+    ...experimentLines,
     `## 対象タスク`,
     `- ID: ${bundle.taskId} / タイトル: ${bundle.title || '(不明)'}`,
     '',

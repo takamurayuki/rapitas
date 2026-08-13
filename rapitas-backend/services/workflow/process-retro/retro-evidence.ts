@@ -10,7 +10,12 @@
  */
 import { prisma } from '../../../config/database';
 import { createLogger } from '../../../config/logger';
-import type { CauseCounts, EvidenceBundle, RetroTransitionRow } from './retro-types';
+import type {
+  CauseCounts,
+  EvidenceBundle,
+  RetroExperimentInfo,
+  RetroTransitionRow,
+} from './retro-types';
 
 const log = createLogger('workflow:process-retro');
 
@@ -156,11 +161,14 @@ export function isCleanRound(bundle: EvidenceBundle): boolean {
  *
  * @param rows - Transition rows (any order). / 遷移行(順不同可)
  * @param taskMeta - Task id and title. / タスクIDとタイトル
+ * @param experiment - Active self-experiment info, when one is running (optional
+ *   — existing 2-arg callers stay valid). / 実験中情報(任意)
  * @returns The evidence bundle. / 証拠バンドル
  */
 export function buildEvidenceBundle(
   rows: RetroTransitionRow[],
   taskMeta: { taskId: number; title: string },
+  experiment?: RetroExperimentInfo,
 ): EvidenceBundle {
   const timeline = [...rows].sort(
     (a, b) => a.createdAt.getTime() - b.createdAt.getTime() || a.id - b.id,
@@ -172,6 +180,7 @@ export function buildEvidenceBundle(
     ...countCauses(rows),
     criticReasons: extractCriticReasons(rows),
     phaseTimings: computePhaseTimings(rows),
+    ...(experiment ? { experiment } : {}),
   };
 }
 

@@ -22,6 +22,7 @@ export type NotificationType =
   | 'memo_reminder'
   | 'contradiction_detected'
   | 'consolidation_completed'
+  | 'daily_report'
   | 'system';
 
 interface CreateNotificationParams {

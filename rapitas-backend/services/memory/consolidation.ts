@@ -50,7 +50,11 @@ export async function runConsolidation(): Promise<{
       where: {
         createdAt: { gte: since },
         forgettingStage: 'active',
-        sourceType: { notIn: ['consolidated', 'hypothesis'] },
+        // NOTE: 'playbook' is excluded for semantic separation, not tags shape
+        // (its tags stay a plain string[]): a procedure doc summarised together
+        // with unrelated task_pattern entries loses exactly what makes it a
+        // playbook — the concrete file list and step ordering.
+        sourceType: { notIn: ['consolidated', 'hypothesis', 'playbook'] },
       },
       orderBy: { createdAt: 'asc' },
     });

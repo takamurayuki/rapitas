@@ -270,7 +270,9 @@
     "knowledgeBrowser": "知識ブラウザ",
     "contradictions": "矛盾管理",
     "memoryVisualization": "記憶の成長",
+    "growthLedger": "成長台帳",
     "memoryAdmin": "メモリ管理",
+    "growthReport": "デイリーレポート",
     "settings": "設定",
     "generalSettings": "アプリ設定",
     "apiKeySettings": "APIキー設定",
@@ -1729,6 +1731,22 @@
     "step3Description": "計画を承認し実装、検証後にタスクを完了",
     "metricsTitle": "エージェント使用量",
     "metricsDescription": "各エージェント（Claude Code / Codex / Gemini）の使用量とコストを実測データで表示",
+    "growthTitle": "自律活動デイリーレポート",
+    "growthDescription": "夜間にやったこと・学んだこと・決めたことと理由を、毎朝1通に統合した日次アーカイブ",
+    "growthEmpty": "レポートはまだありません。毎朝7:00（バックログ設定で変更可）に自動生成されます。",
+    "growthSelectPrompt": "左の一覧から日付を選択してください",
+    "growthLoadFailed": "デイリーレポートの取得に失敗しました",
+    "growthReportHeading": "デイリーレポート {date}",
+    "growthAiBadge": "AI整形",
+    "growthPlainBadge": "素の集計",
+    "growthSatiatedBadge": "飽和静止",
+    "growthSatiatedReasonTitle": "静止していた理由",
+    "growthCount_completed": "完了タスク",
+    "growthCount_mergedPrs": "マージPR",
+    "growthCount_concerns": "懸念",
+    "growthCount_decisions": "意思決定",
+    "growthCount_restarts": "再起動",
+    "growthCount_interventions": "人間介入",
     "dataExport": "データエクスポート",
     "metricsFetchFailed": "メトリクスデータの取得に失敗しました",
     "filterSettings": "フィルター設定",
@@ -1926,6 +1944,35 @@
         "advanced": "アドバンスド",
         "intermediate": "中級",
         "beginner": "ビギナー"
+      }
+    },
+    "growth": {
+      "pageTitle": "自己成長台帳",
+      "pageSubtitle": "ワークフロー遷移と懸念履歴から見る、時間とともに賢くなっている週次の証拠",
+      "emptyTitle": "成長台帳データがまだありません",
+      "emptyHint": "タスクが完了し懸念が記録されると、ここに週次系列が表示されます",
+      "emptyChart": "この期間のデータはまだありません",
+      "noData": "データなし",
+      "autonomy": {
+        "title": "自律完遂率",
+        "seriesLabel": "自律完遂率"
+      },
+      "criticFirstPass": {
+        "title": "批評一発通過率",
+        "researchLabel": "研究の一発通過",
+        "planLabel": "計画の一発通過"
+      },
+      "repairEfficiency": {
+        "title": "修復効率",
+        "seriesLabel": "完了タスクあたりの修復回数"
+      },
+      "defectRecurrence": {
+        "title": "欠陥再発率",
+        "seriesLabel": "再発率"
+      },
+      "kbQuality": {
+        "title": "知識の質",
+        "seriesLabel": "検証済み比率"
       }
     }
   },
@@ -4728,6 +4775,10 @@
         "ci_watch": {
           "label": "CI 監視（本線）",
           "desc": "各プロジェクトの本線ブランチの最新 CI 実行を確認し、失敗しているワークフローを失敗ジョブ・ステップ名つきで懸念バックログに自動起票します（PR の CI 修復ループとは別に、本線の赤を放置しないための番人です）。"
+        },
+        "daily_report": {
+          "label": "デイリーレポート",
+          "desc": "直近24時間の自律活動（完了タスク・マージPR・懸念・学び・意思決定・自己再起動・人間介入・次のキュー）を毎朝1通の通知に統合し、/agents/daily-report にアーカイブします。"
         }
       },
       "frequency": {
