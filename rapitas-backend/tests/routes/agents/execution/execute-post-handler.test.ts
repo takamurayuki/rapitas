@@ -30,19 +30,19 @@ mock.module('../../../../config/logger', () => {
 mock.module('../../../../services/agents/agent-worker-manager', () => ({
   AgentWorkerManager: { getInstance: () => ({}) },
 }));
-mock.module('../../../../routes/agents/execution/session-helpers', () => ({
+mock.module('../../../../routes/agents/execution/shared/session-helpers', () => ({
   updateSessionStatusWithRetry: () => Promise.resolve(),
 }));
-mock.module('../../../../routes/agents/execution/post-execution-review', () => ({
+mock.module('../../../../routes/agents/execution/post-handlers/post-execution-review', () => ({
   reviewAndCommitWorktree: () => Promise.resolve(),
 }));
-mock.module('../../../../routes/agents/execution/execution-output-validator', () => ({
+mock.module('../../../../routes/agents/execution/shared/execution-output-validator', () => ({
   detectExecutionFailures: () => [],
 }));
-mock.module('../../../../routes/agents/execution/research-phase-handler', () => ({
+mock.module('../../../../routes/agents/execution/research/research-phase-handler', () => ({
   handleResearchResult: () => Promise.resolve(),
 }));
-mock.module('../../../../routes/agents/execution/research-output-utils', () => ({
+mock.module('../../../../routes/agents/execution/research/research-output-utils', () => ({
   isIsolatedWorktree: () => false,
 }));
 // The orchestrator is dynamically imported inside the scheduled advance.
@@ -51,7 +51,7 @@ mock.module('../../../../services/workflow/workflow-orchestrator', () => ({
 }));
 
 const { advanceManagedPlanningPhase } =
-  await import('../../../../routes/agents/execution/execute-post-handler');
+  await import('../../../../routes/agents/execution/post-handlers/execute-post-handler');
 
 describe('advanceManagedPlanningPhase', () => {
   beforeEach(() => {

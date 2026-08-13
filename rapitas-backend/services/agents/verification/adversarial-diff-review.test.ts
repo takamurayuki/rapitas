@@ -23,7 +23,7 @@ const agentExecutionFindFirst = mock(() => Promise.resolve(null));
 const taskFindUnique = mock(() => Promise.resolve({ title: 'Task', acceptanceCriteria: null }));
 const agentExecutionConfigFindUnique = mock(() => Promise.resolve(null));
 
-mock.module('../orchestrator/git-operations/diff-structured', () => ({ getDiff }));
+mock.module('../orchestrator/git-operations/core/diff-structured', () => ({ getDiff }));
 mock.module('../../../utils/ai-client', () => ({ sendAIMessage }));
 mock.module('../../workflow/workflow-file-utils', () => ({ resolveWorkflowDir, readWorkflowFile }));
 mock.module('../../../config/database', () => ({

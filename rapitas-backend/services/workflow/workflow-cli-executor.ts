@@ -41,11 +41,11 @@ const execAsync = promisify(exec);
 
 // Disk-existence guard for reusing a recorded worktree. Re-exported here so the
 // existing worktree-reuse.test.ts import path keeps working; the single source
-// of truth now lives in git-operations/worktree-usable so every execution entry
+// of truth now lives in git-operations/worktree/worktree-usable so every execution entry
 // point (orchestrator, continue-execution route) shares the same check.
-export { canReuseWorktree } from '../agents/orchestrator/git-operations/worktree-usable';
-import { canReuseWorktree } from '../agents/orchestrator/git-operations/worktree-usable';
-import { isPrimaryWorkTree } from '../agents/orchestrator/git-operations/worktree-guard';
+export { canReuseWorktree } from '../agents/orchestrator/git-operations/worktree/worktree-usable';
+import { canReuseWorktree } from '../agents/orchestrator/git-operations/worktree/worktree-usable';
+import { isPrimaryWorkTree } from '../agents/orchestrator/git-operations/worktree/worktree-guard';
 
 /**
  * Resolves the git repository root for a directory.

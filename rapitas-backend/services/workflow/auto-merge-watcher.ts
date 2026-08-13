@@ -15,7 +15,7 @@
  */
 import { prisma } from '../../config/database';
 import { createLogger } from '../../config/logger';
-import { mergePullRequest } from '../agents/orchestrator/git-operations/branch-pr-ops';
+import { mergePullRequest } from '../agents/orchestrator/git-operations/pr/branch-pr-ops';
 import { recordTransition } from './transition-recorder';
 import { handleCiFailure } from './auto-merge-ci-failure';
 import { fileConflictResolutionTask } from '../github/conflict-task';

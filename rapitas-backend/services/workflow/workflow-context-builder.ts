@@ -500,7 +500,7 @@ export async function buildRoleContext(
         // (task 511: that table is empty for the autonomous pipeline).
         const preferredBaseBranchForContext = await resolvePreferredBaseBranch(taskId);
         try {
-          const { getDiff } = await import('../agents/orchestrator/git-operations/diff-structured');
+          const { getDiff } = await import('../agents/orchestrator/git-operations/core/diff-structured');
           const records = await getDiff(
             diffSession.worktreePath,
             undefined,

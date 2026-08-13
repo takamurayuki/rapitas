@@ -34,7 +34,7 @@ services/observability/decision-trace/consistency-checker.test.ts
 services/observability/decision-trace/dag-query.test.ts
 services/observability/decision-trace/mask.test.ts
 services/observability/decision-trace/recorder.test.ts
-routes/agents/execution/continue-route.decision-trace.test.ts
+routes/agents/execution/routes/continue-route.decision-trace.test.ts
 routes/agents/monitoring/decision-trace-router.test.ts
 services/ai/smart-model-router.decision-trace.test.ts
 services/scheduling/decision-trace-consistency-scheduler.test.ts
@@ -46,12 +46,12 @@ config/cache-ttl.test.ts
 config/db-provider.test.ts
 services/agents/abstraction/agent-retry.test.ts
 services/agents/abstraction/retry-policy.test.ts
-services/agents/orchestrator/git-operations/dependency-installer.test.ts
-services/agents/orchestrator/git-operations/git-exec.test.ts
-services/agents/orchestrator/git-operations/repository-setup.test.ts
-services/agents/orchestrator/git-operations/safety.test.ts
-services/agents/orchestrator/git-operations/worktree-ops.test.ts
-services/agents/orchestrator/git-operations/worktree-preflight.test.ts
+services/agents/orchestrator/git-operations/worktree/dependency-installer.test.ts
+services/agents/orchestrator/git-operations/core/git-exec.test.ts
+services/agents/orchestrator/git-operations/worktree/repository-setup.test.ts
+services/agents/orchestrator/git-operations/core/safety.test.ts
+services/agents/orchestrator/git-operations/worktree/worktree-ops.test.ts
+services/agents/orchestrator/git-operations/worktree/worktree-preflight.test.ts
 services/agents/verification/scope-check.test.ts
 services/github/gh-retry.test.ts
 services/github/git-exec.test.ts
@@ -100,4 +100,4 @@ utils/common/semaphore.test.ts
 services/agents/verification/test-triage.spawn.test.ts
 utils/common/encryption-key-resolver.fs-mocked.test.ts
 config/database.test.ts
-routes/agents/execution/respond-route.test.ts
+routes/agents/execution/routes/respond-route.test.ts

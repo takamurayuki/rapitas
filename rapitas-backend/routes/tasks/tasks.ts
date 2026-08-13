@@ -14,7 +14,7 @@ import {
   cleanupAllDuplicateSubtasks,
   attachBlockedCauses,
 } from '../../services/task/task-service';
-import { removeWorktree } from '../../services/agents/orchestrator/git-operations/worktree-ops';
+import { removeWorktree } from '../../services/agents/orchestrator/git-operations/worktree/worktree-ops';
 import { warnIfSubtaskCreatedDuringDisabledSplit } from '../../services/workflow/subtask-split-guard';
 import { getProjectRoot } from '../../config';
 import { cleanupCompletedTasks } from '../../services/task/completed-task-cleanup';
