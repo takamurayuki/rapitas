@@ -6,6 +6,7 @@ import { createLogger } from '@/lib/logger';
 import { useServerRestartStore } from '@/stores/server-restart-store';
 import { sharedEventSource } from '@/lib/sse/shared-event-source';
 import { useOnVisible } from './useOnVisible';
+import { getAppHidden, subscribeAppHidden } from './app-visibility-store';
 
 const logger = createLogger('useBackendHealth');
 
@@ -69,7 +70,9 @@ export function useBackendHealth(options: UseBackendHealthOptions = {}) {
   const checkHealth = useCallback(async () => {
     // Skip the probe while rapitas is backgrounded — saves a request every few
     // seconds when the user is in another app; useOnVisible re-checks on return.
-    if (typeof document !== 'undefined' && document.hidden) return;
+    // getAppHidden() covers minimize, which occlusion-disabled WebView2 doesn't
+    // report via document.hidden.
+    if ((typeof document !== 'undefined' && document.hidden) || getAppHidden()) return;
     try {
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 3000);
@@ -131,6 +134,16 @@ export function useBackendHealth(options: UseBackendHealthOptions = {}) {
 
   // Re-check immediately when the user returns to rapitas.
   useOnVisible(checkHealth);
+
+  // Re-check immediately on restore from minimize. visibilitychange (behind
+  // useOnVisible above) never fires for that transition because occlusion is
+  // intentionally disabled, so without this the poll interval would be the
+  // only thing to pick it back up.
+  useEffect(() => {
+    return subscribeAppHidden(() => {
+      if (!getAppHidden()) checkHealth();
+    });
+  }, [checkHealth]);
 
   return { status, isConnected: status === 'connected', isIntentionalRestart };
 }

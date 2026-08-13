@@ -23,6 +23,7 @@ import {
 import { useTranslations } from 'next-intl';
 import { API_BASE_URL } from '@/utils/api';
 import { useOnVisible } from '@/hooks/common/useOnVisible';
+import { getAppHidden, subscribeAppHidden } from '@/hooks/common/app-visibility-store';
 
 const POLL_INTERVAL_MS = 10000;
 
@@ -95,7 +96,9 @@ export function SystemStatusPanel() {
   const poll = useCallback(async () => {
     // Skip the probe while rapitas is backgrounded — useOnVisible below
     // re-polls immediately on return (same pattern as useBackendHealth).
-    if (typeof document !== 'undefined' && document.hidden) return;
+    // getAppHidden() covers minimize, which occlusion-disabled WebView2
+    // doesn't report via document.hidden.
+    if ((typeof document !== 'undefined' && document.hidden) || getAppHidden()) return;
     try {
       const res = await fetch(`${API_BASE_URL}/health`);
       const json = (await res.json().catch(() => null)) as HealthSnapshot | null;
@@ -114,6 +117,16 @@ export function SystemStatusPanel() {
   }, [poll]);
 
   useOnVisible(poll);
+
+  // Re-poll immediately on restore from minimize. visibilitychange (behind
+  // useOnVisible above) never fires for that transition because occlusion is
+  // intentionally disabled, so without this the 10s poll interval would be
+  // the only thing to pick it back up.
+  useEffect(() => {
+    return subscribeAppHidden(() => {
+      if (!getAppHidden()) poll();
+    });
+  }, [poll]);
 
   // Wait for the first response before rendering — avoids flashing an
   // "unhealthy" pill for the split second before data arrives (same

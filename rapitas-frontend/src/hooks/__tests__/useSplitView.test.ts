@@ -1,5 +1,6 @@
 import { renderHook, act } from '@testing-library/react';
 import { useSplitView } from '../ui/useSplitView';
+import { setAppHidden } from '../common/app-visibility-store';
 
 const mockIsTauri = vi.fn().mockReturnValue(false);
 const mockOpenExternalUrlInSplitView = vi.fn().mockResolvedValue(undefined);
@@ -31,6 +32,7 @@ describe('useSplitView', () => {
   afterEach(() => {
     vi.useRealTimers();
     vi.restoreAllMocks();
+    setAppHidden(false);
   });
 
   it('should return isActive false in non-Tauri environment', () => {
@@ -123,6 +125,22 @@ describe('useSplitView', () => {
     });
 
     expect(result.current.isActive).toBe(true);
+  });
+
+  it('should skip status polling while the app is hidden (minimized)', () => {
+    mockIsTauri.mockReturnValue(true);
+    mockIsSplitViewActive.mockReturnValue(false);
+    setAppHidden(true);
+
+    renderHook(() => useSplitView());
+
+    const callsBeforeTick = mockIsSplitViewActive.mock.calls.length;
+
+    act(() => {
+      vi.advanceTimersByTime(1000);
+    });
+
+    expect(mockIsSplitViewActive.mock.calls.length).toBe(callsBeforeTick);
   });
 
   it('should cleanup timers on unmount', () => {

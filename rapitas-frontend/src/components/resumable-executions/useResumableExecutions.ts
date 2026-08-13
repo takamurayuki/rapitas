@@ -6,6 +6,7 @@ import { useTranslations } from 'next-intl';
 import { API_BASE_URL, fetchWithRetry } from '@/utils/api';
 import { useBackendHealth } from '@/hooks/common/useBackendHealth';
 import { useOnVisible } from '@/hooks/common/useOnVisible';
+import { getAppHidden, subscribeAppHidden } from '@/hooks/common/app-visibility-store';
 import { useExecutionStateStore } from '@/stores/execution-state-store';
 import { createLogger } from '@/lib/logger';
 import { useToast } from '@/components/ui/toast/ToastContainer';
@@ -76,8 +77,10 @@ export function useResumableExecutions(): UseResumableExecutionsReturn {
 
   const fetchResumableExecutions = useCallback(async () => {
     // Skip while backgrounded; this is a global always-mounted poller, so it's a
-    // steady drain when the user is in another app. useOnVisible refreshes on return.
-    if (typeof document !== 'undefined' && document.hidden) return [];
+    // steady drain when the user is in another app. useOnVisible refreshes on
+    // return. getAppHidden() covers minimize, which occlusion-disabled WebView2
+    // doesn't report via document.hidden.
+    if ((typeof document !== 'undefined' && document.hidden) || getAppHidden()) return [];
     try {
       setConnectionError(null);
       const res = await fetchWithRetry(
@@ -176,6 +179,16 @@ export function useResumableExecutions(): UseResumableExecutionsReturn {
   useOnVisible(() => {
     if (!isDismissed && isConnected) fetchResumableExecutions();
   });
+
+  // Refresh immediately on restore from minimize. visibilitychange (behind
+  // useOnVisible above) never fires for that transition because occlusion is
+  // intentionally disabled, so without this the poll interval (10-15s) would
+  // be the only thing to pick it back up.
+  useEffect(() => {
+    return subscribeAppHidden(() => {
+      if (!getAppHidden() && !isDismissed && isConnected) fetchResumableExecutions();
+    });
+  }, [isDismissed, isConnected, fetchResumableExecutions]);
 
   const handleResume = useCallback(
     async (executionId: number, isAutoResume = false) => {
