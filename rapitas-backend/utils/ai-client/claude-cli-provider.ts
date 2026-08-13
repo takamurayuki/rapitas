@@ -14,10 +14,7 @@ import { createLogger } from '../../config/logger';
 // NOTE: Deliberate utils→services exception (concern #1284): aux CLI children
 // must be visible to the shared process tracker so the task-boundary restart
 // can require "0 live aux CLI children" and post-crash cleanup can reap them.
-import {
-  registerProcess,
-  unregisterProcess,
-} from '../../services/agents/agent-process-tracker';
+import { registerProcess, unregisterProcess } from '../../services/agents/agent-process-tracker';
 import { type AIMessage, type AIResponse } from './types';
 
 const log = createLogger('ai-client:claude-cli');

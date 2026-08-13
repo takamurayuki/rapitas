@@ -223,10 +223,7 @@ describe('runOnce — early-exit gates', () => {
   });
 
   test('machinery merge: fires immediately (classification passes)', async () => {
-    changedPaths = [
-      'rapitas-frontend/src/app/page.tsx',
-      'rapitas-desktop/scripts/dev.js',
-    ];
+    changedPaths = ['rapitas-frontend/src/app/page.tsx', 'rapitas-desktop/scripts/dev.js'];
     expect(await makeScheduler().runOnce()).toBe(true);
     expect(callOrder).toContain('scheduleShutdownSequence:[auto-restart]:75');
   });

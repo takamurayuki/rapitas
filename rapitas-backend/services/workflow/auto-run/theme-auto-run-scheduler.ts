@@ -546,9 +546,8 @@ export class ThemeAutoRunScheduler {
     // environments must not load the scheduling module graph.
     if (process.env.TAURI_BUILD === 'true') {
       try {
-        const { getAutoRestartMergedCodeScheduler } = await import(
-          '../../scheduling/auto-restart-merged-code'
-        );
+        const { getAutoRestartMergedCodeScheduler } =
+          await import('../../scheduling/auto-restart-merged-code');
         if (await getAutoRestartMergedCodeScheduler().evaluateBoundaryRestart()) return;
       } catch (err) {
         log.warn({ err }, '[ThemeAutoRunScheduler] Boundary merged-code restart check failed');
