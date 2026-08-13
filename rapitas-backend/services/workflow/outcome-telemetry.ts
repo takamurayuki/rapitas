@@ -166,6 +166,14 @@ export async function recordTaskOutcome(taskId: number, finalStatus: string): Pr
       await import('./process-retro/retro-review')
         .then(({ runProcessRetro }) => runProcessRetro(taskId))
         .catch((err) => log.warn({ err, taskId }, '[telemetry] Process retro failed'));
+
+      // Playbook extraction: when this completion forms a same-shape cluster
+      // with recent completed tasks (similar title AND overlapping changed
+      // files), distil ONE reusable procedure doc so future same-shape tasks
+      // start from experience instead of a blank research. Best-effort.
+      await import('../memory/playbook/playbook-generate')
+        .then(({ maybeGeneratePlaybook }) => maybeGeneratePlaybook(taskId))
+        .catch((err) => log.warn({ err, taskId }, '[telemetry] Playbook generation failed'));
     }
   } catch (err) {
     log.warn({ err, taskId }, '[telemetry] Failed to record task outcome');
