@@ -25,6 +25,11 @@ mock.module('../../../config/logger', () => ({
   getBackendLogFilePath: () => 'C:/tmp/backend.log',
 }));
 
+// Task 585: the phase-carrying IPC calls must use the DERIVED transport timeout
+// (outermost timer), never a hardcoded value that can undercut the agent cap.
+const mockStopTaskAgents = mock(() => Promise.resolve({ stoppedCount: 1, executionIds: [42] }));
+mock.module('../stop-task-agents', () => ({ stopTaskAgents: mockStopTaskAgents }));
+
 const {
   executeTask,
   executeContinuation,
@@ -34,6 +39,8 @@ const {
   getQuestionTimeoutInfoAsync,
   getActiveExecutionIdsAsync,
 } = await import('./public-api');
+const { getIpcExecutionTimeoutMs, getAgentTimeoutMs } = await import('../execution-timeouts');
+const IPC_TIMEOUT_MS = getIpcExecutionTimeoutMs();
 
 const fakeResult = {
   success: true,
@@ -48,15 +55,48 @@ beforeEach(() => {
 });
 
 describe('executeTask', () => {
-  it('execute-task を1200000msタイムアウトで送信し結果を返すこと', async () => {
+  it('execute-task を派生タイムアウトで送信し結果を返すこと', async () => {
     const task: AgentTask = { id: 7, title: 'do it' };
     const options: ExecutionOptions = { taskId: 7, sessionId: 1 };
     const ipc = mock(() => Promise.resolve(fakeResult)) as unknown as IpcSender;
 
     const result = await executeTask(ipc, task, options);
 
-    expect(ipc).toHaveBeenCalledWith('execute-task', { task, options }, 1200000);
+    expect(ipc).toHaveBeenCalledWith('execute-task', { task, options }, IPC_TIMEOUT_MS);
     expect(result).toBe(fakeResult);
+  });
+
+  it('IPCタイムアウトは実行を終端してから再スローすること(孤児CLI・タイマー継続の防止)', async () => {
+    mockStopTaskAgents.mockClear();
+    const task: AgentTask = { id: 585, title: '誤変換パターンの修正' };
+    const options: ExecutionOptions = { taskId: 585, sessionId: 3 };
+    const ipc = mock(() =>
+      Promise.reject(new Error('IPC request timeout: execute-task')),
+    ) as unknown as IpcSender;
+
+    await expect(executeTask(ipc, task, options)).rejects.toThrow('IPC request timeout');
+
+    // 放棄した実行を必ず終端する: 行が running のまま残ると UI のスピナーと
+    // 経過タイマーが止まらず、CLI も裏で走り続ける(task 585 の実測)。
+    expect(mockStopTaskAgents).toHaveBeenCalledTimes(1);
+    const [calledTaskId] = mockStopTaskAgents.mock.calls[0] as unknown as [number];
+    expect(calledTaskId).toBe(585);
+  });
+
+  it('IPCタイムアウト以外のエラーでは実行を終端しないこと', async () => {
+    mockStopTaskAgents.mockClear();
+    const ipc = mock(() => Promise.reject(new Error('Worker not ready'))) as unknown as IpcSender;
+
+    await expect(
+      executeTask(ipc, { id: 5, title: 't' }, { taskId: 5, sessionId: 1 }),
+    ).rejects.toThrow('Worker not ready');
+
+    expect(mockStopTaskAgents).not.toHaveBeenCalled();
+  });
+
+  it('IPCタイムアウトはエージェント上限より必ず後に来ること(誤った強制終了の防止)', () => {
+    expect(IPC_TIMEOUT_MS).toBeGreaterThan(getAgentTimeoutMs('implementer'));
+    expect(IPC_TIMEOUT_MS).toBeGreaterThan(getAgentTimeoutMs('researcher'));
   });
 });
 
@@ -69,7 +109,7 @@ describe('executeContinuation', () => {
     expect(ipc).toHaveBeenCalledWith(
       'continue-execution',
       { executionId: 9, response: 'yes please', options: { timeout: 100 } },
-      1200000,
+      IPC_TIMEOUT_MS,
     );
   });
 
@@ -81,7 +121,7 @@ describe('executeContinuation', () => {
     expect(ipc).toHaveBeenCalledWith(
       'continue-execution',
       { executionId: 9, response: 'yes', options: {} },
-      1200000,
+      IPC_TIMEOUT_MS,
     );
   });
 });
@@ -95,7 +135,7 @@ describe('executeContinuationWithLock', () => {
     expect(ipc).toHaveBeenCalledWith(
       'continue-with-lock',
       { executionId: 11, response: 'ok', options: { branchName: 'feat/x' } },
-      1200000,
+      IPC_TIMEOUT_MS,
     );
   });
 });
@@ -109,7 +149,7 @@ describe('resumeInterruptedExecution', () => {
     expect(ipc).toHaveBeenCalledWith(
       'resume-execution',
       { executionId: 12, options: { timeout: 5 } },
-      1200000,
+      IPC_TIMEOUT_MS,
     );
   });
 });
