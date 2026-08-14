@@ -19,6 +19,7 @@ import { readWorkflowFile } from '../../../../services/workflow/workflow-file-ut
 import { isReusableArtifact } from '../../../../services/workflow/phase-output-validator';
 import { recordTransition } from '../../../../services/workflow/transition-recorder';
 import { normalizeWorkflowStatus } from '../../../../services/workflow/workflow-invariants';
+import { findRecentCriticBounce } from '../../../../services/workflow/phase-critic';
 import type { WorkflowStatus } from '../../../../services/workflow/workflow-types';
 import { ALLOWED_FILE_TYPES_BY_STATUS } from './shared';
 
@@ -131,7 +132,14 @@ export async function guardStatusTransition(
       },
       '[Workflow] Rejected workflow file save: invalid status transition',
     );
-    // Record the rejection so forensic timelines show the agent attempt.
+    // The status usually rolled BACK because the (asynchronous) phase critic
+    // bounced the previous artifact — which the in-flight agent never saw,
+    // since it had already moved on to this next artifact. Telling it only
+    // "wrong phase, reset or wait" leaves it with no legal move: task 585's
+    // researcher then burned its remaining wall-clock attempting plan.md and
+    // re-submitting the identical research.md. Surface the critic's actual
+    // issues plus the one action that works: revise and re-save that phase.
+    const bounce = await findRecentCriticBounce(taskId, allowedForCurrent);
     await recordTransition({
       taskId,
       fromStatus: currentStatusForGuard,
@@ -142,11 +150,27 @@ export async function guardStatusTransition(
       metadata: {
         attemptedFileType: fileType,
         allowed: Array.from(allowedForCurrent),
-        reason: 'file type not allowed in current workflow status',
+        reason: bounce
+          ? `rolled back by the ${bounce.phase} critic gate`
+          : 'file type not allowed in current workflow status',
+        ...(bounce
+          ? { criticBouncePhase: bounce.phase, criticReasonCount: bounce.reasons.length }
+          : {}),
       },
       invariantViolation: true,
       invariantMessage: `Tried to save ${fileType}.md while status="${currentStatusForGuard}"`,
     });
+    if (bounce) {
+      const issues = bounce.reasons.length
+        ? `\n\n【批評ゲートの指摘（すべて対応すること）】\n${bounce.reasons.map((r) => `- ${r}`).join('\n')}`
+        : '';
+      throw new ValidationError(
+        `${fileType}.md は保存できません。直前の ${bounce.phase}.md が自動品質レビュー（批評ゲート）で不合格となり、` +
+          `ワークフローが ${bounce.phase} フェーズへ巻き戻されたためです（これはバグではなく想定内の自己修復動作です）。` +
+          `\n\n次に取るべき行動: 下記の指摘に対応した ${bounce.phase}.md を作成し、${bounce.phase} として保存し直してください。` +
+          `同じ内容の再提出はブロックされます。${issues}`,
+      );
+    }
     throw new ValidationError(
       `Invalid workflow transition: status "${currentStatusForGuard}" cannot accept "${fileType}.md". ` +
         `Allowed file types in this phase: [${Array.from(allowedForCurrent).join(', ') || 'none'}]. ` +

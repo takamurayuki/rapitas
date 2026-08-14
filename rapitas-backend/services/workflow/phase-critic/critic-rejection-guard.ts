@@ -62,6 +62,77 @@ export async function criticRejectedSince(
   }
 }
 
+/** A critic bounce the agent has not been told about yet. */
+export interface RecentCriticBounce {
+  /** Phase whose artifact was bounced ('research' | 'plan'). / 差し戻されたフェーズ */
+  phase: string;
+  /** Critic's issues, verbatim. / 批評の指摘 */
+  reasons: string[];
+  severity: number | null;
+}
+
+/** How far back a bounce still explains the agent's current confusion. */
+const BOUNCE_LOOKBACK_MS = 60 * 60 * 1000;
+
+/**
+ * Find the most recent critic bounce among the phases a task may currently
+ * save, so a rejected save can explain WHY the workflow moved backwards.
+ *
+ * The critic verdict is ASYNCHRONOUS (60-90s of LLM calls): by the time it
+ * lands, the in-flight agent has usually moved on to the next phase. It then
+ * saves that next artifact, gets a generic "status cannot accept this file"
+ * error, and has no way to learn that its previous artifact was rejected —
+ * observed on task 585, where the researcher spent its remaining ~10 minutes
+ * first attempting plan.md and then re-submitting the identical research.md.
+ *
+ * Fail-open: any lookup error returns null (caller keeps the generic message).
+ *
+ * @param taskId - Task whose recent bounces to inspect. / 対象タスクID
+ * @param phases - Phases the task may save right now (the guard's allowlist). / 現在保存可能なフェーズ
+ * @param now - Reference time for the lookback window. / 基準時刻
+ * @returns The bounce to report, or null when none is recent. / 報告すべき差し戻し
+ */
+export async function findRecentCriticBounce(
+  taskId: number,
+  phases: Iterable<string>,
+  now: Date = new Date(),
+): Promise<RecentCriticBounce | null> {
+  const causes = [...phases]
+    .filter((p) => p === 'research' || p === 'plan')
+    .map((p) => `${p}_critic_failed`);
+  if (causes.length === 0) return null;
+  try {
+    const hit = await prisma.workflowTransition.findFirst({
+      where: {
+        taskId,
+        cause: { in: causes },
+        createdAt: { gte: new Date(now.getTime() - BOUNCE_LOOKBACK_MS) },
+      },
+      orderBy: { createdAt: 'desc' },
+      select: { cause: true, metadata: true },
+    });
+    if (!hit) return null;
+    let reasons: string[] = [];
+    let severity: number | null = null;
+    try {
+      const meta =
+        typeof hit.metadata === 'string'
+          ? (JSON.parse(hit.metadata) as Record<string, unknown>)
+          : ((hit.metadata ?? {}) as Record<string, unknown>);
+      if (Array.isArray(meta.reasons)) {
+        reasons = meta.reasons.filter((r): r is string => typeof r === 'string');
+      }
+      if (typeof meta.severity === 'number') severity = meta.severity;
+    } catch {
+      // Malformed metadata — the bounce itself is still worth reporting.
+    }
+    return { phase: hit.cause.replace('_critic_failed', ''), reasons, severity };
+  } catch (err) {
+    log.warn({ err, taskId }, '[critic-rejection-guard] Recent-bounce lookup failed');
+    return null;
+  }
+}
+
 /** Result of the identical-resave check. */
 export interface RejectedResaveVerdict {
   isResave: boolean;
