@@ -187,10 +187,18 @@ export function useExecutingTasksPolling(options?: {
 
       adjustPollingInterval(knownTaskIdsRef.current.size > 0, true);
 
-      // Reset known task state on prolonged errors
+      // Reset known task state on prolonged errors.
+      // CRITICAL: clear the STORE as well, not just the tracking ref. Clearing
+      // only the ref strands every card in "executing" forever: the removal
+      // loop above iterates the ref, so once it is empty the next successful
+      // poll (returning an empty list) has nothing left to remove — the
+      // spinner and the elapsed timer keep running for work that ended long
+      // ago. A backend restart takes well over a minute (prisma generate), so
+      // every restart reproduced this.
       if (timeSinceLastSuccess > 60000) {
         // 1 minute
         logger.warn('Long-term connectivity issues, clearing known tasks');
+        for (const staleId of knownTaskIdsRef.current) removeExecutingTask(staleId);
         knownTaskIdsRef.current.clear();
       }
     }

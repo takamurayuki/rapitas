@@ -230,6 +230,38 @@ describe('useExecutingTasksPolling', () => {
     expect(useExecutionStateStore.getState().isTaskExecuting(4)).toBe(false);
   });
 
+  // バックエンド再起動(1分超)後、カードのスピナーと経過タイマーが止まらなくなる
+  // 実測不具合の回帰テスト: 長期エラー時に追跡refだけを空にすると、以降の成功
+  // ポーリングは削除ループを回せず、ストアの実行中エントリが永久に残る。
+  it('長期接続エラーで実行中エントリをストアからも消す(再起動後にタイマーが止まらない不具合)', async () => {
+    let backendUp = true;
+    const fetchMock = vi.fn().mockImplementation(() =>
+      backendUp
+        ? Promise.resolve({
+            ok: true,
+            json: () =>
+              Promise.resolve([{ taskId: 585, executionStatus: 'running', startedAt: null }]),
+          })
+        : Promise.reject(new Error('fetch failed')),
+    );
+    vi.stubGlobal('fetch', fetchMock);
+
+    renderHook(() => useExecutingTasksPolling());
+    await act(async () => {
+      await vi.runOnlyPendingTimersAsync();
+    });
+    expect(useExecutionStateStore.getState().isTaskExecuting(585)).toBe(true);
+
+    // バックエンド再起動: 1分を超えて接続不能。
+    backendUp = false;
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(90_000);
+    });
+
+    // 復旧を待たずに「実行中」の主張を取り下げること。
+    expect(useExecutionStateStore.getState().isTaskExecuting(585)).toBe(false);
+  });
+
   it('does not poll while the document is hidden', async () => {
     Object.defineProperty(document, 'hidden', { value: true, configurable: true });
     const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: () => Promise.resolve([]) });
