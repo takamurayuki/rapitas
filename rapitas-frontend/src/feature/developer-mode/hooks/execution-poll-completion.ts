@@ -121,6 +121,26 @@ function isTaskActivelyProgressing(data: Record<string, unknown>): boolean {
 }
 
 /**
+ * Session end-states that prove the phase chain STOPPED: whatever ended the
+ * session (a failure, a stop, a restart) also ended the auto-advance, so no
+ * next phase is coming no matter which phase just finished.
+ */
+const DEAD_SESSION_STATUSES = new Set(['failed', 'cancelled', 'interrupted', 'reset']);
+
+/**
+ * True when the session that owns this execution ended in a way that rules out
+ * a next phase. A normal phase seam leaves the session 'completed' (or still
+ * active), so only the failure-ish end states count here.
+ *
+ * @param data - Raw status payload. / 生のステータスレスポンス
+ * @returns True when no further phase can follow. / 後続フェーズが有り得ない場合true
+ */
+function isSessionDead(data: Record<string, unknown>): boolean {
+  const s = data.sessionStatus;
+  return typeof s === 'string' && DEAD_SESSION_STATUSES.has(s);
+}
+
+/**
  * True when a 'completed' execution row does NOT mean the whole task is
  * done — either this phase auto-advances to the next one, or the task is
  * still actively progressing (e.g. a verify self-repair bounce). Shared by
@@ -136,6 +156,13 @@ function isTaskActivelyProgressing(data: Record<string, unknown>): boolean {
 export function isPhaseAutoAdvancing(data: Record<string, unknown>): boolean {
   return (
     !isWorkflowTerminal(data) &&
+    // A dead session cannot advance. Without this, opening the task detail page
+    // for a run that FAILED at the researcher phase re-declared the task
+    // "executing" — the phase is in AUTO_ADVANCING_PHASES, so the mount-time
+    // restore re-registered it in the execution store and the card's elapsed
+    // timer started ticking again for an agent that no longer exists (task 585,
+    // session failed on an IPC timeout).
+    !isSessionDead(data) &&
     (isAutoAdvancingPhase(data.sessionMode as string | null) || isTaskActivelyProgressing(data))
   );
 }
