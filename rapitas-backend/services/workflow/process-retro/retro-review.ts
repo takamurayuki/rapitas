@@ -11,6 +11,7 @@
 import { prisma } from '../../../config/database';
 import { createLogger } from '../../../config/logger';
 import { submitConcern } from '../../memory/concern-backlog-service';
+import { resolveSelfDevelopmentThemeId } from '../self-development-theme';
 import { appendEvent } from '../../memory/timeline';
 import { sendAIMessage } from '../../../utils/ai-client';
 import { buildEvidenceBundle, fetchRetroRows, isCleanRound } from './retro-evidence';
@@ -136,8 +137,14 @@ export async function runProcessRetro(taskId: number): Promise<void> {
     }
 
     const detectedAtIso = new Date().toISOString();
+    // Retrospective findings are about the WORKFLOW ENGINE (critic bounces,
+    // repair loops, phase timings), so they belong to the theme that develops
+    // rapitas — not to whichever project the reviewed task happened to touch.
+    // See self-development-theme.ts for the incident this prevents.
+    const selfThemeId = await resolveSelfDevelopmentThemeId();
     for (const finding of selected) {
       await submitConcern({
+        ...(selfThemeId != null ? { themeId: selfThemeId } : {}),
         title: buildConcernTitle(finding),
         detail: buildConcernDetail(finding, bundle, detectedAtIso),
         type: 'other',

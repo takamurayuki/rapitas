@@ -10,6 +10,7 @@
 import { prisma } from '../../config/database';
 import { createLogger } from '../../config/logger';
 import { submitConcern, type ConcernSeverity } from '../memory/concern-backlog-service';
+import { resolveSelfDevelopmentThemeId } from './self-development-theme';
 import {
   detectStagnation,
   detectTriStateDesync,
@@ -83,7 +84,14 @@ async function fileFinding(args: {
   nowMs: number;
 }): Promise<boolean> {
   try {
+    // File against the theme that develops RAPITAS: these findings are about
+    // rapitas' own workflow tables and code. Inheriting the origin task's theme
+    // sent a state-inconsistency concern into the converter project, where the
+    // promoted task could only report "対象コードなし" and exhaust its repair
+    // budget (task 587). Falls back to the origin theme when unresolvable.
+    const selfThemeId = await resolveSelfDevelopmentThemeId();
     await submitConcern({
+      ...(selfThemeId != null ? { themeId: selfThemeId } : {}),
       title: args.title.slice(0, TITLE_MAX_CHARS),
       detail: formatIncidentDetail({
         state: args.state,
