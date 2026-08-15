@@ -39,6 +39,7 @@ import {
   hasItemAwaitingApproval,
   isAwaitingUserAnswer,
   hasLiveExecution,
+  resolveLastProgressAt,
   overlappingFiles,
   selectNextTask,
   recentThemeSuccessRate,
@@ -352,6 +353,27 @@ export class ThemeAutoRunScheduler {
       if (lastRunAt && tenureMs >= MAX_TASK_WALL_MS) {
         if (await isAwaitingUserAnswer(prisma, currentTaskId)) {
           await notifyAwaitingUserAnswer(themeId, currentTaskId);
+          return;
+        }
+        // Measure time since PROGRESS, not tenure. A multi-phase task legitimately
+        // outlives the task wall (the implementer alone may run 56 min against a
+        // 45-min wall), and the liveness check below cannot see the phase seam
+        // where one execution has ended and the next has not started: task 585
+        // was killed there, 8 seconds after its implementer committed a complete
+        // implementation. Transitions and heartbeats are the actual evidence of
+        // movement; only their absence means wedged.
+        const lastProgressAt = await resolveLastProgressAt(
+          prisma,
+          currentTaskId,
+          new Date(lastRunAt).getTime(),
+        );
+        const sinceProgressMs = Date.now() - lastProgressAt;
+        if (sinceProgressMs < MAX_TASK_WALL_MS && tenureMs < MAX_TASK_WALL_MS * 3) {
+          log.info(
+            `[ThemeAutoRunScheduler] Task ${currentTaskId} over tenure wall but progressed ${Math.round(
+              sinceProgressMs / 1000,
+            )}s ago — deferring hang backstop (theme ${themeId})`,
+          );
           return;
         }
         // Liveness exemption: a running execution with a fresh heartbeat is

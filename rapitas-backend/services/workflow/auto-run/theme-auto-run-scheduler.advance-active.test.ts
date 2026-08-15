@@ -15,6 +15,7 @@ import {
   TEST_MAX_TASK_WALL_MS,
   mockIsAwaitingUserAnswer,
   mockHasLiveExecution,
+  mockResolveLastProgressAt,
   mockNotifyAwaitingUserAnswer,
   mockNotifyHangBackstop,
   mockTaskUpdate,
@@ -104,6 +105,51 @@ describe('advanceTheme — hang backstop', () => {
       where: { id: 100 },
       data: { status: 'blocked' },
     });
+  });
+
+  it('フェーズ継ぎ目で直前に進捗があれば停止しない — 実行行が一瞬いない隙間 (task 585)', async () => {
+    // implementer がコミットを終えて completed になり、verifier の実行行が
+    // まだ作られていない30秒の隙間。hasLiveExecution は false になるが、
+    // 8秒前に phase_completed 遷移がある = 進行中。
+    mockIsAwaitingUserAnswer.mockResolvedValue(false);
+    mockHasLiveExecution.mockResolvedValue(false);
+    // 壁時計(テストでは短縮値)より新しい進捗 = 直前に前進している。
+    mockResolveLastProgressAt.mockResolvedValue(
+      Date.now() - Math.floor(TEST_MAX_TASK_WALL_MS / 10),
+    );
+    mockGetThemeActiveQueueItems.mockResolvedValue([{ id: 1, taskId: 100, status: 'running' }]);
+
+    await internal(scheduler).advanceTheme(1, 100, 'priority', 1, staleLastRunAt());
+
+    expect(mockNotifyHangBackstop).not.toHaveBeenCalled();
+    expect(mockTaskUpdate).not.toHaveBeenCalled();
+    expect(mockOnTaskFailed).not.toHaveBeenCalled();
+  });
+
+  it('進捗が途絶えていれば従来どおり停止する(本当のハング)', async () => {
+    mockIsAwaitingUserAnswer.mockResolvedValue(false);
+    mockHasLiveExecution.mockResolvedValue(false);
+    // 最後の進捗が壁時計より前 = 動いていない。
+    mockResolveLastProgressAt.mockResolvedValue(Date.now() - TEST_MAX_TASK_WALL_MS - 5_000);
+
+    await internal(scheduler).advanceTheme(1, 100, 'priority', 1, staleLastRunAt());
+
+    expect(mockNotifyHangBackstop).toHaveBeenCalled();
+    expect(mockTaskUpdate).toHaveBeenCalledWith({
+      where: { id: 100 },
+      data: { status: 'blocked' },
+    });
+  });
+
+  it('進捗が続いていても3倍の絶対上限を超えたら停止する(暴走ガード)', async () => {
+    mockIsAwaitingUserAnswer.mockResolvedValue(false);
+    mockHasLiveExecution.mockResolvedValue(false);
+    mockResolveLastProgressAt.mockResolvedValue(Date.now() - 100);
+    const past3x = new Date(Date.now() - TEST_MAX_TASK_WALL_MS * 3 - 500).toISOString();
+
+    await internal(scheduler).advanceTheme(1, 100, 'priority', 1, past3x);
+
+    expect(mockNotifyHangBackstop).toHaveBeenCalled();
   });
 
   it('does not trigger the backstop for a task still within its wall budget', async () => {

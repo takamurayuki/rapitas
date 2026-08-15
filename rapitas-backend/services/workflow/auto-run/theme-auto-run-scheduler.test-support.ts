@@ -206,6 +206,8 @@ export const mockIsAwaitingUserAnswer = mock(() => Promise.resolve(false));
 // Liveness check for the hang backstop — default false so existing backstop
 // tests (tenure exceeded → force-stop) keep exercising the kill path.
 export const mockHasLiveExecution = mock(() => Promise.resolve(false));
+// 進捗時刻: 既定は「進捗なし」(=0) にして、既存のバックストップ発火テストを維持する。
+export const mockResolveLastProgressAt = mock(() => Promise.resolve(0));
 export const mockSelectNextTask = mock(() =>
   Promise.resolve({ found: false, reason: 'all_done' } as
     | { found: true; taskId: number }
@@ -229,6 +231,7 @@ mock.module('./auto-run-selection', () => ({
   getThemeActiveQueueItems: mockGetThemeActiveQueueItems,
   isAwaitingUserAnswer: mockIsAwaitingUserAnswer,
   hasLiveExecution: mockHasLiveExecution,
+  resolveLastProgressAt: mockResolveLastProgressAt,
   HANG_BACKSTOP_HEARTBEAT_MS: 5 * 60_000,
   selectNextTask: mockSelectNextTask,
   // R6 learnable-band signal — null means "no data", i.e. the legacy ordering.
@@ -469,6 +472,7 @@ export function resetAllMocks(): void {
   mockGetThemeActiveQueueItems.mockResolvedValue([]);
   mockIsAwaitingUserAnswer.mockResolvedValue(false);
   mockHasLiveExecution.mockResolvedValue(false);
+  mockResolveLastProgressAt.mockResolvedValue(0);
   mockSelectNextTask.mockResolvedValue({ found: false, reason: 'all_done' });
   mockFindByStatuses.mockResolvedValue([]);
   mockResumeAutoRun.mockResolvedValue(null);
