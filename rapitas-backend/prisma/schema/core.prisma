@@ -147,6 +147,7 @@ model Task {
   // re-unlocks it.
   workflowDisabled      Boolean   @default(false)
   workflowLearningRecords WorkflowLearningRecord[]
+  durationPrediction    TaskDurationPrediction?
 
   // Recurring task fields
   isRecurring           Boolean   @default(false) // Whether this is a recurring master task

@@ -624,6 +624,25 @@ CREATE TABLE "WorkflowLearningRecord" (
 );
 
 -- CreateTable
+CREATE TABLE "TaskDurationPrediction" (
+    "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    "taskId" INTEGER NOT NULL,
+    "groupingKey" TEXT NOT NULL,
+    "predictable" BOOLEAN NOT NULL DEFAULT false,
+    "sampleSize" INTEGER NOT NULL DEFAULT 0,
+    "medianMinutes" INTEGER,
+    "p25Minutes" INTEGER,
+    "p75Minutes" INTEGER,
+    "confidence" REAL NOT NULL DEFAULT 0,
+    "predictedAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "actualDurationMinutes" INTEGER,
+    "errorMinutes" INTEGER,
+    "errorRatio" REAL,
+    "resolvedAt" DATETIME,
+    CONSTRAINT "TaskDurationPrediction_taskId_fkey" FOREIGN KEY ("taskId") REFERENCES "Task" ("id") ON DELETE CASCADE ON UPDATE CASCADE
+);
+
+-- CreateTable
 CREATE TABLE "WorkflowOptimizationRule" (
     "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
     "ruleType" TEXT NOT NULL,
@@ -1640,6 +1659,18 @@ CREATE INDEX "WorkflowLearningRecord_outcome_idx" ON "WorkflowLearningRecord"("o
 
 -- CreateIndex
 CREATE INDEX "WorkflowLearningRecord_createdAt_idx" ON "WorkflowLearningRecord"("createdAt");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "TaskDurationPrediction_taskId_key" ON "TaskDurationPrediction"("taskId");
+
+-- CreateIndex
+CREATE INDEX "TaskDurationPrediction_taskId_idx" ON "TaskDurationPrediction"("taskId");
+
+-- CreateIndex
+CREATE INDEX "TaskDurationPrediction_groupingKey_idx" ON "TaskDurationPrediction"("groupingKey");
+
+-- CreateIndex
+CREATE INDEX "TaskDurationPrediction_resolvedAt_idx" ON "TaskDurationPrediction"("resolvedAt");
 
 -- CreateIndex
 CREATE INDEX "WorkflowOptimizationRule_ruleType_idx" ON "WorkflowOptimizationRule"("ruleType");
