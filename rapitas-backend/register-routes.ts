@@ -51,6 +51,7 @@ import {
   workflowLearningRoutes,
   orchestraRoutes,
   themeAutoRunRoutes,
+  stallRecoveryRoutes,
   settingsRoutes,
   authRoutes,
   sseRoutes,
@@ -182,6 +183,7 @@ export function registerAllRoutes(app: Elysia): void {
   app.use(workflowLearningRoutes);
   app.use(orchestraRoutes);
   app.use(themeAutoRunRoutes);
+  app.use(stallRecoveryRoutes);
 
   // System
   app.use(settingsRoutes);

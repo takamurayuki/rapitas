@@ -97,6 +97,7 @@ export { orchestraRoutes } from './workflow/orchestra';
 export { workflowLearningRoutes } from './workflow/workflow-learning';
 export { taskSpecRoutes } from './tasks/task-spec-routes';
 export { themeAutoRunRoutes } from './workflow/theme-auto-run';
+export { stallRecoveryRoutes } from './workflow/stall-recovery';
 
 // Social
 export { commentsRoutes } from './social/comments';
