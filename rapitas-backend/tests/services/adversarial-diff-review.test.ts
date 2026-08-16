@@ -1,17 +1,48 @@
 /**
  * adversarial-diff-review テスト
  *
- * 純粋関数 parseReviewVerdict / buildDiffReviewPrompt の検証。
- * verdict 抽出のロバスト性（コードフェンス・前置き混じり・壊れJSON）と、
- * プロンプトに差分・受入基準・計画が含まれること。
+ * 純粋関数 parseReviewVerdict / aggregateJuryVerdicts / buildDiffReviewPrompt /
+ * buildJuryDiffText の検証。verdict 抽出のロバスト性（コードフェンス・前置き混じり・
+ * 壊れJSON）と、プロンプトに差分・受入基準・計画が含まれることを検証する。
+ *
+ * NOTE: テスト対象モジュールは config/database 経由で import 時点に Prisma
+ * クライアントを構築するため、生成済みクライアント (rapitas-backend/generated/)
+ * が存在しない環境（新規 git worktree 等）では import しただけで失敗していた
+ * (task 608)。co-located テスト (services/agents/verification/adversarial-diff-review.test.ts)
+ * と同じ方針で重い依存（DB/AIクライアント/git操作）を mock.module に差し替え、
+ * ここで検証する純粋関数を環境非依存にする。
  */
-import { describe, test, expect } from 'bun:test';
-import {
-  parseReviewVerdict,
-  buildDiffReviewPrompt,
-  aggregateJuryVerdicts,
-  type JurorVerdict,
-} from '../../services/agents/verification/adversarial-diff-review';
+import { describe, test, expect, mock } from 'bun:test';
+import type { JurorVerdict } from '../../services/agents/verification/adversarial-diff-review';
+
+const getDiff = mock(() => Promise.resolve([]));
+const sendAIMessage = mock(() =>
+  Promise.resolve({ content: '{"verdict":"pass","severity":0,"reasons":[]}' }),
+);
+const resolveWorkflowDir = mock(() => Promise.resolve({ dir: '/wf/1' }));
+const readWorkflowFile = mock(() => Promise.resolve('plan content'));
+
+mock.module('../../services/agents/orchestrator/git-operations/diff-structured', () => ({
+  getDiff,
+}));
+mock.module('../../utils/ai-client', () => ({ sendAIMessage }));
+mock.module('../../services/workflow/workflow-file-utils', () => ({
+  resolveWorkflowDir,
+  readWorkflowFile,
+}));
+mock.module('../../config/database', () => ({
+  prisma: {
+    agentExecution: { findFirst: mock(() => Promise.resolve(null)) },
+    agentExecutionConfig: { findUnique: mock(() => Promise.resolve(null)) },
+    task: { findUnique: mock(() => Promise.resolve({ title: 'Task', acceptanceCriteria: null })) },
+  },
+}));
+mock.module('../../config/logger', () => ({
+  createLogger: () => ({ info: () => {}, warn: () => {}, error: () => {}, debug: () => {} }),
+}));
+
+const { parseReviewVerdict, buildDiffReviewPrompt, aggregateJuryVerdicts, buildJuryDiffText } =
+  await import('../../services/agents/verification/adversarial-diff-review');
 
 describe('parseReviewVerdict', () => {
   test('素のJSON pass を解釈する', () => {
@@ -150,9 +181,7 @@ describe('buildJuryDiffText', () => {
     patch: 'x'.repeat(patchLen),
   });
 
-  test('小さい差分は省略なし（バナーもマーカーも出ない）', async () => {
-    const { buildJuryDiffText } =
-      await import('../../services/agents/verification/adversarial-diff-review');
+  test('小さい差分は省略なし（バナーもマーカーも出ない）', () => {
     const text = buildJuryDiffText([file('a.ts', 100), file('b.ts', 100)]);
     expect(text).toContain('a.ts');
     expect(text).toContain('b.ts');
@@ -160,9 +189,7 @@ describe('buildJuryDiffText', () => {
     expect(text).not.toContain('⚠️');
   });
 
-  test('上限超過でも全ファイルがマニフェストと本文ヘッダに現れること (task 485 回帰)', async () => {
-    const { buildJuryDiffText } =
-      await import('../../services/agents/verification/adversarial-diff-review');
+  test('上限超過でも全ファイルがマニフェストと本文ヘッダに現れること (task 485 回帰)', () => {
     // 5ファイル × 大きなpatch。旧実装 (join後slice) では末尾ファイルが完全消失した。
     const files = [
       file('a.ts', 9000),
@@ -180,9 +207,7 @@ describe('buildJuryDiffText', () => {
     expect(text).toContain('未実装」と判定しない');
   });
 
-  test('空配列は空文字を返す', async () => {
-    const { buildJuryDiffText } =
-      await import('../../services/agents/verification/adversarial-diff-review');
+  test('空配列は空文字を返す', () => {
     expect(buildJuryDiffText([])).toBe('');
   });
 });
