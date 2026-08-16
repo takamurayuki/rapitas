@@ -302,8 +302,7 @@ async function recoverByClearGitLock(taskId: number): Promise<RecoverResult> {
     return {
       success: false,
       action: 'clear_git_lock',
-      message:
-        '破壊的リカバリーは無効です（RAPITAS_ENABLE_STALL_DESTRUCTIVE_RECOVERY が未設定）',
+      message: '破壊的リカバリーは無効です（RAPITAS_ENABLE_STALL_DESTRUCTIVE_RECOVERY が未設定）',
     };
   }
   const session = await prisma.agentSession.findFirst({

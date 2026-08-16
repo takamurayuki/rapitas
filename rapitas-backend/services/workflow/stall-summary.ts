@@ -60,7 +60,10 @@ export function inferStallCause(
   let cause: string;
   let actions: StallRecoveryAction[];
 
-  if (state.latestExecutionStatus === 'interrupted' || state.latestSessionStatus === 'interrupted') {
+  if (
+    state.latestExecutionStatus === 'interrupted' ||
+    state.latestSessionStatus === 'interrupted'
+  ) {
     cause = 'エージェント実行が中断されたまま再開されていない可能性があります';
     actions = ['resume', 'requeue'];
   } else if (state.latestExecutionStatus === 'failed' || state.latestSessionStatus === 'failed') {

@@ -28,14 +28,10 @@ const VALID_ACTIONS: readonly StallRecoveryAction[] = [
  * @returns Stalled task reports. / 停滞タスク一覧
  * @throws {ValidationError} On an unknown verbosity value. / 不正な詳細度の場合
  */
-export async function handleStallCheck(query: {
-  verbosity?: string;
-}): Promise<StallCheckResponse> {
+export async function handleStallCheck(query: { verbosity?: string }): Promise<StallCheckResponse> {
   const verbosity = query.verbosity ?? 'standard';
   if (!VALID_VERBOSITIES.includes(verbosity as StallVerbosity)) {
-    throw new ValidationError(
-      `verbosity must be one of: ${VALID_VERBOSITIES.join(', ')}`,
-    );
+    throw new ValidationError(`verbosity must be one of: ${VALID_VERBOSITIES.join(', ')}`);
   }
   return scanStalledTasks(Date.now(), verbosity as StallVerbosity);
 }

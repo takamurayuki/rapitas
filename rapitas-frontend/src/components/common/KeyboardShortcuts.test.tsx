@@ -6,7 +6,7 @@
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, fireEvent } from '@testing-library/react';
-import KeyboardShortcuts from '../common/KeyboardShortcuts';
+import KeyboardShortcuts from './KeyboardShortcuts';
 import { useShortcutStore, DEFAULT_SHORTCUTS } from '@/stores/shortcut-store';
 import { OPEN_STALL_RECOVERY_EVENT } from '@/components/accessibility/stall-recovery-panel/stall-recovery.types';
 

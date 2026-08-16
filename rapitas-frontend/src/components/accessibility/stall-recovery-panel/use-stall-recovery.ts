@@ -127,9 +127,7 @@ export function useStallRecovery(): UseStallRecoveryReturn {
     (action: StallRecoveryAction) => {
       setPendingAction(action);
       setStep('confirm');
-      narrate(
-        `${t('confirmSelected', { action: t(`actions.${action}`) })} ${t('confirmPrompt')}`,
-      );
+      narrate(`${t('confirmSelected', { action: t(`actions.${action}`) })} ${t('confirmPrompt')}`);
     },
     [narrate, t],
   );

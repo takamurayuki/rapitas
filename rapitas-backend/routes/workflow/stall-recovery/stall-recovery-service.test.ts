@@ -91,12 +91,8 @@ mock.module('../../../services/workflow/workflow-queue', () => ({
   isTaskTerminalForQueue: () => false,
 }));
 
-const {
-  scanStalledTasks,
-  recoverStalledTask,
-  resolveGitLockTarget,
-  isDestructiveRecoveryEnabled,
-} = await import('./stall-recovery-service');
+const { scanStalledTasks, recoverStalledTask, resolveGitLockTarget, isDestructiveRecoveryEnabled } =
+  await import('./stall-recovery-service');
 
 interface StateShape {
   taskId: number;
@@ -204,7 +200,10 @@ describe('scanStalledTasks', () => {
 
   it('複数タスクが同時停滞 → 全件を報告すること', async () => {
     const staleAt = NOW - THRESHOLD_MS * 3;
-    prismaMock.task.findMany.mockResolvedValue([candidateRow(20, staleAt), candidateRow(21, staleAt)]);
+    prismaMock.task.findMany.mockResolvedValue([
+      candidateRow(20, staleAt),
+      candidateRow(21, staleAt),
+    ]);
     gatherTaskStateMock.mockImplementation((task: { id: number }) =>
       Promise.resolve(makeState({ taskId: task.id, taskUpdatedAtMs: staleAt })),
     );
@@ -215,7 +214,10 @@ describe('scanStalledTasks', () => {
 
   it('1タスクの証拠収集が失敗しても他のタスクは報告されること', async () => {
     const staleAt = NOW - THRESHOLD_MS * 2;
-    prismaMock.task.findMany.mockResolvedValue([candidateRow(30, staleAt), candidateRow(31, staleAt)]);
+    prismaMock.task.findMany.mockResolvedValue([
+      candidateRow(30, staleAt),
+      candidateRow(31, staleAt),
+    ]);
     gatherTaskStateMock.mockImplementation((task: { id: number }) =>
       task.id === 30
         ? Promise.reject(new Error('boom'))
@@ -323,7 +325,12 @@ describe('recoverStalledTask', () => {
         config: {
           id: 9,
           taskId: 1,
-          task: { id: 1, title: 'T', description: null, theme: { name: 't', workingDirectory: null } },
+          task: {
+            id: 1,
+            title: 'T',
+            description: null,
+            theme: { name: 't', workingDirectory: null },
+          },
         },
       },
     });

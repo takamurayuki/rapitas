@@ -46,7 +46,11 @@ describe('truncateTitleForNarration', () => {
 describe('inferStallCause', () => {
   it('中断済み実行がある場合 → resume を先頭に提案すること', () => {
     const result = inferStallCause(
-      makeState({ latestExecutionStatus: 'interrupted', latestSessionId: 1, hasAnyExecution: true }),
+      makeState({
+        latestExecutionStatus: 'interrupted',
+        latestSessionId: 1,
+        hasAnyExecution: true,
+      }),
       'in_progress',
     );
     expect(result.suggestedActions[0]).toBe('resume');

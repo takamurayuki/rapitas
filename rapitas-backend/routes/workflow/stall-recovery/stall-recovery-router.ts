@@ -12,13 +12,9 @@ export const stallRecoveryRoutes = new Elysia()
 
   // On-demand stall scan for the Ctrl+Alt+S panel. Read-only: files no
   // concerns and repairs nothing.
-  .get(
-    '/workflow/stall-check',
-    async ({ query }) => handleStallCheck(query),
-    {
-      query: t.Object({ verbosity: t.Optional(t.String()) }),
-    },
-  )
+  .get('/workflow/stall-check', async ({ query }) => handleStallCheck(query), {
+    query: t.Object({ verbosity: t.Optional(t.String()) }),
+  })
 
   // Executes ONE recovery action. Only called after explicit user approval
   // (Space) in the panel — never invoked automatically.
