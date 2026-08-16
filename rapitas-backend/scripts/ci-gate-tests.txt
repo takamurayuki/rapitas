@@ -30,6 +30,7 @@ scripts/codemods/__tests__/codemod-runner.test.ts
 scripts/coverage-floor.test.ts
 eslint-rules/no-raw-prisma-insensitive.test.mjs
 eslint-rules/no-icon-collision.test.mjs
+eslint-rules/no-unscoped-pr-number-lookup.test.mjs
 services/observability/decision-trace/consistency-checker.test.ts
 services/observability/decision-trace/dag-query.test.ts
 services/observability/decision-trace/mask.test.ts

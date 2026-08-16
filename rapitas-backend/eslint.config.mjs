@@ -2,12 +2,14 @@ import tseslint from "@typescript-eslint/eslint-plugin";
 import tsparser from "@typescript-eslint/parser";
 import { stagedSeverity } from "../eslint-shared.mjs";
 import noRawPrismaInsensitive from "./eslint-rules/no-raw-prisma-insensitive.mjs";
+import noUnscopedPrNumberLookup from "./eslint-rules/no-unscoped-pr-number-lookup.mjs";
 import preferTestEachForSimilar from "./eslint-rules/prefer-test-each-for-similar.mjs";
 
 /** @type {import('eslint').Linter.Plugin} */
 const localPlugin = {
   rules: {
     "no-raw-prisma-insensitive": noRawPrismaInsensitive,
+    "no-unscoped-pr-number-lookup": noUnscopedPrNumberLookup,
     "prefer-test-each-for-similar": preferTestEachForSimilar,
   },
 };
@@ -35,6 +37,7 @@ export default [
     rules: {
       ...stagedSeverity("prod"),
       "local/no-raw-prisma-insensitive": "error",
+      "local/no-unscoped-pr-number-lookup": "error",
     },
   },
   // Exclude getInsensitiveMode() definition itself — it is the correct reference implementation.
@@ -43,6 +46,15 @@ export default [
     plugins: { local: localPlugin },
     rules: {
       "local/no-raw-prisma-insensitive": "off",
+    },
+  },
+  // Exclude findScopedOpenPr() definition itself — it is the canonical scoped
+  // prNumber lookup every other module must delegate to.
+  {
+    files: ["services/github/pr-lookup.ts"],
+    plugins: { local: localPlugin },
+    rules: {
+      "local/no-unscoped-pr-number-lookup": "off",
     },
   },
   {
@@ -69,6 +81,7 @@ export default [
     rules: {
       ...stagedSeverity("tests"),
       "local/no-raw-prisma-insensitive": "off",
+      "local/no-unscoped-pr-number-lookup": "off",
       "local/prefer-test-each-for-similar": "warn",
     },
   },

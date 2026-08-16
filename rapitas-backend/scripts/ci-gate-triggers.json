@@ -9,5 +9,8 @@
   ],
   "eslint-rules/no-raw-prisma-insensitive.test.mjs": [
     "eslint-rules/"
+  ],
+  "eslint-rules/no-unscoped-pr-number-lookup.test.mjs": [
+    "eslint-rules/"
   ]
 }

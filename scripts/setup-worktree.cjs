@@ -49,10 +49,19 @@ const NODE_MODULES_DIRS = [
  *
  * NOTE: `rapitas-backend/src/generated/` is intentionally NOT listed: those
  * files are tracked in git and are checked out normally into every worktree.
- * The Prisma client itself lives under `node_modules/@prisma/client` and
- * `node_modules/.prisma/client`, which are covered by the node_modules link.
+ *
+ * `rapitas-backend/generated/prisma-postgres` and `.../prisma-sqlite` DO need
+ * linking: `prisma/schema/_generators.prisma` outputs the Prisma Client there
+ * (not to the default `node_modules/.prisma/client`), and that top-level
+ * `generated/` directory is gitignored. Without this link, every backend test
+ * that imports `config/database.ts` (via `config/prisma-client-resolver.ts`)
+ * fails in a worktree with "Cannot find module '../generated/prisma-postgres'"
+ * — a false failure unrelated to the code under test.
  */
-const GENERATED_DIRS = [];
+const GENERATED_DIRS = [
+  'rapitas-backend/generated/prisma-postgres',
+  'rapitas-backend/generated/prisma-sqlite',
+];
 
 /** Env files copied (not linked) so worktree teardown cannot delete originals. */
 const ENV_FILES = [
