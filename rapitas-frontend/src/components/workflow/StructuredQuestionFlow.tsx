@@ -14,6 +14,7 @@
 import { useState } from 'react';
 import { ChevronLeft } from 'lucide-react';
 import { useTranslations } from 'next-intl';
+import { MarkdownView } from '../markdown/MarkdownView';
 import { WorkflowQuestionPanel } from './WorkflowQuestionPanel';
 import { useConfirmDialog } from '../ui/dialog/ConfirmDialogProvider';
 import {
@@ -30,6 +31,14 @@ interface StructuredQuestionFlowProps {
   submitting: boolean;
   /** Receives the composed answer text and the per-question selections audit. / 合成回答と選択監査 */
   onSubmitAll: (answerText: string, selections: StructuredSelection[]) => void;
+  /**
+   * question.md prose body with the `json:options` block stripped (see
+   * workflow-question-utils.stripOptionsBlock). Rendered once above the flow
+   * so tables/headings giving the questions their context stay visible.
+   * Optional for backward compatibility; empty string renders nothing.
+   * / json:options 除去済みの question.md 本文（省略・空文字なら非表示）
+   */
+  body?: string;
 }
 
 /**
@@ -39,6 +48,7 @@ export function StructuredQuestionFlow({
   questions,
   submitting,
   onSubmitAll,
+  body,
 }: StructuredQuestionFlowProps) {
   const t = useTranslations('workflow');
   const confirm = useConfirmDialog();
@@ -95,6 +105,18 @@ export function StructuredQuestionFlow({
 
   return (
     <div className="space-y-3">
+      {/* Same intro-box treatment as IntakeQuestionFlow so the two question
+          flows stay visually consistent; guard keeps options-only files from
+          rendering an empty box. */}
+      {body && (
+        <div
+          data-testid="structured-question-body"
+          className="rounded-lg bg-amber-50 p-3 text-xs text-amber-800 dark:bg-amber-900/20 dark:text-amber-200"
+        >
+          <MarkdownView content={body} />
+        </div>
+      )}
+
       <div className="flex items-center justify-between">
         <span className="text-xs font-medium text-zinc-500 dark:text-zinc-400">
           {t('intakeQuestionFlow.progress', { current: idx + 1, total })}

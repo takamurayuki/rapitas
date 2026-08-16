@@ -3,7 +3,8 @@
  *
  * Component tests for the json:options 1問1答 flow: option selection →
  * confirm dialog → onSubmitAll(answerText, selections), the freeTextRequired
- * textarea + reason branch, and the back button.
+ * textarea + reason branch, the back button, and the optional question.md
+ * prose body rendered above the flow.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
@@ -109,5 +110,40 @@ describe('StructuredQuestionFlow', () => {
     expect(screen.getByText('intakeQuestionFlow.previousQuestion')).toBeInTheDocument();
     fireEvent.click(screen.getByText('intakeQuestionFlow.previousQuestion'));
     expect(screen.getByText('速度を優先する')).toBeInTheDocument();
+  });
+
+  it('renders the question.md prose body (headings/tables) as Markdown when body is provided', () => {
+    render(
+      <StructuredQuestionFlow
+        questions={[QUESTIONS[0]]}
+        submitting={false}
+        onSubmitAll={vi.fn()}
+        body={'## 背景\n\n| 項目 | 値 |\n| --- | --- |\n| 対象 | 質問タブ |'}
+      />,
+    );
+    expect(screen.getByTestId('structured-question-body')).toBeInTheDocument();
+    // Heading and table cell prove Markdown structure survived (not raw text).
+    expect(screen.getByRole('heading', { name: '背景' })).toBeInTheDocument();
+    expect(screen.getByText('質問タブ')).toBeInTheDocument();
+  });
+
+  it('does not render the body wrapper when body is empty or omitted', () => {
+    const { rerender } = render(
+      <StructuredQuestionFlow
+        questions={[QUESTIONS[0]]}
+        submitting={false}
+        onSubmitAll={vi.fn()}
+        body=""
+      />,
+    );
+    expect(screen.queryByTestId('structured-question-body')).not.toBeInTheDocument();
+    rerender(
+      <StructuredQuestionFlow
+        questions={[QUESTIONS[0]]}
+        submitting={false}
+        onSubmitAll={vi.fn()}
+      />,
+    );
+    expect(screen.queryByTestId('structured-question-body')).not.toBeInTheDocument();
   });
 });

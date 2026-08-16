@@ -14,6 +14,7 @@ import {
   detectSkippedPhases,
 } from './workflow-learning-helpers';
 import { resolveTaskForLearning } from '../../task/task-resolver';
+import { recordDurationPredictionError } from './duration-prediction-service';
 
 const log = createLogger('workflow-learning-stats');
 
@@ -117,6 +118,10 @@ export async function recordWorkflowCompletion(taskId: number): Promise<void> {
       { taskId, mode: task.workflowMode, duration: actualDuration },
       'Workflow learning record created',
     );
+
+    // NOTE: fire-and-forget — prediction-error resolution is fail-open and must
+    // never propagate into the completion flow (verify-commit-pr path).
+    void recordDurationPredictionError(taskId, actualDuration).catch(() => {});
   } catch (error) {
     log.error({ err: error, taskId }, 'Failed to record workflow completion');
   }

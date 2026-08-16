@@ -43,6 +43,7 @@ function makePrisma(overrides: Record<string, unknown> = {}) {
   return {
     agentExecution: {
       update: mock(async () => ({})),
+      findUnique: mock(async () => ({ startedAt: null, executionTimeMs: null })),
     },
     ...overrides,
   };
@@ -180,5 +181,104 @@ describe('handleExecutionError()', () => {
       where: { id: 1 },
       data: expect.objectContaining({ errorMessage: 'raw string failure' }),
     });
+  });
+
+  test('エラー終端: executionTimeMs 未記録なら completedAt - startedAt (±1s) を記録する', async () => {
+    const startedAt = new Date(Date.now() - 120_000); // 2分前に開始した実行
+    const prisma = makePrisma({
+      agentExecution: {
+        update: mock(async () => ({})),
+        findUnique: mock(async () => ({ startedAt, executionTimeMs: null })),
+      },
+    });
+    const state = makeState();
+    const fileLogger = makeFileLogger();
+    const emitEvent = mock((_e: OrchestratorEvent) => {});
+
+    await handleExecutionError(
+      prisma as never,
+      1,
+      2,
+      3,
+      state,
+      new Error('boom'),
+      fileLogger,
+      emitEvent,
+      'Task',
+    );
+
+    const updateArg = prisma.agentExecution.update.mock.calls[0][0] as {
+      data: { executionTimeMs?: number; completedAt: Date };
+    };
+    expect(typeof updateArg.data.executionTimeMs).toBe('number');
+    const expected = updateArg.data.completedAt.getTime() - startedAt.getTime();
+    expect(Math.abs((updateArg.data.executionTimeMs as number) - expected)).toBeLessThanOrEqual(
+      1000,
+    );
+  });
+
+  test('エラー終端: 既存の executionTimeMs セグメント値がある場合は上書きしない', async () => {
+    const startedAt = new Date(Date.now() - 120_000);
+    const prisma = makePrisma({
+      agentExecution: {
+        update: mock(async () => ({})),
+        // 質問待ち→継続で既に 45s のセグメントが記録済みのケース
+        findUnique: mock(async () => ({ startedAt, executionTimeMs: 45_000 })),
+      },
+    });
+    const state = makeState();
+    const fileLogger = makeFileLogger();
+    const emitEvent = mock((_e: OrchestratorEvent) => {});
+
+    await handleExecutionError(
+      prisma as never,
+      1,
+      2,
+      3,
+      state,
+      new Error('boom'),
+      fileLogger,
+      emitEvent,
+      'Task',
+    );
+
+    const updateArg = prisma.agentExecution.update.mock.calls[0][0] as {
+      data: Record<string, unknown>;
+    };
+    expect(updateArg.data.executionTimeMs).toBeUndefined();
+  });
+
+  test('エラー終端: startedAt 不明・findUnique 失敗でも executionTimeMs なしで永続化は成功する', async () => {
+    const prisma = makePrisma({
+      agentExecution: {
+        update: mock(async () => ({})),
+        findUnique: mock(async () => {
+          throw new Error('DB down');
+        }),
+      },
+    });
+    const state = makeState();
+    const fileLogger = makeFileLogger();
+    const emitEvent = mock((_e: OrchestratorEvent) => {});
+
+    await expect(
+      handleExecutionError(
+        prisma as never,
+        1,
+        2,
+        3,
+        state,
+        new Error('boom'),
+        fileLogger,
+        emitEvent,
+        'Task',
+      ),
+    ).resolves.toBeUndefined();
+
+    const updateArg = prisma.agentExecution.update.mock.calls[0][0] as {
+      data: Record<string, unknown>;
+    };
+    expect(updateArg.data.executionTimeMs).toBeUndefined();
+    expect(updateArg.data.status).toBe('failed');
   });
 });

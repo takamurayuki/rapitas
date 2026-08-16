@@ -108,6 +108,8 @@ export function useExecutingTasksPolling(options?: {
         startedAt?: string | null;
         /** The whole (multi-phase) session's start — see agent-resume-router.ts. */
         sessionStartedAt?: string | null;
+        /** Cumulative finished active time across all phases / re-runs (task #560). */
+        activeTimeMs?: number;
       }> = await res.json();
 
       const currentExecutingIds = new Set<number>();
@@ -115,15 +117,22 @@ export function useExecutingTasksPolling(options?: {
       for (const item of data) {
         if (item.executionStatus === 'running' || item.executionStatus === 'waiting_for_input') {
           currentExecutingIds.add(item.taskId);
-          // Prefer the session's start over this row's own — a new AgentExecution
-          // row (and thus a new startedAt) is created for every workflow phase,
-          // which previously reset the card's elapsed-time display each phase.
-          const elapsedAnchor = item.sessionStartedAt ?? item.startedAt ?? null;
+          // Cumulative base + live tick from the CURRENT row's startedAt: the
+          // base carries every finished execution (all phases / sessions), so
+          // anchoring on the running row cannot double-count them. A session
+          // anchor here WOULD double-count the session's own finished rows.
+          // Without the field (older backend) fall back to the session anchor,
+          // which at least spans phases within one session.
+          const hasCumulative = typeof item.activeTimeMs === 'number';
+          const elapsedAnchor = hasCumulative
+            ? (item.startedAt ?? item.sessionStartedAt ?? null)
+            : (item.sessionStartedAt ?? item.startedAt ?? null);
           setExecutingTask({
             taskId: item.taskId,
             sessionId: item.sessionId,
             status: item.executionStatus as 'running' | 'waiting_for_input',
             startedAt: elapsedAnchor,
+            cumulativeActiveMs: hasCumulative ? item.activeTimeMs : 0,
           });
 
           // Reflect a running subtask on its PARENT card too: the home list does
@@ -137,6 +146,7 @@ export function useExecutingTasksPolling(options?: {
               taskId: item.parentId,
               status: 'running',
               startedAt: elapsedAnchor,
+              cumulativeActiveMs: hasCumulative ? item.activeTimeMs : 0,
             });
           }
 
@@ -177,10 +187,18 @@ export function useExecutingTasksPolling(options?: {
 
       adjustPollingInterval(knownTaskIdsRef.current.size > 0, true);
 
-      // Reset known task state on prolonged errors
+      // Reset known task state on prolonged errors.
+      // CRITICAL: clear the STORE as well, not just the tracking ref. Clearing
+      // only the ref strands every card in "executing" forever: the removal
+      // loop above iterates the ref, so once it is empty the next successful
+      // poll (returning an empty list) has nothing left to remove — the
+      // spinner and the elapsed timer keep running for work that ended long
+      // ago. A backend restart takes well over a minute (prisma generate), so
+      // every restart reproduced this.
       if (timeSinceLastSuccess > 60000) {
         // 1 minute
         logger.warn('Long-term connectivity issues, clearing known tasks');
+        for (const staleId of knownTaskIdsRef.current) removeExecutingTask(staleId);
         knownTaskIdsRef.current.clear();
       }
     }

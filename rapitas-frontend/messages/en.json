@@ -271,6 +271,7 @@
     "contradictions": "Contradictions",
     "memoryVisualization": "Memory Growth",
     "growthLedger": "Growth Ledger",
+    "missSignatures": "Miss Learning",
     "memoryAdmin": "Memory Admin",
     "growthReport": "Daily Report",
     "settings": "Settings",
@@ -1749,6 +1750,11 @@
     "growthCount_interventions": "Interventions",
     "dataExport": "Export Data",
     "metricsFetchFailed": "Failed to fetch metrics data",
+    "utilizationRoleTitle": "Utilization by Role",
+    "utilizationAgentTitle": "Utilization by CLI Agent",
+    "utilizationEmpty": "No execution data for this period",
+    "utilizationNoData": "No data",
+    "utilizationRefresh": "Refresh",
     "filterSettings": "Filter Settings",
     "startDate": "Start Date",
     "endDate": "End Date",
@@ -1974,6 +1980,38 @@
         "title": "Knowledge Quality",
         "seriesLabel": "Validated ratio"
       }
+    },
+    "missSignatures": {
+      "title": "Detection-Miss Signature Review",
+      "subtitle": "Approve or reject detection cues learned from defects that slipped past the quality gates. Approved cues land in the knowledge base as hints for future research and detector work.",
+      "mode": {
+        "label": "Current apply mode",
+        "manual": "Approval required",
+        "auto": "Auto-apply"
+      },
+      "basis": {
+        "initial_gate": "Initial learning period — every suggestion needs human approval until the review record reaches the configured count",
+        "insufficient_data": "Insufficient data — window samples are below the floor, so no judgement is made (auto-apply stays off)",
+        "low_rejection": "Rejection rate at or under the threshold — pending suggestions auto-apply",
+        "high_rejection": "Rejection rate over the threshold — auto-apply stopped, back to approval required"
+      },
+      "rejectionRate": "Rejection rate",
+      "rejectionRateNone": "No judgement",
+      "window": "Last {days} days: {samples} reviews / {rejections} rejections",
+      "counts": {
+        "pendingReview": "Pending review",
+        "approved": "Approved",
+        "rejected": "Rejected",
+        "autoApplied": "Auto-applied",
+        "cases": "Recorded cases"
+      },
+      "signaturePending": "Suggestions awaiting review",
+      "explanationLabel": "Explanation",
+      "approve": "Approve",
+      "reject": "Reject",
+      "empty": "No suggestions are waiting for review. Periods without misses are normal — no detection is expected.",
+      "loadFailed": "Failed to load data",
+      "reviewFailed": "Failed to submit the review"
     }
   },
   "github": {
@@ -2340,6 +2378,18 @@
         },
         "reasonsCount": "{count} issue(s)",
         "noReasons": "No details were recorded"
+      },
+      "phaseBreakdown": {
+        "title": "Execution time by phase",
+        "totalActive": "Active {time}",
+        "wallClock": "Elapsed {time}",
+        "execCount": "{count} run(s)",
+        "role": {
+          "researcher": "Research",
+          "planner": "Plan",
+          "implementer": "Implement",
+          "verifier": "Verify"
+        }
       }
     }
   },
@@ -4773,6 +4823,10 @@
         "daily_report": {
           "label": "Daily report",
           "desc": "Consolidates the last 24 hours of autonomous activity (completed tasks, merged PRs, concerns, learnings, decisions, self-restarts, human interventions, upcoming queue) into one morning notification, archived at /agents/daily-report."
+        },
+        "miss_ledger": {
+          "label": "Miss learning",
+          "desc": "Records defects that slipped past the quality gates (CI bounces, post-completion concerns) with evidence, and generates detection-cue suggestions reviewed at /agents/miss-signatures."
         }
       },
       "frequency": {

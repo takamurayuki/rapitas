@@ -24,6 +24,7 @@ import { runLoopReview } from '../self-improvement/loop-watcher';
 import { runCiWatch } from '../self-improvement/ci-green-keeper';
 import { createNotification } from '../communication/notification-service';
 import { runDailyReport } from '../reporting/daily-report-service';
+import { runMissLedgerJob } from '../self-improvement/miss-ledger-job';
 
 const log = createLogger('scheduling:backlog');
 
@@ -38,6 +39,7 @@ const HANDLERS: Record<BacklogJobKind, () => Promise<number>> = {
   loop_review: runLoopReview,
   ci_watch: runCiWatch,
   daily_report: runDailyReport,
+  miss_ledger: runMissLedgerJob,
 };
 
 // NOTE: Must stay in sync with rapitas-frontend/messages/ja.json
@@ -50,6 +52,7 @@ const JOB_LABELS: Record<BacklogJobKind, string> = {
   loop_review: '品質ループレビュー',
   ci_watch: 'CI 監視（本線）',
   daily_report: 'デイリーレポート',
+  miss_ledger: '検出漏れ学習',
 };
 
 // Caps notification body length — raw Error.message can carry stack-trace-like

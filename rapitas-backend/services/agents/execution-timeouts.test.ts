@@ -8,6 +8,7 @@ import {
   getPhaseTimeoutMs,
   getWorkflowLockTtlMs,
   getAgentTimeoutMs,
+  getIpcExecutionTimeoutMs,
   resolveAgentWallClockTimeoutMs,
   DEFAULT_PHASE_TIMEOUT_MS,
 } from './execution-timeouts';
@@ -45,6 +46,30 @@ describe('execution-timeouts', () => {
     delete process.env[KEY];
     expect(getAgentTimeoutMs()).toBeLessThan(getPhaseTimeoutMs());
     expect(getPhaseTimeoutMs()).toBeLessThan(getWorkflowLockTtlMs());
+  });
+
+  // Task 585: a hardcoded 20-min IPC timeout undercut the 28/56-min agent caps
+  // and killed a healthy researcher ("IPC request timeout: execute-task").
+  it('keeps the IPC transport timeout OUTSIDE every other timer, including the implementer', () => {
+    delete process.env[KEY];
+    expect(getIpcExecutionTimeoutMs()).toBeGreaterThan(getWorkflowLockTtlMs());
+    expect(getIpcExecutionTimeoutMs()).toBeGreaterThan(getAgentTimeoutMs('implementer'));
+    expect(getIpcExecutionTimeoutMs()).toBeGreaterThan(getPhaseTimeoutMs('implementer'));
+  });
+
+  it('keeps the lock TTL above the LONGEST phase (implementer), not just the base one', () => {
+    delete process.env[KEY];
+    // A role-less lock TTL (35 min) sat below the implementer phase (58 min),
+    // so a long implementation could lose its lock and get a duplicate agent.
+    expect(getWorkflowLockTtlMs()).toBeGreaterThan(getPhaseTimeoutMs('implementer'));
+    expect(getWorkflowLockTtlMs()).toBeGreaterThan(getAgentTimeoutMs('implementer'));
+  });
+
+  it('holds the full ordering for a custom phase timeout too', () => {
+    process.env[KEY] = String(12 * 60 * 1000);
+    expect(getAgentTimeoutMs('implementer')).toBeLessThan(getPhaseTimeoutMs('implementer'));
+    expect(getPhaseTimeoutMs('implementer')).toBeLessThan(getWorkflowLockTtlMs());
+    expect(getWorkflowLockTtlMs()).toBeLessThan(getIpcExecutionTimeoutMs());
   });
 
   it('keeps the invariant for a custom phase timeout', () => {

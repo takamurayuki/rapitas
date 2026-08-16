@@ -11,6 +11,7 @@ import {
   getWorkflowRecommendation,
   getLearningStats,
 } from '../../services/workflow/learning/workflow-learning-optimizer';
+import { predictAndPersistTaskDuration } from '../../services/workflow/learning/duration-prediction-service';
 
 const log = createLogger('routes:workflow-learning');
 
@@ -37,6 +38,33 @@ export const workflowLearningRoutes = new Elysia({ prefix: '/workflow/learning' 
       };
     } catch (err) {
       log.error({ err }, 'Error getting workflow recommendation');
+      throw err;
+    }
+  })
+
+  // Get (and persist) the distribution-based duration prediction for a task.
+  // Returns predictable=false with null stats when history is below the
+  // sample threshold — numbers are never fabricated.
+  .get('/tasks/:taskId/duration-prediction', async ({ params }) => {
+    try {
+      const taskId = parseId(params.taskId, 'task ID');
+
+      const prediction = await predictAndPersistTaskDuration(taskId);
+
+      if (!prediction) {
+        return {
+          success: true,
+          prediction: null,
+          message: 'タスクが見つからないか、予測を算出できません',
+        };
+      }
+
+      return {
+        success: true,
+        prediction,
+      };
+    } catch (err) {
+      log.error({ err }, 'Error getting duration prediction');
       throw err;
     }
   })

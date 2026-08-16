@@ -74,14 +74,27 @@ describe('executeCLIAgent — worktree resolution', () => {
     resetWfMockState();
   });
 
-  test('non-mutating role never resolves or reuses a worktree, and ignores themeWorkDir', async () => {
+  test('investigation role runs in the THEME directory without touching worktree machinery', async () => {
     await run(nonMutatingTransition());
 
+    // Read-only phases need no isolation (investigationMode blocks
+    // Bash/Edit/Write), so none of the worktree machinery runs...
     expect(spies.resolveLatestSessionWorktree).not.toHaveBeenCalled();
     expect(spies.createWorktree).not.toHaveBeenCalled();
     expect(spies.isPrimaryWorkTree).not.toHaveBeenCalled();
-    // By design (see the executor's `effectiveWorkDir` ternary — non-mutating
-    // roles always run at process.cwd(), regardless of themeWorkDir).
+    // ...but they MUST read the theme's project, not the backend's own cwd.
+    // Running at process.cwd() made every non-rapitas theme investigate the
+    // rapitas codebase: task 580 (theme コンバーター) reported that the files
+    // it was sent to analyse "do not exist" because it grepped this repo.
+    const [, options] = lastExecuteTaskCall();
+    expect(options.workingDirectory).toBe('/fake/project');
+  });
+
+  test('investigation role falls back to cwd when the theme has no workingDirectory', async () => {
+    wf.taskWithTheme = { id: 1, themeId: 1, workflowStatus: 'draft', theme: null };
+
+    await run(nonMutatingTransition());
+
     const [, options] = lastExecuteTaskCall();
     expect(options.workingDirectory).toBe(process.cwd());
   });

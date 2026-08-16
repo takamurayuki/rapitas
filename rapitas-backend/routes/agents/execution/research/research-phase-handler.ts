@@ -192,10 +192,13 @@ export async function handleResearchResult(params: HandleResearchResultParams): 
       .catch((e) =>
         log.warn({ err: e, sessionId }, '[API] Failed to close session (critic-rejected)'),
       );
+    // NOTE: completedAt is NOT re-stamped — saveExecutionResult already recorded
+    // the CLI exit time; re-stamping would fold the critic-gate epilogue into
+    // the row's wall span (task #560).
     await prisma.agentExecution
       .updateMany({
         where: { sessionId, status: 'post_processing' },
-        data: { status: 'completed', completedAt: new Date() },
+        data: { status: 'completed' },
       })
       .catch((e) =>
         log.warn({ err: e, sessionId }, '[API] Failed to flip execution status (critic-rejected)'),

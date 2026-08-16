@@ -39,6 +39,7 @@ import {
   hasItemAwaitingApproval,
   isAwaitingUserAnswer,
   hasLiveExecution,
+  resolveLastProgressAt,
   overlappingFiles,
   selectNextTask,
   recentThemeSuccessRate,
@@ -354,6 +355,19 @@ export class ThemeAutoRunScheduler {
           await notifyAwaitingUserAnswer(themeId, currentTaskId);
           return;
         }
+        // Measure time since PROGRESS, not tenure. A multi-phase task legitimately
+        // outlives the task wall (the implementer alone may run 56 min against a
+        // 45-min wall), and the liveness check below cannot see the phase seam
+        // where one execution has ended and the next has not started: task 585
+        // was killed there, 8 seconds after its implementer committed a complete
+        // implementation. Transitions and heartbeats are the actual evidence of
+        // movement; only their absence means wedged.
+        const lastProgressAt = await resolveLastProgressAt(
+          prisma,
+          currentTaskId,
+          new Date(lastRunAt).getTime(),
+        );
+        const sinceProgressMs = Date.now() - lastProgressAt;
         // Liveness exemption: a running execution with a fresh heartbeat is
         // SLOW, not wedged — killing it destroys legitimate long work (task
         // 563: healthy 31-min implementer force-stopped because multi-phase
@@ -361,9 +375,25 @@ export class ThemeAutoRunScheduler {
         // phase timeouts govern; the tenure wall only fires once the task has
         // no live execution. A hard ceiling (3x) still bounds runaway tokens
         // even with a heartbeat, preserving the original guard's purpose.
-        if (tenureMs < MAX_TASK_WALL_MS * 3 && (await hasLiveExecution(prisma, currentTaskId))) {
+        const withinHardCeiling = tenureMs < MAX_TASK_WALL_MS * 3;
+        const progressedRecently = sinceProgressMs < MAX_TASK_WALL_MS && withinHardCeiling;
+        const executionIsLive =
+          withinHardCeiling &&
+          !progressedRecently &&
+          (await hasLiveExecution(prisma, currentTaskId));
+        // CRITICAL: deferring must FALL THROUGH to the normal resolution below,
+        // never return. Returning here wedged the whole theme: task 594 finished
+        // while over the tenure wall, so every tick saw "progressed 429s ago",
+        // deferred, and returned before the code that resolves a finished task
+        // and picks the next one — auto-run sat "running" with a completed
+        // current task and 9 runnable tasks untouched.
+        if (progressedRecently || executionIsLive) {
           log.info(
-            `[ThemeAutoRunScheduler] Task ${currentTaskId} over tenure wall but execution heartbeat is fresh — deferring hang backstop (theme ${themeId})`,
+            `[ThemeAutoRunScheduler] Task ${currentTaskId} over tenure wall but ${
+              progressedRecently
+                ? `progressed ${Math.round(sinceProgressMs / 1000)}s ago`
+                : 'execution heartbeat is fresh'
+            } — deferring hang backstop (theme ${themeId})`,
           );
         } else {
           log.warn(

@@ -1,21 +1,29 @@
 /**
  * execution-timeouts
  *
- * Single source of truth for the agent/phase/lock timeouts so they stay
+ * Single source of truth for the agent/phase/lock/IPC timeouts so they stay
  * CONSISTENT. The invariant that matters:
  *
- *   agentTimeout  <  phaseTimeout  <  lockTtl
+ *   agentTimeout  <  phaseTimeout  <  lockTtl  <=  ipcRequestTimeout
  *
  * - agentTimeout: the CLI agent self-terminates first (clean error), so a long
  *   but legitimate run ends on its own terms.
  * - phaseTimeout: the WorkflowRunner backstop, only for a genuinely hung phase.
  * - lockTtl: outlives a phase so a long phase never has its execution lock
  *   stolen (which would spawn a duplicate agent).
+ * - ipcRequestTimeout: the OUTERMOST timer. It is only a transport backstop for
+ *   a worker that stopped answering at all — never the thing that ends a run.
  *
  * Previously these were three independent hardcoded constants (runner 10min,
  * CLI 15min, lock 15min) where the runner's 10min fired FIRST and killed
  * legitimate long phases (e.g. a 42-file refactor) at exactly 10 minutes —
  * "Execution cancelled" mid-work, then an endless retry-and-die loop.
+ *
+ * The IPC layer repeated that mistake with its own hardcoded 20 min, BELOW the
+ * 28 min (56 min for implementer) agent cap: task 585's researcher was killed
+ * with "IPC request timeout: execute-task" at exactly 20:00 while its CLI kept
+ * running for another 8 minutes as an orphan. Every timer now derives from
+ * here, so a new layer cannot silently undercut the others again.
  *
  * Tune with `RAPITAS_PHASE_TIMEOUT_MS`; the other two derive from it.
  * Per-role wall-clock overrides: `RAPITAS_AGENT_WALLCLOCK_MS` (all roles) and
@@ -29,6 +37,8 @@ export const DEFAULT_PHASE_TIMEOUT_MS = 30 * 60 * 1000;
 const LOCK_MARGIN_MS = 5 * 60 * 1000;
 /** Agent self-terminates this much BEFORE the phase backstop. */
 const AGENT_MARGIN_MS = 2 * 60 * 1000;
+/** IPC transport backstop sits this much ABOVE the lock TTL (outermost timer). */
+const IPC_MARGIN_MS = 5 * 60 * 1000;
 /** Floor so a misconfigured tiny value can't make agents un-runnable. */
 const MIN_TIMEOUT_MS = 60 * 1000;
 // NOTE: task 546 — implementer runs get 2x the base wall-clock cap. Task 545
@@ -90,10 +100,29 @@ export function resolveAgentWallClockTimeoutMs(
 /**
  * Lock TTL — must exceed the phase timeout so a long phase keeps its lock.
  *
+ * NOTE: derived from the LONGEST phase (implementer, 2x wall-clock), not the
+ * role-less base. The role-less value (35 min) sat BELOW the implementer's own
+ * phase timeout (58 min), so a legitimate long implementation could have its
+ * lock expire mid-run and let a second agent start on the same task — the
+ * exact failure the TTL exists to prevent. Over-long TTL is harmless: every
+ * normal exit path releases the lock explicitly; this is only the backstop.
+ *
  * @returns Lock TTL in ms. / ロックTTL(ms)
  */
 export function getWorkflowLockTtlMs(): number {
-  return getPhaseTimeoutMs() + LOCK_MARGIN_MS;
+  return getPhaseTimeoutMs('implementer') + LOCK_MARGIN_MS;
+}
+
+/**
+ * IPC request timeout for worker calls that carry a WHOLE phase execution
+ * (execute-task / continue / resume). Must be the outermost timer: the agent,
+ * phase and lock backstops all fire first, so a timeout here means the worker
+ * itself stopped answering — not that the work took too long.
+ *
+ * @returns IPC request timeout in ms. / IPCリクエストタイムアウト(ms)
+ */
+export function getIpcExecutionTimeoutMs(): number {
+  return getWorkflowLockTtlMs() + IPC_MARGIN_MS;
 }
 
 /**

@@ -271,6 +271,7 @@
     "contradictions": "矛盾管理",
     "memoryVisualization": "記憶の成長",
     "growthLedger": "成長台帳",
+    "missSignatures": "検出漏れ学習",
     "memoryAdmin": "メモリ管理",
     "growthReport": "デイリーレポート",
     "settings": "設定",
@@ -1749,6 +1750,11 @@
     "growthCount_interventions": "人間介入",
     "dataExport": "データエクスポート",
     "metricsFetchFailed": "メトリクスデータの取得に失敗しました",
+    "utilizationRoleTitle": "役割別稼働率",
+    "utilizationAgentTitle": "CLIエージェント別稼働率",
+    "utilizationEmpty": "この期間の実行データはありません",
+    "utilizationNoData": "データなし",
+    "utilizationRefresh": "更新",
     "filterSettings": "フィルター設定",
     "startDate": "開始日",
     "endDate": "終了日",
@@ -1974,6 +1980,38 @@
         "title": "知識の質",
         "seriesLabel": "検証済み比率"
       }
+    },
+    "missSignatures": {
+      "title": "検出漏れ兆候レビュー",
+      "subtitle": "品質ゲートを素通りした欠陥事例から学習した検出兆候の提案を、承認または棄却します。承認された兆候は知識ベースに反映され、将来の調査・検出器実装のヒントになります。",
+      "mode": {
+        "label": "現在の反映モード",
+        "manual": "承認必須",
+        "auto": "自動反映"
+      },
+      "basis": {
+        "initial_gate": "初期学習期間 — 人間レビューの実績が既定件数に達するまで全件承認必須です",
+        "insufficient_data": "データ不足 — 窓内のレビュー件数が下限未満のため判定を保留しています（自動反映へは移行しません）",
+        "low_rejection": "棄却率が閾値以下 — 承認待ちの提案は自動反映されます",
+        "high_rejection": "棄却率が閾値超過 — 自動反映は停止し承認必須へ戻りました"
+      },
+      "rejectionRate": "棄却率",
+      "rejectionRateNone": "判定なし",
+      "window": "直近{days}日: レビュー{samples}件 / 棄却{rejections}件",
+      "counts": {
+        "pendingReview": "承認待ち",
+        "approved": "承認済み",
+        "rejected": "棄却",
+        "autoApplied": "自動反映",
+        "cases": "記録事例"
+      },
+      "signaturePending": "承認待ちの提案",
+      "explanationLabel": "説明",
+      "approve": "承認",
+      "reject": "棄却",
+      "empty": "承認待ちの提案はありません。検出漏れが発生していない期間は、提案が無いのが正常です。",
+      "loadFailed": "データの読み込みに失敗しました",
+      "reviewFailed": "レビューの送信に失敗しました"
     }
   },
   "github": {
@@ -2340,6 +2378,18 @@
         },
         "reasonsCount": "指摘 {count}件",
         "noReasons": "詳細情報が記録されていません"
+      },
+      "phaseBreakdown": {
+        "title": "フェーズ別実行時間",
+        "totalActive": "実働合計 {time}",
+        "wallClock": "経過 {time}",
+        "execCount": "{count}回",
+        "role": {
+          "researcher": "調査",
+          "planner": "計画",
+          "implementer": "実装",
+          "verifier": "検証"
+        }
       }
     }
   },
@@ -4773,6 +4823,10 @@
         "daily_report": {
           "label": "デイリーレポート",
           "desc": "直近24時間の自律活動（完了タスク・マージPR・懸念・学び・意思決定・自己再起動・人間介入・次のキュー）を毎朝1通の通知に統合し、/agents/daily-report にアーカイブします。"
+        },
+        "miss_ledger": {
+          "label": "検出漏れ学習",
+          "desc": "品質ゲートを素通りして事後に判明した欠陥（CI差し戻し・完了後の懸念）を証拠つきで記録し、同型を次回検出するための兆候提案を生成します。提案は /agents/miss-signatures で承認/棄却します。"
         }
       },
       "frequency": {

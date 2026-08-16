@@ -41,7 +41,8 @@ mock.module('../../../config/database', () => ({
   ensureDatabaseConnection: () => Promise.resolve(),
 }));
 
-const { criticRejectedSince, checkRejectedResave } = await import('./critic-rejection-guard');
+const { criticRejectedSince, checkRejectedResave, findRecentCriticBounce } =
+  await import('./critic-rejection-guard');
 
 /** sha256 of content exactly as the guard computes it (post-sanitise). */
 function shaOf(content: string): string {
@@ -152,5 +153,62 @@ describe('checkRejectedResave', () => {
     versionFindFirst.mockRejectedValue(new Error('db down'));
     const verdict = await checkRejectedResave(540, 'research', CONTENT);
     expect(verdict.isResave).toBe(false);
+  });
+});
+
+// Task 585: the async critic verdict lands after the agent moved on, so the
+// next save is rejected with no explanation. These pin the lookup that turns
+// that dead end into "revise <phase>.md — here is what the critic said".
+describe('findRecentCriticBounce', () => {
+  beforeEach(() => {
+    transitionFindFirstMeta.mockReset().mockResolvedValue(null);
+  });
+
+  test('保存可能フェーズの差し戻しを理由付きで返す', async () => {
+    transitionFindFirstMeta.mockResolvedValue({
+      cause: 'research_critic_failed',
+      metadata: { severity: 68, reasons: ['CSV形式が未定義', '閾値が未定義'] },
+    } as unknown as { metadata: unknown });
+
+    const bounce = await findRecentCriticBounce(585, ['research', 'question']);
+
+    expect(bounce).not.toBeNull();
+    expect(bounce?.phase).toBe('research');
+    expect(bounce?.reasons).toEqual(['CSV形式が未定義', '閾値が未定義']);
+    expect(bounce?.severity).toBe(68);
+    // 差し戻し原因は保存可能フェーズに限定して検索する。
+    const args = transitionFindFirstMeta.mock.calls[0]?.[0] as {
+      where: { cause: { in: string[] } };
+    };
+    expect(args.where.cause.in).toEqual(['research_critic_failed']);
+  });
+
+  test('critic 対象フェーズが許可リストに無ければ検索しない', async () => {
+    const bounce = await findRecentCriticBounce(585, ['verify', 'question']);
+    expect(bounce).toBeNull();
+    expect(transitionFindFirstMeta).not.toHaveBeenCalled();
+  });
+
+  test('該当する差し戻しが無ければ null', async () => {
+    transitionFindFirstMeta.mockResolvedValue(null);
+    expect(await findRecentCriticBounce(585, ['research'])).toBeNull();
+  });
+
+  test('metadata が壊れていても差し戻し自体は報告する', async () => {
+    transitionFindFirstMeta.mockResolvedValue({
+      cause: 'plan_critic_failed',
+      metadata: '{not json',
+    } as unknown as { metadata: unknown });
+
+    const bounce = await findRecentCriticBounce(585, ['plan', 'question']);
+
+    expect(bounce?.phase).toBe('plan');
+    expect(bounce?.reasons).toEqual([]);
+    expect(bounce?.severity).toBeNull();
+  });
+
+  test('DB エラー時は fail-open で null', async () => {
+    transitionFindFirstMeta.mockRejectedValue(new Error('db down'));
+    expect(await findRecentCriticBounce(585, ['research'])).toBeNull();
   });
 });

@@ -154,6 +154,57 @@ export async function notifyAuthenticationFailure() {
   });
 }
 
+/** Title used for intake-question-pending notifications — also the dedup match key. */
+export const INTAKE_QUESTION_NOTIFICATION_TITLE = '確認の質問が回答待ちです';
+
+// Dedup window doubles as the re-notify interval. Rationale: tasks #578/#579
+// sat awaiting_question for 4 days (2026-08-13T13:48:35Z → 2026-08-17) with
+// zero notifications; a daily reminder is enough recall while keeping feed
+// noise minimal (an unanswered question never advances on its own).
+export const INTAKE_QUESTION_NOTIFY_WINDOW_MS =
+  parseInt(process.env.RAPITAS_INTAKE_QUESTION_NOTIFY_WINDOW_MS ?? '', 10) || 24 * 60 * 60 * 1000;
+
+/**
+ * Notify the user that a task is paused on an unanswered intake question.
+ * Shared by the intake gate (initial notice) and the self-incident watcher
+ * (re-notice for stale waits): both go through the same title+link dedup
+ * window, so a single query suppresses duplicates across BOTH paths.
+ *
+ * @param params.taskId - Task paused on the question. / 質問待ちのタスクID
+ * @param params.taskTitle - Task title for the message. / 通知本文用のタスク名
+ * @param params.nowMs - Current time (ms); injectable for tests. / 現在時刻
+ * @returns The created notification, or null when suppressed by dedup. / 作成した通知、重複抑制時は null
+ */
+export async function notifyIntakeQuestionPending(params: {
+  taskId: number;
+  taskTitle: string;
+  nowMs?: number;
+}) {
+  // NOTE: /?panel=<id> is the only link that reaches the answer UI (home slide
+  // panel restore) — the conventional /tasks?taskId= has no frontend route (404).
+  const link = `/?panel=${params.taskId}`;
+  const nowMs = params.nowMs ?? Date.now();
+  const since = new Date(nowMs - INTAKE_QUESTION_NOTIFY_WINDOW_MS);
+  const recent = await prisma.notification.findFirst({
+    where: {
+      type: 'system',
+      title: INTAKE_QUESTION_NOTIFICATION_TITLE,
+      link,
+      createdAt: { gte: since },
+    },
+    orderBy: { createdAt: 'desc' },
+  });
+  if (recent) return null;
+
+  return createNotification({
+    type: 'system',
+    title: INTAKE_QUESTION_NOTIFICATION_TITLE,
+    message: `タスク #${params.taskId}「${params.taskTitle}」は確認の質問に回答があるまで進みません。通知を開いて回答してください。`,
+    link,
+    metadata: { taskId: params.taskId, reason: 'intake_question_pending' },
+  });
+}
+
 /**
  * Send a pomodoro completion notification.
  */

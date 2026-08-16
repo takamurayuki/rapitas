@@ -17,6 +17,7 @@ import { performAutoCommitAndPR, isNoChangeCompletion } from '../../workflow-aut
 import { resolveLandingMode } from '../../../../services/workflow/automation-policy';
 import { recordTransition } from '../../../../services/workflow/transition-recorder';
 import { markLatestExecutionFailed } from './shared';
+import { registerVerifyCompletion } from '../../../../services/workflow/verify-completion-inflight';
 
 const log = createLogger('routes:workflow:handlers:files');
 
@@ -112,10 +113,16 @@ export async function runVerifyCommitPrCompletion(params: {
     // Run commit/PR/merge. Completion is GATED on its outcome: the task only
     // completes when a PR was created (or already exists), or when no PR was
     // requested. See the gate in the success branch below.
-    autoCommitPRResult = await performAutoCommitAndPR(taskId, savedContent).catch((err) => {
+    // Registered as in-flight so the WorkflowRunner's verify-settle wait knows
+    // this is live work rather than a stalled task: its fixed 60s window
+    // expired mid-pipeline on task 580 (which needed 127s) and auto-run
+    // skipped a task that then created its PR successfully.
+    const commitPrWork = performAutoCommitAndPR(taskId, savedContent).catch((err) => {
       log.warn({ err, taskId }, '[Workflow] Auto-commit/PR threw');
       return {} as Awaited<ReturnType<typeof performAutoCommitAndPR>>;
     });
+    registerVerifyCompletion(taskId, commitPrWork);
+    autoCommitPRResult = await commitPrWork;
 
     // History-contamination recovery (task 539), gate-side call site: when
     // the automated gate withheld commit/PR and the out-of-plan files came

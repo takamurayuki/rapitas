@@ -268,9 +268,23 @@ export async function executeCLIAgent(
   // worktree. Earlier code defaulted to `themeWorkDir` which is the dev
   // project ROOT — the user reported "worktree が作成されない / コミット
   // も PR も作られない" exactly because of this regression.
+  //
+  // Investigation roles (researcher / planner) get themeWorkDir, NOT the
+  // backend's own cwd. They previously always ran in C:\...\rapitas-backend,
+  // so every non-rapitas theme had its codebase investigated against RAPITAS:
+  // task 580 (theme コンバーター, C:\Projects\ime-live-converter) produced a
+  // research report concluding "viterbi.rs / scoring.rs do not exist and the
+  // premises are invalid" — because it grepped the wrong repository. Only
+  // rapitas self-development was unaffected, which is why it went unnoticed.
+  // Safe without a worktree: these phases run with investigationMode, whose
+  // denylist removes Bash/PowerShell/Edit/Write/NotebookEdit, so they can only
+  // read the checkout.
+  const isInvestigationRole = transition.role === 'researcher' || transition.role === 'planner';
   const effectiveWorkDir: string =
     resolvedWorktreePath ??
-    (isImplementationRole || isVerifierRole ? (themeWorkDir ?? process.cwd()) : process.cwd());
+    (isImplementationRole || isVerifierRole || isInvestigationRole
+      ? (themeWorkDir ?? process.cwd())
+      : process.cwd());
 
   // SAFETY (②): a mutating role must run inside a LINKED worktree — never any
   // repo's PRIMARY checkout. This is repo-agnostic on purpose: the earlier
@@ -1110,9 +1124,12 @@ curl -X POST http://127.0.0.1:${port}/idea-box \\
   // never lights up for planner / verifier phases.
   if (effectiveSuccess && isInvestigationPhase) {
     try {
+      // NOTE: completedAt is NOT re-stamped here — saveExecutionResult already
+      // recorded the actual CLI exit time. Re-stamping would fold the epilogue
+      // (critic gate, artifact save) into the row's wall span (task #560).
       await prisma.agentExecution.updateMany({
         where: { sessionId: session.id, status: 'post_processing' },
-        data: { status: 'completed', completedAt: new Date() },
+        data: { status: 'completed' },
       });
       log.info(
         { taskId, role: transition.role, outputFile: transition.outputFile },

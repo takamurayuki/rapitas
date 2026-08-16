@@ -11,6 +11,7 @@ import { createLogger } from '../../../config/logger';
 import { analyzeTaskComplexity, type TaskComplexityInput } from '../complexity-analyzer';
 import { matchesCondition, type RuleGenerationResult } from './workflow-learning-helpers';
 import { estimateDurationFromHistory, getDirectInsight } from './workflow-learning-estimator';
+import { predictAndPersistTaskDuration } from './duration-prediction-service';
 import { runRuleDetection } from './workflow-learning-rules';
 import { resolveTaskForLearning } from '../../task/task-resolver';
 
@@ -260,6 +261,10 @@ export async function getWorkflowRecommendation(
       matchedRules.length > 0
         ? matchedRules.reduce((sum, r) => sum + r.confidence, 0) / matchedRules.length
         : 0.5;
+
+    // NOTE: fire-and-forget — distribution-prediction persistence must never
+    // delay or fail the recommendation response (fail-open by design).
+    void predictAndPersistTaskDuration(taskId).catch(() => {});
 
     return {
       taskId,

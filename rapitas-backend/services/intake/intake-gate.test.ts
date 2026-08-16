@@ -39,6 +39,7 @@ const deriveTaskSpec = mock(() =>
 );
 const generateIntakeQuestions = mock(() => Promise.resolve([]));
 const createNotification = mock(() => Promise.resolve());
+const notifyIntakeQuestionPending = mock(() => Promise.resolve<unknown>({ id: 1 }));
 
 mock.module('../../config', () => ({
   prisma: {
@@ -66,6 +67,7 @@ mock.module('../task/task-spec-deriver', () => ({
 }));
 mock.module('../communication/notification-service', () => ({
   createNotification,
+  notifyIntakeQuestionPending,
 }));
 
 const { ensureIntakeReady } = await import('./intake-gate');
@@ -107,6 +109,7 @@ describe('ensureIntakeReady', () => {
     });
     generateIntakeQuestions.mockReset().mockResolvedValue([]);
     createNotification.mockReset().mockResolvedValue(undefined);
+    notifyIntakeQuestionPending.mockReset().mockResolvedValue({ id: 1 });
     delete process.env.RAPITAS_INTAKE_ASK_WHEN_AMBIGUOUS;
   });
 
@@ -123,6 +126,8 @@ describe('ensureIntakeReady', () => {
     expect(r.status).toBe('ready');
     expect(deriveTaskSpec).not.toHaveBeenCalled();
     expect(writeWorkflowFile).not.toHaveBeenCalled();
+    // 非発火正常系: no question raised → no question notification.
+    expect(notifyIntakeQuestionPending).not.toHaveBeenCalled();
   });
 
   it('asks a clarifying question (policy=ask, default) when the spec is thin and unanswered', async () => {
@@ -144,6 +149,21 @@ describe('ensureIntakeReady', () => {
     };
     expect(rt.cause).toBe('intake_question');
     expect(rt.toStatus).toBe('awaiting_question');
+    // 受入基準1: raising a question must notify — an unanswered question never
+    // advances on its own (#578/#579 sat 4 days unseen without this).
+    expect(notifyIntakeQuestionPending).toHaveBeenCalledTimes(1);
+    expect(notifyIntakeQuestionPending).toHaveBeenCalledWith({
+      taskId: 1,
+      taskTitle: 'Thin task',
+    });
+  });
+
+  it('does not fail the gate when the question notification rejects (best-effort)', async () => {
+    taskFindUnique.mockResolvedValue(THIN_TASK);
+    notifyIntakeQuestionPending.mockRejectedValue(new Error('notification down'));
+    const r = await ensureIntakeReady(1);
+    expect(r.status).toBe('awaiting_question');
+    expect(writeWorkflowFile).toHaveBeenCalledTimes(1);
   });
 
   it('proceeds on best-guess once the user has answered but the spec is still thin', async () => {
@@ -157,6 +177,8 @@ describe('ensureIntakeReady', () => {
     expect(rt.cause).toBe('intake_low_confidence');
     // Silent low-confidence proceed is the documented anti-pattern — must notify.
     expect(createNotification).toHaveBeenCalledTimes(1);
+    // 非発火正常系: the low-confidence path must NOT emit the question notice.
+    expect(notifyIntakeQuestionPending).not.toHaveBeenCalled();
   });
 
   it('proceeds on best-guess without asking when policy=best_guess (env)', async () => {

@@ -267,6 +267,23 @@ export async function isAwaitingUserAnswer(prisma: PrismaClient, taskId: number)
 export const HANG_BACKSTOP_HEARTBEAT_MS = 5 * 60_000;
 
 /**
+ * Newest evidence that the task is still moving: its tenure start, its latest
+ * workflow transition, or the latest heartbeat of any of its executions.
+ *
+ * The hang backstop must measure time SINCE PROGRESS, not tenure. Tenure alone
+ * kills healthy multi-phase work — the implementer's own wall-clock cap (56 min)
+ * already exceeds the 45-minute task wall, and even the liveness exemption has a
+ * hole at the phase seam: task 585 was force-stopped 8 seconds after its
+ * implementer committed a full implementation, in the 30-second gap before the
+ * verifier's execution row appeared, at 48 minutes of tenure.
+ *
+ * @param prisma - Prisma client instance
+ * @param taskId - Task to inspect. / 対象タスク
+ * @param tenureStart - Epoch ms the task became the current task. / 現行タスクになった時刻
+ * @returns Epoch ms of the most recent progress signal. / 直近の進捗時刻(ms)
+ */
+
+/**
  * Whether the task has a LIVE agent execution — running with a heartbeat fresh
  * within {@link HANG_BACKSTOP_HEARTBEAT_MS}. Used by the hang backstop to tell
  * "slow but progressing" apart from "wedged": task 563's healthy 31-minute
@@ -274,6 +291,38 @@ export const HANG_BACKSTOP_HEARTBEAT_MS = 5 * 60_000;
  * 45-minute whole-task wall because tenure was the ONLY signal. A stale-
  * heartbeat running row (zombie) still reads as not-live so the backstop
  * keeps catching genuine hangs.
+ *
+ * @param prisma - Prisma client instance
+ * @param taskId - Task to check / 確認対象タスク
+ * @returns true when a fresh-heartbeat running execution exists / 生きた実行があればtrue
+ */
+export async function resolveLastProgressAt(
+  prisma: PrismaClient,
+  taskId: number,
+  tenureStart: number,
+): Promise<number> {
+  const [lastTransition, lastBeat] = await Promise.all([
+    prisma.workflowTransition
+      .findFirst({ where: { taskId }, orderBy: { createdAt: 'desc' }, select: { createdAt: true } })
+      .catch(() => null),
+    prisma.agentExecution
+      .findFirst({
+        where: { session: { config: { taskId } }, heartbeatAt: { not: null } },
+        orderBy: { heartbeatAt: 'desc' },
+        select: { heartbeatAt: true },
+      })
+      .catch(() => null),
+  ]);
+  return Math.max(
+    tenureStart,
+    lastTransition?.createdAt?.getTime() ?? 0,
+    lastBeat?.heartbeatAt?.getTime() ?? 0,
+  );
+}
+
+/**
+ * Whether the task has a LIVE agent execution — running with a heartbeat fresh
+ * within {@link HANG_BACKSTOP_HEARTBEAT_MS}.
  *
  * @param prisma - Prisma client instance
  * @param taskId - Task to check / 確認対象タスク

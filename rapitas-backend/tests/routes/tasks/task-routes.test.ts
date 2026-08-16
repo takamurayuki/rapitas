@@ -46,6 +46,9 @@ const mockPrisma = {
   workflowTransition: {
     findMany: mock(() => Promise.resolve([])),
   },
+  agentExecution: {
+    findMany: mock(() => Promise.resolve([])),
+  },
   $transaction: mock((fn: (tx: unknown) => Promise<unknown>) => fn(mockPrisma)),
 };
 
@@ -280,6 +283,54 @@ describe('GET /tasks/:id', () => {
   test('無効なIDでValidationErrorを返すこと', async () => {
     const res = await app.handle(new Request('http://localhost/tasks/abc'));
     expect(res.status).toBe(400);
+  });
+
+  test('activeTimeMs / wallClockMs / phaseBreakdown を実行行の集計から付与すること', async () => {
+    const task = { id: 1, title: 'Test Task', status: 'in-progress', subtasks: [] };
+    mockPrisma.task.findUnique.mockResolvedValue(task);
+    const t0 = new Date('2026-08-12T00:00:00.000Z').getTime();
+    mockPrisma.agentExecution.findMany.mockResolvedValue([
+      {
+        startedAt: new Date(t0),
+        completedAt: new Date(t0 + 10 * 60_000),
+        status: 'completed',
+        session: { mode: 'workflow-researcher' },
+      },
+      {
+        startedAt: new Date(t0 + 12 * 60_000),
+        completedAt: new Date(t0 + 42 * 60_000),
+        status: 'completed',
+        session: { mode: 'workflow-implementer' },
+      },
+    ]);
+
+    const res = await app.handle(new Request('http://localhost/tasks/1'));
+    const body = await res.json();
+
+    expect(res.status).toBe(200);
+    // 既存フィールドは不変（後方互換）
+    expect(body.id).toBe(1);
+    expect(body.title).toBe('Test Task');
+    // 追加フィールド: 全完了実行の (completedAt - startedAt) 合計
+    expect(body.activeTimeMs).toBe(40 * 60_000);
+    expect(body.wallClockMs).toBe(42 * 60_000);
+    expect(body.phaseBreakdown).toEqual([
+      { role: 'researcher', execCount: 1, activeTimeMs: 10 * 60_000 },
+      { role: 'implementer', execCount: 1, activeTimeMs: 30 * 60_000 },
+    ]);
+  });
+
+  test('集計が失敗してもタスク本体は返すこと（best-effort）', async () => {
+    const task = { id: 1, title: 'Test Task', status: 'todo', subtasks: [] };
+    mockPrisma.task.findUnique.mockResolvedValue(task);
+    mockPrisma.agentExecution.findMany.mockRejectedValue(new Error('DB down'));
+
+    const res = await app.handle(new Request('http://localhost/tasks/1'));
+    const body = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(body.id).toBe(1);
+    expect(body.activeTimeMs).toBeUndefined();
   });
 });
 

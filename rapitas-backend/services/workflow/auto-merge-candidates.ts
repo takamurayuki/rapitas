@@ -7,10 +7,15 @@
  */
 import { existsSync } from 'node:fs';
 import { prisma } from '../../config/database';
+import { createLogger } from '../../config/logger';
 import { resolveAutomationPolicy } from './automation-policy';
 import { resolveTaskForAutoMerge } from '../task/task-resolver';
 import { decideTerminalState } from './auto-merge-exhaustion';
 import { notify } from './auto-merge-notify';
+import { resolveIntegrationId } from '../github/pr-link';
+import { findScopedOpenPr } from '../github/pr-lookup';
+
+const log = createLogger('workflow:auto-merge-candidates');
 
 /**
  * Retry a previously `auto_merge_blocked` PR until this many blocks accumulate
@@ -81,18 +86,58 @@ export async function findCandidates(): Promise<Candidate[]> {
   }
 
   // Fallback: tasks carrying a githubPrId whose PR row is not linkedTaskId-linked.
-  // Only adopt one when an OPEN local PR row for that number exists (so we never
-  // act on a closed/merged or unknown PR).
+  // Only adopt one when an OPEN local PR row for that number exists in the
+  // TASK'S OWN repo — prNumber alone collides across the repos sharing this
+  // table, and an unscoped lookup adopted another project's same-numbered PR
+  // (observed: task 491 / tripla mis-adopting the converter repo's #7, which
+  // also mis-fired the duplicate_open_prs notification).
+  type PrTaskRow = {
+    id: number;
+    githubPrId: number | null;
+    workingDirectory: string | null;
+    theme: { repositoryUrl: string | null; workingDirectory: string | null } | null;
+  };
   const prTasks = await prisma.task
-    .findMany({ where: { githubPrId: { not: null } }, select: { id: true, githubPrId: true } })
-    .catch(() => [] as { id: number; githubPrId: number | null }[]);
+    .findMany({
+      where: { githubPrId: { not: null } },
+      select: {
+        id: true,
+        githubPrId: true,
+        workingDirectory: true,
+        theme: { select: { repositoryUrl: true, workingDirectory: true } },
+      },
+    })
+    .catch(() => [] as PrTaskRow[]);
+  // Memoized per tick so resolveIntegrationId's git-subprocess fallback runs at
+  // most once per distinct repo hint, not once per task (with a theme
+  // repositoryUrl set it never spawns a subprocess at all).
+  const integrationIdMemo = new Map<string, number | null>();
   for (const t of prTasks) {
     if (t.githubPrId == null) continue;
     const existing = links.get(t.id);
     if (existing && existing.prNumber === t.githubPrId) continue;
-    const row = await prisma.gitHubPullRequest
-      .findFirst({ where: { prNumber: t.githubPrId, state: 'open' }, select: { baseBranch: true } })
-      .catch(() => null);
+    const repositoryUrl = t.theme?.repositoryUrl ?? null;
+    const wd = t.workingDirectory ?? t.theme?.workingDirectory ?? null;
+    const memoKey = `${repositoryUrl ?? ''}|${wd ?? ''}`;
+    let integrationId: number | null;
+    if (integrationIdMemo.has(memoKey)) {
+      integrationId = integrationIdMemo.get(memoKey) ?? null;
+    } else {
+      integrationId = await resolveIntegrationId(prisma, repositoryUrl, wd).catch(() => null);
+      integrationIdMemo.set(memoKey, integrationId);
+    }
+    if (integrationId == null) {
+      // Fail-closed: skipping is recoverable next tick; adopting another
+      // repo's PR could feed the watcher a wrong merge target.
+      log.warn(
+        { taskId: t.id, prNumber: t.githubPrId },
+        "[auto-merge] Could not resolve this task's GitHub integration — skipping its githubPrId fallback rather than risking another repo's same-numbered PR",
+      );
+      continue;
+    }
+    const row = await findScopedOpenPr(prisma, integrationId, t.githubPrId, {
+      baseBranch: true,
+    }).catch(() => null);
     if (!row) continue;
     if (existing) {
       // The task has TWO open PRs (a re-run created a fresh PR while the old one
