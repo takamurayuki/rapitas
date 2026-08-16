@@ -24,6 +24,23 @@ mock.module('../../config/database', () => ({
   prisma: mockPrisma,
 }));
 
+// ---- workflow-mode-config mock (dynamically imported by resolveIncludePlan) ----
+// Defaults to includePlan: true (standard/comprehensive) so pre-existing tests
+// that never set task.workflowMode keep seeing the old plan-required behavior.
+const mockGetModeSettings = mock((mode: string) =>
+  Promise.resolve({
+    mode,
+    includePlan: mode !== 'lightweight',
+    autoVerify: mode === 'lightweight',
+    complexityMin: 0,
+    complexityMax: 100,
+    isEnabled: true,
+  }),
+);
+mock.module('./workflow-mode-config', () => ({
+  getModeSettings: mockGetModeSettings,
+}));
+
 import {
   normalizeWorkflowStatus,
   requiredWorkflowFiles,
@@ -78,6 +95,18 @@ describe('requiredWorkflowFiles', () => {
   test('completed requires all three files', () => {
     expect(requiredWorkflowFiles('completed')).toEqual(['research.md', 'plan.md', 'verify.md']);
   });
+
+  describe('includePlan=false (lightweight mode)', () => {
+    test.each([
+      { status: 'plan_created', expected: ['research.md'] },
+      { status: 'plan_approved', expected: ['research.md'] },
+      { status: 'in_progress', expected: ['research.md'] },
+      { status: 'verify_done', expected: ['research.md', 'verify.md'] },
+      { status: 'completed', expected: ['research.md', 'verify.md'] },
+    ])('$status excludes plan.md', ({ status, expected }) => {
+      expect(requiredWorkflowFiles(status, false)).toEqual(expected);
+    });
+  });
 });
 
 // -------------------------------------------------------------------------
@@ -85,12 +114,30 @@ describe('previewMissingFilesForStatus', () => {
   beforeEach(() => {
     mockWorkflowFileFindMany.mockReset();
     mockWorkflowFileFindMany.mockResolvedValue([]);
+    mockFindUnique.mockReset();
+    mockFindUnique.mockResolvedValue(null);
+    mockGetModeSettings.mockClear();
   });
 
   test('returns empty array for draft (no required files, no DB query needed)', async () => {
     const result = await previewMissingFilesForStatus(1, 'draft');
     expect(result).toEqual([]);
     expect(mockWorkflowFileFindMany).not.toHaveBeenCalled();
+    expect(mockFindUnique).not.toHaveBeenCalled();
+  });
+
+  test('lightweight mode: verify_done does not flag plan.md as missing', async () => {
+    mockFindUnique.mockResolvedValueOnce({ workflowMode: 'lightweight' });
+    mockWorkflowFileFindMany.mockResolvedValueOnce([{ fileType: 'research' }]);
+    const result = await previewMissingFilesForStatus(1, 'verify_done');
+    expect(result).toEqual(['verify.md']);
+  });
+
+  test('comprehensive mode: verify_done still flags plan.md as missing (regression)', async () => {
+    mockFindUnique.mockResolvedValueOnce({ workflowMode: 'comprehensive' });
+    mockWorkflowFileFindMany.mockResolvedValueOnce([{ fileType: 'research' }]);
+    const result = await previewMissingFilesForStatus(1, 'verify_done');
+    expect(result).toEqual(['plan.md', 'verify.md']);
   });
 
   test('returns empty array when all required WorkflowFile rows exist', async () => {
@@ -123,6 +170,85 @@ describe('checkWorkflowInvariants', () => {
     mockCount.mockReset();
     mockWorkflowFileFindMany.mockReset();
     mockWorkflowFileFindMany.mockResolvedValue([]);
+    mockGetModeSettings.mockClear();
+  });
+
+  test('lightweight mode: verify_done with plan.md missing reports no violations (task #607 regression)', async () => {
+    mockFindUnique.mockResolvedValueOnce({
+      id: 1,
+      status: 'done',
+      workflowStatus: 'verify_done',
+      workflowMode: 'lightweight',
+    });
+    mockWorkflowFileFindMany.mockResolvedValueOnce([
+      { fileType: 'research' },
+      { fileType: 'verify' },
+    ]);
+    mockCount.mockResolvedValueOnce(0);
+    const result = await checkWorkflowInvariants(1);
+    expect(result.filter((v) => v.code === 'missing_file')).toHaveLength(0);
+  });
+
+  test('lightweight mode: completed with plan.md missing reports no violations', async () => {
+    mockFindUnique.mockResolvedValueOnce({
+      id: 1,
+      status: 'done',
+      workflowStatus: 'completed',
+      workflowMode: 'lightweight',
+    });
+    mockWorkflowFileFindMany.mockResolvedValueOnce([
+      { fileType: 'research' },
+      { fileType: 'verify' },
+    ]);
+    mockCount.mockResolvedValueOnce(0);
+    const result = await checkWorkflowInvariants(1);
+    expect(result).toHaveLength(0);
+  });
+
+  test('standard mode: verify_done with plan.md missing still reports missing_file (regression)', async () => {
+    mockFindUnique.mockResolvedValueOnce({
+      id: 1,
+      status: 'done',
+      workflowStatus: 'verify_done',
+      workflowMode: 'standard',
+    });
+    mockWorkflowFileFindMany.mockResolvedValueOnce([
+      { fileType: 'research' },
+      { fileType: 'verify' },
+    ]);
+    mockCount.mockResolvedValueOnce(0);
+    const result = await checkWorkflowInvariants(1);
+    const missing = result.filter((v) => v.code === 'missing_file');
+    expect(missing).toHaveLength(1);
+    expect(missing[0].message).toContain('plan.md');
+  });
+
+  test('null workflowMode falls back to plan-required behavior (pre-existing tasks)', async () => {
+    mockFindUnique.mockResolvedValueOnce({
+      id: 1,
+      status: 'done',
+      workflowStatus: 'verify_done',
+      workflowMode: null,
+    });
+    mockWorkflowFileFindMany.mockResolvedValueOnce([
+      { fileType: 'research' },
+      { fileType: 'verify' },
+    ]);
+    mockCount.mockResolvedValueOnce(0);
+    const result = await checkWorkflowInvariants(1);
+    expect(result.filter((v) => v.code === 'missing_file')).toHaveLength(1);
+  });
+
+  test('draft status does not resolve mode (getModeSettings not called)', async () => {
+    mockFindUnique.mockResolvedValueOnce({
+      id: 1,
+      status: 'todo',
+      workflowStatus: 'draft',
+      workflowMode: 'lightweight',
+    });
+    mockCount.mockResolvedValueOnce(0);
+    await checkWorkflowInvariants(1);
+    expect(mockGetModeSettings).not.toHaveBeenCalled();
   });
 
   test('returns task_not_found when task is missing', async () => {
