@@ -189,7 +189,11 @@ async function inspectTask(task: CandidateTask, nowMs: number): Promise<number> 
     }
   }
 
-  const loop = detectRepeatLoop({ transitions: state.windowedCauses, nowMs });
+  const loop = detectRepeatLoop({
+    transitions: state.windowedCauses,
+    nowMs,
+    taskStatus: task.status,
+  });
   if (loop) {
     if (
       await fileFinding({

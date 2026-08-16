@@ -205,9 +205,14 @@ export interface RepeatLoopTransition {
  * counts break deterministically by cause name (localeCompare ascending).
  * Transitions with actor='user' are excluded — operator manual recovery is
  * intervention, not a loop (actor-based, so any future manual cause is covered).
+ * A terminal taskStatus (see TERMINAL_TASK_STATUSES) short-circuits to null —
+ * a task that has already finished is not "looping" even if it churned through
+ * several retry cycles on the way there (mirrors detectStagnation's guard;
+ * caught a false positive on #607, which completed 12s before the report).
  *
  * @param input.transitions - Task transitions (any order). / 対象タスクの遷移一覧
  * @param input.nowMs - Current time (ms). / 現在時刻
+ * @param input.taskStatus - Current task status; terminal statuses skip detection (undefined = not checked, for backward compatibility). / タスクの現在ステータス（終端状態は検出をスキップ）
  * @param input.windowMs - Window size (default 60m). / 集計窓
  * @param input.minCount - Detection threshold (default 3). / 検出しきい値
  * @returns The dominant looping cause + count, or null. / 最多ループcauseまたはnull
@@ -215,9 +220,11 @@ export interface RepeatLoopTransition {
 export function detectRepeatLoop(input: {
   transitions: RepeatLoopTransition[];
   nowMs: number;
+  taskStatus?: string;
   windowMs?: number;
   minCount?: number;
 }): { cause: string; count: number } | null {
+  if (input.taskStatus !== undefined && TERMINAL_TASK_STATUSES.has(input.taskStatus)) return null;
   const windowMs = input.windowMs ?? REPEAT_LOOP_WINDOW_MS;
   const minCount = input.minCount ?? REPEAT_LOOP_MIN_COUNT;
   const windowStart = input.nowMs - windowMs;
