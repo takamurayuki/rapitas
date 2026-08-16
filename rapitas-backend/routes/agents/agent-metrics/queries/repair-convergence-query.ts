@@ -9,7 +9,7 @@
  * the distribution of iteration counts. Read-only; does not mutate any rows.
  */
 
-import { prisma } from '../../../config/database';
+import { prisma } from '../../../../config/database';
 
 /** WorkflowTransition.cause values that mark a self-repair bounce. */
 const REPAIR_CAUSES = ['verify_repair', 'ci_repair'] as const;

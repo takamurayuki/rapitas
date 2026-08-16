@@ -2,21 +2,25 @@
  * Agent Metrics Router
  *
  * Elysia route definitions for the /agent-metrics endpoint group. Delegates all
- * database access to query functions in queries.ts and all type definitions to
+ * database access to query functions in queries/ and all type definitions to
  * types.ts. Does not contain business logic.
  */
 
 import { Elysia } from 'elysia';
 import { prisma } from '../../../config/database';
 import { createLogger } from '../../../config/logger';
-import { getAgentMetrics, getExecutionTrends, getMetricsOverview } from './queries';
-import { getAgentPerformanceComparison } from './performance-query';
-import { getSelfObservationSummary } from './observation-query';
-import { getAgentUsageBreakdown } from './usage-breakdown-query';
-import { getAgentUtilization } from './utilization-query';
+import {
+  getAgentMetrics,
+  getExecutionTrends,
+  getMetricsOverview,
+  getAgentPerformanceComparison,
+  getSelfObservationSummary,
+  getAgentUsageBreakdown,
+  getAgentUtilization,
+  getCostOptimizationInsights,
+  getRepairConvergenceStats,
+} from './queries';
 import { getUsdJpyRate } from './currency-config';
-import { getCostOptimizationInsights } from './cost-optimization-query';
-import { getRepairConvergenceStats } from './repair-convergence-query';
 import { computeGrowthLedgerMetrics } from '../../../services/self-improvement/growth-ledger-metrics';
 import { readJudgeEvalResult } from '../../../services/observability/eval-judge-results';
 import type { DateRange } from './types';

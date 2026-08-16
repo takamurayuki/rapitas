@@ -8,14 +8,14 @@
 import { describe, test, expect, mock, beforeEach } from 'bun:test';
 
 const findMany = mock(() => Promise.resolve([] as unknown[]));
-mock.module('../../../config/database', () => ({
+mock.module('../../../../config/database', () => ({
   prisma: {
     agentExecution: { findMany },
   },
 }));
 
 import { getAgentUsageBreakdown, normalizeRole } from './usage-breakdown-query';
-import { classifyCliAgent } from './cli-agent-classifier';
+import { classifyCliAgent } from '../cli-agent-classifier';
 
 /** Build a minimal execution row for the mocked findMany. */
 function row(overrides: Record<string, unknown> = {}): Record<string, unknown> {

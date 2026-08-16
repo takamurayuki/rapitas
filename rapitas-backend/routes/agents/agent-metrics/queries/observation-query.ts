@@ -8,8 +8,8 @@
  * needed for "is the agent helping me or burning my budget?".
  */
 
-import { prisma } from '../../../config/database';
-import { toNumber, toInt } from './metric-coercion';
+import { prisma } from '../../../../config/database';
+import { toNumber, toInt } from '../metric-coercion';
 
 export interface DailyCostPoint {
   /** ISO date (YYYY-MM-DD), UTC. */
