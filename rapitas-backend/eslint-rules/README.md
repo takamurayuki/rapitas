@@ -11,6 +11,7 @@
 |---|---|---|
 | `no-raw-prisma-insensitive.mjs` | `no-raw-prisma-insensitive` | Prisma クエリ内の生 `mode: 'insensitive'` を禁止。SQLite は非サポートのため `getInsensitiveMode()` を使う必要がある |
 | `no-icon-collision.mjs` | `no-icon-collision` | `lucide-react` アイコンの ICON_POLICY 違反を検知（`warn`）。既知衝突グリフ（`Gauge`）と所有グリフの許可パス外使用（`Lightbulb` など）を報告する |
+| `no-unscoped-pr-number-lookup.mjs` | `no-unscoped-pr-number-lookup` | `gitHubPullRequest` クエリの `where` で `integrationId` を伴わない `prNumber` 単独指定を禁止（リポジトリ間PR取り違え防止）。正典 `services/github/pr-lookup.ts` のみ除外 |
 
 ---
 
