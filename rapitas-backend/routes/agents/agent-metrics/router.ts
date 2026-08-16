@@ -13,6 +13,7 @@ import { getAgentMetrics, getExecutionTrends, getMetricsOverview } from './queri
 import { getAgentPerformanceComparison } from './performance-query';
 import { getSelfObservationSummary } from './observation-query';
 import { getAgentUsageBreakdown } from './usage-breakdown-query';
+import { getAgentUtilization } from './utilization-query';
 import { getUsdJpyRate } from './currency-config';
 import { getCostOptimizationInsights } from './cost-optimization-query';
 import { getRepairConvergenceStats } from './repair-convergence-query';
@@ -103,6 +104,20 @@ export const agentMetricsRouter = new Elysia({ prefix: '/agent-metrics' })
     } catch (error) {
       log.error({ err: error }, 'Error fetching agent usage breakdown');
       return { error: 'Failed to fetch agent usage breakdown' };
+    }
+  })
+
+  /**
+   * Per-role / per-CLI-agent daily busy ratio (interval union / day length,
+   * 0..1). Powers the utilization time-series cards on the metrics page.
+   */
+  .get('/utilization', async ({ query }) => {
+    try {
+      const { startDate, endDate } = parseDateRange(query);
+      return await getAgentUtilization({ startDate, endDate });
+    } catch (error) {
+      log.error({ err: error }, 'Error fetching agent utilization');
+      return { error: 'Failed to fetch utilization' };
     }
   })
 

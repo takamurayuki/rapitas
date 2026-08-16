@@ -80,6 +80,7 @@ Keep this list accurate. If you assign a glyph a new meaning, add it here.
 | `Info`                    | ヒント/提案バレット（AI分析・プロンプト最適化・学習プラン等の提案リスト先頭アイコン。`Lightbulb`＝アイデアと混同しないこと） |
 | `Sparkles`                | AI生成/おすすめ操作（分析実行・プロンプト最適化・イノベーションジョブ種別など、AIが生成/提案する操作全般） |
 | `Gauge`                   | 懸念の種別「パフォーマンス」（旧・複雑度「標準」との衝突は解消済み — 下記 Known collisions 参照） |
+| `Percent`                 | エージェント稼働率（役割別・CLI別稼働率チャートカード。`Gauge`＝懸念種別パフォーマンスとは別概念） |
 | `Gavel`                   | 敵対的レビュー判定（adversarial diff-review judge eval）カードタイトル |
 | `AlignLeft`               | サブタスク説明の展開/折りたたみトグル（タスク詳細のサブタスク行） |
 | `CircleCheckBig`          | 一括選択モードの「すべて選択」（全解除時は汎用 `X`。タスク一覧 HomeToolbar とサブタスクヘッダー共通） |
