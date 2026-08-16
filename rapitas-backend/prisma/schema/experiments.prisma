@@ -143,6 +143,59 @@ model WorkflowOptimizationRule {
   @@index([isActive])
 }
 
+// Detection-miss ledger — one row per quality-gate slip-through discovered
+// AFTER the fact (task #578). A "miss" is deliberately narrow (precision over
+// recall): only ci_repair transitions (verify passed, CI then failed) and
+// concerns filed against an already-completed task qualify. verify_repair
+// bounces are NOT misses — the gate caught those BEFORE completion.
+model DetectionMissCase {
+  id           Int      @id @default(autoincrement())
+  taskId       Int
+  /** Which gate the defect slipped past: ci_repair | post_completion_concern */
+  gate         String
+  /** Human-readable slip reason (transition metadata.reason / concern title). */
+  reason       String   @default("")
+  /** JSON evidence: transitionId/concernId, occurredAt, logRef, prNumber. */
+  evidenceJson String   @default("{}")
+  /** When the evidence event happened (not when this row was recorded). */
+  detectedAt   DateTime @default(now())
+  /** miss:<gate>:<taskId>:<discriminator> — absorbs re-scans of the same event. */
+  dedupKey     String   @unique
+  createdAt    DateTime @default(now())
+
+  @@index([gate])
+  @@index([taskId])
+  @@index([detectedAt])
+}
+
+// Signature suggestions learned from detection-miss cases (task #578).
+// Lifecycle mirrors PromptEvolution's human-in-the-loop pattern:
+// pending_review → approved | rejected (human), or → auto_applied once the
+// rejection rate stays under the auto threshold (mode derived statelessly —
+// see services/self-improvement/miss-approval-mode.ts). auto_applied rows can
+// still be rejected later by a human; that rejection re-enters the window and
+// flips the mode back to manual.
+model MissSignatureSuggestion {
+  id          Int       @id @default(autoincrement())
+  /** Source DetectionMissCase.id; null for signatures without a single case. */
+  caseId      Int?
+  /** The proposed detection cue (what the next watcher/reviewer should look for). */
+  signature   String
+  /** Why this cue predicts the defect type — required explanation text. */
+  explanation String    @default("")
+  status      String    @default("pending_review") // pending_review | approved | rejected | auto_applied
+  /** Who decided: human | auto. Null while pending. */
+  reviewedBy  String?
+  reviewedAt  DateTime?
+  /** suggest:<gate>:<signatureKey> — one row per distinct cue. */
+  dedupKey    String    @unique
+  createdAt   DateTime  @default(now())
+
+  @@index([status])
+  @@index([caseId])
+  @@index([reviewedAt])
+}
+
 // Prompt evolution records - history of prompt improvements.
 // NOTE: two-stage lifecycle. (1) status="pending" — queued by
 // prompt-evolution-runner when a role's 7-day success rate drops below
