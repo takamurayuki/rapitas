@@ -3,7 +3,8 @@
  *
  * Pure detection predicates for the self-incident watcher: stagnation of a
  * non-terminal task, tri-state desync across Task/AgentSession/AgentExecution,
- * and a same-cause repeat loop. DB-independent by design — every input is a
+ * a same-cause repeat loop, and an intake question left unanswered too long.
+ * DB-independent by design — every input is a
  * plain snapshot assembled by the caller, so each detector is unit-testable
  * at its boundaries. NOT responsible for evidence gathering or concern filing.
  */
@@ -20,6 +21,15 @@ export const REPEAT_LOOP_WINDOW_MS =
 /** Minimum same-cause transitions within the window to count as a loop (default 3). */
 export const REPEAT_LOOP_MIN_COUNT =
   parseInt(process.env.RAPITAS_INCIDENT_LOOP_MIN_COUNT ?? '', 10) || 3;
+
+/**
+ * Wait time after which an unanswered intake question counts as stale (default
+ * 24h). Rationale: tasks #578/#579 sat in awaiting_question for 4 days
+ * (raised 2026-08-13T13:48:35Z, found 2026-08-17) with zero notifications —
+ * 24h turns that into a daily reminder while staying quiet for same-day answers.
+ */
+export const UNANSWERED_QUESTION_THRESHOLD_MS =
+  parseInt(process.env.RAPITAS_INCIDENT_UNANSWERED_MS ?? '', 10) || 24 * 60 * 60 * 1000;
 
 /** Task statuses that are terminal — a finished task can never be stagnant. */
 const TERMINAL_TASK_STATUSES = new Set(['done', 'cancelled', 'archived', 'completed']);
@@ -142,6 +152,43 @@ export function detectTriStateDesync(
     };
   }
   return null;
+}
+
+/** Snapshot of one task used by the unanswered-question detector. */
+export interface UnansweredQuestionInput {
+  workflowStatus: string | null;
+  /** createdAt of the latest toStatus='awaiting_question' transition, epoch ms
+   * (null = no such transition on record). NOT task.updatedAt — enrichment and
+   * other side channels touch updatedAt without answering the question. */
+  questionRaisedAtMs: number | null;
+  /** True when an `intake_question_answered` transition exists for the task. */
+  hasAnsweredQuestion: boolean;
+  nowMs: number;
+  thresholdMs?: number;
+}
+
+/**
+ * Detects a task stuck waiting on an unanswered intake question beyond the
+ * threshold. An unanswered question NEVER advances on its own (unlike normal
+ * stagnation, which detectStagnation deliberately excludes as a legitimate
+ * pause), so a long wait means the human was never reached — re-surface it.
+ * Answered tasks are excluded even if their status lags (double guard on top
+ * of the caller's workflowStatus filter).
+ *
+ * @param input - Task snapshot (see UnansweredQuestionInput). / タスクの質問待ちスナップショット
+ * @returns Wait time in ms when stale, otherwise null. / 放置時はstaleMs、非該当はnull
+ */
+export function detectUnansweredQuestion(
+  input: UnansweredQuestionInput,
+): { staleMs: number } | null {
+  if (input.workflowStatus !== 'awaiting_question') return null;
+  if (input.hasAnsweredQuestion) return null;
+  // No awaiting_question transition on record → the wait start is unknowable;
+  // skip rather than guess (avoids false positives on anomalous histories).
+  if (input.questionRaisedAtMs === null) return null;
+  const staleMs = input.nowMs - input.questionRaisedAtMs;
+  if (staleMs < (input.thresholdMs ?? UNANSWERED_QUESTION_THRESHOLD_MS)) return null;
+  return { staleMs };
 }
 
 /** One workflow transition reduced to what the repeat-loop detector needs. */

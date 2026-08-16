@@ -3,18 +3,21 @@
  *
  * Detection-only incident pass riding the workflow-reconciler's 60s cycle,
  * self-throttled to once per ~5 minutes: scans tasks updated within the last
- * 24h, runs the three pure signature detectors over each one's gathered
- * evidence, and files a dedup-keyed concern per finding. NEVER repairs state —
- * the concern → task → workflow pipeline is the repair path (by design).
+ * 24h, runs the pure signature detectors over each one's gathered evidence,
+ * and files a dedup-keyed concern per finding. A separate no-lookback scan
+ * re-notifies tasks stuck on an unanswered intake question. NEVER repairs
+ * state — the concern → task → workflow pipeline is the repair path (by design).
  */
 import { prisma } from '../../config/database';
 import { createLogger } from '../../config/logger';
 import { submitConcern, type ConcernSeverity } from '../memory/concern-backlog-service';
+import { notifyIntakeQuestionPending } from '../communication/notification-service';
 import { resolveSelfDevelopmentThemeId } from './self-development-theme';
 import {
   detectStagnation,
   detectTriStateDesync,
   detectRepeatLoop,
+  detectUnansweredQuestion,
   STAGNATION_THRESHOLD_MS,
   REPEAT_LOOP_WINDOW_MS,
   REPEAT_LOOP_MIN_COUNT,
@@ -208,12 +211,81 @@ async function inspectTask(task: CandidateTask, nowMs: number): Promise<number> 
 }
 
 /**
+ * Dedicated scan for tasks paused on an intake question. These CANNOT ride the
+ * main candidate query: updatedAt freezes when the question is raised, so
+ * after CANDIDATE_LOOKBACK_MS (24h) the task silently drops out of the
+ * lookback — exactly the tasks this detector exists for (#578/#579 sat 4
+ * days). No lookback here; the workflowStatus filter keeps the set small.
+ * Re-notifies via createNotification only — filing a concern would promote
+ * into a code-fix task that can only report "対象コードなし" (task 587 shape);
+ * the sole fix for an unanswered question is a human answer.
+ */
+async function inspectAwaitingQuestionTasks(nowMs: number): Promise<number> {
+  const candidates = await prisma.task
+    .findMany({
+      where: { parentId: null, workflowStatus: 'awaiting_question' },
+      select: { id: true, title: true, status: true, workflowStatus: true, updatedAt: true },
+      orderBy: { updatedAt: 'asc' },
+      take: MAX_CANDIDATES,
+    })
+    .catch(() => [] as CandidateTask[]);
+
+  let notified = 0;
+  for (const task of candidates) {
+    try {
+      // Wait clock = when the question was raised, NOT task.updatedAt —
+      // enrichment and other side channels touch updatedAt without answering.
+      const raised = await prisma.workflowTransition.findFirst({
+        where: { taskId: task.id, toStatus: 'awaiting_question' },
+        orderBy: { createdAt: 'desc' },
+        select: { createdAt: true },
+      });
+      // Second guard besides the workflowStatus filter: an answered task must
+      // never re-notify, even if its status lags behind the answer.
+      const answered = await prisma.workflowTransition.findFirst({
+        where: { taskId: task.id, cause: 'intake_question_answered' },
+        select: { id: true },
+      });
+      const finding = detectUnansweredQuestion({
+        workflowStatus: task.workflowStatus,
+        questionRaisedAtMs: raised ? raised.createdAt.getTime() : null,
+        hasAnsweredQuestion: answered !== null,
+        nowMs,
+      });
+      if (!finding) continue;
+      // Dedup lives in the helper: the same title+link window also covers the
+      // intake gate's initial notice, so this is at most one notice per window.
+      const created = await notifyIntakeQuestionPending({
+        taskId: task.id,
+        taskTitle: task.title,
+        nowMs,
+      });
+      if (created) {
+        notified++;
+        log.info(
+          { taskId: task.id, staleMs: finding.staleMs },
+          '[self-incident] re-notified an unanswered intake question',
+        );
+      }
+    } catch (err) {
+      // One broken task must not starve the rest of the scan.
+      log.warn(
+        { err, taskId: task.id },
+        '[self-incident] awaiting-question inspection failed — continuing',
+      );
+    }
+  }
+  return notified;
+}
+
+/**
  * Runs one self-incident watch pass (throttled). Scans tasks updated within
  * the lookback window, oldest first, and files evidence-backed concerns for
- * every detected signature. Detection only — no state is repaired here.
+ * every detected signature; a second no-lookback scan re-notifies stale
+ * unanswered intake questions. Detection only — no state is repaired here.
  *
  * @param nowMs - Current time (ms); injectable for tests. / 現在時刻
- * @returns Number of concerns filed (0 when throttled). / 起票件数
+ * @returns Surfaced findings: concerns filed + question re-notifications (0 when throttled). / 起票＋通知の合計件数
  */
 export async function runSelfIncidentWatch(nowMs: number = Date.now()): Promise<number> {
   if (!shouldRunIncidentWatch(lastRunMs, nowMs)) return 0;
@@ -238,8 +310,15 @@ export async function runSelfIncidentWatch(nowMs: number = Date.now()): Promise<
     }
   }
 
-  if (filed > 0) {
-    log.info({ filed, candidates: candidates.length }, '[self-incident] filed incident concerns');
+  // Runs AFTER the main loop: awaiting_question tasks age out of the 24h
+  // lookback above, so they need their own no-lookback pass (see the fn doc).
+  const notified = await inspectAwaitingQuestionTasks(nowMs);
+
+  if (filed + notified > 0) {
+    log.info(
+      { filed, notified, candidates: candidates.length },
+      '[self-incident] surfaced incident findings',
+    );
   }
-  return filed;
+  return filed + notified;
 }

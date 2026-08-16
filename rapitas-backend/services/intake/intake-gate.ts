@@ -21,7 +21,10 @@ import {
 } from '../workflow/workflow-file-utils';
 import { recordTransition } from '../workflow/transition-recorder';
 import { deriveTaskSpec, generateIntakeQuestions } from '../task/task-spec-deriver';
-import { createNotification } from '../communication/notification-service';
+import {
+  createNotification,
+  notifyIntakeQuestionPending,
+} from '../communication/notification-service';
 import {
   checkSpecQuality,
   mergeSpecField,
@@ -215,6 +218,10 @@ async function raiseIntakeQuestion(task: IntakeTaskRow, quality: SpecQualityResu
     phase: 'question',
     metadata: { previousStatus: fromStatus, missing: quality.missing, score: quality.score },
   });
+  // Surface the pause — an unanswered question NEVER advances on its own, so
+  // silence here is worse than the low-confidence proceed case below (#578/#579
+  // sat 4 days unseen). Best-effort like recordLowConfidence's notification.
+  await notifyIntakeQuestionPending({ taskId: task.id, taskTitle: task.title }).catch(() => {});
 }
 
 /** Record (audit + notify) that we proceeded despite a thin spec. */
