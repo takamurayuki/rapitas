@@ -310,17 +310,31 @@ export class AutoMergeWatcher {
         // nothing else updates the local GitHubPullRequest row (there is no webhook
         // in dev), so it kept showing 'open' even though the PR was merged — the
         // "PR won't merge" the user saw was actually a stale local state.
-        await prisma.gitHubPullRequest
-          .updateMany({
-            where: { prNumber: c.prNumber, state: 'open' },
-            data: { state: 'merged', updatedAt: new Date() },
-          })
-          .catch((err) =>
-            log.warn(
-              { err, prNumber: c.prNumber },
-              '[auto-merge] Failed to sync local PR row to merged',
-            ),
+        // MUST scope by the repo behind c.cwd: prNumber collides across the
+        // repos sharing this table, so an unscoped update also flipped ANOTHER
+        // project's same-numbered open PR to merged, silently removing it from
+        // its own auto-merge candidacy. Fail-closed on an unresolvable
+        // integration — a stale-open local row self-heals on the next GitHub
+        // sync, a clobbered foreign row does not.
+        const syncIntegrationId = await resolveIntegrationId(prisma, null, c.cwd).catch(() => null);
+        if (syncIntegrationId == null) {
+          log.warn(
+            { taskId: c.taskId, prNumber: c.prNumber, cwd: c.cwd },
+            "[auto-merge] Could not resolve this candidate's GitHub integration — skipping the local PR mirror sync to avoid clobbering another repo's same-numbered PR",
           );
+        } else {
+          await prisma.gitHubPullRequest
+            .updateMany({
+              where: { integrationId: syncIntegrationId, prNumber: c.prNumber, state: 'open' },
+              data: { state: 'merged', updatedAt: new Date() },
+            })
+            .catch((err) =>
+              log.warn(
+                { err, prNumber: c.prNumber },
+                '[auto-merge] Failed to sync local PR row to merged',
+              ),
+            );
+        }
         await mark(c.taskId, 'auto_merged', `strategy=${res.mergeStrategy}`);
         await notify({
           taskId: c.taskId,

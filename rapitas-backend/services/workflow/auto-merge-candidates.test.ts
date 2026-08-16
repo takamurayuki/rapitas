@@ -19,7 +19,11 @@ interface TaskFixture {
   workflowStatus: string;
   completedAt: Date | null;
   workingDirectory: string | null;
-  theme: { workingDirectory: string | null; defaultBranch?: string | null } | null;
+  theme: {
+    workingDirectory: string | null;
+    defaultBranch?: string | null;
+    repositoryUrl?: string | null;
+  } | null;
   autoCommit?: boolean | null;
   autoCreatePR?: boolean | null;
   autoMergePR?: boolean | null;
@@ -31,9 +35,23 @@ interface OpenPrRow {
   linkedTaskId: number | null;
 }
 
+interface PrTaskRow {
+  id: number;
+  githubPrId: number | null;
+  workingDirectory?: string | null;
+  theme?: { repositoryUrl?: string | null; workingDirectory?: string | null } | null;
+}
+
+/** One open GitHubPullRequest row in the multi-repo lookup table. */
+interface OpenPrLookupRow {
+  integrationId: number;
+  prNumber: number;
+  baseBranch: string | null;
+}
+
 let openPrRows: OpenPrRow[] = [];
-let prTaskRows: { id: number; githubPrId: number | null }[] = [];
-let openPrByNumber = new Map<number, { baseBranch: string | null }>();
+let prTaskRows: PrTaskRow[] = [];
+let openPrLookupRows: OpenPrLookupRow[] = [];
 let notificationRows = new Map<string, { id: number }>();
 let tasksById = new Map<number, TaskFixture>();
 let userSettingsRow: Record<string, boolean | null> | null = null;
@@ -48,8 +66,15 @@ const decideTerminalState = mock(() =>
 const mockPrisma = {
   gitHubPullRequest: {
     findMany: () => Promise.resolve(openPrRows),
-    findFirst: (args: { where: { prNumber: number } }) => {
-      const row = openPrByNumber.get(args.where.prNumber);
+    // Mirrors Prisma findFirst on the multi-repo table: an UNSCOPED where (the
+    // pre-fix shape, no integrationId) matches whichever repo's row comes
+    // first, which is exactly the cross-repo collision under test.
+    findFirst: (args: { where: { prNumber: number; integrationId?: number } }) => {
+      const row = openPrLookupRows.find(
+        (r) =>
+          r.prNumber === args.where.prNumber &&
+          (args.where.integrationId == null || r.integrationId === args.where.integrationId),
+      );
       return Promise.resolve(row ? { baseBranch: row.baseBranch } : null);
     },
   },
@@ -101,6 +126,30 @@ mock.module('./auto-merge-exhaustion', () => ({
   decideTerminalState,
 }));
 
+/**
+ * Integration resolution fixture: theme.repositoryUrl → integrationId. A task
+ * with no repositoryUrl resolves to DEFAULT_INTEGRATION_ID (mirrors pr-link's
+ * single-integration desktop fallback); an URL absent from the map resolves to
+ * null (the fail-closed case).
+ */
+const DEFAULT_INTEGRATION_ID = 1;
+let integrationByRepoUrl = new Map<string, number>();
+const resolveIntegrationIdMock = mock(
+  (_prisma: unknown, repositoryUrl: string | null | undefined, _wd: string | null | undefined) =>
+    Promise.resolve(
+      repositoryUrl != null
+        ? (integrationByRepoUrl.get(repositoryUrl) ?? null)
+        : DEFAULT_INTEGRATION_ID,
+    ),
+);
+
+// NOTE: Mirror ALL runtime exports of pr-link (process-global mock.module) —
+// linkAutoCreatedPr is unused here but must exist for other importers.
+mock.module('../github/pr-link', () => ({
+  resolveIntegrationId: resolveIntegrationIdMock,
+  linkAutoCreatedPr: mock(() => Promise.resolve(null)),
+}));
+
 const { findCandidates } = await import('./auto-merge-candidates');
 
 const CWD = process.cwd();
@@ -124,10 +173,21 @@ function addOpenPr(row: OpenPrRow): void {
   openPrRows.push(row);
 }
 
+/** Register an open PR row in the lookup table (default: the sole integration). */
+function addOpenPrLookup(
+  prNumber: number,
+  baseBranch: string | null,
+  integrationId: number = DEFAULT_INTEGRATION_ID,
+): void {
+  openPrLookupRows.push({ integrationId, prNumber, baseBranch });
+}
+
 beforeEach(() => {
   openPrRows = [];
   prTaskRows = [];
-  openPrByNumber = new Map();
+  openPrLookupRows = [];
+  integrationByRepoUrl = new Map();
+  resolveIntegrationIdMock.mockClear();
   notificationRows = new Map();
   tasksById = new Map();
   userSettingsRow = null;
@@ -356,7 +416,7 @@ describe('findCandidates — Task.githubPrId fallback + duplicate-open-PR notify
   it('adopts a task via githubPrId when no linkedTaskId row names it, using the open PR row baseBranch', async () => {
     addTask({ id: 18 });
     prTaskRows = [{ id: 18, githubPrId: 200 }];
-    openPrByNumber.set(200, { baseBranch: 'feature/base' });
+    addOpenPrLookup(200, 'feature/base');
 
     const result = await findCandidates();
 
@@ -376,7 +436,7 @@ describe('findCandidates — Task.githubPrId fallback + duplicate-open-PR notify
     addTask({ id: 20 });
     addOpenPr({ prNumber: 300, baseBranch: 'develop', linkedTaskId: 20 });
     prTaskRows = [{ id: 20, githubPrId: 302 }];
-    openPrByNumber.set(302, { baseBranch: 'develop' });
+    addOpenPrLookup(302, 'develop');
 
     const result = await findCandidates();
 
@@ -393,7 +453,7 @@ describe('findCandidates — Task.githubPrId fallback + duplicate-open-PR notify
     addTask({ id: 21 });
     addOpenPr({ prNumber: 400, baseBranch: 'develop', linkedTaskId: 21 });
     prTaskRows = [{ id: 21, githubPrId: 402 }];
-    openPrByNumber.set(402, { baseBranch: 'develop' });
+    addOpenPrLookup(402, 'develop');
     notificationRows.set('duplicate_open_prs:/tasks/21', { id: 1 });
 
     const result = await findCandidates();
@@ -413,5 +473,79 @@ describe('findCandidates — Task.githubPrId fallback + duplicate-open-PR notify
     expect(result).toHaveLength(1);
     expect(result[0].prNumber).toBe(500);
     expect(notificationCreate).not.toHaveBeenCalled();
+  });
+});
+
+// Cross-repository prNumber collision (task #596): GitHubPullRequest holds every
+// integration's PRs and prNumber is only unique per repo, so the githubPrId
+// fallback must adopt rows from the TASK'S OWN repo only. Fixture values mirror
+// the observed production data (tripla #6 open linked=491 vs the converter
+// repo's own #6/#7 open rows).
+describe('findCandidates — cross-repository prNumber collision', () => {
+  const TRIPLA_URL = 'https://github.com/takamurayuki/tripla';
+  const CONVERTER_URL = 'https://github.com/takamurayuki/ime-live-converter';
+  const TRIPLA = 1;
+  const CONVERTER = 2;
+
+  it('adopts only the row of the task\'s own repository when two repos share a prNumber', async () => {
+    integrationByRepoUrl.set(TRIPLA_URL, TRIPLA);
+    integrationByRepoUrl.set(CONVERTER_URL, CONVERTER);
+    addTask({ id: 491, theme: { workingDirectory: CWD, repositoryUrl: TRIPLA_URL } });
+    prTaskRows = [{ id: 491, githubPrId: 6, theme: { repositoryUrl: TRIPLA_URL } }];
+    // The FOREIGN repo's #6 is registered first: an unscoped findFirst would
+    // return it, so this fixture is red without the integrationId scope.
+    addOpenPrLookup(6, 'chore/t583-conv', CONVERTER);
+    addOpenPrLookup(6, 'feature/tripla-base', TRIPLA);
+
+    const result = await findCandidates();
+
+    expect(result).toHaveLength(1);
+    expect(result[0]).toMatchObject({ taskId: 491, prNumber: 6, baseBranch: 'feature/tripla-base' });
+  });
+
+  it('does not fire duplicate_open_prs when the same-numbered open PR belongs to ANOTHER repo', async () => {
+    // Observed production shape: task 491 (tripla) has open #6 (linked) and
+    // githubPrId=7, but tripla's #7 is merged — only the CONVERTER repo has an
+    // open #7. The pre-fix unscoped lookup adopted it and mis-notified.
+    integrationByRepoUrl.set(TRIPLA_URL, TRIPLA);
+    integrationByRepoUrl.set(CONVERTER_URL, CONVERTER);
+    addTask({ id: 491, theme: { workingDirectory: CWD, repositoryUrl: TRIPLA_URL } });
+    addOpenPr({ prNumber: 6, baseBranch: 'develop', linkedTaskId: 491 });
+    prTaskRows = [{ id: 491, githubPrId: 7, theme: { repositoryUrl: TRIPLA_URL } }];
+    addOpenPrLookup(7, 'bugfix/t580-conv', CONVERTER); // no open #7 in tripla
+
+    const result = await findCandidates();
+
+    expect(result).toHaveLength(1);
+    expect(result[0]).toMatchObject({ taskId: 491, prNumber: 6 });
+    expect(notificationCreate).not.toHaveBeenCalled();
+  });
+
+  it('fail-closed: skips the githubPrId fallback entirely when the integration cannot be resolved', async () => {
+    addTask({ id: 30, theme: { workingDirectory: CWD, repositoryUrl: 'https://unparsable.example/x' } });
+    prTaskRows = [
+      { id: 30, githubPrId: 8, theme: { repositoryUrl: 'https://unparsable.example/x' } },
+    ];
+    addOpenPrLookup(8, 'develop', TRIPLA); // exists, but must NOT be adopted unscoped
+
+    expect(await findCandidates()).toEqual([]);
+    expect(notificationCreate).not.toHaveBeenCalled();
+  });
+
+  it('memoizes integration resolution per repo hint within one tick', async () => {
+    integrationByRepoUrl.set(TRIPLA_URL, TRIPLA);
+    addTask({ id: 31, theme: { workingDirectory: CWD, repositoryUrl: TRIPLA_URL } });
+    addTask({ id: 32, theme: { workingDirectory: CWD, repositoryUrl: TRIPLA_URL } });
+    prTaskRows = [
+      { id: 31, githubPrId: 40, theme: { repositoryUrl: TRIPLA_URL } },
+      { id: 32, githubPrId: 41, theme: { repositoryUrl: TRIPLA_URL } },
+    ];
+    addOpenPrLookup(40, 'develop', TRIPLA);
+    addOpenPrLookup(41, 'develop', TRIPLA);
+
+    const result = await findCandidates();
+
+    expect(result).toHaveLength(2);
+    expect(resolveIntegrationIdMock).toHaveBeenCalledTimes(1);
   });
 });
