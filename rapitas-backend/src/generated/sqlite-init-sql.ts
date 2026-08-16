@@ -640,6 +640,31 @@ CREATE TABLE "WorkflowOptimizationRule" (
 );
 
 -- CreateTable
+CREATE TABLE "DetectionMissCase" (
+    "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    "taskId" INTEGER NOT NULL,
+    "gate" TEXT NOT NULL,
+    "reason" TEXT NOT NULL DEFAULT '',
+    "evidenceJson" TEXT NOT NULL DEFAULT '{}',
+    "detectedAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "dedupKey" TEXT NOT NULL,
+    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+-- CreateTable
+CREATE TABLE "MissSignatureSuggestion" (
+    "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    "caseId" INTEGER,
+    "signature" TEXT NOT NULL,
+    "explanation" TEXT NOT NULL DEFAULT '',
+    "status" TEXT NOT NULL DEFAULT 'pending_review',
+    "reviewedBy" TEXT,
+    "reviewedAt" DATETIME,
+    "dedupKey" TEXT NOT NULL,
+    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+-- CreateTable
 CREATE TABLE "PromptEvolution" (
     "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
     "experimentId" INTEGER,
@@ -1649,6 +1674,30 @@ CREATE INDEX "WorkflowOptimizationRule_confidence_idx" ON "WorkflowOptimizationR
 
 -- CreateIndex
 CREATE INDEX "WorkflowOptimizationRule_isActive_idx" ON "WorkflowOptimizationRule"("isActive");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "DetectionMissCase_dedupKey_key" ON "DetectionMissCase"("dedupKey");
+
+-- CreateIndex
+CREATE INDEX "DetectionMissCase_gate_idx" ON "DetectionMissCase"("gate");
+
+-- CreateIndex
+CREATE INDEX "DetectionMissCase_taskId_idx" ON "DetectionMissCase"("taskId");
+
+-- CreateIndex
+CREATE INDEX "DetectionMissCase_detectedAt_idx" ON "DetectionMissCase"("detectedAt");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "MissSignatureSuggestion_dedupKey_key" ON "MissSignatureSuggestion"("dedupKey");
+
+-- CreateIndex
+CREATE INDEX "MissSignatureSuggestion_status_idx" ON "MissSignatureSuggestion"("status");
+
+-- CreateIndex
+CREATE INDEX "MissSignatureSuggestion_caseId_idx" ON "MissSignatureSuggestion"("caseId");
+
+-- CreateIndex
+CREATE INDEX "MissSignatureSuggestion_reviewedAt_idx" ON "MissSignatureSuggestion"("reviewedAt");
 
 -- CreateIndex
 CREATE INDEX "PromptEvolution_category_idx" ON "PromptEvolution"("category");

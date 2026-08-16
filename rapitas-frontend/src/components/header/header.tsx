@@ -50,6 +50,7 @@ import {
   Search,
   WalletCards,
   ChartNoAxesCombined,
+  ScanSearch,
 } from 'lucide-react';
 import Link from 'next/link';
 import AppIcon from '@/components/common/app-icon';
@@ -204,6 +205,12 @@ export default function Header() {
               href: '/agents/growth',
               label: t('growthLedger'),
               icon: ChartNoAxesCombined,
+            },
+            // NOTE: ScanSearch = 検出漏れ兆候の学習・レビュー (ICON_POLICY §3).
+            {
+              href: '/agents/miss-signatures',
+              label: t('missSignatures'),
+              icon: ScanSearch,
             },
             {
               href: '#',
