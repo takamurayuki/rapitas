@@ -123,6 +123,33 @@ model WorkflowLearningRecord {
   @@index([createdAt])
 }
 
+// Task duration predictions - distribution-based duration estimates (median /
+// IQR / sample size / confidence) persisted per task. Two-stage lifecycle:
+// (1) prediction time — row upserted by taskId with the distribution stats;
+// (2) task completion — actual duration and prediction error are resolved
+// into the same row so accuracy can be audited later.
+model TaskDurationPrediction {
+  id                    Int       @id @default(autoincrement())
+  taskId                Int       @unique
+  task                  Task      @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  groupingKey           String    // Population identifier, e.g. "theme:12|mode:standard"
+  predictable           Boolean   @default(false) // Whether history met the sample threshold
+  sampleSize            Int       @default(0) // Number of completion rows in the population
+  medianMinutes         Int?      // null while predictable=false (no fabricated values)
+  p25Minutes            Int?      // First quartile (nearest-rank)
+  p75Minutes            Int?      // Third quartile (nearest-rank)
+  confidence            Float     @default(0) // 0-1; 0 while predictable=false
+  predictedAt           DateTime  @default(now())
+  actualDurationMinutes Int?      // Filled on task completion
+  errorMinutes          Int?      // actual - median, filled on completion
+  errorRatio            Float?    // actual / median (null when median <= 0)
+  resolvedAt            DateTime? // When the prediction error was resolved
+
+  @@index([taskId])
+  @@index([groupingKey])
+  @@index([resolvedAt])
+}
+
 // Workflow optimization rules - patterns extracted from learning data
 model WorkflowOptimizationRule {
   id                Int       @id @default(autoincrement())
