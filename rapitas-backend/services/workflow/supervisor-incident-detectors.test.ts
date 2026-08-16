@@ -101,9 +101,7 @@ describe('detectFalseFailure', () => {
   });
 
   it('does NOT detect a success at or before the failure mark (gap <= 0)', () => {
-    expect(
-      detectFalseFailure({ failureMarkedAtMs: NOW, successArtifactAtMs: NOW }),
-    ).toBeNull();
+    expect(detectFalseFailure({ failureMarkedAtMs: NOW, successArtifactAtMs: NOW })).toBeNull();
     expect(
       detectFalseFailure({ failureMarkedAtMs: NOW, successArtifactAtMs: NOW - 1_000 }),
     ).toBeNull();
@@ -156,9 +154,7 @@ describe('detectFalseForceStop', () => {
   });
 
   it('does NOT detect progress after the backstop (negative gap)', () => {
-    expect(
-      detectFalseForceStop({ backstopAtMs: NOW, lastProgressAtMs: NOW + 1_000 }),
-    ).toBeNull();
+    expect(detectFalseForceStop({ backstopAtMs: NOW, lastProgressAtMs: NOW + 1_000 })).toBeNull();
   });
 
   it.each([
@@ -247,9 +243,11 @@ describe('detectThemeMisplacement', () => {
   });
 
   it('honors custom minItems / ratioThreshold overrides', () => {
-    expect(
-      detectThemeMisplacement({ checklistTotal: 2, noTargetCount: 2, minItems: 2 }),
-    ).toEqual({ total: 2, noTargetCount: 2, ratio: 1 });
+    expect(detectThemeMisplacement({ checklistTotal: 2, noTargetCount: 2, minItems: 2 })).toEqual({
+      total: 2,
+      noTargetCount: 2,
+      ratio: 1,
+    });
     expect(
       detectThemeMisplacement({ checklistTotal: 5, noTargetCount: 4, ratioThreshold: 0.9 }),
     ).toBeNull();

@@ -8,10 +8,7 @@
  * supervisor-incident-detectors; this module is the I/O boundary.
  */
 import { prisma } from '../../config/database';
-import {
-  analyzeVerifyChecklist,
-  type VerifyChecklistStats,
-} from './supervisor-incident-detectors';
+import { analyzeVerifyChecklist, type VerifyChecklistStats } from './supervisor-incident-detectors';
 
 /** How much of an execution output head is scanned for the cwd line. */
 const OUTPUT_HEAD_CHARS = 4000;
@@ -128,9 +125,7 @@ export async function gatherSupervisorEvidence(task: { id: number }): Promise<Su
         }),
       null,
     );
-    const parsed = parseWorkingDirectory(
-      latestExec?.output?.slice(0, OUTPUT_HEAD_CHARS) ?? null,
-    );
+    const parsed = parseWorkingDirectory(latestExec?.output?.slice(0, OUTPUT_HEAD_CHARS) ?? null);
     executionCwd = parsed?.cwd ?? null;
     executionCwdLine = parsed?.line ?? null;
   }

@@ -117,8 +117,7 @@ export async function inspectSupervisorSignatures(args: {
       explanation:
         `タスクが終端失敗とマークされた${gapSec}秒後に成功アーティファクト(PR/コミット)が出現しました。` +
         '完了ゲートが実際には成功した実行を「失敗」と誤記録した疑いがあります(task 580 / PR #7と同型)。',
-      thresholdDescription:
-        `失敗マーク後 ${Math.round(FALSE_FAILURE_WINDOW_MS / 60_000)}分以内の成功アーティファクト出現`,
+      thresholdDescription: `失敗マーク後 ${Math.round(FALSE_FAILURE_WINDOW_MS / 60_000)}分以内の成功アーティファクト出現`,
       severity: 'medium',
       nowMs,
       evidenceLines: [
@@ -147,8 +146,7 @@ export async function inspectSupervisorSignatures(args: {
       explanation:
         `直近の進捗(phase_completed遷移)の${gapSec}秒後にハングバックストップが強制停止しています。` +
         '進行中だったタスクの誤検知停止の疑いがあります(task 585と同型)。',
-      thresholdDescription:
-        `直近進捗からバックストップまでの時間差が ${Math.round(FORCESTOP_MIN_GAP_MS / 1000)}秒未満`,
+      thresholdDescription: `直近進捗からバックストップまでの時間差が ${Math.round(FORCESTOP_MIN_GAP_MS / 1000)}秒未満`,
       severity: 'medium',
       nowMs,
       evidenceLines: [

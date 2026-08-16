@@ -40,9 +40,8 @@ mock.module('../../config/database', () => ({
   ensureDatabaseConnection: () => Promise.resolve(),
 }));
 
-const { gatherSupervisorEvidence, parseWorkingDirectory, safeQuery } = await import(
-  './supervisor-incident-evidence'
-);
+const { gatherSupervisorEvidence, parseWorkingDirectory, safeQuery } =
+  await import('./supervisor-incident-evidence');
 
 const NOW = Date.parse('2026-08-15T12:00:00.000Z');
 const task = { id: 580 };
