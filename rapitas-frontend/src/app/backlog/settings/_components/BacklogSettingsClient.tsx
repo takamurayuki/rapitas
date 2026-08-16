@@ -18,6 +18,7 @@ import {
   IterationCw,
   MonitorCheck,
   Sunrise,
+  ScanSearch,
   Play,
   Loader2,
   CalendarClock,
@@ -33,7 +34,8 @@ type JobKind =
   | 'health_check'
   | 'loop_review'
   | 'ci_watch'
-  | 'daily_report';
+  | 'daily_report'
+  | 'miss_ledger';
 type Frequency = 'daily' | 'weekly';
 
 interface Schedule {
@@ -55,6 +57,8 @@ const JOB_META: Record<JobKind, { icon: typeof Sparkles; color: string }> = {
   ci_watch: { icon: MonitorCheck, color: 'text-violet-500' },
   // NOTE: Sunrise = 自律活動デイリーレポート (ICON_POLICY §3).
   daily_report: { icon: Sunrise, color: 'text-amber-500' },
+  // NOTE: ScanSearch = 検出漏れ兆候の学習・レビュー (ICON_POLICY §3).
+  miss_ledger: { icon: ScanSearch, color: 'text-indigo-500' },
 };
 
 const FREQUENCIES: Frequency[] = ['daily', 'weekly'];

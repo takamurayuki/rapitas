@@ -16,7 +16,8 @@ export type BacklogJobKind =
   | 'health_check'
   | 'loop_review'
   | 'ci_watch'
-  | 'daily_report';
+  | 'daily_report'
+  | 'miss_ledger';
 /** How often a job runs. */
 export type BacklogFrequency = 'daily' | 'weekly';
 
@@ -39,6 +40,7 @@ export const BACKLOG_JOB_KINDS: readonly BacklogJobKind[] = [
   'loop_review',
   'ci_watch',
   'daily_report',
+  'miss_ledger',
 ];
 
 /**
@@ -62,6 +64,10 @@ export const DEFAULTS: Record<
   // Every morning at 7:00 (task #564 requirement): summarize the previous 24h
   // of autonomous activity into one notification + /agents/daily-report archive.
   daily_report: { enabled: true, frequency: 'daily', hour: 7, weekday: 1 },
+  // Opt-in like vuln_scan: the job spends aux-AI calls and seeds a review
+  // queue, so the user enables it deliberately. Daily 6:00 keeps the queue
+  // fresh without competing with the 7:00 jobs.
+  miss_ledger: { enabled: false, frequency: 'daily', hour: 6, weekday: 1 },
 };
 
 /** Coerces an arbitrary value to a valid job kind, or null if unknown. */

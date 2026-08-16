@@ -123,6 +123,9 @@ export { hypothesisRoutes } from './memory/hypothesis';
 export { backlogScheduleRoutes, backlogThemeOverrideRoutes } from './backlog';
 export { dailyReportRoutes } from './daily-report-routes';
 
+// Self-Improvement
+export { missSignaturesRoutes } from './self-improvement/miss-signatures-routes';
+
 // Self-Learning
 export { experimentsRoutes } from './self-learning/experiments';
 export { hypothesisExperimentsRoutes } from './self-learning/hypothesis-experiments';
