@@ -14,11 +14,16 @@ import { describe, test, expect, mock, beforeEach } from 'bun:test';
 const noopLogger = { info: () => {}, warn: () => {}, error: () => {}, debug: () => {} };
 
 const taskFindManyMock = mock((_args: unknown) => Promise.resolve([] as unknown[]));
+const taskFindUniqueMock = mock((_args: unknown) => Promise.resolve<unknown>(null));
 const transitionFindManyMock = mock((_args: unknown) => Promise.resolve([] as unknown[]));
 const transitionFindFirstMock = mock((_args: unknown) => Promise.resolve<unknown>(null));
 const sessionFindFirstMock = mock(() => Promise.resolve<unknown>(null));
-const executionFindFirstMock = mock(() => Promise.resolve<unknown>(null));
-const queueItemFindFirstMock = mock(() => Promise.resolve<unknown>(null));
+const executionFindFirstMock = mock((_args: unknown) => Promise.resolve<unknown>(null));
+const queueItemFindFirstMock = mock((_args: unknown) => Promise.resolve<unknown>(null));
+const notificationFindFirstMock = mock((_args: unknown) => Promise.resolve<unknown>(null));
+const prFindFirstMock = mock((_args: unknown) => Promise.resolve<unknown>(null));
+const activityLogFindFirstMock = mock((_args: unknown) => Promise.resolve<unknown>(null));
+const workflowFileFindFirstMock = mock((_args: unknown) => Promise.resolve<unknown>(null));
 const submitConcernMock = mock((_input: unknown) => Promise.resolve(1));
 const notifyIntakeQuestionPendingMock = mock((_input: unknown) =>
   Promise.resolve<unknown>({ id: 1 }),
@@ -29,13 +34,19 @@ mock.module('../../config/logger', () => ({
   logger: noopLogger,
   createLogger: () => noopLogger,
 }));
+// Full mirror of every prisma model the watcher + BOTH evidence gatherers
+// touch — a missing model would sync-throw inside gatherSupervisorEvidence.
 mock.module('../../config/database', () => ({
   prisma: {
-    task: { findMany: taskFindManyMock },
+    task: { findMany: taskFindManyMock, findUnique: taskFindUniqueMock },
     workflowTransition: { findMany: transitionFindManyMock, findFirst: transitionFindFirstMock },
     agentSession: { findFirst: sessionFindFirstMock },
     agentExecution: { findFirst: executionFindFirstMock },
     workflowQueueItem: { findFirst: queueItemFindFirstMock },
+    notification: { findFirst: notificationFindFirstMock },
+    gitHubPullRequest: { findFirst: prFindFirstMock },
+    activityLog: { findFirst: activityLogFindFirstMock },
+    workflowFile: { findFirst: workflowFileFindFirstMock },
   },
   ensureDatabaseConnection: () => Promise.resolve(),
 }));
@@ -84,11 +95,16 @@ describe('shouldRunIncidentWatch', () => {
 describe('runSelfIncidentWatch', () => {
   beforeEach(() => {
     taskFindManyMock.mockReset().mockResolvedValue([]);
+    taskFindUniqueMock.mockReset().mockResolvedValue(null);
     transitionFindManyMock.mockReset().mockResolvedValue([]);
     transitionFindFirstMock.mockReset().mockResolvedValue(null);
     sessionFindFirstMock.mockReset().mockResolvedValue(null);
     executionFindFirstMock.mockReset().mockResolvedValue(null);
     queueItemFindFirstMock.mockReset().mockResolvedValue(null);
+    notificationFindFirstMock.mockReset().mockResolvedValue(null);
+    prFindFirstMock.mockReset().mockResolvedValue(null);
+    activityLogFindFirstMock.mockReset().mockResolvedValue(null);
+    workflowFileFindFirstMock.mockReset().mockResolvedValue(null);
     submitConcernMock.mockReset().mockResolvedValue(1);
     notifyIntakeQuestionPendingMock.mockReset().mockResolvedValue({ id: 1 });
   });
@@ -247,6 +263,94 @@ describe('runSelfIncidentWatch', () => {
     // candidates + the dedicated awaiting_question scan).
     expect(taskFindManyMock).toHaveBeenCalledTimes(2);
     expect(submitConcernMock).toHaveBeenCalledTimes(1);
+  });
+
+  // 受入基準3: the supervisor cwd-mismatch signature files a concern whose
+  // detail carries the same evidence a human supervisor read (both paths + line).
+  test('files a supervisor cwd-mismatch concern with path evidence in the detail', async () => {
+    const now = nextPassTime();
+    taskFindManyMock.mockResolvedValue([
+      stagnantTask(now, { id: 580, updatedAt: new Date(now - 60_000) }), // fresh → no stagnation
+    ]);
+    taskFindUniqueMock.mockResolvedValue({
+      theme: { workingDirectory: 'C:\\Projects\\ime-live-converter' },
+    });
+    // gatherTaskState probes executions with select:{id}; the supervisor
+    // gatherer asks for select:{output} — dispatch on the requested field.
+    executionFindFirstMock.mockImplementation((args: unknown) => {
+      const select = (args as { select?: { output?: boolean } }).select;
+      if (select?.output) {
+        return Promise.resolve({
+          output: '[Claude Code] Working directory: C:\\Projects\\rapitas\\rapitas-backend\n…',
+        });
+      }
+      return Promise.resolve(null);
+    });
+
+    const filed = await runSelfIncidentWatch(now);
+
+    expect(filed).toBe(1);
+    const input = submitConcernMock.mock.calls[0]?.[0] as Record<string, unknown>;
+    expect(input.dedupKey).toBe('self-incident:supervisor-cwd-mismatch:580');
+    expect(input.severity).toBe('high');
+    const detail = String(input.detail);
+    expect(detail).toContain('## 検出証拠');
+    expect(detail).toContain('実行cwd: C:\\Projects\\rapitas\\rapitas-backend');
+    expect(detail).toContain('テーマ作業ディレクトリ: C:\\Projects\\ime-live-converter');
+    expect(detail).toContain(
+      '該当行: [Claude Code] Working directory: C:\\Projects\\rapitas\\rapitas-backend',
+    );
+  });
+
+  // 受入基準3: the false-failure signature carries the gap seconds + artifact ref.
+  test('files a supervisor false-failure concern with the 57s gap in the detail', async () => {
+    const now = nextPassTime();
+    taskFindManyMock.mockResolvedValue([
+      stagnantTask(now, { id: 581, updatedAt: new Date(now - 60_000) }),
+    ]);
+    // Serves BOTH the active-queue probe (treated as active → no stagnation)
+    // and the supervisor failure-mark lookup (completedAt of the failed item).
+    queueItemFindFirstMock.mockResolvedValue({
+      id: 7,
+      completedAt: new Date(now - 120_000),
+      status: 'failed',
+    });
+    prFindFirstMock.mockResolvedValue({
+      createdAt: new Date(now - 120_000 + 57_000),
+      prNumber: 7,
+      url: 'https://github.com/takamurayuki/ime-live-converter/pull/7',
+    });
+
+    const filed = await runSelfIncidentWatch(now);
+
+    expect(filed).toBe(1);
+    const input = submitConcernMock.mock.calls[0]?.[0] as Record<string, unknown>;
+    expect(input.dedupKey).toBe('self-incident:supervisor-false-failure:581');
+    const detail = String(input.detail);
+    expect(detail).toContain('## 検出証拠');
+    expect(detail).toContain('時刻差: 57秒');
+    expect(detail).toContain('PR #7 (https://github.com/takamurayuki/ime-live-converter/pull/7)');
+  });
+
+  test('the kill switch disables the supervisor pass without touching its queries', async () => {
+    process.env.RAPITAS_SUPERVISOR_INCIDENT_DISABLED = '1';
+    try {
+      const now = nextPassTime();
+      taskFindManyMock.mockResolvedValue([
+        stagnantTask(now, { id: 582, updatedAt: new Date(now - 60_000) }),
+      ]);
+      taskFindUniqueMock.mockResolvedValue({
+        theme: { workingDirectory: 'C:\\Projects\\ime-live-converter' },
+      });
+
+      const filed = await runSelfIncidentWatch(now);
+
+      expect(filed).toBe(0);
+      expect(submitConcernMock).not.toHaveBeenCalled();
+      expect(taskFindUniqueMock).not.toHaveBeenCalled();
+    } finally {
+      delete process.env.RAPITAS_SUPERVISOR_INCIDENT_DISABLED;
+    }
   });
 
   test('scans oldest-first within the 24h lookback with the defensive cap', async () => {

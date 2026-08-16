@@ -624,6 +624,25 @@ CREATE TABLE "WorkflowLearningRecord" (
 );
 
 -- CreateTable
+CREATE TABLE "TaskDurationPrediction" (
+    "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    "taskId" INTEGER NOT NULL,
+    "groupingKey" TEXT NOT NULL,
+    "predictable" BOOLEAN NOT NULL DEFAULT false,
+    "sampleSize" INTEGER NOT NULL DEFAULT 0,
+    "medianMinutes" INTEGER,
+    "p25Minutes" INTEGER,
+    "p75Minutes" INTEGER,
+    "confidence" REAL NOT NULL DEFAULT 0,
+    "predictedAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "actualDurationMinutes" INTEGER,
+    "errorMinutes" INTEGER,
+    "errorRatio" REAL,
+    "resolvedAt" DATETIME,
+    CONSTRAINT "TaskDurationPrediction_taskId_fkey" FOREIGN KEY ("taskId") REFERENCES "Task" ("id") ON DELETE CASCADE ON UPDATE CASCADE
+);
+
+-- CreateTable
 CREATE TABLE "WorkflowOptimizationRule" (
     "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
     "ruleType" TEXT NOT NULL,
@@ -637,6 +656,31 @@ CREATE TABLE "WorkflowOptimizationRule" (
     "lastEvaluated" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" DATETIME NOT NULL
+);
+
+-- CreateTable
+CREATE TABLE "DetectionMissCase" (
+    "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    "taskId" INTEGER NOT NULL,
+    "gate" TEXT NOT NULL,
+    "reason" TEXT NOT NULL DEFAULT '',
+    "evidenceJson" TEXT NOT NULL DEFAULT '{}',
+    "detectedAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "dedupKey" TEXT NOT NULL,
+    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+-- CreateTable
+CREATE TABLE "MissSignatureSuggestion" (
+    "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    "caseId" INTEGER,
+    "signature" TEXT NOT NULL,
+    "explanation" TEXT NOT NULL DEFAULT '',
+    "status" TEXT NOT NULL DEFAULT 'pending_review',
+    "reviewedBy" TEXT,
+    "reviewedAt" DATETIME,
+    "dedupKey" TEXT NOT NULL,
+    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
 -- CreateTable
@@ -1642,6 +1686,18 @@ CREATE INDEX "WorkflowLearningRecord_outcome_idx" ON "WorkflowLearningRecord"("o
 CREATE INDEX "WorkflowLearningRecord_createdAt_idx" ON "WorkflowLearningRecord"("createdAt");
 
 -- CreateIndex
+CREATE UNIQUE INDEX "TaskDurationPrediction_taskId_key" ON "TaskDurationPrediction"("taskId");
+
+-- CreateIndex
+CREATE INDEX "TaskDurationPrediction_taskId_idx" ON "TaskDurationPrediction"("taskId");
+
+-- CreateIndex
+CREATE INDEX "TaskDurationPrediction_groupingKey_idx" ON "TaskDurationPrediction"("groupingKey");
+
+-- CreateIndex
+CREATE INDEX "TaskDurationPrediction_resolvedAt_idx" ON "TaskDurationPrediction"("resolvedAt");
+
+-- CreateIndex
 CREATE INDEX "WorkflowOptimizationRule_ruleType_idx" ON "WorkflowOptimizationRule"("ruleType");
 
 -- CreateIndex
@@ -1649,6 +1705,30 @@ CREATE INDEX "WorkflowOptimizationRule_confidence_idx" ON "WorkflowOptimizationR
 
 -- CreateIndex
 CREATE INDEX "WorkflowOptimizationRule_isActive_idx" ON "WorkflowOptimizationRule"("isActive");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "DetectionMissCase_dedupKey_key" ON "DetectionMissCase"("dedupKey");
+
+-- CreateIndex
+CREATE INDEX "DetectionMissCase_gate_idx" ON "DetectionMissCase"("gate");
+
+-- CreateIndex
+CREATE INDEX "DetectionMissCase_taskId_idx" ON "DetectionMissCase"("taskId");
+
+-- CreateIndex
+CREATE INDEX "DetectionMissCase_detectedAt_idx" ON "DetectionMissCase"("detectedAt");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "MissSignatureSuggestion_dedupKey_key" ON "MissSignatureSuggestion"("dedupKey");
+
+-- CreateIndex
+CREATE INDEX "MissSignatureSuggestion_status_idx" ON "MissSignatureSuggestion"("status");
+
+-- CreateIndex
+CREATE INDEX "MissSignatureSuggestion_caseId_idx" ON "MissSignatureSuggestion"("caseId");
+
+-- CreateIndex
+CREATE INDEX "MissSignatureSuggestion_reviewedAt_idx" ON "MissSignatureSuggestion"("reviewedAt");
 
 -- CreateIndex
 CREATE INDEX "PromptEvolution_category_idx" ON "PromptEvolution"("category");

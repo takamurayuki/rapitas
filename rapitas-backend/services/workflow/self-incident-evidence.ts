@@ -173,6 +173,9 @@ export async function gatherTaskState(
  * @param args.explanation - What was detected and why it matters. / 検出内容の説明
  * @param args.thresholdDescription - The threshold that fired. / 発火した閾値の説明
  * @param args.detectedAtIso - Detection time (ISO). / 検出時刻
+ * @param args.evidenceLines - Signature-specific evidence bullet lines; when
+ *   given, rendered as a `## 検出証拠` section (omitted = no section, keeping
+ *   the original three signatures byte-identical). / シグネチャ固有の証拠行
  * @returns Markdown concern body. / 懸念本文
  */
 export function formatIncidentDetail(args: {
@@ -180,8 +183,14 @@ export function formatIncidentDetail(args: {
   explanation: string;
   thresholdDescription: string;
   detectedAtIso: string;
+  evidenceLines?: string[];
 }): string {
   const { state } = args;
+
+  const evidenceSection =
+    args.evidenceLines && args.evidenceLines.length > 0
+      ? ['## 検出証拠', ...args.evidenceLines.map((line) => `- ${line}`), '']
+      : [];
 
   const timelineLines =
     state.timeline.length > 0
@@ -210,6 +219,7 @@ export function formatIncidentDetail(args: {
     `- #${state.taskId}「${state.title}」`,
     `- タスク最終更新: ${new Date(state.taskUpdatedAtMs).toISOString()}`,
     '',
+    ...evidenceSection,
     '## 直近の遷移タイムライン(最大10件)',
     ...timelineLines,
     '',

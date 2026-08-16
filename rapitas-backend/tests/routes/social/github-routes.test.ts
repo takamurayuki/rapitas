@@ -150,6 +150,16 @@ mock.module('../../../services/github/concern-bridge', () => ({
 mock.module('../../../services/github/conflict-resolver', () => ({
   resolvePrConflicts: mockResolvePrConflicts,
 }));
+// NOTE: pr-lookup (repo-scoped by-task PR resolution) runs REAL against
+// mockPrisma; only pr-link's integration resolution is mocked so each test
+// controls which repo a task maps to. Mirror ALL pr-link runtime exports —
+// mock.module is process-global.
+// HACK(agent): Bun mock型推論の制限
+const mockResolveIntegrationId = mock(() => Promise.resolve(null)) as any;
+mock.module('../../../services/github/pr-link', () => ({
+  resolveIntegrationId: mockResolveIntegrationId,
+  linkAutoCreatedPr: mock(() => Promise.resolve(null)) as any,
+}));
 // NOTE: conflict-task.ts (invoked via fileConflictResolutionTask on a real
 // conflict) verifies both branches exist on origin via runGitCommand before
 // filing — mock it to report "found" so that guard doesn't block these route
@@ -212,6 +222,8 @@ function resetAllMocks() {
   mockPublishConcernToIssue.mockReset();
   mockResolveConcernIntegration.mockReset();
   mockResolvePrConflicts.mockReset();
+  mockResolveIntegrationId.mockReset();
+  mockResolveIntegrationId.mockResolvedValue(null);
 
   mockListRepositories.mockResolvedValue([]);
   mockImportIssueAsConcern.mockResolvedValue({ success: true, concernId: 42 });
@@ -1028,6 +1040,118 @@ describe('GET /github/pull-requests/by-task/:taskId/ci-status', () => {
     expect(body.status).toBe('unknown');
     expect(body.prNumber).toBe(9);
     expect(body.prState).toBe('open');
+  });
+});
+
+// Cross-repository prNumber collision (task #596): the by-task githubPrId
+// fallback must resolve within the task's OWN repository — prNumber alone
+// collides across the repos sharing GitHubPullRequest.
+describe('GET /github/pull-requests/by-task — repo-scoped githubPrId fallback', () => {
+  let app: ReturnType<typeof createApp>;
+
+  const OWN_ROW = { id: 21, prNumber: 6, url: 'https://github.com/o/own/pull/6', state: 'open' };
+  const FOREIGN_ROW = {
+    id: 99,
+    prNumber: 6,
+    url: 'https://github.com/o/other/pull/6',
+    state: 'open',
+  };
+
+  beforeEach(() => {
+    resetAllMocks();
+    app = createApp();
+  });
+
+  test('githubPrId フォールバックは自リポジトリの行のみ返し、別リポジトリの同番号PRを返さないこと', async () => {
+    mockResolveIntegrationId.mockResolvedValue(1);
+    mockPrisma.task.findUnique.mockResolvedValue({
+      githubPrId: 6,
+      workingDirectory: null,
+      theme: { repositoryUrl: 'https://github.com/o/own', workingDirectory: null },
+    });
+    // Scoped where (integrationId=1) → own repo's row. An UNSCOPED where (the
+    // pre-fix shape) simulates Prisma matching the foreign repo's row first.
+    mockPrisma.gitHubPullRequest.findFirst.mockImplementation(
+      (args: { where: Record<string, unknown> }) => {
+        const w = args?.where ?? {};
+        if (w.linkedTaskId != null) return Promise.resolve(null);
+        if (w.prNumber === 6) {
+          if (w.integrationId === 1) return Promise.resolve(OWN_ROW);
+          if (w.integrationId == null) return Promise.resolve(FOREIGN_ROW);
+        }
+        return Promise.resolve(null);
+      },
+    );
+
+    const res = await app.handle(new Request('http://localhost/github/pull-requests/by-task/42'));
+    const body = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(body.id).toBe(21);
+    // A githubPrId hit must not trigger the title-fallback self-heal writes.
+    expect(mockPrisma.gitHubPullRequest.update).not.toHaveBeenCalled();
+    expect(mockPrisma.task.update).not.toHaveBeenCalled();
+  });
+
+  test('統合が解決できない場合は githubPrId 経路をスキップし title フォールバックで解決すること', async () => {
+    mockResolveIntegrationId.mockResolvedValue(null);
+    mockPrisma.task.findUnique.mockResolvedValue({
+      githubPrId: 6,
+      workingDirectory: null,
+      theme: null,
+    });
+    mockPrisma.gitHubPullRequest.findFirst.mockImplementation(
+      (args: { where: Record<string, unknown> }) => {
+        const w = args?.where ?? {};
+        if (w.linkedTaskId != null) return Promise.resolve(null);
+        // Pre-fix shape: an unscoped prNumber lookup would return the foreign row.
+        if (w.prNumber != null) return Promise.resolve(FOREIGN_ROW);
+        if (w.OR != null) {
+          return Promise.resolve({
+            id: 7,
+            prNumber: 9,
+            url: 'https://github.com/o/own/pull/9',
+            state: 'open',
+          });
+        }
+        return Promise.resolve(null);
+      },
+    );
+
+    const res = await app.handle(new Request('http://localhost/github/pull-requests/by-task/42'));
+    const body = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(body.id).toBe(7); // title-fallback result, never the unscoped prNumber hit
+  });
+
+  test('ci-status の githubPrId フォールバックもスコープされ、別リポジトリの open 行では no_pr を返すこと', async () => {
+    mockResolveIntegrationId.mockResolvedValue(1);
+    mockPrisma.task.findUnique.mockResolvedValue({
+      githubPrId: 9,
+      workingDirectory: null,
+      themeId: null,
+      theme: { repositoryUrl: 'https://github.com/o/own', workingDirectory: null },
+    });
+    mockPrisma.gitHubPullRequest.findFirst.mockImplementation(
+      (args: { where: Record<string, unknown> }) => {
+        const w = args?.where ?? {};
+        if (w.linkedTaskId != null) return Promise.resolve(null);
+        // Only the FOREIGN repo has an open #9; the scoped lookup must miss.
+        if (w.prNumber === 9 && w.integrationId == null) {
+          return Promise.resolve({ prNumber: 9, state: 'open' });
+        }
+        return Promise.resolve(null);
+      },
+    );
+
+    const res = await app.handle(
+      new Request('http://localhost/github/pull-requests/by-task/42/ci-status'),
+    );
+    const body = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(body.status).toBe('no_pr');
   });
 });
 

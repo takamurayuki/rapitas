@@ -9,6 +9,7 @@ import { prisma } from '../../../config/database';
 import { GitHubService } from '../../../services/core/github-service';
 import { resolvePrOrThrow } from '../../../services/github/resource-guard';
 import { findPrViaGh, resolvePrWorkingDirectory } from '../../../services/github/pr-task-resolver';
+import { findScopedOpenPr, resolveIntegrationIdForTask } from '../../../services/github/pr-lookup';
 import { makeOwnerRepoString } from '../../../services/github/owner-repo';
 import {
   readPrChecks,
@@ -101,11 +102,14 @@ export const pullRequestReadRoutes = new Elysia()
         select: { githubPrId: true },
       });
       if (task?.githubPrId != null) {
-        pr = await prisma.gitHubPullRequest.findFirst({
-          where: { prNumber: task.githubPrId },
-          orderBy: { createdAt: 'desc' },
-          select,
-        });
+        // Scope by the task's own repo: prNumber collides across the repos
+        // sharing GitHubPullRequest, and an unscoped hit here navigated to
+        // another project's same-numbered PR (task #596). Unresolvable
+        // integration → fail-closed: skip to the title fallback below.
+        const integrationId = await resolveIntegrationIdForTask(prisma, tid);
+        if (integrationId != null) {
+          pr = await findScopedOpenPr(prisma, integrationId, task.githubPrId, select);
+        }
       }
     }
     if (!pr) {
@@ -206,11 +210,13 @@ export const pullRequestReadRoutes = new Elysia()
         select: { githubPrId: true },
       });
       if (task?.githubPrId != null) {
-        pr = await prisma.gitHubPullRequest.findFirst({
-          where: { prNumber: task.githubPrId },
-          orderBy: { createdAt: 'desc' },
-          select,
-        });
+        // Same repo scoping as the by-task resolver above; an unresolvable
+        // integration falls through to no_pr (the badge renders nothing)
+        // instead of reading another repo's same-numbered PR's CI.
+        const integrationId = await resolveIntegrationIdForTask(prisma, tid);
+        if (integrationId != null) {
+          pr = await findScopedOpenPr(prisma, integrationId, task.githubPrId, select);
+        }
       }
     }
     if (!pr) {
