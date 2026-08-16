@@ -21,6 +21,7 @@ import {
 } from './incident-signature-detectors';
 import { gatherTaskState, formatIncidentDetail } from './self-incident-evidence';
 import type { GatheredTaskState } from './self-incident-evidence';
+import { inspectSupervisorSignatures } from './supervisor-incident-inspect';
 
 const log = createLogger('self-incident-watcher');
 
@@ -82,6 +83,8 @@ async function fileFinding(args: {
   thresholdDescription: string;
   severity: ConcernSeverity;
   nowMs: number;
+  /** Signature-specific evidence bullets, rendered as `## 検出証拠`. */
+  evidenceLines?: string[];
 }): Promise<boolean> {
   try {
     // File against the theme that develops RAPITAS: these findings are about
@@ -98,6 +101,7 @@ async function fileFinding(args: {
         explanation: args.explanation,
         thresholdDescription: args.thresholdDescription,
         detectedAtIso: new Date(args.nowMs).toISOString(),
+        ...(args.evidenceLines ? { evidenceLines: args.evidenceLines } : {}),
       }),
       type: 'bug',
       severity: args.severity,
@@ -203,6 +207,10 @@ async function inspectTask(task: CandidateTask, nowMs: number): Promise<number> 
       filed++;
     }
   }
+
+  // Supervisor-derived signatures (cwd mismatch / false failure / false
+  // force-stop / theme misplacement) share the same filing path via DI.
+  filed += await inspectSupervisorSignatures({ task, state, nowMs, file: fileFinding });
 
   return filed;
 }
