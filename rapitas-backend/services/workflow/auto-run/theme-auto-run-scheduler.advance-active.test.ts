@@ -152,6 +152,27 @@ describe('advanceTheme — hang backstop', () => {
     expect(mockNotifyHangBackstop).toHaveBeenCalled();
   });
 
+  it('壁時計超過でも進捗ありなら「解決」まで進む — 停止しないことと前進が両立する (theme wedge 回帰)', async () => {
+    // 実測事故: task 594 が壁時計を超えた状態で完了したところ、
+    // 「progressed 429s ago — deferring」を出したまま毎tick早期returnし、
+    // 完了タスクを currentTaskId に抱えたまま9件の実行可能タスクを放置した。
+    // 猶予は「強制停止しない」だけを意味し、通常の解決処理は必ず走ること。
+    mockIsAwaitingUserAnswer.mockResolvedValue(false);
+    mockHasLiveExecution.mockResolvedValue(false);
+    mockResolveLastProgressAt.mockResolvedValue(
+      Date.now() - Math.floor(TEST_MAX_TASK_WALL_MS / 10),
+    );
+    mockGetThemeActiveQueueItems.mockResolvedValue([]); // 実行中の項目は無い
+    mockQueueItemFindFirst.mockResolvedValue({ id: 1, status: 'completed', errorMessage: null });
+
+    await internal(scheduler).advanceTheme(1, 100, 'priority', 1, staleLastRunAt());
+
+    // 強制停止はしない
+    expect(mockNotifyHangBackstop).not.toHaveBeenCalled();
+    // かつ、完了として解決され次へ進む
+    expect(mockOnTaskCompleted).toHaveBeenCalledWith(1);
+  });
+
   it('does not trigger the backstop for a task still within its wall budget', async () => {
     mockGetThemeActiveQueueItems.mockResolvedValue([{ id: 1, taskId: 100, status: 'running' }]);
 
