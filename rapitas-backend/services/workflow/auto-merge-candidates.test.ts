@@ -487,7 +487,7 @@ describe('findCandidates — cross-repository prNumber collision', () => {
   const TRIPLA = 1;
   const CONVERTER = 2;
 
-  it('adopts only the row of the task\'s own repository when two repos share a prNumber', async () => {
+  it("adopts only the row of the task's own repository when two repos share a prNumber", async () => {
     integrationByRepoUrl.set(TRIPLA_URL, TRIPLA);
     integrationByRepoUrl.set(CONVERTER_URL, CONVERTER);
     addTask({ id: 491, theme: { workingDirectory: CWD, repositoryUrl: TRIPLA_URL } });
@@ -500,7 +500,11 @@ describe('findCandidates — cross-repository prNumber collision', () => {
     const result = await findCandidates();
 
     expect(result).toHaveLength(1);
-    expect(result[0]).toMatchObject({ taskId: 491, prNumber: 6, baseBranch: 'feature/tripla-base' });
+    expect(result[0]).toMatchObject({
+      taskId: 491,
+      prNumber: 6,
+      baseBranch: 'feature/tripla-base',
+    });
   });
 
   it('does not fire duplicate_open_prs when the same-numbered open PR belongs to ANOTHER repo', async () => {
@@ -522,7 +526,10 @@ describe('findCandidates — cross-repository prNumber collision', () => {
   });
 
   it('fail-closed: skips the githubPrId fallback entirely when the integration cannot be resolved', async () => {
-    addTask({ id: 30, theme: { workingDirectory: CWD, repositoryUrl: 'https://unparsable.example/x' } });
+    addTask({
+      id: 30,
+      theme: { workingDirectory: CWD, repositoryUrl: 'https://unparsable.example/x' },
+    });
     prTaskRows = [
       { id: 30, githubPrId: 8, theme: { repositoryUrl: 'https://unparsable.example/x' } },
     ];

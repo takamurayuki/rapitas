@@ -14,7 +14,7 @@ import { describe, test, expect, mock, beforeEach } from 'bun:test';
 // NOTE: readHeadSha/updatePrBranch are required by auto-merge-ci-failure — this
 // mock replaces auto-merge-checks wholesale (bun mock.module is process-global),
 // so omitting any export would crash importers.
-mock.module('../../services/workflow/auto-merge-checks', () => ({
+mock.module('./auto-merge-checks', () => ({
   blockingChecks: () => new Set(['Lint Code']),
   evaluateAutoMergeChecks: () => 'pass',
   readPrChecks: mock(() => Promise.resolve([{ name: 'Lint Code', bucket: 'pass' }])),
@@ -23,22 +23,22 @@ mock.module('../../services/workflow/auto-merge-checks', () => ({
   updatePrBranch: mock(() => Promise.resolve(true)),
 }));
 
-mock.module('../../services/workflow/ci-self-repair', () => ({
+mock.module('./ci-self-repair', () => ({
   attemptCiRepair: mock(() => Promise.resolve({ bounced: false })),
   CI_REPAIR_CAUSE: 'ci_repair',
 }));
 
-mock.module('../../services/github/conflict-task', () => ({
+mock.module('../github/conflict-task', () => ({
   fileConflictResolutionTask: mock(() => Promise.resolve({ created: false, taskId: null })),
 }));
 
 const mockResolveIntegrationId = mock(() => Promise.resolve<number | null>(1));
-mock.module('../../services/github/pr-link', () => ({
+mock.module('../github/pr-link', () => ({
   resolveIntegrationId: mockResolveIntegrationId,
   linkAutoCreatedPr: mock(() => Promise.resolve(null)),
 }));
 
-mock.module('../../services/workflow/auto-merge-exhaustion', () => ({
+mock.module('./auto-merge-exhaustion', () => ({
   EXHAUSTED_CAUSE: 'auto_merge_exhausted',
   resetExhaustedRecheckCooldowns: () => {},
   markExhausted: mock(() => Promise.resolve()),
@@ -46,11 +46,11 @@ mock.module('../../services/workflow/auto-merge-exhaustion', () => ({
 }));
 
 const mockNotify = mock(() => Promise.resolve());
-mock.module('../../services/workflow/auto-merge-notify', () => ({
+mock.module('./auto-merge-notify', () => ({
   notify: mockNotify,
 }));
 
-mock.module('../../services/workflow/transition-recorder', () => ({
+mock.module('./transition-recorder', () => ({
   recordTransition: mock(() => Promise.resolve()),
 }));
 
@@ -79,7 +79,7 @@ const mockPrisma = {
 };
 mock.module('../../config/database', () => ({ prisma: mockPrisma }));
 
-mock.module('../../services/agents/orchestrator/git-operations/branch-pr-ops', () => ({
+mock.module('../agents/orchestrator/git-operations/branch-pr-ops', () => ({
   mergePullRequest: mock(() =>
     Promise.resolve({ success: true, mergeStrategy: 'squash' as const }),
   ),
@@ -89,7 +89,7 @@ mock.module('../../config/logger', () => ({
   createLogger: () => ({ info: () => {}, error: () => {}, warn: () => {}, debug: () => {} }),
 }));
 
-const { AutoMergeWatcher } = await import('../../services/workflow/auto-merge-watcher');
+const { AutoMergeWatcher } = await import('./auto-merge-watcher');
 
 type ProcessFn = (
   c: {
@@ -130,7 +130,7 @@ beforeEach(() => {
 });
 
 describe('AutoMergeWatcher — post-merge local mirror sync', () => {
-  test('scopes the updateMany to the candidate repo\'s integrationId', async () => {
+  test("scopes the updateMany to the candidate repo's integrationId", async () => {
     await getProcess()(candidate, new Set(['Lint Code']));
 
     expect(mockUpdateMany).toHaveBeenCalledTimes(1);

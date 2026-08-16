@@ -80,7 +80,7 @@ beforeEach(() => {
 });
 
 describe('findScopedOpenPr — cross-repo prNumber collision', () => {
-  it('returns only the target repository\'s row when two repos share a prNumber', async () => {
+  it("returns only the target repository's row when two repos share a prNumber", async () => {
     prRows = [
       { id: 99, integrationId: 2, prNumber: 6, state: 'open', baseBranch: 'conv-base' },
       { id: 21, integrationId: 1, prNumber: 6, state: 'open', baseBranch: 'tripla-base' },
@@ -97,7 +97,7 @@ describe('findScopedOpenPr — cross-repo prNumber collision', () => {
     expect(await findScopedOpenPr(prisma, 1, 7, { id: true })).toBeNull();
   });
 
-  it('returns null when the own repo\'s same-numbered row is not open', async () => {
+  it("returns null when the own repo's same-numbered row is not open", async () => {
     prRows = [
       { id: 5, integrationId: 1, prNumber: 7, state: 'merged', baseBranch: 'develop' },
       { id: 99, integrationId: 2, prNumber: 7, state: 'open', baseBranch: 'conv' },

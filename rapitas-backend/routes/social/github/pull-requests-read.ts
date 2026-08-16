@@ -9,10 +9,7 @@ import { prisma } from '../../../config/database';
 import { GitHubService } from '../../../services/core/github-service';
 import { resolvePrOrThrow } from '../../../services/github/resource-guard';
 import { findPrViaGh, resolvePrWorkingDirectory } from '../../../services/github/pr-task-resolver';
-import {
-  findScopedOpenPr,
-  resolveIntegrationIdForTask,
-} from '../../../services/github/pr-lookup';
+import { findScopedOpenPr, resolveIntegrationIdForTask } from '../../../services/github/pr-lookup';
 import { makeOwnerRepoString } from '../../../services/github/owner-repo';
 import {
   readPrChecks,
