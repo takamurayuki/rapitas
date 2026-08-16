@@ -14,6 +14,7 @@ import { BarChart, Bar, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer } fro
 import { API_BASE_URL } from '@/utils/api';
 import { Spinner } from '@/components/ui/spinner';
 import { formatJpy, DEFAULT_USD_JPY_RATE } from './useUsdJpyRate';
+import { ROLE_COLORS } from '@/app/agents/metrics/_components/utilization-colors';
 
 interface RoleUsageEntry {
   role: string;
@@ -48,17 +49,8 @@ interface AgentUsageBreakdown {
 
 const WINDOW_OPTIONS = [7, 14, 30] as const;
 
-// NOTE: Fixed role→color mapping (color follows the entity, never its rank).
-// Palette validated for light (#fff) and dark (#18181b) surfaces incl. CVD
-// separation; 'other' is intentionally neutral and excluded from the series set.
-const ROLE_COLORS: Record<string, string> = {
-  researcher: '#2563eb',
-  planner: '#7c3aed',
-  implementer: '#059669',
-  verifier: '#d97706',
-  auto_verifier: '#ea580c',
-  other: '#71717a',
-};
+// NOTE: ROLE_COLORS moved to app/agents/metrics/_components/utilization-colors
+// so the utilization charts and this widget share one role→color definition.
 
 export default function AgentUsageBreakdownWidget() {
   const t = useTranslations('home');

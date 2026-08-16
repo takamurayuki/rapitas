@@ -2,7 +2,7 @@
 // AgentMetricsPage
 
 import { useTranslations } from 'next-intl';
-import { Download, AlertCircle, XCircle } from 'lucide-react';
+import { Download, AlertCircle, XCircle, RefreshCw } from 'lucide-react';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { requireAuth } from '@/contexts/AuthContext';
 import { useMetricsData } from './_hooks/useMetricsData';
@@ -11,6 +11,7 @@ import { MetricsFilters } from './_components/MetricsFilters';
 import { MetricsCharts } from './_components/MetricsCharts';
 import { MetricsTable } from './_components/MetricsTable';
 import { RepairConvergenceCard } from './_components/RepairConvergenceCard';
+import { UtilizationChartCard } from './_components/UtilizationChartCard';
 import { JudgeEvalCard } from './_components/JudgeEvalCard';
 import {
   SelfObservationWidget,
@@ -28,6 +29,7 @@ function AgentMetricsPage() {
     agentMetrics,
     executionTrends,
     performanceComparison,
+    utilization,
     loading,
     error,
     setError,
@@ -36,6 +38,7 @@ function AgentMetricsPage() {
     trendDays,
     setTrendDays,
     exportData,
+    refetch,
   } = useMetricsData();
 
   if (loading) {
@@ -54,6 +57,13 @@ function AgentMetricsPage() {
             <p className="text-zinc-500 dark:text-zinc-400 mt-1">{t('metricsDescription')}</p>
           </div>
           <div className="flex items-center gap-3">
+            <button
+              onClick={refetch}
+              className="px-4 py-2 bg-white dark:bg-zinc-800 text-zinc-700 dark:text-zinc-200 border border-zinc-300 dark:border-zinc-600 rounded-lg hover:bg-zinc-50 dark:hover:bg-zinc-700 transition-colors flex items-center gap-2"
+            >
+              <RefreshCw className="w-4 h-4" />
+              {t('utilizationRefresh')}
+            </button>
             <button
               onClick={exportData}
               className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors flex items-center gap-2"
@@ -90,6 +100,21 @@ function AgentMetricsPage() {
         <RepairConvergenceCard />
 
         <JudgeEvalCard />
+
+        {/* Utilization (busy-ratio) time series — union of execution intervals
+            per UTC day / day length, per role and per CLI agent. */}
+        <div className="my-6 grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <UtilizationChartCard
+            title={t('utilizationRoleTitle')}
+            daily={utilization?.daily ?? []}
+            keyKind="role"
+          />
+          <UtilizationChartCard
+            title={t('utilizationAgentTitle')}
+            daily={utilization?.daily ?? []}
+            keyKind="agent"
+          />
+        </div>
 
         <div className="my-6 space-y-6">
           <CliAgentUsageWidget />
