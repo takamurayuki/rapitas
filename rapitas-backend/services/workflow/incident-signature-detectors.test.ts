@@ -330,6 +330,41 @@ describe('detectRepeatLoop', () => {
   it('returns null for an empty transition list', () => {
     expect(detectRepeatLoop({ transitions: [], nowMs: NOW })).toBeNull();
   });
+
+  // #607 completed 12s before the watcher fired on its 3-cycle verify history —
+  // detectRepeatLoop must not flag a task that has already reached a terminal
+  // status, mirroring detectStagnation's guard.
+  it('does NOT detect when taskStatus is terminal, even with a qualifying count (#607 repro)', () => {
+    for (const status of ['completed', 'done', 'cancelled', 'archived']) {
+      expect(
+        detectRepeatLoop({
+          transitions: [at(1_000), at(2_000), at(3_000)],
+          nowMs: NOW,
+          taskStatus: status,
+          minCount: 3,
+        }),
+      ).toBeNull();
+    }
+  });
+
+  it('still detects when taskStatus is non-terminal', () => {
+    const result = detectRepeatLoop({
+      transitions: [at(1_000), at(2_000), at(3_000)],
+      nowMs: NOW,
+      taskStatus: 'in-progress',
+      minCount: 3,
+    });
+    expect(result).toEqual({ cause: 'ci_repair', count: 3 });
+  });
+
+  it('still detects when taskStatus is omitted (backward compatibility)', () => {
+    const result = detectRepeatLoop({
+      transitions: [at(1_000), at(2_000), at(3_000)],
+      nowMs: NOW,
+      minCount: 3,
+    });
+    expect(result).toEqual({ cause: 'ci_repair', count: 3 });
+  });
 });
 
 describe('detectUnansweredQuestion', () => {
