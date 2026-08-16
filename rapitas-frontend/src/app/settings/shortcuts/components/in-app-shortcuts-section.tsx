@@ -16,7 +16,7 @@ interface InAppShortcutsSectionProps {
   /** ID of the shortcut currently being edited, or null / 編集中のショートカットID */
   editingId: ShortcutId | null;
   /** Pending binding for the shortcut being edited / 編集中のバインディング */
-  editBinding: Pick<ShortcutBinding, 'key' | 'meta' | 'shift' | 'ctrl'> | null;
+  editBinding: Pick<ShortcutBinding, 'key' | 'meta' | 'shift' | 'ctrl' | 'alt'> | null;
   /** Whether keyboard recording mode is active for in-app shortcuts / 録音モードがアクティブか */
   isRecordingInApp: boolean;
   /** Feedback message after save/reset / 保存・リセット後のフィードバックメッセージ */
@@ -33,6 +33,8 @@ interface InAppShortcutsSectionProps {
   onStartEditing: (id: ShortcutId) => void;
   /** Cancel the current edit / 編集のキャンセル */
   onCancelEditing: () => void;
+  /** Toggle the Alt modifier on the pending binding / Alt修飾キーの切り替え */
+  onToggleEditAlt: () => void;
   /** Save the current pending binding / 現在の保留バインディングを保存 */
   onSaveInApp: () => void;
   /** Reset a single shortcut to its default / 単一ショートカットをデフォルトにリセット */
@@ -56,6 +58,7 @@ export function InAppShortcutsSection({
   getDefault,
   onStartEditing,
   onCancelEditing,
+  onToggleEditAlt,
   onSaveInApp,
   onResetInApp,
   onResetAll,
@@ -173,6 +176,26 @@ export function InAppShortcutsSection({
                     <kbd className="px-3 py-1.5 bg-indigo-50 dark:bg-indigo-900/30 rounded-lg text-sm font-mono font-semibold text-indigo-700 dark:text-indigo-300 border border-indigo-300 dark:border-indigo-700">
                       {formatShortcutDisplay({ ...shortcut, ...editBinding })}
                     </kbd>
+                  </div>
+
+                  {/* Alt modifier toggle (recording also captures Alt) */}
+                  <div className="flex items-center justify-between mb-3">
+                    <span className="text-sm text-zinc-500 dark:text-zinc-400">
+                      {t('altModifier')}
+                    </span>
+                    <button
+                      type="button"
+                      role="switch"
+                      aria-checked={editBinding.alt}
+                      onClick={onToggleEditAlt}
+                      className={`px-3 py-1.5 rounded-lg text-sm font-mono font-medium border transition-colors ${
+                        editBinding.alt
+                          ? 'bg-indigo-500 text-white border-indigo-500'
+                          : 'bg-zinc-100 dark:bg-zinc-700 text-zinc-500 dark:text-zinc-400 border-zinc-200 dark:border-zinc-600'
+                      }`}
+                    >
+                      Alt
+                    </button>
                   </div>
 
                   {/* Duplicate warning */}

@@ -1511,6 +1511,7 @@
     "resetDone": "デフォルトに戻しました",
     "defaultConflictsWith": "デフォルト値が「{label}」と重複しています",
     "changedToShortcut": "ショートカットを {shortcut} に変更しました",
+    "altModifier": "Alt修飾キー",
     "labels": {
       "newTask": "新規タスク作成",
       "dashboard": "ダッシュボード",
@@ -1520,8 +1521,54 @@
       "focusMode": "フォーカスモード",
       "shortcutHelp": "ショートカットヘルプ",
       "toggleAI": "ノート+AI機能",
-      "commandBar": "コマンドバー"
+      "commandBar": "コマンドバー",
+      "stallRecovery": "停滞リカバリーを開く"
     }
+  },
+  "stallRecovery": {
+    "title": "停滞リカバリー",
+    "checking": "停滞状況を確認しています…",
+    "checkFailed": "停滞状況の取得に失敗しました",
+    "noStalledTasks": "現在停滞中のタスクはありません",
+    "stalledCount": "{count}件のタスクが停滞しています。",
+    "andMore": "ほか{count}件が停滞しています。",
+    "taskListLabel": "停滞中のタスク一覧",
+    "staleFor": "{minutes}分停滞",
+    "causeLabel": "推測される原因",
+    "actionsLabel": "リカバリーアクションを選択してください。",
+    "confirmSelected": "「{action}」を実行しますか？",
+    "confirmPrompt": "Spaceキーで実行、Escキーで戻ります。",
+    "executing": "実行しています…",
+    "executeWithSpace": "実行（Space）",
+    "recoverFailed": "リカバリーの実行に失敗しました",
+    "destructiveBadge": "破壊的操作",
+    "voiceUnavailable": "音声利用不可",
+    "back": "戻る",
+    "close": "閉じる",
+    "keyHint": "Tabで移動 / Spaceで実行 / Escで戻る・閉じる",
+    "actions": {
+      "resume": "中断された実行を再開",
+      "interrupt": "実行を中断して整理",
+      "requeue": "ワークフローキューに再投入",
+      "clear_git_lock": "git index.lock を削除"
+    }
+  },
+  "accessibility": {
+    "title": "アクセシビリティ",
+    "description": "音声ナレーションなどのアクセシビリティ機能を設定できます",
+    "voiceSection": "音声ナレーション",
+    "voiceSectionDescription": "停滞リカバリー（Ctrl+Alt+S）の通知を音声で読み上げる際の設定です",
+    "voiceUnavailableNote": "この環境には利用可能な音声がインストールされていないため、通知はテキストのみで表示されます",
+    "enabledLabel": "音声ナレーションを有効にする",
+    "rateLabel": "読み上げ速度",
+    "verbosityLabel": "読み上げの詳細度",
+    "verbosity": {
+      "concise": "簡潔",
+      "standard": "標準",
+      "detailed": "詳細"
+    },
+    "previewButton": "テスト再生",
+    "previewText": "これは読み上げ速度のテストです。"
   },
   "dashboard": {
     "title": "ダッシュボード",

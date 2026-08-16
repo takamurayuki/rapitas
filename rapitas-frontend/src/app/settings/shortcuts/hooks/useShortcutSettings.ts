@@ -71,7 +71,7 @@ function useGlobalShortcutRecording(
 function useInAppShortcutRecording(
   isRecording: boolean,
   editingId: ShortcutId | null,
-  onRecord: (binding: Pick<ShortcutBinding, 'key' | 'meta' | 'shift' | 'ctrl'>) => void,
+  onRecord: (binding: Pick<ShortcutBinding, 'key' | 'meta' | 'shift' | 'ctrl' | 'alt'>) => void,
   onStop: () => void,
 ) {
   useEffect(() => {
@@ -85,11 +85,12 @@ function useInAppShortcutRecording(
       const key = resolveKeyFromEvent(e);
       if (!key) return;
 
-      const binding: Pick<ShortcutBinding, 'key' | 'meta' | 'shift' | 'ctrl'> = {
+      const binding: Pick<ShortcutBinding, 'key' | 'meta' | 'shift' | 'ctrl' | 'alt'> = {
         key,
         meta: e.ctrlKey || e.metaKey,
         shift: e.shiftKey,
         ctrl: false,
+        alt: e.altKey,
       };
 
       onRecord(binding);
@@ -132,7 +133,7 @@ export function useShortcutSettings() {
   const [editingId, setEditingId] = useState<ShortcutId | null>(null);
   const [editBinding, setEditBinding] = useState<Pick<
     ShortcutBinding,
-    'key' | 'meta' | 'shift' | 'ctrl'
+    'key' | 'meta' | 'shift' | 'ctrl' | 'alt'
   > | null>(null);
   const [isRecordingInApp, setIsRecordingInApp] = useState(false);
   const [inAppMessage, setInAppMessage] = useState<{
@@ -186,7 +187,7 @@ export function useShortcutSettings() {
 
   // Handle in-app shortcut recording result
   const handleInAppRecord = useCallback(
-    (binding: Pick<ShortcutBinding, 'key' | 'meta' | 'shift' | 'ctrl'>) => {
+    (binding: Pick<ShortcutBinding, 'key' | 'meta' | 'shift' | 'ctrl' | 'alt'>) => {
       setEditBinding(binding);
       if (editingId) {
         const dup = findDuplicate(editingId, binding);
@@ -195,6 +196,20 @@ export function useShortcutSettings() {
     },
     [editingId, findDuplicate, t, tLabels],
   );
+
+  // Alt toggle in the inline editor (recording also captures Alt; the toggle
+  // lets keyboard-only users flip it without re-recording).
+  const toggleEditAlt = useCallback(() => {
+    setEditBinding((prev) => {
+      if (!prev) return prev;
+      const next = { ...prev, alt: !prev.alt };
+      if (editingId) {
+        const dup = findDuplicate(editingId, next);
+        setDuplicateWarning(dup ? t('duplicateWith', { label: tLabels(dup.id) }) : null);
+      }
+      return next;
+    });
+  }, [editingId, findDuplicate, t, tLabels]);
 
   // Use extracted keyboard recording hooks
   useGlobalShortcutRecording(
@@ -275,6 +290,7 @@ export function useShortcutSettings() {
       meta: current.meta,
       shift: current.shift,
       ctrl: current.ctrl,
+      alt: current.alt,
     });
     setDuplicateWarning(null);
     setInAppMessage(null);
@@ -361,6 +377,7 @@ export function useShortcutSettings() {
     getDefault,
     startEditing,
     cancelEditing,
+    toggleEditAlt,
     handleSaveInApp,
     handleResetInApp,
     handleResetAll,

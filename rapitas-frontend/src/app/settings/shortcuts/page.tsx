@@ -43,6 +43,7 @@ export default function ShortcutSettingsPage() {
     getDefault,
     startEditing,
     cancelEditing,
+    toggleEditAlt,
     handleSaveInApp,
     handleResetInApp,
     handleResetAll,
@@ -93,6 +94,7 @@ export default function ShortcutSettingsPage() {
         getDefault={getDefault}
         onStartEditing={startEditing}
         onCancelEditing={cancelEditing}
+        onToggleEditAlt={toggleEditAlt}
         onSaveInApp={handleSaveInApp}
         onResetInApp={handleResetInApp}
         onResetAll={handleResetAll}

@@ -1511,6 +1511,7 @@
     "resetDone": "Reset to default",
     "defaultConflictsWith": "Default value conflicts with \"{label}\"",
     "changedToShortcut": "Shortcut changed to {shortcut}",
+    "altModifier": "Alt modifier",
     "labels": {
       "newTask": "Create New Task",
       "dashboard": "Dashboard",
@@ -1520,8 +1521,54 @@
       "focusMode": "Focus Mode",
       "shortcutHelp": "Shortcut Help",
       "toggleAI": "Notes + AI",
-      "commandBar": "Command Bar"
+      "commandBar": "Command Bar",
+      "stallRecovery": "Open Stall Recovery"
     }
+  },
+  "stallRecovery": {
+    "title": "Stall Recovery",
+    "checking": "Checking for stalled tasks…",
+    "checkFailed": "Failed to fetch stall status",
+    "noStalledTasks": "No tasks are currently stalled",
+    "stalledCount": "{count} task(s) are stalled.",
+    "andMore": "{count} more task(s) are stalled.",
+    "taskListLabel": "Stalled tasks",
+    "staleFor": "Stalled for {minutes} min",
+    "causeLabel": "Probable cause",
+    "actionsLabel": "Select a recovery action.",
+    "confirmSelected": "Execute \"{action}\"?",
+    "confirmPrompt": "Press Space to execute, Esc to go back.",
+    "executing": "Executing…",
+    "executeWithSpace": "Execute (Space)",
+    "recoverFailed": "Failed to execute recovery",
+    "destructiveBadge": "Destructive",
+    "voiceUnavailable": "Voice unavailable",
+    "back": "Back",
+    "close": "Close",
+    "keyHint": "Tab to move / Space to execute / Esc to go back or close",
+    "actions": {
+      "resume": "Resume interrupted execution",
+      "interrupt": "Interrupt and clean up execution",
+      "requeue": "Re-enqueue into workflow queue",
+      "clear_git_lock": "Delete git index.lock"
+    }
+  },
+  "accessibility": {
+    "title": "Accessibility",
+    "description": "Configure accessibility features such as voice narration",
+    "voiceSection": "Voice Narration",
+    "voiceSectionDescription": "Settings for narrating stall-recovery (Ctrl+Alt+S) notifications aloud",
+    "voiceUnavailableNote": "No speech voices are installed in this environment; notifications will be text-only",
+    "enabledLabel": "Enable voice narration",
+    "rateLabel": "Speech rate",
+    "verbosityLabel": "Narration verbosity",
+    "verbosity": {
+      "concise": "Concise",
+      "standard": "Standard",
+      "detailed": "Detailed"
+    },
+    "previewButton": "Play test",
+    "previewText": "This is a speech rate test."
   },
   "dashboard": {
     "title": "Dashboard",

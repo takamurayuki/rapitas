@@ -109,6 +109,7 @@ export function formatShortcutDisplay(binding: ShortcutBinding): string {
   if (binding.ctrl) parts.push('Ctrl');
   if (binding.meta) parts.push('Ctrl');
   if (binding.shift) parts.push('Shift');
+  if (binding.alt) parts.push('Alt');
   parts.push(binding.key.toUpperCase());
   return parts.join(' + ');
 }

@@ -1,4 +1,10 @@
-import { useShortcutStore, DEFAULT_SHORTCUTS, formatBindingKey } from '../shortcut-store';
+import {
+  useShortcutStore,
+  DEFAULT_SHORTCUTS,
+  formatBindingKey,
+  normalizeStoredShortcuts,
+  type ShortcutBinding,
+} from '../shortcut-store';
 
 describe('shortcutStore', () => {
   beforeEach(() => {
@@ -115,6 +121,51 @@ describe('shortcutStore', () => {
         ctrl: false,
       });
       expect(dup).toBeUndefined();
+    });
+  });
+
+  describe('alt modifier / stallRecovery', () => {
+    it('should provide stallRecovery default as Ctrl+Alt+S', () => {
+      const def = useShortcutStore.getState().getDefault('stallRecovery');
+      expect(def).toEqual({
+        id: 'stallRecovery',
+        key: 'S',
+        meta: false,
+        shift: false,
+        ctrl: true,
+        alt: true,
+      });
+    });
+
+    it('should include alt in duplicate detection (Ctrl+Alt+S conflicts with stallRecovery)', () => {
+      const dup = useShortcutStore.getState().findDuplicate('newTask', {
+        key: 'S',
+        meta: false,
+        shift: false,
+        ctrl: true,
+        alt: true,
+      });
+      expect(dup?.id).toBe('stallRecovery');
+    });
+
+    it('should NOT flag Ctrl+S (no alt) as duplicate of Ctrl+Alt+S', () => {
+      const dup = useShortcutStore.getState().findDuplicate('newTask', {
+        key: 'S',
+        meta: false,
+        shift: false,
+        ctrl: true,
+      });
+      expect(dup).toBeUndefined();
+    });
+
+    it('normalizeStoredShortcuts should backfill alt and append missing defaults', () => {
+      const legacy = DEFAULT_SHORTCUTS.filter((s) => s.id !== 'stallRecovery').map(
+        // Simulate a pre-alt localStorage snapshot
+        ({ alt: _alt, ...rest }) => rest as unknown as ShortcutBinding,
+      );
+      const normalized = normalizeStoredShortcuts(legacy);
+      expect(normalized.every((s) => typeof s.alt === 'boolean')).toBe(true);
+      expect(normalized.find((s) => s.id === 'stallRecovery')).toBeDefined();
     });
   });
 

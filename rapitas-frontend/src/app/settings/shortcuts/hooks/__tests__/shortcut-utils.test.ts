@@ -90,6 +90,7 @@ describe('formatShortcutDisplay', () => {
     meta: false,
     shift: false,
     ctrl: false,
+    alt: false,
   };
 
   it('formats a plain key with no modifiers', () => {
@@ -115,6 +116,12 @@ describe('formatShortcutDisplay', () => {
   it('formats all modifiers combined and uppercases the key', () => {
     expect(formatShortcutDisplay({ ...base, key: 'd', ctrl: true, shift: true })).toBe(
       'Ctrl + Shift + D',
+    );
+  });
+
+  it('formats alt + key (Ctrl+Alt+S for stallRecovery)', () => {
+    expect(formatShortcutDisplay({ ...base, key: 's', ctrl: true, alt: true })).toBe(
+      'Ctrl + Alt + S',
     );
   });
 });

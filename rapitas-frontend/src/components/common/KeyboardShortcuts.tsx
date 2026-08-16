@@ -6,6 +6,8 @@ import { useTranslations } from 'next-intl';
 import { useShortcutStore, type ShortcutId } from '@/stores/shortcut-store';
 import { useNoteStore } from '@/stores/note-store';
 import { useFocusTrap } from '@/components/ui/modal/use-focus-trap';
+import { OPEN_STALL_RECOVERY_EVENT } from '@/components/accessibility/stall-recovery-panel/stall-recovery.types';
+import StallRecoveryPanel from '@/components/accessibility/stall-recovery-panel/StallRecoveryPanel';
 
 const getIsMac = () => {
   if (typeof window === 'undefined') return false;
@@ -51,6 +53,9 @@ export default function KeyboardShortcuts() {
     commandBar: () => {
       // SmartCommandBar handles its own keyboard shortcut
     },
+    stallRecovery: () => {
+      window.dispatchEvent(new CustomEvent(OPEN_STALL_RECOVERY_EVENT));
+    },
   };
 
   useEffect(() => {
@@ -77,9 +82,13 @@ export default function KeyboardShortcuts() {
             ? e.metaKey || e.ctrlKey
             : !(e.metaKey || e.ctrlKey);
         const shiftMatch = binding.shift ? e.shiftKey : !e.shiftKey;
+        // NOTE: Alt is matched strictly (same as shift): an alt-less binding no
+        // longer fires while Alt is held — required so Ctrl+S and Ctrl+Alt+S
+        // can coexist as distinct bindings.
+        const altMatch = binding.alt ? e.altKey : !e.altKey;
         const keyMatch = e.key.toLowerCase() === binding.key.toLowerCase();
 
-        if (metaMatch && shiftMatch && keyMatch) {
+        if (metaMatch && shiftMatch && altMatch && keyMatch) {
           e.preventDefault();
           const action = actionMap[binding.id];
           if (action) action();
@@ -98,18 +107,25 @@ export default function KeyboardShortcuts() {
     meta: boolean;
     shift: boolean;
     ctrl: boolean;
+    alt?: boolean;
   }) => {
     const parts = [];
     if (binding.ctrl) parts.push('Ctrl');
     if (binding.meta) parts.push(isMac ? '\u2318' : 'Ctrl');
     if (binding.shift) parts.push(isMac ? '\u21E7' : 'Shift');
+    if (binding.alt) parts.push(isMac ? '\u2325' : 'Alt');
     parts.push(!binding.key ? '' : binding.key === 'Escape' ? 'Esc' : binding.key.toUpperCase());
     return parts.join(' + ');
   };
 
-  if (!showHelp) return null;
+  // The stall-recovery panel rides this globally-mounted component so the
+  // Ctrl+Alt+S flow needs no extra layout wiring; it renders nothing until
+  // its open event fires.
+  if (!showHelp) return <StallRecoveryPanel />;
 
   return (
+    <>
+    <StallRecoveryPanel />
     <div
       className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
       onClick={() => setShowHelp(false)}
@@ -162,5 +178,6 @@ export default function KeyboardShortcuts() {
         </div>
       </div>
     </div>
+    </>
   );
 }
