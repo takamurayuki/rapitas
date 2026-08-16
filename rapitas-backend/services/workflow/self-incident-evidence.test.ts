@@ -204,6 +204,40 @@ describe('formatIncidentDetail', () => {
     expect(md).toContain('(遷移履歴なし)');
   });
 
+  test('evidenceLines render a ## 検出証拠 section as bullet lines', () => {
+    const md = formatIncidentDetail({
+      state: baseState,
+      explanation: 'x',
+      thresholdDescription: 'y',
+      detectedAtIso: '2026-08-11T12:00:00.000Z',
+      evidenceLines: [
+        '実行cwd: C:\\Projects\\rapitas\\rapitas-backend',
+        'テーマ作業ディレクトリ: C:\\Projects\\ime-live-converter',
+      ],
+    });
+    expect(md).toContain('## 検出証拠');
+    expect(md).toContain('- 実行cwd: C:\\Projects\\rapitas\\rapitas-backend');
+    expect(md).toContain('- テーマ作業ディレクトリ: C:\\Projects\\ime-live-converter');
+  });
+
+  test('omitting evidenceLines keeps the original sections without 検出証拠 (backward compat)', () => {
+    const md = formatIncidentDetail({
+      state: baseState,
+      explanation: 'x',
+      thresholdDescription: 'y',
+      detectedAtIso: '2026-08-11T12:00:00.000Z',
+    });
+    expect(md).not.toContain('## 検出証拠');
+    const mdEmpty = formatIncidentDetail({
+      state: baseState,
+      explanation: 'x',
+      thresholdDescription: 'y',
+      detectedAtIso: '2026-08-11T12:00:00.000Z',
+      evidenceLines: [],
+    });
+    expect(mdEmpty).not.toContain('## 検出証拠');
+  });
+
   test('a session-less task renders the no-session fallback', () => {
     const md = formatIncidentDetail({
       state: {
