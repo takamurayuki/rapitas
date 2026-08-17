@@ -339,6 +339,16 @@ mock.module('./auto-run-notifications', () => ({
 }));
 
 // ---------------------------------------------------------------------------
+// auto-run-stall-guard (terminal-task residue release — task 618). Default 0 =
+// "nothing released" so every legacy wait-branch test keeps its old behavior.
+// ---------------------------------------------------------------------------
+export const mockReleaseStaleActiveItems = mock(() => Promise.resolve(0));
+
+mock.module('./auto-run-stall-guard', () => ({
+  releaseStaleActiveItems: mockReleaseStaleActiveItems,
+}));
+
+// ---------------------------------------------------------------------------
 // blocked-task-escalation (all_blocked reporting — task 615)
 // ---------------------------------------------------------------------------
 export const mockCountEscalatedBlocked = mock(() => Promise.resolve(0));
@@ -457,6 +467,7 @@ const ALL_MOCKS = [
   mockNotifyTaskSkipped,
   mockNotifyAllDone,
   mockNotifyHangBackstop,
+  mockReleaseStaleActiveItems,
   mockStopTaskAgents,
   mockStopThemeAgents,
 ];
@@ -493,4 +504,5 @@ export function resetAllMocks(): void {
   mockStartAutoRun.mockResolvedValue({} as ThemeAutoRunState);
   mockStopTaskAgents.mockResolvedValue({ stoppedCount: 0, executionIds: [] });
   mockStopThemeAgents.mockResolvedValue({ stoppedCount: 0, executionIds: [] });
+  mockReleaseStaleActiveItems.mockResolvedValue(0);
 }
