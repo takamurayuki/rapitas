@@ -200,11 +200,44 @@ export interface RepeatLoopTransition {
 }
 
 /**
+ * Cause prefix for a normal phase handoff (e.g. `phase_completed:implementer`).
+ * Only excluded from repeat-loop aggregation when a repair-bounce cause is
+ * also present in the window — see the guard below in
+ * {@link detectRepeatLoop} for why.
+ */
+const PHASE_COMPLETED_CAUSE_PREFIX = 'phase_completed:';
+
+/**
+ * Causes that indicate a self-repair bounce (verify/CI sent a phase back for
+ * another attempt). Their presence in the window is what tells
+ * {@link detectRepeatLoop} that repeated `phase_completed:*` causes are a
+ * healthy repair cycle rather than an anomaly — see the guard below.
+ */
+const REPAIR_BOUNCE_CAUSES = new Set(['verify_repair', 'ci_repair']);
+
+/**
  * Detects a same-cause repeat loop: the same transition cause firing at least
  * `minCount` times within the trailing window. Ties between causes with equal
  * counts break deterministically by cause name (localeCompare ascending).
  * Transitions with actor='user' are excluded — operator manual recovery is
  * intervention, not a loop (actor-based, so any future manual cause is covered).
+ * Causes prefixed `phase_completed:` are forgiven, but only when a preceding
+ * `verify_repair`/`ci_repair` bounce actually re-authorizes that specific
+ * firing: transitions are walked in chronological order with a running
+ * "forgiveness budget" that starts at 1 (the initial pass, granted only if
+ * the window contains at least one bounce at all) and gains 1 for every
+ * bounce encountered so far. Each `phase_completed:*` firing spends one unit
+ * of budget if available; if the budget is already spent, that firing is a
+ * genuine anomaly and is counted (e.g. #607, task 614: 1 implement + 2
+ * verify_repair bounces, each bounce preceding its re-implement, fully
+ * explains 3 firings and is not reported as a loop). Requiring the bounce to
+ * chronologically precede the firing it forgives (rather than just summing
+ * bounce counts anywhere in the window) closes a gap where phase_completed
+ * churn front-loaded before any bounce — which a same-window bounce cannot
+ * causally explain — would otherwise be waved through by coincidental later
+ * bounces of a *different* cause (verify_repair and ci_repair combined). A
+ * `phase_completed:*` repetition with zero bounces anywhere in the window is
+ * never forgiven at all.
  * A terminal taskStatus (see TERMINAL_TASK_STATUSES) short-circuits to null —
  * a task that has already finished is not "looping" even if it churned through
  * several retry cycles on the way there (mirrors detectStagnation's guard;
@@ -229,10 +262,29 @@ export function detectRepeatLoop(input: {
   const minCount = input.minCount ?? REPEAT_LOOP_MIN_COUNT;
   const windowStart = input.nowMs - windowMs;
 
+  const windowed = input.transitions
+    .filter(
+      (t) => t.actor !== 'user' && t.createdAtMs >= windowStart && t.createdAtMs <= input.nowMs,
+    )
+    .sort((a, b) => a.createdAtMs - b.createdAtMs);
+
+  let bounceTotal = 0;
+  for (const t of windowed) {
+    if (REPAIR_BOUNCE_CAUSES.has(t.cause)) bounceTotal += 1;
+  }
+
+  let forgivenessBudget = bounceTotal > 0 ? 1 : 0;
   const counts = new Map<string, number>();
-  for (const t of input.transitions) {
-    if (t.actor === 'user') continue;
-    if (t.createdAtMs < windowStart || t.createdAtMs > input.nowMs) continue;
+  for (const t of windowed) {
+    if (REPAIR_BOUNCE_CAUSES.has(t.cause)) {
+      forgivenessBudget += 1;
+      counts.set(t.cause, (counts.get(t.cause) ?? 0) + 1);
+      continue;
+    }
+    if (t.cause.startsWith(PHASE_COMPLETED_CAUSE_PREFIX) && forgivenessBudget > 0) {
+      forgivenessBudget -= 1;
+      continue;
+    }
     counts.set(t.cause, (counts.get(t.cause) ?? 0) + 1);
   }
 
