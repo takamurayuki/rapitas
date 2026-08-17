@@ -136,6 +136,86 @@ describe('callClaudeCli — process failures', () => {
     await expect(promise).rejects.toThrow(/partial stdout output/);
   });
 
+  test('an exit-1 stdout-JSON payload surfaces its result body beyond the old 300-char cut', async () => {
+    const promise = callClaudeCli(undefined, [{ role: 'user', content: 'hi' }], undefined, 100);
+    await flush();
+    // Mirrors the real failure shape (task #639): a long metadata prefix pushes
+    // the `result` root cause past the old 300-char truncation point.
+    const errorJson = JSON.stringify({
+      is_error: true,
+      duration_api_ms: 0,
+      num_turns: 1,
+      stop_reason: 'stop_sequence',
+      session_id: 'd3500e26-5923-4984-9b75-da4a1b5f5510'.repeat(3),
+      total_cost_usd: 0,
+      usage: {
+        input_tokens: 0,
+        cache_creation_input_tokens: 0,
+        cache_read_input_tokens: 0,
+        output_tokens: 0,
+        output_tokens_details: { thinking_tokens: 0 },
+      },
+      result: 'Claude AI usage limit reached — your limit will reset later today.',
+    });
+    spawnedChildren[0].stdout.emit('data', errorJson);
+    spawnedChildren[0].emit('close', 1);
+    try {
+      await promise;
+      throw new Error('expected rejection');
+    } catch (err) {
+      const message = (err as Error).message;
+      expect(message).toContain('Claude CLI exited 1');
+      expect(message).toContain('usage limit reached — your limit will reset later today.');
+      // The message is the extracted result body, not the raw-JSON prefix slice.
+      expect(message).not.toContain('duration_api_ms');
+    }
+  });
+
+  test('a quota-worded result body yields classification.reason === "quota"', async () => {
+    const promise = callClaudeCli(undefined, [{ role: 'user', content: 'hi' }], undefined, 100);
+    await flush();
+    spawnedChildren[0].stdout.emit(
+      'data',
+      JSON.stringify({
+        is_error: true,
+        result: 'Claude AI usage limit reached ∙ try again at 1:19 PM.',
+      }),
+    );
+    spawnedChildren[0].emit('close', 1);
+    try {
+      await promise;
+      throw new Error('expected rejection');
+    } catch (err) {
+      const e = err as { classification?: { reason?: string; provider?: string } | null };
+      expect(e.classification?.reason).toBe('quota');
+      expect(e.classification?.provider).toBe('claude');
+    }
+  });
+
+  test('a non-string result field falls back to the legacy stdout truncation', async () => {
+    const promise = callClaudeCli(undefined, [{ role: 'user', content: 'hi' }], undefined, 100);
+    await flush();
+    spawnedChildren[0].stdout.emit('data', JSON.stringify({ is_error: true, result: 123 }));
+    spawnedChildren[0].emit('close', 1);
+    await expect(promise).rejects.toThrow(/Claude CLI exited 1: \{"is_error":true/);
+  });
+
+  test('an unclassifiable failure carries classification === null', async () => {
+    const promise = callClaudeCli(undefined, [{ role: 'user', content: 'hi' }], undefined, 100);
+    await flush();
+    spawnedChildren[0].stdout.emit(
+      'data',
+      JSON.stringify({ is_error: true, result: 'something broke in an unexpected way' }),
+    );
+    spawnedChildren[0].emit('close', 1);
+    try {
+      await promise;
+      throw new Error('expected rejection');
+    } catch (err) {
+      expect((err as { classification?: unknown }).classification).toBeNull();
+    }
+  });
+
   test('a stuck CLI times out, kills the child, and rejects', async () => {
     const promise = callClaudeCli(undefined, [{ role: 'user', content: 'hi' }], undefined, 100);
     await flush();

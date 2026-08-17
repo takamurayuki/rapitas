@@ -11,10 +11,11 @@ import { spawn, execSync, type ChildProcess } from 'child_process';
 import { existsSync } from 'fs';
 import { tmpdir } from 'os';
 import { createLogger } from '../../config/logger';
-// NOTE: Deliberate utils→services exception (concern #1284): aux CLI children
-// must be visible to the shared process tracker so the task-boundary restart
-// can require "0 live aux CLI children" and post-crash cleanup can reap them.
+// NOTE: Deliberate utils→services exceptions (concern #1284): the process tracker must see
+// aux CLI children (restart gate / crash reaping); failures reuse the shared error taxonomy.
 import { registerProcess, unregisterProcess } from '../../services/agents/agent-process-tracker';
+import { classifyAgentError } from '../../services/ai/agent-error-classifier';
+import type { ClassifiedError } from '../../services/ai/agent-error-classifier';
 import { type AIMessage, type AIResponse } from './types';
 
 const log = createLogger('ai-client:claude-cli');
@@ -91,14 +92,15 @@ function checkClaudeAvailable(): Promise<boolean> {
 }
 
 /**
- * Thrown when the CLI path cannot serve a request (binary missing, not logged
- * in, non-zero exit, timeout). Lets the router / callers degrade gracefully
- * instead of silently falling back to the paid API.
+ * Thrown when the CLI cannot serve a request; callers degrade gracefully. `classification`
+ * names a matched external cause (quota / rate limit / auth) for log-severity demotion (#639).
  */
 export class ClaudeCliUnavailableError extends Error {
-  constructor(message: string) {
+  readonly classification: ClassifiedError | null;
+  constructor(message: string, classification: ClassifiedError | null = null) {
     super(message);
     this.name = 'ClaudeCliUnavailableError';
+    this.classification = classification;
   }
 }
 
@@ -220,6 +222,23 @@ function extractLastJsonObject(text: string): string | null {
 }
 
 /**
+ * Build the non-zero-exit error, surfacing the `result` body (≤1000 chars) from
+ * the CLI's stdout JSON — the old flat 300-char cut dropped that root cause (#639).
+ */
+function buildExitError(code: number | null, stdout: string, stderr: string) {
+  let detail = (stderr || stdout).slice(0, 300);
+  try {
+    // stderr, when present, is the primary diagnostic — only mine stdout JSON without it.
+    const json = stderr.trim() ? '' : (extractLastJsonObject(stdout) ?? '');
+    const p = JSON.parse(json) as Record<string, unknown>;
+    const body = typeof p.result === 'string' ? p.result : p.error;
+    if (typeof body === 'string' && body.trim()) detail = body.slice(0, 1000);
+  } catch {}
+  const cls = classifyAgentError(`${stderr}\n${stdout}`, 'claude');
+  return new ClaudeCliUnavailableError(`Claude CLI exited ${code}: ${detail}`, cls);
+}
+
+/**
  * Track an aux CLI child in the shared process tracker (concern #1284) and
  * return an idempotent untrack callback. With `shell: true` the tracked PID is
  * the shell wrapper (cmd.exe on Windows) which lives as long as the CLI call —
@@ -280,15 +299,8 @@ function spawnCli(args: string[], prompt: string): Promise<string> {
     child.on('close', (code) => {
       clearTimeout(timer);
       untrack();
-      if (code === 0) {
-        resolve(stdout);
-      } else {
-        reject(
-          new ClaudeCliUnavailableError(
-            `Claude CLI exited ${code}: ${(stderr || stdout).slice(0, 300)}`,
-          ),
-        );
-      }
+      if (code === 0) resolve(stdout);
+      else reject(buildExitError(code, stdout, stderr));
     });
 
     const buf = Buffer.from(prompt, 'utf8');

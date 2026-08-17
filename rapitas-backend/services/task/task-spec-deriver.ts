@@ -12,6 +12,7 @@ import {
   isAnyApiKeyConfigured,
   type AIMessage,
 } from '../../utils/ai-client';
+import { ClaudeCliUnavailableError } from '../../utils/ai-client/claude-cli-provider';
 
 const logger = createLogger('task-spec-deriver');
 
@@ -194,7 +195,16 @@ export async function deriveTaskSpec(
     });
     return { spec: parseSpec(response.content), source: 'ai' };
   } catch (error) {
-    logger.error({ err: error }, '[task-spec-deriver] derive failed');
+    // NOTE: quota / rate-limit CLI failures are external causes no code change can
+    // fix — log at WARN so log-health-check does not re-file them as severity-high
+    // bugs (task #639). auth (user-actionable) and unclassified stay ERROR.
+    const reason =
+      error instanceof ClaudeCliUnavailableError ? error.classification?.reason : undefined;
+    if (reason === 'quota' || reason === 'rate_limit') {
+      logger.warn({ err: error }, '[task-spec-deriver] derive failed (external AI cause)');
+    } else {
+      logger.error({ err: error }, '[task-spec-deriver] derive failed');
+    }
     return { spec: { ...EMPTY }, source: 'ai_error' };
   }
 }
