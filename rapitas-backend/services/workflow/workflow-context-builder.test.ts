@@ -242,3 +242,10 @@ describe('applyPlanModeDirective', () => {
     }
   });
 });
+
+describe('file-size awareness (task 600)', () => {
+  test('no plan.md (taskId 1) → no file-size awareness section', async () => {
+    const ctx = await buildRoleContext(1, 'implementer', TASK);
+    expect(ctx).not.toContain('変更対象ファイルの行数状況');
+  });
+});
