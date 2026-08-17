@@ -8,7 +8,7 @@
  * the verify explicitly justifies that no change was needed.
  * Not responsible for running verification (lint/type) — see verification-gate.
  */
-import { getDiff } from '../agents/orchestrator/git-operations/diff-structured';
+import { getDiff } from '../agents/orchestrator/git-operations/core/diff-structured';
 import { createLogger } from '../../config/logger';
 
 const log = createLogger('workflow:completion-gate');

@@ -458,3 +458,35 @@ jobs:
         env:
           CI: true
         run: cargo clippy -- -D warnings
+
+  rust-check-windows:
+    name: Check Rust Code (Windows)
+    runs-on: windows-latest
+    env:
+      RUST_BACKTRACE: 1
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+
+      - name: Setup Rust cache
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: './rapitas-desktop/src-tauri -> target'
+
+      - name: Run Clippy
+        working-directory: rapitas-desktop/src-tauri
+        env:
+          CI: true
+        run: cargo clippy -- -D warnings
+
+      - name: Run tests
+        working-directory: rapitas-desktop/src-tauri
+        env:
+          CI: true
+        run: cargo test --workspace

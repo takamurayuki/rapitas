@@ -19,8 +19,7 @@ export {
   getExecutionTrends,
   getMetricsOverview,
   buildDateWhereClause,
+  getAgentPerformanceComparison,
 } from '../agent-metrics/queries';
-
-export { getAgentPerformanceComparison } from '../agent-metrics/performance-query';
 
 export { agentMetricsRouter } from '../agent-metrics/router';

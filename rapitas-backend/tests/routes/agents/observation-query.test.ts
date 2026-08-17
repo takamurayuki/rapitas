@@ -14,7 +14,7 @@ mock.module('../../../config/database', () => ({
   },
 }));
 
-import { getSelfObservationSummary } from '../../../routes/agents/agent-metrics/observation-query';
+import { getSelfObservationSummary } from '../../../routes/agents/agent-metrics/queries/observation-query';
 
 describe('getSelfObservationSummary', () => {
   beforeEach(() => {

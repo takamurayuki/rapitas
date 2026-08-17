@@ -25,7 +25,7 @@ import {
   getRepairConvergenceStats,
   type RepairTransitionRow,
   type TaskFinalState,
-} from '../../../routes/agents/agent-metrics/repair-convergence-query';
+} from '../../../routes/agents/agent-metrics/queries/repair-convergence-query';
 
 describe('computeRepairConvergenceStats', () => {
   it('returns all-zero stats when no task ever entered the repair loop', () => {
