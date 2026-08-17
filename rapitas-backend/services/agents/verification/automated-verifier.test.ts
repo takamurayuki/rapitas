@@ -14,8 +14,41 @@ import {
   tamperCheck,
   coverageCheck,
   generatedSyncCheck,
+  computeOverallOk,
+  type VerificationCheck,
   type VerificationResult,
 } from './automated-verifier';
+
+describe('computeOverallOk', () => {
+  const check = (name: VerificationCheck['name'], ok: boolean): VerificationCheck => ({
+    name,
+    ran: true,
+    ok,
+    errorCount: ok ? 0 : 1,
+    details: `${name}: ${ok ? 'ok' : 'NG'}`,
+  });
+
+  // Pins the advisory exclusion (task 617 premortem 1): dropping 'acceptance'
+  // from the exclusion list turns it into a hard gate and makes this RED.
+  it('stays ok when only the advisory acceptance check fails', () => {
+    const checks = [
+      check('lint', true),
+      check('typecheck', true),
+      check('test', true),
+      check('acceptance', false),
+    ];
+    expect(computeOverallOk(checks)).toBe(true);
+  });
+
+  it('stays ok when only the advisory scope check fails', () => {
+    expect(computeOverallOk([check('lint', true), check('scope', false)])).toBe(true);
+  });
+
+  it('fails when a correctness check fails, regardless of advisory results', () => {
+    expect(computeOverallOk([check('lint', false), check('acceptance', true)])).toBe(false);
+    expect(computeOverallOk([check('test', false), check('scope', false)])).toBe(false);
+  });
+});
 
 describe('generatedSyncCheck', () => {
   it('returns null when no prisma schema file changed', () => {

@@ -364,6 +364,47 @@ describe('selectNextTask', () => {
   });
 });
 
+describe('selectNextTask all_blocked vs all_done (task 615)', () => {
+  it('候補ゼロ + blocked が残っている → all_blocked（閉塞を通常の枯渇と区別する）', async () => {
+    const count = mock().mockResolvedValue(3);
+    const prisma = makePrisma({
+      task: { findMany: mock().mockResolvedValue([]), count },
+    });
+    const result = await selectNextTask(prisma, 1, 'priority', [], 0);
+    expect(result).toEqual({ found: false, reason: 'all_blocked' });
+    // blocked 件数はテーマ内トップレベルのみを数えること
+    expect(count).toHaveBeenCalledWith({
+      where: { themeId: 1, status: 'blocked', parentId: null },
+    });
+  });
+
+  it('候補ゼロ + blocked ゼロ → 従来どおり all_done', async () => {
+    const prisma = makePrisma({
+      task: { findMany: mock().mockResolvedValue([]), count: mock().mockResolvedValue(0) },
+    });
+    const result = await selectNextTask(prisma, 1, 'priority', [], 0);
+    expect(result).toEqual({ found: false, reason: 'all_done' });
+  });
+
+  it('count が失敗しても all_done へフォールバックする（fail-open）', async () => {
+    const prisma = makePrisma({
+      task: {
+        findMany: mock().mockResolvedValue([]),
+        count: mock().mockRejectedValue(new Error('db down')),
+      },
+    });
+    const result = await selectNextTask(prisma, 1, 'priority', [], 0);
+    expect(result).toEqual({ found: false, reason: 'all_done' });
+  });
+
+  it('count 未実装のモック（旧テスト互換）でも例外にならず all_done', async () => {
+    // makePrisma の既定 task には count が無い — TypeError も握り潰されること
+    const prisma = makePrisma();
+    const result = await selectNextTask(prisma, 1, 'priority', [], 0);
+    expect(result).toEqual({ found: false, reason: 'all_done' });
+  });
+});
+
 describe('hasScopeOverlap / overlappingFiles (task 573 B)', () => {
   it('exact path match overlaps', () => {
     expect(hasScopeOverlap(['services/workflow/a.ts'], ['services/workflow/a.ts'])).toBe(true);

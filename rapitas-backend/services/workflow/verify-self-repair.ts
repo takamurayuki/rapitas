@@ -14,6 +14,12 @@ import { prisma } from '../../config/database';
 import { createLogger } from '../../config/logger';
 import { readWorkflowFile, writeWorkflowFile } from './workflow-file-utils';
 import { recordTransition } from './transition-recorder';
+import {
+  parseAcceptanceCriteria,
+  detectNonConvergence,
+  type ConvergenceVerdict,
+} from './verify-convergence';
+import { VERIFY_NON_CONVERGENCE_CAUSE } from './blocked-task-policy';
 
 const log = createLogger('workflow:verify-self-repair');
 
@@ -95,6 +101,65 @@ async function countPriorRepairs(taskId: number): Promise<number> {
       );
       return Number.MAX_SAFE_INTEGER;
     });
+}
+
+/**
+ * Detect a non-converging repair loop (task 619): map current + prior repair
+ * reasons (same task_retried window as countPriorRepairs) onto the acceptance
+ * criteria; 2+ flags on one criterion = cutoff. FAIL OPEN throughout — unlike
+ * countPriorRepairs' fail-closed budget, an unidentifiable reason / missing
+ * criteria / DB error must NOT stop a possibly-progressing task.
+ *
+ * @param taskId - Task id / タスクID
+ * @param currentReason - The reason about to trigger this bounce / 今回の差し戻し理由
+ * @returns Cutoff verdict / 収束判定
+ */
+async function detectRepairNonConvergence(
+  taskId: number,
+  currentReason: string,
+): Promise<ConvergenceVerdict> {
+  try {
+    const task = await prisma.task.findUnique({
+      where: { id: taskId },
+      select: { acceptanceCriteria: true },
+    });
+    const criteria = parseAcceptanceCriteria(task?.acceptanceCriteria ?? null);
+    // Short-circuit BEFORE any transition query: no criteria → nothing to match.
+    if (criteria.length === 0) return { cutoff: false };
+
+    // Same window as countPriorRepairs — a manual retry grants a fresh slate.
+    const lastRetry = await prisma.activityLog
+      .findFirst({
+        where: { taskId, action: 'task_retried' },
+        orderBy: { createdAt: 'desc' },
+        select: { createdAt: true },
+      })
+      .catch(() => null);
+    const rows = await prisma.workflowTransition.findMany({
+      where: {
+        taskId,
+        cause: REPAIR_CAUSE,
+        ...(lastRetry ? { createdAt: { gt: lastRetry.createdAt } } : {}),
+      },
+      select: { metadata: true },
+    });
+
+    const priorReasons: string[] = [];
+    for (const row of rows as { metadata: string | null }[]) {
+      // Malformed metadata rows are skipped (retro-evidence pattern), never thrown.
+      try {
+        const meta = JSON.parse(row.metadata ?? '{}') as { reason?: unknown };
+        if (typeof meta.reason === 'string' && meta.reason) priorReasons.push(meta.reason);
+      } catch {}
+    }
+    return detectNonConvergence(currentReason, priorReasons, criteria);
+  } catch (err) {
+    log.warn(
+      { err, taskId },
+      '[verify-repair] Non-convergence check failed — failing open (no cutoff)',
+    );
+    return { cutoff: false };
+  }
 }
 
 /**
@@ -248,6 +313,53 @@ export async function attemptVerifyRepair(
     return { bounced: false };
   }
 
+  // Non-convergence cutoff (task 619): the SAME criterion flagged by 2+ repair
+  // reasons (repetition, not consecutiveness — A→B→A) means treading water;
+  // bounce no further, escalate instead. Independent of the count cap above.
+  const verdict = await detectRepairNonConvergence(taskId, reason);
+  if (verdict.cutoff) {
+    const detail = `受入基準${verdict.criterionIndex}が${verdict.count}回の差し戻しで一度も対応されていません。タスク分割または仕様の見直しが必要です。`;
+    const taskRow = await prisma.task
+      .findUnique({ where: { id: taskId }, select: { title: true, themeId: true } })
+      .catch(() => null);
+    try {
+      // Dynamic import (ensureRunnerResumes pattern): keeps the escalation
+      // module + its dependency chain out of this module's static graph.
+      const { escalateBlockedTask } = await import('./blocked-task-escalation');
+      await escalateBlockedTask(
+        prisma,
+        { id: taskId, title: taskRow?.title ?? `#${taskId}`, themeId: taskRow?.themeId ?? null },
+        'verify_no_convergence',
+        Date.now(),
+        detail,
+      );
+    } catch (err) {
+      log.warn({ err, taskId }, '[verify-repair] Non-convergence escalation failed');
+    }
+    // Recorded LAST so it is the latest transition — hasFreshVerifyRejection
+    // reads only the newest row, and this cause must veto the executor epilogue.
+    await recordTransition({
+      taskId,
+      fromStatus: currentStatus ?? null,
+      toStatus: currentStatus ?? 'blocked',
+      actor: 'system',
+      cause: VERIFY_NON_CONVERGENCE_CAUSE,
+      phase: 'verify',
+      metadata: {
+        criterionIndex: verdict.criterionIndex,
+        count: verdict.count,
+        reason,
+      },
+    }).catch((err) =>
+      log.warn({ err, taskId }, '[verify-repair] Failed to record non-convergence transition'),
+    );
+    log.warn(
+      { taskId, criterionIndex: verdict.criterionIndex, count: verdict.count },
+      '[verify-repair] Repair loop not converging — cutting off (caller should block)',
+    );
+    return { bounced: false };
+  }
+
   const attempt = prior + 1;
   const newStatus = await resolveImplementEntryStatus(taskId);
 
@@ -336,7 +448,11 @@ export async function hasFreshVerifyRejection(
     })
     .catch(() => null);
   if (!last) return false;
-  if (last.cause !== REPAIR_CAUSE && last.cause !== 'adversarial_review_failed') return false;
+  // NOTE: VERIFY_NON_CONVERGENCE_CAUSE counts as a rejection too — a cutoff
+  // task (task 619) is blocked-for-escalation and must not be completed by a
+  // late executor epilogue any more than a bounced one.
+  const rejectionCauses = [REPAIR_CAUSE, 'adversarial_review_failed', VERIFY_NON_CONVERGENCE_CAUSE];
+  if (!rejectionCauses.includes(last.cause)) return false;
   return Date.now() - last.createdAt.getTime() <= windowMs;
 }
 

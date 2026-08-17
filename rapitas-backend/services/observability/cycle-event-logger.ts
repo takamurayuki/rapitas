@@ -45,6 +45,9 @@ export type CycleEventName =
   | 'task.awaiting_approval'
   | 'task.awaiting_answer'
   | 'task.hang_backstop'
+  // queue-stall self-healing (task 618): residue release + starvation detection
+  | 'task.stall_released'
+  | 'queue.starvation_detected'
   // git / PR outcomes
   | 'commit.created'
   | 'pr.created'

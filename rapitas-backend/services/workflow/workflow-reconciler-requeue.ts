@@ -9,6 +9,15 @@
 import { prisma } from '../../config/database';
 import { createLogger } from '../../config/logger';
 import { recordTransition } from './transition-recorder';
+// NOTE: Thresholds live in blocked-task-policy (task 615) so the evidence /
+// escalation passes share the same constants — behavior here is unchanged.
+import {
+  BLOCKED_RETRY_SETTLE_MS,
+  MAX_ORPHAN_REQUEUE_AGE_MS,
+  MAX_BLOCKED_RETRY,
+  resolveVerifyRepairLimit,
+  VERIFY_NON_CONVERGENCE_CAUSE,
+} from './blocked-task-policy';
 
 const log = createLogger('workflow-reconciler');
 
@@ -18,29 +27,11 @@ export const ACTIVE_EXEC = ['running', 'pending', 'waiting_for_input'];
 /** An in-progress task idle this long with no live execution is surfaced. */
 export const STALE_TASK_MS = 45 * 60 * 1000;
 
-/** Don't re-queue orphans older than this — ancient ones are likely abandoned. */
-const MAX_ORPHAN_REQUEUE_AGE_MS = 2 * 24 * 60 * 60 * 1000;
 /** Re-queue an orphan at most this many times before leaving it for notification. */
 const MAX_ORPHAN_REQUEUE = 2;
 /**
- * Auto-retry a BLOCKED task at most this many times before leaving it blocked for
- * the user. Blocked auto-created tasks otherwise sit forever, holding the backlog
- * promotion cap and starving the loop (observed: 5 blocked tasks = cap 5 → idle
- * with 20 open concerns un-promoted). A bounded retry re-runs them — most were
- * blocked by a since-fixed bug and now pass; genuine failures exhaust the budget
- * and stay blocked. / blocked タスクの自動再試行上限。
- */
-const MAX_BLOCKED_RETRY = 2;
-/**
- * Wait this long after a task was blocked before auto-retrying — let the dust
- * settle (don't race the run that just blocked it) and avoid hammering a task
- * that re-blocks instantly. / blocked 後この時間待ってから再試行。
- */
-const BLOCKED_RETRY_SETTLE_MS = 3 * 60 * 1000;
-/**
- * A todo task must sit in an undispatchable workflowStatus this long before the
- * reconciler resets it — long enough that no legitimate in-flight completion
- * (auto-commit, PR creation, staged completion) could still be settling.
+ * A todo task must sit in an undispatchable workflowStatus this long before a
+ * reset — no legitimate in-flight completion could still be settling by then.
  */
 const UNDISPATCHABLE_SETTLE_MS = 24 * 60 * 60 * 1000;
 
@@ -110,16 +101,11 @@ export async function requeueOrphanTasks(nowMs: number): Promise<number> {
 }
 
 /**
- * Self-healing for the perpetual loop: auto-retry BLOCKED auto-created tasks so a
- * since-fixed bug (the common cause — e.g. a verify-gate false-positive resolved
- * by a deploy) no longer strands them, and they stop permanently holding the
- * backlog-promotion cap. Bounded by MAX_BLOCKED_RETRY; only touches tasks whose
- * theme auto-run is still ARMED (enabled) so a user STOP is respected, and only
- * after a settle delay so we don't race the run that just blocked it.
- *
- * Reset to 'todo' + workflowStatus 'draft' (research/plan are reused via
- * isReusableArtifact, so the re-run is cheap) so the scheduler re-selects and
- * actually re-runs it rather than failing "cannot advance from <terminal>".
+ * Self-healing for the perpetual loop: auto-retry BLOCKED auto-created tasks so
+ * a since-fixed bug no longer strands them holding the backlog-promotion cap.
+ * Bounded by MAX_BLOCKED_RETRY; armed themes only (a user STOP is respected),
+ * after a settle delay. Resets to 'todo' + workflowStatus 'draft' (research/
+ * plan are reused via isReusableArtifact, so the re-run is cheap).
  *
  * @param nowMs - Current time (ms). / 現在時刻
  * @returns Number of tasks retried. / 再試行数
@@ -135,18 +121,13 @@ export async function requeueBlockedTasks(nowMs: number): Promise<number> {
   const armedThemeIds = armed.map((a) => a.themeId);
   if (armedThemeIds.length === 0) return 0;
 
-  // The verify->implement repair budget. A task that EXHAUSTED it is genuinely
-  // failing verification — blindly re-queuing it just repeats the same doomed
-  // implement→verify cycle. Such tasks need splitting / human attention, not
-  // auto-retry. Read via cast (column pending client regen), matching
-  // verify-self-repair's resolveMaxRepairs.
+  // The verify->implement repair budget: a task that EXHAUSTED it needs
+  // splitting / human attention, not auto-retry (re-queuing repeats the same
+  // doomed cycle). Read via cast (column pending client regen).
   const settings = (await prisma.userSettings.findFirst().catch(() => null)) as {
     verifyRepairLimit?: number | null;
   } | null;
-  const verifyRepairLimit =
-    typeof settings?.verifyRepairLimit === 'number' && settings.verifyRepairLimit > 0
-      ? settings.verifyRepairLimit
-      : 3;
+  const verifyRepairLimit = resolveVerifyRepairLimit(settings);
 
   const tasks = await prisma.task
     .findMany({
@@ -201,6 +182,27 @@ export async function requeueBlockedTasks(nowMs: number): Promise<number> {
       continue;
     }
 
+    // Skip tasks CUT OFF for non-convergence (task 619): the same acceptance
+    // criterion was flagged by 2+ repair bounces, so a blind retry would just
+    // replay the treading-water loop and re-trigger the same cutoff. Same
+    // window as the repair budget (reset by a manual retry).
+    const nonConverged = await prisma.workflowTransition
+      .count({
+        where: {
+          taskId: t.id,
+          cause: VERIFY_NON_CONVERGENCE_CAUSE,
+          ...(lastRetry ? { createdAt: { gt: lastRetry.createdAt } } : {}),
+        },
+      })
+      .catch(() => 0);
+    if (nonConverged > 0) {
+      log.info(
+        { taskId: t.id, nonConverged },
+        '[reconciler] Blocked task was cut off for non-convergence — leaving blocked (needs split/spec revision), not auto-retrying',
+      );
+      continue;
+    }
+
     const attempts = await prisma.workflowTransition
       .count({ where: { taskId: t.id, cause: 'blocked_auto_retry' } })
       .catch(() => 0);
@@ -233,21 +235,16 @@ export async function requeueBlockedTasks(nowMs: number): Promise<number> {
  * Heal undispatchable status/workflowStatus desyncs on todo tasks.
  *
  * Class 1 — todo × verify_done: `verify_done` has NO entry in the transition
- * table (completion runs inside the runner's post-verify handler, not via
- * advanceWorkflow), so such a task can never be dispatched: every auto-run
- * selection fails "ステータスでは次のフェーズを実行できません", burns the queue's
- * retries, and repeats on the next cycle forever (observed: tasks 5/8/11 parked
- * since May). Reset workflowStatus to 'draft' — research/plan/verify artifacts
- * are reused via isReusableArtifact, so the re-run is cheap and it completes
- * properly this time.
+ * table, so such a task can never be dispatched — every auto-run selection
+ * fails and repeats forever (observed: tasks 5/8/11 parked since May). Reset
+ * workflowStatus to 'draft' (artifacts are reused via isReusableArtifact, so
+ * the re-run is cheap and completes properly this time).
  *
  * Class 2 — todo × completed: the workflow finished but the task row's status
- * was never finalized (mirror of healCompletedDesync for the todo side).
- * Finalize to done so the scheduler stops re-selecting a finished task.
+ * was never finalized — finalize to done so it stops being re-selected.
  *
- * Both classes require 24h staleness (no legitimate completion path takes that
- * long to settle, and a user's fresh manual re-run never sits 24h untouched)
- * and no live execution. Class 1 is additionally bounded to one reset per task.
+ * Both classes require 24h staleness and no live execution. Class 1 is
+ * additionally bounded to one reset per task.
  *
  * @param nowMs - Current time (ms). / 現在時刻
  * @returns Number of tasks healed. / 修復数
