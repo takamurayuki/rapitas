@@ -27,6 +27,7 @@ const {
   computeQueueWaitMs,
   computeQueueWaitDetail,
   extractCriticReasons,
+  isCriticFollowRejection,
   isCleanRound,
   buildEvidenceBundle,
   fetchRetroRows,
@@ -78,8 +79,119 @@ describe('countCauses', () => {
       repairCount: 0,
       replanCount: 0,
       anomalyCount: 0,
+      criticFollowRejections: 0,
       invariantCount: 0,
     });
+  });
+});
+
+// task#601 実データ相当: 非同期批評ゲートの research 巻き戻し1件と、
+// その直後に先へ進んでいたエージェントの plan 保存が正しく拒否された2件
+// (metadata.criticBouncePhase で相関付け済み)の単一自己修復連鎖。
+const criticFollowRow = (over: Partial<RetroTransitionRow> = {}): RetroTransitionRow =>
+  row({
+    cause: 'transition_rejected',
+    invariantViolation: true,
+    metadata: JSON.stringify({
+      attemptedFileType: 'plan',
+      reason: 'rolled back by the research critic gate',
+      criticBouncePhase: 'research',
+      criticReasonCount: 6,
+    }),
+    ...over,
+  });
+
+const incidentRows = (): RetroTransitionRow[] => [
+  row({
+    cause: 'research_critic_failed',
+    invariantViolation: true,
+    metadata: JSON.stringify({ reasons: ['引数位置が矛盾'] }),
+  }),
+  criticFollowRow(),
+  criticFollowRow(),
+];
+
+describe('isCriticFollowRejection', () => {
+  test('criticBouncePhase 付き transition_rejected は true', () => {
+    expect(isCriticFollowRejection(criticFollowRow())).toBe(true);
+  });
+
+  test('cause が transition_rejected 以外なら metadata にキーがあっても false', () => {
+    expect(
+      isCriticFollowRejection(
+        row({
+          cause: 'rejected_resave_blocked',
+          metadata: JSON.stringify({ criticBouncePhase: 'research' }),
+        }),
+      ),
+    ).toBe(false);
+  });
+
+  test('相関キー欠落(旧データ)は false — 従来分類へのフェイルオープン', () => {
+    expect(
+      isCriticFollowRejection(
+        row({
+          cause: 'transition_rejected',
+          metadata: JSON.stringify({ reason: 'file type not allowed in current workflow status' }),
+        }),
+      ),
+    ).toBe(false);
+  });
+
+  test('壊れたJSON・非文字列キーは throw せず false', () => {
+    expect(
+      isCriticFollowRejection(row({ cause: 'transition_rejected', metadata: '{broken json' })),
+    ).toBe(false);
+    expect(
+      isCriticFollowRejection(
+        row({ cause: 'transition_rejected', metadata: JSON.stringify({ criticBouncePhase: 7 }) }),
+      ),
+    ).toBe(false);
+  });
+});
+
+describe('countCauses — 批評追随拒否の分離(task#601 誤検知の根絶)', () => {
+  test('incident相当: 批評追随拒否は anomaly/invariant から除外され新カウンタに入る', () => {
+    const counts = countCauses(incidentRows());
+    expect(counts).toEqual({
+      criticRebounds: 1,
+      repairCount: 0,
+      replanCount: 0,
+      anomalyCount: 0,
+      criticFollowRejections: 2,
+      invariantCount: 0,
+    });
+  });
+
+  test('相関キー無しの transition_rejected は従来通り anomaly+invariant に数える', () => {
+    const counts = countCauses([
+      row({ cause: 'transition_rejected', invariantViolation: true, metadata: '{}' }),
+    ]);
+    expect(counts.anomalyCount).toBe(1);
+    expect(counts.invariantCount).toBe(1);
+    expect(counts.criticFollowRejections).toBe(0);
+  });
+
+  test('rejected_resave_blocked は従来通り anomaly のまま', () => {
+    const counts = countCauses([row({ cause: 'rejected_resave_blocked' })]);
+    expect(counts.anomalyCount).toBe(1);
+    expect(counts.criticFollowRejections).toBe(0);
+  });
+
+  test('cause が非criticの真の不変条件違反行は invariantCount に残る', () => {
+    const counts = countCauses([
+      row({ cause: 'verify_blocked_incomplete_subtasks', invariantViolation: true }),
+    ]);
+    expect(counts.invariantCount).toBe(1);
+    expect(counts.anomalyCount).toBe(0);
+  });
+
+  test('critic差し戻し行の invariantViolation は criticRebounds のみで invariantCount に二重計上しない', () => {
+    const counts = countCauses([
+      row({ cause: 'research_critic_failed', invariantViolation: true }),
+    ]);
+    expect(counts.criticRebounds).toBe(1);
+    expect(counts.invariantCount).toBe(0);
   });
 });
 
@@ -323,9 +435,17 @@ describe('isCleanRound', () => {
     ['repairCount'],
     ['replanCount'],
     ['anomalyCount'],
+    ['criticFollowRejections'],
     ['invariantCount'],
   ] as const)('%s が1ならクリーンでない', (field) => {
     expect(isCleanRound(bundle({ [field]: 1 }))).toBe(false);
+  });
+
+  test('批評追随拒否のみのラウンド(理論上)も非クリーン — 防御的二重安全網', () => {
+    // 実運用では批評差し戻し行が必ず同席し criticRebounds≥1 になるが、
+    // 追随拒否単独でも AI レビュー対象に残ることを固定する。
+    const b = bundle();
+    expect(isCleanRound({ ...b, criticFollowRejections: 2 })).toBe(false);
   });
 });
 
