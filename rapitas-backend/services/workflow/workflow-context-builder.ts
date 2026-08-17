@@ -127,6 +127,7 @@ export async function buildRoleContext(
           '- 同様に `PUT /tasks/:id/status` などタスクステータスを変更する API も呼ばないでください。状態遷移は Rapitas 側が自動で行います。\n' +
           '- ワークフロー API の保存系を叩いても **400 で拒否されます** (status guard)。回避策の探索はせず、コード変更が終わったらそこで終了してください。\n' +
           `- **完了前の自己検証（必須）**: コード変更が完了したと判断したら、終了する前に \`curl -s --max-time 900 -X POST http://127.0.0.1:3001/workflow/tasks/${taskId}/run-verification\` を実行してください。検証フェーズと同一の lint/型/テストゲートが worktree に対して実測されます。\`"ok":false\` なら応答 \`markdown\` の失敗内容を修正して再実行（最大3回）。3回で解消しない場合は、残る失敗と理由を最終サマリに明記して終了してください。\n` +
+          '- **受入基準の自己照合（完了宣言の条件）**: 自己検証の応答に `acceptance=NG` が含まれる場合、差分が受入基準に対応していない（または受入基準・タスク本文と無関係な差分である）可能性が高い。各受入基準に「この差分のどのファイル/変更が満たすか」を対応付けて確認し、対応付けられない基準が1つでも残る間は完了を宣言せず、差分を修正して自己検証を再実行してください。機械照合の誤検出（対応済みなのに NG）と判断した場合のみ、どの変更がどの基準を満たすかを最終サマリで明示した上で終了してよい。同様に `coverage=NG`（ソース変更にテスト非同伴）も、テストを追加してから完了してください。\n' +
           '- 実装が完了したら、変更内容のサマリ (どのファイルを何のために変えたか) を最後のメッセージに残して終了してください。Rapitas が後段で verify.md を自動生成します。\n' +
           '- **テスト検証はファイル単位** (`bun test <1ファイル>`) で行ってください。bun の `mock.module` は**プロセスグローバル**なので、同じモジュールを mock する複数のテストファイルを**同時実行すると mock が衝突して偽の失敗**になります。これは bun の制約でありコードのバグではありません。**各ファイルが単体で通れば十分**です。複数テストファイルを「同時に通す」ためにモックの順序変更や beforeAll 化を延々と試みないでください（解決不能であり、時間を浪費します）。',
       },
@@ -531,15 +532,32 @@ export async function buildRoleContext(
         // false-bouncing a genuinely-green change. Fail-soft: if the verifier
         // crashes/skips, the verifier falls back to self-report (status quo).
         try {
-          const [{ runAutomatedVerification, renderVerificationMarkdown }, planForGate] =
-            await Promise.all([
-              import('../agents/verification/automated-verifier'),
-              readWorkflowFile(taskId, 'plan'),
-            ]);
+          const [
+            { runAutomatedVerification, renderVerificationMarkdown },
+            { resolveAcceptanceCriteria },
+            planForGate,
+            taskRowForGate,
+          ] = await Promise.all([
+            import('../agents/verification/automated-verifier'),
+            import('../agents/verification/acceptance-self-check'),
+            readWorkflowFile(taskId, 'plan'),
+            // Acceptance criteria for the ADVISORY acceptance self-check (task
+            // 617) — its criterion↔diff mapping rides the GROUND TRUTH block
+            // into verify.md, persisting the correspondence for later audit.
+            prisma.task
+              .findUnique({ where: { id: taskId }, select: { acceptanceCriteria: true } })
+              .catch(() => null),
+          ]);
+          const gateCriteria = resolveAcceptanceCriteria({
+            acceptanceCriteria: taskRowForGate?.acceptanceCriteria ?? null,
+            description: task.description,
+          });
           const measured = await runAutomatedVerification(diffSession.worktreePath, {
             planContent: planForGate ?? undefined,
             preferredBaseBranch: preferredBaseBranchForContext,
             taskId,
+            acceptanceCriteria: gateCriteria.length > 0 ? gateCriteria : undefined,
+            taskText: `${task.title}\n${task.description ?? ''}`,
           }).catch(() => null);
           if (measured) {
             const header =
