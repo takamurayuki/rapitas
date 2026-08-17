@@ -21,7 +21,7 @@
  * recorded to the timeline so future weighting can calibrate each judge against
  * realized task outcomes (Weaver, arXiv:2506.18203).
  */
-import { getDiff } from '../orchestrator/git-operations/diff-structured';
+import { getDiff } from '../orchestrator/git-operations/core/diff-structured';
 import { sendAIMessage } from '../../../utils/ai-client';
 import type { AIProvider } from '../../../utils/ai-client/types';
 import { DEFAULT_MODELS } from '../../../utils/ai-client/types';

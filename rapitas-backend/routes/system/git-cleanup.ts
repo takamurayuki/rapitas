@@ -5,7 +5,7 @@
  */
 import { Elysia, t } from 'elysia';
 import { GitOperations } from '../../services/agents/orchestrator/git-operations';
-import { cleanupOrphanedWorktrees } from '../../services/agents/orchestrator/git-operations/worktree-ops';
+import { cleanupOrphanedWorktrees } from '../../services/agents/orchestrator/git-operations/worktree/worktree-ops';
 import { createLogger } from '../../config/logger';
 import { getProjectRoot } from '../../config';
 import { promisify } from 'util';
