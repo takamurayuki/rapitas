@@ -13,7 +13,7 @@
  * from a rate table that goes stale as provider pricing changes.
  */
 
-import { prisma } from '../../../config/database';
+import { prisma } from '../../../../config/database';
 
 /** Per-model breakdown of execution cost, volume, and success rate. */
 export interface ModelCostStats {

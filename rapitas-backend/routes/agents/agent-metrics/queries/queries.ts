@@ -7,10 +7,10 @@
  * All functions are pure data-access utilities; routing is handled in router.ts.
  */
 
-import { Prisma } from '../../../generated/prisma-postgres';
-import { prisma } from '../../../config/database';
-import type { AgentMetrics, ExecutionTrendData, MetricsOverview, DateRange } from './types';
-import { formatAgentDisplayName } from '../../../utils/agent/agent-display-name';
+import { Prisma } from '../../../../generated/prisma-postgres';
+import { prisma } from '../../../../config/database';
+import type { AgentMetrics, ExecutionTrendData, MetricsOverview, DateRange } from '../types';
+import { formatAgentDisplayName } from '../../../../utils/agent/agent-display-name';
 
 type ExecutionWhereInput = Prisma.AgentExecutionWhereInput;
 

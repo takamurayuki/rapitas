@@ -22,7 +22,7 @@ const agentWorkerManager = AgentWorkerManager.getInstance();
  * plain number on the SQLite desktop schema); a bare `Number()` would throw
  * on a Decimal object in some call paths, and would return NaN for the
  * legacy double-JSON-encoded strings a past IPC bug left in this column
- * (see routes/agents/agent-metrics/observation-query.ts) — coerce those
+ * (see routes/agents/agent-metrics/queries/observation-query.ts) — coerce those
  * unparsable cases to 0 instead of leaking NaN into the response.
  *
  * @param v - Raw Decimal/number/string value from Prisma

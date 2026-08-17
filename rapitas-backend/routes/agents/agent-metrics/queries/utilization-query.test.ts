@@ -9,7 +9,7 @@
 import { describe, test, expect, mock, beforeEach } from 'bun:test';
 
 const findMany = mock(() => Promise.resolve([] as unknown[]));
-mock.module('../../../config/database', () => ({
+mock.module('../../../../config/database', () => ({
   prisma: {
     agentExecution: { findMany },
   },
