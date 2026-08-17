@@ -13,7 +13,9 @@ import { createLogger } from '../../../config/logger';
 import {
   runAutomatedVerification,
   renderVerificationMarkdown,
+  looksLikeBugFixTask,
 } from '../../../services/agents/verification/automated-verifier';
+import { resolveAcceptanceCriteria } from '../../../services/agents/verification/acceptance-self-check';
 import { readWorkflowFile } from '../../../services/workflow/workflow-file-utils';
 import { resolvePreferredBaseBranch } from '../../../services/task/task-resolver';
 
@@ -67,14 +69,30 @@ export async function handleRunVerification(ctx: RunVerificationContext) {
 
   inFlight.add(taskId);
   try {
-    const [planContent, preferredBaseBranch] = await Promise.all([
+    const [planContent, preferredBaseBranch, taskRow] = await Promise.all([
       readWorkflowFile(taskId, 'plan'),
       resolvePreferredBaseBranch(taskId),
+      // Task text feeds the ADVISORY acceptance self-check + the bug-fix
+      // coverage parity (task 617: the verify-side gate already forced
+      // requireTests for bug fixes, but the implementer's self-check did not —
+      // class-B bounces surfaced only AFTER implementation). Fail-open: a
+      // missing task row just skips both extras.
+      prisma.task
+        .findUnique({
+          where: { id: taskId },
+          select: { title: true, description: true, acceptanceCriteria: true },
+        })
+        .catch(() => null),
     ]);
+    const taskText = taskRow ? `${taskRow.title}\n${taskRow.description ?? ''}` : '';
+    const acceptanceCriteria = taskRow ? resolveAcceptanceCriteria(taskRow) : [];
     const result = await runAutomatedVerification(session.worktreePath, {
       planContent: planContent ?? undefined,
       preferredBaseBranch,
       taskId,
+      requireTests: looksLikeBugFixTask(taskText),
+      acceptanceCriteria: acceptanceCriteria.length > 0 ? acceptanceCriteria : undefined,
+      taskText: taskText || undefined,
     });
     log.info(
       { taskId, ok: result.ok, checks: result.checks.length },

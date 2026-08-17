@@ -22,6 +22,7 @@ import { createLogger } from '../../../config/logger';
 import { buildScopedTestCommands, findRelatedTestFiles, TEST_FILE_RE } from './related-tests';
 import { triageTestFailures } from './test-triage';
 import { parsePlanFiles, evaluateScopeCheck } from './scope-check';
+import { evaluateAcceptanceSelfCheck } from './acceptance-self-check';
 import { assertSafeGitRef } from '../../../utils/common/branch-name-generator';
 
 const log = createLogger('agents:automated-verifier');
@@ -47,7 +48,8 @@ export interface VerificationCheck {
     | 'scope'
     | 'coverage'
     | 'runtime'
-    | 'tamper';
+    | 'tamper'
+    | 'acceptance';
   /** Whether the check was applicable and actually executed. */
   ran: boolean;
   /** True when the check passed (no new failures in the changed files). */
@@ -844,6 +846,31 @@ export interface VerificationOptions {
    * runtime-config.ts's resolveRuntimeConfig.
    */
   taskId?: number;
+  /**
+   * The task's acceptance criteria; when non-empty the ADVISORY acceptance
+   * self-check matches each criterion against the changed files (task 617 —
+   * bounce classes A/B were 44% of verify bounces). Omit to skip the check.
+   */
+  acceptanceCriteria?: string[];
+  /**
+   * Task title + description, used by the acceptance self-check's
+   * unrelated-diff (608-type) detection alongside the criteria tokens.
+   */
+  taskText?: string;
+}
+
+/**
+ * Overall verdict across checks. 'scope' and 'acceptance' are ADVISORY — both
+ * are token-matching heuristics whose false positives must not block a
+ * genuinely green change (see the NOTE above the staticOk call site; scope's
+ * hard→advisory demotion history is task 298). Exported for unit tests that
+ * pin the advisory exclusion.
+ *
+ * @param checks - Individual check results. / 各チェック結果
+ * @returns Hard-gate verdict. / 総合判定
+ */
+export function computeOverallOk(checks: VerificationCheck[]): boolean {
+  return checks.filter((c) => c.name !== 'scope' && c.name !== 'acceptance').every((c) => c.ok);
 }
 
 /**
@@ -906,6 +933,16 @@ export async function runAutomatedVerification(
   // both hard-fail CI's Lint Code job, so catching them here turns a full
   // ci_repair round into an in-phase fix.
   const generatedSync = generatedSyncCheck(allChanged);
+  // Acceptance self-check (ADVISORY, task 617): criterion↔diff token matching
+  // over the FULL diff (criteria may reference docs/config, not just code).
+  const acceptance =
+    options.acceptanceCriteria && options.acceptanceCriteria.length > 0
+      ? evaluateAcceptanceSelfCheck({
+          criteria: options.acceptanceCriteria,
+          changedFiles: allChanged,
+          taskText: options.taskText ?? '',
+        })
+      : null;
   const checks = [
     mergeChecks('lint', lintParts),
     mergeChecks('typecheck', typeParts),
@@ -915,16 +952,19 @@ export async function runAutomatedVerification(
     ...(scopeCheck ? [scopeCheck] : []),
     ...(tamper ? [tamper] : []),
     ...(coverage ? [coverage] : []),
+    ...(acceptance ? [acceptance] : []),
   ];
-  // Scope is ADVISORY, not a hard gate. A plan-scope deviation while lint +
-  // typecheck + test are all green means the agent made valid, working changes
-  // that merely touch a file the plan didn't list precisely (e.g. a refactor's
-  // related caller). Hard-blocking on it stranded legitimately-complete tasks and
-  // churned them forever (observed #298: lint=ok/typecheck=ok/test=ok/scope=NG(1)
-  // → blocked, re-run, blocked…). Gate on the CORRECTNESS checks only; scope stays
-  // in the summary for visibility, and adversarial-review + PR review still catch
-  // genuine scope sprawl.
-  const staticOk = checks.filter((c) => c.name !== 'scope').every((c) => c.ok);
+  // Scope and acceptance are ADVISORY, not hard gates. A plan-scope deviation
+  // while lint + typecheck + test are all green means the agent made valid,
+  // working changes that merely touch a file the plan didn't list precisely
+  // (e.g. a refactor's related caller). Hard-blocking on it stranded
+  // legitimately-complete tasks and churned them forever (observed #298:
+  // lint=ok/typecheck=ok/test=ok/scope=NG(1) → blocked, re-run, blocked…).
+  // Acceptance shares the same weakness (Japanese criteria ↔ path token
+  // matching), so it stays advisory too: the summary surfaces it to the
+  // implementer, and adversarial-review + PR review still catch genuine
+  // scope sprawl / unaddressed criteria. Gate on the CORRECTNESS checks only.
+  const staticOk = computeOverallOk(checks);
 
   // Runtime smoke (Evaluator "actually run it" stage): only for projects that
   // opt in (Theme runtimeConfigJson or a rapitas.runtime.json file), and only
@@ -942,7 +982,7 @@ export async function runAutomatedVerification(
   }
 
   const unverifiable = checks.some((c) => c.unverifiable);
-  const ok = checks.filter((c) => c.name !== 'scope').every((c) => c.ok);
+  const ok = computeOverallOk(checks);
   const summary = checks
     .map((c) =>
       c.unverifiable
