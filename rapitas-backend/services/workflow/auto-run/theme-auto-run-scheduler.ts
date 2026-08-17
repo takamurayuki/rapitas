@@ -71,6 +71,7 @@ import {
   notifyAllBlocked,
   notifyHangBackstop,
 } from './auto-run-notifications';
+import { releaseStaleActiveItems } from './auto-run-stall-guard';
 import { countEscalatedBlocked } from '../blocked-task-escalation';
 
 const log = createLogger('theme-auto-run-scheduler');
@@ -436,19 +437,32 @@ export class ThemeAutoRunScheduler {
       // This is the core "one task fully completes before the next starts"
       // guarantee — the only non-terminal exit here is the approval pause.
       if (currentItems.length > 0) {
-        if (hasItemAwaitingApproval(currentItems)) {
-          await onAwaitingPlanApproval(themeId);
-          await notifyAwaitingPlanApproval(themeId, currentTaskId);
-          this.broadcastAutoRunUpdate(themeId);
-          logCycleEvent('task.awaiting_approval', {
-            theme: themeId,
-            task: currentTaskId,
-            cause: 'plan_approval_gate',
-            msg: 'theme paused — plan awaiting approval',
-          });
+        // Task 618 (事例2): a TERMINAL task can still hold active items (e.g. a
+        // 'running' residue after an abort). Waiting on those would wedge the
+        // theme forever — release them and resolve the task in THIS tick.
+        const releasedStaleCount = await releaseStaleActiveItems(
+          prisma,
+          themeId,
+          currentTaskId,
+          currentItems,
+        );
+        if (releasedStaleCount === 0) {
+          if (hasItemAwaitingApproval(currentItems)) {
+            await onAwaitingPlanApproval(themeId);
+            await notifyAwaitingPlanApproval(themeId, currentTaskId);
+            this.broadcastAutoRunUpdate(themeId);
+            logCycleEvent('task.awaiting_approval', {
+              theme: themeId,
+              task: currentTaskId,
+              cause: 'plan_approval_gate',
+              msg: 'theme paused — plan awaiting approval',
+            });
+          }
+          // queued / running → still working; wait for the next tick.
+          return;
         }
-        // queued / running → still working; wait for the next tick.
-        return;
+        // released > 0: the items were residue of an already-terminal task.
+        // Fall through to the terminal resolution below in the same tick.
       }
 
       // No active item. Decide the outcome from the most recent TERMINAL queue
