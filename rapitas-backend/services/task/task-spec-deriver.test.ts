@@ -9,10 +9,13 @@ import { describe, test, expect, mock, beforeEach } from 'bun:test';
 // HACK(agent): bun:test の mock.module はプロセスグローバルなため、
 // 全エクスポートをミラーしないとバレルが "export not found" をスローする。
 
+// warn/error はスパイ化 — deriveTaskSpec のログレベル降格分岐 (task #639) を検証する。
+const mockLoggerWarn = mock(() => {});
+const mockLoggerError = mock(() => {});
 const noopLogger = {
   info: () => {},
-  error: () => {},
-  warn: () => {},
+  error: mockLoggerError,
+  warn: mockLoggerWarn,
   debug: () => {},
   fatal: () => {},
 };
@@ -56,6 +59,9 @@ mock.module('../../utils/ai-client', () => ({
   sendAIMessageStream: mock(() => Promise.resolve(new ReadableStream())),
 }));
 
+// NOTE: バレル (../../utils/ai-client) はモック済みだが、エラークラスは deriver と
+// 同一の実モジュールから import する — instanceof 判定が同一クラス参照で成立するため。
+const { ClaudeCliUnavailableError } = await import('../../utils/ai-client/claude-cli-provider');
 const { deriveTaskSpec, generateIntakeQuestions, generateIntakeGoalOptions } =
   await import('./task-spec-deriver');
 
@@ -66,6 +72,8 @@ beforeEach(() => {
   mockGetDefaultProvider.mockResolvedValue('claude');
   mockIsAnyApiKeyConfigured.mockReset();
   mockIsAnyApiKeyConfigured.mockResolvedValue(true);
+  mockLoggerWarn.mockClear();
+  mockLoggerError.mockClear();
 });
 
 // ---------------------------------------------------------------------------
@@ -182,6 +190,58 @@ describe('deriveTaskSpec', () => {
     expect(result.spec.goals).toEqual(['有効', 'トリム対象']);
     expect(result.spec.constraints).toEqual([]);
     expect(result.spec.acceptanceCriteria).toEqual([]);
+  });
+
+  // ログレベル降格分岐 (task #639): 外部要因 (quota/rate_limit) は WARN、
+  // それ以外 (auth/未分類) は従来どおり ERROR で記録されること。
+  const classifiedCliError = (reason: 'quota' | 'rate_limit' | 'auth') =>
+    new ClaudeCliUnavailableError(`Claude CLI exited 1: classified as ${reason}`, {
+      reason,
+      provider: 'claude',
+      retryWithFallback: reason !== 'auth',
+      rawMessage: `classified as ${reason}`,
+    });
+
+  test('quota 分類の ClaudeCliUnavailableError → logger.warn で記録し source=ai_error を返すこと', async () => {
+    mockSendAIMessage.mockRejectedValueOnce(classifiedCliError('quota'));
+
+    const result = await deriveTaskSpec('タスクの説明');
+
+    expect(result).toEqual({
+      spec: { goals: [], constraints: [], acceptanceCriteria: [] },
+      source: 'ai_error',
+    });
+    expect(mockLoggerWarn).toHaveBeenCalledTimes(1);
+    expect(mockLoggerError).not.toHaveBeenCalled();
+  });
+
+  test('rate_limit 分類の ClaudeCliUnavailableError → logger.warn で記録すること', async () => {
+    mockSendAIMessage.mockRejectedValueOnce(classifiedCliError('rate_limit'));
+
+    const result = await deriveTaskSpec('タスクの説明');
+
+    expect(result.source).toBe('ai_error');
+    expect(mockLoggerWarn).toHaveBeenCalledTimes(1);
+    expect(mockLoggerError).not.toHaveBeenCalled();
+  });
+
+  test('auth 分類の ClaudeCliUnavailableError → logger.error のままであること', async () => {
+    mockSendAIMessage.mockRejectedValueOnce(classifiedCliError('auth'));
+
+    const result = await deriveTaskSpec('タスクの説明');
+
+    expect(result.source).toBe('ai_error');
+    expect(mockLoggerError).toHaveBeenCalledTimes(1);
+    expect(mockLoggerWarn).not.toHaveBeenCalled();
+  });
+
+  test('分類なしの ClaudeCliUnavailableError / 一般エラー → logger.error のままであること', async () => {
+    mockSendAIMessage.mockRejectedValueOnce(new ClaudeCliUnavailableError('Claude CLI exited 1'));
+
+    await deriveTaskSpec('タスクの説明');
+
+    expect(mockLoggerError).toHaveBeenCalledTimes(1);
+    expect(mockLoggerWarn).not.toHaveBeenCalled();
   });
 
   test('7件以上の配列は先頭6件に切り詰められること', async () => {

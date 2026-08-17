@@ -12,6 +12,9 @@ import {
   isAnyApiKeyConfigured,
   type AIMessage,
 } from '../../utils/ai-client';
+// NOTE: バレル経由ではなく直接 import — バレルは同クラスを再エクスポートしておらず、
+// instanceof 判定にはスローする側 (claude-cli-provider) と同一のクラス参照が必要。
+import { ClaudeCliUnavailableError } from '../../utils/ai-client/claude-cli-provider';
 
 const logger = createLogger('task-spec-deriver');
 
@@ -194,7 +197,18 @@ export async function deriveTaskSpec(
     });
     return { spec: parseSpec(response.content), source: 'ai' };
   } catch (error) {
-    logger.error({ err: error }, '[task-spec-deriver] derive failed');
+    // NOTE: quota/rate_limit はサブスクリプション上限等の外部要因でコード修正では
+    // 解消できない。ERROR のままだと log-health-check がバースト毎に severity high の
+    // bug として再起票するため WARN に降格する (task #639)。auth はユーザー操作
+    // (claude login) で解消すべき要対応事象、未分類は真のコード起因の可能性が
+    // あるため、いずれも従来どおり ERROR を維持する。
+    const reason =
+      error instanceof ClaudeCliUnavailableError ? error.classification?.reason : undefined;
+    if (reason === 'quota' || reason === 'rate_limit') {
+      logger.warn({ err: error }, '[task-spec-deriver] derive failed (external AI limit)');
+    } else {
+      logger.error({ err: error }, '[task-spec-deriver] derive failed');
+    }
     return { spec: { ...EMPTY }, source: 'ai_error' };
   }
 }
