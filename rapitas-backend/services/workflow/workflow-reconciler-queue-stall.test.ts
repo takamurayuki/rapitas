@@ -75,9 +75,8 @@ mock.module('../observability', () => ({
   getCycleLogFilePath: () => '/tmp/cycle.ndjson',
 }));
 
-const { sweepStaleRunningItems, detectQueueStarvation, resetQueueStarvationTracker } = await import(
-  './workflow-reconciler-queue-stall'
-);
+const { sweepStaleRunningItems, detectQueueStarvation, resetQueueStarvationTracker } =
+  await import('./workflow-reconciler-queue-stall');
 
 const NOW = 1_800_000_000_000;
 
@@ -101,8 +100,9 @@ describe('sweepStaleRunningItems', () => {
 
     expect(released).toBe(0);
     expect(resolveTaskWorkflowStateMock).not.toHaveBeenCalled();
-    const where = (findManyMock.mock.calls[0]?.[0] as { where: { status: string; startedAt: { lt: Date } } })
-      .where;
+    const where = (
+      findManyMock.mock.calls[0]?.[0] as { where: { status: string; startedAt: { lt: Date } } }
+    ).where;
     expect(where.status).toBe('running');
     expect(where.startedAt.lt.getTime()).toBe(NOW - RUNNING_ITEM_STALE_MS);
   });

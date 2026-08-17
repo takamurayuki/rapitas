@@ -41,8 +41,9 @@ describe('notifyStallReleased', () => {
     await notifyStallReleased(1, 617, 2, 'terminal_task_active_item_residue');
 
     expect(notificationCreateMock).toHaveBeenCalledTimes(1);
-    const data = (notificationCreateMock.mock.calls[0]?.[0] as { data: { type: string; metadata: string } })
-      .data;
+    const data = (
+      notificationCreateMock.mock.calls[0]?.[0] as { data: { type: string; metadata: string } }
+    ).data;
     expect(data.type).toBe('auto_run_stall_released');
     expect(JSON.parse(data.metadata).dedupKey).toBe('auto_run_stall_released:617');
   });
@@ -70,8 +71,9 @@ describe('notifyQueueStarvation', () => {
     await notifyQueueStarvation(null, 4);
 
     expect(notificationCreateMock).toHaveBeenCalledTimes(1);
-    const data = (notificationCreateMock.mock.calls[0]?.[0] as { data: { type: string; metadata: string } })
-      .data;
+    const data = (
+      notificationCreateMock.mock.calls[0]?.[0] as { data: { type: string; metadata: string } }
+    ).data;
     expect(data.type).toBe('auto_run_queue_starved');
     expect(JSON.parse(data.metadata).dedupKey).toBe('auto_run_queue_starved:global');
   });
