@@ -7,6 +7,9 @@
  */
 import { describe, test, expect } from 'bun:test';
 import { execSync } from 'child_process';
+import { mkdtempSync, rmSync } from 'fs';
+import { tmpdir } from 'os';
+import { join } from 'path';
 import {
   isPrimaryWorkTree,
   ensureNotPrimaryWorkTree,
@@ -66,6 +69,57 @@ describe('ensureNotPrimaryWorkTree', () => {
     await expect(
       ensureNotPrimaryWorkTree('/repo', 'switch to branch feature/x', primary),
     ).rejects.toThrow(/switch to branch feature\/x/);
+  });
+});
+
+describe('ensureNotPrimaryWorkTree — default detection path (no injected isPrimary)', () => {
+  test('a missing path is reported as undetermined / path missing — NOT as primary (still refused)', async () => {
+    // NOTE: This is the task-560 phantom-worktree scenario: the directory vanished,
+    // yet the old wording blamed the PRIMARY checkout and hid the real failure.
+    const missing = join(tmpdir(), 'wt-guard-definitely-missing-zzz-601');
+    let caught: unknown;
+    try {
+      await ensureNotPrimaryWorkTree(missing, 'switch to branch bugfix/t601');
+    } catch (e) {
+      caught = e;
+    }
+    expect(caught).toBeInstanceOf(Error);
+    const message = (caught as Error).message;
+    // Fail safe is intact (the call threw) AND the message states the true cause.
+    expect(message).toMatch(/could not determine/i);
+    expect(message).toMatch(/does not exist/i);
+    expect(message).not.toMatch(/in the PRIMARY git working tree/);
+    expect(message).toMatch(/switch to branch bugfix\/t601/);
+  });
+
+  test('a real but non-git directory carries the original git failure in the error', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'wt-guard-test-'));
+    try {
+      let caught: unknown;
+      try {
+        await ensureNotPrimaryWorkTree(dir, 'commit');
+      } catch (e) {
+        caught = e;
+      }
+      expect(caught).toBeInstanceOf(Error);
+      const err = caught as Error;
+      expect(err.message).toMatch(/could not determine/i);
+      // The original exception must be preserved — both embedded in the message
+      // text ("Cause: ...") and as the structured `cause`.
+      const causeText = err.cause instanceof Error ? err.cause.message : String(err.cause);
+      expect(`${err.message}\n${causeText}`).toMatch(/not a git repository/i);
+      expect(err.cause).toBeDefined();
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  test('the actual primary checkout still gets the traditional PRIMARY wording (regression)', async () => {
+    const primaryPath = getPrimaryWorktreePath();
+    if (!primaryPath) return; // skip when git is unavailable
+    await expect(ensureNotPrimaryWorkTree(primaryPath, 'commit')).rejects.toThrow(
+      /Refusing to commit in the PRIMARY git working tree/,
+    );
   });
 });
 
