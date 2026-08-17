@@ -136,6 +136,85 @@ describe('callClaudeCli — process failures', () => {
     await expect(promise).rejects.toThrow(/partial stdout output/);
   });
 
+  // Mirrors the real task #639 failure shape: exit 1, empty stderr, and a JSON
+  // error envelope on stdout whose `result` body sits PAST the old 300-char
+  // truncation point (the prefix below is ~340 chars before `result`).
+  const errorEnvelope = (result: string) =>
+    JSON.stringify({
+      type: 'result',
+      subtype: 'error_during_execution',
+      is_error: true,
+      duration_ms: 0,
+      duration_api_ms: 0,
+      num_turns: 1,
+      stop_reason: 'stop_sequence',
+      session_id: 'd3500e26-5923-4984-9b75-da4a1b5f5510',
+      total_cost_usd: 0,
+      usage: {
+        input_tokens: 0,
+        cache_creation_input_tokens: 0,
+        cache_read_input_tokens: 0,
+        output_tokens: 0,
+        output_tokens_details: { thinking_tokens: 0 },
+      },
+      result,
+    });
+
+  test('non-zero exit with empty stderr and a JSON error envelope surfaces the result body', async () => {
+    const promise = callClaudeCli(undefined, [{ role: 'user', content: 'hi' }], undefined, 100);
+    await flush();
+    const diagnostic =
+      'Credit balance too low — add funds or wait for the subscription window to reset.';
+    spawnedChildren[0].stdout.emit('data', errorEnvelope(diagnostic));
+    spawnedChildren[0].emit('close', 1);
+    try {
+      await promise;
+      throw new Error('expected rejection');
+    } catch (err) {
+      const e = err as InstanceType<typeof ClaudeCliUnavailableError>;
+      expect(e).toBeInstanceOf(ClaudeCliUnavailableError);
+      expect(e.message).toContain('Claude CLI exited 1');
+      expect(e.message).toContain(diagnostic);
+    }
+  });
+
+  test('a quota-worded result body yields classification.reason === "quota"', async () => {
+    const promise = callClaudeCli(undefined, [{ role: 'user', content: 'hi' }], undefined, 100);
+    await flush();
+    spawnedChildren[0].stdout.emit('data', errorEnvelope('Credit balance too low'));
+    spawnedChildren[0].emit('close', 1);
+    try {
+      await promise;
+      throw new Error('expected rejection');
+    } catch (err) {
+      const e = err as InstanceType<typeof ClaudeCliUnavailableError>;
+      expect(e.classification?.reason).toBe('quota');
+      expect(e.classification?.provider).toBe('claude');
+    }
+  });
+
+  test('a JSON envelope without a string result/error keeps the truncated stdout fallback', async () => {
+    const promise = callClaudeCli(undefined, [{ role: 'user', content: 'hi' }], undefined, 100);
+    await flush();
+    spawnedChildren[0].stdout.emit('data', JSON.stringify({ is_error: true, result: 42 }));
+    spawnedChildren[0].emit('close', 1);
+    await expect(promise).rejects.toThrow(/Claude CLI exited 1: \{"is_error":true/);
+  });
+
+  test('an unclassifiable failure leaves classification undefined', async () => {
+    const promise = callClaudeCli(undefined, [{ role: 'user', content: 'hi' }], undefined, 100);
+    await flush();
+    spawnedChildren[0].stderr.emit('data', 'some totally unrecognized failure text');
+    spawnedChildren[0].emit('close', 1);
+    try {
+      await promise;
+      throw new Error('expected rejection');
+    } catch (err) {
+      const e = err as InstanceType<typeof ClaudeCliUnavailableError>;
+      expect(e.classification).toBeUndefined();
+    }
+  });
+
   test('a stuck CLI times out, kills the child, and rejects', async () => {
     const promise = callClaudeCli(undefined, [{ role: 'user', content: 'hi' }], undefined, 100);
     await flush();

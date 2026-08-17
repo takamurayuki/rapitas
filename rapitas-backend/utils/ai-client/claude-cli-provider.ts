@@ -15,6 +15,7 @@ import { createLogger } from '../../config/logger';
 // must be visible to the shared process tracker so the task-boundary restart
 // can require "0 live aux CLI children" and post-crash cleanup can reap them.
 import { registerProcess, unregisterProcess } from '../../services/agents/agent-process-tracker';
+import { classifyAgentError, type ClassifiedError } from '../../services/ai/agent-error-classifier';
 import { type AIMessage, type AIResponse } from './types';
 
 const log = createLogger('ai-client:claude-cli');
@@ -96,9 +97,12 @@ function checkClaudeAvailable(): Promise<boolean> {
  * instead of silently falling back to the paid API.
  */
 export class ClaudeCliUnavailableError extends Error {
-  constructor(message: string) {
+  /** Known external cause (quota/auth/…) — lets callers downgrade severity for unfixable failures. */
+  readonly classification?: ClassifiedError;
+  constructor(message: string, classification?: ClassifiedError) {
     super(message);
     this.name = 'ClaudeCliUnavailableError';
+    this.classification = classification;
   }
 }
 
@@ -243,6 +247,20 @@ function trackAuxCliChild(child: ChildProcess): () => void {
   };
 }
 
+// NOTE: With an empty stderr the CLI emits its JSON error envelope on stdout; the old
+// blind 300-char slice cut off inside `usage`, hiding the root-cause `result` body (task #639).
+function buildExitError(code: number | null, stdout: string, stderr: string) {
+  let detail = (stderr || stdout).slice(0, 300);
+  const json = (!stderr.trim() && extractLastJsonObject(stdout)) || '';
+  try {
+    const parsed = JSON.parse(json) as Record<string, unknown>;
+    const body = [parsed.result, parsed.error].find((v) => typeof v === 'string' && v.trim());
+    if (typeof body === 'string') detail = body.slice(0, 1000); // cap keeps logs bounded
+  } catch {} // empty or non-JSON stdout — keep the truncated fallback
+  const cls = classifyAgentError(`${detail}\n${stdout}`, 'claude') ?? undefined;
+  return new ClaudeCliUnavailableError(`Claude CLI exited ${code}: ${detail}`, cls);
+}
+
 /** Spawn the CLI with the given args, feed `prompt` on stdin, resolve stdout. */
 function spawnCli(args: string[], prompt: string): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -280,15 +298,8 @@ function spawnCli(args: string[], prompt: string): Promise<string> {
     child.on('close', (code) => {
       clearTimeout(timer);
       untrack();
-      if (code === 0) {
-        resolve(stdout);
-      } else {
-        reject(
-          new ClaudeCliUnavailableError(
-            `Claude CLI exited ${code}: ${(stderr || stdout).slice(0, 300)}`,
-          ),
-        );
-      }
+      if (code === 0) resolve(stdout);
+      else reject(buildExitError(code, stdout, stderr));
     });
 
     const buf = Buffer.from(prompt, 'utf8');
