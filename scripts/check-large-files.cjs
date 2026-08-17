@@ -31,7 +31,11 @@
 const fs = require('node:fs');
 const path = require('node:path');
 
-const ROOT = path.resolve(__dirname, '..');
+// CHECK_LARGE_FILES_ROOT: test-only override so the integration tests can run
+// the script against a fixture repo (task 600). Unset = identical behavior.
+const ROOT = process.env.CHECK_LARGE_FILES_ROOT
+  ? path.resolve(process.env.CHECK_LARGE_FILES_ROOT)
+  : path.resolve(__dirname, '..');
 const SOFT = Number(process.env.SOFT_LIMIT || 300);
 const HARD = Number(process.env.HARD_LIMIT || 500);
 
@@ -132,6 +136,35 @@ function writeBaseline(payload) {
   fs.writeFileSync(BASELINE_PATH, JSON.stringify(payload, null, 2) + '\n');
 }
 
+/**
+ * Ratchet verdict: which hard-limit findings fail the gate under a baseline.
+ * GREW = listed in the baseline but now above its snapshot lineCount;
+ * NEW = over the hard limit and absent from the baseline. Files at or below
+ * their baseline snapshot are exempt. Pure — exported for unit tests
+ * (see scripts/check-large-files.test.cjs, task 600).
+ *
+ * @param {Array<{file: string, lines: number, severity: 'warn'|'error'}>} findings
+ * @param {{files: Record<string, {lineCount: number}>} | null} baseline
+ * @returns {{grew: Array<{file: string, lines: number, baseline: number}>, newViolations: Array<{file: string, lines: number}>}}
+ */
+function computeGateOutcome(findings, baseline) {
+  /** @type {Array<{file: string, lines: number, baseline: number}>} */
+  const grew = [];
+  /** @type {Array<{file: string, lines: number}>} */
+  const newViolations = [];
+  if (!baseline) return { grew, newViolations };
+  for (const f of findings) {
+    if (f.severity !== 'error') continue;
+    const base = baseline.files[f.file];
+    if (!base) {
+      newViolations.push({ file: f.file, lines: f.lines });
+    } else if (f.lines > base.lineCount) {
+      grew.push({ file: f.file, lines: f.lines, baseline: base.lineCount });
+    }
+  }
+  return { grew, newViolations };
+}
+
 function main() {
   /** @type {Array<{file: string, lines: number, severity: 'warn' | 'error'}>} */
   const findings = [];
@@ -170,22 +203,7 @@ function main() {
 
   // ─── Apply baseline (ratchet mode) ─────────────────────────────────────
   const baseline = loadBaseline();
-  /** @type {Array<{file: string, lines: number, baseline: number}>} */
-  const grew = [];
-  /** @type {Array<{file: string, lines: number}>} */
-  const newViolations = [];
-
-  if (baseline) {
-    for (const f of findings) {
-      if (f.severity !== 'error') continue;
-      const base = baseline.files[f.file];
-      if (!base) {
-        newViolations.push({ file: f.file, lines: f.lines });
-      } else if (f.lines > base.lineCount) {
-        grew.push({ file: f.file, lines: f.lines, baseline: base.lineCount });
-      }
-    }
-  }
+  const { grew, newViolations } = computeGateOutcome(findings, baseline);
 
   if (JSON_OUT) {
     console.log(
@@ -249,4 +267,8 @@ function main() {
   }
 }
 
-main();
+module.exports = { computeGateOutcome };
+
+if (require.main === module) {
+  main();
+}

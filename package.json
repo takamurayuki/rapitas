@@ -35,6 +35,7 @@
     "env:check": "node scripts/verify-env.cjs",
     "check:files": "node scripts/check-large-files.cjs",
     "check:files:warn": "node scripts/check-large-files.cjs --warn-only",
+    "check:files:test": "node --test scripts/check-large-files.test.cjs",
     "check:todos": "node scripts/check-todos.cjs",
     "check:todos:ci": "node scripts/check-todos.cjs --max-hack 14 --max-fixme 1",
     "snapshot": "node scripts/snapshot-bottlenecks.cjs",

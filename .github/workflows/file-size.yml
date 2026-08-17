@@ -27,6 +27,12 @@ jobs:
         with:
           node-version: '20'
 
+      # Pins the ratchet semantics (GREW/NEW only fail) before scanning real
+      # files, so a logic regression is caught here rather than as a
+      # mysterious red/green flip on unrelated PRs (task 600).
+      - name: Run file-size script tests
+        run: node --test scripts/check-large-files.test.cjs
+
       # Hard fail if any NEW file exceeds 500 lines, OR if any file already in
       # .baselines/file-size.json grew beyond its snapshot. Existing baseline
       # files are exempt at their current size — split them to remove the
