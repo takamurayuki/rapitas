@@ -20,6 +20,7 @@ import {
   BLOCKED_RETRY_SETTLE_MS,
   classifyBlockedExclusion,
   resolveVerifyRepairLimit,
+  VERIFY_NON_CONVERGENCE_CAUSE,
 } from './blocked-task-policy';
 import { resolveBlockedTaskEvidence } from './blocked-task-evidence';
 import { escalateBlockedTask } from './blocked-task-escalation';
@@ -196,12 +197,26 @@ export async function escalateAbandonedBlocked(nowMs: number): Promise<number> {
       .count({ where: { taskId: t.id, cause: 'blocked_auto_retry' } })
       .catch(() => 0);
 
+    // Mirror requeueBlockedTasks' non-convergence skip (task 619, same window)
+    // so the classifier sees exactly the signal retry acted on — a drift here
+    // would double-handle or abandon the cutoff task.
+    const nonConvergedCount = await prisma.workflowTransition
+      .count({
+        where: {
+          taskId: t.id,
+          cause: VERIFY_NON_CONVERGENCE_CAUSE,
+          ...(lastRetry ? { createdAt: { gt: lastRetry.createdAt } } : {}),
+        },
+      })
+      .catch(() => 0);
+
     const classification = classifyBlockedExclusion({
       workflowStatus: t.workflowStatus,
       ageMs: nowMs - t.updatedAt.getTime(),
       repairs,
       verifyRepairLimit,
       attempts,
+      nonConverged: nonConvergedCount > 0,
     });
     if (classification === 'retryable') continue; // requeueBlockedTasks owns it
 

@@ -16,6 +16,7 @@ import {
   MAX_ORPHAN_REQUEUE_AGE_MS,
   MAX_BLOCKED_RETRY,
   resolveVerifyRepairLimit,
+  VERIFY_NON_CONVERGENCE_CAUSE,
 } from './blocked-task-policy';
 
 const log = createLogger('workflow-reconciler');
@@ -177,6 +178,27 @@ export async function requeueBlockedTasks(nowMs: number): Promise<number> {
       log.info(
         { taskId: t.id, repairs, verifyRepairLimit },
         '[reconciler] Blocked task exhausted verify-repair — leaving blocked (needs split/manual), not auto-retrying',
+      );
+      continue;
+    }
+
+    // Skip tasks CUT OFF for non-convergence (task 619): the same acceptance
+    // criterion was flagged by 2+ repair bounces, so a blind retry would just
+    // replay the treading-water loop and re-trigger the same cutoff. Same
+    // window as the repair budget (reset by a manual retry).
+    const nonConverged = await prisma.workflowTransition
+      .count({
+        where: {
+          taskId: t.id,
+          cause: VERIFY_NON_CONVERGENCE_CAUSE,
+          ...(lastRetry ? { createdAt: { gt: lastRetry.createdAt } } : {}),
+        },
+      })
+      .catch(() => 0);
+    if (nonConverged > 0) {
+      log.info(
+        { taskId: t.id, nonConverged },
+        '[reconciler] Blocked task was cut off for non-convergence — leaving blocked (needs split/spec revision), not auto-retrying',
       );
       continue;
     }
