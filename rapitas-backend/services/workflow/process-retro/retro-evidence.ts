@@ -56,9 +56,39 @@ export const REPLAN_CAUSES = ['plan_invalid_replan', 'plan_invalid_replan_exhaus
 export const ANOMALY_CAUSES = ['rejected_resave_blocked', 'transition_rejected'] as const;
 
 /**
+ * Whether a row is a critic-follow rejection: a transition_rejected recorded
+ * because the state machine correctly refused an in-flight agent's save right
+ * after an async critic-gate rollback. Detected deterministically via the
+ * metadata correlation key `criticBouncePhase` persisted by the save guard
+ * (guards.ts) — no time-window heuristic. Rows with malformed metadata or a
+ * missing key return false (fail-open to the legacy anomaly classification;
+ * never throws).
+ *
+ * @param row - One transition row. / 遷移行1件
+ * @returns true when the row follows a critic bounce. / 批評追随拒否なら true
+ */
+export function isCriticFollowRejection(row: RetroTransitionRow): boolean {
+  if (row.cause !== 'transition_rejected') return false;
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(row.metadata || '{}');
+  } catch {
+    return false;
+  }
+  if (parsed === null || typeof parsed !== 'object') return false;
+  return typeof (parsed as { criticBouncePhase?: unknown }).criticBouncePhase === 'string';
+}
+
+/**
  * Count cause-class occurrences plus invariant violations over a task's
  * transitions. Pure — replans are counted both in repairCount (superset) and
- * replanCount (drill-down for the replan_loop category).
+ * replanCount (drill-down for the replan_loop category). Critic-follow
+ * rejections (see isCriticFollowRejection) are counted ONLY in
+ * criticFollowRejections — excluded from anomalyCount, because they are the
+ * designed self-repair chain, not abnormal causes. invariantCount likewise
+ * excludes critic-bounce causes (already in criticRebounds — counting them
+ * again misreads a single chain as independent violations, task 620) and
+ * critic-follow rejections, leaving only genuine invariant breakage.
  *
  * @param rows - Transition rows (any order). / 遷移行(順不同可)
  * @returns Per-class counters. / cause分類別カウント
@@ -74,14 +104,17 @@ export function countCauses(rows: RetroTransitionRow[]): CauseCounts {
     repairCount: 0,
     replanCount: 0,
     anomalyCount: 0,
+    criticFollowRejections: 0,
     invariantCount: 0,
   };
   for (const r of rows) {
+    const criticFollow = isCriticFollowRejection(r);
     if (criticSet.has(r.cause)) counts.criticRebounds++;
     if (repairSet.has(r.cause)) counts.repairCount++;
     if (replanSet.has(r.cause)) counts.replanCount++;
-    if (anomalySet.has(r.cause)) counts.anomalyCount++;
-    if (r.invariantViolation) counts.invariantCount++;
+    if (criticFollow) counts.criticFollowRejections++;
+    if (anomalySet.has(r.cause) && !criticFollow) counts.anomalyCount++;
+    if (r.invariantViolation && !criticSet.has(r.cause) && !criticFollow) counts.invariantCount++;
   }
   return counts;
 }
@@ -213,8 +246,11 @@ export function extractCriticReasons(rows: RetroTransitionRow[]): string[] {
 }
 
 /**
- * A clean round has zero critic bounces, repairs, replans, anomalies, and
- * invariant violations — nothing worth an AI call.
+ * A clean round has zero critic bounces, repairs, replans, anomalies,
+ * critic-follow rejections, and invariant violations — nothing worth an AI
+ * call. criticFollowRejections is included defensively: in practice such rows
+ * always co-occur with the critic bounce itself (criticRebounds ≥ 1), but a
+ * lone follow-rejection must still keep the round non-clean.
  *
  * @param bundle - The evidence bundle. / 証拠バンドル
  * @returns true when the round is clean. / クリーンなら true
@@ -225,6 +261,7 @@ export function isCleanRound(bundle: EvidenceBundle): boolean {
     bundle.repairCount === 0 &&
     bundle.replanCount === 0 &&
     bundle.anomalyCount === 0 &&
+    bundle.criticFollowRejections === 0 &&
     bundle.invariantCount === 0
   );
 }

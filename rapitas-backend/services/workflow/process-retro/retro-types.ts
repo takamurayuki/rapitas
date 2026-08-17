@@ -35,7 +35,19 @@ export interface CauseCounts {
   replanCount: number;
   /** Transitions whose cause is an abnormal rejection. */
   anomalyCount: number;
-  /** Rows flagged invariantViolation=true. */
+  /**
+   * transition_rejected rows correlated (via metadata.criticBouncePhase) to a
+   * critic-gate bounce: the state machine correctly rejecting an in-flight
+   * agent's save right after an async critic rollback. Part of the DESIGNED
+   * self-repair chain — excluded from anomalyCount/invariantCount so the retro
+   * AI cannot misread it as independent gate failures (task 620).
+   */
+  criticFollowRejections: number;
+  /**
+   * Rows flagged invariantViolation=true, excluding critic-bounce causes
+   * (already counted in criticRebounds) and critic-follow rejections — i.e.
+   * only genuine invariant breakage remains.
+   */
   invariantCount: number;
 }
 
