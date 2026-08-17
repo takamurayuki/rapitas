@@ -157,7 +157,8 @@ mock.module('./orchestrator/recovery-manager', () => ({
   resumeInterruptedExecution: resumeInterruptedExecutionMock,
   buildResumePrompt: mock(() => ''),
   // NOTE: execution-lease exports added by f996dff5 — bun mock.module replaces
-  // the WHOLE module, so omitting them breaks agent-orchestrator's import.
+  // the WHOLE module, so omitting them breaks agent-orchestrator's import
+  // (task 600).
   startExecutionLeaseSweep: mock(() => {}),
   sweepDeadLeaseExecutions: mock(() => Promise.resolve({ recovered: 0 })),
 }));
@@ -369,8 +370,8 @@ describe('git operations delegation', () => {
       'develop',
     );
     expect(gitOpsMocks.removeWorktree).toHaveBeenCalledWith('/base', '/base/wt-42');
-    // NOTE: keepPaths (2nd arg, default []) added by ddb4bd89 — the delegation
-    // always forwards it.
+    // NOTE: keepPaths (2nd arg, default []) added by ddb4bd89 (worktree keep-list
+    // protection) — the delegation always forwards it (task 600).
     expect(gitOpsMocks.cleanupStaleWorktrees).toHaveBeenCalledWith('/base', []);
   });
 });

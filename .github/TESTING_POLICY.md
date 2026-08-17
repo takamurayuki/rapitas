@@ -96,6 +96,14 @@
 - pre-existing 失敗は `test-baseline:<file>` の dedupKey で懸念バックログへ自動起票される。
 - 環境変数 `RAPITAS_TEST_TRIAGE=1`（デフォルト ON）で有効。
 
+### 記録（2026-08-17, task 600）
+
+`agent-orchestrator.{delegation,lifecycle,state-and-events,stop}.test.ts` 4件の
+stale mock（`startExecutionLeaseSweep` export 欠落）を修正した。full-suite が
+恒常的に赤かった主因はこの4件であり、本修正が §6 昇格パスの
+「20連続グリーン」カウントの起点となる。経緯と決定は
+[ADR-0007](../docs/adr/0007-always-red-ci-gates-file-size-and-full-suite.md) を参照。
+
 ---
 
 ## 4. retrigger ポリシー
