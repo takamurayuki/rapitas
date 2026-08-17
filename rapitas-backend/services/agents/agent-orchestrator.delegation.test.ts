@@ -156,6 +156,10 @@ mock.module('./orchestrator/recovery-manager', () => ({
   recoverStaleExecutions: recoverStaleExecutionsMock,
   resumeInterruptedExecution: resumeInterruptedExecutionMock,
   buildResumePrompt: mock(() => ''),
+  // NOTE: execution-lease exports added by f996dff5 — bun mock.module replaces
+  // the WHOLE module, so omitting them breaks agent-orchestrator's import.
+  startExecutionLeaseSweep: mock(() => {}),
+  sweepDeadLeaseExecutions: mock(() => Promise.resolve({ recovered: 0 })),
 }));
 
 const { AgentOrchestrator } = await import('./agent-orchestrator');
@@ -313,7 +317,15 @@ describe('git operations delegation', () => {
     await orchestrator.createPullRequest('/repo', 'title', 'body', 'develop');
     await orchestrator.mergePullRequest('/repo', 42, 3, 'develop');
 
-    expect(gitOpsMocks.createPullRequest).toHaveBeenCalledWith('/repo', 'title', 'body', 'develop');
+    // NOTE: headBranch (5th arg) added for task 597 — undefined when the caller
+    // does not pin the PR head (legacy 4-arg call sites).
+    expect(gitOpsMocks.createPullRequest).toHaveBeenCalledWith(
+      '/repo',
+      'title',
+      'body',
+      'develop',
+      undefined,
+    );
     expect(gitOpsMocks.mergePullRequest).toHaveBeenCalledWith('/repo', 42, 3, 'develop');
   });
 
@@ -357,7 +369,9 @@ describe('git operations delegation', () => {
       'develop',
     );
     expect(gitOpsMocks.removeWorktree).toHaveBeenCalledWith('/base', '/base/wt-42');
-    expect(gitOpsMocks.cleanupStaleWorktrees).toHaveBeenCalledWith('/base');
+    // NOTE: keepPaths (2nd arg, default []) added by ddb4bd89 — the delegation
+    // always forwards it.
+    expect(gitOpsMocks.cleanupStaleWorktrees).toHaveBeenCalledWith('/base', []);
   });
 });
 

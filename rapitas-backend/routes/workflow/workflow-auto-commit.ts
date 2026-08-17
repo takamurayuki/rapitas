@@ -340,11 +340,16 @@ export async function performAutoCommitAndPR(
           } else {
             const prTitle = `[Task-${taskId}] ${task.title}`;
             const prBody = `## Summary\n\nAuto-generated PR for Task #${taskId}: ${task.title}\n\n## Verification Report\n\n${verifyContent}\n\n---\n🤖 Generated automatically by Rapitas AI Agent`;
+            // Pass the session's branchName as the explicit PR head — gitCwd's
+            // raw checkout can sit on the base branch when the worktree is gone
+            // (task 594: head resolved to "develop" and PR creation failed with
+            // head==base despite the session branch being pushed).
             const prResult = await orchestrator.createPullRequest(
               gitCwd,
               prTitle,
               prBody,
               targetBranch,
+              branchName ?? undefined,
             );
             result.autoPRResult = prResult;
 

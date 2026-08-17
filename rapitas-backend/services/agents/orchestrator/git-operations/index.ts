@@ -81,8 +81,9 @@ export class GitOperations {
     title: string,
     body: string,
     baseBranch?: string,
+    headBranch?: string,
   ): Promise<{ success: boolean; prUrl?: string; prNumber?: number; error?: string }> {
-    return createPullRequest(workingDirectory, title, body, baseBranch);
+    return createPullRequest(workingDirectory, title, body, baseBranch, headBranch);
   }
 
   /** @see mergePullRequest */
