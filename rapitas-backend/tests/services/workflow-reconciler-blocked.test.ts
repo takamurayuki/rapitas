@@ -209,6 +209,21 @@ describe('requeueBlockedTasks 回帰（受入基準2・4）', () => {
     expect(mockPrisma.task.update).not.toHaveBeenCalled();
     expect(recordTransition).not.toHaveBeenCalled();
   });
+
+  test('task 619: 非収束打ち切り済み（verify_repair_non_convergence 遷移あり）は盲目再試行されない', async () => {
+    mockPrisma.task.findMany.mockResolvedValue([{ id: 614, workflowStatus: 'draft' }]);
+    // 修復予算は残っている（repairs 0 < limit 3）が、非収束遷移が 1 件ある状態
+    mockPrisma.workflowTransition.count.mockImplementation((args: unknown) => {
+      const where = (args as { where: { cause: string } }).where;
+      return Promise.resolve(where.cause === 'verify_repair_non_convergence' ? 1 : 0);
+    });
+
+    const retried = await requeueBlockedTasks(NOW);
+
+    expect(retried).toBe(0);
+    expect(mockPrisma.task.update).not.toHaveBeenCalled();
+    expect(recordTransition).not.toHaveBeenCalled();
+  });
 });
 
 describe('escalateAbandonedBlocked（受入基準5まわり・プレモーテム2）', () => {
@@ -256,6 +271,22 @@ describe('escalateAbandonedBlocked（受入基準5まわり・プレモーテム
     expect(escalated).toBe(1);
     const call = escalateBlockedTask.mock.calls[0] as unknown[];
     expect(call[2]).toBe('retry_cap_exhausted');
+  });
+
+  test('task 619: 非収束打ち切り済みタスクは verify_no_convergence でエスカレーションに渡る（二重試行しない）', async () => {
+    mockPrisma.task.findMany.mockResolvedValue([blockedTask({ id: 614 })]);
+    // 修復予算・再試行上限とも未到達でも、非収束遷移があれば retryable 扱いにしない
+    mockPrisma.workflowTransition.count.mockImplementation((args: unknown) => {
+      const where = (args as { where: { cause: string } }).where;
+      return Promise.resolve(where.cause === 'verify_repair_non_convergence' ? 1 : 0);
+    });
+
+    const escalated = await escalateAbandonedBlocked(NOW);
+
+    expect(escalated).toBe(1);
+    const call = escalateBlockedTask.mock.calls[0] as unknown[];
+    expect((call[1] as { id: number }).id).toBe(614);
+    expect(call[2]).toBe('verify_no_convergence');
   });
 
   test('成功証拠のあるタスクはエスカレーションしない（是正パスの担当）', async () => {
@@ -313,5 +344,26 @@ describe('classifyBlockedExclusion（境界値）', () => {
   test('再試行上限境界: attempts >= 2 で retry_cap_exhausted', () => {
     expect(classifyBlockedExclusion({ ...base, attempts: 1 })).toBe('retryable');
     expect(classifyBlockedExclusion({ ...base, attempts: 2 })).toBe('retry_cap_exhausted');
+  });
+
+  test('task 619: nonConverged は awaiting_question 以外のどの条件よりも優先される', () => {
+    expect(classifyBlockedExclusion({ ...base, nonConverged: true })).toBe('verify_no_convergence');
+    expect(
+      classifyBlockedExclusion({
+        ...base,
+        nonConverged: true,
+        ageMs: MAX_ORPHAN_REQUEUE_AGE_MS + 1,
+        repairs: 99,
+        attempts: 99,
+      }),
+    ).toBe('verify_no_convergence');
+    // 人間の回答待ちは常に最優先（質問を破壊しない）
+    expect(
+      classifyBlockedExclusion({
+        ...base,
+        nonConverged: true,
+        workflowStatus: 'awaiting_question',
+      }),
+    ).toBe('awaiting_question');
   });
 });

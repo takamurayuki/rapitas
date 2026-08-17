@@ -33,6 +33,11 @@ const REASON_COPY: Record<BlockedExclusionReason, { needs: string; notificationT
     needs: '検証修復の予算を使い切りました。タスクの分割が必要です。',
     notificationType: 'blocked_escalation',
   },
+  verify_no_convergence: {
+    needs:
+      '差し戻しが収束していません（同一の受入基準が繰り返し未対応）。タスク分割または仕様の見直しが必要です。',
+    notificationType: 'blocked_escalation',
+  },
   retry_cap_exhausted: {
     needs: '自動再試行の上限に達しました。手動での調査が必要です。',
     notificationType: 'blocked_escalation',
@@ -56,6 +61,9 @@ const REASON_COPY: Record<BlockedExclusionReason, { needs: string; notificationT
  * @param task - Blocked task (id/title/themeId). / 対象タスク
  * @param reason - Exclusion classification. / 除外理由
  * @param nowMs - Current time (ms). / 現在時刻
+ * @param detail - Case-specific evidence appended to the notification message
+ *          and the concern detail (e.g. which criterion was flagged how many
+ *          times — the static REASON_COPY cannot carry that). / 個別根拠文
  * @returns true when escalated now; false when already escalated (or the
  *          idempotency check failed — fail-closed against duplicates). / 実施有無
  */
@@ -64,6 +72,7 @@ export async function escalateBlockedTask(
   task: { id: number; title: string; themeId: number | null },
   reason: BlockedExclusionReason,
   nowMs: number,
+  detail?: string,
 ): Promise<boolean> {
   // Permanent idempotency gate. A count failure escalates NOTHING — repeating
   // a notification is worse than deferring it to the next cycle.
@@ -89,7 +98,7 @@ export async function escalateBlockedTask(
       data: {
         type: copy.notificationType,
         title: 'ブロックされたタスクが対応待ちです',
-        message: `#${task.id}「${task.title}」は自動再試行の対象外です（理由: ${reason}）。${copy.needs}`,
+        message: `#${task.id}「${task.title}」は自動再試行の対象外です（理由: ${reason}）。${copy.needs}${detail ? ` ${detail}` : ''}`,
         link: `/tasks?taskId=${task.id}`,
         metadata: JSON.stringify({ taskId: task.id, reason, source: 'blocked_escalation' }),
       },
@@ -107,6 +116,7 @@ export async function escalateBlockedTask(
         detail: [
           `タスク #${task.id}「${task.title}」が status=blocked のまま自動再試行から除外されています。`,
           `除外理由: ${reason} — ${copy.needs}`,
+          ...(detail ? [detail] : []),
           `検出時刻: ${new Date(nowMs).toISOString()}`,
           '成功証拠（PR実在）は確認できなかったため、done への自動是正は行っていません。',
         ].join('\n'),

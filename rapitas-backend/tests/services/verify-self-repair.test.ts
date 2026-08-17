@@ -11,11 +11,22 @@ const mockPrisma = {
   workflowTransition: {
     count: mock(() => Promise.resolve(0)),
     findFirst: mock(() => Promise.resolve(null as { cause: string; createdAt: Date } | null)),
+    // NOTE: Added (task 619) — the non-convergence check reads prior repair
+    // reasons. Default [] keeps every pre-existing case on the bounce path.
+    findMany: mock(() => Promise.resolve([] as { metadata: string | null }[])),
   },
   workflowFile: { findFirst: mock(() => Promise.resolve(null)) },
   task: {
-    update: mock(() => Promise.resolve({})),
-    findUnique: mock(() => Promise.resolve({ themeId: null })),
+    // NOTE: updateMany に追随（96012d96 の CAS 化でサービス側が update → updateMany に
+    // 変わった際、このモックが未更新で全ケース throw していた）。count:1 = CAS成立。
+    updateMany: mock(() => Promise.resolve({ count: 1 })),
+    findUnique: mock(() =>
+      Promise.resolve({ themeId: null } as {
+        themeId: number | null;
+        title?: string;
+        acceptanceCriteria?: string | null;
+      }),
+    ),
   },
   // NOTE: Added — verify-self-repair.ts:52 reads verifyRepairLimit from userSettings.
   userSettings: { findFirst: mock(() => Promise.resolve(null)) },
@@ -24,7 +35,7 @@ const mockPrisma = {
 };
 const recordTransition = mock(() => Promise.resolve());
 const writeWorkflowFile = mock(() => Promise.resolve('/p/question.md'));
-const readWorkflowFile = mock(() => Promise.resolve(''));
+const readWorkflowFile = mock(() => Promise.resolve('' as string | null));
 const resolveWorkflowDir = mock(() => Promise.resolve({ dir: '/wf/1' }));
 
 const noopLogger = { info: () => {}, error: () => {}, warn: () => {}, debug: () => {} };
@@ -64,6 +75,15 @@ mock.module('../../services/workflow/auto-run/theme-auto-run-service', () => ({
   isThemeAutoRunActive,
 }));
 
+// task 619: 収束打ち切り時のエスカレーション呼び出しを spy 化（フルミラー必須 —
+// bun mock.module はモジュール全体を置換するため実 export を全て提供する）。
+const escalateBlockedTask = mock(() => Promise.resolve(true));
+mock.module('../../services/workflow/blocked-task-escalation', () => ({
+  escalateBlockedTask,
+  BLOCKED_ESCALATED_CAUSE: 'blocked_escalated',
+  countEscalatedBlocked: () => Promise.resolve(0),
+}));
+
 const { attemptVerifyRepair, hasFreshVerifyRejection } =
   await import('../../services/workflow/verify-self-repair');
 
@@ -72,13 +92,13 @@ describe('attemptVerifyRepair', () => {
     delete process.env.RAPITAS_MAX_VERIFY_REPAIRS;
     mockPrisma.workflowTransition.count.mockReset();
     mockPrisma.workflowFile.findFirst.mockReset();
-    mockPrisma.task.update.mockReset();
+    mockPrisma.task.updateMany.mockReset();
     recordTransition.mockReset();
     writeWorkflowFile.mockReset();
     readWorkflowFile.mockReset();
     mockPrisma.workflowTransition.count.mockResolvedValue(0);
     mockPrisma.workflowFile.findFirst.mockResolvedValue(null);
-    mockPrisma.task.update.mockResolvedValue({});
+    mockPrisma.task.updateMany.mockResolvedValue({ count: 1 });
     recordTransition.mockResolvedValue(undefined);
     writeWorkflowFile.mockResolvedValue('/p/question.md');
     readWorkflowFile.mockResolvedValue('');
@@ -95,6 +115,11 @@ describe('attemptVerifyRepair', () => {
     mockPrisma.userSettings.findFirst.mockResolvedValue(null);
     mockPrisma.activityLog.findFirst.mockReset();
     mockPrisma.activityLog.findFirst.mockResolvedValue(null);
+    // NOTE: task 619 — non-convergence inputs must reset per test.
+    mockPrisma.workflowTransition.findMany.mockReset();
+    mockPrisma.workflowTransition.findMany.mockResolvedValue([]);
+    escalateBlockedTask.mockReset();
+    escalateBlockedTask.mockResolvedValue(true);
   });
 
   test('plan あり → plan_approved へ bounce（attempt 1）すること', async () => {
@@ -106,7 +131,7 @@ describe('attemptVerifyRepair', () => {
     expect(r.newStatus).toBe('plan_approved');
     expect(r.attempt).toBe(1);
     // task を in-progress に戻し、修復 transition を記録すること
-    const tu = mockPrisma.task.update.mock.calls[0][0] as { data: { status: string } };
+    const tu = mockPrisma.task.updateMany.mock.calls[0][0] as { data: { status: string } };
     expect(tu.data.status).toBe('in-progress');
     const rt = recordTransition.mock.calls[0][0] as { cause: string; toStatus: string };
     expect(rt.cause).toBe('verify_repair');
@@ -137,7 +162,7 @@ describe('attemptVerifyRepair', () => {
     expect((enqueue.mock.calls[0][0] as { taskId: number }).taskId).toBe(1);
     expect(startProcessing).toHaveBeenCalledTimes(1);
     // workflowStatus も実装エントリへ戻すこと
-    const tu = mockPrisma.task.update.mock.calls[0][0] as {
+    const tu = mockPrisma.task.updateMany.mock.calls[0][0] as {
       data: { status: string; workflowStatus: string };
     };
     expect(tu.data.workflowStatus).toBe('plan_approved');
@@ -164,6 +189,9 @@ describe('attemptVerifyRepair', () => {
 
   test('差し戻しフィードバックを verify.md に書き、テスト改ざん禁止を明記すること', async () => {
     mockPrisma.workflowFile.findFirst.mockResolvedValue({ id: 7 });
+    // NOTE: verify.md が読めない（null）ときに verifyContent 引数へフォールバック
+    // する契約 — '' では ?? が発動しないため null を返す。
+    readWorkflowFile.mockResolvedValue(null);
     await attemptVerifyRepair(1, 'in_progress', 'self-contradicts', 'VERIFY BODY');
 
     expect(writeWorkflowFile).toHaveBeenCalledTimes(1);
@@ -226,7 +254,7 @@ describe('attemptVerifyRepair', () => {
     expect(recordTransition).not.toHaveBeenCalled();
     expect(enqueue).not.toHaveBeenCalled();
     expect(startProcessing).not.toHaveBeenCalled();
-    expect(mockPrisma.task.update).not.toHaveBeenCalled();
+    expect(mockPrisma.task.updateMany).not.toHaveBeenCalled();
   });
 
   test('FAIL CLOSED: カウントクエリが reject したら、非常に高い上限(cap)を設定しても block すること', async () => {
@@ -258,6 +286,117 @@ describe('attemptVerifyRepair', () => {
     const firstCall = mockPrisma.workflowTransition.count.mock.calls[0] as unknown as unknown[];
     const countArgs = firstCall[0] as { where: { createdAt?: { gt: Date } } };
     expect(countArgs.where.createdAt?.gt).toEqual(retriedAt);
+  });
+
+  // ---- 非収束打ち切り（task 619）----
+  // task 614 実データ型のフィクスチャ: 基準1がパス、基準2が識別子で特定できる。
+  const CRITERIA_JSON = JSON.stringify([
+    'tests/services/test-triage.test.ts のすべてのテストが成功する',
+    '`detectRepeatLoop` が bounce 回数との対応関係を検証する',
+    '`escalateBlockedTask` が通知を送る',
+  ]);
+  const R1 =
+    '受入基準1「tests/services/test-triage.test.ts のすべてのテストが成功する」が一切対応されていない';
+  const R2 = 'detectRepeatLoop の phase_completed:* 除外が bounce 回数との対応関係を検証していない';
+  const R3 =
+    '受入基準1 に対して diff は test-triage.test.ts を一切変更しておらず、元原因にも触れていない';
+
+  const withCriteria = () => {
+    mockPrisma.task.findUnique.mockResolvedValue({
+      themeId: 5,
+      title: '対象タスク',
+      acceptanceCriteria: CRITERIA_JSON,
+    });
+    mockPrisma.workflowFile.findFirst.mockResolvedValue({ id: 7 });
+  };
+  const priorRows = (...reasons: string[]) =>
+    reasons.map((reason, i) => ({ metadata: JSON.stringify({ attempt: i + 1, max: 10, reason }) }));
+
+  test('非収束: A→B→A（同一受入基準2回指摘）で bounce せずエスカレーションすること（受入基準1・2）', async () => {
+    withCriteria();
+    mockPrisma.workflowTransition.findMany.mockResolvedValue(priorRows(R1, R2));
+
+    const r = await attemptVerifyRepair(614, 'in_progress', R3, 'v');
+
+    expect(r.bounced).toBe(false);
+    // 実装フェーズへ戻さない（task.update も自走もフィードバック書込みも無し）
+    expect(mockPrisma.task.updateMany).not.toHaveBeenCalled();
+    expect(enqueue).not.toHaveBeenCalled();
+    expect(writeWorkflowFile).not.toHaveBeenCalled();
+    // エスカレーション: verify_no_convergence + 「どの基準が何回」の detail
+    expect(escalateBlockedTask).toHaveBeenCalledTimes(1);
+    const eArgs = escalateBlockedTask.mock.calls[0] as unknown as unknown[];
+    expect((eArgs[1] as { id: number }).id).toBe(614);
+    expect(eArgs[2]).toBe('verify_no_convergence');
+    expect(eArgs[4]).toContain('受入基準1');
+    expect(eArgs[4]).toContain('2回');
+    // 判定根拠が専用 cause の遷移 metadata に残ること
+    expect(recordTransition).toHaveBeenCalledTimes(1);
+    const rt = recordTransition.mock.calls[0][0] as {
+      cause: string;
+      metadata: { criterionIndex: number; count: number; reason: string };
+    };
+    expect(rt.cause).toBe('verify_repair_non_convergence');
+    expect(rt.metadata.criterionIndex).toBe(1);
+    expect(rt.metadata.count).toBe(2);
+    expect(rt.metadata.reason).toBe(R3);
+  });
+
+  test('収束中: 毎回異なる指摘（A→B→C）は回数に関わらず bounce を継続すること（受入基準3）', async () => {
+    withCriteria();
+    mockPrisma.workflowTransition.findMany.mockResolvedValue(priorRows(R1, R2));
+    // ユーザー設定で上限を大きくし、回数では切られない状況を再現
+    mockPrisma.userSettings.findFirst.mockResolvedValue({ verifyRepairLimit: 10 });
+    mockPrisma.workflowTransition.count.mockResolvedValue(2);
+
+    const r = await attemptVerifyRepair(
+      614,
+      'in_progress',
+      'escalateBlockedTask の通知が送られていない',
+      'v',
+    );
+
+    expect(r.bounced).toBe(true);
+    expect(escalateBlockedTask).not.toHaveBeenCalled();
+    const rt = recordTransition.mock.calls[0][0] as { cause: string };
+    expect(rt.cause).toBe('verify_repair');
+  });
+
+  test('fail-open: 過去理由の読取り(findMany)が reject しても bounce を継続すること（受入基準4）', async () => {
+    withCriteria();
+    mockPrisma.workflowTransition.findMany.mockImplementation(() =>
+      Promise.reject(new Error('db down')),
+    );
+
+    const r = await attemptVerifyRepair(614, 'in_progress', R3, 'v');
+
+    expect(r.bounced).toBe(true);
+    expect(escalateBlockedTask).not.toHaveBeenCalled();
+  });
+
+  test('fail-open: acceptanceCriteria が無ければ収束判定をスキップし bounce すること（受入基準4）', async () => {
+    // 既定 findUnique は acceptanceCriteria を含まない（既存ケースと同じ）
+    mockPrisma.workflowFile.findFirst.mockResolvedValue({ id: 7 });
+    mockPrisma.workflowTransition.findMany.mockResolvedValue(priorRows(R1, R1));
+
+    const r = await attemptVerifyRepair(614, 'in_progress', R1, 'v');
+
+    expect(r.bounced).toBe(true);
+    expect(escalateBlockedTask).not.toHaveBeenCalled();
+    // criteria 空の短絡により過去遷移は読まれない
+    expect(mockPrisma.workflowTransition.findMany).not.toHaveBeenCalled();
+  });
+
+  test('fail-open: 汎用文言のみ（基準を特定できない理由）の反復では打ち切らないこと（受入基準4）', async () => {
+    withCriteria();
+    mockPrisma.workflowTransition.findMany.mockResolvedValue(
+      priorRows('受入基準を満たしていません', '受入基準を満たしていません'),
+    );
+
+    const r = await attemptVerifyRepair(614, 'in_progress', '受入基準を満たしていません', 'v');
+
+    expect(r.bounced).toBe(true);
+    expect(escalateBlockedTask).not.toHaveBeenCalled();
   });
 });
 

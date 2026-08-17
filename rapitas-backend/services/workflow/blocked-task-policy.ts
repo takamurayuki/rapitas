@@ -33,9 +33,19 @@ export const BLOCKED_RETRY_SETTLE_MS = 3 * 60 * 1000;
  */
 export const MAX_ORPHAN_REQUEUE_AGE_MS = 2 * 24 * 60 * 60 * 1000;
 
+/**
+ * WorkflowTransition.cause recorded when a verify-repair loop is cut off for
+ * NON-CONVERGENCE (task 619): the same acceptance criterion was flagged
+ * unaddressed by 2+ repair bounces. Lives here (dependency-free policy module)
+ * so verify-self-repair (writer) and both reconciler passes (readers) share
+ * one constant without a circular import.
+ */
+export const VERIFY_NON_CONVERGENCE_CAUSE = 'verify_repair_non_convergence';
+
 /** Reason a blocked task is excluded from the blind auto-retry. */
 export type BlockedExclusionReason =
   | 'awaiting_question'
+  | 'verify_no_convergence'
   | 'abandoned_old'
   | 'verify_repair_exhausted'
   | 'retry_cap_exhausted';
@@ -53,6 +63,13 @@ export interface BlockedClassificationInput {
   verifyRepairLimit: number;
   /** blocked_auto_retry transitions so far. / 自動再試行回数 */
   attempts: number;
+  /**
+   * True when a VERIFY_NON_CONVERGENCE_CAUSE transition exists in the current
+   * repair window — the task was cut off for repeating the same acceptance
+   * criterion, so blind retry would just replay the non-converging loop.
+   * / 非収束打ち切り済みか
+   */
+  nonConverged?: boolean;
 }
 
 /**
@@ -84,6 +101,10 @@ export function classifyBlockedExclusion(input: BlockedClassificationInput): Blo
   // whatever its age/budget), then age (an ancient task is out of the retry
   // query entirely), then the budget/cap exclusions retry itself applies.
   if (input.workflowStatus === 'awaiting_question') return 'awaiting_question';
+  // Non-convergence beats age/budget: the cutoff already established that
+  // re-running cannot help (same criterion never progressed), whatever the
+  // remaining retry budget says.
+  if (input.nonConverged) return 'verify_no_convergence';
   if (input.ageMs > MAX_ORPHAN_REQUEUE_AGE_MS) return 'abandoned_old';
   if (input.repairs >= input.verifyRepairLimit) return 'verify_repair_exhausted';
   if (input.attempts >= MAX_BLOCKED_RETRY) return 'retry_cap_exhausted';

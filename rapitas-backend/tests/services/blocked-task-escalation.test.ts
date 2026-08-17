@@ -98,6 +98,39 @@ describe('escalateBlockedTask', () => {
     expect(recordTransition).toHaveBeenCalledTimes(1);
   });
 
+  test('verify_no_convergence + detail: 通知 message に「どの基準が何回」を含む（task 619 受入基準5）', async () => {
+    const detail =
+      '受入基準1が2回の差し戻しで一度も対応されていません。タスク分割または仕様の見直しが必要です。';
+
+    const did = await escalateBlockedTask(prisma, task, 'verify_no_convergence', NOW, detail);
+
+    expect(did).toBe(true);
+    const n = createNotification.mock.calls[0][0] as {
+      data: { type: string; message: string };
+    };
+    expect(n.data.type).toBe('blocked_escalation');
+    expect(n.data.message).toContain('受入基準1');
+    expect(n.data.message).toContain('2回');
+    expect(n.data.message).toContain('タスク分割または仕様の見直し');
+    // concern 側 detail にも同じ根拠が入ること
+    expect(submitConcern).toHaveBeenCalledTimes(1);
+    const concern = submitConcern.mock.calls[0][0] as { detail: string; dedupKey: string };
+    expect(concern.detail).toContain('受入基準1');
+    expect(concern.detail).toContain('2回');
+    expect(concern.dedupKey).toBe('blocked-escalation:verify_no_convergence:597');
+    const rt = recordTransition.mock.calls[0][0] as { metadata: { reason: string } };
+    expect(rt.metadata.reason).toBe('verify_no_convergence');
+  });
+
+  test('detail 省略時は従来どおりの message になる（後方互換）', async () => {
+    const did = await escalateBlockedTask(prisma, task, 'verify_repair_exhausted', NOW);
+
+    expect(did).toBe(true);
+    const n = createNotification.mock.calls[0][0] as { data: { message: string } };
+    expect(n.data.message).toContain('検証修復の予算を使い切りました');
+    expect(n.data.message).not.toContain('undefined');
+  });
+
   test('idempotency 判定の DB 失敗時はエスカレーションしない（通知増殖より延期を優先）', async () => {
     mockPrisma.workflowTransition.count.mockRejectedValue(new Error('db down'));
 
