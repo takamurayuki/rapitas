@@ -73,12 +73,12 @@ mock.module('node:child_process', () => ({
   execFile: execFileMockImpl,
   exec: execMockImpl,
 }));
-mock.module('../../../../config/logger', () => ({
+mock.module('../../../../../config/logger', () => ({
   createLogger: () => ({ info: () => {}, warn: () => {}, error: () => {} }),
 }));
 // NOTE: gh-client is mocked so that runGhCommandWithBody does not invoke the
 // real gh binary. Its result is configurable per-test via ghWithBodyResult.
-mock.module('../../../github/gh-client', () => ({
+mock.module('../../../../github/gh-client', () => ({
   runGhCommandWithBody: async (
     baseArgs: string[],
     body: string | undefined,
