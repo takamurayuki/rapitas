@@ -172,7 +172,9 @@ export function buildFileSizeAwarenessSection(
       // Observability: lets "did warned tasks stop growing oversized files?"
       // be answered later from logs.
       log.info(
-        { files: rows.map((r) => ({ path: r.resolvedPath, lines: r.lines, severity: r.severity })) },
+        {
+          files: rows.map((r) => ({ path: r.resolvedPath, lines: r.lines, severity: r.severity })),
+        },
         '[file-size-context] File-size awareness injected into implementer context',
       );
     }
