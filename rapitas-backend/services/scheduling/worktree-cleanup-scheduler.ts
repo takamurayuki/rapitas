@@ -7,7 +7,7 @@
  */
 
 import { createLogger } from '../../config/logger';
-import { cleanupOrphanedWorktrees } from '../agents/orchestrator/git-operations/worktree-ops';
+import { cleanupOrphanedWorktrees } from '../agents/orchestrator/git-operations/worktree/worktree-ops';
 import { getProjectRoot } from '../../config';
 
 const logger = createLogger('worktree-cleanup-scheduler');

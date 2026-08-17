@@ -90,7 +90,7 @@ mock.module('../../../utils/ai-client', () => ({
 mock.module('../../../routes/agents/approvals', () => ({
   orchestrator: { execute: mock(() => Promise.resolve()) },
 }));
-mock.module('../../../services/agents/orchestrator/git-operations/worktree-ops', () => ({
+mock.module('../../../services/agents/orchestrator/git-operations/worktree/worktree-ops', () => ({
   rmDirWithRetry: mock(() => Promise.resolve(true)),
   createWorktree: mock(() => Promise.resolve('/wt')),
   removeWorktree: mock(() => Promise.resolve()),
@@ -118,7 +118,7 @@ mock.module('../../../config/logger', () => ({
 const { tasksRoutes } = await import('../../../routes/tasks/tasks');
 const { AppError } = await import('../../../middleware/error-handler');
 const worktreeOps =
-  await import('../../../services/agents/orchestrator/git-operations/worktree-ops');
+  await import('../../../services/agents/orchestrator/git-operations/worktree/worktree-ops');
 const removeWorktree = worktreeOps.removeWorktree as ReturnType<typeof mock>;
 
 function resetAllMocks() {
