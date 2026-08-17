@@ -26,7 +26,7 @@ tokio = { version = "1", features = ["rt-multi-thread", "sync", "time"] }
 # VS Code-like terminal. base64 keeps raw byte output intact across the IPC
 # boundary (avoids UTF-8 corruption when a multibyte char spans read chunks).
 portable-pty = "0.9"
-base64 = "0.22"
+base64 = "0.23"
 
 [target.'cfg(windows)'.dependencies]
 winapi = { version = "0.3", features = ["winuser", "processthreadsapi", "psapi", "shellapi", "winreg", "dwmapi"] }
