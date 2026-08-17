@@ -1767,6 +1767,20 @@
     "successRate": "成功率",
     "totalTokenUsage": "総トークン使用量",
     "activeAgents": "アクティブエージェント",
+    "recoveryMetrics": {
+      "title": "リカバリーメトリクス",
+      "window": "直近{days}日間",
+      "empty": "記録されたフォールバック試行はまだありません",
+      "loadFailed": "リカバリーメトリクスの取得に失敗しました",
+      "lowSample": "サンプル不足",
+      "errorType": "エラー種別",
+      "strategy": "戦略",
+      "attempts": "試行数",
+      "successRate": "成功率",
+      "avgLatency": "平均レイテンシ",
+      "avgCost": "平均コスト",
+      "failureReasons": "失敗理由"
+    },
     "systemStatus": {
       "title": "システム状態",
       "pill": {
