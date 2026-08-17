@@ -110,7 +110,18 @@ describe('ensureNotPrimaryWorkTree — default detection path (no injected isPri
       expect(`${err.message}\n${causeText}`).toMatch(/not a git repository/i);
       expect(err.cause).toBeDefined();
     } finally {
-      rmSync(dir, { recursive: true, force: true });
+      // NOTE: Best-effort cleanup with retries — when Promise.all inside the
+      // guard rejects on the first git rev-parse, the second git child can
+      // still be running with cwd inside `dir`, which makes an immediate
+      // rmSync fail with EBUSY on Windows. Never fail the test on cleanup.
+      for (let attempt = 0; attempt < 5; attempt++) {
+        try {
+          rmSync(dir, { recursive: true, force: true });
+          break;
+        } catch {
+          await new Promise((r) => setTimeout(r, 200));
+        }
+      }
     }
   });
 
