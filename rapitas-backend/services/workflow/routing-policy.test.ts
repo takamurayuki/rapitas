@@ -118,9 +118,9 @@ describe('detectHighRisk 境界(文脈ゲートと禁止文サニタイズ)', ()
     expect(detectHighRisk({ text: 'Prisma スキーマ変更禁止。通知テーブルを使う' }).high).toBe(
       false,
     );
-    expect(
-      detectHighRisk({ text: 'migration を追加する。既存スキーマの変更は禁止' }).high,
-    ).toBe(true);
+    expect(detectHighRisk({ text: 'migration を追加する。既存スキーマの変更は禁止' }).high).toBe(
+      true,
+    );
   });
   test('plan 本文にも同じゲートが効く(禁止文の prisma では発火しない)', () => {
     expect(
