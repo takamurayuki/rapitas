@@ -27,6 +27,20 @@ const HARD_LIMIT = 500;
 const REPO_ROOT = path.resolve(import.meta.dir, '..', '..', '..');
 
 /**
+ * Default repo root for buildFileSizeAwarenessSection, overridable via
+ * RAPITAS_FILE_SIZE_REPO_ROOT. The override exists so integration tests can
+ * point call sites that cannot pass `repoRoot` (buildRoleContext) at a fixture
+ * repo — same test-injection pattern as CHECK_LARGE_FILES_ROOT in
+ * scripts/check-large-files.cjs. Unset in production → REPO_ROOT, unchanged.
+ *
+ * @returns Effective repo root. / 実効リポジトリルート
+ */
+function resolveDefaultRepoRoot(): string {
+  const override = process.env.RAPITAS_FILE_SIZE_REPO_ROOT;
+  return override ? path.resolve(override) : REPO_ROOT;
+}
+
+/**
  * Prefixes tried in order when resolving a plan path to a real file. Plans
  * write paths at varying depths (repo-relative, package-relative, bare) — the
  * same looseness scope-check.ts absorbs in the opposite direction.
@@ -163,7 +177,7 @@ export function formatFileSizeAwarenessSection(
 export function buildFileSizeAwarenessSection(
   planContent: string,
   language: 'ja' | 'en' = 'ja',
-  repoRoot: string = REPO_ROOT,
+  repoRoot: string = resolveDefaultRepoRoot(),
 ): string {
   try {
     const rows = classifyFileSizeRows(repoRoot, parsePlanFiles(planContent));

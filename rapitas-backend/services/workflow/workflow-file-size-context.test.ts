@@ -133,4 +133,20 @@ describe('buildFileSizeAwarenessSection', () => {
     expect(() => buildFileSizeAwarenessSection('```\n`\n``` ` `` ', 'ja', repoRoot)).not.toThrow();
     expect(typeof buildFileSizeAwarenessSection('', 'ja', repoRoot)).toBe('string');
   });
+
+  test('RAPITAS_FILE_SIZE_REPO_ROOT overrides the default repo root (no repoRoot arg)', () => {
+    // Call sites that cannot pass repoRoot (buildRoleContext) rely on this
+    // override in integration tests — see workflow-context-builder.test.ts.
+    const prev = process.env.RAPITAS_FILE_SIZE_REPO_ROOT;
+    process.env.RAPITAS_FILE_SIZE_REPO_ROOT = repoRoot;
+    try {
+      const plan = '変更対象: `services/workflow/huge.ts`';
+      const section = buildFileSizeAwarenessSection(plan);
+      expect(section).toContain('rapitas-backend/services/workflow/huge.ts');
+      expect(section).toContain('700 行');
+    } finally {
+      if (prev === undefined) delete process.env.RAPITAS_FILE_SIZE_REPO_ROOT;
+      else process.env.RAPITAS_FILE_SIZE_REPO_ROOT = prev;
+    }
+  });
 });
