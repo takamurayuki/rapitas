@@ -102,6 +102,7 @@ export interface CreatePullRequestResult {
  * @param title - PR title / PRのタイトル
  * @param body - PR description / PRの説明
  * @param baseBranch - Override base branch; auto-detected if omitted / ベースブランチ（省略時は自動検出）
+ * @param headBranch - Head branch for the PR; falls back to the checked-out branch if omitted / PRのheadブランチ（省略時はチェックアウト中のブランチ）
  * @returns Result with success flag, PR URL, and PR number / 成功フラグ・PR URL・PR番号を含む結果
  */
 export async function createPullRequest(
@@ -109,6 +110,7 @@ export async function createPullRequest(
   title: string,
   body: string,
   baseBranch?: string,
+  headBranch?: string,
 ): Promise<CreatePullRequestResult> {
   try {
     // Check the REMOTE-tracking ref (origin/<b>) as well as a local branch:
@@ -152,16 +154,39 @@ export async function createPullRequest(
       logger.info(`[createPullRequest] Auto-determined base branch: ${targetBranch}`);
     }
 
-    const { stdout: currentBranchRaw } = await execFileAsync('git', ['branch', '--show-current'], {
-      cwd: workingDirectory,
-      encoding: 'utf8',
-    });
+    // Resolve the PR head. The caller-supplied headBranch (the session's
+    // branchName) takes priority: `git branch --show-current` reads the RAW
+    // checkout state of gitCwd, which can be the base branch itself when the
+    // worktree is gone and git ops fell back to a shared checkout (task 594:
+    // head resolved to "develop" while the session branch was pushed fine).
+    let resolvedHead = headBranch?.trim();
+    if (!resolvedHead) {
+      const { stdout: currentBranchRaw } = await execFileAsync(
+        'git',
+        ['branch', '--show-current'],
+        {
+          cwd: workingDirectory,
+          encoding: 'utf8',
+        },
+      );
+      resolvedHead = currentBranchRaw.trim();
+    }
+
+    // head==base can never form a valid PR — refuse BEFORE push/gh so the
+    // failure is explicit and no remote call is wasted. NOTE: this message must
+    // NOT match isNoChangeCompletion's patterns ("no commits between" etc.),
+    // or a task WITH real changes would be wrongly completed without a PR.
+    if (resolvedHead === targetBranch) {
+      const error = `head branch and base branch are both "${targetBranch}" — refusing to create a PR (head resolution likely fell back to the base checkout)`;
+      logger.error(`[createPullRequest] ${error}`);
+      return { success: false, error };
+    }
 
     // Push the work. If origin's branch has DIVERGED (a stale branch left by a
     // prior run — the AI/fallback namer collapses many Japanese-titled tasks to
     // the shared `feature/implement-task`, so collisions are common), this falls
     // back to a fresh uniquely-named branch instead of failing the whole PR step.
-    const currentBranch = await pushBranchForPr(workingDirectory, currentBranchRaw.trim());
+    const currentBranch = await pushBranchForPr(workingDirectory, resolvedHead);
 
     // Idempotent: a CI-repair re-run pushes a fix to the SAME branch. The push
     // above already updated any existing PR, so reuse it instead of letting
@@ -243,8 +268,11 @@ export async function createPullRequest(
 
     // NOTE: runGhCommandWithBody passes body via --body-file, bypassing the
     // Windows command-line length limit (~32 KB) and shell-quoting hazards.
+    // `--head` is explicit so gh never infers the head from gitCwd's raw
+    // checkout state (the reuse check above already passes --head; this makes
+    // creation consistent with it).
     const prUrl = await runGhCommandWithBody(
-      ['pr', 'create', '--title', title, '--base', targetBranch],
+      ['pr', 'create', '--title', title, '--base', targetBranch, '--head', currentBranch],
       body,
       workingDirectory,
     );

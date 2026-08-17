@@ -11,13 +11,13 @@
 import { prisma } from '../../../../config';
 import { createLogger } from '../../../../config/logger';
 import type { WorkflowFileType } from '../../core/workflow-helpers';
-import { recordWorkflowCompletion } from '../../../../services/workflow/learning/workflow-learning-optimizer';
-import { extractKnowledgeFromTask } from '../../../../services/memory/task-knowledge-extractor';
 import { performAutoCommitAndPR, isNoChangeCompletion } from '../../workflow-auto-commit';
 import { resolveLandingMode } from '../../../../services/workflow/automation-policy';
 import { recordTransition } from '../../../../services/workflow/transition-recorder';
 import { markLatestExecutionFailed } from './shared';
 import { registerVerifyCompletion } from '../../../../services/workflow/verify-completion-inflight';
+import { handleVerifyGateBlocked } from './verify-commit-pr-gate-blocked';
+import { runVerifyCompletionSideEffects } from './verify-commit-pr-side-effects';
 
 const log = createLogger('routes:workflow:handlers:files');
 
@@ -84,26 +84,37 @@ export async function runVerifyCommitPrCompletion(params: {
     // Conflict-resolution task: the fix was already pushed to the existing PR
     // branch, so there is no new commit/PR to make and the scope check does not
     // apply. Complete directly — the PR (task.githubPrId) is what carries the work.
-    await prisma.task
-      .update({
-        where: { id: taskId },
+    // Compare-and-swap on verify_done: a concurrent duplicate of this save
+    // (task 594 recorded the same completion twice, 242ms apart) must not
+    // record a second completion transition — only the request that actually
+    // flips the row completes and records. Mirrors the repair rollback below.
+    const completed = await prisma.task
+      .updateMany({
+        where: { id: taskId, workflowStatus: 'verify_done' },
         data: { status: 'done', workflowStatus: 'completed', completedAt: new Date() },
       })
-      .catch(() => {});
-    taskMarkedDone = true;
-    await recordTransition({
-      taskId,
-      fromStatus: 'verify_done',
-      toStatus: 'completed',
-      actor: 'system',
-      cause: 'conflict_resolution_completed',
-      phase: 'verify',
-      metadata: { prNumber: conflictTask?.githubPrId },
-    });
-    log.info(
-      { taskId, prNumber: conflictTask?.githubPrId },
-      '[Workflow] Conflict-resolution task completed (work pushed to PR branch; commit/PR/scope gates skipped).',
-    );
+      .catch(() => ({ count: 0 }));
+    if (completed.count === 0) {
+      log.warn(
+        { taskId, prNumber: conflictTask?.githubPrId },
+        '[Workflow] Conflict-resolution completion already applied by a concurrent request — skipping duplicate transition',
+      );
+    } else {
+      taskMarkedDone = true;
+      await recordTransition({
+        taskId,
+        fromStatus: 'verify_done',
+        toStatus: 'completed',
+        actor: 'system',
+        cause: 'conflict_resolution_completed',
+        phase: 'verify',
+        metadata: { prNumber: conflictTask?.githubPrId },
+      });
+      log.info(
+        { taskId, prNumber: conflictTask?.githubPrId },
+        '[Workflow] Conflict-resolution task completed (work pushed to PR branch; commit/PR/scope gates skipped).',
+      );
+    }
   } else if (
     fileType === 'verify' &&
     newStatus === 'verify_done' &&
@@ -179,99 +190,15 @@ export async function runVerifyCommitPrCompletion(params: {
       const gateReason =
         autoCommitPRResult.error ?? '自動検証に失敗しました（lint/型/テスト/スコープ）。';
 
-      if (gateRecoveryBlocked) {
-        // Contamination recovery exhausted (受入基準3) or failed after the old
-        // worktree was destroyed (受入基準2c) — an implementer bounce is
-        // futile/impossible; block + notify directly, skipping self-repair.
-        const blockedTitle =
-          gateRecoveryBlocked === 'recovery_already_used'
-            ? '自動検証ゲートが再び計画外混入で失敗（worktree再構築の上限到達）'
-            : 'worktree再構築リカバリが失敗しました';
-        const blockedMessage =
-          gateRecoveryBlocked === 'recovery_already_used'
-            ? `タスク #${taskId} はブランチ履歴汚染による worktree 再構築を既に1回実施済みですが、自動検証ゲートが再度失敗しました。手動確認が必要です。`
-            : `タスク #${taskId} の worktree 再構築中にパッチ適用が失敗しました。退避タグ（recovery/task-${taskId}-*）から手動復旧してください。`;
-        // Dynamic import mirrors this handler's convention — keeps the
-        // static graph free of config/database for test isolation.
-        const { writeBlockedStatusDurable } =
-          await import('../../../../services/workflow/durable-blocked-write');
-        await writeBlockedStatusDurable({
-          taskId,
-          log,
-          source: 'Workflow',
-          notification: { title: blockedTitle, message: blockedMessage },
-        });
-        const { notifyRecoveryFallbackBlocked } =
-          await import('../../../../services/workflow/worktree-rebuild-recovery');
-        await notifyRecoveryFallbackBlocked(taskId, blockedTitle, blockedMessage);
-        await markLatestExecutionFailed(taskId, gateReason);
-        await recordTransition({
-          taskId,
-          fromStatus: 'verify_done',
-          toStatus: 'verify_done',
-          actor: 'system',
-          cause: 'verification_gate_failed',
-          phase: 'verify',
-          metadata: {
-            reason: gateReason,
-            recoveryOutcome: gateRecoveryBlocked,
-            recoveryExhausted: gateRecoveryBlocked === 'recovery_already_used',
-          },
-          invariantViolation: true,
-          invariantMessage: gateReason,
-        }).catch(() => {});
-        log.warn(
-          { taskId, recoveryReason: gateRecoveryBlocked, reason: gateReason },
-          '[Workflow] History-contamination recovery unavailable — task blocked, no commit/PR',
-        );
-      } else {
-        const { attemptVerifyRepair } =
-          await import('../../../../services/workflow/verify-self-repair');
-        const repair = await attemptVerifyRepair(
-          taskId,
-          'verify_done',
-          gateReason,
-          savedContent,
-        ).catch(() => ({ bounced: false }) as Awaited<ReturnType<typeof attemptVerifyRepair>>);
-
-        if (repair.bounced && repair.newStatus) {
-          // Compare-and-swap: performAutoCommitAndPR ran real git/lint/test
-          // subprocesses above and can take a while — if a concurrent request
-          // for this same task (e.g. a duplicate/retried save) already moved
-          // the task past verify_done in the meantime, an unconditional update
-          // here would stomp that newer state back to the implementer entry.
-          // Mirrors the same guard on the adversarial-review bounce above.
-          const rolled = await prisma.task
-            .updateMany({
-              where: { id: taskId, workflowStatus: 'verify_done' },
-              data: { workflowStatus: repair.newStatus },
-            })
-            .catch(() => ({ count: 0 }));
-          if (rolled.count === 0) {
-            log.warn(
-              { taskId, attempt: repair.attempt, reason: gateReason },
-              '[Workflow] Verification gate failed but the workflow already moved on — skipping rollback',
-            );
-          } else {
-            newStatus = repair.newStatus;
-            log.warn(
-              { taskId, attempt: repair.attempt, reason: gateReason },
-              '[Workflow] Verification gate failed — bounced to implementer for self-repair',
-            );
-          }
-        } else if (repair.stale) {
-          log.warn(
-            { taskId, reason: gateReason },
-            '[Workflow] stale verification-gate failure — workflow moved on; neither bouncing nor blocking',
-          );
-        } else {
-          await markLatestExecutionFailed(taskId, gateReason);
-          log.warn(
-            { taskId, reason: gateReason },
-            '[Workflow] Verification gate failed and self-repairs exhausted — task stays blocked, no commit/PR.',
-          );
-        }
-      }
+      // NOTE: Extracted to verify-commit-pr-gate-blocked.ts — behaviour
+      // unchanged (recovery-blocked notify, self-repair bounce, exhaustion).
+      const gateOutcome = await handleVerifyGateBlocked({
+        taskId,
+        gateReason,
+        gateRecoveryBlocked,
+        savedContent,
+      });
+      if (gateOutcome.newStatus) newStatus = gateOutcome.newStatus;
     } else {
       // Completion REQUIRES a successfully created PR (user request): a passing
       // verify is no longer enough — the change must reach a PR. Exceptions:
@@ -310,9 +237,15 @@ export async function runVerifyCommitPrCompletion(params: {
         });
 
       if (noChangeCompletion) {
-        await prisma.task
-          .update({
-            where: { id: taskId },
+        // Compare-and-swap on verify_done: task 594 recorded THIS transition
+        // (verify_no_change_confirmed) twice, 242ms apart, from two concurrent
+        // completion runs. Only the request that actually flips the row may
+        // record the transition; the loser logs and leaves taskMarkedDone
+        // false (its HTTP response staleness is harmless — the winner already
+        // completed the task).
+        const completedNoChange = await prisma.task
+          .updateMany({
+            where: { id: taskId, workflowStatus: 'verify_done' },
             data: {
               status: 'done',
               workflowStatus: 'completed',
@@ -320,26 +253,33 @@ export async function runVerifyCommitPrCompletion(params: {
               updatedAt: new Date(),
             },
           })
-          .catch(() => {});
-        taskMarkedDone = true;
-        newStatus = 'completed';
-        await recordTransition({
-          taskId,
-          fromStatus: 'verify_done',
-          toStatus: 'completed',
-          actor: 'system',
-          cause: 'verify_no_change_confirmed',
-          phase: 'verify',
-          metadata: {
-            reason: 'no diff — already implemented; PR not required',
-            prError: pr?.error,
-            commitError: commit?.error,
-          },
-        });
-        log.info(
-          { taskId, prError: pr?.error },
-          '[Workflow] verify passed with NO diff (already implemented) — completing WITHOUT a PR.',
-        );
+          .catch(() => ({ count: 0 }));
+        if (completedNoChange.count === 0) {
+          log.warn(
+            { taskId, prError: pr?.error },
+            '[Workflow] no-change completion already applied by a concurrent request — skipping duplicate transition',
+          );
+        } else {
+          taskMarkedDone = true;
+          newStatus = 'completed';
+          await recordTransition({
+            taskId,
+            fromStatus: 'verify_done',
+            toStatus: 'completed',
+            actor: 'system',
+            cause: 'verify_no_change_confirmed',
+            phase: 'verify',
+            metadata: {
+              reason: 'no diff — already implemented; PR not required',
+              prError: pr?.error,
+              commitError: commit?.error,
+            },
+          });
+          log.info(
+            { taskId, prError: pr?.error },
+            '[Workflow] verify passed with NO diff (already implemented) — completing WITHOUT a PR.',
+          );
+        }
       } else if (prRequested && !prSatisfied) {
         // Verify passed but no PR was produced — do NOT complete. Keep the task
         // actionable (blocked) and surface why, so "完了" always implies a PR.
@@ -431,46 +371,9 @@ export async function runVerifyCommitPrCompletion(params: {
 
     // Post-completion side effects only when the task ACTUALLY completed (not
     // when it was bounced for self-repair or held for a missing PR).
+    // NOTE: Extracted to verify-commit-pr-side-effects.ts — behaviour unchanged.
     if (taskMarkedDone) {
-      // Record the outcome for telemetry + adaptive routing (fire-and-forget).
-      import('../../../../services/workflow/outcome-telemetry')
-        .then(({ recordTaskOutcome }) => recordTaskOutcome(taskId, 'completed'))
-        .catch(() => {});
-
-      // Collect workflow learning data asynchronously (fire-and-forget)
-      recordWorkflowCompletion(taskId).catch((err) => {
-        log.error({ err, taskId }, 'Failed to record workflow learning data');
-      });
-
-      // Auto-extract knowledge on task completion (async)
-      extractKnowledgeFromTask(taskId).catch((err) => {
-        log.error({ err, taskId }, 'Failed to extract knowledge from task');
-      });
-
-      // Extract improvement ideas for IdeaBox (async, Ollama-first)
-      import('../../../../services/memory/idea-extractor')
-        .then(({ extractIdeasFromExecutionLog }) => {
-          extractIdeasFromExecutionLog(taskId, savedContent).catch((err) => {
-            log.error({ err, taskId }, 'Failed to extract ideas from task');
-          });
-        })
-        .catch(() => {});
-
-      // Record reasoning trace for temporal debugging (async)
-      import('../../../../services/analytics/temporal-debugger')
-        .then(({ recordReasoningTrace }) => {
-          // Find the latest execution for this task to record its trace
-          prisma.agentExecution
-            .findFirst({
-              where: { session: { config: { taskId } }, status: 'completed' },
-              orderBy: { completedAt: 'desc' },
-            })
-            .then((exec) => {
-              if (exec) recordReasoningTrace(exec.id).catch(() => {});
-            })
-            .catch(() => {});
-        })
-        .catch(() => {});
+      runVerifyCompletionSideEffects(taskId, savedContent);
     }
   }
 
