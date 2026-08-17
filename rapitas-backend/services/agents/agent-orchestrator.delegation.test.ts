@@ -156,6 +156,9 @@ mock.module('./orchestrator/recovery-manager', () => ({
   recoverStaleExecutions: recoverStaleExecutionsMock,
   resumeInterruptedExecution: resumeInterruptedExecutionMock,
   buildResumePrompt: mock(() => ''),
+  // NOTE: added in f996dff5 (execution lease) — stale mocks without this export
+  // fail ESM named-import validation before any test runs (task 600).
+  startExecutionLeaseSweep: mock(() => undefined),
 }));
 
 const { AgentOrchestrator } = await import('./agent-orchestrator');
@@ -357,7 +360,9 @@ describe('git operations delegation', () => {
       'develop',
     );
     expect(gitOpsMocks.removeWorktree).toHaveBeenCalledWith('/base', '/base/wt-42');
-    expect(gitOpsMocks.cleanupStaleWorktrees).toHaveBeenCalledWith('/base');
+    // NOTE: keepPaths default [] forwarded since ddb4bd89 (worktree keep-list
+    // protection) — assertion updated to the current signature (task 600).
+    expect(gitOpsMocks.cleanupStaleWorktrees).toHaveBeenCalledWith('/base', []);
   });
 });
 

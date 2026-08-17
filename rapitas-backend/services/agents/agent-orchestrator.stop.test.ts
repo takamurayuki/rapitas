@@ -112,6 +112,9 @@ mock.module('./orchestrator/recovery-manager', () => ({
   recoverStaleExecutions: mock(() => Promise.resolve({ recovered: 0, failed: 0 })),
   resumeInterruptedExecution: mock(() => Promise.resolve({ success: true, output: '' })),
   buildResumePrompt: mock(() => ''),
+  // NOTE: added in f996dff5 (execution lease) — stale mocks without this export
+  // fail ESM named-import validation before any test runs (task 600).
+  startExecutionLeaseSweep: mock(() => undefined),
 }));
 
 const { AgentOrchestrator } = await import('./agent-orchestrator');
