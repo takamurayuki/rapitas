@@ -67,7 +67,7 @@ mock.module('../../config', () => ({
 
 const removeWorktreeMock = mock(() => Promise.resolve()) as ReturnType<typeof mock>;
 
-mock.module('../agents/orchestrator/git-operations/worktree-ops', () => ({
+mock.module('../agents/orchestrator/git-operations/worktree/worktree-ops', () => ({
   ensureGitRepository: () => Promise.resolve(),
   validateAndSetupRemote: () => Promise.resolve(),
   rmDirWithRetry: () => Promise.resolve(),

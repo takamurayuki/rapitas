@@ -12,7 +12,7 @@ import { spawn } from 'child_process';
 import { existsSync } from 'fs';
 import { join, relative } from 'path';
 import { randomBytes } from 'crypto';
-import { removeWorktree } from '../orchestrator/git-operations/worktree-ops';
+import { removeWorktree } from '../orchestrator/git-operations/worktree/worktree-ops';
 import { createLogger } from '../../../config/logger';
 
 const log = createLogger('agents:verification:test-triage');
