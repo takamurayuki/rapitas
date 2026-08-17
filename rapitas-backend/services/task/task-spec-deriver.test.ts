@@ -9,10 +9,13 @@ import { describe, test, expect, mock, beforeEach } from 'bun:test';
 // HACK(agent): bun:test の mock.module はプロセスグローバルなため、
 // 全エクスポートをミラーしないとバレルが "export not found" をスローする。
 
+// NOTE: warn/error はスパイ化 — deriveTaskSpec の失敗ログ severity (task 642: ERROR→WARN 整合) を検証するため。
+const mockLoggerWarn = mock(() => {});
+const mockLoggerError = mock(() => {});
 const noopLogger = {
   info: () => {},
-  error: () => {},
-  warn: () => {},
+  error: mockLoggerError,
+  warn: mockLoggerWarn,
   debug: () => {},
   fatal: () => {},
 };
@@ -60,6 +63,8 @@ const { deriveTaskSpec, generateIntakeQuestions, generateIntakeGoalOptions } =
   await import('./task-spec-deriver');
 
 beforeEach(() => {
+  mockLoggerWarn.mockReset();
+  mockLoggerError.mockReset();
   mockSendAIMessage.mockReset();
   mockSendAIMessage.mockResolvedValue({ content: '{}' });
   mockGetDefaultProvider.mockReset();
@@ -166,6 +171,18 @@ describe('deriveTaskSpec', () => {
       spec: { goals: [], constraints: [], acceptanceCriteria: [] },
       source: 'ai_error',
     });
+  });
+
+  // NOTE: task 642 再現テスト — 呼び出し側 (intake-gate) が graceful degrade する非致命失敗を
+  // ERROR で記録すると log-health-check が severity high の bug 懸念として自己起票してしまう。
+  // 姉妹関数 (generateIntakeQuestions/generateIntakeGoalOptions) と同じ WARN であること。
+  test('AI 呼び出しが例外を投げた場合 → warn で1回記録し error は記録しないこと', async () => {
+    mockSendAIMessage.mockRejectedValueOnce(new Error('Claude CLI exited 1: {"is_error":true}'));
+
+    await deriveTaskSpec('タスクの説明');
+
+    expect(mockLoggerError).not.toHaveBeenCalled();
+    expect(mockLoggerWarn).toHaveBeenCalledTimes(1);
   });
 
   test('goals/constraints/acceptanceCriteria の非文字列・空白のみ要素はフィルタされること', async () => {
