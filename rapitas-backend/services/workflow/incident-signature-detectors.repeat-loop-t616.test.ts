@@ -7,10 +7,7 @@
  * per the test-suite splitting policy; no mocks, pure snapshot inputs.
  */
 import { describe, it, expect } from 'bun:test';
-import {
-  detectRepeatLoop,
-  type RepeatLoopTransition,
-} from './incident-signature-detectors';
+import { detectRepeatLoop, type RepeatLoopTransition } from './incident-signature-detectors';
 
 // The moment the pre-fix (pre-241a8955) backend filed concern #621.
 const DETECTED_AT_MS = Date.parse('2026-08-17T05:28:10.332Z');
