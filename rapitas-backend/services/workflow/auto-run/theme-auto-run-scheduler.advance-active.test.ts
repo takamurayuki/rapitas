@@ -30,6 +30,7 @@ import {
   mockEnqueue,
   mockSetCurrentTask,
   mockBroadcast,
+  mockReleaseStaleActiveItems,
 } from './theme-auto-run-scheduler.test-support';
 
 let scheduler: ThemeAutoRunScheduler;
@@ -228,6 +229,62 @@ describe('advanceTheme — active queue item present', () => {
 
     // No active item for task 100 itself → falls through to the terminal-item lookup.
     expect(mockQueueItemFindFirst).toHaveBeenCalled();
+  });
+});
+
+describe('advanceTheme — stall guard fall-through (task 618)', () => {
+  it('残留項目が解除されたら同一ティックで終端解決まで進む — 完了タスクを保持し続けない (事例2)', async () => {
+    // done タスク 100 が 'running' 残留項目を握ったままの形。ガードが解除
+    // (released=1) したら、待機 return せず isCompleted 解決に到達すること。
+    mockGetThemeActiveQueueItems.mockResolvedValue([{ id: 1, taskId: 100, status: 'running' }]);
+    mockReleaseStaleActiveItems.mockResolvedValue(1);
+    // 解除直後: 残留項目は 'cancelled' の終端項目になっているが、
+    // task.status='done' が先勝ちして「完了」として解決される（順序の固定）。
+    mockQueueItemFindFirst.mockResolvedValue({ id: 1, status: 'cancelled', errorMessage: null });
+    mockResolveTaskWorkflowState.mockResolvedValue({
+      id: 100,
+      status: 'done',
+      workflowStatus: 'in_progress',
+      workflowMode: null,
+      parentId: null,
+    });
+
+    await internal(scheduler).advanceTheme(1, 100, 'priority', 1, freshLastRunAt());
+
+    expect(mockReleaseStaleActiveItems).toHaveBeenCalledTimes(1);
+    const args = mockReleaseStaleActiveItems.mock.calls[0] as unknown as [
+      unknown,
+      number,
+      number,
+      Array<{ id: number; taskId: number; status: string }>,
+    ];
+    expect(args[1]).toBe(1);
+    expect(args[2]).toBe(100);
+    expect(args[3]).toEqual([{ id: 1, taskId: 100, status: 'running' }]);
+    expect(mockOnTaskCompleted).toHaveBeenCalledWith(1);
+  });
+
+  it('解除ゼロ（通常の非終端タスク）なら従来どおり無副作用で待機する', async () => {
+    mockGetThemeActiveQueueItems.mockResolvedValue([{ id: 1, taskId: 100, status: 'running' }]);
+    mockReleaseStaleActiveItems.mockResolvedValue(0);
+
+    await internal(scheduler).advanceTheme(1, 100, 'priority', 0, freshLastRunAt());
+
+    expect(mockQueueItemFindFirst).not.toHaveBeenCalled();
+    expect(mockOnTaskCompleted).not.toHaveBeenCalled();
+    expect(mockOnTaskFailed).not.toHaveBeenCalled();
+  });
+
+  it('解除ゼロでも waiting_approval の一時停止パスは従来どおり動く', async () => {
+    mockGetThemeActiveQueueItems.mockResolvedValue([
+      { id: 1, taskId: 100, status: 'waiting_approval' },
+    ]);
+    mockReleaseStaleActiveItems.mockResolvedValue(0);
+
+    await internal(scheduler).advanceTheme(1, 100, 'priority', 0, freshLastRunAt());
+
+    expect(mockOnAwaitingPlanApproval).toHaveBeenCalledWith(1);
+    expect(mockNotifyAwaitingPlanApproval).toHaveBeenCalledWith(1, 100);
   });
 });
 

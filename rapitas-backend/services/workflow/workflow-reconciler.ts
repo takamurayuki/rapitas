@@ -274,6 +274,8 @@ export async function reconcileOnce(): Promise<{
   undispatchableTodos: number;
   autoApproveStalls: number;
   staleQueueItemsCancelled: number;
+  staleRunningItemsReleased: number;
+  queueStarvationHandled: number;
   selfIncidentsFiled: number;
 }> {
   const empty = {
@@ -288,6 +290,8 @@ export async function reconcileOnce(): Promise<{
     undispatchableTodos: 0,
     autoApproveStalls: 0,
     staleQueueItemsCancelled: 0,
+    staleRunningItemsReleased: 0,
+    queueStarvationHandled: 0,
     selfIncidentsFiled: 0,
   };
   if (inFlight) return empty;
@@ -356,6 +360,19 @@ export async function reconcileOnce(): Promise<{
       const { sweepStaleQueueItems } = await import('./workflow-reconciler-queue-sweep');
       return sweepStaleQueueItems();
     });
+    // Reclaim 'running' residue nobody else touches while the process lives —
+    // one such item blocks EVERY dequeue via the cross-session running count,
+    // silently wedging auto-run (task 618). Cancel-only, never requeue.
+    const staleRunningItemsReleased = await runHealPass('sweepStaleRunningItems', async () => {
+      const { sweepStaleRunningItems } = await import('./workflow-reconciler-queue-stall');
+      return sweepStaleRunningItems(nowMs);
+    });
+    // Detect `running=0 かつ queued>0` persisting past the threshold (consumer
+    // dead/wedged) and kick the idempotent WorkflowRunner + surface it (task 618).
+    const queueStarvationHandled = await runHealPass('detectQueueStarvation', async () => {
+      const { detectQueueStarvation } = await import('./workflow-reconciler-queue-stall');
+      return detectQueueStarvation(nowMs);
+    });
     // Detection-only self-incident watch, LAST on purpose: the repair passes
     // above run first, so anything they just healed is no longer reported as
     // an incident this cycle (fewer false positives). Self-throttled to ~5m.
@@ -375,6 +392,8 @@ export async function reconcileOnce(): Promise<{
       undispatchableTodos,
       autoApproveStalls,
       staleQueueItemsCancelled,
+      staleRunningItemsReleased,
+      queueStarvationHandled,
       selfIncidentsFiled,
     };
     if (Object.values(counts).some((n) => n > 0)) {
