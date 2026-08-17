@@ -9,6 +9,7 @@ import { prisma } from '../../config/database';
 import { readWorkflowFile } from './workflow-file-utils';
 import { buildMemoryContext } from './workflow-memory-context';
 import { buildKnownPitfallsSection } from './workflow-pitfall-context';
+import { buildFileSizeAwarenessSection } from './workflow-file-size-context';
 import { buildHypothesisContext } from './workflow-hypothesis-context';
 import { buildRejectedPlanContext } from './workflow-rejected-plan-context';
 import { buildCaseContext } from './workflow-case-context';
@@ -410,6 +411,12 @@ export async function buildRoleContext(
       }
       if (research) {
         ctx += `\n\n${t.implementer.researchHeader}\n\n${research}`;
+      }
+      // File-size awareness (task 600): current line counts of the plan's
+      // over-limit files, measured BEFORE coding — CI-only discovery came too late.
+      const fileSizeAwareness = plan ? buildFileSizeAwarenessSection(plan, language) : '';
+      if (fileSizeAwareness) {
+        ctx += `\n\n${fileSizeAwareness}`;
       }
       if (plan) {
         ctx += `\n\n${t.implementer.planHeader}\n\n${plan}`;
