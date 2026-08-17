@@ -365,6 +365,131 @@ describe('detectRepeatLoop', () => {
     });
     expect(result).toEqual({ cause: 'ci_repair', count: 3 });
   });
+
+  // #607 repro (task 614): a healthy repair cycle (initial implement + 2
+  // verify_repair bounces, the default budget) fires
+  // phase_completed:implementer exactly 3 times — the same as
+  // REPEAT_LOOP_MIN_COUNT's default — and was misreported as a loop.
+  it('does NOT detect phase_completed:implementer at the normal repair-budget count (#607 repro)', () => {
+    expect(
+      detectRepeatLoop({
+        transitions: [
+          at(1_000, 'phase_completed:implementer'),
+          at(2_000, 'verify_repair'),
+          at(3_000, 'phase_completed:implementer'),
+          at(4_000, 'verify_repair'),
+          at(5_000, 'phase_completed:implementer'),
+        ],
+        nowMs: NOW,
+        minCount: 3,
+      }),
+    ).toBeNull();
+  });
+
+  it('still detects a non-phase_completed cause padded with phase_completed noise', () => {
+    const result = detectRepeatLoop({
+      transitions: [
+        at(1_000, 'phase_completed:implementer'),
+        at(2_000, 'phase_completed:implementer'),
+        at(3_000, 'phase_completed:implementer'),
+        at(4_000, 'verify_repair'),
+        at(5_000, 'verify_repair'),
+        at(6_000, 'verify_repair'),
+      ],
+      nowMs: NOW,
+      minCount: 3,
+    });
+    expect(result).toEqual({ cause: 'verify_repair', count: 3 });
+  });
+
+  // The phase_completed exclusion is scoped to the known-healthy repair-cycle
+  // pattern: without a verify_repair/ci_repair bounce anywhere in the window,
+  // repeated phase_completed:* is a genuinely different anomaly (e.g. a phase
+  // handing off to itself with no verify/ci signal at all) and must still be
+  // detected.
+  it('still detects phase_completed:implementer when NO repair-bounce cause is present', () => {
+    const result = detectRepeatLoop({
+      transitions: [
+        at(1_000, 'phase_completed:implementer'),
+        at(2_000, 'phase_completed:implementer'),
+        at(3_000, 'phase_completed:implementer'),
+      ],
+      nowMs: NOW,
+      minCount: 3,
+    });
+    expect(result).toEqual({ cause: 'phase_completed:implementer', count: 3 });
+  });
+
+  // The forgiveness budget is bounded by the bounces observed *up to that
+  // point*: a single verify_repair bounce can only forgive 2
+  // phase_completed:implementer firings (1 initial + 1 re-implement after the
+  // bounce). The remaining 3 firings after the bounce have no further bounce
+  // to explain them and are a genuine anomaly the detector must still catch.
+  it('still detects phase_completed:implementer when count exceeds what the observed bounces explain', () => {
+    const result = detectRepeatLoop({
+      transitions: [
+        at(1_000, 'phase_completed:implementer'),
+        at(2_000, 'verify_repair'),
+        at(3_000, 'phase_completed:implementer'),
+        at(4_000, 'phase_completed:implementer'),
+        at(5_000, 'phase_completed:implementer'),
+        at(6_000, 'phase_completed:implementer'),
+      ],
+      nowMs: NOW,
+      minCount: 3,
+    });
+    expect(result).toEqual({ cause: 'phase_completed:implementer', count: 3 });
+  });
+
+  // Two bounces (one verify_repair, one ci_repair), each preceding the
+  // phase_completed:implementer firing it re-authorizes, sum to a budget of 3
+  // (1 initial + 2 bounces) — exactly 3 firings stays within the healthy
+  // repair-cycle explanation and must not be flagged.
+  it('sums verify_repair and ci_repair bounces toward the healthy-cycle budget', () => {
+    const result = detectRepeatLoop({
+      transitions: [
+        at(1_000, 'phase_completed:implementer'),
+        at(2_000, 'verify_repair'),
+        at(3_000, 'phase_completed:implementer'),
+        at(4_000, 'ci_repair'),
+        at(5_000, 'phase_completed:implementer'),
+      ],
+      nowMs: NOW,
+      minCount: 3,
+    });
+    expect(result).toBeNull();
+  });
+
+  // Closes the gap flagged in review: bounceTotal alone (summed across
+  // verify_repair + ci_repair, order-independent) could put 5
+  // phase_completed:implementer firings within a budget of 4 + 1 = 5 even
+  // when all 5 firings happened *before* any bounce — bounces that occur
+  // later cannot causally explain churn that already happened. Only a bounce
+  // chronologically preceding a firing may forgive it, so here only the very
+  // first firing (the always-free initial pass) is forgiven and the other 4
+  // are counted as a genuine anomaly, despite 4 bounces appearing later in
+  // the same window.
+  it('does not let bounces forgive phase_completed churn that happened before them', () => {
+    // at(msAgo, ...) — larger msAgo sorts earlier, so this array is already
+    // in chronological (oldest-first) order: 5 phase_completed firings, THEN
+    // the 4 bounces.
+    const result = detectRepeatLoop({
+      transitions: [
+        at(9_000, 'phase_completed:implementer'),
+        at(8_000, 'phase_completed:implementer'),
+        at(7_000, 'phase_completed:implementer'),
+        at(6_000, 'phase_completed:implementer'),
+        at(5_000, 'phase_completed:implementer'),
+        at(4_000, 'verify_repair'),
+        at(3_000, 'verify_repair'),
+        at(2_000, 'ci_repair'),
+        at(1_000, 'ci_repair'),
+      ],
+      nowMs: NOW,
+      minCount: 3,
+    });
+    expect(result).toEqual({ cause: 'phase_completed:implementer', count: 4 });
+  });
 });
 
 describe('detectUnansweredQuestion', () => {
