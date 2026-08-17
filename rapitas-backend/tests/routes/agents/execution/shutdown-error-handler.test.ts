@@ -29,12 +29,12 @@ mock.module('../../../../config/logger', () => {
   };
 });
 
-mock.module('../../../../routes/agents/execution/session-helpers', () => ({
+mock.module('../../../../routes/agents/execution/shared/session-helpers', () => ({
   updateSessionStatusWithRetry: mockUpdateSessionStatus,
 }));
 
 const { isShutdownError, handleShutdownInterruption } =
-  await import('../../../../routes/agents/execution/shutdown-error-handler');
+  await import('../../../../routes/agents/execution/shared/shutdown-error-handler');
 
 // ─── isShutdownError ────────────────────────────────────────────────────────
 

@@ -91,7 +91,7 @@ const mockPrisma = {
 mock.module('../../config/database', () => ({ prisma: mockPrisma }));
 
 const mockMergePullRequest = mock(() => Promise.resolve({ success: false, retriable: false }));
-mock.module('../../services/agents/orchestrator/git-operations/branch-pr-ops', () => ({
+mock.module('../../services/agents/orchestrator/git-operations/pr/branch-pr-ops', () => ({
   mergePullRequest: mockMergePullRequest,
 }));
 

@@ -41,7 +41,7 @@ mock.module('../../config/logger', () => {
 });
 
 const removeWorktree = mock(() => Promise.resolve()) as any;
-mock.module('../../services/agents/orchestrator/git-operations/worktree-ops', () => ({
+mock.module('../../services/agents/orchestrator/git-operations/worktree/worktree-ops', () => ({
   removeWorktree,
 }));
 const extractKnowledgeFromTask = mock(() => Promise.resolve([101])) as any;

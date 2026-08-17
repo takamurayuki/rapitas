@@ -16,7 +16,7 @@ import type { SubtaskProposal } from '../../../services/claude-agent';
 import { createSubtasksInTransaction } from './bulk-approve-handler';
 import { resolveAgentForTask } from '../../../services/workflow/role-resolver';
 import { isShutdownError } from '../../../services/agents/agent-worker/shutdown-error';
-import { FOREIGN_PR_ERROR_PREFIX } from '../../../services/agents/orchestrator/git-operations/branch-pr-ops';
+import { FOREIGN_PR_ERROR_PREFIX } from '../../../services/agents/orchestrator/git-operations/pr/branch-pr-ops';
 import { notify } from '../../../services/workflow/auto-merge-notify';
 
 const log = createLogger('routes:approvals:approve');

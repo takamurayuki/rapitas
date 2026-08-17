@@ -20,7 +20,7 @@ mock.module('../../../../config/logger', () => {
 });
 
 const { buildFullInstruction } =
-  await import('../../../../routes/agents/execution/instruction-builder');
+  await import('../../../../routes/agents/execution/shared/instruction-builder');
 
 describe('buildFullInstruction — 既存成果物の再利用指示', () => {
   test('hasResearch/hasPlan のとき再利用セクションを注入すること', () => {

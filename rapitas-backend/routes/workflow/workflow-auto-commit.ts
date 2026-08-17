@@ -14,7 +14,7 @@ import { logAutoCommit, logAutoPR } from './workflow-activity-logger';
 import { runVerificationGate } from '../../services/agents/verification/verification-gate';
 import { resolveAutomationPolicy } from '../../services/workflow/automation-policy';
 import { linkAutoCreatedPr } from '../../services/github/pr-link';
-import { FOREIGN_PR_ERROR_PREFIX } from '../../services/agents/orchestrator/git-operations/branch-pr-ops';
+import { FOREIGN_PR_ERROR_PREFIX } from '../../services/agents/orchestrator/git-operations/pr/branch-pr-ops';
 import { notify } from '../../services/workflow/auto-merge-notify';
 import {
   findOpenPrForTask,
