@@ -13,7 +13,7 @@
 import { prisma } from '../../config/database';
 import { getProjectRoot } from '../../config';
 import { createLogger } from '../../config/logger';
-import { removeWorktree } from '../agents/orchestrator/git-operations/worktree-ops';
+import { removeWorktree } from '../agents/orchestrator/git-operations/worktree/worktree-ops';
 import { extractKnowledgeFromTask } from '../memory/task-knowledge-extractor';
 
 const log = createLogger('completed-task-cleanup');

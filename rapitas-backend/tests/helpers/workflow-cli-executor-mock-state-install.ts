@@ -148,12 +148,12 @@ export function installWorkflowCliExecutorMocks(): void {
     maybeAutoApprovePlan: spies.maybeAutoApprovePlan,
   }));
 
-  mock.module(p('services/agents/orchestrator/git-operations/worktree-usable'), () => ({
+  mock.module(p('services/agents/orchestrator/git-operations/worktree/worktree-usable'), () => ({
     canReuseWorktree: spies.canReuseWorktree,
     decideWorktree: mock(() => 'recreate'),
   }));
 
-  mock.module(p('services/agents/orchestrator/git-operations/worktree-guard'), () => ({
+  mock.module(p('services/agents/orchestrator/git-operations/worktree/worktree-guard'), () => ({
     isPrimaryWorkTree: spies.isPrimaryWorkTree,
     ensureNotPrimaryWorkTree: mock(() => Promise.resolve()),
     isBackendPrimaryCheckout: spies.isBackendPrimaryCheckout,

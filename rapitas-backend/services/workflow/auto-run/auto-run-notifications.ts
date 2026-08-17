@@ -16,11 +16,18 @@ const log = createLogger('auto-run-notifications');
 
 interface NotifyParams {
   type: string;
-  themeId: number;
+  // NOTE: nullable — WorkflowQueueItem.themeId is nullable (legacy rows,
+  // subtask-split items) and queue-wide starvation is not theme-scoped (task 618).
+  themeId: number | null;
   taskId?: number;
   title: string;
   message: string;
   link?: string;
+}
+
+/** Dedup scope: task id when known, else theme, else a queue-global bucket. */
+function dedupScope(params: Pick<NotifyParams, 'themeId' | 'taskId'>): string | number {
+  return params.taskId ?? (params.themeId != null ? `theme-${params.themeId}` : 'global');
 }
 
 /**
@@ -32,7 +39,7 @@ interface NotifyParams {
  */
 async function notifyOnce(params: NotifyParams): Promise<void> {
   try {
-    const dedupKey = `"dedupKey":"${params.type}:${params.taskId ?? `theme-${params.themeId}`}"`;
+    const dedupKey = `"dedupKey":"${params.type}:${dedupScope(params)}"`;
     const existing = await prisma.notification.findFirst({
       where: {
         type: params.type,
@@ -52,7 +59,7 @@ async function notifyOnce(params: NotifyParams): Promise<void> {
         // metadata is a JSON string; embed the dedup key as a real field so the
         // contains-match above cannot collide with other metadata content.
         metadata: JSON.stringify({
-          dedupKey: `${params.type}:${params.taskId ?? `theme-${params.themeId}`}`,
+          dedupKey: `${params.type}:${dedupScope(params)}`,
           themeId: params.themeId,
           taskId: params.taskId ?? null,
         }),
@@ -120,6 +127,85 @@ export async function notifyTaskSkipped(
     taskId,
     title: '自動実行: タスクをスキップしました',
     message: `「${await taskLabel(taskId)}」が失敗またはブロックされたためスキップしました: ${reason}`,
+  });
+}
+
+/**
+ * The theme is WEDGED: work exists but every remaining task is blocked
+ * (task 615). Deliberately a different type + copy from notifyAllDone so a
+ * dead loop is never read as a normal "all finished" idle.
+ *
+ * @param themeId - Theme that went idle while wedged. / 対象テーマ
+ * @param blockedCount - Blocked tasks remaining. / blockedタスク件数
+ * @param escalatedCount - Of those, already escalated (awaiting attention). / エスカレーション済み件数
+ */
+export async function notifyAllBlocked(
+  themeId: number,
+  blockedCount: number,
+  escalatedCount: number,
+): Promise<void> {
+  const theme = await prisma.theme
+    .findUnique({ where: { id: themeId }, select: { name: true } })
+    .catch(() => null);
+  await notifyOnce({
+    type: 'auto_run_all_blocked',
+    themeId,
+    title: '自動実行: 実行可能なタスクがすべてブロックされています',
+    message: `テーマ「${theme?.name ?? themeId}」は完了ではなく閉塞しています: blocked タスクが ${blockedCount} 件残っています（うち対応待ちエスカレーション ${escalatedCount} 件）。回答・分割・調査など人の対応が必要です。`,
+  });
+}
+
+/** Reason code for a released queue-item residue (task 618). */
+export type StallReleaseCause =
+  | 'terminal_task_active_item_residue'
+  | 'terminal_task_running_residue'
+  | 'stale_running_no_live_execution';
+
+/**
+ * Queue-item residue pinning a task was auto-released (task 618): either the
+ * scheduler freed a TERMINAL current task's leftover items, or the reconciler
+ * swept a stale 'running' item nobody else would ever reclaim.
+ *
+ * @param themeId - Theme of the released item, if scoped. / 対象テーマ（null可）
+ * @param taskId - Task whose residue was released. / 対象タスク
+ * @param releasedCount - Items cancelled by this release. / 解除件数
+ * @param cause - Machine-readable release reason. / 解除理由コード
+ */
+export async function notifyStallReleased(
+  themeId: number | null,
+  taskId: number,
+  releasedCount: number,
+  cause: StallReleaseCause,
+): Promise<void> {
+  await notifyOnce({
+    type: 'auto_run_stall_released',
+    themeId,
+    taskId,
+    title: '自動実行: 停滞していたキュー項目を自動解除しました',
+    message: `タスク #${taskId}「${await taskLabel(taskId)}」に残留していたキュー項目 ${releasedCount} 件を自動解除しました（理由: ${cause}）。自動実行は次のタスクへ進みます。`,
+  });
+}
+
+/**
+ * The queue is STARVED: `running=0 かつ queued>0` persisted past the threshold
+ * (task 618, 事例1). The runner was kicked with startProcessing(); this
+ * notification makes the formerly-silent stall visible.
+ *
+ * @param taskId - Oldest queued task, if any. / 最古の待機タスク（null可）
+ * @param waitedMinutes - How long the starvation persisted. / 継続時間（分）
+ */
+export async function notifyQueueStarvation(
+  taskId: number | null,
+  waitedMinutes: number,
+): Promise<void> {
+  await notifyOnce({
+    type: 'auto_run_queue_starved',
+    themeId: null,
+    taskId: taskId ?? undefined,
+    title: '自動実行: キューが消費されていません',
+    message: `実行中 0 件のままキュー待ちが約 ${waitedMinutes} 分間消費されませんでした${
+      taskId != null ? `（先頭: タスク #${taskId}）` : ''
+    }。ワークフローランナーを再起動して消費を再開させました。`,
   });
 }
 

@@ -54,7 +54,7 @@ mock.module('../../../../services/agents/agent-worker-manager', () => ({
   },
 }));
 
-const { statusRoute } = await import('../../../../routes/agents/execution/status-route');
+const { statusRoute } = await import('../../../../routes/agents/execution/routes/status-route');
 
 /** Build a minimal developerModeConfig fixture with one session/execution. */
 function buildConfig(totalCostUsd: unknown) {

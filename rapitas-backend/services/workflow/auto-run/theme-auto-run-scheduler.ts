@@ -68,8 +68,11 @@ import {
   notifyAwaitingUserAnswer,
   notifyTaskSkipped,
   notifyAllDone,
+  notifyAllBlocked,
   notifyHangBackstop,
 } from './auto-run-notifications';
+import { releaseStaleActiveItems } from './auto-run-stall-guard';
+import { countEscalatedBlocked } from '../blocked-task-escalation';
 
 const log = createLogger('theme-auto-run-scheduler');
 
@@ -434,19 +437,32 @@ export class ThemeAutoRunScheduler {
       // This is the core "one task fully completes before the next starts"
       // guarantee — the only non-terminal exit here is the approval pause.
       if (currentItems.length > 0) {
-        if (hasItemAwaitingApproval(currentItems)) {
-          await onAwaitingPlanApproval(themeId);
-          await notifyAwaitingPlanApproval(themeId, currentTaskId);
-          this.broadcastAutoRunUpdate(themeId);
-          logCycleEvent('task.awaiting_approval', {
-            theme: themeId,
-            task: currentTaskId,
-            cause: 'plan_approval_gate',
-            msg: 'theme paused — plan awaiting approval',
-          });
+        // Task 618 (事例2): a TERMINAL task can still hold active items (e.g. a
+        // 'running' residue after an abort). Waiting on those would wedge the
+        // theme forever — release them and resolve the task in THIS tick.
+        const releasedStaleCount = await releaseStaleActiveItems(
+          prisma,
+          themeId,
+          currentTaskId,
+          currentItems,
+        );
+        if (releasedStaleCount === 0) {
+          if (hasItemAwaitingApproval(currentItems)) {
+            await onAwaitingPlanApproval(themeId);
+            await notifyAwaitingPlanApproval(themeId, currentTaskId);
+            this.broadcastAutoRunUpdate(themeId);
+            logCycleEvent('task.awaiting_approval', {
+              theme: themeId,
+              task: currentTaskId,
+              cause: 'plan_approval_gate',
+              msg: 'theme paused — plan awaiting approval',
+            });
+          }
+          // queued / running → still working; wait for the next tick.
+          return;
         }
-        // queued / running → still working; wait for the next tick.
-        return;
+        // released > 0: the items were residue of an already-terminal task.
+        // Fall through to the terminal resolution below in the same tick.
       }
 
       // No active item. Decide the outcome from the most recent TERMINAL queue
@@ -666,7 +682,13 @@ export class ThemeAutoRunScheduler {
     }
 
     if (!result.found) {
-      if (result.reason === 'all_done') {
+      if (result.reason === 'all_done' || result.reason === 'all_blocked') {
+        // all_blocked shares the all_done idle path on purpose (task 615):
+        // staying 'running' against a fully-wedged theme would spin forever,
+        // and a backlog refill is the natural unblocker (a promoted todo lets
+        // processIdleThemes resume). Only the REPORTING differs below, so a
+        // wedged loop is never mistaken for a normal completion.
+        const allBlocked = result.reason === 'all_blocked';
         // Optional dev safety: when enabled, this quiet point (no live agents) is
         // the safe moment to restart and pick up committed fixes BEFORE creating
         // more tasks. Only fires when HEAD moved since boot + no agents anywhere +
@@ -702,13 +724,36 @@ export class ThemeAutoRunScheduler {
           where: { themeId },
           data: { status: 'idle', enabled: true, currentTaskId: null },
         });
-        log.info(`[ThemeAutoRunScheduler] Theme ${themeId} — all tasks done, idle (armed)`);
-        logCycleEvent('theme.idle', {
-          theme: themeId,
-          cause: 'all_done_backlog_empty',
-          msg: 'all tasks done, idle but armed (awaiting new work)',
-        });
-        await notifyAllDone(themeId);
+        if (allBlocked) {
+          // Wedged, not finished: report with a DISTINCT cause + notification so
+          // the dead loop is visible (previously indistinguishable from idle).
+          // Same 'theme.idle' event as all_done — the machine distinction is the
+          // `cause` field ('all_blocked' vs 'all_done_backlog_empty'), keeping
+          // the cycle-event taxonomy untouched.
+          const blockedCount = await prisma.task
+            .count({ where: { themeId, status: 'blocked', parentId: null } })
+            .catch(() => 0);
+          const escalatedCount = await countEscalatedBlocked(prisma).catch(() => 0);
+          log.info(
+            `[ThemeAutoRunScheduler] Theme ${themeId} — ALL remaining tasks blocked (${blockedCount}), idle (armed)`,
+          );
+          logCycleEvent('theme.idle', {
+            theme: themeId,
+            cause: 'all_blocked',
+            blocked: blockedCount,
+            escalated: escalatedCount,
+            msg: 'all runnable tasks are blocked — wedged, idle but armed',
+          });
+          await notifyAllBlocked(themeId, blockedCount, escalatedCount);
+        } else {
+          log.info(`[ThemeAutoRunScheduler] Theme ${themeId} — all tasks done, idle (armed)`);
+          logCycleEvent('theme.idle', {
+            theme: themeId,
+            cause: 'all_done_backlog_empty',
+            msg: 'all tasks done, idle but armed (awaiting new work)',
+          });
+          await notifyAllDone(themeId);
+        }
         this.broadcastAutoRunUpdate(themeId);
       }
       return;
