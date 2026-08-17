@@ -19,6 +19,7 @@ import {
   detectRepeatLoop,
   detectUnansweredQuestion,
   STAGNATION_THRESHOLD_MS,
+  DESYNC_RECOVERY_SETTLE_MS,
   REPEAT_LOOP_WINDOW_MS,
   REPEAT_LOOP_MIN_COUNT,
 } from './incident-signature-detectors';
@@ -160,11 +161,17 @@ async function inspectTask(task: CandidateTask, nowMs: number): Promise<number> 
     }
   }
 
+  // Timeline reads oldest-first (self-incident-evidence), so the newest
+  // transition — whose cause decides the recovery grace for Pattern B — is last.
+  const latestTransition = state.timeline[state.timeline.length - 1];
   const desync = detectTriStateDesync({
     taskStatus: task.status,
     workflowStatus: task.workflowStatus,
     latestSessionStatus: state.latestSessionStatus,
     latestExecutionStatus: state.latestExecutionStatus,
+    latestTransitionCause: latestTransition?.cause ?? null,
+    latestTransitionAtMs: state.latestTransitionAtMs,
+    nowMs,
   });
   if (desync) {
     const signature =
@@ -180,7 +187,11 @@ async function inspectTask(task: CandidateTask, nowMs: number): Promise<number> 
         explanation:
           `Task/AgentSession/AgentExecution の状態が矛盾しています: ${desync.detail}。` +
           `（task.status=${task.status}, workflowStatus=${task.workflowStatus ?? 'null'}）`,
-        thresholdDescription: '即時判定（閾値なし — 状態スナップショットの矛盾を直接検出）',
+        thresholdDescription:
+          desync.kind === 'todo_status_workflow_advanced'
+            ? `即時判定（ただし回復遷移 reconciler_requeue/artifact_reuse_fastforward から` +
+              `${Math.round(DESYNC_RECOVERY_SETTLE_MS / 60_000)}分間は定着待ちとして除外）`
+            : '即時判定（閾値なし — 状態スナップショットの矛盾を直接検出）',
         severity: 'high',
         nowMs,
       })
