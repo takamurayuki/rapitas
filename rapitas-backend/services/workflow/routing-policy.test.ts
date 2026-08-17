@@ -56,6 +56,9 @@ describe('detectHighRisk', () => {
 // 「Prisma スキーマ変更禁止」定型文の prisma)。要約や言い換えではなく実文字列を
 // 使うこと — 推測文字列では実発火率の回帰を検出できない。
 describe('detectHighRisk 誤爆解消(実タスク負例)', () => {
+  // NOTE: 534 は DB 実データそのもの — Task.title が丸ごとこの書名
+  // (実在書籍。副題「秘密の国のアリス」まで含めて DB の title 列の全文)で、
+  // Task.description は NULL。作為的な文字列ではない。
   test('534: 読書タスク「暗号化技術入門」は低リスク(暗号 単独・crypto 文脈なし)', () => {
     expect(detectHighRisk({ text: '暗号化技術入門 第３版 秘密の国のアリス' }).high).toBe(false);
   });

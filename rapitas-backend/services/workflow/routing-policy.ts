@@ -32,6 +32,9 @@ const CAPABILITY_ROLES = new Set(['implementer', 'planner', 'verifier', 'auto_ve
  * far more expensive than over-firing, so this list must never be relaxed.
  * NOTE: 認証 stays strong on purpose — it is the core auth word; CLI-auth
  * task over-firing is accepted as the safe side.
+ * NOTE: \btoken\b does NOT match LLM-usage vocabulary — `_` and a trailing
+ * `s` are word characters, so `MAX_TOKENS` / `tokens used` have no word
+ * boundary around "token" and never fire (asserted by the LLM-context tests).
  */
 const STRONG_RISK_RE =
   /(\bauth\b|認証|ログイン|\blogin\b|password|パスワード|\btoken\b|secret|credential|決済|課金|payment|billing|rbac|csrf|xss|sql\s*injection)/i;
@@ -41,6 +44,10 @@ const STRONG_RISK_RE =
  * schema-change-BAN sentences stripped first (see SCHEMA_BAN_SENTENCE_RE) —
  * measured 33/40 false positives came from boilerplate constraints like
  * 「Prisma スキーマ変更禁止」, which state the task must NOT touch the schema.
+ * NOTE: The ban-sentence sanitize step is the user-approved design (task 631
+ * Q1 answer: 「禁止文サニタイズを追加(解釈2・推奨)」) — only the data-layer
+ * signals are evaluated on sanitized text; every other signal group sees the
+ * full text unchanged.
  */
 const DATA_RISK_RE = /(prisma|schema\.prisma|migration|migrate)/i;
 
