@@ -10,7 +10,7 @@
  */
 import { createLogger } from '../../../config';
 import type { OrchestratorContext } from './types';
-import { canReuseWorktree } from './git-operations/worktree-usable';
+import { canReuseWorktree } from './git-operations/worktree/worktree-usable';
 
 const logger = createLogger('stale-execution-recovery');
 

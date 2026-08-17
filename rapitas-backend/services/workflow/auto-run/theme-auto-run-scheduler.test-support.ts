@@ -326,6 +326,7 @@ export const mockNotifyAwaitingPlanApproval = mock(() => Promise.resolve());
 export const mockNotifyAwaitingUserAnswer = mock(() => Promise.resolve());
 export const mockNotifyTaskSkipped = mock(() => Promise.resolve());
 export const mockNotifyAllDone = mock(() => Promise.resolve());
+export const mockNotifyAllBlocked = mock(() => Promise.resolve());
 export const mockNotifyHangBackstop = mock(() => Promise.resolve());
 
 mock.module('./auto-run-notifications', () => ({
@@ -333,7 +334,29 @@ mock.module('./auto-run-notifications', () => ({
   notifyAwaitingUserAnswer: mockNotifyAwaitingUserAnswer,
   notifyTaskSkipped: mockNotifyTaskSkipped,
   notifyAllDone: mockNotifyAllDone,
+  notifyAllBlocked: mockNotifyAllBlocked,
   notifyHangBackstop: mockNotifyHangBackstop,
+}));
+
+// ---------------------------------------------------------------------------
+// auto-run-stall-guard (terminal-task residue release — task 618). Default 0 =
+// "nothing released" so every legacy wait-branch test keeps its old behavior.
+// ---------------------------------------------------------------------------
+export const mockReleaseStaleActiveItems = mock(() => Promise.resolve(0));
+
+mock.module('./auto-run-stall-guard', () => ({
+  releaseStaleActiveItems: mockReleaseStaleActiveItems,
+}));
+
+// ---------------------------------------------------------------------------
+// blocked-task-escalation (all_blocked reporting — task 615)
+// ---------------------------------------------------------------------------
+export const mockCountEscalatedBlocked = mock(() => Promise.resolve(0));
+
+mock.module('../blocked-task-escalation', () => ({
+  escalateBlockedTask: mock(() => Promise.resolve(false)),
+  countEscalatedBlocked: mockCountEscalatedBlocked,
+  BLOCKED_ESCALATED_CAUSE: 'blocked_escalated',
 }));
 
 // ---------------------------------------------------------------------------
@@ -444,6 +467,7 @@ const ALL_MOCKS = [
   mockNotifyTaskSkipped,
   mockNotifyAllDone,
   mockNotifyHangBackstop,
+  mockReleaseStaleActiveItems,
   mockStopTaskAgents,
   mockStopThemeAgents,
 ];
@@ -480,4 +504,5 @@ export function resetAllMocks(): void {
   mockStartAutoRun.mockResolvedValue({} as ThemeAutoRunState);
   mockStopTaskAgents.mockResolvedValue({ stoppedCount: 0, executionIds: [] });
   mockStopThemeAgents.mockResolvedValue({ stoppedCount: 0, executionIds: [] });
+  mockReleaseStaleActiveItems.mockResolvedValue(0);
 }

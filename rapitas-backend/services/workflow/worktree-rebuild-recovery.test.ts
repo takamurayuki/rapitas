@@ -97,7 +97,7 @@ const createWorktreeMock = mock(() => {
   callSeq.push('createWorktree');
   return Promise.resolve(newWorktreePath);
 });
-mock.module('../agents/orchestrator/git-operations/worktree-ops', () => ({
+mock.module('../agents/orchestrator/git-operations/worktree/worktree-ops', () => ({
   createWorktree: createWorktreeMock,
   removeWorktree: removeWorktreeMock,
 }));

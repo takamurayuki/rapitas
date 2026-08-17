@@ -13,7 +13,7 @@ import { createLogger } from '../../../config/logger';
 import {
   getGitExecCacheStats,
   resetGitExecCacheStats,
-} from '../../../services/agents/orchestrator/git-operations/git-exec';
+} from '../../../services/agents/orchestrator/git-operations/core/git-exec';
 import {
   getGitRemoteCacheStats,
   resetGitRemoteCacheStats,

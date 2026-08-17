@@ -8,9 +8,13 @@
 import { describe, it, expect, mock, beforeEach } from 'bun:test';
 
 const findFirstMock = mock(async (): Promise<unknown> => null);
+const taskFindUniqueMock = mock(async (): Promise<unknown> => null);
 
 mock.module('../../../config', () => ({
-  prisma: { agentSession: { findFirst: findFirstMock } },
+  prisma: {
+    agentSession: { findFirst: findFirstMock },
+    task: { findUnique: taskFindUniqueMock },
+  },
 }));
 
 mock.module('../../../config/logger', () => ({
@@ -29,6 +33,9 @@ const renderVerificationMarkdownMock = mock(() => '# 自動検証\nok');
 mock.module('../../../services/agents/verification/automated-verifier', () => ({
   runAutomatedVerification: runAutomatedVerificationMock,
   renderVerificationMarkdown: renderVerificationMarkdownMock,
+  // Mirrors the real detector closely enough for the requireTests tests.
+  looksLikeBugFixTask: (text: string | null | undefined) =>
+    !!text && /(バグ|不具合|クラッシュ|\bbug\b|\bcrash\b)/i.test(text),
 }));
 
 const readWorkflowFileMock = mock(async (): Promise<string | null> => null);
@@ -49,11 +56,13 @@ function ctx(taskId: string) {
 
 beforeEach(() => {
   findFirstMock.mockClear();
+  taskFindUniqueMock.mockClear();
   runAutomatedVerificationMock.mockClear();
   renderVerificationMarkdownMock.mockClear();
   readWorkflowFileMock.mockClear();
   resolvePreferredBaseBranchMock.mockClear();
   findFirstMock.mockImplementation(async () => ({ worktreePath: 'C:/wt/task-1' }));
+  taskFindUniqueMock.mockImplementation(async () => null);
   runAutomatedVerificationMock.mockImplementation(async () => ({
     ok: true,
     summary: 'ok',
@@ -87,6 +96,55 @@ describe('handleRunVerification', () => {
       expect.objectContaining({ planContent: '# plan', preferredBaseBranch: 'develop', taskId: 7 }),
     );
     expect(renderVerificationMarkdownMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('forces requireTests and passes criteria/taskText for a bug-fix task', async () => {
+    taskFindUniqueMock.mockImplementation(async () => ({
+      title: '保存時にクラッシュするバグの修正',
+      description: '## 受入基準\n- `services/foo/bar.ts` の修正で再現テストが通る',
+      acceptanceCriteria: null,
+    }));
+    const res = await handleRunVerification(ctx('7'));
+    expect(res).toMatchObject({ success: true, ok: true });
+    expect(runAutomatedVerificationMock).toHaveBeenCalledWith(
+      'C:/wt/task-1',
+      expect.objectContaining({
+        requireTests: true,
+        acceptanceCriteria: ['`services/foo/bar.ts` の修正で再現テストが通る'],
+        taskText: expect.stringContaining('保存時にクラッシュするバグの修正'),
+      }),
+    );
+  });
+
+  it('does not force requireTests for a non-bug-fix task', async () => {
+    taskFindUniqueMock.mockImplementation(async () => ({
+      title: '新しいダッシュボード widget を追加する',
+      description: '説明のみ（受入基準の見出しなし）',
+      acceptanceCriteria: null,
+    }));
+    await handleRunVerification(ctx('7'));
+    expect(runAutomatedVerificationMock).toHaveBeenCalledWith(
+      'C:/wt/task-1',
+      expect.objectContaining({ requireTests: false }),
+    );
+    // No criteria resolvable → the option is omitted (acceptance stays fail-open).
+    const opts = (runAutomatedVerificationMock.mock.calls[0] as unknown[])[1] as Record<
+      string,
+      unknown
+    >;
+    expect(opts.acceptanceCriteria).toBeUndefined();
+  });
+
+  it('runs the gate with defaults when the task row cannot be loaded', async () => {
+    taskFindUniqueMock.mockImplementation(async () => {
+      throw new Error('db down');
+    });
+    const res = await handleRunVerification(ctx('7'));
+    expect(res).toMatchObject({ success: true, ok: true });
+    expect(runAutomatedVerificationMock).toHaveBeenCalledWith(
+      'C:/wt/task-1',
+      expect.objectContaining({ requireTests: false }),
+    );
   });
 
   it('passes a failing gate result through as ok:false (not an error)', async () => {

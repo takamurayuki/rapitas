@@ -17,8 +17,12 @@ export interface SelectableTask {
   complexityScore?: number | null;
 }
 
-/** Reason the selection returned no task. */
-export type NoTaskReason = 'all_done' | 'concurrency_limit' | 'awaiting_approval';
+/**
+ * Reason the selection returned no task. `all_blocked` = work EXISTS but every
+ * task is stuck at status 'blocked' (a wedged loop, task 615) — distinct from
+ * `all_done` (genuinely nothing left to do).
+ */
+export type NoTaskReason = 'all_done' | 'all_blocked' | 'concurrency_limit' | 'awaiting_approval';
 
 export type SelectionResult =
   | {
@@ -412,7 +416,19 @@ export async function selectNextTask(
   const eligible = candidates.filter((t) => !isTaskBlocked(t.status));
 
   if (eligible.length === 0) {
-    return { found: false, reason: 'all_done' };
+    // Blocked tasks are invisible to the candidate query above, so an extra
+    // count is the ONLY way to tell "nothing left" from "work exists but every
+    // task is wedged" (task 615). Fail-open to all_done on any error so the
+    // new query can never break selection.
+    let blockedCount = 0;
+    try {
+      blockedCount = await prisma.task.count({
+        where: { themeId, status: 'blocked', parentId: null },
+      });
+    } catch {
+      blockedCount = 0;
+    }
+    return { found: false, reason: blockedCount > 0 ? 'all_blocked' : 'all_done' };
   }
 
   // Highest priority first; priority TIES break by the learnable-band value

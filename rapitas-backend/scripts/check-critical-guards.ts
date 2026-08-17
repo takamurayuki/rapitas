@@ -44,15 +44,15 @@ const CRITICAL_GUARDS: GuardEntry[] = [
   // #1 — Prevents destructive git operations on the main checkout
   {
     name: 'isIsolatedWorktree',
-    sourceFile: 'routes/agents/execution/research-output-utils.ts',
-    testFile: 'routes/agents/execution/research-validator.test.ts',
+    sourceFile: 'routes/agents/execution/research/research-output-utils.ts',
+    testFile: 'routes/agents/execution/research/research-validator.test.ts',
     severity: 'highest',
   },
   // #2 — Validates worktree paths before destructive filesystem operations
   {
     name: 'isPathSafeForWorktreeOperation',
-    sourceFile: 'services/agents/orchestrator/git-operations/safety.ts',
-    testFile: 'services/agents/orchestrator/git-operations/safety.test.ts',
+    sourceFile: 'services/agents/orchestrator/git-operations/core/safety.ts',
+    testFile: 'services/agents/orchestrator/git-operations/core/safety.test.ts',
     severity: 'highest',
   },
   // #3 — Kills a process tree while refusing to kill the backend port
@@ -74,36 +74,36 @@ const CRITICAL_GUARDS: GuardEntry[] = [
   // #5 — Detects whether a directory is the PRIMARY git working tree
   {
     name: 'isPrimaryWorkTree',
-    sourceFile: 'services/agents/orchestrator/git-operations/worktree-guard.ts',
-    testFile: 'services/agents/orchestrator/git-operations/worktree-guard.test.ts',
+    sourceFile: 'services/agents/orchestrator/git-operations/worktree/worktree-guard.ts',
+    testFile: 'services/agents/orchestrator/git-operations/worktree/worktree-guard.test.ts',
     severity: 'highest',
   },
   // #6 — Throws before any agent git mutation on the primary working tree
   {
     name: 'ensureNotPrimaryWorkTree',
-    sourceFile: 'services/agents/orchestrator/git-operations/worktree-guard.ts',
-    testFile: 'services/agents/orchestrator/git-operations/worktree-guard.test.ts',
+    sourceFile: 'services/agents/orchestrator/git-operations/worktree/worktree-guard.ts',
+    testFile: 'services/agents/orchestrator/git-operations/worktree/worktree-guard.test.ts',
     severity: 'highest',
   },
   // #7 — Detects the backend's own primary checkout to prevent self-clobber
   {
     name: 'isBackendPrimaryCheckout',
-    sourceFile: 'services/agents/orchestrator/git-operations/worktree-guard.ts',
-    testFile: 'services/agents/orchestrator/git-operations/worktree-guard.test.ts',
+    sourceFile: 'services/agents/orchestrator/git-operations/worktree/worktree-guard.ts',
+    testFile: 'services/agents/orchestrator/git-operations/worktree/worktree-guard.test.ts',
     severity: 'highest',
   },
   // #8 — Decides whether a recorded worktree path can be reused
   {
     name: 'canReuseWorktree',
-    sourceFile: 'services/agents/orchestrator/git-operations/worktree-usable.ts',
-    testFile: 'services/agents/orchestrator/git-operations/worktree-usable.test.ts',
+    sourceFile: 'services/agents/orchestrator/git-operations/worktree/worktree-usable.ts',
+    testFile: 'services/agents/orchestrator/git-operations/worktree/worktree-usable.test.ts',
     severity: 'high',
   },
   // #9 — Determines the worktree strategy (reuse / recreate / fallback)
   {
     name: 'decideWorktree',
-    sourceFile: 'services/agents/orchestrator/git-operations/worktree-usable.ts',
-    testFile: 'services/agents/orchestrator/git-operations/worktree-usable.test.ts',
+    sourceFile: 'services/agents/orchestrator/git-operations/worktree/worktree-usable.ts',
+    testFile: 'services/agents/orchestrator/git-operations/worktree/worktree-usable.test.ts',
     severity: 'high',
   },
 ];
