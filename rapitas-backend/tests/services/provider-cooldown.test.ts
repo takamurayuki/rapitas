@@ -236,9 +236,8 @@ describe('inferProviderFromModelName', () => {
 // completed + modelName のときだけ、そのモデルの provider の streak を解除する
 // ことを実モジュール連携で検証する（plan テスト計画の統合ケース）。
 
-const { saveExecutionResult } = await import(
-  '../../services/agents/orchestrator/execution-persistence'
-);
+const { saveExecutionResult } =
+  await import('../../services/agents/orchestrator/execution-persistence');
 import type { ExecutionState } from '../../services/agents/orchestrator/types';
 
 function makeIntegrationState(): ExecutionState {
