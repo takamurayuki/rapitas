@@ -51,7 +51,7 @@ The test jobs in `test-lint.yml` follow a two-tier strategy:
 
 | Tier | Jobs | Merge impact |
 | ---- | ---- | ------------ |
-| **hard-gate** | `test-backend`, `test-sqlite`, `lint`, `check-frontend`, `rust-check` | Blocks merge on failure |
+| **hard-gate** | `test-backend`, `test-sqlite`, `lint`, `check-frontend`, `rust-check`, `rust-check-windows` | Blocks merge on failure |
 | **advisory** | `test-full-advisory`, `test-order-check` | Visible in Step Summary; does **not** block merge |
 
 The gate suite file list is maintained in `rapitas-backend/scripts/ci-gate-tests.txt`
