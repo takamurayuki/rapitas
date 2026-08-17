@@ -123,6 +123,31 @@ export async function notifyTaskSkipped(
   });
 }
 
+/**
+ * The theme is WEDGED: work exists but every remaining task is blocked
+ * (task 615). Deliberately a different type + copy from notifyAllDone so a
+ * dead loop is never read as a normal "all finished" idle.
+ *
+ * @param themeId - Theme that went idle while wedged. / 対象テーマ
+ * @param blockedCount - Blocked tasks remaining. / blockedタスク件数
+ * @param escalatedCount - Of those, already escalated (awaiting attention). / エスカレーション済み件数
+ */
+export async function notifyAllBlocked(
+  themeId: number,
+  blockedCount: number,
+  escalatedCount: number,
+): Promise<void> {
+  const theme = await prisma.theme
+    .findUnique({ where: { id: themeId }, select: { name: true } })
+    .catch(() => null);
+  await notifyOnce({
+    type: 'auto_run_all_blocked',
+    themeId,
+    title: '自動実行: 実行可能なタスクがすべてブロックされています',
+    message: `テーマ「${theme?.name ?? themeId}」は完了ではなく閉塞しています: blocked タスクが ${blockedCount} 件残っています（うち対応待ちエスカレーション ${escalatedCount} 件）。回答・分割・調査など人の対応が必要です。`,
+  });
+}
+
 /** All tasks for the theme are done; auto-run went idle. */
 export async function notifyAllDone(themeId: number): Promise<void> {
   const theme = await prisma.theme

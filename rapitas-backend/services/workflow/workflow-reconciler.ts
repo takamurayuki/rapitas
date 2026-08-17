@@ -268,7 +268,9 @@ export async function reconcileOnce(): Promise<{
   orphanTasks: number;
   completedDesyncs: number;
   requeuedOrphans: number;
+  blockedEvidenceCorrected: number;
   retriedBlocked: number;
+  blockedEscalated: number;
   undispatchableTodos: number;
   autoApproveStalls: number;
   staleQueueItemsCancelled: number;
@@ -280,7 +282,9 @@ export async function reconcileOnce(): Promise<{
     orphanTasks: 0,
     completedDesyncs: 0,
     requeuedOrphans: 0,
+    blockedEvidenceCorrected: 0,
     retriedBlocked: 0,
+    blockedEscalated: 0,
     undispatchableTodos: 0,
     autoApproveStalls: 0,
     staleQueueItemsCancelled: 0,
@@ -291,11 +295,12 @@ export async function reconcileOnce(): Promise<{
   const nowMs = Date.now();
   try {
     // NOTE: Each heal pass is isolated in its own try/catch (via `runHealPass`)
-    // rather than sharing one try/catch around the whole sequence. These 8
+    // rather than sharing one try/catch around the whole sequence. These
     // passes fix UNRELATED kinds of divergence (zombie sessions, phantom
-    // worktrees, completed-status desync, orphan requeue, blocked-task retry,
-    // undispatchable todos, orphan flagging, stale queue items) — a non-DB
-    // throw in one (e.g. a bad row shape) must not starve the other 7 for
+    // worktrees, completed-status desync, orphan requeue, blocked-task
+    // correct/retry/escalate, undispatchable todos, orphan flagging, stale
+    // queue items) — a non-DB
+    // throw in one (e.g. a bad row shape) must not starve the others for
     // this whole cycle. Without
     // this, a deterministically-throwing row in an EARLY pass would
     // permanently prevent every LATER pass from ever running again.
@@ -311,11 +316,25 @@ export async function reconcileOnce(): Promise<{
     const requeuedOrphans = await runHealPass('requeueOrphanTasks', () =>
       requeueOrphanTasks(nowMs),
     );
+    // Blocked-task order contract (task 615): correct → retry → escalate.
+    // Evidence correction removes PROVEN-successful blocked tasks FIRST so the
+    // blind retry below never re-runs them (a re-run opens a duplicate PR).
+    const blockedEvidenceCorrected = await runHealPass('correctBlockedByEvidence', async () => {
+      const { correctBlockedByEvidence } = await import('./workflow-reconciler-blocked');
+      return correctBlockedByEvidence(nowMs);
+    });
     // Auto-retry blocked tasks so the perpetual loop self-heals instead of idling
     // with a cap full of permanently-blocked tasks.
     const retriedBlocked = await runHealPass('requeueBlockedTasks', () =>
       requeueBlockedTasks(nowMs),
     );
+    // Escalate (once per task) the blocked remainder retry will NOT touch
+    // (awaiting_question / exhausted budget / retry cap / too old) — exclusion
+    // from retry must no longer mean abandonment.
+    const blockedEscalated = await runHealPass('escalateAbandonedBlocked', async () => {
+      const { escalateAbandonedBlocked } = await import('./workflow-reconciler-blocked');
+      return escalateAbandonedBlocked(nowMs);
+    });
     // Reset todo tasks stranded in an undispatchable workflowStatus so the
     // scheduler stops burning selections on them every cycle.
     const undispatchableTodos = await runHealPass('healUndispatchableTodo', () =>
@@ -350,7 +369,9 @@ export async function reconcileOnce(): Promise<{
       orphanTasks,
       completedDesyncs,
       requeuedOrphans,
+      blockedEvidenceCorrected,
       retriedBlocked,
+      blockedEscalated,
       undispatchableTodos,
       autoApproveStalls,
       staleQueueItemsCancelled,

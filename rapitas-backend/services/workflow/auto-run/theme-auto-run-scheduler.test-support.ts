@@ -326,6 +326,7 @@ export const mockNotifyAwaitingPlanApproval = mock(() => Promise.resolve());
 export const mockNotifyAwaitingUserAnswer = mock(() => Promise.resolve());
 export const mockNotifyTaskSkipped = mock(() => Promise.resolve());
 export const mockNotifyAllDone = mock(() => Promise.resolve());
+export const mockNotifyAllBlocked = mock(() => Promise.resolve());
 export const mockNotifyHangBackstop = mock(() => Promise.resolve());
 
 mock.module('./auto-run-notifications', () => ({
@@ -333,7 +334,19 @@ mock.module('./auto-run-notifications', () => ({
   notifyAwaitingUserAnswer: mockNotifyAwaitingUserAnswer,
   notifyTaskSkipped: mockNotifyTaskSkipped,
   notifyAllDone: mockNotifyAllDone,
+  notifyAllBlocked: mockNotifyAllBlocked,
   notifyHangBackstop: mockNotifyHangBackstop,
+}));
+
+// ---------------------------------------------------------------------------
+// blocked-task-escalation (all_blocked reporting — task 615)
+// ---------------------------------------------------------------------------
+export const mockCountEscalatedBlocked = mock(() => Promise.resolve(0));
+
+mock.module('../blocked-task-escalation', () => ({
+  escalateBlockedTask: mock(() => Promise.resolve(false)),
+  countEscalatedBlocked: mockCountEscalatedBlocked,
+  BLOCKED_ESCALATED_CAUSE: 'blocked_escalated',
 }));
 
 // ---------------------------------------------------------------------------
