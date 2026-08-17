@@ -7,17 +7,22 @@
  */
 
 import { Elysia } from 'elysia';
-import { executeRoute } from '../execution/execute-route';
-import { statusRoute } from '../execution/status-route';
-import { respondRoute } from '../execution/respond-route';
-import { stopRoute } from '../execution/stop-route';
-import { continueRoute } from '../execution/continue-route';
-import { resetRoute } from '../execution/reset-route';
-import { baseBranchesRoute } from '../execution/base-branches-route';
+import {
+  executeRoute,
+  statusRoute,
+  respondRoute,
+  stopRoute,
+  continueRoute,
+  resetRoute,
+  baseBranchesRoute,
+} from '../execution';
 
 // Re-export helpers for consumers that import directly from this module
-export { acquireTaskExecutionLock, releaseTaskExecutionLock } from '../execution/execution-lock';
-export { updateSessionStatusWithRetry } from '../execution/session-helpers';
+export {
+  acquireTaskExecutionLock,
+  releaseTaskExecutionLock,
+  updateSessionStatusWithRetry,
+} from '../execution';
 
 export const agentExecutionRouter = new Elysia()
   .use(executeRoute)

@@ -8,7 +8,7 @@
 import { prisma } from '../../config/database';
 import { createLogger } from '../../config/logger';
 import { GitOperations } from '../agents/orchestrator/git-operations';
-import { ensureNotPrimaryWorkTree } from '../agents/orchestrator/git-operations/worktree-guard';
+import { ensureNotPrimaryWorkTree } from '../agents/orchestrator/git-operations/worktree/worktree-guard';
 
 const log = createLogger('execution-fork');
 

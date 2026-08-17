@@ -3,29 +3,34 @@
  *
  * Re-assembles the GitOperations class from sub-modules.
  * Delegates all method implementations to standalone functions in:
- *   - core-ops.ts          (getGitDiff, getFullGitDiff, commitChanges, createCommit)
- *   - diff-structured.ts   (getDiff — structured per-file diff)
- *   - branch-pr-ops.ts     (createBranch, createPullRequest, mergePullRequest, revertChanges)
- *   - repository-setup.ts  (ensureGitRepository, validateAndSetupRemote)
- *   - worktree-ops.ts      (createWorktree, removeWorktree, cleanupStaleWorktrees)
+ *   - core/core-ops.ts          (getGitDiff, getFullGitDiff, commitChanges, createCommit)
+ *   - core/diff-structured.ts   (getDiff — structured per-file diff)
+ *   - pr/branch-pr-ops.ts       (createBranch, createPullRequest, mergePullRequest, revertChanges)
+ *   - worktree/repository-setup.ts (ensureGitRepository, validateAndSetupRemote)
+ *   - worktree/worktree-ops.ts  (createWorktree, removeWorktree, cleanupStaleWorktrees)
  */
 
-import { getGitDiff, getFullGitDiff, commitChanges, getDiff, createCommit } from './core-ops';
-import { createBranch, createPullRequest, mergePullRequest, revertChanges } from './branch-pr-ops';
+import { getGitDiff, getFullGitDiff, commitChanges, getDiff, createCommit } from './core/core-ops';
+import {
+  createBranch,
+  createPullRequest,
+  mergePullRequest,
+  revertChanges,
+} from './pr/branch-pr-ops';
 import {
   ensureGitRepository,
   validateAndSetupRemote,
   createWorktree,
   removeWorktree,
   cleanupStaleWorktrees,
-} from './worktree-ops';
+} from './worktree/worktree-ops';
 import {
   awaitWorktreeDependencies,
   startWorktreeDependenciesInstall,
   taskNeedsDependencies,
   clearWorktreeDependenciesTracking,
-} from './dependency-installer';
-import { execGitReadonly, clearGitCache, clearAllGitCache } from './git-exec';
+} from './worktree/dependency-installer';
+import { execGitReadonly, clearGitCache, clearAllGitCache } from './core/git-exec';
 
 export {
   getGitDiff,

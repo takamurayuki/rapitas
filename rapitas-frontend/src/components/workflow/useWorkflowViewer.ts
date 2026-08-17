@@ -25,6 +25,7 @@ const STATUS_TO_TAB: Partial<Record<WorkflowStatus, WorkflowFileType>> = {
   research_done: 'research',
   plan_created: 'plan',
   in_progress: 'plan',
+  awaiting_question: 'question',
   verify_done: 'verify',
   completed: 'verify',
 };
