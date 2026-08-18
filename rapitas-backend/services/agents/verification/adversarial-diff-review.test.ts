@@ -71,6 +71,23 @@ describe('buildDiffReviewPrompt', () => {
     expect(prompt).toContain('(計画なし)');
   });
 
+  it('tells the judge that workflow artifacts never appear in the diff', () => {
+    // Regression: research.md / plan.md / verify.md are WorkflowFile rows, not
+    // repo files, so a criterion phrased "…が research.md に記録される" can NEVER
+    // be satisfied from the diff the judge sees. Two tasks (#632, #633) were
+    // failed on exactly that reasoning ("差分に見当たらない"), making such
+    // criteria permanently unsatisfiable no matter how often they were retried.
+    const prompt = buildDiffReviewPrompt({
+      taskTitle: 'T',
+      planContent: '',
+      acceptanceCriteria: ['原因内訳が research.md に記録される'],
+      diffText: 'd',
+    });
+    expect(prompt).toContain('research.md');
+    expect(prompt).toContain('WorkflowFile');
+    expect(prompt).toContain('fail の根拠にしてはならない');
+  });
+
   it('truncates an overlong plan to 6000 chars', () => {
     const longPlan = 'x'.repeat(7000);
     const prompt = buildDiffReviewPrompt({
