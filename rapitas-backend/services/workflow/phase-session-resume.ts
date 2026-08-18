@@ -1,0 +1,128 @@
+/**
+ * PhaseSessionResume
+ *
+ * Resolves the Claude Code CLI session id that the NEXT run of the same
+ * workflow role on the same task should continue via `--resume`, so a repair
+ * bounce keeps the conversation it just had instead of cold-starting.
+ * Not responsible for deciding whether a phase re-runs (the orchestrator does
+ * that) nor for passing the id to the CLI (see task-executor / agent-factory).
+ *
+ * Measured 2026-08-18: 415 completed executions used 415 distinct CLI
+ * sessions — zero reuse — rebuilding ~105,000 tokens of context per phase,
+ * while 33 tasks bounced through verify_repair 52 times, each bounce re-running
+ * the implementer from scratch (median 9.6 min).
+ */
+import { existsSync } from 'fs';
+import { homedir } from 'os';
+import { join } from 'path';
+import { prisma } from '../../config/database';
+import { createLogger } from '../../config/logger';
+
+const log = createLogger('workflow:phase-session-resume');
+
+/** Roles whose re-runs benefit from continuing the previous conversation. */
+const RESUMABLE_ROLES = new Set(['implementer', 'verifier']);
+
+/**
+ * Map a working directory to the Claude Code CLI's per-project session folder.
+ *
+ * NOTE: This mirrors an INTERNAL CLI convention (observed 2026-08-18:
+ * `C:\Projects\rapitas\.worktrees\task-643-93ba4c5c` →
+ * `C--Projects-rapitas--worktrees-task-643-93ba4c5c`), so it is only ever used
+ * to CONFIRM a session file exists. If the convention changes the lookup misses
+ * and we simply cold-start, which is exactly today's behaviour.
+ *
+ * @param cwd - Absolute working directory of the run. / 実行の作業ディレクトリ
+ * @returns Absolute path to the CLI's session folder. / CLIセッション保存フォルダ
+ */
+export function claudeProjectDirFor(cwd: string): string {
+  return join(homedir(), '.claude', 'projects', cwd.replace(/[:\\/.]/g, '-'));
+}
+
+/**
+ * Whether the CLI still holds the transcript for `sessionId` under `cwd`.
+ * A `--resume` against a pruned session fails the run, so this is checked
+ * before the id is ever handed to the CLI.
+ *
+ * @param cwd - Working directory the session was recorded in. / 記録時の作業ディレクトリ
+ * @param sessionId - Claude CLI session id. / CLIセッションID
+ * @returns true when the transcript file is present. / トランスクリプトがあれば true
+ */
+export function claudeSessionExists(cwd: string, sessionId: string): boolean {
+  try {
+    return existsSync(join(claudeProjectDirFor(cwd), `${sessionId}.jsonl`));
+  } catch {
+    return false;
+  }
+}
+
+/** Inputs needed to decide whether a phase may resume a prior CLI session. */
+export interface PhaseResumeQuery {
+  taskId: number;
+  /** Workflow role about to run (implementer / verifier / ...). */
+  role: string;
+  /** Working directory this phase will run in. */
+  workingDirectory: string;
+  /** Agent type resolved for this phase. */
+  agentType?: string | null;
+}
+
+/**
+ * Resolve the CLI session id this phase should resume, or null to cold-start.
+ *
+ * Every guard below exists because resuming the WRONG session is worse than
+ * cold-starting: the CLI would replay another task's or another role's
+ * conversation into this phase.
+ *
+ * @param q - Task, role, working directory and agent type. / タスク・ロール・作業ディレクトリ・エージェント種別
+ * @returns Session id to pass as `--resume`, or null. / `--resume` に渡すID、無ければ null
+ */
+export async function resolvePhaseResumeSessionId(q: PhaseResumeQuery): Promise<string | null> {
+  if (process.env.RAPITAS_PHASE_SESSION_RESUME === '0') return null;
+  // Only the Claude CLI takes a `--resume <uuid>` of this shape; codex and
+  // gemini have their own session/checkpoint identifiers.
+  if (q.agentType && q.agentType !== 'claude-code') return null;
+  if (!RESUMABLE_ROLES.has(q.role)) return null;
+  if (!q.workingDirectory) return null;
+
+  try {
+    const previous = await prisma.agentExecution.findFirst({
+      where: {
+        status: 'completed',
+        claudeSessionId: { not: null },
+        session: {
+          mode: `workflow-${q.role}`,
+          // Same task AND same directory: the CLI keys its transcripts by cwd,
+          // so a session recorded in a since-recreated worktree is unreachable.
+          worktreePath: q.workingDirectory,
+          config: { taskId: q.taskId },
+        },
+      },
+      orderBy: { id: 'desc' },
+      select: { id: true, claudeSessionId: true },
+    });
+    const sessionId = previous?.claudeSessionId;
+    if (!sessionId) return null;
+
+    if (!claudeSessionExists(q.workingDirectory, sessionId)) {
+      log.info(
+        { taskId: q.taskId, role: q.role, sessionId },
+        '[phase-resume] Prior CLI session no longer on disk — cold-starting',
+      );
+      return null;
+    }
+
+    log.info(
+      { taskId: q.taskId, role: q.role, sessionId, previousExecutionId: previous.id },
+      '[phase-resume] Resuming the previous CLI session for this role',
+    );
+    return sessionId;
+  } catch (err) {
+    // Never let this optimisation block a phase from running.
+    log.warn(
+      { err, taskId: q.taskId, role: q.role },
+      '[phase-resume] Lookup failed — cold-starting',
+    );
+    return null;
+  }
+}
