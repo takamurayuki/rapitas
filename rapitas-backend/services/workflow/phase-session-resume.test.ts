@@ -10,9 +10,9 @@ import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
 
-const findFirst = mock(() => Promise.resolve<Record<string, unknown> | null>(null));
+const findMany = mock(() => Promise.resolve<Array<Record<string, unknown>>>([]));
 mock.module('../../config/database', () => ({
-  prisma: { agentExecution: { findFirst } },
+  prisma: { agentExecution: { findMany } },
 }));
 
 const { resolvePhaseResumeSessionId, claudeProjectDirFor, claudeSessionExists } =
@@ -34,8 +34,8 @@ function plantTranscript(cwd: string, sessionId: string): void {
 }
 
 beforeEach(() => {
-  findFirst.mockReset();
-  findFirst.mockResolvedValue(null);
+  findMany.mockReset();
+  findMany.mockResolvedValue([]);
   sandbox = mkdtempSync(join(tmpdir(), 'phase-resume-'));
   realProfile = process.env.USERPROFILE;
   realHome = process.env.HOME;
@@ -74,7 +74,7 @@ describe('resolvePhaseResumeSessionId', () => {
   test('returns the prior session when every guard passes', async () => {
     const workingDirectory = 'C:\\wt\\task-641';
     plantTranscript(workingDirectory, SESSION);
-    findFirst.mockResolvedValue({ id: 9, claudeSessionId: SESSION });
+    findMany.mockResolvedValue([{ id: 9, claudeSessionId: SESSION }]);
     expect(await resolvePhaseResumeSessionId({ ...base, workingDirectory })).toBe(SESSION);
   });
 
@@ -92,7 +92,7 @@ describe('resolvePhaseResumeSessionId', () => {
   test.each(COLD_START_GUARDS)('cold-starts when %s', async (_name, arrange, overrides) => {
     const workingDirectory = 'C:\\wt\\task-641';
     plantTranscript(workingDirectory, SESSION);
-    findFirst.mockResolvedValue({ id: 9, claudeSessionId: SESSION });
+    findMany.mockResolvedValue([{ id: 9, claudeSessionId: SESSION }]);
     arrange();
     expect(
       await resolvePhaseResumeSessionId({ ...base, ...overrides, workingDirectory }),
@@ -100,29 +100,44 @@ describe('resolvePhaseResumeSessionId', () => {
   });
 
   test('cold-starts when the CLI transcript is gone (a --resume would fail the run)', async () => {
-    findFirst.mockResolvedValue({ id: 9, claudeSessionId: SESSION });
+    findMany.mockResolvedValue([{ id: 9, claudeSessionId: SESSION }]);
     expect(
       await resolvePhaseResumeSessionId({ ...base, workingDirectory: 'C:\\wt\\task-641' }),
     ).toBeNull();
   });
 
-  test('scopes the lookup to this task, this role and this worktree', async () => {
+  test('scopes the lookup to this task and role, but NOT to worktreePath', async () => {
     const workingDirectory = 'C:\\wt\\task-641';
     plantTranscript(workingDirectory, SESSION);
-    findFirst.mockResolvedValue({ id: 9, claudeSessionId: SESSION });
+    findMany.mockResolvedValue([{ id: 9, claudeSessionId: SESSION }]);
     await resolvePhaseResumeSessionId({ ...base, workingDirectory });
-    const where = (findFirst.mock.calls[0]![0] as { where: Record<string, never> }).where as {
-      status: string;
-      session: { mode: string; worktreePath: string; config: { taskId: number } };
+    const args = findMany.mock.calls[0]![0] as {
+      where: { status: string; session: { mode: string; config: { taskId: number } } };
     };
-    expect(where.status).toBe('completed');
-    expect(where.session.mode).toBe('workflow-implementer');
-    expect(where.session.worktreePath).toBe(workingDirectory);
-    expect(where.session.config.taskId).toBe(641);
+    expect(args.where.status).toBe('completed');
+    expect(args.where.session.mode).toBe('workflow-implementer');
+    expect(args.where.session.config.taskId).toBe(641);
+    // worktreePath is cleared on worktree cleanup (measured: 72% of implementer
+    // sessions retain it, 4% of planner ones), so filtering on it silently
+    // disabled resume. The on-disk transcript check replaces it.
+    expect(JSON.stringify(args.where)).not.toContain('worktreePath');
+  });
+
+  test('skips candidates whose transcript lives under a different directory', async () => {
+    const workingDirectory = 'C:\\wt\\task-641';
+    const older = '11111111-2222-3333-4444-555555555555';
+    // The newest session was filed elsewhere (worktree since recreated); only
+    // the older one belongs to the directory this phase will run in.
+    plantTranscript(workingDirectory, older);
+    findMany.mockResolvedValue([
+      { id: 12, claudeSessionId: SESSION },
+      { id: 9, claudeSessionId: older },
+    ]);
+    expect(await resolvePhaseResumeSessionId({ ...base, workingDirectory })).toBe(older);
   });
 
   test('never throws — a lookup failure just cold-starts', async () => {
-    findFirst.mockRejectedValue(new Error('db down'));
+    findMany.mockRejectedValue(new Error('db down'));
     expect(
       await resolvePhaseResumeSessionId({ ...base, workingDirectory: 'C:\\wt\\task-641' }),
     ).toBeNull();
