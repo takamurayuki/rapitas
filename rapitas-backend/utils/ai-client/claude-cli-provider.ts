@@ -16,6 +16,7 @@ import { createLogger } from '../../config/logger';
 // can require "0 live aux CLI children" and post-crash cleanup can reap them.
 import { registerProcess, unregisterProcess } from '../../services/agents/agent-process-tracker';
 import { type AIMessage, type AIResponse } from './types';
+import { describeCliFailure, extractLastJsonObject } from './cli-failure-reason';
 
 const log = createLogger('ai-client:claude-cli');
 
@@ -200,54 +201,6 @@ function combinePrompt(messages: AIMessage[], systemPrompt?: string): string {
     .map((m) => (m.role === 'assistant' ? `Assistant: ${m.content}` : m.content))
     .join('\n\n');
   return system ? `${system}\n\n${convo}` : convo;
-}
-
-/** Extract the last balanced top-level JSON object from CLI stdout. */
-function extractLastJsonObject(text: string): string | null {
-  let depth = 0;
-  let end = -1;
-  for (let i = text.length - 1; i >= 0; i--) {
-    const ch = text[i];
-    if (ch === '}') {
-      if (depth === 0) end = i;
-      depth++;
-    } else if (ch === '{') {
-      depth--;
-      if (depth === 0 && end !== -1) return text.slice(i, end + 1);
-    }
-  }
-  return null;
-}
-
-/**
- * Extract the human-readable reason from a failed CLI invocation.
- *
- * The CLI reports failures as a JSON envelope whose `result` field holds the
- * actual reason ("You've hit your monthly spend limit", an auth prompt, ...).
- * Blindly slicing the raw text truncated mid-envelope and threw the reason
- * away — every failure logged an identical, useless prefix ending at
- * `"output_tokens":`. Falls back to the raw head when there is no envelope.
- *
- * @param raw - stderr or stdout from the CLI. / CLI の出力
- * @returns A short reason suitable for an error message. / 短い失敗理由
- */
-export function describeCliFailure(raw: string): string {
-  const jsonText = extractLastJsonObject(raw.trim());
-  if (jsonText) {
-    try {
-      const parsed: unknown = JSON.parse(jsonText);
-      if (parsed && typeof parsed === 'object') {
-        const rec = parsed as Record<string, unknown>;
-        for (const key of ['result', 'error', 'message']) {
-          const v = rec[key];
-          if (typeof v === 'string' && v.trim()) return v.trim().slice(0, 300);
-        }
-      }
-    } catch {
-      // Not JSON after all — fall through to the raw head.
-    }
-  }
-  return raw.slice(0, 300);
 }
 
 /**
