@@ -74,8 +74,9 @@ mock.module('../../config/logger', () => ({
   getBackendLogFilePath: mock((_stamp?: string) => 'mock-log-path'),
 }));
 
-const { callClaudeCli, callClaudeCliStream, ClaudeCliUnavailableError, describeCliFailure } =
+const { callClaudeCli, callClaudeCliStream, ClaudeCliUnavailableError } =
   await import('./claude-cli-provider');
+const { describeCliFailure } = await import('./cli-failure-reason');
 
 const flush = () => new Promise<void>((resolve) => setImmediate(resolve));
 
