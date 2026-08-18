@@ -74,7 +74,7 @@ mock.module('../../config/logger', () => ({
   getBackendLogFilePath: mock((_stamp?: string) => 'mock-log-path'),
 }));
 
-const { callClaudeCli, callClaudeCliStream, ClaudeCliUnavailableError } =
+const { callClaudeCli, callClaudeCliStream, ClaudeCliUnavailableError, describeCliFailure } =
   await import('./claude-cli-provider');
 
 const flush = () => new Promise<void>((resolve) => setImmediate(resolve));
@@ -240,5 +240,43 @@ describe('callClaudeCliStream — process failures', () => {
     const raw = await readPromise;
     expect(raw).toContain('Claude CLI timed out after 150ms');
     expect(child.kill).toHaveBeenCalled();
+  });
+});
+
+describe('describeCliFailure', () => {
+  // Regression: the failure envelope is ~500 chars of zeroed usage counters and
+  // the reason sits in `result`, so a blind 300-char slice truncated at
+  // `"output_tokens":` and threw the reason away on every failure.
+  test('surfaces the reason from the CLI JSON envelope instead of truncating it', () => {
+    const envelope = JSON.stringify({
+      is_error: true,
+      duration_api_ms: 0,
+      num_turns: 1,
+      stop_reason: 'stop_sequence',
+      session_id: '36c6ecd3-6e3b-40bd-9806-c589d4fe312e',
+      total_cost_usd: 0,
+      usage: {
+        output_tokens_details: { thinking_tokens: 0 },
+        input_tokens: 0,
+        cache_creation_input_tokens: 0,
+        cache_read_input_tokens: 0,
+        output_tokens: 0,
+      },
+      result: "You've hit your monthly spend limit",
+    });
+    expect(envelope.indexOf('result')).toBeGreaterThan(300); // would be sliced off
+    expect(describeCliFailure(envelope)).toBe("You've hit your monthly spend limit");
+  });
+
+  test('falls back to `error`/`message` keys, then to the raw head', () => {
+    expect(describeCliFailure('{"error":"auth required"}')).toBe('auth required');
+    expect(describeCliFailure('{"message":"quota exceeded"}')).toBe('quota exceeded');
+    expect(describeCliFailure('command not found: claude')).toBe('command not found: claude');
+    expect(describeCliFailure('{"is_error":true}')).toBe('{"is_error":true}');
+  });
+
+  test('caps the extracted reason so a huge result cannot flood the log', () => {
+    const long = JSON.stringify({ result: 'x'.repeat(1000) });
+    expect(describeCliFailure(long)).toHaveLength(300);
   });
 });
