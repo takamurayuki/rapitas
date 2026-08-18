@@ -10,6 +10,7 @@ import { Elysia, t } from 'elysia';
 import {
   clearCooldown,
   listActiveCooldowns,
+  listFailureStreaks,
   type Provider,
 } from '../../../services/ai/provider-cooldown';
 
@@ -21,6 +22,14 @@ export const providerCooldownsRoutes = new Elysia()
       until: new Date(c.until).toISOString(),
       model: c.model ?? null,
       message: c.message ?? null,
+    })),
+    // Escalation observability (task #633): consecutive-failure streaks that
+    // feed the long-cooldown promotion.
+    failureStreaks: listFailureStreaks().map((s) => ({
+      provider: s.provider,
+      reason: s.reason,
+      count: s.count,
+      lastFailureAt: new Date(s.lastFailureAt).toISOString(),
     })),
   }))
   .delete(
