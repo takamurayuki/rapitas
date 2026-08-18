@@ -283,26 +283,66 @@ async function implementerAIProvider(taskId: number): Promise<AIProvider | null>
 }
 
 /**
+ * Wall-clock cap for a single juror.
+ *
+ * NOTE: This whole review runs SYNCHRONOUSLY inside the agent's
+ * `PUT /workflow/tasks/:id/files/verify` request, and `sendAIMessage` has no
+ * deadline of its own — one wedged provider held the request open indefinitely.
+ * The saving agent's Bash tool gives up on its curl at 120s, backgrounds it and
+ * then blocks waiting for output, so wall time past that point is pure idle.
+ * The sibling phase-critic gate already caps itself for exactly this reason
+ * (critic-gate.ts, task 492).
+ *
+ * Deliberately does NOT change any verdict semantics: a juror that times out
+ * reports 'unknown', which is the same state it reaches today when it errors,
+ * so the high-risk fail-closed policy below still applies unchanged.
+ */
+function jurorTimeoutMs(): number {
+  const v = parseInt(process.env.RAPITAS_ADVERSARIAL_JUROR_TIMEOUT_MS ?? '', 10);
+  return Number.isFinite(v) && v > 0 ? v : 120_000;
+}
+
+/**
  * Ask one juror (provider) for an independent verdict. Never throws.
  *
  * @param provider - Judge provider. / ジャッジのプロバイダ
  * @param prompt - Shared review prompt. / 共通レビュープロンプト
- * @returns The juror's verdict ('unknown' on error/unparseable). / 判定
+ * @returns The juror's verdict ('unknown' on error/timeout/unparseable). / 判定
  */
 async function askJuror(provider: AIProvider, prompt: string): Promise<JurorVerdict> {
+  const unknown: JurorVerdict = { provider, verdict: 'unknown', severity: 0, reasons: [] };
+  const timeoutMs = jurorTimeoutMs();
+  let timer: ReturnType<typeof setTimeout> | undefined;
   try {
-    const res = await sendAIMessage({
-      provider,
-      model: DEFAULT_MODELS[provider],
-      systemPrompt: 'You are a meticulous, skeptical senior code reviewer.',
-      maxTokens: 1200,
-      messages: [{ role: 'user', content: prompt }],
-    });
-    const v = parseReviewVerdict(res.content);
-    return { provider, verdict: v.verdict, severity: v.severity, reasons: v.reasons };
+    const verdict = await Promise.race([
+      sendAIMessage({
+        provider,
+        model: DEFAULT_MODELS[provider],
+        systemPrompt: 'You are a meticulous, skeptical senior code reviewer.',
+        maxTokens: 1200,
+        messages: [{ role: 'user', content: prompt }],
+      }).then((res) => {
+        const v = parseReviewVerdict(res.content);
+        return { provider, verdict: v.verdict, severity: v.severity, reasons: v.reasons };
+      }),
+      new Promise<JurorVerdict>((resolve) => {
+        timer = setTimeout(() => {
+          log.warn(
+            { provider, timeoutMs },
+            '[adversarial-review] Juror timed out — counting as unknown',
+          );
+          resolve(unknown);
+        }, timeoutMs);
+      }),
+    ]);
+    return verdict;
   } catch (err) {
     log.warn({ err, provider }, '[adversarial-review] Juror failed');
-    return { provider, verdict: 'unknown', severity: 0, reasons: [] };
+    return unknown;
+  } finally {
+    // Without this the pending timer keeps the event loop (and in tests, the
+    // process) alive for the full timeout after a fast juror already answered.
+    if (timer) clearTimeout(timer);
   }
 }
 
