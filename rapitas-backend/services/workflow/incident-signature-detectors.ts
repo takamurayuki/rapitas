@@ -265,28 +265,43 @@ const PHASE_COMPLETED_CAUSE_PREFIX = 'phase_completed:';
 const REPAIR_BOUNCE_CAUSES = new Set(['verify_repair', 'ci_repair']);
 
 /**
+ * Cause for a verify-artifact save. One is emitted per verify_repair round
+ * (initial verify + one re-verify per bounce) as a structural side effect of
+ * the self-repair cycle (verify-self-repair.ts) — not a symptom of looping.
+ * Forgiven by {@link detectRepeatLoop} via its own independent budget, kept
+ * separate from `forgivenessBudget` (`phase_completed:*`'s budget) rather
+ * than shared: see #643, which found that sharing a single budget between
+ * the two causes breaks the existing phase_completed budget-exhaustion test
+ * (`still detects phase_completed:implementer when count exceeds what the
+ * observed bounces explain`) because it doubles the per-bounce credit.
+ */
+const FILE_SAVED_VERIFY_CAUSE = 'file_saved:verify';
+
+/**
  * Detects a same-cause repeat loop: the same transition cause firing at least
  * `minCount` times within the trailing window. Ties between causes with equal
  * counts break deterministically by cause name (localeCompare ascending).
  * Transitions with actor='user' are excluded — operator manual recovery is
  * intervention, not a loop (actor-based, so any future manual cause is covered).
- * Causes prefixed `phase_completed:` are forgiven, but only when a preceding
+ * Causes prefixed `phase_completed:` and the `file_saved:verify` cause are
+ * each forgiven via their own independent budget, but only when a preceding
  * `verify_repair`/`ci_repair` bounce actually re-authorizes that specific
  * firing: transitions are walked in chronological order with a running
- * "forgiveness budget" that starts at 1 (the initial pass, granted only if
- * the window contains at least one bounce at all) and gains 1 for every
- * bounce encountered so far. Each `phase_completed:*` firing spends one unit
- * of budget if available; if the budget is already spent, that firing is a
+ * "forgiveness budget" per cause that starts at 1 (the initial pass, granted
+ * only if the window contains at least one bounce at all) and gains 1 for
+ * every bounce encountered so far. Each firing spends one unit of its cause's
+ * budget if available; if that budget is already spent, the firing is a
  * genuine anomaly and is counted (e.g. #607, task 614: 1 implement + 2
  * verify_repair bounces, each bounce preceding its re-implement, fully
- * explains 3 firings and is not reported as a loop). Requiring the bounce to
- * chronologically precede the firing it forgives (rather than just summing
- * bounce counts anywhere in the window) closes a gap where phase_completed
- * churn front-loaded before any bounce — which a same-window bounce cannot
- * causally explain — would otherwise be waved through by coincidental later
- * bounces of a *different* cause (verify_repair and ci_repair combined). A
- * `phase_completed:*` repetition with zero bounces anywhere in the window is
- * never forgiven at all.
+ * explains 3 `phase_completed:implementer` firings and is not reported as a
+ * loop; #643, task 641: 2 verify_repair bounces fully explain 3
+ * `file_saved:verify` firings — one per repair round — the same way).
+ * Requiring the bounce to chronologically precede the firing it forgives
+ * (rather than just summing bounce counts anywhere in the window) closes a
+ * gap where churn front-loaded before any bounce — which a same-window
+ * bounce cannot causally explain — would otherwise be waved through by
+ * coincidental later bounces. A repetition with zero bounces anywhere in the
+ * window is never forgiven at all.
  * A terminal taskStatus (see TERMINAL_TASK_STATUSES) short-circuits to null —
  * a task that has already finished is not "looping" even if it churned through
  * several retry cycles on the way there (mirrors detectStagnation's guard;
@@ -323,15 +338,21 @@ export function detectRepeatLoop(input: {
   }
 
   let forgivenessBudget = bounceTotal > 0 ? 1 : 0;
+  let verifyForgivenessBudget = bounceTotal > 0 ? 1 : 0;
   const counts = new Map<string, number>();
   for (const t of windowed) {
     if (REPAIR_BOUNCE_CAUSES.has(t.cause)) {
       forgivenessBudget += 1;
+      verifyForgivenessBudget += 1;
       counts.set(t.cause, (counts.get(t.cause) ?? 0) + 1);
       continue;
     }
     if (t.cause.startsWith(PHASE_COMPLETED_CAUSE_PREFIX) && forgivenessBudget > 0) {
       forgivenessBudget -= 1;
+      continue;
+    }
+    if (t.cause === FILE_SAVED_VERIFY_CAUSE && verifyForgivenessBudget > 0) {
+      verifyForgivenessBudget -= 1;
       continue;
     }
     counts.set(t.cause, (counts.get(t.cause) ?? 0) + 1);
