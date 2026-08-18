@@ -24,6 +24,13 @@ const log = createLogger('workflow:phase-session-resume');
 const RESUMABLE_ROLES = new Set(['implementer', 'verifier']);
 
 /**
+ * How many recent runs of the role to consider. A task can accumulate several
+ * sessions across worktree re-creations; only one of them was filed under the
+ * directory we are about to run in, so look past the newest few.
+ */
+const CANDIDATE_LIMIT = 5;
+
+/**
  * Map a working directory to the Claude Code CLI's per-project session folder.
  *
  * NOTE: This mirrors an INTERNAL CLI convention (observed 2026-08-18:
@@ -86,37 +93,42 @@ export async function resolvePhaseResumeSessionId(q: PhaseResumeQuery): Promise<
   if (!q.workingDirectory) return null;
 
   try {
-    const previous = await prisma.agentExecution.findFirst({
+    // NOTE: Deliberately NOT filtered on AgentSession.worktreePath. That column
+    // is cleared when a task's worktree is cleaned up (measured 2026-08-18:
+    // populated for only 72% of implementer sessions and 4% of planner ones,
+    // and session 2654 lost its value between two reads minutes apart), so
+    // matching on it silently disabled this optimisation. The on-disk check
+    // below is the STRONGER test anyway: the CLI itself filed the transcript
+    // under the cwd, so its presence proves the session belongs to this
+    // directory regardless of what the DB column says.
+    const candidates = await prisma.agentExecution.findMany({
       where: {
         status: 'completed',
         claudeSessionId: { not: null },
-        session: {
-          mode: `workflow-${q.role}`,
-          // Same task AND same directory: the CLI keys its transcripts by cwd,
-          // so a session recorded in a since-recreated worktree is unreachable.
-          worktreePath: q.workingDirectory,
-          config: { taskId: q.taskId },
-        },
+        session: { mode: `workflow-${q.role}`, config: { taskId: q.taskId } },
       },
       orderBy: { id: 'desc' },
+      take: CANDIDATE_LIMIT,
       select: { id: true, claudeSessionId: true },
     });
-    const sessionId = previous?.claudeSessionId;
-    if (!sessionId) return null;
 
-    if (!claudeSessionExists(q.workingDirectory, sessionId)) {
+    for (const candidate of candidates) {
+      const sessionId = candidate.claudeSessionId;
+      if (!sessionId || !claudeSessionExists(q.workingDirectory, sessionId)) continue;
       log.info(
-        { taskId: q.taskId, role: q.role, sessionId },
-        '[phase-resume] Prior CLI session no longer on disk — cold-starting',
+        { taskId: q.taskId, role: q.role, sessionId, previousExecutionId: candidate.id },
+        '[phase-resume] Resuming the previous CLI session for this role',
       );
-      return null;
+      return sessionId;
     }
 
-    log.info(
-      { taskId: q.taskId, role: q.role, sessionId, previousExecutionId: previous.id },
-      '[phase-resume] Resuming the previous CLI session for this role',
-    );
-    return sessionId;
+    if (candidates.length > 0) {
+      log.info(
+        { taskId: q.taskId, role: q.role, examined: candidates.length },
+        '[phase-resume] No prior CLI transcript under this directory — cold-starting',
+      );
+    }
+    return null;
   } catch (err) {
     // Never let this optimisation block a phase from running.
     log.warn(
