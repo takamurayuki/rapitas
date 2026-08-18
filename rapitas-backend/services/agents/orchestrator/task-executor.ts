@@ -25,6 +25,7 @@ import {
 } from './execution-helpers';
 import { buildShutdownErrorMessage } from './shutdown-error';
 import { checkNeedsFallback } from './fallback-decision';
+import { isSessionResumeFailure } from '../session-resume-detector';
 import { executeWithFallbackAgent } from './fallback-executor';
 import { startExecutionHeartbeat, stopExecutionHeartbeat } from './execution-heartbeat';
 import { EXECUTION_OWNER_ID } from '../execution-owner';
@@ -97,6 +98,13 @@ async function resolveAgentConfig(
 
   if (options.modelIdOverride) {
     agentConfig = { ...agentConfig, modelId: options.modelIdOverride };
+  }
+
+  // Continue the caller-supplied CLI session instead of cold-starting. Only the
+  // claude-code agent understands this id shape (codex/gemini keep their own),
+  // and executeTask() retries once without it if the CLI rejects it.
+  if (options.resumeSessionId && agentConfig.type === 'claude-code') {
+    agentConfig = { ...agentConfig, resumeSessionId: options.resumeSessionId };
   }
 
   // Forward investigation-mode flags onto the agent config
@@ -555,6 +563,29 @@ export async function executeTask(
       logger.info(
         `[TaskExecutor] Execution result - success: ${r.success}, waitingForInput: ${r.waitingForInput}, questionType: ${r.questionType}, question: ${r.question?.substring(0, 100)}`,
       );
+
+      // A resumed CLI session can be gone on the CLI's side (pruned transcript,
+      // or a worktree recreated between attempts). That is a latency
+      // optimisation failing, NOT a task failure — every phase prompt is
+      // self-contained, so retry once cold rather than failing the phase.
+      // Deliberately placed before the provider-fallback check so a missing
+      // session is never misread as a provider outage.
+      if (agentConfig.resumeSessionId && isSessionResumeFailure(r, agentConfig.resumeSessionId)) {
+        logger.warn(
+          { taskId: options.taskId, resumeSessionId: agentConfig.resumeSessionId },
+          '[TaskExecutor] --resume rejected by the CLI — retrying once as a fresh session',
+        );
+        fileLogger.logWarn(
+          `--resume ${agentConfig.resumeSessionId} was rejected. Retrying as a fresh session.`,
+          { claudeSessionId: agentConfig.resumeSessionId, fallbackStage: 'phase_resume_coldstart' },
+        );
+        await agentFactory.removeAgent(agent.id);
+        agentConfig = { ...agentConfig, resumeSessionId: undefined, continueConversation: false };
+        const freshAgent = agentFactory.createAgent(agentConfig);
+        agentInfo.agent = freshAgent;
+        setupAgentHandlers(ctx, freshAgent, setup, options);
+        r = await freshAgent.execute(taskWithAnalysis);
+      }
 
       // Check for fallback need
       const { needsFallback, errorBlob } = await checkNeedsFallback(
