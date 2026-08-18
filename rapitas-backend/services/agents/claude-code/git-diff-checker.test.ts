@@ -105,6 +105,36 @@ describe('checkGitDiff', () => {
     expect(await checkGitDiff(WORK_DIR, LOG_PREFIX)).toBe(false);
   });
 
+  it('作業ツリーは clean だがブランチ固有コミットあり → true を返す', async () => {
+    // 再実行では実装が既に前回のコミットとして存在するため 1-4 は全て空になる。
+    // それを「実装なし」と報告していた（task 633: 失敗扱いの直後に PR #437 が
+    // 同じブランチから作られマージされた）。
+    mockRunGitCommand.mockImplementation(async (args: string[]) => {
+      if (args[0] === 'rev-parse') return 'true';
+      if (args[0] === 'rev-list') return '3';
+      return '';
+    });
+    expect(await checkGitDiff(WORK_DIR, LOG_PREFIX)).toBe(true);
+  });
+
+  it('ブランチ固有コミットが 0 件 → false のまま（計画だけの実行は失敗のまま）', async () => {
+    mockRunGitCommand.mockImplementation(async (args: string[]) => {
+      if (args[0] === 'rev-parse') return 'true';
+      if (args[0] === 'rev-list') return '0';
+      return '';
+    });
+    expect(await checkGitDiff(WORK_DIR, LOG_PREFIX)).toBe(false);
+  });
+
+  it('rev-list が失敗しても throw せず false を返す', async () => {
+    mockRunGitCommand.mockImplementation(async (args: string[]) => {
+      if (args[0] === 'rev-parse') return 'true';
+      if (args[0] === 'rev-list') throw new Error('unknown revision origin/develop');
+      return '';
+    });
+    expect(await checkGitDiff(WORK_DIR, LOG_PREFIX)).toBe(false);
+  });
+
   it('timeoutMs: 5000 が各 runGitCommand 呼び出しに渡される', async () => {
     mockRunGitCommand.mockImplementation(async (args: string[]) => {
       if (args[0] === 'rev-parse') return 'true';
