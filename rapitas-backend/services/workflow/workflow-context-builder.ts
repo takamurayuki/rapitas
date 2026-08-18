@@ -22,6 +22,8 @@ import type { WorkflowRole } from './workflow-types';
 // limit); they only ADD constraints — the machine-parsed verdict vocabulary in
 // the role instructions below stays byte-identical.
 import { REPORT_STYLE_RULE } from './workflow-style-rule';
+import { recordContextMetrics } from './workflow-context-metrics';
+import { budgetSection, resolveBudgetMode } from './workflow-context-budget';
 
 // question.md の機械可読フォーマット規約（researcher/planner/implementer 共通）。
 // UI（StructuredQuestionFlow）がこの `json:options` フェンスブロックを解析して
@@ -303,6 +305,8 @@ export async function buildRoleContext(
       // past same-shape completed tasks — research starts from experience.
       const playbook = await buildPlaybookContext(taskId, task, language);
       const playbookBlock = playbook ? `\n\n${playbook}` : '';
+      // prettier-ignore
+      void recordContextMetrics(taskId, 'researcher', mode, { taskInfo, critic: criticBlock, lessons: lessonsBlock, mode: modeBlock, memory: memoryBlock, playbook: playbookBlock, hypothesis: hypothesisBlock, styleRule });
       return `${taskInfo}${criticBlock}${lessonsBlock}${modeBlock}${memoryBlock}${playbookBlock}${hypothesisBlock}\n\n${t.researcher.instruction}\n\n${t.researcher.premiseAudit}\n\n${t.researcher.items}\n\n${t.researcher.output}\n\n${t.questionFormat}\n\n${styleRule}`;
     }
 
@@ -357,6 +361,8 @@ export async function buildRoleContext(
         ctx += `\n\n${splitDirective}`;
       }
       ctx += `\n\n${styleRule}`;
+      // prettier-ignore
+      void recordContextMetrics(taskId, 'planner', mode, { taskInfo, critic: planCritic, lessons: planLessons, memory: plannerMemory, rejected, case: plannerCase, playbook: plannerPlaybook, research, styleRule });
       return ctx;
     }
 
@@ -403,14 +409,21 @@ export async function buildRoleContext(
       // CBR (R9): only when there is NO plan (lightweight) — with a plan the
       // planner already consumed the solved case, and re-injecting it here
       // would bloat the largest context and could conflict with the plan.
-      if (!plan) {
-        const implementerCase = await buildCaseContext(taskId, task, language);
-        if (implementerCase) {
-          ctx += `\n\n${implementerCase}`;
-        }
+      const implementerCase = plan ? null : await buildCaseContext(taskId, task, language);
+      if (implementerCase) {
+        ctx += `\n\n${implementerCase}`;
       }
+      // Budget (enforce mode only): with a plan, research.md is redundant in
+      // full (plan restates the needed facts) — clamp it; never clamp gate inputs.
+      // research is only clamped when a plan exists (see condition below); verifyFeedback
+      // has no such condition and is ALWAYS budget-wrapped (see feedbackBody below) because
+      // it is prior-round self-repair prose, not a gate input — repeatedly re-bouncing the
+      // same feedback verbatim across retries is the exact bloat this budget targets.
+      const budgetMode = resolveBudgetMode();
+      const researchBody =
+        plan && research ? budgetSection(budgetMode, 'implementer.research', research) : research;
       if (research) {
-        ctx += `\n\n${t.implementer.researchHeader}\n\n${research}`;
+        ctx += `\n\n${t.implementer.researchHeader}\n\n${researchBody}`;
       }
       // File-size awareness (task 600): current line counts of the plan's
       // over-limit files, measured BEFORE coding — CI-only discovery came too late.
@@ -424,12 +437,15 @@ export async function buildRoleContext(
       if (question) {
         ctx += `\n\n${t.implementer.reviewHeader}\n\n${question}`;
       }
-      if (verifyFeedback) {
+      const feedbackBody = verifyFeedback
+        ? budgetSection(budgetMode, 'implementer.verifyFeedback', verifyFeedback)
+        : verifyFeedback;
+      if (feedbackBody) {
         const header =
           language === 'ja'
             ? '# 検証 / CI からの差し戻し（前回の失敗 — 必ず対応すること）'
             : '# Verification / CI feedback (previous failure — must address)';
-        ctx += `\n\n${header}\n\n${verifyFeedback}`;
+        ctx += `\n\n${header}\n\n${feedbackBody}`;
       }
       const implementerLead = plan ? t.implementer.leadWithPlan : t.implementer.leadNoPlan;
       ctx += `\n\n${implementerLead}\n\n${t.implementer.constraints}\n\n${t.questionFormat}\n\n${styleRule}`;
@@ -449,10 +465,18 @@ export async function buildRoleContext(
               '2. Implement the fix and confirm that test now passes (the fail→pass transition is the completion evidence).\n' +
               '3. A bug fix without an added/updated reproducing (or regression) test is bounced by the coverage gate. Only when a test is genuinely impossible (e.g. UI-interaction-only repro) state the reason in your final summary.';
       }
+      // research / verifyFeedback are budget-eligible: record BOTH the pre-budget
+      // (raw) and injected (budgeted) size so the slimming effect is measurable
+      // and the oversized-section culprit stays identifiable even in `log` mode.
+      // prettier-ignore
+      void recordContextMetrics(taskId, 'implementer', mode, { taskInfo, goalAnchor, memory, pitfalls, lessons: implementLessons, hypothesis, case: implementerCase, research: { raw: research, budgeted: researchBody }, fileSizeAwareness, plan, question, verifyFeedback: { raw: verifyFeedback, budgeted: feedbackBody }, styleRule });
       return ctx;
     }
 
-    // NOTE: auto_verifier shares the verifier context — both must emit the validator-required headings
+    // NOTE: auto_verifier shares the verifier context — both must emit the validator-required
+    // headings, AND both must be measured: recordContextMetrics below is called with the
+    // dynamic `role` param (not a literal 'verifier'), so the fall-through case body runs once
+    // per buildRoleContext call regardless of which of the two role strings triggered it.
     case 'auto_verifier':
     case 'verifier': {
       const plan = await readWorkflowFile(taskId, 'plan');
@@ -489,6 +513,8 @@ export async function buildRoleContext(
       // and assumed exactly one commit.) Only run when a worktree session exists
       // — diffing the live checkout (cwd) is both wrong and expensive (it would
       // run a full per-file diff over the whole rapitas repo).
+      let diffBlock = '';
+      let groundTruthBlock = '';
       const diffSession = await prisma.agentSession
         .findFirst({
           where: { config: { taskId }, worktreePath: { not: null } },
@@ -524,7 +550,8 @@ export async function buildRoleContext(
             .join('\n');
           const diffText = patches || fallbackList;
           if (diffText.trim()) {
-            ctx += `\n\n${t.verifier.diffHeader}\n\n\`\`\`diff\n${diffText.substring(0, 50000)}\n\`\`\``;
+            diffBlock = `${t.verifier.diffHeader}\n\n\`\`\`diff\n${diffText.substring(0, 50000)}\n\`\`\``;
+            ctx += `\n\n${diffBlock}`;
           }
         } catch {
           // Continue even if diff retrieval fails — verify.md can still be written.
@@ -575,7 +602,8 @@ export async function buildRoleContext(
               language === 'ja'
                 ? `> **これは worktree に対し実際に実行した lint/型/テストの結果です（総合: ${measured.ok ? '✅ 合格' : '❌ 失敗'}）。** verify.md の「テスト結果」「品質メトリクス」「総合判定」はこの実測と矛盾してはならない。実測が ❌ なら verify.md も ❌ 検証失敗 とし、合格を捏造しないこと。実測が ✅ なら自信を持って合格と記載してよい。`
                 : `> **These are lint/type/test results actually RUN on the worktree (overall: ${measured.ok ? '✅ pass' : '❌ fail'}).** verify.md's test-results / quality-metrics / overall verdict MUST NOT contradict this. If measured ❌, mark verify.md ❌ Fail — never fabricate a pass. If measured ✅, you may confidently report pass.`;
-            ctx += `\n\n${header}\n\n${rule}\n\n${renderVerificationMarkdown(measured)}`;
+            groundTruthBlock = `${header}\n\n${rule}\n\n${renderVerificationMarkdown(measured)}`;
+            ctx += `\n\n${groundTruthBlock}`;
           }
         } catch {
           // Fail-soft — verify.md can still be written from the agent's own checks.
@@ -605,6 +633,8 @@ export async function buildRoleContext(
           );
       }
       ctx += `\n\n${verifierInstruction}\n\n${styleRule}`;
+      // prettier-ignore
+      void recordContextMetrics(taskId, role, mode, { taskInfo, memory: verifierMemory, lessons: verifyLessons, hypothesis, plan, diff: diffBlock, groundTruth: groundTruthBlock, instruction: verifierInstruction, styleRule });
       return ctx;
     }
 

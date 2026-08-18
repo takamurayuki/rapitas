@@ -15,6 +15,7 @@ import path from 'node:path';
 // exercised end-to-end without seeding the shared DB with fixture rows.
 const PLAN_TASK_ID = 600600;
 let planForSentinel: string | null = null;
+let researchForSentinel: string | null = null;
 
 /** Mirror of the real OpenSubtasksError (mock.module needs every export). */
 class OpenSubtasksError extends Error {}
@@ -24,9 +25,12 @@ class OpenSubtasksError extends Error {}
 // plan. Full export mirror — bun's mock.module is process-global, so a partial
 // mock would break any transitive importer with an export-not-found error.
 mock.module('./workflow-file-utils', () => ({
-  readWorkflowFile: mock((taskId: number, fileType: string) =>
-    Promise.resolve(taskId === PLAN_TASK_ID && fileType === 'plan' ? planForSentinel : null),
-  ),
+  readWorkflowFile: mock((taskId: number, fileType: string) => {
+    if (taskId !== PLAN_TASK_ID) return Promise.resolve(null);
+    if (fileType === 'plan') return Promise.resolve(planForSentinel);
+    if (fileType === 'research') return Promise.resolve(researchForSentinel);
+    return Promise.resolve(null);
+  }),
   writeWorkflowFile: mock((_t: number, _f: string, content: string) => Promise.resolve(content)),
   archiveWorkflowFile: mock(() => Promise.resolve(false)),
   resolveWorkflowDir: mock(() => Promise.resolve(null)),
@@ -35,6 +39,27 @@ mock.module('./workflow-file-utils', () => ({
   sliceFromReportHeading: mock((text: string) => text),
   extractMarkdownFromOutput: mock((output: string) => output),
   OpenSubtasksError,
+}));
+
+// Cross-task lesson distillation (buildCriticLessonsSection) calls the aux-AI
+// CLI (~30s per cold stream) whenever the live DB holds bounce rows — hermetic
+// tests must never spawn it. With the flag off the builders return ''
+// instantly, matching the empty-DB CI behaviour these tests were written for.
+const ORIGINAL_CRITIC_LESSONS = process.env.RAPITAS_CRITIC_LESSONS;
+process.env.RAPITAS_CRITIC_LESSONS = '0';
+afterAll(() => {
+  if (ORIGINAL_CRITIC_LESSONS === undefined) delete process.env.RAPITAS_CRITIC_LESSONS;
+  else process.env.RAPITAS_CRITIC_LESSONS = ORIGINAL_CRITIC_LESSONS;
+});
+
+// Spy on the metrics hook: keeps builder tests DB-free (no TimelineEvent
+// writes) and lets the wiring tests assert one recording per role. Full export
+// mirror as required by process-global mock.module.
+const recordContextMetricsSpy = mock((..._args: unknown[]) => Promise.resolve());
+mock.module('./workflow-context-metrics', () => ({
+  recordContextMetrics: recordContextMetricsSpy,
+  computeSectionMetrics: mock(() => ({ sections: [], totalChars: 0, totalEstTokens: 0 })),
+  estimateTokens: mock(() => 0),
 }));
 
 const { buildRoleContext, researchModeDirective, applyPlanModeDirective } =
@@ -330,5 +355,59 @@ describe('file-size awareness (task 600)', () => {
       const ctx = await buildRoleContext(PLAN_TASK_ID, 'planner', TASK);
       expect(ctx).not.toContain('変更対象ファイルの行数状況');
     });
+  });
+});
+
+describe('context metrics + budget wiring (task 632)', () => {
+  const ORIGINAL_BUDGET = process.env.RAPITAS_CONTEXT_BUDGET;
+  const LONG_RESEARCH = 'R'.repeat(13000);
+
+  beforeEach(() => {
+    delete process.env.RAPITAS_CONTEXT_BUDGET;
+    recordContextMetricsSpy.mockClear();
+    planForSentinel = null;
+    researchForSentinel = null;
+  });
+
+  afterAll(() => {
+    if (ORIGINAL_BUDGET === undefined) delete process.env.RAPITAS_CONTEXT_BUDGET;
+    else process.env.RAPITAS_CONTEXT_BUDGET = ORIGINAL_BUDGET;
+    planForSentinel = null;
+    researchForSentinel = null;
+  });
+
+  test.each(['researcher', 'planner', 'implementer', 'verifier', 'auto_verifier'])(
+    '%s records section metrics exactly once per build',
+    async (role) => {
+      await buildRoleContext(1, role as Parameters<typeof buildRoleContext>[1], TASK);
+      expect(recordContextMetricsSpy).toHaveBeenCalledTimes(1);
+    },
+  );
+
+  test('default (log) mode injects a long research body unmodified (no truncation)', async () => {
+    planForSentinel = '# 実装計画\n\n(plan body)';
+    researchForSentinel = LONG_RESEARCH;
+    const ctx = await buildRoleContext(PLAN_TASK_ID, 'implementer', TASK);
+    expect(ctx).toContain(LONG_RESEARCH);
+    expect(ctx).not.toContain('…[truncated:');
+  });
+
+  test('enforce mode clamps the with-plan research injection at 12000 chars', async () => {
+    process.env.RAPITAS_CONTEXT_BUDGET = 'enforce';
+    planForSentinel = '# 実装計画\n\n(plan body)';
+    researchForSentinel = LONG_RESEARCH;
+    const ctx = await buildRoleContext(PLAN_TASK_ID, 'implementer', TASK);
+    expect(ctx).toContain(`${'R'.repeat(12000)}\n\n…[truncated: 1000 chars]`);
+    expect(ctx).not.toContain('R'.repeat(12001));
+    // The plan body (gate material downstream) is injected untouched.
+    expect(ctx).toContain('# 実装計画');
+  });
+
+  test('enforce mode leaves research untouched when there is NO plan (lightweight)', async () => {
+    process.env.RAPITAS_CONTEXT_BUDGET = 'enforce';
+    researchForSentinel = LONG_RESEARCH;
+    const ctx = await buildRoleContext(PLAN_TASK_ID, 'implementer', TASK);
+    expect(ctx).toContain(LONG_RESEARCH);
+    expect(ctx).not.toContain('…[truncated:');
   });
 });

@@ -1767,6 +1767,20 @@
     "successRate": "Success Rate",
     "totalTokenUsage": "Total Token Usage",
     "activeAgents": "Active Agents",
+    "recoveryMetrics": {
+      "title": "Recovery metrics",
+      "window": "Last {days} days",
+      "empty": "No fallback attempts recorded yet",
+      "loadFailed": "Failed to load recovery metrics",
+      "lowSample": "Low sample",
+      "errorType": "Error type",
+      "strategy": "Strategy",
+      "attempts": "Attempts",
+      "successRate": "Success rate",
+      "avgLatency": "Avg latency",
+      "avgCost": "Avg cost",
+      "failureReasons": "Failure reasons"
+    },
     "systemStatus": {
       "title": "System Status",
       "pill": {

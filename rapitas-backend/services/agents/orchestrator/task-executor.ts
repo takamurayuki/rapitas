@@ -25,6 +25,7 @@ import {
 } from './execution-helpers';
 import { buildShutdownErrorMessage } from './shutdown-error';
 import { checkNeedsFallback } from './fallback-decision';
+import { executeWithFallbackAgent } from './fallback-executor';
 import { startExecutionHeartbeat, stopExecutionHeartbeat } from './execution-heartbeat';
 import { EXECUTION_OWNER_ID } from '../execution-owner';
 
@@ -342,148 +343,9 @@ async function buildTaskWithContext(
   return taskWithAnalysis;
 }
 
-/** Context for fallback execution */
-interface FallbackContext {
-  ctx: OrchestratorContext;
-  execution: { id: number };
-  state: ExecutionState;
-  agentInfo: ActiveAgentInfo;
-  fileLogger: ExecutionFileLogger;
-  logManager: LogChunkManager;
-  options: ExecutionOptions;
-  taskWithAnalysis: AgentTask;
-}
-
-/**
- * Execute with a fallback agent after primary agent failure.
- */
-async function executeWithFallbackAgent(
-  fallbackCtx: FallbackContext,
-  errorBlob: string,
-  originalAgentConfig: AgentConfigInput,
-): Promise<{
-  result: AgentExecutionResult;
-  fallbackSucceeded: boolean;
-  newAgentConfig?: AgentConfigInput;
-  newConfigId?: number;
-}> {
-  const { ctx, execution, state, agentInfo, fileLogger, logManager, options, taskWithAnalysis } =
-    fallbackCtx;
-
-  const { findFallbackAgentConfig } = await import('../../ai/agent-fallback');
-  const fallback = await findFallbackAgentConfig(errorBlob, originalAgentConfig.type);
-
-  if (!fallback?.agentConfig) {
-    return { result: {} as AgentExecutionResult, fallbackSucceeded: false };
-  }
-
-  const fbType = (fallback.agentConfig as { agentType: string }).agentType;
-  const fbName = (fallback.agentConfig as { name: string }).name;
-  const fbId = (fallback.agentConfig as { id: number }).id;
-
-  logger.warn(
-    {
-      originalAgent: originalAgentConfig.name,
-      originalType: originalAgentConfig.type,
-      fallbackAgent: fbName,
-      fallbackType: fbType,
-      cooledProvider: fallback.classified.provider,
-      reason: fallback.classified.reason,
-    },
-    '[TaskExecutor] Provider failed — retrying with alternative agent config',
-  );
-
-  // Emit fallback banner
-  const banner = `\n[フォールバック] ${fallback.classified.reason} を検出。${fbName} (${fbType}) で再実行します...\n`;
-  state.output += banner;
-  fileLogger.logOutput(banner, false);
-  logManager.addChunk(banner, false);
-  ctx.emitEvent({
-    type: 'execution_output',
-    executionId: execution.id,
-    sessionId: options.sessionId,
-    taskId: options.taskId,
-    data: { output: banner, isError: false },
-    timestamp: new Date(),
-  });
-
-  const newAgentConfig = await ctx.buildAgentConfigFromDb(fallback.agentConfig as never, options);
-  const newAgent = agentFactory.createAgent(newAgentConfig);
-
-  try {
-    // Wire handlers onto fallback agent
-    setupQuestionDetectedHandler(newAgent, {
-      prisma: ctx.prisma,
-      executionId: execution.id,
-      sessionId: options.sessionId,
-      taskId: options.taskId,
-      state,
-      fileLogger,
-      emitEvent: (event) => ctx.emitEvent(event),
-      startQuestionTimeout: (eid, tid, qk) => ctx.startQuestionTimeout(eid, tid, qk),
-      getQuestionTimeoutInfo: (eid) => ctx.getQuestionTimeoutInfo(eid),
-    });
-
-    setupOutputHandler(
-      newAgent,
-      {
-        prisma: ctx.prisma,
-        executionId: execution.id,
-        sessionId: options.sessionId,
-        taskId: options.taskId,
-        state,
-        agentInfo,
-        fileLogger,
-        onOutput: options.onOutput,
-        emitEvent: (event) => ctx.emitEvent(event),
-      },
-      logManager,
-    );
-
-    // Update references
-    agentInfo.agent = newAgent;
-    await ctx.prisma.agentExecution.update({
-      where: { id: execution.id },
-      data: { agentConfigId: fbId },
-    });
-
-    ctx.emitEvent({
-      type: 'execution_started',
-      executionId: execution.id,
-      sessionId: options.sessionId,
-      taskId: options.taskId,
-      data: {
-        agentType: newAgentConfig.type,
-        agentName: newAgentConfig.name,
-        modelId: newAgentConfig.modelId,
-        fallbackFrom: fallback.classified.provider,
-      },
-      timestamp: new Date(),
-    });
-
-    const retryResult = await newAgent.execute(taskWithAnalysis);
-
-    // Check if retry also failed
-    const retryBlob = `${retryResult.errorMessage ?? ''}\n${
-      typeof retryResult.output === 'string' ? retryResult.output.slice(-4000) : ''
-    }`;
-    const { classifyAgentError: reclassify } = await import('../../ai/agent-error-classifier');
-    const { agentTypeToProvider } = await import('../../ai/agent-fallback');
-    const retryHint = agentTypeToProvider(newAgentConfig.type) ?? undefined;
-    const retryHasError = !!reclassify(retryBlob, { hint: retryHint, strict: true })
-      ?.retryWithFallback;
-    const retryActuallySucceeded = retryResult.success && !retryHasError;
-
-    return {
-      result: retryResult,
-      fallbackSucceeded: retryActuallySucceeded,
-      newAgentConfig,
-      newConfigId: fbId,
-    };
-  } finally {
-    await agentFactory.removeAgent(newAgent.id);
-  }
-}
+// NOTE: FallbackContext / executeWithFallbackAgent moved verbatim to
+// fallback-executor.ts (file-size ratchet) and instrumented there with
+// recovery-metrics recording (task 641). Behavior is unchanged.
 
 /**
  * Merge the primary agent's CLI segment time into a fallback result.
