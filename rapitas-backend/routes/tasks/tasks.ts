@@ -385,7 +385,10 @@ export const tasksRoutes = new Elysia({ prefix: '/tasks' })
     if (isNaN(id)) {
       throw new ValidationError(INVALID_ID);
     }
-    const task = await prisma.task.findUnique({ where: { id }, select: { status: true } });
+    const task = await prisma.task.findUnique({
+      where: { id },
+      select: { status: true, workflowStatus: true },
+    });
     if (!task) {
       set.status = 404;
       return { error: TASK_NOT_FOUND };
@@ -394,7 +397,37 @@ export const tasksRoutes = new Elysia({ prefix: '/tasks' })
       throw new ValidationError('blocked / failed のタスクのみ再実行できます');
     }
 
-    const updated = await prisma.task.update({ where: { id }, data: { status: 'todo' } });
+    // Resetting `status` alone is not enough to make the task runnable again:
+    // ALLOWED_FILE_TYPES_BY_STATUS.verify_done is an EMPTY set, so a task parked
+    // at verify_done re-runs, works for a full implementer phase, and is then
+    // refused when it PUTs verify.md ("file type not allowed in current workflow
+    // status") — the run is discarded and the task drifts straight back to where
+    // it started. Measured on task 632: a 15.1 min / $4.15 implementer run whose
+    // result could never be recorded. Roll the workflow back to the implementer's
+    // entry status, exactly as the self-repair bounce does.
+    let rolledBackTo: string | null = null;
+    if (task.workflowStatus === 'verify_done') {
+      const { resolveImplementEntryStatus } =
+        await import('../../services/workflow/verify-self-repair');
+      rolledBackTo = await resolveImplementEntryStatus(id);
+    }
+
+    const updated = await prisma.task.update({
+      where: { id },
+      data: { status: 'todo', ...(rolledBackTo ? { workflowStatus: rolledBackTo } : {}) },
+    });
+
+    if (rolledBackTo) {
+      const { recordTransition } = await import('../../services/workflow/transition-recorder');
+      await recordTransition({
+        taskId: id,
+        fromStatus: 'verify_done',
+        toStatus: rolledBackTo,
+        actor: 'user',
+        cause: 'task_retried',
+        metadata: { from: task.status },
+      }).catch(() => {});
+    }
 
     await prisma.activityLog
       .create({
