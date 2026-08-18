@@ -75,6 +75,28 @@ export interface PhaseResumeQuery {
 }
 
 /**
+ * Positional convenience wrapper over {@link resolvePhaseResumeSessionId} that
+ * returns `undefined` (not `null`) so it drops straight into ExecutionOptions.
+ * Exists so the call site in the oversized workflow-cli-executor stays one line.
+ *
+ * @param taskId - Task about to run a phase. / 実行するタスク
+ * @param role - Workflow role. / ロール
+ * @param workingDirectory - Directory the phase runs in. / 実行ディレクトリ
+ * @param agentType - Resolved agent type. / エージェント種別
+ * @returns Session id to resume, or undefined. / 再開するID、無ければ undefined
+ */
+export async function resumeSessionIdFor(
+  taskId: number,
+  role: string,
+  workingDirectory: string,
+  agentType?: string | null,
+): Promise<string | undefined> {
+  return (
+    (await resolvePhaseResumeSessionId({ taskId, role, workingDirectory, agentType })) ?? undefined
+  );
+}
+
+/**
  * Resolve the CLI session id this phase should resume, or null to cold-start.
  *
  * Every guard below exists because resuming the WRONG session is worse than

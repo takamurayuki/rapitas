@@ -35,7 +35,7 @@ import { evaluateCompletionGate } from './completion-gate';
 import { writeBlockedStatusDurable } from './durable-blocked-write';
 import { checkWorkflowInvariants } from './workflow-invariants';
 import { maybeAutoApprovePlan } from './plan-auto-approve';
-import { resolvePhaseResumeSessionId } from './phase-session-resume';
+import { resumeSessionIdFor } from './phase-session-resume';
 
 const log = createLogger('workflow-cli-executor');
 const execAsync = promisify(exec);
@@ -610,15 +610,6 @@ curl -X POST http://127.0.0.1:${port}/idea-box \\
   // means the artifact this phase produced was already judged and bounced.
   const phaseStartedAt = new Date();
 
-  // Repair bounces re-run this role in the same worktree; continue the CLI
-  // session it already built instead of re-reading the whole context.
-  const resumeSessionId = await resolvePhaseResumeSessionId({
-    taskId,
-    role: transition.role,
-    workingDirectory: effectiveWorkDir,
-    agentType: agentConfig.agentType,
-  });
-
   const result = await orchestrator.executeTask(
     {
       id: taskId,
@@ -632,7 +623,13 @@ curl -X POST http://127.0.0.1:${port}/idea-box \\
       agentConfigId: agentConfig.id,
       workingDirectory: effectiveWorkDir,
       modelIdOverride: agentConfig.modelId || undefined,
-      resumeSessionId: resumeSessionId || undefined,
+      // Repair bounce: continue the CLI session this role already built.
+      resumeSessionId: await resumeSessionIdFor(
+        taskId,
+        transition.role,
+        effectiveWorkDir,
+        agentConfig.agentType,
+      ),
       // Role-aware wall-clock cap: implementer gets 2x the base (task 546).
       timeout: getAgentTimeoutMs(transition.role),
       autoCompleteTask: false,
