@@ -220,6 +220,37 @@ function extractLastJsonObject(text: string): string | null {
 }
 
 /**
+ * Extract the human-readable reason from a failed CLI invocation.
+ *
+ * The CLI reports failures as a JSON envelope whose `result` field holds the
+ * actual reason ("You've hit your monthly spend limit", an auth prompt, ...).
+ * Blindly slicing the raw text truncated mid-envelope and threw the reason
+ * away — every failure logged an identical, useless prefix ending at
+ * `"output_tokens":`. Falls back to the raw head when there is no envelope.
+ *
+ * @param raw - stderr or stdout from the CLI. / CLI の出力
+ * @returns A short reason suitable for an error message. / 短い失敗理由
+ */
+export function describeCliFailure(raw: string): string {
+  const jsonText = extractLastJsonObject(raw.trim());
+  if (jsonText) {
+    try {
+      const parsed: unknown = JSON.parse(jsonText);
+      if (parsed && typeof parsed === 'object') {
+        const rec = parsed as Record<string, unknown>;
+        for (const key of ['result', 'error', 'message']) {
+          const v = rec[key];
+          if (typeof v === 'string' && v.trim()) return v.trim().slice(0, 300);
+        }
+      }
+    } catch {
+      // Not JSON after all — fall through to the raw head.
+    }
+  }
+  return raw.slice(0, 300);
+}
+
+/**
  * Track an aux CLI child in the shared process tracker (concern #1284) and
  * return an idempotent untrack callback. With `shell: true` the tracked PID is
  * the shell wrapper (cmd.exe on Windows) which lives as long as the CLI call —
@@ -285,7 +316,7 @@ function spawnCli(args: string[], prompt: string): Promise<string> {
       } else {
         reject(
           new ClaudeCliUnavailableError(
-            `Claude CLI exited ${code}: ${(stderr || stdout).slice(0, 300)}`,
+            `Claude CLI exited ${code}: ${describeCliFailure(stderr || stdout)}`,
           ),
         );
       }
@@ -343,7 +374,7 @@ export async function callClaudeCli(
     }
     if (parsed.is_error || parsed.subtype === 'error' || typeof parsed.result !== 'string') {
       throw new ClaudeCliUnavailableError(
-        `Claude CLI reported an error: ${jsonText.slice(0, 300)}`,
+        `Claude CLI reported an error: ${describeCliFailure(jsonText)}`,
       );
     }
     const tokensUsed = (parsed.usage?.input_tokens || 0) + (parsed.usage?.output_tokens || 0);
