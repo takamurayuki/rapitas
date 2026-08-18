@@ -270,7 +270,7 @@ export async function recentThemeEscalation(themeId: number | null | undefined):
       where: { parentId: null, themeId, status: { in: ['done', 'completed', 'blocked'] } },
       orderBy: [{ completedAt: 'desc' }, { updatedAt: 'desc' }],
       take: RECENT_WINDOW,
-      select: { id: true, status: true },
+      select: { id: true, status: true, workflowStatus: true },
     });
     if (recent.length < MIN_SAMPLES) return 0;
 
@@ -283,7 +283,13 @@ export async function recentThemeEscalation(themeId: number | null | undefined):
       })
       .catch(() => [] as Array<{ taskId: number }>);
     const troubled = new Set(troubledRows.map((r) => r.taskId));
-    for (const t of recent) if (t.status === 'blocked') troubled.add(t.id);
+    // NOTE: A task parked on an unanswered spec question is waiting on a HUMAN,
+    // not struggling — counting it inflated the rate and (via computeMinTier)
+    // used to pin the whole theme to premium. Every other blocked task still
+    // counts: those were blocked by the workflow itself.
+    for (const t of recent) {
+      if (t.status === 'blocked' && t.workflowStatus !== 'awaiting_question') troubled.add(t.id);
+    }
 
     const rate = troubled.size / recent.length;
     const escalation = rate >= 0.5 ? 2 : rate >= 0.25 ? 1 : 0;
