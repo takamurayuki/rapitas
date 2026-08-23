@@ -4,7 +4,14 @@
  * ロール下限・リスクオーバーライド・失敗エスカレーションのティア決定を検証する。
  */
 import { describe, test, expect } from 'bun:test';
-import { highestTier, isCapabilityRole, detectHighRisk, computeMinTier } from './routing-policy';
+import {
+  highestTier,
+  isCapabilityRole,
+  detectHighRisk,
+  computeMinTier,
+  computeMinTierWithReason,
+  isCapabilityAttributableFailure,
+} from './routing-policy';
 
 describe('highestTier', () => {
   test('最も能力の高いティアを返す', () => {
@@ -236,5 +243,102 @@ describe('computeMinTier', () => {
         provenTier: 'economy',
       }),
     ).toBeUndefined();
+  });
+});
+
+describe('isCapabilityAttributableFailure', () => {
+  test('プロバイダ枠・停止・状態エラーはモデル起因ではない', () => {
+    const infra = [
+      "You've hit your monthly spend limit. claude.ai/settings/usage",
+      'Max retries (3) exceeded — last error: ステータス "awaiting_question" では次のフェーズを実行できません',
+      'Max retries (3) exceeded — last error: タスクはブロック中のため自動実行をスキップしました',
+      'Phase execution timeout for task 600 (30 minutes)',
+      'Auto-run stopped',
+      'Cancelled by user',
+      'Anthropic API error: overloaded',
+    ];
+    for (const cause of infra) {
+      expect(isCapabilityAttributableFailure(cause)).toBe(false);
+    }
+  });
+
+  test('成果物の品質・欠落はモデル起因として扱う', () => {
+    expect(
+      isCapabilityAttributableFailure(
+        'Agent output a plan but no actual code changes were made. Please review the prompt and re-execute.',
+      ),
+    ).toBe(true);
+    expect(
+      isCapabilityAttributableFailure(
+        'verify.md was saved, but the task did not pass the completion gate.',
+      ),
+    ).toBe(true);
+  });
+
+  test('理由が未記録なら従来どおりエスカレーションする', () => {
+    expect(isCapabilityAttributableFailure(null)).toBe(true);
+    expect(isCapabilityAttributableFailure('')).toBe(true);
+    expect(isCapabilityAttributableFailure(undefined)).toBe(true);
+  });
+});
+
+describe('computeMinTier — 再試行原因によるエスカレーション制御', () => {
+  const base = { role: 'implementer', taskRetries: 1, riskHigh: false } as const;
+
+  test('インフラ起因の再試行では premium に上げない', () => {
+    expect(
+      computeMinTier({
+        ...base,
+        retryCause: "You've hit your monthly spend limit. claude.ai/settings/usage",
+      }),
+    ).toBe('standard');
+  });
+
+  test('モデル起因の再試行では従来どおり premium に上げる', () => {
+    expect(
+      computeMinTier({
+        ...base,
+        retryCause: 'Agent output a plan but no actual code changes were made.',
+      }),
+    ).toBe('premium');
+  });
+
+  test('原因未記録の再試行は premium のまま（後方互換）', () => {
+    expect(computeMinTier(base)).toBe('premium');
+  });
+
+  test('インフラ起因でも高リスクなら premium は維持される', () => {
+    expect(
+      computeMinTier({
+        ...base,
+        riskHigh: true,
+        retryCause: 'Phase execution timeout for task 600 (30 minutes)',
+      }),
+    ).toBe('premium');
+  });
+});
+
+describe('computeMinTierWithReason', () => {
+  test('下限を決めた規則を返す', () => {
+    expect(
+      computeMinTierWithReason({ role: 'researcher', taskRetries: 0, riskHigh: true }).reason,
+    ).toContain('高リスク');
+    expect(
+      computeMinTierWithReason({ role: 'implementer', taskRetries: 0, riskHigh: false }).reason,
+    ).toContain('ロール下限');
+    expect(
+      computeMinTierWithReason({
+        role: 'implementer',
+        taskRetries: 1,
+        riskHigh: false,
+        retryCause: 'no code changes were made',
+      }).reason,
+    ).toContain('再試行');
+  });
+
+  test('下限なしなら理由も返さない', () => {
+    const r = computeMinTierWithReason({ role: 'researcher', taskRetries: 0, riskHigh: false });
+    expect(r.tier).toBeUndefined();
+    expect(r.reason).toBeUndefined();
   });
 });

@@ -680,7 +680,7 @@ export class WorkflowOrchestrator {
         const [
           { getStableSmartRoute },
           { resolveRoleProviderPreferences },
-          { computeMinTier, detectHighRisk },
+          { computeMinTierWithReason, detectHighRisk },
           { WorkflowQueueService },
         ] = await Promise.all([
           import('../ai/model-route-stability'),
@@ -749,12 +749,15 @@ export class WorkflowOrchestrator {
         // Role floor + failure signals + risk → the minimum tier SmartRouter
         // may not go below (it still RAISES further when complexity is high).
         // The evidence-proven tier relaxes the static role floor only.
-        const minTier = computeMinTier({
+        const { tier: minTier, reason: minTierReason } = computeMinTierWithReason({
           role: transition.role,
           taskRetries,
           themeEscalation,
           riskHigh,
           provenTier,
+          // The retry floor only applies when a stronger model could plausibly
+          // fix the previous failure — a spend limit or a timeout could not.
+          retryCause: queueItem?.errorMessage ?? null,
         });
         // NOTE (determinism): pinned per taskId+role+minTier+capTier so a
         // same-phase retry (queue re-run, discovery cache rollover, a provider
@@ -765,6 +768,7 @@ export class WorkflowOrchestrator {
         const route = await getStableSmartRoute(taskId, transition.role, {
           ...prefs,
           minTier,
+          minTierReason,
           capTier: provenTier,
           includeAlternatives: false,
         });
@@ -776,6 +780,7 @@ export class WorkflowOrchestrator {
             model: effectiveModelId,
             tier: route.recommendedTier,
             minTier: minTier ?? null,
+            minTierReason: minTierReason ?? null,
             provenTier: provenTier ?? null,
             taskRetries,
             themeEscalation,
