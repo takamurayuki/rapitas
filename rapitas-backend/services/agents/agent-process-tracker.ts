@@ -12,6 +12,9 @@ import { execSync } from 'child_process';
 import { createLogger } from '../../config/logger';
 import { listWindowsProcessSnapshot, collectKillTargets } from './process-tree-kill';
 
+// Re-exported so agent runners get the capture + kill pair from one module.
+export { captureDescendants } from './process-tree-kill';
+
 const logger = createLogger('agent-process-tracker');
 
 /** Process info recorded in PID files. */
@@ -269,13 +272,25 @@ export function cleanupZombieProcesses(): number {
  *
  * @param pid - Root process ID of the tree / 終了対象ツリーのルートPID
  * @param opts.workdir - Launch cwd for orphan matching / 起動時の作業ディレクトリ
+ * @param opts.knownTargets - Descendants captured earlier, while their parent
+ *        links were still live; supplying them skips the fresh snapshot.
+ *        / 事前に捕捉した子孫PID（指定時は再スナップショットを省略）
  * @returns true if a kill was issued / killを実行したら true
  */
-export function killProcessTreeSafely(pid: number, opts: { workdir?: string } = {}): boolean {
+export function killProcessTreeSafely(
+  pid: number,
+  opts: { workdir?: string; knownTargets?: Iterable<number> } = {},
+): boolean {
   try {
     const targets = new Set<number>();
     if (isProcessAlive(pid)) targets.add(pid);
-    if (process.platform === 'win32') {
+    // Descendants remembered by the caller BEFORE the grace period, while the
+    // parent links still existed (see captureDescendants). Without these, a
+    // survivor whose intermediate parent has since exited is unreachable.
+    for (const t of opts.knownTargets ?? []) {
+      if (t !== process.pid && isProcessAlive(t)) targets.add(t);
+    }
+    if (process.platform === 'win32' && !opts.knownTargets) {
       // Snapshot-based enumeration also catches subtrees whose live parent
       // link is gone; [] on enumeration failure degrades to plain /T below.
       const snapshot = listWindowsProcessSnapshot();

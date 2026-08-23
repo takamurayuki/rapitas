@@ -22,6 +22,7 @@ import {
   registerProcess,
   unregisterProcess,
   killProcessTreeSafely,
+  captureDescendants,
 } from '../agent-process-tracker';
 
 const logger = createLogger('codex-cli-agent/process-runner');
@@ -556,7 +557,14 @@ export async function spawnCodexProcess(
           // On Windows, 'close' (stdio closed) does NOT guarantee the process
           // exited — mirrors claude-execution-runner.ts's same reap-after-grace.
           // killProcessTreeSafely refuses to touch a port-3001 (backend) process.
-          const reap = setTimeout(() => killProcessTreeSafely(closedPid), 3000);
+          // Capture descendants NOW, while the parent links are still live — a
+          // command the agent launched can outlive both the agent and the shell
+          // that started it, and is then unreachable from the root.
+          const known = captureDescendants(closedPid);
+          const reap = setTimeout(
+            () => killProcessTreeSafely(closedPid, { knownTargets: known }),
+            3000,
+          );
           (reap as { unref?: () => void }).unref?.();
         }
 
