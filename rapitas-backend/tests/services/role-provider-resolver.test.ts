@@ -13,6 +13,12 @@ let roleConfig: { preferredProviderOverride: string | null } | null = null;
 let userSettings: { defaultAiProvider: string | null } | null = null;
 let recentExecution: { modelName: string | null } | null = null;
 let defaultAgent: { agentType: string } | null = null;
+// Active agent configs. Default has a second provider so the pre-existing
+// cross-provider tests keep exercising the exclusion path.
+let activeAgents: Array<{ agentType: string }> = [
+  { agentType: 'claude-code' },
+  { agentType: 'codex' },
+];
 
 mock.module('../../config/database', () => ({
   prisma: {
@@ -27,6 +33,7 @@ mock.module('../../config/database', () => ({
     },
     aIAgentConfig: {
       findFirst: () => Promise.resolve(defaultAgent),
+      findMany: () => Promise.resolve(activeAgents),
     },
   },
   ensureDatabaseConnection: () => Promise.resolve(),
@@ -40,6 +47,7 @@ beforeEach(() => {
   userSettings = null;
   recentExecution = null;
   defaultAgent = null;
+  activeAgents = [{ agentType: 'claude-code' }, { agentType: 'codex' }];
 });
 
 describe('inferProviderFromModelId — 純粋関数の境界値', () => {
@@ -170,5 +178,31 @@ describe('resolveRoleProviderPreferences — 非レビューロールの upstrea
     recentExecution = { modelName: 'totally-unrecognized-id' };
     const result = await resolveRoleProviderPreferences('implementer', 1);
     expect(result.preferredProvider).toBeUndefined();
+  });
+});
+
+describe('cross-provider 除外は実行可能な別プロバイダがある時だけ', () => {
+  test('別プロバイダのエージェントが有効なら upstream を除外する', async () => {
+    recentExecution = { modelName: 'claude-fable-5' };
+    const prefs = await resolveRoleProviderPreferences('verifier', 1);
+    expect(prefs.excludeProviders).toEqual(['claude']);
+  });
+
+  test('回帰: claude-code しか無い環境では除外しない', async () => {
+    // 除外すると SmartRouter が実行できない OpenAI モデルを返し、
+    // resolveExecutableAgentConfig がオーバーライドを捨ててエージェント既定
+    // モデルで走る。せっかく計算したティア下限と実績キャップが失われるため、
+    // 満たせない除外は「除外しない」より悪い。
+    activeAgents = [{ agentType: 'claude-code' }];
+    recentExecution = { modelName: 'claude-fable-5' };
+    const prefs = await resolveRoleProviderPreferences('verifier', 1);
+    expect(prefs.excludeProviders).toBeUndefined();
+  });
+
+  test('有効なエージェントが1件も無くても落ちない', async () => {
+    activeAgents = [];
+    recentExecution = { modelName: 'claude-fable-5' };
+    const prefs = await resolveRoleProviderPreferences('verifier', 1);
+    expect(prefs.excludeProviders).toBeUndefined();
   });
 });

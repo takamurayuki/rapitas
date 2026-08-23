@@ -15,6 +15,9 @@
 import { prisma } from '../../config/database';
 import type { Provider } from '../ai/model-discovery';
 import { agentTypeToProvider } from '../ai/agent-fallback';
+import { createLogger } from '../../config/logger';
+
+const log = createLogger('role-provider-resolver');
 
 const VALID_PROVIDERS: ReadonlySet<Provider> = new Set(['claude', 'openai', 'gemini', 'ollama']);
 
@@ -92,7 +95,22 @@ export async function resolveRoleProviderPreferences(
   let excludeProviders: Provider[] | undefined;
   if (isCrossProvider || (!isExplicitProvider && REVIEW_ROLES.has(role))) {
     const upstream = await getUpstreamProvider(taskId);
-    if (upstream) excludeProviders = [upstream];
+    // Only exclude when a DIFFERENT provider can actually be executed. Model
+    // discovery lists models for any provider whose CLI is installed, but a
+    // model is only runnable if an ACTIVE AIAgentConfig exists for it —
+    // measured 2026-08-23, the verifier routed to `gpt-5.6-sol` on a machine
+    // with a single claude-code agent, and resolveExecutableAgentConfig then
+    // dropped the override and silently ran the agent's default model. That
+    // discards the tier floor and the evidence cap the route just computed, so
+    // an unsatisfiable exclusion is worse than no exclusion at all.
+    if (upstream && (await hasExecutableAlternativeProvider(upstream))) {
+      excludeProviders = [upstream];
+    } else if (upstream) {
+      log.info(
+        { role, upstream },
+        'Cross-provider review skipped — no active agent config for another provider',
+      );
+    }
   }
 
   // Provider consistency for the build chain: research → plan → implement should
@@ -108,6 +126,30 @@ export async function resolveRoleProviderPreferences(
   }
 
   return { preferredProvider, excludeProviders };
+}
+
+/**
+ * Whether any ACTIVE agent config can execute a provider other than `upstream`.
+ *
+ * Fails OPEN (true) on a lookup error so a transient DB problem cannot silently
+ * disable cross-provider review.
+ *
+ * @param upstream - Provider the review wants to avoid. / 除外したいプロバイダ
+ * @returns true when a different provider is actually runnable. / 実行可能な別プロバイダがあれば true
+ */
+async function hasExecutableAlternativeProvider(upstream: Provider): Promise<boolean> {
+  try {
+    const configs = await prisma.aIAgentConfig.findMany({
+      where: { isActive: true },
+      select: { agentType: true },
+    });
+    return configs.some((c) => {
+      const p = agentTypeToProvider(c.agentType);
+      return p !== null && p !== upstream;
+    });
+  } catch {
+    return true;
+  }
 }
 
 /**
