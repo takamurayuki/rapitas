@@ -76,6 +76,33 @@ import { countEscalatedBlocked } from '../blocked-task-escalation';
 
 const log = createLogger('theme-auto-run-scheduler');
 
+/**
+ * Whether a human acted on the task after a point in time.
+ *
+ * Used to detect that a failure decision has been overtaken by a user action
+ * (most often answering an AskUserQuestion, which revives the task). Only
+ * `actor: 'user'` transitions count; the system transitions recorded around a
+ * failure are the bookkeeping being applied, not a revival.
+ *
+ * Fails CLOSED (false) — an unreadable transition log must not stop the
+ * scheduler from recording a genuine failure.
+ *
+ * @param taskId - Task under resolution. / 対象タスク
+ * @param since - Terminal timestamp to compare against; null skips the check. / 比較起点
+ * @returns true when a user transition exists after `since`. / ユーザー操作があれば true
+ */
+async function userActedAfter(taskId: number, since: Date | null): Promise<boolean> {
+  if (!since) return false;
+  try {
+    const n = await prisma.workflowTransition.count({
+      where: { taskId, actor: 'user', createdAt: { gt: since } },
+    });
+    return n > 0;
+  } catch {
+    return false;
+  }
+}
+
 export class ThemeAutoRunScheduler {
   private static instance: ThemeAutoRunScheduler;
   private running = false;
@@ -478,7 +505,7 @@ export class ThemeAutoRunScheduler {
           status: { in: ['completed', 'failed', 'cancelled'] },
         },
         orderBy: { completedAt: 'desc' },
-        select: { id: true, status: true, errorMessage: true },
+        select: { id: true, status: true, errorMessage: true, completedAt: true },
       });
 
       const task = await resolveTaskWorkflowState(currentTaskId);
@@ -487,9 +514,14 @@ export class ThemeAutoRunScheduler {
         terminalItem?.status === 'completed' ||
         task?.status === 'done' ||
         task?.workflowStatus === 'completed';
+      // NOTE: 'cancelled' is deliberately NOT a failure. An item is cancelled
+      // when the dispatch was ABANDONED — auto-run stopped, the task reached a
+      // terminal state, a phantom item was swept, or the task was not runnable
+      // at dispatch time (queue-skip-policy). None of those mean the TASK
+      // failed, and treating them as failure is what blocked task 646 ten
+      // seconds after its user answered the question.
       const isFailed =
         terminalItem?.status === 'failed' ||
-        terminalItem?.status === 'cancelled' ||
         task?.status === 'failed' ||
         task?.status === 'blocked';
 
@@ -527,6 +559,33 @@ export class ThemeAutoRunScheduler {
           });
           return;
         }
+        // A HUMAN may have acted on this task after the queue item reached its
+        // terminal state — answering a question revives it (workflowStatus →
+        // draft, status → todo). `task` above is a snapshot taken before the
+        // awaiting-answer lookup and the notifications, so writing 'blocked'
+        // from it silently undoes that answer: measured 2026-08-24 on task 646,
+        // where the answer landed 10 seconds before this write and the task
+        // went straight back to blocked.
+        // Only a `user` actor counts — system transitions are the very failure
+        // being resolved here and must not veto their own bookkeeping.
+        if (await userActedAfter(currentTaskId, terminalItem?.completedAt ?? null)) {
+          log.info(
+            `[ThemeAutoRunScheduler] Task ${currentTaskId} was revived by the user — re-queuing instead of blocking (theme ${themeId})`,
+          );
+          logCycleEvent('task.revived', {
+            theme: themeId,
+            task: currentTaskId,
+            cause: 'user_action_after_failure',
+            msg: 'user acted after the failure decision — re-queued instead of blocked',
+          });
+          await this.queue
+            .enqueue({ taskId: currentTaskId, themeId, priority: 50 })
+            .catch(() => {});
+          await setCurrentTask(themeId, currentTaskId);
+          this.broadcastAutoRunUpdate(themeId);
+          return;
+        }
+
         const errMsg = terminalItem?.errorMessage ?? `Task ${currentTaskId} failed or was blocked`;
         // Mark the task blocked so selection skips it next time.
         if (task?.status !== 'blocked') {

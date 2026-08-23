@@ -45,6 +45,8 @@ export type CycleEventName =
   | 'task.awaiting_approval'
   | 'task.awaiting_answer'
   | 'task.hang_backstop'
+  // the task became runnable again between the failure decision and the write
+  | 'task.revived'
   // queue-stall self-healing (task 618): residue release + starvation detection
   | 'task.stall_released'
   | 'queue.starvation_detected'

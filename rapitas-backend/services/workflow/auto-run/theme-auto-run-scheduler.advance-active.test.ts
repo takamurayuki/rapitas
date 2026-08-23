@@ -19,6 +19,7 @@ import {
   mockNotifyAwaitingUserAnswer,
   mockNotifyHangBackstop,
   mockTaskUpdate,
+  mockTransitionCount,
   mockOnTaskFailed,
   mockOnTaskCompleted,
   mockOnAwaitingPlanApproval,
@@ -363,6 +364,60 @@ describe('advanceTheme — terminal resolution: failed/blocked', () => {
     });
     expect(mockOnTaskFailed).toHaveBeenCalledWith(1, 'boom');
     expect(mockNotifyTaskSkipped).toHaveBeenCalledWith(1, 100, 'boom');
+  });
+
+  it('回帰: 質問に回答して復帰したタスクを blocked に巻き戻さない', async () => {
+    // 実測 2026-08-24 task 646: キュー項目が awaiting_question で cancelled →
+    // 10秒後にユーザーが回答して workflowStatus=draft / status=todo になったのに、
+    // スケジューラが古いスナップショットから blocked を書き戻していた。
+    mockQueueItemFindFirst.mockResolvedValue({
+      id: 1,
+      status: 'failed',
+      errorMessage: 'ステータス "awaiting_question" では次のフェーズを実行できません',
+      completedAt: new Date('2026-08-24T00:53:24Z'),
+    } as never);
+    mockResolveTaskWorkflowState.mockResolvedValue({
+      id: 100,
+      status: 'blocked',
+      workflowStatus: 'draft',
+      workflowMode: null,
+      parentId: null,
+    });
+    mockIsAwaitingUserAnswer.mockResolvedValue(false);
+    // A user transition landed after the queue item went terminal.
+    mockTransitionCount.mockResolvedValue(1);
+
+    await internal(scheduler).advanceTheme(1, 100, 'priority', 1, freshLastRunAt());
+
+    expect(mockTaskUpdate).not.toHaveBeenCalled();
+    expect(mockOnTaskFailed).not.toHaveBeenCalled();
+    expect(mockNotifyTaskSkipped).not.toHaveBeenCalled();
+  });
+
+  it('cancelled なキュー項目だけでは失敗扱いにしない', async () => {
+    // cancelled = 配車の中止(auto-run停止 / 実行不能スキップ / 幽霊項目の一掃)。
+    // タスク自体の失敗ではないので blocked を書いてはいけない。
+    mockQueueItemFindFirst.mockResolvedValue({
+      id: 1,
+      status: 'cancelled',
+      errorMessage: null,
+      completedAt: new Date('2026-08-24T00:53:24Z'),
+    } as never);
+    mockResolveTaskWorkflowState.mockResolvedValue({
+      id: 100,
+      status: 'todo',
+      workflowStatus: 'draft',
+      workflowMode: null,
+      parentId: null,
+    });
+
+    await internal(scheduler).advanceTheme(1, 100, 'priority', 1, freshLastRunAt());
+
+    expect(mockTaskUpdate).not.toHaveBeenCalledWith({
+      where: { id: 100 },
+      data: { status: 'blocked' },
+    });
+    expect(mockOnTaskFailed).not.toHaveBeenCalled();
   });
 
   it('does not re-mark status when the task is already blocked', async () => {
