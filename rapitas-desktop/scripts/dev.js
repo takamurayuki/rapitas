@@ -2588,85 +2588,79 @@ function startFrontendProcess() {
 }
 
 /**
- * 指定 PID 群の WorkingSetSize 合計を MB で返す (Windows 専用)。
+ * フロントエンドツリーの PID 一覧・合計 RSS(MB)・合計 CPU 秒を、
+ * PowerShell **1回** の呼び出しで取得する (Windows 専用)。
  *
- * @param {number[]} pids 対象 PID 配列 / 対象プロセスID
- * @returns {number} 合計 RSS(MB)。取得失敗時は 0。/ 合計常駐メモリ。失敗時は 0。
+ * NOTE: 以前は子孫探索を PID ごとの `queryWin32Processes(ParentProcessId=...)`
+ * で行っており、1 tick あたり PowerShell を 11 回起動していた(実測: 子孫9 +
+ * RSS 1 + CPU 1)。PowerShell の起動は AMSI スクリプトスキャンを伴うため
+ * Defender(MsMpEng) に極めて高くつく — 実測 2026-08-24、毎秒4回の起動で
+ * MsMpEng が 4.9% → 32.6% に上昇した(git.exe は毎秒28回でも 13.2%)。
+ * このバーストが60秒ごとに走るのが「Antimalware が時々重い」の正体だった。
+ * スナップショットは1回だけ取り、BFS と集計は JS 側で行う。
+ *
+ * @param {number} rootPid 起点PID / ツリーの根
+ * @returns {{pids:number[], rssMb:number, cpuSeconds:number}|null} 失敗時 null
  */
-function getRssMbForPids(pids) {
-  if (!pids.length) return 0;
-  const filter = pids.map((p) => `ProcessId=${p}`).join(" OR ");
-  const script = `(Get-CimInstance Win32_Process -Filter "${filter}" | Measure-Object -Property WorkingSetSize -Sum).Sum`;
+function getFrontendTreeStats(rootPid) {
+  const script =
+    "Get-CimInstance Win32_Process | Select-Object ProcessId,ParentProcessId,WorkingSetSize,KernelModeTime,UserModeTime | ConvertTo-Json -Compress";
+  let out = "";
   try {
-    const out = execFileSync(
+    out = execFileSync(
       "powershell.exe",
       ["-NoProfile", "-NonInteractive", "-Command", script],
-      { encoding: "utf8", stdio: ["pipe", "pipe", "ignore"] },
+      { encoding: "utf8", stdio: ["pipe", "pipe", "ignore"], timeout: 15000 },
     );
-    const bytes = Number((out || "").trim());
-    return Number.isFinite(bytes) ? Math.round(bytes / (1024 * 1024)) : 0;
   } catch {
-    return 0;
+    return null;
   }
-}
-
-/**
- * 指定 PID 群の累積 CPU 時間(カーネル+ユーザー)の合計を秒で返す (Windows 専用)。
- *
- * @param {number[]} pids 対象 PID 配列 / 対象プロセスID
- * @returns {number} 累積 CPU 秒。取得失敗時は -1。/ 合計CPU時間(秒)。失敗時は -1。
- */
-function getCpuSecondsForPids(pids) {
-  if (!pids.length) return -1;
-  const filter = pids.map((p) => `ProcessId=${p}`).join(" OR ");
-  // KernelModeTime/UserModeTime は 100ns 単位 → 1e7 で秒に換算。
-  const script = `((Get-CimInstance Win32_Process -Filter "${filter}" | ForEach-Object { $_.KernelModeTime + $_.UserModeTime }) | Measure-Object -Sum).Sum`;
+  let rows;
   try {
-    const out = execFileSync(
-      "powershell.exe",
-      ["-NoProfile", "-NonInteractive", "-Command", script],
-      { encoding: "utf8", stdio: ["pipe", "pipe", "ignore"] },
-    );
-    const hundredNs = Number((out || "").trim());
-    return Number.isFinite(hundredNs) ? hundredNs / 1e7 : -1;
+    const parsed = JSON.parse((out || "").trim() || "[]");
+    rows = Array.isArray(parsed) ? parsed : [parsed];
   } catch {
-    return -1;
+    return null;
   }
-}
 
-/**
- * 指定プロセスの全子孫 PID(自身を含む)を列挙する。
- *
- * @param {number} rootPid 起点プロセスID / 起点となる PID
- * @returns {number[]} 子孫を含む PID 配列 / 自身と全子孫の PID
- */
-function collectDescendantPids(rootPid) {
-  const result = [];
+  const byPid = new Map();
+  const childrenByParent = new Map();
+  for (const r of rows) {
+    const pid = Number(r.ProcessId);
+    if (!Number.isInteger(pid)) continue;
+    const ppid = Number(r.ParentProcessId);
+    byPid.set(pid, r);
+    if (!childrenByParent.has(ppid)) childrenByParent.set(ppid, []);
+    childrenByParent.get(ppid).push(pid);
+  }
+
+  const pids = [];
   const seen = new Set();
   const queue = [rootPid];
   while (queue.length) {
     const pid = queue.shift();
-    if (seen.has(pid)) continue;
+    if (seen.has(pid) || !byPid.has(pid)) continue;
     seen.add(pid);
-    result.push(pid);
-    for (const proc of queryWin32Processes(`ParentProcessId=${pid}`)) {
-      const childPid = Number(proc.ProcessId);
-      if (Number.isInteger(childPid) && !seen.has(childPid)) {
-        queue.push(childPid);
-      }
+    pids.push(pid);
+    for (const child of childrenByParent.get(pid) || []) {
+      if (!seen.has(child)) queue.push(child);
     }
   }
-  return result;
-}
+  if (!pids.length) return null;
 
-/**
- * フロントエンドプロセスツリーの合計 RSS を MB で返す。
- *
- * @returns {number} RSS(MB)。フロントエンド未起動時は 0。/ ツリー合計の常駐メモリ。
- */
-function getFrontendTreeRssMb() {
-  if (!frontend || !frontend.pid) return 0;
-  return getRssMbForPids(collectDescendantPids(frontend.pid));
+  let bytes = 0;
+  let hundredNs = 0;
+  for (const pid of pids) {
+    const r = byPid.get(pid);
+    bytes += Number(r.WorkingSetSize) || 0;
+    // KernelModeTime/UserModeTime は 100ns 単位 → 1e7 で秒に換算。
+    hundredNs += (Number(r.KernelModeTime) || 0) + (Number(r.UserModeTime) || 0);
+  }
+  return {
+    pids,
+    rssMb: Math.round(bytes / (1024 * 1024)),
+    cpuSeconds: hundredNs / 1e7,
+  };
 }
 
 /**
@@ -2706,13 +2700,13 @@ async function restartFrontend(reason, opts = {}) {
 /**
  * RSS watchdog の 1 サンプル分の判定(有効時のみ呼ばれる)。
  */
-function checkFrontendRss() {
+function checkFrontendRss(stats) {
   // uptime ガード: 起動直後の初回コンパイル(高 RSS だが一過性)を絶対に kill しない。
   // これが無いと閾値を下回れない大規模コンパイルで永久リサイクルループに陥る。
   if (Date.now() - frontendStartedAt < FRONTEND_MIN_UPTIME_MS) {
     return;
   }
-  const rss = getFrontendTreeRssMb();
+  const rss = stats ? stats.rssMb : 0;
   if (rss <= 0) return; // 取得失敗時は判定をスキップ
   if (rss >= FRONTEND_RSS_LIMIT_MB) {
     frontendBreachCount += 1;
@@ -2734,17 +2728,16 @@ function checkFrontendRss() {
  * ツリー累積 CPU 秒のデルタから 1 コア換算使用率を計算し、閾値以上が
  * 規定回数「連続」したらキャッシュ強制削除つきでリサイクルする。
  */
-function checkFrontendCpuSpin() {
+function checkFrontendCpuSpin(stats) {
   if (Date.now() - frontendStartedAt < FRONTEND_CPU_MIN_UPTIME_MS) {
     frontendCpuLastSample = null; // 起動直後はベースラインも捨てる
     return;
   }
-  const pids = collectDescendantPids(frontend.pid);
-  const cpuSeconds = getCpuSecondsForPids(pids);
-  if (cpuSeconds < 0) {
+  if (!stats) {
     frontendCpuLastSample = null; // 取得失敗 → デルタ計算をリセット
     return;
   }
+  const cpuSeconds = stats.cpuSeconds;
   const prev = frontendCpuLastSample;
   frontendCpuLastSample = { cpuSeconds, at: Date.now() };
   if (!prev) return; // 初回サンプルはベースラインのみ
@@ -2802,8 +2795,11 @@ function startFrontendWatchdog() {
     if (isCleaningUp || isFrontendRestarting || !frontend || !frontend.pid) {
       return;
     }
-    if (rssEnabled) checkFrontendRss();
-    if (FRONTEND_CPU_WATCHDOG_ENABLED) checkFrontendCpuSpin();
+    // One snapshot per tick, shared by both checks — see getFrontendTreeStats
+    // for why PowerShell launches are the expensive part.
+    const stats = getFrontendTreeStats(frontend.pid);
+    if (rssEnabled) checkFrontendRss(stats);
+    if (FRONTEND_CPU_WATCHDOG_ENABLED) checkFrontendCpuSpin(stats);
   }, FRONTEND_WATCHDOG_INTERVAL_MS);
 }
 
