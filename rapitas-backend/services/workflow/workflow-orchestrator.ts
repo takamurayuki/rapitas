@@ -33,6 +33,7 @@ import { countWithFailClosed } from '../../utils/database/fail-closed-count';
 import { writeBlockedStatusDurable } from './durable-blocked-write';
 import { resolveEffectiveWorkflowDisabled } from './workflow-disabled';
 import { scheduleWorkflowRedispatch } from './workflow-redispatch';
+import { routeModelForRole, shouldAutoSelectModel } from './role-route-inputs';
 
 // Re-export sub-module helpers so existing imports from this path keep working.
 export { resolveWorkflowDir, readWorkflowFile, writeWorkflowFile } from './workflow-file-utils';
@@ -659,145 +660,16 @@ export class WorkflowOrchestrator {
     }
 
     // agentConfig is resolved above (role assignment or capability fallback).
-    // Model resolution: role override → agent default → smart auto-select
+    // Model resolution: explicit per-role model wins; otherwise the shared
+    // router (role-route-inputs) decides. That module is shared with the manual
+    // /agents/execute route so both surfaces apply the SAME floors and evidence.
     const roleModelId = (roleConfig as { modelId?: string | null } | null)?.modelId ?? null;
-    let effectiveModelId = roleModelId || agentConfig.modelId;
+    let effectiveModelId = roleModelId;
 
-    // Auto-select: when modelId is 'auto' or unset, use Smart Model Router.
-    // The resolver computes `preferredProvider` (role override > global default)
-    // and `excludeProviders` (upstream phase's provider for verifier
-    // roles, to mitigate self-evaluation bias).
-    if (!effectiveModelId || effectiveModelId === 'auto') {
-      try {
-        // NOTE: No pre-routing heuristic scoring here anymore. Before research
-        // runs, task.complexityScore is intentionally null and SmartRouter
-        // falls back to its neutral 50 ('standard') — a weak title/description
-        // guess must not masquerade as a measured value and steer model tiers.
-        // After research, the agent's code-grounded score (persisted by
-        // applyResearchAssessedComplexity) drives routing for the remaining
-        // phases (plan / implement / verify).
-
-        const [
-          { getStableSmartRoute },
-          { resolveRoleProviderPreferences },
-          { computeMinTierWithReason, detectHighRisk },
-          { WorkflowQueueService },
-        ] = await Promise.all([
-          import('../ai/model-route-stability'),
-          import('./role-provider-resolver'),
-          import('./routing-policy'),
-          import('./workflow-queue'),
-        ]);
-        const prefs = await resolveRoleProviderPreferences(transition.role, taskId);
-
-        // Failure escalation: a phase that already failed (queue retryCount > 0)
-        // gets a STRONGER model on the retry instead of re-running the same weak
-        // one. ALSO factor in recent OUTCOME telemetry for this theme — when the
-        // theme's recent tasks have been failing/repair-heavy, start stronger
-        // (adaptive routing closing the outcome loop), not just on per-task retry.
-        const queueItem = await WorkflowQueueService.getInstance()
-          .findByTaskId(taskId)
-          .catch(() => null);
-        const { recentThemeEscalation } = await import('./outcome-telemetry');
-        // NOT a fail-closed candidate: this is a soft routing SIGNAL, not a
-        // cap that bounds a loop. recentThemeEscalation already fails open
-        // internally (returns 0, "no escalation") because a lost signal just
-        // means "start at the base tier" (a quality nudge), never an unbounded
-        // retry/repair loop. The outer .catch(() => 0) here is pure
-        // defense-in-depth for the (already-caught) call itself throwing.
-        // NOTE: kept SEPARATE from the per-task retry count — collapsing them
-        // via Math.max meant theme level 1 (>=25% of recent tasks had a
-        // routine self-repair bounce — the common case) forced premium on
-        // every phase of every task indefinitely (observed: 122/122 recent
-        // executions on the top model). computeMinTier now weighs them
-        // differently (task retry → premium; theme 1 → standard, 2 → premium).
-        const themeEscalation = await recentThemeEscalation(task.themeId).catch(() => 0);
-        const taskRetries = queueItem?.retryCount ?? 0;
-
-        // Risk override: schema / auth / payment / security work forces premium
-        // regardless of complexity. For code phases, also scan plan.md for risky
-        // planned file paths.
-        const planContent =
-          transition.role === 'implementer' ||
-          transition.role === 'verifier' ||
-          transition.role === 'auto_verifier'
-            ? await readWorkflowFile(taskId, 'plan').catch(() => null)
-            : null;
-        const labelsText =
-          typeof (task as { labels?: unknown }).labels === 'string'
-            ? ((task as { labels?: string }).labels ?? '')
-            : '';
-        const { high: riskHigh, reason: riskReason } = detectHighRisk({
-          text: `${task.title} ${task.description ?? ''} ${labelsText}`,
-          planContent,
-        });
-
-        // Evidence layer: the cheapest tier with a PROVEN success record for
-        // this role (recorded outcomes, role-evidence.ts). Only consulted on
-        // the safe path — a task that already failed and high-risk work keep
-        // their premium floors and never downgrade on history. Theme-level
-        // escalation no longer disables evidence: its floor is applied AFTER
-        // the cap in SmartRouter, so a proven-cheap tier can still lower the
-        // heuristic tier down to that floor (previously any theme churn froze
-        // evidence collection entirely, locking routing at premium).
-        const { resolveProvenTier } = await import('./role-evidence');
-        const provenTier =
-          taskRetries === 0 && !riskHigh
-            ? await resolveProvenTier(transition.role).catch(() => undefined)
-            : undefined;
-
-        // Role floor + failure signals + risk → the minimum tier SmartRouter
-        // may not go below (it still RAISES further when complexity is high).
-        // The evidence-proven tier relaxes the static role floor only.
-        const { tier: minTier, reason: minTierReason } = computeMinTierWithReason({
-          role: transition.role,
-          taskRetries,
-          themeEscalation,
-          riskHigh,
-          provenTier,
-          // The retry floor only applies when a stronger model could plausibly
-          // fix the previous failure — a spend limit or a timeout could not.
-          retryCause: queueItem?.errorMessage ?? null,
-        });
-        // NOTE (determinism): pinned per taskId+role+minTier+capTier so a
-        // same-phase retry (queue re-run, discovery cache rollover, a provider
-        // briefly flapping in/out of cooldown) reuses the SAME model instead of
-        // silently re-routing. A genuine escalation/risk/evidence change
-        // computes a different key, so it still re-routes deliberately. See
-        // services/ai/model-route-stability.ts.
-        const route = await getStableSmartRoute(taskId, transition.role, {
-          ...prefs,
-          minTier,
-          minTierReason,
-          capTier: provenTier,
-          includeAlternatives: false,
-        });
-        effectiveModelId = route.recommendedModel;
-        log.info(
-          {
-            taskId,
-            role: transition.role,
-            model: effectiveModelId,
-            tier: route.recommendedTier,
-            minTier: minTier ?? null,
-            minTierReason: minTierReason ?? null,
-            provenTier: provenTier ?? null,
-            taskRetries,
-            themeEscalation,
-            riskHigh,
-            riskReason: riskReason ?? null,
-            preferredProvider: prefs.preferredProvider ?? null,
-            excludeProviders: prefs.excludeProviders ?? [],
-          },
-          'Auto-selected model via Smart Router',
-        );
-      } catch {
-        // Bare alias, not a pinned date-suffixed id: the CLI resolves 'sonnet'
-        // to the current release, so this fallback cannot go stale/be rejected
-        // at spawn the way 'claude-haiku-4-5-20251001' could after retirement.
-        effectiveModelId = 'sonnet';
-        log.warn({ taskId }, 'Smart Router failed, falling back to the sonnet alias');
-      }
+    if (shouldAutoSelectModel(roleModelId)) {
+      const routed = await routeModelForRole({ taskId, role: transition.role, task });
+      effectiveModelId = routed.modelId;
+      log.info(routed.details, 'Auto-selected model via Smart Router');
     }
 
     if (currentStatus === 'draft') {
