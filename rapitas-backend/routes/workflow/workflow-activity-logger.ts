@@ -21,6 +21,9 @@ const log = createLogger('routes:workflow:activity-logger');
  * @param filesChanged - Number of changed files / 変更ファイル数
  * @param additions - Lines added / 追加行数
  * @param deletions - Lines deleted / 削除行数
+ * @param alreadyCommitted - True when nothing new was staged because the agent
+ *        had already committed; the counts then describe the whole branch.
+ *        / 既にコミット済みで新規ステージが無かった場合 true（数値はブランチ全体）
  */
 export async function logAutoCommit(
   taskId: number,
@@ -29,16 +32,28 @@ export async function logAutoCommit(
   filesChanged: number,
   additions: number,
   deletions: number,
+  alreadyCommitted = false,
 ): Promise<void> {
   await prisma.activityLog.create({
     data: {
       taskId,
       action: 'auto_commit_created',
-      metadata: JSON.stringify({ hash, branch, filesChanged, additions, deletions }),
+      metadata: JSON.stringify({
+        hash,
+        branch,
+        filesChanged,
+        additions,
+        deletions,
+        alreadyCommitted,
+      }),
       createdAt: new Date(),
     },
   });
 
+  // NOTE: `alreadyCommitted` distinguishes "this step committed N files" from
+  // "this step staged nothing; the branch already carries N files". Without it
+  // a real 996-line commit was logged as `filesChanged:0`, which reads as "the
+  // agent produced nothing" — the opposite of the truth.
   logCycleEvent('commit.created', {
     task: taskId,
     hash: hash.slice(0, 12),
@@ -46,7 +61,8 @@ export async function logAutoCommit(
     filesChanged,
     additions,
     deletions,
-    msg: 'auto-commit created',
+    alreadyCommitted,
+    msg: alreadyCommitted ? 'branch already committed (no new stage)' : 'auto-commit created',
   });
 }
 

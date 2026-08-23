@@ -115,14 +115,16 @@ export class GitOperations {
   async createCommit(
     workingDirectory: string,
     message: string,
+    preferredBaseBranch?: string | null,
   ): Promise<{
     hash: string;
     branch: string;
     filesChanged: number;
     additions: number;
     deletions: number;
+    alreadyCommitted: boolean;
   }> {
-    return createCommit(workingDirectory, message);
+    return createCommit(workingDirectory, message, preferredBaseBranch);
   }
 
   /** @see getDiff */

@@ -219,6 +219,7 @@ export async function performAutoCommitAndPR(
         const commitResult = await orchestrator.createCommit(
           gitCwd,
           `feat(task-${taskId}): ${task.title}`,
+          targetBranch,
         );
         result.autoCommitResult = {
           success: true,
@@ -234,6 +235,7 @@ export async function performAutoCommitAndPR(
           commitResult.filesChanged,
           commitResult.additions,
           commitResult.deletions,
+          commitResult.alreadyCommitted,
         );
       } catch (commitError) {
         log.error({ err: commitError }, `[Workflow] Auto-commit failed for task ${taskId}`);
