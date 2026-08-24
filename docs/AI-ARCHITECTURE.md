@@ -82,7 +82,7 @@ provider-cooldown flap) must not silently switch models mid-phase —
 `services/ai/model-route-stability.ts` pins the router's decision per
 `taskId:role:minTier` in an in-process cache (`getStableSmartRoute`) for the
 life of the backend process, and exposes `invalidateStableRoute()` for a
-*deliberate* re-route (e.g. a genuine provider failure). This is
+_deliberate_ re-route (e.g. a genuine provider failure). This is
 process-memory only — a backend restart resets pinned routes, an accepted
 discontinuity.
 
@@ -92,6 +92,11 @@ when a phase's `modelId === 'auto'`, the orchestrator computes escalation
 `recentThemeEscalation`) and a risk floor (`services/workflow/routing-policy.ts`
 — schema/auth/payment/security work forces a premium-tier floor via
 `detectHighRisk`/`computeMinTier`), then calls `getStableSmartRoute()`.
+Path-shaped risk signals in a plan (`prisma/schema`, `migrations/`, `/auth`,
+`payment`, …) are judged only against the files its 変更予定ファイル section
+declares (`services/workflow/plan-declared-files.ts`) — a dependency table or a
+non-goal row naming a schema file does not buy a premium floor. When that
+section yields no path the probe falls back to the scrubbed full text.
 
 ---
 
@@ -107,7 +112,7 @@ on top of it.
 **Documented failure mode, and the fix.** `services/memory/theme-saturation.ts`
 records a calibration finding: MiniLM cosine similarity is **not usable** for
 Japanese near-duplicate detection in this codebase's idea/concern corpus —
-genuinely novel ideas scored *higher* similarity than near-duplicate
+genuinely novel ideas scored _higher_ similarity than near-duplicate
 type-guard refactors (0.70–0.78 vs 0.60), i.e. the signal is inverted for
 this workload. Rather than keep a metric that actively misleads, it's
 replaced with two **lexical** signals that work for Japanese where
@@ -122,6 +127,24 @@ tokenization/embeddings don't:
 Both gates are shared between `services/memory/idea-box-service.ts` and
 `services/memory/concern-backlog-service.ts` (`submitIdea` is the common
 choke point both the extractor and the innovation session pass through).
+
+### 4.1 Hybrid recall, model switch, decay, and the recall metrics (task #658)
+
+Measured on 2026-08-24: 140 agent executions produced 7 `memory_retrieval`
+events — recall was structurally dead. Three causes and their fixes:
+
+| Cause                                                                                                                                         | Fix                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| --------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Recall was pinned to `forgettingStage: 'active'` (10 % of the KB) while sweep-archived rows kept their vectors and crowded the candidate pool | `services/memory/recall/` — every stage is a candidate (`RAPITAS_KB_RECALL_STAGES`), demoted by a per-stage rank weight (`RAPITAS_KB_RECALL_STAGE_WEIGHTS`), with a `休眠中 / アーカイブ済み` marker in the prompt                                                                                                                                                                                                  |
+| English-only embedding model → Japanese queries never cleared the cosine floor                                                                | Hybrid search: vector channel (`rag/search.ts`) + character-bigram/IDF lexical channel (`recall/lexical-index.ts`) fused by RRF (`recall/rank-fusion.ts`). The model is `RAPITAS_EMBEDDING_MODEL` (multilingual opt-in); `searchSimilar` only compares rows embedded by the model actually loaded, and `rag/reindex/` re-embeds the KB in resumable chunks (`reembed` queue job, `POST /memory/embeddings/reindex`) |
+| Decay compounded nightly from `lastAccessedAt` and re-applied the confidence factor every sweep, so boosted entries archived fastest          | `forgetting.ts`: `decay × r^((2 − confidence) × daysSinceLastDecay)`, `r = RAPITAS_KB_DECAY_DAILY_RETENTION`                                                                                                                                                                                                                                                                                                        |
+
+Every recall attempt (including empty ones) writes a `memory_recall_attempt`
+event; `GET /memory/recall/metrics?days=` and `/knowledge/stats.recall` report
+attempts, non-empty rate, and attempts per agent execution — the number to
+compare against the pre-change baseline of 7 / 140 ≈ 0.05. Thresholds,
+stages, weights, model and decay are all environment-driven; see the
+`Knowledge recall / embeddings` block in `rapitas-backend/.env.example`.
 
 ---
 
@@ -158,7 +181,7 @@ Two distinct eval scripts, both under `rapitas-backend/scripts/`:
   `validatePlan`/`validateVerify`/`validateResearch`, `isReusableArtifact`,
   `parsePlanFiles`/`evaluateScopeCheck`, `coverageCheck`,
   `researchConcludesNoChange`, `classifyFailures`, and
-  `parseReviewVerdict` (the adversarial judge's *reply parser* only — not the
+  `parseReviewVerdict` (the adversarial judge's _reply parser_ only — not the
   LLM call itself). Exits 1 on any miss. **Wired into CI**:
   `.github/workflows/test-lint.yml`, `test-backend` job, step "Evaluate
   workflow quality gates" (`bun run eval:gates`) — this is the part that
@@ -209,14 +232,14 @@ delta) built from the already-returned `recentEntries` history.
 These are already-wired display surfaces that make the mechanisms above
 legible without reading logs or a database console:
 
-| Mechanism | Endpoint | Frontend |
-|---|---|---|
-| Repair convergence | `GET /agent-metrics/repair-convergence` | `RepairConvergenceCard` |
-| Adversarial review verdicts | recorded as `WorkflowTransition`s | task detail workflow log |
-| Cost routing / budget | `services/ai/smart-model-router.ts` `BudgetStatus` | agent metrics dashboard |
-| Per-task AI cost | `GET /tasks/:id/execution-status` (`totalSessionCostUsd`, from `AgentSession.totalCostUsd`) | task-detail execution panel (token/cost line) |
-| Prompt evolution | `GET /learning/prompt-evolution/summary` | `PromptEvolutionSummary` (system-prompts page) |
-| Judge eval snapshot + per-case breakdown | `GET /agent-metrics/judge-eval` | `JudgeEvalCard` (agent metrics page) |
+| Mechanism                                | Endpoint                                                                                    | Frontend                                       |
+| ---------------------------------------- | ------------------------------------------------------------------------------------------- | ---------------------------------------------- |
+| Repair convergence                       | `GET /agent-metrics/repair-convergence`                                                     | `RepairConvergenceCard`                        |
+| Adversarial review verdicts              | recorded as `WorkflowTransition`s                                                           | task detail workflow log                       |
+| Cost routing / budget                    | `services/ai/smart-model-router.ts` `BudgetStatus`                                          | agent metrics dashboard                        |
+| Per-task AI cost                         | `GET /tasks/:id/execution-status` (`totalSessionCostUsd`, from `AgentSession.totalCostUsd`) | task-detail execution panel (token/cost line)  |
+| Prompt evolution                         | `GET /learning/prompt-evolution/summary`                                                    | `PromptEvolutionSummary` (system-prompts page) |
+| Judge eval snapshot + per-case breakdown | `GET /agent-metrics/judge-eval`                                                             | `JudgeEvalCard` (agent metrics page)           |
 
 ---
 

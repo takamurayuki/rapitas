@@ -35,6 +35,14 @@ const log = createLogger('routes:agent-execution:shutdown-handler');
  * failure. Leaving the task in-progress allows the resume flow to restart it
  * after the server comes back up.
  *
+ * NOTE: this is only true of the route-level path. For agents the orchestrator
+ * still tracks, `lifecycle-manager.saveAgentState` DOES revert 'in-progress' →
+ * 'todo' on shutdown so the task stays selectable if the resume never happens.
+ * The two policies coexist on purpose; what makes that safe is that every
+ * dispatch re-asserts the status itself (reconcileTaskStatusBeforeRun flips
+ * 'todo' → 'in-progress' with a conditional update). Do not "fix" one of these
+ * to match the other without checking that guarantee still holds.
+ *
  * @param params.sessionId - AgentSession ID to mark interrupted / 中断マーク対象セッションID
  * @param params.logPrefix - Prefix for identifying the calling route / ログ識別プレフィックス
  */

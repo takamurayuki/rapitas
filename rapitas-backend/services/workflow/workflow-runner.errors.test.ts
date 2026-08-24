@@ -38,7 +38,7 @@ mock.module('../../config', () => ({
   getProjectRoot: () => '/tmp/rapitas-test',
 }));
 
-let taskRow: TaskWorkflowState = {
+let taskRow: TaskWorkflowState | null = {
   id: 9,
   status: 'in-progress',
   workflowStatus: 'in_progress',
@@ -48,6 +48,7 @@ let taskRow: TaskWorkflowState = {
 const resolveTaskWorkflowStateMock = mock(
   (): Promise<TaskWorkflowState | null> => Promise.resolve(taskRow),
 );
+const taskRowConfirmedAbsentMock = mock(() => Promise.resolve(false));
 
 mock.module('../task/task-resolver', () => ({
   resolveTaskWorkflowState: resolveTaskWorkflowStateMock,
@@ -62,6 +63,7 @@ mock.module('../task/task-resolver', () => ({
   resolveTaskSubtaskInfo: mock(() => Promise.resolve(null)),
   resolveTaskForAutoMerge: mock(() => Promise.resolve(null)),
   resolveTaskForLearning: mock(() => Promise.resolve(null)),
+  taskRowConfirmedAbsent: taskRowConfirmedAbsentMock,
 }));
 
 let dequeueSequence: (QueueItem | Error)[] = [];
@@ -175,6 +177,7 @@ function resetMocks(): void {
   stopTaskAgentsMock.mockClear();
   onSubtaskCompletedMock.mockClear();
   resolveTaskWorkflowStateMock.mockClear();
+  taskRowConfirmedAbsentMock.mockReset().mockResolvedValue(false);
   dequeueSequence = [];
   maxConcurrency = 2;
   advanceWorkflowImpl = () => new Promise(() => {});
@@ -259,6 +262,51 @@ describe('WorkflowRunner — terminal failure propagation', () => {
 
     expect(taskUpdateMock).not.toHaveBeenCalled();
     expect(onSubtaskCompletedMock).not.toHaveBeenCalled();
+  });
+});
+
+describe('WorkflowRunner — vanished-task guard (task 651)', () => {
+  beforeEach(() => {
+    resetMocks();
+    resetRunner();
+  });
+
+  test('a confirmed-absent task row is cancelled without consuming a retry', async () => {
+    taskRow = null;
+    taskRowConfirmedAbsentMock.mockResolvedValueOnce(true);
+    const item = queueItem(70, 648);
+
+    const runner = WorkflowRunner.getInstance();
+    dequeueSequence = [item];
+    runner.startProcessing(60_000);
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    await waitUntil(() => runner.getStatus().activeItems === 0);
+    await runner.stopProcessing();
+
+    expect(updateStatusMock).toHaveBeenCalledWith(
+      item.id,
+      'cancelled',
+      expect.objectContaining({ errorMessage: expect.stringContaining('648') }),
+    );
+    expect(retryIfPossibleMock).not.toHaveBeenCalled();
+  });
+
+  test('a null lookup with taskRowConfirmedAbsent=false (indeterminate) still throws and retries as before', async () => {
+    taskRow = null;
+    taskRowConfirmedAbsentMock.mockResolvedValueOnce(false);
+    retryIfPossibleMock.mockResolvedValueOnce(false);
+    const item = queueItem(71, 9);
+
+    const runner = WorkflowRunner.getInstance();
+    dequeueSequence = [item];
+    runner.startProcessing(60_000);
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    await waitUntil(() => runner.getStatus().activeItems === 0);
+    await runner.stopProcessing();
+
+    expect(updateStatusMock).toHaveBeenCalledWith(item.id, 'failed', {
+      errorMessage: 'Task 9 not found',
+    });
   });
 });
 

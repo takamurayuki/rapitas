@@ -139,6 +139,29 @@ export interface KnowledgeStats {
     wrongFlagged: number;
     avgInjected: number;
   };
+  /** Recall attempts (incl. empty ones) vs agent executions over the last 7 days. */
+  recall?: {
+    days: number;
+    attempts: number;
+    nonEmpty: number;
+    nonEmptyRate: number;
+    avgReturned: number;
+    avgTopSimilarity: number | null;
+    avgTopLexical: number | null;
+    lexicalOnlyShare: number;
+    executions: number;
+    attemptsPerExecution: number;
+    nonEmptyPerExecution: number;
+    bySource: Record<string, { attempts: number; nonEmpty: number }>;
+  };
+  /** Embedding model in use and re-index progress after a model switch. */
+  embeddingIndex?: {
+    activeModel: string | null;
+    configuredModel: string;
+    byModel: Record<string, number>;
+    total: number;
+    pendingReindex: number;
+  };
 }
 
 export interface KnowledgeListResponse {

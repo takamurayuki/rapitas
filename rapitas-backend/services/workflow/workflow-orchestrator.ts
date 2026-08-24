@@ -154,7 +154,7 @@ export class WorkflowOrchestrator {
       roleConfig,
       agentConfig,
     );
-    await reconcileTaskStatusBeforeRun(taskId, currentStatus, task);
+    await reconcileTaskStatusBeforeRun(taskId, currentStatus);
 
     return await executeAgentWithFallback({
       taskId,

@@ -1,13 +1,17 @@
 /**
  * Vector Similarity Search
  *
- * Generates embeddings, searches by cosine similarity, and filters by forgettingStage.
+ * Generates embeddings, searches by cosine similarity (scoped to the model the
+ * query was embedded with), and filters by forgettingStage(s). This is the
+ * VECTOR channel of recall; the lexical channel and their fusion live in
+ * ../recall/ and call into this module.
  */
 import { prisma } from '../../../config/database';
 import { generateEmbedding } from './embedding';
 import { searchSimilar } from './vector-index';
 import { parseTagsAsStrings } from '../utils';
-import type { VectorSearchResult, KnowledgeSearchOptions } from '../types';
+import { getRecallConfig } from '../recall/recall-config';
+import type { VectorSearchResult, KnowledgeSearchOptions, ForgettingStage } from '../types';
 
 /**
  * Vector similarity search from a text query.
@@ -20,8 +24,10 @@ export async function vectorSearch(options: {
 }): Promise<VectorSearchResult[]> {
   const { query, limit = 10, minSimilarity = 0.5, excludeIds = [] } = options;
 
-  const { embedding } = await generateEmbedding(query);
-  return searchSimilar(embedding, limit, minSimilarity, excludeIds);
+  const { embedding, model } = await generateEmbedding(query);
+  // NOTE: scope the scan to rows embedded by the SAME model — during a model
+  // migration, cosine against another model's vectors is meaningless.
+  return searchSimilar(embedding, limit, minSimilarity, excludeIds, model);
 }
 
 /**
@@ -44,12 +50,24 @@ export async function searchKnowledge(options: KnowledgeSearchOptions): Promise<
     validationStatus: string;
   }>
 > {
-  const { query, limit = 10, minSimilarity = 0.5, forgettingStage, category, themeId } = options;
+  const {
+    query,
+    limit = 10,
+    minSimilarity = 0.5,
+    forgettingStage,
+    category,
+    themeId,
+    stageWeights,
+    candidateMultiplier,
+  } = options;
 
-  // Fetch extra candidates via vector search for post-filtering
+  // Fetch extra candidates via vector search for post-filtering. The pool
+  // multiplier is configurable (RAPITAS_KB_RECALL_CANDIDATE_MULTIPLIER) because
+  // theme/category filtering below can discard most of a small pool.
+  const multiplier = candidateMultiplier ?? getRecallConfig().candidateMultiplier;
   const vectorResults = await vectorSearch({
     query,
-    limit: limit * 3,
+    limit: limit * multiplier,
     minSimilarity,
   });
 
@@ -63,7 +81,11 @@ export async function searchKnowledge(options: KnowledgeSearchOptions): Promise<
     // refuted hypothesis). Surfacing it would teach the agent a known-wrong lesson.
     validationStatus: { not: 'rejected' },
   };
-  if (forgettingStage) where.forgettingStage = forgettingStage;
+  if (Array.isArray(forgettingStage)) {
+    if (forgettingStage.length > 0) where.forgettingStage = { in: forgettingStage };
+  } else if (forgettingStage) {
+    where.forgettingStage = forgettingStage;
+  }
   if (category) where.category = category;
   if (themeId) where.themeId = themeId;
 
@@ -96,14 +118,18 @@ export async function searchKnowledge(options: KnowledgeSearchOptions): Promise<
   // it rarely displaces a clean entry. With ~31% of the KB in conflict, injecting
   // them unweighted fed the agent contradictory lessons. `similarity` stays the
   // true cosine for callers; only the sort order (and thus the top-`limit`) shifts.
+  // Stage weight (active 1 / dormant / archived < 1 by config) is a second
+  // ORDERING multiplier so a stale archived lesson does not displace an equally
+  // similar active one, while still remaining a candidate.
   const TRUST_WEIGHT: Record<string, number> = { validated: 1.25, pending: 1.0, conflict: 0.5 };
   const results = entries
     .map((e) => {
       const similarity = similarityMap.get(e.id) ?? 0;
+      const stageWeight = stageWeights?.[e.forgettingStage as ForgettingStage] ?? 1.0;
       return {
         ...e,
         similarity,
-        rankScore: similarity * (TRUST_WEIGHT[e.validationStatus] ?? 1.0),
+        rankScore: similarity * (TRUST_WEIGHT[e.validationStatus] ?? 1.0) * stageWeight,
         tags: parseTagsAsStrings(e.tags),
       };
     })

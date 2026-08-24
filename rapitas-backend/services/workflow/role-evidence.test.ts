@@ -31,7 +31,12 @@ mock.module('../../config/database', () => ({
   },
 }));
 
-import { getRoleModelOutcomes, resolveProvenTier, _resetProvenTierCache } from './role-evidence';
+import {
+  getRoleModelOutcomes,
+  resolveProvenTier,
+  resolvePremiumAdvantage,
+  _resetProvenTierCache,
+} from './role-evidence';
 
 /** Build n outcome rows for a model, `fails` of which are failures. */
 function rows(modelName: string, n: number, fails = 0): unknown[] {
@@ -271,5 +276,54 @@ describe('resolveProvenTier — 二重窓判定 (45日 + 直近14日の劣化早
     expect(outcome.recentSamples).toBe(4);
     expect(outcome.recentSuccesses).toBe(2);
     expect(outcome.recentSuccessRate).toBeCloseTo(0.5);
+  });
+});
+
+// NOTE: 2026-08-25. The evidence layer only ever answered the DOWNGRADE
+// question. Measured over 14 days, premium carried 58% of spend at a lower
+// success rate than standard with no detectable reduction in verify-repair
+// rounds — so an upgrade now has to earn itself too.
+describe('resolvePremiumAdvantage', () => {
+  test('premium が standard を上回らなければ justified=false', async () => {
+    findMany.mockImplementation(() =>
+      Promise.resolve([
+        ...rows('claude-fable-5', 20, 2), // 90%
+        ...rows('claude-sonnet-5', 20, 1), // 95%
+      ]),
+    );
+    const r = await resolvePremiumAdvantage('implementer');
+    expect(r?.justified).toBe(false);
+    expect(r?.reason).toContain('上回る実績が無い');
+  });
+
+  test('premium が明確に上回れば justified=true', async () => {
+    findMany.mockImplementation(() =>
+      Promise.resolve([
+        ...rows('claude-fable-5', 20, 0), // 100%
+        ...rows('claude-sonnet-5', 20, 4), // 80%
+      ]),
+    );
+    const r = await resolvePremiumAdvantage('implementer');
+    expect(r?.justified).toBe(true);
+  });
+
+  test('どちらかがサンプル不足なら undefined(現状維持)', async () => {
+    findMany.mockImplementation(() =>
+      Promise.resolve([...rows('claude-fable-5', 20, 0), ...rows('claude-sonnet-5', 2, 0)]),
+    );
+    expect(await resolvePremiumAdvantage('implementer')).toBeUndefined();
+  });
+
+  test('実績が無ければ undefined', async () => {
+    findMany.mockImplementation(() => Promise.resolve([]));
+    expect(await resolvePremiumAdvantage('implementer')).toBeUndefined();
+  });
+
+  test('証拠ルーティング無効時は undefined', async () => {
+    process.env.RAPITAS_EVIDENCE_ROUTING = '0';
+    findMany.mockImplementation(() =>
+      Promise.resolve([...rows('claude-fable-5', 20, 0), ...rows('claude-sonnet-5', 20, 8)]),
+    );
+    expect(await resolvePremiumAdvantage('implementer')).toBeUndefined();
   });
 });

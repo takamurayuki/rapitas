@@ -25,15 +25,18 @@ export function renderVerificationMarkdown(result: VerificationResult): string {
       ? '⚠️ 未検証（ツール実行不可）'
       : !c.ran
         ? '対象外'
-        : c.ok
-          ? '✅ OK'
-          : `❌ ${c.errorCount}件`;
+        : c.indeterminate
+          ? '⚠️ 判定不能（ベースライン比較不可・ブロックせず）'
+          : c.ok
+            ? '✅ OK'
+            : `❌ ${c.errorCount}件`;
     lines.push(`- ${c.name}: ${status}`);
     if (!c.ok && c.details) lines.push('', '```', c.details, '```');
   }
   // Render pre-existing failures separately so they are visually distinct from
   // new failures and the reader can immediately see these are not regressions.
-  const preExisting = result.checks.find((c) => c.name === 'test')?.preExistingFailures;
+  const testCheck = result.checks.find((c) => c.name === 'test');
+  const preExisting = testCheck?.preExistingFailures;
   if (preExisting && preExisting.length > 0) {
     lines.push(
       '',
@@ -43,6 +46,22 @@ export function renderVerificationMarkdown(result: VerificationResult): string {
       '',
     );
     for (const f of preExisting) {
+      lines.push(`- \`${f}\``);
+    }
+  }
+  // Indeterminate = the baseline comparison itself failed (task 659). Distinct
+  // from pre-existing (confirmed old breakage): attribution is simply unknown,
+  // so the gate did not block and the concern backlog carries the signal.
+  const indeterminate = testCheck?.indeterminateFailures;
+  if (indeterminate && indeterminate.length > 0) {
+    lines.push(
+      '',
+      '### ⚠️ 判定不能（ベースライン比較に失敗）',
+      '',
+      '以下のテストの失敗は merge-base ベースラインとの比較ができず（worktree 作成/セットアップの再試行後も不能）、本変更に起因するか判定できませんでした。ゲートはブロックせず、懸念バックログに起票済みです。',
+      '',
+    );
+    for (const f of indeterminate) {
       lines.push(`- \`${f}\``);
     }
   }

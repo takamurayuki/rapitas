@@ -81,7 +81,7 @@ export async function routeModelForRole(opts: {
       { computeMinTierWithReason, detectHighRisk },
       { WorkflowQueueService },
       { recentThemeEscalation },
-      { resolveProvenTier },
+      { resolveProvenTier, resolvePremiumAdvantage },
     ] = await Promise.all([
       import('../ai/model-route-stability'),
       import('./role-provider-resolver'),
@@ -107,10 +107,24 @@ export async function routeModelForRole(opts: {
       ? await readWorkflowFile(taskId, 'plan').catch(() => null)
       : null;
     const labelsText = typeof task.labels === 'string' ? task.labels : '';
-    const { high: riskHigh, reason: riskReason } = detectHighRisk({
-      text: `${task.title} ${task.description ?? ''} ${labelsText}`,
-      planContent,
-    });
+
+    // EVIDENCE FIRST (task 661). research.md and plan.md are produced by agents
+    // that read the actual code, so they supersede a keyword guess over the
+    // task's prose — the same rule this file already applies to complexity
+    // (see the note above: neutral 50 before research, measured score after).
+    // The keyword detector remains the pre-research fallback, where no evidence
+    // exists yet. Measured: of the routing decisions that recorded a driver,
+    // complexity never once chose premium while the prose floor chose it 31
+    // times, and every instance inspected was a false positive.
+    const { resolveRiskFromEvidence } = await import('./risk-evidence');
+    const researchContent = await readWorkflowFile(taskId, 'research').catch(() => null);
+    const evidence = resolveRiskFromEvidence({ researchContent, planContent });
+    const { high: riskHigh, reason: riskReason } =
+      evidence ??
+      detectHighRisk({
+        text: `${task.title} ${task.description ?? ''} ${labelsText}`,
+        planContent,
+      });
 
     // Evidence is consulted only on the safe path: a task that already failed,
     // and high-risk work, keep their premium floors and never downgrade on
@@ -119,6 +133,17 @@ export async function routeModelForRole(opts: {
       taskRetries === 0 && !riskHigh
         ? await resolveProvenTier(role).catch(() => undefined)
         : undefined;
+
+    // Does the RECORD say premium outperforms standard for this role? An
+    // upgrade has to earn itself, the same way resolveProvenTier makes a
+    // downgrade earn itself. undefined = not enough evidence, floor unchanged.
+    const premiumAdvantage = await resolvePremiumAdvantage(role).catch(() => undefined);
+
+    // Spend backstop (task 658 ran four premium phases for $50.04 unnoticed).
+    // Resolved here so it reaches the router as a hard ceiling applied after
+    // every floor.
+    const { resolveTaskBudgetCap } = await import('./task-budget');
+    const budget = await resolveTaskBudgetCap(taskId).catch(() => null);
 
     const { tier: minTier, reason: minTierReason } = computeMinTierWithReason({
       role,
@@ -129,6 +154,7 @@ export async function routeModelForRole(opts: {
       // The retry floor only applies when a stronger model could plausibly fix
       // the previous failure - a spend limit or a timeout could not.
       retryCause: queueItem?.errorMessage ?? null,
+      premiumJustified: premiumAdvantage?.justified,
     });
 
     // NOTE (determinism): pinned per taskId+role+minTier+capTier so a same-phase
@@ -138,6 +164,9 @@ export async function routeModelForRole(opts: {
       ...prefs,
       minTier,
       minTierReason,
+      riskSource: evidence?.source ?? 'task_text_keywords',
+      hardCapTier: budget?.capTier,
+      hardCapReason: budget?.reason,
       capTier: provenTier,
       includeAlternatives: false,
     });
@@ -156,6 +185,10 @@ export async function routeModelForRole(opts: {
         themeEscalation,
         riskHigh,
         riskReason: riskReason ?? null,
+        riskSource: evidence?.source ?? 'task_text_keywords',
+        premiumJustified: premiumAdvantage?.justified ?? null,
+        taskSpentUsd: budget?.spentUsd ?? null,
+        budgetCapTier: budget?.capTier ?? null,
         preferredProvider: prefs.preferredProvider ?? null,
         excludeProviders: prefs.excludeProviders ?? [],
       },
