@@ -37,9 +37,11 @@ export interface CommitPrCompletionOutcome {
  * Runs commit/PR/merge, its history-contamination recovery retry, and the
  * completion gates for a `verify_done` task whose verify.md just passed.
  *
- * Callers MUST register the returned Promise with registerVerifyCompletion
- * (before awaiting it) so the WorkflowRunner's verify-settle wait treats the
- * entire pipeline as in-flight, not just the first commit/PR call.
+ * The returned Promise MUST run inside a registerVerifyCompletion scope
+ * (owned by verify-post-save-pipeline.ts, which registers the completion gate
+ * + adversarial review + this pipeline as one unit before awaiting any of
+ * them) so the WorkflowRunner's verify-settle wait treats the entire
+ * post-verify automation as in-flight, not just the first commit/PR call.
  *
  * @param params - taskId / verify.md の保存内容 / 優先ベースブランチ
  * @returns The completion outcome

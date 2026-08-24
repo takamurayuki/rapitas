@@ -9,6 +9,24 @@
 import { resolveTaskWorkflowState } from '../task/task-resolver';
 import { hasVerifyCompletionInFlight } from './verify-completion-inflight';
 
+/**
+ * Landed-PR check + self-heal, loaded lazily so this timing-only module keeps
+ * no static DB-writing dependency (runner tests mock `../../config` alone).
+ * Any failure yields false — the caller then falls through to `stuck`.
+ *
+ * @param taskId - Task about to be judged stuck. / stuck 判定直前のタスクID
+ * @returns True when the task was completed from landed evidence. / 実在確認で完了した場合 true
+ */
+async function recoverFromLandedArtifact(taskId: number): Promise<boolean> {
+  try {
+    const { recoverFromLandedArtifact: recover } =
+      await import('./verify-settle-artifact-recovery');
+    return await recover(taskId);
+  } catch {
+    return false;
+  }
+}
+
 // Grace window for a `verify_done` task's async commit/PR/merge completion to
 // settle before the runner judges it failed — prevents a transient "blocked"
 // flash in the UI while the task is actually completing (observed: verify_done →
@@ -31,9 +49,10 @@ export const VERIFY_SETTLE_POLL_MS = 2_000;
  *
  * @param taskId - The task sitting at verify_done. / verify_done のタスクID
  * @param signal - Abort signal (auto-run stop). / 中断シグナル
- * @returns `completed` when it reached completed/done, `moved` when it left
- *   verify_done for another phase (e.g. self-repair), `stuck` when it stayed
- *   verify_done past the grace window (a real, persistent block). / 判定結果
+ * @returns `completed` when it reached completed/done (or was completed here
+ *   from a PR already on record), `moved` when it left verify_done for another
+ *   phase (e.g. self-repair), `stuck` when it stayed verify_done past the grace
+ *   window with no landed evidence (a real, persistent block). / 判定結果
  */
 export async function waitForVerifyCompletion(
   taskId: number,
@@ -44,7 +63,7 @@ export async function waitForVerifyCompletion(
   // First check immediately — the automation often completes before this runs.
   for (;;) {
     const t = await resolveTaskWorkflowState(taskId);
-    if (!t) return 'stuck';
+    if (!t) return (await recoverFromLandedArtifact(taskId)) ? 'completed' : 'stuck';
     if (t.workflowStatus === 'completed' || t.status === 'done') return 'completed';
     if (t.workflowStatus !== 'verify_done') return 'moved';
     if (signal.aborted) return 'stuck';
@@ -56,7 +75,15 @@ export async function waitForVerifyCompletion(
     // waiting while it is in flight, bounded by a hard cap so a wedged
     // pipeline still fails eventually.
     const stillWorking = hasVerifyCompletionInFlight(taskId) && Date.now() < hardDeadline;
-    if (!stillWorking && Date.now() >= deadline) return 'stuck';
+    if (!stillWorking && Date.now() >= deadline) {
+      // Last check before blocking: the registry is an in-memory inference,
+      // but a PR row is a fact. Task 658 (task 660) sat unregistered while
+      // its jury deliberated and was blocked 3.5 minutes before PR #458
+      // landed — if the evidence of success is already on record, complete
+      // the task from it instead of parking a success as blocked. A task
+      // with no PR on record still fails here exactly as before.
+      return (await recoverFromLandedArtifact(taskId)) ? 'completed' : 'stuck';
+    }
     await new Promise<void>((resolve) => {
       const timer = setTimeout(resolve, VERIFY_SETTLE_POLL_MS);
       signal.addEventListener(
