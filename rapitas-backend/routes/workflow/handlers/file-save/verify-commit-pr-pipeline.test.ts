@@ -1,0 +1,116 @@
+/**
+ * verify-commit-pr-pipeline テスト
+ *
+ * 履歴汚染リカバリ後の再試行（performAutoCommitAndPR の2回目呼び出し）が
+ * 完了するまで runVerifyCommitPrPipeline の戻り値Promiseが解決しないことを
+ * 検証する。task 657 の受入基準（リカバリ・再試行の実行中に in-flight が
+ * true を返す）は、この Promise 全体を registerVerifyCompletion に渡す
+ * verify-commit-pr.ts 側で担保される（別テスト
+ * verify-commit-pr-inflight-coverage.test.ts）。ここではその「全体を覆う
+ * 1つの Promise」がリカバリ・再試行の完了まで実際に解決しないことを
+ * 直接検証する。
+ */
+import { describe, expect, test, mock } from 'bun:test';
+
+mock.module('../../../../config/logger', () => ({
+  createLogger: () => ({ info: () => {}, warn: () => {}, error: () => {}, debug: () => {} }),
+}));
+
+mock.module('../../../../config', () => ({
+  prisma: {
+    task: {
+      updateMany: mock(() => Promise.resolve({ count: 1 })),
+      update: mock(() => Promise.resolve({})),
+      findUnique: mock(() => Promise.resolve({ githubPrId: null })),
+    },
+    gitHubPullRequest: { findFirst: mock(() => Promise.resolve(null)) },
+    agentSession: { findFirst: mock(() => Promise.resolve({ worktreePath: '/tmp/wt' })) },
+  },
+}));
+
+mock.module('../../../../services/workflow/transition-recorder', () => ({
+  recordTransition: mock(() => Promise.resolve()),
+}));
+mock.module('../../../../services/workflow/automation-policy', () => ({
+  resolveLandingMode: () => 'none',
+}));
+mock.module('./shared', () => ({
+  markLatestExecutionFailed: mock(() => Promise.resolve()),
+}));
+mock.module('./verify-commit-pr-gate-blocked', () => ({
+  handleVerifyGateBlocked: mock(() => Promise.resolve({})),
+}));
+const sideEffectsCalls: number[] = [];
+mock.module('./verify-commit-pr-side-effects', () => ({
+  runVerifyCompletionSideEffects: (taskId: number) => {
+    sideEffectsCalls.push(taskId);
+  },
+}));
+
+mock.module('../../../../services/workflow/worktree-rebuild-recovery', () => ({
+  tryRecoverFromHistoryContamination: mock(() => Promise.resolve({ recovered: true })),
+  notifyRecoveryFallbackBlocked: mock(() => Promise.resolve()),
+}));
+
+// First call: blocked by the verification gate (history contamination).
+// Second call (the post-recovery retry) is resolved manually by the test —
+// stands in for the task-653 timeline where the retry finished well past a
+// naive 60s settle window.
+let resolveRetry: ((result: Record<string, unknown>) => void) | null = null;
+let autoCommitCallCount = 0;
+const performAutoCommitAndPRMock = mock(() => {
+  autoCommitCallCount++;
+  if (autoCommitCallCount === 1) {
+    return Promise.resolve({
+      verificationBlocked: true,
+      requested: { autoCommit: true, autoCreatePR: true, autoMergePR: false },
+    });
+  }
+  return new Promise((resolve) => {
+    resolveRetry = resolve;
+  });
+});
+mock.module('../../workflow-auto-commit', () => ({
+  performAutoCommitAndPR: performAutoCommitAndPRMock,
+  isNoChangeCompletion: () => false,
+}));
+
+const { runVerifyCommitPrPipeline } = await import('./verify-commit-pr-pipeline');
+
+describe('runVerifyCommitPrPipeline — リカバリ後の再試行を待つこと', () => {
+  test('再試行(2回目の performAutoCommitAndPR)が解決するまでパイプラインが完了しないこと', async () => {
+    let settled = false;
+    const work = runVerifyCommitPrPipeline({
+      taskId: 653,
+      savedContent: '# 検証結果',
+      preferredBaseBranchForVerify: null,
+    }).then((outcome) => {
+      settled = true;
+      return outcome;
+    });
+
+    // 1回目の呼び出し(ゲートブロック)とリカバリ判定(動的importを含む)が
+    // 進むまで待つ — マイクロタスクだけでなく実I/Oを跨ぐためポーリングする。
+    const deadline = Date.now() + 2000;
+    while (autoCommitCallCount < 2) {
+      if (Date.now() > deadline)
+        throw new Error('2回目の performAutoCommitAndPR 呼び出し待ちでタイムアウト');
+      await new Promise((resolve) => setTimeout(resolve, 5));
+    }
+
+    expect(settled).toBe(false); // リカバリ後の再試行がまだ解決していない
+    expect(autoCommitCallCount).toBe(2);
+
+    resolveRetry?.({
+      autoCommitResult: { success: true, filesChanged: 3 },
+      autoPRResult: { success: true, prNumber: 454 },
+      requested: { autoCommit: true, autoCreatePR: true, autoMergePR: false },
+    });
+
+    const outcome = await work;
+    expect(settled).toBe(true);
+    expect(outcome.taskMarkedDone).toBe(true);
+    expect(outcome.newStatus).toBe('verify_done');
+    expect(sideEffectsCalls).toEqual([653]);
+  });
+});
