@@ -49,3 +49,12 @@ export {
   computeRepairConvergenceStats,
   getRepairConvergenceStats,
 } from './repair-convergence-query';
+
+export type {
+  CompletionDiffClassification,
+  CompletionDiffTaskInput,
+  CompletionDiffActivityLogInput,
+  CompletionDiffEntry,
+  CompletionDiffStats,
+} from './completion-diff-query';
+export { computeCompletionDiffStats, getCompletionDiffStats } from './completion-diff-query';

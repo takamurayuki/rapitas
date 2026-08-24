@@ -1804,6 +1804,13 @@
       "enteredLoop": "Entered repair loop",
       "blocked": "Blocked"
     },
+    "completionDiff": {
+      "title": "Completion diff outcome",
+      "zeroDiffRate": "Zero-diff completion rate",
+      "hasDiff": "Completions with diff",
+      "zeroDiff": "Zero-diff completions",
+      "unknown": "No record"
+    },
     "judgeEval": {
       "title": "Adversarial judge accuracy",
       "accuracy": "Accuracy",

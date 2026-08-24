@@ -1804,6 +1804,13 @@
       "enteredLoop": "修復ループ突入数",
       "blocked": "ブロック中"
     },
+    "completionDiff": {
+      "title": "完了タスクの差分成果",
+      "zeroDiffRate": "差分ゼロ完了率",
+      "hasDiff": "差分あり完了",
+      "zeroDiff": "差分ゼロ完了",
+      "unknown": "記録なし"
+    },
     "judgeEval": {
       "title": "敵対的レビュー判定の精度",
       "accuracy": "正解率",
