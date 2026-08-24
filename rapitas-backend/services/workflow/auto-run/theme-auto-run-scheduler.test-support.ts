@@ -41,6 +41,8 @@ export const mockQueueItemFindFirst = mock(() =>
   Promise.resolve(null as { id: number; status: string; errorMessage: string | null } | null),
 );
 export const mockQueueItemUpdateMany = mock(() => Promise.resolve({ count: 0 }));
+/** Counts `actor:'user'` transitions after a failure — the revival check. */
+export const mockTransitionCount = mock(() => Promise.resolve(0));
 
 mock.module('../../../config', () => ({
   prisma: {
@@ -57,6 +59,9 @@ mock.module('../../../config', () => ({
     workflowQueueItem: {
       findFirst: mockQueueItemFindFirst,
       updateMany: mockQueueItemUpdateMany,
+    },
+    workflowTransition: {
+      count: mockTransitionCount,
     },
   },
   ensureDatabaseConnection: () => Promise.resolve(),
@@ -328,6 +333,7 @@ export const mockNotifyTaskSkipped = mock(() => Promise.resolve());
 export const mockNotifyAllDone = mock(() => Promise.resolve());
 export const mockNotifyAllBlocked = mock(() => Promise.resolve());
 export const mockNotifyHangBackstop = mock(() => Promise.resolve());
+export const mockNotifyTaskVanished = mock(() => Promise.resolve());
 
 mock.module('./auto-run-notifications', () => ({
   notifyAwaitingPlanApproval: mockNotifyAwaitingPlanApproval,
@@ -336,6 +342,7 @@ mock.module('./auto-run-notifications', () => ({
   notifyAllDone: mockNotifyAllDone,
   notifyAllBlocked: mockNotifyAllBlocked,
   notifyHangBackstop: mockNotifyHangBackstop,
+  notifyTaskVanished: mockNotifyTaskVanished,
 }));
 
 // ---------------------------------------------------------------------------
@@ -432,6 +439,7 @@ const ALL_MOCKS = [
   mockTaskCount,
   mockTaskFindMany,
   mockTaskUpdate,
+  mockTransitionCount,
   mockTaskFindUnique,
   mockThemeAutoRunUpdateMany,
   mockThemeAutoRunCount,
@@ -467,6 +475,7 @@ const ALL_MOCKS = [
   mockNotifyTaskSkipped,
   mockNotifyAllDone,
   mockNotifyHangBackstop,
+  mockNotifyTaskVanished,
   mockReleaseStaleActiveItems,
   mockStopTaskAgents,
   mockStopThemeAgents,
@@ -478,6 +487,7 @@ export function resetAllMocks(): void {
   mockTaskCount.mockResolvedValue(0);
   mockTaskFindMany.mockResolvedValue([]);
   mockTaskUpdate.mockResolvedValue({});
+  mockTransitionCount.mockResolvedValue(0);
   mockTaskFindUnique.mockResolvedValue(null);
   mockThemeAutoRunUpdateMany.mockResolvedValue({ count: 0 });
   mockThemeAutoRunCount.mockResolvedValue(0);

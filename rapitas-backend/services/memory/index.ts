@@ -34,6 +34,10 @@ export {
 } from './rag/vector-index';
 export { vectorSearch, searchKnowledge } from './rag/search';
 export { buildRAGContext, buildTaskRAGContext } from './rag/context-builder';
+export { searchKnowledgeHybrid } from './recall/hybrid-search';
+
+// Stats (moved out of this file to keep it under the size limit)
+export { getKnowledgeStats } from './knowledge-stats';
 
 // Utils
 export { createContentHash, cosineSimilarity } from './utils';
@@ -51,7 +55,8 @@ import { runConsolidation } from './consolidation';
 import { runForgettingSweep, boostDecayOnAccess } from './forgetting';
 import { distillFromExecution } from './distillation';
 import { findSemanticDuplicate, findLexicalDuplicate } from './dedup';
-import { getKnowledgeEffectiveness } from './effectiveness';
+import { runReindexBatch, maybeEnqueueReindex } from './rag/reindex';
+import { invalidateLexicalIndex } from './recall/lexical-index';
 import { createContentHash, parseTagsAsStrings } from './utils';
 import { appendEvent } from './timeline';
 import { getInsensitiveMode } from '../../config/db-provider';
@@ -76,11 +81,32 @@ export async function initializeMemorySystem(): Promise<void> {
     log.info({ recovered }, 'Journal entries recovered');
   }
 
+  // 1.5. Reap `processing` rows orphaned by a prior restart/crash, before this
+  // process's own worker ever runs processNext() — every matching row is
+  // unambiguously stale at this point.
+  const reaped = await memoryTaskQueue.reapStuckProcessing();
+  if (reaped.reapedToPending + reaped.reapedToDeadLetter > 0) {
+    log.info(reaped, 'Stuck memory task queue rows reaped on startup');
+  }
+
   // 2. Register task handlers
   memoryTaskQueue.registerHandler('embed', async (payload) => {
-    const { entryId, content } = payload as { entryId: number; content: string };
-    const { embedding } = await generateEmbedding(content);
-    upsertEmbedding(entryId, embedding, content.slice(0, 200));
+    const { entryId, title, content } = payload as {
+      entryId: number;
+      title?: string;
+      content: string;
+    };
+    // Title + content (title optional for rows queued before this change); the
+    // stored model name is the one ACTUALLY used, never a hard-coded default.
+    const text = title ? `${title}\n${content}` : content;
+    const { embedding, model } = await generateEmbedding(text);
+    upsertEmbedding(entryId, embedding, content.slice(0, 200), model);
+  });
+
+  // Full re-embedding after an embedding-model switch (chunked, resumable).
+  memoryTaskQueue.registerHandler('reembed', async (payload) => {
+    const { maxEntries } = payload as { maxEntries?: number };
+    await runReindexBatch(typeof maxEntries === 'number' ? { maxEntries } : {});
   });
 
   memoryTaskQueue.registerHandler('validate', async (payload) => {
@@ -122,6 +148,12 @@ export async function initializeMemorySystem(): Promise<void> {
     } catch (err) {
       log.warn({ err, executionId }, 'Failed to update patterns from execution');
     }
+  });
+
+  // 2.5. Queue a re-index when the loaded model differs from the index (not
+  // awaited: loading the model must not delay server startup).
+  void maybeEnqueueReindex(memoryTaskQueue).catch((err: unknown) => {
+    log.warn({ err }, 'Auto re-index check failed');
   });
 
   // 3. Start queue worker
@@ -167,8 +199,10 @@ export async function createKnowledgeEntry(input: CreateKnowledgeEntryInput) {
   }
   // Two-channel dedup: embedding cosine misses Japanese paraphrases, so the
   // lexical bigram check backs it up (same lesson reworded = reinforce, not insert).
+  // Same `title\ncontent` shape as the stored embeddings so the cosine compares
+  // like with like.
   const dupId =
-    (await findSemanticDuplicate(input.content)) ??
+    (await findSemanticDuplicate(`${input.title}\n${input.content}`)) ??
     (await findLexicalDuplicate(input.title, input.content));
   if (dupId != null) {
     await boostDecayOnAccess(dupId, 0.1).catch(() => {});
@@ -195,9 +229,16 @@ export async function createKnowledgeEntry(input: CreateKnowledgeEntryInput) {
     eventType: 'knowledge_created',
     payload: { entryId: entry.id, sourceType: input.sourceType, category: entry.category },
   });
+  // The lexical recall index is TTL-cached; drop it so the new lesson is
+  // recallable by the next task instead of after the TTL.
+  invalidateLexicalIndex();
 
   // Queue background embedding + validation + contradiction detection
-  await memoryTaskQueue.enqueue('embed', { entryId: entry.id, content: input.content }, 10);
+  await memoryTaskQueue.enqueue(
+    'embed',
+    { entryId: entry.id, title: input.title, content: input.content },
+    10,
+  );
   await memoryTaskQueue.enqueue('validate', { entryId: entry.id }, 5);
   await memoryTaskQueue.enqueue('detect_contradiction', { entryId: entry.id }, 3);
 
@@ -230,9 +271,15 @@ export async function updateKnowledgeEntry(id: number, input: UpdateKnowledgeEnt
     payload: { entryId: id },
   });
 
+  if (input.content !== undefined || input.title !== undefined) invalidateLexicalIndex();
+
   // Re-embed + re-validate if content changed
   if (input.content !== undefined) {
-    await memoryTaskQueue.enqueue('embed', { entryId: id, content: input.content }, 10);
+    await memoryTaskQueue.enqueue(
+      'embed',
+      { entryId: id, title: input.title ?? entry.title, content: input.content },
+      10,
+    );
     await memoryTaskQueue.enqueue('validate', { entryId: id }, 5);
     await memoryTaskQueue.enqueue('detect_contradiction', { entryId: id }, 3);
   }
@@ -320,57 +367,5 @@ export async function listKnowledgeEntries(options: KnowledgeListOptions = {}) {
     page,
     limit,
     totalPages: Math.ceil(total / limit),
-  };
-}
-
-/**
- * Retrieve knowledge entry statistics.
- */
-export async function getKnowledgeStats() {
-  const [
-    totalEntries,
-    byCategory,
-    byStage,
-    byValidation,
-    bySource,
-    avgConfidence,
-    avgDecay,
-    recentlyAccessed,
-    unresolvedContradictions,
-    effectiveness,
-  ] = await Promise.all([
-    prisma.knowledgeEntry.count(),
-    prisma.knowledgeEntry.groupBy({ by: ['category'], _count: { id: true } }),
-    prisma.knowledgeEntry.groupBy({ by: ['forgettingStage'], _count: { id: true } }),
-    prisma.knowledgeEntry.groupBy({ by: ['validationStatus'], _count: { id: true } }),
-    prisma.knowledgeEntry.groupBy({ by: ['sourceType'], _count: { id: true } }),
-    prisma.knowledgeEntry.aggregate({ _avg: { confidence: true } }),
-    prisma.knowledgeEntry.aggregate({ _avg: { decayScore: true } }),
-    prisma.knowledgeEntry.count({
-      where: { lastAccessedAt: { gte: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000) } },
-    }),
-    // Convergence signal for the nightly sweeps: byValidation shows the mix,
-    // but only the open-contradiction count says whether the backlog is
-    // actually draining toward zero.
-    prisma.knowledgeContradiction.count({ where: { resolution: null } }),
-    getKnowledgeEffectiveness(),
-  ]);
-
-  const toRecord = (
-    items: Array<{ _count: { id: number }; [key: string]: unknown }>,
-    key: string,
-  ) => Object.fromEntries(items.map((i) => [i[key], i._count.id]));
-
-  return {
-    totalEntries,
-    byCategory: toRecord(byCategory, 'category'),
-    byStage: toRecord(byStage, 'forgettingStage'),
-    byValidation: toRecord(byValidation, 'validationStatus'),
-    bySource: toRecord(bySource, 'sourceType'),
-    averageConfidence: avgConfidence._avg.confidence ?? 0,
-    averageDecayScore: avgDecay._avg.decayScore ?? 0,
-    recentlyAccessed,
-    unresolvedContradictions,
-    effectiveness,
   };
 }

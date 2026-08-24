@@ -48,12 +48,6 @@ export interface VerifyRepairResult {
 }
 
 /**
- * Count how many verify→implement repair bounces this task has already had.
- *
- * @param taskId - Task id / タスクID
- * @returns Prior repair count / これまでの修復回数
- */
-/**
  * Resolve the max verify->implement repair cycles: UserSettings.verifyRepairLimit
  * when set (UI-configurable), else the env/default. Read via cast — the column is
  * pending Prisma client regen until the next restart.
@@ -68,6 +62,11 @@ async function resolveMaxRepairs(): Promise<number> {
   return typeof v === 'number' && v >= 0 ? v : DEFAULT_MAX_VERIFY_REPAIRS;
 }
 
+/**
+ * Count how many verify→implement repair bounces this task has already had.
+ * @param taskId - Task id / タスクID
+ * @returns Prior repair count / これまでの修復回数
+ */
 async function countPriorRepairs(taskId: number): Promise<number> {
   // Reset the budget on each manual retry: count only repair bounces SINCE the
   // most recent `task_retried` (recorded by POST /tasks/:id/retry). Without this,
@@ -171,7 +170,7 @@ async function detectRepairNonConvergence(
  * @param taskId - Task id / タスクID
  * @returns The status to bounce to / 戻す先のstatus
  */
-async function resolveImplementEntryStatus(
+export async function resolveImplementEntryStatus(
   taskId: number,
 ): Promise<'plan_approved' | 'research_done'> {
   const plan = await prisma.workflowFile
@@ -230,6 +229,7 @@ export function buildRepairFeedbackBlock(reason: string, attempt: number): strin
     '上の verify.md 本文に記載された失敗（失敗テスト・型/lint エラー・未達の受け入れ基準）を確認し、以下を厳守して **実装を修正** してください:',
     '- 失敗を実際に解消する。「成功した」と書くだけ・テスト結果を偽るのは禁止。テストを実際に通すこと。',
     '- スコープ厳守（plan.md 記載外のファイルは変更しない）。',
+    '- 失敗の原因が plan.md 記載外のファイルにある場合（既存の壊れたテスト・無関係な lint/型エラー等）は、そのファイルを修正せず `POST /concerns` で懸念バックログに起票し、verify.md に「スコープ外の既存失敗として懸念起票済み」と明記した上で、スコープ内の変更のみで完了してよい（前の項目はスコープ内の失敗にのみ適用される）。',
     REPAIR_FEEDBACK_END,
   ].join('\n');
 }

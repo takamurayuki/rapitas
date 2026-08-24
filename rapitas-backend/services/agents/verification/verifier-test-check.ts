@@ -9,6 +9,7 @@
 import { join, relative } from 'path';
 import { buildScopedTestCommands, findRelatedTestFiles, TEST_FILE_RE } from './related-tests';
 import { triageTestFailures } from './test-triage';
+import { buildTriagedTestCheck } from './test-triage-report';
 import { MAX_DETAIL_CHARS, runCmd, TEST_TIMEOUT_MS } from './verifier-exec';
 import type { VerificationCheck } from './verification-types';
 
@@ -43,33 +44,24 @@ export async function testProject(
   // When tests fail, triage pre-existing vs. new failures so the gate doesn't
   // block on tests that were already red before this change (RAPITAS_TEST_TRIAGE
   // defaults on; set to '0' or 'false' to disable).
-  if (!ok) {
-    const triageFlag = (process.env.RAPITAS_TEST_TRIAGE ?? '').trim().toLowerCase();
-    const triageEnabled = triageFlag !== '0' && triageFlag !== 'false';
-    if (triageEnabled) {
-      const projectRel = relFiles.map((f) =>
-        relative(projectRoot, join(workdir, f)).replace(/\\/g, '/'),
-      );
-      const changedTests = projectRel.filter((f) => TEST_FILE_RE.test(f));
-      const related = findRelatedTestFiles(projectRoot, projectRel);
-      const scopedFiles = [...new Set([...changedTests, ...related])];
-      if (scopedFiles.length > 0) {
-        const triage = await triageTestFailures(projectRoot, workdir, scopedFiles);
-        if (triage !== null) {
-          const { preExisting, newFailures } = triage;
-          const newOk = newFailures.length === 0;
-          return {
-            name: 'test',
-            ran: true,
-            ok: newOk,
-            errorCount: newFailures.length,
-            details: newOk
-              ? `${commands.length} test command(s): passed (${preExisting.length} pre-existing failure(s) excluded)`
-              : failures.join('\n\n').slice(0, MAX_DETAIL_CHARS),
-            preExistingFailures: preExisting.length > 0 ? preExisting : undefined,
-          };
-        }
-      }
+  const triageFlag = (process.env.RAPITAS_TEST_TRIAGE ?? '').trim().toLowerCase();
+  if (!ok && triageFlag !== '0' && triageFlag !== 'false') {
+    const projectRel = relFiles.map((f) =>
+      relative(projectRoot, join(workdir, f)).replace(/\\/g, '/'),
+    );
+    const changedTests = projectRel.filter((f) => TEST_FILE_RE.test(f));
+    const related = findRelatedTestFiles(projectRoot, projectRel);
+    const scopedFiles = [...new Set([...changedTests, ...related])];
+    if (scopedFiles.length > 0) {
+      // NOTE: null triage = indeterminate; never fall through to the raw fail-closed return (task 659).
+      const triage = await triageTestFailures(projectRoot, workdir, scopedFiles);
+      return buildTriagedTestCheck({
+        triage,
+        scopedFiles,
+        rawFailures: failures,
+        commandCount: commands.length,
+        maxDetailChars: MAX_DETAIL_CHARS,
+      });
     }
   }
   return {

@@ -123,3 +123,35 @@ describe('renderVerificationMarkdown', () => {
     expect(typecheckIdx).toBeLessThan(testIdx);
   });
 });
+
+// Task 659: indeterminate triage is rendered as its own block, distinct from
+// pre-existing failures, and the check line says the gate did not block.
+describe('renderVerificationMarkdown — indeterminate triage (task 659)', () => {
+  test('renders the indeterminate section with the unattributed files', () => {
+    const md = renderVerificationMarkdown(
+      makeResult({
+        checks: [
+          makeCheck({
+            name: 'test',
+            indeterminate: true,
+            indeterminateFailures: ['some.test.ts', 'other.test.ts'],
+          }),
+        ],
+      }),
+    );
+    expect(md).toContain('✅ 合格');
+    expect(md).toContain('- test: ⚠️ 判定不能（ベースライン比較不可・ブロックせず）');
+    expect(md).toContain('### ⚠️ 判定不能（ベースライン比較に失敗）');
+    expect(md).toContain('- `some.test.ts`');
+    expect(md).toContain('- `other.test.ts`');
+    expect(md).not.toContain('既存失敗');
+  });
+
+  test('omits the indeterminate section when there are no unattributed files', () => {
+    const md = renderVerificationMarkdown(
+      makeResult({ checks: [makeCheck({ name: 'test', indeterminateFailures: [] })] }),
+    );
+    expect(md).not.toContain('判定不能');
+    expect(md).toContain('- test: ✅ OK');
+  });
+});

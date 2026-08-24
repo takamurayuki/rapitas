@@ -11,8 +11,10 @@ interface SearchOpts {
   query: string;
   limit?: number;
   minSimilarity?: number;
-  forgettingStage?: string;
+  stages?: string[];
   themeId?: number;
+  themeFallback?: boolean;
+  telemetry?: { source: string; taskId?: number };
 }
 interface KnowledgeRow {
   id: number;
@@ -24,6 +26,10 @@ interface KnowledgeRow {
   similarity: number;
   tags: string[];
   createdAt: Date;
+  taskId: number | null;
+  validationStatus: string;
+  channel: 'vector' | 'lexical' | 'both';
+  lexicalScore: number | null;
 }
 
 const mockSearchKnowledge = mock((_opts: SearchOpts) => Promise.resolve([] as KnowledgeRow[]));
@@ -39,9 +45,8 @@ mock.module('../../config/logger', () => ({
   logger: noopLogger,
   getBackendLogFilePath: () => '/tmp/backend.log',
 }));
-mock.module('../../services/memory/rag/search', () => ({
-  searchKnowledge: mockSearchKnowledge,
-  vectorSearch: mock(() => Promise.resolve([])),
+mock.module('../../services/memory/recall/hybrid-search', () => ({
+  searchKnowledgeHybrid: mockSearchKnowledge,
 }));
 
 const { buildMemoryContext, renderMemorySection } =
@@ -58,6 +63,10 @@ function row(over: Partial<KnowledgeRow>): KnowledgeRow {
     similarity: 0.7,
     tags: [],
     createdAt: new Date(0),
+    taskId: null,
+    validationStatus: 'pending',
+    channel: 'vector',
+    lexicalScore: null,
     ...over,
   };
 }
@@ -90,6 +99,73 @@ describe('renderMemorySection', () => {
     expect(out).toContain('使用知識');
   });
 
+  test('dormant / archived には要検証マーカーを付ける', () => {
+    const out = renderMemorySection(
+      [
+        {
+          id: 1,
+          title: 'A',
+          content: 'a',
+          category: 'x',
+          similarity: 0.6,
+          forgettingStage: 'dormant',
+        },
+        {
+          id: 2,
+          title: 'B',
+          content: 'b',
+          category: 'x',
+          similarity: 0.6,
+          forgettingStage: 'archived',
+        },
+        {
+          id: 3,
+          title: 'C',
+          content: 'c',
+          category: 'x',
+          similarity: 0.6,
+          forgettingStage: 'active',
+        },
+      ],
+      'ja',
+    );
+    expect(out).toContain('休眠中の知見（要検証）');
+    expect(out).toContain('アーカイブ済みの知見（古い可能性・要検証）');
+    const en = renderMemorySection(
+      [
+        {
+          id: 2,
+          title: 'B',
+          content: 'b',
+          category: 'x',
+          similarity: 0.6,
+          forgettingStage: 'archived',
+        },
+      ],
+      'en',
+    );
+    expect(en).toContain('archived, may be stale');
+  });
+
+  test('語彙チャネルのみのヒットは lexicalScore を関連度として表示する', () => {
+    const out = renderMemorySection(
+      [
+        {
+          id: 5,
+          title: 'L',
+          content: 'l',
+          category: 'x',
+          similarity: 0,
+          channel: 'lexical',
+          lexicalScore: 0.42,
+        },
+      ],
+      'ja',
+    );
+    expect(out).toContain('関連度 42%');
+    expect(out).not.toContain('関連度 0%');
+  });
+
   test('長い本文は切り詰める(…付き)', () => {
     const long = 'x'.repeat(1000);
     const out = renderMemorySection(
@@ -108,7 +184,7 @@ describe('buildMemoryContext', () => {
     mockFindUnique.mockReset().mockReturnValue(Promise.resolve({ themeId: 3 }));
   });
 
-  test('関連知見があればテーマIDで検索しセクションを返す', async () => {
+  test('関連知見があればテーマID・全ステージ・workflow テレメトリで検索しセクションを返す', async () => {
     mockSearchKnowledge.mockReturnValue(
       Promise.resolve([row({ title: '教訓A', similarity: 0.9 })]),
     );
@@ -116,17 +192,29 @@ describe('buildMemoryContext', () => {
     expect(out).toContain('教訓A');
     const opts = mockSearchKnowledge.mock.calls[0][0];
     expect(opts.themeId).toBe(3);
-    expect(opts.forgettingStage).toBe('active');
+    // Stages come from RAPITAS_KB_RECALL_STAGES (default: every stage) — no
+    // longer pinned to 'active'.
+    expect(opts.stages).toEqual(['active', 'dormant', 'archived']);
+    expect(opts.minSimilarity).toBe(0.55);
+    expect(opts.limit).toBe(6);
+    expect(opts.telemetry).toEqual({ source: 'workflow', taskId: 10 });
   });
 
-  test('テーマ検索が空ならグローバル(themeId無し)で再検索する', async () => {
-    mockSearchKnowledge
-      .mockReturnValueOnce(Promise.resolve([] as KnowledgeRow[]))
-      .mockReturnValueOnce(Promise.resolve([row({ title: '横断教訓' })]));
+  test('テーマ→グローバルのフォールバックは themeFallback として 1 回の呼び出しに委ねる', async () => {
+    mockSearchKnowledge.mockReturnValue(Promise.resolve([row({ title: '横断教訓' })]));
     const out = await buildMemoryContext(10, { title: 'T', description: 'D' }, 'ja');
     expect(out).toContain('横断教訓');
-    expect(mockSearchKnowledge).toHaveBeenCalledTimes(2);
-    expect(mockSearchKnowledge.mock.calls[1][0].themeId).toBeUndefined();
+    expect(mockSearchKnowledge).toHaveBeenCalledTimes(1);
+    expect(mockSearchKnowledge.mock.calls[0][0].themeFallback).toBe(true);
+  });
+
+  test('archived の知見はマーカー付きで注入される', async () => {
+    mockSearchKnowledge.mockReturnValue(
+      Promise.resolve([row({ title: '古い教訓', forgettingStage: 'archived' })]),
+    );
+    const out = await buildMemoryContext(10, { title: 'T', description: 'D' }, 'ja');
+    expect(out).toContain('古い教訓');
+    expect(out).toContain('アーカイブ済みの知見');
   });
 
   test('検索が throw してもサイレントに空文字へ縮退する', async () => {

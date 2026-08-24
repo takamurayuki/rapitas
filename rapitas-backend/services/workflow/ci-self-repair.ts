@@ -172,6 +172,7 @@ async function writeCiFeedback(
       '- 失敗したチェックに対応するゲートをローカルで再現して直す（例: "Check Frontend"→フロントのテスト、"Lint Code"→lint/型、"Test Backend"/"Test SQLite"→バックエンドのテスト）。',
       '- `bun test --isolate` / `bunx tsc --noEmit` / lint / prettier をローカルで実行し、緑になるまで直す。',
       '- スコープ厳守（plan.md 記載外のファイルは変更しない）。テスト結果の改ざんは禁止。',
+      '- 失敗の原因が plan.md 記載外のファイルにある場合は、そのファイルを修正せず `POST /concerns` で懸念バックログに起票し、その旨を verify.md に明記した上でスコープ内の変更のみで完了してよい。',
       '',
       detail ? `## CI 失敗の詳細\n${detail.slice(0, 1500)}` : '',
       excerpt ? `## CI ログ抜粋（チェックごと最大50行、合計8KB上限）\n${excerpt}` : '',

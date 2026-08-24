@@ -7,62 +7,16 @@ import { prisma } from '../../config';
 import { createLogger } from '../../config/logger';
 import { resolveTaskWorkflowState } from '../task/task-resolver';
 import { narrowWorkflowStatus } from './workflow-types.guards.generated';
+import { hasUsableProvider, isProviderOutageFailure } from './queue-provider-gate';
+import { isNonRunnableTaskSkip } from './queue-skip-policy';
+import { tryDequeueCandidate } from './queue-dequeue-candidate';
+import { mapToQueueItem } from './queue-item-mapper';
+import type { QueueItem, EnqueueOptions, QueueState } from './workflow-queue.types';
+
+export type { QueueItem, EnqueueOptions, QueueState } from './workflow-queue.types';
+export { isTaskTerminalForQueue } from './queue-terminal-task-guard';
 
 const log = createLogger('workflow-queue');
-
-export interface QueueItem {
-  id: number;
-  taskId: number;
-  orchestraSessionId: number | null;
-  priority: number;
-  status: string;
-  currentPhase: string;
-  dependencies: number[];
-  retryCount: number;
-  maxRetries: number;
-  errorMessage: string | null;
-  queuedAt: Date;
-  startedAt: Date | null;
-  completedAt: Date | null;
-}
-
-/**
- * Whether a task has reached a terminal state that makes any queued work for it
- * stale. Shared by the dequeue-time guard and the reconciler's periodic sweep
- * so the two can never drift apart on what "terminal" means (concern #4924).
- * Requires POSITIVE terminal evidence — a null lookup can also be a transient
- * DB error and must not read as terminal.
- *
- * @param task - Minimal task state (or null when lookup failed). / タスク状態
- * @returns true when the task is done/cancelled/completed. / 終端なら true
- */
-export function isTaskTerminalForQueue(
-  task: { status?: string | null; workflowStatus?: string | null } | null,
-): boolean {
-  if (!task) return false;
-  return (
-    task.status === 'done' || task.status === 'cancelled' || task.workflowStatus === 'completed'
-  );
-}
-
-export interface EnqueueOptions {
-  taskId: number;
-  priority?: number;
-  dependencies?: number[];
-  orchestraSessionId?: number;
-  /** Set by the theme auto-run scheduler to scope concurrency and completion tracking. */
-  themeId?: number;
-}
-
-export interface QueueState {
-  queued: QueueItem[];
-  running: QueueItem[];
-  waitingApproval: QueueItem[];
-  completed: QueueItem[];
-  failed: QueueItem[];
-  totalItems: number;
-  maxConcurrency: number;
-}
 
 /**
  * Default executor concurrency. The WorkflowRunner dequeues up to this many
@@ -144,7 +98,7 @@ export class WorkflowQueueService {
     });
 
     log.info(`[WorkflowQueue] Enqueued task ${taskId} with priority ${priority}`);
-    return this.mapToQueueItem(item);
+    return mapToQueueItem(item);
   }
 
   /**
@@ -159,6 +113,15 @@ export class WorkflowQueueService {
       return null;
     }
 
+    // Every provider is cooling down (quota / rate limit): dispatching now
+    // just burns a task's retries against an outage. Hold the queue instead —
+    // the theme scheduler treats an empty dequeue as "idle but armed" and
+    // resumes on its own once a cooldown expires. Fails open.
+    if (!(await hasUsableProvider())) {
+      log.info('[WorkflowQueue] All providers are in cooldown — holding the queue');
+      return null;
+    }
+
     // Get queued items sorted by priority
     const candidates = await prisma.workflowQueueItem.findMany({
       where: { status: 'queued' },
@@ -167,110 +130,10 @@ export class WorkflowQueueService {
 
     for (const candidate of candidates) {
       try {
-        const deps = JSON.parse(candidate.dependencies || '[]') as number[];
-
-        // Check if all dependency tasks are completed (or cancelled)
-        if (deps.length > 0) {
-          const incompleteDeps = await prisma.workflowQueueItem.count({
-            where: {
-              taskId: { in: deps },
-              orchestraSessionId: candidate.orchestraSessionId,
-              status: { notIn: ['completed', 'cancelled'] },
-            },
-          });
-          if (incompleteDeps > 0) continue;
-        }
-
-        // Strict sequential execution for sibling subtasks (same parent): run
-        // ONE at a time, in creation (id) order. Plan-split subtasks share the
-        // parent's git worktree and often build on each other, so running them
-        // concurrently risks conflicts and lower quality — hold a candidate back
-        // while any sibling is active, or while an earlier-created sibling is
-        // still pending. Non-subtasks (no parentId) are unaffected.
-        const candidateTask = await resolveTaskWorkflowState(candidate.taskId);
-
-        // Terminal-task guard: a queue item can outlive its task (a
-        // completion-era re-dispatch raced the task finishing — task 537 left
-        // one 'queued' forever, pinning queueDepth at 1 and dispatching a
-        // phantom implementer that failed with "no code changes"). Cancel the
-        // stale item instead of dispatching a phase for finished work.
-        // Requires POSITIVE terminal evidence — a null lookup can also be a
-        // transient DB error and must not destroy a valid queue item.
-        if (isTaskTerminalForQueue(candidateTask)) {
-          await prisma.workflowQueueItem
-            .update({
-              where: { id: candidate.id },
-              data: {
-                status: 'cancelled',
-                completedAt: new Date(),
-                errorMessage: 'タスクは既に終端状態のため、残留キュー項目を自動キャンセルしました',
-              },
-            })
-            .catch(() => {});
-          log.info(
-            `[WorkflowQueue] Cancelled stale queue item ${candidate.id} (task ${candidate.taskId} already terminal)`,
-          );
-          continue;
-        }
-        if (candidateTask?.parentId != null) {
-          const siblings = await prisma.task.findMany({
-            where: { parentId: candidateTask.parentId, id: { not: candidate.taskId } },
-            select: { id: true },
-          });
-          const siblingIds = siblings.map((s) => s.id);
-          if (siblingIds.length > 0) {
-            const activeSibling = await prisma.workflowQueueItem.count({
-              where: {
-                taskId: { in: siblingIds },
-                orchestraSessionId: candidate.orchestraSessionId,
-                status: { in: ['running', 'waiting_approval'] },
-              },
-            });
-            if (activeSibling > 0) continue; // a sibling is already running
-
-            const earlierIds = siblingIds.filter((id) => id < candidate.taskId);
-            if (earlierIds.length > 0) {
-              const earlierPending = await prisma.workflowQueueItem.count({
-                where: {
-                  taskId: { in: earlierIds },
-                  orchestraSessionId: candidate.orchestraSessionId,
-                  status: { in: ['queued', 'running', 'waiting_approval'] },
-                },
-              });
-              if (earlierPending > 0) continue; // earlier-created sibling goes first
-            }
-          }
-        }
-
-        // Start execution (transaction prevents race conditions)
-        const updated = await prisma.$transaction(async (tx) => {
-          // Re-check status (another worker may have acquired it)
-          const current = await tx.workflowQueueItem.findUnique({
-            where: { id: candidate.id },
-          });
-          if (!current || current.status !== 'queued') {
-            return null; // Already acquired by another worker
-          }
-
-          // Re-check concurrency limit
-          const currentRunning = await tx.workflowQueueItem.count({
-            where: { status: 'running' },
-          });
-          if (currentRunning >= this.maxConcurrency) {
-            return null; // Concurrency limit reached
-          }
-
-          return tx.workflowQueueItem.update({
-            where: { id: candidate.id },
-            data: { status: 'running', startedAt: new Date() },
-          });
-        });
-
-        if (updated) {
-          log.info(`[WorkflowQueue] Dequeued task ${candidate.taskId} (item ${candidate.id})`);
-          return this.mapToQueueItem(updated);
-        }
-        // Failed due to race condition, try next candidate
+        const result = await tryDequeueCandidate(candidate, this.maxConcurrency);
+        if (result) return result;
+        // Not dispatchable (dependency wait / vanished / terminal / sibling
+        // serialization / lost the acquire race) — try the next candidate.
       } catch (error) {
         log.warn({ err: error }, `[WorkflowQueue] Failed to dequeue candidate ${candidate.id}`);
         continue; // Try next candidate
@@ -292,7 +155,12 @@ export class WorkflowQueueService {
     if (extra?.currentPhase) data.currentPhase = extra.currentPhase;
     if (extra?.errorMessage) data.errorMessage = extra.errorMessage;
     if (extra?.result) data.result = extra.result;
-    if (status === 'completed' || status === 'failed') {
+    // 'cancelled' completes the item just like 'completed'/'failed' — needed
+    // so the vanished-task cancellation path (queue-dequeue-candidate.ts) and
+    // the terminal-task guard both leave a completedAt that downstream terminal-
+    // item lookups (e.g. auto-run-advance-active.ts, ordered by completedAt desc)
+    // can find and order correctly.
+    if (status === 'completed' || status === 'failed' || status === 'cancelled') {
       data.completedAt = new Date();
     }
 
@@ -300,7 +168,7 @@ export class WorkflowQueueService {
       where: { id: itemId },
       data,
     });
-    return this.mapToQueueItem(updated);
+    return mapToQueueItem(updated);
   }
 
   /**
@@ -321,6 +189,39 @@ export class WorkflowQueueService {
         `[WorkflowQueue] Skipping retry for item ${itemId} — already ${item.status} (external stop)`,
       );
       return false;
+    }
+
+    // The task cannot run at all right now (blocked / awaiting an answer /
+    // workflow disabled). Retrying re-asks the same question three times and
+    // overwrites the REAL reason the task stopped with the skip message, which
+    // is what made these tasks impossible to diagnose. Cancel the item and keep
+    // whatever reason is already recorded; the scheduler re-enqueues the task
+    // once it becomes runnable again.
+    if (isNonRunnableTaskSkip(reason)) {
+      await prisma.workflowQueueItem.update({
+        where: { id: itemId },
+        data: { status: 'cancelled', completedAt: new Date() },
+      });
+      log.info(
+        { itemId, taskId: item.taskId, reason },
+        '[WorkflowQueue] Task is not runnable — cancelled without consuming a retry',
+      );
+      return false;
+    }
+
+    // A provider outage says nothing about this task, so it must not spend one
+    // of its finite retries. Re-queue at the same retryCount; the dequeue gate
+    // above keeps this from becoming a hot loop while the provider cools.
+    if (await isProviderOutageFailure(reason)) {
+      await prisma.workflowQueueItem.update({
+        where: { id: itemId },
+        data: { status: 'queued', startedAt: null, errorMessage: reason ?? null },
+      });
+      log.warn(
+        { itemId, retryCount: item.retryCount, reason },
+        '[WorkflowQueue] Provider outage — re-queued without consuming a retry',
+      );
+      return true;
     }
 
     if (item.retryCount >= item.maxRetries) {
@@ -363,7 +264,7 @@ export class WorkflowQueueService {
       where: { id: itemId },
       data: { priority: Math.max(0, Math.min(100, priority)) },
     });
-    return this.mapToQueueItem(updated);
+    return mapToQueueItem(updated);
   }
 
   /**
@@ -377,7 +278,7 @@ export class WorkflowQueueService {
       orderBy: [{ priority: 'desc' }, { queuedAt: 'asc' }],
     });
 
-    const mapped = items.map((i) => this.mapToQueueItem(i));
+    const mapped = items.map((i) => mapToQueueItem(i));
 
     return {
       queued: mapped.filter((i) => i.status === 'queued'),
@@ -398,7 +299,7 @@ export class WorkflowQueueService {
       where: { orchestraSessionId: sessionId },
       orderBy: [{ priority: 'desc' }, { queuedAt: 'asc' }],
     });
-    return items.map((i) => this.mapToQueueItem(i));
+    return items.map((i) => mapToQueueItem(i));
   }
 
   /**
@@ -426,38 +327,6 @@ export class WorkflowQueueService {
         status: { in: ['queued', 'running', 'waiting_approval'] },
       },
     });
-    return item ? this.mapToQueueItem(item) : null;
-  }
-
-  private mapToQueueItem(item: {
-    id: number;
-    taskId: number;
-    orchestraSessionId: number | null;
-    priority: number;
-    status: string;
-    currentPhase: string;
-    dependencies: string;
-    retryCount: number;
-    maxRetries: number;
-    errorMessage: string | null;
-    queuedAt: Date;
-    startedAt: Date | null;
-    completedAt: Date | null;
-  }): QueueItem {
-    return {
-      id: item.id,
-      taskId: item.taskId,
-      orchestraSessionId: item.orchestraSessionId,
-      priority: item.priority,
-      status: item.status,
-      currentPhase: item.currentPhase,
-      dependencies: JSON.parse(item.dependencies || '[]'),
-      retryCount: item.retryCount,
-      maxRetries: item.maxRetries,
-      errorMessage: item.errorMessage,
-      queuedAt: item.queuedAt,
-      startedAt: item.startedAt,
-      completedAt: item.completedAt,
-    };
+    return item ? mapToQueueItem(item) : null;
   }
 }

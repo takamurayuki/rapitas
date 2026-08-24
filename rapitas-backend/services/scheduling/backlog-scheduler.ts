@@ -80,10 +80,26 @@ function isSameLocalDay(a: Date, b: Date): boolean {
   );
 }
 
+/** One day / one week in milliseconds, for the overdue check. */
+const DAY_MS = 24 * 60 * 60 * 1000;
+const WEEK_MS = 7 * DAY_MS;
+
 /**
- * Whether a job should fire at `now`: enabled, the local hour matches, the
- * weekday matches (weekly only), and it hasn't already run today. Pure — the
- * scheduler's testable core.
+ * Whether a job should fire at `now`. Pure — the scheduler's testable core.
+ *
+ * The configured hour is a NOT-BEFORE, not an exact match, and a job that is
+ * overdue by more than a full extra period fires immediately regardless of the
+ * hour.
+ *
+ * NOTE: this used to require `now.getHours() === s.hour`, so the job only ran
+ * if the 60-second poller happened to be alive during that one hour. Anything
+ * that took the backend out of that window — a sleeping desktop, a restart, a
+ * provider outage — silently skipped the job for a whole day (a whole week for
+ * weekly), with no path to catch up. Measured 2026-08-24: every job scheduled
+ * between 03:00 and 07:00 had not run for four days while the 22:00 job was
+ * current, and because the innovation session (03:00) is the only thing that
+ * files new tasks, the backlog had produced nothing in five days. For an app
+ * meant to run unattended, missing the window must delay the job, not cancel it.
  *
  * @param s - Schedule config / スケジュール設定
  * @param now - Current time / 現在時刻
@@ -91,10 +107,22 @@ function isSameLocalDay(a: Date, b: Date): boolean {
  */
 export function isJobDue(s: BacklogScheduleConfig, now: Date): boolean {
   if (!s.enabled) return false;
-  if (now.getHours() !== s.hour) return false;
-  if (s.frequency === 'weekly' && now.getDay() !== s.weekday) return false;
+
+  if (s.frequency === 'weekly') {
+    // First ever run still waits for the configured weekday — without a prior
+    // run there is no cadence to catch up to.
+    if (!s.lastRunAt) return now.getDay() === s.weekday && now.getHours() >= s.hour;
+    const elapsed = now.getTime() - s.lastRunAt.getTime();
+    if (elapsed >= WEEK_MS * 2) return true; // overdue — catch up now
+    if (elapsed < WEEK_MS) return false;
+    return now.getHours() >= s.hour;
+  }
+
+  // Daily: the same-day guard keeps the cadence drift-free, and the overdue
+  // check is what recovers a missed window.
   if (s.lastRunAt && isSameLocalDay(s.lastRunAt, now)) return false;
-  return true;
+  if (s.lastRunAt && now.getTime() - s.lastRunAt.getTime() >= DAY_MS * 2) return true;
+  return now.getHours() >= s.hour;
 }
 
 /**

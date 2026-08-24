@@ -71,10 +71,26 @@ describe('applyTaskStatusFromWorkflow', () => {
     expect(taskUpdates[0].data).toMatchObject({ status: 'done' });
   });
 
-  test('sets status to done when the task/workflowStatus is unreadable', async () => {
-    taskRow = null;
+  test('sets status to done when an EXISTING row has no workflowStatus (single-shot run)', async () => {
+    taskRow = { workflowStatus: null };
     await applyTaskStatusFromWorkflow(makePrisma(), 1, '[test]');
     expect(taskUpdates[0].data).toMatchObject({ status: 'done' });
+  });
+
+  test('leaves the status alone when the row does not exist', async () => {
+    taskRow = null;
+    await applyTaskStatusFromWorkflow(makePrisma(), 1, '[test]');
+    expect(taskUpdates).toHaveLength(0);
+  });
+
+  test('does NOT mark the task done when the workflowStatus read fails', async () => {
+    // Regression: a failed read used to collapse into the same `null` as "no
+    // workflowStatus" and mark the task DONE with completedAt. Observed on task
+    // 632 — the backend restarted mid-epilogue, the read failed, and a task the
+    // adversarial review had REJECTED was silently recorded as complete.
+    shouldFailDb = true;
+    await applyTaskStatusFromWorkflow(makePrisma(), 1, '[test]');
+    expect(taskUpdates).toHaveLength(0);
   });
 
   test('swallows DB errors instead of throwing', async () => {

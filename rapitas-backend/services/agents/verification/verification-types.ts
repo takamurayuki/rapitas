@@ -37,6 +37,10 @@ export interface VerificationCheck {
    * These are excluded from errorCount/ok so they don't false-block the gate.
    */
   preExistingFailures?: string[];
+  /** Failures unattributable (baseline comparison indeterminate after retries) — not counted. */
+  indeterminate?: boolean;
+  /** Scoped test files left unattributed. Only set with `indeterminate` (task 659). */
+  indeterminateFailures?: string[];
   /**
    * Out-of-plan changed files (repo-relative). Only set on failing 'scope'
    * checks — structured input for the history-contamination classifier

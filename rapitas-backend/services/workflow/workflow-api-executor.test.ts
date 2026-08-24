@@ -14,12 +14,16 @@ const mockSessionUpdate = mock(() => Promise.resolve({}));
 const mockExecutionCreate = mock(() => Promise.resolve({ id: 10 }));
 const mockExecutionUpdate = mock(() => Promise.resolve({}));
 const mockTaskUpdate = mock(() => Promise.resolve({}));
+// The verify honesty gate reads the task's LIVE workflowStatus for its CAS
+// snapshot (workflow-api-executor.ts) — while the verifier runs, that is still
+// 'in_progress'; verify_done is only written after the gate passes.
+const mockTaskFindUnique = mock(() => Promise.resolve({ workflowStatus: 'in_progress' }));
 
 mock.module('../../config', () => ({
   prisma: {
     agentSession: { create: mockSessionCreate, update: mockSessionUpdate },
     agentExecution: { create: mockExecutionCreate, update: mockExecutionUpdate },
-    task: { update: mockTaskUpdate },
+    task: { update: mockTaskUpdate, findUnique: mockTaskFindUnique },
   },
   ensureDatabaseConnection: () => Promise.resolve(),
   logger: { info: () => {}, warn: () => {}, error: () => {}, debug: () => {} },
@@ -150,6 +154,8 @@ function resetMocks() {
   mockExecutionUpdate.mockResolvedValue({});
   mockTaskUpdate.mockReset();
   mockTaskUpdate.mockResolvedValue({});
+  mockTaskFindUnique.mockReset();
+  mockTaskFindUnique.mockResolvedValue({ workflowStatus: 'in_progress' });
   mockWriteWorkflowFile.mockReset();
   mockWriteWorkflowFile.mockResolvedValue(undefined);
   mockExtractMarkdown.mockReset();
@@ -446,7 +452,7 @@ describe('executeAPIAgent — verify.md honesty gate', () => {
 
     expect(mockAttemptVerifyRepair).toHaveBeenCalledWith(
       1,
-      'verify_done',
+      'in_progress',
       'contradicts itself',
       'anthropic output',
     );

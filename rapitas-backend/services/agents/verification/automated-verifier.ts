@@ -32,7 +32,7 @@ import { tamperCheck, coverageCheck, generatedSyncCheck } from './verifier-gates
 const log = createLogger('agents:automated-verifier');
 
 /** Merges per-project checks of the same kind into one aggregate check. */
-function mergeChecks(
+export function mergeChecks(
   name: 'lint' | 'typecheck' | 'test' | 'format',
   parts: VerificationCheck[],
 ): VerificationCheck {
@@ -52,6 +52,7 @@ function mergeChecks(
     .slice(0, MAX_DETAIL_CHARS);
   // Aggregate pre-existing failures across all project parts (only set for 'test').
   const allPreExisting = parts.flatMap((p) => p.preExistingFailures ?? []);
+  const allIndeterminate = parts.flatMap((p) => p.indeterminateFailures ?? []);
   return {
     name,
     ran: ran.length > 0,
@@ -60,6 +61,8 @@ function mergeChecks(
     details: details || `${name}: ok`,
     unverifiable: unverifiable.length > 0 || undefined,
     preExistingFailures: allPreExisting.length > 0 ? allPreExisting : undefined,
+    indeterminate: parts.some((p) => p.indeterminate) || undefined,
+    indeterminateFailures: allIndeterminate.length > 0 ? allIndeterminate : undefined,
   };
 }
 

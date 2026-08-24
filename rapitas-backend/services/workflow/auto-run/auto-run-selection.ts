@@ -389,10 +389,31 @@ export async function selectNextTask(
       // Without the `status:'todo'` clause, a todo+verify_done task (status reset
       // for re-run, or a verify that didn't complete) was silently skipped and
       // the theme went idle with pending tasks still present.
-      OR: [
-        { status: 'todo' },
-        { workflowStatus: null },
-        { workflowStatus: { notIn: ['completed', 'verify_done'] } },
+      AND: [
+        {
+          OR: [
+            { status: 'todo' },
+            { workflowStatus: null },
+            { workflowStatus: { notIn: ['completed', 'verify_done'] } },
+          ],
+        },
+        {
+          // A task parked on a question cannot progress until a human answers,
+          // and the orchestrator refuses to dispatch it. Selection must agree
+          // with the dispatcher: measured 2026-08-24, task 635 sat at
+          // todo + awaiting_question, was selected, refused, cancelled and
+          // re-selected — 106 queue items in 21 minutes. The `status:'todo'`
+          // clause above deliberately ignores a stale workflowStatus, so
+          // awaiting_question has to be excluded explicitly.
+          //
+          // The null branch is REQUIRED. `NOT { workflowStatus: 'x' }` compiles
+          // to `NOT (workflowStatus = 'x')`, which is UNKNOWN — and therefore
+          // false — for a NULL column. A freshly filed task has no
+          // workflowStatus yet, so the bare NOT excluded every new task: with
+          // 10 todo rows in theme 1, selection matched 0 and the theme spun
+          // resumed→idle→resumed while its whole backlog sat there.
+          OR: [{ workflowStatus: null }, { workflowStatus: { not: 'awaiting_question' } }],
+        },
       ],
       id: skipTaskIds.length > 0 ? { notIn: skipTaskIds } : undefined,
       // Exclude subtasks — the theme scheduler drives top-level tasks only;

@@ -38,6 +38,7 @@ mock.module('../../../config', () => ({
 const mockResolveTaskForLearning = mock(() => Promise.resolve(null as unknown));
 mock.module('../../task/task-resolver', () => ({
   resolveTaskForLearning: mockResolveTaskForLearning,
+  taskRowConfirmedAbsent: mock(() => Promise.resolve(false)),
 }));
 
 const mockAnalyzeTaskComplexity = mock(() => ({

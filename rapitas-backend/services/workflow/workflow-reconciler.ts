@@ -272,11 +272,13 @@ export async function reconcileOnce(): Promise<{
   retriedBlocked: number;
   blockedEscalated: number;
   undispatchableTodos: number;
+  questionPauses: number;
   autoApproveStalls: number;
   staleQueueItemsCancelled: number;
   staleRunningItemsReleased: number;
   queueStarvationHandled: number;
   selfIncidentsFiled: number;
+  zeroProgressDetected: number;
 }> {
   const empty = {
     zombieSessions: 0,
@@ -288,11 +290,13 @@ export async function reconcileOnce(): Promise<{
     retriedBlocked: 0,
     blockedEscalated: 0,
     undispatchableTodos: 0,
+    questionPauses: 0,
     autoApproveStalls: 0,
     staleQueueItemsCancelled: 0,
     staleRunningItemsReleased: 0,
     queueStarvationHandled: 0,
     selfIncidentsFiled: 0,
+    zeroProgressDetected: 0,
   };
   if (inFlight) return empty;
   inFlight = true;
@@ -344,6 +348,14 @@ export async function reconcileOnce(): Promise<{
     const undispatchableTodos = await runHealPass('healUndispatchableTodo', () =>
       healUndispatchableTodo(nowMs),
     );
+    // Restore intake question pauses that were cleared without an answer — a
+    // dropped pause is invisible in the UI (every "waiting on a human"
+    // affordance keys off awaiting_question) AND keeps the scheduler
+    // re-selecting the task, which is how task 656 wedged in enqueue/cancel.
+    const questionPauses = await runHealPass('healOrphanedQuestionPause', async () => {
+      const { healOrphanedQuestionPause } = await import('./workflow-reconciler-question-pause');
+      return healOrphanedQuestionPause(nowMs);
+    });
     const orphanTasks = await runHealPass('flagOrphanTasks', () => flagOrphanTasks(nowMs));
     // Re-run auto-approval lost by a save request that died mid-flight
     // (critic-gate wall time > client timeout) — plan_created + active
@@ -380,6 +392,15 @@ export async function reconcileOnce(): Promise<{
       const { runSelfIncidentWatch } = await import('./self-incident-watcher');
       return runSelfIncidentWatch(nowMs);
     });
+    // Detection-only zero-progress spin watch (task 653): a theme reporting
+    // 'running' whose current task has produced NO AgentExecution for the whole
+    // threshold window. Notify-only — placed with the detection passes so every
+    // repair pass above gets its chance to clear the spin first.
+    const zeroProgressDetected = await runHealPass('detectZeroProgressWhileRunning', async () => {
+      const { detectZeroProgressWhileRunning } =
+        await import('./workflow-reconciler-zero-progress');
+      return detectZeroProgressWhileRunning(nowMs);
+    });
     const counts = {
       zombieSessions,
       phantomWorktrees,
@@ -390,11 +411,13 @@ export async function reconcileOnce(): Promise<{
       retriedBlocked,
       blockedEscalated,
       undispatchableTodos,
+      questionPauses,
       autoApproveStalls,
       staleQueueItemsCancelled,
       staleRunningItemsReleased,
       queueStarvationHandled,
       selfIncidentsFiled,
+      zeroProgressDetected,
     };
     if (Object.values(counts).some((n) => n > 0)) {
       log.info(counts, '[reconciler] repaired divergences');

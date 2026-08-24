@@ -19,6 +19,7 @@ const mockPrisma = {
 const resolveTaskWorkflowStateMock = mock(() =>
   Promise.resolve<{ status?: string | null; workflowStatus?: string | null } | null>(null),
 );
+const taskRowConfirmedAbsentMock = mock(() => Promise.resolve(false));
 
 mock.module('../../config/logger', () => ({
   getBackendLogFilePath: () => '/tmp/backend.log',
@@ -31,6 +32,7 @@ mock.module('../../config/database', () => ({
 }));
 mock.module('../task/task-resolver', () => ({
   resolveTaskWorkflowState: resolveTaskWorkflowStateMock,
+  taskRowConfirmedAbsent: taskRowConfirmedAbsentMock,
 }));
 
 const { sweepStaleQueueItems } = await import('./workflow-reconciler-queue-sweep');
@@ -40,6 +42,7 @@ describe('sweepStaleQueueItems', () => {
     findManyMock.mockReset().mockResolvedValue([]);
     updateManyMock.mockReset().mockResolvedValue({ count: 1 });
     resolveTaskWorkflowStateMock.mockReset().mockResolvedValue(null);
+    taskRowConfirmedAbsentMock.mockReset().mockResolvedValue(false);
   });
 
   test('cancels the queued item of a task with status done (CAS on queued)', async () => {
@@ -97,6 +100,22 @@ describe('sweepStaleQueueItems', () => {
 
     expect(cancelled).toBe(0);
     expect(updateManyMock).not.toHaveBeenCalled();
+  });
+
+  test('a confirmed-absent task row cancels the item with the vanished-task marker (task 651)', async () => {
+    findManyMock.mockResolvedValue([{ id: 16, taskId: 648 }]);
+    resolveTaskWorkflowStateMock.mockResolvedValue(null);
+    taskRowConfirmedAbsentMock.mockResolvedValue(true);
+
+    const cancelled = await sweepStaleQueueItems();
+
+    expect(cancelled).toBe(1);
+    const call = updateManyMock.mock.calls[0]?.[0] as {
+      data: { status: string; errorMessage: string };
+    };
+    expect(call.data.status).toBe('cancelled');
+    expect(call.data.errorMessage).toContain('648');
+    expect(call.data.errorMessage).not.toContain('定期スイープ');
   });
 
   test('a CAS miss (dequeue promoted the item first) is not counted', async () => {

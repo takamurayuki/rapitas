@@ -32,6 +32,7 @@ const log = createLogger('role-resolver');
 import { narrowWorkflowStatus, narrowWorkflowMode } from './workflow-types.guards.generated';
 import type { WorkflowRole } from './workflow-types';
 import { reconcileStatusFromExistingArtifacts } from './artifact-reuse-reconciler';
+import { shouldAutoSelectModel as shouldAutoSelect } from './role-route-inputs';
 
 // NOTE: The status→role map is now derived from the DB-backed, UI-editable
 // mode config (workflow-mode-config.ts) — the single source of truth shared
@@ -41,10 +42,9 @@ export interface ResolvedRoleAgent {
   role: WorkflowRole;
   agentConfigId: number | null;
   /**
-   * Per-role model override. `null` means "no explicit override; use the
-   * agent's default OR the SmartRouter auto-pick if 'auto'".
-   * `'auto'` is a sentinel string used by the UI to mean "let the SmartRouter
-   * pick the cheapest/best-fit model based on task complexity + budget".
+   * Per-role model override, or null when the SmartRouter should pick.
+   * `'auto'` is the UI sentinel for that; an unset/empty value means the same
+   * (see shouldAutoSelectModel in role-route-inputs).
    */
   modelId: string | null;
   /** True when modelId is null/'auto' — caller should invoke SmartRouter. */
@@ -101,7 +101,9 @@ export async function resolveAgentForTask(taskId: number): Promise<ResolvedRoleA
   //   - explicit modelId set ("claude-haiku-4-5-...") → use as-is
   //   - modelId === 'auto' or null/empty → SmartRouter picks
   const roleModelId = roleConfig?.modelId ?? null;
-  const shouldAutoSelectModel = !roleModelId || roleModelId === 'auto' || roleModelId.trim() === '';
+  // Same predicate the orchestrator uses — imported, not restated, so the two
+  // dispatch surfaces cannot drift apart on what an unset model means.
+  const shouldAutoSelectModel = shouldAutoSelect(roleModelId);
 
   if (roleConfig?.isEnabled && roleConfig.agentConfigId) {
     return {

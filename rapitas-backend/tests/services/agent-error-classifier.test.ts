@@ -20,11 +20,69 @@ describe('classifyAgentError', () => {
     expect(r!.resetAt).toBeDefined();
   });
 
+  it('Claude の monthly spend limit を claude の quota として判定する', () => {
+    // 実測 2026-08-19: この文言が未分類だったため cooldown もフォールバックも
+    // 起きず、12実行が連続失敗してタスクが恒久 blocked になった。
+    const r = classifyAgentError(
+      [
+        'Process exited with code 1',
+        '[System: init]',
+        "You've hit your monthly spend limit. ",
+      ].join('\n') +
+        'Switch to another model, or manage usage credits at ' +
+        'claude.ai/settings/usage?from=cc_cli_limit_message',
+    );
+    expect(r).not.toBeNull();
+    expect(r!.provider).toBe('claude');
+    expect(r!.reason).toBe('quota');
+    expect(r!.retryWithFallback).toBe(true);
+  });
+
+  it('claude.ai の請求URLは codex ルールより優先して claude に帰属する', () => {
+    const r = classifyAgentError(
+      "You've hit your usage limit. See claude.ai/settings/usage for details.",
+    );
+    expect(r?.provider).toBe('claude');
+  });
+
+  it('codex の請求URLは openai に帰属したままになる', () => {
+    const r = classifyAgentError(
+      "You've hit your usage limit. Visit https://chatgpt.com/codex/settings/usage",
+    );
+    expect(r?.provider).toBe('openai');
+  });
+
   it('try again at HH:MM AM/PM の時刻パースに対応する', () => {
     const r = classifyAgentError('usage limit. try again at 11:30 AM');
     expect(r?.resetAt).toBeDefined();
     expect(r!.resetAt!.getHours()).toBe(11);
     expect(r!.resetAt!.getMinutes()).toBe(30);
+  });
+
+  it('API の 5xx は transient として判定する', () => {
+    // 実測 2026-08-24 task 624: この文言が未分類だったため cooldown も
+    // フォールバックも起きず、さらに「原因不明＝モデル起因」と見なされて
+    // 再試行が premium に昇格していた。サーバー側の瞬断で支払いが増える形。
+    for (const msg of [
+      'Process exited with code 1\n[System: init] API Error: 500 Internal server error.',
+      'API Error: 503 Service Unavailable',
+      'API Error: 529 overloaded_error',
+      'API Error: 502 Bad Gateway',
+    ]) {
+      const r = classifyAgentError(msg);
+      expect(r?.reason).toBe('transient');
+      expect(r?.retryWithFallback).toBe(true);
+    }
+  });
+
+  it('コード中やログ本文の "500" では transient に誤検知しない', () => {
+    for (const msg of [
+      'const TIMEOUT_MS = 500; // retry window',
+      'ファイルは500行を超えています',
+      'if (res.status === 500) { handleServerError(res); }',
+    ]) {
+      expect(classifyAgentError(msg, { strict: true })).toBeNull();
+    }
   });
 
   it('Anthropic credit_balance_too_low を quota として判定する', () => {

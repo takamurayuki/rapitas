@@ -214,12 +214,33 @@ export async function handleSuccessfulExecution(
     // underscore form is the separate workflowStatus value. Writing the wrong
     // one left subtasks unrecognized by the UI and by status='in-progress'
     // queries, so they appeared stuck.
-    await prisma.task
-      .update({ where: { id: taskIdNum }, data: { status: 'in-progress' } })
-      .catch((e: unknown) =>
-        log.error({ err: e }, `[API] Failed to update task ${taskIdNum} to in_progress`),
+    //
+    // Guarded against `blocked` as a compare-and-swap, NOT an if on the read
+    // above: a workflow gate can block the task from inside the request the
+    // agent itself made, i.e. concurrently with this handler. execute-setup
+    // sets status='in-progress' when a run starts, so a task found blocked at
+    // the END of a run was blocked BY that run — this handler must not undo it.
+    // Observed on task 632: the adversarial gate blocked it at 04:00:45, this
+    // write reinstated in-progress, and the reconciler's orphan pass then
+    // requeued it to 'todo' — leaving todo/verify_done, a state no scheduler
+    // or notification treats as actionable, so the task silently stalled.
+    const kept = await prisma.task
+      .updateMany({
+        where: { id: taskIdNum, status: { not: 'blocked' } },
+        data: { status: 'in-progress' },
+      })
+      .catch((e: unknown) => {
+        log.error({ err: e }, `[API] Failed to update task ${taskIdNum} to in_progress`);
+        return { count: 0 };
+      });
+    if (kept.count === 0) {
+      log.warn(
+        { taskId: taskIdNum, sessionId },
+        '[API] Task was blocked by a workflow gate during this run — leaving it blocked (not reinstating in-progress).',
       );
-    log.info(`[API] Task ${taskIdNum} kept as in_progress (pending review pipeline)`);
+    } else {
+      log.info(`[API] Task ${taskIdNum} kept as in_progress (pending review pipeline)`);
+    }
   }
 
   await updateSessionStatusWithRetry(sessionId, 'completed', '[API]', 3);

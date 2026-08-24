@@ -27,6 +27,7 @@ import {
   stripOptionsBlock,
   type StructuredSelection,
 } from './workflow-question-utils';
+import { selectWorkflowTabs } from './workflow-tab-selection';
 
 export interface WorkflowViewerProps {
   taskId: number;
@@ -101,12 +102,7 @@ export default function WorkflowViewer({
 
   const resolvedMode = workflowMode || 'comprehensive';
   const tWorkflow = useTranslations('workflow');
-  // Workflow-disabled tasks never produce research.md/plan.md/question.md
-  // (the single-run agent implements directly — see instruction-builder.ts) —
-  // only the verify tab is meaningful.
-  const allWorkflowTabs = workflowDisabled
-    ? getWorkflowTabs(resolvedMode, tWorkflow).filter((t) => t.id === 'verify')
-    : getWorkflowTabs(resolvedMode, tWorkflow);
+  const allWorkflowTabs = getWorkflowTabs(resolvedMode, tWorkflow);
 
   // Live agent question (published by the execution layer). Rendered in the Q&A
   // tab; the interactive prompt was relocated here from the execution log.
@@ -120,9 +116,10 @@ export default function WorkflowViewer({
   // awaiting an answer. (Per user request: タブは質問があった際に表示する。)
   const hasPendingQuestion =
     !!liveQuestion || !!tabStatus.question || effectiveStatus === 'awaiting_question';
-  const workflowTabs = hasPendingQuestion
-    ? allWorkflowTabs
-    : allWorkflowTabs.filter((t) => t.id !== 'question');
+  const workflowTabs = selectWorkflowTabs(allWorkflowTabs, {
+    workflowDisabled,
+    hasPendingQuestion,
+  });
 
   // Number badged on the Q&A tab: structured `json:options` question count when
   // present, else parsed 質問N count for a legacy intake question.md, else 1 for

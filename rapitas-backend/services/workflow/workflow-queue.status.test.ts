@@ -114,6 +114,7 @@ mock.module('../task/task-resolver', () => ({
   resolveTaskForPlanApproval: mock(() => Promise.resolve(null)),
   resolveTaskForAutoMerge: mock(() => Promise.resolve(null)),
   resolveTaskForLearning: mock(() => Promise.resolve(null)),
+  taskRowConfirmedAbsent: mock(() => Promise.resolve(false)),
 }));
 
 const { WorkflowQueueService } = await import('./workflow-queue');
@@ -178,6 +179,18 @@ describe('WorkflowQueueService.updateStatus', () => {
     prismaMock.workflowQueueItem.update.mockResolvedValueOnce(row({ status: 'failed' }));
 
     await svc.updateStatus(1, 'failed');
+
+    const [callArgs] = prismaMock.workflowQueueItem.update.mock.calls[0] as [
+      { data: Record<string, unknown> },
+    ];
+    expect(callArgs.data.completedAt).toBeInstanceOf(Date);
+  });
+
+  test('status=cancelled の場合 → completedAt を設定すること', async () => {
+    const svc = new WorkflowQueueService();
+    prismaMock.workflowQueueItem.update.mockResolvedValueOnce(row({ status: 'cancelled' }));
+
+    await svc.updateStatus(1, 'cancelled');
 
     const [callArgs] = prismaMock.workflowQueueItem.update.mock.calls[0] as [
       { data: Record<string, unknown> },
@@ -335,7 +348,7 @@ describe('WorkflowQueueService.cancel', () => {
 
     expect(prismaMock.workflowQueueItem.update).toHaveBeenCalledWith({
       where: { id: 1 },
-      data: { status: 'cancelled' },
+      data: { status: 'cancelled', completedAt: expect.any(Date) },
     });
     expect(result.status).toBe('cancelled');
   });

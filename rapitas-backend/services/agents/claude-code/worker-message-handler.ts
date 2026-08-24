@@ -12,6 +12,7 @@ import { updateWaitingStateFromDetection, tolegacyQuestionType } from '../questi
 import type { QuestionWaitingState } from '../question-detection';
 import type { WorkerOutputMessage, WorkerInputMessage } from '../../../workers/output-parser-types';
 import { createLogger } from '../../../config/logger';
+import { pickPrimaryModel } from './model-attribution';
 import type { AgentArtifact, AgentExecutionResult, GitCommitInfo } from '../base-agent';
 
 /**
@@ -43,6 +44,8 @@ export interface WorkerMessageContext {
   readonly resumeSessionId: string | undefined;
   readonly process: ChildProcess | null;
   readonly activeTools: Map<string, { name: string; startTime: number; info: string }>;
+  /** The model id the router instructed this execution to run (`config.model`). */
+  readonly instructedModel: string | undefined;
 
   // ─── Mutable state (direct field access) ─────────────────────────────
   outputBuffer: string;
@@ -164,7 +167,7 @@ export function handleWorkerMessage(ctx: WorkerMessageContext, msg: WorkerOutput
         outputTokens: msg.usage?.outputTokens,
         cacheReadInputTokens: msg.usage?.cacheReadInputTokens,
         cacheCreationInputTokens: msg.usage?.cacheCreationInputTokens,
-        modelName: pickPrimaryModel(msg.modelUsage),
+        modelName: pickPrimaryModel(msg.modelUsage, ctx.instructedModel),
         numTurns: msg.numTurns,
       };
       break;
@@ -252,31 +255,6 @@ export function handleWorkerMessage(ctx: WorkerMessageContext, msg: WorkerOutput
       logger.error({ stack: msg.stack }, `${ctx.logPrefix} Worker error: ${msg.message}`);
       break;
   }
-}
-
-/**
- * Choose the primary model from a `modelUsage` map. Picks the model with the
- * largest combined input + output token share so subagent calls do not
- * dominate the headline figure.
- */
-function pickPrimaryModel(
-  modelUsage:
-    | Record<
-        string,
-        {
-          inputTokens?: number;
-          outputTokens?: number;
-        }
-      >
-    | undefined,
-): string | undefined {
-  if (!modelUsage) return undefined;
-  let best: { name: string; tokens: number } | null = null;
-  for (const [name, u] of Object.entries(modelUsage)) {
-    const tokens = (u.inputTokens ?? 0) + (u.outputTokens ?? 0);
-    if (!best || tokens > best.tokens) best = { name, tokens };
-  }
-  return best?.name;
 }
 
 // Re-export types so callers don't need a second import path.

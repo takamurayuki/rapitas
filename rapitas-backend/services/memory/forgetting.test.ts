@@ -2,9 +2,10 @@
  * forgetting テスト
  *
  * Three-stage forgetting: the decay formula
- * (decayScore * 0.95^daysSinceLastAccess * (0.5 + confidence*0.5)), the
+ * (decayScore * 0.95^((2 - confidence) * daysSinceLastDecay)), the
  * active/dormant/archived stage thresholds, pinned-entry exclusion, and the
- * outcome-gated boost/penalize deltas.
+ * outcome-gated boost/penalize deltas. lastAccessedAt must NOT feed the
+ * formula (that compounded decay for boosted entries).
  */
 import { describe, test, expect, mock, beforeEach } from 'bun:test';
 
@@ -47,7 +48,8 @@ mock.module('../../config/database', () => ({
   },
 }));
 
-const { runForgettingSweep, boostDecayOnAccess, penalizeOnFailure } = await import('./forgetting');
+const { runForgettingSweep, boostDecayOnAccess, penalizeOnFailure, calculateDecay } =
+  await import('./forgetting');
 
 beforeEach(() => {
   entries = [];
@@ -84,7 +86,7 @@ describe('runForgettingSweep — decay formula & stage transitions', () => {
     expect(updateCalls[0].data.forgettingStage).toBe('active');
   });
 
-  test('confidence 0 halves the decay via the (0.5 + confidence*0.5) factor', async () => {
+  test('confidence 0 with no elapsed time leaves the decay unchanged (no per-sweep constant factor)', async () => {
     entries = [
       {
         id: 2,
@@ -98,7 +100,36 @@ describe('runForgettingSweep — decay formula & stage transitions', () => {
     ];
     await runForgettingSweep();
     const written = updateCalls[0].data.decayScore as number;
-    expect(written).toBeCloseTo(0.4, 5);
+    expect(written).toBeCloseTo(0.8, 3);
+  });
+
+  test('confidence scales the exponent: after 10 days conf 0 → 0.8×0.9025^10, conf 1 → 0.8×0.95^10', async () => {
+    entries = [
+      {
+        id: 20,
+        decayScore: 0.8,
+        confidence: 0,
+        lastAccessedAt: null,
+        lastDecayAt: daysAgo(10),
+        forgettingStage: 'active',
+        pinnedUntil: null,
+      },
+      {
+        id: 21,
+        decayScore: 0.8,
+        confidence: 1,
+        lastAccessedAt: null,
+        lastDecayAt: daysAgo(10),
+        forgettingStage: 'active',
+        pinnedUntil: null,
+      },
+    ];
+    await runForgettingSweep();
+    const low = updateCalls.find((c) => c.where.id === 20)!.data.decayScore as number;
+    const high = updateCalls.find((c) => c.where.id === 21)!.data.decayScore as number;
+    expect(low).toBeCloseTo(0.8 * Math.pow(0.9025, 10), 3); // ≈ 0.286
+    expect(high).toBeCloseTo(0.8 * Math.pow(0.95, 10), 3); // ≈ 0.479
+    expect(low).toBeLessThan(high);
   });
 
   test('an entry that decays below 0.5 transitions active → dormant', async () => {
@@ -107,7 +138,7 @@ describe('runForgettingSweep — decay formula & stage transitions', () => {
         id: 3,
         decayScore: 0.6,
         confidence: 0.5,
-        // 0.6 * 0.95^10 * 0.75 ≈ 0.6 * 0.5987 * 0.75 ≈ 0.269 — in [0.1, 0.5).
+        // 0.6 * 0.95^(1.5*10) ≈ 0.6 * 0.4633 ≈ 0.278 — in [0.1, 0.5).
         lastAccessedAt: daysAgo(10),
         lastDecayAt: daysAgo(10),
         forgettingStage: 'active',
@@ -186,10 +217,29 @@ describe('runForgettingSweep — decay formula & stage transitions', () => {
     expect(result.processed).toBe(1);
   });
 
-  test('falls back to lastDecayAt when lastAccessedAt is null', async () => {
+  test('lastDecayAt is the ONLY reference date: a 200-day-old lastAccessedAt with a 1-day-old lastDecayAt keeps 0.9 → 0.855 (active)', async () => {
     entries = [
       {
         id: 8,
+        decayScore: 0.9,
+        confidence: 1,
+        lastAccessedAt: daysAgo(200),
+        lastDecayAt: daysAgo(1),
+        forgettingStage: 'active',
+        pinnedUntil: null,
+      },
+    ];
+    const result = await runForgettingSweep();
+    expect(result.transitioned).toEqual({ toDormant: 0, toArchived: 0 });
+    const written = updateCalls[0].data.decayScore as number;
+    expect(written).toBeCloseTo(0.855, 3);
+    expect(updateCalls[0].data.forgettingStage).toBe('active');
+  });
+
+  test('a null lastAccessedAt is irrelevant — 10 days since lastDecayAt still decays', async () => {
+    entries = [
+      {
+        id: 10,
         decayScore: 0.6,
         confidence: 0.5,
         lastAccessedAt: null,
@@ -217,6 +267,30 @@ describe('runForgettingSweep — decay formula & stage transitions', () => {
     await runForgettingSweep();
     expect(createEventCalls).toHaveLength(1);
     expect(createEventCalls[0].eventType).toBe('forgetting_sweep');
+  });
+});
+
+describe('calculateDecay (pure)', () => {
+  test('does not compound: two 1-day sweeps equal one 2-day sweep', () => {
+    const t0 = new Date('2026-01-01T00:00:00Z');
+    const t1 = new Date(t0.getTime() + DAY_MS);
+    const t2 = new Date(t0.getTime() + 2 * DAY_MS);
+    const stepwise = calculateDecay(calculateDecay(1, 0.8, t0, t1), 0.8, t1, t2);
+    const direct = calculateDecay(1, 0.8, t0, t2);
+    expect(stepwise).toBeCloseTo(direct, 10);
+  });
+
+  test('a lastDecayAt in the future never raises the score', () => {
+    const now = new Date('2026-01-01T00:00:00Z');
+    const future = new Date(now.getTime() + DAY_MS);
+    expect(calculateDecay(0.7, 1, future, now)).toBeCloseTo(0.7, 10);
+  });
+
+  test('confidence outside 0..1 is clamped', () => {
+    const t0 = new Date('2026-01-01T00:00:00Z');
+    const t1 = new Date(t0.getTime() + DAY_MS);
+    expect(calculateDecay(1, 5, t0, t1)).toBeCloseTo(0.95, 10);
+    expect(calculateDecay(1, -1, t0, t1)).toBeCloseTo(0.9025, 10);
   });
 });
 

@@ -276,6 +276,75 @@ export async function resolveProvenTier(role: string): Promise<ModelTier | undef
   return tier;
 }
 
+/**
+ * How much better premium must measurably be, in success-rate points, before
+ * a premium FLOOR is worth paying for. Small on purpose: this only has to rule
+ * out 'no advantage at all'.
+ */
+function premiumAdvantageThreshold(): number {
+  const v = parseFloat(process.env.RAPITAS_PREMIUM_ADVANTAGE_MIN ?? '');
+  return Number.isFinite(v) && v >= 0 ? v : 0.03;
+}
+
+/** Verdict on whether a premium floor is earned for a role. */
+export interface PremiumAdvantage {
+  justified: boolean;
+  reason: string;
+  premiumRate?: number;
+  standardRate?: number;
+}
+
+/**
+ * Whether the recorded outcomes justify FORCING premium for this role.
+ *
+ * The evidence layer has only ever answered the downgrade question ('which is
+ * the cheapest tier that works?'). Nothing ever checked the opposite: that an
+ * upgrade bought anything. Measured 2026-08-25 over 14 days, premium carried
+ * 58% of spend at a LOWER success rate than standard, and no reduction in
+ * verify-repair rounds was detectable. An upgrade should have to earn itself
+ * the same way a downgrade does.
+ *
+ * Returns undefined when either tier lacks the sample floor — absence of
+ * evidence keeps the caller's existing behaviour rather than silently
+ * relaxing a floor.
+ *
+ * @param role - Workflow role. / ワークフローのロール
+ * @returns The verdict, or undefined when evidence is insufficient. / 判定、証拠不足なら undefined
+ */
+export async function resolvePremiumAdvantage(role: string): Promise<PremiumAdvantage | undefined> {
+  if (!evidenceRoutingEnabled()) return undefined;
+
+  const outcomes = await getRoleModelOutcomes(role).catch(() => [] as RoleModelOutcome[]);
+  if (outcomes.length === 0) return undefined;
+
+  const floor = minSamples();
+  const agg = (tier: ModelTier) => {
+    const rows = outcomes.filter((o) => o.tier === tier);
+    const samples = rows.reduce((a, r) => a + r.samples, 0);
+    const successes = rows.reduce((a, r) => a + r.successes, 0);
+    return { samples, rate: samples > 0 ? successes / samples : 0 };
+  };
+
+  const premium = agg('premium');
+  const standard = agg('standard');
+  if (premium.samples < floor || standard.samples < floor) return undefined;
+
+  const margin = premium.rate - standard.rate;
+  const justified = margin >= premiumAdvantageThreshold();
+  const verdict: PremiumAdvantage = {
+    justified,
+    reason: justified
+      ? `premium は standard を ${(margin * 100).toFixed(1)}pt 上回る実績`
+      : `premium に standard を上回る実績が無い(${(margin * 100).toFixed(1)}pt)`,
+    premiumRate: premium.rate,
+    standardRate: standard.rate,
+  };
+  log.info(
+    { role, ...verdict, premiumSamples: premium.samples, standardSamples: standard.samples },
+    'Premium-advantage verdict resolved for role',
+  );
+  return verdict;
+}
 /** Test-only: clear the proven-tier cache. */
 export function _resetProvenTierCache(): void {
   provenTierCache.clear();

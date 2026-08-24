@@ -10,25 +10,13 @@
     "rapitas-backend/services/workflow/workflow-cli-executor.ts": {
       "lineCount": 1189
     },
-    "rapitas-backend/services/agents/orchestrator/git-operations/worktree-ops.ts": {
-      "lineCount": 810
-    },
     "rapitas-backend/services/agents/orchestrator/task-executor.ts": {
-      "lineCount": 800
-    },
-    "rapitas-desktop/src-tauri/src/main.rs": {
       "lineCount": 800
     },
     "rapitas-backend/routes/agents/execution/execute-route.ts": {
       "lineCount": 774
     },
-    "rapitas-backend/services/workflow/auto-run/theme-auto-run-scheduler.ts": {
-      "lineCount": 688
-    },
     "rapitas-backend/routes/tasks/tasks.ts": {
-      "lineCount": 685
-    },
-    "rapitas-backend/services/workflow/workflow-context-builder.ts": {
       "lineCount": 685
     },
     "rapitas-backend/scripts/analyze-codebase/agent-report-generator.ts": {

@@ -51,10 +51,32 @@ export async function applyTaskStatusFromWorkflow(
   logContext: string,
 ): Promise<void> {
   try {
-    const currentTask = await prisma.task
-      .findUnique({ where: { id: taskId }, select: { workflowStatus: true } })
-      .catch(() => null);
-    const wfStatus = currentTask?.workflowStatus;
+    // NOTE: A FAILED read must not be conflated with "this task has no
+    // workflowStatus". Both used to collapse into `null` via `.catch(() => null)`
+    // and fall through to the `!wfStatus` branch below, which marks the task
+    // DONE and stamps completedAt. Observed on task 632: the backend restarted
+    // while this epilogue ran, the read failed against the closing connection,
+    // and a task whose adversarial review had REJECTED it was silently recorded
+    // as complete (done / verify_done, no transition logged). A read we could
+    // not perform tells us nothing — leave the status alone.
+    let currentTask: { workflowStatus: string | null } | null;
+    try {
+      currentTask = await prisma.task.findUnique({
+        where: { id: taskId },
+        select: { workflowStatus: true },
+      });
+    } catch (err) {
+      log.warn(
+        { err, taskId },
+        `${logContext} Could not read workflowStatus — leaving task status unchanged`,
+      );
+      return;
+    }
+    // Row genuinely absent: there is nothing to update (and the update would
+    // throw). Distinct from an existing row whose workflowStatus is null, which
+    // legitimately means "single-shot run, no workflow phases" → done.
+    if (!currentTask) return;
+    const wfStatus = currentTask.workflowStatus;
 
     if (wfStatus && IN_PROGRESS_WORKFLOW_STATUSES.includes(wfStatus)) {
       await prisma.task.update({ where: { id: taskId }, data: { status: 'in-progress' } });
