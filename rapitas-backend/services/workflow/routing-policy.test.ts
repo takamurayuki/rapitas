@@ -522,3 +522,32 @@ describe('detectHighRisk plan が実際に触ると宣言したものは高リ�
     ).toBe(true);
   });
 });
+
+// NOTE: 日本語には語境界が無いため、リスク語がより長い語の一部として素通しで
+// 一致する。実測(2026-08-25): タスク660は plan の意思決定表にある
+// 「別リクエストが既に解決済み」だけで implement/verify 両フェーズが premium に
+// 固定され、実装1回で $13.55 かかっていた。
+describe('detectHighRisk 日本語の部分文字列衝突', () => {
+  test('「解決済み」は決済(payment)ではない', () => {
+    const planContent =
+      '| 自己修復の比較スワップが0件更新（別リクエストが既に解決済み） | ' +
+      '`false` を返し `waitForVerifyCompletion` は通常どおり fallback |';
+    expect(detectHighRisk({ text: 'ある改善タスク', planContent }).high).toBe(false);
+  });
+
+  test('research の未確定事項を「全て解決済み」と書いた plan も低リスク', () => {
+    const planContent = 'research の未確定事項7件を全て解決済み。### 採用したアプローチ';
+    expect(detectHighRisk({ text: 'ある改善タスク', planContent }).high).toBe(false);
+  });
+
+  test('本物の決済/課金は従来どおり高リスク', () => {
+    expect(detectHighRisk({ text: '決済処理のリトライを実装する' }).high).toBe(true);
+    expect(detectHighRisk({ text: 'Stripe の課金APIを修正する' }).high).toBe(true);
+    expect(
+      detectHighRisk({
+        text: 'ある改善タスク',
+        planContent: '- `services/payment/checkout.ts` の決済フローを変更',
+      }).high,
+    ).toBe(true);
+  });
+});
