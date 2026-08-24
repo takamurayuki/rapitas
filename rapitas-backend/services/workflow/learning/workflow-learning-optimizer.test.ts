@@ -150,6 +150,7 @@ mock.module('../../task/task-resolver', () => ({
   resolveTaskForPlanApproval: () => Promise.resolve(null),
   resolveTaskForAutoMerge: () => Promise.resolve(null),
   resolveTaskForLearning: mockResolveTaskForLearning,
+  taskRowConfirmedAbsent: mock(() => Promise.resolve(false)),
 }));
 
 const { generateOptimizationRules, getWorkflowRecommendation, applyModeRules } =

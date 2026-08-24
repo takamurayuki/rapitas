@@ -25,6 +25,7 @@ import {
   mockOnAwaitingPlanApproval,
   mockNotifyAwaitingPlanApproval,
   mockNotifyTaskSkipped,
+  mockNotifyTaskVanished,
   mockGetThemeActiveQueueItems,
   mockQueueItemFindFirst,
   mockResolveTaskWorkflowState,
@@ -450,6 +451,59 @@ describe('advanceTheme — terminal resolution: failed/blocked', () => {
     await internal(scheduler).advanceTheme(1, 100, 'priority', 1, freshLastRunAt());
 
     expect(mockOnTaskFailed).toHaveBeenCalledWith(1, expect.stringContaining('100'));
+  });
+});
+
+describe('advanceTheme — confirmed-vanished task (task 651)', () => {
+  it('records task.skipped(cause=task_vanished), notifies, and advances — never writes task.blocked', async () => {
+    mockQueueItemFindFirst.mockResolvedValue({
+      id: 1,
+      status: 'cancelled',
+      errorMessage:
+        'タスク行が見つからないため、残留キュー項目を自動キャンセルしました（タスク 648）',
+    });
+    mockResolveTaskWorkflowState.mockResolvedValue(null);
+
+    await internal(scheduler).advanceTheme(1, 648, 'priority', 1, freshLastRunAt());
+
+    expect(mockNotifyTaskVanished).toHaveBeenCalledWith(1, 648);
+    expect(mockTaskUpdate).not.toHaveBeenCalled();
+    expect(mockOnTaskFailed).not.toHaveBeenCalled();
+    expect(mockNotifyTaskSkipped).not.toHaveBeenCalled();
+    expect(mockEnqueue).not.toHaveBeenCalled();
+  });
+
+  it('does not take the vanished-task branch when the task still resolves (not vanished)', async () => {
+    mockQueueItemFindFirst.mockResolvedValue({
+      id: 1,
+      status: 'cancelled',
+      errorMessage:
+        'タスク行が見つからないため、残留キュー項目を自動キャンセルしました（タスク 648）',
+    });
+    mockResolveTaskWorkflowState.mockResolvedValue({
+      id: 648,
+      status: 'todo',
+      workflowStatus: 'draft',
+      workflowMode: null,
+      parentId: null,
+    });
+
+    await internal(scheduler).advanceTheme(1, 648, 'priority', 1, freshLastRunAt());
+
+    expect(mockNotifyTaskVanished).not.toHaveBeenCalled();
+  });
+
+  it('does not take the vanished-task branch for an ordinary cancelled item (no vanished marker)', async () => {
+    mockQueueItemFindFirst.mockResolvedValue({
+      id: 1,
+      status: 'cancelled',
+      errorMessage: 'タスクは既に終端状態のため、残留キュー項目を自動キャンセルしました',
+    });
+    mockResolveTaskWorkflowState.mockResolvedValue(null);
+
+    await internal(scheduler).advanceTheme(1, 648, 'priority', 1, freshLastRunAt());
+
+    expect(mockNotifyTaskVanished).not.toHaveBeenCalled();
   });
 });
 

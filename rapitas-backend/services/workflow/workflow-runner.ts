@@ -8,51 +8,28 @@ import { prisma } from '../../config';
 import { createLogger } from '../../config/logger';
 import { WorkflowQueueService, type QueueItem } from './workflow-queue';
 import { WorkflowOrchestrator } from './workflow-orchestrator';
-import { resolveTaskWorkflowState, resolveTaskForPlanApproval } from '../task/task-resolver';
-import { hasVerifyCompletionInFlight } from './verify-completion-inflight';
+import { resolveTaskWorkflowState, taskRowConfirmedAbsent } from '../task/task-resolver';
 import {
   logPhaseTransition,
   broadcastRunnerStatus,
   broadcastItemUpdate,
 } from './workflow-runner-events';
 import { isShutdownError } from '../agents/orchestrator/shutdown-error';
-import type { WorkflowRole } from './workflow-types';
+import { waitForVerifyCompletion } from './workflow-runner-verify-settle';
+import {
+  resolveMaxIterations,
+  resolvePhaseTimeoutMs,
+  notifyParentOnSubtaskFailure,
+  shouldAutoApprovePlan,
+  raceWorkflowAdvance,
+  waitBeforeNextPhase,
+} from './workflow-runner-item-helpers';
+import { taskVanishedMessage } from './queue-vanished-task-policy';
+import type { RunnerStatus, ActiveExecution } from './workflow-runner.types';
+
+export type { RunnerStatus } from './workflow-runner.types';
 
 const log = createLogger('workflow-runner');
-
-// Upper bound for the per-phase role lookup used to pick the timeout backstop
-// (task 546). This is NOT an agent/phase timeout value — it only caps how long
-// the runner waits for the (normally memory-cached) mode-config read before
-// falling back to the role-less default backstop.
-const ROLE_RESOLVE_BUDGET_MS = 1000;
-
-// Grace window for a `verify_done` task's async commit/PR/merge completion to
-// settle before the runner judges it failed — prevents a transient "blocked"
-// flash in the UI while the task is actually completing (observed: verify_done →
-// completed took ~20-30s). Override with RAPITAS_VERIFY_SETTLE_MS.
-const VERIFY_SETTLE_TIMEOUT_MS = Number(process.env.RAPITAS_VERIFY_SETTLE_MS) || 60_000;
-
-// Hard cap for the same wait when the commit/PR automation is still registered
-// as in-flight. The base window above only bounds the case where nothing is
-// running; a live pipeline is given until this cap so slow-but-healthy work
-// (network-bound `gh pr create`, large test scopes) is never judged failed.
-const VERIFY_SETTLE_HARD_CAP_MS = Number(process.env.RAPITAS_VERIFY_SETTLE_CAP_MS) || 600_000;
-const VERIFY_SETTLE_POLL_MS = 2_000;
-
-export interface RunnerStatus {
-  isRunning: boolean;
-  activeItems: number;
-  processedTotal: number;
-  pollIntervalMs: number;
-}
-
-interface ActiveExecution {
-  queueItemId: number;
-  taskId: number;
-  startedAt: Date;
-  currentPhase: string;
-  abortController: AbortController;
-}
 
 export class WorkflowRunner {
   private static instance: WorkflowRunner;
@@ -209,15 +186,7 @@ export class WorkflowRunner {
     try {
       // Progress workflow from current phase to completion (with infinite loop prevention)
       let continueLoop = true;
-      // NOTE: Long-run knob. 20 phases fits the normal pipeline + a couple of
-      // repair bounces; raise RAPITAS_RUNNER_MAX_ITERATIONS (together with
-      // AUTO_RUN_MAX_TASK_WALL_MS and verifyRepairLimit / RAPITAS_MAX_CI_REPAIRS)
-      // to let a task iterate implement→evaluate for hours. Floor of 1 keeps a
-      // typo from disabling execution entirely.
-      const maxIterations = Math.max(
-        1,
-        parseInt(process.env.RAPITAS_RUNNER_MAX_ITERATIONS ?? '20', 10) || 20,
-      );
+      const maxIterations = resolveMaxIterations();
       let iterationCount = 0;
 
       while (continueLoop && !abortController.signal.aborted && iterationCount < maxIterations) {
@@ -225,6 +194,30 @@ export class WorkflowRunner {
         // Check current workflowStatus
         const task = await resolveTaskWorkflowState(item.taskId);
         if (!task) {
+          // Confirmed-vanished-task guard: the task row was CONFIRMED absent
+          // (not a transient lookup failure), most often because the
+          // dequeue-time guard in queue-dequeue-candidate.ts missed it (the
+          // task was deleted AFTER dispatch). Cancel without consuming a
+          // retry — retrying can never make a deleted row reappear, and doing
+          // so previously wrote a meaningless task.blocked (task 651: task
+          // 648). Not a `throw`: this must not go through retryIfPossible.
+          if (await taskRowConfirmedAbsent(item.taskId)) {
+            await this.queue.updateStatus(item.id, 'cancelled', {
+              errorMessage: taskVanishedMessage(item.taskId),
+              currentPhase: execution.currentPhase,
+            });
+            log.warn(
+              `[WorkflowRunner] Task ${item.taskId} row confirmed absent — cancelling item ${item.id} without retry`,
+            );
+            this.broadcastItemUpdate(
+              item.id,
+              item.taskId,
+              'execution_error',
+              execution.currentPhase,
+            );
+            continueLoop = false;
+            break;
+          }
           throw new Error(`Task ${item.taskId} not found`);
         }
 
@@ -271,7 +264,7 @@ export class WorkflowRunner {
           // BEFORE that automation finishes — declaring 'failed' there made the UI
           // flash a misleading "blocked"/"failed" for ~20-30s before the task
           // actually completed. Wait (bounded) for it to settle before judging.
-          const settled = await this.waitForVerifyCompletion(item.taskId, abortController.signal);
+          const settled = await waitForVerifyCompletion(item.taskId, abortController.signal);
           if (settled === 'completed') {
             await this.queue.updateStatus(item.id, 'completed', {
               currentPhase: 'completed',
@@ -309,22 +302,14 @@ export class WorkflowRunner {
               'verify.md was saved, but the task did not pass the completion gate. Check commit/PR/merge automation results.',
           });
           this.broadcastItemUpdate(item.id, item.taskId, 'execution_failed', currentStatus);
-          await this.notifyParentOnSubtaskFailure(item.taskId);
+          await notifyParentOnSubtaskFailure(item.taskId);
           continueLoop = false;
           break;
         }
 
         // plan_created: check auto-approve setting before waiting
         if (currentStatus === 'plan_created') {
-          const taskForApproval = await resolveTaskForPlanApproval(item.taskId);
-          const userSettings = await prisma.userSettings.findFirst();
-          const isSubtask = taskForApproval?.parentId != null;
-          const shouldAutoApprove =
-            taskForApproval?.autoApprovePlan ||
-            userSettings?.autoApprovePlan ||
-            (isSubtask && (userSettings as Record<string, unknown>)?.autoApproveSubtaskPlan);
-
-          if (shouldAutoApprove) {
+          if (await shouldAutoApprovePlan(item.taskId)) {
             // NOTE: Auto-approve — skip waiting and advance immediately. Keep
             // task.status in sync with the workflow phase so the subtask-
             // completion handler (which reads both fields) never sees a stale
@@ -353,49 +338,12 @@ export class WorkflowRunner {
         this.broadcastItemUpdate(item.id, item.taskId, 'phase_started', currentStatus);
 
         // Resolve the role the phase about to run dispatches as, so the backstop
-        // stays above the implementer's raised wall-clock cap (task 546). Same
-        // side-effect-free lookup advanceWorkflow itself uses (mode settings are
-        // memory-cached); NOT resolveAgentForTask, which mutates task status.
-        // Fail-open: role resolution is a timeout refinement only — if it throws
-        // or is slow (cold DB read), fall back to the role-less default backstop
-        // instead of failing/stalling the phase. A slow first read still
-        // completes in the background and warms the mode-config cache, so the
-        // next iteration resolves instantly. Resolved BEFORE advanceWorkflow so
-        // no await sits between the execution promise and the race below (an
-        // early rejection there would surface as an unhandled rejection).
-        let nextRole: WorkflowRole | undefined;
-        try {
-          const rolePromise = (async () => {
-            const { getModeSettings, buildRoleByStatus } = await import('./workflow-mode-config');
-            const { narrowWorkflowMode } = await import('./workflow-types.guards.generated');
-            const modeSettings = await getModeSettings(narrowWorkflowMode(task.workflowMode));
-            return buildRoleByStatus(modeSettings)[currentStatus];
-          })();
-          // Swallow a rejection that lands after the race is lost — the try/catch
-          // below only observes rejections that happen while racing.
-          rolePromise.catch(() => {});
-          nextRole = await Promise.race([
-            rolePromise,
-            new Promise<undefined>((res) => setTimeout(res, ROLE_RESOLVE_BUDGET_MS, undefined)),
-          ]);
-        } catch (roleResolveErr) {
-          log.warn(
-            { err: roleResolveErr, taskId: item.taskId, currentStatus },
-            '[WorkflowRunner] Role resolution for phase timeout failed — using the default backstop',
-          );
-        }
-        const { getPhaseTimeoutMs } = await import('../agents/execution-timeouts');
-        const phaseTimeoutMs = getPhaseTimeoutMs(nextRole);
-
-        const executionPromise = this.orchestrator.advanceWorkflow(item.taskId);
-        const timeoutPromise = new Promise<never>((_, reject) => {
-          setTimeout(() => {
-            const mins = Math.round(phaseTimeoutMs / 60000);
-            reject(new Error(`Phase execution timeout for task ${item.taskId} (${mins} minutes)`));
-          }, phaseTimeoutMs);
-        });
-
-        const result = await Promise.race([executionPromise, timeoutPromise]);
+        // stays above the implementer's raised wall-clock cap (task 546). Resolved
+        // BEFORE advanceWorkflow so no await sits between the execution promise
+        // and the race below (an early rejection there would surface as an
+        // unhandled rejection).
+        const phaseTimeoutMs = await resolvePhaseTimeoutMs(task, currentStatus);
+        const result = await raceWorkflowAdvance(this.orchestrator, item.taskId, phaseTimeoutMs);
 
         // Another trigger already holds the task's execution lock and is
         // running this phase (the per-task mutex collapsed a duplicate). Do NOT
@@ -452,17 +400,7 @@ export class WorkflowRunner {
         this.broadcastItemUpdate(item.id, item.taskId, 'phase_completed', result.status);
 
         // Brief wait before next phase (DB update stabilization + abort check)
-        await new Promise((resolve) => {
-          const waitTimeout = setTimeout(resolve, 1000);
-          abortController.signal.addEventListener(
-            'abort',
-            () => {
-              clearTimeout(waitTimeout);
-              resolve(undefined);
-            },
-            { once: true },
-          );
-        });
+        await waitBeforeNextPhase(abortController.signal);
       }
 
       if (iterationCount >= maxIterations) {
@@ -512,7 +450,7 @@ export class WorkflowRunner {
         if (!retried) {
           await this.queue.updateStatus(item.id, 'failed', { errorMessage: errorMsg });
           // Terminal failure (no retry left) — let a split parent finalize.
-          await this.notifyParentOnSubtaskFailure(item.taskId);
+          await notifyParentOnSubtaskFailure(item.taskId);
         }
       } catch (retryError) {
         log.error({ err: retryError }, `[WorkflowRunner] Failed to retry/fail item ${item.id}`);
@@ -521,83 +459,6 @@ export class WorkflowRunner {
     } finally {
       this.activeExecutions.delete(item.id);
       this.processedTotal++;
-    }
-  }
-
-  /**
-   * When a SUBTASK's queue item ends in a non-completed terminal state, the
-   * 'completed' path that normally notifies the parent never runs — so the
-   * parent's "all siblings terminal" gate (onSubtaskCompleted) is never
-   * re-evaluated and the parent hangs forever at in-progress. Terminalize the
-   * subtask's task.status and notify the parent so it can finalize (as blocked
-   * when a subtask failed). No-op for non-subtasks (parentId === null).
-   *
-   * @param taskId - The failed subtask's id / 失敗したサブタスクID
-   */
-  /**
-   * Wait (bounded) for the post-verify completion automation (commit/PR/merge) to
-   * settle a `verify_done` task, so a transient `verify_done` is not misreported as
-   * a failure (which flashed a misleading "blocked" in the UI). The automation runs
-   * async after verify.md is saved and usually finishes within ~20-30s.
-   *
-   * @param taskId - The task sitting at verify_done. / verify_done のタスクID
-   * @param signal - Abort signal (auto-run stop). / 中断シグナル
-   * @returns `completed` when it reached completed/done, `moved` when it left
-   *   verify_done for another phase (e.g. self-repair), `stuck` when it stayed
-   *   verify_done past the grace window (a real, persistent block). / 判定結果
-   */
-  private async waitForVerifyCompletion(
-    taskId: number,
-    signal: AbortSignal,
-  ): Promise<'completed' | 'moved' | 'stuck'> {
-    const deadline = Date.now() + VERIFY_SETTLE_TIMEOUT_MS;
-    const hardDeadline = Date.now() + VERIFY_SETTLE_HARD_CAP_MS;
-    // First check immediately — the automation often completes before this runs.
-    for (;;) {
-      const t = await resolveTaskWorkflowState(taskId);
-      if (!t) return 'stuck';
-      if (t.workflowStatus === 'completed' || t.status === 'done') return 'completed';
-      if (t.workflowStatus !== 'verify_done') return 'moved';
-      if (signal.aborted) return 'stuck';
-      // Never call a task stuck WHILE its commit/PR automation is still
-      // running: that work is unbounded (scoped tests, git push, `gh pr create`
-      // over the network), so the fixed window was always a guess. Task 580's
-      // pipeline needed 127s, the window expired at 60s, auto-run skipped a
-      // task that then created PR #7 — a success parked as blocked. Keep
-      // waiting while it is in flight, bounded by a hard cap so a wedged
-      // pipeline still fails eventually.
-      const stillWorking = hasVerifyCompletionInFlight(taskId) && Date.now() < hardDeadline;
-      if (!stillWorking && Date.now() >= deadline) return 'stuck';
-      await new Promise<void>((resolve) => {
-        const timer = setTimeout(resolve, VERIFY_SETTLE_POLL_MS);
-        signal.addEventListener(
-          'abort',
-          () => {
-            clearTimeout(timer);
-            resolve();
-          },
-          { once: true },
-        );
-      });
-    }
-  }
-
-  private async notifyParentOnSubtaskFailure(taskId: number): Promise<void> {
-    try {
-      const task = await resolveTaskWorkflowState(taskId);
-      if (!task?.parentId) return;
-      // 'failed' is terminal for onSubtaskCompleted's all-siblings-done gate.
-      if (!['done', 'failed', 'cancelled', 'archived'].includes(task.status)) {
-        await prisma.task
-          .update({ where: { id: taskId }, data: { status: 'failed', completedAt: new Date() } })
-          .catch(() => {});
-      }
-      const { onSubtaskCompleted } = await import('./subtask-completion-handler');
-      await onSubtaskCompleted(taskId).catch((err) => {
-        log.warn({ err, taskId }, '[WorkflowRunner] Parent finalize after subtask failure failed');
-      });
-    } catch (err) {
-      log.warn({ err, taskId }, '[WorkflowRunner] notifyParentOnSubtaskFailure failed');
     }
   }
 

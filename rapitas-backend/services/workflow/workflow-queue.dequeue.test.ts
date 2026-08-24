@@ -99,6 +99,7 @@ interface TaskWorkflowStateRow {
 const resolveTaskWorkflowStateMock = mock((_taskId: number) =>
   Promise.resolve<TaskWorkflowStateRow | null>(null),
 );
+const taskRowConfirmedAbsentMock = mock((_taskId: number) => Promise.resolve(false));
 
 mock.module('../task/task-resolver', () => ({
   resolveTaskWorkflowState: resolveTaskWorkflowStateMock,
@@ -113,6 +114,7 @@ mock.module('../task/task-resolver', () => ({
   resolveTaskForPlanApproval: mock(() => Promise.resolve(null)),
   resolveTaskForAutoMerge: mock(() => Promise.resolve(null)),
   resolveTaskForLearning: mock(() => Promise.resolve(null)),
+  taskRowConfirmedAbsent: taskRowConfirmedAbsentMock,
 }));
 
 const { WorkflowQueueService } = await import('./workflow-queue');
@@ -153,6 +155,7 @@ function row(overrides: Partial<WorkflowQueueItemRow> = {}): WorkflowQueueItemRo
 beforeEach(() => {
   resetPrisma();
   resolveTaskWorkflowStateMock.mockReset().mockResolvedValue(null);
+  taskRowConfirmedAbsentMock.mockReset().mockResolvedValue(false);
   noopLogger.info.mockClear();
   noopLogger.warn.mockClear();
 });
@@ -209,6 +212,7 @@ describe('WorkflowQueueService.dequeue — terminal-task guard', () => {
     prismaMock.workflowQueueItem.findMany.mockResolvedValueOnce([row({ id: 2, taskId: 11 })]);
     prismaMock.workflowQueueItem.count.mockResolvedValueOnce(0); // running count gate
     // resolveTaskWorkflowState は beforeEach で null を返す設定のまま
+    // taskRowConfirmedAbsent も beforeEach で false(確定不能)のまま
 
     await svc.dequeue();
 
@@ -217,6 +221,46 @@ describe('WorkflowQueueService.dequeue — terminal-task guard', () => {
       (c: unknown[]) => (c[0] as { data?: { status?: string } })?.data?.status === 'cancelled',
     );
     expect(cancelCalls.length).toBe(0);
+  });
+});
+
+describe('WorkflowQueueService.dequeue — vanished-task guard (task 651)', () => {
+  test('タスク行が確定的に存在しない場合 → cancelled にしてディスパッチしないこと', async () => {
+    const svc = new WorkflowQueueService();
+    prismaMock.workflowQueueItem.findMany.mockResolvedValueOnce([row({ id: 653, taskId: 648 })]);
+    prismaMock.workflowQueueItem.count.mockResolvedValueOnce(0); // running count gate
+    // resolveTaskWorkflowState は beforeEach で null のまま
+    taskRowConfirmedAbsentMock.mockResolvedValueOnce(true);
+
+    const result = await svc.dequeue();
+
+    expect(result).toBeNull();
+    expect(prismaMock.$transaction).not.toHaveBeenCalled();
+    expect(prismaMock.workflowQueueItem.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: 653 },
+        data: expect.objectContaining({
+          status: 'cancelled',
+          errorMessage: expect.stringContaining('648'),
+        }),
+      }),
+    );
+  });
+
+  test('タスク解決が null かつ taskRowConfirmedAbsent が false(確定不能)の場合 → 従来どおりディスパッチを試みること', async () => {
+    const svc = new WorkflowQueueService();
+    const candidate = row({ id: 1, taskId: 10 });
+    prismaMock.workflowQueueItem.findMany.mockResolvedValueOnce([candidate]);
+    prismaMock.workflowQueueItem.count.mockResolvedValueOnce(0); // running count gate
+    // resolveTaskWorkflowState/taskRowConfirmedAbsent は beforeEach の既定(null/false)のまま
+    prismaMock.workflowQueueItem.findUnique.mockResolvedValueOnce(row({ id: 1, status: 'queued' }));
+    prismaMock.workflowQueueItem.count.mockResolvedValueOnce(0); // tx concurrency re-check
+    prismaMock.workflowQueueItem.update.mockResolvedValueOnce(row({ id: 1, status: 'running' }));
+
+    const result = await svc.dequeue();
+
+    expect(result?.id).toBe(1);
+    expect(result?.status).toBe('running');
   });
 });
 
