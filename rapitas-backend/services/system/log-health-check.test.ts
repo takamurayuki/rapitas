@@ -26,6 +26,22 @@ describe('groupEntries', () => {
     expect(groups[0].normalizedMsg).toBe('task # failed');
   });
 
+  it('coalesces the same failure carrying different session UUIDs', () => {
+    // Regression: UUID middle segments used to survive normalization with a
+    // per-value letter pattern, so one repeating cause filed a new concern
+    // (and task) per occurrence. Both messages below are the same failure.
+    const msg = (sid: string) =>
+      `Claude CLI exited 1: {"is_error":true,"num_turns":1,"session_id":"${sid}","total_cost_usd":0}`;
+    const groups = groupEntries([
+      entry({ level: 50, name: 'cli', msg: msg('36c6ecd3-6e3b-40bd-9806-c589d4fe312e') }),
+      entry({ level: 50, name: 'cli', msg: msg('53c02bc5-c392-4625-b61a-980ede07748a') }),
+      entry({ level: 50, name: 'cli', msg: msg('9801899E-63E8-41C8-B7FA-BFD4873DC189') }),
+    ]);
+    expect(groups).toHaveLength(1);
+    expect(groups[0].count).toBe(3);
+    expect(groups[0].normalizedMsg).toContain('"session_id":"#"');
+  });
+
   it('separates warnings from errors even with the same text', () => {
     const groups = groupEntries([
       entry({ level: 40, name: 'db', msg: 'slow query' }),

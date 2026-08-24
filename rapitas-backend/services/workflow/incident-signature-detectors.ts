@@ -23,6 +23,29 @@ export const REPEAT_LOOP_MIN_COUNT =
   parseInt(process.env.RAPITAS_INCIDENT_LOOP_MIN_COUNT ?? '', 10) || 3;
 
 /**
+ * Grace period after a deliberate recovery transition during which the
+ * `todo × advanced-workflow` shape is EXPECTED, not anomalous (default 30m).
+ * Rationale (#636): requeueOrphanTasks resets status to 'todo' while keeping
+ * workflowStatus on purpose so auto-run resumes mid-workflow — the watcher
+ * fired Pattern B 59s later and filed the reconciler's own heal as a
+ * high-severity bug. 30m matches STAGNATION_THRESHOLD_MS: past that point a
+ * still-undispatched task is caught by detectStagnation anyway, so shrinking
+ * Pattern B here does not open a detection gap.
+ */
+export const DESYNC_RECOVERY_SETTLE_MS =
+  parseInt(process.env.RAPITAS_INCIDENT_DESYNC_SETTLE_MS ?? '', 10) || 30 * 60 * 1000;
+
+/**
+ * Transition causes that DELIBERATELY produce `task.status='todo'` with an
+ * advanced workflowStatus: reconciler_requeue keeps workflowStatus so the
+ * resume mapping re-enters at the right phase (workflow-reconciler-requeue),
+ * and artifact_reuse_fastforward advances workflowStatus of a still-todo task
+ * before dispatch (artifact-reuse-reconciler). blocked_auto_retry is NOT here —
+ * it resets workflowStatus to 'draft', which Pattern B never matches.
+ */
+const RECOVERY_REQUEUE_CAUSES = new Set(['reconciler_requeue', 'artifact_reuse_fastforward']);
+
+/**
  * Wait time after which an unanswered intake question counts as stale (default
  * 24h). Rationale: tasks #578/#579 sat in awaiting_question for 4 days
  * (raised 2026-08-13T13:48:35Z, found 2026-08-17) with zero notifications —
@@ -109,6 +132,14 @@ export interface TriStateDesyncInput {
   latestSessionStatus: string | null;
   /** Status of that session's most recent AgentExecution (null = none). */
   latestExecutionStatus: string | null;
+  /** Cause of the task's newest workflow transition (null/undefined = unknown). */
+  latestTransitionCause?: string | null;
+  /** createdAt of that transition, epoch ms (null/undefined = unknown). */
+  latestTransitionAtMs?: number | null;
+  /** Current time (ms) — the recovery grace guard needs it to age the transition. */
+  nowMs?: number;
+  /** Recovery grace override (default DESYNC_RECOVERY_SETTLE_MS). */
+  settleMs?: number;
 }
 
 /** Which desync pattern was detected. */
@@ -117,10 +148,27 @@ export type TriStateDesyncKind =
   | 'todo_status_workflow_advanced';
 
 /**
+ * True when the newest transition is a deliberate recovery that has not yet
+ * settled — Pattern B must not fire on a state the reconciler just created on
+ * purpose (#636). Requires cause AND both timestamps: with incomplete inputs
+ * the guard stays off so detection sensitivity never silently degrades.
+ */
+function isWithinRecoveryGrace(input: TriStateDesyncInput): boolean {
+  if (input.latestTransitionCause == null) return false;
+  if (!RECOVERY_REQUEUE_CAUSES.has(input.latestTransitionCause)) return false;
+  if (input.latestTransitionAtMs == null || input.nowMs === undefined) return false;
+  return input.nowMs - input.latestTransitionAtMs < (input.settleMs ?? DESYNC_RECOVERY_SETTLE_MS);
+}
+
+/**
  * Detects a Task/AgentSession/AgentExecution state contradiction. Pattern A
  * (session terminally failed but its execution still active) is checked first
  * and wins when both apply — the session/execution anomaly is the more urgent
- * signal. Pattern B: task.status still 'todo' while the workflow advanced.
+ * signal. Pattern B: task.status still 'todo' while the workflow advanced —
+ * EXCEPT within the recovery grace window after a reconciler_requeue /
+ * artifact_reuse_fastforward transition, which produces exactly that shape by
+ * design (see isWithinRecoveryGrace; past the window detectStagnation covers
+ * a still-undispatched task, so the detection net keeps a backstop).
  *
  * @param input - Cross-entity state snapshot. / 三面の状態スナップショット
  * @returns Detected pattern + human-readable summary, or null. / 検出結果またはnull
@@ -146,6 +194,7 @@ export function detectTriStateDesync(
     input.workflowStatus !== null &&
     ADVANCED_WORKFLOW_STATUSES.has(input.workflowStatus)
   ) {
+    if (isWithinRecoveryGrace(input)) return null;
     return {
       kind: 'todo_status_workflow_advanced',
       detail: `task.status=todo のまま workflowStatus が前進済み(${input.workflowStatus})`,
@@ -230,7 +279,10 @@ const REPAIR_BOUNCE_CAUSES = new Set(['verify_repair', 'ci_repair']);
  * of budget if available; if the budget is already spent, that firing is a
  * genuine anomaly and is counted (e.g. #607, task 614: 1 implement + 2
  * verify_repair bounces, each bounce preceding its re-implement, fully
- * explains 3 firings and is not reported as a loop). Requiring the bounce to
+ * explains 3 firings and is not reported as a loop; the same mechanism also
+ * explains #616's 1 implement + 2 verify_repair bounces — see
+ * incident-signature-detectors.repeat-loop-t616.test.ts for the exact
+ * replayed transition window). Requiring the bounce to
  * chronologically precede the firing it forgives (rather than just summing
  * bounce counts anywhere in the window) closes a gap where phase_completed
  * churn front-loaded before any bounce — which a same-window bounce cannot

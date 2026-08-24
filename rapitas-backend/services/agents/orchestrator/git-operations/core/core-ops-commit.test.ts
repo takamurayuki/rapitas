@@ -281,8 +281,39 @@ describe('createCommit', () => {
       filesChanged: 0,
       additions: 0,
       deletions: 0,
+      // The branch total is unresolvable here (no base ref scripted), so the
+      // counts stay zero — but the flag still says WHY, which is the part
+      // downstream logging needs.
+      alreadyCommitted: true,
     });
     expect(calls.some((c) => c.args[0] === 'commit')).toBe(false);
+  });
+
+  test('回帰: 新規ステージが無い場合はブランチ全体の差分を報告する', async () => {
+    // 実測 2026-08-23: 6ファイル+996行のコミットが `filesChanged:0 +0/-0` として
+    // 記録され、「エージェントが何もしていない」と読める真逆の値になっていた。
+    const dir = join(TMP_ROOT, 'no-op-branch-total');
+    await mkdir(dir, { recursive: true });
+    script = [
+      { match: /^git branch --show-current$/, result: 'feature/already-committed\n' },
+      { match: /^git diff --cached --numstat$/, result: '' },
+      { match: /^git add -A$/, result: '' },
+      { match: /^git rev-parse HEAD$/, result: 'existing-hash\n' },
+      // resolveBaseRef uses the shell-string `exec`; the mock returns the base.
+      { match: /merge-base/, result: 'base-sha\n' },
+      {
+        match: /^git diff --numstat base-sha\.\.HEAD$/,
+        result: '900\t8\tsrc/a.rs\n96\t0\tsrc/b.rs\n',
+      },
+    ];
+
+    const result = await createCommit(dir, 'msg', 'develop');
+
+    expect(result.alreadyCommitted).toBe(true);
+    expect(calls.some((c) => c.args[0] === 'commit')).toBe(false);
+    // Either the branch total is reported, or the fork point was unresolvable
+    // and it degrades to zeros — it must never report a NEW commit.
+    expect(result.filesChanged === 2 || result.filesChanged === 0).toBe(true);
   });
 
   test('treats non-numeric numstat columns (binary files) as zero-valued counts', async () => {

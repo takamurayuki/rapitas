@@ -1,0 +1,105 @@
+/**
+ * recovery-metrics-aggregator
+ *
+ * Pure window aggregation of recovery attempt records into per-(errorType ×
+ * strategy) metrics. No I/O, no clock access — nowMs is injected so window
+ * boundaries are deterministic under test (role-evidence window pattern).
+ */
+import type { RecoveryAttemptRecord, RecoveryMetric } from './recovery-metrics.types';
+
+/** Default trailing window (days) — matches role-evidence's proven window. */
+export const DEFAULT_WINDOW_DAYS = 45;
+
+/** Below this attempt count a group is flagged lowSample (data shown anyway). */
+export const DEFAULT_MIN_SAMPLES = 8;
+
+/** Window override via RAPITAS_RECOVERY_METRICS_WINDOW_DAYS (positive int). */
+export function getRecoveryMetricsWindowDays(): number {
+  const v = parseInt(process.env.RAPITAS_RECOVERY_METRICS_WINDOW_DAYS ?? '', 10);
+  return Number.isFinite(v) && v > 0 ? v : DEFAULT_WINDOW_DAYS;
+}
+
+/** Min-sample override via RAPITAS_RECOVERY_METRICS_MIN_SAMPLES (positive int). */
+export function getRecoveryMetricsMinSamples(): number {
+  const v = parseInt(process.env.RAPITAS_RECOVERY_METRICS_MIN_SAMPLES ?? '', 10);
+  return Number.isFinite(v) && v > 0 ? v : DEFAULT_MIN_SAMPLES;
+}
+
+export interface AggregateOptions {
+  /** Trailing window length in ms; records older than nowMs - windowMs are excluded. */
+  windowMs: number;
+  /** Groups with fewer attempts are flagged lowSample (still returned). */
+  minSamples: number;
+  /** Reference clock in epoch ms (injected for deterministic boundaries). */
+  nowMs: number;
+}
+
+/**
+ * Aggregate records into per-(errorType × strategy) metrics, sorted by
+ * attempts descending. The window is inclusive at its lower boundary
+ * (tsMs >= nowMs - windowMs).
+ *
+ * @param records - Attempt records (any order). / 試行レコード
+ * @param opts - Window, min-sample threshold and reference clock. / 集計条件
+ * @returns Metrics per group; empty input yields an empty array. / グループ別集計
+ */
+export function aggregate(
+  records: RecoveryAttemptRecord[],
+  opts: AggregateOptions,
+): RecoveryMetric[] {
+  const cutoffMs = opts.nowMs - opts.windowMs;
+  const groups = new Map<string, RecoveryAttemptRecord[]>();
+  for (const record of records) {
+    if (record.tsMs < cutoffMs) continue;
+    // NOTE: \u0000 (escaped, never a raw byte — raw NUL makes git treat this
+    // file as binary and blocks diff review) cannot appear in either union
+    // literal, so the composite key is collision-free.
+    const key = `${record.errorType}\u0000${record.strategy}`;
+    const group = groups.get(key);
+    if (group) group.push(record);
+    else groups.set(key, [record]);
+  }
+
+  const metrics: RecoveryMetric[] = [];
+  for (const group of groups.values()) {
+    const attempts = group.length;
+    let successes = 0;
+    let failures = 0;
+    let noCandidates = 0;
+    let latencySum = 0;
+    let costSum = 0;
+    let costCount = 0;
+    const failureReasons: Record<string, number> = {};
+    for (const record of group) {
+      if (record.outcome === 'success') successes += 1;
+      else if (record.outcome === 'failure') failures += 1;
+      else noCandidates += 1;
+      latencySum += record.latencyMs;
+      // Null-cost records are excluded from the mean so unreported costs
+      // don't drag the average toward zero.
+      if (record.costUsd !== null && record.costUsd !== undefined) {
+        costSum += record.costUsd;
+        costCount += 1;
+      }
+      if (record.outcome === 'failure' && record.failureReason) {
+        failureReasons[record.failureReason] = (failureReasons[record.failureReason] ?? 0) + 1;
+      }
+    }
+    metrics.push({
+      errorType: group[0].errorType,
+      strategy: group[0].strategy,
+      attempts,
+      successes,
+      failures,
+      noCandidates,
+      successRate: attempts > 0 ? successes / attempts : 0,
+      avgLatencyMs: attempts > 0 ? latencySum / attempts : 0,
+      avgCostUsd: costCount > 0 ? costSum / costCount : null,
+      failureReasons,
+      lowSample: attempts < opts.minSamples,
+    });
+  }
+
+  metrics.sort((a, b) => b.attempts - a.attempts);
+  return metrics;
+}

@@ -16,13 +16,11 @@ import {
   getMemoryOverview,
   LearningPatternType,
   LearningCategory,
-  CriticPhase,
   EpisodePhase,
 } from '../../services/self-learning';
 import { createLogger } from '../../config/logger';
 
 const log = createLogger('routes:learning');
-import { getAverageScores } from '../../services/self-learning';
 import { findSimilarEpisodes, getEpisodeStats } from '../../services/self-learning';
 
 export const learningRoutes = new Elysia({ prefix: '/learning' })
@@ -77,12 +75,6 @@ export const learningRoutes = new Elysia({ prefix: '/learning' })
   // --- Statistics ---
   .get('/stats', async () => {
     return getLearningStats();
-  })
-
-  // --- Critic Scores ---
-  .get('/critic-scores', async ({ query }) => {
-    const phase = query.phase as string | undefined;
-    return getAverageScores(phase as CriticPhase | undefined);
   })
 
   // --- Prompt Evolution ---

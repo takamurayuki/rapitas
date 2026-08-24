@@ -73,46 +73,18 @@ export interface UpdateExperimentInput {
 }
 
 // --- Hypothesis ---
+// NOTE: Only the status vocabulary survives here. The Experiment-scoped
+// hypothesis scaffold (CreateHypothesisInput / HypothesisTestResult and the
+// `Hypothesis` table behind them) was retired 2026-08-24 — the live ledger is
+// KnowledgeEntry(sourceType='hypothesis'), served by routes/memory/hypothesis.ts.
 export type HypothesisStatus = 'proposed' | 'testing' | 'validated' | 'invalidated' | 'revised';
 
-export interface CreateHypothesisInput {
-  experimentId: number;
-  content: string;
-  reasoning?: string;
-  confidence?: number;
-  priority?: number;
-  parentId?: number;
-}
-
-export interface HypothesisTestResult {
-  passed: boolean;
-  evidence: string[];
-  metrics?: Record<string, number>;
-}
-
 // --- Critic ---
-export interface CriticScore {
-  accuracy: number; // 0-1.0
-  logic: number; // 0-1.0
-  coverage: number; // 0-1.0
-}
-
+// NOTE: Likewise, only the phase vocabulary survives. The Experiment-scoped
+// critic (CriticScore / CriticReviewInput / CriticReviewResult and the
+// `CriticReview` table) was retired 2026-08-24 — the live critic is
+// services/workflow/phase-critic.ts and its gate modules.
 export type CriticPhase = 'hypothesis' | 'plan' | 'execution';
-
-export interface CriticReviewInput {
-  experimentId: number;
-  phase: CriticPhase;
-  targetContent: string;
-  context?: string;
-}
-
-export interface CriticReviewResult {
-  score: CriticScore;
-  overallScore: number;
-  feedback: string;
-  suggestions: string[];
-  issues: string[];
-}
 
 // --- Knowledge Graph ---
 export type KnowledgeNodeType = 'concept' | 'problem' | 'solution' | 'technology' | 'pattern';

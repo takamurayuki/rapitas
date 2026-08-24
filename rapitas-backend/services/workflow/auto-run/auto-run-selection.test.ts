@@ -225,6 +225,18 @@ describe('selectNextTask', () => {
     expect(result).toEqual(expected);
   });
 
+  it('回帰: 質問待ちのタスクは todo でも選択対象から外す', async () => {
+    // 実測 2026-08-24: task 635 が status='todo' / workflowStatus='awaiting_question'
+    // で選択され、orchestrator が「awaiting_question では次のフェーズを実行できません」
+    // で拒否 → キュー項目が cancelled → 再選択、を21分で106回繰り返した。
+    // 選択側と実行側の「実行可能」の定義が食い違っていたのが原因。
+    const mockFindMany = mock().mockResolvedValue([]);
+    const prisma = makePrisma({ task: { findMany: mockFindMany } });
+    await selectNextTask(prisma, 1, 'priority', [], 0);
+    const arg = mockFindMany.mock.calls[0][0] as { where: Record<string, unknown> };
+    expect(arg.where.NOT).toEqual({ workflowStatus: 'awaiting_question' });
+  });
+
   it('keeps a todo task eligible even with a terminal workflowStatus (re-run)', async () => {
     // Regression: a todo task whose workflowStatus is verify_done/completed
     // (status reset to re-run, or a verify that did not finalize) was excluded,

@@ -20,6 +20,38 @@ describe('classifyAgentError', () => {
     expect(r!.resetAt).toBeDefined();
   });
 
+  it('Claude の monthly spend limit を claude の quota として判定する', () => {
+    // 実測 2026-08-19: この文言が未分類だったため cooldown もフォールバックも
+    // 起きず、12実行が連続失敗してタスクが恒久 blocked になった。
+    const r = classifyAgentError(
+      [
+        'Process exited with code 1',
+        '[System: init]',
+        "You've hit your monthly spend limit. ",
+      ].join('\n') +
+        'Switch to another model, or manage usage credits at ' +
+        'claude.ai/settings/usage?from=cc_cli_limit_message',
+    );
+    expect(r).not.toBeNull();
+    expect(r!.provider).toBe('claude');
+    expect(r!.reason).toBe('quota');
+    expect(r!.retryWithFallback).toBe(true);
+  });
+
+  it('claude.ai の請求URLは codex ルールより優先して claude に帰属する', () => {
+    const r = classifyAgentError(
+      "You've hit your usage limit. See claude.ai/settings/usage for details.",
+    );
+    expect(r?.provider).toBe('claude');
+  });
+
+  it('codex の請求URLは openai に帰属したままになる', () => {
+    const r = classifyAgentError(
+      "You've hit your usage limit. Visit https://chatgpt.com/codex/settings/usage",
+    );
+    expect(r?.provider).toBe('openai');
+  });
+
   it('try again at HH:MM AM/PM の時刻パースに対応する', () => {
     const r = classifyAgentError('usage limit. try again at 11:30 AM');
     expect(r?.resetAt).toBeDefined();

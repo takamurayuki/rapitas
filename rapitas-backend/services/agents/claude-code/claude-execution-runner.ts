@@ -21,6 +21,7 @@ import {
   registerProcess,
   unregisterProcess,
   killProcessTreeSafely,
+  captureDescendants,
 } from '../agent-process-tracker';
 import { getClaudePath, buildSpawnCommand } from './cli-utils';
 import { buildSanitizedSpawnEnv } from '../../../utils/agent';
@@ -419,7 +420,14 @@ export function runClaudeExecution(
         // exited — a completed `claude --print` agent can stay resident and pile
         // up as a zombie. Reap its tree after a short grace if still alive.
         // killProcessTreeSafely refuses to touch a port-3001 (backend) process.
-        const reap = setTimeout(() => killProcessTreeSafely(closedPid), 3000);
+        // Capture descendants NOW, while the parent links are still live — a
+        // command the agent launched can outlive both the agent and the shell
+        // that started it, and is then unreachable from the root.
+        const known = captureDescendants(closedPid);
+        const reap = setTimeout(
+          () => killProcessTreeSafely(closedPid, { knownTargets: known }),
+          3000,
+        );
         (reap as { unref?: () => void }).unref?.();
       }
       const executionTimeMs = Date.now() - startTime;

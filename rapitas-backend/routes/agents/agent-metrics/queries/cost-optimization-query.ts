@@ -14,6 +14,7 @@
  */
 
 import { prisma } from '../../../../config/database';
+import { toNumber, toInt } from '../metric-coercion';
 
 /** Per-model breakdown of execution cost, volume, and success rate. */
 export interface ModelCostStats {
@@ -63,23 +64,38 @@ function resolveExecutionCost(
   tokensUsed: number,
   modelId: string,
 ): number {
-  const recorded = Number(recordedCostUsd);
+  // toNumber (shared with usage-breakdown-query) survives the double-JSON
+  // encoding some legacy costUsd rows carry from a past IPC bug.
+  const recorded = toNumber(recordedCostUsd);
   if (Number.isFinite(recorded) && recorded > 0) return recorded;
   const rate = FALLBACK_COST_PER_1K_TOKENS[modelId] ?? FALLBACK_COST_PER_1K_TOKENS['default'];
   return (tokensUsed / 1000) * rate;
 }
 
 /**
- * Compares recent completed executions across models and suggests cheaper
- * substitutes where success rate is not meaningfully worse.
+ * Compares recent executions grouped by the model actually invoked and
+ * suggests cheaper substitutes where success rate is not meaningfully worse.
+ *
+ * Groups by `AgentExecution.modelName` (the model the CLI actually ran,
+ * recorded from the stream-json usage block) — NOT `agentConfig.modelId`,
+ * which is the statically-configured model and is identical across rows once
+ * Smart Router / auto selection is in play, collapsing every execution into
+ * one bucket. Failed and null-model rows are intentionally NOT filtered out:
+ * `successRate` is `completed` count over the full denominator, so excluding
+ * failures would pin every model at 100% and starve the suggestion engine.
  *
  * @returns Cost optimization insights / コスト最適化インサイト
  */
 export async function getCostOptimizationInsights(): Promise<CostOptimizationInsights> {
+  // Mirror usage-breakdown-query's fetch path: select modelName directly and
+  // skip status/token pre-filters so failures and null-model rows still count.
   const executions = await prisma.agentExecution.findMany({
-    where: { status: 'completed', tokensUsed: { gt: 0 } },
-    include: {
-      agentConfig: { select: { modelId: true, agentType: true, name: true } },
+    select: {
+      status: true,
+      modelName: true,
+      tokensUsed: true,
+      costUsd: true,
+      executionTimeMs: true,
     },
     orderBy: { createdAt: 'desc' },
     take: 500,
@@ -91,10 +107,11 @@ export async function getCostOptimizationInsights(): Promise<CostOptimizationIns
   >();
 
   for (const exec of executions) {
-    const modelId = exec.agentConfig?.modelId || 'unknown';
-    const cost = resolveExecutionCost(exec.costUsd, exec.tokensUsed, modelId);
+    const model = exec.modelName ?? 'unknown';
+    const tokens = toInt(exec.tokensUsed);
+    const cost = resolveExecutionCost(exec.costUsd, tokens, model);
 
-    const existing = modelMap.get(modelId) || {
+    const existing = modelMap.get(model) || {
       total: 0,
       success: 0,
       tokens: 0,
@@ -103,10 +120,10 @@ export async function getCostOptimizationInsights(): Promise<CostOptimizationIns
     };
     existing.total++;
     if (exec.status === 'completed') existing.success++;
-    existing.tokens += exec.tokensUsed;
-    existing.time += exec.executionTimeMs || 0;
+    existing.tokens += tokens;
+    existing.time += toInt(exec.executionTimeMs);
     existing.costs += cost;
-    modelMap.set(modelId, existing);
+    modelMap.set(model, existing);
   }
 
   const modelStats: ModelCostStats[] = Array.from(modelMap.entries()).map(([model, s]) => ({

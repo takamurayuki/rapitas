@@ -160,12 +160,15 @@ export async function commitChanges(
 export async function createCommit(
   workingDirectory: string,
   message: string,
+  preferredBaseBranch?: string | null,
 ): Promise<{
   hash: string;
   branch: string;
   filesChanged: number;
   additions: number;
   deletions: number;
+  /** True when nothing new was staged and HEAD was returned as-is. / 新規ステージ無しでHEADを返した場合 true */
+  alreadyCommitted: boolean;
 }> {
   // Refuse on the primary checkout: this both `git add -A` commits and may
   // `git checkout -b`, either of which would clobber the developer's work.
@@ -222,12 +225,17 @@ export async function createCommit(
       cwd: workingDirectory,
       encoding: 'utf8',
     });
+    // Report what the BRANCH contains, not what this no-op staged. Returning
+    // zeros here is true of the auto-commit step but reads downstream as "this
+    // task changed nothing" — measured 2026-08-23, a 6-file / +996-line commit
+    // was logged as `filesChanged:0 +0/-0`, which is exactly backwards for
+    // judging whether the agent did any work.
+    const branchStat = await statBranchAgainstBase(workingDirectory, preferredBaseBranch);
     return {
       hash: existingHash.trim(),
       branch: existingBranch.trim(),
-      filesChanged: 0,
-      additions: 0,
-      deletions: 0,
+      ...branchStat,
+      alreadyCommitted: true,
     };
   }
 
@@ -252,5 +260,47 @@ export async function createCommit(
     filesChanged,
     additions,
     deletions,
+    alreadyCommitted: false,
   };
+}
+
+/**
+ * Diffstat of everything the current branch introduced since it forked.
+ *
+ * Used when the auto-commit stages nothing because the agent already committed
+ * its work: the branch total is the honest answer to "did this task change
+ * code?". Best-effort — an unresolvable fork point yields zeros rather than
+ * failing the commit step.
+ *
+ * @param cwd - Worktree directory. / ワークツリー
+ * @param preferredBaseBranch - Branch the worktree was cut from, when known. / 分岐元ブランチ
+ * @returns Files / additions / deletions across the branch. / ブランチ全体の差分統計
+ */
+async function statBranchAgainstBase(
+  cwd: string,
+  preferredBaseBranch?: string | null,
+): Promise<{ filesChanged: number; additions: number; deletions: number }> {
+  const empty = { filesChanged: 0, additions: 0, deletions: 0 };
+  try {
+    const { resolveBaseRef } = await import('./diff-structured');
+    const base = await resolveBaseRef(cwd, preferredBaseBranch);
+    if (!base) return empty;
+    const { stdout } = await execFileAsync('git', ['diff', '--numstat', `${base}..HEAD`], {
+      cwd,
+      encoding: 'utf8',
+    });
+    let filesChanged = 0;
+    let additions = 0;
+    let deletions = 0;
+    for (const line of stdout.split('\n')) {
+      const parts = line.split('\t');
+      if (parts.length < 3) continue;
+      filesChanged++;
+      additions += parseInt(parts[0]!, 10) || 0;
+      deletions += parseInt(parts[1]!, 10) || 0;
+    }
+    return { filesChanged, additions, deletions };
+  } catch {
+    return empty;
+  }
 }
