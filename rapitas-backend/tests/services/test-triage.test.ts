@@ -106,36 +106,68 @@ describe('triageTestFailures', () => {
       setupWorktreeFn: async () => true,
     },
     {
-      label: 'baseline worktree creation fails',
+      label: 'baseline worktree creation fails on every attempt',
       isTestFileFailingFn: async () => true,
       resolveBaseCommitFn: async () => 'abc1234',
       getMainRepoRootFn: async () => '/fake/main',
-      createWorktreeFn: async () => false, // git worktree add failed
+      createWorktreeFn: async () => false, // git worktree add failed (retried once, still failing)
       setupWorktreeFn: async () => true,
     },
-  ])('returns null when $label (fail-safe)', async (overrides) => {
+  ])('returns null (indeterminate) when $label', async (overrides) => {
     const { label: _label, ...deps } = overrides;
     const result = await triageTestFailures('/fake/project', '/fake/work', ['a.test.ts'], {
       ...deps,
       removeWorktreeFn: noopRemove,
+      retryDelayMs: 0,
     });
     expect(result).toBeNull();
   });
 
-  it('returns null when setup-worktree.cjs fails in baseline (fail-safe)', async () => {
-    let removeCalled = false;
+  it('returns null (indeterminate) when setup-worktree.cjs fails in baseline on every attempt', async () => {
+    let removeCalled = 0;
+    let setupCalls = 0;
     const result = await triageTestFailures('/fake/project', '/fake/work', ['a.test.ts'], {
       isTestFileFailingFn: async () => true,
       resolveBaseCommitFn: async () => 'abc1234',
       getMainRepoRootFn: async () => '/fake/main',
       createWorktreeFn: async () => true,
-      setupWorktreeFn: async () => false, // setup failed
-      removeWorktreeFn: async (_b, _p, _d) => {
-        removeCalled = true;
+      setupWorktreeFn: async () => {
+        setupCalls++;
+        return false; // setup failed
       },
+      removeWorktreeFn: async (_b, _p, _d) => {
+        removeCalled++;
+      },
+      retryDelayMs: 0,
     });
     expect(result).toBeNull();
-    // Ensure cleanup still ran even though setup failed
-    expect(removeCalled).toBe(true);
+    // Task 659: one retry, then give up — and cleanup still runs exactly once.
+    expect(setupCalls).toBe(2);
+    expect(removeCalled).toBe(1);
+  });
+
+  it('recovers when the baseline worktree creation fails only on the first attempt (task 659)', async () => {
+    const dirs: string[] = [];
+    let removedDir: string | null = null;
+    const result = await triageTestFailures('/fake/project', '/fake/work', ['a.test.ts'], {
+      isTestFileFailingFn: async () => true,
+      resolveBaseCommitFn: async () => 'abc1234',
+      getMainRepoRootFn: async () => '/fake/main',
+      createWorktreeFn: async (_root, dir) => {
+        dirs.push(dir);
+        return dirs.length >= 2;
+      },
+      setupWorktreeFn: async () => true,
+      removeWorktreeFn: async (_b, p, _d) => {
+        removedDir = p;
+      },
+      retryDelayMs: 0,
+    });
+    // Not null: the retry rescued the comparison. The file is absent from the
+    // (fabricated) baseline path, so it classifies as new.
+    expect(result).toEqual({ preExisting: [], newFailures: ['a.test.ts'] });
+    expect(dirs).toHaveLength(2);
+    expect(dirs[0]).not.toBe(dirs[1]);
+    expect(removedDir).toBe(dirs[1]);
   });
 });

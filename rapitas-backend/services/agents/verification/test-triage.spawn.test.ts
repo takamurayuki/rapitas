@@ -92,6 +92,7 @@ describe('test-triage internal defaults (spawn mocked, fs real)', () => {
     const result = await triageTestFailures('/root', '/workdir', ['a.test.ts'], {
       isTestFileFailingFn: () => Promise.resolve(true),
       createWorktreeFn,
+      retryDelayMs: 0,
     });
     expect(result).toBeNull();
     expect(createWorktreeFn).toHaveBeenCalledWith(
@@ -112,6 +113,7 @@ describe('test-triage internal defaults (spawn mocked, fs real)', () => {
       resolveBaseCommitFn: () => Promise.resolve('basehash'),
       getMainRepoRootFn: () => Promise.resolve('/definitely/not/a/real/repo'),
       removeWorktreeFn,
+      retryDelayMs: 0,
     });
     expect(result).toBeNull();
     expect(removeWorktreeFn).toHaveBeenCalledTimes(1);
@@ -146,6 +148,7 @@ describe('test-triage internal defaults (spawn mocked, fs real)', () => {
     const result = await triageTestFailures(projectRoot, workdir, ['automated-verifier.test.ts'], {
       setupWorktreeFn: () => Promise.resolve(true),
       removeWorktreeFn,
+      retryDelayMs: 0,
     });
     expect(result).toEqual({ preExisting: ['automated-verifier.test.ts'], newFailures: [] });
     expect(removeWorktreeFn).toHaveBeenCalledTimes(1);

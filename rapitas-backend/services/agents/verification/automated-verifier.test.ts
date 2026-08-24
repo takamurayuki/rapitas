@@ -15,6 +15,7 @@ import {
   coverageCheck,
   generatedSyncCheck,
   computeOverallOk,
+  mergeChecks,
   type VerificationCheck,
   type VerificationResult,
 } from './automated-verifier';
@@ -405,5 +406,69 @@ describe('coverageCheck', () => {
       errorCount: 0,
       details: 'coverage: 1 test file(s) changed alongside source',
     });
+  });
+});
+
+// Task 659: a triage that came back null (baseline comparison indeterminate)
+// yields an ok:true part carrying `indeterminate`; merging must keep the gate
+// open, carry the unattributed files, and STILL fail on a genuine failure.
+describe('mergeChecks — indeterminate triage (task 659)', () => {
+  const indeterminatePart: VerificationCheck = {
+    name: 'test',
+    ran: true,
+    ok: true,
+    errorCount: 0,
+    details: '1 test command(s) failed, but the baseline comparison was indeterminate',
+    indeterminate: true,
+    indeterminateFailures: ['a.test.ts'],
+  };
+  const passingPart: VerificationCheck = {
+    name: 'test',
+    ran: true,
+    ok: true,
+    errorCount: 0,
+    details: '2 test command(s): passed',
+  };
+  const failingPart: VerificationCheck = {
+    name: 'test',
+    ran: true,
+    ok: false,
+    errorCount: 1,
+    details: 'bun test --isolate b.test.ts failed',
+  };
+
+  it('keeps the merged test check ok and carries the unattributed files', () => {
+    const merged = mergeChecks('test', [indeterminatePart, passingPart]);
+    expect(merged.ok).toBe(true);
+    expect(merged.errorCount).toBe(0);
+    expect(merged.indeterminate).toBe(true);
+    expect(merged.indeterminateFailures).toEqual(['a.test.ts']);
+    expect(merged.unverifiable).toBeUndefined();
+  });
+
+  it('still fails when another project part has a genuine new failure', () => {
+    const merged = mergeChecks('test', [indeterminatePart, failingPart]);
+    expect(merged.ok).toBe(false);
+    expect(merged.errorCount).toBe(1);
+    expect(merged.indeterminateFailures).toEqual(['a.test.ts']);
+    expect(merged.details).toContain('b.test.ts failed');
+  });
+
+  it('omits the indeterminate fields when no part is indeterminate', () => {
+    const merged = mergeChecks('test', [passingPart, failingPart]);
+    expect(merged.indeterminate).toBeUndefined();
+    expect(merged.indeterminateFailures).toBeUndefined();
+  });
+
+  it('does not let an indeterminate test check hide a real lint failure in computeOverallOk', () => {
+    const lintFail: VerificationCheck = {
+      name: 'lint',
+      ran: true,
+      ok: false,
+      errorCount: 2,
+      details: 'eslint: 2 errors',
+    };
+    expect(computeOverallOk([mergeChecks('test', [indeterminatePart]), lintFail])).toBe(false);
+    expect(computeOverallOk([mergeChecks('test', [indeterminatePart])])).toBe(true);
   });
 });

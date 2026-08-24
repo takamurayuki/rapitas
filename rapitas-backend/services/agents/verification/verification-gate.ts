@@ -80,6 +80,42 @@ async function reportPreExistingFailures(
 }
 
 /**
+ * Files concerns for test failures whose attribution was INDETERMINATE (the
+ * merge-base baseline comparison failed even after retries). The gate does
+ * not block on these (task 659) — the concern backlog is where the signal
+ * lands so a persistently broken baseline infra is still noticed. Kept
+ * separate from reportPreExistingFailures: "known old breakage" and "could
+ * not tell" carry different severities and wording. Non-fatal, and dedupKey
+ * `test-triage-indeterminate:<file>` is task-independent so repeated infra
+ * flakiness on the same file does not pile up concerns.
+ *
+ * @param taskId - Task whose verification hit the indeterminate triage / 発見タスク
+ * @param result - Verification result containing triage data / 検証結果
+ */
+export async function reportIndeterminateTriage(
+  taskId: number,
+  result: VerificationResult,
+): Promise<void> {
+  const testCheck = result.checks.find((c) => c.name === 'test');
+  const indeterminate = testCheck?.indeterminateFailures;
+  if (!indeterminate || indeterminate.length === 0) return;
+  for (const file of indeterminate) {
+    await submitConcern({
+      title: `テスト失敗の帰責判定不能: ${file}`,
+      detail: `テストファイル \`${file}\` はタスク #${taskId} の検証中に失敗しましたが、merge-base ベースライン worktree の作成/セットアップが再試行後も失敗したため、本変更に起因する失敗か既存の失敗かを判定できませんでした。ゲートはブロックしていません。ベースライン比較インフラ（worktree 作成 / setup-worktree.cjs）の健全性を確認してください。`,
+      type: 'other',
+      severity: 'medium',
+      location: file,
+      originTaskId: taskId,
+      source: 'verification-triage',
+      dedupKey: `test-triage-indeterminate:${file}`,
+    }).catch((err: unknown) =>
+      log.warn({ err, file }, 'Failed to submit indeterminate triage concern (non-fatal)'),
+    );
+  }
+}
+
+/**
  * Runs the automated lint/typecheck gate on a worktree.
  *
  * @param taskId - Task being verified / 検証対象タスク
@@ -118,9 +154,11 @@ export async function runVerificationGate(
   });
   if (!result) return { ok: true, result: null };
 
-  // Report pre-existing failures as concerns before the gate verdict is applied.
-  // Runs regardless of ok/NG so concerns are filed even when the gate passes.
+  // Report pre-existing / indeterminate failures as concerns before the gate
+  // verdict is applied. Runs regardless of ok/NG so concerns are filed even
+  // when the gate passes (an indeterminate triage ALWAYS passes — task 659).
   await reportPreExistingFailures(taskId, result);
+  await reportIndeterminateTriage(taskId, result);
 
   if (result.ok) {
     log.info({ taskId, summary: result.summary }, 'Automated verification passed');

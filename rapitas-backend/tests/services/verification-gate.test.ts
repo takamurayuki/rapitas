@@ -6,13 +6,17 @@ import { beforeEach, describe, expect, mock, test } from 'bun:test';
 const mockPrisma = {
   task: {
     update: mock(() => Promise.resolve({})),
+    findUnique: mock(() => Promise.resolve(null)),
   },
   agentSession: {
     update: mock(() => Promise.resolve({})),
   },
+  agentExecutionConfig: {
+    findUnique: mock(() => Promise.resolve(null)),
+  },
 };
 
-let verifierMode: 'pass' | 'fail' | 'throw' = 'pass';
+let verifierMode: 'pass' | 'fail' | 'throw' | 'indeterminate' = 'pass';
 
 mock.module('../../config/database', () => ({
   ensureDatabaseConnection: () => Promise.resolve(),
@@ -59,6 +63,25 @@ mock.module('../../services/agents/verification/automated-verifier', () => ({
         summary: '1 new typecheck error in src/broken.ts',
       };
     }
+    if (verifierMode === 'indeterminate') {
+      // Task 659: triage came back null → the test check is ok:true but flagged.
+      return {
+        ok: true,
+        changedFiles: ['src/ok.ts', 'src/ok.test.ts'],
+        checks: [
+          {
+            name: 'test',
+            ran: true,
+            ok: true,
+            errorCount: 0,
+            details: '1 test command(s) failed, but the baseline comparison was indeterminate',
+            indeterminate: true,
+            indeterminateFailures: ['src/ok.test.ts', 'src/other.test.ts'],
+          },
+        ],
+        summary: 'verification passed (test triage indeterminate)',
+      };
+    }
     return {
       ok: true,
       changedFiles: ['src/ok.ts'],
@@ -68,6 +91,18 @@ mock.module('../../services/agents/verification/automated-verifier', () => ({
   }),
   renderVerificationMarkdown: (result: { summary: string }) =>
     `# Verification\n\n${result.summary}`,
+  // The gate also imports this (bug-fix tasks require a test change); the
+  // mock previously omitted it, which broke module linking for this whole file.
+  looksLikeBugFixTask: () => false,
+}));
+
+// Spy on concern filing. Full mirror of the real module (bun mock.module is
+// process-global) with only submitConcern replaced.
+const realConcerns = await import('../../services/memory/concern-backlog-service');
+const submitConcern = mock((_input: unknown) => Promise.resolve(1));
+mock.module('../../services/memory/concern-backlog-service', () => ({
+  ...realConcerns,
+  submitConcern,
 }));
 
 const { runVerificationGate } =
@@ -88,9 +123,13 @@ describe('runVerificationGate', () => {
     resetMockFunctions(mockPrisma);
     mockPrisma.task.update.mockResolvedValue({});
     mockPrisma.agentSession.update.mockResolvedValue({});
+    mockPrisma.task.findUnique.mockResolvedValue(null);
+    mockPrisma.agentExecutionConfig.findUnique.mockResolvedValue(null);
     createNotification.mockReset();
     createNotification.mockResolvedValue({});
     verifierMode = 'pass';
+    submitConcern.mockReset();
+    submitConcern.mockResolvedValue(1);
   });
 
   test('opens the gate when automated verification passes', async () => {
@@ -188,5 +227,62 @@ describe('runVerificationGate', () => {
       expect(outcome.ok).toBe(false);
       expect(mockPrisma.agentSession.update).toHaveBeenCalledTimes(2);
     });
+  });
+});
+
+// Task 659: an indeterminate triage must NOT block the task — it opens the
+// gate and files one medium/other concern per unattributed file instead.
+describe('runVerificationGate — indeterminate triage (task 659)', () => {
+  beforeEach(() => {
+    resetMockFunctions(mockPrisma);
+    mockPrisma.task.update.mockResolvedValue({});
+    mockPrisma.agentSession.update.mockResolvedValue({});
+    mockPrisma.task.findUnique.mockResolvedValue(null);
+    mockPrisma.agentExecutionConfig.findUnique.mockResolvedValue(null);
+    submitConcern.mockReset();
+    submitConcern.mockResolvedValue(1);
+  });
+
+  test('opens the gate and files a concern per unattributed test file', async () => {
+    verifierMode = 'indeterminate';
+
+    const outcome = await runVerificationGate(7, 'C:\\repo\\app\\.worktrees\\task-7', 70);
+
+    expect(outcome.ok).toBe(true);
+    expect(outcome.result?.checks[0]?.indeterminate).toBe(true);
+    expect(mockPrisma.task.update).not.toHaveBeenCalled();
+    expect(mockPrisma.agentSession.update).not.toHaveBeenCalled();
+    expect(submitConcern).toHaveBeenCalledTimes(2);
+    expect(submitConcern).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: 'other',
+        severity: 'medium',
+        location: 'src/ok.test.ts',
+        originTaskId: 7,
+        source: 'verification-triage',
+        dedupKey: 'test-triage-indeterminate:src/ok.test.ts',
+      }),
+    );
+    expect(submitConcern).toHaveBeenCalledWith(
+      expect.objectContaining({ dedupKey: 'test-triage-indeterminate:src/other.test.ts' }),
+    );
+  });
+
+  test('a failing submitConcern does not close the gate', async () => {
+    verifierMode = 'indeterminate';
+    submitConcern.mockImplementation(() => Promise.reject(new Error('concern DB down')));
+
+    const outcome = await runVerificationGate(7, 'C:\\repo\\app\\.worktrees\\task-7', 70);
+
+    expect(outcome.ok).toBe(true);
+    expect(mockPrisma.task.update).not.toHaveBeenCalled();
+  });
+
+  test('files no concern when the verification carries no indeterminate files', async () => {
+    verifierMode = 'pass';
+
+    await runVerificationGate(7, 'C:\\repo\\app\\.worktrees\\task-7', 70);
+
+    expect(submitConcern).not.toHaveBeenCalled();
   });
 });
