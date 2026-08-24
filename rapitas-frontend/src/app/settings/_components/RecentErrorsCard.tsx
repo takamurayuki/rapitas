@@ -20,6 +20,35 @@ interface CapturedError {
   stack?: string;
   context?: Record<string, unknown>;
   timestamp: string;
+  riskLevel?: 'low' | 'medium' | 'high' | 'critical';
+}
+
+/** Badge styling per risk level; `low` / undefined render no badge at all. */
+const RISK_BADGE_CLASSES: Record<'medium' | 'high' | 'critical', string> = {
+  medium: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300',
+  high: 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-300',
+  critical: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300',
+};
+
+/**
+ * Returns the translated badge label for a risk level.
+ *
+ * @param level - Risk level worth surfacing (medium and above).
+ * @param t - Scoped translation function from `settings.recentErrorsCard`.
+ * @returns The label text to display in the risk badge.
+ */
+function getRiskLabel(
+  level: 'medium' | 'high' | 'critical',
+  t: ReturnType<typeof useTranslations>,
+): string {
+  switch (level) {
+    case 'medium':
+      return t('riskLevelMedium');
+    case 'high':
+      return t('riskLevelHigh');
+    case 'critical':
+      return t('riskLevelCritical');
+  }
 }
 
 interface ErrorsResponse {
@@ -133,6 +162,13 @@ export default function RecentErrorsCard() {
                 >
                   {getSourceLabel(e.source, t)}
                 </span>
+                {e.riskLevel && e.riskLevel !== 'low' && (
+                  <span
+                    className={`shrink-0 rounded px-1.5 py-0.5 text-[10px] font-medium ${RISK_BADGE_CLASSES[e.riskLevel]}`}
+                  >
+                    {getRiskLabel(e.riskLevel, t)}
+                  </span>
+                )}
                 <span className="flex-1 truncate font-mono text-zinc-700 dark:text-zinc-300">
                   {e.message}
                 </span>
