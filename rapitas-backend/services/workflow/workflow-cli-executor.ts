@@ -17,6 +17,7 @@ import { resolveExecutionWorkdir } from './workflow-cli-executor-worktree';
 import { buildCliAgentPrompt } from './workflow-cli-executor-prompt';
 import { harvestInvestigationOutput, runPhaseEpilogue } from './workflow-cli-executor-epilogue';
 import { runPostProcessing } from './workflow-cli-executor-postprocess';
+import { resumeSessionIdFor } from './phase-session-resume';
 
 // Disk-existence guard for reusing a recorded worktree. Re-exported here so the
 // existing worktree-reuse.test.ts import path keeps working; the single source
@@ -109,6 +110,13 @@ export async function executeCLIAgent(
       agentConfigId: agentConfig.id,
       workingDirectory: effectiveWorkDir,
       modelIdOverride: agentConfig.modelId || undefined,
+      // Repair bounce: continue the CLI session this role already built.
+      resumeSessionId: await resumeSessionIdFor(
+        taskId,
+        transition.role,
+        effectiveWorkDir,
+        agentConfig.agentType,
+      ),
       // Role-aware wall-clock cap: implementer gets 2x the base (task 546).
       timeout: getAgentTimeoutMs(transition.role),
       autoCompleteTask: false,

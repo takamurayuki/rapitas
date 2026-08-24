@@ -26,16 +26,77 @@ const TIER_ORDER: ModelTier[] = ['premium', 'standard', 'economy', 'free'];
 const CAPABILITY_ROLES = new Set(['implementer', 'planner', 'verifier', 'auto_verifier']);
 
 /**
- * Presence of any of these in the task text OR plan marks the work high-risk:
- * data-model / migrations, authn-authz, money, and security-sensitive areas.
- * A mistake here is expensive, so capability is forced up regardless of size.
+ * STRONG risk signals: authn-authz, money, and attack-class vocabulary that
+ * almost never appears in this app's benign domain text. Any hit forces
+ * premium immediately, with no context requirement — false negatives here are
+ * far more expensive than over-firing, so this list must never be relaxed.
+ * NOTE: 認証 stays strong on purpose — it is the core auth word; CLI-auth
+ * task over-firing is accepted as the safe side.
+ * NOTE: \btoken\b does NOT match LLM-usage vocabulary — `_` and a trailing
+ * `s` are word characters, so `MAX_TOKENS` / `tokens used` have no word
+ * boundary around "token" and never fire (asserted by the LLM-context tests).
  */
-const HIGH_RISK_RE =
-  /(prisma|schema\.prisma|migration|migrate|\bauth\b|認証|ログイン|\blogin\b|password|パスワード|\btoken\b|secret|credential|encryption|暗号|決済|課金|payment|billing|security|セキュリティ|権限|permission|rbac|csrf|xss|sql\s*injection)/i;
+const STRONG_RISK_RE =
+  /(\bauth\b|認証|ログイン|\blogin\b|password|パスワード|\btoken\b|secret|credential|決済|課金|payment|billing|rbac|csrf|xss|sql\s*injection)/i;
+
+/**
+ * Data-layer signals (schema / migrations). Evaluated against text that has
+ * schema-change-BAN sentences stripped first (see SCHEMA_BAN_SENTENCE_RE) —
+ * measured 33/40 false positives came from boilerplate constraints like
+ * 「Prisma スキーマ変更禁止」, which state the task must NOT touch the schema.
+ * NOTE: The ban-sentence sanitize step is the user-approved design (task 631
+ * Q1 answer: 「禁止文サニタイズを追加(解釈2・推奨)」) — only the data-layer
+ * signals are evaluated on sanitized text; every other signal group sees the
+ * full text unchanged.
+ */
+const DATA_RISK_RE = /(prisma|schema\.prisma|migration|migrate)/i;
+
+/**
+ * A sentence segment (bounded by 。 or a newline) that BANS schema changes,
+ * e.g. 「Prisma スキーマ変更禁止(再起動を要するため)」「スキーマ変更は不可」.
+ * The WHOLE segment is removed so a leading "Prisma" token is stripped too.
+ * The {0,10} gap keeps this narrow: a sentence that both touches and bans the
+ * schema in distant clauses is left intact (fires — the safe side).
+ */
+const SCHEMA_BAN_SENTENCE_RE =
+  /[^。\n]*(?:スキーマ|schema)[^。\n]{0,10}?(?:禁止|不可|できない|行わない|しないこと)[^。\n]*(?:。|(?=\n)|$)/gi;
+
+/**
+ * WEAK signals: words this app's own domain vocabulary collides with (study
+ * tasks say 暗号, UI copy says 権限, reviews mention セキュリティ). Measured
+ * 38% of tasks premium-forced by contextless matching. Each weak word only
+ * fires when its positive-context regex ALSO matches somewhere in the same
+ * text (proximity not required — over-firing is the safe side).
+ */
+const WEAK_SIGNAL_GATES: ReadonlyArray<{ word: RegExp; context: RegExp }> = [
+  {
+    word: /(暗号|encryption|encrypt|decrypt)/i,
+    context: /(鍵|key|復号|ハッシュ|hash|署名|sign|TLS|SSL|証明書|cert|crypto|AES|RSA|実装|修正)/i,
+  },
+  {
+    word: /(権限|permission)/i,
+    context: /(auth|rbac|アクセス制御|access\s*control|認可|scope|role|ロール|token)/i,
+  },
+  {
+    word: /(セキュリティ|security)/i,
+    context: /(脆弱性|vuln|修正|対策|inject|xss|csrf|サニタイ|escape|patch|漏洩|攻撃|エスケープ)/i,
+  },
+];
 
 /** Risky file-path markers, matched against plan.md's planned-files section. */
 const HIGH_RISK_PATH_RE =
   /(prisma[\\/]schema|migrations?[\\/]|[\\/]auth|payment|billing|security)/i;
+
+/**
+ * Whether one body of text signals high-risk work: strong signals fire alone,
+ * data-layer signals fire after ban-sentence stripping, weak signals need
+ * their context gate. Extracted so task text and plan get identical rules.
+ */
+function matchesHighRisk(text: string): boolean {
+  if (STRONG_RISK_RE.test(text)) return true;
+  if (DATA_RISK_RE.test(text.replace(SCHEMA_BAN_SENTENCE_RE, ' '))) return true;
+  return WEAK_SIGNAL_GATES.some((g) => g.word.test(text) && g.context.test(text));
+}
 
 /**
  * Returns the strongest (highest-capability) tier among the given tiers.
@@ -71,14 +132,14 @@ export function detectHighRisk(opts: { text?: string | null; planContent?: strin
   reason?: string;
 } {
   const text = (opts.text ?? '').toString();
-  if (HIGH_RISK_RE.test(text)) {
+  if (matchesHighRisk(text)) {
     return {
       high: true,
       reason: 'task text matches a high-risk domain (data/auth/payment/security)',
     };
   }
   const plan = opts.planContent ?? '';
-  if (plan && (HIGH_RISK_RE.test(plan) || HIGH_RISK_PATH_RE.test(plan))) {
+  if (plan && (matchesHighRisk(plan) || HIGH_RISK_PATH_RE.test(plan))) {
     return {
       high: true,
       reason: 'plan touches high-risk files (schema/migration/auth/payment/security)',
@@ -100,12 +161,15 @@ export function detectHighRisk(opts: { text?: string | null; planContent?: strin
  * Failure signals are deliberately SPLIT by specificity:
  *  - `taskRetries` (this exact task already failed) is a HARD signal → premium.
  *  - `themeEscalation` (aggregate trouble rate of the theme's recent tasks) is
- *    a SOFT signal. Self-repair bounces are ROUTINE — ≥25% of recent tasks
- *    having one is the common case, and treating that as premium put EVERY
- *    phase of EVERY task (researcher included) on the top model indefinitely
- *    (observed: 122/122 recent executions on opus). Level 1 (≥25%) now only
- *    raises the floor to 'standard'; level 2 (≥50% — the theme is genuinely
- *    struggling) still forces premium.
+ *    a SOFT signal and is CAPPED AT 'standard' — it never forces premium.
+ *    Self-repair bounces are ROUTINE, so the aggregate rate saturates: measured
+ *    2026-08-18, 6/10 recent tasks carried a `verify_repair` transition, which
+ *    put level 2 (≥50%) permanently in effect and pinned EVERY phase of EVERY
+ *    task in the theme to premium — 16/18 routing decisions resolved to
+ *    claude-fable-5, including complexity-5 and complexity-22 tasks, and
+ *    premium took 78% of spend on 35% of executions. A theme-wide average can
+ *    never justify premium for an individual cheap phase; only task-specific
+ *    signals (retry) and risk signals may.
  * Risk floors are never relaxed by history.
  *
  * @param opts.role - Workflow role being executed. / 実行中のロール
@@ -133,8 +197,10 @@ export function computeMinTier(opts: {
   // A weak model already failed this task — go strong on the retry.
   const retryFloor: ModelTier | undefined = opts.taskRetries >= 1 ? 'premium' : undefined;
   const theme = opts.themeEscalation ?? 0;
-  const themeFloor: ModelTier | undefined =
-    theme >= 2 ? 'premium' : theme >= 1 ? 'standard' : undefined;
+  // NOTE: Level 2 no longer forces premium — see the doc comment above. Both
+  // levels cap at 'standard'; the level is kept in the signature because it
+  // still distinguishes "no signal" from "theme is struggling" for telemetry.
+  const themeFloor: ModelTier | undefined = theme >= 1 ? 'standard' : undefined;
   const riskFloor: ModelTier | undefined = opts.riskHigh ? 'premium' : undefined;
   return highestTier(roleFloor, retryFloor, themeFloor, riskFloor);
 }

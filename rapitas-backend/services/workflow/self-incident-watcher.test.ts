@@ -146,6 +146,111 @@ describe('runSelfIncidentWatch', () => {
     expect(input.severity).toBe('high');
   });
 
+  // #636 repro: requeueOrphanTasks reset #632 to todo × plan_approved on
+  // purpose; 59s later the watcher filed that heal as a high-severity desync.
+  // The newest timeline transition's cause must suppress Pattern B in-grace.
+  test('does NOT file a desync concern right after a reconciler_requeue recovery (#636 repro)', async () => {
+    const now = nextPassTime();
+    taskFindManyMock.mockResolvedValue([
+      stagnantTask(now, {
+        id: 632,
+        status: 'todo',
+        workflowStatus: 'plan_approved',
+        updatedAt: new Date(now - 60_000),
+      }),
+    ]);
+    // Timeline query (no createdAt filter) → newest-first rows; windowed → [].
+    transitionFindManyMock.mockImplementation((args: unknown) => {
+      const where = (args as { where: { createdAt?: unknown } }).where;
+      if (where.createdAt) return Promise.resolve([]);
+      return Promise.resolve([
+        {
+          fromStatus: 'plan_approved',
+          toStatus: 'plan_approved',
+          actor: 'system',
+          cause: 'reconciler_requeue',
+          phase: null,
+          createdAt: new Date(now - 59_000),
+        },
+      ]);
+    });
+
+    const filed = await runSelfIncidentWatch(now);
+
+    expect(filed).toBe(0);
+    expect(submitConcernMock).not.toHaveBeenCalled();
+  });
+
+  test('still files a desync concern when the newest transition is not a recovery cause', async () => {
+    const now = nextPassTime();
+    taskFindManyMock.mockResolvedValue([
+      stagnantTask(now, {
+        id: 633,
+        status: 'todo',
+        workflowStatus: 'plan_approved',
+        updatedAt: new Date(now - 60_000),
+      }),
+    ]);
+    transitionFindManyMock.mockImplementation((args: unknown) => {
+      const where = (args as { where: { createdAt?: unknown } }).where;
+      if (where.createdAt) return Promise.resolve([]);
+      return Promise.resolve([
+        {
+          fromStatus: 'verify_done',
+          toStatus: 'plan_approved',
+          actor: 'system',
+          cause: 'verify_repair',
+          phase: 'verify',
+          createdAt: new Date(now - 59_000),
+        },
+      ]);
+    });
+
+    const filed = await runSelfIncidentWatch(now);
+
+    expect(filed).toBe(1);
+    const input = submitConcernMock.mock.calls[0]?.[0] as Record<string, unknown>;
+    expect(input.dedupKey).toBe('self-incident:tristate-desync:todo-workflow-advanced:633');
+  });
+
+  // Past the grace window the shape is no longer a settling heal: BOTH the
+  // re-armed Pattern B and the stagnation backstop fire (double net by design).
+  test('files desync + stagnation once a recovery transition settled past the grace window', async () => {
+    const now = nextPassTime();
+    const settledMs = now - 31 * 60 * 1000;
+    taskFindManyMock.mockResolvedValue([
+      stagnantTask(now, {
+        id: 634,
+        status: 'todo',
+        workflowStatus: 'plan_approved',
+        updatedAt: new Date(settledMs),
+      }),
+    ]);
+    transitionFindManyMock.mockImplementation((args: unknown) => {
+      const where = (args as { where: { createdAt?: unknown } }).where;
+      if (where.createdAt) return Promise.resolve([]);
+      return Promise.resolve([
+        {
+          fromStatus: 'plan_approved',
+          toStatus: 'plan_approved',
+          actor: 'system',
+          cause: 'reconciler_requeue',
+          phase: null,
+          createdAt: new Date(settledMs),
+        },
+      ]);
+    });
+
+    const filed = await runSelfIncidentWatch(now);
+
+    expect(filed).toBe(2);
+    const keys = submitConcernMock.mock.calls.map(
+      (c) => (c[0] as Record<string, unknown>).dedupKey,
+    );
+    expect(keys).toContain('self-incident:tristate-desync:todo-workflow-advanced:634');
+    expect(keys).toContain('self-incident:stagnation:634');
+  });
+
   test('files a repeat-loop concern keyed by the looping cause', async () => {
     const now = nextPassTime();
     taskFindManyMock.mockResolvedValue([

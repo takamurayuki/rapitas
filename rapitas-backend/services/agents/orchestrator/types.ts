@@ -27,6 +27,14 @@ export type ExecutionOptions = {
   branchName?: string;
   /** Override the DB-configured model for this execution only. */
   modelIdOverride?: string;
+  /**
+   * Claude CLI session id to continue via `--resume` instead of cold-starting.
+   * Set by the workflow when the same role re-runs on the same task in the same
+   * worktree (a repair bounce), so the agent keeps the context it just built
+   * rather than re-reading ~105k tokens. Falls back to a fresh session
+   * automatically when the CLI rejects the id.
+   */
+  resumeSessionId?: string;
   /** When false, successful execution does not mark Task.status as done. */
   autoCompleteTask?: boolean;
   /**

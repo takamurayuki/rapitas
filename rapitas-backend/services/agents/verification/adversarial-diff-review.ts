@@ -171,6 +171,7 @@ ${p.diffText}
 ## 管轄（あなたが判定してよい欠陥の範囲 — 厳守）
 - **機械検出可能な欠陥の「推測」は管轄外**: コンパイルエラー・型エラー・テスト失敗の«可能性»を fail の根拠にしない。それらは決定的ゲート (lint / tsc / テスト実行) が別途実測しており、実在すればそちらが確実に検出する。あなたの役割は機械ゲートが検出**できない**欠陥（要件の取り違え・設計上の誤り・意味的なバグ・セキュリティ）に集中すること。
 - **差分に写っていないコードの内部仕様を一般常識で推測して fail にしない**: 共有コンポーネントの props 契約や既存 API の挙動など、このリポジトリ固有の実装は世間一般のライブラリ (shadcn / MUI 等) と同じとは限らない。計画や差分内に「実装確認済み」と根拠付きで記載があるならそれを尊重する。diff 外への疑義は reasons に「要確認:」プレフィックス付きで記録してよいが、**diff 内に矛盾の証拠がない限り、それだけを理由に verdict を fail にしない**。
+- **ワークフロー成果物 (research.md / plan.md / verify.md) は git 差分に絶対に現れない**: これらはリポジトリ内のファイルではなく WorkflowFile テーブルの行として保存される。したがって受入基準が「〜が research.md に記録される」「〜を verify.md に記載する」と述べている場合、**それが差分に見当たらないことを fail の根拠にしてはならない**。その種の基準は本レビューの管轄外であり、別のバリデータが成果物本体に対して検証する。あなたが判定するのは差分に現れるコード変更だけ。該当基準は「管轄外」として reasons に残し、verdict には反映しないこと。
 
 ## 出力（厳守）
 **JSONオブジェクトのみ**を出力してください（前置き・コードフェンス不要）:
@@ -283,26 +284,66 @@ async function implementerAIProvider(taskId: number): Promise<AIProvider | null>
 }
 
 /**
+ * Wall-clock cap for a single juror.
+ *
+ * NOTE: This whole review runs SYNCHRONOUSLY inside the agent's
+ * `PUT /workflow/tasks/:id/files/verify` request, and `sendAIMessage` has no
+ * deadline of its own — one wedged provider held the request open indefinitely.
+ * The saving agent's Bash tool gives up on its curl at 120s, backgrounds it and
+ * then blocks waiting for output, so wall time past that point is pure idle.
+ * The sibling phase-critic gate already caps itself for exactly this reason
+ * (critic-gate.ts, task 492).
+ *
+ * Deliberately does NOT change any verdict semantics: a juror that times out
+ * reports 'unknown', which is the same state it reaches today when it errors,
+ * so the high-risk fail-closed policy below still applies unchanged.
+ */
+function jurorTimeoutMs(): number {
+  const v = parseInt(process.env.RAPITAS_ADVERSARIAL_JUROR_TIMEOUT_MS ?? '', 10);
+  return Number.isFinite(v) && v > 0 ? v : 120_000;
+}
+
+/**
  * Ask one juror (provider) for an independent verdict. Never throws.
  *
  * @param provider - Judge provider. / ジャッジのプロバイダ
  * @param prompt - Shared review prompt. / 共通レビュープロンプト
- * @returns The juror's verdict ('unknown' on error/unparseable). / 判定
+ * @returns The juror's verdict ('unknown' on error/timeout/unparseable). / 判定
  */
 async function askJuror(provider: AIProvider, prompt: string): Promise<JurorVerdict> {
+  const unknown: JurorVerdict = { provider, verdict: 'unknown', severity: 0, reasons: [] };
+  const timeoutMs = jurorTimeoutMs();
+  let timer: ReturnType<typeof setTimeout> | undefined;
   try {
-    const res = await sendAIMessage({
-      provider,
-      model: DEFAULT_MODELS[provider],
-      systemPrompt: 'You are a meticulous, skeptical senior code reviewer.',
-      maxTokens: 1200,
-      messages: [{ role: 'user', content: prompt }],
-    });
-    const v = parseReviewVerdict(res.content);
-    return { provider, verdict: v.verdict, severity: v.severity, reasons: v.reasons };
+    const verdict = await Promise.race([
+      sendAIMessage({
+        provider,
+        model: DEFAULT_MODELS[provider],
+        systemPrompt: 'You are a meticulous, skeptical senior code reviewer.',
+        maxTokens: 1200,
+        messages: [{ role: 'user', content: prompt }],
+      }).then((res) => {
+        const v = parseReviewVerdict(res.content);
+        return { provider, verdict: v.verdict, severity: v.severity, reasons: v.reasons };
+      }),
+      new Promise<JurorVerdict>((resolve) => {
+        timer = setTimeout(() => {
+          log.warn(
+            { provider, timeoutMs },
+            '[adversarial-review] Juror timed out — counting as unknown',
+          );
+          resolve(unknown);
+        }, timeoutMs);
+      }),
+    ]);
+    return verdict;
   } catch (err) {
     log.warn({ err, provider }, '[adversarial-review] Juror failed');
-    return { provider, verdict: 'unknown', severity: 0, reasons: [] };
+    return unknown;
+  } finally {
+    // Without this the pending timer keeps the event loop (and in tests, the
+    // process) alive for the full timeout after a fast juror already answered.
+    if (timer) clearTimeout(timer);
   }
 }
 
