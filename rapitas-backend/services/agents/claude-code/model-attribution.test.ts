@@ -54,4 +54,33 @@ describe('pickPrimaryModel', () => {
     expect(pickPrimaryModel(tie)).toBe('aaa');
     expect(pickPrimaryModel({ aaa: { inputTokens: 10 }, bbb: { inputTokens: 10 } })).toBe('aaa');
   });
+
+  test('回帰: 指示モデルがコスト最大でなくても指示モデルを優先する（実行2749/タスク627の再現）', () => {
+    // 実測 2026-08-24: ルーターは claude-sonnet-5 を指示し、実行ログの
+    // 'Model ID :' もsonnet-5だったが、セッション内の補助呼び出しで
+    // claude-opus-4-8 のコストがsonnet-5を上回り、opusとして誤記録された。
+    const usage = {
+      'claude-sonnet-5': { inputTokens: 500, outputTokens: 200, costUsd: 0.5 },
+      'claude-opus-4-8': { inputTokens: 50, outputTokens: 10, costUsd: 3.2 },
+    };
+    // コスト最大ロジックのみなら opus が勝つ（旧実装の再現条件）。
+    expect(usage['claude-opus-4-8'].costUsd).toBeGreaterThan(usage['claude-sonnet-5'].costUsd);
+    expect(pickPrimaryModel(usage, 'claude-sonnet-5')).toBe('claude-sonnet-5');
+  });
+
+  test('指示モデルが usage マップに存在しなければコスト最大ロジックにフォールバックする', () => {
+    const usage = {
+      'claude-haiku-4-5-20251001': { inputTokens: 9000, outputTokens: 400, costUsd: 0.01 },
+      'claude-fable-5': { inputTokens: 120, outputTokens: 3000, costUsd: 7.05 },
+    };
+    expect(pickPrimaryModel(usage, 'claude-sonnet-5')).toBe('claude-fable-5');
+  });
+
+  test('指示モデル未指定時は既存のコスト最大ロジックのまま（後方互換）', () => {
+    const usage = {
+      'claude-haiku-4-5-20251001': { inputTokens: 9000, outputTokens: 400, costUsd: 0.01 },
+      'claude-fable-5': { inputTokens: 120, outputTokens: 3000, costUsd: 7.05 },
+    };
+    expect(pickPrimaryModel(usage)).toBe('claude-fable-5');
+  });
 });
