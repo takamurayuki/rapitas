@@ -14,107 +14,41 @@
  * Global auto-run concurrency = AUTO_RUN_GLOBAL_MAX_CONCURRENCY (default 1).
  * This is a separate limit from WorkflowRunner.maxConcurrency (which governs
  * ALL queue items including subtasks).
+ *
+ * The class is a thin delegation layer (task 628): the per-branch bodies live
+ * in auto-run-lifecycle.ts, auto-run-advance-active.ts and
+ * auto-run-advance-select.ts as prisma-injected free functions.
  */
 import { prisma } from '../../../config';
 import { createLogger } from '../../../config/logger';
-import {
-  resolveTaskThemeId,
-  resolveTaskWorkflowState,
-  resolveTaskWorkingDirectory,
-} from '../../task/task-resolver';
-import { WorkflowQueueService } from '../workflow-queue';
+import { resolveTaskThemeId } from '../../task/task-resolver';
 import { WorkflowRunner } from '../workflow-runner';
-import { AgentWorkerManager } from '../../agents/agent-worker-manager';
-import { realtimeService } from '../../communication/realtime-service';
-import { promoteBacklogForTheme, hasPromotableBacklog } from './backlog-task-promoter';
 import { recordStartupCommit, maybeRestartForUpdate } from './dev-restart-on-dry';
-import { logCycleEvent } from '../../observability';
-import {
-  AUTO_RUN_GLOBAL_MAX_CONCURRENCY,
-  POLL_INTERVAL_MS,
-  COOLDOWN_MS,
-  MAX_TASK_WALL_MS,
-  getGlobalAutoRunActiveCount,
-  getThemeActiveQueueItems,
-  hasItemAwaitingApproval,
-  isAwaitingUserAnswer,
-  hasLiveExecution,
-  resolveLastProgressAt,
-  overlappingFiles,
-  selectNextTask,
-  recentThemeSuccessRate,
-  type ScopeOverlapContext,
-} from './auto-run-selection';
-import { getOpenAutoPrsForTheme, getPrChangedFiles } from './open-pr-files-cache';
-import {
-  getMergeBarrierMaxHoldMs,
-  readMergeBarrierEnabled,
-  shouldHoldForBarrier,
-} from '../../scheduling/merge-barrier/merge-barrier';
+import { POLL_INTERVAL_MS, getGlobalAutoRunActiveCount } from './auto-run-selection';
 import {
   findByStatuses,
-  setCurrentTask,
-  onTaskCompleted,
-  onTaskFailed,
-  onAwaitingPlanApproval,
   resumeAutoRun,
-  finalizeStop,
   getAutoRunState,
-  startAutoRun,
   type ThemeAutoRunState,
 } from './theme-auto-run-service';
 import {
-  notifyAwaitingPlanApproval,
-  notifyAwaitingUserAnswer,
-  notifyTaskSkipped,
-  notifyAllDone,
-  notifyAllBlocked,
-  notifyHangBackstop,
-} from './auto-run-notifications';
-import { releaseStaleActiveItems } from './auto-run-stall-guard';
-import { countEscalatedBlocked } from '../blocked-task-escalation';
+  processStoppingThemesImpl,
+  processIdleThemesImpl,
+  processPausedThemesImpl,
+  stopThemeExecutionImpl,
+  broadcastAutoRunUpdateImpl,
+} from './auto-run-lifecycle';
+import { advanceActiveTask } from './auto-run-advance-active';
+import { selectAndEnqueueNextTask } from './auto-run-advance-select';
 
 const log = createLogger('theme-auto-run-scheduler');
-
-/**
- * Whether a human acted on the task after a point in time.
- *
- * Used to detect that a failure decision has been overtaken by a user action
- * (most often answering an AskUserQuestion, which revives the task). Only
- * `actor: 'user'` transitions count; the system transitions recorded around a
- * failure are the bookkeeping being applied, not a revival.
- *
- * Fails CLOSED (false) — an unreadable transition log must not stop the
- * scheduler from recording a genuine failure.
- *
- * @param taskId - Task under resolution. / 対象タスク
- * @param since - Terminal timestamp to compare against; null skips the check. / 比較起点
- * @returns true when a user transition exists after `since`. / ユーザー操作があれば true
- */
-async function userActedAfter(taskId: number, since: Date | null): Promise<boolean> {
-  if (!since) return false;
-  try {
-    const n = await prisma.workflowTransition.count({
-      where: { taskId, actor: 'user', createdAt: { gt: since } },
-    });
-    return n > 0;
-  } catch {
-    return false;
-  }
-}
-
-/** Cancelled-without-running items that trip the runaway-loop guard. */
-const RUNAWAY_CANCEL_THRESHOLD = 8;
-
-/** Window the runaway-loop guard counts over. */
-const RUNAWAY_CANCEL_WINDOW_MS = 10 * 60_000;
 
 export class ThemeAutoRunScheduler {
   private static instance: ThemeAutoRunScheduler;
   private running = false;
   private pollTimer: ReturnType<typeof setInterval> | null = null;
-  private queue = WorkflowQueueService.getInstance();
-  private agentWorkerManager = AgentWorkerManager.getInstance();
+  // NOTE: the former `queue` / `agentWorkerManager` fields were removed (task 628) —
+  // the extracted free functions call the same singletons via getInstance().
   // Per-theme epoch ms when the merge-barrier hold began (task 573 C). Memory-
   // only on purpose: a restart simply restarts the hold window.
   private barrierHoldSince = new Map<number, number>();
@@ -248,97 +182,17 @@ export class ThemeAutoRunScheduler {
 
   /** Handle themes in 'stopping' status: cancel queue items and stop the agent. */
   private async processStoppingThemes(stopping: ThemeAutoRunState[]): Promise<void> {
-    for (const state of stopping) {
-      try {
-        await this.stopThemeExecution(state.themeId, state.currentTaskId);
-        await finalizeStop(state.themeId);
-        this.broadcastAutoRunUpdate(state.themeId);
-        log.info(`[ThemeAutoRunScheduler] Theme ${state.themeId} stopped`);
-        logCycleEvent('theme.stopped', {
-          theme: state.themeId,
-          task: state.currentTaskId ?? undefined,
-          msg: 'auto-run stopped by user',
-        });
-      } catch (err) {
-        log.error({ err }, `[ThemeAutoRunScheduler] Error stopping theme ${state.themeId}`);
-      }
-    }
+    await processStoppingThemesImpl(prisma, stopping);
   }
 
-  /**
-   * Auto-resume themes that completed all work and went idle-but-ARMED
-   * (enabled:true) once new work appears — a fresh todo task, or a backlog item
-   * that can now be promoted (a backlog job added a concern/idea, or a freed cap
-   * slot). This is what makes auto-run self-sustaining instead of dying at the
-   * first dry. A USER stop leaves enabled:false and is never auto-resumed.
-   */
+  /** Auto-resume idle-but-armed themes once new work appears (see auto-run-lifecycle). */
   private async processIdleThemes(idle: ThemeAutoRunState[]): Promise<void> {
-    for (const state of idle) {
-      if (!state.enabled) continue; // user-stopped → stay stopped
-      try {
-        // Mirror selectNextTask's eligibility (parentId:null — the scheduler only
-        // drives TOP-LEVEL tasks; subtasks are run by AIOrchestra). Counting
-        // subtasks here let a stuck todo SUBTASK resume the theme, which then went
-        // straight back to all_done because selection skips it — a 12s idle⇄running
-        // flap that never made progress.
-        const todo = await prisma.task
-          .count({ where: { themeId: state.themeId, status: 'todo', parentId: null } })
-          .catch(() => 0);
-        const hasWork = todo > 0 || (await hasPromotableBacklog(state.themeId));
-        if (!hasWork) continue;
-
-        await startAutoRun(state.themeId);
-        this.broadcastAutoRunUpdate(state.themeId);
-        log.info(
-          { themeId: state.themeId, todo },
-          '[ThemeAutoRunScheduler] new work appeared — auto-resumed idle theme',
-        );
-        logCycleEvent('theme.resumed', {
-          theme: state.themeId,
-          todo,
-          cause: todo > 0 ? 'new_todo' : 'backlog_promotable',
-          msg: 'idle theme auto-resumed (new work appeared)',
-        });
-      } catch (err) {
-        log.warn(
-          { err, themeId: state.themeId },
-          '[ThemeAutoRunScheduler] idle auto-resume failed',
-        );
-      }
-    }
+    await processIdleThemesImpl(prisma, idle);
   }
 
   /** For paused themes, check whether approval was granted and auto-resume. */
   private async processPausedThemes(paused: ThemeAutoRunState[]): Promise<void> {
-    for (const state of paused) {
-      if (!state.currentTaskId) continue;
-      try {
-        // If the queue item is no longer 'waiting_approval' (e.g. user approved in UI)
-        // AND the ThemeAutoRun was not already resumed by onPlanApproved(), resume now.
-        const queueItems = await getThemeActiveQueueItems(prisma, state.themeId);
-        const stillWaiting = hasItemAwaitingApproval(queueItems);
-
-        // If queue item is gone (completed during pause) or re-queued after approval
-        if (!stillWaiting) {
-          const taskItem = await prisma.workflowQueueItem.findFirst({
-            where: { taskId: state.currentTaskId, status: 'queued' },
-          });
-          if (taskItem) {
-            // Plan was approved, item is back in queue — resume the theme
-            await resumeAutoRun(state.themeId);
-            this.broadcastAutoRunUpdate(state.themeId);
-            log.info(
-              `[ThemeAutoRunScheduler] Theme ${state.themeId} auto-resumed (plan approved detected)`,
-            );
-          }
-        }
-      } catch (err) {
-        log.error(
-          { err },
-          `[ThemeAutoRunScheduler] Error processing paused theme ${state.themeId}`,
-        );
-      }
-    }
+    await processPausedThemesImpl(prisma, paused);
   }
 
   /** Core logic: advance running themes to their next task. */
@@ -378,559 +232,19 @@ export class ThemeAutoRunScheduler {
     lastRunAt: string | null,
   ): Promise<void> {
     if (currentTaskId) {
-      // Hang backstop: never let a wedged run burn tokens indefinitely. If the
-      // task has been the current task longer than MAX_TASK_WALL_MS, force-stop
-      // it, mark it blocked (skip), and advance. This sits ABOVE WorkflowRunner's
-      // per-phase timeout as a whole-task safety net (the user's "正常性確認").
-      // EXEMPT a task that is waiting for the USER'S ANSWER: it burns no tokens,
-      // and force-stopping it runs revertChanges — destroying the agent's
-      // uncommitted work just because the user was away for 45 min.
-      const tenureMs = lastRunAt ? Date.now() - new Date(lastRunAt).getTime() : 0;
-      if (lastRunAt && tenureMs >= MAX_TASK_WALL_MS) {
-        if (await isAwaitingUserAnswer(prisma, currentTaskId)) {
-          await notifyAwaitingUserAnswer(themeId, currentTaskId);
-          return;
-        }
-        // Measure time since PROGRESS, not tenure. A multi-phase task legitimately
-        // outlives the task wall (the implementer alone may run 56 min against a
-        // 45-min wall), and the liveness check below cannot see the phase seam
-        // where one execution has ended and the next has not started: task 585
-        // was killed there, 8 seconds after its implementer committed a complete
-        // implementation. Transitions and heartbeats are the actual evidence of
-        // movement; only their absence means wedged.
-        const lastProgressAt = await resolveLastProgressAt(
-          prisma,
-          currentTaskId,
-          new Date(lastRunAt).getTime(),
-        );
-        const sinceProgressMs = Date.now() - lastProgressAt;
-        // Liveness exemption: a running execution with a fresh heartbeat is
-        // SLOW, not wedged — killing it destroys legitimate long work (task
-        // 563: healthy 31-min implementer force-stopped because multi-phase
-        // tenure crossed the 45-min wall). While live, the role wall-clock /
-        // phase timeouts govern; the tenure wall only fires once the task has
-        // no live execution. A hard ceiling (3x) still bounds runaway tokens
-        // even with a heartbeat, preserving the original guard's purpose.
-        const withinHardCeiling = tenureMs < MAX_TASK_WALL_MS * 3;
-        const progressedRecently = sinceProgressMs < MAX_TASK_WALL_MS && withinHardCeiling;
-        const executionIsLive =
-          withinHardCeiling &&
-          !progressedRecently &&
-          (await hasLiveExecution(prisma, currentTaskId));
-        // CRITICAL: deferring must FALL THROUGH to the normal resolution below,
-        // never return. Returning here wedged the whole theme: task 594 finished
-        // while over the tenure wall, so every tick saw "progressed 429s ago",
-        // deferred, and returned before the code that resolves a finished task
-        // and picks the next one — auto-run sat "running" with a completed
-        // current task and 9 runnable tasks untouched.
-        if (progressedRecently || executionIsLive) {
-          log.info(
-            `[ThemeAutoRunScheduler] Task ${currentTaskId} over tenure wall but ${
-              progressedRecently
-                ? `progressed ${Math.round(sinceProgressMs / 1000)}s ago`
-                : 'execution heartbeat is fresh'
-            } — deferring hang backstop (theme ${themeId})`,
-          );
-        } else {
-          log.warn(
-            `[ThemeAutoRunScheduler] Task ${currentTaskId} exceeded wall budget (${Math.round(
-              MAX_TASK_WALL_MS / 60000,
-            )}min) — force-stopping (theme ${themeId})`,
-          );
-          logCycleEvent('task.hang_backstop', {
-            theme: themeId,
-            task: currentTaskId,
-            ok: false,
-            cause: 'wall_budget_exceeded',
-            wallMinutes: Math.round(MAX_TASK_WALL_MS / 60000),
-            msg: 'task force-stopped by hang backstop',
-          });
-          // NOTE: logCycleEvent only writes the NDJSON cycle log — invisible unless
-          // an operator is tailing it. Persist a Notification too so a stalled run
-          // surfaces in the NotificationBell (same pattern as the other auto-run
-          // lifecycle notifications above).
-          await notifyHangBackstop(themeId, currentTaskId, Math.round(MAX_TASK_WALL_MS / 60000));
-          await this.stopThemeExecution(themeId, currentTaskId);
-          await prisma.task
-            .update({ where: { id: currentTaskId }, data: { status: 'blocked' } })
-            .catch(() => {});
-          await onTaskFailed(themeId, `Task ${currentTaskId} timed out (auto-run hang guard)`);
-          this.broadcastAutoRunUpdate(themeId);
-          await new Promise((r) => setTimeout(r, COOLDOWN_MS));
-          await this.advanceTheme(themeId, null, order, Math.max(0, globalActive - 1), null);
-          return;
-        }
-      }
-
-      // Active queue items (queued / running / waiting_approval) for this task.
-      const queueItems = await getThemeActiveQueueItems(prisma, themeId);
-      const currentItems = queueItems.filter((i) => i.taskId === currentTaskId);
-
-      // While the task still has an ACTIVE item it is in flight: never move on.
-      // This is the core "one task fully completes before the next starts"
-      // guarantee — the only non-terminal exit here is the approval pause.
-      if (currentItems.length > 0) {
-        // Task 618 (事例2): a TERMINAL task can still hold active items (e.g. a
-        // 'running' residue after an abort). Waiting on those would wedge the
-        // theme forever — release them and resolve the task in THIS tick.
-        const releasedStaleCount = await releaseStaleActiveItems(
-          prisma,
-          themeId,
-          currentTaskId,
-          currentItems,
-        );
-        if (releasedStaleCount === 0) {
-          if (hasItemAwaitingApproval(currentItems)) {
-            await onAwaitingPlanApproval(themeId);
-            await notifyAwaitingPlanApproval(themeId, currentTaskId);
-            this.broadcastAutoRunUpdate(themeId);
-            logCycleEvent('task.awaiting_approval', {
-              theme: themeId,
-              task: currentTaskId,
-              cause: 'plan_approval_gate',
-              msg: 'theme paused — plan awaiting approval',
-            });
-          }
-          // queued / running → still working; wait for the next tick.
-          return;
-        }
-        // released > 0: the items were residue of an already-terminal task.
-        // Fall through to the terminal resolution below in the same tick.
-      }
-
-      // No active item. Decide the outcome from the most recent TERMINAL queue
-      // item FIRST, then fall back to task.status. Checking the terminal item
-      // unconditionally (not only when an active item exists) fixes the stall
-      // where a queue item failed after max retries but task.status was left
-      // 'in-progress' (WorkflowRunner only sets task.status for subtasks) — the
-      // theme used to hang here until the 45-min wall backstop.
-      const terminalItem = await prisma.workflowQueueItem.findFirst({
-        where: {
-          themeId,
-          taskId: currentTaskId,
-          status: { in: ['completed', 'failed', 'cancelled'] },
-        },
-        orderBy: { completedAt: 'desc' },
-        select: { id: true, status: true, errorMessage: true, completedAt: true },
-      });
-
-      const task = await resolveTaskWorkflowState(currentTaskId);
-
-      const isCompleted =
-        terminalItem?.status === 'completed' ||
-        task?.status === 'done' ||
-        task?.workflowStatus === 'completed';
-      // NOTE: 'cancelled' is deliberately NOT a failure. An item is cancelled
-      // when the dispatch was ABANDONED — auto-run stopped, the task reached a
-      // terminal state, a phantom item was swept, or the task was not runnable
-      // at dispatch time (queue-skip-policy). None of those mean the TASK
-      // failed, and treating them as failure is what blocked task 646 ten
-      // seconds after its user answered the question.
-      const isFailed =
-        terminalItem?.status === 'failed' ||
-        task?.status === 'failed' ||
-        task?.status === 'blocked';
-
-      if (isCompleted) {
-        await onTaskCompleted(themeId);
-        this.broadcastAutoRunUpdate(themeId);
-        logCycleEvent('task.completed', {
-          theme: themeId,
-          task: currentTaskId,
-          ok: true,
-          via: terminalItem?.status === 'completed' ? 'queue_item' : 'task_status',
-          msg: 'task completed — advancing to next',
-        });
-        await new Promise((r) => setTimeout(r, COOLDOWN_MS));
-        await this.advanceTheme(themeId, null, order, Math.max(0, globalActive - 1), null);
-        return;
-      }
-
-      if (isFailed) {
-        // A task parked as 'blocked' may actually be WAITING FOR A USER ANSWER
-        // (AskUserQuestion), not failed. Hold the theme here: advancing would
-        // start the next task's agent, which then runs concurrently with this
-        // task's answer-resume — the "multiple agents launched" symptom.
-        if (task?.status === 'blocked' && (await isAwaitingUserAnswer(prisma, currentTaskId))) {
-          log.info(
-            `[ThemeAutoRunScheduler] Task ${currentTaskId} is awaiting a user answer — holding, not advancing (theme ${themeId})`,
-          );
-          await notifyAwaitingUserAnswer(themeId, currentTaskId);
-          this.broadcastAutoRunUpdate(themeId);
-          logCycleEvent('task.awaiting_answer', {
-            theme: themeId,
-            task: currentTaskId,
-            cause: 'ask_user_question',
-            msg: 'theme holding — task awaiting user answer',
-          });
-          return;
-        }
-        // A HUMAN may have acted on this task after the queue item reached its
-        // terminal state — answering a question revives it (workflowStatus →
-        // draft, status → todo). `task` above is a snapshot taken before the
-        // awaiting-answer lookup and the notifications, so writing 'blocked'
-        // from it silently undoes that answer: measured 2026-08-24 on task 646,
-        // where the answer landed 10 seconds before this write and the task
-        // went straight back to blocked.
-        // Only a `user` actor counts — system transitions are the very failure
-        // being resolved here and must not veto their own bookkeeping.
-        if (await userActedAfter(currentTaskId, terminalItem?.completedAt ?? null)) {
-          log.info(
-            `[ThemeAutoRunScheduler] Task ${currentTaskId} was revived by the user — re-queuing instead of blocking (theme ${themeId})`,
-          );
-          logCycleEvent('task.revived', {
-            theme: themeId,
-            task: currentTaskId,
-            cause: 'user_action_after_failure',
-            msg: 'user acted after the failure decision — re-queued instead of blocked',
-          });
-          await this.queue
-            .enqueue({ taskId: currentTaskId, themeId, priority: 50 })
-            .catch(() => {});
-          await setCurrentTask(themeId, currentTaskId);
-          this.broadcastAutoRunUpdate(themeId);
-          return;
-        }
-
-        const errMsg = terminalItem?.errorMessage ?? `Task ${currentTaskId} failed or was blocked`;
-        // Mark the task blocked so selection skips it next time.
-        if (task?.status !== 'blocked') {
-          await prisma.task
-            .update({ where: { id: currentTaskId }, data: { status: 'blocked' } })
-            .catch(() => {});
-        }
-        await onTaskFailed(themeId, errMsg);
-        await notifyTaskSkipped(themeId, currentTaskId, errMsg);
-        this.broadcastAutoRunUpdate(themeId);
-        logCycleEvent('task.blocked', {
-          theme: themeId,
-          task: currentTaskId,
-          ok: false,
-          cause: terminalItem?.status ?? 'blocked',
-          msg: errMsg.slice(0, 200),
-        });
-        await new Promise((r) => setTimeout(r, COOLDOWN_MS));
-        await this.advanceTheme(themeId, null, order, Math.max(0, globalActive - 1), null);
-        return;
-      }
-
-      // No active AND no terminal queue item, and the task is not terminal:
-      // the item vanished (e.g. cleared) while the task is still mid-workflow.
-      // Re-enqueue the SAME task so it resumes — never silently stall. The
-      // WorkflowRunner picks up from the task's current workflowStatus.
-      //
-      // Bounded, though: if the same task keeps coming straight back as a
-      // cancelled item, re-enqueueing spins. Measured 2026-08-24 on task 635
-      // (todo + awaiting_question, which the orchestrator refuses to dispatch):
-      // 106 queue items in 21 minutes. The selector no longer picks that state,
-      // but any future "enqueued then immediately abandoned" cause would loop
-      // the same way, so hold the theme instead of spinning.
-      if (await this.hasRunawayCancelLoop(currentTaskId)) {
-        log.warn(
-          `[ThemeAutoRunScheduler] Task ${currentTaskId} keeps being cancelled without running — holding the theme (theme ${themeId})`,
-        );
-        logCycleEvent('task.skipped', {
-          theme: themeId,
-          task: currentTaskId,
-          cause: 'runaway_cancel_loop',
-          msg: 'enqueue→cancel loop detected — task released so the theme can move on',
-        });
-        // Release the task rather than holding the whole theme: the next tick
-        // selects a different one, and the loop stops without stalling the rest
-        // of the backlog.
-        await setCurrentTask(themeId, null);
-        this.broadcastAutoRunUpdate(themeId);
-        return;
-      }
-
-      try {
-        await this.queue.enqueue({ taskId: currentTaskId, themeId, priority: 50 });
-        await setCurrentTask(themeId, currentTaskId);
-        this.broadcastAutoRunUpdate(themeId);
-        log.warn(
-          `[ThemeAutoRunScheduler] Task ${currentTaskId} had no queue item; re-enqueued to resume (theme ${themeId})`,
-        );
-      } catch (err) {
-        const msg = err instanceof Error ? err.message : String(err);
-        // 'already in the queue' means a race re-created it — fine, just wait.
-        if (!msg.includes('already in the queue')) {
-          log.error({ err }, `[ThemeAutoRunScheduler] Failed to re-enqueue task ${currentTaskId}`);
-        }
-      }
-      return;
-    }
-
-    // No current task — select and enqueue the next one
-    if (globalActive >= AUTO_RUN_GLOBAL_MAX_CONCURRENCY) {
-      return; // global limit reached
-    }
-
-    // Merge barrier (task 573 C, default OFF): while the theme still has an
-    // OPEN auto-created PR, hold next-task selection until it merges/closes —
-    // or until the hold ceiling passes (deadlock release for a PR stuck open
-    // on red CI / manual review). Open-PR lookup failures fail open (no hold).
-    const openAutoPrs = await getOpenAutoPrsForTheme(prisma, themeId).catch(() => []);
-    if (readMergeBarrierEnabled()) {
-      const holdSince = this.barrierHoldSince.get(themeId) ?? null;
-      if (
-        shouldHoldForBarrier(
-          true,
-          openAutoPrs.length > 0,
-          holdSince,
-          Date.now(),
-          getMergeBarrierMaxHoldMs(),
-        )
-      ) {
-        if (holdSince === null) this.barrierHoldSince.set(themeId, Date.now());
-        logCycleEvent('task.barrier_hold', {
-          theme: themeId,
-          cause: 'open_pr_wait',
-          prNumbers: openAutoPrs.map((p) => p.prNumber),
-          holdMs: holdSince === null ? 0 : Date.now() - holdSince,
-          msg: 'merge barrier — holding next-task selection until the open auto-PR merges',
-        });
-        return;
-      }
-      // Released: PR set went empty (merged/closed) or the hold timed out.
-      this.barrierHoldSince.delete(themeId);
-    } else {
-      this.barrierHoldSince.delete(themeId);
-    }
-
-    const skipIds: number[] = [];
-    // Get blocked task IDs to skip
-    const blockedTasks = await prisma.task.findMany({
-      where: { themeId, status: 'blocked' },
-      select: { id: true },
-    });
-    skipIds.push(...blockedTasks.map((t) => t.id));
-
-    // Self-deploy at the TASK BOUNDARY (event-driven). We reach here only between
-    // tasks — the prior one finished and the next is not yet selected — so it is a
-    // reliable 0-agent moment. The tick poll and the all_done branch both MISSED
-    // continuous auto-run: with auto-create refilling the queue the theme rarely
-    // reaches all_done, and the inter-task gap is shorter than the tick can sample
-    // (observed: 0 restarts over 30 min while HEAD had moved). Firing it HERE
-    // catches every task boundary. No-op unless HEAD moved + no live agents + not
-    // rate-limited; if it restarts, the process exits and dev.js relaunches.
-    if (await maybeRestartForUpdate(themeId)) return;
-
-    // Merged-code boundary restart: merges NOT touching the loop machinery are
-    // batched by the 15-min poller and activated here, at the same task
-    // boundary, once every quiescence gate (executions, aux CLI children,
-    // auto-merge tick, rate limit, UI quiet) passes. Placed AFTER
-    // maybeRestartForUpdate (which returns above on fire) so the two restart
-    // paths can never double-fire in one tick. Lazily imported behind the
-    // TAURI gate: nothing but dev.js relaunches on exit 75, and test
-    // environments must not load the scheduling module graph.
-    if (process.env.TAURI_BUILD === 'true') {
-      try {
-        const { getAutoRestartMergedCodeScheduler } =
-          await import('../../scheduling/auto-restart-merged-code');
-        if (await getAutoRestartMergedCodeScheduler().evaluateBoundaryRestart()) return;
-      } catch (err) {
-        log.warn({ err }, '[ThemeAutoRunScheduler] Boundary merged-code restart check failed');
-      }
-    }
-
-    // Learnable-band tiebreak (R6): recent success rate positions the target
-    // complexity band; ties within a priority pick the task closest to it.
-    const successRate = await recentThemeSuccessRate(prisma, themeId).catch(() => null);
-
-    // Scope-overlap context (task 573 B): the union of changed files across the
-    // theme's open auto-PRs, so selection can defer a candidate whose plan
-    // touches the same files. Every failure path degrades to "no context"
-    // (legacy selection) — a broken gh/DB must never stop the scheduler.
-    const scopeOverlap = await this.buildScopeOverlapContext(themeId, openAutoPrs).catch(
-      () => undefined,
-    );
-    const result = await selectNextTask(
-      prisma,
-      themeId,
-      order,
-      skipIds,
-      globalActive,
-      successRate,
-      scopeOverlap,
-    );
-
-    // Observability (task 573 B3): record WHY each passed-over candidate was
-    // deferred — the involved open PRs and the exact overlapping files.
-    if (result.found && result.deferred && result.deferred.length > 0 && scopeOverlap) {
-      for (const deferredId of result.deferred) {
-        const planFiles = await scopeOverlap.getPlanFiles(deferredId).catch(() => []);
-        logCycleEvent('task.deferred', {
-          theme: themeId,
-          task: deferredId,
-          cause: 'scope_overlap',
-          prNumbers: openAutoPrs.map((p) => p.prNumber),
-          files: overlappingFiles(planFiles, scopeOverlap.openPrFiles).slice(0, 20),
-          selected: result.taskId,
-          msg: 'candidate deferred — plan files overlap an open auto-PR',
-        });
-      }
-    }
-
-    if (!result.found) {
-      if (result.reason === 'all_done' || result.reason === 'all_blocked') {
-        // all_blocked shares the all_done idle path on purpose (task 615):
-        // staying 'running' against a fully-wedged theme would spin forever,
-        // and a backlog refill is the natural unblocker (a promoted todo lets
-        // processIdleThemes resume). Only the REPORTING differs below, so a
-        // wedged loop is never mistaken for a normal completion.
-        const allBlocked = result.reason === 'all_blocked';
-        // Optional dev safety: when enabled, this quiet point (no live agents) is
-        // the safe moment to restart and pick up committed fixes BEFORE creating
-        // more tasks. Only fires when HEAD moved since boot + no agents anywhere +
-        // not rate-limited; otherwise it's a no-op. If it restarts, stop here.
-        if (await maybeRestartForUpdate(themeId)) return;
-
-        // Before idling, refill from the backlog (open concerns first, then ideas
-        // once concerns are clear) up to the per-theme cap, so a theme that ran
-        // out of work keeps progressing. When tasks were created, stay active —
-        // the next tick selects them.
-        const created = await promoteBacklogForTheme(themeId).catch((err) => {
-          log.warn({ err, themeId }, '[ThemeAutoRunScheduler] Backlog promotion failed');
-          return 0;
-        });
-        if (created > 0) {
-          log.info(
-            `[ThemeAutoRunScheduler] Theme ${themeId} — promoted ${created} backlog task(s); staying active`,
-          );
-          logCycleEvent('backlog.refill', {
-            theme: themeId,
-            created,
-            msg: 'refilled from backlog — staying active',
-          });
-          this.broadcastAutoRunUpdate(themeId);
-          return;
-        }
-        // All tasks done and backlog empty/capped/disabled — go idle but stay
-        // ARMED (enabled:true) so processIdleThemes auto-resumes when new work
-        // appears (a backlog job adds a concern/idea, or a freed cap slot lets a
-        // promotion happen). A USER stop sets enabled:false (finalizeStop) and is
-        // therefore never auto-resumed. This closes the perpetual loop.
-        await prisma.themeAutoRun.updateMany({
-          where: { themeId },
-          data: { status: 'idle', enabled: true, currentTaskId: null },
-        });
-        if (allBlocked) {
-          // Wedged, not finished: report with a DISTINCT cause + notification so
-          // the dead loop is visible (previously indistinguishable from idle).
-          // Same 'theme.idle' event as all_done — the machine distinction is the
-          // `cause` field ('all_blocked' vs 'all_done_backlog_empty'), keeping
-          // the cycle-event taxonomy untouched.
-          const blockedCount = await prisma.task
-            .count({ where: { themeId, status: 'blocked', parentId: null } })
-            .catch(() => 0);
-          const escalatedCount = await countEscalatedBlocked(prisma).catch(() => 0);
-          log.info(
-            `[ThemeAutoRunScheduler] Theme ${themeId} — ALL remaining tasks blocked (${blockedCount}), idle (armed)`,
-          );
-          logCycleEvent('theme.idle', {
-            theme: themeId,
-            cause: 'all_blocked',
-            blocked: blockedCount,
-            escalated: escalatedCount,
-            msg: 'all runnable tasks are blocked — wedged, idle but armed',
-          });
-          await notifyAllBlocked(themeId, blockedCount, escalatedCount);
-        } else {
-          log.info(`[ThemeAutoRunScheduler] Theme ${themeId} — all tasks done, idle (armed)`);
-          logCycleEvent('theme.idle', {
-            theme: themeId,
-            cause: 'all_done_backlog_empty',
-            msg: 'all tasks done, idle but armed (awaiting new work)',
-          });
-          await notifyAllDone(themeId);
-        }
-        this.broadcastAutoRunUpdate(themeId);
-      }
-      return;
-    }
-
-    const taskId = result.taskId;
-
-    // A re-run (a 'todo' task whose workflowStatus is a stale terminal state from
-    // a prior run) has no forward transition from verify_done/completed — reset
-    // it to 'draft' so the workflow actually re-runs (research/plan are reused
-    // via isReusableArtifact, so this is cheap). Without this the task would be
-    // dequeued and immediately fail "cannot advance from verify_done".
-    const picked = await prisma.task
-      .findUnique({ where: { id: taskId }, select: { workflowStatus: true } })
-      .catch(() => null);
-    if (picked?.workflowStatus === 'verify_done' || picked?.workflowStatus === 'completed') {
-      await prisma.task
-        .update({ where: { id: taskId }, data: { workflowStatus: 'draft' } })
-        .catch(() => {});
-      log.info(
-        `[ThemeAutoRunScheduler] Task ${taskId} re-run — reset stale workflowStatus ${picked.workflowStatus} → draft`,
+      await advanceActiveTask(
+        prisma,
+        themeId,
+        currentTaskId,
+        order,
+        globalActive,
+        lastRunAt,
+        this.barrierHoldSince,
       );
+      return;
     }
 
-    // Enqueue via WorkflowQueueService with themeId set
-    try {
-      await this.queue.enqueue({ taskId, themeId, priority: 50 });
-      await setCurrentTask(themeId, taskId);
-      this.broadcastAutoRunUpdate(themeId);
-      log.info(`[ThemeAutoRunScheduler] Enqueued task ${taskId} for theme ${themeId}`);
-      logCycleEvent('task.enqueued', {
-        theme: themeId,
-        task: taskId,
-        msg: 'next task selected and enqueued',
-      });
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      if (msg.includes('already in the queue')) {
-        // Race: already queued (e.g. by a previous tick that was slightly slow)
-        // Set currentTaskId without re-enqueuing
-        await setCurrentTask(themeId, taskId);
-        log.warn(`[ThemeAutoRunScheduler] Task ${taskId} was already queued; tracking it`);
-      } else {
-        log.error({ err }, `[ThemeAutoRunScheduler] Failed to enqueue task ${taskId}`);
-      }
-    }
-  }
-
-  /**
-   * Build the scope-overlap selection context (task 573 B): the union of
-   * changed files across the theme's open auto-PRs (gh, TTL-cached) plus a
-   * plan-file loader (WorkflowFile plan → parsePlanFiles). Returns undefined
-   * whenever there is nothing to compare (no open PRs, no cwd, no files) so
-   * selection keeps its legacy path.
-   *
-   * @param themeId - Theme being advanced / 対象テーマ
-   * @param openAutoPrs - The theme's open auto-created PRs / オープン自動PR一覧
-   */
-  private async buildScopeOverlapContext(
-    themeId: number,
-    openAutoPrs: Array<{ prNumber: number }>,
-  ): Promise<ScopeOverlapContext | undefined> {
-    if (openAutoPrs.length === 0) return undefined;
-    const theme = await prisma.theme
-      .findUnique({ where: { id: themeId }, select: { workingDirectory: true } })
-      .catch(() => null);
-    const cwd = theme?.workingDirectory;
-    if (!cwd) return undefined;
-
-    const fileSets = await Promise.all(
-      openAutoPrs.map((pr) => getPrChangedFiles(cwd, pr.prNumber)),
-    );
-    const openPrFiles = [...new Set(fileSets.flat())];
-    if (openPrFiles.length === 0) return undefined; // gh failed for all → fail-open
-
-    return {
-      openPrFiles,
-      getPlanFiles: async (taskId: number) => {
-        // Lazy import keeps the workflow-file module graph out of this
-        // scheduler's static test surface.
-        const { readWorkflowFile } = await import('../workflow-file-utils');
-        const { parsePlanFiles } = await import('../../agents/verification/scope-check');
-        const plan = await readWorkflowFile(taskId, 'plan').catch(() => null);
-        if (!plan) return []; // no plan (lightweight) → never deferred
-        return parsePlanFiles(plan);
-      },
-    };
+    await selectAndEnqueueNextTask(prisma, themeId, order, globalActive, this.barrierHoldSince);
   }
 
   /**
@@ -939,86 +253,16 @@ export class ThemeAutoRunScheduler {
    * @param themeId - Theme to stop / 停止するテーマID
    * @param currentTaskId - Currently tracked task ID / 現在のタスクID
    */
+  // NOTE: No longer called inside the class (the lifecycle/advance-active modules call
+  // stopThemeExecutionImpl directly) but retained for the SchedulerInternal test
+  // contract in theme-auto-run-scheduler.test-support.ts, hence the TS6133 suppression.
+  // @ts-expect-error TS6133 — intentionally unused private delegate (task 628)
   private async stopThemeExecution(themeId: number, currentTaskId: number | null): Promise<void> {
-    // Cancel all auto-run queue items for this theme
-    await prisma.workflowQueueItem.updateMany({
-      where: {
-        themeId,
-        status: { in: ['queued', 'running', 'waiting_approval'] },
-      },
-      data: { status: 'cancelled', completedAt: new Date(), errorMessage: 'Auto-run stopped' },
-    });
-
-    if (!currentTaskId) return;
-
-    // Stop the agent execution(s) if any are running
-    try {
-      const task = await resolveTaskWorkingDirectory(currentTaskId);
-      const workDir = task?.workingDirectory ?? task?.theme?.workingDirectory;
-
-      // Kill ALL in-flight agents across the theme — the current task, its
-      // subtasks, and any other theme task with a live execution (not just the
-      // first found) — and release their locks. A split parent's subtask runs
-      // under a different taskId, so a current-task-only stop would orphan it.
-      const { stopThemeAgents } = await import('../../agents/stop-task-agents');
-      await stopThemeAgents(themeId, currentTaskId, { errorMessage: 'Auto-run stopped' }).catch(
-        (err) => {
-          log.warn({ err, themeId }, '[ThemeAutoRunScheduler] stopThemeAgents failed');
-        },
-      );
-
-      // Revert any uncommitted changes
-      if (workDir) {
-        await this.agentWorkerManager.revertChanges(workDir).catch((err) => {
-          log.warn(
-            { err },
-            `[ThemeAutoRunScheduler] Failed to revert changes for theme ${themeId}`,
-          );
-        });
-      }
-
-      // Reset task to 'todo'
-      await prisma.task
-        .update({ where: { id: currentTaskId }, data: { status: 'todo' } })
-        .catch(() => {});
-    } catch (err) {
-      log.error(
-        { err },
-        `[ThemeAutoRunScheduler] Error stopping execution for task ${currentTaskId}`,
-      );
-    }
+    await stopThemeExecutionImpl(prisma, themeId, currentTaskId);
   }
 
   /** Broadcast SSE update for a theme's auto-run state change. */
-  /**
-   * Whether a task keeps producing cancelled queue items without ever running.
-   *
-   * Fails OPEN (false) — an unreadable queue must not stop the scheduler from
-   * resuming genuinely-stalled work.
-   *
-   * @param taskId - Task under resolution. / 対象タスク
-   * @returns true when the re-enqueue loop should be broken. / ループ打切りなら true
-   */
-  private async hasRunawayCancelLoop(taskId: number): Promise<boolean> {
-    try {
-      const since = new Date(Date.now() - RUNAWAY_CANCEL_WINDOW_MS);
-      const n = await prisma.workflowQueueItem.count({
-        where: { taskId, status: 'cancelled', createdAt: { gt: since } },
-      });
-      return n >= RUNAWAY_CANCEL_THRESHOLD;
-    } catch {
-      return false;
-    }
-  }
-
   private broadcastAutoRunUpdate(themeId: number): void {
-    try {
-      realtimeService.broadcast('orchestra', 'auto_run_update', {
-        themeId,
-        timestamp: new Date().toISOString(),
-      });
-    } catch {
-      // SSE unavailable — non-fatal
-    }
+    broadcastAutoRunUpdateImpl(themeId);
   }
 }
