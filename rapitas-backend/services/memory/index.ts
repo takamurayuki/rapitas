@@ -76,6 +76,14 @@ export async function initializeMemorySystem(): Promise<void> {
     log.info({ recovered }, 'Journal entries recovered');
   }
 
+  // 1.5. Reap `processing` rows orphaned by a prior restart/crash, before this
+  // process's own worker ever runs processNext() — every matching row is
+  // unambiguously stale at this point.
+  const reaped = await memoryTaskQueue.reapStuckProcessing();
+  if (reaped.reapedToPending + reaped.reapedToDeadLetter > 0) {
+    log.info(reaped, 'Stuck memory task queue rows reaped on startup');
+  }
+
   // 2. Register task handlers
   memoryTaskQueue.registerHandler('embed', async (payload) => {
     const { entryId, content } = payload as { entryId: number; content: string };
