@@ -45,10 +45,10 @@
  *   node scripts/dev.js --force  # エージェント実行中でも強制停止して再起動
  *   node scripts/dev.js --stop   # 起動せず全プロセスを強制停止するのみ
  */
-const { spawn, execSync, execFileSync } = require("child_process");
-const path = require("path");
-const fs = require("fs");
-const crypto = require("crypto");
+const { spawn, execSync, execFileSync } = require('child_process');
+const path = require('path');
+const fs = require('fs');
+const crypto = require('crypto');
 
 const BACKEND_PORT = 3001;
 const FRONTEND_PORT = 3000;
@@ -63,7 +63,7 @@ const LLAMA_SERVER_PORT = 8922;
 // PIDファイル管理・起動ヘルスチェック再試行まわりの新規ログだけをこちらに
 // 統一する（ファイル全体の置き換えは別スコープ）。
 function logTimestamp() {
-  return new Date().toISOString().replace("T", " ").replace("Z", "");
+  return new Date().toISOString().replace('T', ' ').replace('Z', '');
 }
 const log = {
   info: (msg) => console.log(`[${logTimestamp()}] INFO  ${msg}`),
@@ -91,13 +91,10 @@ function sleepSync(ms) {
  */
 function isPortListening(port) {
   try {
-    const result = execSync(
-      `netstat -aon | findstr ":${port} " | findstr "LISTEN"`,
-      {
-        encoding: "utf-8",
-        stdio: ["pipe", "pipe", "pipe"],
-      },
-    );
+    const result = execSync(`netstat -aon | findstr ":${port} " | findstr "LISTEN"`, {
+      encoding: 'utf-8',
+      stdio: ['pipe', 'pipe', 'pipe'],
+    });
     return result.trim().length > 0;
   } catch {
     return false;
@@ -111,14 +108,11 @@ function isPortListening(port) {
 function getListeningPids(port) {
   const pids = new Set();
   try {
-    const result = execSync(
-      `netstat -aon | findstr ":${port} " | findstr "LISTEN"`,
-      {
-        encoding: "utf-8",
-        stdio: ["pipe", "pipe", "pipe"],
-      },
-    );
-    for (const line of result.trim().split("\n")) {
+    const result = execSync(`netstat -aon | findstr ":${port} " | findstr "LISTEN"`, {
+      encoding: 'utf-8',
+      stdio: ['pipe', 'pipe', 'pipe'],
+    });
+    for (const line of result.trim().split('\n')) {
       const parts = line.trim().split(/\s+/);
       const pid = parseInt(parts[parts.length - 1]);
       // netstatに表示されていても実際に存在しないプロセス（ゾンビ）は除外
@@ -140,15 +134,11 @@ function getListeningPids(port) {
 function isProcessRunning(pid) {
   try {
     const result = execSync(`tasklist /FI "PID eq ${pid}" /NH`, {
-      encoding: "utf-8",
-      stdio: ["pipe", "pipe", "pipe"],
+      encoding: 'utf-8',
+      stdio: ['pipe', 'pipe', 'pipe'],
     });
     // 「情報: 指定された条件に一致するタスクは実行されていません。」または英語版
-    if (
-      result.includes("INFO:") ||
-      result.includes("No tasks") ||
-      result.includes("情報:")
-    ) {
+    if (result.includes('INFO:') || result.includes('No tasks') || result.includes('情報:')) {
       return false;
     }
     return result.includes(String(pid));
@@ -167,21 +157,20 @@ function killZombieSocketOwners(port) {
   try {
     // PowerShell で CLOSE_WAIT/FIN_WAIT_2/TIME_WAIT のソケット所有PIDを取得
     const psCommand = `Get-NetTCPConnection -LocalPort ${port} -ErrorAction SilentlyContinue | Where-Object { $_.State -in @('CloseWait','FinWait2','TimeWait') } | Select-Object -ExpandProperty OwningProcess -Unique`;
-    const result = execSync(
-      `powershell -NoProfile -Command "${psCommand}"`,
-      { encoding: "utf-8", stdio: ["pipe", "pipe", "pipe"], timeout: 10000 },
-    );
+    const result = execSync(`powershell -NoProfile -Command "${psCommand}"`, {
+      encoding: 'utf-8',
+      stdio: ['pipe', 'pipe', 'pipe'],
+      timeout: 10000,
+    });
     const pids = result
       .trim()
-      .split("\n")
+      .split('\n')
       .map((line) => parseInt(line.trim()))
       .filter((pid) => pid && pid > 0);
 
     if (pids.length === 0) return;
 
-    console.log(
-      `  Found zombie socket owner(s) on port ${port}: PID ${pids.join(", ")}`,
-    );
+    console.log(`  Found zombie socket owner(s) on port ${port}: PID ${pids.join(', ')}`);
 
     for (const pid of pids) {
       if (!isProcessRunning(pid)) {
@@ -199,14 +188,14 @@ function killZombieSocketOwners(port) {
         continue;
       }
       try {
-        execSync(`taskkill /F /PID ${pid}`, { stdio: "pipe" });
+        execSync(`taskkill /F /PID ${pid}`, { stdio: 'pipe' });
         console.log(`  Killed zombie socket owner PID ${pid}`);
       } catch (err) {
-        const errMsg = err.message || err.stderr?.toString() || "";
+        const errMsg = err.message || err.stderr?.toString() || '';
         if (
-          errMsg.includes("見つかりません") ||
-          errMsg.includes("not found") ||
-          errMsg.includes("not be found")
+          errMsg.includes('見つかりません') ||
+          errMsg.includes('not found') ||
+          errMsg.includes('not be found')
         ) {
           console.log(`  PID ${pid} already terminated.`);
         } else {
@@ -229,10 +218,10 @@ function getProcessesOnPort(port) {
   const pids = new Set();
   try {
     const result = execSync(`netstat -aon | findstr ":${port} "`, {
-      encoding: "utf-8",
-      stdio: ["pipe", "pipe", "pipe"],
+      encoding: 'utf-8',
+      stdio: ['pipe', 'pipe', 'pipe'],
     });
-    for (const line of result.trim().split("\n")) {
+    for (const line of result.trim().split('\n')) {
       const parts = line.trim().split(/\s+/);
       const pid = parseInt(parts[parts.length - 1]);
       if (pid && pid > 0) pids.add(pid);
@@ -270,7 +259,7 @@ function waitForPortRelease(port, timeoutMs = 10000) {
  * @returns {Promise<boolean>} バックエンドが応答したか
  */
 async function waitForBackendReady(port, timeoutMs = 30000) {
-  const http = require("http");
+  const http = require('http');
   const startTime = Date.now();
   const pollInterval = 500;
 
@@ -284,21 +273,23 @@ async function waitForBackendReady(port, timeoutMs = 30000) {
       const ok = await new Promise((resolve) => {
         const req = http.get(
           {
-            hostname: "127.0.0.1", // IPv4明示（IPv6ゾンビソケット回避）
+            hostname: '127.0.0.1', // IPv4明示（IPv6ゾンビソケット回避）
             port: port,
-            path: "/tasks?limit=1",
+            path: '/tasks?limit=1',
             timeout: 5000,
           },
           (res) => {
-            let body = "";
-            res.on("data", (chunk) => { body += chunk; });
-            res.on("end", () => {
+            let body = '';
+            res.on('data', (chunk) => {
+              body += chunk;
+            });
+            res.on('end', () => {
               resolve(res.statusCode >= 200 && res.statusCode < 500);
             });
           },
         );
-        req.on("error", () => resolve(false));
-        req.on("timeout", () => {
+        req.on('error', () => resolve(false));
+        req.on('timeout', () => {
           req.destroy();
           resolve(false);
         });
@@ -327,7 +318,7 @@ function tryGracefulShutdownSync(port) {
   try {
     execSync(
       `curl -s -X POST -H "Content-Type: application/json" --connect-timeout 2 --max-time 3 http://localhost:${port}/agents/shutdown`,
-      { stdio: "pipe", timeout: 5000 },
+      { stdio: 'pipe', timeout: 5000 },
     );
     console.log(`  Graceful shutdown requested on port ${port} via curl.`);
     return true;
@@ -336,7 +327,7 @@ function tryGracefulShutdownSync(port) {
     try {
       execSync(
         `node -e "const h=require('http');const r=h.request({hostname:'127.0.0.1',port:${port},path:'/agents/shutdown',method:'POST',headers:{'Content-Type':'application/json'},timeout:3000},()=>process.exit(0));r.on('error',()=>process.exit(0));r.on('timeout',()=>{r.destroy();process.exit(0)});r.end()"`,
-        { stdio: "pipe", timeout: 5000 },
+        { stdio: 'pipe', timeout: 5000 },
       );
       console.log(`  Graceful shutdown requested on port ${port} via node.`);
       return true;
@@ -352,35 +343,35 @@ function tryGracefulShutdownSync(port) {
  */
 async function tryGracefulShutdownViaHttp(port) {
   try {
-    const http = require("http");
+    const http = require('http');
     await new Promise((resolve, reject) => {
       const req = http.request(
         {
-          hostname: "127.0.0.1",
+          hostname: '127.0.0.1',
           port: port,
-          path: "/agents/shutdown",
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
+          path: '/agents/shutdown',
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
           timeout: 5000,
         },
         (res) => {
-          let data = "";
-          res.on("data", (chunk) => {
+          let data = '';
+          res.on('data', (chunk) => {
             data += chunk;
           });
-          res.on("end", () => {
+          res.on('end', () => {
             console.log(
               `  Graceful shutdown requested on port ${port} (status: ${res.statusCode})`,
             );
             resolve(data);
           });
-          res.on("error", () => resolve(data)); // レスポンスエラーは無視
+          res.on('error', () => resolve(data)); // レスポンスエラーは無視
         },
       );
-      req.on("error", reject);
-      req.on("timeout", () => {
+      req.on('error', reject);
+      req.on('timeout', () => {
         req.destroy();
-        reject(new Error("timeout"));
+        reject(new Error('timeout'));
       });
       req.end();
     });
@@ -416,7 +407,7 @@ async function ensurePortAvailable(port) {
   const listeningPids = getListeningPids(port);
   if (listeningPids.size > 0) {
     console.log(
-      `  Found LISTENING process(es) on port ${port}: PID ${[...listeningPids].join(", ")}`,
+      `  Found LISTENING process(es) on port ${port}: PID ${[...listeningPids].join(', ')}`,
     );
   }
 
@@ -446,9 +437,7 @@ async function ensurePortAvailable(port) {
         console.log(`  Port ${port} released after graceful shutdown.`);
         return port;
       } catch {
-        console.log(
-          `  Graceful shutdown did not release port in time, forcing...`,
-        );
+        console.log(`  Graceful shutdown did not release port in time, forcing...`);
       }
     } else {
       console.log(`  Graceful shutdown API not available, will force kill.`);
@@ -466,16 +455,12 @@ async function ensurePortAvailable(port) {
   }
 
   // ツリーkillで失敗した場合、直接PID kill（/T なし）を試行
-  console.log(
-    `  Tree kill failed, attempting direct PID kill on port ${port}...`,
-  );
+  console.log(`  Tree kill failed, attempting direct PID kill on port ${port}...`);
   // 少し待って netstat の状態を更新させる
   sleepSync(500);
   const pids = getListeningPids(port);
   if (pids.size === 0) {
-    console.log(
-      `  No active processes found on port ${port} (may be zombie sockets).`,
-    );
+    console.log(`  No active processes found on port ${port} (may be zombie sockets).`);
     const reportedPid = [...getProcessesOnPort(port)][0] ?? null;
     if (reportedPid !== null) captureGhostSocketDiagnostics(port, reportedPid);
   }
@@ -489,21 +474,19 @@ async function ensurePortAvailable(port) {
       continue;
     }
     try {
-      execSync(`taskkill /F /PID ${pid}`, { stdio: "pipe" });
+      execSync(`taskkill /F /PID ${pid}`, { stdio: 'pipe' });
       console.log(`  Direct-killed PID ${pid} on port ${port}`);
     } catch (err) {
-      const errMsg = err.message || err.stderr?.toString() || "";
+      const errMsg = err.message || err.stderr?.toString() || '';
       // 「見つかりません」エラーはプロセスが既に終了しているので成功とみなす
       if (
-        errMsg.includes("見つかりません") ||
-        errMsg.includes("not found") ||
-        errMsg.includes("not be found")
+        errMsg.includes('見つかりません') ||
+        errMsg.includes('not found') ||
+        errMsg.includes('not be found')
       ) {
         console.log(`  PID ${pid} already terminated.`);
       } else {
-        console.log(
-          `  Failed to kill PID ${pid}: ${errMsg || "unknown error"}`,
-        );
+        console.log(`  Failed to kill PID ${pid}: ${errMsg || 'unknown error'}`);
       }
     }
   }
@@ -525,9 +508,7 @@ async function ensurePortAvailable(port) {
       console.log(
         `  ⚠️  Port ${port} has zombie sockets (TIME_WAIT/CLOSE_WAIT) but no active listener.`,
       );
-      console.log(
-        `  → Proceeding anyway (backend uses reusePort for TIME_WAIT handling).`,
-      );
+      console.log(`  → Proceeding anyway (backend uses reusePort for TIME_WAIT handling).`);
       const reportedPid = [...getProcessesOnPort(port)][0] ?? null;
       if (reportedPid !== null) captureGhostSocketDiagnostics(port, reportedPid);
       return port;
@@ -535,7 +516,7 @@ async function ensurePortAvailable(port) {
 
     // LISTEN状態のプロセスがまだ残っている → 本当にkillできなかった
     console.log(
-      `  ⚠️  Port ${port} still has active listener(s): PID ${[...remainingPids].join(", ")}`,
+      `  ⚠️  Port ${port} still has active listener(s): PID ${[...remainingPids].join(', ')}`,
     );
     console.log(`  → Attempting one final kill with PowerShell Stop-Process...`);
 
@@ -551,14 +532,14 @@ async function ensurePortAvailable(port) {
       }
       try {
         execFileSync(
-          "powershell.exe",
+          'powershell.exe',
           [
-            "-NoProfile",
-            "-NonInteractive",
-            "-Command",
+            '-NoProfile',
+            '-NonInteractive',
+            '-Command',
             `Stop-Process -Id ${pid} -Force -ErrorAction Stop`,
           ],
-          { stdio: "pipe", timeout: 5000 },
+          { stdio: 'pipe', timeout: 5000 },
         );
         console.log(`  Killed PID ${pid} via Stop-Process.`);
       } catch {
@@ -595,17 +576,16 @@ async function ensurePortAvailable(port) {
  */
 function queryWin32Processes(filter) {
   const script = `Get-CimInstance Win32_Process -Filter "${filter}" | Select-Object ProcessId,ParentProcessId,Name,CommandLine,ExecutablePath | ConvertTo-Json -Compress`;
-  let out = "";
+  let out = '';
   try {
-    out = execFileSync(
-      "powershell.exe",
-      ["-NoProfile", "-NonInteractive", "-Command", script],
-      { encoding: "utf8", stdio: ["pipe", "pipe", "ignore"] },
-    );
+    out = execFileSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', script], {
+      encoding: 'utf8',
+      stdio: ['pipe', 'pipe', 'ignore'],
+    });
   } catch {
     return [];
   }
-  const trimmed = (out || "").trim();
+  const trimmed = (out || '').trim();
   if (!trimmed) return [];
   let parsed;
   try {
@@ -665,13 +645,13 @@ $result | ConvertTo-Json -Compress -Depth 4
 
   let snapshot = null;
   try {
-    const encoded = Buffer.from(script, "utf16le").toString("base64");
+    const encoded = Buffer.from(script, 'utf16le').toString('base64');
     const out = execFileSync(
-      "powershell.exe",
-      ["-NoProfile", "-NonInteractive", "-EncodedCommand", encoded],
-      { encoding: "utf8", stdio: ["pipe", "pipe", "ignore"], timeout: 15000 },
+      'powershell.exe',
+      ['-NoProfile', '-NonInteractive', '-EncodedCommand', encoded],
+      { encoding: 'utf8', stdio: ['pipe', 'pipe', 'ignore'], timeout: 15000 },
     );
-    snapshot = JSON.parse((out || "{}").trim() || "{}");
+    snapshot = JSON.parse((out || '{}').trim() || '{}');
   } catch (err) {
     snapshot = { captureError: err && err.message ? err.message : String(err) };
   }
@@ -745,7 +725,7 @@ function isDescendantOfAny(pid, rootPids, maxDepth = 8) {
 }
 
 function isRapitasOwnedProcess(pid) {
-  if (process.platform !== "win32") {
+  if (process.platform !== 'win32') {
     // POSIX 経路 (killStrayBunPosix 等) は ps + grep で既に rapitas スコープ
     // 済みのコマンドラインしか対象にしていないため、ここでは常に true でよい。
     return true;
@@ -764,7 +744,7 @@ function isRapitasOwnedProcess(pid) {
   // (confirmed live: retry attempt 2/2 logged "does not look rapitas-
   // related... refusing to force-kill" for the backend's own bun.exe PID).
   const knownRootPids = [backend && backend.pid, frontend && frontend.pid].filter(
-    (p) => typeof p === "number",
+    (p) => typeof p === 'number',
   );
   if (knownRootPids.length > 0 && isDescendantOfAny(pid, knownRootPids)) {
     return true;
@@ -776,10 +756,10 @@ function isRapitasOwnedProcess(pid) {
     return false;
   }
   const proc = procs[0];
-  const name = (proc.Name || "").toLowerCase();
-  const KNOWN_RAPITAS_PROCESS_NAMES = ["node.exe", "bun.exe", "llama-server.exe"];
+  const name = (proc.Name || '').toLowerCase();
+  const KNOWN_RAPITAS_PROCESS_NAMES = ['node.exe', 'bun.exe', 'llama-server.exe'];
   if (!KNOWN_RAPITAS_PROCESS_NAMES.includes(name)) return false;
-  const inspectable = `${proc.CommandLine || ""} ${proc.ExecutablePath || ""}`;
+  const inspectable = `${proc.CommandLine || ''} ${proc.ExecutablePath || ''}`;
   return /rapitas[-_/\\]/i.test(inspectable);
 }
 
@@ -795,11 +775,11 @@ function killProcessTree(childProcess) {
 
   // Step 1: ツリーkillで一括停止
   try {
-    execSync(`taskkill /F /T /PID ${pid}`, { stdio: "pipe" });
+    execSync(`taskkill /F /T /PID ${pid}`, { stdio: 'pipe' });
   } catch {
     // ツリーkill失敗時は直接killを試行
     try {
-      childProcess.kill("SIGKILL");
+      childProcess.kill('SIGKILL');
     } catch {}
   }
 
@@ -809,7 +789,7 @@ function killProcessTree(childProcess) {
     const childPid = Number(proc.ProcessId);
     if (!Number.isInteger(childPid)) continue;
     try {
-      execSync(`taskkill /F /T /PID ${childPid}`, { stdio: "pipe" });
+      execSync(`taskkill /F /T /PID ${childPid}`, { stdio: 'pipe' });
       console.log(`  Killed child process PID ${childPid} (parent: ${pid})`);
     } catch {}
   }
@@ -831,9 +811,7 @@ function forceKillAllOnPort(port, maxRetries = 5) {
     const pids = getListeningPids(port);
     if (pids.size === 0) {
       // netstatでは見えるがプロセスは存在しない = ゾンビソケット
-      console.log(
-        `  Port ${port} shows in netstat but no active process (zombie socket).`,
-      );
+      console.log(`  Port ${port} shows in netstat but no active process (zombie socket).`);
       const reportedPid = [...getProcessesOnPort(port)][0] ?? null;
       if (reportedPid !== null) captureGhostSocketDiagnostics(port, reportedPid);
       return true;
@@ -853,18 +831,16 @@ function forceKillAllOnPort(port, maxRetries = 5) {
         continue;
       }
       try {
-        execSync(`taskkill /F /T /PID ${pid}`, { stdio: "pipe" });
-        console.log(
-          `  Killed PID ${pid} on port ${port} (attempt ${attempt + 1})`,
-        );
+        execSync(`taskkill /F /T /PID ${pid}`, { stdio: 'pipe' });
+        console.log(`  Killed PID ${pid} on port ${port} (attempt ${attempt + 1})`);
         killedAny = true;
       } catch (err) {
-        const errMsg = err.message || err.stderr?.toString() || "";
+        const errMsg = err.message || err.stderr?.toString() || '';
         // 「見つかりません」は成功とみなす
         if (
-          errMsg.includes("見つかりません") ||
-          errMsg.includes("not found") ||
-          errMsg.includes("not be found")
+          errMsg.includes('見つかりません') ||
+          errMsg.includes('not found') ||
+          errMsg.includes('not be found')
         ) {
           console.log(`  PID ${pid} already terminated.`);
         }
@@ -908,7 +884,7 @@ function waitForProcessExit(childProcess, timeoutMs = 15000) {
     const timer = setTimeout(() => {
       resolve(false);
     }, timeoutMs);
-    childProcess.on("exit", () => {
+    childProcess.on('exit', () => {
       clearTimeout(timer);
       resolve(true);
     });
@@ -918,26 +894,30 @@ function waitForProcessExit(childProcess, timeoutMs = 15000) {
 // ─── メイン処理 ───
 
 const args = process.argv.slice(2);
-const useWatch = args.includes("--watch");
+const useWatch = args.includes('--watch');
 // --stop implies --force (an explicit stop-only invocation is unambiguous
 // intent — no reason to also require --force alongside it).
-const stopOnly = args.includes("--stop");
-const forceStop = args.includes("--force") || stopOnly;
+const stopOnly = args.includes('--stop');
+const forceStop = args.includes('--force') || stopOnly;
 
-const FRONTEND_DIR = path.resolve(__dirname, "../../rapitas-frontend");
-const BACKEND_DIR = path.resolve(__dirname, "../../rapitas-backend");
+const FRONTEND_DIR = path.resolve(__dirname, '../../rapitas-frontend');
+const BACKEND_DIR = path.resolve(__dirname, '../../rapitas-backend');
 // Repo root (the PRIMARY git checkout). The dev backend runs whatever branch
 // this is on — see ensurePrimaryBranch().
-const REPO_ROOT = path.resolve(__dirname, "../..");
-const DESKTOP_DATA_DIR = path.resolve(__dirname, "..", ".data");
-const DESKTOP_DB_PATH = path.join(DESKTOP_DATA_DIR, "rapitas-dev.db");
-const BINARIES_DIR = path.resolve(__dirname, "../src-tauri/binaries");
-const AGENT_PID_DIR = path.join(BACKEND_DIR, ".agent-pids");
+const REPO_ROOT = path.resolve(__dirname, '../..');
+const DESKTOP_DATA_DIR = path.resolve(__dirname, '..', '.data');
+const DESKTOP_DB_PATH = path.join(DESKTOP_DATA_DIR, 'rapitas-dev.db');
+const BINARIES_DIR = path.resolve(__dirname, '../src-tauri/binaries');
+const AGENT_PID_DIR = path.join(BACKEND_DIR, '.agent-pids');
 // One JSON line per confirmed "ghost socket" incident (a LISTEN entry with no
 // living owning process) — captured for later root-cause investigation,
 // since the live process is already gone by the time a human looks at it.
 // See captureGhostSocketDiagnostics().
-const GHOST_SOCKET_LOG_FILE = path.join(DESKTOP_DATA_DIR, "logs", "ghost-socket-diagnostics.ndjson");
+const GHOST_SOCKET_LOG_FILE = path.join(
+  DESKTOP_DATA_DIR,
+  'logs',
+  'ghost-socket-diagnostics.ndjson',
+);
 // Persists the backend shell-wrapper PID (spawn uses shell:true, so this is
 // cmd.exe's PID, not bun.exe's — killProcessTree already tree-kills through
 // that layer) across dev.js invocations. Lets the NEXT startup find and
@@ -945,7 +925,7 @@ const GHOST_SOCKET_LOG_FILE = path.join(DESKTOP_DATA_DIR, "logs", "ghost-socket-
 // running its shutdown handlers (terminal closed, crash, Task Manager kill),
 // instead of relying purely on port/netstat heuristics that can't tell a
 // live backend apart from a truly ownerless ghost socket.
-const BACKEND_PID_FILE = path.join(DESKTOP_DATA_DIR, "backend.pid");
+const BACKEND_PID_FILE = path.join(DESKTOP_DATA_DIR, 'backend.pid');
 // Same idea for the frontend (pnpm → node → Next.js/Turbopack tree). Without
 // this, a frontend left running by a previous dev.js that didn't go through
 // its shutdown handlers is only found if it's still LISTENING on port 3000 —
@@ -954,7 +934,7 @@ const BACKEND_PID_FILE = path.join(DESKTOP_DATA_DIR, "backend.pid");
 // silently survived every restart, piling up and fighting the new frontend
 // over the same `.next` build cache (the exact class of hang already known
 // from preview-session-manager.ts's abandoned `next dev` processes).
-const FRONTEND_PID_FILE = path.join(DESKTOP_DATA_DIR, "frontend.pid");
+const FRONTEND_PID_FILE = path.join(DESKTOP_DATA_DIR, 'frontend.pid');
 
 /**
  * 残留 bun プロセスを安全に kill する。
@@ -972,9 +952,8 @@ const FRONTEND_PID_FILE = path.join(DESKTOP_DATA_DIR, "frontend.pid");
  * @returns 強制終了したプロセス数
  */
 function killStrayBunProcesses() {
-  console.log("\nKilling stray bun processes (rapitas-scoped)...");
-  const killed =
-    process.platform === "win32" ? killStrayBunWindows() : killStrayBunPosix();
+  console.log('\nKilling stray bun processes (rapitas-scoped)...');
+  const killed = process.platform === 'win32' ? killStrayBunWindows() : killStrayBunPosix();
   if (killed > 0) {
     // OS がファイルロックを解放するまで少し待つ。これがないと直後の
     // prisma generate で EPERM が発生する。
@@ -997,55 +976,53 @@ function killStrayBunWindows() {
     if (!Number.isInteger(pid)) continue;
     // rapitas-backend / rapitas-desktop / rapitas-frontend いずれかを含むもののみ対象。
     // CommandLine が取れない場合は ExecutablePath で代替判定する。
-    const inspectable = `${proc.CommandLine || ""} ${proc.ExecutablePath || ""}`;
+    const inspectable = `${proc.CommandLine || ''} ${proc.ExecutablePath || ''}`;
     if (!/rapitas[-_/\\]/i.test(inspectable)) continue;
     try {
-      execSync(`taskkill /F /T /PID ${pid}`, { stdio: "pipe" });
+      execSync(`taskkill /F /T /PID ${pid}`, { stdio: 'pipe' });
       console.log(`  Killed bun PID ${pid} (rapitas-related)`);
       killed++;
     } catch (err) {
       // 既に死んでいるケース等は無視
-      const msg = err.stderr ? err.stderr.toString() : err.message || "";
+      const msg = err.stderr ? err.stderr.toString() : err.message || '';
       if (!/not found|見つかりません/i.test(msg)) {
         console.warn(`  Failed to kill PID ${pid}: ${msg.trim()}`);
       }
     }
   }
-  if (killed === 0) console.log("  No stray bun processes found.");
+  if (killed === 0) console.log('  No stray bun processes found.');
   return killed;
 }
 
 function killStrayBunPosix() {
-  let stdout = "";
+  let stdout = '';
   try {
-    stdout = execSync("ps -eo pid,args", {
-      encoding: "utf8",
-      stdio: ["pipe", "pipe", "ignore"],
+    stdout = execSync('ps -eo pid,args', {
+      encoding: 'utf8',
+      stdio: ['pipe', 'pipe', 'ignore'],
     });
   } catch (err) {
     console.warn(`  Could not list processes: ${err.message}`);
     return 0;
   }
-  const targets = stdout
-    .split("\n")
-    .filter((l) => /\bbun\b/.test(l) && /rapitas[-_/\\]/i.test(l));
+  const targets = stdout.split('\n').filter((l) => /\bbun\b/.test(l) && /rapitas[-_/\\]/i.test(l));
   let killed = 0;
   for (const line of targets) {
     const m = line.trim().match(/^(\d+)\s+/);
     if (!m) continue;
     const pid = parseInt(m[1], 10);
     try {
-      process.kill(pid, "SIGKILL");
+      process.kill(pid, 'SIGKILL');
       console.log(`  Killed bun PID ${pid} (rapitas-related)`);
       killed++;
     } catch (err) {
       // ESRCH = already dead
-      if (err.code !== "ESRCH") {
+      if (err.code !== 'ESRCH') {
         console.warn(`  Failed to kill PID ${pid}: ${err.message}`);
       }
     }
   }
-  if (killed === 0) console.log("  No stray bun processes found.");
+  if (killed === 0) console.log('  No stray bun processes found.');
   return killed;
 }
 
@@ -1068,12 +1045,12 @@ function killStrayBunPosix() {
  * @returns 強制終了したプロセス数
  */
 function killStrayPlaywrightWorkers() {
-  console.log("\nKilling stray playwright-worker processes...");
+  console.log('\nKilling stray playwright-worker processes...');
   const killed =
-    process.platform === "win32"
+    process.platform === 'win32'
       ? killStrayPlaywrightWorkersWindows()
       : killStrayPlaywrightWorkersPosix();
-  if (killed === 0) console.log("  No stray playwright-worker processes found.");
+  if (killed === 0) console.log('  No stray playwright-worker processes found.');
   return killed;
 }
 
@@ -1083,14 +1060,14 @@ function killStrayPlaywrightWorkersWindows() {
   for (const proc of procs) {
     const pid = Number(proc.ProcessId);
     if (!Number.isInteger(pid)) continue;
-    const inspectable = `${proc.CommandLine || ""} ${proc.ExecutablePath || ""}`;
+    const inspectable = `${proc.CommandLine || ''} ${proc.ExecutablePath || ''}`;
     if (!/playwright-worker\.mjs/i.test(inspectable)) continue;
     try {
-      execSync(`taskkill /F /T /PID ${pid}`, { stdio: "pipe" });
+      execSync(`taskkill /F /T /PID ${pid}`, { stdio: 'pipe' });
       console.log(`  Killed playwright-worker PID ${pid}`);
       killed++;
     } catch (err) {
-      const msg = err.stderr ? err.stderr.toString() : err.message || "";
+      const msg = err.stderr ? err.stderr.toString() : err.message || '';
       if (!/not found|見つかりません/i.test(msg)) {
         console.warn(`  Failed to kill PID ${pid}: ${msg.trim()}`);
       }
@@ -1100,28 +1077,28 @@ function killStrayPlaywrightWorkersWindows() {
 }
 
 function killStrayPlaywrightWorkersPosix() {
-  let stdout = "";
+  let stdout = '';
   try {
-    stdout = execSync("ps -eo pid,args", {
-      encoding: "utf8",
-      stdio: ["pipe", "pipe", "ignore"],
+    stdout = execSync('ps -eo pid,args', {
+      encoding: 'utf8',
+      stdio: ['pipe', 'pipe', 'ignore'],
     });
   } catch (err) {
     console.warn(`  Could not list processes: ${err.message}`);
     return 0;
   }
-  const targets = stdout.split("\n").filter((l) => /playwright-worker\.mjs/i.test(l));
+  const targets = stdout.split('\n').filter((l) => /playwright-worker\.mjs/i.test(l));
   let killed = 0;
   for (const line of targets) {
     const m = line.trim().match(/^(\d+)\s+/);
     if (!m) continue;
     const pid = parseInt(m[1], 10);
     try {
-      process.kill(pid, "SIGKILL");
+      process.kill(pid, 'SIGKILL');
       console.log(`  Killed playwright-worker PID ${pid}`);
       killed++;
     } catch (err) {
-      if (err.code !== "ESRCH") {
+      if (err.code !== 'ESRCH') {
         console.warn(`  Failed to kill PID ${pid}: ${err.message}`);
       }
     }
@@ -1159,24 +1136,26 @@ function killStrayPlaywrightWorkersPosix() {
  * @returns 強制終了したプロセス数
  */
 function killStrayBackendHelpers() {
-  console.log("\nKilling stray backend helper processes (whisper / orphaned browsers / worktree chains)...");
+  console.log(
+    '\nKilling stray backend helper processes (whisper / orphaned browsers / worktree chains)...',
+  );
   const killed =
-    process.platform === "win32"
+    process.platform === 'win32'
       ? killStrayBackendHelpersWindows()
       : killStrayBackendHelpersPosix();
-  if (killed === 0) console.log("  No stray backend helper processes found.");
+  if (killed === 0) console.log('  No stray backend helper processes found.');
   return killed;
 }
 
 function killStrayBackendHelpersWindows() {
   // 1回のスナップショットを対象抽出と親生死判定の両方に使う。
-  const all = queryWin32Processes("ProcessId > 4");
+  const all = queryWin32Processes('ProcessId > 4');
   const alivePids = new Set(all.map((p) => Number(p.ProcessId)));
   let killed = 0;
   for (const proc of all) {
     const pid = Number(proc.ProcessId);
     if (!Number.isInteger(pid) || pid === process.pid) continue;
-    const cmd = `${proc.CommandLine || ""} ${proc.ExecutablePath || ""}`;
+    const cmd = `${proc.CommandLine || ''} ${proc.ExecutablePath || ''}`;
     const parentDead = !alivePids.has(Number(proc.ParentProcessId));
     const isWhisper = /whisper-daemon\.mjs/i.test(cmd);
     const isOrphanPlaywrightBrowser = /ms-playwright/i.test(cmd) && parentDead;
@@ -1191,18 +1170,18 @@ function killStrayBackendHelpersWindows() {
     if (!isWhisper && !isOrphanPlaywrightBrowser && !isOrphanWorktreeHelper && !isOrphanCliAgent)
       continue;
     const label = isWhisper
-      ? "whisper-daemon"
+      ? 'whisper-daemon'
       : isOrphanPlaywrightBrowser
-        ? "orphaned playwright browser"
+        ? 'orphaned playwright browser'
         : isOrphanWorktreeHelper
-          ? "orphaned worktree helper"
-          : "orphaned CLI agent";
+          ? 'orphaned worktree helper'
+          : 'orphaned CLI agent';
     try {
-      execSync(`taskkill /F /T /PID ${pid}`, { stdio: "pipe" });
+      execSync(`taskkill /F /T /PID ${pid}`, { stdio: 'pipe' });
       console.log(`  Killed ${label} PID ${pid}`);
       killed++;
     } catch (err) {
-      const msg = err.stderr ? err.stderr.toString() : err.message || "";
+      const msg = err.stderr ? err.stderr.toString() : err.message || '';
       // 既に(先行のツリーkillで)死んでいるケースは正常。
       if (!/not found|見つかりません/i.test(msg)) {
         console.warn(`  Failed to kill ${label} PID ${pid}: ${msg.trim()}`);
@@ -1213,18 +1192,18 @@ function killStrayBackendHelpersWindows() {
 }
 
 function killStrayBackendHelpersPosix() {
-  let stdout = "";
+  let stdout = '';
   try {
-    stdout = execSync("ps -eo pid,ppid,args", {
-      encoding: "utf8",
-      stdio: ["pipe", "pipe", "ignore"],
+    stdout = execSync('ps -eo pid,ppid,args', {
+      encoding: 'utf8',
+      stdio: ['pipe', 'pipe', 'ignore'],
     });
   } catch (err) {
     console.warn(`  Could not list processes: ${err.message}`);
     return 0;
   }
   const rows = stdout
-    .split("\n")
+    .split('\n')
     .slice(1)
     .map((l) => l.trim().match(/^(\d+)\s+(\d+)\s+(.*)$/))
     .filter(Boolean)
@@ -1246,11 +1225,11 @@ function killStrayBackendHelpersPosix() {
     if (!isWhisper && !isOrphanPlaywrightBrowser && !isOrphanWorktreeHelper && !isOrphanCliAgent)
       continue;
     try {
-      process.kill(r.pid, "SIGKILL");
+      process.kill(r.pid, 'SIGKILL');
       console.log(`  Killed stray backend helper PID ${r.pid}`);
       killed++;
     } catch (err) {
-      if (err.code !== "ESRCH") {
+      if (err.code !== 'ESRCH') {
         console.warn(`  Failed to kill PID ${r.pid}: ${err.message}`);
       }
     }
@@ -1265,7 +1244,7 @@ function killStrayBackendHelpersPosix() {
 function cleanupAgentPidFiles() {
   if (!fs.existsSync(AGENT_PID_DIR)) return;
 
-  const files = fs.readdirSync(AGENT_PID_DIR).filter((f) => f.endsWith(".pid"));
+  const files = fs.readdirSync(AGENT_PID_DIR).filter((f) => f.endsWith('.pid'));
   if (files.length === 0) return;
 
   console.log(`  Found ${files.length} agent PID file(s), cleaning up...`);
@@ -1273,7 +1252,7 @@ function cleanupAgentPidFiles() {
   for (const file of files) {
     const filepath = path.join(AGENT_PID_DIR, file);
     try {
-      const content = fs.readFileSync(filepath, "utf-8");
+      const content = fs.readFileSync(filepath, 'utf-8');
       const info = JSON.parse(content);
       const pid = info.pid;
 
@@ -1281,7 +1260,7 @@ function cleanupAgentPidFiles() {
       let alive = false;
       try {
         const result = execSync(`tasklist /FI "PID eq ${pid}" /NH`, {
-          stdio: "pipe",
+          stdio: 'pipe',
           timeout: 5000,
         }).toString();
         alive = result.includes(String(pid));
@@ -1293,10 +1272,10 @@ function cleanupAgentPidFiles() {
         // ポート3001のLISTENプロセスでないことを確認してからkill
         let isBackend = false;
         try {
-          const netResult = execSync(
-            `netstat -aon | findstr ":3001 " | findstr "LISTEN"`,
-            { stdio: "pipe", timeout: 5000 }
-          ).toString();
+          const netResult = execSync(`netstat -aon | findstr ":3001 " | findstr "LISTEN"`, {
+            stdio: 'pipe',
+            timeout: 5000,
+          }).toString();
           isBackend = netResult.includes(String(pid));
         } catch {
           // netstat失敗 → 安全側に倒してskip しない
@@ -1306,11 +1285,11 @@ function cleanupAgentPidFiles() {
           console.log(`  Skipping PID ${pid} (listening on port 3001)`);
         } else {
           try {
-            execSync(`taskkill /F /T /PID ${pid}`, { stdio: "pipe", timeout: 5000 });
+            execSync(`taskkill /F /T /PID ${pid}`, { stdio: 'pipe', timeout: 5000 });
             console.log(`  Killed zombie agent process PID ${pid} (${info.role})`);
           } catch (killErr) {
-            const msg = killErr.message || "";
-            if (msg.includes("not found") || msg.includes("見つかりません")) {
+            const msg = killErr.message || '';
+            if (msg.includes('not found') || msg.includes('見つかりません')) {
               console.log(`  PID ${pid} already terminated.`);
             } else {
               console.log(`  Failed to kill PID ${pid}: ${msg}`);
@@ -1324,7 +1303,9 @@ function cleanupAgentPidFiles() {
     } catch (err) {
       // 不正なPIDファイルは削除
       console.log(`  Removing invalid PID file: ${file}`);
-      try { fs.unlinkSync(filepath); } catch {}
+      try {
+        fs.unlinkSync(filepath);
+      } catch {}
     }
   }
 }
@@ -1365,7 +1346,7 @@ function cleanupPreviousBackendPidFile() {
   if (!fs.existsSync(BACKEND_PID_FILE)) return;
   let info;
   try {
-    info = JSON.parse(fs.readFileSync(BACKEND_PID_FILE, "utf-8"));
+    info = JSON.parse(fs.readFileSync(BACKEND_PID_FILE, 'utf-8'));
   } catch {
     removeBackendPidFile();
     return;
@@ -1377,7 +1358,7 @@ function cleanupPreviousBackendPidFile() {
         `Found backend PID file from a previous run (PID ${pid}, still running) — cleaning up...`,
       );
       try {
-        execSync(`taskkill /F /T /PID ${pid}`, { stdio: "pipe" });
+        execSync(`taskkill /F /T /PID ${pid}`, { stdio: 'pipe' });
         log.info(`Killed leftover backend PID ${pid}`);
         sleepSync(1000);
       } catch {}
@@ -1427,7 +1408,7 @@ function cleanupPreviousFrontendPidFile() {
   if (!fs.existsSync(FRONTEND_PID_FILE)) return;
   let info;
   try {
-    info = JSON.parse(fs.readFileSync(FRONTEND_PID_FILE, "utf-8"));
+    info = JSON.parse(fs.readFileSync(FRONTEND_PID_FILE, 'utf-8'));
   } catch {
     removeFrontendPidFile();
     return;
@@ -1439,7 +1420,7 @@ function cleanupPreviousFrontendPidFile() {
         `Found frontend PID file from a previous run (PID ${pid}, still running) — cleaning up...`,
       );
       try {
-        execSync(`taskkill /F /T /PID ${pid}`, { stdio: "pipe" });
+        execSync(`taskkill /F /T /PID ${pid}`, { stdio: 'pipe' });
         log.info(`Killed leftover frontend PID ${pid}`);
         sleepSync(1000);
       } catch {}
@@ -1453,49 +1434,40 @@ function cleanupPreviousFrontendPidFile() {
 }
 
 if (useWatch) {
+  console.log('Starting development servers for Tauri (SQLite) with HOT RELOAD...');
   console.log(
-    "Starting development servers for Tauri (SQLite) with HOT RELOAD...",
-  );
-  console.log(
-    "⚠️  注意: ファイル変更時にバックエンドが再起動します。AIエージェント実行中は中断される可能性があります。",
+    '⚠️  注意: ファイル変更時にバックエンドが再起動します。AIエージェント実行中は中断される可能性があります。',
   );
 } else {
+  console.log('Starting development servers for Tauri (SQLite) in STABLE mode...');
   console.log(
-    "Starting development servers for Tauri (SQLite) in STABLE mode...",
+    'ℹ️  バックエンドのホットリロードは無効です。コード変更後は手動で再起動してください。',
   );
-  console.log(
-    "ℹ️  バックエンドのホットリロードは無効です。コード変更後は手動で再起動してください。",
-  );
-  console.log(
-    "ℹ️  ホットリロードを有効にするには: node scripts/dev.js --watch",
-  );
+  console.log('ℹ️  ホットリロードを有効にするには: node scripts/dev.js --watch');
 }
 
 // 開発モード用にダミーのsidecarバイナリを作成（Tauriがパスを検証するため）
-const targetTriple = "x86_64-pc-windows-msvc";
-const dummyBinaryPath = path.join(
-  BINARIES_DIR,
-  `rapitas-backend-${targetTriple}.exe`,
-);
+const targetTriple = 'x86_64-pc-windows-msvc';
+const dummyBinaryPath = path.join(BINARIES_DIR, `rapitas-backend-${targetTriple}.exe`);
 
 if (!fs.existsSync(BINARIES_DIR)) {
   fs.mkdirSync(BINARIES_DIR, { recursive: true });
 }
 
 if (!fs.existsSync(dummyBinaryPath)) {
-  console.log("Creating dummy sidecar binary for development...");
-  fs.writeFileSync(dummyBinaryPath, "");
+  console.log('Creating dummy sidecar binary for development...');
+  fs.writeFileSync(dummyBinaryPath, '');
   console.log(`Created: ${dummyBinaryPath}`);
 }
 
 // 開発モード用にダミーの.next-tauriディレクトリを作成
-const NEXT_TAURI_DIR = path.join(FRONTEND_DIR, ".next-tauri");
+const NEXT_TAURI_DIR = path.join(FRONTEND_DIR, '.next-tauri');
 if (!fs.existsSync(NEXT_TAURI_DIR)) {
-  console.log("Creating dummy .next-tauri directory for development...");
+  console.log('Creating dummy .next-tauri directory for development...');
   fs.mkdirSync(NEXT_TAURI_DIR, { recursive: true });
   fs.writeFileSync(
-    path.join(NEXT_TAURI_DIR, "index.html"),
-    "<!-- Dummy file for Tauri dev mode -->",
+    path.join(NEXT_TAURI_DIR, 'index.html'),
+    '<!-- Dummy file for Tauri dev mode -->',
   );
   console.log(`Created: ${NEXT_TAURI_DIR}`);
 }
@@ -1513,27 +1485,31 @@ let lastRestartCompletedAt = 0;
 // (multiple seconds) and previously ran on EVERY (re)start regardless of whether
 // anything changed. We stamp the inputs that determine the output and skip the
 // whole step when they're unchanged AND the generated artifacts still exist.
-const PRISMA_PREPARE_STAMP = path.join(DESKTOP_DATA_DIR, ".prisma-prepare-stamp");
-const PRISMA_SCHEMA_SOURCE_DIR = path.join(BACKEND_DIR, "prisma", "schema");
-const SQLITE_INIT_SQL_OUTPUT = path.join(
-  BACKEND_DIR,
-  "src",
-  "generated",
-  "sqlite-init-sql.ts",
-);
+const PRISMA_PREPARE_STAMP = path.join(DESKTOP_DATA_DIR, '.prisma-prepare-stamp');
+const PRISMA_SCHEMA_SOURCE_DIR = path.join(BACKEND_DIR, 'prisma', 'schema');
+const SQLITE_INIT_SQL_OUTPUT = path.join(BACKEND_DIR, 'src', 'generated', 'sqlite-init-sql.ts');
 // The sqlite schema's custom `output` (prisma/schema.desktop/_generators.prisma)
 // — separate from the postgres schema's own `generated/prisma-postgres` folder,
 // so a concurrently-running postgres dev backend can no longer clobber this
 // desktop client (or vice versa). See prisma/schema/_generators.prisma for why.
-const PRISMA_CLIENT_OUTPUT = path.join(
+const PRISMA_CLIENT_OUTPUT = path.join(BACKEND_DIR, 'generated', 'prisma-sqlite', 'index.js');
+// The POSTGRES client. Desktop dev never queries postgres, but this client is
+// what `tsc` types `config/database.ts` against — and the pre-push hook runs
+// tsc. Generating only the sqlite client left the postgres one stale the moment
+// a model was added, which made the typecheck fail and blocked EVERY push from
+// this checkout with no way to recover: dev startup did not regenerate it, so
+// restarting could not clear it either. Measured 2026-08-24: 16 standing type
+// errors and 15 unpushed commits. `prisma generate` reads the schema only and
+// needs no live database, so generating it here costs nothing but time.
+const PRISMA_POSTGRES_CLIENT_OUTPUT = path.join(
   BACKEND_DIR,
-  "generated",
-  "prisma-sqlite",
-  "index.js",
+  'generated',
+  'prisma-postgres',
+  'index.js',
 );
 
 /**
- * Hash every input that affects the generated SQLite Prisma client / init SQL.
+ * Hash every input that affects the generated Prisma clients / init SQL.
  * A change in any of these must force a regenerate, so all are folded in:
  * the source schema files, the scripts that transform them, and the Prisma
  * version (generated client format can change across versions).
@@ -1541,32 +1517,27 @@ const PRISMA_CLIENT_OUTPUT = path.join(
  */
 function computePrismaPrepareHash() {
   try {
-    const hash = crypto.createHash("sha256");
+    const hash = crypto.createHash('sha256');
     // Source Prisma schema files (prismaSchemaFolder layout under prisma/schema/).
     const schemaFiles = fs
       .readdirSync(PRISMA_SCHEMA_SOURCE_DIR)
-      .filter((f) => f.endsWith(".prisma"))
+      .filter((f) => f.endsWith('.prisma'))
       .sort();
     for (const file of schemaFiles) {
       hash.update(file);
       hash.update(fs.readFileSync(path.join(PRISMA_SCHEMA_SOURCE_DIR, file)));
     }
     // The transform scripts themselves — their logic affects the output.
-    for (const script of [
-      "generate-sqlite-prisma-schema.cjs",
-      "generate-sqlite-init-sql.cjs",
-    ]) {
-      hash.update(fs.readFileSync(path.join(BACKEND_DIR, "scripts", script)));
+    for (const script of ['generate-sqlite-prisma-schema.cjs', 'generate-sqlite-init-sql.cjs']) {
+      hash.update(fs.readFileSync(path.join(BACKEND_DIR, 'scripts', script)));
     }
-    const pkg = JSON.parse(
-      fs.readFileSync(path.join(BACKEND_DIR, "package.json"), "utf8"),
-    );
-    hash.update(String(pkg.devDependencies?.prisma || ""));
-    hash.update(String(pkg.dependencies?.["@prisma/client"] || ""));
-    return hash.digest("hex");
+    const pkg = JSON.parse(fs.readFileSync(path.join(BACKEND_DIR, 'package.json'), 'utf8'));
+    hash.update(String(pkg.devDependencies?.prisma || ''));
+    hash.update(String(pkg.dependencies?.['@prisma/client'] || ''));
+    return hash.digest('hex');
   } catch {
     // Can't read inputs → return "" so the cache is treated as invalid.
-    return "";
+    return '';
   }
 }
 
@@ -1591,10 +1562,11 @@ function isPrismaPrepareCacheValid(currentHash) {
   if (!currentHash) return false;
   if (!fs.existsSync(PRISMA_PREPARE_STAMP)) return false;
   try {
-    if (fs.readFileSync(PRISMA_PREPARE_STAMP, "utf8").trim() !== currentHash) {
+    if (fs.readFileSync(PRISMA_PREPARE_STAMP, 'utf8').trim() !== currentHash) {
       return false;
     }
     if (!fs.existsSync(PRISMA_CLIENT_OUTPUT)) return false;
+    if (!fs.existsSync(PRISMA_POSTGRES_CLIENT_OUTPUT)) return false;
     if (fs.statSync(SQLITE_INIT_SQL_OUTPUT).size === 0) return false;
   } catch {
     return false;
@@ -1606,32 +1578,41 @@ function isPrismaPrepareCacheValid(currentHash) {
  * Desktop dev 用 SQLite Prisma Client と初期化SQLを生成
  */
 function syncDatabaseAndGenerateClient() {
-  console.log("\nPreparing desktop SQLite database...");
+  console.log('\nPreparing desktop SQLite database...');
   try {
     fs.mkdirSync(DESKTOP_DATA_DIR, { recursive: true });
   } catch (err) {
-    console.error("Failed to create desktop data directory:", err.message);
+    console.error('Failed to create desktop data directory:', err.message);
     throw err;
   }
 
   // Skip the expensive `prisma generate` when nothing that affects it changed.
   const prepareHash = computePrismaPrepareHash();
   if (isPrismaPrepareCacheValid(prepareHash)) {
-    console.log("Schema unchanged — reusing generated Prisma Client (cached).");
+    console.log('Schema unchanged — reusing generated Prisma Client (cached).');
     console.log(`Desktop SQLite database: ${DESKTOP_DB_PATH}`);
     return;
   }
 
-  console.log("Generating SQLite Prisma Client and init SQL...");
+  console.log('Generating SQLite Prisma Client and init SQL...');
   try {
-    execSync("bun run db:prepare:sqlite", {
+    execSync('bun run db:prepare:sqlite', {
       cwd: BACKEND_DIR,
-      stdio: "inherit",
+      stdio: 'inherit',
       env: {
         ...process.env,
-        RAPITAS_DB_PROVIDER: "sqlite",
+        RAPITAS_DB_PROVIDER: 'sqlite',
         DATABASE_URL: `file:${DESKTOP_DB_PATH}`,
       },
+    });
+    // Keep the postgres client in step with the schema even though desktop dev
+    // never queries it — the typecheck (and therefore the pre-push hook) reads
+    // its types. Offline: `prisma generate` only reads prisma/schema.
+    console.log('Generating PostgreSQL Prisma Client (types only)...');
+    execSync('bun run db:generate', {
+      cwd: BACKEND_DIR,
+      stdio: 'inherit',
+      env: { ...process.env },
     });
     // Record inputs only after a successful generate so a failed run never
     // leaves a stamp that would wrongly skip the next attempt.
@@ -1644,7 +1625,7 @@ function syncDatabaseAndGenerateClient() {
     }
     console.log(`Desktop SQLite database: ${DESKTOP_DB_PATH}`);
   } catch (err) {
-    console.error("Failed to prepare SQLite Prisma Client:", err.message);
+    console.error('Failed to prepare SQLite Prisma Client:', err.message);
     throw err;
   }
 }
@@ -1669,25 +1650,21 @@ let crashTimestamps = [];
  */
 function startBackend(retryCount = 0) {
   // Always use dev:stable (no bun --watch) to ensure graceful shutdown handlers run
-  const backendScript = "dev:stable";
+  const backendScript = 'dev:stable';
   if (retryCount === 0) {
-    console.log(
-      `\nBackend mode: dev:stable ${useWatch ? "(fs.watch hot reload)" : "(stable)"}`,
-    );
+    console.log(`\nBackend mode: dev:stable ${useWatch ? '(fs.watch hot reload)' : '(stable)'}`);
   } else {
-    console.log(
-      `\n🔄 Crash recovery attempt ${retryCount}/${MAX_CRASH_RETRIES}...`,
-    );
+    console.log(`\n🔄 Crash recovery attempt ${retryCount}/${MAX_CRASH_RETRIES}...`);
   }
 
-  backend = spawn("bun", ["run", backendScript], {
+  backend = spawn('bun', ['run', backendScript], {
     cwd: BACKEND_DIR,
-    stdio: "inherit",
+    stdio: 'inherit',
     shell: true,
     env: {
       ...process.env,
-      TAURI_BUILD: "true",
-      RAPITAS_DB_PROVIDER: "sqlite",
+      TAURI_BUILD: 'true',
+      RAPITAS_DB_PROVIDER: 'sqlite',
       DATABASE_URL: `file:${DESKTOP_DB_PATH}`,
       RAPITAS_DATA_DIR: DESKTOP_DATA_DIR,
       PORT: String(actualBackendPort),
@@ -1698,10 +1675,10 @@ function startBackend(retryCount = 0) {
     writeBackendPidFile(backend.pid);
   }
 
-  backend.on("error", (err) => console.error("Backend error:", err));
+  backend.on('error', (err) => console.error('Backend error:', err));
 
   // 再起動要求の終了コードとクラッシュリカバリを監視
-  backend.on("exit", (code) => {
+  backend.on('exit', (code) => {
     if (isCleaningUp) return; // cleanup中の終了は無視
     if (code === RESTART_EXIT_CODE) {
       console.log(
@@ -1709,7 +1686,7 @@ function startBackend(retryCount = 0) {
       );
       // プロセスは既に終了済みなのでシャットダウンAPIの呼び出しをスキップ
       restartBackend(true).catch((err) => {
-        console.error("❌ Backend restart failed:", err);
+        console.error('❌ Backend restart failed:', err);
       });
       return;
     }
@@ -1718,9 +1695,7 @@ function startBackend(retryCount = 0) {
     if (BUN_CRASH_EXIT_CODES.includes(code)) {
       const now = Date.now();
       // 古いクラッシュタイムスタンプを除去
-      crashTimestamps = crashTimestamps.filter(
-        (t) => now - t < CRASH_WINDOW_MS,
-      );
+      crashTimestamps = crashTimestamps.filter((t) => now - t < CRASH_WINDOW_MS);
       crashTimestamps.push(now);
 
       const crashKind =
@@ -1751,9 +1726,7 @@ function startBackend(retryCount = 0) {
         console.error(
           `\n❌ Bun crashed ${crashTimestamps.length} times in ${CRASH_WINDOW_MS / 1000}s. Stopping auto-recovery.`,
         );
-        console.error(
-          `  This is a known Bun runtime bug. Try upgrading Bun: bun upgrade`,
-        );
+        console.error(`  This is a known Bun runtime bug. Try upgrading Bun: bun upgrade`);
       }
     }
   });
@@ -1767,65 +1740,61 @@ async function stopBackendCompletely(skipShutdownApi = false) {
   const isRunning = backend && !backend.killed && backend.exitCode === null;
 
   if (!skipShutdownApi && isRunning) {
-    console.log("  Requesting graceful shutdown of backend...");
+    console.log('  Requesting graceful shutdown of backend...');
 
     // HTTPでシャットダウンAPIを呼び出す
     try {
-      const http = require("http");
+      const http = require('http');
       await new Promise((resolve, reject) => {
         const req = http.request(
           {
-            hostname: "127.0.0.1",
+            hostname: '127.0.0.1',
             port: actualBackendPort,
-            path: "/agents/shutdown",
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
+            path: '/agents/shutdown',
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
             timeout: 5000,
           },
           (res) => {
-            let data = "";
-            res.on("data", (chunk) => {
+            let data = '';
+            res.on('data', (chunk) => {
               data += chunk;
             });
-            res.on("end", () => {
+            res.on('end', () => {
               console.log(`  Shutdown API response: ${res.statusCode}`);
               resolve(data);
             });
-            res.on("error", () => resolve(data)); // レスポンスエラーは無視
+            res.on('error', () => resolve(data)); // レスポンスエラーは無視
           },
         );
-        req.on("error", (err) => {
-          if (err.code === "ECONNRESET") {
+        req.on('error', (err) => {
+          if (err.code === 'ECONNRESET') {
             // ECONNRESET = バックエンドがシャットダウンリクエストを受信し、
             // ソケットを閉じた可能性が高い。成功とみなしてプロセス終了を待つ。
-            console.log(
-              "  Shutdown request sent (connection reset - backend is shutting down)",
-            );
-            resolve("ECONNRESET");
+            console.log('  Shutdown request sent (connection reset - backend is shutting down)');
+            resolve('ECONNRESET');
           } else {
-            console.log(
-              `  Shutdown API unavailable (${err.code || err.message}), will force stop`,
-            );
+            console.log(`  Shutdown API unavailable (${err.code || err.message}), will force stop`);
             reject(err);
           }
         });
-        req.on("timeout", () => {
+        req.on('timeout', () => {
           req.destroy();
-          reject(new Error("timeout"));
+          reject(new Error('timeout'));
         });
         req.end();
       });
 
       // プロセスの終了を待機（最大20秒 - グレースフルシャットダウンには時間がかかる）
-      console.log("  Waiting for backend process to exit...");
+      console.log('  Waiting for backend process to exit...');
       const exited = await waitForProcessExit(backend, 20000);
       if (!exited) {
-        console.log("  Backend did not exit in time, forcing stop...");
+        console.log('  Backend did not exit in time, forcing stop...');
         killProcessTree(backend);
         // 強制終了後、ソケットクリーンアップのために追加待機
         sleepSync(1500);
       } else {
-        console.log("  Backend stopped gracefully.");
+        console.log('  Backend stopped gracefully.');
         // グレースフルシャットダウン後もソケットクリーンアップのために少し待機
         sleepSync(500);
       }
@@ -1833,11 +1802,11 @@ async function stopBackendCompletely(skipShutdownApi = false) {
       // シャットダウンAPIが応答しない場合はフォールバック: 強制終了
       if (isRunning) {
         killProcessTree(backend);
-        console.log("  Backend force-stopped.");
+        console.log('  Backend force-stopped.');
       }
     }
   } else if (!isRunning) {
-    console.log("  Backend process already exited.");
+    console.log('  Backend process already exited.');
   }
 
   // ポートが完全に解放されるまで待機
@@ -1845,16 +1814,12 @@ async function stopBackendCompletely(skipShutdownApi = false) {
     await waitForPortRelease(actualBackendPort, 20000);
     console.log(`  Port ${actualBackendPort} released successfully.`);
   } catch {
-    console.log(
-      `  Port ${actualBackendPort} not yet released, forcing cleanup...`,
-    );
+    console.log(`  Port ${actualBackendPort} not yet released, forcing cleanup...`);
     const released = forceKillAllOnPort(actualBackendPort);
     if (released) {
       console.log(`  Port ${actualBackendPort} released after force cleanup.`);
     } else {
-      console.log(
-        `  Port ${actualBackendPort} still not released (will auto-clear).`,
-      );
+      console.log(`  Port ${actualBackendPort} still not released (will auto-clear).`);
     }
   }
 
@@ -1889,38 +1854,36 @@ async function stopBackendCompletely(skipShutdownApi = false) {
  * @param {boolean} processAlreadyExited - trueの場合、プロセスが既に終了済み（シャットダウンAPIスキップ）
  */
 async function restartBackend(processAlreadyExited = false) {
-  console.log("\n🔄 Restarting backend server...");
-  console.log("  Step 1/4: Stopping backend completely...");
+  console.log('\n🔄 Restarting backend server...');
+  console.log('  Step 1/4: Stopping backend completely...');
   await stopBackendCompletely(processAlreadyExited);
 
-  console.log("  Step 2/4: Cleaning up stray processes...");
+  console.log('  Step 2/4: Cleaning up stray processes...');
   killStrayBunProcesses();
   killStrayPlaywrightWorkers();
   killStrayBackendHelpers();
 
-  console.log("  Step 3/4: Syncing database and generating Prisma Client...");
+  console.log('  Step 3/4: Syncing database and generating Prisma Client...');
   try {
     syncDatabaseAndGenerateClient();
   } catch (err) {
-    console.error("❌ Failed to sync database during restart:", err.message);
-    console.log("  Attempting to start backend without DB sync...");
+    console.error('❌ Failed to sync database during restart:', err.message);
+    console.log('  Attempting to start backend without DB sync...');
   }
 
-  console.log("  Step 4/4: Starting backend...");
+  console.log('  Step 4/4: Starting backend...');
   crashTimestamps = []; // フルリスタート時はクラッシュカウンターをリセット
   startBackend();
-  console.log("✅ Backend restart completed.");
+  console.log('✅ Backend restart completed.');
 
   // バックエンド再起動はユーザーが「コード変更を反映したい」タイミング。
   // フロントは長寿命プロセスで .next キャッシュだけが git HEAD から乖離していく
   // (2026-08-05 の CPU スピンはこれ: 再起動ボタンでは backend しか再起動されず
   // stale cache が生き残った)。乖離を検知したらフロントも道連れでリサイクルする。
   if (frontendNextCacheIsStale()) {
-    console.log(
-      "🔄 git HEAD drifted from the frontend's .next build — recycling frontend too...",
-    );
-    restartFrontend("next-cache-drift-after-backend-restart").catch((err) =>
-      console.error("❌ Frontend recycle failed:", err.message || err),
+    console.log("🔄 git HEAD drifted from the frontend's .next build — recycling frontend too...");
+    restartFrontend('next-cache-drift-after-backend-restart').catch((err) =>
+      console.error('❌ Frontend recycle failed:', err.message || err),
     );
   }
 }
@@ -1933,12 +1896,12 @@ async function restartBackend(processAlreadyExited = false) {
  */
 function frontendNextCacheIsStale() {
   try {
-    const head = execSync("git rev-parse HEAD", {
+    const head = execSync('git rev-parse HEAD', {
       cwd: REPO_ROOT,
-      encoding: "utf8",
+      encoding: 'utf8',
     }).trim();
     if (!head) return false;
-    const lastRef = fs.readFileSync(NEXT_BUILD_REF_FILE, "utf8").trim();
+    const lastRef = fs.readFileSync(NEXT_BUILD_REF_FILE, 'utf8').trim();
     return Boolean(lastRef) && lastRef !== head;
   } catch {
     return false;
@@ -1953,23 +1916,23 @@ function frontendNextCacheIsStale() {
  */
 async function isAgentExecutionActive() {
   try {
-    const http = require("http");
+    const http = require('http');
     const data = await new Promise((resolve, reject) => {
       const req = http.get(
         {
           // Windows では "localhost" が IPv6 (::1) に解決され、
           // IPv4 のみでリッスンしているバックエンドに接続できないことがある
-          hostname: "127.0.0.1",
+          hostname: '127.0.0.1',
           port: actualBackendPort,
-          path: "/agents/system-status",
+          path: '/agents/system-status',
           timeout: 3000,
         },
         (res) => {
-          let body = "";
-          res.on("data", (chunk) => {
+          let body = '';
+          res.on('data', (chunk) => {
             body += chunk;
           });
-          res.on("end", () => {
+          res.on('end', () => {
             try {
               resolve(JSON.parse(body));
             } catch {
@@ -1978,12 +1941,12 @@ async function isAgentExecutionActive() {
           });
         },
       );
-      req.on("error", (err) => {
+      req.on('error', (err) => {
         console.log(`  [agent-check] system-status API error: ${err.message}`);
         resolve(null);
       });
-      req.on("timeout", () => {
-        console.log("  [agent-check] system-status API timeout (3s)");
+      req.on('timeout', () => {
+        console.log('  [agent-check] system-status API timeout (3s)');
         req.destroy();
         resolve(null);
       });
@@ -2013,21 +1976,21 @@ async function isAgentExecutionActive() {
  */
 async function hotRestartBackend() {
   if (isHotRestarting) {
-    console.log("  Hot restart already in progress, skipping...");
+    console.log('  Hot restart already in progress, skipping...');
     return;
   }
   isHotRestarting = true;
   try {
-    console.log("\n🔥 Hot-restarting backend server...");
-    console.log("  Step 1/2: Stopping backend completely...");
+    console.log('\n🔥 Hot-restarting backend server...');
+    console.log('  Step 1/2: Stopping backend completely...');
     await stopBackendCompletely();
 
-    console.log("  Step 2/2: Starting backend...");
+    console.log('  Step 2/2: Starting backend...');
     crashTimestamps = []; // ホットリスタート時はクラッシュカウンターをリセット
     startBackend();
-    console.log("✅ Hot restart completed.");
+    console.log('✅ Hot restart completed.');
   } catch (err) {
-    console.error("❌ Hot restart failed:", err.message || err);
+    console.error('❌ Hot restart failed:', err.message || err);
   } finally {
     isHotRestarting = false;
     lastRestartCompletedAt = Date.now();
@@ -2040,14 +2003,14 @@ async function hotRestartBackend() {
  */
 function startFileWatcher() {
   const watchDirs = [
-    "index.ts",
-    "services",
-    "utils",
-    "routes",
-    "config",
-    "middleware",
-    "schemas",
-    "types",
+    'index.ts',
+    'services',
+    'utils',
+    'routes',
+    'config',
+    'middleware',
+    'schemas',
+    'types',
   ];
 
   let debounceTimer = null;
@@ -2073,16 +2036,16 @@ function startFileWatcher() {
       if (!agentActive) {
         clearInterval(deferCheckInterval);
         deferCheckInterval = null;
-        const uniqueFiles = [...new Set(deferredFiles)].join(", ");
+        const uniqueFiles = [...new Set(deferredFiles)].join(', ');
         console.log(`\n🔄 Agent finished. Applying deferred changes: ${uniqueFiles}`);
         const needsPrismaRestart = deferredPrismaChange;
         hasDeferredChanges = false;
         deferredPrismaChange = false;
         deferredFiles = [];
         if (needsPrismaRestart) {
-          console.log("  Prisma schema changed, performing full restart with DB sync...");
+          console.log('  Prisma schema changed, performing full restart with DB sync...');
           await restartBackend().catch((err) => {
-            console.error("❌ Full restart failed:", err.message || err);
+            console.error('❌ Full restart failed:', err.message || err);
           });
         } else {
           await hotRestartBackend();
@@ -2097,18 +2060,17 @@ function startFileWatcher() {
     if (isHotRestarting) return;
     if (Date.now() - lastRestartCompletedAt < 3000) return;
     // NOTE: fs.watch on Windows returns backslash-separated paths; normalize before matching.
-    const normalized = filename.replace(/\\/g, "/");
+    const normalized = filename.replace(/\\/g, '/');
     // NOTE: Covers prismaSchemaFolder layout (schema/*.prisma).
     // `startsWith('schema.desktop/')` excludes re-generated files written during restart,
     // which would otherwise trigger an infinite restart loop.
     const isPrismaSchemaChange =
-      normalized.endsWith(".prisma") &&
-      !normalized.startsWith("schema.desktop/");
+      normalized.endsWith('.prisma') && !normalized.startsWith('schema.desktop/');
     if (isPrismaSchemaChange) {
       pendingPrismaRestart = true;
     }
     // .ts ファイルまたは prisma schema のみ対象
-    if (!filename.endsWith(".ts") && !isPrismaSchemaChange) {
+    if (!filename.endsWith('.ts') && !isPrismaSchemaChange) {
       return;
     }
     pendingChanges.push(filename);
@@ -2118,7 +2080,7 @@ function startFileWatcher() {
       debounceTimer = null;
       const changes = [...pendingChanges];
       pendingChanges = [];
-      const uniqueFiles = [...new Set(changes)].join(", ");
+      const uniqueFiles = [...new Set(changes)].join(', ');
       console.log(`\n📁 File change detected: ${uniqueFiles}`);
 
       // エージェント実行中はリスタートを延期し、完了後に自動リスタート
@@ -2135,11 +2097,9 @@ function startFileWatcher() {
 
       if (pendingPrismaRestart) {
         pendingPrismaRestart = false;
-        console.log(
-          "  Prisma schema changed, performing full restart with DB sync...",
-        );
+        console.log('  Prisma schema changed, performing full restart with DB sync...');
         await restartBackend().catch((err) => {
-          console.error("❌ Full restart failed:", err.message || err);
+          console.error('❌ Full restart failed:', err.message || err);
         });
       } else {
         await hotRestartBackend();
@@ -2162,7 +2122,7 @@ function startFileWatcher() {
         handleChange(changedFile);
       });
 
-      watcher.on("error", (err) => {
+      watcher.on('error', (err) => {
         console.error(`  File watcher error for ${target}:`, err.message);
       });
 
@@ -2173,17 +2133,13 @@ function startFileWatcher() {
   }
 
   // prisma ディレクトリも監視
-  const prismaDir = path.join(BACKEND_DIR, "prisma");
+  const prismaDir = path.join(BACKEND_DIR, 'prisma');
   if (fs.existsSync(prismaDir)) {
     try {
-      const watcher = fs.watch(
-        prismaDir,
-        { recursive: true },
-        (eventType, filename) => {
-          if (filename) handleChange(filename);
-        },
-      );
-      watcher.on("error", (err) => {
+      const watcher = fs.watch(prismaDir, { recursive: true }, (eventType, filename) => {
+        if (filename) handleChange(filename);
+      });
+      watcher.on('error', (err) => {
         console.error(`  File watcher error for prisma/:`, err.message);
       });
       fileWatchers.push(watcher);
@@ -2192,9 +2148,7 @@ function startFileWatcher() {
     }
   }
 
-  console.log(
-    `📂 File watcher started (watching ${fileWatchers.length} targets in backend)`,
-  );
+  console.log(`📂 File watcher started (watching ${fileWatchers.length} targets in backend)`);
 }
 
 /**
@@ -2210,18 +2164,16 @@ function startFileWatcher() {
  * uncommitted work it ABORTS startup with a clear message instead of clobbering.
  */
 function ensurePrimaryBranch() {
-  const target = process.env.RAPITAS_PRIMARY_BRANCH || "develop";
+  const target = process.env.RAPITAS_PRIMARY_BRANCH || 'develop';
   let current;
   try {
-    current = execSync("git rev-parse --abbrev-ref HEAD", {
+    current = execSync('git rev-parse --abbrev-ref HEAD', {
       cwd: REPO_ROOT,
-      encoding: "utf8",
+      encoding: 'utf8',
     }).trim();
   } catch (err) {
     // Not a git repo / git unavailable — don't block dev startup. Warn loudly.
-    console.warn(
-      `⚠️  Could not determine the git branch (${err.message}); skipping branch pin.`,
-    );
+    console.warn(`⚠️  Could not determine the git branch (${err.message}); skipping branch pin.`);
     return;
   }
 
@@ -2231,8 +2183,7 @@ function ensurePrimaryBranch() {
   }
 
   const dirty =
-    execSync("git status --porcelain", { cwd: REPO_ROOT, encoding: "utf8" })
-      .trim().length > 0;
+    execSync('git status --porcelain', { cwd: REPO_ROOT, encoding: 'utf8' }).trim().length > 0;
 
   if (dirty) {
     console.error(
@@ -2244,15 +2195,11 @@ function ensurePrimaryBranch() {
     process.exit(1);
   }
 
-  console.log(
-    `🔀 Primary checkout was on '${current}'; switching to '${target}' (clean tree).`,
-  );
+  console.log(`🔀 Primary checkout was on '${current}'; switching to '${target}' (clean tree).`);
   try {
-    execSync(`git checkout ${target}`, { cwd: REPO_ROOT, stdio: "inherit" });
+    execSync(`git checkout ${target}`, { cwd: REPO_ROOT, stdio: 'inherit' });
   } catch (err) {
-    console.error(
-      `❌ Failed to switch to '${target}': ${err.message}. Fix manually and re-run.`,
-    );
+    console.error(`❌ Failed to switch to '${target}': ${err.message}. Fix manually and re-run.`);
     process.exit(1);
   }
 }
@@ -2260,7 +2207,7 @@ function ensurePrimaryBranch() {
 async function main() {
   // CI環境では実行しない
   if (process.env.CI === 'true' || process.env.CI === '1') {
-    console.log("CI environment detected. Skipping dev server startup.");
+    console.log('CI environment detected. Skipping dev server startup.');
     process.exit(0);
   }
 
@@ -2275,7 +2222,7 @@ async function main() {
   cleanupPreviousFrontendPidFile();
 
   // エージェントゾンビプロセスのクリーンアップ（ポート解放前に実行）
-  console.log("\nCleaning up agent zombie processes...");
+  console.log('\nCleaning up agent zombie processes...');
   cleanupAgentPidFiles();
 
   // 残留 bun プロセスの安全 kill (Prisma DLL ロック対策)
@@ -2286,7 +2233,7 @@ async function main() {
   killStrayBackendHelpers();
 
   // ポートのクリーンアップ（前回クラッシュ時のゾンビプロセス対策）
-  console.log("\nChecking ports...");
+  console.log('\nChecking ports...');
   actualBackendPort = await ensurePortAvailable(BACKEND_PORT);
   actualFrontendPort = await ensurePortAvailable(FRONTEND_PORT);
 
@@ -2305,11 +2252,11 @@ async function main() {
     const msg = String(err && err.message ? err.message : err);
     if (/EPERM|operation not permitted/i.test(msg)) {
       console.warn(
-        "\n⚠️  Prisma generate hit EPERM (DLL locked). Retrying after extra bun kill...",
+        '\n⚠️  Prisma generate hit EPERM (DLL locked). Retrying after extra bun kill...',
       );
       killStrayBunProcesses();
       killStrayPlaywrightWorkers();
-  killStrayBackendHelpers();
+      killStrayBackendHelpers();
       // ポートを再確保（リトライ前に何かが立ち上がった可能性）
       actualBackendPort = await ensurePortAvailable(BACKEND_PORT);
       syncDatabaseAndGenerateClient();
@@ -2345,25 +2292,22 @@ async function main() {
       forceKillAllOnPort(actualBackendPort);
       killStrayBunProcesses();
       killStrayPlaywrightWorkers();
-  killStrayBackendHelpers();
+      killStrayBackendHelpers();
     }
     await stopBackendCompletely();
     actualBackendPort = await ensurePortAvailable(BACKEND_PORT);
     startBackend();
-    backendReady = await waitForBackendReady(
-      actualBackendPort,
-      retryAttempt >= 2 ? 20000 : 15000,
-    );
+    backendReady = await waitForBackendReady(actualBackendPort, retryAttempt >= 2 ? 20000 : 15000);
   }
   if (!backendReady) {
     log.error(
-      "Backend is still not reachable after multiple cleanup attempts. " +
-        "This usually means a Windows-level ghost/orphaned socket is still routing " +
-        "connections to a dead process (a known OS TCP-stack quirk). Closing ALL " +
-        "node/bun processes (Task Manager) and restarting this command usually " +
-        "resolves it; a full Windows restart is the last resort. Continuing to " +
-        "start the frontend, but it will show connection errors until the backend " +
-        "is actually reachable.",
+      'Backend is still not reachable after multiple cleanup attempts. ' +
+        'This usually means a Windows-level ghost/orphaned socket is still routing ' +
+        'connections to a dead process (a known OS TCP-stack quirk). Closing ALL ' +
+        'node/bun processes (Task Manager) and restarting this command usually ' +
+        'resolves it; a full Windows restart is the last resort. Continuing to ' +
+        'start the frontend, but it will show connection errors until the backend ' +
+        'is actually reachable.',
     );
   }
 
@@ -2379,9 +2323,9 @@ async function main() {
       if (dead.length > 0 || alive.length > 1) {
         log.error(
           `⚠️  DOUBLE-LISTEN DETECTED on port ${actualBackendPort}: ` +
-            `${listenPids.length} LISTEN owner(s) (alive: ${alive.join(",") || "none"} / dead: ${dead.join(",") || "none"}). ` +
-            "Connections will INTERMITTENTLY hang while the ghost entry survives. " +
-            "A full Windows restart is the only known reliable fix for the dead-owner case.",
+            `${listenPids.length} LISTEN owner(s) (alive: ${alive.join(',') || 'none'} / dead: ${dead.join(',') || 'none'}). ` +
+            'Connections will INTERMITTENTLY hang while the ghost entry survives. ' +
+            'A full Windows restart is the only known reliable fix for the dead-owner case.',
         );
         if (dead.length > 0) {
           captureGhostSocketDiagnostics(actualBackendPort, dead[0]);
@@ -2400,9 +2344,7 @@ async function main() {
   console.log(
     `\n🖥️  Development mode: Backend :${actualBackendPort}, Frontend :${actualFrontendPort}`,
   );
-  console.log(
-    "ℹ️  Changes will be reflected via hot reload (no rebuild needed)",
-  );
+  console.log('ℹ️  Changes will be reflected via hot reload (no rebuild needed)');
 
   // フロントエンド dev サーバーのメモリ肥大化を監視し、閾値超過で自動リサイクルする
   startFrontendWatchdog();
@@ -2427,9 +2369,7 @@ async function main() {
 // リサイクルループに陥って逆に CPU を張り付かせる事故が起きた。有効化する場合は
 // RAPITAS_FRONTEND_RSS_LIMIT_MB に「コンパイルピークより十分高い値(推奨 6144 以上)」を設定し、
 // 必ず下の uptime ガードと併用すること。
-const FRONTEND_RSS_LIMIT_MB = Number(
-  process.env.RAPITAS_FRONTEND_RSS_LIMIT_MB || 0,
-);
+const FRONTEND_RSS_LIMIT_MB = Number(process.env.RAPITAS_FRONTEND_RSS_LIMIT_MB || 0);
 // uptime ガード: 起動からこの時間を超えるまでは絶対にリサイクルしない。初回コンパイルの
 // 一時的な高 RSS(分オーダー)を、長時間稼働による肥大(時間オーダー)と確実に区別するため。
 const FRONTEND_MIN_UPTIME_MS = Number(
@@ -2450,16 +2390,12 @@ let isFrontendRestarting = false;
 // 何十分でも 1 コアを張り付かせ続ける(実測: 71-81% を 10 分以上)。誤検知時の
 // コストもリサイクル 1 回(再コンパイル 1-2 分)で安全なので、こちらは既定で有効。
 const FRONTEND_CPU_WATCHDOG_ENABLED =
-  process.env.RAPITAS_FRONTEND_CPU_WATCHDOG !== "0" &&
-  process.env.RAPITAS_FRONTEND_CPU_WATCHDOG !== "false";
+  process.env.RAPITAS_FRONTEND_CPU_WATCHDOG !== '0' &&
+  process.env.RAPITAS_FRONTEND_CPU_WATCHDOG !== 'false';
 // 1 コア換算の使用率(%)。60 秒サンプル毎にこの値以上なら「スピンの疑い」1 回。
-const FRONTEND_CPU_SPIN_PCT = Number(
-  process.env.RAPITAS_FRONTEND_CPU_SPIN_PCT || 60,
-);
+const FRONTEND_CPU_SPIN_PCT = Number(process.env.RAPITAS_FRONTEND_CPU_SPIN_PCT || 60);
 // 連続超過サンプル数。60 秒 × 10 = 10 分持続で確定(コンパイルはここまで続かない)。
-const FRONTEND_CPU_SPIN_BREACHES = Number(
-  process.env.RAPITAS_FRONTEND_CPU_SPIN_BREACHES || 10,
-);
+const FRONTEND_CPU_SPIN_BREACHES = Number(process.env.RAPITAS_FRONTEND_CPU_SPIN_BREACHES || 10);
 // 起動直後の初回コンパイルを判定対象から外す uptime ガード。
 const FRONTEND_CPU_MIN_UPTIME_MS = 10 * 60 * 1000;
 let frontendCpuBreachCount = 0;
@@ -2469,7 +2405,7 @@ let frontendCpuLastSample = null;
 // .next-build-ref: 最後に .next をビルドした git HEAD を記録するマーカー。
 // .next 自体ではなく gitignore 済みの .data 配下に置くことで、.next を削除しても残り、
 // 次回起動時の「HEAD が変わったか」の比較対象になる(PRISMA_PREPARE_STAMP と同じ方式)。
-const NEXT_BUILD_REF_FILE = path.join(DESKTOP_DATA_DIR, ".next-build-ref");
+const NEXT_BUILD_REF_FILE = path.join(DESKTOP_DATA_DIR, '.next-build-ref');
 
 /**
  * 起動時に古い .next キャッシュを必要な場合だけ削除する。
@@ -2487,17 +2423,16 @@ const NEXT_BUILD_REF_FILE = path.join(DESKTOP_DATA_DIR, ".next-build-ref");
 function maybeClearStaleNextCache(force = false) {
   if (
     !force &&
-    (process.env.RAPITAS_NEXT_AUTOCLEAN === "0" ||
-      process.env.RAPITAS_NEXT_AUTOCLEAN === "false")
+    (process.env.RAPITAS_NEXT_AUTOCLEAN === '0' || process.env.RAPITAS_NEXT_AUTOCLEAN === 'false')
   ) {
     return;
   }
 
-  let head = "";
+  let head = '';
   try {
-    head = execSync("git rev-parse HEAD", {
+    head = execSync('git rev-parse HEAD', {
       cwd: REPO_ROOT,
-      encoding: "utf8",
+      encoding: 'utf8',
     }).trim();
   } catch {
     // git が使えない(非 git/CI 環境など) → fail-open。誤って毎回 .next を消さない。
@@ -2516,16 +2451,16 @@ function maybeClearStaleNextCache(force = false) {
     }
   };
 
-  const nextDir = path.join(FRONTEND_DIR, ".next");
+  const nextDir = path.join(FRONTEND_DIR, '.next');
   // .next が無ければ消すものは無い。基準 ref だけ記録しておく。
   if (!fs.existsSync(nextDir)) {
     writeRef();
     return;
   }
 
-  let lastRef = "";
+  let lastRef = '';
   try {
-    lastRef = fs.readFileSync(NEXT_BUILD_REF_FILE, "utf8").trim();
+    lastRef = fs.readFileSync(NEXT_BUILD_REF_FILE, 'utf8').trim();
   } catch {
     /* マーカー無し → 初回扱いで下のクリアに進む(安全側) */
   }
@@ -2535,8 +2470,8 @@ function maybeClearStaleNextCache(force = false) {
 
   console.log(
     force
-      ? "🧹 Force-clearing .next cache (frontend CPU spin detected)..."
-      : `🧹 git HEAD changed since last frontend build (${lastRef.slice(0, 7) || "none"} → ${head.slice(0, 7)}); clearing stale .next cache to prevent CPU spin...`,
+      ? '🧹 Force-clearing .next cache (frontend CPU spin detected)...'
+      : `🧹 git HEAD changed since last frontend build (${lastRef.slice(0, 7) || 'none'} → ${head.slice(0, 7)}); clearing stale .next cache to prevent CPU spin...`,
   );
   try {
     fs.rmSync(nextDir, { recursive: true, force: true });
@@ -2547,7 +2482,7 @@ function maybeClearStaleNextCache(force = false) {
   }
   // node_modules/.cache も合わせて削除(stale .next cache CPU peg の復旧手順と同じ)。
   try {
-    fs.rmSync(path.join(FRONTEND_DIR, "node_modules", ".cache"), {
+    fs.rmSync(path.join(FRONTEND_DIR, 'node_modules', '.cache'), {
       recursive: true,
       force: true,
     });
@@ -2562,9 +2497,9 @@ function maybeClearStaleNextCache(force = false) {
  * 起動時とリサイクル時の両方から呼ばれる。
  */
 function startFrontendProcess() {
-  frontend = spawn("pnpm", ["run", "dev"], {
+  frontend = spawn('pnpm', ['run', 'dev'], {
     cwd: FRONTEND_DIR,
-    stdio: "inherit",
+    stdio: 'inherit',
     shell: true,
     env: {
       ...process.env,
@@ -2582,7 +2517,7 @@ function startFrontendProcess() {
       NEXT_PUBLIC_API_BASE_URL: `http://localhost:${actualBackendPort}`,
     },
   });
-  frontend.on("error", (err) => console.error("Frontend error:", err));
+  frontend.on('error', (err) => console.error('Frontend error:', err));
   frontendStartedAt = Date.now();
   if (frontend.pid) writeFrontendPidFile(frontend.pid);
 }
@@ -2604,20 +2539,20 @@ function startFrontendProcess() {
  */
 function getFrontendTreeStats(rootPid) {
   const script =
-    "Get-CimInstance Win32_Process | Select-Object ProcessId,ParentProcessId,WorkingSetSize,KernelModeTime,UserModeTime | ConvertTo-Json -Compress";
-  let out = "";
+    'Get-CimInstance Win32_Process | Select-Object ProcessId,ParentProcessId,WorkingSetSize,KernelModeTime,UserModeTime | ConvertTo-Json -Compress';
+  let out = '';
   try {
-    out = execFileSync(
-      "powershell.exe",
-      ["-NoProfile", "-NonInteractive", "-Command", script],
-      { encoding: "utf8", stdio: ["pipe", "pipe", "ignore"], timeout: 15000 },
-    );
+    out = execFileSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', script], {
+      encoding: 'utf8',
+      stdio: ['pipe', 'pipe', 'ignore'],
+      timeout: 15000,
+    });
   } catch {
     return null;
   }
   let rows;
   try {
-    const parsed = JSON.parse((out || "").trim() || "[]");
+    const parsed = JSON.parse((out || '').trim() || '[]');
     rows = Array.isArray(parsed) ? parsed : [parsed];
   } catch {
     return null;
@@ -2689,9 +2624,7 @@ async function restartFrontend(reason, opts = {}) {
     frontendBreachCount = 0;
     frontendCpuBreachCount = 0;
     frontendCpuLastSample = null;
-    console.log(
-      `✅ Frontend dev server recycled on :${actualFrontendPort} (backend untouched).`,
-    );
+    console.log(`✅ Frontend dev server recycled on :${actualFrontendPort} (backend untouched).`);
   } finally {
     isFrontendRestarting = false;
   }
@@ -2714,8 +2647,8 @@ function checkFrontendRss(stats) {
       `⚠️  Frontend RSS ${rss}MB ≥ ${FRONTEND_RSS_LIMIT_MB}MB (breach ${frontendBreachCount}/${FRONTEND_WATCHDOG_BREACH_LIMIT}).`,
     );
     if (frontendBreachCount >= FRONTEND_WATCHDOG_BREACH_LIMIT) {
-      restartFrontend("memory-threshold").catch((err) =>
-        console.error("❌ Frontend auto-recycle failed:", err.message || err),
+      restartFrontend('memory-threshold').catch((err) =>
+        console.error('❌ Frontend auto-recycle failed:', err.message || err),
       );
     }
   } else if (frontendBreachCount > 0) {
@@ -2756,8 +2689,8 @@ function checkFrontendCpuSpin(stats) {
     );
     if (frontendCpuBreachCount >= FRONTEND_CPU_SPIN_BREACHES) {
       // スピン確定 = キャッシュ破損の実績あり。HEAD が動いていなくても強制削除。
-      restartFrontend("cpu-spin", { forceClearCache: true }).catch((err) =>
-        console.error("❌ Frontend auto-recycle failed:", err.message || err),
+      restartFrontend('cpu-spin', { forceClearCache: true }).catch((err) =>
+        console.error('❌ Frontend auto-recycle failed:', err.message || err),
       );
     }
   } else if (frontendCpuBreachCount > 0) {
@@ -2775,7 +2708,7 @@ function startFrontendWatchdog() {
   const rssEnabled = FRONTEND_RSS_LIMIT_MB > 0;
   if (!rssEnabled) {
     console.log(
-      "ℹ️  Frontend memory watchdog disabled (set RAPITAS_FRONTEND_RSS_LIMIT_MB ≥ 6144 to enable).",
+      'ℹ️  Frontend memory watchdog disabled (set RAPITAS_FRONTEND_RSS_LIMIT_MB ≥ 6144 to enable).',
     );
   } else {
     console.log(
@@ -2835,7 +2768,7 @@ function cleanupSync() {
   }
   fileWatchers = [];
 
-  console.log("\nStopping development servers...");
+  console.log('\nStopping development servers...');
 
   // Step -1: エージェントCLIプロセス(claude/codex/gemini)・残留bunプロセスの
   // クリーンアップ。以前は起動時(main())にしか呼ばれておらず、停止時にはPIDファイル
@@ -2849,34 +2782,30 @@ function cleanupSync() {
   // Step 0: バックエンドにグレースフルシャットダウンを要求
   // これによりリスニングソケットが正しく閉じられ、次回起動時のポート競合を防止
   if (isPortListening(actualBackendPort)) {
-    console.log("  Step 0: Requesting graceful shutdown via HTTP...");
+    console.log('  Step 0: Requesting graceful shutdown via HTTP...');
     const shutdownOk = tryGracefulShutdownSync(actualBackendPort);
     if (shutdownOk) {
       // シャットダウンAPIはリスニングソケットを即座に閉じるので、十分に待つ
       // バックエンドがグレースフルに終了するまで最大4秒待機
-      console.log("  Waiting for backend to complete graceful shutdown...");
+      console.log('  Waiting for backend to complete graceful shutdown...');
       sleepSync(4000);
       if (!isPortListening(actualBackendPort)) {
-        console.log("  Backend shut down gracefully, port released.");
+        console.log('  Backend shut down gracefully, port released.');
         // フロントエンドも停止
         killProcessTree(frontend);
         removeBackendPidFile();
         removeFrontendPidFile();
-        console.log("  Cleanup completed.");
+        console.log('  Cleanup completed.');
         return;
       }
-      console.log(
-        "  Port still in use after graceful shutdown, proceeding with force kill...",
-      );
+      console.log('  Port still in use after graceful shutdown, proceeding with force kill...');
     } else {
-      console.log(
-        "  Graceful shutdown request failed, proceeding with force kill...",
-      );
+      console.log('  Graceful shutdown request failed, proceeding with force kill...');
     }
   }
 
   // Step 1: 子プロセスツリーを停止
-  console.log("  Step 1: Killing child process trees...");
+  console.log('  Step 1: Killing child process trees...');
   killProcessTree(backend);
   killProcessTree(frontend);
 
@@ -2884,7 +2813,7 @@ function cleanupSync() {
   sleepSync(1000);
 
   // Step 2: ポートベースで残存プロセスを停止（子プロセスkillで漏れた孫プロセス対策）
-  console.log("  Step 2: Ensuring ports are released...");
+  console.log('  Step 2: Ensuring ports are released...');
 
   const portsToClean = new Set([
     actualBackendPort,
@@ -2904,7 +2833,7 @@ function cleanupSync() {
   }
 
   // Step 3: 最終確認 - まだ残っている場合は個別PIDを直接killして待機
-  console.log("  Step 3: Final verification...");
+  console.log('  Step 3: Final verification...');
   let allClean = true;
   for (const port of portsToClean) {
     if (isPortListening(port)) {
@@ -2913,7 +2842,7 @@ function cleanupSync() {
       for (const pid of pids) {
         try {
           // /T なしで直接PIDのみkill（ツリーkillが失敗した場合の補完）
-          execSync(`taskkill /F /PID ${pid}`, { stdio: "pipe" });
+          execSync(`taskkill /F /PID ${pid}`, { stdio: 'pipe' });
           console.log(`  Direct-killed PID ${pid} on port ${port}`);
         } catch {}
       }
@@ -2931,31 +2860,31 @@ function cleanupSync() {
   }
 
   if (allClean) {
-    console.log("  All ports released successfully.");
+    console.log('  All ports released successfully.');
   }
 
   removeBackendPidFile();
   removeFrontendPidFile();
-  console.log("  Cleanup completed.");
+  console.log('  Cleanup completed.');
 }
 
-process.on("SIGINT", () => {
+process.on('SIGINT', () => {
   cleanupSync();
   process.exit(0);
 });
-process.on("SIGTERM", () => {
+process.on('SIGTERM', () => {
   cleanupSync();
   process.exit(0);
 });
-process.on("exit", () => {
+process.on('exit', () => {
   // exit イベントでは非同期処理不可なので同期的にクリーンアップ
   // SIGINT/SIGTERM で既にクリーンアップ済みなら isCleaningUp=true でスキップされる
   cleanupSync();
 });
 
 // 未処理のPromise拒否でクラッシュしないようにする
-process.on("unhandledRejection", (reason) => {
-  console.error("Unhandled rejection in dev.js:", reason);
+process.on('unhandledRejection', (reason) => {
+  console.error('Unhandled rejection in dev.js:', reason);
   // クラッシュせずにログのみ出力
 });
 
@@ -2964,13 +2893,13 @@ if (stopOnly) {
   // cleanupSync() は port ベースの kill を含むため、このプロセス自身が何も
   // spawn していなくても、別ターミナルで動いている前回の dev.js インスタンスの
   // バックエンド/フロントエンドを正しく発見して停止できる。
-  console.log("🛑 Stopping all rapitas dev processes (--stop)...");
+  console.log('🛑 Stopping all rapitas dev processes (--stop)...');
   cleanupSync();
-  console.log("✅ Done. All rapitas dev processes should now be stopped.");
+  console.log('✅ Done. All rapitas dev processes should now be stopped.');
   process.exit(0);
 } else {
   main().catch((err) => {
-    console.error("Failed to start development servers:", err);
+    console.error('Failed to start development servers:', err);
     process.exit(1);
   });
 }
