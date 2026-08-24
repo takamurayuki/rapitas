@@ -40,16 +40,45 @@ const STRONG_RISK_RE =
   /(\bauth\b|認証|ログイン|\blogin\b|password|パスワード|\btoken\b|secret|credential|決済|課金|payment|billing|rbac|csrf|xss|sql\s*injection)/i;
 
 /**
- * Data-layer signals (schema / migrations). Evaluated against text that has
- * schema-change-BAN sentences stripped first (see SCHEMA_BAN_SENTENCE_RE) —
- * measured 33/40 false positives came from boilerplate constraints like
- * 「Prisma スキーマ変更禁止」, which state the task must NOT touch the schema.
+ * Data-layer signals: work that CHANGES the schema, not work that merely uses
+ * the ORM. Every signal is structural — a schema file, a migration directory,
+ * the Prisma DSL, or the command that applies a change.
+ *
+ * NOTE: this used to be `/(prisma|schema\.prisma|migration|migrate)/i`, which
+ * matched the bare word `prisma`. In this codebase almost every backend file
+ * imports the client, so any plan that quoted an import line was classified as
+ * high-risk and forced to a premium model. Measured 2026-08-24 over 114 plans:
+ * the old pattern fired on 62%, and of the plans it flagged on this signal
+ * alone only 5 of 34 actually touched the schema — an 85% false-positive rate.
+ * Task 627, a mechanical "split this file" refactor, ran its implementer on the
+ * top-tier model because its plan quoted
+ * `import { prisma } from '../../config';`.
+ *
+ * Natural-language phrasing was evaluated and deliberately rejected: plans
+ * discuss the schema mostly to say they are NOT touching it
+ * (「スキーマ変更なし」「スキーマ変更は不要」), so matching 「スキーマ変更」 fired on
+ * 54 plans and pointed the wrong way. The ban-sentence sanitizer below cannot
+ * catch every such phrasing, which is why the signal is structural instead.
+ *
+ * The same 114 plans under the current pattern: 32% fire, and every plan that
+ * genuinely edits a schema file or migration still does.
+ *
  * NOTE: The ban-sentence sanitize step is the user-approved design (task 631
  * Q1 answer: 「禁止文サニタイズを追加(解釈2・推奨)」) — only the data-layer
  * signals are evaluated on sanitized text; every other signal group sees the
  * full text unchanged.
  */
-const DATA_RISK_RE = /(prisma|schema\.prisma|migration|migrate)/i;
+const DATA_RISK_PLAN_RE =
+  /(prisma[\/]schema|schema\.prisma|\.prisma\b|migrations?[\/]|prisma\s+(?:db\s+push|migrate\b)|@@(?:index|unique|map)\b|^\s*model\s+[A-Z]\w*\s*\{)/im;
+
+/**
+ * Data-layer signals for TASK TEXT, which is prose describing intent rather
+ * than quoted code. 「migration を追加する」 is a real signal there, while the
+ * same words inside a plan are usually a file listing or a quoted import —
+ * hence the split. Task text carries no code, so the ORM-name noise measured
+ * in plans does not apply to it.
+ */
+const DATA_RISK_TEXT_RE = /(prisma|schema\.prisma|migration|migrate|マイグレーション)/i;
 
 /**
  * A sentence segment (bounded by 。 or a newline) that BANS schema changes,
@@ -92,9 +121,10 @@ const HIGH_RISK_PATH_RE =
  * data-layer signals fire after ban-sentence stripping, weak signals need
  * their context gate. Extracted so task text and plan get identical rules.
  */
-function matchesHighRisk(text: string): boolean {
+function matchesHighRisk(text: string, kind: 'text' | 'plan'): boolean {
   if (STRONG_RISK_RE.test(text)) return true;
-  if (DATA_RISK_RE.test(text.replace(SCHEMA_BAN_SENTENCE_RE, ' '))) return true;
+  const dataRe = kind === 'plan' ? DATA_RISK_PLAN_RE : DATA_RISK_TEXT_RE;
+  if (dataRe.test(text.replace(SCHEMA_BAN_SENTENCE_RE, ' '))) return true;
   return WEAK_SIGNAL_GATES.some((g) => g.word.test(text) && g.context.test(text));
 }
 
@@ -163,14 +193,14 @@ export function detectHighRisk(opts: { text?: string | null; planContent?: strin
   reason?: string;
 } {
   const text = (opts.text ?? '').toString();
-  if (matchesHighRisk(text)) {
+  if (matchesHighRisk(text, 'text')) {
     return {
       high: true,
       reason: 'task text matches a high-risk domain (data/auth/payment/security)',
     };
   }
   const plan = opts.planContent ?? '';
-  if (plan && (matchesHighRisk(plan) || HIGH_RISK_PATH_RE.test(plan))) {
+  if (plan && (matchesHighRisk(plan, 'plan') || HIGH_RISK_PATH_RE.test(plan))) {
     return {
       high: true,
       reason: 'plan touches high-risk files (schema/migration/auth/payment/security)',

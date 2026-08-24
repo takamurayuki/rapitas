@@ -342,3 +342,55 @@ describe('computeMinTierWithReason', () => {
     expect(r.reason).toBeUndefined();
   });
 });
+
+describe('detectHighRisk — データ層シグナルは構造的なものだけ', () => {
+  test('回帰: import 文を引用しただけの plan を高リスクにしない', () => {
+    // 実測 2026-08-24 task 627（ファイル分割リファクタ）: plan が移設対象の
+    // import 行 `import { prisma } from '../../config';` を引用していたため
+    // premium 下限が課され、機械的な分割作業が最上位モデルで走った。
+    const plan = [
+      '## 実装計画',
+      '- 内容: 61-78行の `resolveSystemPromptContent` を verbatim 移設。',
+      "  `import { prisma } from '../../config';` も併せて移動する。",
+    ].join('\\n');
+    expect(detectHighRisk({ text: 'ファイル分割', planContent: plan }).high).toBe(false);
+  });
+
+  test('スキーマファイル・マイグレーション・DSL は引き続き高リスク', () => {
+    const cases = [
+      'prisma/schema/core.prisma に列を追加する',
+      'schema.prisma を編集する',
+      'prisma/migrations/ に新しいマイグレーションを追加',
+      'model Task {',
+      '`prisma db push` を実行して反映する',
+      '@@unique([taskId, orchestraSessionId]) を追加',
+    ];
+    for (const plan of cases) {
+      expect(detectHighRisk({ text: '', planContent: plan }).high).toBe(true);
+    }
+  });
+
+  test('ORM を使うだけの言及は高リスクにしない', () => {
+    const cases = [
+      'ルータが参照する `prisma` の import パスを揃える',
+      '`gen:type-guards --check` は prisma generate に依存するか調べる',
+      'Prisma 不要。スクリプト層に DB 依存を持ち込まない',
+      'eslint ルール `no-raw-prisma-insensitive` をフロント config にも登録する',
+    ];
+    for (const plan of cases) {
+      expect(detectHighRisk({ text: '', planContent: plan }).high).toBe(false);
+    }
+  });
+
+  test('「スキーマ変更なし」と書いてあるだけの plan を高リスクにしない', () => {
+    // 自然言語での判定を採らなかった理由の固定。plan がスキーマに言及するのは
+    // 「触らない」と述べる場合が最も多く、文言一致は逆方向を指す。
+    expect(
+      detectHighRisk({ text: '', planContent: 'スキーマ変更なし。既存テーブルのみ参照する。' })
+        .high,
+    ).toBe(false);
+    expect(detectHighRisk({ text: '', planContent: 'スキーマ変更は不要と判断した。' }).high).toBe(
+      false,
+    );
+  });
+});
