@@ -387,9 +387,8 @@ export async function reconcileOnce(): Promise<{
     // threshold window. Notify-only — placed with the detection passes so every
     // repair pass above gets its chance to clear the spin first.
     const zeroProgressDetected = await runHealPass('detectZeroProgressWhileRunning', async () => {
-      const { detectZeroProgressWhileRunning } = await import(
-        './workflow-reconciler-zero-progress'
-      );
+      const { detectZeroProgressWhileRunning } =
+        await import('./workflow-reconciler-zero-progress');
       return detectZeroProgressWhileRunning(nowMs);
     });
     const counts = {

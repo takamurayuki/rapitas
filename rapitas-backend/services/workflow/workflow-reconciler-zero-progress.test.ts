@@ -43,9 +43,8 @@ mock.module('../observability', () => ({
   getCycleLogFilePath: () => '/tmp/cycle.ndjson',
 }));
 
-const { detectZeroProgressWhileRunning, resetZeroProgressTracker } = await import(
-  './workflow-reconciler-zero-progress'
-);
+const { detectZeroProgressWhileRunning, resetZeroProgressTracker } =
+  await import('./workflow-reconciler-zero-progress');
 
 const NOW = 1_800_000_000_000;
 
@@ -83,9 +82,7 @@ describe('detectZeroProgressWhileRunning', () => {
     primeRunningTheme(100);
 
     await detectZeroProgressWhileRunning(NOW);
-    expect(
-      await detectZeroProgressWhileRunning(NOW + ZERO_PROGRESS_THRESHOLD_MS - 1_000),
-    ).toBe(0);
+    expect(await detectZeroProgressWhileRunning(NOW + ZERO_PROGRESS_THRESHOLD_MS - 1_000)).toBe(0);
     expect(notifyZeroProgressWhileRunningMock).not.toHaveBeenCalled();
   });
 
@@ -94,7 +91,9 @@ describe('detectZeroProgressWhileRunning', () => {
     countMock.mockResolvedValue(0);
 
     await detectZeroProgressWhileRunning(NOW);
-    const detected = await detectZeroProgressWhileRunning(NOW + ZERO_PROGRESS_THRESHOLD_MS + 60_000);
+    const detected = await detectZeroProgressWhileRunning(
+      NOW + ZERO_PROGRESS_THRESHOLD_MS + 60_000,
+    );
 
     expect(detected).toBe(1);
     expect(notifyZeroProgressWhileRunningMock).toHaveBeenCalledWith(1, 100, expect.any(Number));
@@ -112,7 +111,9 @@ describe('detectZeroProgressWhileRunning', () => {
     countMock.mockResolvedValue(1);
 
     await detectZeroProgressWhileRunning(NOW);
-    const detected = await detectZeroProgressWhileRunning(NOW + ZERO_PROGRESS_THRESHOLD_MS + 60_000);
+    const detected = await detectZeroProgressWhileRunning(
+      NOW + ZERO_PROGRESS_THRESHOLD_MS + 60_000,
+    );
 
     expect(detected).toBe(0);
     expect(notifyZeroProgressWhileRunningMock).not.toHaveBeenCalled();
@@ -124,7 +125,9 @@ describe('detectZeroProgressWhileRunning', () => {
     await detectZeroProgressWhileRunning(NOW);
 
     primeRunningTheme(200);
-    const detected = await detectZeroProgressWhileRunning(NOW + ZERO_PROGRESS_THRESHOLD_MS + 60_000);
+    const detected = await detectZeroProgressWhileRunning(
+      NOW + ZERO_PROGRESS_THRESHOLD_MS + 60_000,
+    );
 
     expect(detected).toBe(0);
     expect(notifyZeroProgressWhileRunningMock).not.toHaveBeenCalled();
@@ -141,7 +144,9 @@ describe('detectZeroProgressWhileRunning', () => {
 
     // 同テーマ・同タスクで running に復帰 — 一時停止前の経過時間を引き継がない
     primeRunningTheme(100);
-    const detected = await detectZeroProgressWhileRunning(NOW + ZERO_PROGRESS_THRESHOLD_MS + 60_000);
+    const detected = await detectZeroProgressWhileRunning(
+      NOW + ZERO_PROGRESS_THRESHOLD_MS + 60_000,
+    );
 
     expect(detected).toBe(0);
     expect(notifyZeroProgressWhileRunningMock).not.toHaveBeenCalled();
@@ -152,7 +157,9 @@ describe('detectZeroProgressWhileRunning', () => {
     countMock.mockRejectedValue(new Error('db down'));
 
     await detectZeroProgressWhileRunning(NOW);
-    const detected = await detectZeroProgressWhileRunning(NOW + ZERO_PROGRESS_THRESHOLD_MS + 60_000);
+    const detected = await detectZeroProgressWhileRunning(
+      NOW + ZERO_PROGRESS_THRESHOLD_MS + 60_000,
+    );
 
     expect(detected).toBe(0);
     expect(notifyZeroProgressWhileRunningMock).not.toHaveBeenCalled();
