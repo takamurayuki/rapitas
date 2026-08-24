@@ -115,6 +115,7 @@ mock.module('../task/task-resolver', () => ({
   resolveTaskForPlanApproval: mock(() => Promise.resolve(null)),
   resolveTaskForAutoMerge: mock(() => Promise.resolve(null)),
   resolveTaskForLearning: mock(() => Promise.resolve(null)),
+  taskRowConfirmedAbsent: mock(() => Promise.resolve(false)),
 }));
 
 const { WorkflowQueueService } = await import('./workflow-queue');

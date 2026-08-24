@@ -32,7 +32,9 @@ import {
   notifyAwaitingUserAnswer,
   notifyTaskSkipped,
   notifyHangBackstop,
+  notifyTaskVanished,
 } from './auto-run-notifications';
+import { isTaskVanishedMessage } from '../queue-vanished-task-policy';
 import { releaseStaleActiveItems } from './auto-run-stall-guard';
 import { stopThemeExecutionImpl, broadcastAutoRunUpdateImpl } from './auto-run-lifecycle';
 import { selectAndEnqueueNextTask } from './auto-run-advance-select';
@@ -204,6 +206,34 @@ export async function advanceActiveTask(
   });
 
   const task = await resolveTaskWorkflowState(currentTaskId);
+
+  // Confirmed-vanished-task guard (task 651): the task row is confirmed
+  // absent (dequeue/runner/reconciler all detected this and marked their
+  // queue item with the same vanished-task marker). Writing task.blocked
+  // for a task that doesn't exist is meaningless — record task.skipped with
+  // a distinct cause and move straight to the next task, never through the
+  // isFailed branch below (which would try `prisma.task.update` against a
+  // non-existent row and silently no-op, and whose 'blocked' framing is
+  // inaccurate for "this task no longer exists").
+  if (terminalItem && isTaskVanishedMessage(terminalItem.errorMessage) && !task) {
+    await notifyTaskVanished(themeId, currentTaskId);
+    broadcastAutoRunUpdateImpl(themeId);
+    logCycleEvent('task.skipped', {
+      theme: themeId,
+      task: currentTaskId,
+      cause: 'task_vanished',
+      msg: 'task row confirmed absent — skipped without blocking',
+    });
+    await new Promise((r) => setTimeout(r, COOLDOWN_MS));
+    await selectAndEnqueueNextTask(
+      prisma,
+      themeId,
+      order,
+      Math.max(0, globalActive - 1),
+      barrierHoldSince,
+    );
+    return;
+  }
 
   const isCompleted =
     terminalItem?.status === 'completed' ||

@@ -75,6 +75,7 @@ mock.module('../task/task-resolver', () => ({
   resolveTaskSubtaskInfo: mock(() => Promise.resolve(null)),
   resolveTaskForAutoMerge: mock(() => Promise.resolve(null)),
   resolveTaskForLearning: mock(() => Promise.resolve(null)),
+  taskRowConfirmedAbsent: mock(() => Promise.resolve(false)),
 }));
 
 let dequeueSequence: QueueItem[] = [];

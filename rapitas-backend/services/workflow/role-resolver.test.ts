@@ -47,6 +47,7 @@ mock.module('../task/task-resolver', () => ({
   resolveTaskForPlanApproval: () => Promise.resolve(null),
   resolveTaskForAutoMerge: () => Promise.resolve(null),
   resolveTaskForLearning: () => Promise.resolve(null),
+  taskRowConfirmedAbsent: () => Promise.resolve(false),
 }));
 
 // reconcileStatusFromExistingArtifacts (called by resolveAgentForTask before

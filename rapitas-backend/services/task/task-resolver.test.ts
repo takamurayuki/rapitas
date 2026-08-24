@@ -46,6 +46,7 @@ const {
   resolveTaskForPlanApproval,
   resolveTaskForAutoMerge,
   resolveTaskForLearning,
+  taskRowConfirmedAbsent,
 } = await import('./task-resolver');
 
 beforeEach(() => {
@@ -575,4 +576,26 @@ describe('resolver 境界値: 数値型 id', () => {
       expect(result).toBeNull();
     },
   );
+});
+
+describe('taskRowConfirmedAbsent', () => {
+  test('行が存在する場合 → false を返すこと', async () => {
+    mockTaskFindUnique.mockResolvedValueOnce({ id: 1 });
+    expect(await taskRowConfirmedAbsent(1)).toBe(false);
+  });
+
+  test('行が存在しない場合 → true を返すこと', async () => {
+    mockTaskFindUnique.mockResolvedValueOnce(null);
+    expect(await taskRowConfirmedAbsent(648)).toBe(true);
+  });
+
+  test('DB例外の場合 → false(確定不能)を返すこと', async () => {
+    mockTaskFindUnique.mockRejectedValueOnce(new Error('DB error'));
+    expect(await taskRowConfirmedAbsent(1)).toBe(false);
+  });
+
+  test.each(ID_EDGES)('境界値 id=$label → 例外を投げないこと', async ({ value }) => {
+    mockTaskFindUnique.mockResolvedValueOnce(null);
+    expect(await taskRowConfirmedAbsent(value)).toBe(true);
+  });
 });

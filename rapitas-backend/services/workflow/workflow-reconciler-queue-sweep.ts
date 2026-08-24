@@ -9,16 +9,18 @@
  */
 import { prisma } from '../../config/database';
 import { createLogger } from '../../config/logger';
-import { resolveTaskWorkflowState } from '../task/task-resolver';
-import { isTaskTerminalForQueue } from './workflow-queue';
+import { resolveTaskWorkflowState, taskRowConfirmedAbsent } from '../task/task-resolver';
+import { isTaskTerminalForQueue } from './queue-terminal-task-guard';
+import { taskVanishedMessage } from './queue-vanished-task-policy';
 
 const log = createLogger('workflow-reconciler-queue-sweep');
 
 /**
- * Cancel queued items whose task is already terminal (done/cancelled/completed).
- * CAS on status='queued' so a concurrent dequeue that just promoted the item to
- * 'running' is never clobbered. Null task lookups are left alone — a transient
- * DB error must not destroy a valid queue item (positive terminal evidence only).
+ * Cancel queued items whose task is already terminal (done/cancelled/completed)
+ * OR whose task row is confirmed absent (deleted). CAS on status='queued' so a
+ * concurrent dequeue that just promoted the item to 'running' is never
+ * clobbered. Null task lookups from an unresolvable/transient DB error are
+ * left alone — only a CONFIRMED absence or POSITIVE terminal evidence cancels.
  *
  * @returns Number of stale items cancelled this cycle. / キャンセル件数
  */
@@ -34,7 +36,12 @@ export async function sweepStaleQueueItems(): Promise<number> {
   let cancelled = 0;
   for (const item of candidates) {
     const task = await resolveTaskWorkflowState(item.taskId);
-    if (!isTaskTerminalForQueue(task)) continue;
+    const terminal = isTaskTerminalForQueue(task);
+    // Confirmed-vanished-task guard (task 651): the dequeue-time guard only
+    // fires while a WorkflowRunner is polling — this sweep is what catches a
+    // deleted task's leftover 'queued' item while auto-run is idle/paused.
+    const vanished = !task && !terminal && (await taskRowConfirmedAbsent(item.taskId));
+    if (!terminal && !vanished) continue;
 
     const updated = await prisma.workflowQueueItem
       .updateMany({
@@ -42,16 +49,17 @@ export async function sweepStaleQueueItems(): Promise<number> {
         data: {
           status: 'cancelled',
           completedAt: new Date(),
-          errorMessage:
-            'タスクは既に終端状態のため、残留キュー項目を自動キャンセルしました（定期スイープ）',
+          errorMessage: vanished
+            ? taskVanishedMessage(item.taskId)
+            : 'タスクは既に終端状態のため、残留キュー項目を自動キャンセルしました（定期スイープ）',
         },
       })
       .catch(() => ({ count: 0 }));
     if (updated.count >= 1) {
       cancelled++;
       log.info(
-        { queueItemId: item.id, taskId: item.taskId },
-        '[reconciler] Cancelled stale queue item for terminal task',
+        { queueItemId: item.id, taskId: item.taskId, vanished },
+        '[reconciler] Cancelled stale queue item for terminal or vanished task',
       );
     }
   }
