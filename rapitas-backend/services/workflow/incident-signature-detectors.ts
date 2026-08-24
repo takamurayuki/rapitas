@@ -230,7 +230,10 @@ const REPAIR_BOUNCE_CAUSES = new Set(['verify_repair', 'ci_repair']);
  * of budget if available; if the budget is already spent, that firing is a
  * genuine anomaly and is counted (e.g. #607, task 614: 1 implement + 2
  * verify_repair bounces, each bounce preceding its re-implement, fully
- * explains 3 firings and is not reported as a loop). Requiring the bounce to
+ * explains 3 firings and is not reported as a loop; the same mechanism also
+ * explains #616's 1 implement + 2 verify_repair bounces — see
+ * incident-signature-detectors.repeat-loop-t616.test.ts for the exact
+ * replayed transition window). Requiring the bounce to
  * chronologically precede the firing it forgives (rather than just summing
  * bounce counts anywhere in the window) closes a gap where phase_completed
  * churn front-loaded before any bounce — which a same-window bounce cannot
