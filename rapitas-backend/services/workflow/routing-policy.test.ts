@@ -396,3 +396,61 @@ describe('detectHighRisk — データ層シグナルは構造的なものだけ
     );
   });
 });
+
+// NOTE: 2026-08-24 実測。theme 1 の直近134タスクで detectHighRisk が発火したのは
+// 10件、うち DATA_RISK_TEXT_RE 由来の7件は7件とも誤爆だった(スキーマを触るタスクは
+// ゼロ)。全4ロールが premium 床に固定され、researcher 単体で $5.77 かかっていた。
+// 下記は当時の Task 行そのままの部分文字列 — 上の負例群と同じく、言い換えでは
+// 実発火率の回帰を検出できないため実文字列を使うこと。
+describe('detectHighRisk 誤爆解消(コード引用・仮定・否定を含む実タスク負例)', () => {
+  test('606: prisma クライアント呼び出しの言及は低リスク(スキーマ変更ではない)', () => {
+    const text =
+      '[Idea] ESLint で GitHubPullRequest の prNumber 単独検索を機械的に禁止する' +
+      '\n新規コードが prisma.gitHubPullRequest.findFirst/findMany の where に' +
+      ' integrationId 無しで prNumber を書くことは依然可能';
+    expect(detectHighRisk({ text }).high).toBe(false);
+  });
+
+  test('596: 「スキーマ変更は不要」と明言する受入基準は低リスク', () => {
+    const text =
+      'PR番号のリポジトリ間衝突: prNumber単独lookupが別プロジェクトのPRを取り違える' +
+      '\n3. 既存テストが green のままであること。' +
+      '\n4. Prisma スキーマ変更は不要(既存の integrationId を使う)。';
+    expect(detectHighRisk({ text }).high).toBe(false);
+  });
+
+  test('321: 「prismaモック不整合」はテスト基盤の話で低リスク', () => {
+    const text =
+      '[Refactor] テストスイート基盤の一括修復タスク化と優先度付け' +
+      '\n現在26件の既存失敗テストが散在している（prismaモック不整合、' +
+      'node:fs/promises export エラー、モック汚染など）。';
+    expect(detectHighRisk({ text }).high).toBe(false);
+  });
+
+  test('「必要な場合は承認を待つ」定型の仮定文は低リスク', () => {
+    const text = 'Prisma スキーマ変更が必要な場合は plan.md に明記して承認を待つ';
+    expect(detectHighRisk({ text }).high).toBe(false);
+  });
+
+  test('引用符で囲んだ検索クエリ例は低リスク(データであって意図ではない)', () => {
+    const text = 'ナレッジ検索の実測: "prisma schema migration"（英語）→ 5件 (top sim 0.647)';
+    expect(detectHighRisk({ text }).high).toBe(false);
+  });
+
+  test('バッククォート内のコード片は低リスク', () => {
+    const text = 'テスト側モックに `prisma.task.findUnique` が無いだけ';
+    expect(detectHighRisk({ text }).high).toBe(false);
+  });
+});
+
+// NOTE: 上の絞り込みが本物のスキーマ作業まで落としていないことの対向テスト。
+// 誤爆を消す変更は必ずこの describe と対で維持すること。
+describe('detectHighRisk 本物のデータ層作業は依然として高リスク', () => {
+  test('モデル追加・マイグレーション・schema.prisma・db push はいずれも発火', () => {
+    expect(detectHighRisk({ text: 'Prisma スキーマに Foo モデルを追加する' }).high).toBe(true);
+    expect(detectHighRisk({ text: 'マイグレーションを追加してカラムを増やす' }).high).toBe(true);
+    expect(detectHighRisk({ text: 'schema.prisma を変更してインデックスを張る' }).high).toBe(true);
+    expect(detectHighRisk({ text: 'prisma db push を実行する手順を整える' }).high).toBe(true);
+    expect(detectHighRisk({ text: 'Add a migration for the new column' }).high).toBe(true);
+  });
+});

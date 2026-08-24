@@ -75,8 +75,15 @@ const DATA_RISK_PLAN_RE =
  * Data-layer signals for TASK TEXT, which is prose describing intent rather
  * than quoted code. 「migration を追加する」 is a real signal there, while the
  * same words inside a plan are usually a file listing or a quoted import —
- * hence the split. Task text carries no code, so the ORM-name noise measured
- * in plans does not apply to it.
+ * hence the split.
+ *
+ * NOTE: this used to assume "task text carries no code". Measured false: of
+ * 134 recent tasks 10 were risk-flagged, and all 7 that fired on THIS regex
+ * were false positives — quoted `prisma.task.findUnique` mocks, a
+ * "prisma schema migration" search string used as example data, and
+ * boilerplate saying schema changes are 不要 / 必要な場合は. None of the 7
+ * touched a schema, yet each pinned all four roles to the premium floor.
+ * TEXT_NON_INTENT_RE strips those non-intent spans before matching.
  */
 const DATA_RISK_TEXT_RE = /(prisma|schema\.prisma|migration|migrate|マイグレーション)/i;
 
@@ -88,7 +95,27 @@ const DATA_RISK_TEXT_RE = /(prisma|schema\.prisma|migration|migrate|マイグレ
  * schema in distant clauses is left intact (fires — the safe side).
  */
 const SCHEMA_BAN_SENTENCE_RE =
-  /[^。\n]*(?:スキーマ|schema)[^。\n]{0,10}?(?:禁止|不可|できない|行わない|しないこと)[^。\n]*(?:。|(?=\n)|$)/gi;
+  /[^。\n]*(?:スキーマ|schema)[^。\n]{0,10}?(?:禁止|不可|できない|行わない|しないこと|不要|必要ない)[^。\n]*(?:。|(?=\n)|$)/gi;
+
+/**
+ * Spans of task text that QUOTE or NAME code rather than state intent, removed
+ * before the data-layer match: inline code spans, short double-quoted literals
+ * (example queries / error strings), Prisma CLIENT calls
+ * (`prisma.<model>.<method>` — reading rows is not a schema change) and mock
+ * mentions. Deliberately NOT applied to plan.md, where a backticked
+ * `prisma/schema/...` path IS the signal.
+ */
+const TEXT_NON_INTENT_RE =
+  /`[^`]*`|"[^"\n]{0,80}"|prisma\s*\.\s*\w+\s*\.\s*\w+|prisma\s*(?:モック|mock)/gi;
+
+/**
+ * A sentence making schema work HYPOTHETICAL rather than planned, e.g.
+ * 「Prisma スキーマ変更が必要な場合は plan.md に明記して承認を待つ」. This is
+ * standing boilerplate in many task descriptions — it says what to do IF the
+ * need arises, so it must not by itself buy a premium floor.
+ */
+const SCHEMA_HYPOTHETICAL_SENTENCE_RE =
+  /[^。\n]*(?:スキーマ|schema)[^。\n]{0,20}?(?:必要な場合|必要であれば|必要なら)[^。\n]*(?:。|(?=\n)|$)/gi;
 
 /**
  * WEAK signals: words this app's own domain vocabulary collides with (study
@@ -124,7 +151,13 @@ const HIGH_RISK_PATH_RE =
 function matchesHighRisk(text: string, kind: 'text' | 'plan'): boolean {
   if (STRONG_RISK_RE.test(text)) return true;
   const dataRe = kind === 'plan' ? DATA_RISK_PLAN_RE : DATA_RISK_TEXT_RE;
-  if (dataRe.test(text.replace(SCHEMA_BAN_SENTENCE_RE, ' '))) return true;
+  let scrubbed = text.replace(SCHEMA_BAN_SENTENCE_RE, ' ');
+  if (kind === 'text') {
+    scrubbed = scrubbed
+      .replace(SCHEMA_HYPOTHETICAL_SENTENCE_RE, ' ')
+      .replace(TEXT_NON_INTENT_RE, ' ');
+  }
+  if (dataRe.test(scrubbed)) return true;
   return WEAK_SIGNAL_GATES.some((g) => g.word.test(text) && g.context.test(text));
 }
 
