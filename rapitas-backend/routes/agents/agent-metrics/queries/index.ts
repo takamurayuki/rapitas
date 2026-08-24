@@ -54,7 +54,12 @@ export type {
   CompletionDiffClassification,
   CompletionDiffTaskInput,
   CompletionDiffActivityLogInput,
+  CompletionDiffTransitionInput,
   CompletionDiffEntry,
   CompletionDiffStats,
 } from './completion-diff-query';
-export { computeCompletionDiffStats, getCompletionDiffStats } from './completion-diff-query';
+export {
+  NO_CHANGE_CONFIRMED_CAUSES,
+  computeCompletionDiffStats,
+  getCompletionDiffStats,
+} from './completion-diff-query';

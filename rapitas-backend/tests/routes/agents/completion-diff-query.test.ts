@@ -12,12 +12,14 @@ import { describe, it, expect, beforeEach, mock } from 'bun:test';
 
 const mockTaskFindMany = mock(() => Promise.resolve([] as unknown[]));
 const mockActivityLogFindMany = mock(() => Promise.resolve([] as unknown[]));
+const mockWorkflowTransitionFindMany = mock(() => Promise.resolve([] as unknown[]));
 
 mock.module('../../../config/database', () => ({
   ensureDatabaseConnection: () => Promise.resolve(),
   prisma: {
     task: { findMany: mockTaskFindMany },
     activityLog: { findMany: mockActivityLogFindMany },
+    workflowTransition: { findMany: mockWorkflowTransitionFindMany },
   },
 }));
 
@@ -26,6 +28,7 @@ import {
   getCompletionDiffStats,
   type CompletionDiffTaskInput,
   type CompletionDiffActivityLogInput,
+  type CompletionDiffTransitionInput,
 } from '../../../routes/agents/agent-metrics/queries/completion-diff-query';
 
 const COMPLETED_AT = new Date('2026-08-24T10:00:00.000Z');
@@ -47,6 +50,13 @@ function commitLog(
     metadata:
       typeof metadata === 'string' || metadata === null ? metadata : JSON.stringify(metadata),
   };
+}
+
+function noChangeTransition(
+  taskId: number,
+  cause: string = 'verify_no_change_confirmed',
+): CompletionDiffTransitionInput {
+  return { taskId, cause };
 }
 
 describe('computeCompletionDiffStats', () => {
@@ -80,7 +90,7 @@ describe('computeCompletionDiffStats', () => {
     expect(stats.hasDiffCount).toBe(1);
   });
 
-  it('classifies a completion whose log reports filesChanged=0 as zero_diff', () => {
+  it('classifies a completion whose log reports filesChanged=0 as zero_diff, unconfirmed by default', () => {
     const stats = computeCompletionDiffStats(
       [task(603)],
       [commitLog(603, 2, { filesChanged: 0, additions: 0, deletions: 0, alreadyCommitted: false })],
@@ -88,7 +98,48 @@ describe('computeCompletionDiffStats', () => {
 
     expect(stats.entries[0].classification).toBe('zero_diff');
     expect(stats.entries[0].filesChanged).toBe(0);
+    expect(stats.entries[0].noChangeConfirmed).toBe(false);
     expect(stats.zeroDiffCount).toBe(1);
+    expect(stats.confirmedNoChangeCount).toBe(0);
+    expect(stats.unexplainedZeroDiffCount).toBe(1);
+  });
+
+  it('distinguishes a zero-diff completion backed by verify_no_change_confirmed from an unexplained one', () => {
+    const stats = computeCompletionDiffStats(
+      [task(101, 'confirmed no-change'), task(102, 'unexplained zero diff')],
+      [
+        commitLog(101, 40, { filesChanged: 0, additions: 0, deletions: 0 }),
+        commitLog(102, 41, { filesChanged: 0, additions: 0, deletions: 0 }),
+      ],
+      [noChangeTransition(101, 'verify_no_change_confirmed')],
+    );
+
+    const confirmed = stats.entries.find((e) => e.taskId === 101);
+    const unexplained = stats.entries.find((e) => e.taskId === 102);
+
+    expect(confirmed?.classification).toBe('zero_diff');
+    expect(confirmed?.noChangeConfirmed).toBe(true);
+    expect(unexplained?.classification).toBe('zero_diff');
+    expect(unexplained?.noChangeConfirmed).toBe(false);
+
+    expect(stats.zeroDiffCount).toBe(2);
+    expect(stats.confirmedNoChangeCount).toBe(1);
+    expect(stats.unexplainedZeroDiffCount).toBe(1);
+  });
+
+  it('treats research_no_change_complete as a confirmed zero-diff even with no auto-commit log at all', () => {
+    const stats = computeCompletionDiffStats(
+      [task(103, 'research concluded no fix needed')],
+      [],
+      [noChangeTransition(103, 'research_no_change_complete')],
+    );
+
+    expect(stats.entries[0].classification).toBe('zero_diff');
+    expect(stats.entries[0].filesChanged).toBe(0);
+    expect(stats.entries[0].noChangeConfirmed).toBe(true);
+    expect(stats.unknownCount).toBe(0);
+    expect(stats.confirmedNoChangeCount).toBe(1);
+    expect(stats.unexplainedZeroDiffCount).toBe(0);
   });
 
   it('classifies a completion with no matching ActivityLog row as unknown', () => {
@@ -193,15 +244,17 @@ describe('getCompletionDiffStats', () => {
   beforeEach(() => {
     mockTaskFindMany.mockReset();
     mockActivityLogFindMany.mockReset();
+    mockWorkflowTransitionFindMany.mockReset();
   });
 
-  it('short-circuits to empty stats without querying ActivityLog when no completions exist', async () => {
+  it('short-circuits to empty stats without querying ActivityLog/WorkflowTransition when no completions exist', async () => {
     mockTaskFindMany.mockResolvedValue([]);
 
     const stats = await getCompletionDiffStats();
 
     expect(stats.totalCompletions).toBe(0);
     expect(mockActivityLogFindMany).not.toHaveBeenCalled();
+    expect(mockWorkflowTransitionFindMany).not.toHaveBeenCalled();
   });
 
   it('passes the limit through to task.findMany as take', async () => {
@@ -210,6 +263,22 @@ describe('getCompletionDiffStats', () => {
     await getCompletionDiffStats(50);
 
     expect(mockTaskFindMany).toHaveBeenCalledWith(expect.objectContaining({ take: 50 }));
+  });
+
+  it('filters workflowTransition.findMany to NO_CHANGE_CONFIRMED_CAUSES', async () => {
+    mockTaskFindMany.mockResolvedValue([{ id: 1, title: 't', completedAt: COMPLETED_AT }]);
+    mockActivityLogFindMany.mockResolvedValue([]);
+    mockWorkflowTransitionFindMany.mockResolvedValue([]);
+
+    await getCompletionDiffStats();
+
+    expect(mockWorkflowTransitionFindMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          cause: { in: ['verify_no_change_confirmed', 'research_no_change_complete'] },
+        }),
+      }),
+    );
   });
 
   it('joins completed tasks with their auto-commit logs and aggregates', async () => {
@@ -230,6 +299,7 @@ describe('getCompletionDiffStats', () => {
         }),
       },
     ]);
+    mockWorkflowTransitionFindMany.mockResolvedValue([]);
 
     const stats = await getCompletionDiffStats();
 
@@ -239,5 +309,33 @@ describe('getCompletionDiffStats', () => {
     const landed = stats.entries.find((e) => e.taskId === 589);
     expect(landed?.classification).toBe('has_diff');
     expect(landed?.filesChanged).toBe(6);
+  });
+
+  it('joins completed tasks with their no-change transitions and marks noChangeConfirmed', async () => {
+    mockTaskFindMany.mockResolvedValue([
+      { id: 590, title: 'meta task', completedAt: COMPLETED_AT },
+      { id: 591, title: 'other meta task', completedAt: COMPLETED_AT },
+    ]);
+    mockActivityLogFindMany.mockResolvedValue([
+      {
+        id: 200,
+        taskId: 590,
+        createdAt: new Date('2026-08-24T09:00:00.000Z'),
+        metadata: JSON.stringify({ filesChanged: 0, additions: 0, deletions: 0 }),
+      },
+    ]);
+    mockWorkflowTransitionFindMany.mockResolvedValue([
+      { taskId: 590, cause: 'verify_no_change_confirmed' },
+    ]);
+
+    const stats = await getCompletionDiffStats();
+
+    const confirmed = stats.entries.find((e) => e.taskId === 590);
+    const unexplained = stats.entries.find((e) => e.taskId === 591);
+    expect(confirmed?.noChangeConfirmed).toBe(true);
+    expect(confirmed?.classification).toBe('zero_diff');
+    expect(unexplained?.noChangeConfirmed).toBe(false);
+    expect(unexplained?.classification).toBe('unknown');
+    expect(stats.confirmedNoChangeCount).toBe(1);
   });
 });

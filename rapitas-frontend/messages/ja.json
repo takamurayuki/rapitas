@@ -1809,7 +1809,9 @@
       "zeroDiffRate": "差分ゼロ完了率",
       "hasDiff": "差分あり完了",
       "zeroDiff": "差分ゼロ完了",
-      "unknown": "記録なし"
+      "unknown": "記録なし",
+      "confirmedNoChange": "修正不要と結論済み",
+      "unexplainedZeroDiff": "未説明の差分ゼロ"
     },
     "judgeEval": {
       "title": "敵対的レビュー判定の精度",

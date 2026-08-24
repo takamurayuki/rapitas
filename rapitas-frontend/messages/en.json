@@ -1809,7 +1809,9 @@
       "zeroDiffRate": "Zero-diff completion rate",
       "hasDiff": "Completions with diff",
       "zeroDiff": "Zero-diff completions",
-      "unknown": "No record"
+      "unknown": "No record",
+      "confirmedNoChange": "Confirmed no fix needed",
+      "unexplainedZeroDiff": "Unexplained zero diff"
     },
     "judgeEval": {
       "title": "Adversarial judge accuracy",
