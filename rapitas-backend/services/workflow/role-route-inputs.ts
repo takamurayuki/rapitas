@@ -81,7 +81,7 @@ export async function routeModelForRole(opts: {
       { computeMinTierWithReason, detectHighRisk },
       { WorkflowQueueService },
       { recentThemeEscalation },
-      { resolveProvenTier },
+      { resolveProvenTier, resolvePremiumAdvantage },
     ] = await Promise.all([
       import('../ai/model-route-stability'),
       import('./role-provider-resolver'),
@@ -134,6 +134,17 @@ export async function routeModelForRole(opts: {
         ? await resolveProvenTier(role).catch(() => undefined)
         : undefined;
 
+    // Does the RECORD say premium outperforms standard for this role? An
+    // upgrade has to earn itself, the same way resolveProvenTier makes a
+    // downgrade earn itself. undefined = not enough evidence, floor unchanged.
+    const premiumAdvantage = await resolvePremiumAdvantage(role).catch(() => undefined);
+
+    // Spend backstop (task 658 ran four premium phases for $50.04 unnoticed).
+    // Resolved here so it reaches the router as a hard ceiling applied after
+    // every floor.
+    const { resolveTaskBudgetCap } = await import('./task-budget');
+    const budget = await resolveTaskBudgetCap(taskId).catch(() => null);
+
     const { tier: minTier, reason: minTierReason } = computeMinTierWithReason({
       role,
       taskRetries,
@@ -143,6 +154,7 @@ export async function routeModelForRole(opts: {
       // The retry floor only applies when a stronger model could plausibly fix
       // the previous failure - a spend limit or a timeout could not.
       retryCause: queueItem?.errorMessage ?? null,
+      premiumJustified: premiumAdvantage?.justified,
     });
 
     // NOTE (determinism): pinned per taskId+role+minTier+capTier so a same-phase
@@ -153,6 +165,8 @@ export async function routeModelForRole(opts: {
       minTier,
       minTierReason,
       riskSource: evidence?.source ?? 'task_text_keywords',
+      hardCapTier: budget?.capTier,
+      hardCapReason: budget?.reason,
       capTier: provenTier,
       includeAlternatives: false,
     });
@@ -172,6 +186,9 @@ export async function routeModelForRole(opts: {
         riskHigh,
         riskReason: riskReason ?? null,
         riskSource: evidence?.source ?? 'task_text_keywords',
+        premiumJustified: premiumAdvantage?.justified ?? null,
+        taskSpentUsd: budget?.spentUsd ?? null,
+        budgetCapTier: budget?.capTier ?? null,
         preferredProvider: prefs.preferredProvider ?? null,
         excludeProviders: prefs.excludeProviders ?? [],
       },

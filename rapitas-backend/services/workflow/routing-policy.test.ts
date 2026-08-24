@@ -173,17 +173,90 @@ describe('computeMinTier', () => {
       computeMinTier({ role: 'implementer', taskRetries: 0, themeEscalation: 2, riskHigh: false }),
     ).toBe('standard');
   });
-  test('テーマレベル2でもタスク固有シグナルは premium を維持する', () => {
-    // The cap applies to the THEME signal only — retry and risk still escalate.
+  test('テーマレベル2でも、実際に失敗したタスクは premium へ上がる', () => {
+    // The theme cap applies to the THEME signal only — a retry still escalates.
     expect(
       computeMinTier({ role: 'researcher', taskRetries: 1, themeEscalation: 2, riskHigh: false }),
     ).toBe('premium');
-    expect(
-      computeMinTier({ role: 'researcher', taskRetries: 0, themeEscalation: 2, riskHigh: true }),
-    ).toBe('premium');
   });
-  test('高リスクは premium に引き上げ', () => {
-    expect(computeMinTier({ role: 'planner', taskRetries: 0, riskHigh: true })).toBe('premium');
+
+  // NOTE: 2026-08-25. The risk floor used to pay premium on the FIRST attempt,
+  // i.e. on a prediction. Failure is cheap here — the verify gate, the
+  // adversarial review and self-repair all run before anything merges — while
+  // premium is not: measured over 14 days, standard completed 99.3% of
+  // executions at a fifth of premium's cost and showed no fewer verify-repair
+  // rounds. So risk now raises the FIRST attempt to standard and reaches
+  // premium only once an attempt has actually failed.
+  describe('高リスクの床は反応型', () => {
+    test('初回は standard 止まり（予測では premium を買わない）', () => {
+      expect(computeMinTier({ role: 'planner', taskRetries: 0, riskHigh: true })).toBe('standard');
+      // Even a role with no floor of its own is lifted to standard by risk.
+      expect(computeMinTier({ role: 'researcher', taskRetries: 0, riskHigh: true })).toBe(
+        'standard',
+      );
+    });
+
+    test('実際に失敗した後は premium へ上がる', () => {
+      expect(
+        computeMinTier({
+          role: 'researcher',
+          taskRetries: 1,
+          riskHigh: true,
+          retryCause: 'diff was rejected by the adversarial review',
+        }),
+      ).toBe('premium');
+    });
+
+    test('インフラ起因の失敗でも、高リスクなら再試行は premium へ上がる', () => {
+      // The retry floor alone would decline this cause (a spend limit says
+      // nothing about capability), but risk makes the SECOND attempt worth the
+      // strongest model regardless of why the first one died.
+      expect(
+        computeMinTier({
+          role: 'planner',
+          taskRetries: 1,
+          riskHigh: true,
+          retryCause: "you've hit your usage limit",
+        }),
+      ).toBe('premium');
+    });
+  });
+
+  describe('premium 昇格は実績で正当化される必要がある', () => {
+    test('premium に standard を上回る実績が無ければ standard に抑制', () => {
+      const r = computeMinTierWithReason({
+        role: 'implementer',
+        taskRetries: 1,
+        riskHigh: false,
+        retryCause: 'diff rejected',
+        premiumJustified: false,
+      });
+      expect(r.tier).toBe('standard');
+      expect(r.reason).toContain('premium実績なし');
+    });
+
+    test('実績があれば premium のまま', () => {
+      expect(
+        computeMinTier({
+          role: 'implementer',
+          taskRetries: 1,
+          riskHigh: false,
+          retryCause: 'diff rejected',
+          premiumJustified: true,
+        }),
+      ).toBe('premium');
+    });
+
+    test('証拠不足(undefined)は現状維持', () => {
+      expect(
+        computeMinTier({
+          role: 'implementer',
+          taskRetries: 1,
+          riskHigh: false,
+          retryCause: 'diff rejected',
+        }),
+      ).toBe('premium');
+    });
   });
   test('実証済みティアは capability ロールの床を緩和する', () => {
     expect(
@@ -205,13 +278,25 @@ describe('computeMinTier', () => {
       }),
     ).toBe('standard');
   });
-  test('高リスク/タスクリトライ時は実証済みでも premium を維持', () => {
+  test('高リスク/タスクリトライ時は実証済みティアが床を下げられない', () => {
+    // The floor still wins over evidence — what changed is WHERE the risk floor
+    // sits on a first attempt (standard, not premium). A proven economy tier
+    // must not drag it below that.
     expect(
       computeMinTier({
         role: 'implementer',
         taskRetries: 0,
         riskHigh: true,
         provenTier: 'economy',
+      }),
+    ).toBe('standard');
+    expect(
+      computeMinTier({
+        role: 'implementer',
+        taskRetries: 1,
+        riskHigh: true,
+        provenTier: 'economy',
+        retryCause: 'diff rejected',
       }),
     ).toBe('premium');
     expect(

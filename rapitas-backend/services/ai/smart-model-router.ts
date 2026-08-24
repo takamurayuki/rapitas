@@ -218,6 +218,14 @@ export interface SmartRouteOptions {
    * cannot tell a measured floor from a guessed one.
    */
   riskSource?: string;
+  /**
+   * Absolute ceiling applied AFTER every floor. Unlike `capTier` this is not a
+   * one-step nudge — it is the per-task spend backstop, and a floor must never
+   * be able to spend past it.
+   */
+  hardCapTier?: ModelTier;
+  /** Why `hardCapTier` was set. Recorded in the trace; never affects selection. */
+  hardCapReason?: string;
 }
 
 export async function getSmartRoute(
@@ -285,6 +293,20 @@ export async function getSmartRoute(
       floorApplied = true;
     }
   }
+
+  // Spend backstop: applied LAST so it wins over every floor. A task that has
+  // already spent its budget must not buy another premium phase no matter
+  // which rule asked for one (task 658 ran four premium phases for $50.04
+  // before anything noticed). Only ever lowers.
+  let budgetCapApplied = false;
+  if (opts.hardCapTier) {
+    if (TIER_ORDER.indexOf(recommendedTier as ModelTier) < TIER_ORDER.indexOf(opts.hardCapTier)) {
+      recommendedTier = opts.hardCapTier;
+      floorApplied = false;
+      budgetCapApplied = true;
+    }
+  }
+  void budgetCapApplied;
 
   // Run the dynamic discovery layer: probes CLI/API surfaces of every
   // configured provider and returns whatever models they advertise right now.
@@ -391,6 +413,8 @@ export async function getSmartRoute(
       minTier: opts.minTier ?? null,
       minTierReason: opts.minTierReason ?? null,
       riskSource: opts.riskSource ?? null,
+      hardCapTier: opts.hardCapTier ?? null,
+      hardCapReason: opts.hardCapReason ?? null,
       capTier: opts.capTier ?? null,
       driver,
     },

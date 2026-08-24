@@ -352,6 +352,12 @@ export function computeMinTierWithReason(opts: {
   riskHigh: boolean;
   provenTier?: ModelTier;
   retryCause?: string | null;
+  /**
+   * Recorded verdict on whether premium outperforms standard for this role.
+   * `false` caps any premium floor at standard; `undefined` (no evidence)
+   * keeps the floor as-is.
+   */
+  premiumJustified?: boolean;
 }): { tier: ModelTier | undefined; reason?: string } {
   let roleFloor: ModelTier | undefined = isCapabilityRole(opts.role) ? 'standard' : undefined;
   if (
@@ -374,8 +380,22 @@ export function computeMinTierWithReason(opts: {
   // levels cap at 'standard'; the level is kept in the signature because it
   // still distinguishes "no signal" from "theme is struggling" for telemetry.
   const themeFloor: ModelTier | undefined = theme >= 1 ? 'standard' : undefined;
-  const riskFloor: ModelTier | undefined = opts.riskHigh ? 'premium' : undefined;
-  const tier = highestTier(roleFloor, retryFloor, themeFloor, riskFloor);
+  // REACTIVE, not predictive. Evidence-confirmed risk lifts the first attempt
+  // to 'standard' and only reaches premium once an attempt has actually
+  // failed. Failure is cheap in this architecture — the verify gate, the
+  // adversarial review and self-repair all run before anything merges — so
+  // paying premium on a prediction costs more than escalating on a
+  // measurement. Measured 2026-08-25: standard completed 99.3% of executions
+  // at a fifth of premium's cost, and no reduction in verify-repair rounds was
+  // detectable for premium. Set RAPITAS_RISK_FLOOR_PREDICTIVE=1 to restore the
+  // old pay-up-front behaviour.
+  const predictiveRisk = (process.env.RAPITAS_RISK_FLOOR_PREDICTIVE ?? '').trim() === '1';
+  const riskFloor: ModelTier | undefined = opts.riskHigh
+    ? predictiveRisk || opts.taskRetries >= 1
+      ? 'premium'
+      : 'standard'
+    : undefined;
+  const rawTier = highestTier(roleFloor, retryFloor, themeFloor, riskFloor);
 
   // Name the STRONGEST contributor — the one that actually set the floor. Ties
   // resolve to the most specific signal (risk > this task's retry > theme >
@@ -386,8 +406,20 @@ export function computeMinTierWithReason(opts: {
     [themeFloor, 'テーマの困難度'],
     [roleFloor, `ロール下限(${opts.role})`],
   ];
-  const reason = candidates.find(([t]) => t !== undefined && t === tier)?.[1];
-  return { tier, reason };
+  const rawReason = candidates.find(([t]) => t !== undefined && t === rawTier)?.[1];
+
+  // An UPGRADE must earn itself the same way a downgrade does. resolveProvenTier
+  // has always answered 'which is the cheapest tier that works?'; nothing ever
+  // checked that paying more bought anything. When the recorded outcomes say
+  // premium has no measured advantage for this role, a premium floor is capped
+  // at standard. `undefined` means insufficient evidence and changes nothing.
+  if (rawTier === 'premium' && opts.premiumJustified === false) {
+    return {
+      tier: 'standard',
+      reason: rawReason ? `${rawReason}(premium実績なしのためstandardに抑制)` : undefined,
+    };
+  }
+  return { tier: rawTier, reason: rawReason };
 }
 
 /**
