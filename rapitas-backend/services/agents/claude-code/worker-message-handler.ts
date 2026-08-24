@@ -44,6 +44,8 @@ export interface WorkerMessageContext {
   readonly resumeSessionId: string | undefined;
   readonly process: ChildProcess | null;
   readonly activeTools: Map<string, { name: string; startTime: number; info: string }>;
+  /** The model id the router instructed this execution to run (`config.model`). */
+  readonly instructedModel: string | undefined;
 
   // ─── Mutable state (direct field access) ─────────────────────────────
   outputBuffer: string;
@@ -165,7 +167,7 @@ export function handleWorkerMessage(ctx: WorkerMessageContext, msg: WorkerOutput
         outputTokens: msg.usage?.outputTokens,
         cacheReadInputTokens: msg.usage?.cacheReadInputTokens,
         cacheCreationInputTokens: msg.usage?.cacheCreationInputTokens,
-        modelName: pickPrimaryModel(msg.modelUsage),
+        modelName: pickPrimaryModel(msg.modelUsage, ctx.instructedModel),
         numTurns: msg.numTurns,
       };
       break;

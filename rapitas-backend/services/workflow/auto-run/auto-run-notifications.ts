@@ -226,6 +226,32 @@ export async function notifyQueueStarvation(
   });
 }
 
+/**
+ * The theme is SPINNING: it keeps reporting status='running' but its current
+ * task has produced ZERO AgentExecution rows for the whole threshold window
+ * (task 653: 21 min of enqueue→cancel looked healthy on every self-report).
+ * Notify-only backstop — self-healing stays with hasRunawayCancelLoop.
+ *
+ * @param themeId - Theme reporting running with no progress. / 対象テーマ
+ * @param taskId - Current task with zero executions. / 実行ゼロのカレントタスク
+ * @param elapsedMinutes - How long the zero-progress state persisted. / 継続時間（分）
+ */
+export async function notifyZeroProgressWhileRunning(
+  themeId: number,
+  taskId: number,
+  elapsedMinutes: number,
+): Promise<void> {
+  await notifyOnce({
+    type: 'auto_run_zero_progress',
+    themeId,
+    taskId,
+    title: '自動実行: 実行が進んでいません（空回りの疑い）',
+    message: `テーマは running を報告し続けていますが、タスク #${taskId}「${await taskLabel(
+      taskId,
+    )}」の実行（AgentExecution）が ${elapsedMinutes} 分間 1件も作成されていません。enqueue→cancel の反復など、実行が空回りしている可能性があります。`,
+  });
+}
+
 /** All tasks for the theme are done; auto-run went idle. */
 export async function notifyAllDone(themeId: number): Promise<void> {
   const theme = await prisma.theme

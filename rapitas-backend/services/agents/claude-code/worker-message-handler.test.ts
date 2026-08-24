@@ -16,6 +16,7 @@ function makeCtx(): WorkerMessageContext {
     resumeSessionId: undefined,
     process: null,
     activeTools: new Map(),
+    instructedModel: undefined,
     outputBuffer: '',
     finalResultText: '',
     claudeSessionId: null,

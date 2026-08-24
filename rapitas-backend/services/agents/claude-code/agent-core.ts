@@ -122,6 +122,11 @@ export class ClaudeCodeAgent extends BaseAgent {
     return this.config.continueConversation;
   }
 
+  /** @internal Top-level alias of `config.model` for helper context. */
+  public get instructedModel(): string | undefined {
+    return this.config.model;
+  }
+
   getCapabilities(): AgentCapability {
     return {
       codeGeneration: true,

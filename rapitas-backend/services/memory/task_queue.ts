@@ -11,6 +11,12 @@ const log = createLogger('memory:task-queue');
 
 type TaskHandler = (payload: Record<string, unknown>) => Promise<void>;
 
+// A `processing` row older than this is judged stale. The processor's only
+// mutual exclusion is the in-memory `isProcessing` flag (no DB-level lease),
+// so a row left in `processing` across a restart/crash never clears on its
+// own — reapStuckProcessing() is what unsticks it.
+const STUCK_PROCESSING_THRESHOLD_MS = 5 * 60 * 1000;
+
 export class MemoryTaskQueueProcessor {
   private intervalId: ReturnType<typeof setInterval> | null = null;
   private handlers = new Map<string, TaskHandler>();
@@ -149,6 +155,61 @@ export class MemoryTaskQueueProcessor {
     } finally {
       this.isProcessing = false;
     }
+  }
+
+  /**
+   * Requeue `processing` rows stuck past the stale threshold — pending
+   * (retry) if under maxAttempts, dead_letter otherwise. Call once at
+   * startup before start(), so no in-process handler is genuinely running
+   * yet and every matching row is unambiguously a prior process's orphan.
+   *
+   * @param thresholdMs - Rows whose startedAt is older than this are reaped / この経過時間を超えたstartedAtの行を回収対象とする
+   * @returns Counts of rows moved to pending vs dead_letter / pending復帰件数とdead_letter送り件数
+   */
+  async reapStuckProcessing(
+    thresholdMs = STUCK_PROCESSING_THRESHOLD_MS,
+  ): Promise<{ reapedToPending: number; reapedToDeadLetter: number }> {
+    const cutoff = new Date(Date.now() - thresholdMs);
+    const stuckTasks = await prisma.memoryTaskQueue.findMany({
+      where: {
+        status: 'processing',
+        OR: [{ startedAt: { lt: cutoff } }, { startedAt: null }],
+      },
+    });
+
+    let reapedToPending = 0;
+    let reapedToDeadLetter = 0;
+    const message = 'サーバー再起動またはクラッシュにより処理が中断されました';
+
+    for (const task of stuckTasks) {
+      if (task.attempts >= task.maxAttempts) {
+        await prisma.memoryTaskQueue.update({
+          where: { id: task.id },
+          data: { status: 'dead_letter', errorMessage: message },
+        });
+        reapedToDeadLetter++;
+        log.error(
+          { taskType: task.taskType, taskId: task.id, attempts: task.attempts },
+          'Stuck processing task moved to dead_letter',
+        );
+      } else {
+        await prisma.memoryTaskQueue.update({
+          where: { id: task.id },
+          data: { status: 'pending', errorMessage: message },
+        });
+        reapedToPending++;
+        log.warn(
+          { taskType: task.taskType, taskId: task.id, attempts: task.attempts },
+          'Stuck processing task requeued as pending',
+        );
+      }
+    }
+
+    if (reapedToPending + reapedToDeadLetter > 0) {
+      log.info({ reapedToPending, reapedToDeadLetter }, 'Reaped stuck processing tasks');
+    }
+
+    return { reapedToPending, reapedToDeadLetter };
   }
 
   /**
