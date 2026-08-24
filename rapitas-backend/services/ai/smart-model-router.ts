@@ -211,6 +211,13 @@ export interface SmartRouteOptions {
    * trace and the reason string; never affects selection.
    */
   minTierReason?: string;
+  /**
+   * Where the risk decision came from: an evidence source (declared change
+   * targets / the research verdict) or the pre-research keyword fallback.
+   * Recorded in the trace only — never affects selection. Without it an audit
+   * cannot tell a measured floor from a guessed one.
+   */
+  riskSource?: string;
 }
 
 export async function getSmartRoute(
@@ -383,6 +390,7 @@ export async function getSmartRoute(
       // from "a risk/retry floor forced it".
       minTier: opts.minTier ?? null,
       minTierReason: opts.minTierReason ?? null,
+      riskSource: opts.riskSource ?? null,
       capTier: opts.capTier ?? null,
       driver,
     },

@@ -107,10 +107,24 @@ export async function routeModelForRole(opts: {
       ? await readWorkflowFile(taskId, 'plan').catch(() => null)
       : null;
     const labelsText = typeof task.labels === 'string' ? task.labels : '';
-    const { high: riskHigh, reason: riskReason } = detectHighRisk({
-      text: `${task.title} ${task.description ?? ''} ${labelsText}`,
-      planContent,
-    });
+
+    // EVIDENCE FIRST (task 661). research.md and plan.md are produced by agents
+    // that read the actual code, so they supersede a keyword guess over the
+    // task's prose — the same rule this file already applies to complexity
+    // (see the note above: neutral 50 before research, measured score after).
+    // The keyword detector remains the pre-research fallback, where no evidence
+    // exists yet. Measured: of the routing decisions that recorded a driver,
+    // complexity never once chose premium while the prose floor chose it 31
+    // times, and every instance inspected was a false positive.
+    const { resolveRiskFromEvidence } = await import('./risk-evidence');
+    const researchContent = await readWorkflowFile(taskId, 'research').catch(() => null);
+    const evidence = resolveRiskFromEvidence({ researchContent, planContent });
+    const { high: riskHigh, reason: riskReason } =
+      evidence ??
+      detectHighRisk({
+        text: `${task.title} ${task.description ?? ''} ${labelsText}`,
+        planContent,
+      });
 
     // Evidence is consulted only on the safe path: a task that already failed,
     // and high-risk work, keep their premium floors and never downgrade on
@@ -138,6 +152,7 @@ export async function routeModelForRole(opts: {
       ...prefs,
       minTier,
       minTierReason,
+      riskSource: evidence?.source ?? 'task_text_keywords',
       capTier: provenTier,
       includeAlternatives: false,
     });
@@ -156,6 +171,7 @@ export async function routeModelForRole(opts: {
         themeEscalation,
         riskHigh,
         riskReason: riskReason ?? null,
+        riskSource: evidence?.source ?? 'task_text_keywords',
         preferredProvider: prefs.preferredProvider ?? null,
         excludeProviders: prefs.excludeProviders ?? [],
       },

@@ -4,7 +4,8 @@
  * Route handlers for reading and writing workflow files (research, question, plan, verify).
  * handleSaveFile orchestrates the file-save pipeline stages under ./file-save/
  * (guards → content prep → status transition → critic gate → plan post-processing
- * → verify gates → commit/PR completion) and assembles the HTTP response.
+ * → verify post-save automation: completion gate → adversarial review →
+ * commit/PR completion) and assembles the HTTP response.
  * Not responsible for route registration, status updates, or the stage logic itself.
  */
 
@@ -21,9 +22,7 @@ import {
   computeAndApplyStatusTransition,
   runPhaseCriticGate,
   runPlanPostProcessing,
-  runVerifyCompletionGate,
-  runAdversarialDiffReview,
-  runVerifyCommitPrCompletion,
+  runVerifyPostSaveAutomation,
 } from './file-save';
 
 const log = createLogger('routes:workflow:handlers:files');
@@ -151,35 +150,15 @@ export async function handleSaveFile({
     newStatus = planPost.newStatus;
     const { autoApproved, splitResult } = planPost;
 
-    const completionGate = await runVerifyCompletionGate({
+    // Completion gate → adversarial jury → commit/PR/merge, registered as ONE
+    // in-flight unit before any of it runs (task 660: registering only the
+    // commit/PR stage left the gate + jury unregistered and the runner blocked
+    // task 658 mid-jury, 3.5 minutes before its PR landed).
+    const commitPr = await runVerifyPostSaveAutomation({
       taskId,
       fileType,
       newStatus,
       savedContent,
-    });
-    const { conflictTask, isConflictResolutionTask, preferredBaseBranchForVerify } = completionGate;
-
-    const adversarial = await runAdversarialDiffReview({
-      taskId,
-      fileType,
-      newStatus,
-      verifyGateBlocked: completionGate.verifyGateBlocked,
-      isConflictResolutionTask,
-      savedContent,
-      preferredBaseBranchForVerify,
-    });
-    newStatus = adversarial.newStatus;
-
-    const commitPr = await runVerifyCommitPrCompletion({
-      taskId,
-      fileType,
-      newStatus,
-      verifyGateBlocked: adversarial.verifyGateBlocked,
-      staleVerifyRequest: adversarial.staleVerifyRequest,
-      isConflictResolutionTask,
-      conflictTask,
-      savedContent,
-      preferredBaseBranchForVerify,
     });
     newStatus = commitPr.newStatus;
     const { taskMarkedDone, autoCommitPRResult } = commitPr;

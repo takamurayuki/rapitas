@@ -202,6 +202,20 @@ const HIGH_RISK_PATH_RE =
  * their context gate. Extracted so task text and plan get identical rules.
  * `planDataRe` narrows the plan's data-layer signal (declared mode: DSL only).
  */
+/**
+ * Remove the lines where a risk word is explicitly ruled out — 「足さない」
+ * 「スキーマ変更は不要」「非対象(やらないこと)」. Exported so the evidence layer can
+ * apply it BEFORE extracting a plan's declared change targets: parsePlanFiles
+ * captures every backticked path, including the one in a row whose answer was
+ * "do not touch it" (task 658).
+ *
+ * @param text - plan.md or task text. / plan.md またはタスク本文
+ * @returns The text with ruled-out lines blanked. / 除外行を空白化した本文
+ */
+export function stripRuledOutLines(text: string): string {
+  return text.replace(SCHEMA_BAN_SENTENCE_RE, ' ').replace(RISK_NEGATION_LINE_RE, ' ');
+}
+
 function scrubForRisk(text: string, kind: 'text' | 'plan'): string {
   const base = text
     .replace(SCHEMA_BAN_SENTENCE_RE, ' ')
