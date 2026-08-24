@@ -1,9 +1,10 @@
 import { describe, test, expect, mock } from 'bun:test';
 
 const mockSearchKnowledge = mock(() => Promise.resolve<unknown[]>([]));
-mock.module('./search', () => ({
-  searchKnowledge: mockSearchKnowledge,
+mock.module('../recall/hybrid-search', () => ({
+  searchKnowledgeHybrid: mockSearchKnowledge,
 }));
+const ALL_STAGES = ['active', 'dormant', 'archived'];
 mock.module('../../../config/logger', () => ({
   createLogger: () => ({ info: () => {}, error: () => {}, warn: () => {}, debug: () => {} }),
 }));
@@ -46,28 +47,51 @@ describe('buildRAGContext', () => {
     expect(result.contextText).toContain('本文');
   });
 
-  test('passes limit/minSimilarity/themeId through to searchKnowledge', async () => {
+  test('passes limit/minSimilarity/themeId through, with config stages and task_rag telemetry', async () => {
     mockSearchKnowledge.mockResolvedValueOnce([]);
     await buildRAGContext('q', { limit: 3, minSimilarity: 0.7, themeId: 5 });
-    expect(mockSearchKnowledge).toHaveBeenCalledWith({
-      query: 'q',
-      limit: 3,
-      minSimilarity: 0.7,
-      forgettingStage: 'active',
-      themeId: 5,
-    });
+    expect(mockSearchKnowledge).toHaveBeenCalledWith(
+      expect.objectContaining({
+        query: 'q',
+        limit: 3,
+        minSimilarity: 0.7,
+        stages: ALL_STAGES,
+        themeId: 5,
+        telemetry: { source: 'task_rag' },
+      }),
+    );
   });
 
-  test('defaults limit=5, minSimilarity=0.6 when options are omitted', async () => {
+  test('defaults limit=5 and the config minSimilarity (0.55) when options are omitted', async () => {
     mockSearchKnowledge.mockResolvedValueOnce([]);
     await buildRAGContext('q');
-    expect(mockSearchKnowledge).toHaveBeenCalledWith({
-      query: 'q',
-      limit: 5,
-      minSimilarity: 0.6,
-      forgettingStage: 'active',
-      themeId: undefined,
-    });
+    expect(mockSearchKnowledge).toHaveBeenCalledWith(
+      expect.objectContaining({
+        query: 'q',
+        limit: 5,
+        minSimilarity: 0.55,
+        stages: ALL_STAGES,
+        themeId: undefined,
+      }),
+    );
+  });
+
+  test('lexical-only hits surface their lexicalScore as the similarity', async () => {
+    mockSearchKnowledge.mockResolvedValueOnce([
+      {
+        id: 3,
+        title: '語彙ヒット',
+        content: '本文',
+        category: 'x',
+        confidence: 1,
+        similarity: 0,
+        channel: 'lexical',
+        lexicalScore: 0.3,
+      },
+    ]);
+    const result = await buildRAGContext('q');
+    expect(result.entries[0].similarity).toBe(0.3);
+    expect(result.contextText).toContain('類似度: 30%');
   });
 
   test('returns an empty context (not a throw) when searchKnowledge rejects', async () => {
@@ -86,7 +110,8 @@ describe('buildTaskRAGContext', () => {
         query: 'タイトル 説明文',
         themeId: 7,
         limit: 5,
-        minSimilarity: 0.5,
+        // No per-caller constant any more — the recall config floor applies.
+        minSimilarity: 0.55,
       }),
     );
   });

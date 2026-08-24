@@ -115,6 +115,7 @@ export function searchSimilar(
   limit = 10,
   minSimilarity = 0.5,
   excludeIds: number[] = [],
+  model?: string,
 ): VectorSearchResult[] {
   const database = getDb();
 
@@ -122,9 +123,22 @@ export function searchSimilar(
   // ORDER BY — ordering by the table's own `id` primary key makes repeated
   // scans of an unchanged table return rows in the same order, so the
   // similarity-tie-break below is reproducible run-to-run.
-  const rows = database
-    .query('SELECT knowledge_entry_id, embedding, text_preview FROM embeddings ORDER BY id ASC')
-    .all() as Array<{
+  // NOTE: `model` restricts the scan to rows embedded by that model — cosine
+  // between vectors of different models is meaningless, so during a model
+  // migration only same-model rows may be compared with the query.
+  const rows = (
+    model === undefined
+      ? database
+          .query(
+            'SELECT knowledge_entry_id, embedding, text_preview FROM embeddings ORDER BY id ASC',
+          )
+          .all()
+      : database
+          .query(
+            'SELECT knowledge_entry_id, embedding, text_preview FROM embeddings WHERE embedding_model = ? ORDER BY id ASC',
+          )
+          .all(model)
+  ) as Array<{
     knowledge_entry_id: number;
     embedding: Buffer;
     text_preview: string | null;
@@ -164,6 +178,50 @@ export function getEmbeddingCount(): number {
     count: number;
   };
   return result.count;
+}
+
+/**
+ * Count stored embeddings per model name (migration progress signal).
+ *
+ * @returns Map of embedding_model → row count. / モデル別件数
+ */
+export function countEmbeddingsByModel(): Record<string, number> {
+  const database = getDb();
+  const rows = database
+    .query(
+      'SELECT embedding_model AS model, COUNT(*) AS count FROM embeddings GROUP BY embedding_model',
+    )
+    .all() as Array<{ model: string | null; count: number }>;
+  const out: Record<string, number> = {};
+  for (const r of rows) out[r.model ?? ''] = r.count;
+  return out;
+}
+
+/** SQLite's default max host parameters is 999; stay well under it. */
+const IN_CHUNK = 500;
+
+/**
+ * Look up which model each entry's stored embedding was produced by.
+ * Entries without an embedding are absent from the map.
+ *
+ * @param ids - Knowledge entry ids. / 対象ID
+ * @returns entryId → embedding_model. / ID→モデル名
+ */
+export function getEmbeddingModels(ids: number[]): Map<number, string> {
+  const out = new Map<number, string>();
+  if (ids.length === 0) return out;
+  const database = getDb();
+  for (let i = 0; i < ids.length; i += IN_CHUNK) {
+    const chunk = ids.slice(i, i + IN_CHUNK);
+    const placeholders = chunk.map(() => '?').join(',');
+    const rows = database
+      .query(
+        `SELECT knowledge_entry_id AS id, embedding_model AS model FROM embeddings WHERE knowledge_entry_id IN (${placeholders})`,
+      )
+      .all(...chunk) as Array<{ id: number; model: string | null }>;
+    for (const r of rows) out.set(r.id, r.model ?? '');
+  }
+  return out;
 }
 
 /**
