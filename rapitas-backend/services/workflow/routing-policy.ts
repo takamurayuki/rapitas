@@ -118,6 +118,33 @@ const SCHEMA_HYPOTHETICAL_SENTENCE_RE =
   /[^。\n]*(?:スキーマ|schema)[^。\n]{0,20}?(?:必要な場合|必要であれば|必要なら)[^。\n]*(?:。|(?=\n)|$)/gi;
 
 /**
+ * A line where a risk word is EXPLICITLY ruled out rather than planned.
+ * Plans state their non-goals as often as their goals — 「『バグ』でも『セキュリティ』
+ * でもなく」「Prisma スキーマ変更は不要」「非対象(やらないこと): Prisma スキーマ変更」
+ * — and a decision NOT to touch something must not buy a premium model.
+ *
+ * Line-bounded on purpose: plans express these as markdown table rows and
+ * bullets, where the row is the unit of decision. The {0,60} gap keeps it
+ * narrow — a risk word and a distant unrelated negation stay intact (fires,
+ * the safe side). Generalises SCHEMA_BAN_SENTENCE_RE from schema to the whole
+ * risk vocabulary.
+ */
+const RISK_NEGATION_LINE_RE = new RegExp(
+  '^[^\\n]*?(?:スキーマ|schema|セキュリティ|security|認証|auth|暗号|権限|決済|payment|課金|billing|prisma)' +
+    '[^\\n]{0,60}?(?:でもなく|ではなく|ではない|ではありません|該当しない|対象外|非対象|やらないこと|不要|必要ない|触らない|変更しない|足さない|行わない|しないこと|禁止|不可)' +
+    '[^\\n]*$',
+  'gim',
+);
+
+/**
+ * Prisma CLIENT calls (`prisma.<model>.<method>`) named in a plan. Reading or
+ * writing rows is not a schema change, so unlike a `prisma/schema/...` path
+ * this is never the data-layer signal — plans cite it constantly when
+ * describing existing query sites.
+ */
+const PRISMA_CLIENT_CALL_RE = new RegExp('prisma\\s*\\.\\s*\\w+\\s*\\.\\s*\\w+', 'gi');
+
+/**
  * WEAK signals: words this app's own domain vocabulary collides with (study
  * tasks say 暗号, UI copy says 権限, reviews mention セキュリティ). Measured
  * 38% of tasks premium-forced by contextless matching. Each weak word only
@@ -148,17 +175,26 @@ const HIGH_RISK_PATH_RE =
  * data-layer signals fire after ban-sentence stripping, weak signals need
  * their context gate. Extracted so task text and plan get identical rules.
  */
+function scrubForRisk(text: string, kind: 'text' | 'plan'): string {
+  const base = text
+    .replace(SCHEMA_BAN_SENTENCE_RE, ' ')
+    .replace(RISK_NEGATION_LINE_RE, ' ')
+    .replace(PRISMA_CLIENT_CALL_RE, ' ');
+  if (kind === 'plan') return base;
+  return base.replace(SCHEMA_HYPOTHETICAL_SENTENCE_RE, ' ').replace(TEXT_NON_INTENT_RE, ' ');
+}
+
 function matchesHighRisk(text: string, kind: 'text' | 'plan'): boolean {
-  if (STRONG_RISK_RE.test(text)) return true;
+  // Every signal reads the SCRUBBED text. The strong list and the weak gates
+  // used to read the raw input while only the data-layer regex saw the scrub,
+  // so a negated risk word still fired: task 659's plan named セキュリティ once,
+  // inside 「『バグ』でも『セキュリティ』でもなく」, and that bought a premium
+  // implementer. A scrub only some signals honour is not a scrub.
+  const scrubbed = scrubForRisk(text, kind);
+  if (STRONG_RISK_RE.test(scrubbed)) return true;
   const dataRe = kind === 'plan' ? DATA_RISK_PLAN_RE : DATA_RISK_TEXT_RE;
-  let scrubbed = text.replace(SCHEMA_BAN_SENTENCE_RE, ' ');
-  if (kind === 'text') {
-    scrubbed = scrubbed
-      .replace(SCHEMA_HYPOTHETICAL_SENTENCE_RE, ' ')
-      .replace(TEXT_NON_INTENT_RE, ' ');
-  }
   if (dataRe.test(scrubbed)) return true;
-  return WEAK_SIGNAL_GATES.some((g) => g.word.test(text) && g.context.test(text));
+  return WEAK_SIGNAL_GATES.some((g) => g.word.test(scrubbed) && g.context.test(scrubbed));
 }
 
 /**
@@ -233,7 +269,12 @@ export function detectHighRisk(opts: { text?: string | null; planContent?: strin
     };
   }
   const plan = opts.planContent ?? '';
-  if (plan && (matchesHighRisk(plan, 'plan') || HIGH_RISK_PATH_RE.test(plan))) {
+  // Same scrub for the path probe — it used to test the RAW plan, so a row
+  // that explicitly ruled a file OUT still counted as touching it.
+  if (
+    plan &&
+    (matchesHighRisk(plan, 'plan') || HIGH_RISK_PATH_RE.test(scrubForRisk(plan, 'plan')))
+  ) {
     return {
       high: true,
       reason: 'plan touches high-risk files (schema/migration/auth/payment/security)',
