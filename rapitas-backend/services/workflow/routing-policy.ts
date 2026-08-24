@@ -36,8 +36,12 @@ const CAPABILITY_ROLES = new Set(['implementer', 'planner', 'verifier', 'auto_ve
  * `s` are word characters, so `MAX_TOKENS` / `tokens used` have no word
  * boundary around "token" and never fire (asserted by the LLM-context tests).
  */
+// NOTE: 決済 carries a lookaround because Japanese has no word boundaries —
+// 「解決済み」(already resolved) contains it verbatim and is everywhere in plans.
+// Task 660 was pinned to premium for all of its implement/verify phases by a
+// single 「別リクエストが既に解決済み」 in a decision table.
 const STRONG_RISK_RE =
-  /(\bauth\b|認証|ログイン|\blogin\b|password|パスワード|\btoken\b|secret|credential|決済|課金|payment|billing|rbac|csrf|xss|sql\s*injection)/i;
+  /(\bauth\b|認証|ログイン|\blogin\b|password|パスワード|\btoken\b|secret|credential|(?<![解議判])決済(?!み)|課金|payment|billing|rbac|csrf|xss|sql\s*injection)/i;
 
 /**
  * Data-layer signals: work that CHANGES the schema, not work that merely uses

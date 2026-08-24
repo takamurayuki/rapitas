@@ -20,6 +20,15 @@ const log = createLogger('agents:verification:test-triage');
 /** Per-test-file timeout for individual triage runs. */
 const TRIAGE_TEST_TIMEOUT_MS = 120_000;
 const TRIAGE_CMD_TIMEOUT_MS = 10_000;
+/**
+ * Baseline worktree create/setup attempts (initial + retries). Dozens of
+ * worktrees run concurrently, so a transient git lock / I/O hiccup is the
+ * common cause; one retry absorbs it without delaying a genuinely broken
+ * environment's fall-through to "indeterminate" for long (task 659).
+ */
+const BASELINE_INFRA_ATTEMPTS = 2;
+/** Pause between baseline infra attempts — a small wait for the git index lock to clear. */
+const DEFAULT_RETRY_DELAY_MS = 300;
 
 interface CmdResult {
   code: number;
@@ -152,16 +161,29 @@ export interface TriageRunnerOpts {
   removeWorktreeFn?: (baseDir: string, path: string, deleteBranch: boolean) => Promise<void>;
   createWorktreeFn?: (mainRepoRoot: string, dir: string, commit: string) => Promise<boolean>;
   setupWorktreeFn?: (dir: string) => Promise<boolean>;
+  /** Wait between baseline create/setup retries (ms). Tests pass 0 to skip the wait. */
+  retryDelayMs?: number;
+}
+
+function sleep(ms: number): Promise<void> {
+  return ms > 0 ? new Promise((r) => setTimeout(r, ms)) : Promise.resolve();
+}
+
+/** Fresh random baseline dir — a retry never reuses a name that may have left debris. */
+function newBaselineDir(mainRepoRoot: string): string {
+  return join(mainRepoRoot, '.worktrees', `triage-${randomBytes(4).toString('hex')}`);
 }
 
 /**
  * Classifies failing tests as pre-existing or agent-introduced by running them
- * against the merge-base worktree. Returns null on infrastructure failure, in
- * which case the caller should treat all failures as new (fail-safe).
+ * against the merge-base worktree. Returns null when the baseline comparison is
+ * INDETERMINATE (infrastructure failure after retries) — the caller must treat
+ * that as "could not attribute", NOT as "all failures are new" (task 659).
  *
- * Strategy (fail-safe on any infrastructure error):
+ * Strategy:
  * 1. Run each scoped test individually to determine currentFailing.
- * 2. Create a detached worktree at merge-base and link node_modules.
+ * 2. Create a detached worktree at merge-base and link node_modules (each step
+ *    retried once; creation retries under a fresh directory name).
  * 3. Run only the currently-failing files against the baseline.
  * 4. Classify via classifyFailures.
  *
@@ -169,7 +191,7 @@ export interface TriageRunnerOpts {
  * @param workdir - Agent's worktree root / エージェントの worktree ルート
  * @param scopedTestFiles - Test files in scope (relative to projectRoot) / スコープ内テスト
  * @param opts - Injectable dependencies for testing / テスト用依存性注入
- * @returns Classification or null on infrastructure failure / 分類結果、失敗時 null
+ * @returns Classification, or null when indeterminate / 分類結果、判定不能時 null
  */
 export async function triageTestFailures(
   projectRoot: string,
@@ -185,6 +207,7 @@ export async function triageTestFailures(
   const removeWt = opts?.removeWorktreeFn ?? removeWorktree;
   const createWt = opts?.createWorktreeFn ?? defaultCreateWorktree;
   const setupWt = opts?.setupWorktreeFn ?? defaultSetupWorktree;
+  const retryDelayMs = opts?.retryDelayMs ?? DEFAULT_RETRY_DELAY_MS;
 
   // Step 1: determine which scoped files are currently failing (1 file = 1 command)
   const currentFailing: string[] = [];
@@ -200,39 +223,55 @@ export async function triageTestFailures(
   // Step 2: resolve merge-base commit and main repo root
   const baseCommit = await resolveBase(workdir);
   if (!baseCommit) {
-    log.warn({ workdir }, 'test-triage: cannot resolve merge-base, treating all failures as new');
+    log.warn({ workdir }, 'test-triage: cannot resolve merge-base, triage indeterminate');
     return null;
   }
   const mainRepoRoot = await getMainRoot(workdir);
   if (!mainRepoRoot) {
-    log.warn(
-      { workdir },
-      'test-triage: cannot resolve main repo root, treating all failures as new',
-    );
+    log.warn({ workdir }, 'test-triage: cannot resolve main repo root, triage indeterminate');
     return null;
   }
 
-  const baselineDir = join(mainRepoRoot, '.worktrees', `triage-${randomBytes(4).toString('hex')}`);
+  let baselineDir = newBaselineDir(mainRepoRoot);
   let baselineCreated = false;
 
   try {
-    // Step 3: create detached worktree at merge-base
-    const created = await createWt(mainRepoRoot, baselineDir, baseCommit);
-    if (!created) {
+    // Step 3: create detached worktree at merge-base (retry under a NEW dir name —
+    // a collision with leftover debris under the old name must not repeat).
+    for (let attempt = 1; !baselineCreated; attempt++) {
+      baselineCreated = await createWt(mainRepoRoot, baselineDir, baseCommit);
+      if (baselineCreated) break;
+      if (attempt >= BASELINE_INFRA_ATTEMPTS) {
+        log.warn(
+          { baselineDir, attempts: attempt },
+          'test-triage: baseline worktree creation failed after retries, triage indeterminate',
+        );
+        return null;
+      }
       log.warn(
-        { baselineDir },
-        'test-triage: baseline worktree creation failed, treating all failures as new',
+        { baselineDir, attempt },
+        'test-triage: baseline worktree creation failed, retrying',
       );
-      return null;
+      await sleep(retryDelayMs);
+      baselineDir = newBaselineDir(mainRepoRoot);
     }
-    baselineCreated = true;
 
-    // Step 4: link node_modules via setup-worktree.cjs
+    // Step 4: link node_modules via setup-worktree.cjs (same dir on retry — the
+    // worktree itself exists; only the link step is being re-run).
     // NOTE: bun install is prohibited in worktrees per CLAUDE.md; setup-worktree.cjs only links.
-    const setup = await setupWt(baselineDir);
-    if (!setup) {
-      log.warn({ baselineDir }, 'test-triage: baseline setup failed, treating all failures as new');
-      return null;
+    let setup = false;
+    for (let attempt = 1; !setup; attempt++) {
+      setup = await setupWt(baselineDir);
+      if (setup) break;
+      if (attempt >= BASELINE_INFRA_ATTEMPTS) {
+        log.warn(
+          { baselineDir, attempts: attempt },
+          'test-triage: baseline setup failed after retries, triage indeterminate',
+        );
+        return null;
+      }
+      log.warn({ baselineDir, attempt }, 'test-triage: baseline setup failed, retrying');
+      await sleep(retryDelayMs);
     }
 
     // The baseline's project root mirrors the current worktree's structure
@@ -257,7 +296,7 @@ export async function triageTestFailures(
     );
     return result;
   } catch (err) {
-    log.warn({ err }, 'test-triage: unexpected error during triage, treating all failures as new');
+    log.warn({ err }, 'test-triage: unexpected error during triage, triage indeterminate');
     return null;
   } finally {
     if (baselineCreated) {
