@@ -4,6 +4,8 @@ import {
   deleteEmbedding,
   searchSimilar,
   getEmbeddingCount,
+  countEmbeddingsByModel,
+  getEmbeddingModels,
   closeVectorDb,
 } from './vector-index';
 
@@ -93,5 +95,45 @@ describe('upsertEmbedding / searchSimilar / getEmbeddingCount / deleteEmbedding'
     testIds.push(id);
     upsertEmbedding(id, [1, 2, 3], 'count test');
     expect(getEmbeddingCount()).toBe(before + 1);
+  });
+});
+
+describe('model-scoped search / countEmbeddingsByModel / getEmbeddingModels', () => {
+  test('rows embedded by another model are invisible to a model-scoped search', () => {
+    const legacyId = TEST_ID_BASE + 40;
+    const otherId = TEST_ID_BASE + 41;
+    testIds.push(legacyId, otherId);
+    upsertEmbedding(legacyId, [1, 0, 0], 'legacy', 'model-A');
+    upsertEmbedding(otherId, [1, 0, 0], 'other', 'model-B');
+
+    const scoped = searchSimilar([1, 0, 0], 10, 0.9, [], 'model-A');
+    expect(scoped.some((r) => r.knowledgeEntryId === legacyId)).toBe(true);
+    expect(scoped.some((r) => r.knowledgeEntryId === otherId)).toBe(false);
+
+    // Unscoped (legacy signature) still sees both.
+    const all = searchSimilar([1, 0, 0], 10, 0.9, []);
+    expect(all.some((r) => r.knowledgeEntryId === otherId)).toBe(true);
+  });
+
+  test('countEmbeddingsByModel counts each model separately', () => {
+    const a = TEST_ID_BASE + 50;
+    const b = TEST_ID_BASE + 51;
+    testIds.push(a, b);
+    const before = countEmbeddingsByModel();
+    upsertEmbedding(a, [0, 1, 0], 'a', 'count-model-X');
+    upsertEmbedding(b, [0, 1, 0], 'b', 'count-model-Y');
+    const after = countEmbeddingsByModel();
+    expect(after['count-model-X']).toBe((before['count-model-X'] ?? 0) + 1);
+    expect(after['count-model-Y']).toBe((before['count-model-Y'] ?? 0) + 1);
+  });
+
+  test('getEmbeddingModels maps ids to their model and omits missing ids', () => {
+    const a = TEST_ID_BASE + 60;
+    testIds.push(a);
+    upsertEmbedding(a, [0, 0, 1], 'a', 'map-model');
+    const map = getEmbeddingModels([a, TEST_ID_BASE + 61]);
+    expect(map.get(a)).toBe('map-model');
+    expect(map.has(TEST_ID_BASE + 61)).toBe(false);
+    expect(getEmbeddingModels([]).size).toBe(0);
   });
 });

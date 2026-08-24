@@ -51,7 +51,9 @@ export type TimelineEventType =
   | 'retro_review_failed'
   | 'playbook_generated'
   | 'playbook_generation_failed'
-  | 'context_section_metrics';
+  | 'context_section_metrics'
+  | 'memory_recall_attempt'
+  | 'embedding_reindex';
 
 export type ActorType = 'user' | 'agent' | 'system';
 
@@ -62,7 +64,8 @@ export type MemoryTaskType =
   | 'validate'
   | 'forget_sweep'
   | 'distill'
-  | 'detect_contradiction';
+  | 'detect_contradiction'
+  | 'reembed';
 
 export type QueueTaskStatus = 'pending' | 'processing' | 'completed' | 'failed' | 'dead_letter';
 
@@ -130,9 +133,14 @@ export interface KnowledgeSearchOptions {
   query: string;
   limit?: number;
   minSimilarity?: number;
-  forgettingStage?: ForgettingStage;
+  /** Single stage (legacy) or a set of stages to recall from (`{ in }`). */
+  forgettingStage?: ForgettingStage | ForgettingStage[];
   category?: KnowledgeCategory;
   themeId?: number;
+  /** Per-stage rank multiplier (missing stage → 1). Only affects ordering. */
+  stageWeights?: Partial<Record<ForgettingStage, number>>;
+  /** Vector candidate pool = limit × multiplier (defaults to recall config). */
+  candidateMultiplier?: number;
 }
 
 export interface KnowledgeListOptions {

@@ -50,8 +50,11 @@ export async function findSemanticDuplicate(
 ): Promise<number | null> {
   if (!content.trim()) return null;
   try {
-    const { embedding } = await generateEmbedding(content);
-    const hits = searchSimilar(embedding, 1, threshold, excludeIds);
+    const { embedding, model } = await generateEmbedding(content);
+    // NOTE: compare only against rows embedded by the same model — while a
+    // re-embedding migration is in flight, cross-model cosine would produce
+    // false duplicates (and false negatives are covered by findLexicalDuplicate).
+    const hits = searchSimilar(embedding, 1, threshold, excludeIds, model);
     if (hits.length > 0) {
       log.debug(
         { dupId: hits[0].knowledgeEntryId, similarity: hits[0].similarity },
