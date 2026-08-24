@@ -276,6 +276,86 @@ describe('submitConcern — source tag', () => {
   });
 });
 
+// ─── submitConcern — lifecycle-aware dedup ─────────────────────────────────────
+
+describe('submitConcern — lifecycle-aware dedup', () => {
+  beforeEach(resetMocks);
+
+  // Regression: dedup used to match any concern with the same contentHash
+  // regardless of lifecycle, so once a ci_watch red for a workflow left 'open'
+  // (promoted to a task, resolved, or forgotten) the same workflow breaking
+  // again was silently swallowed forever. Dedup must only block on a LIVE
+  // concern: 'open', or 'task_created' whose task is still in flight.
+
+  it('scopes the dedup lookup to active, non-resolved concerns', async () => {
+    await submitConcern({
+      title: 'CI赤の懸念タイトル',
+      detail: '詳細',
+      dedupKey: 'ci-red:1:Test',
+    });
+
+    const call = mockKnowledgeEntryFindMany.mock.calls[0][0] as {
+      where: { forgettingStage?: string; sourceId?: unknown };
+    };
+    expect(call.where.forgettingStage).toBe('active');
+    expect(call.where.sourceId).toEqual({ not: 'resolved' });
+  });
+
+  it('blocks (no new row) when a live OPEN concern with the same key exists', async () => {
+    mockKnowledgeEntryFindMany.mockResolvedValue([{ id: 5, sourceId: 'open' }]);
+
+    const id = await submitConcern({
+      title: 'CI赤の懸念タイトル',
+      detail: '詳細',
+      dedupKey: 'ci-red:1:Test',
+    });
+
+    expect(id).toBe(5);
+    expect(mockKnowledgeEntryCreate).not.toHaveBeenCalled();
+  });
+
+  it('blocks when a dismissed concern with the same key exists (respects dismiss)', async () => {
+    mockKnowledgeEntryFindMany.mockResolvedValue([{ id: 5, sourceId: 'dismissed' }]);
+
+    const id = await submitConcern({
+      title: 'CI赤の懸念タイトル',
+      detail: '詳細',
+      dedupKey: 'ci-red:1:Test',
+    });
+
+    expect(id).toBe(5);
+    expect(mockKnowledgeEntryCreate).not.toHaveBeenCalled();
+  });
+
+  it('blocks when the same-key task_created concern is still in flight', async () => {
+    mockKnowledgeEntryFindMany.mockResolvedValue([{ id: 5, sourceId: 'task_9' }]);
+    mockTaskFindUnique.mockResolvedValue({ status: 'in-progress' });
+
+    const id = await submitConcern({
+      title: 'CI赤の懸念タイトル',
+      detail: '詳細',
+      dedupKey: 'ci-red:1:Test',
+    });
+
+    expect(id).toBe(5);
+    expect(mockKnowledgeEntryCreate).not.toHaveBeenCalled();
+  });
+
+  it('files a fresh concern when the same-key task_created concern已完了', async () => {
+    mockKnowledgeEntryFindMany.mockResolvedValue([{ id: 5, sourceId: 'task_9' }]);
+    mockTaskFindUnique.mockResolvedValue({ status: 'completed' });
+
+    await submitConcern({
+      title: 'CI赤の懸念タイトル',
+      detail: '詳細',
+      dedupKey: 'ci-red:1:Test',
+    });
+
+    // Terminal follow-up task → a recurrence is a new regression → new row filed.
+    expect(mockKnowledgeEntryCreate).toHaveBeenCalledTimes(1);
+  });
+});
+
 // ─── getConcern ───────────────────────────────────────────────────────────────
 
 describe('getConcern', () => {

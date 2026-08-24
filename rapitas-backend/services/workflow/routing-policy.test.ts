@@ -147,10 +147,12 @@ describe('computeMinTier', () => {
       'premium',
     );
   });
-  test('テーマエスカレーションはソフト: レベル1は standard、レベル2で premium', () => {
-    // Level 1 (>=25% troubled — routine self-repair churn) must NOT force
-    // premium: that put every phase of every task on the top model (122/122
-    // observed). It only raises floorless roles to standard.
+  test('テーマエスカレーションはソフト: レベル1も2も standard 止まり（premium にしない）', () => {
+    // Routine self-repair churn saturates this rate — measured 2026-08-18,
+    // 6/10 recent tasks carried a verify_repair transition, so level 2 was
+    // permanently in effect and pinned every phase of every task to premium
+    // (16/18 routing decisions → claude-fable-5, incl. complexity 5 and 22).
+    // A theme-wide average must never justify premium for one cheap phase.
     expect(
       computeMinTier({ role: 'researcher', taskRetries: 0, themeEscalation: 1, riskHigh: false }),
     ).toBe('standard');
@@ -159,6 +161,18 @@ describe('computeMinTier', () => {
     ).toBe('standard');
     expect(
       computeMinTier({ role: 'researcher', taskRetries: 0, themeEscalation: 2, riskHigh: false }),
+    ).toBe('standard');
+    expect(
+      computeMinTier({ role: 'implementer', taskRetries: 0, themeEscalation: 2, riskHigh: false }),
+    ).toBe('standard');
+  });
+  test('テーマレベル2でもタスク固有シグナルは premium を維持する', () => {
+    // The cap applies to the THEME signal only — retry and risk still escalate.
+    expect(
+      computeMinTier({ role: 'researcher', taskRetries: 1, themeEscalation: 2, riskHigh: false }),
+    ).toBe('premium');
+    expect(
+      computeMinTier({ role: 'researcher', taskRetries: 0, themeEscalation: 2, riskHigh: true }),
     ).toBe('premium');
   });
   test('高リスクは premium に引き上げ', () => {

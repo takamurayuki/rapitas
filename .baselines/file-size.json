@@ -10,9 +10,6 @@
     "rapitas-backend/services/agents/verification/automated-verifier.ts": {
       "lineCount": 957
     },
-    "rapitas-backend/services/agents/orchestrator/git-operations/worktree-ops.ts": {
-      "lineCount": 810
-    },
     "rapitas-backend/services/agents/orchestrator/task-executor.ts": {
       "lineCount": 800
     },

@@ -71,13 +71,26 @@ function startOfTodayMs(): number {
 }
 
 /**
+ * A canonical 8-4-4-4-12 UUID. Must be collapsed as ONE unit before the
+ * generic hex/digit rules below: those only fold hex runs of 8+ chars and pure
+ * digit runs, so a UUID's 4-char middle segments survive with a per-value
+ * letter pattern ("...-6e3b-40bd-..." → "-#e#b-#bd-" vs "-c#-#-b#a-"). That
+ * made one recurring failure produce a different signature — and therefore a
+ * NEW concern and task — on every occurrence, because the dedup key is built
+ * from this output. Measured 2026-08-18: six byte-identical
+ * "Claude CLI exited" tasks filed from a single repeating cause.
+ */
+const UUID_RE = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi;
+
+/**
  * Normalizes a message so volatile parts (ids, counts, hex) collapse, letting
  * "task 12 failed" and "task 34 failed" group together.
  */
 function normalizeMessage(raw: string): string {
   return raw
+    .replace(UUID_RE, '#') // whole UUIDs first — see UUID_RE
     .replace(/0x[0-9a-fA-F]+/g, '#')
-    .replace(/[0-9a-fA-F]{8,}/g, '#') // uuids / hashes
+    .replace(/[0-9a-fA-F]{8,}/g, '#') // hashes / bare hex ids
     .replace(/\d+/g, '#')
     .replace(/\s+/g, ' ')
     .trim()
