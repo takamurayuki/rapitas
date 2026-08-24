@@ -1300,7 +1300,10 @@
       "sourceUncaughtException": "Backend (uncaught)",
       "sourceUnhandledRejection": "Backend (rejection)",
       "sourceExplicit": "Backend (explicit)",
-      "sourceFrontend": "Frontend"
+      "sourceFrontend": "Frontend",
+      "riskLevelMedium": "Risk: Medium",
+      "riskLevelHigh": "Risk: High",
+      "riskLevelCritical": "Risk: Critical"
     },
     "taskCleanupSection": {
       "title": "Task Cleanup (Delete Completed Tasks)",
