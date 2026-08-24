@@ -21,6 +21,7 @@ import { dirname, extname, join, relative, resolve } from 'path';
 import { createLogger } from '../../../config/logger';
 import { buildScopedTestCommands, findRelatedTestFiles, TEST_FILE_RE } from './related-tests';
 import { triageTestFailures } from './test-triage';
+import { buildTriagedTestCheck } from './test-triage-report';
 import { parsePlanFiles, evaluateScopeCheck } from './scope-check';
 import { evaluateAcceptanceSelfCheck } from './acceptance-self-check';
 import { assertSafeGitRef } from '../../../utils/common/branch-name-generator';
@@ -69,6 +70,10 @@ export interface VerificationCheck {
    * These are excluded from errorCount/ok so they don't false-block the gate.
    */
   preExistingFailures?: string[];
+  /** Failures unattributable (baseline comparison indeterminate after retries) — not counted. */
+  indeterminate?: boolean;
+  /** Scoped test files left unattributed. Only set with `indeterminate` (task 659). */
+  indeterminateFailures?: string[];
   /**
    * Out-of-plan changed files (repo-relative). Only set on failing 'scope'
    * checks — structured input for the history-contamination classifier
@@ -650,33 +655,24 @@ async function testProject(
   // When tests fail, triage pre-existing vs. new failures so the gate doesn't
   // block on tests that were already red before this change (RAPITAS_TEST_TRIAGE
   // defaults on; set to '0' or 'false' to disable).
-  if (!ok) {
-    const triageFlag = (process.env.RAPITAS_TEST_TRIAGE ?? '').trim().toLowerCase();
-    const triageEnabled = triageFlag !== '0' && triageFlag !== 'false';
-    if (triageEnabled) {
-      const projectRel = relFiles.map((f) =>
-        relative(projectRoot, join(workdir, f)).replace(/\\/g, '/'),
-      );
-      const changedTests = projectRel.filter((f) => TEST_FILE_RE.test(f));
-      const related = findRelatedTestFiles(projectRoot, projectRel);
-      const scopedFiles = [...new Set([...changedTests, ...related])];
-      if (scopedFiles.length > 0) {
-        const triage = await triageTestFailures(projectRoot, workdir, scopedFiles);
-        if (triage !== null) {
-          const { preExisting, newFailures } = triage;
-          const newOk = newFailures.length === 0;
-          return {
-            name: 'test',
-            ran: true,
-            ok: newOk,
-            errorCount: newFailures.length,
-            details: newOk
-              ? `${commands.length} test command(s): passed (${preExisting.length} pre-existing failure(s) excluded)`
-              : failures.join('\n\n').slice(0, MAX_DETAIL_CHARS),
-            preExistingFailures: preExisting.length > 0 ? preExisting : undefined,
-          };
-        }
-      }
+  const triageFlag = (process.env.RAPITAS_TEST_TRIAGE ?? '').trim().toLowerCase();
+  if (!ok && triageFlag !== '0' && triageFlag !== 'false') {
+    const projectRel = relFiles.map((f) =>
+      relative(projectRoot, join(workdir, f)).replace(/\\/g, '/'),
+    );
+    const changedTests = projectRel.filter((f) => TEST_FILE_RE.test(f));
+    const related = findRelatedTestFiles(projectRoot, projectRel);
+    const scopedFiles = [...new Set([...changedTests, ...related])];
+    if (scopedFiles.length > 0) {
+      // NOTE: null triage = indeterminate; never fall through to the raw fail-closed return (task 659).
+      const triage = await triageTestFailures(projectRoot, workdir, scopedFiles);
+      return buildTriagedTestCheck({
+        triage,
+        scopedFiles,
+        rawFailures: failures,
+        commandCount: commands.length,
+        maxDetailChars: MAX_DETAIL_CHARS,
+      });
     }
   }
   return {
@@ -690,8 +686,8 @@ async function testProject(
   };
 }
 
-/** Merges per-project checks of the same kind into one aggregate check. */
-function mergeChecks(
+/** Merges per-project checks of the same kind into one aggregate check. Exported for tests. */
+export function mergeChecks(
   name: 'lint' | 'typecheck' | 'test' | 'format',
   parts: VerificationCheck[],
 ): VerificationCheck {
@@ -711,6 +707,7 @@ function mergeChecks(
     .slice(0, MAX_DETAIL_CHARS);
   // Aggregate pre-existing failures across all project parts (only set for 'test').
   const allPreExisting = parts.flatMap((p) => p.preExistingFailures ?? []);
+  const allIndeterminate = parts.flatMap((p) => p.indeterminateFailures ?? []);
   return {
     name,
     ran: ran.length > 0,
@@ -719,6 +716,8 @@ function mergeChecks(
     details: details || `${name}: ok`,
     unverifiable: unverifiable.length > 0 || undefined,
     preExistingFailures: allPreExisting.length > 0 ? allPreExisting : undefined,
+    indeterminate: parts.some((p) => p.indeterminate) || undefined,
+    indeterminateFailures: allIndeterminate.length > 0 ? allIndeterminate : undefined,
   };
 }
 
