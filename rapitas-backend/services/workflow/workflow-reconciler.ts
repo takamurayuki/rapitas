@@ -272,6 +272,7 @@ export async function reconcileOnce(): Promise<{
   retriedBlocked: number;
   blockedEscalated: number;
   undispatchableTodos: number;
+  questionPauses: number;
   autoApproveStalls: number;
   staleQueueItemsCancelled: number;
   staleRunningItemsReleased: number;
@@ -288,6 +289,7 @@ export async function reconcileOnce(): Promise<{
     retriedBlocked: 0,
     blockedEscalated: 0,
     undispatchableTodos: 0,
+    questionPauses: 0,
     autoApproveStalls: 0,
     staleQueueItemsCancelled: 0,
     staleRunningItemsReleased: 0,
@@ -344,6 +346,14 @@ export async function reconcileOnce(): Promise<{
     const undispatchableTodos = await runHealPass('healUndispatchableTodo', () =>
       healUndispatchableTodo(nowMs),
     );
+    // Restore intake question pauses that were cleared without an answer — a
+    // dropped pause is invisible in the UI (every "waiting on a human"
+    // affordance keys off awaiting_question) AND keeps the scheduler
+    // re-selecting the task, which is how task 656 wedged in enqueue/cancel.
+    const questionPauses = await runHealPass('healOrphanedQuestionPause', async () => {
+      const { healOrphanedQuestionPause } = await import('./workflow-reconciler-question-pause');
+      return healOrphanedQuestionPause(nowMs);
+    });
     const orphanTasks = await runHealPass('flagOrphanTasks', () => flagOrphanTasks(nowMs));
     // Re-run auto-approval lost by a save request that died mid-flight
     // (critic-gate wall time > client timeout) — plan_created + active
@@ -390,6 +400,7 @@ export async function reconcileOnce(): Promise<{
       retriedBlocked,
       blockedEscalated,
       undispatchableTodos,
+      questionPauses,
       autoApproveStalls,
       staleQueueItemsCancelled,
       staleRunningItemsReleased,
