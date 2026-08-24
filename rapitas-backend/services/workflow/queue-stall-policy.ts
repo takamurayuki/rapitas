@@ -25,3 +25,15 @@ export const RUNNING_ITEM_STALE_MS = 40 * 60 * 1000;
  * stall (task 585 regression guard). / 飢餓判定の継続時間閾値（誤検出防止）。
  */
 export const QUEUE_STARVATION_THRESHOLD_MS = 3 * 60 * 1000;
+
+/**
+ * A theme reporting status='running' with ZERO AgentExecution rows for its
+ * currentTaskId this long is spinning without doing work (task 653: 21 min of
+ * enqueue→cancel produced no execution while every self-report looked healthy).
+ * Sits deliberately BETWEEN the runaway-cancel self-heal window
+ * (RUNAWAY_CANCEL_WINDOW_MS = 10m in auto-run-advance-active.ts — give it a
+ * chance to fix the cancel-loop shape first) and RUNNING_ITEM_STALE_MS (40m),
+ * so this is the notify-only backstop for spin patterns the self-heal misses.
+ * / 空回り（running報告なのに実行実績ゼロ）の通知閾値。自己修復(10分)より緩く設定。
+ */
+export const ZERO_PROGRESS_THRESHOLD_MS = 12 * 60 * 1000;
