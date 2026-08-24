@@ -316,6 +316,26 @@ export async function resolveTaskForAutoMerge(taskId: number): Promise<TaskForAu
 }
 
 /**
+ * Confirm a Task ID's row is CONFIRMED ABSENT — as opposed to unresolvable
+ * because of a transient DB error. Distinct from every `resolveXxx` helper
+ * above: those collapse "no row" and "DB error" into the same null return
+ * (an intentional fail-open contract many callers depend on), which makes
+ * them unusable for deciding whether a queued task genuinely vanished.
+ *
+ * @param taskId - Task primary key. / タスクの主キー
+ * @returns true only when the lookup succeeded and found no row; false when a
+ *   row exists OR the lookup itself failed (indeterminate). / 行の不存在が確定した場合のみ true
+ */
+export async function taskRowConfirmedAbsent(taskId: number): Promise<boolean> {
+  try {
+    const row = await prisma.task.findUnique({ where: { id: taskId }, select: { id: true } });
+    return row === null;
+  } catch {
+    return false;
+  }
+}
+
+/**
  * Resolve a Task ID's preferred base branch for git diff/merge-base scoping.
  *
  * Prefers `theme.defaultBranch` — populated for every task via its theme and

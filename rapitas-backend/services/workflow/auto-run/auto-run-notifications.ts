@@ -131,6 +131,23 @@ export async function notifyTaskSkipped(
 }
 
 /**
+ * A task's row is confirmed absent (deleted, or never persisted past enqueue)
+ * — distinct from notifyTaskSkipped's "failed/blocked" framing, which is
+ * inaccurate for a task that no longer exists (task 651). Does NOT call
+ * taskLabel(taskId): the row does not exist, so that lookup would only add a
+ * wasted query before falling back to the same `#${taskId}` string anyway.
+ */
+export async function notifyTaskVanished(themeId: number, taskId: number): Promise<void> {
+  await notifyOnce({
+    type: 'auto_run_task_vanished',
+    themeId,
+    taskId,
+    title: '自動実行: タスクが見つかりませんでした',
+    message: `タスク #${taskId} の行が見つからないため、自動実行はこのタスクをスキップして次へ進みます。`,
+  });
+}
+
+/**
  * The theme is WEDGED: work exists but every remaining task is blocked
  * (task 615). Deliberately a different type + copy from notifyAllDone so a
  * dead loop is never read as a normal "all finished" idle.

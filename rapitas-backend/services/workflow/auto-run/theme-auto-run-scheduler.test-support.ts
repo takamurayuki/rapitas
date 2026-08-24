@@ -333,6 +333,7 @@ export const mockNotifyTaskSkipped = mock(() => Promise.resolve());
 export const mockNotifyAllDone = mock(() => Promise.resolve());
 export const mockNotifyAllBlocked = mock(() => Promise.resolve());
 export const mockNotifyHangBackstop = mock(() => Promise.resolve());
+export const mockNotifyTaskVanished = mock(() => Promise.resolve());
 
 mock.module('./auto-run-notifications', () => ({
   notifyAwaitingPlanApproval: mockNotifyAwaitingPlanApproval,
@@ -341,6 +342,7 @@ mock.module('./auto-run-notifications', () => ({
   notifyAllDone: mockNotifyAllDone,
   notifyAllBlocked: mockNotifyAllBlocked,
   notifyHangBackstop: mockNotifyHangBackstop,
+  notifyTaskVanished: mockNotifyTaskVanished,
 }));
 
 // ---------------------------------------------------------------------------
@@ -473,6 +475,7 @@ const ALL_MOCKS = [
   mockNotifyTaskSkipped,
   mockNotifyAllDone,
   mockNotifyHangBackstop,
+  mockNotifyTaskVanished,
   mockReleaseStaleActiveItems,
   mockStopTaskAgents,
   mockStopThemeAgents,
