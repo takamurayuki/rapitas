@@ -13,6 +13,14 @@ import { memoryTaskQueue } from '../../services/memory';
 import { runForgettingSweep } from '../../services/memory/forgetting';
 import { buildRAGContext } from '../../services/memory/rag/context-builder';
 import { getEmbeddingCount } from '../../services/memory/rag/vector-index';
+import { ensureEmbeddingReady } from '../../services/memory/rag/embedding';
+import {
+  countReindexPending,
+  enqueueReindex,
+  getEmbeddingIndexStatus,
+  getReindexJob,
+} from '../../services/memory/rag/reindex';
+import { getRecallMetrics } from '../../services/memory/recall/recall-metrics';
 import { getDecisionCalibrationStats } from '../../services/memory/decision-journal';
 import type {
   ContradictionResolution,
@@ -23,6 +31,11 @@ import type {
 // Type definitions for request bodies
 interface ResolveContradictionBody {
   resolution: ContradictionResolution;
+}
+
+interface ReindexBody {
+  dryRun?: boolean;
+  maxEntries?: number;
 }
 
 export const memorySystemRoutes = new Elysia({ prefix: '/memory' })
@@ -121,6 +134,39 @@ export const memorySystemRoutes = new Elysia({ prefix: '/memory' })
   .post('/forgetting/sweep', async () => {
     const result = await runForgettingSweep();
     return result;
+  })
+
+  // GET /memory/recall/metrics - Recall attempt metrics (non-empty rate,
+  // attempts per agent execution) over the last N days
+  .get(
+    '/recall/metrics',
+    async ({ query }) => {
+      const days = query.days ? parseInt(query.days) : 7;
+      return getRecallMetrics(Number.isFinite(days) && days > 0 ? days : 7);
+    },
+    { query: t.Object({ days: t.Optional(t.String()) }) },
+  )
+
+  // GET /memory/embeddings/status - Embedding model / index migration status
+  .get('/embeddings/status', async () => {
+    const [status, reindexJob] = await Promise.all([getEmbeddingIndexStatus(), getReindexJob()]);
+    return { ...status, reindexJob };
+  })
+
+  // POST /memory/embeddings/reindex - Re-embed with the active model
+  // (dryRun → counts only; otherwise enqueues a `reembed` job, reusing a pending one)
+  .post('/embeddings/reindex', async ({ body }) => {
+    const typedBody = (body ?? {}) as ReindexBody;
+    if (typedBody.dryRun) {
+      const targetModel = await ensureEmbeddingReady();
+      return { targetModel, pending: await countReindexPending(targetModel) };
+    }
+    const maxEntries =
+      typeof typedBody.maxEntries === 'number' && typedBody.maxEntries > 0
+        ? Math.floor(typedBody.maxEntries)
+        : undefined;
+    const jobId = await enqueueReindex(memoryTaskQueue, maxEntries);
+    return { jobId };
   })
 
   // GET /memory/rag/test - RAG test
