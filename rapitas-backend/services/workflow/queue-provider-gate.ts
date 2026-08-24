@@ -47,12 +47,18 @@ export async function hasUsableProvider(): Promise<boolean> {
  * every runnable task within ten minutes and left them permanently blocked.
  *
  * @param reason - The recorded failure message, if any. / 失敗理由
- * @returns true for quota / rate-limit style provider outages. / プロバイダ側障害なら true
+ * @returns true for quota / rate-limit / transient upstream failures. / プロバイダ側障害なら true
  */
 export async function isProviderOutageFailure(reason?: string | null): Promise<boolean> {
   const text = (reason ?? '').trim();
   if (!text) return false;
   const { classifyAgentError } = await import('../ai/agent-error-classifier');
   const classified = classifyAgentError(text);
-  return classified?.reason === 'quota' || classified?.reason === 'rate_limit';
+  // 'transient' joins quota/rate_limit: an upstream 5xx is the server's
+  // problem, so the task must not pay one of its finite retries for it.
+  return (
+    classified?.reason === 'quota' ||
+    classified?.reason === 'rate_limit' ||
+    classified?.reason === 'transient'
+  );
 }

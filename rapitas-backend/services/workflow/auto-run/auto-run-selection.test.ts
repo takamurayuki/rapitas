@@ -233,8 +233,30 @@ describe('selectNextTask', () => {
     const mockFindMany = mock().mockResolvedValue([]);
     const prisma = makePrisma({ task: { findMany: mockFindMany } });
     await selectNextTask(prisma, 1, 'priority', [], 0);
-    const arg = mockFindMany.mock.calls[0][0] as { where: Record<string, unknown> };
-    expect(arg.where.NOT).toEqual({ workflowStatus: 'awaiting_question' });
+    const arg = mockFindMany.mock.calls[0][0] as {
+      where: { AND?: Array<Record<string, unknown>> };
+    };
+    const clauses = arg.where.AND ?? [];
+    expect(clauses).toContainEqual({
+      OR: [{ workflowStatus: null }, { workflowStatus: { not: 'awaiting_question' } }],
+    });
+  });
+
+  it('回帰: workflowStatus が未設定(NULL)の新規タスクを除外しない', async () => {
+    // `NOT { workflowStatus: 'x' }` は NULL 列に対して UNKNOWN になり、
+    // 起票直後（workflowStatus 未設定）のタスクを全て弾いていた。実測
+    // 2026-08-24: テーマ1に todo 10件あるのに選択は0件を返し、
+    // resumed→idle→resumed を延々と繰り返した。null 分岐は必須。
+    const mockFindMany = mock().mockResolvedValue([]);
+    const prisma = makePrisma({ task: { findMany: mockFindMany } });
+    await selectNextTask(prisma, 1, 'priority', [], 0);
+    const arg = mockFindMany.mock.calls[0][0] as {
+      where: { AND?: Array<Record<string, unknown>> };
+    };
+    const guard = (arg.where.AND ?? []).find((c) => 'OR' in c) as
+      | { OR: Array<Record<string, unknown>> }
+      | undefined;
+    expect(guard?.OR).toContainEqual({ workflowStatus: null });
   });
 
   it('keeps a todo task eligible even with a terminal workflowStatus (re-run)', async () => {
@@ -254,8 +276,10 @@ describe('selectNextTask', () => {
     const result = await selectNextTask(prisma, 1, 'priority', [], 0);
     expect(result).toEqual({ found: true, taskId: 232 });
     // The where clause must allow a 'todo' row through regardless of workflowStatus.
-    const where = mockFindMany.mock.calls[0][0].where as { OR: unknown[] };
-    expect(where.OR).toEqual(expect.arrayContaining([{ status: 'todo' }]));
+    // The eligibility clauses now sit under AND (the awaiting_question guard
+    // needed its own OR), so read the first branch rather than where.OR.
+    const where = mockFindMany.mock.calls[0][0].where as { AND: Array<{ OR?: unknown[] }> };
+    expect(where.AND[0]?.OR).toEqual(expect.arrayContaining([{ status: 'todo' }]));
   });
 
   it('skips blocked tasks', async () => {
@@ -371,8 +395,10 @@ describe('selectNextTask', () => {
     const mockFindMany = mock().mockResolvedValue([]);
     const prisma = makePrisma({ task: { findMany: mockFindMany } });
     await selectNextTask(prisma, 1, 'priority', [], 0);
-    const arg = mockFindMany.mock.calls[0]![0] as { where: { OR?: unknown[] } };
-    expect(arg.where.OR).toEqual(expect.arrayContaining([{ workflowStatus: null }]));
+    const arg = mockFindMany.mock.calls[0]![0] as {
+      where: { AND?: Array<{ OR?: unknown[] }> };
+    };
+    expect(arg.where.AND?.[0]?.OR).toEqual(expect.arrayContaining([{ workflowStatus: null }]));
   });
 });
 

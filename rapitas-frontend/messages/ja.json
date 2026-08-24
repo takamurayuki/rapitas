@@ -1300,7 +1300,10 @@
       "sourceUncaughtException": "バックエンド (uncaught)",
       "sourceUnhandledRejection": "バックエンド (rejection)",
       "sourceExplicit": "バックエンド (明示)",
-      "sourceFrontend": "フロントエンド"
+      "sourceFrontend": "フロントエンド",
+      "riskLevelMedium": "リスク: 中",
+      "riskLevelHigh": "リスク: 高",
+      "riskLevelCritical": "リスク: 重大"
     },
     "taskCleanupSection": {
       "title": "タスク整理（完了タスクの削除）",
