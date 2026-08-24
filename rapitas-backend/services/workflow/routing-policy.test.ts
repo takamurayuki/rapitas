@@ -454,3 +454,71 @@ describe('detectHighRisk 本物のデータ層作業は依然として高リス�
     expect(detectHighRisk({ text: 'Add a migration for the new column' }).high).toBe(true);
   });
 });
+
+// NOTE: 2026-08-24 実測。theme 1 の直近92 plan のうち、タスク本文は低リスクなのに
+// plan 経由で premium へ昇格したものが 44 件(47.8%)あった。implementer と verifier は
+// 最も高額なフェーズで、タスク658では $28.27 + $9.30 がこの昇格によるもの。
+// 下記の負例はいずれも実 plan.md の行そのまま。
+describe('detectHighRisk plan経路の誤爆解消(実plan負例)', () => {
+  const TEXT = 'ある改善タスク';
+
+  test('659: 「セキュリティでもなく」と判定した行は低リスク', () => {
+    const planContent =
+      "| type / severity | `type: 'other'` | 「バグ」でも「セキュリティ」でもなく、" +
+      'CI/worktreeインフラの信頼性シグナルのため `other` を選択。修正は別途行う |';
+    expect(detectHighRisk({ text: TEXT, planContent }).high).toBe(false);
+  });
+
+  test('658: schema ファイルを「足さない」と決めた行は低リスク', () => {
+    const planContent =
+      '| 6 | `MemoryTaskQueue.taskType` のコメント（`prisma/schema/memory.prisma`）に ' +
+      '`reembed` を足すか | 足さない。schema ファイルの編集は再起動が必要 |';
+    expect(detectHighRisk({ text: TEXT, planContent }).high).toBe(false);
+  });
+
+  test('599: 「非対象（やらないこと）」に並べた Prisma スキーマ変更は低リスク', () => {
+    const planContent = '| 非対象（やらないこと） | Prisma スキーマ変更 / 判定式の緩和 |';
+    expect(detectHighRisk({ text: TEXT, planContent }).high).toBe(false);
+  });
+
+  test('632: 「スキーマ変更不要」と書いた計測源の行は低リスク', () => {
+    const planContent = '| 計測源 | `AgentExecution.cacheReadInputTokens`（スキーマ変更不要） |';
+    expect(detectHighRisk({ text: TEXT, planContent }).high).toBe(false);
+  });
+});
+
+// NOTE: 上の絞り込みが本物を落としていないことの対向テスト。plan 経路の誤爆を
+// 減らす変更は必ずこの describe と対で維持すること。
+describe('detectHighRisk plan が実際に触ると宣言したものは高リスク', () => {
+  const TEXT = 'ある改善タスク';
+
+  test('スキーマ/マイグレーション/認証/決済を変更する plan は発火', () => {
+    const schemaPlan = [
+      '### 変更',
+      '| ファイル | 目的 |',
+      '|---|---|',
+      '| `prisma/schema/core.prisma` | Foo モデルを追加しインデックスを張る |',
+    ].join(String.fromCharCode(10));
+    expect(detectHighRisk({ text: TEXT, planContent: schemaPlan }).high).toBe(true);
+
+    const migrationPlan = [
+      '### 変更',
+      '- `rapitas-backend/prisma/migrations/20260824_add_col/migration.sql` を追加',
+    ].join(String.fromCharCode(10));
+    expect(detectHighRisk({ text: TEXT, planContent: migrationPlan }).high).toBe(true);
+
+    expect(
+      detectHighRisk({
+        text: TEXT,
+        planContent: '認証フローの検証ロジックを修正し、トークンの失効を実装する',
+      }).high,
+    ).toBe(true);
+
+    expect(
+      detectHighRisk({
+        text: TEXT,
+        planContent: '- `services/payment/checkout.ts` の課金処理を修正する',
+      }).high,
+    ).toBe(true);
+  });
+});
