@@ -660,3 +660,111 @@ describe('detectHighRisk コードフェンス内の引用は意図ではない'
     expect(detectHighRisk({ text }).high).toBe(true);
   });
 });
+
+const md = (...lines: string[]): string => lines.join(String.fromCharCode(10));
+
+// NOTE: タスク661。plan 経路のパス形シグナルは plan 全文ではなく「変更予定ファイル」節が
+// 宣言したパスに対して評価する。節外（依存関係表・非対象表・参考・設計判断表）の言及は
+// 発火せず、`planScope: 'full'` で旧挙動（全文評価）を固定して差を示す。
+describe('detectHighRisk 宣言節スコープ: 節外の言及は低リスク', () => {
+  const TEXT = 'ある改善タスク';
+  const BENIGN_DECL = [
+    '## 変更予定ファイル',
+    '| # | ファイル | 変更内容 |',
+    '|---|---|---|',
+    '| 1 | `services/workflow/routing-policy.ts` | 判定式を差し替え |',
+  ];
+
+  test('依存関係マップの prisma/schema 参照は低リスク（planScope:full では旧挙動どおり発火）', () => {
+    const planContent = md(
+      ...BENIGN_DECL,
+      '## 依存関係マップ',
+      '| `prisma/schema/memory.prisma` | MemoryTaskQueue を参照 |',
+    );
+    expect(detectHighRisk({ text: TEXT, planContent }).high).toBe(false);
+    expect(detectHighRisk({ text: TEXT, planContent, planScope: 'full' }).high).toBe(true);
+  });
+
+  test('非対象表の「必要な場合は別タスク」は低リスク', () => {
+    const planContent = md(
+      ...BENIGN_DECL,
+      '## 非対象',
+      '- `prisma/schema/core.prisma` の変更が必要な場合は別タスクに切り出す',
+    );
+    expect(detectHighRisk({ text: TEXT, planContent }).high).toBe(false);
+  });
+
+  test('参考節の security-scan.yml 言及は低リスク（文脈語なし）', () => {
+    const planContent = md(
+      ...BENIGN_DECL,
+      '## 参考',
+      '- `.github/workflows/security-scan.yml` を CI の参考に読む',
+    );
+    expect(detectHighRisk({ text: TEXT, planContent }).high).toBe(false);
+  });
+
+  test('658 実文字列が設計判断表にあっても宣言節が良性なら低リスク', () => {
+    const planContent = md(
+      ...BENIGN_DECL,
+      '## 設計判断の根拠',
+      '| 6 | `MemoryTaskQueue.taskType` のコメント（`prisma/schema/memory.prisma`）に ' +
+        '`reembed` を足すか | 足さない。schema ファイルの編集は再起動が必要 |',
+    );
+    expect(detectHighRisk({ text: TEXT, planContent }).high).toBe(false);
+  });
+});
+
+// NOTE: 対向テスト。宣言パスは否定スクラブを経由せず直接評価するため、宣言行に
+// 「不要/変更しない」が共起しても発火する。旧挙動（planScope:full）では行スクラブが
+// その行ごと消して偽陰性になっていたことを併せて固定する。
+describe('detectHighRisk 宣言節スコープ: 宣言した本物は高リスク', () => {
+  const TEXT = 'ある改善タスク';
+
+  test('宣言行に「不要」が共起しても schema 変更は発火（旧挙動は偽陰性）', () => {
+    const planContent = md(
+      '## 変更予定ファイル',
+      '| ファイル | 変更内容 |',
+      '|---|---|',
+      '| `prisma/schema/core.prisma` | Task.fooBar を追加。マイグレーションは不要(db push) |',
+    );
+    expect(detectHighRisk({ text: TEXT, planContent, planScope: 'full' }).high).toBe(false);
+    const result = detectHighRisk({ text: TEXT, planContent });
+    expect(result.high).toBe(true);
+    expect(result.reason).toContain('plan declares changes');
+  });
+
+  test('宣言行に「変更しない」が共起しても auth ファイルは発火（旧挙動は偽陰性）', () => {
+    const planContent = md(
+      '## 変更予定ファイル',
+      '| `routes/system/auth.ts` | トークン検証を修正。既存セッション形式は変更しない |',
+    );
+    expect(detectHighRisk({ text: TEXT, planContent, planScope: 'full' }).high).toBe(false);
+    expect(detectHighRisk({ text: TEXT, planContent }).high).toBe(true);
+  });
+
+  test('migration / payment / schema ディレクトリの宣言はいずれも発火', () => {
+    const migration = md(
+      '## 変更ファイル',
+      '- `rapitas-backend/prisma/migrations/20260824_add_col/migration.sql` を追加',
+    );
+    expect(detectHighRisk({ text: TEXT, planContent: migration }).high).toBe(true);
+    const payment = md('## 対象ファイル', '- `services/payment/checkout.ts`');
+    expect(detectHighRisk({ text: TEXT, planContent: payment }).high).toBe(true);
+    const dir = md('## 変更予定ファイル', '- `prisma/schema/` 配下');
+    expect(detectHighRisk({ text: TEXT, planContent: dir }).high).toBe(true);
+  });
+
+  test('宣言節が無い / パス0件の plan は全文評価へ fail-back して発火', () => {
+    const noSection = 'prisma/schema/core.prisma を編集する';
+    const r1 = detectHighRisk({ text: TEXT, planContent: noSection });
+    expect(r1.high).toBe(true);
+    expect(r1.reason).toContain('plan touches');
+    const emptySection = md(
+      '## 変更予定ファイル',
+      '- ルーティング判定を修正する',
+      '## 補足',
+      '`prisma/schema/core.prisma` を編集する',
+    );
+    expect(detectHighRisk({ text: TEXT, planContent: emptySection }).high).toBe(true);
+  });
+});

@@ -92,6 +92,11 @@ when a phase's `modelId === 'auto'`, the orchestrator computes escalation
 `recentThemeEscalation`) and a risk floor (`services/workflow/routing-policy.ts`
 — schema/auth/payment/security work forces a premium-tier floor via
 `detectHighRisk`/`computeMinTier`), then calls `getStableSmartRoute()`.
+Path-shaped risk signals in a plan (`prisma/schema`, `migrations/`, `/auth`,
+`payment`, …) are judged only against the files its 変更予定ファイル section
+declares (`services/workflow/plan-declared-files.ts`) — a dependency table or a
+non-goal row naming a schema file does not buy a premium floor. When that
+section yields no path the probe falls back to the scrubbed full text.
 
 ---
 
