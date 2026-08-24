@@ -277,6 +277,7 @@ export async function reconcileOnce(): Promise<{
   staleRunningItemsReleased: number;
   queueStarvationHandled: number;
   selfIncidentsFiled: number;
+  zeroProgressDetected: number;
 }> {
   const empty = {
     zombieSessions: 0,
@@ -293,6 +294,7 @@ export async function reconcileOnce(): Promise<{
     staleRunningItemsReleased: 0,
     queueStarvationHandled: 0,
     selfIncidentsFiled: 0,
+    zeroProgressDetected: 0,
   };
   if (inFlight) return empty;
   inFlight = true;
@@ -380,6 +382,15 @@ export async function reconcileOnce(): Promise<{
       const { runSelfIncidentWatch } = await import('./self-incident-watcher');
       return runSelfIncidentWatch(nowMs);
     });
+    // Detection-only zero-progress spin watch (task 653): a theme reporting
+    // 'running' whose current task has produced NO AgentExecution for the whole
+    // threshold window. Notify-only — placed with the detection passes so every
+    // repair pass above gets its chance to clear the spin first.
+    const zeroProgressDetected = await runHealPass('detectZeroProgressWhileRunning', async () => {
+      const { detectZeroProgressWhileRunning } =
+        await import('./workflow-reconciler-zero-progress');
+      return detectZeroProgressWhileRunning(nowMs);
+    });
     const counts = {
       zombieSessions,
       phantomWorktrees,
@@ -395,6 +406,7 @@ export async function reconcileOnce(): Promise<{
       staleRunningItemsReleased,
       queueStarvationHandled,
       selfIncidentsFiled,
+      zeroProgressDetected,
     };
     if (Object.values(counts).some((n) => n > 0)) {
       log.info(counts, '[reconciler] repaired divergences');

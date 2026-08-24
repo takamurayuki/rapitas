@@ -50,6 +50,9 @@ export type CycleEventName =
   // queue-stall self-healing (task 618): residue release + starvation detection
   | 'task.stall_released'
   | 'queue.starvation_detected'
+  // zero-progress spin (task 653): a theme reports running but its current task
+  // has produced no AgentExecution for the whole threshold window
+  | 'theme.zero_progress_detected'
   // git / PR outcomes
   | 'commit.created'
   | 'pr.created'
