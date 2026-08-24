@@ -12,6 +12,7 @@
  * Pure functions only — no I/O — so they are cheap and unit-testable.
  */
 import type { ModelTier } from '../ai/model-discovery';
+import { extractPlanDeclaredFiles } from './plan-declared-files';
 
 /** Highest → lowest capability. Index 0 is the strongest tier. */
 const TIER_ORDER: ModelTier[] = ['premium', 'standard', 'economy', 'free'];
@@ -72,8 +73,15 @@ const STRONG_RISK_RE =
  * signals are evaluated on sanitized text; every other signal group sees the
  * full text unchanged.
  */
-const DATA_RISK_PLAN_RE =
-  /(prisma[\/]schema|schema\.prisma|\.prisma\b|migrations?[\/]|prisma\s+(?:db\s+push|migrate\b)|@@(?:index|unique|map)\b|^\s*model\s+[A-Z]\w*\s*\{)/im;
+// PATH part (judged on the plan's DECLARED paths in declared-files mode, task
+// 661) and DSL part (always full text); the composite is the legacy form.
+const DATA_RISK_PLAN_PATH_RE = /(prisma[\/]schema|schema\.prisma|\.prisma\b|migrations?[\/])/i;
+const DATA_RISK_PLAN_DSL_RE =
+  /(prisma\s+(?:db\s+push|migrate\b)|@@(?:index|unique|map)\b|^\s*model\s+[A-Z]\w*\s*\{)/im;
+const DATA_RISK_PLAN_RE = new RegExp(
+  `${DATA_RISK_PLAN_PATH_RE.source}|${DATA_RISK_PLAN_DSL_RE.source}`,
+  'im',
+);
 
 /**
  * Data-layer signals for TASK TEXT, which is prose describing intent rather
@@ -179,14 +187,20 @@ const WEAK_SIGNAL_GATES: ReadonlyArray<{ word: RegExp; context: RegExp }> = [
   },
 ];
 
-/** Risky file-path markers, matched against plan.md's planned-files section. */
+/**
+ * Risky file-path markers, judged against the paths a plan DECLARES it will
+ * change (plan-declared-files.ts); only a plan declaring no path falls back to
+ * the scrubbed full text. `\.prisma\b` lets a declared `core.prisma` fire alone
+ * (in the fallback it merely duplicates DATA_RISK_PLAN_RE — no change there).
+ */
 const HIGH_RISK_PATH_RE =
-  /(prisma[\\/]schema|migrations?[\\/]|[\\/]auth|payment|billing|security)/i;
+  /(prisma[\\/]schema|migrations?[\\/]|[\\/]auth|payment|billing|security|\.prisma\b)/i;
 
 /**
  * Whether one body of text signals high-risk work: strong signals fire alone,
  * data-layer signals fire after ban-sentence stripping, weak signals need
  * their context gate. Extracted so task text and plan get identical rules.
+ * `planDataRe` narrows the plan's data-layer signal (declared mode: DSL only).
  */
 function scrubForRisk(text: string, kind: 'text' | 'plan'): string {
   const base = text
@@ -200,7 +214,11 @@ function scrubForRisk(text: string, kind: 'text' | 'plan'): string {
     .replace(TEXT_NON_INTENT_RE, ' ');
 }
 
-function matchesHighRisk(text: string, kind: 'text' | 'plan'): boolean {
+function matchesHighRisk(
+  text: string,
+  kind: 'text' | 'plan',
+  planDataRe: RegExp = DATA_RISK_PLAN_RE,
+): boolean {
   // Every signal reads the SCRUBBED text. The strong list and the weak gates
   // used to read the raw input while only the data-layer regex saw the scrub,
   // so a negated risk word still fired: task 659's plan named セキュリティ once,
@@ -208,7 +226,7 @@ function matchesHighRisk(text: string, kind: 'text' | 'plan'): boolean {
   // implementer. A scrub only some signals honour is not a scrub.
   const scrubbed = scrubForRisk(text, kind);
   if (STRONG_RISK_RE.test(scrubbed)) return true;
-  const dataRe = kind === 'plan' ? DATA_RISK_PLAN_RE : DATA_RISK_TEXT_RE;
+  const dataRe = kind === 'plan' ? planDataRe : DATA_RISK_TEXT_RE;
   if (dataRe.test(scrubbed)) return true;
   return WEAK_SIGNAL_GATES.some((g) => g.word.test(scrubbed) && g.context.test(scrubbed));
 }
@@ -269,14 +287,25 @@ export function isCapabilityRole(role: string): boolean {
 /**
  * Detect high-risk work from task text and (optionally) the plan.
  *
+ * Path-shaped signals are judged against the files the plan DECLARES it will
+ * change, not every path it mentions (task 661): a dependency table or non-goal
+ * row naming `prisma/schema/...` is not a schema change, while a declared
+ * `prisma/schema/core.prisma` row IS one even when it says マイグレーションは不要
+ * (the line scrub used to erase such a row — a false negative). Intent signals
+ * (STRONG / DSL / WEAK) still read the whole scrubbed plan; a plan declaring no
+ * path falls back to the legacy full-text probe — the safe side.
+ *
  * @param opts.text - Task title + description + labels. / タスク本文
  * @param opts.planContent - plan.md content, when available. / 計画書の内容
+ * @param opts.planScope - 'declared' (default) or 'full' = legacy full-text
+ *   probe, for measurement and regression pinning only. / パス判定の対象範囲
  * @returns Whether the work is high-risk and why. / 高リスク判定と理由
  */
-export function detectHighRisk(opts: { text?: string | null; planContent?: string | null }): {
-  high: boolean;
-  reason?: string;
-} {
+export function detectHighRisk(opts: {
+  text?: string | null;
+  planContent?: string | null;
+  planScope?: 'declared' | 'full';
+}): { high: boolean; reason?: string } {
   const text = (opts.text ?? '').toString();
   if (matchesHighRisk(text, 'text')) {
     return {
@@ -285,18 +314,23 @@ export function detectHighRisk(opts: { text?: string | null; planContent?: strin
     };
   }
   const plan = opts.planContent ?? '';
-  // Same scrub for the path probe — it used to test the RAW plan, so a row
-  // that explicitly ruled a file OUT still counted as touching it.
-  if (
-    plan &&
-    (matchesHighRisk(plan, 'plan') || HIGH_RISK_PATH_RE.test(scrubForRisk(plan, 'plan')))
-  ) {
-    return {
-      high: true,
-      reason: 'plan touches high-risk files (schema/migration/auth/payment/security)',
-    };
-  }
-  return { high: false };
+  if (!plan) return { high: false };
+  const declared = opts.planScope === 'full' ? [] : extractPlanDeclaredFiles(plan);
+  // Fallback (no declared path) uses the scrubbed probe — it used to test the
+  // RAW plan, so a row that ruled a file OUT still counted as touching it.
+  const high =
+    declared.length > 0
+      ? matchesHighRisk(plan, 'plan', DATA_RISK_PLAN_DSL_RE) ||
+        declared.some((p) => HIGH_RISK_PATH_RE.test(p) || DATA_RISK_PLAN_PATH_RE.test(p))
+      : matchesHighRisk(plan, 'plan') || HIGH_RISK_PATH_RE.test(scrubForRisk(plan, 'plan'));
+  if (!high) return { high: false };
+  return {
+    high: true,
+    reason:
+      declared.length > 0
+        ? 'plan declares changes to high-risk files (schema/migration/auth/payment/security)'
+        : 'plan touches high-risk files (schema/migration/auth/payment/security)',
+  };
 }
 
 /**
