@@ -16,9 +16,6 @@
     "rapitas-backend/services/agents/orchestrator/task-executor.ts": {
       "lineCount": 800
     },
-    "rapitas-desktop/src-tauri/src/main.rs": {
-      "lineCount": 800
-    },
     "rapitas-backend/routes/agents/execution/execute-route.ts": {
       "lineCount": 774
     },
