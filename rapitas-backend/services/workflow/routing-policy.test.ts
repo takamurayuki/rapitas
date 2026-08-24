@@ -256,6 +256,8 @@ describe('isCapabilityAttributableFailure', () => {
       'Auto-run stopped',
       'Cancelled by user',
       'Anthropic API error: overloaded',
+      'Process exited with code 1\n[System: init] API Error: 500 Internal server error.',
+      'API Error: 503 Service Unavailable',
     ];
     for (const cause of infra) {
       expect(isCapabilityAttributableFailure(cause)).toBe(false);

@@ -59,6 +59,32 @@ describe('classifyAgentError', () => {
     expect(r!.resetAt!.getMinutes()).toBe(30);
   });
 
+  it('API の 5xx は transient として判定する', () => {
+    // 実測 2026-08-24 task 624: この文言が未分類だったため cooldown も
+    // フォールバックも起きず、さらに「原因不明＝モデル起因」と見なされて
+    // 再試行が premium に昇格していた。サーバー側の瞬断で支払いが増える形。
+    for (const msg of [
+      'Process exited with code 1\n[System: init] API Error: 500 Internal server error.',
+      'API Error: 503 Service Unavailable',
+      'API Error: 529 overloaded_error',
+      'API Error: 502 Bad Gateway',
+    ]) {
+      const r = classifyAgentError(msg);
+      expect(r?.reason).toBe('transient');
+      expect(r?.retryWithFallback).toBe(true);
+    }
+  });
+
+  it('コード中やログ本文の "500" では transient に誤検知しない', () => {
+    for (const msg of [
+      'const TIMEOUT_MS = 500; // retry window',
+      'ファイルは500行を超えています',
+      'if (res.status === 500) { handleServerError(res); }',
+    ]) {
+      expect(classifyAgentError(msg, { strict: true })).toBeNull();
+    }
+  });
+
   it('Anthropic credit_balance_too_low を quota として判定する', () => {
     const r = classifyAgentError('Anthropic API error: credit_balance_too_low');
     expect(r?.provider).toBe('claude');

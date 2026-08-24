@@ -89,6 +89,28 @@ const RULES: PatternRule[] = [
   },
   { provider: 'openai', reason: 'auth', pattern: /not (authenticated|logged in)/i },
 
+  // --- Transient upstream failures (any provider) ---
+  // A 5xx from the model API is the SERVER's problem and clears on its own.
+  // Measured 2026-08-24 on task 624: "API Error: 500 Internal server error"
+  // matched no rule, so it was neither cooled down nor retried as transient —
+  // and, being unclassified, the retry floor treated it as a capability failure
+  // and escalated the next attempt to a premium model. A server-side blip must
+  // not make the run more expensive. The `transient` reason carries the short
+  // 30-second cooldown, which is the right pause for a blip.
+  // Anchored on the API-error wording so a literal "500" in code or prose
+  // cannot trip it.
+  {
+    provider: 'claude',
+    reason: 'transient',
+    pattern: /api error:?\s*5\d\d\b/i,
+  },
+  {
+    provider: 'claude',
+    reason: 'transient',
+    pattern:
+      /(internal server error|service unavailable|bad gateway|gateway timeout|overloaded_error)/i,
+  },
+
   // --- Anthropic / Claude Code CLI ---
   {
     provider: 'claude',

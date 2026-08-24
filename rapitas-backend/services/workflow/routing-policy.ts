@@ -142,7 +142,7 @@ function matchesHighRisk(text: string, kind: 'text' | 'plan'): boolean {
  * in the router (55% of routing decisions resolved premium in that window).
  */
 const NON_CAPABILITY_FAILURE_RE =
-  /(you'?ve hit your (?:\w+[- ])*(?:spend|usage|rate) limit|claude\.ai\/settings\/usage|codex\/settings\/usage|credit[ _]?balance[ _]?too[ _]?low|quota exceeded|resource_exhausted|rate_limit_error|rate[ _-]limit(?:ed|ing)?|overloaded|(?:http |status )?429|invalid api key|not (?:authenticated|logged in)|では次のフェーズを実行できません|ブロック中のため|ワークフロー無効モード|auto-run stopped|cancelled by user|phase execution timeout|timed out)/i;
+  /(you'?ve hit your (?:\w+[- ])*(?:spend|usage|rate) limit|claude\.ai\/settings\/usage|codex\/settings\/usage|credit[ _]?balance[ _]?too[ _]?low|quota exceeded|resource_exhausted|rate_limit_error|api error:?\s*5\d\d|internal server error|service unavailable|bad gateway|gateway timeout|overloaded_error|rate[ _-]limit(?:ed|ing)?|overloaded|(?:http |status )?429|invalid api key|not (?:authenticated|logged in)|では次のフェーズを実行できません|ブロック中のため|ワークフロー無効モード|auto-run stopped|cancelled by user|phase execution timeout|timed out)/i;
 
 /**
  * Whether a prior attempt's failure can fairly be blamed on the model.
