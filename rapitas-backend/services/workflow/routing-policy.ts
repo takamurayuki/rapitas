@@ -109,6 +109,15 @@ const SCHEMA_BAN_SENTENCE_RE =
  * mentions. Deliberately NOT applied to plan.md, where a backticked
  * `prisma/schema/...` path IS the signal.
  */
+/**
+ * Fenced code blocks in task text: pasted logs, traces and code. Same rule as
+ * the inline spans below — quoted output is evidence, not intent. Task 661
+ * (a task ABOUT the risk detector) pasted a routing trace whose own
+ * adoptedReason string names スキーマ/認証/決済/セキュリティ, and that quote alone
+ * pinned its researcher to premium.
+ */
+const FENCED_BLOCK_RE = new RegExp('```[\\s\\S]*?```', 'g');
+
 const TEXT_NON_INTENT_RE =
   /`[^`]*`|"[^"\n]{0,80}"|prisma\s*\.\s*\w+\s*\.\s*\w+|prisma\s*(?:モック|mock)/gi;
 
@@ -185,7 +194,10 @@ function scrubForRisk(text: string, kind: 'text' | 'plan'): string {
     .replace(RISK_NEGATION_LINE_RE, ' ')
     .replace(PRISMA_CLIENT_CALL_RE, ' ');
   if (kind === 'plan') return base;
-  return base.replace(SCHEMA_HYPOTHETICAL_SENTENCE_RE, ' ').replace(TEXT_NON_INTENT_RE, ' ');
+  return base
+    .replace(FENCED_BLOCK_RE, ' ')
+    .replace(SCHEMA_HYPOTHETICAL_SENTENCE_RE, ' ')
+    .replace(TEXT_NON_INTENT_RE, ' ');
 }
 
 function matchesHighRisk(text: string, kind: 'text' | 'plan'): boolean {

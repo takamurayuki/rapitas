@@ -551,3 +551,27 @@ describe('detectHighRisk 日本語の部分文字列衝突', () => {
     ).toBe(true);
   });
 });
+
+describe('detectHighRisk コードフェンス内の引用は意図ではない', () => {
+  const FENCE = '```';
+
+  test('貼り付けたルーティングトレースのreason文字列は低リスク', () => {
+    const text = [
+      'モデル選定の調査',
+      '観測されたトレース:',
+      FENCE,
+      'minTier: premium, driver: floor',
+      'adoptedReason: 高リスク領域(スキーマ/認証/決済/セキュリティ)のためpremiumへ引き上げ',
+      FENCE,
+      '複雑度は68だった。',
+    ].join(String.fromCharCode(10));
+    expect(detectHighRisk({ text }).high).toBe(false);
+  });
+
+  test('フェンスの外に本物の意図があれば発火する', () => {
+    const text = ['認証フローを修正する', FENCE, 'some unrelated log output', FENCE].join(
+      String.fromCharCode(10),
+    );
+    expect(detectHighRisk({ text }).high).toBe(true);
+  });
+});
