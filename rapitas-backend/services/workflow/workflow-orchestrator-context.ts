@@ -119,12 +119,10 @@ export async function resolveEffectiveModel(
  *
  * @param taskId - The task whose workflow should advance. / ワークフローを進めるタスクID
  * @param currentStatus - Current workflow status. / 現在のワークフローステータス
- * @param task - Resolved task row. / 解決済みタスク行
  */
 export async function reconcileTaskStatusBeforeRun(
   taskId: number,
   currentStatus: WorkflowStatus,
-  task: ResolvedTask,
 ): Promise<void> {
   if (currentStatus === 'draft') {
     // Reconcile the status from EXISTING artifacts before starting. A
@@ -159,15 +157,25 @@ export async function reconcileTaskStatusBeforeRun(
       where: { id: taskId },
       data: { workflowStatus: reconciled, status: 'in-progress' },
     });
-  } else if (task.status === 'todo') {
+  } else {
     // A task that resumes at a non-draft phase (valid research/plan artifacts
     // reused, or a multi-phase / re-run continuation) skips the draft branch
     // above, so its status was never flipped off 'todo' while the workflow
     // advances — leaving it stuck looking like 'todo' (進行中にならない) in the UI.
-    // Flip it forward without touching workflowStatus. Only 'todo' is advanced,
-    // so 'done'/'blocked' are never clobbered.
-    await prisma.task.update({
-      where: { id: taskId },
+    //
+    // The `where` clause carries the 'todo' test rather than a status this
+    // function was told. It used to trust runPreflight's snapshot, but the row
+    // can change under that snapshot while the dispatch resolves its role,
+    // context and model — which is why the parameter is gone. That is not
+    // hypothetical — after a restart the startup reaper reverts interrupted
+    // agents' tasks to 'todo' (lifecycle-manager), and task 658 landed exactly
+    // in that window: the reaper wrote 'todo' two seconds before the agent
+    // spawned, the stale snapshot still said 'in-progress', so nothing flipped
+    // and the task ran while displaying 'todo'. A conditional update also keeps
+    // the original guarantee — only 'todo' advances, so 'done'/'blocked' are
+    // never clobbered — without re-reading first.
+    await prisma.task.updateMany({
+      where: { id: taskId, status: 'todo' },
       data: { status: 'in-progress' },
     });
   }
