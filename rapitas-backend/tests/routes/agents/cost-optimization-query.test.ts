@@ -1,12 +1,16 @@
 /**
  * Cost Optimization Query テスト
  *
- * Guards against the dual-cost bug: /agent-metrics/cost-optimization used to
- * re-derive cost from a hardcoded per-1k-token rate table even when a
- * recorded `AgentExecution.costUsd` existed, so the same execution reported
- * two different costs depending on which endpoint you asked. These tests
- * assert the recorded cost wins, the rate table is only a fallback, and the
- * number agrees with the self-observation summary for the same execution.
+ * Guards two bugs on /agent-metrics/cost-optimization:
+ * 1. Dual-cost: it used to re-derive cost from a hardcoded per-1k-token rate
+ *    table even when a recorded `AgentExecution.costUsd` existed, so the same
+ *    execution reported two different costs.
+ * 2. Broken breakdown: it grouped by `agentConfig.modelId` (the static config
+ *    model, identical across rows under Smart Router) and filtered to
+ *    `status: 'completed'`, so every execution collapsed into one 100%-success
+ *    bucket and the suggestion engine never fired. These tests pin the fix:
+ *    group by the actually-invoked `modelName`, count failures in the
+ *    denominator, and keep null-model rows as an 'unknown' bucket.
  */
 import { describe, it, expect, beforeEach, mock } from 'bun:test';
 
@@ -33,14 +37,10 @@ describe('getCostOptimizationInsights', () => {
         status: 'completed',
         // 100k tokens would cost $1.00 at the default 0.01/1k fallback rate —
         // but a recorded cost exists, so that must win instead.
+        modelName: 'claude-sonnet-4-20250514',
         tokensUsed: 100000,
         executionTimeMs: 1000,
         costUsd: '0.05',
-        agentConfig: {
-          modelId: 'claude-sonnet-4-20250514',
-          agentType: 'implementer',
-          name: 'x',
-        },
       },
     ]);
 
@@ -54,14 +54,10 @@ describe('getCostOptimizationInsights', () => {
     mockExecutionFindMany.mockResolvedValue([
       {
         status: 'completed',
+        modelName: 'claude-haiku-4-5-20251001',
         tokensUsed: 100000,
         executionTimeMs: 500,
         costUsd: '0',
-        agentConfig: {
-          modelId: 'claude-haiku-4-5-20251001',
-          agentType: 'implementer',
-          name: 'x',
-        },
       },
     ]);
 
@@ -87,7 +83,6 @@ describe('getCostOptimizationInsights', () => {
       costUsd: '0.05',
       modelName: 'claude-sonnet-4-20250514',
       llmCallCount: 3,
-      agentConfig: { modelId: 'claude-sonnet-4-20250514', agentType: 'implementer', name: 'x' },
     };
 
     mockExecutionFindMany.mockResolvedValue([row]);
@@ -98,5 +93,118 @@ describe('getCostOptimizationInsights', () => {
     ]);
 
     expect(costOptimization.totalCost).toBeCloseTo(selfObservation.totalCostUsd, 6);
+  });
+
+  it('groups by the actually-invoked modelName, not a single collapsed bucket', async () => {
+    mockExecutionFindMany.mockResolvedValue([
+      {
+        status: 'completed',
+        modelName: 'fable-5',
+        tokensUsed: 1000,
+        executionTimeMs: 100,
+        costUsd: '0.01',
+      },
+      {
+        status: 'completed',
+        modelName: 'haiku',
+        tokensUsed: 1000,
+        executionTimeMs: 100,
+        costUsd: '0.01',
+      },
+      {
+        status: 'completed',
+        modelName: 'sonnet-5',
+        tokensUsed: 1000,
+        executionTimeMs: 100,
+        costUsd: '0.01',
+      },
+    ]);
+
+    const insights = await getCostOptimizationInsights();
+
+    const models = insights.modelBreakdown.map((m) => m.model).sort();
+    expect(models).toEqual(['fable-5', 'haiku', 'sonnet-5']);
+    expect(insights.totalExecutions).toBe(3);
+  });
+
+  it('keeps null-model rows as an "unknown" bucket instead of dropping them', async () => {
+    mockExecutionFindMany.mockResolvedValue([
+      {
+        status: 'completed',
+        modelName: null,
+        tokensUsed: 500,
+        executionTimeMs: 100,
+        costUsd: '0.01',
+      },
+      { status: 'failed', modelName: null, tokensUsed: 0, executionTimeMs: 0, costUsd: '0' },
+    ]);
+
+    const insights = await getCostOptimizationInsights();
+
+    const unknown = insights.modelBreakdown.find((m) => m.model === 'unknown');
+    expect(unknown).toBeDefined();
+    expect(unknown?.executions).toBe(2);
+  });
+
+  it('defines successRate as completed / all executions (failures in the denominator)', async () => {
+    mockExecutionFindMany.mockResolvedValue([
+      {
+        status: 'completed',
+        modelName: 'opus-4-8',
+        tokensUsed: 1000,
+        executionTimeMs: 100,
+        costUsd: '0.02',
+      },
+      {
+        status: 'completed',
+        modelName: 'opus-4-8',
+        tokensUsed: 1000,
+        executionTimeMs: 100,
+        costUsd: '0.02',
+      },
+      {
+        status: 'completed',
+        modelName: 'opus-4-8',
+        tokensUsed: 1000,
+        executionTimeMs: 100,
+        costUsd: '0.02',
+      },
+      { status: 'failed', modelName: 'opus-4-8', tokensUsed: 0, executionTimeMs: 0, costUsd: '0' },
+    ]);
+
+    const insights = await getCostOptimizationInsights();
+
+    const opus = insights.modelBreakdown.find((m) => m.model === 'opus-4-8');
+    // 3 completed / 4 total = 75%
+    expect(opus?.successRate).toBe(75);
+    expect(opus?.successCount).toBe(3);
+    expect(opus?.executions).toBe(4);
+  });
+
+  it('fires a suggestion when a cheaper model matches the expensive one on success rate', async () => {
+    mockExecutionFindMany.mockResolvedValue([
+      // Expensive model: high recorded cost, 100% success.
+      {
+        status: 'completed',
+        modelName: 'opus-4-8',
+        tokensUsed: 1000,
+        executionTimeMs: 100,
+        costUsd: '1.00',
+      },
+      // Cheaper model: low cost, also 100% success — a valid substitute.
+      {
+        status: 'completed',
+        modelName: 'haiku',
+        tokensUsed: 1000,
+        executionTimeMs: 100,
+        costUsd: '0.05',
+      },
+    ]);
+
+    const insights = await getCostOptimizationInsights();
+
+    expect(insights.suggestions.length).toBeGreaterThanOrEqual(1);
+    expect(insights.suggestions[0]).toContain('opus-4-8');
+    expect(insights.suggestions[0]).toContain('haiku');
   });
 });
