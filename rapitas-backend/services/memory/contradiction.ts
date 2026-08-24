@@ -140,7 +140,15 @@ export async function detectContradictions(entryId: number): Promise<number> {
         });
 
         const responseText = response.content;
-        if (responseText.includes('CONTRADICTION')) {
+        // "NO_CONTRADICTION" contains the substring "CONTRADICTION" — check the
+        // negative form first, or a plain includes() misreads every negative
+        // verdict as positive and the caller registers a row it shouldn't.
+        if (responseText.includes('NO_CONTRADICTION')) {
+          log.debug(
+            { entryId, candidateId: candidate.knowledgeEntryId },
+            '[contradiction] LLM judged NO_CONTRADICTION — skipping record',
+          );
+        } else if (responseText.includes('CONTRADICTION')) {
           const typeMatch = responseText.match(/種類:\s*(factual|procedural|preference)/);
           const descMatch = responseText.match(/説明:\s*(.+)/);
 
