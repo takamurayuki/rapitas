@@ -25,6 +25,8 @@ import {
 } from './execution-helpers';
 import { buildShutdownErrorMessage } from './shutdown-error';
 import { checkNeedsFallback } from './fallback-decision';
+import { isSessionResumeFailure } from '../session-resume-detector';
+import { executeWithFallbackAgent } from './fallback-executor';
 import { startExecutionHeartbeat, stopExecutionHeartbeat } from './execution-heartbeat';
 import { EXECUTION_OWNER_ID } from '../execution-owner';
 
@@ -96,6 +98,13 @@ async function resolveAgentConfig(
 
   if (options.modelIdOverride) {
     agentConfig = { ...agentConfig, modelId: options.modelIdOverride };
+  }
+
+  // Continue the caller-supplied CLI session instead of cold-starting. Only the
+  // claude-code agent understands this id shape (codex/gemini keep their own),
+  // and executeTask() retries once without it if the CLI rejects it.
+  if (options.resumeSessionId && agentConfig.type === 'claude-code') {
+    agentConfig = { ...agentConfig, resumeSessionId: options.resumeSessionId };
   }
 
   // Forward investigation-mode flags onto the agent config
@@ -342,148 +351,9 @@ async function buildTaskWithContext(
   return taskWithAnalysis;
 }
 
-/** Context for fallback execution */
-interface FallbackContext {
-  ctx: OrchestratorContext;
-  execution: { id: number };
-  state: ExecutionState;
-  agentInfo: ActiveAgentInfo;
-  fileLogger: ExecutionFileLogger;
-  logManager: LogChunkManager;
-  options: ExecutionOptions;
-  taskWithAnalysis: AgentTask;
-}
-
-/**
- * Execute with a fallback agent after primary agent failure.
- */
-async function executeWithFallbackAgent(
-  fallbackCtx: FallbackContext,
-  errorBlob: string,
-  originalAgentConfig: AgentConfigInput,
-): Promise<{
-  result: AgentExecutionResult;
-  fallbackSucceeded: boolean;
-  newAgentConfig?: AgentConfigInput;
-  newConfigId?: number;
-}> {
-  const { ctx, execution, state, agentInfo, fileLogger, logManager, options, taskWithAnalysis } =
-    fallbackCtx;
-
-  const { findFallbackAgentConfig } = await import('../../ai/agent-fallback');
-  const fallback = await findFallbackAgentConfig(errorBlob, originalAgentConfig.type);
-
-  if (!fallback?.agentConfig) {
-    return { result: {} as AgentExecutionResult, fallbackSucceeded: false };
-  }
-
-  const fbType = (fallback.agentConfig as { agentType: string }).agentType;
-  const fbName = (fallback.agentConfig as { name: string }).name;
-  const fbId = (fallback.agentConfig as { id: number }).id;
-
-  logger.warn(
-    {
-      originalAgent: originalAgentConfig.name,
-      originalType: originalAgentConfig.type,
-      fallbackAgent: fbName,
-      fallbackType: fbType,
-      cooledProvider: fallback.classified.provider,
-      reason: fallback.classified.reason,
-    },
-    '[TaskExecutor] Provider failed — retrying with alternative agent config',
-  );
-
-  // Emit fallback banner
-  const banner = `\n[フォールバック] ${fallback.classified.reason} を検出。${fbName} (${fbType}) で再実行します...\n`;
-  state.output += banner;
-  fileLogger.logOutput(banner, false);
-  logManager.addChunk(banner, false);
-  ctx.emitEvent({
-    type: 'execution_output',
-    executionId: execution.id,
-    sessionId: options.sessionId,
-    taskId: options.taskId,
-    data: { output: banner, isError: false },
-    timestamp: new Date(),
-  });
-
-  const newAgentConfig = await ctx.buildAgentConfigFromDb(fallback.agentConfig as never, options);
-  const newAgent = agentFactory.createAgent(newAgentConfig);
-
-  try {
-    // Wire handlers onto fallback agent
-    setupQuestionDetectedHandler(newAgent, {
-      prisma: ctx.prisma,
-      executionId: execution.id,
-      sessionId: options.sessionId,
-      taskId: options.taskId,
-      state,
-      fileLogger,
-      emitEvent: (event) => ctx.emitEvent(event),
-      startQuestionTimeout: (eid, tid, qk) => ctx.startQuestionTimeout(eid, tid, qk),
-      getQuestionTimeoutInfo: (eid) => ctx.getQuestionTimeoutInfo(eid),
-    });
-
-    setupOutputHandler(
-      newAgent,
-      {
-        prisma: ctx.prisma,
-        executionId: execution.id,
-        sessionId: options.sessionId,
-        taskId: options.taskId,
-        state,
-        agentInfo,
-        fileLogger,
-        onOutput: options.onOutput,
-        emitEvent: (event) => ctx.emitEvent(event),
-      },
-      logManager,
-    );
-
-    // Update references
-    agentInfo.agent = newAgent;
-    await ctx.prisma.agentExecution.update({
-      where: { id: execution.id },
-      data: { agentConfigId: fbId },
-    });
-
-    ctx.emitEvent({
-      type: 'execution_started',
-      executionId: execution.id,
-      sessionId: options.sessionId,
-      taskId: options.taskId,
-      data: {
-        agentType: newAgentConfig.type,
-        agentName: newAgentConfig.name,
-        modelId: newAgentConfig.modelId,
-        fallbackFrom: fallback.classified.provider,
-      },
-      timestamp: new Date(),
-    });
-
-    const retryResult = await newAgent.execute(taskWithAnalysis);
-
-    // Check if retry also failed
-    const retryBlob = `${retryResult.errorMessage ?? ''}\n${
-      typeof retryResult.output === 'string' ? retryResult.output.slice(-4000) : ''
-    }`;
-    const { classifyAgentError: reclassify } = await import('../../ai/agent-error-classifier');
-    const { agentTypeToProvider } = await import('../../ai/agent-fallback');
-    const retryHint = agentTypeToProvider(newAgentConfig.type) ?? undefined;
-    const retryHasError = !!reclassify(retryBlob, { hint: retryHint, strict: true })
-      ?.retryWithFallback;
-    const retryActuallySucceeded = retryResult.success && !retryHasError;
-
-    return {
-      result: retryResult,
-      fallbackSucceeded: retryActuallySucceeded,
-      newAgentConfig,
-      newConfigId: fbId,
-    };
-  } finally {
-    await agentFactory.removeAgent(newAgent.id);
-  }
-}
+// NOTE: FallbackContext / executeWithFallbackAgent moved verbatim to
+// fallback-executor.ts (file-size ratchet) and instrumented there with
+// recovery-metrics recording (task 641). Behavior is unchanged.
 
 /**
  * Merge the primary agent's CLI segment time into a fallback result.
@@ -693,6 +563,29 @@ export async function executeTask(
       logger.info(
         `[TaskExecutor] Execution result - success: ${r.success}, waitingForInput: ${r.waitingForInput}, questionType: ${r.questionType}, question: ${r.question?.substring(0, 100)}`,
       );
+
+      // A resumed CLI session can be gone on the CLI's side (pruned transcript,
+      // or a worktree recreated between attempts). That is a latency
+      // optimisation failing, NOT a task failure — every phase prompt is
+      // self-contained, so retry once cold rather than failing the phase.
+      // Deliberately placed before the provider-fallback check so a missing
+      // session is never misread as a provider outage.
+      if (agentConfig.resumeSessionId && isSessionResumeFailure(r, agentConfig.resumeSessionId)) {
+        logger.warn(
+          { taskId: options.taskId, resumeSessionId: agentConfig.resumeSessionId },
+          '[TaskExecutor] --resume rejected by the CLI — retrying once as a fresh session',
+        );
+        fileLogger.logWarn(
+          `--resume ${agentConfig.resumeSessionId} was rejected. Retrying as a fresh session.`,
+          { claudeSessionId: agentConfig.resumeSessionId, fallbackStage: 'phase_resume_coldstart' },
+        );
+        await agentFactory.removeAgent(agent.id);
+        agentConfig = { ...agentConfig, resumeSessionId: undefined, continueConversation: false };
+        const freshAgent = agentFactory.createAgent(agentConfig);
+        agentInfo.agent = freshAgent;
+        setupAgentHandlers(ctx, freshAgent, setup, options);
+        r = await freshAgent.execute(taskWithAnalysis);
+      }
 
       // Check for fallback need
       const { needsFallback, errorBlob } = await checkNeedsFallback(

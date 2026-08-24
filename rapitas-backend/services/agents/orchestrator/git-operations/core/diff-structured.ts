@@ -54,7 +54,7 @@ export type FileDiffRecord = {
  * @param preferredBaseBranch - The branch this task's worktree was cut from, when known / このタスクの分岐元ブランチ（既知の場合）
  * @returns Merge-base commit hash, or null when no base branch exists / マージベース、無ければnull
  */
-async function resolveBaseRef(
+export async function resolveBaseRef(
   cwd: string,
   preferredBaseBranch?: string | null,
 ): Promise<string | null> {

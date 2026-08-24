@@ -21,6 +21,7 @@ import {
 import { classifyTier, inferCostPer1k } from './model-discovery/tier-classifier';
 import { listActiveCooldowns } from './provider-cooldown';
 import { recordDecision } from '../observability/decision-trace';
+import { buildRouteReason, type RouteDriver } from './routing-reason';
 
 const log = createLogger('smart-model-router');
 
@@ -205,6 +206,11 @@ export interface SmartRouteOptions {
    * Callers must not pass this when escalation/risk floors are active.
    */
   capTier?: ModelTier;
+  /**
+   * Why `minTier` was set (role floor / risk / retry). Recorded in the decision
+   * trace and the reason string; never affects selection.
+   */
+  minTierReason?: string;
 }
 
 export async function getSmartRoute(
@@ -264,10 +270,12 @@ export async function getSmartRoute(
   // capability-critical phases don't run on an economy model on a low-complexity
   // task. Applied AFTER the evidence cap — floors always win. TIER_ORDER
   // index 0 = highest capability.
+  let floorApplied = false;
   if (opts.minTier) {
     if (TIER_ORDER.indexOf(recommendedTier as ModelTier) > TIER_ORDER.indexOf(opts.minTier)) {
       recommendedTier = opts.minTier;
       evidenceApplied = false;
+      floorApplied = true;
     }
   }
 
@@ -335,15 +343,21 @@ export async function getSmartRoute(
   const finalModel = recommendedModel ?? discovery.models[0]?.id ?? 'sonnet';
   const costEstimate = await estimateCost(complexity, finalModel);
 
-  const reason = evidenceApplied
-    ? `直近の実行実績でこのロールは${recommendedTier}モデルの成功率が高いため引き下げ`
-    : budgetPressure
-      ? `予算残高が少ないため${recommendedTier}モデルを推奨`
-      : complexity <= 35
-        ? `複雑度${complexity}（低）のため${recommendedTier}モデルで十分`
-        : complexity > 70
-          ? `複雑度${complexity}（高）のため${recommendedTier}モデルを推奨`
-          : `複雑度${complexity}（中）に基づき${recommendedTier}モデルを推奨`;
+  // The floor is applied last and overrides everything, so it is checked first
+  // here — otherwise the explanation credits a rule that was overruled.
+  const driver: RouteDriver = floorApplied
+    ? 'floor'
+    : evidenceApplied
+      ? 'evidence'
+      : budgetPressure
+        ? 'budget'
+        : 'complexity';
+  const reason = buildRouteReason({
+    tier: recommendedTier,
+    complexity,
+    driver,
+    floorReason: opts.minTierReason,
+  });
 
   const availableProviders = discovery.providers.filter((p) => p.available).map((p) => p.provider);
   log.info(
@@ -359,7 +373,19 @@ export async function getSmartRoute(
     nodeKey: `task${taskId}:model-route:${Date.now()}`,
     kind: 'param_select',
     summary: `モデル選択: ${finalModel}`,
-    input: { complexity, budgetPressure, isUrgent, weeklyBudget },
+    input: {
+      complexity,
+      budgetPressure,
+      isUrgent,
+      weeklyBudget,
+      // Recorded so the premium share stays attributable in later audits:
+      // without these the trace cannot distinguish "complexity said premium"
+      // from "a risk/retry floor forced it".
+      minTier: opts.minTier ?? null,
+      minTierReason: opts.minTierReason ?? null,
+      capTier: opts.capTier ?? null,
+      driver,
+    },
     candidates: [
       {
         id: finalModel,

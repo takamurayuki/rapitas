@@ -15,18 +15,6 @@ export {
   getExperimentTimeline,
 } from './experiment-engine';
 
-// Hypothesis Manager
-export {
-  createHypothesis,
-  updateHypothesisStatus,
-  reviseHypothesis,
-  getHypotheses,
-  rankHypotheses,
-} from './hypothesis';
-
-// Critic System
-export { performReview, getReviews, getAverageScores } from './critic';
-
 // Learning Engine
 export {
   analyzeFailure,

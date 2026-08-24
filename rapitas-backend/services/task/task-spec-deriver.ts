@@ -194,7 +194,10 @@ export async function deriveTaskSpec(
     });
     return { spec: parseSpec(response.content), source: 'ai' };
   } catch (error) {
-    logger.error({ err: error }, '[task-spec-deriver] derive failed');
+    // NOTE: WARN に降格 (task 642) — 呼び出し側 (intake-gate) は source:'ai_error' で graceful degrade
+    // する非致命失敗であり、ERROR だと log-health-check が severity high の bug 懸念として
+    // 自己起票しノイズを増殖させる。姉妹関数 (:132, :166) と同じ severity に整合。
+    logger.warn({ err: error }, '[task-spec-deriver] derive failed');
     return { spec: { ...EMPTY }, source: 'ai_error' };
   }
 }

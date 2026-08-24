@@ -171,7 +171,7 @@ async function detectRepairNonConvergence(
  * @param taskId - Task id / タスクID
  * @returns The status to bounce to / 戻す先のstatus
  */
-async function resolveImplementEntryStatus(
+export async function resolveImplementEntryStatus(
   taskId: number,
 ): Promise<'plan_approved' | 'research_done'> {
   const plan = await prisma.workflowFile

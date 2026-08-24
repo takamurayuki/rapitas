@@ -1,0 +1,168 @@
+/**
+ * Stale Recovery Helpers
+ *
+ * Shared DB-correction primitives used by both the startup recovery pass
+ * (stale-execution-recovery.ts) and the periodic lease sweep
+ * (execution-lease-sweep.ts): session finalization, orphaned-session
+ * reconciliation, task rollback, and the recovery notification.
+ * Not responsible for deciding WHICH executions are stale — callers own
+ * detection and pass in the affected id sets.
+ */
+
+import { createLogger } from '../../../config';
+import type { OrchestratorContext } from './types';
+
+const logger = createLogger('stale-recovery-helpers');
+
+/**
+ * Marks affected sessions as interrupted when they have no remaining active executions.
+ *
+ * @param ctx - Orchestrator context / オーケストレーターコンテキスト
+ * @param sessionIds - Set of session IDs to check / チェックするセッションIDのセット
+ * @returns Number of sessions actually marked interrupted / 実際に中断済みにしたセッション数
+ */
+export async function updateAffectedSessions(
+  ctx: OrchestratorContext,
+  sessionIds: Set<number>,
+): Promise<number> {
+  let updated = 0;
+  for (const sessionId of sessionIds) {
+    try {
+      const activeCount = await ctx.prisma.agentExecution.count({
+        where: {
+          sessionId,
+          status: { in: ['running', 'pending', 'waiting_for_input'] },
+        },
+      });
+
+      if (activeCount === 0) {
+        await ctx.prisma.agentSession.update({
+          where: { id: sessionId },
+          data: {
+            status: 'interrupted',
+            lastActivityAt: new Date(),
+          },
+        });
+        updated++;
+        logger.info(`[RecoveryManager] Session ${sessionId} marked as interrupted`);
+      }
+    } catch (error) {
+      logger.error({ err: error, sessionId }, `[RecoveryManager] Failed to update session`);
+    }
+  }
+  return updated;
+}
+
+/**
+ * Marks orphaned active/running sessions as interrupted when every one of
+ * their executions is already terminal (no running/pending/waiting_for_input
+ * row left). These sessions are invisible to the execution-keyed startup scan
+ * and previously lingered forever as fake "active" state.
+ *
+ * @param ctx - Orchestrator context / オーケストレーターコンテキスト
+ * @returns Number of sessions marked interrupted / 中断済みにしたセッション数
+ */
+export async function reconcileOrphanedActiveSessions(ctx: OrchestratorContext): Promise<number> {
+  let updated = 0;
+  try {
+    const candidates = await ctx.prisma.agentSession.findMany({
+      where: { status: { in: ['active', 'running'] } },
+      select: { id: true },
+    });
+    for (const session of candidates) {
+      try {
+        const liveCount = await ctx.prisma.agentExecution.count({
+          where: {
+            sessionId: session.id,
+            status: { in: ['running', 'pending', 'waiting_for_input'] },
+          },
+        });
+        if (liveCount === 0) {
+          await ctx.prisma.agentSession.update({
+            where: { id: session.id },
+            data: { status: 'interrupted', lastActivityAt: new Date() },
+          });
+          updated++;
+          logger.info(
+            `[RecoveryManager] Orphaned session ${session.id} (no live executions) marked as interrupted`,
+          );
+        }
+      } catch (error) {
+        logger.error(
+          { err: error, sessionId: session.id },
+          '[RecoveryManager] Failed to reconcile orphaned session',
+        );
+      }
+    }
+  } catch (error) {
+    logger.error({ err: error }, '[RecoveryManager] Orphaned session scan failed');
+  }
+  return updated;
+}
+
+/**
+ * Reverts in-progress tasks to 'todo' status.
+ *
+ * @param ctx - Orchestrator context / オーケストレーターコンテキスト
+ * @param taskIds - Set of task IDs to revert / 元に戻すタスクIDのセット
+ * @returns Number of tasks that were updated / 更新されたタスクの数
+ */
+export async function updateAffectedTasks(
+  ctx: OrchestratorContext,
+  taskIds: Set<number>,
+): Promise<number> {
+  let updated = 0;
+  for (const taskId of taskIds) {
+    try {
+      const task = await ctx.prisma.task.findUnique({
+        where: { id: taskId },
+        select: { id: true, status: true },
+      });
+
+      if (task && task.status === 'in-progress') {
+        await ctx.prisma.task.update({
+          where: { id: taskId },
+          data: { status: 'todo' },
+        });
+        updated++;
+        logger.info(`[RecoveryManager] Task ${taskId} reverted to 'todo'`);
+      }
+    } catch (error) {
+      logger.error({ err: error, taskId }, `[RecoveryManager] Failed to update task`);
+    }
+  }
+  return updated;
+}
+
+/**
+ * Creates a notification record informing the user about recovered executions.
+ *
+ * @param ctx - Orchestrator context / オーケストレーターコンテキスト
+ * @param recoveredExecutions - Count of recovered executions / 復旧した実行数
+ * @param updatedTasks - Count of updated tasks / 更新されたタスク数
+ * @param updatedSessions - Count of updated sessions / 更新されたセッション数
+ */
+export async function createRecoveryNotification(
+  ctx: OrchestratorContext,
+  recoveredExecutions: number,
+  updatedTasks: number,
+  updatedSessions: number,
+): Promise<void> {
+  try {
+    await ctx.prisma.notification.create({
+      data: {
+        type: 'agent_execution_interrupted',
+        title: 'サーバー再起動による中断',
+        message: `サーバー再起動により${recoveredExecutions}件のエージェント実行が中断されました。バナーから再開できます。`,
+        link: '/',
+        metadata: JSON.stringify({
+          recoveredExecutions,
+          updatedTasks,
+          updatedSessions,
+        }),
+      },
+    });
+  } catch (error) {
+    logger.error({ err: error }, '[RecoveryManager] Failed to create recovery notification');
+  }
+}

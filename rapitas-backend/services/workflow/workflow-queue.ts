@@ -7,6 +7,8 @@ import { prisma } from '../../config';
 import { createLogger } from '../../config/logger';
 import { resolveTaskWorkflowState } from '../task/task-resolver';
 import { narrowWorkflowStatus } from './workflow-types.guards.generated';
+import { hasUsableProvider, isProviderOutageFailure } from './queue-provider-gate';
+import { isNonRunnableTaskSkip } from './queue-skip-policy';
 
 const log = createLogger('workflow-queue');
 
@@ -156,6 +158,15 @@ export class WorkflowQueueService {
       where: { status: 'running' },
     });
     if (runningCount >= this.maxConcurrency) {
+      return null;
+    }
+
+    // Every provider is cooling down (quota / rate limit): dispatching now
+    // just burns a task's retries against an outage. Hold the queue instead —
+    // the theme scheduler treats an empty dequeue as "idle but armed" and
+    // resumes on its own once a cooldown expires. Fails open.
+    if (!(await hasUsableProvider())) {
+      log.info('[WorkflowQueue] All providers are in cooldown — holding the queue');
       return null;
     }
 
@@ -321,6 +332,39 @@ export class WorkflowQueueService {
         `[WorkflowQueue] Skipping retry for item ${itemId} — already ${item.status} (external stop)`,
       );
       return false;
+    }
+
+    // The task cannot run at all right now (blocked / awaiting an answer /
+    // workflow disabled). Retrying re-asks the same question three times and
+    // overwrites the REAL reason the task stopped with the skip message, which
+    // is what made these tasks impossible to diagnose. Cancel the item and keep
+    // whatever reason is already recorded; the scheduler re-enqueues the task
+    // once it becomes runnable again.
+    if (isNonRunnableTaskSkip(reason)) {
+      await prisma.workflowQueueItem.update({
+        where: { id: itemId },
+        data: { status: 'cancelled', completedAt: new Date() },
+      });
+      log.info(
+        { itemId, taskId: item.taskId, reason },
+        '[WorkflowQueue] Task is not runnable — cancelled without consuming a retry',
+      );
+      return false;
+    }
+
+    // A provider outage says nothing about this task, so it must not spend one
+    // of its finite retries. Re-queue at the same retryCount; the dequeue gate
+    // above keeps this from becoming a hot loop while the provider cools.
+    if (await isProviderOutageFailure(reason)) {
+      await prisma.workflowQueueItem.update({
+        where: { id: itemId },
+        data: { status: 'queued', startedAt: null, errorMessage: reason ?? null },
+      });
+      log.warn(
+        { itemId, retryCount: item.retryCount, reason },
+        '[WorkflowQueue] Provider outage — re-queued without consuming a retry',
+      );
+      return true;
     }
 
     if (item.retryCount >= item.maxRetries) {

@@ -507,14 +507,16 @@ export class AgentOrchestrator {
   async createCommit(
     workingDirectory: string,
     message: string,
+    preferredBaseBranch?: string | null,
   ): Promise<{
     hash: string;
     branch: string;
     filesChanged: number;
     additions: number;
     deletions: number;
+    alreadyCommitted: boolean;
   }> {
-    return this.gitOps.createCommit(workingDirectory, message);
+    return this.gitOps.createCommit(workingDirectory, message, preferredBaseBranch);
   }
 
   async getDiff(workingDirectory: string): Promise<

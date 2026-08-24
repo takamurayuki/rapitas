@@ -65,16 +65,19 @@ interface PatternRule {
 
 // Order matters: more specific patterns first so they win.
 const RULES: PatternRule[] = [
+  // --- Provider-unambiguous markers ---
+  // Each CLI links its OWN billing page in the limit message, so the URL
+  // attributes the failure with certainty. These run first because the prose
+  // around them ("you've hit your ... limit") is nearly identical across
+  // providers and would otherwise be claimed by whichever rule came first.
+  { provider: 'claude', reason: 'quota', pattern: /claude\.ai\/settings\/usage/i },
+  { provider: 'openai', reason: 'quota', pattern: /codex\/settings\/usage/i },
+
   // --- ChatGPT / Codex CLI ---
   {
     provider: 'openai',
     reason: 'quota',
     pattern: /you'?ve hit your usage limit/i,
-  },
-  {
-    provider: 'openai',
-    reason: 'quota',
-    pattern: /codex\/settings\/usage/i,
   },
   { provider: 'openai', reason: 'quota', pattern: /purchase more credits/i },
   {
@@ -91,6 +94,23 @@ const RULES: PatternRule[] = [
     provider: 'claude',
     reason: 'quota',
     pattern: /credit[ _]?balance[ _]?too[ _]?low/i,
+  },
+  // Spend/usage caps the Claude Code CLI reports at session init. Measured
+  // 2026-08-19: 12 consecutive executions failed with "You've hit your monthly
+  // spend limit." and matched NO rule, so no cooldown was set, no provider
+  // fallback ran, and every task burned its 3 queue retries into a permanent
+  // `blocked` state — auto-run stayed dead for four days. The wording varies
+  // (monthly / weekly / 5-hour, "spend limit" vs "usage limit"), so match the
+  // limit phrasing loosely and the settings URL exactly.
+  {
+    provider: 'claude',
+    reason: 'quota',
+    pattern: /you'?ve hit your (?:\w+[- ])*(?:spend|usage|rate) limit/i,
+  },
+  {
+    provider: 'claude',
+    reason: 'quota',
+    pattern: /(?:approaching|reached) your (?:usage|spend) limit/i,
   },
   // Match Anthropic's specific error name in API error context only.
   // The old /rate_limit_error/i also matched when agents wrote code that

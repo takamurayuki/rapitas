@@ -75,6 +75,11 @@ mock.module('./provider-cooldown', () => ({
   markProviderCooldown: mock(() => {}),
   isProviderInCooldown: mock(() => false),
   clearCooldown: mock(() => {}),
+  // NOTE: bun mock.module replaces the whole module — new exports must be
+  // mirrored here or importers see undefined at runtime.
+  recordProviderSuccess: mock(() => {}),
+  listFailureStreaks: mock(() => []),
+  inferProviderFromModelName: mock(() => null),
   __resetCooldowns: mock(() => {}),
 }));
 

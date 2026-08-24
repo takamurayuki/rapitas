@@ -36,8 +36,16 @@ describe('isJobDue', () => {
     expect(isJobDue(makeSchedule({ frequency: 'daily', hour: 3 }), MONDAY_3AM)).toBe(true);
   });
 
-  it('does not fire when the hour does not match', () => {
-    expect(isJobDue(makeSchedule({ frequency: 'daily', hour: 3 }), MONDAY_4AM)).toBe(false);
+  it('does not fire before the configured hour', () => {
+    const MONDAY_2AM = new Date(2024, 0, 15, 2, 30, 0);
+    expect(isJobDue(makeSchedule({ frequency: 'daily', hour: 3 }), MONDAY_2AM)).toBe(false);
+  });
+
+  it('回帰: 設定時刻を過ぎていれば当日中はまだ実行できる', () => {
+    // 旧実装は時刻の完全一致を要求していたため、ポーラーがその1時間に生きて
+    // いなければジョブは丸1日飛んでいた（実測 2026-08-24: 03:00〜07:00 の全
+    // ジョブが4日間未実行）。時刻は「これ以降」を意味する。
+    expect(isJobDue(makeSchedule({ frequency: 'daily', hour: 3 }), MONDAY_4AM)).toBe(true);
   });
 
   it('never fires when disabled', () => {
@@ -112,5 +120,39 @@ describe('daily_report registration', () => {
     expect(isJobDue(ranToday, monday7am)).toBe(false);
     // Due again the next morning.
     expect(isJobDue(ranToday, new Date(2024, 0, 16, 7, 10, 0))).toBe(true);
+  });
+
+  it('取りこぼしたジョブは時刻に関わらず即座に追いつく', () => {
+    // 4日前が最終実行 = 丸1周期以上の遅延。設定時刻(3時)より前の時間帯でも走る。
+    const fourDaysAgo = new Date(2024, 0, 11, 3, 0, 0);
+    const mondayMidnight = new Date(2024, 0, 15, 0, 30, 0);
+    expect(
+      isJobDue(
+        makeSchedule({ frequency: 'daily', hour: 3, lastRunAt: fourDaysAgo }),
+        mondayMidnight,
+      ),
+    ).toBe(true);
+  });
+
+  it('週次も1周期を超えて遅延したら曜日を待たずに追いつく', () => {
+    const threeWeeksAgo = new Date(2023, 11, 25, 6, 0, 0);
+    const thursday = new Date(2024, 0, 18, 1, 0, 0); // 木曜・設定時刻前
+    expect(
+      isJobDue(
+        makeSchedule({ frequency: 'weekly', hour: 6, weekday: 1, lastRunAt: threeWeeksAgo }),
+        thursday,
+      ),
+    ).toBe(true);
+  });
+
+  it('週次は1周期未満なら走らない', () => {
+    const threeDaysAgo = new Date(2024, 0, 12, 6, 0, 0);
+    const monday = new Date(2024, 0, 15, 7, 0, 0);
+    expect(
+      isJobDue(
+        makeSchedule({ frequency: 'weekly', hour: 6, weekday: 1, lastRunAt: threeDaysAgo }),
+        monday,
+      ),
+    ).toBe(false);
   });
 });

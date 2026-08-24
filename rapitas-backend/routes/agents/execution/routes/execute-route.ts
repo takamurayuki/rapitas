@@ -342,33 +342,24 @@ export const executeRoute = new Elysia().post(
         '[API] Using per-role explicit model from WorkflowRoleConfig',
       );
     } else if (roleAgent?.shouldAutoSelectModel) {
-      try {
-        const [{ getStableSmartRoute }, { resolveRoleProviderPreferences }] = await Promise.all([
-          import('../../../../services/ai/model-route-stability'),
-          import('../../../../services/workflow/role-provider-resolver'),
-        ]);
-        const prefs = await resolveRoleProviderPreferences(roleAgent.role, taskIdNum);
-        // NOTE (determinism): pinned per taskId+role so a same-phase manual
-        // re-run reuses the same model instead of re-routing on cache
-        // rollover / provider health flap. See services/ai/model-route-stability.ts.
-        const route = await getStableSmartRoute(taskIdNum, roleAgent.role, prefs);
-        resolvedModelOverride = route.recommendedModel;
-        log.info(
-          {
-            taskId: taskIdNum,
-            role: roleAgent.role,
-            model: resolvedModelOverride,
-            tier: route.recommendedTier,
-            preferredProvider: prefs.preferredProvider ?? null,
-            excludeProviders: prefs.excludeProviders ?? [],
-          },
-          '[API] Auto-selected model via Smart Router (auto mode)',
-        );
-      } catch (smartRouterErr) {
-        log.warn(
-          { err: smartRouterErr, taskId: taskIdNum, role: roleAgent.role },
-          '[API] Smart Router failed; falling back to agent default model',
-        );
+      // Shared with the auto-run orchestrator (role-route-inputs) so a manual
+      // run of the same phase gets the same model AND the same risk / retry /
+      // evidence floors. This path used to call the router with provider
+      // preferences only, which silently skipped every floor.
+      const task = await prisma.task.findUnique({
+        where: { id: taskIdNum },
+        select: { title: true, description: true, labels: true, themeId: true },
+      });
+      if (task) {
+        const { routeModelForRole } =
+          await import('../../../../services/workflow/role-route-inputs');
+        const routed = await routeModelForRole({
+          taskId: taskIdNum,
+          role: roleAgent.role,
+          task,
+        });
+        resolvedModelOverride = routed.modelId;
+        log.info(routed.details, '[API] Auto-selected model via Smart Router (auto mode)');
       }
     }
 

@@ -166,6 +166,8 @@ mock.module('./routing-policy', () => ({
   isCapabilityRole: mock(() => false),
   detectHighRisk: mock(() => ({ high: false })),
   computeMinTier: mock(() => undefined),
+  computeMinTierWithReason: mock(() => ({ tier: undefined, reason: undefined })),
+  isCapabilityAttributableFailure: mock(() => true),
 }));
 mock.module('./workflow-queue', () => ({
   WorkflowQueueService: {

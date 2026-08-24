@@ -50,7 +50,8 @@ export type TimelineEventType =
   | 'ideation_calibration'
   | 'retro_review_failed'
   | 'playbook_generated'
-  | 'playbook_generation_failed';
+  | 'playbook_generation_failed'
+  | 'context_section_metrics';
 
 export type ActorType = 'user' | 'agent' | 'system';
 

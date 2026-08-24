@@ -232,6 +232,23 @@ export async function saveExecutionResult(
     }
   }
 
+  // Clear-on-success (task #633): a completed execution that reported its
+  // model proves that provider is healthy again — reset its failure streak
+  // and lift any cooldown. Provider is derived from the reported modelName
+  // (not the task's config) so a fallback run that succeeded on claude does
+  // NOT clear gemini's streak. Executions without modelName (= usage never
+  // reported) prove nothing and are skipped.
+  if (executionStatus === 'completed' && result.modelName) {
+    try {
+      const { inferProviderFromModelName, recordProviderSuccess } =
+        await import('../../ai/provider-cooldown');
+      const provider = inferProviderFromModelName(result.modelName);
+      if (provider) recordProviderSuccess(provider);
+    } catch {
+      // Defensive: cooldown bookkeeping must never break result persistence.
+    }
+  }
+
   // Self-learning bookkeeping: persist a WorkflowLearningRecord on terminal
   // status so analyzeTaskComplexityWithLearning + maybePromoteFailurePattern
   // get fresh signal. Wrapped to never throw — the agent flow must not be

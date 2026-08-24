@@ -5,6 +5,7 @@
  * jurisdiction-fixing system prompt (process metadata only — never re-review
  * artifacts) and the user-message evidence rendering. Pure formatting, no I/O.
  */
+import { isCriticFollowRejection } from './retro-evidence';
 import type { EvidenceBundle } from './retro-types';
 
 /** System prompt fixing the retro AI's jurisdiction and output contract. */
@@ -19,6 +20,10 @@ export const RETRO_SYSTEM_PROMPT = `あなたはソフトウェア開発プロ�
 - 判定基準: 同一causeの反復(2回以上)・批評差し戻しの反復・フェーズ所要時間の
  極端な偏り(過短/過長)・異常causeの存在は systemic=true を示唆する。1タスク限りの
  偶発は systemic=false とする。
+- 批評差し戻し(critic_failed)の直後に記録される transition_rejected(批評追随拒否)は、
+ 非同期の批評ゲートが成果物を巻き戻した直後に、先へ進んでいたエージェントの保存を
+ 状態機械が正しく拒否した「単一の想定内自己修復連鎖」である。異常cause・不変条件
+ 違反・独立したcause反復として扱わないこと(複数ゲートの同時機能不全ではない)。
 - キュー待機(初回ディスパッチ前の滞在)は auto-run停止・サーバー停止などの非稼働
  期間を含む待機時間であり、実行系の遅延ではない。phase_wallclock 異常の根拠に
  しないこと。フェーズ所要時間の判定は「フェーズ別所要時間」に示された実行中の
@@ -118,6 +123,14 @@ export function formatEvidenceSummary(bundle: EvidenceBundle): string {
     `- 修復系(repair): ${bundle.repairCount}回`,
     `- 再計画(replan): ${bundle.replanCount}回`,
     `- 異常系(anomaly): ${bundle.anomalyCount}回`,
+    // Rendered only when non-zero so zero-count summaries (and all
+    // previously-filed concern details) keep their existing shape.
+    ...(bundle.criticFollowRejections > 0
+      ? [
+          `- 批評追随拒否(critic_follow): ${bundle.criticFollowRejections}回`,
+          '- 注記: 批評追随拒否は、非同期の批評差し戻し直後に進行中エージェントの保存を状態機械が正しく拒否した想定内の自己修復連鎖であり、異常causeや独立した不変条件違反ではない(異常系カウントからは除外済み)。',
+        ]
+      : []),
     `- 不変条件違反(invariantViolation): ${bundle.invariantCount}行`,
     '',
     `## 批評差し戻し理由(最大${MAX_REASONS}件)`,
@@ -142,6 +155,10 @@ export function formatEvidenceSummary(bundle: EvidenceBundle): string {
 export function buildRetroPrompt(bundle: EvidenceBundle): string {
   const causeCounts = new Map<string, number>();
   for (const t of bundle.timeline) {
+    // Critic-follow rejections are the designed self-repair chain — excluded
+    // here too, or `transition_rejected ×2` would falsely fire the
+    // repeated-cause systemicity hint the aggregation fix just removed.
+    if (isCriticFollowRejection(t)) continue;
     causeCounts.set(t.cause, (causeCounts.get(t.cause) ?? 0) + 1);
   }
   const repeated = [...causeCounts.entries()]

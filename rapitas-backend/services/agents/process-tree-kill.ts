@@ -109,3 +109,29 @@ export function collectKillTargets(
   targets.delete(process.pid); // never self-terminate the backend
   return targets;
 }
+
+/**
+ * Capture a process's descendants RIGHT NOW, for a kill that happens later.
+ *
+ * `collectKillTargets` can only follow parent links that still exist. An agent
+ * CLI often exits while a command it launched keeps running, and once the
+ * intermediate shell exits too the survivor is unreachable from the root —
+ * neither `taskkill /T` nor a later snapshot walk can find it. Observed
+ * 2026-08-23: an agent left `find / -maxdepth 6 -iname system.dic` scanning the
+ * whole drive for 15 minutes (781 CPU-seconds) after its parent had gone.
+ *
+ * Callers snapshot at teardown-decision time and pass the result to
+ * killProcessTreeSafely, which kills whatever is still alive after the grace
+ * period. Returns an empty set when the root is already gone (nothing to walk)
+ * or on enumeration failure.
+ *
+ * @param rootPid - Process whose descendants should be remembered. / 対象プロセス
+ * @param workdir - Optional launch cwd for command-line orphan matching. / 起動時cwd
+ * @returns Descendant pids known at call time. / 呼び出し時点の子孫PID
+ */
+export function captureDescendants(rootPid: number, workdir?: string): Set<number> {
+  if (process.platform !== 'win32') return new Set();
+  const snapshot = listWindowsProcessSnapshot();
+  if (snapshot.length === 0) return new Set();
+  return collectKillTargets(snapshot, rootPid, workdir);
+}
