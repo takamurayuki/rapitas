@@ -20,6 +20,7 @@ import { getProjectRoot } from '../../config';
 import { cleanupCompletedTasks } from '../../services/task/completed-task-cleanup';
 import { computeTaskActiveTime } from '../../services/agent-execution/task-active-time';
 import { TASK_NOT_FOUND, INVALID_ID } from '../../utils/common/error-messages';
+import { retryTask } from './task-retry-handler';
 
 import { QueryOptimizers } from '../../utils/database/prisma-optimization';
 
@@ -385,43 +386,10 @@ export const tasksRoutes = new Elysia({ prefix: '/tasks' })
     if (isNaN(id)) {
       throw new ValidationError(INVALID_ID);
     }
-    const task = await prisma.task.findUnique({ where: { id }, select: { status: true } });
-    if (!task) {
-      set.status = 404;
-      return { error: TASK_NOT_FOUND };
-    }
-    if (task.status !== 'blocked' && task.status !== 'failed') {
-      throw new ValidationError('blocked / failed のタスクのみ再実行できます');
-    }
-
-    const updated = await prisma.task.update({ where: { id }, data: { status: 'todo' } });
-
-    await prisma.activityLog
-      .create({
-        data: {
-          taskId: id,
-          action: 'task_retried',
-          metadata: JSON.stringify({ from: task.status }),
-          createdAt: new Date(),
-        },
-      })
-      .catch(() => {});
-
-    // Mark the skip notification read — notifyOnce dedups on an UNREAD
-    // notification of the same task, so leaving it unread would suppress the
-    // alert if this retry fails and the task is skipped again.
-    await prisma.notification
-      .updateMany({
-        where: {
-          type: 'auto_run_task_skipped',
-          isRead: false,
-          metadata: { contains: `"dedupKey":"auto_run_task_skipped:${id}"` },
-        },
-        data: { isRead: true, readAt: new Date() },
-      })
-      .catch(() => {});
-
-    return updated;
+    const updated = await retryTask(id, (code) => {
+      set.status = code;
+    });
+    return updated ?? { error: TASK_NOT_FOUND };
   })
 
   // Delete task

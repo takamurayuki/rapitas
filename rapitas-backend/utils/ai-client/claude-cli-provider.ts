@@ -16,6 +16,7 @@ import { createLogger } from '../../config/logger';
 // can require "0 live aux CLI children" and post-crash cleanup can reap them.
 import { registerProcess, unregisterProcess } from '../../services/agents/agent-process-tracker';
 import { type AIMessage, type AIResponse } from './types';
+import { describeCliFailure, extractLastJsonObject } from './cli-failure-reason';
 
 const log = createLogger('ai-client:claude-cli');
 
@@ -202,23 +203,6 @@ function combinePrompt(messages: AIMessage[], systemPrompt?: string): string {
   return system ? `${system}\n\n${convo}` : convo;
 }
 
-/** Extract the last balanced top-level JSON object from CLI stdout. */
-function extractLastJsonObject(text: string): string | null {
-  let depth = 0;
-  let end = -1;
-  for (let i = text.length - 1; i >= 0; i--) {
-    const ch = text[i];
-    if (ch === '}') {
-      if (depth === 0) end = i;
-      depth++;
-    } else if (ch === '{') {
-      depth--;
-      if (depth === 0 && end !== -1) return text.slice(i, end + 1);
-    }
-  }
-  return null;
-}
-
 /**
  * Track an aux CLI child in the shared process tracker (concern #1284) and
  * return an idempotent untrack callback. With `shell: true` the tracked PID is
@@ -285,7 +269,7 @@ function spawnCli(args: string[], prompt: string): Promise<string> {
       } else {
         reject(
           new ClaudeCliUnavailableError(
-            `Claude CLI exited ${code}: ${(stderr || stdout).slice(0, 300)}`,
+            `Claude CLI exited ${code}: ${describeCliFailure(stderr || stdout)}`,
           ),
         );
       }
@@ -343,7 +327,7 @@ export async function callClaudeCli(
     }
     if (parsed.is_error || parsed.subtype === 'error' || typeof parsed.result !== 'string') {
       throw new ClaudeCliUnavailableError(
-        `Claude CLI reported an error: ${jsonText.slice(0, 300)}`,
+        `Claude CLI reported an error: ${describeCliFailure(jsonText)}`,
       );
     }
     const tokensUsed = (parsed.usage?.input_tokens || 0) + (parsed.usage?.output_tokens || 0);

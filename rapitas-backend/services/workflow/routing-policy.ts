@@ -161,12 +161,15 @@ export function detectHighRisk(opts: { text?: string | null; planContent?: strin
  * Failure signals are deliberately SPLIT by specificity:
  *  - `taskRetries` (this exact task already failed) is a HARD signal → premium.
  *  - `themeEscalation` (aggregate trouble rate of the theme's recent tasks) is
- *    a SOFT signal. Self-repair bounces are ROUTINE — ≥25% of recent tasks
- *    having one is the common case, and treating that as premium put EVERY
- *    phase of EVERY task (researcher included) on the top model indefinitely
- *    (observed: 122/122 recent executions on opus). Level 1 (≥25%) now only
- *    raises the floor to 'standard'; level 2 (≥50% — the theme is genuinely
- *    struggling) still forces premium.
+ *    a SOFT signal and is CAPPED AT 'standard' — it never forces premium.
+ *    Self-repair bounces are ROUTINE, so the aggregate rate saturates: measured
+ *    2026-08-18, 6/10 recent tasks carried a `verify_repair` transition, which
+ *    put level 2 (≥50%) permanently in effect and pinned EVERY phase of EVERY
+ *    task in the theme to premium — 16/18 routing decisions resolved to
+ *    claude-fable-5, including complexity-5 and complexity-22 tasks, and
+ *    premium took 78% of spend on 35% of executions. A theme-wide average can
+ *    never justify premium for an individual cheap phase; only task-specific
+ *    signals (retry) and risk signals may.
  * Risk floors are never relaxed by history.
  *
  * @param opts.role - Workflow role being executed. / 実行中のロール
@@ -194,8 +197,10 @@ export function computeMinTier(opts: {
   // A weak model already failed this task — go strong on the retry.
   const retryFloor: ModelTier | undefined = opts.taskRetries >= 1 ? 'premium' : undefined;
   const theme = opts.themeEscalation ?? 0;
-  const themeFloor: ModelTier | undefined =
-    theme >= 2 ? 'premium' : theme >= 1 ? 'standard' : undefined;
+  // NOTE: Level 2 no longer forces premium — see the doc comment above. Both
+  // levels cap at 'standard'; the level is kept in the signature because it
+  // still distinguishes "no signal" from "theme is struggling" for telemetry.
+  const themeFloor: ModelTier | undefined = theme >= 1 ? 'standard' : undefined;
   const riskFloor: ModelTier | undefined = opts.riskHigh ? 'premium' : undefined;
   return highestTier(roleFloor, retryFloor, themeFloor, riskFloor);
 }

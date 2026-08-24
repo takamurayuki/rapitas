@@ -119,6 +119,53 @@ function contentHash(input: string): string {
 }
 
 /**
+ * Task statuses meaning a concern's follow-up work has closed out. Kept in sync
+ * with completed-task-cleanup's TERMINAL_SUBTASK_STATUSES.
+ */
+const TERMINAL_TASK_STATUSES = ['done', 'completed', 'failed', 'cancelled', 'archived'];
+
+/**
+ * Finds a LIVE concern that should dedup-block a new filing with this hash, or
+ * null when none does. "Live" = still actionable: an `open` concern, or a
+ * `task_created` concern whose follow-up task hasn't reached a terminal state.
+ *
+ * Resolved, dismissed-elsewhere by forgetting (non-active), and `task_created`
+ * rows whose task already finished do NOT block: the same signature recurring
+ * after its follow-up closed out is a genuine regression — e.g. a mainline
+ * workflow ci_watch filed, that got fixed, then broke again — and must file a
+ * fresh concern instead of being silently swallowed by the closed-out row's
+ * hash. A `dismissed` row still blocks (respects the user's explicit dismiss).
+ *
+ * @param hash - contentHash of the concern being filed / 起票する懸念のハッシュ
+ * @returns Blocking concern id, or null when a fresh filing is allowed / ブロックするID、無ければnull
+ */
+async function findBlockingDuplicate(hash: string): Promise<number | null> {
+  // `resolved` and forgotten (forgettingStage != 'active') rows are excluded in
+  // the query: they represent a closed-out problem, so a recurrence is new.
+  const rows = await prisma.knowledgeEntry.findMany({
+    where: {
+      contentHash: hash,
+      sourceType: 'concern',
+      forgettingStage: 'active',
+      sourceId: { not: 'resolved' },
+    },
+    select: { id: true, sourceId: true },
+  });
+  for (const row of rows) {
+    const sourceId = row.sourceId ?? 'open';
+    const taskMatch = sourceId.match(/^task_(\d+)$/);
+    if (!taskMatch) return row.id; // 'open' or 'dismissed' → still live/blocking
+    // task_created: block only while the follow-up task is still in flight. A
+    // terminal (or deleted) task means the fix landed, so a recurrence re-files.
+    const task = await prisma.task
+      .findUnique({ where: { id: Number(taskMatch[1]) }, select: { status: true } })
+      .catch(() => null);
+    if (task && !TERMINAL_TASK_STATUSES.includes(task.status)) return row.id;
+  }
+  return null;
+}
+
+/**
  * Files a concern into the backlog. Deduplicates by `dedupKey` when provided,
  * otherwise by title+detail.
  *
@@ -146,13 +193,10 @@ export async function submitConcern(input: SubmitConcernInput): Promise<number> 
     ? contentHash(`concern-dedup:${input.dedupKey}`)
     : contentHash(`concern:${input.title}:${input.detail}`);
 
-  const existing = await prisma.knowledgeEntry.findFirst({
-    where: { contentHash: hash, sourceType: 'concern' },
-    select: { id: true },
-  });
-  if (existing) {
-    log.debug({ id: existing.id }, 'Duplicate concern skipped');
-    return existing.id;
+  const blockingId = await findBlockingDuplicate(hash);
+  if (blockingId != null) {
+    log.debug({ id: blockingId }, 'Duplicate concern skipped (live concern exists)');
+    return blockingId;
   }
 
   // Anti-monoculture: concerns are the bigger flood source — the agent re-files
