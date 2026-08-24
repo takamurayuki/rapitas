@@ -103,6 +103,12 @@ async function userActedAfter(taskId: number, since: Date | null): Promise<boole
   }
 }
 
+/** Cancelled-without-running items that trip the runaway-loop guard. */
+const RUNAWAY_CANCEL_THRESHOLD = 8;
+
+/** Window the runaway-loop guard counts over. */
+const RUNAWAY_CANCEL_WINDOW_MS = 10 * 60_000;
+
 export class ThemeAutoRunScheduler {
   private static instance: ThemeAutoRunScheduler;
   private running = false;
@@ -612,6 +618,31 @@ export class ThemeAutoRunScheduler {
       // the item vanished (e.g. cleared) while the task is still mid-workflow.
       // Re-enqueue the SAME task so it resumes — never silently stall. The
       // WorkflowRunner picks up from the task's current workflowStatus.
+      //
+      // Bounded, though: if the same task keeps coming straight back as a
+      // cancelled item, re-enqueueing spins. Measured 2026-08-24 on task 635
+      // (todo + awaiting_question, which the orchestrator refuses to dispatch):
+      // 106 queue items in 21 minutes. The selector no longer picks that state,
+      // but any future "enqueued then immediately abandoned" cause would loop
+      // the same way, so hold the theme instead of spinning.
+      if (await this.hasRunawayCancelLoop(currentTaskId)) {
+        log.warn(
+          `[ThemeAutoRunScheduler] Task ${currentTaskId} keeps being cancelled without running — holding the theme (theme ${themeId})`,
+        );
+        logCycleEvent('task.skipped', {
+          theme: themeId,
+          task: currentTaskId,
+          cause: 'runaway_cancel_loop',
+          msg: 'enqueue→cancel loop detected — task released so the theme can move on',
+        });
+        // Release the task rather than holding the whole theme: the next tick
+        // selects a different one, and the loop stops without stalling the rest
+        // of the backlog.
+        await setCurrentTask(themeId, null);
+        this.broadcastAutoRunUpdate(themeId);
+        return;
+      }
+
       try {
         await this.queue.enqueue({ taskId: currentTaskId, themeId, priority: 50 });
         await setCurrentTask(themeId, currentTaskId);
@@ -959,6 +990,27 @@ export class ThemeAutoRunScheduler {
   }
 
   /** Broadcast SSE update for a theme's auto-run state change. */
+  /**
+   * Whether a task keeps producing cancelled queue items without ever running.
+   *
+   * Fails OPEN (false) — an unreadable queue must not stop the scheduler from
+   * resuming genuinely-stalled work.
+   *
+   * @param taskId - Task under resolution. / 対象タスク
+   * @returns true when the re-enqueue loop should be broken. / ループ打切りなら true
+   */
+  private async hasRunawayCancelLoop(taskId: number): Promise<boolean> {
+    try {
+      const since = new Date(Date.now() - RUNAWAY_CANCEL_WINDOW_MS);
+      const n = await prisma.workflowQueueItem.count({
+        where: { taskId, status: 'cancelled', createdAt: { gt: since } },
+      });
+      return n >= RUNAWAY_CANCEL_THRESHOLD;
+    } catch {
+      return false;
+    }
+  }
+
   private broadcastAutoRunUpdate(themeId: number): void {
     try {
       realtimeService.broadcast('orchestra', 'auto_run_update', {

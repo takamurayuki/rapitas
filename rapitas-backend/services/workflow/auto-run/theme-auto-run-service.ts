@@ -207,9 +207,9 @@ export async function finalizeStop(themeId: number): Promise<void> {
  * Update the current task being executed and increment processedCount.
  *
  * @param themeId - Theme ID / テーマID
- * @param taskId - New current task ID / 新しいカレントタスクID
+ * @param taskId - New current task ID, or null to release it. / 新しいカレントタスクID（null で解放）
  */
-export async function setCurrentTask(themeId: number, taskId: number): Promise<void> {
+export async function setCurrentTask(themeId: number, taskId: number | null): Promise<void> {
   await prisma.themeAutoRun.updateMany({
     where: { themeId },
     data: { currentTaskId: taskId, lastRunAt: new Date(), lastError: null },

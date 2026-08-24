@@ -394,6 +394,13 @@ export async function selectNextTask(
         { workflowStatus: null },
         { workflowStatus: { notIn: ['completed', 'verify_done'] } },
       ],
+      // A task parked on a question cannot progress until a human answers, and
+      // the orchestrator refuses to dispatch it. Selection must agree with the
+      // dispatcher: measured 2026-08-24, task 635 sat at todo + awaiting_question,
+      // was selected, refused, cancelled, and re-selected — 106 queue items in
+      // 21 minutes. The `status:'todo'` clause above deliberately ignores a
+      // stale workflowStatus, so awaiting_question has to be excluded explicitly.
+      NOT: { workflowStatus: 'awaiting_question' },
       id: skipTaskIds.length > 0 ? { notIn: skipTaskIds } : undefined,
       // Exclude subtasks — the theme scheduler drives top-level tasks only;
       // subtasks are handled by AIOrchestra.enqueueSubtasksForExecution().
