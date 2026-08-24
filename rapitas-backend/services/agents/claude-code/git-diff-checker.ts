@@ -12,6 +12,20 @@ import { runGitCommand } from '../../github/git-exec';
 const logger = createLogger('claude-code-agent');
 
 /**
+ * Base branches a task branch may have been cut from, in resolution order.
+ * Mirrors diff-structured's resolveBaseRef. Refs that do not exist in the
+ * repository are filtered out before use — see the note at check 5.
+ */
+const BASE_REF_CANDIDATES = [
+  'origin/develop',
+  'develop',
+  'origin/main',
+  'main',
+  'origin/master',
+  'master',
+] as const;
+
+/**
  * Checks whether this task's branch carries any code changes.
  * Examines unstaged changes, staged changes, working tree status, recent
  * commits, and finally commits the branch holds that no base branch has — the
@@ -81,22 +95,27 @@ export async function checkGitDiff(workDir: string, logPrefix: string): Promise<
   // hiding real work. Candidate bases mirror resolveBaseRef's develop→main→
   // master order, and `--not` excludes anything already reachable from any of
   // them, leaving exactly this branch's own commits.
-  const branchCommits = await runGitCommand(
-    [
-      'rev-list',
-      '--count',
-      'HEAD',
-      '--not',
-      'origin/develop',
-      'develop',
-      'origin/main',
-      'main',
-      'origin/master',
-      'master',
-    ],
-    workDir,
-    { timeoutMs: 5000 },
-  ).catch(() => '');
+  //
+  // Every ref is resolved FIRST and the missing ones dropped. `git rev-list`
+  // aborts on the whole argument list if any ref is unknown ("fatal: ambiguous
+  // argument 'origin/master'"), and the surrounding catch turned that into a
+  // silent "no changes". This repository has no `master`, so the check had
+  // never once run since it was written. Measured 2026-08-24 on task 624: the
+  // branch held a real split of main.rs (9 files, +809/-819, main.rs 840 → 37
+  // lines) and the task was still failed with "no actual code changes were
+  // made", then re-run three times on a premium model before being blocked.
+  const existingBases: string[] = [];
+  for (const ref of BASE_REF_CANDIDATES) {
+    const ok = await runGitCommand(['rev-parse', '--verify', '--quiet', ref], workDir, {
+      timeoutMs: 5000,
+    }).catch(() => '');
+    if (ok) existingBases.push(ref);
+  }
+  const branchCommits = existingBases.length
+    ? await runGitCommand(['rev-list', '--count', 'HEAD', '--not', ...existingBases], workDir, {
+        timeoutMs: 5000,
+      }).catch(() => '')
+    : '';
   if (branchCommits && parseInt(branchCommits, 10) > 0) {
     logger.info(
       `${logPrefix} Git diff check: working tree is clean, but the branch carries ${branchCommits} commit(s) not on any base branch — treating as changes present`,

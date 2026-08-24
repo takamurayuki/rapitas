@@ -162,4 +162,40 @@ describe('checkGitDiff', () => {
     // rev-parse + diff HEAD = 2 calls; should NOT call diff --cached, status, log
     expect(callCount).toBe(2);
   });
+
+  it('回帰: 存在しない base ref があっても branch commit 判定が死なない', async () => {
+    // 実測 2026-08-24 task 624: このリポジトリに master が無いため
+    // `git rev-list --count HEAD --not ... origin/master master` が
+    // "fatal: ambiguous argument 'origin/master'" で落ち、catch が握り潰して
+    // 「変更なし」になっていた。実際にはブランチに9ファイル+809行の
+    // 実装コミットがあり、main.rs は 840行→37行に分割済みだった。
+    mockRunGitCommand.mockImplementation(async (args: string[]) => {
+      if (args[0] === 'rev-parse' && args[1] === '--is-inside-work-tree') return 'true';
+      // ref の存在確認: master 系だけ存在しない
+      if (args[0] === 'rev-parse' && args[1] === '--verify') {
+        return args[3].includes('master') ? '' : 'abc1234';
+      }
+      // 作業ツリーはクリーン、直近コミットも無い
+      if (args[0] === 'diff' || args[0] === 'status' || args[0] === 'log') return '';
+      if (args[0] === 'rev-list') {
+        // 存在しない ref が渡されたら git は落ちる — それを再現する
+        if (args.some((a) => a.includes('master'))) throw new Error('fatal: ambiguous argument');
+        return '1';
+      }
+      return '';
+    });
+
+    expect(await checkGitDiff(WORK_DIR, LOG_PREFIX)).toBe(true);
+  });
+
+  it('base ref が1つも存在しない場合は branch commit 判定をスキップする', async () => {
+    mockRunGitCommand.mockImplementation(async (args: string[]) => {
+      if (args[0] === 'rev-parse' && args[1] === '--is-inside-work-tree') return 'true';
+      if (args[0] === 'rev-parse' && args[1] === '--verify') return '';
+      if (args[0] === 'rev-list') throw new Error('should not be called');
+      return '';
+    });
+
+    expect(await checkGitDiff(WORK_DIR, LOG_PREFIX)).toBe(false);
+  });
 });
