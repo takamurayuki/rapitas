@@ -152,6 +152,7 @@ export async function routeModelForRole(opts: {
       ...prefs,
       minTier,
       minTierReason,
+      riskSource: evidence?.source ?? 'task_text_keywords',
       capTier: provenTier,
       includeAlternatives: false,
     });
