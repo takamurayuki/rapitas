@@ -19,6 +19,7 @@ import {
   getAgentUtilization,
   getCostOptimizationInsights,
   getRepairConvergenceStats,
+  getCompletionDiffStats,
 } from './queries';
 import { getUsdJpyRate } from './currency-config';
 import { computeGrowthLedgerMetrics } from '../../../services/self-improvement/growth-ledger-metrics';
@@ -261,6 +262,23 @@ export const agentMetricsRouter = new Elysia({ prefix: '/agent-metrics' })
     } catch (error) {
       log.error({ err: error }, 'Error computing repair convergence stats');
       return { error: 'Failed to compute repair convergence stats' };
+    }
+  })
+
+  /**
+   * Completion diff outcome: did completed tasks actually land a code diff on
+   * their branch? Joins Task.completedAt with the latest auto_commit_created
+   * ActivityLog row per task and buckets each completion into
+   * has_diff / zero_diff / unknown.
+   */
+  .get('/completion-diff', async ({ query }) => {
+    try {
+      const limit = Math.min(2000, Math.max(1, parseInt(query.limit as string) || 500));
+      const data = await getCompletionDiffStats(limit);
+      return { success: true, data };
+    } catch (error) {
+      log.error({ err: error }, 'Error computing completion diff stats');
+      return { error: 'Failed to compute completion diff stats' };
     }
   })
 

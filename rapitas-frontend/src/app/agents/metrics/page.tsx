@@ -11,6 +11,7 @@ import { MetricsFilters } from './_components/MetricsFilters';
 import { MetricsCharts } from './_components/MetricsCharts';
 import { MetricsTable } from './_components/MetricsTable';
 import { RepairConvergenceCard } from './_components/RepairConvergenceCard';
+import { CompletionDiffCard } from './_components/CompletionDiffCard';
 import { UtilizationChartCard } from './_components/UtilizationChartCard';
 import { JudgeEvalCard } from './_components/JudgeEvalCard';
 import {
@@ -98,6 +99,8 @@ function AgentMetricsPage() {
         {overview && <MetricsOverviewCards overview={overview} />}
 
         <RepairConvergenceCard />
+
+        <CompletionDiffCard />
 
         <JudgeEvalCard />
 

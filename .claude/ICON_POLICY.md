@@ -109,6 +109,12 @@ Keep this list accurate. If you assign a glyph a new meaning, add it here.
 | `Sunrise`                 | 自律活動デイリーレポート（nav: /agents/daily-report。ページ見出し・バックログ定期ジョブ daily_report — 同一概念の再利用。注: /agents/growth＝成長台帳とはルート・グリフとも別） |
 | `ScanSearch`              | 検出漏れ兆候の学習・レビュー（nav: /agents/miss-signatures、ページ見出し、バックログ定期ジョブ miss_ledger — 同一概念の再利用。注: `Search`＝知識ブラウザとは別概念） |
 | `LifeBuoy`                | リカバリーメトリクス（エージェント実行フォールバックの種別×戦略別 成功率/レイテンシ/コスト集計。`RecoveryMetricsPanel` ヘッダー） |
+| `FileX2`                  | 差分ゼロ完了率（完了タスクの差分成果カード `CompletionDiffCard` の率タイル） |
+| `FileDiff`                | 差分あり完了（`CompletionDiffCard` の has_diff タイル。注: `@/types` の `FileDiff` 型とは無関係の lucide glyph） |
+| `CircleSlash`             | 差分ゼロ完了（`CompletionDiffCard` の zero_diff タイル） |
+| `BadgeCheck`              | 修正不要と明示的に結論済み（`CompletionDiffCard` の confirmedNoChange タイル。`verify_no_change_confirmed`/`research_no_change_complete` の遷移原因が根拠） |
+| `FileWarning`             | 未説明の差分ゼロ完了（`CompletionDiffCard` の unexplainedZeroDiff タイル — 修正不要の結論記録がない空振り候補） |
+| `HelpCircle`              | 不明/質問待ち（ワークフローの質問状態・不明カテゴリfallback等の既存慣用。`CompletionDiffCard` の unknown タイルも同一概念「データ不明」の再利用） |
 
 ### Known collisions
 
