@@ -13,7 +13,6 @@ import { createLogger } from '../../../../config/logger';
 import type { WorkflowFileType } from '../../core/workflow-helpers';
 import type { performAutoCommitAndPR } from '../../workflow-auto-commit';
 import { recordTransition } from '../../../../services/workflow/transition-recorder';
-import { registerVerifyCompletion } from '../../../../services/workflow/verify-completion-inflight';
 import {
   runVerifyCommitPrPipeline,
   type CommitPrCompletionOutcome,
@@ -114,18 +113,15 @@ export async function runVerifyCommitPrCompletion(params: {
   ) {
     // Run the commit/PR/merge pipeline (initial attempt, history-contamination
     // recovery retry, and the completion gates — see verify-commit-pr-pipeline.ts).
-    // Registered as in-flight for the WHOLE pipeline so the WorkflowRunner's
-    // verify-settle wait knows this is live work rather than a stalled task:
-    // registering only the initial attempt (pre-task-657) let the fixed 60s
-    // window expire mid-recovery/retry and report a completed task (#653) as
-    // blocked 79s before its PR actually landed.
-    const pipelineWork = runVerifyCommitPrPipeline({
+    // NOTE: in-flight registration moved OUT of this stage (task 660). It is
+    // now owned by verify-post-save-pipeline.ts, which wraps the completion
+    // gate + adversarial jury + this stage as one registered unit; registering
+    // here again would overwrite that entry with a narrower Promise.
+    const outcome = await runVerifyCommitPrPipeline({
       taskId,
       savedContent,
       preferredBaseBranchForVerify,
     });
-    registerVerifyCompletion(taskId, pipelineWork);
-    const outcome = await pipelineWork;
     newStatus = outcome.newStatus;
     taskMarkedDone = outcome.taskMarkedDone;
     autoCommitPRResult = outcome.autoCommitPRResult;

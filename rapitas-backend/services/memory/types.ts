@@ -53,7 +53,12 @@ export type TimelineEventType =
   | 'playbook_generation_failed'
   | 'context_section_metrics'
   | 'memory_recall_attempt'
-  | 'embedding_reindex';
+  | 'embedding_reindex'
+  // NOTE: task 660 — post-verify automation lifecycle (gate → jury → commit/PR),
+  // written by verify-completion-inflight so a stuck/blocked verdict can be
+  // audited against what the pipeline was actually doing at the time.
+  | 'verify_pipeline_started'
+  | 'verify_pipeline_settled';
 
 export type ActorType = 'user' | 'agent' | 'system';
 

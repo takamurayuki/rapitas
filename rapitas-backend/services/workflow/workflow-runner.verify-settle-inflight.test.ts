@@ -24,7 +24,11 @@ import type { WorkflowAdvanceResult } from './workflow-types';
 import type { TaskWorkflowState } from '../task/task-resolver';
 
 process.env.RAPITAS_VERIFY_SETTLE_MS = '100';
-process.env.RAPITAS_VERIFY_SETTLE_CAP_MS = '100';
+// NOTE: task 660 raised the cap from 100ms to 2500ms so the "4-minute
+// pipeline" case below can be judged at the FIRST poll tick (t≈2s, past the
+// 100ms base window) while still in flight and under the cap. The hard-cap
+// case still trips: at the second tick (t≈4s) 4000ms > 2500ms → stuck.
+process.env.RAPITAS_VERIFY_SETTLE_CAP_MS = '2500';
 
 const loggerMock = { info: () => {}, warn: () => {}, error: () => {}, debug: () => {} };
 
@@ -33,6 +37,10 @@ mock.module('../../config/logger', () => ({
   logger: loggerMock,
   getBackendLogFilePath: () => '/tmp/fake-backend.log',
 }));
+
+// The real registry traces start/settle to the timeline (task 660); keep the
+// fire-and-forget write off the DB in this process.
+mock.module('../memory/timeline', () => ({ appendEvent: mock(() => Promise.resolve({ id: 1 })) }));
 
 const taskUpdateMock = mock((_args: { where: { id: number }; data: Record<string, unknown> }) =>
   Promise.resolve({}),
@@ -256,11 +264,12 @@ describe('WorkflowRunner — verify_done settle × in-flight registry (task 657)
     );
   });
 
-  test('ハードキャップ(100ms)を超えると in-flight のままでも stuck 判定される(従来どおり)', async () => {
+  test('ハードキャップ(2500ms)を超えると in-flight のままでも stuck 判定される(従来どおり)', async () => {
     registerVerifyCompletion(QUEUE_ITEM.taskId, new Promise(() => {}));
     resolveWorkflowStateSequence = [state({ workflowStatus: 'verify_done' })];
     const runner = WorkflowRunner.getInstance();
-    await runAndSettle(runner);
+    // Two real poll ticks (t≈2s still under the cap, t≈4s over it).
+    await runAndSettle(runner, 8000);
 
     expect(updateStatusMock).toHaveBeenCalledWith(
       QUEUE_ITEM.id,
@@ -269,5 +278,40 @@ describe('WorkflowRunner — verify_done settle × in-flight registry (task 657)
         errorMessage: expect.stringContaining('did not pass the completion gate'),
       }),
     );
-  });
+  }, 10_000);
+
+  // Task 660 (task 658): the settle window is 60s in production and the gate +
+  // jury + commit/PR pipeline took ~4.5 minutes (verify_done 22:50:03 → PR #458
+  // 22:54:38). Scaled to real seconds here: base window 100ms, pipeline 3000ms
+  // (30× the window, same order as 4min/60s), cap 2500ms. The decisive moment
+  // is the first poll tick at t≈2s — the base window has expired 20× over and
+  // the task is still verify_done, so WITHOUT the in-flight registration this
+  // is exactly where the runner blocked task 658. With it, the runner keeps
+  // waiting, the pipeline lands at 3s, and the next tick observes completed.
+  test('4分規模のパイプライン(基本猶予の30倍)でも in-flight の間は blocked にならず、着地後に completed へ遷移する', async () => {
+    const PIPELINE_MS = 3000;
+    resolveWorkflowStateSequence = [state({ workflowStatus: 'verify_done' })];
+    const pipeline = new Promise<void>((resolve) =>
+      setTimeout(() => {
+        // The pipeline's own completion flips the row — what verify-commit-pr's
+        // CAS does in production — so the runner's NEXT poll sees it.
+        resolveWorkflowStateSequence = [state({ workflowStatus: 'completed', status: 'done' })];
+        resolve();
+      }, PIPELINE_MS),
+    );
+    registerVerifyCompletion(QUEUE_ITEM.taskId, pipeline);
+
+    const runner = WorkflowRunner.getInstance();
+    await runAndSettle(runner, 8000);
+
+    expect(updateStatusMock.mock.calls.some((c) => c[1] === 'failed')).toBe(false);
+    expect(updateStatusMock).toHaveBeenCalledWith(
+      QUEUE_ITEM.id,
+      'completed',
+      expect.objectContaining({ currentPhase: 'completed' }),
+    );
+    // The runner polled at least once while the pipeline was still running
+    // and the base window had already expired — the task-658 moment.
+    expect(resolveTaskWorkflowStateMock.mock.calls.length).toBeGreaterThanOrEqual(3);
+  }, 10_000);
 });

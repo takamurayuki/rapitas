@@ -26,3 +26,4 @@ export {
   type AdversarialReviewOutcome,
 } from './verify-adversarial-review';
 export { runVerifyCommitPrCompletion, type CommitPrCompletionOutcome } from './verify-commit-pr';
+export { runVerifyPostSaveAutomation } from './verify-post-save-pipeline';

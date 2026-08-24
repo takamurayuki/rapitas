@@ -6,12 +6,29 @@
  * task that then created its PR successfully. These pin the registry the
  * runner consults instead of guessing.
  */
-import { describe, test, expect, beforeEach } from 'bun:test';
+import { describe, test, expect, beforeEach, mock } from 'bun:test';
 import {
   registerVerifyCompletion,
   hasVerifyCompletionInFlight,
   resetVerifyCompletionRegistry,
 } from './verify-completion-inflight';
+
+// Task 660: every registration leaves a durable start/settle trace on the
+// timeline. The registry imports it lazily, so this mock (installed after the
+// static import above) is what that lazy import resolves to.
+const appendEventMock = mock((_e: { eventType: string; payload?: Record<string, unknown> }) =>
+  Promise.resolve({ id: 1 }),
+);
+mock.module('../memory/timeline', () => ({ appendEvent: appendEventMock }));
+
+/** Poll until the fire-and-forget trace has landed the expected number of writes. */
+async function waitForTraces(count: number): Promise<void> {
+  const deadline = Date.now() + 1000;
+  while (appendEventMock.mock.calls.length < count) {
+    if (Date.now() > deadline) throw new Error(`expected ${count} timeline writes`);
+    await new Promise<void>((resolve) => setTimeout(resolve, 5));
+  }
+}
 
 /** A promise plus its resolver, so a test can hold work "in flight". */
 function deferred(): { promise: Promise<void>; resolve: () => void } {
@@ -25,6 +42,7 @@ function deferred(): { promise: Promise<void>; resolve: () => void } {
 describe('verify-completion-inflight', () => {
   beforeEach(() => {
     resetVerifyCompletionRegistry();
+    appendEventMock.mockClear();
   });
 
   test('登録中は in-flight として報告する', () => {
@@ -69,5 +87,62 @@ describe('verify-completion-inflight', () => {
     // 新しい方がまだ走っているので in-flight のまま。
     expect(hasVerifyCompletionInFlight(580)).toBe(true);
     newer.resolve();
+  });
+});
+
+describe('verify-completion-inflight — 開始/終了のタイムライン記録 (task 660)', () => {
+  beforeEach(() => {
+    resetVerifyCompletionRegistry();
+    appendEventMock.mockClear();
+  });
+
+  test('登録時に verify_pipeline_started を記録する', async () => {
+    const d = deferred();
+    registerVerifyCompletion(658, d.promise);
+    await waitForTraces(1);
+
+    expect(appendEventMock.mock.calls[0][0]).toMatchObject({
+      eventType: 'verify_pipeline_started',
+      payload: { taskId: 658 },
+    });
+    d.resolve();
+  });
+
+  test('解決時に verify_pipeline_settled(outcome=resolved, durationMs) を記録する', async () => {
+    const d = deferred();
+    registerVerifyCompletion(658, d.promise);
+    d.resolve();
+    await waitForTraces(2);
+
+    const settled = appendEventMock.mock.calls[1][0];
+    expect(settled.eventType).toBe('verify_pipeline_settled');
+    expect(settled.payload).toMatchObject({ taskId: 658, outcome: 'resolved' });
+    expect(typeof settled.payload?.durationMs).toBe('number');
+    expect(settled.payload?.error).toBeUndefined();
+  });
+
+  test('拒否時に verify_pipeline_settled(outcome=rejected, error) を記録し、登録も解除される', async () => {
+    const failing = Promise.reject(new Error('gh pr create failed'));
+    registerVerifyCompletion(658, failing);
+    await failing.catch(() => {});
+    await waitForTraces(2);
+
+    expect(appendEventMock.mock.calls[1][0]).toMatchObject({
+      eventType: 'verify_pipeline_settled',
+      payload: { taskId: 658, outcome: 'rejected', error: 'gh pr create failed' },
+    });
+    expect(hasVerifyCompletionInFlight(658)).toBe(false);
+  });
+
+  test('タイムライン書き込みが失敗しても in-flight 判定と解除は影響を受けない', async () => {
+    appendEventMock.mockImplementationOnce(() => Promise.reject(new Error('timeline down')));
+    const d = deferred();
+    registerVerifyCompletion(658, d.promise);
+    expect(hasVerifyCompletionInFlight(658)).toBe(true);
+
+    d.resolve();
+    await d.promise;
+    await Promise.resolve();
+    expect(hasVerifyCompletionInFlight(658)).toBe(false);
   });
 });
