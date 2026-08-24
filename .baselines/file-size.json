@@ -19,9 +19,6 @@
     "rapitas-backend/routes/agents/execution/execute-route.ts": {
       "lineCount": 774
     },
-    "rapitas-backend/services/workflow/auto-run/theme-auto-run-scheduler.ts": {
-      "lineCount": 688
-    },
     "rapitas-backend/routes/tasks/tasks.ts": {
       "lineCount": 685
     },
