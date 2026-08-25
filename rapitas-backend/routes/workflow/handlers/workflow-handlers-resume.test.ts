@@ -108,6 +108,7 @@ describe('handleAnswerWorkflowQuestion', () => {
       params: { taskId: '503' },
       body: { answer: '追跡者数はアクティブな情報源(source)の数を指します' },
       set: {},
+      headers: { 'x-rapitas-source': 'ui' },
     });
 
     expect(result).toEqual({ taskId: 503, ok: true, toStatus: 'draft' });
@@ -129,6 +130,7 @@ describe('handleAnswerWorkflowQuestion', () => {
       params: { taskId: '503' },
       body: { answer: '選択肢Aで進めてください' },
       set: {},
+      headers: { 'x-rapitas-source': 'ui' },
     });
 
     const updateArgs = mockUpdate.mock.calls[0][0] as { data: Record<string, unknown> };
@@ -149,6 +151,7 @@ describe('handleAnswerWorkflowQuestion', () => {
       params: { taskId: '7' },
       body: { answer: '回答内容' },
       set: {},
+      headers: { 'x-rapitas-source': 'ui' },
     });
 
     expect(mockArchiveWorkflowFile).toHaveBeenCalledWith(7, 'question');
@@ -171,6 +174,7 @@ describe('handleAnswerWorkflowQuestion', () => {
       params: { taskId: '8' },
       body: { answer: '選択: Aで進める' },
       set: {},
+      headers: { 'x-rapitas-source': 'ui' },
     });
 
     expect(mockReadWorkflowFile).toHaveBeenCalledWith(8, 'question');
@@ -202,6 +206,7 @@ describe('handleAnswerWorkflowQuestion', () => {
       params: { taskId: '9' },
       body: { answer: '回答' },
       set: {},
+      headers: { 'x-rapitas-source': 'ui' },
     });
 
     expect(mockWriteWorkflowFile).not.toHaveBeenCalled();
@@ -224,6 +229,7 @@ describe('handleAnswerWorkflowQuestion', () => {
         selections: [{ questionId: 'Q1', selectedKey: 'B' }],
       },
       set: {},
+      headers: { 'x-rapitas-source': 'ui' },
     });
 
     expect(mockRecordTransition).toHaveBeenCalledWith(
@@ -247,6 +253,7 @@ describe('handleAnswerWorkflowQuestion', () => {
       params: { taskId: '11' },
       body: { answer: '回答', selections: 'not-an-array' },
       set: {},
+      headers: { 'x-rapitas-source': 'ui' },
     });
 
     expect(mockRecordTransition).toHaveBeenCalledWith(
@@ -271,6 +278,7 @@ describe('handleAnswerWorkflowQuestion', () => {
       params: { taskId: '512' },
       body: { answer: 'A: 本格ログインを必須にする' },
       set: {},
+      headers: { 'x-rapitas-source': 'ui' },
     });
 
     expect(mockFindFirstExecution).toHaveBeenCalledWith(
@@ -304,6 +312,7 @@ describe('handleAnswerWorkflowQuestion', () => {
       params: { taskId: '999' },
       body: { answer: '回答' },
       set: {},
+      headers: { 'x-rapitas-source': 'ui' },
     });
 
     expect(mockFetch).toHaveBeenCalledTimes(1);
@@ -329,6 +338,7 @@ describe('handleAnswerWorkflowQuestion', () => {
       params: { taskId: '512' },
       body: { answer: '回答' },
       set: {},
+      headers: { 'x-rapitas-source': 'ui' },
     });
 
     expect(result).toEqual({ taskId: 512, ok: true, toStatus: 'draft' });
@@ -349,6 +359,7 @@ describe('handleAnswerWorkflowQuestion', () => {
       params: { taskId: '512' },
       body: { answer: '回答' },
       set: {},
+      headers: { 'x-rapitas-source': 'ui' },
     });
 
     expect(result).toEqual({ taskId: 512, ok: true, toStatus: 'draft' });
@@ -365,7 +376,12 @@ describe('handleAnswerWorkflowQuestion', () => {
   test('rejects a missing/blank answer', async () => {
     const set: { status?: number } = {};
     await expect(
-      handleAnswerWorkflowQuestion({ params: { taskId: '1' }, body: { answer: '   ' }, set }),
+      handleAnswerWorkflowQuestion({
+        params: { taskId: '1' },
+        body: { answer: '   ' },
+        set,
+        headers: { 'x-rapitas-source': 'ui' },
+      }),
     ).rejects.toThrow('answer is required');
     expect(set.status).toBe(400);
   });
@@ -374,9 +390,72 @@ describe('handleAnswerWorkflowQuestion', () => {
     mockFindUnique.mockResolvedValue(null);
     const set: { status?: number } = {};
     await expect(
-      handleAnswerWorkflowQuestion({ params: { taskId: '999' }, body: { answer: 'x' }, set }),
+      handleAnswerWorkflowQuestion({
+        params: { taskId: '999' },
+        body: { answer: 'x' },
+        set,
+        headers: { 'x-rapitas-source': 'ui' },
+      }),
     ).rejects.toThrow('Task not found');
     expect(set.status).toBe(404);
+  });
+
+  // NOTE: 2026-08-25, task 662. The implementer asked whether its 「視覚的に区別
+  // できる」 acceptance criterion could be met without any UI, then answered
+  // itself 「UI追加なし」 through a shell curl. The archive recorded it as
+  // 「ユーザー選択」, the verifier correctly failed that criterion twice, and the
+  // task blocked on non-convergence — on a scope waiver nobody granted.
+  describe('仕様質問への回答は発行元を要求する', () => {
+    test('ヘッダ無しの呼び出しは拒否され、侵害として記録される', async () => {
+      const set: { status?: number } = {};
+      await expect(
+        handleAnswerWorkflowQuestion({
+          params: { taskId: '662' },
+          body: { answer: 'UI追加なしで完了とする' },
+          set,
+        }),
+      ).rejects.toThrow('X-Rapitas-Source');
+      expect(set.status).toBe(400);
+      expect(mockUpdate).not.toHaveBeenCalled();
+      const call = mockRecordTransition.mock.calls[0]?.[0] as {
+        cause: string;
+        invariantViolation?: boolean;
+      };
+      expect(call.cause).toBe('spec_answer_blocked');
+      expect(call.invariantViolation).toBe(true);
+    });
+
+    test('未知の発行元も拒否される', async () => {
+      const set: { status?: number } = {};
+      await expect(
+        handleAnswerWorkflowQuestion({
+          params: { taskId: '662' },
+          body: { answer: 'x' },
+          set,
+          headers: { 'x-rapitas-source': 'agent' },
+        }),
+      ).rejects.toThrow('X-Rapitas-Source');
+      expect(mockUpdate).not.toHaveBeenCalled();
+    });
+
+    test('オペレーター代理回答はその旨が記録される', async () => {
+      mockFindUnique.mockResolvedValue({
+        id: 662,
+        description: '元の説明',
+        goals: '[]',
+        workflowStatus: 'awaiting_question',
+        status: 'todo',
+      });
+      await handleAnswerWorkflowQuestion({
+        params: { taskId: '662' },
+        body: { answer: 'UIを追加する' },
+        set: {},
+        headers: { 'x-rapitas-source': 'operator' },
+      });
+      const data = mockUpdate.mock.calls[0]?.[0] as { data: { description: string } };
+      expect(data.data.description).toContain('オペレーター代理回答');
+      expect(data.data.description).not.toContain('ユーザー選択');
+    });
   });
 });
 
