@@ -10,6 +10,7 @@
 import { prisma } from '../../../config/database';
 import { createLogger } from '../../../config/logger';
 import type { ConsistencyState, DecisionTraceClient } from './types';
+import { isCapabilityAttributableFailure } from '../../workflow/routing-policy';
 
 const log = createLogger('decision-trace');
 
@@ -51,6 +52,20 @@ export function judgeConsistency(
     return { consistency: 'skipped', note: 'ブロック状態のため評価対象外' };
   }
   // status === 'failed' (callers only pass terminal statuses)
+  // A failure that says nothing about the decision cannot judge it. A spend
+  // limit, a timeout or a provider 5xx would have greeted any choice equally,
+  // so scoring the decision `inconsistent` for one would teach the router that
+  // its reasoning was wrong when only the infrastructure was. This is the
+  // ledger's `indeterminate`: recorded as `skipped` because the column has no
+  // such state, but with a note that distinguishes 'not applicable' from
+  // 'could not tell'.
+  if (!isCapabilityAttributableFailure(execution.errorMessage)) {
+    return {
+      consistency: 'skipped',
+      note: '判定不能: 失敗原因がモデルの能力に帰属しない(枠/タイムアウト/上流障害など)',
+    };
+  }
+
   const reasonBlob = `${decision.adoptedReason}\n${decision.rejectedReasons}`;
   if (RISK_AWARE_RE.test(reasonBlob)) {
     return { consistency: 'consistent', note: '想定されたリスクの範囲内での失敗' };

@@ -97,6 +97,41 @@ describe('judgeConsistency', () => {
     expect(v.note).toContain('乖離');
   });
 
+  // NOTE: 2026-08-25. A failure that would have greeted ANY model equally says
+  // nothing about the decision. Scoring it `inconsistent` taught the router that
+  // its reasoning was wrong when only the infrastructure was.
+  it('failed on a spend limit → skipped, not inconsistent', () => {
+    const v = judgeConsistency(
+      { status: 'failed', errorMessage: "you've hit your usage limit" },
+      decision,
+    );
+    expect(v.consistency).toBe('skipped');
+    expect(v.note).toContain('判定不能');
+  });
+
+  it('failed on an upstream 5xx → skipped', () => {
+    const v = judgeConsistency(
+      { status: 'failed', errorMessage: 'API Error: 529 overloaded_error' },
+      decision,
+    );
+    expect(v.consistency).toBe('skipped');
+  });
+
+  it('failed on a phase timeout → skipped', () => {
+    const v = judgeConsistency(
+      { status: 'failed', errorMessage: 'phase execution timeout' },
+      decision,
+    );
+    expect(v.consistency).toBe('skipped');
+  });
+
+  it('an unrecorded cause still counts against the decision', () => {
+    // Unknown causes stay attributable — the conservative side, and what keeps
+    // this from becoming a blanket excuse.
+    const v = judgeConsistency({ status: 'failed', errorMessage: null }, decision);
+    expect(v.consistency).toBe('inconsistent');
+  });
+
   it('blocked → skipped', () => {
     const v = judgeConsistency({ status: 'blocked', errorMessage: null }, decision);
     expect(v.consistency).toBe('skipped');

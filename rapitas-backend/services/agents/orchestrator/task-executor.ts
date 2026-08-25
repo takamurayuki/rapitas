@@ -155,6 +155,15 @@ async function createExecutionResources(
   });
   startExecutionHeartbeat(ctx.prisma, execution.id);
 
+  // Claim the decisions that produced this run. The router picks the model
+  // before this row exists, so recordDecision writes no executionId and the
+  // consistency checker — which joins on it — discarded every trace on sight
+  // (measured: 479/479 skipped as 「実行IDが未記録のため評価対象外」). Best-effort:
+  // observability must never be able to fail a dispatch.
+  void import('../../observability/decision-trace/execution-linker')
+    .then(({ linkPendingDecisions }) => linkPendingDecisions(options.taskId, execution.id))
+    .catch(() => {});
+
   const state: ExecutionState = {
     executionId: execution.id,
     sessionId: options.sessionId,

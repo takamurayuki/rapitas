@@ -64,6 +64,13 @@ export async function executeAPIAgent(
     },
   });
 
+  // Same claim as the CLI path (task-executor.ts): the routing decision is
+  // recorded before this row exists, so it carries no executionId and the
+  // consistency checker cannot join it to an outcome. Best-effort.
+  void import('../observability/decision-trace/execution-linker')
+    .then(({ linkPendingDecisions }) => linkPendingDecisions(taskId, execution.id))
+    .catch(() => {});
+
   try {
     let apiKey = '';
     if (agentConfig.apiKeyEncrypted) {
