@@ -99,7 +99,14 @@ interface AnswerContext {
   params: { taskId: string };
   body?: { answer?: string; selections?: unknown } | unknown;
   set: { status?: number };
+  headers?: Record<string, string | undefined>;
 }
+
+/** Callers permitted to answer a spec question, and how each is labelled. */
+const ANSWER_SOURCE_LABELS: Record<string, string> = {
+  ui: 'ユーザー選択',
+  operator: 'オペレーター代理回答',
+};
 
 /** One question's audit record: which option (if any) the user picked. */
 interface AnswerSelection {
@@ -148,7 +155,12 @@ function parseSelections(raw: unknown): AnswerSelection[] | undefined {
  * @throws {ValidationError} taskId 不正 / answer 未指定
  * @throws {NotFoundError} タスクが見つからない場合
  */
-export async function handleAnswerWorkflowQuestion({ params, body, set }: AnswerContext): Promise<{
+export async function handleAnswerWorkflowQuestion({
+  params,
+  body,
+  set,
+  headers,
+}: AnswerContext): Promise<{
   taskId: number;
   ok: true;
   toStatus: WorkflowStatus;
@@ -158,6 +170,42 @@ export async function handleAnswerWorkflowQuestion({ params, body, set }: Answer
     set.status = 400;
     throw new ValidationError('Invalid taskId');
   }
+
+  // A spec question is a decision the WORKFLOW is not entitled to make for
+  // itself. Task 662 asked whether its 「視覚的に区別できる」 acceptance criterion
+  // could be met with no UI, then answered itself 「UI追加なし」 through a shell
+  // curl — and the archive recorded it as 「ユーザー選択」. The verifier then
+  // correctly failed that criterion twice (it says 視覚的に; the diff had no UI)
+  // and the task blocked on non-convergence. The escalation was right; the
+  // scope waiver behind it was never granted by anyone.
+  //
+  // Mirrors the guard on PUT /tasks/:id/status (workflow-handlers-plan.ts):
+  // server-internal callers never go through HTTP, so legitimate traffic here
+  // always carries the header.
+  const rawSource = headers?.['x-rapitas-source'];
+  const answerSource = typeof rawSource === 'string' ? rawSource.toLowerCase() : '';
+  if (!ANSWER_SOURCE_LABELS[answerSource]) {
+    log.warn(
+      { taskId, source: rawSource ?? null, ua: headers?.['user-agent'] ?? null },
+      '[Workflow:Answer] Rejected spec answer: missing X-Rapitas-Source header (likely an agent shell-call)',
+    );
+    await recordTransition({
+      taskId,
+      fromStatus: null,
+      toStatus: 'awaiting_question',
+      actor: 'system',
+      cause: 'spec_answer_blocked',
+      metadata: { reason: 'missing X-Rapitas-Source header', source: rawSource ?? null },
+      invariantViolation: true,
+      invariantMessage: 'Agent attempted to answer its own spec question',
+    }).catch(() => {});
+    set.status = 400;
+    throw new ValidationError(
+      '仕様質問への回答には X-Rapitas-Source ヘッダ(ui|operator)が必要です。' +
+        'エージェントが自身の仕様質問に回答することは許可されていません。',
+    );
+  }
+
   const answer =
     typeof (body as { answer?: string })?.answer === 'string'
       ? (body as { answer: string }).answer.trim()
@@ -188,7 +236,8 @@ export async function handleAnswerWorkflowQuestion({ params, body, set }: Answer
   }
   if (!goals.includes(answer)) goals.push(answer);
 
-  const clarified = `${task.description ?? ''}\n\n## 仕様補足（ユーザー回答）\n${answer}`.trim();
+  const clarified =
+    `${task.description ?? ''}\n\n## 仕様補足（${ANSWER_SOURCE_LABELS[answerSource]}）\n${answer}`.trim();
 
   // This intake pause never had a live agent session (question.md was saved
   // then the process exited) — the researcher's own execution loop
@@ -219,7 +268,7 @@ export async function handleAnswerWorkflowQuestion({ params, body, set }: Answer
   // there too — archiveWorkflowFile's own signature is unchanged).
   const questionContent = await readWorkflowFile(taskId, 'question');
   if (questionContent != null) {
-    const answerBlock = `\n\n## 回答（ユーザー選択）\n${answer}`;
+    const answerBlock = `\n\n## 回答（${ANSWER_SOURCE_LABELS[answerSource]}）\n${answer}`;
     await writeWorkflowFile(taskId, 'question', `${questionContent}${answerBlock}`).catch(() => {});
   }
 

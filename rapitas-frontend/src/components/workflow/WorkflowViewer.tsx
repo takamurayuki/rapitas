@@ -194,7 +194,10 @@ export default function WorkflowViewer({
     try {
       const res = await fetch(`${API_BASE_URL}/workflow/tasks/${taskId}/answer-question`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        // A spec answer is a decision only a person may make: the backend
+        // rejects this call without the source header so an agent cannot answer
+        // its own question through a shell curl (task 662).
+        headers: { 'Content-Type': 'application/json', 'X-Rapitas-Source': 'ui' },
         body: JSON.stringify(selections ? { answer, selections } : { answer }),
       });
       if (res.ok) refetch();
