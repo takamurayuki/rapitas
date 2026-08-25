@@ -42,6 +42,9 @@ const VERDICT_BY_CONSISTENCY: Record<string, DecisionVerdict> = {
  */
 const KIND_BY_NODE_SEGMENT: Record<string, DecisionKind> = {
   'model-route': 'model_tier',
+  // A provider fallback re-picks the model after a cooldown, so it belongs with
+  // the other model choices rather than in a category of its own.
+  'provider-fallback': 'model_tier',
   'risk-floor': 'risk_floor',
   escalation: 'escalation',
   'knowledge-recall': 'knowledge_use',

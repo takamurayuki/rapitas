@@ -86,12 +86,22 @@ export function judgeConsistency(
  * failure aborts the batch with one warn log — untouched rows retry next run
  * (no per-row retry counter by design).
  *
+ * Scoping to a task settles just that task's decisions using this exact code,
+ * so the prompt settlement at task outcome and the periodic sweep can never
+ * disagree about what a verdict means — one definition, two triggers.
+ *
+ * @param scope - Narrow to one task; omit to sweep everything. / 対象の絞り込み
  * @returns Number of rows examined and rows updated / 検査行数と更新行数
  */
-export async function runConsistencyCheckBatch(): Promise<{ checked: number; updated: number }> {
+export async function runConsistencyCheckBatch(
+  scope: { taskId?: number } = {},
+): Promise<{ checked: number; updated: number }> {
   try {
     const pending = await db.agentDecisionTrace.findMany({
-      where: { consistency: 'pending' },
+      where: {
+        consistency: 'pending',
+        ...(typeof scope.taskId === 'number' ? { taskId: scope.taskId } : {}),
+      },
       orderBy: { id: 'asc' },
       take: BATCH_SIZE,
     });

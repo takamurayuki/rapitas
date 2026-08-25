@@ -201,3 +201,26 @@ describe('runConsistencyCheckBatch', () => {
     expect(result).toEqual({ checked: 0, updated: 0 });
   });
 });
+
+describe('runConsistencyCheckBatch scoping', () => {
+  it('a task scope narrows the query instead of sweeping everything', async () => {
+    mockTraceFindMany.mockResolvedValueOnce([]);
+
+    await runConsistencyCheckBatch({ taskId: 666 });
+
+    const arg = mockTraceFindMany.mock.calls[0]?.[0] as {
+      where: { consistency: string; taskId?: number };
+    };
+    expect(arg.where.taskId).toBe(666);
+    expect(arg.where.consistency).toBe('pending');
+  });
+
+  it('no scope sweeps every pending decision', async () => {
+    mockTraceFindMany.mockResolvedValueOnce([]);
+
+    await runConsistencyCheckBatch();
+
+    const arg = mockTraceFindMany.mock.calls[0]?.[0] as { where: { taskId?: number } };
+    expect(arg.where.taskId).toBeUndefined();
+  });
+});

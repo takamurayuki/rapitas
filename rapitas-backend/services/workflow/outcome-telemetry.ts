@@ -109,6 +109,13 @@ export async function recordTaskOutcome(taskId: number, finalStatus: string): Pr
     // Calibrate the plan-gate decisions (human approvals AND auto-approvals)
     // recorded for this task against its real outcome — closes the decision
     // journal loop so gate accuracy per decider becomes measurable. Best-effort.
+    // Settle this task's machine decisions here, at the same point its human
+    // ones are calibrated. The periodic sweep still runs as a backstop and uses
+    // the same judging code, so the two can never disagree about a verdict.
+    await import('../decision-ledger')
+      .then(({ settleDecisions }) => settleDecisions(taskId))
+      .catch((err) => log.warn({ err, taskId }, '[telemetry] Decision settlement failed'));
+
     await import('../memory/decision-journal')
       .then(({ calibratePlanDecisionsForTask }) =>
         calibratePlanDecisionsForTask(taskId, finalStatus),

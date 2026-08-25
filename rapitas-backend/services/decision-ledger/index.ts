@@ -14,6 +14,7 @@ export type {
   VerdictSummary,
 } from './types';
 export { readDecisions } from './query';
+export { settleDecisions, type SettlementResult } from './settle';
 export { summarizeVerdicts, summarizeBy, groupDecisions, totalCostUsd } from './aggregate';
 export { fromDecisionTrace, kindFromNodeKey } from './from-decision-trace';
 export { fromLearningRecord, judgeLearningRecord, DURATION_BAND } from './from-learning-record';
