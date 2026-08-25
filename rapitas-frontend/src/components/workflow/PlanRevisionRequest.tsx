@@ -85,7 +85,10 @@ export function PlanRevisionRequest({ taskId, onRequested }: PlanRevisionRequest
         type="button"
         onClick={() => setIsOpen(true)}
         title={t('planRevision.cta')}
-        className="inline-flex shrink-0 items-center gap-1 rounded-md px-1.5 py-1 text-xs font-medium text-zinc-500 transition-colors hover:bg-zinc-100 hover:text-zinc-700 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-200"
+        // No vertical padding: this sits in the tab bar's right-hand group next
+        // to the reload icon, and any extra height would make the sticky bar
+        // taller whenever the plan tab is selected.
+        className="inline-flex shrink-0 items-center gap-1 rounded-md px-1.5 text-xs font-medium leading-none text-zinc-500 transition-colors hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-200"
       >
         <MessageSquarePlus className="h-3.5 w-3.5" />
         {t('planRevision.cta')}
