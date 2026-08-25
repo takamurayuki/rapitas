@@ -275,6 +275,24 @@ export async function handleAnswerWorkflowQuestion({
   // Archive question.md so it is no longer a pending question.
   await archiveWorkflowFile(taskId, 'question').catch(() => {});
 
+  // The plan was derived from the spec as it stood BEFORE this answer, so it
+  // now contradicts it. Archive it too and let the planner regenerate.
+  //
+  // Task 662 is what this costs otherwise: an operator answer widened the scope
+  // to include a UI card, the implementer built exactly that, and the
+  // adversarial reviewer — which reads plan.md, not the task description —
+  // rejected the diff four times in a row for violating the stale plan's
+  // 「非対象（やらないこと）: UIカードの新規追加」. The planner tried to rewrite it
+  // and was refused (`transition_rejected`: plan is not an allowed file type at
+  // plan_approved), so nothing could break the loop. Keeping the plan is not
+  // even the cheap option: one planner re-run cost ~$1 on that task, the four
+  // wasted implement+verify cycles cost ~$8.
+  //
+  // Unconditional on purpose. Detecting whether an answer 'materially' changes
+  // scope is the same kind of guess that keeps being wrong; regenerating one
+  // cheap phase is the reliable option.
+  await archiveWorkflowFile(taskId, 'plan').catch(() => {});
+
   await recordTransition({
     taskId,
     fromStatus: (task.workflowStatus as WorkflowStatus) ?? 'draft',

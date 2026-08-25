@@ -405,6 +405,32 @@ describe('handleAnswerWorkflowQuestion', () => {
   // itself 「UI追加なし」 through a shell curl. The archive recorded it as
   // 「ユーザー選択」, the verifier correctly failed that criterion twice, and the
   // task blocked on non-convergence — on a scope waiver nobody granted.
+  // NOTE: 2026-08-25, task 662. The reviewer judges the diff against plan.md,
+  // not the task description. An answer that widened the scope left the plan
+  // saying 「非対象: UIカードの新規追加」, so the implementer built the right thing
+  // and was rejected four times running; the planner could not rewrite the plan
+  // because `plan` is not an allowed file type at plan_approved.
+  test('回答時に plan.md もアーカイブして計画を再生成させる', async () => {
+    mockFindUnique.mockResolvedValue({
+      id: 662,
+      description: '元の説明',
+      goals: '[]',
+      workflowStatus: 'awaiting_question',
+      status: 'todo',
+    });
+
+    await handleAnswerWorkflowQuestion({
+      params: { taskId: '662' },
+      body: { answer: 'UIカードを追加する' },
+      set: {},
+      headers: { 'x-rapitas-source': 'operator' },
+    });
+
+    const archived = mockArchiveWorkflowFile.mock.calls.map((c) => c[1]);
+    expect(archived).toContain('question');
+    expect(archived).toContain('plan');
+  });
+
   describe('仕様質問への回答は発行元を要求する', () => {
     test('ヘッダ無しの呼び出しは拒否され、侵害として記録される', async () => {
       const set: { status?: number } = {};
