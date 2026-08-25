@@ -2361,7 +2361,8 @@
         "onTooltip": "Workflow disabled: ON (implements directly, no research.md/plan.md)",
         "offTooltip": "Workflow disabled: OFF (runs the normal research/plan/verify phases)",
         "lockedTooltip": "This can't be changed once the task's execution has started",
-        "globallyForcedTooltip": "The workflow is disabled globally — this task can't be individually re-enabled"
+        "globallyForcedTooltip": "The workflow is disabled globally — this task can't be individually re-enabled",
+        "label": "Workflow off"
       },
       "criticRejection": {
         "title": "The {phase} was rejected by the quality critic and is being regenerated.",

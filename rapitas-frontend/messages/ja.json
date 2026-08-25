@@ -2361,7 +2361,8 @@
         "onTooltip": "ワークフロー無効: ON（research.md/plan.mdを作らず直接実装します）",
         "offTooltip": "ワークフロー無効: OFF（通常通り研究/計画/検証のフェーズを実行します）",
         "lockedTooltip": "タスクの実行が開始されているため、この設定は変更できません",
-        "globallyForcedTooltip": "全体設定でワークフローが無効化されています（このタスクだけを個別に有効化することはできません）"
+        "globallyForcedTooltip": "全体設定でワークフローが無効化されています（このタスクだけを個別に有効化することはできません）",
+        "label": "ワークフロー無効"
       },
       "criticRejection": {
         "title": "{phase}の内容が品質チェックで却下されました。再生成中です。",

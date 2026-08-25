@@ -4,6 +4,7 @@ import type { WorkflowStatus } from '@/types';
 import WorkflowViewer from '@/components/workflow/WorkflowViewer';
 import WorkflowStatusIndicator from '@/components/workflow/WorkflowStatusIndicator';
 import { CircleSmall, Diamond, GitBranch, Pyramid, Zap, type LucideIcon } from 'lucide-react';
+import { Toggle } from '@/components/ui/Toggle';
 import { useTranslations } from 'next-intl';
 import { API_BASE_URL } from '@/utils/api';
 import { Spinner } from '@/components/ui/spinner';
@@ -317,15 +318,8 @@ export default function TaskWorkflowSection({
                 handleSetWorkflowDisabled). Reflects task.workflowDisabled;
                 the global setting can independently force this on regardless
                 of the task-level value (see effectiveWorkflowDisabled). */}
-            <button
-              type="button"
-              onClick={handleToggleWorkflowDisabled}
-              disabled={workflowToggleLocked || isTogglingWorkflowDisabled}
-              className={`flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-60 ${
-                effectiveWorkflowDisabled
-                  ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400'
-                  : 'bg-zinc-100 text-zinc-500 dark:bg-zinc-800 dark:text-zinc-400'
-              }`}
+            <span
+              className="flex shrink-0 items-center gap-1.5"
               title={
                 workflowToggleLocked
                   ? t('taskWorkflowSection.workflowDisabledToggle.lockedTooltip')
@@ -336,11 +330,34 @@ export default function TaskWorkflowSection({
                       : t('taskWorkflowSection.workflowDisabledToggle.offTooltip')
               }
             >
-              <Zap className="h-3 w-3" />
-              {t('taskWorkflowSection.workflowDisabledToggle.badge', {
-                state: effectiveWorkflowDisabled ? 'ON' : 'OFF',
-              })}
-            </button>
+              <Zap
+                className={`h-3 w-3 ${
+                  effectiveWorkflowDisabled
+                    ? 'text-amber-600 dark:text-amber-400'
+                    : 'text-zinc-400 dark:text-zinc-500'
+                }`}
+              />
+              <span
+                className={`text-xs font-medium ${
+                  effectiveWorkflowDisabled
+                    ? 'text-amber-700 dark:text-amber-400'
+                    : 'text-zinc-500 dark:text-zinc-400'
+                }`}
+              >
+                {t('taskWorkflowSection.workflowDisabledToggle.label')}
+              </span>
+              {/* The switch carries the state, so the ON/OFF word the pill used
+                  to spell out is gone — two representations of one boolean is
+                  one too many. */}
+              <Toggle
+                checked={effectiveWorkflowDisabled}
+                onChange={handleToggleWorkflowDisabled}
+                disabled={workflowToggleLocked || isTogglingWorkflowDisabled}
+                size="sm"
+                color="amber"
+                srLabel={t('taskWorkflowSection.workflowDisabledToggle.label')}
+              />
+            </span>
           </div>
         </div>
       </div>
