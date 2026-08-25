@@ -40,6 +40,10 @@ export const DURATION_BAND = { lower: 0.5, upper: 2 } as const;
  * the prediction is the same error the baseline consistency check made when it
  * blamed every infrastructure outage on the decision.
  *
+ * Rows written per execution carry no estimate, because their duration is one
+ * phase and the estimate is for the whole task. They are unjudgeable here by
+ * construction, not by accident.
+ *
  * @param row - The record to judge. / 判定対象の行
  * @returns The verdict. / 判定
  */
@@ -47,7 +51,9 @@ export function judgeLearningRecord(row: LearningRecordRow): DecisionVerdict {
   if (row.predictedComplexity === null) return 'indeterminate';
   if (!row.success) return 'indeterminate';
   if (row.actualDurationMinutes === null) return 'pending';
-  if (row.estimatedDuration === null || row.estimatedDuration <= 0) return 'partial';
+  // Nothing to compare the run against. Calling this `partial` would let rows
+  // that were never judged drag the accuracy down as if they had been.
+  if (row.estimatedDuration === null || row.estimatedDuration <= 0) return 'indeterminate';
 
   const ratio = row.actualDurationMinutes / row.estimatedDuration;
   return ratio >= DURATION_BAND.lower && ratio <= DURATION_BAND.upper ? 'correct' : 'partial';

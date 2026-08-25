@@ -68,8 +68,10 @@ describe('recordWorkflowExecution prediction resolution', () => {
     const data = (p.create.mock.calls[0]?.[0] as { data: Record<string, unknown> }).data;
     expect(data.predictedComplexity).toBe(42);
     expect(data.workflowMode).toBe('standard');
-    expect(data.estimatedDuration).toBe(90);
     expect(data.actualDurationMinutes).toBe(31);
+    // The snapshot's estimate is for the whole task; this row's duration is one
+    // execution. Carrying it here would invite comparing two different things.
+    expect(data.estimatedDuration).toBeNull();
   });
 
   test('falls back to the task row when no snapshot exists', async () => {

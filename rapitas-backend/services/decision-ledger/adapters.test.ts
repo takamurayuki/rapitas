@@ -119,8 +119,8 @@ describe('judgeLearningRecord', () => {
     expect(judgeLearningRecord(record({ actualDurationMinutes: null }))).toBe('pending');
   });
 
-  test('a missing estimate leaves the mode partially judged, never wrong', () => {
-    expect(judgeLearningRecord(record({ estimatedDuration: null }))).toBe('partial');
+  test('a per-execution row carries no estimate, so it is unjudgeable by construction', () => {
+    expect(judgeLearningRecord(record({ estimatedDuration: null }))).toBe('indeterminate');
   });
 });
 

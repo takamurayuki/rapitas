@@ -158,6 +158,11 @@ async function resolvePrediction(
   const explicit = {
     predictedComplexity: input.predictedComplexity ?? null,
     workflowMode: input.workflowMode ?? null,
+    // NOT taken from the snapshot. The snapshot's estimate is for the WHOLE
+    // task; this writer's actualDurationMinutes is one execution. Putting them
+    // in the same row invites a comparison of two different things — observed
+    // live: a 76-minute task estimate beside 1-, 5- and 12-minute phases. The
+    // task-scoped writer (recordWorkflowCompletion) carries the estimate.
     estimatedDuration: input.estimatedDuration ?? null,
   };
   if (explicit.predictedComplexity !== null && explicit.workflowMode !== null) return explicit;
@@ -169,7 +174,7 @@ async function resolvePrediction(
       return {
         predictedComplexity: explicit.predictedComplexity ?? snapshot.predictedComplexity,
         workflowMode: explicit.workflowMode ?? snapshot.workflowMode,
-        estimatedDuration: explicit.estimatedDuration ?? snapshot.estimatedDurationMinutes,
+        estimatedDuration: explicit.estimatedDuration,
       };
     }
   } catch {
