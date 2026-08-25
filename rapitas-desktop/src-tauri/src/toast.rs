@@ -75,6 +75,15 @@ pub fn create_toast_window(app: &tauri::AppHandle) -> Result<(), String> {
     .position(0.0, -10000.0)
     .build()
     .map_err(|e| format!("Failed to create toast window: {e}"))?;
+    // Park again right after creation. The BUILDER position is not reliably
+    // honoured for a point that far outside the virtual screen — Windows can
+    // clamp it — and the window is already visible by then (visible(false)
+    // leaves WebView2 stuck at about:blank, see the note above). The result at
+    // boot was the toast card sitting on screen for the whole page load.
+    // set_position after creation is applied as given.
+    if let Some(win) = app.get_webview_window("notification-toast") {
+        park_toast(&win);
+    }
     Ok(())
 }
 
