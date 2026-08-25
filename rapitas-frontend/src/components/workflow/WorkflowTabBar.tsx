@@ -72,12 +72,11 @@ export function WorkflowTabBar({
     // Sticky below the task-detail toolbar (top-11) so the tabs stay reachable
     // while scrolling the file; the in-file TOC sticks just beneath this bar.
     <div className="sticky top-11 z-[6] flex items-center justify-between border-b border-zinc-200 bg-white dark:border-zinc-700 dark:bg-indigo-dark-900">
-      {/* min-w-0 + flex-1: a flex child defaults to min-width:auto, so without
-          this the tab row refuses to shrink below its content and pushes the
-          sticky bar wider than its container once there are several tabs and a
-          non-trivial right-hand group. scrollbar-thin keeps the overflow from
-          adding a permanent scrollbar's height to the bar. */}
-      <nav className="flex min-w-0 flex-1 overflow-x-auto scrollbar-thin">
+      {/* min-w-0 lets the row shrink below its content (a flex child defaults
+          to min-width:auto). Deliberately NOT an overflow container: making it
+          one changes the formatting context inside a sticky bar, which is a
+          layout risk that was not buying a fix for anything observed. */}
+      <nav className="flex min-w-0 flex-1">
         {tabs.map((tab) => {
           const isActive = activeTab === tab.id;
           const hasContent = tabStatus[tab.id];
