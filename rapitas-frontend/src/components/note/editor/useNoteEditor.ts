@@ -156,16 +156,13 @@ export function useNoteEditor(note: Note): NoteEditorState {
     setIsDirty(false);
   }, [isDirty, draftTitle, note.id, note.content, updateNote]);
 
-  useEffect(() => {
-    const onKeyDown = (e: KeyboardEvent) => {
-      if ((e.ctrlKey || e.metaKey) && e.key === 's') {
-        e.preventDefault();
-        handleSave();
-      }
-    };
-    window.addEventListener('keydown', onKeyDown);
-    return () => window.removeEventListener('keydown', onKeyDown);
-  }, [handleSave]);
+  // NOTE: the Ctrl/Cmd+S shortcut was removed. It registered on WINDOW and called
+  // preventDefault() unconditionally, so while a note editor was mounted it
+  // swallowed Ctrl+S for the whole app — including for the OS and for tools
+  // outside it, which is how it broke taking a screenshot. Saving is unaffected:
+  // NoteEditor still exposes handleSave through its save control.
+  // If it comes back, scope it to the editor (fire only when contentRef contains
+  // document.activeElement) instead of the window.
 
   // Detect formatting at current cursor position
   const handleDetectFormat = useCallback(() => {
