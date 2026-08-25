@@ -122,30 +122,40 @@ describe('extractMermaidSource', () => {
   });
 });
 
-// NOTE: 2026-08-25. mermaid's default (useMaxWidth: true) emits width:100% plus
-// a max-width, so a diagram was scaled down to whatever the container was —
-// inside the workflow panel that shrank the labels until they were unreadable.
-// The diagram must keep its intrinsic size and the CONTAINER must scroll.
+// NOTE: 2026-08-25. Diagrams must stay INSIDE the panel — no horizontal
+// scrollbar — while remaining readable. mermaid fits by scaling the whole SVG
+// uniformly, so at a fixed container width the only way to make text larger is
+// to make the diagram narrower; raising the font just widens the nodes too.
 describe('MermaidBlock sizing', () => {
-  it('renders diagrams at intrinsic size rather than scaling them to the container', async () => {
+  it('fits the diagram to the container instead of overflowing it', async () => {
     renderWithIntl(<MermaidBlock source="graph TD; A-->B;" />);
     await waitFor(() => expect(mocks.initialize).toHaveBeenCalled());
 
-    const config = mocks.initialize.mock.calls[0][0] as Record<string, unknown>;
-    for (const diagramType of ['flowchart', 'sequence', 'class', 'state', 'er']) {
-      expect(config[diagramType], `useMaxWidth for ${diagramType}`).toEqual({
-        useMaxWidth: false,
-      });
-    }
+    const config = mocks.initialize.mock.calls[0][0] as {
+      flowchart?: Record<string, unknown>;
+    };
+    expect(config.flowchart?.useMaxWidth).toBe(true);
   });
 
-  it('lets the container scroll instead of clipping a wide diagram', async () => {
+  it('narrows the diagram so fitting it scales the text down less', async () => {
+    renderWithIntl(<MermaidBlock source="graph LR; A-->B;" />);
+    await waitFor(() => expect(mocks.initialize).toHaveBeenCalled());
+
+    const flowchart = (mocks.initialize.mock.calls[0][0] as { flowchart?: Record<string, number> })
+      .flowchart;
+    // mermaid's defaults: wrappingWidth 200, nodeSpacing 50, rankSpacing 50.
+    expect(flowchart?.wrappingWidth).toBeLessThan(200);
+    expect(flowchart?.nodeSpacing).toBeLessThan(50);
+    expect(flowchart?.rankSpacing).toBeLessThan(50);
+  });
+
+  it('keeps a scroll fallback rather than clipping, for types that ignore useMaxWidth', async () => {
     const { container } = renderWithIntl(<MermaidBlock source="graph TD; A-->B;" />);
     await waitFor(() => expect(container.querySelector('svg')).not.toBeNull());
 
     const box = container.firstElementChild as HTMLElement;
     expect(box.className).toContain('overflow-x-auto');
-    // `flex justify-center` would put the overflowing left edge out of reach.
+    // `flex justify-center` would put an overflowing left edge out of reach.
     expect(box.className).not.toContain('justify-center');
     expect(box.className).not.toContain('overflow-hidden');
   });

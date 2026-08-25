@@ -37,26 +37,26 @@ let mermaidModulePromise: Promise<MermaidModule> | null = null;
 const loadMermaid = (): Promise<MermaidModule> => (mermaidModulePromise ??= import('mermaid'));
 
 /**
- * Per-diagram overrides that stop mermaid scaling a diagram to its container.
- * mermaid takes `useMaxWidth` per diagram type rather than globally, so every
- * type this app can receive from agent markdown is listed.
+ * Keep diagrams INSIDE the panel (no horizontal scrollbar) while staying
+ * readable.
+ *
+ * mermaid fits a diagram by scaling the whole SVG uniformly, so at a fixed
+ * container width the apparent text size is (intrinsic font / intrinsic
+ * width) x container width. Raising the font cannot help — it widens the
+ * nodes too. The only lever is making the diagram NARROWER, which is what
+ * these do: labels wrap sooner, and the gaps between nodes and ranks shrink.
+ * A narrower diagram is scaled down less, so its text lands larger.
+ *
+ * flowchart-only: these keys are defined for the flowchart renderer (which
+ * swimlanes also uses). Other diagram types keep mermaid's defaults.
  */
-const INTRINSIC_SIZE_CONFIG = Object.fromEntries(
-  [
-    'flowchart',
-    'sequence',
-    'gantt',
-    'class',
-    'state',
-    'er',
-    'journey',
-    'pie',
-    'timeline',
-    'mindmap',
-    'gitGraph',
-    'quadrantChart',
-  ].map((diagramType) => [diagramType, { useMaxWidth: false }]),
-);
+const FLOWCHART_FIT_CONFIG = {
+  useMaxWidth: true,
+  wrappingWidth: 140,
+  nodeSpacing: 30,
+  rankSpacing: 38,
+  padding: 6,
+} as const;
 
 interface MermaidBlockProps {
   /** Mermaid diagram source (code-fence body). / フェンス内のMermaidソース */
@@ -87,12 +87,7 @@ function MermaidBlockImpl({ source }: MermaidBlockProps) {
           startOnLoad: false,
           securityLevel: 'strict',
           theme: isDarkMode ? 'dark' : 'neutral',
-          // Render at the diagram's INTRINSIC size. mermaid's default
-          // (useMaxWidth: true) emits width:100% plus a max-width, which scales
-          // the whole diagram down to the container — inside the workflow
-          // panel that shrank labels until they were unreadable. The container
-          // scrolls instead of the diagram shrinking.
-          ...INTRINSIC_SIZE_CONFIG,
+          flowchart: FLOWCHART_FIT_CONFIG,
         });
         const rendered = await mermaid.render(id, source);
         if (!cancelled) {
@@ -128,14 +123,14 @@ function MermaidBlockImpl({ source }: MermaidBlockProps) {
   }
 
   return (
-    // NOTE: a BLOCK container with overflow-x-auto, not flex. `flex
-    // justify-center` makes the overflowing left edge unreachable once the
-    // diagram is wider than the panel; `mx-auto w-fit` centres it when it fits
-    // and scrolls cleanly when it does not.
+    // NOTE: a BLOCK container, not flex. overflow-x-auto shows no scrollbar
+    // while the diagram fits (the normal case now) and stays a safety net for
+    // diagram types that ignore useMaxWidth — `flex justify-center` would put
+    // an overflowing left edge out of reach instead of scrolling to it.
     <div className="my-4 overflow-x-auto rounded-lg border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900/60 p-3">
       {svg ? (
         <div
-          className="mx-auto w-fit [&_svg]:h-auto [&_svg]:max-w-none"
+          className="w-full [&_svg]:mx-auto [&_svg]:block [&_svg]:h-auto"
           // NOTE: SVG string produced by mermaid with securityLevel 'strict'
           // (sanitized); the only way to mount its output.
           dangerouslySetInnerHTML={{ __html: svg }}
