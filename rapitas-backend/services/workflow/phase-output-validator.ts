@@ -13,6 +13,7 @@
  * Section requirements are intentionally moderate — we want to catch obvious
  * misses (no "設計判断の根拠" in plan.md) without rejecting cosmetic variation.
  */
+import { PLAN_FILES_SECTION_HEADINGS } from './plan-declared-files';
 
 export interface ValidationResult {
   ok: boolean;
@@ -42,7 +43,9 @@ const RESEARCH_REQUIRED_SECTIONS: (string | string[])[] = [
 const PLAN_REQUIRED_SECTIONS: (string | string[])[] = [
   ['設計判断の根拠', '設計判断', '設計方針', '確定仕様', '技術選定'],
   ['実装チェックリスト', 'チェックリスト'],
-  ['変更予定ファイル', '変更ファイル', '対象ファイル', '実装ファイル', 'ファイル計画'],
+  // NOTE: shared with the risk router's declared-files extractor so the two
+  // can never drift — a plan this validator accepts always yields a section there.
+  [...PLAN_FILES_SECTION_HEADINGS],
   'リスク',
   ['完了条件', '完了の定義', '完了基準', 'definition of done'],
 ];
