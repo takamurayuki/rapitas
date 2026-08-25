@@ -19,7 +19,11 @@
 import { useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { MessageSquarePlus } from 'lucide-react';
+import { Modal } from '@/components/ui/modal/Modal';
 import { API_BASE_URL } from '@/utils/api';
+
+/** Matches the backend's MAX_INSTRUCTION_CHARS — an instruction is a sentence. */
+const MAX_INSTRUCTION_CHARS = 2000;
 
 interface PlanRevisionRequestProps {
   /** Task whose plan should be revised. / 対象タスクID */
@@ -29,10 +33,10 @@ interface PlanRevisionRequestProps {
 }
 
 /**
- * Instruction box that sends a plan-revision request to the planner.
+ * Trigger button plus the instruction modal.
  *
  * @param props - Task id and post-request callback. / タスクIDと完了コールバック
- * @returns The collapsed CTA, or the open instruction form. / CTAまたは入力フォーム
+ * @returns The trigger, and the modal while it is open. / トリガーとモーダル
  */
 export function PlanRevisionRequest({ taskId, onRequested }: PlanRevisionRequestProps) {
   const t = useTranslations('workflow');
@@ -41,6 +45,12 @@ export function PlanRevisionRequest({ taskId, onRequested }: PlanRevisionRequest
   const [instruction, setInstruction] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const close = () => {
+    if (submitting) return;
+    setIsOpen(false);
+    setError(null);
+  };
 
   const submit = async () => {
     const trimmed = instruction.trim();
@@ -69,59 +79,57 @@ export function PlanRevisionRequest({ taskId, onRequested }: PlanRevisionRequest
     }
   };
 
-  if (!isOpen) {
-    return (
+  return (
+    <>
       <button
         type="button"
         onClick={() => setIsOpen(true)}
-        className="inline-flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-medium text-zinc-600 transition-colors hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-zinc-800"
+        title={t('planRevision.cta')}
+        className="inline-flex shrink-0 items-center gap-1 rounded-md px-1.5 py-1 text-xs font-medium text-zinc-500 transition-colors hover:bg-zinc-100 hover:text-zinc-700 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-200"
       >
         <MessageSquarePlus className="h-3.5 w-3.5" />
         {t('planRevision.cta')}
       </button>
-    );
-  }
 
-  return (
-    <div className="w-full rounded-lg border border-zinc-200 bg-zinc-50 p-3 dark:border-zinc-700 dark:bg-zinc-900/50">
-      <label
-        htmlFor={`plan-revision-${taskId}`}
-        className="block text-xs font-medium text-zinc-700 dark:text-zinc-300"
+      <Modal
+        open={isOpen}
+        onClose={close}
+        icon={<MessageSquarePlus className="h-4 w-4 text-indigo-500" />}
+        title={t('planRevision.label')}
+        maxWidthClass="max-w-xl"
+        footer={
+          <>
+            <button
+              type="button"
+              onClick={close}
+              disabled={submitting}
+              className="px-3 py-1.5 text-xs text-zinc-500 hover:text-zinc-700 disabled:opacity-50 dark:hover:text-zinc-300"
+            >
+              {tc('cancel')}
+            </button>
+            <button
+              type="button"
+              onClick={submit}
+              disabled={!instruction.trim() || submitting}
+              className="rounded-md bg-indigo-600 px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-indigo-500 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {submitting ? t('planRevision.submitting') : t('planRevision.submit')}
+            </button>
+          </>
+        }
       >
-        {t('planRevision.label')}
-      </label>
-      <p className="mt-1 text-[11px] text-zinc-500 dark:text-zinc-400">{t('planRevision.hint')}</p>
-      <textarea
-        id={`plan-revision-${taskId}`}
-        value={instruction}
-        onChange={(e) => setInstruction(e.target.value)}
-        aria-label={t('planRevision.label')}
-        rows={3}
-        maxLength={2000}
-        placeholder={t('planRevision.placeholder')}
-        className="mt-2 w-full rounded-md border border-zinc-300 bg-white px-2.5 py-2 text-sm text-zinc-800 placeholder:text-zinc-400 focus:border-indigo-500 focus:outline-none dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-100"
-      />
-      {error && <p className="mt-1.5 text-xs text-rose-600 dark:text-rose-400">{error}</p>}
-      <div className="mt-2 flex justify-end gap-2">
-        <button
-          type="button"
-          onClick={() => {
-            setIsOpen(false);
-            setError(null);
-          }}
-          className="rounded-md px-2.5 py-1.5 text-xs font-medium text-zinc-600 hover:bg-zinc-200 dark:text-zinc-300 dark:hover:bg-zinc-700"
-        >
-          {tc('cancel')}
-        </button>
-        <button
-          type="button"
-          onClick={submit}
-          disabled={!instruction.trim() || submitting}
-          className="rounded-md bg-indigo-600 px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-indigo-500 disabled:cursor-not-allowed disabled:opacity-50"
-        >
-          {submitting ? t('planRevision.submitting') : t('planRevision.submit')}
-        </button>
-      </div>
-    </div>
+        <p className="text-xs text-zinc-500 dark:text-zinc-400">{t('planRevision.hint')}</p>
+        <textarea
+          value={instruction}
+          onChange={(e) => setInstruction(e.target.value)}
+          aria-label={t('planRevision.label')}
+          rows={5}
+          maxLength={MAX_INSTRUCTION_CHARS}
+          placeholder={t('planRevision.placeholder')}
+          className="mt-3 w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-800 placeholder:text-zinc-400 focus:border-indigo-500 focus:outline-none dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-100"
+        />
+        {error && <p className="mt-2 text-xs text-rose-600 dark:text-rose-400">{error}</p>}
+      </Modal>
+    </>
   );
 }

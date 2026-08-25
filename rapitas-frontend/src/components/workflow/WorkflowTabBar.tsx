@@ -2,6 +2,7 @@
 // WorkflowTabBar
 
 import { Clock, RefreshCw, CheckCircle2, HelpCircle } from 'lucide-react';
+import { PlanRevisionRequest } from './PlanRevisionRequest';
 import { useTranslations } from 'next-intl';
 import type { WorkflowFileType, WorkflowStatus } from '@/types';
 import type { WorkflowTab } from './workflow-viewer-utils';
@@ -34,6 +35,12 @@ interface WorkflowTabBarProps {
    * state doesn't read as "the file was lost".
    */
   regeneratingTab?: 'research' | 'plan' | null;
+  /**
+   * Task id — enables the plan-revision request. Shown only while the PLAN tab
+   * is selected: it acts on plan.md, so offering it from another tab would be
+   * ambiguous about what is being revised.
+   */
+  taskId?: number;
 }
 
 /**
@@ -56,6 +63,7 @@ export function WorkflowTabBar({
   onRefetch,
   isRefetching,
   regeneratingTab = null,
+  taskId,
 }: WorkflowTabBarProps) {
   const t = useTranslations('workflow');
   const tAutoRun = useTranslations('autoRun');
@@ -136,6 +144,9 @@ export function WorkflowTabBar({
       </nav>
       {onRefetch && (
         <div className="flex shrink-0 items-center gap-2 px-3 text-xs text-zinc-500 dark:text-zinc-400">
+          {activeTab === 'plan' && tabStatus.plan && typeof taskId === 'number' && (
+            <PlanRevisionRequest taskId={taskId} onRequested={onRefetch} />
+          )}
           {lastModified !== undefined && (
             <span>
               {t('tabBar.updated')}{' '}

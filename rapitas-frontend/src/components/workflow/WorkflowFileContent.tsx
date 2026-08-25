@@ -7,7 +7,6 @@ import { Spinner } from '@/components/ui/spinner';
 import { useTranslations } from 'next-intl';
 import type { WorkflowTab } from './workflow-viewer-utils';
 import { MarkdownView } from '../markdown/MarkdownView';
-import { PlanRevisionRequest } from './PlanRevisionRequest';
 
 /** A heading extracted from markdown for the in-file table of contents. */
 interface TocHeading {
@@ -99,10 +98,6 @@ interface WorkflowFileContentProps {
   /** Whether to show the inline plan-approval CTA (plan tab + plan_created status) */
   showApprovalButton: boolean;
   onPlanApprovalRequest?: () => void;
-  /** Task id — enables inline editing of the plan. / インライン編集に必要 */
-  taskId?: number;
-  /** Called after a successful inline save so the parent refetches. / 保存後の再取得 */
-  onSaved?: () => void;
   /**
    * True when this tab's file was just archived by the phase-critic gate and
    * is being regenerated (see WorkflowViewer's criticRejectionPhase). Swaps
@@ -128,20 +123,11 @@ export function WorkflowFileContent({
   activeTabConfig,
   showApprovalButton,
   onPlanApprovalRequest,
-  taskId,
-  onSaved,
   isRegenerating = false,
 }: WorkflowFileContentProps) {
   const t = useTranslations('workflow');
   const tc = useTranslations('common');
   const headings = useMemo(() => extractHeadings(activeFile?.content ?? ''), [activeFile?.content]);
-
-  // Plan changes go through the PLANNER, not a hand edit: plan.md is the
-  // contract the verify and adversarial gates judge the implementer against, so
-  // a human editing it silently authors the rules the agent is measured by —
-  // with no record of why. Needs a taskId (the request target).
-  const canRequestRevision =
-    activeTabConfig.id === 'plan' && !!activeFile?.exists && typeof taskId === 'number';
 
   // The TOC is sticky and vertical, so its height varies with the heading count.
   // Measure it and feed the value into each <h2>'s scroll-margin-top so clicked
@@ -214,11 +200,6 @@ export function WorkflowFileContent({
           editing by hand means reading the whole document to change one line and
           leaves no record of why it changed, while plan.md is the contract the
           verify and adversarial gates judge the implementer against. */}
-      {canRequestRevision && typeof taskId === 'number' && (
-        <div className="flex justify-end">
-          <PlanRevisionRequest taskId={taskId} onRequested={onSaved} />
-        </div>
-      )}
       {/* In-file table of contents — sticky so it stays clickable after the
           content scrolls. -mx-5/px-5 cancel the parent p-5 so the background
           spans the card. top:88px (inline, not an arbitrary class which may not

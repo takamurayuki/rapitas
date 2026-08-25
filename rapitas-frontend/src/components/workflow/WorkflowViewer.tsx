@@ -274,6 +274,7 @@ export default function WorkflowViewer({
         onRefetch={refetch}
         isRefetching={isLoading}
         regeneratingTab={criticRejectionPhase}
+        taskId={taskId}
       />
 
       {/* Content area */}
@@ -361,8 +362,6 @@ export default function WorkflowViewer({
                   activeTabConfig={activeTabConfig ?? workflowTabs[0]}
                   showApprovalButton={!!showApprovalButton}
                   onPlanApprovalRequest={onPlanApprovalRequest}
-                  taskId={taskId}
-                  onSaved={refetch}
                   isRegenerating={criticRejectionPhase === validActiveTab}
                 />
               )}
