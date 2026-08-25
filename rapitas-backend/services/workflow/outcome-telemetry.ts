@@ -195,7 +195,16 @@ export async function recordTaskOutcome(taskId: number, finalStatus: string): Pr
  * @param taskId - Task whose artifacts to read. / 対象タスク
  * @returns Non-empty artifact bodies. / 成果物本文の配列
  */
-async function readWorkflowArtifacts(taskId: number): Promise<string[]> {
+/**
+ * Read a task's workflow artifacts as raw markdown.
+ *
+ * Exported for the decision ledger, which settles knowledge recalls from the
+ * agent's own usage declaration inside these same artifacts.
+ *
+ * @param taskId - Task whose artifacts to read. / 対象タスクID
+ * @returns Artifact bodies, empty on failure. / 成果物本文
+ */
+export async function readWorkflowArtifacts(taskId: number): Promise<string[]> {
   const { readWorkflowFile } = await import('./workflow-file-utils');
   const bodies = await Promise.all(
     // Every artifact a role can declare knowledge usage in.

@@ -173,6 +173,19 @@ export async function buildMemoryContext(
       results.map((r) => r.id),
     );
 
+    // Ledger the recall itself, INCLUDING when it found nothing — an empty
+    // recall is the common case and is invisible to reinforcement, which only
+    // ever sees entries that were actually injected.
+    void import('../decision-ledger')
+      .then(({ recordRecallDecision }) =>
+        recordRecallDecision({
+          taskId,
+          entryIds: results.map((r) => r.id),
+          minSimilarity: cfg.minSimilarity,
+        }),
+      )
+      .catch(() => {});
+
     const entries: MemoryEntry[] = results.map((r) => ({
       id: r.id,
       title: r.title,

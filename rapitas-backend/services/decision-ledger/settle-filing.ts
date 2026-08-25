@@ -8,7 +8,7 @@
 
 import { prisma } from '../../config/database';
 import { createLogger } from '../../config/logger';
-import { isExecutionBacked } from '../observability/decision-trace/node-key';
+import { kindFromNodeKey } from '../observability/decision-trace/node-key';
 
 const log = createLogger('decision-ledger:settle-filing');
 
@@ -50,7 +50,7 @@ export async function settleFilingDecisions(
       where: { taskId, consistency: 'pending' },
       select: { id: true, nodeKey: true },
     });
-    const filings = pending.filter((row) => !isExecutionBacked(row.nodeKey));
+    const filings = pending.filter((row) => kindFromNodeKey(row.nodeKey) === 'task_filing');
     if (filings.length === 0) return { checked: 0, settled: 0 };
 
     const task = await prisma.task.findUnique({ where: { id: taskId }, select: { status: true } });

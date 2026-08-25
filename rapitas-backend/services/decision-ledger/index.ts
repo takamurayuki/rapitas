@@ -16,6 +16,8 @@ export type {
 export { readDecisions } from './query';
 export { settleDecisions, type SettlementResult } from './settle';
 export { recordFilingDecision, type FilingDecision } from './record-filing';
+export { recordRecallDecision, type RecallDecision } from './record-recall';
+export { judgeRecall } from './settle-knowledge';
 export { summarizeVerdicts, summarizeBy, groupDecisions, totalCostUsd } from './aggregate';
 export { fromDecisionTrace } from './from-decision-trace';
 export { kindFromNodeKey } from '../observability/decision-trace/node-key';
