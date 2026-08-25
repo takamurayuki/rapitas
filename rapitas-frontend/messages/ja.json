@@ -2408,6 +2408,15 @@
           "verifier": "検証"
         }
       }
+    },
+    "planRevision": {
+      "cta": "修正を依頼",
+      "label": "プランナーへの修正指示",
+      "hint": "計画を手で書き換える代わりに、変更してほしい点を1〜2文で伝えます。指摘していない部分はそのまま維持されます。",
+      "placeholder": "例: 「非対象」からUIカード追加を外し、選択肢Bを採用に変更してください",
+      "submit": "依頼する",
+      "submitting": "依頼中...",
+      "failed": "修正依頼を送信できませんでした"
     }
   },
   "categories": {
@@ -5200,7 +5209,15 @@
       "peakLabel": "ピーク:",
       "lowLabel": "低調:",
       "hourSuffix": "{hour}時",
-      "dayLabels": ["日", "月", "火", "水", "木", "金", "土"],
+      "dayLabels": [
+        "日",
+        "月",
+        "火",
+        "水",
+        "木",
+        "金",
+        "土"
+      ],
       "cellTitle": "{day} {hour}時: {count}件完了 (クリックで詳細)",
       "legendLow": "少",
       "legendHigh": "多",

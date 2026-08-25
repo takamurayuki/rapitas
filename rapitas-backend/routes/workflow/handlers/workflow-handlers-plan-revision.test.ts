@@ -1,0 +1,137 @@
+/**
+ * workflow-handlers-plan-revision.test
+ *
+ * Covers POST /workflow/tasks/:taskId/revise-plan: the source guard (an agent
+ * must not hand itself a revised plan), input validation, and the rollback to
+ * the planning phase with plan.md left in place for the planner to revise.
+ */
+import { describe, test, expect, mock, beforeEach, afterEach } from 'bun:test';
+
+const noopLogger = { info: () => {}, warn: () => {}, error: () => {}, debug: () => {} };
+const taskFindUnique = mock(() =>
+  Promise.resolve<{ id: number; workflowStatus: string } | null>(null),
+);
+const taskUpdate = mock(() => Promise.resolve({}));
+const recordTransition = mock(() => Promise.resolve(undefined));
+const readWorkflowFile = mock(() => Promise.resolve<string | null>(null));
+
+mock.module('../../../config', () => ({
+  prisma: { task: { findUnique: taskFindUnique, update: taskUpdate } },
+  createLogger: () => noopLogger,
+  logger: noopLogger,
+}));
+mock.module('../../../config/logger', () => ({ createLogger: () => noopLogger }));
+mock.module('../../../services/workflow/transition-recorder', () => ({ recordTransition }));
+mock.module('../../../services/workflow/workflow-file-utils', () => ({ readWorkflowFile }));
+
+const { handleRevisePlan } = await import('./workflow-handlers-plan-revision');
+
+const UI = { 'x-rapitas-source': 'ui' };
+
+let originalFetch: typeof fetch;
+
+beforeEach(() => {
+  taskFindUnique.mockReset().mockResolvedValue({ id: 1, workflowStatus: 'plan_created' });
+  taskUpdate.mockReset().mockResolvedValue({});
+  recordTransition.mockReset().mockResolvedValue(undefined);
+  readWorkflowFile.mockReset().mockResolvedValue('# 実装計画');
+  // The handler fires a best-effort re-run; keep it off the network.
+  originalFetch = globalThis.fetch;
+  globalThis.fetch = mock(() => Promise.resolve({ ok: true } as Response)) as typeof fetch;
+});
+
+// Restore the global so the suite does not leak a stubbed fetch into others.
+afterEach(() => {
+  globalThis.fetch = originalFetch;
+});
+
+describe('handleRevisePlan', () => {
+  test('rolls back to research_done and records the instruction', async () => {
+    const result = await handleRevisePlan({
+      params: { taskId: '1' },
+      body: { instruction: '非対象からUIカード追加を外して' },
+      set: {},
+      headers: UI,
+    });
+
+    expect(result).toEqual({ taskId: 1, ok: true, toStatus: 'research_done' });
+    const update = taskUpdate.mock.calls[0]?.[0] as { data: { workflowStatus: string } };
+    expect(update.data.workflowStatus).toBe('research_done');
+
+    const t = recordTransition.mock.calls[0]?.[0] as {
+      cause: string;
+      metadata: { instruction: string };
+    };
+    expect(t.cause).toBe('plan_revision_requested');
+    expect(t.metadata.instruction).toBe('非対象からUIカード追加を外して');
+  });
+
+  test('leaves plan.md in place so the planner revises rather than re-derives', async () => {
+    await handleRevisePlan({
+      params: { taskId: '1' },
+      body: { instruction: '直して' },
+      set: {},
+      headers: UI,
+    });
+    // Read to confirm it exists — never archived here.
+    expect(readWorkflowFile).toHaveBeenCalledWith(1, 'plan');
+  });
+
+  test('rejects a call with no source header (an agent shell-call)', async () => {
+    const set: { status?: number } = {};
+    await expect(
+      handleRevisePlan({ params: { taskId: '1' }, body: { instruction: '直して' }, set }),
+    ).rejects.toThrow('X-Rapitas-Source');
+    expect(set.status).toBe(400);
+    expect(taskUpdate).not.toHaveBeenCalled();
+  });
+
+  test('rejects a blank instruction', async () => {
+    const set: { status?: number } = {};
+    await expect(
+      handleRevisePlan({ params: { taskId: '1' }, body: { instruction: '  ' }, set, headers: UI }),
+    ).rejects.toThrow('instruction is required');
+    expect(taskUpdate).not.toHaveBeenCalled();
+  });
+
+  test('rejects an instruction that is a document rather than a sentence', async () => {
+    const set: { status?: number } = {};
+    await expect(
+      handleRevisePlan({
+        params: { taskId: '1' },
+        body: { instruction: 'x'.repeat(2001) },
+        set,
+        headers: UI,
+      }),
+    ).rejects.toThrow('2000 characters');
+    expect(taskUpdate).not.toHaveBeenCalled();
+  });
+
+  test('404s when there is no plan to revise', async () => {
+    readWorkflowFile.mockResolvedValue(null);
+    const set: { status?: number } = {};
+    await expect(
+      handleRevisePlan({
+        params: { taskId: '1' },
+        body: { instruction: '直して' },
+        set,
+        headers: UI,
+      }),
+    ).rejects.toThrow('plan.md does not exist');
+    expect(set.status).toBe(404);
+  });
+
+  test('404s when the task does not exist', async () => {
+    taskFindUnique.mockResolvedValue(null);
+    const set: { status?: number } = {};
+    await expect(
+      handleRevisePlan({
+        params: { taskId: '9' },
+        body: { instruction: '直して' },
+        set,
+        headers: UI,
+      }),
+    ).rejects.toThrow('Task not found');
+    expect(set.status).toBe(404);
+  });
+});

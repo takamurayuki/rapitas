@@ -22,6 +22,7 @@ import {
   handleAnswerWorkflowQuestion,
   handleRunVerification,
 } from '../handlers/workflow-handlers';
+import { handleRevisePlan } from '../handlers/workflow-handlers-plan-revision';
 
 // Re-export helpers and types for consumers that import from this path
 export {
@@ -82,6 +83,14 @@ export const workflowRoutes = new Elysia({ prefix: '/workflow' })
    */
   .post('/tasks/:taskId/answer-question', (ctx) =>
     handleAnswerWorkflowQuestion(ctx as Parameters<typeof handleAnswerWorkflowQuestion>[0]),
+  )
+
+  /**
+   * 人間が plan.md を手で書き換える代わりに、プランナーへ修正指示を出す。
+   * 指示を記録し、計画フェーズまで巻き戻して部分改訂させる。
+   */
+  .post('/tasks/:taskId/revise-plan', (ctx) =>
+    handleRevisePlan(ctx as Parameters<typeof handleRevisePlan>[0]),
   )
 
   .put('/tasks/:taskId/status', (ctx) =>

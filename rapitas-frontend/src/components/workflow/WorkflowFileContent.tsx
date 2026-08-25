@@ -8,6 +8,7 @@ import { useTranslations } from 'next-intl';
 import type { WorkflowTab } from './workflow-viewer-utils';
 import { MarkdownView } from '../markdown/MarkdownView';
 import { WorkflowFileEditor } from './WorkflowFileEditor';
+import { PlanRevisionRequest } from './PlanRevisionRequest';
 
 /** A heading extracted from markdown for the in-file table of contents. */
 interface TocHeading {
@@ -230,7 +231,15 @@ export function WorkflowFileContent({
 
   return (
     <div className="space-y-3">
-      {/* Edit CTA — lets a human refine the plan before approval. */}
+      {/* Plan controls. Asking the PLANNER for a change is the preferred route:
+          editing by hand means reading the whole document to change one line and
+          leaves no record of why it changed, while plan.md is the contract the
+          verify and adversarial gates judge the implementer against. */}
+      {canEdit && typeof taskId === 'number' && (
+        <div className="flex justify-end">
+          <PlanRevisionRequest taskId={taskId} onRequested={onSaved} />
+        </div>
+      )}
       {canEdit && (
         <div className="flex justify-end">
           <button

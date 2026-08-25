@@ -8,6 +8,7 @@
 import { readWorkflowFile } from './workflow-file-utils';
 import { buildMemoryContext } from './workflow-memory-context';
 import { buildRejectedPlanContext } from './workflow-rejected-plan-context';
+import { buildPlanRevisionContext } from './workflow-plan-revision-context';
 import { buildCaseContext } from './workflow-case-context';
 import { buildPlaybookContext } from '../memory/playbook/playbook-inject';
 import { buildCriticFeedback, buildCriticLessonsSection } from './phase-critic';
@@ -40,6 +41,22 @@ export async function buildPlannerContext(
 ): Promise<string> {
   const research = await readWorkflowFile(taskId, 'research');
   let ctx = taskInfo;
+
+  // A human asked for a targeted change to THIS plan. Leads the context: it is
+  // a direct instruction about the document being written, so it outranks the
+  // critic bounce and the cross-task lessons below, both of which are advice.
+  // Carries the current plan with it so the planner revises rather than
+  // re-derives — nothing else in this context includes plan.md.
+  const planRevision = await buildPlanRevisionContext(
+    taskId,
+    await readWorkflowFile(taskId, 'plan'),
+    language,
+  );
+  if (planRevision) {
+    ctx += `
+
+${planRevision}`;
+  }
   // On a critic-gate bounce, lead with the issues the prior plan missed.
   const planCritic = await buildCriticFeedback(taskId, 'plan', language);
   if (planCritic) {

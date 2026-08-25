@@ -2408,6 +2408,15 @@
           "verifier": "Verify"
         }
       }
+    },
+    "planRevision": {
+      "cta": "Request a revision",
+      "label": "Instruction for the planner",
+      "hint": "Describe the change in a sentence or two instead of editing the plan by hand. Anything you do not mention is kept as it is.",
+      "placeholder": "e.g. Remove the UI card from the non-goals and adopt option B",
+      "submit": "Send request",
+      "submitting": "Sending...",
+      "failed": "Could not send the revision request"
     }
   },
   "categories": {
@@ -5200,7 +5209,15 @@
       "peakLabel": "Peak:",
       "lowLabel": "Low:",
       "hourSuffix": "{hour}:00",
-      "dayLabels": ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"],
+      "dayLabels": [
+        "Sun",
+        "Mon",
+        "Tue",
+        "Wed",
+        "Thu",
+        "Fri",
+        "Sat"
+      ],
       "cellTitle": "{day} {hour}:00: {count} completed (click for details)",
       "legendLow": "Low",
       "legendHigh": "High",
