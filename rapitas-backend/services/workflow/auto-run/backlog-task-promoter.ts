@@ -94,10 +94,28 @@ async function markAutoCreated(taskId: number): Promise<void> {
     .catch((err) => log.warn({ err, taskId }, '[backlog-promoter] Failed to mark autoCreated'));
 }
 
+/**
+ * Record the filing in the decision ledger — what was promoted and what it is
+ * expected to achieve — so the promotion can later be shown to have been worth
+ * making. Never blocks the promotion it describes.
+ */
+async function recordFiling(decision: {
+  taskId: number;
+  source: 'concern' | 'idea';
+  sourceId: number;
+  title: string;
+  basis: string;
+  expectation: string;
+}): Promise<void> {
+  await import('../../decision-ledger')
+    .then(({ recordFilingDecision }) => recordFilingDecision(decision))
+    .catch(() => {});
+}
+
 /** Promote one concern; returns true when a task was created. */
 async function promoteConcern(
   themeId: number,
-  concern: { id: number; severity: string },
+  concern: { id: number; severity: string; title?: string },
 ): Promise<boolean> {
   try {
     const taskId = await convertConcernToTask(concern.id);
@@ -114,6 +132,14 @@ async function promoteConcern(
       concernId: concern.id,
       severity: concern.severity,
       msg: 'concern promoted to task (起票)',
+    });
+    await recordFiling({
+      taskId,
+      source: 'concern',
+      sourceId: concern.id,
+      title: concern.title ?? `concern #${concern.id}`,
+      basis: `深刻度 ${concern.severity} の未解決の懸念`,
+      expectation: 'この懸念が解消され、再発しない',
     });
     return true;
   } catch (err) {
@@ -161,6 +187,14 @@ async function promoteIdea(
       ideaId: idea.id,
       priority: idea.priority,
       msg: 'idea promoted to task (起票)',
+    });
+    await recordFiling({
+      taskId: task.id,
+      source: 'idea',
+      sourceId: idea.id,
+      title: idea.title,
+      basis: `優先度 ${idea.priority} のアイデア`,
+      expectation: 'このアイデアの効果が実際に得られる',
     });
     return true;
   } catch (err) {

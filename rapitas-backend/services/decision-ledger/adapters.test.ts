@@ -6,7 +6,8 @@
  * `indeterminate` rather than being folded into right or wrong.
  */
 import { describe, test, expect } from 'bun:test';
-import { fromDecisionTrace, kindFromNodeKey } from './from-decision-trace';
+import { fromDecisionTrace } from './from-decision-trace';
+import { kindFromNodeKey } from '../observability/decision-trace/node-key';
 import { fromLearningRecord, judgeLearningRecord, DURATION_BAND } from './from-learning-record';
 import { fromDecisionLog } from './from-decision-log';
 

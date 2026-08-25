@@ -37,11 +37,20 @@ export async function settleDecisions(taskId: number): Promise<SettlementResult>
   if (!Number.isFinite(taskId)) return { checked: 0, settled: 0 };
   try {
     const { runConsistencyCheckBatch } = await import('../observability/decision-trace');
-    const { checked, updated } = await runConsistencyCheckBatch({ taskId });
+    const { settleFilingDecisions } = await import('./settle-filing');
+    // Execution-backed decisions and filings settle from different evidence, so
+    // each is judged by the code that owns that evidence — both here, so a task
+    // still has exactly one settlement point.
+    const [execution, filings] = await Promise.all([
+      runConsistencyCheckBatch({ taskId }),
+      settleFilingDecisions(taskId),
+    ]);
+    const checked = execution.checked + filings.checked;
+    const settled = execution.updated + filings.settled;
     if (checked > 0) {
-      log.info({ taskId, checked, settled: updated }, '[decision-ledger] settled task decisions');
+      log.info({ taskId, checked, settled }, '[decision-ledger] settled task decisions');
     }
-    return { checked, settled: updated };
+    return { checked, settled };
   } catch (err) {
     log.warn({ err, taskId }, '[decision-ledger] settlement failed (non-fatal)');
     return { checked: 0, settled: 0 };

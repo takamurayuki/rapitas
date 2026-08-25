@@ -47,7 +47,14 @@ function pendingRow(
   executionId: number | null,
   adoptedReason = '理由',
 ): Record<string, unknown> {
-  return { id, executionId, adoptedReason, rejectedReasons: '{}', consistency: 'pending' };
+  return {
+    id,
+    executionId,
+    adoptedReason,
+    rejectedReasons: '{}',
+    consistency: 'pending',
+    nodeKey: `task1:model-route:${id}`,
+  };
 }
 
 beforeEach(() => {
@@ -222,5 +229,37 @@ describe('runConsistencyCheckBatch scoping', () => {
 
     const arg = mockTraceFindMany.mock.calls[0]?.[0] as { where: { taskId?: number } };
     expect(arg.where.taskId).toBeUndefined();
+  });
+});
+
+describe('runConsistencyCheckBatch kind scoping', () => {
+  it('leaves decisions it cannot judge pending instead of discarding them', async () => {
+    // A filing decision has no execution; stamping it 「実行IDが未記録」 would
+    // discard it exactly as every routing decision was discarded before.
+    mockTraceFindMany.mockResolvedValueOnce([
+      { ...pendingRow(1, null), nodeKey: 'task1:task-filing:9' },
+      { ...pendingRow(2, null), nodeKey: 'task1:knowledge-recall:9' },
+    ]);
+
+    const result = await runConsistencyCheckBatch();
+
+    expect(result).toEqual({ checked: 0, updated: 0 });
+    expect(mockTraceUpdateMany).not.toHaveBeenCalled();
+    expect(mockTraceUpdate).not.toHaveBeenCalled();
+  });
+
+  it('still judges the execution-backed decisions in a mixed batch', async () => {
+    mockTraceFindMany.mockResolvedValueOnce([
+      { ...pendingRow(1, null), nodeKey: 'task1:task-filing:9' },
+      pendingRow(2, null),
+    ]);
+
+    const result = await runConsistencyCheckBatch();
+
+    const arg = (mockTraceUpdateMany.mock.calls[0] as unknown[])[0] as {
+      where: { id: { in: number[] } };
+    };
+    expect(arg.where.id.in).toEqual([2]);
+    expect(result).toEqual({ checked: 1, updated: 1 });
   });
 });

@@ -11,6 +11,7 @@ import { prisma } from '../../../config/database';
 import { createLogger } from '../../../config/logger';
 import type { ConsistencyState, DecisionTraceClient } from './types';
 import { isCapabilityAttributableFailure } from '../../workflow/routing-policy';
+import { isExecutionBacked } from './node-key';
 
 const log = createLogger('decision-trace');
 
@@ -110,7 +111,17 @@ export async function runConsistencyCheckBatch(
     let updated = 0;
     const now = new Date();
 
-    const noExecution = pending.filter(
+    // Only decisions whose outcome IS an execution outcome belong to this
+    // checker. A filing decision or a knowledge recall left here would be
+    // stamped 「実行IDが未記録」 and discarded — the exact failure this ledger
+    // was rebuilt to stop. They stay pending for their own settler.
+    // `checked` counts what THIS checker examined. Rows it does not own are not
+    // its business, and counting them here would double-count them against the
+    // settler that does own them.
+    const judgeable = pending.filter((row: { nodeKey: string }) => isExecutionBacked(row.nodeKey));
+    if (judgeable.length === 0) return { checked: 0, updated: 0 };
+
+    const noExecution = judgeable.filter(
       (row: { executionId: number | null }) => row.executionId === null,
     );
     if (noExecution.length > 0) {
@@ -125,7 +136,7 @@ export async function runConsistencyCheckBatch(
       updated += noExecution.length;
     }
 
-    const withExecution = pending.filter(
+    const withExecution = judgeable.filter(
       (row: { executionId: number | null }) => row.executionId !== null,
     );
     if (withExecution.length > 0) {
@@ -168,7 +179,7 @@ export async function runConsistencyCheckBatch(
       }
     }
 
-    return { checked: pending.length, updated };
+    return { checked: judgeable.length, updated };
   } catch (err) {
     // Rows keep their pending state — the next scheduled run retries them.
     log.warn({ err }, 'consistency check batch failed (will retry next run)');

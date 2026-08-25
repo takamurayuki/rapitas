@@ -5,7 +5,8 @@
  * the consistency checker owns the verdict, this only translates it.
  */
 
-import type { Decision, DecisionKind, DecisionVerdict } from './types';
+import { kindFromNodeKey } from '../observability/decision-trace/node-key';
+import type { Decision, DecisionVerdict } from './types';
 
 /** The `AgentDecisionTrace` columns this projection reads. */
 export interface DecisionTraceRow {
@@ -35,32 +36,6 @@ const VERDICT_BY_CONSISTENCY: Record<string, DecisionVerdict> = {
   skipped: 'indeterminate',
   pending: 'pending',
 };
-
-/**
- * The decision kind is encoded in the nodeKey's middle segment
- * (`task658:model-route:<ts>`), which is the only place it is recorded.
- */
-const KIND_BY_NODE_SEGMENT: Record<string, DecisionKind> = {
-  'model-route': 'model_tier',
-  // A provider fallback re-picks the model after a cooldown, so it belongs with
-  // the other model choices rather than in a category of its own.
-  'provider-fallback': 'model_tier',
-  'risk-floor': 'risk_floor',
-  escalation: 'escalation',
-  'knowledge-recall': 'knowledge_use',
-};
-
-/**
- * Read the decision kind out of a nodeKey.
- *
- * @param nodeKey - e.g. "task658:model-route:1787672867337". / ノードキー
- * @returns The kind, defaulting to model_tier for the historical rows that
- *   predate any other kind. / 種別（旧行は model_tier 既定）
- */
-export function kindFromNodeKey(nodeKey: string): DecisionKind {
-  const segment = nodeKey.split(':')[1] ?? '';
-  return KIND_BY_NODE_SEGMENT[segment] ?? 'model_tier';
-}
 
 /**
  * Pull the role and tier out of the masked input JSON.
