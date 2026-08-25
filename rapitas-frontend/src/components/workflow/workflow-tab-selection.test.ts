@@ -32,6 +32,28 @@ describe('selectWorkflowTabs', () => {
     expect(ids(tabs)).toEqual(['question', 'verify']);
   });
 
+  // NOTE: 2026-08-25. Disabling a task that had already produced research.md /
+  // plan.md hid those tabs even though the files existed — the bar lost its
+  // tabs and the panel fell back to an empty verify, which read as the view
+  // breaking. The rule is about tabs a disabled task will never FILL.
+  it('keeps tabs whose artifact already exists when the workflow is disabled', () => {
+    const tabs = selectWorkflowTabs(ALL, {
+      workflowDisabled: true,
+      hasPendingQuestion: false,
+      tabHasContent: { research: true, plan: true, verify: false },
+    });
+    expect(ids(tabs)).toEqual(['research', 'plan', 'verify']);
+  });
+
+  it('still hides the tabs a disabled task never produced', () => {
+    const tabs = selectWorkflowTabs(ALL, {
+      workflowDisabled: true,
+      hasPendingQuestion: false,
+      tabHasContent: { research: false, plan: false, verify: false },
+    });
+    expect(ids(tabs)).toEqual(['verify']);
+  });
+
   it('preserves the original tab order', () => {
     const tabs = selectWorkflowTabs([{ id: 'verify' }, { id: 'question' }], {
       workflowDisabled: true,

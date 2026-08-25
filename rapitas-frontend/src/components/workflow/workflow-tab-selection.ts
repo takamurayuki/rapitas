@@ -19,6 +19,11 @@ export interface WorkflowTabSelectionOptions {
   workflowDisabled: boolean;
   /** A live question, a saved question.md, or a workflow paused on an answer. */
   hasPendingQuestion: boolean;
+  /**
+   * Which tabs actually have a saved file. A workflow-disabled task keeps any
+   * tab whose artifact EXISTS — see selectWorkflowTabs. / 実ファイルの有無
+   */
+  tabHasContent?: Record<string, boolean>;
 }
 
 /**
@@ -31,15 +36,26 @@ export interface WorkflowTabSelectionOptions {
  * awaiting an answer. Folding it into the verify-only filter removed the tab
  * entirely and left that question unanswerable from the UI.
  *
+ * The workflow-disabled narrowing keeps any tab whose file already exists: the
+ * rule is about tabs a disabled task will never FILL, not about hiding what it
+ * already produced before being disabled.
+ *
  * @param allTabs - Every tab defined for the workflow mode. / モードの全タブ
  * @param options - Narrowing inputs. / 絞り込み条件
  * @returns The tabs to render, in their original order. / 表示するタブ
  */
 export function selectWorkflowTabs<T extends WorkflowTabLike>(
   allTabs: T[],
-  { workflowDisabled, hasPendingQuestion }: WorkflowTabSelectionOptions,
+  { workflowDisabled, hasPendingQuestion, tabHasContent }: WorkflowTabSelectionOptions,
 ): T[] {
-  return allTabs.filter((t) =>
-    t.id === 'question' ? hasPendingQuestion : !workflowDisabled || t.id === 'verify',
-  );
+  return allTabs.filter((t) => {
+    if (t.id === 'question') return hasPendingQuestion;
+    if (!workflowDisabled) return true;
+    // Disabled ⇒ verify is the only tab a FUTURE run will fill. But a task can
+    // be disabled after it already produced research.md / plan.md, and hiding
+    // an artifact that exists strands it: the bar loses its tabs and the panel
+    // falls back to an empty verify, which reads as the view breaking. Keep
+    // anything with content.
+    return t.id === 'verify' || tabHasContent?.[t.id] === true;
+  });
 }

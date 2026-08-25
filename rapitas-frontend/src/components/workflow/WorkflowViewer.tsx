@@ -119,6 +119,7 @@ export default function WorkflowViewer({
   const workflowTabs = selectWorkflowTabs(allWorkflowTabs, {
     workflowDisabled,
     hasPendingQuestion,
+    tabHasContent: tabStatus,
   });
 
   // Number badged on the Q&A tab: structured `json:options` question count when
