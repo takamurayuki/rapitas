@@ -15,6 +15,7 @@ import {
 } from './workflow-learning-helpers';
 import { resolveTaskForLearning } from '../../task/task-resolver';
 import { recordDurationPredictionError } from './duration-prediction-service';
+import { readModePrediction } from './mode-prediction';
 
 const log = createLogger('workflow-learning-stats');
 
@@ -93,13 +94,19 @@ export async function recordWorkflowCompletion(taskId: number): Promise<void> {
 
     const skippedPhases = detectSkippedPhases(task.workflowMode || 'comprehensive', activityLogs);
 
+    // Prefer what research actually predicted over re-deriving it from the
+    // a-priori heuristic here: the heuristic never saw the code, and the
+    // history behind estimatedExecutionTime has moved since the prediction.
+    const snapshot = await readModePrediction(taskId);
+
     await prisma.workflowLearningRecord.create({
       data: {
         taskId,
         workflowMode: task.workflowMode || 'comprehensive',
-        predictedComplexity: task.complexityScore ?? analysis.complexityScore,
+        predictedComplexity:
+          snapshot?.predictedComplexity ?? task.complexityScore ?? analysis.complexityScore,
         actualDurationMinutes: actualDuration,
-        estimatedDuration: analysis.estimatedExecutionTime,
+        estimatedDuration: snapshot?.estimatedDurationMinutes ?? analysis.estimatedExecutionTime,
         skippedPhases: JSON.stringify(skippedPhases),
         phaseTimings: JSON.stringify(phaseTimings),
         outcome: task.status === 'done' ? 'completed' : 'cancelled',

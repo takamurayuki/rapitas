@@ -59,13 +59,19 @@ export async function recordWorkflowExecution(
       return;
     }
 
+    // The prediction half of the row. Callers on the execution path do not know
+    // what was predicted, so fall back to the snapshot research took, then to the
+    // task's own fields. Without this the row records an outcome with nothing to
+    // compare it against — which is why predictedComplexity was 13% filled.
+    const predicted = await resolvePrediction(prisma, input);
+
     await prisma.workflowLearningRecord.create({
       data: {
         taskId: input.taskId,
-        workflowMode: input.workflowMode ?? 'standard',
-        predictedComplexity: input.predictedComplexity ?? null,
+        workflowMode: predicted.workflowMode ?? 'standard',
+        predictedComplexity: predicted.predictedComplexity,
         actualDurationMinutes: input.actualDurationMinutes ?? null,
-        estimatedDuration: input.estimatedDuration ?? null,
+        estimatedDuration: predicted.estimatedDuration,
         outcome: input.outcome,
         success: input.outcome === 'completed',
         categoryId: task.theme?.categoryId ?? null,
@@ -84,6 +90,57 @@ export async function recordWorkflowExecution(
   } catch (err) {
     log.warn({ err, taskId: input.taskId }, '[Recorder] Failed to write learning record');
   }
+}
+
+/**
+ * Resolve what was predicted for this task, in descending order of fidelity:
+ * the caller's explicit values, the snapshot taken when research fixed the
+ * complexity, then the task row itself.
+ *
+ * The task-row fallback exists for tasks that predate the snapshot and for
+ * paths that never run research; it is a reconstruction, not a record, so it is
+ * used last.
+ */
+async function resolvePrediction(
+  prisma: PrismaClient,
+  input: ExecutionRecordInput,
+): Promise<{
+  predictedComplexity: number | null;
+  workflowMode: string | null;
+  estimatedDuration: number | null;
+}> {
+  const explicit = {
+    predictedComplexity: input.predictedComplexity ?? null,
+    workflowMode: input.workflowMode ?? null,
+    estimatedDuration: input.estimatedDuration ?? null,
+  };
+  if (explicit.predictedComplexity !== null && explicit.workflowMode !== null) return explicit;
+
+  try {
+    const { readModePrediction } = await import('../workflow/learning/mode-prediction');
+    const snapshot = await readModePrediction(input.taskId);
+    if (snapshot) {
+      return {
+        predictedComplexity: explicit.predictedComplexity ?? snapshot.predictedComplexity,
+        workflowMode: explicit.workflowMode ?? snapshot.workflowMode,
+        estimatedDuration: explicit.estimatedDuration ?? snapshot.estimatedDurationMinutes,
+      };
+    }
+  } catch {
+    // Fall through to the task row — a missing snapshot is expected, not an error.
+  }
+
+  const task = await prisma.task
+    .findUnique({
+      where: { id: input.taskId },
+      select: { complexityScore: true, workflowMode: true },
+    })
+    .catch(() => null);
+  return {
+    predictedComplexity: explicit.predictedComplexity ?? task?.complexityScore ?? null,
+    workflowMode: explicit.workflowMode ?? task?.workflowMode ?? null,
+    estimatedDuration: explicit.estimatedDuration,
+  };
 }
 
 /**

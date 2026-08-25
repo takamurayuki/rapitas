@@ -9,7 +9,7 @@
 
 import { prisma } from '../../config';
 import { createLogger } from '../../config/logger';
-import { selectModeByComplexity } from './workflow-mode-config';
+import { getModeSettings, selectModeByComplexity } from './workflow-mode-config';
 import type { WorkflowMode } from './workflow-types';
 
 const log = createLogger('research-complexity');
@@ -73,7 +73,7 @@ export async function applyResearchAssessedComplexity(
   const current = await prisma.task
     .findUnique({
       where: { id: taskId },
-      select: { workflowModeOverride: true, workflowMode: true },
+      select: { workflowModeOverride: true, workflowMode: true, themeId: true },
     })
     .catch(() => null);
 
@@ -95,5 +95,51 @@ export async function applyResearchAssessedComplexity(
     { taskId, complexityScore: assessed, workflowMode: data.workflowMode ?? '(unchanged)' },
     '[research-complexity] applied research-assessed complexity (both directions)',
   );
+
+  // Snapshot the prediction HERE — this is the only moment the score, the mode
+  // it selected and the duration history that informed it all coexist. Recording
+  // it later would reconstruct a prediction rather than preserve one.
+  await snapshotPrediction(taskId, assessed, {
+    effectiveMode: resultingMode ?? ((current?.workflowMode as WorkflowMode) || 'comprehensive'),
+    wasOverridden: Boolean(current?.workflowModeOverride),
+    themeId: current?.themeId ?? null,
+  });
+
   return { assessed, workflowMode: resultingMode };
+}
+
+/**
+ * Build and persist the prediction snapshot for a just-assessed task.
+ *
+ * Kept separate so a failure in the estimate (a history query) can never reach
+ * the complexity write that is this module's actual job.
+ */
+async function snapshotPrediction(
+  taskId: number,
+  assessed: number,
+  ctx: { effectiveMode: WorkflowMode; wasOverridden: boolean; themeId: number | null },
+): Promise<void> {
+  try {
+    const [{ recordModePrediction }, { estimateDurationFromHistory }, settings] = await Promise.all(
+      [
+        import('./learning/mode-prediction'),
+        import('./learning/workflow-learning-estimator'),
+        getModeSettings(ctx.effectiveMode),
+      ],
+    );
+    const estimated = await estimateDurationFromHistory(
+      ctx.themeId,
+      ctx.effectiveMode,
+      assessed,
+    ).catch(() => null);
+    await recordModePrediction(taskId, {
+      predictedComplexity: assessed,
+      workflowMode: ctx.effectiveMode,
+      estimatedDurationMinutes: typeof estimated === 'number' ? estimated : null,
+      thresholds: { min: settings.complexityMin, max: settings.complexityMax },
+      wasOverridden: ctx.wasOverridden,
+    });
+  } catch (err) {
+    log.warn({ err, taskId }, '[research-complexity] prediction snapshot skipped (non-fatal)');
+  }
 }
