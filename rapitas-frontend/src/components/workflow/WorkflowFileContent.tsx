@@ -2,12 +2,11 @@
 // WorkflowFileContent
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { List, ChevronDown, Pencil, RefreshCw } from 'lucide-react';
+import { List, ChevronDown, RefreshCw } from 'lucide-react';
 import { Spinner } from '@/components/ui/spinner';
 import { useTranslations } from 'next-intl';
 import type { WorkflowTab } from './workflow-viewer-utils';
 import { MarkdownView } from '../markdown/MarkdownView';
-import { WorkflowFileEditor } from './WorkflowFileEditor';
 import { PlanRevisionRequest } from './PlanRevisionRequest';
 
 /** A heading extracted from markdown for the in-file table of contents. */
@@ -137,16 +136,12 @@ export function WorkflowFileContent({
   const tc = useTranslations('common');
   const headings = useMemo(() => extractHeadings(activeFile?.content ?? ''), [activeFile?.content]);
 
-  // Inline editing is offered for the plan only (refine before approving). It
-  // requires a taskId (the save target); without it the tab stays read-only.
-  const canEdit =
+  // Plan changes go through the PLANNER, not a hand edit: plan.md is the
+  // contract the verify and adversarial gates judge the implementer against, so
+  // a human editing it silently authors the rules the agent is measured by —
+  // with no record of why. Needs a taskId (the request target).
+  const canRequestRevision =
     activeTabConfig.id === 'plan' && !!activeFile?.exists && typeof taskId === 'number';
-  const [isEditing, setIsEditing] = useState(false);
-  // Leaving the plan tab (or losing the file) must drop edit mode so a stale
-  // editor never lingers over a different tab's content.
-  useEffect(() => {
-    if (!canEdit) setIsEditing(false);
-  }, [canEdit]);
 
   // The TOC is sticky and vertical, so its height varies with the heading count.
   // Measure it and feed the value into each <h2>'s scroll-margin-top so clicked
@@ -213,43 +208,15 @@ export function WorkflowFileContent({
     );
   }
 
-  // Inline plan editor (replaces the read-only view while editing).
-  if (isEditing && canEdit && typeof taskId === 'number') {
-    return (
-      <WorkflowFileEditor
-        taskId={taskId}
-        fileType="plan"
-        initialContent={activeFile?.content || ''}
-        onCancel={() => setIsEditing(false)}
-        onSaved={() => {
-          setIsEditing(false);
-          onSaved?.();
-        }}
-      />
-    );
-  }
-
   return (
     <div className="space-y-3">
       {/* Plan controls. Asking the PLANNER for a change is the preferred route:
           editing by hand means reading the whole document to change one line and
           leaves no record of why it changed, while plan.md is the contract the
           verify and adversarial gates judge the implementer against. */}
-      {canEdit && typeof taskId === 'number' && (
+      {canRequestRevision && typeof taskId === 'number' && (
         <div className="flex justify-end">
           <PlanRevisionRequest taskId={taskId} onRequested={onSaved} />
-        </div>
-      )}
-      {canEdit && (
-        <div className="flex justify-end">
-          <button
-            type="button"
-            onClick={() => setIsEditing(true)}
-            className="inline-flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-medium text-zinc-600 transition-colors hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-zinc-800"
-          >
-            <Pencil className="h-3.5 w-3.5" />
-            {t('fileContent.editPlan')}
-          </button>
         </div>
       )}
       {/* In-file table of contents — sticky so it stays clickable after the
