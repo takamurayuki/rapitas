@@ -1807,6 +1807,13 @@
       "enteredLoop": "Entered repair loop",
       "blocked": "Blocked"
     },
+    "noChangeCompletions": {
+      "title": "Confirmed no-change completions",
+      "immediateRate": "Immediate rate",
+      "immediate": "Immediate",
+      "afterRepair": "After repair (review priority)",
+      "total": "Total confirmed no-change"
+    },
     "judgeEval": {
       "title": "Adversarial judge accuracy",
       "accuracy": "Accuracy",

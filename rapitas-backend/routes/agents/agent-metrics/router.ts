@@ -19,6 +19,7 @@ import {
   getAgentUtilization,
   getCostOptimizationInsights,
   getRepairConvergenceStats,
+  getNoChangeCompletionStats,
 } from './queries';
 import { getUsdJpyRate } from './currency-config';
 import { computeGrowthLedgerMetrics } from '../../../services/self-improvement/growth-ledger-metrics';
@@ -261,6 +262,22 @@ export const agentMetricsRouter = new Elysia({ prefix: '/agent-metrics' })
     } catch (error) {
       log.error({ err: error }, 'Error computing repair convergence stats');
       return { error: 'Failed to compute repair convergence stats' };
+    }
+  })
+
+  /**
+   * Confirmed no-change completions (verify_no_change_confirmed /
+   * research_no_change_complete) split into immediate (zero verify_repair
+   * bounces before the completion) vs after-repair (one or more bounces) —
+   * narrows review priority to the after-repair subset.
+   */
+  .get('/no-change-completions', async () => {
+    try {
+      const data = await getNoChangeCompletionStats();
+      return { success: true, data };
+    } catch (error) {
+      log.error({ err: error }, 'Error computing no-change completion stats');
+      return { error: 'Failed to compute no-change completion stats' };
     }
   })
 

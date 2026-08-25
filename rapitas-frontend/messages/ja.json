@@ -1807,6 +1807,13 @@
       "enteredLoop": "修復ループ突入数",
       "blocked": "ブロック中"
     },
+    "noChangeCompletions": {
+      "title": "確認済み修正不要完了の内訳",
+      "immediateRate": "即決率",
+      "immediate": "即決",
+      "afterRepair": "往復後（要レビュー）",
+      "total": "確認済み修正不要 合計"
+    },
     "judgeEval": {
       "title": "敵対的レビュー判定の精度",
       "accuracy": "正解率",
