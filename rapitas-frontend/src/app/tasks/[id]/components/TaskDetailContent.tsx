@@ -130,7 +130,12 @@ export default function TaskDetailContent({
       // resolves it via closest(); in panel mode the marker lives on the panel div.
       data-task-scroll-container={isPageMode ? '' : undefined}
       className={`bg-background scrollbar-thin transition-opacity duration-200 ${
-        isPageMode ? 'h-[calc(100vh-5rem)]' : ''
+        // min-h-full in panel mode: the panel root paints dark:bg-zinc-950 and
+        // its scroll area has no background of its own, so a short task (few
+        // sections, or a workflow card collapsed to one empty tab) left this
+        // bg-background block ending mid-panel with the darker root showing
+        // below it. Filling the scroll area keeps the surface continuous.
+        isPageMode ? 'h-[calc(100vh-5rem)]' : 'min-h-full'
       } ${
         contentReady
           ? `opacity-100 ${isPageMode ? 'overflow-auto' : ''}`
