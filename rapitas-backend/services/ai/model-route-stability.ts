@@ -59,7 +59,9 @@ export async function getStableSmartRoute(
   const cached = routeCache.get(key);
   if (cached) return cached;
 
-  const route = await getSmartRoute(taskId, options);
+  // The role is known here and nowhere below, so pass it down for the audit
+  // trail rather than making every caller remember to repeat it.
+  const route = await getSmartRoute(taskId, { role, ...options });
   routeCache.set(key, route);
   return route;
 }

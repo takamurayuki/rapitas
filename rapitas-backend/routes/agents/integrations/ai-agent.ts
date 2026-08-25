@@ -27,6 +27,7 @@ import { agentApiKeyRouter } from '../config/agent-api-key-router';
 import { agentTestRouter } from '../monitoring/agent-test-router';
 import { agentDiscoveryRouter } from '../crud/agent-discovery-router';
 import { agentResumeRouter } from '../execution-management/agent-resume-router';
+import { decisionLedgerRouter } from '../monitoring/decision-ledger-router';
 import { decisionTraceRouter } from '../monitoring/decision-trace-router';
 
 export const aiAgentRoutes = new Elysia()
@@ -42,4 +43,5 @@ export const aiAgentRoutes = new Elysia()
   .use(agentTestRouter)
   .use(agentDiscoveryRouter)
   .use(agentResumeRouter)
-  .use(decisionTraceRouter);
+  .use(decisionTraceRouter)
+  .use(decisionLedgerRouter);

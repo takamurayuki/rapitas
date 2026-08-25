@@ -207,6 +207,13 @@ export interface SmartRouteOptions {
    */
   capTier?: ModelTier;
   /**
+   * Which workflow role is being routed. Recorded in the decision trace only —
+   * never affects selection. Without it the ledger can count how often a tier
+   * was adopted but not for WHAT, so the question the premium floor turns on
+   * ("did paying more buy anything for THIS role?") cannot be asked of it.
+   */
+  role?: string;
+  /**
    * Why `minTier` was set (role floor / risk / retry). Recorded in the decision
    * trace and the reason string; never affects selection.
    */
@@ -403,6 +410,8 @@ export async function getSmartRoute(
     kind: 'param_select',
     summary: `モデル選択: ${finalModel}`,
     input: {
+      role: opts.role ?? null,
+      tier: recommendedTier,
       complexity,
       budgetPressure,
       isUrgent,
