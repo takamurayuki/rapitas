@@ -121,3 +121,32 @@ describe('extractMermaidSource', () => {
     expect(extractMermaidSource(null)).toBeNull();
   });
 });
+
+// NOTE: 2026-08-25. mermaid's default (useMaxWidth: true) emits width:100% plus
+// a max-width, so a diagram was scaled down to whatever the container was —
+// inside the workflow panel that shrank the labels until they were unreadable.
+// The diagram must keep its intrinsic size and the CONTAINER must scroll.
+describe('MermaidBlock sizing', () => {
+  it('renders diagrams at intrinsic size rather than scaling them to the container', async () => {
+    renderWithIntl(<MermaidBlock source="graph TD; A-->B;" />);
+    await waitFor(() => expect(mocks.initialize).toHaveBeenCalled());
+
+    const config = mocks.initialize.mock.calls[0][0] as Record<string, unknown>;
+    for (const diagramType of ['flowchart', 'sequence', 'class', 'state', 'er']) {
+      expect(config[diagramType], `useMaxWidth for ${diagramType}`).toEqual({
+        useMaxWidth: false,
+      });
+    }
+  });
+
+  it('lets the container scroll instead of clipping a wide diagram', async () => {
+    const { container } = renderWithIntl(<MermaidBlock source="graph TD; A-->B;" />);
+    await waitFor(() => expect(container.querySelector('svg')).not.toBeNull());
+
+    const box = container.firstElementChild as HTMLElement;
+    expect(box.className).toContain('overflow-x-auto');
+    // `flex justify-center` would put the overflowing left edge out of reach.
+    expect(box.className).not.toContain('justify-center');
+    expect(box.className).not.toContain('overflow-hidden');
+  });
+});

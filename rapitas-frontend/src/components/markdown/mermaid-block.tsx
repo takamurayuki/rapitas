@@ -25,6 +25,7 @@ interface MermaidModule {
       startOnLoad: boolean;
       securityLevel: 'strict';
       theme: 'dark' | 'neutral';
+      [diagramType: string]: unknown;
     }) => void;
     render: (id: string, source: string) => Promise<{ svg: string }>;
   };
@@ -34,6 +35,28 @@ interface MermaidModule {
 // (avoids duplicate work and keeps concurrent dynamic imports deterministic).
 let mermaidModulePromise: Promise<MermaidModule> | null = null;
 const loadMermaid = (): Promise<MermaidModule> => (mermaidModulePromise ??= import('mermaid'));
+
+/**
+ * Per-diagram overrides that stop mermaid scaling a diagram to its container.
+ * mermaid takes `useMaxWidth` per diagram type rather than globally, so every
+ * type this app can receive from agent markdown is listed.
+ */
+const INTRINSIC_SIZE_CONFIG = Object.fromEntries(
+  [
+    'flowchart',
+    'sequence',
+    'gantt',
+    'class',
+    'state',
+    'er',
+    'journey',
+    'pie',
+    'timeline',
+    'mindmap',
+    'gitGraph',
+    'quadrantChart',
+  ].map((diagramType) => [diagramType, { useMaxWidth: false }]),
+);
 
 interface MermaidBlockProps {
   /** Mermaid diagram source (code-fence body). / フェンス内のMermaidソース */
@@ -64,6 +87,12 @@ function MermaidBlockImpl({ source }: MermaidBlockProps) {
           startOnLoad: false,
           securityLevel: 'strict',
           theme: isDarkMode ? 'dark' : 'neutral',
+          // Render at the diagram's INTRINSIC size. mermaid's default
+          // (useMaxWidth: true) emits width:100% plus a max-width, which scales
+          // the whole diagram down to the container — inside the workflow
+          // panel that shrank labels until they were unreadable. The container
+          // scrolls instead of the diagram shrinking.
+          ...INTRINSIC_SIZE_CONFIG,
         });
         const rendered = await mermaid.render(id, source);
         if (!cancelled) {
@@ -99,10 +128,14 @@ function MermaidBlockImpl({ source }: MermaidBlockProps) {
   }
 
   return (
-    <div className="my-4 flex justify-center overflow-hidden rounded-lg border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900/60 p-3">
+    // NOTE: a BLOCK container with overflow-x-auto, not flex. `flex
+    // justify-center` makes the overflowing left edge unreachable once the
+    // diagram is wider than the panel; `mx-auto w-fit` centres it when it fits
+    // and scrolls cleanly when it does not.
+    <div className="my-4 overflow-x-auto rounded-lg border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900/60 p-3">
       {svg ? (
         <div
-          className="max-w-full [&_svg]:max-w-full [&_svg]:h-auto"
+          className="mx-auto w-fit [&_svg]:h-auto [&_svg]:max-w-none"
           // NOTE: SVG string produced by mermaid with securityLevel 'strict'
           // (sanitized); the only way to mount its output.
           dangerouslySetInnerHTML={{ __html: svg }}
