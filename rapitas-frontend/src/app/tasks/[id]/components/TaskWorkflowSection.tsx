@@ -3,7 +3,7 @@ import type { Task } from '@/types';
 import type { WorkflowStatus } from '@/types';
 import WorkflowViewer from '@/components/workflow/WorkflowViewer';
 import WorkflowStatusIndicator from '@/components/workflow/WorkflowStatusIndicator';
-import { CircleSmall, Diamond, GitBranch, Pyramid, Zap, type LucideIcon } from 'lucide-react';
+import { CircleSmall, Diamond, GitBranch, Pyramid, type LucideIcon } from 'lucide-react';
 import { Toggle } from '@/components/ui/Toggle';
 import { useTranslations } from 'next-intl';
 import { API_BASE_URL } from '@/utils/api';
@@ -330,13 +330,6 @@ export default function TaskWorkflowSection({
                       : t('taskWorkflowSection.workflowDisabledToggle.offTooltip')
               }
             >
-              <Zap
-                className={`h-3 w-3 ${
-                  effectiveWorkflowDisabled
-                    ? 'text-amber-600 dark:text-amber-400'
-                    : 'text-zinc-400 dark:text-zinc-500'
-                }`}
-              />
               <span
                 className={`text-xs font-medium ${
                   effectiveWorkflowDisabled
