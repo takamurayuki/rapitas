@@ -20,6 +20,12 @@ import {
 import type { RoleTransition, WorkflowAdvanceResult } from './workflow-types';
 
 installWorkflowCliExecutorMocks();
+
+// The flip is where an investigation phase actually terminates, so it is also
+// where its learning-ledger row is written. Stubbed here to observe that call.
+const recordExecutionOutcome = mock(() => Promise.resolve());
+mock.module('../self-learning/workflow-learning-recorder', () => ({ recordExecutionOutcome }));
+
 const { executeCLIAgent } = await import('./workflow-cli-executor');
 
 const getOrCreateDevConfig = (): Promise<{ id: number }> => Promise.resolve({ id: 42 });
@@ -198,5 +204,42 @@ describe('executeCLIAgent — 1s-delayed auto-advance chains', () => {
 
     expect(advanceWorkflow).toHaveBeenCalledTimes(1);
     expect(advanceWorkflow.mock.calls[0]).toEqual([1, 'ja']);
+  });
+});
+
+describe('executeCLIAgent — learning ledger on the completion flip', () => {
+  beforeEach(() => {
+    resetWfMockState();
+    wf.readWorkflowFileImpl = async () => '# Research\n...';
+    recordExecutionOutcome.mockReset().mockResolvedValue(undefined);
+    spies.agentExecutionFindMany.mockReset().mockResolvedValue([{ id: 2857 }]);
+  });
+
+  test('records the investigation phase that only ever reached post_processing', async () => {
+    await run(researchTransition(), noopAdvance);
+
+    expect(recordExecutionOutcome.mock.calls.length).toBe(1);
+    const call = recordExecutionOutcome.mock.calls[0] as unknown as [unknown, number, string];
+    expect(call[1]).toBe(2857);
+    expect(call[2]).toBe('completed');
+  });
+
+  test('records nothing when this call flipped nothing', async () => {
+    spies.agentExecutionFindMany.mockResolvedValue([]);
+
+    await run(researchTransition(), noopAdvance);
+
+    expect(recordExecutionOutcome).not.toHaveBeenCalled();
+  });
+
+  test('a failed id lookup costs the ledger row, never the flip', async () => {
+    spies.agentExecutionFindMany.mockImplementationOnce(() =>
+      Promise.reject(new Error('db hiccup')),
+    );
+
+    await run(researchTransition(), noopAdvance);
+
+    expect(spies.agentExecutionUpdateMany).toHaveBeenCalledTimes(1);
+    expect(recordExecutionOutcome).not.toHaveBeenCalled();
   });
 });

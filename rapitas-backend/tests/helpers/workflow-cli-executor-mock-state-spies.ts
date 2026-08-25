@@ -82,6 +82,7 @@ export const spies = {
   gitHubPrFindFirst: mock(() => Promise.resolve(wf.linkedPrRow)),
   agentExecutionUpdateMany: mock(() => Promise.resolve({ count: 0 })),
   agentExecutionFindFirst: mock(() => Promise.resolve(null)),
+  agentExecutionFindMany: mock((): Promise<{ id: number }[]> => Promise.resolve([])),
 };
 
 /**

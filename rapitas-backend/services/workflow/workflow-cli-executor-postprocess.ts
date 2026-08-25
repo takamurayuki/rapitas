@@ -63,6 +63,21 @@ export async function runPostProcessing(params: {
       // NOTE: completedAt is NOT re-stamped here — saveExecutionResult already
       // recorded the actual CLI exit time. Re-stamping would fold the epilogue
       // (critic gate, artifact save) into the row's wall span (task #560).
+      // Read the ids BEFORE the flip so the ledger knows which rows this call
+      // owns — but never let that read stand between the phase and its
+      // completion: a failure here must cost a ledger row, not the flip.
+      let flipped: { id: number }[] = [];
+      try {
+        flipped = await prisma.agentExecution.findMany({
+          where: { sessionId: session.id, status: 'post_processing' },
+          select: { id: true },
+        });
+      } catch (lookupErr) {
+        log.warn(
+          { err: lookupErr, taskId, sessionId: session.id },
+          '[WorkflowCLIExecutor] Could not enumerate post_processing rows — flip proceeds, ledger row skipped',
+        );
+      }
       await prisma.agentExecution.updateMany({
         where: { sessionId: session.id, status: 'post_processing' },
         data: { status: 'completed' },
@@ -71,6 +86,20 @@ export async function runPostProcessing(params: {
         { taskId, role: transition.role, outputFile: transition.outputFile },
         '[WorkflowCLIExecutor] AgentExecution flipped post_processing → completed',
       );
+
+      // This is where an investigation phase actually reaches a terminal state.
+      // saveExecutionResult saw `post_processing` and skipped the learning
+      // ledger, so without recording here the research / plan / verify phases —
+      // including the one that ASSESSES the complexity — never appear in it.
+      // Keyed off the rows this call itself flipped, so a repeated postprocess
+      // records nothing the second time.
+      if (flipped.length > 0) {
+        const { recordExecutionOutcome } =
+          await import('../self-learning/workflow-learning-recorder');
+        for (const row of flipped) {
+          await recordExecutionOutcome(prisma as never, row.id, 'completed');
+        }
+      }
     } catch (flipErr) {
       log.warn(
         { err: flipErr, taskId, sessionId: session.id },

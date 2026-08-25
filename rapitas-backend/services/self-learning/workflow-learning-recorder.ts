@@ -93,6 +93,52 @@ export async function recordWorkflowExecution(
 }
 
 /**
+ * Record the learning row for one execution, reading everything it needs from
+ * the execution row itself.
+ *
+ * Exists so the two places an execution can reach a terminal state share one
+ * implementation. Investigation phases (research / plan / verify) finish as
+ * `post_processing` and are flipped to `completed` only after their artifact is
+ * validated — a path that never passed through the recorder, so the phases that
+ * ASSESS the complexity were themselves absent from the ledger.
+ *
+ * @param prisma - Prisma client / Prisma クライアント
+ * @param executionId - Execution that just reached a terminal state. / 終端に達した実行ID
+ * @param outcome - How it ended. / 終了種別
+ */
+export async function recordExecutionOutcome(
+  prisma: PrismaClient,
+  executionId: number,
+  outcome: 'completed' | 'failed' | 'cancelled',
+): Promise<void> {
+  try {
+    const execution = await prisma.agentExecution.findUnique({
+      where: { id: executionId },
+      select: {
+        executionTimeMs: true,
+        errorMessage: true,
+        modelName: true,
+        session: { select: { config: { select: { taskId: true } } } },
+      },
+    });
+    const taskId = execution?.session?.config?.taskId;
+    if (typeof taskId !== 'number') return;
+
+    await recordWorkflowExecution(prisma, {
+      taskId,
+      outcome,
+      actualDurationMinutes: execution?.executionTimeMs
+        ? Math.round(execution.executionTimeMs / 60000)
+        : null,
+      errorMessage: execution?.errorMessage ?? null,
+      modelName: execution?.modelName ?? null,
+    });
+  } catch (err) {
+    log.warn({ err, executionId }, '[Recorder] Failed to record execution outcome');
+  }
+}
+
+/**
  * Resolve what was predicted for this task, in descending order of fidelity:
  * the caller's explicit values, the snapshot taken when research fixed the
  * complexity, then the task row itself.

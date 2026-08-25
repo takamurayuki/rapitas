@@ -32,6 +32,32 @@ const log = createLogger('workflow-api-executor');
  * @returns Phase execution result. / フェーズ実行結果
  * @throws Re-throws API errors after recording the failure in the DB. / DB記録後にAPIエラーを再スロー
  */
+/**
+ * Write an execution's terminal state AND record it in the learning ledger.
+ *
+ * Every terminal write in this file goes through here. The API path updates the
+ * execution row directly and never calls `saveExecutionResult`, so a bare update
+ * leaves the run absent from `WorkflowLearningRecord` — an outcome that happened
+ * but was never learned from.
+ *
+ * @param executionId - Execution reaching its terminal state. / 終端に達する実行ID
+ * @param status - Terminal status to write. / 書き込む終端ステータス
+ * @param data - Additional columns to write alongside it. / 併せて書き込む列
+ */
+async function finalizeExecution(
+  executionId: number,
+  status: 'completed' | 'failed',
+  data: Record<string, unknown>,
+): Promise<void> {
+  await prisma.agentExecution.update({ where: { id: executionId }, data: { status, ...data } });
+  try {
+    const { recordExecutionOutcome } = await import('../self-learning/workflow-learning-recorder');
+    await recordExecutionOutcome(prisma as never, executionId, status);
+  } catch {
+    // Ledger bookkeeping must never fail the run it is describing.
+  }
+}
+
 export async function executeAPIAgent(
   taskId: number,
   task: { title: string; description: string | null },
@@ -164,12 +190,10 @@ export async function executeAPIAgent(
           { taskId, role: transition.role, outputFile: transition.outputFile },
           '[WorkflowAPIExecutor] Critic rejected this artifact mid-run — skipping save (would resurrect the rejected content)',
         );
-        await prisma.agentExecution
-          .update({
-            where: { id: execution.id },
-            data: { status: 'completed', output: output.substring(0, 10000), executionTimeMs },
-          })
-          .catch(() => {});
+        await finalizeExecution(execution.id, 'completed', {
+          output: output.substring(0, 10000),
+          executionTimeMs,
+        }).catch(() => {});
         await prisma.agentSession
           .update({
             where: { id: session.id },
@@ -230,12 +254,10 @@ export async function executeAPIAgent(
               { taskId, summary: verifyValidation.summary },
               '[WorkflowAPIExecutor] stale verify failure — workflow moved on; skipping block',
             );
-            await prisma.agentExecution
-              .update({
-                where: { id: execution.id },
-                data: { status: 'completed', output: output.substring(0, 10000), executionTimeMs },
-              })
-              .catch(() => {});
+            await finalizeExecution(execution.id, 'completed', {
+              output: output.substring(0, 10000),
+              executionTimeMs,
+            }).catch(() => {});
             return {
               success: false,
               role: transition.role,
@@ -257,12 +279,10 @@ export async function executeAPIAgent(
                 message: `タスク #${taskId} を blocked にする更新が2回失敗しました（検証自己修復の上限到達）。手動確認が必要です。`,
               },
             });
-            await prisma.agentExecution
-              .update({
-                where: { id: execution.id },
-                data: { status: 'completed', output: output.substring(0, 10000), executionTimeMs },
-              })
-              .catch(() => {});
+            await finalizeExecution(execution.id, 'completed', {
+              output: output.substring(0, 10000),
+              executionTimeMs,
+            }).catch(() => {});
             await prisma.agentSession
               .update({
                 where: { id: session.id },
@@ -297,9 +317,9 @@ export async function executeAPIAgent(
       });
     }
 
-    await prisma.agentExecution.update({
-      where: { id: execution.id },
-      data: { status: 'completed', output: output.substring(0, 10000), executionTimeMs }, // Truncate to 10000 chars for DB
+    await finalizeExecution(execution.id, 'completed', {
+      output: output.substring(0, 10000), // Truncate to 10000 chars for DB
+      executionTimeMs,
     });
     await prisma.agentSession.update({
       where: { id: session.id },
@@ -332,10 +352,7 @@ export async function executeAPIAgent(
     return finalResult;
   } catch (error: unknown) {
     const errorMessage = error instanceof Error ? error.message : String(error);
-    await prisma.agentExecution.update({
-      where: { id: execution.id },
-      data: { status: 'failed', output: `Error: ${errorMessage}` },
-    });
+    await finalizeExecution(execution.id, 'failed', { output: `Error: ${errorMessage}` });
     await prisma.agentSession.update({
       where: { id: session.id },
       data: { status: 'completed', completedAt: new Date() },

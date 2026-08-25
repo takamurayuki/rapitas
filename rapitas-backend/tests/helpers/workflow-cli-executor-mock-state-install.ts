@@ -213,5 +213,6 @@ const prismaMock = {
   agentExecution: {
     updateMany: spies.agentExecutionUpdateMany,
     findFirst: spies.agentExecutionFindFirst,
+    findMany: spies.agentExecutionFindMany,
   },
 };

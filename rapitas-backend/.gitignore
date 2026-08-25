@@ -62,3 +62,5 @@ report.[0-9]_.[0-9]_.[0-9]_.[0-9]_.json
 # Scratch dir for test fixtures and gate run artifacts (created at backend cwd
 # by *.test.ts TMP_ROOT and verification gate runs) — never source, never commit.
 .tmp-tests/
+# Ad-hoc verification scripts (agent scratch)
+.tmp/

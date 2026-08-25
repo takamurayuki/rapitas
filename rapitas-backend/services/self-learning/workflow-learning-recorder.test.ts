@@ -20,7 +20,8 @@ const readModePrediction = mock(
 );
 mock.module('../workflow/learning/mode-prediction', () => ({ readModePrediction }));
 
-const { recordWorkflowExecution } = await import('./workflow-learning-recorder');
+const { recordWorkflowExecution, recordExecutionOutcome } =
+  await import('./workflow-learning-recorder');
 
 const SNAPSHOT = {
   predictedComplexity: 42,
@@ -110,5 +111,55 @@ describe('recordWorkflowExecution prediction resolution', () => {
     expect(data.predictedComplexity).toBeNull();
     expect(data.workflowMode).toBe('standard');
     expect(data.success).toBe(false);
+  });
+});
+
+describe('recordExecutionOutcome', () => {
+  beforeEach(() => readModePrediction.mockReset().mockResolvedValue(SNAPSHOT));
+
+  /** Prisma double that also answers the execution lookup. */
+  function makeExecPrisma(execution: Record<string, unknown> | null) {
+    const create = mock(() => Promise.resolve({ id: 1 }));
+    return {
+      create,
+      client: {
+        agentExecution: { findUnique: () => Promise.resolve(execution) },
+        task: { findUnique: () => Promise.resolve(TASK) },
+        workflowLearningRecord: { create, findMany: () => Promise.resolve([]) },
+      },
+    };
+  }
+
+  const EXECUTION = {
+    executionTimeMs: 8 * 60_000,
+    errorMessage: null,
+    modelName: 'claude-sonnet-5',
+    session: { config: { taskId: 666 } },
+  };
+
+  test('records an investigation phase that only ever reached post_processing', async () => {
+    const p = makeExecPrisma(EXECUTION);
+
+    await recordExecutionOutcome(p.client as never, 2857, 'completed');
+
+    const data = (p.create.mock.calls[0]?.[0] as { data: Record<string, unknown> }).data;
+    expect(data.taskId).toBe(666);
+    expect(data.actualDurationMinutes).toBe(8);
+    expect(data.predictedComplexity).toBe(42);
+    expect(data.outcome).toBe('completed');
+  });
+
+  test('writes nothing when the execution has no task behind it', async () => {
+    const p = makeExecPrisma({ ...EXECUTION, session: { config: null } });
+
+    await recordExecutionOutcome(p.client as never, 2857, 'completed');
+
+    expect(p.create).not.toHaveBeenCalled();
+  });
+
+  test('never throws when the execution row is gone', async () => {
+    const p = makeExecPrisma(null);
+    expect(await recordExecutionOutcome(p.client as never, 2857, 'failed')).toBeUndefined();
+    expect(p.create).not.toHaveBeenCalled();
   });
 });
