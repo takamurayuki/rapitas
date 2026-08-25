@@ -330,24 +330,23 @@ export default function TaskWorkflowSection({
                       : t('taskWorkflowSection.workflowDisabledToggle.offTooltip')
               }
             >
-              <span
-                className={`text-xs font-medium ${
-                  effectiveWorkflowDisabled
-                    ? 'text-amber-700 dark:text-amber-400'
-                    : 'text-zinc-500 dark:text-zinc-400'
-                }`}
-              >
+              {/* One colour in both states: the switch already carries the
+                  state, and recolouring the name made the label itself read as
+                  a status. */}
+              <span className="text-xs font-medium text-zinc-500 dark:text-zinc-400">
                 {t('taskWorkflowSection.workflowDisabledToggle.label')}
               </span>
-              {/* The switch carries the state, so the ON/OFF word the pill used
-                  to spell out is gone — two representations of one boolean is
-                  one too many. */}
+              {/* Reads as the label says: ON = the workflow RUNS. The underlying
+                  flag is `workflowDisabled`, so the switch is its inverse — a
+                  switch named ワークフロー that was on while the workflow was off
+                  would state the opposite of the truth. Indigo, not amber: with
+                  this polarity ON is the ordinary state, not a warning. */}
               <Toggle
-                checked={effectiveWorkflowDisabled}
+                checked={!effectiveWorkflowDisabled}
                 onChange={handleToggleWorkflowDisabled}
                 disabled={workflowToggleLocked || isTogglingWorkflowDisabled}
                 size="sm"
-                color="amber"
+                color="indigo"
                 srLabel={t('taskWorkflowSection.workflowDisabledToggle.label')}
               />
             </span>

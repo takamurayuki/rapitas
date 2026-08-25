@@ -2357,12 +2357,11 @@
       "autoApproveTooltipOff": "Auto-approve plan: OFF (manual approval required)",
       "autoApproveBadge": "Auto-approve {state}",
       "workflowDisabledToggle": {
-        "badge": "Workflow disabled {state}",
-        "onTooltip": "Workflow disabled: ON (implements directly, no research.md/plan.md)",
-        "offTooltip": "Workflow disabled: OFF (runs the normal research/plan/verify phases)",
+        "onTooltip": "Workflow: OFF (implements directly, without research.md / plan.md)",
+        "offTooltip": "Workflow: ON (runs the research / plan / verify phases as usual)",
         "lockedTooltip": "This can't be changed once the task's execution has started",
         "globallyForcedTooltip": "The workflow is disabled globally — this task can't be individually re-enabled",
-        "label": "Workflow off"
+        "label": "Workflow"
       },
       "criticRejection": {
         "title": "The {phase} was rejected by the quality critic and is being regenerated.",

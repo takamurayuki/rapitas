@@ -2357,12 +2357,11 @@
       "autoApproveTooltipOff": "計画自動承認: OFF（手動承認が必要）",
       "autoApproveBadge": "自動承認 {state}",
       "workflowDisabledToggle": {
-        "badge": "ワークフロー無効 {state}",
-        "onTooltip": "ワークフロー無効: ON（research.md/plan.mdを作らず直接実装します）",
-        "offTooltip": "ワークフロー無効: OFF（通常通り研究/計画/検証のフェーズを実行します）",
+        "onTooltip": "ワークフロー: OFF（research.md/plan.md を作らず直接実装します）",
+        "offTooltip": "ワークフロー: ON（通常どおり調査/計画/検証のフェーズを実行します）",
         "lockedTooltip": "タスクの実行が開始されているため、この設定は変更できません",
         "globallyForcedTooltip": "全体設定でワークフローが無効化されています（このタスクだけを個別に有効化することはできません）",
-        "label": "ワークフロー無効"
+        "label": "ワークフロー"
       },
       "criticRejection": {
         "title": "{phase}の内容が品質チェックで却下されました。再生成中です。",
