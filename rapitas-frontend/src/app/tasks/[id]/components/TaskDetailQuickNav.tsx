@@ -136,7 +136,28 @@ export function TaskDetailQuickNav({
   const jumpTo = (id: string) => {
     setActiveId(id); // optimistic: the pressed chip is active immediately
     programmaticUntilRef.current = Date.now() + 800;
-    document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    const target = document.getElementById(id);
+    if (!target) return;
+
+    // Scroll the DESIGNATED container, never scrollIntoView. scrollIntoView
+    // walks up and scrolls every scrollable ancestor, and the slide panel's
+    // root is `overflow-hidden` — which hides the scrollbar but stays
+    // programmatically scrollable. Jumping to a section therefore slid the
+    // panel's own content up (measured: 53px for the upper sections, 738px for
+    // サブタスク) and left that much empty panel below the content.
+    const scroller = navRef.current?.closest('[data-task-scroll-container]');
+    if (!(scroller instanceof HTMLElement)) {
+      target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      return;
+    }
+    // Land the section just under the sticky nav rather than beneath it.
+    const navHeight = navRef.current?.getBoundingClientRect().height ?? 0;
+    const top =
+      target.getBoundingClientRect().top -
+      scroller.getBoundingClientRect().top +
+      scroller.scrollTop -
+      navHeight;
+    scroller.scrollTo({ top: Math.max(0, top), behavior: 'smooth' });
   };
 
   return (
