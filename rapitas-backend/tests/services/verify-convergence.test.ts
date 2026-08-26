@@ -146,6 +146,35 @@ describe('detectNonConvergence', () => {
     expect(v.cutoff).toBe(false);
   });
 
+  test('seed あり: 直前カットオフと同一基準の再指摘1回で cutoff する（リトライ跨ぎ, task 671）', () => {
+    const v = detectNonConvergence('受入基準1が未対応のまま', [], CRITERIA_614, {
+      criterionIndex: 1,
+      count: 1,
+    });
+    expect(v.cutoff).toBe(true);
+    expect(v.criterionIndex).toBe(1);
+    expect(v.count).toBe(2);
+  });
+
+  test('seed あり: 別基準のみ指摘されたら seed 対象基準は cutoff しない（誤検出防止）', () => {
+    const v = detectNonConvergence('detectRepeatLoop の対応関係が未検証', [], CRITERIA_614, {
+      criterionIndex: 1,
+      count: 1,
+    });
+    expect(v.cutoff).toBe(false);
+  });
+
+  test('seed 省略時は既存の挙動と完全に同一（後方互換）', () => {
+    const v = detectNonConvergence(
+      '受入基準1が未対応のまま',
+      ['受入基準1が一切対応されていない'],
+      CRITERIA_614,
+    );
+    expect(v.cutoff).toBe(true);
+    expect(v.criterionIndex).toBe(1);
+    expect(v.count).toBe(2);
+  });
+
   test('複数基準が2回以上のときは最小 index を返す', () => {
     const v = detectNonConvergence(
       '受入基準1と受入基準2が未対応',

@@ -104,6 +104,46 @@ async function countPriorRepairs(taskId: number): Promise<number> {
 }
 
 /**
+ * Recover the criterion flagged by the cutoff (verify_repair_non_convergence)
+ * that immediately preceded the most recent retry, as a seed for
+ * detectNonConvergence (task 671). Without this, `POST /tasks/:id/retry`
+ * erases all memory of what was flagged, so the same never-fixed criterion
+ * re-earns a full 2-bounce grace period every time a human retries — the
+ * mechanism behind task 662's second, unbounded loop. Range-checked against
+ * the CURRENT criteria count so a since-changed acceptanceCriteria list
+ * cannot seed a now-meaningless index.
+ *
+ * @param taskId - Task id / タスクID
+ * @param lastRetryAt - Timestamp of the most recent task_retried / 直近リトライ時刻
+ * @param criteriaLength - Current acceptance criteria count / 現在の基準数
+ * @returns Seed for detectNonConvergence, or undefined when none applies. / 持ち越しseed
+ */
+async function seedFromPriorCutoff(
+  taskId: number,
+  lastRetryAt: Date,
+  criteriaLength: number,
+): Promise<{ criterionIndex: number; count: number } | undefined> {
+  const prior = await prisma.workflowTransition
+    .findFirst({
+      where: { taskId, cause: VERIFY_NON_CONVERGENCE_CAUSE, createdAt: { lt: lastRetryAt } },
+      orderBy: { createdAt: 'desc' },
+      select: { metadata: true },
+    })
+    .catch(() => null);
+  if (!prior) return undefined;
+  try {
+    const meta = JSON.parse(prior.metadata ?? '{}') as { criterionIndex?: unknown };
+    const idx = meta.criterionIndex;
+    if (typeof idx === 'number' && idx >= 1 && idx <= criteriaLength) {
+      return { criterionIndex: idx, count: 1 };
+    }
+  } catch {
+    // Malformed metadata: no seed (fail-open, matches priorReasons parsing below).
+  }
+  return undefined;
+}
+
+/**
  * Detect a non-converging repair loop (task 619): map current + prior repair
  * reasons (same task_retried window as countPriorRepairs) onto the acceptance
  * criteria; 2+ flags on one criterion = cutoff. FAIL OPEN throughout — unlike
@@ -152,7 +192,10 @@ async function detectRepairNonConvergence(
         if (typeof meta.reason === 'string' && meta.reason) priorReasons.push(meta.reason);
       } catch {}
     }
-    const verdict = detectNonConvergence(currentReason, priorReasons, criteria);
+    const seed = lastRetry
+      ? await seedFromPriorCutoff(taskId, lastRetry.createdAt, criteria.length)
+      : undefined;
+    const verdict = detectNonConvergence(currentReason, priorReasons, criteria, seed);
 
     // Make the fail-open audible. The detector stays silent both when a task IS
     // converging and when it simply cannot read the criteria — task 666 spent

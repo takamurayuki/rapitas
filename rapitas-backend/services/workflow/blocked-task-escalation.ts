@@ -35,7 +35,7 @@ const REASON_COPY: Record<BlockedExclusionReason, { needs: string; notificationT
   },
   verify_no_convergence: {
     needs:
-      '差し戻しが収束していません（同一の受入基準が繰り返し未対応）。タスク分割または仕様の見直しが必要です。',
+      '差し戻しが収束していません（同一の受入基準が繰り返し未対応）。タスク分割または仕様の見直しが必要です。リトライ後に同一の基準が再度指摘された場合は1回で打ち切られます。',
     notificationType: 'blocked_escalation',
   },
   retry_cap_exhausted: {
