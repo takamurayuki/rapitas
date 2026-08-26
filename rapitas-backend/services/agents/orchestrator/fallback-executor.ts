@@ -86,6 +86,22 @@ export async function executeWithFallbackAgent(
         strategy: 'none',
         outcome: 'no_candidate',
       });
+      // Rule-based classification found nothing (task 612) — ask the LLM to
+      // complete the diagnosis in the background. Never awaited: this must
+      // not delay the no_candidate response.
+      if (!classified) {
+        void import('../../ai/error-diagnosis')
+          .then(({ diagnoseErrorWithLlm }) =>
+            diagnoseErrorWithLlm({
+              taskId: options.taskId,
+              phase: 'manual',
+              fromProvider: hint ?? originalAgentConfig.type,
+              fromModel: originalAgentConfig.modelId ?? null,
+              errorBlob,
+            }),
+          )
+          .catch(() => {});
+      }
     }
     return { result: {} as AgentExecutionResult, fallbackSucceeded: false };
   }

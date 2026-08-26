@@ -1784,6 +1784,18 @@
       "avgCost": "Avg cost",
       "failureReasons": "Failure reasons"
     },
+    "errorDiagnosis": {
+      "title": "Error diagnosis",
+      "window": "Last {days} days",
+      "summary": "{total} diagnoses, avg confidence {avgConfidence}, feedback rate {feedbackRate}, helpful rate {helpfulRate}",
+      "empty": "No LLM diagnoses recorded yet",
+      "loadFailed": "Failed to load error diagnoses",
+      "lowConfidence": "Low confidence",
+      "rootCause": "Root cause",
+      "confidence": "Confidence",
+      "suggestedAction": "Suggested action",
+      "feedback": "Feedback"
+    },
     "systemStatus": {
       "title": "System Status",
       "pill": {
