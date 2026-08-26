@@ -111,7 +111,13 @@ async function fileFinding(args: {
       severity: args.severity,
       originTaskId: args.task.id,
       source: 'self_incident_watch',
-      dedupKey: `self-incident:${args.signature}:${args.task.id}`,
+      // Per SIGNATURE, not per task. 「停滞: #646 が33分間停滞」 and
+      // 「停滞: #624 が31分間停滞」 are one defect seen twice, and the fix is not
+      // per task — keying on the task id turned four defect signatures into 41
+      // open concerns (measured 2026-08-27), each promoting to its own task.
+      // A dismissed or resolved concern no longer blocks, so a genuine
+      // recurrence after triage still files again.
+      dedupKey: `self-incident:${args.signature}`,
     });
     return true;
   } catch (err) {
@@ -146,7 +152,7 @@ async function inspectTask(task: CandidateTask, nowMs: number): Promise<number> 
         signature: 'stagnation',
         task,
         state,
-        title: `[自己検出] 停滞: #${task.id}「${task.title}」が${staleMin}分間停滞`,
+        title: '[自己検出] 停滞: 実行もキューも無いまま非終端タスクが放置される',
         explanation:
           `非終端タスク(status=${task.status}, workflowStatus=${task.workflowStatus ?? 'null'})が、` +
           `実行中エージェントもアクティブなキュー項目も無いまま${staleMin}分間更新されていません。`,
@@ -183,7 +189,7 @@ async function inspectTask(task: CandidateTask, nowMs: number): Promise<number> 
         signature,
         task,
         state,
-        title: `[自己検出] 状態不整合: #${task.id}「${task.title}」— ${desync.detail}`,
+        title: `[自己検出] 状態不整合: ${desync.detail}`,
         explanation:
           `Task/AgentSession/AgentExecution の状態が矛盾しています: ${desync.detail}。` +
           `（task.status=${task.status}, workflowStatus=${task.workflowStatus ?? 'null'}）`,
@@ -211,7 +217,7 @@ async function inspectTask(task: CandidateTask, nowMs: number): Promise<number> 
         signature: `repeat-loop:${loop.cause}`,
         task,
         state,
-        title: `[自己検出] 反復ループ: #${task.id}「${task.title}」で cause=${loop.cause} が${loop.count}回`,
+        title: `[自己検出] 反復ループ: cause=${loop.cause} が短時間に繰り返される`,
         explanation:
           `直近${Math.round(REPEAT_LOOP_WINDOW_MS / 60_000)}分以内に同一cause(${loop.cause})の` +
           `遷移が${loop.count}回発生しています。同じ失敗と再試行を繰り返すループの疑いがあります。`,

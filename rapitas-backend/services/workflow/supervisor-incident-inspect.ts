@@ -113,7 +113,7 @@ export async function inspectSupervisorSignatures(args: {
       signature: 'supervisor-false-failure',
       task,
       state,
-      title: `[自己検出] 誤った失敗判定: #${task.id}「${task.title}」— 失敗マークの${gapSec}秒後に成功`,
+      title: '[自己検出] 誤った失敗判定: 失敗マーク直後に成功アーティファクトが出現する',
       explanation:
         `タスクが終端失敗とマークされた${gapSec}秒後に成功アーティファクト(PR/コミット)が出現しました。` +
         '完了ゲートが実際には成功した実行を「失敗」と誤記録した疑いがあります(task 580 / PR #7と同型)。',
