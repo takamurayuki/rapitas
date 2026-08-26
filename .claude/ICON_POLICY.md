@@ -110,6 +110,7 @@ Keep this list accurate. If you assign a glyph a new meaning, add it here.
 | `ScanSearch`              | 検出漏れ兆候の学習・レビュー（nav: /agents/miss-signatures、ページ見出し、バックログ定期ジョブ miss_ledger — 同一概念の再利用。注: `Search`＝知識ブラウザとは別概念） |
 | `MessageSquarePlus`      | エージェントへの追加指示（実行完了後の継続指示 `ContinuationForm`/`ExecutionCompletedPanel`、および計画の修正依頼 `PlanRevisionRequest` — いずれも「走っている/走り終えたエージェントに文章で指示を足す」同一概念の再利用） |
 | `LifeBuoy`                | リカバリーメトリクス（エージェント実行フォールバックの種別×戦略別 成功率/レイテンシ/コスト集計。`RecoveryMetricsPanel` ヘッダー） |
+| `Stethoscope`              | LLMエラー診断（信頼度スコア付き診断結果パネル、`ErrorDiagnosisPanel` ヘッダー。注: `src/components/category/icons` 等のカテゴリアイコンピッカー登録は中立的な再掲で対象外） |
 
 ### Known collisions
 
