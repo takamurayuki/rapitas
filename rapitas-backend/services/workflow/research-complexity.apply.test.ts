@@ -41,13 +41,11 @@ const RESEARCH = '## 複雑度評価\nスコア: 42\n';
 
 describe('applyResearchAssessedComplexity', () => {
   beforeEach(() => {
-    findUnique
-      .mockReset()
-      .mockResolvedValue({
-        workflowModeOverride: false,
-        workflowMode: 'comprehensive',
-        themeId: 7,
-      });
+    findUnique.mockReset().mockResolvedValue({
+      workflowModeOverride: false,
+      workflowMode: 'comprehensive',
+      themeId: 7,
+    });
     update.mockReset().mockResolvedValue({});
     recordModePrediction.mockReset().mockResolvedValue(undefined);
     estimateDurationFromHistory.mockReset().mockResolvedValue(90);

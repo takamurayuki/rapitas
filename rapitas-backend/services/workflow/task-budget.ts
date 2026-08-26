@@ -16,6 +16,11 @@
  */
 
 import { prisma } from '../../config/database';
+
+// boundary-tests: manual — this resolver always HAS an answer (a task with no
+// spend is a valid state, not a missing row), so it returns a state object
+// rather than null and the generated null-contract template does not apply.
+// See task-budget.boundary.test.ts.
 import { createLogger } from '../../config/logger';
 import type { ModelTier } from '../ai/model-discovery';
 
@@ -65,9 +70,19 @@ function coerceCost(v: unknown): number {
  * @returns Sum of costUsd, 0 on any read failure. / 合計コスト
  */
 export async function getTaskSpendUsd(taskId: number): Promise<number> {
+  // A failed lookup is NOT zero spend. Both read as 0 to the caller, which
+  // silently removes the ceiling this backstop exists to impose — the same
+  // shape of failure as a convergence detector that cannot read its criteria.
+  // Fail open, because a DB blip must not throttle every task, but say so.
   const rows = await prisma.agentExecution
     .findMany({ where: { session: { config: { taskId } } }, select: { costUsd: true } })
-    .catch(() => [] as Array<{ costUsd: unknown }>);
+    .catch((err: unknown) => {
+      log.warn(
+        { err, taskId },
+        '[task-budget] spend lookup failed — treating as 0, so no ceiling applies this phase',
+      );
+      return [] as Array<{ costUsd: unknown }>;
+    });
   return rows.reduce((a, r) => a + coerceCost(r.costUsd), 0);
 }
 
