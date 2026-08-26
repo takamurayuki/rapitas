@@ -39,7 +39,56 @@ describe('groupEntries', () => {
     ]);
     expect(groups).toHaveLength(1);
     expect(groups[0].count).toBe(3);
-    expect(groups[0].normalizedMsg).toContain('"session_id":"#"');
+    // The whole payload now collapses rather than each id inside it. Same
+    // contract, held more firmly: no field of a JSON payload can split one
+    // cause into several concerns.
+    expect(groups[0].normalizedMsg).toBe('Claude CLI exited #: {…}');
+  });
+
+  it('collapses a JSON payload whatever varies inside it', () => {
+    // Regression 2026-08-27: four byte-identical 「Claude CLI exited」 concerns
+    // sat open together because the payload differed in non-id fields, which
+    // the id-level normalization could not reach.
+    const groups = groupEntries([
+      entry({ level: 50, name: 'cli', msg: 'Claude CLI exited 1: {"stop_reason":"max_turns"}' }),
+      entry({
+        level: 50,
+        name: 'cli',
+        msg: 'Claude CLI exited 1: {"stop_reason":"error","x":{"y":2}}',
+      }),
+    ]);
+    expect(groups).toHaveLength(1);
+  });
+
+  it('collapses absolute paths so one defect in two worktrees is one concern', () => {
+    // Regression 2026-08-27: 'setup-worktree.cjs not found at <A>' and the same
+    // line with <B> were both open, as were two 'git worktree remove' failures.
+    const groups = groupEntries([
+      entry({
+        level: 40,
+        name: 'wt',
+        msg: String.raw`setup-worktree.cjs not found at C:\Projects\a\.worktrees\t-1`,
+      }),
+      entry({
+        level: 40,
+        name: 'wt',
+        msg: String.raw`setup-worktree.cjs not found at C:\Projects\b\.worktrees\t-2`,
+      }),
+    ]);
+    expect(groups).toHaveLength(1);
+    expect(groups[0].normalizedMsg).toContain('<path>');
+  });
+
+  it('drops a line that reports a guard doing its job', () => {
+    // The health check files what is BROKEN. A refusal prevented the problem.
+    const groups = groupEntries([
+      entry({
+        level: 50,
+        name: 'git',
+        msg: 'Refusing to switch to branch x in the PRIMARY git working tree',
+      }),
+    ]);
+    expect(groups).toHaveLength(0);
   });
 
   it('separates warnings from errors even with the same text', () => {

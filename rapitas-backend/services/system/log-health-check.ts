@@ -12,6 +12,7 @@
  * Not responsible for capturing logs (the logger / each project does) or fixing.
  */
 import { readFile } from 'fs/promises';
+import { classifyLogSignature } from './log-health-suppressions';
 import { readdirSync, statSync, unlinkSync, existsSync } from 'fs';
 import { join } from 'path';
 import { createLogger, getBackendLogFilePath } from '../../config/logger';
@@ -83,18 +84,43 @@ function startOfTodayMs(): number {
 const UUID_RE = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi;
 
 /**
+ * A JSON payload embedded in a message — collapsed whole, nesting included.
+ * Greedy to the LAST brace on purpose: CLI payloads nest, and a non-greedy
+ * match left the outer object open, so two reports of one failure still looked
+ * different.
+ */
+const JSON_BLOB_RE = /\{["'].*\}/gs;
+
+/** Windows or POSIX absolute path, collapsed so the same defect in two trees groups. */
+const ABS_PATH_RE = new RegExp(
+  String.raw`(?:[A-Za-z]:[\\\\/][^\s,;)"']*|/(?:home|Users|var|tmp)/[^\s,;)"']*)`,
+  'g',
+);
+
+/**
  * Normalizes a message so volatile parts (ids, counts, hex) collapse, letting
  * "task 12 failed" and "task 34 failed" group together.
  */
 function normalizeMessage(raw: string): string {
-  return raw
-    .replace(UUID_RE, '#') // whole UUIDs first — see UUID_RE
-    .replace(/0x[0-9a-fA-F]+/g, '#')
-    .replace(/[0-9a-fA-F]{8,}/g, '#') // hashes / bare hex ids
-    .replace(/\d+/g, '#')
-    .replace(/\s+/g, ' ')
-    .trim()
-    .slice(0, 200);
+  return (
+    raw
+      .replace(UUID_RE, '#') // whole UUIDs first — see UUID_RE
+      // A JSON payload carries the whole variable state of a failure. Left in,
+      // one repeating cause becomes a new signature per occurrence: measured
+      // 2026-08-27, four byte-identical 「Claude CLI exited」 concerns sat open
+      // together, and a fifth truncated before the payload made a fifth.
+      .replace(JSON_BLOB_RE, '{…}')
+      // Absolute paths make the SAME defect in two worktrees (or two projects)
+      // dedupe as two: 'setup-worktree.cjs not found at <A>' and '… at <B>'
+      // were both open at once, as were two 'git worktree remove' failures.
+      .replace(ABS_PATH_RE, '<path>')
+      .replace(/0x[0-9a-fA-F]+/g, '#')
+      .replace(/[0-9a-fA-F]{8,}/g, '#') // hashes / bare hex ids
+      .replace(/\d+/g, '#')
+      .replace(/\s+/g, ' ')
+      .trim()
+      .slice(0, 200)
+  );
 }
 
 /**
@@ -112,6 +138,16 @@ export function groupEntries(entries: ParsedLogEntry[]): Grouped[] {
     const name = entry.name || 'app';
     const bucket = entry.level >= 50 ? 'error' : 'warn';
     const signature = `${name}|${bucket}|${normalizedMsg}`;
+
+    // A guard that refused, a recovery that succeeded, a fail-open that
+    // continued — alarming wording, nothing left broken. Filing them buried the
+    // real defects: 60 of 121 open concerns came from this path and almost none
+    // named anything to fix (measured 2026-08-27).
+    const verdict = classifyLogSignature(name, normalizedMsg);
+    if (verdict.suppressed) {
+      log.debug({ name, normalizedMsg, because: verdict.because }, '[log-health] suppressed');
+      continue;
+    }
 
     const existing = groups.get(signature);
     if (existing) {
