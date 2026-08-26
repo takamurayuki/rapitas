@@ -32,6 +32,7 @@ export { agentAvailabilityRoutes } from './agents/config/agent-availability';
 export { providerCooldownsRoutes } from './agents/config/provider-cooldowns';
 export { recoveryMetricsRoutes } from './agents/config/recovery-metrics';
 export { probeMetricsRoutes } from './agents/config/probe-metrics';
+export { errorDiagnosisRoutes } from './agents/config/error-diagnosis';
 export { executionLogsRoutes } from './agents/monitoring/execution-logs';
 export { agentMetricsRouter } from './agents/monitoring/agent-metrics';
 export { agentVersionManagementRoutes } from './agents/system/agent-version-management';
