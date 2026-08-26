@@ -1784,6 +1784,18 @@
       "avgCost": "平均コスト",
       "failureReasons": "失敗理由"
     },
+    "errorDiagnosis": {
+      "title": "エラー診断",
+      "window": "直近{days}日間",
+      "summary": "{total}件・平均信頼度{avgConfidence}・フィードバック率{feedbackRate}・有用と判定された率{helpfulRate}",
+      "empty": "記録されたLLM診断はまだありません",
+      "loadFailed": "エラー診断の取得に失敗しました",
+      "lowConfidence": "低信頼度",
+      "rootCause": "推定原因",
+      "confidence": "信頼度",
+      "suggestedAction": "提案アクション",
+      "feedback": "フィードバック"
+    },
     "systemStatus": {
       "title": "システム状態",
       "pill": {

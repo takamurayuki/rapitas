@@ -9,6 +9,7 @@ import { GlobalProviderPreference } from './_components/GlobalProviderPreference
 import { SkipPermissionToggle } from './_components/SkipPermissionToggle';
 import { SystemStatusPanel } from './_components/SystemStatusPanel';
 import { RecoveryMetricsPanel } from './_components/RecoveryMetricsPanel';
+import { ErrorDiagnosisPanel } from './_components/ErrorDiagnosisPanel';
 import { createLogger } from '@/lib/logger';
 import { isDevHost } from '@/lib/dev-mode';
 
@@ -140,6 +141,8 @@ export default function AgentsPage() {
         <SystemStatusPanel />
 
         <RecoveryMetricsPanel />
+
+        <ErrorDiagnosisPanel />
 
         <div className="mb-6 space-y-3">
           <GlobalProviderPreference />
