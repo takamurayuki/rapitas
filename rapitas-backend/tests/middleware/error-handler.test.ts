@@ -322,4 +322,20 @@ describe('errorHandler plugin propagation (as: global)', () => {
     const res = await app.handle(new Request('http://localhost/test'));
     expect(res.headers.get('content-type')).toContain('application/json');
   });
+
+  test('不正なJSONボディが500ではなく400で処理されること（再現テスト: #670 / K-6588）', async () => {
+    const app = new Elysia().use(errorHandler).post('/test', ({ body }) => body);
+
+    const res = await app.handle(
+      new Request('http://localhost/test', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: '{invalid-json',
+      }),
+    );
+
+    expect(res.status).toBe(400);
+    const body = (await res.json()) as ErrorResponseBody;
+    expect(body.error).toBe('Invalid JSON in request body');
+  });
 });

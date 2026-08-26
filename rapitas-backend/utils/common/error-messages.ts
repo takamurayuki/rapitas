@@ -21,3 +21,6 @@ export const RESOURCE_NOT_FOUND = 'Resource not found' as const;
 
 /** Default message for ValidationError — mirrors the class default in error-handler.ts. */
 export const VALIDATION_ERROR = 'Validation error' as const;
+
+/** Response message when the request body cannot be parsed as JSON (Elysia code: 'PARSE'). */
+export const INVALID_JSON_BODY = 'Invalid JSON in request body' as const;

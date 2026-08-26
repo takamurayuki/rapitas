@@ -5,7 +5,11 @@
 import { Elysia } from 'elysia';
 import { createLogger } from '../config/logger';
 import { HTTP_STATUS } from '../utils/common/http-status';
-import { RESOURCE_NOT_FOUND, VALIDATION_ERROR } from '../utils/common/error-messages';
+import {
+  RESOURCE_NOT_FOUND,
+  VALIDATION_ERROR,
+  INVALID_JSON_BODY,
+} from '../utils/common/error-messages';
 
 const log = createLogger('error-handler');
 
@@ -152,6 +156,15 @@ export const errorHandler = new Elysia({ name: 'error-handler' }).onError(
     if (code === 'NOT_FOUND') {
       set.status = HTTP_STATUS.NOT_FOUND;
       return { error: RESOURCE_NOT_FOUND };
+    }
+
+    // Malformed request body (e.g. invalid JSON) — client error, not a server bug.
+    // NOTE: Without this branch PARSE errors fell through to the generic 500
+    // handler below, polluting error logs with client-caused "Unhandled error"
+    // entries (see task #670 / K-6588).
+    if (code === 'PARSE') {
+      set.status = HTTP_STATUS.BAD_REQUEST;
+      return { error: INVALID_JSON_BODY };
     }
 
     // Prisma related errors (all types)
