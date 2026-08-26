@@ -34,6 +34,10 @@ function makePrisma(overrides: Partial<Record<string, unknown>> = {}): PrismaCli
     task: {
       findMany: mock().mockResolvedValue([]),
     },
+    // Selection reads the global workflow off-switch before querying candidates.
+    userSettings: {
+      findFirst: mock().mockResolvedValue({ workflowDisabledGlobally: false }),
+    },
     ...overrides,
   } as unknown as PrismaClient;
 }
@@ -240,6 +244,34 @@ describe('selectNextTask', () => {
     expect(clauses).toContainEqual({
       OR: [{ workflowStatus: null }, { workflowStatus: { not: 'awaiting_question' } }],
     });
+  });
+
+  it('回帰: 全体停止スイッチONなら候補を引かずに専用の理由を返す', async () => {
+    // 'all_done' として返すとバックログ補充が走り、同じく実行できないタスクを
+    // 起票して枠を食い潰す。停止は「仕事が無い」とは別の状態として報告する。
+    const mockFindMany = mock().mockResolvedValue([]);
+    const prisma = makePrisma({
+      task: { findMany: mockFindMany },
+      userSettings: { findFirst: mock().mockResolvedValue({ workflowDisabledGlobally: true }) },
+    });
+
+    const result = await selectNextTask(prisma, 1, 'priority', [], 0);
+
+    expect(result).toEqual({ found: false, reason: 'workflow_disabled_globally' });
+    expect(mockFindMany).not.toHaveBeenCalled();
+  });
+
+  it('回帰: ワークフロー無効のタスクは選択対象から外す', async () => {
+    // 実測 2026-08-26: task 635 が workflowDisabled=true / priority=high で
+    // 選択され、runner が「ワークフロー無効モードのため自動実行の対象外」で拒否
+    // → 解放 → 再選択、を約20秒周期で11時間繰り返した。他のタスクは一切進まず、
+    // 枯渇に到達しないため起票も走らず、未対応の懸念121件が放置された。
+    // awaiting_question とまったく同じ「選択側と実行側の定義の食い違い」。
+    const mockFindMany = mock().mockResolvedValue([]);
+    const prisma = makePrisma({ task: { findMany: mockFindMany } });
+    await selectNextTask(prisma, 1, 'priority', [], 0);
+    const arg = mockFindMany.mock.calls[0][0] as { where: { workflowDisabled?: boolean } };
+    expect(arg.where.workflowDisabled).toBe(false);
   });
 
   it('回帰: workflowStatus が未設定(NULL)の新規タスクを除外しない', async () => {

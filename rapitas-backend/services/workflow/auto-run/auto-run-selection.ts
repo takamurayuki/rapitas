@@ -22,7 +22,13 @@ export interface SelectableTask {
  * task is stuck at status 'blocked' (a wedged loop, task 615) — distinct from
  * `all_done` (genuinely nothing left to do).
  */
-export type NoTaskReason = 'all_done' | 'all_blocked' | 'concurrency_limit' | 'awaiting_approval';
+export type NoTaskReason =
+  | 'all_done'
+  | 'all_blocked'
+  | 'concurrency_limit'
+  | 'awaiting_approval'
+  /** The whole workflow is switched off; no task in any theme can be advanced. */
+  | 'workflow_disabled_globally';
 
 export type SelectionResult =
   | {
@@ -377,6 +383,21 @@ export async function selectNextTask(
     return { found: false, reason: 'concurrency_limit' };
   }
 
+  // The global off-switch disables phase progression for EVERY task, so the
+  // per-task column below cannot catch it. Reported as its own reason rather
+  // than as 'all_done': that path refills the backlog, which would file tasks
+  // that are equally unable to run and quietly consume the promotion cap.
+  //
+  // Read through the INJECTED client, not the module-level one — this module is
+  // called with a client by design, and reaching past it made the unit tests
+  // open a real database connection (98s for one file).
+  const globalSwitch = await prisma.userSettings
+    .findFirst({ select: { workflowDisabledGlobally: true } })
+    .catch(() => null);
+  if (globalSwitch?.workflowDisabledGlobally) {
+    return { found: false, reason: 'workflow_disabled_globally' };
+  }
+
   const candidates = await prisma.task.findMany({
     where: {
       themeId,
@@ -415,6 +436,15 @@ export async function selectNextTask(
           OR: [{ workflowStatus: null }, { workflowStatus: { not: 'awaiting_question' } }],
         },
       ],
+      // A workflow-disabled task cannot be advanced by the runner, which
+      // refuses it with 「ワークフロー無効モードのため自動実行の対象外」. Selection
+      // must agree with the dispatcher — exactly the lesson of the
+      // awaiting_question clause above, and the same task taught it twice:
+      // measured 2026-08-26, task 635 (workflowDisabled, priority high) was
+      // selected, refused and released every ~20 seconds for ELEVEN HOURS.
+      // Nothing else ran, and because the theme never reached 'all_done' the
+      // backlog never refilled either — 121 open concerns sat untouched.
+      workflowDisabled: false,
       id: skipTaskIds.length > 0 ? { notIn: skipTaskIds } : undefined,
       // Exclude subtasks — the theme scheduler drives top-level tasks only;
       // subtasks are handled by AIOrchestra.enqueueSubtasksForExecution().
