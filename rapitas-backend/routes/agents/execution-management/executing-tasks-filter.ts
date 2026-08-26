@@ -7,7 +7,9 @@
  * sweep (services/agents/orchestrator/stale-execution-recovery.ts) own that.
  */
 
-// NOTE: 5 minutes = 20 missed heartbeats (HEARTBEAT_INTERVAL_MS is 15s).
+// NOTE: 5 minutes = 20 missed heartbeats at the production-profile default
+// (HEARTBEAT_INTERVAL_MS is 15s — see config/recovery-policy.ts; this constant
+// does not track RAPITAS_RECOVERY_HEARTBEAT_INTERVAL_MS overrides).
 // Intentionally NOT shared with auto-run-selection's HANG_BACKSTOP_HEARTBEAT_MS:
 // same value, different meaning (hang detection vs display freshness), and
 // importing it would tangle routes → services/workflow.
