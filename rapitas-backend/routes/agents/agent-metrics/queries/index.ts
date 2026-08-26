@@ -49,3 +49,15 @@ export {
   computeRepairConvergenceStats,
   getRepairConvergenceStats,
 } from './repair-convergence-query';
+
+export type {
+  NoChangeCompletionCause,
+  NoChangeCompletionRow,
+  RepairBounceRow,
+  NoChangeCompletionBucket,
+  NoChangeCompletionStats,
+} from './no-change-completion-query';
+export {
+  computeNoChangeCompletionStats,
+  getNoChangeCompletionStats,
+} from './no-change-completion-query';
