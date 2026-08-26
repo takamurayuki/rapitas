@@ -16,6 +16,7 @@ import {
 import { resolveTaskForLearning } from '../../task/task-resolver';
 import { recordDurationPredictionError } from './duration-prediction-service';
 import { readModePrediction } from './mode-prediction';
+import { sumTaskWorkMinutes } from './task-work-time';
 
 const log = createLogger('workflow-learning-stats');
 
@@ -65,9 +66,10 @@ export async function recordWorkflowCompletion(taskId: number): Promise<void> {
 
     const phaseTimings = calculatePhaseTimings(activityLogs, task.createdAt);
 
-    const actualDuration = task.completedAt
-      ? Math.round((task.completedAt.getTime() - task.createdAt.getTime()) / 60000)
-      : null;
+    // Work time, not lead time. `completedAt - createdAt` counted every minute
+    // the task sat in the backlog, which is most of them here — so the column
+    // that every duration estimator reads was answering the wrong question.
+    const actualDuration = task.completedAt ? await sumTaskWorkMinutes(taskId) : null;
 
     const titleKeywords = extractKeywords(task.title);
 

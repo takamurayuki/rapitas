@@ -9,6 +9,16 @@
  */
 
 /**
+ * When `actualDurationMinutes` started meaning work time instead of lead time.
+ *
+ * Rows written before this measure filing-to-done, including however long the
+ * task queued — 7 minutes to 8.5 days across the 60 rows sampled the day this
+ * changed. They answer a different question and are excluded rather than
+ * silently averaged in. The population starts near empty and refills.
+ */
+export const WORK_TIME_CUTOVER = new Date('2026-08-26T05:00:00Z');
+
+/**
  * Prisma `where` fragment selecting only per-task rows.
  *
  * `estimatedDuration` is the marker: only the per-task writer has ever set it,
@@ -26,5 +36,6 @@ export function taskScopedRecordWhere(): Record<string, unknown> {
   return {
     estimatedDuration: { not: null },
     complexityFactors: { not: '{}' },
+    createdAt: { gte: WORK_TIME_CUTOVER },
   };
 }

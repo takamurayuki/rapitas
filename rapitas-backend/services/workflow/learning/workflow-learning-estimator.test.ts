@@ -213,6 +213,16 @@ describe('母集団のスコープ (task 667 実測)', () => {
     expect(where.complexityFactors).toEqual({ not: '{}' });
   });
 
+  test('リードタイム時代の行を母集団から外す', async () => {
+    // 旧行の actualDurationMinutes は起票からの経過時間で、待ち時間を含む。
+    durationRows = [{ actualDurationMinutes: 40, predictedComplexity: 50 }];
+
+    await estimateDurationFromHistory(1, 'standard', 50);
+
+    const where = capturedWhere as { createdAt?: { gte: Date } };
+    expect(where.createdAt?.gte).toBeInstanceOf(Date);
+  });
+
   test('スコープを絞ってもテーマとモードの条件は残る', async () => {
     durationRows = [{ actualDurationMinutes: 40, predictedComplexity: 50 }];
 
