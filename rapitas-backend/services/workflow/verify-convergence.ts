@@ -148,16 +148,23 @@ export function identifyIndictedCriteria(reason: string, criteria: string[]): nu
  * @param currentReason - The reason about to trigger a bounce (not yet recorded). / 今回の理由
  * @param priorReasons - Reasons of prior verify_repair transitions in the window. / 過去の理由
  * @param criteria - Acceptance criterion bodies. / 受入基準本文
+ * @param seed - Carried-over count from a cutoff that preceded a manual retry
+ *          (task 671): one indictment of `criterionIndex` counted before this
+ *          window's reasons are tallied, so the SAME criterion re-flagged once
+ *          post-retry cuts off immediately instead of waiting for 2 fresh
+ *          hits. Omit for the original (no-retry) behavior. / リトライ跨ぎの持ち越し
  * @returns Cutoff verdict with the repeated criterion + count. / 判定
  */
 export function detectNonConvergence(
   currentReason: string,
   priorReasons: string[],
   criteria: string[],
+  seed?: { criterionIndex: number; count: number },
 ): ConvergenceVerdict {
   if (criteria.length === 0) return { cutoff: false };
 
   const counts = new Map<number, number>();
+  if (seed) counts.set(seed.criterionIndex, seed.count);
   for (const reason of [...priorReasons, currentReason]) {
     // Set-per-reason: a reason mentioning the same criterion twice is ONE bounce.
     for (const idx of identifyIndictedCriteria(reason, criteria)) {

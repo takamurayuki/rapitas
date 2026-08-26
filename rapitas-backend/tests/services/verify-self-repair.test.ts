@@ -120,6 +120,11 @@ describe('attemptVerifyRepair', () => {
     mockPrisma.workflowTransition.findMany.mockResolvedValue([]);
     escalateBlockedTask.mockReset();
     escalateBlockedTask.mockResolvedValue(true);
+    // NOTE: task 671 — seedFromPriorCutoff reads the cutoff transition preceding
+    // the retry via the SAME workflowTransition.findFirst used by
+    // hasFreshVerifyRejection; reset here so a per-test stub never leaks.
+    mockPrisma.workflowTransition.findFirst.mockReset();
+    mockPrisma.workflowTransition.findFirst.mockResolvedValue(null);
   });
 
   test('plan あり → plan_approved へ bounce（attempt 1）すること', async () => {
@@ -397,6 +402,51 @@ describe('attemptVerifyRepair', () => {
 
     expect(r.bounced).toBe(true);
     expect(escalateBlockedTask).not.toHaveBeenCalled();
+  });
+
+  // ---- 非収束: リトライ後の同一基準再指摘（seed carry-over, task 671）----
+  test('seed: 直前カットオフと同一基準がリトライ後に再指摘されたら1回でエスカレーションすること', async () => {
+    withCriteria();
+    mockPrisma.activityLog.findFirst.mockResolvedValue({ createdAt: new Date('2026-01-01') });
+    mockPrisma.workflowTransition.findMany.mockResolvedValue([]); // post-retry: no prior repair yet
+    mockPrisma.workflowTransition.findFirst.mockResolvedValue({
+      metadata: JSON.stringify({ criterionIndex: 1, count: 2 }),
+    });
+
+    const r = await attemptVerifyRepair(614, 'in_progress', R1, 'v');
+
+    expect(r.bounced).toBe(false);
+    expect(escalateBlockedTask).toHaveBeenCalledTimes(1);
+    const rt = recordTransition.mock.calls[0][0] as {
+      metadata: { criterionIndex: number; count: number };
+    };
+    expect(rt.metadata.criterionIndex).toBe(1);
+    expect(rt.metadata.count).toBe(2); // seed(1) + this post-retry hit(1)
+  });
+
+  test('seed: 別基準が指摘されたら seed は無関係のまま bounce を継続すること（誤カットオフ防止）', async () => {
+    withCriteria();
+    mockPrisma.activityLog.findFirst.mockResolvedValue({ createdAt: new Date('2026-01-01') });
+    mockPrisma.workflowTransition.findMany.mockResolvedValue([]);
+    mockPrisma.workflowTransition.findFirst.mockResolvedValue({
+      metadata: JSON.stringify({ criterionIndex: 1, count: 2 }),
+    });
+
+    const r = await attemptVerifyRepair(614, 'in_progress', R2, 'v');
+
+    expect(r.bounced).toBe(true);
+    expect(escalateBlockedTask).not.toHaveBeenCalled();
+  });
+
+  test('リトライが一度も無いタスクでは直前カットオフの問い合わせを行わないこと（回帰）', async () => {
+    withCriteria();
+    // mockPrisma.activityLog.findFirst は既定で null（リトライ無し）。
+    mockPrisma.workflowTransition.findMany.mockResolvedValue([]);
+
+    const r = await attemptVerifyRepair(614, 'in_progress', R1, 'v');
+
+    expect(r.bounced).toBe(true);
+    expect(mockPrisma.workflowTransition.findFirst).not.toHaveBeenCalled();
   });
 });
 

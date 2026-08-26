@@ -112,6 +112,9 @@ describe('escalateBlockedTask', () => {
     expect(n.data.message).toContain('受入基準1');
     expect(n.data.message).toContain('2回');
     expect(n.data.message).toContain('タスク分割または仕様の見直し');
+    expect(n.data.message).toContain(
+      'リトライ後に同一の基準が再度指摘された場合は1回で打ち切られます',
+    );
     // concern 側 detail にも同じ根拠が入ること
     expect(submitConcern).toHaveBeenCalledTimes(1);
     const concern = submitConcern.mock.calls[0][0] as { detail: string; dedupKey: string };
