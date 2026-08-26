@@ -17,6 +17,7 @@ import { recordTransition } from './transition-recorder';
 import {
   parseAcceptanceCriteria,
   detectNonConvergence,
+  identifyIndictedCriteria,
   type ConvergenceVerdict,
 } from './verify-convergence';
 import { VERIFY_NON_CONVERGENCE_CAUSE } from './blocked-task-policy';
@@ -151,7 +152,26 @@ async function detectRepairNonConvergence(
         if (typeof meta.reason === 'string' && meta.reason) priorReasons.push(meta.reason);
       } catch {}
     }
-    return detectNonConvergence(currentReason, priorReasons, criteria);
+    const verdict = detectNonConvergence(currentReason, priorReasons, criteria);
+
+    // Make the fail-open audible. The detector stays silent both when a task IS
+    // converging and when it simply cannot read the criteria — task 666 spent
+    // ten bounces in the second state with nothing to show for it, because a
+    // no-cutoff verdict looks identical either way. A window this deep where
+    // NOTHING was ever identified is the signature of a detector that is not
+    // working, not of a task making progress.
+    if (!verdict.cutoff && priorReasons.length >= 2) {
+      const everIdentified = [...priorReasons, currentReason].some(
+        (r) => identifyIndictedCriteria(r, criteria).length > 0,
+      );
+      if (!everIdentified) {
+        log.warn(
+          { taskId, bounces: priorReasons.length + 1, criteria: criteria.length },
+          '[verify-repair] Non-convergence detector matched NOTHING across the whole repair window — the cutoff cannot fire for this task',
+        );
+      }
+    }
+    return verdict;
   } catch (err) {
     log.warn(
       { err, taskId },

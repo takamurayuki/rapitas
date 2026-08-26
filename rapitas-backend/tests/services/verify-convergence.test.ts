@@ -157,3 +157,57 @@ describe('detectNonConvergence', () => {
     expect(v.count).toBe(2);
   });
 });
+
+// task 666 の実測フィクスチャ: 素のファイル名だけを書いた受入基準。
+// 旧トークナイザはパス区切りかドット2つを要求したため、この形の基準は
+// 検出器から完全に不可視で、10回の差し戻し予算を空回りで使い切った。
+const CRITERIA_666 = [
+  'risk-detection.ts が作成され、リスク検出関連のロジックが正しく移行されている',
+  'routing-policy.ts が300行以下になっている',
+  'risk-detection.ts が300行以下になっている',
+  'workflow-orchestrator.smart-router.test.ts のmockが更新されている',
+  '既存テストが全て通る',
+  'リスク語彙の変更差分がティア決定ロジックと無関係に審査できる',
+];
+
+describe('素のファイル名を含む受入基準 (task 666 実測)', () => {
+  test('ドット1つのファイル名を書いた基準を指摘できる', () => {
+    expect(
+      identifyIndictedCriteria('risk-detection.ts がまだ作成されていません', CRITERIA_666),
+    ).toEqual([1, 3]);
+    expect(
+      identifyIndictedCriteria('routing-policy.ts が依然として300行を超えています', CRITERIA_666),
+    ).toEqual([2]);
+  });
+
+  test('同一理由の2回目で打ち切る（実測では10回空回りした）', () => {
+    const reason = 'risk-detection.ts がまだ作成されていません';
+    expect(detectNonConvergence(reason, [reason], CRITERIA_666)).toEqual({
+      cutoff: true,
+      criterionIndex: 1,
+      count: 2,
+    });
+  });
+
+  test('ファイル名を含まない基準は依然として不可視のまま（誤検出を増やさない）', () => {
+    expect(identifyIndictedCriteria('既存テストが全て通っていません', CRITERIA_666)).toEqual([]);
+  });
+});
+
+describe('ファイル風トークンの誤検出防止', () => {
+  test('大文字始まりの語に続く句点は拡張子として扱わない', () => {
+    // 「...されている。All tests fail」のような散文でトークンを作らない。
+    const criteria = ['implementation.All tests must pass'];
+    expect(identifyIndictedCriteria('implementation.All tests still fail', criteria)).toEqual([]);
+  });
+
+  test('短すぎるトークンは採用しない', () => {
+    // v1.2 は 4 文字で MIN_TOKEN_LEN 未満。
+    expect(identifyIndictedCriteria('v1.2 が古い', ['v1.2 に更新する'])).toEqual([]);
+  });
+
+  test('パス形式は従来どおり basename でも一致する', () => {
+    const criteria = ['services/workflow/risk-detection.ts を分離する'];
+    expect(identifyIndictedCriteria('risk-detection.ts が未作成です', criteria)).toEqual([1]);
+  });
+});

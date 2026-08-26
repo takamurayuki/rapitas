@@ -18,6 +18,13 @@
  */
 const MIN_TOKEN_LEN = 6;
 
+/**
+ * File / path tokens: an ASCII run ending in a lowercase extension. Matches a
+ * bare `foo.ts` as well as `services/workflow/foo.ts`; deliberately does NOT
+ * match prose whose period is followed by a capitalised word.
+ */
+const FILE_TOKEN_RE = /[A-Za-z0-9_\-][A-Za-z0-9_\-./\\]*\.[a-z0-9]{1,6}/g;
+
 /** Verdict of the non-convergence check. */
 export interface ConvergenceVerdict {
   /** True when the repair loop must be cut off (same criterion flagged 2+ times). */
@@ -74,15 +81,24 @@ function extractFeatureTokens(criterion: string): string[] {
     const t = m[1].trim();
     if (t.length >= MIN_TOKEN_LEN) tokens.add(t);
   }
-  // Path-like: contains a slash or an interior dot and ends in a short extension
-  // (test-triage.test.ts, services/workflow/foo.ts). Anchored on \S runs so a
-  // token never spans whitespace.
-  for (const m of criterion.matchAll(/\S*[/.\\]\S+\.\w{1,6}/g)) {
-    const t = m[0].replace(/[、。,.;:)）]+$/, ''); // strip trailing punctuation
+  // File-like: an ASCII path or bare filename ending in a lowercase extension.
+  //
+  // The previous pattern required TWO separators (one for the character class,
+  // one for the trailing extension dot), so a bare `risk-detection.ts` — one
+  // dot — matched nothing. Task 666 spent its entire ten-bounce repair budget
+  // treading water with five of its six criteria invisible to this function for
+  // exactly that reason.
+  //
+  // The extension is required to be lowercase: real extensions are (.ts, .md,
+  // .json), while prose that happens to run a period into a capitalised word
+  // is not, and a false token here is the one failure mode this module must
+  // avoid — it would stop a task that is genuinely progressing.
+  for (const m of criterion.matchAll(FILE_TOKEN_RE)) {
+    const t = m[0];
     if (t.length >= MIN_TOKEN_LEN) tokens.add(t);
-    // Also index the basename: reasons often cite just `test-triage.test.ts`
-    // while the criterion spells the full path (task 614's actual reason #3).
-    const base = t.split(/[/\\]/).pop() ?? '';
+    // Reasons often cite just the basename while the criterion spells the full
+    // path.
+    const base = t.split(/[/\\\\]/).pop() ?? '';
     if (base.length >= MIN_TOKEN_LEN && base.includes('.')) tokens.add(base);
   }
   return [...tokens];
