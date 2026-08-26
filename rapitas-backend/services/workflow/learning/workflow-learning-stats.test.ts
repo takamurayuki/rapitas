@@ -24,10 +24,16 @@ mock.module('../../../config/logger', () => ({
 const activityLogFindMany = mock(() => Promise.resolve([] as unknown[]));
 const workflowLearningRecordCreate = mock((args: unknown) => Promise.resolve(args));
 const workflowLearningRecordFindMany = mock(() => Promise.resolve([] as unknown[]));
+// actualDurationMinutes is now WORK time — the sum of the task's executions —
+// not `completedAt - createdAt`, which counted backlog queueing as duration.
+const agentExecutionFindMany = mock(() =>
+  Promise.resolve([{ executionTimeMs: 6 * 60_000 }, { executionTimeMs: 4 * 60_000 }]),
+);
 
 mock.module('../../../config', () => ({
   prisma: {
     activityLog: { findMany: activityLogFindMany },
+    agentExecution: { findMany: agentExecutionFindMany },
     workflowLearningRecord: {
       create: workflowLearningRecordCreate,
       findMany: workflowLearningRecordFindMany,
@@ -99,7 +105,9 @@ describe('recordWorkflowCompletion', () => {
     const call = workflowLearningRecordCreate.mock.calls[0][0] as { data: Record<string, unknown> };
     expect(call.data.taskId).toBe(1);
     expect(call.data.workflowMode).toBe('standard');
-    expect(call.data.actualDurationMinutes).toBe(60);
+    // 6 + 4 minutes of execution. The fixture's task spans an hour of wall
+    // clock; that hour is lead time and no longer counts as duration.
+    expect(call.data.actualDurationMinutes).toBe(10);
     expect(call.data.outcome).toBe('completed');
     expect(call.data.success).toBe(true);
     expect(call.data.categoryId).toBe(5);
