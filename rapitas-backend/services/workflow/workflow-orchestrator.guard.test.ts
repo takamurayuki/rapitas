@@ -184,6 +184,13 @@ mock.module('../agent-config/defaults', () => ({
 
 let lockAcquireResult = true;
 
+// Probe stage (task 673) always succeeds here — these tests exercise the
+// EARLIER lock/status guards, not probe behavior (see
+// workflow-orchestrator-preflight-probe.test.ts for that).
+mock.module('./workflow-orchestrator-preflight-probe', () => ({
+  runPreflightProbe: mock(() => Promise.resolve({ done: false })),
+}));
+
 // Import AFTER all mock.module calls.
 const { WorkflowOrchestrator, resolveSystemPromptContent } =
   await import('./workflow-orchestrator');

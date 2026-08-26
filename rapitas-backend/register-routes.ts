@@ -25,6 +25,7 @@ import {
   agentAvailabilityRoutes,
   providerCooldownsRoutes,
   recoveryMetricsRoutes,
+  probeMetricsRoutes,
   executionLogsRoutes,
   agentMetricsRouter,
   agentVersionManagementRoutes,
@@ -138,6 +139,7 @@ export function registerAllRoutes(app: Elysia): void {
   app.use(agentAvailabilityRoutes);
   app.use(providerCooldownsRoutes);
   app.use(recoveryMetricsRoutes);
+  app.use(probeMetricsRoutes);
   app.use(executionLogsRoutes);
   app.use(agentMetricsRouter);
   app.use(agentVersionManagementRoutes);

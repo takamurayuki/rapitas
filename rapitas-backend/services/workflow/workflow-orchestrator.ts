@@ -16,6 +16,7 @@ import {
 import { narrowWorkflowStatus } from './workflow-types.guards.generated';
 import { runPreflight } from './workflow-orchestrator-preflight';
 import { prepareAgentAndPrompt } from './workflow-orchestrator-agent-prep';
+import { runPreflightProbe } from './workflow-orchestrator-preflight-probe';
 import { guardPlanValidity } from './workflow-orchestrator-plan-guard';
 import {
   buildExecutionContext,
@@ -142,6 +143,9 @@ export class WorkflowOrchestrator {
     const prep = await prepareAgentAndPrompt(taskId, transition, currentStatus);
     if (prep.done) return prep.result;
     const { roleConfig, agentConfig, systemPromptContent } = prep;
+
+    const probe = await runPreflightProbe(taskId, transition.role, agentConfig, currentStatus);
+    if (probe.done) return probe.result;
 
     const guard = await guardPlanValidity(taskId, transition, workflowMode, language);
     if (guard.done) return guard.result;

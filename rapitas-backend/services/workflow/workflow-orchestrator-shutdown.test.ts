@@ -75,6 +75,7 @@ const mockPrisma = {
       }),
     ),
     update: mock(() => Promise.resolve({})),
+    updateMany: mock(() => Promise.resolve({ count: 1 })),
   },
   workflowRoleConfig: {
     findUnique: mock(() =>
@@ -211,6 +212,12 @@ mock.module('../ai/agent-fallback', () => ({
 // the fallback retry loop.
 mock.module('../ai/agent-error-classifier', () => ({
   classifyAgentError: mock(() => null),
+}));
+
+// Probe stage (task 673) always succeeds here — this test targets shutdown
+// error handling in the catch block, not probe behavior.
+mock.module('./workflow-orchestrator-preflight-probe', () => ({
+  runPreflightProbe: mock(() => Promise.resolve({ done: false })),
 }));
 
 // Import WorkflowOrchestrator AFTER all mock.module calls.
