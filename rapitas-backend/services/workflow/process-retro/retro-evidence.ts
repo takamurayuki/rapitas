@@ -267,6 +267,23 @@ export function isCleanRound(bundle: EvidenceBundle): boolean {
 }
 
 /**
+ * A single successful repair is the workflow doing its normal job, not a
+ * systemic process incident. Reviewing every such completion with an LLM was
+ * both noisy and expensive. Keep AI review for repeated repairs, replans,
+ * critic loops, anomalies, and genuine invariant violations.
+ */
+export function isRoutineSingleRepair(bundle: EvidenceBundle): boolean {
+  return (
+    bundle.repairCount === 1 &&
+    bundle.replanCount === 0 &&
+    bundle.criticRebounds === 0 &&
+    bundle.anomalyCount === 0 &&
+    bundle.criticFollowRejections === 0 &&
+    bundle.invariantCount === 0
+  );
+}
+
+/**
  * Build the full evidence bundle from raw rows and task metadata. Pure — the
  * same inputs always yield the same bundle (no DB, no clock).
  *

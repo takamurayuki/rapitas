@@ -118,13 +118,45 @@ describe('runSelfIncidentWatch', () => {
     expect(filed).toBe(1);
     expect(submitConcernMock).toHaveBeenCalledTimes(1);
     const input = submitConcernMock.mock.calls[0]?.[0] as Record<string, unknown>;
-    expect(input.dedupKey).toBe('self-incident:stagnation:546');
+    expect(input.dedupKey).toBe('self-incident:stagnation');
     expect(input.source).toBe('self_incident_watch');
     expect(input.originTaskId).toBe(546);
     expect(input.type).toBe('bug');
     expect(input.severity).toBe('medium');
     expect(String(input.detail)).toContain('## 直近の遷移タイムライン(最大10件)');
     expect(String(input.detail)).toContain('## 検出条件');
+  });
+
+  test('two tasks with the same signature share one dedupKey', async () => {
+    // 実測 2026-08-27: dedupKey にタスクIDを含めていたため、4種類の欠陥が
+    // 41件の懸念になり、それぞれが別のタスクに昇格していた。「#646 が33分停滞」
+    // と「#624 が31分停滞」は同じ欠陥を2回見ただけで、直し方は同じ。
+    const now = nextPassTime();
+    taskFindManyMock.mockResolvedValue([
+      stagnantTask(now, { id: 700 }),
+      stagnantTask(now, { id: 701 }),
+    ]);
+
+    await runSelfIncidentWatch(now);
+
+    const keys = submitConcernMock.mock.calls.map(
+      (c) => (c[0] as Record<string, unknown>).dedupKey,
+    );
+    expect(new Set(keys).size).toBe(1);
+    expect(keys[0]).toBe('self-incident:stagnation');
+  });
+
+  test('the title names the defect, not one task', async () => {
+    // タイトルがそのまま昇格タスクの題になる。特定タスクを名指しすると、
+    // 集約された懸念の題が最初の1件に固定されて誤解を招く。
+    const now = nextPassTime();
+    taskFindManyMock.mockResolvedValue([stagnantTask(now, { id: 700 })]);
+
+    await runSelfIncidentWatch(now);
+
+    const title = String((submitConcernMock.mock.calls[0]?.[0] as Record<string, unknown>).title);
+    expect(title).not.toContain('#700');
+    expect(title).toContain('停滞');
   });
 
   test('files a tri-state desync concern for todo × advanced workflow', async () => {
@@ -142,7 +174,7 @@ describe('runSelfIncidentWatch', () => {
 
     expect(filed).toBe(1);
     const input = submitConcernMock.mock.calls[0]?.[0] as Record<string, unknown>;
-    expect(input.dedupKey).toBe('self-incident:tristate-desync:todo-workflow-advanced:541');
+    expect(input.dedupKey).toBe('self-incident:tristate-desync:todo-workflow-advanced');
     expect(input.severity).toBe('high');
   });
 
@@ -210,7 +242,7 @@ describe('runSelfIncidentWatch', () => {
 
     expect(filed).toBe(1);
     const input = submitConcernMock.mock.calls[0]?.[0] as Record<string, unknown>;
-    expect(input.dedupKey).toBe('self-incident:tristate-desync:todo-workflow-advanced:633');
+    expect(input.dedupKey).toBe('self-incident:tristate-desync:todo-workflow-advanced');
   });
 
   // Past the grace window the shape is no longer a settling heal: BOTH the
@@ -247,8 +279,8 @@ describe('runSelfIncidentWatch', () => {
     const keys = submitConcernMock.mock.calls.map(
       (c) => (c[0] as Record<string, unknown>).dedupKey,
     );
-    expect(keys).toContain('self-incident:tristate-desync:todo-workflow-advanced:634');
-    expect(keys).toContain('self-incident:stagnation:634');
+    expect(keys).toContain('self-incident:tristate-desync:todo-workflow-advanced');
+    expect(keys).toContain('self-incident:stagnation');
   });
 
   test('files a repeat-loop concern keyed by the looping cause', async () => {
@@ -271,7 +303,7 @@ describe('runSelfIncidentWatch', () => {
 
     expect(filed).toBe(1);
     const input = submitConcernMock.mock.calls[0]?.[0] as Record<string, unknown>;
-    expect(input.dedupKey).toBe('self-incident:repeat-loop:ci_repair:99');
+    expect(input.dedupKey).toBe('self-incident:repeat-loop:ci_repair');
     expect(String(input.title)).toContain('反復ループ');
   });
 
@@ -352,7 +384,7 @@ describe('runSelfIncidentWatch', () => {
     expect(filed).toBe(1);
     expect(submitConcernMock).toHaveBeenCalledTimes(2);
     const second = submitConcernMock.mock.calls[1]?.[0] as Record<string, unknown>;
-    expect(second.dedupKey).toBe('self-incident:stagnation:102');
+    expect(second.dedupKey).toBe('self-incident:stagnation');
   });
 
   test('a second call inside the throttle interval is skipped entirely', async () => {
@@ -396,7 +428,7 @@ describe('runSelfIncidentWatch', () => {
 
     expect(filed).toBe(1);
     const input = submitConcernMock.mock.calls[0]?.[0] as Record<string, unknown>;
-    expect(input.dedupKey).toBe('self-incident:supervisor-cwd-mismatch:580');
+    expect(input.dedupKey).toBe('self-incident:supervisor-cwd-mismatch');
     expect(input.severity).toBe('high');
     const detail = String(input.detail);
     expect(detail).toContain('## 検出証拠');
@@ -430,7 +462,7 @@ describe('runSelfIncidentWatch', () => {
 
     expect(filed).toBe(1);
     const input = submitConcernMock.mock.calls[0]?.[0] as Record<string, unknown>;
-    expect(input.dedupKey).toBe('self-incident:supervisor-false-failure:581');
+    expect(input.dedupKey).toBe('self-incident:supervisor-false-failure');
     const detail = String(input.detail);
     expect(detail).toContain('## 検出証拠');
     expect(detail).toContain('時刻差: 57秒');

@@ -165,14 +165,23 @@ export function selectConcerns(findings: RetroFinding[]): RetroFinding[] {
 }
 
 /**
- * Build the stable concern dedup key. Deliberately contains NO task id —
- * systemic defects recur across tasks, so all tasks observing the same
- * category+slug collapse into one concern (submitConcern's dedup).
+ * Build the stable concern dedup key: one open finding per CATEGORY.
+ *
+ * Contains no task id — systemic defects recur across tasks. It no longer
+ * contains the slug either, because the slug is written by the model and it
+ * writes a new one each run for the same finding. Measured 2026-08-27: nine
+ * open concerns all said the repair loop was not converging and the verify
+ * criteria needed review, in nine different wordings, and each promoted to its
+ * own task.
+ *
+ * The category is the signature. Holding one open finding per category bounds
+ * that: a dismissed or resolved concern stops blocking, so the next retro files
+ * a fresh one once the current finding has been dealt with. The slug survives
+ * in the concern detail, so nothing about the finding is lost.
  *
  * @param category - Finding category. / カテゴリ
- * @param slug - Normalized slug. / 正規化slug
  * @returns The dedup key. / dedupキー
  */
-export function buildDedupKey(category: RetroCategory, slug: string): string {
-  return `retro:${category}:${slug}`;
+export function buildDedupKey(category: RetroCategory): string {
+  return `retro:${category}`;
 }
