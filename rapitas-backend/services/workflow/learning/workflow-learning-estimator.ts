@@ -5,6 +5,7 @@
  * learning record history when no optimisation rules have matched.
  * All logic is read-only against the database.
  */
+import { taskScopedRecordWhere } from './task-scoped-records';
 import { prisma } from '../../../config';
 
 /**
@@ -23,10 +24,13 @@ export async function estimateDurationFromHistory(
   mode: string,
   complexityScore: number,
 ): Promise<number> {
+  // Per-task rows only. Averaging one-phase durations into a whole-task
+  // estimate is what produced a 1-minute estimate for a 31-minute task.
   const where: Record<string, unknown> = {
     workflowMode: mode,
     success: true,
     actualDurationMinutes: { not: null },
+    ...taskScopedRecordWhere(),
   };
 
   if (themeId) {

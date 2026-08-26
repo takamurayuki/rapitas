@@ -8,6 +8,7 @@
  * fabricating numbers when history is below the sample threshold.
  * All persistence is fail-open: a prediction failure never breaks callers.
  */
+import { taskScopedRecordWhere } from './task-scoped-records';
 import { prisma } from '../../../config';
 import { createLogger } from '../../../config/logger';
 
@@ -160,8 +161,7 @@ export async function computeDurationPrediction(
     workflowMode: mode,
     success: true,
     actualDurationMinutes: { not: null },
-    estimatedDuration: { not: null },
-    complexityFactors: { not: '{}' },
+    ...taskScopedRecordWhere(),
   };
   if (themeId) {
     where.themeId = themeId;

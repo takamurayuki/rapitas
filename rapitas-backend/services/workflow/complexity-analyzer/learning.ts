@@ -27,7 +27,10 @@ export async function analyzeTaskComplexityWithLearning(
     const { prisma } = await import('../../../config');
 
     // Fetch learning records for the same theme
-    const where: Record<string, unknown> = { success: true };
+    // Per-task rows only for the duration average below: WorkflowLearningRecord
+    // also holds one row per EXECUTION, whose duration is a single phase.
+    const { taskScopedRecordWhere } = await import('../learning/task-scoped-records');
+    const where: Record<string, unknown> = { success: true, ...taskScopedRecordWhere() };
     if (input.themeId) where.themeId = input.themeId;
 
     const records = await prisma.workflowLearningRecord.findMany({

@@ -196,3 +196,31 @@ describe('getDirectInsight — recommendation', () => {
     });
   });
 });
+
+describe('母集団のスコープ (task 667 実測)', () => {
+  test('実行単位の行を母集団から除外する', async () => {
+    // WorkflowLearningRecord はタスク単位と実行単位の2種類を持つ。
+    // 混ぜると 31分のタスクに 1分の見積が出る（2026-08-26 実測）。
+    durationRows = [{ actualDurationMinutes: 40, predictedComplexity: 50 }];
+
+    await estimateDurationFromHistory(1, 'standard', 50);
+
+    const where = capturedWhere as {
+      estimatedDuration?: { not: null };
+      complexityFactors?: { not: string };
+    };
+    expect(where.estimatedDuration).toEqual({ not: null });
+    expect(where.complexityFactors).toEqual({ not: '{}' });
+  });
+
+  test('スコープを絞ってもテーマとモードの条件は残る', async () => {
+    durationRows = [{ actualDurationMinutes: 40, predictedComplexity: 50 }];
+
+    await estimateDurationFromHistory(7, 'lightweight', 20);
+
+    const where = capturedWhere as { themeId?: number; workflowMode?: string; success?: boolean };
+    expect(where.themeId).toBe(7);
+    expect(where.workflowMode).toBe('lightweight');
+    expect(where.success).toBe(true);
+  });
+});
