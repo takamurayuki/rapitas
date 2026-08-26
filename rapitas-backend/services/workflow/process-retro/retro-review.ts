@@ -14,7 +14,12 @@ import { submitConcern } from '../../memory/concern-backlog-service';
 import { resolveSelfDevelopmentThemeId } from '../self-development-theme';
 import { appendEvent } from '../../memory/timeline';
 import { sendAIMessage } from '../../../utils/ai-client';
-import { buildEvidenceBundle, fetchRetroRows, isCleanRound } from './retro-evidence';
+import {
+  buildEvidenceBundle,
+  fetchRetroRows,
+  isCleanRound,
+  isRoutineSingleRepair,
+} from './retro-evidence';
 import { buildDedupKey, parseFindingsResult, selectConcerns } from './retro-parse';
 import { RETRO_SYSTEM_PROMPT, buildRetroPrompt, formatEvidenceSummary } from './retro-prompt';
 import { readRetroReviewEnabled } from './retro-settings-store';
@@ -53,6 +58,9 @@ function buildConcernDetail(
   return [
     '## 回顧所見(プロセス摩擦)',
     `- カテゴリ: ${finding.category} (${CATEGORY_LABELS[finding.category]})`,
+    // The slug no longer keys the dedup (the model writes a new one per run
+    // for the same finding), so it is recorded here instead of being lost.
+    `- 所見slug: ${finding.slug}`,
     `- 系統性: systemic / 深刻度: ${finding.severity}`,
     `- 検出日時: ${detectedAtIso} / 観測タスク: #${bundle.taskId}`,
     '',
@@ -107,6 +115,11 @@ export async function runProcessRetro(taskId: number): Promise<void> {
       return;
     }
 
+    if (isRoutineSingleRepair(bundle)) {
+      log.debug({ taskId }, '[process-retro] one successful routine repair - AI call skipped');
+      return;
+    }
+
     // One aux-AI call per task, no retry (the next completed task is the retry).
     const response = await sendAIMessage({
       provider: 'claude',
@@ -151,7 +164,7 @@ export async function runProcessRetro(taskId: number): Promise<void> {
         severity: finding.severity,
         originTaskId: taskId,
         source: 'process_retro',
-        dedupKey: buildDedupKey(finding.category, finding.slug),
+        dedupKey: buildDedupKey(finding.category),
       });
     }
     log.info(

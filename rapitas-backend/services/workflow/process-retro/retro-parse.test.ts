@@ -140,15 +140,22 @@ describe('selectConcerns', () => {
 });
 
 describe('buildDedupKey', () => {
-  test('retro:<category>:<slug> 形式でtaskIdを含まない', () => {
-    const key = buildDedupKey('critic_loop', 'same-reason-revival');
-    expect(key).toBe('retro:critic_loop:same-reason-revival');
+  test('retro:<category> 形式でtaskIdを含まない', () => {
+    const key = buildDedupKey('critic_loop');
+    expect(key).toBe('retro:critic_loop');
     expect(key).not.toMatch(/\d{2,}/);
   });
 
   test('全カテゴリでprefixが安定している', () => {
     for (const cat of RETRO_CATEGORIES) {
-      expect(buildDedupKey(cat, 'abc')).toBe(`retro:${cat}:abc`);
+      expect(buildDedupKey(cat)).toBe(`retro:${cat}`);
     }
+  });
+
+  test('カテゴリが同じなら所見の文言が違っても1件に集約される', () => {
+    // 実測 2026-08-27: slug はモデルが毎回書き直すため、「修復ループが収束しない」
+    // という同一の所見が9通りの言い回しで9件の懸念になり、各々が別タスクに昇格した。
+    // カテゴリがシグネチャであり、同時に開くのはカテゴリごと1件でよい。
+    expect(buildDedupKey('repair_loop')).toBe(buildDedupKey('repair_loop'));
   });
 });

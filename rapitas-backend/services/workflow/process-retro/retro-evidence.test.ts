@@ -29,6 +29,7 @@ const {
   extractCriticReasons,
   isCriticFollowRejection,
   isCleanRound,
+  isRoutineSingleRepair,
   buildEvidenceBundle,
   fetchRetroRows,
 } = await import('./retro-evidence');
@@ -446,6 +447,28 @@ describe('isCleanRound', () => {
     // 追随拒否単独でも AI レビュー対象に残ることを固定する。
     const b = bundle();
     expect(isCleanRound({ ...b, criticFollowRejections: 2 })).toBe(false);
+  });
+});
+
+describe('isRoutineSingleRepair', () => {
+  const bundle = (over: Partial<ReturnType<typeof buildEvidenceBundle>> = {}) => ({
+    ...buildEvidenceBundle([], { taskId: 1, title: 't' }),
+    ...over,
+  });
+
+  test('recognizes exactly one repair with no other process anomaly as routine', () => {
+    expect(isRoutineSingleRepair(bundle({ repairCount: 1 }))).toBe(true);
+  });
+
+  test.each([
+    ['repairCount', 2],
+    ['replanCount', 1],
+    ['criticRebounds', 1],
+    ['anomalyCount', 1],
+    ['criticFollowRejections', 1],
+    ['invariantCount', 1],
+  ] as const)('does not treat %s=%d as a routine single repair', (field, value) => {
+    expect(isRoutineSingleRepair(bundle({ repairCount: 1, [field]: value }))).toBe(false);
   });
 });
 

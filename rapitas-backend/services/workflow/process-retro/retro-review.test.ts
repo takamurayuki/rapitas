@@ -65,7 +65,8 @@ const row = (cause: string, atMs: number, toStatus = 'in_progress') => ({
 const dirtyRows = () => [
   row('file_saved:research', 0, 'research_done'),
   row('verify_repair', 60_000),
-  row('file_saved:verify', 120_000, 'completed'),
+  row('verify_repair', 120_000),
+  row('file_saved:verify', 180_000, 'completed'),
 ];
 
 const aiFinding = (over: Record<string, unknown> = {}) => ({
@@ -110,6 +111,19 @@ describe('runProcessRetro', () => {
     expect(submitConcern).not.toHaveBeenCalled();
   });
 
+  test('single routine repair is handled by code without an AI call', async () => {
+    transitionFindMany.mockResolvedValue([
+      row('file_saved:research', 0, 'research_done'),
+      row('verify_repair', 60_000),
+      row('file_saved:verify', 120_000, 'completed'),
+    ]);
+
+    await runProcessRetro(1);
+
+    expect(sendAIMessage).not.toHaveBeenCalled();
+    expect(submitConcern).not.toHaveBeenCalled();
+  });
+
   test('happy path: systemicなfindingがdedupKey付きで起票される', async () => {
     sendAIMessage.mockResolvedValue({
       content: JSON.stringify({ findings: [aiFinding()] }),
@@ -119,7 +133,7 @@ describe('runProcessRetro', () => {
     expect(sendAIMessage).toHaveBeenCalledTimes(1);
     expect(submitConcern).toHaveBeenCalledTimes(1);
     const arg = submitConcern.mock.calls[0][0] as Record<string, unknown>;
-    expect(arg.dedupKey).toBe('retro:repair_loop:verify-repair-thrash');
+    expect(arg.dedupKey).toBe('retro:repair_loop');
     expect(String(arg.dedupKey)).not.toContain('42');
     expect(arg.type).toBe('other');
     expect(arg.severity).toBe('high');
@@ -144,7 +158,7 @@ describe('runProcessRetro', () => {
     await runProcessRetro(1);
     expect(submitConcern).toHaveBeenCalledTimes(2);
     const keys = submitConcern.mock.calls.map((c: [Record<string, unknown>]) => c[0].dedupKey);
-    expect(keys).toEqual(['retro:critic_loop:the-urgent', 'retro:repair_loop:first-high']);
+    expect(keys).toEqual(['retro:critic_loop', 'retro:repair_loop']);
   });
 
   test('systemic=falseや閾値未満のみなら起票0(AIは1回呼ばれる)', async () => {
