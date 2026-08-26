@@ -18,8 +18,14 @@ mock.module('../../config/database', () => ({
   },
 }));
 
-const { lcsLen, findSaturatedTheme, charBigrams, bigramJaccard, findNearDuplicate } =
-  await import('./theme-saturation');
+const {
+  lcsLen,
+  findSaturatedTheme,
+  charBigrams,
+  bigramJaccard,
+  findNearDuplicate,
+  stripTitleMarkers,
+} = await import('./theme-saturation');
 
 describe('lcsLen', () => {
   test('共通部分文字列の最長長を返す', () => {
@@ -121,5 +127,51 @@ describe('findSaturatedTheme', () => {
       salient: 8,
     });
     expect(r).toBeNull(); // only 2 < cap 3
+  });
+});
+
+describe('書式マーカーは同一テーマとみなさない', () => {
+  test('角括弧のマーカーを除去する', () => {
+    expect(stripTitleMarkers('[Bug] 登録ポイントが競合する')).toBe('登録ポイントが競合する');
+    expect(stripTitleMarkers('[ログ:ERROR] git command failed')).toBe('git command failed');
+    expect(stripTitleMarkers('[自己検出] 停滞: 放置される')).toBe('停滞: 放置される');
+  });
+
+  test('[Bug] を共有するだけでは飽和と判定しない', async () => {
+    // 実測 2026-08-27: [Bug] はちょうど5文字（懸念の salient 長）で、開いている
+    // 懸念23件が保持していた。そのため新しい [Bug] 懸念はマーカーだけで cap=3 を
+    // 越え、呼び出し側には success を返しながら無言で捨てられていた。
+    pool = [
+      { id: 1, title: '[Bug] まったく別の話題A' },
+      { id: 2, title: '[Bug] まったく別の話題B' },
+      { id: 3, title: '[Bug] まったく別の話題C' },
+      { id: 4, title: '[Bug] まったく別の話題D' },
+    ];
+
+    const anchor = await findSaturatedTheme('[Bug] 登録ポイントが必ず競合する', {
+      sourceType: 'concern',
+      cap: 3,
+      salient: 5,
+      openConcernOnly: true,
+    });
+
+    expect(anchor).toBeNull();
+  });
+
+  test('本文が本当に重なっていれば従来どおり飽和と判定する', async () => {
+    pool = [
+      { id: 11, title: '[Bug] 境界値テスト自動生成が壊れる' },
+      { id: 12, title: '[Idea] 境界値テスト自動生成の改善' },
+      { id: 13, title: '[改善] 境界値テスト自動生成の整理' },
+    ];
+
+    const anchor = await findSaturatedTheme('[Bug] 境界値テスト自動生成をやり直す', {
+      sourceType: 'concern',
+      cap: 3,
+      salient: 5,
+      openConcernOnly: true,
+    });
+
+    expect(anchor).toBe(11);
   });
 });

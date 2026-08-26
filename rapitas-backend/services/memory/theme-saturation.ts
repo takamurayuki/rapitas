@@ -107,12 +107,35 @@ export interface SaturationOptions {
  * @param opts - Pool + thresholds. / 対象プールと閾値
  * @returns Anchor id when saturated, else null. / 飽和時はID、それ以外 null
  */
+/**
+ * Bracketed markers carried by nearly every filed title — `[Bug]`, `[Idea]`,
+ * `[自己検出]`, `[ログ:ERROR]`, `[回顧]` and friends.
+ *
+ * They say what KIND of row this is, never what it is ABOUT, so they must not
+ * count as shared theme. Measured 2026-08-27: `[Bug]` is exactly five
+ * characters, the salient length for concerns, and 23 open concerns carried it
+ * — so every new `[Bug] …` concern tripped the cap of 3 on that marker alone
+ * and was silently dropped while the caller was told it had been filed.
+ */
+const TITLE_MARKER_RE = /\[[^\]]{0,24}\]/g;
+
+/**
+ * Strip format markers so the saturation scan compares subject matter.
+ *
+ * @param title - Raw title. / 生のタイトル
+ * @returns The title with bracketed markers removed. / マーカー除去後のタイトル
+ */
+export function stripTitleMarkers(title: string): string {
+  return title.replace(TITLE_MARKER_RE, ' ').replace(/\s+/g, ' ').trim();
+}
+
 export async function findSaturatedTheme(
   title: string,
   opts: SaturationOptions,
 ): Promise<number | null> {
   const { sourceType, cap, salient, openConcernOnly } = opts;
-  if (title.trim().length < salient) return null;
+  const subject = stripTitleMarkers(title);
+  if (subject.length < salient) return null;
   const where: { sourceType: string; sourceId?: string } = { sourceType };
   if (openConcernOnly) where.sourceId = 'open';
   const rows = await prisma.knowledgeEntry
@@ -121,7 +144,7 @@ export async function findSaturatedTheme(
   let matches = 0;
   let anchor: number | null = null;
   for (const e of rows) {
-    if (lcsLen(title, e.title) >= salient) {
+    if (lcsLen(subject, stripTitleMarkers(e.title)) >= salient) {
       matches += 1;
       anchor = anchor ?? e.id;
       if (matches >= cap) return anchor;
