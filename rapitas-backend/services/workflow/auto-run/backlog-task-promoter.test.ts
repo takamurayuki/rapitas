@@ -138,6 +138,25 @@ describe('hasPromotableBacklog', () => {
     expect(await hasPromotableBacklog(1)).toBe(false);
   });
 
+  test('探索は開いている懸念全体から緊急を探す（バッチ先頭だけを見ない）', async () => {
+    // 実測 2026-08-27: 開いている懸念43件に対しバッチは1件で、一覧は新しい順。
+    // 緊急の懸念が先頭ページより後ろにあると、割り込ませるための判定から
+    // 完全に見えなかった。判定は専用クエリで開いている集合全体に問う。
+    mockUserSettingsFindFirst.mockResolvedValue({ autoCreateFromBacklogLimit: 1 });
+    mockTaskCount.mockResolvedValue(0);
+    mockListConcerns.mockClear();
+    mockListConcerns.mockResolvedValue({ concerns: [], total: 0 });
+    mockListIdeas.mockResolvedValue({ ideas: [], total: 0 });
+
+    await promoteBacklogForTheme(1);
+
+    const severityProbe = mockListConcerns.mock.calls
+      .map((c) => c[0] as { severity?: string; limit?: number })
+      .find((a) => a?.severity !== undefined);
+    expect(severityProbe).toBeDefined();
+    expect(severityProbe?.severity).toBe('urgent');
+  });
+
   test('treats a rejecting listConcerns/listIdeas as empty rather than throwing', async () => {
     mockUserSettingsFindFirst.mockResolvedValue({ autoCreateFromBacklogLimit: 2 });
     mockTaskCount.mockResolvedValue(0);

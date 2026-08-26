@@ -226,6 +226,20 @@ export async function promoteBacklogForTheme(themeId: number): Promise<number> {
   // the open list is newest-first, and the newest ideas are typically the
   // ones extracted from the task JUST executed (the monoculture source).
   const ideaPool = Math.min(30, Math.max(remaining * 5, 15));
+  // Does a CRITICAL concern exist anywhere in the open set? Asked with its own
+  // query on purpose: the batch below is capped at `remaining` (often 1), and
+  // the list is newest-first, so an urgent concern sitting anywhere past the
+  // first page was invisible to the override that exists to jump the queue for
+  // it. Measured 2026-08-27: 43 open concerns, batch size 1.
+  const criticalProbe = await Promise.all(
+    [...CRITICAL_CONCERN_SEVERITIES].map((severity) =>
+      listConcerns({ status: 'open', themeId, severity: severity as never, limit: 1 }).catch(
+        () => ({ concerns: [], total: 0 }),
+      ),
+    ),
+  );
+  const hasCriticalConcern = criticalProbe.some((r) => r.total > 0);
+
   const [concernList, ideaList, armStats, recentIdeaTitles] = await Promise.all([
     listConcerns({ status: 'open', themeId, limit: remaining }).catch(() => ({
       concerns: [],
@@ -264,7 +278,7 @@ export async function promoteBacklogForTheme(themeId: number): Promise<number> {
       idea: armStats.idea,
       openConcerns: concerns.length,
       openIdeas: ideas.length,
-      hasCriticalConcern: concerns.some((c) => CRITICAL_CONCERN_SEVERITIES.has(c.severity)),
+      hasCriticalConcern,
     });
     if (!arm) break;
 
