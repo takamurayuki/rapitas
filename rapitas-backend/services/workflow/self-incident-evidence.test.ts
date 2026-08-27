@@ -80,7 +80,12 @@ describe('gatherTaskState', () => {
     expect(state.timeline.map((t) => t.toStatus)).toEqual(['research_done', 'plan_created']);
     expect(state.latestTransitionAtMs).toBe(NOW - 5 * 60 * 1000);
     expect(state.windowedCauses).toEqual([
-      { cause: 'ci_repair', createdAtMs: NOW - 10 * 60 * 1000, actor: 'system' },
+      {
+        cause: 'ci_repair',
+        createdAtMs: NOW - 10 * 60 * 1000,
+        actor: 'system',
+        invariantViolation: false,
+      },
     ]);
     expect(state.latestSessionId).toBe(91);
     expect(state.latestSessionStatus).toBe('failed');
@@ -132,6 +137,28 @@ describe('gatherTaskState', () => {
     // The session query still contributed its fields.
     expect(state.latestSessionId).toBe(91);
     expect(state.latestExecutionStatus).toBe('completed');
+  });
+
+  test('propagates invariantViolation=true rows into windowedCauses (task 681 wiring)', async () => {
+    transitionFindManyMock.mockResolvedValueOnce([]).mockResolvedValueOnce([
+      {
+        cause: 'verify_pr_not_created',
+        createdAt: new Date(NOW - 10 * 60 * 1000),
+        actor: 'system',
+        invariantViolation: true,
+      },
+    ]);
+
+    const state = await gatherTaskState(task, NOW, WINDOW_MS);
+
+    expect(state.windowedCauses).toEqual([
+      {
+        cause: 'verify_pr_not_created',
+        createdAtMs: NOW - 10 * 60 * 1000,
+        actor: 'system',
+        invariantViolation: true,
+      },
+    ]);
   });
 
   test('queries the windowed causes with the window cutoff', async () => {

@@ -23,6 +23,17 @@ export const REPEAT_LOOP_MIN_COUNT =
   parseInt(process.env.RAPITAS_INCIDENT_LOOP_MIN_COUNT ?? '', 10) || 3;
 
 /**
+ * Minimum same-cause invariantViolation transitions within the window to count
+ * as a loop (default 2, lower than REPEAT_LOOP_MIN_COUNT). An invariantViolation
+ * is the system itself flagging a contract breach, a strong signal that does not
+ * need the general threshold's forgiveness-budget churn allowance (task 673: 2
+ * `verify_pr_not_created` invariantViolations 70s apart went undetected under
+ * the default minCount=3/window=60m).
+ */
+export const INVARIANT_REPEAT_LOOP_MIN_COUNT =
+  parseInt(process.env.RAPITAS_INCIDENT_INVARIANT_LOOP_MIN_COUNT ?? '', 10) || 2;
+
+/**
  * Grace period after a deliberate recovery transition during which the
  * `todo × advanced-workflow` shape is EXPECTED, not anomalous (default 30m).
  * Rationale (#636): requeueOrphanTasks resets status to 'todo' while keeping
@@ -246,6 +257,14 @@ export interface RepeatLoopTransition {
   createdAtMs: number;
   /** Who caused the transition (TransitionActor value, e.g. 'system'/'user'). */
   actor: string;
+  /**
+   * True when this transition was recorded as an invariant violation (system
+   * self-detected contract breach). Feeds an independent, lower-threshold
+   * detection path — see {@link INVARIANT_REPEAT_LOOP_MIN_COUNT}. Optional for
+   * backward compatibility with existing callers that don't set it (treated as
+   * false / not counted).
+   */
+  invariantViolation?: boolean;
 }
 
 /**
@@ -300,6 +319,7 @@ const REPAIR_BOUNCE_CAUSES = new Set(['verify_repair', 'ci_repair']);
  * @param input.taskStatus - Current task status; terminal statuses skip detection (undefined = not checked, for backward compatibility). / タスクの現在ステータス（終端状態は検出をスキップ）
  * @param input.windowMs - Window size (default 60m). / 集計窓
  * @param input.minCount - Detection threshold (default 3). / 検出しきい値
+ * @param input.invariantMinCount - Detection threshold for invariantViolation-flagged transitions only (default 2, see {@link INVARIANT_REPEAT_LOOP_MIN_COUNT}). / invariantViolation付き遷移専用のしきい値
  * @returns The dominant looping cause + count, or null. / 最多ループcauseまたはnull
  */
 export function detectRepeatLoop(input: {
@@ -308,10 +328,12 @@ export function detectRepeatLoop(input: {
   taskStatus?: string;
   windowMs?: number;
   minCount?: number;
+  invariantMinCount?: number;
 }): { cause: string; count: number } | null {
   if (input.taskStatus !== undefined && TERMINAL_TASK_STATUSES.has(input.taskStatus)) return null;
   const windowMs = input.windowMs ?? REPEAT_LOOP_WINDOW_MS;
   const minCount = input.minCount ?? REPEAT_LOOP_MIN_COUNT;
+  const invariantMinCount = input.invariantMinCount ?? INVARIANT_REPEAT_LOOP_MIN_COUNT;
   const windowStart = input.nowMs - windowMs;
 
   const windowed = input.transitions
@@ -340,9 +362,31 @@ export function detectRepeatLoop(input: {
     counts.set(t.cause, (counts.get(t.cause) ?? 0) + 1);
   }
 
+  // Independent invariantViolation counting path (task 673): raw per-cause
+  // counts of ONLY the transitions the system itself flagged as an invariant
+  // breach, bypassing forgivenessBudget entirely — a repeat verify_repair/
+  // ci_repair bounce should not "spend" budget that excuses a genuine
+  // contract violation from detection.
+  const invariantCounts = new Map<string, number>();
+  for (const t of windowed) {
+    if (t.invariantViolation === true) {
+      invariantCounts.set(t.cause, (invariantCounts.get(t.cause) ?? 0) + 1);
+    }
+  }
+
   let best: { cause: string; count: number } | null = null;
   for (const [cause, count] of counts) {
     if (count < minCount) continue;
+    if (
+      best === null ||
+      count > best.count ||
+      (count === best.count && cause.localeCompare(best.cause) < 0)
+    ) {
+      best = { cause, count };
+    }
+  }
+  for (const [cause, count] of invariantCounts) {
+    if (count < invariantMinCount) continue;
     if (
       best === null ||
       count > best.count ||
