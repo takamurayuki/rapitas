@@ -10,6 +10,7 @@
  */
 import { prisma } from '../../../config/database';
 import { createLogger } from '../../../config/logger';
+import { PR_RETRY_LIGHTWEIGHT_CAUSE } from '../blocked-task-policy';
 import type {
   CauseCounts,
   EvidenceBundle,
@@ -50,6 +51,24 @@ export const REPAIR_CAUSES = [
 export const REPLAN_CAUSES = ['plan_invalid_replan', 'plan_invalid_replan_exhausted'] as const;
 
 /**
+ * PR-creation-recovery causes, counted separately from REPAIR_CAUSES (task
+ * 713). NOT a strict subset: verify_pr_not_created is also in REPAIR_CAUSES,
+ * but PR_RETRY_LIGHTWEIGHT_CAUSE is not (changing REPAIR_CAUSES/TROUBLE_CAUSES
+ * membership is out of scope here — see outcome-telemetry.ts's "keep in sync"
+ * note). Both causes already have a bounded, dedicated auto-recovery path
+ * (blocked-pr-retry-recovery.ts) and a direct escalation criterion
+ * (blocked-task-policy.classifyBlockedExclusion's pr_recovery_exhausted, at
+ * MAX_PR_RECOVERY_ATTEMPTS total verify_pr_not_created occurrences) distinct
+ * from the content-repair bounce (verify_repair, handled by
+ * verify-self-repair.ts). Folding both into a
+ * single "repair" count previously made the retro AI mistake a PR-recovery
+ * task that later completed normally (task#705) for an ineffective
+ * content-repair loop (K-7246) — this counter lets the retro distinguish the
+ * two failure patterns instead of conflating them.
+ */
+export const PR_RECOVERY_CAUSES = ['verify_pr_not_created', PR_RETRY_LIGHTWEIGHT_CAUSE] as const;
+
+/**
  * Abnormal rejection causes. Source: workflow-handlers-files.ts
  * (rejected_resave_blocked / transition_rejected).
  */
@@ -82,8 +101,11 @@ export function isCriticFollowRejection(row: RetroTransitionRow): boolean {
 /**
  * Count cause-class occurrences plus invariant violations over a task's
  * transitions. Pure — replans are counted both in repairCount (superset) and
- * replanCount (drill-down for the replan_loop category). Critic-follow
- * rejections (see isCriticFollowRejection) are counted ONLY in
+ * replanCount (drill-down for the replan_loop lens). PR-recovery causes are
+ * counted independently in prRecoveryCount for the repair-effectiveness lens;
+ * only verify_pr_not_created also lands in repairCount (see PR_RECOVERY_CAUSES
+ * for why it is not a strict repairCount subset). Critic-follow rejections
+ * (see isCriticFollowRejection) are counted ONLY in
  * criticFollowRejections — excluded from anomalyCount, because they are the
  * designed self-repair chain, not abnormal causes. invariantCount likewise
  * excludes critic-bounce causes (already in criticRebounds — counting them
@@ -97,12 +119,14 @@ export function countCauses(rows: RetroTransitionRow[]): CauseCounts {
   const criticSet = new Set<string>(CRITIC_CAUSES);
   const repairSet = new Set<string>(REPAIR_CAUSES);
   const replanSet = new Set<string>(REPLAN_CAUSES);
+  const prRecoverySet = new Set<string>(PR_RECOVERY_CAUSES);
   const anomalySet = new Set<string>(ANOMALY_CAUSES);
 
   const counts: CauseCounts = {
     criticRebounds: 0,
     repairCount: 0,
     replanCount: 0,
+    prRecoveryCount: 0,
     anomalyCount: 0,
     criticFollowRejections: 0,
     invariantCount: 0,
@@ -112,6 +136,7 @@ export function countCauses(rows: RetroTransitionRow[]): CauseCounts {
     if (criticSet.has(r.cause)) counts.criticRebounds++;
     if (repairSet.has(r.cause)) counts.repairCount++;
     if (replanSet.has(r.cause)) counts.replanCount++;
+    if (prRecoverySet.has(r.cause)) counts.prRecoveryCount++;
     if (criticFollow) counts.criticFollowRejections++;
     if (anomalySet.has(r.cause) && !criticFollow) counts.anomalyCount++;
     if (r.invariantViolation && !criticSet.has(r.cause) && !criticFollow) counts.invariantCount++;
