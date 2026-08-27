@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { AlarmClock, Bell, BookOpen, Check, CheckCheck, Library, ListPlus, X } from 'lucide-react';
 import Link from 'next/link';
+import { checkIsTaskDetailPage } from '@/components/header/types';
 import { useTranslations } from 'next-intl';
 import { useNotifications } from '@/feature/developer-mode/hooks/useNotifications';
 import type { Notification } from '@/types';
@@ -26,6 +27,30 @@ const typeIcons: Record<string, string> = {
   knowledge_reminder: 'bg-amber-100 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400',
   memo_reminder: 'bg-indigo-100 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400',
 };
+
+/**
+ * Keep the header visible when a notification opens a task.
+ *
+ * The task-detail page hides the global header unless `showHeader=true` is
+ * present — that is deliberate, and every other in-app route into it says so
+ * (ExecutionItem, QuickActions, DayEventsSidebar). Notification links were
+ * stored as bare `/tasks/<id>`, so following one dropped the header and left
+ * no way back.
+ *
+ * Applied at navigation time rather than when the notification is written, so
+ * the notifications already in the database are fixed too.
+ *
+ * @param link - The notification's stored link. / 通知に保存されたリンク
+ * @returns The link, with showHeader=true when it opens a task detail page. / 必要なら付与したリンク
+ */
+export function withHeaderVisible(link: string): string {
+  const [path, query] = link.split('?');
+  if (!checkIsTaskDetailPage(path)) return link;
+  const params = new URLSearchParams(query ?? '');
+  if (params.has('showHeader')) return link;
+  params.set('showHeader', 'true');
+  return `${path}?${params.toString()}`;
+}
 
 export default function NotificationBell() {
   const t = useTranslations('notification');
@@ -162,7 +187,7 @@ export default function NotificationBell() {
                 >
                   {notification.link ? (
                     <Link
-                      href={notification.link}
+                      href={withHeaderVisible(notification.link)}
                       role="menuitem"
                       onClick={() => handleNotificationClick(notification)}
                       className="block px-4 py-3 hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-colors"
