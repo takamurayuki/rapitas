@@ -15,6 +15,13 @@ const mockRunBatch = mock(() => Promise.resolve({ checked: 0, updated: 0 })) as 
 
 // HACK(agent): bun の mock.module はプロセスグローバルなため、バレルの全エクスポートを
 // ミラーしないと他 import が "export not found" をスローする。
+// The scheduler also sweeps pending filings; stub it so these tests measure the
+// interval behaviour rather than the ledger.
+const mockSettleFilings = mock(() => Promise.resolve({ checked: 0, settled: 0 }));
+mock.module('../decision-ledger/settle-filing', () => ({
+  settleFilingDecisions: mockSettleFilings,
+}));
+
 mock.module('../observability/decision-trace', () => ({
   runConsistencyCheckBatch: mockRunBatch,
   recordDecision: () => Promise.resolve(),

@@ -88,6 +88,21 @@ export class DecisionTraceConsistencyScheduler {
 
   /** Runs one check cycle; the batch itself already swallows DB errors. */
   private async runOnce(): Promise<void> {
+    // Filings settle on a different clock from executions: their PR merges well
+    // after the task ends, so a decision left pending at task outcome has to be
+    // asked about again. Swept here rather than on a scheduler of its own —
+    // several settlement points and a disagreement between them leaves no way
+    // to tell which verdict was the real one.
+    try {
+      const { settleFilingDecisions } = await import('../decision-ledger/settle-filing');
+      const filings = await settleFilingDecisions();
+      if (filings.settled > 0) {
+        logger.info(`[DecisionTraceConsistencyScheduler] Filing sweep settled ${filings.settled}`);
+      }
+    } catch (err) {
+      logger.warn({ err }, '[DecisionTraceConsistencyScheduler] Filing sweep failed (non-fatal)');
+    }
+
     const { checked, updated } = await runConsistencyCheckBatch();
     if (checked > 0) {
       logger.info(

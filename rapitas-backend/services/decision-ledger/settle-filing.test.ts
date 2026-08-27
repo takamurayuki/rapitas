@@ -8,10 +8,13 @@
 import { describe, test, expect, mock, beforeEach } from 'bun:test';
 
 const noopLogger = { info: () => {}, warn: () => {}, error: () => {}, debug: () => {} };
-const traceFindMany = mock((): Promise<{ id: number; nodeKey: string }[]> => Promise.resolve([]));
+const traceFindMany = mock(
+  (): Promise<{ id: number; nodeKey: string; taskId: number | null }[]> => Promise.resolve([]),
+);
 const traceUpdateMany = mock(() => Promise.resolve({ count: 1 }));
 const taskFindUnique = mock(
-  (): Promise<{ status: string } | null> => Promise.resolve({ status: 'done' }),
+  (): Promise<{ status: string; updatedAt: Date } | null> =>
+    Promise.resolve({ status: 'done', updatedAt: new Date() }),
 );
 const prFindFirst = mock((): Promise<{ state: string } | null> => Promise.resolve(null));
 
@@ -31,8 +34,8 @@ mock.module('../../config/logger', () => ({
 
 const { settleFilingDecisions } = await import('./settle-filing');
 
-const FILING = { id: 91, nodeKey: 'task666:task-filing:1' };
-const ROUTING = { id: 92, nodeKey: 'task666:model-route:1' };
+const FILING = { id: 91, nodeKey: 'task666:task-filing:1', taskId: 666 };
+const ROUTING = { id: 92, nodeKey: 'task666:model-route:1', taskId: 666 };
 
 /** The verdict written by the last updateMany call. */
 function lastVerdict(): { consistency: string; consistencyNote: string } {
@@ -46,7 +49,7 @@ describe('settleFilingDecisions', () => {
   beforeEach(() => {
     traceFindMany.mockReset().mockResolvedValue([FILING]);
     traceUpdateMany.mockReset().mockResolvedValue({ count: 1 });
-    taskFindUnique.mockReset().mockResolvedValue({ status: 'done' });
+    taskFindUnique.mockReset().mockResolvedValue({ status: 'done', updatedAt: new Date() });
     prFindFirst.mockReset().mockResolvedValue(null);
   });
 
@@ -57,15 +60,36 @@ describe('settleFilingDecisions', () => {
     expect(lastVerdict().consistency).toBe('consistent');
   });
 
-  test('done with nothing merged is unjudgeable, not a success', async () => {
+  test('done with no PR at all is unjudgeable, not a success', async () => {
     await settleFilingDecisions(666);
 
     // Closing a task is not evidence the filing was worth making.
     expect(lastVerdict().consistency).toBe('skipped');
   });
 
-  test('a blocked task means the filing produced nothing', async () => {
-    taskFindUnique.mockResolvedValue({ status: 'blocked' });
+  test('done with a PR still open stays pending — the outcome is coming', async () => {
+    // Measured 2026-08-27: four filings whose PRs later merged were on record as
+    // having produced nothing, because they were judged while the PR was open.
+    prFindFirst.mockResolvedValue({ state: 'open' });
+
+    expect(await settleFilingDecisions(666)).toEqual({ checked: 1, settled: 0 });
+    expect(traceUpdateMany).not.toHaveBeenCalled();
+  });
+
+  test('a freshly blocked task settles nothing — blocked is retryable', async () => {
+    // Task 672 was blocked, retried and ran again. A verdict written the moment
+    // it blocks is a guess about a story that has not ended.
+    taskFindUnique.mockResolvedValue({ status: 'blocked', updatedAt: new Date() });
+
+    expect(await settleFilingDecisions(666)).toEqual({ checked: 1, settled: 0 });
+    expect(traceUpdateMany).not.toHaveBeenCalled();
+  });
+
+  test('a task blocked and untouched for days counts as abandoned', async () => {
+    taskFindUnique.mockResolvedValue({
+      status: 'blocked',
+      updatedAt: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000),
+    });
 
     await settleFilingDecisions(666);
 
@@ -73,7 +97,7 @@ describe('settleFilingDecisions', () => {
   });
 
   test('a task still running settles nothing yet', async () => {
-    taskFindUnique.mockResolvedValue({ status: 'in_progress' });
+    taskFindUnique.mockResolvedValue({ status: 'in_progress', updatedAt: new Date() });
 
     expect(await settleFilingDecisions(666)).toEqual({ checked: 1, settled: 0 });
     expect(traceUpdateMany).not.toHaveBeenCalled();
