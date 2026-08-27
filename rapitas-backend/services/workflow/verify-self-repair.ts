@@ -20,18 +20,12 @@ import {
   identifyIndictedCriteria,
   type ConvergenceVerdict,
 } from './verify-convergence';
-import { VERIFY_NON_CONVERGENCE_CAUSE } from './blocked-task-policy';
+import { VERIFY_NON_CONVERGENCE_CAUSE, DEFAULT_VERIFY_REPAIR_LIMIT } from './blocked-task-policy';
 
 const log = createLogger('workflow:verify-self-repair');
 
 /** WorkflowTransition.cause used to count + identify repair bounces. */
 const REPAIR_CAUSE = 'verify_repair';
-
-/** Default max verify→implement repair cycles before giving up and blocking. */
-const DEFAULT_MAX_VERIFY_REPAIRS = Math.max(
-  0,
-  parseInt(process.env.RAPITAS_MAX_VERIFY_REPAIRS ?? '2', 10) || 2,
-);
 
 export interface VerifyRepairResult {
   /** True when the workflow was bounced back to implement (caller must NOT block). */
@@ -46,8 +40,8 @@ export interface VerifyRepairResult {
    * Callers must treat this as "do nothing": neither bounce NOR block.
    */
   stale?: boolean;
-  /** True when the non-convergence cutoff already recorded its own transition — callers must skip their own recordTransition call (not the block side effects). */
-  cutoff?: boolean;
+  /** True when this call already recorded its own terminal transition (non-convergence cutoff) — callers must skip their own `verify_validation_failed` record to avoid double-recording (task 705). */
+  cutoffRecorded?: boolean;
 }
 
 /**
@@ -62,7 +56,7 @@ async function resolveMaxRepairs(): Promise<number> {
     verifyRepairLimit?: number | null;
   } | null;
   const v = s?.verifyRepairLimit;
-  return typeof v === 'number' && v >= 0 ? v : DEFAULT_MAX_VERIFY_REPAIRS;
+  return typeof v === 'number' && v >= 0 ? v : DEFAULT_VERIFY_REPAIR_LIMIT;
 }
 
 /**
@@ -403,7 +397,7 @@ export async function attemptVerifyRepair(
       { taskId, criterionIndex: verdict.criterionIndex, count: verdict.count },
       '[verify-repair] Repair loop not converging — cutting off (caller should block)',
     );
-    return { bounced: false, cutoff: true };
+    return { bounced: false, cutoffRecorded: true };
   }
 
   const attempt = prior + 1;

@@ -11,7 +11,7 @@ import { prisma } from '../../../../config';
 import { createLogger } from '../../../../config/logger';
 import type { WorkflowFileType } from '../../core/workflow-helpers';
 import { recordTransition } from '../../../../services/workflow/transition-recorder';
-import { markLatestExecutionFailed } from './shared';
+import { markLatestExecutionFailed, wasNonConvergenceCutoffJustRecorded } from './shared';
 
 const log = createLogger('routes:workflow:handlers:files');
 
@@ -270,11 +270,11 @@ export async function runAdversarialDiffReview(params: {
               '[Workflow] Adversarial diff review FAILED and repairs exhausted — task stays blocked',
             );
           }
-          // repair.cutoff means attemptVerifyRepair already recorded its own
-          // verify_repair_non_convergence transition (task 710) — recording a
-          // second adversarial_review_failed transition here would duplicate
-          // the WorkflowTransition row and inflate repeat-loop detection.
-          if (!repair.cutoff) {
+          // The non-convergence cutoff already recorded its OWN
+          // `verify_repair_non_convergence` transition for this rejection
+          // (verify-self-repair.ts) — recording `adversarial_review_failed`
+          // here too would duplicate it (task 674: two rows 43ms apart).
+          if (!(await wasNonConvergenceCutoffJustRecorded(taskId))) {
             await recordTransition({
               taskId,
               // newStatus is 'verify_done' here unless the bounce above rolled

@@ -102,6 +102,6 @@ describe('attemptVerifyRepair — stale-verdict CAS guard', () => {
     const result = await attemptVerifyRepair(551, 'verify_done', 'reason', 'verify body');
     expect(result.bounced).toBe(false);
     expect(result.stale).toBeUndefined();
-    expect(result.cutoff).toBeUndefined();
+    expect(result.cutoffRecorded).toBeUndefined();
   });
 });

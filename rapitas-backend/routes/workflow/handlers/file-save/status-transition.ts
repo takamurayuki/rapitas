@@ -13,7 +13,7 @@ import type { WorkflowFileType } from '../../core/workflow-helpers';
 import { researchConcludesNoChange } from '../../../../services/workflow/completion-gate';
 import { recordTransition } from '../../../../services/workflow/transition-recorder';
 import { checkWorkflowInvariants } from '../../../../services/workflow/workflow-invariants';
-import { markLatestExecutionFailed } from './shared';
+import { markLatestExecutionFailed, wasNonConvergenceCutoffJustRecorded } from './shared';
 
 const log = createLogger('routes:workflow:handlers:files');
 
@@ -188,12 +188,13 @@ export async function computeAndApplyStatusTransition(params: {
               taskId,
               `検証に失敗したためブロックしました: ${verifyValidation.summary}`,
             );
-            // repair.cutoff means attemptVerifyRepair already recorded its own
-            // verify_repair_non_convergence transition (task 710) — recording
-            // a second verify_validation_failed transition here would
-            // duplicate the WorkflowTransition row and inflate repeat-loop
-            // detection. The block/markLatestExecutionFailed above still run.
-            if (!repair.cutoff) {
+            // The non-convergence cutoff already recorded its OWN
+            // `verify_repair_non_convergence` transition for this rejection
+            // (verify-self-repair.ts) — recording `verify_validation_failed`
+            // here too would duplicate it (task 674: two rows 43ms apart;
+            // task 705 independently hit the same duplicate-record defect and
+            // converged on this same DB-read check during merge).
+            if (!(await wasNonConvergenceCutoffJustRecorded(taskId))) {
               await recordTransition({
                 taskId,
                 fromStatus: currentStatus ?? null,

@@ -27,6 +27,7 @@ const mockUpdate = mock(() => Promise.resolve({}));
 const mockUpdateMany = mock(() => Promise.resolve({ count: 1 }));
 const mockFindFirst = mock(() => Promise.resolve(null));
 const mockCreate = mock(() => Promise.resolve({}));
+const mockWorkflowTransitionFindFirst = mock(() => Promise.resolve(null));
 const mockPrisma = {
   task: {
     findUnique: mockFindUnique,
@@ -39,8 +40,10 @@ const mockPrisma = {
   activityLog: { create: mockCreate },
   // Used by the verify→complete PR gate to detect an already-existing PR.
   gitHubPullRequest: { findFirst: mock(() => Promise.resolve(null)) },
-  // Used by the validateVerify false-negative guard (priorVerifyPass check).
-  workflowTransition: { findFirst: mock(() => Promise.resolve(null)) },
+  // Used by the validateVerify false-negative guard (priorVerifyPass check)
+  // AND wasNonConvergenceCutoffJustRecorded (file-save/shared.ts) — both read
+  // the latest WorkflowTransition row for the task.
+  workflowTransition: { findFirst: mockWorkflowTransitionFindFirst },
   // Fallback source in resolvePreferredBaseBranch (task-resolver.ts) when the
   // task's theme has no defaultBranch — reached whenever mockFindUnique
   // resolves a task without a `theme` field for this test.
@@ -237,6 +240,8 @@ beforeEach(() => {
   // returning null means "not a conflict task" — the normal code path continues.
   mockFindUnique.mockResolvedValue(null);
   mockFindFirst.mockResolvedValue(null);
+  mockWorkflowTransitionFindFirst.mockReset();
+  mockWorkflowTransitionFindFirst.mockResolvedValue(null);
   existingResearchContent = null;
   mockValidateVerify.mockReset();
   mockValidateVerify.mockReturnValue({ ok: true, missingSections: [], severity: 0, summary: 'ok' });
@@ -759,12 +764,10 @@ describe('handleSaveFile — validateVerify 失敗によるバウンスは冗長
     expect(mockRecordTransition).not.toHaveBeenCalled();
   });
 
-  // Task 710: same double-record family as the bounce case above, but for the
-  // non-convergence cutoff path — attemptVerifyRepair() already recorded its
-  // own verify_repair_non_convergence transition, so the caller's generic
-  // verify_validation_failed transition must be skipped. Blocking (task.status
-  // update + markLatestExecutionFailed) still runs as before.
-  test('repair が cutoff:true のとき verify_validation_failed の二重記録をしないが blocked 化は行うこと', async () => {
+  // task 705: budget-exhausted (not the non-convergence cutoff) must still
+  // record verify_validation_failed exactly as before — only the cutoff case
+  // (below) is exempted.
+  test('repair 予算枯渇時（非収束カットオフではない）は従来どおり verify_validation_failed を1件記録すること', async () => {
     mockResolveWorkflowDir.mockResolvedValueOnce({
       task: { workflowStatus: 'in_progress', id: 1 },
       dir: '/fake/dir/1',
@@ -779,7 +782,7 @@ describe('handleSaveFile — validateVerify 失敗によるバウンスは冗長
       severity: 80,
       summary: 'verify.md self-contradicts',
     });
-    mockAttemptVerifyRepair.mockResolvedValueOnce({ bounced: false, cutoff: true });
+    mockAttemptVerifyRepair.mockResolvedValueOnce({ bounced: false });
 
     await handleSaveFile({
       params: { taskId: '1', fileType: 'verify' },
@@ -787,15 +790,61 @@ describe('handleSaveFile — validateVerify 失敗によるバウンスは冗長
       set: makeSet(),
     });
 
+    expect(mockRecordTransition).toHaveBeenCalledTimes(1);
+    expect(mockRecordTransition).toHaveBeenCalledWith(
+      expect.objectContaining({ cause: 'verify_validation_failed' }),
+    );
+  });
+
+  // Regression (task 674, independently converged on by task 705 during
+  // merge): the non-convergence cutoff inside attemptVerifyRepair already
+  // records its OWN `verify_repair_non_convergence` transition. Before this
+  // fix the caller could not see that and unconditionally recorded a SECOND
+  // `verify_validation_failed` transition milliseconds later for the exact
+  // same rejection — two rows for one event, tripping the repeat-loop
+  // detector. wasNonConvergenceCutoffJustRecorded() (file-save/shared.ts)
+  // detects this by reading the latest WorkflowTransition row instead of a
+  // flag on attemptVerifyRepair's return value.
+  test('直近のWorkflowTransitionが非収束カットオフなら、冗長な recordTransition を実行しないこと', async () => {
+    mockResolveWorkflowDir.mockResolvedValueOnce({
+      task: { workflowStatus: 'in_progress', id: 1 },
+      dir: '/fake/dir/1',
+      categoryId: null,
+      themeId: null,
+    });
+    mockFindMany.mockResolvedValueOnce([]);
+    mockCheckInvariants.mockResolvedValueOnce([]);
+    mockValidateVerify.mockReturnValueOnce({
+      ok: false,
+      missingSections: [],
+      severity: 80,
+      summary: '受入基準1が複数回の差し戻しで一度も対応されていない',
+    });
+    // 1st call = priorVerifyPass check (no prior pass); 2nd call =
+    // wasNonConvergenceCutoffJustRecorded reading the row attemptVerifyRepair
+    // (mocked below) just recorded.
+    mockWorkflowTransitionFindFirst.mockResolvedValueOnce(null);
+    mockWorkflowTransitionFindFirst.mockResolvedValueOnce({
+      cause: 'verify_repair_non_convergence',
+      createdAt: new Date(),
+    });
+    mockAttemptVerifyRepair.mockResolvedValueOnce({ bounced: false });
+
+    await handleSaveFile({
+      params: { taskId: '1', fileType: 'verify' },
+      body: 'verify content',
+      set: makeSet(),
+    });
+
+    // Blocking side effects still happen...
     expect(mockUpdate).toHaveBeenCalledWith(
       expect.objectContaining({
         where: { id: 1 },
         data: expect.objectContaining({ status: 'blocked' }),
       }),
     );
-    expect(mockRecordTransition).not.toHaveBeenCalledWith(
-      expect.objectContaining({ cause: 'verify_validation_failed' }),
-    );
+    // ...but the duplicate transition for the same rejection must not be recorded.
+    expect(mockRecordTransition).not.toHaveBeenCalled();
   });
 });
 
@@ -985,12 +1034,15 @@ describe('handleSaveFile — adversarial review FAIL with repairs exhausted', ()
     );
   });
 
-  // Task 710: attemptVerifyRepair() already recorded its own
-  // verify_repair_non_convergence transition when returning cutoff:true — the
-  // caller must not ALSO record an adversarial_review_failed transition for
-  // the same verdict (the task 674 double-count that triggered the false
-  // repeat-loop detection). Blocking (task.status update) still happens.
-  test('cutoff:true のとき adversarial_review_failed の二重記録をしないが blocked 化は行うこと', async () => {
+  // Regression (task 674): matches the timeline observed on task 674 —
+  // verify_repair_non_convergence and adversarial_review_failed recorded 43ms
+  // apart for the SAME cutoff. attemptVerifyRepair() already recorded the
+  // former; this handler must not ALSO record the latter.
+  // wasNonConvergenceCutoffJustRecorded() (file-save/shared.ts) detects this by
+  // reading the latest WorkflowTransition row instead of a flag on
+  // attemptVerifyRepair's return value (verify-self-repair.ts is a tamper-gate
+  // protected path — see task 704's second implementation pass).
+  test('直近のWorkflowTransitionが非収束カットオフなら、冗長な adversarial_review_failed 遷移を記録しないこと', async () => {
     mockResolveWorkflowDir.mockResolvedValueOnce({
       task: { workflowStatus: 'in_progress', id: 1 },
       dir: '/fake/dir/1',
@@ -1005,9 +1057,16 @@ describe('handleSaveFile — adversarial review FAIL with repairs exhausted', ()
     mockReviewDiffAdversarially.mockResolvedValueOnce({
       verdict: 'fail',
       severity: 92,
-      reasons: ['受入基準1が一切対応されていない'],
+      reasons: ['実装が空'],
     });
-    mockAttemptVerifyRepair.mockResolvedValueOnce({ bounced: false, cutoff: true });
+    mockAttemptVerifyRepair.mockResolvedValueOnce({ bounced: false });
+    // The only workflowTransition.findFirst call on this path is
+    // wasNonConvergenceCutoffJustRecorded's own read (validateVerify defaults
+    // to ok:true here, so status-transition.ts's priorVerifyPass check never runs).
+    mockWorkflowTransitionFindFirst.mockResolvedValueOnce({
+      cause: 'verify_repair_non_convergence',
+      createdAt: new Date(),
+    });
 
     await handleSaveFile({
       params: { taskId: '1', fileType: 'verify' },
