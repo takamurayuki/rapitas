@@ -57,6 +57,35 @@ export function judgeRecall(
     : { consistency: 'inconsistent', note: '注入したが1件も使われなかった' };
 }
 
+/** `ActivityLog.action` carrying one entry's usefulness on one recall. */
+export const ENTRY_USAGE_ACTION = 'knowledge_entry_usage';
+
+/**
+ * Record, per injected entry, whether the agent declared using it.
+ *
+ * Stored as activity rows rather than a new column: this is the outcome half of
+ * a decision already on record, and a fourth table would only add something
+ * else to keep in sync. Fail-open — settlement must not break on bookkeeping.
+ *
+ * @param taskId - Task the recall served. / 想起先タスク
+ * @param injected - Entry ids put into context. / 注入した知識ID
+ * @param used - Entry ids the agent declared using. / 使用宣言された知識ID
+ */
+async function recordEntryUsage(taskId: number, injected: number[], used: number[]): Promise<void> {
+  try {
+    const usedSet = new Set(used);
+    await prisma.activityLog.createMany({
+      data: injected.map((entryId) => ({
+        taskId,
+        action: ENTRY_USAGE_ACTION,
+        metadata: JSON.stringify({ entryId, used: usedSet.has(entryId) }),
+      })),
+    });
+  } catch (err) {
+    log.warn({ err, taskId }, '[decision-ledger] entry usage not recorded (non-fatal)');
+  }
+}
+
 /** Read the injected count and entry ids back out of a recorded recall. */
 function readRecall(inputMasked: string | null): { injected: number; entryIds: number[] } {
   try {
@@ -104,6 +133,10 @@ export async function settleKnowledgeDecisions(
         where: { id: row.id },
         data: { consistency: verdict.consistency, consistencyNote: verdict.note, verifiedAt: now },
       });
+      // The verdict says whether the RECALL helped; ranking needs to know which
+      // ENTRIES did. Recorded per entry here, at the one moment both the
+      // injected set and the declaration are in hand.
+      if (usage?.declared) await recordEntryUsage(taskId, entryIds, usage.used);
       settled += 1;
     }
     log.info({ taskId, settled }, '[decision-ledger] settled knowledge recalls');

@@ -14,6 +14,9 @@ const SNIPPET_LEN = 400;
 export type EntryOutcome = 'first_try' | 'completed' | 'blocked';
 
 /** A knowledge entry shaped for rendering. */
+/** Observations required before an entry's recall record affects its rank. */
+export const USEFULNESS_MIN_OBSERVATIONS = 3;
+
 export interface MemoryEntry {
   /** KnowledgeEntry id — rendered as K-<id> so agents can declare usage (R8). */
   id: number;
@@ -88,9 +91,30 @@ export const TEXT = {
  * @param outcomeByTaskId - Map of source taskId → outcome. / タスク別アウトカム
  * @returns Entries with `outcome` set, sorted by adjusted score. / 重み付け後の並び
  */
+/**
+ * How much an entry's own recall record moves its rank.
+ *
+ * The outcome weight above says the entry came from a task that went well. This
+ * says the entry has actually been USED when put in front of an agent — the
+ * causal question, and the one the recall decisions settle.
+ *
+ * Deliberately gentle, and deliberately silent on thin evidence: an entry with
+ * no record is NOT a useless entry, it is a new one, so absence must never be
+ * read as a low score. Below the observation floor the multiplier is exactly 1.
+ *
+ * @param u - The entry's record, if it has one. / 実績（あれば）
+ * @returns A multiplier in [0.7, 1.3]. / 乗数
+ */
+function usefulnessMultiplier(u?: { injected: number; used: number; rate: number }): number {
+  if (!u || u.injected < USEFULNESS_MIN_OBSERVATIONS) return 1;
+  // rate 0 → 0.7 (repeatedly offered, never used), rate 1 → 1.3.
+  return 0.7 + 0.6 * u.rate;
+}
+
 export function applyOutcomeWeighting(
   entries: MemoryEntry[],
   outcomeByTaskId: Map<number, EntryOutcome>,
+  usefulness?: Map<number, { injected: number; used: number; rate: number }>,
 ): MemoryEntry[] {
   return (
     entries
@@ -102,7 +126,10 @@ export function applyOutcomeWeighting(
         const base = e.similarity > 0 ? e.similarity : (e.lexicalScore ?? 0);
         return {
           entry: { ...e, outcome },
-          score: base * (outcome ? OUTCOME_MULTIPLIER[outcome] : 1),
+          score:
+            base *
+            (outcome ? OUTCOME_MULTIPLIER[outcome] : 1) *
+            usefulnessMultiplier(usefulness?.get(e.id)),
         };
       })
       // Tie-break on title then content: MemoryEntry has no id, and two entries

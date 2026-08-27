@@ -204,7 +204,13 @@ export async function buildMemoryContext(
       .map((e) => e.sourceTaskId)
       .filter((id): id is number => typeof id === 'number');
     const outcomes = await fetchOutcomes(sourceTaskIds);
-    const ranked = applyOutcomeWeighting(entries, outcomes);
+    // Second signal: has each entry actually been USED when recalled before?
+    // The outcome weight only knows the entry came from a task that went well.
+    // Settled recall decisions know whether anyone has ever reached for it.
+    const usefulness = await import('../decision-ledger')
+      .then(({ knowledgeUsefulness }) => knowledgeUsefulness(entries.map((e) => e.id)))
+      .catch(() => undefined);
+    const ranked = applyOutcomeWeighting(entries, outcomes, usefulness);
 
     let section = renderMemorySection(ranked, language);
     // Episodic recall: recent failure episodes for this theme. The episode
@@ -216,8 +222,14 @@ export async function buildMemoryContext(
     if (episodes) section = section ? `${section}\n\n${episodes}` : episodes;
     if (section) {
       log.info(
-        { taskId, themeId, count: ranked.length, weighted: outcomes.size },
-        '[memory-context] Injected prior knowledge (outcome-weighted)',
+        {
+          taskId,
+          themeId,
+          count: ranked.length,
+          weighted: outcomes.size,
+          withUsageRecord: usefulness?.size ?? 0,
+        },
+        '[memory-context] Injected prior knowledge (outcome- and usage-weighted)',
       );
     }
     return section;

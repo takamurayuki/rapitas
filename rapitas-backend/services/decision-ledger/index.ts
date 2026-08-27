@@ -15,6 +15,11 @@ export type {
 } from './types';
 export { readDecisions } from './query';
 export { tierOutcomesForRole, type TierOutcome } from './tier-outcomes';
+export {
+  knowledgeUsefulness,
+  MIN_OBSERVATIONS,
+  type EntryUsefulness,
+} from './knowledge-usefulness';
 export { settleDecisions, type SettlementResult } from './settle';
 export { recordFilingDecision, type FilingDecision } from './record-filing';
 export { recordRecallDecision, type RecallDecision } from './record-recall';
