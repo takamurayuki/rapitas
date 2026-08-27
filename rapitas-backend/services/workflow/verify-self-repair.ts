@@ -467,7 +467,8 @@ export async function attemptVerifyRepair(
 
 /**
  * Whether the most recent workflow transition for this task is a fresh
- * verify-phase rejection — a self-repair bounce or an adversarial-review FAIL.
+ * verify-phase rejection — a self-repair bounce, an adversarial-review FAIL,
+ * a non-convergence cutoff, or a failed PR-creation attempt (see rejectionCauses).
  *
  * The CLI executor's verify epilogue runs AFTER the agent's HTTP verify.md save,
  * so a bounce recorded during that save must veto the epilogue's commit/PR/
@@ -494,8 +495,16 @@ export async function hasFreshVerifyRejection(
   if (!last) return false;
   // NOTE: VERIFY_NON_CONVERGENCE_CAUSE counts as a rejection too — a cutoff
   // task (task 619) is blocked-for-escalation and must not be completed by a
-  // late executor epilogue any more than a bounced one.
-  const rejectionCauses = [REPAIR_CAUSE, 'adversarial_review_failed', VERIFY_NON_CONVERGENCE_CAUSE];
+  // late executor epilogue any more than a bounced one. 'verify_pr_not_created'
+  // is also a rejection: the HTTP file-save gate (verify-commit-pr-pipeline.ts)
+  // already tried and failed to produce a PR — without it here, the executor
+  // epilogue re-runs the same doomed PR attempt a second time (task 673).
+  const rejectionCauses = [
+    REPAIR_CAUSE,
+    'adversarial_review_failed',
+    VERIFY_NON_CONVERGENCE_CAUSE,
+    'verify_pr_not_created',
+  ];
   if (!rejectionCauses.includes(last.cause)) return false;
   return Date.now() - last.createdAt.getTime() <= windowMs;
 }
