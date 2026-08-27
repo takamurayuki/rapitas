@@ -227,6 +227,30 @@ export function validateVerify(content: string): ValidationResult {
   // once as "自動検証の scope ❌ 4件は §残課題 で扱う" [a pointer, no dismissal word
   // on that line] and once in the 残課題 table itself with "…偽陽性" — and was
   // blocked as a hallucinated pass after the repair budget ran out).
+  // The workflow instruction handed to the verifier explicitly SANCTIONS one
+  // shape of honest failure: when the cause sits in a file outside plan.md
+  // (a pre-existing broken test, an unrelated lint error), the verifier is told
+  // NOT to fix it, to file it via `POST /concerns`, to say so in verify.md, and
+  // to complete on the in-scope changes alone. Written as instructed, that
+  // report necessarily reads "❌ … 本タスクとは無関係な既存失敗" beside a summary
+  // saying the in-scope tests pass — exactly the shape this gate reads as a
+  // hallucinated pass. Task 666 wrote it as instructed and was blocked through
+  // all ten repair rounds.
+  //
+  // Exempt such a line only when BOTH halves of the instruction are present:
+  // the line attributes the failure outside this task's diff, AND the document
+  // records the escalation the instruction requires. Attribution alone is one
+  // word an agent could reach for to dodge the gate; the paired escalation is
+  // not, and the adversarial diff review still scores the diff independently.
+  const documentsOutOfScopeEscalation =
+    /懸念(?:バックログ)?(?:に|へ)?\s*(?:起票|登録)|POST\s+\/concerns|concern[^\n]{0,20}\bfiled\b/i.test(
+      scanText,
+    );
+  const attributesFailureOutOfScope = (line: string): boolean =>
+    /(?:本タスク|当タスク|この(?:タスク|変更|差分))[^\n]{0,12}(?:とは)?\s*(?:無関係|関係(?:は)?な)|既存(?:の)?(?:失敗|不具合|バグ|エラー)|以前から(?:存在|あ)|スコープ外|範囲外|別タスク|pre[\s-]?existing|out[\s-]?of[\s-]?scope|unrelated/i.test(
+      line,
+    );
+
   const crossMarkFailure = scanText.split(/\r?\n/).some((line) => {
     if (!line.includes('❌')) return false;
     if (/❌\s*(?:の)?\s*(?:場合|とき|時|なら|ならば|であれば|if\b)/i.test(line)) return false;
@@ -237,6 +261,15 @@ export function validateVerify(content: string): ValidationResult {
     // (e.g. "scope ❌ 4件は §残課題 で扱う") is a forward-reference, not itself a
     // failure verdict — the referenced section is scanned/exempted separately.
     if (/残課題|フォローアップ/.test(line)) return false;
+    if (documentsOutOfScopeEscalation && attributesFailureOutOfScope(line)) return false;
+    // "❌ 適用不能" is a verdict that the item does not apply here, not a failing
+    // check. Feasibility tasks answer "does this idea map onto this codebase?"
+    // and a NO is the honest answer: task 602 reported four ❌ 適用不能 rows
+    // ("IMEに『解像度』『変換プリセット』の概念は存在しない") beside a passing
+    // summary, and was blocked as a hallucinated pass for four rounds.
+    if (/❌[^\n]{0,8}(?:適用不能|該当なし|非該当|対象外|N\/A|not\s+applicable)/i.test(line)) {
+      return false;
+    }
     return true;
   });
   if (crossMarkFailure) failureHits.push(['❌'] as unknown as RegExpMatchArray);
@@ -252,6 +285,12 @@ export function validateVerify(content: string): ValidationResult {
     const m = line.match(/\bexit(?:\s+code)?\s+1\b/i);
     if (!m) return false;
     if (/✅|合格|通過|成功|pass/i.test(line)) return false; // pass-asserting line
+    // A line enumerating BOTH exit codes is a spec of expected outcomes, not one
+    // run's result: task 647's DoD read "build 後 verify 一致→exit 0、改ざん→
+    // exit 1＋資産名". The trailing-prose guard below missed it because the next
+    // character is a fullwidth ＋ rather than a kana, so it blocked a passing
+    // report on the very behaviour the task implemented.
+    if (/\bexit(?:\s+code)?\s+0\b/i.test(line)) return false;
     const idx = m.index ?? 0;
     if (/[(（]$/.test(line.slice(Math.max(0, idx - 2), idx))) return false; // "(exit 1)"
     const after = line.slice(idx + m[0].length).replace(/^[)）\s]+/, '');

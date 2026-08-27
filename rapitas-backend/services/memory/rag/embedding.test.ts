@@ -11,8 +11,22 @@ const mockCreatePipeline = mock((_task: string, _model: string) =>
     return Promise.resolve({ data });
   }),
 );
+// Mirrors the real module's `env.backends.onnx.wasm` shape so
+// configureOnnxRuntime() has something to mutate (task #698 regression guard).
+// A getter (rather than a fixed object) lets individual tests swap in a
+// write-resistant stand-in to exercise the read-back verification path.
+let currentWasmConfig: Record<string, unknown> = {};
 mock.module('@xenova/transformers', () => ({
   pipeline: mockCreatePipeline,
+  env: {
+    backends: {
+      onnx: {
+        get wasm() {
+          return currentWasmConfig;
+        },
+      },
+    },
+  },
 }));
 mock.module('../../../config/logger', () => ({
   createLogger: () => ({ info: () => {}, error: () => {}, warn: () => {}, debug: () => {} }),
@@ -25,6 +39,7 @@ const {
   getActiveEmbeddingModel,
   getConfiguredEmbeddingModel,
   ensureEmbeddingReady,
+  isEmbeddingSubprocess,
   LEGACY_EMBEDDING_MODEL,
 } = await import('./embedding');
 
@@ -32,10 +47,12 @@ const {
 // every case from the code default and only opt in explicitly.
 beforeEach(() => {
   delete process.env.RAPITAS_EMBEDDING_MODEL;
+  currentWasmConfig = {};
   resetEmbeddingPipeline();
 });
 afterEach(() => {
   delete process.env.RAPITAS_EMBEDDING_MODEL;
+  currentWasmConfig = {};
   resetEmbeddingPipeline();
 });
 
@@ -91,6 +108,44 @@ describe('generateEmbedding', () => {
     // Active (actual) model differs from the configured one after a fallback.
     expect(getActiveEmbeddingModel()).toBe(LEGACY_EMBEDDING_MODEL);
     expect(getConfiguredEmbeddingModel()).toBe('Xenova/does-not-exist');
+  });
+});
+
+describe('configureOnnxRuntime (blob worker crash guard, task #698)', () => {
+  test('pins the ONNX runtime to a single WASM thread and disables the proxy worker', async () => {
+    resetEmbeddingPipeline();
+    currentWasmConfig = {};
+    await generateEmbedding('trigger init');
+    // Multi-threaded/proxied WASM spawns workers from blob URLs that Bun
+    // cannot open (ENOENT), crashing the process — see embedding.ts docs.
+    expect(currentWasmConfig.numThreads).toBe(1);
+    expect(currentWasmConfig.proxy).toBe(false);
+    expect(mockCreatePipeline).toHaveBeenCalled();
+  });
+
+  test('refuses the in-process pipeline when thread pinning cannot be verified', async () => {
+    resetEmbeddingPipeline();
+    mockCreatePipeline.mockClear();
+    // Simulates a future @xenova/transformers version whose wasm config
+    // object accepts writes but does not actually persist them — the
+    // "shape is not part of any contract we control" risk documented in
+    // embedding.ts. The write must appear to succeed (no throw) while the
+    // read-back still shows the multi-threaded default, so this exercises
+    // the verification branch, not the try/catch fallback.
+    currentWasmConfig = new Proxy(
+      {},
+      {
+        set: () => true,
+        get: () => undefined,
+      },
+    );
+    await ensureEmbeddingReady();
+    // Must NOT have taken the in-process path — that is exactly the path
+    // that crashes the backend when thread pinning silently fails.
+    expect(mockCreatePipeline).not.toHaveBeenCalled();
+    // Falls back to the subprocess (isolated process — a crash there cannot
+    // take down the backend the way an in-process blob worker crash does).
+    expect(isEmbeddingSubprocess()).toBe(true);
   });
 });
 

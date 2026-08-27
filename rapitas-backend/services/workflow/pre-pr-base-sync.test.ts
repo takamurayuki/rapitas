@@ -9,9 +9,10 @@ import { describe, it, expect, mock } from 'bun:test';
 import { syncBaseIntoBranch, type BaseSyncDeps } from './pre-pr-base-sync';
 
 type GitCall = string[];
+type GitCallWithOpts = { args: string[]; opts?: { skipLog?: boolean } };
 
 /**
- * Scripted git stub: responds per subcommand; records every call.
+ * Scripted git stub: responds per subcommand; records every call (args plus opts).
  * `failOn` makes the matching subcommand reject (simulates non-zero exit).
  */
 function makeGit(opts: {
@@ -19,10 +20,12 @@ function makeGit(opts: {
   mergeStdout?: string;
   conflictFiles?: string[];
   diffFiles?: string[];
-}): { runGit: BaseSyncDeps['runGit']; calls: GitCall[] } {
+}): { runGit: BaseSyncDeps['runGit']; calls: GitCall[]; callsWithOpts: GitCallWithOpts[] } {
   const calls: GitCall[] = [];
-  const runGit: BaseSyncDeps['runGit'] = async (args) => {
+  const callsWithOpts: GitCallWithOpts[] = [];
+  const runGit: BaseSyncDeps['runGit'] = async (args, _cwd, runOpts) => {
     calls.push(args);
+    callsWithOpts.push({ args, opts: runOpts });
     const sub = args.includes('merge')
       ? args.includes('--abort')
         ? 'merge-abort'
@@ -36,7 +39,7 @@ function makeGit(opts: {
     if (sub === 'diff') return (opts.diffFiles ?? []).join('\n');
     return '';
   };
-  return { runGit, calls };
+  return { runGit, calls, callsWithOpts };
 }
 
 function deps(overrides: Partial<BaseSyncDeps> & { runGit: BaseSyncDeps['runGit'] }): BaseSyncDeps {
@@ -116,7 +119,10 @@ describe('syncBaseIntoBranch', () => {
   });
 
   it('conflict → resolver fails → merge --abort → conflict_unresolved (no PR)', async () => {
-    const { runGit, calls } = makeGit({ failOn: ['merge'], conflictFiles: ['src/x.ts'] });
+    const { runGit, calls, callsWithOpts } = makeGit({
+      failOn: ['merge'],
+      conflictFiles: ['src/x.ts'],
+    });
     const resolveConflicts = mock().mockResolvedValue(false);
     const result = await syncBaseIntoBranch({
       gitCwd: '/wt',
@@ -127,10 +133,15 @@ describe('syncBaseIntoBranch', () => {
     expect(result.status).toBe('conflict_unresolved');
     expect(result.conflicts).toEqual(['src/x.ts']);
     expect(calls.some((c) => c.includes('merge') && c.includes('--abort'))).toBe(true);
+    // skipLog suppresses the spurious ERROR log for this best-effort, ignored-result abort.
+    const abortCall = callsWithOpts.find(
+      (c) => c.args.includes('merge') && c.args.includes('--abort'),
+    );
+    expect(abortCall?.opts?.skipLog).toBe(true);
   });
 
   it('merge fails WITHOUT content conflicts (infra) → skipped (fail-open)', async () => {
-    const { runGit, calls } = makeGit({ failOn: ['merge'], conflictFiles: [] });
+    const { runGit, calls, callsWithOpts } = makeGit({ failOn: ['merge'], conflictFiles: [] });
     const resolveConflicts = mock().mockResolvedValue(true);
     const result = await syncBaseIntoBranch({
       gitCwd: '/wt',
@@ -141,6 +152,10 @@ describe('syncBaseIntoBranch', () => {
     expect(result.status).toBe('skipped');
     expect(resolveConflicts).not.toHaveBeenCalled();
     expect(calls.some((c) => c.includes('merge') && c.includes('--abort'))).toBe(true);
+    const abortCall = callsWithOpts.find(
+      (c) => c.args.includes('merge') && c.args.includes('--abort'),
+    );
+    expect(abortCall?.opts?.skipLog).toBe(true);
   });
 
   it('clean merge but re-verification NG → reverify_failed (PR withheld)', async () => {

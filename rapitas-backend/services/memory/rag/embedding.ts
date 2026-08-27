@@ -100,19 +100,38 @@ async function loadDirect(
  * not.
  *
  * Written defensively: the config object is created empty by the library and
- * its shape is not part of any contract we control.
+ * its shape is not part of any contract we control. Because that contract can
+ * silently drift (a future @xenova/transformers version renaming or freezing
+ * this object), the write is read back rather than trusted — see
+ * {@link initPipeline}, which refuses in-process loading unless this returns
+ * true.
+ *
+ * @returns True when single-threaded pinning was verified in place. / スレッド固定を検証できたか
  */
-function configureOnnxRuntime(mod: unknown): void {
+function configureOnnxRuntime(mod: unknown): boolean {
   try {
     const wasm = (mod as { env?: { backends?: { onnx?: { wasm?: Record<string, unknown> } } } })
       ?.env?.backends?.onnx?.wasm;
-    if (!wasm) return;
+    if (!wasm) {
+      log.warn('ONNX WASM config surface not found — refusing in-process embedding');
+      return false;
+    }
     wasm.numThreads = 1;
     // `proxy` moves inference into a worker of its own — same blob path.
     wasm.proxy = false;
-    log.info('ONNX runtime pinned to a single WASM thread (no blob workers)');
+    const pinned = wasm.numThreads === 1 && wasm.proxy === false;
+    if (pinned) {
+      log.info('ONNX runtime pinned to a single WASM thread (no blob workers)');
+    } else {
+      log.warn(
+        { numThreads: wasm.numThreads, proxy: wasm.proxy },
+        'ONNX thread pinning did not take effect — refusing in-process embedding',
+      );
+    }
+    return pinned;
   } catch (err) {
-    log.warn({ err }, 'Could not pin ONNX thread count — worker crash risk remains');
+    log.warn({ err }, 'Could not pin ONNX thread count — refusing in-process embedding');
+    return false;
   }
 }
 
@@ -129,8 +148,14 @@ async function initPipeline(): Promise<void> {
     // Dynamic import of @xenova/transformers
     // NOTE: @xenova/transformers has no type declarations; dynamic import resolves to any
     const mod = await import('@xenova/transformers');
-    configureOnnxRuntime(mod);
-    createPipeline = mod.pipeline as PipelineFactory;
+    // Only take the in-process path once single-threaded pinning is verified —
+    // otherwise the multi-threaded WASM default spawns blob-URL workers that
+    // Bun cannot open (ENOENT), crashing the whole backend. Falling through
+    // with createPipeline left null routes to the subprocess fallback below,
+    // which isolates that same crash risk inside a disposable child process.
+    if (configureOnnxRuntime(mod)) {
+      createPipeline = mod.pipeline as PipelineFactory;
+    }
   } catch {
     createPipeline = null;
   }

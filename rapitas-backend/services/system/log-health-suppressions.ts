@@ -20,6 +20,8 @@ interface Suppression {
   test: RegExp;
   /** Restrict to one logger when the phrase alone is too broad. */
   logger?: RegExp;
+  /** When matched, this line is NOT suppressed even if `test` also matches. */
+  exclude?: RegExp;
   /** Why this line leaves nothing broken. Shown in the audit log. */
   because: string;
 }
@@ -83,9 +85,26 @@ const SUPPRESSIONS: Suppression[] = [
     because: '検証ゲートが不正な成果物を捕捉した — ゲートが働いた側',
   },
   {
+    // blockTaskForVerification が検証ゲートの発動を報告している行。止めた側であって、
+    // 壊れた側ではない。実測 2026-08-27: これがタスク685として起票され、直すべき
+    // バグが無いため、エージェントは「ERRORログを減らす」を出力抑制で達成しようとした。
+    // 存在しない欠陥を指示すると、症状を消す方向に流れる。
     test: /Automated verification failed — blocking/i,
     because:
-      '検証ゲートがlint/型エラーを検出しタスクをblockedにした — ゲートが働いた側。ブロックされたタスク自体はstatus=blockedとして通常のタスク一覧で可視化される',
+      '検証ゲートが基準未達を捕捉してタスクを止めた — ゲートが働いた側。ブロックされたタスク自体はstatus=blockedとして通常のタスク一覧で可視化される',
+  },
+  {
+    test: /no commits between/i,
+    logger: /github-service:client/i,
+    exclude: /base (?:sha|ref)|sha can't be blank|must be a branch/i,
+    because:
+      'gh pr create 対象ブランチに差分がない — isNoChangeCompletion が安全な無差分完了として扱う想定内の失敗',
+  },
+  {
+    // 実行の結末を記録する行。原因は当の実行自身のログに出ているので、
+    // ここから起票すると同じ事象が二重に上がる。
+    test: /Execution ended with status: failed/i,
+    because: '実行結果の記録 — 原因は当該実行のログ側に出ており、二重起票になる',
   },
 ];
 
@@ -107,6 +126,7 @@ export interface SuppressionVerdict {
 export function classifyLogSignature(name: string, normalizedMsg: string): SuppressionVerdict {
   for (const rule of SUPPRESSIONS) {
     if (rule.logger && !rule.logger.test(name)) continue;
+    if (rule.exclude && rule.exclude.test(normalizedMsg)) continue;
     if (rule.test.test(normalizedMsg)) return { suppressed: true, because: rule.because };
   }
   return { suppressed: false };

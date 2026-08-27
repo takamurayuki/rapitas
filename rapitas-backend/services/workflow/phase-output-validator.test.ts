@@ -543,3 +543,92 @@ Tests 2 passed | 4 failed
     });
   });
 });
+
+describe('validateVerify — スコープ外の既存失敗（task 666 実データ由来）', () => {
+  // 検証者への指示は「失敗原因が plan.md 記載外のファイルなら、修正せず懸念に
+  // 起票し、verify.md に明記した上でスコープ内の変更のみで完了してよい」。
+  // 指示どおり書くと必ず「❌ + スコープ内は全通過」の形になる。
+  const outOfScope = (extra: string) => `# 検証レポート
+## 検証結果サマリ
+lint・型チェックはエラー0件。スコープ内は all tests pass。
+## テスト結果
+| ファイル | 判定 | 件数 | 備考 |
+| --- | --- | --- | --- |
+| \`services/workflow/risk-detection.test.ts\` | ✅ | 12 / 12 | |
+| \`services/workflow/smart-router.test.ts\` | ❌ | 0 / 7 | 本タスクとは無関係な既存失敗 |
+## チェックリスト
+- ok
+${extra}`;
+
+  test('懸念起票を記録していれば、指示どおりの報告を通す', () => {
+    const doc = outOfScope(
+      '## 未解決の懸念事項\nスコープ外の既存失敗として懸念バックログに起票済み。',
+    );
+    expect(validateVerify(doc).ok).toBe(true);
+  });
+
+  test('起票の記録が無ければ、従来どおり自己矛盾として落とす', () => {
+    // 帰属だけを書いて逃げるのを許さない。指示は起票まで求めている。
+    const result = validateVerify(outOfScope(''));
+    expect(result.ok).toBe(false);
+    expect(result.summary).toContain('self-contradicts');
+  });
+
+  test('起票を記録していても、帰属の無い ❌ は落とす', () => {
+    const doc = `# 検証レポート
+## 検証結果サマリ
+テストは all tests pass。
+## テスト結果
+| \`services/workflow/risk-detection.test.ts\` | ❌ | 0 / 7 | 修正が必要 |
+## チェックリスト
+- ok
+## 未解決の懸念事項
+懸念バックログに起票済み。`;
+    const result = validateVerify(doc);
+    expect(result.ok).toBe(false);
+    expect(result.summary).toContain('self-contradicts');
+  });
+});
+
+describe('validateVerify — 失敗でない ❌ / exit 1（実データ由来）', () => {
+  const doc = (row: string, extra = '') => `# 検証レポート
+## 検証結果サマリ
+スコープ内は all tests pass。
+## テスト結果
+${row}
+## チェックリスト
+- ok
+${extra}`;
+
+  test('「❌ 適用不能」は失敗ではなく、当てはまらないという判定（task 602）', () => {
+    // IMEに「解像度」「変換プリセット」の概念が無い、という実現可能性の答え。
+    const row =
+      '| Random Forest等の分類モデルで履歴学習 | `Cargo.lock` にMLクレート無し | ❌ 適用不能 |';
+    expect(validateVerify(doc(row)).ok).toBe(true);
+  });
+
+  test('「❌ 対象外（適用不能）」も同様に通す（task 603）', () => {
+    const row = '| 段階的ロールバック機能 | ❌ 対象外（適用不能） | 該当なし |';
+    expect(validateVerify(doc(row)).ok).toBe(true);
+  });
+
+  test('修正が必要な ❌ は従来どおり落とす', () => {
+    const row = '| 認証トークンの失効処理 | ❌ 未実装 | 要修正 |';
+    const r = validateVerify(doc(row));
+    expect(r.ok).toBe(false);
+    expect(r.summary).toContain('self-contradicts');
+  });
+
+  test('exit 0 と exit 1 を併記した行は期待値の仕様記述（task 647）', () => {
+    // 「改ざん検知は exit 1 を返すべき」という DoD であって、失敗報告ではない。
+    const row = '| 統合DoD | build 後 verify 一致→exit 0、改ざん→exit 1＋資産名 |';
+    expect(validateVerify(doc(row)).ok).toBe(true);
+  });
+
+  test('exit 1 だけの実行結果は従来どおり落とす', () => {
+    const row = '| ビルド | npm run build → exit 1 |';
+    const r = validateVerify(doc(row));
+    expect(r.ok).toBe(false);
+    expect(r.summary).toContain('self-contradicts');
+  });
+});

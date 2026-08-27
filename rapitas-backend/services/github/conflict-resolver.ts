@@ -77,7 +77,9 @@ export async function resolvePrConflicts(
     } catch {
       /* ignore */
     }
-    await runGitCommand(['merge', '--abort'], wt).catch(() => {});
+    // NOTE: skipLog suppresses the ERROR runGitCommand would emit — this abort
+    // is best-effort cleanup and its result is never inspected by the caller.
+    await runGitCommand(['merge', '--abort'], wt, { skipLog: true }).catch(() => {});
     return {
       resolved: false,
       conflicts,

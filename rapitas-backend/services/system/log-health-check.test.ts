@@ -79,6 +79,36 @@ describe('groupEntries', () => {
     expect(groups[0].normalizedMsg).toContain('<path>');
   });
 
+  it('collapses command arguments so one failing command is one concern', () => {
+    // 実測 2026-08-27: `gh pr create` の失敗が3件の別々の懸念になっていた。
+    // 引数に含まれるタスク名でシグネチャが割れていたため。しかもその2件は
+    // 「以前の起票についての起票」で、引数が前のタスク名を運ぶので永久に畳めない。
+    const groups = groupEntries([
+      entry({
+        level: 50,
+        name: 'gh',
+        msg: 'gh command failed: gh pr create --title [Task-1] A --body x',
+      }),
+      entry({
+        level: 50,
+        name: 'gh',
+        msg: 'gh command failed: gh pr create --title [Task-2] B --body y',
+      }),
+    ]);
+    expect(groups).toHaveLength(1);
+    // どのコマンドが失敗したかは所見なので残す。何を渡したかは発生ごとの詳細。
+    expect(groups[0].normalizedMsg).toContain('gh pr create');
+    expect(groups[0].normalizedMsg).not.toContain('Task-');
+  });
+
+  it('keeps distinct commands distinct', () => {
+    const groups = groupEntries([
+      entry({ level: 50, name: 'gh', msg: 'gh command failed: gh pr create --title A' }),
+      entry({ level: 50, name: 'git', msg: 'git command failed: git merge --abort' }),
+    ]);
+    expect(groups).toHaveLength(2);
+  });
+
   it('drops a line that reports a guard doing its job', () => {
     // The health check files what is BROKEN. A refusal prevented the problem.
     const groups = groupEntries([
