@@ -1,0 +1,110 @@
+{
+  "github": {
+    "title": "GitHub連携",
+    "subtitle": "リポジトリの管理、PR/Issueの同期",
+    "issues": "Issue一覧",
+    "pullRequests": "プルリクエスト",
+    "noIssues": "Issueがありません",
+    "noPullRequests": "プルリクエストがありません",
+    "addIntegration": "連携を追加",
+    "cliAuthenticated": "GitHub CLI 認証済み",
+    "cliNotAuthenticated": "GitHub CLI は利用可能ですが、認証されていません。`gh auth login` を実行してください。",
+    "cliNotInstalled": "GitHub CLI がインストールされていません。",
+    "linkedRepos": "連携リポジトリ",
+    "noLinkedRepos": "連携されたリポジトリがありません",
+    "addRepo": "リポジトリを追加",
+    "openInGitHub": "GitHubで開く",
+    "sync": "同期",
+    "recentPR": "最近のPull Request",
+    "viewAll": "すべて見る",
+    "recentIssue": "最近のIssue",
+    "addGitHubIntegration": "GitHub連携を追加",
+    "repoUrl": "リポジトリURL",
+    "invalidRepoUrl": "有効なGitHubリポジトリURLを入力してください",
+    "addFailed": "連携の追加に失敗しました",
+    "adding": "追加中...",
+    "issuesSubtitle": "Issueの確認・タスク化",
+    "selectRepository": "リポジトリを選択",
+    "selectRepositoryPrompt": "リポジトリを選択してください",
+    "stateOpen": "Open",
+    "stateClosed": "Closed",
+    "stateAll": "すべて",
+    "viewTask": "タスクを見る",
+    "createTask": "タスク化",
+    "prsSubtitle": "Pull Requestの確認・レビュー",
+    "reviewCount": "レビュー数",
+    "commentCount": "コメント数",
+    "prNotFound": "PRが見つかりません",
+    "conversation": "会話",
+    "filesChanged": "ファイル変更",
+    "commentPlaceholder": "コメントを入力...",
+    "approve": "承認",
+    "requestChanges": "変更をリクエスト",
+    "comment": "コメント",
+    "status": "ステータス",
+    "reviews": "レビュー",
+    "changes": "変更",
+    "fileCount": "ファイル数",
+    "additions": "追加",
+    "deletions": "削除",
+    "settings": "設定",
+    "pickFromGh": "gh から選択",
+    "fetchRepos": "リポジトリを取得",
+    "reload": "再取得",
+    "repoListFailed": "リポジトリの取得に失敗しました（gh の認証を確認してください）",
+    "noReposFound": "アクセスできるリポジトリが見つかりませんでした",
+    "added": "追加済み",
+    "orAddManually": "または手動で追加",
+    "importAsConcern": "懸念として取り込み",
+    "concernLinked": "懸念を見る",
+    "jobSection": {
+      "stepsCount": "{count} ステップ",
+      "noSteps": "ステップ情報がありません"
+    },
+    "logViewer": {
+      "copyLog": "ログをコピー"
+    },
+    "stepRow": {
+      "noLogPlaceholder": "(ログがありません)",
+      "logNotFound": "このステップのログが見つかりませんでした。"
+    },
+    "workflowRunItem": {
+      "noJobs": "ジョブ情報がありません"
+    },
+    "actionsClient": {
+      "subtitle": "GitHub Actions の実行履歴",
+      "noRunsTitle": "このリポジトリにはまだワークフロー実行がありません",
+      "noRunsHint": "プッシュやプルリクエストでCIが走ると、ここに表示されます。",
+      "noIntegrationsTitle": "連携済みのリポジトリがありません",
+      "noIntegrationsHint": "リポジトリを連携すると、CIの実行状況をここで確認できます。",
+      "linkRepository": "リポジトリを連携"
+    },
+    "error": {
+      "title": "GitHub でエラーが発生しました",
+      "unexpectedError": "予期しないエラーが発生しました。"
+    },
+    "pullRequestDetail": {
+      "baseChanged": "マージ先を {baseBranch} に変更しました",
+      "baseChangeFailed": "マージ先の変更に失敗しました",
+      "baseSynced": "ベースを取り込み、ブランチを更新しました",
+      "conflictTaskCreated": "競合があります（{count}件）。解消タスク #{taskId} を作成しました。タスク画面で実行してください。",
+      "resolveConflictsFailed": "競合解消に失敗しました",
+      "autoMergeQueued": "条件を満たし次第、自動マージされます",
+      "merged": "PR #{prNumber} をマージしました",
+      "localSyncFailed": "ローカル同期に失敗しました: {detail}",
+      "mergeFailed": "マージに失敗しました",
+      "mergeTargetLabel": "マージ先",
+      "mergeMethodLabel": "マージ方式",
+      "deleteBranchLabel": "ブランチを削除",
+      "autoMergeTooltip": "今すぐマージできない場合（チェック保留など）、条件を満たし次第GitHubが自動マージします。競合は解消されません。",
+      "autoMergeLabel": "自動マージ",
+      "resolveConflictsTooltip": "ベースを取り込み、競合があればエージェント解消タスクを作成します",
+      "resolveConflictsButton": "競合を解消",
+      "mergeButton": "マージ"
+    },
+    "pullRequestsClient": {
+      "allRepositories": "すべてのリポジトリ",
+      "resultCount": "{count} 件"
+    }
+  }
+}

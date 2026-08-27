@@ -11,6 +11,17 @@ import { useEffect, useState } from 'react';
 import { Radar } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { API_BASE_URL } from '@/utils/api';
+import type { PanelMeta } from './panel-types';
+
+/**
+ * Registered with scripts/generate-agents-panels.mjs — see panel-types.ts.
+ *
+ * This panel landed on develop while this branch was introducing the generated
+ * registry, so it arrived without a meta and the generator silently left it out
+ * of AGENTS_PANELS — the panel would have disappeared from the page with no
+ * type error and no failing test to say so.
+ */
+export const panelMeta: PanelMeta = { id: 'probe-metrics', order: 30 };
 
 /** One aggregated per-target row from the metrics API. */
 interface ProbeMetric {

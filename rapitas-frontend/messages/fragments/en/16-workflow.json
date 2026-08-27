@@ -1,0 +1,281 @@
+{
+  "workflow": {
+    "title": "Workflow",
+    "researchTab": "Research",
+    "qaTab": "Q&A",
+    "planTab": "Plan",
+    "verifyTab": "Verify",
+    "researchEmpty": "AI agent will generate research.md when research is executed",
+    "questionEmpty": "AI agent will generate question.md if there are unclear points",
+    "planEmpty": "AI agent will generate plan.md after research is complete",
+    "verifyEmpty": "AI agent will generate verify.md after implementation is complete",
+    "startImplementation": "Start implementation",
+    "runAutoVerification": "Run auto verification",
+    "createPlan": "Create plan",
+    "runResearch": "Run research",
+    "runVerification": "Run verification",
+    "approvePlan": "Approve plan",
+    "rejectPlan": "Reject plan",
+    "planApprovalRequired": "Plan approval required",
+    "reviewPlanToApprove": "Review the plan and approve to proceed to implementation",
+    "reviewAndApprove": "Review & Approve",
+    "nextPhase": "Next: {phase}",
+    "executing": "Executing...",
+    "execute": "Execute",
+    "close": "Close",
+    "retry": "Retry",
+    "modeLightweight": "Simple",
+    "modeStandard": "Standard",
+    "modeComprehensive": "Advanced",
+    "modeLightweightDesc": "Best for bug fixes, UI adjustments, and minor changes",
+    "modeStandardDesc": "Best for medium-scale feature additions and refactoring",
+    "modeComprehensiveDesc": "Best for large-scale features and architecture changes",
+    "estimatedTime": "{time}",
+    "stepResearch": "Research",
+    "stepPlan": "Plan",
+    "stepImplement": "Implement",
+    "stepVerify": "Verify",
+    "stepVerifyFull": "Verification",
+    "complexityLow": "Low Complexity",
+    "complexityMedium": "Medium Complexity",
+    "complexityHigh": "High Complexity",
+    "complexityScore": "Complexity score: {score}",
+    "analyzingComplexity": "Analyzing complexity...",
+    "complexityAnalysisError": "Failed to analyze complexity",
+    "reanalyze": "Re-analyze",
+    "autoAnalyze": "Auto-analyze",
+    "taskComplexity": "Task complexity:",
+    "unanalyzed": "Unanalyzed",
+    "recommended": "Recommended",
+    "confidence": "Confidence: {pct}%",
+    "apply": "Apply",
+    "auto": "Auto",
+    "manual": "Manual",
+    "recommendedMode": "Recommended workflow mode",
+    "analysisFactors": "Analysis factors",
+    "keywords": "Keywords:",
+    "estimatedTimeLabel": "Estimated time:",
+    "priorityLabel": "Priority:",
+    "labelsLabel": "Labels:",
+    "analysisReasoning": "Analysis reasoning",
+    "reanalyzeBtn": "Re-analyze",
+    "analyzeComplexity": "Analyze complexity",
+    "intakeQuestionFlow": {
+      "progress": "Question {current} / {total}",
+      "previousQuestion": "Previous question",
+      "submitAll": "Answer all and resume",
+      "nextQuestion": "Next question"
+    },
+    "structuredQuestionFlow": {
+      "confirmTitle": "Confirm your answers?",
+      "confirmMessage": "The following will be sent to the agent as your answer.",
+      "confirmSubmit": "Submit as shown"
+    },
+    "planApprovalModal": {
+      "title": "Approve implementation plan",
+      "lastUpdated": "Last updated:",
+      "unknown": "Unknown",
+      "size": "Size:",
+      "loadFailed": "Failed to load the plan file content",
+      "rejectReasonLabel": "Enter a reason for rejection",
+      "rejectReasonPlaceholder": "Describe specific fixes or improvements...",
+      "confirmPrompt": "Review this plan and decide whether to start implementation",
+      "rejectExecute": "Confirm rejection",
+      "reject": "Reject",
+      "approve": "Approve & start implementation"
+    },
+    "viewer": {
+      "advanceFailed": "Failed to run the phase"
+    },
+    "questionPanel": {
+      "title": "Question from the AI agent",
+      "confirmed": "Confirmed",
+      "chooseAnswer": "Choose an answer (or type freely below)",
+      "defaultOptionsNote": "* No options were provided, so default choices are shown. You can also answer freely in the field below.",
+      "autoContinuePrefix": "If there's no answer, this will auto-continue in about",
+      "autoContinueSuffix": "seconds.",
+      "freeTextPlaceholder": "List your goals, constraints, and what counts as \"done\"...\nExample:\n- Goal: Halve the generation script's runtime\n- Constraint: No diff in existing generated output\n- Acceptance: Measure before/after on the benchmark and confirm a 50% reduction",
+      "submitAndResume": "Answer and resume the workflow",
+      "otherFreeText": "Other (free text)",
+      "freeTextInputPlaceholder": "If none of the options fit, type here...",
+      "submit": "Submit",
+      "freeTextRequiredNotice": "This question requires free-text input: {reason}"
+    },
+    "roles": {
+      "researcher": {
+        "description": "Investigate the codebase and analyze impact and dependencies",
+        "inputLabel": "Task info"
+      },
+      "planner": {
+        "label": "Plan",
+        "description": "Create a checklist-based implementation plan from the research"
+      },
+      "implementer": {
+        "outputFile": "Code",
+        "description": "Implement the code following the approved plan"
+      },
+      "verifier": {
+        "description": "Verify the implementation and produce a report"
+      },
+      "autoVerifier": {
+        "description": "Automatically verify the implementation and produce a report"
+      }
+    },
+    "rolesConfig": {
+      "implementerNoPlanDescription": "Implement the code based on the research",
+      "tierLow": "Low",
+      "tierMedium": "Medium",
+      "tierHigh": "High",
+      "tierLightweightDesc": "Bug fixes, UI tweaks, minor changes",
+      "tierStandardDesc": "Medium-sized features, refactoring",
+      "tierComprehensiveDesc": "Large features, architecture changes",
+      "loading": "Loading role settings...",
+      "complexityRangeLabel": "Complexity range this workflow applies to",
+      "lightweightMaxLabel": "Lightweight complexity max",
+      "standardRangeAutoComputed": "(auto-computed from the lightweight/comprehensive settings)",
+      "comprehensiveMinLabel": "Comprehensive complexity min",
+      "tierRolesCount": "Roles run in this tier ({count} phases)",
+      "autoSelect": "Auto-select",
+      "enableRoleLabel": "Enable {role}",
+      "autoSelectMode": "Auto-select mode",
+      "autoSelectModeDesc": "Automatically picks the best model based on task complexity and budget",
+      "preferredProviderLabel": "Preferred provider (tiebreaker within the same performance tier)",
+      "followDefaultSetting": "Follow the default setting",
+      "crossProviderOption": "Cross-provider (pick a different AI than the previous phase)",
+      "crossProviderHint": "Choosing \"cross-provider\" evaluates with a different AI than the previous phase, reducing self-bias",
+      "defaultProviderHint": "Uses the global setting (\"Default AI provider\" in /settings), or can be overridden per role",
+      "aiAgentLabel": "AI agent",
+      "modelLabel": "Model",
+      "noAgentSelected": "No agent selected",
+      "noModelsAvailable": "No models available",
+      "selectModel": "Select a model",
+      "systemPromptLabel": "System prompt",
+      "default": "Default",
+      "inputLabel": "Input:",
+      "outputLabel": "Output:",
+      "userApproval": "User approval",
+      "local": "local"
+    },
+    "statusIndicator": {
+      "researching": "Researching",
+      "planning": "Planning",
+      "planCreated": "Plan created",
+      "implementing": "Implementing",
+      "verifying": "Verifying",
+      "awaitingAnswer": "Awaiting answer",
+      "blocked": "Blocked",
+      "blockedGenericHint": "This task is blocked. Check the notification feed or logs for the cause.",
+      "blockedCauseUnknown": "This task is blocked (cause code: {cause}).",
+      "blockedCauses": {
+        "planInvalidReplanExhausted": "plan.md stayed invalid after repeated re-plans, so re-planning was stopped and the task blocked. Check plan.md manually.",
+        "verifyPrNotCreated": "Verify passed but no PR was created. Check the GitHub integration and for missing commits.",
+        "verifyValidationFailed": "The verify content was self-contradictory or incomplete and hit the auto-repair limit. Check verify.md.",
+        "verifyNoChanges": "Verify passed but no code changes were detected from the implementation.",
+        "subtaskFailed": "One or more subtasks failed, so the parent task was blocked."
+      },
+      "verifyDone": "Verified"
+    },
+    "tabBar": {
+      "answerNeeded": "Answer needed",
+      "updated": "Updated:",
+      "reload": "Reload",
+      "regenerating": "Regenerating"
+    },
+    "modeSelector": {
+      "lightweightName": "Lightweight mode",
+      "lightweightTime": "15-30 min",
+      "standardName": "Standard mode",
+      "standardTime": "1-2 hr",
+      "comprehensiveName": "Comprehensive mode",
+      "comprehensiveTime": "3-4 hr",
+      "manualSetting": "Manual",
+      "executionTimeLabel": "Runtime:",
+      "stepsLabel": "Steps:",
+      "autoAnalyzeHint": "Automatically analyze task complexity and suggest a mode",
+      "selectMode": "Select a workflow mode",
+      "current": "(current)"
+    },
+    "fileContent": {
+      "tableOfContents": "Contents",
+      "approveToImplementHint": "Review the content and approve to move to the implementation phase",
+      "approveAndImplement": "Approve & start implementation",
+      "regenerating": "Regenerating after a quality check — nothing was lost."
+    },
+    "fileEditor": {
+      "planSaved": "Plan saved",
+      "backToEdit": "Back to editing",
+      "preview": "Preview",
+      "noContent": "(No content)"
+    },
+    "taskWorkflowSection": {
+      "modeTooltipManual": "Workflow: {mode} (manually set)",
+      "modeTooltipAuto": "Workflow: {mode} (auto-selected from complexity)",
+      "complexitySuffix": " · Complexity {score}",
+      "complexityPendingSuffix": " · Complexity -",
+      "manualSuffix": " (manual)",
+      "autoApproveTooltipOn": "Auto-approve plan: ON (advances automatically when plan.md is saved)",
+      "autoApproveTooltipOff": "Auto-approve plan: OFF (manual approval required)",
+      "autoApproveBadge": "Auto-approve {state}",
+      "workflowDisabledToggle": {
+        "onTooltip": "Workflow: OFF (implements directly, without research.md / plan.md)",
+        "offTooltip": "Workflow: ON (runs the research / plan / verify phases as usual)",
+        "lockedTooltip": "This can't be changed once the task's execution has started",
+        "globallyForcedTooltip": "The workflow is disabled globally — this task can't be individually re-enabled",
+        "label": "Workflow"
+      },
+      "criticRejection": {
+        "title": "The {phase} was rejected by the quality critic and is being regenerated.",
+        "phase": {
+          "research": "research (research.md)",
+          "plan": "plan (plan.md)"
+        },
+        "severity": {
+          "high": "High",
+          "medium": "Medium",
+          "low": "Low"
+        },
+        "reasonsCount": "{count} issue(s)"
+      },
+      "criticHistory": {
+        "title": "Quality gate history",
+        "entryLabel": "{phase} · {date}",
+        "phase": {
+          "research": "Research",
+          "plan": "Plan"
+        },
+        "type": {
+          "bounced": "Bounced",
+          "exhausted": "Budget exhausted (passed through)"
+        },
+        "severity": {
+          "high": "High",
+          "medium": "Medium",
+          "low": "Low"
+        },
+        "reasonsCount": "{count} issue(s)",
+        "noReasons": "No details were recorded"
+      },
+      "phaseBreakdown": {
+        "title": "Execution time by phase",
+        "totalActive": "Active {time}",
+        "wallClock": "Elapsed {time}",
+        "execCount": "{count} run(s)",
+        "role": {
+          "researcher": "Research",
+          "planner": "Plan",
+          "implementer": "Implement",
+          "verifier": "Verify"
+        }
+      }
+    },
+    "planRevision": {
+      "cta": "Request a revision",
+      "label": "Instruction for the planner",
+      "hint": "Describe the change in a sentence or two instead of editing the plan by hand. Anything you do not mention is kept as it is.",
+      "placeholder": "e.g. Remove the UI card from the non-goals and adopt option B",
+      "submit": "Send request",
+      "submitting": "Sending...",
+      "failed": "Could not send the revision request"
+    }
+  }
+}

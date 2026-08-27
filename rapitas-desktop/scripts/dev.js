@@ -1630,6 +1630,24 @@ function syncDatabaseAndGenerateClient() {
   }
 }
 
+/**
+ * フロントエンドの生成レジストリ（messages/{ja,en}.json・agents パネル一覧）を
+ * フラグメントから再生成する。バックエンド（backlog-scheduler.ts）・フロント
+ * エンド双方が起動前に最新の生成物を参照できるよう、バックエンド起動より前に
+ * 呼び出すこと（task #675 — 6箇所の追記衝突を分離ファイル+自動集約に置き換えた
+ * 構造の一部）。
+ */
+function generateFrontendRegistries() {
+  console.log('\nGenerating frontend registries (messages, agents panels)...');
+  try {
+    execSync('node scripts/generate-messages.mjs', { cwd: FRONTEND_DIR, stdio: 'inherit' });
+    execSync('node scripts/generate-agents-panels.mjs', { cwd: FRONTEND_DIR, stdio: 'inherit' });
+  } catch (err) {
+    console.error('Failed to generate frontend registries:', err.message);
+    throw err;
+  }
+}
+
 // 再起動要求を示す終了コード
 const RESTART_EXIT_CODE = 75;
 
@@ -2264,6 +2282,7 @@ async function main() {
       throw err;
     }
   }
+  generateFrontendRegistries();
   startBackend();
 
   // バックエンドのヘルスチェック（ゾンビソケットへの接続を検出）。1回失敗した

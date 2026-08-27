@@ -1,0 +1,90 @@
+{
+  "ideaBox": {
+    "title": "アイデアボックス",
+    "openLabel": "アイデアボックスを開く",
+    "openWithCount": "アイデアボックスを開く（{count}件未使用）",
+    "unusedCount": "未使用 {count}",
+    "emptyState": "アイデアがまだありません。AIが実行中に改善案を自動収集します。",
+    "addIdea": "アイデアを追加",
+    "titlePlaceholder": "アイデアのタイトル",
+    "contentPlaceholder": "具体的な内容",
+    "submit": "投稿",
+    "catImprovement": "改善",
+    "catBugNoticed": "バグ",
+    "catTechDebt": "技術的負債",
+    "catUx": "UX",
+    "catFeature": "新機能",
+    "catPerformance": "性能",
+    "priorityHint": {
+      "urgent": "最優先で取り組むべき",
+      "high": "革新的・アプリ価値を大きく底上げ",
+      "medium": "着実に価値を高める",
+      "low": "小さな改善・あれば良い"
+    },
+    "header": {
+      "statusEmpty": "ひらめきを気軽にメモ",
+      "statusCount": "{count}件のアイデア",
+      "title": "アイデア",
+      "subtitle": "やってみたい改善・機能の種。気軽にメモして、後でタスク化。",
+      "addButton": "アイデアを追加"
+    },
+    "list": {
+      "emptySearch": "検索結果がありません",
+      "emptyDefault": "アイデアがまだありません",
+      "emptyHint": "上の「アイデアを追加」ボタンで気軽にメモしましょう"
+    },
+    "card": {
+      "themeFallback": "プロジェクト",
+      "priorityTitle": "優先度: {hint}",
+      "taskCreatedBadge": "タスク化済 #{id}",
+      "sourceUser": "手動",
+      "sourceAgent": "エージェント",
+      "sourceCopilot": "AIアシスタント",
+      "convertTitle": "タスク化（すぐ起票・AIなし）",
+      "convertButton": "タスク化",
+      "editAriaLabel": "アイデアを編集"
+    },
+    "createForm": {
+      "titleEdit": "アイデアを編集",
+      "titleAdd": "アイデアを追加",
+      "saveAndConvert": "保存してタスク化",
+      "saveAndConvertNeedsTheme": "タスク化にはテーマが必要です",
+      "saveAndConvertTitle": "変更を保存してタスク化",
+      "titlePlaceholder": "アイデアをひとことで...",
+      "detailPlaceholder": "詳細（任意）",
+      "priorityLabel": "優先度",
+      "priorityTitle": "優先度（アプリへの革新性・価値の底上げ度合い）",
+      "themeOption": "テーマ"
+    },
+    "filterBar": {
+      "status": {
+        "open": "未対応",
+        "used": "タスク化済み",
+        "all": "すべて",
+        "uncategorized": "未分類"
+      },
+      "allPriorities": "すべての優先度",
+      "priority": {
+        "urgent": "緊急",
+        "high": "高",
+        "medium": "中",
+        "low": "低"
+      },
+      "allThemes": "すべてのテーマ",
+      "searchLabel": "検索: 「{query}」"
+    },
+    "themePicker": {
+      "title": "テーマを選択",
+      "description": "このアイデアにはテーマが設定されていません。タスクとして登録するにはテーマを選択してください。",
+      "themeLabel": "テーマ",
+      "themeSelectPlaceholder": "テーマを選択してください",
+      "noThemesWarning": "選択したカテゴリにテーマがありません。先にテーマを作成してください。"
+    },
+    "messages": {
+      "deleteFailed": "アイデアの削除に失敗しました",
+      "updateFailed": "アイデアの更新に失敗しました",
+      "createFailed": "アイデアの登録に失敗しました",
+      "convertFailed": "タスクへの変換に失敗しました"
+    }
+  }
+}

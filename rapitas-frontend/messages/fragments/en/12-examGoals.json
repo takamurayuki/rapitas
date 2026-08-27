@@ -1,0 +1,23 @@
+{
+  "examGoals": {
+    "title": "Exam Goals",
+    "subtitle": "Manage exam and certification goals with countdown",
+    "upcoming": "Upcoming exam goals",
+    "target": "Target:",
+    "markComplete": "Mark as complete",
+    "completed": "Completed",
+    "none": "No exam goals. Create one to get started.",
+    "editTitle": "Edit exam goal",
+    "newTitle": "New exam goal",
+    "examName": "Exam name *",
+    "examNameExample": "e.g. TOEIC, AWS Certification",
+    "examDate": "Exam date *",
+    "targetScore": "Target score/points",
+    "scoreExample": "e.g. 800 points, Pass",
+    "descriptionPlaceholder": "Details about the goal, motivation, etc.",
+    "result": "Result:",
+    "relatedTasks": "{count} related tasks",
+    "confirmDeleteGoal": "Delete this exam goal?",
+    "actualScorePrompt": "Enter actual score/result (optional):"
+  }
+}

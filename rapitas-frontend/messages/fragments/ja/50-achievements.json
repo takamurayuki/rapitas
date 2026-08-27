@@ -1,0 +1,56 @@
+{
+  "achievements": {
+    "client": {
+      "loadFailed": "実績データの読み込みに失敗しました",
+      "headerTitle": "🏆 実績・統計",
+      "headerSubtitle": "あなたの学習・タスク管理の成果を確認しましょう",
+      "disableNotifications": "通知を無効にする",
+      "enableNotifications": "通知を有効にする",
+      "refreshTitle": "データを更新",
+      "clearNotifications": "通知をクリア",
+      "tabs": {
+        "achievements": "実績",
+        "stats": "統計",
+        "badges": "バッジ"
+      },
+      "stats": {
+        "unlockedCount": "解除済み実績",
+        "completionRate": "完了率",
+        "points": "ポイント",
+        "totalTasks": "総タスク数"
+      },
+      "badgesComingSoonTitle": "バッジ機能は準備中です",
+      "badgesComingSoonHint": "近日公開予定です。お楽しみに！",
+      "recentActivityTitle": "🎉 最近の実績",
+      "devInfoTitle": "開発情報"
+    },
+    "toast": {
+      "unlockedLabel": "実績解除！",
+      "pointsLabel": "ポイント",
+      "moreCount": "+{count} 個の実績",
+      "dismissLabel": "閉じる"
+    },
+    "statsBoard": {
+      "overviewHeading": "📊 統計概要",
+      "totalTasks": "総タスク数",
+      "totalStudyTime": "総学習時間",
+      "agentExecutions": "エージェント実行",
+      "highPriorityTasks": "高優先度タスク",
+      "completionRateSubtitle": "完了率 {rate}%",
+      "todayWithTime": "今日 {time}",
+      "weeklyProgressHeading": "📈 今週の進捗",
+      "taskCompletionLabel": "タスク完了",
+      "agentLabel": "エージェント",
+      "streaksHeading": "🔥 連続記録",
+      "taskStreakLabel": "タスク完了連続日数",
+      "studyStreakLabel": "学習連続日数",
+      "maxStreakSuffix": "/ 最高 {max}日",
+      "todayActivityHeading": "📅 今日のアクティビティ",
+      "completedTasksLabel": "完了タスク",
+      "lastUpdated": "最終更新: {date}",
+      "minutesOnly": "{minutes}分",
+      "hoursOnly": "{hours}時間",
+      "hoursAndMinutes": "{hours}時間{minutes}分"
+    }
+  }
+}

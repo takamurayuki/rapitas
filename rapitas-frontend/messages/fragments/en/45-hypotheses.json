@@ -1,0 +1,25 @@
+{
+  "hypotheses": {
+    "header": {
+      "title": "Hypotheses",
+      "subtitle": "Falsifiable hypotheses agents form during research, with their evidence and confidence over time. Supported ones get trust-weighted at recall; refuted ones are never injected."
+    },
+    "status": {
+      "open": "Pending",
+      "supported": "Supported",
+      "refuted": "Refuted",
+      "inconclusive": "Inconclusive",
+      "all": "All"
+    },
+    "loading": "Loading…",
+    "empty": "No hypotheses yet. When an agent forms a falsifiable hypothesis during research, it's recorded here.",
+    "deleteConfirm": "Delete this hypothesis?",
+    "card": {
+      "taskRef": "#task {id}",
+      "themeTitle": "Theme: {name}",
+      "confidenceLabel": "Confidence {pct}%",
+      "artifactWrap": "({artifact})",
+      "moveTo": "→ {label}"
+    }
+  }
+}

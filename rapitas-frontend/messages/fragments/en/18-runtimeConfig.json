@@ -1,0 +1,11 @@
+{
+  "runtimeConfig": {
+    "start": "Start command",
+    "url": "URL",
+    "healthPath": "Health check path",
+    "readyTimeoutMs": "Ready timeout (s)",
+    "checkPaths": "Paths to verify",
+    "addPath": "Add path",
+    "removePath": "Remove this path"
+  }
+}

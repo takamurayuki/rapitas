@@ -1,0 +1,13 @@
+{
+  "commandBar": {
+    "placeholder": "What do you want to do? (create task, start learning, navigate...)",
+    "hintTask": "Create task",
+    "hintTaskExample": "\"Build TODO app\" \"Fix bug\"",
+    "hintLearn": "Start learning",
+    "hintLearnExample": "\"Learn Python\" \"React tutorial\"",
+    "hintNavigate": "Navigate",
+    "hintNavigateExample": "\"Dashboard\" \"Calendar\"",
+    "toToggle": "to toggle",
+    "toClose": "to close"
+  }
+}

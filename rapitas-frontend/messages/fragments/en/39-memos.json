@@ -1,0 +1,29 @@
+{
+  "memos": {
+    "title": "Memos",
+    "subtitle": "Things to remember and tiny records — with optional reminders",
+    "emptyState": "No memos yet. Add one above or via quick capture (Ctrl+Alt+I)",
+    "filters": {
+      "open": "Open",
+      "reminder": "Reminders",
+      "done": "Done"
+    },
+    "add": {
+      "placeholder": "Something to remember...",
+      "contentAria": "Memo content",
+      "reminderAria": "Reminder",
+      "customAria": "Reminder date and time",
+      "save": "Add"
+    },
+    "row": {
+      "markDone": "Mark done",
+      "markOpen": "Reopen",
+      "reminded": "(notified)",
+      "delete": "Delete"
+    },
+    "messages": {
+      "saveFailed": "Failed to save",
+      "deleteFailed": "Failed to delete"
+    }
+  }
+}

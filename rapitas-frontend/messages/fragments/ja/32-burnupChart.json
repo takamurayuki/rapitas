@@ -1,0 +1,15 @@
+{
+  "burnupChart": {
+    "title": "バーンアップ",
+    "noData": "データがありません",
+    "completed": "完了",
+    "added": "追加",
+    "remaining": "残",
+    "perDay": "/日",
+    "allThemes": "全テーマ",
+    "cumulativeCompleted": "累積完了",
+    "idealPace": "理想ペース",
+    "days": "{count}日",
+    "cumulativeTooltip": "{date}: 累積完了 {count}件"
+  }
+}

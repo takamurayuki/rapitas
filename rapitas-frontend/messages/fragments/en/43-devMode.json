@@ -1,0 +1,884 @@
+{
+  "devMode": {
+    "executionCompletedPanel": {
+      "phases": {
+        "researcher": {
+          "title": "Research phase complete",
+          "message": "The researcher has finished the investigation.",
+          "nextAction": "Next, run the planning phase."
+        },
+        "planner": {
+          "title": "Planning phase complete",
+          "message": "The planner has finished drafting the plan.",
+          "nextAction": "Review the plan in the workflow tab and approve it."
+        },
+        "implementer": {
+          "title": "Implementation phase complete",
+          "message": "The implementer has finished the implementation.",
+          "nextAction": "The verification phase will start automatically. Please wait."
+        },
+        "verifier": {
+          "title": "Verification phase complete",
+          "message": "The verifier has finished verification.",
+          "nextAction": "Review the verification results in the workflow tab and mark it complete if everything looks good."
+        }
+      },
+      "defaultTitle": "Execution complete",
+      "defaultMessage": "The AI agent has finished the run.",
+      "defaultNextAction": "Review the changes on this task's PR page.",
+      "prNotSyncedOpened": "Opened this task's existing PR on GitHub (not synced locally). It may not be from the latest run. Sync it on the integration page to also show it in the list.",
+      "prNotSynced": "The PR isn't synced locally.",
+      "prNotCreatedYet": "No PR has been created yet. Create one with \"Create PR\" below.",
+      "prFetchFailed": "Failed to fetch PR information. Please wait a moment and try again.",
+      "reset": "Reset",
+      "openPr": "Open PR",
+      "followUpLabel": "Send a follow-up instruction",
+      "followUpPlaceholder": "Enter a follow-up fix or change instruction...",
+      "execute": "Run",
+      "ctrlEnterHint": "Ctrl+Enter to run",
+      "close": "Close",
+      "retryExecution": "Re-run"
+    },
+    "taskAnalysisTab": {
+      "agentLabel": "AI agent for analysis",
+      "depthLabel": "Analysis depth",
+      "depth": {
+        "quick": {
+          "label": "Quick",
+          "desc": "A fast overview analysis"
+        },
+        "standard": {
+          "label": "Standard",
+          "desc": "A well-balanced analysis"
+        },
+        "deep": {
+          "label": "Deep",
+          "desc": "An in-depth, detailed analysis"
+        }
+      },
+      "priorityLabel": "Priority strategy",
+      "promptStrategyLabel": "Prompt strategy",
+      "promptStrategy": {
+        "auto": "Auto",
+        "detailed": "Detailed",
+        "concise": "Concise",
+        "custom": "Custom"
+      },
+      "maxSubtasksLabel": "Max subtasks: {count}",
+      "outputOptionsLabel": "Output options",
+      "outputOptions": {
+        "estimates": {
+          "label": "Effort estimates",
+          "description": "Include an estimated time for each subtask"
+        },
+        "dependencies": {
+          "label": "Dependencies",
+          "description": "Include dependencies between subtasks"
+        },
+        "tips": {
+          "label": "Implementation tips",
+          "description": "Include implementation tips and advice"
+        }
+      },
+      "automationLabel": "Automation",
+      "automation": {
+        "autoApproveSubtasks": {
+          "label": "Auto-approve subtasks",
+          "description": "Automatically approve the subtasks from analysis results"
+        },
+        "autoOptimizePrompt": {
+          "label": "Auto-optimize prompt",
+          "description": "Automatically optimize the prompt before analysis"
+        },
+        "notifyOnComplete": {
+          "label": "Completion notification",
+          "description": "Send a notification when analysis completes"
+        }
+      },
+      "priorityOptions": {
+        "conservative": {
+          "label": "Conservative",
+          "description": "Break into fewer, larger subtasks"
+        },
+        "balanced": {
+          "label": "Balanced",
+          "description": "Moderate granularity (recommended)"
+        },
+        "aggressive": {
+          "label": "Detailed",
+          "description": "Break into many detailed subtasks"
+        }
+      }
+    },
+    "promptOptimizationTab": {
+      "optimizing": "Optimizing prompt...",
+      "retry": "Retry",
+      "needMoreInfo": "More information is needed",
+      "required": "*Required",
+      "categories": {
+        "scope": "Scope",
+        "technical": "Technical",
+        "requirements": "Requirements",
+        "constraints": "Constraints"
+      },
+      "answerPlaceholder": "Enter your answer...",
+      "cancel": "Cancel",
+      "submit": "Submit",
+      "optimizationComplete": "Optimization complete",
+      "scoreParenthetical": "(Score: {score}/100)",
+      "regenerate": "Regenerate",
+      "use": "Use",
+      "idleHint": "Optimizes the task description for AI agents",
+      "generatePrompt": "Generate prompt"
+    },
+    "logViewerHeader": {
+      "title": "Execution log",
+      "taskIdTooltip": "This task's ID (for sharing)",
+      "searchPlaceholder": "Search logs...",
+      "matchCount": "{count}",
+      "clearSearchTooltip": "Clear search (Esc)",
+      "errorsOnlyTooltip": "Show errors and warnings only",
+      "showAllTooltip": "Show all logs",
+      "errorsOnly": "Errors only",
+      "autoScrollingTooltip": "Auto-scrolling",
+      "scrollToBottomTooltip": "Scroll to bottom",
+      "copyLogsTooltip": "Copy logs",
+      "expandTooltip": "Expand",
+      "shrinkTooltip": "Shrink",
+      "collapseTooltip": "Collapse",
+      "statusRunning": "Running",
+      "statusCancelled": "Stopped",
+      "statusCompleted": "Completed",
+      "statusFailed": "Failed"
+    },
+    "workflowLogViewer": {
+      "phaseLabels": {
+        "research": "Research phase",
+        "plan": "Planning phase",
+        "implement": "Implementation phase",
+        "verify": "Verification phase"
+      },
+      "statusLabels": {
+        "completed": "Completed",
+        "approved": "Approved",
+        "running": "Running",
+        "waiting": "Waiting",
+        "failed": "Failed",
+        "skipped": "Skipped"
+      },
+      "noLogs": "No logs"
+    },
+    "promptPanel": {
+      "optimizing": "Optimizing...",
+      "retry": "Retry",
+      "needMoreInfo": "More information is needed",
+      "score": "Score: {score}/100",
+      "copyPromptAriaLabel": "Copy prompt",
+      "regenerate": "Regenerate",
+      "use": "Use",
+      "idleHint": "Optimize the task description for AI agents",
+      "generatePrompt": "Generate prompt",
+      "scoreWithHint": "Score: {score}/100 - Answer to generate a better prompt",
+      "answerPlaceholder": "Enter your answer...",
+      "cancel": "Cancel",
+      "submitAnswers": "Submit answers"
+    },
+    "executionIdlePanel": {
+      "title": "AI agent execution",
+      "optimizedBadge": "Optimized",
+      "execute": "Run",
+      "description": "Claude Code will run this task automatically. Once it's done, you can review the diff and create a commit or PR.",
+      "optimizedPromptNotice": "Will run using the optimized prompt.",
+      "advancedOptions": "Advanced options",
+      "instructionLabel": "Additional instruction (optional)",
+      "instructionPlaceholder": "e.g. Define TypeScript types strictly. Also write tests.",
+      "branchNameLabel": "Working branch name (auto-generated if left blank)",
+      "branchNamePlaceholder": "The AI will automatically generate an appropriate branch name",
+      "branchNameHint": "If left blank, the AI automatically generates an appropriate branch name based on the task content."
+    },
+    "useAIAnalysisMode": {
+      "fetchConfigFailed": "Failed to fetch the configuration",
+      "enableFailed": "Failed to enable",
+      "genericError": "An error occurred",
+      "disableFailed": "Failed to disable",
+      "updateFailed": "Failed to update",
+      "analyzeFailed": "Failed to analyze",
+      "executionStarted": "Started the agent execution",
+      "executeFailed": "Failed to execute the agent"
+    },
+    "useAgentExecutionActions": {
+      "noServerResponse": "No response from the server. Please wait a moment and try again.",
+      "databaseQueryError": "A database query error occurred. Please wait a moment and try again.",
+      "invalidResponseFormat": "The server response format is invalid.",
+      "communicationError": "An error occurred while communicating with the server. Please try again.",
+      "endpointNotFound": "The execution endpoint was not found. Please check the server configuration.",
+      "alreadyRunning": "This task is already running.",
+      "continuationStarted": "Started the continuation run",
+      "continuationFailed": "Failed to continue execution",
+      "executionStarted": "Started the agent execution",
+      "executeFailed": "Failed to execute the agent",
+      "genericError": "An error occurred"
+    },
+    "subtaskPanel": {
+      "suggestedSubtasks": "Suggested subtasks",
+      "selectAll": "Select all",
+      "deselectAll": "Deselect",
+      "selectSubtaskAriaLabel": "Select {title}",
+      "priority": {
+        "high": "High",
+        "medium": "Medium",
+        "low": "Low"
+      },
+      "selectedCount": "{count} selected",
+      "create": "Create",
+      "createSuccess": "Subtasks created",
+      "idleHint": "The AI analyzes the task and suggests subtasks",
+      "startAnalysis": "Start analysis"
+    },
+    "workflowProgressBar": {
+      "steps": {
+        "research": {
+          "label": "Research",
+          "description": "Investigating the code"
+        },
+        "plan": {
+          "label": "Plan",
+          "description": "Drafting the implementation plan"
+        },
+        "implement": {
+          "label": "Implement",
+          "description": "Implementing the code"
+        },
+        "verify": {
+          "label": "Verify",
+          "description": "Verifying the implementation"
+        }
+      },
+      "overallProgress": "Overall progress: {current}/{total} steps complete"
+    },
+    "useApprovals": {
+      "fetchFailed": "Failed to fetch approval requests",
+      "genericError": "An error occurred",
+      "approveFailed": "Failed to approve",
+      "rejectFailed": "Failed to reject",
+      "bulkApproveFailed": "Failed to bulk-approve"
+    },
+    "promptOptimizationPanel": {
+      "title": "Prompt optimization",
+      "description": "The AI analyzes the task description and generates a prompt optimized for the agent.",
+      "generatePrompt": "Generate prompt",
+      "optimizing": "Optimizing prompt...",
+      "analyzingTask": "The AI is analyzing the task...",
+      "generationFailed": "Failed to generate the prompt",
+      "retry": "Retry"
+    },
+    "inlineAddAgentForm": {
+      "addAgent": "Add agent",
+      "namePlaceholder": "e.g. Main development agent",
+      "setAsDefault": "Set as default",
+      "cancel": "Cancel",
+      "add": "Add",
+      "agentNameField": "Agent name"
+    },
+    "useAgentExecutionHandlers": {
+      "continuationFailed": "Failed to continue execution",
+      "continuationFailedRetry": "Failed to continue execution. Please try again.",
+      "communicationFailedRetry": "Failed to communicate with the server. Please try again.",
+      "prCreateFailed": "Failed to create the PR",
+      "mergeFailed": "Failed to merge"
+    },
+    "liveStatsBar": {
+      "files": "{count} files",
+      "testsPassed": "{count} passed",
+      "testsFailed": "{count} failed",
+      "commits": "{count} commits",
+      "errors": "{count} errors"
+    },
+    "executionCancelledPanel": {
+      "title": "Execution cancelled",
+      "message": "The AI agent's run was cancelled and the changes were reverted.",
+      "rerun": "Re-run"
+    },
+    "usePromptOptimization": {
+      "generationFailed": "Failed to generate the prompt",
+      "errorOccurred": "An error occurred",
+      "requiredQuestionsHint": "Please answer the required questions",
+      "generateFailed": "Failed to generate prompt",
+      "genericError": "An error occurred",
+      "requiredQuestionsUnanswered": "Please answer the required questions",
+      "category": {
+        "scope": "Scope",
+        "technical": "Technical",
+        "requirements": "Requirements",
+        "constraints": "Constraints",
+        "integration": "Integration",
+        "testing": "Testing",
+        "deliverables": "Deliverables"
+      }
+    },
+    "useTerminalSubmit": {
+      "sendResponseFailed": "[Error] Failed to send the response",
+      "executionStarted": "[System] Execution started (session: {sessionId})",
+      "executionStartFailed": "[Error] Failed to start execution"
+    },
+    "tabbedExecutionLogViewer": {
+      "overall": "Overall"
+    },
+    "terminalOutput": {
+      "emptyHint": "Enter an instruction to run the AI agent"
+    },
+    "useDeveloperMode": {
+      "stateRestored": "Restored the execution state"
+    },
+    "agentExecutionTab": {
+      "executionAgent": "Execution AI agent",
+      "gitSettings": "Git settings",
+      "branchStrategy": "Branch strategy",
+      "branchStrategyAuto": "Auto (recommended)",
+      "branchStrategyManual": "Manual",
+      "branchPrefix": "Branch prefix",
+      "autoCommitLabel": "Auto commit",
+      "autoCommitDesc": "Automatically commit changes",
+      "autoCreatePRLabel": "Auto-create PR",
+      "autoCreatePRDesc": "Automatically create a pull request on completion",
+      "autoMergeLabel": "Auto-merge",
+      "autoMergeDesc": "Automatically merge (squash/merge) after the PR is created",
+      "squashThresholdLabel": "Squash merge threshold",
+      "squashThresholdSuffix": "commits or more to squash",
+      "codeReview": "Code review",
+      "autoCodeReviewLabel": "Auto code review",
+      "autoCodeReviewDesc": "Automatically review code after execution completes",
+      "reviewScopeLabel": "Review scope",
+      "reviewScopeChanges": "Changed files only",
+      "reviewScopeFull": "Entire codebase",
+      "executionOptions": "Execution options",
+      "autoExecuteLabel": "Auto-run after analysis",
+      "autoExecuteDesc": "Automatically run the agent after task analysis completes",
+      "useOptimizedPromptLabel": "Use optimized prompt",
+      "useOptimizedPromptDesc": "Use the optimized prompt from task analysis",
+      "executionRules": "Execution rules",
+      "executionRulesDesc": "Set additional rules or instructions applied when the agent runs",
+      "executionRulesPlaceholder": "e.g. Always create a backup before modifying files&#10;Always run tests before committing&#10;Carefully consider security risks",
+      "notificationSettings": "Notification settings",
+      "notifyStartLabel": "Notify on execution start",
+      "notifyStartDesc": "Notify when agent execution starts",
+      "notifyCompleteLabel": "Notify on execution complete",
+      "notifyCompleteDesc": "Notify when agent execution completes",
+      "notifyErrorLabel": "Error notification",
+      "notifyErrorDesc": "Notify when an error occurs"
+    },
+    "executionSection": {
+      "prNotSyncedOpened": "The PR isn't synced locally, so it was opened on GitHub. Sync it from the integrations page to see it in the list too.",
+      "prNotSynced": "The PR is not synced locally.",
+      "prNotCreated": "No PR has been created for this task yet.",
+      "prFetchFailed": "Failed to fetch PR information. Please try again later.",
+      "title": "Agent execution",
+      "runningNoLogsYet": "Running — preparing logs...",
+      "stopAria": "Stop execution",
+      "stop": "Stop",
+      "reset": "Reset",
+      "openPr": "Open PR",
+      "rerun": "Re-run",
+      "retry": "Retry",
+      "runDisabledTaskDone": "Can't run — this task is already complete",
+      "runDisabledSetupIncomplete": "The agent can run once task setup is complete",
+      "startExecution": "Start execution",
+      "run": "Run"
+    },
+    "taskAnalysisPanel": {
+      "complexitySimple": "Simple",
+      "complexityMedium": "Medium",
+      "complexityComplex": "Complex",
+      "title": "AI task analysis",
+      "subtitle": "AI analyzes the task and suggests efficient subtasks",
+      "startAnalysis": "Start analysis",
+      "analysisSettingsTitle": "AI task analysis settings",
+      "analysisFailed": "Analysis failed",
+      "retry": "Retry",
+      "subtasksProposed": "{count} subtasks suggested",
+      "estimatedHours": "About {hours}h",
+      "devModeSettingsTitle": "Developer mode settings",
+      "suggestedSubtasks": "Suggested subtasks",
+      "deselectAll": "Deselect all",
+      "selectAll": "Select all",
+      "reasoningLabel": "Breakdown reasoning:",
+      "reject": "Reject",
+      "approveAll": "Approve all",
+      "approveSelected": "Approve {count}"
+    },
+    "executionSummaryCard": {
+      "completed": "Completed",
+      "failed": "Execution failed",
+      "changesLabel": "Changes:",
+      "countItems": "{count}",
+      "testsLabel": "Tests:",
+      "testsPassed": "{count} passed",
+      "testsFailed": "{count} failed",
+      "commitsLabel": "Commits:",
+      "durationLabel": "Duration:",
+      "durationMinSec": "{min}m {sec}s",
+      "durationSec": "{sec}s",
+      "issuesLabel": "Issues:",
+      "changedFilesList": "Changed files"
+    },
+    "analysisTab": {
+      "summary": "Summary",
+      "suggestedSubtasks": "Suggested subtasks ({count})",
+      "deselectAll": "Deselect all",
+      "selectAll": "Select all",
+      "priorityHigh": "High",
+      "priorityMedium": "Medium",
+      "priorityLow": "Low",
+      "estimatedHours": "{hours}h",
+      "selectedCount": "{count} selected",
+      "createSubtasks": "Create subtasks",
+      "subtasksCreated": "Subtasks created",
+      "reanalyze": "Re-analyze",
+      "enableDevModeHint": "Enable developer mode to use AI task analysis",
+      "enableDevModeSubHint": "Turn on the \"Developer mode\" toggle at the bottom of the task detail screen",
+      "analyzeIntro": "AI analyzes the task and suggests subtasks",
+      "startAnalysis": "Start analysis"
+    },
+    "apiKeyManager": {
+      "emptyKey": "Please enter an API key",
+      "tooShort": "API key is too short (must be at least 10 characters)",
+      "claudePrefix": "Claude API keys must start with \"sk-ant-api\"",
+      "openaiPrefix": "OpenAI API keys must start with \"sk-\"",
+      "claudeKeyForOpenai": "This is a Claude API key. Please enter an OpenAI API key",
+      "geminiPrefix": "Gemini API keys must start with \"AIza\"",
+      "savedKeyMessage": "Saved the {provider} API key",
+      "genericError": "An error occurred",
+      "deletedMessage": "API key deleted"
+    },
+    "developerModeConfig": {
+      "configFetchFailed": "Failed to fetch settings",
+      "enableFailed": "Failed to enable",
+      "disableFailed": "Failed to disable",
+      "analysisFailed": "Analysis failed",
+      "noApprovalRequest": "No approval request found",
+      "approvalFailed": "Approval failed"
+    },
+    "promptsManagement": {
+      "fetchFailed": "Failed to fetch the prompt list",
+      "genericError": "An error occurred",
+      "generateAllConfirm": "Generate prompts for all subtasks (or the task)?",
+      "generateAllFailed": "Bulk generation failed",
+      "deleteConfirm": "Delete this prompt?"
+    },
+    "executionCapabilityGuide": {
+      "noThemeTitle": "Set a theme to run the agent",
+      "noThemeBody": "Linking a theme to the task lets the agent run in that theme's working directory.",
+      "noThemeCta": "Set a theme",
+      "noWorkingDirTitle": "Set a working directory on the theme",
+      "noWorkingDirBody": "This task's theme has no working directory (local repository path) registered.",
+      "noWorkingDirCta": "Edit theme",
+      "noCliTitle": "No CLI is available",
+      "noCliBody": "Install Claude Code, Codex, or Gemini CLI and make sure it can run from a terminal.",
+      "noCliCta": "Check setup status"
+    },
+    "terminalPanel": {
+      "stoppedLog": "[System] Execution stopped",
+      "statusWaitingForInput": "Waiting for input",
+      "statusRunning": "Running",
+      "statusCompleted": "Completed",
+      "statusFailed": "Failed",
+      "statusInterrupted": "Interrupted",
+      "statusIdle": "Idle",
+      "stop": "Stop",
+      "reset": "Reset"
+    },
+    "apiKey": {
+      "savedMessage": "API key saved",
+      "genericError": "An error occurred",
+      "deleteConfirm": "Are you sure you want to delete the API key?",
+      "deletedMessage": "API key deleted"
+    },
+    "aiAssistantAccordion": {
+      "title": "AI assistant",
+      "subtitle": "Task analysis, prompt optimization, and automated implementation",
+      "ready": "Ready",
+      "optimized": "Optimized",
+      "running": "Running",
+      "settings": "Settings",
+      "dragToResize": "Drag to resize"
+    },
+    "scoreBreakdownSection": {
+      "toggleHide": "Hide score details",
+      "toggleShow": "Show score details",
+      "clarity": "Clarity",
+      "completeness": "Completeness",
+      "technicalSpecificity": "Technical specificity",
+      "executability": "Executability",
+      "context": "Context",
+      "missingInfo": "Missing information:"
+    },
+    "panelHeader": {
+      "title": "AI assistant",
+      "subtitle": "Analysis, optimization, and automated implementation",
+      "optimized": "Optimized",
+      "analysisComplete": "Analysis complete",
+      "openSettingsAria": "Open AI settings",
+      "detailSettings": "Detailed settings"
+    },
+    "aiAnalysisPanel": {
+      "title": "AI assistant",
+      "ready": "Ready",
+      "tabAnalysis": "Analysis",
+      "tabOptimize": "Optimize",
+      "tabManage": "Manage",
+      "tabDependency": "Dependency"
+    },
+    "developerModeConfigModal": {
+      "title": "AI assistant settings",
+      "loadingSettings": "Loading settings...",
+      "saveSettings": "Save settings",
+      "analysisConfigSaveFailed": "Failed to save task analysis settings",
+      "executionConfigSaveFailed": "Failed to save agent execution settings",
+      "tabs": {
+        "taskAnalysis": "Task Analysis",
+        "agentExecution": "Agent Execution"
+      }
+    },
+    "inlineApiKeySetup": {
+      "apiKeySettings": "API key settings",
+      "enableModelsHint": "(Enables models that require an API key)",
+      "getApiKey": "Get an API key"
+    },
+    "continuationForm": {
+      "placeholder": "Enter continuation instructions...",
+      "inputAria": "Continuation execution content",
+      "runAria": "Continue execution",
+      "run": "Run"
+    },
+    "terminalInput": {
+      "placeholderWaiting": "Enter your answer...",
+      "placeholderRunning": "Running...",
+      "placeholderIdle": "Enter instructions... (Enter to send)",
+      "sendAnswer": "Send answer",
+      "run": "Run"
+    },
+    "errorAnalysisPanel": {
+      "title": "Error analysis dashboard",
+      "subtitle": "Detects errors in real time and suggests solutions",
+      "tryDemo": "Try the error demo"
+    },
+    "promptOptimization": {
+      "generateFailed": "Failed to generate prompt",
+      "genericError": "An error occurred",
+      "requiredQuestionsUnanswered": "Please answer the required questions"
+    },
+    "executionPolling": {
+      "cancelledLog": "[Cancelled] Execution was stopped.",
+      "completedLog": "[Completed] Execution finished.",
+      "workflowPhase": {
+        "researcher": "[Research Complete] The research phase is complete. Automatically advancing to the next phase...",
+        "planner": "[Planning Complete] The planning phase is complete. If auto-approval is enabled, implementation will start automatically (otherwise, approve it in the Plan tab).",
+        "implementer": "[Implementation Complete] The implementation phase is complete. Automatically running the verification phase...",
+        "verifier": "[Verification Complete] The verification phase is complete. If there are no issues, the status will automatically become \"Completed.\"",
+        "default": "[Phase Complete] {mode} is complete."
+      },
+      "prCreatedLog": "[PR Created] Created a pull request: {info}",
+      "failedLog": "[Error] {message}",
+      "failedDefaultMessage": "Execution failed",
+      "interruptedLog": "[Interrupted] Execution was interrupted.",
+      "interruptedDefaultError": "Execution was interrupted"
+    },
+    "subtaskLogTabs": {
+      "phase": {
+        "draft": "Researching",
+        "researchDone": "Planning",
+        "planCreated": "Plan ready",
+        "planApproved": "Implementing",
+        "inProgress": "Verifying",
+        "verifyDone": "Verified",
+        "awaitingQuestion": "Awaiting answer",
+        "blocked": "Blocked",
+        "completed": "Completed",
+        "waiting": "Waiting"
+      },
+      "allTab": "All",
+      "toggleFlatView": "Switch to flat view",
+      "toggleWorkflowView": "Switch to workflow view",
+      "refreshLogs": "Refresh logs",
+      "waitingLogs": "Waiting for logs...",
+      "noLogs": "No logs",
+      "progressLabel": "Progress:",
+      "progressCount": "{completed}/{total} completed",
+      "elapsedLabel": "Elapsed: {time}",
+      "elapsedTime": "{minutes}m {seconds}s",
+      "statusLabel": {
+        "completed": "Completed",
+        "running": "Running",
+        "failed": "Failed",
+        "blocked": "Blocked",
+        "scheduled": "Scheduled",
+        "waiting": "Waiting"
+      },
+      "dependencyTitle": "Depends on: {title}"
+    },
+    "promptsManagementTab": {
+      "savedPrompts": "Saved prompts",
+      "countSuffix": "{count}",
+      "refresh": "Refresh",
+      "generateAll": "Generate all",
+      "subtaskCount": "Subtasks: {count}",
+      "emptyHint": "No saved prompts",
+      "emptyGuide": "Generate a prompt from the \"Generate all\" or \"Optimize\" tab.",
+      "unknown": "Unknown",
+      "parentTaskBadge": "Parent task",
+      "subtaskBadge": "Subtask",
+      "scoreLabel": "Score: {score}",
+      "edit": "Edit",
+      "copy": "Copy",
+      "delete": "Delete",
+      "loadingPrompts": "Loading prompt data..."
+    },
+    "optimizationResultView": {
+      "title": "Optimized prompt",
+      "qualityScoreLabel": "Quality score:",
+      "useThisPrompt": "Use this prompt",
+      "issuesLabel": "Issues: ",
+      "suggestionsLabel": "Suggestions: ",
+      "showStructuredDetails": "Show structured details",
+      "objectiveLabel": "Objective",
+      "contextLabel": "Background & context",
+      "requirementsLabel": "Requirements",
+      "constraintsLabel": "Constraints",
+      "deliverablesLabel": "Deliverables",
+      "regenerate": "Regenerate prompt"
+    },
+    "idleExecutionForm": {
+      "instructionPlaceholder": "Enter additional instructions (optional)...",
+      "instructionAriaLabel": "Additional implementation instructions",
+      "optimizedPromptApplied": "Optimized prompt applied",
+      "detailsToggle": "Advanced settings",
+      "branchNameLabel": "Branch name",
+      "branchNameHint": "(auto-generated if left blank)",
+      "branchNamePlaceholder": "Will be auto-generated",
+      "baseBranchLabel": "Base branch",
+      "baseBranchHint": "(PR target / branch source)"
+    },
+    "executionRunningPanel": {
+      "questionTitle": "Question from Claude Code",
+      "runningTitle": "AI agent running",
+      "toolCallBadge": "Tool call",
+      "patternDetectedBadge": "Pattern detected",
+      "questionHint": "Please answer the question below. Execution will continue after you respond.",
+      "runningHint": "Claude Code is working on the task...",
+      "stop": "Stop",
+      "agentQuestionHeading": "The AI agent has a question",
+      "confirmedBadge": "Confirmed",
+      "qaTabPointer": "👉 Please answer in the \"Q&A\" tab above.",
+      "autoContinueNotice": "(auto-continues in {time} if unanswered)"
+    },
+    "prMergeSection": {
+      "heading": "PR & merge",
+      "createPr": "Create PR",
+      "creatingPr": "Creating PR...",
+      "prCreated": "PR #{number} created",
+      "viewOnGithub": "View on GitHub",
+      "approveMerge": "Approve & merge",
+      "merging": "Merging... (local develop will also be updated)",
+      "merged": "PR #{number} has been merged. Local develop is up to date.",
+      "retry": "Retry"
+    },
+    "diffViewer": {
+      "statusLabel": {
+        "added": "Added",
+        "deleted": "Deleted",
+        "modified": "Modified",
+        "renamed": "Renamed"
+      },
+      "fileCount": "{count} files",
+      "structuredView": "Structured view",
+      "rawView": "Raw view",
+      "noDiffInfo": "No diff information",
+      "noChangedFiles": "No files changed"
+    },
+    "agentQuestionCard": {
+      "questionProgress": "Question {current} / {total}",
+      "freeTextPlaceholder": "You can also answer freely…",
+      "answerPlaceholder": "Enter your answer…",
+      "answerAriaLabel": "Answer to the agent",
+      "submitAnswer": "Submit answer",
+      "nextQuestion": "Next question",
+      "submit": "Submit",
+      "next": "Next",
+      "answersSoFar": "Answers so far",
+      "unanswered": "(unanswered)"
+    },
+    "agentSelector": {
+      "noAgentsConfigured": "No agents configured.",
+      "addAgent": "Add agent",
+      "selectModel": "Select a model...",
+      "defaultBadge": "Default",
+      "setAsDefault": "Set as default"
+    },
+    "settingsTab": {
+      "apiKeyLabel": "Claude API key",
+      "getApiKey": "Get API key",
+      "advancedSettings": "Developer mode advanced settings"
+    },
+    "promptOptimizationTypes": {
+      "category": {
+        "scope": "Scope",
+        "technical": "Technical",
+        "requirements": "Requirements",
+        "constraints": "Constraints",
+        "integration": "Integration",
+        "testing": "Testing",
+        "deliverables": "Deliverables"
+      }
+    },
+    "clarificationQuestionsView": {
+      "title": "More information needed",
+      "subtitle": "Please answer the questions below to generate a better prompt",
+      "required": "*required",
+      "answerPlaceholder": "Enter your answer...",
+      "submitAnswers": "Submit answers"
+    },
+    "useAgentManager": {
+      "addAgentFailed": "Failed to add agent",
+      "agentNameField": "Agent name"
+    },
+    "useExecutionStreamSSE": {
+      "startedLog": "[Started] Agent execution started...",
+      "completedLog": "[Completed] Agent execution completed.",
+      "completedShortLog": "[Completed] Execution completed",
+      "failedLog": "Execution failed",
+      "cancelledLog": "[Cancelled] Execution was cancelled.",
+      "connectionFailed": "Failed to establish SSE connection"
+    },
+    "apiKeySetupPrompt": {
+      "setupRequired": "API key setup required",
+      "setupHint": "Set up your Claude API key to use AI analysis features.",
+      "getApiKey": "Get API key"
+    },
+    "executionLogViewer": {
+      "executionLog": "Execution log",
+      "noMatchForQuery": "No logs match \"{query}\"",
+      "noMatchingLogs": "No matching logs",
+      "fetchingLogs": "Fetching execution log...",
+      "resizeLog": "Resize log height"
+    },
+    "executionFailedPanel": {
+      "title": "Execution failed",
+      "reset": "Reset",
+      "retry": "Retry"
+    },
+    "analysisSection": {
+      "taskAnalysis": "Task analysis",
+      "subtasksTab": "Subtasks",
+      "promptTab": "Prompt"
+    },
+    "modelSelector": {
+      "noAgentSelected": "No agent selected",
+      "noAgentsSet": "No agents configured"
+    },
+    "simpleLogEntry": {
+      "close": "Close",
+      "fullText": "Full text",
+      "repeatCount": "×{count}",
+      "copyPath": "Copy path",
+      "copied": "Copied",
+      "waitingForLogs": "Waiting for execution log..."
+    },
+    "agentExecutionPanel": {
+      "unknownError": "An unknown error occurred"
+    },
+    "aiAccordionPanelInner": {
+      "panelAriaLabel": "AI agent execution panel"
+    },
+    "agentTypeInfo": {
+      "claudeCode": "Claude Code",
+      "codex": "Codex CLI",
+      "gemini": "Gemini CLI"
+    },
+    "apiKeyProviders": {
+      "claude": "Claude (Anthropic)",
+      "chatgpt": "ChatGPT (OpenAI)",
+      "gemini": "Gemini (Google)"
+    },
+    "parseQuestionOptions": {
+      "yesAll": "Yes (all)",
+      "noAll": "No (all)",
+      "answerIndividually": "Answer individually",
+      "yes": "Yes",
+      "no": "No",
+      "yesEn": "Yes",
+      "noEn": "No"
+    },
+    "logTransformer": {
+      "phaseStart": {
+        "research": "Starting research phase",
+        "plan": "Starting planning phase",
+        "implement": "Starting implementation phase",
+        "verify": "Starting verification phase"
+      },
+      "fileEdited": "Edited {basename}",
+      "fileCreated": "Created new file {name}",
+      "errorOccurred": "An error occurred",
+      "testsCompleted": "Tests completed successfully",
+      "committed": "Committed changes",
+      "processing": "Processing...",
+      "agentPrefix": "Agent: {text}",
+      "continuationResumed": "Resuming execution with additional instructions",
+      "agentInitializing": "Initializing agent...",
+      "thinking": "Thinking…",
+      "systemEvent": "System: {name}",
+      "systemError": "System error: {detail}",
+      "providerStarting": "Starting {provider} execution",
+      "workingDirectory": "Working directory: {dir}",
+      "processStarted": "Process started (PID {pid})",
+      "timeoutSetting": "Timeout setting: {timeout}",
+      "agentInstruction": "Instruction to agent: {summary}",
+      "providerTimedOut": "{provider} execution timed out",
+      "providerError": "{provider} error: {detail}",
+      "executionCompleted": "Execution complete",
+      "executionFailed": "Execution failed ({status})",
+      "toolRead": "Read {path}",
+      "toolEdit": "Edit {path}",
+      "toolWrite": "Create {path}",
+      "testRunning": "Running tests...",
+      "verifyRunning": "Running verification command...",
+      "committing": "Committing...",
+      "pushing": "Pushing to remote...",
+      "gitCommand": "Git: {cmd}",
+      "searchCommand": "Investigating: {cmd}",
+      "shellCommand": "$ {cmd}",
+      "toolSearch": "Search {query}",
+      "webSearch": "Web search: {query}",
+      "webFetch": "Web fetch: {url}",
+      "subAgent": "Sub-agent: {text}",
+      "subAgentStarting": "Starting...",
+      "itemCount": "{count} items",
+      "objectDataPlaceholder": "(data)",
+      "toolErrorSuffix": "Error in {name}",
+      "questionPrefix": "Question: {text}",
+      "testsPassedCount": "{count} tests passed",
+      "testsFailedCount": "{count} tests failed",
+      "typecheckRunning": "Running type check...",
+      "commitMessage": "Commit: {message}",
+      "pushCompleted": "Pushed to remote",
+      "waitingForAnswer": "Waiting for an answer...",
+      "timedOut": "Timed out",
+      "mdContent": "Markdown content ({chars} chars)",
+      "mdContentNamed": "Contents of {name} ({chars} chars)",
+      "jsonStatus": "Status: {status}",
+      "jsonStatusTranslated": "Status: {status} ({translated})",
+      "jsonTaskId": "Task: {taskId}",
+      "statusLabels": {
+        "running": "Running",
+        "completed": "Completed",
+        "failed": "Failed",
+        "pending": "Pending",
+        "cancelled": "Cancelled",
+        "waitingForInput": "Waiting for input",
+        "inProgress": "In progress",
+        "todo": "Not started",
+        "waiting": "Waiting",
+        "success": "Success"
+      }
+    }
+  }
+}
