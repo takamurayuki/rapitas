@@ -39,11 +39,26 @@ export const DESYNC_RECOVERY_SETTLE_MS =
  * Transition causes that DELIBERATELY produce `task.status='todo'` with an
  * advanced workflowStatus: reconciler_requeue keeps workflowStatus so the
  * resume mapping re-enters at the right phase (workflow-reconciler-requeue),
- * and artifact_reuse_fastforward advances workflowStatus of a still-todo task
- * before dispatch (artifact-reuse-reconciler). blocked_auto_retry is NOT here —
- * it resets workflowStatus to 'draft', which Pattern B never matches.
+ * artifact_reuse_fastforward advances workflowStatus of a still-todo task
+ * before dispatch (artifact-reuse-reconciler), and task_retried resets
+ * status to 'todo' while rolling workflowStatus back to a resume point —
+ * see `routes/tasks/task-retry-handler.ts` `resolveRollbackTarget()`
+ * (rolls verify_done back to plan_approved/research_done) and its caller
+ * `retryTask()`, which writes `{ status: 'todo', workflowStatus: rolledBackTo }`
+ * in the same `prisma.task.update` call. This is the same shape as the other
+ * two causes, triggered by a manual retry instead of the reconciler (#680,
+ * task #672 filed 139s after a task_retried transition to research_done;
+ * task #672 subsequently self-resolved to status=done/workflowStatus=completed
+ * via normal dispatch with no data repair applied, confirming the shape was
+ * transient and self-healing rather than a corrupted state). blocked_auto_retry
+ * is NOT here — it resets workflowStatus to 'draft', which Pattern B never
+ * matches.
  */
-const RECOVERY_REQUEUE_CAUSES = new Set(['reconciler_requeue', 'artifact_reuse_fastforward']);
+const RECOVERY_REQUEUE_CAUSES = new Set([
+  'reconciler_requeue',
+  'artifact_reuse_fastforward',
+  'task_retried',
+]);
 
 /**
  * Wait time after which an unanswered intake question counts as stale (default
@@ -165,10 +180,11 @@ function isWithinRecoveryGrace(input: TriStateDesyncInput): boolean {
  * (session terminally failed but its execution still active) is checked first
  * and wins when both apply — the session/execution anomaly is the more urgent
  * signal. Pattern B: task.status still 'todo' while the workflow advanced —
- * EXCEPT within the recovery grace window after a reconciler_requeue /
- * artifact_reuse_fastforward transition, which produces exactly that shape by
- * design (see isWithinRecoveryGrace; past the window detectStagnation covers
- * a still-undispatched task, so the detection net keeps a backstop).
+ * EXCEPT within the recovery grace window after a cause in
+ * RECOVERY_REQUEUE_CAUSES (reconciler_requeue / artifact_reuse_fastforward /
+ * task_retried), which produces exactly that shape by design (see
+ * isWithinRecoveryGrace; past the window detectStagnation covers a
+ * still-undispatched task, so the detection net keeps a backstop).
  *
  * @param input - Cross-entity state snapshot. / 三面の状態スナップショット
  * @returns Detected pattern + human-readable summary, or null. / 検出結果またはnull
