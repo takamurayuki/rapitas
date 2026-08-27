@@ -11,6 +11,7 @@ import { createHash } from 'crypto';
 import { prisma } from '../../config/database';
 import { createLogger } from '../../config/logger';
 import { createTask } from '../task/task-mutations';
+import { specForConcernSource } from './concern-task-spec';
 import { sanitizeMarkdownContent } from '../../utils/common/mojibake-detector';
 import { narrowEnum } from '../../utils/common/type-guards';
 import { findSaturatedTheme, findNearDuplicate } from './theme-saturation';
@@ -554,12 +555,18 @@ export async function convertConcernToTask(concernId: number): Promise<number | 
     );
   }
 
+  // A log-derived concern carries a logger name and a stack sample but no
+  // spec, so the intake gate stops and asks an operator before anything runs
+  // (tasks 700/702). Seed the spec its origin implies instead.
+  const spec = specForConcernSource(concern.source);
+
   const task = await createTask(prisma, {
     title: `${TYPE_PREFIX[concern.type]} ${concern.title}`.slice(0, 200),
     description: descriptionParts.join('\n'),
     priority: SEVERITY_TO_PRIORITY[concern.severity],
     status: 'todo',
     themeId,
+    ...(spec ?? {}),
   });
   if (!task) return null;
 
