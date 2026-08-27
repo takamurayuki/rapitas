@@ -60,6 +60,21 @@ describe('buildDiffReviewPrompt', () => {
     expect(prompt).toContain('JSONオブジェクトのみ');
   });
 
+  // task 674 は3ラウンド連続で、既にディレクトリ化済みだった cost-optimization /
+  // usage-breakdown を「変更ファイル一覧に無い＝未着手」と判定されてブロックされた。
+  // ジャッジは差分しか見ないため、この区別はプロンプトで教えるほかない。
+  it('未変更のファイルを未完了と断じないよう指示する', () => {
+    const prompt = buildDiffReviewPrompt({
+      taskTitle: 'T',
+      planContent: '',
+      acceptanceCriteria: [],
+      diffText: 'diff',
+    });
+    expect(prompt).toContain('未変更の扱い');
+    expect(prompt).toContain('既に目的の状態にあったため変更が不要だった');
+    expect(prompt).toContain('import が不変であることは移動していない根拠にならない');
+  });
+
   it('falls back to a placeholder when there are no acceptance criteria', () => {
     const prompt = buildDiffReviewPrompt({
       taskTitle: 'T',
