@@ -1,0 +1,75 @@
+{
+  "concerns": {
+    "emptyState": "No matching concerns.",
+    "typeBug": "Bug",
+    "typeRefactor": "Refactor",
+    "typeSecurity": "Security",
+    "typePerf": "Performance",
+    "typeOther": "Other",
+    "severityUrgent": "Urgent",
+    "severityHigh": "High",
+    "severityMedium": "Medium",
+    "severityLow": "Low",
+    "statusOpen": "Open",
+    "statusTaskCreated": "Task created",
+    "statusAll": "All",
+    "sourceAgent": "Agent",
+    "sourceUser": "User",
+    "sourceVulnScan": "Vulnerability scan",
+    "sourceVulnScanAudit": "Vulnerability audit",
+    "sourceCiWatch": "CI watch",
+    "sourceLoopReview": "Quality loop",
+    "sourceCodeReview": "Code review",
+    "sourceGithubIssue": "GitHub issue",
+    "sourceIdeaReclassified": "Idea reclassified",
+    "sourceVerificationTriage": "Verification triage",
+    "sourceLogHealth": "Log health",
+    "sourceUnknown": "Unknown",
+    "severityHint": {
+      "urgent": "Urgent — needs immediate attention",
+      "high": "High — significant impact",
+      "medium": "Medium — worth addressing steadily",
+      "low": "Low — nice to fix"
+    },
+    "header": {
+      "title": "Concerns",
+      "subtitle": "Track bugs, risks, and tech debt worth fixing, and turn them into tasks",
+      "addButton": "Add concern"
+    },
+    "filterBar": {
+      "allTypes": "All types",
+      "allSeverities": "All priorities",
+      "allSources": "All sources",
+      "allThemes": "All themes"
+    },
+    "createForm": {
+      "title": "Add concern",
+      "submit": "Add",
+      "titlePlaceholder": "Describe the concern in one line (e.g. Users aren't re-prompted to log in after an auth token expires)",
+      "detailPlaceholder": "What's wrong, and why it matters",
+      "priorityLabel": "Priority",
+      "priorityTitle": "Priority (how much future impact this has)",
+      "categoryOption": "Category",
+      "themeOption": "Theme",
+      "locationPlaceholder": "Location (optional, e.g. src/auth/token.ts:42)"
+    },
+    "card": {
+      "themeTitle": "Theme: {name}",
+      "priorityTitle": "Priority: {hint}",
+      "taskCreatedBadge": "Task created #{id}",
+      "githubIssueTitle": "Open GitHub issue",
+      "closedSuffix": " · closed",
+      "convertButton": "Create task",
+      "publishTitle": "Publish as GitHub issue",
+      "publishButton": "Publish to GitHub",
+      "originLink": "Found in #{id}"
+    },
+    "messages": {
+      "convertFailed": "Failed to convert to a task",
+      "deleteFailed": "Failed to delete the concern",
+      "publishSuccess": "GitHub issue created",
+      "publishFailed": "Failed to publish to GitHub",
+      "createFailed": "Failed to add the concern"
+    }
+  }
+}

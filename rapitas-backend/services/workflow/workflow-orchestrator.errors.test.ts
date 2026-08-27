@@ -61,7 +61,11 @@ const roleConfig = {
 
 const taskFindUniqueMock = mock(() => Promise.resolve(makeTask()));
 const mockPrisma = {
-  task: { findUnique: taskFindUniqueMock, update: mock(() => Promise.resolve({})) },
+  task: {
+    findUnique: taskFindUniqueMock,
+    update: mock(() => Promise.resolve({})),
+    updateMany: mock(() => Promise.resolve({ count: 1 })),
+  },
   workflowRoleConfig: { findUnique: mock(() => Promise.resolve(roleConfig)) },
   systemPrompt: { findUnique: mock(() => Promise.resolve(null)) },
   workflowTransition: { count: mock(() => Promise.resolve(0)) },
@@ -232,6 +236,12 @@ mock.module('../observability/decision-trace', () => ({
   judgeConsistency: mock(() => ({ consistency: 'skipped', note: '' })),
   maskSensitive: mock((v: unknown) => ({ masked: v, maskedFieldCount: 0 })),
   maskStringValue: mock((v: string) => ({ masked: v, count: 0 })),
+}));
+
+// Probe stage (task 673) always succeeds here — these tests exercise
+// provider-fallback error handling, not probe behavior.
+mock.module('./workflow-orchestrator-preflight-probe', () => ({
+  runPreflightProbe: mock(() => Promise.resolve({ done: false })),
 }));
 
 // Import AFTER all mock.module calls.

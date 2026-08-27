@@ -1,0 +1,625 @@
+{
+  "task": {
+    "title": "タスク詳細",
+    "description": "説明",
+    "status": "ステータス",
+    "priority": "優先度",
+    "dueDate": "期限",
+    "category": "カテゴリ",
+    "theme": "テーマ",
+    "labels": "ラベル",
+    "subtasks": "サブタスク",
+    "subtasksCompleted": "{count}件完了",
+    "progress": "進捗状況",
+    "activeSubtasks": "進行中・未着手",
+    "completedSubtasks": "完了 ({count}件)",
+    "newSubtask": "新しいサブタスク",
+    "subtaskTitle": "サブタスクタイトル",
+    "subtaskTitleRequired": "サブタスクタイトル *",
+    "titleRequiredHint": "タイトルを入力すると作成できます",
+    "descriptionMarkdown": "説明（マークダウン対応）",
+    "labelsCommaSeparated": "ラベル（カンマ区切り）",
+    "estimatedHours": "見積もり時間（h）",
+    "addSubtask": "サブタスクを追加",
+    "toggleAddSubtaskForm": "追加フォームの表示/非表示",
+    "subtaskBulkDeleteConfirm": "{count}件のサブタスクを削除しますか？",
+    "templateSettings": "テンプレート設定",
+    "clearTemplate": "テンプレートの適用を解除",
+    "subtaskDetails": "詳細",
+    "subtaskPriority": "優先度",
+    "subtaskLabels": "ラベル",
+    "subtaskEstimatedHours": "工数",
+    "subtaskActualHours": "作業時間",
+    "deselect": "選択解除",
+    "select": "選択",
+    "bulkSelect": "一括",
+    "selecting": "選択中 ({count}件)",
+    "deselectAll": "全解除",
+    "selectAll": "全選択",
+    "deleteCount": "{count}件削除",
+    "deleteAll": "全削除",
+    "deleteAllConfirm": "すべてのサブタスク（{count}件）を削除しますか？この操作は取り消せません。",
+    "deleteSelectedConfirm": "選択した{count}件のサブタスクを削除しますか？この操作は取り消せません。",
+    "confirmDelete": "削除する",
+    "timeManagement": "時間管理",
+    "workflowStatus": "ワークフローステータス",
+    "editTask": "タスクを編集",
+    "saveTask": "タスクを保存",
+    "taskName": "タスク名",
+    "taskNamePlaceholder": "タスク名を入力",
+    "taskDescription": "タスクの説明",
+    "noPriority": "優先度なし",
+    "priorityLow": "低",
+    "priorityMedium": "中",
+    "priorityHigh": "高",
+    "priorityCritical": "最重要",
+    "priorityUrgent": "緊急",
+    "statusTodo": "未着手",
+    "statusInProgress": "進行中",
+    "statusDone": "完了",
+    "complexitySimple": "シンプル",
+    "complexityStandard": "標準",
+    "complexityComplex": "複雑",
+    "running": "実行中",
+    "waitingForInput": "入力待ち",
+    "createdAt": "作成日時",
+    "updatedAt": "更新日時",
+    "estimatedTime": "見積もり時間",
+    "actualTime": "実績時間",
+    "pomodoroCount": "ポモドーロ数",
+    "aiAnalysis": "AI分析",
+    "startExecution": "実行開始",
+    "stopExecution": "実行停止",
+    "viewExecution": "実行詳細を見る",
+    "templateSaved": "テンプレートとして保存しました",
+    "notFound": "タスクが見つかりません",
+    "backToHome": "ホームに戻る",
+    "duplicateTask": "複製",
+    "saveAsTemplate": "テンプレートとして保存",
+    "fetchFailed": "タスクの取得に失敗しました",
+    "markdownPlaceholder": "マークダウン形式で記述...",
+    "taskIdNotSpecified": "タスクIDが指定されていません",
+    "taskIdUrlHint": "URLパラメータで ?id=123 の形式でタスクIDを指定してください",
+    "template": "テンプレート",
+    "createSubmit": "作成する",
+    "titleGenerate": "タイトル生成",
+    "titleGenerateTooltip": "説明からタイトルを自動生成",
+    "specTitle": "ゴール・制約・受入基準",
+    "specGoals": "ゴール",
+    "specConstraints": "制約",
+    "specAcceptance": "受入基準",
+    "specItemPlaceholder": "1行に1項目",
+    "specDerive": "AIで抽出",
+    "specDeriveTooltip": "説明文からゴール・制約・受入基準をAIで抽出します",
+    "specDerived": "ゴール・制約・受入基準を抽出しました",
+    "specDeriveFailed": "抽出に失敗しました",
+    "taskDetailPlaceholder": "タスクの詳細を記入（マークダウン対応）",
+    "advancedSettings": "詳細設定",
+    "deadlineDate": "期限",
+    "addSubtaskPlaceholder": "サブタスクを追加...",
+    "subtaskDescriptionPlaceholder": "サブタスクの説明（任意）",
+    "workflowModeTitle": "ワークフローモード",
+    "workflowModeAbout": "ワークフローモードについて:",
+    "workflowModeExplanation": "タスクの複雑さに応じて、実行手順を調整できます。軽量モードは簡単な修正、標準モードは通常の機能開発、詳細モードは大規模な変更に適しています。タスク作成後に自動分析で最適なモードが提案されます。",
+    "titleGeneratedSuccess": "タイトルを自動生成しました",
+    "titleGenerateFailed": "タイトル生成に失敗しました",
+    "taskCreatedAutoExecute": "タスクを作成しました。実行を開始します...",
+    "taskCreated": "タスクを作成しました",
+    "taskCreateFailed": "タスクの作成に失敗しました",
+    "createFailed": "作成に失敗しました",
+    "suggestionApplied": "提案を適用しました",
+    "deleteTaskConfirm": "このタスクを削除しますか?",
+    "deleteTaskFailed": "タスクの削除に失敗しました",
+    "duplicateTaskFailed": "タスクの複製に失敗しました",
+    "protectedDeleteWarning": "保護されたタスクは削除できません。詳細ページのロックアイコンで保護を解除してください。",
+    "statusUpdateFailed": "ステータス更新に失敗しました",
+    "applyTemplateDialog": {
+      "title": "テンプレートを適用",
+      "themeTemplates": "{theme}のテンプレート",
+      "fetchFailed": "テンプレートの取得に失敗しました",
+      "searchPlaceholder": "テンプレートを検索...",
+      "emptyForTheme": "{theme}のテンプレートはまだありません",
+      "empty": "テンプレートがありません",
+      "noMatch": "条件に一致するテンプレートがありません",
+      "emptyHint": "タスク詳細画面から「テンプレートとして保存」で作成できます",
+      "useCount": "使用回数: {count}",
+      "previewTitle": "テンプレートに含まれる情報",
+      "previewFieldTitle": "タイトル: {value}",
+      "previewFieldDescription": "説明: {value}",
+      "previewFieldPriority": "優先度: {value}",
+      "previewFieldEstimatedHours": "工数: {value}時間",
+      "previewFieldSubtasks": "サブタスク: {count}件",
+      "previewMoreSubtasks": "...他 {count}件",
+      "previewFieldLabels": "ラベル: {value}",
+      "cardEstimatedHours": "{hours}時間",
+      "cardSubtasksCount": "サブタスク{count}件",
+      "cardLabelsCount": "ラベル{count}件"
+    },
+    "globalPomodoroModal": {
+      "todayStats": "今日の統計",
+      "completedPomodoros": "完了ポモドーロ",
+      "totalWorkTime": "合計作業時間",
+      "settings": "設定",
+      "notificationSound": "通知音",
+      "volumeLow": "小",
+      "volumeHigh": "大",
+      "workDuration": "作業時間",
+      "shortBreak": "短い休憩",
+      "longBreak": "長い休憩",
+      "minutes": "{count}分"
+    },
+    "fileUploader": {
+      "downloadFailed": "ダウンロードに失敗しました",
+      "uploadFailed": "アップロードに失敗しました",
+      "deleteFailed": "削除に失敗しました",
+      "uploading": "アップロード中...",
+      "dragDrop": "ファイルをドラッグ&ドロップ",
+      "dragDropHint": "または クリックして選択（最大10MB）",
+      "preview": "プレビュー",
+      "openInNewTab": "新しいタブで開く",
+      "downloadCompleted": "ダウンロード完了",
+      "downloading": "ダウンロード中...",
+      "download": "ダウンロード",
+      "done": "完了!"
+    },
+    "ganttView": {
+      "loading": "ガントチャートを読み込み中...",
+      "fetchFailed": "ガントチャートの読み込みに失敗しました: {message}",
+      "empty": "表示するタスクがありません。タスクを作成するか、フィルター条件を変更してください。",
+      "title": "ガントチャート",
+      "taskCount": "{count} タスク",
+      "prevPeriod": "前の期間",
+      "nextPeriod": "次の期間",
+      "zoomDay": "日",
+      "zoomWeek": "週",
+      "zoomMonth": "月",
+      "today": "今日",
+      "pageDescription": "タスクを時系列で俯瞰できます。バーにカーソルを合わせると詳細が表示されます。"
+    },
+    "taskSelector": {
+      "fetchFailed": "タスクの取得に失敗しました",
+      "searchPlaceholder": "タスクを検索...",
+      "searching": "タスクを検索中...",
+      "noResults": "検索結果が見つかりません",
+      "empty": "利用可能なタスクがありません",
+      "dueDate": "期限: {date}",
+      "defaultTitle": "タスクを選択",
+      "defaultDescription": "選択したいタスクをクリックしてください"
+    },
+    "subtaskExecutionStatus": {
+      "pending": "待機中",
+      "scheduled": "スケジュール済み",
+      "running": "実行中",
+      "completed": "完了",
+      "failed": "失敗",
+      "cancelled": "キャンセル",
+      "blocked": "ブロック中"
+    },
+    "taskCard": {
+      "retryFailed": "再実行への切り替えに失敗しました",
+      "protectedBadge": "保護されたタスク（削除不可）",
+      "recurringBadge": "繰り返しタスク",
+      "generatedFromRecurrenceBadge": "繰り返しから生成されたタスク",
+      "retryTooltip": "再実行（todo に戻して自動実行の対象に戻します）",
+      "retryAriaLabel": "タスクを再実行",
+      "protectedDeleteError": "保護されたタスクは削除できません",
+      "elapsedTimeTooltip": "エージェントの実行開始からの経過時間",
+      "executingCannotSelect": "自動実行中のため一括ステータス変更の対象から除外されています"
+    },
+    "suggestionCard": {
+      "category": {
+        "recurring": "定期",
+        "extension": "発展",
+        "improvement": "改善",
+        "new": "新規"
+      }
+    },
+    "taskHeader": {
+      "backToList": "タスク一覧に戻る"
+    },
+    "memoStatsBar": {
+      "noteCount": "{count}件",
+      "timelineToggle": "履歴統合表示",
+      "filter": "フィルター",
+      "allCount": "全て ({count})",
+      "bulkAnalyze": "全メモ一括分析"
+    },
+    "suggestionsHeader": {
+      "title": "AIタスク提案",
+      "generateTooltip": "AI提案を生成",
+      "generate": "提案を生成",
+      "regenerate": "再生成",
+      "clear": "クリア"
+    },
+    "priorityInlineSelect": {
+      "ariaLabel": "優先度: {priority}（クリックで変更）",
+      "changeTooltip": "優先度を変更",
+      "unset": "未設定"
+    },
+    "taskSlidePanel": {
+      "title": "タスク詳細",
+      "closeTooltip": "閉じる (Esc)",
+      "dockLeft": "タスク詳細を左側に表示",
+      "dockRight": "タスク詳細を右側に表示",
+      "swapDockSideAria": "左右を入れ替える",
+      "splitView": "ページを分割して表示",
+      "overlayView": "オーバーレイ表示に戻す",
+      "toggleSplitAria": "分割表示を切り替える"
+    },
+    "ciStatus": {
+      "passing": "CI: 成功",
+      "failing": "CI: 失敗",
+      "pending": "CI: 実行中",
+      "noChecks": "CI: 設定なし",
+      "unknown": "CI: 不明",
+      "viewPrTooltip": "PR #{number} を開く"
+    },
+    "preview": {
+      "title": "ライブプレビュー",
+      "liveBadge": "LIVE",
+      "start": "プレビュー開始",
+      "starting": "起動中...",
+      "checking": "確認中...",
+      "stop": "停止",
+      "stopping": "停止中...",
+      "startFailed": "プレビューの起動に失敗しました",
+      "stopFailed": "プレビューの停止に失敗しました。もう一度お試しください。",
+      "idleHint": "このタスクのworktreeで動いているアプリのプレビューを表示します。「プレビュー開始」を押すと、テーマのプレビュー設定でdevサーバーを起動します。",
+      "startingHint": "devサーバーを起動しています...",
+      "checkingHint": "起動状況を確認しています...",
+      "stoppingHint": "プレビューを停止しています...",
+      "loadingScreenshot": "スクリーンショットを取得中...",
+      "screenshotAlt": "プレビューのスクリーンショット",
+      "interactHint": "クリックして操作 / キーボード入力可",
+      "closeSelectOverlay": "選択肢を閉じる",
+      "settings": "設定",
+      "settingsModalTitle": "プレビュー設定",
+      "configureRuntimeNoTheme": "このタスクにはテーマが設定されていないため、ここでは保存できません。テーマ設定から作業ディレクトリを登録してください。",
+      "displayMode": "表示モード",
+      "displayModeHeadless": "埋め込み表示(ヘッドレス)",
+      "displayModeNormal": "通常表示(ブラウザウィンドウ)",
+      "testHint": "設定を保存してから、上部の「プレビュー開始」でテストできます。通常表示を選ぶと実際のブラウザウィンドウが開きます。",
+      "save": "保存",
+      "saveFailed": "保存に失敗しました"
+    },
+    "labelSelector": {
+      "empty": "ラベルがありません。",
+      "createLabel": "ラベルを作成"
+    },
+    "noteReplyInput": {
+      "placeholder": "返信を入力...",
+      "send": "送信"
+    },
+    "noteChipLink": {
+      "untitled": "(無題)",
+      "openTooltip": "ノート「{title}」を開く"
+    },
+    "taskTimeline": {
+      "empty": "タスクの履歴がありません"
+    },
+    "taskTitleAutocomplete": {
+      "placeholder": "タスクのタイトル"
+    },
+    "memoInputArea": {
+      "typeLabel": "種類:",
+      "useTemplateTooltip": "テンプレートを使用",
+      "template": "テンプレート",
+      "addMemoPlaceholder": "{type}メモを追加...（Shift+Enterで改行）"
+    },
+    "saveAsTemplateDialog": {
+      "nameLabel": "テンプレート名",
+      "namePlaceholder": "テンプレート名を入力",
+      "descriptionPlaceholder": "テンプレートの説明を入力",
+      "newCategoryButton": "新しいカテゴリを作成",
+      "newCategoryPlaceholder": "新しいカテゴリ名を入力",
+      "existingCategoryButton": "既存のカテゴリから選択",
+      "infoHeading": "テンプレートに含まれる情報",
+      "infoTitle": "タイトル: {title}",
+      "infoPriority": "優先度: {priority}",
+      "infoEstimatedHours": "見積もり時間: {hours}時間",
+      "infoSubtasks": "サブタスク: {count}件",
+      "infoLabels": "ラベル: {count}件",
+      "nameRequiredError": "テンプレート名を入力してください",
+      "categoryRequiredError": "カテゴリを選択または入力してください",
+      "createFailedError": "テンプレートの作成に失敗しました",
+      "genericError": "エラーが発生しました"
+    },
+    "compactTaskDetailCard": {
+      "titleAriaLabel": "タスクのタイトル",
+      "unprotectTitle": "保護を解除する",
+      "protectTitle": "タスクを保護する（削除不可）",
+      "descriptionPlaceholder": "説明を追加（ダブルクリックで編集）",
+      "descriptionAriaLabel": "タスクの説明",
+      "workloadDeadlineHeading": "工数・期限",
+      "estimateBadge": "見積: {hours}h",
+      "actualBadge": "実績: {hours}h",
+      "workloadLabel": "工数",
+      "actualWorkTimeLabel": "作業時間",
+      "subtaskHoursSumHint": "サブタスク合計",
+      "progressLabel": "進捗",
+      "recurrenceConfiguredBadge": "設定済み",
+      "recurrenceHeading": "繰り返し設定",
+      "attachmentsHeading": "添付ファイル",
+      "attachmentsPermissionHint": "ファイルの追加には編集権限が必要です",
+      "notesHeading": "ノート",
+      "createdChip": "作成",
+      "updatedChip": "更新"
+    },
+    "taskTimerManagement": {
+      "heading": "時間トラッキング + ポモドーロ",
+      "remainingTimeLabel": "残り時間",
+      "workProgressSummary": "作業: {actual}h / {estimated}h ({percent}%)",
+      "breakTotalSummary": "休憩: {breakHours}h | 総時間: {totalHours}h",
+      "breakTimeLabel": "休憩時間",
+      "workTimeLabel": "作業時間",
+      "longBreakDuration": "長い休憩（15分）",
+      "shortBreakDuration": "短い休憩（5分）",
+      "pomodoroNumber": "ポモドーロ #{number}",
+      "completedCount": "完了: {count}回",
+      "untilBreakEnd": "休憩終了まで",
+      "untilNextBreak": "次の休憩まで",
+      "stopButton": "停止",
+      "elapsedTimeLabel": "経過時間",
+      "startPomodoroButton": "🍅 ポモドーロ開始",
+      "pomodoroCompleteHeading": "ポモドーロ完了！",
+      "breakPromptLong": "25分間の作業お疲れ様でした。15分の長い休憩を取りましょう。",
+      "breakPromptShort": "25分間の作業お疲れ様でした。5分の短い休憩を取りましょう。",
+      "takeBreakButton": "休憩する",
+      "skipBreakButton": "スキップ"
+    },
+    "taskDetail": {
+      "titleLabel": "タイトル",
+      "descriptionPlaceholder": "マークダウン形式で記述できます&#10;&#10;# 見出し1&#10;## 見出し2&#10;&#10;**太字** *斜体*&#10;&#10;- [ ] チェックボックス&#10;- [x] 完了済み&#10;&#10;`インラインコード` や > 引用&#10;&#10;ファイルや画像はここにドラッグ&ドロップできます",
+      "labelsPlaceholder": "カンマ区切りで入力",
+      "hoursPlaceholder": "時間",
+      "estimatedHoursBadge": "⏱ {hours}時間"
+    },
+    "timeEntryDialog": {
+      "heading": "作業を記録",
+      "noteLabel": "作業内容メモ (任意)",
+      "notePlaceholder": "何を作業しましたか?"
+    },
+    "pomodoroTimer": {
+      "subtaskAttributionLabel": "作業時間の帰属先",
+      "parentTaskOption": "親タスク（{taskTitle}）",
+      "subtaskEstimatedHoursSuffix": " (工数: {hours}h)"
+    },
+    "taskSuggestionDetail": {
+      "hoursSuffix": "{hours}時間",
+      "measurableOutcomeLabel": "測定可能な成果",
+      "estimatedDurationLabel": "推定所要時間",
+      "completionCriteriaLabel": "完了条件",
+      "dependenciesLabel": "前提条件",
+      "suggestedApproachLabel": "推奨アプローチ",
+      "reasonLabel": "提案理由",
+      "createTaskButton": "このタスクを作成"
+    },
+    "recurrenceCustomForm": {
+      "customSettingsTitle": "カスタム設定",
+      "frequencyLabel": "頻度",
+      "frequencyDaily": "日",
+      "frequencyWeekly": "週",
+      "frequencyMonthly": "月",
+      "intervalLabel": "間隔",
+      "intervalUnitDaily": "日ごと",
+      "intervalUnitWeekly": "週ごと",
+      "intervalUnitMonthly": "ヶ月ごと",
+      "weekdayLabel": "曜日",
+      "endDateLabel": "終了日（任意）",
+      "executionTimeLabel": "実行時刻",
+      "inheritWorkflowLabel": "前回の実行履歴を継承（research/plan/verify.md）",
+      "previewLabel": "プレビュー",
+      "applyButton": "適用"
+    },
+    "recurrenceSelector": {
+      "repeatLabel": "繰り返し",
+      "presetsLabel": "プリセット",
+      "customEllipsis": "カスタム...",
+      "removeRecurrenceButton": "繰り返しを解除"
+    },
+    "ganttChart": {
+      "dueDateLabel": "期限: {date}",
+      "estimatedHoursLabel": "見積: {hours}h",
+      "statusBlocked": "ブロック中"
+    },
+    "taskSuggestions": {
+      "collapseButton": "折りたたむ",
+      "showMoreButton": "他 {count} 件を表示",
+      "cachedLabel": "キャッシュ済み",
+      "aiGenerationFailedLabel": "AI提案の生成に失敗しました",
+      "completionCriteriaHeading": "【完了条件】",
+      "measurableOutcomeHeading": "【測定可能な成果】"
+    },
+    "suggestionDetailModal": {
+      "title": "タスクの詳細",
+      "close": "閉じる"
+    },
+    "commentsSection": {
+      "title": "メモ",
+      "subtitle": "アイデア・気づき",
+      "addPlaceholder": "メモを追加（Shift+Enterで改行）",
+      "emptyTitle": "メモを追加してアイデアを記録",
+      "emptyHint": "メモ同士をリンクで結び付けられます"
+    },
+    "note": {
+      "replyTitle": "返信",
+      "linkTitle": "リンク",
+      "replyPlaceholder": "返信を入力...",
+      "sendButton": "送信"
+    },
+    "linkModal": {
+      "title": "メモをリンク",
+      "sourceLabel": "リンク元",
+      "searchPlaceholder": "メモを検索...",
+      "searching": "検索中...",
+      "noResults": "一致するメモがありません",
+      "searchHint": "リンク先のメモを検索"
+    },
+    "taskComments": {
+      "title": "コメント ({count})",
+      "addPlaceholder": "コメントを追加... (マークダウン対応)",
+      "addButton": "コメント追加"
+    },
+    "memoAnalysisDisplay": {
+      "toggleButton": "AI分析結果",
+      "summary": "要約",
+      "importanceLabel": "重要度:",
+      "sentimentLabel": "感情:",
+      "keywords": "キーワード",
+      "actionItems": "アクション項目",
+      "analyzedAt": "分析日時:"
+    },
+    "noteActionBar": {
+      "pin": "ピン留め",
+      "unpin": "ピン留め解除",
+      "reply": "返信"
+    },
+    "templateSelector": {
+      "title": "メモテンプレート選択",
+      "noTemplatesForType": "{type}用のテンプレートがありません",
+      "manualInput": "手動で入力"
+    },
+    "memoSection": {
+      "timelineTitle": "タスク履歴とメモの統合表示",
+      "emptyHint": "メモを追加してアイデアを記録"
+    },
+    "inlineEditableText": {
+      "doubleClickToEdit": "ダブルクリックで編集"
+    },
+    "descriptionToggle": {
+      "collapse": "折りたたむ",
+      "expand": "もっと見る"
+    },
+    "noteLinksSection": {
+      "copyLinkTooltip": "Markdownリンクをクリップボードにコピー",
+      "copied": "コピー済み",
+      "copyLink": "リンクをコピー",
+      "insertTooltip": "説明欄へリンクを直接挿入",
+      "inserted": "挿入済み",
+      "insertToDescription": "説明欄へ挿入",
+      "openSplitView": "スプリットビューで開く",
+      "unlink": "紐づけを解除",
+      "noContent": "(内容なし)",
+      "searchPlaceholder": "ノートを検索…",
+      "createAndLink": "新しいノートを作成して紐づける",
+      "noMatchingNotes": "「{query}」に一致するノートはありません",
+      "noLinkableNotes": "紐づけ可能なノートがありません",
+      "linkNote": "ノートを紐づける",
+      "hoverHint": "ノートにカーソルを合わせると「リンクをコピー」と「説明欄へ挿入」が表示されます。",
+      "noLinkedNotes": "紐づけられたノートはありません"
+    },
+    "noteSplitView": {
+      "backToTask": "タスクへ戻る",
+      "noteNotFound": "ノートが見つかりません"
+    },
+    "commentSystem": {
+      "deleteConfirm": "このコメントを削除しますか?"
+    },
+    "subtaskManagement": {
+      "deleteFailed": "サブタスクの削除に失敗しました",
+      "createFailed": "サブタスクの作成に失敗しました",
+      "updateFailed": "サブタスクの更新に失敗しました"
+    },
+    "taskEdit": {
+      "updateFailed": "タスクの更新に失敗しました"
+    },
+    "errorPage": {
+      "sectionLabel": "タスク"
+    },
+    "memoTemplates": {
+      "workStart": {
+        "label": "作業開始",
+        "content": "## 作業開始\n\n**目標:**\n- \n\n**作業内容:**\n- \n\n**注意事項:**\n- ",
+        "description": "作業開始時の記録用テンプレート"
+      },
+      "workEnd": {
+        "label": "作業終了",
+        "content": "## 作業終了\n\n**完了項目:**\n- \n\n**進捗状況:**\n- \n\n**次回作業:**\n- \n\n**気づき:**\n- ",
+        "description": "作業終了時の振り返り用テンプレート"
+      },
+      "issueReport": {
+        "label": "課題報告",
+        "content": "## 課題報告\n\n**問題:**\n\n\n**発生条件:**\n- \n\n**影響範囲:**\n- \n\n**緊急度:** [高/中/低]\n\n**対応方針:**\n- ",
+        "description": "課題や問題の報告用テンプレート"
+      },
+      "solution": {
+        "label": "解決策",
+        "content": "## 解決策\n\n**対象課題:**\n\n\n**解決方法:**\n\n\n**実装手順:**\n1. \n2. \n3. \n\n**検証方法:**\n- \n\n**リスク:**\n- ",
+        "description": "解決策の提案用テンプレート"
+      },
+      "idea": {
+        "label": "アイデア",
+        "content": "## アイデア\n\n**概要:**\n\n\n**メリット:**\n- \n\n**実現可能性:** [高/中/低]\n\n**必要リソース:**\n- \n\n**次のステップ:**\n- ",
+        "description": "新しいアイデアの整理用テンプレート"
+      },
+      "meetingNotes": {
+        "label": "会議メモ",
+        "content": "## 会議メモ\n\n**日時:** \n**参加者:** \n\n**議題:**\n- \n\n**決定事項:**\n- \n\n**アクションアイテム:**\n- [ ] \n- [ ] \n\n**次回予定:**\n",
+        "description": "会議や打ち合わせの記録用テンプレート"
+      }
+    },
+    "memoTypes": {
+      "workLog": "作業ログ",
+      "idea": "アイデア",
+      "issue": "課題",
+      "solution": "解決策",
+      "general": "一般"
+    },
+    "time": {
+      "now": "今",
+      "minutesAgo": "{count}分前",
+      "hoursAgo": "{count}時間前",
+      "daysAgo": "{count}日前",
+      "monthsAgo": "{count}ヶ月前"
+    },
+    "linkLabels": {
+      "related": "関連",
+      "expansion": "発展",
+      "supplement": "補足"
+    },
+    "mockActivity": {
+      "statusChanged": "ステータスを変更",
+      "todoToInProgress": "TODO → 進行中",
+      "system": "システム",
+      "priorityChanged": "優先度を変更",
+      "mediumToHigh": "中 → 高",
+      "user": "ユーザー",
+      "taskCreated": "タスクを作成"
+    },
+    "mockAnalysis": {
+      "actionItemsSuffix": "(アクション項目を含む)",
+      "issueReportedSuffix": "(課題を報告)"
+    },
+    "weekday": {
+      "mon": "月",
+      "tue": "火",
+      "wed": "水",
+      "thu": "木",
+      "fri": "金",
+      "sat": "土",
+      "sun": "日"
+    },
+    "recurrenceDesc": {
+      "none": "繰り返しなし",
+      "daily": "毎日",
+      "dailyInterval": "{interval}日ごと",
+      "weekdaysOnly": "平日",
+      "weeklyWithDays": "毎週 {days}",
+      "weeklyIntervalWithDays": "{interval}週ごと ({days})",
+      "weekly": "毎週",
+      "weeklyInterval": "{interval}週ごと",
+      "monthly": "毎月",
+      "monthlyInterval": "{interval}ヶ月ごと",
+      "yearly": "毎年",
+      "yearlyInterval": "{interval}年ごと"
+    },
+    "ganttMonthYear": "{year}年{month}月",
+    "pomodoroNotification": {
+      "workCompleteTitle": "ポモドーロ完了！",
+      "workCompleteBody": "{task} — 休憩を取りましょう",
+      "taskFallback": "タスク",
+      "breakEndTitle": "休憩終了！",
+      "breakEndBody": "作業を再開しましょう"
+    }
+  }
+}

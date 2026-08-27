@@ -1,0 +1,25 @@
+{
+  "labels": {
+    "title": "Labels",
+    "itemName": "Label",
+    "form": {
+      "nameLabel": "Label name",
+      "namePlaceholder": "e.g. Bug fix",
+      "descriptionPlaceholder": "Enter a description for this label",
+      "selectedIconLabel": "Selected icon",
+      "selectIconLabel": "Select an icon",
+      "iconNotSelectedSuffix": "(none selected)",
+      "iconSearchPlaceholder": "Search icons...",
+      "iconLimitWarning": "Showing the first 50 results. Narrow your search for more precise results."
+    },
+    "list": {
+      "emptyTitle": "This theme has no labels yet",
+      "emptyHint": "Create one from \"Add label\" above",
+      "taskCount": "{count} tasks",
+      "deleteConfirm": "Delete this label?"
+    },
+    "pageTitle": "Labels",
+    "pageSubtitle": "Filter by category, then theme, to manage labels",
+    "addButton": "Add label"
+  }
+}

@@ -7,8 +7,7 @@ import { API_BASE_URL } from '@/utils/api';
 import WorkflowRolesConfig from '@/components/workflow/WorkflowRolesConfig';
 import { GlobalProviderPreference } from './_components/GlobalProviderPreference';
 import { SkipPermissionToggle } from './_components/SkipPermissionToggle';
-import { SystemStatusPanel } from './_components/SystemStatusPanel';
-import { RecoveryMetricsPanel } from './_components/RecoveryMetricsPanel';
+import { AGENTS_PANELS } from './_components/panels.generated';
 import { createLogger } from '@/lib/logger';
 import { isDevHost } from '@/lib/dev-mode';
 
@@ -137,9 +136,9 @@ export default function AgentsPage() {
           <p className="text-zinc-500 dark:text-zinc-400 mt-1">{t('pageSubtitle')}</p>
         </div>
 
-        <SystemStatusPanel />
-
-        <RecoveryMetricsPanel />
+        {AGENTS_PANELS.map(({ id, Component }) => (
+          <Component key={id} />
+        ))}
 
         <div className="mb-6 space-y-3">
           <GlobalProviderPreference />

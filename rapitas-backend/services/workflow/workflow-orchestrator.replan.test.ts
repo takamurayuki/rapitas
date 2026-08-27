@@ -62,7 +62,11 @@ const taskUpdateMock = mock(() => Promise.resolve({}));
 const workflowTransitionCountMock = mock(() => Promise.resolve(0));
 
 const mockPrisma = {
-  task: { findUnique: taskFindUniqueMock, update: taskUpdateMock },
+  task: {
+    findUnique: taskFindUniqueMock,
+    update: taskUpdateMock,
+    updateMany: mock(() => Promise.resolve({ count: 1 })),
+  },
   workflowRoleConfig: { findUnique: mock(() => Promise.resolve(roleConfig)) },
   systemPrompt: { findUnique: mock(() => Promise.resolve(null)) },
   workflowTransition: { count: workflowTransitionCountMock },
@@ -168,6 +172,12 @@ const scheduleWorkflowRedispatchMock = mock(() => {});
 mock.module('./workflow-redispatch', () => ({
   REDISPATCH_DELAY_MS: 1000,
   scheduleWorkflowRedispatch: scheduleWorkflowRedispatchMock,
+}));
+
+// Probe stage (task 673) always succeeds here — these tests exercise the
+// implementer plan-validity guard, not probe behavior.
+mock.module('./workflow-orchestrator-preflight-probe', () => ({
+  runPreflightProbe: mock(() => Promise.resolve({ done: false })),
 }));
 
 // Import AFTER all mock.module calls.

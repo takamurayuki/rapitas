@@ -1630,6 +1630,24 @@ function syncDatabaseAndGenerateClient() {
   }
 }
 
+/**
+ * フロントエンドの生成レジストリ（messages/{ja,en}.json・agents パネル一覧）を
+ * フラグメントから再生成する。バックエンド（backlog-scheduler.ts）・フロント
+ * エンド双方が起動前に最新の生成物を参照できるよう、バックエンド起動より前に
+ * 呼び出すこと（task #675 — 6箇所の追記衝突を分離ファイル+自動集約に置き換えた
+ * 構造の一部）。
+ */
+function generateFrontendRegistries() {
+  console.log('\nGenerating frontend registries (messages, agents panels)...');
+  try {
+    execSync('node scripts/generate-messages.mjs', { cwd: FRONTEND_DIR, stdio: 'inherit' });
+    execSync('node scripts/generate-agents-panels.mjs', { cwd: FRONTEND_DIR, stdio: 'inherit' });
+  } catch (err) {
+    console.error('Failed to generate frontend registries:', err.message);
+    throw err;
+  }
+}
+
 // 再起動要求を示す終了コード
 const RESTART_EXIT_CODE = 75;
 
@@ -1648,6 +1666,63 @@ let crashTimestamps = [];
  * バックエンドプロセスを起動する
  * @param {number} retryCount - クラッシュリカバリのリトライ回数（内部使用）
  */
+/** 再起動後、ポートで待ち受けているか確かめるまでの猶予。 */
+const BACKEND_LIVENESS_GRACE_MS = 45000;
+
+/**
+ * 再起動を試みた後、バックエンドが実際に応答しているか確かめる。
+ *
+ * `startBackend` はプロセスを起こすだけで、起動できたことは保証しない。起動時に
+ * 例外を投げればプロセスは死に、exit ハンドラが再び拾う——が、プロセスが残ったまま
+ * 待ち受けないケースは誰も拾わない。ここで一度だけ確かめて、駄目なら黙らずに言う。
+ */
+async function verifyBackendListening() {
+  try {
+    const res = await fetch(`http://127.0.0.1:${actualBackendPort}/health`, {
+      signal: AbortSignal.timeout(5000),
+    });
+    if (res.ok) return;
+  } catch {
+    // 応答なし = 下記へ
+  }
+  console.error(`\n❌ Backend was restarted but is not answering on port ${actualBackendPort}.`);
+  console.error(`  Every UI screen will sit loading until this is resolved.`);
+  notifyBackendDown(crashTimestamps.length);
+}
+
+/**
+ * バックエンドが自動回復を諦めたことを、コンソール以外にも届ける。
+ *
+ * 2026-08-27 の停止は、まさにコンソールにしか出ない（実際には出てすらいなかった）
+ * ことが問題だった。dev.js のログを常時見ている人はいない。OSの通知に出せば、
+ * 画面が読み込み中のまま放置される前に気づける。
+ *
+ * 失敗しても無視する（通知の失敗で開発サーバーを止めない）。
+ * @param {number} crashes - ウィンドウ内のクラッシュ回数
+ */
+function notifyBackendDown(crashes) {
+  const title = 'rapitas: バックエンドが停止しました';
+  const body = `${crashes}回連続でクラッシュし自動回復を停止。手動で再起動してください。`;
+  try {
+    // PowerShell のバルーン通知。Windows 以外では何も起きない。
+    const ps = [
+      '[reflection.assembly]::LoadWithPartialName("System.Windows.Forms") | Out-Null;',
+      '$n = New-Object System.Windows.Forms.NotifyIcon;',
+      '$n.Icon = [System.Drawing.SystemIcons]::Error;',
+      '$n.BalloonTipTitle = "' + title + '";',
+      '$n.BalloonTipText = "' + body + '";',
+      '$n.Visible = $true; $n.ShowBalloonTip(20000); Start-Sleep -Seconds 6; $n.Dispose();',
+    ].join(' ');
+    spawn('powershell', ['-NoProfile', '-WindowStyle', 'Hidden', '-Command', ps], {
+      detached: true,
+      stdio: 'ignore',
+      windowsHide: true,
+    }).unref();
+  } catch {
+    // 通知は best-effort。
+  }
+}
+
 function startBackend(retryCount = 0) {
   // Always use dev:stable (no bun --watch) to ensure graceful shutdown handlers run
   const backendScript = 'dev:stable';
@@ -1691,8 +1766,16 @@ function startBackend(retryCount = 0) {
       return;
     }
 
-    // Bunクラッシュ検出（Segmentation fault / SIGABRT）
-    if (BUN_CRASH_EXIT_CODES.includes(code)) {
+    // 正常終了(0)以外はすべてクラッシュとして扱う。
+    //
+    // 以前は BUN_CRASH_EXIT_CODES に列挙した終了コードだけを回復対象にしていた。
+    // 2026-08-27、blobワーカー内の未捕捉例外でバックエンドが通常の異常終了をした
+    // ところ、列挙に無いため素通りし、再起動もメッセージも出ないまま75分間停止した。
+    // ユーザーが画面の異常に気づくまで誰も分からなかった。
+    //
+    // dev.js から見れば意図しない終了はすべてクラッシュである。「どの終了コードなら
+    // 死んでよいか」を列挙する設計自体が誤りだった。
+    if (code !== 0) {
       const now = Date.now();
       // 古いクラッシュタイムスタンプを除去
       crashTimestamps = crashTimestamps.filter((t) => now - t < CRASH_WINDOW_MS);
@@ -1705,8 +1788,10 @@ function startBackend(retryCount = 0) {
             ? 'SIGABRT (assertion / abort)'
             : code === 139
               ? 'SIGSEGV (segmentation fault)'
-              : 'runtime crash';
-      console.error(`\n⚠️ Bun crashed with exit code ${code} (${crashKind})`);
+              : code === null
+                ? 'terminated by signal'
+                : 'unexpected exit (uncaught exception?)';
+      console.error(`\n⚠️ Backend exited unexpectedly: code ${code} (${crashKind})`);
 
       if (crashTimestamps.length <= MAX_CRASH_RETRIES) {
         console.log(
@@ -1721,12 +1806,23 @@ function startBackend(retryCount = 0) {
             // ポート未解放でも試行
           }
           startBackend(crashTimestamps.length);
+
+          // 起動を試みても、上がったかどうかは別の話。プロセスは残るが
+          // ポートで待ち受けないケース（起動時例外など）を検知して黙らせない。
+          setTimeout(() => {
+            void verifyBackendListening();
+          }, BACKEND_LIVENESS_GRACE_MS);
         }, CRASH_RETRY_DELAY_MS);
       } else {
         console.error(
-          `\n❌ Bun crashed ${crashTimestamps.length} times in ${CRASH_WINDOW_MS / 1000}s. Stopping auto-recovery.`,
+          `\n❌ Backend crashed ${crashTimestamps.length} times in ${CRASH_WINDOW_MS / 1000}s. Stopping auto-recovery.`,
         );
-        console.error(`  This is a known Bun runtime bug. Try upgrading Bun: bun upgrade`);
+        console.error(`  THE BACKEND IS NOW DOWN AND WILL NOT COME BACK ON ITS OWN.`);
+        console.error(`  Every UI screen will sit loading until it is restarted manually.`);
+        if (BUN_CRASH_EXIT_CODES.includes(code)) {
+          console.error(`  Bun runtime crash — try upgrading Bun: bun upgrade`);
+        }
+        notifyBackendDown(crashTimestamps.length);
       }
     }
   });
@@ -2264,6 +2360,7 @@ async function main() {
       throw err;
     }
   }
+  generateFrontendRegistries();
   startBackend();
 
   // バックエンドのヘルスチェック（ゾンビソケットへの接続を検出）。1回失敗した

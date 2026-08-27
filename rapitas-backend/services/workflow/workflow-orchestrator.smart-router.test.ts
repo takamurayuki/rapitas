@@ -67,7 +67,11 @@ function makeRoleConfig(
 const taskFindUniqueMock = mock(() => Promise.resolve(makeTask()));
 const roleConfigFindUniqueMock = mock(() => Promise.resolve(makeRoleConfig()));
 const mockPrisma = {
-  task: { findUnique: taskFindUniqueMock, update: mock(() => Promise.resolve({})) },
+  task: {
+    findUnique: taskFindUniqueMock,
+    update: mock(() => Promise.resolve({})),
+    updateMany: mock(() => Promise.resolve({ count: 1 })),
+  },
   workflowRoleConfig: { findUnique: roleConfigFindUniqueMock },
   systemPrompt: { findUnique: mock(() => Promise.resolve(null)) },
   workflowTransition: { count: mock(() => Promise.resolve(0)) },
@@ -168,6 +172,7 @@ mock.module('./routing-policy', () => ({
   computeMinTier: mock(() => undefined),
   computeMinTierWithReason: mock(() => ({ tier: undefined, reason: undefined })),
   isCapabilityAttributableFailure: mock(() => true),
+  stripRuledOutLines: mock((text: string) => text),
 }));
 mock.module('./workflow-queue', () => ({
   WorkflowQueueService: {
@@ -201,6 +206,12 @@ mock.module('../ai/agent-fallback', () => ({
   providerToAgentTypes: mock(() => ['claude-code']),
   findAgentConfigForProvider: mock(() => findAgentConfigForProviderImpl()),
   findFallbackAgentConfig: mock(() => Promise.resolve(null)),
+}));
+
+// Probe stage (task 673) always succeeds here — these tests exercise Smart
+// Router model auto-selection, not probe behavior.
+mock.module('./workflow-orchestrator-preflight-probe', () => ({
+  runPreflightProbe: mock(() => Promise.resolve({ done: false })),
 }));
 
 // Import AFTER all mock.module calls.

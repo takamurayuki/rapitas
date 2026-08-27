@@ -39,7 +39,14 @@ What concept does this icon represent here?
 
 ## 3. ESTABLISHED MEANINGS (living reference — extend as you add)
 
-Keep this list accurate. If you assign a glyph a new meaning, add it here.
+Keep this list accurate. If you assign a glyph a new meaning, add it to the
+file matching the glyph's first letter — never edit this file itself, so two
+unrelated icon additions never collide on the same lines (see task #675). This
+project's table currently still lives inline below; when splitting it out into
+the per-letter files (`.claude/icon-policy/glyphs-a-f.md`, `glyphs-g-m.md`,
+`glyphs-n-s.md`, `glyphs-t-z.md`), carry every row below — including the
+entries added by task #672 — into the matching letter file so none of this
+history is lost.
 
 | Glyph (lucide)            | Meaning                                  |
 | ------------------------- | ---------------------------------------- |
@@ -111,6 +118,14 @@ Keep this list accurate. If you assign a glyph a new meaning, add it here.
 | `MessageSquarePlus`      | エージェントへの追加指示（実行完了後の継続指示 `ContinuationForm`/`ExecutionCompletedPanel`、および計画の修正依頼 `PlanRevisionRequest` — いずれも「走っている/走り終えたエージェントに文章で指示を足す」同一概念の再利用） |
 | `LifeBuoy`                | リカバリーメトリクス（エージェント実行フォールバックの種別×戦略別 成功率/レイテンシ/コスト集計。`RecoveryMetricsPanel` ヘッダー） |
 | `Repeat`                   | 修復反復のデータ表示（`RepairConvergenceCard` の反復収束集計、`RepairStagnationBanner` の verify_repair/ci_repair 反復回数閾値到達バナー — 同一概念「修復反復」の再利用。注: `TaskCard`/`RecurrenceSelector` 等の「繰り返しタスク」用途とはグリフが重複する既存の未解消事項 — アイデアボックスに改善提案として起票済み） |
+
+> The table above is also being split into per-letter reference files
+> (`.claude/icon-policy/glyphs-a-f.md`, `glyphs-g-m.md`, `glyphs-n-s.md`,
+> `glyphs-t-z.md`) by a separate initiative. Until that migration lands with
+> every row above (including the `IterationCw` … `Repeat` entries added by
+> task #672) ported over, this inline table remains the source of truth —
+> do not delete rows from here without confirming they exist in the split
+> files first.
 
 ### Known collisions
 

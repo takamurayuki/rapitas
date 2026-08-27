@@ -1,0 +1,31 @@
+{
+  "search": {
+    "title": "検索",
+    "placeholder": "検索キーワードを入力...",
+    "noResults": "検索結果がありません",
+    "resultCount": "{count}件の結果",
+    "filterAll": "すべて",
+    "filterTask": "タスク",
+    "filterComment": "コメント",
+    "filterResource": "リソース",
+    "searchResultsFor": "「{query}」の検索結果: {total}件",
+    "noMatchResults": "「{query}」に一致する結果が見つかりませんでした",
+    "tryDifferentKeyword": "別のキーワードで検索してみてください",
+    "enterKeywordToSearch": "キーワードを入力して検索を開始してください",
+    "missPanel": {
+      "heading": "よく検索されているが結果がないキーワード",
+      "hitCount": "{count}回",
+      "creating": "作成中…",
+      "createTask": "タスク作成"
+    },
+    "filterPanel": {
+      "typeHeading": "種類",
+      "statusHeading": "ステータス",
+      "typeNote": "ノート",
+      "statusActive": "進行中"
+    },
+    "historyHeading": "最近の検索",
+    "relevanceLabel": "関連度 {relevance}%",
+    "searching": "検索中..."
+  }
+}

@@ -1,0 +1,29 @@
+{
+  "pomodoro": {
+    "timeManagement": "Time Management",
+    "taskDefaultName": "Task",
+    "timerRunningOtherTask": "Timer is running on another task \"{taskTitle}\"",
+    "workTimeLabel": "Work time:",
+    "breakTimeLabel": "Break time:",
+    "onBreak": "On break",
+    "paused": "Paused",
+    "working": "Working",
+    "ready": "Ready",
+    "breakPrompt": "25 minutes completed! Take a {breakType}?",
+    "longBreak": "long break",
+    "shortBreak": "short break",
+    "takeBreak": "Take a break",
+    "skip": "Skip",
+    "breakEndMessage": "Break finished! Let's resume work",
+    "resumeWork": "Resume work",
+    "pause": "Pause",
+    "complete": "Complete",
+    "stop": "Stop",
+    "start": "Start",
+    "completedCount": "Completed",
+    "totalTime": "Total time",
+    "dailyAverage": "Daily average",
+    "dailyPomodoroCount": "Daily pomodoro count",
+    "taskFocusTime": "Focus time by task"
+  }
+}

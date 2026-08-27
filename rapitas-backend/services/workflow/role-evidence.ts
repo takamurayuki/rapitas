@@ -292,6 +292,8 @@ export interface PremiumAdvantage {
   reason: string;
   premiumRate?: number;
   standardRate?: number;
+  /** Which evidence answered: the decision ledger, or raw execution statuses. */
+  source?: 'ledger' | 'executions';
 }
 
 /**
@@ -314,10 +316,23 @@ export interface PremiumAdvantage {
 export async function resolvePremiumAdvantage(role: string): Promise<PremiumAdvantage | undefined> {
   if (!evidenceRoutingEnabled()) return undefined;
 
+  const floor = minSamples();
+
+  // Ask the ledger first. It judges the DECISION, so a run that died on a spend
+  // limit or an upstream 5xx settles as indeterminate and is excluded — whereas
+  // raw execution statuses count it against whichever tier happened to be
+  // chosen, which is how an upgrade can look unjustified because the
+  // infrastructure wobbled. Falls through when the ledger is still too thin;
+  // it only started settling decisions on 2026-08-26.
+  const fromLedger = await resolveFromLedger(role, floor).catch(() => undefined);
+  if (fromLedger) {
+    log.info({ role, ...fromLedger }, 'Premium-advantage verdict resolved for role');
+    return fromLedger;
+  }
+
   const outcomes = await getRoleModelOutcomes(role).catch(() => [] as RoleModelOutcome[]);
   if (outcomes.length === 0) return undefined;
 
-  const floor = minSamples();
   const agg = (tier: ModelTier) => {
     const rows = outcomes.filter((o) => o.tier === tier);
     const samples = rows.reduce((a, r) => a + r.samples, 0);
@@ -338,6 +353,7 @@ export async function resolvePremiumAdvantage(role: string): Promise<PremiumAdva
       : `premium に standard を上回る実績が無い(${(margin * 100).toFixed(1)}pt)`,
     premiumRate: premium.rate,
     standardRate: standard.rate,
+    source: 'executions',
   };
   log.info(
     { role, ...verdict, premiumSamples: premium.samples, standardSamples: standard.samples },
@@ -345,6 +361,36 @@ export async function resolvePremiumAdvantage(role: string): Promise<PremiumAdva
   );
   return verdict;
 }
+/**
+ * Same verdict, computed from settled ledger decisions instead of execution
+ * statuses. Returns undefined when either tier is below the sample floor, so an
+ * insufficient ledger silently defers to the older evidence rather than
+ * relaxing a floor on thin data.
+ */
+async function resolveFromLedger(
+  role: string,
+  floor: number,
+): Promise<PremiumAdvantage | undefined> {
+  const { tierOutcomesForRole } = await import('../decision-ledger');
+  const outcomes = await tierOutcomesForRole(role);
+  const premium = outcomes.find((o) => o.tier === 'premium');
+  const standard = outcomes.find((o) => o.tier === 'standard');
+  if (!premium || !standard) return undefined;
+  if (premium.samples < floor || standard.samples < floor) return undefined;
+
+  const margin = premium.rate - standard.rate;
+  const justified = margin >= premiumAdvantageThreshold();
+  return {
+    justified,
+    reason: justified
+      ? `premium は standard を ${(margin * 100).toFixed(1)}pt 上回る実績(台帳 ${premium.samples}/${standard.samples}件)`
+      : `premium に standard を上回る実績が無い(${(margin * 100).toFixed(1)}pt、台帳 ${premium.samples}/${standard.samples}件)`,
+    premiumRate: premium.rate,
+    standardRate: standard.rate,
+    source: 'ledger',
+  };
+}
+
 /** Test-only: clear the proven-tier cache. */
 export function _resetProvenTierCache(): void {
   provenTierCache.clear();

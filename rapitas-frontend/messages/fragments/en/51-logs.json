@@ -1,0 +1,18 @@
+{
+  "logs": {
+    "title": "Log Analysis",
+    "loading": "Loading…",
+    "noThemesHint": "No theme has a working directory configured. Set a working directory on a theme to analyze its logs here.",
+    "themeLabel": "Theme",
+    "reload": "Reload",
+    "truncatedSuffix": "(partial output)",
+    "noteHint": "You can also paste logs into the input box below to analyze them.",
+    "loadingLogs": "Loading logs…",
+    "analyzeFailed": "Failed to analyze the log",
+    "sourceLabels": {
+      "configured": "Configured log directory",
+      "scanned": "Auto-detected from working directory",
+      "none": "No logs found"
+    }
+  }
+}
