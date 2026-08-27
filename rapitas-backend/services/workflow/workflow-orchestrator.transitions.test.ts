@@ -80,7 +80,11 @@ const workflowFileFindFirstMock = mock(
 );
 
 const mockPrisma = {
-  task: { findUnique: taskFindUniqueMock, update: taskUpdateMock },
+  task: {
+    findUnique: taskFindUniqueMock,
+    update: taskUpdateMock,
+    updateMany: mock(() => Promise.resolve({ count: 1 })),
+  },
   workflowRoleConfig: { findUnique: roleConfigFindUniqueMock },
   systemPrompt: { findUnique: mock(() => Promise.resolve(null)) },
   workflowTransition: { count: mock(() => Promise.resolve(0)) },
@@ -193,6 +197,13 @@ mock.module('../ai/agent-fallback', () => ({
   providerToAgentTypes: mock(() => ['claude-code']),
   findAgentConfigForProvider: mock(() => Promise.resolve(null)),
   findFallbackAgentConfig: mock(() => Promise.resolve(null)),
+}));
+// Probe stage (task 673) always succeeds here — these tests exercise status/
+// artifact bookkeeping around agent dispatch, not probe behavior (see
+// workflow-orchestrator-preflight-probe.test.ts and
+// workflow-orchestrator-probe-integration.test.ts for that).
+mock.module('./workflow-orchestrator-preflight-probe', () => ({
+  runPreflightProbe: mock(() => Promise.resolve({ done: false })),
 }));
 
 // Import AFTER all mock.module calls.

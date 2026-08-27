@@ -23,4 +23,5 @@ Part of `.claude/ICON_POLICY.md` §3 (ESTABLISHED MEANINGS), split alphabeticall
 | `NotepadText`             | メモ（軽量メモ機能。nav: /memos、ページヘッダー、quick-capture のメモモードタブ。注: `NotebookTabs`＝ノート、`StickyNote`＝検索結果のノート種別と混同しないこと） |
 | `Sunrise`                 | 自律活動デイリーレポート（nav: /agents/daily-report。ページ見出し・バックログ定期ジョブ daily_report — 同一概念の再利用。注: /agents/growth＝成長台帳とはルート・グリフとも別） |
 | `ScanSearch`              | 検出漏れ兆候の学習・レビュー（nav: /agents/miss-signatures、ページ見出し、バックログ定期ジョブ miss_ledger — 同一概念の再利用。注: `Search`＝知識ブラウザとは別概念） |
+| `Radar`                   | プリフライトprobeメトリクス（フェーズ遷移前probeのターゲット別成功率・レイテンシ集計。`ProbeMetricsPanel` ヘッダー） |
 | `Stethoscope`              | LLMエラー診断（信頼度スコア付き診断結果パネル、`ErrorDiagnosisPanel` ヘッダー。注: `src/components/category/icons` 等のカテゴリアイコンピッカー登録は中立的な再掲で対象外） |

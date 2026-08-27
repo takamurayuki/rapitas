@@ -8,6 +8,7 @@ import { agentAvailabilityRoutes } from './config/agent-availability';
 import { providerCooldownsRoutes } from './config/provider-cooldowns';
 import { recoveryMetricsRoutes } from './config/recovery-metrics';
 import { errorDiagnosisRoutes } from './config/error-diagnosis';
+import { probeMetricsRoutes } from './config/probe-metrics';
 import { executionLogsRoutes } from './monitoring/execution-logs';
 import { agentMetricsRouter } from './monitoring/agent-metrics';
 import { agentVersionManagementRoutes } from './system/agent-version-management';
@@ -32,6 +33,7 @@ export const agentsDomainRoutes = new Elysia()
   .use(providerCooldownsRoutes)
   .use(recoveryMetricsRoutes)
   .use(errorDiagnosisRoutes)
+  .use(probeMetricsRoutes)
   .use(executionLogsRoutes)
   .use(agentMetricsRouter)
   .use(agentVersionManagementRoutes)
