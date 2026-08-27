@@ -13,7 +13,7 @@ import type { WorkflowFileType } from '../../core/workflow-helpers';
 import { researchConcludesNoChange } from '../../../../services/workflow/completion-gate';
 import { recordTransition } from '../../../../services/workflow/transition-recorder';
 import { checkWorkflowInvariants } from '../../../../services/workflow/workflow-invariants';
-import { markLatestExecutionFailed } from './shared';
+import { markLatestExecutionFailed, wasNonConvergenceCutoffJustRecorded } from './shared';
 
 const log = createLogger('routes:workflow:handlers:files');
 
@@ -188,20 +188,26 @@ export async function computeAndApplyStatusTransition(params: {
               taskId,
               `検証に失敗したためブロックしました: ${verifyValidation.summary}`,
             );
-            await recordTransition({
-              taskId,
-              fromStatus: currentStatus ?? null,
-              toStatus: currentStatus ?? 'in_progress',
-              actor: 'verifier',
-              cause: 'verify_validation_failed',
-              phase: 'verify',
-              metadata: {
-                sizeBytes: savedContent.length,
-                reason: verifyValidation.summary,
-              },
-              invariantViolation: true,
-              invariantMessage: verifyValidation.summary,
-            });
+            // The non-convergence cutoff already recorded its OWN
+            // `verify_repair_non_convergence` transition for this rejection
+            // (verify-self-repair.ts) — recording `verify_validation_failed`
+            // here too would duplicate it (task 674: two rows 43ms apart).
+            if (!(await wasNonConvergenceCutoffJustRecorded(taskId))) {
+              await recordTransition({
+                taskId,
+                fromStatus: currentStatus ?? null,
+                toStatus: currentStatus ?? 'in_progress',
+                actor: 'verifier',
+                cause: 'verify_validation_failed',
+                phase: 'verify',
+                metadata: {
+                  sizeBytes: savedContent.length,
+                  reason: verifyValidation.summary,
+                },
+                invariantViolation: true,
+                invariantMessage: verifyValidation.summary,
+              });
+            }
             // newStatus stays undefined — caller skips the verify_done
             // transition + auto-commit/PR pipeline below.
           }
