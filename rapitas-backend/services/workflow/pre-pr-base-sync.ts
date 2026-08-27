@@ -35,7 +35,7 @@ export interface BaseSyncResult {
 /** Injected side-effect boundary — production defaults live in this module. */
 export interface BaseSyncDeps {
   /** Run a git command in a cwd and return trimmed stdout (throws on non-zero). */
-  runGit: (args: string[], cwd: string) => Promise<string>;
+  runGit: (args: string[], cwd: string, opts?: { skipLog?: boolean }) => Promise<string>;
   /** Resolve the listed conflicted files in-place; true = resolved & committed. */
   resolveConflicts: (p: {
     gitCwd: string;
@@ -51,7 +51,7 @@ export interface BaseSyncDeps {
 async function defaultDeps(): Promise<BaseSyncDeps> {
   const { runGitCommand } = await import('../github/git-exec');
   return {
-    runGit: (args, cwd) => runGitCommand(args, cwd),
+    runGit: (args, cwd, opts) => runGitCommand(args, cwd, opts),
     resolveConflicts: resolveConflictsWithAuxCli,
     runVerify: async (taskId, gitCwd, sessionId) => {
       const { runVerificationGate } = await import('../agents/verification/verification-gate');
@@ -234,8 +234,14 @@ export async function syncBaseIntoBranch(p: {
     if (conflicts.length === 0) {
       // Non-zero merge exit WITHOUT content conflicts (dirty tree, unrelated
       // histories, …) is an infra condition, not a resolvable competition —
-      // abort best-effort and fail open like the fetch path.
-      await deps.runGit(['merge', '--abort'], p.gitCwd).catch(() => {});
+      // abort best-effort and fail open like the fetch path. skipLog suppresses
+      // the generic runGitCommand ERROR log (task 689: expected-failure noise);
+      // a failed abort still leaves MERGE_HEAD stuck in the worktree (task 691)
+      // and worktree-guard self-heals on the next git operation, so surface the
+      // failure through our own warn log instead of the low-level one.
+      await deps.runGit(['merge', '--abort'], p.gitCwd, { skipLog: true }).catch((err) => {
+        log.warn({ taskId: p.taskId, err }, '[base-sync] merge --abort itself failed');
+      });
       log.warn({ taskId: p.taskId }, '[base-sync] merge failed without conflicts — skipping');
       return {
         status: 'skipped',
@@ -259,7 +265,11 @@ export async function syncBaseIntoBranch(p: {
       .catch(() => false);
 
     if (!resolvedOk) {
-      await deps.runGit(['merge', '--abort'], p.gitCwd).catch(() => {});
+      // See the "merge failed without conflicts" branch above for why skipLog
+      // is combined with our own warn log on failure.
+      await deps.runGit(['merge', '--abort'], p.gitCwd, { skipLog: true }).catch((err) => {
+        log.warn({ taskId: p.taskId, err }, '[base-sync] merge --abort itself failed');
+      });
       return {
         status: 'conflict_unresolved',
         changedFiles: 0,
