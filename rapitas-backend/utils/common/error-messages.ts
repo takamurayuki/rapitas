@@ -21,3 +21,6 @@ export const RESOURCE_NOT_FOUND = 'Resource not found' as const;
 
 /** Default message for ValidationError — mirrors the class default in error-handler.ts. */
 export const VALIDATION_ERROR = 'Validation error' as const;
+
+/** Response message when the request body is not valid JSON. */
+export const JSON_PARSE_ERROR = 'Invalid JSON in request body' as const;
