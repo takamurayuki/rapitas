@@ -23,7 +23,7 @@ mock.module('../../../config/database', () => ({
   },
 }));
 
-import { getCostOptimizationInsights } from '../../../routes/agents/agent-metrics/queries/cost-optimization-query';
+import { getCostOptimizationInsights } from '../../../routes/agents/agent-metrics/queries/cost-optimization';
 import { getSelfObservationSummary } from '../../../routes/agents/agent-metrics/queries/observation-query';
 
 describe('getCostOptimizationInsights', () => {
