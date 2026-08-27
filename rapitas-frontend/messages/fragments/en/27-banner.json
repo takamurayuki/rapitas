@@ -1,0 +1,27 @@
+{
+  "banner": {
+    "backendDisconnected": "Backend server connection lost",
+    "connectionError": "Connection error",
+    "backendUnreachable": "Cannot connect to backend server",
+    "closeAll": "Close all",
+    "inProgressWork": "In-progress work",
+    "interruptedWork": "Interrupted work",
+    "runningCount": "{count} running",
+    "resumableCount": "{count} resumable",
+    "runningStatus": "Running",
+    "interruptedStatus": "Interrupted",
+    "interruptedAt": "Interrupted {time} ago",
+    "startedAt": "Started {time} ago",
+    "details": "Details",
+    "resumeLatest": "Resume latest",
+    "viewRunningTask": "View running task",
+    "taskPrefix": "Task #",
+    "resumeAll": "Resume all",
+    "updateAvailable": "Update v{version} available",
+    "downloading": "Downloading...",
+    "percentComplete": "{pct}% complete",
+    "installing": "Installing...",
+    "updateNow": "Update now",
+    "laterDismiss": "Later"
+  }
+}

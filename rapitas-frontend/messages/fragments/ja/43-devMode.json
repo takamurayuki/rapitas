@@ -1,0 +1,884 @@
+{
+  "devMode": {
+    "executionCompletedPanel": {
+      "phases": {
+        "researcher": {
+          "title": "調査フェーズ完了",
+          "message": "リサーチャーによる調査が完了しました。",
+          "nextAction": "次は計画フェーズを実行してください。"
+        },
+        "planner": {
+          "title": "計画フェーズ完了",
+          "message": "プランナーによる計画作成が完了しました。",
+          "nextAction": "ワークフロータブで計画内容を確認し、承認してください。"
+        },
+        "implementer": {
+          "title": "実装フェーズ完了",
+          "message": "実装者による実装が完了しました。",
+          "nextAction": "検証フェーズが自動的に開始されます。しばらくお待ちください。"
+        },
+        "verifier": {
+          "title": "検証フェーズ完了",
+          "message": "検証者による検証が完了しました。",
+          "nextAction": "ワークフロータブで検証結果を確認し、問題なければ完了にしてください。"
+        }
+      },
+      "defaultTitle": "実行完了",
+      "defaultMessage": "AIエージェントによる実行が完了しました。",
+      "defaultNextAction": "このタスクのPRページで変更を確認してください。",
+      "prNotSyncedOpened": "このタスクの既存PRをGitHubで開きました（ローカル未同期）。最新の実行で作成されたものとは限りません。統合ページで同期すると一覧にも表示されます。",
+      "prNotSynced": "PRはローカルに同期されていません。",
+      "prNotCreatedYet": "PRがまだ作成されていません。下の「PR作成」から作成してください。",
+      "prFetchFailed": "PR情報の取得に失敗しました。時間をおいて再度お試しください。",
+      "reset": "リセット",
+      "openPr": "PRを開く",
+      "followUpLabel": "追加の指示を送る",
+      "followUpPlaceholder": "追加の修正や変更の指示を入力してください...",
+      "execute": "実行",
+      "ctrlEnterHint": "Ctrl+Enter で実行",
+      "close": "閉じる",
+      "retryExecution": "再実行"
+    },
+    "taskAnalysisTab": {
+      "agentLabel": "分析用AIエージェント",
+      "depthLabel": "分析深度",
+      "depth": {
+        "quick": {
+          "label": "クイック",
+          "desc": "素早い概要分析"
+        },
+        "standard": {
+          "label": "標準",
+          "desc": "バランスの良い分析"
+        },
+        "deep": {
+          "label": "詳細",
+          "desc": "深い詳細分析"
+        }
+      },
+      "priorityLabel": "優先度戦略",
+      "promptStrategyLabel": "プロンプト戦略",
+      "promptStrategy": {
+        "auto": "自動",
+        "detailed": "詳細",
+        "concise": "簡潔",
+        "custom": "カスタム"
+      },
+      "maxSubtasksLabel": "最大サブタスク数: {count}",
+      "outputOptionsLabel": "出力オプション",
+      "outputOptions": {
+        "estimates": {
+          "label": "工数見積もり",
+          "description": "各サブタスクの見積もり時間を含める"
+        },
+        "dependencies": {
+          "label": "依存関係",
+          "description": "サブタスク間の依存関係を含める"
+        },
+        "tips": {
+          "label": "実装ヒント",
+          "description": "実装のヒントやアドバイスを含める"
+        }
+      },
+      "automationLabel": "自動化",
+      "automation": {
+        "autoApproveSubtasks": {
+          "label": "サブタスク自動承認",
+          "description": "Analysis resultsのサブタスクを自動承認"
+        },
+        "autoOptimizePrompt": {
+          "label": "プロンプト自動最適化",
+          "description": "分析前にプロンプトを自動最適化"
+        },
+        "notifyOnComplete": {
+          "label": "完了通知",
+          "description": "分析完了時に通知を送信"
+        }
+      },
+      "priorityOptions": {
+        "conservative": {
+          "label": "慎重",
+          "description": "少数の大きなサブタスクに分解"
+        },
+        "balanced": {
+          "label": "バランス",
+          "description": "適度な粒度で分解（推奨）"
+        },
+        "aggressive": {
+          "label": "詳細",
+          "description": "細かいサブタスクに詳細分解"
+        }
+      }
+    },
+    "promptOptimizationTab": {
+      "optimizing": "プロンプトを最適化中...",
+      "retry": "再試行",
+      "needMoreInfo": "追加情報が必要です",
+      "required": "*必須",
+      "categories": {
+        "scope": "スコープ",
+        "technical": "技術的",
+        "requirements": "要件",
+        "constraints": "制約"
+      },
+      "answerPlaceholder": "回答を入力...",
+      "cancel": "キャンセル",
+      "submit": "送信",
+      "optimizationComplete": "最適化完了",
+      "scoreParenthetical": "(スコア: {score}/100)",
+      "regenerate": "再生成",
+      "use": "使用する",
+      "idleHint": "タスク説明をAIエージェント向けに最適化します",
+      "generatePrompt": "プロンプトを生成"
+    },
+    "logViewerHeader": {
+      "title": "実行ログ",
+      "taskIdTooltip": "このタスクのID（共有用）",
+      "searchPlaceholder": "ログを検索...",
+      "matchCount": "{count}件",
+      "clearSearchTooltip": "検索をクリア (Esc)",
+      "errorsOnlyTooltip": "エラー・警告のみ表示",
+      "showAllTooltip": "全ログを表示",
+      "errorsOnly": "エラーのみ",
+      "autoScrollingTooltip": "自動スクロール中",
+      "scrollToBottomTooltip": "最下部へスクロール",
+      "copyLogsTooltip": "ログをコピー",
+      "expandTooltip": "拡大",
+      "shrinkTooltip": "縮小",
+      "collapseTooltip": "折りたたむ",
+      "statusRunning": "実行中",
+      "statusCancelled": "停止",
+      "statusCompleted": "完了",
+      "statusFailed": "失敗"
+    },
+    "workflowLogViewer": {
+      "phaseLabels": {
+        "research": "調査フェーズ",
+        "plan": "計画フェーズ",
+        "implement": "実装フェーズ",
+        "verify": "検証フェーズ"
+      },
+      "statusLabels": {
+        "completed": "完了",
+        "approved": "承認済",
+        "running": "実行中",
+        "waiting": "待機中",
+        "failed": "失敗",
+        "skipped": "スキップ"
+      },
+      "noLogs": "ログなし"
+    },
+    "promptPanel": {
+      "optimizing": "最適化中...",
+      "retry": "再試行",
+      "needMoreInfo": "追加情報が必要です",
+      "score": "スコア: {score}/100",
+      "copyPromptAriaLabel": "プロンプトをコピー",
+      "regenerate": "再生成",
+      "use": "使用",
+      "idleHint": "タスク説明をAIエージェント向けに最適化",
+      "generatePrompt": "プロンプト生成",
+      "scoreWithHint": "スコア: {score}/100 - より良いプロンプトを生成するために回答してください",
+      "answerPlaceholder": "回答を入力...",
+      "cancel": "キャンセル",
+      "submitAnswers": "回答を送信"
+    },
+    "executionIdlePanel": {
+      "title": "AI エージェント実行",
+      "optimizedBadge": "最適化済み",
+      "execute": "実行",
+      "description": "Claude Codeがこのタスクを自動で実行します。完了後、差分をレビューしてコミットやPRを作成できます。",
+      "optimizedPromptNotice": "最適化されたプロンプトを使用して実行します。",
+      "advancedOptions": "詳細オプション",
+      "instructionLabel": "追加の実行指示（任意）",
+      "instructionPlaceholder": "例: TypeScriptの型を厳密に定義してください。テストも作成してください。",
+      "branchNameLabel": "作業ブランチ名（空欄で自動生成）",
+      "branchNamePlaceholder": "AIが自動で適切なブランチ名を生成します",
+      "branchNameHint": "指定しない場合、AIがタスク内容を基に適切なブランチ名を自動生成します。"
+    },
+    "useAIAnalysisMode": {
+      "fetchConfigFailed": "設定の取得に失敗しました",
+      "enableFailed": "有効化に失敗しました",
+      "genericError": "エラーが発生しました",
+      "disableFailed": "無効化に失敗しました",
+      "updateFailed": "更新に失敗しました",
+      "analyzeFailed": "分析に失敗しました",
+      "executionStarted": "エージェント実行を開始しました",
+      "executeFailed": "エージェントの実行に失敗しました"
+    },
+    "useAgentExecutionActions": {
+      "noServerResponse": "サーバーからの応答がありません。しばらくしてから再度お試しください。",
+      "databaseQueryError": "データベースクエリエラーが発生しました。しばらくしてから再度お試しください。",
+      "invalidResponseFormat": "サーバーの応答形式が正しくありません。",
+      "communicationError": "サーバーとの通信中にエラーが発生しました。再度お試しください。",
+      "endpointNotFound": "実行エンドポイントが見つかりません。サーバーの設定を確認してください。",
+      "alreadyRunning": "このタスクは既に実行中です。",
+      "continuationStarted": "継続実行を開始しました",
+      "continuationFailed": "継続実行に失敗しました",
+      "executionStarted": "エージェント実行を開始しました",
+      "executeFailed": "エージェントの実行に失敗しました",
+      "genericError": "エラーが発生しました"
+    },
+    "subtaskPanel": {
+      "suggestedSubtasks": "提案サブタスク",
+      "selectAll": "全選択",
+      "deselectAll": "解除",
+      "selectSubtaskAriaLabel": "{title}を選択",
+      "priority": {
+        "high": "高",
+        "medium": "中",
+        "low": "低"
+      },
+      "selectedCount": "{count}件選択",
+      "create": "作成",
+      "createSuccess": "サブタスクを作成しました",
+      "idleHint": "AIがタスクを分析し、サブタスクを提案します",
+      "startAnalysis": "分析開始"
+    },
+    "workflowProgressBar": {
+      "steps": {
+        "research": {
+          "label": "調査",
+          "description": "コードを調査中"
+        },
+        "plan": {
+          "label": "計画",
+          "description": "実装計画を作成中"
+        },
+        "implement": {
+          "label": "実装",
+          "description": "コードを実装中"
+        },
+        "verify": {
+          "label": "検証",
+          "description": "実装結果を検証中"
+        }
+      },
+      "overallProgress": "全体進捗: {current}/{total} ステップ完了"
+    },
+    "useApprovals": {
+      "fetchFailed": "承認リクエストの取得に失敗しました",
+      "genericError": "エラーが発生しました",
+      "approveFailed": "承認に失敗しました",
+      "rejectFailed": "却下に失敗しました",
+      "bulkApproveFailed": "一括承認に失敗しました"
+    },
+    "promptOptimizationPanel": {
+      "title": "プロンプト最適化",
+      "description": "AIがタスク説明を分析し、エージェント向けに最適化されたプロンプトを生成します。",
+      "generatePrompt": "プロンプトを生成",
+      "optimizing": "プロンプトを最適化中...",
+      "analyzingTask": "AIがタスクを分析しています...",
+      "generationFailed": "プロンプト生成に失敗しました",
+      "retry": "再試行"
+    },
+    "inlineAddAgentForm": {
+      "addAgent": "エージェントを追加",
+      "namePlaceholder": "例: メイン開発エージェント",
+      "setAsDefault": "デフォルトに設定",
+      "cancel": "キャンセル",
+      "add": "追加",
+      "agentNameField": "エージェント名"
+    },
+    "useAgentExecutionHandlers": {
+      "continuationFailed": "継続実行に失敗しました",
+      "continuationFailedRetry": "継続実行に失敗しました。再度お試しください。",
+      "communicationFailedRetry": "サーバーとの通信に失敗しました。再度お試しください。",
+      "prCreateFailed": "PR作成に失敗しました",
+      "mergeFailed": "マージに失敗しました"
+    },
+    "liveStatsBar": {
+      "files": "{count}ファイル",
+      "testsPassed": "{count}成功",
+      "testsFailed": "{count}失敗",
+      "commits": "{count}コミット",
+      "errors": "{count}エラー"
+    },
+    "executionCancelledPanel": {
+      "title": "実行をキャンセルしました",
+      "message": "AIエージェントの実行がキャンセルされ、変更が元に戻されました。",
+      "rerun": "再実行"
+    },
+    "usePromptOptimization": {
+      "generationFailed": "プロンプト生成に失敗しました",
+      "errorOccurred": "Errorが発生しました",
+      "requiredQuestionsHint": "必須の質問に回答してください",
+      "generateFailed": "プロンプト生成に失敗しました",
+      "genericError": "エラーが発生しました",
+      "requiredQuestionsUnanswered": "必須の質問に回答してください",
+      "category": {
+        "scope": "スコープ",
+        "technical": "技術",
+        "requirements": "要件",
+        "constraints": "制約",
+        "integration": "統合",
+        "testing": "テスト",
+        "deliverables": "成果物"
+      }
+    },
+    "useTerminalSubmit": {
+      "sendResponseFailed": "[エラー] 回答の送信に失敗しました",
+      "executionStarted": "[System] 実行開始 (session: {sessionId})",
+      "executionStartFailed": "[エラー] 実行の開始に失敗しました"
+    },
+    "tabbedExecutionLogViewer": {
+      "overall": "全体"
+    },
+    "terminalOutput": {
+      "emptyHint": "指示を入力してAIエージェントを実行"
+    },
+    "useDeveloperMode": {
+      "stateRestored": "実行状態を復元しました"
+    },
+    "agentExecutionTab": {
+      "executionAgent": "実行用AIエージェント",
+      "gitSettings": "Git設定",
+      "branchStrategy": "ブランチ戦略",
+      "branchStrategyAuto": "自動（推奨）",
+      "branchStrategyManual": "手動",
+      "branchPrefix": "ブランチプレフィックス",
+      "autoCommitLabel": "自動コミット",
+      "autoCommitDesc": "変更を自動的にコミット",
+      "autoCreatePRLabel": "自動PR作成",
+      "autoCreatePRDesc": "完了時にPull Requestを自動作成",
+      "autoMergeLabel": "自動マージ",
+      "autoMergeDesc": "PR作成後に自動でマージ（squash/merge）",
+      "squashThresholdLabel": "Squashマージ閾値",
+      "squashThresholdSuffix": "コミット以上でsquash",
+      "codeReview": "コードレビュー",
+      "autoCodeReviewLabel": "自動コードレビュー",
+      "autoCodeReviewDesc": "実行完了後に自動でコードレビュー",
+      "reviewScopeLabel": "レビュー範囲",
+      "reviewScopeChanges": "変更箇所のみ",
+      "reviewScopeFull": "全体",
+      "executionOptions": "実行オプション",
+      "autoExecuteLabel": "分析後自動実行",
+      "autoExecuteDesc": "タスク分析完了後にエージェントを自動実行",
+      "useOptimizedPromptLabel": "最適化プロンプト使用",
+      "useOptimizedPromptDesc": "タスク分析の最適化プロンプトを使用",
+      "executionRules": "実行ルール",
+      "executionRulesDesc": "エージェント実行時に追加で適用されるルールや指示を設定します",
+      "executionRulesPlaceholder": "例: ファイルを修正する際は必ずバックアップを作成すること&#10;コミット前に必ずテストを実行すること&#10;セキュリティリスクを慎重に検討すること",
+      "notificationSettings": "通知設定",
+      "notifyStartLabel": "実行開始通知",
+      "notifyStartDesc": "エージェント実行開始時に通知",
+      "notifyCompleteLabel": "実行完了通知",
+      "notifyCompleteDesc": "エージェント実行完了時に通知",
+      "notifyErrorLabel": "Error通知",
+      "notifyErrorDesc": "Error発生時に通知"
+    },
+    "executionSection": {
+      "prNotSyncedOpened": "PRはローカル未同期のため、GitHubで開きました。統合ページで同期すると一覧にも表示されます。",
+      "prNotSynced": "PRはローカルに同期されていません。",
+      "prNotCreated": "このタスクのPRはまだ作成されていません。",
+      "prFetchFailed": "PR情報の取得に失敗しました。時間をおいて再度お試しください。",
+      "title": "エージェント実行",
+      "runningNoLogsYet": "実行中です。ログを準備しています...",
+      "stopAria": "実行を停止",
+      "stop": "停止",
+      "reset": "リセット",
+      "openPr": "PRを開く",
+      "rerun": "再実行",
+      "retry": "再試行",
+      "runDisabledTaskDone": "タスクが完了しているため実行できません",
+      "runDisabledSetupIncomplete": "タスクの設定が完了するとエージェントを実行できます",
+      "startExecution": "実行開始",
+      "run": "実行"
+    },
+    "taskAnalysisPanel": {
+      "complexitySimple": "シンプル",
+      "complexityMedium": "中程度",
+      "complexityComplex": "複雑",
+      "title": "AI タスク分析",
+      "subtitle": "AIがタスクを分析し、効率的なサブタスクを提案",
+      "startAnalysis": "分析を開始",
+      "analysisSettingsTitle": "AIタスク分析設定",
+      "analysisFailed": "分析に失敗しました",
+      "retry": "再試行",
+      "subtasksProposed": "{count}個のサブタスクを提案",
+      "estimatedHours": "約{hours}時間",
+      "devModeSettingsTitle": "開発者モード設定",
+      "suggestedSubtasks": "提案されたサブタスク",
+      "deselectAll": "全て解除",
+      "selectAll": "全て選択",
+      "reasoningLabel": "分解理由:",
+      "reject": "却下",
+      "approveAll": "全て承認",
+      "approveSelected": "{count}件を承認"
+    },
+    "executionSummaryCard": {
+      "completed": "完了しました",
+      "failed": "実行に失敗しました",
+      "changesLabel": "変更:",
+      "countItems": "{count}件",
+      "testsLabel": "テスト:",
+      "testsPassed": "{count}成功",
+      "testsFailed": "{count}失敗",
+      "commitsLabel": "コミット:",
+      "durationLabel": "所要時間:",
+      "durationMinSec": "{min}分{sec}秒",
+      "durationSec": "{sec}秒",
+      "issuesLabel": "課題:",
+      "changedFilesList": "変更ファイル一覧"
+    },
+    "analysisTab": {
+      "summary": "概要",
+      "suggestedSubtasks": "提案サブタスク ({count}件)",
+      "deselectAll": "すべて解除",
+      "selectAll": "すべて選択",
+      "priorityHigh": "高",
+      "priorityMedium": "中",
+      "priorityLow": "低",
+      "estimatedHours": "{hours}時間",
+      "selectedCount": "{count}件選択中",
+      "createSubtasks": "サブタスクを作成",
+      "subtasksCreated": "サブタスクを作成しました",
+      "reanalyze": "再分析",
+      "enableDevModeHint": "AIタスク分析を使用するには開発者モードを有効にしてください",
+      "enableDevModeSubHint": "タスク詳細画面の下部にある「開発者モード」トグルをONにしてください",
+      "analyzeIntro": "AIがタスクを分析し、サブタスクを提案します",
+      "startAnalysis": "分析を開始"
+    },
+    "apiKeyManager": {
+      "emptyKey": "APIキーを入力してください",
+      "tooShort": "APIキーが短すぎます（10文字以上必要です）",
+      "claudePrefix": "Claude APIキーは「sk-ant-api」で始まる必要があります",
+      "openaiPrefix": "OpenAI APIキーは「sk-」で始まる必要があります",
+      "claudeKeyForOpenai": "これはClaude APIキーです。OpenAI APIキーを入力してください",
+      "geminiPrefix": "Gemini APIキーは「AIza」で始まる必要があります",
+      "savedKeyMessage": "{provider} のAPIキーを保存しました",
+      "genericError": "Errorが発生しました",
+      "deletedMessage": "APIキーを削除しました"
+    },
+    "developerModeConfig": {
+      "configFetchFailed": "設定の取得に失敗しました",
+      "enableFailed": "有効化に失敗しました",
+      "disableFailed": "無効化に失敗しました",
+      "analysisFailed": "分析に失敗しました",
+      "noApprovalRequest": "承認リクエストがありません",
+      "approvalFailed": "承認に失敗しました"
+    },
+    "promptsManagement": {
+      "fetchFailed": "プロンプト一覧の取得に失敗しました",
+      "genericError": "Errorが発生しました",
+      "generateAllConfirm": "すべてのサブタスク（またはタスク）のプロンプトを生成しますか？",
+      "generateAllFailed": "一括生成に失敗しました",
+      "deleteConfirm": "このプロンプトを削除しますか？"
+    },
+    "executionCapabilityGuide": {
+      "noThemeTitle": "テーマを設定するとエージェント実行できます",
+      "noThemeBody": "タスクにテーマを紐付けると、そのテーマの作業ディレクトリでエージェントが動きます。",
+      "noThemeCta": "テーマを設定する",
+      "noWorkingDirTitle": "テーマに作業ディレクトリを設定してください",
+      "noWorkingDirBody": "このタスクのテーマに作業ディレクトリ (リポジトリのローカルパス) が登録されていません。",
+      "noWorkingDirCta": "テーマを編集する",
+      "noCliTitle": "CLI が利用可能ではありません",
+      "noCliBody": "Claude Code / Codex / Gemini CLI のいずれかをインストールし、ターミナルから実行できる状態にしてください。",
+      "noCliCta": "セットアップ状況を確認"
+    },
+    "terminalPanel": {
+      "stoppedLog": "[System] 実行を停止しました",
+      "statusWaitingForInput": "入力待ち",
+      "statusRunning": "実行中",
+      "statusCompleted": "完了",
+      "statusFailed": "失敗",
+      "statusInterrupted": "中断",
+      "statusIdle": "待機",
+      "stop": "停止",
+      "reset": "リセット"
+    },
+    "apiKey": {
+      "savedMessage": "APIキーを保存しました",
+      "genericError": "Errorが発生しました",
+      "deleteConfirm": "APIキーを削除してもよろしいですか？",
+      "deletedMessage": "APIキーを削除しました"
+    },
+    "aiAssistantAccordion": {
+      "title": "AI アシスタント",
+      "subtitle": "タスク分析・プロンプト最適化・自動実装",
+      "ready": "準備完了",
+      "optimized": "最適化済み",
+      "running": "実行中",
+      "settings": "設定",
+      "dragToResize": "ドラッグしてサイズを変更"
+    },
+    "scoreBreakdownSection": {
+      "toggleHide": "スコア詳細を非表示",
+      "toggleShow": "スコア詳細を表示",
+      "clarity": "明確性",
+      "completeness": "完全性",
+      "technicalSpecificity": "技術的具体性",
+      "executability": "実行可能性",
+      "context": "コンテキスト",
+      "missingInfo": "不足している情報:"
+    },
+    "panelHeader": {
+      "title": "AI アシスタント",
+      "subtitle": "分析・最適化・自動実装",
+      "optimized": "最適化",
+      "analysisComplete": "分析完了",
+      "openSettingsAria": "AI設定を開く",
+      "detailSettings": "詳細設定"
+    },
+    "aiAnalysisPanel": {
+      "title": "AIアシスタント",
+      "ready": "準備完了",
+      "tabAnalysis": "分析",
+      "tabOptimize": "最適化",
+      "tabManage": "管理",
+      "tabDependency": "依存度"
+    },
+    "developerModeConfigModal": {
+      "title": "AIアシスタント設定",
+      "loadingSettings": "設定を読み込み中...",
+      "saveSettings": "設定を保存",
+      "analysisConfigSaveFailed": "タスク分析設定の保存に失敗しました",
+      "executionConfigSaveFailed": "エージェント実行設定の保存に失敗しました",
+      "tabs": {
+        "taskAnalysis": "タスク分析",
+        "agentExecution": "エージェント実行"
+      }
+    },
+    "inlineApiKeySetup": {
+      "apiKeySettings": "APIキー設定",
+      "enableModelsHint": "（APIが必要なモデルを有効化）",
+      "getApiKey": "APIキーを取得"
+    },
+    "continuationForm": {
+      "placeholder": "継続指示を入力...",
+      "inputAria": "継続実行の内容",
+      "runAria": "継続実行",
+      "run": "実行"
+    },
+    "terminalInput": {
+      "placeholderWaiting": "回答を入力...",
+      "placeholderRunning": "実行中...",
+      "placeholderIdle": "指示を入力... (Enter で送信)",
+      "sendAnswer": "回答を送信",
+      "run": "実行"
+    },
+    "errorAnalysisPanel": {
+      "title": "エラー解析ダッシュボード",
+      "subtitle": "リアルタイムでエラーを検出し、解決策を提案します",
+      "tryDemo": "エラーデモを試す"
+    },
+    "promptOptimization": {
+      "generateFailed": "プロンプト生成に失敗しました",
+      "genericError": "Errorが発生しました",
+      "requiredQuestionsUnanswered": "必須の質問に回答してください"
+    },
+    "executionPolling": {
+      "cancelledLog": "[キャンセル] 実行が停止されました。",
+      "completedLog": "[完了] 実行が完了しました。",
+      "workflowPhase": {
+        "researcher": "[調査完了] 調査フェーズが完了しました。次のフェーズへ自動で進みます...",
+        "planner": "[計画作成完了] 計画フェーズが完了しました。自動承認が有効な場合はそのまま実装へ進みます（無効の場合のみ計画タブで承認してください）。",
+        "implementer": "[実装完了] 実装フェーズが完了しました。検証フェーズを自動実行中...",
+        "verifier": "[検証完了] 検証フェーズが完了しました。問題がなければステータスは自動で「完了」になります。",
+        "default": "[フェーズ完了] {mode}が完了しました。"
+      },
+      "prCreatedLog": "[PR作成] PRを作成しました: {info}",
+      "failedLog": "[Error] {message}",
+      "failedDefaultMessage": "実行に失敗しました",
+      "interruptedLog": "[中断] 実行が中断されました。",
+      "interruptedDefaultError": "実行が中断されました"
+    },
+    "subtaskLogTabs": {
+      "phase": {
+        "draft": "調査中",
+        "researchDone": "計画中",
+        "planCreated": "計画作成済",
+        "planApproved": "実装中",
+        "inProgress": "検証中",
+        "verifyDone": "検証完了",
+        "awaitingQuestion": "回答待ち",
+        "blocked": "ブロック中",
+        "completed": "完了",
+        "waiting": "待機中"
+      },
+      "allTab": "全体",
+      "toggleFlatView": "フラット表示に切替",
+      "toggleWorkflowView": "ワークフロー表示に切替",
+      "refreshLogs": "ログを更新",
+      "waitingLogs": "ログを待機中...",
+      "noLogs": "ログがありません",
+      "progressLabel": "進捗:",
+      "progressCount": "{completed}/{total} 完了",
+      "elapsedLabel": "経過: {time}",
+      "elapsedTime": "{minutes}分{seconds}秒",
+      "statusLabel": {
+        "completed": "完了",
+        "running": "実行中",
+        "failed": "失敗",
+        "blocked": "ブロック中",
+        "scheduled": "スケジュール済",
+        "waiting": "待機中"
+      },
+      "dependencyTitle": "依存先: {title}"
+    },
+    "promptsManagementTab": {
+      "savedPrompts": "保存済みプロンプト",
+      "countSuffix": "{count}件",
+      "refresh": "更新",
+      "generateAll": "一括生成",
+      "subtaskCount": "サブタスク: {count}件",
+      "emptyHint": "保存されたプロンプトはありません",
+      "emptyGuide": "「一括生成」または「最適化」タブでプロンプトを生成してください",
+      "unknown": "不明",
+      "parentTaskBadge": "親タスク",
+      "subtaskBadge": "サブタスク",
+      "scoreLabel": "スコア: {score}",
+      "edit": "編集",
+      "copy": "コピー",
+      "delete": "削除",
+      "loadingPrompts": "プロンプト情報を読み込んでいます..."
+    },
+    "optimizationResultView": {
+      "title": "最適化されたプロンプト",
+      "qualityScoreLabel": "品質スコア:",
+      "useThisPrompt": "このプロンプトを使用",
+      "issuesLabel": "注意点: ",
+      "suggestionsLabel": "提案: ",
+      "showStructuredDetails": "構造化された詳細を表示",
+      "objectiveLabel": "目標",
+      "contextLabel": "背景・コンテキスト",
+      "requirementsLabel": "要件",
+      "constraintsLabel": "制約条件",
+      "deliverablesLabel": "成果物",
+      "regenerate": "プロンプトを再生成"
+    },
+    "idleExecutionForm": {
+      "instructionPlaceholder": "追加指示があれば入力...（任意）",
+      "instructionAriaLabel": "追加の実装指示",
+      "optimizedPromptApplied": "最適化プロンプト適用済み",
+      "detailsToggle": "詳細設定",
+      "branchNameLabel": "ブランチ名",
+      "branchNameHint": "（空欄で自動生成）",
+      "branchNamePlaceholder": "自動生成されます",
+      "baseBranchLabel": "ベースブランチ",
+      "baseBranchHint": "（PR作成先 / 分岐元）"
+    },
+    "executionRunningPanel": {
+      "questionTitle": "Claude Codeからの質問",
+      "runningTitle": "AI エージェント実行中",
+      "toolCallBadge": "ツール呼び出し",
+      "patternDetectedBadge": "パターン検出",
+      "questionHint": "以下の質問に回答してください。回答後、実行が継続されます。",
+      "runningHint": "Claude Codeがタスクの実行を進めています...",
+      "stop": "停止",
+      "agentQuestionHeading": "AIエージェントからの質問があります",
+      "confirmedBadge": "確認済み",
+      "qaTabPointer": "👉 上部の「Q&A」タブで回答してください。",
+      "autoContinueNotice": "（未回答の場合 {time} 後に自動継続）"
+    },
+    "prMergeSection": {
+      "heading": "PR & マージ",
+      "createPr": "PR作成",
+      "creatingPr": "PR作成中...",
+      "prCreated": "PR #{number} 作成済み",
+      "viewOnGithub": "GitHub で確認",
+      "approveMerge": "承認 & マージ",
+      "merging": "マージ中...（ローカルのdevelopも更新されます）",
+      "merged": "PR #{number} がマージされました。ローカルのdevelopは最新です。",
+      "retry": "リトライ"
+    },
+    "diffViewer": {
+      "statusLabel": {
+        "added": "追加",
+        "deleted": "削除",
+        "modified": "変更",
+        "renamed": "名前変更"
+      },
+      "fileCount": "{count} ファイル",
+      "structuredView": "構造化表示",
+      "rawView": "RAW表示",
+      "noDiffInfo": "差分情報がありません",
+      "noChangedFiles": "変更されたファイルはありません"
+    },
+    "agentQuestionCard": {
+      "questionProgress": "質問 {current} / {total}",
+      "freeTextPlaceholder": "自由入力でも回答できます…",
+      "answerPlaceholder": "回答を入力…",
+      "answerAriaLabel": "エージェントへの回答",
+      "submitAnswer": "回答を送信",
+      "nextQuestion": "次の質問へ",
+      "submit": "送信",
+      "next": "次へ",
+      "answersSoFar": "これまでの回答",
+      "unanswered": "(未回答)"
+    },
+    "agentSelector": {
+      "noAgentsConfigured": "エージェントが設定されていません。",
+      "addAgent": "エージェントを追加",
+      "selectModel": "モデルを選択...",
+      "defaultBadge": "デフォルト",
+      "setAsDefault": "デフォルトに設定"
+    },
+    "settingsTab": {
+      "apiKeyLabel": "Claude API キー",
+      "getApiKey": "APIキーを取得",
+      "advancedSettings": "開発者モード詳細設定"
+    },
+    "promptOptimizationTypes": {
+      "category": {
+        "scope": "スコープ",
+        "technical": "技術的",
+        "requirements": "要件",
+        "constraints": "制約",
+        "integration": "統合",
+        "testing": "テスト",
+        "deliverables": "成果物"
+      }
+    },
+    "clarificationQuestionsView": {
+      "title": "追加情報が必要です",
+      "subtitle": "より良いプロンプトを生成するために、以下の質問に回答してください",
+      "required": "*必須",
+      "answerPlaceholder": "回答を入力...",
+      "submitAnswers": "回答を送信"
+    },
+    "useAgentManager": {
+      "addAgentFailed": "エージェントの追加に失敗しました",
+      "agentNameField": "エージェント名"
+    },
+    "useExecutionStreamSSE": {
+      "startedLog": "[開始] エージェントの実行を開始しました...",
+      "completedLog": "[完了] エージェントの実行が完了しました。",
+      "completedShortLog": "[完了] 実行完了",
+      "failedLog": "実行に失敗しました",
+      "cancelledLog": "[キャンセル] 実行がキャンセルされました。",
+      "connectionFailed": "SSE接続の作成に失敗しました"
+    },
+    "apiKeySetupPrompt": {
+      "setupRequired": "APIキーの設定が必要です",
+      "setupHint": "AI分析機能を使用するにはClaude APIキーを設定してください。",
+      "getApiKey": "APIキーを取得"
+    },
+    "executionLogViewer": {
+      "executionLog": "実行ログ",
+      "noMatchForQuery": "「{query}」に一致するログはありません",
+      "noMatchingLogs": "該当するログはありません",
+      "fetchingLogs": "実行ログを取得中...",
+      "resizeLog": "ログの高さを変更"
+    },
+    "executionFailedPanel": {
+      "title": "実行に失敗しました",
+      "reset": "リセット",
+      "retry": "再実行"
+    },
+    "analysisSection": {
+      "taskAnalysis": "タスク分析",
+      "subtasksTab": "サブタスク",
+      "promptTab": "プロンプト"
+    },
+    "modelSelector": {
+      "noAgentSelected": "エージェント未選択",
+      "noAgentsSet": "エージェント未設定"
+    },
+    "simpleLogEntry": {
+      "close": "閉じる",
+      "fullText": "全文",
+      "repeatCount": "×{count}",
+      "copyPath": "パスをコピー",
+      "copied": "コピーしました",
+      "waitingForLogs": "実行ログを待機中..."
+    },
+    "agentExecutionPanel": {
+      "unknownError": "不明なErrorが発生しました"
+    },
+    "aiAccordionPanelInner": {
+      "panelAriaLabel": "AI エージェント実行パネル"
+    },
+    "agentTypeInfo": {
+      "claudeCode": "Claude Code",
+      "codex": "Codex CLI",
+      "gemini": "Gemini CLI"
+    },
+    "apiKeyProviders": {
+      "claude": "Claude (Anthropic)",
+      "chatgpt": "ChatGPT (OpenAI)",
+      "gemini": "Gemini (Google)"
+    },
+    "parseQuestionOptions": {
+      "yesAll": "はい（すべて）",
+      "noAll": "いいえ（すべて）",
+      "answerIndividually": "個別に回答する",
+      "yes": "はい",
+      "no": "いいえ",
+      "yesEn": "Yes",
+      "noEn": "No"
+    },
+    "logTransformer": {
+      "phaseStart": {
+        "research": "調査フェーズを開始しました",
+        "plan": "計画フェーズを開始しました",
+        "implement": "実装フェーズを開始しました",
+        "verify": "検証フェーズを開始しました"
+      },
+      "fileEdited": "{basename} を編集しました",
+      "fileCreated": "新しいファイル {name} を作成しました",
+      "errorOccurred": "エラーが発生しました",
+      "testsCompleted": "テストが正常に完了しました",
+      "committed": "変更をコミットしました",
+      "processing": "処理中です",
+      "agentPrefix": "エージェント: {text}",
+      "continuationResumed": "追加指示の実行を再開",
+      "agentInitializing": "エージェントを初期化中...",
+      "thinking": "思考中…",
+      "systemEvent": "システム: {name}",
+      "systemError": "システムエラー: {detail}",
+      "providerStarting": "{provider} の実行を開始",
+      "workingDirectory": "作業ディレクトリ: {dir}",
+      "processStarted": "プロセス起動 PID {pid}",
+      "timeoutSetting": "タイムアウト設定: {timeout}",
+      "agentInstruction": "エージェントへの指示: {summary}",
+      "providerTimedOut": "{provider} の実行がタイムアウトしました",
+      "providerError": "{provider} エラー: {detail}",
+      "executionCompleted": "実行完了",
+      "executionFailed": "実行失敗 ({status})",
+      "toolRead": "読込 {path}",
+      "toolEdit": "編集 {path}",
+      "toolWrite": "作成 {path}",
+      "testRunning": "テストを実行中...",
+      "verifyRunning": "検証コマンドを実行中...",
+      "committing": "コミット中...",
+      "pushing": "リモートにプッシュ中...",
+      "gitCommand": "Git: {cmd}",
+      "searchCommand": "調査: {cmd}",
+      "shellCommand": "$ {cmd}",
+      "toolSearch": "検索 {query}",
+      "webSearch": "Web検索: {query}",
+      "webFetch": "Web取得: {url}",
+      "subAgent": "サブエージェント: {text}",
+      "subAgentStarting": "起動中...",
+      "itemCount": "{count}件",
+      "objectDataPlaceholder": "(データ)",
+      "toolErrorSuffix": "{name} でエラー",
+      "questionPrefix": "質問: {text}",
+      "testsPassedCount": "テスト {count}件成功",
+      "testsFailedCount": "テスト {count}件失敗",
+      "typecheckRunning": "型チェックを実行中...",
+      "commitMessage": "コミット: {message}",
+      "pushCompleted": "リモートにプッシュ完了",
+      "waitingForAnswer": "回答を待っています...",
+      "timedOut": "タイムアウトしました",
+      "mdContent": "Markdownコンテンツ ({chars}文字)",
+      "mdContentNamed": "{name} の内容 ({chars}文字)",
+      "jsonStatus": "状態: {status}",
+      "jsonStatusTranslated": "状態: {status} ({translated})",
+      "jsonTaskId": "タスク: {taskId}",
+      "statusLabels": {
+        "running": "実行中",
+        "completed": "完了",
+        "failed": "失敗",
+        "pending": "待機中",
+        "cancelled": "中止",
+        "waitingForInput": "回答待ち",
+        "inProgress": "進行中",
+        "todo": "未着手",
+        "waiting": "待機中",
+        "success": "成功"
+      }
+    }
+  }
+}

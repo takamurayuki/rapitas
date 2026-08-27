@@ -1,0 +1,25 @@
+{
+  "notification": {
+    "open": "Open",
+    "close": "Close",
+    "markMemoDone": "Mark done",
+    "justNow": "Just now",
+    "minutesAgo": "{count} minutes ago",
+    "hoursAgo": "{count} hours ago",
+    "daysAgo": "{count} days ago",
+    "title": "Notifications",
+    "markAllRead": "Mark all read",
+    "deleteAll": "Delete all",
+    "noNotifications": "No notifications",
+    "markAsRead": "Mark as read",
+    "viewPendingApprovals": "View pending approvals",
+    "settingsTitle": "Notification Settings",
+    "enableNotifications": "Enable notifications",
+    "sound": "Notification sound",
+    "quietHours": "Quiet hours",
+    "list": {
+      "markAllRead": "Mark all as read",
+      "markRead": "Read"
+    }
+  }
+}

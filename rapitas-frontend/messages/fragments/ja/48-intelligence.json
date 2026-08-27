@@ -1,0 +1,109 @@
+{
+  "intelligence": {
+    "agentKnowledgeContext": {
+      "categorySuccessStrategy": "成功パターン",
+      "categoryFailurePattern": "失敗パターン",
+      "categoryOptimization": "最適化",
+      "categoryAntiPattern": "アンチパターン",
+      "categoryProcedure": "手順",
+      "categoryPattern": "パターン",
+      "categoryInsight": "知見",
+      "categoryFact": "事実",
+      "loading": "共有ナレッジを取得中...",
+      "title": "エージェント共有ナレッジ",
+      "itemCount": "{count}件",
+      "warningCount": "{count}件の警告",
+      "pastFailuresHeading": "過去の失敗パターン",
+      "occurrenceCount": "{count}回発生",
+      "learnedPatternsHeading": "学習パターン",
+      "relatedKnowledgeHeading": "関連ナレッジ",
+      "promptEvolutionsHeading": "プロンプト改善履歴",
+      "scoreLabel": "スコア: {score}"
+    },
+    "knowledgeReminderWidget": {
+      "title": "ナレッジリマインド",
+      "atRiskStat": "忘却リスク",
+      "dormantStat": "休眠中",
+      "recentlyReviewedStat": "復習済み",
+      "needsReviewHeading": "復習が必要なナレッジ",
+      "showContentTitle": "内容を表示",
+      "retentionScore": "記憶定着度: {score}%",
+      "snoozeTitle": "後で復習（24時間スヌーズ）",
+      "markReviewedTitle": "復習済みにする",
+      "noContent": "コンテンツなし",
+      "allStable": "すべてのナレッジが安定しています"
+    },
+    "productivityHeatmap": {
+      "title": "生産性ヒートマップ",
+      "daysLabel": "{days}日",
+      "peakLabel": "ピーク:",
+      "lowLabel": "低調:",
+      "hourSuffix": "{hour}時",
+      "dayLabels": [
+        "日",
+        "月",
+        "火",
+        "水",
+        "木",
+        "金",
+        "土"
+      ],
+      "cellTitle": "{day} {hour}時: {count}件完了 (クリックで詳細)",
+      "legendLow": "少",
+      "legendHigh": "多",
+      "popoverTitle": "{day} {hour}時の完了タスク",
+      "completedAtLabel": "完了:",
+      "noTasksInSlot": "この時間帯に完了したタスクはありません",
+      "closePopover": "詳細を閉じる"
+    },
+    "relatedKnowledgePanel": {
+      "categoryProcedure": "手順",
+      "categoryPattern": "パターン",
+      "categoryInsight": "知見",
+      "categoryFact": "事実",
+      "categoryPreference": "設定",
+      "categoryGeneral": "一般",
+      "title": "関連ナレッジ",
+      "relevanceScore": "関連度: {score}%"
+    },
+    "relatedSearchMissPanel": {
+      "title": "この領域で見つからなかった検索",
+      "description": "過去に同じ領域で結果が得られなかった検索です。事前に落とし穴を把握できます。",
+      "failCount": "{count} 回失敗"
+    },
+    "suggestedTasksWidget": {
+      "title": "今やるべきタスク",
+      "allSnoozed": "すべてのタスクがスヌーズされています",
+      "noTasksAvailable": "着手できるタスクがありません。",
+      "createTaskLink": "タスクを作成",
+      "startTodayTitle": "ステータスを進行中にしてポモドーロを開始",
+      "startTodayButton": "今日やる",
+      "snoozeTitle": "24時間スヌーズ",
+      "clearSnoozeButton": "スヌーズ解除 ({count}件)"
+    },
+    "workflowLearningPanel": {
+      "title": "ワークフロー学習",
+      "generateRulesButton": "ルール生成",
+      "recordsStat": "学習記録",
+      "activeRulesStat": "有効ルール",
+      "overrideRateStat": "オーバーライド率",
+      "predictionAccuracyStat": "予測精度",
+      "modeStatsHeading": "モード別実績",
+      "itemCount": "{count}件",
+      "minutesLabel": "{minutes}分",
+      "optimizationRulesHeading": "最適化ルール ({count})",
+      "noRulesYet": "学習データが蓄積されるとルールが自動生成されます",
+      "confidenceLabel": "信頼度: {confidence}%",
+      "sampleSizeLabel": "({count}件)",
+      "deactivateTitle": "無効化",
+      "activateTitle": "有効化",
+      "ruleTypeSkipPhase": "フェーズスキップ",
+      "ruleTypeDowngradeMode": "モード軽量化",
+      "ruleTypeUpgradeMode": "モード強化",
+      "ruleTypeAdjustTime": "時間調整",
+      "modeLightweight": "簡単",
+      "modeStandard": "標準",
+      "modeComprehensive": "高度"
+    }
+  }
+}

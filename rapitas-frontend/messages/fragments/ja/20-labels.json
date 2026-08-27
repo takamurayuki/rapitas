@@ -1,0 +1,25 @@
+{
+  "labels": {
+    "title": "ラベル一覧",
+    "itemName": "ラベル",
+    "form": {
+      "nameLabel": "ラベル名",
+      "namePlaceholder": "例: バグ修正",
+      "descriptionPlaceholder": "ラベルの説明を入力",
+      "selectedIconLabel": "選択中のアイコン",
+      "selectIconLabel": "アイコンを選択",
+      "iconNotSelectedSuffix": "（未選択）",
+      "iconSearchPlaceholder": "アイコンを検索...",
+      "iconLimitWarning": "上位50件を表示しています。検索を絞り込んでください。"
+    },
+    "list": {
+      "emptyTitle": "このテーマにラベルはまだありません",
+      "emptyHint": "上の「ラベルを追加」から作成できます",
+      "taskCount": "{count} タスク",
+      "deleteConfirm": "このラベルを削除しますか？"
+    },
+    "pageTitle": "ラベル",
+    "pageSubtitle": "カテゴリ › テーマの順で絞り込んで管理します",
+    "addButton": "ラベルを追加"
+  }
+}

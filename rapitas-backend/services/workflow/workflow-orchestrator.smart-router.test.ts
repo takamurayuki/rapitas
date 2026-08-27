@@ -208,6 +208,12 @@ mock.module('../ai/agent-fallback', () => ({
   findFallbackAgentConfig: mock(() => Promise.resolve(null)),
 }));
 
+// Probe stage (task 673) always succeeds here — these tests exercise Smart
+// Router model auto-selection, not probe behavior.
+mock.module('./workflow-orchestrator-preflight-probe', () => ({
+  runPreflightProbe: mock(() => Promise.resolve({ done: false })),
+}));
+
 // Import AFTER all mock.module calls.
 const { WorkflowOrchestrator } = await import('./workflow-orchestrator');
 
