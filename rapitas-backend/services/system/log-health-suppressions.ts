@@ -20,6 +20,8 @@ interface Suppression {
   test: RegExp;
   /** Restrict to one logger when the phrase alone is too broad. */
   logger?: RegExp;
+  /** When matched, this line is NOT suppressed even if `test` also matches. */
+  exclude?: RegExp;
   /** Why this line leaves nothing broken. Shown in the audit log. */
   because: string;
 }
@@ -82,6 +84,13 @@ const SUPPRESSIONS: Suppression[] = [
     test: /verify\.md (failed validation|self-contradicts)/i,
     because: '検証ゲートが不正な成果物を捕捉した — ゲートが働いた側',
   },
+  {
+    test: /no commits between/i,
+    logger: /github-service:client/i,
+    exclude: /base (?:sha|ref)|sha can't be blank|must be a branch/i,
+    because:
+      'gh pr create 対象ブランチに差分がない — isNoChangeCompletion が安全な無差分完了として扱う想定内の失敗',
+  },
 ];
 
 /** Result of classifying one log signature. */
@@ -102,6 +111,7 @@ export interface SuppressionVerdict {
 export function classifyLogSignature(name: string, normalizedMsg: string): SuppressionVerdict {
   for (const rule of SUPPRESSIONS) {
     if (rule.logger && !rule.logger.test(name)) continue;
+    if (rule.exclude && rule.exclude.test(normalizedMsg)) continue;
     if (rule.test.test(normalizedMsg)) return { suppressed: true, because: rule.because };
   }
   return { suppressed: false };
