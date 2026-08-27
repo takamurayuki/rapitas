@@ -4,11 +4,13 @@
  * ICON_POLICY.md §3「確立された意味」に基づくグリフ所有マップ。
  * このファイルはポリシーデータのみを持ち、検出ロジックは no-icon-collision.mjs に分離している。
  *
- * 更新方針: ICON_POLICY.md §3 を改訂した際は、このファイルの対応エントリも同時に更新すること。
+ * 更新方針: .claude/icon-policy/glyphs-*.md（グリフ頭文字別に分割、§3参照）を
+ * 改訂した際は、このファイルの対応エントリも同時に更新すること。
  * 初期シードは保守的に最小から開始する — ノイズ回避のため高確度のエントリのみ記載。
  * 段階的に拡張していく（living reference）。
  *
- * @see .claude/ICON_POLICY.md §3 Established Meanings
+ * @see .claude/ICON_POLICY.md §3 Established Meanings (index)
+ * @see .claude/icon-policy/glyphs-g-m.md Lightbulb の定義
  */
 
 /**
@@ -27,10 +29,17 @@ export const OWNED_ICONS = [
     //   - category/icons: ユーザーが自由選択するアイコンピッカー登録
     //     （キーワードに「アイデア/ひらめき」を含み同一概念）
     //   - header/header.tsx: /ideas ページへのナビゲーションリンクアイコン
-    // ICON_POLICY §3: 「Lightbulb — アイデア (idea box / an idea)」
+    // .claude/icon-policy/glyphs-g-m.md: 「Lightbulb — アイデア (idea box / an idea)」
     glyph: 'Lightbulb',
     //   - quick-capture: グローバルショートカットのアイデア即時投入ポップアップ（アイデアそのもの）
-    allowedPathPatterns: ['/ideas', 'IdeaBoxPanel', 'memo-section', 'category/icons', 'header/header.tsx', 'quick-capture'],
+    allowedPathPatterns: [
+      '/ideas',
+      'IdeaBoxPanel',
+      'memo-section',
+      'category/icons',
+      'header/header.tsx',
+      'quick-capture',
+    ],
   },
 ];
 
@@ -42,7 +51,7 @@ export const OWNED_ICONS = [
  * NOTE: Gauge はかつて 複雑度「標準」 と 懸念の種別「パフォーマンス」 の二重使用が
  * あったが、複雑度「標準」側は ArrowRight/Diamond 等へ移行済み（現在コード上に
  * Gauge の複雑度使用は存在しない）。懸念の種別「パフォーマンス」のみが残る唯一の
- * 意味となったため、既知衝突リストから除外した。ICON_POLICY.md 側の表も合わせて更新。
+ * 意味となったため、既知衝突リストから除外した。.claude/icon-policy/glyphs-g-m.md 側の表も合わせて更新。
  *
  * @type {string[]}
  */

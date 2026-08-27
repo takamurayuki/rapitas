@@ -1,0 +1,20 @@
+{
+  "kanban": {
+    "prevWeek": "前の週",
+    "backToThisWeek": "今週に戻る",
+    "nextWeek": "次の週",
+    "toggleFilters": "フィルターの切り替え",
+    "clear": "クリア",
+    "tasksFound": "件のタスクが見つかりました",
+    "thisWeek": "今週 ({start} - {end})",
+    "weeksAgo": "{count}週間前 ({start} - {end})",
+    "weeksLater": "{count}週間後 ({start} - {end})",
+    "taskStatus": "タスクが{status}です",
+    "openInPage": "ページで開く",
+    "priorityUrgent": "緊急",
+    "updateFailed": "更新に失敗しました",
+    "priorityLow": "低",
+    "priorityMedium": "中",
+    "priorityHigh": "高"
+  }
+}

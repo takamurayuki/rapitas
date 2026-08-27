@@ -1,0 +1,14 @@
+{
+  "voice": {
+    "speechRecognitionHook": {
+      "recordingTooShort": "Recording is too short.",
+      "transcribeConnectionFailed": "Failed to connect to the transcription server.",
+      "micPermissionDenied": "Microphone access was denied.",
+      "micStartFailed": "Failed to start the microphone: {message}",
+      "audioProcessingError": "Audio processing error: {message}",
+      "recognitionError": "Speech recognition error: {code}",
+      "recordingWithLevel": "Recording... (level:{freqAvg} rms:{rms} silence:{silenceSec}s)",
+      "listeningWithLevel": "Please speak... (level:{freqAvg} rms:{rms})"
+    }
+  }
+}

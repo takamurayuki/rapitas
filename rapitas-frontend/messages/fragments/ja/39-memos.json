@@ -1,0 +1,29 @@
+{
+  "memos": {
+    "title": "メモ",
+    "subtitle": "覚えておきたいこと・簡単な記録。リマインダーで通知もできます",
+    "emptyState": "メモがまだありません。上の入力欄かクイックキャプチャ（Ctrl+Alt+I）から追加できます",
+    "filters": {
+      "open": "未完了",
+      "reminder": "リマインダー",
+      "done": "完了"
+    },
+    "add": {
+      "placeholder": "覚えておきたいこと・簡単な記録...",
+      "contentAria": "メモの内容",
+      "reminderAria": "リマインダー",
+      "customAria": "リマインダー日時",
+      "save": "追加"
+    },
+    "row": {
+      "markDone": "完了にする",
+      "markOpen": "未完了に戻す",
+      "reminded": "（通知済み）",
+      "delete": "削除"
+    },
+    "messages": {
+      "saveFailed": "保存に失敗しました",
+      "deleteFailed": "削除に失敗しました"
+    }
+  }
+}

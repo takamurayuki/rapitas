@@ -1,0 +1,625 @@
+{
+  "task": {
+    "title": "Task Details",
+    "description": "Description",
+    "status": "Status",
+    "priority": "Priority",
+    "dueDate": "Due Date",
+    "category": "Category",
+    "theme": "Theme",
+    "labels": "Labels",
+    "subtasks": "Subtasks",
+    "subtasksCompleted": "{count} completed",
+    "progress": "Progress",
+    "activeSubtasks": "In progress / Not started",
+    "completedSubtasks": "Completed ({count})",
+    "newSubtask": "New subtask",
+    "subtaskTitle": "Subtask title",
+    "subtaskTitleRequired": "Subtask title *",
+    "titleRequiredHint": "Enter a title to create the task",
+    "descriptionMarkdown": "Description (Markdown)",
+    "labelsCommaSeparated": "Labels (comma-separated)",
+    "estimatedHours": "Estimated hours (h)",
+    "addSubtask": "Add subtask",
+    "toggleAddSubtaskForm": "Show/hide add form",
+    "subtaskBulkDeleteConfirm": "Delete {count} subtasks?",
+    "templateSettings": "Template settings",
+    "clearTemplate": "Clear applied template",
+    "subtaskDetails": "Details",
+    "subtaskPriority": "Priority",
+    "subtaskLabels": "Labels",
+    "subtaskEstimatedHours": "Workload",
+    "subtaskActualHours": "Time spent",
+    "deselect": "Deselect",
+    "select": "Select",
+    "bulkSelect": "Bulk",
+    "selecting": "Selecting ({count})",
+    "deselectAll": "Deselect all",
+    "selectAll": "Select all",
+    "deleteCount": "Delete {count}",
+    "deleteAll": "Delete all",
+    "deleteAllConfirm": "Delete all subtasks ({count})? This action cannot be undone.",
+    "deleteSelectedConfirm": "Delete {count} selected subtasks? This action cannot be undone.",
+    "confirmDelete": "Delete",
+    "timeManagement": "Time Management",
+    "workflowStatus": "Workflow Status",
+    "editTask": "Edit task",
+    "saveTask": "Save task",
+    "taskName": "Task name",
+    "taskNamePlaceholder": "Enter task name",
+    "taskDescription": "Task description",
+    "noPriority": "No priority",
+    "priorityLow": "Low",
+    "priorityMedium": "Medium",
+    "priorityHigh": "High",
+    "priorityCritical": "Critical",
+    "priorityUrgent": "Urgent",
+    "statusTodo": "To Do",
+    "statusInProgress": "In Progress",
+    "statusDone": "Done",
+    "complexitySimple": "Simple",
+    "complexityStandard": "Standard",
+    "complexityComplex": "Complex",
+    "running": "Running",
+    "waitingForInput": "Waiting for input",
+    "createdAt": "Created at",
+    "updatedAt": "Updated at",
+    "estimatedTime": "Estimated time",
+    "actualTime": "Actual time",
+    "pomodoroCount": "Pomodoro count",
+    "aiAnalysis": "AI Analysis",
+    "startExecution": "Start execution",
+    "stopExecution": "Stop execution",
+    "viewExecution": "View execution details",
+    "notFound": "Task not found",
+    "backToHome": "Back to home",
+    "duplicateTask": "Duplicate",
+    "saveAsTemplate": "Save as template",
+    "fetchFailed": "Failed to fetch task",
+    "templateSaved": "Saved as template",
+    "markdownPlaceholder": "Write in Markdown...",
+    "taskIdNotSpecified": "Task ID is not specified",
+    "taskIdUrlHint": "Please specify a task ID in the URL parameter format: ?id=123",
+    "template": "Template",
+    "createSubmit": "Create",
+    "titleGenerate": "Generate title",
+    "titleGenerateTooltip": "Auto-generate title from description",
+    "specTitle": "Goals, Constraints & Acceptance",
+    "specGoals": "Goals",
+    "specConstraints": "Constraints",
+    "specAcceptance": "Acceptance criteria",
+    "specItemPlaceholder": "One item per line",
+    "specDerive": "Derive with AI",
+    "specDeriveTooltip": "Derive goals, constraints, and acceptance criteria from the description with AI",
+    "specDerived": "Derived goals, constraints, and acceptance criteria",
+    "specDeriveFailed": "Failed to derive",
+    "taskDetailPlaceholder": "Enter task details (Markdown supported)",
+    "advancedSettings": "Advanced Settings",
+    "deadlineDate": "Deadline",
+    "addSubtaskPlaceholder": "Add subtask...",
+    "subtaskDescriptionPlaceholder": "Subtask description (optional)",
+    "workflowModeTitle": "Workflow Mode",
+    "workflowModeAbout": "About Workflow Mode:",
+    "workflowModeExplanation": "Adjust execution steps based on task complexity. Lightweight mode is for simple fixes, standard mode for regular feature development, and detailed mode for large-scale changes. After task creation, auto-analysis will suggest the optimal mode.",
+    "titleGeneratedSuccess": "Title auto-generated",
+    "titleGenerateFailed": "Failed to generate title",
+    "taskCreatedAutoExecute": "Task created. Starting execution...",
+    "taskCreated": "Task created",
+    "taskCreateFailed": "Failed to create task",
+    "createFailed": "Failed to create",
+    "suggestionApplied": "Suggestion applied",
+    "deleteTaskConfirm": "Delete this task?",
+    "deleteTaskFailed": "Failed to delete task",
+    "duplicateTaskFailed": "Failed to duplicate task",
+    "protectedDeleteWarning": "Protected tasks cannot be deleted. Unlock protection from the lock icon on the detail page.",
+    "statusUpdateFailed": "Failed to update status",
+    "applyTemplateDialog": {
+      "title": "Apply Template",
+      "themeTemplates": "Templates for {theme}",
+      "fetchFailed": "Failed to load templates",
+      "searchPlaceholder": "Search templates...",
+      "emptyForTheme": "No templates yet for {theme}",
+      "empty": "No templates",
+      "noMatch": "No templates match your search",
+      "emptyHint": "Create one from the task detail screen with \"Save as template\"",
+      "useCount": "Used {count} times",
+      "previewTitle": "Included in this template",
+      "previewFieldTitle": "Title: {value}",
+      "previewFieldDescription": "Description: {value}",
+      "previewFieldPriority": "Priority: {value}",
+      "previewFieldEstimatedHours": "Workload: {value}h",
+      "previewFieldSubtasks": "Subtasks: {count}",
+      "previewMoreSubtasks": "...and {count} more",
+      "previewFieldLabels": "Labels: {value}",
+      "cardEstimatedHours": "{hours}h",
+      "cardSubtasksCount": "{count} subtasks",
+      "cardLabelsCount": "{count} labels"
+    },
+    "globalPomodoroModal": {
+      "todayStats": "Today's stats",
+      "completedPomodoros": "Completed pomodoros",
+      "totalWorkTime": "Total work time",
+      "settings": "Settings",
+      "notificationSound": "Notification sound",
+      "volumeLow": "Low",
+      "volumeHigh": "High",
+      "workDuration": "Work duration",
+      "shortBreak": "Short break",
+      "longBreak": "Long break",
+      "minutes": "{count} min"
+    },
+    "fileUploader": {
+      "downloadFailed": "Failed to download",
+      "uploadFailed": "Failed to upload",
+      "deleteFailed": "Failed to delete",
+      "uploading": "Uploading...",
+      "dragDrop": "Drag & drop files",
+      "dragDropHint": "or click to select (max 10MB)",
+      "preview": "Preview",
+      "openInNewTab": "Open in new tab",
+      "downloadCompleted": "Download complete",
+      "downloading": "Downloading...",
+      "download": "Download",
+      "done": "Done!"
+    },
+    "ganttView": {
+      "loading": "Loading Gantt chart...",
+      "fetchFailed": "Failed to load Gantt chart: {message}",
+      "empty": "No tasks to display. Create a task or change the filter conditions.",
+      "title": "Gantt Chart",
+      "taskCount": "{count} tasks",
+      "prevPeriod": "Previous period",
+      "nextPeriod": "Next period",
+      "zoomDay": "Day",
+      "zoomWeek": "Week",
+      "zoomMonth": "Month",
+      "today": "Today",
+      "pageDescription": "See your tasks laid out over time. Hover a bar for details."
+    },
+    "taskSelector": {
+      "fetchFailed": "Failed to fetch tasks",
+      "searchPlaceholder": "Search tasks...",
+      "searching": "Searching tasks...",
+      "noResults": "No results found",
+      "empty": "No tasks available",
+      "dueDate": "Due: {date}",
+      "defaultTitle": "Select a task",
+      "defaultDescription": "Click the task you want to select"
+    },
+    "subtaskExecutionStatus": {
+      "pending": "Pending",
+      "scheduled": "Scheduled",
+      "running": "Running",
+      "completed": "Completed",
+      "failed": "Failed",
+      "cancelled": "Cancelled",
+      "blocked": "Blocked"
+    },
+    "taskCard": {
+      "retryFailed": "Failed to switch to retry",
+      "protectedBadge": "Protected task (cannot delete)",
+      "recurringBadge": "Recurring task",
+      "generatedFromRecurrenceBadge": "Generated from a recurrence",
+      "retryTooltip": "Retry (moves back to todo so auto-run can pick it up again)",
+      "retryAriaLabel": "Retry task",
+      "protectedDeleteError": "Protected tasks cannot be deleted",
+      "elapsedTimeTooltip": "Elapsed time since the agent started executing",
+      "executingCannotSelect": "Excluded from bulk status change while auto-executing"
+    },
+    "suggestionCard": {
+      "category": {
+        "recurring": "Recurring",
+        "extension": "Extension",
+        "improvement": "Improvement",
+        "new": "New"
+      }
+    },
+    "taskHeader": {
+      "backToList": "Back to task list"
+    },
+    "memoStatsBar": {
+      "noteCount": "{count} notes",
+      "timelineToggle": "Merged history view",
+      "filter": "Filter",
+      "allCount": "All ({count})",
+      "bulkAnalyze": "Analyze all memos"
+    },
+    "suggestionsHeader": {
+      "title": "AI task suggestions",
+      "generateTooltip": "Generate AI suggestions",
+      "generate": "Generate suggestions",
+      "regenerate": "Regenerate",
+      "clear": "Clear"
+    },
+    "priorityInlineSelect": {
+      "ariaLabel": "Priority: {priority} (click to change)",
+      "changeTooltip": "Change priority",
+      "unset": "Not set"
+    },
+    "taskSlidePanel": {
+      "title": "Task Details",
+      "closeTooltip": "Close (Esc)",
+      "dockLeft": "Dock task details on the left",
+      "dockRight": "Dock task details on the right",
+      "swapDockSideAria": "Swap left/right",
+      "splitView": "Split with the page",
+      "overlayView": "Back to overlay",
+      "toggleSplitAria": "Toggle split view"
+    },
+    "ciStatus": {
+      "passing": "CI: passing",
+      "failing": "CI: failing",
+      "pending": "CI: running",
+      "noChecks": "CI: none configured",
+      "unknown": "CI: unknown",
+      "viewPrTooltip": "Open PR #{number}"
+    },
+    "preview": {
+      "title": "Live Preview",
+      "liveBadge": "LIVE",
+      "start": "Start preview",
+      "starting": "Starting...",
+      "checking": "Checking...",
+      "stop": "Stop",
+      "stopping": "Stopping...",
+      "startFailed": "Failed to start the preview",
+      "stopFailed": "Failed to stop the preview. Please try again.",
+      "idleHint": "Shows a live preview of the app running in this task's worktree. \"Start preview\" launches the dev server using the theme's preview settings.",
+      "startingHint": "Starting the dev server...",
+      "checkingHint": "Checking whether a preview is already running...",
+      "stoppingHint": "Stopping the preview...",
+      "loadingScreenshot": "Loading screenshot...",
+      "screenshotAlt": "Preview screenshot",
+      "interactHint": "Click to interact / keyboard input supported",
+      "closeSelectOverlay": "Close options",
+      "settings": "Settings",
+      "settingsModalTitle": "Preview settings",
+      "configureRuntimeNoTheme": "This task has no theme set, so settings can't be saved here. Set a working directory in the theme settings instead.",
+      "displayMode": "Display mode",
+      "displayModeHeadless": "Embedded (headless)",
+      "displayModeNormal": "Normal (browser window)",
+      "testHint": "Save your settings, then use the \"Start preview\" button above to test. Choosing Normal opens a real browser window.",
+      "save": "Save",
+      "saveFailed": "Failed to save"
+    },
+    "labelSelector": {
+      "empty": "No labels.",
+      "createLabel": "Create a label"
+    },
+    "noteReplyInput": {
+      "placeholder": "Write a reply...",
+      "send": "Send"
+    },
+    "noteChipLink": {
+      "untitled": "(Untitled)",
+      "openTooltip": "Open note \"{title}\""
+    },
+    "taskTimeline": {
+      "empty": "No task history"
+    },
+    "taskTitleAutocomplete": {
+      "placeholder": "Task title"
+    },
+    "memoInputArea": {
+      "typeLabel": "Type:",
+      "useTemplateTooltip": "Use template",
+      "template": "Template",
+      "addMemoPlaceholder": "Add a {type} memo... (Shift+Enter for new line)"
+    },
+    "saveAsTemplateDialog": {
+      "nameLabel": "Template Name",
+      "namePlaceholder": "Enter template name",
+      "descriptionPlaceholder": "Enter template description",
+      "newCategoryButton": "Create new category",
+      "newCategoryPlaceholder": "Enter new category name",
+      "existingCategoryButton": "Choose from existing categories",
+      "infoHeading": "Included in template",
+      "infoTitle": "Title: {title}",
+      "infoPriority": "Priority: {priority}",
+      "infoEstimatedHours": "Estimated hours: {hours}h",
+      "infoSubtasks": "Subtasks: {count}",
+      "infoLabels": "Labels: {count}",
+      "nameRequiredError": "Please enter a template name",
+      "categoryRequiredError": "Please select or enter a category",
+      "createFailedError": "Failed to create template",
+      "genericError": "An error occurred"
+    },
+    "compactTaskDetailCard": {
+      "titleAriaLabel": "Task title",
+      "unprotectTitle": "Remove protection",
+      "protectTitle": "Protect task (prevents deletion)",
+      "descriptionPlaceholder": "Add a description (double-click to edit)",
+      "descriptionAriaLabel": "Task description",
+      "workloadDeadlineHeading": "Workload & Deadline",
+      "estimateBadge": "Est: {hours}h",
+      "actualBadge": "Actual: {hours}h",
+      "workloadLabel": "Workload",
+      "actualWorkTimeLabel": "Time spent",
+      "subtaskHoursSumHint": "Subtask total",
+      "progressLabel": "Progress",
+      "recurrenceConfiguredBadge": "Configured",
+      "recurrenceHeading": "Recurrence settings",
+      "attachmentsHeading": "Attachments",
+      "attachmentsPermissionHint": "Edit permission is required to add files",
+      "notesHeading": "Notes",
+      "createdChip": "Created",
+      "updatedChip": "Updated"
+    },
+    "taskTimerManagement": {
+      "heading": "Time Tracking + Pomodoro",
+      "remainingTimeLabel": "Remaining time",
+      "workProgressSummary": "Work: {actual}h / {estimated}h ({percent}%)",
+      "breakTotalSummary": "Break: {breakHours}h | Total: {totalHours}h",
+      "breakTimeLabel": "Break time",
+      "workTimeLabel": "Work time",
+      "longBreakDuration": "Long break (15 min)",
+      "shortBreakDuration": "Short break (5 min)",
+      "pomodoroNumber": "Pomodoro #{number}",
+      "completedCount": "Completed: {count}",
+      "untilBreakEnd": "Until break ends",
+      "untilNextBreak": "Until next break",
+      "stopButton": "Stop",
+      "elapsedTimeLabel": "Elapsed time",
+      "startPomodoroButton": "🍅 Start pomodoro",
+      "pomodoroCompleteHeading": "Pomodoro complete!",
+      "breakPromptLong": "Great work! Time for a 15-minute long break.",
+      "breakPromptShort": "Great work! Time for a 5-minute short break.",
+      "takeBreakButton": "Take a break",
+      "skipBreakButton": "Skip"
+    },
+    "taskDetail": {
+      "titleLabel": "Title",
+      "descriptionPlaceholder": "Write in Markdown&#10;&#10;# Heading 1&#10;## Heading 2&#10;&#10;**Bold** *Italic*&#10;&#10;- [ ] Checkbox&#10;- [x] Done&#10;&#10;`Inline code` or > Blockquote&#10;&#10;You can drag & drop files or images here",
+      "labelsPlaceholder": "Comma-separated",
+      "hoursPlaceholder": "Hours",
+      "estimatedHoursBadge": "⏱ {hours}h"
+    },
+    "timeEntryDialog": {
+      "heading": "Log work",
+      "noteLabel": "Work notes (optional)",
+      "notePlaceholder": "What did you work on?"
+    },
+    "pomodoroTimer": {
+      "subtaskAttributionLabel": "Attribute time to",
+      "parentTaskOption": "Parent task ({taskTitle})",
+      "subtaskEstimatedHoursSuffix": " (Est: {hours}h)"
+    },
+    "taskSuggestionDetail": {
+      "hoursSuffix": "{hours}h",
+      "measurableOutcomeLabel": "Measurable outcome",
+      "estimatedDurationLabel": "Estimated duration",
+      "completionCriteriaLabel": "Completion criteria",
+      "dependenciesLabel": "Dependencies",
+      "suggestedApproachLabel": "Suggested approach",
+      "reasonLabel": "Reason for suggestion",
+      "createTaskButton": "Create this task"
+    },
+    "recurrenceCustomForm": {
+      "customSettingsTitle": "Custom settings",
+      "frequencyLabel": "Frequency",
+      "frequencyDaily": "Day",
+      "frequencyWeekly": "Week",
+      "frequencyMonthly": "Month",
+      "intervalLabel": "Interval",
+      "intervalUnitDaily": "day(s)",
+      "intervalUnitWeekly": "week(s)",
+      "intervalUnitMonthly": "month(s)",
+      "weekdayLabel": "Weekday",
+      "endDateLabel": "End date (optional)",
+      "executionTimeLabel": "Execution time",
+      "inheritWorkflowLabel": "Inherit previous run history (research/plan/verify.md)",
+      "previewLabel": "Preview",
+      "applyButton": "Apply"
+    },
+    "recurrenceSelector": {
+      "repeatLabel": "Repeat",
+      "presetsLabel": "Presets",
+      "customEllipsis": "Custom...",
+      "removeRecurrenceButton": "Remove recurrence"
+    },
+    "ganttChart": {
+      "dueDateLabel": "Due: {date}",
+      "estimatedHoursLabel": "Est: {hours}h",
+      "statusBlocked": "Blocked"
+    },
+    "taskSuggestions": {
+      "collapseButton": "Collapse",
+      "showMoreButton": "Show {count} more",
+      "cachedLabel": "Cached",
+      "aiGenerationFailedLabel": "Failed to generate AI suggestions",
+      "completionCriteriaHeading": "[Completion Criteria]",
+      "measurableOutcomeHeading": "[Measurable Outcome]"
+    },
+    "suggestionDetailModal": {
+      "title": "Task details",
+      "close": "Close"
+    },
+    "commentsSection": {
+      "title": "Notes",
+      "subtitle": "Ideas & insights",
+      "addPlaceholder": "Add a note (Shift+Enter for a new line)",
+      "emptyTitle": "Add a note to capture ideas",
+      "emptyHint": "Link notes together to connect related thoughts"
+    },
+    "note": {
+      "replyTitle": "Reply",
+      "linkTitle": "Link",
+      "replyPlaceholder": "Write a reply...",
+      "sendButton": "Send"
+    },
+    "linkModal": {
+      "title": "Link note",
+      "sourceLabel": "Source",
+      "searchPlaceholder": "Search notes...",
+      "searching": "Searching...",
+      "noResults": "No matching notes",
+      "searchHint": "Search for a note to link"
+    },
+    "taskComments": {
+      "title": "Comments ({count})",
+      "addPlaceholder": "Add a comment... (Markdown supported)",
+      "addButton": "Add comment"
+    },
+    "memoAnalysisDisplay": {
+      "toggleButton": "AI Analysis Results",
+      "summary": "Summary",
+      "importanceLabel": "Importance:",
+      "sentimentLabel": "Sentiment:",
+      "keywords": "Keywords",
+      "actionItems": "Action Items",
+      "analyzedAt": "Analyzed:"
+    },
+    "noteActionBar": {
+      "pin": "Pin",
+      "unpin": "Unpin",
+      "reply": "Reply"
+    },
+    "templateSelector": {
+      "title": "Select Memo Template",
+      "noTemplatesForType": "No templates for {type}",
+      "manualInput": "Enter manually"
+    },
+    "memoSection": {
+      "timelineTitle": "Combined view of task history and memos",
+      "emptyHint": "Add a memo to capture your ideas"
+    },
+    "inlineEditableText": {
+      "doubleClickToEdit": "Double-click to edit"
+    },
+    "descriptionToggle": {
+      "collapse": "Show less",
+      "expand": "Show more"
+    },
+    "noteLinksSection": {
+      "copyLinkTooltip": "Copy Markdown link to clipboard",
+      "copied": "Copied",
+      "copyLink": "Copy link",
+      "insertTooltip": "Insert link directly into description",
+      "inserted": "Inserted",
+      "insertToDescription": "Insert into description",
+      "openSplitView": "Open in split view",
+      "unlink": "Unlink",
+      "noContent": "(No content)",
+      "searchPlaceholder": "Search notes…",
+      "createAndLink": "Create a new note and link it",
+      "noMatchingNotes": "No notes match \"{query}\"",
+      "noLinkableNotes": "No notes available to link",
+      "linkNote": "Link a note",
+      "hoverHint": "Hover over a note to show \"Copy link\" and \"Insert into description\".",
+      "noLinkedNotes": "No notes linked"
+    },
+    "noteSplitView": {
+      "backToTask": "Back to task",
+      "noteNotFound": "Note not found"
+    },
+    "commentSystem": {
+      "deleteConfirm": "Delete this comment?"
+    },
+    "subtaskManagement": {
+      "deleteFailed": "Failed to delete subtask",
+      "createFailed": "Failed to create subtask",
+      "updateFailed": "Failed to update subtask"
+    },
+    "taskEdit": {
+      "updateFailed": "Failed to update task"
+    },
+    "errorPage": {
+      "sectionLabel": "Task"
+    },
+    "memoTemplates": {
+      "workStart": {
+        "label": "Start of Work",
+        "content": "## Start of Work\n\n**Goal:**\n- \n\n**Tasks:**\n- \n\n**Notes:**\n- ",
+        "description": "Template for logging the start of a work session"
+      },
+      "workEnd": {
+        "label": "End of Work",
+        "content": "## End of Work\n\n**Completed:**\n- \n\n**Progress:**\n- \n\n**Next steps:**\n- \n\n**Notes:**\n- ",
+        "description": "Template for reviewing the end of a work session"
+      },
+      "issueReport": {
+        "label": "Issue Report",
+        "content": "## Issue Report\n\n**Problem:**\n\n\n**Conditions:**\n- \n\n**Impact:**\n- \n\n**Urgency:** [High/Medium/Low]\n\n**Approach:**\n- ",
+        "description": "Template for reporting an issue or problem"
+      },
+      "solution": {
+        "label": "Solution",
+        "content": "## Solution\n\n**Target issue:**\n\n\n**Solution:**\n\n\n**Steps:**\n1. \n2. \n3. \n\n**Verification:**\n- \n\n**Risks:**\n- ",
+        "description": "Template for proposing a solution"
+      },
+      "idea": {
+        "label": "Idea",
+        "content": "## Idea\n\n**Overview:**\n\n\n**Benefits:**\n- \n\n**Feasibility:** [High/Medium/Low]\n\n**Resources needed:**\n- \n\n**Next steps:**\n- ",
+        "description": "Template for organizing a new idea"
+      },
+      "meetingNotes": {
+        "label": "Meeting Notes",
+        "content": "## Meeting Notes\n\n**Date:** \n**Attendees:** \n\n**Agenda:**\n- \n\n**Decisions:**\n- \n\n**Action items:**\n- [ ] \n- [ ] \n\n**Next meeting:**\n",
+        "description": "Template for recording a meeting"
+      }
+    },
+    "memoTypes": {
+      "workLog": "Work Log",
+      "idea": "Idea",
+      "issue": "Issue",
+      "solution": "Solution",
+      "general": "General"
+    },
+    "time": {
+      "now": "Just now",
+      "minutesAgo": "{count}m ago",
+      "hoursAgo": "{count}h ago",
+      "daysAgo": "{count}d ago",
+      "monthsAgo": "{count}mo ago"
+    },
+    "linkLabels": {
+      "related": "Related",
+      "expansion": "Expansion",
+      "supplement": "Supplement"
+    },
+    "mockActivity": {
+      "statusChanged": "Changed status",
+      "todoToInProgress": "To Do → In Progress",
+      "system": "System",
+      "priorityChanged": "Changed priority",
+      "mediumToHigh": "Medium → High",
+      "user": "User",
+      "taskCreated": "Created task"
+    },
+    "mockAnalysis": {
+      "actionItemsSuffix": "(includes action items)",
+      "issueReportedSuffix": "(reports an issue)"
+    },
+    "weekday": {
+      "mon": "Mon",
+      "tue": "Tue",
+      "wed": "Wed",
+      "thu": "Thu",
+      "fri": "Fri",
+      "sat": "Sat",
+      "sun": "Sun"
+    },
+    "recurrenceDesc": {
+      "none": "No repeat",
+      "daily": "Daily",
+      "dailyInterval": "Every {interval} days",
+      "weekdaysOnly": "Weekdays",
+      "weeklyWithDays": "Weekly on {days}",
+      "weeklyIntervalWithDays": "Every {interval} weeks ({days})",
+      "weekly": "Weekly",
+      "weeklyInterval": "Every {interval} weeks",
+      "monthly": "Monthly",
+      "monthlyInterval": "Every {interval} months",
+      "yearly": "Yearly",
+      "yearlyInterval": "Every {interval} years"
+    },
+    "ganttMonthYear": "{month}/{year}",
+    "pomodoroNotification": {
+      "workCompleteTitle": "Pomodoro complete!",
+      "workCompleteBody": "{task} — time for a break",
+      "taskFallback": "Task",
+      "breakEndTitle": "Break over!",
+      "breakEndBody": "Time to get back to work"
+    }
+  }
+}

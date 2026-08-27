@@ -1,0 +1,29 @@
+{
+  "pomodoro": {
+    "timeManagement": "時間管理",
+    "taskDefaultName": "タスク",
+    "timerRunningOtherTask": "別のタスク「{taskTitle}」でタイマーが動作中です",
+    "workTimeLabel": "作業時間:",
+    "breakTimeLabel": "休憩時間:",
+    "onBreak": "休憩中",
+    "paused": "一時停止",
+    "working": "作業中",
+    "ready": "準備完了",
+    "breakPrompt": "25分完了！{breakType}を取りますか？",
+    "longBreak": "長い休憩",
+    "shortBreak": "短い休憩",
+    "takeBreak": "休憩する",
+    "skip": "スキップ",
+    "breakEndMessage": "休憩終了！作業を再開しましょう",
+    "resumeWork": "作業を再開",
+    "pause": "一時停止",
+    "complete": "完了",
+    "stop": "停止",
+    "start": "開始",
+    "completedCount": "完了数",
+    "totalTime": "合計時間",
+    "dailyAverage": "日平均",
+    "dailyPomodoroCount": "日別ポモドーロ数",
+    "taskFocusTime": "タスク別集中時間"
+  }
+}

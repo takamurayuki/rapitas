@@ -11,6 +11,10 @@
 import { LifeBuoy } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { useRecoveryMetrics, type RecoveryMetric } from './use-recovery-metrics';
+import type { PanelMeta } from './panel-types';
+
+/** Registered with scripts/generate-agents-panels.mjs — see panel-types.ts. */
+export const panelMeta: PanelMeta = { id: 'recovery-metrics', order: 10 };
 
 /** Render 0.25 → "25%" (one decimal only when informative). */
 function formatRate(rate: number): string {

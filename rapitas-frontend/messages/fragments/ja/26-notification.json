@@ -1,0 +1,25 @@
+{
+  "notification": {
+    "open": "開く",
+    "close": "閉じる",
+    "markMemoDone": "完了にする",
+    "justNow": "たった今",
+    "minutesAgo": "{count}分前",
+    "hoursAgo": "{count}時間前",
+    "daysAgo": "{count}日前",
+    "title": "通知",
+    "markAllRead": "すべて既読",
+    "deleteAll": "すべて削除",
+    "noNotifications": "通知はありません",
+    "markAsRead": "既読にする",
+    "viewPendingApprovals": "承認待ち一覧を見る",
+    "settingsTitle": "通知設定",
+    "enableNotifications": "通知を有効にする",
+    "sound": "通知音",
+    "quietHours": "おやすみモード",
+    "list": {
+      "markAllRead": "すべて既読にする",
+      "markRead": "既読"
+    }
+  }
+}

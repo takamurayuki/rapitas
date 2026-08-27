@@ -24,6 +24,7 @@ import { useTranslations } from 'next-intl';
 import { API_BASE_URL } from '@/utils/api';
 import { useOnVisible } from '@/hooks/common/useOnVisible';
 import { getAppHidden, subscribeAppHidden } from '@/hooks/common/app-visibility-store';
+import type { PanelMeta } from './panel-types';
 
 const POLL_INTERVAL_MS = 10000;
 
@@ -87,6 +88,9 @@ function formatUptime(seconds: number): string {
   if (hours === 0) return `${minutes}m`;
   return `${hours}h ${minutes}m`;
 }
+
+/** Registered with scripts/generate-agents-panels.mjs — see panel-types.ts. */
+export const panelMeta: PanelMeta = { id: 'system-status', order: 0 };
 
 export function SystemStatusPanel() {
   const t = useTranslations('agents');

@@ -1,0 +1,18 @@
+{
+  "terminal": {
+    "desktopOnly": "The terminal is only available in the desktop app (Tauri).",
+    "closeTabAria": "Close {title}",
+    "splitHorizontal": "Split left/right",
+    "splitVertical": "Split top/bottom",
+    "newTerminal": "New terminal",
+    "closeTerminal": "Close terminal",
+    "closeTerminalTitle": "Close terminal (Ctrl+`)",
+    "closePane": "Close pane",
+    "commandCompleteToast": "Terminal command finished (exit {exitCode}, {seconds}s)",
+    "switchToSplitMode": "Show as a split panel",
+    "switchToOverlayMode": "Return to the bottom panel",
+    "dockLeft": "Dock the terminal on the left",
+    "dockRight": "Dock the terminal on the right",
+    "swapDockSideAria": "Swap left/right"
+  }
+}

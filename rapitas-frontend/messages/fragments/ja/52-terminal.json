@@ -1,0 +1,18 @@
+{
+  "terminal": {
+    "desktopOnly": "ターミナルはデスクトップアプリ (Tauri) でのみ利用できます。",
+    "closeTabAria": "{title} を閉じる",
+    "splitHorizontal": "左右に分割",
+    "splitVertical": "上下に分割",
+    "newTerminal": "新しいターミナル",
+    "closeTerminal": "ターミナルを閉じる",
+    "closeTerminalTitle": "ターミナルを閉じる (Ctrl+`)",
+    "closePane": "ペインを閉じる",
+    "commandCompleteToast": "ターミナルのコマンドが完了しました (exit {exitCode}, {seconds}s)",
+    "switchToSplitMode": "画面分割で表示",
+    "switchToOverlayMode": "下部パネル表示に戻す",
+    "dockLeft": "ターミナルを左側に表示",
+    "dockRight": "ターミナルを右側に表示",
+    "swapDockSideAria": "左右を入れ替える"
+  }
+}
