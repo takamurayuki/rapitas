@@ -46,6 +46,7 @@ const SUPPRESSED: [string, string][] = [
     'github-service:client',
     'gh command failed: gh pr create --title [Task-#] no commits between develop and bugfix/t#-x',
   ],
+  ['error-handler', 'Bad Request: Failed to parse JSON'],
 ];
 
 const KEPT: [string, string][] = [
@@ -58,6 +59,7 @@ const KEPT: [string, string][] = [
     'github-service:client',
     "gh command failed: gh pr create --title [Task-#] no commits between develop and bugfix/t#-x: base sha can't be blank",
   ],
+  ['error-handler', 'Prisma Error'],
 ];
 
 describe('classifyLogSignature', () => {
@@ -90,5 +92,12 @@ describe('classifyLogSignature', () => {
   test('an unknown line is filed rather than dropped', () => {
     // A missed suppression costs one noisy row; a wrong one hides a defect.
     expect(classifyLogSignature('whatever', 'something nobody has seen').suppressed).toBe(false);
+  });
+
+  test('"Bad Request: Failed to parse JSON" is scoped to the error-handler logger only', () => {
+    // Task #702: the phrase alone must not suppress an unrelated logger reusing it.
+    expect(
+      classifyLogSignature('some-other-logger', 'Bad Request: Failed to parse JSON').suppressed,
+    ).toBe(false);
   });
 });
