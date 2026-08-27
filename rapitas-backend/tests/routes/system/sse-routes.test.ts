@@ -104,3 +104,31 @@ describe('GET /events/subscribe/:channel', () => {
     expect(res.headers.get('Content-Type')).toBe('text/event-stream');
   });
 });
+
+describe('SSE: 切断されたクライアントのソケットを解放する', () => {
+  test('書き込み失敗時にストリームを閉じ、コントローラも登録解除する', async () => {
+    // 実測 2026-08-27: 書き込み失敗時に removeClient だけを呼んでいたため、
+    // 応答ストリームが開いたままソケットが CLOSE_WAIT に滞留した。終了した
+    // バックエンドが 43 本を掴んだままポート3001を占有し、後継が待ち受けても
+    // 接続がそちらへ流れなかった。忘れるだけでは解放されない。
+    resetAllMocks();
+    let captured: { write: (d: string) => void } | null = null;
+    mockRealtimeService.registerClient.mockImplementation((client: unknown) => {
+      captured = client as { write: (d: string) => void };
+      return 'client-1';
+    });
+
+    const app = createApp();
+    const res = await app.handle(new Request('http://localhost/events/stream'));
+    // `start` runs when the stream is constructed, inside the handler — do NOT
+    // read: an SSE stream never completes and the read would hang the test.
+    await res.body?.cancel();
+
+    expect(captured).not.toBeNull();
+    // Simulate a gone client: enqueue throws once the stream is cancelled.
+    captured!.write('data: x\n\n');
+
+    expect(mockRealtimeService.removeClient).toHaveBeenCalled();
+    expect(mockRealtimeService.removeStreamController).toHaveBeenCalled();
+  });
+});

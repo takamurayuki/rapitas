@@ -70,7 +70,21 @@ export const sseRoutes = new Elysia({ prefix: '/events' })
               try {
                 controller.enqueue(new TextEncoder().encode(data));
               } catch {
+                // The client is gone. Forgetting it is not enough: the response
+                // stream stays open and its socket sits in CLOSE_WAIT until the
+                // process dies. Measured 2026-08-27 — 43 such sockets were still
+                // held on port 3001 by a backend that had already exited, and
+                // they kept the port occupied against its replacement.
+                //
+                // The 60s ping is what surfaces a dead client; closing here is
+                // what actually releases the socket.
                 realtimeService.removeClient(activeClientId);
+                realtimeService.removeStreamController(activeClientId);
+                try {
+                  controller.close();
+                } catch {
+                  // Already closed — nothing left to release.
+                }
               }
             },
           };
@@ -112,7 +126,21 @@ export const sseRoutes = new Elysia({ prefix: '/events' })
               try {
                 controller.enqueue(new TextEncoder().encode(data));
               } catch {
+                // The client is gone. Forgetting it is not enough: the response
+                // stream stays open and its socket sits in CLOSE_WAIT until the
+                // process dies. Measured 2026-08-27 — 43 such sockets were still
+                // held on port 3001 by a backend that had already exited, and
+                // they kept the port occupied against its replacement.
+                //
+                // The 60s ping is what surfaces a dead client; closing here is
+                // what actually releases the socket.
                 realtimeService.removeClient(activeClientId);
+                realtimeService.removeStreamController(activeClientId);
+                try {
+                  controller.close();
+                } catch {
+                  // Already closed — nothing left to release.
+                }
               }
             },
           };

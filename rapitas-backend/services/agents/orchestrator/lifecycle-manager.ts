@@ -8,6 +8,13 @@ import type { PrismaClientInstance, ActiveAgentInfo, ExecutionState } from './ty
 import type { QuestionTimeoutManager } from './question-timeout-manager';
 import { stopAllPreviewSessions } from '../preview/preview-session-manager';
 
+/**
+ * How long a graceful shutdown may take when triggered by an uncaught
+ * exception before the process leaves anyway. Short on purpose: the supervisor
+ * restarts us, and a hung exit is worse than an abrupt one.
+ */
+const UNCAUGHT_SHUTDOWN_TIMEOUT_MS = 10_000;
+
 const logger = createLogger('lifecycle-manager');
 
 /**
@@ -202,7 +209,28 @@ export function setupSignalHandlers(
 
   process.on('uncaughtException', async (error) => {
     logger.error({ err: error }, '[LifecycleManager] Uncaught exception');
-    await shutdownFn();
+    // Exiting is the right call — an uncaught exception leaves state we cannot
+    // vouch for — but the exit must actually happen. A graceful shutdown that
+    // hangs leaves a process that is neither dead nor serving: it keeps the
+    // port bound, answers nothing, and the supervisor sees a live PID and does
+    // not restart it. That is precisely the state observed on 2026-08-27, when
+    // a backend held port 3001 against its own replacement.
+    //
+    // So: try to shut down cleanly, but leave regardless.
+    const forced = setTimeout(() => {
+      logger.error(
+        { timeoutMs: UNCAUGHT_SHUTDOWN_TIMEOUT_MS },
+        '[LifecycleManager] Graceful shutdown did not finish — exiting anyway',
+      );
+      process.exit(1);
+    }, UNCAUGHT_SHUTDOWN_TIMEOUT_MS);
+    forced.unref?.();
+    try {
+      await shutdownFn();
+    } catch (err) {
+      logger.error({ err }, '[LifecycleManager] Shutdown threw during uncaught-exception handling');
+    }
+    clearTimeout(forced);
     process.exit(1);
   });
 
