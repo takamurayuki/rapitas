@@ -301,6 +301,18 @@ export interface RepeatLoopTransition {
 const PHASE_COMPLETED_CAUSE_PREFIX = 'phase_completed:';
 
 /**
+ * Cause emitted every time a verify-phase WorkflowFile is saved (status-
+ * transition.ts: `cause: file_saved:${fileType}`). Forgiven by its own
+ * independent budget — see {@link detectRepeatLoop} — for the same reason
+ * `phase_completed:*` is: a healthy repair cycle re-saves verify once per
+ * round (task 708 / concern on #674: DEFAULT_MAX_VERIFY_REPAIRS=2 means one
+ * initial verify save + up to 2 repair rounds structurally produces 3
+ * `file_saved:verify` transitions, which the pre-fix code counted as a loop
+ * because only `phase_completed:*` was forgiven, not the paired verify save).
+ */
+const FILE_SAVED_VERIFY_CAUSE = 'file_saved:verify';
+
+/**
  * Causes that indicate a self-repair bounce (verify/CI sent a phase back for
  * another attempt). Their presence in the window is what tells
  * {@link detectRepeatLoop} that repeated `phase_completed:*` causes are a
@@ -334,6 +346,16 @@ const REPAIR_BOUNCE_CAUSES = new Set(['verify_repair', 'ci_repair']);
  * bounces of a *different* cause (verify_repair and ci_repair combined). A
  * `phase_completed:*` repetition with zero bounces anywhere in the window is
  * never forgiven at all.
+ * `file_saved:verify` (see {@link FILE_SAVED_VERIFY_CAUSE}) is forgiven the
+ * same way, through its own independent budget running in parallel — a
+ * repair cycle emits both a `phase_completed:*` and a `file_saved:verify`
+ * per round, and each cause needs its own full budget rather than splitting
+ * one shared budget between them (task 708, concern on #674: 1 initial
+ * implement + 1 initial verify save + 2 verify_repair bounces, each
+ * preceding a re-implement and a re-save, produced 3
+ * `phase_completed:implementer` AND 3 `file_saved:verify` firings — see
+ * incident-signature-detectors.repeat-loop-t708.test.ts for the replayed
+ * window).
  * A terminal taskStatus (see TERMINAL_TASK_STATUSES) short-circuits to null —
  * a task that has already finished is not "looping" even if it churned through
  * several retry cycles on the way there (mirrors detectStagnation's guard;
@@ -373,15 +395,21 @@ export function detectRepeatLoop(input: {
   }
 
   let forgivenessBudget = bounceTotal > 0 ? 1 : 0;
+  let verifyForgivenessBudget = bounceTotal > 0 ? 1 : 0;
   const counts = new Map<string, number>();
   for (const t of windowed) {
     if (REPAIR_BOUNCE_CAUSES.has(t.cause)) {
       forgivenessBudget += 1;
+      verifyForgivenessBudget += 1;
       counts.set(t.cause, (counts.get(t.cause) ?? 0) + 1);
       continue;
     }
     if (t.cause.startsWith(PHASE_COMPLETED_CAUSE_PREFIX) && forgivenessBudget > 0) {
       forgivenessBudget -= 1;
+      continue;
+    }
+    if (t.cause === FILE_SAVED_VERIFY_CAUSE && verifyForgivenessBudget > 0) {
+      verifyForgivenessBudget -= 1;
       continue;
     }
     counts.set(t.cause, (counts.get(t.cause) ?? 0) + 1);
