@@ -1648,6 +1648,23 @@ function generateFrontendRegistries() {
   }
 }
 
+/**
+ * バックエンドのルートドメインバレル（routes/<domain>/index.ts）を
+ * route-barrel-legacy-manifest.json + *.routes.ts 自動検出から再生成する。
+ * 失敗時は例外をthrowしてバックエンドを起動させない（fail-closed）——
+ * 転記ミスやalias衝突をルートのサイレント欠落ではなく起動不能として検知
+ * できるようにするため（task #678）。
+ */
+function generateRouteBarrels() {
+  console.log('\nGenerating backend route barrels...');
+  try {
+    execSync('node scripts/generate-route-barrels.cjs', { cwd: BACKEND_DIR, stdio: 'inherit' });
+  } catch (err) {
+    console.error('Failed to generate route barrels:', err.message);
+    throw err;
+  }
+}
+
 // 再起動要求を示す終了コード
 const RESTART_EXIT_CODE = 75;
 
@@ -2361,6 +2378,7 @@ async function main() {
     }
   }
   generateFrontendRegistries();
+  generateRouteBarrels();
   startBackend();
 
   // バックエンドのヘルスチェック（ゾンビソケットへの接続を検出）。1回失敗した

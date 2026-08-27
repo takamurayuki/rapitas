@@ -322,4 +322,21 @@ describe('errorHandler plugin propagation (as: global)', () => {
     const res = await app.handle(new Request('http://localhost/test'));
     expect(res.headers.get('content-type')).toContain('application/json');
   });
+
+  test('不正なJSONボディがステータス500ではなく400で処理されること(#683)', async () => {
+    // Elysia's built-in JSON parser throws a ParseError (code: 'PARSE', status: 400)
+    // before the route handler ever runs. Before the PARSE branch existed, this
+    // fell through to the generic fallback and was overwritten with 500.
+    const app = new Elysia().use(errorHandler).post('/test', ({ body }) => body);
+    const res = await app.handle(
+      new Request('http://localhost/test', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: '{invalid json',
+      }),
+    );
+    expect(res.status).toBe(400);
+    const body = (await res.json()) as ErrorResponseBody;
+    expect(body.error).toBe('Invalid JSON in request body');
+  });
 });

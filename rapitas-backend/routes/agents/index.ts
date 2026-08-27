@@ -1,4 +1,10 @@
-// Routes Agents barrel export - 全サブディレクトリのexport + ドメイン単位マージ済みインスタンス
+/**
+ * AUTO-GENERATED — DO NOT EDIT.
+ *
+ * Run `bun run generate:route-barrels` to regenerate from
+ * routes/route-barrel-legacy-manifest.json + *.routes.ts auto-discovery
+ * (see scripts/generate-route-barrels.cjs).
+ */
 import { Elysia } from 'elysia';
 import { approvalsRoutes } from './integrations/approvals';
 import { aiAgentRoutes } from './integrations/ai-agent';

@@ -1,10 +1,18 @@
-// Routes Social barrel export — 集約 + ドメイン単位マージ済みインスタンス
+/**
+ * AUTO-GENERATED — DO NOT EDIT.
+ *
+ * Run `bun run generate:route-barrels` to regenerate from
+ * routes/route-barrel-legacy-manifest.json + *.routes.ts auto-discovery
+ * (see scripts/generate-route-barrels.cjs).
+ */
 import { Elysia } from 'elysia';
 import { commentsRoutes } from './comments';
-import { githubRoutes, taskGithubRoutes } from './github';
+import { githubRoutes } from './github';
+import { taskGithubRoutes } from './github';
 
 export { commentsRoutes } from './comments';
-export { githubRoutes, taskGithubRoutes } from './github';
+export { githubRoutes } from './github';
+export { taskGithubRoutes } from './github';
 
 export const socialDomainRoutes = new Elysia()
   .use(commentsRoutes)
