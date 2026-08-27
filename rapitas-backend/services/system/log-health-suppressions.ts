@@ -82,6 +82,11 @@ const SUPPRESSIONS: Suppression[] = [
     test: /verify\.md (failed validation|self-contradicts)/i,
     because: '検証ゲートが不正な成果物を捕捉した — ゲートが働いた側',
   },
+  {
+    test: /Automated verification failed — blocking/i,
+    because:
+      '検証ゲートがlint/型エラーを検出しタスクをblockedにした — ゲートが働いた側。ブロックされたタスク自体はstatus=blockedとして通常のタスク一覧で可視化される',
+  },
 ];
 
 /** Result of classifying one log signature. */

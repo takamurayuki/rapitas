@@ -40,6 +40,7 @@ const SUPPRESSED: [string, string][] = [
     'workflow-cli-executor',
     '[WorkflowCLIExecutor] verify.md self-contradicts: claims all tests pass',
   ],
+  ['agents:verification-gate', 'Automated verification failed — blocking'],
 ];
 
 const KEPT: [string, string][] = [
@@ -48,7 +49,6 @@ const KEPT: [string, string][] = [
   ['git-service', 'git command failed: git merge --abort'],
   ['claude-code', '[claude-code] Model rejected by CLI — likely a provider/agent mismatch'],
   ['workflow-runner', '[WorkflowRunner] Execution error for task #: Task # not found'],
-  ['verification', 'Automated verification failed — blocking'],
 ];
 
 describe('classifyLogSignature', () => {
