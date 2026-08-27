@@ -262,6 +262,14 @@ export function validateVerify(content: string): ValidationResult {
     // failure verdict — the referenced section is scanned/exempted separately.
     if (/残課題|フォローアップ/.test(line)) return false;
     if (documentsOutOfScopeEscalation && attributesFailureOutOfScope(line)) return false;
+    // "❌ 適用不能" is a verdict that the item does not apply here, not a failing
+    // check. Feasibility tasks answer "does this idea map onto this codebase?"
+    // and a NO is the honest answer: task 602 reported four ❌ 適用不能 rows
+    // ("IMEに『解像度』『変換プリセット』の概念は存在しない") beside a passing
+    // summary, and was blocked as a hallucinated pass for four rounds.
+    if (/❌[^\n]{0,8}(?:適用不能|該当なし|非該当|対象外|N\/A|not\s+applicable)/i.test(line)) {
+      return false;
+    }
     return true;
   });
   if (crossMarkFailure) failureHits.push(['❌'] as unknown as RegExpMatchArray);
@@ -277,6 +285,12 @@ export function validateVerify(content: string): ValidationResult {
     const m = line.match(/\bexit(?:\s+code)?\s+1\b/i);
     if (!m) return false;
     if (/✅|合格|通過|成功|pass/i.test(line)) return false; // pass-asserting line
+    // A line enumerating BOTH exit codes is a spec of expected outcomes, not one
+    // run's result: task 647's DoD read "build 後 verify 一致→exit 0、改ざん→
+    // exit 1＋資産名". The trailing-prose guard below missed it because the next
+    // character is a fullwidth ＋ rather than a kana, so it blocked a passing
+    // report on the very behaviour the task implemented.
+    if (/\bexit(?:\s+code)?\s+0\b/i.test(line)) return false;
     const idx = m.index ?? 0;
     if (/[(（]$/.test(line.slice(Math.max(0, idx - 2), idx))) return false; // "(exit 1)"
     const after = line.slice(idx + m[0].length).replace(/^[)）\s]+/, '');

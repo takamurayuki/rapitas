@@ -589,3 +589,46 @@ ${extra}`;
     expect(result.summary).toContain('self-contradicts');
   });
 });
+
+describe('validateVerify — 失敗でない ❌ / exit 1（実データ由来）', () => {
+  const doc = (row: string, extra = '') => `# 検証レポート
+## 検証結果サマリ
+スコープ内は all tests pass。
+## テスト結果
+${row}
+## チェックリスト
+- ok
+${extra}`;
+
+  test('「❌ 適用不能」は失敗ではなく、当てはまらないという判定（task 602）', () => {
+    // IMEに「解像度」「変換プリセット」の概念が無い、という実現可能性の答え。
+    const row =
+      '| Random Forest等の分類モデルで履歴学習 | `Cargo.lock` にMLクレート無し | ❌ 適用不能 |';
+    expect(validateVerify(doc(row)).ok).toBe(true);
+  });
+
+  test('「❌ 対象外（適用不能）」も同様に通す（task 603）', () => {
+    const row = '| 段階的ロールバック機能 | ❌ 対象外（適用不能） | 該当なし |';
+    expect(validateVerify(doc(row)).ok).toBe(true);
+  });
+
+  test('修正が必要な ❌ は従来どおり落とす', () => {
+    const row = '| 認証トークンの失効処理 | ❌ 未実装 | 要修正 |';
+    const r = validateVerify(doc(row));
+    expect(r.ok).toBe(false);
+    expect(r.summary).toContain('self-contradicts');
+  });
+
+  test('exit 0 と exit 1 を併記した行は期待値の仕様記述（task 647）', () => {
+    // 「改ざん検知は exit 1 を返すべき」という DoD であって、失敗報告ではない。
+    const row = '| 統合DoD | build 後 verify 一致→exit 0、改ざん→exit 1＋資産名 |';
+    expect(validateVerify(doc(row)).ok).toBe(true);
+  });
+
+  test('exit 1 だけの実行結果は従来どおり落とす', () => {
+    const row = '| ビルド | npm run build → exit 1 |';
+    const r = validateVerify(doc(row));
+    expect(r.ok).toBe(false);
+    expect(r.summary).toContain('self-contradicts');
+  });
+});
