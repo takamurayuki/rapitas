@@ -191,7 +191,9 @@ export async function computeAndApplyStatusTransition(params: {
             // The non-convergence cutoff already recorded its OWN
             // `verify_repair_non_convergence` transition for this rejection
             // (verify-self-repair.ts) — recording `verify_validation_failed`
-            // here too would duplicate it (task 674: two rows 43ms apart).
+            // here too would duplicate it (task 674: two rows 43ms apart;
+            // task 705 independently hit the same duplicate-record defect and
+            // converged on this same DB-read check during merge).
             if (!(await wasNonConvergenceCutoffJustRecorded(taskId))) {
               await recordTransition({
                 taskId,

@@ -764,15 +764,47 @@ describe('handleSaveFile — validateVerify 失敗によるバウンスは冗長
     expect(mockRecordTransition).not.toHaveBeenCalled();
   });
 
-  // Regression (task 674): the non-convergence cutoff inside attemptVerifyRepair
-  // already records its OWN `verify_repair_non_convergence` transition. Before
-  // this fix the caller could not see that and unconditionally recorded a
-  // SECOND `verify_validation_failed` transition milliseconds later for the
-  // exact same rejection — two rows for one event, tripping the repeat-loop
+  // task 705: budget-exhausted (not the non-convergence cutoff) must still
+  // record verify_validation_failed exactly as before — only the cutoff case
+  // (below) is exempted.
+  test('repair 予算枯渇時（非収束カットオフではない）は従来どおり verify_validation_failed を1件記録すること', async () => {
+    mockResolveWorkflowDir.mockResolvedValueOnce({
+      task: { workflowStatus: 'in_progress', id: 1 },
+      dir: '/fake/dir/1',
+      categoryId: null,
+      themeId: null,
+    });
+    mockFindMany.mockResolvedValueOnce([]);
+    mockCheckInvariants.mockResolvedValueOnce([]);
+    mockValidateVerify.mockReturnValueOnce({
+      ok: false,
+      missingSections: [],
+      severity: 80,
+      summary: 'verify.md self-contradicts',
+    });
+    mockAttemptVerifyRepair.mockResolvedValueOnce({ bounced: false });
+
+    await handleSaveFile({
+      params: { taskId: '1', fileType: 'verify' },
+      body: 'verify content',
+      set: makeSet(),
+    });
+
+    expect(mockRecordTransition).toHaveBeenCalledTimes(1);
+    expect(mockRecordTransition).toHaveBeenCalledWith(
+      expect.objectContaining({ cause: 'verify_validation_failed' }),
+    );
+  });
+
+  // Regression (task 674, independently converged on by task 705 during
+  // merge): the non-convergence cutoff inside attemptVerifyRepair already
+  // records its OWN `verify_repair_non_convergence` transition. Before this
+  // fix the caller could not see that and unconditionally recorded a SECOND
+  // `verify_validation_failed` transition milliseconds later for the exact
+  // same rejection — two rows for one event, tripping the repeat-loop
   // detector. wasNonConvergenceCutoffJustRecorded() (file-save/shared.ts)
   // detects this by reading the latest WorkflowTransition row instead of a
-  // flag on attemptVerifyRepair's return value (verify-self-repair.ts is a
-  // tamper-gate protected path — see task 704's second implementation pass).
+  // flag on attemptVerifyRepair's return value.
   test('直近のWorkflowTransitionが非収束カットオフなら、冗長な recordTransition を実行しないこと', async () => {
     mockResolveWorkflowDir.mockResolvedValueOnce({
       task: { workflowStatus: 'in_progress', id: 1 },

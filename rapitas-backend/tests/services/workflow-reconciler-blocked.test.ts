@@ -55,7 +55,7 @@ mock.module('../../services/workflow/blocked-pr-retry-recovery', () => ({
 const { correctBlockedByEvidence, escalateAbandonedBlocked } =
   await import('../../services/workflow/workflow-reconciler-blocked');
 const { requeueBlockedTasks } = await import('../../services/workflow/workflow-reconciler-requeue');
-const { classifyBlockedExclusion, MAX_ORPHAN_REQUEUE_AGE_MS } =
+const { classifyBlockedExclusion, MAX_ORPHAN_REQUEUE_AGE_MS, DEFAULT_VERIFY_REPAIR_LIMIT } =
   await import('../../services/workflow/blocked-task-policy');
 
 const NOW = 1_800_000_000_000;
@@ -474,5 +474,44 @@ describe('classifyBlockedExclusion（境界値）', () => {
         workflowStatus: 'awaiting_question',
       }),
     ).toBe('awaiting_question');
+  });
+});
+
+// task 705: タスク#684の反復タイムラインを模した統合シナリオ。修正前は CLI 経路が
+// attemptVerifyRepair を一度も呼ばなかったため、修復予算(repairs)を1回しか消費
+// しないまま blocked_auto_retry(attempts) を2回消費し、classifyBlockedExclusion
+// は retry_cap_exhausted で（本来より遅れて）エスカレーションしていた。修正後は
+// HTTP/CLI いずれの経路でも検証失敗のたびに修復予算が正しく消費されるため、
+// attempts=0（盲目再試行を一度も消費しない）のまま予算(repairs)が枯渇し、
+// verify_repair_exhausted へ直接到達する。
+describe('classifyBlockedExclusion（task 705: タスク#684タイムラインの統合シナリオ）', () => {
+  test('HTTP/CLI 両経路で修復予算が正しく消費された結果、blocked_auto_retry を消費せず verify_repair_exhausted に到達すること', () => {
+    // タスク#684実測: verify_repair 1回(HTTP, 08:47) + verify_validation_failed 3回
+    // (修正後はいずれも CLI 経路で attemptVerifyRepair 経由の予算消費に変わる) =
+    // repairs が DEFAULT_VERIFY_REPAIR_LIMIT(2) に到達。blocked_auto_retry は
+    // 一度も発生しない（attempts=0）。
+    const classification = classifyBlockedExclusion({
+      workflowStatus: 'in_progress',
+      ageMs: 20 * 60 * 1000,
+      repairs: DEFAULT_VERIFY_REPAIR_LIMIT,
+      verifyRepairLimit: DEFAULT_VERIFY_REPAIR_LIMIT,
+      attempts: 0,
+    });
+
+    expect(classification).toBe('verify_repair_exhausted');
+  });
+
+  test('比較対象（修正前の実測挙動）: 予算が1回しか消費されず attempts が上限に達すると retry_cap_exhausted になること', () => {
+    // 修正前のタスク#684実測: repairs=1（HTTP経路の1回のみ）のまま
+    // blocked_auto_retry が2回（attempts=2, MAX_BLOCKED_RETRY）発生していた。
+    const classification = classifyBlockedExclusion({
+      workflowStatus: 'in_progress',
+      ageMs: 20 * 60 * 1000,
+      repairs: 1,
+      verifyRepairLimit: DEFAULT_VERIFY_REPAIR_LIMIT,
+      attempts: 2,
+    });
+
+    expect(classification).toBe('retry_cap_exhausted');
   });
 });
