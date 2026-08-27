@@ -147,25 +147,29 @@ export async function ensureIntakeReady(taskId: number): Promise<IntakeOutcome> 
 }
 
 /**
- * Criteria on this task that carry another task's coined vocabulary.
+ * Criteria on this task that carry another task's subject matter.
  *
  * Only tasks this spec actually cites are considered, and never the task
  * itself — a task may legitimately quote its own title.
+ *
+ * The task's own text is passed through as well, because the second detection
+ * path needs no lookup: a title of the form `#666「…」` carries the other
+ * task's subject inside this one, and criteria drawn from that quoted span are
+ * about the cited task by construction.
  */
 async function findLiftedCriteria(task: IntakeTaskRow): Promise<ContaminatedCriterion[]> {
   const criteria = parseSpecArray(task.acceptanceCriteria);
   if (criteria.length === 0) return [];
 
-  const ids = extractReferencedTaskIds(`${task.title} ${task.description ?? ''}`).filter(
-    (id) => id !== task.id,
-  );
+  const ownText = `${task.title} ${task.description ?? ''}`;
+  const ids = extractReferencedTaskIds(ownText).filter((id) => id !== task.id);
   if (ids.length === 0) return [];
 
   const referenced = await prisma.task.findMany({
     where: { id: { in: ids } },
     select: { id: true, title: true },
   });
-  return findContaminatedCriteria(criteria, referenced);
+  return findContaminatedCriteria(criteria, referenced, ownText);
 }
 
 /**
