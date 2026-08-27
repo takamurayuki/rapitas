@@ -52,10 +52,11 @@ export async function runGhCommand(
       error && typeof error === 'object' && 'stderr' in error
         ? (error as { stderr: string }).stderr
         : undefined;
+    const failure = new Error(stderr || message);
     if (!opts?.skipLog) {
-      log.error({ message, stderr }, `gh command failed: gh ${args.join(' ')}`);
+      log.error({ err: failure }, `gh command failed: gh ${args.join(' ')}`);
     }
-    throw new Error(stderr || message);
+    throw failure;
   }
 }
 
