@@ -5,7 +5,11 @@
 import { Elysia } from 'elysia';
 import { createLogger } from '../config/logger';
 import { HTTP_STATUS } from '../utils/common/http-status';
-import { RESOURCE_NOT_FOUND, VALIDATION_ERROR } from '../utils/common/error-messages';
+import {
+  RESOURCE_NOT_FOUND,
+  VALIDATION_ERROR,
+  JSON_PARSE_ERROR,
+} from '../utils/common/error-messages';
 
 const log = createLogger('error-handler');
 
@@ -125,7 +129,7 @@ function isPrismaError(error: unknown): boolean {
 // (e.g. a ValidationError surfaced as 500 "無効なIDです" instead of 400 JSON).
 export const errorHandler = new Elysia({ name: 'error-handler' }).onError(
   { as: 'global' },
-  ({ code, error, set }) => {
+  ({ code, error, set, path, request }) => {
     // Ensure JSON content type for all error responses
     set.headers['Content-Type'] = 'application/json; charset=utf-8';
 
@@ -152,6 +156,17 @@ export const errorHandler = new Elysia({ name: 'error-handler' }).onError(
     if (code === 'NOT_FOUND') {
       set.status = HTTP_STATUS.NOT_FOUND;
       return { error: RESOURCE_NOT_FOUND };
+    }
+
+    // Request body is not valid JSON. Elysia's ParseError already carries
+    // status 400, but without this branch it fell through to the generic
+    // fallback below, which overwrote it with 500 and logged it as an
+    // unclassified server error (K-6588, K-6729, #683).
+    if (code === 'PARSE') {
+      const cause = error.cause instanceof Error ? error.cause.message : undefined;
+      log.warn({ path, method: request.method, cause }, 'Failed to parse JSON request body');
+      set.status = HTTP_STATUS.BAD_REQUEST;
+      return { error: JSON_PARSE_ERROR };
     }
 
     // Prisma related errors (all types)
