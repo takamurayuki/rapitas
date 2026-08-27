@@ -59,7 +59,7 @@ export async function resolveVerifyPhaseStatus(params: {
     phaseStatus = currentWfStatus as WorkflowAdvanceResult['status'];
     log.warn(
       { taskId, currentWfStatus },
-      '[WorkflowCLIExecutor] Verify was rejected (self-repair bounce / adversarial review) — honoring it and skipping the completion epilogue',
+      '[WorkflowCLIExecutor] Verify was rejected by a fresh gate rejection — honoring it and skipping the completion epilogue',
     );
   } else if (hardFail) {
     // This write is what actually STOPS the verify hard-fail loop, so a

@@ -195,7 +195,7 @@ async function inspectTask(task: CandidateTask, nowMs: number): Promise<number> 
           `（task.status=${task.status}, workflowStatus=${task.workflowStatus ?? 'null'}）`,
         thresholdDescription:
           desync.kind === 'todo_status_workflow_advanced'
-            ? `即時判定（ただし回復遷移 reconciler_requeue/artifact_reuse_fastforward から` +
+            ? `即時判定（ただし回復遷移 reconciler_requeue/artifact_reuse_fastforward/task_retried から` +
               `${Math.round(DESYNC_RECOVERY_SETTLE_MS / 60_000)}分間は定着待ちとして除外）`
             : '即時判定（閾値なし — 状態スナップショットの矛盾を直接検出）',
         severity: 'high',

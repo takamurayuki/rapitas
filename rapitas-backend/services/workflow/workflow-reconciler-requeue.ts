@@ -17,6 +17,7 @@ import {
   MAX_BLOCKED_RETRY,
   resolveVerifyRepairLimit,
   VERIFY_NON_CONVERGENCE_CAUSE,
+  PR_RETRY_LIGHTWEIGHT_CAUSE,
 } from './blocked-task-policy';
 
 const log = createLogger('workflow-reconciler');
@@ -201,6 +202,50 @@ export async function requeueBlockedTasks(nowMs: number): Promise<number> {
         '[reconciler] Blocked task was cut off for non-convergence — leaving blocked (needs split/spec revision), not auto-retrying',
       );
       continue;
+    }
+
+    // Lightweight PR-only recovery (task 673/681): before the full reset
+    // below discards an already-completed implementation, try ONE lightweight
+    // PR retry for a task blocked purely by a failed PR-creation attempt.
+    // Runs BEFORE the attempts/MAX_BLOCKED_RETRY check so it never consumes
+    // that (full-reset) budget, and still applies once that budget is
+    // exhausted — an exhausted full-reset budget says nothing about whether
+    // the PR-only path was ever tried. Gated to exactly one attempt per
+    // window via the PR_RETRY_LIGHTWEIGHT_CAUSE count.
+    const prNotCreated = await prisma.workflowTransition
+      .count({
+        where: {
+          taskId: t.id,
+          cause: 'verify_pr_not_created',
+          ...(lastRetry ? { createdAt: { gt: lastRetry.createdAt } } : {}),
+        },
+      })
+      .catch(() => 0);
+    if (prNotCreated > 0) {
+      const lightweightAttempted = await prisma.workflowTransition
+        .count({
+          where: {
+            taskId: t.id,
+            cause: PR_RETRY_LIGHTWEIGHT_CAUSE,
+            ...(lastRetry ? { createdAt: { gt: lastRetry.createdAt } } : {}),
+          },
+        })
+        .catch(() => 0);
+      if (lightweightAttempted === 0) {
+        const { attemptPrOnlyRecovery } = await import('./blocked-pr-retry-recovery');
+        const recovered = await attemptPrOnlyRecovery(t.id).catch((err) => {
+          log.warn({ err, taskId: t.id }, '[reconciler] Lightweight PR retry threw');
+          return false;
+        });
+        if (recovered) {
+          retried++;
+          log.info(
+            { taskId: t.id },
+            '[reconciler] Lightweight PR retry recovered blocked task (no full reset)',
+          );
+          continue;
+        }
+      }
     }
 
     const attempts = await prisma.workflowTransition
