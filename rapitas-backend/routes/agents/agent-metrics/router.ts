@@ -138,6 +138,9 @@ export const agentMetricsRouter = new Elysia({ prefix: '/agent-metrics' })
   .get('/:agentId', async ({ params, query }) => {
     try {
       const agentId = parseInt(params.agentId);
+      if (Number.isNaN(agentId)) {
+        return { error: 'Invalid agentId' };
+      }
       const dateRange = parseDateRange(query);
 
       const whereClause: { createdAt?: { gte?: Date; lte?: Date } } = {};

@@ -7,7 +7,7 @@
  */
 import { describe, test, expect } from 'bun:test';
 import { execSync } from 'child_process';
-import { mkdtempSync, rmSync } from 'fs';
+import { mkdtempSync, rmSync, writeFileSync } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
 import {
@@ -15,6 +15,7 @@ import {
   ensureNotPrimaryWorkTree,
   isBackendPrimaryCheckout,
   findConflictingWorktreeForBranch,
+  recoverFromUnresolvedMerge,
 } from './worktree-guard';
 
 const primary = async () => true;
@@ -231,5 +232,92 @@ describe('findConflictingWorktreeForBranch', () => {
 
     const result = await findConflictingWorktreeForBranch('/my-dir', 'feature/x', exec);
     expect(result).toBeNull();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// recoverFromUnresolvedMerge
+// ---------------------------------------------------------------------------
+// Uses real temp git repos (same style as the isPrimaryWorkTree tests above) so
+// the reproduction test exercises the actual git error text from task 691.
+
+/** Best-effort recursive delete with retries — mirrors the cleanup above. */
+function cleanupDir(dir: string): void {
+  for (let attempt = 0; attempt < 5; attempt++) {
+    try {
+      rmSync(dir, { recursive: true, force: true });
+      return;
+    } catch {
+      // retry below
+    }
+  }
+}
+
+/** Create a temp repo left with an unresolved merge conflict (MERGE_HEAD set). */
+function initRepoWithUnresolvedMerge(): string {
+  const dir = mkdtempSync(join(tmpdir(), 'wt-guard-merge-'));
+  const run = (cmd: string) => execSync(cmd, { cwd: dir, stdio: 'pipe' });
+  run('git init -q -b main');
+  run('git config user.email test@example.com');
+  run('git config user.name Test');
+  writeFileSync(join(dir, 'f.txt'), 'base\n');
+  run('git add -A');
+  run('git commit -q -m base');
+  run('git checkout -q -b feature');
+  writeFileSync(join(dir, 'f.txt'), 'feature-change\n');
+  run('git commit -q -am feature-change');
+  run('git checkout -q main');
+  writeFileSync(join(dir, 'f.txt'), 'main-change\n');
+  run('git commit -q -am main-change');
+  run('git checkout -q feature');
+  try {
+    run('git merge main --no-edit');
+  } catch {
+    // Expected: conflicting merge stops with MERGE_HEAD set and an unresolved index.
+  }
+  return dir;
+}
+
+describe('recoverFromUnresolvedMerge', () => {
+  test('バグ再現: 未解決マージが残る worktree では checkout が "resolve your current index first" で失敗すること', () => {
+    const dir = initRepoWithUnresolvedMerge();
+    try {
+      expect(() => execSync('git checkout -q main', { cwd: dir, stdio: 'pipe' })).toThrow(
+        /resolve your current index first/,
+      );
+    } finally {
+      cleanupDir(dir);
+    }
+  });
+
+  test('未解決マージを検知しabortして後続のcheckoutを回復させること', async () => {
+    const dir = initRepoWithUnresolvedMerge();
+    try {
+      await expect(recoverFromUnresolvedMerge(dir)).resolves.toBe(true);
+      // MERGE_HEAD is gone.
+      expect(() =>
+        execSync('git rev-parse --verify -q MERGE_HEAD', { cwd: dir, stdio: 'pipe' }),
+      ).toThrow();
+      // The operation that failed before recovery now succeeds.
+      expect(() => execSync('git checkout -q main', { cwd: dir, stdio: 'pipe' })).not.toThrow();
+    } finally {
+      cleanupDir(dir);
+    }
+  });
+
+  test('未解決マージが無ければ何もせずfalseを返すこと', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'wt-guard-clean-'));
+    const run = (cmd: string) => execSync(cmd, { cwd: dir, stdio: 'pipe' });
+    try {
+      run('git init -q -b main');
+      run('git config user.email test@example.com');
+      run('git config user.name Test');
+      writeFileSync(join(dir, 'f.txt'), 'base\n');
+      run('git add -A');
+      run('git commit -q -m base');
+      await expect(recoverFromUnresolvedMerge(dir)).resolves.toBe(false);
+    } finally {
+      cleanupDir(dir);
+    }
   });
 });

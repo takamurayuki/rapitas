@@ -91,6 +91,7 @@ mock.module('../worktree/worktree-guard', () => ({
   isPrimaryWorkTree: async () => false,
   isBackendPrimaryCheckout: async () => false,
   findConflictingWorktreeForBranch: async () => null,
+  recoverFromUnresolvedMerge: async () => false,
   ensureNotPrimaryWorkTree: async () => {},
 }));
 
