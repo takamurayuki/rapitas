@@ -10,6 +10,8 @@ import { API_BASE_URL } from '@/utils/api';
 import { Spinner } from '@/components/ui/spinner';
 import { resolveBlockedCauseLabel } from '@/components/workflow/workflow-blocked-cause';
 import CriticHistorySection from '@/components/workflow/CriticHistorySection';
+import RepairStagnationBanner from '@/components/workflow/RepairStagnationBanner';
+import RepairIterationMetricsPanel from '@/components/workflow/RepairIterationMetricsPanel';
 import PhaseBreakdown from '@/feature/tasks/components/detail/PhaseBreakdown';
 import { useWorkflowDisabledToggle } from '../hooks/useWorkflowDisabledToggle';
 
@@ -434,6 +436,9 @@ export default function TaskWorkflowSection({
 
       {/* フェーズ別実行時間（role × 各回の実働内訳、task #560） */}
       <PhaseBreakdown taskId={taskId} />
+
+      <RepairStagnationBanner taskId={taskId} />
+      <RepairIterationMetricsPanel taskId={taskId} />
 
       <CriticHistorySection taskId={taskId} />
 

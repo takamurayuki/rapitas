@@ -2420,6 +2420,23 @@
         "reasonsCount": "指摘 {count}件",
         "noReasons": "詳細情報が記録されていません"
       },
+      "repairStagnation": {
+        "title": "修復反復: {count}回",
+        "message": "同じ修復ループが続いていることを示すデータです。打ち切りの指示ではありません。複雑度や過去の類似ケースなど文脈情報も踏まえて判断してください。",
+        "ariaLabel": "修復反復が{count}回記録されています。停滞リスクを示すデータです。"
+      },
+      "repairIterationMetrics": {
+        "title": "反復ごとのメトリクス",
+        "cause": {
+          "verify_repair": "検証差し戻し",
+          "ci_repair": "CI差し戻し"
+        },
+        "dwell": "滞留時間 {time}",
+        "dwellNone": "滞留時間データなし（先頭の反復）",
+        "changeSet": "変更ファイル {files}件（+{additions}/-{deletions}）",
+        "changeSetNone": "コミットデータなし",
+        "unavailableNote": "テスト成功率の上昇幅・学習速度は現行データでは算出できません（推測値・ダミー値は表示していません）"
+      },
       "phaseBreakdown": {
         "title": "フェーズ別実行時間",
         "totalActive": "実働合計 {time}",

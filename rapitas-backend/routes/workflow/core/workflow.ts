@@ -23,6 +23,7 @@ import {
   handleRunVerification,
 } from '../handlers/workflow-handlers';
 import { handleRevisePlan } from '../handlers/workflow-handlers-plan-revision';
+import { computeRepairIterationMetrics } from '../../../services/workflow/repair-iteration-metrics';
 
 // Re-export helpers and types for consumers that import from this path
 export {
@@ -156,4 +157,55 @@ export const workflowRoutes = new Elysia({ prefix: '/workflow' })
       return { ...r, metadata: parsedMeta };
     });
     return { success: true, taskId, count: transitions.length, transitions };
+  })
+
+  /**
+   * Read-only per-repair-iteration metrics (task #672, MVP-limited scope):
+   * dwell time (from WorkflowTransition timestamps) and change-set size (from
+   * ActivityLog `auto_commit_created` rows) for each verify_repair/ci_repair
+   * bounce. Test-pass-rate delta and learning velocity are intentionally NOT
+   * computed here — no structured numeric test-result data exists in the
+   * pipeline to derive them from (see repair-iteration-metrics.ts header).
+   */
+  .get('/tasks/:taskId/repair-iterations', async (ctx) => {
+    const params = ctx.params as { taskId: string };
+    const taskId = parseInt(params.taskId);
+    if (!Number.isFinite(taskId)) {
+      return { success: false, error: 'invalid taskId' };
+    }
+    const [transitionRows, commitRows] = await Promise.all([
+      prisma.workflowTransition
+        .findMany({
+          where: { taskId },
+          orderBy: { createdAt: 'asc' },
+          select: { id: true, cause: true, createdAt: true },
+        })
+        .catch(() => null),
+      prisma.activityLog
+        .findMany({
+          where: { taskId, action: 'auto_commit_created' },
+          orderBy: { createdAt: 'asc' },
+          select: { metadata: true, createdAt: true },
+        })
+        .catch(() => null),
+    ]);
+    if (!transitionRows || !commitRows) {
+      return { success: false, error: 'failed to load repair iteration data' };
+    }
+    const commits = commitRows.map((row) => {
+      let meta: { filesChanged?: number; additions?: number; deletions?: number } = {};
+      try {
+        meta = row.metadata ? JSON.parse(row.metadata) : {};
+      } catch {
+        meta = {};
+      }
+      return {
+        createdAt: row.createdAt,
+        filesChanged: meta.filesChanged,
+        additions: meta.additions,
+        deletions: meta.deletions,
+      };
+    });
+    const iterations = computeRepairIterationMetrics(transitionRows, commits);
+    return { success: true, taskId, iterations };
   });
