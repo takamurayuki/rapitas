@@ -64,11 +64,25 @@ export const DESYNC_RECOVERY_SETTLE_MS =
  * transient and self-healing rather than a corrupted state). blocked_auto_retry
  * is NOT here — it resets workflowStatus to 'draft', which Pattern B never
  * matches.
+ *
+ * agent_lifecycle_shutdown_revert / manual_execution_stop_revert /
+ * stale_execution_recovery_revert (task 709): three more code paths revert
+ * `task.status` to 'todo' without changing `workflowStatus` — backend
+ * shutdown (`lifecycle-manager.ts` `saveAgentState`), a manual stop
+ * (`stop-route.ts`), and stale-execution recovery
+ * (`stale-recovery-helpers.ts` `updateAffectedTasks`). Before task 709 none
+ * of the three recorded a `WorkflowTransition`, so `isWithinRecoveryGrace`
+ * had no row to find and Pattern B fired immediately on a shape those paths
+ * create on purpose (task #602). Recording these three causes closes that
+ * gap the same way `task_retried` already does.
  */
 const RECOVERY_REQUEUE_CAUSES = new Set([
   'reconciler_requeue',
   'artifact_reuse_fastforward',
   'task_retried',
+  'agent_lifecycle_shutdown_revert',
+  'manual_execution_stop_revert',
+  'stale_execution_recovery_revert',
 ]);
 
 /**

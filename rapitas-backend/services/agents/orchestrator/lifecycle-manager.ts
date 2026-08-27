@@ -7,6 +7,7 @@ import { createLogger } from '../../../config/logger';
 import type { PrismaClientInstance, ActiveAgentInfo, ExecutionState } from './types';
 import type { QuestionTimeoutManager } from './question-timeout-manager';
 import { stopAllPreviewSessions } from '../preview/preview-session-manager';
+import { recordTransition } from '../../workflow/transition-recorder';
 
 /**
  * How long a graceful shutdown may take when triggered by an uncaught
@@ -72,7 +73,7 @@ export async function saveAgentState(
   try {
     const task = await prisma.task.findUnique({
       where: { id: info.taskId },
-      select: { id: true, status: true },
+      select: { id: true, status: true, workflowStatus: true },
     });
     if (task && task.status === 'in-progress') {
       await prisma.task.update({
@@ -80,6 +81,18 @@ export async function saveAgentState(
         data: { status: 'todo' },
       });
       logger.info(`[LifecycleManager] Task ${info.taskId} reverted to 'todo' during shutdown`);
+      // Record the revert so isWithinRecoveryGrace (incident-signature-detectors.ts)
+      // can grant this deliberate `status='todo'` × advanced `workflowStatus`
+      // shape its recovery grace period (task 709: previously unrecorded,
+      // causing an immediate Pattern B false positive — task #602).
+      await recordTransition({
+        taskId: info.taskId,
+        fromStatus: task.workflowStatus,
+        toStatus: task.workflowStatus ?? 'draft',
+        actor: 'system',
+        cause: 'agent_lifecycle_shutdown_revert',
+        metadata: { reason: 'backend_shutdown_revert' },
+      }).catch(() => {});
     }
   } catch (error) {
     logger.error({ err: error, taskId: info.taskId }, `[LifecycleManager] Failed to update task`);
