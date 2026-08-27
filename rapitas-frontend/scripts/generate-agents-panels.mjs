@@ -84,12 +84,36 @@ export function renderRegistry(panels) {
   );
 }
 
+/**
+ * Names *Panel.tsx files that were skipped for lack of a `panelMeta` export.
+ * @param {string} componentsDir - Absolute path to the panel components directory
+ * @returns {string[]} Skipped file names
+ */
+export function findUnregisteredPanels(componentsDir) {
+  const registered = new Set(discoverPanels(componentsDir).map((p) => `${p.componentName}.tsx`));
+  return fs
+    .readdirSync(componentsDir)
+    .filter((f) => f.endsWith('Panel.tsx') && !f.includes('.test.') && !registered.has(f));
+}
+
 function main() {
   const panels = discoverPanels(COMPONENTS_DIR);
   fs.writeFileSync(OUT_FILE, renderRegistry(panels), 'utf8');
   console.log(
     `generate-agents-panels: ${panels.length} panels -> ${path.relative(ROOT, OUT_FILE)}`,
   );
+
+  // A panel without a meta is dropped from the registry, so it vanishes from the
+  // page with no type error and no failing test. That is exactly how
+  // ProbeMetricsPanel was nearly lost: it landed on develop while this registry
+  // was being introduced, so it arrived without a meta. Say so loudly.
+  const unregistered = findUnregisteredPanels(COMPONENTS_DIR);
+  if (unregistered.length > 0) {
+    console.warn(
+      `generate-agents-panels: WARNING — ${unregistered.length} panel file(s) have no ` +
+        `panelMeta export and are NOT rendered: ${unregistered.join(', ')}`,
+    );
+  }
 }
 
 // NOTE: Guards CLI execution so the module can be imported as pure functions in tests.

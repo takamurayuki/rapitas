@@ -8,9 +8,11 @@ import type { ComponentType } from 'react';
 import { SystemStatusPanel } from './SystemStatusPanel';
 import { RecoveryMetricsPanel } from './RecoveryMetricsPanel';
 import { ErrorDiagnosisPanel } from './ErrorDiagnosisPanel';
+import { ProbeMetricsPanel } from './ProbeMetricsPanel';
 
 export const AGENTS_PANELS: { id: string; Component: ComponentType }[] = [
   { id: 'system-status', Component: SystemStatusPanel },
   { id: 'recovery-metrics', Component: RecoveryMetricsPanel },
   { id: 'error-diagnosis', Component: ErrorDiagnosisPanel },
+  { id: 'probe-metrics', Component: ProbeMetricsPanel },
 ];
