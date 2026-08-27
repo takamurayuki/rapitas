@@ -1,0 +1,139 @@
+{
+  "organization": [
+    { "importPath": "./categories", "exportName": "categoriesRoutes" },
+    { "importPath": "./themes", "exportName": "themesRoutes" },
+    { "importPath": "./theme-repo-init", "exportName": "themeRepoInitRoutes" },
+    { "importPath": "./labels", "exportName": "labelsRoutes" },
+    { "importPath": "./labels", "exportName": "taskLabelsRoutes" },
+    { "importPath": "./projects", "exportName": "projectsRoutes" },
+    { "importPath": "./milestones", "exportName": "milestonesRoutes" },
+    { "importPath": "./templates", "exportName": "templatesRoutes" }
+  ],
+  "tasks": [
+    { "importPath": "./tasks", "exportName": "tasksRoutes" },
+    { "importPath": "./gantt-data", "exportName": "ganttDataRoute" },
+    { "importPath": "./temp-statistics", "exportName": "tempStatisticsRoutes" },
+    { "importPath": "./task-analysis-config", "exportName": "taskAnalysisConfigRoutes" },
+    { "importPath": "./batch", "exportName": "batchRoutes" },
+    { "importPath": "./recurring-tasks", "exportName": "recurringTaskRoutes" },
+    { "importPath": "./task-suggestions", "exportName": "taskSuggestionRoutes" },
+    { "importPath": "./task-quick-create", "exportName": "taskQuickCreateRoutes" },
+    { "importPath": "./task-auto-generate", "exportName": "taskAutoGenerateRoutes" }
+  ],
+  "agents": [
+    { "importPath": "./integrations/approvals", "exportName": "approvalsRoutes", "export": false },
+    { "importPath": "./integrations/ai-agent", "exportName": "aiAgentRoutes", "export": false },
+    { "importPath": "./integrations/cli-tools-management", "exportName": "cliToolsManagementRoutes", "export": false },
+    { "importPath": "./config/agent-execution-config", "exportName": "agentExecutionConfigRoutes", "export": false },
+    { "importPath": "./config/agent-availability", "exportName": "agentAvailabilityRoutes", "export": false },
+    { "importPath": "./config/provider-cooldowns", "exportName": "providerCooldownsRoutes", "export": false },
+    { "importPath": "./config/recovery-metrics", "exportName": "recoveryMetricsRoutes", "export": false },
+    { "importPath": "./config/error-diagnosis", "exportName": "errorDiagnosisRoutes", "export": false },
+    { "importPath": "./config/probe-metrics", "exportName": "probeMetricsRoutes", "export": false },
+    { "importPath": "./monitoring/execution-logs", "exportName": "executionLogsRoutes", "export": false },
+    { "importPath": "./monitoring/agent-metrics", "exportName": "agentMetricsRouter", "export": false },
+    { "importPath": "./system/agent-version-management", "exportName": "agentVersionManagementRoutes", "export": false },
+    { "importPath": "./system/smart-router-routes", "exportName": "smartRouterRoutes", "export": false },
+    { "importPath": "./execution-management/execution-fork-routes", "exportName": "executionForkRoutes", "export": false },
+    { "importPath": "./preview/preview-routes", "exportName": "previewRoutes", "export": false },
+    { "importPath": "./crud", "reExportStar": true },
+    { "importPath": "./config", "reExportStar": true },
+    { "importPath": "./execution-management", "reExportStar": true },
+    { "importPath": "./monitoring", "reExportStar": true },
+    { "importPath": "./system", "reExportStar": true },
+    { "importPath": "./integrations", "reExportStar": true },
+    { "importPath": "./preview/preview-routes", "reExportStar": true }
+  ],
+  "ai": [
+    { "importPath": "./ai-chat", "exportName": "aiChatRoutes" },
+    { "importPath": "./copilot-chat", "exportName": "copilotChatRoutes" },
+    { "importPath": "./prompts", "exportName": "promptsRoutes" },
+    { "importPath": "./system-prompts", "exportName": "systemPromptsRoutes" }
+  ],
+  "scheduling": [
+    { "importPath": "./schedules", "exportName": "schedulesRoutes" },
+    { "importPath": "./daily-schedule", "exportName": "dailyScheduleRoutes" },
+    { "importPath": "./pomodoro", "exportName": "pomodoroRoutes" },
+    { "importPath": "./time-entries", "exportName": "timeEntriesRoutes" }
+  ],
+  "learning": [
+    { "importPath": "./exam-goals", "exportName": "examGoalsRoutes" },
+    { "importPath": "./study-streaks", "exportName": "studyStreaksRoutes" },
+    { "importPath": "./learning-goals", "exportName": "learningGoalsRoutes" },
+    { "importPath": "./resources", "exportName": "resourcesRoutes" },
+    { "importPath": "./learning-dashboard", "exportName": "learningDashboardRouter" },
+    { "importPath": "./vocab-decks", "exportName": "vocabDecksRoutes" },
+    { "importPath": "./study-goals", "exportName": "studyGoalsRoutes" },
+    { "importPath": "./study-sessions", "exportName": "studySessionsRoutes" }
+  ],
+  "system": [
+    { "importPath": "./settings", "exportName": "settingsRoutes" },
+    { "importPath": "./auth", "exportName": "authRoutes" },
+    { "importPath": "./sse", "exportName": "sseRoutes" },
+    { "importPath": "./developer-mode", "exportName": "developerModeRoutes" },
+    { "importPath": "./notifications", "exportName": "notificationsRoutes" },
+    { "importPath": "./memos", "exportName": "memosRoutes" },
+    { "importPath": "./search", "exportName": "searchRoutes" },
+    { "importPath": "./url-metadata", "exportName": "urlMetadataRoutes" },
+    { "importPath": "./directories", "exportName": "directoriesRoutes" },
+    { "importPath": "./smart-action", "exportName": "smartActionRoutes" },
+    { "importPath": "./local-llm", "exportName": "localLLMRouter" },
+    { "importPath": "./transcribe", "exportName": "transcribeRouter" },
+    { "importPath": "./mcp", "exportName": "mcpRoutes" },
+    { "importPath": "./git-cleanup", "exportName": "gitCleanupRoutes" },
+    { "importPath": "./backups", "exportName": "backupsRoutes" },
+    { "importPath": "./errors", "exportName": "errorsRoutes" },
+    { "importPath": "./setup", "exportName": "setupRoutes" },
+    { "importPath": "./export", "exportName": "exportRoutes" },
+    { "importPath": "./import", "exportName": "importRoutes" },
+    { "importPath": "./monitoring/rate-limits", "exportName": "rateLimitRoutes" },
+    { "importPath": "./monitoring/progress-summary", "exportName": "progressSummaryRoutes" },
+    { "importPath": "./monitoring/tech-debt", "exportName": "techDebtRoutes" },
+    { "importPath": "./monitoring/temporal-debug", "exportName": "temporalDebugRoutes" },
+    { "importPath": "./monitoring/project-health", "exportName": "projectHealthRoutes" },
+    { "importPath": "./monitoring/debug-logs", "exportName": "debugLogsRouter" },
+    { "importPath": "./monitoring/git-cache-metrics", "exportName": "gitCacheMetricsRoutes" },
+    { "importPath": "./monitoring/ci-timing", "exportName": "ciTimingRoutes" }
+  ],
+  "workflow": [
+    { "importPath": "./core/workflow", "exportName": "workflowRoutes" },
+    { "importPath": "./core/workflow-roles", "exportName": "workflowRolesRoutes" },
+    { "importPath": "./orchestra", "exportName": "orchestraRoutes" },
+    { "importPath": "./workflow-learning", "exportName": "workflowLearningRoutes" },
+    { "importPath": "./theme-auto-run", "exportName": "themeAutoRunRoutes" },
+    { "importPath": "../tasks/task-spec-routes", "exportName": "taskSpecRoutes" }
+  ],
+  "social": [
+    { "importPath": "./comments", "exportName": "commentsRoutes" },
+    { "importPath": "./github", "exportName": "githubRoutes" },
+    { "importPath": "./github", "exportName": "taskGithubRoutes" }
+  ],
+  "analytics": [
+    { "importPath": "./statistics", "exportName": "statisticsRoutes" },
+    { "importPath": "./reports", "exportName": "reportsRoutes" },
+    { "importPath": "./intelligent-suggestions", "exportName": "intelligentSuggestionsRoutes" },
+    { "importPath": "./weekly-review", "exportName": "weeklyReviewRoutes" }
+  ],
+  "lifestyle": [
+    { "importPath": "./habits", "exportName": "habitsRoutes" },
+    { "importPath": "./paid-leave", "exportName": "paidLeaveRoutes" }
+  ],
+  "memory": [
+    { "importPath": "./knowledge", "exportName": "knowledgeRoutes" },
+    { "importPath": "./memory-system", "exportName": "memorySystemRoutes" },
+    { "importPath": "./cross-project-knowledge", "exportName": "crossProjectKnowledgeRoutes" },
+    { "importPath": "./idea-box", "exportName": "ideaBoxRoutes" },
+    { "importPath": "./concern-backlog", "exportName": "concernBacklogRoutes" },
+    { "importPath": "./hypothesis", "exportName": "hypothesisRoutes" },
+    { "importPath": "../backlog", "exportName": "backlogScheduleRoutes" },
+    { "importPath": "../backlog", "exportName": "backlogThemeOverrideRoutes" },
+    { "importPath": "../daily-report-routes", "exportName": "dailyReportRoutes" }
+  ],
+  "self-improvement": [],
+  "self-learning": [
+    { "importPath": "./experiments", "exportName": "experimentsRoutes" },
+    { "importPath": "./hypothesis-experiments", "exportName": "hypothesisExperimentsRoutes" },
+    { "importPath": "./knowledge-graph", "exportName": "knowledgeGraphRoutes" },
+    { "importPath": "./learning", "exportName": "learningRoutes" }
+  ]
+}

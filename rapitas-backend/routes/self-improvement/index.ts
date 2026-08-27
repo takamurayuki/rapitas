@@ -1,7 +1,11 @@
-// Routes Self-Improvement barrel export — 集約 + ドメイン単位マージ済みインスタンス
+/**
+ * AUTO-GENERATED — DO NOT EDIT.
+ *
+ * Run `bun run generate:route-barrels` to regenerate from
+ * routes/route-barrel-legacy-manifest.json + *.routes.ts auto-discovery
+ * (see scripts/generate-route-barrels.cjs).
+ */
 import { Elysia } from 'elysia';
-import { missSignaturesRoutes } from './miss-signatures-routes';
+import missSignaturesRoute from './miss-signatures.routes';
 
-export { missSignaturesRoutes } from './miss-signatures-routes';
-
-export const selfImprovementDomainRoutes = new Elysia().use(missSignaturesRoutes);
+export const selfImprovementDomainRoutes = new Elysia().use(missSignaturesRoute);

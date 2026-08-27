@@ -1,5 +1,5 @@
 /**
- * miss-signatures-routes.test
+ * miss-signatures.routes.test
  *
  * Route-level tests via Elysia handle(): pending listing (acceptance 2),
  * summary payload (acceptance 3/4 surface), review verdicts, 404 on
@@ -33,7 +33,7 @@ mock.module('../../services/self-improvement/miss-signature-service', () => ({
   applyPendingAutomatically: mock(() => Promise.resolve(0)),
 }));
 
-const { missSignaturesRoutes } = await import('./miss-signatures-routes');
+const { default: missSignaturesRoutes } = await import('./miss-signatures.routes');
 
 const BASE = 'http://localhost/self-improvement/miss-signatures';
 
