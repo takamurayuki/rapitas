@@ -64,16 +64,22 @@ export async function retryTask(id: number, setStatus: (code: number) => void): 
     data: { status: 'todo', ...(rolledBackTo ? { workflowStatus: rolledBackTo } : {}) },
   });
 
-  if (rolledBackTo) {
-    await recordTransition({
-      taskId: id,
-      fromStatus: 'verify_done',
-      toStatus: rolledBackTo,
-      actor: 'user',
-      cause: 'task_retried',
-      metadata: { from: task.status },
-    }).catch(() => {});
-  }
+  // Always record the transition, even when workflowStatus is left unchanged
+  // (rolledBackTo === null) — isWithinRecoveryGrace (incident-signature-detectors.ts)
+  // needs this row to grant the recovery grace period. Before task 709 this
+  // call only fired for the verify_done rollback case, so every other
+  // workflowStatus (research_done/plan_created/plan_approved/in_progress/
+  // draft/null) left `status='todo'` reset with no transition recorded, and
+  // the self-incident watcher's Pattern B fired on the shape immediately
+  // (task #602).
+  await recordTransition({
+    taskId: id,
+    fromStatus: task.workflowStatus,
+    toStatus: rolledBackTo ?? task.workflowStatus ?? 'draft',
+    actor: 'user',
+    cause: 'task_retried',
+    metadata: { from: task.status },
+  }).catch(() => {});
 
   // countPriorRepairs resets the self-repair budget at the most recent
   // `task_retried` entry, so this row is what grants the retry a fresh slate.

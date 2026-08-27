@@ -6,9 +6,9 @@
  * token totals. Separated from queries.ts to keep file sizes manageable.
  */
 
-import { Prisma } from '../../../../generated/prisma-postgres';
-import { prisma } from '../../../../config/database';
-import type { AgentPerformanceComparison, DateRange } from '../types';
+import { Prisma } from '../../../../../generated/prisma-postgres';
+import { prisma } from '../../../../../config/database';
+import type { AgentPerformanceComparison, DateRange } from '../../types';
 
 type ExecutionWhereInput = Prisma.AgentExecutionWhereInput;
 
