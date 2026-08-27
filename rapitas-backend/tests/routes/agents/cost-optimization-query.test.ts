@@ -1,7 +1,7 @@
 /**
  * Cost Optimization Query テスト
  *
- * Guards two bugs on /agent-metrics/cost-optimization:
+ * Guards three bugs on /agent-metrics/cost-optimization:
  * 1. Dual-cost: it used to re-derive cost from a hardcoded per-1k-token rate
  *    table even when a recorded `AgentExecution.costUsd` existed, so the same
  *    execution reported two different costs.
@@ -11,6 +11,12 @@
  *    bucket and the suggestion engine never fired. These tests pin the fix:
  *    group by the actually-invoked `modelName`, count failures in the
  *    denominator, and keep null-model rows as an 'unknown' bucket.
+ * 3. Cross-segment suggestions: `suggestions` now only compares models sharing
+ *    the same workflow role and complexity band, and only once each side has
+ *    at least 5 executions (see `buildSegmentSuggestions`). The suggestion
+ *    test below supplies `session.mode`/`complexityScore` and 5 executions
+ *    per model to match that contract instead of the old whole-fleet
+ *    comparison.
  */
 import { describe, it, expect, beforeEach, mock } from 'bun:test';
 
@@ -25,6 +31,10 @@ mock.module('../../../config/database', () => ({
 
 import { getCostOptimizationInsights } from '../../../routes/agents/agent-metrics/queries/cost-optimization';
 import { getSelfObservationSummary } from '../../../routes/agents/agent-metrics/queries/observation-query';
+
+// Mirrors the un-exported MIN_COMPARABLE_EXECUTIONS in cost-optimization-query.ts —
+// buildSegmentSuggestions ignores a model within a segment until it reaches this count.
+const MIN_COMPARABLE_EXECUTIONS = 5;
 
 describe('getCostOptimizationInsights', () => {
   beforeEach(() => {
@@ -181,24 +191,26 @@ describe('getCostOptimizationInsights', () => {
     expect(opus?.executions).toBe(4);
   });
 
-  it('fires a suggestion when a cheaper model matches the expensive one on success rate', async () => {
+  it('fires a suggestion when a cheaper model matches the expensive one within the same role/complexity segment', async () => {
+    const session = {
+      mode: 'workflow-implementer',
+      config: { task: { complexityScore: 20 } },
+    };
+    const buildRows = (modelName: string, costUsd: string) =>
+      Array.from({ length: MIN_COMPARABLE_EXECUTIONS }, () => ({
+        status: 'completed',
+        modelName,
+        tokensUsed: 1000,
+        executionTimeMs: 100,
+        costUsd,
+        session,
+      }));
+
     mockExecutionFindMany.mockResolvedValue([
       // Expensive model: high recorded cost, 100% success.
-      {
-        status: 'completed',
-        modelName: 'opus-4-8',
-        tokensUsed: 1000,
-        executionTimeMs: 100,
-        costUsd: '1.00',
-      },
+      ...buildRows('opus-4-8', '1.00'),
       // Cheaper model: low cost, also 100% success — a valid substitute.
-      {
-        status: 'completed',
-        modelName: 'haiku',
-        tokensUsed: 1000,
-        executionTimeMs: 100,
-        costUsd: '0.05',
-      },
+      ...buildRows('haiku', '0.05'),
     ]);
 
     const insights = await getCostOptimizationInsights();
