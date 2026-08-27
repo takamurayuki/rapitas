@@ -27,6 +27,8 @@ const taskFindUnique = mock(() =>
 const taskUpdate = mock(() => Promise.resolve({}));
 const transitionFindFirst = mock(() => Promise.resolve(null));
 
+// Referenced tasks, fetched by the coherence check.
+const taskFindMany = mock((): Promise<{ id: number; title: string }[]> => Promise.resolve([]));
 const resolveWorkflowDir = mock(() => Promise.resolve({ dir: '/wf/1' }));
 const readWorkflowFile = mock(() => Promise.resolve(null));
 const writeWorkflowFile = mock(() => Promise.resolve('/wf/1/question.md'));
@@ -43,7 +45,7 @@ const notifyIntakeQuestionPending = mock(() => Promise.resolve<unknown>({ id: 1 
 
 mock.module('../../config', () => ({
   prisma: {
-    task: { findUnique: taskFindUnique, update: taskUpdate },
+    task: { findUnique: taskFindUnique, update: taskUpdate, findMany: taskFindMany },
     workflowTransition: { findFirst: transitionFindFirst },
   },
 }));
@@ -241,5 +243,73 @@ describe('ensureIntakeReady', () => {
     const r = await ensureIntakeReady(1);
     expect(deriveTaskSpec).not.toHaveBeenCalled();
     expect(r.status).toBe('awaiting_question');
+  });
+});
+
+describe('ensureIntakeReady: 受入基準の混入検出 (task 671 実データ)', () => {
+  const TITLE_662 =
+    '[Idea] 確認済み修正不要完了を、修復ループ回数で「素直な修正不要」と「往復した末の修正不要」にさらに細分化する';
+
+  /** 671 as generated: substantial criteria, all about task 662. */
+  const CONTAMINATED_TASK = {
+    id: 671,
+    title: '[Concern] [回顧] 修復ループ: #662 で verify_repair が5回反復している',
+    description: '観測元タスク #662 の修復ループを回顧する',
+    workflowStatus: 'draft',
+    goals: JSON.stringify(['修復ループの根本原因を特定する']),
+    constraints: JSON.stringify(['既存の挙動を変えない']),
+    acceptanceCriteria: JSON.stringify([
+      '修復ループ0回で完了したタスクが『素直な修正不要』として区分される',
+      '修復ループ1回以上で完了したタスクが『往復した末の修正不要』として区分される',
+    ]),
+  };
+
+  beforeEach(() => {
+    taskFindUnique.mockReset();
+    taskUpdate.mockReset().mockResolvedValue({});
+    taskFindMany.mockReset().mockResolvedValue([{ id: 662, title: TITLE_662 }]);
+    transitionFindFirst.mockReset().mockResolvedValue(null);
+    resolveWorkflowDir.mockReset().mockResolvedValue({ dir: '/wf/1' });
+    writeWorkflowFile.mockReset().mockResolvedValue('/wf/1/question.md');
+    recordTransition.mockReset().mockResolvedValue(undefined);
+    notifyIntakeQuestionPending.mockReset().mockResolvedValue({ id: 1 });
+  });
+
+  it('厚みが足りていても、別タスクの内容なら止めて質問する', async () => {
+    // 実測 2026-08-27: この仕様は checkSpecQuality を通過して実行され、
+    // 差し戻し10回の末に blocked になった。厚みは十分で、対象が違った。
+    taskFindUnique.mockResolvedValue(CONTAMINATED_TASK);
+
+    const r = await ensureIntakeReady(671);
+
+    expect(r.status).toBe('awaiting_question');
+    const body = String(writeWorkflowFile.mock.calls[0]?.[2] ?? '');
+    // 読み手が判断できるだけの具体性があること。
+    expect(body).toContain('受入基準1');
+    expect(body).toContain('素直な修正不要');
+    expect(body).toContain('#662');
+  });
+
+  it('参照タスクが無ければ検査せず通す', async () => {
+    taskFindMany.mockResolvedValue([]);
+    taskFindUnique.mockResolvedValue({
+      ...CONTAMINATED_TASK,
+      title: '[Concern] 修復ループの回顧',
+      description: '参照なし',
+    });
+
+    expect((await ensureIntakeReady(671)).status).toBe('ready');
+    expect(writeWorkflowFile).not.toHaveBeenCalled();
+  });
+
+  it('回答済みなら再質問せず続行する（質問ループを作らない）', async () => {
+    // task 363 の形: 回答しても条件が消えないと無限に問い続ける。
+    transitionFindFirst.mockResolvedValue({ id: 1 });
+    taskFindUnique.mockResolvedValue(CONTAMINATED_TASK);
+
+    const r = await ensureIntakeReady(671);
+
+    expect(r.status).toBe('ready');
+    expect(writeWorkflowFile).not.toHaveBeenCalled();
   });
 });
