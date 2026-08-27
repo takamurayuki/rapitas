@@ -404,6 +404,13 @@ jobs:
         # Run `bun run gen:type-guards` to regenerate and commit the updated files.
         run: bun run check:type-guards
 
+      - name: Check route barrel drift
+        working-directory: rapitas-backend
+        # NOTE: Verifies routes/<domain>/index.ts is in sync with
+        # route-barrel-legacy-manifest.json + *.routes.ts auto-discovery.
+        # Run `bun run generate:route-barrels` and commit the updated files.
+        run: bun run generate:route-barrels:check
+
       - name: Check determinism guard (advisory)
         working-directory: rapitas-backend
         continue-on-error: true

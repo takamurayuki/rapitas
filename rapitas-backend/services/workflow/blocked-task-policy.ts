@@ -42,6 +42,19 @@ export const MAX_ORPHAN_REQUEUE_AGE_MS = 2 * 24 * 60 * 60 * 1000;
  */
 export const VERIFY_NON_CONVERGENCE_CAUSE = 'verify_repair_non_convergence';
 
+/**
+ * WorkflowTransition.cause recorded when a lightweight PR-only recovery
+ * attempt (task 681) fails for a task blocked by `verify_pr_not_created`.
+ * Lives here (dependency-free policy module) so blocked-pr-retry-recovery
+ * (writer) and workflow-reconciler-requeue (reader, gating a single attempt
+ * per blocked window) share one constant without a circular import. NOT part
+ * of {@link classifyBlockedExclusion}'s exclusion set by design — the
+ * lightweight retry runs BEFORE the blind-retry/escalation split and either
+ * completes the task or falls through unchanged to that existing logic (see
+ * plan.md §実装者への申し送り事項 #3).
+ */
+export const PR_RETRY_LIGHTWEIGHT_CAUSE = 'verify_pr_retry_lightweight';
+
 /** Reason a blocked task is excluded from the blind auto-retry. */
 export type BlockedExclusionReason =
   | 'awaiting_question'

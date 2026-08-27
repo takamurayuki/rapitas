@@ -1,5 +1,5 @@
 /**
- * Agent Usage Breakdown Queries
+ * Agent Usage Breakdown Query
  *
  * Aggregates the per-execution metrics (costUsd, tokens, cache reads) by the
  * agent role that ran them — researcher / planner / implementer / verifier /
@@ -8,156 +8,21 @@
  * rendering this breakdown adds zero API cost.
  */
 
-import { prisma } from '../../../../config/database';
-import { toNumber, toInt } from '../metric-coercion';
-import { classifyCliAgent, CLI_AGENT_ORDER, type CliAgentKind } from '../cli-agent-classifier';
-import { getUsdJpyRate } from '../currency-config';
-import {
-  computeSubscriptionUsage,
-  getSubscriptionConfig,
-  type SubscriptionUsage,
-} from '../subscription-usage';
-
-/** Canonical display order for the workflow roles. Unknown roles sort after. */
-export const KNOWN_ROLE_ORDER = [
-  'researcher',
-  'planner',
-  'implementer',
-  'verifier',
-  'auto_verifier',
-] as const;
-
-export interface RoleUsageEntry {
-  /** Normalized role name ('researcher', ..., or 'other' for null modes). */
-  role: string;
-  executions: number;
-  failedExecutions: number;
-  costUsd: number;
-  /** This role's share of the window's total cost (0..1). */
-  shareOfCost: number;
-  inputTokens: number;
-  outputTokens: number;
-  cacheReadInputTokens: number;
-  cacheCreationInputTokens: number;
-  llmCalls: number;
-  /** cache_read / (cache_read + input) for this role. */
-  cacheHitRate: number;
-  averageExecutionTimeMs: number | null;
-}
-
-export interface DailyRoleCostPoint {
-  /** ISO date (YYYY-MM-DD), UTC. */
-  date: string;
-  totalCostUsd: number;
-  /** Cost per normalized role for that day (roles with 0 cost omitted). */
-  byRole: Record<string, number>;
-}
-
-/** Usage aggregated per coding-CLI agent (Claude Code / Codex / Gemini). */
-export interface CliAgentUsageEntry {
-  agent: CliAgentKind;
-  executions: number;
-  failedExecutions: number;
-  costUsd: number;
-  /** This agent's share of the window's total cost (0..1). */
-  shareOfCost: number;
-  inputTokens: number;
-  outputTokens: number;
-  cacheReadInputTokens: number;
-  llmCalls: number;
-  averageExecutionTimeMs: number | null;
-}
-
-export interface AgentUsageBreakdown {
-  windowDays: number;
-  totalCostUsd: number;
-  totalExecutions: number;
-  /** USD→JPY display rate (env RAPITAS_USD_JPY_RATE, default 150). */
-  usdJpyRate: number;
-  roles: RoleUsageEntry[];
-  /** Per-CLI-agent breakdown; only agents with executions appear. */
-  agents: CliAgentUsageEntry[];
-  /** Claude subscription window state; null when disabled. */
-  subscription: SubscriptionUsage | null;
-  dailyRoleCost: DailyRoleCostPoint[];
-}
-
-interface BreakdownRow {
-  startedAt: Date | null;
-  createdAt: Date;
-  status: string;
-  errorMessage: string | null;
-  executionTimeMs: number | null;
-  inputTokens: number;
-  outputTokens: number;
-  cacheReadInputTokens: number;
-  cacheCreationInputTokens: number;
-  costUsd: unknown; // Prisma Decimal — stringified
-  llmCallCount: number;
-  modelName: string | null;
-  session: { mode: string | null } | null;
-  agentConfig: { agentType: string | null } | null;
-}
-
-/**
- * Normalize AgentSession.mode into a bare role name.
- *
- * @param mode - Raw session mode (e.g. "workflow-implementer") / セッションモード
- * @returns Role name without the "workflow-" prefix; 'other' for null / 役割名
- */
-export function normalizeRole(mode: string | null | undefined): string {
-  if (!mode) return 'other';
-  return mode.startsWith('workflow-') ? mode.slice('workflow-'.length) : mode;
-}
-
-interface RoleAccumulator {
-  executions: number;
-  failed: number;
-  costUsd: number;
-  inputTokens: number;
-  outputTokens: number;
-  cacheRead: number;
-  cacheCreation: number;
-  llmCalls: number;
-  timeTotal: number;
-  timeSamples: number;
-}
-
-function emptyRoleAcc(): RoleAccumulator {
-  return {
-    executions: 0,
-    failed: 0,
-    costUsd: 0,
-    inputTokens: 0,
-    outputTokens: 0,
-    cacheRead: 0,
-    cacheCreation: 0,
-    llmCalls: 0,
-    timeTotal: 0,
-    timeSamples: 0,
-  };
-}
-
-function isoDate(d: Date): string {
-  return d.toISOString().slice(0, 10);
-}
-
-function round6(v: number): number {
-  return Math.round(v * 1_000_000) / 1_000_000;
-}
-
-function round4(v: number): number {
-  return Math.round(v * 10000) / 10000;
-}
-
-/**
- * Sort roles canonically: known workflow roles first (in pipeline order),
- * then unknown roles by descending cost.
- */
-function roleSortIndex(role: string): number {
-  const idx = (KNOWN_ROLE_ORDER as readonly string[]).indexOf(role);
-  return idx === -1 ? KNOWN_ROLE_ORDER.length : idx;
-}
+import { prisma } from '../../../../../config/database';
+import { toNumber, toInt } from '../../metric-coercion';
+import { classifyCliAgent, CLI_AGENT_ORDER, type CliAgentKind } from '../../cli-agent-classifier';
+import { getUsdJpyRate } from '../../currency-config';
+import { computeSubscriptionUsage, getSubscriptionConfig } from '../../subscription-usage';
+import type {
+  AgentUsageBreakdown,
+  BreakdownRow,
+  DailyRoleCostPoint,
+  RoleUsageEntry,
+  CliAgentUsageEntry,
+  RoleAccumulator,
+} from './usage-breakdown-types';
+import { normalizeRole, roleSortIndex } from './usage-breakdown-role';
+import { emptyRoleAcc, isoDate, round6, round4 } from './usage-breakdown-helpers';
 
 /**
  * Build the per-role usage breakdown for the last `windowDays` days.

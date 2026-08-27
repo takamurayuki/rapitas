@@ -15,7 +15,7 @@ import {
 
 const log = createLogger('routes:miss-signatures');
 
-export const missSignaturesRoutes = new Elysia({ prefix: '/self-improvement/miss-signatures' })
+const missSignaturesRoutes = new Elysia({ prefix: '/self-improvement/miss-signatures' })
   /** List suggestions (default: the pending review queue, oldest first). */
   .get(
     '/',
@@ -57,3 +57,5 @@ export const missSignaturesRoutes = new Elysia({ prefix: '/self-improvement/miss
       body: t.Object({ approved: t.Boolean() }),
     },
   );
+
+export default missSignaturesRoutes;

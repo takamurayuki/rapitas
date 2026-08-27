@@ -93,9 +93,11 @@ export async function gatherTaskState(
   const windowed = await prisma.workflowTransition
     .findMany({
       where: { taskId: task.id, createdAt: { gte: new Date(nowMs - windowMs) } },
-      select: { cause: true, createdAt: true, actor: true },
+      select: { cause: true, createdAt: true, actor: true, invariantViolation: true },
     })
-    .catch(() => [] as { cause: string; createdAt: Date; actor: string }[]);
+    .catch(
+      () => [] as { cause: string; createdAt: Date; actor: string; invariantViolation: boolean }[],
+    );
 
   const latestSession = await prisma.agentSession
     .findFirst({
@@ -154,6 +156,7 @@ export async function gatherTaskState(
       cause: t.cause,
       createdAtMs: t.createdAt.getTime(),
       actor: t.actor,
+      invariantViolation: t.invariantViolation ?? false,
     })),
     latestSessionId: latestSession?.id ?? null,
     latestSessionStatus: latestSession?.status ?? null,
