@@ -2420,6 +2420,18 @@
         "reasonsCount": "指摘 {count}件",
         "noReasons": "詳細情報が記録されていません"
       },
+      "phaseBreakdown": {
+        "title": "フェーズ別実行時間",
+        "totalActive": "実働合計 {time}",
+        "wallClock": "経過 {time}",
+        "execCount": "{count}回",
+        "role": {
+          "researcher": "調査",
+          "planner": "計画",
+          "implementer": "実装",
+          "verifier": "検証"
+        }
+      },
       "repairStagnation": {
         "title": "修復反復: {count}回",
         "message": "同じ修復ループが続いていることを示すデータです。打ち切りの指示ではありません。複雑度や過去の類似ケースなど文脈情報も踏まえて判断してください。",
@@ -2436,18 +2448,6 @@
         "changeSet": "変更ファイル {files}件（+{additions}/-{deletions}）",
         "changeSetNone": "コミットデータなし",
         "unavailableNote": "テスト成功率の上昇幅・学習速度は現行データでは算出できません（推測値・ダミー値は表示していません）"
-      },
-      "phaseBreakdown": {
-        "title": "フェーズ別実行時間",
-        "totalActive": "実働合計 {time}",
-        "wallClock": "経過 {time}",
-        "execCount": "{count}回",
-        "role": {
-          "researcher": "調査",
-          "planner": "計画",
-          "implementer": "実装",
-          "verifier": "検証"
-        }
       }
     },
     "planRevision": {

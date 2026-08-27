@@ -266,6 +266,23 @@
           "implementer": "Implement",
           "verifier": "Verify"
         }
+      },
+      "repairStagnation": {
+        "title": "Repair iterations: {count}",
+        "message": "This indicates the same repair loop has continued. It is not an instruction to stop — factor in complexity and past similar cases before deciding.",
+        "ariaLabel": "{count} repair iterations recorded. This is stagnation-risk data."
+      },
+      "repairIterationMetrics": {
+        "title": "Per-iteration metrics",
+        "cause": {
+          "verify_repair": "Verify bounce",
+          "ci_repair": "CI bounce"
+        },
+        "dwell": "Dwell time {time}",
+        "dwellNone": "No dwell-time data (first iteration)",
+        "changeSet": "{files} file(s) changed (+{additions}/-{deletions})",
+        "changeSetNone": "No commit data",
+        "unavailableNote": "Test pass-rate delta and learning velocity cannot be computed with current data (no guessed or placeholder values are shown)"
       }
     },
     "planRevision": {
