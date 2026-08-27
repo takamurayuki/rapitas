@@ -12,6 +12,7 @@ import { createLogger } from '../../../../../config/logger';
 import {
   ensureNotPrimaryWorkTree,
   findConflictingWorktreeForBranch,
+  recoverFromUnresolvedMerge,
 } from '../worktree/worktree-guard';
 
 // NOTE: execFile (array-args, no shell) instead of exec (shell string) — branch
@@ -32,6 +33,10 @@ export async function createBranch(workingDirectory: string, branchName: string)
     // Switching/creating a branch on the primary checkout changes the
     // developer's current branch — only do it inside a worktree.
     await ensureNotPrimaryWorkTree(workingDirectory, `switch to branch ${branchName}`);
+    // A merge left unresolved by an earlier pre-pr-base-sync failure (task 691)
+    // would otherwise fail every checkout in this worktree with git's
+    // "you need to resolve your current index first" — self-heal before trying.
+    await recoverFromUnresolvedMerge(workingDirectory);
     const { stdout } = await execFileAsync('git', ['branch', '--list', branchName], {
       cwd: workingDirectory,
     });

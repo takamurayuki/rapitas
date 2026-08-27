@@ -234,10 +234,14 @@ export async function syncBaseIntoBranch(p: {
     if (conflicts.length === 0) {
       // Non-zero merge exit WITHOUT content conflicts (dirty tree, unrelated
       // histories, …) is an infra condition, not a resolvable competition —
-      // abort best-effort and fail open like the fetch path.
-      // NOTE: skipLog suppresses the ERROR runGitCommand would emit — this
-      // abort's result is never inspected.
-      await deps.runGit(['merge', '--abort'], p.gitCwd, { skipLog: true }).catch(() => {});
+      // abort best-effort and fail open like the fetch path. skipLog suppresses
+      // the generic runGitCommand ERROR log (task 689: expected-failure noise);
+      // a failed abort still leaves MERGE_HEAD stuck in the worktree (task 691)
+      // and worktree-guard self-heals on the next git operation, so surface the
+      // failure through our own warn log instead of the low-level one.
+      await deps.runGit(['merge', '--abort'], p.gitCwd, { skipLog: true }).catch((err) => {
+        log.warn({ taskId: p.taskId, err }, '[base-sync] merge --abort itself failed');
+      });
       log.warn({ taskId: p.taskId }, '[base-sync] merge failed without conflicts — skipping');
       return {
         status: 'skipped',
@@ -261,9 +265,11 @@ export async function syncBaseIntoBranch(p: {
       .catch(() => false);
 
     if (!resolvedOk) {
-      // NOTE: skipLog suppresses the ERROR runGitCommand would emit — this
-      // abort's result is never inspected.
-      await deps.runGit(['merge', '--abort'], p.gitCwd, { skipLog: true }).catch(() => {});
+      // See the "merge failed without conflicts" branch above for why skipLog
+      // is combined with our own warn log on failure.
+      await deps.runGit(['merge', '--abort'], p.gitCwd, { skipLog: true }).catch((err) => {
+        log.warn({ taskId: p.taskId, err }, '[base-sync] merge --abort itself failed');
+      });
       return {
         status: 'conflict_unresolved',
         changedFiles: 0,
