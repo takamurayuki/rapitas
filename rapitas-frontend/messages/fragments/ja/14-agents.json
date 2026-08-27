@@ -294,6 +294,102 @@
         "beginner": "ビギナー"
       }
     },
+    "pareto": {
+      "pageTitle": "効率フロンティア",
+      "pageSubtitle": "過去のワークフロー実行ログから実行時間・成功率・リソースコストのパレート最適解を可視化し、ビジネス目標からパラメータセットを推奨します",
+      "cpuMemoryNotice": "CPU/メモリの実測値は実行ログに記録されていないため、リソース消費量の軸は1実行あたりのコスト（USD）で代用しています。",
+      "filters": {
+        "title": "集計条件",
+        "windowDays": "集計期間",
+        "days": "直近{days}日",
+        "complexityBand": "データ特性（複雑度）",
+        "role": "役割",
+        "band": {
+          "all": "すべて",
+          "low": "低複雑度（〜35）",
+          "medium": "中複雑度（36〜70）",
+          "high": "高複雑度（71〜）"
+        }
+      },
+      "workflowType": {
+        "lightweight": "軽量",
+        "standard": "標準",
+        "comprehensive": "詳細",
+        "unknown": "タイプ不明"
+      },
+      "roles": {
+        "all": "すべての役割",
+        "researcher": "調査",
+        "planner": "計画",
+        "implementer": "実装",
+        "verifier": "検証",
+        "auto_verifier": "自動検証"
+      },
+      "segment": {
+        "title": "{workflowType} × {role}",
+        "sampleSize": "{count}件",
+        "baseline": "現状ミックス",
+        "frontier": "パレート最適",
+        "dominated": "劣位",
+        "unreliableShort": "データ不足",
+        "axisTime": "平均実行時間（秒）"
+      },
+      "table": {
+        "model": "モデル",
+        "samples": "件数",
+        "successRate": "成功率",
+        "timeSec": "平均実行時間",
+        "costUsd": "平均コスト",
+        "status": "判定",
+        "optimal": "パレート最適",
+        "dominated": "劣位",
+        "unreliable": "データ不足（{min}件未満）",
+        "currentMix": "基準",
+        "ci": "数値は 推定値 [95%信頼区間下限 – 上限]。成功率はWilson区間、時間・コストは正規近似。"
+      },
+      "goal": {
+        "title": "ビジネス目標からパラメータセットを推奨",
+        "hint": "月初の目標を入力すると、集計条件内の各ワークフロータイプ×役割について、目標を満たす最も低コストなモデル割り当てと月間影響の試算を返します。",
+        "kind": "目標の種類",
+        "kinds": {
+          "successRate": "成功率を目標値まで引き上げる",
+          "throughput": "スループットを向上させる",
+          "cost": "コストを削減する"
+        },
+        "valueLabel": {
+          "successRate": "目標成功率（%）",
+          "throughput": "スループット向上率（%）",
+          "cost": "コスト削減率（%）"
+        },
+        "submit": "推奨を計算",
+        "loading": "計算中..."
+      },
+      "recommendation": {
+        "title": "推奨結果",
+        "correlationNote": "推奨は過去実行の相関に基づく推定であり、モデル間の無作為割り当てによる因果効果ではありません。信頼度は推奨点の件数（20件で100%）に基づきます。",
+        "noSegments": "集計条件に該当する実行がありません。",
+        "reason": {
+          "ok": "目標達成可能",
+          "already_met": "現状で目標達成済み",
+          "insufficient_data": "データ不足",
+          "target_unreachable": "目標未達"
+        },
+        "recommended": "推奨パラメータセット",
+        "alternative": "最も近い候補",
+        "current": "現状",
+        "insufficientHint": "この区分には信頼できる候補（{min}件以上）がありません。",
+        "monthlyVolume": "月間実行数（推定）",
+        "deltaCost": "コスト差分 / 月",
+        "deltaTime": "実行時間差分 / 件",
+        "deltaHours": "所要時間差分 / 月",
+        "deltaSuccess": "成功率差分",
+        "confidence": "信頼度"
+      },
+      "empty": {
+        "title": "集計対象の実行がありません",
+        "hint": "ワークフロー実行が蓄積されると、ワークフロータイプ×役割ごとのパレート曲線がここに表示されます"
+      }
+    },
     "growth": {
       "pageTitle": "自己成長台帳",
       "pageSubtitle": "ワークフロー遷移と懸念履歴から見る、時間とともに賢くなっている週次の証拠",

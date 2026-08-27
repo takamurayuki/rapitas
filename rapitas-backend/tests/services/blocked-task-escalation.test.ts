@@ -24,13 +24,14 @@ mock.module('../../services/workflow/self-development-theme', () => ({
   resolveSelfDevelopmentThemeId,
 }));
 
-const { escalateBlockedTask, countEscalatedBlocked } =
+const { escalateBlockedTask, countEscalatedBlocked, reescalateIfOverdue } =
   await import('../../services/workflow/blocked-task-escalation');
 
 const mockPrisma = {
   workflowTransition: {
     count: mock(() => Promise.resolve(0)),
     findMany: mock(() => Promise.resolve([] as unknown[])),
+    findFirst: mock(() => Promise.resolve(null as { createdAt: Date } | null)),
   },
   task: { count: mock(() => Promise.resolve(0)) },
   notification: { create: mock(() => Promise.resolve({ id: 1 })) },
@@ -45,6 +46,7 @@ describe('escalateBlockedTask', () => {
   beforeEach(() => {
     mockPrisma.workflowTransition.count.mockReset().mockResolvedValue(0);
     mockPrisma.workflowTransition.findMany.mockReset().mockResolvedValue([]);
+    mockPrisma.workflowTransition.findFirst.mockReset().mockResolvedValue(null);
     mockPrisma.task.count.mockReset().mockResolvedValue(0);
     mockPrisma.notification.create.mockReset().mockResolvedValue({ id: 1 });
     recordTransition.mockReset().mockResolvedValue(undefined);
@@ -159,6 +161,61 @@ describe('escalateBlockedTask', () => {
 
     expect(did).toBe(true);
     expect(recordTransition).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('reescalateIfOverdue', () => {
+  const FOUR_HOURS_MS = 4 * 60 * 60 * 1000;
+
+  beforeEach(() => {
+    mockPrisma.workflowTransition.findFirst.mockReset().mockResolvedValue(null);
+    mockPrisma.notification.create.mockReset().mockResolvedValue({ id: 1 });
+    recordTransition.mockReset().mockResolvedValue(undefined);
+    submitConcern.mockReset().mockResolvedValue(1);
+  });
+
+  test('直近のエスカレーション遷移なし → false、通知/遷移とも未実施', async () => {
+    const did = await reescalateIfOverdue(prisma, task, 'verify_repair_exhausted', NOW);
+
+    expect(did).toBe(false);
+    expect(createNotification).not.toHaveBeenCalled();
+    expect(recordTransition).not.toHaveBeenCalled();
+  });
+
+  test('直近エスカレーションから閾値未満（3時間59分経過）→ false', async () => {
+    mockPrisma.workflowTransition.findFirst.mockResolvedValue({
+      createdAt: new Date(NOW - (FOUR_HOURS_MS - 60 * 1000)),
+    });
+
+    const did = await reescalateIfOverdue(prisma, task, 'verify_repair_exhausted', NOW);
+
+    expect(did).toBe(false);
+    expect(createNotification).not.toHaveBeenCalled();
+    expect(recordTransition).not.toHaveBeenCalled();
+  });
+
+  test('直近エスカレーションから閾値超過（4時間1分経過）→ true、通知1回、blocked_reescalated 遷移1回、submitConcern は呼ばれない', async () => {
+    mockPrisma.workflowTransition.findFirst.mockResolvedValue({
+      createdAt: new Date(NOW - (FOUR_HOURS_MS + 60 * 1000)),
+    });
+
+    const did = await reescalateIfOverdue(prisma, task, 'verify_repair_exhausted', NOW);
+
+    expect(did).toBe(true);
+    expect(createNotification).toHaveBeenCalledTimes(1);
+    const rt = recordTransition.mock.calls[0][0] as { cause: string; metadata: { reason: string } };
+    expect(rt.cause).toBe('blocked_reescalated');
+    expect(rt.metadata.reason).toBe('verify_repair_exhausted');
+    expect(submitConcern).not.toHaveBeenCalled();
+  });
+
+  test('workflowTransition.findFirst が例外を投げる → false（fail-closed）', async () => {
+    mockPrisma.workflowTransition.findFirst.mockRejectedValue(new Error('db down'));
+
+    const did = await reescalateIfOverdue(prisma, task, 'abandoned_old', NOW);
+
+    expect(did).toBe(false);
+    expect(createNotification).not.toHaveBeenCalled();
   });
 });
 

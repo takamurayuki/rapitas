@@ -24,6 +24,7 @@ const resolveBlockedTaskEvidence = mock(() =>
   Promise.resolve({ isSuccess: false, source: 'none' as const }),
 );
 const escalateBlockedTask = mock(() => Promise.resolve(true));
+const reescalateIfOverdue = mock(() => Promise.resolve(false));
 const attemptPrOnlyRecovery = mock(() => Promise.resolve(false));
 
 const noopLogger = { info: () => {}, error: () => {}, warn: () => {}, debug: () => {} };
@@ -42,8 +43,10 @@ mock.module('../../services/workflow/blocked-task-evidence', () => ({
 }));
 mock.module('../../services/workflow/blocked-task-escalation', () => ({
   escalateBlockedTask,
+  reescalateIfOverdue,
   countEscalatedBlocked: mock(() => Promise.resolve(0)),
   BLOCKED_ESCALATED_CAUSE: 'blocked_escalated',
+  BLOCKED_REESCALATED_CAUSE: 'blocked_reescalated',
 }));
 mock.module('../../services/workflow/blocked-pr-retry-recovery', () => ({
   attemptPrOnlyRecovery,
@@ -52,8 +55,12 @@ mock.module('../../services/workflow/blocked-pr-retry-recovery', () => ({
 const { correctBlockedByEvidence, escalateAbandonedBlocked } =
   await import('../../services/workflow/workflow-reconciler-blocked');
 const { requeueBlockedTasks } = await import('../../services/workflow/workflow-reconciler-requeue');
-const { classifyBlockedExclusion, MAX_ORPHAN_REQUEUE_AGE_MS, MAX_PR_RECOVERY_ATTEMPTS } =
-  await import('../../services/workflow/blocked-task-policy');
+const {
+  classifyBlockedExclusion,
+  MAX_ORPHAN_REQUEUE_AGE_MS,
+  MAX_PR_RECOVERY_ATTEMPTS,
+  DEFAULT_VERIFY_REPAIR_LIMIT,
+} = await import('../../services/workflow/blocked-task-policy');
 
 const NOW = 1_800_000_000_000;
 const OLD = new Date(NOW - 60 * 60 * 1000); // 1h 前（settle 済み・2日以内）
@@ -82,6 +89,7 @@ beforeEach(() => {
   recordTransition.mockReset().mockResolvedValue(undefined);
   resolveBlockedTaskEvidence.mockReset().mockResolvedValue({ isSuccess: false, source: 'none' });
   escalateBlockedTask.mockReset().mockResolvedValue(true);
+  reescalateIfOverdue.mockReset().mockResolvedValue(false);
   attemptPrOnlyRecovery.mockReset().mockResolvedValue(false);
 });
 
@@ -425,6 +433,35 @@ describe('escalateAbandonedBlocked（受入基準5まわり・プレモーテム
     expect(escalated).toBe(0);
     expect(escalateBlockedTask).not.toHaveBeenCalled();
   });
+
+  test('task 703: escalateBlockedTask が false（既にエスカレーション済み）→ reescalateIfOverdue が同じ task/classification/nowMs で呼ばれ、戻り値が escalated 件数に反映される', async () => {
+    mockPrisma.task.findMany.mockResolvedValue([
+      blockedTask({ id: 666, workflowStatus: 'awaiting_question' }),
+    ]);
+    escalateBlockedTask.mockResolvedValue(false);
+    reescalateIfOverdue.mockResolvedValue(true);
+
+    const escalated = await escalateAbandonedBlocked(NOW);
+
+    expect(escalated).toBe(1);
+    expect(reescalateIfOverdue).toHaveBeenCalledTimes(1);
+    const call = reescalateIfOverdue.mock.calls[0] as unknown[];
+    expect((call[1] as { id: number }).id).toBe(666);
+    expect(call[2]).toBe('awaiting_question');
+    expect(call[3]).toBe(NOW);
+  });
+
+  test('task 703: escalateBlockedTask が true（今回初めて発火）→ reescalateIfOverdue は呼ばれない', async () => {
+    mockPrisma.task.findMany.mockResolvedValue([
+      blockedTask({ workflowStatus: 'awaiting_question' }),
+    ]);
+    escalateBlockedTask.mockResolvedValue(true);
+
+    const escalated = await escalateAbandonedBlocked(NOW);
+
+    expect(escalated).toBe(1);
+    expect(reescalateIfOverdue).not.toHaveBeenCalled();
+  });
 });
 
 describe('classifyBlockedExclusion（境界値）', () => {
@@ -513,5 +550,44 @@ describe('classifyBlockedExclusion（境界値）', () => {
         workflowStatus: 'awaiting_question',
       }),
     ).toBe('awaiting_question');
+  });
+});
+
+// task 705: タスク#684の反復タイムラインを模した統合シナリオ。修正前は CLI 経路が
+// attemptVerifyRepair を一度も呼ばなかったため、修復予算(repairs)を1回しか消費
+// しないまま blocked_auto_retry(attempts) を2回消費し、classifyBlockedExclusion
+// は retry_cap_exhausted で（本来より遅れて）エスカレーションしていた。修正後は
+// HTTP/CLI いずれの経路でも検証失敗のたびに修復予算が正しく消費されるため、
+// attempts=0（盲目再試行を一度も消費しない）のまま予算(repairs)が枯渇し、
+// verify_repair_exhausted へ直接到達する。
+describe('classifyBlockedExclusion（task 705: タスク#684タイムラインの統合シナリオ）', () => {
+  test('HTTP/CLI 両経路で修復予算が正しく消費された結果、blocked_auto_retry を消費せず verify_repair_exhausted に到達すること', () => {
+    // タスク#684実測: verify_repair 1回(HTTP, 08:47) + verify_validation_failed 3回
+    // (修正後はいずれも CLI 経路で attemptVerifyRepair 経由の予算消費に変わる) =
+    // repairs が DEFAULT_VERIFY_REPAIR_LIMIT(2) に到達。blocked_auto_retry は
+    // 一度も発生しない（attempts=0）。
+    const classification = classifyBlockedExclusion({
+      workflowStatus: 'in_progress',
+      ageMs: 20 * 60 * 1000,
+      repairs: DEFAULT_VERIFY_REPAIR_LIMIT,
+      verifyRepairLimit: DEFAULT_VERIFY_REPAIR_LIMIT,
+      attempts: 0,
+    });
+
+    expect(classification).toBe('verify_repair_exhausted');
+  });
+
+  test('比較対象（修正前の実測挙動）: 予算が1回しか消費されず attempts が上限に達すると retry_cap_exhausted になること', () => {
+    // 修正前のタスク#684実測: repairs=1（HTTP経路の1回のみ）のまま
+    // blocked_auto_retry が2回（attempts=2, MAX_BLOCKED_RETRY）発生していた。
+    const classification = classifyBlockedExclusion({
+      workflowStatus: 'in_progress',
+      ageMs: 20 * 60 * 1000,
+      repairs: 1,
+      verifyRepairLimit: DEFAULT_VERIFY_REPAIR_LIMIT,
+      attempts: 2,
+    });
+
+    expect(classification).toBe('retry_cap_exhausted');
   });
 });

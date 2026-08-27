@@ -34,6 +34,15 @@ export const BLOCKED_RETRY_SETTLE_MS = 3 * 60 * 1000;
 export const MAX_ORPHAN_REQUEUE_AGE_MS = 2 * 24 * 60 * 60 * 1000;
 
 /**
+ * Interval between re-escalation notifications for a blocked task that stays
+ * unresolved past its first (permanent, one-shot) escalation. Far longer than
+ * the minute/settle-order thresholds above to avoid notification fatigue, but
+ * short enough to bound task 666's observed 39-hour silent stall to roughly
+ * this length. / 再エスカレーション間隔（初回エスカレーション後も未解決の場合）。
+ */
+export const BLOCKED_REESCALATION_INTERVAL_MS = 4 * 60 * 60 * 1000;
+
+/**
  * WorkflowTransition.cause recorded when a verify-repair loop is cut off for
  * NON-CONVERGENCE (task 619): the same acceptance criterion was flagged
  * unaddressed by 2+ repair bounces. Lives here (dependency-free policy module)
@@ -72,6 +81,18 @@ export const PR_RETRY_LIGHTWEIGHT_CAUSE = 'verify_pr_retry_lightweight';
  * `MAX_BLOCKED_RETRY`'s value. / PR作成失敗の直接的な早期エスカレーション基準
  */
 export const MAX_PR_RECOVERY_ATTEMPTS = 3;
+
+/**
+ * Default verify→implement repair budget when UserSettings.verifyRepairLimit
+ * is unset. Single source of truth shared by verify-self-repair's
+ * resolveMaxRepairs and {@link resolveVerifyRepairLimit} below — the two
+ * previously hardcoded different fallbacks (2 vs 3), which only diverged when
+ * no UserSettings row existed (task 705). / 修復予算の既定値（単一ソース）
+ */
+export const DEFAULT_VERIFY_REPAIR_LIMIT = Math.max(
+  0,
+  parseInt(process.env.RAPITAS_MAX_VERIFY_REPAIRS ?? '2', 10) || 2,
+);
 
 /** Reason a blocked task is excluded from the blind auto-retry. */
 export type BlockedExclusionReason =
@@ -113,7 +134,7 @@ export interface BlockedClassificationInput {
 
 /**
  * Resolve the verify→implement repair budget from user settings, matching
- * verify-self-repair's resolveMaxRepairs (default 3, positive numbers only).
+ * verify-self-repair's resolveMaxRepairs (default 2, positive numbers only).
  *
  * @param settings - UserSettings row (or null when unavailable). / 設定行
  * @returns The effective repair limit. / 有効な修復上限
@@ -123,7 +144,7 @@ export function resolveVerifyRepairLimit(
 ): number {
   return typeof settings?.verifyRepairLimit === 'number' && settings.verifyRepairLimit > 0
     ? settings.verifyRepairLimit
-    : 3;
+    : DEFAULT_VERIFY_REPAIR_LIMIT;
 }
 
 /**

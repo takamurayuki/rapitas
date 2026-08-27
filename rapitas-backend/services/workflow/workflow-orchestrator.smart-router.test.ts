@@ -168,10 +168,12 @@ mock.module('../ai/model-route-stability', () => ({
 mock.module('./routing-policy', () => ({
   highestTier: mock(() => undefined),
   isCapabilityRole: mock(() => false),
-  detectHighRisk: mock(() => ({ high: false })),
   computeMinTier: mock(() => undefined),
   computeMinTierWithReason: mock(() => ({ tier: undefined, reason: undefined })),
   isCapabilityAttributableFailure: mock(() => true),
+}));
+mock.module('./risk-detection', () => ({
+  detectHighRisk: mock(() => ({ high: false })),
   stripRuledOutLines: mock((text: string) => text),
 }));
 mock.module('./workflow-queue', () => ({

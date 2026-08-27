@@ -27,7 +27,7 @@ import type { AIProvider } from '../../../utils/ai-client/types';
 import { DEFAULT_MODELS } from '../../../utils/ai-client/types';
 import { inferProviderFromModelId } from '../../workflow/role-provider-resolver';
 import { readWorkflowFile } from '../../workflow/workflow-file-utils';
-import { detectHighRisk } from '../../workflow/routing-policy';
+import { detectHighRisk } from '../../workflow/risk-detection';
 import { appendEvent } from '../../memory/timeline';
 import { prisma } from '../../../config/database';
 import { createLogger } from '../../../config/logger';

@@ -16,7 +16,7 @@ const log = createLogger('workflow:pre-pr-base-sync');
 
 /** Terminal classification of one base-sync attempt. */
 export type BaseSyncStatus =
-  | 'skipped' // infra failure (fetch/merge setup) — fail-open, PR proceeds
+  | 'skipped' // infra failure (fetch/merge setup, or conflict-resolver CLI unavailable) — fail-open, PR proceeds
   | 'clean' // base merged cleanly (or already up to date); re-verify OK when needed
   | 'resolved' // real conflicts resolved by the injected resolver; re-verify OK
   | 'conflict_unresolved' // conflicts remain — merge aborted, PR must be withheld
@@ -74,7 +74,11 @@ const FILE_BLOCK_RE = /<<<RAPITAS_FILE:\s*(.+?)\s*>>>\r?\n([\s\S]*?)<<<RAPITAS_F
  * sendAIMessage — never a raw paid-API hit) that receives every conflicted
  * file's markered content plus the task title, and must return each file's
  * fully resolved content in delimited blocks. On success the files are written
- * back, staged, and the merge is concluded non-interactively. Never throws.
+ * back, staged, and the merge is concluded non-interactively. Re-throws when
+ * the aux CLI itself is unavailable (`ClaudeCliUnavailableError` — timeout,
+ * spawn failure, or a CLI-reported error) so the caller can fail open instead
+ * of treating an infra outage as an unresolvable content conflict. All other
+ * failures (missing/markered file, git operation failure) return false.
  *
  * @param p - Worktree cwd, task id, base branch and conflicted files / 対象情報
  * @returns True when every conflict was resolved and the merge was committed / 解消成否
@@ -162,6 +166,13 @@ export async function resolveConflictsWithAuxCli(p: {
     await runGitCommand(['-c', 'core.editor=true', 'merge', '--continue'], p.gitCwd);
     return true;
   } catch (err) {
+    if (err instanceof Error && err.name === 'ClaudeCliUnavailableError') {
+      log.warn(
+        { err, taskId: p.taskId },
+        '[base-sync] aux CLI unavailable — propagating for fail-open classification',
+      );
+      throw err;
+    }
     log.warn({ err, taskId: p.taskId }, '[base-sync] aux conflict resolution failed');
     return false;
   }
@@ -255,14 +266,21 @@ export async function syncBaseIntoBranch(p: {
       { taskId: p.taskId, conflicts },
       '[base-sync] merge conflicts — attempting in-context resolution',
     );
-    const resolvedOk = await deps
-      .resolveConflicts({
+    let resolvedOk = false;
+    let infraUnavailableDetail: string | null = null;
+    try {
+      resolvedOk = await deps.resolveConflicts({
         gitCwd: p.gitCwd,
         taskId: p.taskId,
         baseBranch: p.baseBranch,
         conflicts,
-      })
-      .catch(() => false);
+      });
+    } catch (err) {
+      if (err instanceof Error && err.name === 'ClaudeCliUnavailableError') {
+        infraUnavailableDetail = err.message;
+      }
+      resolvedOk = false;
+    }
 
     if (!resolvedOk) {
       // See the "merge failed without conflicts" branch above for why skipLog
@@ -270,6 +288,20 @@ export async function syncBaseIntoBranch(p: {
       await deps.runGit(['merge', '--abort'], p.gitCwd, { skipLog: true }).catch((err) => {
         log.warn({ taskId: p.taskId, err }, '[base-sync] merge --abort itself failed');
       });
+
+      if (infraUnavailableDetail !== null) {
+        log.warn(
+          { taskId: p.taskId, conflicts, detail: infraUnavailableDetail },
+          '[base-sync] conflict resolver infra unavailable — failing open',
+        );
+        return {
+          status: 'skipped',
+          changedFiles: 0,
+          conflicts,
+          detail: `補助AI CLIが一時的に利用できないため base 取り込みをスキップしました（${infraUnavailableDetail}）`,
+        };
+      }
+
       return {
         status: 'conflict_unresolved',
         changedFiles: 0,
