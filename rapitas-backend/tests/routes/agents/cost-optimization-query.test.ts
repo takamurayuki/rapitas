@@ -184,21 +184,29 @@ describe('getCostOptimizationInsights', () => {
   it('fires a suggestion when a cheaper model matches the expensive one on success rate', async () => {
     mockExecutionFindMany.mockResolvedValue([
       // Expensive model: high recorded cost, 100% success.
-      {
+      ...Array.from({ length: 5 }, () => ({
+        session: {
+          mode: 'workflow-implementer',
+          config: { task: { complexityScore: 24 } },
+        },
         status: 'completed',
         modelName: 'opus-4-8',
         tokensUsed: 1000,
         executionTimeMs: 100,
         costUsd: '1.00',
-      },
+      })),
       // Cheaper model: low cost, also 100% success — a valid substitute.
-      {
+      ...Array.from({ length: 5 }, () => ({
+        session: {
+          mode: 'workflow-implementer',
+          config: { task: { complexityScore: 24 } },
+        },
         status: 'completed',
         modelName: 'haiku',
         tokensUsed: 1000,
         executionTimeMs: 100,
         costUsd: '0.05',
-      },
+      })),
     ]);
 
     const insights = await getCostOptimizationInsights();
@@ -206,5 +214,48 @@ describe('getCostOptimizationInsights', () => {
     expect(insights.suggestions.length).toBeGreaterThanOrEqual(1);
     expect(insights.suggestions[0]).toContain('opus-4-8');
     expect(insights.suggestions[0]).toContain('haiku');
+    expect(insights.suggestions[0]).toContain('実装・低難度');
+    expect(insights.suggestions[0]).toContain('$4.75');
+  });
+
+  it('does not compare models across different roles or complexity bands', async () => {
+    const rows = (mode: string, complexityScore: number, modelName: string, costUsd: string) =>
+      Array.from({ length: 5 }, () => ({
+        session: { mode, config: { task: { complexityScore } } },
+        status: 'completed',
+        modelName,
+        tokensUsed: 1000,
+        executionTimeMs: 100,
+        costUsd,
+      }));
+    mockExecutionFindMany.mockResolvedValue([
+      ...rows('workflow-implementer', 20, 'fable', '1.00'),
+      ...rows('workflow-verifier', 20, 'haiku', '0.05'),
+      ...rows('workflow-implementer', 90, 'sonnet', '0.10'),
+    ]);
+
+    const insights = await getCostOptimizationInsights();
+
+    expect(insights.suggestions).toEqual([]);
+  });
+
+  it('requires five samples per model before making a recommendation', async () => {
+    const context = {
+      session: { mode: 'workflow-researcher', config: { task: { complexityScore: 50 } } },
+    };
+    const rows = (modelName: string, costUsd: string) =>
+      Array.from({ length: 4 }, () => ({
+        ...context,
+        status: 'completed',
+        modelName,
+        tokensUsed: 1000,
+        executionTimeMs: 100,
+        costUsd,
+      }));
+    mockExecutionFindMany.mockResolvedValue([...rows('fable', '1.00'), ...rows('haiku', '0.05')]);
+
+    const insights = await getCostOptimizationInsights();
+
+    expect(insights.suggestions).toEqual([]);
   });
 });
