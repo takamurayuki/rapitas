@@ -233,6 +233,14 @@ export function detectTriStateDesync(
 /** Snapshot of one task used by the unanswered-question detector. */
 export interface UnansweredQuestionInput {
   workflowStatus: string | null;
+  /**
+   * The task's own status. A finished task's pending question is moot, but the
+   * workflowStatus can lag behind it: task #587 has been `done` since 2026-08-23
+   * while its workflowStatus stayed `awaiting_question`, so it re-notified once
+   * per window forever. The watcher already selects this field — it just never
+   * looked at it.
+   */
+  taskStatus: string;
   /** createdAt of the latest toStatus='awaiting_question' transition, epoch ms
    * (null = no such transition on record). NOT task.updatedAt — enrichment and
    * other side channels touch updatedAt without answering the question. */
@@ -258,6 +266,7 @@ export function detectUnansweredQuestion(
   input: UnansweredQuestionInput,
 ): { staleMs: number } | null {
   if (input.workflowStatus !== 'awaiting_question') return null;
+  if (TERMINAL_TASK_STATUSES.has(input.taskStatus)) return null;
   if (input.hasAnsweredQuestion) return null;
   // No awaiting_question transition on record → the wait start is unknowable;
   // skip rather than guess (avoids false positives on anomalous histories).

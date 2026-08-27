@@ -277,6 +277,7 @@ async function inspectAwaitingQuestionTasks(nowMs: number): Promise<number> {
       });
       const finding = detectUnansweredQuestion({
         workflowStatus: task.workflowStatus,
+        taskStatus: task.status,
         questionRaisedAtMs: raised ? raised.createdAt.getTime() : null,
         hasAnsweredQuestion: answered !== null,
         nowMs,

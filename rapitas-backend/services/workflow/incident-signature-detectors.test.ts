@@ -667,10 +667,24 @@ describe('detectUnansweredQuestion', () => {
 
   const base: UnansweredQuestionInput = {
     workflowStatus: 'awaiting_question',
+    taskStatus: 'todo',
     questionRaisedAtMs: RAISED_578,
     hasAnsweredQuestion: false,
     nowMs: FOUND_578,
   };
+
+  // 実データ #587: 2026-08-23 に done になった後も workflowStatus が
+  // awaiting_question のまま残り、窓ごとに永久に再通知されていた。
+  it.each(['done', 'cancelled', 'archived', 'completed'])(
+    '終端状態 %s のタスクは、質問が残っていても再通知しない',
+    (taskStatus) => {
+      expect(detectUnansweredQuestion({ ...base, taskStatus })).toBeNull();
+    },
+  );
+
+  it('未完了のタスクは従来どおり検出する', () => {
+    expect(detectUnansweredQuestion({ ...base, taskStatus: 'blocked' })).not.toBeNull();
+  });
 
   it('detects the #578/#579 shape: 4 days unanswered', () => {
     const result = detectUnansweredQuestion(base);
