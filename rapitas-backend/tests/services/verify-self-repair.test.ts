@@ -443,6 +443,14 @@ describe('hasFreshVerifyRejection', () => {
     expect(await hasFreshVerifyRejection(1)).toBe(true);
   });
 
+  test('直近 transition が verify_pr_not_created なら true（PR生成失敗の二重試行を防止、task 673 回帰）', async () => {
+    mockPrisma.workflowTransition.findFirst.mockResolvedValue({
+      cause: 'verify_pr_not_created',
+      createdAt: new Date(),
+    });
+    expect(await hasFreshVerifyRejection(1)).toBe(true);
+  });
+
   test('直近 transition が別 cause なら false', async () => {
     mockPrisma.workflowTransition.findFirst.mockResolvedValue({
       cause: 'verify_passed',

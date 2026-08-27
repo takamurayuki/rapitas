@@ -244,6 +244,30 @@ describe('detectTriStateDesync', () => {
       ).toBeNull();
     });
 
+    // #680 repro: task #672 retried via task-retry-handler (cause=task_retried),
+    // which resets status to 'todo' while rolling workflowStatus back to
+    // research_done. The watcher's next pass fired Pattern B ~139s later.
+    it('does NOT detect pattern B 139s after a task_retried recovery (#680/#672 repro)', () => {
+      expect(
+        detectTriStateDesync({
+          ...requeued,
+          workflowStatus: 'research_done',
+          latestTransitionCause: 'task_retried',
+          latestTransitionAtMs: NOW - 139_000,
+        }),
+      ).toBeNull();
+    });
+
+    it('detects again once a task_retried recovery settled past the threshold', () => {
+      const result = detectTriStateDesync({
+        ...requeued,
+        workflowStatus: 'research_done',
+        latestTransitionCause: 'task_retried',
+        latestTransitionAtMs: NOW - DESYNC_RECOVERY_SETTLE_MS,
+      });
+      expect(result?.kind).toBe('todo_status_workflow_advanced');
+    });
+
     it('detects again once the recovery transition settled past the threshold (>= boundary)', () => {
       const settled = {
         ...requeued,
@@ -570,6 +594,67 @@ describe('detectRepeatLoop', () => {
       minCount: 3,
     });
     expect(result).toEqual({ cause: 'phase_completed:implementer', count: 4 });
+  });
+
+  // Task 673/681: independent low-threshold path for invariantViolation-flagged
+  // transitions, bypassing forgivenessBudget entirely.
+  const atInv = (
+    msAgo: number,
+    cause: string,
+    actor = 'system',
+    invariantViolation = false,
+  ): RepeatLoopTransition => ({ cause, createdAtMs: NOW - msAgo, actor, invariantViolation });
+
+  it('detects same-cause invariantViolation transitions below the general minCount (task 673 repro)', () => {
+    const result = detectRepeatLoop({
+      transitions: [
+        atInv(69_000, 'verify_pr_not_created', 'system', true),
+        atInv(9_000, 'verify_pr_not_created', 'verifier', true),
+      ],
+      nowMs: NOW,
+      minCount: 3,
+      invariantMinCount: 2,
+    });
+    expect(result).toEqual({ cause: 'verify_pr_not_created', count: 2 });
+  });
+
+  it('does NOT detect the same 2-count pattern when invariantViolation is false (existing behavior preserved)', () => {
+    const result = detectRepeatLoop({
+      transitions: [
+        atInv(69_000, 'verify_pr_not_created', 'system', false),
+        atInv(9_000, 'verify_pr_not_created', 'verifier', false),
+      ],
+      nowMs: NOW,
+      minCount: 3,
+      invariantMinCount: 2,
+    });
+    expect(result).toBeNull();
+  });
+
+  it('task 673 replay: 2 invariantViolation verify_pr_not_created transitions 70s apart (actor system -> verifier) is detected', () => {
+    // 2026-08-26T22:59:53.555Z (actor: system) and 23:00:53.915Z (actor: verifier)
+    const t1 = Date.parse('2026-08-26T22:59:53.555Z');
+    const t2 = Date.parse('2026-08-26T23:00:53.915Z');
+    const now = t2 + 1_000;
+    const result = detectRepeatLoop({
+      transitions: [
+        {
+          cause: 'verify_pr_not_created',
+          createdAtMs: t1,
+          actor: 'system',
+          invariantViolation: true,
+        },
+        {
+          cause: 'verify_pr_not_created',
+          createdAtMs: t2,
+          actor: 'verifier',
+          invariantViolation: true,
+        },
+      ],
+      nowMs: now,
+    });
+    expect(result).not.toBeNull();
+    expect(result).toEqual({ cause: 'verify_pr_not_created', count: 2 });
   });
 });
 

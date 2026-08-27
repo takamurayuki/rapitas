@@ -23,6 +23,17 @@ export const REPEAT_LOOP_MIN_COUNT =
   parseInt(process.env.RAPITAS_INCIDENT_LOOP_MIN_COUNT ?? '', 10) || 3;
 
 /**
+ * Minimum same-cause invariantViolation transitions within the window to count
+ * as a loop (default 2, lower than REPEAT_LOOP_MIN_COUNT). An invariantViolation
+ * is the system itself flagging a contract breach, a strong signal that does not
+ * need the general threshold's forgiveness-budget churn allowance (task 673: 2
+ * `verify_pr_not_created` invariantViolations 70s apart went undetected under
+ * the default minCount=3/window=60m).
+ */
+export const INVARIANT_REPEAT_LOOP_MIN_COUNT =
+  parseInt(process.env.RAPITAS_INCIDENT_INVARIANT_LOOP_MIN_COUNT ?? '', 10) || 2;
+
+/**
  * Grace period after a deliberate recovery transition during which the
  * `todo × advanced-workflow` shape is EXPECTED, not anomalous (default 30m).
  * Rationale (#636): requeueOrphanTasks resets status to 'todo' while keeping
@@ -39,11 +50,26 @@ export const DESYNC_RECOVERY_SETTLE_MS =
  * Transition causes that DELIBERATELY produce `task.status='todo'` with an
  * advanced workflowStatus: reconciler_requeue keeps workflowStatus so the
  * resume mapping re-enters at the right phase (workflow-reconciler-requeue),
- * and artifact_reuse_fastforward advances workflowStatus of a still-todo task
- * before dispatch (artifact-reuse-reconciler). blocked_auto_retry is NOT here —
- * it resets workflowStatus to 'draft', which Pattern B never matches.
+ * artifact_reuse_fastforward advances workflowStatus of a still-todo task
+ * before dispatch (artifact-reuse-reconciler), and task_retried resets
+ * status to 'todo' while rolling workflowStatus back to a resume point —
+ * see `routes/tasks/task-retry-handler.ts` `resolveRollbackTarget()`
+ * (rolls verify_done back to plan_approved/research_done) and its caller
+ * `retryTask()`, which writes `{ status: 'todo', workflowStatus: rolledBackTo }`
+ * in the same `prisma.task.update` call. This is the same shape as the other
+ * two causes, triggered by a manual retry instead of the reconciler (#680,
+ * task #672 filed 139s after a task_retried transition to research_done;
+ * task #672 subsequently self-resolved to status=done/workflowStatus=completed
+ * via normal dispatch with no data repair applied, confirming the shape was
+ * transient and self-healing rather than a corrupted state). blocked_auto_retry
+ * is NOT here — it resets workflowStatus to 'draft', which Pattern B never
+ * matches.
  */
-const RECOVERY_REQUEUE_CAUSES = new Set(['reconciler_requeue', 'artifact_reuse_fastforward']);
+const RECOVERY_REQUEUE_CAUSES = new Set([
+  'reconciler_requeue',
+  'artifact_reuse_fastforward',
+  'task_retried',
+]);
 
 /**
  * Wait time after which an unanswered intake question counts as stale (default
@@ -165,10 +191,11 @@ function isWithinRecoveryGrace(input: TriStateDesyncInput): boolean {
  * (session terminally failed but its execution still active) is checked first
  * and wins when both apply — the session/execution anomaly is the more urgent
  * signal. Pattern B: task.status still 'todo' while the workflow advanced —
- * EXCEPT within the recovery grace window after a reconciler_requeue /
- * artifact_reuse_fastforward transition, which produces exactly that shape by
- * design (see isWithinRecoveryGrace; past the window detectStagnation covers
- * a still-undispatched task, so the detection net keeps a backstop).
+ * EXCEPT within the recovery grace window after a cause in
+ * RECOVERY_REQUEUE_CAUSES (reconciler_requeue / artifact_reuse_fastforward /
+ * task_retried), which produces exactly that shape by design (see
+ * isWithinRecoveryGrace; past the window detectStagnation covers a
+ * still-undispatched task, so the detection net keeps a backstop).
  *
  * @param input - Cross-entity state snapshot. / 三面の状態スナップショット
  * @returns Detected pattern + human-readable summary, or null. / 検出結果またはnull
@@ -246,6 +273,14 @@ export interface RepeatLoopTransition {
   createdAtMs: number;
   /** Who caused the transition (TransitionActor value, e.g. 'system'/'user'). */
   actor: string;
+  /**
+   * True when this transition was recorded as an invariant violation (system
+   * self-detected contract breach). Feeds an independent, lower-threshold
+   * detection path — see {@link INVARIANT_REPEAT_LOOP_MIN_COUNT}. Optional for
+   * backward compatibility with existing callers that don't set it (treated as
+   * false / not counted).
+   */
+  invariantViolation?: boolean;
 }
 
 /**
@@ -300,6 +335,7 @@ const REPAIR_BOUNCE_CAUSES = new Set(['verify_repair', 'ci_repair']);
  * @param input.taskStatus - Current task status; terminal statuses skip detection (undefined = not checked, for backward compatibility). / タスクの現在ステータス（終端状態は検出をスキップ）
  * @param input.windowMs - Window size (default 60m). / 集計窓
  * @param input.minCount - Detection threshold (default 3). / 検出しきい値
+ * @param input.invariantMinCount - Detection threshold for invariantViolation-flagged transitions only (default 2, see {@link INVARIANT_REPEAT_LOOP_MIN_COUNT}). / invariantViolation付き遷移専用のしきい値
  * @returns The dominant looping cause + count, or null. / 最多ループcauseまたはnull
  */
 export function detectRepeatLoop(input: {
@@ -308,10 +344,12 @@ export function detectRepeatLoop(input: {
   taskStatus?: string;
   windowMs?: number;
   minCount?: number;
+  invariantMinCount?: number;
 }): { cause: string; count: number } | null {
   if (input.taskStatus !== undefined && TERMINAL_TASK_STATUSES.has(input.taskStatus)) return null;
   const windowMs = input.windowMs ?? REPEAT_LOOP_WINDOW_MS;
   const minCount = input.minCount ?? REPEAT_LOOP_MIN_COUNT;
+  const invariantMinCount = input.invariantMinCount ?? INVARIANT_REPEAT_LOOP_MIN_COUNT;
   const windowStart = input.nowMs - windowMs;
 
   const windowed = input.transitions
@@ -340,9 +378,31 @@ export function detectRepeatLoop(input: {
     counts.set(t.cause, (counts.get(t.cause) ?? 0) + 1);
   }
 
+  // Independent invariantViolation counting path (task 673): raw per-cause
+  // counts of ONLY the transitions the system itself flagged as an invariant
+  // breach, bypassing forgivenessBudget entirely — a repeat verify_repair/
+  // ci_repair bounce should not "spend" budget that excuses a genuine
+  // contract violation from detection.
+  const invariantCounts = new Map<string, number>();
+  for (const t of windowed) {
+    if (t.invariantViolation === true) {
+      invariantCounts.set(t.cause, (invariantCounts.get(t.cause) ?? 0) + 1);
+    }
+  }
+
   let best: { cause: string; count: number } | null = null;
   for (const [cause, count] of counts) {
     if (count < minCount) continue;
+    if (
+      best === null ||
+      count > best.count ||
+      (count === best.count && cause.localeCompare(best.cause) < 0)
+    ) {
+      best = { cause, count };
+    }
+  }
+  for (const [cause, count] of invariantCounts) {
+    if (count < invariantMinCount) continue;
     if (
       best === null ||
       count > best.count ||
