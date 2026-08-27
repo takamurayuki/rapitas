@@ -40,6 +40,10 @@ const SUPPRESSED: [string, string][] = [
     'workflow-cli-executor',
     '[WorkflowCLIExecutor] verify.md self-contradicts: claims all tests pass',
   ],
+  [
+    'github-service:client',
+    'gh command failed: gh pr create --title [Task-#] no commits between develop and bugfix/t#-x',
+  ],
 ];
 
 const KEPT: [string, string][] = [
@@ -49,6 +53,10 @@ const KEPT: [string, string][] = [
   ['claude-code', '[claude-code] Model rejected by CLI — likely a provider/agent mismatch'],
   ['workflow-runner', '[WorkflowRunner] Execution error for task #: Task # not found'],
   ['verification', 'Automated verification failed — blocking'],
+  [
+    'github-service:client',
+    "gh command failed: gh pr create --title [Task-#] no commits between develop and bugfix/t#-x: base sha can't be blank",
+  ],
 ];
 
 describe('classifyLogSignature', () => {
@@ -68,6 +76,14 @@ describe('classifyLogSignature', () => {
     // be a real double-start, so the rule must not fire globally.
     expect(classifyLogSignature('workflow-runner', 'Already running').suppressed).toBe(true);
     expect(classifyLogSignature('payment-worker', 'Already running').suppressed).toBe(false);
+  });
+
+  test('"no commits between" is scoped to github-service:client only', () => {
+    // Same phrase from an unrelated logger must still be filed — the rule is
+    // about gh pr create no-op completions, not the phrase alone.
+    expect(classifyLogSignature('some-other-logger', 'no commits between a and b').suppressed).toBe(
+      false,
+    );
   });
 
   test('an unknown line is filed rather than dropped', () => {
