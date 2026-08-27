@@ -44,6 +44,7 @@ const mockExecFile = mock(
 const mockWriteFile = mock(() => Promise.resolve());
 const mockUnlink = mock(() => Promise.resolve());
 const mockWarn = mock(() => {});
+const mockError = mock(() => {});
 // NOTE: sleep is mocked to a no-op so runGhCommandWithRetry tests do not incur real delays.
 const mockSleep = mock((_ms: number) => Promise.resolve());
 
@@ -56,7 +57,7 @@ mock.module('../../config/logger', () => ({
     info: mock(() => {}),
     debug: mock(() => {}),
     warn: mockWarn,
-    error: mock(() => {}),
+    error: mockError,
   }),
 }));
 // NOTE: Mirror ALL exports — bun mock.module is process-global and any missing
@@ -68,7 +69,7 @@ mock.module('../agents/abstraction/agent-retry', () => ({
   continueWithRetry: mock(async () => ({})),
 }));
 
-const { runGhCommandWithBody, runGhCommandWithRetry } = await import('./gh-client');
+const { runGhCommand, runGhCommandWithBody, runGhCommandWithRetry } = await import('./gh-client');
 
 describe('runGhCommandWithBody', () => {
   beforeEach(() => {
@@ -238,12 +239,45 @@ describe('runGhCommandWithRetry', () => {
     failError = 'API rate limit exceeded';
     ghStdout = 'ok';
 
-    const mockError = mock(() => {});
     // Verify skipLog suppresses error log — just ensure no throw and retry works
     const result = await runGhCommandWithRetry(['pr', 'view', '1'], undefined, { skipLog: true });
     expect(result).toBe('ok');
     // Suppress is handled internally; primary concern is that retry still works
     expect(mockExecFile).toHaveBeenCalledTimes(2);
-    void mockError; // unused variable suppression
+  });
+});
+
+describe('runGhCommand error logging', () => {
+  beforeEach(() => {
+    capturedArgs = [];
+    shouldGhFail = false;
+    failCount = 0;
+    failError = 'mock stderr';
+    ghStdout = '';
+    mockExecFile.mockClear();
+    mockError.mockClear();
+  });
+
+  it('stderr有りの失敗時: log.error の err.message が stderr と一致する', async () => {
+    failCount = 1;
+    failError = 'gh: pull request create failed: No commits between develop and bugfix/t#-x';
+
+    await expect(runGhCommand(['pr', 'create'])).rejects.toThrow(failError);
+
+    expect(mockError).toHaveBeenCalledTimes(1);
+    const [logArg] = mockError.mock.calls[0] as [{ err: Error }, string];
+    expect(logArg.err).toBeInstanceOf(Error);
+    expect(logArg.err.message).toBe(failError);
+  });
+
+  it('skipLog: true 指定時は log.error が呼ばれない', async () => {
+    failCount = 1;
+    failError = 'API rate limit exceeded';
+
+    await expect(runGhCommand(['pr', 'view', '1'], undefined, { skipLog: true })).rejects.toThrow(
+      failError,
+    );
+
+    expect(mockError).not.toHaveBeenCalled();
   });
 });
