@@ -105,6 +105,19 @@ const SUPPRESSIONS: Suppression[] = [
     test: /Execution ended with status: failed/i,
     because: '実行結果の記録 — 原因は当該実行のログ側に出ており、二重起票になる',
   },
+  {
+    // ログ出力箇所: middleware/error-handler.ts:165-170 の `code === 'PARSE'` 分岐
+    // （#683 で追加）。JSONパース失敗はここで log.warn（ERRORではなくWARN）+ status 400
+    // として処理される。ParseError の message は elysia 側で "Bad Request" 固定
+    // (node_modules/elysia/dist/error.mjs:35-43, `class ParseError extends Error`)であり、
+    // この分岐が汎用フォールバック(同ファイル182行目, log.error 'Unhandled error')より
+    // 先に評価されるため、「Bad Request: Failed to parse JSON」がERRORとして起票される
+    // 経路は現行コードに存在しない。#683 適用前の生成物が今回起票されたものと判定。
+    test: /Bad Request: Failed to parse JSON/i,
+    logger: /error-handler/i,
+    because:
+      'middleware/error-handler.ts:165-170 のPARSE分岐(#683)がlog.warn+400で処理しており、ERRORとして起票される経路は存在しない',
+  },
 ];
 
 /** Result of classifying one log signature. */

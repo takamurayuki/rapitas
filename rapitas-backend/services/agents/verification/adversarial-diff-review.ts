@@ -27,7 +27,7 @@ import type { AIProvider } from '../../../utils/ai-client/types';
 import { DEFAULT_MODELS } from '../../../utils/ai-client/types';
 import { inferProviderFromModelId } from '../../workflow/role-provider-resolver';
 import { readWorkflowFile } from '../../workflow/workflow-file-utils';
-import { detectHighRisk } from '../../workflow/routing-policy';
+import { detectHighRisk } from '../../workflow/risk-detection';
 import { appendEvent } from '../../memory/timeline';
 import { prisma } from '../../../config/database';
 import { createLogger } from '../../../config/logger';
@@ -167,6 +167,7 @@ ${p.diffText}
 - 安全性: 機密情報の混入、危険な操作、インジェクション等
 - 範囲: 計画外の不要・破壊的変更が混ざっていないか
 - 省略の扱い: 差分に「変更ファイル一覧」がある場合、その一覧が変更の全量。[省略]マーカーで本文が切れているファイルを「未実装」と断定しない（表示上の制約であり、実装の欠落ではない）
+- **未変更の扱い**: 変更ファイル一覧に現れないファイルは「このタスクが変更しなかった」ことだけを意味し、「目的の状態にない」ことは意味しない。**既に目的の状態にあったため変更が不要だった**可能性が常にある。同様に、ファイルがディレクトリ配下へ移り barrel で再エクスポートされた場合、それを参照する import 文字列は変わらないのが正常であり、import が不変であることは移動していない根拠にならない。差分外のファイルが未完了だと述べる場合は「要確認:」に留め、verdict には反映しないこと
 
 ## 管轄（あなたが判定してよい欠陥の範囲 — 厳守）
 - **機械検出可能な欠陥の「推測」は管轄外**: コンパイルエラー・型エラー・テスト失敗の«可能性»を fail の根拠にしない。それらは決定的ゲート (lint / tsc / テスト実行) が別途実測しており、実在すればそちらが確実に検出する。あなたの役割は機械ゲートが検出**できない**欠陥（要件の取り違え・設計上の誤り・意味的なバグ・セキュリティ）に集中すること。

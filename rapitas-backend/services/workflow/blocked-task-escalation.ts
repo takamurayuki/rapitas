@@ -2,12 +2,15 @@
  * blocked-task-escalation
  *
  * One-shot escalation for blocked tasks excluded from blind auto-retry
- * (task 615): says WHAT is needed (human answer / task split / manual
- * investigation), records it durably, and never repeats itself. The permanent
- * idempotency gate is a `blocked_escalated` WorkflowTransition row — unread
- * notification dedup alone re-fires after the user reads (and that was the
- * "abandoned blocked tasks" hole). Not responsible for deciding WHO is
- * excluded — that is blocked-task-policy's classification.
+ * (task 615), followed by a periodic re-escalation for whatever the one-shot
+ * leaves unresolved (task 703 — the one-shot alone let task 666 sit silent
+ * for 39 hours): says WHAT is needed (human answer / task split / manual
+ * investigation), records it durably, and never repeats within the same
+ * window. The permanent idempotency gate is a `blocked_escalated`
+ * WorkflowTransition row — unread notification dedup alone re-fires after the
+ * user reads (and that was the "abandoned blocked tasks" hole). Not
+ * responsible for deciding WHO is excluded — that is blocked-task-policy's
+ * classification.
  */
 import type { PrismaClient } from '../../generated/prisma-postgres';
 import { createLogger } from '../../config/logger';
@@ -15,6 +18,7 @@ import { recordTransition } from './transition-recorder';
 import { submitConcern } from '../memory/concern-backlog-service';
 import { resolveSelfDevelopmentThemeId } from './self-development-theme';
 import type { BlockedExclusionReason } from './blocked-task-policy';
+import { BLOCKED_REESCALATION_INTERVAL_MS } from './blocked-task-policy';
 
 type PrismaClientInstance = InstanceType<typeof PrismaClient>;
 
@@ -22,6 +26,14 @@ const log = createLogger('blocked-task-escalation');
 
 /** Transition cause that permanently marks a task as escalated. */
 export const BLOCKED_ESCALATED_CAUSE = 'blocked_escalated';
+
+/**
+ * Transition cause recorded for each periodic re-escalation past the first.
+ * Deliberately distinct from {@link BLOCKED_ESCALATED_CAUSE} so the permanent
+ * one-shot gate in {@link escalateBlockedTask} stays untouched — re-escalation
+ * is a separate, repeatable mechanism layered next to it, not a change to it.
+ */
+export const BLOCKED_REESCALATED_CAUSE = 'blocked_reescalated';
 
 /** Per-reason copy: what the human/system must do next. */
 const REASON_COPY: Record<BlockedExclusionReason, { needs: string; notificationType: string }> = {
@@ -140,6 +152,82 @@ export async function escalateBlockedTask(
     metadata: { reason },
   }).catch(() => {});
   log.info({ taskId: task.id, reason }, '[blocked-escalation] escalated blocked task (once)');
+  return true;
+}
+
+/**
+ * Re-notify for a blocked task that is STILL unresolved a full
+ * {@link BLOCKED_REESCALATION_INTERVAL_MS} after its most recent escalation
+ * (first `blocked_escalated` or a prior `blocked_reescalated`). Unlike
+ * {@link escalateBlockedTask} this is not a permanent one-shot gate — it fires
+ * again every time the interval elapses, bounding how long a task can sit
+ * silently blocked (task 703: task 666 went 39 hours unresolved past its one
+ * escalation). Notification only — no concern re-filing, since the original
+ * escalation's concern already exists under a permanent dedupKey and re-filing
+ * would double up on that mechanism (plan.md §設計判断の根拠).
+ *
+ * @param prisma - Prisma client. / Prismaクライアント
+ * @param task - Blocked task (id/title/themeId). / 対象タスク
+ * @param reason - Exclusion classification (reused for notification copy). / 除外理由
+ * @param nowMs - Current time (ms). / 現在時刻
+ * @param thresholdMs - Re-escalation interval, injectable for tests. / 再エスカレーション間隔
+ * @returns true when re-escalated now; false when not yet due (or the lookup
+ *          failed — fail-closed, matching escalateBlockedTask). / 実施有無
+ */
+export async function reescalateIfOverdue(
+  prisma: PrismaClientInstance,
+  task: { id: number; title: string; themeId: number | null },
+  reason: BlockedExclusionReason,
+  nowMs: number,
+  thresholdMs: number = BLOCKED_REESCALATION_INTERVAL_MS,
+): Promise<boolean> {
+  let last: { createdAt: Date } | null;
+  try {
+    last = await prisma.workflowTransition.findFirst({
+      where: {
+        taskId: task.id,
+        cause: { in: [BLOCKED_ESCALATED_CAUSE, BLOCKED_REESCALATED_CAUSE] },
+      },
+      orderBy: { createdAt: 'desc' },
+      select: { createdAt: true },
+    });
+  } catch {
+    return false;
+  }
+  // No prior escalation at all means the one-shot gate hasn't fired yet this
+  // cycle (or ever) — that path owns the first notification, not this one.
+  if (!last) return false;
+  const elapsedMs = nowMs - last.createdAt.getTime();
+  if (elapsedMs < thresholdMs) return false;
+
+  const copy = REASON_COPY[reason];
+  const hours = Math.floor(elapsedMs / (60 * 60 * 1000));
+  try {
+    await prisma.notification.create({
+      data: {
+        type: copy.notificationType,
+        title: 'ブロックされたタスクが対応待ちです（継続）',
+        message: `#${task.id}「${task.title}」はエスカレーション後も${hours}時間解決されていません（理由: ${reason}）。${copy.needs}`,
+        link: `/tasks?taskId=${task.id}`,
+        metadata: JSON.stringify({ taskId: task.id, reason, source: 'blocked_reescalation' }),
+      },
+    });
+  } catch (err) {
+    log.warn({ err, taskId: task.id, reason }, '[blocked-escalation] re-notification failed');
+  }
+
+  await recordTransition({
+    taskId: task.id,
+    fromStatus: 'blocked',
+    toStatus: 'blocked',
+    actor: 'system',
+    cause: BLOCKED_REESCALATED_CAUSE,
+    metadata: { reason },
+  }).catch(() => {});
+  log.info(
+    { taskId: task.id, reason, hours },
+    '[blocked-escalation] re-escalated overdue blocked task',
+  );
   return true;
 }
 
