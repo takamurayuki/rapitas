@@ -96,6 +96,19 @@
       "suggestedAction": "提案アクション",
       "feedback": "フィードバック"
     },
+    "probeMetrics": {
+      "title": "プリフライトprobeメトリクス",
+      "window": "直近{days}日間",
+      "empty": "記録されたprobe試行はまだありません",
+      "loadFailed": "probeメトリクスの取得に失敗しました",
+      "lowSample": "サンプル不足",
+      "target": "probe対象",
+      "attempts": "試行数",
+      "successRate": "成功率",
+      "avgLatency": "平均レイテンシ",
+      "transientRetries": "一時障害リトライ数",
+      "permanentFailures": "永続障害数"
+    },
     "systemStatus": {
       "title": "システム状態",
       "pill": {
