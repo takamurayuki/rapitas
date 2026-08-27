@@ -172,6 +172,7 @@ mock.module('./routing-policy', () => ({
   computeMinTier: mock(() => undefined),
   computeMinTierWithReason: mock(() => ({ tier: undefined, reason: undefined })),
   isCapabilityAttributableFailure: mock(() => true),
+  stripRuledOutLines: mock((text: string) => text),
 }));
 mock.module('./workflow-queue', () => ({
   WorkflowQueueService: {
