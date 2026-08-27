@@ -25,9 +25,14 @@ mock.module('./gh-client', () => ({
 // runGitCommand is used by createPullRequest (git push) and syncLocalBranchWithRemote.
 // NOTE: Mirror ALL git-exec exports to prevent "export not found" in the same bun process.
 let gitShouldFail = false;
-const mockRunGitCommand = mock((_args: string[], _cwd?: string, _opts?: { skipLog?: boolean }) => {
+// Scripted per-subcommand responses for syncLocalBranchWithRemote scenarios.
+// Key = args.join(' '); value = resolved stdout, or an Error to reject with.
+let gitResponses: Record<string, string | Error> = {};
+const mockRunGitCommand = mock((args: string[], _cwd?: string, _opts?: { skipLog?: boolean }) => {
   if (gitShouldFail) return Promise.reject(new Error('git push failed'));
-  return Promise.resolve('');
+  const resp = gitResponses[args.join(' ')];
+  if (resp instanceof Error) return Promise.reject(resp);
+  return Promise.resolve(resp ?? '');
 });
 
 mock.module('./git-exec', () => ({
@@ -50,6 +55,7 @@ const {
   approvePullRequest,
   requestChanges,
   createPullRequest,
+  syncLocalBranchWithRemote,
 } = await import('./pr-write');
 
 // ─── mergePullRequest ─────────────────────────────────────────────────────────
@@ -386,5 +392,33 @@ describe('createPullRequest', () => {
     expect(result.success).toBe(false);
     expect(result.error).toBeDefined();
     expect(mockRunGhCommandWithBody).not.toHaveBeenCalled();
+  });
+});
+
+// ─── syncLocalBranchWithRemote ────────────────────────────────────────────────
+
+describe('syncLocalBranchWithRemote', () => {
+  beforeEach(() => {
+    mockRunGitCommand.mockClear();
+    gitShouldFail = false;
+    gitResponses = {};
+  });
+
+  it('diverged branch with unresolved conflict → merge --abort called with skipLog: true', async () => {
+    gitResponses = {
+      'branch --show-current': 'develop',
+      'merge --ff-only origin/develop': new Error('Not possible to fast-forward'),
+      'status --porcelain': '',
+      'merge --no-ff --no-edit origin/develop': new Error('CONFLICT (content)'),
+    };
+
+    const result = await syncLocalBranchWithRemote('/workspace', 'develop');
+
+    expect(result.synced).toBe(false);
+    const abortCall = mockRunGitCommand.mock.calls.find(
+      (c) => (c[0] as string[]).includes('merge') && (c[0] as string[]).includes('--abort'),
+    ) as [string[], string, { skipLog?: boolean }?] | undefined;
+    expect(abortCall).toBeDefined();
+    expect(abortCall?.[2]?.skipLog).toBe(true);
   });
 });
