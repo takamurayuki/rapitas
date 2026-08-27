@@ -87,6 +87,7 @@ mock.module('../worktree/worktree-guard', () => ({
   ensureNotPrimaryWorkTree: async () => {},
   isBackendPrimaryCheckout: async () => primaryWorkTree,
   findConflictingWorktreeForBranch: async () => null,
+  recoverFromUnresolvedMerge: async () => false,
 }));
 mock.module('../../../../github/gh-client', () => ({
   runGhCommandWithBody: async (): Promise<string> => 'https://github.com/x/y/pull/99',

@@ -95,6 +95,7 @@ mock.module('../worktree/worktree-guard', () => ({
   isPrimaryWorkTree: async () => false,
   ensureNotPrimaryWorkTree: async () => {},
   findConflictingWorktreeForBranch: async () => conflictingWorktreePath,
+  recoverFromUnresolvedMerge: async () => false,
 }));
 // NOTE: gh-client is mocked so that runGhCommandWithBody does not invoke the real
 // gh binary. Its result is configurable per-test via ghWithBodyResult.

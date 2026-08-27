@@ -101,6 +101,7 @@ mock.module('../worktree/worktree-guard', () => ({
   isPrimaryWorkTree: async () => primaryThrows,
   isBackendPrimaryCheckout: async () => false,
   findConflictingWorktreeForBranch: async () => null,
+  recoverFromUnresolvedMerge: async () => false,
   ensureNotPrimaryWorkTree: async (dir: string, op: string) => {
     if (primaryThrows) {
       throw new Error(`Refusing to ${op} in the PRIMARY git working tree (${dir}).`);
