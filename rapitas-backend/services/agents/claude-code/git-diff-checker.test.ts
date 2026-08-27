@@ -188,6 +188,26 @@ describe('checkGitDiff', () => {
     expect(await checkGitDiff(WORK_DIR, LOG_PREFIX)).toBe(true);
   });
 
+  it('base ref の rev-parse --verify 呼び出しには skipLog: true が渡される（存在しない候補refでERRORログを出さない）', async () => {
+    // task 693: origin/master・master のようにこのリポジトリに存在しない候補refを
+    // 探索する呼び出しは、失敗しても呼び出し元が .catch(() => '') で握り潰す想定内の
+    // 失敗である。skipLog が付いていないと github-service:git-exec が毎回 ERROR ログを出す。
+    mockRunGitCommand.mockImplementation(async (args: string[]) => {
+      if (args[0] === 'rev-parse' && args[1] === '--is-inside-work-tree') return 'true';
+      if (args[0] === 'rev-parse' && args[1] === '--verify') return '';
+      return '';
+    });
+    await checkGitDiff(WORK_DIR, LOG_PREFIX);
+    const verifyCalls = mockRunGitCommand.mock.calls.filter(
+      (call) => (call[0] as string[])[0] === 'rev-parse' && (call[0] as string[])[1] === '--verify',
+    );
+    expect(verifyCalls.length).toBeGreaterThan(0);
+    for (const call of verifyCalls) {
+      const opts = call[2] as { skipLog?: boolean } | undefined;
+      expect(opts?.skipLog).toBe(true);
+    }
+  });
+
   it('base ref が1つも存在しない場合は branch commit 判定をスキップする', async () => {
     mockRunGitCommand.mockImplementation(async (args: string[]) => {
       if (args[0] === 'rev-parse' && args[1] === '--is-inside-work-tree') return 'true';

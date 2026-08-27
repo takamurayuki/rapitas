@@ -108,6 +108,10 @@ export async function checkGitDiff(workDir: string, logPrefix: string): Promise<
   for (const ref of BASE_REF_CANDIDATES) {
     const ok = await runGitCommand(['rev-parse', '--verify', '--quiet', ref], workDir, {
       timeoutMs: 5000,
+      // NOTE: this probes candidate base refs that are expected to be absent
+      // (e.g. origin/master on repos with only main) — skipLog avoids ERROR
+      // noise for a routine miss, matching repo-bootstrap.ts's identical pattern.
+      skipLog: true,
     }).catch(() => '');
     if (ok) existingBases.push(ref);
   }
