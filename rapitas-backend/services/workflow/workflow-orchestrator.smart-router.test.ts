@@ -67,7 +67,11 @@ function makeRoleConfig(
 const taskFindUniqueMock = mock(() => Promise.resolve(makeTask()));
 const roleConfigFindUniqueMock = mock(() => Promise.resolve(makeRoleConfig()));
 const mockPrisma = {
-  task: { findUnique: taskFindUniqueMock, update: mock(() => Promise.resolve({})) },
+  task: {
+    findUnique: taskFindUniqueMock,
+    update: mock(() => Promise.resolve({})),
+    updateMany: mock(() => Promise.resolve({ count: 1 })),
+  },
   workflowRoleConfig: { findUnique: roleConfigFindUniqueMock },
   systemPrompt: { findUnique: mock(() => Promise.resolve(null)) },
   workflowTransition: { count: mock(() => Promise.resolve(0)) },
@@ -168,6 +172,7 @@ mock.module('./routing-policy', () => ({
   computeMinTier: mock(() => undefined),
   computeMinTierWithReason: mock(() => ({ tier: undefined, reason: undefined })),
   isCapabilityAttributableFailure: mock(() => true),
+  stripRuledOutLines: mock((text: string) => text),
 }));
 mock.module('./workflow-queue', () => ({
   WorkflowQueueService: {
