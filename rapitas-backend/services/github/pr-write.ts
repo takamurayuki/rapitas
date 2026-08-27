@@ -281,7 +281,11 @@ export async function syncLocalBranchWithRemote(
             detail: `ローカルの ${branch} を origin/${branch} とマージしました（分岐をマージコミットで解消）`,
           };
         } catch {
-          await runGitCommand(['merge', '--abort'], workingDirectory).catch(() => {});
+          // NOTE: skipLog suppresses the ERROR runGitCommand would emit — this
+          // abort is best-effort cleanup and its result is never inspected.
+          await runGitCommand(['merge', '--abort'], workingDirectory, { skipLog: true }).catch(
+            () => {},
+          );
           return {
             synced: false,
             detail: `ローカルの ${branch} が origin/${branch} と競合し自動マージできませんでした（手動 reconcile が必要）`,
