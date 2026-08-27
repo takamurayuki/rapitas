@@ -17,7 +17,14 @@ analysis-result.json
 # Agent transient workflow files — written then curl'd to the workflow/concern/
 # idea APIs (.wf-tmp.md, .wf-concern.json, .wf-idea.json). Ignored repo-wide so
 # they never appear in any git diff/status/add or the changed-file list.
+#
+# The hyphen was load-bearing and should not have been: task 674 wrote
+# `.wf674.json`, which matched nothing here, was committed as an unplanned
+# artifact, and the diff review cut the task off for scope creep — the only
+# change in that diff was the stray file. Match the prefix, not one spelling
+# of it.
 .wf-*
+.wf[0-9]*
 
 # Memory system vector DB
 rapitas-backend/data/
