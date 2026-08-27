@@ -35,7 +35,7 @@ export interface BaseSyncResult {
 /** Injected side-effect boundary — production defaults live in this module. */
 export interface BaseSyncDeps {
   /** Run a git command in a cwd and return trimmed stdout (throws on non-zero). */
-  runGit: (args: string[], cwd: string) => Promise<string>;
+  runGit: (args: string[], cwd: string, opts?: { skipLog?: boolean }) => Promise<string>;
   /** Resolve the listed conflicted files in-place; true = resolved & committed. */
   resolveConflicts: (p: {
     gitCwd: string;
@@ -51,7 +51,7 @@ export interface BaseSyncDeps {
 async function defaultDeps(): Promise<BaseSyncDeps> {
   const { runGitCommand } = await import('../github/git-exec');
   return {
-    runGit: (args, cwd) => runGitCommand(args, cwd),
+    runGit: (args, cwd, opts) => runGitCommand(args, cwd, opts),
     resolveConflicts: resolveConflictsWithAuxCli,
     runVerify: async (taskId, gitCwd, sessionId) => {
       const { runVerificationGate } = await import('../agents/verification/verification-gate');
@@ -235,7 +235,9 @@ export async function syncBaseIntoBranch(p: {
       // Non-zero merge exit WITHOUT content conflicts (dirty tree, unrelated
       // histories, …) is an infra condition, not a resolvable competition —
       // abort best-effort and fail open like the fetch path.
-      await deps.runGit(['merge', '--abort'], p.gitCwd).catch(() => {});
+      // NOTE: skipLog suppresses the ERROR runGitCommand would emit — this
+      // abort's result is never inspected.
+      await deps.runGit(['merge', '--abort'], p.gitCwd, { skipLog: true }).catch(() => {});
       log.warn({ taskId: p.taskId }, '[base-sync] merge failed without conflicts — skipping');
       return {
         status: 'skipped',
@@ -259,7 +261,9 @@ export async function syncBaseIntoBranch(p: {
       .catch(() => false);
 
     if (!resolvedOk) {
-      await deps.runGit(['merge', '--abort'], p.gitCwd).catch(() => {});
+      // NOTE: skipLog suppresses the ERROR runGitCommand would emit — this
+      // abort's result is never inspected.
+      await deps.runGit(['merge', '--abort'], p.gitCwd, { skipLog: true }).catch(() => {});
       return {
         status: 'conflict_unresolved',
         changedFiles: 0,
