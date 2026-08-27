@@ -148,6 +148,8 @@ describe('attemptVerifyRepair', () => {
     mockPrisma.workflowTransition.count.mockResolvedValue(2); // == default max
     const r = await attemptVerifyRepair(1, 'in_progress', 'fail', 'v');
     expect(r.bounced).toBe(false);
+    // 修復上限到達は cutoff ではない（caller 側で recordTransition が必要）
+    expect(r.cutoff).toBeUndefined();
     expect(recordTransition).not.toHaveBeenCalled();
     // 上限到達時は再実行を駆動しない（block するのみ）
     expect(enqueue).not.toHaveBeenCalled();
@@ -340,6 +342,8 @@ describe('attemptVerifyRepair', () => {
     const r = await attemptVerifyRepair(614, 'in_progress', R3, 'v');
 
     expect(r.bounced).toBe(false);
+    // 非収束カットオフは既に専用causeで自ら記録済み — caller は二重記録しないこと
+    expect(r.cutoff).toBe(true);
     // 実装フェーズへ戻さない（task.update も自走もフィードバック書込みも無し）
     expect(mockPrisma.task.updateMany).not.toHaveBeenCalled();
     expect(enqueue).not.toHaveBeenCalled();

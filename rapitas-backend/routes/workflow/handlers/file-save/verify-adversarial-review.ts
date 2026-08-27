@@ -270,22 +270,28 @@ export async function runAdversarialDiffReview(params: {
               '[Workflow] Adversarial diff review FAILED and repairs exhausted — task stays blocked',
             );
           }
-          await recordTransition({
-            taskId,
-            // newStatus is 'verify_done' here unless the bounce above rolled
-            // it back — the fallback only guards the (unreachable) undefined.
-            toStatus: newStatus ?? 'verify_done',
-            fromStatus: 'verify_done',
-            actor: 'system',
-            cause: 'adversarial_review_failed',
-            phase: 'verify',
-            metadata: {
-              severity: activeReview.severity,
-              reasons: activeReview.reasons.slice(0, 5),
-            },
-            invariantViolation: true,
-            invariantMessage: reason,
-          }).catch(() => {});
+          // repair.cutoff means attemptVerifyRepair already recorded its own
+          // verify_repair_non_convergence transition (task 710) — recording a
+          // second adversarial_review_failed transition here would duplicate
+          // the WorkflowTransition row and inflate repeat-loop detection.
+          if (!repair.cutoff) {
+            await recordTransition({
+              taskId,
+              // newStatus is 'verify_done' here unless the bounce above rolled
+              // it back — the fallback only guards the (unreachable) undefined.
+              toStatus: newStatus ?? 'verify_done',
+              fromStatus: 'verify_done',
+              actor: 'system',
+              cause: 'adversarial_review_failed',
+              phase: 'verify',
+              metadata: {
+                severity: activeReview.severity,
+                reasons: activeReview.reasons.slice(0, 5),
+              },
+              invariantViolation: true,
+              invariantMessage: reason,
+            }).catch(() => {});
+          }
         }
       }
     }

@@ -46,6 +46,8 @@ export interface VerifyRepairResult {
    * Callers must treat this as "do nothing": neither bounce NOR block.
    */
   stale?: boolean;
+  /** True when the non-convergence cutoff already recorded its own transition — callers must skip their own recordTransition call (not the block side effects). */
+  cutoff?: boolean;
 }
 
 /**
@@ -401,7 +403,7 @@ export async function attemptVerifyRepair(
       { taskId, criterionIndex: verdict.criterionIndex, count: verdict.count },
       '[verify-repair] Repair loop not converging — cutting off (caller should block)',
     );
-    return { bounced: false };
+    return { bounced: false, cutoff: true };
   }
 
   const attempt = prior + 1;

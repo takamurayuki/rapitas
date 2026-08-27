@@ -345,7 +345,7 @@ const REPAIR_BOUNCE_CAUSES = new Set(['verify_repair', 'ci_repair']);
  * @param input.windowMs - Window size (default 60m). / 集計窓
  * @param input.minCount - Detection threshold (default 3). / 検出しきい値
  * @param input.invariantMinCount - Detection threshold for invariantViolation-flagged transitions only (default 2, see {@link INVARIANT_REPEAT_LOOP_MIN_COUNT}). / invariantViolation付き遷移専用のしきい値
- * @returns The dominant looping cause + count, or null. / 最多ループcauseまたはnull
+ * @returns The dominant looping cause + count + which threshold path (`via`) picked it, or null. / 最多ループcause・count・判定経路またはnull
  */
 export function detectRepeatLoop(input: {
   transitions: RepeatLoopTransition[];
@@ -354,7 +354,7 @@ export function detectRepeatLoop(input: {
   windowMs?: number;
   minCount?: number;
   invariantMinCount?: number;
-}): { cause: string; count: number } | null {
+}): { cause: string; count: number; via: 'general' | 'invariant' } | null {
   if (input.taskStatus !== undefined && TERMINAL_TASK_STATUSES.has(input.taskStatus)) return null;
   const windowMs = input.windowMs ?? REPEAT_LOOP_WINDOW_MS;
   const minCount = input.minCount ?? REPEAT_LOOP_MIN_COUNT;
@@ -399,7 +399,7 @@ export function detectRepeatLoop(input: {
     }
   }
 
-  let best: { cause: string; count: number } | null = null;
+  let best: { cause: string; count: number; via: 'general' | 'invariant' } | null = null;
   for (const [cause, count] of counts) {
     if (count < minCount) continue;
     if (
@@ -407,7 +407,7 @@ export function detectRepeatLoop(input: {
       count > best.count ||
       (count === best.count && cause.localeCompare(best.cause) < 0)
     ) {
-      best = { cause, count };
+      best = { cause, count, via: 'general' };
     }
   }
   for (const [cause, count] of invariantCounts) {
@@ -417,7 +417,7 @@ export function detectRepeatLoop(input: {
       count > best.count ||
       (count === best.count && cause.localeCompare(best.cause) < 0)
     ) {
-      best = { cause, count };
+      best = { cause, count, via: 'invariant' };
     }
   }
   return best;

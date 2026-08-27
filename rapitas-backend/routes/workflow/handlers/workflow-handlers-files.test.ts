@@ -758,6 +758,45 @@ describe('handleSaveFile — validateVerify 失敗によるバウンスは冗長
     // attemptVerifyRepair() (mocked here) already owns that for this bounce.
     expect(mockRecordTransition).not.toHaveBeenCalled();
   });
+
+  // Task 710: same double-record family as the bounce case above, but for the
+  // non-convergence cutoff path — attemptVerifyRepair() already recorded its
+  // own verify_repair_non_convergence transition, so the caller's generic
+  // verify_validation_failed transition must be skipped. Blocking (task.status
+  // update + markLatestExecutionFailed) still runs as before.
+  test('repair が cutoff:true のとき verify_validation_failed の二重記録をしないが blocked 化は行うこと', async () => {
+    mockResolveWorkflowDir.mockResolvedValueOnce({
+      task: { workflowStatus: 'in_progress', id: 1 },
+      dir: '/fake/dir/1',
+      categoryId: null,
+      themeId: null,
+    });
+    mockFindMany.mockResolvedValueOnce([]);
+    mockCheckInvariants.mockResolvedValueOnce([]);
+    mockValidateVerify.mockReturnValueOnce({
+      ok: false,
+      missingSections: [],
+      severity: 80,
+      summary: 'verify.md self-contradicts',
+    });
+    mockAttemptVerifyRepair.mockResolvedValueOnce({ bounced: false, cutoff: true });
+
+    await handleSaveFile({
+      params: { taskId: '1', fileType: 'verify' },
+      body: 'verify content',
+      set: makeSet(),
+    });
+
+    expect(mockUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: 1 },
+        data: expect.objectContaining({ status: 'blocked' }),
+      }),
+    );
+    expect(mockRecordTransition).not.toHaveBeenCalledWith(
+      expect.objectContaining({ cause: 'verify_validation_failed' }),
+    );
+  });
 });
 
 // -------------------------------------------------------------------------
@@ -943,6 +982,47 @@ describe('handleSaveFile — adversarial review FAIL with repairs exhausted', ()
         where: { id: 1 },
         data: expect.objectContaining({ status: 'blocked' }),
       }),
+    );
+  });
+
+  // Task 710: attemptVerifyRepair() already recorded its own
+  // verify_repair_non_convergence transition when returning cutoff:true — the
+  // caller must not ALSO record an adversarial_review_failed transition for
+  // the same verdict (the task 674 double-count that triggered the false
+  // repeat-loop detection). Blocking (task.status update) still happens.
+  test('cutoff:true のとき adversarial_review_failed の二重記録をしないが blocked 化は行うこと', async () => {
+    mockResolveWorkflowDir.mockResolvedValueOnce({
+      task: { workflowStatus: 'in_progress', id: 1 },
+      dir: '/fake/dir/1',
+      categoryId: null,
+      themeId: null,
+    });
+    mockFindMany.mockResolvedValueOnce([]);
+    mockCheckInvariants.mockResolvedValueOnce([]);
+    mockFindUnique.mockResolvedValueOnce(null);
+    mockFindUnique.mockResolvedValueOnce({ theme: null });
+    mockFindUnique.mockResolvedValueOnce({ workflowStatus: 'verify_done' });
+    mockReviewDiffAdversarially.mockResolvedValueOnce({
+      verdict: 'fail',
+      severity: 92,
+      reasons: ['受入基準1が一切対応されていない'],
+    });
+    mockAttemptVerifyRepair.mockResolvedValueOnce({ bounced: false, cutoff: true });
+
+    await handleSaveFile({
+      params: { taskId: '1', fileType: 'verify' },
+      body: 'verify content',
+      set: makeSet(),
+    });
+
+    expect(mockUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: 1 },
+        data: expect.objectContaining({ status: 'blocked' }),
+      }),
+    );
+    expect(mockRecordTransition).not.toHaveBeenCalledWith(
+      expect.objectContaining({ cause: 'adversarial_review_failed' }),
     );
   });
 });
