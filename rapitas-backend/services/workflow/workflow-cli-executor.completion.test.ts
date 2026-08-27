@@ -160,12 +160,26 @@ describe('executeCLIAgent — no-outputFile status advance (implementer)', () =>
     expect(cause.cause).toBe('phase_completed:implementer');
   });
 
+  test('conditionally flips task.status off todo alongside the workflowStatus advance (#706)', async () => {
+    wf.taskWorkflowState = { ...wf.taskWorkflowState!, workflowStatus: 'plan_approved' };
+
+    await run(implementerTransition(), noopAdvance);
+
+    expect(spies.taskUpdateMany).toHaveBeenCalledTimes(1);
+    const [call] = spies.taskUpdateMany.mock.calls[0] as [
+      { where: { id: number; status: string }; data: { status: string } },
+    ];
+    expect(call.where).toEqual({ id: 1, status: 'todo' });
+    expect(call.data).toEqual({ status: 'in-progress' });
+  });
+
   test('skips the update entirely when already at the target status', async () => {
     wf.taskWorkflowState = { ...wf.taskWorkflowState!, workflowStatus: 'verify_done' };
 
     await run(implementerTransition(), noopAdvance);
 
     expect(spies.taskUpdate).not.toHaveBeenCalled();
+    expect(spies.taskUpdateMany).not.toHaveBeenCalled();
     expect(spies.recordTransition).not.toHaveBeenCalled();
   });
 

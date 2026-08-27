@@ -207,7 +207,11 @@ const noopLogger = {
 };
 
 const prismaMock = {
-  task: { update: spies.taskUpdate, findUnique: spies.taskFindUnique },
+  task: {
+    update: spies.taskUpdate,
+    updateMany: spies.taskUpdateMany,
+    findUnique: spies.taskFindUnique,
+  },
   agentSession: { create: spies.agentSessionCreate },
   gitHubPullRequest: { findFirst: spies.gitHubPrFindFirst },
   agentExecution: {
