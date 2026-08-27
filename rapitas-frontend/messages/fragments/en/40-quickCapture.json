@@ -1,0 +1,54 @@
+{
+  "quickCapture": {
+    "modeIdea": "Idea",
+    "modeVocab": "Word",
+    "modeTask": "Task",
+    "modeMemo": "Memo",
+    "memoHint": "Enter saves (Shift+Enter for newline) / Esc closes. Add a reminder to get notified",
+    "memo": {
+      "placeholder": "Something to remember...",
+      "contentAria": "Memo content",
+      "reminderAria": "Reminder",
+      "customAria": "Reminder date and time",
+      "presets": {
+        "none": "No alert",
+        "30m": "In 30 min",
+        "1h": "In 1 hour",
+        "3h": "In 3 hours",
+        "tomorrow": "Tomorrow 9am",
+        "custom": "Pick time"
+      },
+      "custom": {
+        "dateAria": "Reminder date",
+        "timeAria": "Reminder time"
+      }
+    },
+    "categoryAria": "Select category",
+    "themeAria": "Target theme",
+    "taskNoThemes": "No themes yet — create one in theme settings",
+    "taskTitlePlaceholder": "Task title...",
+    "taskDescPlaceholder": "Description (optional)...",
+    "taskHint": "Enter on title saves / Ctrl+Enter in description saves / Esc closes",
+    "modeSwitchHint": "Ctrl+Tab switches modes",
+    "hintAria": "Shortcuts",
+    "pinAria": "Pin (stay open on focus loss)",
+    "unpinAria": "Unpin",
+    "deckAria": "Target deck",
+    "vocabNoDecks": "No decks yet",
+    "addDeck": "Add deck",
+    "newDeckPlaceholder": "New deck name...",
+    "renameDeckAria": "Rename deck",
+    "vocabFrontPlaceholder": "Word...",
+    "vocabBackPlaceholder": "Meanings (one per line)...",
+    "vocabHint": "Enter on front → back / Enter saves (advances the tab while editing a form) / Ctrl+Enter saves the card / Esc closes",
+    "vocabConjBodyPlaceholder": "Example & note (line 1 = example, rest = note)...",
+    "placeholder": "Idea title...",
+    "titleAria": "Idea title",
+    "bodyPlaceholder": "Details (optional)...",
+    "bodyAria": "Idea details",
+    "hint": "Enter on title saves / Ctrl+Enter in body saves / Esc closes",
+    "saving": "Saving...",
+    "saved": "Saved",
+    "failed": "Save failed — your text is kept"
+  }
+}

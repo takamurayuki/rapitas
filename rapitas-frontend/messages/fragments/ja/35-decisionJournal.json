@@ -1,0 +1,21 @@
+{
+  "decisionJournal": {
+    "title": "デシジョンジャーナル",
+    "subtitle": "意思決定を記録して予測精度を高める",
+    "navLabel": "デシジョンジャーナル",
+    "addButton": "決定を記録",
+    "reviewButton": "今日のレビュー",
+    "emptyMessage": "記録された意思決定はありません。",
+    "calibration": {
+      "pending": "未確認",
+      "correct": "正解",
+      "partial": "一部正解",
+      "wrong": "不正解"
+    },
+    "status": {
+      "open": "未レビュー",
+      "reviewed": "レビュー済",
+      "archived": "アーカイブ"
+    }
+  }
+}

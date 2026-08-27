@@ -1,0 +1,12 @@
+{
+  "reports": {
+    "title": "Weekly Report",
+    "fetchFailed": "Failed to get report",
+    "completedTasks": "Completed tasks",
+    "weekOverWeek": "Week over week",
+    "studyHours": "Study hours",
+    "dailyTrend": "Daily trend",
+    "taskCount": "Task completion count",
+    "subjectBreakdown": "Subject breakdown"
+  }
+}

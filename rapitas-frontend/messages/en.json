@@ -1784,6 +1784,19 @@
       "avgCost": "Avg cost",
       "failureReasons": "Failure reasons"
     },
+    "probeMetrics": {
+      "title": "Preflight probe metrics",
+      "window": "Last {days} days",
+      "empty": "No probe attempts recorded yet",
+      "loadFailed": "Failed to load probe metrics",
+      "lowSample": "Low sample",
+      "target": "Probe target",
+      "attempts": "Attempts",
+      "successRate": "Success rate",
+      "avgLatency": "Avg latency",
+      "transientRetries": "Transient retries",
+      "permanentFailures": "Permanent failures"
+    },
     "errorDiagnosis": {
       "title": "Error diagnosis",
       "window": "Last {days} days",

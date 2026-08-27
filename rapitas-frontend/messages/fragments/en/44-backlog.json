@@ -1,0 +1,75 @@
+{
+  "backlog": {
+    "settings": {
+      "title": "Scheduled scans",
+      "subtitle": "AI agents file ideas and concerns as they work. This is for periodic scans that run on a separate schedule.",
+      "jobs": {
+        "innovation": {
+          "label": "Innovation session",
+          "desc": "Analyzes completed tasks and existing features to generate new value ideas, adding them to the idea box."
+        },
+        "vuln_scan": {
+          "label": "Vulnerability & bug scan",
+          "desc": "AI reviews each theme's recent code changes for bugs and security concerns and files them to the concern backlog (known dependency vulnerabilities are also checked with bun audit)."
+        },
+        "health_check": {
+          "label": "Log health check",
+          "desc": "Extracts warnings/errors from that day's backend logs and files them to the concern backlog, grouped by type."
+        },
+        "loop_review": {
+          "label": "Quality loop review",
+          "desc": "Compares weekly workflow bounce metrics (critic gate, verify repair, CI repair) and auto-files a concern for every bucket that is not improving."
+        },
+        "ci_watch": {
+          "label": "CI watch (mainline)",
+          "desc": "Checks each project's latest mainline CI runs and auto-files a concern (with failing job/step names) for every red workflow - the guardian that keeps mainline CI from rotting, separate from the PR-level CI repair loop."
+        },
+        "daily_report": {
+          "label": "Daily report",
+          "desc": "Consolidates the last 24 hours of autonomous activity (completed tasks, merged PRs, concerns, learnings, decisions, self-restarts, human interventions, upcoming queue) into one morning notification, archived at /agents/daily-report."
+        },
+        "miss_ledger": {
+          "label": "Miss learning",
+          "desc": "Records defects that slipped past the quality gates (CI bounces, post-completion concerns) with evidence, and generates detection-cue suggestions reviewed at /agents/miss-signatures."
+        }
+      },
+      "frequency": {
+        "daily": "Daily",
+        "weekly": "Weekly"
+      },
+      "weekday": {
+        "0": "Sunday",
+        "1": "Monday",
+        "2": "Tuesday",
+        "3": "Wednesday",
+        "4": "Thursday",
+        "5": "Friday",
+        "6": "Saturday"
+      },
+      "lastRun": "Last run: {value}",
+      "runNow": "Run now",
+      "noticeInnovation": "Started. Generated ideas will appear in the idea box.",
+      "noticeOther": "Started. Detected concerns will appear in the concern backlog.",
+      "scheduleUpdateFailed": "Failed to update the schedule",
+      "runFailed": "Failed to start the run"
+    },
+    "projectOverrides": {
+      "title": "Per-project settings",
+      "subtitle": "Only applies to projects (themes) with a working directory set. Toggle each job on/off per project. The log health check only targets a project once you set its log directory and format. Scheduling (frequency/time) follows the shared settings above.",
+      "noThemes": "No projects have a working directory set. Set a working directory on a theme to configure it here.",
+      "jobs": {
+        "innovation": "Innovation",
+        "vuln_scan": "Vulnerability & bug scan",
+        "health_check": "Log health check"
+      },
+      "logDirPlaceholder": "Enter or browse for the log output directory",
+      "logFormatLabel": "Log format",
+      "logFormats": {
+        "pino": "pino / NDJSON",
+        "json": "Generic JSON",
+        "text": "Plain text"
+      },
+      "updateFailed": "Failed to update the project setting"
+    }
+  }
+}

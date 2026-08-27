@@ -12,6 +12,10 @@ import { useState } from 'react';
 import { Stethoscope, ThumbsDown, ThumbsUp } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { useErrorDiagnosis, type DiagnosisRecord } from './use-error-diagnosis';
+import type { PanelMeta } from './panel-types';
+
+/** Registered with scripts/generate-agents-panels.mjs — see panel-types.ts. */
+export const panelMeta: PanelMeta = { id: 'error-diagnosis', order: 20 };
 
 const LOW_CONFIDENCE_THRESHOLD = 50;
 

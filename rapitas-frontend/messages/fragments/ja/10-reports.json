@@ -1,0 +1,12 @@
+{
+  "reports": {
+    "title": "週次レポート",
+    "fetchFailed": "レポートを取得できませんでした",
+    "completedTasks": "完了タスク",
+    "weekOverWeek": "先週比",
+    "studyHours": "学習時間",
+    "dailyTrend": "日別推移",
+    "taskCount": "タスク完了数",
+    "subjectBreakdown": "科目別内訳"
+  }
+}

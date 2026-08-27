@@ -1,0 +1,110 @@
+{
+  "github": {
+    "title": "GitHub Integration",
+    "subtitle": "Manage repositories, sync PRs/Issues",
+    "issues": "Issues",
+    "pullRequests": "Pull Requests",
+    "noIssues": "No issues",
+    "noPullRequests": "No pull requests",
+    "addIntegration": "Add Integration",
+    "cliAuthenticated": "GitHub CLI Authenticated",
+    "cliNotAuthenticated": "GitHub CLI is available but not authenticated. Run gh auth login.",
+    "cliNotInstalled": "GitHub CLI is not installed.",
+    "linkedRepos": "Linked Repositories",
+    "noLinkedRepos": "No linked repositories",
+    "addRepo": "Add repository",
+    "openInGitHub": "Open in GitHub",
+    "sync": "Sync",
+    "recentPR": "Recent Pull Requests",
+    "viewAll": "View all",
+    "recentIssue": "Recent Issues",
+    "addGitHubIntegration": "Add GitHub Integration",
+    "repoUrl": "Repository URL",
+    "invalidRepoUrl": "Enter a valid GitHub repository URL",
+    "addFailed": "Failed to add integration",
+    "adding": "Adding...",
+    "issuesSubtitle": "Review and convert issues to tasks",
+    "selectRepository": "Select repository",
+    "selectRepositoryPrompt": "Please select a repository",
+    "stateOpen": "Open",
+    "stateClosed": "Closed",
+    "stateAll": "All",
+    "viewTask": "View Task",
+    "createTask": "Create Task",
+    "prsSubtitle": "Review and manage pull requests",
+    "reviewCount": "Reviews",
+    "commentCount": "Comments",
+    "prNotFound": "PR not found",
+    "conversation": "Conversation",
+    "filesChanged": "Files Changed",
+    "commentPlaceholder": "Enter a comment...",
+    "approve": "Approve",
+    "requestChanges": "Request Changes",
+    "comment": "Comment",
+    "status": "Status",
+    "reviews": "Reviews",
+    "changes": "Changes",
+    "fileCount": "Files",
+    "additions": "Additions",
+    "deletions": "Deletions",
+    "settings": "Settings",
+    "pickFromGh": "Pick from gh",
+    "fetchRepos": "Fetch repositories",
+    "reload": "Reload",
+    "repoListFailed": "Failed to fetch repositories (check gh authentication)",
+    "noReposFound": "No accessible repositories found",
+    "added": "Added",
+    "orAddManually": "Or add manually",
+    "importAsConcern": "Import as concern",
+    "concernLinked": "View concern",
+    "jobSection": {
+      "stepsCount": "{count} steps",
+      "noSteps": "No step information"
+    },
+    "logViewer": {
+      "copyLog": "Copy log"
+    },
+    "stepRow": {
+      "noLogPlaceholder": "(No log)",
+      "logNotFound": "Log for this step was not found."
+    },
+    "workflowRunItem": {
+      "noJobs": "No job information"
+    },
+    "actionsClient": {
+      "subtitle": "GitHub Actions run history",
+      "noRunsTitle": "No workflow runs yet for this repository",
+      "noRunsHint": "Runs will appear here once CI triggers from a push or pull request.",
+      "noIntegrationsTitle": "No linked repositories",
+      "noIntegrationsHint": "Link a repository to see its CI run status here.",
+      "linkRepository": "Link repository"
+    },
+    "error": {
+      "title": "An error occurred in GitHub",
+      "unexpectedError": "An unexpected error occurred."
+    },
+    "pullRequestDetail": {
+      "baseChanged": "Changed the merge target to {baseBranch}",
+      "baseChangeFailed": "Failed to change the merge target",
+      "baseSynced": "Merged in the base and updated the branch",
+      "conflictTaskCreated": "There are {count} conflict(s). Created resolution task #{taskId} — run it from the task screen.",
+      "resolveConflictsFailed": "Failed to resolve conflicts",
+      "autoMergeQueued": "Will auto-merge once conditions are met",
+      "merged": "Merged PR #{prNumber}",
+      "localSyncFailed": "Local sync failed: {detail}",
+      "mergeFailed": "Failed to merge",
+      "mergeTargetLabel": "Merge target",
+      "mergeMethodLabel": "Merge method",
+      "deleteBranchLabel": "Delete branch",
+      "autoMergeTooltip": "If it can't merge right now (e.g. pending checks), GitHub will auto-merge once conditions are met. This does not resolve conflicts.",
+      "autoMergeLabel": "Auto-merge",
+      "resolveConflictsTooltip": "Merge in the base branch and create an agent resolution task if there are conflicts",
+      "resolveConflictsButton": "Resolve conflicts",
+      "mergeButton": "Merge"
+    },
+    "pullRequestsClient": {
+      "allRepositories": "All repositories",
+      "resultCount": "{count} results"
+    }
+  }
+}

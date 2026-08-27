@@ -62,6 +62,11 @@ function makeRoleConfig(overrides: Record<string, unknown> = {}) {
 
 const taskFindUniqueMock = mock(() => Promise.resolve(makeTask()));
 const taskUpdateMock = mock(() => Promise.resolve({}));
+// NOTE: the non-draft branch of reconcileTaskStatusBeforeRun switched from an
+// unconditional prisma.task.update to a conditional prisma.task.updateMany
+// (task 658 fix, see workflow-orchestrator-context.ts) — without this mock
+// every non-draft advanceWorkflow() call throws 'updateMany is not a function'.
+const taskUpdateManyMock = mock(() => Promise.resolve({ count: 1 }));
 const roleConfigFindUniqueMock = mock(() => Promise.resolve(makeRoleConfig()));
 
 // Backs the LATE, DB-existence-only reconciliation backstop near the end of
@@ -80,7 +85,7 @@ const workflowFileFindFirstMock = mock(
 );
 
 const mockPrisma = {
-  task: { findUnique: taskFindUniqueMock, update: taskUpdateMock },
+  task: { findUnique: taskFindUniqueMock, update: taskUpdateMock, updateMany: taskUpdateManyMock },
   workflowRoleConfig: { findUnique: roleConfigFindUniqueMock },
   systemPrompt: { findUnique: mock(() => Promise.resolve(null)) },
   workflowTransition: { count: mock(() => Promise.resolve(0)) },
@@ -194,6 +199,13 @@ mock.module('../ai/agent-fallback', () => ({
   findAgentConfigForProvider: mock(() => Promise.resolve(null)),
   findFallbackAgentConfig: mock(() => Promise.resolve(null)),
 }));
+// Probe stage (task 673) always succeeds here — these tests exercise status/
+// artifact bookkeeping around agent dispatch, not probe behavior (see
+// workflow-orchestrator-preflight-probe.test.ts and
+// workflow-orchestrator-probe-integration.test.ts for that).
+mock.module('./workflow-orchestrator-preflight-probe', () => ({
+  runPreflightProbe: mock(() => Promise.resolve({ done: false })),
+}));
 
 // Import AFTER all mock.module calls.
 const { WorkflowOrchestrator } = await import('./workflow-orchestrator');
@@ -208,6 +220,7 @@ describe('WorkflowOrchestrator — draft status reconciliation', () => {
     taskFindUniqueMock.mockClear();
     taskFindUniqueMock.mockImplementation(() => Promise.resolve(makeTask()));
     taskUpdateMock.mockClear();
+    taskUpdateManyMock.mockClear();
     roleConfigFindUniqueMock.mockImplementation(() => Promise.resolve(makeRoleConfig()));
     executeCLIAgentMock.mockClear();
     isReusableArtifactImpl = () => false;
@@ -266,6 +279,7 @@ describe('WorkflowOrchestrator — resumed todo task', () => {
     resetSingleton();
     taskFindUniqueMock.mockClear();
     taskUpdateMock.mockClear();
+    taskUpdateManyMock.mockClear();
     roleConfigFindUniqueMock.mockImplementation(() =>
       Promise.resolve(makeRoleConfig({ role: 'planner' })),
     );
@@ -274,7 +288,13 @@ describe('WorkflowOrchestrator — resumed todo task', () => {
     artifactContent = {};
   });
 
-  test("status='todo' at a non-draft phase flips to in-progress without touching workflowStatus", async () => {
+  // NOTE: reconcileTaskStatusBeforeRun's non-draft branch now flips 'todo'
+  // via prisma.task.updateMany({ where: { id, status: 'todo' }, ... }) instead
+  // of an unconditional prisma.task.update (task 658 fix). The conditional
+  // WHERE clause — not application-level branching on task.status — is what
+  // decides whether the write actually lands, so both tests below assert
+  // against taskUpdateManyMock and confirm taskUpdateMock is never touched.
+  test("status='todo' at a non-draft phase issues a conditional updateMany without touching workflowStatus", async () => {
     taskFindUniqueMock.mockImplementation(() =>
       Promise.resolve(makeTask({ workflowStatus: 'research_done', status: 'todo' })),
     );
@@ -282,26 +302,35 @@ describe('WorkflowOrchestrator — resumed todo task', () => {
     const orchestrator = WorkflowOrchestrator.getInstance();
     await orchestrator.advanceWorkflow(1);
 
-    const statusOnlyCall = taskUpdateMock.mock.calls.find((c) => {
-      const data = (c[0] as { data: Record<string, unknown> }).data;
-      return data.status === 'in-progress' && !('workflowStatus' in data);
+    const statusOnlyCall = taskUpdateManyMock.mock.calls.find((c) => {
+      const args = c[0] as { where: Record<string, unknown>; data: Record<string, unknown> };
+      return (
+        args.where.status === 'todo' &&
+        args.data.status === 'in-progress' &&
+        !('workflowStatus' in args.data)
+      );
     });
     expect(statusOnlyCall).toBeDefined();
+    expect(taskUpdateMock).not.toHaveBeenCalled();
   });
 
-  test("status already 'in-progress' does not trigger a redundant status update", async () => {
+  test("status already 'in-progress' — the conditional WHERE (not JS logic) is what prevents a redundant write", async () => {
     taskFindUniqueMock.mockImplementation(() =>
       Promise.resolve(makeTask({ workflowStatus: 'research_done', status: 'in-progress' })),
     );
+    // Simulates the DB row already being 'in-progress': the WHERE { status:
+    // 'todo' } matches nothing, so the (still-issued) updateMany is a no-op.
+    taskUpdateManyMock.mockImplementationOnce(() => Promise.resolve({ count: 0 }));
 
     const orchestrator = WorkflowOrchestrator.getInstance();
     await orchestrator.advanceWorkflow(1);
 
-    const statusOnlyCall = taskUpdateMock.mock.calls.find((c) => {
-      const data = (c[0] as { data: Record<string, unknown> }).data;
-      return data.status === 'in-progress' && !('workflowStatus' in data);
+    const statusOnlyCall = taskUpdateManyMock.mock.calls.find((c) => {
+      const args = c[0] as { where: Record<string, unknown>; data: Record<string, unknown> };
+      return args.where.status === 'todo' && args.data.status === 'in-progress';
     });
-    expect(statusOnlyCall).toBeUndefined();
+    expect(statusOnlyCall).toBeDefined();
+    expect(taskUpdateMock).not.toHaveBeenCalled();
   });
 });
 
@@ -310,6 +339,7 @@ describe('WorkflowOrchestrator — artifact reuse', () => {
     resetSingleton();
     taskFindUniqueMock.mockClear();
     taskUpdateMock.mockClear();
+    taskUpdateManyMock.mockClear();
     executeCLIAgentMock.mockClear();
     artifactContent = {};
     isReusableArtifactImpl = () => false;

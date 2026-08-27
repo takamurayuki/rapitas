@@ -1,0 +1,23 @@
+{
+  "examGoals": {
+    "title": "試験目標",
+    "subtitle": "試験や資格の目標を管理してカウントダウンを表示",
+    "upcoming": "直近の試験目標",
+    "target": "目標:",
+    "markComplete": "達成済みにする",
+    "completed": "達成済み",
+    "none": "試験目標がありません。新規作成から追加してください。",
+    "editTitle": "試験目標を編集",
+    "newTitle": "新しい試験目標",
+    "examName": "試験名 *",
+    "examNameExample": "例: TOEIC、基本情報技術者試験",
+    "examDate": "試験日 *",
+    "targetScore": "目標スコア/点数",
+    "scoreExample": "例: 800点、合格",
+    "descriptionPlaceholder": "目標の詳細や意気込みなど",
+    "result": "結果:",
+    "relatedTasks": "{count}個の関連タスク",
+    "confirmDeleteGoal": "この試験目標を削除しますか？",
+    "actualScorePrompt": "実際のスコア/結果を入力してください（任意）:"
+  }
+}

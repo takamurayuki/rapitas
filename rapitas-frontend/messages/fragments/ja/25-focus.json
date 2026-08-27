@@ -1,0 +1,23 @@
+{
+  "focus": {
+    "currentTask": "現在のタスク",
+    "focusTime": "集中タイム",
+    "breakTime": "休憩タイム",
+    "session": "セッション {number}",
+    "completeTask": "タスクを完了",
+    "work": "作業",
+    "break": "休憩",
+    "minutes": "{count}分",
+    "focusSessionNote": "フォーカスセッション {number}",
+    "workTimeRecorded": "{minutes}分の作業時間を記録しました",
+    "workTimeFinished": "作業時間終了！",
+    "breakFinished": "休憩終了！",
+    "takeBreakMessage": "お疲れ様でした。休憩しましょう。",
+    "resumeWorkMessage": "作業を再開しましょう。",
+    "taskCompleted": "タスクを完了しました！",
+    "taskCompleteFailed": "タスクの完了に失敗しました",
+    "resetTimer": "タイマーをリセット",
+    "pauseTimer": "タイマーを一時停止",
+    "startTimer": "タイマーを開始"
+  }
+}

@@ -1,0 +1,281 @@
+{
+  "workflow": {
+    "title": "ワークフロー",
+    "researchTab": "調査",
+    "qaTab": "Q&A",
+    "planTab": "計画",
+    "verifyTab": "検証",
+    "researchEmpty": "AIエージェントが調査を実行するとresearch.mdが生成されます",
+    "questionEmpty": "不明点がある場合、AIエージェントがquestion.mdを生成します",
+    "planEmpty": "調査完了後にAIエージェントがplan.mdを生成します",
+    "verifyEmpty": "実装完了後にAIエージェントがverify.mdを生成します",
+    "startImplementation": "実装開始",
+    "runAutoVerification": "自動検証実行",
+    "createPlan": "計画作成",
+    "runResearch": "リサーチ実行",
+    "runVerification": "検証実行",
+    "approvePlan": "計画を承認",
+    "rejectPlan": "計画を却下",
+    "planApprovalRequired": "計画の承認が必要です",
+    "reviewPlanToApprove": "計画タブで内容を確認し、承認すると実装フェーズに移行します",
+    "reviewAndApprove": "計画を確認・承認",
+    "nextPhase": "次: {phase}",
+    "executing": "実行中...",
+    "execute": "実行",
+    "close": "閉じる",
+    "retry": "再試行",
+    "modeLightweight": "簡単",
+    "modeStandard": "標準",
+    "modeComprehensive": "高度",
+    "modeLightweightDesc": "バグ修正、UI調整、軽微な変更に最適",
+    "modeStandardDesc": "中規模機能追加、リファクタリングに最適",
+    "modeComprehensiveDesc": "大規模機能、アーキテクチャ変更に最適",
+    "estimatedTime": "{time}",
+    "stepResearch": "調査",
+    "stepPlan": "計画作成",
+    "stepImplement": "実装",
+    "stepVerify": "自動検証",
+    "stepVerifyFull": "検証",
+    "complexityLow": "低複雑度",
+    "complexityMedium": "中複雑度",
+    "complexityHigh": "高複雑度",
+    "complexityScore": "複雑度スコア: {score}",
+    "analyzingComplexity": "複雑度を解析中...",
+    "complexityAnalysisError": "複雑度の解析に失敗しました",
+    "reanalyze": "再分析",
+    "autoAnalyze": "自動分析",
+    "taskComplexity": "タスクの複雑度:",
+    "unanalyzed": "未分析",
+    "recommended": "推奨",
+    "confidence": "信頼度: {pct}%",
+    "apply": "適用",
+    "auto": "自動",
+    "manual": "手動",
+    "recommendedMode": "推奨ワークフローモード",
+    "analysisFactors": "分析要素",
+    "keywords": "キーワード:",
+    "estimatedTimeLabel": "推定時間:",
+    "priorityLabel": "優先度:",
+    "labelsLabel": "ラベル:",
+    "analysisReasoning": "分析根拠",
+    "reanalyzeBtn": "再分析",
+    "analyzeComplexity": "複雑度を分析",
+    "intakeQuestionFlow": {
+      "progress": "質問 {current} / {total}",
+      "previousQuestion": "前の質問",
+      "submitAll": "すべて回答して再開",
+      "nextQuestion": "次の質問へ"
+    },
+    "structuredQuestionFlow": {
+      "confirmTitle": "回答を確定しますか？",
+      "confirmMessage": "以下の内容でエージェントに回答を送信します。",
+      "confirmSubmit": "この内容で送信"
+    },
+    "planApprovalModal": {
+      "title": "実装計画の承認",
+      "lastUpdated": "最終更新:",
+      "unknown": "不明",
+      "size": "サイズ:",
+      "loadFailed": "計画ファイルの内容を読み込めませんでした",
+      "rejectReasonLabel": "却下理由を入力してください",
+      "rejectReasonPlaceholder": "具体的な修正点や改善提案を入力してください...",
+      "confirmPrompt": "この計画内容を確認して、実装を開始するか判断してください",
+      "rejectExecute": "却下実行",
+      "reject": "却下",
+      "approve": "承認・実装開始"
+    },
+    "viewer": {
+      "advanceFailed": "フェーズの実行に失敗しました"
+    },
+    "questionPanel": {
+      "title": "AIエージェントからの質問",
+      "confirmed": "確認済み",
+      "chooseAnswer": "回答を選んでください（下の入力欄で自由記述も可）",
+      "defaultOptionsNote": "※ 選択肢が提示されなかったため既定の選択肢を表示しています。下の入力欄で自由に回答することもできます。",
+      "autoContinuePrefix": "回答がない場合、約",
+      "autoContinueSuffix": "秒後に自動的に続行します。",
+      "freeTextPlaceholder": "達成したいこと・守るべき制約・「完了」と言える条件を箇条書きで入力...\n例:\n- ゴール: 生成スクリプトの実行時間を半減\n- 制約: 既存の生成物と出力差分なし\n- 受入: ベンチで before/after を計測し50%短縮を確認",
+      "submitAndResume": "回答してワークフローを再開",
+      "otherFreeText": "その他（自由記述）",
+      "freeTextInputPlaceholder": "選択肢に当てはまらない場合はこちらに入力...",
+      "submit": "送信",
+      "freeTextRequiredNotice": "この質問は自由入力が必要です: {reason}"
+    },
+    "roles": {
+      "researcher": {
+        "description": "コードベースを調査し、影響範囲・依存関係を分析",
+        "inputLabel": "タスク情報"
+      },
+      "planner": {
+        "label": "計画",
+        "description": "調査結果を基にチェックリスト形式の実装計画を作成"
+      },
+      "implementer": {
+        "outputFile": "コード",
+        "description": "承認された計画に従いコードを実装"
+      },
+      "verifier": {
+        "description": "実装結果を検証しレポートを作成"
+      },
+      "autoVerifier": {
+        "description": "実装結果を自動で検証しレポートを作成"
+      }
+    },
+    "rolesConfig": {
+      "implementerNoPlanDescription": "調査結果を基にコードを実装",
+      "tierLow": "低",
+      "tierMedium": "中",
+      "tierHigh": "高",
+      "tierLightweightDesc": "バグ修正・UI調整・軽微な変更",
+      "tierStandardDesc": "中規模の機能追加・リファクタリング",
+      "tierComprehensiveDesc": "大規模機能・アーキテクチャ変更",
+      "loading": "ロール設定を読み込み中...",
+      "complexityRangeLabel": "このワークフローを適用する複雑度範囲",
+      "lightweightMaxLabel": "簡単の複雑度上限",
+      "standardRangeAutoComputed": "（簡単・高度の設定から自動算出）",
+      "comprehensiveMinLabel": "詳細の複雑度下限",
+      "tierRolesCount": "このティアで実行するロール（{count}フェーズ）",
+      "autoSelect": "自動選択",
+      "enableRoleLabel": "{role}を有効化",
+      "autoSelectMode": "自動選択モード",
+      "autoSelectModeDesc": "タスクの複雑度と予算に応じて最適なモデルを自動選択します",
+      "preferredProviderLabel": "優先プロバイダ（同性能ティア時のタイブレーカー）",
+      "followDefaultSetting": "デフォルト設定に従う",
+      "crossProviderOption": "別プロバイダ（前フェーズと違うものを選ぶ）",
+      "crossProviderHint": "「別プロバイダ」を選ぶと直前フェーズと異なる AI で評価し、自己バイアスを軽減します",
+      "defaultProviderHint": "グローバル設定（/settings の「デフォルトAIプロバイダ」）の値を使うか、ロール個別に上書きできます",
+      "aiAgentLabel": "AIエージェント",
+      "modelLabel": "モデル",
+      "noAgentSelected": "エージェント未選択",
+      "noModelsAvailable": "利用可能なモデルなし",
+      "selectModel": "モデルを選択",
+      "systemPromptLabel": "システムプロンプト",
+      "default": "デフォルト",
+      "inputLabel": "入力:",
+      "outputLabel": "出力:",
+      "userApproval": "ユーザー承認",
+      "local": "ローカル"
+    },
+    "statusIndicator": {
+      "researching": "調査中",
+      "planning": "計画中",
+      "planCreated": "計画作成済",
+      "implementing": "実装中",
+      "verifying": "検証中",
+      "awaitingAnswer": "回答待ち",
+      "blocked": "ブロック中",
+      "blockedGenericHint": "タスクがブロックされています。通知一覧またはログで原因を確認してください。",
+      "blockedCauseUnknown": "タスクがブロックされています（原因コード: {cause}）。",
+      "blockedCauses": {
+        "planInvalidReplanExhausted": "計画(plan.md)が繰り返し不正だったため、再計画を打ち切ってブロックしました。plan.mdを手動で確認してください。",
+        "verifyPrNotCreated": "検証は通過しましたがPRが作成されませんでした。GitHub連携やcommit漏れを確認してください。",
+        "verifyValidationFailed": "検証内容に自己矛盾・不備があり、自動修復の上限に達しました。verify.mdを確認してください。",
+        "verifyNoChanges": "検証は通過しましたが実装による変更が検出されませんでした。",
+        "subtaskFailed": "一部のサブタスクが失敗したため、親タスクをブロックしました。"
+      },
+      "verifyDone": "検証完了"
+    },
+    "tabBar": {
+      "answerNeeded": "要回答",
+      "updated": "更新:",
+      "reload": "再読み込み",
+      "regenerating": "再生成中"
+    },
+    "modeSelector": {
+      "lightweightName": "簡単モード",
+      "lightweightTime": "15-30分",
+      "standardName": "標準モード",
+      "standardTime": "1-2時間",
+      "comprehensiveName": "高度モード",
+      "comprehensiveTime": "3-4時間",
+      "manualSetting": "手動設定",
+      "executionTimeLabel": "実行時間:",
+      "stepsLabel": "ステップ:",
+      "autoAnalyzeHint": "タスクの複雑度を自動分析してモードを提案",
+      "selectMode": "ワークフローモードを選択",
+      "current": "(現在)"
+    },
+    "fileContent": {
+      "tableOfContents": "目次",
+      "approveToImplementHint": "内容を確認して承認すると実装フェーズに移行します",
+      "approveAndImplement": "承認して実装開始",
+      "regenerating": "品質チェックにより再生成中です（内容が失われたわけではありません）"
+    },
+    "fileEditor": {
+      "planSaved": "計画を保存しました",
+      "backToEdit": "編集に戻る",
+      "preview": "プレビュー",
+      "noContent": "（内容なし）"
+    },
+    "taskWorkflowSection": {
+      "modeTooltipManual": "ワークフロー: {mode}（手動指定）",
+      "modeTooltipAuto": "ワークフロー: {mode}（複雑度から自動選択）",
+      "complexitySuffix": " · 複雑度 {score}",
+      "complexityPendingSuffix": " · 複雑度 -",
+      "manualSuffix": "（手動）",
+      "autoApproveTooltipOn": "計画自動承認: ON（plan.md 保存で自動進行）",
+      "autoApproveTooltipOff": "計画自動承認: OFF（手動承認が必要）",
+      "autoApproveBadge": "自動承認 {state}",
+      "workflowDisabledToggle": {
+        "onTooltip": "ワークフロー: OFF（research.md/plan.md を作らず直接実装します）",
+        "offTooltip": "ワークフロー: ON（通常どおり調査/計画/検証のフェーズを実行します）",
+        "lockedTooltip": "タスクの実行が開始されているため、この設定は変更できません",
+        "globallyForcedTooltip": "全体設定でワークフローが無効化されています（このタスクだけを個別に有効化することはできません）",
+        "label": "ワークフロー"
+      },
+      "criticRejection": {
+        "title": "{phase}の内容が品質チェックで却下されました。再生成中です。",
+        "phase": {
+          "research": "研究内容(research.md)",
+          "plan": "計画内容(plan.md)"
+        },
+        "severity": {
+          "high": "重大",
+          "medium": "中程度",
+          "low": "軽微"
+        },
+        "reasonsCount": "指摘 {count}件"
+      },
+      "criticHistory": {
+        "title": "品質ゲートの指摘履歴",
+        "entryLabel": "{phase} ・ {date}",
+        "phase": {
+          "research": "調査",
+          "plan": "計画"
+        },
+        "type": {
+          "bounced": "差し戻し",
+          "exhausted": "予算切れ素通し"
+        },
+        "severity": {
+          "high": "重大",
+          "medium": "中程度",
+          "low": "軽微"
+        },
+        "reasonsCount": "指摘 {count}件",
+        "noReasons": "詳細情報が記録されていません"
+      },
+      "phaseBreakdown": {
+        "title": "フェーズ別実行時間",
+        "totalActive": "実働合計 {time}",
+        "wallClock": "経過 {time}",
+        "execCount": "{count}回",
+        "role": {
+          "researcher": "調査",
+          "planner": "計画",
+          "implementer": "実装",
+          "verifier": "検証"
+        }
+      }
+    },
+    "planRevision": {
+      "cta": "修正を依頼",
+      "label": "プランナーへの修正指示",
+      "hint": "計画を手で書き換える代わりに、変更してほしい点を1〜2文で伝えます。指摘していない部分はそのまま維持されます。",
+      "placeholder": "例: 「非対象」からUIカード追加を外し、選択肢Bを採用に変更してください",
+      "submit": "依頼する",
+      "submitting": "依頼中...",
+      "failed": "修正依頼を送信できませんでした"
+    }
+  }
+}
