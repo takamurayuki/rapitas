@@ -244,6 +244,30 @@ describe('detectTriStateDesync', () => {
       ).toBeNull();
     });
 
+    // #680 repro: task #672 retried via task-retry-handler (cause=task_retried),
+    // which resets status to 'todo' while rolling workflowStatus back to
+    // research_done. The watcher's next pass fired Pattern B ~139s later.
+    it('does NOT detect pattern B 139s after a task_retried recovery (#680/#672 repro)', () => {
+      expect(
+        detectTriStateDesync({
+          ...requeued,
+          workflowStatus: 'research_done',
+          latestTransitionCause: 'task_retried',
+          latestTransitionAtMs: NOW - 139_000,
+        }),
+      ).toBeNull();
+    });
+
+    it('detects again once a task_retried recovery settled past the threshold', () => {
+      const result = detectTriStateDesync({
+        ...requeued,
+        workflowStatus: 'research_done',
+        latestTransitionCause: 'task_retried',
+        latestTransitionAtMs: NOW - DESYNC_RECOVERY_SETTLE_MS,
+      });
+      expect(result?.kind).toBe('todo_status_workflow_advanced');
+    });
+
     it('detects again once the recovery transition settled past the threshold (>= boundary)', () => {
       const settled = {
         ...requeued,
