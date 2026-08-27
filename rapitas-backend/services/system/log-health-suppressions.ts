@@ -85,20 +85,19 @@ const SUPPRESSIONS: Suppression[] = [
     because: '検証ゲートが不正な成果物を捕捉した — ゲートが働いた側',
   },
   {
-    // blockTaskForVerification が検証ゲートの発動を報告している行。止めた側であって、
-    // 壊れた側ではない。実測 2026-08-27: これがタスク685として起票され、直すべき
-    // バグが無いため、エージェントは「ERRORログを減らす」を出力抑制で達成しようとした。
-    // 存在しない欠陥を指示すると、症状を消す方向に流れる。
-    test: /Automated verification failed — blocking/i,
-    because:
-      '検証ゲートが基準未達を捕捉してタスクを止めた — ゲートが働いた側。ブロックされたタスク自体はstatus=blockedとして通常のタスク一覧で可視化される',
-  },
-  {
     test: /no commits between/i,
     logger: /github-service:client/i,
     exclude: /base (?:sha|ref)|sha can't be blank|must be a branch/i,
     because:
       'gh pr create 対象ブランチに差分がない — isNoChangeCompletion が安全な無差分完了として扱う想定内の失敗',
+  },
+  {
+    // blockTaskForVerification が検証ゲートの発動を報告している行。止めた側であって、
+    // 壊れた側ではない。実測 2026-08-27: これがタスク685として起票され、直すべき
+    // バグが無いため、エージェントは「ERRORログを減らす」を出力抑制で達成しようとした。
+    // 存在しない欠陥を指示すると、症状を消す方向に流れる。
+    test: /Automated verification failed — blocking/i,
+    because: '検証ゲートが基準未達を捕捉してタスクを止めた — ゲートが働いた側',
   },
   {
     // 実行の結末を記録する行。原因は当の実行自身のログに出ているので、
