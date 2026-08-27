@@ -234,8 +234,13 @@ export async function syncBaseIntoBranch(p: {
     if (conflicts.length === 0) {
       // Non-zero merge exit WITHOUT content conflicts (dirty tree, unrelated
       // histories, …) is an infra condition, not a resolvable competition —
-      // abort best-effort and fail open like the fetch path.
-      await deps.runGit(['merge', '--abort'], p.gitCwd).catch(() => {});
+      // abort best-effort and fail open like the fetch path. A failed abort here
+      // leaves MERGE_HEAD stuck in the worktree (task 691); log it so the true
+      // cause is visible instead of silently swallowed — the worktree-guard
+      // self-heal covers recovery on the next git operation.
+      await deps.runGit(['merge', '--abort'], p.gitCwd).catch((err) => {
+        log.warn({ taskId: p.taskId, err }, '[base-sync] merge --abort itself failed');
+      });
       log.warn({ taskId: p.taskId }, '[base-sync] merge failed without conflicts — skipping');
       return {
         status: 'skipped',
@@ -259,7 +264,11 @@ export async function syncBaseIntoBranch(p: {
       .catch(() => false);
 
     if (!resolvedOk) {
-      await deps.runGit(['merge', '--abort'], p.gitCwd).catch(() => {});
+      // See the "merge failed without conflicts" branch above — a failed abort
+      // here leaves MERGE_HEAD stuck; log it instead of swallowing silently.
+      await deps.runGit(['merge', '--abort'], p.gitCwd).catch((err) => {
+        log.warn({ taskId: p.taskId, err }, '[base-sync] merge --abort itself failed');
+      });
       return {
         status: 'conflict_unresolved',
         changedFiles: 0,

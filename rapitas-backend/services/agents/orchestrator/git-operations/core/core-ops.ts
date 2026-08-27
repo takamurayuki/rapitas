@@ -11,7 +11,7 @@ import { promisify } from 'util';
 import { readdir, unlink } from 'fs/promises';
 import { join } from 'path';
 import { createLogger } from '../../../../../config/logger';
-import { ensureNotPrimaryWorkTree } from '../worktree/worktree-guard';
+import { ensureNotPrimaryWorkTree, recoverFromUnresolvedMerge } from '../worktree/worktree-guard';
 
 export { getDiff } from './diff-structured';
 
@@ -120,6 +120,10 @@ export async function commitChanges(
     // Never `git add -A` + commit on the primary checkout — it would stage and
     // commit the developer's own uncommitted work. Agent commits run in a worktree.
     await ensureNotPrimaryWorkTree(workingDirectory, 'commit');
+    // A merge left unresolved by an earlier pre-pr-base-sync failure (task 691)
+    // would otherwise fail `git add` with git's "you need to resolve your
+    // current index first" — self-heal before staging.
+    await recoverFromUnresolvedMerge(workingDirectory);
     await removeTransientWorkflowFiles(workingDirectory);
     await execFileAsync('git', ['add', '-A'], { cwd: workingDirectory });
 
@@ -173,6 +177,10 @@ export async function createCommit(
   // Refuse on the primary checkout: this both `git add -A` commits and may
   // `git checkout -b`, either of which would clobber the developer's work.
   await ensureNotPrimaryWorkTree(workingDirectory, 'create a commit');
+  // A merge left unresolved by an earlier pre-pr-base-sync failure (task 691)
+  // would otherwise fail `git add` with git's "you need to resolve your
+  // current index first" — self-heal before staging.
+  await recoverFromUnresolvedMerge(workingDirectory);
 
   const { stdout: currentBranch } = await execFileAsync('git', ['branch', '--show-current'], {
     cwd: workingDirectory,

@@ -183,6 +183,40 @@ export async function isBackendPrimaryCheckout(workingDirectory: string): Promis
   return dirCommon != null && backendCommon != null && dirCommon === backendCommon;
 }
 
+/**
+ * Detect and clear a stuck `MERGE_HEAD` (unresolved merge state) left in a
+ * worktree, so a subsequent `git checkout` / `git add` / `git commit` never
+ * fails with git's `error: you need to resolve your current index first`.
+ * This state is left behind when `pre-pr-base-sync.ts`'s own `merge --abort`
+ * fails or never runs (e.g. the process is killed mid-merge) — with nothing
+ * else clearing it, the worktree stays permanently wedged (task 691).
+ *
+ * @param workingDirectory - Directory to check and, if needed, recover. / 確認・復旧対象ディレクトリ
+ * @returns true when an unresolved merge was found and aborted. / 未解決マージを検知しabortした場合true
+ */
+export async function recoverFromUnresolvedMerge(workingDirectory: string): Promise<boolean> {
+  try {
+    await execGitReadonly('git rev-parse --verify -q MERGE_HEAD', { cwd: workingDirectory });
+  } catch {
+    // No MERGE_HEAD — nothing to recover.
+    return false;
+  }
+  try {
+    await execAsync('git merge --abort', { cwd: workingDirectory });
+    logger.warn(
+      { workingDirectory },
+      '[worktree-guard] Found unresolved MERGE_HEAD; aborted it to unblock the git operation',
+    );
+    return true;
+  } catch (error) {
+    logger.error(
+      { err: error, workingDirectory },
+      '[worktree-guard] Detected unresolved MERGE_HEAD but merge --abort failed',
+    );
+    return false;
+  }
+}
+
 /** Internal exec type used by findConflictingWorktreeForBranch (injectable for tests). */
 type WorktreeExecFn = (cmd: string, opts: { cwd: string }) => Promise<{ stdout: string }>;
 
