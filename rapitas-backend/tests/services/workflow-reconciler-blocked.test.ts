@@ -24,6 +24,7 @@ const resolveBlockedTaskEvidence = mock(() =>
   Promise.resolve({ isSuccess: false, source: 'none' as const }),
 );
 const escalateBlockedTask = mock(() => Promise.resolve(true));
+const attemptPrOnlyRecovery = mock(() => Promise.resolve(false));
 
 const noopLogger = { info: () => {}, error: () => {}, warn: () => {}, debug: () => {} };
 mock.module('../../config/database', () => ({
@@ -43,6 +44,9 @@ mock.module('../../services/workflow/blocked-task-escalation', () => ({
   escalateBlockedTask,
   countEscalatedBlocked: mock(() => Promise.resolve(0)),
   BLOCKED_ESCALATED_CAUSE: 'blocked_escalated',
+}));
+mock.module('../../services/workflow/blocked-pr-retry-recovery', () => ({
+  attemptPrOnlyRecovery,
 }));
 
 const { correctBlockedByEvidence, escalateAbandonedBlocked } =
@@ -78,6 +82,7 @@ beforeEach(() => {
   recordTransition.mockReset().mockResolvedValue(undefined);
   resolveBlockedTaskEvidence.mockReset().mockResolvedValue({ isSuccess: false, source: 'none' });
   escalateBlockedTask.mockReset().mockResolvedValue(true);
+  attemptPrOnlyRecovery.mockReset().mockResolvedValue(false);
 });
 
 describe('correctBlockedByEvidence（受入基準1・3）', () => {
@@ -223,6 +228,77 @@ describe('requeueBlockedTasks 回帰（受入基準2・4）', () => {
     expect(retried).toBe(0);
     expect(mockPrisma.task.update).not.toHaveBeenCalled();
     expect(recordTransition).not.toHaveBeenCalled();
+  });
+
+  test('task 673/681: 軽量PR再試行が成功したら、workflowStatus:draft を伴うフルリセットをせずに retried が1になる', async () => {
+    mockPrisma.task.findMany.mockResolvedValue([{ id: 673, workflowStatus: 'verify_done' }]);
+    mockPrisma.workflowTransition.count.mockImplementation((args: unknown) => {
+      const where = (args as { where: { cause: string } }).where;
+      if (where.cause === 'verify_pr_not_created') return Promise.resolve(1);
+      return Promise.resolve(0);
+    });
+    attemptPrOnlyRecovery.mockResolvedValue(true);
+
+    const retried = await requeueBlockedTasks(NOW);
+
+    expect(retried).toBe(1);
+    expect(attemptPrOnlyRecovery).toHaveBeenCalledTimes(1);
+    expect(attemptPrOnlyRecovery).toHaveBeenCalledWith(673);
+    // 軽量リトライが成功した場合、フルリセット（task.update への workflowStatus:draft 書き込み）は行われない
+    expect(mockPrisma.task.update).not.toHaveBeenCalled();
+  });
+
+  test('task 673/681: 軽量PR再試行が失敗したら、PR_RETRY_LIGHTWEIGHT_CAUSE記録後に既存の盲目フルリセットへフォールスルーする', async () => {
+    mockPrisma.task.findMany.mockResolvedValue([{ id: 673, workflowStatus: 'verify_done' }]);
+    mockPrisma.workflowTransition.count.mockImplementation((args: unknown) => {
+      const where = (args as { where: { cause: string } }).where;
+      if (where.cause === 'verify_pr_not_created') return Promise.resolve(1);
+      return Promise.resolve(0);
+    });
+    attemptPrOnlyRecovery.mockResolvedValue(false);
+
+    const retried = await requeueBlockedTasks(NOW);
+
+    expect(attemptPrOnlyRecovery).toHaveBeenCalledTimes(1);
+    // 軽量リトライ失敗後、既存の盲目フルリセット（blocked_auto_retry/draft）に到達する
+    expect(retried).toBe(1);
+    const tu = mockPrisma.task.update.mock.calls[0][0] as {
+      data: { status: string; workflowStatus: string };
+    };
+    expect(tu.data.status).toBe('todo');
+    expect(tu.data.workflowStatus).toBe('draft');
+    const rt = recordTransition.mock.calls[0][0] as { cause: string };
+    expect(rt.cause).toBe('blocked_auto_retry');
+  });
+
+  test('task 673/681: 既に軽量リトライ試行済み（verify_pr_retry_lightweight あり）のタスクは軽量リトライを再試行しない', async () => {
+    mockPrisma.task.findMany.mockResolvedValue([{ id: 673, workflowStatus: 'verify_done' }]);
+    mockPrisma.workflowTransition.count.mockImplementation((args: unknown) => {
+      const where = (args as { where: { cause: string } }).where;
+      if (where.cause === 'verify_pr_not_created') return Promise.resolve(1);
+      if (where.cause === 'verify_pr_retry_lightweight') return Promise.resolve(1);
+      return Promise.resolve(0);
+    });
+
+    await requeueBlockedTasks(NOW);
+
+    expect(attemptPrOnlyRecovery).not.toHaveBeenCalled();
+  });
+
+  test('task 673/681（プレモーテム3）: フルリセット予算(MAX_BLOCKED_RETRY)を使い切っていても軽量リトライは試行される', async () => {
+    mockPrisma.task.findMany.mockResolvedValue([{ id: 673, workflowStatus: 'verify_done' }]);
+    mockPrisma.workflowTransition.count.mockImplementation((args: unknown) => {
+      const where = (args as { where: { cause: string } }).where;
+      if (where.cause === 'blocked_auto_retry') return Promise.resolve(2); // MAX_BLOCKED_RETRY到達済み
+      if (where.cause === 'verify_pr_not_created') return Promise.resolve(1);
+      return Promise.resolve(0);
+    });
+    attemptPrOnlyRecovery.mockResolvedValue(true);
+
+    const retried = await requeueBlockedTasks(NOW);
+
+    expect(attemptPrOnlyRecovery).toHaveBeenCalledTimes(1);
+    expect(retried).toBe(1);
   });
 });
 
