@@ -98,6 +98,20 @@ const ABS_PATH_RE = new RegExp(
 );
 
 /**
+ * Everything from the first `--flag` onward in a command line.
+ *
+ * `gh pr create --title <whatever this task is called>` is ONE failure however
+ * many tasks hit it, but the title made every occurrence a distinct signature.
+ * Measured 2026-08-27: three `gh pr create` failures were three separate
+ * concerns, and two of them were filings ABOUT earlier filings — the arguments
+ * carried the previous task's name, so the recursion never collapsed.
+ *
+ * The command and subcommand survive; only the arguments go. Which command
+ * failed is the finding, and what it was called with is the occurrence.
+ */
+const COMMAND_ARGS_RE = /\s--\S[^\n]*/g;
+
+/**
  * Normalizes a message so volatile parts (ids, counts, hex) collapse, letting
  * "task 12 failed" and "task 34 failed" group together.
  */
@@ -114,6 +128,8 @@ function normalizeMessage(raw: string): string {
       // dedupe as two: 'setup-worktree.cjs not found at <A>' and '… at <B>'
       // were both open at once, as were two 'git worktree remove' failures.
       .replace(ABS_PATH_RE, '<path>')
+      // Same command, different arguments, is the same failure.
+      .replace(COMMAND_ARGS_RE, ' …')
       .replace(/0x[0-9a-fA-F]+/g, '#')
       .replace(/[0-9a-fA-F]{8,}/g, '#') // hashes / bare hex ids
       .replace(/\d+/g, '#')
