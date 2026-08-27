@@ -218,4 +218,29 @@ describe('checkGitDiff', () => {
 
     expect(await checkGitDiff(WORK_DIR, LOG_PREFIX)).toBe(false);
   });
+
+  it('回帰: 候補 base ref の rev-parse --verify は skipLog: true を渡す (#692)', async () => {
+    // このリポジトリには master が存在しないため BASE_REF_CANDIDATES の総当たりで
+    // rev-parse --verify --quiet master/origin/master が毎回失敗し、
+    // github-service:git-exec に ERROR ログが出続けていた (K-6437/K-6438)。
+    // 存在確認は catch(() => '') で握り潰す想定内の失敗であり、
+    // repo-bootstrap.ts の同種パターンと同様に skipLog: true が必要。
+    mockRunGitCommand.mockImplementation(async (args: string[]) => {
+      if (args[0] === 'rev-parse' && args[1] === '--is-inside-work-tree') return 'true';
+      if (args[0] === 'rev-parse' && args[1] === '--verify') return '';
+      if (args[0] === 'rev-list') return '';
+      return '';
+    });
+
+    await checkGitDiff(WORK_DIR, LOG_PREFIX);
+
+    const verifyCalls = mockRunGitCommand.mock.calls.filter(
+      (call) => (call[0] as string[])[0] === 'rev-parse' && (call[0] as string[])[1] === '--verify',
+    );
+    expect(verifyCalls.length).toBeGreaterThan(0);
+    for (const call of verifyCalls) {
+      const opts = call[2] as { skipLog?: boolean } | undefined;
+      expect(opts?.skipLog).toBe(true);
+    }
+  });
 });
