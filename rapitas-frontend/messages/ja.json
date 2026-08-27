@@ -1784,6 +1784,18 @@
       "avgCost": "平均コスト",
       "failureReasons": "失敗理由"
     },
+    "errorDiagnosis": {
+      "title": "エラー診断",
+      "window": "直近{days}日間",
+      "summary": "{total}件・平均信頼度{avgConfidence}・フィードバック率{feedbackRate}・有用と判定された率{helpfulRate}",
+      "empty": "記録されたLLM診断はまだありません",
+      "loadFailed": "エラー診断の取得に失敗しました",
+      "lowConfidence": "低信頼度",
+      "rootCause": "推定原因",
+      "confidence": "信頼度",
+      "suggestedAction": "提案アクション",
+      "feedback": "フィードバック"
+    },
     "probeMetrics": {
       "title": "プリフライトprobeメトリクス",
       "window": "直近{days}日間",
@@ -1796,18 +1808,6 @@
       "avgLatency": "平均レイテンシ",
       "transientRetries": "一時障害リトライ数",
       "permanentFailures": "永続障害数"
-    },
-    "errorDiagnosis": {
-      "title": "エラー診断",
-      "window": "直近{days}日間",
-      "summary": "{total}件・平均信頼度{avgConfidence}・フィードバック率{feedbackRate}・有用と判定された率{helpfulRate}",
-      "empty": "記録されたLLM診断はまだありません",
-      "loadFailed": "エラー診断の取得に失敗しました",
-      "lowConfidence": "低信頼度",
-      "rootCause": "推定原因",
-      "confidence": "信頼度",
-      "suggestedAction": "提案アクション",
-      "feedback": "フィードバック"
     },
     "systemStatus": {
       "title": "システム状態",
@@ -2419,6 +2419,23 @@
         },
         "reasonsCount": "指摘 {count}件",
         "noReasons": "詳細情報が記録されていません"
+      },
+      "repairStagnation": {
+        "title": "修復反復: {count}回",
+        "message": "同じ修復ループが続いていることを示すデータです。打ち切りの指示ではありません。複雑度や過去の類似ケースなど文脈情報も踏まえて判断してください。",
+        "ariaLabel": "修復反復が{count}回記録されています。停滞リスクを示すデータです。"
+      },
+      "repairIterationMetrics": {
+        "title": "反復ごとのメトリクス",
+        "cause": {
+          "verify_repair": "検証差し戻し",
+          "ci_repair": "CI差し戻し"
+        },
+        "dwell": "滞留時間 {time}",
+        "dwellNone": "滞留時間データなし（先頭の反復）",
+        "changeSet": "変更ファイル {files}件（+{additions}/-{deletions}）",
+        "changeSetNone": "コミットデータなし",
+        "unavailableNote": "テスト成功率の上昇幅・学習速度は現行データでは算出できません（推測値・ダミー値は表示していません）"
       },
       "phaseBreakdown": {
         "title": "フェーズ別実行時間",
