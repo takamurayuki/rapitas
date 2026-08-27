@@ -122,6 +122,18 @@ describe('escalateBlockedTask', () => {
     expect(rt.metadata.reason).toBe('verify_no_convergence');
   });
 
+  test('task 713: pr_recovery_exhausted は通知+concernを行いPR作成の手動確認を促すmessageになる', async () => {
+    const did = await escalateBlockedTask(prisma, task, 'pr_recovery_exhausted', NOW);
+
+    expect(did).toBe(true);
+    expect(submitConcern).toHaveBeenCalledTimes(1);
+    const n = createNotification.mock.calls[0][0] as { data: { type: string; message: string } };
+    expect(n.data.type).toBe('blocked_escalation');
+    expect(n.data.message).toContain('PR');
+    const rt = recordTransition.mock.calls[0][0] as { metadata: { reason: string } };
+    expect(rt.metadata.reason).toBe('pr_recovery_exhausted');
+  });
+
   test('detail 省略時は従来どおりの message になる（後方互換）', async () => {
     const did = await escalateBlockedTask(prisma, task, 'verify_repair_exhausted', NOW);
 

@@ -32,6 +32,7 @@ const bundle = (over: Partial<EvidenceBundle> = {}): EvidenceBundle => ({
   criticRebounds: 0,
   repairCount: 0,
   replanCount: 0,
+  prRecoveryCount: 0,
   anomalyCount: 0,
   criticFollowRejections: 0,
   invariantCount: 0,
@@ -106,6 +107,23 @@ describe('formatEvidenceSummary', () => {
     expect(invariantIdx).toBeGreaterThan(followIdx);
   });
 
+  test('prRecoveryCount>0 なら修復系(repair)行の後にPR再試行系の内訳と注記を描画する(task713)', () => {
+    const md = formatEvidenceSummary(bundle({ repairCount: 3, prRecoveryCount: 2 }));
+    expect(md).toContain('- PR作成再試行系(pr_recovery): 2回');
+    expect(md).toContain('上限付き自動復旧とエスカレーション基準が既に実装済み');
+    const repairIdx = md.indexOf('- 修復系(repair)');
+    const prRecoveryIdx = md.indexOf('- PR作成再試行系(pr_recovery)');
+    const anomalyIdx = md.indexOf('- 異常系(anomaly)');
+    expect(repairIdx).toBeGreaterThanOrEqual(0);
+    expect(prRecoveryIdx).toBeGreaterThan(repairIdx);
+    expect(anomalyIdx).toBeGreaterThan(prRecoveryIdx);
+  });
+
+  test('prRecoveryCount=0 ならPR作成再試行系の行を出力しない', () => {
+    const md = formatEvidenceSummary(bundle());
+    expect(md).not.toContain('pr_recovery');
+  });
+
   test('criticFollowRejections=0 なら従来と一文字も違わない出力を返す(後方互換の固定)', () => {
     const md = formatEvidenceSummary(bundle());
     expect(md).toBe(
@@ -176,5 +194,32 @@ describe('buildRetroPrompt / RETRO_SYSTEM_PROMPT', () => {
     });
     const md = buildRetroPrompt(legacy);
     expect(md).toContain('- transition_rejected: 2回');
+  });
+
+  test('システムプロンプトはPR作成再試行系(pr_recovery)を既存の上限付き復旧・エスカレーション対象として扱う指示を含む', () => {
+    expect(RETRO_SYSTEM_PROMPT).toContain('verify_pr_not_created');
+    expect(RETRO_SYSTEM_PROMPT).toContain('verify_pr_retry_lightweight');
+    expect(RETRO_SYSTEM_PROMPT).toContain('上限付き自動復旧');
+  });
+
+  test('verify_pr_not_created の反復は反復causeヒントに数えない(task#705/K-7246 誤診断の根絶)', () => {
+    const incident = bundle({
+      repairCount: 3,
+      prRecoveryCount: 2,
+      timeline: [
+        row({ cause: 'verify_repair', metadata: '{}', createdAt: new Date(0) }),
+        row({ cause: 'verify_pr_not_created', metadata: '{}', createdAt: new Date(60_000) }),
+        row({ cause: 'verify_pr_not_created', metadata: '{}', createdAt: new Date(120_000) }),
+      ],
+    });
+    const md = buildRetroPrompt(incident);
+    expect(md).not.toContain('- verify_pr_not_created: 2回');
+    expect(md).toContain('PR作成再試行系(pr_recovery)の反復: 2回');
+    expect(md).toContain('既存の上限付き自動復旧対象');
+  });
+
+  test('prRecoveryCount<2 ならPR再試行系の反復ヒント行を出力しない', () => {
+    const md = buildRetroPrompt(bundle({ prRecoveryCount: 1 }));
+    expect(md).not.toContain('PR作成再試行系(pr_recovery)の反復');
   });
 });

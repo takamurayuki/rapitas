@@ -52,7 +52,7 @@ mock.module('../../services/workflow/blocked-pr-retry-recovery', () => ({
 const { correctBlockedByEvidence, escalateAbandonedBlocked } =
   await import('../../services/workflow/workflow-reconciler-blocked');
 const { requeueBlockedTasks } = await import('../../services/workflow/workflow-reconciler-requeue');
-const { classifyBlockedExclusion, MAX_ORPHAN_REQUEUE_AGE_MS } =
+const { classifyBlockedExclusion, MAX_ORPHAN_REQUEUE_AGE_MS, MAX_PR_RECOVERY_ATTEMPTS } =
   await import('../../services/workflow/blocked-task-policy');
 
 const NOW = 1_800_000_000_000;
@@ -285,6 +285,39 @@ describe('requeueBlockedTasks 回帰（受入基準2・4）', () => {
     expect(attemptPrOnlyRecovery).not.toHaveBeenCalled();
   });
 
+  test('task 713: verify_pr_not_created が MAX_PR_RECOVERY_ATTEMPTS(累計・無期限)に達したタスクは軽量リトライもフルリセットも試行しない', async () => {
+    mockPrisma.task.findMany.mockResolvedValue([{ id: 705, workflowStatus: 'verify_done' }]);
+    mockPrisma.workflowTransition.count.mockImplementation((args: unknown) => {
+      const where = (args as { where: { cause: string } }).where;
+      // 累計(lastRetryによる期間フィルタなし)でMAX_PR_RECOVERY_ATTEMPTSに到達
+      if (where.cause === 'verify_pr_not_created') return Promise.resolve(MAX_PR_RECOVERY_ATTEMPTS);
+      return Promise.resolve(0);
+    });
+
+    const retried = await requeueBlockedTasks(NOW);
+
+    expect(retried).toBe(0);
+    expect(attemptPrOnlyRecovery).not.toHaveBeenCalled();
+    expect(mockPrisma.task.update).not.toHaveBeenCalled();
+  });
+
+  test('task 713: verify_pr_not_created が上限未満なら従来どおり軽量リトライを試行する', async () => {
+    mockPrisma.task.findMany.mockResolvedValue([{ id: 705, workflowStatus: 'verify_done' }]);
+    mockPrisma.workflowTransition.count.mockImplementation((args: unknown) => {
+      const where = (args as { where: { cause: string } }).where;
+      if (where.cause === 'verify_pr_not_created') {
+        return Promise.resolve(MAX_PR_RECOVERY_ATTEMPTS - 1);
+      }
+      return Promise.resolve(0);
+    });
+    attemptPrOnlyRecovery.mockResolvedValue(true);
+
+    const retried = await requeueBlockedTasks(NOW);
+
+    expect(attemptPrOnlyRecovery).toHaveBeenCalledTimes(1);
+    expect(retried).toBe(1);
+  });
+
   test('task 673/681（プレモーテム3）: フルリセット予算(MAX_BLOCKED_RETRY)を使い切っていても軽量リトライは試行される', async () => {
     mockPrisma.task.findMany.mockResolvedValue([{ id: 673, workflowStatus: 'verify_done' }]);
     mockPrisma.workflowTransition.count.mockImplementation((args: unknown) => {
@@ -347,6 +380,22 @@ describe('escalateAbandonedBlocked（受入基準5まわり・プレモーテム
     expect(escalated).toBe(1);
     const call = escalateBlockedTask.mock.calls[0] as unknown[];
     expect(call[2]).toBe('retry_cap_exhausted');
+  });
+
+  test('task 713: verify_pr_not_created が累計でMAX_PR_RECOVERY_ATTEMPTSに達したタスクは pr_recovery_exhausted でエスカレーションされる', async () => {
+    mockPrisma.task.findMany.mockResolvedValue([blockedTask({ id: 705 })]);
+    mockPrisma.workflowTransition.count.mockImplementation((args: unknown) => {
+      const where = (args as { where: { cause: string } }).where;
+      return Promise.resolve(
+        where.cause === 'verify_pr_not_created' ? MAX_PR_RECOVERY_ATTEMPTS : 0,
+      );
+    });
+
+    const escalated = await escalateAbandonedBlocked(NOW);
+
+    expect(escalated).toBe(1);
+    const call = escalateBlockedTask.mock.calls[0] as unknown[];
+    expect(call[2]).toBe('pr_recovery_exhausted');
   });
 
   test('task 619: 非収束打ち切り済みタスクは verify_no_convergence でエスカレーションに渡る（二重試行しない）', async () => {
@@ -420,6 +469,29 @@ describe('classifyBlockedExclusion（境界値）', () => {
   test('再試行上限境界: attempts >= 2 で retry_cap_exhausted', () => {
     expect(classifyBlockedExclusion({ ...base, attempts: 1 })).toBe('retryable');
     expect(classifyBlockedExclusion({ ...base, attempts: 2 })).toBe('retry_cap_exhausted');
+  });
+
+  test('task 713: PR作成再試行上限境界: prNotCreatedCount >= MAX_PR_RECOVERY_ATTEMPTS で pr_recovery_exhausted', () => {
+    expect(
+      classifyBlockedExclusion({ ...base, prNotCreatedCount: MAX_PR_RECOVERY_ATTEMPTS - 1 }),
+    ).toBe('retryable');
+    expect(classifyBlockedExclusion({ ...base, prNotCreatedCount: MAX_PR_RECOVERY_ATTEMPTS })).toBe(
+      'pr_recovery_exhausted',
+    );
+  });
+
+  test('task 713: prNotCreatedCount 未指定(undefined)は retryable 側に倒れる(後方互換)', () => {
+    expect(classifyBlockedExclusion(base)).toBe('retryable');
+  });
+
+  test('task 713: pr_recovery_exhausted は retry_cap_exhausted より先に判定される(より具体的な失敗パターンを優先)', () => {
+    expect(
+      classifyBlockedExclusion({
+        ...base,
+        attempts: 2, // retry_cap_exhausted の条件も同時に満たす
+        prNotCreatedCount: MAX_PR_RECOVERY_ATTEMPTS,
+      }),
+    ).toBe('pr_recovery_exhausted');
   });
 
   test('task 619: nonConverged は awaiting_question 以外のどの条件よりも優先される', () => {

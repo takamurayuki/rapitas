@@ -33,6 +33,15 @@ export interface CauseCounts {
   repairCount: number;
   /** Replan-family subset, exposed separately for the replan_loop lens. */
   replanCount: number;
+  /**
+   * PR-creation-recovery causes (verify_pr_not_created /
+   * verify_pr_retry_lightweight), counted independently of repairCount so the
+   * retro can distinguish an unresolved content-repair loop from a PR-creation
+   * retry already covered by blocked-pr-retry-recovery.ts's bounded
+   * auto-recovery and blocked-task-policy.ts's retry-cap escalation (task 713;
+   * see PR_RECOVERY_CAUSES in retro-evidence.ts).
+   */
+  prRecoveryCount: number;
   /** Transitions whose cause is an abnormal rejection. */
   anomalyCount: number;
   /**

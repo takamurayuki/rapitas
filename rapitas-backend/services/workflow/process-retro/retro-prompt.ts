@@ -5,7 +5,7 @@
  * jurisdiction-fixing system prompt (process metadata only — never re-review
  * artifacts) and the user-message evidence rendering. Pure formatting, no I/O.
  */
-import { isCriticFollowRejection } from './retro-evidence';
+import { isCriticFollowRejection, PR_RECOVERY_CAUSES } from './retro-evidence';
 import type { EvidenceBundle } from './retro-types';
 
 /** System prompt fixing the retro AI's jurisdiction and output contract. */
@@ -28,6 +28,15 @@ export const RETRO_SYSTEM_PROMPT = `あなたはソフトウェア開発プロ�
  期間を含む待機時間であり、実行系の遅延ではない。phase_wallclock 異常の根拠に
  しないこと。フェーズ所要時間の判定は「フェーズ別所要時間」に示された実行中の
  滞在のみで行う。
+- verify_pr_not_created・verify_pr_retry_lightweight(PR作成再試行系、内訳は
+ 「cause別カウント」の "PR作成再試行系(pr_recovery)" を参照)は、verify_repair
+ (実装内容の差し戻し)とは別の失敗パターンであり、既に専用の上限付き自動復旧と
+ 再試行上限到達によるエスカレーション基準が実装済みである。この2causeの反復
+ 回数だけを根拠に「修復ロジックが機能していない」「エスカレーション基準が
+ 未実装」と結論しないこと(反復後にタスクが completed に到達していれば、
+ 既存の復旧機構が正常に機能した証拠であり systemic ではない)。ただし遷移
+ タイムラインに blocked_escalated が現れる場合は、実際に上限へ到達した事象
+ として通常どおり評価してよい。
 - 該当が無ければ findings を空配列にすること。無理に起票しない。
 
 出力は次のJSONのみ(前置き・コードフェンス不要):
@@ -122,6 +131,14 @@ export function formatEvidenceSummary(bundle: EvidenceBundle): string {
     `- 批評差し戻し(critic): ${bundle.criticRebounds}回`,
     `- 修復系(repair): ${bundle.repairCount}回`,
     `- 再計画(replan): ${bundle.replanCount}回`,
+    // Rendered only when non-zero so zero-count summaries (and all
+    // previously-filed concern details) keep their existing shape.
+    ...(bundle.prRecoveryCount > 0
+      ? [
+          `- PR作成再試行系(pr_recovery): ${bundle.prRecoveryCount}回`,
+          '- 注記: PR作成再試行系(verify_pr_not_created / verify_pr_retry_lightweight)は、上限付き自動復旧とエスカレーション基準が既に実装済みの別の失敗パターンであり、修復系(repair)の反復とは区別して評価すること。',
+        ]
+      : []),
     `- 異常系(anomaly): ${bundle.anomalyCount}回`,
     // Rendered only when non-zero so zero-count summaries (and all
     // previously-filed concern details) keep their existing shape.
@@ -153,12 +170,18 @@ export function formatEvidenceSummary(bundle: EvidenceBundle): string {
  * @returns User-message Markdown. / ユーザメッセージ
  */
 export function buildRetroPrompt(bundle: EvidenceBundle): string {
+  const prRecoverySet = new Set<string>(PR_RECOVERY_CAUSES);
   const causeCounts = new Map<string, number>();
   for (const t of bundle.timeline) {
     // Critic-follow rejections are the designed self-repair chain — excluded
     // here too, or `transition_rejected ×2` would falsely fire the
     // repeated-cause systemicity hint the aggregation fix just removed.
-    if (isCriticFollowRejection(t)) continue;
+    // PR-recovery causes (verify_pr_not_created / verify_pr_retry_lightweight,
+    // task 713) are excluded for the same reason: they already have a bounded
+    // auto-recovery + escalation mechanism, so their repetition alone
+    // previously produced a false systemic hint (task#705, K-7246) even when
+    // the task went on to complete normally.
+    if (isCriticFollowRejection(t) || prRecoverySet.has(t.cause)) continue;
     causeCounts.set(t.cause, (causeCounts.get(t.cause) ?? 0) + 1);
   }
   const repeated = [...causeCounts.entries()]
@@ -172,6 +195,11 @@ export function buildRetroPrompt(bundle: EvidenceBundle): string {
       ? ['- このタスクで2回以上反復したcause:', ...repeated].join('\n')
       : '- このタスクで2回以上反復したcauseはない。',
     `- 批評差し戻し回数: ${bundle.criticRebounds}回`,
+    ...(bundle.prRecoveryCount >= 2
+      ? [
+          `- PR作成再試行系(pr_recovery)の反復: ${bundle.prRecoveryCount}回(既存の上限付き自動復旧対象であり、単独では systemic の根拠にしないこと)`,
+        ]
+      : []),
   ].join('\n');
 
   return `${formatEvidenceSummary(bundle)}\n\n${hints}`;
