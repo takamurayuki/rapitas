@@ -1,4 +1,10 @@
-// Routes System barrel export — 集約 + ドメイン単位マージ済みインスタンス
+/**
+ * AUTO-GENERATED — DO NOT EDIT.
+ *
+ * Run `bun run generate:route-barrels` to regenerate from
+ * routes/route-barrel-legacy-manifest.json + *.routes.ts auto-discovery
+ * (see scripts/generate-route-barrels.cjs).
+ */
 import { Elysia } from 'elysia';
 import { settingsRoutes } from './settings';
 import { authRoutes } from './auth';
