@@ -34,6 +34,15 @@ export const BLOCKED_RETRY_SETTLE_MS = 3 * 60 * 1000;
 export const MAX_ORPHAN_REQUEUE_AGE_MS = 2 * 24 * 60 * 60 * 1000;
 
 /**
+ * Interval between re-escalation notifications for a blocked task that stays
+ * unresolved past its first (permanent, one-shot) escalation. Far longer than
+ * the minute/settle-order thresholds above to avoid notification fatigue, but
+ * short enough to bound task 666's observed 39-hour silent stall to roughly
+ * this length. / 再エスカレーション間隔（初回エスカレーション後も未解決の場合）。
+ */
+export const BLOCKED_REESCALATION_INTERVAL_MS = 4 * 60 * 60 * 1000;
+
+/**
  * WorkflowTransition.cause recorded when a verify-repair loop is cut off for
  * NON-CONVERGENCE (task 619): the same acceptance criterion was flagged
  * unaddressed by 2+ repair bounces. Lives here (dependency-free policy module)

@@ -24,6 +24,7 @@ const resolveBlockedTaskEvidence = mock(() =>
   Promise.resolve({ isSuccess: false, source: 'none' as const }),
 );
 const escalateBlockedTask = mock(() => Promise.resolve(true));
+const reescalateIfOverdue = mock(() => Promise.resolve(false));
 const attemptPrOnlyRecovery = mock(() => Promise.resolve(false));
 
 const noopLogger = { info: () => {}, error: () => {}, warn: () => {}, debug: () => {} };
@@ -42,8 +43,10 @@ mock.module('../../services/workflow/blocked-task-evidence', () => ({
 }));
 mock.module('../../services/workflow/blocked-task-escalation', () => ({
   escalateBlockedTask,
+  reescalateIfOverdue,
   countEscalatedBlocked: mock(() => Promise.resolve(0)),
   BLOCKED_ESCALATED_CAUSE: 'blocked_escalated',
+  BLOCKED_REESCALATED_CAUSE: 'blocked_reescalated',
 }));
 mock.module('../../services/workflow/blocked-pr-retry-recovery', () => ({
   attemptPrOnlyRecovery,
@@ -82,6 +85,7 @@ beforeEach(() => {
   recordTransition.mockReset().mockResolvedValue(undefined);
   resolveBlockedTaskEvidence.mockReset().mockResolvedValue({ isSuccess: false, source: 'none' });
   escalateBlockedTask.mockReset().mockResolvedValue(true);
+  reescalateIfOverdue.mockReset().mockResolvedValue(false);
   attemptPrOnlyRecovery.mockReset().mockResolvedValue(false);
 });
 
@@ -375,6 +379,35 @@ describe('escalateAbandonedBlocked（受入基準5まわり・プレモーテム
 
     expect(escalated).toBe(0);
     expect(escalateBlockedTask).not.toHaveBeenCalled();
+  });
+
+  test('task 703: escalateBlockedTask が false（既にエスカレーション済み）→ reescalateIfOverdue が同じ task/classification/nowMs で呼ばれ、戻り値が escalated 件数に反映される', async () => {
+    mockPrisma.task.findMany.mockResolvedValue([
+      blockedTask({ id: 666, workflowStatus: 'awaiting_question' }),
+    ]);
+    escalateBlockedTask.mockResolvedValue(false);
+    reescalateIfOverdue.mockResolvedValue(true);
+
+    const escalated = await escalateAbandonedBlocked(NOW);
+
+    expect(escalated).toBe(1);
+    expect(reescalateIfOverdue).toHaveBeenCalledTimes(1);
+    const call = reescalateIfOverdue.mock.calls[0] as unknown[];
+    expect((call[1] as { id: number }).id).toBe(666);
+    expect(call[2]).toBe('awaiting_question');
+    expect(call[3]).toBe(NOW);
+  });
+
+  test('task 703: escalateBlockedTask が true（今回初めて発火）→ reescalateIfOverdue は呼ばれない', async () => {
+    mockPrisma.task.findMany.mockResolvedValue([
+      blockedTask({ workflowStatus: 'awaiting_question' }),
+    ]);
+    escalateBlockedTask.mockResolvedValue(true);
+
+    const escalated = await escalateAbandonedBlocked(NOW);
+
+    expect(escalated).toBe(1);
+    expect(reescalateIfOverdue).not.toHaveBeenCalled();
   });
 });
 
