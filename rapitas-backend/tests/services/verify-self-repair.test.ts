@@ -288,6 +288,27 @@ describe('attemptVerifyRepair', () => {
     expect(countArgs.where.createdAt?.gt).toEqual(retriedAt);
   });
 
+  test('受入基準の差し替えも収束判定の窓の境界になること', async () => {
+    // 実測 2026-08-27 (task 672): 受入基準を訂正した直後の1回の差し戻しで
+    // カットオフが発火した。訂正前の理由2件を数えていたため。旧理由は基準を
+    // 「番号で」指しており、差し替え後その番号は別の基準を指す。比較不能。
+    const changedAt = new Date('2026-01-02T00:00:00Z');
+    mockPrisma.activityLog.findFirst.mockResolvedValue({ createdAt: changedAt });
+    mockPrisma.workflowTransition.count.mockResolvedValue(0);
+    mockPrisma.workflowTransition.findMany.mockResolvedValue([]);
+    mockPrisma.workflowFile.findFirst.mockResolvedValue({ id: 7 });
+
+    await attemptVerifyRepair(1, 'in_progress', 'fail', 'v');
+
+    // 境界の問い合わせが両方のアクションを対象にしていること。
+    const whereArg = mockPrisma.activityLog.findFirst.mock.calls[0]?.[0] as {
+      where: { action: { in: string[] } | string };
+    };
+    const actions = typeof whereArg.where.action === 'string' ? [] : whereArg.where.action.in;
+    expect(actions).toContain('task_retried');
+    expect(actions).toContain('acceptance_criteria_changed');
+  });
+
   // ---- 非収束打ち切り（task 619）----
   // task 614 実データ型のフィクスチャ: 基準1がパス、基準2が識別子で特定できる。
   const CRITERIA_JSON = JSON.stringify([

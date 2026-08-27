@@ -370,6 +370,29 @@ export async function updateTask(prisma: PrismaInstance, taskId: number, input: 
     });
   }
 
+  // Replacing the acceptance criteria invalidates every repair reason recorded
+  // against the OLD ones. Those reasons cite criteria by NUMBER, and the numbers
+  // now point at different criteria, so the convergence detector counts a stale
+  // indictment against a criterion nobody has ever failed. Observed on task 672:
+  // the criteria were corrected mid-flight and the next single bounce tripped
+  // the cutoff using two pre-correction reasons.
+  //
+  // Recorded as an activity so the detector can bound its window on it, exactly
+  // as it already bounds on `task_retried`.
+  if (fields.acceptanceCriteria !== undefined && updatedTask) {
+    await prisma.activityLog
+      .create({
+        data: {
+          taskId,
+          action: 'acceptance_criteria_changed',
+          metadata: JSON.stringify({ count: fields.acceptanceCriteria.length }),
+        },
+      })
+      .catch((err: unknown) =>
+        logger.warn({ err, taskId }, '[task] criteria-change activity not recorded (non-fatal)'),
+      );
+  }
+
   // NOTE: Broadcast task update via SSE — enables real-time sync across all connected clients.
   if (updatedTask) {
     const eventType =

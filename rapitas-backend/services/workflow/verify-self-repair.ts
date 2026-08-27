@@ -64,6 +64,31 @@ async function resolveMaxRepairs(): Promise<number> {
 }
 
 /**
+ * Start of the current repair window: the most recent point at which the slate
+ * was wiped.
+ *
+ * Two things wipe it. A manual retry, obviously. And REPLACING the acceptance
+ * criteria — reasons recorded against the old ones cite criteria by NUMBER, and
+ * after a replacement those numbers point at different criteria, so neither the
+ * budget nor the convergence check may carry them forward. Task 672 had its
+ * criteria corrected mid-flight and the next single bounce tripped the cutoff
+ * on two pre-correction reasons.
+ *
+ * @param taskId - Task id / タスクID
+ * @returns Window start, or null when the slate was never wiped. / 窓の起点、無ければ null
+ */
+async function resolveRepairWindowStart(taskId: number): Promise<Date | null> {
+  const row = await prisma.activityLog
+    .findFirst({
+      where: { taskId, action: { in: ['task_retried', 'acceptance_criteria_changed'] } },
+      orderBy: { createdAt: 'desc' },
+      select: { createdAt: true },
+    })
+    .catch(() => null);
+  return row?.createdAt ?? null;
+}
+
+/**
  * Count how many verify→implement repair bounces this task has already had.
  * @param taskId - Task id / タスクID
  * @returns Prior repair count / これまでの修復回数
@@ -74,19 +99,13 @@ async function countPriorRepairs(taskId: number): Promise<number> {
   // a retried blocked task whose worktree was cleaned re-runs verify on an empty
   // tree, fails, and — finding the OLD budget already exhausted — re-blocks
   // instead of bouncing to the implementer, so the implementation is never redone.
-  const lastRetry = await prisma.activityLog
-    .findFirst({
-      where: { taskId, action: 'task_retried' },
-      orderBy: { createdAt: 'desc' },
-      select: { createdAt: true },
-    })
-    .catch(() => null);
+  const windowStart = await resolveRepairWindowStart(taskId);
   return prisma.workflowTransition
     .count({
       where: {
         taskId,
         cause: REPAIR_CAUSE,
-        ...(lastRetry ? { createdAt: { gt: lastRetry.createdAt } } : {}),
+        ...(windowStart ? { createdAt: { gt: windowStart } } : {}),
       },
     })
     .catch((err) => {
@@ -105,7 +124,7 @@ async function countPriorRepairs(taskId: number): Promise<number> {
 
 /**
  * Detect a non-converging repair loop (task 619): map current + prior repair
- * reasons (same task_retried window as countPriorRepairs) onto the acceptance
+ * reasons (same window as countPriorRepairs — see resolveRepairWindowStart) onto the acceptance
  * criteria; 2+ flags on one criterion = cutoff. FAIL OPEN throughout — unlike
  * countPriorRepairs' fail-closed budget, an unidentifiable reason / missing
  * criteria / DB error must NOT stop a possibly-progressing task.
@@ -127,10 +146,15 @@ async function detectRepairNonConvergence(
     // Short-circuit BEFORE any transition query: no criteria → nothing to match.
     if (criteria.length === 0) return { cutoff: false };
 
-    // Same window as countPriorRepairs — a manual retry grants a fresh slate.
-    const lastRetry = await prisma.activityLog
+    // A manual retry grants a fresh slate — and so does REPLACING the acceptance
+    // criteria. Reasons recorded against the old criteria cite them by number,
+    // and after a replacement those numbers point at different criteria: task
+    // 672 had its criteria corrected mid-flight and the next single bounce
+    // tripped the cutoff on two pre-correction reasons. Whichever boundary is
+    // more recent wins.
+    const boundary = await prisma.activityLog
       .findFirst({
-        where: { taskId, action: 'task_retried' },
+        where: { taskId, action: { in: ['task_retried', 'acceptance_criteria_changed'] } },
         orderBy: { createdAt: 'desc' },
         select: { createdAt: true },
       })
@@ -139,7 +163,7 @@ async function detectRepairNonConvergence(
       where: {
         taskId,
         cause: REPAIR_CAUSE,
-        ...(lastRetry ? { createdAt: { gt: lastRetry.createdAt } } : {}),
+        ...(boundary ? { createdAt: { gt: boundary.createdAt } } : {}),
       },
       select: { metadata: true },
     });
