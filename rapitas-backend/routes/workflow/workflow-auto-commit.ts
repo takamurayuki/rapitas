@@ -374,9 +374,26 @@ export async function performAutoCommitAndPR(
                 });
               }
             } else {
-              log.error(
-                { error: prResult.error },
-                `[Workflow] Auto-PR creation failed for task ${taskId}`,
+              // NOTE (task 687): "no commits between" / "nothing to commit" is
+              // an already-implemented no-op that verify-commit-pr-pipeline.ts
+              // completes successfully via this SAME isNoChangeCompletion
+              // classifier — logging it at ERROR filed the same benign outcome
+              // as a recurring generic bug report. Only a genuine PR-creation
+              // failure (auth, network, foreign-PR collision, etc.) is an
+              // operational error worth ERROR severity.
+              const benignNoChange = isNoChangeCompletion({
+                errorBlob: prResult.error ?? '',
+                filesChanged: result.autoCommitResult?.filesChanged,
+              });
+              // NOTE: pino's stdSerializers only special-case the `err` key —
+              // `error:` silently dropped the failure reason from the log
+              // (task 687), leaving log-health-check unable to diagnose repeats.
+              const logPrOutcome = benignNoChange ? log.warn.bind(log) : log.error.bind(log);
+              logPrOutcome(
+                { err: new Error(prResult.error ?? 'unknown error') },
+                benignNoChange
+                  ? `[Workflow] Auto-PR skipped for task ${taskId}: already implemented, no changes to publish`
+                  : `[Workflow] Auto-PR creation failed for task ${taskId}`,
               );
               // Task-identity mismatch (task 541): the branch's open PR belongs to
               // another task — surface it instead of a silent generic failure so

@@ -16,6 +16,7 @@ import { resetEmbeddingPipeline } from '../../services/memory/rag/embedding';
 import { boostDecayOnAccess } from '../../services/memory/forgetting';
 import { parseTagsAsStrings } from '../../services/memory/utils';
 import { prisma } from '../../config/database';
+import { HTTP_STATUS } from '../../utils/common/http-status';
 import type {
   KnowledgeSourceType,
   KnowledgeCategory,
@@ -147,8 +148,12 @@ export const knowledgeRoutes = new Elysia({ prefix: '/knowledge' })
   // GET /knowledge/:id - Entry details
   .get(
     '/:id',
-    async ({ params }) => {
+    async ({ params, set }) => {
       const id = parseInt(params.id);
+      if (isNaN(id)) {
+        set.status = HTTP_STATUS.BAD_REQUEST;
+        return { error: 'Invalid ID' };
+      }
       const entry = await prisma.knowledgeEntry.findUnique({
         where: { id },
         include: {
@@ -213,8 +218,12 @@ export const knowledgeRoutes = new Elysia({ prefix: '/knowledge' })
   // PUT /knowledge/:id - Update
   .put(
     '/:id',
-    async ({ params, body }) => {
+    async ({ params, body, set }) => {
       const id = parseInt(params.id);
+      if (isNaN(id)) {
+        set.status = HTTP_STATUS.BAD_REQUEST;
+        return { error: 'Invalid ID' };
+      }
       const typedBody = body as UpdateKnowledgeBody;
       const entry = await updateKnowledgeEntry(id, {
         title: typedBody.title,
@@ -244,8 +253,12 @@ export const knowledgeRoutes = new Elysia({ prefix: '/knowledge' })
   // DELETE /knowledge/:id - Archive
   .delete(
     '/:id',
-    async ({ params }) => {
+    async ({ params, set }) => {
       const id = parseInt(params.id);
+      if (isNaN(id)) {
+        set.status = HTTP_STATUS.BAD_REQUEST;
+        return { error: 'Invalid ID' };
+      }
       const entry = await archiveKnowledgeEntry(id);
       return { success: true, entry };
     },
@@ -255,8 +268,12 @@ export const knowledgeRoutes = new Elysia({ prefix: '/knowledge' })
   // POST /knowledge/:id/pin - Pin entry
   .post(
     '/:id/pin',
-    async ({ params, body }) => {
+    async ({ params, body, set }) => {
       const id = parseInt(params.id);
+      if (isNaN(id)) {
+        set.status = HTTP_STATUS.BAD_REQUEST;
+        return { error: 'Invalid ID' };
+      }
       const typedBody = body as PinKnowledgeBody;
       const until = new Date(typedBody.until);
       const entry = await pinKnowledgeEntry(id, until);
