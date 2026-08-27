@@ -9,7 +9,7 @@
 
 import { prisma } from '../../../../config/database';
 import { toInt } from '../metric-coercion';
-import { normalizeRole, KNOWN_ROLE_ORDER } from './usage-breakdown-query';
+import { normalizeRole, KNOWN_ROLE_ORDER } from './usage-breakdown';
 import { classifyCliAgent, CLI_AGENT_ORDER, type CliAgentKind } from '../cli-agent-classifier';
 
 /** Milliseconds in one UTC day — the denominator of every daily ratio. */

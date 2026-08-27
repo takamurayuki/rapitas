@@ -24,8 +24,8 @@ export type {
   DailyRoleCostPoint,
   CliAgentUsageEntry,
   AgentUsageBreakdown,
-} from './usage-breakdown-query';
-export { KNOWN_ROLE_ORDER, normalizeRole, getAgentUsageBreakdown } from './usage-breakdown-query';
+} from './usage-breakdown';
+export { KNOWN_ROLE_ORDER, normalizeRole, getAgentUsageBreakdown } from './usage-breakdown';
 
 export type {
   UtilizationDailyPoint,
@@ -35,8 +35,8 @@ export type {
 } from './utilization-query';
 export { unionLength, getAgentUtilization } from './utilization-query';
 
-export type { ModelCostStats, CostOptimizationInsights } from './cost-optimization-query';
-export { getCostOptimizationInsights } from './cost-optimization-query';
+export type { ModelCostStats, CostOptimizationInsights } from './cost-optimization';
+export { getCostOptimizationInsights } from './cost-optimization';
 
 export type {
   RepairTransitionRow,
