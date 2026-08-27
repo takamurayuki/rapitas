@@ -85,6 +85,38 @@ async function loadDirect(
 }
 
 /**
+ * Pin the ONNX runtime to a single WASM thread before any pipeline is built.
+ *
+ * Multi-threaded WASM spawns its workers from blob URLs and bootstraps them with
+ * `importScripts('blob:…')`. Bun implements that with `readFileSync`, which
+ * cannot open a blob URL, so the worker dies with
+ * `ENOENT: no such file or directory, open 'blob:…'` — uncaught, inside a
+ * worker, taking the backend process with it. That crash was the origin of all
+ * three backend outages on 2026-08-27, one of which went unnoticed for 75
+ * minutes.
+ *
+ * Single-threaded embedding is slower. It is also the only kind that survives,
+ * and embedding is a background enrichment — the API serving every screen is
+ * not.
+ *
+ * Written defensively: the config object is created empty by the library and
+ * its shape is not part of any contract we control.
+ */
+function configureOnnxRuntime(mod: unknown): void {
+  try {
+    const wasm = (mod as { env?: { backends?: { onnx?: { wasm?: Record<string, unknown> } } } })
+      ?.env?.backends?.onnx?.wasm;
+    if (!wasm) return;
+    wasm.numThreads = 1;
+    // `proxy` moves inference into a worker of its own — same blob path.
+    wasm.proxy = false;
+    log.info('ONNX runtime pinned to a single WASM thread (no blob workers)');
+  } catch (err) {
+    log.warn({ err }, 'Could not pin ONNX thread count — worker crash risk remains');
+  }
+}
+
+/**
  * Initialize the embedding pipeline.
  */
 async function initPipeline(): Promise<void> {
@@ -97,6 +129,7 @@ async function initPipeline(): Promise<void> {
     // Dynamic import of @xenova/transformers
     // NOTE: @xenova/transformers has no type declarations; dynamic import resolves to any
     const mod = await import('@xenova/transformers');
+    configureOnnxRuntime(mod);
     createPipeline = mod.pipeline as PipelineFactory;
   } catch {
     createPipeline = null;
