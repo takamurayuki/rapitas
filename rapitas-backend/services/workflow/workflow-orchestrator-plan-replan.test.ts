@@ -139,6 +139,11 @@ mock.module('./workflow-mode-config', () => ({
   selectProvisionalMode: mock(() => Promise.resolve('standard')),
 }));
 mock.module('../communication/notification-service', () => ({ createNotification }));
+// Probe stage (task 673) always succeeds here — this test targets the
+// plan-replan DB-failure guard, not probe behavior.
+mock.module('./workflow-orchestrator-preflight-probe', () => ({
+  runPreflightProbe: mock(() => Promise.resolve({ done: false })),
+}));
 
 // Import AFTER all mock.module calls.
 const { WorkflowOrchestrator } = await import('./workflow-orchestrator');

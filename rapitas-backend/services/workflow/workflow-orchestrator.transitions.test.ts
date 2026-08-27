@@ -199,6 +199,13 @@ mock.module('../ai/agent-fallback', () => ({
   findAgentConfigForProvider: mock(() => Promise.resolve(null)),
   findFallbackAgentConfig: mock(() => Promise.resolve(null)),
 }));
+// Probe stage (task 673) always succeeds here — these tests exercise status/
+// artifact bookkeeping around agent dispatch, not probe behavior (see
+// workflow-orchestrator-preflight-probe.test.ts and
+// workflow-orchestrator-probe-integration.test.ts for that).
+mock.module('./workflow-orchestrator-preflight-probe', () => ({
+  runPreflightProbe: mock(() => Promise.resolve({ done: false })),
+}));
 
 // Import AFTER all mock.module calls.
 const { WorkflowOrchestrator } = await import('./workflow-orchestrator');
