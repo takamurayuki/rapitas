@@ -188,20 +188,26 @@ export async function computeAndApplyStatusTransition(params: {
               taskId,
               `検証に失敗したためブロックしました: ${verifyValidation.summary}`,
             );
-            await recordTransition({
-              taskId,
-              fromStatus: currentStatus ?? null,
-              toStatus: currentStatus ?? 'in_progress',
-              actor: 'verifier',
-              cause: 'verify_validation_failed',
-              phase: 'verify',
-              metadata: {
-                sizeBytes: savedContent.length,
-                reason: verifyValidation.summary,
-              },
-              invariantViolation: true,
-              invariantMessage: verifyValidation.summary,
-            });
+            // Skip when attemptVerifyRepair() already recorded its own
+            // terminal transition (non-convergence cutoff) for this same
+            // rejected verify.md — recording verify_validation_failed too
+            // would double-count one failure as two transitions (task 705).
+            if (!repair.cutoffRecorded) {
+              await recordTransition({
+                taskId,
+                fromStatus: currentStatus ?? null,
+                toStatus: currentStatus ?? 'in_progress',
+                actor: 'verifier',
+                cause: 'verify_validation_failed',
+                phase: 'verify',
+                metadata: {
+                  sizeBytes: savedContent.length,
+                  reason: verifyValidation.summary,
+                },
+                invariantViolation: true,
+                invariantMessage: verifyValidation.summary,
+              });
+            }
             // newStatus stays undefined — caller skips the verify_done
             // transition + auto-commit/PR pipeline below.
           }

@@ -758,6 +758,78 @@ describe('handleSaveFile — validateVerify 失敗によるバウンスは冗長
     // attemptVerifyRepair() (mocked here) already owns that for this bounce.
     expect(mockRecordTransition).not.toHaveBeenCalled();
   });
+
+  // task 705: budget-exhausted (not the non-convergence cutoff) must still
+  // record verify_validation_failed exactly as before — only the cutoff case
+  // (below) is exempted.
+  test('repair 予算枯渇時（非収束カットオフではない）は従来どおり verify_validation_failed を1件記録すること', async () => {
+    mockResolveWorkflowDir.mockResolvedValueOnce({
+      task: { workflowStatus: 'in_progress', id: 1 },
+      dir: '/fake/dir/1',
+      categoryId: null,
+      themeId: null,
+    });
+    mockFindMany.mockResolvedValueOnce([]);
+    mockCheckInvariants.mockResolvedValueOnce([]);
+    mockValidateVerify.mockReturnValueOnce({
+      ok: false,
+      missingSections: [],
+      severity: 80,
+      summary: 'verify.md self-contradicts',
+    });
+    mockAttemptVerifyRepair.mockResolvedValueOnce({ bounced: false });
+
+    await handleSaveFile({
+      params: { taskId: '1', fileType: 'verify' },
+      body: 'verify content',
+      set: makeSet(),
+    });
+
+    expect(mockRecordTransition).toHaveBeenCalledTimes(1);
+    expect(mockRecordTransition).toHaveBeenCalledWith(
+      expect.objectContaining({ cause: 'verify_validation_failed' }),
+    );
+  });
+
+  // task 705: the non-convergence cutoff records its OWN terminal transition
+  // (verify_repair_non_convergence, inside attemptVerifyRepair) — the handler
+  // must not additionally record verify_validation_failed for the same
+  // rejected verify.md, or one failure is double-counted as two transitions.
+  test('非収束カットオフ（cutoffRecorded:true）時は verify_validation_failed を重複記録しないこと', async () => {
+    mockResolveWorkflowDir.mockResolvedValueOnce({
+      task: { workflowStatus: 'in_progress', id: 1 },
+      dir: '/fake/dir/1',
+      categoryId: null,
+      themeId: null,
+    });
+    mockFindMany.mockResolvedValueOnce([]);
+    mockCheckInvariants.mockResolvedValueOnce([]);
+    mockValidateVerify.mockReturnValueOnce({
+      ok: false,
+      missingSections: [],
+      severity: 80,
+      summary: 'verify.md self-contradicts',
+    });
+    mockAttemptVerifyRepair.mockResolvedValueOnce({ bounced: false, cutoffRecorded: true });
+
+    const result = await handleSaveFile({
+      params: { taskId: '1', fileType: 'verify' },
+      body: 'verify content',
+      set: makeSet(),
+    });
+
+    // Task still blocks (status update happens regardless of cutoffRecorded).
+    expect(mockUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: 1 },
+        data: expect.objectContaining({ status: 'blocked' }),
+      }),
+    );
+    // But the handler's own verify_validation_failed transition is skipped —
+    // attemptVerifyRepair already recorded verify_repair_non_convergence.
+    expect(mockRecordTransition).not.toHaveBeenCalled();
+    expect((result as { workflowStatus?: string }).workflowStatus).not.toBe('completed');
+  });
 });
 
 // -------------------------------------------------------------------------

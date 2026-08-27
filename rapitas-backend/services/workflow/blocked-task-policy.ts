@@ -55,6 +55,18 @@ export const VERIFY_NON_CONVERGENCE_CAUSE = 'verify_repair_non_convergence';
  */
 export const PR_RETRY_LIGHTWEIGHT_CAUSE = 'verify_pr_retry_lightweight';
 
+/**
+ * Default verify→implement repair budget when UserSettings.verifyRepairLimit
+ * is unset. Single source of truth shared by verify-self-repair's
+ * resolveMaxRepairs and {@link resolveVerifyRepairLimit} below — the two
+ * previously hardcoded different fallbacks (2 vs 3), which only diverged when
+ * no UserSettings row existed (task 705). / 修復予算の既定値（単一ソース）
+ */
+export const DEFAULT_VERIFY_REPAIR_LIMIT = Math.max(
+  0,
+  parseInt(process.env.RAPITAS_MAX_VERIFY_REPAIRS ?? '2', 10) || 2,
+);
+
 /** Reason a blocked task is excluded from the blind auto-retry. */
 export type BlockedExclusionReason =
   | 'awaiting_question'
@@ -87,7 +99,7 @@ export interface BlockedClassificationInput {
 
 /**
  * Resolve the verify→implement repair budget from user settings, matching
- * verify-self-repair's resolveMaxRepairs (default 3, positive numbers only).
+ * verify-self-repair's resolveMaxRepairs (default 2, positive numbers only).
  *
  * @param settings - UserSettings row (or null when unavailable). / 設定行
  * @returns The effective repair limit. / 有効な修復上限
@@ -97,7 +109,7 @@ export function resolveVerifyRepairLimit(
 ): number {
   return typeof settings?.verifyRepairLimit === 'number' && settings.verifyRepairLimit > 0
     ? settings.verifyRepairLimit
-    : 3;
+    : DEFAULT_VERIFY_REPAIR_LIMIT;
 }
 
 /**
