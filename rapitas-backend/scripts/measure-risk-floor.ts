@@ -14,7 +14,7 @@
  * the dev.js desktop DB), same as inspect-self-observation.ts.
  */
 import { Database } from 'bun:sqlite';
-import { detectHighRisk } from '../services/workflow/routing-policy';
+import { detectHighRisk } from '../services/workflow/risk-detection';
 import { extractPlanDeclaredFiles } from '../services/workflow/plan-declared-files';
 
 const DEFAULT_SQLITE_PATH = 'C:/Projects/rapitas/rapitas-desktop/.data/rapitas-dev.db';

@@ -18,7 +18,7 @@
  */
 
 import { parsePlanFiles } from '../agents/verification/scope-check';
-import { stripRuledOutLines } from './routing-policy';
+import { stripRuledOutLines } from './risk-detection';
 import { parseResearchRisk } from './research-risk';
 
 /** Backslash, built without an escape so heredoc/codegen cannot mangle it. */

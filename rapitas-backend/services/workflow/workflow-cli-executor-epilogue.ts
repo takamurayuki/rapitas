@@ -244,6 +244,17 @@ export async function runPhaseEpilogue(params: {
           where: { id: taskId },
           data: { workflowStatus: transition.nextStatus },
         });
+        // reconcileTaskStatusBeforeRun flips task.status off 'todo' before the
+        // agent starts, but the startup reaper (lifecycle-manager) can revert
+        // it back to 'todo' mid-run on a backend restart — the epilogue only
+        // used to touch workflowStatus, so a restart landing in that window
+        // left workflowStatus advanced while status stayed 'todo' (task #706).
+        // Conditional on the DB row (not a caller snapshot) so 'blocked'/'done'
+        // set concurrently by another actor is never clobbered.
+        await prisma.task.updateMany({
+          where: { id: taskId, status: 'todo' },
+          data: { status: 'in-progress' },
+        });
         const violations = await checkWorkflowInvariants(taskId);
         await recordTransition({
           taskId,
@@ -338,6 +349,12 @@ export async function runPhaseEpilogue(params: {
     await prisma.task.update({
       where: { id: taskId },
       data: { workflowStatus: transition.nextStatus },
+    });
+    // Same status-desync backstop as the outputFile branch above (task #706)
+    // — this no-outputFile (implementer) path advances workflowStatus too.
+    await prisma.task.updateMany({
+      where: { id: taskId, status: 'todo' },
+      data: { status: 'in-progress' },
     });
     await recordTransition({
       taskId,

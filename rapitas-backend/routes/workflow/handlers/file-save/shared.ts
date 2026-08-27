@@ -10,8 +10,40 @@ import { prisma } from '../../../../config';
 import { createLogger } from '../../../../config/logger';
 import type { WorkflowFileType } from '../../core/workflow-helpers';
 import type { WorkflowStatus } from '../../../../services/workflow/workflow-types';
+import { VERIFY_NON_CONVERGENCE_CAUSE } from '../../../../services/workflow/blocked-task-policy';
 
 const log = createLogger('routes:workflow:handlers:files');
+
+/** Max age for a non-convergence transition to count as "just recorded by this call". */
+const CUTOFF_RECENCY_WINDOW_MS = 10_000;
+
+/**
+ * Whether attemptVerifyRepair()'s non-convergence cutoff already recorded its
+ * own `verify_repair_non_convergence` transition for this task moments ago.
+ *
+ * attemptVerifyRepair() (verify-self-repair.ts) records that transition
+ * SYNCHRONOUSLY before returning `bounced:false` on a cutoff, but its return
+ * value carries no flag distinguishing that from the plain budget-exhausted
+ * case (both return `{bounced:false}`). Reading the latest transition row —
+ * scoped to a tight recency window so an unrelated older row can never be
+ * mistaken for "just recorded" — lets the caller skip recording its OWN
+ * transition for the same rejection instead of duplicating it (task 674: two
+ * rows 43ms apart for one event).
+ *
+ * @param taskId - Task id / タスクID
+ * @returns Whether the cutoff transition was just recorded / 直近にカットオフ遷移が記録されたか
+ */
+export async function wasNonConvergenceCutoffJustRecorded(taskId: number): Promise<boolean> {
+  const last = await prisma.workflowTransition
+    .findFirst({
+      where: { taskId },
+      orderBy: { createdAt: 'desc' },
+      select: { cause: true, createdAt: true },
+    })
+    .catch(() => null);
+  if (!last || last.cause !== VERIFY_NON_CONVERGENCE_CAUSE) return false;
+  return Date.now() - last.createdAt.getTime() <= CUTOFF_RECENCY_WINDOW_MS;
+}
 
 /**
  * Marks a task's latest agent execution (and session) failed with a reason.
