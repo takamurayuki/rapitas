@@ -39,6 +39,17 @@ export type { ModelCostStats, CostOptimizationInsights } from './cost-optimizati
 export { getCostOptimizationInsights } from './cost-optimization';
 
 export type {
+  ParetoFrontierResult,
+  ParetoRecommendationResult,
+  ParetoSegment,
+  ParetoPoint,
+  ParetoGoal,
+  SegmentRecommendation,
+  ParetoFrontierOptions,
+} from './pareto-frontier';
+export { getParetoFrontier, getParetoRecommendation } from './pareto-frontier';
+
+export type {
   RepairTransitionRow,
   TaskFinalState,
   IterationBucket,

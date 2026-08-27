@@ -50,6 +50,7 @@ import {
   Search,
   WalletCards,
   ChartNoAxesCombined,
+  ChartScatter,
   ScanSearch,
 } from 'lucide-react';
 import Link from 'next/link';
@@ -205,6 +206,13 @@ export default function Header() {
               href: '/agents/growth',
               label: t('growthLedger'),
               icon: ChartNoAxesCombined,
+            },
+            // NOTE: ChartScatter = 効率フロンティア (ICON_POLICY glyphs-a-f) — the
+            // same glyph is reused on the /agents/pareto page (same concept).
+            {
+              href: '/agents/pareto',
+              label: t('paretoFrontier'),
+              icon: ChartScatter,
             },
             // NOTE: ScanSearch = 検出漏れ兆候の学習・レビュー (ICON_POLICY §3).
             {
