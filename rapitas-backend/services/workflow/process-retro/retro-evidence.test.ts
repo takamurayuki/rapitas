@@ -32,6 +32,7 @@ const {
   isRoutineSingleRepair,
   buildEvidenceBundle,
   fetchRetroRows,
+  PR_RECOVERY_CAUSES,
 } = await import('./retro-evidence');
 import type { RetroTransitionRow } from './retro-types';
 
@@ -65,8 +66,23 @@ describe('countCauses', () => {
     // repairCount は replan を含む10種の合計(verify_repair + ci_repair + plan_invalid_replan)。
     expect(counts.repairCount).toBe(3);
     expect(counts.replanCount).toBe(1);
+    expect(counts.prRecoveryCount).toBe(0);
     expect(counts.anomalyCount).toBe(1);
     expect(counts.invariantCount).toBe(0);
+  });
+
+  test('PR作成再試行系(verify_pr_not_created / verify_pr_retry_lightweight)はrepairとは別に集計される', () => {
+    const rows = [
+      row({ cause: 'verify_repair' }),
+      row({ cause: 'verify_pr_not_created' }),
+      row({ cause: PR_RECOVERY_CAUSES[1] }),
+    ];
+    const counts = countCauses(rows);
+    // repairCount: verify_repair + verify_pr_not_created の2件(verify_pr_retry_lightweight
+    // はREPAIR_CAUSESに含まれないため加算されない)。prRecoveryCountは2causeとも数える。
+    expect(counts.repairCount).toBe(2);
+    expect(counts.prRecoveryCount).toBe(2);
+    expect(counts.replanCount).toBe(0);
   });
 
   test('invariantViolation=true の行数を数える', () => {
@@ -79,6 +95,7 @@ describe('countCauses', () => {
       criticRebounds: 0,
       repairCount: 0,
       replanCount: 0,
+      prRecoveryCount: 0,
       anomalyCount: 0,
       criticFollowRejections: 0,
       invariantCount: 0,
@@ -158,6 +175,7 @@ describe('countCauses — 批評追随拒否の分離(task#601 誤検知の根�
       criticRebounds: 1,
       repairCount: 0,
       replanCount: 0,
+      prRecoveryCount: 0,
       anomalyCount: 0,
       criticFollowRejections: 2,
       invariantCount: 0,

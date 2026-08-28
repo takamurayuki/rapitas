@@ -200,4 +200,28 @@ describe('syncBaseIntoBranch', () => {
     });
     expect(result.status).toBe('conflict_unresolved');
   });
+
+  it('conflict → resolver rejects with ClaudeCliUnavailableError → skipped (fail-open, not conflict_unresolved)', async () => {
+    const { runGit, calls, callsWithOpts } = makeGit({
+      failOn: ['merge'],
+      conflictFiles: ['src/x.ts'],
+    });
+    const cliErr = Object.assign(new Error('Claude CLI timed out after 120000ms'), {
+      name: 'ClaudeCliUnavailableError',
+    });
+    const resolveConflicts = mock().mockRejectedValue(cliErr);
+    const result = await syncBaseIntoBranch({
+      gitCwd: '/wt',
+      baseBranch: 'develop',
+      taskId: 705,
+      deps: deps({ runGit, resolveConflicts }),
+    });
+    expect(result.status).toBe('skipped');
+    expect(result.conflicts).toEqual(['src/x.ts']);
+    expect(calls.some((c) => c.includes('merge') && c.includes('--abort'))).toBe(true);
+    const abortCall = callsWithOpts.find(
+      (c) => c.args.includes('merge') && c.args.includes('--abort'),
+    );
+    expect(abortCall?.opts?.skipLog).toBe(true);
+  });
 });

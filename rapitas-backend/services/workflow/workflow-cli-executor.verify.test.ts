@@ -9,7 +9,7 @@
  * to land. Worktree resolution and non-verify output handling are covered in
  * the sibling split files.
  */
-import { describe, test, expect, beforeEach } from 'bun:test';
+import { describe, test, expect, beforeEach, mock } from 'bun:test';
 import {
   wf,
   spies,
@@ -17,6 +17,37 @@ import {
   installWorkflowCliExecutorMocks,
 } from '../../tests/helpers/workflow-cli-executor-mock-state';
 import type { RoleTransition, WorkflowAdvanceResult } from './workflow-types';
+
+type RepairResult = {
+  bounced: boolean;
+  newStatus?: string;
+  attempt?: number;
+  stale?: boolean;
+  cutoffRecorded?: boolean;
+};
+
+// task 705: this file is the only workflow-cli-executor split suite that
+// exercises the verify phase's hardFail branch, which now dynamically
+// imports verify-self-repair. Mocked locally (not in the shared barrel —
+// no other split file reaches this module) so hardFail tests control the
+// repair outcome instead of hitting the real Prisma calls against the
+// shared prismaMock (which has no workflowTransition/userSettings fields).
+let hasFreshVerifyRejectionImpl: (taskId: number) => Promise<boolean> = async () => false;
+let attemptVerifyRepairImpl: (
+  taskId: number,
+  currentStatus: string | null,
+  reason: string,
+  verifyContent: string,
+) => Promise<RepairResult> = async () => ({ bounced: false });
+const mockHasFreshVerifyRejection = mock((taskId: number) => hasFreshVerifyRejectionImpl(taskId));
+const mockAttemptVerifyRepair = mock(
+  (taskId: number, currentStatus: string | null, reason: string, verifyContent: string) =>
+    attemptVerifyRepairImpl(taskId, currentStatus, reason, verifyContent),
+);
+mock.module('./verify-self-repair', () => ({
+  hasFreshVerifyRejection: mockHasFreshVerifyRejection,
+  attemptVerifyRepair: mockAttemptVerifyRepair,
+}));
 
 installWorkflowCliExecutorMocks();
 const { executeCLIAgent } = await import('./workflow-cli-executor');
@@ -58,6 +89,10 @@ describe('executeCLIAgent — verify phase', () => {
     resetWfMockState();
     wf.readWorkflowFileImpl = async () => '# Verify\nAll checks passed.';
     wf.taskWorkflowState = { ...wf.taskWorkflowState!, workflowStatus: 'in_progress' };
+    hasFreshVerifyRejectionImpl = async () => false;
+    attemptVerifyRepairImpl = async () => ({ bounced: false });
+    mockHasFreshVerifyRejection.mockClear();
+    mockAttemptVerifyRepair.mockClear();
   });
 
   test('already completed by the HTTP handler — never re-touched', async () => {
@@ -84,6 +119,81 @@ describe('executeCLIAgent — verify phase', () => {
     expect(spies.writeBlockedStatusDurable).toHaveBeenCalledTimes(1);
     expect(recordedCauses()).toContain('verify_validation_failed');
     expect(spies.evaluateCompletionGate).not.toHaveBeenCalled();
+  });
+
+  // task 705: the CLI/orchestrator-driven epilogue must give hardFail the same
+  // self-repair chance as the HTTP save path (status-transition.ts) instead of
+  // blocking directly — the original task #684 defect.
+  test('hard validation failure with repair budget available bounces to the implementer instead of blocking', async () => {
+    wf.validateVerify = {
+      ok: false,
+      missingSections: ['テスト結果'],
+      severity: 90,
+      summary: 'missing sections',
+    };
+    attemptVerifyRepairImpl = async () => ({
+      bounced: true,
+      newStatus: 'plan_approved',
+      attempt: 1,
+    });
+
+    const result = await run();
+
+    expect(mockAttemptVerifyRepair).toHaveBeenCalledTimes(1);
+    expect(result.status).toBe('plan_approved');
+    expect(spies.writeBlockedStatusDurable).not.toHaveBeenCalled();
+    expect(recordedCauses()).not.toContain('verify_validation_failed');
+  });
+
+  test('hard validation failure with a stale repair verdict neither bounces nor blocks', async () => {
+    wf.validateVerify = {
+      ok: false,
+      missingSections: ['テスト結果'],
+      severity: 90,
+      summary: 'missing sections',
+    };
+    attemptVerifyRepairImpl = async () => ({ bounced: false, stale: true });
+
+    const result = await run();
+
+    expect(result.status).toBe('in_progress');
+    expect(spies.writeBlockedStatusDurable).not.toHaveBeenCalled();
+    expect(recordedCauses()).not.toContain('verify_validation_failed');
+  });
+
+  test('hard validation failure with repair budget exhausted still blocks and records verify_validation_failed', async () => {
+    wf.validateVerify = {
+      ok: false,
+      missingSections: ['テスト結果'],
+      severity: 90,
+      summary: 'missing sections',
+    };
+    attemptVerifyRepairImpl = async () => ({ bounced: false });
+
+    const result = await run();
+
+    expect(result.status).toBe('in_progress');
+    expect(spies.writeBlockedStatusDurable).toHaveBeenCalledTimes(1);
+    expect(recordedCauses()).toContain('verify_validation_failed');
+  });
+
+  test('hard validation failure cut off for non-convergence blocks WITHOUT double-recording verify_validation_failed', async () => {
+    wf.validateVerify = {
+      ok: false,
+      missingSections: ['テスト結果'],
+      severity: 90,
+      summary: 'missing sections',
+    };
+    attemptVerifyRepairImpl = async () => ({ bounced: false, cutoffRecorded: true });
+
+    const result = await run();
+
+    expect(result.status).toBe('in_progress');
+    // Still blocks durably (task must stop), but does not also record
+    // verify_validation_failed — attemptVerifyRepair already recorded its own
+    // verify_repair_non_convergence transition for this rejection.
+    expect(spies.writeBlockedStatusDurable).toHaveBeenCalledTimes(1);
+    expect(recordedCauses()).not.toContain('verify_validation_failed');
   });
 
   test('a soft validation miss (low severity) still proceeds to the completion gate', async () => {
