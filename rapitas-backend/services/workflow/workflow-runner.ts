@@ -56,6 +56,22 @@ export class WorkflowRunner {
   }
 
   /**
+   * Whether the polling loop is currently active.
+   *
+   * The queue-stall reconciler needs this to tell two situations apart that
+   * look identical from the queue table: a runner that has stopped (kicking it
+   * helps) and a runner that is alive but not claiming items (kicking it is a
+   * no-op). Without it the reconciler logged "restarted WorkflowRunner" 78
+   * times in one day against a runner that answered "Already running" every
+   * time (measured 2026-08-28).
+   *
+   * @returns true while the poll loop is running. / ポーリング稼働中は true
+   */
+  isProcessing(): boolean {
+    return this.running;
+  }
+
+  /**
    * Start the queue monitoring and processing loop.
    */
   startProcessing(intervalMs?: number): void {

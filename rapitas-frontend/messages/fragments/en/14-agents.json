@@ -294,6 +294,102 @@
         "beginner": "Beginner"
       }
     },
+    "pareto": {
+      "pageTitle": "Efficiency Frontier",
+      "pageSubtitle": "Pareto-optimal trade-offs between execution time, success rate and resource cost from past workflow runs, plus goal-driven parameter recommendations",
+      "cpuMemoryNotice": "CPU/memory usage is not recorded in the execution log, so the resource axis uses cost per execution (USD) as a proxy.",
+      "filters": {
+        "title": "Aggregation",
+        "windowDays": "Window",
+        "days": "Last {days} days",
+        "complexityBand": "Data profile (complexity)",
+        "role": "Role",
+        "band": {
+          "all": "All",
+          "low": "Low (≤35)",
+          "medium": "Medium (36–70)",
+          "high": "High (≥71)"
+        }
+      },
+      "workflowType": {
+        "lightweight": "Lightweight",
+        "standard": "Standard",
+        "comprehensive": "Comprehensive",
+        "unknown": "Unknown type"
+      },
+      "roles": {
+        "all": "All roles",
+        "researcher": "Researcher",
+        "planner": "Planner",
+        "implementer": "Implementer",
+        "verifier": "Verifier",
+        "auto_verifier": "Auto verifier"
+      },
+      "segment": {
+        "title": "{workflowType} × {role}",
+        "sampleSize": "{count} runs",
+        "baseline": "Current mix",
+        "frontier": "Pareto-optimal",
+        "dominated": "Dominated",
+        "unreliableShort": "Insufficient data",
+        "axisTime": "Mean execution time (s)"
+      },
+      "table": {
+        "model": "Model",
+        "samples": "Runs",
+        "successRate": "Success rate",
+        "timeSec": "Mean time",
+        "costUsd": "Mean cost",
+        "status": "Verdict",
+        "optimal": "Pareto-optimal",
+        "dominated": "Dominated",
+        "unreliable": "Insufficient data (< {min} runs)",
+        "currentMix": "Baseline",
+        "ci": "Values are estimate [95% CI low – high]. Success rate uses the Wilson interval; time and cost use a normal approximation."
+      },
+      "goal": {
+        "title": "Recommend a parameter set from a business goal",
+        "hint": "Enter this month's goal to get, for every workflow type × role in the current aggregation, the cheapest model assignment that satisfies it plus a projected monthly impact.",
+        "kind": "Goal type",
+        "kinds": {
+          "successRate": "Raise success rate to a target",
+          "throughput": "Improve throughput",
+          "cost": "Reduce cost"
+        },
+        "valueLabel": {
+          "successRate": "Target success rate (%)",
+          "throughput": "Throughput improvement (%)",
+          "cost": "Cost reduction (%)"
+        },
+        "submit": "Compute recommendation",
+        "loading": "Computing..."
+      },
+      "recommendation": {
+        "title": "Recommendations",
+        "correlationNote": "Recommendations are correlational estimates from past runs, not causal effects of a randomised model assignment. Confidence is based on the recommended point's run count (100% at 20 runs).",
+        "noSegments": "No executions match the current aggregation.",
+        "reason": {
+          "ok": "Goal reachable",
+          "already_met": "Already met by the current mix",
+          "insufficient_data": "Insufficient data",
+          "target_unreachable": "Goal unreachable"
+        },
+        "recommended": "Recommended parameter set",
+        "alternative": "Closest candidate",
+        "current": "Current",
+        "insufficientHint": "This segment has no reliable candidate (≥ {min} runs).",
+        "monthlyVolume": "Monthly runs (est.)",
+        "deltaCost": "Cost delta / month",
+        "deltaTime": "Time delta / run",
+        "deltaHours": "Hours delta / month",
+        "deltaSuccess": "Success-rate delta",
+        "confidence": "Confidence"
+      },
+      "empty": {
+        "title": "No executions to aggregate",
+        "hint": "Pareto curves per workflow type × role will appear here once workflow runs accumulate"
+      }
+    },
     "growth": {
       "pageTitle": "Self-Growth Ledger",
       "pageSubtitle": "Weekly evidence that the system is getting smarter over time, from workflow transitions and concern history",

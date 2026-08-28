@@ -42,6 +42,11 @@ const {
   parseReviewVerdict,
   isAdversarialReviewEnabled,
   reviewDiffAdversarially,
+  jurorIsRested,
+  recordJurorOutcome,
+  resetJurorHealth,
+  JUROR_TIMEOUT_STRIKES,
+  JUROR_COOLOFF_MS,
 } = await import('./adversarial-diff-review');
 
 describe('buildDiffReviewPrompt', () => {
@@ -396,5 +401,53 @@ describe('reviewDiffAdversarially', () => {
     await reviewDiffAdversarially({ taskId: 1, worktreePath: '/wt' });
     // First call must NOT be 'claude' (the implementer's own provider).
     expect(calledProviders[0]).not.toBe('claude');
+  });
+});
+
+describe('ジャッジの連続タイムアウトを短絡する', () => {
+  // 実測 2026-08-28: adversarial ログ29件がすべてタイムアウト、うち26件が同一
+  // プロバイダ。jurors は Promise.all なのでレビューは最も遅い1人を待つ。必ず
+  // タイムアウトする相手を毎回120秒待って 'unknown' を受け取っていた。
+  const NOW = 1_800_000_000_000;
+
+  beforeEach(() => {
+    resetJurorHealth();
+  });
+
+  it('規定回数に満たないタイムアウトでは休ませない', () => {
+    for (let i = 0; i < JUROR_TIMEOUT_STRIKES - 1; i++) {
+      recordJurorOutcome('chatgpt', true, NOW);
+    }
+    expect(jurorIsRested('chatgpt', NOW)).toBe(false);
+  });
+
+  it('規定回数の連続タイムアウトで休ませる', () => {
+    for (let i = 0; i < JUROR_TIMEOUT_STRIKES; i++) {
+      recordJurorOutcome('chatgpt', true, NOW);
+    }
+    expect(jurorIsRested('chatgpt', NOW)).toBe(true);
+  });
+
+  it('冷却期間を過ぎれば再び試す', () => {
+    for (let i = 0; i < JUROR_TIMEOUT_STRIKES; i++) {
+      recordJurorOutcome('chatgpt', true, NOW);
+    }
+    expect(jurorIsRested('chatgpt', NOW + JUROR_COOLOFF_MS + 1)).toBe(false);
+  });
+
+  it('1回でも応答すれば連続カウントを捨てる', () => {
+    for (let i = 0; i < JUROR_TIMEOUT_STRIKES - 1; i++) {
+      recordJurorOutcome('chatgpt', true, NOW);
+    }
+    recordJurorOutcome('chatgpt', false, NOW);
+    recordJurorOutcome('chatgpt', true, NOW);
+    expect(jurorIsRested('chatgpt', NOW)).toBe(false);
+  });
+
+  it('休ませるのは当該プロバイダだけ', () => {
+    for (let i = 0; i < JUROR_TIMEOUT_STRIKES; i++) {
+      recordJurorOutcome('chatgpt', true, NOW);
+    }
+    expect(jurorIsRested('claude', NOW)).toBe(false);
   });
 });

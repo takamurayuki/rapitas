@@ -87,9 +87,15 @@ export async function sweepStaleRunningItems(nowMs: number): Promise<number> {
 // is correct — startup runs recoverStaleItems and restarts the runner anyway.
 let starvationSinceMs: number | null = null;
 
+// True once this episode has reported that the runner was already processing.
+// Reset with the episode: the condition persists by design, so without this the
+// same unactionable line repeats every reconciler cycle.
+let noOpKickReported = false;
+
 /** Reset the starvation tracker. Test-only — never call from production code. */
 export function resetQueueStarvationTracker(): void {
   starvationSinceMs = null;
+  noOpKickReported = false;
 }
 
 /**
@@ -111,6 +117,7 @@ export async function detectQueueStarvation(nowMs: number): Promise<number> {
 
   if (runningCount > 0 || queuedCount === 0) {
     starvationSinceMs = null;
+    noOpKickReported = false;
     return 0;
   }
   if (starvationSinceMs === null) {
@@ -121,9 +128,24 @@ export async function detectQueueStarvation(nowMs: number): Promise<number> {
   if (nowMs - starvationSinceMs < QUEUE_STARVATION_THRESHOLD_MS) return 0;
 
   const waitedMinutes = Math.round((nowMs - starvationSinceMs) / 60000);
-  // startProcessing() is idempotent (guarded by its running flag) — a false
-  // positive is a harmless no-op, so kicking the runner is always safe.
-  WorkflowRunner.getInstance().startProcessing();
+  // Two situations look identical from the queue table, and only one of them
+  // this function can fix. A STOPPED runner is what the kick is for. A runner
+  // that is alive but not claiming items is a different fault: the kick returns
+  // "Already running" and nothing changes, so reporting it as "restarted" every
+  // cycle is both false and endless — 78 such pairs on 2026-08-28 alone.
+  const runner = WorkflowRunner.getInstance();
+  const wasRunning = runner.isProcessing();
+  runner.startProcessing();
+  if (wasRunning) {
+    if (!noOpKickReported) {
+      noOpKickReported = true;
+      log.warn(
+        { queuedCount, waitedMinutes },
+        '[reconciler] Queue has items while the runner is already processing — a kick cannot help; not restarting',
+      );
+    }
+    return 0;
+  }
   const oldest = await prisma.workflowQueueItem
     .findFirst({
       where: { status: 'queued' },

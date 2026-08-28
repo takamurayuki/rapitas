@@ -77,6 +77,7 @@ export const spies = {
 
   // prisma
   taskUpdate: mock(() => Promise.resolve({})),
+  taskUpdateMany: mock(() => Promise.resolve({ count: 0 })),
   taskFindUnique: mock(() => Promise.resolve(wf.taskHasLinkedPrRow)),
   agentSessionCreate: mock(() => Promise.resolve({ id: 100 })),
   gitHubPrFindFirst: mock(() => Promise.resolve(wf.linkedPrRow)),

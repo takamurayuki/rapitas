@@ -20,6 +20,11 @@ mock.module('../preview/preview-session-manager', () => ({
   stopAllPreviewSessions: mockStopAllPreviewSessions,
 }));
 
+const mockRecordTransition = mock(() => Promise.resolve());
+mock.module('../../workflow/transition-recorder', () => ({
+  recordTransition: mockRecordTransition,
+}));
+
 const { saveAgentState, saveAllAgentStates, gracefulShutdown, setupSignalHandlers } =
   await import('./lifecycle-manager');
 
@@ -64,7 +69,8 @@ function makePrisma(
     agentSession: { update: overrides.agentSessionUpdate ?? mock(async () => ({})) },
     task: {
       findUnique:
-        overrides.taskFindUnique ?? mock(async () => ({ id: 100, status: 'in-progress' })),
+        overrides.taskFindUnique ??
+        mock(async () => ({ id: 100, status: 'in-progress', workflowStatus: 'in_progress' })),
       update: overrides.taskUpdate ?? mock(async () => ({})),
     },
   } as unknown as PrismaClientInstance;
@@ -156,6 +162,27 @@ describe('saveAgentState', () => {
     expect(taskUpdate).toHaveBeenCalledWith({ where: { id: 100 }, data: { status: 'todo' } });
   });
 
+  test('records a workflow transition when reverting an in-progress task', async () => {
+    mockRecordTransition.mockClear();
+    const taskFindUnique = mock(async () => ({
+      id: 100,
+      status: 'in-progress',
+      workflowStatus: 'in_progress',
+    }));
+    const prisma = makePrisma({ taskFindUnique });
+    const info = makeAgentInfo({ taskId: 100 });
+
+    await saveAgentState(prisma, 1, info, 'interrupted');
+
+    expect(mockRecordTransition).toHaveBeenCalledTimes(1);
+    expect(mockRecordTransition.mock.calls[0][0]).toMatchObject({
+      taskId: 100,
+      fromStatus: 'in_progress',
+      toStatus: 'in_progress',
+      cause: 'agent_lifecycle_shutdown_revert',
+    });
+  });
+
   test('does not touch a task that is not in-progress', async () => {
     const taskUpdate = mock(async () => ({}));
     const taskFindUnique = mock(async () => ({ id: 100, status: 'done' }));
@@ -165,6 +192,21 @@ describe('saveAgentState', () => {
     await saveAgentState(prisma, 1, info, 'interrupted');
 
     expect(taskUpdate).not.toHaveBeenCalled();
+  });
+
+  test('does not record a transition for a task that is not in-progress', async () => {
+    mockRecordTransition.mockClear();
+    const taskFindUnique = mock(async () => ({
+      id: 100,
+      status: 'done',
+      workflowStatus: 'completed',
+    }));
+    const prisma = makePrisma({ taskFindUnique });
+    const info = makeAgentInfo();
+
+    await saveAgentState(prisma, 1, info, 'interrupted');
+
+    expect(mockRecordTransition).not.toHaveBeenCalled();
   });
 
   test('missing task is handled without throwing or updating', async () => {

@@ -11,6 +11,7 @@
 
 import { createLogger } from '../../../config';
 import type { OrchestratorContext } from './types';
+import { recordTransition } from '../../workflow/transition-recorder';
 
 const logger = createLogger('stale-recovery-helpers');
 
@@ -116,7 +117,7 @@ export async function updateAffectedTasks(
     try {
       const task = await ctx.prisma.task.findUnique({
         where: { id: taskId },
-        select: { id: true, status: true },
+        select: { id: true, status: true, workflowStatus: true },
       });
 
       if (task && task.status === 'in-progress') {
@@ -126,6 +127,18 @@ export async function updateAffectedTasks(
         });
         updated++;
         logger.info(`[RecoveryManager] Task ${taskId} reverted to 'todo'`);
+        // Record the revert so isWithinRecoveryGrace (incident-signature-detectors.ts)
+        // can grant this deliberate `status='todo'` × advanced `workflowStatus`
+        // shape its recovery grace period (task 709: previously unrecorded,
+        // causing an immediate Pattern B false positive — task #602).
+        await recordTransition({
+          taskId,
+          fromStatus: task.workflowStatus,
+          toStatus: task.workflowStatus ?? 'draft',
+          actor: 'system',
+          cause: 'stale_execution_recovery_revert',
+          metadata: { reason: 'stale_execution_recovery' },
+        }).catch(() => {});
       }
     } catch (error) {
       logger.error({ err: error, taskId }, `[RecoveryManager] Failed to update task`);
